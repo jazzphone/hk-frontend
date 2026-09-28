@@ -1,0 +1,25 @@
+{
+  "domain": "hk_frontend",
+  "name": "HK Frontend",
+  "after_dependencies": [
+    "camera",
+    "go2rtc",
+    "lovelace",
+    "music_assistant"
+  ],
+  "codeowners": [
+    "@jazzphone"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "panel_custom",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/jazzphone/hk-frontend",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/jazzphone/hk-frontend/issues",
+  "version": "1.0.0"
+}

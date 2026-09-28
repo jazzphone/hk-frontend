@@ -1,0 +1,63 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>hk-sky probe</title>
+<style>
+ body{margin:0;background:#0d1420;color:#eaf0ff;font:16px/1.45 system-ui,sans-serif;padding:18px}
+ h1{font-size:20px;margin:0 0 12px}
+ table{border-collapse:collapse;width:100%}
+ td{padding:6px 10px;border-bottom:1px solid #26324a;vertical-align:top}
+ td:first-child{color:#8fa4c8;white-space:nowrap;width:1%}
+ .bad{color:#ff8080;font-weight:700}.good{color:#7ee0a0;font-weight:700}
+ #stage{position:fixed;left:-9999px;top:0;width:200px;height:60px}
+ #guarded{width:100px;height:20px;background:#fff;will-change:transform;animation:mv 2s linear infinite}
+ /* byte-for-byte the guard hk-sky.js:389 uses */
+ @media (prefers-reduced-motion:reduce){#guarded{animation:none!important}}
+ #mover{width:100px;height:20px;background:#fff;
+   -webkit-mask-image:url(/hk/sky/clouds-c.png?v=probe);mask-image:url(/hk/sky/clouds-c.png?v=probe);
+   -webkit-mask-size:560px 20px;mask-size:560px 20px;
+   will-change:transform;animation:mv 2s linear infinite}
+ @keyframes mv{from{transform:translate3d(0,0,0)}to{transform:translate3d(120px,0,0)}}
+</style>
+<h1>hk-sky probe</h1>
+<div id=stage><div id=mover></div><div id=guarded></div></div>
+<table id=t></table>
+<script>
+(function(){
+  const rows=[];
+  const add=(k,v,cls)=>rows.push('<tr><td>'+k+'</td><td'+(cls?' class="'+cls+'"':'')+'>'+String(v)+'</td></tr>');
+  const rm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  add('prefers-reduced-motion', rm ? 'REDUCE  <- this alone stops every sky animation' : 'no-preference', rm?'bad':'good');
+  add('visibilityState', document.visibilityState + (document.hidden?'  <- hidden pauses the sky':''), document.hidden?'bad':'good');
+  add('devicePixelRatio', devicePixelRatio);
+  add('viewport', innerWidth+' x '+innerHeight);
+  add('deviceMemory (GB)', navigator.deviceMemory ?? 'n/a');
+  add('hardwareConcurrency', navigator.hardwareConcurrency ?? 'n/a');
+  const ua=navigator.userAgent;
+  add('Chrome/WebView', (ua.match(/Chrome\/[\d.]+/)||['?'])[0] + (/wv\)/.test(ua)?'  (WebView)':''));
+  add('Android', (ua.match(/Android [\d.]+/)||['?'])[0]);
+  add('mask-image supported', CSS.supports('mask-image','url(x)')||CSS.supports('-webkit-mask-image','url(x)') ? 'yes':'NO', 'good');
+  add('user-agent', ua);
+  document.getElementById('t').innerHTML = rows.join('');
+
+  // Does an animated transform ACTUALLY advance on this device?
+  const el=document.getElementById('mover');
+  const gd=document.getElementById('guarded');
+  const read=(e)=>{const m=new DOMMatrixReadOnly(getComputedStyle(e).transform); return m.m41;};
+  const a=read(el), ga=read(gd);
+  setTimeout(()=>{
+    const b=read(el), gb=read(gd);
+    const moved=Math.abs(b-a)>0.5;
+    const gmoved=Math.abs(gb-ga)>0.5;
+    const anims = (el.getAnimations?el.getAnimations().length:-1);
+    const extra='<tr><td>transform advanced?</td><td class="'+(moved?'good':'bad')+'">'
+      + (moved?'YES  ('+a.toFixed(1)+' -> '+b.toFixed(1)+'px)':'NO  (stuck at '+a.toFixed(1)+'px)')
+      + '</td></tr><tr><td>GUARDED layer advanced?</td><td class="'+(gmoved?'good':'bad')+'">'
+      + (gmoved?'YES - the reduced-motion guard is NOT firing':'NO - hk-sky\'s guard IS firing on this device')
+      + '</td></tr><tr><td>getAnimations()</td><td>'+anims+'</td></tr>';
+    document.getElementById('t').insertAdjacentHTML('afterbegin', extra);
+    // readback: a kiosk browser's current-page sensor in HA reports the full URL
+    try{ history.replaceState(null,'', location.pathname
+      + '?moved='+(moved?1:0)+'&guard='+(gmoved?1:0)+'&rm='+(rm?1:0)+'&hidden='+(document.hidden?1:0)
+      + '&anims='+anims+'&mem='+(navigator.deviceMemory??'na')+'&dpr='+devicePixelRatio+'&wv='+encodeURIComponent((navigator.userAgent.match(/Chrome\/[\d.]+/)||['?'])[0]+' '+(navigator.userAgent.match(/Android [\d.]+/)||['?'])[0])); }catch(e){}
+  }, 900);
+})();
+</script>

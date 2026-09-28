@@ -1,0 +1,111 @@
+// Resolved relative to this file so the suite runs from anywhere.
+var DIR = (function(){ var p = HK_ROOT + '/tests/'; return p; })();
+load(DIR + 'dom.js');
+(function(){ var o=document.createElement.bind(document);
+  document.createElement=function(t){var e=o(t);
+    if(String(t).toLowerCase()==='hui-card'&&!e.load)e.load=function(){};
+    if(String(t).toLowerCase()==='ha-form'){e.computeLabel=null;}
+    return e;};})();
+// Load the base and every card family.
+load(HK_ROOT + '/frontend/cards/hk-base.js');
+load(HK_ROOT + '/frontend/cards/hk-tile.js');
+load(HK_ROOT + '/frontend/cards/hk-media.js');
+load(HK_ROOT + '/frontend/cards/hk-cameras.js');
+load(HK_ROOT + '/frontend/cards/hk-security.js');
+load(HK_ROOT + '/frontend/cards/hk-home.js');
+load(HK_ROOT + '/frontend/cards/hk-energy.js');
+load(HK_ROOT + '/frontend/cards/hk-layout.js');
+// The shim's createElement returns a generic node; a real browser UPGRADES a
+// registered custom element synchronously. Emulate that, or the editor's
+// `this._form.setConfig(...)` has nothing to call. Harness gap, not a card bug.
+(function(){
+  var prev=document.createElement.bind(document);
+  document.createElement=function(tag){
+    var Ctor = customElements.get(String(tag).toLowerCase());
+    if (Ctor) { try { return new Ctor(); } catch(e) {} }
+    return prev(tag);
+  };
+})();
+var E=customElements.get('hk-camera-mosaic-editor');
+var pass=0,fail=0;
+function ok(n,c,x){if(c){pass++;print('  PASS  '+n);}else{fail++;print('  FAIL  '+n+(x?'   '+x:''));}}
+
+// LOGIC ONLY. setConfig() calls _build(), which assembles ha-form and a row of
+// controls -- the jsc shim has no real custom-element upgrade or event target,
+// and patching it far enough to run _build() would be testing the shim rather
+// than the editor. _build() is verified in the browser instead; everything
+// below is the part worth asserting: what the dropdowns offer, what reorder
+// does, and what actually gets emitted.
+function ed(cams){
+  var e=Object.create(E.prototype);
+  e._hass={states:{
+    'input_select.cameras':{state:'Front Door',
+      attributes:{options:['Front Door','Driveway','Deck']}},
+    'camera.a_low':{state:'idle'},'camera.b_low':{state:'idle'},'camera.c_low':{state:'idle'},
+    'light.x':{state:'on'}}};
+  e._config={selector:'input_select.cameras', cameras:cams||[]};
+  e._build=function(){};                 // DOM assembly is a browser concern
+  e._events=[];
+  e.dispatchEvent=function(ev){ e._events.push(ev); if(e._onCfg) e._onCfg(ev); return true; };
+  e.addEventListener=function(n,fn){ if(n==='config-changed') e._onCfg=fn; };
+  return e;
+}
+
+print('=== it only offers cameras and the selector\'s own options ===');
+var e=ed();
+ok('camera dropdown lists only camera.* entities',
+   JSON.stringify(e._cameraEntities())==='["camera.a_low","camera.b_low","camera.c_low"]',
+   JSON.stringify(e._cameraEntities()));
+ok('option dropdown comes from the selector entity',
+   JSON.stringify(e._selectorOptions())==='["Front Door","Driveway","Deck"]',
+   JSON.stringify(e._selectorOptions()));
+var e2=ed([]); e2._hass={states:{}}; e2._config={cameras:[]};
+ok('no selector configured -> empty options, no throw',
+   JSON.stringify(e2._selectorOptions())==='[]');
+
+print('\n=== reorder ===');
+var cams=[{name:'A',option:'Front Door',entity:'camera.a_low'},
+          {name:'B',option:'Driveway',entity:'camera.b_low'},
+          {name:'C',option:'Deck',entity:'camera.c_low'}];
+var e3=ed(cams.map(function(c){return Object.assign({},c);}));
+var emitted=null;
+e3.addEventListener('config-changed',function(ev){emitted=ev.detail.config;});
+e3._move(0,1);
+ok('move down swaps 0 and 1',
+   e3._config.cameras.map(function(c){return c.name;}).join('')==='BAC',
+   e3._config.cameras.map(function(c){return c.name;}).join(''));
+ok('  and it emitted config-changed', emitted && emitted.cameras.length===3);
+// the order is BAC now; an out-of-range move must LEAVE IT THERE, not undo
+e3._move(0,-1);
+ok('move up past the start is a no-op',
+   e3._config.cameras.map(function(c){return c.name;}).join('')==='BAC',
+   e3._config.cameras.map(function(c){return c.name;}).join(''));
+e3._move(2,1);
+ok('move down past the end is a no-op',
+   e3._config.cameras.map(function(c){return c.name;}).join('')==='BAC',
+   e3._config.cameras.map(function(c){return c.name;}).join(''));
+e3._move(1,-1);
+ok('move up from the middle restores ABC',
+   e3._config.cameras.map(function(c){return c.name;}).join('')==='ABC',
+   e3._config.cameras.map(function(c){return c.name;}).join(''));
+
+print('\n=== emit hygiene ===');
+var e4=ed([{name:'A',option:'Front Door',entity:'camera.a_low'},
+           {name:'',option:'',entity:''}]);
+var got=null; e4.addEventListener('config-changed',function(ev){got=ev.detail.config;});
+e4._emit();
+ok('a half-filled row is NOT written to the config',
+   got.cameras.length===1 && got.cameras[0].entity==='camera.a_low',
+   JSON.stringify(got.cameras));
+ok('the selector survives the emit', got.selector==='input_select.cameras');
+
+print('\n=== the card accepts what the editor emits ===');
+var C=customElements.get('hk-camera-mosaic-card');
+var c=new C(); c.setConfig(got);
+c.hass={states:{'input_select.cameras':{state:'Front Door',last_updated:'t'}}};
+ok('round-trip: card plans from the editor output', c._plan().live.name==='A');
+ok('stub config is valid for the card', (function(){
+   var s=C.getStubConfig(); var cc=new C(); cc.setConfig(s);
+   cc.hass={states:{}}; return cc._plan()===null; })());
+
+print('\n' + (fail? 'FAILURES: '+fail : 'ALL '+pass+' EDITOR TESTS PASS'));

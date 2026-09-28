@@ -1,0 +1,724 @@
+// hk-detail.js, DRIVEN. test_detail.js pins the decisions in the source;
+// this suite builds the real panels and the real sheet in the DOM shim and
+// presses them: the lock's ring, the history entry, the hass feed, the
+// artwork box, the thermostat's trend, the sensor chart's range, the
+// unavailable state. Each case pins a defect that review found, reproduced
+// here in jsc.
+//
+// The shim does not parse HTML and its innerHTML is write-only, so each
+// element made here keeps the last string it was given (_html) and a
+// classList that honors `force`; custom tags come out of createElement as
+// their real classes. history and location are a small model with the one
+// property that matters: back() is ASYNC (popstate fires later), as in a
+// browser.
+if (typeof HK_ROOT === 'undefined')
+  throw new Error('HK_ROOT is not set -- run this through tests/run, not jsc directly');
+load(HK_ROOT + '/tests/dom.js');
+
+function __aug(el) {
+  Object.defineProperty(el, 'innerHTML', { configurable: true,
+    get: function () { return this._html || ''; },
+    set: function (v) { this.children = []; this._html = String(v); this.__q = {}; } });
+  return el;
+}
+(function () {
+  var ce = document.createElement;
+  var El0 = ce.call(document, 'div').constructor;
+  document.createElement = function (t) {
+    var K = customElements.get(String(t).toLowerCase());
+    if (K) { var k = new K(); k.tagName = String(t).toUpperCase(); return k; }
+    return __aug(ce.call(document, t));
+  };
+  El0.prototype.querySelector = function (sel) {
+    this.__q = this.__q || {};
+    if (!this.__q[sel]) { var e = __aug(new El0('stub')); e.__sel = sel; e.parentNode = this; this.__q[sel] = e; }
+    return this.__q[sel];
+  };
+  HTMLElement.prototype.querySelector = El0.prototype.querySelector;
+  var as = HTMLElement.prototype.attachShadow;
+  HTMLElement.prototype.attachShadow = function () { var r = as.apply(this, arguments); __aug(r); this.shadowRoot = r; return r; };
+})();
+
+// ---- history / location
+var HIST = { stack: [{ state: null, url: 'http://ha/dashboard-kitchen/0' }], i: 0, pops: [] };
+function resetHistory() { HIST.stack = [{ state: null, url: 'http://ha/dashboard-kitchen/0' }]; HIST.i = 0; HIST.pops = []; }
+globalThis.location = {
+  get href() { return HIST.stack[HIST.i].url; },
+  get pathname() { return HIST.stack[HIST.i].url.replace(/^http:\/\/ha/, '').split('#')[0]; },
+  get hash() { var u = HIST.stack[HIST.i].url, k = u.indexOf('#'); return k < 0 ? '' : u.slice(k); },
+  host: 'ha'
+};
+globalThis.history = {
+  get state() { return HIST.stack[HIST.i].state; },
+  pushState: function (s, t, u) {
+    HIST.stack = HIST.stack.slice(0, HIST.i + 1);
+    HIST.stack.push({ state: s == null ? null : JSON.parse(JSON.stringify(s)), url: u }); HIST.i++;
+  },
+  replaceState: function (s, t, u) { HIST.stack[HIST.i] = { state: s == null ? null : s, url: u }; },
+  back: function () {
+    HIST.pops.push(function () { if (HIST.i > 0) { HIST.i--; dispatchEvent({ type: 'popstate' }); } });
+  }
+};
+function flushPops() { var p = HIST.pops; HIST.pops = []; p.forEach(function (f) { f(); }); }
+
+// ---- <home-assistant>, frames, the rest of a browser this file touches
+var HA = { hass: null, shadowRoot: null };
+document.querySelector = function (sel) { return sel === 'home-assistant' ? HA : null; };
+document.body = document.createElement('body');
+globalThis.matchMedia = function () { return { matches: false }; };
+globalThis.WeakRef = globalThis.WeakRef || function (o) { this.deref = function () { return o; }; };
+globalThis.requestAnimationFrame = function (fn) { __timers.push({ fn: fn, ms: 0, raf: true }); return __timers.length; };
+// run (once) the queued timers that match; new ones queued meanwhile wait
+function fire(pred) {
+  var due = [];
+  __timers.forEach(function (t, i) { if (t && pred(t)) { due.push(t); __timers[i] = null; } });
+  due.forEach(function (t) { t.fn(); });
+}
+function frames() { fire(function (t) { return t.raf; }); }
+
+load(HK_ROOT + '/frontend/cards/hk-base.js');
+load(HK_ROOT + '/frontend/cards/hk-detail.js');
+var D = window.hkDetail, _ = D._, C = window.hkCards;
+
+var pass = 0, fail = 0;
+function ok(n, c, d) {
+  if (c) { pass++; print('  PASS  ' + n); }
+  else { fail++; print('  FAIL  ' + n + (d !== undefined ? '   got ' + JSON.stringify(d) : '')); }
+}
+function drain() { for (var i = 0; i < 6; i++) drainMicrotasks(); }
+
+var CALLS = [];
+function house(map, stamp) {
+  var states = {};
+  Object.keys(map).forEach(function (id) {
+    states[id] = { entity_id: id, state: map[id][0], attributes: map[id][1] || {},
+                   last_updated: map[id][2] || stamp || 't1', last_changed: map[id][2] || stamp || 't1' };
+  });
+  // a dashboard panel for the pages these tests stand on (pop-ups answer only
+  // on a dashboard), and one of HA's own pages that is not one
+  return { states: states, entities: {}, devices: {}, areas: {},
+           panels: { 'dashboard-kitchen': { component_name: 'lovelace' }, config: { component_name: 'config' } },
+           callService: function (d, s, data) { CALLS.push(d + '.' + s); return Promise.resolve(); } };
+}
+function panel(tag, id, h, src) {
+  var P = customElements.get(tag), p = new P();
+  p.setConfig({ entity: id, kind: 'x', src: src || {}, glass: false });
+  p.hass = h;
+  return p;
+}
+function setState(p, id, state, attrs, stamp) {
+  var h = Object.assign({}, p._hass, { states: Object.assign({}, p._hass.states) });
+  h.states[id] = { entity_id: id, state: state, attributes: attrs, last_updated: stamp, last_changed: stamp };
+  p.hass = h;
+}
+
+// =====================================================================
+print('=== the ring: one press, one action, decided when the finger lands ===');
+function press(tag, id, st0, attrs, during, holdMs) {
+  __resetTimers(); CALLS = [];
+  var p = panel(tag, id, house((function () { var m = {}; m[id] = [st0, attrs]; return m; })()));
+  var b = p._root.querySelector('.lk'), ev = { pointerId: 1, preventDefault: function () {} };
+  b._listeners.pointerdown.forEach(function (f) { f(ev); });
+  if (holdMs >= 1000) fire(function (t) { return t.ms === 1000; });
+  if (during) setState(p, id, during, attrs, 't2');
+  b._listeners.pointerup.forEach(function (f) { f(ev); });
+  fire(function (t) { return t.ms === 1000; });   // a timer that was canceled must not fire late
+  return CALLS.slice();
+}
+var LOCK = { supported_features: 0 }, GARAGE = { supported_features: 11, device_class: 'garage' };
+var r;
+r = press('hk-detail-lock', 'lock.front', 'locked', LOCK, 'unlocked', 1000);
+ok('lock: hold past the unlock, then let go -- exactly one call, unlock (never a second one that locks)',
+   r.join() === 'lock.unlock', r);
+r = press('hk-detail-lock', 'lock.front', 'locked', LOCK, null, 400);
+ok('lock: let go before the ring fills -- nothing', r.length === 0, r);
+r = press('hk-detail-lock', 'lock.front', 'unlocked', LOCK, null, 0);
+ok('lock: a tap on an unlocked lock locks it', r.join() === 'lock.lock', r);
+r = press('hk-detail-lock', 'lock.front', 'jammed', LOCK, null, 0);
+ok('lock: a tap on a JAMMED lock retries locking (the safe direction)', r.join() === 'lock.lock', r);
+r = press('hk-detail-lock', 'lock.front', 'jammed', LOCK, null, 1000);
+ok('lock: a jammed lock is never unlocked by a hold', r.join() === 'lock.lock' || r.length <= 1 && r.indexOf('lock.unlock') === -1, r);
+r = press('hk-detail-garage', 'cover.garage', 'closed', GARAGE, 'open', 1000);
+ok('garage: hold, it reads open under the finger, let go -- exactly one open_cover (no close pulse)',
+   r.join() === 'cover.open_cover', r);
+r = press('hk-detail-garage', 'cover.garage', 'closed', GARAGE, 'opening', 1000);
+ok('garage: ...or reads opening -- still exactly one open_cover (no stop)', r.join() === 'cover.open_cover', r);
+r = press('hk-detail-garage', 'cover.garage', 'open', GARAGE, null, 0);
+ok('garage: a tap on an open door closes it', r.join() === 'cover.close_cover', r);
+r = press('hk-detail-valve', 'valve.main', 'open', { supported_features: 3 }, null, 1000);
+ok('valve: hold to close', r.join() === 'valve.close_valve', r);
+(function () {
+  // someone else shut it during the hold: the press was for "close", and
+  // the ring must not now OPEN the water
+  __resetTimers(); CALLS = [];
+  var attrs = { supported_features: 3 };
+  var p = panel('hk-detail-valve', 'valve.main', house({ 'valve.main': ['open', attrs] }));
+  var b = p._root.querySelector('.lk'), ev = { pointerId: 1, preventDefault: function () {} };
+  b._listeners.pointerdown.forEach(function (f) { f(ev); });
+  setState(p, 'valve.main', 'closed', attrs, 't2');
+  fire(function (t) { return t.ms === 1000; });
+  b._listeners.pointerup.forEach(function (f) { f(ev); });
+  ok('valve: shut by someone else mid-hold -- the ring sends nothing (never the opposite)', CALLS.length === 0, CALLS);
+})();
+(function () {
+  __resetTimers(); CALLS = [];
+  var asked = null, orig = C.confirmSheet;
+  C.confirmSheet = function (text, go) { asked = { text: text, go: go }; };
+  var p = panel('hk-detail-lock', 'lock.front', house({ 'lock.front': ['locked', LOCK] }), { name: 'Front Door' });
+  var b = p._root.querySelector('.lk');
+  b._listeners.keydown.forEach(function (f) { f({ key: 'Enter', preventDefault: function () {} }); });
+  ok('keyboard: Enter on a locked lock asks first', asked && asked.text === 'Unlock Front Door?' && CALLS.length === 0, asked && asked.text);
+  setState(p, 'lock.front', 'unlocked', LOCK, 't2');
+  asked.go();
+  ok('keyboard: a yes that lands after someone else unlocked it sends nothing', CALLS.length === 0, CALLS);
+  C.confirmSheet = orig;
+})();
+
+// =====================================================================
+print('\n=== which sheet ===');
+var K = house({
+  'cover.frunk': ['closed', { supported_features: 1, device_class: 'door' }],
+  'cover.tilt': ['closed', { supported_features: 240, device_class: 'blind' }],
+  'cover.gate': ['closed', { supported_features: 3, device_class: 'gate' }],
+  'cover.window': ['closed', { supported_features: 3, device_class: 'window' }]
+});
+ok('a door cover (a frunk) is the ring, from hk-base\'s own DOOR_COVERS', D.kindOf(K, 'cover.frunk') === 'garage' &&
+   C.DOOR_COVERS && C.DOOR_COVERS.door === 1 && C.neverToggles(K, 'cover.frunk'));
+ok('a tilt-only blind falls through to HA\'s dialog', D.kindOf(K, 'cover.tilt') === null);
+ok('a gate is the ring, a car window is buttons', D.kindOf(K, 'cover.gate') === 'garage' && D.kindOf(K, 'cover.window') === 'cover_buttons');
+(function () {
+  var p = panel('hk-detail-garage', 'cover.frunk', K);
+  ok('a door cover draws a door, not a garage', p._glyph === 'hk:door-closed', p._glyph);
+})();
+
+// =====================================================================
+print('\n=== unavailable, one way ===');
+(function () {
+  var U = house({
+    'light.dead': ['unavailable', { supported_color_modes: ['color_temp', 'xy'] }],
+    'cover.shade': ['unavailable', { supported_features: 15, device_class: 'shade' }],
+    'cover.odd': ['unknown', { supported_features: 15 }],
+    'fan.f': ['unavailable', { supported_features: 1, percentage_step: 25 }],
+    'input_number.n': ['unavailable', { min: 0, max: 10, step: 1 }]
+  });
+  var l = panel('hk-detail-light', 'light.dead', U);
+  ok('an unavailable light says so (not "Off") and its controls stand down', l._big.textContent === 'Unavailable' && l.hasAttribute('na'),
+     l._big.textContent);
+  var c = panel('hk-detail-cover', 'cover.shade', U);
+  ok('an unavailable shade says so (not "Open" at 100 %)', c._big.textContent === 'Unavailable' && c.hasAttribute('na'), c._big.textContent);
+  var o = panel('hk-detail-cover', 'cover.odd', U);
+  ok('an UNKNOWN shade claims no position and still takes commands', o._big.textContent === '—' && !o.hasAttribute('na'), o._big.textContent);
+  var f = panel('hk-detail-fan', 'fan.f', U);
+  ok('an unavailable fan says so', f._big.textContent === 'Unavailable' && f.hasAttribute('na'), f._big.textContent);
+  var n = panel('hk-detail-number', 'input_number.n', U);
+  ok('an unavailable number says so', n._n.textContent === 'Unavailable' && n.hasAttribute('na'), n._n.textContent);
+  setState(l, 'light.dead', 'on', { supported_color_modes: ['color_temp', 'xy'], brightness: 255 }, 't2');
+  ok('...and comes back when it does', l._big.textContent === '100%' && !l.hasAttribute('na'), l._big.textContent);
+})();
+
+// =====================================================================
+print('\n=== the sheet: hass, history, Escape ===');
+var H0 = house({
+  'light.a': ['on', { supported_color_modes: ['brightness'], brightness: 128 }],
+  'sensor.t': ['71', { unit_of_measurement: '°F' }],
+  'media_player.x': ['playing', { supported_features: 16389, volume_level: 0.3, media_title: 'A' }]
+});
+HA.hass = H0;
+(function () {
+  // the hub is only as fresh as the hk cards on screen
+  var card = new (customElements.get('hk-detail-state'))();
+  card.setConfig({ entity: 'sensor.t' });
+  var stale = house({ 'sensor.t': ['60', {}] });
+  card.hass = stale;
+  ok('hkCards.hass() prefers <home-assistant> over whatever an hk card saw last', C.hass() === H0);
+})();
+resetHistory(); __resetTimers();
+ok('open() takes the sheet', D.open('light.a', {}) === true && _.state().el);
+var d1 = _.state();
+ok('the entry carries this sheet\'s token', history.state && history.state.hkDetail === 'light.a' && history.state.hkTok === d1.tok, history.state);
+ok('the panel stays out of the shared blur (glass: false)', d1.panel._config.glass === false &&
+   (d1.panel.connectedCallback(), !window.__hkGlassCards.has(d1.panel)));
+var H1 = house({ 'light.a': ['on', { supported_color_modes: ['brightness'], brightness: 255 }, 't2'],
+                 'sensor.t': ['71', { unit_of_measurement: '°F' }],
+                 'media_player.x': ['playing', { supported_features: 16389, volume_level: 0.3, media_title: 'A' }] });
+HA.hass = H1;
+frames();
+ok('with no hk card on screen, the sheet still gets the new state from <home-assistant>', d1.panel._hass === H1 && d1.panel._big.textContent === '100%',
+   d1.panel._big.textContent);
+// a sheet opened from a sheet takes over its entry
+var depth = HIST.stack.length;
+D.open('sensor.t', {});
+var d2 = _.state();
+ok('a sheet opened from a sheet reuses the entry (no dead Back press left behind)', HIST.stack.length === depth &&
+   history.state.hkDetail === 'sensor.t' && history.state.hkTok === d2.tok, { n: HIST.stack.length, st: history.state });
+D.close(); flushPops();
+ok('X goes back off our own entry, once', HIST.i === 0 && !_.state().el, HIST.i);
+// a pop-up opens over the sheet (hk-popup's setHash: pushState + location-changed)
+resetHistory(); __resetTimers();
+D.open('light.a', {});
+history.pushState(null, '', 'http://ha/dashboard-kitchen/0#media');
+dispatchEvent({ type: 'location-changed' });
+flushPops();
+ok('a pop-up\'s hash takes the sheet down, quietly', !_.state().el);
+ok('...and leaves the pop-up\'s entry alone (it was going back off it: a dismissal)', location.hash === '#media' && HIST.i === 2,
+   { hash: location.hash, i: HIST.i });
+// even a pop-up that copies our state is not ours to go back from
+resetHistory(); __resetTimers();
+D.open('light.a', {});
+var d3 = _.state();
+history.pushState({ hkDetail: 'light.a', hkTok: 999 }, '', location.href);
+D.close(); flushPops();
+ok('X on an entry with another token does not go back', HIST.i === 2, HIST.i);
+// a sheet opened from inside a pop-up keeps its hash
+resetHistory(); __resetTimers();
+history.pushState(null, '', 'http://ha/dashboard-kitchen/0#media');
+D.open('light.a', {});
+dispatchEvent({ type: 'location-changed' });
+ok('a sheet opened over the pop-up\'s own hash stays up', !!_.state().el);
+D.close(); flushPops();
+ok('...and its X returns to the pop-up', location.hash === '#media' && !_.state().el, location.hash);
+// Back and Escape
+resetHistory(); __resetTimers();
+D.open('light.a', {});
+history.back(); flushPops();
+ok('the Back button closes it', !_.state().el);
+D.open('light.a', {});
+dispatchEvent({ type: 'keydown', key: 'Escape', stopPropagation: function () {} });
+flushPops();
+ok('Escape closes it, and takes our entry with it', !_.state().el && HIST.i === 0, HIST.i);
+
+// =====================================================================
+print('\n=== interception ===');
+function path(list) { return { composedPath: function () { return list; } }; }
+function tag(t, cfg) { return { tagName: t, _config: cfg }; }
+ok('taken from a dashboard', _.fromDashboard(path([tag('HUI-TILE-CARD'), tag('HA-PANEL-LOVELACE')])));
+ok('taken from an hk pop-up beside the panel', _.fromDashboard(path([tag('HK-TILE-CARD'), tag('HOME-ASSISTANT')])));
+ok('NOT from an hk card inside HA\'s card editor (an HA dialog)',
+   !_.fromDashboard(path([tag('HK-TILE-CARD'), tag('HUI-CARD-PREVIEW'), tag('HA-DIALOG'), tag('HOME-ASSISTANT')])));
+ok('NOT from HA\'s home panel (the Overview)', !_.fromDashboard(path([tag('HUI-TILE-CARD'), tag('HA-PANEL-HOME')])));
+var pill = tag('HK-TILE-CARD', { entity: 'light.a', name: 'Lamp', icon: 'hk:lamp', icon_color: 'yellow' });
+var row = tag('HK-ROW-CARD', { entity: 'switch.other', name: 'Row' });
+ok('the source is the card showing THIS entity', _.sourceOf(path([pill, row]), 'light.a').name === 'Lamp');
+ok('a container or another card\'s name never labels the sheet', !_.sourceOf(path([row]), 'light.a').name &&
+   _.sourceOf(path([tag('HK-GRID-CARD', { name: 'Grid' }), pill]), 'light.a').name === 'Lamp');
+
+// =====================================================================
+print('\n=== the header glyph ===');
+ok('near-white is every channel bright', _.nearWhite('rgba(255, 255, 255, 0.85)') && _.nearWhite('#fff') &&
+   !_.nearWhite(C.PALETTE.icon.yellow) && !_.nearWhite(C.PALETTE.icon.mint) && !_.nearWhite('var(--x)'));
+resetHistory(); __resetTimers();
+D.open('media_player.x', { icon_color: 'rgba(255, 255, 255, 0.85)' });
+ok('a playing speaker with a near-white pill draws a dark glyph in its well', _.state().icon.style.color === 'rgba(0,0,0,0.78)',
+   _.state().icon.style.color);
+D.close(true);
+
+// =====================================================================
+print('\n=== media ===');
+(function () {
+  __resetTimers();
+  var M = house({ 'media_player.x': ['playing', { supported_features: 16389, entity_picture: '/api/media_player_proxy/x?1' }] });
+  var p = panel('hk-detail-media', 'media_player.x', M);
+  var art = p._e.art, first = art.children[0];
+  var oldTimer = __timers.filter(function (t) { return t && t.ms === 6000; })[0];
+  setState(p, 'media_player.x', 'playing', { supported_features: 16389, entity_picture: '/api/media_player_proxy/x?2' }, 't2');
+  ok('a track change swaps in ONE new box (never two covers side by side)', art.children.length === 1 && art.children[0] !== first,
+     art.children.length);
+  var now = art.children[0];
+  fire(function (t) { return t === oldTimer; });   // the OLD cover's timeout, which never loaded
+  ok('the old cover\'s timeout cannot touch the new one', art.children[0] === now && now.children.length === 1 && now.children[0].tagName === 'img',
+     { n: art.children.length, kids: now.children.length });
+})();
+(function () {
+  var orig = window.hkMusic;
+  window.hkMusic = { known: function (id) { return id === 'media_player.homepod'; }, setFocus: function () { return true; } };
+  var M = house({ 'media_player.homepod': ['idle', { supported_features: 16389 }],
+                  'media_player.volumio': ['idle', { supported_features: 16389 }] });
+  var a = panel('hk-detail-media', 'media_player.homepod', M), b = panel('hk-detail-media', 'media_player.volumio', M);
+  ok('Browse Music for a speaker Music plays to', a._e.acts.children.length === 1);
+  ok('...and not for one it does not (a Volumio speaker)', b._e.acts.children.length === 0 && b._e.acts.hidden === true);
+  window.hkMusic = orig;
+})();
+
+// =====================================================================
+print('\n=== the thermostat ===');
+(function () {
+  var now = Date.now(), H24 = 24 * 3600000;
+  var rows = [{ s: 'heat', a: { current_temperature: 118 }, lu: (now - 30 * 3600000) / 1000 },
+              { s: 'heat', a: { current_temperature: 119 }, lu: (now - 2 * 3600000) / 1000 }];
+  var live = { attributes: { current_temperature: 120 } };
+  var t = _.trendOf(rows, now, live);
+  ok('the trend is the entity\'s own reading, pinned at 24 h ago, closed by the live one',
+     t.length === 3 && t[0].t === now - H24 && t[0].v === 118 && t[2].t === now && t[2].v === 120, t);
+  ok('a climate that never reports hvac_action has no run time', !_.reportsAction(rows, live) &&
+     _.reportsAction([{ a: { hvac_action: 'idle' } }], {}) && _.reportsAction([], { attributes: { hvac_action: 'heating' } }));
+  var drawn = null;
+  window.hkChart = { line: function (pts) { drawn = pts; return '<svg></svg>'; }, bars: function () { return '<svg></svg>'; } };
+  var W = house({ 'climate.water_heater': ['heat', { current_temperature: 120, hvac_modes: ['off', 'heat'] }] });
+  W.callWS = function () { var r = {}; r['climate.water_heater'] = rows; return Promise.resolve(r); };
+  var p = panel('hk-detail-climate', 'climate.water_heater', W);
+  drain();
+  ok('its run-time row is hidden', p._root.querySelector('.run').hidden === true);
+  ok('its trend is drawn from its own rows', drawn && drawn.length === 3 && drawn[drawn.length - 1].v === 120, drawn);
+  var E = house({ 'climate.eco': ['heat_cool', { current_temperature: 75, hvac_action: 'idle' }] });
+  E.callWS = function () { return Promise.resolve({ 'climate.eco': [] }); };
+  var q = panel('hk-detail-climate', 'climate.eco', E);
+  drain();
+  ok('a thermostat that reports hvac_action keeps it', q._root.querySelector('.run').hidden === false);
+})();
+(function () {
+  var now = Date.now();
+  var rows = [{ s: 'heat', a: { hvac_action: 'idle' }, lu: (now - 10 * 60000) / 1000 }];
+  var live = { attributes: { hvac_action: 'heating' }, last_updated: new Date(now - 4 * 60000).toISOString() };
+  var r = _.runTimes(rows, now, live);
+  ok('run time counts a start after the fetch from when it happened', Math.round(r.today / 60) === 4, r);
+})();
+
+// =====================================================================
+print('\n=== the water heater ===');
+customElements.define('hk-control-card', function () { this.setConfig = function (c) { this.config = c; }; });
+(function () {
+  var W = house({ 'water_heater.wh': ['eco', { current_temperature: 118.5, temperature: 120 }] });
+  var p = panel('hk-detail-water-heater', 'water_heater.wh', W);
+  // a small thermostat: the setpoint on the dial, then what it is doing; the
+  // tank reading is the first of the right column's readings
+  var t = p._dl.querySelector('.t').textContent, r = p._root.querySelector('.r').textContent, tn = p._root.querySelector('.tn').textContent;
+  ok('the ring shows the target and the mode, the readings the tank', t === '120°' && r === 'Eco' && tn === '119°', [t, r, tn]);
+  ok('no away row where the heater has no away mode', p._away === null);
+  // an ESPHome heater: five modes, one of them "off", and on/off
+  var W2 = house({ 'water_heater.water_heater': ['eco', { current_temperature: 117.1, temperature: 120, min_temp: 110, max_temp: 140,
+    target_temp_step: 1, operation_list: ['off', 'eco', 'electric', 'high_demand', 'heat_pump'], operation_mode: 'eco',
+    away_mode: 'off', supported_features: 15 }] });
+  var p2 = panel('hk-detail-water-heater', 'water_heater.water_heater', W2);
+  // THE THERMOSTAT RING'S GESTURE: nothing until it is a drag, a scroll
+  // puts it back, a tap sets on lift, one call on release
+  (function () {
+    var sent = [];
+    p2._svc = function (d, s, data) { sent.push([s, data && data.temperature]); return Promise.resolve(true); };
+    var dl = p2._dl, L = dl._listeners;
+    dl.getBoundingClientRect = function () { return { left: 0, top: 0, width: 200, height: 172 }; };
+    dl.setPointerCapture = dl.releasePointerCapture = function () {};
+    var painted = [];
+    var orig = p2._paintDial; p2._paintDial = function (t) { painted.push(t); return orig.call(p2, t); };
+    var at = function (deg) { var r = deg * Math.PI / 180; return { clientX: 100 + 78 * Math.cos(r), clientY: 100 + 78 * Math.sin(r), pointerId: 1 }; };
+    L.pointerdown.forEach(function (f) { f(at(270)); });                 // the top of the ring
+    ok('a touch alone paints nothing and sends nothing', painted.length === 0 && sent.length === 0);
+    L.pointercancel.forEach(function (f) { f({ pointerId: 1 }); });     // the sheet scrolled
+    ok('a scroll that started on the dial puts it back and sends nothing',
+       sent.length === 0 && painted.length === 1 && painted[0] === 120 && p2._drag === false, painted);
+    painted.length = 0;
+    L.pointerdown.forEach(function (f) { f(at(270)); });
+    L.pointerup.forEach(function (f) { f(at(270)); });
+    ok('a tap that does not travel sets that point on lift, once', sent.length === 1 && sent[0][0] === 'set_temperature', sent);
+    sent.length = 0; painted.length = 0;
+    L.pointerdown.forEach(function (f) { f(at(200)); });
+    L.pointermove.forEach(function (f) { f(at(230)); });
+    L.pointermove.forEach(function (f) { f(at(260)); });
+    ok('a drag paints as it goes and sends nothing until it lets go', painted.length === 2 && sent.length === 0, [painted, sent]);
+    L.pointerup.forEach(function (f) { f(at(260)); });
+    ok('...then sends once, where it ended', sent.length === 1 && sent[0][1] === painted[painted.length - 1] && p2._drag === false, sent);
+    p2._paintDial = orig;
+  })();
+  ok('"off" is the power button, not a fifth mode: four modes as a row, away and power present',
+     p2._pw !== null && p2._away !== null && p2._mode === null && p2._seg !== null &&
+     !/data-m="off"/.test(p2._root._html || p2._root.innerHTML) && /data-m="heat_pump"/.test(p2._root._html || p2._root.innerHTML));
+  // the four modes are one row; power is its own row under them, as wide
+  ok('the four modes are a row (High demand says Demand, Heat Pump is capitalized) and the power is its own full-width row under it', (function () {
+    var html = p2._root._html || p2._root.innerHTML;
+    return /<div class="acts" style="--n:4">/.test(html) && /<div class="pwr" style="--n:1"><button class="pw"/.test(html) &&
+      html.indexOf('class="acts"') < html.indexOf('class="pwr"') && p2._pw.querySelector('.pwl').textContent === 'Turn Off' &&
+      />Demand<\/button>/.test(html) && !/High demand/.test(html) && />Heat Pump<\/button>/.test(html);
+  })());
+})();
+
+// =====================================================================
+print('\n=== the sensor chart ===');
+(function () {
+  var now = Date.now();
+  ok('spanTo pins the start and closes at now', (function () {
+    var s = _.spanTo([{ t: now - 7200000, v: 5 }, { t: now - 600000, v: 6 }], now - 3600000, now, 7);
+    return s.length === 3 && s[0].t === now - 3600000 && s[0].v === 5 && s[2].t === now && s[2].v === 7;
+  })());
+  var one = [{ t: new Date(now - 3600000 - 60000), v: 97 }];   // HA's start row, fetched a minute ago
+  var drawn = null;
+  window.hkChart = { line: function (pts) { drawn = pts; return '<svg></svg>'; }, bars: function () { return '<svg></svg>'; } };
+  window.hkStats = { history: function (h, id, hours) { return hours === 1 ? one : null; },
+                     hourly: function () { return null; }, daily: function () { return null; }, release: function () { return false; } };
+  var S = house({ 'sensor.bat': ['97', { unit_of_measurement: '%', device_class: 'battery' }] });
+  var p = panel('hk-detail-sensor', 'sensor.bat', S);
+  p._range = 'hour'; p.requestUpdate();
+  ok('an hour with one row (an unchanged battery) is a line, not "No history"', drawn && drawn.length === 2 &&
+     !/No history/.test(p._chart.innerHTML), p._chart.innerHTML);
+  ok('...spanning the hour to Now', drawn && Math.abs(drawn[0].t - (now - 3600000)) < 5000 && Math.abs(drawn[1].t - Date.now()) < 5000);
+  var calls = 0, big = [];
+  for (var i = 0; i < 5000; i++) big.push({ t: new Date(now - 86400000 + i * 17000), v: i % 50 });
+  window.hkStats.history = function (h, id, hours) { calls++; return big; };
+  var ds = _.downsample, n = 0;
+  p._range = 'day'; p.requestUpdate();
+  var first = p._ser;
+  setState(p, 'sensor.bat', '96', { unit_of_measurement: '%', device_class: 'battery' }, 't2');
+  ok('a state push reuses the series\' downsample (not 11,000 points again every few seconds)', p._ser === first && first.ds.length <= 300);
+  var E = house({ 'sensor.kwh': ['12', { unit_of_measurement: 'kWh', state_class: 'total_increasing', device_class: 'energy' }] });
+  window.hkStats.hourly = function () { return []; };
+  var e = panel('hk-detail-sensor', 'sensor.kwh', E);
+  e._asked.daye = Date.now() - 5000; e.requestUpdate();
+  // the stats row stays (dashes), so the sheet does not jump when a range
+  // switch finds nothing -- and never a false "0 kWh"
+  ok('an energy sensor with no statistics says so (never "0 kWh")', /No history/.test(e._chart.innerHTML) && !e._stats.hidden &&
+     /—/.test(e._stats.innerHTML) && !/0 kWh/.test(e._stats.innerHTML), [e._chart.innerHTML, e._stats.innerHTML]);
+})();
+
+// =====================================================================
+print('\n=== the vacuum ===');
+(function () {
+  var V = house({ 'vacuum.v': ['docked', { supported_features: 29212 }],
+                  'sensor.v_battery': ['50', { device_class: 'battery', unit_of_measurement: '%' }] });
+  V.entities = { 'vacuum.v': { device_id: 'd1' }, 'sensor.v_battery': { device_id: 'd1' } };
+  var p = panel('hk-detail-vacuum', 'vacuum.v', V);
+  ok('the battery chip reads the device\'s sensor', /50% battery/.test(p._chips.innerHTML), p._chips.innerHTML);
+  setState(p, 'sensor.v_battery', '90', { device_class: 'battery', unit_of_measurement: '%' }, 't2');
+  ok('a battery change alone moves the sheet (the signature reads the device\'s sensors, not the vacuum alone)', /90% battery/.test(p._chips.innerHTML), p._chips.innerHTML);
+  // Clean Areas: a failed send keeps the picks
+  var F = house({ 'vacuum.v': ['docked', { supported_features: 29212 }] });
+  F.callService = function () { return Promise.reject(new Error('no')); };
+  var q = panel('hk-detail-vacuum', 'vacuum.v', F);
+  q._reach = [{ id: 'kitchen', name: 'Kitchen' }];
+  q._pick = new Set(['kitchen']);
+  q._view = 'areas'; q._built = false; q._render();
+  q._goBtn._listeners.click.forEach(function (f) { f({}); });
+  drain();
+  ok('Clean Areas: a failed send keeps the rooms picked and says so', q._pick.size === 1 && /try again/.test(q._why.textContent),
+     q._why.textContent);
+})();
+
+// =====================================================================
+print('\n=== hk-stats: the raw history cache is bounded ===');
+(function () {
+  load(HK_ROOT + '/frontend/modules/hk-stats.js');
+  var S = window.hkStats, realNow = Date.now, T = realNow.call(Date);
+  Date.now = function () { return T; };
+  var hass = { callApi: function () { return Promise.resolve([[{ state: '1', last_changed: new Date(T).toISOString() }]]); } };
+  for (var i = 0; i < 30; i++) S.history(hass, 'sensor.s' + i, 24, null);
+  drain();
+  S.history(hass, 'sensor.s5', 24, null);       // read recently: kept
+  T += 11 * 60000;
+  S.history(hass, 'sensor.s5', 24, null);
+  S.history(hass, 'sensor.new', 24, null);
+  drain();
+  var kept = 0;
+  for (var j = 0; j < 30; j++) if (S.history(hass, 'sensor.s' + j, 24, null)) kept++;
+  ok('past the bound, entries nobody read for ten minutes go', kept < 30, kept);
+  ok('an entry still being read stays', !!S.history(hass, 'sensor.s5', 24, null));
+  Date.now = realNow;
+})();
+
+
+// =====================================================================
+print('\n=== accessory settings: the gear ===');
+(function () {
+  __resetTimers(); resetHistory();
+  var WS = [];
+  var h = house({ 'switch.coffee': ['off', { friendly_name: 'Kitchen Coffee' }],
+                  'light.table': ['on', { friendly_name: 'Kitchen Table' }] });
+  h.user = { is_admin: true };
+  h.areas = { kitchen: { area_id: 'kitchen', name: 'Kitchen' }, den: { area_id: 'den', name: 'Den' } };
+  h.devices = { dv: { area_id: 'kitchen' } };
+  h.entities = { 'switch.coffee': { device_id: 'dv' } };
+  h.callWS = function (m) { WS.push(m); return Promise.resolve({}); };
+  var saved = window.hkSettings;
+  window.hkSettings = { get: function (p, f) {
+    if (p === 'accessories') return { entities: { 'switch.coffee': { name: 'Coffee', status: false } }, rooms: {} };
+    if (p === 'boards') return { 'dashboard-kitchen': { favorites: ['lock.front'] } };
+    return f; } };
+  ok('an admin can edit; a tablet cannot', _.canEdit(h) && !_.canEdit({ user: { is_admin: false } }) && !_.canEdit({}));
+  ok('the accessory\'s name, for this dashboard\'s sheet', _.accName('switch.coffee') === 'Coffee');
+  HA.hass = h;
+  D.open('switch.coffee', {});
+  var sheet = _.state().el;
+  ok('the gear shows for an admin', sheet.querySelector('.gear').hidden === false);
+  D.close(true);
+  var h2 = Object.assign({}, h, { user: { is_admin: false } });
+  HA.hass = h2;
+  D.open('switch.coffee', {});
+  ok('...and not for a wall tablet', _.state().el.querySelector('.gear').hidden !== false);
+  D.close(true);
+  // a hand-written dashboard draws no favorites: the toggle is not offered
+  var yaml = _.accessoryPane(h, 'switch.coffee', null, { generated: false });
+  ok('Favorite on this dashboard: not on a hand-written dashboard', !/class="tg fav"/.test(yaml._html || yaml.innerHTML || ''));
+  ok('...nor "As a favorite" for what is a favorite nowhere', /class="sec fav" hidden/.test(yaml._html || yaml.innerHTML || ''));
+  var pane = _.accessoryPane(h, 'switch.coffee', null, { generated: true });
+  var q = function (sel) { return pane.querySelector(sel); };
+  ok('Favorite on this dashboard: offered on a generated one', /class="tg fav"/.test(pane._html || pane.innerHTML || ''));
+  ok('Include in Status starts off (status: false saved)', q('.status').checked === false);
+  ok('Show on Home starts on', q('.home').checked === true);
+  ok('Favorite on this dashboard: from its item', q('.fav').checked === false);
+  ok('the name field holds the house\'s name', q('.nm').value === 'Coffee' && q('.nm').placeholder === 'Kitchen Coffee');
+  ok('the room is the device\'s', q('.room').value === 'kitchen');
+  q('.status').checked = true; q('.status')._listeners.change[0]();
+  ok('Include in Status on: back to automatic (null)', WS[0].type === 'hk_frontend/accessory/set' &&
+     WS[0].entity_id === 'switch.coffee' && WS[0].status === null, WS[0]);
+  q('.home').checked = false; q('.home')._listeners.change[0]();
+  ok('Show on Home off: home false', WS[1].home === false);
+  q('.fav').checked = true; q('.fav')._listeners.change[0]();
+  ok('Favorite: the dashboard\'s own list', WS[2].type === 'hk_frontend/board/favorite' &&
+     WS[2].dashboard === 'dashboard-kitchen' && WS[2].favorite === true);
+  q('.room').value = 'kitchen'; q('.room')._listeners.change[0]();
+  ok('choosing the device\'s own room follows the device again', WS[3].type === 'config/entity_registry/update' &&
+     WS[3].area_id === null);
+  q('.room').value = 'den'; q('.room')._listeners.change[0]();
+  ok('...another room is the entity\'s own', WS[4].area_id === 'den');
+  q('.nm').value = '  Coffee Maker '; q('.nm')._listeners.change[0]();
+  ok('a name is saved trimmed, for the house', WS[5].name === 'Coffee Maker' && !('screen' in WS[5]));
+  q('.here').checked = true; q('.nm')._listeners.change[0]();
+  ok('...and with Only on this dashboard, for this one', WS[6].screen === 'dashboard-kitchen');
+  // WHAT IT SAYS: a switch's names for On and Off, and a favorite's room line
+  var ontx = q('.ontx'), fvr = q('.fvr');
+  ok('a switch says what On and Off are called', !!ontx && !!q('.offtx'));
+  var nWS = WS.length;
+  ontx.value = ' Brewing '; ontx._listeners.change[0]();
+  ok('...On is saved trimmed', WS.length === nWS + 1 && WS[nWS].on_text === 'Brewing', WS[nWS]);
+  ontx.value = ''; ontx._listeners.change[0]();
+  ok('...and empty is back to automatic', WS[nWS + 1].on_text === null, WS[nWS + 1]);
+  ok('the room line as a favorite shows its room as the placeholder', !!fvr && fvr.placeholder === 'Kitchen', fvr && fvr.placeholder);
+  WS.length = nWS;
+  var btn = { dataset: { v: 'light' } };
+  q('.seg.show')._listeners.click[0]({ target: { closest: function () { return btn; } } });
+  ok('Show as: light', WS[7].show_as === 'light');
+  var g = { dataset: { v: 'hk:coffee' } };
+  q('.glyphs')._listeners.click[0]({ target: { closest: function () { return g; } } });
+  ok('an icon', WS[8].icon === 'hk:coffee');
+  ok('the glyphs offered follow Show as', _.glyphsFor('switch.coffee', 'light')[0] === 'lightbulb' &&
+     _.glyphsFor('switch.coffee', null)[0] === 'power-socket-us');
+  // AS A FAVORITE: a name, a glyph and what it controls with
+  ok('as a favorite: the name starts empty, its placeholder the accessory\'s name',
+     q('.fvn').value === '' && q('.fvn').placeholder === 'Coffee', q('.fvn').placeholder);
+  q('.fvn').value = ' Morning Coffee '; q('.fvn')._listeners.change[0]();
+  ok('...a favorite\'s name is saved trimmed', WS[9].fav_name === 'Morning Coffee' && WS[9].entity_id === 'switch.coffee', WS[9]);
+  var fg = { dataset: { v: 'hk:lamp' } };
+  q('.fvg')._listeners.click[0]({ target: { closest: function () { return fg; } } });
+  ok('...its glyph there', WS[10].fav_icon === 'hk:lamp', WS[10]);
+  var fs = { dataset: { v: '' } };
+  q('.fvg')._listeners.click[0]({ target: { closest: function () { return fs; } } });
+  ok('...Same: back to its icon', WS[11].fav_icon === null);
+  ok('...the lights and switches it could be joined with are offered', q('.fvw').innerHTML.indexOf('light.table') > 0);
+  q('.fvw').value = 'light.table'; q('.fvw')._listeners.change[0]();
+  ok('...together with another light or switch', JSON.stringify(WS[12].fav_with) === '["light.table"]', WS[12]);
+  ok('...and it leaves the list it was picked from', q('.fvw').innerHTML.indexOf('light.table') < 0);
+  // Turning OFF "Only on this dashboard" gives the house's name back; the
+  // per-screen name typed there must not be saved as the house's
+  var n0 = WS.length;
+  q('.nm').value = 'Kitchen Coffee Only';
+  q('.here').checked = false; q('.here')._listeners.change[0]();
+  ok('Only on this dashboard off: this dashboard\'s name goes', WS[n0].screen === 'dashboard-kitchen' && WS[n0].name === null, WS[n0]);
+  drainMicrotasks();
+  ok('...and the house\'s name is NOT overwritten', WS.length === n0 + 1, WS.slice(n0));
+  ok('...the field shows the house\'s name again', q('.nm').value === 'Coffee Maker', q('.nm').value);
+  // Reset asks first, in place; Cancel changes nothing
+  var n1 = WS.length;
+  q('.reset')._listeners.click[0]();
+  ok('Reset asks first: nothing is sent yet', WS.length === n1 && q('.sure').hidden === false);
+  q('.sure .no')._listeners.click[0]();
+  ok('...Cancel sends nothing', WS.length === n1 && q('.sure').hidden === true);
+  q('.reset')._listeners.click[0]();
+  q('.sure .go')._listeners.click[0]();
+  ok('...Reset clears every setting of the accessory', WS[n1] && WS[n1].name === null && WS[n1].color === null &&
+     WS[n1].attribute === null && WS[n1].label === null && WS[n1].fav_with === null, WS[n1]);
+  window.hkSettings = saved;
+})();
+
+
+// =====================================================================
+print('\n=== pop-ups: a hash opens one, Show pop-up asks for one ===');
+(function () {
+  __resetTimers(); resetHistory();
+  var saved = window.hkSettings, savedP = window.hkPopup;
+  var POPS = [{ hash: 'doorbell', name: 'Doorbell', kind: 'camera', entity: 'camera.fd', dashboards: [] },
+              { hash: 'gate', name: 'Gate', kind: 'accessories', entities: ['light.a'], dashboards: ['dashboard-other'] }];
+  window.hkSettings = { get: function (p, f) { return p === 'popups' ? POPS : f; }, onChange: function () {} };
+  ok('a hash names a pop-up on this dashboard', !!_.popupFor('#doorbell') && _.popupFor('doorbell').name === 'Doorbell');
+  ok('...not one kept to other dashboards', _.popupFor('#gate') === null);
+  ok('...not an unknown one', _.popupFor('#nope') === null);
+  window.hkPopup = { hashes: function () { return ['#doorbell']; } };
+  ok('a YAML hk-popup-card claiming the hash wins', _.openPopup('#doorbell') === false);
+  window.hkPopup = savedP;
+  var h = house({ 'light.a': ['on', {}] });
+  h.user = { id: 'u1', is_admin: false };
+  HA.hass = h;
+  // Show pop-up: this screen (dashboard-kitchen, user u1) is asked, or not
+  ok('asked with no lists: the hash is set', _.asked({ detail: { type: 'popup', popup: 'doorbell' } }) === true &&
+     location.hash === '#doorbell');
+  resetHistory();
+  ok('...not when kept to another dashboard', _.asked({ detail: { type: 'popup', popup: 'doorbell',
+     dashboards: ['dashboard-den'] } }) === false && location.hash === '');
+  ok('...not when kept to another user', _.asked({ detail: { type: 'popup', popup: 'doorbell',
+     users: ['u2'] } }) === false);
+  ok('...yes for this user on this dashboard', _.asked({ detail: { type: 'popup', popup: 'doorbell',
+     users: ['u1'], dashboards: ['dashboard-kitchen'] } }) === true);
+  ok('...never for a pop-up this dashboard does not have', _.asked({ detail: { type: 'popup', popup: 'gate' } }) === false);
+  // only on a dashboard; a hidden page holds it
+  resetHistory();
+  history.pushState(null, '', 'http://ha/config/integrations');
+  ok('not on one of HA\'s own pages (Settings): no hash, no sheet',
+     _.onDashboard() === false && _.asked({ detail: { type: 'popup', popup: 'doorbell' } }) === false && location.hash === '');
+  history.pushState(null, '', 'http://ha/dashboard-kitchen/0');
+  var vis = document.visibilityState, vl = (document.__l || {}).visibilitychange || [];
+  document.visibilityState = 'hidden';
+  ok('a hidden page does not take it now', _.asked({ detail: { type: 'popup', popup: 'doorbell' } }) === false &&
+     location.hash === '');
+  document.visibilityState = 'visible';
+  ((document.__l || {}).visibilitychange || vl).forEach(function (f) { f({}); });
+  ok('...and opens it when it becomes visible (a tablet screen waking for the doorbell)', location.hash === '#doorbell');
+  document.visibilityState = vis;
+  window.hkSettings = saved;
+  resetHistory();
+})();
+
+
+// =====================================================================
+print('\n=== a pop-up sheet goes with its hash; any sheet covers the page ===');
+(function () {
+  __resetTimers(); resetHistory();
+  var saved = window.hkSettings;
+  window.hkSettings = { get: function (p, f) {
+    return p === 'popups' ? [{ hash: 'gate', name: 'Gate', kind: 'accessories', entities: ['light.a'], dashboards: [], close_after: 60 }] : f; },
+    onChange: function () {} };
+  HA.hass = house({ 'light.a': ['on', {}] });
+  window.hkPopupCover = 0;
+  history.pushState(null, '', 'http://ha/dashboard-kitchen/0#gate');
+  // (the shim cannot build a group sheet: a plain one, marked as the pop-up's)
+  D.open('light.a', {}, { hashed: true });
+  _.state().popup = 'gate';
+  ok('the pop-up opens for its hash', !!_.state().el && _.state().popup === 'gate');
+  ok('...and covers the page (the camera strip pauses)', window.hkPopupCover === 1);
+  // ASKED AGAIN WHILE UP (an automation asking every minute, say): the same
+  // sheet stays, no history entry is added, its Close after starts again
+  HA.hass.user = { id: 'u1', is_admin: false };
+  var el0 = _.state().el, depth = HIST.stack.length;
+  _.state().autoMs = 3600000;
+  __resetTimers();
+  ok('asked again while it is up: still answered', _.asked({ detail: { type: 'popup', popup: 'gate' } }) === true);
+  ok('...the same sheet, not closed and reopened (a code being typed stays)', _.state().el === el0);
+  ok('...no second history entry', HIST.stack.length === depth, HIST.stack.length + ' vs ' + depth);
+  ok('...and its Close after runs again from now',
+     __timers.filter(Boolean).some(function (t) { return t.ms === 3600000; }));
+  history.pushState(null, '', 'http://ha/dashboard-kitchen/0');
+  dispatchEvent({ type: 'location-changed' });
+  ok('the hash leaves: the sheet goes (an automation asking again opens it fresh)', !_.state().el);
+  ok('...and uncovers the page', window.hkPopupCover === 0);
+  window.hkSettings = saved;
+  resetHistory();
+})();
+
+print('\n=== an unavailable camera is said, not black ===');
+(function () {
+  var H = house({ 'camera.gone': ['unavailable', {}] });
+  var p = panel('hk-detail-camera', 'camera.gone', H);
+  var kids = p._root.children || [];
+  ok('an unavailable camera draws a placeholder, no stream card',
+     !!p._naEl && p._naEl.className === 'na' && p._naEl.parentNode === p._root && !p._card, kids.length);
+  H.states['camera.gone'] = { entity_id: 'camera.gone', state: 'idle', attributes: {}, last_updated: 't2', last_changed: 't2' };
+  p.hass = Object.assign({}, H);
+  ok('...and swaps to the stream when it comes back', !p._naEl && typeof p._na === 'function');
+})();
+
+print('\n' + (fail ? 'FAIL ' + fail + ' DETAIL BEHAVIOUR TESTS' : 'ALL ' + pass + ' DETAIL BEHAVIOUR TESTS PASS'));
+if (fail) throw new Error('detail behaviour tests failed');

@@ -1,0 +1,165 @@
+"""BUILD THE PUBLIC REPOSITORY from this component (HK Frontend 1.0).
+
+The component is developed where Home Assistant runs it -- custom_components/
+hk_frontend, with its tests/, tools/ and docs/ inside -- and published as the
+repository HACS installs from:
+
+    custom_components/hk_frontend/   what HACS installs (no tests, tools, docs)
+    tests/  tools/  docs/            beside it
+    README.md                        the component's README
+    LICENSE  hacs.json  .github/ ... tools/publish/root/
+
+Every published file is scanned for private data (PRIVATE: local host names,
+private IP addresses, keys and tokens, plus any names given in HK_PRIVATE);
+one hit and nothing is written. Then both test suites run IN the built repository, so the layout is
+proven, and -- only with --commit -- it is committed (and pushed with --push).
+
+    python3 tools/publish/publish.py REPO_DIR [--commit "message"] [--push] [--no-tests]
+    python3 tools/publish/publish.py --scan          only report what would be refused
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+COMPONENT = os.path.dirname(os.path.dirname(HERE))
+# caches -- never published; .sfcache holds glyphs exported from Apple's SF
+# Symbols app, which can't be passed on
+SKIP_DIRS = {"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".sfcache", "sf-exports",
+             ".DS_Store"}
+BESIDE = ("tests", "tools", "docs")          # published next to the component
+# What must never be published: keys and tokens, and addresses on a private
+# network (192.0.2.x, the documentation range, is what examples use). A
+# home's own names, host names and subnets are its business: they come from
+# HK_PRIVATE (a regex, "word|word|..."), never from this file -- which is
+# published, and would name them.
+PRIVATE = [
+    r"\b192\.168\.\d{1,3}\.\d{1,3}\b", r"\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
+    r"\b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b",
+    r"eyJ[A-Za-z0-9_-]{20,}",                      # a JWT (a Home Assistant token)
+    r"gh[pousr]_[A-Za-z0-9]{20,}", r"AKIA[0-9A-Z]{16}", r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
+]
+# this file names the patterns above; it is not scanned for them
+SELF = os.path.abspath(__file__)
+TEXT = (".py", ".js", ".json", ".yaml", ".yml", ".md", ".css", ".html", ".txt", ".sh", "")
+
+
+def files_under(root: str):
+    for d, dirs, files in os.walk(root):
+        dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
+        for f in files:
+            if f not in SKIP_DIRS:
+                yield os.path.join(d, f)
+
+
+def plan() -> list[tuple[str, str]]:
+    """(source, path in the repository) for every published file."""
+    out: list[tuple[str, str]] = []
+    for src in files_under(COMPONENT):
+        rel = os.path.relpath(src, COMPONENT)
+        top = rel.split(os.sep, 1)[0]
+        if top in BESIDE:
+            if rel.startswith(os.path.join("tools", "publish")):
+                if rel.startswith(os.path.join("tools", "publish", "root") + os.sep):
+                    out.append((src, os.path.relpath(src, os.path.join(HERE, "root"))))
+                elif rel == os.path.join("tools", "publish", "publish.py"):
+                    out.append((src, rel))
+                continue
+            out.append((src, rel))
+        elif rel == "README.md":
+            out.append((src, "README.md"))
+        else:
+            out.append((src, os.path.join("custom_components", "hk_frontend", rel)))
+    return out
+
+
+def scan(pairs) -> list[str]:
+    extra = os.environ.get("HK_PRIVATE", "")
+    pats = [re.compile(p, re.I) for p in PRIVATE + ([extra] if extra else [])]
+    hits: list[str] = []
+    for src, dest in pairs:
+        if os.path.splitext(src)[1] not in TEXT or os.path.getsize(src) > 5_000_000:
+            continue
+        own = os.path.abspath(src) == SELF
+        try:
+            text = open(src, encoding="utf-8").read()
+        except UnicodeDecodeError:
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            for i, p in enumerate(pats):
+                if own and i < len(PRIVATE):
+                    continue
+                if p.search(line):
+                    hits.append(f"{dest}:{n}: {line.strip()[:120]}")
+                    break
+    return hits
+
+
+def build(repo: str, pairs) -> None:
+    keep = {".git"}
+    for name in os.listdir(repo) if os.path.isdir(repo) else []:
+        if name not in keep:
+            path = os.path.join(repo, name)
+            shutil.rmtree(path) if os.path.isdir(path) and not os.path.islink(path) else os.remove(path)
+    for src, dest in pairs:
+        target = os.path.join(repo, dest)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy2(src, target)
+        # a script (tests/run, tests/py/run) is run by name in the docs; the
+        # share it is developed on does not keep the executable bit
+        with open(target, "rb") as f:
+            if f.read(2) == b"#!":
+                os.chmod(target, 0o755)
+
+
+def run(cmd, cwd) -> int:
+    print("$", " ".join(cmd))
+    return subprocess.call(cmd, cwd=cwd)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("repo", nargs="?")
+    ap.add_argument("--scan", action="store_true")
+    ap.add_argument("--commit")
+    ap.add_argument("--push", action="store_true")
+    ap.add_argument("--no-tests", action="store_true")
+    a = ap.parse_args()
+    pairs = plan()
+    hits = scan(pairs)
+    if a.scan:
+        print("\n".join(hits) if hits else "clean")
+        return 2 if hits else 0
+    if not a.repo:
+        ap.error("REPO_DIR is required")
+    if hits:
+        print("PRIVATE DATA -- nothing was written:")
+        print("\n".join(hits[:60]))
+        return 2
+    os.makedirs(a.repo, exist_ok=True)
+    build(a.repo, pairs)
+    print(f"built {len(pairs)} files in {a.repo}")
+    if not a.no_tests:
+        venv = os.path.expanduser("~/.venvs/hk-ha-test/bin/pytest")
+        if run([venv, "-q", "-p", "no:cacheprovider"], os.path.join(a.repo, "tests", "py")) != 0:
+            return 1
+        if run([os.path.join(a.repo, "tests", "run")], a.repo) != 0:
+            return 1
+    if a.commit:
+        if not os.path.isdir(os.path.join(a.repo, ".git")):
+            run(["git", "init", "-b", "main"], a.repo)
+        run(["git", "add", "-A"], a.repo)
+        if run(["git", "commit", "-q", "-m", a.commit], a.repo) != 0:
+            return 1
+        if a.push and run(["git", "push", "-u", "origin", "main", "--tags"], a.repo) != 0:
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
