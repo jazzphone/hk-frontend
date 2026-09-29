@@ -47,7 +47,7 @@ bookmarks work.
 | **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
 
-![The Screens list in HK Settings](images/settings-screens.png)
+![The Screens list in HK Settings](images/settings-screen.png)
 
 A screen’s page shows a live preview of that screen beside its settings (above
 them on a narrower window). Changes show in the preview within seconds.
