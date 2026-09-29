@@ -1845,11 +1845,35 @@
       (root || panel).dispatchEvent(new CustomEvent('config-refresh', { bubbles: true, composed: true }));
     } catch (e) { /* not on a dashboard */ }
   }
+  // LATE ARRIVAL. Home Assistant waits 5 s for this element, then draws
+  // "Error loading the dashboard strategy: ... Timeout waiting for strategy
+  // element" and never asks again. A page opened while Home Assistant is
+  // restarting, or on a slow phone connection, can get this file after that
+  // (2026-09-29 15:17: a phone and the Kitchen tablet, right after an
+  // update's restart). So when it does arrive: a generated dashboard showing
+  // that error is built again, now that the element is here.
+  function lateError(panel) {
+    var L = panel && panel.lovelace;
+    var raw = L && L.rawConfig, s = raw && raw.strategy;
+    if (!s || s.type !== 'custom:hk-dashboard' || !L.config) return false;
+    try { return JSON.stringify(L.config).indexOf('ll-strategy-dashboard-hk-dashboard') >= 0; }
+    catch (e) { return false; }
+  }
+  function recoverLate() {
+    try {
+      var ha = document.querySelector('home-assistant');
+      var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+      var panel = main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace');
+      if (lateError(panel)) refresh();
+    } catch (e) { /* not on a dashboard */ }
+  }
   if (!customElements.get('ll-strategy-dashboard-hk-dashboard')) {
     customElements.define('ll-strategy-dashboard-hk-dashboard', HkDashboardStrategy);
+    recoverLate();
   }
   // For tests and the console: hkStrategy.generate(config, hass).
   window.hkStrategy = { generate: HkDashboardStrategy.generate, tile: TILE, shortName: shortName,
+                        lateError: lateError, recoverLate: recoverLate,
                         tileFor: tileFor, roomCards: roomCards, groupOf: groupOf,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,

@@ -859,5 +859,21 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     delete window.hkSettings;
   });
 }).then(function () {
+  // LATE ARRIVAL: Home Assistant's 5 s wait ran out before this file loaded
+  // (a restart, a slow phone). The error it draws names the element; a
+  // generated dashboard showing it is built again once the file is here.
+  print('\n=== the strategy arriving after Home Assistant gave up ===');
+  var S = window.hkStrategy, hk = { strategy: { type: 'custom:hk-dashboard' } };
+  var err = { views: [{ title: 'Error', cards: [{ type: 'markdown', content:
+    'Error loading the dashboard strategy:\n> Error: Timeout waiting for strategy element ll-strategy-dashboard-hk-dashboard to be registered' }] }] };
+  ok('a generated dashboard showing the timeout is rebuilt', S.lateError({ lovelace: { rawConfig: hk, config: err } }) === true);
+  ok('...not a generated dashboard that built', S.lateError({ lovelace: { rawConfig: hk, config: { views: [{ title: 'Home', path: 'home' }] } } }) === false);
+  ok('...not another strategy\'s dashboard, nor a hand-written one',
+     S.lateError({ lovelace: { rawConfig: { strategy: { type: 'original-states' } }, config: err } }) === false &&
+     S.lateError({ lovelace: { rawConfig: { views: [] }, config: err } }) === false);
+  ok('...and nothing when no dashboard is open', S.lateError(null) === false && S.lateError({}) === false);
+  ok('it runs when the element is defined', /customElements\.define\('ll-strategy-dashboard-hk-dashboard', HkDashboardStrategy\);\s*recoverLate\(\);/.test(
+     readFile(HK_ROOT + '/frontend/cards/hk-strategy.js')));
+}).then(function () {
   print(fail ? 'FAIL ' + fail + ' STRATEGY TESTS' : 'ALL ' + pass + ' STRATEGY TESTS PASS');
 }).catch(function (e) { print('Exception: ' + e + ' ' + (e.stack || '')); });
