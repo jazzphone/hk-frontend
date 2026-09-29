@@ -447,7 +447,9 @@ async def test_a_change_made_while_the_folder_is_checked_is_kept(hass, frontend)
         await asyncio.sleep(0.05)
         ws_settings_set(hass, conn, {"id": 2, "type": "hk_frontend/settings/set", "changes": {"look.blur": 70}})
         await asyncio.sleep(0.5)
-        await hass.async_block_till_done()
+        # both writes are background tasks (async_response): wait for them,
+        # not for the sleep to outlast the slow one
+        await hass.async_block_till_done(wait_background_tasks=True)
     look = S.merged(entry(hass).options)["look"]
     assert look["blur"] == 70 and look["frost"] == 30, look
 

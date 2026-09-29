@@ -14,7 +14,9 @@ async def test_the_page_reads_everything_in_one_answer(hass, frontend):
     from custom_components.hk_frontend.panel import ws_panel_get
     conn = await _admin(hass)
     ws_panel_get(hass, conn, {"id": 1, "type": "hk_frontend/panel/get"})   # async_response: a task
-    await hass.async_block_till_done()
+    # a BACKGROUND task (websocket async_response): the plain wait does not
+    # count it, and the answer (a folder scan in the executor) can come later
+    await hass.async_block_till_done(wait_background_tasks=True)
     r = conn.sent[-1]["result"]
     assert r["entry_id"] == entry(hass).entry_id
     for k in ("settings", "boards", "dashboards", "popups", "accessories", "kinds", "presets",

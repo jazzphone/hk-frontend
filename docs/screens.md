@@ -463,10 +463,19 @@ always under **Rooms**, and Browse Music always follows Play Music.
 **Rooms in the menu** are A to Z, or in the screen’s room order (**Rooms in
 Menu**).
 
-**The Home Assistant row.** On a screen where Home Assistant’s sidebar is
-hidden, **Home Assistant Row** adds a row that opens it over the page, so
-there is still a way into Settings. Leave it off on a wall tablet everyone
-uses.
+**The Home Assistant section.** **Home Assistant Section** adds Home
+Assistant’s own pages to the menu, above Categories: Integrations,
+Automations and Settings, Notifications, **More** (which folds out the rest
+of your Home Assistant sidebar, in your order, without what you hid),
+**Show Menu** (Home Assistant’s own sidebar, over the page, even where kiosk
+mode hides it) and Profile. Settings shows how many updates and repairs are
+waiting and Notifications how many notifications, as Home Assistant’s
+sidebar does. Everything is read live from Home Assistant, and each person
+sees only what they may open -- a wall tablet’s user gets Notifications,
+More, Show Menu and Profile. On Home Assistant’s own pages its sidebar (or
+its ☰) is the way back. Leave it off on a wall tablet everyone uses.
+
+![The menu's Home Assistant section, with More folded out](images/desktop-menu-ha.png)
 
 The menu closes itself when you choose a row, tap outside it, press Escape,
 leave it untouched for a minute, or when the page changes any other way.

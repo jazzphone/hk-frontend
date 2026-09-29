@@ -157,8 +157,16 @@
     ':host([wide]) h1.lt{font-size:30px;line-height:36px}',
     '.scope{margin:0 0 24px;font-size:15px;line-height:20px;color:var(--hk-label2)}',
     '.scope b{font-weight:600;color:var(--hk-label)}',
-    '.pvbox{position:relative;width:100%;aspect-ratio:16/10;border-radius:12px;overflow:hidden;background:#000;',
+    '.pvbox{position:relative;width:100%;aspect-ratio:16/10;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;',
     '  box-shadow:0 0 0 .5px var(--hk-sep)}',
+    // the size picker under the preview: the kit's segmented control, a glyph
+    // over each name, and the names allowed to wrap
+    '.seg.pvsize{display:grid;width:100%;margin-top:12px;box-sizing:border-box}',
+    '.seg.pvsize button{height:auto;min-width:0;padding:6px 2px;display:flex;flex-direction:column;align-items:center;',
+    '  gap:3px;white-space:normal;font-size:12px;line-height:14px}',
+    '.seg.pvsize ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
+    '.seg.pvsize ha-icon.rot{transform:rotate(90deg)}',
+    '.pvdim{font-variant-numeric:tabular-nums}',
     '.pvbox iframe{position:absolute;top:0;left:0;width:1280px;height:800px;border:0;transform-origin:0 0;pointer-events:none}',
     '.pvhead{display:flex;align-items:baseline;justify-content:space-between;padding:0 4px 8px}',
     '.pvhead span{font-size:13px;text-transform:uppercase;color:var(--hk-label2)}',
@@ -250,7 +258,7 @@
     },
     kiosk: {
       title: 'Kiosk Mode Options', docs: 'https://github.com/NemesisRE/kiosk-mode',
-      footer: 'Whatever is hidden, the menu’s Home Assistant row still opens Home Assistant’s sidebar.',
+      footer: 'Whatever is hidden, the menu’s Home Assistant section still reaches Home Assistant (Show Menu opens its sidebar).',
       example: 'admin_settings:\n  hide_header: false',
       yamlHelp: 'Everything set on the Kiosk Mode Options page, and any other Kiosk Mode option, as YAML. Empty is the tuned setup: the header and the sidebar hidden. Set a key to null to remove it.',
       groups: [{ rows: [
@@ -996,6 +1004,7 @@
       head.lastChild.setAttribute('href', '/' + path + '/0');
       col.appendChild(head);
       var pv = h('div', { class: 'pvbox' });
+      var b = (this.data && this.data.boards && this.data.boards[path]) || null;
       var fr = document.createElement('iframe');
       // kiosk: no Home Assistant header; wp_enabled=false: WallPanel never
       // runs in a preview (it would drive the real tablet's screensaver)
@@ -1004,10 +1013,64 @@
       fr.setAttribute('tabindex', '-1');
       pv.appendChild(fr);
       col.appendChild(pv);
-      col.appendChild(h('p', { class: 'gf', text: 'Live: changes show here within seconds. A generated screen rebuilds itself within about ten.' }));
-      var fit = function () { var w = pv.clientWidth || 600; fr.style.transform = 'scale(' + (w / 1280) + ')'; };
+      // THE SIZE: the screen as a phone, an iPad upright, a wall tablet, a
+      // desk -- and a car's browser on a car screen. The frame IS that size
+      // (M.previewSizes), drawn scaled to the column; changing it reloads
+      // nothing. Opens on the size the screen is used at, then on the last
+      // one chosen for it in this browser.
+      var sizes = M.previewSizes(b);
+      var chosen = null;
+      try { chosen = (JSON.parse(localStorage.getItem('hk-preview-size') || '{}') || {})[path]; } catch (e) { /* private */ }
+      var key = sizes.some(function (z) { return z.key === chosen; }) ? chosen : M.previewDefault(b);
+      var pick = h('div', { class: 'seg pvsize', role: 'radiogroup', 'aria-label': 'Preview size' });
+      var dims = h('span', { class: 'pvdim' });
+      var btns = sizes.map(function (z, i) {
+        var btn = h('button', { type: 'button', role: 'radio', 'data-size': z.key }, [
+          h('ha-icon', { icon: z.icon, class: z.rotate ? 'rot' : '', 'aria-hidden': 'true' }),
+          h('span', { text: z.label })]);
+        btn.addEventListener('click', function () { choose(z.key); });
+        btn.addEventListener('keydown', function (e) {
+          var d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+          if (!d) return;
+          e.preventDefault();
+          var j = (i + d + sizes.length) % sizes.length;
+          btns[j].focus();
+          choose(sizes[j].key);
+        });
+        pick.appendChild(btn);
+        return btn;
+      });
+      var fit = function () {
+        var z = sizes.filter(function (x) { return x.key === key; })[0] || sizes[0];
+        var maxH = Math.max(320, Math.min(620, (window.innerHeight || 900) - 300));
+        var f = M.previewFit(col.clientWidth, maxH, z);
+        fr.style.width = z.w + 'px';
+        fr.style.height = z.h + 'px';
+        fr.style.transform = 'scale(' + f.scale + ')';
+        pv.style.width = Math.round(f.width) + 'px';
+        pv.style.height = Math.round(f.height) + 'px';
+        dims.textContent = z.w + ' × ' + z.h + ' · ';
+        btns.forEach(function (bt, i) {
+          var on = sizes[i].key === z.key;
+          bt.setAttribute('aria-checked', on ? 'true' : 'false');
+          bt.setAttribute('tabindex', on ? '0' : '-1');
+        });
+      };
+      function choose(k) {
+        if (k === key) return;
+        key = k;
+        try {
+          var all = JSON.parse(localStorage.getItem('hk-preview-size') || '{}') || {};
+          all[path] = k;
+          localStorage.setItem('hk-preview-size', JSON.stringify(all));
+        } catch (e) { /* private: this page only */ }
+        fit();
+      }
+      col.appendChild(pick);
+      col.appendChild(h('p', { class: 'gf' }, [dims, document.createTextNode(
+        'Live: changes show here within seconds. A generated screen rebuilds itself within about ten.')]));
       requestAnimationFrame(fit);
-      new ResizeObserver(fit).observe(pv);
+      new ResizeObserver(fit).observe(col);
       this._pv = { path: path };
       this._fit = fit;
       void self;
@@ -1102,13 +1165,15 @@
                                     value: b.categories.length || (b.menu_top || []).length ? 'Custom' : 'Automatic' }));
         rows.push(K.seg({ label: 'Rooms in Menu', sk: 'b:menu_rooms', value: b.menu_rooms, stack: !this.hasAttribute('wide'),
                           options: [['az', 'A to Z'], ['order', 'Room Order']], onChange: function (v) { set({ menu_rooms: v }); } }));
-        rows.push(K.toggle({ label: 'Home Assistant Row', sk: 'b:ha_row', on: b.ha_row,
+        rows.push(K.toggle({ label: 'Home Assistant Section', sk: 'b:ha_row', on: b.ha_row,
+                             sub: 'Integrations, Automations, Settings, Notifications and more, above Categories.',
                              onChange: function (on) { set({ ha_row: on }); } }));
       }
       var menuFoot = gen && mode !== 'off' ? ' Where each page sits in the menu is set in Pages.' : '';
       c.appendChild(K.group({ header: 'Menu', footer: mode === 'off' ? 'No menu on this screen.' :
-        (mode === 'open' ? 'Narrower than this, the menu folds away and When Folded takes its place. The Home Assistant row opens Home Assistant’s own sidebar.' :
-        'Below 1,024 px (an iPad held upright, a phone), On Narrow Screens takes over from the Button Style. The Home Assistant row opens Home Assistant’s own sidebar.') + menuFoot }, rows));
+        (mode === 'open' ? 'Narrower than this, the menu folds away and When Folded takes its place.' :
+        'Below 1,024 px (an iPad held upright, a phone), On Narrow Screens takes over from the Button Style.') +
+        ' The Home Assistant section shows only what each person may open; Show Menu there opens Home Assistant’s own sidebar.' + menuFoot }, rows));
 
       // HOME PAGE
       var chipsVal = !b.chips_row ? 'Off' : b.chips.length ? b.chips.length + ' Chips' : 'Automatic';

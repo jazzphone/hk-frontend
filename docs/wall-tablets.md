@@ -139,9 +139,10 @@ On the tablet itself:
    YAML.
 
 With the header hidden, you can still reach Home Assistant from the tablet if
-you want to: the screen’s **Menu** settings can add a **Home Assistant Row**
-that opens Home Assistant’s own sidebar over the page. Leave it off on a
-tablet everyone uses.
+you want to: the screen’s **Menu** settings can add a **Home Assistant
+Section** -- Home Assistant’s own pages in the menu, and **Show Menu**, which
+opens its sidebar over the page. A tablet’s own user sees only what it may
+open. Leave it off on a tablet everyone uses.
 
 A dashboard you write in YAML takes Kiosk Mode’s own `kiosk_mode:` block in
 its YAML instead:

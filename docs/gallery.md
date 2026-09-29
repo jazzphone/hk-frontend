@@ -29,6 +29,8 @@ camera pictures are blurred on purpose.
 
 ![The Home screen on a computer, with the menu open beside it](images/desktop-home.png)
 
+![The menu's Home Assistant section, with More folded out](images/desktop-menu-ha.png)
+
 ![The Home screen on an iPad](images/ipad-home.png)
 
 | | | |
@@ -68,19 +70,19 @@ More: [Sky](sky.md).
 | Overview | Setup Assistant |
 | ![The screens](images/settings-screens.png) | ![One screen’s settings](images/settings-screen.png) |
 | Screens | A screen |
-| ![A screen’s status chips](images/settings-chips.png) | ![Accessories](images/settings-accessories.png) |
-| Status chips | Accessories |
-| ![Custom chips](images/settings-custom-chips.png) | ![Pop-ups](images/settings-popups.png) |
-| Custom chips | Pop-ups |
-| ![Custom pages](images/settings-pages.png) | ![What Counts](images/settings-counts.png) |
-| Custom pages | What Counts |
-| ![Weather](images/settings-weather.png) | ![Sky](images/settings-sky.png) |
-| Weather | Sky |
-| ![Appearance](images/settings-appearance.png) | ![Music](images/settings-music.png) |
-| Appearance | Music |
-| ![Live TV](images/settings-live-tv.png) | ![Clean Areas](images/settings-clean-areas.png) |
-| Live TV | Clean Areas |
-| ![Alarm PIN](images/settings-alarm-pin.png) | |
-| Alarm PIN | |
+| ![A screen’s status chips](images/settings-chips.png) | ![A screen’s preview at phone size](images/settings-preview-phone.png) |
+| Status chips | The preview at phone size |
+| ![Accessories](images/settings-accessories.png) | ![Custom chips](images/settings-custom-chips.png) |
+| Accessories | Custom chips |
+| ![Pop-ups](images/settings-popups.png) | ![Custom pages](images/settings-pages.png) |
+| Pop-ups | Custom pages |
+| ![What Counts](images/settings-counts.png) | ![Weather](images/settings-weather.png) |
+| What Counts | Weather |
+| ![Sky](images/settings-sky.png) | ![Appearance](images/settings-appearance.png) |
+| Sky | Appearance |
+| ![Music](images/settings-music.png) | ![Live TV](images/settings-live-tv.png) |
+| Music | Live TV |
+| ![Clean Areas](images/settings-clean-areas.png) | ![Alarm PIN](images/settings-alarm-pin.png) |
+| Clean Areas | Alarm PIN |
 
 More: [Settings](settings.md).

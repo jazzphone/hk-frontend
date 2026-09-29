@@ -33,7 +33,7 @@ from .const import DOMAIN
 
 # The oldest release these pages have been built and tested against. Older
 # frontends name their font variables differently (the theme) and draw the
-# sidebar drawer differently (the menu's Home Assistant row).
+# sidebar drawer differently (the menu's Home Assistant section: Show Menu).
 MIN_HA = (2026, 8)
 THEME = "HK Kiosk"
 ISSUES = ("ha_too_old", "theme_missing")

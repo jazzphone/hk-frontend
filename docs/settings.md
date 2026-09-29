@@ -51,6 +51,14 @@ bookmarks work.
 
 A screen’s page shows a live preview of that screen beside its settings (above
 them on a narrower window). Changes show in the preview within seconds.
+Under it, pick the size to look at -- **Phone** (390 × 844), **Tablet
+Portrait** (an iPad upright, 820 × 1180), **Tablet Landscape** (1280 × 800,
+a wall tablet), **Desktop** (1440 × 900), and **Car** (804 × 638, with the
+car’s zoom) on a screen with Car Browser on. The preview is that size, so it
+shows the layout that device really gets. It opens on the size the screen is
+used at, and remembers your last choice for each screen in that browser.
+
+![A screen’s preview at phone size](images/settings-preview-phone.png)
 **Open Screen** opens the screen itself in a new tab.
 
 ### How the controls behave
@@ -134,7 +142,7 @@ The first line under the title says the screen’s address and whether it is
 | Time & Weather in Menu | Off (Wall Tablet preset: on) | *Menu: Always Open.* The time, date and weather sit at the top of the menu instead of in the Home page’s header, and the status chips move up into the space. When the menu folds away, the header comes back. |
 | Pages in Menu | Automatic | *YAML screens.* For each page: **Top of Menu** (right under Home), **Categories**, or **Not in Menu**. A generated screen sets this on its [Pages](#pages) instead. **Use the Automatic Menu** clears your choices. |
 | Rooms in Menu | A to Z | **A to Z**, or **Room Order** (the order set in [Rooms](#rooms)). |
-| Home Assistant Row | Off | Adds a **Home Assistant** row to the menu that opens Home Assistant’s own sidebar (Settings, other dashboards), even where it is hidden. Leave it off on a shared wall tablet. |
+| Home Assistant Section | Off | Adds a **Home Assistant** section to the menu, above Categories: Integrations, Automations, Settings (with its updates-and-repairs count), Notifications (with its count), **More** (the rest of that person’s Home Assistant sidebar, in their order), **Show Menu** (Home Assistant’s own sidebar, even where it is hidden) and Profile. Each person sees only what they may open. Leave it off on a shared wall tablet. |
 
 #### Home Page
 
@@ -239,7 +247,7 @@ sits in the menu.
 | Frost / Blur | Same as All Screens | Shown for the amount this screen’s glass uses. Moving it gives this screen its own amount. |
 | Use All-Screens Frost / Blur | — | Shown once the screen has its own amount. Goes back to following All Screens. |
 | Live Sky | On | Off: a plain background instead of the animated sky. A YAML screen’s sky comes from its YAML; this can only turn it off. |
-| Hide Home Assistant Header & Sidebar | Off (Wall Tablet and Car presets: on) | *Generated.* The whole window is the screen. Needs Kiosk Mode from HACS. The menu’s Home Assistant row still opens the sidebar. |
+| Hide Home Assistant Header & Sidebar | Off (Wall Tablet and Car presets: on) | *Generated.* The whole window is the screen. Needs Kiosk Mode from HACS. The menu’s Home Assistant section still reaches it (Show Menu). |
 | Kiosk Mode Options | Default | *Generated, with the switch above on.* See below. |
 
 **Kiosk Mode Options**

@@ -128,9 +128,9 @@
     }
     out.home = { title: (v0 && v0.menu_title) || 'Home', icon: (v0 && v0.menu_icon) || 'mdi:home',
                  path: pathOf(v0 || {}, 0), index: 0, kind: 'home', paths: ['0', v0 && v0.path] };
-    // "Home Assistant" (the dashboard item's gear -> Menu -> Home Assistant row):
-    // opens Home Assistant's own sidebar, listed after the top pages.
-    if (o.ha) out.top.push({ title: 'Home Assistant', icon: 'mdi:home-assistant', kind: 'ha', path: null, paths: [] });
+    // "Home Assistant" (a screen's Menu -> Home Assistant): its own section,
+    // between the top pages and Categories (haItems, drawn by the page).
+    out.ha = !!o.ha;
     // Is the page at `i` in the menu? (top, or a listed category)
     function shows(v, i) {
       if (!v || !userCan(v)) return false;
@@ -174,12 +174,8 @@
       if (!top && !listed(v, i)) continue;
       var item = { title: title, icon: v.menu_icon || v.icon || PAGE_ICON, path: pathOf(v, i), index: i,
                    kind: top ? 'top' : 'category', paths: [String(i), v.path], rank: rank(v, i) };
-      if (top) {
-        // before the Home Assistant row, which always comes last among them
-        var ha = out.top.length && out.top[out.top.length - 1].kind === 'ha' ? out.top.pop() : null;
-        out.top.push(item);
-        if (ha) out.top.push(ha);
-      } else out.categories.push(item);
+      if (top) out.top.push(item);
+      else out.categories.push(item);
     }
     out.categories.sort(function (x, y) { return x.rank - y.rank; });
     // ROOM ORDER (the dashboard item's "Rooms in the menu"): A to Z, or
@@ -301,6 +297,61 @@
     return !!here && item.paths.indexOf(here) !== -1;
   }
 
+  // THE HOME ASSISTANT SECTION (a screen's Menu -> Home Assistant): Home
+  // Assistant's own pages, above Categories. Pinned: Integrations,
+  // Automations and Settings -- admins only, as Home Assistant has them --
+  // then Notifications. "More" folds out the rest of this user's own Home
+  // Assistant sidebar, in its order and titles, without what they hid (or
+  // what they may not open). Then Show Menu (Home Assistant's own sidebar,
+  // unless it is on screen already) and Profile. All of it is read live:
+  // nothing here is stored in the dashboard.
+  var HA_PINNED = [
+    { title: 'Integrations', icon: 'mdi:devices', path: '/config/integrations/dashboard', panel: 'config/integrations' },
+    { title: 'Automations', icon: 'mdi:robot', path: '/config/automation/dashboard', panel: 'config/automation' },
+    { title: 'Settings', icon: 'mdi:cog', path: '/config/dashboard', panel: 'config', badge: 'settings' }
+  ];
+  function haItems(hass, prefs, o) {
+    o = o || {};
+    prefs = prefs || {};
+    var admin = !!(hass && hass.user && hass.user.is_admin);
+    var panels = (hass && hass.panels) || {};
+    var name = function (t) {
+      var s = '';
+      try { s = hass.localize('panel.' + t); } catch (e) { /* no localize */ }
+      return s || t;
+    };
+    var out = [], pinned = { config: 1 };
+    HA_PINNED.forEach(function (p) {
+      pinned[p.panel] = 1;
+      if (admin) out.push({ title: p.title, icon: p.icon, kind: 'hapage', path: p.path, badge: p.badge || '', paths: [] });
+    });
+    out.push({ title: 'Notifications', icon: 'mdi:bell', kind: 'notif', badge: 'notif', paths: [] });
+    var hidden = Array.isArray(prefs.hiddenPanels) ? prefs.hiddenPanels : [];
+    var order = Array.isArray(prefs.panelOrder) ? prefs.panelOrder : [];
+    var more = Object.keys(panels).filter(function (k) {
+      var p = panels[k];
+      return !!p && !!p.title && p.show_in_sidebar !== false && !pinned[k] &&
+             hidden.indexOf(k) === -1 && (admin || !p.require_admin);
+    }).map(function (k) {
+      return { key: k, title: name(panels[k].title), icon: panels[k].icon || 'mdi:application-outline' };
+    });
+    // this user's order first, then the rest A to Z -- as Home Assistant does
+    more.sort(function (a, b) {
+      var ia = order.indexOf(a.key), ib = order.indexOf(b.key);
+      if (ia === -1 && ib === -1) return a.title.localeCompare(b.title);
+      return (ia === -1 ? 1e6 : ia) - (ib === -1 ? 1e6 : ib);
+    });
+    if (more.length) {
+      out.push({ title: 'More', icon: 'mdi:dots-horizontal-circle-outline', kind: 'more', open: !!o.moreOpen, paths: [] });
+      if (o.moreOpen) {
+        more.forEach(function (m) { out.push({ title: m.title, icon: m.icon, kind: 'sub', path: '/' + m.key, paths: [] }); });
+      }
+    }
+    if (!o.sidebarShown) out.push({ title: 'Show Menu', icon: 'mdi:menu', kind: 'ha', path: null, paths: [] });
+    out.push({ title: 'Profile', icon: 'mdi:account-circle', kind: 'hapage', path: '/profile/general', paths: [] });
+    return out;
+  }
+
   // An mdi: icon with an SF Symbol of the same name in the hk: glyph set
   // is drawn as that symbol (hk:), so the menu wears Apple's artwork where it
   // exists and Material's everywhere else.
@@ -317,6 +368,7 @@
   }
 
   window.hkMenu = { version: '1.1.0', _: { model: model, isHere: isHere, glyph: glyph, chipPaths: chipPaths, pagePaths: pagePaths,
+                                           haItems: haItems,
                                            tabCentre: tabCentre, kinds: { ORDER: KIND_ORDER, PAGES: KIND_PAGES } } };
 
   whenBase(function (C) {
@@ -427,6 +479,14 @@
       '.row span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.row.here{background:#ff9f0a;color:#fff}',
       '.row.here ha-icon{color:#fff}',
+      // the Home Assistant section: iOS count bubbles, "More" and its rows
+      '.row .bdg{flex:none;min-width:22px;height:22px;padding:0 7px;box-sizing:border-box;border-radius:11px;',
+      '  background:#ff3b30;color:#fff;font-size:13px;font-weight:600;line-height:22px;text-align:center;letter-spacing:0}',
+      '.row .bdg[hidden]{display:none}',
+      '.row.more svg{flex:none;opacity:.45;transform:rotate(-90deg);transition:transform .2s ease}',
+      '.row.more[aria-expanded="true"] svg{transform:none}',
+      '.row.sub{height:40px;padding-left:50px;font-size:15px;color:rgba(255,255,255,0.85)}',
+      '.row.sub ha-icon{--mdc-icon-size:20px;width:20px;height:20px;color:rgba(235,235,245,0.6)}',
       '@media (hover:hover){.row:not(.here):hover{background:rgba(255,255,255,0.07)}}',
       '.row:focus-visible,.sh:focus-visible,.tab:focus-visible{outline:2px solid rgba(255,255,255,0.7);outline-offset:-2px}',
       // SECTION HEADINGS: the Home app's "Categories" / "Rooms", which fold.
@@ -486,7 +546,7 @@
       '.root.fabbed .fab{display:flex}',
       '.root.open .fab{display:none}',
       '.fab ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
-      '@media (prefers-reduced-motion:reduce){.panel,.scrim,.sh svg,.root.tabscroll .tab{transition:none}}'
+      '@media (prefers-reduced-motion:reduce){.panel,.scrim,.sh svg,.row.more svg,.root.tabscroll .tab{transition:none}}'
     ].join('\n');
 
     var CHEV_L = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"' +
@@ -808,6 +868,10 @@
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row,
               haSidebarShown(),
+              // the Home Assistant section: More folded or not, this user's
+              // sidebar order, and the panels there are
+              !!S.shut.ha_more, JSON.stringify(S.haPrefs || null), !!(h && h.user && h.user.is_admin),
+              h && h.panels ? Object.keys(h.panels).join(',') : '',
               cfg ? (cfg.views || []).length : 0,
               JSON.stringify(h && h.areas ? Object.keys(h.areas).map(function (k) {
                 return k + ':' + h.areas[k].name + ':' + (h.areas[k].icon || '');
@@ -829,14 +893,16 @@
                                           top: b.menu_top,
                                           chips: b.chips, chipsRow: b.chips_row,
                                           pageOrder: pagePaths(b.pages, b.custom_pages),
-                                          // not while HA's own sidebar is already on screen
-                                          ha: !!b.ha_row && !haSidebarShown() });
+                                          ha: !!b.ha_row });
       S.items = [];
       var html = '';
       function row(it) {
         S.items.push(it);
-        return '<button class="row" data-i="' + (S.items.length - 1) + '"><ha-icon icon="' +
-          esc(glyph(it.icon)) + '"></ha-icon><span>' + esc(it.title) + '</span></button>';
+        var cls = it.kind === 'sub' ? ' sub' : it.kind === 'more' ? ' more' : '';
+        var tail = it.badge ? '<b class="bdg" data-badge="' + it.badge + '" hidden></b>' : it.kind === 'more' ? CHEV_D : '';
+        return '<button class="row' + cls + '" data-i="' + (S.items.length - 1) + '"' +
+          (it.kind === 'more' ? ' aria-expanded="' + !!it.open + '"' : '') + '><ha-icon icon="' +
+          esc(glyph(it.icon)) + '"></ha-icon><span>' + esc(it.title) + '</span>' + tail + '</button>';
       }
       function section(key, title, items) {
         if (!items.length) return '';
@@ -846,12 +912,93 @@
       }
       if (m.home) html += row(m.home);
       html += m.top.map(row).join('');
+      S.haOn = m.ha;
+      haCounts(m.ha);
+      if (m.ha) {
+        haUpdates(h, true);
+        html += section('ha', 'Home Assistant', haItems(h, S.haPrefs, { moreOpen: !!S.shut.ha_more,
+                                                                        sidebarShown: haSidebarShown() }));
+      }
       html += section('categories', 'Categories', m.categories);
       html += section('rooms', 'Rooms', m.rooms);
       var keep = S.list.scrollTop;
       S.list.innerHTML = html;
       S.list.scrollTop = keep;
       S.built = listKey();
+      paintBadges();
+    }
+
+    // THE COUNTS, as Home Assistant's own sidebar keeps them: waiting
+    // notifications (every user), and on Settings the updates ready to
+    // install plus the repairs not ignored (admins). Subscribed only while a
+    // screen shows the section, and painted in place -- a count never
+    // rebuilds the list.
+    var HC = { notif: 0, updates: 0, issues: 0, conn: null, un: [], at: 0 };
+    function haCounts(on) {
+      var h = C.hass(), conn = h && h.connection;
+      if (!on || !conn) {
+        HC.un.forEach(function (f) { try { f(); } catch (e) { /* gone */ } });
+        HC.un = [];
+        HC.conn = null;
+        return;
+      }
+      if (HC.conn === conn) return;
+      haCounts(false);
+      HC.conn = conn;
+      var keep = function (p) {
+        Promise.resolve(p).then(function (un) {
+          if (HC.conn === conn) HC.un.push(un); else { try { un(); } catch (e) { /* gone */ } }
+        }, function () { /* refused: no count */ });
+      };
+      var seen = {};
+      keep(conn.subscribeMessage(function (m) {
+        if (m.type === 'current') seen = {};
+        Object.keys(m.notifications || {}).forEach(function (id) {
+          if (m.type === 'removed') delete seen[id]; else seen[id] = 1;
+        });
+        HC.notif = Object.keys(seen).length;
+        paintBadges();
+      }, { type: 'persistent_notification/subscribe' }));
+      // this user's sidebar order and hidden items (More follows them)
+      keep(conn.subscribeMessage(function (m) {
+        S.haPrefs = (m && m.value) || null;
+        if (docked() && listKey() !== S.built) { build(); markHere(); }
+      }, { type: 'frontend/subscribe_user_data', key: 'sidebar' }));
+      if (h.user && h.user.is_admin) {
+        var issues = function () {
+          conn.sendMessagePromise({ type: 'repairs/list_issues' }).then(function (r) {
+            HC.issues = ((r && r.issues) || []).filter(function (x) { return !x.ignored; }).length;
+            paintBadges();
+          }, function () { /* no repairs */ });
+        };
+        issues();
+        keep(conn.subscribeEvents(function () { clearTimeout(HC.it); HC.it = setTimeout(issues, 500); },
+                                  'repairs_issue_registry_updated'));
+      }
+    }
+    // updates: at most every 5 s, as Home Assistant's own sidebar counts them
+    function haUpdates(h, now) {
+      if (!(h && h.user && h.user.is_admin && h.states)) { HC.updates = 0; return; }
+      var t = Date.now();
+      if (!now && t - HC.at < 5000) return;
+      HC.at = t;
+      var n = 0, en = h.entities || {};
+      for (var id in h.states) {
+        if (id.lastIndexOf('update.', 0) !== 0) continue;
+        var st = h.states[id];
+        if (st.state === 'on' && ((st.attributes.supported_features || 0) & 1) && !(en[id] && en[id].hidden)) n++;
+      }
+      if (n !== HC.updates) { HC.updates = n; paintBadges(); }
+    }
+    function paintBadges() {
+      if (!S.list) return;
+      var n = { settings: HC.updates + HC.issues, notif: HC.notif };
+      S.list.querySelectorAll('.bdg').forEach(function (b) {
+        var v = n[b.getAttribute('data-badge')] || 0;
+        var txt = v > 99 ? '99+' : String(v);
+        if (b.textContent !== txt) b.textContent = txt;
+        if (b.hidden !== !v) b.hidden = !v;
+      });
     }
     function markHere() {
       if (!S.items) return;
@@ -879,6 +1026,30 @@
       var it = S.items[+r.getAttribute('data-i')];
       if (!it) return;
       if (it.kind === 'ha') { close(true); openHaSidebar(); return; }
+      if (it.kind === 'more') {
+        S.shut.ha_more = !S.shut.ha_more;
+        try { localStorage.setItem('hk-menu-shut', JSON.stringify(S.shut)); } catch (x) { /* private */ }
+        build();
+        markHere();
+        return;
+      }
+      // Notifications: Home Assistant's own drawer, over the page
+      if (it.kind === 'notif') {
+        close(true);
+        var hm = haParts().main;
+        if (hm) hm.dispatchEvent(new CustomEvent('hass-show-notifications', { bubbles: true, composed: true }));
+        return;
+      }
+      // A Home Assistant page: kiosk mode is lifted outside the dashboards
+      // (syncOutside), so its own sidebar or header is the way back.
+      if (it.kind === 'hapage' || it.kind === 'sub') {
+        try { sessionStorage.setItem(ESCAPE_KEY, '1'); } catch (x) { /* private mode */ }
+        HA.used = true;
+        close(true);
+        history.pushState(null, '', it.path);
+        window.dispatchEvent(new CustomEvent('location-changed'));
+        return;
+      }
       // The selection moves at once, so the tap is answered before the page is.
       S.list.querySelectorAll('.row.here').forEach(function (x) { x.classList.remove('here'); });
       r.classList.add('here');
@@ -908,7 +1079,7 @@
                sidebar: sr && sr.querySelector('ha-sidebar') };
     }
     // Home Assistant's sidebar already on screen beside the page (no kiosk
-    // mode, a wide window): the Home Assistant row would open what is there.
+    // mode, a wide window): Show Menu would open what is there.
     function haSidebarShown() {
       if (HA.active) return false;
       var p = haParts();
@@ -942,7 +1113,7 @@
     }
     // OUTSIDE THE DASHBOARDS, HOME ASSISTANT IS HOME ASSISTANT.
     // kiosk-mode's rules outlive the dashboard that set them: open Settings
-    // from the Home Assistant row and its sidebar stays hidden there, with no
+    // from the Home Assistant section and its sidebar stays hidden there, with no
     // way back but a reload -- and on a phone its ☰ opens a drawer kiosk mode
     // also hides. So once this browser has used the row (this session), every
     // page that is NOT a dashboard gets kiosk mode's rules switched off --
@@ -1092,6 +1263,7 @@
       if (!S.root && M.on()) sync();
       else if (S.root && (M.dash() !== S.dash)) { S.dash = M.dash(); S.built = ''; sync(); }
       else if (S.root && S.nowKey) paintNow();      // the weather, a Time & Date sensor
+      if (S.haOn) haUpdates(C.hass());
     });
     // THIS SCREEN'S OWN CLOCK moves without a push: looked at every 15 s,
     // written only when the minute has changed (paintNow compares).

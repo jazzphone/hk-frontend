@@ -218,5 +218,36 @@ var ky = M.liveYaml(kept, 'input_select.cameras');
 ok('...and a camera it has no option for is left out of the automation',
    /id: "Front Door"/.test(ky) && !/Deck/.test(ky) && /option: "Front Door"\n    else/.test(ky));
 
+// THE PREVIEW'S SIZE (a screen's page): the frame IS the device's size -- the
+// dashboard lays itself out by its own window -- drawn scaled to the column.
+var PS = M.previewSizes;
+var keys = function (xs) { return xs.map(function (z) { return z.key; }).join(','); };
+ok('four sizes for a screen: Phone, Tablet Portrait, Tablet Landscape, Desktop',
+   keys(PS({})) === 'phone,portrait,landscape,desktop' &&
+   PS({}).map(function (z) { return z.label; }).join('|') === 'Phone|Tablet Portrait|Tablet Landscape|Desktop');
+ok('...and Car only where Car Browser is on', keys(PS({ car: true })) === 'phone,portrait,landscape,desktop,car');
+var dim = function (k) { var z = PS({ car: true }).filter(function (x) { return x.key === k; })[0]; return z.w + 'x' + z.h; };
+ok('the sizes: an iPhone, an iPad upright, the wall tablets, a desk, the car',
+   dim('phone') === '390x844' && dim('portrait') === '820x1180' && dim('landscape') === '1280x800' &&
+   dim('desktop') === '1440x900' && dim('car') === '804x638');
+ok('Tablet Portrait is the tablet glyph turned upright, Landscape the same glyph as drawn',
+   PS({})[1].icon === PS({})[2].icon && PS({})[1].rotate === true && !PS({})[2].rotate);
+ok('it opens on the size the screen is used at: a car\'s browser -> Car',
+   M.previewDefault({ car: true }) === 'car');
+ok('...a wall tablet (its own user, WallPanel, back to Home when idle) -> Tablet Landscape',
+   M.previewDefault({ tablet_user: 'u' }) === 'landscape' && M.previewDefault({ screensaver: true }) === 'landscape' &&
+   M.previewDefault({ idle_return: true }) === 'landscape');
+ok('...anything else -> Desktop', M.previewDefault({ menu: 'open' }) === 'desktop' && M.previewDefault(null) === 'desktop');
+var f = M.previewFit(410, 560, { w: 1280, h: 800 });
+ok('landscape: as wide as the column, height to match',
+   Math.round(f.width) === 410 && Math.round(f.height) === 256 && Math.abs(f.scale - 410 / 1280) < 1e-9, JSON.stringify(f));
+f = M.previewFit(410, 560, { w: 390, h: 844 });
+ok('a phone: no taller than the cap, so a narrow screen in the middle',
+   Math.round(f.height) === 560 && Math.round(f.width) === 259 && f.width < 410, JSON.stringify(f));
+f = M.previewFit(410, 560, { w: 820, h: 1180 });
+ok('an iPad upright: the cap decides too', Math.round(f.height) === 560 && Math.round(f.width) === 389, JSON.stringify(f));
+f = M.previewFit(0, 560, { w: 1280, h: 800 });
+ok('a column not laid out yet: a sane size, not zero', f.width > 0 && f.height > 0, JSON.stringify(f));
+
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

@@ -93,10 +93,53 @@ ok('the Staff view shows for its own user', model({ views: VIEWS }, AREAS, { das
 ok('no config, no list', model(null, AREAS, {}).home === null);
 
 var withHa = model({ views: VIEWS }, AREAS, { dash: 'dashboard-hall', ha: true });
-ok('the Home Assistant row, when on, comes last among the top pages',
-   withHa.top.map(function (x) { return x.title; }).join() === 'Weather,Home Assistant' && withHa.top[1].kind === 'ha');
-ok('...and is never "here"', isHere(withHa.top[1], '/dashboard-hall/weather') === false);
-ok('off, there is no such row', m.top.every(function (x) { return x.kind !== 'ha'; }));
+ok('the Home Assistant section, when on, is its own section -- not a top row',
+   withHa.ha === true && withHa.top.map(function (x) { return x.title; }).join() === 'Weather');
+ok('off, there is no section', m.ha === false);
+
+// THE HOME ASSISTANT SECTION'S CONTENTS (haItems): Home Assistant's own pages,
+// from its panels and this user's sidebar order -- read live, never stored.
+var haItems = window.hkMenu._.haItems;
+var PANELS = {
+  lovelace: { title: null, icon: null },
+  config: { title: 'config', icon: 'mdi:cog', require_admin: true },
+  'config/integrations': { title: 'Integrations', icon: 'mdi:puzzle', require_admin: true },
+  'config/automation': { title: 'Automations', icon: 'mdi:cogs', require_admin: true },
+  map: { title: 'map', icon: 'mdi:map' },
+  logbook: { title: 'logbook', icon: 'mdi:format-list-bulleted-type' },
+  hacs: { title: 'HACS', icon: 'hacs:hacs', require_admin: true },
+  'dashboard-hall': { title: 'Hall', icon: 'mdi:home', show_in_sidebar: true },
+  'dashboard-den': { title: 'Den', icon: 'mdi:sofa', show_in_sidebar: false },
+  home: { title: 'home', icon: 'mdi:home' },
+  profile: { title: null }
+};
+var LOC = { 'panel.map': 'Map', 'panel.logbook': 'Activity', 'panel.home': 'Areas' };
+function hassFor(admin) { return { user: { is_admin: admin }, panels: PANELS, localize: function (k) { return LOC[k] || ''; } }; }
+var PREFS = { panelOrder: ['dashboard-hall', 'hacs', 'map'], hiddenPanels: ['home'] };
+var titles = function (xs) { return xs.map(function (x) { return x.title; }).join(','); };
+var adm = haItems(hassFor(true), PREFS, {});
+ok('an admin: Integrations, Automations, Settings, Notifications, More, Show Menu, Profile',
+   titles(adm) === 'Integrations,Automations,Settings,Notifications,More,Show Menu,Profile', titles(adm));
+ok('...Settings carries the updates-and-repairs count, Notifications its own',
+   adm[2].badge === 'settings' && adm[3].badge === 'notif' && !adm[0].badge);
+ok('...each opens Home Assistant\'s own page', adm[0].path === '/config/integrations/dashboard' &&
+   adm[1].path === '/config/automation/dashboard' && adm[2].path === '/config/dashboard' && adm[6].path === '/profile/general');
+var open = haItems(hassFor(true), PREFS, { moreOpen: true });
+var subs = open.filter(function (x) { return x.kind === 'sub'; });
+ok('More opened: the rest of the sidebar, in this user\'s order, then A to Z',
+   titles(subs) === 'Hall,HACS,Map,Activity', titles(subs));
+ok('...titled as Home Assistant titles them (logbook is "Activity")', subs[3].title === 'Activity');
+ok('...without what they hid, what is off the sidebar, or what More would repeat',
+   !subs.some(function (x) { return /Areas|Den|Integrations|Automations|config/.test(x.title); }));
+ok('...each a way to its page', subs[0].path === '/dashboard-hall' && subs[1].icon === 'hacs:hacs');
+var user = haItems(hassFor(false), PREFS, { moreOpen: true });
+ok('not an admin: no Integrations, Automations or Settings, and no admin-only pages',
+   titles(user) === 'Notifications,More,Hall,Map,Activity,Show Menu,Profile', titles(user));
+ok('Home Assistant\'s sidebar already on screen: no Show Menu',
+   haItems(hassFor(true), PREFS, { sidebarShown: true }).every(function (x) { return x.kind !== 'ha'; }));
+ok('no sidebar order saved: the pages A to Z', titles(haItems(hassFor(true), null, { moreOpen: true })
+   .filter(function (x) { return x.kind === 'sub'; })) === 'Activity,Areas,HACS,Hall,Map');
+ok('none of it is ever "here"', open.every(function (x) { return isHere(x, '/dashboard-hall/0') === false; }));
 
 print('\n=== categories: the chips\' pages, or the ones chosen ===');
 var chip = function (path, extra) {

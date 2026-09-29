@@ -589,7 +589,7 @@
     ['Home Page', 'screen/pages', 'home_page', 'only custom pages energy panel no home', true],
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
     ['Rooms in Menu', 'screen', 'menu_rooms', 'a to z order', true],
-    ['Home Assistant Row', 'screen', 'ha_row', 'sidebar settings access', true],
+    ['Home Assistant Section', 'screen', 'ha_row', 'sidebar settings access integrations automations notifications profile show menu', true],
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
     ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera', true],
     ['Live Camera Follows', 'screen/cameras/live', 'camera_live', 'live camera follows motion person detection dropdown input select automation', true],
@@ -673,7 +673,37 @@
     return out;
   }
 
+  // THE PREVIEW'S SIZE (a screen's page, under its preview). The frame IS
+  // that device's size -- the dashboard lays itself out by its own window,
+  // so a phone gets the phone layout -- drawn scaled down to the column.
+  // Car only where Car Browser is on (tesla-viewport.js zooms that frame
+  // as it does the car). hk: glyphs fall back to Material's of the same name.
+  var PREVIEW_SIZES = [
+    { key: 'phone', label: 'Phone', w: 390, h: 844, icon: 'hk:cellphone' },
+    { key: 'portrait', label: 'Tablet Portrait', w: 820, h: 1180, icon: 'hk:tablet', rotate: true },
+    { key: 'landscape', label: 'Tablet Landscape', w: 1280, h: 800, icon: 'hk:tablet' },
+    { key: 'desktop', label: 'Desktop', w: 1440, h: 900, icon: 'hk:monitor' },
+    { key: 'car', label: 'Car', w: 804, h: 638, icon: 'hk:car' }
+  ];
+  function previewSizes(b) {
+    return PREVIEW_SIZES.filter(function (z) { return z.key !== 'car' || !!(b && b.car); });
+  }
+  // the size the screen is used at: a car's browser, a wall tablet (its own
+  // user, WallPanel, back to Home when idle), else a desk
+  function previewDefault(b) {
+    if (!b) return 'desktop';
+    if (b.car) return 'car';
+    if (b.tablet_user || b.screensaver || b.idle_return) return 'landscape';
+    return 'desktop';
+  }
+  // as wide as the column, no taller than maxH: the scale and the box
+  function previewFit(width, maxH, z) {
+    var s = Math.min((width || 400) / z.w, (maxH || 560) / z.h);
+    return { scale: s, width: z.w * s, height: z.h * s };
+  }
+
   root.hkSettingsModel = {
+    previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
     version: '2.0.0',
     CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS,
     MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,

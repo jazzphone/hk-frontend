@@ -18,9 +18,9 @@ Home Assistant dashboards inspired by Apple’s Home app — built from your own
 - **One screen for every device.** The same screen works on a wall tablet, a computer, an iPad and a phone; tiles and the weather reflow below 640 px.
 - **A live sky** behind every page that follows the weather and the time of day, with optional seasonal decorations.
 - **Glass tiles and detail sheets.** Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs.
-- **A menu of pages and rooms**, open beside the page or behind a button.
+- **A menu of pages and rooms**, open beside the page or behind a button, with an optional **Home Assistant section**: Integrations, Automations, Settings and Notifications with their counts, and the rest of your Home Assistant sidebar.
 - **Pop-ups** for a doorbell camera, the alarm keypad or a set of accessories, which an automation can open on chosen screens (`hk_frontend.show_popup`).
-- **HK Settings**, a settings page in the sidebar with a live preview of each screen, a Setup Assistant and a Setup Check.
+- **HK Settings**, a settings page in the sidebar with a live preview of each screen -- as a phone, an iPad, a wall tablet, a desktop or a car -- a Setup Assistant and a Setup Check.
 - **A card library** for dashboards you build yourself.
 - **Wall tablet support:** return to Home when idle, a photo screensaver, and a full-screen kiosk look.
 
