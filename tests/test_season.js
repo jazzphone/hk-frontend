@@ -168,4 +168,30 @@ check('follows the moon, not a constant',
       WP(1280, 800, 384, 0.40, 0.24).left < t.p.left);
 witchChecks('phone 390x844: ', 390, 844);
 
+// THE SETTINGS PAGE'S PREVIEW: any theme, any date, in its own window only;
+// the weather held clear so the theme is what shows; null is today's sky.
+(function () {
+  var K = window.hkSky, JUNE = new Date(2026, 5, 10, 12);
+  var live = { states: { 'sun.sun': { state: 'above_horizon', attributes: { elevation: 12, azimuth: 100 } },
+                         'weather.home': { state: 'rainy', attributes: { cloud_coverage: 95 } } } };
+  var p = K.preview('halloween', 'spooky');
+  var r = K._read(live), plan = K._planned('halloween', JUNE);
+  check('preview: Halloween\'s spooky night in June', p && p.id === 'halloween' && p.when === 'spooky' &&
+        plan.show === true && plan.spooky === true && r.season === 'halloween' && r.elev < -4);
+  check('...under a clear, dry sky, whatever the real weather', r.cond === 'clear-night' && r.wet.kind === 'none' && r.cover < 0.2 && !r.fog);
+  K.preview('christmas', 'day');
+  r = K._read(live);
+  check('preview: Christmas by day', r.season === 'christmas' && r.elev > 0 && r.cond === 'sunny' &&
+        K._planned('christmas', JUNE).show === true && K._planned('christmas', JUNE).spooky === false);
+  K.preview('fourth-of-july', 'night');
+  r = K._read(live);
+  check('preview: a surprise (Fourth of July) replaces any season, at night', r.season === '' && r.elev < -4 &&
+        K.previewing.id === 'fourth-of-july');
+  check('...and a season is no longer forced', K._planned('halloween', JUNE).show === false);
+  K.preview(null);
+  r = K._read(live);
+  check('preview(null): today\'s own sky again -- the real sun and weather', K.previewing === null &&
+        r.elev === 12 && r.cond === 'rainy' && r.wet.kind !== 'none');
+})();
+
 print(fail ?'FAIL ' + fail + ' SEASON TESTS' : 'ALL ' + pass + ' SEASON TESTS PASS');

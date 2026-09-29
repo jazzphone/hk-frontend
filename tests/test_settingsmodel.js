@@ -249,5 +249,24 @@ ok('an iPad upright: the cap decides too', Math.round(f.height) === 560 && Math.
 f = M.previewFit(0, 560, { w: 1280, h: 800 });
 ok('a column not laid out yet: a sane size, not zero', f.width > 0 && f.height > 0, JSON.stringify(f));
 
+// THE SKY'S PREVIEW: which screen shows it, and in which moments
+var DASH = [
+  { path: 'ecoflow-panel', title: 'EcoFlow Panel', item: true, generated: true },
+  { path: 'dashboard-kitchen', title: 'Kitchen', item: true, generated: true },
+  { path: 'dashboard-home', title: 'Home', item: true, generated: true },
+  { path: 'map', title: 'Map', item: false, generated: false }];
+var BOARDS = { 'ecoflow-panel': { home_page: false }, 'dashboard-kitchen': { tablet_user: 'u' }, 'dashboard-home': {} };
+ok('the sky previews on the house\'s Home', M.skyPreviewScreen(DASH, BOARDS) === 'dashboard-home');
+ok('...else a wall tablet\'s screen', M.skyPreviewScreen(DASH.filter(function (d) { return d.title !== 'Home'; }), BOARDS) === 'dashboard-kitchen');
+ok('...never one with its sky off, or with no Home page (an Energy panel)',
+   M.skyPreviewScreen(DASH, { 'ecoflow-panel': { home_page: false }, 'dashboard-kitchen': { sky: false }, 'dashboard-home': { sky: false } }) === null);
+ok('...and none at all: none', M.skyPreviewScreen([], {}) === null);
+var mo = function (id) { var m = M.skyMoments(id); return m.options.map(function (o) { return o[0]; }).join('/') + '>' + m.value; };
+ok('Halloween: day, night and its spooky night -- opening on the spooky one', mo('halloween') === 'day/night/spooky>spooky' &&
+   M.skyMoments('halloween').options[2][1] === 'Spooky Night');
+ok('Christmas and the Fourth open at night (lights, fireworks)', mo('christmas') === 'day/night>night' && mo('fourth-of-july') === 'day/night>night');
+ok('Space Night only at night, Spring Garden only by day -- one moment, no choice', mo('space-night') === 'night>night' && mo('spring-garden') === 'day>day');
+ok('the rest by day, with the night a tap away', mo('thanksgiving') === 'day/night>day' && mo('birthday') === 'day/night>day');
+
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

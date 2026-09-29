@@ -68,18 +68,18 @@ More: [Sky](sky.md).
 |---|---|
 | ![The Overview](images/settings-overview.png) | ![The Setup Assistant](images/settings-setup.png) |
 | Overview | Setup Assistant |
-| ![The screens](images/settings-screens.png) | ![One screen’s settings](images/settings-screen.png) |
-| Screens | A screen |
-| ![A screen’s status chips](images/settings-chips.png) | ![A screen’s preview at phone size](images/settings-preview-phone.png) |
-| Status chips | The preview at phone size |
-| ![Accessories](images/settings-accessories.png) | ![Custom chips](images/settings-custom-chips.png) |
-| Accessories | Custom chips |
-| ![Pop-ups](images/settings-popups.png) | ![Custom pages](images/settings-pages.png) |
-| Pop-ups | Custom pages |
-| ![What Counts](images/settings-counts.png) | ![Weather](images/settings-weather.png) |
-| What Counts | Weather |
-| ![Sky](images/settings-sky.png) | ![Appearance](images/settings-appearance.png) |
-| Sky | Appearance |
+| ![One screen’s settings](images/settings-screen.png) | ![A screen’s status chips](images/settings-chips.png) |
+| A screen | Status chips |
+| ![A screen’s preview at phone size](images/settings-preview-phone.png) | ![Accessories](images/settings-accessories.png) |
+| The preview at phone size | Accessories |
+| ![Custom chips](images/settings-custom-chips.png) | ![Pop-ups](images/settings-popups.png) |
+| Custom chips | Pop-ups |
+| ![Custom pages](images/settings-pages.png) | ![What Counts](images/settings-counts.png) |
+| Custom pages | What Counts |
+| ![Weather](images/settings-weather.png) | ![Sky](images/settings-sky.png) |
+| Weather | Sky |
+| ![A decoration with its preview](images/settings-sky-theme.png) | ![Appearance](images/settings-appearance.png) |
+| A decoration’s preview | Appearance |
 | ![Music](images/settings-music.png) | ![Live TV](images/settings-live-tv.png) |
 | Music | Live TV |
 | ![Clean Areas](images/settings-clean-areas.png) | ![Alarm PIN](images/settings-alarm-pin.png) |

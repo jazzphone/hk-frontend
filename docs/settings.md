@@ -57,6 +57,8 @@ a wall tablet), **Desktop** (1440 × 900), and **Car** (804 × 638, with the
 car’s zoom) on a screen with Car Browser on. The preview is that size, so it
 shows the layout that device really gets. It opens on the size the screen is
 used at, and remembers your last choice for each screen in that browser.
+When the preview column is too narrow for the full names, the two tablet
+sizes read **Portrait** and **Landscape**.
 
 ![A screen’s preview at phone size](images/settings-preview-phone.png)
 **Open Screen** opens the screen itself in a new tab.
@@ -446,6 +448,14 @@ card can stay out of the shared blur with `glass: false`.
 works, and each decoration, is in [The live sky](sky.md).
 
 ![The Sky page in HK Settings](images/settings-sky.png)
+
+Beside the Sky page, a live preview shows your Home screen’s sky right now.
+Open a decoration and the preview shows it on your Home screen -- whatever
+today’s date, even while it is turned off -- with **Day**, **Night** and, for
+Fall & Halloween, **Spooky Night** to switch between. Only the preview
+changes; your screens keep today’s sky.
+
+![A decoration’s page with its preview](images/settings-sky-theme.png)
 
 | Setting | Default | What it does |
 |---|---|---|

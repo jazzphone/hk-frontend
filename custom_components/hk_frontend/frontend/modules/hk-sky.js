@@ -1712,6 +1712,37 @@
   // schedule in normal use: nothing sets this but a console call.
   var SURPRISE_FORCE = null;
 
+  // THE SETTINGS PAGE'S PREVIEW (HK Settings -> Sky, and each theme's page):
+  // one theme whatever the date, in THIS window only -- the page's preview
+  // frame, never a real screen. preview(id, when): id is a theme
+  // (hk-settings-model.js SKY_THEMES) or null for today's own sky; when is
+  // 'day', 'night' or 'spooky' (Halloween's big moon, fog, bats and witch).
+  // The weather is held clear and still, so the theme is what shows -- not
+  // tonight's rain over it. The three SEASONS go through FORCE and PIN; the
+  // rest are surprises, through SURPRISE_FORCE.
+  var PREVIEW = null;
+  var PREVIEW_SEASONS = { halloween: 1, thanksgiving: 1, christmas: 1 };
+  function preview(id, when) {
+    FORCE = null; PIN = null; SURPRISE_FORCE = null; PREVIEW = null;
+    if (id) {
+      var night = when === 'night' || when === 'spooky';
+      var sky = { elev: night ? -25 : 35, azim: night ? 200 : 180, cover: 0.1, wind: 6,
+                  cond: night ? 'clear-night' : 'sunny', fog: false, wet: { kind: 'none', rate: 0 },
+                  moon: 0.5, seasonalOn: true };
+      if (PREVIEW_SEASONS[id]) {
+        FORCE = { season: id, show: true, spooky: when === 'spooky', days: 0, p: 1 };
+        sky.season = id;
+      } else {
+        SURPRISE_FORCE = id;
+        sky.season = '';
+      }
+      PIN = sky;
+      PREVIEW = { id: id, when: when || 'day' };
+    }
+    try { stateTick(); } catch (e) { /* not mounted yet: the next tick paints it */ }
+    return PREVIEW;
+  }
+
   // Exported as hkSky._schedule for the test suite and the console.
   function schedule(name, d) {
     d = d || new Date();
@@ -1783,6 +1814,8 @@
     });
     var surprise = (chosen && chosen.reason !== 'existing-season') ? chosen.id : '';
     if (SURPRISE_FORCE) surprise = SURPRISE_FORCE;
+    // previewing a season: today's own surprise (a birthday) must not replace it
+    if (PREVIEW && PREVIEW_SEASONS[PREVIEW.id]) surprise = '';
     // A surprise REPLACES the seasonal scene for the day rather than stacking
     // on it. Birthday over Christmas is the deliberate case.
     if (surprise) name = '';
@@ -2659,6 +2692,11 @@
     // hkSky._pin({season:'halloween', elev:-20, cond:'clear'}) holds a scene
     // across the 3s tick without a competing timer. _pin(null) restores.
     _pin: function (v) { PIN = v || null; return PIN; },
+    // HK Settings' preview of a theme (see PREVIEW above)
+    preview: preview,
+    get previewing() { return PREVIEW; },
+    _read: read,                // tests: what the sky reads, pins included
+    _planned: function (n, d) { return plannedFor(n, d); },
     // hkSky._surpriseForce('birthday') then hkSkyAt(14) shows a theme on any
     // date. _surpriseForce(null) restores.
     _surpriseForce: function (v) { SURPRISE_FORCE = v || null; return SURPRISE_FORCE; },

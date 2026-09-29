@@ -82,6 +82,10 @@ change your lights or anything else in the house.
 
 ![A spooky Halloween night: a big moon, bare branches, fog and bats](images/sky-halloween.png)
 
+To see any decoration without waiting for its dates, open it in **HK
+Settings → Sky**: the preview beside its settings shows it on your Home
+screen, by day, by night, or on a spooky night ([Settings](settings.md#sky)).
+
 **Turning them all off:** the **Seasonal decorations** switch,
 `switch.hk_frontend_seasonal_decorations`, on the HK Frontend device. The same
 switch is **HK Settings → All Screens → Sky → Seasonal Decorations**, and an

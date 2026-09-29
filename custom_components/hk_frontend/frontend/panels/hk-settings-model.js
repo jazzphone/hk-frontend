@@ -680,8 +680,8 @@
   // as it does the car). hk: glyphs fall back to Material's of the same name.
   var PREVIEW_SIZES = [
     { key: 'phone', label: 'Phone', w: 390, h: 844, icon: 'hk:cellphone' },
-    { key: 'portrait', label: 'Tablet Portrait', w: 820, h: 1180, icon: 'hk:tablet', rotate: true },
-    { key: 'landscape', label: 'Tablet Landscape', w: 1280, h: 800, icon: 'hk:tablet' },
+    { key: 'portrait', label: 'Tablet Portrait', short: 'Portrait', w: 820, h: 1180, icon: 'hk:tablet', rotate: true },
+    { key: 'landscape', label: 'Tablet Landscape', short: 'Landscape', w: 1280, h: 800, icon: 'hk:tablet' },
     { key: 'desktop', label: 'Desktop', w: 1440, h: 900, icon: 'hk:monitor' },
     { key: 'car', label: 'Car', w: 804, h: 638, icon: 'hk:car' }
   ];
@@ -702,8 +702,38 @@
     return { scale: s, width: z.w * s, height: z.h * s };
   }
 
+  // THE SKY'S PREVIEW (HK Settings -> Sky and each theme's page): which
+  // screen shows it -- the house's Home if there is one, else a wall
+  // tablet's, else the first screen -- always a generated one with its
+  // sky on and a Home page to show it on.
+  function skyPreviewScreen(dashboards, boards) {
+    boards = boards || {};
+    var ok = (dashboards || []).filter(function (d) {
+      var b = boards[d.path] || {};
+      return d && d.item && d.generated && b.sky !== false && b.home_page !== false;
+    });
+    var home = ok.filter(function (d) { return /^home$/i.test(String(d.title || '').trim()) || d.path === 'dashboard-home'; })[0];
+    var wall = ok.filter(function (d) { var b = boards[d.path] || {}; return b.tablet_user || b.screensaver; })[0];
+    return (home || wall || ok[0] || {}).path || null;
+  }
+  // the moments a theme can be looked at in, and the one it opens on: its
+  // most characteristic (Halloween's spooky night, Christmas lights after
+  // dark); one moment only -- Space Night, Spring Garden -- needs no row
+  var SKY_MOMENTS = {
+    halloween: [['day', 'spooky'], 'spooky'], christmas: [['day', 'night'], 'night'],
+    'fourth-of-july': [['day', 'night'], 'night'], 'space-night': [['night'], 'night'],
+    'spring-garden': [['day'], 'day'], 'storybook-magic': [['day', 'night'], 'night']
+  };
+  var MOMENT_LABELS = { day: 'Day', night: 'Night', spooky: 'Spooky Night' };
+  function skyMoments(id) {
+    var m = SKY_MOMENTS[id] || [['day', 'night'], 'day'];
+    var keys = id === 'halloween' ? ['day', 'night', 'spooky'] : m[0];
+    return { options: keys.map(function (k) { return [k, MOMENT_LABELS[k]]; }), value: m[1] };
+  }
+
   root.hkSettingsModel = {
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
+    skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',
     CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS,
     MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,

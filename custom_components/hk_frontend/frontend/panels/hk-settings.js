@@ -105,7 +105,11 @@
     '.side{flex:none;width:320px;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:0 16px 40px;',
     '  border-right:.5px solid var(--hk-sep)}',
     '.sidetop{position:sticky;top:0;z-index:2;background:var(--hk-bg);padding:10px 0 12px;margin:0 -4px}',
-    '.sidehead{display:flex;align-items:center;gap:4px;min-height:44px;margin-left:-8px}',
+    // the title on the column the search field and the lists start on (4px
+    // undoes .sidetop's -4px); only with Home Assistant's ☰ in front of it
+    // is the row pulled left, so the button's own padding sits in the margin
+    '.sidehead{display:flex;align-items:center;gap:4px;min-height:44px;margin-left:4px}',
+    '.sidehead.menubtn{margin-left:-8px}',
     '.sidehead h1{margin:0;font-family:var(--hk-display);font-size:22px;font-weight:700;letter-spacing:.01em}',
     '.search{position:relative;margin:6px 4px 0}',
     '.search input{width:100%;height:36px;border:0;border-radius:10px;padding:0 30px 0 32px;background:var(--hk-fill);',
@@ -142,11 +146,21 @@
     '.bar .mid{flex:0 1 auto;max-width:50%}',
     '.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-top:52px}',
     '.page{max-width:680px;margin:0 auto;padding:6px 20px 80px}',
-    '.page.split{max-width:1240px;display:grid;grid-template-columns:minmax(0,640px) minmax(320px,1fr);gap:32px;align-items:start}',
-    '.page.split{grid-template-areas:"ph pv" "pc pv"}',
+    // 32px between the columns only: between the title and the settings the
+    // subtitle's own 24px, as on every page without a preview (a 32px row
+    // gap on top made it 56)
+    '.page.split{max-width:1240px;display:grid;grid-template-columns:minmax(0,640px) minmax(320px,1fr);gap:0 32px;align-items:start}',
+    // the preview starts where the settings start -- its PREVIEW beside the
+    // first section's heading, not up beside the page's title
+    '.page.split{grid-template-areas:"ph ." "pc pv"}',
     '.page.split .ph{grid-area:ph}',
     '.page.split .pc{grid-area:pc}',
-    '.page.split .pvcol{grid-area:pv;align-self:start;position:sticky;top:64px}',
+    // -3px: the preview's heading sits 3px lower in its box than a group's
+    // (measured), so this lines both up -- PREVIEW with the first section's
+    // heading, the preview with the first group
+    '.page.split .pvcol{grid-area:pv;align-self:start;position:sticky;top:64px;margin-top:-3px}',
+    // no heading over the first group: PREVIEW rides above it, the box level with the group
+    '.page.split.nohead .pvcol{margin-top:-28px}',
     // narrower: the preview sits under the title of the screen's own page
     ':host(:not([xwide])) .page.split{display:block;max-width:680px}',
     ':host(:not([xwide])) .page.split .pvcol{margin:0 0 30px;max-width:480px}',
@@ -160,12 +174,20 @@
     '.pvbox{position:relative;width:100%;aspect-ratio:16/10;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;',
     '  box-shadow:0 0 0 .5px var(--hk-sep)}',
     // the size picker under the preview: the kit's segmented control, a glyph
-    // over each name, and the names allowed to wrap
+    // over each name. A name never wraps: when one will not fit on its line
+    // (a column of about 400-470 px), every tablet drops "Tablet" together
     '.seg.pvsize{display:grid;width:100%;margin-top:12px;box-sizing:border-box}',
     '.seg.pvsize button{height:auto;min-width:0;padding:6px 2px;display:flex;flex-direction:column;align-items:center;',
-    '  gap:3px;white-space:normal;font-size:12px;line-height:14px}',
+    '  gap:3px;font-size:12px;line-height:14px}',
+    '.seg.pvsize .lb,.seg.pvsize .sh{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.seg.pvsize .sh,.seg.pvsize.short .lb{display:none}',
+    '.seg.pvsize.short .sh{display:block}',
     '.seg.pvsize ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
     '.seg.pvsize ha-icon.rot{transform:rotate(90deg)}',
+    // the sky preview's moments (Day, Night, Spooky Night), over the sizes
+    '.seg.pvmoment{display:grid;width:100%;margin-top:12px;box-sizing:border-box}',
+    '.seg.pvmoment button{min-width:0;padding:0 6px}',
+    '.pvsky .gf{margin:8px 0 0;padding-left:4px}',
     '.pvdim{font-variant-numeric:tabular-nums}',
     '.pvbox iframe{position:absolute;top:0;left:0;width:1280px;height:800px;border:0;transform-origin:0 0;pointer-events:none}',
     '.pvhead{display:flex;align-items:baseline;justify-content:space-between;padding:0 4px 8px}',
@@ -750,6 +772,73 @@
         }
         this.pageEl.appendChild(content);
       }
+      // a first group with no heading (a theme's page): the preview's box
+      // lines up with that group, not its PREVIEW heading with nothing
+      var first = content.firstElementChild;
+      this.pageEl.classList.toggle('nohead', !!(pg.preview && first && first.classList &&
+        first.classList.contains('grp') && !(first.firstElementChild && first.firstElementChild.classList.contains('gh'))));
+      this.skyPreview(pg.preview ? pg.sky : null);
+    }
+
+    // THE SKY'S PREVIEW. On the Sky page the preview frame shows today's own
+    // sky; on a theme's page, that theme -- whatever today's date, and even
+    // switched off -- in the moments it can be seen in (M.skyMoments). It is
+    // forced INSIDE the frame (its window's hkSky.preview): no real screen
+    // changes, and any other page puts the frame back to today's sky.
+    skyPreview(sky) {
+      var self = this, col = this.pageEl.querySelector('.pvcol');
+      var old = col && col.querySelector('.pvsky');
+      if (old) old.remove();
+      clearInterval(this._skyWait);
+      var box = col && col.querySelector('.pvbox'), fr = box && box.querySelector('iframe');
+      if (!fr) { this._skyWas = false; return; }
+      var theme = sky ? sky.theme : null;
+      // the frame's hkSky arrives with its dashboard: asked for until then
+      var apply = function (when) {
+        var n = 0;
+        var go = function () {
+          var S = null;
+          try { S = fr.contentWindow && fr.contentWindow.hkSky; } catch (e) { /* not ours */ }
+          if (S && typeof S.preview === 'function') { S.preview(theme, when); return true; }
+          return false;
+        };
+        clearInterval(self._skyWait);
+        if (go()) return;
+        self._skyWait = setInterval(function () { if (go() || ++n > 80) clearInterval(self._skyWait); }, 250);
+      };
+      if (!sky) { if (this._skyWas) { theme = null; apply(null); } this._skyWas = false; return; }
+      this._skyWas = true;
+      var x = this.dash(this._pv && this._pv.path), who = x ? x.title : 'Home';
+      var row = h('div', { class: 'pvsky' });
+      if (!theme) {
+        row.appendChild(h('p', { class: 'gf', text: 'Your ' + who + ' screen’s sky right now. Choose a decoration to see it here.' }));
+        box.parentNode.insertBefore(row, box.nextSibling);
+        apply(null);
+        return;
+      }
+      var mo = M.skyMoments(theme), key = mo.value;
+      if (mo.options.length > 1) {
+        var seg = h('div', { class: 'seg pvmoment', role: 'radiogroup', 'aria-label': 'When' });
+        var btns = mo.options.map(function (o) {
+          var b = h('button', { type: 'button', role: 'radio', 'data-moment': o[0], text: o[1] });
+          b.addEventListener('click', function () { choose(o[0]); });
+          seg.appendChild(b);
+          return b;
+        });
+        var paint = function () {
+          btns.forEach(function (b, i) {
+            var on = mo.options[i][0] === key;
+            b.setAttribute('aria-checked', on ? 'true' : 'false');
+            b.setAttribute('tabindex', on ? '0' : '-1');
+          });
+        };
+        var choose = function (k) { if (k === key) return; key = k; paint(); apply(k); };
+        paint();
+        row.appendChild(seg);
+      }
+      row.appendChild(h('p', { class: 'gf', text: 'Your ' + who + ' screen with this decoration, whatever today’s date. Only this preview changes.' }));
+      box.parentNode.insertBefore(row, box.nextSibling);
+      apply(key);
     }
 
     // ---------------------------------------------------------- sidebar
@@ -768,6 +857,7 @@
         if (!this._menuBtn) { this._menuBtn = document.createElement('ha-menu-button'); }
         this._menuBtn.hass = this._hass; this._menuBtn.narrow = this._narrow;
         head.appendChild(this._menuBtn);
+        head.classList.add('menubtn');
       }
       head.appendChild(h('h1', { text: 'HK Settings' }));
       top.appendChild(head);
@@ -1025,9 +1115,10 @@
       var pick = h('div', { class: 'seg pvsize', role: 'radiogroup', 'aria-label': 'Preview size' });
       var dims = h('span', { class: 'pvdim' });
       var btns = sizes.map(function (z, i) {
-        var btn = h('button', { type: 'button', role: 'radio', 'data-size': z.key }, [
+        var btn = h('button', { type: 'button', role: 'radio', 'data-size': z.key, 'aria-label': z.label, title: z.label }, [
           h('ha-icon', { icon: z.icon, class: z.rotate ? 'rot' : '', 'aria-hidden': 'true' }),
-          h('span', { text: z.label })]);
+          h('span', { class: 'lb', text: z.label }),
+          h('span', { class: 'sh', text: z.short || z.label })]);
         btn.addEventListener('click', function () { choose(z.key); });
         btn.addEventListener('keydown', function (e) {
           var d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
@@ -1050,6 +1141,11 @@
         pv.style.width = Math.round(f.width) + 'px';
         pv.style.height = Math.round(f.height) + 'px';
         dims.textContent = z.w + ' × ' + z.h + ' · ';
+        pick.classList.remove('short');
+        pick.classList.toggle('short', btns.some(function (bt) {
+          var lb = bt.querySelector('.lb');
+          return lb.scrollWidth > lb.clientWidth;
+        }));
         btns.forEach(function (bt, i) {
           var on = sizes[i].key === z.key;
           bt.setAttribute('aria-checked', on ? 'true' : 'false');
@@ -2018,9 +2114,13 @@
       }
       if (page === 'sky') {
         if (sub[0] === 'advanced') return mk('Advanced', function (c) { self.h_skyAdvanced(c); });
+        // THE SKY'S PREVIEW: today's sky on the Sky page, a theme's on its
+        // own page (skyPreview), on the house's Home screen
+        var spv = M.skyPreviewScreen(this.data.dashboards, this.data.boards);
+        var withSky = function (pg, theme) { if (spv) { pg.preview = spv; pg.sky = { theme: theme }; } return pg; };
         var th = M.SKY_THEMES.filter(function (x) { return x.id === sub[0]; })[0];
-        if (th) return mk(th.label, function (c) { self.h_theme(c, th); });
-        return { title: title, top: true, scope: scope, body: function (c) { self.h_sky(c); } };
+        if (th) return withSky(mk(th.label, function (c) { self.h_theme(c, th); }), th.id);
+        return withSky({ title: title, top: true, scope: scope, body: function (c) { self.h_sky(c); } }, null);
       }
       if (page === 'menu') {
         if (sub[0] === 'status') return mk('Status Row', function (c) { self.h_status(c); });
