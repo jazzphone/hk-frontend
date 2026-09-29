@@ -41,16 +41,20 @@ from .. import MUSIC, TITLES, Feature, entries, item_data, loaded, unique_id
 from . import settings_ws
 from .const import (
     ATTR_COMMAND, ATTR_LEVEL, ATTR_PLAYER, ATTR_PLAYLIST, ATTR_ROOMS, ATTR_SOURCE, COMMANDS,
-    CONF_GROUP, CONF_HOMES, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME, SERVICE_PLAY,
+    CONF_GROUP, CONF_HOMES, CONF_MEMBERS, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME, SERVICE_PLAY,
     SERVICE_PLAY_MEDIA, SERVICE_STOP, SERVICE_TRANSFER, SERVICE_TRANSPORT, SIGNAL_CONFIG,
     SUB_PLAYLIST, SUB_PRESET,
 )
 from .flows import PlaylistFlow, PresetFlow, name_of, speakers_errors, speakers_schema
-from .music import MusicConfig, MusicManager
+from .music import CALLER, MusicConfig, MusicManager
 
 PLATFORMS: list = []
 RELOAD = False          # the engine reads the feature on every request
 ITEM_TYPES = (SUB_PRESET, SUB_PLAYLIST)
+# The fields that hold entity ids, which an entity rename follows (rename.py):
+# the room players, each user's home room, and a preset's group and rooms.
+RENAME = {"options": (CONF_SPEAKERS, CONF_HOMES)}
+RENAME_ITEMS = {SUB_PRESET: (CONF_GROUP, CONF_MEMBERS)}
 
 NO_HOME = "none"
 
@@ -77,25 +81,42 @@ def _answer(call: ServiceCall, res: dict[str, Any]) -> ServiceResponse:
     raise HomeAssistantError(res.get("message") or "The request failed.")
 
 
+def _as_caller(handler):
+    """A music action served in its caller's context (music.CALLER), and only
+    for as long as it is served."""
+    async def run(call: ServiceCall) -> ServiceResponse:
+        token = CALLER.set(call.context)
+        try:
+            return await handler(call)
+        finally:
+            CALLER.reset(token)
+    return run
+
+
 async def async_setup(hass: HomeAssistant) -> None:
     rooms = vol.All(cv.ensure_list, [cv.entity_id])
 
+    @_as_caller
     async def play(call: ServiceCall) -> ServiceResponse:
         return _answer(call, await _manager(hass).play(
             call.data[ATTR_ROOMS], call.data[ATTR_PLAYLIST], call.context.user_id))
 
+    @_as_caller
     async def transfer(call: ServiceCall) -> ServiceResponse:
         return _answer(call, await _manager(hass).transfer(
             call.data[ATTR_ROOMS], call.data[ATTR_SOURCE], call.context.user_id))
 
+    @_as_caller
     async def stop(call: ServiceCall) -> ServiceResponse:
         return _answer(call, await _manager(hass).stop(
             call.data.get(ATTR_ROOMS), call.context.user_id))
 
+    @_as_caller
     async def transport(call: ServiceCall) -> ServiceResponse:
         return _answer(call, await _manager(hass).transport(
             call.data[ATTR_PLAYER], call.data[ATTR_COMMAND], call.data.get(ATTR_LEVEL)))
 
+    @_as_caller
     async def play_media(call: ServiceCall) -> ServiceResponse:
         return _answer(call, await _manager(hass).play_media(
             call.data[ATTR_PLAYER], call.data["media_content_id"],

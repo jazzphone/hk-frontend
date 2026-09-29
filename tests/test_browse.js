@@ -143,4 +143,10 @@ check('...and still draws one frame at that height',
 rc.setConfig({});
 rc.disconnectedCallback();
 check('leaving the page drops the listener', resizers() - r0 === 0);
+// a cached view coming back attaches the card again WITHOUT building it: the
+// listener comes back with it (it followed no resize after a return before)
+rc.connectedCallback();
+check('coming back (a cached view) puts the listener back', resizers() - r0 === 1);
+rc.disconnectedCallback();
+check('...and leaving again takes it off', resizers() - r0 === 0);
 print(fail ? 'FAIL ' + fail + ' BROWSE TESTS' : 'ALL ' + pass + ' BROWSE TESTS PASS');

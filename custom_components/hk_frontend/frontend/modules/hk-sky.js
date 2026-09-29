@@ -2549,6 +2549,11 @@
   }
 
   window.hkSky = {
+    // THE SCREEN IS ASLEEP: this tablet's screensaver boolean is on (the
+    // photos are up). WallPanel is an overlay in this same document, so
+    // document.hidden stays false behind it; a module with idle work of its
+    // own (hk-glass's backstop) asks this too.
+    asleep: function () { return asleep; },
     // Called by selfRender() below. Returns '' so it renders nothing of its
     // own.
     //

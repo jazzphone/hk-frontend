@@ -2931,7 +2931,7 @@
             '<div class="seg">' + ranges.map(function (r) { return '<button data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div></div>' +
             '<div class="chart"></div><div class="stats"></div></div>';
           this._root.querySelectorAll('.seg button').forEach(function (b) {
-            b.addEventListener('click', function () { self._range = b.getAttribute('data-r'); self._paintSeg(); self._hkSig = null; self._render(); });
+            b.addEventListener('click', function () { self._range = b.getAttribute('data-r'); self._paintSeg(); self.redraw(); });
           });
           this._n = this._root.querySelector('.n');
           this._u = this._root.querySelector('.u');
@@ -2970,7 +2970,7 @@
           if (d && d.some(function (p) { return p && p.v != null; })) return d;
           // NO LONG-TERM STATISTICS for this sensor: after a moment, fall back
           // to its recorded history (14 days here) rather than wait forever.
-          if (!self._asked[key]) { self._asked[key] = Date.now(); setTimeout(function () { self._hkSig = null; self._render(); }, 2600); }
+          if (!self._asked[key]) { self._asked[key] = Date.now(); setTimeout(function () { self.redraw(); }, 2600); }
           if (Date.now() - self._asked[key] > 2500) return undefined;
           return null;
         };
@@ -4222,6 +4222,14 @@
         // _naEl, not _na: Panel._na(s) is the shared unavailable helper, and a
         // property of that name would replace it (see HkBase method shadowing)
         if (this._gone(h)) {
+          // THE CAMERA WENT AWAY WHILE ITS SHEET WAS OPEN: its stream card goes
+          // too (its detach stops the stream and its retries), or the dead video
+          // and the message stacked, and the sheet grew by a picture. It is
+          // built again when the camera comes back.
+          if (this._card) {
+            if (this._card.parentNode) this._card.parentNode.removeChild(this._card);
+            this._card = null;
+          }
           if (!this._naEl) {
             this._shape(16 / 9);
             this._naEl = document.createElement('div');

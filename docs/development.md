@@ -62,9 +62,11 @@ lives, not by a rule.
    `add_extra_js_url`, so they load before any card renders, in this order:
    `hk-settings.js` (the settings every page reads at first paint),
    `hk-icons.js` (the `hk:` iconset, which must exist before the first icon
-   draws), `tesla-viewport.js`, `hk-tap.js`, `hk-header.js` and
-   `hk-loader.js`. Changing this list needs a Home Assistant restart; editing
-   one of the files does not.
+   draws), `tesla-viewport.js`, `hk-tap.js`, `hk-header.js`, `hk-loader.js`
+   and `cards/hk-strategy.js` (Home Assistant waits only 5 s for a custom
+   dashboard strategy, so it is defined before any dashboard asks; it is a
+   resource too, and one URL is one module). Changing this list needs a Home
+   Assistant restart; editing one of the files does not.
 2. **Lovelace resources.** Every file in `frontend/cards/`, plus
    `fonts/sf-pro.css` and `css/hk-responsive.css`. `resources.py` adds the
    missing ones once Home Assistant has started, in storage mode only; it never

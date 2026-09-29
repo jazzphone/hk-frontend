@@ -174,7 +174,8 @@
     '    margin-left:calc(var(--hk-row-pl,0px) - var(--hk-bleed-l,0px) + var(--hk-bleed-lc,var(--hk-bleed-l,0px)) + var(--hk-lead-w,0px)) !important;',
     '    padding-left:var(--hk-lead-gap,0px) !important}',
     '@media (max-width: 640px){',
-    '  .row.phone-sized > *{width:var(--hk-row-phone-w) !important;',
+    // not the shared glass layer (hk-glass.js), which sizes itself to its band
+    '  .row.phone-sized > :not([data-hk-glass-layer]){width:var(--hk-row-phone-w) !important;',
     '    min-width:0 !important;max-width:none !important}',
     // `phone_gap` is the other half of matching a grid, and without it the
     // width alone cannot do it. A GRID's visible gap is not its `grid-gap`:

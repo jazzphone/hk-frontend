@@ -314,6 +314,24 @@
       this.from = loadFrom();
       this._onHash = this.onHash.bind(this);
       this._onClick = this.onClick.bind(this);
+      // A PRESS IN PROGRESS: see render(). Released after the press's click.
+      var self = this;
+      this._onPress = function () { self._pressing = true; };
+      this._onRelease = function () {
+        if (!self._pressing) return;
+        setTimeout(function () {
+          self._pressing = false;
+          var held = self._held;
+          self._held = null;
+          if (held) self.render(held.background, held.navigated);
+        }, 0);
+      };
+      // typing over: a redraw skipped while typing (render(true)) is drawn now
+      this._onFocusOut = function () {
+        setTimeout(function () {
+          if (self._dirty && !self.typing()) { self._dirty = false; self.render(true); }
+        }, 0);
+      };
     }
     set hass(v) {
       var first = !this._hass;
@@ -336,12 +354,21 @@
       window.addEventListener('hashchange', this._onHash);
       window.addEventListener('popstate', this._onHash);
       window.addEventListener('location-changed', this._onHash);
+      this.shadowRoot.addEventListener('pointerdown', this._onPress, true);
+      window.addEventListener('pointerup', this._onRelease, true);
+      window.addEventListener('pointercancel', this._onRelease, true);
+      this.shadowRoot.addEventListener('focusout', this._onFocusOut);
       if (this.ready) { this.subscribe(); this.render(); }
     }
     disconnectedCallback() {
       window.removeEventListener('hashchange', this._onHash);
       window.removeEventListener('popstate', this._onHash);
       window.removeEventListener('location-changed', this._onHash);
+      this.shadowRoot.removeEventListener('pointerdown', this._onPress, true);
+      window.removeEventListener('pointerup', this._onRelease, true);
+      window.removeEventListener('pointercancel', this._onRelease, true);
+      this.shadowRoot.removeEventListener('focusout', this._onFocusOut);
+      this._pressing = false; this._held = null;
       if (this._unsub) { try { this._unsub(); } catch (e) { /* gone */ } this._unsub = null; }
     }
 
@@ -480,6 +507,16 @@
       // our own history, to know whether Back can simply go back
       if (this.hist.length > 1 && this.hist[this.hist.length - 2] === cur) this.hist.pop();
       else if (this.hist[this.hist.length - 1] !== cur) this.hist.push(cur);
+      // A SCREEN'S FIELD ERRORS ARE THAT SCREEN'S. They are kept by setting
+      // (`b:<key>`), and every screen's page has the same settings: a refused
+      // Kitchen Tablet Room showed under Loft's and Master Bathroom's too. On
+      // to another screen, they go.
+      var screen = (/^#\/screens\/([^/?#]+)/.exec(cur) || [])[1] || null;
+      if (screen !== this._errScreen) {
+        var self = this;
+        Object.keys(this.errors).forEach(function (k) { if (/^b:/.test(k)) delete self.errors[k]; });
+        this._errScreen = screen;
+      }
       this.render(false, true);
     }
     go(hash) {
@@ -615,6 +652,17 @@
     }
     render(background, navigated) {
       if (!this.ready || !this.data) return;
+      // NOT UNDER A PRESS. A text field saves on blur, and the blur of a press
+      // elsewhere comes between that press's pointerdown and its click: the
+      // redraw replaced the very row being pressed, and the click was lost
+      // (a kind picked once did nothing; Add Pop-up needed a second tap).
+      // Held until the press has ended and clicked, then drawn once.
+      if (this._pressing) {
+        var was = this._held || {};
+        this._held = { background: !!(was.background !== undefined ? was.background && background : background),
+                       navigated: !!(was.navigated || navigated) };
+        return;
+      }
       if (background && this.typing()) { this._dirty = true; return; }
       var self = this, parts = this.parts(), key = parts.join('/');
       var wide = this.hasAttribute('wide');
@@ -650,7 +698,7 @@
           setTimeout(function () { el.classList.remove('flash'); }, 1500);
         }
       }
-      if (this._dirty) { this._dirty = false; }
+      this._dirty = false;
       void self;
     }
     paintPage(pg, parts) {
@@ -884,7 +932,9 @@
       if (last[0] === '~') return this.pickerPage(parts);
       var a = parts[0];
       if (a === 'overview') return this.p_overview();
-      if (a === 'screens') return this.p_screen(parts[1], parts.slice(2));
+      // no screen named: the Overview (the list of screens is the menu) --
+      // not "There's no dashboard at /undefined"
+      if (a === 'screens') return parts[1] ? this.p_screen(parts[1], parts.slice(2)) : this.p_overview();
       if (a === 'add-screen') return this.p_add(parts.slice(1));
       if (a === 'house' && parts[1] === 'music') return this.p_music(parts.slice(2));    // its old address
       if (a === 'house') return this.p_house(parts[1], parts.slice(2));
@@ -1531,6 +1581,17 @@
           : 'Off: the screen is only its custom pages, and opens on the first — an Energy panel.' }, [
         K.toggle({ label: 'Home Page', sk: 'b:home_page', on: b.home_page !== false,
                    onChange: function (on) { set({ home_page: on }); } })]));
+      // WHICH HOME: the generated one, or one of the house's custom pages, with
+      // the screen's other pages generated as usual (a car's own first page)
+      if (b.home_page !== false && Object.keys(custom).length) {
+        var hv = b.home_view && custom[b.home_view] !== undefined ? b.home_view : '';
+        c.appendChild(K.group({ footer: hv
+            ? 'The screen opens on ' + custom[hv] + '; its other pages are generated as usual.'
+            : 'A custom page can be this screen’s Home, with its other pages generated as usual — a car’s own first page, say.' }, [
+          K.select({ label: 'Home', sk: 'b:home_view', value: hv,
+                     options: [['', 'Generated']].concat(Object.keys(custom).map(function (k) { return [k, custom[k]]; })),
+                     onChange: function (v) { set({ home_view: v }); } })]));
+      }
       if (b.home_page === false) {
         c.appendChild(K.listEditor({ fk: 'cpages', minRows: 0, announce: this.announce.bind(this), shownHeader: 'Custom Pages',
           emptyText: 'None yet',
@@ -1658,13 +1719,17 @@
           var ed = document.createElement('ha-yaml-editor');
           ed.hass = self._hass;
           ed.defaultValue = cur;
-          ed.addEventListener('value-changed', function (e) { e.stopPropagation(); valid = e.detail.isValid !== false; cur = e.detail.value; });
+          ed.addEventListener('value-changed', function (e) {
+            e.stopPropagation(); valid = e.detail.isValid !== false; cur = e.detail.value;
+            if (valid && o.onDraft) o.onDraft(cur);
+          });
           box.appendChild(ed);
         } else {
           var ta = h('textarea', { 'aria-label': 'Options as JSON', spellcheck: 'false' });
           ta.value = JSON.stringify(cur, null, 2);
           ta.addEventListener('input', function () {
             try { cur = ta.value.trim() ? JSON.parse(ta.value) : {}; valid = true; } catch (e) { valid = false; }
+            if (valid && o.onDraft) o.onDraft(cur);
           });
           box.appendChild(ta);
         }
@@ -1808,7 +1873,11 @@
           K.select({ label: 'Sits', sk: 'after', value: f.after,
                      options: [['start', 'At the Start']].concat(self.data.chip_kinds.map(function (k) { return [k, 'After ' + (M.CHIP_LABELS[k] || k)]; }), [['end', 'At the End']]),
                      onChange: function (v) { f.after = v; if (chip) save(chip.card); else self.render(); } })]));
-        self.yamlPage(c, { value: chip ? chip.card : {}, sk: 'card', clear: false, saveLabel: chip ? 'Save Chip' : 'Add Chip',
+        // THE DRAFT IS THE PAGE'S (f.card): a redraw -- a name or place
+        // committed, a save elsewhere -- rebuilt the editor from the stored
+        // card and threw away what was being written.
+        self.yamlPage(c, { value: f.card !== undefined ? f.card : (chip ? chip.card : {}), sk: 'card', clear: false,
+          saveLabel: chip ? 'Save Chip' : 'Add Chip', onDraft: function (v) { f.card = v; },
           help: 'The chip, as a card. Where it sits applies unless a screen orders its chips itself.',
           example: 'type: custom:hk-status-chip-card\nentity: sensor.ecoflow_battery_level\nname: House Battery\nicon: hk:home-battery\nicon_color: green\ntap_action:\n  action: navigate\n  navigation_path: ./ecoflow',
           onSave: function (card) {
@@ -2807,12 +2876,15 @@
           var ls = lines.filter(function (l) { return l.ok === g[1]; });
           if (!ls.length) return;
           c.appendChild(K.group({ header: g[0] }, ls.map(function (l) {
-            // a line may carry a [link](/where) to fix it: the row opens it
-            var text = String(l.detail || '').replace(/[*`]/g, ''), link = null;
-            text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (_m, words, url) {
-              if (!link) link = url;
+            // a line may carry a [link](/where) to fix it: the row opens it.
+            // ONLY A PATH ON THIS SERVER becomes the row's href -- the names in
+            // a line come from integrations (setup_check escapes them), and a
+            // javascript: or off-site link must never be one click away.
+            var text = String(l.detail || '').replace(/(?<!\\)[*`]/g, ''), link = null;
+            text = text.replace(/(?<!\\)\[([^\]]+)\]\(([^)\s]+)\)/g, function (_m, words, url) {
+              if (!link && /^\/(?!\/)/.test(url)) link = url;
               return words;
-            });
+            }).replace(/\\([\\`*_\[\]()<>])/g, '$1');
             if (link) return K.nav({ tile: ic(l.ok), label: l.title, sub: text, href: link });
             return K.info({ tile: ic(l.ok), label: l.title, sub: text });
           })));

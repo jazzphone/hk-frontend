@@ -29,6 +29,7 @@ from .const import CONF_AREAS, CONF_VACUUMS, SERVICE_CLEAN, SIGNAL_CHANGED
 
 PLATFORMS: list = []
 RELOAD = False          # nothing to rebuild: the options are read on every call
+RENAME = {"options": (CONF_VACUUMS,)}   # followed through an entity rename (rename.py)
 
 
 async def async_setup(hass: HomeAssistant) -> None:
@@ -37,7 +38,8 @@ async def async_setup(hass: HomeAssistant) -> None:
         if not on:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="clean_areas_not_set_up")
         res: dict[str, Any] = await clean.async_clean(
-            hass, list(call.data["areas"]), on[0].options, call.data.get("dry_run", False))
+            hass, list(call.data["areas"]), on[0].options, call.data.get("dry_run", False),
+            context=call.context)      # the logbook names who sent the vacuums
         # A caller that asked for the answer reads it; one that did not (an
         # automation) would never learn of a refusal, so for it one RAISES.
         if call.return_response or res.get("ok"):

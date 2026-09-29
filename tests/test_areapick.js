@@ -10,6 +10,7 @@ function ok(name, cond, detail) {
   else { fail++; print('  FAIL  ' + name + (detail !== undefined ? '   ' + JSON.stringify(detail) : '')); }
 }
 load(root + '/tests/dom.js');
+load(root + '/frontend/modules/hk-settings.js');       // hkSettings.subscribe, as on a page
 ['hk-base', 'hk-home'].forEach(function (n) { load(root + '/frontend/cards/' + n + '.js'); });
 
 function card(cfg) {
@@ -42,7 +43,7 @@ var c = card({});
 Object.defineProperty(c, 'isConnected', { value: true });
 c._hass = hassWith(function (fn, msg) { got = fn; asked = msg; return Promise.resolve(function () {}); });
 ok('while Clean Areas has not answered: nothing drawn yet (not "no rooms")', c._floors() === null);
-c._sigOf();
+c._sigOf(); drainMicrotasks();
 ok('it asks Clean Areas for the offered areas', asked && asked.type === 'hk_clean_areas/subscribe');
 got({ configured: true, areas: ['loft', 'kitchen', 'shed', 'den', 'gone'] });
 var f = c._floors();
@@ -90,19 +91,37 @@ r._render();
 ok('a selected room that is no longer offered is dropped', r._sel.size === 1 && r._sel.has('kitchen'), Array.from(r._sel));
 
 // ------------------------------------------------------------ not added
+// The command is HK Frontend's own since 1.0: without Clean Areas it answers
+// {configured: false}.
 var m = card({});
 Object.defineProperty(m, 'isConnected', { value: true });
-var tries = 0;
-m._hass = hassWith(function () { tries++; return Promise.reject({ code: 'unknown_command' }); });
-m._sigOf();
+m._hass = hassWith(function (fn) { fn({ configured: false, areas: [] }); return Promise.resolve(function () {}); });
+m._sigOf(); drainMicrotasks();
+// REFUSED (a screen that reconnected before Home Assistant registered the
+// command, after a restart): asked again, never given up on for the page's life.
+var rf = card({}), tries = 0;
+Object.defineProperty(rf, 'isConnected', { value: true });
+rf._hass = hassWith(function () { tries++; return Promise.reject({ code: 'unknown_command' }); });
+var warn = console.warn; console.warn = function () {};
+rf._sigOf(); drainMicrotasks(); rf._sigOf(); rf._sigOf(); drainMicrotasks();
+var once = tries;
+__runTimers(); drainMicrotasks();
+console.warn = warn;
 var done = Promise.resolve().then(function () {}).then(function () {}).then(function () {
-  ok('Clean Areas not added: the card knows', m._offer && m._offer.missing === true);
+  ok('Clean Areas not added: the card knows', m._offer && m._offer.configured === false);
   ok('...and an empty list, which says to add it', m._floors().length === 0);
-  m._sigOf(); m._sigOf();
-  ok('...and it is not asked again on every hass push', tries === 1, tries);
+  ok('a refused subscribe is not repeated on every hass push', once === 1, once);
+  ok('...but is asked again (the restart window), not dropped for good', tries >= 2, tries);
   var ms = card({ start_script: 'script.clean_rooms' });
-  ms._hass = m._hass; ms._offer = { configured: false, areas: [], missing: true };
-  ok('...but a house’s own clean script still gets every area', ms._floors().reduce(function (n, x) { return n + x.areas.length; }, 0) === 5);
+  ms._hass = m._hass; ms._offer = { configured: false, areas: [] };
+  ok('...a house’s own clean script still gets every area', ms._floors().reduce(function (n, x) { return n + x.areas.length; }, 0) === 5);
+  // leaving the page ends it, through the same helper
+  var closed = card({}), live = 0;
+  Object.defineProperty(closed, 'isConnected', { value: true, configurable: true });
+  closed._hass = hassWith(function () { live++; return Promise.resolve(function () { live--; return Promise.reject({ code: 'not_found' }); }); });
+  closed._sigOf(); drainMicrotasks();
+  closed.disconnectedCallback(); drainMicrotasks();
+  ok('leaving the page ends the subscription (a refused unsubscribe is not an error)', live === 0 && !closed._areaSub, live);
   print('\n' + (fail ? 'FAIL ' + fail + ' of ' + (pass + fail) : 'ALL ' + pass + ' AREA PICKER TESTS PASS'));
   if (fail) throw new Error(fail + ' failed');
 });

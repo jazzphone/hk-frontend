@@ -908,11 +908,23 @@
     // that asks for statistics renders once with no data and NEVER updates --
     // the data arrives in ~100ms and then sits in the cache unread.
     //
-    // Clearing _hkSig first is the point: the gate would otherwise decide
+    // It draws NOW rather than waiting for the gate, which would decide
     // nothing had changed (the ENTITY did not change -- the fetch completed)
     // and drop the render. Arguments are ignored; the bridge passes a property
     // name only because a Lit card's requestUpdate takes one.
-    requestUpdate() { this._hkSig = null; this._hkGen = GEN.n; this._render(); }
+    requestUpdate() { this.redraw(); }
+
+    // REDRAW NOW, for a change the states do not show: data that arrived (a
+    // channel list, artwork, a module), a choice made on the card. It draws,
+    // and remembers the signature it drew at. Clearing _hkSig and calling
+    // _render() instead drew the card AGAIN on the next push that changed
+    // nothing -- a whole second build of the Live TV guide after every
+    // channel fetch (the render audit's churn check, 2026-09-29).
+    redraw() {
+      this._hkSig = this._hass ? this._sigOf() : null;
+      this._hkGen = GEN.n;
+      this._render();
+    }
 
     // ---------------------------------------------------------- actions
     //
@@ -2138,7 +2150,7 @@
                 popups: true, now_playing: false, screensaver: false, tablet_user: '', custom_pages: [],
                 // the button below TAB_MIN and while an open menu is
                 // folded; the pages at the top of the menu (empty: the views' own)
-                narrow: 'chip', menu_top: [], phone_header: 'header', chips_custom: [], home_page: true };
+                narrow: 'chip', menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, home_view: '' };
   function boardOf(dash) {
     var all = msetting('boards', null), out = {}, k;
     for (k in BOARD) out[k] = BOARD[k];
@@ -2334,14 +2346,17 @@
       return b === 'chip_scroll' || b === 'chip_home' ? 'scrolled' : 'never';
     },
     // The round buttons on the page now (their <ha-card>s), for the
-    // scrolled tab. A card that draws one hands itself over; kept while it
-    // lives (a cached view comes back without drawing again), read only
-    // while it is on the page.
+    // scrolled tab. A card that draws one hands itself over when it draws or
+    // is attached again (a cached view comes back without drawing), and takes
+    // itself back when it leaves the page (chipGone) -- held any longer, every
+    // card a rebuild or a chip-row replan discarded stayed alive with the
+    // whole state snapshot it last had (4,195 entities).
     chipShown: function (card) {
       if (!card) return;
       CHIPS.add(card);
       window.dispatchEvent(new CustomEvent('hk-menu-chip'));
     },
+    chipGone: function (card) { CHIPS.delete(card); },
     chips: function () {
       var out = [];
       CHIPS.forEach(function (card) {

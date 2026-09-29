@@ -58,11 +58,10 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigSu
 from homeassistant.const import Platform
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.typing import UNDEFINED, UndefinedType
 
-from ..const import DOMAIN, SIGNAL_CONFIG
+from ..const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -333,7 +332,10 @@ async def async_sync(hass: HomeAssistant, house: ConfigEntry) -> None:
                    for k in set(before) | set(now) if before.get(k) != now.get(k)):
                 for feat in loaded(hass, kind):
                     await _changed(hass, feat)
-        async_dispatcher_send(hass, SIGNAL_CONFIG)
+        # No SIGNAL_CONFIG here: the house's update listener -- this function's
+        # only caller -- sends the settings to every screen once it returns.
+        # Sent here too, every feature change went out twice (85 KB each, to
+        # every screen).
 
 
 async def _start(hass: HomeAssistant, house: ConfigEntry, item_id: str) -> bool:

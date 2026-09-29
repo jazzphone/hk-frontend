@@ -268,6 +268,18 @@ ok('its signature is static', live._sigOf(), 'static');
 ok('an entity pill keeps the entity signature', /^input_button\.nap=/.test(nap._sigOf() || ''), true);
 live._hkSig = null; pushes([live], 1);
 ok('a parent clearing _hkSig still redraws it (hk-media _paintBusy)', live.renders(), 2);
+// A REDRAW FROM THE CARD ITSELF (data that arrived, a choice on the card):
+// drawn once, and the next push that changes nothing is NOT drawn again --
+// clearing the signature instead made every such redraw cost two.
+var own = gated({ entity: 'input_button.nap', name: 'Nap' });
+pushes([own], 1);
+own.redraw();
+ok('redraw() draws now', own.renders(), 2);
+pushes([own], 3);
+ok('...and the pushes after it that change nothing do not draw again', own.renders(), 2);
+own.requestUpdate();
+pushes([own], 3);
+ok('requestUpdate() (the hk-stats bridge) is the same: one draw, not two', own.renders(), 3);
 var grp = gated({ name: 'Bath', group: ['light.a'] });
 grp.hass = { states: { 'light.a': st('light.a', 'on') } };
 grp.hass = { states: { 'light.a': { entity_id: 'light.a', state: 'off', attributes: {}, last_updated: 't2' } } };

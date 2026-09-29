@@ -116,6 +116,19 @@ ok('on, with the extra gate on: decorations', HS.seasonalOn({ 'input_boolean.ext
 HS._apply({ configured: true });
 ok('by default: decorations', HS.seasonalOn({}) === true);
 
+print('\n=== each screen\'s own strength of the same look, across a navigation ===');
+if (!document.documentElement) document.documentElement = document.createElement('html');
+location.pathname = '/dashboard-a/home';
+HS._apply({ configured: true, look: { glass: 'blur', blur: 50 },
+  boards: { 'dashboard-a': { blur: 10 }, 'dashboard-b': { blur: 90 } } });
+var rs = document.documentElement.style;
+ok('screen A: its own blur (10 -> 4 px)', /blur\(4px\)/.test(rs['--hk-blur-filter'] || ''), rs['--hk-blur-filter']);
+location.pathname = '/dashboard-b/home';
+dispatchEvent(new CustomEvent('location-changed'));
+ok('...then screen B, the same look at its own 90: 36 px (it kept A\'s 4 px)',
+   /blur\(36px\)/.test(rs['--hk-blur-filter'] || ''), rs['--hk-blur-filter']);
+HS._apply({ configured: true });
+
 print('\n=== a subscription that survives ===');
 function settle() { var p = Promise.resolve(); for (var i = 0; i < 6; i++) p = p.then(function () {}); return p; }
 var calls = [], readyL = [], unsubs = 0;

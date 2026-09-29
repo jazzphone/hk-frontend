@@ -21,7 +21,11 @@ replacement texture -- and wins over the bundled file of the same name.
 EXPOSURE. Like the bundle, the folder is served WITHOUT authentication (the
 browser fetches fonts and modules with no auth header). So the folder must be
 a dedicated one: `validate_folder` refuses /config itself, anything outside it,
-and any folder holding secrets.yaml, .storage or configuration.yaml.
+a hidden folder or one inside it (.storage, .cloud, .ssh), Home Assistant's
+own data folders (backups, custom_components, deps, ...), and any folder
+holding secrets.yaml, .storage or configuration.yaml. And whatever the folder,
+only WEB FILES are ever answered from it (`WEB_TYPES`): an extensionless
+.storage/auth or a .yaml, .db or .key is a 404, never a download.
 """
 from __future__ import annotations
 
@@ -40,8 +44,17 @@ FILES = "files"                     # hass.data[DOMAIN][FILES] -> resolved Path 
 FONT = ("fonts/SF-Pro.woff2", "fonts/SF-Pro.ttf")
 GLYPHS = ("iconset/hk-glyphs.js",)
 BUNDLE = Path(__file__).parent / "frontend"
+BUNDLE_ROOT = BUNDLE.resolve()
 
 _FORBIDDEN = ("secrets.yaml", ".storage", "configuration.yaml")
+# Home Assistant's own folders under /config: never a files folder, nor
+# anything inside one (their data is private, and none of it is a web file).
+_HA_FOLDERS = frozenset({"backups", "custom_components", "deps", "tts", "blueprints", "esphome",
+                         "image", "homekit", "mqtt", "zigbee2mqtt", "matter", "known_devices"})
+# What a files folder may serve: what a page loads, and nothing else.
+WEB_TYPES = frozenset({".woff2", ".woff", ".ttf", ".otf", ".css", ".js", ".mjs", ".map", ".html",
+                       ".htm", ".json", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico",
+                       ".avif", ".webm", ".mp4", ".mov", ".mp3", ".m4a", ".wav", ".txt"})
 ISSUES = ("missing_font", "missing_glyphs")      # the Repairs entries raise_issues keeps
 # Their links. Placeholders, not text in the strings: hassfest refuses a URL in
 # a translation.
@@ -76,6 +89,9 @@ def validate_folder(config_dir: str, folder: str) -> str | None:
         return "folder_outside_config"
     if path == base:
         return "folder_is_config"
+    parts = path.relative_to(base).parts
+    if any(p.startswith(".") for p in parts) or parts[0].lower() in _HA_FOLDERS:
+        return "folder_not_dedicated"
     if path.exists() and any((path / name).exists() for name in _FORBIDDEN):
         return "folder_not_dedicated"
     return None
@@ -117,7 +133,7 @@ def _root(hass: HomeAssistant) -> Path | None:
 
 def resolve(hass: HomeAssistant, filename: str) -> Path | None:
     """/hk/<filename> -> the file to send: yours first, then the bundle's."""
-    roots = [_root(hass), BUNDLE.resolve()]
+    roots = [_root(hass), BUNDLE_ROOT]
     for root in roots:
         if root is None:
             continue
@@ -126,6 +142,8 @@ def resolve(hass: HomeAssistant, filename: str) -> Path | None:
             target.relative_to(root)          # raises if outside the root
         except (ValueError, OSError):
             continue
+        if root is not BUNDLE_ROOT and target.suffix.lower() not in WEB_TYPES:
+            continue                          # yours: web files only (EXPOSURE)
         if target.is_file():
             return target
     return None

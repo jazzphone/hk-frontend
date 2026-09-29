@@ -113,3 +113,46 @@ async def test_a_dashboard_lists_them_on_its_pages(hass, frontend):
                                           "custom_pages": ["energy", "ecoflow"]}})
     b = as_client(e)["boards"]["dashboard-hall"]
     assert b["custom_pages"] == ["energy", "ecoflow"] and b["pages"] == ["weather", "energy", "lights", "ecoflow", "rooms"]
+
+
+# ------------------------------------------------ one namespace, every type
+# Home Assistant refuses an item whose unique id ANY item of the entry has.
+# A chip, a pop-up and a page named alike get places of their own.
+async def _new_page(hass, title, path):
+    from homeassistant import config_entries
+    from conftest import entry
+    flows = hass.config_entries.subentries
+    r = await flows.async_init((entry(hass).entry_id, "page"), context={"source": config_entries.SOURCE_USER})
+    r = await flows.async_configure(r["flow_id"], {"title": title, "path": path, "start": "blank"})
+    r = await flows.async_configure(r["flow_id"], {"view": {"cards": []}})
+    await hass.async_block_till_done()
+    return r
+
+
+async def test_a_chip_named_like_a_page_gets_a_key_of_its_own(hass, frontend):
+    from homeassistant.auth.models import User
+    from conftest import FakeConnection
+    from custom_components.hk_frontend.panel import ws_chip_save
+    assert (await _new_page(hass, "Energy", "energy"))["type"] == "create_entry"
+    conn = FakeConnection(User(name="admin", perm_lookup=None, groups=[], is_owner=True))
+    ws_chip_save(hass, conn, {"id": 5, "type": "hk_frontend/chip/save", "name": "Energy",
+                              "after": "end", "card": {"type": "custom:hk-status-chip-card"}})
+    await hass.async_block_till_done()
+    chips = [s.unique_id for s in frontend.subentries.values() if s.subentry_type == "chip"]
+    assert chips == ["energy-2"], chips
+
+
+async def test_the_chip_and_popup_flows_step_round_another_types_id(hass, frontend):
+    from homeassistant import config_entries
+    from conftest import entry
+    await _new_page(hass, "Energy", "energy")
+    flows = hass.config_entries.subentries
+    r = await flows.async_init((entry(hass).entry_id, "chip"), context={"source": config_entries.SOURCE_USER})
+    r = await flows.async_configure(r["flow_id"], {"name": "Energy", "after": "end",
+                                                   "card": {"type": "custom:hk-status-chip-card"}})
+    assert r["type"] == "create_entry", r
+    await hass.async_block_till_done()
+    assert [s.unique_id for s in frontend.subentries.values() if s.subentry_type == "chip"] == ["energy-2"]
+    r = await flows.async_init((entry(hass).entry_id, "popup"), context={"source": config_entries.SOURCE_USER})
+    r = await flows.async_configure(r["flow_id"], {"name": "Energy", "kind": "accessories"})
+    assert r["type"] == "form" and r["errors"] == {"hash": "hash_taken"}, r

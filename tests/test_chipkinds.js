@@ -289,4 +289,11 @@ var car = K.entityChip('sensor.car', false);
 ok('an attribute in place of the state, without the state\'s unit', car.attribute === 'range' && car.unit === false);
 HC.setting = realSet;
 
+// THE MENU'S COPY of the kind tables (hk-menu.js loads before the card files
+// and keeps its own): the same order and the same pages, always.
+load(HK_ROOT + '/frontend/modules/hk-menu.js');
+var MK = window.hkMenu && window.hkMenu._ && window.hkMenu._.kinds;
+ok('the menu\'s kind order is hk-chip\'s', MK && JSON.stringify(MK.ORDER) === JSON.stringify(window.hkChip.kinds.ORDER));
+ok('the menu\'s kind pages are hk-chip\'s', MK && JSON.stringify(MK.PAGES) === JSON.stringify(window.hkChip.kinds.PAGES));
+
 print('\n' + (fail ? 'FAILURES: ' + fail : 'ALL ' + pass + ' CHIP KIND TESTS PASS'));

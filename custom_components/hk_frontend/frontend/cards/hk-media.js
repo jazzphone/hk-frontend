@@ -663,8 +663,7 @@
       var self = this;
       if (!this._musicOff && window.hkMusic) {
         this._musicOff = window.hkMusic.onChange(function () {
-          self._hkSig = null;
-          if (self._hass && self._config) self._render();
+          if (self._hass && self._config) self.redraw();
         });
       }
     }
@@ -2576,8 +2575,7 @@
           // (which lands here) BEFORE it writes its own message, so this
           // never erases the one it is about.
           self._notice = '';
-          self._hkSig = null;
-          if (self._hass && self._config) self._render();
+          if (self._hass && self._config) self.redraw();
         });
       }
     }
@@ -2586,7 +2584,9 @@
       if (this._musicOff) { this._musicOff(); this._musicOff = null; }
       var s = this._noteSub;
       this._noteSub = null;
-      if (s) s.then(function (unsub) { if (unsub) unsub(); }, function () {});
+      // an unsubscribe the server refuses (the socket reconnected; it has
+      // already forgotten the subscription) is not an error of ours
+      if (s) s.then(function (unsub) { var r = unsub && unsub(); if (r && r.catch) r.catch(function () {}); }, function () {});
     }
     _subNotes() {
       if (this._noteSub || !this.isConnected) return;
@@ -2823,6 +2823,20 @@
       // like a narrow editor preview -- never collapses to nothing.
       if (h < 200) h = 200;
       if (f.style.height !== h + 'px') f.style.height = h + 'px';
+    }
+
+    // A CACHED VIEW COMING BACK attaches the card again without building it
+    // (_render returns once built), so the resize listener taken off on the
+    // way out is put back here, and the frame fitted to the page as it is now
+    // -- on the next frame, once the view it came back in has its layout.
+    connectedCallback() {
+      if (super.connectedCallback) super.connectedCallback();
+      if (this._built && this._frame && !this._onResize) {
+        var self = this;
+        this._onResize = function () { self._fit(); };
+        window.addEventListener('resize', this._onResize);
+        requestAnimationFrame(function () { self._fit(); });
+      }
     }
 
     disconnectedCallback() {

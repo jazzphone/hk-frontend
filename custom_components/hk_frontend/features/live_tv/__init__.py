@@ -140,7 +140,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
     # no config entry of its own to hang the guide's refresh on: it is shut
     # down when the feature stops
     coord = GuideCoordinator(hass, entry.data.get(CONF_GUIDE_URL) or None, numbers, None)
-    await coord.async_refresh()          # a guide that fails leaves the channels working
+    # THE FIRST GUIDE IN THE BACKGROUND. Awaited here, it held up the whole
+    # HK Frontend entry -- the features after Live TV (Alarm PIN's panel), the
+    # Seasonal switch -- for as long as the download took: up to 60 s, then a
+    # 5 MB parse, or on every Live TV restart (any change, even a channel's
+    # name). The channels and their entities work without it ("Live" until it
+    # arrives: they read coordinator.data or {}), and they update when it lands.
+    task = hass.async_create_background_task(coord.async_refresh(), "hk_frontend: Live TV guide")
+    entry.async_on_unload(task.cancel)
     data["entry"] = entry
     data["coordinator"] = coord
     data["host"] = entry.data[CONF_HOST]

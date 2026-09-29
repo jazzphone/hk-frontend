@@ -62,29 +62,15 @@
       // nothing, so the URL is stable and the browser can serve the module
       // from cache after a 304 -- which is the whole point of /hk/.
       var url = '/hk/modules/' + m + (stamp ? '?t=' + stamp : '');
+      // A FAILED IMPORT IS SAID, AND NEVER BLOCKS THE OTHERS. There is no
+      // <script> retry any more (2026-09-28): every browser these screens run
+      // (Android WebView, iOS Safari, the car's Chromium) has import(), so a
+      // failure is either the network -- a script tag fails the same way -- or
+      // a module that THREW while running, which a second run would repeat
+      // with whatever it had already registered (hk-sky adds a listener before
+      // it sets window.hkSky) registered twice.
       return import(url).catch(function (err) {
-        // FALL BACK TO A <script> TAG, because a failed import() must stay
-        // survivable.
-        //
-        // These modules assign globals (window.hkSky, window.hkStats, ...);
-        // none of them export anything, so a classic script loads them just
-        // as well as a module does. On a client where import() does not
-        // resolve, this is what actually loads them; without it the sky
-        // simply fails to appear there, with no error anyone could see.
-        //
-        // So the fallback belongs here, once, for every module, rather than
-        // in a card that happens to carry one.
-        console.warn('[hk-loader] import failed for ' + url + ', trying <script>', err);
-        return new Promise(function (resolve) {
-          var sc = document.createElement('script');
-          sc.src = url;
-          sc.onload = function () { resolve(); };
-          sc.onerror = function () {
-            console.error('[hk-loader] could not load ' + url + ' either way');
-            resolve();                      // never block the other modules
-          };
-          document.head.appendChild(sc);
-        });
+        console.error('[hk-loader] could not load ' + url, err);
       });
     }));
   }

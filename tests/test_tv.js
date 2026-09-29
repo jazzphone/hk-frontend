@@ -71,6 +71,11 @@ function guide(answers, calls, cn, states) {
   answers.push({ configured: true, channels: [NBC] });
   t = looks()[0]; __resetTimers(); t.fn(); drainMicrotasks();
   ok('the channels arrive: drawn, and no more look-agains', n() === 3 && g._channels.length === 1 && looks().length === 0);
+  var built = 0, tile0 = g._tile;
+  g._tile = function () { built++; return tile0.apply(this, arguments); };
+  g.push(); g.push();
+  ok('...and the pushes after the list arrived do not draw it all again', built === 0, built);
+  g._tile = tile0;
   answers.push({ configured: false, channels: [] });       // HA restarts again
   cn.fire('ready'); drainMicrotasks();
   ok('the socket coming back (`ready`) asks again', n() === 4, n());
@@ -173,12 +178,9 @@ ok('a scene pill needs no entity (the Live TV pill only navigates)', !/entity/.t
 var tl = new Pill(), threw2 = null;
 try { tl.setConfig({ name: 'x' }); } catch (e) { threw2 = e.message; }
 ok('a state tile still requires one', /entity/.test(threw2 || ''), threw2);
-// A home's own dashboards, when they sit beside the integration (the private
-// development layout), must link the pill to the page. Anywhere else: skipped.
-var row = null;
-try { row = readFile(HK_ROOT + '/../../hk_house/dashboards/shared/cards/scenes_row.yaml'); } catch (e) { row = null; }
-if (row) ok('the pill navigates to ./live-tv', /name: Live TV[\s\S]{0,160}navigation_path: \.\/live-tv/.test(row));
-else print('  SKIP  the pill navigates to ./live-tv (no home dashboards beside the integration)');
+// (Which page the Live TV pill opens -- ./live-tv -- is the scene row's page
+// pills: test_chipkinds. It used to be read off this house's YAML scenes row,
+// retired with the YAML dashboards on 2026-09-28.)
 
 print('\n' + (fail ? 'FAIL ' + fail + ' TV TESTS' : 'ALL ' + pass + ' TV TESTS PASS'));
 if (fail) throw new Error('tv tests failed');

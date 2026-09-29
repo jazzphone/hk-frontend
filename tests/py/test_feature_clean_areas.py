@@ -97,3 +97,21 @@ async def test_every_screen_learns_it_is_added(hass, frontend):
     F.async_remove(hass, e)
     await hass.async_block_till_done()
     assert screen.sent[-1]["event"]["added"] == []
+
+
+async def test_the_vacuums_are_sent_in_the_callers_context(hass, frontend, monkeypatch):
+    """The logbook names who sent the vacuums: the vacuum calls carry the
+    action's own context (they carried none)."""
+    from homeassistant.core import Context
+    from custom_components.hk_frontend.features.clean_areas import clean
+    await add_feature(hass, "clean_areas", {})
+    seen = []
+    hass.services.async_register("vacuum", "clean_area", lambda call: seen.append(call.context))
+    hass.services.async_register("vacuum", "start", lambda call: seen.append(call.context))
+    monkeypatch.setattr(clean, "plan", lambda *a, **k: {"plan": [
+        {"action": "clean_area", "vacuum": "vacuum.a", "areas": ["kitchen"]},
+        {"action": "start", "vacuum": "vacuum.b", "areas": ["den"]}]})
+    ctx = Context(user_id="u-owner")
+    await hass.services.async_call(DOMAIN, "clean_areas", {"areas": ["kitchen", "den"]}, blocking=True,
+                                   return_response=True, context=ctx)
+    assert [c.user_id for c in seen] == ["u-owner", "u-owner"], seen

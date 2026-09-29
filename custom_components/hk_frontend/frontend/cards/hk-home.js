@@ -275,33 +275,32 @@
       this._sel = new Set();
       this._auto = !Array.isArray(this._config.floors) || !this._config.floors.length;
     }
+    // THROUGH hkSettings.subscribe, as every lasting subscription here is: the
+    // command is HK Frontend's own and always answers ({configured: false}
+    // without Clean Areas), but right after a restart a screen can reconnect
+    // before it is registered, and a raw subscribe refused then is dropped for
+    // good -- the picker kept the old rooms until the card was rebuilt. This
+    // one resubscribes on every reconnect and retries a refusal with back-off.
     _subAreas() {
-      if (!this._auto || this._areaSub || this._areaNo || !this.isConnected) return;
+      if (!this._auto || this._areaSub || !this.isConnected) return;
       var conn = this._hass && this._hass.connection;
-      if (!conn || typeof conn.subscribeMessage !== 'function') return;
+      var sub = window.hkSettings && window.hkSettings.subscribe;
+      if (!conn || typeof conn.subscribeMessage !== 'function' || typeof sub !== 'function') return;
       var self = this;
-      this._areaSub = conn.subscribeMessage(function (ev) {
+      this._areaSub = sub(conn, { type: 'hk_clean_areas/subscribe' }, function (ev) {
         self._offer = ev || { configured: false, areas: [] };
         self._render();
-      }, { type: 'hk_clean_areas/subscribe' });
-      // refused: HK Clean Areas is not installed. Not asked again until the
-      // card comes back (a refusal on every hass push would be several a second)
-      this._areaSub.catch(function () {
-        self._areaSub = null; self._areaNo = true;
-        self._offer = { configured: false, areas: [], missing: true };
-        self._render();
-      });
+      }, 'hk-area-select');
     }
     connectedCallback() {
       super.connectedCallback();
-      this._areaNo = false;
       this._subAreas();
     }
     disconnectedCallback() {
       super.disconnectedCallback();
-      var s = this._areaSub;
+      var close = this._areaSub;
       this._areaSub = null;
-      if (s) s.then(function (unsub) { if (unsub) unsub(); }, function () {});
+      if (typeof close === 'function') close();
     }
     // THE ORDER within a floor: the card's own `order:` (area ids -- a house
     // whose rooms read in a sequence of its own), else this screen's Room
@@ -320,7 +319,7 @@
       if (!o) return null;
       var A = (this._hass && this._hass.areas) || {}, FL = (this._hass && this._hass.floors) || {};
       // without HK Clean Areas a house's own script still cleans: every area
-      var ids = o.missing && this._script() ? Object.keys(A) : (o.areas || []);
+      var ids = (o.missing || o.configured === false) && this._script() ? Object.keys(A) : (o.areas || []);
       var by = {};
       ids.forEach(function (id) {
         var a = A[id];
@@ -1729,8 +1728,7 @@
       var self = this;
       this._onTimersReady = function () {
         self._unwire();
-        self._hkSig = null;
-        self._render();
+        self.redraw();
       };
       window.addEventListener('hk-timers-ready', this._onTimersReady);
     }

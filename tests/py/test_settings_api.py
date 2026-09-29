@@ -422,3 +422,56 @@ async def test_the_page_knows_which_features_the_house_has(hass, frontend):
     await hass.async_block_till_done(wait_background_tasks=True)
     ca = conn.sent[-1]["result"]["features"]["hk_clean_areas"]
     assert [e["title"] for e in ca["entries"]] == ["Clean Areas"]
+
+
+async def test_a_change_made_while_the_folder_is_checked_is_kept(hass, frontend):
+    """settings/set with the files folder waits on the folder check (a slow
+    disk); another setting written meanwhile must survive (it was overwritten
+    with its old value, and both writes answered success)."""
+    import asyncio
+    import time
+    from unittest.mock import patch
+    from conftest import entry
+    from test_accessories import _admin
+    from custom_components.hk_frontend import files, settings as S
+    from custom_components.hk_frontend.panel import ws_settings_set
+    real = files.validate_folder
+
+    def slow(*a):
+        time.sleep(0.3)
+        return real(*a)
+    conn = await _admin(hass)
+    with patch.object(files, "validate_folder", slow):
+        ws_settings_set(hass, conn, {"id": 1, "type": "hk_frontend/settings/set",
+                                     "changes": {"files_folder": "hk_local", "look.frost": 30}})
+        await asyncio.sleep(0.05)
+        ws_settings_set(hass, conn, {"id": 2, "type": "hk_frontend/settings/set", "changes": {"look.blur": 70}})
+        await asyncio.sleep(0.5)
+        await hass.async_block_till_done()
+    look = S.merged(entry(hass).options)["look"]
+    assert look["blur"] == 70 and look["frost"] == 30, look
+
+
+async def test_a_screen_home_can_be_a_custom_page(hass, frontend):
+    """A screen's Home: "" (the generated one) or a custom page's address --
+    a car's own first page over the generated category pages."""
+    import json
+    from homeassistant.config_entries import ConfigSubentry
+    from conftest import entry
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.panel import ws_board_set
+    conn = await _admin(hass)
+    hass.config_entries.async_add_subentry(entry(hass), ConfigSubentry(
+        data={}, subentry_type="dashboard", title="Car", unique_id="dashboard-car"))
+    assert S.as_client(entry(hass))["boards"]["dashboard-car"]["home_view"] == "", "the generated Home by default"
+    ws_board_set(hass, conn, {"id": 1, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
+                              "changes": {"home_view": "car-home"}})
+    assert conn.sent[-1]["success"], conn.sent[-1]
+    assert S.as_client(entry(hass))["boards"]["dashboard-car"]["home_view"] == "car-home"
+    ws_board_set(hass, conn, {"id": 2, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
+                              "changes": {"home_view": "Not A Path!"}})
+    assert conn.sent[-1]["error"] == "invalid_format"
+    assert json.loads(conn.sent[-1]["message"]) == {"home_view": "choice"}
+    ws_board_set(hass, conn, {"id": 3, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
+                              "changes": {"home_view": ""}})
+    assert S.as_client(entry(hass))["boards"]["dashboard-car"]["home_view"] == ""

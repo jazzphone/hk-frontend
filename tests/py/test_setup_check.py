@@ -117,3 +117,16 @@ async def test_the_menu_line_reads_the_dashboard_items(hass, frontend):
     boards["dashboard-gone"] = {"menu": "tab"}
     line = {x.title: x for x in await setup_check.async_run(hass, {}, boards)}["Menu and room pages"]
     assert line.ok is False and "dashboard-gone" in line.detail and "Dashboards" in line.detail
+
+
+def test_a_name_from_an_integration_is_text_never_markdown():
+    """Device and area names reach a line that is Markdown (Configure renders
+    it; the settings page turns its first link into the row's href). A name
+    shaped like a link must stay text in both."""
+    import re
+    from custom_components.hk_frontend import setup_check as S
+    evil = "[x](javascript:alert(1))"
+    line = S._names([evil, "Lamp"]) + ". [Assign them](/config/devices/dashboard)."
+    links = re.findall(r"(?<!\\)\[([^\]]+)\]\(([^)\s]+)\)", line)
+    assert links == [("Assign them", "/config/devices/dashboard")], links
+    assert S._plain("Emma’s *Lamp* (2)") == r"Emma’s \*Lamp\* \(2\)"

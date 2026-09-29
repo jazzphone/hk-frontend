@@ -296,12 +296,21 @@
       '<ha-icon icon="' + menu().icon() + '"></ha-icon></ha-card>';
   }
 
+  // A card that drew the round menu button, attached again (a cached view
+  // coming back redraws nothing): hand it back to the menu's list.
+  function chipBack(card) {
+    var m = card._built && card._root && card._root.querySelector && card._root.querySelector('[data-hk-role="menu"]');
+    if (m && menu().chipShown) menu().chipShown(card);
+  }
+
   class HkBackCard extends HkBase {
     static get CSS() { return ROUND_CSS; }
     getCardSize() { return 1; }
     // Depends on the URL and the menu's state, not on hass: the menu button
     // beside the chevron comes and goes with the menu's settings.
     _sigOf() { return 'menu=' + menu().sig(); }
+    connectedCallback() { super.connectedCallback(); chipBack(this); }
+    disconnectedCallback() { super.disconnectedCallback(); if (menu().chipGone) menu().chipGone(this); }
     _render() {
       // THE MENU BUTTON RIDES HERE on a dashboard whose menu uses the round
       // button (hk-base.js menu.style): every sub-page has this card, so the
@@ -371,6 +380,8 @@
     static get CSS() { return ':host{display:block}:host([hidden]){display:none}' + ROUND_CSS; }
     getCardSize() { return 1; }
     _sigOf() { return 'menu=' + menu().sig(); }
+    connectedCallback() { super.connectedCallback(); chipBack(this); }
+    disconnectedCallback() { super.disconnectedCallback(); if (menu().chipGone) menu().chipGone(this); }
     _render() {
       var show = menu().round ? menu().round('home') : menu().style() === 'chip';
       var icon = show ? menu().icon() : '';

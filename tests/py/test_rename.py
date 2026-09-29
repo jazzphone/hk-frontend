@@ -3,6 +3,8 @@ structured settings only, card configurations reported and never rewritten,
 nothing overwritten, everything said in one notification."""
 from __future__ import annotations
 
+from types import MappingProxyType
+
 from custom_components.hk_frontend import rename as R
 
 OLD, NEW = "light.a", "light.b"
@@ -70,7 +72,9 @@ def test_a_favorite_with_itself_is_dropped_after_the_rename():
 async def _house(hass, frontend):
     """An entry with an old id in each place it may be: options, a screen, a
     pop-up, a custom page's cards (with an action that looks like an id),
-    and the accessories store."""
+    and the accessories store. Items hold their data as Home Assistant does,
+    read-only (MappingProxyType): with plain dicts this passed while nothing
+    was followed on a real house."""
     from homeassistant.config_entries import ConfigSubentry
     from custom_components.hk_frontend import accessories
     e = frontend
@@ -78,15 +82,15 @@ async def _house(hass, frontend):
     dash["features"] = {**(dash.get("features") or {}), "temperature": OLD, "house_timers": []}
     hass.config_entries.async_update_entry(e, options={**e.options, "dashboard": dash})
     hass.config_entries.async_add_subentry(e, ConfigSubentry(
-        data={"dashboard": "dashboard-kitchen", "favorites": [OLD, "light.z"], "wallpanel_options": {"x": OLD}},
+        data=MappingProxyType({"dashboard": "dashboard-kitchen", "favorites": [OLD, "light.z"], "wallpanel_options": {"x": OLD}}),
         subentry_type="dashboard", title="Kitchen", unique_id="dashboard-kitchen"))
     hass.config_entries.async_add_subentry(e, ConfigSubentry(
-        data={"kind": "accessories", "entities": [OLD], "name": "Lamps"},
+        data=MappingProxyType({"kind": "accessories", "entities": [OLD], "name": "Lamps"}),
         subentry_type="popup", title="Lamps", unique_id="lamps"))
     view = {"cards": [{"type": "custom:hk-stat-card", "entity": OLD,
                        "tap_action": {"action": "perform-action", "perform_action": "select.select_option"}}]}
     hass.config_entries.async_add_subentry(e, ConfigSubentry(
-        data={"title": "Energy", "view": view}, subentry_type="page", title="Energy", unique_id="energy"))
+        data=MappingProxyType({"title": "Energy", "view": view}), subentry_type="page", title="Energy", unique_id="energy"))
     acc = accessories.get(hass)
     acc.set(OLD, {"name": "Lamp"})
     await hass.async_block_till_done()
@@ -140,3 +144,82 @@ async def test_a_failure_changes_nothing_further_and_is_logged(hass, frontend, c
         reg.async_update_entity(OLD, new_entity_id=NEW)
         await hass.async_block_till_done()
     assert "failed; nothing further was changed" in caplog.text
+
+
+# ------------------------------------------------------ the features' items
+def test_a_feature_item_follows_only_the_fields_its_feature_names():
+    stored = {"kind": "music", "data": {},
+              "options": {"speakers": ["media_player.z", "media_player.a"], "volume": 0.3,
+                          "homes": {"u1": "media_player.a", "u2": "media_player.z"}, "note": "media_player.a"}}
+    spec = {"options": ("speakers", "homes")}
+    out, paths = R.rewrite_feature(stored, spec, "media_player.a", "media_player.b")
+    assert out["options"]["speakers"] == ["media_player.z", "media_player.b"]
+    assert out["options"]["homes"] == {"u1": "media_player.b", "u2": "media_player.z"}
+    assert out["options"]["note"] == "media_player.a", "a field the feature does not name is never touched"
+    assert sorted(paths) == ["homes", "speakers"]
+    assert stored["options"]["speakers"][1] == "media_player.a", "the original is not mutated"
+
+
+async def test_a_rename_is_followed_into_music_clean_areas_presets_and_reported_in_chips(hass, frontend):
+    """Features became items of the house's entry on 2026-09-28: a renamed
+    speaker or vacuum must be followed there, and a custom chip's card that
+    names it reported (never rewritten)."""
+    from homeassistant.config_entries import ConfigSubentry
+    from homeassistant.helpers import entity_registry as er
+    from conftest import put_feature
+    reg = er.async_get(hass)
+    spk = reg.async_get_or_create("media_player", "test", "k1", suggested_object_id="kitchen_ma").entity_id
+    vac = reg.async_get_or_create("vacuum", "test", "v1", suggested_object_id="downstairs").entity_id
+    music = await put_feature(hass, "music", options={"speakers": [spk, "media_player.x"], "volume": 0.3,
+                                                      "homes": {"u1": spk}})
+    clean = await put_feature(hass, "clean_areas", options={"vacuums": [vac], "areas": []})
+    hass.config_entries.async_add_subentry(frontend, ConfigSubentry(
+        data=MappingProxyType({"name": "Downstairs", "group": "media_player.group", "members": [spk, "media_player.x"]}),
+        subentry_type="preset", title="Downstairs", unique_id="preset-downstairs"))
+    hass.config_entries.async_add_subentry(frontend, ConfigSubentry(
+        data=MappingProxyType({"name": "Kitchen music", "card": {"type": "custom:hk-status-chip-card", "entity": spk}}),
+        subentry_type="chip", title="Kitchen music", unique_id="kitchen-music"))
+    await hass.async_block_till_done()
+
+    reg.async_update_entity(spk, new_entity_id="media_player.kitchen_speaker")
+    reg.async_update_entity(vac, new_entity_id="vacuum.downstairs_vacuum")
+    await hass.async_block_till_done()
+
+    assert music.options["speakers"] == ["media_player.kitchen_speaker", "media_player.x"]
+    assert music.options["homes"] == {"u1": "media_player.kitchen_speaker"}
+    assert clean.options["vacuums"] == ["vacuum.downstairs_vacuum"]
+    subs = {s.unique_id: s for s in frontend.subentries.values()}
+    assert subs["preset-downstairs"].data["members"] == ["media_player.kitchen_speaker", "media_player.x"]
+    assert subs["kitchen-music"].data["card"]["entity"] == spk, "a chip's card is never rewritten"
+    from homeassistant.components import persistent_notification
+    notes = persistent_notification._async_get_or_create_notifications(hass)
+    msg = next(n["message"] for k, n in notes.items() if k == f"{R.NOTIFY_ID}_media_player.kitchen_speaker")
+    assert "custom chip Kitchen music" in msg and "speakers" in msg
+
+
+async def test_renaming_the_protected_alarm_moves_the_alarm_pin_with_it(hass, base):
+    """The Alarm PIN item names its alarm in data, unique id and title: all
+    three move, and the PIN panel keeps mirroring the (renamed) alarm."""
+    from homeassistant import config_entries
+    from homeassistant.helpers import entity_registry as er
+    from conftest import DOMAIN, add_feature, feature_entries
+    reg = er.async_get(hass)
+    old = reg.async_get_or_create("alarm_control_panel", "lyric", "a1", suggested_object_id="lyric_alarm").entity_id
+    hass.states.async_set(old, "disarmed", {"supported_features": 3, "code_format": None})
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    await hass.config_entries.flow.async_configure(r["flow_id"], {})
+    await hass.async_block_till_done()
+    await add_feature(hass, "alarm_pin", {"alarm": old, "pin": "4321", "pin_again": "4321", "arm_required": True})
+    feat = feature_entries(hass, "alarm_pin")[0]
+    panel = reg.async_get_entity_id("alarm_control_panel", DOMAIN, feat.entry_id)
+
+    new = "alarm_control_panel.house_alarm"
+    reg.async_update_entity(old, new_entity_id=new)
+    hass.states.async_remove(old)           # what the alarm's integration does after a rename
+    hass.states.async_set(new, "armed_home", {"supported_features": 3, "code_format": None})
+    await hass.async_block_till_done()
+
+    feat = feature_entries(hass, "alarm_pin")[0]
+    assert feat.data["alarm"] == new
+    assert feat.unique_id == f"feature:alarm_pin:{new}"
+    assert hass.states.get(panel).state == "armed_home", "the PIN panel mirrors the renamed alarm"

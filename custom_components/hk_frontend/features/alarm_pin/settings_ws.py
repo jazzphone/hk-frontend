@@ -146,8 +146,14 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg: dict[str, Any]) 
     if errors:
         _refused(connection, msg["id"], errors)
         return
-    if new_pin:
-        options.update(await hass.async_add_executor_job(hash_pin, new_pin))
+    hashed = await hass.async_add_executor_job(hash_pin, new_pin) if new_pin else None
+    # READ AGAIN AFTER THE HASH (200k rounds in the executor): the copy taken
+    # before it would put back anything another write changed meanwhile.
+    options, data = dict(entry.options), dict(entry.data)
+    if CONF_ARM_REQUIRED in changes:
+        options[CONF_ARM_REQUIRED] = changes[CONF_ARM_REQUIRED]
+    if hashed:
+        options.update(hashed)
     update: dict[str, Any] = {}
     if CONF_ALARM in changes and alarm != data.get(CONF_ALARM):
         data[CONF_ALARM] = alarm

@@ -357,7 +357,8 @@
         "popup_cards": "Cards in YAML: a list of cards, each with a type."
       },
       "abort": {
-        "reconfigure_successful": "Saved."
+        "reconfigure_successful": "Saved.",
+        "already_configured": "Another item already has that name or address. Choose another."
       }
     },
     "page": {
@@ -413,7 +414,8 @@
         "page_view": "The page must be YAML keys and values (a view: type, cards...), not a list or a single value, and under 300,000 characters."
       },
       "abort": {
-        "reconfigure_successful": "Saved."
+        "reconfigure_successful": "Saved.",
+        "already_configured": "Another item already has that name or address. Choose another."
       }
     },
     "chip": {
@@ -456,7 +458,8 @@
         "chip_card": "The chip must be YAML with a type, such as type: custom:hk-status-chip-card."
       },
       "abort": {
-        "reconfigure_successful": "Saved."
+        "reconfigure_successful": "Saved.",
+        "already_configured": "Another item already has that name or address. Choose another."
       }
     },
     "preset": {

@@ -35,12 +35,13 @@ import itertools
 import logging
 import time
 from collections.abc import Callable, Iterable
+from contextvars import ContextVar
 from typing import Any
 
 from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Context, Event, HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -48,6 +49,11 @@ from homeassistant.helpers import floor_registry as fr
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .. import Feature
+
+# The context of the hk_frontend.music_* action being served: set by its
+# handler (features/music/__init__.py), read by MusicManager._call, and
+# carried by asyncio into every await and task of that request.
+CALLER: ContextVar[Context | None] = ContextVar("hk_music_caller", default=None)
 from .const import (
     CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_MEMBERS,
     CONF_NAME, CONF_ORDER, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME,
@@ -267,10 +273,13 @@ class MusicManager:
         """A service call that reports instead of raising.
 
         Every step that may fail without ending the request goes through
-        this, so a failure is a logged False rather than a dead run.
+        this, so a failure is a logged False rather than a dead run. It runs
+        in the context of the action that asked (CALLER), so the logbook says
+        who started the music.
         """
         try:
-            await self.hass.services.async_call(domain, service, data, blocking=True)
+            await self.hass.services.async_call(domain, service, data, blocking=True,
+                                                context=CALLER.get())
         except Exception as err:  # noqa: BLE001 -- any failure is a result here
             _LOGGER.warning("music: %s.%s %s failed: %s", domain, service, data, err)
             return False

@@ -244,6 +244,9 @@
   // hk-chip.js) the dashboard has. Its `extra:` chips are walked as written.
   // `o.row === false`: the screen shows no chip row. A chips card with
   // `in_menu: false` (a generated screen's) picks no Categories.
+  // A COPY of hk-chip.js's tables (hkChip.kinds): this module loads at
+  // bootstrap, before the card files, so it cannot wait for them. The chip
+  // kind suite (test_chipkinds) holds the two copies equal.
   var KIND_ORDER = ['weather_alert', 'security', 'doors_windows', 'climate', 'lights', 'blinds',
                     'timers', 'vacuums', 'speakers', 'water', 'energy'];
   var KIND_PAGES = { weather_alert: ['weather'], security: ['security', 'alarm'],
@@ -314,7 +317,7 @@
   }
 
   window.hkMenu = { version: '1.1.0', _: { model: model, isHere: isHere, glyph: glyph, chipPaths: chipPaths, pagePaths: pagePaths,
-                                           tabCentre: tabCentre } };
+                                           tabCentre: tabCentre, kinds: { ORDER: KIND_ORDER, PAGES: KIND_PAGES } } };
 
   whenBase(function (C) {
     var M = C.menu;

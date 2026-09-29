@@ -16,6 +16,7 @@ issue clears itself once it is fixed.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -36,8 +37,9 @@ from .const import DOMAIN
 MIN_HA = (2026, 8)
 THEME = "HK Kiosk"
 ISSUES = ("ha_too_old", "theme_missing")
-# THE FEATURES (features/), each its own entry: the id the settings page
-# knows it by (its `<id>/settings/*` commands), its kind, name and what it is.
+# THE FEATURES (features/), each an item of the one HK Frontend entry: the id
+# the settings page knows it by (the prefix of its `<id>/settings/*` commands,
+# kept from before 1.0), its kind, name and what it is.
 COMPANIONS = (
     ("hk_music", "music", "Music", "whole-home music"),
     ("hk_alarm_pin", "alarm_pin", "Alarm PIN", "a PIN in front of the alarm"),
@@ -77,10 +79,17 @@ def _n(count: int, noun: str) -> str:
     return f"{count} {noun}" + ("" if count == 1 else "s")
 
 
+def _plain(name: str) -> str:
+    """A name as TEXT in a line that is Markdown: device and area names come
+    from integrations, and one called "[x](javascript:...)" must not become
+    the row's link (the settings page) or a link at all (Configure)."""
+    return re.sub(r"([\\`*_\[\]()<>])", r"\\\1", str(name))
+
+
 def _names(items: list[str]) -> str:
     items = sorted(items, key=str.lower)
     more = len(items) - SHOW
-    return ", ".join(items[:SHOW]) + (f" and {more} more" if more > 0 else "")
+    return ", ".join(_plain(i) for i in items[:SHOW]) + (f" and {more} more" if more > 0 else "")
 
 
 def area_readiness(hass: HomeAssistant) -> dict[str, list[str]]:

@@ -42,7 +42,6 @@ THEMES = SEASONS + SURPRISES
 SKY_DATES = tuple(f"{t}_{e}" for t in ("halloween", "thanksgiving", "christmas", "july4",
                                         "valentines", "spring", "winter")
                   for e in ("from", "to"))
-SEASON_KEYS = ("halloween", "thanksgiving", "christmas")
 # The built-in dates -- the same table as hk-settings.js BUILT_IN / SOUTH
 # (tests/py/test_settings.py keeps the two in step). "thanksgiving" is US
 # Thanksgiving Day.
@@ -476,7 +475,11 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "custom_pages": [],
     # HOME PAGE: off, a generated screen is only its custom pages and opens
     # on the first -- an Energy dashboard in the sidebar, say
-    "home_page": True}
+    "home_page": True,
+    # ...and on, WHICH Home: "" the generated one, or the address of one of
+    # the house's custom pages -- a car's own first page over the generated
+    # category pages
+    "home_view": ""}
 # The pages a scene pill can open (Home -> Scenes -> Pills that open a page).
 SCENE_PAGES = tuple(k for k in PAGE_KINDS if k != "rooms")
 SCENE_PAGE = "page:"                   # such a pill's place in the scenes order
@@ -548,6 +551,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
                      (k.startswith(SCENE_PAGE) and k[len(SCENE_PAGE):] in SCENE_PAGES)]
     out["scenes_pages"] = [k for k in (strs(d.get("scenes_pages")) or []) if k in PAGE_KINDS and k != "rooms"]
     out["custom_pages"] = [k for k in (strs(d.get("custom_pages")) or []) if PAGE_PATH.match(k)]
+    hv = str(d.get("home_view") or "").strip()
+    out["home_view"] = hv if PAGE_PATH.match(hv) else ""
     out["menu_top"] = list(dict.fromkeys(k for k in (strs(d.get("menu_top")) or []) if VIEW_PATH.match(k)))
     t = tab_position(d.get("tab_position"))
     out["tab_position"] = t if t is not None else ""
@@ -710,6 +715,15 @@ def custom_page(data: Mapping[str, Any] | None, path: str) -> dict[str, Any]:
 # places it (the token "chip:<key>"). It is what `extra:` on a YAML chip row
 # does (a house battery or mail chip, say), written once for every screen.
 SUBENTRY_CHIP = "chip"
+
+
+def taken_ids(entry: ConfigEntry, exclude: str | None = None) -> set[str]:
+    """Every item's unique id, of EVERY type: Home Assistant refuses a new
+    item whose unique id any other item of the entry has, whatever its type.
+    Checked per type, a chip named "Energy" beside the Energy page -- or a
+    pop-up #alarm beside the Alarm PIN's item -- got a raw already_configured
+    ("Couldn't save.") instead of a place of its own."""
+    return {s.unique_id for s in entry.subentries.values() if s.unique_id and s.unique_id != exclude}
 CHIP_KEY = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 CHIP_TOKEN = "chip:"
 CHIP_CARD_MAX = 20000
@@ -796,28 +810,6 @@ def legacy_lists(items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
             "button": styles.pop() if len(styles) == 1 else "auto",
             "tab_position": first["tab_position"], "categories": list(first["categories"]),
             "order": "dashboard" if first["menu_rooms"] == "order" else "az"}
-
-
-def boards_from_menu(menu: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
-    """The items the menu's older house-wide lists describe, one per
-    dashboard that had the menu."""
-    m = dict(menu or {})
-    out: dict[str, dict[str, Any]] = {}
-    button = m.get("button") if m.get("button") in MENU_BUTTONS else "auto"
-    for path in m.get("dashboards") or []:
-        if not path or path in out:
-            continue
-        docked = path in (m.get("docked") or [])
-        out[path] = board({
-            "menu": "open" if docked else button,
-            "dock_min": m.get("dock_min"),
-            "time_weather": "menu" if path in (m.get("time_weather") or []) else "page",
-            "ha_row": path in (m.get("ha_sidebar") or []),
-            "categories": list(m.get("categories") or []),
-            "tab_position": m.get("tab_position") or "",
-            "menu_rooms": "order" if m.get("order") == "dashboard" else "az",
-        })
-    return out
 
 
 # ------------------------------------------------------------ text fields

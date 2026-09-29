@@ -207,14 +207,24 @@
     function pending(list, entry) {
       return new Promise(function (res, rej) { entry.resolve = res; entry.reject = rej; list.push(entry); });
     }
+    var readyL = [];
     var conn = {
-      subscribeMessage: function (cb, msg) {
-        var sub = { cb: cb, msg: msg, active: true };
+      subscribeMessage: function (cb, msg, opts) {
+        var sub = { cb: cb, msg: msg, opts: opts || {}, active: true };
         house.subs.push(sub);
         return Promise.resolve(function () { sub.active = false; return Promise.resolve(); });
-      }
+      },
+      // the websocket library's reconnect event
+      addEventListener: function (t, f) { if (t === 'ready') readyL.push(f); },
+      removeEventListener: function (t, f) { if (t === 'ready') readyL = readyL.filter(function (x) { return x !== f; }); }
     };
     house.conn = conn;
+    // A RECONNECT: the server forgets every subscription; listeners hear 'ready'.
+    house.reconnect = function () {
+      house.subs.forEach(function (s) { s.active = false; });
+      readyL.slice().forEach(function (f) { f(); });
+    };
+    house.readyListeners = function () { return readyL.length; };
     house.activeSubs = function () { return house.subs.filter(function (s) { return s.active; }).length; };
     house.hass = function () {
       var snap = {};

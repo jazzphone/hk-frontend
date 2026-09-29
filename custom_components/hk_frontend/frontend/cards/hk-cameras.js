@@ -874,6 +874,8 @@
     }
 
     _tick() {
+      // ONLY ON THE PAGE (`=== false`: the test DOM has no isConnected).
+      if (this.isConnected === false) return;
       // PAUSED WHILE A POP-UP COVERS THE PAGE. Each refresh swaps a decoded
       // snapshot onto a new layer; under the #alarm sheet's backdrop-filter,
       // that makes the tablet re-blur the whole region, and the entire screen
@@ -997,8 +999,11 @@
       // first frame is owed whatever `refresh` says: 0 means "never again",
       // not "never".
       this._tick();
+      // Kept, so a strip detached before that frame cancels it: run on a
+      // detached card it registered the pop-up listener again and fetched
+      // stills for nobody, holding the card for the life of the page.
       if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(function () { self._tick(); });
+        this._raf = requestAnimationFrame(function () { self._raf = null; self._tick(); });
       }
       if (every > 0) this._timer = setInterval(function () { self._tick(); }, every * 1000);
       if (this._config.show_age !== false) {
@@ -1042,6 +1047,8 @@
     _stopInterval() {
       if (this._timer) { clearInterval(this._timer); this._timer = null; }
       if (this._ages) { clearInterval(this._ages); this._ages = null; }
+      if (this._raf && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this._raf);
+      this._raf = null;
     }
     _stopTimer() {
       this._stopInterval();
@@ -1914,7 +1921,9 @@
               }
             }, { type: 'camera/webrtc/offer', entity_id: entity, offer: offer.sdp })
               .then(function (unsub) {
-                if (alive()) self._unsub = unsub; else unsub();
+                if (alive()) { self._unsub = unsub; return; }
+                var r = unsub();
+                if (r && r.catch) r.catch(function () { /* the session already ended */ });
               });
           });
         })
@@ -1938,7 +1947,13 @@
 
     _teardown() {
       this._gen = (this._gen || 0) + 1;
-      if (this._unsub) { try { this._unsub(); } catch (e) { /* socket gone */ } }
+      // unsub() RETURNS A PROMISE: a try/catch never saw its refusal, which
+      // surfaced as an uncaught "Subscription not found" when the server had
+      // already ended the WebRTC session (or the socket had reconnected)
+      if (this._unsub) {
+        try { var r = this._unsub(); if (r && r.catch) r.catch(function () { /* already ended */ }); }
+        catch (e) { /* socket gone */ }
+      }
       this._unsub = null;
       var pc = this._pc;
       this._pc = null;
@@ -2377,8 +2392,7 @@
       }).then(function (good) {
         self._loading = false;
         if (good) self._chanTries = 0; else self._retryChannels();
-        self._hkSig = null;
-        self._render();
+        self.redraw();
       });
     }
 

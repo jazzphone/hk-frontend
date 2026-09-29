@@ -135,7 +135,7 @@ CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register frontend/ (and your files ahead of it) at /hk with
     revalidate-always caching."""
-    root = files.BUNDLE.resolve()
+    root = files.BUNDLE_ROOT            # resolved once, at import (off the event loop)
 
     from aiohttp import web
 
@@ -223,6 +223,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         # Imports the order-independent modules (stats, charts, sky, idle,
         # viewfade, timers, campost, glass) -- see its MODULES list.
         "/hk/modules/hk-loader.js",
+        # The generated dashboards' STRATEGY. Home Assistant waits at most 5 s
+        # for a custom strategy's element and then shows "Error loading the
+        # dashboard strategy" until the page is reloaded; as a Lovelace
+        # resource it only starts loading once the dashboard is asked for, so
+        # a slow start (a tablet reloaded while Home Assistant is busy) could
+        # lose that race. Here it is defined before any dashboard asks. It is
+        # also a resource (resources.py): the same URL is one module, loaded once.
+        "/hk/cards/hk-strategy.js",
     ):
         add_extra_js_url(hass, url)
 
@@ -430,9 +438,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     keeps answering from the options."""
     if F.kind_of(entry) != F.FRONTEND:
         return True
-    panel.async_unregister(hass)
+    # The platforms first: a failed unload leaves the entry loaded, and it must
+    # then still have its settings page (it used to lose it first).
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if ok:
+        panel.async_unregister(hass)
         await F.async_stop(hass)
         async_dispatcher_send(hass, SIGNAL_CONFIG)
     return ok

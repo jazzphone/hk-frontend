@@ -94,19 +94,23 @@ class TvStreamView(HomeAssistantView):
                 _LOGGER.warning("channel %s: %s", channel, text)
         err = asyncio.create_task(log_errors())
 
-        resp = web.StreamResponse(headers={"Content-Type": "video/mp2t",
-                                           "Cache-Control": "no-store"})
-        await resp.prepare(request)
+        # THE PROCESS IS OURS FROM THE MOMENT IT EXISTS: the try opens here, not
+        # after prepare(). A client that resets (or a handler cancelled) while
+        # the response is being prepared left ffmpeg running, blocked on a full
+        # pipe -- holding one of the tuner's two tuners until a restart.
         sent = 0
         try:
+            resp = web.StreamResponse(headers={"Content-Type": "video/mp2t",
+                                               "Cache-Control": "no-store"})
+            await resp.prepare(request)
             while True:
                 chunk = await proc.stdout.read(65536)
                 if not chunk:
                     break
                 await resp.write(chunk)
                 sent += len(chunk)
-        except (ConnectionResetError, asyncio.CancelledError):
-            pass
+        except ConnectionResetError:
+            pass                              # the viewer left: the normal end
         finally:
             if proc.returncode is None:
                 proc.kill()

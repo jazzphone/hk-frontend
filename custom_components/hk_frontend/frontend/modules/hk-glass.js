@@ -460,9 +460,10 @@
       var L = rec.layers[i], dy = band.axis === 'y' ? band.start : 0, dx = band.axis === 'x' ? band.start : 0;
       var w = band.axis === 'x' ? band.len : band.cross, h = band.axis === 'y' ? band.len : band.cross;
       L.style.left = dx + 'px'; L.style.top = dy + 'px';
-      // !important: the phone rule sizes every row child (.row.phone-sized > *).
-      L.style.setProperty('width', Math.ceil(w) + 'px', 'important');
-      L.style.setProperty('height', Math.ceil(h) + 'px', 'important');
+      // Plain inline sizes: hk-row's phone rule sizes every row child but
+      // this layer (:not([data-hk-glass-layer])), so there is nothing to beat.
+      L.style.width = Math.ceil(w) + 'px';
+      L.style.height = Math.ceil(h) + 'px';
       var path = "path('" + band.shapes.map(function (sh) {
         return rrect(sh.x - dx, sh.y - dy, sh.w, sh.h, sh.r);
       }).join('') + "')";
@@ -651,7 +652,12 @@
     // A backstop for layout moves nothing else reports (a card above grows
     // taller without anything here changing size): one pass that measures
     // every plate and collects nothing (7-9 ms on a wall tablet, see pressUpdate).
-    timer = setInterval(function () { if (!document.hidden) schedule(false); }, 2000);
+    // Not while nobody can see it: hidden, or behind the photo screensaver
+    // (an overlay -- document.hidden stays false; hk-sky knows).
+    timer = setInterval(function () {
+      if (document.hidden || (window.hkSky && window.hkSky.asleep && window.hkSky.asleep())) return;
+      schedule(false);
+    }, 2000);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { schedule(true); });
     schedule(true);
   }

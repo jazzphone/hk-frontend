@@ -25,7 +25,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -137,7 +137,7 @@ def offered(hass: HomeAssistant, options: Mapping[str, Any] | None) -> list[str]
 
 
 async def async_clean(hass: HomeAssistant, areas: list[str], options: Mapping[str, Any] | None,
-                      dry_run: bool = False) -> dict[str, Any]:
+                      dry_run: bool = False, context: Context | None = None) -> dict[str, Any]:
     p = plan(hass, areas, options)
     if not p["plan"]:
         return {"ok": False, **p,
@@ -150,10 +150,11 @@ async def async_clean(hass: HomeAssistant, areas: list[str], options: Mapping[st
         try:
             if step["action"] == "clean_area":
                 await hass.services.async_call("vacuum", "clean_area", {
-                    "entity_id": step["vacuum"], "cleaning_area_id": step["areas"]}, blocking=True)
+                    "entity_id": step["vacuum"], "cleaning_area_id": step["areas"]},
+                    blocking=True, context=context)
             else:
-                await hass.services.async_call("vacuum", "start",
-                                               {"entity_id": step["vacuum"]}, blocking=True)
+                await hass.services.async_call("vacuum", "start", {"entity_id": step["vacuum"]},
+                                               blocking=True, context=context)
         except Exception as err:  # noqa: BLE001 -- one robot failing must not stop the rest
             failed.append({"vacuum": step["vacuum"], "error": str(err)})
     if failed:

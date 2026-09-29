@@ -265,7 +265,7 @@
     if (!changed) return;
     state.version++;
     applyLook();
-    lookNow = glass();
+    lookNow = lookKey();
     listeners.slice().forEach(function (fn) {
       try { fn(cur); } catch (e) { console.error('[hk-settings] listener', e); }
     });
@@ -518,9 +518,13 @@
   applyLook();
   // ...and again on moving to another dashboard, whose look may be its own.
   // The glass layer and the chips hear of it as they hear of any setting.
-  var lookNow = glass();
+  // Compared as the look AND its amounts: two dashboards can share a look and
+  // differ in how strong it is (each Screen's own Blur / Frost), and comparing
+  // the name alone kept the first one's strength on the second.
+  function lookKey() { return glass() + '|' + amount('blur') + '|' + amount('frost'); }
+  var lookNow = lookKey();
   function onNav() {
-    var g = glass();
+    var g = lookKey();
     if (g === lookNow) return;
     lookNow = g;
     applyLook();

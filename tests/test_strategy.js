@@ -48,6 +48,7 @@ function tilesOf(home, room) {
 window.hkStrategy.generate({}, hass).then(function (cfg) {
   var home = cfg.views[0];
   ok('opts into the live sky', !!cfg.sky && home.sky === true);
+  ok('the build\'s own working state never reaches the dashboard', cards(cfg).indexOf('__build') < 0);
   ok('home view uses the hk grid view and the theme', home.type === 'custom:hk-grid-view' && home.theme === 'HK Kiosk');
   ok('the header comes first', home.cards[0].cards[0].type === 'custom:hk-header-card');
   ok('rooms by floor level, then name; empty rooms left out', JSON.stringify(roomNames(home)) === '["Garage","Kitchen","Den"]', roomNames(home));
@@ -391,6 +392,8 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
        tc.timers[0].entity === 'timer.quick_1' && tc.timers[0].label_entity === 'input_text.quick_timer_1_name' &&
        tc.timers.some(function (t) { return t.entity === 'timer.nap'; }), JSON.stringify(tc));
     ok('...a house timer is named without its "- Timer"', tc.house[0].name === 'Nap', tc.house[0].name);
+    var napRun = tc.timers.filter(function (t) { return t.entity === 'timer.nap'; })[0];
+    ok('...and named the same in the running list (one name per timer on the page)', napRun && napRun.label === 'Nap', napRun);
     ok('...with the house timers from Configure -> Features', tc.house.length === 1 &&
        tc.house[0].entity === 'timer.nap', JSON.stringify(tc.house));
     var vv = g.views.filter(function (v) { return v.path === 'vacuums'; })[0];
@@ -448,8 +451,13 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
 }).then(function (g) {
   ok('WallPanel for the tablet\'s own user only', g.wallpanel && g.wallpanel.enabled === false &&
      g.wallpanel.profiles['user.kitchen'].enabled === true, g.wallpanel && g.wallpanel.profiles);
-  ok('...its screensaver helper and the house\'s photos', g.wallpanel.screensaver_entity === 'input_boolean.wallpanel_screensaver_kitchen' &&
+  ok('...its screensaver helper and the house\'s photos',
+     g.wallpanel.profiles['user.kitchen'].screensaver_entity === 'input_boolean.wallpanel_screensaver_kitchen' &&
      g.wallpanel.image_url === 'media-source://media_source/local/photos' && g.wallpanel.cards.length === 4);
+  // WallPanel writes the helper from EVERY browser that opens the dashboard
+  // (its element connects enabled or not): only the tablet's user may name it.
+  ok('...and only the tablet\'s user names the helper: a desk has none to write',
+     !('screensaver_entity' in g.wallpanel), Object.keys(g.wallpanel));
   ok('the sky pauses behind it and follows the house\'s switch',
      g.sky.sleep === 'input_boolean.wallpanel_screensaver_kitchen' && g.sky.enable === 'input_boolean.sky_background', g.sky);
   var home = JSON.stringify(g.views[0]);
@@ -501,6 +509,24 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
 }).then(function (g) {
   ok('...with none listed it is a whole screen as usual', g.views[0].path === 'home' && g.views.length > 3, g.views.map(function (v) { return v.path; }));
   delete WB.home_page;
+  // A HOME OF ITS OWN: a custom page as Home, the rest generated (the car)
+  WB.home_view = 'energy';
+  WB.pages = ['lights', 'climate'];
+  WB.custom_pages = ['energy'];
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  var paths = g.views.map(function (v) { return v.path; });
+  ok('Home = a custom page: the screen opens on it, called Home',
+     paths[0] === 'energy' && g.views[0].menu_title === 'Home' && g.views[0].title === 'Home' &&
+     g.views[0].cards[0].type === 'x', paths);
+  ok('...and its other pages are generated as usual (and it is not there twice)',
+     paths.indexOf('lights') > 0 && paths.indexOf('climate') > 0 &&
+     paths.filter(function (p) { return p === 'energy'; }).length === 1 && paths.indexOf('home') < 0, paths);
+  WB.home_view = 'gone-page';
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  ok('...a Home page that is gone leaves the generated Home', g.views[0].path === 'home', g.views.map(function (v) { return v.path; }));
+  delete WB.home_view;
   delete WB.pages;
   CP = null;
   delete window.hkSettings;
@@ -586,6 +612,8 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
    st('light.deck1', 'off', { friendly_name: 'Deck One' }), st('light.deck2', 'off', { friendly_name: 'Deck Two' }),
    st('media_player.atv', 'playing', { friendly_name: 'Kitchen Apple TV', app_name: 'YouTube' }),
    st('media_player.spk', 'idle', { friendly_name: 'Kitchen Speaker' }),
+   st('light.office_lights', 'on', { friendly_name: 'Office Lights', entity_id: ['light.k1', 'light.k2', 'light.gone'] }),
+   st('cover.blinds', 'open', { friendly_name: 'Kitchen Blinds', current_position: 40 }),
    st('weather.home', 'sunny', {})
   ].forEach(function (x) { P[x.entity_id] = x; });
   var ph = { states: P, themes: { themes: {} },
@@ -593,17 +621,21 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
              yard: { area_id: 'yard', name: 'Yard' }, deck: { area_id: 'deck', name: 'Deck' } },
     devices: { atv: { area_id: 'kitchen', model: 'Apple TV 4K' }, spk: { area_id: 'kitchen', model: 'pi' } },
     entities: { 'light.k1': { area_id: 'kitchen' }, 'light.k2': { area_id: 'kitchen' }, 'switch.s1': { area_id: 'kitchen' },
+      'light.office_lights': { area_id: 'kitchen' }, 'cover.blinds': { area_id: 'kitchen' },
       'cover.g': { area_id: 'garage' }, 'button.pc_wake_on_lan': { area_id: 'kitchen', platform: 'wake_on_lan' },
       'button.car_horn': { area_id: 'kitchen', platform: 'tesla_fleet' }, 'light.flood': { area_id: 'yard' },
       'light.deck1': { area_id: 'deck' }, 'light.deck2': { area_id: 'deck' },
       'media_player.atv': { device_id: 'atv' }, 'media_player.spk': { device_id: 'spk' } } };
   P['input_boolean.block_game'] = st('input_boolean.block_game', 'on', { friendly_name: 'Block Game' });
-  var PS = { boards: { '': { favorites: ['light.k1', 'switch.s1', 'cover.g', 'input_boolean.block_game'] } },
+  P['input_boolean.block_net'] = st('input_boolean.block_net', 'off', { friendly_name: 'Block Net' });
+  var PS = { boards: { '': { favorites: ['light.k1', 'switch.s1', 'cover.g', 'input_boolean.block_game', 'input_boolean.block_net',
+                                       'light.office_lights', 'cover.blinds'] } },
     accessories: { entities: {
         'light.k1': { name: 'Lights', fav_name: 'Main + Table Lights', fav_with: ['light.k2', 'light.nope'] },
         'cover.g': { name: 'Door', fav_name: 'Garage Door' },
         'switch.s1': { fav_icon: 'hk:coffee', on_text: 'Brewing' },
         // a helper with no area: its room line, color and state names are its own
+        'input_boolean.block_net': { fav_icon: 'hk:server-network', fav_room: 'Block' },
         'input_boolean.block_game': { fav_room: 'Block', color: 'orange',
                                       fav_icon: 'hk:gamepad-variant', on_text: 'Blocked', off_text: 'Allowed' } },
       rooms: { yard: ['light.flood'], deck: ['light.deck2', 'light.deck1'] }, into: { deck: 'yard' } } };
@@ -621,7 +653,18 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     ok('...its glyph still toggles it alone', k1.icon_tap_action && k1.icon_tap_action.action === 'toggle');
     ok('a switch favorite reads On / Off, with the glyph picked for it as a favorite, at its size',
        favs['switch.s1'].label_mode === 'on_off' && favs['switch.s1'].icon === 'hk:coffee' && favs['switch.s1'].icon_size === '26px', favs['switch.s1']);
+    // what the hand-written favorites read, lost in the move to generated
+    // screens (2026-09-28) and back: a light GROUP counts its members "2 On",
+    // a blind reads its position
+    var og = favs['light.office_lights'];
+    ok('a light group favorite reads how many are on, counting its members (one not there left out)',
+       og && og.label_mode === 'group_count' && JSON.stringify(og.group) === '["light.k1","light.k2"]', og);
+    ok('a blind favorite reads its position', favs['cover.blinds'] && favs['cover.blinds'].label_mode === 'position', favs['cover.blinds']);
     var bg = favs['input_boolean.block_game'];
+    ok('the server-network glyph at its size (24), not the card default',
+       favs['input_boolean.block_net'] && favs['input_boolean.block_net'].icon_size === '24px', favs['input_boolean.block_net']);
+    ok('a favorite\'s own glyph at the favorites\' size where it has one (the gamepad: 24, as the hand-written favorite; 28 on a room tile)',
+       bg && bg.icon_size === '24px', bg && bg.icon_size);
     ok('a favorite with its own room line, color and state names; the room line never shortens its name ("Block" over Block Game)',
        bg && bg.room === 'Block' && bg.name === 'Block Game' && bg.icon_color === 'orange' && bg.icon === 'hk:gamepad-variant' &&
        bg.label_map && bg.label_map.on === 'Blocked' && bg.label_map.off === 'Allowed', bg);
@@ -747,6 +790,10 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   var h4 = reg(); h4.areas.kitchen.name = 'Cook Room';
   ok('a room renamed: rebuild', S.shouldRegenerate({}, h0, h4) === true);
   ok('the same registries: no rebuild', S.shouldRegenerate({}, h0, Object.assign({}, h0)) === false);
+  var h5 = reg(); h5.devices.d1.name_by_user = 'Desk Lamp';
+  ok('a device renamed (its tiles\' names): rebuild', S.shouldRegenerate({}, h0, h5) === true);
+  var h6 = reg(); h6.devices.d1.model = 'Apple TV 4K';
+  ok('a device\'s model (the Apple TV / HomePod glyph): rebuild', S.shouldRegenerate({}, h0, h6) === true);
 
   // ...and of the settings, what the build reads
   var ST = { boards: { 'hk-kitchen-ui': { pages: ['lights'], chips: ['security', 'lights'], cameras: ['camera.a'] },
@@ -764,6 +811,10 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('another screen\'s chips: no rebuild', sig() === s0);
   ST.accessories.entities['light.a'].status = false;
   ok('an accessory\'s What counts switch (arrives as kinds): no rebuild', sig() === s0);
+  ST.accessories.entities['light.a'].when = 'on'; ST.accessories.entities['light.a'].label = 'Lit';
+  ok('an accessory\'s chip-only fields (when, label): no rebuild', sig() === s0);
+  ST.boards['hk-kitchen-ui'].chips_custom = ['mail'];
+  ok('this screen\'s custom chips (a live card): no rebuild', sig() === s0);
   ST.boards['dashboard-loft'].cameras = ['camera.c'];
   var s1 = sig();
   ok('another screen\'s cameras (they pick this one\'s channel): rebuild', s1 !== s0);

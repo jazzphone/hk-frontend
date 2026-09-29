@@ -284,6 +284,14 @@ async def ws_playlist_save(hass: HomeAssistant, connection, msg: dict[str, Any])
     if errors:
         _refused(connection, msg["id"], errors)
         return
+    # LOOKED UP AGAIN after the library read (Music Assistant, seconds when
+    # cold): a playlist removed meanwhile is said to be gone, not written to
+    # (Home Assistant raised UnknownSubEntry, and the page heard nothing).
+    if msg.get("item"):
+        sub = _sub(entry, msg.get("item"), SUB_PLAYLIST)
+        if sub is None:
+            _refused(connection, msg["id"], {"item": MSG["no_item"]})
+            return
     old = dict(sub.data) if sub else {}
     order = msg.get("order")
     if order is None:

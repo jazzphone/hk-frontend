@@ -42,6 +42,9 @@ function daily(n, t0) {
   return out;
 }
 var T0 = Date.UTC(2026, 8, 26, 13, 0, 0);
+// The suite runs at 13:07 on the day its forecasts were made: the band drops
+// hourly slots that have already ended, so a real clock would drop them all.
+Date.now = function () { return T0 + 7 * 60e3; };
 // The entities the four configs read, in the shapes the real sensors carry.
 function wxHouse() {
   return H.house({
@@ -190,6 +193,20 @@ H.run('WEATHER CARDS', [
          new Array(9).join('aria-label="Sunny",').slice(0, -1));
     H.eq('no forecast subscription when the sensors are chosen', house.subs.length, 0);
 
+    // A SENSOR REFRESHED ON THE HOUR CAN START WITH THE HOUR THAT JUST ENDED
+    // (seen live: at 22:07 the list began at 21:00, labelled Now, then 10 PM).
+    var stale = H.make('hk-weather-band-card'), sh = wxHouse();
+    stale.setConfig({ type: 'custom:hk-weather-band-card', entity: 'weather.openweathermap', hours: 12, days: 8 });
+    sh.set('sensor.weather_hourly_forecast', '24', { forecast: hourly(24, T0 - 3600e3) });
+    stale.hass = sh.hass();
+    var sHtml = stale._root.__html.split('class="hrule"')[0];
+    var nextH = new Date(T0 + 3600e3).getHours();     // the machine's own zone, as the card's
+    H.eq('an hourly slot that has ended is skipped: Now is the hour we are in, then the next',
+         (sHtml.match(/class="lbl[^"]*">[^<]+/g) || []).slice(0, 2).map(function (x) { return x.split('>')[1]; }),
+         ['Now', (nextH % 12 === 0 ? 12 : nextH % 12) + (nextH < 12 ? ' AM' : ' PM')]);
+    H.eq('...and the band still fills its twelve hours', (sHtml.match(/<div class="hi">/g) || []).length, 12);
+    H.eq('...the temperature under Now is the current slot\'s', (sHtml.match(/<div class="hi">(\d+)/) || [])[1], '71');
+
     H.gate('band', card, house,
       function () { return house.set('sensor.weather_hourly_forecast', '24', { forecast: hourly(24, T0 + 3600e3) }); },
       function () { return house.set('light.kitchen_table_light', 'on'); });
@@ -230,6 +247,7 @@ H.run('WEATHER CARDS', [
     card.setConfig({ type: 'custom:hk-weather-band-card', entity: 'weather.openweathermap',
                      hours: 12, days: 8 });
     card.hass = house.hass();
+    var ready0 = house.readyListeners();     // the hass hub's own, for the page's life
     H.eq('not on the page: no subscription yet', house.subs.length, 0);
     H.attach(card);
     card.hass = house.set('weather.openweathermap', 'cloudy');
@@ -243,12 +261,21 @@ H.run('WEATHER CARDS', [
     H.eq('...with the hours it carried', (card._root.__html.match(/<div class="hi">/g) || []).length, 12);
     card.hass = house.set('light.kitchen_table_light', 'on');
     H.eq('an unrelated push does not subscribe again', house.subs.length, 2);
+    // A RECONNECT (a restart): the server forgot both; the library's own
+    // resubscribe is off (a refused one was dropped for good) and the band
+    // asks again itself.
+    H.ok('its subscriptions are its own to renew (resubscribe: false)',
+         house.subs.every(function (s) { return s.opts.resubscribe === false; }));
+    house.reconnect();
+    card.hass = house.set('light.kitchen_table_light', 'off');
+    H.eq('after a reconnect both are asked for again', house.activeSubs(), 2);
     H.detach(card);
     return H.tick().then(function () {
       H.eq('detached: both subscriptions dropped', house.activeSubs(), 0);
       H.eq('detached: the observer is disconnected', H.observed(), 0);
       H.attach(card);
       card.hass = house.set('light.kitchen_table_light', 'off');
+
       // disconnectedCallback also drops the render gate's signature, so the
       // first hass push after a re-attach -- ANY push, not only a weather
       // change -- renders and subscribes again. Otherwise the cached forecast
@@ -262,6 +289,7 @@ H.run('WEATHER CARDS', [
       return H.tick();
     }).then(function () {
       H.eq('detached again: nothing left subscribed', house.activeSubs(), 0);
+      H.eq('...and no reconnect listener of its own left behind', house.readyListeners(), ready0);
       window.hkSettings._apply(HK_SAMPLE_SETTINGS);
     });
   },

@@ -283,8 +283,7 @@ class PageSubentryFlow(ConfigSubentryFlow):
         self._base: dict[str, Any] = {}
 
     def _taken(self) -> set[str]:
-        return {s.unique_id for s in self._get_entry().subentries.values()
-                if s.subentry_type == S.SUBENTRY_PAGE and s.unique_id}
+        return S.taken_ids(self._get_entry())          # every item type (taken_ids)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> SubentryFlowResult:
@@ -392,8 +391,7 @@ class ChipSubentryFlow(ConfigSubentryFlow):
     Chips is where they are made; this is the same, from Devices & Services."""
 
     def _taken(self) -> set[str]:
-        return {s.unique_id for s in self._get_entry().subentries.values()
-                if s.subentry_type == S.SUBENTRY_CHIP and s.unique_id}
+        return S.taken_ids(self._get_entry())          # every item type (taken_ids)
 
     async def _form(self, step: str, user_input: dict[str, Any] | None, cur: dict[str, Any] | None
                     ) -> SubentryFlowResult:
@@ -434,8 +432,7 @@ class PopupSubentryFlow(ConfigSubentryFlow):
         self._base: dict[str, Any] = {}
 
     def _taken(self, exclude: str | None = None) -> set[str]:
-        return {s.unique_id for s in self._get_entry().subentries.values()
-                if s.subentry_type == S.SUBENTRY_POPUP and s.unique_id and s.unique_id != exclude}
+        return S.taken_ids(self._get_entry(), exclude)  # every item type (taken_ids)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> SubentryFlowResult:

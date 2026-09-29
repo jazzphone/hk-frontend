@@ -104,6 +104,29 @@
     return pending === 0 ? DONE : n;
   }
 
+  // CAN THIS VIEW HOLD ONE AT ALL? Home Assistant's players come only from a
+  // live camera view: `camera_view: live` in a view's cards (picture-entity,
+  // picture-glance, the Cameras page) or the camera strip's live tile
+  // (hk-camera-mosaic-card). A view with neither needs no walk. The 0.4 ms
+  // above was a desk; on a wall tablet (4x throttle) a walk of Home is 2.4 ms,
+  // and the ceiling made it ~50 of them -- ~120 ms of main thread -- after
+  // every navigation AND every pop-up opening or closing (both fire
+  // location-changed), on views with no camera at all. Unknown (no config
+  // yet, not a dashboard view): look, as before.
+  function mayHavePlayers() {
+    var M = window.hkCards && window.hkCards.menu;
+    var cfg = M && typeof M.config === 'function' ? M.config() : null;
+    if (!cfg || !Array.isArray(cfg.views)) return true;
+    var seg = String(location.pathname).split('/')[2] || '', view = null;
+    cfg.views.forEach(function (v, i) {
+      if (!view && v && ((v.path && v.path === seg) || String(i) === seg)) view = v;
+    });
+    if (!view && !seg) view = cfg.views[0];
+    if (!view) return true;
+    var s = JSON.stringify(view);
+    return s.indexOf('"camera_view":"live"') >= 0 || s.indexOf('hk-camera-mosaic-card') >= 0;
+  }
+
   // THE SAME SHAPE AS hk-sky's FIRST MOUNT, and for the same reason: the
   // players do not exist when this module loads, and no event fires when they
   // appear. A 60ms ramp with a ceiling catches them at ~425ms; the ceiling
@@ -111,6 +134,8 @@
   var ramp = null;
   function chase() {
     if (ramp) clearInterval(ramp);
+    ramp = null;
+    if (!mayHavePlayers()) return;
     var tries = 0;
     ramp = setInterval(function () {
       // Stop as soon as the work is done, or at the ceiling. The ceiling is
@@ -129,4 +154,5 @@
     chase();
   }
   window.hkCamPost.sweep = sweep;
+  window.hkCamPost.mayHavePlayers = mayHavePlayers;
 })();

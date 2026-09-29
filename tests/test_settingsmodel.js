@@ -172,6 +172,9 @@ var r = M.search('glass', [{ path: 'dashboard-kitchen', title: 'Kitchen' }]);
 ok('search: a screen setting is found once per screen, a house one once',
    r.some(function (x) { return x.route === 'screens/dashboard-kitchen/glass' && x.where === 'Kitchen'; }) &&
    r.some(function (x) { return x.route === 'house/appearance/glass'; }));
+var hp = M.search('home page', [{ path: 'energy-tablet', title: 'Energy' }]).filter(function (x) { return x.label === 'Home Page' || /home_page|Home Page/.test(JSON.stringify(x)); });
+ok('search: Home Page opens the screen\'s own Pages page (not the house\'s Custom Pages)',
+   hp.length > 0 && hp.every(function (x) { return x.route === 'screens/energy-tablet/pages'; }), hp);
 ok('search: every word must match', M.search('wall photos', []).length === 1 && M.search('zzz', []).length === 0);
 ok('errors: a refusal map is read from the message', eq(M.refusals({ message: '{"look.glass":"choice"}' }), { 'look.glass': 'choice' }) &&
    M.refusals({ message: 'Unknown command' }) === null && /isn’t one of/.test(M.errorText('choice')));

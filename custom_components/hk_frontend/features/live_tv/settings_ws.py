@@ -145,6 +145,13 @@ async def apply(hass: HomeAssistant, entry: Feature, changes: dict[str, Any]
         if "guide_url" in changes and guide and not networks:
             errors["guide_url"] = MSG["guide_failed"]
             return data, options, errors
+    # READ AGAIN AFTER THE ONE SLOW STEP (the tuner and the guide, seconds on a
+    # cold cache): built from the copy taken before it, a change another write
+    # saved meanwhile went back to its old value. The quality checked above is
+    # laid on the fresh copy.
+    data, options = dict(entry.data), dict(entry.options)
+    if "quality" in changes:
+        options[CONF_QUALITY] = str(changes["quality"])
     data[CONF_HOST], data[CONF_GUIDE_URL] = host, guide
 
     # copies: a rename must not edit the saved options in place (the change

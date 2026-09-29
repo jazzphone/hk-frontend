@@ -117,9 +117,13 @@
 
 /* 430px keypad + 408px locks + 18px gap need room for page gutters,
    nested card margins and HA's navigation rail as well as the columns.
-   Stack the existing named areas whenever that fixed layout cannot fit.
+   Stack the existing named areas whenever that fixed layout cannot fit:
+   on a phone. 641-1023 px is the iPad band below, which keeps them side by
+   side at its narrower pill; this rule said 1024 when it was written
+   (2026-09-14, before the band), and after the band it only fired at
+   exactly 1024 px -- an iPad Pro upright, where 856 px fits -- and stacked it.
    Tesla's zoomed document has its own 1200px layout contract. */
-@media (max-width: 1024px) {
+@media (max-width: 640px) {
   :root:not([data-hk-zoomed]) {
     --hk-alarm-cols: minmax(0, 1fr);
     --hk-alarm-areas: "alarm" "locks";
@@ -180,7 +184,6 @@
     /* Fixed-count metric rows halve rather than collapse -- these are small
        stat tiles (Today's Cost, the thermostats, Grid In / Home Load), and
        one per row would make the page enormous. */
-    --hk-cols-3: repeat(2, minmax(0, 1fr));
     --hk-cols-4: repeat(2, minmax(0, 1fr));
     /* The Weather page's five tiles are 172px-tall graphics (wind compass,
        moon disc, UV, sunrise, the temperature chart). Three-up they are
@@ -217,11 +220,6 @@
        hk-media.js emits that shape for `ha-card.np.tall` AND for
        `ha-card.np` under @media (max-width:640px) -- one definition, not
        two that drift apart. */
-
-    /* Timers is its own shape: a 184px label followed by auto-filled 116px
-       preset chips. On a phone the label stops being a column and the chips
-       simply fill. */
-    --hk-timers-row: repeat(auto-fill, minmax(104px, 1fr));
 
     /* The Cameras page: one feed per row on a phone,
        full width, rather than three thumbnails. */

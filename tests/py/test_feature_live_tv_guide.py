@@ -94,3 +94,97 @@ def test_sensors_refresh_on_the_event_loop_and_the_map_is_rebuilt():
     assert "async_get_entity_id" in inspect.getsource(tv.entity_ids)
     assert '"entities"' not in inspect.getsource(tv.async_setup_entry)
     assert "Invalid frame dimensions 0x0" in stream.BENIGN
+
+
+async def test_a_slow_guide_does_not_hold_up_the_house(hass, base):
+    """The first guide is fetched in the background: while a slow one downloads
+    (60 s at worst, then a 5 MB parse), the rest of HK Frontend -- the features
+    after Live TV, the Seasonal switch -- is already up; the guide lands later."""
+    import asyncio
+    from unittest.mock import patch
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.setup import async_setup_component
+    from conftest import DOMAIN, feature_item, house_entry
+    reg = er.async_get(hass)
+    alarm = reg.async_get_or_create("alarm_control_panel", "lyric", "a1", suggested_object_id="lyric_alarm").entity_id
+    hass.states.async_set(alarm, "disarmed", {"supported_features": 3})
+    house = house_entry(
+        feature_item("live_tv", {"host": "tuner.local", "guide_url": "http://g/x.xml"},
+                     {"channels": [{"number": "4.1", "name": "NBC"}], "quality": "720"}),
+        feature_item("alarm_pin", {"alarm": alarm},
+                     {"arm_required": True, "hash": "00", "salt": "00", "iterations": 1, "numeric": True},
+                     title="Lyric Alarm PIN", key=alarm))
+    house.add_to_hass(hass)
+    gate, called = asyncio.Event(), []
+
+    async def slow(*a, **k):
+        called.append(1)
+        await gate.wait()
+        return b'<?xml version="1.0"?><tv></tv>'
+
+    with patch("custom_components.hk_frontend.features.live_tv.coordinator.async_fetch_guide", side_effect=slow):
+        assert await async_setup_component(hass, DOMAIN, {})
+        for _ in range(20):
+            await asyncio.sleep(0.01)
+        pins = [s.entity_id for s in hass.states.async_all("alarm_control_panel") if s.entity_id != alarm]
+        assert called, "the guide is being fetched"
+        assert pins, "the PIN panel is up while the guide downloads"
+        assert hass.states.get("switch.hk_frontend_seasonal_decorations") is not None
+        gate.set()
+        await hass.async_block_till_done()
+
+
+class _FakeProc:
+    """An ffmpeg as the stream handler sees it."""
+    def __init__(self):
+        import asyncio
+        self.stdout, self.stderr = asyncio.StreamReader(), asyncio.StreamReader()
+        self.returncode, self.pid, self.killed = None, 4242, False
+
+    def kill(self):
+        self.killed, self.returncode = True, -9
+        self.stdout.feed_eof()
+        self.stderr.feed_eof()
+
+    async def wait(self):
+        return self.returncode
+
+
+async def _stream_with_failing_prepare(hass, exc):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+    from aiohttp import web
+    from custom_components.hk_frontend.features.live_tv.const import DATA
+    from custom_components.hk_frontend.features.live_tv.stream import TvStreamView
+    hass.data[DATA] = {"entry": SimpleNamespace(options={"channels": [{"number": "4.1", "name": "NBC"}]}),
+                       "host": "192.0.2.1", "quality": "720"}
+    proc = _FakeProc()
+
+    async def spawn(*a, **k):
+        return proc
+    req = MagicMock()
+    req.remote = "127.0.0.1"
+    raised = None
+    with patch("asyncio.create_subprocess_exec", spawn), \
+            patch.object(web.StreamResponse, "prepare", side_effect=exc):
+        try:
+            await TvStreamView(hass).get(req, "4.1")
+        except BaseException as err:  # noqa: BLE001
+            raised = err
+    await asyncio.sleep(0)
+    return proc, raised
+
+
+async def test_ffmpeg_is_killed_when_the_viewer_leaves_before_the_first_byte(hass):
+    """A client that resets while the response is prepared: ffmpeg is killed
+    (it used to run on, holding one of the tuner's two tuners)."""
+    proc, _ = await _stream_with_failing_prepare(hass, ConnectionResetError("gone"))
+    assert proc.killed
+
+
+async def test_ffmpeg_is_killed_and_the_cancellation_passes_on(hass):
+    import asyncio
+    proc, raised = await _stream_with_failing_prepare(hass, asyncio.CancelledError())
+    assert proc.killed
+    assert isinstance(raised, asyncio.CancelledError), "a cancelled handler stays cancelled"

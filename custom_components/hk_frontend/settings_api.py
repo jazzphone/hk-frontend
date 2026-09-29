@@ -374,6 +374,15 @@ def _pages(v: Any) -> list[str]:
     return got
 
 
+def _home_view(v: Any) -> str:
+    """A screen's Home: "" (the generated one) or a custom page's address."""
+    if v in (None, ""):
+        return ""
+    if not isinstance(v, str) or not S.PAGE_PATH.match(v):
+        raise Invalid("choice")
+    return v
+
+
 def _custom_pages(v: Any) -> list[str]:
     if not isinstance(v, list) or not all(isinstance(x, str) and S.PAGE_PATH.match(x) for x in v):
         raise Invalid("list")
@@ -409,6 +418,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "pages": _pages,
     "custom_pages": _custom_pages,
     "home_page": _bool,
+    "home_view": _home_view,
     "glass": _choice(S.BOARD_GLASS),
     "frost": _amount_or_none,
     "blur": _amount_or_none,

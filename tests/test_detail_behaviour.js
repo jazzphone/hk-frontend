@@ -718,6 +718,13 @@ print('\n=== an unavailable camera is said, not black ===');
   H.states['camera.gone'] = { entity_id: 'camera.gone', state: 'idle', attributes: {}, last_updated: 't2', last_changed: 't2' };
   p.hass = Object.assign({}, H);
   ok('...and swaps to the stream when it comes back', !p._naEl && typeof p._na === 'function');
+  // ...and the other way: a camera that goes away WHILE its sheet is open
+  // loses its stream card (dead video and the message used to stack)
+  var card = p._card;
+  H.states['camera.gone'] = { entity_id: 'camera.gone', state: 'unavailable', attributes: {}, last_updated: 't3', last_changed: 't3' };
+  p.hass = Object.assign({}, H);
+  ok('a camera gone while open: the stream card leaves, the placeholder alone remains',
+     !!card && !p._card && card.parentNode !== p._root && !!p._naEl && p._naEl.parentNode === p._root);
 })();
 
 print('\n' + (fail ? 'FAIL ' + fail + ' DETAIL BEHAVIOUR TESTS' : 'ALL ' + pass + ' DETAIL BEHAVIOUR TESTS PASS'));

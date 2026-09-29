@@ -7,8 +7,9 @@
 // A Lovelace dashboard STRATEGY: Home Assistant asks it for the dashboard and
 // it answers from the house's own registries -- floors, areas, devices and
 // entities -- so a house with none of this configuration gets a working
-// dashboard on day one, and a new light appears on its own. The hand-written
-// YAML dashboards remain the way to curate one; this is the way to start.
+// dashboard on day one, and a new light appears on its own. It is curated on
+// the HK Settings page (each screen's item, the accessories' gear), not in
+// YAML: since 2026-09-28 every screen of this house but the car's is one.
 //
 // WHAT IT BUILDS
 //   Home      the wall header (clock, weather, security) and the status chips,
@@ -33,9 +34,9 @@
 // MEASURED glyph sizes -- see TILE below. A glyph without a measured size keeps
 // the card default rather than a guessed one.
 //
-// OPTIONS (all optional) -- normally set in HK Frontend -> Configure ->
-// Generated dashboard; the same keys in the dashboard's YAML add to those
-// (lists) or win (yes/no).
+// OPTIONS (all optional) -- normally set on the HK Settings page (Accessories
+// -> Hidden from Screens / Also Shown, and each screen's Pages); the same keys
+// in the dashboard's raw configuration add to those (lists) or win (yes/no).
 //   areas:           [area_id, ...]   only these, in this order
 //   exclude_areas:   [area_id, ...]
 //   exclude_entities:[entity_id, ...]
@@ -84,13 +85,18 @@
     'motion-sensor': 31, garage: 26, 'garage-open': 26, 'air-humidifier': 31,
     'robot-vacuum': 38, 'alarm-light-off': 27, television: 29,
     amplifier: 25, bed: 32, 'blinds-open': 26, 'desktop-tower': 25, fire: 26, 'gamepad-variant': 28,
-    'printer-3d': 23, 'roller-shade': 26, 'run-fast': 26, server: 26, sword: 27,
+    'printer-3d': 23, 'roller-shade': 26, 'run-fast': 26, server: 26, 'server-network': 24, sword: 27,
     // the players, at the Home app's sizes
     speaker: 36, homepod: 36, 'homepod-mini': 40, 'apple-tv': 35
   };
-  function sized(tile) {
+  // ON A FAVORITE, where the hand-written favorites drew a glyph at a size of
+  // its own: the gamepad is 28 on a room tile (the Arcade) and was 24 on the
+  // Roblocks favorite, beside its two-line room and name.
+  var FAV_PX = { 'gamepad-variant': 24 };
+  function sized(tile, over) {
     var g = String(tile.icon || '').replace(/^hk:/, '');
-    if (PX[g]) tile.icon_size = PX[g] + 'px';
+    var px = (over && over[g]) || PX[g];
+    if (px) tile.icon_size = px + 'px';
     return tile;
   }
 
@@ -210,7 +216,7 @@
   };
   // THE ONE "IS THIS HIDDEN?" RULE: an excluded entity, anything on an
   // excluded device, anything in an excluded area -- read from the options
-  // THIS build was given (Configure -> Generated dashboard plus the
+  // THIS build was given (the HK Settings page's Hidden from Screens plus the
   // dashboard's own YAML, merged in generate()). Derived per options object
   // and passed along, never kept in module state: two builds at once (the
   // editor's preview and the dashboard) cannot see each other's exclusions,
@@ -396,14 +402,25 @@
   // ------------------------------------------------------------ the house
   // area -> [entity ids] from the registries: an entity's own area, else its
   // device's. Hidden, disabled, config and diagnostic entities are left out.
-  function rooms(hass, opts) {
+  // ONE PASS OVER THE HOUSE PER BUILD. rooms() is asked once for Home and
+  // once for every room page (27 times on this house), and each pass walked
+  // every entity (4,195): 113k visits, ~170 ms of a tablet's generate().
+  // What it sorts into rooms depends only on the build's hass and its
+  // exclusions -- not on which areas one caller wants -- so a build keeps the
+  // one pass in its options (`__build`, copied into every per-room options
+  // object by Object.assign) and rooms() only picks and orders from it. Kept
+  // per BUILD, not per hass object: a second build always looks again.
+  function byArea(hass, opts) {
+    var hide = hideOf(opts), into = INTO(), build = opts && opts.__build;
+    var key = JSON.stringify([opts.exclude_entities || [], opts.exclude_devices || [], opts.exclude_areas || [],
+                              opts.include_entities || [], into]);
+    var memo = build && build.byArea;
+    if (memo && memo.key === key && memo.hass === hass) return memo;
     var ents = hass.entities || {}, devs = hass.devices || {}, areas = hass.areas || {};
-    var floors = hass.floors || {};
-    var by = {}, more = [];
-    var hide = hideOf(opts);
+    var by = {}, more = [], seen = {};
     Object.keys(ents).concat(Object.keys(hide.include)).forEach(function (id) {
-      if (by._seen && by._seen[id]) return;
-      (by._seen = by._seen || {})[id] = true;
+      if (seen[id]) return;
+      seen[id] = true;
       var e = ents[id] || {}, dom = id.split('.')[0];
       var added = !!hide.include[id];
       if (!hass.states[id] || hidden(hass, opts, id)) return;
@@ -412,11 +429,18 @@
       var area = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id);
       // A ROOM SHOWN AS PART OF ANOTHER (the accessories' `into`): the Deck's
       // things are the Backyard's, its section and page the Backyard's
-      if (area && INTO()[area] && areas[INTO()[area]]) area = INTO()[area];
+      if (area && into[area] && areas[into[area]]) area = into[area];
       if (!area || !areas[area]) { if (added) more.push(id); return; }
       (by[area] = by[area] || []).push(id);
     });
-    delete by._seen;
+    memo = { key: key, hass: hass, by: by, more: more };
+    if (build) build.byArea = memo;
+    return memo;
+  }
+  function rooms(hass, opts) {
+    var areas = hass.areas || {}, floors = hass.floors || {};
+    var hide = hideOf(opts), sorted = byArea(hass, opts);
+    var by = sorted.by, more = sorted.more;
     var list = Object.keys(by);
     if (Array.isArray(opts.areas) && opts.areas.length) {
       list = opts.areas.filter(function (a) { return by[a]; });
@@ -626,10 +650,23 @@
 
   // Every shown entity of a domain (same rules as the rooms: not hidden, not a
   // config/diagnostic entity, has a state), optionally filtered, sorted by id.
+  // The house's entity ids by domain, once per build (as byArea): shown() is
+  // asked for a dozen domains and each call walked every state.
+  function idsOf(hass, opts, domain) {
+    var build = opts && opts.__build, idx = build && build.hass === hass ? build.domains : null;
+    if (!idx) {
+      idx = {};
+      Object.keys(hass.states).forEach(function (id) {
+        var d = id.split('.')[0];
+        (idx[d] = idx[d] || []).push(id);
+      });
+      if (build) { build.domains = idx; build.hass = hass; }
+    }
+    return idx[domain] || [];
+  }
   function shown(hass, opts, domain, pred) {
     var ents = hass.entities || {};
-    return Object.keys(hass.states).filter(function (id) {
-      if (id.split('.')[0] !== domain) return false;
+    return idsOf(hass, opts, domain).filter(function (id) {
       var e = ents[id] || {};
       if (e.hidden || e.entity_category || hidden(hass, opts, id)) return false;
       return !pred || pred(hass.states[id]);
@@ -891,23 +928,30 @@
         if (hass.states['input_text.quick_timer_' + (i + 1) + '_name']) t.label_entity = 'input_text.quick_timer_' + (i + 1) + '_name';
         tlist.push(t);
       });
-      inv.timers.forEach(function (id) {
-        if (quick && slots.indexOf(id) >= 0) return;
-        var ent = (hass.entities || {})[id] || {};
-        tlist.push({ entity: id, label: fullName(hass, id),
-                     glyph: ent.icon || (hass.states[id].attributes || {}).icon || 'hk:timer-sand' });
-      });
+      // ONE NAME PER TIMER on this page, in the running list and the house
+      // row alike: "Nap - Timer" is a Nap under a Timers heading, as a tile
+      // drops its room's name (the accessory's own name wins).
+      var timerName = function (id) {
+        var at = hass.states[id].attributes || {};
+        return accName(id) || String(at.friendly_name || id).replace(/\s*[-\u2013]?\s*timer\s*$/i, '') ||
+          fullName(hass, id);
+      };
       // THE HOUSE TIMERS (Configure -> Your home -> House timers): one tap
-      // each, named and pictured as the timers themselves are.
-      var house = (setting('features.house_timers') || []).filter(function (id) { return hass.states[id]; })
-        .map(function (id) {
-          var ent = (hass.entities || {})[id] || {}, at = hass.states[id].attributes || {};
-          // "Nap - Timer" is a Nap under a House timers heading, as a tile
-          // drops its room's name.
-          var nm = String(at.friendly_name || id).replace(/\s*[-\u2013]?\s*timer\s*$/i, '') || at.friendly_name || id;
-          return { entity: id, name: accName(id) || nm,
-                   icon: accIcon(id) || ent.icon || at.icon || 'mdi:timer-outline' };
+      // each, named and pictured as the timers themselves are -- and first in
+      // the running list, in their own order, as the hand-written page had them.
+      var houseIds = (setting('features.house_timers') || []).filter(function (id) { return hass.states[id]; });
+      var running = inv.timers.filter(function (id) { return !(quick && slots.indexOf(id) >= 0); });
+      houseIds.filter(function (id) { return running.indexOf(id) >= 0; })
+        .concat(running.filter(function (id) { return houseIds.indexOf(id) < 0; }))
+        .forEach(function (id) {
+          var ent = (hass.entities || {})[id] || {};
+          tlist.push({ entity: id, label: timerName(id),
+                       glyph: ent.icon || (hass.states[id].attributes || {}).icon || 'hk:timer-sand' });
         });
+      var house = houseIds.map(function (id) {
+        var ent = (hass.entities || {})[id] || {}, at = hass.states[id].attributes || {};
+        return { entity: id, name: timerName(id), icon: accIcon(id) || ent.icon || at.icon || 'mdi:timer-outline' };
+      });
       var tcard = quick
         ? { type: 'custom:hk-timers-page-card', tint: 'rgba(255, 159, 10, 0.95)', empty_text: 'Nothing is running.',
             presets: [5, 10, 15, 20, 30, 60], name_chips: ['Pasta', 'Oven', 'Laundry', 'Tea', 'Kids', 'Break'],
@@ -969,10 +1013,13 @@
   function musicConfigured(hass) {
     return new Promise(function (resolve) {
       var conn = hass && hass.connection, done = false, unsub = null;
+      // an unsubscribe the server refuses (the socket reconnected meanwhile)
+      // is not an error: never an uncaught rejection
+      var end = function (u) { var r = u(); if (r && r.catch) r.catch(function () {}); };
       function finish(v) {
         if (done) return;
         done = true;
-        if (unsub) unsub();
+        if (unsub) end(unsub);
         resolve(v);
       }
       if (!conn || typeof conn.subscribeMessage !== 'function') return finish(false);
@@ -983,7 +1030,7 @@
         finish(!!(ev && ev.configured && ev.speakers && ev.speakers.length));
       }, { type: 'hk_music/subscribe' }).then(function (u) {
         unsub = u;
-        if (done) u();
+        if (done) end(u);
       }, function () { finish(false); });
     });
   }
@@ -1058,7 +1105,7 @@
     // that glyph's measured size (without it every picked glyph would draw 23 px)
     var mine = function (t) {
       var own = favIcon(fa) || accIcon(id);
-      if (own && own !== t.icon) { t.icon = own; delete t.icon_states; delete t.icon_size; sized(t); }
+      if (own && own !== t.icon) { t.icon = own; delete t.icon_states; delete t.icon_size; sized(t, FAV_PX); }
       return t;
     };
     if (d === 'lock') {
@@ -1073,8 +1120,15 @@
     if (!t) return base;
     t = Object.assign({}, t, { type: 'custom:hk-favorite-card', room: room });
     delete t.view_layout;                     // one height, like every favorite
-    if (d === 'light') t.label_mode = 'brightness';
+    // A LIGHT GROUP (a helper: its members in attributes.entity_id) reads how
+    // many are on, "2 On", as the hand-written favorites did; a blind its
+    // position.
+    var members = d === 'light' && st && Array.isArray(st.attributes.entity_id)
+      ? st.attributes.entity_id.filter(function (x) { return x !== id && hass.states[x]; }) : [];
+    if (members.length) { t.label_mode = 'group_count'; t.group = members; }
+    else if (d === 'light') t.label_mode = 'brightness';
     else if (d === 'switch' || d === 'input_boolean') t.label_mode = 'on_off';
+    else if (d === 'cover') t.label_mode = 'position';
     mine(t);
     // its own colour when on (the accessory's Color)
     if (fa.color) t.icon_color = fa.color;
@@ -1104,6 +1158,19 @@
     // The favorites grid: 9 px below, where a room's is 11.
     return { type: 'grid', columns: 1, square: false, view_layout: COL2, cards: [heading('Favorites'),
       { type: 'custom:hk-grid-card', layout: Object.assign({}, GRID, { padding: '0px 0px 9px 0px' }), cards: tiles }] };
+  }
+
+  // ONE PAGE THAT CANNOT BE BUILT IS ONE PAGE, NOT THE DASHBOARD. Home
+  // Assistant replaces EVERY view with one "Error loading the dashboard
+  // strategy" card when generate() throws -- on a wall tablet, the whole
+  // screen until it is reloaded. So the category pages and each room page are
+  // built guarded: one that throws is logged and left out (a room page says
+  // so in its place, as its heading on Home still links to it).
+  function guarded(label, build, instead) {
+    try { return build(); } catch (e) {
+      try { console.error('[hk-strategy] could not build ' + label, e); } catch (x) { /* no console */ }
+      return instead ? instead(e) : null;
+    }
   }
 
   function views(hass, opts, music) {
@@ -1170,7 +1237,10 @@
     // Play Music is reached from the Speakers chip, the menu and a scene pill
     // (Home -> Scenes -> Pills that open a page) -- not a heading of its own
     // between Favorites and the rooms.
-    rooms(hass, opts).forEach(function (r) { home.push(roomSection(hass, r)); });
+    rooms(hass, opts).forEach(function (r) {
+      var sec = guarded('the ' + r.name + ' section of Home', function () { return roomSection(hass, r); });
+      if (sec) home.push(sec);
+    });
     // THE #alarm POP-UP. An alarm automation may open
     // `<dashboard>/0#alarm` on the tablets, and a Home with nothing
     // listening would just show Home. An Alarm pop-up ITEM (HK Settings
@@ -1198,9 +1268,23 @@
     }
 
     var out = [view({ title: 'Home', path: 'home', cards: home })];
+    // A HOME OF ITS OWN (its Pages page -> Home): one of the house's custom
+    // pages in place of the generated Home, and the rest of the screen
+    // generated as usual -- a car's own first page, say, over the house's
+    // Lights, Climate and Cameras. The page keeps its address and is called
+    // Home, as the generated one is (the menu, HA's header, the tab). A page
+    // that is gone leaves the generated Home.
+    var own = (opts.board || {}).home_view ? customView(opts.board.home_view) : null;
+    if (own) {
+      own.title = own.menu_title = 'Home';
+      if (!own.icon) own.icon = 'mdi:home';
+      out[0] = own;
+    }
     var pages = {};
     if (opts.pages !== false) {
-      categoryPages(hass, opts, inv, view).forEach(function (v) { pages[v.path] = v; });
+      guarded('the category pages', function () {
+        categoryPages(hass, opts, inv, view).forEach(function (v) { pages[v.path] = v; });
+      });
     }
 
     if (weather) {
@@ -1395,9 +1479,14 @@
     if (opts.rooms !== false && want('rooms')) {
       rooms(hass, opts).forEach(function (r) {
         if (!r.id) return;
-        out.push(view({ title: r.name, path: 'room-' + slug(r.id), subview: true,
-                        area: r.areas && r.areas.length > 1 ? r.areas : r.id,
-                        cards: roomCards(hass, r.areas || [r.id], r.name, opts) }));
+        var head = { title: r.name, path: 'room-' + slug(r.id), subview: true,
+                     area: r.areas && r.areas.length > 1 ? r.areas : r.id };
+        out.push(guarded('the ' + r.name + ' page', function () {
+          return view(Object.assign({}, head, { cards: roomCards(hass, r.areas || [r.id], r.name, opts) }));
+        }, function (e) {
+          return view(Object.assign({}, head, { cards: [{ type: 'markdown',
+            content: 'This room page could not be built (' + String((e && e.message) || e).replace(/[<>&]/g, '') + ').' }] }));
+        }));
       });
     }
     return out;
@@ -1429,7 +1518,9 @@
   // lookup per hass push.
   var REG_FIELDS = {
     entities: ['area_id', 'device_id', 'platform', 'name', 'icon', 'hidden', 'entity_category'],
-    devices: ['area_id'], areas: ['name', 'floor_id'], floors: ['name', 'level']
+    // a device's names are its tiles' names (friendly_name), its model picks
+    // the Apple TV / HomePod glyph
+    devices: ['area_id', 'name', 'name_by_user', 'model'], areas: ['name', 'floor_id'], floors: ['name', 'level']
   };
   var regSeen = new WeakMap();
   function regView(reg, fields) {
@@ -1460,7 +1551,7 @@
       var name = c.name || (A[areas[0]] && A[areas[0]].name) || 'Room';
       var themes = (hass.themes && hass.themes.themes) || {};
       var v = { type: 'custom:hk-grid-view', layout: VIEW_LAYOUT, background: '#05070e',
-                cards: roomCards(hass, areas, name, c) };
+                cards: roomCards(hass, areas, name, Object.assign({}, c, { __build: {} })) };
       var theme = c.theme || kioskTheme(themes);
       if (theme) v.theme = theme;
       return v;
@@ -1477,6 +1568,13 @@
       // they arrive: on a browser with no cached copy it waits (up to 3 s)
       // for the integration's answer instead of building from the defaults.
       if (window.hkSettings && window.hkSettings.whenLive) await window.hkSettings.whenLive(3000);
+      // WHAT THIS BUILD READS, fingerprinted BEFORE it reads it, and the
+      // listener hooked before the first await below: a settings push that
+      // lands while the build waits (on music, up to 4 s) is then seen as a
+      // change and rebuilds. Fingerprinted at the end, as it was, the push
+      // was in the fingerprint but not in the build, and nothing followed.
+      var seg = dashSeg();
+      watch(seg, inputs(seg));
       // Accessories -> Hidden from Screens / Also Shown (the house's), then
       // the dashboard's own YAML: the lists ADD together. The parts (chips,
       // pages, sky, music, rooms) are the YAML's and the screen's own --
@@ -1486,9 +1584,9 @@
       var both = function (k) { return [].concat(G[k] || [], y[k] || []); };
       var opts = Object.assign({}, y, {
         exclude_areas: both('exclude_areas'), exclude_entities: both('exclude_entities'),
-        exclude_devices: both('exclude_devices'), include_entities: both('include_entities')
+        exclude_devices: both('exclude_devices'), include_entities: both('include_entities'),
+        __build: {}                     // this build's one pass over the house (byArea)
       });
-      var seg = dashSeg();
       opts.board = boardOf(seg);
       if (opts.board.sky === false) opts.sky = false;
       var b = opts.board;
@@ -1521,7 +1619,6 @@
       // options for them (its gear -> Screen -> Third-party cards, YAML)
       if (b.kiosk) cfg.kiosk_mode = overlay({ hide_header: true, hide_sidebar: true }, b.kiosk_options);
       if (saver) cfg.wallpanel = overlay(wallpanel(saver), b.wallpanel_options);
-      watch(seg, inputs(seg));
       return cfg;
     }
   }
@@ -1634,7 +1731,14 @@
         'wallpanel-screensaver-image-two-container': { 'will-change': 'opacity' }
       }
     };
-    if (sv.entity) wp.screensaver_entity = sv.entity;
+    // THE HELPER IS WRITTEN FROM THE TABLET'S OWN USER ONLY. WallPanel's element
+    // connects in every browser that opens the dashboard, enabled or not, and
+    // sets screensaver_entity to "is MY screensaver running" -- so a desk
+    // opening /dashboard-kitchen turned the kitchen tablet's helper off (107
+    // times from one desk user, 09-27..29) until the tablet's own idle timer
+    // put it back 180 s later. WallPanel merges the user's profile before it
+    // connects, so in the profile only the tablet has a helper to write.
+    if (sv.entity) profiles['user.' + sv.user].screensaver_entity = sv.entity;
     return wp;
   }
   // THE NOW-PLAYING BAR: rises from
@@ -1659,7 +1763,7 @@
 
   // REBUILT WHEN ITS SETTINGS CHANGE. A strategy builds the dashboard once,
   // when it opens -- so an edit to this dashboard's item (its pages, camera
-  // strip, favorites), to What counts or to Generated dashboard would wait
+  // strip, favorites), to What counts or to the hidden / also-shown lists would wait
   // for a reload. Instead, when what it was built from changes, it asks
   // Home Assistant to rebuild it (`config-refresh`, what the dashboard
   // menu's own Refresh does), at most every 10 s. The chips and scenes are
@@ -1680,7 +1784,10 @@
   var LIVE_KEYS = { chips: 1, chips_quiet: 1, chips_extra: 1, scenes: 1, scenes_pages: 1, scenes_row: 1,
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
                     tab_position: 1, home_rooms: 1, glass: 1, frost: 1, blur: 1, camera_live: 1,
-                    car: 1, idle_return: 1, narrow: 1, menu_top: 1 };
+                    car: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1 };
+  // an accessory's fields only the chips read (What counts' status, a custom
+  // chip's when / label / attribute): changing one rebuilds nothing
+  var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };
   function inputs(seg) {
     var b = boardOf(seg), mine = {};
     Object.keys(b).forEach(function (k) { if (!LIVE_KEYS[k]) mine[k] = b[k]; });
@@ -1690,7 +1797,7 @@
     Object.keys(acc).forEach(function (k) { if (k !== 'entities') rest[k] = acc[k]; });
     Object.keys(acc.entities || {}).forEach(function (id) {
       var a = acc.entities[id] || {}, o = {};
-      Object.keys(a).forEach(function (k) { if (k !== 'status') o[k] = a[k]; });
+      Object.keys(a).forEach(function (k) { if (!CHIP_ONLY[k]) o[k] = a[k]; });
       ents[id] = o;
     });
     return JSON.stringify([mine, cams, setting('kinds'), setting('generated'),
@@ -1699,19 +1806,34 @@
                            setting('extras'), setting('custom_pages'), setting('popups'), setting('added')]);
   }
   var built = { seg: null, sig: null, at: 0, timer: null };
+  // NOT UNDER A FINGER. A rebuild re-creates every card -- an open sheet
+  // closes, a live camera reconnects, a scrolled page jumps to the top -- so
+  // while someone is using the screen (touched in the last 30 s, or a sheet
+  // or pop-up covering the page) it waits, and runs once it is left alone,
+  // as the tablets are only ever reloaded when nobody is looking.
+  var BUSY_MS = 30000, touched = 0;
+  ['pointerdown', 'keydown', 'wheel'].forEach(function (t) {
+    try { window.addEventListener(t, function () { touched = Date.now(); }, { capture: true, passive: true }); }
+    catch (e) { /* no window (tests) */ }
+  });
+  function busy() {
+    return Date.now() - touched < BUSY_MS || (window.hkPopupCover || 0) > 0;
+  }
   function watch(seg, sig) {
     built.seg = seg; built.sig = sig; built.at = Date.now();
     if (built.hooked || !window.hkSettings || !window.hkSettings.onChange) return;
     built.hooked = true;
+    var due = function () {
+      built.timer = null;
+      if (dashSeg() !== built.seg || inputs(built.seg) === built.sig) return;
+      if (busy()) { built.timer = setTimeout(due, 5000); return; }
+      built.sig = inputs(built.seg);
+      refresh();
+    };
     window.hkSettings.onChange(function () {
       if (!built.seg || dashSeg() !== built.seg || inputs(built.seg) === built.sig) return;
       if (built.timer) return;
-      built.timer = setTimeout(function () {
-        built.timer = null;
-        if (dashSeg() !== built.seg || inputs(built.seg) === built.sig) return;
-        built.sig = inputs(built.seg);
-        refresh();
-      }, Math.max(0, 10000 - (Date.now() - built.at)));
+      built.timer = setTimeout(due, Math.max(0, 10000 - (Date.now() - built.at)));
     });
   }
   function refresh() {
@@ -1731,5 +1853,6 @@
                         tileFor: tileFor, roomCards: roomCards, groupOf: groupOf,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,
-                        shouldRegenerate: HkDashboardStrategy.shouldRegenerate, inputs: inputs };
+                        shouldRegenerate: HkDashboardStrategy.shouldRegenerate, inputs: inputs,
+                        _built: built, _busy: busy };
 })();

@@ -346,15 +346,22 @@ async def ws_settings_set(hass: HomeAssistant, connection: websocket_api.ActiveC
         return
     changes = dict(msg["changes"])
     folder = changes.pop(CONF_FILES_FOLDER, None) if CONF_FILES_FOLDER in changes else False
-    options, errors = settings_api.apply_house(entry.options, changes)
-    if folder is not False and not errors:
+    # THE ONE SLOW STEP FIRST (the folder check, in the executor), and the
+    # options read only after it: read before the await, a change another
+    # write made meanwhile was overwritten with the old value and both
+    # writes still answered success.
+    errors: dict[str, str] = {}
+    path = None
+    if folder is not False:
         from . import files
         path = files.normalize(hass.config.config_dir, folder)
         err = await hass.async_add_executor_job(files.validate_folder, hass.config.config_dir, path)
         if err:
             errors[CONF_FILES_FOLDER] = err
-        else:
-            options = {**options, CONF_FILES_FOLDER: path}
+    options, more = settings_api.apply_house(entry.options, changes)
+    errors.update(more)
+    if path is not None and not errors:
+        options = {**options, CONF_FILES_FOLDER: path}
     if errors:
         _refused(connection, msg["id"], errors)
         return
@@ -440,7 +447,7 @@ def ws_chip_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         return
     data = {"name": name, "after": after, "card": card}
     if sub is None:
-        key = chip_key(name, set(subs))
+        key = chip_key(name, S.taken_ids(entry))
         hass.config_entries.async_add_subentry(entry, ConfigSubentry(
             data=MappingProxyType(data), subentry_type=S.SUBENTRY_CHIP, title=name, unique_id=key))
     else:

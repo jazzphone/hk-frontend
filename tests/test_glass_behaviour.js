@@ -320,6 +320,16 @@ plain[0].shadowRoot.appendChild(late);           // a card that renders its plat
 advance(2050);
 ok('...but a card whose tree changed is collected again: its late plate is frosted',
    (pathOfLayer(V8.v).match(/M/g) || []).length === 2, pathOfLayer(V8.v).slice(0, 80));
+// BEHIND THE PHOTO SCREENSAVER (an overlay: document.hidden stays false) the
+// backstop has nobody to measure for: it pauses, and resumes with the screen.
+var up0 = G.stats().updates;
+window.hkSky = { asleep: function () { return true; } };
+advance(5 * 2000 + 50);
+ok('the 2 s backstop does not run while the photo screensaver is up', G.stats().updates - up0 === 0, G.stats().updates - up0);
+window.hkSky.asleep = function () { return false; };
+advance(2050);
+ok('...and runs again once it is down', G.stats().updates - up0 >= 1, G.stats().updates - up0);
+delete window.hkSky;
 V8.v.remove(); Array.from(GL).forEach(leave); advance(300);
 
 // ---------------------------------------------------------------------------

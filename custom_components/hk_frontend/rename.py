@@ -17,10 +17,16 @@ problem of its own):
                 .include/.exclude one level down); weather.radar is skipped
       dashboard items   favorites, cameras, scenes, chips, chips_extra, camera_live
       pop-up items      entity, speaker, stream, entities
+      feature items     the fields each feature names in its RENAME (Music's
+                        speakers and homes, Clean Areas' vacuums, the alarm an
+                        Alarm PIN protects -- whose unique id and title move
+                        with it), and the items it owns (RENAME_ITEMS: a Music
+                        preset's group and rooms)
       accessories store the entity's own settings (its key), fav_with, room
                         tile orders, page orders
   * NEVER the free-form card configurations -- a custom page's view (Energy,
-    EcoFlow), a dashboard's wallpanel/kiosk options, the radar options -- where
+    EcoFlow), a custom chip's card, a pop-up's own cards, a dashboard's
+    wallpanel/kiosk options, the radar options -- where
     `select.select_option` (an action) looks exactly like an entity id. The old
     id found there is REPORTED, for a person to fix.
   * NEVER outside HK Frontend: YAML dashboards, automations, other
@@ -35,6 +41,7 @@ from __future__ import annotations
 
 import copy
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -69,6 +76,38 @@ def _swap(value: Any, old: str, new: str) -> tuple[Any, bool]:
     return value, False
 
 
+def _swap_values(value: Any, old: str, new: str) -> tuple[Any, bool]:
+    """_swap, and for a mapping its values (Music's homes: user -> room player)."""
+    if isinstance(value, dict):
+        out, hit = {}, False
+        for k, v in value.items():
+            out[k], h = _swap(v, old, new)
+            hit = hit or h
+        return (out, True) if hit else (value, False)
+    return _swap(value, old, new)
+
+
+def rewrite_feature(stored: Any, spec: dict[str, tuple[str, ...]], old: str,
+                    new: str) -> tuple[Any, list[str]]:
+    """A feature item ({kind, data, options}): only the fields its RENAME names,
+    in data and options."""
+    if not isinstance(stored, Mapping):
+        return stored, []
+    out = copy.deepcopy({k: dict(v) if isinstance(v, Mapping) else v for k, v in stored.items()})
+    paths: list[str] = []
+    for part, keys in spec.items():
+        block = out.get(part)
+        if not isinstance(block, dict):
+            continue
+        for k in keys:
+            if k in block:
+                nv, hit = _swap_values(block[k], old, new)
+                if hit:
+                    block[k] = nv
+                    paths.append(k)
+    return out, paths
+
+
 def rewrite_options(dashboard: Any, old: str, new: str) -> tuple[Any, list[str]]:
     """options['dashboard']: `section -> key -> value`, one level deeper for a
     mapping (counts.<kind>.include). Returns (new dict, changed paths)."""
@@ -97,8 +136,10 @@ def rewrite_options(dashboard: Any, old: str, new: str) -> tuple[Any, list[str]]
 
 
 def rewrite_fields(data: Any, keys: tuple[str, ...], old: str, new: str) -> tuple[Any, list[str]]:
-    """A dashboard or pop-up item: only the named keys."""
-    if not isinstance(data, dict):
+    """A dashboard or pop-up item: only the named keys. An item's data is a
+    read-only mapping (MappingProxyType) as Home Assistant stores it -- not a
+    dict, which is why this took only dicts and followed nothing live."""
+    if not isinstance(data, Mapping):
         return data, []
     out = dict(data)
     paths = []
@@ -161,8 +202,11 @@ def contains(obj: Any, needle: str, _depth: int = 0) -> bool:
 def async_apply(hass: HomeAssistant, entry: ConfigEntry, old: str, new: str) -> dict[str, list[str]]:
     """Rewrite `old` -> `new` everywhere allowed; report the rest. Returns
     {"changed": [...], "manual": [...], "conflicts": [...]} (for the tests)."""
-    from . import accessories
-    from .settings import SUBENTRY_DASHBOARD, SUBENTRY_PAGE, SUBENTRY_POPUP
+    from . import accessories, features as F
+    from .settings import SUBENTRY_CHIP, SUBENTRY_DASHBOARD, SUBENTRY_PAGE, SUBENTRY_POPUP
+
+    mods = {k: F.module(k) for k in F.KINDS}
+    owned = {t: keys for m in mods.values() for t, keys in getattr(m, "RENAME_ITEMS", {}).items()}
 
     changed: list[str] = []
     manual: list[str] = []
@@ -192,9 +236,31 @@ def async_apply(hass: HomeAssistant, entry: ConfigEntry, old: str, new: str) -> 
             if paths:
                 hass.config_entries.async_update_subentry(entry, sub, data=data)
                 changed += [f"pop-up {name}: {p}" for p in paths]
+            if contains(sub.data.get("cards"), old):
+                manual.append(f"pop-up {name}: its cards")
+        elif kind == SUBENTRY_CHIP:
+            if contains(sub.data.get("card"), old):
+                manual.append(f"custom chip {name}")
         elif kind == SUBENTRY_PAGE:
             if contains(sub.data.get("view"), old):
                 manual.append(f"custom page {name}")
+        elif kind == F.SUBENTRY_FEATURE and (mod := mods.get(str(sub.data.get(F.KIND) or ""))):
+            data, paths = rewrite_feature(sub.data, getattr(mod, "RENAME", {}), old, new)
+            if paths:
+                kw: dict[str, Any] = {"data": data}
+                if (hook := getattr(mod, "renamed", None)) is not None:
+                    kw.update(hook(hass, dict(data.get("data") or {})))
+                try:
+                    hass.config_entries.async_update_subentry(entry, sub, **kw)
+                except Exception as err:  # noqa: BLE001 -- e.g. the new id has an item of its own
+                    conflicts.append(f"{name}: not followed ({err})")
+                else:
+                    changed += [f"{name}: {p}" for p in paths]
+        elif kind in owned:
+            data, paths = rewrite_fields(sub.data, owned[kind], old, new)
+            if paths:
+                hass.config_entries.async_update_subentry(entry, sub, data=data)
+                changed += [f"{kind} {name}: {p}" for p in paths]
 
     acc = accessories.get(hass)
     if acc is not None:

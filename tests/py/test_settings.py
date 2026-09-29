@@ -421,3 +421,17 @@ def test_a_screens_amounts_and_menu_mixes_are_read_defensively():
     assert board({"frost": "milky", "blur": True})["frost"] is None and board({"blur": True})["blur"] is None
     assert board({"menu": "chip_scroll"})["menu"] == "chip_scroll"
     assert board({"menu": "chip_home"})["menu"] == "chip_home"
+
+
+async def test_one_feature_change_sends_the_settings_once(hass, frontend):
+    """A feature item changed: every screen gets the settings ONCE (it was
+    twice -- the feature sync and the house's update listener both sent)."""
+    from conftest import FakeConnection, put_feature, update_feature
+    from custom_components.hk_frontend import ws_settings_subscribe
+    feat = await put_feature(hass, "clean_areas", options={"vacuums": []})
+    conn = FakeConnection(None)
+    ws_settings_subscribe(hass, conn, {"id": 9})
+    n = len(conn.sent)
+    update_feature(hass, feat, options={"vacuums": ["vacuum.a"], "areas": []})
+    await hass.async_block_till_done()
+    assert len(conn.sent) - n == 1, conn.sent[n:]

@@ -235,20 +235,6 @@ H.run('TIMERS PAGE', [
         H.ok('every House timer running: the section goes', pc._shouse.hidden === true);
       });
     });
-  },
-
-  function () {
-    // A home's own dashboards, when they sit beside the integration (the
-    // private development layout). Anywhere else there is nothing to read.
-    H.section('the generated page');
-    var view;
-    try { view = readFile(HK_ROOT + '/../../hk_house/dashboards/shared/views/21_timers.yaml'); } catch (e) { view = null; }
-    if (!view) { print('  SKIP  the generated page (no home dashboards beside the integration)'); return; }
-    H.ok('Timers is one hk-timers-page-card', (view.match(/type: custom:hk-timers-page-card/g) || []).length === 1);
-    H.ok('with the allocator, the creator and the presets',
-         /quick_script: script\.quick_timer_start/.test(view) && /create_script: script\.quick_timer_create/.test(view) &&
-         /presets: \[5, 10, 15, 20, 30, 60\]/.test(view));
-    H.ok('and no house: list -- the settings\' House timers are the one list', !/\n {8}house:\n/.test(view));
-    H.ok('and no link to a separate New Timer page', !/timer-new/.test(view));
   }
+
 ]);

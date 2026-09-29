@@ -35,6 +35,25 @@ async def test_folder_validation_refuses_anything_but_a_dedicated_subfolder(conf
     assert validate_folder(d, "shared") == "folder_not_dedicated"
     (config_dir / "store" / ".storage").mkdir(parents=True)
     assert validate_folder(d, "store") == "folder_not_dedicated"
+    # Home Assistant's own data, served without sign-in: .storage/auth holds
+    # refresh tokens. A hidden folder, one inside it, or HA's own folders.
+    (config_dir / ".storage").mkdir(exist_ok=True)
+    for bad in (".storage", ".cloud", "hk/.git", "backups", "custom_components/x", "deps", "esphome"):
+        assert validate_folder(d, bad) == "folder_not_dedicated", bad
+    assert validate_folder(d, "hk_house/www") is None
+
+
+async def test_only_web_files_are_answered_from_your_folder(hass, config_dir):
+    """Whatever the folder, a file a page never loads is not served from it
+    (without sign-in): no extensionless store, no YAML, database or key."""
+    from custom_components.hk_frontend import files
+    for name in ("auth", "notes.yaml", "home.db", "tesla.key", "fonts/SF-Pro.woff2", "pages/p.html"):
+        _write(config_dir / "mine" / name)
+    files.set_folder(hass, "mine")
+    for name in ("auth", "notes.yaml", "home.db", "tesla.key"):
+        assert files.resolve(hass, name) is None, name
+    assert files.resolve(hass, "fonts/SF-Pro.woff2") is not None
+    assert files.resolve(hass, "pages/p.html") is not None
 
 
 async def test_what_people_type_is_always_relative_to_config(config_dir):

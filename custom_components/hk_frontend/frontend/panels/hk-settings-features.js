@@ -2,13 +2,13 @@
 // page.
 //
 // Each page belongs to one of HK Frontend's optional features -- Music, Live
-// TV, Alarm PIN, Clean Areas -- each its own entry of the integration, added
-// from Settings -> Devices & services -> HK Frontend -> Add feature
+// TV, Alarm PIN, Clean Areas -- each an ITEM of the integration's one entry,
+// added from Settings -> Devices & services -> HK Frontend -> Add feature
 // (features/__init__.py). A page reads and saves through that feature's own
 // commands (`<id>/settings/get` and `/set`, e.g. hk_tv/settings/get), which
-// check each change the way the feature's Configure does and store it where
-// Configure stores it -- in the feature's own entry. panel/get `features`
-// lists each feature with its entries; not yet added, its page offers Add.
+// check each change the way the feature's gear does and store it where the
+// gear stores it -- in the feature's item. panel/get `features` lists each
+// feature with its items; not yet added, its page offers Add.
 // Every choice comes from the house as it is -- the tuner's lineup, the
 // vacuums, the alarm panels, Music Assistant's players -- never from a list
 // written here.
@@ -50,8 +50,9 @@
   // Every feature is an item of HK Frontend's one entry, added with Add
   // feature on the integration's page (which offers the features the house
   // has not added); the same page lists each one, with its gear
-  function addHref() { return '/config/integrations/integration/hk_frontend'; }
-  function integrationHref() { return '/config/integrations/integration/hk_frontend'; }
+  var INTEGRATION = '/config/integrations/integration/hk_frontend';
+  function addHref() { return INTEGRATION; }
+  function integrationHref() { return INTEGRATION; }
 
   // LIVE TV: the channels as the list editor shows them. Shown: the saved
   // channels (their own names; the number, and the station when the name is

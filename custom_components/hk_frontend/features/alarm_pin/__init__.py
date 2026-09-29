@@ -34,6 +34,13 @@ from .pin import hash_pin
 
 PLATFORMS = [Platform.ALARM_CONTROL_PANEL]
 RELOAD = True           # a new PIN, the arm rule or another alarm: the panel is rebuilt with it
+RENAME = {"data": (CONF_ALARM,)}        # followed through an entity rename (rename.py)
+
+
+def renamed(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
+    """The item's unique id and title name the alarm, so they move with it."""
+    alarm = str(data.get(CONF_ALARM) or "")
+    return {"unique_id": unique_id(ALARM_PIN, alarm), "title": checks.item_title(hass, alarm)}
 
 
 async def async_setup(hass: HomeAssistant) -> None:

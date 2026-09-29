@@ -1272,8 +1272,12 @@
     }
     // Every scene, A to Z, follows the house's scenes: re-planned when the
     // number of entities moves (cheap), not on every push.
+    // The count is taken only while the row follows them (_auto): a screen
+    // that picks its own scenes -- every one in this house -- has nothing to
+    // re-plan, and 4,195 keys on each of ~12 pushes a second was the cost.
     set hass(h) {
-      var first = !this._hass, n = h && h.states ? Object.keys(h.states).length : 0;
+      var first = !this._hass;
+      var n = (first || this._auto) && h && h.states ? Object.keys(h.states).length : this._n;
       this._hass = h;
       if (first || (this._auto && n !== this._n)) { this._n = n; this._plan(); }
       if (this._el) this._el.hass = h;

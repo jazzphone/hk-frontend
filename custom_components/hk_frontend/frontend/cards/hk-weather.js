@@ -958,8 +958,7 @@
           // rebuilds the card.
           if (n.hours === self._nH && n.days === self._nD &&
               self._narrow() === self._nN) { return; }
-          self._hkSig = null;
-          self._render();
+          self.redraw();
         });
         this._ro.observe(this);
       }
@@ -977,6 +976,10 @@
           });
         });
         this._fcSubs = {};
+        if (this._fcReady && this._fcConn && this._fcConn.removeEventListener) {
+          this._fcConn.removeEventListener('ready', this._fcReady);
+        }
+        this._fcReady = null; this._fcConn = null;
         // A RE-ATTACHED BAND MUST ASK AGAIN. The subscriptions are gone, but
         // the render gate would still hold the old signature, so the next
         // hass push would find nothing to do and the cached forecast would
@@ -1013,7 +1016,10 @@
         // a card that resized across a column boundary between state updates
         // would be gated out and keep the old column count.
         var n = this._counts();
-        return out + 'n=' + n.hours + '/' + n.days + (this._narrow() ? 'N' : '');
+        // The hour is in it too: the first hourly slot leaves the band when
+        // its hour ends, whether or not the sensor has been refreshed yet.
+        return out + 'n=' + n.hours + '/' + n.days + (this._narrow() ? 'N' : '') +
+          ';h=' + Math.floor(Date.now() / 3600e3);
       }
 
       // WHERE EACH NUMBER COMES FROM: Configure -> Weather
@@ -1047,12 +1053,26 @@
         if (wid && conn && !this._fcSubs[key] && this.isConnected &&
             !(refused && Date.now() < refused.until)) {
           var self = this;
+          // A RECONNECT (Home Assistant restarted) is ours to follow: the
+          // library's own resubscribe, refused because the weather entity is
+          // not back yet, is dropped for good and the band kept yesterday's
+          // forecast. So `resubscribe: false`, and on 'ready' -- the server
+          // has forgotten every subscription -- this asks again on the next
+          // render, through the same refusal back-off.
+          if (!this._fcReady && typeof conn.addEventListener === 'function') {
+            this._fcConn = conn;
+            this._fcReady = function () {
+              self._fcSubs = {};
+              self.requestUpdate();
+            };
+            conn.addEventListener('ready', this._fcReady);
+          }
           this._fcSubs[key] = conn.subscribeMessage(function (ev) {
             delete fcRefused[key];
             self._fc[key] = (ev && ev.forecast) || [];
             self._fcN = (self._fcN || 0) + 1;
             self.requestUpdate();
-          }, { type: 'weather/subscribe_forecast', forecast_type: kind, entity_id: wid })
+          }, { type: 'weather/subscribe_forecast', forecast_type: kind, entity_id: wid }, { resubscribe: false })
             .catch(function (err) {
               delete self._fcSubs[key];
               var r = fcRefused[key] = fcRefused[key] || { n: 0 };
@@ -1107,7 +1127,15 @@
         if (feels !== null) line2.push('Feels ' + Math.round(feels) + '°');
         if (hum !== null) line2.push(Math.round(hum) + '% humidity');
 
-        var hrs = this._forecast('hourly', src.hourly).slice(0, nHours);
+        // AN HOURLY SLOT THAT HAS ENDED IS NOT "NOW". A forecast sensor keeps
+        // what the provider last sent, and that list can start with the hour
+        // that just finished: at 22:07 the house's began at 21:00, so the 9 PM
+        // forecast was labelled Now and "10 PM" came second. A slot covers an
+        // hour from its datetime; the first one still open is the one we are in.
+        var now = Date.now();
+        var hrs = this._forecast('hourly', src.hourly).filter(function (h) {
+          return !(Date.parse(h.datetime) + 3600e3 <= now);
+        }).slice(0, nHours);
         var days = this._forecast('daily', src.daily).slice(0, nDays);
 
         var hourCells = hrs.map(function (h, i) {
@@ -1390,7 +1418,7 @@
         if (Math.abs(s - (this._shift || 0)) < 0.5) return;
         this._shift = s;
         this._aligning = true;
-        try { this._hkSig = null; this._render(); } finally { this._aligning = false; }
+        try { this.redraw(); } finally { this._aligning = false; }
       }
       getCardSize() { return 1; }
     }
