@@ -10,9 +10,14 @@ What stays a flow here is what the page drives as one: adding a dashboard
 item (what it is shown on sets its starting values), and adding or editing a
 pop-up, a custom page or a custom chip.
 
-The features -- Music, Live TV, Clean Areas and Alarm PIN -- are entries of
-their own, added with Add feature; each brings its steps as a FlowSteps mixin
-(features/).
+The features -- Music, Live TV, Clean Areas and Alarm PIN -- are items of the
+house's entry too (features/): Add feature is their flow (FeatureFlow), and
+each feature brings its steps as mixins. Music's presets and playlists are
+items of the house's entry as well.
+
+THERE IS ONE ENTRY (manifest: single_config_entry), because Home Assistant's
+integration page answers an "Add ..." button with a list of every entry to
+pick from once there is more than one.
 """
 from __future__ import annotations
 
@@ -31,10 +36,9 @@ from . import features as F
 from . import files
 from . import settings as S
 from .const import CONF_FILES_FOLDER, DEFAULT_FILES_FOLDER, DOMAIN
-from .features.alarm_pin import FlowSteps as AlarmPinSteps
-from .features.clean_areas import FlowSteps as CleanAreasSteps
-from .features.live_tv import FlowSteps as LiveTvSteps
-from .features.music import FlowSteps as MusicSteps
+from .features import alarm_pin, clean_areas, live_tv, music
+from .features.music.const import SUB_PLAYLIST, SUB_PRESET
+from .features.music.flows import PlaylistFlow, PresetFlow
 
 
 def _entity(domain: str | list[str], multiple: bool = False,
@@ -127,24 +131,19 @@ async def _strategy_dashboards(hass) -> list[str]:
     return sorted(out)
 
 
-class HkFrontendConfigFlow(MusicSteps, LiveTvSteps, CleanAreasSteps, AlarmPinSteps, ConfigFlow, domain=DOMAIN):
-    """Adding the integration: first the house's own entry (the dashboards'
-    settings -- one per house), then, from Add feature, the features, each its
-    own entry (features/__init__.py). Each feature's steps are its FlowSteps,
-    mixed in; its step ids start with its kind."""
+class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Adding the integration: the house's entry, the only one (the
+    dashboards' settings; its items are the rest)."""
 
     VERSION = 1
-    # 7: the house's entry holds the dashboard settings, each dashboard's own
-    # settings are an item of it (a subentry), and each feature is an entry
-    # of its own. An older minor version is brought to 7 by
+    # 7: the house's entry holds the dashboard settings; each dashboard's own
+    # settings, each pop-up, page, chip and feature are items of it
+    # (subentries). An older minor version is brought to 7 by
     # async_migrate_entry.
     MINOR_VERSION = 7
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:
-        # the house's entry exists: Add feature adds a feature
-        if F.frontend_entry(self.hass) is not None:
-            return await self.async_step_feature()
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
         if user_input is None:
@@ -154,38 +153,56 @@ class HkFrontendConfigFlow(MusicSteps, LiveTvSteps, CleanAreasSteps, AlarmPinSte
         # every default).
         return self.async_create_entry(title="HK Frontend", data={}, options={})
 
-    async def async_step_feature(self, user_input: dict[str, Any] | None = None
-                                 ) -> ConfigFlowResult:
-        """Which feature to add: those the house does not have yet (Alarm PIN
-        can protect several alarms, so it is always offered)."""
-        have = {k for k in F.SINGLE if F.entries(self.hass, k)}
-        return self.async_show_menu(step_id="feature", menu_options=[k for k in F.KINDS if k not in have])
-
-    async def async_step_import(self, data: dict[str, Any]) -> ConfigFlowResult:
-        """A feature entry made for the house: the entry of the separate
-        integration the feature once was, adopted (features/legacy.py)."""
-        kind = data.get(F.KIND)
-        if kind not in F.KINDS:
-            return self.async_abort(reason="unknown_feature")
-        return await getattr(self, f"async_import_{kind}")(data)
-
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        kind = F.kind_of(config_entry)
-        if kind == F.FRONTEND:
-            return HkOptionsFlow()
-        return F.module(kind).options_flow(config_entry)
+        return HkOptionsFlow()
 
     @classmethod
     @callback
     def async_get_supported_subentry_types(
             cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
-        kind = F.kind_of(config_entry)
-        if kind != F.FRONTEND:
-            return F.module(kind).subentry_types(config_entry)
-        return {S.SUBENTRY_DASHBOARD: DashboardSubentryFlow, S.SUBENTRY_POPUP: PopupSubentryFlow,
-                S.SUBENTRY_PAGE: PageSubentryFlow, S.SUBENTRY_CHIP: ChipSubentryFlow}
+        """In this order on the integration's page: Add feature, then the
+        dashboards' items, then Music's."""
+        if F.kind_of(config_entry) != F.FRONTEND:
+            return {}                    # a pre-release feature entry, folded at start
+        return {F.SUBENTRY_FEATURE: FeatureFlow, S.SUBENTRY_DASHBOARD: DashboardSubentryFlow,
+                S.SUBENTRY_POPUP: PopupSubentryFlow, S.SUBENTRY_PAGE: PageSubentryFlow,
+                S.SUBENTRY_CHIP: ChipSubentryFlow, SUB_PRESET: PresetFlow, SUB_PLAYLIST: PlaylistFlow}
+
+
+class FeatureFlow(music.AddSteps, music.ReconfigureSteps, live_tv.AddSteps, live_tv.ReconfigureSteps,
+                  clean_areas.AddSteps, clean_areas.ReconfigureSteps, alarm_pin.AddSteps,
+                  alarm_pin.ReconfigureSteps, ConfigSubentryFlow):
+    """ADD FEATURE: Music, Live TV, Clean Areas or Alarm PIN, as an item of the
+    house's entry (features/__init__.py). The first step is a menu of those
+    the house does not have yet (Alarm PIN can protect several alarms, so it
+    is always offered); each feature's own steps follow, their ids starting
+    with its kind. Its gear is the feature's settings (its `<kind>_options`
+    steps), saved with async_save_feature."""
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None
+                              ) -> SubentryFlowResult:
+        have = {k for k in F.SINGLE if F.entries(self.hass, k)}
+        return self.async_show_menu(step_id="user", menu_options=[k for k in F.KINDS if k not in have])
+
+    @property
+    def _feature(self) -> F.Feature:
+        """The feature whose gear this is."""
+        found = F.item(self.hass, self._get_reconfigure_subentry().subentry_id)
+        assert found is not None
+        return found
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None
+                                     ) -> SubentryFlowResult:
+        return await getattr(self, f"async_step_{self._feature.kind}_options")(user_input)
+
+    @callback
+    def async_save_feature(self, **changes: Any) -> SubentryFlowResult:
+        """Write the feature (data, options, title, unique_id) and close.
+        The house's update listener then restarts or tells it."""
+        F.async_update(self.hass, self._feature, **changes)
+        return self.async_abort(reason="reconfigure_successful")
 
 
 class DashboardSubentryFlow(ConfigSubentryFlow):

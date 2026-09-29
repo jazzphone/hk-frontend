@@ -26,7 +26,7 @@ import pytest
 
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 
-from conftest import add_feature, feature_entries
+from conftest import add_feature, feature_entries, update_feature
 
 ROOMS = ["media_player.%s_homepod_ma" % k for k in (
     "kitchen", "living_room", "master_bedroom", "master_bathroom", "guest_bedroom",
@@ -84,7 +84,7 @@ def subentries():
 
 
 def music_entry(hass):
-    """The house's Music entry (there is only ever one)."""
+    """The house's Music feature (there is only ever one)."""
     (e,) = feature_entries(hass, "music")
     return e
 
@@ -273,10 +273,9 @@ async def music(hass: HomeAssistant, frontend, house: FakeHouse):
     r = await add_feature(hass, "music", {})
     assert r["type"] == "create_entry", r
     entry = music_entry(hass)
-    hass.config_entries.async_update_entry(
-        entry, options={**entry.options, "speakers": list(ROOMS), "volume": VOLUME})
+    update_feature(hass, entry, options={**entry.options, "speakers": list(ROOMS), "volume": VOLUME})
     for sub in subentries():
-        hass.config_entries.async_add_subentry(entry, sub)
+        hass.config_entries.async_add_subentry(entry.house, sub)
     await hass.async_block_till_done()
     mgr: M.MusicManager = entry.runtime_data
     mgr.settle = 0          # the one real sleep, which tests do not need

@@ -177,5 +177,43 @@ ok('errors: a refusal map is read from the message', eq(M.refusals({ message: '{
    M.refusals({ message: 'Unknown command' }) === null && /isn’t one of/.test(M.errorText('choice')));
 ok('reorder', eq(M.move(['a', 'b', 'c'], 0, 2), ['b', 'c', 'a']) && eq(M.move(['a', 'b', 'c'], 2, 0), ['c', 'a', 'b']));
 
+// LIVE CAMERA FOLLOWS: the option each camera needs, the sensor it follows,
+// and the automation written for them
+var CAMS = [
+  { entity: 'camera.front_door_low', name: 'Front Door Low resolution channel', device: 'd1', deviceName: 'Front Door' },
+  { entity: 'camera.deck_low', name: 'Deck Low resolution channel', device: 'd2', deviceName: 'Deck' },
+  { entity: 'camera.porch', name: 'Porch Cam', device: 'd3', deviceName: 'Doorbell 2' },
+  { entity: 'camera.garage', name: 'Garage', device: null, deviceName: null }];
+var SENS = [{ entity: 'binary_sensor.front_door_motion', device: 'd1', kind: 'motion' },
+            { entity: 'binary_sensor.front_door_person_detected', device: 'd1', kind: 'person' },
+            { entity: 'binary_sensor.deck_motion', device: 'd2', kind: 'motion' }];
+var plan = M.livePlan(CAMS, SENS);
+ok('live: the option is the device name when the camera’s name starts with it',
+   eq(plan.map(function (p) { return p.option; }), ['Front Door', 'Deck', 'Porch Cam', 'Garage']));
+ok('...every option names its own camera the way the strip matches it',
+   plan.every(function (p, i) { return M.liveNames(p.option, [CAMS[i].name]); }) && !M.liveNames('Fro', ['Front Door Low']) && M.liveNames('Front', ['Front Door Low']));
+ok('...a person sensor before a motion one; none without a device',
+   plan[0].sensor === 'binary_sensor.front_door_person_detected' && plan[1].sensor === 'binary_sensor.deck_motion' &&
+   plan[2].sensor === null && plan[3].sensor === null);
+ok('...two cameras on one device get distinct options',
+   eq(M.livePlan([CAMS[0], { entity: 'camera.front_door_high', name: 'Front Door High resolution channel', device: 'd1',
+                             deviceName: 'Front Door' }], []).map(function (p) { return p.option; }),
+      ['Front Door', 'Front Door High resolution channel']));
+var y = M.liveYaml(plan, 'input_select.live_camera');
+ok('live: the automation triggers on each sensor with the camera’s option as its id',
+   /entity_id: binary_sensor\.front_door_person_detected\n    to: "on"\n    id: "Front Door"/.test(y) &&
+   /entity_id: binary_sensor\.deck_motion\n    to: "on"\n    id: "Deck"/.test(y) && !/porch|garage/i.test(y.split('actions:')[0].replace(/description.*\n/, '')));
+ok('...five quiet minutes on every sensor go back to the first camera',
+   /for:\n      minutes: 5\n    id: all quiet/.test(y) && /state: "off"\n      - action: input_select\.select_option[\s\S]*option: "Front Door"/.test(y));
+ok('...otherwise it picks the camera that triggered', /else:\n      - action: input_select\.select_option[\s\S]*option: "\{\{ trigger\.id \}\}"/.test(y));
+ok('...a select entity is set with select.select_option', /action: select\.select_option/.test(M.liveYaml(plan, 'select.cams')));
+ok('...no sensors at all: nothing to write', M.liveYaml(M.livePlan([CAMS[3]], SENS), 'input_select.x') === null);
+var kept = M.livePlan(CAMS, SENS, ['Front', 'Front Door', 'Garage', 'Kitchen']);
+ok('live: a chosen dropdown keeps its own options, the longest that names each camera',
+   kept[0].option === 'Front Door' && !kept[0].missing && kept[3].option === 'Garage' && kept[1].missing && kept[1].option === 'Deck');
+var ky = M.liveYaml(kept, 'input_select.cameras');
+ok('...and a camera it has no option for is left out of the automation',
+   /id: "Front Door"/.test(ky) && !/Deck/.test(ky) && /option: "Front Door"\n    else/.test(ky));
+
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

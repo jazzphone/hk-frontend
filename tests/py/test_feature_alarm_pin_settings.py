@@ -1,8 +1,8 @@
 """HK Settings' Alarm PIN page (features/alarm_pin/settings_ws.py): every
 alarm that has a PIN, a new PIN typed twice, the arm rule, another alarm,
 adding and removing -- checked by the same helpers as the feature's dialogs,
-refused by field, never sending a PIN back, and never touching an entry that
-is not an Alarm PIN one."""
+refused by field, never sending a PIN back, and never touching an item or an
+entry that is not an Alarm PIN."""
 from __future__ import annotations
 
 import json
@@ -12,7 +12,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.helpers import entity_registry as er
 
-from conftest import entry, feature_entries
+from conftest import add_feature, entry, feature_entries
 from test_feature_alarm_pin import ALARM, OTHER, two_alarms
 
 
@@ -34,6 +34,16 @@ class Conn:
 
 def pins(hass):
     return feature_entries(hass, "alarm_pin")
+
+
+def pin(hass, item_id):
+    """One Alarm PIN, by its item's id (None once it is gone)."""
+    from custom_components.hk_frontend import features as F
+    return F.item(hass, item_id)
+
+
+def no_flow_open(hass):
+    return not hass.config_entries.flow.async_progress() and not hass.config_entries.subentries.async_progress()
 
 
 async def _admin(hass):
@@ -82,7 +92,7 @@ async def _works(hass, entity, code):
         return False
 
 
-async def test_add_through_the_page_is_the_features_own_add(hass, frontend, alarms):
+async def test_add_through_the_page_is_the_features_own_add(hass, alarms, frontend):
     conn = await _admin(hass)
     assert (await _get(hass, conn))["configured"] is False
     r = await _add(hass, conn, ALARM, pin="12")
@@ -90,7 +100,7 @@ async def test_add_through_the_page_is_the_features_own_add(hass, frontend, alar
     r = await _add(hass, conn, ALARM, pin="4321", again="4312")
     assert "don’t match" in json.loads(r["message"])["pin_again"]
     assert not pins(hass), "a refusal adds nothing"
-    assert not hass.config_entries.flow.async_progress(), "and leaves no flow open"
+    assert no_flow_open(hass), "and leaves no flow open"
     r = await _add(hass, conn, ALARM)
     assert r["success"], r
     p = r["result"]
@@ -99,14 +109,15 @@ async def test_add_through_the_page_is_the_features_own_add(hass, frontend, alar
     assert "4321" not in json.dumps(p) and "hash" not in json.dumps(p), "a PIN is never sent back"
     assert {c["entity_id"]: c["entry"] for c in p["choices"]} == {ALARM: a["entry_id"], OTHER: None}, "its own panel is no choice"
     (e,) = pins(hass)
-    assert e.entry_id == a["entry_id"] and e.unique_id == "alarm_pin:alarm_control_panel.home_alarm"
+    assert e.entry_id == a["entry_id"] and e.unique_id == "feature:alarm_pin:alarm_control_panel.home_alarm"
+    assert a["title"] == "Home Alarm PIN" and a["state"] == "loaded"
     r = await _add(hass, conn, ALARM)
     assert json.loads(r["message"]) == {"alarm": "That alarm already has a PIN."}
     r = await _add(hass, conn, a["panel"])
     assert "own panels" in json.loads(r["message"])["alarm"]
     r = await _add(hass, conn, "alarm_control_panel.nowhere")
     assert json.loads(r["message"]) == {"alarm": "That isn’t an alarm panel in this house."}
-    assert not hass.config_entries.flow.async_progress()
+    assert no_flow_open(hass)
     assert await _works(hass, a["panel"], "4321")
 
 
@@ -116,10 +127,10 @@ async def test_add_without_the_house_entry_is_refused(hass, base, alarms):
     r = await _add(hass, conn, ALARM)
     assert not r["success"] and "HK Frontend" in json.loads(r["message"])["alarm"]
     assert not hass.config_entries.async_entries("hk_frontend")
-    assert not hass.config_entries.flow.async_progress()
+    assert no_flow_open(hass)
 
 
-async def test_a_new_pin_typed_twice_and_the_arm_rule(hass, frontend, alarms):
+async def test_a_new_pin_typed_twice_and_the_arm_rule(hass, alarms, frontend):
     conn = await _admin(hass)
     a = (await _add(hass, conn, ALARM))["result"]["alarms"][0]
     r = await _set(hass, conn, a["entry_id"], {"pin": "9999"})
@@ -132,7 +143,7 @@ async def test_a_new_pin_typed_twice_and_the_arm_rule(hass, frontend, alarms):
     assert await _works(hass, a["panel"], "9876") and not await _works(hass, a["panel"], "4321")
     r = await _set(hass, conn, a["entry_id"], {"arm_required": False})
     assert r["success"] and r["result"]["alarms"][0]["arm_required"] is False
-    assert hass.config_entries.async_get_entry(a["entry_id"]).options["arm_required"] is False
+    assert pin(hass, a["entry_id"]).options["arm_required"] is False
     assert await _works(hass, a["panel"], "9876"), "the PIN survives an arm-rule change"
     r = await _set(hass, conn, a["entry_id"], {"arm_required": "yes"})
     assert json.loads(r["message"]) == {"arm_required": "Choose on or off."}
@@ -140,14 +151,15 @@ async def test_a_new_pin_typed_twice_and_the_arm_rule(hass, frontend, alarms):
     assert json.loads(r["message"]) == {"code": "That setting doesn’t exist."}
 
 
-async def test_another_alarm_keeps_the_pin(hass, frontend, alarms):
+async def test_another_alarm_keeps_the_pin(hass, alarms, frontend):
     conn = await _admin(hass)
     a = (await _add(hass, conn, ALARM))["result"]["alarms"][0]
     r = await _set(hass, conn, a["entry_id"], {"alarm": OTHER})
     assert r["success"], r
-    e = hass.config_entries.async_get_entry(a["entry_id"])
-    assert e.data == {"kind": "alarm_pin", "alarm": OTHER} and e.title == "garage"
-    assert e.unique_id == "alarm_pin:alarm_control_panel.garage"
+    e = pin(hass, a["entry_id"])
+    assert e.data == {"kind": "alarm_pin", "alarm": OTHER} and e.title == "garage PIN"
+    assert e.unique_id == "feature:alarm_pin:alarm_control_panel.garage"
+    assert r["result"]["alarms"][0]["panel"] == a["panel"], "the same panel"
     assert await _works(hass, a["panel"], "4321")
     assert hass.states.get(OTHER).state == "disarmed"
     r = await _set(hass, conn, a["entry_id"], {"alarm": a["panel"]})
@@ -158,34 +170,38 @@ async def test_another_alarm_keeps_the_pin(hass, frontend, alarms):
     assert len(b["alarms"]) == 2
 
 
-async def test_remove_takes_the_pin_off_that_alarm(hass, frontend, alarms):
+async def test_remove_takes_the_pin_off_that_alarm(hass, alarms, frontend):
     conn = await _admin(hass)
     a = (await _add(hass, conn, ALARM))["result"]["alarms"][0]
     r = await _remove(hass, conn, a["entry_id"])
     assert r["success"] and r["result"]["alarms"] == []
-    assert not pins(hass)
+    assert not pins(hass) and a["entry_id"] not in entry(hass).subentries
     assert er.async_get(hass).async_get(a["panel"]) is None, "its panel goes with it"
     r = await _remove(hass, conn, a["entry_id"])
     assert json.loads(r["message"]) == {"entry_id": "That alarm has no PIN anymore."}
 
 
-async def test_it_never_touches_an_entry_that_is_not_an_alarm_pin(hass, frontend, alarms):
-    """The house's entry, another feature's, another integration's: refused
-    as "no PIN", and left as they were."""
+async def test_it_never_touches_an_item_or_entry_that_is_not_an_alarm_pin(hass, alarms, frontend):
+    """The house's entry, another feature's item, another integration's
+    entry: refused as "no PIN", and left as they were."""
     conn = await _admin(hass)
     house = entry(hass)
+    await add_feature(hass, "clean_areas", {})
+    (clean,) = feature_entries(hass, "clean_areas")
     other = MockConfigEntry(domain="hk_alarm_pin", title="Home Alarm", data={"alarm": ALARM})
     other.add_to_hass(hass)
-    for eid in (house.entry_id, other.entry_id):
+    for eid in (house.entry_id, clean.entry_id, other.entry_id):
         r = await _set(hass, conn, eid, {"arm_required": False})
         assert json.loads(r["message"]) == {"entry_id": "That alarm has no PIN anymore."}
         r = await _remove(hass, conn, eid)
         assert json.loads(r["message"]) == {"entry_id": "That alarm has no PIN anymore."}
-        assert hass.config_entries.async_get_entry(eid) is not None
+    assert hass.config_entries.async_get_entry(house.entry_id) is not None
+    assert hass.config_entries.async_get_entry(other.entry_id) is not None
+    assert clean.entry_id in house.subentries and "arm_required" not in clean.options
     assert "arm_required" not in house.options
 
 
-async def test_only_an_admin(hass, frontend, alarms):
+async def test_only_an_admin(hass, alarms, frontend):
     from custom_components.hk_frontend.features.alarm_pin.settings_ws import ws_settings_get
     from homeassistant.exceptions import Unauthorized
     await hass.auth.async_create_user("Owner")

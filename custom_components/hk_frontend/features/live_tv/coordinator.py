@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import timedelta
 import logging
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -43,7 +42,7 @@ class GuideCoordinator(DataUpdateCoordinator):
     """data = {number: {"logo", "network", "programmes": [...]}}"""
 
     def __init__(self, hass: HomeAssistant, url: str | None, numbers: set[str],
-                 entry: ConfigEntry | None = None) -> None:
+                 entry: None = None) -> None:
         super().__init__(hass, _LOGGER, config_entry=entry, name="Live TV guide",
                          update_interval=timedelta(minutes=GUIDE_REFRESH_MIN))
         self.url = url

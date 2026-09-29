@@ -1,14 +1,13 @@
 """The HK Settings page's Live TV page (features/live_tv/settings_ws.py):
-the same settings Configure asks for, one change at a time, checked the way
-Configure checks them, refused by field and stored where Configure stores
-them."""
+the same settings its gear asks for, one change at a time, checked the way
+its gear checks them, refused by field and stored where its gear stores
+them: the Live TV item of the house's entry (here, a house not set up)."""
 import json
 from unittest.mock import patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from conftest import DOMAIN
+from conftest import DOMAIN, feature_item, house_entry
 
 LINEUP = [{"number": "4.1", "name": "WXXX-DT"}, {"number": "4.3", "name": "WXXXCBS"},
           {"number": "13.1", "name": "ABC"}, {"number": "21.1", "name": "FOX-HD"}]
@@ -36,11 +35,14 @@ async def _admin(hass):
 
 
 def _entry(hass, **opts):
-    e = MockConfigEntry(domain=DOMAIN, title="Live TV", unique_id="live_tv",
-                        data={"kind": "live_tv", "host": "tuner.local", "guide_url": ""},
-                        options={"channels": [{"number": "4.1", "name": "My NBC"}], "quality": "720", **opts})
-    e.add_to_hass(hass)
-    return e
+    """The house's entry holding a Live TV item (neither set up); the item,
+    as its code sees it."""
+    from custom_components.hk_frontend import features as F
+    house = house_entry(feature_item("live_tv", {"host": "tuner.local", "guide_url": ""},
+                                     {"channels": [{"number": "4.1", "name": "My NBC"}], "quality": "720", **opts}))
+    house.add_to_hass(hass)
+    (item_id,) = house.subentries
+    return F.item(hass, item_id)
 
 
 async def _call(hass, conn, handler, **msg):
@@ -69,9 +71,10 @@ async def test_not_set_up_says_so(hass):
     assert not r["success"] and r["error"] == "not_set_up" and r["message"] == "Live TV is not added."
 
 
-async def test_another_features_entry_is_not_live_tv(hass):
-    MockConfigEntry(domain=DOMAIN, data={"kind": "clean_areas"}, options={}).add_to_hass(hass)
-    MockConfigEntry(domain=DOMAIN, data={}, options={}).add_to_hass(hass)
+async def test_another_features_item_is_not_live_tv(hass):
+    house_entry(feature_item("clean_areas", options={"vacuums": []}),
+                {"subentry_type": "dashboard", "data": {}, "title": "TV", "unique_id": "dashboard-tv"}
+                ).add_to_hass(hass)
     r = await _get(hass, await _admin(hass))
     assert r["result"] == {"configured": False}
 
@@ -155,7 +158,7 @@ async def test_a_new_guide_or_address_is_read_before_it_is_saved(hass):
     assert json.loads(r["message"]) == {"host": "That tuner has no channels."}
     assert e.data["host"] == "tuner.local"
     assert (await _set(hass, conn, {"host": " 192.0.2.9 "}))["success"] and e.data["host"] == "192.0.2.9"
-    assert e.data["kind"] == "live_tv", "the entry stays a Live TV entry"
+    assert e.data["kind"] == "live_tv", "the item stays a Live TV item"
 
 
 async def test_unknown_settings_and_non_admins_are_refused(hass):
@@ -169,6 +172,7 @@ async def test_unknown_settings_and_non_admins_are_refused(hass):
 
 
 async def test_a_channel_taken_off_the_list_takes_its_entities(hass):
+    """Only the item's own: the house's other entities are never touched."""
     from homeassistant.helpers import entity_registry as er
     from custom_components.hk_frontend.features.live_tv import prune_channels
     e = _entry(hass, channels=[{"number": "4.1", "name": "NBC"}])
@@ -176,7 +180,11 @@ async def test_a_channel_taken_off_the_list_takes_its_entities(hass):
     for uid, dom in ((f"{e.entry_id}_4.1_camera", "camera"), (f"{e.entry_id}_4.1_now", "sensor"),
                      (f"{e.entry_id}_13.1_camera", "camera"), (f"{e.entry_id}_13.1_now", "sensor"),
                      (f"{e.entry_id}_viewers", "sensor")):
-        reg.async_get_or_create(dom, DOMAIN, uid, config_entry=e)
+        reg.async_get_or_create(dom, DOMAIN, uid, config_entry=e.house, config_subentry_id=e.entry_id)
+    switch = reg.async_get_or_create("switch", DOMAIN, f"{e.house.entry_id}_seasonal_decorations",
+                                     config_entry=e.house)
     gone = prune_channels(hass, e)
-    left = sorted(x.unique_id.split("_", 1)[1] for x in er.async_entries_for_config_entry(reg, e.entry_id))
+    ours = [x for x in er.async_entries_for_config_entry(reg, e.house.entry_id) if x.config_subentry_id == e.entry_id]
+    left = sorted(x.unique_id.split("_", 1)[1] for x in ours)
     assert len(gone) == 2 and left == ["4.1_camera", "4.1_now", "viewers"], (gone, left)
+    assert reg.async_get(switch.entity_id) is not None

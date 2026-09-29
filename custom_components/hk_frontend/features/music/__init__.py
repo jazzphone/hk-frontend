@@ -1,9 +1,10 @@
 """MUSIC: whole-home music through Music Assistant.
 
-Speakers, presets and playlists (Configure and the + buttons, or the HK
-Settings page), the actions the Play Music page and automations call
-(music.py's MusicManager), and a feed that hands each screen its music
-configuration. One entry per house; it starts empty.
+Speakers, presets and playlists (its gear and Add preset / Add playlist on
+the integration's page, or the HK Settings page), the actions the Play Music
+page and automations call (music.py's MusicManager), and a feed that hands
+each screen its music configuration. One per house; it starts empty. Its
+presets and playlists are items of the house's entry (ITEM_TYPES).
 
     hk_frontend.music_play        a playlist on a set of rooms
     hk_frontend.music_transfer    move what is playing, or add rooms to it
@@ -14,8 +15,8 @@ configuration. One entry per house; it starts empty.
 
 Every action ANSWERS: call it with return_response and read {ok, leader} or
 {ok: false, message}. The actions and the feed are registered at start, not
-per entry, so a call made while the feature is not added gets a clear error
-rather than "unknown action". The websocket commands keep their hk_music/
+when the feature is added, so a call made while it is not added gets a clear
+error rather than "unknown action". The websocket commands keep their hk_music/
 names: the screens and the settings page speak them.
 """
 from __future__ import annotations
@@ -25,7 +26,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import SubentryFlowResult
 from homeassistant.core import (
     HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback,
 )
@@ -36,7 +37,7 @@ from homeassistant.helpers import selector as sel
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 
 from ...const import DOMAIN
-from .. import MUSIC, TITLES, entry_data, legacy, loaded, unique_id
+from .. import MUSIC, TITLES, Feature, entries, item_data, loaded, unique_id
 from . import settings_ws
 from .const import (
     ATTR_COMMAND, ATTR_LEVEL, ATTR_PLAYER, ATTR_PLAYLIST, ATTR_ROOMS, ATTR_SOURCE, COMMANDS,
@@ -48,6 +49,8 @@ from .flows import PlaylistFlow, PresetFlow, name_of, speakers_errors, speakers_
 from .music import MusicConfig, MusicManager
 
 PLATFORMS: list = []
+RELOAD = False          # the engine reads the feature on every request
+ITEM_TYPES = (SUB_PRESET, SUB_PLAYLIST)
 
 NO_HOME = "none"
 
@@ -142,37 +145,43 @@ def ws_music_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
     send()
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
     """The engine, and a nudge to every screen whenever the configuration or
-    the areas and floors it draws its names from change. No reload is needed
-    for any of it: the engine reads the entry on every request."""
-    await legacy.async_adopt(hass, entry)
+    the areas and floors it draws its names from change. No restart is needed
+    for any of it: the engine reads the feature on every request."""
     entry.runtime_data = MusicManager(hass, entry)
 
     @callback
     def changed(*_args: Any) -> None:
         async_dispatcher_send(hass, SIGNAL_CONFIG)
 
-    async def updated(_hass: HomeAssistant, _entry: ConfigEntry) -> None:
-        changed()
-
-    entry.async_on_unload(entry.add_update_listener(updated))
     # A renamed area renames its pill; a moved area moves floors.
     entry.async_on_unload(hass.bus.async_listen(ar.EVENT_AREA_REGISTRY_UPDATED, changed))
     entry.async_on_unload(hass.bus.async_listen(fr.EVENT_FLOOR_REGISTRY_UPDATED, changed))
-    # Screens are told once the entry is LOADED (see _music), not from here.
+    # Screens are told once it is running (see _music), not from here.
     entry.async_on_unload(entry.async_on_state_change(changed))
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_changed(hass: HomeAssistant, entry: Feature) -> None:
+    """Its speakers, volume, rooms, presets or playlists changed."""
+    async_dispatcher_send(hass, SIGNAL_CONFIG)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: Feature) -> bool:
     """The engine owns no tasks of its own (a request runs in its caller's
     action call). Screens are told music is gone."""
     async_dispatcher_send(hass, SIGNAL_CONFIG)
     return True
 
 
-async def async_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+async def async_remove_entry(hass: HomeAssistant, entry: Feature) -> None:
+    """Removed: its presets and playlists go with it."""
+    for sub in list(entry.subentries.values()):
+        hass.config_entries.async_remove_subentry(entry.house, sub.subentry_id)
+
+
+async def async_diagnostics(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
     """The speakers, presets and playlists as stored, and what a screen is
     handed."""
     return {"kind": MUSIC, "options": dict(entry.options),
@@ -180,55 +189,30 @@ async def async_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str
             "resolved": MusicConfig.from_entry(hass, entry).as_client(None)}
 
 
-def _item(sub: dict[str, Any]) -> dict[str, Any]:
-    """An old entry's preset or playlist, as the new entry's. Its id is kept
-    when the import carries one: a playlist's key IS its id, and an
-    automation's music_play names it."""
-    out = {"subentry_type": sub["subentry_type"], "title": sub["title"],
-           "data": dict(sub["data"]), "unique_id": sub.get("unique_id")}
-    if sub.get("subentry_id"):
-        out["subentry_id"] = sub["subentry_id"]
-    return out
+class AddSteps:
+    """Add feature -> Music. It asks nothing: the speakers are chosen in its
+    gear, presets and playlists with Add preset and Add playlist."""
 
-
-class FlowSteps:
-    """Add feature -> Music. It asks nothing: the speakers are chosen in
-    Configure, presets and playlists with the + buttons."""
-
-    async def async_step_music(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        await self.async_set_unique_id(unique_id(MUSIC))
-        self._abort_if_unique_id_configured()
+    async def async_step_music(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        if entries(self.hass, MUSIC):
+            return self.async_abort(reason="already_configured")
         if user_input is None:
             return self.async_show_form(step_id="music", data_schema=vol.Schema({}))
         return self.async_create_entry(
-            title=TITLES[MUSIC], data=entry_data(MUSIC),
-            options={CONF_SPEAKERS: [], CONF_VOLUME: DEFAULT_VOLUME, CONF_HOMES: {}})
-
-    async def async_import_music(self, data: dict[str, Any]) -> ConfigFlowResult:
-        """An older version's Music entry (legacy.py): its options, and its
-        presets and playlists."""
-        await self.async_set_unique_id(unique_id(MUSIC))
-        self._abort_if_unique_id_configured()
-        old = data[legacy.IMPORT]
-        return self.async_create_entry(
-            title=TITLES[MUSIC], data=legacy.created(MUSIC, data), options=dict(old["options"]),
-            subentries=[_item(s) for s in old.get("subentries") or []])
+            title=TITLES[MUSIC], unique_id=unique_id(MUSIC), data=item_data(MUSIC, options={
+                CONF_SPEAKERS: [], CONF_VOLUME: DEFAULT_VOLUME, CONF_HOMES: {}}))
 
 
-class MusicOptions(OptionsFlow):
-    """Configure: the speakers and the house volume, then each user's room.
+class ReconfigureSteps:
+    """Its gear: the speakers and the house volume, then each user's room.
     Every option is written back, including any this flow does not show."""
 
-    def __init__(self) -> None:
-        self._opts: dict[str, Any] = {}
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return await self.async_step_music_options(user_input)
+    _music_opts: dict[str, Any] | None = None
 
     async def async_step_music_options(self, user_input: dict[str, Any] | None = None
-                                       ) -> ConfigFlowResult:
-        opts = self.config_entry.options
-        groups = [str(s.data[CONF_GROUP]) for s in self.config_entry.subentries.values()
+                                       ) -> SubentryFlowResult:
+        opts = self._feature.options
+        groups = [str(s.data[CONF_GROUP]) for s in self._feature.subentries.values()
                   if s.subentry_type == SUB_PRESET and s.data.get(CONF_GROUP)]
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -237,8 +221,8 @@ class MusicOptions(OptionsFlow):
             # codes carry its prefix there
             errors = {k: f"music_{v}" for k, v in speakers_errors(speakers, groups).items()}
             if not errors:
-                self._opts = {CONF_SPEAKERS: speakers,
-                              CONF_VOLUME: round(float(user_input[CONF_VOLUME]) / 100, 2)}
+                self._music_opts = {CONF_SPEAKERS: speakers,
+                                    CONF_VOLUME: round(float(user_input[CONF_VOLUME]) / 100, 2)}
                 return await self.async_step_music_homes()
         suggested = user_input or {
             CONF_SPEAKERS: list(opts.get(CONF_SPEAKERS) or []),
@@ -249,13 +233,14 @@ class MusicOptions(OptionsFlow):
             data_schema=self.add_suggested_values_to_schema(speakers_schema(groups), suggested))
 
     async def async_step_music_homes(self, user_input: dict[str, Any] | None = None
-                                     ) -> ConfigFlowResult:
+                                     ) -> SubentryFlowResult:
         """One dropdown per person who signs in -- each wall tablet is its own
         user, so this is where a tablet learns which room it hangs in."""
         users = [u for u in await self.hass.auth.async_get_users()
                  if u.is_active and not u.system_generated]
-        rooms = self._opts[CONF_SPEAKERS]
-        current = dict(self.config_entry.options.get(CONF_HOMES) or {})
+        chosen = self._music_opts or {}
+        rooms = chosen[CONF_SPEAKERS]
+        current = dict(self._feature.options.get(CONF_HOMES) or {})
         # THE FIELD IS THE USER'S NAME, because a field's key is its label.
         # Two users with the same name (or none) get their id appended, so no
         # one's choice lands on someone else.
@@ -268,8 +253,7 @@ class MusicOptions(OptionsFlow):
                 v = user_input.get(label[u.id])
                 if v and v != NO_HOME and v in rooms:
                     homes[u.id] = v
-            return self.async_create_entry(
-                data={**self.config_entry.options, **self._opts, CONF_HOMES: homes})
+            return self.async_save_feature(options={**self._feature.options, **chosen, CONF_HOMES: homes})
         choices = [sel.SelectOptionDict(value=NO_HOME, label="No home room")] + [
             sel.SelectOptionDict(value=r, label=name_of(self.hass, r)) for r in rooms]
         fields: dict[Any, Any] = {}
@@ -279,12 +263,3 @@ class MusicOptions(OptionsFlow):
                 sel.SelectSelector(sel.SelectSelectorConfig(
                     options=choices, mode=sel.SelectSelectorMode.DROPDOWN))
         return self.async_show_form(step_id="music_homes", data_schema=vol.Schema(fields))
-
-
-def options_flow(entry: ConfigEntry) -> OptionsFlow:
-    return MusicOptions()
-
-
-def subentry_types(entry: ConfigEntry) -> dict:
-    """Its items: presets and playlists (the types are stored with each)."""
-    return {SUB_PRESET: PresetFlow, SUB_PLAYLIST: PlaylistFlow}

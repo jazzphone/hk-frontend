@@ -26,13 +26,13 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from homeassistant.helpers import entity_registry as er
 
 from ...const import DOMAIN
-from .. import ALARM_PIN, entries, kind_of, unique_id
+from .. import (ALARM_PIN, SUBENTRY_FEATURE, Feature, async_remove, async_update, entries, frontend_entry,
+                item, unique_id)
 from . import checks
 from .const import ALREADY, CONF_ALARM, CONF_ARM_REQUIRED
 from .pin import MIN_LENGTH, hash_pin
@@ -50,13 +50,13 @@ MSG = {
 }
 
 
-def _entry(hass: HomeAssistant, entry_id: str) -> ConfigEntry | None:
-    """An Alarm PIN entry -- never the house's or another feature's."""
-    entry = hass.config_entries.async_get_entry(entry_id)
-    return entry if entry is not None and entry.domain == DOMAIN and kind_of(entry) == ALARM_PIN else None
+def _entry(hass: HomeAssistant, entry_id: str) -> Feature | None:
+    """An Alarm PIN -- never another feature."""
+    feat = item(hass, entry_id)
+    return feat if feat is not None and feat.kind == ALARM_PIN else None
 
 
-def _panel(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
+def _panel(hass: HomeAssistant, entry: Feature) -> str | None:
     return er.async_get(hass).async_get_entity_id("alarm_control_panel", DOMAIN, entry.entry_id)
 
 
@@ -151,9 +151,9 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg: dict[str, Any]) 
     update: dict[str, Any] = {}
     if CONF_ALARM in changes and alarm != data.get(CONF_ALARM):
         data[CONF_ALARM] = alarm
-        update = {"unique_id": unique_id(ALARM_PIN, alarm), "title": checks.title(hass, alarm), "data": data}
+        update = {"unique_id": unique_id(ALARM_PIN, alarm), "title": checks.item_title(hass, alarm), "data": data}
     if update or options != dict(entry.options):
-        hass.config_entries.async_update_entry(entry, options=options, **update)
+        async_update(hass, entry, options=options, **update)
     connection.send_result(msg["id"], page(hass))
 
 
@@ -169,18 +169,21 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg: dict[str, Any]) 
 async def ws_add(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
     """Through HK Frontend's own Add feature (its feature menu, then Alarm
     PIN's form), so a PIN added here is exactly one added from Devices &
-    services. A flow that does not end in an entry is aborted, never left
+    services. A flow that does not end in an item is aborted, never left
     open."""
     if err := _alarm_error(hass, msg["alarm"], None):
         _refused(connection, msg["id"], {CONF_ALARM: err})
         return
-    flows = hass.config_entries.flow
-    r = await flows.async_init(DOMAIN, context={"source": "user"})
-    if r["type"] != FlowResultType.MENU or r.get("step_id") != "feature":
-        # no house entry yet: Add feature would add HK Frontend itself
-        if r["type"] in (FlowResultType.FORM, FlowResultType.MENU):
-            flows.async_abort(r["flow_id"])
+    house = frontend_entry(hass)
+    if house is None:
         _refused(connection, msg["id"], {CONF_ALARM: MSG["no_house"]})
+        return
+    flows = hass.config_entries.subentries
+    r = await flows.async_init((house.entry_id, SUBENTRY_FEATURE), context={"source": "user"})
+    if r["type"] != FlowResultType.MENU:
+        if r["type"] == FlowResultType.FORM:
+            flows.async_abort(r["flow_id"])
+        _refused(connection, msg["id"], {CONF_ALARM: str(r.get("reason") or "unknown")})
         return
     r = await flows.async_configure(r["flow_id"], {"next_step_id": ALARM_PIN})
     try:
@@ -213,7 +216,7 @@ async def ws_remove(hass: HomeAssistant, connection, msg: dict[str, Any]) -> Non
     if entry is None:
         _refused(connection, msg["id"], {"entry_id": MSG["no_entry"]})
         return
-    await hass.config_entries.async_remove(entry.entry_id)
+    async_remove(hass, entry)
     connection.send_result(msg["id"], page(hass))
 
 

@@ -7,7 +7,6 @@ from typing import Any
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity, AlarmControlPanelEntityFeature, AlarmControlPanelState, CodeFormat,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
@@ -16,31 +15,32 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from ...const import DOMAIN
+from .. import Feature
 from .const import CONF_ALARM, CONF_ARM_REQUIRED
 from .pin import check_pin
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
+async def async_setup_entry(hass: HomeAssistant, entry: Feature,
                             async_add_entities: AddConfigEntryEntitiesCallback) -> None:
     async_add_entities([AlarmPin(entry)])
 
 
 class AlarmPin(AlarmControlPanelEntity):
     _attr_has_entity_name = True
-    _attr_name = None                    # the device's name: "<alarm> PIN"
+    _attr_name = None                    # the device's name: "<alarm> PIN", its item's title
     _attr_should_poll = False
 
-    def __init__(self, entry: ConfigEntry) -> None:
+    def __init__(self, entry: Feature) -> None:
         self._entry = entry
         self._target: str = entry.data[CONF_ALARM]
         self._pin = {k: entry.options.get(k) for k in ("salt", "hash", "iterations")}
-        # the entry's id (an adopted panel's was rewritten to it: legacy.py)
+        # the item's id: the feature's own, from its first version
         self._attr_unique_id = entry.entry_id
         self._attr_code_format = (CodeFormat.NUMBER if entry.options.get("numeric")
                                   else CodeFormat.TEXT)
         self._attr_code_arm_required = bool(entry.options.get(CONF_ARM_REQUIRED, True))
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)}, name=f"{entry.title} PIN",
+            identifiers={(DOMAIN, entry.entry_id)}, name=entry.title,
             entry_type=DeviceEntryType.SERVICE)
 
     async def async_added_to_hass(self) -> None:

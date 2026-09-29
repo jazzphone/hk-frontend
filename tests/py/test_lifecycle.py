@@ -6,7 +6,7 @@ from homeassistant import config_entries
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from conftest import FakeConnection
+from conftest import FakeConnection, house_entry, pre_release_entry
 
 DOMAIN = "hk_frontend"
 
@@ -72,7 +72,47 @@ async def test_a_newer_entry_is_refused_not_guessed(hass, base):
 
 
 async def test_a_second_house_entry_cannot_be_added(hass, frontend):
-    """With the house's entry there, Add feature offers the features instead."""
-    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
-    assert r["type"] == "menu" and r["step_id"] == "feature"
-    assert r["menu_options"] == ["music", "live_tv", "clean_areas", "alarm_pin"]
+    """With the house's entry there, adding HK Frontend again is refused
+    (single_config_entry), from the user or from an import; the features
+    are its items (Add feature) instead."""
+    for source in (config_entries.SOURCE_USER, config_entries.SOURCE_IMPORT):
+        r = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": source}, data={} if source == config_entries.SOURCE_IMPORT else None)
+        assert r["type"] == "abort" and r["reason"] in ("single_instance_allowed", "already_configured"), source
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 1
+    assert not hass.config_entries.flow.async_progress()
+
+
+async def test_pre_release_feature_entries_fold_into_the_house_at_start(hass, base):
+    """A pre-release of 1.0 made each feature an entry of its own. At start
+    every one becomes an item of the house's entry, with its own id, and is
+    removed; the house's own items and settings are left as they were."""
+    from homeassistant.setup import async_setup_component
+
+    from custom_components.hk_frontend import features as F
+    popup = {"subentry_type": "popup", "title": "Doorbell", "unique_id": "doorbell",
+             "data": {"name": "Doorbell", "kind": "camera", "entity": "camera.door"}}
+    house = house_entry(popup, options={"files_folder": "hk_local"})
+    house.add_to_hass(hass)
+    olds = [pre_release_entry("music", {}, {"speakers": [], "volume": 0.35, "homes": {}}, unique_id="music"),
+            pre_release_entry("live_tv", {"host": "tuner.local", "guide_url": ""},
+                              {"channels": [{"number": "4.1", "name": "NBC"}], "quality": "720"}, unique_id="live_tv"),
+            pre_release_entry("clean_areas", {}, {"vacuums": []}, unique_id="clean_areas"),
+            pre_release_entry("alarm_pin", {"alarm": "alarm_control_panel.home"}, {"arm_required": True},
+                              title="Home", unique_id="alarm_pin:alarm_control_panel.home")]
+    for old in olds:
+        old.add_to_hass(hass)
+    assert await async_setup_component(hass, DOMAIN, {})
+    await hass.async_block_till_done()
+    assert hass.config_entries.async_entries(DOMAIN) == [house]
+    assert house.state is config_entries.ConfigEntryState.LOADED
+    for old in olds:
+        kind = old.data["kind"]
+        item = house.subentries[old.entry_id]
+        assert item.subentry_type == "feature" and item.unique_id == F.unique_id(
+            kind, old.data.get("alarm", "")), kind
+        assert dict(item.data) == F.item_data(kind, old.data, old.options), kind
+        assert item.title == ("Home PIN" if kind == "alarm_pin" else old.title), kind
+    assert {f.entry_id for f in F.loaded(hass)} == {o.entry_id for o in olds}, "every one is running"
+    assert "doorbell" in {s.unique_id for s in house.subentries.values()}, "the house's own items stay"
+    assert house.options == {"files_folder": "hk_local"}

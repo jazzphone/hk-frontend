@@ -32,11 +32,11 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 
-from .. import MUSIC, entries
+from .. import MUSIC, Feature, async_update, entries
 from .const import (
     CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_MEMBERS, CONF_NAME,
     CONF_ORDER, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME, SUB_PLAYLIST, SUB_PRESET,
@@ -64,7 +64,7 @@ MSG = {
 TEXT_MAX = 60
 
 
-def _entry(hass: HomeAssistant) -> ConfigEntry | None:
+def _entry(hass: HomeAssistant) -> Feature | None:
     """The house's Music entry (one per house), loaded or not."""
     return next(iter(entries(hass, MUSIC)), None)
 
@@ -77,12 +77,12 @@ def _name(hass: HomeAssistant, eid: str) -> str:
     return (ent.name or ent.original_name or eid) if ent else eid
 
 
-def _groups(entry: ConfigEntry) -> list[str]:
+def _groups(entry: Feature) -> list[str]:
     return [str(s.data[CONF_GROUP]) for s in entry.subentries.values()
             if s.subentry_type == SUB_PRESET and s.data.get(CONF_GROUP)]
 
 
-def _players(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
+def _players(hass: HomeAssistant, entry: Feature) -> list[str]:
     """Music Assistant's players, and whatever is already chosen."""
     reg = er.async_get(hass)
     ma = {e.entity_id for e in reg.entities.values()
@@ -132,7 +132,7 @@ def _say(codes: dict[str, str]) -> dict[str, str]:
     return out
 
 
-def apply(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any]
+def apply(hass: HomeAssistant, entry: Feature, changes: dict[str, Any]
           ) -> tuple[dict[str, Any], dict[str, str]]:
     opts, errors = dict(entry.options), {}
     players = set(_players(hass, entry))
@@ -198,7 +198,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg: dict[str, Any]) 
         _refused(connection, msg["id"], errors)
         return
     if opts != dict(entry.options):
-        hass.config_entries.async_update_entry(entry, options=opts)
+        async_update(hass, entry, options=opts)
     connection.send_result(msg["id"], await page(hass))
 
 
@@ -209,7 +209,7 @@ async def ws_library(hass: HomeAssistant, connection, msg: dict[str, Any]) -> No
     connection.send_result(msg["id"], {"items": await library(hass)})
 
 
-def _sub(entry: ConfigEntry, sid: str | None, kind: str) -> ConfigSubentry | None:
+def _sub(entry: Feature, sid: str | None, kind: str) -> ConfigSubentry | None:
     s = entry.subentries.get(sid) if sid else None
     return s if s is not None and s.subentry_type == kind else None
 
@@ -247,10 +247,10 @@ async def ws_preset_save(hass: HomeAssistant, connection, msg: dict[str, Any]) -
         return
     data = {CONF_NAME: name, CONF_GROUP: group, CONF_MEMBERS: members}
     if sub is None:
-        hass.config_entries.async_add_subentry(entry, ConfigSubentry(
+        hass.config_entries.async_add_subentry(entry.house, ConfigSubentry(
             data=MappingProxyType(data), subentry_type=SUB_PRESET, title=name, unique_id=None))
     else:
-        hass.config_entries.async_update_subentry(entry, sub, title=name, data=data)
+        hass.config_entries.async_update_subentry(entry.house, sub, title=name, data=data)
     connection.send_result(msg["id"], await page(hass))
 
 
@@ -297,10 +297,10 @@ async def ws_playlist_save(hass: HomeAssistant, connection, msg: dict[str, Any])
         data[CONF_CHOOSER] = chooser
     title = f"{chooser} · {name}" if chooser else name
     if sub is None:
-        hass.config_entries.async_add_subentry(entry, ConfigSubentry(
+        hass.config_entries.async_add_subentry(entry.house, ConfigSubentry(
             data=MappingProxyType(data), subentry_type=SUB_PLAYLIST, title=title, unique_id=None))
     else:
-        hass.config_entries.async_update_subentry(entry, sub, title=title, data=data)
+        hass.config_entries.async_update_subentry(entry.house, sub, title=title, data=data)
     connection.send_result(msg["id"], await page(hass))
 
 
@@ -322,7 +322,7 @@ async def ws_playlists_order(hass: HomeAssistant, connection, msg: dict[str, Any
         return
     for n, s in enumerate(subs, 1):
         if float(s.data.get(CONF_ORDER, 0) or 0) != n * 10:
-            hass.config_entries.async_update_subentry(entry, s, data={**s.data, CONF_ORDER: float(n * 10)})
+            hass.config_entries.async_update_subentry(entry.house, s, data={**s.data, CONF_ORDER: float(n * 10)})
     connection.send_result(msg["id"], await page(hass))
 
 
@@ -338,7 +338,7 @@ async def ws_item_remove(hass: HomeAssistant, connection, msg: dict[str, Any]) -
     if sub is None or sub.subentry_type not in (SUB_PRESET, SUB_PLAYLIST):
         _refused(connection, msg["id"], {"item": MSG["no_item"]})
         return
-    hass.config_entries.async_remove_subentry(entry, sub.subentry_id)
+    hass.config_entries.async_remove_subentry(entry.house, sub.subentry_id)
     connection.send_result(msg["id"], await page(hass))
 
 

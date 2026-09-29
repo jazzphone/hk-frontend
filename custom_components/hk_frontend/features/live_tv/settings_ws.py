@@ -24,10 +24,9 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .. import LIVE_TV, entries
+from .. import LIVE_TV, Feature, async_update, entries
 from . import channels
 from .const import CONF_CHANNELS, CONF_GUIDE_URL, CONF_HOST, CONF_QUALITY, DATA, DEFAULT_QUALITY
 
@@ -51,7 +50,7 @@ MSG = {
 }
 
 
-def _entry(hass: HomeAssistant) -> ConfigEntry | None:
+def _entry(hass: HomeAssistant) -> Feature | None:
     return next(iter(entries(hass, LIVE_TV)), None)
 
 
@@ -69,7 +68,7 @@ async def _catalogue(hass: HomeAssistant, host: str, guide_url: str | None,
     return lineup, networks
 
 
-def _page(entry: ConfigEntry, lineup: list[dict] | None, networks: dict[str, str],
+def _page(entry: Feature, lineup: list[dict] | None, networks: dict[str, str],
           error: str | None) -> dict[str, Any]:
     return {
         "configured": True,
@@ -88,7 +87,7 @@ def _page(entry: ConfigEntry, lineup: list[dict] | None, networks: dict[str, str
     }
 
 
-async def _read(hass: HomeAssistant, entry: ConfigEntry, fresh: bool = False) -> dict[str, Any]:
+async def _read(hass: HomeAssistant, entry: Feature, fresh: bool = False) -> dict[str, Any]:
     try:
         lineup, networks = await _catalogue(hass, entry.data[CONF_HOST],
                                             entry.data.get(CONF_GUIDE_URL), fresh)
@@ -97,7 +96,7 @@ async def _read(hass: HomeAssistant, entry: ConfigEntry, fresh: bool = False) ->
     return _page(entry, lineup, networks, None)
 
 
-async def apply(hass: HomeAssistant, entry: ConfigEntry, changes: dict[str, Any]
+async def apply(hass: HomeAssistant, entry: Feature, changes: dict[str, Any]
                 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]]:
     """(data, options, errors) after `changes`. Pure but for reading the
     tuner and the guide when the address, the guide or the channels change."""
@@ -220,7 +219,7 @@ async def ws_settings_set(hass: HomeAssistant, connection, msg: dict[str, Any]) 
         _refused(connection, msg["id"], errors)
         return
     if data != dict(entry.data) or options != dict(entry.options):
-        hass.config_entries.async_update_entry(entry, data=data, options=options)
+        async_update(hass, entry, data=data, options=options)
     connection.send_result(msg["id"], await _read(hass, entry))
 
 

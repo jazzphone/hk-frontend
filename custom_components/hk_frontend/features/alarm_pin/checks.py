@@ -1,4 +1,4 @@
-"""What the Add form, Configure and the settings page check alike: which
+"""What the Add form, its gear and the settings page check alike: which
 alarms may be protected, an alarm's name, and a new PIN typed twice."""
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector as sel
 
+from ...const import DOMAIN
 from .. import ALARM_PIN, entries
 from .const import CONF_ALARM
 from .pin import MIN_LENGTH
@@ -20,17 +21,16 @@ MISMATCH = "alarm_pin_mismatch"
 
 
 def ours(hass: HomeAssistant) -> list[str]:
-    """The PIN panels this feature made -- never something to protect. Only
-    the alarm panels of Alarm PIN entries: the integration owns other
-    entities too."""
+    """The PIN panels this feature made -- never something to protect. Each
+    Alarm PIN's panel is known by its id (alarm_control_panel.py)."""
     reg = er.async_get(hass)
-    return [ent.entity_id for e in entries(hass, ALARM_PIN)
-            for ent in er.async_entries_for_config_entry(reg, e.entry_id)
-            if ent.domain == "alarm_control_panel"]
+    found = (reg.async_get_entity_id("alarm_control_panel", DOMAIN, e.entry_id)
+             for e in entries(hass, ALARM_PIN))
+    return [eid for eid in found if eid]
 
 
 def protected_by(hass: HomeAssistant, alarm: Any) -> str | None:
-    """The Alarm PIN entry that protects `alarm`, if one does."""
+    """The Alarm PIN that protects `alarm`, if one does."""
     return next((e.entry_id for e in entries(hass, ALARM_PIN) if e.data.get(CONF_ALARM) == alarm), None)
 
 
@@ -58,6 +58,11 @@ def title(hass: HomeAssistant, alarm: str) -> str:
         return str(st.attributes["friendly_name"])
     ent = er.async_get(hass).async_get(alarm)
     return (ent.name or ent.original_name) if ent and (ent.name or ent.original_name) else alarm
+
+
+def item_title(hass: HomeAssistant, alarm: str) -> str:
+    """An Alarm PIN's title -- its item's, and its panel's device's: "<alarm> PIN"."""
+    return f"{title(hass, alarm)} PIN"
 
 
 def pin_field() -> sel.TextSelector:

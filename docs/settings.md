@@ -174,7 +174,8 @@ Each kind’s page:
 | Setting | Default | What it does |
 |---|---|---|
 | Show Camera Strip | On | *Generated.* The live camera strip under the chips. |
-| Live Camera Follows | First Camera | A select or input select whose option names the camera to show live (for example one your person-detection automation sets). An option matches the camera whose name starts with it. The other tiles show snapshots. |
+| Live Camera Follows | First Camera | A dropdown helper (input select or select) whose option names the camera to show live, set by an automation (for example on person detection). An option matches the camera whose name starts with it. The other tiles show snapshots. |
+| Set Up Live Camera Follows | — | Explains it, lists the option each camera needs, makes the dropdown for you (**Create the Dropdown**), and writes the automation for your cameras’ person or motion sensors (**Copy Automation**). See [Screens](screens.md#live-camera-follows). |
 | Automatic | On | One tile per camera, using its low-resolution channel when it has several. Never a wall tablet’s own camera or a Live TV channel. |
 | Shown / More | — | The cameras, in order. A generated screen’s Cameras page shows the same ones. |
 

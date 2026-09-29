@@ -1,41 +1,9 @@
 {
-  "config": {
-    "step": {
-      "music": {
-        "title": "Music",
-        "description": "Whole-home music through Music Assistant: the speakers each room plays on, sync-group presets, and playlist pills, for the Play Music page and for automations. It starts empty: choose the speakers in Configure, then add presets and playlists with the + buttons."
-      }
-    }
-  },
-  "options": {
-    "step": {
-      "music_options": {
-        "title": "Speakers and volume",
-        "description": "The rooms the Play Music page offers, and the volume every room is set to when a playlist starts. Room names and floors come from each speaker’s area.",
-        "data": {
-          "speakers": "Speakers (rooms)",
-          "volume": "House playlist volume"
-        },
-        "data_description": {
-          "speakers": "Music Assistant players, one per room. Sync groups are added as presets, not here.",
-          "volume": "Every room a playlist plays in is set to this."
-        }
-      },
-      "music_homes": {
-        "title": "Each tablet’s room",
-        "description": "Each wall tablet signs in as its own user. The room picked here is what its Play Music page shows when nothing else is chosen, and wins when music plays in more than one place."
-      }
-    },
-    "error": {
-      "music_no_speakers": "Pick at least one speaker.",
-      "music_group_is_room": "A sync group can’t also be a room. Add it as a preset instead."
-    }
-  },
   "config_subentries": {
     "preset": {
       "entry_type": "Preset",
       "initiate_flow": {
-        "user": "Add preset"
+        "user": "Add music preset"
       },
       "step": {
         "user": {
@@ -64,13 +32,14 @@
         "group_is_room": "Pick the sync group player, not a room."
       },
       "abort": {
-        "reconfigure_successful": "Saved."
+        "reconfigure_successful": "Saved.",
+        "music_not_added": "Add Music first: Add feature → Music."
       }
     },
     "playlist": {
       "entry_type": "Playlist",
       "initiate_flow": {
-        "user": "Add playlist"
+        "user": "Add music playlist"
       },
       "step": {
         "user": {
@@ -110,7 +79,36 @@
         "not_in_library": "That playlist isn’t in the Music Assistant library. Pick one from the list, or add it to your library first."
       },
       "abort": {
-        "reconfigure_successful": "Saved."
+        "reconfigure_successful": "Saved.",
+        "music_not_added": "Add Music first: Add feature → Music."
+      }
+    },
+    "feature": {
+      "step": {
+        "music": {
+          "title": "Music",
+          "description": "Whole-home music through Music Assistant: the speakers each room plays on, sync-group presets, and playlist pills, for the Play Music page and for automations. It starts empty: choose the speakers with its gear (or in HK Settings), then add presets and playlists with Add music preset and Add music playlist."
+        },
+        "music_options": {
+          "title": "Speakers and volume",
+          "description": "The rooms the Play Music page offers, and the volume every room is set to when a playlist starts. Room names and floors come from each speaker’s area.",
+          "data": {
+            "speakers": "Speakers (rooms)",
+            "volume": "House playlist volume"
+          },
+          "data_description": {
+            "speakers": "Music Assistant players, one per room. Sync groups are added as presets, not here.",
+            "volume": "Every room a playlist plays in is set to this."
+          }
+        },
+        "music_homes": {
+          "title": "Each tablet’s room",
+          "description": "Each wall tablet signs in as its own user. The room picked here is what its Play Music page shows when nothing else is chosen, and wins when music plays in more than one place."
+        }
+      },
+      "error": {
+        "music_no_speakers": "Pick at least one speaker.",
+        "music_group_is_room": "A sync group can’t also be a room. Add it as a preset instead."
       }
     }
   },

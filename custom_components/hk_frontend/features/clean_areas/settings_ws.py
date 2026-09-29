@@ -26,7 +26,6 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
@@ -35,7 +34,7 @@ from homeassistant.helpers import floor_registry as fr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 
 from . import clean
-from .. import CLEAN_AREAS, entries
+from .. import CLEAN_AREAS, Feature, async_update, entries
 from .const import CONF_AREAS, CONF_VACUUMS, SIGNAL_CHANGED
 
 MSG = {
@@ -46,7 +45,7 @@ MSG = {
 }
 
 
-def _entry(hass: HomeAssistant) -> ConfigEntry | None:
+def _entry(hass: HomeAssistant) -> Feature | None:
     return next(iter(entries(hass, CLEAN_AREAS)), None)
 
 
@@ -69,7 +68,7 @@ def _areas(hass: HomeAssistant) -> dict[str, dict[str, Any]]:
     return out
 
 
-def page(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+def page(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
     opts = entry.options
     cov = clean.coverage(hass, opts)
     areas = _areas(hass)
@@ -134,7 +133,7 @@ def ws_settings_set(hass: HomeAssistant, connection, msg: dict[str, Any]) -> Non
         connection.send_error(msg["id"], "invalid_format", json.dumps(errors))
         return
     if options != dict(entry.options):
-        hass.config_entries.async_update_entry(entry, options=options)
+        async_update(hass, entry, options=options)
         async_dispatcher_send(hass, SIGNAL_CHANGED)
     connection.send_result(msg["id"], page(hass, entry))
 

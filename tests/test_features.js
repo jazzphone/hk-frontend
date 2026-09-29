@@ -22,7 +22,7 @@ ok('states: added / installed but not added / missing',
    F.stateOf(feats, 'hk_tv') === 'added' && F.stateOf(feats, 'hk_clean_areas') === 'not_added' &&
    F.stateOf(feats, 'hk_alarm_pin') === 'missing' && F.stateOf(undefined, 'hk_tv') === 'missing');
 ok('Add is HK Frontend’s own Add feature (every feature is one of its entries)',
-   F.addHref('hk_tv') === '/_my_redirect/config_flow_start?domain=hk_frontend' &&
+   F.addHref('hk_tv') === '/config/integrations/integration/hk_frontend' &&
    F.integrationHref('hk_tv') === '/config/integrations/integration/hk_frontend');
 
 // ------------------------------------------------------------ live tv

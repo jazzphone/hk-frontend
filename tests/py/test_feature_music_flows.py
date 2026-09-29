@@ -1,5 +1,6 @@
-"""Music, a feature of HK Frontend: adding it, Configure, presets and
-playlists -- and what a screen is handed over the websocket as a result."""
+"""Music, a feature of HK Frontend: adding it (an item of the house's
+entry), its gear, presets and playlists (items of the house's entry too) --
+and what a screen is handed over the websocket as a result."""
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from homeassistant import config_entries
 from homeassistant.helpers import area_registry as ar, floor_registry as fr
 from homeassistant.helpers import entity_registry as er
 
-from conftest import DOMAIN, FakeConnection, add_feature, feature_entries
+from conftest import DOMAIN, FakeConnection, add_feature, entry, feature_entries, feature_gear, update_feature
 from music_sample_house import DOWNG, EVERY, K, LOFT, OFF, ROOMS, music_entry
 from music_sample_house import house, music  # noqa: F401 -- the fixtures
 
@@ -46,47 +47,60 @@ async def test_the_sample_house_is_what_the_tests_run_on(hass, music):
 
 async def test_only_one_per_house(hass, music):
     """Once added, the feature menu no longer offers it."""
-    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    flows = hass.config_entries.subentries
+    r = await flows.async_init((entry(hass).entry_id, "feature"), context={"source": "user"})
     assert r["type"] == "menu" and "music" not in r["menu_options"]
     assert "clean_areas" in r["menu_options"]
+    flows.async_abort(r["flow_id"])
 
 
 async def test_setup_starts_empty_and_assumes_no_house(hass, frontend, house):
     """Adding it asks nothing and imports nothing: no speakers, no presets,
     no playlists, no home rooms."""
     await hass.auth.async_create_user("kitchen")
-    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    flows = hass.config_entries.subentries
+    r = await flows.async_init((frontend.entry_id, "feature"), context={"source": "user"})
     assert r["type"] == "menu" and "music" in r["menu_options"]
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"next_step_id": "music"})
+    r = await flows.async_configure(r["flow_id"], {"next_step_id": "music"})
     assert r["type"] == "form" and r["step_id"] == "music" and not r["data_schema"].schema
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {})
+    r = await flows.async_configure(r["flow_id"], {})
     assert r["type"] == "create_entry" and r["title"] == "Music"
     await hass.async_block_till_done()
     e = music_entry(hass)
     assert e.options == {"speakers": [], "volume": 0.35, "homes": {}}
-    assert e.unique_id == "music"
-    assert not e.subentries
+    assert e.unique_id == "feature:music" and e.loaded
+    assert not e.subentries, "no presets, no playlists"
     assert ACTIONS <= set(hass.services.async_services_for_domain(DOMAIN))
 
 
 async def music_page(hass, e):
-    """Configure: opens on the speakers page."""
-    r = await hass.config_entries.options.async_init(e.entry_id)
+    """Its gear: opens on the speakers page."""
+    r = await feature_gear(hass, e)
     assert r["type"] == "form" and r["step_id"] == "music_options"
     return r
 
 
+async def submit(hass, r, user_input):
+    """The next page of a gear or an item's form."""
+    r = await hass.config_entries.subentries.async_configure(r["flow_id"], user_input)
+    await hass.async_block_till_done()
+    return r
+
+
+def saved(r):
+    return r["type"] == "abort" and r["reason"] == "reconfigure_successful"
+
+
 # ---------------------------------------------------------------- options
-async def test_configure_speakers_volume_and_homes(hass, music):
+async def test_its_gear_sets_speakers_volume_and_homes(hass, music):
     user = await hass.auth.async_create_user("kitchen")
     e = music_entry(hass)
     r = await music_page(hass, e)
-    r = await hass.config_entries.options.async_configure(
-        r["flow_id"], {"speakers": [K, OFF, LOFT], "volume": 20})
+    r = await submit(hass, r, {"speakers": [K, OFF, LOFT], "volume": 20})
     assert r["step_id"] == "music_homes"
     assert "kitchen" in r["data_schema"].schema
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {"kitchen": OFF})
-    assert r["type"] == "create_entry"
+    r = await submit(hass, r, {"kitchen": OFF})
+    assert saved(r)
     assert e.options["speakers"] == [K, OFF, LOFT]
     assert e.options["volume"] == 0.2
     assert e.options["homes"] == {user.id: OFF}
@@ -94,42 +108,48 @@ async def test_configure_speakers_volume_and_homes(hass, music):
     assert music.config.room_ids == [K, OFF, LOFT]
 
 
-async def test_configure_refuses_nonsense(hass, music):
+async def test_its_gear_refuses_nonsense(hass, music):
     from homeassistant.data_entry_flow import InvalidData
     e = music_entry(hass)
     r = await music_page(hass, e)
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {"speakers": [], "volume": 35})
-    # the options flows share one error table: Music's codes carry its prefix
+    r = await submit(hass, r, {"speakers": [], "volume": 35})
+    # the feature item's flows share one error table: Music's codes carry its prefix
     assert r["errors"] == {"speakers": "music_no_speakers"}
     # A preset's sync group is not even OFFERED as a room: the picker excludes
     # it, so HA's own schema refuses it before this flow's check is reached.
     with pytest.raises(InvalidData):
-        await hass.config_entries.options.async_configure(
-            r["flow_id"], {"speakers": [K, DOWNG], "volume": 35})
+        await submit(hass, r, {"speakers": [K, DOWNG], "volume": 35})
 
 
-async def test_configure_keeps_what_it_does_not_show(hass, music):
+async def test_its_gear_keeps_what_it_does_not_show(hass, music):
     e = music_entry(hass)
-    hass.config_entries.async_update_entry(e, options={**e.options, "future": 1})
+    update_feature(hass, e, options={**e.options, "future": 1})
+    await hass.async_block_till_done()
     r = await music_page(hass, e)
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {"speakers": [OFF], "volume": 35})
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {})
-    assert r["type"] == "create_entry" and e.options["future"] == 1
+    r = await submit(hass, r, {"speakers": [OFF], "volume": 35})
+    r = await submit(hass, r, {})
+    assert saved(r) and e.options["future"] == 1 and e.options["speakers"] == [OFF]
 
 
 async def test_a_home_room_must_be_one_of_the_speakers(hass, music):
-    await hass.auth.async_create_user("kitchen")
+    """A room that is no longer a speaker is neither offered nor kept."""
+    from homeassistant.data_entry_flow import InvalidData
+    user = await hass.auth.async_create_user("kitchen")
     e = music_entry(hass)
+    update_feature(hass, e, options={**e.options, "homes": {user.id: K}})
+    await hass.async_block_till_done()
     r = await music_page(hass, e)
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {"speakers": [OFF], "volume": 35})
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {"kitchen": "none"})
-    assert e.options["homes"] == {}
+    r = await submit(hass, r, {"speakers": [OFF], "volume": 35})
+    with pytest.raises(InvalidData):
+        await submit(hass, r, {"kitchen": K})
+    r = await submit(hass, r, {})
+    assert saved(r) and e.options["homes"] == {}
 
 
 # ---------------------------------------------------------------- presets
 async def test_add_and_edit_a_preset(hass, music):
     e = music_entry(hass)
-    r = await hass.config_entries.subentries.async_init((e.entry_id, "preset"),
+    r = await hass.config_entries.subentries.async_init((e.house.entry_id, "preset"),
                                                         context={"source": "user"})
     assert r["step_id"] == "user"
     r = await hass.config_entries.subentries.async_configure(
@@ -138,8 +158,9 @@ async def test_add_and_edit_a_preset(hass, music):
     assert r["type"] == "create_entry"
     assert [p.name for p in music.config.presets][-1] == "Upstairs"
     sub = next(s for s in e.subentries.values() if s.title == "Upstairs")
+    assert sub.subentry_type == "preset" and sub.subentry_id in entry(hass).subentries, "an item of the house"
     r = await hass.config_entries.subentries.async_init(
-        (e.entry_id, "preset"), context={"source": "reconfigure", "subentry_id": sub.subentry_id})
+        (e.house.entry_id, "preset"), context={"source": "reconfigure", "subentry_id": sub.subentry_id})
     r = await hass.config_entries.subentries.async_configure(
         r["flow_id"], {"name": "Top Floor", "group": "media_player.upstairs_group",
                        "members": [OFF, LOFT]})
@@ -150,7 +171,7 @@ async def test_add_and_edit_a_preset(hass, music):
 async def test_preset_validation(hass, music):
     from homeassistant.data_entry_flow import InvalidData
     e = music_entry(hass)
-    r = await hass.config_entries.subentries.async_init((e.entry_id, "preset"),
+    r = await hass.config_entries.subentries.async_init((e.house.entry_id, "preset"),
                                                         context={"source": "user"})
     r = await hass.config_entries.subentries.async_configure(
         r["flow_id"], {"name": "X", "group": "media_player.g", "members": []})
@@ -166,17 +187,34 @@ async def test_preset_validation(hass, music):
 
 
 async def test_its_items_are_presets_and_playlists_only(hass, music, frontend):
-    from homeassistant.config_entries import HANDLERS
-    flow = HANDLERS[DOMAIN]
-    assert set(flow.async_get_supported_subentry_types(music_entry(hass))) == {"preset", "playlist"}
-    assert "preset" not in flow.async_get_supported_subentry_types(frontend)
+    """Its presets and playlists are items of the house's entry; what Music
+    reads as its own are those and nothing else of the house's (not its own
+    item, not a dashboard's)."""
+    e = music_entry(hass)
+    assert e.entry_id in frontend.subentries and frontend.subentries[e.entry_id].subentry_type == "feature"
+    assert {s.subentry_type for s in e.subentries.values()} == {"preset", "playlist"}
+    assert set(e.subentries) == {k for k, s in frontend.subentries.items() if s.subentry_type in ("preset", "playlist")}
+
+
+async def test_presets_and_playlists_wait_for_music(hass, frontend, house):
+    """Add preset and Add playlist say Music is not added; once it is, they
+    are the forms."""
+    flows = hass.config_entries.subentries
+    for kind in ("preset", "playlist"):
+        r = await flows.async_init((frontend.entry_id, kind), context={"source": "user"})
+        assert r["type"] == "abort" and r["reason"] == "music_not_added", kind
+    await add_feature(hass, "music", {})
+    for kind in ("preset", "playlist"):
+        r = await flows.async_init((frontend.entry_id, kind), context={"source": "user"})
+        assert r["type"] == "form" and r["step_id"] == "user", kind
+        flows.async_abort(r["flow_id"])
 
 
 # -------------------------------------------------------------- playlists
 async def test_add_a_playlist_from_the_library(hass, music, house):
     e = music_entry(hass)
     with with_library(hass):
-        r = await hass.config_entries.subentries.async_init((e.entry_id, "playlist"),
+        r = await hass.config_entries.subentries.async_init((e.house.entry_id, "playlist"),
                                                             context={"source": "user"})
     options = r["data_schema"].schema["items"].config["options"]
     assert {"value": "library://playlist/124", "label": "Country Hits"} in options
@@ -192,7 +230,7 @@ async def test_add_a_playlist_from_the_library(hass, music, house):
 
 async def test_a_playlist_needs_a_name_and_an_item(hass, music):
     e = music_entry(hass)
-    r = await hass.config_entries.subentries.async_init((e.entry_id, "playlist"),
+    r = await hass.config_entries.subentries.async_init((e.house.entry_id, "playlist"),
                                                         context={"source": "user"})
     r = await hass.config_entries.subentries.async_configure(r["flow_id"], {"name": "", "items": ["x"]})
     assert r["errors"] == {"name": "no_name"}
@@ -202,7 +240,7 @@ async def test_a_playlist_needs_a_name_and_an_item(hass, music):
 
 async def test_a_new_playlist_is_playable_at_once(hass, music, house):
     e = music_entry(hass)
-    r = await hass.config_entries.subentries.async_init((e.entry_id, "playlist"),
+    r = await hass.config_entries.subentries.async_init((e.house.entry_id, "playlist"),
                                                         context={"source": "user"})
     await hass.config_entries.subentries.async_configure(
         r["flow_id"], {"name": "Fresh", "items": ["library://playlist/999"], "order": 1})
@@ -214,7 +252,7 @@ async def test_a_new_playlist_is_playable_at_once(hass, music, house):
 async def test_a_playlist_link_the_library_lacks_is_refused(hass, music, house):
     e = music_entry(hass)
     with with_library(hass):
-        r = await hass.config_entries.subentries.async_init((e.entry_id, "playlist"),
+        r = await hass.config_entries.subentries.async_init((e.house.entry_id, "playlist"),
                                                             context={"source": "user"})
         r = await hass.config_entries.subentries.async_configure(
             r["flow_id"], {"name": "Dead", "items": ["library://playlist/999999"], "order": 1})
@@ -243,8 +281,7 @@ async def test_screens_get_floors_names_choosers_and_their_own_home(hass, music,
     from custom_components.hk_frontend.features.music import ws_music_subscribe
     kitchen_user = await hass.auth.async_create_user("kitchen")
     e = music_entry(hass)
-    hass.config_entries.async_update_entry(
-        e, options={**e.options, "homes": {kitchen_user.id: K}})
+    update_feature(hass, e, options={**e.options, "homes": {kitchen_user.id: K}})
     await hass.async_block_till_done()
     conn = FakeConnection(kitchen_user)
     ws_music_subscribe(hass, conn, {"id": 1, "type": "hk_music/subscribe"})
@@ -265,15 +302,14 @@ async def test_screens_get_floors_names_choosers_and_their_own_home(hass, music,
     # a change reaches the screen without a reload
     before = len(conn.sent)
     r = await music_page(hass, e)
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {"speakers": ROOMS, "volume": 10})
-    await hass.config_entries.options.async_configure(r["flow_id"], {})
-    await hass.async_block_till_done()
+    r = await submit(hass, r, {"speakers": ROOMS, "volume": 10})
+    assert saved(await submit(hass, r, {}))
     assert len(conn.sent) > before
     assert conn.sent[-1]["event"]["volume"] == 0.1
     # and closing the subscription stops the messages
     conn.subscriptions[1]()
     n = len(conn.sent)
-    hass.config_entries.async_update_entry(e, options={**e.options, "volume": 0.3})
+    update_feature(hass, e, options={**e.options, "volume": 0.3})
     await hass.async_block_till_done()
     assert len(conn.sent) == n
 
@@ -331,7 +367,7 @@ async def test_the_feed_says_not_configured_before_it_is_added(hass, frontend):
     assert conn.sent[-1]["event"] == {"configured": False}
     r = await add_feature(hass, "music", {})
     assert r["type"] == "create_entry"
-    assert conn.sent[-1]["event"]["configured"] is True, "told once the entry is loaded"
+    assert conn.sent[-1]["event"]["configured"] is True, "told once it is running"
 
 
 async def test_two_users_with_one_name_keep_their_own_rooms(hass, music):
@@ -341,21 +377,23 @@ async def test_two_users_with_one_name_keep_their_own_rooms(hass, music):
     b = await hass.auth.async_create_user("Tablet")
     e = music_entry(hass)
     r = await music_page(hass, e)
-    r = await hass.config_entries.options.async_configure(
-        r["flow_id"], {"speakers": [OFF, K], "volume": 35})
+    r = await submit(hass, r, {"speakers": [OFF, K], "volume": 35})
     keys = [str(k) for k in r["data_schema"].schema]
     ka = next(k for k in keys if a.id[:6] in k)
     kb = next(k for k in keys if b.id[:6] in k)
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {ka: OFF, kb: K})
-    assert r["type"] == "create_entry"
+    r = await submit(hass, r, {ka: OFF, kb: K})
+    assert saved(r)
     assert e.options["homes"][a.id] == OFF and e.options["homes"][b.id] == K
 
 
 async def test_diagnostics(hass, music):
+    """The house's diagnostics carry each feature's own export."""
     from custom_components.hk_frontend.diagnostics import (
         async_get_config_entry_diagnostics,
     )
-    d = await async_get_config_entry_diagnostics(hass, music_entry(hass))
+    e = music_entry(hass)
+    d = (await async_get_config_entry_diagnostics(hass, entry(hass)))["features"][f"Music ({e.entry_id})"]
     assert d["kind"] == "music" and d["options"]["speakers"] == ROOMS
     assert len(d["subentries"]) == 13
     assert d["resolved"]["configured"] is True and d["resolved"]["volume"] == 0.35
+    assert d["running"] is True

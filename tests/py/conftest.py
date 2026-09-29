@@ -2,13 +2,14 @@
 
 Run with tests/py/run (it builds the venv on first use). Music, Live TV,
 Clean Areas and Alarm PIN are features of this integration (features/), each
-its own entry; their tests are test_feature_*.py.
+an item of the house's entry; their tests are test_feature_*.py.
 """
 from __future__ import annotations
 
 import os
 import sys
 import tempfile
+import types
 
 import pytest
 
@@ -32,6 +33,17 @@ os.symlink(COMPONENT, os.path.join(_ROOT, "custom_components", "hk_frontend"))
 sys.path.insert(0, _ROOT)
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
+
+# Home Assistant's camera component imports PyTurboJPEG (only to scale
+# stills), which the test venv does not have. The house's entry sets up the
+# camera platform for Live TV's channels whether or not Live TV is added, so
+# a stand-in lets it load in every test. No test asks for a scaled image.
+try:
+    import turbojpeg  # noqa: F401
+except ImportError:
+    _stub = types.ModuleType("turbojpeg")
+    _stub.TurboJPEG = object
+    sys.modules["turbojpeg"] = _stub
 
 DOMAIN = "hk_frontend"
 
@@ -75,27 +87,102 @@ async def frontend(hass: HomeAssistant, base):
 
 
 def entry(hass):
-    """The house's entry (not a feature's)."""
+    """The house's entry -- the only one."""
     return next(e for e in hass.config_entries.async_entries(DOMAIN) if not e.data.get("kind"))
 
 
 async def add_feature(hass, kind: str, user_input: dict | None = None, *more_steps: dict):
-    """Add a feature the way a user does: Add feature -> the feature's menu
-    item -> its form(s). Returns the flow's last result."""
+    """Add a feature the way a user does: Add feature (an item of the house's
+    entry) -> the feature's menu item -> its form(s). Returns the flow's last
+    result."""
     from homeassistant import config_entries
-    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
-    assert r["type"] == "menu" and r["step_id"] == "feature", r
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"next_step_id": kind})
+    flows = hass.config_entries.subentries
+    r = await flows.async_init((entry(hass).entry_id, "feature"), context={"source": config_entries.SOURCE_USER})
+    assert r["type"] == "menu" and r["step_id"] == "user", r
+    r = await flows.async_configure(r["flow_id"], {"next_step_id": kind})
     for step in (user_input, *more_steps):
         if r["type"] != "form":
             break
-        r = await hass.config_entries.flow.async_configure(r["flow_id"], step or {})
+        r = await flows.async_configure(r["flow_id"], step or {})
+    await hass.async_block_till_done()
+    return r
+
+
+async def feature_gear(hass, feat, *steps: dict):
+    """A feature's gear (its item's reconfigure), then each of `steps`.
+    Returns the last result."""
+    from homeassistant import config_entries
+    flows = hass.config_entries.subentries
+    r = await flows.async_init((entry(hass).entry_id, "feature"), context={
+        "source": config_entries.SOURCE_RECONFIGURE, "subentry_id": feat.entry_id})
+    for step in steps:
+        if r["type"] != "form":
+            break
+        r = await flows.async_configure(r["flow_id"], step)
     await hass.async_block_till_done()
     return r
 
 
 def feature_entries(hass, kind: str):
-    return [e for e in hass.config_entries.async_entries(DOMAIN) if e.data.get("kind") == kind]
+    """The added features of one kind (features/ Feature: the running one
+    when it runs)."""
+    from custom_components.hk_frontend import features as F
+    return F.entries(hass, kind)
+
+
+def update_feature(hass, feat, **changes):
+    """Write a feature's data/options the way its settings page does."""
+    from custom_components.hk_frontend import features as F
+    return F.async_update(hass, feat, **changes)
+
+
+def feature_item(kind: str, data: dict | None = None, options: dict | None = None, *,
+                 title: str | None = None, key: str = "", subentry_id: str | None = None) -> dict:
+    """A feature item as Add feature stores it, in a MockConfigEntry's
+    subentries_data shape."""
+    from custom_components.hk_frontend import features as F
+    item = {"subentry_type": F.SUBENTRY_FEATURE, "data": F.item_data(kind, data, options),
+            "title": title or F.TITLES[kind], "unique_id": F.unique_id(kind, key)}
+    if subentry_id:
+        item["subentry_id"] = subentry_id
+    return item
+
+
+async def put_feature(hass, kind: str, data: dict | None = None, options: dict | None = None, **kw):
+    """A feature item written straight into the house's entry, as a
+    restore would, with no flow. A loaded house starts it (its update
+    listener). Returns the feature."""
+    from types import MappingProxyType
+
+    from homeassistant.config_entries import ConfigSubentry
+
+    from custom_components.hk_frontend import features as F
+    item = feature_item(kind, data, options, **kw)
+    sub = ConfigSubentry(subentry_type=item["subentry_type"], data=MappingProxyType(item["data"]),
+                         title=item["title"], unique_id=item["unique_id"],
+                         **({"subentry_id": item["subentry_id"]} if "subentry_id" in item else {}))
+    hass.config_entries.async_add_subentry(entry(hass), sub)
+    await hass.async_block_till_done()
+    return F.item(hass, sub.subentry_id)
+
+
+def house_entry(*items: dict, **kw):
+    """The house's entry as storage holds it, not yet set up (a
+    MockConfigEntry to add before the integration starts), with `items`."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    kw = {"title": "HK Frontend", "unique_id": DOMAIN, "version": 1, "minor_version": 7,
+          "data": {}, "options": {}, **kw}
+    return MockConfigEntry(domain=DOMAIN, subentries_data=list(items), **kw)
+
+
+def pre_release_entry(kind: str, data: dict | None = None, options: dict | None = None, **kw):
+    """A feature as a pre-release of 1.0 kept it: an entry of its own
+    (features.async_fold folds it into the house's at start)."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.hk_frontend import features as F
+    kw.setdefault("title", F.TITLES[kind])
+    return MockConfigEntry(domain=DOMAIN, data={"kind": kind, **(data or {})}, options=options or {}, **kw)
 
 
 class FakeConnection:

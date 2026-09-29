@@ -3,11 +3,11 @@
 One action, `hk_frontend.clean_areas` (areas, dry_run): each vacuum gets the
 chosen areas on its own room map in Home Assistant (clean.py). Used by the
 vacuum area picker on the dashboards, and just as usable from an automation
-or a voice sentence. One entry per house: Configure picks which vacuums take
-part and which areas the picker offers.
+or a voice sentence. One per house: its gear picks which vacuums take part
+and which areas the picker offers.
 
-The action is registered at start, not per entry, so a call made while the
-feature is not added gets a clear error rather than "unknown action".
+The action is registered at start, not when the feature is added, so a call
+made while it is not added gets a clear error rather than "unknown action".
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import SubentryFlowResult
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import homeassistant.helpers.config_validation as cv
@@ -23,11 +23,12 @@ from homeassistant.helpers import selector as sel
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from ...const import DOMAIN
-from .. import CLEAN_AREAS, TITLES, entry_data, legacy, loaded, unique_id
+from .. import CLEAN_AREAS, TITLES, Feature, entries, item_data, loaded, unique_id
 from . import clean, settings_ws
 from .const import CONF_AREAS, CONF_VACUUMS, SERVICE_CLEAN, SIGNAL_CHANGED
 
 PLATFORMS: list = []
+RELOAD = False          # nothing to rebuild: the options are read on every call
 
 
 async def async_setup(hass: HomeAssistant) -> None:
@@ -51,20 +52,19 @@ async def async_setup(hass: HomeAssistant) -> None:
     settings_ws.async_register(hass)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    await legacy.async_adopt(hass, entry)
-    # the options are read on every call; nothing to hold. A change made in
-    # Configure tells the open pickers, as the settings page's own does.
-    entry.async_on_unload(entry.add_update_listener(_changed))
+async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
+    # the options are read on every call; nothing to hold
     async_dispatcher_send(hass, SIGNAL_CHANGED)
     return True
 
 
-async def _changed(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_changed(hass: HomeAssistant, entry: Feature) -> None:
+    """A change made in its gear tells the open pickers, as the settings
+    page's own does."""
     async_dispatcher_send(hass, SIGNAL_CHANGED)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: Feature) -> bool:
     async_dispatcher_send(hass, SIGNAL_CHANGED)
     return True
 
@@ -77,51 +77,33 @@ def _schema(areas: bool = False) -> vol.Schema:
     return vol.Schema(fields)
 
 
-class FlowSteps:
+class AddSteps:
     """Add feature -> Clean Areas: which vacuums take part."""
 
-    async def async_step_clean_areas(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        await self.async_set_unique_id(unique_id(CLEAN_AREAS))
-        self._abort_if_unique_id_configured()
+    async def async_step_clean_areas(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        if entries(self.hass, CLEAN_AREAS):
+            return self.async_abort(reason="already_configured")
         if user_input is not None:
             return self.async_create_entry(
-                title=TITLES[CLEAN_AREAS], data=entry_data(CLEAN_AREAS),
-                options={CONF_VACUUMS: list(user_input.get(CONF_VACUUMS) or [])})
+                title=TITLES[CLEAN_AREAS], unique_id=unique_id(CLEAN_AREAS),
+                data=item_data(CLEAN_AREAS, options={CONF_VACUUMS: list(user_input.get(CONF_VACUUMS) or [])}))
         return self.async_show_form(step_id="clean_areas", data_schema=_schema())
 
-    async def async_import_clean_areas(self, data: dict[str, Any]) -> ConfigFlowResult:
-        """An older version's Clean Areas entry (legacy.py)."""
-        await self.async_set_unique_id(unique_id(CLEAN_AREAS))
-        self._abort_if_unique_id_configured()
-        old = data[legacy.IMPORT]
-        return self.async_create_entry(
-            title=TITLES[CLEAN_AREAS], data=legacy.created(CLEAN_AREAS, data), options=dict(old["options"]))
 
-
-class CleanAreasOptions(OptionsFlow):
-    """Which vacuums take part, and which areas the picker offers. Every
-    option is written back, so saving the vacuums keeps everything else."""
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return await self.async_step_clean_areas_options(user_input)
+class ReconfigureSteps:
+    """Its gear: which vacuums take part, and which areas the picker offers.
+    Every option is written back, so saving the vacuums keeps everything
+    else."""
 
     async def async_step_clean_areas_options(self, user_input: dict[str, Any] | None = None
-                                             ) -> ConfigFlowResult:
-        opts = self.config_entry.options
+                                             ) -> SubentryFlowResult:
+        opts = self._feature.options
         if user_input is not None:
-            return self.async_create_entry(data={
+            return self.async_save_feature(options={
                 **opts, CONF_VACUUMS: list(user_input.get(CONF_VACUUMS) or []),
                 CONF_AREAS: list(user_input.get(CONF_AREAS) or [])})
         return self.async_show_form(
             step_id="clean_areas_options", data_schema=self.add_suggested_values_to_schema(
                 _schema(areas=True), {CONF_VACUUMS: list(opts.get(CONF_VACUUMS) or []),
                                       CONF_AREAS: list(opts.get(CONF_AREAS) or [])}))
-
-
-def options_flow(entry: ConfigEntry) -> OptionsFlow:
-    return CleanAreasOptions()
-
-
-def subentry_types(entry: ConfigEntry) -> dict:
-    return {}
 

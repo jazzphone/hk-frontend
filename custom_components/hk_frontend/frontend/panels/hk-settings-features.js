@@ -47,11 +47,10 @@
     if (!f || !f.installed) return 'missing';
     return f.entries && f.entries.length ? 'added' : 'not_added';
   }
-  // Home Assistant's own "add an entry" link for HK Frontend (any house, any
-  // version since My Home Assistant's redirects): every feature is an entry
-  // of HK Frontend, Add feature offers the features the house has not added,
-  // and the integration's page lists each one's entry
-  function addHref() { return '/_my_redirect/config_flow_start?domain=hk_frontend'; }
+  // Every feature is an item of HK Frontend's one entry, added with Add
+  // feature on the integration's page (which offers the features the house
+  // has not added); the same page lists each one, with its gear
+  function addHref() { return '/config/integrations/integration/hk_frontend'; }
   function integrationHref() { return '/config/integrations/integration/hk_frontend'; }
 
   // LIVE TV: the channels as the list editor shows them. Shown: the saved
@@ -190,7 +189,8 @@
   // not added yet: what it does and the way to add it
   function notAdded(c, name, what, domain) {
     c.appendChild(K.group({ footer: what }, [
-      K.nav({ label: 'Add ' + name, href: addHref(domain), icon: 'mdi:plus-circle-outline', fk: 'feat:add:' + domain })]));
+      K.nav({ label: 'Add ' + name, sub: 'Devices & Services → HK Frontend → Add feature', href: addHref(domain),
+              icon: 'mdi:plus-circle-outline', fk: 'feat:add:' + domain })]));
   }
   function openIn(c, name, domain, sub) {
     c.appendChild(K.group({}, [K.nav({ label: name, sub: sub || 'In Devices & Services', href: integrationHref(domain),

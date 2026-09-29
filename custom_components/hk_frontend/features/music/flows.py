@@ -1,13 +1,14 @@
 """Music's items and the checks its forms share.
 
-Settings -> Devices & services -> HK Frontend -> Music:
-  * + ADD PRESET          a Music Assistant sync group and its rooms;
-  * + ADD PLAYLIST        a pill: a name, an icon, one or more library
+Settings -> Devices & services -> HK Frontend (items of the house's entry,
+once Music is added):
+  * ADD MUSIC PRESET      a Music Assistant sync group and its rooms;
+  * ADD MUSIC PLAYLIST    a pill: a name, an icon, one or more library
                           playlists played as one queue, optionally sitting
                           behind a CHOOSER pill with others (one Decades pill
                           for six decade playlists).
 
-The checks here are Configure's, these forms' and the HK Settings page's
+The checks here are Music's gear's, these forms' and the HK Settings page's
 (settings_ws.py): one set of rules, whichever way a house edits its music.
 Room names and floors are not asked for: they come from each speaker's area
 and that area's floor, so renaming an area renames its pill.
@@ -108,10 +109,17 @@ def name_of(hass, entity: str) -> str:
 
 
 class _Sub(ConfigSubentryFlow):
-    """Add and edit share one form; `reconfigure` pre-fills it."""
+    """Add and edit share one form; `reconfigure` pre-fills it. An item of
+    the house's entry, read against the Music feature's speakers."""
+
+    def _music(self):
+        from .. import MUSIC, entries
+        return next(iter(entries(self.hass, MUSIC)), None)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> SubentryFlowResult:
+        if self._music() is None:
+            return self.async_abort(reason="music_not_added")
         return await self._form("user", user_input, None)
 
     async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None
@@ -119,7 +127,8 @@ class _Sub(ConfigSubentryFlow):
         return await self._form("reconfigure", user_input, self._get_reconfigure_subentry())
 
     def _rooms(self) -> list[str]:
-        return list(self._get_entry().options.get(CONF_SPEAKERS) or [])
+        music = self._music()
+        return list(music.options.get(CONF_SPEAKERS) or []) if music else []
 
     def _finish(self, sub, title: str, data: dict[str, Any]) -> SubentryFlowResult:
         if sub is None:

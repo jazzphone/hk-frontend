@@ -477,6 +477,76 @@
     return out;
   }
 
+  // LIVE CAMERA FOLLOWS (a screen's Cameras): a dropdown helper whose option
+  // names the camera the strip plays live. An option names a camera when it
+  // is the camera's name or the start of it (hk-cameras.js _optionOf: "Deck"
+  // is "Deck Low resolution channel"). For each camera: the option to give
+  // it -- its device's name, which its entities' names start with, else its
+  // own name -- and the sensor on the same device to follow, a person sensor
+  // before a motion one. With a dropdown already chosen (`have`: its
+  // options), a camera keeps the option the dropdown has for it (the longest
+  // that names it, as the strip picks); one it has none for is `missing`.
+  //   cams     [{entity, name, device, deviceName}]
+  //   sensors  [{entity, device, kind: 'person' | 'motion'}]
+  function liveNames(option, names) {
+    var t = String(option || '').toLowerCase();
+    return !!t && names.some(function (n) {
+      n = String(n || '').toLowerCase();
+      return n === t || n.indexOf(t + ' ') === 0;
+    });
+  }
+  function livePlan(cams, sensors, have) {
+    var taken = {};
+    return (cams || []).map(function (c) {
+      var name = String(c.name || c.entity);
+      var option = String(c.deviceName || '').trim();
+      if (!option || !liveNames(option, [name]) || taken[option.toLowerCase()]) option = name;
+      var missing = false;
+      if (have) {
+        var best = null;
+        have.forEach(function (o) {
+          if (liveNames(o, [name]) && (!best || String(o).length > best.length)) best = String(o);
+        });
+        if (best) option = best; else missing = true;
+      }
+      taken[option.toLowerCase()] = true;
+      var mine = (sensors || []).filter(function (s) { return c.device && s.device === c.device; });
+      var pick = mine.filter(function (s) { return s.kind === 'person'; })[0] ||
+                 mine.filter(function (s) { return s.kind === 'motion'; })[0] || null;
+      return { entity: c.entity, name: name, option: option, sensor: pick ? pick.entity : null, missing: missing };
+    });
+  }
+  // The automation, as YAML to paste into the automation editor: each
+  // camera's sensor turning on picks that camera; five quiet minutes on all
+  // of them go back to the first camera. Only cameras the dropdown has an
+  // option for (a missing one would fail). Null when no camera has a sensor.
+  // Every string is written as JSON, which YAML reads as a quoted string.
+  function liveYaml(plan, selector) {
+    var q = JSON.stringify;
+    var usable = (plan || []).filter(function (p) { return !p.missing; });
+    var withSensor = usable.filter(function (p) { return p.sensor; });
+    if (!withSensor.length) return null;
+    var domain = String(selector || '').split('.')[0] === 'select' ? 'select' : 'input_select';
+    var all = withSensor.map(function (p) { return p.sensor; });
+    var list = function (pad) { return all.map(function (s) { return pad + '- ' + s; }).join('\n'); };
+    var pickLines = function (pad, option) {
+      return [pad + '- action: ' + domain + '.select_option', pad + '  target:', pad + '    entity_id: ' + selector,
+              pad + '  data:', pad + '    option: ' + option].join('\n');
+    };
+    var out = ['alias: Live camera follows motion',
+      'description: ' + q('Plays the camera where a person or motion was just seen live on the camera strip, ' +
+                          'and the first camera again after five quiet minutes.'),
+      'mode: queued', 'triggers:'];
+    withSensor.forEach(function (p) {
+      out.push('  - trigger: state', '    entity_id: ' + p.sensor, '    to: "on"', '    id: ' + q(p.option));
+    });
+    out.push('  - trigger: state', '    entity_id:', list('      '), '    to: "off"', '    for:', '      minutes: 5',
+             '    id: all quiet', 'actions:', '  - if:', '      - condition: trigger', '        id: all quiet', '    then:',
+             '      - condition: state', '        entity_id:', list('          '), '        state: "off"',
+             pickLines('      ', q(usable[0].option)), '    else:', pickLines('      ', q('{{ trigger.id }}')));
+    return out.join('\n') + '\n';
+  }
+
   // A LIST'S REORDER: the Shown values after moving `from` to `to`
   function move(values, from, to) {
     var v = values.slice();
@@ -521,6 +591,7 @@
     ['Home Assistant Row', 'screen', 'ha_row', 'sidebar settings access', true],
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
     ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera', true],
+    ['Live Camera Follows', 'screen/cameras/live', 'camera_live', 'live camera follows motion person detection dropdown input select automation', true],
     ['Scenes', 'screen/scenes', 'scenes', 'scene pills row', true],
     ['Favorites', 'screen/favorites', 'favorites', 'favourites', true],
     ['Rooms', 'screen/rooms', 'room_order', 'room order home rooms on pages', true],
@@ -620,7 +691,8 @@
     roomsModel: roomsModel, roomsSave: roomsSave, roomsAuto: roomsAuto,
     MENU_FIXED: MENU_FIXED, MENU_PLACES: MENU_PLACES, menuPathOf: menuPathOf, menuItems: menuItems,
     topsOf: topsOf, placeOf: placeOf, placeSet: placeSet,
-    camerasModel: camerasModel, autoCameras: autoCameras, move: move,
+    camerasModel: camerasModel, autoCameras: autoCameras, livePlan: livePlan, liveYaml: liveYaml, liveNames: liveNames,
+    move: move,
     mmdd: mmdd, dateLabel: dateLabel, skyDate: skyDate, search: search
   };
 })();

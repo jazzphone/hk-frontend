@@ -7,13 +7,13 @@ availability, its features -- and arms or disarms it only with the right PIN.
 A wrong PIN is REFUSED with Home Assistant's own error, so every keypad (HA's
 alarm card, the app, voice, the HK keypad) says so, with no helper entities.
 
-One entry per protected alarm; its unique id is "alarm_pin:<the alarm>". The
-PIN is never stored, only a salted hash (pin.py). Point keypads and dashboards
-at the PIN panel; automations can keep using the alarm itself.
+One item per protected alarm ("<alarm> PIN"); its unique id names the alarm.
+The PIN is never stored, only a salted hash (pin.py). Point keypads and
+dashboards at the PIN panel; automations can keep using the alarm itself.
 
   * Add feature -> Alarm PIN   the alarm to protect, a PIN (typed twice),
                              whether arming needs it;
-  * Configure                another alarm, a new PIN typed twice (both empty
+  * its gear                 another alarm, a new PIN typed twice (both empty
                              keeps the current one), the arm rule;
   * the settings page        the same, through settings_ws.py.
 """
@@ -23,16 +23,17 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import SubentryFlowResult
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .. import ALARM_PIN, entry_data, legacy, unique_id
+from .. import ALARM_PIN, Feature, item_data, unique_id
 from . import checks, settings_ws
 from .const import ALREADY, CONF_ALARM, CONF_ARM_REQUIRED
 from .pin import hash_pin
 
 PLATFORMS = [Platform.ALARM_CONTROL_PANEL]
+RELOAD = True           # a new PIN, the arm rule or another alarm: the panel is rebuilt with it
 
 
 async def async_setup(hass: HomeAssistant) -> None:
@@ -40,34 +41,26 @@ async def async_setup(hass: HomeAssistant) -> None:
     settings_ws.async_register(hass)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    await legacy.async_adopt(hass, entry)
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # A new PIN, the arm rule, or another alarm: the panel is rebuilt with it.
-    entry.async_on_unload(entry.add_update_listener(_reload))
+async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
+    return True                        # its panel is its whole runtime
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: Feature) -> bool:
     return True
 
 
-async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
-
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-
-async def async_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+async def async_diagnostics(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
     """The protected alarm and the arm rule -- never the PIN's hash or its salt."""
     from homeassistant.components.diagnostics import async_redact_data
     return {"data": dict(entry.data),
             "options": async_redact_data(dict(entry.options), {"hash", "salt"})}
 
 
-class FlowSteps:
+class AddSteps:
     """Add feature -> Alarm PIN: the alarm to protect, a PIN (typed twice),
     whether arming needs it."""
 
-    async def async_step_alarm_pin(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_alarm_pin(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
             alarm = user_input[CONF_ALARM]
@@ -75,12 +68,13 @@ class FlowSteps:
                 errors[CONF_ALARM] = err
             pin = "" if errors else checks.new_pin(user_input, errors, required=True)
             if not errors:
-                await self.async_set_unique_id(unique_id(ALARM_PIN, alarm))
-                self._abort_if_unique_id_configured(error=ALREADY)     # a race: checked above
                 stored = await self.hass.async_add_executor_job(hash_pin, pin)
+                if checks.protected_by(self.hass, alarm) is not None:     # a race: checked above
+                    return self.async_abort(reason=ALREADY)
                 return self.async_create_entry(
-                    title=checks.title(self.hass, alarm), data=entry_data(ALARM_PIN, {CONF_ALARM: alarm}),
-                    options={CONF_ARM_REQUIRED: bool(user_input.get(CONF_ARM_REQUIRED, True)), **stored})
+                    title=checks.item_title(self.hass, alarm), unique_id=unique_id(ALARM_PIN, alarm),
+                    data=item_data(ALARM_PIN, {CONF_ALARM: alarm}, {
+                        CONF_ARM_REQUIRED: bool(user_input.get(CONF_ARM_REQUIRED, True)), **stored}))
         return self.async_show_form(step_id="alarm_pin", errors=errors, data_schema=vol.Schema({
             vol.Required(CONF_ALARM): checks.alarm_picker(self.hass),
             vol.Required("pin"): checks.pin_field(),
@@ -88,26 +82,14 @@ class FlowSteps:
             vol.Optional(CONF_ARM_REQUIRED, default=True): bool,
         }))
 
-    async def async_import_alarm_pin(self, data: dict[str, Any]) -> ConfigFlowResult:
-        """An older version's Alarm PIN entry (legacy.py): its alarm, the PIN's
-        hash, the arm rule and its title, as they were."""
-        old = data[legacy.IMPORT]
-        made = legacy.created(ALARM_PIN, data)
-        await self.async_set_unique_id(unique_id(ALARM_PIN, made.get(CONF_ALARM, "")))
-        self._abort_if_unique_id_configured(error=ALREADY)
-        return self.async_create_entry(title=old["title"], data=made, options=dict(old["options"]))
 
-
-class AlarmPinOptions(OptionsFlow):
-    """Configure: the alarm it protects, a new PIN (both empty keeps the
+class ReconfigureSteps:
+    """Its gear: the alarm it protects, a new PIN (both empty keeps the
     current one) and the arm rule. Options it does not show are kept."""
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return await self.async_step_alarm_pin_options(user_input)
-
     async def async_step_alarm_pin_options(self, user_input: dict[str, Any] | None = None
-                                           ) -> ConfigFlowResult:
-        entry = self.config_entry
+                                           ) -> SubentryFlowResult:
+        entry = self._feature
         current = dict(entry.options)
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -120,14 +102,13 @@ class AlarmPinOptions(OptionsFlow):
                 if pin:
                     options.update(await self.hass.async_add_executor_job(hash_pin, pin))
                 if alarm != entry.data[CONF_ALARM]:
-                    # The entry IS the alarm it protects: its data, unique id
-                    # and title follow -- in the same write as the options, so
-                    # the panel is rebuilt once (the flow's own write then
-                    # changes nothing).
-                    self.hass.config_entries.async_update_entry(
-                        entry, data={**entry.data, CONF_ALARM: alarm}, options=options,
-                        unique_id=unique_id(ALARM_PIN, alarm), title=checks.title(self.hass, alarm))
-                return self.async_create_entry(data=options)
+                    # The item IS the alarm it protects: its data, unique id
+                    # and title follow, in the same write as the options, so
+                    # the panel is rebuilt once.
+                    return self.async_save_feature(
+                        data={**entry.data, CONF_ALARM: alarm}, options=options,
+                        unique_id=unique_id(ALARM_PIN, alarm), title=checks.item_title(self.hass, alarm))
+                return self.async_save_feature(options=options)
         return self.async_show_form(
             step_id="alarm_pin_options", errors=errors,
             data_schema=self.add_suggested_values_to_schema(vol.Schema({
@@ -137,11 +118,3 @@ class AlarmPinOptions(OptionsFlow):
                 vol.Optional(CONF_ARM_REQUIRED, default=True): bool,
             }), {CONF_ALARM: entry.data[CONF_ALARM],
                  CONF_ARM_REQUIRED: current.get(CONF_ARM_REQUIRED, True)}))
-
-
-def options_flow(entry: ConfigEntry) -> OptionsFlow:
-    return AlarmPinOptions()
-
-
-def subentry_types(entry: ConfigEntry) -> dict:
-    return {}

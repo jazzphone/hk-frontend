@@ -20,22 +20,26 @@ Every feature is added the same way. HK Frontend itself must be set up first
 (see [Getting started](getting-started.md)).
 
 1. Go to **Settings → Devices & services → HK Frontend**.
-2. Select **Add feature**.
+2. Select **Add feature**, the first button at the top of the page.
 3. Pick the feature. The menu lists only the features you have not added yet;
    Alarm PIN can be added once for each alarm you protect.
 4. Answer its form (below, under each feature).
 
-The feature appears as its own entry on HK Frontend’s integration page. From
-there:
+The feature appears in the list on HK Frontend’s page, under the HK Frontend
+entry, marked **Feature**. From there:
 
-- **Configure** changes its settings.
-- **Delete** removes it. The dashboards stay; whatever the feature drew
-  (a Play Music page, the Live TV guide, the vacuum area picker) goes away or
-  says it is not set up.
+- Its **gear** changes its settings.
+- Its **⋮** menu → **Delete** removes it. The dashboards stay; whatever the
+  feature drew (a Play Music page, the Live TV guide, the vacuum area picker)
+  goes away or says it is not set up. Its entities go with it.
 
 Once a feature is added, its settings are also on the HK Settings page (in
-the sidebar) under **Features**. That page offers everything Configure does,
+the sidebar) under **Features**. That page offers everything its gear does,
 and a little more, one change at a time.
+
+HK Frontend is a single entry. Its features, like your screens’ settings,
+pop-ups, pages and chips, are items of that entry, so every **Add** button at
+the top of its page opens its own form.
 
 ---
 
@@ -59,7 +63,7 @@ moved to other rooms, added to more rooms, or stopped everywhere.
 ### Set it up
 
 1. Add the feature: **HK Frontend → Add feature → Music**. It asks nothing.
-2. On the new Music entry, select **Configure**:
+2. Select the gear on the new **Music** item:
    - **Speakers (rooms)**: the Music Assistant players, one per room. Leave
      sync groups out here; they are presets (next step).
    - **House playlist volume**: the volume every room is set to when a
@@ -67,11 +71,12 @@ moved to other rooms, added to more rooms, or stopped everywhere.
    - Then **Each tablet’s room**: one dropdown per person who signs in. A wall
      tablet signs in as its own user, so this is how a tablet knows the room
      it hangs in. Its Play Music page starts on that room.
-3. Optional: select **Add preset** on the Music entry for each sync group.
+3. Optional: select **Add music preset** at the top of HK Frontend’s page for
+   each sync group.
    Give it a name, pick the Music Assistant sync group player, and tick the
    rooms it plays in. Home Assistant cannot read a sync group’s rooms from
    Music Assistant, so you pick them here.
-4. Select **Add playlist** for each pill you want on the Play Music page:
+4. Select **Add music playlist** for each pill you want on the Play Music page:
    - **Name** and **Icon** (default `mdi:playlist-music`).
    - **Playlists**: one or more playlists from your Music Assistant library.
      They play as one shuffled queue.
@@ -103,7 +108,7 @@ speaker:
 
 ### Settings on the HK Settings page
 
-**HK Settings → Features → Music** has the same settings as Configure and the
+**HK Settings → Features → Music** has the same settings as its gear and the
 two Add buttons:
 
 | Setting | What it does |
@@ -153,10 +158,11 @@ data:
 response_variable: result
 ```
 
-**Finding a playlist’s id.** Each playlist pill is an item of the Music entry.
-On HK Frontend’s integration page, open the Music entry’s ⋮ menu → **Download
-diagnostics**; the file lists every item under `subentries`, each with its
-`subentry_id` and `title`. That `subentry_id` is the playlist’s id.
+**Finding a playlist’s id.** Each playlist pill is an item of HK Frontend’s
+entry. On HK Frontend’s integration page, open the entry’s ⋮ menu →
+**Download diagnostics**; under `features` → Music → `subentries` the file
+lists every preset and playlist, each with its `subentry_id` and `title`. That
+`subentry_id` is the playlist’s id.
 
 A playlist whose library playlist has since been removed is refused rather
 than played (Music Assistant would otherwise play a search result).
@@ -310,12 +316,12 @@ minutes.
 
 ### Settings
 
-**Configure** on the Live TV entry adds or removes channels, changes the
+The **gear** on the Live TV item adds or removes channels, changes the
 picture quality, and sets or clears the guide address. The tuner must be
 reachable to open it.
 
 **HK Settings → Features → Live TV** has the same settings, plus two that
-Configure does not:
+the gear does not:
 
 | Setting | What it does |
 |---|---|
@@ -326,7 +332,7 @@ Configure does not:
 
 ![The Live TV settings on the HK Settings page](images/settings-live-tv.png)
 
-Saving reloads the feature, the way Configure does. A channel you take off the
+Saving restarts the feature, the way its gear does. A channel you take off the
 list takes its camera and “now” sensor with it.
 
 ### Keeping a tablet awake while someone watches
@@ -390,7 +396,7 @@ beside the vacuums: tick rooms, floor by floor, and start.
 
 ### Settings
 
-**Configure** on the Clean Areas entry:
+The **gear** on the Clean Areas item:
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -501,7 +507,7 @@ Keep it off your dashboards and out of what you expose to voice assistants.
 
 ### Settings
 
-**Configure** on an Alarm PIN entry:
+The **gear** on an Alarm PIN item (“Front Door Alarm PIN”):
 
 | Setting | What it does |
 |---|---|
@@ -520,7 +526,7 @@ another one.
 
 Only a salted hash of the PIN (PBKDF2-SHA256) is kept, and diagnostics leave
 even that out. Nothing can show the PIN again, so a forgotten PIN is replaced,
-not recovered: set a new one in Configure or on the HK Settings page. The PIN
+not recovered: set a new one with its gear or on the HK Settings page. The PIN
 is passed on to the protected alarm only if that alarm asks for a code of its
 own.
 

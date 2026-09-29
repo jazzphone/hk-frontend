@@ -200,6 +200,6 @@ The step-by-step guide, including how to do it without a Mac or without Python o
 
 ## Removing HK Frontend
 
-1. **Settings** → **Devices & services** → **HK Frontend**. Delete each feature entry you added (Music, Live TV, Clean Areas, Alarm PIN), then the **HK Frontend** entry itself (**⋮** → **Delete**). Its Repairs entries go with it.
+1. **Settings** → **Devices & services** → **HK Frontend**, then the **HK Frontend** entry’s **⋮** → **Delete**. Its features, items and Repairs entries go with it.
 2. In **HACS**, open **HK Frontend** → **⋮** → **Remove**, then restart Home Assistant.
 3. Remove what HK Frontend left for you to own: the screens it created (**Settings** → **Dashboards**), its resources (**Settings** → **Dashboards** → **⋮** → **Resources**, every URL starting with `/hk/`), and your files folder. The HK Kiosk themes go with the integration.

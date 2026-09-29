@@ -6,8 +6,8 @@ stream is a transcode WE run (stream.py: ffmpeg -> H.264/AAC MPEG-TS on
 localhost), relayed to WebRTC by Home Assistant's own go2rtc -- the same path
 every camera takes, so the dashboards' camera card plays it with sound.
 
-  * channels are the entry's OPTIONS, picked from the tuner's own lineup, so
-    they can be added and removed without editing anything;
+  * channels are the feature's OPTIONS, picked from the tuner's own lineup,
+    so they can be added and removed without editing anything;
   * an XMLTV guide (optional) fills each channel's "now playing" sensor;
   * screens say when they are watching (ws hk_tv/watching), and
     sensor.tv_viewers names them, so a wall tablet can stay awake.
@@ -17,7 +17,7 @@ refused, `#video=h264` never produces a track). One 720p transcode takes
 ~0.8 of one core on a 4-core VM; the first frame arrives ~6 s after the
 offer; ffmpeg exits and the tuner frees ~5 s after the last viewer leaves.
 
-One entry per house. The stream's path, the websocket commands (hk_tv/...)
+One per house. The stream's path, the websocket commands (hk_tv/...)
 and hass.data's key use the hk_tv prefix: the screens and the channel
 cameras call them by it.
 """
@@ -29,26 +29,29 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
-from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import SubentryFlowResult
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from ...const import DOMAIN
-from .. import LIVE_TV, TITLES, entry_data, legacy, unique_id
+from .. import LIVE_TV, TITLES, Feature, entries, item_data, unique_id
 from . import channels, settings_ws
 from .const import (CONF_CHANNELS, CONF_GUIDE_URL, CONF_HOST, CONF_QUALITY, DATA,
                     DEFAULT_QUALITY, SIGNAL_VIEWERS, VIEWER_TTL_S)
 from .coordinator import GuideCoordinator
 
 PLATFORMS = [Platform.CAMERA, Platform.SENSOR]
+# a change -- its gear, or the settings page -- restarts it: the channels are
+# entities, and the tuner and quality are read when a stream starts
+RELOAD = True
 
 
-def channels_of(entry: ConfigEntry) -> list[dict]:
+def channels_of(entry: Feature) -> list[dict]:
     return list(entry.options.get(CONF_CHANNELS, []))
 
 
-def entity_ids(hass: HomeAssistant, entry: ConfigEntry, number: str) -> dict:
+def entity_ids(hass: HomeAssistant, entry: Feature, number: str) -> dict:
     """The channel's entity ids, from the registry (by unique id) -- right
     from the first state write, whichever platform loaded first."""
     from homeassistant.helpers import entity_registry as er
@@ -58,18 +61,20 @@ def entity_ids(hass: HomeAssistant, entry: ConfigEntry, number: str) -> dict:
 
 
 @callback
-def prune_channels(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
+def prune_channels(hass: HomeAssistant, entry: Feature) -> list[str]:
     """A channel taken off the list takes its camera and "now playing"
     sensor with it: left behind, they would be unavailable entities, and the
     settings page's Channels list makes them easy to collect. The viewers
-    sensor is the entry's own and always stays."""
+    sensor is the feature's own and always stays."""
     from homeassistant.helpers import entity_registry as er
     reg = er.async_get(hass)
     keep = {c["number"] for c in channels_of(entry)}
     prefix = f"{entry.entry_id}_"
     gone = []
-    for ent in er.async_entries_for_config_entry(reg, entry.entry_id):
+    for ent in er.async_entries_for_config_entry(reg, entry.config_entry_id):
         uid = ent.unique_id or ""
+        if ent.config_subentry_id != entry.entry_id:
+            continue
         if not uid.startswith(prefix) or not uid.endswith(("_camera", "_now")):
             continue
         if uid[len(prefix):].rsplit("_", 1)[0] not in keep:
@@ -111,8 +116,8 @@ class Viewers:
 
 
 def _data(hass: HomeAssistant) -> dict[str, Any]:
-    """hass.data's share: the viewers always; the entry, its guide, the
-    tuner and the quality while it is set up."""
+    """hass.data's share: the viewers always; the feature, its guide, the
+    tuner and the quality while it runs."""
     data = hass.data.setdefault(DATA, {})
     data.setdefault("viewers", Viewers())
     return data
@@ -128,34 +133,28 @@ async def async_setup(hass: HomeAssistant) -> None:
     settings_ws.async_register(hass)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    await legacy.async_adopt(hass, entry)
+async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
     data = _data(hass)
     prune_channels(hass, entry)
     numbers = {c["number"] for c in channels_of(entry)}
-    coord = GuideCoordinator(hass, entry.data.get(CONF_GUIDE_URL) or None, numbers, entry)
+    # no config entry of its own to hang the guide's refresh on: it is shut
+    # down when the feature stops
+    coord = GuideCoordinator(hass, entry.data.get(CONF_GUIDE_URL) or None, numbers, None)
     await coord.async_refresh()          # a guide that fails leaves the channels working
     data["entry"] = entry
     data["coordinator"] = coord
     data["host"] = entry.data[CONF_HOST]
     data["quality"] = entry.options.get(CONF_QUALITY, DEFAULT_QUALITY)
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # a change -- Configure, or the settings page -- reloads: the channels
-    # are entities, and the tuner and quality are read when a stream starts
-    entry.async_on_unload(entry.add_update_listener(_reload))
     return True
 
 
-async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
-
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if ok:
-        for k in ("entry", "coordinator"):
-            hass.data.get(DATA, {}).pop(k, None)
-    return ok
+async def async_unload_entry(hass: HomeAssistant, entry: Feature) -> bool:
+    coord = hass.data.get(DATA, {}).get("coordinator")
+    if coord is not None:
+        await coord.async_shutdown()
+    for k in ("entry", "coordinator"):
+        hass.data.get(DATA, {}).pop(k, None)
+    return True
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hk_tv/channels"})
@@ -195,18 +194,18 @@ def _tuner_schema(user_input: dict[str, Any] | None) -> vol.Schema:
     })
 
 
-class FlowSteps:
+class AddSteps:
     """Add feature -> Live TV: the tuner (and a guide), then which channels.
-    The channel list lives in the entry's OPTIONS, so Configure is where
+    The channel list lives in the feature's OPTIONS, so its gear is where
     channels are added and removed; nothing about a house's channels is
     written anywhere else (the guide card reads them from here)."""
 
     # between the two steps: the tuner's data, its lineup and the networks
     _live_tv: dict[str, Any] | None = None
 
-    async def async_step_live_tv(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        await self.async_set_unique_id(unique_id(LIVE_TV))
-        self._abort_if_unique_id_configured()
+    async def async_step_live_tv(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        if entries(self.hass, LIVE_TV):
+            return self.async_abort(reason="already_configured")
         errors: dict[str, str] = {}
         if user_input is not None:
             host = user_input[CONF_HOST].strip()
@@ -227,14 +226,15 @@ class FlowSteps:
         return self.async_show_form(step_id="live_tv", errors=errors, data_schema=_tuner_schema(user_input))
 
     async def async_step_live_tv_channels(self, user_input: dict[str, Any] | None = None
-                                          ) -> ConfigFlowResult:
+                                          ) -> SubentryFlowResult:
         got = self._live_tv or {}
         lineup, networks = got.get("lineup") or [], got.get("networks") or {}
         if user_input is not None and user_input.get(CONF_CHANNELS):
             chans = channels.build_channels(user_input[CONF_CHANNELS], lineup, networks)
             return self.async_create_entry(
-                title=TITLES[LIVE_TV], data=entry_data(LIVE_TV, got.get("data")),
-                options={CONF_CHANNELS: chans, CONF_QUALITY: user_input.get(CONF_QUALITY, DEFAULT_QUALITY)})
+                title=TITLES[LIVE_TV], unique_id=unique_id(LIVE_TV),
+                data=item_data(LIVE_TV, got.get("data"), {
+                    CONF_CHANNELS: chans, CONF_QUALITY: user_input.get(CONF_QUALITY, DEFAULT_QUALITY)}))
         return self.async_show_form(
             step_id="live_tv_channels",
             errors={"base": "live_tv_pick_one"} if user_input is not None else {},
@@ -243,24 +243,13 @@ class FlowSteps:
                 vol.Required(CONF_QUALITY, default=DEFAULT_QUALITY): channels.QUALITY_SELECTOR,
             }))
 
-    async def async_import_live_tv(self, data: dict[str, Any]) -> ConfigFlowResult:
-        """An older version's Live TV entry (legacy.py)."""
-        await self.async_set_unique_id(unique_id(LIVE_TV))
-        self._abort_if_unique_id_configured()
-        old = data[legacy.IMPORT]
-        return self.async_create_entry(
-            title=TITLES[LIVE_TV], data=legacy.created(LIVE_TV, data), options=dict(old["options"]))
 
-
-class LiveTvOptions(OptionsFlow):
-    """Configure: add or remove channels, change the quality or the guide."""
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return await self.async_step_live_tv_options(user_input)
+class ReconfigureSteps:
+    """Its gear: add or remove channels, change the quality or the guide."""
 
     async def async_step_live_tv_options(self, user_input: dict[str, Any] | None = None
-                                         ) -> ConfigFlowResult:
-        entry = self.config_entry
+                                         ) -> SubentryFlowResult:
+        entry = self._feature
         errors: dict[str, str] = {}
         try:
             lineup, networks = await channels.async_catalogue(
@@ -273,10 +262,7 @@ class LiveTvOptions(OptionsFlow):
                 errors["base"] = "live_tv_pick_one"
             else:
                 guide = (user_input.get(CONF_GUIDE_URL) or "").strip()
-                if guide != entry.data.get(CONF_GUIDE_URL, ""):
-                    self.hass.config_entries.async_update_entry(
-                        entry, data={**entry.data, CONF_GUIDE_URL: guide})
-                return self.async_create_entry(data={
+                return self.async_save_feature(data={**entry.data, CONF_GUIDE_URL: guide}, options={
                     **entry.options,
                     CONF_CHANNELS: channels.build_channels(user_input[CONF_CHANNELS], lineup, networks, current),
                     CONF_QUALITY: user_input.get(CONF_QUALITY, DEFAULT_QUALITY)})
@@ -289,11 +275,3 @@ class LiveTvOptions(OptionsFlow):
                     channels.QUALITY_SELECTOR,
                 vol.Optional(CONF_GUIDE_URL, default=entry.data.get(CONF_GUIDE_URL, "")): str,
             }))
-
-
-def options_flow(entry: ConfigEntry) -> OptionsFlow:
-    return LiveTvOptions()
-
-
-def subentry_types(entry: ConfigEntry) -> dict:
-    return {}

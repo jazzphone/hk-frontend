@@ -1,7 +1,8 @@
-"""HK Settings' Music page (features/music/settings_ws.py): what
-Configure and the preset / playlist dialogs set, one change at a time,
-checked by the same helpers, refused by field, stored where they store it --
-and heard by the screens at once."""
+"""HK Settings' Music page (features/music/settings_ws.py): what its gear
+and the preset / playlist dialogs set, one change at a time, checked by the
+same helpers, refused by field, stored where they store it (the Music item
+and the house's preset and playlist items) -- and heard by the screens at
+once."""
 from __future__ import annotations
 
 import json

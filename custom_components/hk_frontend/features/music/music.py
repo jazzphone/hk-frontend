@@ -20,8 +20,9 @@ buttons, with the measured timings in const.py. How it runs them:
   * STOP CANCELS what is running for its rooms; the cancelled request answers
     "stopped".
 
-Configuration comes from the config entry: options (speakers, volume, each
-user's home room) and subentries (presets, playlists). Room names and floors
+Configuration comes from the Music feature (features/__init__.py Feature):
+options (speakers, volume, each user's home room) and its items (presets,
+playlists). Room names and floors
 come from HA's area and floor registries, so there is nothing to type for them.
 """
 from __future__ import annotations
@@ -37,7 +38,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from homeassistant.components import persistent_notification
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
@@ -46,6 +47,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import floor_registry as fr
 from homeassistant.helpers.event import async_track_state_change_event
 
+from .. import Feature
 from .const import (
     CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_MEMBERS,
     CONF_NAME, CONF_ORDER, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME,
@@ -142,7 +144,7 @@ class MusicConfig:
         return next((p for p in self.playlists if p.key == key), None)
 
     @classmethod
-    def from_entry(cls, hass: HomeAssistant, entry: ConfigEntry) -> MusicConfig:
+    def from_entry(cls, hass: HomeAssistant, entry: Feature) -> MusicConfig:
         opts = entry.options
         cfg = cls(volume=float(opts.get(CONF_VOLUME, DEFAULT_VOLUME)),
                   homes=dict(opts.get(CONF_HOMES) or {}))
@@ -225,9 +227,9 @@ class MusicConfig:
 
 # =========================================================== the engine
 class MusicManager:
-    """Runs music requests against the house. One per config entry."""
+    """Runs music requests against the house. One while Music runs."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: Feature) -> None:
         self.hass, self.entry = hass, entry
         self._locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self._tlocks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)

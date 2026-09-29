@@ -9,9 +9,10 @@ For using it, start with [Getting started](getting-started.md).
 custom_components/hk_frontend/     the integration HACS installs
 ├─ __init__.py          serves frontend/ at /hk/, registers the bootstrap modules,
 │                       the settings feed and hk_frontend.show_popup; sets up
-│                       each entry (the house's, or a feature's)
-├─ config_flow.py       Add integration, Add feature (the features), Configure,
-│                       and the items (screens, pop-ups, custom pages and chips)
+│                       the one entry, which starts the features
+├─ config_flow.py       Add integration, Configure, and the entry's items:
+│                       features (Add feature), screens, pop-ups, custom pages,
+│                       chips, Music's presets and playlists
 ├─ settings.py          the dashboard settings: their defaults, checks and feed
 ├─ settings_api.py      the HK Settings page's writes, checked as Configure checks them
 ├─ panel.py             the HK Settings page: registration and its read commands
@@ -28,10 +29,10 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ rename.py            follows entity renames into the settings
 ├─ diagnostics.py, const.py, manifest.json, services.yaml
 ├─ alarm_control_panel.py, camera.py, sensor.py
-│                       the features' entity platforms (each imports its feature's)
-├─ features/            the optional features, one package each
-│  ├─ music/  live_tv/  clean_areas/  alarm_pin/
-│  └─ legacy.py         adopts entries of the old stand-alone integrations, once
+│                       the features' entity platforms (the running features add to them)
+├─ features/            the optional features, one package each; __init__.py
+│  │                    starts and follows them (Feature, async_sync, async_fold)
+│  └─ music/  live_tv/  clean_areas/  alarm_pin/
 ├─ frontend/            everything reachable over HTTP, at /hk/
 │  ├─ cards/            the Lovelace cards, one family per file; hk-strategy.js
 │  │                    is the generated dashboard and the room page
@@ -184,23 +185,25 @@ full contract is the docstring of `features/__init__.py`):
 
 | Part | What it is |
 |---|---|
-| `PLATFORMS` | The entity platforms its entries forward to. Each needs a one-line module at the component’s top level (`camera.py`, `sensor.py`…) that imports the feature’s `async_setup_entry`. |
+| `PLATFORMS` | The entity platforms it adds to. Every one must be in `features.PLATFORMS`, which the entry forwards; each has a module at the component’s top level (`camera.py`, `sensor.py`…) that hands the platform to the running features. |
+| `RELOAD` | `True`: a change to its settings restarts it (its entities are rebuilt, with the same ids). `False`: `async_changed(hass, feature)` is called instead. |
+| `ITEM_TYPES` | The entry’s item types it owns (Music: presets and playlists); a change to one calls `async_changed`. |
 | `async_setup(hass)` | Called once at start, whether or not the feature is added: registers its actions and websocket commands, so a call made before it is added gets a clear error, and HK Settings can ask what it has. |
-| `async_setup_entry`, `async_unload_entry` | Its entry’s life. |
-| `FlowSteps` | Its config-flow steps, mixed into the integration’s flow. Every step id starts with the feature’s kind (`alarm_pin_…`). |
-| `options_flow(entry)` | Its Configure. |
-| `subentry_types(entry)` | Its items (Music’s presets and playlists), or `{}`. |
-| `settings_ws.py` | The commands its HK Settings page reads and saves through, checked the same way as Configure and stored in the same place. |
-| `translations.en.json` | Its strings, as a fragment of `translations/en.json`. |
+| `async_setup_entry`, `async_unload_entry` | Its start and stop. They get a `Feature`: an entry-like view of its item (`entry_id`, `title`, `data`, `options`, `runtime_data`, `async_on_unload`). |
+| `AddSteps`, `ReconfigureSteps` | Its steps in the Add feature flow (`config_flow.FeatureFlow`) and in its gear (`<kind>_options`, saved with `async_save_feature`). Every step id starts with the feature’s kind (`alarm_pin_…`). |
+| `settings_ws.py` | The commands its HK Settings page reads and saves through (`features.async_update`), checked the same way as its gear. |
+| `translations.en.json` | Its strings, as a fragment of `translations/en.json`, under `config_subentries.feature`. |
 
-An entry’s `data["kind"]` says which feature it is; the house’s own entry has
-no kind. Music, Live TV and Clean Areas allow one entry per house; Alarm PIN
-one per protected alarm.
+A feature is an item (subentry) of the one HK Frontend entry, of type
+`feature`, holding `{kind, data, options}`. Its id is also what its entities’
+unique ids and its device are built from, and its entities belong to that
+item. Music, Live TV and Clean Areas allow one per house; Alarm PIN one per
+protected alarm.
 
 To add a feature: add its kind to `KINDS` and `TITLES` in
-`features/__init__.py`, mix its `FlowSteps` into the flow class in
-`config_flow.py`, add its menu option under `config.step.feature` in its
-translations, add it to `COMPANIONS` in `setup_check.py` (Setup Check and the
+`features/__init__.py`, mix its `AddSteps` and `ReconfigureSteps` into
+`FeatureFlow` in `config_flow.py`, add its menu option under
+`config_subentries.feature.step.user` in `translations/en.json`, add it to `COMPANIONS` in `setup_check.py` (Setup Check and the
 HK Settings Features list read it), and give it a page in
 `frontend/panels/hk-settings-features.js`.
 

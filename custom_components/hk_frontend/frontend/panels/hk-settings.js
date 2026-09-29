@@ -96,6 +96,11 @@
 
   // ------------------------------------------------------------ the shell
   var CSS = [
+    // PINNED TO THE WINDOW. Home Assistant's panel container
+    // (partial-panel-resolver) has no height of its own, so height:100% grew
+    // the panel to its content and the window scrolled the menu and the page
+    // together. The window's height gives each its own scroll.
+    ':host{height:100vh;height:100dvh}',
     '.app{display:flex;height:100%;overflow:hidden;position:relative}',
     '.side{flex:none;width:320px;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:0 16px 40px;',
     '  border-right:.5px solid var(--hk-sep)}',
@@ -146,6 +151,8 @@
     ':host(:not([xwide])) .page.split{display:block;max-width:680px}',
     ':host(:not([xwide])) .page.split .pvcol{margin:0 0 30px;max-width:480px}',
     '.pvcol:empty{display:none}',
+    '.code{margin:-14px 0 28px;padding:12px 16px;border-radius:10px;background:var(--hk-cell);color:var(--hk-label);',
+    '  font:13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;overflow-x:auto;user-select:text}',
     'h1.lt{margin:4px 0 4px;font-family:var(--hk-display);font-size:34px;line-height:41px;font-weight:700;letter-spacing:.01em;outline:none}',
     ':host([wide]) h1.lt{font-size:30px;line-height:36px}',
     '.scope{margin:0 0 24px;font-size:15px;line-height:20px;color:var(--hk-label2)}',
@@ -980,6 +987,9 @@
       if (s === 'chips' && sub[1]) return mk(M.CHIP_LABELS[sub[1]] || sub[1], function (c) { self.s_chip(c, x, b, sub[1]); },
                                                ['Status Chips', base + '/chips']);
       if (s === 'chips') return mk('Status Chips', function (c) { self.s_chips(c, x, b); });
+      if (s === 'cameras' && sub[1] === 'live') {
+        return mk('Live Camera Follows', function (c) { self.s_cameraLive(c, x, b); }, ['Cameras', base + '/cameras']);
+      }
       if (s === 'cameras') return mk('Cameras', function (c) { self.s_cameras(c, x, b); });
       if (s === 'scenes' && sub[1] === 'pill' && sub[2]) {
         return mk(M.PAGE_LABELS[sub[2]] || sub[2], function (c) { self.s_pill(c, x, b, sub[2]); }, ['Scenes', base + '/scenes']);
@@ -1304,7 +1314,9 @@
                                            onChange: function (on) { set({ camera_strip: on }); } }));
       top.push(this.entityRow({ label: 'Live Camera Follows', sk: 'b:camera_live', value: b.camera_live || null, none: 'First Camera',
         filter: { domains: ['input_select', 'select'] }, onPick: function (v) { set({ camera_live: v || '' }); } }));
-      c.appendChild(K.group({ footer: 'A selector whose option names the camera to show live — a person-detection pick, say. The other tiles show snapshots.' }, top));
+      top.push(K.nav({ label: 'Set Up Live Camera Follows', href: '#/screens/' + encodeURIComponent(x.path) + '/cameras/live',
+                       icon: 'mdi:cctv', fk: 'cams:live' }));
+      c.appendChild(K.group({ footer: 'The first tile plays live video; the others show snapshots. A dropdown helper can choose which camera is live — the one where someone was just seen, say.' }, top));
       if (x.generated && !b.camera_strip) return;
       var mdl = M.camerasModel(b, ok, autoCams);
       c.appendChild(K.listEditor({ fk: 'cams', auto: mdl.auto, minRows: 1, announce: this.announce.bind(this),
@@ -1317,6 +1329,93 @@
             .then(function (yes) { if (yes) set({ cameras: [] }); });
         },
         onChange: function (v) { set({ cameras: v }); } }));
+    }
+    // LIVE CAMERA FOLLOWS, explained where it is set: what it does, the
+    // dropdown's options for this screen's cameras (made for you, if you
+    // like), and the automation that moves it, written for your cameras'
+    // own person and motion sensors (M.livePlan, M.liveYaml).
+    s_cameraLive(c, x, b) {
+      var self = this, hs = this._hass, ents = hs.entities || {}, devs = hs.devices || {};
+      var set = function (ch) { return self.setB(x.path, ch); };
+      var NOT = { fully_kiosk: 1, hk_frontend: 1, hk_tv: 1 };
+      var ok = this.entityIds({ domains: ['camera'], shown: true }).filter(function (id) { return !NOT[(ents[id] || {}).platform]; }).sort();
+      var mdl = M.camerasModel(b, ok, M.autoCameras(ok, function (id) { return (ents[id] || {}).device_id; }));
+      var cams = mdl.rows.map(function (r) {
+        var dev = devs[(ents[r.value] || {}).device_id] || {};
+        return { entity: r.value, name: self.name(r.value), device: (ents[r.value] || {}).device_id || null,
+                 deviceName: dev.name_by_user || dev.name || null };
+      });
+      var onCam = {};
+      cams.forEach(function (x2) { if (x2.device) onCam[x2.device] = true; });
+      var sensors = Object.keys(ents).filter(function (id) {
+        return id.indexOf('binary_sensor.') === 0 && onCam[ents[id].device_id];
+      }).map(function (id) {
+        var st = hs.states[id], dc = st && st.attributes.device_class;
+        var kind = /person/.test(id) ? 'person' : (dc === 'motion' || dc === 'occupancy' || /motion/.test(id)) ? 'motion' : null;
+        return { entity: id, device: ents[id].device_id, kind: kind };
+      }).filter(function (s2) { return s2.kind; });
+      var sel = b.camera_live || '';
+      var selSt = sel && hs.states[sel];
+      var have = selSt && Array.isArray(selSt.attributes.options) ? selSt.attributes.options.map(String) : null;
+      var plan = M.livePlan(cams, sensors, have);
+
+      c.appendChild(K.group({ header: 'How It Works', footer: 'The camera strip’s first tile plays live; the others are snapshots. ' +
+          'Live Camera Follows is a dropdown helper (an input_select) whose options are your cameras’ names. Whichever option is ' +
+          'chosen, that camera plays live. An automation that chooses the camera where a person or motion was just seen makes ' +
+          'the strip follow what’s happening. Nothing chosen, or an option that names no camera: the first camera plays.' }, [
+        this.entityRow({ label: 'Live Camera Follows', sk: 'b:camera_live', value: sel || null, none: 'First Camera',
+          filter: { domains: ['input_select', 'select'] }, onPick: function (v) { set({ camera_live: v || '' }); } })]));
+
+      if (!plan.length) {
+        c.appendChild(K.group({ footer: 'This screen has no cameras in its strip yet. Add them on the Cameras page first.' }, []));
+        return;
+      }
+      var opts = plan.map(function (p) { return p.option; });
+      var rows = plan.map(function (p) {
+        return K.info({ label: p.option, sub: p.name + ' · ' + (p.missing ? 'not in the dropdown yet — add this option'
+          : p.sensor ? 'follows ' + self.name(p.sensor) : 'no motion sensor found'), valueCls: p.missing ? 'warn' : null,
+          value: p.missing ? 'Missing' : undefined });
+      });
+      var missing = plan.filter(function (p) { return p.missing; }).length;
+      if (!sel) {
+        rows.push(K.button({ label: 'Create the Dropdown', fk: 'cams:live:create', onClick: function () {
+          hs.callWS({ type: 'input_select/create', name: 'Live Camera', icon: 'mdi:cctv', options: opts }).then(function (item) {
+            return set({ camera_live: 'input_select.' + item.id }).then(function () { self.announce('Live Camera made and chosen'); });
+          }, function (e) { self.announce('Couldn’t make it: ' + ((e && e.message) || e)); });
+        } }));
+      }
+      c.appendChild(K.group({ header: '1. The Dropdown’s Options', footer: sel
+          ? (missing ? 'The dropdown has no option for ' + (missing === 1 ? 'one camera' : missing + ' cameras') + ' in this ' +
+              'screen’s strip. Add ' + (missing === 1 ? 'it' : 'them') + ', spelled as shown, in Settings → Devices & Services → ' +
+              'Helpers; until then the automation leaves ' + (missing === 1 ? 'it' : 'them') + ' out.'
+            : 'The dropdown has an option for every camera in this screen’s strip.')
+          : 'Create the Dropdown makes a dropdown helper called Live Camera with these options, and chooses it above. ' +
+            'Or make your own in Settings → Devices & Services → Helpers → Create Helper → Dropdown.' }, rows));
+
+      var yaml = M.liveYaml(plan, sel || 'input_select.live_camera');
+      if (!yaml) {
+        c.appendChild(K.group({ header: '2. The Automation', footer: 'None of these cameras has a person or motion sensor on its ' +
+          'device, so there’s nothing to write for you. Make an automation that sets the dropdown to a camera’s option when ' +
+          'something happens there.' }, []));
+        return;
+      }
+      var pre = h('pre', { class: 'code', text: yaml, tabindex: '0', 'aria-label': 'The automation, in YAML' });
+      c.appendChild(K.group({ header: '2. The Automation', footer: 'Copy it, then in Settings → Automations & Scenes choose ' +
+          'Create Automation → Create New Automation → ⋮ → Edit in YAML, paste it over everything there, and save. It chooses the ' +
+          'camera where a person (or motion) was just seen, and the first camera again after five quiet minutes. ' +
+          (sel ? '' : 'It sets Live Camera; if you name your dropdown differently, change input_select.live_camera in it.') }, [
+        K.button({ label: 'Copy Automation', fk: 'cams:live:copy', onClick: function () {
+          var done = function () { self.announce('Copied'); };
+          var fallback = function () {
+            var r = document.createRange(); r.selectNodeContents(pre);
+            var s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r);
+            self.announce('Selected — copy it with your keyboard');
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(yaml).then(done, fallback);
+          else fallback();
+        } }),
+        K.nav({ label: 'Open Automations', href: '/config/automation/dashboard', icon: 'mdi:open-in-new', fk: 'cams:live:auto' })]));
+      c.appendChild(pre);
     }
     s_scenes(c, x, b) {
       var self = this, set = function (ch) { return self.setB(x.path, ch); }, ents = this._hass.entities || {};

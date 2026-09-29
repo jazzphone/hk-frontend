@@ -81,16 +81,18 @@ entry is the whole install: Home Assistant runs async_setup for it, which
 serves /hk/ and registers the bootstrap modules. (`hk_frontend:` in
 configuration.yaml also works and serves /hk/ with no entry, but is not needed.)
 
-THE CONFIG ENTRY (one per house)
+THE CONFIG ENTRY (one per house, and the only one)
   * options -- the dashboard settings (settings.py) and your files folder;
-  * one entity, on an "HK Frontend" service device: the Seasonal
+  * items (subentries) -- each dashboard's settings, the pop-ups, custom
+    pages and chips, the features, and Music's presets and playlists;
+  * one entity of its own, on an "HK Frontend" service device: the Seasonal
     decorations switch.
-It has no actions. The settings feed (hk_frontend/settings/subscribe) is
-registered in async_setup, so it answers even while the entry is not loaded;
-so are the art and talk endpoints (EXPOSURE).
-The features -- Music, Live TV, Clean Areas and Alarm PIN -- are entries of
-their own in this integration, added with Add feature (features/). The cards
-find them by their actions and feeds only. See docs/features.md.
+The settings feed (hk_frontend/settings/subscribe) is registered in
+async_setup, so it answers even while the entry is not loaded; so are the art
+and talk endpoints (EXPOSURE) and the features' actions.
+The features -- Music, Live TV, Clean Areas and Alarm PIN -- are items added
+with Add feature (features/); the entry starts them and follows them. The
+cards find them by their actions and feeds only. See docs/features.md.
 """
 
 import logging
@@ -120,9 +122,10 @@ from . import settings as dash_settings
 from .const import CONF_FILES_FOLDER, DOMAIN, SIGNAL_CONFIG, SIGNAL_POPUP
 
 URL_PATH = "/hk"
-# The integration's own entity (entity.py): the Seasonal decorations switch.
-# (Alarm PIN's alarm panel belongs to that feature's own entry.)
-PLATFORMS = [Platform.SWITCH]
+# The integration's own entity (entity.py): the Seasonal decorations switch;
+# and the features' platforms (Alarm PIN's panel, Live TV's cameras and
+# sensors), whose entities belong to each feature's item.
+PLATFORMS = [Platform.SWITCH, *F.PLATFORMS]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -270,15 +273,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # or not they are added -- the settings page asks them what they have.
     for kind in F.KINDS:
         await F.module(kind).async_setup(hass)
-    # An entry left by the separate integration a feature once was (hk_music,
-    # hk_tv, ...) is adopted as that feature, once started (legacy.py).
-    from homeassistant.helpers.start import async_at_started
-    from .features import legacy
-
-    async def _adopt(_hass: HomeAssistant) -> None:
-        await legacy.async_import_all(hass)
-
-    async_at_started(hass, _adopt)
+    # A pre-release feature entry becomes an item of the house's entry, before
+    # any entry is set up.
+    await F.async_fold(hass)
     return True
 
 
@@ -327,18 +324,15 @@ def ws_settings_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveC
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """A feature's entry is its own (features/); the house's entry: your
-    files, the Seasonal decorations switch, and a nudge to every screen on
-    change. An options change needs no reload: the screens are re-sent their
-    settings here."""
-    kind = F.kind_of(entry)
-    if kind != F.FRONTEND:
-        ok = await F.module(kind).async_setup_entry(hass, entry)
-        # the screens learn which features are added (the settings feed's
-        # `added`) -- once Home Assistant has marked the entry loaded, which it
-        # does as this returns
-        hass.loop.call_soon(async_dispatcher_send, hass, SIGNAL_CONFIG)
-        return ok
+    """The house's entry: your files, the Seasonal decorations switch, the
+    features, and a nudge to every screen on change. A change needs no
+    reload: the screens are re-sent their settings, and the features follow
+    their items (features/async_sync)."""
+    if F.kind_of(entry) != F.FRONTEND:
+        _LOGGER.error("hk_frontend: %s is a feature entry from a pre-release that could not be folded into "
+                      "the HK Frontend entry (see the log above). Delete it in Settings -> Devices & services, "
+                      "then add the feature again from HK Frontend -> Add feature", entry.title)
+        return False
 
     @callback
     def changed(*_args: Any) -> None:
@@ -363,6 +357,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             dash_settings.find_extras, hass.config.config_dir)
 
     async def updated(_hass: HomeAssistant, _entry: ConfigEntry) -> None:
+        # a feature added, removed or changed, or one of its items
+        await F.async_sync(hass, entry)
         await check_files()
         # only when the switch changed: every re-registration makes every
         # open browser fetch its panels again
@@ -420,31 +416,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(async_at_started(hass, _check))
     entry.async_on_unload(hass.bus.async_listen(EVENT_THEMES_UPDATED, _themes))
+    # THE FEATURES, before the platforms: each platform adds the running
+    # features' entities as it is set up (features/async_setup_platform)
+    await F.async_start(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # the screens learn which features run (the settings feed's `added`)
+    async_dispatcher_send(hass, SIGNAL_CONFIG)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """A feature's entry is its own; the house's: the switch and the settings
-    page go, and the settings feed keeps answering from the options."""
-    kind = F.kind_of(entry)
-    if kind != F.FRONTEND:
-        ok = await F.module(kind).async_unload_entry(hass, entry)
-        async_dispatcher_send(hass, SIGNAL_CONFIG)
-        return ok
+    """The switch, the features and the settings page go; the settings feed
+    keeps answering from the options."""
+    if F.kind_of(entry) != F.FRONTEND:
+        return True
     panel.async_unregister(hass)
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if ok:
+        await F.async_stop(hass)
+        async_dispatcher_send(hass, SIGNAL_CONFIG)
+    return ok
 
 
 async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Removed: a feature's entry tidies after itself; the house's takes its
-    Repairs with it, and /hk/ serves the default files folder (hk_local, if it
-    exists), exactly as a house with no entry would."""
-    kind = F.kind_of(entry)
-    if kind != F.FRONTEND:
-        remove = getattr(F.module(kind), "async_remove_entry", None)
-        if remove is not None:
-            await remove(hass, entry)
+    """Removed: it takes its Repairs with it, and /hk/ serves the default
+    files folder (hk_local, if it exists), exactly as a house with no entry
+    would. A pre-release feature entry being folded into the house's is not
+    a removal."""
+    if F.kind_of(entry) != F.FRONTEND:
         return
     for key in files.ISSUES + setup_check.ISSUES:
         ir.async_delete_issue(hass, DOMAIN, key)
