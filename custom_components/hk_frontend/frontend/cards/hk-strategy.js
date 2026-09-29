@@ -1859,21 +1859,73 @@
     try { return JSON.stringify(L.config).indexOf('ll-strategy-dashboard-hk-dashboard') >= 0; }
     catch (e) { return false; }
   }
+  function lovelacePanel() {
+    var ha = document.querySelector('home-assistant');
+    var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+    return main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace');
+  }
   function recoverLate() {
     try {
-      var ha = document.querySelector('home-assistant');
-      var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-      var panel = main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace');
-      if (lateError(panel)) refresh();
+      if (lateError(lovelacePanel())) { refresh(); kioskAgain(); }
     } catch (e) { /* not on a dashboard */ }
+  }
+  // KIOSK MODE LOOKS AGAIN. The kiosk-mode plugin reads the dashboard's
+  // kiosk_mode when the page changes (location-changed); on the error page
+  // there was none, so Home Assistant's header and sidebar showed -- and a
+  // rebuild is not a page change, so they stayed (2026-09-29, the Kitchen
+  // tablet). Once the rebuilt dashboard is in place, the same signal again.
+  function kioskAgain() {
+    var n = 0;
+    var iv = setInterval(function () {
+      var p = null;
+      try { p = lovelacePanel(); } catch (e) { /* gone */ }
+      var built = p && p.lovelace && !lateError(p) && p.lovelace.config && p.lovelace.config.views &&
+                  p.lovelace.config.views.length > 0;
+      if (built) window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
+      if (built || ++n >= 40) clearInterval(iv);
+    }, 250);
   }
   if (!customElements.get('ll-strategy-dashboard-hk-dashboard')) {
     customElements.define('ll-strategy-dashboard-hk-dashboard', HkDashboardStrategy);
     recoverLate();
   }
+  // HOME ASSISTANT SWAPS THE REGISTRY. Its frontend replaces
+  // window.customElements with a polyfill (scoped custom elements) that keeps
+  // a list of its own: a definition made BEFORE the swap -- this file,
+  // served from the browser's cache ahead of the frontend's own code -- is
+  // invisible to it, so Home Assistant waits 5 s for an element it can
+  // never see and draws "Timeout waiting for strategy element". Measured
+  // 2026-09-29 on the wall tablets: most cached loads, all four tablets
+  // (the file ran fine; `customElements.get` on the swapped registry still
+  // said undefined). So until the frontend has started, both strategies are
+  // defined again in whichever registry is current -- as subclasses, since a
+  // constructor may be registered only once -- and a page already stuck is
+  // rebuilt. At most a minute; nothing to do once Home Assistant's own
+  // element and ours are in the same registry.
+  function defineHere() {
+    var made = false;
+    if (!customElements.get('ll-strategy-view-hk-room')) {
+      customElements.define('ll-strategy-view-hk-room', class extends HkRoomViewStrategy {});
+      made = true;
+    }
+    if (!customElements.get('ll-strategy-dashboard-hk-dashboard')) {
+      customElements.define('ll-strategy-dashboard-hk-dashboard', class extends HkDashboardStrategy {});
+      made = true;
+    }
+    if (made) recoverLate();
+    return made;
+  }
+  (function () {
+    var n = 0;
+    var iv = setInterval(function () {
+      try { defineHere(); } catch (e) { /* the registry is mid-swap: next tick */ }
+      if (++n >= 600 || (customElements.get('home-assistant') &&
+                         customElements.get('ll-strategy-dashboard-hk-dashboard'))) clearInterval(iv);
+    }, 100);
+  })();
   // For tests and the console: hkStrategy.generate(config, hass).
   window.hkStrategy = { generate: HkDashboardStrategy.generate, tile: TILE, shortName: shortName,
-                        lateError: lateError, recoverLate: recoverLate,
+                        lateError: lateError, recoverLate: recoverLate, defineHere: defineHere,
                         tileFor: tileFor, roomCards: roomCards, groupOf: groupOf,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,

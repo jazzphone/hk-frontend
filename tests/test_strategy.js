@@ -874,6 +874,21 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('...and nothing when no dashboard is open', S.lateError(null) === false && S.lateError({}) === false);
   ok('it runs when the element is defined', /customElements\.define\('ll-strategy-dashboard-hk-dashboard', HkDashboardStrategy\);\s*recoverLate\(\);/.test(
      readFile(HK_ROOT + '/frontend/cards/hk-strategy.js')));
+  // HOME ASSISTANT SWAPS THE REGISTRY (its scoped-custom-elements polyfill,
+  // with a list of its own): the strategies are defined again in the new one.
+  print('\n=== the registry swapped under the strategy ===');
+  var native = customElements, before = native.get('ll-strategy-dashboard-hk-dashboard');
+  var own = {}, swapped = { get: function (n) { return own[n]; }, define: function (n, c) {
+    if (own[n]) throw new Error('already defined'); own[n] = c; } };
+  customElements = swapped;
+  var made = S.defineHere();
+  var D = own['ll-strategy-dashboard-hk-dashboard'], R = own['ll-strategy-view-hk-room'];
+  ok('both strategies are defined in the new registry', made === true && !!D && !!R);
+  ok('...as subclasses (a constructor registers once), generating as before',
+     D !== before && D.generate === before.generate && typeof R.generate === 'function');
+  ok('...once: nothing to do the next time', S.defineHere() === false);
+  customElements = native;
+  ok('the original registry is untouched', customElements.get('ll-strategy-dashboard-hk-dashboard') === before);
 }).then(function () {
   print(fail ? 'FAIL ' + fail + ' STRATEGY TESTS' : 'ALL ' + pass + ' STRATEGY TESTS PASS');
 }).catch(function (e) { print('Exception: ' + e + ' ' + (e.stack || '')); });

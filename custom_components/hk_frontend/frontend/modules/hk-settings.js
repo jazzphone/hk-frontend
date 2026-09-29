@@ -598,3 +598,127 @@
   };
   announce();
 })();
+
+// THE STRATEGY GUARD. Every generated screen is built by hk-strategy.js, and
+// Home Assistant waits only 5 s for it: past that the whole screen is one
+// "Error loading the dashboard strategy ... Timeout waiting for strategy
+// element" card -- and on a wall tablet, with kiosk mode never applied,
+// Home Assistant's own header and sidebar -- until somebody reloads it. The
+// strategy mends a LATE arrival itself (recoverLate); this mends the file
+// NOT arriving at all (2026-09-29 16:38, the Living Room tablet: a load that
+// never ran the file, sitting behind the photo screensaver for an hour).
+// This file is the first and smallest of the startup scripts, so it is
+// here. Every 3 s it asks one cheap question -- is this page that error? --
+// and if so:
+//   * the strategy is defined: rebuild the page (it came late);
+//   * it is not: load it again at a new address (a failed load is never
+//     retried at the same one), then rebuild;
+//   * still stuck 20 s later: reload the page, at most once in 2 minutes.
+// Each step is written to Home Assistant's log (hk_frontend.screen) with
+// what the browser knows about the file's download, so the next one leaves
+// evidence.
+(function () {
+  'use strict';
+  var EL = 'll-strategy-dashboard-hk-dashboard';
+  var SRC = '/hk/cards/hk-strategy.js';
+  var RELOAD_KEY = 'hk-strategy-reloaded';
+
+  // Home Assistant's error page is one view of one markdown card naming
+  // the element -- checked without serialising a whole generated dashboard
+  function stuck(L) {
+    var raw = L && L.rawConfig, s = raw && raw.strategy, c = L && L.config;
+    if (!s || s.type !== 'custom:hk-dashboard' || !c || !c.views || c.views.length !== 1) return false;
+    var cards = c.views[0] && c.views[0].cards;
+    if (!cards || !cards.length) return false;
+    try { return JSON.stringify(cards).indexOf(EL) !== -1; } catch (e) { return false; }
+  }
+  function panel() {
+    if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return null;
+    var ha = document.querySelector('home-assistant');
+    var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+    return main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace');
+  }
+  function rebuild(p) {
+    var root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
+    (root || p).dispatchEvent(new CustomEvent('config-refresh', { bubbles: true, composed: true }));
+    // kiosk mode reads the dashboard's kiosk_mode on a page change: once the
+    // rebuilt dashboard is in place, tell it the page changed, or Home
+    // Assistant's header stays up (see hk-strategy.js kioskAgain)
+    var n = 0;
+    var iv = setInterval(function () {
+      var q = null;
+      try { q = S.panel(); } catch (e) { /* gone */ }
+      var built = q && q.lovelace && q.lovelace.config && !stuck(q.lovelace);
+      if (built) window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
+      if (built || ++n >= 40) clearInterval(iv);
+    }, 250);
+  }
+  function report(what) {
+    var msg = 'HK Frontend: ' + what + ' (' + location.pathname + ')';
+    try { console.warn(msg); } catch (e) { /* no console */ }
+    try {
+      var h = document.querySelector('home-assistant').hass;
+      Promise.resolve(h.callService('system_log', 'write', { message: msg, level: 'warning', logger: 'hk_frontend.screen' }))
+        .catch(function () { /* not allowed for this user: the console has it */ });
+    } catch (e) { /* not connected */ }
+  }
+  // what the browser recorded about the file (status, time, bytes)
+  function download() {
+    try {
+      var es = performance.getEntriesByType('resource').filter(function (e) { return e.name.indexOf(SRC) !== -1; });
+      if (!es.length) return 'never requested';
+      var e = es[es.length - 1];
+      return 'status ' + (e.responseStatus || '?') + ', ' + Math.round(e.duration) + ' ms, ' +
+             (e.transferSize || 0) + ' bytes over the wire, ' + es.length + ' request(s)';
+    } catch (x) { return 'no timing'; }
+  }
+  var S = { since: 0, tries: 0, rebuiltAt: 0,
+            load: function (u) { return import(u); }, panel: panel, reload: function () { location.reload(); } };
+  function check(now) {
+    var p = S.panel();
+    if (!stuck(p && p.lovelace)) { S.since = 0; S.tries = 0; return 'ok'; }
+    now = now || Date.now();
+    if (!S.since) S.since = now;
+    if (customElements.get(EL)) {
+      if (now - S.rebuiltAt < 10000) return 'rebuilding';      // one rebuild at a time
+      S.rebuiltAt = now;
+      report('the dashboard strategy arrived after Home Assistant stopped waiting; rebuilt');
+      rebuild(p);
+      return 'rebuilt';
+    }
+    if (!S.tries) {
+      S.tries = 1;
+      var dl = download();
+      // the browser keeps a module's failure: asking for the SAME address
+      // again hands back the original error -- the evidence -- before the
+      // fresh copy is asked for
+      S.load(SRC).then(function () { return 'it resolves now'; }, function (err) {
+        return 'error: ' + (err && (err.name + ': ' + err.message) || err);
+      }).then(function (why) {
+        report('the dashboard strategy never loaded (' + dl + '; first load: ' + why + '); loading it again');
+      });
+      S.load(SRC + '?retry=' + now).then(function () {
+        if (customElements.get(EL)) { S.rebuiltAt = Date.now(); rebuild(S.panel()); }
+      }, function (err) {
+        report('loading the dashboard strategy again failed too: ' + (err && err.message || err));
+      });
+      return 'retrying';
+    }
+    if (now - S.since < 20000) return 'waiting';
+    // the last reload is remembered across it (this tab's session): with no
+    // storage there is no way to bound it, so no reload at all -- a loop of
+    // reloads would be worse than the error page
+    var last = 0;
+    try { last = +sessionStorage.getItem(RELOAD_KEY) || 0; } catch (e) { return 'no storage'; }
+    if (last && now - last < 120000) return 'held';
+    try { sessionStorage.setItem(RELOAD_KEY, String(now)); } catch (e) { return 'no storage'; }
+    report('the dashboard strategy still did not load; reloading the page');
+    S.reload();
+    return 'reloaded';
+  }
+  // a guard must never be the thing that throws: any page, any moment
+  setInterval(function () {
+    try { if (!document.hidden) check(); } catch (e) { /* not a Home Assistant page */ }
+  }, 3000);
+  window.hkStrategyGuard = { stuck: stuck, check: check, _: S };
+})();
