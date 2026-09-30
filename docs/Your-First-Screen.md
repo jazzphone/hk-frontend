@@ -34,7 +34,7 @@ Under **New Screen**:
 
    | Shown On | Starts with |
    |---|---|
-   | **Wall Tablet** | The menu always open with the time and weather in it, back to Home when idle, no Home Assistant header (needs [Kiosk Mode](Wall-Tablets.md)). |
+   | **Wall Tablet** | The menu always open with the time and weather in it, back to Home when idle, no Home Assistant header or sidebar. |
    | **Phone or iPad** | The menu behind a button, the time and weather in the header. |
    | **Computer** | The menu open beside the page. |
    | **Car** | No menu, sized for a car’s browser. |

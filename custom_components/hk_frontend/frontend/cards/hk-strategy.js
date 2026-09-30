@@ -1613,12 +1613,17 @@
         if (setting('look.sky_switch')) cfg.sky.enable = setting('look.sky_switch');
         if (saver && saver.entity) cfg.sky.sleep = saver.entity;
       }
-      // Its Screen page's "Hide Home Assistant's header and sidebar": the
-      // kiosk-mode plugin reads this from the dashboard's config.
-      // the third-party cards: the tuned settings, then the dashboard's own
-      // options for them (its gear -> Screen -> Third-party cards, YAML)
-      if (b.kiosk) cfg.kiosk_mode = overlay({ hide_header: true, hide_sidebar: true }, b.kiosk_options);
-      if (saver) cfg.wallpanel = overlay(wallpanel(saver), b.wallpanel_options);
+      // Its Screen page's "Hide Home Assistant Header & Sidebar": HK
+      // Frontend's own (hk-kiosk.js reads cfg.hk_kiosk), or the Kiosk Mode
+      // plugin for a screen that chooses it -- the tuned settings, then the
+      // screen's own options for it (Kiosk Mode Options, YAML).
+      var kiosk = kioskOf(b);
+      if (kiosk === 'kiosk_mode') cfg.kiosk_mode = overlay({ hide_header: true, hide_sidebar: true }, b.kiosk_options);
+      else if (kiosk) cfg.hk_kiosk = kiosk;
+      // THE PHOTO SCREENSAVER: HK Frontend's own (hk-saver.js reads
+      // cfg.hk_screensaver), or WallPanel for a screen that chooses it.
+      if (saver && b.screensaver_engine === 'wallpanel') cfg.wallpanel = overlay(wallpanel(saver), b.wallpanel_options);
+      else if (saver) cfg.hk_screensaver = hkSaver(saver, b.screensaver_options);
       return cfg;
     }
   }
@@ -1666,15 +1671,22 @@
   }
 
   // THE PHOTO SCREENSAVER (a generated wall tablet's Screen page):
-  // WallPanel (HACS), for the tablet's own user only -- a desk opening the
-  // same dashboard never gets it -- with the house's photos, and the
-  // wall tablet's screensaver content (the clock, the weather, what is
-  // playing, the running timers). Its helper, the one a tablet's
-  // automations read, is input_boolean.wallpanel_screensaver_<its room>.
+  // HK Frontend's own (hk-saver.js), or WallPanel (HACS) for a screen that
+  // chooses it -- either way for the tablet's own user only (a desk opening
+  // the same dashboard never gets it), with the house's photos, and the wall
+  // tablet's screensaver content (the clock, the weather, what is playing,
+  // the running timers). Its helper, the one a tablet's automations read, is
+  // input_boolean.wallpanel_screensaver_<its room> -- the name predates
+  // HK's own screensaver and is kept, so no automation has to change.
   function screensaverOf(hass, b) {
     if (!b || !b.screensaver || !b.tablet_user) return null;
-    var ent = b.idle_room ? 'input_boolean.wallpanel_screensaver_' + b.idle_room : null;
-    if (ent && !hass.states[ent]) ent = null;
+    // HK Frontend's own switch for the screen (screensaver.py), else the old
+    // input_boolean.wallpanel_screensaver_<Tablet Room> a house may still
+    // have (and WallPanel can only use an input_boolean)
+    var legacy = b.idle_room ? 'input_boolean.wallpanel_screensaver_' + b.idle_room : null;
+    if (legacy && !hass.states[legacy]) legacy = null;
+    var own = b.screensaver_switch && hass.states[b.screensaver_switch] ? b.screensaver_switch : null;
+    var ent = b.screensaver_engine === 'wallpanel' ? legacy : (own || legacy);
     // the temperature's letter on the screensaver ("68°F"): Home
     // Assistant's unit system's
     var temp = String((hass.config && hass.config.unit_system && hass.config.unit_system.temperature) || '');
@@ -1691,8 +1703,50 @@
       glyph_size: '60px', temp_gap: '36px', icon_gap: '12px', color: 'rgba(255,255,255,0.95)',
       margin: '-4px 0px 0px 20px', layer: true },
     { type: 'custom:hk-screensaver-now-card', music: true },
-    { type: 'custom:hk-timer-strip-card', entity: 'sensor.running_quick_timers', scale: 1.6, fixed: true }
+    { type: 'custom:hk-timer-strip-card', entity: 'sensor.running_quick_timers', scale: 1.6, fixed: true },
+    // top-right: the house at a glance (HK's own screensaver only)
+    { type: 'custom:hk-screensaver-status-card' }
   ];
+  // HK FRONTEND'S OWN SCREENSAVER (hk-saver.js): the block it reads from the
+  // dashboard's config. `cards` are the same four as WallPanel's, less the
+  // ones the screen turned off (Over the Photos).
+  function hkSaver(sv, o) {
+    o = o || {};
+    var cards = JSON.parse(JSON.stringify(SAVER_CARDS));
+    if (sv.unit) cards[1].unit = sv.unit; else delete cards[1].unit;
+    var keep = [o.clock !== false, o.weather !== false, o.music !== false, o.timers !== false, o.status !== false];
+    return {
+      user: sv.user, entity: sv.entity || null, photos: sv.photos,
+      starts_after: o.starts_after || 180, each_photo: o.each_photo || 30,
+      order: o.order === 'sorted' ? 'sorted' : 'random',
+      fill: o.fill !== false, zoom: o.zoom === true,
+      show: o.show === 'forecast' || o.show === 'both' ? o.show : 'photos', fallback: o.fallback !== false,
+      forecast_every: o.forecast_every || 5,
+      band: o.band !== false, band_photos: o.band_photos === true,
+      cards: cards.filter(function (c, i) { return keep[i]; })
+    };
+  }
+  // HIDE HOME ASSISTANT'S HEADER AND SIDEBAR (a screen's Hide Home Assistant
+  // Header & Sidebar): null, 'kiosk_mode' (the plugin does it), or the block
+  // hk-kiosk.js reads -- the same one a YAML dashboard can write as hk_kiosk.
+  function kioskOf(b) {
+    if (!b || !b.kiosk) return null;
+    // (no kiosk_engine: an integration older than 1.3 -- its screens with
+    // Kiosk Mode Options of their own were the plugin's, as settings.py says)
+    var eng = b.kiosk_engine || (b.kiosk_options && Object.keys(b.kiosk_options).length ? 'kiosk_mode' : 'hk');
+    if (eng === 'kiosk_mode') return 'kiosk_mode';
+    return { header: b.kiosk_header !== false, sidebar: b.kiosk_sidebar !== false, admins: b.kiosk_admins !== false };
+  }
+  // A SCREEN'S hk_screensaver BLOCK FROM ITS SETTINGS ALONE, for a dashboard
+  // HK Frontend does not draw (an existing dashboard given HK settings):
+  // hk-saver.js asks for it when the dashboard's own config has no
+  // hk_screensaver. HK Frontend's own screensaver only -- WallPanel reads its
+  // block from the dashboard itself. null: no screensaver for this screen.
+  function saverBlock(hass, b) {
+    if (!hass || !b || b.screensaver_engine === 'wallpanel') return null;
+    var sv = screensaverOf(hass, b);
+    return sv ? hkSaver(sv, b.screensaver_options) : null;
+  }
   // A THIRD-PARTY CARD'S OWN OPTIONS over the tuned settings:
   // key by key, into nested mappings; a list or a value replaces; `key: null`
   // removes one. Never changes `base`.
@@ -1708,7 +1762,7 @@
     return out;
   }
   function wallpanel(sv) {
-    var cards = JSON.parse(JSON.stringify(SAVER_CARDS));
+    var cards = JSON.parse(JSON.stringify(SAVER_CARDS)).slice(0, 4);
     if (sv.unit) cards[1].unit = sv.unit; else delete cards[1].unit;
     var profiles = {};
     profiles['user.' + sv.user] = { enabled: true };
@@ -1929,6 +1983,7 @@
                         tileFor: tileFor, roomCards: roomCards, groupOf: groupOf,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,
+                        kioskOf: kioskOf, saverBlock: saverBlock,
                         shouldRegenerate: HkDashboardStrategy.shouldRegenerate, inputs: inputs,
                         _built: built, _busy: busy };
 })();

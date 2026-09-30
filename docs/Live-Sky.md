@@ -60,7 +60,7 @@ and each view that wants the sky says `sky: true`:
 ```yaml
 sky:
   enable: input_boolean.live_sky                          # optional: off hides the sky
-  sleep: input_boolean.wallpanel_screensaver_kitchen      # optional: on pauses it
+  sleep: input_boolean.kitchen_photos                     # optional: on pauses it
 views:
   - title: Home
     path: home

@@ -74,6 +74,10 @@
     ':focus-visible{outline:3px solid color-mix(in srgb,var(--hk-tint) 55%,transparent);outline-offset:2px;border-radius:8px}',
     // GROUPS
     '.grp{margin:0 0 30px}',
+    // A NOTE ALONE (a group of no rows and no header, after another group)
+    // reads as that group's footer: no empty card, and up under it
+    '.cells:empty{display:none}',
+    '.grp + .grp:not(:has(> .gh)):has(> .cells:empty){margin-top:-23px}',
     '.gh{margin:0;padding:0 16px 7px;font-size:13px;font-weight:400;line-height:18px;text-transform:uppercase;',
     '  letter-spacing:0;color:var(--hk-label2)}',
     '.cells{background:var(--hk-cell);border-radius:10px;overflow:hidden}',
@@ -85,13 +89,35 @@
     '.cell + .cell::before,.cell + .cellwrap::before,.cellwrap + .cell::before,.cellwrap + .cellwrap::before{content:"";position:absolute;top:0;right:0;left:16px;height:1px;',
     '  background:var(--hk-sep);transform:scaleY(.5);transform-origin:top}',
     '.cellwrap{position:relative}',
-    '.cell.hasic + .cell::before,.cell + .cell.hasic::before{left:58px}',
+    // A SEPARATOR STARTS WHERE ITS ROW'S TEXT DOES (the row below it): after
+    // a 22 px glyph, a 30 px tile, a list's remove button, or both
+    '.cell + .cell.hasic::before{left:50px}',
+    '.cell + .cell.hasic:has(> .tile)::before{left:58px}',
+    '.cell + .cell.li:not(.bare)::before{left:54px}',
+    '.cell + .cell.li.hasic:not(.bare)::before{left:88px}',
+    '.cell + .cell.li.hasic:not(.bare):has(> .tile)::before{left:96px}',
     'a.cell,button.cell{cursor:pointer}',
     '@media (hover:hover){a.cell:hover,button.cell:hover{background:var(--hk-hover)}}',
     'a.cell:active,button.cell:active{background:var(--hk-press)}',
     '.lbl{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}',
-    '.lbl .t{overflow-wrap:anywhere}',
-    '.lbl small{font-size:13px;line-height:17px;color:var(--hk-label2)}',
+    // A LABEL AND A VALUE THAT DON'T BOTH FIT (a phone): a long value gives
+    // way and the label keeps its one line (up to 62%) -- never "Feels /
+    // Like" beside a half-shown value; a short value ("Photos & Forecast")
+    // keeps its words and the label wraps instead (2026-09-30). Not in a
+    // list's rows, whose short names and placements share the row as they are.
+    // (fitRow decides which: `lkeep` -- the label keeps its line, the value
+    // gives way; `vkeep` -- a short value keeps its word, the label wraps)
+    '.cell.lkeep > .lbl{flex:0 0 auto;max-width:62%}',
+    '.cell.lkeep > .val,.cell.lkeep > .pop{flex:1 1 0;min-width:0;justify-content:flex-end}',
+    '.cell.vkeep > .val,.cell.vkeep > .pop{flex:0 0 auto;max-width:60%}',
+    '.cell.fitm > .lbl,.cell.fitm > .val,.cell.fitm > .pop{flex:none !important;max-width:none !important}',
+    '.cell.fitm > .lbl .t{white-space:nowrap}',
+    // never narrower than its longest word ("Camer / a" beside a long value,
+    // 2026-09-30); a word longer than the whole row still breaks
+    '.lbl .t{overflow-wrap:break-word}',
+    '.cell > .lbl{min-width:min-content;max-width:100%}',
+    // an entity id under a name breaks where it must, never past the row
+    '.lbl small{font-size:13px;line-height:17px;color:var(--hk-label2);overflow-wrap:anywhere}',
     '.val{flex:0 1 auto;min-width:0;color:var(--hk-label2);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.chev{flex:none;width:8px;height:13px;margin-left:-2px;color:var(--hk-label3)}',
     '.tile{flex:none;width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;',
@@ -126,8 +152,13 @@
     '.seg button[aria-checked="true"]{background:var(--hk-seg-on);box-shadow:0 3px 8px rgba(0,0,0,.12),0 3px 1px rgba(0,0,0,.04);font-weight:600}',
     '.seg button[aria-checked="true"] + button{box-shadow:none}',
     '.cell.stack{flex-wrap:wrap}',
+    // STACKED: the whole width, each choice as wide as its words need (a
+    // "Photos & Forecast" beside a "Photos"), and a choice that still can't
+    // fit wraps inside its segment rather than spilling into the next
     '.cell.stack .seg{width:100%}',
-    '.cell.stack .seg button{padding:0 6px}',
+    '.cell.stack .seg button{padding:0 6px;min-width:0}',
+    '.cell.stack.fitc .seg{grid-auto-columns:auto}',
+    '.cell.stack.fitc .seg button{padding:4px 6px;height:auto;min-height:28px;white-space:normal;line-height:17px}',
     // POP-UP MENU (a system <select> over the value)
     '.pop{position:relative;flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:6px;color:var(--hk-label2)}',
     '.pop .pv{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
@@ -155,7 +186,7 @@
     'input[type=range]:focus-visible::-webkit-slider-thumb{outline:3px solid color-mix(in srgb,var(--hk-tint) 55%,transparent)}',
     // TEXT
     '.cell input.tx{flex:1 1 40%;min-width:0;border:0;background:none;color:var(--hk-label);font:inherit;text-align:right;',
-    '  padding:6px 0;outline:none}',
+    '  padding:6px 0;outline:none;text-overflow:ellipsis}',
     '.cell input.tx::placeholder{color:var(--hk-label3)}',
     '.cell.textrow:focus-within{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--hk-tint) 55%,transparent);border-radius:10px}',
     '.cell .unit{color:var(--hk-label2)}',
@@ -163,6 +194,8 @@
     '.check{flex:none;width:17px;height:17px;color:var(--hk-tint)}',
     // LIST EDITOR
     '.li{padding-left:12px}',
+    // a row with no remove button (nor its place kept) lines up with any row
+    '.li.bare{padding-left:16px}',
     '.lx{flex:none;width:30px;height:30px;margin:-2px 0;border:0;padding:0;border-radius:50%;background:none;cursor:pointer;',
     '  display:inline-flex;align-items:center;justify-content:center}',
     '.lx svg{width:22px;height:22px}',
@@ -239,7 +272,7 @@
     if (o.badge) a.appendChild(h('span', { class: 'badge', text: o.badge }));
     if (o.value !== undefined && o.value !== null && o.value !== '') a.appendChild(h('span', { class: 'val', text: o.value }));
     a.appendChild(svg(CHEV));
-    return a;
+    return o.value !== undefined && o.value !== null && o.value !== '' ? watchRow(a) : a;
   }
   // A SWITCH ROW: the whole row toggles; o.on, o.onChange(bool), o.disabled
   function toggle(o) {
@@ -259,7 +292,74 @@
     return row;
   }
   // A SEGMENTED CONTROL: o.options [[value, text]], o.value, o.onChange(v).
-  // o.stack: the control under the label, full width (long choices, phones)
+  // o.stack: the control under the label, full width (long choices, phones).
+  // Without it, the control goes under its label BY ITSELF whenever the row
+  // is too narrow for both (fitSeg): a phone, a narrow column. Before
+  // 2026-09-30 each page had to ask, and one that didn't (Tab Size) squeezed
+  // its label to a letter a line on an iPhone.
+  var SEG_RO = null;
+  function broken(t) {
+    if (!t || !document.createRange) return false;
+    var r = document.createRange(), tops = {};
+    r.selectNodeContents(t);
+    [].forEach.call(r.getClientRects(), function (x) { tops[Math.round(x.top)] = 1; });
+    return Object.keys(tops).length > String(t.textContent || '').trim().split(/\s+/).length;
+  }
+  function spills(box) { return [].some.call(box.children, function (b) { return b.scrollWidth > b.clientWidth + 1; }); }
+  function fitSeg(cell) {
+    if (!cell.isConnected) { SEG_RO.unobserve(cell); return; }
+    var w = cell.clientWidth;
+    if (!w || w === cell._fitW) return;            // its own height changing is no reason
+    cell._fitW = w;
+    var box = cell.querySelector('.seg'), lbl = cell.querySelector('.lbl');
+    cell.classList.remove('fitc');
+    if (!cell._stackAlways) {
+      cell.classList.remove('stack');
+      var cr = cell.getBoundingClientRect(), br = box.getBoundingClientRect();
+      if (br.right > cr.right - 8 || spills(box) || broken(lbl && lbl.querySelector('.t'))) cell.classList.add('stack');
+    }
+    // stacked: equal segments, as Apple draws them -- unless a choice is
+    // then too wide for its share ("Photos & Forecast"): each as its words
+    if (cell.classList.contains('stack') && spills(box)) cell.classList.add('fitc');
+  }
+  // ROWS WITH A VALUE (fitRow): measured at their natural widths, then left
+  // alone if both fit, else `vkeep` or `lkeep` (the CSS above)
+  var ROW_RO = null;
+  function fitRow(cell) {
+    if (!cell.isConnected) { ROW_RO.unobserve(cell); return; }
+    var w = cell.clientWidth;
+    if (!w || w === cell._fitW) return;
+    cell._fitW = w;
+    var lbl = cell.querySelector(':scope > .lbl'), val = cell.querySelector(':scope > .val, :scope > .pop');
+    cell.classList.remove('vkeep', 'lkeep');
+    if (!lbl || !val) return;
+    cell.classList.add('fitm');
+    var t = lbl.querySelector('.t'), r = document.createRange();
+    r.selectNodeContents(t || lbl);
+    var lw = r.getBoundingClientRect().width, vw = val.getBoundingClientRect().width;
+    cell.classList.remove('fitm');
+    var cs = getComputedStyle(cell), gap = parseFloat(cs.columnGap) || 0, other = 0, n = 0;
+    [].forEach.call(cell.children, function (c) {
+      if (getComputedStyle(c).display === 'none' || getComputedStyle(c).position === 'absolute') return;
+      n++;
+      if (c !== lbl && c !== val) other += c.getBoundingClientRect().width;
+    });
+    var avail = cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - other - gap * Math.max(0, n - 1);
+    if (lw + vw <= avail + 0.5) return;
+    // a value that fits in 60% of the row keeps its words; a longer one gives way
+    cell.classList.add(vw <= avail * 0.6 ? 'vkeep' : 'lkeep');
+  }
+  function watchRow(cell) {
+    if (typeof ResizeObserver !== 'function' || cell.classList.contains('li')) return cell;
+    if (!ROW_RO) ROW_RO = new ResizeObserver(function (es) { es.forEach(function (e) { fitRow(e.target); }); });
+    ROW_RO.observe(cell);
+    return cell;
+  }
+  function watchSeg(cell) {
+    if (typeof ResizeObserver !== 'function') return;
+    if (!SEG_RO) SEG_RO = new ResizeObserver(function (es) { es.forEach(function (e) { fitSeg(e.target); }); });
+    SEG_RO.observe(cell);
+  }
   function seg(o) {
     var lid = id('l');
     var box = h('div', { class: 'seg', role: 'radiogroup', 'aria-labelledby': lid });
@@ -280,14 +380,17 @@
       return b;
     });
     if (!o.options.some(function (op) { return op[0] === o.value; }) && buttons[0]) buttons[0].setAttribute('tabindex', '0');
-    return h('div', { class: 'cell' + (o.stack ? ' stack' : ''), 'data-sk': o.sk }, [label(o.label, o.sub, lid), box]);
+    var cell = h('div', { class: 'cell' + (o.stack ? ' stack' : ''), 'data-sk': o.sk }, [label(o.label, o.sub, lid), box]);
+    cell._stackAlways = !!o.stack;
+    watchSeg(cell);
+    return cell;
   }
   // A POP-UP MENU: o.options [[value, text]], o.value, o.onChange(v)
   function select(o) {
     var lid = id('l');
     var pop = popup({ options: o.options, value: o.value, onChange: o.onChange, fk: o.fk || o.sk,
                       labelledby: lid, disabled: o.disabled, placeholder: o.placeholder });
-    return h('div', { class: 'cell', 'data-sk': o.sk }, [lead(o), label(o.label, o.sub, lid), pop]);
+    return watchRow(h('div', { class: 'cell', 'data-sk': o.sk }, [lead(o), label(o.label, o.sub, lid), pop]));
   }
   // THE POP-UP MENU ITSELF: the value and ⌃⌄, the system's own menu over it.
   // o.label (its accessible name) or o.labelledby; o.options [[value, text]]
@@ -347,8 +450,8 @@
   }
   // A ROW THAT ONLY SAYS SOMETHING
   function info(o) {
-    return h('div', { class: 'cell' + (o.icon || o.tile ? ' hasic' : ''), 'data-sk': o.sk }, [lead(o), label(o.label, o.sub),
-      o.value !== undefined ? h('span', { class: 'val' + (o.valueCls ? ' ' + o.valueCls : ''), text: o.value }) : null]);
+    return watchRow(h('div', { class: 'cell' + (o.icon || o.tile ? ' hasic' : ''), 'data-sk': o.sk }, [lead(o), label(o.label, o.sub),
+      o.value !== undefined ? h('span', { class: 'val' + (o.valueCls ? ' ' + o.valueCls : ''), text: o.value }) : null]));
   }
   // A CHECKMARK ROW (one of several, or several of several)
   function check(o) {
@@ -400,8 +503,12 @@
     var custom = !o.auto;
     var values = o.rows.map(function (r) { return r.value; });
     var cells = [];
+    var canRm = function (r) { return r.fixed ? false : (custom ? values.length > (o.minRows || 0) : r.removable); };
+    // one row with a remove button and every row keeps its place, so the
+    // names line up (a house's custom chips among the automatic ones)
+    var anyRm = o.rows.some(canRm);
     o.rows.forEach(function (r, i) {
-      var canRemove = r.fixed ? false : (custom ? values.length > (o.minRows || 0) : r.removable);
+      var canRemove = canRm(r);
       var row = h('div', { class: 'cell li' + (r.icon ? ' hasic' : ''), 'data-v': r.value, 'data-sk': r.sk });
       if (canRemove) {
         var rm = h('button', { class: 'lx rm', type: 'button', 'aria-label': 'Remove ' + r.label, 'data-fk': fk + ':rm:' + r.value });
@@ -413,9 +520,10 @@
           if (o.announce) o.announce(r.label + ' removed');
         });
         row.appendChild(rm);
-      } else if (custom && o.rows.some(function (x) { return !x.fixed; })) {
+      } else if (anyRm || (custom && o.rows.some(function (x) { return !x.fixed; }))) {
         row.appendChild(h('span', { class: 'lx', 'aria-hidden': 'true' }));
       }
+      else row.classList.add('bare');
       if (r.icon) row.appendChild(icon(r.icon));
       var lbl = label(r.label, r.sub);
       if (r.fixed) lbl.appendChild(h('span', { class: 'fixed', text: r.fixedText || 'Always included' }));

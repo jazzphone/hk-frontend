@@ -44,6 +44,7 @@ The sidebar has every page.
 | Shape a screen: its Home page, pages and menu | [Screens](Screens.md) and the pages under it |
 | Change how one accessory shows up | [Accessories](Accessories.md) |
 | Put a screen on a wall | [Wall Tablets](Wall-Tablets.md) |
+| Give a dashboard of your own the screensaver, the kiosk look, the sky | [Your Own Dashboard](Your-Own-Dashboard.md) |
 | Write your own dashboard with the cards | [Card Library](Card-Library.md) |
 | Use Apple’s font and glyphs | [Your Files](Your-Files.md) |
 | Fix something | [Troubleshooting](Troubleshooting.md) |

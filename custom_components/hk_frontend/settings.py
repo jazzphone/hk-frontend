@@ -297,6 +297,7 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     for section, values in stored.items():
         if section in out and isinstance(values, dict):
             out[section].update({k: v for k, v in values.items() if k in out[section]})
+    out["look"]["saver"] = saver_options(out["look"].get("saver")) or dict(SAVER_DEFAULTS)
     return out
 
 
@@ -318,6 +319,92 @@ OPTIONAL_CARDS = {k: (v["folder"], v["file"]) for k, v in THIRD_PARTY.items()}
 # a mapping of plain values, and not huge. Merged over the dashboards' tuned
 # settings key by key (hk-strategy.js); `key: null` removes one.
 CARD_OPTIONS_MAX = 20000
+
+
+# ------------------------------------------------------------ the screensaver
+# THE PHOTO SCREENSAVER'S OPTIONS (a generated wall tablet's Screensaver
+# Options page; hk-saver.js draws it). HK Frontend's own screensaver since
+# 1.3.0 -- WallPanel (HACS) is only a fallback a screen can choose
+# (screensaver_engine), with its own wallpanel_options.
+SAVER_DEFAULTS: dict[str, Any] = {
+    "starts_after": 180,     # s untouched (the switch can start it sooner)
+    "each_photo": 30,        # s
+    "order": "random",       # random: every photo once before any repeats
+    "fill": True,            # a landscape photo fills the screen (else whole)
+    "zoom": False,           # Slow Zoom -- a frame per refresh; off by default
+    "clock": True, "weather": True, "music": True, "timers": True,
+    "status": True,          # Home Status, top right (hk-screensaver-status-card)
+    # photos: the photos, and the forecast whenever there are none to show;
+    # both: the photos with the forecast as a slide every `forecast_every`
+    # photos; forecast: always the forecast (the live sky over the land)
+    "show": "photos",
+    "forecast_every": 5,
+    # THE FORECAST DETAILS (today, the hours, the days, along the bottom): on
+    # the forecast (Forecast, the Photos & Forecast slide, the no-photos
+    # fallback), and over the photos
+    "band": True, "band_photos": False,
+    # with Show: photos and no photos to show -- the forecast (True) or a dark
+    # screen, as before 1.3 (False)
+    "fallback": True,
+}
+SAVER_ORDERS = ("random", "sorted")
+SAVER_SHOWS = ("photos", "both", "forecast")
+# ALL SCREENS' screensaver options (Wall Tablets -> Screensaver): a screen
+# whose own `screensaver_options` is null uses these (resolved()).
+DEFAULTS["look"]["saver"] = dict(SAVER_DEFAULTS)
+SAVER_FC_EVERY = (2, 100)
+SAVER_ENGINES = ("hk", "wallpanel")
+# WHO HIDES HOME ASSISTANT'S HEADER AND SIDEBAR on a screen with Hide Home
+# Assistant Header & Sidebar: HK Frontend itself (hk-kiosk.js, 1.3), or the
+# Kiosk Mode plugin (HACS) with the screen's kiosk_options.
+KIOSK_ENGINES = ("hk", "kiosk_mode")
+SAVER_STARTS = (15, 3600)
+SAVER_EACH = (5, 600)
+
+
+def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
+    """The screensaver's options over the defaults, or None when `v` is not a
+    mapping or holds a value that cannot be used (the form says so). With no
+    options of its own yet, a screen's old WallPanel choices carry over:
+    idle_time, display_time, media_order, image_fit_landscape and
+    image_animation_ken_burns are the ones its page ever set."""
+    out = dict(SAVER_DEFAULTS)
+    if v in (None, "", {}):
+        w = legacy if isinstance(legacy, dict) else {}
+        v = {}
+        for src, dst in (("idle_time", "starts_after"), ("display_time", "each_photo")):
+            if isinstance(w.get(src), (int, float)) and not isinstance(w.get(src), bool):
+                v[dst] = w[src]
+        if w.get("media_order") in SAVER_ORDERS:
+            v["order"] = w["media_order"]
+        if w.get("image_fit_landscape") in ("cover", "contain"):
+            v["fill"] = w["image_fit_landscape"] == "cover"
+        if isinstance(w.get("image_animation_ken_burns"), bool):
+            v["zoom"] = w["image_animation_ken_burns"]
+        # an out-of-range old value is clamped rather than refused: it was
+        # accepted once, and the screen must keep working
+        for k, (lo, hi) in (("starts_after", SAVER_STARTS), ("each_photo", SAVER_EACH)):
+            if k in v:
+                v[k] = int(min(max(v[k], lo), hi))
+    if not isinstance(v, dict):
+        return None
+    for k, val in v.items():
+        if k not in SAVER_DEFAULTS:
+            return None
+        if k in ("starts_after", "each_photo", "forecast_every"):
+            lo, hi = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_every": SAVER_FC_EVERY}[k]
+            if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= val <= hi:
+                return None
+            out[k] = int(val)
+        elif k in ("order", "show"):
+            if val not in (SAVER_ORDERS if k == "order" else SAVER_SHOWS):
+                return None
+            out[k] = val
+        else:
+            if not isinstance(val, bool):
+                return None
+            out[k] = val
+    return out
 
 
 def card_options(v: Any) -> dict[str, Any] | None:
@@ -352,7 +439,8 @@ def find_extras(config_dir: str) -> dict[str, str | None]:
 def as_client(entry: ConfigEntry | None,
               found: dict[str, list[str]] | None = None,
               accessories: dict[str, Any] | None = None,
-              extras: dict[str, Any] | None = None) -> dict[str, Any]:
+              extras: dict[str, Any] | None = None,
+              switches: dict[str, str] | None = None) -> dict[str, Any]:
     """What a screen is handed. The same for every user: the house-wide
     sections, and `boards` -- each dashboard item's own menu settings, by
     url path. The menu's older lists (dashboards, docked, ...) are filled in
@@ -367,6 +455,10 @@ def as_client(entry: ConfigEntry | None,
     out = {"configured": entry is not None, **merged(entry.options if entry else None)}
     del out["counts"]
     items = boards(entry)
+    # each screen's photo screensaver switch, by its current entity id
+    # (screensaver.py) -- a rename in the UI keeps working
+    for path, b in items.items():
+        b["screensaver_switch"] = (switches or {}).get(path)
     out["boards"] = items
     if items:
         out["menu"].update(legacy_lists(items))
@@ -432,11 +524,14 @@ BOARD_NARROW = ("chip", "chip_scroll", "tab")
 # what a phone shows at the top of Home: the clock and weather header, or the
 # one-line weather strip (a generated screen; a YAML one draws its own)
 BOARD_PHONE = ("header", "strip")
+# the menu's edge tab: its size on a tablet or wider (a phone always has the
+# standard one, which already lies over the first column) -- hk-menu.js
+BOARD_TAB_SIZES = ("standard", "large", "xl")
 VIEW_PATH = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
 BOARD_DEFAULTS: dict[str, Any] = {
     # the menu
     "menu": "auto", "dock_min": 1000, "time_weather": "page", "ha_row": False,
-    "categories": [], "tab_position": "", "room_order": [],
+    "categories": [], "tab_position": "", "tab_size": "large", "room_order": [],
     "menu_rooms": "az", "home_rooms": "as_is", "page_rooms": "floor",
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
@@ -456,16 +551,23 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Screen: frost, blur: this screen's own amounts (0-100 %) -- None
     # follows the shared look (HK Settings -> Appearance).
     "glass": "house", "frost": None, "blur": None, "sky": True, "idle_return": False, "idle_room": "", "car": False,
-    # kiosk: a generated dashboard hides Home Assistant's header and sidebar
-    # (the kiosk-mode plugin); a hand-written one says so in its own YAML.
-    "kiosk": False,
+    # kiosk: the screen hides Home Assistant's header and sidebar -- HK
+    # Frontend itself (hk-kiosk.js), any screen, generated or not. Which of
+    # the two (kiosk_header, kiosk_sidebar), and whether for admins too
+    # (kiosk_admins). kiosk_engine "kiosk_mode": the Kiosk Mode plugin (HACS)
+    # does it instead, with kiosk_options -- a generated screen only.
+    "kiosk": False, "kiosk_header": True, "kiosk_sidebar": True, "kiosk_admins": True,
+    "kiosk_engine": "hk",
     # popups: this dashboard answers the house's pop-ups (Pop-ups) -- off for
     # a screen that must never be covered (a car's)
     "popups": True,
     # a GENERATED wall tablet's own: the now-playing bar, and the photo
-    # screensaver (WallPanel) for the tablet's HA user -- the sky pauses
+    # screensaver for the tablet's HA user (HK Frontend's own, hk-saver.js;
+    # or WallPanel if the screen chooses it) -- the sky and the cards pause
     # behind it
     "now_playing": False, "screensaver": False, "tablet_user": "",
+    # null: the settings for All Screens (resolved() fills them in)
+    "screensaver_options": None, "screensaver_engine": "hk",
     # a GENERATED dashboard's third-party cards' own options (YAML), over the
     # tuned settings: WallPanel's and Kiosk Mode's
     "wallpanel_options": {}, "kiosk_options": {},
@@ -515,6 +617,9 @@ def amount_or_none(v: Any) -> int | None:
     return max(AMOUNT[0], min(AMOUNT[1], n))
 
 
+_MISSING = object()
+
+
 def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     """One dashboard's settings over the defaults, each value checked: what
     is stored can predate a choice being removed."""
@@ -556,21 +661,73 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["menu_top"] = list(dict.fromkeys(k for k in (strs(d.get("menu_top")) or []) if VIEW_PATH.match(k)))
     t = tab_position(d.get("tab_position"))
     out["tab_position"] = t if t is not None else ""
+    out["tab_size"] = pick("tab_size", BOARD_TAB_SIZES)
     out["glass"] = pick("glass", BOARD_GLASS)
     for k in ("frost", "blur"):
         out[k] = amount_or_none(d.get(k))
     for k in ("chips_row", "camera_strip", "scenes_row", "sky", "idle_return", "car", "kiosk", "popups",
-              "now_playing", "screensaver", "home_page"):
+              "now_playing", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
         out[k] = bool(d.get(k, BOARD_DEFAULTS[k]))
     user = str(d.get("tablet_user") or "").strip()
     out["tablet_user"] = user if re.fullmatch(r"[A-Za-z0-9_.@ -]{1,64}", user) else ""
     for k in ("wallpanel_options", "kiosk_options"):
         out[k] = card_options(d.get(k)) or {}
+    # A SCREEN'S SCREENSAVER OPTIONS, AS STORED: its own (a mapping), or null
+    # -- the settings for All Screens, filled in on reading (resolved()). A
+    # screen that never had any keeps its old WallPanel choices as its own
+    # (1.2 -> 1.3), or follows All Screens.
+    own = d.get("screensaver_options", _MISSING)
+    if own is None:
+        out["screensaver_options"] = None
+    elif isinstance(own, dict) and own:
+        out["screensaver_options"] = saver_options(own) or saver_options(None, out["wallpanel_options"])
+    else:
+        legacy = saver_options(None, out["wallpanel_options"])
+        out["screensaver_options"] = legacy if legacy != SAVER_DEFAULTS else None
+    out["screensaver_engine"] = d.get("screensaver_engine") if d.get("screensaver_engine") in SAVER_ENGINES else "hk"
+    # WHO HIDES THE HEADER: HK Frontend (1.3), unless the screen is still
+    # tuned for the Kiosk Mode plugin. A 1.2 screen whose Kiosk Mode Options
+    # say only what HK Frontend can (kiosk_from_plugin) moves over with them;
+    # any other options keep the plugin, and so everything they say.
+    eng = d.get("kiosk_engine")
+    if eng in KIOSK_ENGINES:
+        out["kiosk_engine"] = eng
+    else:
+        same = kiosk_from_plugin(out["kiosk_options"])
+        out["kiosk_engine"] = "hk" if same is not None else "kiosk_mode"
+        for k, v in (same or {}).items():
+            if k not in d:
+                out[k] = v
     live = str(d.get("camera_live") or "").strip()
     out["camera_live"] = live if re.fullmatch(r"(input_select|select)\.[a-z0-9_]+", live) else ""
     room = str(d.get("idle_room") or "").strip()
     out["idle_room"] = room if re.fullmatch(r"[a-z0-9_]*", room) else ""
     return out
+
+
+def kiosk_from_plugin(o: Mapping[str, Any] | None) -> dict[str, bool] | None:
+    """A 1.2 screen's Kiosk Mode Options, as HK Frontend's own kiosk
+    settings -- or None when they say something HK Frontend can't (any
+    other option of the plugin's, or admins seeing only part of what is
+    hidden). The 1.2 page wrote hide_header, hide_sidebar and
+    admin_settings; a screen that only ever used those moves over as it was."""
+    o = dict(o or {})
+    if set(o) - {"hide_header", "hide_sidebar", "admin_settings"}:
+        return None
+    header, sidebar = o.get("hide_header", True), o.get("hide_sidebar", True)
+    admin = o.get("admin_settings", {})
+    if not isinstance(header, bool) or not isinstance(sidebar, bool) or not isinstance(admin, dict) \
+            or set(admin) - {"hide_header", "hide_sidebar"}:
+        return None
+    if not admin:
+        return {"kiosk_header": header, "kiosk_sidebar": sidebar, "kiosk_admins": True}
+    # admins: all of it shown (HK's For Admins Too off), or the same as everyone
+    shown = {"hide_header": header, "hide_sidebar": sidebar}
+    if all(admin.get(k, shown[k]) is False or not shown[k] for k in shown):
+        return {"kiosk_header": header, "kiosk_sidebar": sidebar, "kiosk_admins": False}
+    if all(admin.get(k, shown[k]) == shown[k] for k in shown):
+        return {"kiosk_header": header, "kiosk_sidebar": sidebar, "kiosk_admins": True}
+    return None
 
 
 # ------------------------------------------------------------ the pop-ups
@@ -773,12 +930,27 @@ def popups(entry: ConfigEntry | None) -> list[dict[str, Any]]:
     return sorted(out, key=lambda p: (p["name"] or p["hash"]).lower())
 
 
+def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
+             house: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """A screen's settings as READ: a null screensaver_options filled in with
+    All Screens' (`house`, or read from `options`), and `screensaver_house`
+    saying which it is."""
+    out = dict(b)
+    own = b.get("screensaver_options")
+    if own is None and house is None:
+        house = merged(options)["look"]["saver"]
+    out["screensaver_house"] = own is None
+    out["screensaver_options"] = dict(house) if own is None else own
+    return out
+
+
 def boards(entry: ConfigEntry | None) -> dict[str, dict[str, Any]]:
-    """Every dashboard item's settings, by url path."""
+    """Every dashboard item's settings, by url path (as read: resolved())."""
     out: dict[str, dict[str, Any]] = {}
+    house = merged(entry.options if entry is not None else None)["look"]["saver"]
     for sub in (entry.subentries.values() if entry is not None else ()):
         if sub.subentry_type == SUBENTRY_DASHBOARD and sub.unique_id:
-            out[sub.unique_id] = board(sub.data)
+            out[sub.unique_id] = resolved(board(sub.data), None, house)
     return out
 
 

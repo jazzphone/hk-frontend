@@ -119,6 +119,83 @@ async def test_the_menu_line_reads_the_dashboard_items(hass, frontend):
     assert line.ok is False and "dashboard-gone" in line.detail and "Dashboards" in line.detail
 
 
+async def test_the_screensaver_lines(hass, frontend, monkeypatch):
+    """WallPanel is only a line for a screen that chooses it; a screen with a
+    photo screensaver gets a line counting its photos."""
+    from custom_components.hk_frontend import setup_check
+    from homeassistant.components import media_source
+    from homeassistant.components.lovelace.const import LOVELACE_DATA
+    hass.data[LOVELACE_DATA] = SimpleNamespace(
+        dashboards={None: object()}, resource_mode="storage", resources=SimpleNamespace(async_items=lambda: []))
+    kid = lambda cls, exp: SimpleNamespace(media_class=cls, media_content_type="image/jpeg" if cls == "image" else "",
+                                           can_expand=exp)
+    folder = {"children": [kid("image", False), kid("image", False), kid("directory", True)]}
+
+    async def browse(_hass, _id):
+        if folder is None:
+            raise ValueError("no such folder")
+        return SimpleNamespace(children=folder["children"])
+    monkeypatch.setattr(media_source, "async_browse_media", browse)
+    titles = lambda lines: {x.title: x for x in lines}
+    lines = titles(await setup_check.async_run(hass, {}, {"dashboard-k": {"menu": "open"}}))
+    assert "WallPanel" not in lines and "Screensaver photos" not in lines, "no screensaver, neither line"
+    lines = titles(await setup_check.async_run(hass, {}, {"dashboard-k": {"menu": "open", "screensaver": True}}))
+    assert "WallPanel" not in lines, "HK Frontend draws the screensaver itself"
+    assert lines["Screensaver photos"].ok is True and "2 photos" in lines["Screensaver photos"].detail \
+        and "1 folder" in lines["Screensaver photos"].detail
+    lines = titles(await setup_check.async_run(hass, {}, {"dashboard-k": {"screensaver": True,
+                                                                          "screensaver_engine": "wallpanel"}}))
+    assert "WallPanel" in lines, "a screen that chooses WallPanel is told whether it is ready"
+    lines = titles(await setup_check.async_run(hass, {}, {"k": {"kiosk": True, "kiosk_engine": "hk"}}))
+    assert "Kiosk Mode" not in lines, "HK Frontend hides Home Assistant's header and sidebar itself"
+    lines = titles(await setup_check.async_run(hass, {}, {"k": {"kiosk": True, "kiosk_engine": "kiosk_mode"}}))
+    assert "Kiosk Mode" in lines, "a screen that chooses the Kiosk Mode plugin is told whether it is ready"
+    folder["children"] = []
+    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True}}))["Screensaver photos"]
+    assert line.ok is None and "empty" in line.detail and "forecast" in line.detail, \
+        "no photos is not a fault: the forecast shows instead"
+    folder = None
+    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True}}))["Screensaver photos"]
+    assert line.ok is None and "can’t read" in line.detail and "forecast" in line.detail
+    lines = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True,
+                                                              "screensaver_options": {"show": "forecast"}}}))
+    assert "Screensaver photos" not in lines, "a screen set to Forecast never looks for photos"
+    folder = {"children": []}
+    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True,
+                                                             "screensaver_options": {"fallback": False}}}))["Screensaver photos"]
+    assert line.ok is False and "stays dark" in line.detail, "fallback off: no photos is a dark screen again"
+    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True, "screensaver_options":
+                                                             {"fallback": False, "show": "both"}}}))["Screensaver photos"]
+    assert line.ok is None and "forecast" in line.detail, "Photos & Forecast: no photos is the forecast, never dark"
+
+
+async def test_a_screensaver_screen_needs_its_tablet_user(hass, frontend, monkeypatch):
+    """The screensaver runs only for the screen's Tablet User: none chosen, or
+    one Home Assistant doesn't have, is a thing to fix -- otherwise it just
+    never shows and nothing says why."""
+    from custom_components.hk_frontend import setup_check
+    from homeassistant.components import media_source
+    from homeassistant.components.lovelace.const import LOVELACE_DATA
+    hass.data[LOVELACE_DATA] = SimpleNamespace(
+        dashboards={None: object(), "dashboard-k": SimpleNamespace(config={"title": "Kitchen"})},
+        resource_mode="storage", resources=SimpleNamespace(async_items=lambda: []))
+
+    async def browse(_hass, _id):
+        return SimpleNamespace(children=[])
+    monkeypatch.setattr(media_source, "async_browse_media", browse)
+    await hass.auth.async_create_user("Kitchen Tablet")
+
+    async def saver(board):
+        return {x.title: x for x in await setup_check.async_run(hass, {}, {"dashboard-k": board})}.get("Screensaver tablets")
+    assert await saver({"menu": "open"}) is None, "no screensaver, no line"
+    got = await saver({"screensaver": True})
+    assert got.ok is False and "no Tablet User on Kitchen" in got.detail
+    got = await saver({"screensaver": True, "tablet_user": "Kitchen Tablett"})
+    assert got.ok is False and "no Home Assistant user by that name for Kitchen: “Kitchen Tablett”" in got.detail
+    got = await saver({"screensaver": True, "tablet_user": "Kitchen Tablet"})
+    assert got.ok is True and got.detail.startswith("1 screen with a Tablet User")
+
+
 def test_a_name_from_an_integration_is_text_never_markdown():
     """Device and area names reach a line that is Markdown (Configure renders
     it; the settings page turns its first link into the row's href). A name

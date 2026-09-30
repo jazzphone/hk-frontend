@@ -147,6 +147,34 @@ def test_screen_changes_are_checked_not_defaulted():
     assert same == data
 
 
+def test_the_screensaver_options_and_engine_are_checked():
+    from custom_components.hk_frontend.settings import board
+    from custom_components.hk_frontend.settings_api import apply_board
+    from custom_components.hk_frontend.settings import SAVER_DEFAULTS
+    data = board({"screensaver": True})
+    assert data["screensaver_options"] is None, "a new screen follows All Screens"
+    got, err = apply_board(data, {"screensaver_options": dict(SAVER_DEFAULTS, each_photo=60, zoom=True)})
+    assert err == {} and got["screensaver_options"]["each_photo"] == 60 and got["screensaver_options"]["zoom"] is True
+    got, err = apply_board(got, {"screensaver_engine": "wallpanel"})
+    assert err == {} and got["screensaver_engine"] == "wallpanel"
+    same, err = apply_board(got, {"screensaver_options": {"each_photo": 1}, "screensaver_engine": "x"})
+    assert err == {"screensaver_options": "saver_options", "screensaver_engine": "choice"} and same == got
+    back, err = apply_board(got, {"screensaver_options": None})
+    assert err == {} and back["screensaver_options"] is None, "Same as All Screens again: null is stored"
+
+
+def test_the_kiosk_settings_are_checked():
+    from custom_components.hk_frontend.settings import board
+    from custom_components.hk_frontend.settings_api import apply_board
+    got, err = apply_board(board({}), {"kiosk": True, "kiosk_header": False, "kiosk_admins": False})
+    assert err == {} and got["kiosk"] and got["kiosk_header"] is False and got["kiosk_sidebar"] is True and \
+        got["kiosk_admins"] is False and got["kiosk_engine"] == "hk"
+    got, err = apply_board(got, {"kiosk_engine": "kiosk_mode"})
+    assert err == {} and got["kiosk_engine"] == "kiosk_mode"
+    same, err = apply_board(got, {"kiosk_engine": "plugin", "kiosk_sidebar": "yes"})
+    assert set(err) == {"kiosk_engine", "kiosk_sidebar"} and same == got
+
+
 async def test_the_commands_write_what_configure_reads(hass, frontend):
     from homeassistant.config_entries import ConfigSubentry
     from custom_components.hk_frontend import settings as S
@@ -477,3 +505,34 @@ async def test_a_screen_home_can_be_a_custom_page(hass, frontend):
     ws_board_set(hass, conn, {"id": 3, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
                               "changes": {"home_view": ""}})
     assert S.as_client(entry(hass))["boards"]["dashboard-car"]["home_view"] == ""
+
+
+def test_copy_settings_covers_every_screen_setting_and_round_trips():
+    """Copy Settings From (hk-settings-model.js COPY_GROUPS): every screen
+    setting is in a group or deliberately never copied -- a setting added
+    later must choose -- and what one screen has, another accepts."""
+    import os
+    import re
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board
+    from conftest import COMPONENT          # the component, in either layout (repo or /config)
+    src = open(os.path.join(COMPONENT, "frontend", "panels", "hk-settings-model.js")).read()
+    groups = src[src.index("var COPY_GROUPS = ["):src.index("function copyDefaults")]
+    keys = set(re.findall(r"'([a-z_]+)'", groups.split("];")[0])) | set(
+        re.findall(r"'([a-z_]+)'", groups[groups.index("COPY_NEVER"):]))
+    labels = {"menu", "home", "cameras", "scenes", "favorites", "pages", "look", "behavior", "saver",
+              "Menu", "Appearance", "Behavior", "Screensaver", "Cameras", "Scenes", "Favorites", "Pages"}
+    assert set(S.BOARD_DEFAULTS) <= keys, set(S.BOARD_DEFAULTS) - keys
+    assert keys - labels - set(S.BOARD_DEFAULTS) == set(), keys - labels - set(S.BOARD_DEFAULTS)
+    # a busy screen's settings, copied onto a fresh one, are all accepted
+    busy = S.board({"menu": "open", "tab_size": "xl", "chips": ["lights"], "cameras": ["camera.front"],
+                    "scenes": ["scene.movie"], "favorites": ["light.lamp"], "glass": "frosted", "frost": 70,
+                    "screensaver": True, "screensaver_options": {"show": "both"}, "idle_return": True,
+                    "tablet_user": "kitchen", "idle_room": "kitchen"})
+    read = S.resolved(busy, None)
+    copy = {k: read[k] for k in S.BOARD_DEFAULTS if k not in ("tablet_user", "idle_room")}
+    copy["screensaver_options"] = None if read["screensaver_house"] else read["screensaver_options"]
+    got, err = apply_board(S.board({}), copy)
+    assert err == {}, err
+    assert got["screensaver_options"]["show"] == "both" and got["frost"] == 70 and got["tab_size"] == "xl"
+    assert got["tablet_user"] == "" and got["idle_room"] == "", "the tablet's own are never copied"

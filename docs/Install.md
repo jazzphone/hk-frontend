@@ -22,7 +22,7 @@ Optional, for the features that use them:
 | [Music](Music.md) | [Music Assistant](https://www.music-assistant.io) and its Home Assistant integration |
 | [Live TV](Live-TV.md) | An HDHomeRun tuner, and ffmpeg on the Home Assistant host (Home Assistant OS and Container already include it) |
 | [Clean Areas](Clean-Areas.md) | Vacuums with room maps in Home Assistant |
-| [Wall tablets](Wall-Tablets.md) | [WallPanel](https://github.com/j-a-n/lovelace-wallpanel) and [Kiosk Mode](https://github.com/NemesisRE/kiosk-mode) from HACS; [Fully Kiosk Browser](https://www.fully-kiosk.com) on the tablets |
+| [Wall tablets](Wall-Tablets.md) | [Fully Kiosk Browser](https://www.fully-kiosk.com) on the tablets (the photo screensaver and hiding Home Assistant’s header are built in) |
 | A radar map on the Weather page | [Weather Radar Card](https://github.com/Makin-Things/weather-radar-card) from HACS |
 
 ## Install with HACS

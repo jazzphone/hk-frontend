@@ -22,7 +22,7 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ resources.py         adds the card files as Lovelace resources (storage mode)
 ├─ setup_check.py       Setup Check, and the Repairs issues
 ├─ themes.py            adds the HK Kiosk themes to the frontend's, and again after a reload
-├─ thirdparty.py        whether WallPanel, Kiosk Mode and the radar card are ready
+├─ thirdparty.py        whether the radar card, and (for a screen that chooses one) WallPanel or Kiosk Mode, are ready
 ├─ art.py               album artwork fetched and served by Home Assistant
 ├─ talk.py, talk_live.py  hold-to-talk on a camera sheet
 ├─ switch.py, entity.py the Seasonal decorations switch
@@ -36,7 +36,7 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ frontend/            everything reachable over HTTP, at /hk/
 │  ├─ cards/            the Lovelace cards, one family per file; hk-strategy.js
 │  │                    is the generated dashboard and the room page
-│  ├─ modules/          page modules: settings, header, sky, idle, menu, glass…
+│  ├─ modules/          page modules: settings, header, kiosk, sky, idle, screensaver, menu, glass…
 │  ├─ panels/           the HK Settings page (hk-settings.js, -model, -kit, -features)
 │  ├─ iconset/          hk-icons.js, the hk: iconset loader (the glyphs are the user's)
 │  ├─ fonts/            sf-pro.css (the font is the user's)
@@ -75,9 +75,12 @@ lives, not by a rule.
    and fires `hk-cards-ready`, and every other card file waits for that event
    (never a poll: timers barely run in a hidden tab, which is where a wall
    tablet spends its time).
-3. **The loader.** `hk-loader.js` imports the modules that have nothing to do
-   before first paint: `hk-stats`, `hk-charts`, `hk-sky`, `hk-idle`,
-   `hk-viewfade`, `hk-glass`, `hk-timers`, `hk-campost` and `hk-menu`. Adding
+3. **The loader.** `hk-loader.js` imports the page modules, first
+   `hk-kiosk` (Hide Home Assistant Header & Sidebar, so a kiosk screen shows
+   them as briefly as possible), then those with nothing to do before first
+   paint: `hk-stats`, `hk-charts`, `hk-sky`, `hk-idle`,
+   `hk-viewfade`, `hk-glass`, `hk-timers`, `hk-saver` (the photo screensaver),
+   `hk-campost` and `hk-menu`. Adding
    one to its list is live on the next page load. Each module sets its
    `window.hk…` global and fires `hk-module-ready`, which redraws the cards
    waiting for it.

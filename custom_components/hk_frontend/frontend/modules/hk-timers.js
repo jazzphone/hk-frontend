@@ -527,7 +527,7 @@
       // same photo-change flicker as `layer` on hk-clock-card. On this element
       // itself, never an ancestor: see the containing-block note above.
       return '<div style="position:fixed;right:' + (o.right || '20px') +
-             ';bottom:' + (o.bottom || '22px') + ';z-index:5;will-change:transform;' +
+             ';bottom:var(--hk-ss-corner-bottom,' + (o.bottom || '22px') + ');transition:bottom 1.2s ease;z-index:5;will-change:transform;' +
              'pointer-events:none;max-width:46vw;text-shadow:none;' +
              'filter:drop-shadow(0 ' + px(1) + ' ' + px(3) + ' rgba(0,0,0,0.34)) ' +
              'drop-shadow(0 ' + px(3) + ' ' + px(14) + ' rgba(0,0,0,0.30));">' + row + '</div>';

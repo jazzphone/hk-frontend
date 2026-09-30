@@ -131,12 +131,15 @@ Every card’s options: [Card Library](Card-Library.md).
 | Button Style | Automatic | *Menu: Button.* **Automatic**: a round chip at the start of the status chips when the Home page has a menu button, otherwise the edge tab. **Chip**: the round chip. **Chip, Then Tab**: the chip, and a slim tab slides in from the left edge while the chip is scrolled out of sight. **Chip on Home, Tab Elsewhere**: the chip on Home, the edge tab on every other page. **Edge Tab**: a slim tab on the left edge, level with the date. |
 | On Narrow Screens | Chip | *Menu: Button.* Below 1,024 px wide (an iPad held upright, a phone), this takes over from Button Style: **Chip**, **Chip, Then Tab** or **Edge Tab**. |
 | Tab Position | Level with the date | Shown when the edge tab can appear. Where the tab’s center sits: empty for level with the date under the clock, a distance from the top (`140px`, or just `140`), or a share of the screen’s height (`20%`). |
+| Tab Size | Large | Shown with Tab Position. How big the edge tab is on a tablet or wider: **Standard** (the slim tab that fits the margin), **Large** or **Extra Large**. A bigger tab lies over the page’s edge and stays on top of it, and its touch area reaches a little past it. A phone always keeps the standard tab, which already lies over the first column. |
 | Keep Open Down To | 1,000 px | *Menu: Always Open.* Narrower than this (700 to 3,000 px), the menu folds away and When Folded stands in for it. 1,000 keeps it open on a computer and an iPad held sideways and folds it on a small iPad held upright or a phone. |
 | When Folded | Chip | *Menu: Always Open.* What stands in for a folded menu: **Chip**, **Chip, Then Tab** or **Edge Tab**. It is the same setting as On Narrow Screens. |
 | Time & Weather in Menu | Off (Wall Tablet preset: on) | *Menu: Always Open.* The time, date and weather sit at the top of the menu instead of in the Home page’s header, and the status chips move up into the space. When the menu folds away, the header comes back. |
 | Pages in Menu | Automatic | *YAML screens.* For each page: **Top of Menu** (right under Home), **Categories**, or **Not in Menu**. A generated screen sets this on its [Pages](Pages.md) instead. **Use the Automatic Menu** clears your choices. |
 | Rooms in Menu | A to Z | **A to Z**, or **Room Order** (the order set in [Rooms](Home-Page.md#rooms)). |
 | Home Assistant Section | Off | Adds a **Home Assistant** section to the menu, above Categories: Integrations, Automations, Settings (with its updates-and-repairs count), Notifications (with its count), **More** (the rest of that person’s Home Assistant sidebar, in their order), **Show Menu** (Home Assistant’s own sidebar, even where it is hidden) and Profile. Each person sees only what they may open. Leave it off on a shared wall tablet. |
+
+![The edge tab at its three sizes on a wall tablet: Standard, Large (the default) and Extra Large](images/menu-tab-sizes.png)
 
 ## Menu & Rooms settings
 

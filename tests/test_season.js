@@ -194,4 +194,24 @@ witchChecks('phone 390x844: ', 390, 844);
         r.elev === 12 && r.cond === 'rainy' && r.wet.kind !== 'none');
 })();
 
+// THE FORECAST SCREENSAVER'S LAND (hkSky.scene): which landscape, by the
+// month and hemisphere, the snow, and the sun
+(function () {
+  var L = window.hkSky._land, dry = { wet: { kind: 'none', rate: 0 }, elev: 30 };
+  var north = { config: { latitude: 34.9 } }, south = { config: { latitude: -33.9 } };
+  var on = function (m) { return new Date(2026, m, 15); };
+  check('land: March in the north is spring', L.season(north, dry, on(2)) === 'spring');
+  check('land: July in the north is summer', L.season(north, dry, on(6)) === 'summer');
+  check('land: October in the north is fall', L.season(north, dry, on(9)) === 'fall');
+  check('land: January in the north is winter', L.season(north, dry, on(0)) === 'winter');
+  check('land: January in the south is summer', L.season(south, dry, on(0)) === 'summer');
+  check('land: no latitude reads as the north', L.season({}, dry, on(9)) === 'fall');
+  check('land: snow falling makes it winter, whatever the month',
+        L.season(north, { wet: { kind: 'snow', rate: 0.4 }, elev: 30 }, on(3)) === 'winter');
+  check('land: day above 6 degrees', L.light(20) === 'day' && L.light(6.5) === 'day');
+  check('land: dusk (and dawn) from 6 down to civil twilight', L.light(6) === 'dusk' && L.light(-6) === 'dusk');
+  check('land: night below', L.light(-7) === 'night' && L.light(-40) === 'night');
+  check('land: the file name', L.file(north, { wet: { kind: 'none', rate: 0 }, elev: -20 }, on(9)) === 'land-fall-night.webp');
+})();
+
 print(fail ?'FAIL ' + fail + ' SEASON TESTS' : 'ALL ' + pass + ' SEASON TESTS PASS');

@@ -255,6 +255,8 @@
   // work at all on a screen that has not closed the sheet by hand.
   var wpView = null, wpMissUntil = 0;
   function screensaverOn() {
+    // HK Frontend's own screensaver (hk-saver.js) says so directly
+    if (window.hkSaver && window.hkSaver.running && window.hkSaver.running()) return true;
     try {
       if (!wpView || !wpView.isConnected) {
         // A screen with no WallPanel (the phone, a desktop, the car) would

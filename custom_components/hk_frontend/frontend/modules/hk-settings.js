@@ -62,7 +62,11 @@
     rooms: { headings: true, status: ['temperature', 'humidity', 'outlets', 'blinds', 'fans', 'windows',
                                       'doors', 'locks', 'garage', 'motion', 'occupancy', 'leaks'] },
     look: { glass: 'clear', frost: 50, blur: 50, details: true, browse_view: 'music-browse', sky_switch: null,
-            photos: 'media-source://media_source/local/photos', page_pills: {} },
+            photos: 'media-source://media_source/local/photos', page_pills: {},
+            // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
+            saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
+                     weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true,
+                     forecast_every: 5, band: true, band_photos: false } },
     // Browse Music (Configure -> Browse Music). The Discover rows arrive as
     // the queries themselves (settings.py discover_rows); these are its
     // default five.

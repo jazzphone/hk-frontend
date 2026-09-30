@@ -154,6 +154,61 @@ def test_card_options_are_a_mapping_of_plain_values():
     assert b["wallpanel_options"] == {"idle_time": 300} and b["kiosk_options"] == {}
 
 
+def test_screensaver_options_defaults_checks_and_the_wallpanel_carry_over():
+    """HK Frontend's own screensaver (hk-saver.js): its options over the
+    defaults, a bad value refused (the form says so), and a screen that never
+    had any keeps the choices it made on WallPanel's options page."""
+    from custom_components.hk_frontend.settings import SAVER_DEFAULTS, board, saver_options
+    assert saver_options(None) == SAVER_DEFAULTS and saver_options({}) == SAVER_DEFAULTS
+    assert SAVER_DEFAULTS["starts_after"] == 180 and SAVER_DEFAULTS["zoom"] is False, \
+        "180 s: longer than the tablets' 120 s use window; Slow Zoom off: it costs heat"
+    got = saver_options({"each_photo": 45, "clock": False})
+    assert got["each_photo"] == 45 and got["clock"] is False and got["starts_after"] == 180
+    for bad in ({"starts_after": 5}, {"each_photo": 9999}, {"order": "shuffled"}, {"zoom": "yes"},
+                {"starts_after": True}, {"whatever": 1}, [1], "x"):
+        assert saver_options(bad) is None, bad
+    old = {"idle_time": 300, "display_time": 20, "media_order": "sorted", "image_fit_landscape": "contain",
+           "image_animation_ken_burns": True, "style": {"x": 1}}
+    b = board({"screensaver": True, "wallpanel_options": old})
+    assert b["screensaver_options"] == dict(SAVER_DEFAULTS, starts_after=300, each_photo=20, order="sorted",
+                                            fill=False, zoom=True), b["screensaver_options"]
+    assert b["wallpanel_options"] == old, "WallPanel's own options stay, for a screen that goes back to it"
+    assert board({"wallpanel_options": {"idle_time": 1}})["screensaver_options"]["starts_after"] == 15, \
+        "an old value out of range is clamped, not refused: it was accepted once"
+    mine = board({"wallpanel_options": old, "screensaver_options": {"each_photo": 60}})["screensaver_options"]
+    assert mine["each_photo"] == 60 and mine["starts_after"] == 180, "a screen's own options win over the old ones"
+    assert board({})["screensaver_engine"] == "hk" and board({"screensaver_engine": "wallpanel"})["screensaver_engine"] == "wallpanel"
+    assert board({"screensaver_engine": "other"})["screensaver_engine"] == "hk"
+    assert board({"screensaver_options": {"bogus": 1}})["screensaver_options"] == SAVER_DEFAULTS
+
+
+def test_hiding_home_assistants_header_is_hk_frontends_own_unless_a_screen_is_tuned_for_the_plugin():
+    from custom_components.hk_frontend.settings import board
+    b = board({"kiosk": True})
+    assert b["kiosk_engine"] == "hk" and b["kiosk_header"] and b["kiosk_sidebar"] and b["kiosk_admins"], \
+        "1.3: HK Frontend hides both itself, for admins too"
+    assert board({"kiosk": True, "kiosk_options": {}})["kiosk_engine"] == "hk"
+    old = board({"kiosk": True, "kiosk_options": {"admin_settings": {"hide_header": False}}})
+    assert old["kiosk_engine"] == "kiosk_mode", \
+        "a 1.2 screen whose options HK Frontend can't say (admins see the header, not the sidebar) keeps the plugin"
+    assert board(dict(old))["kiosk_engine"] == "kiosk_mode", "...and keeps it once stored"
+    assert board({"kiosk": True, "kiosk_options": {"hide_search": True}})["kiosk_engine"] == "kiosk_mode", \
+        "...as does one with any other option of the plugin's"
+    car = board({"kiosk": True, "kiosk_options": {"admin_settings": {"hide_header": False, "hide_sidebar": False}}})
+    assert car["kiosk_engine"] == "hk" and car["kiosk_admins"] is False and car["kiosk_header"] and car["kiosk_sidebar"], \
+        "admins seeing both: HK Frontend's For Admins Too off -- the screen moves over as it was"
+    only = board({"kiosk": True, "kiosk_options": {"hide_sidebar": False}})
+    assert only["kiosk_engine"] == "hk" and only["kiosk_header"] and only["kiosk_sidebar"] is False and only["kiosk_admins"]
+    mine = board({"kiosk": True, "kiosk_options": {"hide_sidebar": False}, "kiosk_sidebar": True})
+    assert mine["kiosk_sidebar"] is True, "a setting of its own is never overwritten from the plugin's options"
+    chosen = board({"kiosk": True, "kiosk_engine": "hk", "kiosk_options": {"hide_header": False}})
+    assert chosen["kiosk_engine"] == "hk" and chosen["kiosk_options"] == {"hide_header": False}, \
+        "a screen moved to HK Frontend's own keeps its plugin options, unused, for going back"
+    assert board({"kiosk_engine": "other"})["kiosk_engine"] == "hk"
+    mine = board({"kiosk": True, "kiosk_header": False, "kiosk_admins": 0})
+    assert mine["kiosk_header"] is False and mine["kiosk_sidebar"] is True and mine["kiosk_admins"] is False
+
+
 async def test_third_party_cards_ready_not_loaded_or_missing(hass, frontend, tmp_path, monkeypatch):
     """Setup check's and the forms' notes: installed from HACS and, for the two
     that must be, loaded as dashboard resources."""
@@ -435,3 +490,55 @@ async def test_one_feature_change_sends_the_settings_once(hass, frontend):
     update_feature(hass, feat, options={"vacuums": ["vacuum.a"], "areas": []})
     await hass.async_block_till_done()
     assert len(conn.sent) - n == 1, conn.sent[n:]
+
+
+def test_the_menu_tab_size():
+    """The edge tab's size, a screen's own: Large unless it says otherwise,
+    and nothing else stored survives (settings.py board, hk-menu.js)."""
+    from custom_components.hk_frontend import settings as S, settings_api as A
+    assert S.board({})["tab_size"] == "large"
+    assert S.board({"tab_size": "xl"})["tab_size"] == "xl"
+    assert S.board({"tab_size": "huge"})["tab_size"] == "large"
+    assert A.BOARD["tab_size"]("standard") == "standard"
+    import pytest
+    with pytest.raises(A.Invalid):
+        A.BOARD["tab_size"]("huge")
+
+
+def test_the_screensaver_shows_photos_or_the_forecast():
+    """Show: photos (the forecast whenever there are none) or forecast."""
+    from custom_components.hk_frontend import settings as S
+    assert S.saver_options({})["show"] == "photos"
+    assert S.saver_options({"show": "forecast"})["show"] == "forecast"
+    assert S.saver_options({"show": "weather"}) is None, "refused, never quietly a default"
+    assert S.saver_options({})["fallback"] is True, "no photos: the forecast, unless turned off"
+    assert S.saver_options({"fallback": False})["fallback"] is False
+    assert S.saver_options({"fallback": "no"}) is None
+    assert S.saver_options({"show": "both"})["show"] == "both" and S.saver_options({})["forecast_every"] == 5
+    assert S.saver_options({"forecast_every": 10})["forecast_every"] == 10
+    assert S.saver_options({"forecast_every": 1}) is None and S.saver_options({"forecast_every": 500}) is None
+    d = S.saver_options({})
+    assert d["band"] is True and d["band_photos"] is False, "the details on the forecast, not over the photos"
+    assert S.saver_options({"band": "yes"}) is None
+
+
+def test_all_screens_screensaver():
+    """A screen follows All Screens' screensaver (look.saver) unless it has
+    its own; the stored form keeps null, reading fills it in."""
+    from custom_components.hk_frontend import settings as S
+    assert S.merged({})["look"]["saver"] == S.SAVER_DEFAULTS
+    house = {S.CONF_DASHBOARD: {"look": {"saver": {"show": "both", "starts_after": 300}}}}
+    got = S.merged(house)["look"]["saver"]
+    assert got["show"] == "both" and got["starts_after"] == 300 and got["each_photo"] == 30, "normalized over the defaults"
+    b = S.board({"screensaver": True})
+    assert b["screensaver_options"] is None, "stored: null (follow)"
+    r = S.resolved(b, house)
+    assert r["screensaver_house"] is True and r["screensaver_options"]["show"] == "both", "read: All Screens' own"
+    own = S.board({"screensaver": True, "screensaver_options": {"show": "forecast"}})
+    r = S.resolved(own, house)
+    assert r["screensaver_house"] is False and r["screensaver_options"]["show"] == "forecast", "its own wins"
+    # 1.2: a screen that never had options keeps its old WallPanel choices as its own
+    w = S.board({"screensaver": True, "wallpanel_options": {"idle_time": 240}})
+    assert w["screensaver_options"]["starts_after"] == 240
+    assert S.board({"screensaver": True, "wallpanel_options": {"hide_toolbar": True}})["screensaver_options"] is None, \
+        "old WallPanel options that say nothing about the screensaver: All Screens"

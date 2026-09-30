@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "task": "hk-forecast-landscapes",
+  "files": [
+    {"name": "land-spring-day-src.png", "season": "spring", "light": "day", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "000932273a35ac35a4412247a9bc0ee86a6f7204c9c4cc6385831ff02dafe35d"},
+    {"name": "land-spring-dusk-src.png", "season": "spring", "light": "dusk", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "6ad186ba43c1e4faad2fe00cb51a4f73dcfbfb5d4d662ac53faf42c2bba524ca"},
+    {"name": "land-spring-night-src.png", "season": "spring", "light": "night", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "f99d757acefbd5e1b692d9dd196e0bc41bf743ed5a997ddd5768321e0ade7956"},
+    {"name": "land-summer-day-src.png", "season": "summer", "light": "day", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "3ee9df09c5fb82674d8921f697a1d5cef93b5453ab1020d6b95887e6147cb78f"},
+    {"name": "land-summer-dusk-src.png", "season": "summer", "light": "dusk", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "7d53e876989f3af719328c320078f5fdf3b7fa00d52b74a2319d6a00444d5bcd"},
+    {"name": "land-summer-night-src.png", "season": "summer", "light": "night", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "c7bfc8a5c2883ccaedf91a13ec9d124939b10024ae9ab47b3325b541dea185c3"},
+    {"name": "land-fall-day-src.png", "season": "fall", "light": "day", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "cb9c9cc1d40b998a067bbc557849bb6a79da2b526ec41dfd58b2e08404222a6a"},
+    {"name": "land-fall-dusk-src.png", "season": "fall", "light": "dusk", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "590dfc29310ff2e033e7b10379879caaf1174e36be08bcc33dfb3016ef469e3d"},
+    {"name": "land-fall-night-src.png", "season": "fall", "light": "night", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "415720cd970133bffcadf24580493cd9053035797a49d6f034687d27bc6e75ef"},
+    {"name": "land-winter-day-src.png", "season": "winter", "light": "day", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "633cce7850369c90e2b00bd5da6ddf9286c692137c60d1b6ef783c8b6f039a28"},
+    {"name": "land-winter-dusk-src.png", "season": "winter", "light": "dusk", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "4d997b4aeb54d40b296a4a826a1352c1179999a283ff651fb0be68224329e1cf"},
+    {"name": "land-winter-night-src.png", "season": "winter", "light": "night", "width": 2560, "height": 1600, "mode": "RGBA", "sha256": "c225f7c2f69c92aef43881e02450655cca6582d2fa0e7496ea202e411135eb1f"}
+  ],
+  "checks": {
+    "top_34_percent_transparent": true,
+    "same_geometry_all_12": true,
+    "no_text_or_watermark": true,
+    "edges_checked_light_and_dark": true
+  },
+  "notes": "A paired group of mature deciduous trees sits inside the center third for the portrait crop. Hill ridges, horizon, meadow contours, trunk positions, and crown centers are aligned across all seasons. Day, dusk, and night alpha masks are byte-identical within each season. Natural crown-outline changes occur between blossoming/leafed seasons and the frost-covered bare winter trees; snow cover also changes the fine winter silhouette as intended."
+}

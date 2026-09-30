@@ -62,7 +62,7 @@ add a few of their own.
 
 | Card | What it is |
 |---|---|
-| `hk-tile-card` | A tile for any entity: icon, name and a status line. |
+| `hk-tile-card` | A tile for any entity: icon, name and a status line. A button or input button (a computer’s Wake on LAN, say) lights for a moment when tapped. |
 | `hk-light-card` | A light; the status is its brightness. |
 | `hk-fan-card` | A fan; the status is its speed, and the icon spins while it is on (`animation: none` stops it). |
 | `hk-cover-card` | A blind, shade or garage door; the status is how far open it is. |

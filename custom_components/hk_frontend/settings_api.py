@@ -124,6 +124,19 @@ def _amount(v: Any) -> int:
     return int(round(v))
 
 
+def _saver_options(v: Any) -> dict[str, Any]:
+    got = S.saver_options(v)
+    if got is None:
+        raise Invalid("saver_options")
+    return got
+
+
+def _saver_engine(v: Any) -> str:
+    if v not in S.SAVER_ENGINES:
+        raise Invalid("choice")
+    return v
+
+
 def _card_options(v: Any) -> dict[str, Any]:
     got = S.card_options(v)
     if got is None:
@@ -228,6 +241,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "look.details": _bool,
     "look.sky_switch": _entity("input_boolean", "switch"),
     "look.photos": _photos,
+    "look.saver": _saver_options,
     "look.browse_view": _browse_view,
     "look.page_pills": _page_pills,
     "menu.glyph": _choice(S.MENU_GLYPHS),
@@ -400,6 +414,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "ha_row": _bool,
     "categories": _views,
     "tab_position": _tab_position,
+    "tab_size": _choice(S.BOARD_TAB_SIZES),
     "room_order": _ids,
     "menu_rooms": _choice(S.BOARD_MENU_ROOMS),
     "home_rooms": _choice(S.BOARD_HOME_ROOMS),
@@ -427,12 +442,19 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "idle_room": _room,
     "car": _bool,
     "kiosk": _bool,
+    "kiosk_header": _bool,
+    "kiosk_sidebar": _bool,
+    "kiosk_admins": _bool,
+    "kiosk_engine": _choice(S.KIOSK_ENGINES),
     "popups": _bool,
     "now_playing": _bool,
     "screensaver": _bool,
     "tablet_user": _user,
     "wallpanel_options": _card_options,
     "kiosk_options": _card_options,
+    # null: follow the settings for All Screens
+    "screensaver_options": lambda v: None if v is None else _saver_options(v),
+    "screensaver_engine": _saver_engine,
 }
 
 

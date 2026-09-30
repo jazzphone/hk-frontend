@@ -1998,33 +1998,40 @@
     return cover;
   }
 
+  // THE LAYERS, bottom to top. `land`: the forecast screensaver's landscape
+  // (scene() below), over the clouds and under the fog, rain and snow, so
+  // the weather falls in front of the hills.
+  function layersHtml(land) {
+    return '<div class="grad"></div>' +
+    // THE ALBUM COVER, for the Play Music page. Over the gradient so the
+    // palette is its floor -- a cover that fails to load, or a page with
+    // nothing playing, simply leaves the purple showing -- and under
+    // everything else so grain and the scrim treat it like any other sky.
+    '<div class="art"></div>' +
+    '<div class="glow"></div>' +
+    '<div class="stars"></div>' +
+    '<div class="moon"></div>' +
+    '<div class="cl a"></div>' +
+    '<div class="cl b"></div>' +
+    '<div class="cl c"></div>' +
+    (land ? '<div class="land"><i></i><i></i></div>' : '') +
+    '<div class="fog"></div>' +
+    '<div class="rain r1"></div>' +
+    '<div class="rain r2"></div>' +
+    '<div class="snow s1"></div>' +
+    '<div class="snow s2"></div>' +
+    '<div class="bolt"></div>' +
+    // BEFORE grain and scrim, so the seasonal layers are capped with the
+    // rest of the sky rather than floating over CAP.
+    '<div class="season"></div>' +
+    '<div class="grain"></div>' +
+    '<div class="scrim"></div>';
+  }
+
   function build(host) {
     var el = document.createElement('div');
     el.id = 'hk-sky';
-    el.innerHTML =
-      '<div class="grad"></div>' +
-      // THE ALBUM COVER, for the Play Music page. Over the gradient so the
-      // palette is its floor -- a cover that fails to load, or a page with
-      // nothing playing, simply leaves the purple showing -- and under
-      // everything else so grain and the scrim treat it like any other sky.
-      '<div class="art"></div>' +
-      '<div class="glow"></div>' +
-      '<div class="stars"></div>' +
-      '<div class="moon"></div>' +
-      '<div class="cl a"></div>' +
-      '<div class="cl b"></div>' +
-      '<div class="cl c"></div>' +
-      '<div class="fog"></div>' +
-      '<div class="rain r1"></div>' +
-      '<div class="rain r2"></div>' +
-      '<div class="snow s1"></div>' +
-      '<div class="snow s2"></div>' +
-      '<div class="bolt"></div>' +
-      // BEFORE grain and scrim, so the seasonal layers are capped with the
-      // rest of the sky rather than floating over CAP.
-      '<div class="season"></div>' +
-      '<div class="grain"></div>' +
-      '<div class="scrim"></div>';
+    el.innerHTML = layersHtml(false);
 
     // AFTER hui-view-background, so equal z-index resolves in our favor.
     var bg = host.querySelector('hui-view-background');
@@ -2034,6 +2041,118 @@
     // After insertion: getRootNode() has to see the real shadow root.
     attachStyles(el);
     return el;
+  }
+
+  // A SKY OF ITS OWN (HK Frontend 1.3): the forecast screensaver's
+  // (hk-saver.js). The page's sky is ONE element in the view, hidden and still
+  // behind any screensaver; this is a second one, built into the screensaver's
+  // own shadow root with its own stylesheet, painted by the same paint() from
+  // the same read() -- so it is the same live sky, weather and all -- plus a
+  // landscape (tools/sky/src/land/, frontend/sky/land-*.webp) between the
+  // clouds and the falling weather. paint() keeps its per-element state on the
+  // element (el._hkSeasonKey), so the two never disturb each other.
+  //
+  //   var sc = hkSky.scene(container);  sc.update(hass);  sc.pause(true);  sc.destroy();
+  var OWN_CSS = [
+    '#hk-sky.own{z-index:0}',
+    '#hk-sky .land>i{position:absolute;inset:0;background-repeat:no-repeat;',
+    '  background-position:center bottom;background-size:cover;opacity:0;',
+    '  transition:opacity 4s ease;filter:brightness(var(--landB,1));will-change:opacity}',
+    '#hk-sky .land>i.on{opacity:1}',
+    // with a landscape, the horizon colour belongs where the land meets the
+    // sky (the art's horizon is at ~60%), and the season's frame gives way to
+    // the season's own land
+    '#hk-sky.own.landed .grad{background:linear-gradient(to bottom,',
+    '  var(--sk0) 0%,var(--sk1) 24%,var(--sk2) 44%,var(--sk3) 62%)}',
+    '#hk-sky.own.landed .season{display:none}',
+    // HELD, NOT HIDDEN: the screensaver's sky pauses between forecast slides
+    // (and under Fully's dark screensaver) without dropping its layers --
+    // .hidden's will-change:auto took the land and the fog off their layers
+    // at every slide's start and put them back at its end, and the WebView
+    // re-rastered what sits above each time (the flicker at every turn)
+    '#hk-sky.own.held *{animation-play-state:paused!important}',
+    '@media (prefers-reduced-motion:reduce){#hk-sky .land>i{transition:none}}'
+  ].join('');
+  // The season of the LAND (not the holiday seasons of seasonOf): by the
+  // month, flipped south of the equator; snow falling makes it winter.
+  var LAND_MONTH = ['winter', 'winter', 'spring', 'spring', 'spring', 'summer',
+                    'summer', 'summer', 'fall', 'fall', 'fall', 'winter'];
+  var LAND_SOUTH = { winter: 'summer', summer: 'winter', spring: 'fall', fall: 'spring' };
+  function landSeason(hass, s, when) {
+    if (s.wet && s.wet.kind === 'snow' && s.wet.rate > 0) return 'winter';
+    var north = LAND_MONTH[(when || new Date()).getMonth()];
+    var lat = hass && hass.config && Number(hass.config.latitude);
+    return isFinite(lat) && lat < 0 ? LAND_SOUTH[north] : north;
+  }
+  // day above 6 degrees, dusk (and dawn) down to civil twilight, then night
+  function landLight(elev) { return elev > 6 ? 'day' : (elev > -7 ? 'dusk' : 'night'); }
+  function landFile(hass, s, when) { return 'land-' + landSeason(hass, s, when) + '-' + landLight(s.elev) + '.webp'; }
+
+  function scene(host) {
+    var el = document.createElement('div');
+    el.id = 'hk-sky';
+    el.className = 'own';
+    el.innerHTML = layersHtml(true);
+    host.appendChild(el);
+    // its OWN sheet: attachStyles() keeps one module-level handle, the page
+    // sky's, and must not lose it to this one
+    var root = el.getRootNode(), own = null, tag = null;
+    try {
+      if ('adoptedStyleSheets' in root && typeof CSSStyleSheet === 'function') {
+        own = new CSSStyleSheet();
+        own.replaceSync(SHEET + OWN_CSS);
+        root.adoptedStyleSheets = root.adoptedStyleSheets.concat(own);
+      }
+    } catch (e) { own = null; }
+    if (!own) {
+      tag = document.createElement('style');
+      tag.textContent = SHEET + OWN_CSS;
+      (root.appendChild ? root : document.head).appendChild(tag);
+    }
+    var layers = el.querySelectorAll('.land > i'), top = 0, shown = '', want = '', missing = {};
+    // A landscape arrives decoded, then cross-fades in over the other layer.
+    // Art that is not there (not installed yet, a 404) is simply no land: the
+    // sky alone, with the season's frame, as on the pages.
+    function land(file) {
+      if (file === shown || file === want || missing[file]) return;
+      want = file;
+      var url = BASE + file + VER, im = new Image();
+      var ready = function () {
+        if (want !== file || !el.isConnected) return;
+        var next = layers[1 - top];
+        next.style.backgroundImage = 'url("' + url + '")';
+        next.classList.add('on');
+        layers[top].classList.remove('on');
+        top = 1 - top; shown = file; want = '';
+        el.classList.add('landed');
+      };
+      im.onload = function () { (im.decode ? im.decode().catch(function () {}) : Promise.resolve()).then(ready); };
+      im.onerror = function () { missing[file] = true; if (want === file) want = ''; };
+      im.src = url;
+    }
+    return {
+      el: el,
+      update: function (hass) {
+        if (!hass || !hass.states) return null;
+        var s = read(hass);
+        paint(el, s);
+        land(landFile(hass, s));
+        // an overcast or wet day darkens the land with the sky
+        var dim = 1 - 0.3 * clamp((s.cover - 0.4) / 0.6, 0, 1) - (s.wet && s.wet.rate > 0 ? 0.08 : 0);
+        el.style.setProperty('--landB', dim.toFixed(3));
+        return s;
+      },
+      // the screen is dark (Fully's own screensaver, the page hidden): hold still
+      pause: function (on) { el.classList.toggle('held', !!on); },
+      landShown: function () { return shown; },
+      destroy: function () {
+        el.remove();
+        if (own && root.adoptedStyleSheets) {
+          root.adoptedStyleSheets = root.adoptedStyleSheets.filter(function (x) { return x !== own; });
+        }
+        if (tag) tag.remove();
+      }
+    };
   }
 
   // EVERY falling layer is a TILED BITMAP, and a tiled bitmap is doubly
@@ -2577,8 +2696,21 @@
   // to false the moment you opened a page that does not name it.
   var asleep = false;
   var sleepEntity = null;
+  // ASLEEP = the tablet's screensaver switch is on, OR HK Frontend's own
+  // screensaver is showing (hk-saver.js) -- a screen with no switch (no
+  // Tablet Room) still pauses behind its photos.
+  function sleeping() {
+    return asleep || !!(window.hkSaver && window.hkSaver.running && window.hkSaver.running());
+  }
   function applyHidden() {
-    if (mounted) mounted.classList.toggle('hidden', document.hidden || asleep);
+    var z = sleeping();
+    if (mounted) mounted.classList.toggle('hidden', document.hidden || z);
+    // ...and tell the cards, which pause their own animations behind the
+    // screensaver too (hk-base.js, hk-asleep). Only on a change.
+    if (!!window.__hkAsleep !== z) {
+      window.__hkAsleep = z;
+      try { window.dispatchEvent(new Event('hk-asleep')); } catch (e) { /* no window events: nothing to tell */ }
+    }
   }
 
   window.hkSky = {
@@ -2586,7 +2718,12 @@
     // photos are up). WallPanel is an overlay in this same document, so
     // document.hidden stays false behind it; a module with idle work of its
     // own (hk-glass's backstop) asks this too.
-    asleep: function () { return asleep; },
+    asleep: function () { return sleeping(); },
+    // hk-saver.js calls this when its screensaver starts or stops
+    saverChanged: function () { applyHidden(); },
+    // the forecast screensaver's own sky + landscape (scene() above)
+    scene: scene,
+    _land: { season: landSeason, light: landLight, file: landFile },
     // Called by selfRender() below. Returns '' so it renders nothing of its
     // own.
     //

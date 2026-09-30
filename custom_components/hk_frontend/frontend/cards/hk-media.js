@@ -1034,7 +1034,10 @@
         // will-change: its own compositing layer, so WallPanel re-layering
         // the photos underneath at each change cannot re-raster it -- see
         // `layer` on hk-clock-card. This card only exists on the screensaver.
-        '.sscorner{position:fixed;left:20px;bottom:22px;z-index:5;display:flex;',
+        // the forecast screensaver raises it above its band (--hk-ss-corner-bottom)
+        // (it glides there, rather than jumping, as the band comes and goes)
+        '.sscorner{position:fixed;left:20px;bottom:var(--hk-ss-corner-bottom,22px);z-index:5;display:flex;',
+        '  transition:bottom 1.2s ease;',
         '  will-change:transform;',
         '  align-items:center;gap:18px;max-width:46vw;pointer-events:none}',
         '.sscorner img,.sscorner .ph{width:104px;height:104px;border-radius:14px;',

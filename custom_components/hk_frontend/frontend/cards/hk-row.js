@@ -420,11 +420,27 @@
       var host = this, dy = 0;
       // The first card that is showing, by its OWN box (a card's margin is
       // inside hui-card's box): a chip, not a hidden conditional or a wrapper.
+      // THE PLATE ITSELF, found through any wrapper: a chip that shows only
+      // sometimes sits in Home Assistant's conditional card, an INLINE
+      // element around a block, and Safari gives such an element a box of
+      // its own line (Chrome gives it the chip's) -- centred on that, the
+      // menu chip sat 3 px low on an iPhone (2026-09-30).
+      function plateOf(node) {
+        var q = [node], n = 0;
+        while (q.length && n++ < 40) {
+          var el = q.shift();
+          var c = el.shadowRoot && el.shadowRoot.querySelector('ha-card');
+          if (c) return c;
+          var kids = [].slice.call(el.children || []);
+          if (el.shadowRoot) kids = kids.concat([].slice.call(el.shadowRoot.children || []));
+          q.push.apply(q, kids);
+        }
+        return null;
+      }
       function firstBox() {
         var kids = row.children;
         for (var i = 0; i < kids.length; i++) {
-          var el = kids[i].firstElementChild || kids[i];
-          var c = (el.shadowRoot && el.shadowRoot.querySelector('ha-card')) || el;
+          var c = plateOf(kids[i]) || kids[i].firstElementChild || kids[i];
           var r = c.getBoundingClientRect ? c.getBoundingClientRect() : null;
           if (r && r.width > 0 && r.height > 0 && r.height < 120 && r.width < 600) return r;
         }

@@ -79,6 +79,12 @@ def _entry(hass: HomeAssistant):
     return F.frontend_entry(hass)
 
 
+def _screensavers(hass: HomeAssistant) -> dict[str, dict[str, str | None]]:
+    from . import screensaver
+    mgr = screensaver.manager(hass)
+    return mgr.entity_ids() if mgr else {}
+
+
 async def _dashboards(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Every dashboard: its url path, title, whether it is generated, and
     whether it has an item (and which)."""
@@ -141,6 +147,8 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
         "entry_id": entry.entry_id,
         "settings": S.merged(entry.options),
         "boards": S.boards(entry),
+        # each screen's photo screensaver switch + in-use sensor (screensaver.py)
+        "screensavers": _screensavers(hass),
         "dashboards": dashboards,
         "popups": popups,
         "custom_pages": pages,

@@ -55,7 +55,10 @@ window.hkMenu.sync();
 var S = window.hkMenu._.state();
 function tabY() { return S.root && S.root.style.getPropertyValue('--tab-y'); }
 var rest = tabY();
-ok('at rest the tab is centred on the date line', parseFloat(rest) + 31 === 118, rest);
+function tabH() { return parseFloat(S.root.style.getPropertyValue('--tab-h')); }
+ok('at rest the tab is centred on the date line', parseFloat(rest) + tabH() / 2 === 118, rest + ' h ' + tabH());
+ok('a tablet gets the Large tab by default', tabH() === 86 && S.root.style.getPropertyValue('--tab-w') === '36px',
+   tabH() + ' ' + S.root.style.getPropertyValue('--tab-w'));
 window.scrollY = 400;
 window.hkMenu.sync();                            // the page's height changed while scrolled
 ok('a sync while scrolled leaves the tab where it was', tabY() === rest, tabY() + ' vs ' + rest);
@@ -131,6 +134,24 @@ SETTINGS.boards['dashboard-hall'].menu = 'chip';
 ok('the plain chip never draws the tab', M.tab() === 'never' && M.round('page'));
 SETTINGS.boards['dashboard-hall'].menu = 'tab';
 ok('the plain tab has no round buttons', M.tab() === 'always' && !M.round('home') && !M.round('page'));
+
+// THE TAB'S SIZE (board tab_size): the screen's choice on a tablet, and
+// always the slim one on a phone, where it lies over the first column
+SETTINGS.boards['dashboard-hall'].tab_size = 'standard';
+window.hkMenu.sync();
+ok('Standard is the slim 26 x 62 tab', tabH() === 62 && S.root.style.getPropertyValue('--tab-w') === '26px');
+ok('...still centred on the date line', parseFloat(tabY()) + 31 === 118, tabY());
+SETTINGS.boards['dashboard-hall'].tab_size = 'xl';
+window.hkMenu.sync();
+ok('Extra Large is 46 x 110, with a larger glyph', tabH() === 110 && S.root.style.getPropertyValue('--tab-ic') === '24px');
+window.innerWidth = 390;
+window.hkMenu.sync();
+ok('a phone keeps the slim tab whatever the screen says', tabH() === 62, tabH());
+window.innerWidth = 1280;
+SETTINGS.boards['dashboard-hall'].tab_size = 'huge';
+window.hkMenu.sync();
+ok('an unknown size is Large', tabH() === 86, tabH());
+delete SETTINGS.boards['dashboard-hall'].tab_size;
 
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed' : 'ALL ' + pass + ' MENU TAB TESTS PASS'));
 if (fail) throw new Error(fail + ' failed');

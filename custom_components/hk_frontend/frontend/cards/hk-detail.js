@@ -650,10 +650,12 @@
       '.acc .grp{background:var(--acc-cell,rgba(255,255,255,0.08));border-radius:14px;overflow:hidden}',
       '.acc .row{display:flex;align-items:center;justify-content:space-between;gap:14px;',
       '  min-height:50px;padding:0 16px;box-sizing:border-box}',
-      '.acc .row + .row{border-top:1px solid var(--acc-sep,rgba(255,255,255,0.09))}',
+      // the line between two rows starts at their text, as iOS draws it
+      '.acc .row + .row{background:linear-gradient(var(--acc-sep,rgba(255,255,255,0.09)),var(--acc-sep,rgba(255,255,255,0.09)))',
+      '  16px 0/calc(100% - 16px) 1px no-repeat}',
       '.acc .row .k{flex-shrink:0;color:var(--acc-label,rgba(255,255,255,0.92))}',
       '.acc input.nm{flex:1;min-width:0;background:transparent;border:0;color:var(--acc-text,#fff);font:inherit;',
-      '  text-align:right;outline:none;padding:0}',
+      '  text-align:right;outline:none;padding:0;text-overflow:ellipsis}',
       // the whole row's height is the field's target, not its 21 px of text
       '.acc .row input.nm,.acc .row select{align-self:stretch;min-height:44px}',
       '.acc input.nm::placeholder{color:var(--acc-label3,rgba(255,255,255,0.4))}',
@@ -667,8 +669,10 @@
       '.acc .tg:checked{background:var(--acc-green,#34c759)}',
       '.acc .tg:checked::after{transform:translateX(20px)}',
       '.acc .seg{display:flex;gap:2px;background:var(--acc-seg,rgba(255,255,255,0.08));border-radius:10px;padding:2px;margin:10px 12px}',
-      '.acc .seg button{flex:1;height:32px;border:0;border-radius:8px;background:transparent;color:var(--acc-text,#fff);',
-      '  font:inherit;font-size:14px;cursor:pointer}',
+      // each choice as wide as its word, the rest shared out: equal fifths
+      // left "Automatic" (bold when chosen) spilling into "Light" on a phone
+      '.acc .seg button{flex:1 1 auto;min-width:0;padding:0 6px;height:32px;border:0;border-radius:8px;background:transparent;',
+      '  color:var(--acc-text,#fff);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}',
       '.acc .seg button.on{background:var(--acc-seg-on,rgba(255,255,255,0.24));font-weight:600}',
       '.acc .glyphs{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px;padding:12px}',
       '.acc .glyphs button{width:46px;height:46px;border-radius:23px;border:0;cursor:pointer;justify-self:center;',

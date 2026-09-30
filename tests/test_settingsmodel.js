@@ -268,5 +268,28 @@ ok('Christmas and the Fourth open at night (lights, fireworks)', mo('christmas')
 ok('Space Night only at night, Spring Garden only by day -- one moment, no choice', mo('space-night') === 'night>night' && mo('spring-garden') === 'day>day');
 ok('the rest by day, with the night a tap away', mo('thanksgiving') === 'day/night>day' && mo('birthday') === 'day/night>day');
 
+// YOUR OWN DASHBOARDS: HK Settings' YAML Reference and the wiki page say the
+// same thing -- every snippet, as the wiki shows it, is in the page, under a
+// heading whose anchor the settings page links to.
+var DOC = read(HK_ROOT + '/docs/Your-Own-Dashboard.md');
+var slug = function (t) { return t.trim().toLowerCase().replace(/[^\w\- ]/g, '').replace(/ /g, '-'); };
+var anchors = {};
+DOC.split('\n').forEach(function (l) { var m = /^#{1,6} (.+)$/.exec(l); if (m) anchors[slug(m[1])] = 1; });
+var items = [].concat.apply([], M.YAML_REF.map(function (g) { return g.items; }));
+var missing = items.filter(function (it) { return DOC.indexOf('\n' + M.yamlRefText(it) + '\n```') < 0; }).map(function (it) { return it.id; });
+ok('every YAML Reference snippet is on the wiki page, word for word', items.length >= 15 && missing.length === 0, missing);
+var noAnchor = items.filter(function (it) { return !anchors[it.anchor]; }).map(function (it) { return it.anchor; });
+ok('...under the heading the settings page links to', noAnchor.length === 0, noAnchor);
+ok('ids are unique, and each snippet is found by its id', items.every(function (it) { return M.yamlRefItem(it.id) === it; }) &&
+   Object.keys(items.reduce(function (o, it) { o[it.id] = 1; return o; }, {})).length === items.length);
+ok('filled in from the house: the weather, the tablet user, the photos folder',
+   M.yamlRefText(M.yamlRefItem('weather'), { weather: 'weather.forecast_home' }).indexOf('entity: weather.forecast_home') > 0 &&
+   M.yamlRefText(M.yamlRefItem('screensaver'), { user: 'Den Tablet', photos: null }).indexOf('user: Den Tablet ') > 0 &&
+   M.yamlRefText(M.yamlRefItem('screensaver'), {}).indexOf('photos: media-source://media_source/local/photos') > 0);
+ok('the kiosk summary on a screen\'s Header & Sidebar row',
+   M.kioskSummary({ kiosk: true }, true) === 'Both Hidden' && M.kioskSummary({ kiosk: true, kiosk_sidebar: false }, false) === 'Header Hidden' &&
+   M.kioskSummary({ kiosk: true, kiosk_engine: 'kiosk_mode' }, true) === 'Kiosk Mode Plugin' &&
+   M.kioskSummary({ kiosk: true, kiosk_engine: 'kiosk_mode', kiosk_header: false }, false) === 'Sidebar Hidden' && M.kioskSummary({}, true) === 'Off');
+
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

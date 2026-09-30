@@ -465,7 +465,49 @@
   }
 
   // ------------------------------------------------------------- base tile
+  var PRESS_MS = 1500;                 // a momentary tile's light after a tap
+
   class HkTileBase extends HkBase {
+    // A MOMENTARY ACCESSORY LIGHTS WHEN TAPPED (2026-09-30). A button -- a
+    // computer's Wake on LAN, an input_button -- has no on or off: its state
+    // is the time it was last pressed, so its tile never lit and a tap looked
+    // like it did nothing. A tap that fires its action now lights the tile
+    // for PRESS_MS, as HomeKit does for a momentary accessory, and goes dark
+    // at once if Home Assistant refused the call.
+    _momentary() {
+      var d = String((this._config || {}).entity || '').split('.')[0];
+      return d === 'button' || d === 'input_button';
+    }
+    _pressed() { return !!this._pressUntil && Date.now() < this._pressUntil; }
+    // (Not an override of _call: a card never shadows an HkBase helper --
+    // tests/test_dispatch.js.) A confirmation is asked first by HkBase, which
+    // then comes back here with the answer.
+    _act(spec, defaultMoreInfo) {
+      var a = spec && spec.action;
+      var svc = spec ? String(spec.service || spec.perform_action || '') : '';
+      var parts = svc.split('.');
+      if ((a === 'call-service' || a === 'perform-action') && this._momentary() && parts.length === 2 &&
+          svc.indexOf('[[[') === -1 && !(spec.confirmation && !spec._hkConfirmed)) {
+        var self = this;
+        this._press();
+        this._call(parts[0], parts[1], Object.assign({}, spec.data || {}, spec.target || {}))
+          .then(function (ok) { if (!ok) self._unpress(); });
+        return;
+      }
+      return super._act(spec, defaultMoreInfo);
+    }
+    _press() {
+      var self = this;
+      this._pressUntil = Date.now() + PRESS_MS;
+      clearTimeout(this._pressT);
+      this._pressT = setTimeout(function () { self._unpress(); }, PRESS_MS + 20);
+      this.redraw();
+    }
+    _unpress() {
+      clearTimeout(this._pressT);
+      this._pressT = null; this._pressUntil = 0;
+      this.redraw();
+    }
     static get CSS() { return CSS; }
 
     setConfig(config) {
@@ -544,7 +586,7 @@
     _render() {
       var cfg = this._config || {};
       var st = this._st(cfg.entity);
-      var on = !!this._isOn(st);
+      var on = !!this._isOn(st) || this._pressed();
       var layout = LAYOUTS[cfg.layout] ? cfg.layout : 'standard';
 
       if (!this._built) {

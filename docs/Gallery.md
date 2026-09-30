@@ -25,6 +25,19 @@ camera pictures are blurred on purpose.
 | ![The Live TV guide](images/tablet-live-tv.png) | ![A custom page](images/tablet-energy.png) |
 | Live TV ([Live TV](Live-TV.md)) | A [custom page](Pages.md#custom-pages) |
 
+![The photo screensaver, with the clock, weather and Home Status over the photo](images/tablet-screensaver.png)
+
+The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (HK Frontend’s own fall sky standing in for a photo).
+
+| | |
+|---|---|
+| ![The forecast screensaver by day](images/tablet-forecast.png) | ![The forecast screensaver at dusk](images/tablet-forecast-dusk.png) |
+| The [forecast](Screensaver-and-Idle.md#no-photos-the-forecast) by day | At dusk |
+
+![The forecast screensaver at night, with the season’s moon](images/tablet-forecast-night.png)
+
+By night.
+
 ## A computer, an iPad and a phone
 
 ![The Home screen on a computer, with the menu open beside it](images/desktop-home.png)
@@ -84,5 +97,9 @@ More: [Live Sky](Live-Sky.md).
 | Music | Live TV |
 | ![Clean Areas](images/settings-clean-areas.png) | ![Alarm PIN](images/settings-alarm-pin.png) |
 | Clean Areas | Alarm PIN |
+| ![Screensaver Options](images/settings-screensaver.png) | ![The menu tab’s three sizes](images/menu-tab-sizes.png) |
+| Screensaver Options | Menu Tab Size |
+| ![Header & Sidebar](images/settings-header-sidebar.png) | ![Your Own Dashboards](images/settings-yaml-reference.png) |
+| Header & Sidebar | Your Own Dashboards |
 
 More: [HK Settings](HK-Settings.md).

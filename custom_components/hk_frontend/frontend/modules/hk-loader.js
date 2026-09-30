@@ -1,5 +1,6 @@
 // hk-loader.js - imports the order-independent dashboard modules (MODULES
-// below: stats, charts, sky, idle, viewfade, glass, timers, campost).
+// below: kiosk, stats, charts, sky, idle, viewfade, glass, timers, saver,
+// campost, menu).
 //
 // WHY THIS EXISTS
 // The bootstrap list -- the files every page loads before any card renders --
@@ -26,7 +27,11 @@
 (function () {
   'use strict';
 
-  var MODULES = ['hk-stats.js', 'hk-charts.js', 'hk-sky.js', 'hk-idle.js',
+  var MODULES = [// Hides Home Assistant's header and sidebar on a screen that
+                 // asks (hk-kiosk.js): first, so a kiosk screen shows them
+                 // for as short a time as possible.
+                 'hk-kiosk.js',
+                 'hk-stats.js', 'hk-charts.js', 'hk-sky.js', 'hk-idle.js',
                  'hk-viewfade.js',
                  // The shared blur layer (look.glass = blur). Cards join it
                  // from HkBase whichever of the two loads first.
@@ -35,6 +40,9 @@
                  // hk-timer-strip-card and hk-timers-card, so the module
                  // belongs here rather than being loaded by one card.
                  'hk-timers.js',
+                 // The photo screensaver for a wall tablet's own user
+                 // (hk-saver.js). Nothing at all on a screen without one.
+                 'hk-saver.js',
                  // Hands the cameras page the strip's cached thumbnail as its
                  // video poster. Measured: HA's own poster loses the race to
                  // the live stream on most cameras, so the page is dark from

@@ -575,6 +575,93 @@
     return { own: !!own, value: own || b, builtIn: b };
   }
 
+  // ------------------------------------------------------------ your own dashboards
+  // WHAT A DASHBOARD YOU WRITE YOURSELF CAN USE (Advanced -> Your Own
+  // Dashboards, and the wiki's Your-Own-Dashboard page, which a test holds to
+  // exactly these snippets). {weather}, {user}, {photos}: filled in from the
+  // house on the settings page, the defaults below in the wiki.
+  var YAML_DEFAULTS = { weather: 'weather.home', user: 'Kitchen Tablet', photos: 'media-source://media_source/local/photos' };
+  var YAML_REF = [
+    { header: 'The Dashboard', footer: 'At the top of the dashboard’s raw configuration (Edit Dashboard → ⋮ → Raw Configuration Editor), beside views:.',
+      items: [
+        { id: 'kiosk', title: 'Hide Header & Sidebar', key: 'hk_kiosk', anchor: 'hide-home-assistants-header-and-sidebar',
+          sub: 'Or turn on Hide Home Assistant Header & Sidebar in the screen’s HK settings, with nothing written. A kiosk_mode block (the Kiosk Mode plugin’s) wins over both.',
+          yaml: 'hk_kiosk:\n  header: true        # Home Assistant’s header\n  sidebar: true       # ...and its sidebar\n  admins: true        # false: an admin still sees them' },
+        { id: 'screensaver', title: 'Photo Screensaver', key: 'hk_screensaver', anchor: 'photo-screensaver',
+          sub: 'Or turn on Photo Screensaver in the screen’s HK settings, with nothing written, and get its switch and In Use sensor too.',
+          yaml: 'hk_screensaver:\n  user: {user}   # the tablet’s Home Assistant user\n' +
+                '  entity: input_boolean.kitchen_photos   # optional: yours, kept in step\n' +
+                '  photos: {photos}\n  starts_after: 180\n  each_photo: 30\n  order: random        # or sorted\n  fill: true\n  zoom: false\n' +
+                '  show: photos         # photos, both (Photos & Forecast) or forecast\n' +
+                '  forecast_every: 5    # both: the forecast after this many photos\n' +
+                '  fallback: true       # no photos: the forecast (false: a dark screen)\n' +
+                '  band: true           # the forecast’s details on the forecast\n' +
+                '  band_photos: false   # ...and over the photos\n' +
+                '  cards:\n    - type: custom:hk-clock-card\n    - type: custom:hk-weather-strip-card\n      variant: inline\n' +
+                '    - type: custom:hk-screensaver-now-card\n      music: true\n    - type: custom:hk-timer-strip-card\n' +
+                '      entity: sensor.running_quick_timers\n      fixed: true\n    - type: custom:hk-screensaver-status-card' },
+        { id: 'sky', title: 'Live Sky', key: 'sky', anchor: 'live-sky',
+          sub: 'The dashboard opts in with sky:, and each view that wants it says sky: true.',
+          yaml: 'sky:\n  enable: input_boolean.live_sky   # optional: off hides the sky\nviews:\n  - title: Home\n    path: home\n' +
+                '    type: custom:hk-grid-view\n    sky: true\n    cards: []' }] },
+    { header: 'Views', footer: 'Each view in views:. The menu lists them: the first view is Home.',
+      items: [
+        { id: 'view', title: 'A Page in the Menu', key: 'hk-grid-view', anchor: 'a-page-in-the-menu',
+          sub: 'HK Frontend’s grid view, placed in the menu. A view with area: is a room.',
+          yaml: '- title: Kitchen\n  path: kitchen\n  type: custom:hk-grid-view\n  area: kitchen       # a room, in the menu’s Rooms\n' +
+                '  menu: top           # right under Home (false: not listed)\n  cards: []' },
+        { id: 'room', title: 'A Room Page, Built for You', key: 'hk-room', anchor: 'a-room-page-built-for-you',
+          sub: 'Built from the area every time it opens.',
+          yaml: '- title: Kitchen\n  path: room-kitchen\n  subview: true\n  strategy:\n    type: custom:hk-room\n    area: kitchen' }] },
+    { header: 'Cards', footer: 'Anywhere in a view’s cards:. Every HK card is in the card picker too, with a visual editor.',
+      items: [
+        { id: 'header', title: 'Clock, Weather & Chips', key: 'hk-header-card', anchor: 'clock-weather-and-chips',
+          sub: 'The header, and the status chips under it. The chips and scenes follow the screen’s HK settings.',
+          yaml: '- type: custom:hk-header-card\n- type: custom:hk-chips-card\n- type: custom:hk-scenes-card' },
+        { id: 'cameras', title: 'Cameras', key: 'hk-camera-mosaic-card', anchor: 'cameras',
+          sub: 'The camera strip: one camera live, the others as stills. Its cameras follow the screen’s HK settings.',
+          yaml: '- type: custom:hk-camera-mosaic-card' },
+        { id: 'weather', title: 'Forecast', key: 'hk-weather-band-card', anchor: 'forecast',
+          sub: 'Now, the next hours and the coming days.',
+          yaml: '- type: custom:hk-weather-band-card\n  entity: {weather}' },
+        { id: 'live_tv', title: 'Live TV', key: 'hk-tv-guide-card', anchor: 'live-tv',
+          sub: 'Every channel with what is on; a tap plays one full screen. Needs the Live TV feature.',
+          yaml: '- type: custom:hk-tv-guide-card\n  title: Live TV' },
+        { id: 'clean_areas', title: 'Clean Areas', key: 'hk-area-select-card', anchor: 'clean-areas',
+          sub: 'Pick rooms floor by floor, then clean just those. Needs the Clean Areas feature.',
+          yaml: '- type: custom:hk-area-select-card' },
+        { id: 'music', title: 'Music', key: 'hk-speaker-picker-card', anchor: 'music',
+          sub: 'What is playing, the speakers and playlists, and the library. Needs the Music feature.',
+          yaml: '- type: custom:hk-now-playing-card\n  music: true\n- type: custom:hk-speaker-picker-card\n- type: custom:hk-library-card\n  music: true' },
+        { id: 'timers', title: 'Timers', key: 'hk-timers-page-card', anchor: 'timers',
+          sub: 'Quick start, the running timers and the New Timer keypad, as one card.',
+          yaml: '- type: custom:hk-timers-page-card' }] },
+    { header: 'Automations', footer: 'Actions of HK Frontend’s, for your automations and scripts.',
+      items: [
+        { id: 'clean_action', title: 'Clean Some Rooms', key: 'hk_frontend.clean_areas', anchor: 'clean-some-rooms',
+          sub: 'Each vacuum cleans the rooms on its own map.',
+          yaml: 'action: hk_frontend.clean_areas\ndata:\n  areas:\n    - kitchen\n    - dining_room' },
+        { id: 'saver_action', title: 'Start or Stop the Photos', key: 'switch.turn_on', anchor: 'start-or-stop-the-photos',
+          sub: 'A screen’s Photo Screensaver switch (HK settings’ screensaver only): on starts the photos, off closes them.',
+          yaml: 'action: switch.turn_on\ntarget:\n  entity_id: switch.kitchen_photo_screensaver' }] },
+    { header: 'The Address', footer: 'After a screen’s address, for one visit.',
+      items: [
+        { id: 'address', title: 'For One Visit', key: '?hk_kiosk=off', anchor: 'for-one-visit',
+          sub: 'Home Assistant’s header and sidebar back, or no screensaver, while you work on a tablet. A reload is the screen as set again.',
+          yaml: '/dashboard-kitchen/0?hk_kiosk=off   # the header and sidebar, until a reload\n' +
+                '/dashboard-kitchen/0?hk_saver=off   # no screensaver on this page' }] }
+  ];
+  // one snippet, filled in (`ctx` over YAML_DEFAULTS)
+  function yamlRefText(item, ctx) {
+    var c = Object.assign({}, YAML_DEFAULTS, ctx || {});
+    return String(item.yaml).replace(/\{(weather|user|photos)\}/g, function (m, k) { return c[k] || YAML_DEFAULTS[k]; });
+  }
+  function yamlRefItem(id) {
+    var out = null;
+    YAML_REF.forEach(function (g) { g.items.forEach(function (it) { if (it.id === id) out = it; }); });
+    return out;
+  }
+
   // ------------------------------------------------------------ search
   // Every setting the page has, where it is, and words people might use.
   // `screen: true` rows are on every screen's page.
@@ -582,6 +669,7 @@
     ['Menu', 'screen', 'menu', 'sidebar drawer navigation off button always open docked', true],
     ['Button Style', 'screen/menu-style', 'menu-style', 'chip tab edge pinned', true],
     ['Tab Position', 'screen', 'tab_position', 'edge tab height', true],
+    ['Tab Size', 'screen', 'tab_size', 'edge tab menu bigger larger touch target', true],
     ['Keep Open Down To', 'screen', 'dock_min', 'fold width docked', true],
     ['Time & Weather in Menu', 'screen', 'time_weather', 'clock header', true],
     ['Pages in Menu', 'screen/menu-pages', 'categories', 'categories menu list', true],
@@ -606,9 +694,27 @@
     ['On Narrow Screens', 'screen/menu-narrow', 'narrow', 'phone ipad chip tab folded when folded', true],
     ['Car Browser', 'screen', 'car', 'tesla viewport', true],
     ['Now Playing Bar', 'screen', 'now_playing', 'music media bar', true],
-    ['Photo Screensaver', 'screen', 'screensaver', 'wallpanel photos', true],
-    ['Screensaver Options', 'screen/wallpanel', 'wallpanel_options', 'wallpanel yaml photo timing', true],
-    ['Kiosk Mode Options', 'screen/kiosk', 'kiosk_options', 'yaml header sidebar admins', true],
+    ['Photo Screensaver', 'screen', 'screensaver', 'photos wall tablet slideshow', true],
+    ['Screensaver Options', 'screen/screensaver', 'screensaver_options', 'photo timing starts after each photo order random slideshow', true],
+    ['Screensaver for All Screens', 'house/tablets/screensaver', 'look.saver', 'screensaver all screens global default every tablet'],
+    ['Same as All Screens (Screensaver)', 'screen/screensaver', 'saver:house', 'screensaver all screens own global', true],
+    ['Screensaver Shows', 'screen/screensaver', 'saver:show', 'screensaver forecast weather photos no photos landscape', true],
+    ['Forecast When There Are No Photos', 'screen/screensaver', 'saver:fallback', 'screensaver forecast fallback empty folder dark', true],
+    ['Forecast Details (Screensaver)', 'screen/screensaver', 'saver:band', 'screensaver forecast band days hours multi-day details bottom', true],
+    ['Photos & Forecast', 'screen/screensaver', 'saver:forecast_every', 'screensaver forecast every photos slide mix both', true],
+    ['Slow Zoom', 'screen/screensaver', 'saver:zoom', 'screensaver photo zoom ken burns', true],
+    ['Over the Photos', 'screen/screensaver', 'saver:clock', 'screensaver clock weather now playing music timers', true],
+    ['Home Status', 'screen/screensaver', 'saver:status', 'screensaver security secured locks doors alarm top right', true],
+    ['Screensaver Switch', 'screen/screensaver', 'saver:ent:switch', 'screensaver photo switch automation entity turn on off bedtime doorbell', true],
+    ['Screen In Use', 'screen/screensaver', 'saver:ent:binary_sensor', 'in use touched tablet binary sensor automation window starts after timer', true],
+    ['Use WallPanel Instead', 'screen/screensaver', 'b:screensaver_engine', 'wallpanel hacs screensaver', true],
+    ['Your Own Dashboards', 'advanced', 'yaml-ref', 'yaml reference own dashboard hand written raw configuration snippets examples copy'],
+    ['Header & Sidebar', 'screen/kiosk', 'kiosk_page', 'kiosk hide header sidebar what is hidden', true],
+    ['Hide Header', 'screen/kiosk', 'kiosk_header', 'kiosk header toolbar top bar title views', true],
+    ['Hide Sidebar', 'screen/kiosk', 'kiosk_sidebar', 'kiosk sidebar drawer', true],
+    ['For Admins Too', 'screen/kiosk', 'kiosk_admins', 'kiosk header sidebar admin administrators', true],
+    ['Use the Kiosk Mode Plugin Instead', 'screen/kiosk', 'kiosk_engine', 'kiosk mode plugin hacs', true],
+    ['Kiosk Mode Options', 'screen/kiosk-mode', 'kiosk_options', 'kiosk mode plugin yaml header sidebar admins', true],
     ['Alarm Panel', 'house/general', 'security.alarm', 'security keypad'],
     ['Indoor Temperature', 'house/general', 'features.temperature', 'climate chip'],
     ['Power Use', 'house/general', 'features.power', 'energy chip watts'],
@@ -678,6 +784,72 @@
   // so a phone gets the phone layout -- drawn scaled down to the column.
   // Car only where Car Browser is on (tesla-viewport.js zooms that frame
   // as it does the car). hk: glyphs fall back to Material's of the same name.
+  // THE SCREENSAVER'S OPTIONS (settings.py SAVER_DEFAULTS): what a screen
+  // starts from, and whether it has changed any
+  var SAVER_DEFAULTS = { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false,
+                         clock: true, weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true, forecast_every: 5,
+                         band: true, band_photos: false };
+  function saverOptions(o) {
+    var out = {};
+    Object.keys(SAVER_DEFAULTS).forEach(function (k) {
+      out[k] = o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : SAVER_DEFAULTS[k];
+    });
+    return out;
+  }
+  // COPY SETTINGS FROM ANOTHER SCREEN: every screen setting is in exactly
+  // one group here or in COPY_NEVER (settings.py BOARD_DEFAULTS -- a Python
+  // test holds the two together). [key, label, board keys, copied by default]
+  var COPY_GROUPS = [
+    ['menu', 'Menu', ['menu', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
+                      'menu_rooms', 'menu_top', 'narrow', 'phone_header'], true],
+    ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom',
+                           'home_rooms', 'room_order'], true],
+    ['cameras', 'Cameras', ['camera_strip', 'cameras', 'camera_live'], true],
+    ['scenes', 'Scenes', ['scenes_row', 'scenes', 'scenes_pages'], false],
+    ['favorites', 'Favorites', ['favorites'], false],
+    ['pages', 'Pages', ['pages', 'page_rooms', 'custom_pages'], true],
+    ['look', 'Appearance', ['glass', 'frost', 'blur', 'sky'], true],
+    ['behavior', 'Behavior', ['idle_return', 'popups', 'car', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins',
+                              'kiosk_engine', 'kiosk_options', 'now_playing'], true],
+    ['saver', 'Screensaver', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true]
+  ];
+  // a screen's own tablet: never copied
+  var COPY_NEVER = ['tablet_user', 'idle_room'];
+  function copyDefaults() { return COPY_GROUPS.filter(function (g) { return g[3]; }).map(function (g) { return g[0]; }); }
+  // the changes that copy `groups` of the screen `src` (its settings as read)
+  function copyChanges(src, groups) {
+    var out = {};
+    COPY_GROUPS.forEach(function (g) {
+      if (!src || (groups || []).indexOf(g[0]) < 0) return;
+      g[2].forEach(function (k) {
+        // a screen following All Screens' screensaver: the copy follows too
+        if (k === 'screensaver_options') { out[k] = saverFollows(src) ? null : JSON.parse(JSON.stringify(src[k])); return; }
+        if (src[k] !== undefined) out[k] = src[k] === null ? null : JSON.parse(JSON.stringify(src[k]));
+      });
+    });
+    return out;
+  }
+  // A SCREEN FOLLOWS ALL SCREENS' SCREENSAVER when its own options are null
+  // (a save hands back the stored form) or the feed says so (resolved)
+  function saverFollows(b) { return !!b && (b.screensaver_house === true || b.screensaver_options == null); }
+  // one line for a nav row: what shows, and when
+  // A SCREEN'S Header & Sidebar row: what is hidden, and by whom
+  function kioskSummary(b, generated) {
+    if (!b || !b.kiosk) return 'Off';
+    if (generated && b.kiosk_engine === 'kiosk_mode') return 'Kiosk Mode Plugin';
+    var h = b.kiosk_header !== false, sd = b.kiosk_sidebar !== false;
+    return h && sd ? 'Both Hidden' : h ? 'Header Hidden' : sd ? 'Sidebar Hidden' : 'Nothing Hidden';
+  }
+  function saverSummary(o) {
+    o = saverOptions(o);
+    var show = o.show === 'forecast' ? 'Forecast' : o.show === 'both' ? 'Photos & Forecast' : 'Photos';
+    var n = o.starts_after, t = n < 60 ? n + ' s' : (n % 60 ? Math.round(n / 6) / 10 : n / 60) + ' min';
+    return show + ' · ' + t;
+  }
+  function saverCustom(o) {
+    var cur = saverOptions(o);
+    return Object.keys(SAVER_DEFAULTS).some(function (k) { return cur[k] !== SAVER_DEFAULTS[k]; });
+  }
   var PREVIEW_SIZES = [
     { key: 'phone', label: 'Phone', w: 390, h: 844, icon: 'hk:cellphone' },
     { key: 'portrait', label: 'Tablet Portrait', short: 'Portrait', w: 820, h: 1180, icon: 'hk:tablet', rotate: true },
@@ -732,7 +904,10 @@
   }
 
   root.hkSettingsModel = {
+    YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
+    SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
+    COPY_GROUPS: COPY_GROUPS, COPY_NEVER: COPY_NEVER, copyDefaults: copyDefaults, copyChanges: copyChanges,
     skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',
     CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS,

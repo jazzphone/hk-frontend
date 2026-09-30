@@ -116,7 +116,8 @@
     '  color:var(--hk-label);font:inherit;font-size:16px;outline:none}',
     '.search input::placeholder{color:var(--hk-label2)}',
     '.search input:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--hk-tint) 45%,transparent)}',
-    '.search .mag{position:absolute;left:9px;top:9px;width:18px;height:18px;color:var(--hk-label2);--mdc-icon-size:18px}',
+    // a block, not an inline icon on a line's baseline (which sat it 3 px low)
+    '.search .mag{position:absolute;left:9px;top:9px;width:18px;height:18px;color:var(--hk-label2);--mdc-icon-size:18px;display:flex}',
     '.side .grp{margin-bottom:22px}',
     '.side .gh{padding-left:12px}',
     '.side .cell{padding-left:12px;min-height:44px}',
@@ -144,6 +145,11 @@
     '.bar .st svg{width:13px;height:13px;color:var(--hk-green)}',
     '.bar .lead{flex:1 1 0;min-width:0;display:flex;align-items:center}',
     '.bar .mid{flex:0 1 auto;max-width:50%}',
+    // the title shows in the bar only once the page scrolls (its large
+    // title gone): until then it takes no room, and the back button's label
+    // is not cut short beside an invisible one ("Living …", 2026-09-30)
+    '.bar:not(.scrolled) .mid{max-width:0}',
+    '.bar:not(.scrolled) .lead{flex:0 1 auto;max-width:calc(100% - 96px)}',
     '.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-top:52px}',
     '.page{max-width:680px;margin:0 auto;padding:6px 20px 80px}',
     // 32px between the columns only: between the title and the settings the
@@ -166,7 +172,12 @@
     ':host(:not([xwide])) .page.split .pvcol{margin:0 0 30px;max-width:480px}',
     '.pvcol:empty{display:none}',
     '.code{margin:-14px 0 28px;padding:12px 16px;border-radius:10px;background:var(--hk-cell);color:var(--hk-label);',
+    // YAML keeps its lines (wrapped, its indentation would lie): it scrolls
+    // sideways, a size smaller on a phone so most lines fit
     '  font:13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre;overflow-x:auto;user-select:text}',
+    '@media (max-width:640px){.code{font-size:12px;line-height:17px}}',
+    // never wider than the page: its long lines scroll inside it
+    '.code{max-width:100%;min-width:0;box-sizing:border-box}',
     'h1.lt{margin:4px 0 4px;font-family:var(--hk-display);font-size:34px;line-height:41px;font-weight:700;letter-spacing:.01em;outline:none}',
     ':host([wide]) h1.lt{font-size:30px;line-height:36px}',
     '.scope{margin:0 0 24px;font-size:15px;line-height:20px;color:var(--hk-label2)}',
@@ -200,7 +211,9 @@
     '  --acc-glyph-on-fg:#fff;--acc-red:var(--hk-red);--acc-green:var(--hk-green);--acc-orange:var(--hk-orange);font-size:var(--hk-body)}',
     '.accwrap .acc{gap:26px}',
     '.accwrap .acc .cap{padding:0 16px 7px;font-weight:400;letter-spacing:0}',
-    '.accwrap .acc .grp{border-radius:10px}',
+    // (the kit's own .grp margin is not for this pane's groups: it doubled
+    // every gap on an accessory's page)
+    '.accwrap .acc .grp{border-radius:10px;margin:0}',
     '.accwrap .acc .row{min-height:44px}',
     '.accwrap .acc .note{padding:0 16px}',
     '.dated{display:flex;gap:6px;flex:none}',
@@ -218,7 +231,9 @@
     '.big h2{margin:6px 0 0;font-family:var(--hk-display);font-size:28px;font-weight:700}',
     '.big p{margin:0;max-width:44ch;color:var(--hk-label2);font-size:15px;line-height:20px}',
     '.steps{font-size:13px;color:var(--hk-label2);text-align:center;margin:0 0 8px}',
-    '.yaml{display:block;background:var(--hk-cell);border-radius:10px;padding:8px 6px;min-height:120px}',
+    // Home Assistant's own editor on the card: its grey panels made clear
+    '.yaml{display:block;background:var(--hk-cell);border-radius:10px;padding:8px 6px;min-height:120px;',
+    '  --code-editor-background-color:transparent;--code-editor-gutter-color:transparent}',
     'pre.ex{margin:0;padding:12px 16px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--hk-label);white-space:pre-wrap}',
     '.yaml textarea{width:100%;min-height:220px;border:0;background:none;color:var(--hk-label);font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;resize:vertical}',
     '.ok{color:var(--hk-green)} .warn{color:var(--hk-orange)} .note{color:var(--hk-label2)}',
@@ -254,6 +269,8 @@
   var LIBRARY = [['accessories', 'Accessories', 'mdi:lightbulb-group', C.yellow], ['popups', 'Pop-ups', 'mdi:bell-ring', C.red],
                  ['pages', 'Custom Pages', 'mdi:file-document-multiple', C.teal], ['chips', 'Custom Chips', 'mdi:label-variant', C.orange]];
   var SYSTEM = [['advanced', 'Advanced', 'mdi:cog', C.gray], ['check', 'Setup Check', 'mdi:clipboard-check', C.green]];
+  // the documentation (manifest.json's), where a page links to it
+  var WIKI = 'https://github.com/jazzphone/hk-frontend/wiki/';
   // THE THIRD-PARTY CARDS' OPTIONS: the handful people change, as controls
   // (an empty YAML box does not say what it wants), each showing the tuned value until changed (hk-strategy.js
   // wallpanel(), kiosk_mode, the Weather page's radar card). A control writes
@@ -778,6 +795,35 @@
       this.pageEl.classList.toggle('nohead', !!(pg.preview && first && first.classList &&
         first.classList.contains('grp') && !(first.firstElementChild && first.firstElementChild.classList.contains('gh'))));
       this.skyPreview(pg.preview ? pg.sky : null);
+      this.saverPreview(!!(pg.preview && pg.saverPreview));
+    }
+
+    // THE SCREENSAVER'S PREVIEW: on Screensaver Options the frame shows the
+    // screensaver as that screen shows it (its window's hkSaver.preview) and
+    // follows every change made here; any other page takes it away again.
+    // Only the frame: the screen's tablet, its switch and its photos' order
+    // are not touched.
+    saverPreview(on) {
+      var self = this, col = this.pageEl.querySelector('.pvcol');
+      var old = col && col.querySelector('.pvsaver');
+      if (old) old.remove();
+      clearInterval(this._saverWait);
+      var box = col && col.querySelector('.pvbox'), fr = box && box.querySelector('iframe');
+      if (!fr) { this._saverWas = false; return; }
+      if (!on && !this._saverWas) return;
+      this._saverWas = on;
+      var n = 0;
+      var go = function () {
+        var S = null;
+        try { S = fr.contentWindow && fr.contentWindow.hkSaver; } catch (e) { /* not ours */ }
+        if (S && typeof S.preview === 'function') { S.preview(on); return true; }
+        return false;
+      };
+      if (!go()) self._saverWait = setInterval(function () { if (go() || ++n > 80) clearInterval(self._saverWait); }, 250);
+      if (on) {
+        box.parentNode.insertBefore(h('div', { class: 'pvsaver' }, [h('p', { class: 'gf',
+          text: 'The screensaver as this screen shows it, with the changes you make here. Only this preview changes.' })]), box.nextSibling);
+      }
     }
 
     // THE SKY'S PREVIEW. On the Sky page the preview frame shows today's own
@@ -1044,7 +1090,7 @@
       if (a === 'popups') return this.p_popups(parts.slice(1));
       if (a === 'pages') return this.p_pages(parts.slice(1));
       if (a === 'chips') return this.p_chips(parts.slice(1));
-      if (a === 'advanced') return this.p_advanced();
+      if (a === 'advanced') return parts[1] === 'yaml' ? this.p_yamlRef(parts[2]) : this.p_advanced();
       if (a === 'check') return this.p_check();
       if (a === 'setup') return this.p_setup(Number(parts[1] || 0));
       return this.p_overview();
@@ -1096,9 +1142,10 @@
       var pv = h('div', { class: 'pvbox' });
       var b = (this.data && this.data.boards && this.data.boards[path]) || null;
       var fr = document.createElement('iframe');
-      // kiosk: no Home Assistant header; wp_enabled=false: WallPanel never
+      // hk_kiosk=on (HK Frontend's) and kiosk (the Kiosk Mode plugin's): no
+      // Home Assistant header or sidebar; wp_enabled=false: WallPanel never
       // runs in a preview (it would drive the real tablet's screensaver)
-      fr.src = '/' + path + '/0?kiosk&wp_enabled=false';
+      fr.src = '/' + path + '/0?hk_kiosk=on&kiosk&wp_enabled=false';
       fr.title = (x ? x.title : path) + ' preview';
       fr.setAttribute('tabindex', '-1');
       pv.appendChild(fr);
@@ -1208,18 +1255,29 @@
       if (s === 'rooms') return mk('Rooms', function (c) { self.s_rooms(c, x, b); });
       if (s === 'pages') return mk('Pages', function (c) { self.s_pages(c, x, b); });
       if (s === 'glass') return mk('Glass', function (c) { self.s_glass(c, x, b); });
-      if (s === 'wallpanel' || s === 'kiosk') {
-        var key = s + '_options', spec = OPTION_PAGES[s];
+      if (s === 'copy') return mk('Copy Settings', function (c) { self.s_copy(c, x, b); });
+      if (s === 'screensaver') {
+        var spg = mk('Screensaver Options', function (c) { self.saverPage(c, x, b, path); });
+        spg.saverPreview = true;         // the frame shows the screensaver itself
+        return spg;
+      }
+      if (s === 'kiosk') return mk('Header & Sidebar', function (c) { self.kioskPage(c, x, b, path); });
+      // A THIRD-PARTY CARD'S OPTIONS: WallPanel's, and the Kiosk Mode
+      // plugin's (kiosk-mode: a page under Header & Sidebar)
+      if (s === 'wallpanel' || s === 'kiosk-mode') {
+        var tpk = s === 'kiosk-mode' ? 'kiosk' : s;
+        var key = tpk + '_options', spec = OPTION_PAGES[tpk];
         var saveOpts = function (v) { var o = {}; o[key] = v; return self.setB(path, o); };
         if (sub[1] === 'yaml') {
           return mk('Options in YAML', function (c) {
-            self.yamlPage(c, { value: b[key] || {}, note: ((self.data.thirdparty || {})[s] || {}).note, sk: 'b:' + key,
+            self.yamlPage(c, { value: b[key] || {}, note: ((self.data.thirdparty || {})[tpk] || {}).note, sk: 'b:' + key,
                                help: spec.yamlHelp, example: spec.example, docs: spec.docs, onSave: saveOpts });
           }, [spec.title, base + '/' + s]);
         }
         return mk(spec.title, function (c) {
-          self.optionsPage(c, spec, b[key] || {}, saveOpts, base + '/' + s + '/yaml', ((self.data.thirdparty || {})[s] || {}));
-        });
+          if (s === 'wallpanel') self.engineGroup(c, b, path);
+          self.optionsPage(c, spec, b[key] || {}, saveOpts, base + '/' + s + '/yaml', ((self.data.thirdparty || {})[tpk] || {}));
+        }, s === 'kiosk-mode' ? ['Header & Sidebar', base + '/kiosk'] : null);
       }
       return { title: x.title, top: true, back: home, preview: path, previewTop: true,
         scope: 'Only this screen · <b>/' + K.esc(path) + '</b> · ' + (x.generated ? 'Generated from your home' : 'Written in YAML'),
@@ -1247,6 +1305,9 @@
       if (M.showsTab(b)) {
         rows.push(K.text({ label: 'Tab Position', sk: 'b:tab_position', value: b.tab_position, placeholder: 'Level with Date',
           error: this.err('b:tab_position'), onCommit: function (v) { set({ tab_position: v.trim() }); } }));
+        rows.push(K.seg({ label: 'Tab Size', sub: 'On a tablet or wider. A phone keeps the slim tab.', sk: 'b:tab_size',
+          value: b.tab_size || 'large', options: [['standard', 'Standard'], ['large', 'Large'], ['xl', 'Extra Large']],
+          onChange: function (v) { set({ tab_size: v }); } }));
       }
       if (mode === 'open') {
         rows.push(K.text({ label: 'Keep Open Down To', sk: 'b:dock_min', value: b.dock_min, unit: 'px', inputmode: 'numeric',
@@ -1311,22 +1372,29 @@
           onClick: function () { var o = {}; o[k] = null; set(o); } }));
       });
       app.push(K.toggle({ label: 'Live Sky', sk: 'b:sky', on: b.sky, onChange: function (on) { set({ sky: on }); } }));
-      if (gen) app.push(K.toggle({ label: 'Hide Home Assistant Header & Sidebar', sk: 'b:kiosk', on: b.kiosk,
-                                   onChange: function (on) { set({ kiosk: on }); } }));
-      if (gen && b.kiosk) app.push(K.nav({ label: 'Kiosk Mode Options', href: base + '/kiosk', sk: 'b:kiosk_options',
-                                           value: Object.keys(b.kiosk_options || {}).length ? 'Custom' : 'Default' }));
+      // HIDE HOME ASSISTANT'S HEADER AND SIDEBAR: every screen, generated or
+      // not -- HK Frontend does it (hk-kiosk.js), or on a generated screen
+      // that chooses it, the Kiosk Mode plugin
+      app.push(K.toggle({ label: 'Hide Home Assistant Header & Sidebar', sk: 'b:kiosk', on: b.kiosk,
+                          onChange: function (on) { set({ kiosk: on }); } }));
+      if (b.kiosk) app.push(K.nav({ label: 'Header & Sidebar', href: base + '/kiosk', sk: 'b:kiosk_page',
+                                    value: M.kioskSummary(b, gen) }));
       var skySw = look.sky_switch;
       var appFoot = [];
       if (gen && skySw && b.sky) appFoot.push('The sky also follows ' + this.name(skySw) + ' (Sky).');
       if (!gen) appFoot.push('A YAML screen’s sky comes from its YAML; Live Sky can only turn it off here.');
-      if (gen && b.kiosk && (this.data.thirdparty.kiosk || {}).state !== 'ready') appFoot.push((this.data.thirdparty.kiosk || {}).note || '');
+      if (gen && b.kiosk && b.kiosk_engine === 'kiosk_mode' && (this.data.thirdparty.kiosk || {}).state !== 'ready') {
+        appFoot.push((this.data.thirdparty.kiosk || {}).note || '');
+      }
       c.appendChild(K.group({ header: 'Appearance', footer: appFoot.join(' ') || null }, app));
 
       // BEHAVIOR
       var beh = [];
       beh.push(K.toggle({ label: 'Return to Home When Idle', sk: 'b:idle_return', on: b.idle_return,
                           onChange: function (on) { set({ idle_return: on }); } }));
-      var needRoom = b.idle_return || (gen && b.screensaver);
+      // a room only for the idle return, or WallPanel (its helper is named by
+      // the room); HK's own screensaver needs none -- its switch is made for it
+      var needRoom = b.idle_return || (gen && b.screensaver && b.screensaver_engine === 'wallpanel');
       if (needRoom) {
         beh.push(K.text({ label: 'Tablet Room', sk: 'b:idle_room', value: b.idle_room, placeholder: 'kitchen',
           error: this.err('b:idle_room'), onCommit: function (v) { set({ idle_room: v.trim().toLowerCase() }); } }));
@@ -1337,26 +1405,40 @@
       if (gen) {
         beh.push(K.toggle({ label: 'Now Playing Bar', sk: 'b:now_playing', on: b.now_playing,
                             onChange: function (on) { set({ now_playing: on }); } }));
-        beh.push(K.toggle({ label: 'Photo Screensaver', sk: 'b:screensaver', on: b.screensaver,
-                            onChange: function (on) { set({ screensaver: on }); } }));
-        if (b.screensaver) {
-          beh.push(K.nav({ label: 'Screensaver Options', href: base + '/wallpanel', sk: 'b:wallpanel_options',
-                           value: Object.keys(b.wallpanel_options || {}).length ? 'Custom' : 'Default' }));
-          var users = (this.data.users || []).slice();
-          if (b.tablet_user && users.indexOf(b.tablet_user) < 0) users.push(b.tablet_user);
-          beh.push(K.select({ label: 'Tablet User', sk: 'b:tablet_user', value: b.tablet_user,
-            options: [['', 'Choose…']].concat(users.map(function (u) { return [u, u]; })),
-            onChange: function (v) { set({ tablet_user: v }); } }));
-        }
+      }
+      // THE PHOTO SCREENSAVER: every screen -- an existing dashboard's comes
+      // from these settings unless its own YAML has hk_screensaver
+      // (hk-saver.js fromSettings); WallPanel for a generated screen only
+      beh.push(K.toggle({ label: 'Photo Screensaver', sk: 'b:screensaver', on: b.screensaver,
+                          onChange: function (on) { set({ screensaver: on }); } }));
+      if (b.screensaver) {
+        var wp = gen && b.screensaver_engine === 'wallpanel';
+        beh.push(K.nav({ label: 'Screensaver Options', href: base + (wp ? '/wallpanel' : '/screensaver'),
+                         sk: wp ? 'b:wallpanel_options' : 'b:screensaver_options',
+                         value: wp ? 'WallPanel' : (M.saverFollows(b) ? 'All Screens' : 'Its Own') }));
+        var users = (this.data.users || []).slice();
+        if (b.tablet_user && users.indexOf(b.tablet_user) < 0) users.push(b.tablet_user);
+        beh.push(K.select({ label: 'Tablet User', sk: 'b:tablet_user', value: b.tablet_user,
+          options: [['', 'Choose…']].concat(users.map(function (u) { return [u, u]; })),
+          onChange: function (v) { set({ tablet_user: v }); } }));
       }
       var bf = [];
       if (needRoom) bf.push('The tablet’s room names its helpers (binary_sensor.<room>_tablet_in_use, input_number.<room>_tablet_room_idle). Without a room idle time, the Wall Tablets default is used.');
       var pops = (this.data.popups || []).map(function (p) { return p.name || '#' + p.hash; });
       bf.push((pops.length ? 'Pop-ups (' + pops.join(', ') + ')' : 'Pop-ups') +
         ' open over this screen when an automation shows one. Off: never here — a car’s screen, say.');
-      if (gen && b.screensaver) bf.push('Only the tablet’s user gets the screensaver, so a desk opening this screen never does. Photos are set in Wall Tablets.');
+      if (b.screensaver) {
+        bf.push(!b.tablet_user ? 'Choose the Tablet User: the screensaver runs only for that user, so a desk opening this screen never gets it.'
+          : b.screensaver_engine === 'wallpanel' ? 'Only the tablet’s user gets the screensaver. WallPanel says when it is showing in input_boolean.wallpanel_screensaver_<room>.'
+          : 'Only the tablet’s user gets the screensaver, so a desk opening this screen never does. Photos are set in Wall Tablets; its switch for automations is on Screensaver Options.');
+        if (!gen) bf.push('If this dashboard’s own YAML has an hk_screensaver block, that is used instead.');
+      }
       c.appendChild(K.group({ header: 'Behavior', footer: bf.join(' ') }, beh));
 
+      c.appendChild(K.group({ footer: 'Another screen’s menu, Home page, appearance and more, onto this one — you choose which.' }, [
+        K.nav({ label: 'Copy Settings From…', href: base + '/copy', sk: 'b:copy' })]));
+      if (!gen) c.appendChild(K.group({ footer: 'What this dashboard’s own YAML can say beyond these settings: the live sky, HK cards, ' +
+          'rooms in the menu, and more, ready to copy.' }, [K.nav({ label: 'YAML Reference', href: '#/advanced/yaml', sk: 'b:yaml-ref' })]));
       if (gen && x.mode === 'storage') { c.appendChild(this.deleteGroup(x)); return; }
       c.appendChild(K.group({ footer: 'The dashboard itself stays. Its menu, Home page and appearance go back to the defaults.' }, [
         K.button({ label: 'Remove HK Settings…', destructive: true, sk: 'b:remove', onClick: function () {
@@ -1368,6 +1450,50 @@
               .then(function (ok) { if (ok) self.reload().then(function () { self.render(); }); });
           });
         } })]));
+    }
+    // COPY SETTINGS FROM ANOTHER SCREEN onto this one: which screen, which
+    // parts (M.COPY_GROUPS; Favorites and Scenes are left unticked), then one
+    // save. A screen's own tablet (Tablet User, Tablet Room) never travels.
+    s_copy(c, x, b) {
+      var self = this, path = x.path;
+      var st = this._copy = (this._copy && this._copy.to === path) ? this._copy : { to: path, from: null, groups: M.copyDefaults() };
+      var from = (this.data.dashboards || []).filter(function (d) { return d.item && d.path !== path && self.data.boards[d.path]; });
+      if (!from.length) {
+        c.appendChild(K.group({ footer: 'There is no other screen with HK settings to copy from yet.' }, []));
+        return;
+      }
+      c.appendChild(K.group({ header: 'From', footer: 'Its settings as they are now; nothing on that screen changes.' }, from.map(function (d) {
+        return K.check({ label: d.title, sub: '/' + d.path, on: st.from === d.path, fk: 'copy:from:' + d.path,
+                         onClick: function () { st.from = d.path; self.render(); } });
+      })));
+      this.copyGroups(c, st);
+      var src = st.from && this.data.boards[st.from];
+      var fromTitle = st.from ? ((this.dash(st.from) || {}).title || st.from) : '';
+      c.appendChild(K.group({ footer: 'This screen’s Tablet User and Tablet Room are kept: they belong to its tablet.' }, [
+        K.button({ label: st.from ? 'Copy to ' + x.title + '…' : 'Choose a Screen to Copy From', center: true, fk: 'copy:go',
+                   disabled: !st.from || !st.groups.length, onClick: function () {
+          var names = M.COPY_GROUPS.filter(function (g) { return st.groups.indexOf(g[0]) >= 0; }).map(function (g) { return g[1]; });
+          K.confirm(self.shadowRoot, { title: 'Copy from ' + fromTitle + '?', ok: 'Copy',
+                                       message: names.join(', ') + ' on ' + x.title + ' are replaced with ' + fromTitle + '’s.' }).then(function (yes) {
+            if (!yes) return;
+            self.setB(path, M.copyChanges(src, st.groups)).then(function () {
+              self._copy = null;
+              self.announce('Copied from ' + fromTitle + '.');
+              self.back('#/screens/' + encodeURIComponent(path));
+            });
+          });
+        } })]));
+    }
+    copyGroups(c, st) {
+      var self = this;
+      c.appendChild(K.group({ header: 'What to Copy', footer: 'Favorites and scenes are usually a screen’s own, so they start unticked.' },
+        M.COPY_GROUPS.map(function (g) {
+          var on = st.groups.indexOf(g[0]) >= 0;
+          return K.check({ label: g[1], multi: true, on: on, fk: 'copy:g:' + g[0], onClick: function () {
+            st.groups = on ? st.groups.filter(function (k) { return k !== g[0]; }) : st.groups.concat([g[0]]);
+            self.render();
+          } });
+        })));
     }
     // DELETE SCREEN: a generated screen -- one the page can make -- can go
     // altogether: its dashboard and its settings. A hand-written one only
@@ -1821,6 +1947,194 @@
 
     // AN OPTIONS PAGE: OPTION_PAGES' controls over the options mapping, then
     // the way to the rest of it in YAML
+    // THE SCREENSAVER'S OPTIONS (HK Frontend's own, hk-saver.js). Every
+    // control saves the whole set; the defaults are settings.py's.
+    // A SCREEN'S SCREENSAVER OPTIONS: the settings for All Screens (the
+    // default -- `screensaver_options` null), or its own.
+    saverPage(c, x, b, path) {
+      var self = this, house = M.saverFollows(b);
+      var cur = M.saverOptions(house ? this.hs('look.saver') : b.screensaver_options);
+      c.appendChild(K.group({ footer: house
+          ? 'This screen uses the screensaver settings for All Screens (Wall Tablets → Screensaver). Off: it gets its own, starting from these.'
+          : 'This screen has its own screensaver settings. On: it uses the settings for All Screens again.' }, [
+        K.toggle({ label: 'Same as All Screens', sk: 'saver:house', on: house, onChange: function (on) {
+          self.setB(path, { screensaver_options: on ? null : cur });
+        } })].concat(house ? [K.nav({ label: 'Screensaver for All Screens', value: M.saverSummary(cur),
+                                      href: '#/house/tablets/screensaver', sk: 'saver:house-page' })] : [])));
+      if (!house) {
+        this.saverGroups(c, cur, function (k, v) {
+          var o = M.saverOptions(cur); o[k] = v;
+          return self.setB(path, { screensaver_options: o });
+        });
+        if (M.saverCustom(cur)) {
+          c.appendChild(K.group({}, [K.button({ label: 'Use the Defaults…', destructive: true, fk: 'saver:reset', onClick: function () {
+            K.confirm(self.shadowRoot, { title: 'Use the default screensaver options?', message: 'Every option on this page goes back to its default.',
+                                         ok: 'Use Defaults', destructive: true }).then(function (yes) {
+              if (yes) self.setB(path, { screensaver_options: M.saverOptions(null) });
+            });
+          } })]));
+        }
+      }
+      c.appendChild(this.saverEntities(b, path));
+      if (x.generated) this.engineGroup(c, b, path);
+    }
+    // THE OPTIONS THEMSELVES, for a screen of its own or for All Screens:
+    // `cur` the options in force, `put(key, value)` saves one.
+    saverGroups(c, cur, put) {
+      var self = this;
+      var sel = function (label, k, choices, sub) {
+        var opts = choices.map(function (n) { return [String(n), MIN(n)]; });
+        if (!choices.some(function (n) { return n === cur[k]; })) opts.push([String(cur[k]), MIN(cur[k])]);
+        return K.select({ label: label, sub: sub, value: String(cur[k]), options: opts, sk: 'saver:' + k,
+                          onChange: function (v) { put(k, Number(v)); } });
+      };
+      var tog = function (label, k, sub) {
+        return K.toggle({ label: label, sub: sub, on: !!cur[k], sk: 'saver:' + k, onChange: function (on) { put(k, on); } });
+      };
+      // ONE TIMER: Starts After also decides how long a touch keeps the screen
+      // In Use (a minute less, never under 15 s -- screensaver.py window_of)
+      var win = Math.max(15, cur.starts_after - 60);
+      // WHAT IT SHOWS: the photos (and the forecast whenever there are none),
+      // or always the forecast -- the live sky over the season's land
+      var fc = cur.show === 'forecast', both = cur.show === 'both';
+      var every = function (n) { return 'Every ' + n + ' Photos'; };
+      c.appendChild(K.group({ header: 'Show', footer: fc
+          ? 'The forecast over the live sky and the season’s landscape: today, the next hours and the coming days. No photos needed.'
+          : both ? 'Your photos, with the forecast as one of them: after every few photos it fades in for as long as a photo shows, then the photos go on. Its sky only moves while it is on screen. With no photos, the forecast alone.'
+          : cur.fallback ? 'Your photos. When the photos folder has none, or can’t be read, the forecast shows instead.'
+          : 'Your photos. When the photos folder has none, or can’t be read, the screen stays dark.' }, [
+        K.seg({ label: 'Show', value: cur.show, sk: 'saver:show', stack: !self.hasAttribute('wide'),
+                options: [['photos', 'Photos'], ['both', 'Photos & Forecast'], ['forecast', 'Forecast']], onChange: function (v) { put('show', v); } })
+      ].concat(both ? [K.select({ label: 'Forecast', sk: 'saver:forecast_every', value: String(cur.forecast_every),
+                                  options: [3, 5, 10, 20].concat([3, 5, 10, 20].indexOf(cur.forecast_every) < 0 ? [cur.forecast_every] : [])
+                                    .map(function (n) { return [String(n), every(n)]; }),
+                                  onChange: function (v) { put('forecast_every', Number(v)); } })]
+               : fc ? [] : [tog('Forecast When There Are No Photos', 'fallback')],
+               // the details ON the forecast, wherever a forecast can show
+               (fc || both || cur.fallback) ? [tog('Forecast Details', 'band',
+                 'On the forecast: today, the next hours and the coming days along the bottom. Off: the sky and the landscape alone.')] : [])));
+      c.appendChild(K.group({ header: 'Timing', footer: 'Starts After is the one timer. The screen also counts as In Use for ' + MIN(win) +
+          ' after each touch (a minute less), so the photos never come up while someone is using it, and an automation reading ' +
+          'In Use never disagrees with the screensaver.' }, [
+        sel('Starts After', 'starts_after', [60, 120, 180, 300, 600, 900, 1800], 'Untouched for this long.')].concat(
+          fc ? [] : [sel('Each Photo For', 'each_photo', [10, 20, 30, 60, 120, 300])])));
+      if (!fc) c.appendChild(K.group({ header: 'Photos', footer: 'Tap the left or right edge of the screensaver for the previous or next photo; anywhere else closes it.' }, [
+        K.seg({ label: 'Order', value: cur.order, sk: 'saver:order', options: [['random', 'Random'], ['sorted', 'In Order']],
+                onChange: function (v) { put('order', v); } }),
+        tog('Fill the Screen', 'fill', 'Off: the whole photo, with room around it.'),
+        tog('Slow Zoom', 'zoom', 'A slow zoom across each photo. The tablet keeps drawing the whole time, so it runs warmer.')]));
+      var overPhotos = fc ? [] : [tog('Forecast Details', 'band_photos', 'Today, the next hours and the coming days, along the bottom of the photos.')];
+      c.appendChild(K.group({ header: fc ? 'On the Screen' : 'Over the Photos', footer: fc
+          ? 'The forecast is the weather set in Weather; today’s conditions are in it, so the Weather line isn’t needed.'
+          : 'The photos come from Wall Tablets → Screensaver Photos.' }, [
+        tog('Clock & Date', 'clock')].concat(fc ? [] : [tog('Weather', 'weather')], [
+        tog('Now Playing', 'music', 'Music playing anywhere in the house, bottom left.'),
+        tog('Timers', 'timers', 'Running timers, bottom right.'),
+        tog('Home Status', 'status', 'Top right: Home Secured when the alarm is armed and everything is shut, or what’s open or unlocked. Nothing when there’s nothing to say.')], overPhotos)));
+    }
+    // ALL SCREENS' SCREENSAVER (Wall Tablets → Screensaver): every screen whose
+    // Same as All Screens is on uses these. The preview shows the first such
+    // screen's screensaver.
+    h_saver(c) {
+      var self = this, cur = M.saverOptions(this.hs('look.saver')), boards = this.data.boards || {};
+      var savers = Object.keys(boards).filter(function (p) { return boards[p].screensaver; });
+      var follow = savers.filter(function (p) { return M.saverFollows(boards[p]); });
+      this.saverGroups(c, cur, function (k, v) {
+        var o = M.saverOptions(cur); o[k] = v;
+        return self.setH({ 'look.saver': o });
+      });
+      var name = function (p) { return (self.dash(p) || { title: p }).title; };
+      c.appendChild(K.group({ header: 'Screens', footer: savers.length
+          ? 'A screen with its own settings keeps them; turn on Same as All Screens on its Screensaver Options to use these.'
+          : 'No screen has Photo Screensaver on yet (a screen’s Behavior).' },
+        savers.map(function (p) {
+          var own = follow.indexOf(p) < 0;
+          return K.nav({ label: name(p), value: own ? 'Its Own' : 'All Screens',
+                         href: '#/screens/' + encodeURIComponent(p) + '/screensaver', sk: 'saver:screen:' + p });
+        })));
+      if (M.saverCustom(cur)) {
+        c.appendChild(K.group({}, [K.button({ label: 'Use the Defaults…', destructive: true, fk: 'saver:house-reset', onClick: function () {
+          K.confirm(self.shadowRoot, { title: 'Use the default screensaver options?', message: 'The settings for All Screens go back to their defaults.',
+                                       ok: 'Use Defaults', destructive: true }).then(function (yes) {
+            if (yes) self.setH({ 'look.saver': M.saverOptions(null) });
+          });
+        } })]));
+      }
+    }
+    // FOR AUTOMATIONS: the screen's own switch and in-use sensor, which HK
+    // Frontend makes for it (screensaver.py) -- nothing to create by hand
+    saverEntities(b, path) {
+      var self = this, e = (this.data.screensavers || {})[path] || {};
+      if (!b.tablet_user) {
+        return K.group({ header: 'For Automations', footer: 'Choose this screen’s Tablet User and HK Frontend adds its screensaver switch and In Use sensor.' }, []);
+      }
+      var row = function (label, id, sub) {
+        if (!id) return K.info({ label: label, sub: sub, value: 'Being added…' });
+        var a = K.nav({ label: label, sub: id, href: '#', sk: 'saver:ent:' + id.split('.')[0], value: self.stateLabel(id) });
+        a.addEventListener('click', function (ev) {
+          ev.preventDefault(); ev.stopPropagation();
+          self.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true }));
+        });
+        return a;
+      };
+      var leg = b.idle_room && this._hass && this._hass.states['input_boolean.wallpanel_screensaver_' + b.idle_room];
+      return K.group({ header: 'For Automations', footer: 'Photo Screensaver is on while the photos show: turn it on to start them now ' +
+          '(bedtime, say), off to close them (the doorbell). In Use is on while the screen was touched within its window.' +
+          (leg ? ' The older input_boolean.wallpanel_screensaver_' + b.idle_room + ' follows it both ways until you delete it.' : '') }, [
+        row('Photo Screensaver', e.switch, 'On while the photos show'),
+        row('In Use', e.in_use, 'Touched within its window')]);
+    }
+    stateLabel(id) {
+      var st = this._hass && this._hass.states[id];
+      return st ? (st.state === 'on' ? 'On' : st.state === 'off' ? 'Off' : st.state) : '';
+    }
+    // HEADER & SIDEBAR: what HK Frontend hides (hk-kiosk.js) -- and, on a
+    // generated screen where the Kiosk Mode plugin is installed (or already
+    // chosen), the plugin instead, with its own options page.
+    kioskPage(c, x, b, path) {
+      var self = this, base = '#/screens/' + encodeURIComponent(path);
+      var set = function (o) { return self.setB(path, o); };
+      var plugin = x.generated && b.kiosk_engine === 'kiosk_mode';
+      if (!plugin) {
+        c.appendChild(K.group({ footer: 'Whatever is hidden, the menu’s Home Assistant section still reaches Home Assistant ' +
+            '(Show Menu opens its sidebar). To see them on one visit, add ?\u2060hk_kiosk=off to the screen’s address.' +
+            (x.generated ? '' : ' This dashboard’s own YAML can say it instead (hk_kiosk), and then that is used; ' +
+             'if it has a kiosk_mode block, the Kiosk Mode plugin does it and these do nothing.') }, [
+          K.toggle({ label: 'Hide Header', sub: 'The bar along the top with the dashboard’s name, its views and its menu.',
+                     sk: 'b:kiosk_header', on: b.kiosk_header !== false, onChange: function (on) { set({ kiosk_header: on }); } }),
+          K.toggle({ label: 'Hide Sidebar', sk: 'b:kiosk_sidebar', on: b.kiosk_sidebar !== false,
+                     onChange: function (on) { set({ kiosk_sidebar: on }); } }),
+          K.toggle({ label: 'For Admins Too', sub: 'Off: someone signed in as an admin still sees them.',
+                     sk: 'b:kiosk_admins', on: b.kiosk_admins !== false, onChange: function (on) { set({ kiosk_admins: on }); } })]));
+      }
+      if (!x.generated) return;
+      var tp = (this.data.thirdparty || {}).kiosk || {};
+      if (!plugin && (!tp.state || tp.state === 'missing')) return;
+      var rows = [K.toggle({ label: 'Use the Kiosk Mode Plugin Instead', sk: 'b:kiosk_engine', on: plugin, onChange: function (on) {
+        set({ kiosk_engine: on ? 'kiosk_mode' : 'hk' });
+      } })];
+      if (plugin) rows.push(K.nav({ label: 'Kiosk Mode Options', href: base + '/kiosk-mode', sk: 'b:kiosk_options',
+                                    value: Object.keys(b.kiosk_options || {}).length ? 'Custom' : 'Default' }));
+      c.appendChild(K.group({ header: 'Kiosk Mode Plugin', footer: plugin
+        ? 'The Kiosk Mode plugin (HACS) hides them on this screen, with its own options. Off: HK Frontend does it.' +
+          (tp.state !== 'ready' && tp.note ? ' ' + tp.note : '')
+        : 'HK Frontend hides them itself. The Kiosk Mode plugin (HACS) can do it instead, for its own options.' }, rows));
+    }
+    // WALLPANEL INSTEAD: only where WallPanel (HACS) is installed, for a screen
+    // that prefers it; its own options page then takes over.
+    engineGroup(c, b, path) {
+      var self = this, tp = (this.data.thirdparty || {}).wallpanel || {};
+      var wp = b.screensaver_engine === 'wallpanel';
+      if (!wp && (!tp.state || tp.state === 'missing')) return;
+      c.appendChild(K.group({ header: 'WallPanel', footer: wp
+        ? 'WallPanel (HACS) draws this screen’s screensaver, with the options below. Off: HK Frontend’s own.'
+        : 'Draw this screen’s screensaver with WallPanel (HACS) instead of HK Frontend’s own.' }, [
+        K.toggle({ label: 'Use WallPanel Instead', on: wp, sk: 'b:screensaver_engine', onChange: function (on) {
+          self.setB(path, { screensaver_engine: on ? 'wallpanel' : 'hk' }).then(function () {
+            self.go('#/screens/' + encodeURIComponent(path) + (on ? '/wallpanel' : '/screensaver'));
+          });
+        } })]));
+    }
     optionsPage(c, spec, cur, save, yamlHref, tp) {
       var self = this;
       if (tp && tp.state && tp.state !== 'ready') c.appendChild(K.group({ footer: tp.note }, []));
@@ -1849,7 +2163,6 @@
     // A YAML PAGE: the options as written, Save / Revert / Use Default
     yamlPage(c, o) {
       var self = this, cur = o.value || {}, valid = true;
-      if (o.help) c.appendChild(h('p', { class: 'scope', text: o.help }));
       if (o.example) {
         var ex = K.group({ header: 'For Example', footer: o.docs ? h('span', {}, ['Every option: ',
           h('a', { href: o.docs, target: '_blank', rel: 'noopener', text: 'the card’s documentation' }), '.']) : null }, []);
@@ -1858,7 +2171,10 @@
         var dl = ex.querySelector('.gf a'); if (dl) dl.setAttribute('href', o.docs);
       }
       var box = h('div', { class: 'yaml' });
-      var grp = K.group({ footer: o.note || null }, []);
+      // what to write goes under the editor, with the group's other notes
+      // (not in the page-subtitle style: after other groups that sat at the
+      // page's margin, out of line with every footer)
+      var grp = K.group({ footer: [o.help, o.note].filter(Boolean).join(' ') || null }, []);
       grp.querySelector('.cells').replaceWith(box);
       c.appendChild(grp);
       var err = this.err(o.sk);
@@ -1912,6 +2228,19 @@
             })));
         } };
       }
+      if (sub[0] === 'from') {
+        nw.copy = nw.copy || { from: null, groups: M.copyDefaults() };
+        var mine = d.dashboards.filter(function (x) { return x.item && d.boards[x.path]; });
+        return { title: 'Copy Settings From', back: ['Add Screen', '#/add-screen'], body: function (c) {
+          c.appendChild(K.group({ footer: 'The new screen starts from its Shown On preset; what you tick below is then copied from this screen.' },
+            [K.check({ label: 'Nothing', sub: 'Just the preset', on: !nw.copy.from, fk: 'newfrom:none',
+                       onClick: function () { nw.copy.from = null; self.render(); } })].concat(mine.map(function (x) {
+              return K.check({ label: x.title, sub: '/' + x.path, on: nw.copy.from === x.path, fk: 'newfrom:' + x.path,
+                               onClick: function () { nw.copy.from = x.path; self.render(); } });
+            }))));
+          if (nw.copy.from) self.copyGroups(c, nw.copy);
+        } };
+      }
       if (sub[0] === 'use' && sub[1]) {
         var x = this.dash(sub[1]);
         this._use = this._use && this._use.path === sub[1] ? this._use : { path: sub[1], kind: 'custom' };
@@ -1946,6 +2275,8 @@
       c.appendChild(K.group({ header: 'New Screen', footer: 'A new dashboard that builds itself from your rooms and devices.' }, [
         nameRow,
         K.nav({ label: 'Shown On', value: M.PRESETS[nw.kind][0], href: '#/add-screen/kind', sk: 'new:kind' }),
+        K.nav({ label: 'Copy Settings From', sk: 'new:from', href: '#/add-screen/from',
+                value: nw.copy && nw.copy.from ? ((self.dash(nw.copy.from) || {}).title || nw.copy.from) : 'Nothing' }),
         K.toggle({ label: 'Only Admins Can Open It', on: nw.admin, sk: 'new:admin', onChange: function (on) { nw.admin = on; } })]));
       c.appendChild(K.group({}, [K.button({ label: 'Create Screen', center: true, fk: 'new:go', onClick: function () {
         var inp = self.shadowRoot.querySelector('[data-fk="new:name"]');
@@ -1953,7 +2284,12 @@
         if (!title) { self.errors['new:name'] = 'Give it a name.'; self.render(); return; }
         delete self.errors['new:name'];
         self.status('saving');
+        var copy = nw.copy && nw.copy.from ? nw.copy : null;
+        var src = copy ? self.data.boards[copy.from] : null;
         self.createScreen(title, nw.kind, nw.admin).then(function (path) {
+          // the preset first, then what was chosen from the other screen
+          return copy && src ? self.setB(path, M.copyChanges(src, copy.groups)).then(function () { return path; }) : path;
+        }).then(function (path) {
           self._new = null;
           self.status('saved');
           return self.reload().then(function () { if (after) after(path); else self.go('#/screens/' + encodeURIComponent(path)); });
@@ -2125,6 +2461,16 @@
       if (page === 'menu') {
         if (sub[0] === 'status') return mk('Status Row', function (c) { self.h_status(c); });
         return { title: title, top: true, scope: scope, body: function (c) { self.h_menu(c); } };
+      }
+      if (page === 'tablets' && sub[0] === 'screensaver') {
+        var bd = this.data.boards || {};
+        var pv = Object.keys(bd).filter(function (p) {
+          return bd[p].screensaver && M.saverFollows(bd[p]) && bd[p].screensaver_engine !== 'wallpanel';
+        })[0];
+        var spg = mk('Screensaver', function (c) { self.h_saver(c); });
+        spg.scope = 'Applies to every screen whose Same as All Screens is on.';
+        if (pv) { spg.preview = pv; spg.saverPreview = true; }
+        return spg;
       }
       if (page === 'tablets') return { title: title, top: true, scope: 'Applies to every wall tablet.', body: function (c) { self.h_tablets(c); } };
       return this.p_overview();
@@ -2457,9 +2803,11 @@
       c.appendChild(K.group({ header: 'Idle', footer: 'For a tablet whose optional idle helpers say Auto: how long a page stays before going back to Home when its room has no idle time of its own. Without those helpers a page goes back after 50 seconds.' }, [
         this.entityRow({ label: 'Default Idle Time', sk: 'idle.default', value: this.hs('idle.default'), none: '60 Seconds',
                          filter: { domains: ['input_number', 'number'] }, onPick: function (v) { self.setH({ 'idle.default': v }); } })]));
-      c.appendChild(K.group({ header: 'Screensaver', footer: 'A media folder (media-source://…) for generated wall tablets with Photo Screensaver on.' }, [
+      c.appendChild(K.group({ header: 'Screensaver', footer: 'Photos: a media folder (media-source://…) for generated wall tablets with Photo Screensaver on. Screensaver: the options every screen uses unless it has its own.' }, [
         K.text({ label: 'Photos', sk: 'look.photos', value: this.hs('look.photos'), placeholder: 'media-source://…', error: this.err('look.photos'),
-                 onCommit: function (v) { self.setH({ 'look.photos': v }); } })]));
+                 onCommit: function (v) { self.setH({ 'look.photos': v }); } }),
+        K.nav({ label: 'Screensaver for All Screens', value: M.saverSummary(M.saverOptions(this.hs('look.saver'))),
+                href: '#/house/tablets/screensaver', sk: 'look.saver' })]));
       var tabs = Object.keys(boards).filter(function (p) { return boards[p].idle_return || boards[p].screensaver; });
       c.appendChild(K.group({ header: 'Wall Tablets', footer: 'Each screen’s Return to Home, room and screensaver are set on the screen.' },
         tabs.length ? tabs.map(function (p) {
@@ -2569,7 +2917,12 @@
       c.appendChild(K.group({ header: 'Accessories' }, ids.map(function (id) {
         var a = acc[id] || {};
         var st = hass.states[id];
-        return K.nav({ label: self.name(id), icon: a.icon ? String(a.icon).replace(/^mdi:/, 'hk:') : (st && st.attributes.icon) || 'mdi:circle-small',
+        // no icon of its own: its kind's (a switch's toggle), not a bare dot
+        var kind = { light: 'mdi:lightbulb', switch: 'mdi:toggle-switch-variant', fan: 'mdi:fan', cover: 'mdi:window-shutter',
+                     lock: 'mdi:lock', climate: 'mdi:thermostat', media_player: 'mdi:speaker', vacuum: 'mdi:robot-vacuum',
+                     camera: 'mdi:cctv', valve: 'mdi:valve', humidifier: 'mdi:air-humidifier', water_heater: 'mdi:water-boiler',
+                     sensor: 'mdi:eye', binary_sensor: 'mdi:radiobox-marked' }[id.split('.')[0]] || 'mdi:circle-small';
+        return K.nav({ label: self.name(id), icon: a.icon ? String(a.icon).replace(/^mdi:/, 'hk:') : (st && st.attributes.icon) || kind,
                        value: Object.keys(a).length ? 'Customized' : '', href: '#/accessories/' + encodeURIComponent(id) });
       })));
     }
@@ -3019,7 +3372,56 @@
                    onCommit: function (v) { self.setH({ files_folder: v }); } }),
           K.info({ label: 'SF Pro Font', value: fnd(f.font), valueCls: f.font ? 'ok' : 'warn' }),
           K.info({ label: 'SF Symbols Glyphs', value: fnd(f.glyphs), valueCls: f.glyphs ? 'ok' : 'warn' })]));
+        c.appendChild(K.group({ header: 'Your Own Dashboards', footer: 'What a dashboard you write yourself can use, ready to copy: ' +
+            'the screensaver, hiding Home Assistant’s header, the live sky, HK cards and more.' }, [
+          K.nav({ label: 'YAML Reference', href: '#/advanced/yaml', sk: 'yaml-ref',
+                  value: M.YAML_REF.reduce(function (n, g) { return n + g.items.length; }, 0) + ' Snippets' })]));
         c.appendChild(K.group({}, [K.nav({ label: 'Setup Assistant', href: '#/setup' })]));
+      } };
+    }
+    // YOUR OWN DASHBOARDS: every snippet of M.YAML_REF, filled in from this
+    // house where it can be, each on its own page with Copy and its place in
+    // the wiki (docs/Your-Own-Dashboard.md holds the same text).
+    p_yamlRef(id) {
+      var self = this, list = ['Your Own Dashboards', '#/advanced/yaml'];
+      var wiki = function (anchor) {
+        var a = K.nav({ label: 'On the Wiki', sub: 'Your Own Dashboard', icon: 'mdi:open-in-new', fk: 'yaml:wiki',
+                        href: WIKI + 'Your-Own-Dashboard' + (anchor ? '#' + anchor : '') });
+        a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener');
+        return a;
+      };
+      var item = id ? M.yamlRefItem(decodeURIComponent(id)) : null;
+      if (!item) {
+        return { title: 'Your Own Dashboards', back: ['Advanced', '#/advanced'],
+          scope: 'What a dashboard you write yourself can use. Open one, copy it, and paste it into the dashboard’s YAML.', body: function (c) {
+            c.appendChild(K.group({ footer: 'Easier still: HK Settings → Screens → Add Screen → Existing Dashboards gives a dashboard ' +
+                'its menu, its screensaver and Hide Home Assistant Header & Sidebar, with nothing written.' }, [wiki('')]));
+            M.YAML_REF.forEach(function (g) {
+              c.appendChild(K.group({ header: g.header, footer: g.footer }, g.items.map(function (it) {
+                return K.nav({ label: it.title, value: it.key, href: '#/advanced/yaml/' + encodeURIComponent(it.id), fk: 'yaml:' + it.id });
+              })));
+            });
+          } };
+      }
+      var boards = this.data.boards || {};
+      var user = Object.keys(boards).map(function (p) { return boards[p].tablet_user; }).filter(Boolean)[0];
+      var text = M.yamlRefText(item, { weather: this.hs('weather.entity'), user: user, photos: this.hs('look.photos') });
+      var group = M.YAML_REF.filter(function (g) { return g.items.indexOf(item) >= 0; })[0];
+      return { title: item.title, back: list, body: function (c) {
+        var pre = h('pre', { class: 'code', text: text, tabindex: '0', 'aria-label': item.title + ', in YAML' });
+        c.appendChild(K.group({ header: group ? group.header : null, footer: item.sub + (group ? ' ' + group.footer : '') }, [
+          K.button({ label: 'Copy', fk: 'yaml:copy', onClick: function () {
+            var done = function () { self.announce('Copied'); };
+            var fallback = function () {
+              var r = document.createRange(); r.selectNodeContents(pre);
+              var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+              self.announce('Selected — copy it with your keyboard');
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+            else fallback();
+          } })]));
+        c.appendChild(pre);
+        c.appendChild(K.group({}, [wiki(item.anchor)]));
       } };
     }
     p_check() {

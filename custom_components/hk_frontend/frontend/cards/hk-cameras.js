@@ -956,6 +956,26 @@
       slot._ct = undefined;
     }
 
+    // THE LIVE TILE BEHIND THE SCREENSAVER: its card (and so its stream) is
+    // swapped for an empty box while the photos show, and a fresh one comes
+    // back after (_remountLive). Its revive backoff never sees the gap: the
+    // interval that counts dead frames is stopped for exactly as long.
+    _sleepLive() {
+      var slot = this._liveSlot;
+      if (!slot || slot.asleep || !slot.el || !slot.el.parentNode) return;
+      var old = slot.el, ph = document.createElement('div');
+      old.parentNode.replaceChild(ph, old);
+      this._children = (this._children || []).filter(function (k) { return k !== old; });
+      slot.el = ph;
+      slot.asleep = true;
+    }
+    _wakeLive() {
+      var slot = this._liveSlot;
+      if (!slot || !slot.asleep) return;
+      slot.asleep = false;
+      this._remountLive();
+    }
+
     // REFRESH A TILE THE MOMENT IT IS SCROLLED INTO VIEW. Without this, a tile
     // revealed after five minutes shows its five-minute-old first frame until
     // the next interval tick -- never black (the cold-slot rule guarantees a
@@ -1035,6 +1055,21 @@
         };
         document.addEventListener('visibilitychange', this._vis);
       }
+      // ...AND BEHIND HK FRONTEND'S OWN PHOTO SCREENSAVER (hk-saver.js), which
+      // does NOT hide the page: the stills stop, and the live tile lets go
+      // of its stream (a WebRTC video decoded continuously for nobody --
+      // ~10 % of a core, measured 2026-09-29). The photos going away brings
+      // a fresh live tile back, the way a stalled stream is revived, and the
+      // stills straight back.
+      if (!this._onSaver) {
+        this._onSaver = function (e) {
+          if (e && e.detail && e.detail.on) { self._stopInterval(); self._sleepLive(); return; }
+          if (document.hidden) return;
+          self._wakeLive();
+          self._startInterval();
+        };
+        window.addEventListener('hk-saver', this._onSaver);
+      }
       // THE OBSERVER BELONGS HERE, NOT IN _render. _stopTimer disconnects it,
       // and _stopTimer runs on disconnectedCallback -- HA detaches and
       // reattaches cards while it lays a view out, so with the setup in
@@ -1054,6 +1089,7 @@
       this._stopInterval();
       if (this._io) { this._io.disconnect(); this._io = null; }
       if (this._vis) { document.removeEventListener('visibilitychange', this._vis); this._vis = null; }
+      if (this._onSaver) { window.removeEventListener('hk-saver', this._onSaver); this._onSaver = null; }
       if (this._onPopup) { window.removeEventListener('hk-popup-change', this._onPopup); this._onPopup = null; }
     }
     connectedCallback() {

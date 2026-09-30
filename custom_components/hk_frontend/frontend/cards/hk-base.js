@@ -584,6 +584,16 @@
     // Font is inherited from the theme's --ha-font-family-body, which crosses
     // shadow boundaries -- which is how every card gets SF Pro for free.
     '*{box-sizing:border-box;font-family:inherit}',
+    // BEHIND THE PHOTO SCREENSAVER every animation in a card holds still: a
+    // fan's spinning glyph, a pulse, a scrolling label. Nothing can be seen or
+    // touched behind WallPanel, and on a wall tablet's Android WebView ANY
+    // running animation keeps the page drawing a frame per screen refresh --
+    // the fan glyphs alone were 30-50% of a core on an otherwise idle tablet
+    // (measured 2026-09-29). hk-sky marks the cards (hk-asleep, below); they
+    // resume where they were the moment the photos go. NOT the music progress
+    // bar: it is a CSS animation started at the song's position, so pausing it
+    // would leave it behind the song after the wake.
+    ':host([hk-asleep]) *:not(.prog-fill){animation-play-state:paused!important}',
 
     // ---- the 40px selectable pill ----------------------------------------
     '.pill{height:40px;border-radius:20px;padding:0 14px;margin:0;',
@@ -760,6 +770,21 @@
   // joins while it is on the page, unless its config says `glass: false`.
   // The set is global because hk-glass.js may load before or after this file.
   var GLASS = window.__hkGlassCards = window.__hkGlassCards || new Set();
+
+  // THE CARDS ON THE PAGE, for the screensaver pause (BASE_CSS, hk-asleep).
+  // hk-sky knows when the tablet's screensaver is up; it sets
+  // window.__hkAsleep and fires `hk-asleep` on window whenever that changes,
+  // whichever of the two files loaded first. A card joining while asleep is
+  // marked at once.
+  var ON_PAGE = window.__hkCardsOnPage = window.__hkCardsOnPage || new Set();
+  function markAsleep(card) {
+    // Touch the attribute only when it changes: nearly every card joins awake.
+    var on = !!window.__hkAsleep;
+    if (on === !!card._hkAsleep) return;
+    card._hkAsleep = on;
+    if (on) card.setAttribute('hk-asleep', ''); else card.removeAttribute('hk-asleep');
+  }
+  window.addEventListener('hk-asleep', function () { ON_PAGE.forEach(markAsleep); });
   function glassJoin(card, on) {
     var off = !!(card._config && card._config.glass === false);
     // Out of "Blur each card" too, and everything inside it (the variable
@@ -1301,6 +1326,7 @@
     // that is replaced wholesale without ever disconnecting.
     disconnectedCallback() {
       glassJoin(this, false);
+      ON_PAGE.delete(this);
       if (this._hkStatusT) { clearTimeout(this._hkStatusT); this._hkStatusT = null; }
       if (window.hkStats && window.hkStats.release && window.hkStats.release(this)) {
         this._hkStatsLost = true;
@@ -1317,6 +1343,8 @@
     // A CARD THAT OVERRIDES THIS MUST CHAIN, like disconnectedCallback.
     connectedCallback() {
       glassJoin(this, true);
+      ON_PAGE.add(this);
+      markAsleep(this);
       if (!this._hkStatsLost) return;
       this._hkStatsLost = false;
       if (this._hass && this._config) this.requestUpdate();
@@ -2139,7 +2167,7 @@
   // menu.docked, ...), which settings.py still fills in from the items for a
   // screen running an older copy of this file.
   var BOARD = { menu: 'auto', dock_min: MENU_DOCK, time_weather: 'page', ha_row: false,
-                categories: [], tab_position: '', room_order: [], menu_rooms: 'az', home_rooms: 'as_is',
+                categories: [], tab_position: '', tab_size: 'large', room_order: [], menu_rooms: 'az', home_rooms: 'as_is',
                 page_rooms: 'floor',
                 // 1.7: Home, Pages, Screen (settings.py BOARD_DEFAULTS). chips_quiet
                 // null = the chip row's own default (hk-chip.js QUIET_DEFAULT).

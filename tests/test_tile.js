@@ -301,5 +301,39 @@ ok('...its label is how many say nothing', unrep._label(null), '1');
 ok('...and it is lit while any do', unrep._isOn(null), true);
 ok('a plain tile still needs its entity', probe({ type: 'custom:hk-tile-card', name: 'No entity' }), 'hk-tile: `entity` is required');
 
+// A MOMENTARY TILE LIGHTS WHEN TAPPED: a Wake on LAN button's state is the
+// time it was last pressed, so without this the tile never lit and a tap
+// looked like nothing happened.
+print('\n=== a button tile lights for a moment when tapped ===');
+function pressable(entity, accept) {
+  var c = Object.create(Tile.prototype), calls = [];
+  c._config = { entity: entity, tap_action: { action: 'perform-action', perform_action: 'button.press', target: { entity_id: entity } } };
+  c._hass = { states: {}, callService: function (d, s, data) { calls.push(d + '.' + s); return accept ? Promise.resolve() : Promise.reject(new Error('no')); } };
+  c._render = function () {};
+  c.calls = calls;
+  return c;
+}
+var wol = pressable('button.steam_machine_wake_on_lan', true);
+ok('a button tile is momentary', wol._momentary(), true);
+ok('...dark before the tap', wol._pressed(), false);
+wol._act(wol._config.tap_action, true);
+ok('...the tap presses the button', wol.calls.join(), 'button.press');
+ok('...and lights the tile', wol._pressed(), true);
+drainMicrotasks();
+ok('...still lit once Home Assistant accepted it', wol._pressed(), true);
+wol._unpress();
+ok('...and dark again after its moment', wol._pressed(), false);
+var refused = pressable('button.x', false);
+refused._act(refused._config.tap_action, true);
+drainMicrotasks();
+ok('a refused press goes dark at once', refused._pressed(), false);
+var lamp = pressable('light.lamp', true);
+lamp._config.tap_action = { action: 'perform-action', perform_action: 'light.toggle', target: { entity_id: 'light.lamp' } };
+lamp._act(lamp._config.tap_action, true);
+ok('a light is not momentary: its own state lights it', lamp._pressed(), false);
+var scn = Object.create(Scene.prototype);
+scn._config = { entity: 'input_button.nap' };
+ok('an input_button scene pill is momentary too', scn._momentary(), true);
+
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed'
                    : 'ALL ' + pass + ' TILE TESTS PASS'));

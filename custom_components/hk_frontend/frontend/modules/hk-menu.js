@@ -379,6 +379,16 @@
     // app's iPad sidebar and fitted to a wall tablet's 1280 x 800 CSS px.
     var W = 300;              // panel width (a phone: 82vw at most)
     var TAB_W = 26, TAB_H = 62; // the edge tab, in the 34 px left margin
+    // THE TAB'S SIZE, a screen's own (board tab_size, 2026-09-30): Standard is
+    // the tab that fits the margin; a finger on a wall tablet wants more, so
+    // Large is the default and it may lie over the page's edge -- it is drawn
+    // on top. A phone (under M.NARROW) always gets Standard: there the tab
+    // already lies over the first column of tiles. [width, height, glyph].
+    var TAB_SIZES = { standard: [TAB_W, TAB_H, 16], large: [36, 86, 20], xl: [46, 110, 24] };
+    function tabSize() {
+      if ((window.innerWidth || 1280) < M.NARROW) return TAB_SIZES.standard;
+      return TAB_SIZES[(M.board() || {}).tab_size] || TAB_SIZES.large;
+    }
     var IDLE_MS = 60000;      // an open menu nobody touches closes itself
     // The time and weather's box inset: the list's 14 px plus a row's 14 px,
     // where the rows' glyphs and the section headings start. Their INK goes
@@ -507,9 +517,9 @@
       // it (On Narrow Screens).
       // BEHIND THE MENU (z -1 in the panel): sliding in or out it passes
       // under the material's edge, never across it.
-      '.tab{position:absolute;z-index:-1;left:100%;top:var(--tab-y,84px);width:' + TAB_W + 'px;height:' + TAB_H + 'px;',
+      '.tab{position:absolute;z-index:-1;left:100%;top:var(--tab-y,84px);width:var(--tab-w,' + TAB_W + 'px);height:var(--tab-h,' + TAB_H + 'px);',
       '  box-sizing:border-box;padding:0;margin:0;border:1px solid rgba(255,255,255,0.14);border-left:0;',
-      '  border-radius:0 15px 15px 0;display:none;align-items:center;justify-content:center;',
+      '  border-radius:0 var(--tab-r,15px) var(--tab-r,15px) 0;display:none;align-items:center;justify-content:center;',
       '  color:rgba(255,255,255,0.92);cursor:pointer;-webkit-tap-highlight-color:transparent;',
       // The chips' glass, with a thin neutral tint under it: 26 px of glass
       // over a seasonal leaf would take the leaf's color outright.
@@ -528,10 +538,12 @@
       '.root.tabscroll.tabbed .tab{transform:none;visibility:visible;',
       '  transition:transform .22s ease,visibility 0s,filter .12s ease}',
       '.root.docked .tab{display:none}',
-      '.tab::before{content:"";position:absolute;top:-14px;bottom:-14px;left:-4px;right:0}',
+      // the finger's target is bigger than the glass: above, below and out
+      // over the page (the tab is on top of the page, so it may)
+      '.tab::before{content:"";position:absolute;top:-16px;bottom:-16px;left:-4px;right:-14px}',
       '.tab:active{filter:brightness(1.25)}',
-      '.tab ha-icon{--mdc-icon-size:16px;width:16px;height:16px;display:flex;margin-left:-1px}',
-      '.tab svg{display:none;margin-left:-1px}',
+      '.tab ha-icon{--mdc-icon-size:var(--tab-ic,16px);width:var(--tab-ic,16px);height:var(--tab-ic,16px);display:flex;margin-left:-1px}',
+      '.tab svg{display:none;margin-left:-1px;width:calc(var(--tab-ic,16px) - 2px);height:calc(var(--tab-ic,16px) - 2px)}',
       '.root.open .tab ha-icon{display:none}',
       '.root.open .tab svg{display:block}',
       // A PHONE'S HOME WITH NO CHIP to hold the menu button: a round one of
@@ -630,9 +642,14 @@
       // header's date sits on a wall tablet. The tab lives in the panel, whose
       // top is the dashboard's -- the page starts lower when HA's toolbar shows.
       var top = M.viewTop();
+      var ts = tabSize();
+      S.root.style.setProperty('--tab-w', ts[0] + 'px');
+      S.root.style.setProperty('--tab-h', ts[1] + 'px');
+      S.root.style.setProperty('--tab-ic', ts[2] + 'px');
+      S.root.style.setProperty('--tab-r', Math.round(ts[0] * 15 / TAB_W) + 'px');
       var y = tabCentre(M.board().tab_position || '', M.dateY(),
-                        Math.max(0, (window.innerHeight || 800) - Math.max(0, top)), TAB_H);
-      S.root.style.setProperty('--tab-y', ((top - t) + y - TAB_H / 2) + 'px');
+                        Math.max(0, (window.innerHeight || 800) - Math.max(0, top)), ts[1]);
+      S.root.style.setProperty('--tab-y', ((top - t) + y - ts[1] / 2) + 'px');
     }
 
     // WHERE THE DASHBOARD STARTS, for the sheets (hk-popup.js, hk-detail.js):
@@ -1097,6 +1114,8 @@
       var lift = liftRule(p.sr, ':host{--ha-sidebar-width:256px !important;--mdc-drawer-width:256px !important}' +
                              'ha-drawer > ha-sidebar{display:flex !important}');
       var lift2 = p.drawer.shadowRoot ? liftRule(p.drawer.shadowRoot, 'wa-drawer[open]{display:block !important}') : null;
+      // HK Frontend's own hiding (hk-kiosk.js) steps aside the same way
+      if (window.hkKiosk) window.hkKiosk.hold(true);
       HA = { active: true, used: true, type: p.drawer.type, expand: p.sidebar.alwaysExpand, p: p, lift: [lift, lift2] };
       p.drawer.type = 'modal';
       p.sidebar.alwaysExpand = true;
@@ -1164,6 +1183,7 @@
       setTimeout(function () {
         try { h.p.drawer.type = h.type || ''; h.p.sidebar.alwaysExpand = !!h.expand; } catch (e) { /* gone */ }
         h.lift.forEach(function (el) { if (el && el.parentNode) el.parentNode.removeChild(el); });
+        if (window.hkKiosk) window.hkKiosk.hold(false);
       }, 300);
     }
     function liftRule(root, css) {

@@ -28,15 +28,20 @@ card can stay out of the shared blur with `glass: false`.
 | Frost / Blur | Same as All Screens | Shown for the amount this screen’s glass uses. Moving it gives this screen its own amount. |
 | Use All-Screens Frost / Blur | — | Shown once the screen has its own amount. Goes back to following All Screens. |
 | Live Sky | On | Off: a plain background instead of the animated sky. A YAML screen’s sky comes from its YAML; this can only turn it off. |
-| Hide Home Assistant Header & Sidebar | Off (Wall Tablet and Car presets: on) | *Generated.* The whole window is the screen. Needs Kiosk Mode from HACS. The menu’s Home Assistant section still reaches it (Show Menu). |
-| Kiosk Mode Options | Default | *Generated, with the switch above on.* See below. |
+| Hide Home Assistant Header & Sidebar | Off (Wall Tablet and Car presets: on) | The whole window is the screen. HK Frontend does it itself, on any screen, an existing dashboard too. The menu’s Home Assistant section still reaches Home Assistant (Show Menu). |
+| Header & Sidebar | Both Hidden | *With the switch above on.* See below. |
 
-**Kiosk Mode Options**
+**Header & Sidebar**
+
+![A screen's Header & Sidebar page in HK Settings](images/settings-header-sidebar.png)
 
 | Setting | Default | What it does |
 |---|---|---|
-| Hide Header | On | Hides Home Assistant’s header. |
+| Hide Header | On | Hides Home Assistant’s header: the bar with the dashboard’s name, its views and its menu. |
 | Hide Sidebar | On | Hides Home Assistant’s sidebar. |
-| Show Header for Admins | Off | Administrators still see the header. |
-| Options in YAML | None | Any other [Kiosk Mode](https://github.com/NemesisRE/kiosk-mode) option. Only what you write changes; `key: null` removes a key from the tuned setup. |
-| Use the Tuned Setup… | — | Shown once anything is changed. Clears every change. |
+| For Admins Too | On | Off: someone signed in as an admin still sees them. |
+| Use the Kiosk Mode Plugin Instead | Off | *A generated screen, where [Kiosk Mode](https://github.com/NemesisRE/kiosk-mode) is installed from HACS.* The plugin hides them instead, with its own **Kiosk Mode Options**: Hide Header, Hide Sidebar, Show Header for Admins, and any other of its options in YAML. A screen that had Kiosk Mode Options of its own before 1.3 moves over to these settings when they can say the same (hiding the header, the sidebar, and admins seeing both), and otherwise keeps the plugin. |
+
+Leaving the screen, for Settings say, always brings them back. `?hk_kiosk=off`
+on a screen’s address shows them until the page is reloaded (a tablet you are
+working on).

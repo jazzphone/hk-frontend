@@ -708,6 +708,50 @@
     // the raw sensor, a count for a state and an `Alerts` attribute holding a
     // ~600-character AreasAffected string. Tapping a severe-weather warning
     // and getting that would be the most confusing thing on the page.
+    // ------------------------------------------ hk-screensaver-status-card
+    // THE HOUSE AT A GLANCE, top-right of the photo screensaver: the tablet
+    // header's own security block (hkHeader.security -- the one definition of
+    // "secure" the header and the car share), sized for the photos. "Home
+    // Secured" when armed and everything is shut, locked and reporting;
+    // otherwise what isn't; NOTHING when there is nothing to say (disarmed,
+    // all shut), so the photos stay the point.
+    //
+    // Occupies no space in the screensaver's info box: like the now-playing
+    // card it pins itself to its corner (position:fixed), and like it, the
+    // shadow is a filter on the text and the info box's text-shadow is off.
+    class HkScreensaverStatusCard extends Base {
+      static get CSS() {
+        return [
+          'ha-card.ssstat{background:none;box-shadow:none;border:none;padding:0;margin:0;height:0;',
+          '  overflow:visible;display:block}',
+          '.sscorner{position:fixed;top:var(--hk-ss-status-top,44px);right:var(--hk-ss-status-right,50px);',
+          '  z-index:5;width:46vw;pointer-events:none;text-shadow:none;will-change:transform}'
+        ].join('');
+      }
+      setConfig(config) { super.setConfig(Object.assign({}, config || {})); }
+      getCardSize() { return 1; }
+      _html() {
+        var H = window.hkHeader, st = this._hass && this._hass.states;
+        if (!H || !H.security || !st) return '';
+        var c = this._config || {};
+        return H.security(st, { line1Size: c.line1_size || '36px', lineSize: c.line_size || '24px',
+                                pad: '0px', minHeight: '0px' });
+      }
+      _sigOf() { return this._hass ? this._html() : null; }
+      _render() {
+        if (!this._built) {
+          this._root.innerHTML = '<ha-card class="ssstat" data-hk-role="card"><div class="sscorner"></div></ha-card>';
+          this._e = this._root.querySelector('.sscorner');
+          this._built = true;
+        }
+        var html = this._html();
+        if (this._last === html) return;
+        this._last = html;
+        var put = (window.hkCards && window.hkCards.morph) || function (el, v) { el.innerHTML = v; };
+        put(this._e, html);
+      }
+    }
+
     class HkAlertCard extends Base {
       static get CSS() {
         return [
@@ -1529,6 +1573,21 @@
     if (!customElements.get('hk-alert-card')) {
       customElements.define('hk-alert-card', HkAlertCard);
     }
+    if (!customElements.get('hk-screensaver-status-card')) {
+      customElements.define('hk-screensaver-status-card', HkScreensaverStatusCard);
+      window.customCards.push({ type: 'hk-screensaver-status-card', name: 'HK Screensaver Home Status',
+        description: 'The house at a glance, top-right of a photo screensaver: Home Secured, or what is open and unlocked.' });
+    }
+    if (C.editor) {
+      var sstag = C.editor('hk-screensaver-status-card', [
+        { type: 'grid', name: '', schema: [
+          { name: 'line1_size', label: 'First line size', helper: 'Default 36px.', selector: { text: {} } },
+          { name: 'line_size', label: 'Other lines size', helper: 'Default 24px.', selector: { text: {} } }
+        ] }
+      ]);
+      HkScreensaverStatusCard.getConfigElement = function () { return document.createElement(sstag); };
+    }
+    HkScreensaverStatusCard.getStubConfig = function () { return {}; };
     if (C.editor) {
       var atag = C.editor('hk-alert-card', [
         { name: 'entity', required: true, label: 'Alerts sensor',
@@ -1609,7 +1668,8 @@
 
     window.hkWeather = { version: '1.4.0', HkWeatherBandCard: HkWeatherBandCard,
       HkWeatherStripCard: HkWeatherStripCard, HkClockCard: HkClockCard,
-      HkWeatherTileCard: HkWeatherTileCard, HkHeaderCard: HkHeaderCard, HkAlertCard: HkAlertCard };
+      HkWeatherTileCard: HkWeatherTileCard, HkHeaderCard: HkHeaderCard, HkAlertCard: HkAlertCard,
+      HkScreensaverStatusCard: HkScreensaverStatusCard };
     return true;
   }
 

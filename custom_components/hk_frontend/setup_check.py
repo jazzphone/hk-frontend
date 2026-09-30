@@ -189,12 +189,42 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
 
     # The third-party cards a generated dashboard uses (thirdparty.py):
     # installed from HACS and, for WallPanel and Kiosk Mode, loaded as
-    # dashboard resources. Optional: a note, never a fault.
+    # dashboard resources -- those two listed only where a screen chose them.
+    # Optional: a note, never a fault.
     from . import thirdparty
     status = await thirdparty.async_status(hass)
+    savers = [b for b in (boards or {}).values() if b.get("screensaver")]
     for key, card in dash_settings.THIRD_PARTY.items():
+        # WallPanel only for a screen that chooses it: HK Frontend draws the
+        # photo screensaver itself (hk-saver.js) since 1.3.0
+        if key == "wallpanel" and not any(b.get("screensaver_engine") == "wallpanel" for b in savers):
+            continue
+        # Kiosk Mode likewise, for a screen that chooses it: HK Frontend hides
+        # Home Assistant's header and sidebar itself (hk-kiosk.js) since 1.3.0
+        if key == "kiosk" and not any(b.get("kiosk") and b.get("kiosk_engine") == "kiosk_mode"
+                                      for b in (boards or {}).values()):
+            continue
         lines.append(Line(True if status[key] == "ready" else None, card["name"],
                           thirdparty.note(key, status[key])))
+
+    # The photo screensaver's tablets: it runs only for a screen's Tablet
+    # User, and that user must exist -- the one thing a new house can't see
+    # going wrong (the screensaver just never shows)
+    if savers:
+        lines.append(await _saver_users_line(hass, boards or {}))
+
+    # The photo screensaver's photos, when a screen shows photos (a screen set
+    # to Forecast never looks for any)
+    photo_savers = [b for b in savers
+                    if ((b.get("screensaver_options") or {}).get("show") or "photos") != "forecast"]
+    if photo_savers:
+        folder = (dash_settings.merged(options).get("look") or {}).get("photos") \
+            or "media-source://media_source/local/photos"
+        # a screen with the forecast fallback off shows NOTHING without photos
+        # (Photos & Forecast shows the forecast then, whatever the toggle says)
+        dark = any((b.get("screensaver_options") or {}).get("fallback") is False
+                   and (b.get("screensaver_options") or {}).get("show") != "both" for b in photo_savers)
+        lines.append(await _photos_line(hass, folder, dark))
 
     # Live TV plays each channel through ffmpeg on this machine
     from . import features as F
@@ -213,6 +243,64 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
         else:
             lines.append(Line(None, name, f"Not added. Optional, for {what}: HK Frontend → Add feature."))
     return lines
+
+
+async def _saver_users_line(hass: HomeAssistant, boards: dict[str, dict[str, Any]]) -> Line:
+    """Each screen with the photo screensaver: its Tablet User chosen, and a
+    user of that name signed up in Home Assistant."""
+    try:
+        from homeassistant.components.lovelace.const import LOVELACE_DATA
+        dashes = hass.data[LOVELACE_DATA].dashboards
+        title = lambda p: (getattr(dashes.get(p), "config", None) or {}).get("title") or p  # noqa: E731
+    except (ImportError, KeyError, AttributeError):
+        title = lambda p: p  # noqa: E731
+    names = {u.name for u in await hass.auth.async_get_users() if not u.system_generated and u.is_active}
+    savers = {p: b for p, b in boards.items() if b.get("screensaver")}
+    none = [title(p) for p, b in savers.items() if not b.get("tablet_user")]
+    gone = [f"{title(p)}: “{b['tablet_user']}”" for p, b in savers.items()
+            if b.get("tablet_user") and b["tablet_user"] not in names]
+    if none or gone:
+        why = []
+        if none:
+            why.append(f"no Tablet User on {_names(none)}, so the screensaver never shows there")
+        if gone:
+            why.append(f"no Home Assistant user by that name for {_names(gone)}")
+        return Line(False, "Screensaver tablets",
+                    "Photo Screensaver is on, but " + "; and ".join(why) + ". Choose the Tablet User "
+                    "under the screen’s Behavior in HK Settings: the user the wall tablet signs in as.")
+    from . import screensaver
+    mgr = screensaver.manager(hass)
+    ids = mgr.switch_ids() if mgr else {}
+    hk = [p for p, b in savers.items() if b.get("screensaver_engine") != "wallpanel"]
+    what = (f", each with its switch ({_names([ids[p] for p in hk if p in ids])})" if any(p in ids for p in hk) else "")
+    return Line(True, "Screensaver tablets", f"{_n(len(savers), 'screen')} with a Tablet User{what}.")
+
+
+async def _photos_line(hass: HomeAssistant, folder: str, dark: bool = False) -> Line:
+    """How many photos the screensaver finds in its folder (the top level;
+    it also looks two folders down)."""
+    try:
+        from homeassistant.components import media_source
+        item = await media_source.async_browse_media(hass, folder)
+    except Exception as err:  # noqa: BLE001 -- any failure is the line's message
+        return Line(False if dark else None, "Screensaver photos",
+                    f"The screensaver can’t read its photos folder ({folder}): {err}. "
+                    + ("A screen with Forecast When There Are No Photos off stays dark. " if dark else
+                       "It shows the forecast instead. ")
+                    + "To show photos, check Wall Tablets → Screensaver Photos in HK Settings.")
+    kids = list(item.children or [])
+    photos = sum(1 for c in kids if not c.can_expand and (
+        c.media_class == "image" or str(c.media_content_type or "").startswith("image/")))
+    folders = sum(1 for c in kids if c.can_expand)
+    if not photos and not folders:
+        return Line(False if dark else None, "Screensaver photos",
+                    f"The photos folder ({folder}) is empty, so "
+                    + ("a screen with Forecast When There Are No Photos off stays dark. " if dark else
+                       "the screensaver shows the forecast. ")
+                    + "To show photos, add some to it in Media, or choose another folder under Wall "
+                    "Tablets → Screensaver Photos.")
+    more = f", and {_n(folders, 'folder')} it also looks in" if folders else ""
+    return Line(True, "Screensaver photos", f"{_n(photos, 'photo')} in {folder}{more}.")
 
 
 async def _resources_line(hass: HomeAssistant) -> Line:

@@ -258,6 +258,9 @@
     // hold(key, true) keeps the tablet on this page until hold(key, false):
     // the live TV player holds while it is open. Keyed, so two holders
     // cannot release each other's hold.
+    // what is holding the page (a detail sheet, Live TV): the screensaver
+    // does not start while anything is
+    held: function () { return Object.keys(holds); },
     hold: function (key, on) {
       if (on) holds[key] = true; else delete holds[key];
       reset();

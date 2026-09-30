@@ -46,7 +46,9 @@ and the room order.
 
 ## Scenes and page pills
 
-The scenes row runs a scene or script, or presses a button, with one tap.
+The scenes row runs a scene or script, or presses a button, with one tap. A
+button has no on or off, so its pill lights for a moment when you tap it, to
+show the press went through.
 Automatic shows every scene, A to Z. To choose, open **Scenes**, turn
 **Automatic** off, and use **Add Scene or Shortcut…**. A scene’s name, icon and
 color come from its [accessory settings](Accessories.md).

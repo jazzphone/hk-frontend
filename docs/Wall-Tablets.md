@@ -11,8 +11,8 @@ tablet or ten, of any brand.
 ## What HK Frontend does, and what it leaves to you
 
 **HK Frontend does:** the screen itself, a menu that stays open beside the
-page, returning an untouched page to Home, a photo screensaver (through
-WallPanel), a now-playing bar, and `sensor.tv_viewers` for knowing when a
+page, returning an untouched page to Home, a photo screensaver, a
+now-playing bar, and `sensor.tv_viewers` for knowing when a
 tablet is showing Live TV.
 
 **It leaves to you:** turning the screen off and on, and its brightness. Those
@@ -29,12 +29,11 @@ automations what they need to read; see
 - **Fully Kiosk Browser** on it. Its PLUS license adds remote administration,
   which the **Fully Kiosk Browser** integration in Home Assistant uses to
   reload the page and see the screen.
-- Optional, from HACS (Frontend):
-  - **Kiosk Mode**, to hide Home Assistant’s header and sidebar;
-  - **WallPanel**, for the photo screensaver.
+- Nothing else from HACS: hiding Home Assistant’s header and sidebar, and the
+  photo screensaver, are part of HK Frontend.
 
-**HK Settings → Setup Check** says whether Kiosk Mode and WallPanel are
-installed and loaded.
+**HK Settings → Setup Check** says how many screensaver photos it finds, and
+whether each screensaver screen’s Tablet User exists.
 
 ## 1. Give the tablet its own user
 
@@ -44,7 +43,8 @@ In **Settings → People → Users**, add a user for the tablet, for example
 A user per tablet is what lets each tablet be itself:
 
 - its photo screensaver runs for that user only, so a computer opening the
-  same dashboard never gets it;
+  same dashboard never gets it, and only that user’s touches count for the
+  screen’s In Use sensor;
 - Music knows which room the tablet hangs in (its **Home Room**);
 - `sensor.tv_viewers` and `hk_frontend.show_popup` can name it.
 
@@ -87,15 +87,15 @@ The **Wall Tablet** preset starts the screen with:
 | Menu | Always open beside the page |
 | Time and weather | In the menu, at its top (the Home page’s header steps aside) |
 | Return to Home When Idle | On |
-| Hide Home Assistant Header & Sidebar | On (needs Kiosk Mode) |
+| Hide Home Assistant Header & Sidebar | On |
 
 A preset is only a starting point. Every value can be changed afterwards on
 the screen’s page in HK Settings.
 
 An existing dashboard can be a wall tablet’s screen too: in **Add Screen**,
-pick it under **Existing Dashboards** and choose **Wall Tablet**. A dashboard
-you write in YAML says a few of these things in its own YAML (kiosk mode and
-the screensaver); see below.
+pick it under **Existing Dashboards** and choose **Wall Tablet**. It gets the
+same settings, hiding the header and the photo screensaver included; see
+[Your Own Dashboard](Your-Own-Dashboard.md) for what its own YAML can add.
 
 ## 3. Set up Fully Kiosk Browser
 
@@ -129,15 +129,14 @@ On the tablet itself:
 
 ## 4. Hide Home Assistant’s header and sidebar
 
-1. Install **Kiosk Mode** from HACS (Frontend). HACS normally adds it as a
-   dashboard resource; if Setup Check says it is not loaded, add
-   `/hacsfiles/kiosk-mode/kiosk-mode.js` (JavaScript module) under
-   **Settings → Dashboards → Resources**.
-2. In **HK Settings**, open the screen. Under **Appearance**, turn on **Hide
+1. In **HK Settings**, open the screen. Under **Appearance**, turn on **Hide
    Home Assistant Header & Sidebar** (the Wall Tablet preset already did).
-3. Optional: **Kiosk Mode Options** beside it: **Hide Header**, **Hide
-   Sidebar**, **Show Header for Admins**, and any other Kiosk Mode option in
-   YAML.
+2. Optional: **Header & Sidebar** beside it: **Hide Header**, **Hide
+   Sidebar**, and **For Admins Too** (off: an admin still sees them).
+
+HK Frontend does this itself: nothing to install. Leaving the screen (for
+Settings, say) always brings them back, and `?hk_kiosk=off` on the screen’s
+address shows them until the page is reloaded, while you work on the tablet.
 
 With the header hidden, you can still reach Home Assistant from the tablet if
 you want to: the screen’s **Menu** settings can add a **Home Assistant
@@ -145,13 +144,20 @@ Section** -- Home Assistant’s own pages in the menu, and **Show Menu**, which
 opens its sidebar over the page. A tablet’s own user sees only what it may
 open. Leave it off on a tablet everyone uses.
 
-A dashboard you write in YAML takes Kiosk Mode’s own `kiosk_mode:` block in
-its YAML instead:
+A dashboard you write in YAML gets the same from its HK settings, or from an
+`hk_kiosk:` block in its YAML ([Your Own Dashboard](Your-Own-Dashboard.md#hide-home-assistants-header-and-sidebar)):
 
 ```yaml
-kiosk_mode:
-  hide_header: true
-  hide_sidebar: true
+hk_kiosk: true
 ```
+
+**Coming from the Kiosk Mode plugin.** Screens that hid Home Assistant’s
+header through the Kiosk Mode plugin (HACS) do it themselves from 1.3, with
+nothing to change. A screen with **Kiosk Mode Options** of its own moves over
+too when **Header & Sidebar** can say the same (hide the header, the sidebar,
+and admins seeing both); with any other option it keeps the plugin until you
+turn off **Header & Sidebar → Use the Kiosk Mode Plugin Instead**. A
+dashboard with its own `kiosk_mode:` block keeps it too: HK Frontend leaves
+that dashboard alone. Once nothing uses the plugin, you can remove it in HACS.
 
 Next: [5. Add the photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver).

@@ -430,7 +430,21 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     ok('no camera strip when it is off', JSON.stringify(g.views[0]).indexOf('hk-camera-mosaic-card') < 0);
     ok('no chip row when the item turns it off', JSON.stringify(g.views[0]).indexOf('hk-chips-card') < 0);
     ok('no live sky when the item turns it off', !g.sky && !g.views[0].sky);
-    ok('kiosk: Home Assistant\'s header and sidebar hidden', g.kiosk_mode && g.kiosk_mode.hide_header && g.kiosk_mode.hide_sidebar);
+    ok('kiosk: HK Frontend hides Home Assistant\'s header and sidebar itself (no plugin block)',
+       !g.kiosk_mode && g.hk_kiosk && g.hk_kiosk.header === true && g.hk_kiosk.sidebar === true && g.hk_kiosk.admins === true, [g.kiosk_mode, g.hk_kiosk]);
+    BOARD = { pages: ['lights'], kiosk: true, kiosk_header: false, kiosk_admins: false };
+    return window.hkStrategy.generate({ music: false }, hass);
+  }).then(function (g) {
+    ok('...only what the screen hides, and not for admins when it says so',
+       !g.kiosk_mode && g.hk_kiosk && g.hk_kiosk.header === false && g.hk_kiosk.sidebar === true && g.hk_kiosk.admins === false, g.hk_kiosk);
+    BOARD = { pages: ['lights'], kiosk: false, kiosk_header: true };
+    return window.hkStrategy.generate({ music: false }, hass);
+  }).then(function (g) {
+    ok('...and nothing with Hide Header & Sidebar off', !g.kiosk_mode && !g.hk_kiosk, [g.kiosk_mode, g.hk_kiosk]);
+    var K = window.hkStrategy.kioskOf;
+    ok('kioskOf: a 1.2 screen with Kiosk Mode Options of its own (no kiosk_engine) keeps the plugin',
+       K({ kiosk: true, kiosk_options: { hide_header: false } }) === 'kiosk_mode' && K({ kiosk: true, kiosk_options: {} }).header === true &&
+       K({ kiosk: true, kiosk_engine: 'hk', kiosk_options: { a: 1 } }).header === true && K(null) === null);
     delete window.hkSettings;
   });
 }).then(function () {
@@ -449,6 +463,31 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     return Promise.resolve(function () {}); } };
   return window.hkStrategy.generate({}, hass);
 }).then(function (g) {
+  // HK FRONTEND'S OWN SCREENSAVER by default (hk-saver.js reads it)
+  var hs = g.hk_screensaver;
+  ok('HK\'s screensaver for the tablet\'s own user, and no WallPanel', hs && hs.user === 'kitchen' && !g.wallpanel, g.wallpanel || hs);
+  ok('...its switch, the house\'s photos and the five cards',
+     hs && hs.entity === 'input_boolean.wallpanel_screensaver_kitchen' && hs.photos === 'media-source://media_source/local/photos' &&
+     hs.cards.length === 5 && hs.cards[0].type === 'custom:hk-clock-card' && hs.cards[3].type === 'custom:hk-timer-strip-card' &&
+     hs.cards[4].type === 'custom:hk-screensaver-status-card', hs);
+  ok('...the defaults: 180 s, 30 s a photo, random, filled, no zoom',
+     hs && hs.starts_after === 180 && hs.each_photo === 30 && hs.order === 'random' && hs.fill === true && hs.zoom === false, hs);
+  ok('the sky pauses behind it and follows the house\'s switch',
+     g.sky.sleep === 'input_boolean.wallpanel_screensaver_kitchen' && g.sky.enable === 'input_boolean.sky_background', g.sky);
+  WB.screensaver_options = { starts_after: 300, each_photo: 45, order: 'sorted', fill: false, zoom: true, clock: false,
+                             weather: true, music: false, timers: true };
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  var hs = g.hk_screensaver;
+  ok('its options: timing, order, fill, zoom, and only the cards left on',
+     hs && hs.starts_after === 300 && hs.each_photo === 45 && hs.order === 'sorted' && hs.fill === false && hs.zoom === true &&
+     hs.cards.length === 3 && hs.cards[0].type === 'custom:hk-weather-strip-card' && hs.cards[1].type === 'custom:hk-timer-strip-card' &&
+     hs.cards[2].type === 'custom:hk-screensaver-status-card', hs);
+  delete WB.screensaver_options;
+  WB.screensaver_engine = 'wallpanel';
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  ok('a screen that chooses WallPanel gets WallPanel, not both', g.wallpanel && !g.hk_screensaver);
   ok('WallPanel for the tablet\'s own user only', g.wallpanel && g.wallpanel.enabled === false &&
      g.wallpanel.profiles['user.kitchen'].enabled === true, g.wallpanel && g.wallpanel.profiles);
   ok('...its screensaver helper and the house\'s photos',
@@ -462,10 +501,10 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
      g.sky.sleep === 'input_boolean.wallpanel_screensaver_kitchen' && g.sky.enable === 'input_boolean.sky_background', g.sky);
   var home = JSON.stringify(g.views[0]);
   ok('the now-playing bar (#media) on Home', home.indexOf('"hash":"#media"') > 0 && home.indexOf('hk-now-playing-card') > 0);
-  WB.screensaver = false; WB.now_playing = false;
+  WB.screensaver = false; WB.now_playing = false; delete WB.screensaver_engine;
   return window.hkStrategy.generate({}, hass);
 }).then(function (g) {
-  ok('...none of it unless asked', !g.wallpanel && !g.sky.sleep && JSON.stringify(g.views[0]).indexOf('"#media"') < 0);
+  ok('...none of it unless asked', !g.wallpanel && !g.hk_screensaver && !g.sky.sleep && JSON.stringify(g.views[0]).indexOf('"#media"') < 0);
   // THE HOUSE'S CUSTOM PAGES: the ones this dashboard lists,
   // from the settings -- nothing fetched
   WB.custom_pages = ['energy', 'nope', 'lights', 'ecoflow'];
@@ -743,8 +782,8 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   var R = { states: { 'weather.home': st('weather.home', 'sunny', {}),
                       'input_boolean.wallpanel_screensaver_kitchen': st('input_boolean.wallpanel_screensaver_kitchen', 'off', {}) },
             themes: { themes: {} }, config: { country: 'DE', unit_system: { temperature: '°C' } }, areas: {}, devices: {}, entities: {} };
-  var RS = { boards: { '': { kiosk: true, kiosk_options: { admin_settings: { hide_header: false } },
-                             screensaver: true, tablet_user: 'kitchen', idle_room: 'kitchen',
+  var RS = { boards: { '': { kiosk: true, kiosk_engine: 'kiosk_mode', kiosk_options: { admin_settings: { hide_header: false } },
+                             screensaver: true, tablet_user: 'kitchen', idle_room: 'kitchen', screensaver_engine: 'wallpanel',
                              wallpanel_options: { idle_time: 300, enabled: null, style: { 'wallpanel-screensaver-info-box': { background: 'red' } } } } },
              weather: { radar: { zoom_level: 8, type: 'custom:not-a-radar' } },
              extras: { radar: '/hacsfiles/weather-radar-card/weather-radar-card.js?v=2' },
@@ -755,11 +794,26 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     for (var i = 0; i < parts.length; i++) { if (v == null) return f; v = v[parts[i]]; }
     return v === undefined ? f : v; }, weatherId: function () { return 'weather.home'; } };
   return window.hkStrategy.generate({ music: false }, R).then(function (g) {
-    ok('Kiosk Mode: the tuned settings, then the dashboard\'s own options',
-       g.kiosk_mode && g.kiosk_mode.hide_header === true && g.kiosk_mode.hide_sidebar === true &&
+    ok('the Kiosk Mode plugin (chosen): the tuned settings, then the dashboard\'s own options, and no hk_kiosk',
+       g.kiosk_mode && g.kiosk_mode.hide_header === true && g.kiosk_mode.hide_sidebar === true && !g.hk_kiosk &&
        g.kiosk_mode.admin_settings && g.kiosk_mode.admin_settings.hide_header === false, g.kiosk_mode);
     ok('the screensaver\'s temperature carries Home Assistant\'s unit letter',
        g.wallpanel && g.wallpanel.cards[1].unit === 'C', g.wallpanel && g.wallpanel.cards[1]);
+    RS.boards[''].screensaver_engine = 'hk';
+    return window.hkStrategy.generate({ music: false }, R).then(function (g2) {
+      ok('HK\'s screensaver: the temperature carries Home Assistant\'s unit letter too',
+         g2.hk_screensaver && g2.hk_screensaver.cards[1].unit === 'C', g2.hk_screensaver && g2.hk_screensaver.cards[1]);
+      var SB = window.hkStrategy.saverBlock, bb = Object.assign({}, RS.boards['']);
+      ok('saverBlock (an existing dashboard\'s screensaver): the same block the generated screen gets',
+         JSON.stringify(SB(R, bb)) === JSON.stringify(g2.hk_screensaver), SB(R, bb));
+      ok('...none for WallPanel, without a Tablet User, or with the screensaver off',
+         SB(R, Object.assign({}, bb, { screensaver_engine: 'wallpanel' })) === null &&
+         SB(R, Object.assign({}, bb, { tablet_user: '' })) === null && SB(R, Object.assign({}, bb, { screensaver: false })) === null &&
+         SB(null, bb) === null);
+      RS.boards[''].screensaver_engine = 'wallpanel';
+      return g;
+    });
+  }).then(function (g) {
     ok('WallPanel: its options over the tuned screensaver, the rest kept',
        g.wallpanel && g.wallpanel.idle_time === 300 && g.wallpanel.display_time === 30 && !('enabled' in g.wallpanel) &&
        g.wallpanel.style['wallpanel-screensaver-info-box'].background === 'red' &&

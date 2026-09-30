@@ -125,7 +125,7 @@ URL_PATH = "/hk"
 # The integration's own entity (entity.py): the Seasonal decorations switch;
 # and the features' platforms (Alarm PIN's panel, Live TV's cameras and
 # sensors), whose entities belong to each feature's item.
-PLATFORMS = [Platform.SWITCH, *F.PLATFORMS]
+PLATFORMS = [Platform.SWITCH, Platform.BINARY_SENSOR, *F.PLATFORMS]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -237,6 +237,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, ws_settings_subscribe)
     websocket_api.async_register_command(hass, ws_events_subscribe)
     panel.register_commands(hass)
+    from . import screensaver
+    screensaver.register_commands(hass)
 
     # SHOW POP-UP: an automation opens a pop-up (Pop-ups on the
     # integration's page) on the screens showing a dashboard -- all of them,
@@ -319,8 +321,11 @@ def ws_settings_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveC
 
     @callback
     def send() -> None:
+        from . import screensaver
+        mgr = screensaver.manager(hass)
         payload = dash_settings.as_client(_entry(hass), kinds.current(hass), accessories.current(hass),
-                                          hass.data.get(DOMAIN, {}).get("extras"))
+                                          hass.data.get(DOMAIN, {}).get("extras"),
+                                          mgr.switch_ids() if mgr else None)
         # which features are added and set up (features/): a card offers what
         # one gives only when it is -- their actions are always registered
         payload["added"] = [k for k in F.KINDS if F.loaded(hass, k)]

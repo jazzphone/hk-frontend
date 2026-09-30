@@ -33,6 +33,7 @@
 * [Screensaver & idle](Screensaver-and-Idle.md)
 
 **Build your own**
+* [Your own dashboard](Your-Own-Dashboard.md)
 * [Card library](Card-Library.md)
 * [Strategies & grid view](Strategies-and-Grid-View.md)
 * [Examples](Card-Examples.md)
