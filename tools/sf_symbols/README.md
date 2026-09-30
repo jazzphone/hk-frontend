@@ -14,7 +14,7 @@ python3 -m venv ~/.venvs/hk-sf && ~/.venvs/hk-sf/bin/pip install svgpathtools
 
 No Python on the Mac? `sh export_all.sh <folder>` exports every symbol with
 nothing but the SF Symbols app, and `build_glyphs.py --cache <folder> --out …`
-then builds the file on any computer with Python (docs/your-files.md).
+then builds the file on any computer with Python (docs/Making-Your-Files.md).
 
 No restart: the next page load picks it up, and the Repairs entry
 "SF Symbols glyphs not installed" clears at the next start of the integration.
@@ -25,7 +25,7 @@ No restart: the next page load picks it up, and the Repairs entry
 | `sfsvg.py` | export via the SF Symbols CLI, and the fit into the 24×24 box every glyph shares |
 | `symbols.txt` | the 155 SF symbol names the manifest uses, one per line (generated) |
 | `export_all.sh` | exports every symbol in `symbols.txt` as SVG, on a Mac, with no Python |
-| `names.py` | regenerates `symbols.txt` and `docs/glyph-names.md` from the manifest; a test fails when they fall behind |
+| `names.py` | regenerates `symbols.txt` and `docs/Glyph-Names.md` from the manifest; a test fails when they fall behind |
 | `build_glyphs.py` | writes `hk-glyphs.js` (the icons, then a `weather` section: each symbol's layers with their multicolor role); `--check <file>` compares a build with an existing file instead |
 
 `--check` proves the manifest: rebuilt from it, every glyph of the original

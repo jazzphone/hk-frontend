@@ -5,7 +5,7 @@
 // (hk-settings.js) draws; this decides -- and tests/test_settingsmodel.js
 // holds it to every rule without a browser.
 //
-// THE RULES THE PAGE KEEPS (docs/settings.md, "How the controls behave"):
+// THE RULES THE PAGE KEEPS (docs/HK-Settings.md, "How the controls behave"):
 //   * One place for each setting. A screen's list is ONE list: which, and in
 //     what order (never split across two tabs).
 //   * A screen value that can follow All Screens says so ("Same as All

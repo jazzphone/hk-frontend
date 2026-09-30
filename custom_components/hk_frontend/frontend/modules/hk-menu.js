@@ -6,7 +6,7 @@
 // that never adds one gets nothing from this file.
 //
 // NOTHING HERE NAMES A ROOM OR A PAGE. The list is read from the dashboard it
-// is on (docs/screens.md, "The menu"):
+// is on (docs/Menu.md):
 //   * the first view is Home;
 //   * a view with `area:` (one area or a list) is a room -- named by its own
 //     title (else its area's name) and pictured by its area's icon in

@@ -1,25 +1,26 @@
-# Cards
+# Card Library
 
 HK Frontend’s screens are built from its own Lovelace cards, and every one of
 them is yours to use in a dashboard you write yourself. This page lists each
-card with what it is for and its main options, then the view type and the
-strategies, and ends with complete examples.
+card with what it is for and its main options; the view type and the
+strategies are on [Strategies and Grid View](Strategies-and-Grid-View.md), and
+complete examples on [Card Examples](Card-Examples.md).
 
 You don’t need any of this for a generated screen: HK Settings builds those
-(see [Screens](screens.md)). Read on if you write dashboards in YAML, or want
+(see [Screens](Screens.md)). Read on if you write dashboards in YAML, or want
 an HK card on a dashboard of your own.
 
 ## Using the cards
 
 - The card files are added as dashboard resources for you (see
-  [Getting started](getting-started.md)). There is nothing to install per
+  [Install](Install.md)). There is nothing to install per
   card.
 - In the card picker, HK Frontend’s cards are the ones whose names start with
   **HK**. Every card has a visual editor and a sensible starting config.
 - In YAML, a card’s type is `custom:` and its tag, for example
   `type: custom:hk-light-card`.
 - Icons named `hk:…` are drawn from your own glyph file (see
-  [Your files](your-files.md)). Until it is there, each `hk:` icon is drawn as
+  [Your files](Your-Files.md)). Until it is there, each `hk:` icon is drawn as
   the Material Design icon of the same name, and any `mdi:` icon works too.
 - A card with no entity of its own falls back to what HK Settings chose (the
   weather entity, the alarm panel), so one card works on every dashboard.
@@ -234,7 +235,7 @@ sideways row of tiles does the same with `card_width: var(--hk-pill, 192px)`.
 |---|---|---|
 | `hk-alarm-keypad-card` | A keypad to arm and disarm an alarm panel with a code. The code is checked by the alarm, never on the screen. | `entity` (default: **HK Settings → General → Alarm Panel**), `bad_code_entity` (only for a panel that fails silently on a wrong code) |
 | `hk-vacuum-card` | A robot vacuum with its status, battery and four commands. | `entity` (required), `name`, `battery`, `room`, `progress`, `error`, `dock_error` |
-| `hk-area-select-card` | Pick rooms by floor, then clean just those. | `floors` (empty: the rooms [Clean Areas](features.md#clean-areas) offers, kept up to date), `order`, `start_script` (a script of your own that receives `areas`, instead of Clean Areas) |
+| `hk-area-select-card` | Pick rooms by floor, then clean just those. | `floors` (empty: the rooms [Clean Areas](Clean-Areas.md) offers, kept up to date), `order`, `start_script` (a script of your own that receives `areas`, instead of Clean Areas) |
 | `hk-timers-page-card` | The whole Timers page: quick start, running timers, house timers and the New Timer keypad. | `timers`, `house`, `presets` (up to six, in minutes; default `[5, 10, 15, 20, 30, 60]`), `name_chips`, `quick_script`, `create_script`, `empty_text`, `tint` |
 | `hk-timers-card` | Every running timer as its own tile, with a live countdown. | `timers` (`[{entity, label, glyph, label_entity}]`), `empty_text`, `tint` |
 | `hk-timer-strip-card` | A compact row of live countdowns for the running quick timers. | `entity` (default `sensor.running_quick_timers`), `scale`, `fixed` (pinned to the bottom, for a screensaver), `plated`, `glass` |
@@ -242,7 +243,7 @@ sideways row of tiles does the same with `card_width: var(--hk-pill, 192px)`.
 
 The quick-timer cards use the optional timer helpers that come with HK
 Frontend (`helpers/quick_timers.yaml`); see
-[Getting started](getting-started.md#what-next).
+[Your First Screen](Your-First-Screen.md#what-next).
 
 `floors`, when you write it, is a list of `{name, areas: [{id, name}]}`, and
 `id` is the Home Assistant **area id**.
@@ -253,7 +254,7 @@ Frontend (`helpers/quick_timers.yaml`); see
 |---|---|---|
 | `hk-camera-mosaic-card` | The camera strip: one camera live, the others as snapshots, in one scrolling plate. Tap a camera for its sheet. | `cameras` (`[{entity, name, option}]`), `selector` (an `input_select` whose option picks the live camera; `option` matches a camera to it), `height`, `refresh` (seconds between snapshots, default 10; 0 stops them), `seam`, `radius` |
 | `hk-doorbell-card` | One camera live **with its sound**. With a speaker, a hold-to-talk button. | `entity` (a camera), `name`, `speaker`, `live` (stream as you speak, for UniFi Protect doorbells; off: a recorded message played when you let go), `sound`, `aspect_ratio` (default `4x3`), `fill`, `tuning` |
-| `hk-tv-guide-card` | The [Live TV](features.md#live-tv) guide: every channel with what is on, and a tap that plays one full screen. | `title` |
+| `hk-tv-guide-card` | The [Live TV](Live-TV.md) guide: every channel with what is on, and a tap that plays one full screen. | `title` |
 
 When the screen’s settings in HK Settings choose cameras for its camera strip
 (or the live camera), those win over the card’s own list.
@@ -263,7 +264,7 @@ on a secure page.
 
 ## Music
 
-These cards need the [Music](features.md#music) feature. They follow whichever
+These cards need the [Music](Music.md) feature. They follow whichever
 room the screen is showing, so they name no speaker themselves.
 
 | Card | What it is | Main options |
@@ -292,7 +293,7 @@ in its hash (`#garage`), or by itself when its conditions are met. Closing it
 takes the hash off the address.
 
 Pop-ups you make in **HK Settings → Library → Pop-ups** work on every screen
-with nothing on the page (see [Screens](screens.md#detail-sheets-and-pop-ups)).
+with nothing on the page (see [Detail Sheets and Pop-ups](Detail-Sheets-and-Popups.md)).
 The cards below are for a pop-up that belongs to one dashboard’s YAML. A card
 on the page that claims the same hash as a Library pop-up wins.
 
@@ -338,196 +339,3 @@ nothing.
 Instead of `entity`, `entity_from: {music: true}` follows the screen’s music.
 
 ---
-
-## The view: `custom:hk-grid-view`
-
-HK Frontend’s screens use their own view type, a CSS grid that places each
-card by its `view_layout`. Use it for your own views, with the live sky:
-
-| Key | What it does |
-|---|---|
-| `type: custom:hk-grid-view` | The view type. |
-| `layout` | As for `hk-grid-card`. HK Frontend’s pages use a three-column grid, `2% 96% 2%`, with every card in the middle column (`view_layout: {grid-column: "2"}`). |
-| `sky: true` | The live sky behind this view (the dashboard also needs a `sky:` block; see [The live sky](sky.md)). |
-| `sky_variant` | A still color wash instead: `lights`, `climate`, `doors`, `timers`, `vacuums`, `water`, `cameras`, `playmusic`, `energy` or `ecoflow`. |
-| `theme: HK Kiosk` | HK Frontend’s theme, for this view. |
-
-The menu reads a few more view keys (`area`, `menu`, `menu_title`,
-`menu_icon`); see [Screens](screens.md#the-menu-on-your-own-dashboard).
-
-## The strategies
-
-### `custom:hk-dashboard`
-
-A whole generated dashboard, built from your floors, areas and devices every
-time it opens. A dashboard made in HK Settings is this strategy. In a
-dashboard’s raw configuration editor:
-
-```yaml
-strategy:
-  type: custom:hk-dashboard
-```
-
-Its settings come from HK Settings (the screen’s own, and **Accessories →
-Hidden from Screens** and **Also Shown**). A few options can also be written
-here; lists add to HK Settings’ lists:
-
-| Option | What it does |
-|---|---|
-| `areas` | Only these areas, in this order. |
-| `exclude_areas`, `exclude_devices`, `exclude_entities` | Leave these out. |
-| `include_entities` | Show these too, in their room (or under More). |
-| `theme` | A theme for every view. |
-| `sky: false` | No live sky. |
-| `music: false` | No music pages, even with Music added. |
-| `chips: false`, `pages: false`, `rooms: false` | No status chips, no category pages, no room pages. |
-
-### `custom:hk-room`
-
-A room page built from an area, for a dashboard you write yourself. It is
-built again each time it opens, so a new device appears by itself.
-
-```yaml
-- title: Kitchen
-  path: room-kitchen
-  subview: true
-  sky: true
-  strategy:
-    type: custom:hk-room
-    area: kitchen
-```
-
-| Option | What it does |
-|---|---|
-| `area` (required) | The area, or a list of areas for a room that spans several (`[backyard, deck]`). |
-| `name` | The page’s title. Default: the area’s name. |
-| `theme` | The view’s theme. |
-| `exclude_entities`, `exclude_devices`, `include_entities` | Leave things out, or add them. |
-
-The menu lists it as a room, and an `hk-heading-card` with the same `area`
-links to it.
-
----
-
-## Examples
-
-### A Home view by hand
-
-A header, the status chips, and one room with its tiles, on the live sky:
-
-```yaml
-sky: {}
-views:
-  - title: Home
-    path: home
-    type: custom:hk-grid-view
-    theme: HK Kiosk
-    sky: true
-    layout:
-      grid-template-columns: 2% 96% 2%
-      margin: 0px
-      padding: 0px
-    cards:
-      - type: custom:hk-header-card
-        weather_path: ./weather
-        alarm_path: ./security
-        view_layout:
-          grid-column: "2"
-      - type: custom:hk-chips-card
-        view_layout:
-          grid-column: "2"
-      - type: custom:hk-heading-card
-        name: Kitchen
-        area: kitchen
-        view_layout:
-          grid-column: "2"
-      - type: custom:hk-grid-card
-        view_layout:
-          grid-column: "2"
-        layout:
-          grid-template-columns: repeat(auto-fill, var(--hk-track, 192px))
-          grid-auto-rows: 82px
-          grid-auto-flow: dense
-          grid-column-gap: 12px
-        cards:
-          - type: custom:hk-light-card
-            entity: light.kitchen_lights
-            icon: hk:ceiling-light
-            icon_tap_action:
-              action: toggle
-          - type: custom:hk-tall-card
-            entity: lock.back_door
-            icon: hk:lock
-            icon_states:
-              unlocked: hk:lock-open-variant
-            label_mode: state
-            view_layout:
-              grid-row: span 2
-          - type: custom:hk-cover-card
-            entity: cover.kitchen_blinds
-            icon: hk:blinds-horizontal
-            icon_tap_action:
-              action: toggle
-          - type: custom:hk-media-card
-            entity: media_player.kitchen
-            icon: hk:homepod
-  - title: Kitchen
-    path: room-kitchen
-    subview: true
-    sky: true
-    strategy:
-      type: custom:hk-room
-      area: kitchen
-```
-
-### A pop-up and a tile that opens it
-
-```yaml
-- type: custom:hk-scene-card
-  name: Garage
-  icon: hk:garage
-  tap_action:
-    action: navigate
-    navigation_path: "#garage"
-- type: custom:hk-popup-card
-  hash: "#garage"
-  width: 460px
-  auto_close: 60000
-  cards:
-    - type: custom:hk-heading-card
-      name: Garage
-    - type: custom:hk-doorbell-card
-      entity: camera.garage
-      name: Garage
-    - type: custom:hk-cover-card
-      entity: cover.garage_door
-```
-
-Put both on the same view. An automation or a link can open the pop-up too,
-with that view’s address and `#garage` on the end.
-
-### A chip of your own
-
-A chip that says how many windows are open, shown only while one is:
-
-```yaml
-type: custom:hk-status-chip-card
-name: Windows
-icon: hk:window-open-variant
-quiet: true
-active:
-  - above: 0
-count:
-  entities:
-    - binary_sensor.kitchen_window
-    - binary_sensor.living_room_window
-  match: "on"
-zero: Closed
-format: "{v} Open"
-tap_action:
-  action: navigate
-  navigation_path: ./doors-windows
-```
-
-For a chip on every generated screen, add it under **HK Settings → Library →
-Custom Chips** instead.

@@ -11,10 +11,12 @@ repository HACS installs from:
 
 Every published file is scanned for private data (PRIVATE: local host names,
 private IP addresses, keys and tokens, plus any names given in HK_PRIVATE);
-one hit and nothing is written. Then both test suites run IN the built repository, so the layout is
+one hit and nothing is written. With --wiki, the GitHub Wiki is built from
+docs/ into WIKI_DIR (a clone of the Wiki's repository), scanned the same way,
+and committed with the same message. Then both test suites run IN the built repository, so the layout is
 proven, and -- only with --commit -- it is committed (and pushed with --push).
 
-    python3 tools/publish/publish.py REPO_DIR [--commit "message"] [--push] [--no-tests]
+    python3 tools/publish/publish.py REPO_DIR [--commit "message"] [--push] [--no-tests] [--wiki WIKI_DIR]
     python3 tools/publish/publish.py --scan          only report what would be refused
 """
 from __future__ import annotations
@@ -100,6 +102,56 @@ def scan(pairs) -> list[str]:
     return hits
 
 
+# ---- the Wiki. docs/ holds one file per Wiki page, named as the page is
+# (Live-TV.md is "Live TV"), linking to each other as files so the same links
+# work in the repository. For the Wiki: the first heading goes (the Wiki shows
+# the page name), Page.md links lose the .md, images point at docs/images on
+# main, and links out of docs/ point at the repository.
+REPO_URL = "https://github.com/jazzphone/hk-frontend"
+RAW = "https://raw.githubusercontent.com/jazzphone/hk-frontend/main/docs/"
+
+
+def wiki_pages() -> list[tuple[str, str]]:
+    docs = os.path.join(COMPONENT, "docs")
+    names = {f for f in os.listdir(docs) if f.endswith(".md")}
+    out = []
+    for f in sorted(names):
+        text = open(os.path.join(docs, f), encoding="utf-8").read()
+        if not f.startswith("_") and text.startswith("# "):
+            text = text.split("\n", 1)[1].lstrip("\n")
+
+        def link(m):
+            target, anchor = m.group(2), m.group(3) or ""
+            if target in names:
+                return f"{m.group(1)}({target[:-3]}{anchor})"
+            raise SystemExit(f"docs/{f}: link to a page that doesn't exist: {target}")
+        text = re.sub(r"(\]|\bhref=)\(([A-Za-z_-]+\.md)(#[^)\s]*)?\)", link, text)
+        text = re.sub(r"\]\(images/", "](" + RAW + "images/", text)
+        text = re.sub(r'src="images/', 'src="' + RAW + "images/", text)
+        text = re.sub(r"\]\(\.\./([^)]*)\)", lambda m: f"]({REPO_URL}/blob/main/{m.group(1)})", text)
+        for img in re.findall(re.escape(RAW) + r"(images/[^)\s\"]+)", text):
+            if not os.path.exists(os.path.join(docs, img)):
+                raise SystemExit(f"docs/{f}: image not in docs/: {img}")
+        out.append((f, text))
+    return out
+
+
+def scan_texts(items) -> list[str]:
+    extra = os.environ.get("HK_PRIVATE", "")
+    pats = [re.compile(p, re.I) for p in PRIVATE + ([extra] if extra else [])]
+    return [f"wiki/{name}:{n}: {line.strip()[:120]}"
+            for name, text in items for n, line in enumerate(text.splitlines(), 1)
+            if any(p.search(line) for p in pats)]
+
+
+def build_wiki(wiki: str, pages) -> None:
+    for name in os.listdir(wiki):
+        if name.endswith(".md"):
+            os.remove(os.path.join(wiki, name))
+    for name, text in pages:
+        open(os.path.join(wiki, name), "w", encoding="utf-8").write(text)
+
+
 def build(repo: str, pairs) -> None:
     keep = {".git"}
     for name in os.listdir(repo) if os.path.isdir(repo) else []:
@@ -117,6 +169,15 @@ def build(repo: str, pairs) -> None:
                 os.chmod(target, 0o755)
 
 
+def stage(cwd) -> int:
+    """Stage exactly what is on disk, names' case included. On a
+    case-insensitive disk (a Mac's, the config share) git would otherwise keep
+    an old name's case: docs/screens.md replaced by docs/Screens.md stays
+    screens.md in the index, and a link to Screens.md breaks on GitHub."""
+    subprocess.call(["git", "rm", "-r", "-q", "--cached", "--ignore-unmatch", "."], cwd=cwd)
+    return run(["git", "-c", "core.ignorecase=false", "add", "-A"], cwd)
+
+
 def run(cmd, cwd) -> int:
     print("$", " ".join(cmd))
     return subprocess.call(cmd, cwd=cwd)
@@ -129,9 +190,11 @@ def main() -> int:
     ap.add_argument("--commit")
     ap.add_argument("--push", action="store_true")
     ap.add_argument("--no-tests", action="store_true")
+    ap.add_argument("--wiki")
     a = ap.parse_args()
     pairs = plan()
-    hits = scan(pairs)
+    pages = wiki_pages()
+    hits = scan(pairs) + scan_texts(pages)
     if a.scan:
         print("\n".join(hits) if hits else "clean")
         return 2 if hits else 0
@@ -150,10 +213,20 @@ def main() -> int:
             return 1
         if run([os.path.join(a.repo, "tests", "run")], a.repo) != 0:
             return 1
+    if a.wiki:
+        if not os.path.isdir(os.path.join(a.wiki, ".git")):
+            ap.error("--wiki must be a clone of the Wiki's repository")
+        build_wiki(a.wiki, pages)
+        print(f"built {len(pages)} Wiki pages in {a.wiki}")
     if a.commit:
+        if a.wiki:
+            stage(a.wiki)
+            if subprocess.call(["git", "diff", "--cached", "--quiet"], cwd=a.wiki) != 0 and \
+                    run(["git", "commit", "-q", "-m", a.commit], a.wiki) != 0:
+                return 1
         if not os.path.isdir(os.path.join(a.repo, ".git")):
             run(["git", "init", "-b", "main"], a.repo)
-        run(["git", "add", "-A"], a.repo)
+        stage(a.repo)
         if run(["git", "commit", "-q", "-m", a.commit], a.repo) != 0:
             return 1
         if a.push and run(["git", "push", "-u", "origin", "main", "--tags"], a.repo) != 0:

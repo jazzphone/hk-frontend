@@ -2,11 +2,11 @@
 
 When something doesn’t look or work the way it should, check these first:
 
-1. **Setup Check** in HK Settings — everything HK Frontend knows how to check, with what to do about each.
-2. **Settings** → **Repairs** — the problems that affect every screen.
+1. **Setup Check** in HK Settings: everything HK Frontend knows how to check, with what to do about each.
+2. **Settings** → **Repairs**: the problems that affect every screen.
 3. The [common problems](#common-problems) below.
 
-If none of that helps, [report it](#reporting-a-problem) with the diagnostics attached.
+If none of that helps, [report it](Diagnostics.md#reporting-a-problem) with the diagnostics attached.
 
 ## Setup Check
 
@@ -18,8 +18,8 @@ Open it from **HK Settings** → **Overview** → **Setup Check** (also under **
 |---|---|---|
 | **Home Assistant** *(version)* | 2026.8 or newer | **Needs Doing.** Older frontends draw the screens wrongly. Update Home Assistant. Also a Repairs entry. |
 | **HK Kiosk theme** | The theme is loaded | **Needs Doing.** Every screen draws in the wrong colors. HK Frontend loads the theme itself, so this means it couldn’t: the log says why, and the Repairs entry gives the `configuration.yaml` lines that load it instead. |
-| **Card files** | All the card files are dashboard resources | **Needs Doing.** In storage mode they are added once Home Assistant has started; if the line persists, restart. In YAML mode the line lists the URLs to add to `lovelace: resources:` yourself ([Getting started, step 3](getting-started.md#3-the-card-resources)). *Lovelace has not started yet* means Home Assistant is still starting: check again in a moment. |
-| **SF Pro and the SF Symbols glyphs** | Both are in your files folder | A **note** (*Apple’s font and glyphs*): the screens use Roboto and Material Design icons meanwhile. Optional — [Your files](your-files.md). |
+| **Card files** | All the card files are dashboard resources | **Needs Doing.** In storage mode they are added once Home Assistant has started; if the line persists, restart. In YAML mode the line lists the URLs to add to `lovelace: resources:` yourself ([Install → The card resources](Install.md#the-card-resources)). *Lovelace has not started yet* means Home Assistant is still starting: check again in a moment. |
+| **SF Pro and the SF Symbols glyphs** | Both are in your files folder | A **note** (*Apple’s font and glyphs*): the screens use Roboto and Material Design icons meanwhile. Optional — [Your files](Your-Files.md). |
 | **Devices in no area** | Every device with a tile is in an area | A **note** naming the devices. A generated screen shows them under **More**, and no room page shows them. Assign each an area. Only devices with a tile count (lights, switches, fans, covers, locks, players, thermostats and so on), not phones or trackers. |
 | **Areas with no icon** | — | A **note**: the menu draws a plain room glyph for them. Pick an icon in the area’s settings. |
 | **Areas with no temperature or humidity sensor** | — | A **note**: a room page’s status line leaves those readings out. Set them in the area’s *Related sensors*. |
@@ -38,7 +38,7 @@ HK Frontend raises four entries under **Settings** → **Repairs**. Each says wh
 | **SF Pro font not installed** | No `fonts/SF-Pro.woff2` or `fonts/SF-Pro.ttf` in your files folder. Optional. | When HK Frontend next starts or reloads, or when you change the folder setting. |
 | **SF Symbols glyphs not installed** | No `iconset/hk-glyphs.js` in your files folder. Optional. | The same. |
 
-The font and glyph entries name the tools by their path in the HK Frontend repository (`tools/font/…`, `tools/sf_symbols/…`). They aren’t part of what HACS installs: [Your files](your-files.md) says where to get them and how to use them.
+The font and glyph entries name the tools by their path in the HK Frontend repository (`tools/font/…`, `tools/sf_symbols/…`). They aren’t part of what HACS installs: [Your files](Your-Files.md) says where to get them and how to use them.
 
 ## A change doesn’t show on a screen
 
@@ -50,7 +50,7 @@ To reload a wall tablet from Home Assistant, use the **Load start URL** button o
 
 **A dashboard kept in YAML.** Home Assistant caches a YAML-mode dashboard. After editing its file, or a file it includes, use **⋮** → **Refresh** on the dashboard, or restart.
 
-**Your files.** Replacing a file in your files folder reaches a screen on its next load. A folder that didn’t exist when HK Frontend started isn’t served until HK Frontend reloads — see [Your files, step 5](your-files.md#step-5-reload-and-check).
+**Your files.** Replacing a file in your files folder reaches a screen on its next load. A folder that didn’t exist when HK Frontend started isn’t served until HK Frontend reloads — see [Making Your Files, step 5](Making-Your-Files.md#step-5-reload-and-check).
 
 ## Common problems
 
@@ -73,7 +73,7 @@ The card files aren’t loaded as dashboard resources.
 
 ### Text is Roboto and icons are Material Design
 
-That is how HK Frontend looks without Apple’s font and glyphs, which can’t be bundled. To add them: [Your files](your-files.md). If you have added them and nothing changed:
+That is how HK Frontend looks without Apple’s font and glyphs, which can’t be bundled. To add them: [Your files](Your-Files.md). If you have added them and nothing changed:
 
 - Check the paths: `fonts/SF-Pro.woff2` (or `SF-Pro.ttf`) and `iconset/hk-glyphs.js`, inside the folder named under **HK Settings** → **Advanced** → **Your Files** (default `hk_local`, which is `/config/hk_local`).
 - If you created the folder after Home Assistant started, reload HK Frontend (**Settings** → **Devices & services** → **HK Frontend** → **⋮** → **Reload**).
@@ -89,7 +89,7 @@ They have no area. Assign each device an area (**Settings** → **Devices & serv
 
 ### A feature’s pages or controls are missing
 
-Music, Live TV, Clean Areas and Alarm PIN appear only once they are added. Add each from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**, then set it up under **Features** in HK Settings. For example, the Play Music page appears only when Music is added and has speakers. An automation calling `hk_frontend.music_play` or `hk_frontend.clean_areas` before the feature is added gets an error that says so. See [Features](features.md).
+Music, Live TV, Clean Areas and Alarm PIN appear only once they are added. Add each from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**, then set it up under **Features** in HK Settings. For example, the Play Music page appears only when Music is added and has speakers. An automation calling `hk_frontend.music_play` or `hk_frontend.clean_areas` before the feature is added gets an error that says so. See [Features](Features.md).
 
 ### Live TV: a channel never starts
 
@@ -107,35 +107,4 @@ Music, Live TV, Clean Areas and Alarm PIN appear only once they are added. Add e
 
 ### No screensaver, or Home Assistant’s header still shows on a wall tablet
 
-The photo screensaver is [WallPanel](https://github.com/j-a-n/lovelace-wallpanel) and the full-screen look is [Kiosk Mode](https://github.com/NemesisRE/kiosk-mode), both from HACS, and both must be loaded as dashboard resources. Setup Check says which is missing and the exact resource URL to add. See [Wall tablets](wall-tablets.md).
-
-## Download diagnostics
-
-Diagnostics are a file with HK Frontend’s configuration, for a bug report.
-
-**Settings** → **Devices & services** → **HK Frontend** → **⋮** on an entry → **Download diagnostics**.
-
-Each entry has its own:
-
-| Entry | What the file holds |
-|---|---|
-| **HK Frontend** | Every setting as stored, what each screen is handed (the settings with every default filled in), and where the font and glyphs are served from — `folder:` (your files folder), `bundled:`, or `null` when missing. |
-| **Music** | The speakers, presets and playlists, and what each screen is handed. |
-| **Alarm PIN** | The alarm it protects and whether arming needs the PIN. |
-| **Live TV** | The channels and the picture quality. |
-| **Clean Areas** | Which vacuums take part and which areas the picker offers. |
-
-**Left out:** the Alarm PIN’s hash and salt (the PIN itself is never stored), and the birthdays you entered for the sky.
-
-**Not left out:** entity IDs, area and dashboard names, and the users you chose for wall tablets. Read the file before you attach it to a public issue, and edit out anything you don’t want to share.
-
-## Reporting a problem
-
-Open an issue at [github.com/jazzphone/hk-frontend/issues](https://github.com/jazzphone/hk-frontend/issues). The bug report form asks for:
-
-- **What happened**, and **what you expected**.
-- **Where**: which screen, page or setting. A screenshot helps.
-- **Versions**: HK Frontend (HACS shows it), Home Assistant, and the browser or tablet app.
-- **Diagnostics**, attached (see above).
-
-For a card or page that misbehaves, also open the browser’s developer console on that screen and copy any errors shown in red. Run Setup Check first and mention anything under *Needs Doing*.
+The photo screensaver is [WallPanel](https://github.com/j-a-n/lovelace-wallpanel) and the full-screen look is [Kiosk Mode](https://github.com/NemesisRE/kiosk-mode), both from HACS, and both must be loaded as dashboard resources. Setup Check says which is missing and the exact resource URL to add. See [Wall tablets](Wall-Tablets.md).

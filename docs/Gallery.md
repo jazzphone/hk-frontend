@@ -1,7 +1,7 @@
 # Gallery
 
 Every screen of HK Frontend, as it looks in one home. The screenshots are of a
-home that has added Apple’s font and glyphs ([Your files](your-files.md));
+home that has added Apple’s font and glyphs ([Your files](Your-Files.md));
 camera pictures are blurred on purpose.
 
 ## A wall tablet
@@ -21,9 +21,9 @@ camera pictures are blurred on purpose.
 | ![The Weather page](images/tablet-weather.png) | ![The Cameras page](images/tablet-cameras.png) |
 | Weather | Cameras |
 | ![The Play Music page](images/tablet-play-music.png) | ![The Browse Music page](images/tablet-browse-music.png) |
-| Play Music ([Music](features.md#music)) | Browse Music |
+| Play Music ([Music](Music.md)) | Browse Music |
 | ![The Live TV guide](images/tablet-live-tv.png) | ![A custom page](images/tablet-energy.png) |
-| Live TV ([Live TV](features.md#live-tv)) | A [custom page](screens.md#custom-pages) |
+| Live TV ([Live TV](Live-TV.md)) | A [custom page](Pages.md#custom-pages) |
 
 ## A computer, an iPad and a phone
 
@@ -60,7 +60,7 @@ camera pictures are blurred on purpose.
 
 ![A Halloween night](images/sky-halloween.png)
 
-More: [Sky](sky.md).
+More: [Live Sky](Live-Sky.md).
 
 ## HK Settings
 
@@ -85,4 +85,4 @@ More: [Sky](sky.md).
 | ![Clean Areas](images/settings-clean-areas.png) | ![Alarm PIN](images/settings-alarm-pin.png) |
 | Clean Areas | Alarm PIN |
 
-More: [Settings](settings.md).
+More: [HK Settings](HK-Settings.md).

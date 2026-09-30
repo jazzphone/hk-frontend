@@ -15,7 +15,9 @@ from conftest import entry
 HERE = os.path.dirname(os.path.abspath(__file__))
 from conftest import COMPONENT, DOCS  # noqa: E402
 TR = json.load(open(os.path.join(COMPONENT, "translations", "en.json")))
-DOC = open(os.path.join(DOCS, "settings.md")).read()
+# the docs, every page: each group of HK Settings is documented on its topic's page
+DOC = "\n".join(open(os.path.join(DOCS, f), encoding="utf-8").read()
+                for f in sorted(os.listdir(DOCS)) if f.endswith(".md"))
 
 
 async def test_configure_is_the_way_to_the_page(hass, frontend):
@@ -101,7 +103,7 @@ async def test_its_gear_points_at_the_screens_page(hass, frontend, dashboards):
 
 def test_every_field_left_is_labelled_and_documented():
     """No field of what is left of Configure without a label, and the page and
-    its names in docs/settings.md."""
+    its names in the docs (docs/*.md)."""
     opts = TR["options"]["step"]
     assert opts["panel"]["data"]["sidebar"] and opts["files"]["data"]["files_folder"]
     dash = TR["config_subentries"]["dashboard"]["step"]

@@ -60,7 +60,7 @@ ISSUES = ("missing_font", "missing_glyphs")      # the Repairs entries raise_iss
 # a translation.
 REPO_URL = "https://github.com/jazzphone/hk-frontend"
 LINKS = {"fonts_url": "https://developer.apple.com/fonts/", "repo_url": REPO_URL,
-         "guide_url": REPO_URL + "/blob/main/docs/your-files.md"}
+         "guide_url": REPO_URL + "/wiki/Your-Files"}
 
 
 def normalize(config_dir: str, folder: str | None) -> str:

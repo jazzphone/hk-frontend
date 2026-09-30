@@ -117,7 +117,7 @@ async def test_status_and_repairs_name_what_is_missing(hass, config_dir):
     files.raise_issues(hass, st, "mine")
     reg = ir.async_get(hass)
     placeholders = reg.async_get_issue(DOMAIN, "missing_font").translation_placeholders
-    assert placeholders["folder"] == "mine" and placeholders["guide_url"].endswith("/docs/your-files.md")
+    assert placeholders["folder"] == "mine" and placeholders["guide_url"].endswith("/wiki/Your-Files")
     assert reg.async_get_issue(DOMAIN, "missing_glyphs") is not None
     # Apple's own .ttf is enough for the font; the glyph file clears the other
     _write(config_dir / "mine" / "fonts" / "SF-Pro.ttf")

@@ -1,4 +1,4 @@
-"""tools/sf_symbols/symbols.txt and docs/glyph-names.md are generated from the
+"""tools/sf_symbols/symbols.txt and docs/Glyph-Names.md are generated from the
 glyph manifest (names.py) for people exporting the symbols another way. They
 must name exactly what build_glyphs.py builds."""
 import os
@@ -19,7 +19,7 @@ def test_symbols_txt_matches_the_manifest():
 
 
 def test_glyph_names_page_matches_the_manifest():
-    have = open(os.path.join(DOCS, "glyph-names.md"), encoding="utf-8").read()
+    have = open(os.path.join(DOCS, "Glyph-Names.md"), encoding="utf-8").read()
     assert have == names.docs(names.manifest()), FIX
 
 

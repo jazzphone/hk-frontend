@@ -151,7 +151,7 @@
   // per-card backdrop-filter was measured unaffordable on entry-level Samsung
   // tablets (the cost is the NUMBER of blur surfaces: 22 of them halved the
   // frame rate and blanked cards); one shared layer held 90 fps. See
-  // docs/settings.md.
+  // docs/ (each on its topic's page).
   //
   // THE AMOUNTS (House -> Look; a dashboard's Screen page can set its own),
   // each 0-100 %, 50 -- the middle of the slider -- as designed:

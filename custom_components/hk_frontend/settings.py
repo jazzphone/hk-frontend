@@ -5,7 +5,7 @@ and the car viewport name no entity in their source: they read them from
 here. The settings are chosen on the HK Settings page, stored in the entry's
 options under "dashboard", and handed to every screen over
 `hk_frontend/settings/subscribe` (hk-settings.js), now and again whenever
-anything is edited. docs/settings.md documents every one.
+anything is edited. Each is documented on its topic's page in docs/.
 
 The DEFAULTS assume no particular house. An unset entity is None and each page
 has a generic fallback for it -- the first weather entity, the browser's clock,
@@ -95,7 +95,7 @@ def parse_mmdd(text: str | None) -> str | bool | None:
     return f"{int(m.group(1)):02d}-{int(m.group(2)):02d}"
 
 
-# The menu (hk-sidebar.js) and the room pages (docs/screens.md).
+# The menu (hk-sidebar.js) and the room pages (docs/Menu.md, docs/Pages.md).
 #   button: auto -- the pinned chip when the dashboard's Home view carries a
 #           menu button card, else the edge tab; chip; tab. Phones always get
 #           the round button (a phone's margin has no room for a tab).
@@ -155,7 +155,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # flips the spring and winter surprise windows. (christmas_from is
             # one of SKY_DATES below: None = the built-in 12-07.)
             "themes": list(THEMES), "hemisphere": "north",
-            # WHEN each theme may run and HOW OFTEN (docs/sky.md). None
+            # WHEN each theme may run and HOW OFTEN (docs/Seasonal-Decorations.md). None
             # is the built-in value, which the screens know (hk-settings.js
             # skyWindow): the dates below, the hemisphere's spring and winter,
             # and US Thanksgiving.
@@ -217,7 +217,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # surface blurs itself (phones, iPads, computers: too heavy for a wall
     # tablet). frost: how milky Frosted is; blur: how strong both blurs are
     # -- each 0-100 %, 50 (the middle) as designed: 20 px of blur.
-    # docs/settings.md.
+    # docs/ (each setting on its topic's page).
     "look": {"glass": "clear", "frost": 50, "blur": 50,
              # The detail sheets (hk-detail.js), after the Home app's, in
              # place of HA's more-info dialog on the dashboards, and the view
@@ -395,7 +395,7 @@ def as_client(entry: ConfigEntry | None,
 # settings -- the menu, where the time and weather sit, the Home Assistant
 # row, its categories and its room order. Only the menu's icon, the clock tap
 # and the room pages' status line are shared by every screen (HK Settings ->
-# Menu & Rooms). docs/settings.md, "A screen".
+# Menu & Rooms). docs/Menu.md and docs/Screens.md.
 SUBENTRY_DASHBOARD = "dashboard"
 # menu: off, a button (automatic / the pinned chip / the edge tab), or open
 # (always beside the page, folding to the automatic button when narrower

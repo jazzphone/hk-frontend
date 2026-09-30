@@ -689,7 +689,7 @@
            [
              { name: 'name', required: true, selector: { text: {} } },
              // A room heading: opens this dashboard's room page for the area
-             // (a view with `area:`), with a › -- see docs/screens.md.
+             // (a view with `area:`), with a › -- see docs/Menu.md.
              { name: 'area', selector: { area: {} },
                helper: 'A room heading: links to this area\'s room page when the dashboard has one.' },
              // "./cameras" is relative to the CURRENT dashboard, which is how

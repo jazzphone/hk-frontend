@@ -3,7 +3,7 @@
 WHAT THIS IS
 The dashboard frontend -- the card library, the page modules, the icon set,
 the font and the sky artwork -- lives HERE, next to the code that serves it,
-rather than loose in /config/www. See docs/cards.md.
+rather than loose in /config/www. See docs/Card-Library.md.
 
 WHY NOT /local/
 
@@ -92,7 +92,7 @@ async_setup, so it answers even while the entry is not loaded; so are the art
 and talk endpoints (EXPOSURE) and the features' actions.
 The features -- Music, Live TV, Clean Areas and Alarm PIN -- are items added
 with Add feature (features/); the entry starts them and follows them. The
-cards find them by their actions and feeds only. See docs/features.md.
+cards find them by their actions and feeds only. See docs/Features.md.
 """
 
 import logging

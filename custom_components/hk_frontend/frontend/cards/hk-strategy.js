@@ -24,7 +24,7 @@
 //             the Home app groups them (./room-<area>); each room heading on
 //             Home opens its page. The same page is a view strategy of its own
 //             for hand-built dashboards: `strategy: {type: custom:hk-room,
-//             area: kitchen}` (docs/screens.md).
+//             area: kitchen}` (docs/Menu.md).
 //   The menu  (the dashboard item's gear -> Menu) lists all of it: the chip
 //             row carries its button, Weather sits beside Home, Browse Music
 //             is left out unless its Categories pick it.

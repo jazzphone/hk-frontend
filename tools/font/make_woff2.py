@@ -16,7 +16,7 @@ dashboards use as one weight, and the variable SF-Pro-Italic.ttf would slant
 every screen.
 
 It runs anywhere Python does (Windows and Linux too): only the input has to
-be Apple's SF-Pro.ttf, however you got it (docs/your-files.md).
+be Apple's SF-Pro.ttf, however you got it (docs/Making-Your-Files.md).
 """
 import os
 import sys

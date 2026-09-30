@@ -116,7 +116,7 @@
   // ------------------------------------------------------------- seasons
   // Seasonal decoration, driven by the holiday season (hkSettings.seasonName:
   // the sensor chosen in Configure, or computed) and gated by the seasonal
-  // switch chosen there. See docs/sky.md.
+  // switch chosen there. See docs/Seasonal-Decorations.md.
   //
   // EVERYTHING HERE IS A PHOTOGRAPH, and that is not an accident: drawn
   // versions -- a leaf silhouette, a bat, a tree, string lights -- do not

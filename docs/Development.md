@@ -1,7 +1,7 @@
 # Development
 
 How HK Frontend is put together, how to run its tests, and how to add to it.
-For using it, start with [Getting started](getting-started.md).
+For using it, start with [Install](Install.md).
 
 ## Repository layout
 
@@ -49,7 +49,7 @@ custom_components/hk_frontend/     the integration HACS installs
 └─ brand/               the integration's icon
 tests/                  run (JavaScript suites) and py/run (Python)
 tools/                  sky/, sf_symbols/, font/, merge_translations.py, publish/
-docs/                   these pages
+docs/                   these pages, one file per Wiki page, and _Sidebar.md
 ```
 
 Only `frontend/` and the user’s files folder are served over HTTP. Everything
@@ -140,7 +140,22 @@ Home Assistant’s own test harness. Each feature has its own
 | `tools/sf_symbols/build_glyphs.py` | Builds a user’s `hk-glyphs.js` from the SF Symbols app, on a Mac (see its README). `manifest.json` maps every `hk:` glyph to the symbol it is drawn from; `--check <file>` compares a build with an existing file. |
 | `tools/font/make_woff2.py` | Turns Apple’s variable `SF-Pro.ttf` into a woff2 about a third of the size (see its README). |
 | `tools/merge_translations.py` | Merges each feature’s `translations.en.json` into `translations/en.json` (below). |
-| `tools/publish/publish.py` | Builds the public repository from the component, refusing to write anything if a file contains private data (addresses, host names, tokens). `--scan` only reports. |
+| `tools/publish/publish.py` | Builds the public repository from the component, refusing to write anything if a file contains private data (addresses, host names, tokens). `--scan` only reports. `--wiki DIR` also builds the GitHub Wiki from `docs/` into a clone of the Wiki’s repository (below). |
+
+## The documentation
+
+`docs/` holds one Markdown file per page of the
+[GitHub Wiki](https://github.com/jazzphone/hk-frontend/wiki), named as the
+page is (`Live-TV.md` is the page *Live TV*), plus `_Sidebar.md` and
+`_Footer.md`. Pages link to each other as files (`[Music](Music.md#actions)`),
+so the same links work when browsing `docs/` in the repository.
+
+`publish.py --wiki DIR` turns them into the Wiki: each page loses its first
+heading (the Wiki shows the page name), `Page.md` links become `Page`, images
+point at `docs/images` on `main`, and links out of `docs/` point at the
+repository. The Wiki is scanned for private data like everything else, and
+nothing is written if a page fails. It changes on every release, never between
+them, so the Wiki always describes the latest release.
 
 ## Adding a card
 

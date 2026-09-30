@@ -1,90 +1,13 @@
-# The live sky
-
-Behind HK Frontend’s screens is a sky that follows the real one: the sun’s
-height and direction, the moon at its actual phase, the clouds you have, and
-rain or snow when it is falling. On some days it also dresses up for a season,
-a holiday or a birthday.
-
-![The live sky on a clear day, behind the Home page](images/sky-clear-day.png)
-
-## What it shows
-
-| | What the sky does |
-|---|---|
-| **Time of day** | The colors follow the sun’s elevation, from a deep noon blue through sunset to night. The sun’s glow sits where the sun is. |
-| **Night** | Stars, and the moon drawn at its real phase. |
-| **Clouds** | As many as the weather says (its cloud coverage, or a guess from the condition when there is none). At sunset they are lit warm from below. |
-| **Rain and snow** | Falling while the weather is rainy, pouring, hailing or snowy; lightning in a thunderstorm; a haze in fog. |
-
-The sky is kept dark enough that glass tiles and white text on top of it stay
-readable, even at noon.
-
-![The live sky at night](images/sky-night.png)
-
-![Rain on the live sky](images/sky-rain.png)
-
-![Snow on the live sky](images/sky-snow.png)
-
-It reads:
-
-- `sun.sun`, for where the sun is;
-- the weather entity chosen under **HK Settings → All Screens → Weather**
-  (without one, the first weather entity it finds);
-- the moon’s phase, worked out from the date (or a sensor you choose; see
-  [Advanced](#advanced)).
-
-### Where it appears
-
-On a generated screen, the live sky is behind **Home**, **Weather** and the
-room pages. The category pages (Lights, Climate, Doors & Windows, Security,
-Timers, Vacuums, Water, Cameras, Live TV, Play Music and Browse Music) each
-have a still wash of their own color instead, matching the chip that opens
-them. A custom page shows the live sky when its YAML says `sky: true`.
-Decorations appear only on the live sky.
-
-When the tablet is behind a screensaver, or its browser tab is hidden, the sky
-stops moving.
-
-## Turn it on or off
-
-**Every generated screen at once:** pick an input boolean or switch as the
-**Sky Switch** under **HK Settings → All Screens → Sky → Live Sky**. While it
-is off, no generated screen shows the live sky. With none chosen, the sky is
-always on.
-
-**One screen:** HK Settings → the screen → **Appearance → Live Sky**.
-
-**A dashboard you write in YAML:** the dashboard opts in with a `sky:` block,
-and each view that wants the sky says `sky: true`:
-
-```yaml
-sky:
-  enable: input_boolean.live_sky                          # optional: off hides the sky
-  sleep: input_boolean.wallpanel_screensaver_kitchen      # optional: on pauses it
-views:
-  - title: Home
-    path: home
-    type: custom:hk-grid-view
-    sky: true
-    cards: []
-```
-
-`sky: {}` on its own is enough to opt in. A view can instead take one of the
-still washes with `sky_variant:` (`lights`, `climate`, `doors`, `timers`,
-`vacuums`, `water`, `cameras`, `playmusic`, `energy` or `ecoflow`).
-
-## Seasonal decorations
+# Seasonal Decorations
 
 On some days the sky dresses up: falling leaves in the fall, a haunted night
 near Halloween, a cozy window at Christmas, and a handful of surprises through
-the year. Decorations are photographs laid over the live sky, and they never
+the year.
+
+Decorations are photographs laid over the live sky, and they never
 change your lights or anything else in the house.
 
 ![A spooky Halloween night: a big moon, bare branches, fog and bats](images/sky-halloween.png)
-
-To see any decoration without waiting for its dates, open it in **HK
-Settings → Sky**: the preview beside its settings shows it on your Home
-screen, by day, by night, or on a spooky night ([Settings](settings.md#sky)).
 
 **Turning them all off:** the **Seasonal decorations** switch,
 `switch.hk_frontend_seasonal_decorations`, on the HK Frontend device. The same
@@ -93,9 +16,7 @@ automation can flip it like any switch.
 
 **Turning one off:** HK Settings → Sky → the decoration → **Show**.
 
-![The Sky settings](images/settings-sky.png)
-
-### The seasons
+## The seasons
 
 Each season has a window of dates. Inside it, the sky decorates **Sometimes**
 by default: a roll of the dice each day, with the odds rising as the last day
@@ -119,7 +40,7 @@ Thanksgiving Day is the fourth Thursday of November. Christmas starts on
 December 7 rather than right after Thanksgiving, so the decoration stays a
 treat rather than a month of wallpaper.
 
-### The surprises
+## The surprises
 
 | Surprise | When | What it shows |
 |---|---|---|
@@ -149,7 +70,7 @@ that day only.
 so all your screens show the same thing, and nothing changes in front of you
 during the day.
 
-### Dates and how often
+## Dates and how often
 
 Each decoration’s page in **HK Settings → Sky** has:
 
@@ -158,9 +79,7 @@ Each decoration’s page in **HK Settings → Sky** has:
   back to the built-in ones.
 - **How Often**, as above.
 
-Every setting and its default: [Settings → Sky](settings.md#sky).
-
-### Advanced
+## Advanced
 
 **HK Settings → Sky → Advanced:**
 
@@ -171,17 +90,45 @@ Every setting and its default: [Settings → Sky](settings.md#sky).
 | Moon Phase | Optional: a sensor giving the moon’s phase from 0 to 1 (0 new, 0.5 full). Without one, the phase is worked out from the date. |
 | Also Needs | Optional: an input boolean or switch that must also be on for decorations to show. |
 
-## On phones and narrow screens
+## Sky settings
 
-The decorations are drawn for a landscape screen. On a screen taller than it
-is wide, each one is drawn as its left and right edges, blended through the
-middle, so the branches and garlands still reach in from both sides.
+![The Sky page in HK Settings](images/settings-sky.png)
 
-## If the sky stands still
+Beside the Sky page, a live preview shows your Home screen’s sky right now.
+Open a decoration and the preview shows it on your Home screen -- whatever
+today’s date, even while it is turned off -- with **Day**, **Night** and, for
+Fall & Halloween, **Spooky Night** to switch between. Only the preview
+changes; your screens keep today’s sky.
 
-A browser that asks pages for **reduced motion** gets a still sky. On an
-Android tablet, Android’s **Remove animations**, some power-saving modes and
-the developer animation settings all turn that on, and the browser can keep
-reporting it until the tablet restarts. If the sky is frozen on one tablet and
-moving everywhere else, check those settings and restart the tablet. More in
-[Troubleshooting](troubleshooting.md).
+![A decoration’s page with its preview](images/settings-sky-theme.png)
+
+| Setting | Default | What it does |
+|---|---|---|
+| Sky Switch | None (Always On) | An input boolean or switch. While it is off, no generated screen shows the live sky. A YAML screen names its own. Each screen can also turn its sky off. |
+| Seasonal Decorations | On | Pauses every decoration. The same switch as **Seasonal decorations** on the HK Frontend device. |
+| (each decoration) | On | Opens its page (below). |
+| Advanced | Northern | Opens the Advanced page (below). |
+
+Each decoration’s page:
+
+| Setting | What it does |
+|---|---|
+| Show (decoration) | Turns this decoration on or off. |
+| Starts · Ends | Its dates. A window may run past New Year. **Use Default Dates** goes back to the built-in ones. |
+| How Often | Seasons (Fall & Halloween, Thanksgiving, Christmas): **Every Day**, **Sometimes** (some days, more often as the last day nears, always the final days) or **Only the Last Days**. Spring Garden and Winter Wonderland: **Often**, **Sometimes** or **Rarely**. Storybook Magic and Space Night: **Once**, **Twice** or **Four Times a Month**. |
+| Spooky Nights | *Fall & Halloween.* **Sometimes**, **Every Night** or **Never**: a big moon, fog, bats and a witch. |
+
+| Decoration | Default dates | Default how often |
+|---|---|---|
+| Fall & Halloween | Sep 22 – Oct 31 | Sometimes; Spooky Nights Sometimes |
+| Thanksgiving | Nov 1 – Thanksgiving Day | Sometimes |
+| Christmas | Dec 7 – Dec 25 | Sometimes |
+| Fourth of July | Jun 28 – Jul 4 | Every day between its dates |
+| Valentine’s Day | Feb 8 – Feb 14 | Every day between its dates |
+| Spring Garden | Mar 20 – Jun 20 (Southern: Sep 22 – Dec 20) | Sometimes (about one day in seven) |
+| Winter Wonderland | Dec 21 – Mar 19 (Southern: Jun 21 – Sep 21) | Sometimes (about one day in eight) |
+| Storybook Magic | — | Once a Month |
+| Space Night | — | Once a Month |
+| Birthdays | — | On the day. Add each person’s name, month and day under **Add a Birthday**. |
+
+The Advanced page’s settings are under [Advanced](#advanced) above.
