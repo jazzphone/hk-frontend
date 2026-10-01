@@ -1173,6 +1173,7 @@
   // this dashboard (the first of these paths it has), or no pill.
   var PAGE_PILLS = {
     weather: ['Weather', 'hk:weather-partly-cloudy', 'white', ['weather']],
+    calendar: ['Calendar', 'mdi:calendar-month', 'red', ['calendar']],
     cameras: ['Cameras', 'hk:camera', 'green', ['cameras']],
     live_tv: ['Live TV', 'hk:television', 'blue', ['live-tv']],
     security: ['Security', 'hk:shield-lock', 'green', ['security', 'alarm']],

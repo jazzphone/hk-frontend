@@ -542,3 +542,24 @@ def test_all_screens_screensaver():
     assert w["screensaver_options"]["starts_after"] == 240
     assert S.board({"screensaver": True, "wallpanel_options": {"hide_toolbar": True}})["screensaver_options"] is None, \
         "old WallPanel options that say nothing about the screensaver: All Screens"
+
+
+def test_the_calendar_pane_and_its_days():
+    """The screensaver's calendar pane (1.4): off by default, two days
+    (today and tomorrow); one to seven days, a bool for the pane, anything
+    else refused."""
+    from custom_components.hk_frontend.settings import DEFAULTS, SAVER_DEFAULTS, saver_options
+    assert SAVER_DEFAULTS["calendar"] is False and SAVER_DEFAULTS["calendar_days"] == 2
+    got = saver_options({"calendar": True, "calendar_days": 5})
+    assert got["calendar"] is True and got["calendar_days"] == 5
+    for bad in ({"calendar": "yes"}, {"calendar_days": 0}, {"calendar_days": 8}, {"calendar_days": True},
+                {"calendar_days": "3"}):
+        assert saver_options(bad) is None, bad
+    assert DEFAULTS["calendar"] == {"entities": [], "colors": {}}, "every calendar, coloured in turn, until chosen"
+
+
+def test_the_calendar_is_a_page_a_screen_can_have():
+    from custom_components.hk_frontend.settings import PAGE_KINDS, PAGE_ORDER, PAGE_RESERVED, SCENE_PAGES
+    assert PAGE_KINDS.index("calendar") == PAGE_KINDS.index("weather") + 1
+    assert "calendar" in PAGE_ORDER and "calendar" in SCENE_PAGES
+    assert "calendar" in PAGE_RESERVED, "no custom page may take its address"

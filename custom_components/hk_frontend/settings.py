@@ -231,6 +231,12 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # kind -> {name, icon, color}; empty is each pill's own
              # ("Play Music" can read "Apple Music")
              "page_pills": {}},
+    # THE CALENDAR (the Calendar page, hk-calendar.js, and the screensaver's
+    # calendar pane): the calendar entities shown, in order (empty: every
+    # calendar the house has), and each one's colour -- entity -> a page pill
+    # colour (settings_api.PILL_COLORS); one left out takes the next of the
+    # palette by its place in the list.
+    "calendar": {"entities": [], "colors": {}},
     # Browse Music: the categories its first page leaves out, and its
     # Discover rows in the order shown. Every
     # hk-library-card without its own `hide:` / `discover:` reads these.
@@ -346,6 +352,10 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # with Show: photos and no photos to show -- the forecast (True) or a dark
     # screen, as before 1.3 (False)
     "fallback": True,
+    # THE CALENDAR PANE (1.4): the coming events down the right of the
+    # screen, the photos (or the forecast) beside it; and how many days it
+    # lists -- today, tomorrow, and so on
+    "calendar": False, "calendar_days": 2,
 }
 SAVER_ORDERS = ("random", "sorted")
 SAVER_SHOWS = ("photos", "both", "forecast")
@@ -353,6 +363,7 @@ SAVER_SHOWS = ("photos", "both", "forecast")
 # whose own `screensaver_options` is null uses these (resolved()).
 DEFAULTS["look"]["saver"] = dict(SAVER_DEFAULTS)
 SAVER_FC_EVERY = (2, 100)
+SAVER_CAL_DAYS = (1, 7)
 SAVER_ENGINES = ("hk", "wallpanel")
 # WHO HIDES HOME ASSISTANT'S HEADER AND SIDEBAR on a screen with Hide Home
 # Assistant Header & Sidebar: HK Frontend itself (hk-kiosk.js, 1.3), or the
@@ -391,8 +402,9 @@ def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
     for k, val in v.items():
         if k not in SAVER_DEFAULTS:
             return None
-        if k in ("starts_after", "each_photo", "forecast_every"):
-            lo, hi = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_every": SAVER_FC_EVERY}[k]
+        if k in ("starts_after", "each_photo", "forecast_every", "calendar_days"):
+            lo, hi = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_every": SAVER_FC_EVERY,
+                      "calendar_days": SAVER_CAL_DAYS}[k]
             if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= val <= hi:
                 return None
             out[k] = int(val)
@@ -507,7 +519,7 @@ CHIP_KINDS = ("weather_alert", "security", "doors_windows", "climate", "lights",
               "timers", "vacuums", "speakers", "water", "energy")
 CHIPS_QUIET = ["weather_alert", "doors_windows", "blinds", "water"]
 # THE PAGES a generated dashboard can have (hk-strategy.js), in menu order.
-PAGE_KINDS = ("weather", "cameras", "live_tv", "security", "doors_windows", "climate", "lights",
+PAGE_KINDS = ("weather", "calendar", "cameras", "live_tv", "security", "doors_windows", "climate", "lights",
               "timers", "vacuums", "music", "water", "rooms")
 # A DASHBOARD'S PAGE ORDER: the kinds above, plus Browse Music as a place of
 # its own (it comes with Play Music -- never on its own -- and follows it
@@ -813,7 +825,7 @@ def popup(data: Mapping[str, Any] | None, hash_: str = "") -> dict[str, Any]:
 # room page's.
 SUBENTRY_PAGE = "page"
 PAGE_PATH = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
-PAGE_RESERVED = ("home", "weather", "cameras", "live-tv", "security", "doors-windows", "climate", "lights",
+PAGE_RESERVED = ("home", "weather", "calendar", "cameras", "live-tv", "security", "doors-windows", "climate", "lights",
                  "timers", "vacuums", "playmusic", "music-browse", "water")
 PAGE_VIEW_MAX = 300000
 PAGE_OWN_KEYS = ("title", "path", "icon")

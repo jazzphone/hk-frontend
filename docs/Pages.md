@@ -14,6 +14,7 @@ the menu open them; a back button returns to Home.
 | Page | Appears when your home has | What it shows |
 |---|---|---|
 | Weather | A weather entity | The hours and days ahead, wind, sunrise and sunset, the moon, UV (with a UV sensor), the week’s outside temperature (with a sensor), any alerts, and a radar map (with the Weather Radar Card from HACS) |
+| Calendar | A calendar | The month, the week or the day, with events to add, change and delete ([Calendar](Calendar.md)) |
 | Cameras | Cameras | Every camera on the strip, live, three across |
 | Live TV | The Live TV feature | The channel guide; tap a channel to watch it full screen |
 | Security | An alarm panel (the one in General, else the first) | The alarm keypad, with the locks and garage doors beside it |

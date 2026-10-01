@@ -403,8 +403,16 @@
       if (String(op[0]) === String(o.value)) { opt.selected = true; shown = op[1]; }
       s.appendChild(opt);
     });
-    s.addEventListener('change', function () { o.onChange(s.value); });
-    return h('span', { class: 'pop' }, [h('span', { class: 'pv', text: shown || o.placeholder || '' }), svg(UPDOWN), s]);
+    var pv = h('span', { class: 'pv', text: shown || o.placeholder || '' });
+    // THE CHOICE SHOWS AT ONCE, not only when the page next redraws: a
+    // redraw can be held (see the panel's render), and the label read the
+    // old choice until it was
+    s.addEventListener('change', function () {
+      var op = s.options[s.selectedIndex];
+      pv.textContent = (op && op.text) || o.placeholder || '';
+      o.onChange(s.value);
+    });
+    return h('span', { class: 'pop' }, [pv, svg(UPDOWN), s]);
   }
   // A SLIDER: o.value, o.min, o.max, o.step, o.unit, o.badge, o.onChange(v)
   // (on release; the number follows the thumb while it moves)

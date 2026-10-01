@@ -944,5 +944,39 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   customElements = native;
   ok('the original registry is untouched', customElements.get('ll-strategy-dashboard-hk-dashboard') === before);
 }).then(function () {
+  // THE CALENDAR PAGE: there when the house has a calendar, after Weather;
+  // gone with no calendar, or when a screen's pages leave it out
+  print('\n=== the calendar page ===');
+  var saved = window.hkSettings, board = {};
+  S['calendar.home'] = st('calendar.home', 'off', { friendly_name: 'Home Calendar', supported_features: 7 });
+  window.hkSettings = { get: function (p, f) { return p === 'boards' ? { '': board } : f; },
+                        weatherId: function () { return 'weather.home'; }, onChange: function () {},
+                        calendarIds: function (states) { return Object.keys(states).filter(function (k) { return k.indexOf('calendar.') === 0; }).sort(); } };
+  return window.hkStrategy.generate({ music: false }, hass).then(function (g) {
+    var paths = g.views.map(function (v) { return v.path; });
+    ok('a calendar: a Calendar page, after Weather', paths.indexOf('calendar') === paths.indexOf('weather') + 1, paths);
+    var v = g.views.filter(function (x) { return x.path === 'calendar'; })[0];
+    ok('...titled, under a back button, the calendar card in its column', v.title === 'Calendar' && v.subview === true &&
+       v.cards[0].cards[0].type === 'custom:hk-back-card' && v.cards[1].cards[0].type === 'custom:hk-calendar-card', v);
+    board = { pages: ['weather', 'lights'] };
+    return window.hkStrategy.generate({ music: false }, hass);
+  }).then(function (g) {
+    ok('a screen whose pages leave it out has none', g.views.map(function (v) { return v.path; }).indexOf('calendar') < 0);
+    board = { pages: ['calendar', 'weather'] };
+    return window.hkStrategy.generate({ music: false }, hass);
+  }).then(function (g) {
+    var paths = g.views.map(function (v) { return v.path; });
+    ok('...one that lists it first has it first', paths[1] === 'calendar' && paths[2] === 'weather', paths);
+    board = {};
+    delete S['calendar.home'];
+    return window.hkStrategy.generate({ music: false }, hass);
+  }).then(function (g) {
+    ok('no calendar: no Calendar page', g.views.map(function (v) { return v.path; }).indexOf('calendar') < 0);
+    var sb = window.hkStrategy.saverBlock ? window.hkStrategy.saverBlock(hass, { tablet_user: 'Kitchen', screensaver: true,
+      screensaver_options: { calendar: true, calendar_days: 4 } }) : null;
+    ok('the screensaver block carries the calendar pane and its days', !!sb && sb.calendar === true && sb.calendar_days === 4, sb);
+    window.hkSettings = saved;
+  });
+}).then(function () {
   print(fail ? 'FAIL ' + fail + ' STRATEGY TESTS' : 'ALL ' + pass + ' STRATEGY TESTS PASS');
 }).catch(function (e) { print('Exception: ' + e + ' ' + (e.stack || '')); });

@@ -17,6 +17,7 @@
 
 **Look**
 * [Weather](Weather.md)
+* [Calendar](Calendar.md)
 * [Appearance](Appearance.md)
 * [The live sky](Live-Sky.md)
 * [Seasonal decorations](Seasonal-Decorations.md)

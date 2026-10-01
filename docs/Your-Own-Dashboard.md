@@ -83,6 +83,8 @@ hk_screensaver:
   fallback: true       # no photos: the forecast (false: a dark screen)
   band: true           # the forecast’s details on the forecast
   band_photos: false   # ...and over the photos
+  calendar: false      # the calendar pane, down the right
+  calendar_days: 2     # ...today and tomorrow (1 to 7 days)
   cards:
     - type: custom:hk-clock-card
     - type: custom:hk-weather-strip-card

@@ -85,6 +85,28 @@ photo shows; its sky only moves while it is on screen.
   the sky holds still only when the browser reports the page as hidden.
 - A tap anywhere closes it. There are no photos to page through.
 
+### The calendar pane
+
+![The photo screensaver with the calendar pane: Home Status at its top, the events, and what plays and the timers at its foot](images/tablet-screensaver-calendar.png)
+
+**Screensaver Options → Calendar Pane** lists the coming events down the
+right of the screen: today, tomorrow and as many days after as **Days** says
+(up to 7), from the calendars in [All Screens → Calendar](Calendar.md), each in
+its calendar’s colour. All-day events come first; today’s past events are
+dimmed, and the next one says how soon (“in 46 min”).
+
+- The photos move over beside it, so the middle of each photo stays in view;
+  behind the pane is a blurred copy of the photo. On the forecast the pane
+  turns the night sky’s navy, and the forecast stands up beside it, as it
+  does on a phone: today on top, the hours, then the days.
+- The pane is one column of what is going on: Home Status at its top (on as
+  many lines as it needs, the list starting below it), the events, and at its
+  foot what is playing and the running timers. The clock, the date and the
+  weather stay over the photos.
+- **A swipe on the pane scrolls it** without closing the screensaver, the one
+  place a finger doesn’t. A touch anywhere else closes it, as always. Left
+  alone for 45 seconds, the pane scrolls back to today.
+
 ### Its switch and In Use sensor
 
 You create nothing. As soon as a screen has **Photo Screensaver** on and a
@@ -254,6 +276,8 @@ hk_screensaver:
   fallback: true       # no photos: the forecast (false: a dark screen)
   band: true           # the forecast’s details on the forecast
   band_photos: false   # ...and over the photos
+  calendar: false      # the calendar pane, down the right
+  calendar_days: 2     # ...today and tomorrow (1 to 7 days)
   cards:
     - type: custom:hk-clock-card
     - type: custom:hk-weather-strip-card

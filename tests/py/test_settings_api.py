@@ -536,3 +536,25 @@ def test_copy_settings_covers_every_screen_setting_and_round_trips():
     assert err == {}, err
     assert got["screensaver_options"]["show"] == "both" and got["frost"] == 70 and got["tab_size"] == "xl"
     assert got["tablet_user"] == "" and got["idle_room"] == "", "the tablet's own are never copied"
+
+
+def test_the_calendars_and_their_colours_are_checked():
+    """All Screens -> Calendar: calendar entities only, each once; a colour
+    is a page pill colour, an empty one dropped."""
+    from custom_components.hk_frontend.settings_api import HOUSE, Invalid
+    ents, cols = HOUSE["calendar.entities"], HOUSE["calendar.colors"]
+    assert ents(["calendar.home", "calendar.home", "calendar.school"]) == ["calendar.home", "calendar.school"]
+    assert ents(None) == [] and ents([]) == []
+    for bad in (["light.kitchen"], "calendar.home", [1]):
+        try:
+            ents(bad)
+        except Invalid:
+            continue
+        raise AssertionError(bad)
+    assert cols({"calendar.home": "blue", "calendar.school": ""}) == {"calendar.home": "blue"}
+    for bad in ({"calendar.home": "magenta"}, {"light.x": "blue"}, ["calendar.home"]):
+        try:
+            cols(bad)
+        except Invalid:
+            continue
+        raise AssertionError(bad)

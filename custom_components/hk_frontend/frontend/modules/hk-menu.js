@@ -222,7 +222,7 @@
   // not a page.
   // A dashboard item's page order (settings `pages`: kinds, `browse`, custom
   // page addresses) as view paths. Empty: none set, the chips rule.
-  var PAGE_PATHS = { weather: 'weather', cameras: 'cameras', live_tv: 'live-tv', security: 'security',
+  var PAGE_PATHS = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', live_tv: 'live-tv', security: 'security',
                      doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
                      vacuums: 'vacuums', music: 'playmusic', browse: 'music-browse', water: 'water' };
   function pagePaths(pages, custom) {

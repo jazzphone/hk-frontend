@@ -66,7 +66,11 @@
             // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
             saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
                      weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true,
-                     forecast_every: 5, band: true, band_photos: false } },
+                     forecast_every: 5, band: true, band_photos: false, calendar: false, calendar_days: 2 } },
+    // The Calendar page and the screensaver's calendar pane (All Screens ->
+    // Calendar): the calendars shown, in order (empty: every calendar), and
+    // each one's colour (a page pill colour)
+    calendar: { entities: [], colors: {} },
     // Browse Music (Configure -> Browse Music). The Discover rows arrive as
     // the queries themselves (settings.py discover_rows); these are its
     // default five.
@@ -378,6 +382,22 @@
     return ids[0] || null;
   }
 
+  // THE CALENDARS: the chosen ones, in their order, that exist -- or, when
+  // none is chosen, every calendar in the house, A to Z. And each one's
+  // colour: its own, else the next of CAL_COLORS by its place in the list.
+  var CAL_COLORS = ['orange', 'green', 'purple', 'blue', 'pink', 'yellow', 'teal', 'red', 'mint', 'white'];
+  function calendarIds(states) {
+    var mine = get('calendar.entities') || [];
+    if (mine.length) return mine.filter(function (id) { return !!st(states, id); });
+    return Object.keys(states || {}).filter(function (k) { return k.indexOf('calendar.') === 0; }).sort();
+  }
+  function calendarColor(id, states) {
+    var own = (get('calendar.colors') || {})[id];
+    if (own) return own;
+    var i = calendarIds(states).indexOf(id);
+    return CAL_COLORS[(i < 0 ? 0 : i) % CAL_COLORS.length];
+  }
+
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
   // { time: 'HH:MM', date: 'YYYY-MM-DD' } from the Time & Date sensors when
@@ -589,6 +609,8 @@
       });
     },
     weatherId: weatherId,
+    calendarIds: calendarIds,
+    calendarColor: calendarColor,
     clock: clock,
     moon: moon,
     seasonName: seasonName,

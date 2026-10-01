@@ -49,6 +49,24 @@
   var MOVE_PX = 12;                        // a mouse has to MOVE, not jitter
   var ZOOM = 1.1;                          // Slow Zoom's end scale
   var DEFAULT_CARD_WIDTH = 600;
+  // THE FORECAST DETAILS' ZONE: the meadow, below the land's tree line --
+  // 35.6 % of the art from its bottom (the 2560x1600 landscapes). The art
+  // covers the screen from the bottom, so that is 35.6 % of the height on a
+  // screen no wider than 16:10, and of the width / 1.6 on a wider one. The
+  // details are centred in it, up and down and side to side.
+  var BAND_ZONE = 'max(35.6vh,22.25vw)';
+  var BAND_PAD = 16;                       // ...never nearer the bottom than this
+  // THE SAME BAND ON EVERY SCREEN: laid out as on a 1280x800 tablet (1280
+  // less the 30 px sides) and, on a bigger screen, scaled up to it whole --
+  // never its hours and days stretched apart, never left small
+  var BAND_MAX = 1220, BAND_W = 1280, BAND_H = 800;
+  // THE CALENDAR PANE (1.4, option `calendar`): 400 px down the right of a
+  // 1280 x 800 tablet, scaled with the band on a bigger screen. The photos
+  // (or the forecast) take the rest; beside the pane the forecast details
+  // stand up, as on a phone, no wider than BAND_STACKED.
+  var PANE_W = 400, BAND_STACKED = 680, BAND_PAD_STACKED = 30;
+  var PANE_TOP = 74;                       // Home Status sits above the list (at least)
+  var PANE_RESET_MS = 45000;               // untouched this long: back to today
 
   // ------------------------------------------------------------ pure helpers
   // (exported on hkSaver._ for tests/test_saver.js)
@@ -72,6 +90,9 @@
       // the forecast details (the band): on the forecast, and over the photos
       band: raw.band !== false,
       band_photos: raw.band_photos === true,
+      // the calendar pane down the right (1.4), and the days it lists
+      calendar: raw.calendar === true,
+      calendar_days: n(raw.calendar_days, 1, 7, 2),
       // no photos: the forecast (default), or a dark screen
       fallback: raw.fallback !== false,
       cards: Array.isArray(raw.cards) ? raw.cards.filter(function (c) {
@@ -174,6 +195,14 @@
     var r = main && main.shadowRoot && main.shadowRoot.querySelector('partial-panel-resolver');
     return (r && r.querySelector && r.querySelector('ha-panel-lovelace')) || null;
   }
+  // the font the dashboard's view draws in (its theme is on the view)
+  function viewFont() {
+    try {
+      var p = panel(), hr = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
+      var v = hr && hr.shadowRoot && hr.shadowRoot.querySelector('hui-view-container');
+      return v ? getComputedStyle(v).fontFamily : '';
+    } catch (e) { return ''; }
+  }
 
   // ------------------------------------------------------------ state
   var cfg = null;              // the config in force (null: none here)
@@ -187,6 +216,9 @@
   // THE FORECAST (1.3): the live sky over the season's land (hkSky.scene),
   // with the forecast band -- when a screen asks for it, or has no photos
   var mode = 'photos', fscene = null, fband = null, fTick = null, fSig = '';
+  // THE CALENDAR PANE (option `calendar`): its element, its scroller, the
+  // card in it, its width now, and the timer that scrolls it back to today
+  var paneEl = null, paneSc = null, paneCard = null, paneW = 0, paneResetT = null;
   // Photos & Forecast: the forecast as one slide every `forecast_every`
   // photos, over the photos, its sky still whenever it is not on screen
   var fcShowing = false, sinceFc = 0;
@@ -279,8 +311,28 @@
 
   // ------------------------------------------------------------ input
   var mx = null, my = null;
+  // A TOUCH ON THE CALENDAR PANE scrolls it: the one place on the
+  // screensaver a finger does not take it away
+  function inPane(e) {
+    if (!paneEl || !cfg || !cfg.calendar) return false;
+    var path = e.composedPath ? e.composedPath() : [];
+    if (path.indexOf(paneEl) >= 0) return true;
+    var x = e.clientX != null ? e.clientX : (e.touches && e.touches[0] && e.touches[0].clientX);
+    return x != null && x >= (window.innerWidth || 0) - paneW;
+  }
+  function paneTouched() {
+    if (paneResetT) clearTimeout(paneResetT);
+    paneResetT = setTimeout(function () {
+      paneResetT = null;
+      if (paneSc) { try { paneSc.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { paneSc.scrollTop = 0; } }
+    }, PANE_RESET_MS);
+  }
   function onInput(e) {
     var t = e.type;
+    if (on && t !== 'keydown' && inPane(e)) {
+      if (t !== 'pointermove' && t !== 'mousemove') paneTouched();
+      return;
+    }
     if (on) {
       // A MOUSE has to move, a finger just has to land.
       if (t === 'pointermove' || t === 'mousemove') {
@@ -295,11 +347,10 @@
       if ((t === 'touchstart' || t === 'mousedown') && window.PointerEvent) return;
       if (t === 'pointerdown' || t === 'touchstart' || t === 'mousedown') {
         var x = t === 'touchstart' ? (e.touches && e.touches[0] && e.touches[0].clientX) : e.clientX;
-        var z = zoneOf(x, window.innerWidth || 0);
-        if (z && mode !== 'forecast') {
-          hideForecastSlide();
-          if (z === 'next') nextPhoto(); else previousPhoto();
-        }
+        // the edges of the PHOTOS: beside the calendar pane, its left edge
+        var z = zoneOf(x, (window.innerWidth || 0) - (cfg && cfg.calendar ? paneW : 0));
+        // (off the forecast slide too: the photo comes in under it first)
+        if (z && mode !== 'forecast') { if (z === 'next') nextPhoto(); else previousPhoto(); }
         else stop('touch');
         return;
       }
@@ -320,7 +371,13 @@
   var CSS = [
     ':host{position:fixed;inset:0;z-index:2147483000;display:block;background:#000;opacity:0;',
     '  transition:opacity var(--fade,3000ms) ease;touch-action:none;user-select:none;-webkit-user-select:none;',
-    '  -webkit-tap-highlight-color:transparent;cursor:none;contain:strict}',
+    '  -webkit-tap-highlight-color:transparent;cursor:none;contain:strict;',
+    // THE DASHBOARD'S FONT (SF Pro under HK Kiosk). This element hangs off
+    // <body>, outside the view its theme is put on, so it does not inherit
+    // it: it fell back to Roboto, whose weight-200 forecast numeral looks
+    // squeezed beside the Weather page's. build() copies the view's font
+    // onto --hk-saver-font; the theme's root variable is the fallback.
+    '  font-family:var(--hk-saver-font,var(--ha-font-family-body,Roboto,Noto,sans-serif))}',
     ':host([on]){opacity:1}',
     // after a touch stop the element stays, invisible, to swallow taps
     ':host([blocking]){background:transparent;cursor:default}',
@@ -361,7 +418,9 @@
     ':host([forecast]) .ph{display:none}',
     // the forecast's own layer, over the photos: shown outright ([forecast]),
     // or faded in as one slide among the photos ([fcslide])
-    '.fc{position:absolute;inset:0;opacity:0;pointer-events:none;will-change:opacity;',
+    // (opaque: the sky is drawn a moment after the layer is built, and no
+    // photo may show through it meanwhile)
+    '.fc{position:absolute;inset:0;opacity:0;pointer-events:none;will-change:opacity;background:#000;',
     '  transition:opacity ' + CROSSFADE_MS + 'ms ease}',
     ':host([forecast]) .fc,:host([fcslide]) .fc{opacity:1}',
     '.fsky{position:absolute;inset:0}',
@@ -369,7 +428,12 @@
     // as bright as the band's text. Static (no blur), so it costs no frames.
     '.fcscrim{position:absolute;left:0;right:0;bottom:0;height:48%;pointer-events:none;',
     '  background:linear-gradient(to bottom,rgba(6,10,18,0) 0%,rgba(6,10,18,.5) 30%,rgba(6,10,18,.66) 100%)}',
-    '.fcband{position:absolute;left:30px;right:30px;bottom:26px;pointer-events:none}',
+    // column-reverse with auto margins: centred while it fits; a band
+    // taller than the zone (a small screen) keeps to the bottom and grows up
+    '.fcband{position:absolute;left:30px;right:30px;bottom:0;height:' + BAND_ZONE + ';box-sizing:border-box;',
+    '  padding:' + BAND_PAD + 'px 0;display:flex;flex-direction:column-reverse;pointer-events:none}',
+    '.fcband > *{margin:auto 0;flex:none;width:100%;max-width:' + BAND_MAX + 'px;align-self:center;',
+    '  transform:translateX(var(--hk-band-shift,0px))}',
     // THE FORECAST DETAILS (the band: today, the hours, the days) on a layer
     // of their own, so they can show over the forecast OR the photos
     // (options band / band_photos); the weather line steps aside for them
@@ -386,12 +450,38 @@
     // while fading (a layer made and dropped at every forecast slide)
     '.info > hk-weather-strip-card{transition:opacity ' + CROSSFADE_MS + 'ms ease;will-change:opacity}',
     ':host([band]) .info > hk-weather-strip-card{opacity:0}',
+    // THE CALENDAR PANE ([cal]): the photo beside it, its own blurred copy
+    // under the pane (the backdrop img, always shown), the forecast and its
+    // details beside it too -- the sky held to its box, not the screen
+    ':host([cal]) .ph img.fg{width:calc(100% - var(--hk-pane-w,0px))}',
+    ':host([cal]) .ph img.bg[hidden]{display:block}',
+    ':host([cal]) .fc,:host([cal]) .fcb{right:var(--hk-pane-w,0px)}',
+    ':host([cal]) #hk-sky.own{position:absolute}',
+    '.pane{position:absolute;top:0;right:0;bottom:0;width:var(--hk-pane-w,' + PANE_W + 'px);display:none;',
+    '  border-left:1px solid rgba(255,255,255,0.10);background:linear-gradient(to bottom,rgba(8,12,22,0.30),rgba(8,12,22,0.60));',
+    '  color:#fff;cursor:default}',
+    ':host([cal]) .pane{display:block}',
+    // on the forecast it is the night sky's navy, faded in and out with it
+    // (a layer of its own for good, like every fading layer here)
+    '.pane::before{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(14,22,40,0.97),rgba(8,12,22,0.99));',
+    '  opacity:0;transition:opacity ' + CROSSFADE_MS + 'ms ease;will-change:opacity}',
+    ':host([forecast]) .pane::before,:host([fcslide]) .pane::before{opacity:1}',
+    // the list between Home Status (above) and what plays and the timers
+    // (its foot, below), each as tall as it is now (paneStack)
+    '.pane .sc{position:absolute;left:0;right:0;top:var(--hk-pane-top,' + PANE_TOP + 'px);bottom:var(--hk-pane-bottom,0px);overflow-y:auto;overflow-x:hidden;',
+    '  padding:0 var(--hk-pane-pad,28px);box-sizing:border-box;border-top:1px solid rgba(255,255,255,0.10);touch-action:pan-y;',
+    '  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;',
+    '  -webkit-mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 90px),transparent 100%);',
+    '  mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 90px),transparent 100%)}',
+    '.pane .sc::-webkit-scrollbar{display:none}',
     '@media (prefers-reduced-motion:reduce){.ph{transition:none}.ph.zoom img.fg{animation:none}}'
   ].join('\n');
 
   function build() {
     host = document.createElement('hk-screensaver');
     root = host.attachShadow({ mode: 'open' });
+    var font = viewFont();
+    if (font) host.style.setProperty('--hk-saver-font', font);
     var st = document.createElement('style'); st.textContent = CSS; root.appendChild(st);
     for (var i = 0; i < 2; i++) {
       var ph = document.createElement('div'); ph.className = 'ph';
@@ -399,6 +489,9 @@
       var fg = document.createElement('img'); fg.className = 'fg'; fg.alt = '';
       ph.appendChild(bg); ph.appendChild(fg); root.appendChild(ph);
     }
+    var pane = document.createElement('div'); pane.className = 'pane';
+    var sc = document.createElement('div'); sc.className = 'sc'; pane.appendChild(sc); root.appendChild(pane);
+    paneEl = pane; paneSc = sc; paneCard = null;
     var info = document.createElement('div'); info.className = 'info'; root.appendChild(info);
     // taps on the screensaver itself: the window listener above has already
     // decided (edge zone or stop); here they are only kept from reaching
@@ -418,7 +511,9 @@
       root.querySelectorAll('img').forEach(function (im) { im.removeAttribute('src'); });
       host.remove();
     }
-    host = null; root = null;
+    host = null; root = null; paneEl = null; paneSc = null; paneCard = null;
+    if (paneT) { clearInterval(paneT); paneT = null; }
+    if (paneResetT) { clearTimeout(paneResetT); paneResetT = null; }
   }
   function buildCards(info) {
     var h = hassNow();
@@ -430,6 +525,10 @@
         try {
           var el = document.createElement(tag);
           var conf = Object.assign({}, c, { type: c.type });
+          // Home Status at the top of the calendar pane: sized for it
+          if (cfg.calendar && tag === 'hk-screensaver-status-card') { conf.line1_size = '22px'; conf.line_size = '16px'; conf.align = 'left'; }
+          // ...and the timers in its foot
+          if (cfg.calendar && tag === 'hk-timer-strip-card') conf.scale = Math.round(1.15 * scaleOf() * 100) / 100;
           el.setConfig(conf);
           if (h) el.hass = h;
           info.appendChild(el);
@@ -461,6 +560,7 @@
     tellOthers();
     if (reason !== 'switch') writeSwitch('on');
     resetForecast();            // an element still fading out is reused
+    setupPane();
     if (cfg.show === 'forecast') enterForecast();
     else { updateBand(); showNext(true); }
     return true;
@@ -571,8 +671,14 @@
       });
     }
     attempt().then(function (ph) {
-      if (ph && on) paint(ph, first);
+      // OFF THE FORECAST SLIDE: the next photo is loaded first, put under
+      // the forecast at once, and only then does the forecast fade -- to that
+      // photo alone. Faded first, it showed the photo from before the
+      // forecast, then the next one cross-fading in over it, both through the
+      // fading forecast (the "photo behind the forecast").
+      if (ph && on) paint(ph, first || fcShowing);
     }).catch(function () { /* nothing to show: stay on the last photo */ }).then(function () {
+      if (mode !== 'forecast') hideForecastSlide();
       busy = false;
       if (!on) return;
       if (mode === 'forecast') { queued = null; return; }
@@ -587,7 +693,7 @@
       if (!on || !cfg) return;             // stopped (its config gone) meanwhile
       // a hidden page (a backgrounded tab) does not turn photos
       if (document.hidden) { schedule(); return; }
-      if (fcShowing) { hideForecastSlide(); showNext(false); return; }
+      if (fcShowing) { showNext(false); return; }    // advance() takes the slide away
       if (cfg.show === 'both' && sinceFc >= cfg.forecast_every) { showForecastSlide(); schedule(); return; }
       showNext(false);
     }, cfg.each_photo * 1000);
@@ -601,17 +707,22 @@
     next.classList.remove('zoom');
     next.style.setProperty('--fit', fit.fit);
     fg.src = ph.url;
-    if (fit.backdrop) { bg.src = ph.url; bg.hidden = false; } else { bg.hidden = true; bg.removeAttribute('src'); }
+    // (with the calendar pane the blurred copy is always there: it is the
+    // pane's background)
+    if (fit.backdrop || cfg.calendar) { bg.src = ph.url; bg.hidden = false; } else { bg.hidden = true; bg.removeAttribute('src'); }
     if (cfg.zoom) {
       next.style.setProperty('--zd', (cfg.each_photo * 1000 + CROSSFADE_MS) + 'ms');
       void next.offsetWidth;               // restart the zoom from 1
       next.classList.add('zoom');
     }
-    // the first photo appears with the screensaver's own fade, not a cross-fade
-    if (first) { next.style.transition = 'none'; void next.offsetWidth; }
+    // the first photo appears with the screensaver's own fade, not a cross-fade;
+    // one put under the forecast slide is there at once -- and the photo it
+    // replaces gone at once, or (the upper of the two layers) it would still
+    // be fading out over the new one as the forecast goes
+    if (first) { next.style.transition = cur.style.transition = 'none'; void next.offsetWidth; }
     next.classList.add('top');
     cur.classList.remove('top');
-    if (first) requestAnimationFrame(function () { next.style.transition = ''; });
+    if (first) requestAnimationFrame(function () { next.style.transition = cur.style.transition = ''; });
     layer = 1 - layer;
     shown++; sinceFc++; lastPhoto = ph.item.title || ph.item.id;
     // the old layer's photo can go once the cross-fade is over
@@ -720,6 +831,111 @@
       if (host.style.removeProperty) host.style.removeProperty('--hk-ss-corner-bottom');
     }
   }
+  // ------------------------------------------------------------ the pane
+  // the band's and the pane's scale: a 1280 x 800 tablet's layout, scaled up
+  // whole on a bigger screen
+  function scaleOf() {
+    var W = window.innerWidth || 0, H = window.innerHeight || 0;
+    if (!W) return 1;
+    return Math.max(1, Math.floor(Math.min(W / BAND_W, (H || BAND_H) / BAND_H) * 100) / 100);
+  }
+  var PANE_VARS = ['--hk-pane-w', '--hk-ss-status-right', '--hk-ss-status-top', '--hk-ss-status-width', '--hk-pane-top',
+                   '--hk-pane-bottom', '--hk-ss-now-left', '--hk-ss-now-max', '--hk-ss-now-bottom', '--hk-ss-np-art',
+                   '--hk-ss-np-title', '--hk-ss-np-artist', '--hk-ss-np-gap', '--hk-ss-timers-left', '--hk-ss-timers-right',
+                   '--hk-ss-timers-max', '--hk-ss-timers-bottom', '--hk-pane-pad'];
+  var paneT = null;
+  function setupPane() {
+    if (!host) return;
+    if (!cfg.calendar) {
+      host.removeAttribute('cal');
+      if (host.style.removeProperty) PANE_VARS.forEach(function (v) { host.style.removeProperty(v); });
+      paneW = 0;
+      if (paneT) { clearInterval(paneT); paneT = null; }
+      if (paneCard) { cards = cards.filter(function (c) { return c !== paneCard; }); paneCard.remove(); paneCard = null; }
+      return;
+    }
+    host.setAttribute('cal', '');
+    layoutPane();
+    // what Home Status, the music and the timers take comes and goes with
+    // the house: measured again every moment (a few rect reads)
+    if (!paneT) paneT = setInterval(function () { if (on) paneStack(); }, 1500);
+    var tag = 'hk-calendar-pane-card', days = cfg.calendar_days;
+    if (paneCard) {
+      if ((paneCard._config || {}).days !== days) paneCard.setConfig({ type: 'custom:' + tag, days: days });
+      return;
+    }
+    var make = function () {
+      if (!host || !paneSc || paneCard || !cfg || !cfg.calendar) return;
+      try {
+        var el = document.createElement(tag);
+        el.setConfig({ type: 'custom:' + tag, days: cfg.calendar_days });
+        var h = hassNow();
+        if (h) el.hass = h;
+        paneSc.appendChild(el);
+        cards.push(el);
+        paneCard = el;
+        layoutPane();
+      } catch (e) { console.warn('[hk-saver] calendar pane', e); }
+    };
+    if (customElements.get(tag)) make();
+    else if (customElements.whenDefined) customElements.whenDefined(tag).then(make);
+  }
+  // its width and Home Status's place in it, for this screen (and again
+  // every few seconds: a tablet turned, a window resized)
+  function layoutPane() {
+    if (!host || !cfg || !cfg.calendar) return;
+    var z = scaleOf(), w = Math.round(PANE_W * z);
+    // the list scaled with the screen (its card may arrive after the width)
+    if (paneCard && (paneCard.style.zoom || '1') !== String(z)) paneCard.style.zoom = z === 1 ? '' : String(z);
+    if (w === paneW && host.style.getPropertyValue && host.style.getPropertyValue('--hk-pane-w')) return;
+    paneW = w;
+    var W = window.innerWidth || 0, px = function (n) { return Math.round(n * z) + 'px'; };
+    host.style.setProperty('--hk-pane-w', w + 'px');
+    // one margin for everything in the pane: the list, Home Status, its foot
+    host.style.setProperty('--hk-pane-pad', px(28));
+    // WHAT PLAYS AND THE TIMERS, in the pane's foot (hk-media.js,
+    // hk-timers.js): on its 28 px margins, left-aligned with the list,
+    // smaller than in a corner of the photos
+    host.style.setProperty('--hk-ss-now-left', (W - w + Math.round(28 * z)) + 'px');
+    host.style.setProperty('--hk-ss-now-max', (w - Math.round(56 * z)) + 'px');
+    host.style.setProperty('--hk-ss-np-art', px(64));
+    host.style.setProperty('--hk-ss-np-title', px(20));
+    host.style.setProperty('--hk-ss-np-artist', px(16));
+    host.style.setProperty('--hk-ss-np-gap', px(14));
+    host.style.setProperty('--hk-ss-timers-left', (W - w + Math.round(28 * z)) + 'px');
+    host.style.setProperty('--hk-ss-timers-right', px(28));
+    host.style.setProperty('--hk-ss-timers-max', (w - Math.round(56 * z)) + 'px');
+    host.style.setProperty('--hk-ss-status-right', Math.round(28 * z) + 'px');
+    host.style.setProperty('--hk-ss-status-top', Math.round(26 * z) + 'px');
+    host.style.setProperty('--hk-ss-status-width', (w - Math.round(56 * z)) + 'px');
+    paneStack();
+  }
+  // THE PANE'S LIST between Home Status (one line, or two or three when
+  // much is open) and its foot (what plays above the running timers, each
+  // only while there is one): measured, so nothing overlaps whatever shows
+  function paneStack() {
+    if (!host || !root || !cfg || !cfg.calendar) return;
+    var z = scaleOf(), pad = Math.round(22 * z), gap = Math.round(14 * z);
+    var hOf = function (tag, sel) {
+      var el = null;
+      for (var i = 0; i < cards.length; i++) if (cards[i].localName === tag) { el = cards[i]; break; }
+      var n = el && el.shadowRoot && el.shadowRoot.querySelector(sel);
+      if (!n || !n.getBoundingClientRect) return null;
+      var r = n.getBoundingClientRect();
+      return r.height > 1 ? r : null;
+    };
+    var st = hOf('hk-screensaver-status-card', '.sscorner');
+    var np = hOf('hk-screensaver-now-card', '.sscorner');
+    var tm = hOf('hk-timer-strip-card', 'div[style*="position:fixed"]');
+    var tH = tm ? Math.round(tm.height) : 0, nH = np ? Math.round(np.height) : 0;
+    var set = function (k, v) { if (host.style.getPropertyValue(k) !== v) host.style.setProperty(k, v); };
+    set('--hk-pane-top', Math.max(Math.round(PANE_TOP * z), st ? Math.round(st.bottom + 16 * z) : 0) + 'px');
+    set('--hk-ss-timers-bottom', pad + 'px');
+    set('--hk-ss-now-bottom', (pad + (tH ? tH + gap : 0)) + 'px');
+    var stack = nH + tH + (nH && tH ? gap : 0);
+    set('--hk-pane-bottom', (stack ? stack + pad + Math.round(18 * z) : 0) + 'px');
+  }
+
   // the weather band: today's conditions, the next hours and the coming days
   function addBand(box) {
     var tag = 'hk-weather-band-card';
@@ -730,15 +946,55 @@
       if (!wid) return;
       try {
         var el = document.createElement(tag);
-        el.setConfig({ type: 'custom:' + tag, entity: wid, hours: 12, days: 6 });
+        // beside the calendar pane: stood up, as on a phone, with fewer hours
+        el.setConfig({ type: 'custom:' + tag, entity: wid, hours: cfg.calendar ? 8 : 12, days: 6, plain: true,
+                       narrow: !!cfg.calendar });
         if (h) el.hass = h;
         box.appendChild(el);
         cards.push(el);
         fband = el;
+        // centred as soon as it has drawn, not at the next tick
+        setTimeout(function () { if (fband === el && el.isConnected) centerBand(el); }, 250);
       } catch (e) { console.warn('[hk-saver] forecast band', e); }
     };
     if (customElements.get(tag)) make();
     else if (customElements.whenDefined) customElements.whenDefined(tag).then(make);
+  }
+  // SIDE TO SIDE BY WHAT IS DRAWN, not by the card's box: its left column
+  // is a fixed 300 px with today's stack centred in it, and its hours and
+  // days are centred in their cells, so the box centred leaves more empty
+  // screen on the left than on the right. The text's own left and right
+  // edges are measured and the band shifted until the two margins match.
+  function centerBand(card) {
+    var sr = card.shadowRoot, W = window.innerWidth || 0, H = window.innerHeight || 0;
+    if (!sr || !W) return;
+    // the scale first (a bigger screen: the tablet's band, bigger) -- CSS
+    // zoom, so it lays out as on the tablet and takes its scaled room
+    var z = scaleOf();
+    if (String(z) !== (card.style.zoom || '1')) card.style.zoom = z === 1 ? '' : String(z);
+    // BESIDE THE CALENDAR PANE: the photos' (the land's) width is the room,
+    // the band stands up no wider than BAND_STACKED, and its zone is the
+    // meadow of the land as it covers that narrower box
+    var RW = W - (cfg && cfg.calendar ? paneW : 0), box = card.parentNode;
+    if (box && box.style) {
+      if (cfg && cfg.calendar) {
+        box.style.height = Math.round(Math.max(0.356 * H, 0.2225 * RW)) + 'px';
+        box.style.padding = BAND_PAD_STACKED + 'px 0';
+        card.style.maxWidth = BAND_STACKED + 'px';
+      } else {
+        box.style.height = ''; box.style.padding = ''; card.style.maxWidth = '';
+      }
+    }
+    var lo = Infinity, hi = -Infinity;
+    sr.querySelectorAll('.now > *, .cell > *').forEach(function (e) {
+      var q = e.getBoundingClientRect();
+      if (q.width) { lo = Math.min(lo, q.left); hi = Math.max(hi, q.right); }
+    });
+    if (!(hi > lo)) return;
+    var cur = parseFloat(card.style.getPropertyValue('--hk-band-shift')) || 0;
+    // (the shift is in the band's own pixels, which the zoom scales)
+    var want = Math.round(cur + ((RW - hi) - lo) / 2 / z);
+    if (Math.abs(want - cur) >= 1) card.style.setProperty('--hk-band-shift', want + 'px');
   }
   // Every few seconds: the sky follows the sun and the weather; it holds still
   // while the screen is dark (Fully Kiosk's own screensaver or screen off --
@@ -762,9 +1018,11 @@
     } catch (e) { /* no Fully interface */ }
     // not on screen (between forecast slides) holds still too
     if (fscene) fscene.pause(dark || !fcVisible());
+    layoutPane();
     if (host && root) {
-      var b = root.querySelector('.fcband'), r = b && b.getBoundingClientRect();
-      if (host.hasAttribute('band') && r && r.height) host.style.setProperty('--hk-ss-corner-bottom', Math.round(r.height + 26 + 18) + 'px');
+      var b = fband && fband.isConnected ? fband : null, r = b && b.getBoundingClientRect();
+      if (b) centerBand(b);
+      if (host.hasAttribute('band') && r && r.height) host.style.setProperty('--hk-ss-corner-bottom', Math.round((window.innerHeight || 0) - r.top + 18) + 'px');
       else if (host.style.removeProperty) host.style.removeProperty('--hk-ss-corner-bottom');
     }
   }
@@ -821,6 +1079,7 @@
   }
   window.addEventListener('location-changed', function () { setTimeout(refresh, 0); });
   window.addEventListener('popstate', function () { setTimeout(refresh, 0); });
+  window.addEventListener('resize', function () { if (on) layoutPane(); });
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) { lastInput = Date.now(); armIdle(); }
   });
@@ -867,7 +1126,8 @@
                blocking: Date.now() < blockUntil, switch: switchState(),
                mode: on ? mode : null, land: fscene && fscene.landShown ? fscene.landShown() || null : null,
                forecastSlide: on && fcShowing, sinceForecast: sinceFc, preview: previewOn,
-               band: !!(host && host.hasAttribute('band')) };
+               band: !!(host && host.hasAttribute('band')),
+               calendar: !!(host && host.hasAttribute('cal')), paneW: paneW, paneCard: !!paneCard };
     },
     _: { readCfg: readCfg, gate: gate, zoneOf: zoneOf, fitOf: fitOf, shuffle: shuffle, Deck: Deck, isImage: isImage,
          // tests: the slide without real photos to count

@@ -25,7 +25,7 @@ Built from your own rooms and devices, and set up entirely in the UI.
 
 ## Screens that build themselves
 
-Add a screen and HK Frontend builds it from your floors, areas and devices: the clock and weather, status chips, cameras, scenes, favorites, a section for every room, and a page for each room and each kind of device. A new light shows up on its own. The same screen works on a wall tablet, a computer, an iPad and a phone.
+Add a screen and HK Frontend builds it from your floors, areas and devices: the clock and weather, status chips, cameras, scenes, favorites, a section for every room, a page for each room and each kind of device, and a [calendar](https://github.com/jazzphone/hk-frontend/wiki/Calendar) of the month, week or day. A new light shows up on its own. The same screen works on a wall tablet, a computer, an iPad and a phone.
 
 <p align="center">
 <img src="docs/images/tablet-lights.png" width="49%" alt="The Lights page">
@@ -79,7 +79,7 @@ Add each from **Settings** → **Devices & services** → **HK Frontend** → **
 | **[Live TV](https://github.com/jazzphone/hk-frontend/wiki/Live-TV)** | An HDHomeRun tuner’s channels and guide, full screen on any screen |
 | **[Clean Areas](https://github.com/jazzphone/hk-frontend/wiki/Clean-Areas)** | Pick rooms and send the vacuums that reach them |
 | **[Alarm PIN](https://github.com/jazzphone/hk-frontend/wiki/Alarm-PIN)** | A PIN in front of an alarm panel that takes no code of its own |
-| **[Wall tablets](https://github.com/jazzphone/hk-frontend/wiki/Wall-Tablets)** | Return to Home when idle, a photo screensaver and a full-screen kiosk look |
+| **[Wall tablets](https://github.com/jazzphone/hk-frontend/wiki/Wall-Tablets)** | Return to Home when idle, a photo screensaver (with the coming events beside it, if you like) and a full-screen kiosk look |
 
 ## Help
 
