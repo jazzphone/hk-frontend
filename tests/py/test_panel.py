@@ -88,3 +88,32 @@ async def test_the_page_is_in_the_sidebar_and_configure_links_to_it(hass, fronte
     await hass.config_entries.options.async_configure(r["flow_id"], {"sidebar": True})
     await hass.async_block_till_done()
     assert hass.data[DATA_PANELS]["hk-settings"].show_in_sidebar is True
+
+
+async def test_a_renamed_dashboard_gives_its_screen_its_new_name(hass, frontend):
+    """HK Settings' pencil renames the dashboard with Home Assistant's own
+    lovelace/dashboards/update, then dashboard/titled: the screen's item takes
+    the title Home Assistant now has -- only that, and only for a dashboard
+    there is."""
+    from types import SimpleNamespace
+    from homeassistant.components.lovelace.const import LOVELACE_DATA
+    from homeassistant.config_entries import ConfigSubentry
+    from custom_components.hk_frontend.panel import ws_dashboard_titled
+    conn = await _admin(hass)
+    hass.config_entries.async_add_subentry(entry(hass), ConfigSubentry(
+        data={}, subentry_type="dashboard", title="Hall", unique_id="dashboard-hall"))
+    real = hass.data.get(LOVELACE_DATA)
+    hass.data[LOVELACE_DATA] = SimpleNamespace(dashboards={
+        "dashboard-hall": SimpleNamespace(config={"id": "dashboard_hall", "title": "Front Hall", "mode": "storage"})})
+    try:
+        ws_dashboard_titled(hass, conn, {"id": 1, "type": "hk_frontend/dashboard/titled", "dashboard": "dashboard-hall"})
+        assert conn.sent[-1]["success"] and conn.sent[-1]["result"] == {"title": "Front Hall"}, conn.sent[-1]
+        sub = next(s for s in entry(hass).subentries.values() if s.unique_id == "dashboard-hall")
+        assert sub.title == "Front Hall"
+        ws_dashboard_titled(hass, conn, {"id": 2, "type": "hk_frontend/dashboard/titled", "dashboard": "dashboard-gone"})
+        assert conn.sent[-1]["success"] is False
+    finally:
+        if real is None:
+            hass.data.pop(LOVELACE_DATA, None)
+        else:
+            hass.data[LOVELACE_DATA] = real

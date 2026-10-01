@@ -1358,6 +1358,19 @@
           }) }])] });
     }
 
+    // THE CALENDAR, when the house has a calendar (All Screens -> Calendar
+    // chooses which, and their colours -- read live by the card, so neither
+    // rebuilds anything): the month, week or day, and its events to add,
+    // change and delete.
+    var HS0 = window.hkSettings;
+    var cals = (HS0 && HS0.calendarIds ? HS0.calendarIds(hass.states)
+                : Object.keys(hass.states).filter(function (k) { return k.indexOf('calendar.') === 0; }))
+      .filter(function (id) { return !hidden(hass, opts, id); });
+    if (want('calendar') && cals.length) {
+      pages.calendar = view({ title: 'Calendar', path: 'calendar', subview: true, icon: 'mdi:calendar-month',
+        cards: [titleBar('Calendar'), column([{ type: 'custom:hk-calendar-card' }])] });
+    }
+
     // LIVE TV, when the Live TV feature is added (its guide knows the channels).
     if (want('live_tv') && added('live_tv')) {
       pages.live_tv = view({ title: 'Live TV', path: 'live-tv', subview: true, icon: 'mdi:television', menu: 'top',
@@ -1457,10 +1470,10 @@
     var play = out.filter(function (v) { return v.path === 'playmusic'; });
     var browse = out.filter(function (v) { return v.path === 'music-browse'; });
     out = out.filter(function (v) { return play.indexOf(v) < 0 && browse.indexOf(v) < 0; });
-    var KEY = { weather: 'weather', cameras: 'cameras', live_tv: 'live_tv', security: 'security',
+    var KEY = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', live_tv: 'live_tv', security: 'security',
                 doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
                 vacuums: 'vacuums', water: 'water' };
-    var order = picked.length ? picked : ['weather', 'cameras', 'live_tv', 'security', 'doors_windows', 'climate',
+    var order = picked.length ? picked : ['weather', 'calendar', 'cameras', 'live_tv', 'security', 'doors_windows', 'climate',
                                           'lights', 'timers', 'vacuums', 'music', 'water', 'rooms'];
     var placed = order.indexOf('browse') >= 0;
     var mine = listOf(b, 'custom_pages');
@@ -1723,6 +1736,7 @@
       show: o.show === 'forecast' || o.show === 'both' ? o.show : 'photos', fallback: o.fallback !== false,
       forecast_every: o.forecast_every || 5,
       band: o.band !== false, band_photos: o.band_photos === true,
+      calendar: o.calendar === true, calendar_days: o.calendar_days || 2,
       cards: cards.filter(function (c, i) { return keep[i]; })
     };
   }
@@ -1857,7 +1871,9 @@
     return JSON.stringify([mine, cams, setting('kinds'), setting('generated'),
                            setting('security'), setting('sky.moon'), setting('weather'), setting('features'),
                            ents, rest, setting('look.sky_switch'), setting('look.photos'),
-                           setting('extras'), setting('custom_pages'), setting('popups'), setting('added')]);
+                           setting('extras'), setting('custom_pages'), setting('popups'), setting('added'),
+                           // which calendars there are decides whether there is a Calendar page
+                           (setting('calendar') || {}).entities]);
   }
   var built = { seg: null, sig: null, at: 0, timer: null };
   // NOT UNDER A FINGER. A rebuild re-creates every card -- an open sheet

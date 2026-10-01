@@ -220,6 +220,22 @@ def _page_pills(v: Any) -> dict[str, dict[str, str]]:
     return out
 
 
+def _calendar_colors(v: Any) -> dict[str, str]:
+    """calendar entity -> a pill colour; an empty colour is dropped."""
+    if not isinstance(v, dict):
+        raise Invalid("list")
+    one = _entity("calendar")
+    out: dict[str, str] = {}
+    for ent, color in v.items():
+        ent = one(ent)
+        if color in (None, ""):
+            continue
+        if color not in PILL_COLORS:
+            raise Invalid("choice")
+        out[ent] = color
+    return out
+
+
 HOUSE: dict[str, Callable[[Any], Any]] = {
     "security.alarm": _entity("alarm_control_panel"),
     "features.temperature": SENSOR,
@@ -235,6 +251,8 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     **{f"weather.{k}": SENSOR for k in ("feels_like", "humidity", "wind", "gust", "uv", "forecast_daily",
                                         "forecast_hourly", "alerts", "outside")},
     "weather.radar": _card_options,
+    "calendar.entities": _entities("calendar"),
+    "calendar.colors": _calendar_colors,
     "look.glass": _choice(S.GLASS),
     "look.frost": _amount,
     "look.blur": _amount,

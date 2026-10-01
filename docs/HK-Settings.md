@@ -31,7 +31,7 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **What Counts**, **Weather**, **Appearance**, **Sky**, **Menu & Rooms**, **Wall Tablets** | Every screen |
+| **All Screens** | **General**, **What Counts**, **Weather**, **Calendar**, **Appearance**, **Sky**, **Menu & Rooms**, **Wall Tablets** | Every screen |
 | **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas** | Every screen |
 | **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |

@@ -561,6 +561,9 @@
     var fgDim = o.fgDim || 'rgba(255,255,255,0.76)';
     var pad = o.pad || '0px 0px 18px 24px';
     var minHeight = o.minHeight || '96px';
+    // right (a corner) or left (the screensaver's calendar pane, with the
+    // list under it)
+    var align = o.align === 'left' ? 'left' : 'right';
     var shadow = o.shadow ||
       'drop-shadow(0px 1px 3px rgba(0,0,0,0.30)) drop-shadow(0px 3px 12px rgba(0,0,0,0.28)) drop-shadow(0px 6px 26px rgba(0,0,0,0.30))';
 
@@ -588,7 +591,7 @@
 
     return '\n' +
       '    <div style="width:100%; min-height:' + minHeight + '; box-sizing:border-box; padding:' +
-      pad + '; text-align:right; overflow:hidden; filter:' + shadow + ';">\n' +
+      pad + '; text-align:' + align + '; overflow:hidden; filter:' + shadow + ';">\n' +
       '      ' + line(l1, line1Size, fg, null) + '\n' +
       '      ' + (l2 ? line(l2, lineSize, fgDim, '6px') : '') + '\n' +
       '      ' + (l3 ? line(l3, lineSize, fgDim, '4px') : '') + '\n' +

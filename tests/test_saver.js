@@ -96,6 +96,9 @@ ok('defaults: 180 s, 30 s, random, filled, no zoom, the house photos',
 ok('HK Frontend\'s own switch or the old input_boolean', U.readCfg({ entity: 'switch.kitchen_photo_screensaver' }).entity === 'switch.kitchen_photo_screensaver' &&
    U.readCfg({ entity: 'input_boolean.x' }).entity === 'input_boolean.x');
 ok('...anything else is ignored', U.readCfg({ entity: 'light.x' }).entity === null);
+ok('the calendar pane: off, two days, by default', d.calendar === false && d.calendar_days === 2);
+ok('...on, with the days asked for (1 to 7)', U.readCfg({ calendar: true, calendar_days: 5 }).calendar === true &&
+   U.readCfg({ calendar_days: 5 }).calendar_days === 5 && U.readCfg({ calendar_days: 30 }).calendar_days === 2);
 ok('nonsense timing falls back', U.readCfg({ starts_after: -5, each_photo: 'x' }).starts_after === 180 &&
    U.readCfg({ each_photo: 'x' }).each_photo === 30);
 ok('no block, no screensaver', U.readCfg(null) === null && U.readCfg('x') === null);
@@ -283,7 +286,11 @@ ok('...over the photos ([fcslide]), its sky moving', 'fcslide' in saverEl().attr
 ok('...WITH its forecast details (the band) -- they were missing from the slide', 'band' in saverEl().attrs && S.stats().band, saverEl().attrs);
 ok('...and the count starts again', S.stats().sinceForecast === 0);
 dispatchEvent({ type: 'pointerdown', clientX: 1250, clientY: 400, pointerType: 'touch' });
-ok('an edge tap on the forecast slide goes on to the next photo, still on', S.running() && !S.stats().forecastSlide, S.stats());
+// the forecast stays until the next photo is in under it (faded first, it
+// showed the photo from before it, then the next one cross-fading in)
+ok('an edge tap on the forecast slide keeps the forecast up while the next photo loads', S.stats().forecastSlide === true, S.stats());
+drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
+ok('...then goes on to the next photo, still on', S.running() && !S.stats().forecastSlide, S.stats());
 ok('...and the band goes with it (not over the photos by default)', !('band' in saverEl().attrs), saverEl().attrs);
 __runTimers();
 ok('...and the forecast\'s sky holds still until it comes back', scenes[0].paused === true, scenes[0].paused);

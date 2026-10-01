@@ -126,6 +126,14 @@ each part of a screen is.
 The first line under the title says the screen’s address and whether it is
 *Generated from your home* or *Written in YAML*.
 
+**Rename a screen** with the pencil beside its name: type the new name, then
+**Save** (or Return); **Cancel** (or Escape) leaves it. It renames the
+dashboard itself, so the new name is the one in Home Assistant’s sidebar
+too, and the screen’s Photo Screensaver and In Use device takes it. Its
+address doesn’t change, so every link, tablet and automation that opens it
+keeps working. A dashboard written in YAML is named in its YAML, so it has no
+pencil.
+
 Its settings come in groups, each explained on its own page:
 
 | Group | Page |
@@ -167,6 +175,8 @@ Its settings come in groups, each explained on its own page:
 | Fill the Screen | On | A landscape photo fills the screen. Off: the whole photo, with room around it. A portrait photo is always whole, over a blurred copy. |
 | Slow Zoom | Off | A slow zoom across each photo. The tablet keeps drawing the whole time, so it runs warmer. |
 | Over the Photos → Clock & Date, Weather, Now Playing, Timers, Home Status | On | What shows over the photos: the clock and date and the weather top left, what’s playing anywhere in the house bottom left, running timers bottom right, and the home’s status top right (Home Secured, or what’s open or unlocked). |
+| Calendar Pane | Off | The coming events down the right of the screen, from the calendars in [All Screens → Calendar](Calendar.md): the photos (or the forecast) move over beside it; Home Status moves to its top, and Now Playing and Timers to its foot. A swipe on it scrolls it; a touch anywhere else closes the screensaver ([more](Screensaver-and-Idle.md#the-calendar-pane)). |
+| Days | Today & Tomorrow | *With Calendar Pane.* How many days it lists: today, today and tomorrow, or up to 7 days. |
 | For Automations → Photo Screensaver, In Use | — | The screen’s `switch.<screen>_photo_screensaver` and `binary_sensor.<screen>_screen_in_use`, made by HK Frontend once the screen has a Tablet User. Tap one to open it. What they do: [Screensaver and Idle](Screensaver-and-Idle.md#its-switch-and-in-use-sensor). |
 | Use the Defaults… | — | Shown once anything is changed. |
 | Use WallPanel Instead | Off | Shown when [WallPanel](https://github.com/j-a-n/lovelace-wallpanel) is installed from HACS: it draws this screen’s screensaver instead, with its own options page (and Options in YAML). |

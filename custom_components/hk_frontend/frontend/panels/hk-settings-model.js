@@ -34,7 +34,7 @@
     energy: { setting: ['house/general', 'Power Use'] }
   };
   var PAGE_LABELS = {
-    weather: 'Weather', cameras: 'Cameras', live_tv: 'Live TV', security: 'Security',
+    weather: 'Weather', calendar: 'Calendar', cameras: 'Cameras', live_tv: 'Live TV', security: 'Security',
     doors_windows: 'Doors & Windows', climate: 'Climate', lights: 'Lights', timers: 'Timers',
     vacuums: 'Vacuums', music: 'Play Music', browse: 'Browse Music', water: 'Water', rooms: 'Room Pages'
   };
@@ -160,13 +160,16 @@
   };
   // A PAGE PILL'S OWN LOOK (hk-chip.js PAGE_PILLS): name, icon, color
   var PAGE_PILL_DEFAULTS = {
-    weather: ['Weather', 'hk:weather-partly-cloudy', 'white'], cameras: ['Cameras', 'hk:camera', 'green'],
+    weather: ['Weather', 'hk:weather-partly-cloudy', 'white'], calendar: ['Calendar', 'mdi:calendar-month', 'red'], cameras: ['Cameras', 'hk:camera', 'green'],
     live_tv: ['Live TV', 'hk:television', 'blue'], security: ['Security', 'hk:shield-lock', 'green'],
     doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white'], climate: ['Climate', 'hk:thermostat', 'blue'],
     lights: ['Lights', 'hk:lightbulb', 'yellow'], timers: ['Timers', 'hk:timer-sand', 'orange'],
     vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Play Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'blue']
   };
   var PILL_COLORS = ['white', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'teal', 'mint', 'green'];
+  // A CALENDAR'S AUTOMATIC COLOUR: the next of these by its place in the list
+  // (the same list as hk-settings.js calendarColor)
+  var CAL_COLORS = ['orange', 'green', 'purple', 'blue', 'pink', 'yellow', 'teal', 'red', 'mint', 'white'];
   function colorLabel(k) { return k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Default'; }
   function errorText(code) { return ERRORS[code] || String(code || 'Couldn’t save.'); }
   // A refusal from the page's commands: the message is JSON (field -> code).
@@ -391,7 +394,7 @@
   // generated screen, whose chip row names none, every page).
   // `items`: the pages that can be placed, in menu order:
   //   [{path, top: its own default, auto: listed when automatic}]
-  var MENU_PATHS = { weather: 'weather', cameras: 'cameras', live_tv: 'live-tv', security: 'security',
+  var MENU_PATHS = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', live_tv: 'live-tv', security: 'security',
                      doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
                      vacuums: 'vacuums', music: 'playmusic', water: 'water' };
   var MENU_TOPS = { weather: 1, cameras: 1, live_tv: 1 };
@@ -597,6 +600,8 @@
                 '  fallback: true       # no photos: the forecast (false: a dark screen)\n' +
                 '  band: true           # the forecast’s details on the forecast\n' +
                 '  band_photos: false   # ...and over the photos\n' +
+                '  calendar: false      # the calendar pane, down the right\n' +
+                '  calendar_days: 2     # ...today and tomorrow (1 to 7 days)\n' +
                 '  cards:\n    - type: custom:hk-clock-card\n    - type: custom:hk-weather-strip-card\n      variant: inline\n' +
                 '    - type: custom:hk-screensaver-now-card\n      music: true\n    - type: custom:hk-timer-strip-card\n' +
                 '      entity: sensor.running_quick_timers\n      fixed: true\n    - type: custom:hk-screensaver-status-card' },
@@ -693,6 +698,7 @@
     ['Allow Pop-ups', 'screen', 'popups', 'answer doorbell alarm popup', true],
     ['On Narrow Screens', 'screen/menu-narrow', 'narrow', 'phone ipad chip tab folded when folded', true],
     ['Car Browser', 'screen', 'car', 'tesla viewport', true],
+    ['Rename Screen', 'screen', 'rename', 'rename name title dashboard sidebar pencil', true],
     ['Now Playing Bar', 'screen', 'now_playing', 'music media bar', true],
     ['Photo Screensaver', 'screen', 'screensaver', 'photos wall tablet slideshow', true],
     ['Screensaver Options', 'screen/screensaver', 'screensaver_options', 'photo timing starts after each photo order random slideshow', true],
@@ -704,6 +710,7 @@
     ['Photos & Forecast', 'screen/screensaver', 'saver:forecast_every', 'screensaver forecast every photos slide mix both', true],
     ['Slow Zoom', 'screen/screensaver', 'saver:zoom', 'screensaver photo zoom ken burns', true],
     ['Over the Photos', 'screen/screensaver', 'saver:clock', 'screensaver clock weather now playing music timers', true],
+    ['Calendar Pane', 'screen/screensaver', 'saver:calendar', 'screensaver calendar events agenda pane right side upcoming today tomorrow days', true],
     ['Home Status', 'screen/screensaver', 'saver:status', 'screensaver security secured locks doors alarm top right', true],
     ['Screensaver Switch', 'screen/screensaver', 'saver:ent:switch', 'screensaver photo switch automation entity turn on off bedtime doorbell', true],
     ['Screen In Use', 'screen/screensaver', 'saver:ent:binary_sensor', 'in use touched tablet binary sensor automation window starts after timer', true],
@@ -724,6 +731,8 @@
     ['Place', 'house/weather', 'weather.place', 'location label'],
     ['Weather Sensors', 'house/weather/sensors', 'weather.sensors', 'feels like humidity wind gust uv forecast alerts outside temperature'],
     ['Radar Map', 'house/weather/radar', 'weather.radar', 'weather radar card yaml zoom noaa rainviewer'],
+    ['Calendars', 'house/calendar', 'calendar.entities', 'calendar page events agenda month week day which calendars order'],
+    ['Calendar Colors', 'house/calendar', 'calendar.colors', 'calendar colour color events dot'],
     ['Glass Style', 'house/appearance/glass', 'look.glass', 'blur frosted clear look'],
     ['Frost Amount', 'house/appearance', 'look.frost', 'frosted'],
     ['Blur Amount', 'house/appearance', 'look.blur', 'blur strength'],
@@ -788,7 +797,7 @@
   // starts from, and whether it has changed any
   var SAVER_DEFAULTS = { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false,
                          clock: true, weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true, forecast_every: 5,
-                         band: true, band_photos: false };
+                         band: true, band_photos: false, calendar: false, calendar_days: 2 };
   function saverOptions(o) {
     var out = {};
     Object.keys(SAVER_DEFAULTS).forEach(function (k) {
@@ -913,7 +922,7 @@
     CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS,
     MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
-    PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, colorLabel: colorLabel,
+    PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
     CHIP_TOKEN: CHIP_TOKEN, chipsAddCustom: chipsAddCustom, chipsRemoveCustom: chipsRemoveCustom,
     SKY_THEMES: SKY_THEMES, OFTEN_LABELS: OFTEN_LABELS, OFTEN_DEFAULT: OFTEN_DEFAULT, PAGE_TOKEN: PAGE_TOKEN,
     SEARCH: SEARCH,

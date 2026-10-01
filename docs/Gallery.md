@@ -24,6 +24,10 @@ camera pictures are blurred on purpose.
 | Play Music ([Music](Music.md)) | Browse Music |
 | ![The Live TV guide](images/tablet-live-tv.png) | ![A custom page](images/tablet-energy.png) |
 | Live TV ([Live TV](Live-TV.md)) | A [custom page](Pages.md#custom-pages) |
+| ![The Calendar page: the month](images/tablet-calendar.png) | ![The Calendar page: the week](images/tablet-calendar-week.png) |
+| [Calendar](Calendar.md): the month | The week |
+| ![The Calendar page: the day](images/tablet-calendar-day.png) | ![A new event](images/tablet-calendar-new-event.png) |
+| The day | A new event |
 
 ![The photo screensaver, with the clock, weather and Home Status over the photo](images/tablet-screensaver.png)
 
@@ -37,6 +41,10 @@ The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (HK
 ![The forecast screensaver at night, with the season’s moon](images/tablet-forecast-night.png)
 
 By night.
+
+![The photo screensaver with the calendar pane down the right](images/tablet-screensaver-calendar.png)
+
+The [calendar pane](Screensaver-and-Idle.md#the-calendar-pane) beside the photo (sample events).
 
 ## A computer, an iPad and a phone
 

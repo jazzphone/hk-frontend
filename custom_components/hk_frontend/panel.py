@@ -108,7 +108,10 @@ async def _dashboards(hass: HomeAssistant) -> list[dict[str, Any]]:
         except Exception:  # noqa: BLE001 -- an empty dashboard is simply not generated
             pass
         conf = getattr(dash, "config", None) or {}
+        # `id`: the dashboards collection's own, which renaming it takes
+        # (lovelace/dashboards/update) -- a YAML dashboard has none
         out.append({"path": path, "title": conf.get("title") or path, "mode": conf.get("mode") or "storage",
+                    "id": conf.get("id"),
                     "generated": generated, "require_admin": bool(conf.get("require_admin")),
                     "item": items.get(path)})
     return sorted(out, key=lambda d: str(d["title"]).lower())
@@ -492,7 +495,38 @@ def ws_chip_remove(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
     connection.send_result(msg["id"], {"custom_chips": S.custom_chips(entry)})
 
 
+# A SCREEN RENAMED. HK Settings renames the dashboard itself with Home
+# Assistant's own lovelace/dashboards/update (its title: the sidebar's name;
+# the address stays), then asks for this: the screen's item takes the
+# dashboard's new title -- and with it the screensaver's device (screensaver.py
+# follows the item's title). Only ever the title Home Assistant now has.
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/dashboard/titled",
+    vol.Required("dashboard"): vol.All(str, vol.Match(r"^[a-z0-9_-]+$")),
+})
+@websocket_api.require_admin
+@callback
+def ws_dashboard_titled(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                        msg: dict[str, Any]) -> None:
+    path = msg["dashboard"]
+    try:
+        from homeassistant.components.lovelace.const import LOVELACE_DATA
+        board = hass.data[LOVELACE_DATA].dashboards.get(path)
+    except (ImportError, KeyError, AttributeError):
+        board = None
+    title = str(((getattr(board, "config", None) or {}).get("title")) or "") if board else ""
+    if not title:
+        connection.send_error(msg["id"], "no_dashboard", "There's no dashboard at that address")
+        return
+    entry = _entry(hass)
+    sub = next((s for s in (entry.subentries.values() if entry else ())
+                if s.subentry_type == S.SUBENTRY_DASHBOARD and s.unique_id == path), None)
+    if sub is not None and sub.title != title:
+        hass.config_entries.async_update_subentry(entry, sub, title=title)
+    connection.send_result(msg["id"], {"title": title})
+
+
 def register_commands(hass: HomeAssistant) -> None:
     for cmd in (ws_panel_get, ws_setup_done, ws_settings_set, ws_board_set, ws_setup_check,
-                ws_chip_save, ws_chip_remove):
+                ws_chip_save, ws_chip_remove, ws_dashboard_titled):
         websocket_api.async_register_command(hass, cmd)

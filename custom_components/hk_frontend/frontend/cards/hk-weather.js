@@ -725,7 +725,8 @@
           'ha-card.ssstat{background:none;box-shadow:none;border:none;padding:0;margin:0;height:0;',
           '  overflow:visible;display:block}',
           '.sscorner{position:fixed;top:var(--hk-ss-status-top,44px);right:var(--hk-ss-status-right,50px);',
-          '  z-index:5;width:46vw;pointer-events:none;text-shadow:none;will-change:transform}'
+          // (--hk-ss-status-width: the calendar pane's width, when it sits there)
+          '  z-index:5;width:var(--hk-ss-status-width,46vw);pointer-events:none;text-shadow:none;will-change:transform}'
         ].join('');
       }
       setConfig(config) { super.setConfig(Object.assign({}, config || {})); }
@@ -735,7 +736,7 @@
         if (!H || !H.security || !st) return '';
         var c = this._config || {};
         return H.security(st, { line1Size: c.line1_size || '36px', lineSize: c.line_size || '24px',
-                                pad: '0px', minHeight: '0px' });
+                                pad: '0px', minHeight: '0px', align: c.align });
       }
       _sigOf() { return this._hass ? this._html() : null; }
       _render() {
@@ -919,7 +920,18 @@
           '  color:rgba(255,255,255,0.94)}',
           '.lo{font-size:13px;font-weight:500;color:rgba(255,255,255,0.5)}',
           '.pop{font-size:12px;font-weight:500;color:rgba(255,255,255,0.34)}',
-          '.pop.wet{color:rgba(255,255,255,0.62)}'
+          '.pop.wet{color:rgba(255,255,255,0.62)}',
+          // PLAIN (`plain: true`, the screensaver's): no plate -- the band
+          // drawn straight on what is behind it, every line white, with a
+          // soft shadow for the contrast the plate gave. The 24px sides stay,
+          // so the columns sit where they do on the plate (and the 397 in
+          // _fit stays true); top and bottom go, so the band's text is its
+          // edge.
+          'ha-card.band.plain{background:none;border:none;border-radius:0;box-shadow:none;',
+          '  -webkit-backdrop-filter:none;backdrop-filter:none;padding:0 24px;margin:0}',
+          '.plain .wrap{text-shadow:0 1px 3px rgba(0,0,0,0.45),0 4px 18px rgba(0,0,0,0.35)}',
+          '.plain .place,.plain .temp,.plain .cond,.plain .sub,.plain .lbl,.plain .hi,',
+          '.plain .lo,.plain .pop,.plain .pop.wet{color:#fff}'
         ].join('');
       }
 
@@ -962,9 +974,12 @@
         return this._w != null ? this._w : this.clientWidth;
       }
       _narrow() {
+        var c = this._config || {};
+        // `narrow: true`: stood up whatever the width (the screensaver's
+        // band beside its calendar pane)
+        if (c.narrow === true) { return true; }
         var w = this._width();
         if (!w) { return false; }
-        var c = this._config || {};
         return (w - 397) < (Number(c.min_hour_col) || 40);
       }
       _fit(max, minCol) {
@@ -1221,7 +1236,7 @@
         };
 
         this._root.innerHTML =
-          '<ha-card class="band"><div class="wrap' + (narrow ? ' narrow' : '') + '">' +
+          '<ha-card class="band' + (cfg.plain ? ' plain' : '') + '"><div class="wrap' + (narrow ? ' narrow' : '') + '">' +
             '<div class="now">' +
               '<div class="place">' + esc(cfg.place || this._place()) + '</div>' +
               '<div class="temp">' + (t !== null ? Math.round(t) : '--') + '°</div>' +
@@ -1543,7 +1558,9 @@
           { type: 'grid', name: '', schema: [
             { name: 'min_hour_col', selector: { number: { min: 20, max: 120, mode: 'box' } } },
             { name: 'min_day_col', selector: { number: { min: 20, max: 160, mode: 'box' } } }
-          ] }
+          ] },
+          { name: 'plain', selector: { boolean: {} } },
+          { name: 'narrow', selector: { boolean: {} } }
         ], 'mdi:ruler'),
         C.section('Interactions', [
           { name: 'tap_action', selector: { ui_action: {} } }

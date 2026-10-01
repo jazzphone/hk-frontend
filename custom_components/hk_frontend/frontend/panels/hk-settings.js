@@ -181,6 +181,23 @@
     'h1.lt{margin:4px 0 4px;font-family:var(--hk-display);font-size:34px;line-height:41px;font-weight:700;letter-spacing:.01em;outline:none}',
     ':host([wide]) h1.lt{font-size:30px;line-height:36px}',
     '.scope{margin:0 0 24px;font-size:15px;line-height:20px;color:var(--hk-label2)}',
+    // A SCREEN'S NAME, with its pencil (renaming the dashboard): the pencil
+    // beside the title, centred on its line; the field the same size as the
+    // title it replaces, Save and Cancel beside it
+    '.tline{display:flex;align-items:center;gap:12px;min-width:0}',
+    '.tline h1.lt{min-width:0;overflow-wrap:anywhere}',
+    '.ren{flex:none;width:36px;height:36px;margin-top:2px;border:0;border-radius:18px;padding:0;background:var(--hk-fill);',
+    '  color:var(--hk-tint);display:flex;align-items:center;justify-content:center;cursor:pointer}',
+    '.ren svg{width:17px;height:17px}',
+    '.renform{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}',
+    '.renform input{flex:1 1 220px;min-width:0;height:44px;box-sizing:border-box;border:0;border-radius:10px;padding:0 12px;',
+    '  background:var(--hk-fill);color:var(--hk-label);font-family:var(--hk-display);font-size:24px;font-weight:700;outline:none}',
+    '.renform input:focus{box-shadow:0 0 0 2px var(--hk-tint)}',
+    '.renform button{height:44px;padding:0 18px;border:0;border-radius:10px;font:inherit;font-size:16px;font-weight:600;cursor:pointer}',
+    '.renform .ok{background:var(--hk-tint);color:#fff}',
+    '.renform .ok[disabled]{opacity:.45;cursor:default}',
+    '.renform .no{background:var(--hk-fill);color:var(--hk-label)}',
+    '.renerr{margin:2px 0 8px;font-size:14px;line-height:18px;color:var(--hk-red)}',
     '.scope b{font-weight:600;color:var(--hk-label)}',
     '.pvbox{position:relative;width:100%;aspect-ratio:16/10;margin:0 auto;border-radius:12px;overflow:hidden;background:#000;',
     '  box-shadow:0 0 0 .5px var(--hk-sep)}',
@@ -250,6 +267,7 @@
     // would end in a band of Home Assistant's own gray under it
     ':host(:not([wide])){min-height:100vh;min-height:100dvh}'
   ].join('\n');
+  var PENCIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m13.5 6.5 4 4" stroke="currentColor" stroke-width="2"/></svg>';
   var BACK = '<svg viewBox="0 0 12 20" aria-hidden="true"><path d="M10 2 2 10l8 8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var TICK = '<svg viewBox="0 0 13 13" aria-hidden="true"><path d="M2 7l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -258,7 +276,8 @@
             red: '#ff3b30', teal: '#30b0c7', yellow: '#ffcc00', gray: '#8e8e93', cyan: '#32ade6', brown: '#a2845e' };
   var HOUSE = [
     ['general', 'General', 'mdi:home', C.gray], ['counts', 'What Counts', 'mdi:counter', C.green],
-    ['weather', 'Weather', 'mdi:weather-partly-cloudy', C.cyan], ['appearance', 'Appearance', 'mdi:palette', C.indigo],
+    ['weather', 'Weather', 'mdi:weather-partly-cloudy', C.cyan], ['calendar', 'Calendar', 'mdi:calendar-month', C.red],
+    ['appearance', 'Appearance', 'mdi:palette', C.indigo],
     ['sky', 'Sky', 'mdi:weather-night', C.purple], ['menu', 'Menu & Rooms', 'mdi:dock-left', C.orange],
     ['tablets', 'Wall Tablets', 'mdi:tablet', C.blue]
   ];
@@ -363,7 +382,15 @@
       this._onClick = this.onClick.bind(this);
       // A PRESS IN PROGRESS: see render(). Released after the press's click.
       var self = this;
-      this._onPress = function () { self._pressing = true; };
+      // NOT a press on a pop-up menu (a <select>): its list is the browser's
+      // own, and on a Mac that list swallows the release -- the page heard no
+      // pointerup, every redraw after the choice was held, and the row kept
+      // showing where the page had been until the next click anywhere
+      this._onPress = function (e) {
+        var t = e && e.composedPath ? e.composedPath()[0] : e && e.target;
+        if (t && t.tagName === 'SELECT') return;
+        self._pressing = true;
+      };
       this._onRelease = function () {
         if (!self._pressing) return;
         setTimeout(function () {
@@ -403,6 +430,8 @@
       window.addEventListener('location-changed', this._onHash);
       this.shadowRoot.addEventListener('pointerdown', this._onPress, true);
       window.addEventListener('pointerup', this._onRelease, true);
+      // a choice made is a press over, whatever the browser told us
+      this.shadowRoot.addEventListener('change', this._onRelease, true);
       window.addEventListener('pointercancel', this._onRelease, true);
       this.shadowRoot.addEventListener('focusout', this._onFocusOut);
       if (this.ready) { this.subscribe(); this.render(); }
@@ -414,6 +443,7 @@
       this.shadowRoot.removeEventListener('pointerdown', this._onPress, true);
       window.removeEventListener('pointerup', this._onRelease, true);
       window.removeEventListener('pointercancel', this._onRelease, true);
+      this.shadowRoot.removeEventListener('change', this._onRelease, true);
       this.shadowRoot.removeEventListener('focusout', this._onFocusOut);
       this._pressing = false; this._held = null;
       if (this._unsub) { try { this._unsub(); } catch (e) { /* gone */ } this._unsub = null; }
@@ -551,6 +581,8 @@
       // hashchange, popstate and HA's location-changed can all say the same
       if (cur === this._seen && this.hist.length) return;
       this._seen = cur;
+      // a rename left half-done is let go with the page
+      this._renaming = null; this._renameDraft = null; this._renameErr = null;
       // our own history, to know whether Back can simply go back
       if (this.hist.length > 1 && this.hist[this.hist.length - 2] === cur) this.hist.pop();
       else if (this.hist[this.hist.length - 1] !== cur) this.hist.push(cur);
@@ -748,6 +780,64 @@
       this._dirty = false;
       void self;
     }
+    // A SCREEN'S NAME AND ITS PENCIL (pg.rename: the dashboard). The pencil
+    // turns the title into a field; Save (or Return) renames the dashboard,
+    // Cancel (or Escape) leaves it. Its address -- and so every link, tablet
+    // and automation that opens it -- stays.
+    titleLine(pg) {
+      var self = this, x = pg.rename;
+      if (this._renaming !== x.path) {
+        var pen = h('button', { class: 'ren', type: 'button', 'aria-label': 'Rename ' + x.title, 'data-fk': 'rename', 'data-sk': 'rename' });
+        pen.innerHTML = PENCIL;
+        pen.addEventListener('click', function () {
+          self._renaming = x.path; self._renameErr = null; self.render();
+          var inp = self.shadowRoot.querySelector('.renform input');
+          if (inp) { inp.focus(); inp.select(); }
+        });
+        return h('div', { class: 'tline' }, [h('h1', { class: 'lt', tabindex: '-1', text: pg.title || '' }), pen]);
+      }
+      var inp = h('input', { type: 'text', 'aria-label': 'Name', maxlength: 50, 'data-fk': 'rename:input', spellcheck: 'false',
+                             autocomplete: 'off' });
+      inp.value = this._renameDraft != null ? this._renameDraft : x.title;
+      var ok = h('button', { class: 'ok', type: 'button', text: 'Save', 'data-fk': 'rename:save' });
+      var no = h('button', { class: 'no', type: 'button', text: 'Cancel', 'data-fk': 'rename:cancel' });
+      var paint = function () { ok.disabled = !inp.value.trim() || self._renameBusy; };
+      var cancel = function () { self._renaming = null; self._renameDraft = null; self._renameErr = null; self.render(); };
+      var save = function () { self.renameScreen(x, inp.value); };
+      inp.addEventListener('input', function () { self._renameDraft = inp.value; self._renameErr = null; paint(); });
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); if (!ok.disabled) save(); }
+        if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      });
+      ok.addEventListener('click', save);
+      no.addEventListener('click', cancel);
+      paint();
+      var out = h('div', {}, [h('div', { class: 'renform' }, [inp, ok, no]),
+        this._renameErr ? h('p', { class: 'renerr', role: 'alert', text: this._renameErr }) : null]);
+      return out;
+    }
+    async renameScreen(x, title) {
+      title = String(title || '').trim();
+      if (!title || this._renameBusy) return;
+      if (title === x.title) { this._renaming = null; this._renameDraft = null; this.render(); return; }
+      this._renameBusy = true;
+      this.status('saving');
+      try {
+        // the dashboard itself: its title is the sidebar's name
+        await this._hass.callWS({ type: 'lovelace/dashboards/update', dashboard_id: x.id, title: title });
+        // ...and the screen's own item (and its screensaver's device) after it
+        await this._hass.callWS({ type: DOMAIN + '/dashboard/titled', dashboard: x.path });
+        this._renaming = null; this._renameDraft = null; this._renameErr = null;
+        try { await this.reload(); } catch (e) { x.title = title; }
+        this.status('saved');
+        this.announce('Renamed to ' + title + '.');
+      } catch (e) {
+        this._renameErr = 'Couldn’t rename it: ' + String((e && e.message) || e);
+        this.status('error');
+      }
+      this._renameBusy = false;
+      this.render();
+    }
     paintPage(pg, parts) {
       var self = this, wide = this.hasAttribute('wide');
       // THE BAR: Back to the page above (none beside the sidebar at the top)
@@ -765,7 +855,7 @@
       this.bar.querySelector('.mid').textContent = pg.title || '';
       // THE PAGE. A screen's preview stays put while its settings redraw (a
       // moved iframe would load the whole dashboard again).
-      var head = h('div', { class: 'ph' }, [h('h1', { class: 'lt', tabindex: '-1', text: pg.title || '' }),
+      var head = h('div', { class: 'ph' }, [pg.rename ? this.titleLine(pg) : h('h1', { class: 'lt', tabindex: '-1', text: pg.title || '' }),
         pg.scope ? h('p', { class: 'scope', html: pg.scope }) : null]);
       var content = h('div', { class: 'pc' });
       try { pg.body(content); } catch (e) {
@@ -971,6 +1061,9 @@
     hs(path) { var i = path.indexOf('.'); return (this.data.settings[path.slice(0, i)] || {})[path.slice(i + 1)]; }
     err(sk) { return this.errors[sk] || null; }
     dash(path) { return this.data.dashboards.filter(function (x) { return x.path === path; })[0]; }
+    // a dashboard Home Assistant can rename: one it stores (a YAML dashboard
+    // is named in its YAML), with its collection id
+    renamable(x) { return x && x.mode === 'storage' && x.id ? x : null; }
     name(id) {
       if (!id) return '';
       var a = ((this.data.accessories || {}).entities || {})[id];
@@ -1226,7 +1319,7 @@
       var base = '#/screens/' + encodeURIComponent(path);
       var b = this.data.boards[path];
       if (!x.item || !b) {
-        return { title: x.title, top: true, back: home, scope: 'This dashboard has no HK settings yet.', body: function (c) {
+        return { title: x.title, top: true, back: home, rename: self.renamable(x), scope: 'This dashboard has no HK settings yet.', body: function (c) {
           c.appendChild(K.group({ footer: 'Give it its own menu, Home page and appearance. It starts from what it’s shown on — a wall tablet, a phone, a computer or a car.' },
             [K.nav({ label: 'Set Up This Screen', href: '#/add-screen/use/' + encodeURIComponent(path), cls: 'tintc' })]));
           if (x.generated && x.mode === 'storage') c.appendChild(self.deleteGroup(x));
@@ -1279,7 +1372,7 @@
           self.optionsPage(c, spec, b[key] || {}, saveOpts, base + '/' + s + '/yaml', ((self.data.thirdparty || {})[tpk] || {}));
         }, s === 'kiosk-mode' ? ['Header & Sidebar', base + '/kiosk'] : null);
       }
-      return { title: x.title, top: true, back: home, preview: path, previewTop: true,
+      return { title: x.title, top: true, back: home, preview: path, previewTop: true, rename: this.renamable(x),
         scope: 'Only this screen · <b>/' + K.esc(path) + '</b> · ' + (x.generated ? 'Generated from your home' : 'Written in YAML'),
         body: function (c) { self.s_main(c, x, b); } };
     }
@@ -2031,6 +2124,16 @@
         tog('Now Playing', 'music', 'Music playing anywhere in the house, bottom left.'),
         tog('Timers', 'timers', 'Running timers, bottom right.'),
         tog('Home Status', 'status', 'Top right: Home Secured when the alarm is armed and everything is shut, or what’s open or unlocked. Nothing when there’s nothing to say.')], overPhotos)));
+      // THE CALENDAR PANE: the coming events down the right, the photos (or
+      // the forecast) beside it
+      var days = function (n) { return n === 1 ? 'Today' : n === 2 ? 'Today & Tomorrow' : n + ' Days'; };
+      c.appendChild(K.group({ header: 'Calendar', footer: cur.calendar
+          ? 'The events of the calendars in All Screens → Calendar, down the right of the screen, with Home Status at its top; the ' +
+            (fc ? 'forecast' : 'photos') + ' move over beside it. A swipe on it scrolls it; a touch anywhere else closes the screensaver.'
+          : 'The coming events, down the right of the screen.' }, [
+        tog('Calendar Pane', 'calendar')].concat(cur.calendar ? [K.select({ label: 'Days', sk: 'saver:calendar_days',
+          value: String(cur.calendar_days), options: [1, 2, 3, 4, 5, 6, 7].map(function (n) { return [String(n), days(n)]; }),
+          onChange: function (v) { put('calendar_days', Number(v)); } })] : [])));
     }
     // ALL SCREENS' SCREENSAVER (Wall Tablets → Screensaver): every screen whose
     // Same as All Screens is on uses these. The preview shows the first such
@@ -2444,6 +2547,10 @@
         }
         return { title: title, top: true, scope: scope, body: function (c) { self.h_weather(c); } };
       }
+      if (page === 'calendar') {
+        if (sub[0]) return mk(self.name(sub[0]), function (c) { self.h_calendarOne(c, sub[0]); });
+        return { title: title, top: true, scope: scope, body: function (c) { self.h_calendar(c); } };
+      }
       if (page === 'appearance') {
         if (sub[0] === 'glass') return mk('Glass Style', function (c) { self.h_glass(c); });
         return { title: title, top: true, scope: 'Applies to every screen that doesn’t choose its own.', body: function (c) { self.h_appearance(c); } };
@@ -2574,6 +2681,66 @@
       var radar = this.hs('weather.radar') || {};
       c.appendChild(K.group({ header: 'Radar Map', footer: ((this.data.thirdparty || {}).radar || {}).note || null }, [
         K.nav({ label: 'Radar Map', value: Object.keys(radar).length ? 'Custom' : 'Default', href: '#/house/weather/radar', sk: 'weather.radar' })]));
+    }
+    // THE CALENDARS the Calendar page and the screensaver's calendar pane
+    // show: every calendar, A to Z (automatic), or the ones chosen, in order;
+    // each with its colour (its own page)
+    calIds() {
+      var st = (this._hass && this._hass.states) || {};
+      return Object.keys(st).filter(function (k) { return k.indexOf('calendar.') === 0; }).sort();
+    }
+    calColor(id, shown) {
+      var own = (this.hs('calendar.colors') || {})[id];
+      if (own) return { key: own, auto: false };
+      var i = shown.indexOf(id);
+      return { key: M.CAL_COLORS[(i < 0 ? 0 : i) % M.CAL_COLORS.length], auto: true };
+    }
+    h_calendar(c) {
+      var self = this, mine = this.hs('calendar.entities') || [], all = this.calIds();
+      var auto = !mine.length, shown = auto ? all : mine;
+      var set = function (v) { self.setH({ 'calendar.entities': v }); };
+      var row = function (id) {
+        var col = self.calColor(id, shown);
+        return { value: id, label: self.name(id), href: '#/house/calendar/' + id,
+                 value2: M.colorLabel(col.key) + (col.auto ? ' (Automatic)' : '') };
+      };
+      if (!all.length) {
+        c.appendChild(K.group({ footer: 'Add a calendar to Home Assistant (Settings → Devices & Services → Add Integration → Local Calendar, Google Calendar or CalDAV) and it shows here.' }, [
+          K.info({ label: 'Calendars', value: 'None' })]));
+        return;
+      }
+      c.appendChild(K.listEditor({ fk: 'calendars', auto: auto, announce: this.announce.bind(this),
+        autoFooter: auto ? 'Every calendar in Home Assistant, A to Z. Turn off Automatic to choose them and their order.'
+                         : 'Only these calendars, in this order.',
+        onAuto: function (on) { set(on ? [] : all.slice()); },
+        shownHeader: 'Calendars', emptyText: 'None', shownFooter: 'The Calendar page and the screensaver’s calendar pane show these. Select one for its color.',
+        rows: shown.map(row), onChange: set, addLabel: auto ? null : 'Add Calendar…',
+        onAddOther: auto ? null : function () {
+          self.go(self.picker('calendar-add', { title: 'Add Calendar', value: null,
+            items: function () { return all.filter(function (id) { return mine.indexOf(id) < 0; })
+              .map(function (id) { return { value: id, label: self.name(id), sub: id }; }); },
+            onPick: function (id) { if (id) set(mine.concat(id)); } }));
+        } }));
+    }
+    h_calendarOne(c, id) {
+      var self = this, mine = this.hs('calendar.entities') || [], shown = mine.length ? mine : this.calIds();
+      var all = Object.assign({}, this.hs('calendar.colors') || {});
+      var i = shown.indexOf(id), autoKey = M.CAL_COLORS[(i < 0 ? 0 : i) % M.CAL_COLORS.length];
+      var st = this._hass && this._hass.states[id], f = (st && st.attributes && st.attributes.supported_features) || 0;
+      var can = [f & 1 ? 'added' : null, f & 4 ? 'changed' : null, f & 2 ? 'deleted' : null].filter(Boolean);
+      c.appendChild(K.group({ footer: 'Its events’ color on the Calendar page and the screensaver. Automatic: the next color by its place in the list.' }, [
+        K.select({ label: 'Color', sk: 'calendar.colors', value: all[id] || '', placeholder: 'Automatic',
+                   options: [['', 'Automatic (' + M.colorLabel(autoKey) + ')']]
+                     .concat(M.PILL_COLORS.map(function (k) { return [k, M.colorLabel(k)]; })),
+                   onChange: function (v) {
+                     var out = Object.assign({}, all);
+                     if (v) out[id] = v; else delete out[id];
+                     self.setH({ 'calendar.colors': out });
+                   } })]));
+      c.appendChild(K.group({ footer: can.length
+          ? 'Events can be ' + (can.length > 1 ? can.slice(0, -1).join(', ') + ' and ' + can[can.length - 1] : can[0]) + ' from the Calendar page.'
+          : 'This calendar can only be read: its events can’t be added or changed from the Calendar page.' }, [
+        K.info({ label: 'Entity', value: id })]));
     }
     h_weatherSensors(c) {
       var self = this, set = function (k) { return function (v) { var o = {}; o[k] = v; self.setH(o); }; };

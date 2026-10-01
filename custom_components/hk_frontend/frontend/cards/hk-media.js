@@ -1036,12 +1036,14 @@
         // `layer` on hk-clock-card. This card only exists on the screensaver.
         // the forecast screensaver raises it above its band (--hk-ss-corner-bottom)
         // (it glides there, rather than jumping, as the band comes and goes)
-        '.sscorner{position:fixed;left:20px;bottom:var(--hk-ss-corner-bottom,22px);z-index:5;display:flex;',
+        // (--hk-ss-now-*: the screensaver's calendar pane, which takes this
+        // row into its foot, smaller -- hk-saver.js layoutPane)
+        '.sscorner{position:fixed;left:var(--hk-ss-now-left,20px);bottom:var(--hk-ss-now-bottom,var(--hk-ss-corner-bottom,22px));z-index:5;display:flex;',
         '  transition:bottom 1.2s ease;',
         '  will-change:transform;',
-        '  align-items:center;gap:18px;max-width:46vw;pointer-events:none}',
-        '.sscorner img,.sscorner .ph{width:104px;height:104px;border-radius:14px;',
-        '  flex:0 0 104px}',
+        '  align-items:center;gap:var(--hk-ss-np-gap,18px);max-width:var(--hk-ss-now-max,46vw);pointer-events:none}',
+        '.sscorner img,.sscorner .ph{width:var(--hk-ss-np-art,104px);height:var(--hk-ss-np-art,104px);border-radius:14px;',
+        '  flex:0 0 var(--hk-ss-np-art,104px)}',
         '.sscorner img{object-fit:cover;box-shadow:0 10px 30px rgba(0,0,0,.45)}',
         '.sscorner .ph{background:rgba(255,255,255,.14);align-items:center;',
         '  justify-content:center;font-size:44px;opacity:.7}',
@@ -1066,10 +1068,10 @@
         '.sscorner .txt{min-width:0;text-align:left;text-shadow:none;',
         '  filter:drop-shadow(0px 1px 3px rgba(0,0,0,0.34))',
         '    drop-shadow(0px 3px 14px rgba(0,0,0,0.30))}',
-        '.sscorner .t{font-size:34px;font-weight:700;letter-spacing:-0.4px;',
+        '.sscorner .t{font-size:var(--hk-ss-np-title,34px);font-weight:700;letter-spacing:-0.4px;',
         '  line-height:1.12;color:rgba(255,255,255,.97);white-space:nowrap;',
         '  overflow:hidden;text-overflow:ellipsis}',
-        '.sscorner .a{font-size:24px;font-weight:500;letter-spacing:-0.1px;',
+        '.sscorner .a{font-size:var(--hk-ss-np-artist,24px);font-weight:500;letter-spacing:-0.1px;',
         '  line-height:1.2;margin-top:4px;color:rgba(255,255,255,.82);',
         '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
       ].join('');
