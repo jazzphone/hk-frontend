@@ -2175,6 +2175,8 @@
   var BOARD = { menu: 'auto', dock_min: MENU_DOCK, time_weather: 'page', ha_row: false,
                 categories: [], tab_position: '', tab_size: 'large', tab_size_phone: 'standard', room_order: [], menu_rooms: 'az', home_rooms: 'as_is',
                 page_rooms: 'floor', rooms_custom: false,
+                // the menu: All Screens' unless menu_custom (settings.py resolved())
+                menu_custom: false, accent: 'orange', glyph: 'sidebar', clock: true,
                 // 1.7: Home, Pages, Screen (settings.py BOARD_DEFAULTS). chips_quiet
                 // null = the chip row's own default (hk-chip.js QUIET_DEFAULT).
                 chips_row: true, chips: [], chips_quiet: null, chips_extra: [], camera_strip: true, cameras: [],
@@ -2185,6 +2187,20 @@
                 // the button below TAB_MIN and while an open menu is
                 // folded; the pages at the top of the menu (empty: the views' own)
                 narrow: 'chip', menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, home_view: '' };
+  var ACCENTS = { orange: '#ff9f0a', yellow: '#ffd60a', green: '#30d158', mint: '#63e6e2', teal: '#40c8e0',
+                  cyan: '#64d2ff', blue: '#0a84ff', indigo: '#5e5ce6', purple: '#bf5af2', pink: '#ff375f',
+                  red: '#ff453a' };
+  // White over the highlight, as Apple draws it over orange, green and teal
+  // (contrast with white ~1.9-2.1); black over the pale ones -- yellow, mint,
+  // cyan, a light colour of your own -- where white falls under 1.8.
+  function accentText(hex) {
+    var c = [1, 3, 5].map(function (i) {
+      var v = parseInt(hex.substr(i, 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    var L = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    return 1.05 / (L + 0.05) >= 1.8 ? '#fff' : '#000';
+  }
   function boardOf(dash) {
     var all = msetting('boards', null), out = {}, k;
     for (k in BOARD) out[k] = BOARD[k];
@@ -2204,6 +2220,8 @@
     out.categories = L('categories');
     out.tab_position = msetting('menu.tab_position', '') || '';
     out.menu_rooms = msetting('menu.order', 'az') === 'dashboard' ? 'order' : 'az';
+    out.glyph = msetting('menu.glyph', 'sidebar');
+    out.clock = msetting('menu.clock', true) !== false;
     return out;
   }
   function panelWidth() {
@@ -2401,16 +2419,25 @@
       return out;
     },
     // the button's picture: the iPad sidebar glyph, or three lines
-    icon: function () { return msetting('menu.glyph', 'sidebar') === 'lines' ? 'hk:menu' : 'hk:dock-left'; },
+    // (each screen's, All Screens' unless it sets its own -- settings.py resolved())
+    icon: function () { return boardOf(dashSeg()).glyph === 'lines' ? 'hk:menu' : 'hk:dock-left'; },
     clock: function () {
-      return menuState.on() && !menuState.docked() && msetting('menu.clock', true) !== false;
+      return menuState.on() && !menuState.docked() && boardOf(dashSeg()).clock !== false;
+    },
+    // THE MENU'S HIGHLIGHT: its icons and the current page's row -- one of
+    // Apple's system colours (dark-mode values), or the screen's own
+    // "#rrggbb". `on`: the text over it, dark on the light ones.
+    accent: function () {
+      var a = String(boardOf(dashSeg()).accent || 'orange').toLowerCase();
+      var hex = ACCENTS[a] || (/^#[0-9a-f]{6}$/.test(a) ? a : ACCENTS.orange);
+      return { color: hex, on: accentText(hex) };
     },
     open: function () { if (window.hkMenu) window.hkMenu.open(); },
     toggle: function () { if (window.hkMenu) window.hkMenu.toggle(); },
     // a card that draws a way in signs on this, so it redraws when any of it changes
     sig: function () {
       return [menuState.on(), menuState.style(), boardOf(dashSeg()).menu, menuState.icon(),
-              menuState.clock()].join('|');
+              menuState.clock(), boardOf(dashSeg()).accent].join('|');
     },
     // Where a room heading for `area` leads: this dashboard's room page for
     // it, while "Room headings open their room page" is on. null: stay a

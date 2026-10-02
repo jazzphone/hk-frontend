@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "task": "hk-christmas-lights-redo",
+  "files": [
+    "land-christmas-day-src.png",
+    "land-christmas-dusk-src.png",
+    "land-christmas-night-src.png",
+    "land-christmas-dusk-lights.png",
+    "land-christmas-night-lights.png"
+  ],
+  "bulbs": {
+    "left": 462,
+    "right": 350
+  },
+  "on_branches_percent": 100.0,
+  "checks": {
+    "follows_real_branches": true,
+    "no_geometric_arcs_or_spokes": true,
+    "snowman_and_presents_unchanged": true,
+    "unchanged_outside_decorations": true,
+    "same_strands_in_every_light": true,
+    "top_34_percent_transparent": true,
+    "nothing_added_below_y_1060": true,
+    "done_json_updated": true
+  },
+  "notes": "Christmas lighting redo: real bark branches were traced from land-winter-day-src.png, replacing the geometric arcs/spokes with irregular branch-following strands and eight-turn trunk wraps; the new Christmas counts supersede the earlier count and are 462 left / 350 right. 100.00% of all 812 bulb centres pass the true Euclidean <=6 px bark-distance check (maximum 4.2597 px); branch-check.png shows bark in green and bulb centres in magenta. Snowman and presents remain pixel-identical, the other holidays and contact-sheet rows are unchanged, and the updated Christmas landscapes contain no alpha holes. Full validation, traces and previews are in work/christmas-redo/. Both full glow layers share the same bulb geometry, with mild seeded brightness variations for natural rear crossings. The original no_alpha_holes exception remains only for the preserved fall/summer base art."
+}

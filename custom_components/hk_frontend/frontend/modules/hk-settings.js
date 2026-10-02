@@ -58,7 +58,11 @@
     features: { vacuum_script: null, alarm_bad_code: null, thermostats: [], temperature: null, power: null,
                 house_timers: [] },
     menu: { dashboards: [], docked: [], dock_min: 1000, time_weather: [], button: 'auto', tab_position: '', glyph: 'sidebar', clock: true,
-            order: 'az', categories: [], ha_sidebar: [] },
+            order: 'az', categories: [], ha_sidebar: [],
+            // All Screens' menu, for the screens that don't set their own
+            // (settings.py MENU_KEYS); a screen reads it already filled in
+            style: 'auto', narrow: 'chip', tab_at: '', tab_size: 'large', tab_size_phone: 'standard',
+            open_min: 1000, time_weather_at: 'page', ha_row: false, accent: 'orange' },
     rooms: { headings: true, status: ['temperature', 'humidity', 'outlets', 'blinds', 'fans', 'windows',
                                       'doors', 'locks', 'garage', 'motion', 'occupancy', 'leaks'],
              // All Screens' rooms, for the screens that don't set their own

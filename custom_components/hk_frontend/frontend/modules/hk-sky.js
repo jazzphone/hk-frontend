@@ -184,6 +184,8 @@
   // ...and the disc inside it: 0.85 of the box, measured on tools/sky/src/moon-hallow-src.png
   // (lit pixels span 872 of 1024 across, 860 down).
   var MOON_DISC  = 0.85;
+  // The Christmas moon on the forecast screensaver: this share of MOON_PX.
+  var XMAS_MOON  = 0.62;
 
   // THE WITCH. A solid-black silhouette with real alpha and no color to
   // correct, so she carries NO filter (no brightness(0) to blacken her).
@@ -1164,11 +1166,11 @@
 
   // ONE builder for all seven themes. The differences are data (SURPRISE), not
   // code: seven sets of settings, one runtime.
-  function surpriseScene(host, W, H, id, night, heavy, rnd) {
+  function surpriseScene(host, W, H, id, night, heavy, rnd, landed) {
     var cfg = SURPRISE[id];
     if (!cfg) return;
 
-    if (cfg.frame) {
+    if (cfg.frame && !landed) {
       var f = document.createElement('div');
       f.className = 'sp-frame';
       f.style.setProperty('--spf', 'url(' + BASE + cfg.frame + ')');
@@ -1342,34 +1344,38 @@
     host.appendChild(w);
   }
 
-  function cozyWindow(host, W, H, rnd, snowOK) {
+  function cozyWindow(host, W, H, rnd, snowOK, landed, moon) {
     // Order matters and mirrors the delivered layering: decoration, then the
-    // halos on its bulbs, then snow in front of both, then the flyby.
-    var d = document.createElement('div');
-    d.className = 'xdecor';
-    host.appendChild(d);
+    // halos on its bulbs, then snow in front of both, then the flyby. Over a
+    // landscape (`landed`) the garland and its halos stand aside: the land's
+    // own trees carry the lights.
+    if (!landed) {
+      var d = document.createElement('div');
+      d.className = 'xdecor';
+      host.appendChild(d);
 
-    // On a narrow screen the decoration is its two edges at true shape (see
-    // .narrow): a bulb sits where ITS edge of the art now is, and one in the
-    // art's hidden middle -- or in the edge's fade, where the garland it
-    // belongs to is dissolving -- is not drawn at all.
-    var art = FRAME_ASPECT * H;                 // the art's width, fitted to H
-    var solid = W * NARROW_HALF * NARROW_SOLID; // how far in each edge is solid
-    BULBS.forEach(function (b) {
-      var x;
-      if (W < H) {
-        x = b[0] < 0.5 ? b[0] * art : W - (1 - b[0]) * art;
-        if (b[0] < 0.5 ? x > solid : x < W - solid) return;
-      }
-      var l = document.createElement('div');
-      l.className = 'xlight';
-      l.style.left = W < H ? x.toFixed(1) + 'px' : (b[0] * 100).toFixed(2) + '%';
-      l.style.top = (b[1] * 100).toFixed(2) + '%';
-      // 7-14s, each with its own negative phase, so no two peak together.
-      l.style.setProperty('--td', (7 + rnd() * 7).toFixed(1) + 's');
-      l.style.setProperty('--tdel', (-rnd() * 14).toFixed(1) + 's');
-      host.appendChild(l);
-    });
+      // On a narrow screen the decoration is its two edges at true shape (see
+      // .narrow): a bulb sits where ITS edge of the art now is, and one in the
+      // art's hidden middle -- or in the edge's fade, where the garland it
+      // belongs to is dissolving -- is not drawn at all.
+      var art = FRAME_ASPECT * H;                 // the art's width, fitted to H
+      var solid = W * NARROW_HALF * NARROW_SOLID; // how far in each edge is solid
+      BULBS.forEach(function (b) {
+        var x;
+        if (W < H) {
+          x = b[0] < 0.5 ? b[0] * art : W - (1 - b[0]) * art;
+          if (b[0] < 0.5 ? x > solid : x < W - solid) return;
+        }
+        var l = document.createElement('div');
+        l.className = 'xlight';
+        l.style.left = W < H ? x.toFixed(1) + 'px' : (b[0] * 100).toFixed(2) + '%';
+        l.style.top = (b[1] * 100).toFixed(2) + '%';
+        // 7-14s, each with its own negative phase, so no two peak together.
+        l.style.setProperty('--td', (7 + rnd() * 7).toFixed(1) + 's');
+        l.style.setProperty('--tdel', (-rnd() * 14).toFixed(1) + 's');
+        host.appendChild(l);
+      });
+    }
 
     // Decorative snow is NOT a forecast. When it is genuinely snowing the
     // weather deck is already running, and adding this on top reads as a
@@ -1404,9 +1410,17 @@
 
     var sl = document.createElement('div');
     sl.className = 'sleigh';
-    var sw = 180 + rnd() * 50;
+    var sw = 180 + rnd() * 50, top = 14 + rnd() * 4;
+    if (moon) {
+      // ACROSS THE MOON: three-quarters of its disc wide, its runners a
+      // little above the middle of the face
+      var disc = moon.s * MOON_DISC;
+      sw = disc * 0.75;
+      sl.style.top = Math.round(H * moon.y - sw / 3 / 2 - disc * 0.1) + 'px';
+    } else {
+      sl.style.top = top.toFixed(1) + '%';
+    }
     sl.style.width = sw.toFixed(0) + 'px';
-    sl.style.top = (14 + rnd() * 4).toFixed(1) + '%';
     sl.style.setProperty('--x0', (W + 240).toFixed(0) + 'px');
     sl.style.setProperty('--xd', (-(W + sw + 480)).toFixed(0) + 'px');
     // 200s of which the crossing is 7% -- about 14s, then parked off-left.
@@ -1788,6 +1802,13 @@
   function paintSeason(el, s, W, H, moonS, moonXf, moonYf) {
     var host = el.querySelector('.season');
     if (!host) return [];
+    // THE FORECAST SCREENSAVER'S OWN SKY (scene() below) stands its landscape
+    // where the frames would be: it keeps everything that MOVES -- leaves,
+    // bats, the witch, the sleigh, snow, the surprises' particles and flybys --
+    // and leaves out the full-frame art (canopy, branches, cobweb, ground fog,
+    // the Christmas garland, a surprise's frame). The land itself dresses up
+    // instead (holidayLand).
+    var landed = el.classList.contains('own');
     // Taller than wide: frames keep their shape (see .narrow in the CSS).
     host.classList.toggle('narrow', W < H);
     var name = s.season || '';
@@ -1821,6 +1842,8 @@
     if (surprise) name = '';
     var night = s.elev < -4;
     var spooky = name === 'halloween' && night && plan.spooky;
+    // what the scene's land and lights follow (holidayOf)
+    el._hkHoliday = { name: name, surprise: surprise, spooky: spooky };
     // Decorative snow stands down when it is actually snowing, or the weather
     // deck and this field composite into a doubled blizzard.
     var snowOK = !(s.wet && s.wet.kind === 'snow' && s.wet.rate > 0);
@@ -1855,11 +1878,14 @@
     // and rebuilt at the instant elevation crossed -4, in full view. The
     // lighting is a live variable, so only `spooky` (which implies night)
     // needs to force a rebuild, and that is a real scene change anyway.
+    // the sleigh crosses the screensaver's Christmas moon (paint())
+    var xmasNight = landed && name === 'christmas' && night;
+    var moonKeyed = spooky || xmasNight;
     var key = name + '|' + surprise + '|' + (spooky ? 's' : '-') +
               '|' + (night ? 'n' : 'd') +
               '|' + dayKey(now) + '|' + Math.round(W) + 'x' + Math.round(H) +
-              '|' + (spooky ? Math.round(moonXf * 1000) + ',' +
-                              Math.round(moonYf * 1000) : 0) +
+              '|' + (moonKeyed ? Math.round(moonXf * 1000) + ',' +
+                                 Math.round(moonYf * 1000) + ',' + moonS : 0) +
               '|' + (name === 'christmas' && snowOK ? 'w' : '-') +
               '|' + (spooky ? '-' : windB + (heavy ? 'h' : '-'));
 
@@ -1892,7 +1918,7 @@
         // 30.2 -- half of every frame doubled -- and without them 59.9 in three
         // of four. On a cool tablet spooky holds 60.2 either way; the leaves are
         // what tip it over once the device is already working.
-        if (!spooky) canopyLayer(host);
+        if (!spooky && !landed) canopyLayer(host);
         var more = name === 'thanksgiving';
         if (!spooky) leafField(host, W, H, {
           // Heavy rain or snow thins the field right out: a full autumn fall
@@ -1912,15 +1938,18 @@
         // nothing random, so building her ahead of them leaves every other
         // value from rnd() unaffected.
         witchFly(host, W, H, moonS, moonXf, moonYf, rnd);
-        branchLayer(host);
-        cobweb(host, W);
-        var gf = document.createElement('div');
-        gf.className = 'gfog';
-        gf.style.setProperty('--gfo', '0.9');
-        host.insertBefore(gf, host.firstChild);
+        if (!landed) {
+          branchLayer(host);
+          cobweb(host, W);
+          var gf = document.createElement('div');
+          gf.className = 'gfog';
+          gf.style.setProperty('--gfo', '0.9');
+          host.insertBefore(gf, host.firstChild);
+        }
       }
-      if (name === 'christmas') cozyWindow(host, W, H, rnd, snowOK);
-      if (surprise) surpriseScene(host, W, H, surprise, night, heavy, rnd);
+      if (name === 'christmas') cozyWindow(host, W, H, rnd, snowOK, landed,
+        xmasNight ? { s: moonS, x: moonXf, y: moonYf } : null);
+      if (surprise) surpriseScene(host, W, H, surprise, night, heavy, rnd, landed);
     }
 
     // ---- contribution to the luminance estimate
@@ -1933,7 +1962,7 @@
       // same brightness ramp the layer is actually drawn with, because a lit
       // canopy and a near-silhouette one do not composite the same.
       var lit = (0.24 + 0.76 * t) * dim;
-      if (!spooky) cover.push([SEASON.canopyA, SEASON.canopyL * lit]);
+      if (!spooky && !landed) cover.push([SEASON.canopyA, SEASON.canopyL * lit]);
       // n leaves of mean box area ~1852px^2 (the two-depth size in
       // leafField: 3/4 at 20-46px, 1/4 at 52-78px; sampled). Small, but this
       // is the only seasonal layer ever lit by a DAY sky, so it is not
@@ -1951,7 +1980,7 @@
       // Branches cover the WHOLE frame -- 0.214 mean alpha at 0.78 opacity.
       // Luma 18 rather than pure black, so it still darkens hard but is not a
       // hole.
-      cover.push([SEASON.branchA * 0.78, SEASON.branchL]);
+      if (!landed) cover.push([SEASON.branchA * 0.78, SEASON.branchL]);
       // Two mist instances, each ~125% wide by ~25% tall at ~0.135 opacity.
       cover.push([1.25 * 0.25 * SEASON.fogA * 0.135, SEASON.fogL]);
       cover.push([1.25 * 0.25 * SEASON.fogA * 0.135, SEASON.fogL]);
@@ -1965,7 +1994,7 @@
       // scaled by the .sp-frame opacity and lit by the same ramp as everything
       // else in .season.
       var slit = (0.24 + 0.76 * t) * dim;
-      if (sc.frame) cover.push([sc.a * 0.86, sc.l * slit]);
+      if (sc.frame && !landed) cover.push([sc.a * 0.86, sc.l * slit]);
       // Particles: n boxes averaging ~14px (sparkle ~3.5px), times the kind's
       // own mean alpha. Small, and carried so its absence is not mistaken for
       // an oversight.
@@ -1979,7 +2008,7 @@
       // The decoration master covers the WHOLE frame, so its mean alpha IS
       // its coverage -- no box fraction to apply. At luma 64 it sits BELOW a
       // daytime sky, so it darkens by day and lifts only slightly at night.
-      cover.push([SEASON.decorA, SEASON.decorL]);
+      if (!landed) cover.push([SEASON.decorA, SEASON.decorL]);
       // 20 halos in 32px boxes. The radial mask passes only the soft core --
       // roughly 7% of each box survives it -- and the twinkle averages well
       // under its 0.55 peak. This rounds away against CAP and is carried only
@@ -2010,11 +2039,19 @@
     '<div class="art"></div>' +
     '<div class="glow"></div>' +
     '<div class="stars"></div>' +
+    // the screensaver's own: twinkling stars and the odd shooting star
+    (land ? '<div class="twk"></div>' : '') +
     '<div class="moon"></div>' +
     '<div class="cl a"></div>' +
     '<div class="cl b"></div>' +
     '<div class="cl c"></div>' +
-    (land ? '<div class="land"><i></i><i></i></div>' : '') +
+    (land ? '<div class="land"><i></i><i></i></div>' +
+            // THE LAND'S OWN BOX: the art's 2560x1600 frame as `cover` lays
+            // it out, so anything placed on the land (a holiday's lights, the
+            // birthday balloons, fireflies, fireworks over the hills) is
+            // placed in the art's own pixels and lands where the art has it
+            '<div class="lbox"><div class="hl"><b><i></i><i></i></b></div>' +
+            '<div class="hx"></div><div class="bx"></div><div class="life"></div></div>' : '') +
     '<div class="fog"></div>' +
     '<div class="rain r1"></div>' +
     '<div class="rain r2"></div>' +
@@ -2064,7 +2101,103 @@
     // the season's own land
     '#hk-sky.own.landed .grad{background:linear-gradient(to bottom,',
     '  var(--sk0) 0%,var(--sk1) 24%,var(--sk2) 44%,var(--sk3) 62%)}',
-    '#hk-sky.own.landed .season{display:none}',
+    // (the seasonal layer stays: paintSeason leaves its frames out here)
+    // ---- twinkling stars: brighter stars over the star texture, each on its
+    // own slow scintillation, faded with the stars (--starO)
+    '#hk-sky .twk{opacity:var(--starO,0);transition:opacity 6s linear}',
+    '#hk-sky .twk .st{position:absolute;width:var(--s);height:var(--s);',
+    '  margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2);border-radius:50%;',
+    '  background:#f6f8ff;box-shadow:0 0 calc(var(--s) * 2.2) rgba(214,226,255,.75);',
+    '  opacity:.3;animation:hk-twk1 var(--td) ease-in-out var(--tdel) infinite}',
+    // LONG LOOPS, several twinkles each. Every loop's end is a trip to the
+    // main thread (the animation's timing is re-synced there), so 34 stars on
+    // 3-9 s loops re-styled the page ~24 times a second; on 36-64 s loops
+    // holding three or four twinkles, about twice. The same goes for every
+    // flame, bulb and firefly below.
+    '@keyframes hk-twk1{0%,100%{opacity:.3}6.5%{opacity:.3}8%{opacity:var(--pk)}10.5%{opacity:.3}34.5%{opacity:.3}36%{opacity:var(--pk)}38.5%{opacity:.3}61.5%{opacity:.3}63%{opacity:var(--pk)}65.5%{opacity:.3}86.5%{opacity:.3}88%{opacity:var(--pk)}90.5%{opacity:.3}}',
+    '@keyframes hk-twk2{0%,100%{opacity:.3}13.5%{opacity:.3}15%{opacity:var(--pk)}17.5%{opacity:.3}45.5%{opacity:.3}47%{opacity:var(--pk)}49.5%{opacity:.3}69.5%{opacity:.3}71%{opacity:var(--pk)}73.5%{opacity:.3}}',
+    '@keyframes hk-twk3{0%,100%{opacity:.3}21.5%{opacity:.3}23%{opacity:var(--pk)}25.5%{opacity:.3}53.5%{opacity:.3}55%{opacity:var(--pk)}57.5%{opacity:.3}80.5%{opacity:.3}82%{opacity:var(--pk)}84.5%{opacity:.3}}',
+    // ---- shooting stars: parked at opacity 0 for all but ~1.5% of a long
+    // cycle, then a streak along the element's own rotated x-axis. Only on a
+    // clear night (.meteors); each crossing re-aims the next (meteorAim)
+    '#hk-sky .twk .ss{position:absolute;width:0;height:0;display:none;',
+    '  transform:rotate(var(--a))}',
+    '#hk-sky.meteors .twk .ss{display:block}',
+    '#hk-sky .twk .ss i{position:absolute;right:0;top:-1px;width:var(--len);height:2px;',
+    '  border-radius:2px;background:linear-gradient(to right,rgba(236,242,255,0),',
+    '  rgba(236,242,255,.55) 70%,#fff);box-shadow:0 0 6px rgba(214,226,255,.6);',
+    '  opacity:0;will-change:transform,opacity;',
+    '  animation:hk-meteor var(--md) linear var(--mdel) infinite}',
+    '@keyframes hk-meteor{0%{transform:translate3d(0,0,0);opacity:0}',
+    '  .2%{opacity:1}.9%{opacity:.85}1.2%,100%{transform:translate3d(var(--run),0,0);opacity:0}}',
+    // ---- the land's box (see layersHtml)
+    // Centred by its LEFT, never a transform: under a transformed box the
+    // flames, bulbs and fireflies stop animating on the compositor and redo
+    // the page's style every frame (measured: 26 recalcs a second against 2)
+    '#hk-sky .lbox{inset:auto;left:calc(50% - var(--lbw,100%) / 2);bottom:0;',
+    '  width:var(--lbw,100%);height:var(--lbh,100%)}',
+    '#hk-sky .lbox>*{position:absolute;inset:0}',
+    // a holiday's LIGHTS LAYER: the full glow over the land's embers, two
+    // layers cross-fading like the land's, dimmed with the land
+    '#hk-sky .hl{opacity:var(--hlO,0);transition:opacity 4s ease;filter:brightness(var(--hlB,1))}',
+    '#hk-sky .hl b,#hk-sky .hl i{position:absolute;inset:0}',
+    '#hk-sky .hl i{background:center/100% 100% no-repeat;opacity:0;transition:opacity 4s ease}',
+    '#hk-sky .hl i.on{opacity:1}',
+    // candles gutter; café lights breathe
+    '#hk-sky .hl.flick b{animation:hk-hlflick 17s linear infinite}',
+    '@keyframes hk-hlflick{0%,100%{opacity:1}3%{opacity:.86}4%{opacity:.97}10%{opacity:.9}',
+    '  12%{opacity:1}18%{opacity:.84}20%{opacity:.95}29%{opacity:.88}31%{opacity:1}',
+    '  40%{opacity:.85}42%{opacity:.96}53%{opacity:.9}55%{opacity:1}63%{opacity:.83}',
+    '  66%{opacity:.97}75%{opacity:.89}77%{opacity:1}86%{opacity:.86}89%{opacity:.98}}',
+    '#hk-sky .hl.breathe b{animation:hk-hlbreathe 16s ease-in-out infinite alternate}',
+    '@keyframes hk-hlbreathe{from{opacity:.84}to{opacity:1}}',
+    // one candle's own flame, and one bulb's twinkle, from the art's list
+    '#hk-sky .hx>*{position:absolute;aspect-ratio:1;transform:translate(-50%,-50%);',
+    '  border-radius:50%;opacity:0;will-change:opacity}',
+    '#hk-sky .hx .cf{background:radial-gradient(circle,rgba(255,190,96,.62) 0,',
+    '  rgba(255,138,40,.26) 32%,rgba(255,110,20,0) 68%);',
+    '  animation:hk-candle var(--cd) linear var(--cdl) infinite}',
+    '@keyframes hk-candle{0%,100%{opacity:.55}3%{opacity:.85}5%{opacity:.5}9%{opacity:.75}',
+    '  12%{opacity:.62}16%{opacity:.95}19%{opacity:.58}24%{opacity:.8}27%{opacity:.66}',
+    '  31%{opacity:.9}33%{opacity:.52}38%{opacity:.7}43%{opacity:.6}46%{opacity:.92}',
+    '  50%{opacity:.64}54%{opacity:.82}57%{opacity:.5}62%{opacity:.78}66%{opacity:.6}',
+    '  71%{opacity:.97}74%{opacity:.62}79%{opacity:.84}83%{opacity:.55}88%{opacity:.76}',
+    '  92%{opacity:.6}96%{opacity:.88}}',
+    '#hk-sky .hx .tw{background:radial-gradient(circle,#fff6e6 0,rgba(255,236,200,.9) 12%,',
+    '  rgba(255,196,120,.35) 30%,rgba(255,170,90,0) 60%);',
+    '  animation:hk-bulb var(--td) ease-in-out var(--tdel) infinite}',
+'@keyframes hk-bulb{0%,100%{opacity:0}7%{opacity:0}12%{opacity:var(--pk)}21%{opacity:0}40%{opacity:0}45%{opacity:var(--pk)}54%{opacity:0}73%{opacity:0}78%{opacity:var(--pk)}87%{opacity:0}}',
+    // the birthday balloons, each cluster swaying on its own knot
+    '#hk-sky .bx .bln{position:absolute;inset:auto;background:center/100% 100% no-repeat;',
+    '  transform-origin:var(--ox) var(--oy);will-change:transform;',
+    '  transition:background-image 4s ease;filter:brightness(var(--landB,1));',
+    '  animation:hk-sway var(--sd) ease-in-out var(--sdl) infinite alternate}',
+    '@keyframes hk-sway{from{transform:rotate(var(--r0))}to{transform:rotate(var(--r1))}}',
+    // fireflies over the meadow on a summer night: a slow wander and a blink
+    '#hk-sky .life .ff{position:absolute;width:0;height:0;will-change:transform;',
+    '  animation:hk-ffwander var(--wd) ease-in-out var(--wdl) infinite}',
+    '#hk-sky .life .ff i{position:absolute;left:-2.5px;top:-2.5px;width:5px;height:5px;',
+    '  border-radius:50%;background:#f6ffc4;',
+    '  box-shadow:0 0 7px 3px rgba(220,255,120,.8),0 0 22px 8px rgba(196,255,96,.3);',
+    '  opacity:0;animation:hk-ffblink1 var(--bd) ease-in-out var(--bdl) infinite}',
+    '@keyframes hk-ffwander{0%,100%{transform:translate3d(0,0,0)}',
+    '  17%{transform:translate3d(var(--dx1),var(--dy1),0)}',
+    '  33%{transform:translate3d(var(--dx2),var(--dy2),0)}',
+    '  50%{transform:translate3d(var(--dx3),var(--dy3),0)}',
+    '  67%{transform:translate3d(var(--dx4),var(--dy4),0)}',
+    '  83%{transform:translate3d(var(--dx5),var(--dy5),0)}}',
+    '@keyframes hk-ffblink1{0%,100%{opacity:0}4.5%{opacity:0}6%{opacity:1}8%{opacity:.85}10.5%{opacity:0}17.5%{opacity:0}19%{opacity:1}21%{opacity:.85}23.5%{opacity:0}29.5%{opacity:0}31%{opacity:1}33%{opacity:.85}35.5%{opacity:0}45.5%{opacity:0}47%{opacity:1}49%{opacity:.85}51.5%{opacity:0}56.5%{opacity:0}58%{opacity:1}60%{opacity:.85}62.5%{opacity:0}71.5%{opacity:0}73%{opacity:1}75%{opacity:.85}77.5%{opacity:0}84.5%{opacity:0}86%{opacity:1}88%{opacity:.85}90.5%{opacity:0}}',
+    '@keyframes hk-ffblink2{0%,100%{opacity:0}1.5%{opacity:0}3%{opacity:1}5%{opacity:.85}7.5%{opacity:0}13.5%{opacity:0}15%{opacity:1}17%{opacity:.85}19.5%{opacity:0}26.5%{opacity:0}28%{opacity:1}30%{opacity:.85}32.5%{opacity:0}38.5%{opacity:0}40%{opacity:1}42%{opacity:.85}44.5%{opacity:0}53.5%{opacity:0}55%{opacity:1}57%{opacity:.85}59.5%{opacity:0}65.5%{opacity:0}67%{opacity:1}69%{opacity:.85}71.5%{opacity:0}78.5%{opacity:0}80%{opacity:1}82%{opacity:.85}84.5%{opacity:0}91.5%{opacity:0}93%{opacity:1}95%{opacity:.85}97.5%{opacity:0}}',
+    // Fourth of July fireworks over the hills: one burst per element per
+    // cycle, each cycle re-placed (fireworkAim)
+    '#hk-sky .life .fw{position:absolute;aspect-ratio:1;opacity:0;',
+    '  background:url(' + SP_ASSET.firework + ') center/contain no-repeat;',
+    '  filter:hue-rotate(var(--hue)) saturate(1.3);will-change:transform,opacity;',
+    '  animation:hk-fw var(--fd) ease-out var(--fdl) infinite}',
+    '@keyframes hk-fw{0%{opacity:0;transform:translate(-50%,-50%) scale(.12)}',
+    '  .5%{opacity:.95;transform:translate(-50%,-50%) scale(.75)}',
+    '  4.5%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}',
+    '  100%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}}',
     // HELD, NOT HIDDEN: the screensaver's sky pauses between forecast slides
     // (and under Fully's dark screensaver) without dropping its layers --
     // .hidden's will-change:auto took the land and the fog off their layers
@@ -2079,6 +2212,7 @@
                     'summer', 'summer', 'fall', 'fall', 'fall', 'winter'];
   var LAND_SOUTH = { winter: 'summer', summer: 'winter', spring: 'fall', fall: 'spring' };
   function landSeason(hass, s, when) {
+    if (s.land) return s.land;                 // a dev pin: hkSky._pin({land:'summer'})
     if (s.wet && s.wet.kind === 'snow' && s.wet.rate > 0) return 'winter';
     var north = LAND_MONTH[(when || new Date()).getMonth()];
     var lat = hass && hass.config && Number(hass.config.latitude);
@@ -2087,6 +2221,261 @@
   // day above 6 degrees, dusk (and dawn) down to civil twilight, then night
   function landLight(elev) { return elev > 6 ? 'day' : (elev > -7 ? 'dusk' : 'night'); }
   function landFile(hass, s, when) { return 'land-' + landSeason(hass, s, when) + '-' + landLight(s.elev) + '.webp'; }
+
+  // ------------------------------------------- the screensaver's own life
+  // HK Frontend 1.5: what moves on the forecast screensaver beyond the page's
+  // sky -- twinkling stars and the odd shooting star on a clear night,
+  // fireflies over a summer meadow, and the holidays dressed onto the land
+  // itself. All of it CSS animations on transform and opacity, built once per
+  // key and held still with the rest of the scene (.held).
+  var OWN_DRIFT = 1.8;               // the screensaver's clouds, x the page's
+  var ART_W = 2560, ART_H = 1600;    // the landscapes' frame
+  function ax(x) { return (x / ART_W * 100).toFixed(3) + '%'; }
+  function ay(y) { return (y / ART_H * 100).toFixed(3) + '%'; }
+
+  // frontend/sky/holiday.json (tools/sky/holiday_webp.py): where each
+  // holiday's lights are and where the balloons are tied. Asked for once;
+  // until it is here (or when it is not there at all) the lights still
+  // glow, only without each flame and bulb of their own.
+  var HOL = null, holAsked = false, holWait = [];
+  function holData(cb) {
+    if (HOL) return HOL;
+    if (cb) holWait.push(cb);
+    if (holAsked) return null;
+    holAsked = true;
+    var done = function (j) {
+      HOL = j || {};
+      holWait.splice(0).forEach(function (f) { try { f(); } catch (e) { /* its scene is gone */ } });
+    };
+    try {
+      fetch(BASE + 'holiday.json' + VER, { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : {}; })
+        .then(done, function () { done({}); });
+    } catch (e) { done({}); }
+    return null;
+  }
+
+  // THE HOLIDAY LANDS (tools/sky/src/land-holiday/): the season's own place,
+  // decorated. Whatever paintSeason decided today (el._hkHoliday) -- a season
+  // that is showing, or a surprise that replaced it -- picks the land:
+  //   Halloween      its pumpkins at dusk and night (by day, plain fall)
+  //   Christmas      its lights, day, dusk and night
+  //   Fourth of July its bunting and flag, day, dusk and night
+  //   a birthday     the season's own land, with balloons (holidayBalloons)
+  function holidayLand(h, light) {
+    if (!h) return null;
+    if (h.surprise === 'fourth-of-july') return 'land-july4-' + light;
+    if (h.surprise) return null;
+    if (h.name === 'halloween') return light === 'day' ? null : 'land-halloween-' + light;
+    if (h.name === 'christmas') return 'land-christmas-' + light;
+    return null;
+  }
+  // ...and its lights layer: the full glow over the land's embers. July 4 at
+  // dusk borrows the night's, fainter.
+  function holidayLights(h, light) {
+    if (!h || light === 'day') return null;
+    var dusk = light === 'dusk';
+    if (h.surprise === 'fourth-of-july') return { file: 'land-july4-night-lights', o: dusk ? 0.6 : 1, mode: 'breathe' };
+    if (h.surprise) return null;
+    if (h.name === 'halloween') return { file: 'land-halloween-' + light + '-lights', o: dusk ? 0.8 : 1, mode: 'flick' };
+    if (h.name === 'christmas') return { file: 'land-christmas-' + light + '-lights', o: dusk ? 0.85 : 1, mode: 'twinkle' };
+    return null;
+  }
+
+  // TWINKLING STARS. Brighter stars than the texture's, each scintillating
+  // on its own period, and two shooting stars on long cycles (127 and 193 s,
+  // so together one about every 77 s of a clear night) that re-aim at random
+  // after every crossing: never the same streak twice.
+  var METEOR_CYCLES = [127, 193];
+  function meteorAim(ss, rnd) {
+    var right = rnd() < 0.5, a = 16 + rnd() * 24;
+    ss.style.left = (right ? 8 + rnd() * 52 : 40 + rnd() * 52).toFixed(1) + '%';
+    ss.style.top = (3 + rnd() * 24).toFixed(1) + '%';
+    ss.style.setProperty('--a', (right ? a : 180 - a).toFixed(1) + 'deg');
+    ss.style.setProperty('--run', (320 + rnd() * 360).toFixed(0) + 'px');
+    ss.style.setProperty('--len', (90 + rnd() * 90).toFixed(0) + 'px');
+  }
+  function twinkles(host, W, H, rnd) {
+    host.textContent = '';
+    var n = Math.round(clamp(34 * W / 1280, 18, 60));
+    for (var i = 0; i < n; i++) {
+      var d = document.createElement('div');
+      d.className = 'st';
+      d.style.left = (rnd() * 100).toFixed(2) + '%';
+      // the upper sky: the land covers the rest
+      d.style.top = (2 + Math.pow(rnd(), 1.3) * 50).toFixed(2) + '%';
+      d.style.setProperty('--s', (1.3 + Math.pow(rnd(), 2) * 2.1).toFixed(2) + 'px');
+      var td = 36 + rnd() * 28;
+      d.style.animationName = 'hk-twk' + (i % 3 + 1);
+      d.style.setProperty('--td', td.toFixed(1) + 's');
+      d.style.setProperty('--tdel', (-rnd() * td).toFixed(1) + 's');
+      d.style.setProperty('--pk', (0.6 + rnd() * 0.4).toFixed(2));
+      host.appendChild(d);
+    }
+    METEOR_CYCLES.forEach(function (md) {
+      var ss = document.createElement('div');
+      ss.className = 'ss';
+      var i = document.createElement('i');
+      i.style.setProperty('--md', md + 's');
+      // the first one 20-80 s after the scene is built, not on its first frame
+      i.style.setProperty('--mdel', (-(md - 20 - rnd() * 60)).toFixed(1) + 's');
+      meteorAim(ss, rnd);
+      i.addEventListener('animationiteration', function () { meteorAim(ss, Math.random); });
+      ss.appendChild(i);
+      host.appendChild(ss);
+    });
+  }
+
+  // FIREFLIES: along the foot of the tree line and over the top of the
+  // meadow (the art's y 830-1080), above the forecast's own place.
+  function fireflies(host, W, rnd) {
+    var n = Math.round(clamp(22 * W / 1280, 14, 36));
+    for (var i = 0; i < n; i++) {
+      var f = document.createElement('div');
+      f.className = 'ff';
+      f.style.left = ax(160 + rnd() * 2240);
+      f.style.top = ay(830 + rnd() * 250);
+      // five waypoints around its spot, one long loop (see hk-twk1)
+      for (var k = 1; k <= 5; k++) {
+        f.style.setProperty('--dx' + k, (-55 + rnd() * 110).toFixed(0) + 'px');
+        f.style.setProperty('--dy' + k, (-28 + rnd() * 50).toFixed(0) + 'px');
+      }
+      var wd = 50 + rnd() * 40, bd = 40 + rnd() * 24;
+      f.style.setProperty('--wd', wd.toFixed(1) + 's');
+      f.style.setProperty('--wdl', (-rnd() * wd).toFixed(1) + 's');
+      var g = document.createElement('i');
+      g.style.animationName = 'hk-ffblink' + (i % 2 + 1);
+      g.style.setProperty('--bd', bd.toFixed(1) + 's');
+      g.style.setProperty('--bdl', (-rnd() * bd).toFixed(1) + 's');
+      f.appendChild(g);
+      host.appendChild(f);
+    }
+  }
+
+  // FIREWORKS over the hills on the Fourth's night: five shells on prime-ish
+  // cycles, so they never fall into a rhythm, each re-placed and re-coloured
+  // after it bursts.
+  var FW_CYCLES = [17, 19, 23, 29, 31];
+  var FW_HUES = [0, 35, 150, 205, 285, 330];
+  function fireworkAim(e, rnd) {
+    e.style.left = (14 + rnd() * 66).toFixed(1) + '%';
+    e.style.top = ay(300 + rnd() * 300);
+    e.style.width = (9 + rnd() * 7).toFixed(1) + '%';
+    e.style.setProperty('--hue', FW_HUES[Math.floor(rnd() * FW_HUES.length)] + 'deg');
+  }
+  function fireworks(host, rnd) {
+    FW_CYCLES.forEach(function (fd, k) {
+      var e = document.createElement('div');
+      e.className = 'fw';
+      e.style.setProperty('--fd', fd + 's');
+      e.style.setProperty('--fdl', (-(fd - 2 - k * 3.1 - rnd() * 3)).toFixed(1) + 's');
+      fireworkAim(e, rnd);
+      e.addEventListener('animationiteration', function () { fireworkAim(e, Math.random); });
+      host.appendChild(e);
+    });
+  }
+
+  // A holiday's own flames and bulbs, from holiday.json's list for its lights
+  // layer: every candle flickers on its own; sixty of the bulbs, picked
+  // fresh each day, twinkle one at a time over the layer's steady glow.
+  function holidayGlints(host, lit, rnd) {
+    var list = HOL && HOL.lights && HOL.lights[lit.file];
+    if (!list || !list.length) return;
+    if (lit.mode === 'flick') {
+      list.forEach(function (L) {
+        var c = document.createElement('div');
+        c.className = 'cf';
+        c.style.left = ax(L[0]);
+        c.style.top = ay(L[1]);
+        c.style.width = ax(Math.max(L[2] * 7, 70));
+        var cd = 14 + rnd() * 8;
+        c.style.setProperty('--cd', cd.toFixed(1) + 's');
+        c.style.setProperty('--cdl', (-rnd() * cd).toFixed(1) + 's');
+        host.appendChild(c);
+      });
+    } else if (lit.mode === 'twinkle') {
+      var pick = list.slice();
+      for (var i = pick.length - 1; i > 0; i--) {
+        var j = Math.floor(rnd() * (i + 1)), t = pick[i]; pick[i] = pick[j]; pick[j] = t;
+      }
+      pick.slice(0, 60).forEach(function (L) {
+        var b = document.createElement('div');
+        b.className = 'tw';
+        b.style.left = ax(L[0]);
+        b.style.top = ay(L[1]);
+        // a bulb's own sparkle, not a halo: about four bulbs across
+        b.style.width = ax(Math.max(L[2] * 5, 22));
+        var td = 40 + rnd() * 30;
+        b.style.setProperty('--td', td.toFixed(1) + 's');
+        b.style.setProperty('--tdel', (-rnd() * td).toFixed(1) + 's');
+        b.style.setProperty('--pk', (0.55 + rnd() * 0.45).toFixed(2));
+        host.appendChild(b);
+      });
+    }
+  }
+
+  // THE BIRTHDAY BALLOONS: holiday.json's two clusters, each a sprite cut
+  // from the overlay with its knot, drawn at its `scale` with the knot staked
+  // at `at` (in the grass beside its tree), swaying a degree or two about it.
+  function balloons(host, light, rnd) {
+    var list = HOL && HOL.balloons;
+    if (!list || !list.length) return;
+    list.forEach(function (c) {
+      var b = document.createElement('div');
+      var k = c.scale || 1, at = c.at || c.knot;
+      var w = c.box[2] * k, h = c.box[3] * k;
+      var x = at[0] - (c.knot[0] - c.box[0]) * k, y = at[1] - (c.knot[1] - c.box[1]) * k;
+      b.className = 'bln';
+      b.dataset.cluster = c.cluster;
+      b.style.left = ax(x);
+      b.style.top = ay(y);
+      b.style.width = ax(w);
+      b.style.height = ay(h);
+      b.style.backgroundImage = 'url("' + BASE + 'birthday-' + c.cluster + '-' + light + '.webp' + VER + '")';
+      b.style.setProperty('--ox', ((at[0] - x) / w * 100).toFixed(2) + '%');
+      b.style.setProperty('--oy', ((at[1] - y) / h * 100).toFixed(2) + '%');
+      var r = 1.4 + rnd() * 1.2;
+      b.style.setProperty('--r0', (-r).toFixed(2) + 'deg');
+      b.style.setProperty('--r1', (r * (0.8 + rnd() * 0.4)).toFixed(2) + 'deg');
+      var sd = 4.5 + rnd() * 2.5;
+      b.style.setProperty('--sd', sd.toFixed(1) + 's');
+      b.style.setProperty('--sdl', (-rnd() * sd).toFixed(1) + 's');
+      host.appendChild(b);
+    });
+  }
+
+  // A pair of layers that cross-fade to whatever image is asked for, once it
+  // has decoded; the first of `list` that is there wins. (The land, and a
+  // holiday's lights.)
+  function fader(layers, shownCb) {
+    var top = 0, shown = '', want = '', missing = {}, last = [];
+    function show(list) {
+      last = list;
+      var file = null;
+      for (var i = 0; i < list.length; i++) if (list[i] && !missing[list[i]]) { file = list[i]; break; }
+      if (!file) {
+        if (shown) { layers[top].classList.remove('on'); shown = ''; want = ''; }
+        return;
+      }
+      if (file === shown || file === want) return;
+      want = file;
+      var url = BASE + file + VER, im = new Image();
+      var ready = function () {
+        if (want !== file || !layers[0].isConnected) return;
+        var next = layers[1 - top];
+        next.style.backgroundImage = 'url("' + url + '")';
+        next.classList.add('on');
+        layers[top].classList.remove('on');
+        top = 1 - top; shown = file; want = '';
+        if (shownCb) shownCb(file);
+      };
+      im.onload = function () { (im.decode ? im.decode().catch(function () {}) : Promise.resolve()).then(ready); };
+      // art that is not there (not made yet, a 404): the next in the list
+      im.onerror = function () { missing[file] = true; if (want === file) want = ''; show(last); };
+      im.src = url;
+    }
+    return { show: show, shown: function () { return shown; } };
+  }
 
   function scene(host) {
     var el = document.createElement('div');
@@ -2109,42 +2498,98 @@
       tag.textContent = SHEET + OWN_CSS;
       (root.appendChild ? root : document.head).appendChild(tag);
     }
-    var layers = el.querySelectorAll('.land > i'), top = 0, shown = '', want = '', missing = {};
     // A landscape arrives decoded, then cross-fades in over the other layer.
     // Art that is not there (not installed yet, a 404) is simply no land: the
-    // sky alone, with the season's frame, as on the pages.
-    function land(file) {
-      if (file === shown || file === want || missing[file]) return;
-      want = file;
-      var url = BASE + file + VER, im = new Image();
-      var ready = function () {
-        if (want !== file || !el.isConnected) return;
-        var next = layers[1 - top];
-        next.style.backgroundImage = 'url("' + url + '")';
-        next.classList.add('on');
-        layers[top].classList.remove('on');
-        top = 1 - top; shown = file; want = '';
-        el.classList.add('landed');
-      };
-      im.onload = function () { (im.decode ? im.decode().catch(function () {}) : Promise.resolve()).then(ready); };
-      im.onerror = function () { missing[file] = true; if (want === file) want = ''; };
-      im.src = url;
+    // sky alone, with the season's frame, as on the pages. A holiday's land
+    // that is not there is the season's own.
+    // The saver updates the scene only when the sun or the weather changes,
+    // so what arrives later -- a land, its lights, holiday.json -- carries on
+    // from the last reading itself (again()).
+    var last = null;
+    function again() { if (last && el.isConnected) alive(last[0], last[1]); }
+    var landF = fader(el.querySelectorAll('.land > i'), function () { el.classList.add('landed'); again(); });
+    var hlEl = el.querySelector('.hl');
+    var lightF = fader(hlEl.querySelectorAll('i'), again);
+    var box = el.querySelector('.lbox');
+    var twk = el.querySelector('.twk'), hx = el.querySelector('.hx');
+    var bx = el.querySelector('.bx'), life = el.querySelector('.life');
+    var keys = {};
+    holData(again);
+
+    // Rebuild a part only when its key changes; the day is in each key so a
+    // new day re-rolls the stars, the bulbs and the balloons' sway.
+    function part(name, key, build) {
+      if (keys[name] === key) return;
+      keys[name] = key;
+      build();
     }
+
+    function alive(hass, s) {
+      last = [hass, s];
+      var W = el.clientWidth || 1280, H = el.clientHeight || 800;
+      var k = Math.max(W / ART_W, H / ART_H);
+      box.style.setProperty('--lbw', (ART_W * k).toFixed(1) + 'px');
+      box.style.setProperty('--lbh', (ART_H * k).toFixed(1) + 'px');
+      var now = new Date(), day = dayKey(now), size = Math.round(W) + 'x' + Math.round(H);
+      var light = landLight(s.elev), h = el._hkHoliday || {};
+      var wet = !!(s.wet && s.wet.rate > 0);
+
+      part('twk', day + '|' + size, function () { twinkles(twk, W, H, rng(day * 31 + 7)); });
+      var night = clamp((-4 - s.elev) / 10, 0, 1);
+      el.classList.toggle('meteors', night > 0.6 && s.cover < 0.3 && !wet && !s.fog);
+
+      var flies = landSeason(hass, s) === 'summer' && s.elev < -5 && !wet && s.wind < 18;
+      var fw = h.surprise === 'fourth-of-july' && s.elev < -4;
+      part('life', day + '|' + (flies ? 'f' : '-') + (fw ? 'w' : '-') + '|' + size, function () {
+        life.textContent = '';
+        var rnd = rng(day * 17 + 3);
+        if (flies) fireflies(life, W, rnd);
+        if (fw) fireworks(life, rnd);
+      });
+
+      // the holiday's land, then -- once that land is the one showing -- its lights
+      var hol = holidayLand(h, light);
+      landF.show(hol ? [hol + '.webp', landFile(hass, s)] : [landFile(hass, s)]);
+      var lit = hol && landF.shown() === hol + '.webp' ? holidayLights(h, light) : null;
+      lightF.show(lit ? [lit.file + '.webp'] : []);
+      var lightsUp = !!(lit && lightF.shown() === lit.file + '.webp');
+      hlEl.style.setProperty('--hlO', lightsUp ? String(lit.o) : '0');
+      hlEl.classList.toggle('flick', !!(lit && lit.mode === 'flick'));
+      hlEl.classList.toggle('breathe', !!(lit && lit.mode === 'breathe'));
+      part('hx', day + '|' + (lightsUp ? lit.file : '') + '|' + (HOL ? 1 : 0), function () {
+        hx.textContent = '';
+        if (lightsUp) holidayGlints(hx, lit, rng(day * 13 + 5));
+      });
+
+      var bday = h.surprise === 'birthday';
+      part('bx', day + '|' + (bday ? 'b' : '-') + '|' + (HOL ? 1 : 0), function () {
+        bx.textContent = '';
+        if (bday) balloons(bx, light, rng(day * 11 + 1));
+      });
+      // the balloons follow the light (their background-image cross-fades)
+      Array.prototype.forEach.call(bx.children, function (b) {
+        var url = 'url("' + BASE + 'birthday-' + b.dataset.cluster + '-' + light + '.webp' + VER + '")';
+        if (b.style.backgroundImage !== url) b.style.backgroundImage = url;
+      });
+    }
+
     return {
       el: el,
       update: function (hass) {
         if (!hass || !hass.states) return null;
         var s = read(hass);
         paint(el, s);
-        land(landFile(hass, s));
         // an overcast or wet day darkens the land with the sky
         var dim = 1 - 0.3 * clamp((s.cover - 0.4) / 0.6, 0, 1) - (s.wet && s.wet.rate > 0 ? 0.08 : 0);
         el.style.setProperty('--landB', dim.toFixed(3));
+        hlEl.style.setProperty('--hlB', (0.85 + 0.15 * dim).toFixed(3));
+        alive(hass, s);
         return s;
       },
       // the screen is dark (Fully's own screensaver, the page hidden): hold still
       pause: function (on) { el.classList.toggle('held', !!on); },
-      landShown: function () { return shown; },
+      landShown: function () { return landF.shown(); },
+      lightsShown: function () { return lightF.shown(); },
       destroy: function () {
         el.remove();
         if (own && root.adoptedStyleSheets) {
@@ -2248,9 +2693,14 @@
     // Inset from the edges, because `x` is a CLAMPED value: every azimuth past
     // due west pins it to 1, which would put the moon at 0% and slice it in
     // half against the frame for the whole back end of the night.
-    st.setProperty('--moonX', (12 + (1 - x) * 76).toFixed(1) + '%');
+    //
+    // The forecast screensaver's own sky keeps it out of the top-left, where
+    // its clock and date stand: there it crosses the right 54-90% instead
+    // (54%: clear of the clock's AM even beside the calendar pane).
+    var moonXp = el.classList.contains('own') ? 54 + (1 - x) * 36 : 12 + (1 - x) * 76;
+    st.setProperty('--moonX', moonXp.toFixed(1) + '%');
     st.setProperty('--moonY', (16 + (1 - night) * 10).toFixed(1) + '%');
-    var moonXf = (12 + (1 - x) * 76) / 100;
+    var moonXf = moonXp / 100;
     var moonYf = (16 + (1 - night) * 10) / 100;
     // A new moon is not drawn at all. moonSvg would render a zero-width
     // sliver, which reads as a rendering fault rather than as a new moon.
@@ -2265,21 +2715,42 @@
     // Order is the whole point: set it after, and feed the SAME resolved
     // center to the witch.
     if (spooky) {
-      moonS = MOON_PX;
+      // The forecast screensaver's own sky has its clock top-left and its
+      // status top-right: there the moon is under three-quarters the size, between
+      // them and clear of the trees.
+      var ownSky = el.classList.contains('own');
+      moonS = ownSky ? Math.round(MOON_PX * 0.72) : MOON_PX;
       st.setProperty('--moonS', moonS + 'px');
       // Swap the generated SVG disc for the photograph. One variable: the
       // .moon element, its sizing and its opacity transition are untouched,
       // so there is never a second moon on the page.
       st.setProperty('--moonI', 'url(' + MOON_IMG + ')');
-      st.setProperty('--moonX', '70%');
-      st.setProperty('--moonY', '24%');
-      moonXf = 0.70;
-      moonYf = 0.24;
+      moonXf = ownSky ? 0.56 : 0.70;
+      moonYf = ownSky ? 0.25 : 0.24;
+      st.setProperty('--moonX', (moonXf * 100) + '%');
+      st.setProperty('--moonY', (moonYf * 100) + '%');
       // Phase is deliberately ignored. This is a seasonal full moon, not a
       // phase texture -- and leaving --moonO on the stock phase ramp would
       // give a new-moon Halloween an invisible moon with a witch crossing
       // nothing. Still fades with cloud cover.
       st.setProperty('--moonO', (0.78 * clear).toFixed(2));
+    }
+    // ---- the Christmas moon, the forecast screensaver's own sky
+    // A small phase moon gives Santa nothing to cross: on a Christmas night
+    // the screensaver's sky hangs the photographic full moon, smaller than
+    // Halloween's, between the clock and Home Status, and the sleigh flies
+    // across its face (cozyWindow, from the same resolved center).
+    var xmasMoon = !spooky && el.classList.contains('own') && plan.show &&
+                   s.season === 'christmas' && s.elev < -4;
+    if (xmasMoon) {
+      moonS = Math.round(MOON_PX * XMAS_MOON);
+      st.setProperty('--moonS', moonS + 'px');
+      st.setProperty('--moonI', 'url(' + MOON_IMG + ')');
+      moonXf = 0.64;
+      moonYf = 0.25;
+      st.setProperty('--moonX', (moonXf * 100) + '%');
+      st.setProperty('--moonY', (moonYf * 100) + '%');
+      st.setProperty('--moonO', (0.85 * clear).toFixed(2));
     }
 
     // Look the deck up, mark it idle if it is about to be invisible, and hand
@@ -2326,6 +2797,10 @@
     // Calm is a lazy ~6 minutes to cross a 1920px screen, a gale under 2.
     var w = clamp(s.wind, 2, 26);
     var v = 4 + w * 0.55;
+    // The forecast screensaver's own sky is the whole picture rather than a
+    // backdrop to cards, and at the page's pace it reads as a still: its
+    // clouds go OWN_DRIFT times as fast (a calm day crosses in ~3 minutes).
+    if (el.classList.contains('own')) v *= OWN_DRIFT;
     [['a', oA, 0.34], ['b', oB, 0.62], ['c', oC, 1.0]].forEach(function (p) {
       var d = deck('.cl.' + p[0], p[1]);
       d.setProperty('--o', vis(p[1]));
@@ -2723,6 +3198,9 @@
     saverChanged: function () { applyHidden(); },
     // the forecast screensaver's own sky + landscape (scene() above)
     scene: scene,
+    // which land and lights a holiday dresses the screensaver in (tests)
+    _holidayLand: holidayLand,
+    _holidayLights: holidayLights,
     _land: { season: landSeason, light: landLight, file: landFile },
     // Called by selfRender() below. Returns '' so it renders nothing of its
     // own.

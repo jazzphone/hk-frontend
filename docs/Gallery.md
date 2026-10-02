@@ -38,9 +38,16 @@ The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (HK
 | ![The forecast screensaver by day](images/tablet-forecast.png) | ![The forecast screensaver at dusk](images/tablet-forecast-dusk.png) |
 | The [forecast](Screensaver-and-Idle.md#no-photos-the-forecast) by day | At dusk |
 
-![The forecast screensaver at night, with the season’s moon](images/tablet-forecast-night.png)
+![The forecast screensaver on a clear summer night: fireflies over the meadow and a shooting star](images/tablet-forecast-night.png)
 
-By night.
+By night: a shooting star, and fireflies in summer.
+
+| | |
+|---|---|
+| ![Halloween night on the forecast screensaver](images/tablet-forecast-halloween.png) | ![Christmas night on the forecast screensaver](images/tablet-forecast-christmas.png) |
+| [Halloween](Seasonal-Decorations.md#on-the-forecast-screensaver) | Christmas |
+| ![The Fourth of July on the forecast screensaver](images/tablet-forecast-july4.png) | ![A birthday on the forecast screensaver](images/tablet-forecast-birthday.png) |
+| The Fourth of July | A birthday |
 
 ![The photo screensaver with the calendar pane down the right](images/tablet-screensaver-calendar.png)
 

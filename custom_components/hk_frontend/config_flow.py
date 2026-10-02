@@ -143,7 +143,9 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
     # 8 (2026-10-01): the room settings are All Screens' (settings `rooms`);
     # a screen keeps its own only where it differs (rooms_custom) --
     # settings.rooms_lifted.
-    MINOR_VERSION = 8
+    # 9 (2026-10-02): the menu settings too (settings `menu`, menu_custom) --
+    # settings.menu_lifted.
+    MINOR_VERSION = 9
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:
@@ -252,7 +254,7 @@ class DashboardSubentryFlow(ConfigSubentryFlow):
         often added only for its Home or Appearance settings."""
         if user_input is not None:
             preset = dict(S.SCREEN_PRESETS.get(user_input.get("kind")) or {})
-            data = S.board(preset)
+            data = S.preset_menu(S.board(preset), preset, self._get_entry().options)
             if "menu" not in preset and self._path not in await _strategy_dashboards(self.hass):
                 data["menu"] = "off"
             return self.async_create_entry(title=await _dashboard_title(self.hass, self._path),

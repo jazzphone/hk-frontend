@@ -528,7 +528,7 @@ def test_copy_settings_covers_every_screen_setting_and_round_trips():
     assert set(S.BOARD_DEFAULTS) <= keys, set(S.BOARD_DEFAULTS) - keys
     assert keys - labels - set(S.BOARD_DEFAULTS) == set(), keys - labels - set(S.BOARD_DEFAULTS)
     # a busy screen's settings, copied onto a fresh one, are all accepted
-    busy = S.board({"menu": "open", "tab_size": "xl", "chips": ["lights"], "cameras": ["camera.front"],
+    busy = S.board({"menu": "open", "menu_custom": True, "tab_size": "xl", "chips": ["lights"], "cameras": ["camera.front"],
                     "scenes": ["scene.movie"], "favorites": ["light.lamp"], "glass": "frosted", "frost": 70,
                     "screensaver": True, "screensaver_options": {"show": "both"}, "idle_return": True,
                     "tablet_user": "kitchen", "idle_room": "kitchen"})

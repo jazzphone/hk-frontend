@@ -467,10 +467,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Every entry is version 1.8; one from a later major version is refused
+    """Every entry is version 1.9; one from a later major version is refused
     rather than guessed at. An older minor version is marked 7 (the versions
     that made such entries already moved their data), then 7 -> 8 moves the
-    screens' room settings to All Screens (settings.rooms_lifted)."""
+    screens' room settings to All Screens (settings.rooms_lifted), and 8 -> 9
+    their menu settings (settings.menu_lifted)."""
     if entry.version > 1:
         return False
     if entry.minor_version < 7:
@@ -486,6 +487,18 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if options is not None:
                 hass.config_entries.async_update_entry(entry, options=options)
         hass.config_entries.async_update_entry(entry, minor_version=8)
+    if entry.minor_version < 9:
+        # the menu's settings move to All Screens (settings.menu_lifted)
+        if F.kind_of(entry) == F.FRONTEND:
+            subs = {s.unique_id: s for s in entry.subentries.values()
+                    if s.subentry_type == dash_settings.SUBENTRY_DASHBOARD and s.unique_id}
+            options, items = dash_settings.menu_lifted(entry.options, {p: dict(s.data) for p, s in subs.items()})
+            for p, data in items.items():
+                if data != dict(subs[p].data):
+                    hass.config_entries.async_update_subentry(entry, subs[p], data=data)
+            if options is not None:
+                hass.config_entries.async_update_entry(entry, options=options)
+        hass.config_entries.async_update_entry(entry, minor_version=9)
     return True
 
 

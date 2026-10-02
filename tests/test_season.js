@@ -214,4 +214,28 @@ witchChecks('phone 390x844: ', 390, 844);
   check('land: the file name', L.file(north, { wet: { kind: 'none', rate: 0 }, elev: -20 }, on(9)) === 'land-fall-night.webp');
 })();
 
+// the forecast screensaver's holidays: which land, which lights (HK Frontend 1.5)
+(function () {
+  var HL = window.hkSky._holidayLand, LI = window.hkSky._holidayLights;
+  var hal = { name: 'halloween', surprise: '' }, xmas = { name: 'christmas', surprise: '' };
+  var j4 = { name: '', surprise: 'fourth-of-july' }, bday = { name: '', surprise: 'birthday' };
+  check('holiday land: Halloween by day is plain fall', HL(hal, 'day') === null);
+  check('holiday land: Halloween at dusk and night has its pumpkins',
+        HL(hal, 'dusk') === 'land-halloween-dusk' && HL(hal, 'night') === 'land-halloween-night');
+  check('holiday land: Christmas all day', HL(xmas, 'day') === 'land-christmas-day' && HL(xmas, 'night') === 'land-christmas-night');
+  check('holiday land: the Fourth all day', HL(j4, 'day') === 'land-july4-day' && HL(j4, 'dusk') === 'land-july4-dusk');
+  check('holiday land: a birthday keeps the season\'s land', HL(bday, 'day') === null);
+  check('holiday land: Thanksgiving and no season have none',
+        HL({ name: 'thanksgiving', surprise: '' }, 'night') === null && HL({ name: '', surprise: '' }, 'night') === null && HL(null, 'day') === null);
+  check('holiday land: another surprise (spring garden) keeps the season\'s land',
+        HL({ name: '', surprise: 'spring-garden' }, 'day') === null);
+  check('holiday lights: none by day', LI(xmas, 'day') === null && LI(j4, 'day') === null);
+  check('holiday lights: Halloween candles flicker', LI(hal, 'night').file === 'land-halloween-night-lights' && LI(hal, 'night').mode === 'flick');
+  check('holiday lights: Christmas bulbs twinkle, fainter at dusk',
+        LI(xmas, 'dusk').mode === 'twinkle' && LI(xmas, 'dusk').o < LI(xmas, 'night').o);
+  check('holiday lights: the Fourth at dusk borrows the night\'s layer',
+        LI(j4, 'dusk').file === 'land-july4-night-lights' && LI(j4, 'dusk').o < 1 && LI(j4, 'night').mode === 'breathe');
+  check('holiday lights: a birthday has none', LI(bday, 'night') === null);
+})();
+
 print(fail ?'FAIL ' + fail + ' SEASON TESTS' : 'ALL ' + pass + ' SEASON TESTS PASS');

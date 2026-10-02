@@ -72,6 +72,14 @@ photo shows; its sky only moves while it is on screen.
   through the year, so the light changes around you rather than the place. Falling rain and
   snow pass in front of the hills. South of the equator the seasons are
   flipped, and snow falling makes it winter.
+- It moves a little more than the pages’ sky: the clouds drift twice as
+  fast, the brighter stars twinkle, a clear night brings a shooting star now
+  and then (one every minute or two), and on a summer night fireflies
+  blink over the meadow. The moon keeps to the right, clear of the clock.
+- On the holidays the landscape dresses up, on the same days as the
+  [seasonal decorations](Seasonal-Decorations.md#on-the-forecast-screensaver):
+  jack-o’-lanterns at Halloween, lit trees and a snowman at Christmas,
+  bunting and fireworks on the Fourth of July, and balloons on a birthday.
 - Along the bottom, the forecast details: today’s conditions, the next 12
   hours and the next 6 days, from the weather set in **HK Settings →
   Weather**. **Forecast Details** turns them off, for the sky and the

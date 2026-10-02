@@ -1385,8 +1385,20 @@
       var mk = function (title, body, backTo) {
         return { title: title, back: backTo || [x.title, base], preview: path, body: body };
       };
-      if (s === 'menu-style') return mk('Button Style', function (c) { self.s_menuStyle(c, x, b); });
-      if (s === 'menu-narrow') return mk(b.menu === 'open' ? 'When Folded' : 'On Narrow Screens', function (c) { self.s_menuNarrow(c, x, b); });
+      // A SCREEN'S MENU SETTINGS (Same as All Screens, or its own), and its
+      // own button style, narrow-screen choice and highlight
+      if (s === 'menu-style' || s === 'menu-narrow') { sub = ['menu', s.slice(5)]; s = 'menu'; }
+      if (s === 'menu' && b.menu_custom && sub[1]) {
+        var mb = ['Menu Settings', base + '/menu'];
+        var pickB = function (k) { return function (v) { var ch = {}; ch[k] = v; self.setB(path, ch); self.back(base + '/menu'); }; };
+        if (sub[1] === 'style') return mk('Button Style', function (c) { self.menuStyle(c, b.menu, pickB('menu')); }, mb);
+        if (sub[1] === 'narrow') {
+          return mk(b.menu === 'open' ? 'When Folded' : 'On Narrow Screens', function (c) {
+            self.menuNarrow(c, b.narrow, pickB('narrow'), b.menu === 'open' ? 'open' : 'button'); }, mb);
+        }
+        if (sub[1] === 'accent') return mk('Highlight Color', function (c) { self.menuAccent(c, b.accent, pickB('accent')); }, mb);
+      }
+      if (s === 'menu') return mk('Menu Settings', function (c) { self.s_menu(c, x, b); });
       if (s === 'menu-pages' && x.generated) s = 'pages';
       if (s === 'menu-pages') return mk('Pages in Menu', function (c) { self.s_menuPages(c, x, b); });
       if (s === 'chips' && sub[1]) return mk(M.CHIP_LABELS[sub[1]] || sub[1], function (c) { self.s_chip(c, x, b, sub[1]); },
@@ -1446,42 +1458,18 @@
       rows.push(K.seg({ label: 'Menu', sk: 'b:menu', value: mode, stack: !this.hasAttribute('wide'),
         options: [['off', 'Off'], ['button', 'Button'], ['open', 'Always Open']],
         onChange: function (v) { set({ menu: M.menuFor(v, b, self._lastStyle) }); } }));
-      if (mode === 'button') {
-        this._lastStyle = b.menu;
-        rows.push(K.nav({ label: 'Button Style', value: M.menuStyleLabel(b.menu), href: base + '/menu-style', sk: 'b:menu-style' }));
-        rows.push(K.nav({ label: 'On Narrow Screens', value: M.narrowLabel(b.narrow), href: base + '/menu-narrow', sk: 'b:narrow' }));
-      }
-      if (M.showsTab(b)) {
-        rows.push(K.text({ label: 'Tab Position', sk: 'b:tab_position', value: b.tab_position, placeholder: 'Level with Date',
-          error: this.err('b:tab_position'), onCommit: function (v) { set({ tab_position: v.trim() }); } }));
-        var TAB_SIZES = [['standard', 'Standard'], ['large', 'Large'], ['xl', 'Extra Large']];
-        rows.push(K.seg({ label: 'Tab Size', sub: 'On a tablet, an iPad or a computer.', sk: 'b:tab_size',
-          value: b.tab_size || 'large', options: TAB_SIZES,
-          onChange: function (v) { set({ tab_size: v }); } }));
-        rows.push(K.seg({ label: 'Tab Size on Phones', sub: 'A phone’s tab lies over the first column of tiles.', sk: 'b:tab_size_phone',
-          value: b.tab_size_phone || 'standard', options: TAB_SIZES,
-          onChange: function (v) { set({ tab_size_phone: v }); } }));
-      }
-      if (mode === 'open') {
-        rows.push(K.text({ label: 'Keep Open Down To', sk: 'b:dock_min', value: b.dock_min, unit: 'px', inputmode: 'numeric',
-          error: this.err('b:dock_min'), onCommit: function (v) { set({ dock_min: Number(String(v).replace(/[^\d.]/g, '')) || 0 }); } }));
-        rows.push(K.nav({ label: 'When Folded', value: M.narrowLabel(b.narrow), href: base + '/menu-narrow', sk: 'b:narrow' }));
-        rows.push(K.toggle({ label: 'Time & Weather in Menu', sk: 'b:time_weather', on: b.time_weather === 'menu',
-          onChange: function (on) { set({ time_weather: on ? 'menu' : 'page' }); } }));
-      }
+      if (mode === 'button') this._lastStyle = b.menu;
       if (mode !== 'off') {
+        // its look, button, edge tab and the rest: All Screens' or its own
+        rows.push(K.nav({ label: 'Menu Settings', value: M.menuSummary(b), href: base + '/menu', sk: 'b:menu_custom' }));
         // a generated screen says which pages its menu lists on its Pages
         if (!gen) rows.push(K.nav({ label: 'Pages in Menu', sk: 'b:categories', href: base + '/menu-pages',
                                     value: b.categories.length || (b.menu_top || []).length ? 'Custom' : 'Automatic' }));
-        rows.push(K.toggle({ label: 'Home Assistant Section', sk: 'b:ha_row', on: b.ha_row,
-                             sub: 'Integrations, Automations, Settings, Notifications and more, above Categories.',
-                             onChange: function (on) { set({ ha_row: on }); } }));
       }
       var menuFoot = gen && mode !== 'off' ? ' Where each page sits in the menu is set in Pages.' : '';
       c.appendChild(K.group({ header: 'Menu', footer: mode === 'off' ? 'No menu on this screen.' :
-        (mode === 'open' ? 'Narrower than this, the menu folds away and When Folded takes its place.' :
-        'Below 1,024 px (an iPad held upright, a phone), On Narrow Screens takes over from the Button Style.') +
-        ' The Home Assistant section shows only what each person may open; Show Menu there opens Home Assistant’s own sidebar.' + menuFoot }, rows));
+        'A menu button, or the menu always open beside the page. Its look, button and edge tab are All Screens’ ' +
+        '(All Screens → Menu) unless Menu Settings gives this screen its own.' + menuFoot }, rows));
 
       // HOME PAGE
       var chipsVal = !b.chips_row ? 'Off' : b.chips.length ? b.chips.length + ' Chips' : 'Automatic';
@@ -1680,16 +1668,6 @@
       await this.reload();
       this.go('#/overview');
     }
-    s_menuStyle(c, x, b) {
-      var self = this;
-      c.appendChild(K.group({ footer: 'Below 1,024 px — an iPad held upright, a phone — the screen’s On Narrow Screens choice takes over.' },
-        M.MENU_STYLES.map(function (s) {
-          return K.check({ label: s[1], sub: s[2], on: b.menu === s[0], fk: 'style:' + s[0], onClick: function () {
-            self.setB(x.path, { menu: s[0] });
-            self.back('#/screens/' + encodeURIComponent(x.path));
-          } });
-        })));
-    }
     s_menuPages(c, x, b) {
       // A HAND-WRITTEN SCREEN'S MENU: each of its pages at the top
       // (right under Home), under Categories, or not in the menu -- as a
@@ -1713,17 +1691,131 @@
           K.button({ label: 'Use the Automatic Menu', fk: 'menu:auto', onClick: function () { set({ menu_top: [], categories: [] }); } })]));
       }
     }
-    s_menuNarrow(c, x, b) {
-      var self = this;
-      c.appendChild(K.group({ footer: b.menu === 'open'
-          ? 'Narrower than Keep Open Down To — an iPad held upright, a phone — the menu folds away and this takes its place.'
-          : 'Below 1,024 px — an iPad held upright, a phone — this takes over from the Button Style.' },
-        M.NARROW.map(function (n) {
-          return K.check({ label: n[1], sub: n[2], on: (b.narrow || 'chip') === n[0], fk: 'narrow:' + n[0], onClick: function () {
-            self.setB(x.path, { narrow: n[0] });
-            self.back('#/screens/' + encodeURIComponent(x.path));
-          } });
+    // A SCREEN'S MENU SETTINGS: Same as All Screens (what they are, each a
+    // way to All Screens' Menu), or its own -- the same rows as All Screens'
+    s_menu(c, x, b) {
+      var self = this, path = x.path, base = '#/screens/' + encodeURIComponent(path);
+      var set = function (ch) { return self.setB(path, ch); };
+      var mode = M.menuMode(b);
+      c.appendChild(K.group({ footer: b.menu_custom
+          ? 'This screen’s own menu settings. Turn Same as All Screens back on to follow All Screens again.'
+          : 'This screen’s menu follows All Screens → Menu. Turn this off to set its own; it starts as it is now.' }, [
+        K.toggle({ label: 'Same as All Screens', sk: 'b:menu_custom', on: !b.menu_custom,
+                   onChange: function (on) { set(on ? { menu_custom: false } : M.menuOwnChanges(b)); } })]));
+      if (b.menu_custom) { this.menuRows(c, b, set, { mode: mode, base: base + '/menu' }); return; }
+      var hm = '#/house/menu', rows = [
+        K.nav({ label: 'Highlight Color', value: M.accentOf(b.accent).name, href: hm + '/accent', sk: 'b:accent',
+                tile: ['', M.accentOf(b.accent).hex] })];
+      if (mode === 'button') rows.push(K.nav({ label: 'Button Style', value: M.menuStyleLabel(b.menu), href: hm + '/style', sk: 'b:menu' }));
+      rows.push(K.nav({ label: mode === 'open' ? 'When Folded' : 'On Narrow Screens', value: M.narrowLabel(b.narrow), href: hm + '/narrow', sk: 'b:narrow' }));
+      if (M.showsTab(b)) rows.push(K.nav({ label: 'Tab Position', value: M.tabPosLabel(b.tab_position), href: hm, sk: 'b:tab_position' }));
+      if (mode === 'open') {
+        rows.push(K.nav({ label: 'Keep Open Down To', value: b.dock_min + ' px', href: hm, sk: 'b:dock_min' }));
+        rows.push(K.nav({ label: 'Time & Weather in Menu', value: b.time_weather === 'menu' ? 'On' : 'Off', href: hm, sk: 'b:time_weather' }));
+      }
+      rows.push(K.nav({ label: 'Home Assistant Section', value: b.ha_row ? 'On' : 'Off', href: hm, sk: 'b:ha_row' }));
+      c.appendChild(K.group({ header: 'All Screens’ Menu', footer: 'Change these in All Screens → Menu: they change on every screen that follows it.' }, rows));
+    }
+    // THE MENU'S SETTINGS, for All Screens (o.house: every row, each kind of
+    // menu) or one screen's own (o.mode: its button or always-open menu's).
+    // `v` in a screen's keys (M.MENU_KEYS); `set` takes a screen's keys.
+    menuRows(c, v, set, o) {
+      var self = this, wide = this.hasAttribute('wide');
+      var sk = function (k) { return o.house ? 'menu.' + M.MENU_KEYS[k] : 'b:' + k; };
+      var btn = o.house || o.mode === 'button', open = o.house || o.mode === 'open';
+      var ac = M.accentOf(v.accent);
+      var look = [
+        K.nav({ label: 'Highlight Color', value: ac.name, href: o.base + '/accent', sk: sk('accent'),
+                tile: ['', ac.hex] }),
+        K.seg({ label: 'Button Icon', sk: sk('glyph'), value: v.glyph || 'sidebar', stack: !wide,
+                options: [['sidebar', 'Sidebar'], ['lines', 'Three Lines']],
+                onChange: function (g) { set({ glyph: g }); } })];
+      if (btn) look.push(K.toggle({ label: 'Tap Clock to Open Menu', sub: 'The weather beside it still opens Weather.', sk: sk('clock'),
+                                    on: v.clock !== false, onChange: function (on) { set({ clock: on }); } }));
+      c.appendChild(K.group({ header: 'Look', footer: 'The highlight colors the menu’s icons and the page you’re on.' }, look));
+      if (btn) {
+        c.appendChild(K.group({ header: o.house ? 'Menu Button' : 'Button', footer: (o.house ? 'For a screen whose menu is a button. ' : '') +
+            'Below 1,024 px (an iPad held upright, a phone), On Narrow Screens takes over from the Button Style.' }, [
+          K.nav({ label: 'Button Style', value: M.menuStyleLabel(v.menu), href: o.base + '/style', sk: sk('menu') }),
+          K.nav({ label: 'On Narrow Screens', value: M.narrowLabel(v.narrow), href: o.base + '/narrow', sk: sk('narrow') })]));
+      }
+      if (open) {
+        var orows = [
+          K.text({ label: 'Keep Open Down To', sk: sk('dock_min'), value: v.dock_min, unit: 'px', inputmode: 'numeric',
+                   error: this.err(sk('dock_min')), onCommit: function (t) { set({ dock_min: Number(String(t).replace(/[^\d.]/g, '')) || 0 }); } })];
+        if (!o.house) orows.push(K.nav({ label: 'When Folded', value: M.narrowLabel(v.narrow), href: o.base + '/narrow', sk: sk('narrow') }));
+        orows.push(K.toggle({ label: 'Time & Weather in Menu', sk: sk('time_weather'), on: v.time_weather === 'menu',
+                              onChange: function (on) { set({ time_weather: on ? 'menu' : 'page' }); } }));
+        c.appendChild(K.group({ header: 'Always Open', footer: (o.house ? 'For a screen whose menu is always open beside the page. ' : '') +
+            'Narrower than Keep Open Down To, the menu folds away and ' + (o.house ? 'On Narrow Screens' : 'When Folded') + ' takes its place.' }, orows));
+      }
+      if (o.house || M.showsTab(v)) {
+        var tp = M.tabPosParts(v.tab_position), unit = tp.unit, TAB_SIZES = [['standard', 'Standard'], ['large', 'Large'], ['xl', 'Extra Large']];
+        // px <-> % at a wall tablet's 800 px, so the tab stays about where it was
+        var conv = function (n, to) { var x = Number(n) || 0; return to === '%' ? Math.round(x / 8) : Math.round(x * 8); };
+        var trows = [K.seg({ label: 'Tab Position', sk: sk('tab_position'), value: tp.mode, stack: !wide,
+          options: [['date', 'Level with Date'], ['custom', 'Custom']],
+          onChange: function (m) { set({ tab_position: m === 'date' ? '' : '120px' }); } })];
+        if (tp.mode === 'custom') {
+          trows.push(K.text({ label: 'Distance from Top', sub: 'Where the middle of the tab sits.', sk: sk('tab_position') + ':n',
+            value: tp.n, unit: unit === '%' ? '%' : 'px', inputmode: 'decimal', error: this.err(sk('tab_position')),
+            onCommit: function (t) {
+              // a number (px or %), or nothing changes: an empty or wordy box
+              // is not a way back to Level with Date -- that has its own button
+              var ek = sk('tab_position');
+              if (!/^\s*\d+(\.\d+)?\s*(px|%)?\s*$/.test(String(t))) { self.errors[ek] = M.errorText('tab_position'); self.render(); return; }
+              delete self.errors[ek];
+              set({ tab_position: M.tabPosJoin(t, unit) });
+            } }));
+          trows.push(K.seg({ label: 'Measured In', sk: sk('tab_position') + ':u', value: unit, stack: !wide,
+            options: [['px', 'Pixels'], ['%', '% of Screen Height']],
+            onChange: function (u) { if (u !== unit) set({ tab_position: M.tabPosJoin(conv(tp.n, u), u) }); } }));
+        }
+        trows.push(K.seg({ label: 'Tab Size', sub: 'On a tablet, an iPad or a computer.', sk: sk('tab_size'),
+          value: v.tab_size || 'large', options: TAB_SIZES, onChange: function (z) { set({ tab_size: z }); } }));
+        trows.push(K.seg({ label: 'Tab Size on Phones', sub: 'A phone’s tab lies over the first column of tiles.', sk: sk('tab_size_phone'),
+          value: v.tab_size_phone || 'standard', options: TAB_SIZES, onChange: function (z) { set({ tab_size_phone: z }); } }));
+        c.appendChild(K.group({ header: 'Edge Tab', footer: (o.house ? 'For a screen that shows the edge tab: as its Button Style, On Narrow Screens or When Folded. ' : '') +
+            'Level with Date lines the tab up with the date under the clock. Custom places it a distance from the top, in pixels or as a share of the screen’s height.' }, trows));
+      }
+      c.appendChild(K.group({ header: 'In the Menu', footer: 'The Home Assistant section shows only what each person may open; Show Menu there opens Home Assistant’s own sidebar.' }, [
+        K.toggle({ label: 'Home Assistant Section', sk: sk('ha_row'), on: !!v.ha_row,
+                   sub: 'Integrations, Automations, Settings, Notifications and more, above Categories.',
+                   onChange: function (on) { set({ ha_row: on }); } })]));
+    }
+    // ONE PICK OF MANY, then back: the button style, the narrow-screen
+    // choice, the highlight (All Screens' or a screen's own)
+    menuStyle(c, cur, pick) {
+      c.appendChild(K.group({ footer: 'Below 1,024 px — an iPad held upright, a phone — On Narrow Screens takes over.' },
+        M.MENU_STYLES.map(function (s) {
+          return K.check({ label: s[1], sub: s[2], on: cur === s[0], fk: 'style:' + s[0], onClick: function () { pick(s[0]); } });
         })));
+    }
+    menuNarrow(c, cur, pick, mode) {
+      c.appendChild(K.group({ footer: mode === 'open'
+          ? 'Narrower than Keep Open Down To — an iPad held upright, a phone — the menu folds away and this takes its place.'
+          : mode === 'button' ? 'Below 1,024 px — an iPad held upright, a phone — this takes over from the Button Style.'
+          : 'A menu button below 1,024 px (an iPad held upright, a phone), and an always-open menu once it folds away.' },
+        M.NARROW.map(function (n) {
+          return K.check({ label: n[1], sub: n[2], on: (cur || 'chip') === n[0], fk: 'narrow:' + n[0], onClick: function () { pick(n[0]); } });
+        })));
+    }
+    menuAccent(c, cur, pick) {
+      var a = M.accentOf(cur);
+      c.appendChild(K.group({ footer: 'Colors the menu’s icons and the page you’re on. Over a pale color the page’s name turns dark, so it stays easy to read.' },
+        M.ACCENTS.map(function (x) {
+          return K.check({ label: x[1], tile: ['', x[2]], on: !a.custom && a.hex === x[2],
+                           fk: 'accent:' + x[0], onClick: function () { pick(x[0]); } });
+        })));
+      var row = K.text({ label: 'Your Own Color', sub: a.custom ? a.hex : 'Pick any color.', type: 'color', fk: 'accent:custom',
+                         value: a.hex, error: this.err('menu.accent') || this.err('b:accent'),
+                         onCommit: function (t) { if (/^#[0-9a-f]{6}$/i.test(t)) pick(t.toLowerCase()); } });
+      var inp = row.querySelector('input');
+      if (inp) {
+        inp.style.cssText = 'flex:none;width:44px;height:30px;padding:0;border-radius:8px;cursor:pointer';
+        inp.addEventListener('change', function () { if (/^#[0-9a-f]{6}$/i.test(inp.value)) pick(inp.value.toLowerCase()); });
+      }
+      c.appendChild(K.group({ header: 'Custom' }, [row]));
     }
     s_chips(c, x, b) {
       var self = this, path = x.path, base = '#/screens/' + encodeURIComponent(path);
@@ -2646,6 +2738,11 @@
       if (page === 'menu') {
         // (the Status Row lived here until Rooms had a page of its own)
         if (sub[0] === 'status') return mk('Status Row', function (c) { self.h_status(c); });
+        var hmv = M.houseMenuAsBoard(this.data.settings.menu);
+        var pickH = function (k) { return function (v) { var ch = {}; ch[k] = v; self.setH(M.houseMenuSave(ch)); self.back(base); }; };
+        if (sub[0] === 'style') return mk('Button Style', function (c) { self.menuStyle(c, hmv.menu, pickH('menu')); });
+        if (sub[0] === 'narrow') return mk('On Narrow Screens', function (c) { self.menuNarrow(c, hmv.narrow, pickH('narrow'), 'all'); });
+        if (sub[0] === 'accent') return mk('Highlight Color', function (c) { self.menuAccent(c, hmv.accent, pickH('accent')); });
         return { title: title, top: true, scope: scope, body: function (c) { self.h_menu(c); } };
       }
       if (page === 'rooms') {
@@ -3003,17 +3100,26 @@
         this.entityRow({ label: 'Also Needs', sk: 'sky.seasonal', value: sky.seasonal, none: 'Nothing Else',
                          filter: { domains: ['input_boolean', 'switch'] }, onPick: set('sky.seasonal') })]));
     }
+    // ALL SCREENS' MENU (2026-10-02): every menu setting, for every screen
+    // that doesn't set its own; whether a screen has a menu -- a button, or
+    // always open -- is each screen's.
     h_menu(c) {
-      var self = this, menu = this.data.settings.menu, rooms = this.data.settings.rooms;
-      c.appendChild(K.group({ header: 'Menu', footer: 'Whether a screen has a menu, and its style, is set on each screen.' }, [
-        K.seg({ label: 'Button Icon', sk: 'menu.glyph', value: menu.glyph, stack: !this.hasAttribute('wide'),
-                options: [['sidebar', 'Sidebar'], ['lines', 'Three Lines']],
-                onChange: function (v) { self.setH({ 'menu.glyph': v }); } }),
-        K.toggle({ label: 'Tap Clock to Open Menu', sub: 'The weather beside it still opens Weather.', sk: 'menu.clock', on: menu.clock !== false,
-                   onChange: function (on) { self.setH({ 'menu.clock': on }); } })]));
-      void rooms;
-      c.appendChild(K.group({ footer: 'The rooms in the menu, their order and everything else about rooms are in Rooms.' }, [
+      var self = this, v = M.houseMenuAsBoard(this.data.settings.menu);
+      var set = function (ch) { return self.setH(M.houseMenuSave(ch)); };
+      this.menuRows(c, v, set, { house: true, base: '#/house/menu' });
+      c.appendChild(K.group({ footer: 'The rooms in the menu, their order and everything else about rooms are in Rooms. A generated screen’s page order is in its Pages.' }, [
         K.nav({ label: 'Rooms', href: '#/house/rooms', icon: 'mdi:sofa', sk: 'menu:rooms' })]));
+      var bd = this.data.boards || {}, rows = [];
+      Object.keys(bd).forEach(function (p) {
+        var b = bd[p];
+        if (!b || b.menu === 'off') return;
+        var d = self.dash(p);
+        rows.push(K.nav({ label: d ? d.title : p, sub: M.menuMode(b) === 'open' ? 'Always open' : 'A menu button',
+                          value: M.menuSummary(b), href: '#/screens/' + encodeURIComponent(p) + '/menu', fk: 'menu:screen:' + p }));
+      });
+      if (rows.length) {
+        c.appendChild(K.group({ header: 'Screens', footer: 'Whether a screen has a menu, a button or one always open, is set on each screen. A screen can set its own menu settings in its Menu Settings.' }, rows));
+      }
     }
     // ---------------------------------------------------------- rooms
     // ROOMS, ALL SCREENS (2026-10-01): one place for everything about rooms.

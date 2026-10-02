@@ -647,8 +647,91 @@ async def test_an_entry_from_1_7_moves_its_rooms(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 8
+    assert old.minor_version == 9
     assert S.merged(old.options)["rooms"]["order"] == ORDER
     got = S.boards(old)
     assert all(got[p]["rooms_house"] and got[p]["room_order"] == ORDER and got[p]["menu_rooms"] == "order"
                for p in ("dashboard-a", "dashboard-b"))
+
+
+# ------------------------------------------------ the menu, All Screens' (1.9)
+def test_menu_lifted_takes_what_most_screens_show_and_marks_the_rest():
+    from custom_components.hk_frontend import settings as S
+    items = {
+        # two wall tablets, the same; one with its own Keep Open Down To
+        "wall-a": {"menu": "open", "time_weather": "menu", "dock_min": 1200},
+        "wall-b": {"menu": "open", "time_weather": "menu", "dock_min": 1200},
+        "wall-c": {"menu": "open", "time_weather": "menu", "dock_min": 900},
+        # phones: the edge tab, one with a large tab -- its time_weather is
+        # never shown, so it doesn't count against it
+        "phone-a": {"menu": "tab", "tab_size": "xl", "time_weather": "page"},
+        "phone-b": {"menu": "tab", "tab_size": "xl"},
+        "phone-c": {"menu": "chip", "tab_size": "xl"},
+        "car": {"menu": "off", "dock_min": 3000},
+    }
+    options, out = S.menu_lifted({"dashboard": {"menu": {"glyph": "lines", "clock": False}}}, items)
+    m = options["dashboard"]["menu"]
+    assert (m["style"], m["open_min"], m["time_weather_at"], m["tab_size"]) == ("tab", 1200, "menu", "xl")
+    assert (m["glyph"], m["clock"]) == ("lines", False), "the icon and the clock tap stay All Screens'"
+    custom = {p for p, d in out.items() if d["menu_custom"]}
+    assert custom == {"wall-c", "phone-c"}
+    # a screen that keeps its own keeps the shared look it had
+    assert (out["wall-c"]["glyph"], out["wall-c"]["clock"]) == ("lines", False)
+    # every screen as read shows what it showed before
+    for p, d in out.items():
+        before, after = S.board(items[p]), S.resolved(S.board(d), options)
+        if before["menu"] == "off":
+            continue
+        for k in S._menu_shown(before):
+            assert after[k] == before[k], (p, k)
+    # once All Screens has a style, nothing moves again
+    assert S.menu_lifted(options, out) == (None, {})
+
+
+def test_a_screen_follows_all_screens_menu_but_keeps_off_and_always_open():
+    from custom_components.hk_frontend import settings as S
+    opts = {"dashboard": {"menu": {"style": "chip_home", "accent": "teal", "tab_at": "20%", "open_min": 1400}}}
+    btn = S.resolved(S.board({"menu": "tab", "accent": "red"}), opts)
+    assert (btn["menu"], btn["accent"], btn["tab_position"], btn["menu_house"]) == ("chip_home", "teal", "20%", True)
+    docked = S.resolved(S.board({"menu": "open"}), opts)
+    assert (docked["menu"], docked["dock_min"]) == ("open", 1400)
+    assert S.resolved(S.board({"menu": "off"}), opts)["menu"] == "off"
+    own = S.resolved(S.board({"menu": "tab", "accent": "red", "menu_custom": True}), opts)
+    assert (own["menu"], own["accent"], own["menu_house"]) == ("tab", "red", False)
+
+
+def test_menu_accent_is_a_name_or_a_hex():
+    from custom_components.hk_frontend import settings as S
+    assert S.accent("Teal") == "teal" and S.accent("#A1B2C3") == "#a1b2c3"
+    assert S.accent("chartreuse") is None and S.accent("#abc") is None
+    assert S.board({"accent": "nope"})["accent"] == "orange"
+    assert S.house_menu({"accent": "#123456"})["accent"] == "#123456"
+
+
+def test_a_preset_keeps_its_own_menu_only_where_all_screens_differ():
+    from custom_components.hk_frontend import settings as S
+    wall = S.SCREEN_PRESETS["wall_tablet"]
+    assert S.preset_menu(S.board(wall), wall, {})["menu_custom"] is True
+    assert S.preset_menu(S.board(wall), wall, {"dashboard": {"menu": {"time_weather_at": "menu"}}})["menu_custom"] is False
+    phone = S.SCREEN_PRESETS["personal"]
+    assert S.preset_menu(S.board(phone), phone, {})["menu_custom"] is False
+
+
+async def test_an_entry_from_1_8_moves_its_menu(hass, base):
+    from conftest import house_entry
+    from custom_components.hk_frontend import settings as S
+    old = house_entry({"subentry_type": "dashboard", "unique_id": "dashboard-a", "title": "A",
+                       "data": {"menu": "tab", "tab_size": "xl"}},
+                      {"subentry_type": "dashboard", "unique_id": "dashboard-b", "title": "B",
+                       "data": {"menu": "tab", "tab_size": "standard", "tab_position": "30%"}},
+                      {"subentry_type": "dashboard", "unique_id": "dashboard-c", "title": "C",
+                       "data": {"menu": "tab", "tab_size": "xl"}},
+                      minor_version=8)
+    old.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(old.entry_id)
+    await hass.async_block_till_done()
+    assert old.minor_version == 9
+    assert (S.merged(old.options)["menu"]["style"], S.merged(old.options)["menu"]["tab_size"]) == ("tab", "xl")
+    got = S.boards(old)
+    assert got["dashboard-a"]["menu_house"] and got["dashboard-c"]["menu_house"]
+    assert not got["dashboard-b"]["menu_house"] and got["dashboard-b"]["tab_position"] == "30%"
