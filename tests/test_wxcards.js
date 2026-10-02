@@ -229,6 +229,16 @@ H.run('WEATHER CARDS', [
     H.eq('...six of them', (card._root.__html.split('class="hrule"')[0].match(/<div class="hi">/g) || []).length, 6);
     H.resize(card, 397 + 6 * 44 + 1);
     H.eq('a resize that crosses no boundary does not redraw', card.__renders - r0, 1);
+    // TODAY'S COLUMN, SLIMMER (`now_width`: the screensaver's band beside its
+    // calendar pane): the strips get the room it gives up, side by side
+    var c0 = card._config;
+    card._config = Object.assign({}, c0, { now_width: 200 });
+    H.resize(card, 297 + 8 * 44);
+    H.eq('a 200px today column leaves room for eight 40px hours', card._fit(12, 40), 8);
+    H.eq('...beside it, not stood up', card._narrow(), false);
+    card._config = Object.assign({}, c0, { now_width: 5 });
+    H.eq('a width it cannot use is the usual 300', card._side(), 397);
+    card._config = c0;
     H.detach(card);
     H.eq('detached: the observer is disconnected', H.observed(), 0);
     return H.lifecycle('band', card, house, function (c) { c.hass = house.hass(); });

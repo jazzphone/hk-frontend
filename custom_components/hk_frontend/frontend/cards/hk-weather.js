@@ -628,9 +628,16 @@
                   function (el, html) { el.innerHTML = html; };
         if (this._lastL !== l) { this._lastL = l; put(this._e.left, l); this._fitWx(); }
         if (this._lastR !== r) { this._lastR = r; put(this._e.right, r); }
-        // The same optical left edge as the screensaver clock.
+        // The same optical left edge as the screensaver clock -- measured
+        // again as the header settles, as the clock card's is (_align)
         if (H && H.clockShift && !this._aligning) {
           var s = H.clockShift(this._e.left), self = this;
+          if (!this._settle) {
+            this._settle = true;
+            [400, 1500, 4000].forEach(function (ms) {
+              setTimeout(function () { if (self.isConnected) self.requestUpdate(); }, ms);
+            });
+          }
           if (s === null) {
             if (document.fonts && !this._fontWait) {
               this._fontWait = true;
@@ -877,7 +884,9 @@
           // but its hourly tracks come out 53.5px instead of 40px, because the
           // left column is ~48px narrower than it should be. Measure it; do
           // not judge it by looking.
-          '.wrap{display:grid;grid-template-columns:300px 1px minmax(0,1fr);',
+          // the left track: 300px, or the card's `now_width` (the
+          // screensaver's band beside its calendar pane: 200)
+          '.wrap{display:grid;grid-template-columns:var(--hk-now-w,300px) 1px minmax(0,1fr);',
           '  column-gap:24px;align-items:stretch;width:100%;min-width:0}',
           // LEFT: the centred stack. The 76px numeral at weight 200 is the
           // signature of the whole page and is only possible because
@@ -973,6 +982,10 @@
         // it has (a layout read, and _sigOf runs on every hass push).
         return this._w != null ? this._w : this.clientWidth;
       }
+      // everything beside the strips when side by side: 48 of padding, the
+      // left track, 24 + 1 + 24 of gap and rule (397 at the usual 300)
+      _nowW() { var n = Number((this._config || {}).now_width); return n >= 120 && n <= 400 ? n : 300; }
+      _side() { return 97 + this._nowW(); }
       _narrow() {
         var c = this._config || {};
         // `narrow: true`: stood up whatever the width (the screensaver's
@@ -980,12 +993,12 @@
         if (c.narrow === true) { return true; }
         var w = this._width();
         if (!w) { return false; }
-        return (w - 397) < (Number(c.min_hour_col) || 40);
+        return (w - this._side()) < (Number(c.min_hour_col) || 40);
       }
       _fit(max, minCol) {
         var w = this._width();
         if (!w) { return max; }                 // pre-layout: cap, then correct
-        var avail = this._narrow() ? w - 48 : w - 397;
+        var avail = this._narrow() ? w - 48 : w - this._side();
         if (avail <= 0) { return 1; }
         // n columns take n*minCol + (n-1)*GAP, so n = (avail + GAP) / (minCol + GAP)
         var n = Math.floor((avail + 4) / (minCol + 4));
@@ -1236,7 +1249,8 @@
         };
 
         this._root.innerHTML =
-          '<ha-card class="band' + (cfg.plain ? ' plain' : '') + '"><div class="wrap' + (narrow ? ' narrow' : '') + '">' +
+          '<ha-card class="band' + (cfg.plain ? ' plain' : '') + '"><div class="wrap' + (narrow ? ' narrow' : '') + '"' +
+          (this._nowW() !== 300 ? ' style="--hk-now-w:' + this._nowW() + 'px"' : '') + '>' +
             '<div class="now">' +
               '<div class="place">' + esc(cfg.place || this._place()) + '</div>' +
               '<div class="temp">' + (t !== null ? Math.round(t) : '--') + '°</div>' +
@@ -1466,6 +1480,16 @@
       _align() {
         var H = window.hkHeader, self = this;
         if (!H || !H.clockShift || this._aligning) return;
+        // MEASURED AGAIN AS IT SETTLES: the first measure can come while the
+        // clock is still being placed (the screensaver sizes it just after),
+        // and the next chance was the next minute's redraw -- the time sat
+        // 17 px off the date's edge until then (2026-10-01)
+        if (!this._settle) {
+          this._settle = true;
+          [400, 1500, 4000].forEach(function (ms) {
+            setTimeout(function () { if (self.isConnected) self._align(); }, ms);
+          });
+        }
         var s = H.clockShift(this._root);
         if (s === null) {                              // font still loading
           if (document.fonts && !this._fontWait) {
@@ -1557,7 +1581,8 @@
         C.section('Layout', [
           { type: 'grid', name: '', schema: [
             { name: 'min_hour_col', selector: { number: { min: 20, max: 120, mode: 'box' } } },
-            { name: 'min_day_col', selector: { number: { min: 20, max: 160, mode: 'box' } } }
+            { name: 'min_day_col', selector: { number: { min: 20, max: 160, mode: 'box' } } },
+            { name: 'now_width', selector: { number: { min: 120, max: 400, mode: 'box' } } }
           ] },
           { name: 'plain', selector: { boolean: {} } },
           { name: 'narrow', selector: { boolean: {} } }

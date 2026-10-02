@@ -65,6 +65,11 @@
   // (or the forecast) take the rest; beside the pane the forecast details
   // stand up, as on a phone, no wider than BAND_STACKED.
   var PANE_W = 400, BAND_STACKED = 680, BAND_PAD_STACKED = 30;
+  // ...since 1.4.3 side by side there too, as on every other screen: today's column this wide (the
+  // tablet's band has 300), the band as wide as the photos' room allows
+  var BAND_NOW_BESIDE = 200, BAND_BESIDE_GUTTER = 30;
+  // the forecast details fade in once in place (addBand)
+  var BAND_REVEAL_MS = 260;
   var PANE_TOP = 74;                       // Home Status sits above the list (at least)
   var PANE_RESET_MS = 45000;               // untouched this long: back to today
 
@@ -515,6 +520,8 @@
     if (paneT) { clearInterval(paneT); paneT = null; }
     if (paneResetT) { clearTimeout(paneResetT); paneResetT = null; }
   }
+  var builtFor = null;
+  function cfgKey() { try { return JSON.stringify(cfg); } catch (e) { return String(Math.random()); } }
   function buildCards(info) {
     var h = hassNow();
     cards = [];
@@ -550,8 +557,12 @@
     if (on || !cfg || !allowed()) return false;
     if (idleT) { clearTimeout(idleT); idleT = null; }
     on = true; startedBy = reason || 'idle'; mx = null; my = null; blockUntil = 0;
-    if (host && host.hasAttribute('blocking')) teardown();
-    if (!host) build();
+    // BUILT FOR OTHER SETTINGS: its cards were set up for them (Home Status
+    // sized for the calendar pane, or for the corner), and a host kept from
+    // an earlier start kept them -- the pane turned off on HK Settings left
+    // Home Status small, halfway along the top (2026-10-01). Built again.
+    if (host && (host.hasAttribute('blocking') || builtFor !== cfgKey())) teardown();
+    if (!host) { build(); builtFor = cfgKey(); }
     host.style.setProperty('--fade', FADE_IN_MS + 'ms');
     if (cfg.zoom) host.setAttribute('zoom', ''); else host.removeAttribute('zoom');
     host.removeAttribute('blocking');
@@ -889,6 +900,8 @@
     if (paneCard && (paneCard.style.zoom || '1') !== String(z)) paneCard.style.zoom = z === 1 ? '' : String(z);
     if (w === paneW && host.style.getPropertyValue && host.style.getPropertyValue('--hk-pane-w')) return;
     paneW = w;
+    // a new width for the pane is a new room for the band beside it
+    if (fband && fband.isConnected) setTimeout(function () { if (fband && fband.isConnected) centerBand(fband); }, 0);
     var W = window.innerWidth || 0, px = function (n) { return Math.round(n * z) + 'px'; };
     host.style.setProperty('--hk-pane-w', w + 'px');
     // one margin for everything in the pane: the list, Home Status, its foot
@@ -946,15 +959,33 @@
       if (!wid) return;
       try {
         var el = document.createElement(tag);
-        // beside the calendar pane: stood up, as on a phone, with fewer hours
+        // beside the calendar pane: today beside the hours and days, as on
+        // the other screens, its column slimmer and fewer hours
         el.setConfig({ type: 'custom:' + tag, entity: wid, hours: cfg.calendar ? 8 : 12, days: 6, plain: true,
-                       narrow: !!cfg.calendar });
+                       now_width: cfg.calendar ? BAND_NOW_BESIDE : undefined });
         if (h) el.hass = h;
+        // NOT SEEN UNTIL IT IS IN PLACE: it can only be centred once it has
+        // drawn (centerBand measures it), so it drew ~25 px off and jumped
+        // a quarter second into the slide -- and beside the calendar pane
+        // again when it redrew for its width (2026-10-01). Hidden until it is
+        // where it stays, then faded in.
+        el.style.opacity = '0';
         box.appendChild(el);
         cards.push(el);
         fband = el;
-        // centred as soon as it has drawn, not at the next tick
-        setTimeout(function () { if (fband === el && el.isConnected) centerBand(el); }, 250);
+        var placed = function () {
+          if (fband !== el || !el.isConnected) return;
+          centerBand(el);
+          el.style.transition = 'opacity ' + BAND_REVEAL_MS + 'ms ease';
+          el.style.opacity = '';
+        };
+        // centred as soon as it has drawn, not at the next tick -- beside the
+        // pane once more after it has redrawn for its width
+        setTimeout(function () {
+          if (fband !== el || !el.isConnected) return;
+          centerBand(el);
+          setTimeout(placed, cfg && cfg.calendar ? 400 : 0);
+        }, 250);
       } catch (e) { console.warn('[hk-saver] forecast band', e); }
     };
     if (customElements.get(tag)) make();
@@ -968,6 +999,9 @@
   function centerBand(card) {
     var sr = card.shadowRoot, W = window.innerWidth || 0, H = window.innerHeight || 0;
     if (!sr || !W) return;
+    // THE PANE'S WIDTH FIRST: centred before the pane had measured itself,
+    // the band was centred on the whole screen and ran under the pane
+    if (cfg && cfg.calendar && !paneW) layoutPane();
     // the scale first (a bigger screen: the tablet's band, bigger) -- CSS
     // zoom, so it lays out as on the tablet and takes its scaled room
     var z = scaleOf();
@@ -979,8 +1013,14 @@
     if (box && box.style) {
       if (cfg && cfg.calendar) {
         box.style.height = Math.round(Math.max(0.356 * H, 0.2225 * RW)) + 'px';
-        box.style.padding = BAND_PAD_STACKED + 'px 0';
-        card.style.maxWidth = BAND_STACKED + 'px';
+        box.style.padding = '';
+        var mw = Math.max(BAND_STACKED, Math.round(RW / z) - 2 * BAND_BESIDE_GUTTER) + 'px';
+        if (card.style.maxWidth !== mw) {
+          card.style.maxWidth = mw;
+          // the band redraws its columns for the new width a moment later
+          // (its own ResizeObserver): centre it again once it has
+          setTimeout(function () { if (fband === card && card.isConnected) centerBand(card); }, 350);
+        }
       } else {
         box.style.height = ''; box.style.padding = ''; card.style.maxWidth = '';
       }

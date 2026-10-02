@@ -97,8 +97,8 @@ dimmed, and the next one says how soon (“in 46 min”).
 
 - The photos move over beside it, so the middle of each photo stays in view;
   behind the pane is a blurred copy of the photo. On the forecast the pane
-  turns the night sky’s navy, and the forecast stands up beside it, as it
-  does on a phone: today on top, the hours, then the days.
+  turns the night sky’s navy, and the forecast fits beside it: today on the
+  left, the hours and the days beside it, as on the other screens.
 - The pane is one column of what is going on: Home Status at its top (on as
   many lines as it needs, the list starting below it), the events, and at its
   foot what is playing and the running timers. The clock, the date and the

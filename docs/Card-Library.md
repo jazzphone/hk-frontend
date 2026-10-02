@@ -192,7 +192,7 @@ on, instead of a fixed `entity`.
 | `hk-header-card` | The wall header: clock, date and weather, beside the security summary. Tap the weather for the Weather page, the security summary for the alarm; on a screen with a menu, tap the clock to open the menu. | `weather_path` (default `./weather`), `alarm_path` (default `./alarm`) |
 | `hk-clock-card` | The time and date on their own. | `date_format` (`weekday`, `monthday`), `time_size`, `ampm_size`, `date_size`, `color`, `date_color`, `shadow`, `height`, `padding`, `margin`, `gap` |
 | `hk-weather-strip-card` | The current temperature and conditions on one line. | `entity`, `main_size`, `detail_size`, `glyph_size`, `color`, `dim_color`, `shadow`, `margin`, `tap_action` |
-| `hk-weather-band-card` | Current conditions with an hourly and a daily forecast. | `entity` (required), `hours` (12), `days` (8), `place`, `min_hour_col` (40), `min_day_col` (55), `plain` (no plate, white text), `narrow` (stood up, as on a phone), `tap_action` |
+| `hk-weather-band-card` | Current conditions with an hourly and a daily forecast. | `entity` (required), `hours` (12), `days` (8), `place`, `min_hour_col` (40), `min_day_col` (55), `plain` (no plate, white text), `narrow` (stood up, as on a phone), `now_width` (today’s column, 120 to 400 px; 300), `tap_action` |
 | `hk-weather-tile-card` | A small tile for the wind, sunrise and sunset, the moon, or the UV index. | `variant` (required: `wind`, `sun`, `moon`, `uv`), `caption`, `entity`, `speed`, `gust`, `sun`, `phase`, `uv` |
 | `hk-alert-card` | Severe-weather alerts from the NWS Alerts integration; shows only while one is active. | `entity` (required), `title`, `source`, `icon` |
 
