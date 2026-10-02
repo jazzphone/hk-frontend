@@ -190,12 +190,13 @@ what to copy, and select **Copy**. Only this screen changes.
 
 | Part | Ticked | What it copies |
 |---|---|---|
-| Menu | Yes | The menu, its button or edge tab (and its size and position), what’s in it and in what order |
-| Home Page | Yes | The status chips and their order, the rooms on Home and their order |
+| Menu | Yes | Whether it has a menu (a button, or always open), its Menu Settings (Same as All Screens, or its own: the highlight, the button or edge tab and its size and position, and the rest), and a YAML screen’s pages in it |
+| Home Page | Yes | Whether it has a Home page, the status chips and their order |
+| Rooms | Yes | Same as All Screens, or its own room order, Rooms in Menu and Rooms on Pages |
 | Cameras | Yes | The camera strip and which cameras, and the live camera |
 | Scenes | No | The scenes row and its pills |
 | Favorites | No | The favorites |
-| Pages | Yes | Which pages, custom pages, the rooms’ order on their pages |
+| Pages | Yes | Which pages and custom pages, in their order |
 | Appearance | Yes | Glass, frost, blur, live sky |
 | Behavior | Yes | Return to Home, pop-ups, car browser, kiosk, the now-playing bar |
 | Screensaver | Yes | Photo Screensaver, its options (or Same as All Screens), WallPanel instead |

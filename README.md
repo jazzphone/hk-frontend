@@ -79,7 +79,7 @@ Add each from **Settings** → **Devices & services** → **HK Frontend** → **
 | **[Live TV](https://github.com/jazzphone/hk-frontend/wiki/Live-TV)** | An HDHomeRun tuner’s channels and guide, full screen on any screen |
 | **[Clean Areas](https://github.com/jazzphone/hk-frontend/wiki/Clean-Areas)** | Pick rooms and send the vacuums that reach them |
 | **[Alarm PIN](https://github.com/jazzphone/hk-frontend/wiki/Alarm-PIN)** | A PIN in front of an alarm panel that takes no code of its own |
-| **[Wall tablets](https://github.com/jazzphone/hk-frontend/wiki/Wall-Tablets)** | Return to Home when idle, a photo screensaver (with the coming events beside it, if you like) and a full-screen kiosk look |
+| **[Wall tablets](https://github.com/jazzphone/hk-frontend/wiki/Wall-Tablets)** | Return to Home when idle, a photo screensaver or the forecast over a landscape that dresses up for the holidays (with the coming events beside it, if you like) and a full-screen kiosk look |
 
 ## Help
 
