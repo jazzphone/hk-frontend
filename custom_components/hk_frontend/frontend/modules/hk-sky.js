@@ -794,6 +794,13 @@
     // stacking context, so these numbers can never lift anything out of it and
     // over .grain and .scrim.
     '#hk-sky .season{isolation:isolate}',
+    // BESIDE AN OPEN MENU: a page's decorations start where the page does
+    // (hk-menu.js --hk-page-left: the docked menu's right edge, else
+    // Home Assistant's sidebar or 0), so a canopy or a garland is never laid
+    // out behind the menu; the sky itself still runs under it, blurred by
+    // its glass -- the screensaver does the same beside its calendar pane.
+    // Not the screensaver's own sky, which fills its screen.
+    '#hk-sky:not(.own) .season{left:var(--hk-page-left,0px)}',
     '#hk-sky .season .witch{z-index:1}',
     '#hk-sky .season :is(.branches,.cobweb){z-index:2}',
 
@@ -2851,8 +2858,12 @@
     // ---- seasons
     // Built here, but only actually rebuilt when the season key changes; see
     // paintSeason. Returns what it composites, for the cap below.
-    var seasonCover = paintSeason(el, s,
-      el.clientWidth || 1280, el.clientHeight || 800, moonS, moonXf, moonYf);
+    // laid out in the seasonal layer's own box (beside an open menu, the
+    // page's), the moon's centre given in that box's fractions
+    var sbox = el.querySelector('.season'), EW = el.clientWidth || 1280;
+    var SW = (sbox && sbox.clientWidth) || EW, SL = EW - SW;
+    var seasonCover = paintSeason(el, s, SW, el.clientHeight || 800, moonS,
+      SW ? (moonXf * EW - SL) / SW : moonXf, moonYf);
 
     // ---- luminance cap
     // Estimate what all of the above actually composites to, then scrim it

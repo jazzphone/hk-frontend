@@ -55,6 +55,9 @@ TEXT = (".py", ".js", ".json", ".yaml", ".yml", ".md", ".css", ".html", ".txt", 
 # DONE.json are published; the artist's working folder, contact sheets and
 # diff maps are not (.gitignore says the same)
 SKIP_ART = re.compile(r"(^|/)tools/sky/src/[^/]+/(work/|contact-[^/]*\.png$|diff-[^/]*\.png$)")
+# THE DASHBOARD SCENES' ART (tools/sky/src/decor*/): concepts and motion layers
+# still in review, untracked and not in any release -- none of it is published
+SKIP_UNRELEASED = re.compile(r"(^|/)tools/sky/src/decor[^/]*/")
 
 
 def files_under(root: str):
@@ -62,7 +65,7 @@ def files_under(root: str):
         dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
         for f in files:
             path = os.path.join(d, f)
-            if f not in SKIP_DIRS and not SKIP_ART.search(os.path.relpath(path, root).replace(os.sep, "/")):
+            if f not in SKIP_DIRS and not SKIP_ART.search(rel := os.path.relpath(path, root).replace(os.sep, "/")) and not SKIP_UNRELEASED.search(rel):
                 yield path
 
 
