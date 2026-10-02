@@ -2012,8 +2012,8 @@
       c.appendChild(K.listEditor({ fk: 'rooms', auto: mdl.auto, minRows: 1, announce: this.announce.bind(this),
         autoFooter: 'Automatic: Home shows its rooms as the screen lists them' + (x.generated ? ' (floor by floor, then A to Z).' : '.'),
         shownHeader: 'On Home', moreHeader: 'Not on Home',
-        moreFooter: 'A room that isn’t on Home keeps its page and its row in the menu.',
-        rows: mdl.rows.map(function (r) { return { value: r.value, label: self.areaName(r.value), icon: (areas[r.value] || {}).icon || 'mdi:texture-box' }; }),
+        moreFooter: 'A room that isn’t on Home keeps its page and its row in the menu. Tap a room for its own settings, the same on every screen.',
+        rows: mdl.rows.map(function (r) { return { value: r.value, label: self.areaName(r.value), icon: (areas[r.value] || {}).icon || 'mdi:texture-box', href: self.roomHref(r.value) }; }),
         more: mdl.more.map(function (r) { return { value: r.value, label: self.areaName(r.value), icon: (areas[r.value] || {}).icon || 'mdi:texture-box' }; }),
         onAuto: function (on) {
           if (!on) { set({ room_order: az.slice(), home_rooms: 'order' }); return; }
@@ -2656,7 +2656,10 @@
           var aid = sub[0], rn = this.areaName(aid), rb = [rn, base + '/' + encodeURIComponent(aid)];
           if (sub[1] === 'order') return { title: 'Tile Order', back: rb, body: function (c) { self.a_roomOrder(c, aid); } };
           if (sub[1] === 'scenes') return { title: 'Scenes', back: rb, body: function (c) { self.a_roomScenes(c, aid); } };
-          return mk(rn, function (c) { self.h_room(c, aid); });
+          var rp = mk(rn, function (c) { self.h_room(c, aid); });
+          // opened from a screen's own room list too: say whose these are
+          rp.scope = 'This room’s own settings, the same on every screen.';
+          return rp;
         }
         return { title: title, top: true, scope: 'Applies to every screen whose Rooms are Same as All Screens; each room’s own settings, to every screen.',
                  body: function (c) { self.h_rooms(c); } };
@@ -3020,6 +3023,8 @@
     // (on every screen): shown or hidden, on Home, part of another room,
     // its tile order and its scenes.
     houseRooms() { return M.houseRoomsAsBoard(this.data.settings.rooms); }
+    // a room's own page (Rooms, All Screens), from any list of rooms
+    roomHref(a) { return '#/house/rooms/' + encodeURIComponent(a); }
     roomFollowers() {
       var bd = this.data.boards || {};
       return Object.keys(bd).filter(function (p) { return !bd[p].rooms_custom; });
@@ -3068,8 +3073,8 @@
       c.appendChild(K.listEditor({ fk: 'hrooms', auto: mdl.auto, minRows: 1, announce: this.announce.bind(this),
         autoFooter: 'Automatic: Home shows its rooms floor by floor, then A to Z.',
         shownHeader: 'On Home', moreHeader: 'Not on Home',
-        moreFooter: 'A room that isn’t on Home keeps its page and its row in the menu.',
-        rows: mdl.rows.map(function (r) { return { value: r.value, label: self.areaName(r.value), icon: icon(r.value) }; }),
+        moreFooter: 'A room that isn’t on Home keeps its page and its row in the menu. Tap a room for its own settings.',
+        rows: mdl.rows.map(function (r) { return { value: r.value, label: self.areaName(r.value), icon: icon(r.value), href: self.roomHref(r.value) }; }),
         more: mdl.more.map(function (r) { return { value: r.value, label: self.areaName(r.value), icon: icon(r.value) }; }),
         onAuto: function (on) {
           if (!on) { setR({ room_order: az.slice(), home_rooms: 'order' }); return; }

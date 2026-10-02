@@ -221,8 +221,16 @@
     '.dlg h2{margin:0;padding:19px 16px 2px;font-size:17px;font-weight:600;line-height:22px}',
     '.dlg p{margin:0;padding:0 16px 18px;font-size:13px;line-height:18px;color:var(--hk-label)}',
     '.dlg .db{display:flex;border-top:.5px solid var(--hk-sep)}',
-    '.dlg .db button{flex:1;height:44px;border:0;background:none;color:var(--hk-tint);font-size:17px;cursor:pointer}',
+    '.dlg .db button{flex:1;min-width:0;height:44px;border:0;background:none;color:var(--hk-tint);font-size:17px;cursor:pointer;',
+    '  white-space:nowrap;padding:0 8px}',
     '.dlg .db button + button{border-left:.5px solid var(--hk-sep)}',
+    // A LABEL THAT DOESN'T FIT SIDE BY SIDE ("Follow All Screens"): the
+    // buttons stack, the action above Cancel, as iOS does -- never a label
+    // wrapped out of its button
+    '.dlg .db.stack{flex-direction:column}',
+    '.dlg .db.stack button{flex:none;width:100%}',
+    '.dlg .db.stack button + button{border-left:0;border-top:.5px solid var(--hk-sep)}',
+    '.dlg .db.stack button.cx{order:2}',
     '.dlg .db button.bold{font-weight:600}',
     '.dlg .db button.red{color:var(--hk-red)}',
     '@media (hover:hover){.dlg .db button:hover{background:var(--hk-hover)}}',
@@ -644,7 +652,7 @@
     return new Promise(function (resolve) {
       var tid = id('dt'), mid = id('dm');
       var prev = rootEl.activeElement || document.activeElement;
-      var cancel = h('button', { type: 'button', class: o.destructive ? 'bold' : '', text: o.cancel || 'Cancel' });
+      var cancel = h('button', { type: 'button', class: 'cx' + (o.destructive ? ' bold' : ''), text: o.cancel || 'Cancel' });
       var ok = h('button', { type: 'button', class: o.destructive ? 'red' : 'bold', text: o.ok || 'OK' });
       var dlg = h('div', { class: 'dlg', role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': tid, 'aria-describedby': mid }, [
         h('h2', { id: tid, text: o.title }), h('p', { id: mid, text: o.message || '' }), h('div', { class: 'db' }, [cancel, ok])]);
@@ -662,6 +670,9 @@
       });
       bd.addEventListener('click', function (e) { if (e.target === bd) close(false); });
       rootEl.appendChild(bd);
+      // side by side unless a label would be cut: then stacked
+      var row = dlg.querySelector('.db');
+      if ([cancel, ok].some(function (b) { return b.scrollWidth > b.clientWidth + 1; })) row.classList.add('stack');
       cancel.focus();
     });
   }
