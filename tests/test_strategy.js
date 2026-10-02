@@ -726,9 +726,9 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
        favs['cover.g'].name === 'Garage Door' && tilesOf(home, 'Garage')[0].name === 'Door', [favs['cover.g'].name, tilesOf(home, 'Garage')[0].name]);
     var kt = tilesOf(home, 'Kitchen');
     var wake = kt.filter(function (t) { return t.entity === 'button.pc_wake_on_lan'; })[0];
-    ok('a Wake-on-LAN button is a tile: "PC", Wake, a tap presses it',
+    ok('a Wake-on-LAN button is a tile: "PC", Wake, its glyph presses it, its name opens its sheet',
        wake && wake.name === 'PC' && wake.label === 'Wake' && wake.icon === 'hk:desktop-tower' && wake.icon_size === '25px' &&
-       wake.tap_action.perform_action === 'button.press', wake);
+       wake.icon_tap_action.perform_action === 'button.press' && wake.tap_action.action === 'more-info', wake);
     ok('...and no other button is (a car\'s horn is not a thing in a room)', !kt.some(function (t) { return t.entity === 'button.car_horn'; }));
     ok('a room shown inside another brings its own order along, after the room\'s',
        tilesOf(home, 'Yard').map(function (t) { return t.entity; }).join() === 'light.flood,light.deck2,light.deck1',

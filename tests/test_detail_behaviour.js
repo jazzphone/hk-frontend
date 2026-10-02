@@ -160,6 +160,31 @@ ok('valve: hold to close', r.join() === 'valve.close_valve', r);
   b._listeners.pointerup.forEach(function (f) { f(ev); });
   ok('valve: shut by someone else mid-hold -- the ring sends nothing (never the opposite)', CALLS.length === 0, CALLS);
 })();
+// A BUTTON: one tap presses it, no hold, no question
+r = press('hk-detail-button', 'button.pc_wake_on_lan', 'unknown', {}, null, 0);
+ok('button: a tap presses it', r.join() === 'button.press', r);
+r = press('hk-detail-button', 'input_button.nap', 'unknown', {}, null, 0);
+ok('input_button: a tap presses it, in its own domain', r.join() === 'input_button.press', r);
+r = press('hk-detail-button', 'button.pc_wake_on_lan', 'unavailable', {}, null, 0);
+ok('button: unavailable -- a tap sends nothing', r.length === 0, r);
+(function () {
+  __resetTimers(); CALLS = [];
+  var p = panel('hk-detail-button', 'button.pc_wake_on_lan',
+                house({ 'button.pc_wake_on_lan': ['unknown', { friendly_name: 'PC - Wake On Lan' }] }), { name: 'PC' });
+  var big = p._root.querySelector('.big'), hint = p._root.querySelector('.hint'), b = p._root.querySelector('.lk');
+  var same = function (a, b) { return JSON.stringify(a) === JSON.stringify(b); };
+  var got = [big.textContent, hint.textContent];
+  ok('wake on LAN: never pressed (unknown) reads Wake / Tap to wake', same(got, ['Wake', 'Tap to wake']), got);
+  ok('...labelled for a screen reader', b.getAttribute('aria-label') === 'Wake PC', b.getAttribute('aria-label'));
+  setState(p, 'button.pc_wake_on_lan', new Date(Date.now() - 1000).toISOString(), { friendly_name: 'PC - Wake On Lan' }, 't2');
+  got = [big.textContent, b.classList.contains('busy'), hint.textContent];
+  ok('...just pressed: Waking…, pulsing, and when', got[0] === 'Waking…' && got[1] === true && /^Last woken /.test(got[2]), got);
+  setState(p, 'button.pc_wake_on_lan', new Date(Date.now() - 60000).toISOString(), { friendly_name: 'PC - Wake On Lan' }, 't3');
+  got = [big.textContent, b.classList.contains('busy')];
+  ok('...a minute later: Wake again, still', same(got, ['Wake', false]), got);
+  var q = panel('hk-detail-button', 'input_button.nap', house({ 'input_button.nap': ['unknown', {}] }));
+  ok('any other button reads Press', q._root.querySelector('.big').textContent === 'Press', q._root.querySelector('.big').textContent);
+})();
 (function () {
   __resetTimers(); CALLS = [];
   var asked = null, orig = C.confirmSheet;

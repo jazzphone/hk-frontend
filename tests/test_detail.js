@@ -46,7 +46,8 @@ var H = house({
   'sensor.temp': ['71.4', { unit_of_measurement: '°F' }], 'sensor.mode': ['eco', {}],
   'binary_sensor.door': ['off', { device_class: 'door' }], 'vacuum.down': ['docked', {}],
   'water_heater.wh': ['eco', {}], 'alarm_control_panel.a': ['disarmed', {}],
-  'weather.home': ['sunny', {}], 'person.alex': ['home', {}]
+  'weather.home': ['sunny', {}], 'person.alex': ['home', {}],
+  'button.pc_wake_on_lan': ['unknown', {}], 'input_button.nap': ['2026-10-01T21:14:00+00:00', {}]
 });
 var want = {
   'light.dim': 'light', 'light.onoff': 'toggle', 'light.hue': 'light', 'switch.coffee': 'toggle',
@@ -55,7 +56,8 @@ var want = {
   'cover.frunk': 'garage', 'cover.tilt_only': null,
   'media_player.tv': 'media', 'sensor.temp': 'sensor', 'sensor.mode': 'state', 'binary_sensor.door': 'binary',
   'vacuum.down': 'vacuum', 'water_heater.wh': 'water_heater', 'alarm_control_panel.a': 'alarm',
-  'weather.home': null, 'person.alex': null, 'light.missing': null
+  'weather.home': null, 'person.alex': null, 'light.missing': null,
+  'button.pc_wake_on_lan': 'button', 'input_button.nap': 'button'
 };
 var wrong = [];
 Object.keys(want).forEach(function (id) { if (D.kindOf(H, id) !== want[id]) wrong.push(id + '=' + D.kindOf(H, id)); });

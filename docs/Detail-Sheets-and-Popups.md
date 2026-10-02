@@ -7,7 +7,10 @@ can open on your screens: the doorbell, the alarm keypad.
 a brightness slider, the thermostat, the player, a graph. Tapping its glyph
 toggles it. Locks, the alarm, garage doors, valves, thermostats, water
 heaters, sirens, vacuums and cameras never change from a single tap. On a
-computer, right-clicking a tile opens its sheet too, wherever you click. To use
+computer, right-clicking a tile opens its sheet too, wherever you click. A
+button, such as a computer’s Wake on LAN, has a sheet with one big button: tap
+it to wake the computer (or press the button), and the line under it says when
+that last happened. To use
 Home Assistant’s own dialog instead, turn off
 [HK Detail Sheets](Appearance.md#every-screen).
 
