@@ -1206,9 +1206,13 @@
   }
   function scenesPlan(cfg, b, hass) {
     b = b || {};
-    var show = b.scenes_row !== false && cfg.show !== false;
+    // A ROOM'S ROW (`room: true`, a room page's): exactly the scenes it was
+    // given -- never the screen's Home row, its switch or its page pills
+    if (cfg.room) b = { scenes: [], scenes_pages: [] };
+    var show = (cfg.room || b.scenes_row !== false) && cfg.show !== false;
     var ids = (Array.isArray(b.scenes) && b.scenes.length) ? b.scenes
             : (Array.isArray(cfg.scenes) && cfg.scenes.length) ? cfg.scenes : null;
+    if (cfg.room && !ids) return { auto: false, config: null };
     var auto = !ids;
     if (auto) {
       var st = (hass && hass.states) || {}, ents = (hass && hass.entities) || {};

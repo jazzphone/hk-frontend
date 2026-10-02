@@ -31,7 +31,7 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **What Counts**, **Weather**, **Calendar**, **Appearance**, **Sky**, **Menu & Rooms**, **Wall Tablets** | Every screen |
+| **All Screens** | **General**, **What Counts**, **Weather**, **Calendar**, **Appearance**, **Sky**, **Menu**, **[Rooms](Rooms.md)**, **Wall Tablets** | Every screen |
 | **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas** | Every screen |
 | **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
@@ -73,6 +73,10 @@ sizes read **Portrait** and **Landscape**.
     move it, or focus the handle and press the up and down arrow keys. Tap
     the red minus to remove a row.
   - **More**: what you can add. Tap the green plus.
+  - **Add…** opens a searchable list. Tap one to add it, or tap **Select** to
+    tick several (they stay ticked while you change the search), or **Select
+    All** to tick everything the search matches, then **Add**. Hiding a
+    dozen sensors from your screens is one search and two taps.
 - **Removing, deleting and going back to Automatic ask first.**
 - **Back returns to the page you came from.** A page you reached from a link on
   another page (a screen’s link to What Counts, say) goes back there.

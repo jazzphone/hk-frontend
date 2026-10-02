@@ -173,7 +173,7 @@ def rewrite_accessories(data: Any, old: str, new: str) -> tuple[Any, list[str], 
                 if hit:
                     conf["fav_with"] = [x for x in nv if x != eid]     # never with itself
                     changed.append(f"favorite-with list of {eid}")
-    for bucket, label in (("rooms", "tile order of room"), ("pages", "order of page")):
+    for bucket, label in (("rooms", "tile order of room"), ("pages", "order of page"), ("scenes", "scenes of room")):
         group = out.get(bucket)
         if isinstance(group, dict):
             for name, ids in group.items():

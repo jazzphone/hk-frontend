@@ -612,6 +612,18 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ACC.entities['switch.kitchen_coffee'] = { icon: 'hk:washing-machine' };
   sw = window.hkStrategy.tileFor({ states: S, entities: { 'switch.kitchen_coffee': {} } }, 'switch.kitchen_coffee', 'x');
   ok('...and one with no measured size keeps the card\'s default', sw.icon === 'hk:washing-machine' && !('icon_size' in sw), sw);
+  // TILE SIZE (the gear's Size): a light tall, a lock a pill -- the card's
+  // size and its cell's two rows, or one
+  var H2 = { states: S, entities: { 'switch.kitchen_coffee': {}, 'lock.front': {} } };
+  ACC.entities['switch.kitchen_coffee'] = { size: 'tall' };
+  var big = window.hkStrategy.tileFor(H2, 'switch.kitchen_coffee', 'x');
+  ok('Size Tall: a switch drawn tall, spanning two rows', big.size === 'tall' && big.view_layout && big.view_layout['grid-row'] === 'span 2', big);
+  ACC.entities['lock.front'] = { size: 'regular' };
+  var small = window.hkStrategy.tileFor(H2, 'lock.front', 'x');
+  ok('Size Regular: a lock as a pill, one row', small.size === 'regular' && !small.view_layout, small);
+  delete ACC.entities['lock.front'];
+  var auto = window.hkStrategy.tileFor(H2, 'lock.front', 'x');
+  ok('Automatic: the lock\'s own tall tile', !auto.size && auto.view_layout && auto.view_layout['grid-row'] === 'span 2', auto);
   ACC.entities['switch.kitchen_coffee'] = { name: 'Coffee Maker', icon: 'hk:coffee', show_as: 'light' };
   return g;
 }).then(function () {
@@ -977,6 +989,38 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     ok('the screensaver block carries the calendar pane and its days', !!sb && sb.calendar === true && sb.calendar_days === 4, sb);
     window.hkSettings = saved;
   });
+}).then(function () {
+  // A ROOM'S SCENES ROW (accessories `scenes`): Automatic is the scenes in
+  // the room; a room's own list wins; an empty one is no row
+  var saved = window.hkSettings, RS = {};
+  window.hkSettings = { get: function (p, f) { return p === 'accessories' ? { entities: {}, rooms: {}, scenes: RS } : f; },
+                        weatherId: function () { return 'weather.home'; } };
+  S['scene.movie'] = st('scene.movie', 'scening', { friendly_name: 'Den Movie Night' });
+  hass.entities['scene.movie'] = { area_id: 'den' };
+  S['input_button.nap'] = st('input_button.nap', '2026-10-01', { friendly_name: 'Nap' });
+  hass.entities['input_button.nap'] = {};
+  var row = function (area) {
+    var cs = window.hkStrategy.roomCards(hass, [area], 'Room', {});
+    return cs.filter(function (c) { return c.type === 'custom:hk-scenes-card'; })[0] || null;
+  };
+  var den = row('den');
+  ok('Automatic: a room\'s own scenes, as a room row', !!den && den.room === true && den.scenes.join() === 'scene.movie', den);
+  var at = window.hkStrategy.roomCards(hass, ['den'], 'Den', {}).map(function (c) { return c.type; });
+  ok('...under the status row (and any cameras), above the groups',
+     at.indexOf('custom:hk-scenes-card') > at.indexOf('custom:hk-room-status-card'), at);
+  ok('a room with no scenes has no row', row('kitchen') === null);
+  // WHERE A TILE LIVES, for Arrange in its sheet: a room page's tiles say
+  // their room and group
+  var grp = window.hkStrategy.roomCards(hass, ['den'], 'Den', {}).filter(function (c) { return c.type === 'grid'; });
+  var placedTile = null;
+  (function walk(n) { if (!n || typeof n !== 'object' || placedTile) return; if (n.hk_place && n.entity) { placedTile = n; return; }
+    Object.keys(n).forEach(function (k) { walk(n[k]); }); })(grp);
+  ok('a room page\'s tile knows its room and group', !!placedTile && placedTile.hk_place.area === 'den' && !!placedTile.hk_place.group, placedTile);
+  RS.kitchen = ['input_button.nap', 'scene.gone'];
+  ok('a room\'s own list: any scene or button, only those that exist', (row('kitchen') || {}).scenes.join() === 'input_button.nap', row('kitchen'));
+  RS.den = [];
+  ok('an empty list: no row, even with scenes in the room', row('den') === null);
+  window.hkSettings = saved;
 }).then(function () {
   print(fail ? 'FAIL ' + fail + ' STRATEGY TESTS' : 'ALL ' + pass + ' STRATEGY TESTS PASS');
 }).catch(function (e) { print('Exception: ' + e + ' ' + (e.stack || '')); });

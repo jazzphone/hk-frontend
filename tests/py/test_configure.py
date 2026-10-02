@@ -109,7 +109,7 @@ def test_every_field_left_is_labelled_and_documented():
     dash = TR["config_subentries"]["dashboard"]["step"]
     assert set(dash) == {"user", "kind"} and dash["kind"]["data"]["kind"]
     for name in ("HK Settings page", "Show HK Settings in the sidebar", "Your files", "Setup check",
-                 "General", "What Counts", "Weather", "Appearance", "Sky", "Menu & Rooms", "Music",
+                 "General", "What Counts", "Weather", "Appearance", "Sky", "Menu", "Rooms", "Music",
                  "Wall Tablets", "Accessories", "Pop-ups", "Custom Pages", "Advanced"):
         assert name.lower() in DOC.lower(), name
     for kind in ("popup", "page"):

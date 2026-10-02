@@ -50,6 +50,9 @@ ok('chips: an own chip added while automatic stays automatic',
    eq(M.chipsAddOwn({ chips: [], chips_extra: [] }, 'sensor.mail'), { chips_extra: ['sensor.mail'], chips: [] }));
 ok('...and while set joins the end of the order',
    eq(M.chipsAddOwn({ chips: ['lights'], chips_extra: [] }, 'sensor.mail'), { chips_extra: ['sensor.mail'], chips: ['lights', 'sensor.mail'] }));
+ok('...and several at once (a picker\'s Select), each once',
+   eq(M.chipsAddOwn({ chips: ['lights'], chips_extra: [] }, ['sensor.a', 'sensor.b', 'sensor.a']),
+      { chips_extra: ['sensor.a', 'sensor.b'], chips: ['lights', 'sensor.a', 'sensor.b'] }));
 ok('chips: an own chip removed leaves both lists',
    eq(M.chipsRemoveOwn({ chips: ['lights', 'sensor.mail'], chips_extra: ['sensor.mail'] }, 'sensor.mail'), { chips_extra: [], chips: ['lights'] }));
 ok('chips: quiet on and off', eq(M.chipQuiet({ chips_quiet: ['water'] }, 'lights', true), { chips_quiet: ['water', 'lights'] }) &&
@@ -290,6 +293,21 @@ ok('the kiosk summary on a screen\'s Header & Sidebar row',
    M.kioskSummary({ kiosk: true }, true) === 'Both Hidden' && M.kioskSummary({ kiosk: true, kiosk_sidebar: false }, false) === 'Header Hidden' &&
    M.kioskSummary({ kiosk: true, kiosk_engine: 'kiosk_mode' }, true) === 'Kiosk Mode Plugin' &&
    M.kioskSummary({ kiosk: true, kiosk_engine: 'kiosk_mode', kiosk_header: false }, false) === 'Sidebar Hidden' && M.kioskSummary({}, true) === 'Off');
+
+// ALL SCREENS' ROOMS: the same model as a screen's, and a room's own Show on Home
+var AZ = ['den', 'kitchen', 'office'];
+var hb = M.houseRoomsAsBoard({ order: ['kitchen', 'den'], home: 'only', menu: 'order', pages: 'floor' });
+ok('rooms: All Screens\' as a screen\'s keys', eq(hb, { room_order: ['kitchen', 'den'], home_rooms: 'only', menu_rooms: 'order', page_rooms: 'floor' }));
+ok('...and an empty one is automatic', eq(M.houseRoomsAsBoard(null), { room_order: [], home_rooms: 'as_is', menu_rooms: 'az', page_rooms: 'floor' }));
+ok('...saved back under rooms.*', eq(M.houseRoomsSave({ room_order: ['den'], home_rooms: 'only', menu_rooms: 'az' }),
+   { 'rooms.order': ['den'], 'rooms.home': 'only', 'rooms.menu': 'az' }));
+ok('a room\'s Show on Home on: added at the end', eq(M.roomOnHome(hb, AZ, 'office', true), { room_order: ['kitchen', 'den', 'office'], home_rooms: 'order' }));
+ok('...off: taken out, the rest only', eq(M.roomOnHome(hb, AZ, 'den', false), { room_order: ['kitchen'], home_rooms: 'only' }));
+ok('...from automatic: every room in its order, less that one',
+   eq(M.roomOnHome(M.houseRoomsAsBoard({}), AZ, 'kitchen', false), { room_order: ['den', 'office'], home_rooms: 'only' }));
+ok('...already so: nothing to save', M.roomOnHome(hb, AZ, 'kitchen', true) === null);
+ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_order: [] }) === 'Automatic' &&
+   M.roomsSummary({ room_order: ['a'], home_rooms: 'order' }) === 'Custom Order');
 
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

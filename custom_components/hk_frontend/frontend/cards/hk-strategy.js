@@ -89,6 +89,28 @@
     // the players, at the Home app's sizes
     speaker: 36, homepod: 36, 'homepod-mini': 40, 'apple-tv': 35
   };
+  // THE HOME GLYPHS ADDED 2026-10-01 (Apple's Home symbols, offered by the
+  // gear): NOT MEASURED against the Home app -- each is sized like its
+  // nearest measured kin (a chandelier like the chandelier, a shade like the
+  // blinds), so none draws at the flat 23 px. Replace one with a measurement
+  // when it is taken.
+  var PX_KIN = {
+    'ceiling-light-multiple': 32, 'ceiling-fan': 30, 'ceiling-fan-light': 30, 'light-switch': 24,
+    'lightbulb-variant': 28, 'lightbulb-fluorescent-tube': 28, 'lightbulb-spot': 28, 'wall-sconce-flat': 26,
+    'fan-desk': 28, 'fan-floor': 30, 'air-purifier': 30, dehumidifier: 30, radiator: 28, fireplace: 28,
+    'heat-wave': 26, 'blinds-vertical': 26, 'blinds-vertical-closed': 26, 'window-shutter': 26,
+    'window-shutter-open': 26, 'roman-shade': 26, 'roman-shade-open': 26, curtains: 26, 'curtains-closed': 26,
+    'window-closed': 26, 'window-open': 26, awning: 26, skylight: 26, 'door-sliding': 26, 'door-sliding-open': 26,
+    'door-french': 26, 'garage-double': 26, gate: 26, 'gate-open': 26, 'lock-smart': 24, 'contact-sensor': 26,
+    'smoke-detector': 30, 'molecule-co': 30, 'molecule-co2': 30, 'air-filter': 26, 'doorbell-video': 26,
+    webcam: 26, bell: 24, 'power-strip': 30, 'power-plug': 26, 'gesture-tap-button': 24, remote: 24,
+    sprinkler: 26, 'pipe-leak': 26, pool: 30, waves: 26, 'tumble-dryer': 25, 'toaster-oven': 26, 'pot-steam': 25,
+    pot: 30, popcorn: 26, dresser: 25, seat: 26, 'audio-video': 32, projector: 32, 'remote-tv': 26,
+    'television-speaker': 30, 'speaker-multiple': 30, radio: 28, 'volume-high': 26, 'router-wireless': 30,
+    wifi: 26, laptop: 30, cellphone: 24, tablet: 25, watch: 24, printer: 26, 'party-popper': 26, balloon: 26,
+    paw: 26, 'ev-station': 26, clock: 24, alarm: 25, 'trash-can': 24
+  };
+  Object.keys(PX_KIN).forEach(function (k) { if (!PX[k]) PX[k] = PX_KIN[k]; });
   // ON A FAVORITE, where the hand-written favorites drew a glyph at a size of
   // its own: the gamepad is 28 on a room tile (the Arcade) and was 24 on the
   // Roblocks favorite, beside its two-line room and name.
@@ -344,6 +366,17 @@
       sized(t);
     }
     if (t && t.icon_size === undefined) delete t.icon_size;
+    return t && a && a.size ? resized(t, a.size) : t;
+  }
+  // THE ACCESSORY'S SIZE (its gear, 2026-10-01): Regular or Tall, over what
+  // its kind is drawn as -- a light as a tall tile, a lock as a pill. The
+  // card swaps its layout (hk-tile.js `size`); the tile's cell here spans
+  // two rows of the room grid, or one.
+  function resized(t, size) {
+    if (size !== 'tall' && size !== 'regular') return t;
+    t.size = size;
+    if (size === 'tall') t.view_layout = TALL;
+    else delete t.view_layout;
     return t;
   }
 
@@ -504,12 +537,22 @@
       var a = accOf(id);
       return !(a && a.home === false);
     }).map(function (id) {
-      return tileFor(hass, id, named(hass, id, room.name));
+      return placed(tileFor(hass, id, named(hass, id, room.name)), room.id ? { area: room.id } : null);
     }).filter(Boolean);
     var head = heading(room.name);
     if (room.id) head.area = room.id;         // "Living Room ›" when it has a page
     return { type: 'grid', columns: 1, square: false, view_layout: COL2,
              cards: [head, { type: 'custom:hk-grid-card', layout: GRID, cards: tiles }] };
+  }
+
+  // WHERE A TILE LIVES, for Arrange in its sheet's settings (hk-detail.js,
+  // 2026-10-01): a room section on Home ({area}), a group on a room page
+  // ({area, group}) or the Favorites ({fav: true}). The order it moves in
+  // is the room's Tile Order (accessories `rooms`) or the screen's
+  // favorites. A tile with none (a category page's) has no Arrange.
+  function placed(t, place) {
+    if (t && place) t.hk_place = place;
+    return t;
   }
 
   // ------------------------------------------------------------ room pages
@@ -591,7 +634,7 @@
         if (seen[id]) return;
         seen[id] = true;
         var g = groupOf(hass, id);
-        (groups[g] = groups[g] || []).push(tileFor(hass, id, named(hass, id, name)));
+        (groups[g] = groups[g] || []).push(placed(tileFor(hass, id, named(hass, id, name)), { area: areas[0], group: g }));
       });
     });
     // Lights A to Z -- unless the room has an order of its own (the gear)
@@ -622,8 +665,36 @@
                      show_state: false, aspect_ratio: '16x9', fit_mode: 'cover' };
           }) }] });
     }
+    // THE ROOM'S SCENES (2026-10-01): a row of scene pills under the status
+    // row -- under the cameras when it has some -- that scrolls sideways, as
+    // Home's does (hk-scenes-card in room mode). Each room's own (HK Settings
+    // -> Accessories -> the room -> Scenes): its own list, none, or
+    // Automatic -- the Home Assistant scenes in the room.
+    var scenes = roomScenes(hass, areas, opts);
+    if (scenes.length) cards.push({ type: 'custom:hk-scenes-card', room: true, scenes: scenes, view_layout: COL2 });
     GROUPS.forEach(function (g) { if (groups[g]) cards.push(section(g, groups[g])); });
     return cards;
+  }
+  // A ROOM'S SCENES: the lists its areas have of their own (the Deck's
+  // after the Backyard's), else every shown scene in them, A to Z. A list
+  // that is empty is a room with no row.
+  function roomScenes(hass, areas, opts) {
+    var A = setting('accessories'), own = (A && A.scenes && typeof A.scenes === 'object') ? A.scenes : {};
+    var mine = areas.filter(function (a) { return Array.isArray(own[a]); });
+    if (mine.length) {
+      var out = [];
+      mine.forEach(function (a) {
+        own[a].forEach(function (id) { if (out.indexOf(id) < 0 && hass.states[id] && !hidden(hass, opts, id)) out.push(id); });
+      });
+      return out;
+    }
+    var want = {};
+    areas.forEach(function (a) { want[a] = true; });
+    var st = hass.states;
+    return shown(hass, opts, 'scene', null).filter(function (id) { return want[areaOf(hass, id)]; })
+      .sort(function (x, y) {
+        return String(st[x].attributes.friendly_name || x).localeCompare(String(st[y].attributes.friendly_name || y));
+      });
   }
   function slug(v) {
     return String(v || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -785,7 +856,11 @@
     'window-open-variant': ['hk:window-open-variant', 'hk:window-closed-variant'],
     garage: ['hk:garage-open', 'hk:garage'], 'garage-open': ['hk:garage-open', 'hk:garage'],
     'garage-variant': ['hk:garage-open-variant', 'hk:garage-variant'],
-    'garage-open-variant': ['hk:garage-open-variant', 'hk:garage-variant']
+    'garage-open-variant': ['hk:garage-open-variant', 'hk:garage-variant'],
+    'window-closed': ['hk:window-open', 'hk:window-closed'], 'window-open': ['hk:window-open', 'hk:window-closed'],
+    'door-sliding': ['hk:door-sliding-open', 'hk:door-sliding'],
+    'door-sliding-open': ['hk:door-sliding-open', 'hk:door-sliding'],
+    gate: ['hk:gate-open', 'hk:gate'], 'gate-open': ['hk:gate-open', 'hk:gate']
   };
   function contactGlyphs(id, open, closed) {
     var own = accIcon(id);
@@ -1120,6 +1195,8 @@
     if (!t) return base;
     t = Object.assign({}, t, { type: 'custom:hk-favorite-card', room: room });
     delete t.view_layout;                     // one height, like every favorite
+    delete t.size;                            // ...whatever the accessory's own size
+    delete t.hk_place;                        // its place here is the favorites'
     // A LIGHT GROUP (a helper: its members in attributes.entity_id) reads how
     // many are on, "2 On", as the hand-written favorites did; a blind its
     // position.
@@ -1152,7 +1229,7 @@
   }
   function favorites(hass, opts, b) {
     var tiles = listOf(b, 'favorites').filter(function (id) { return hass.states[id]; }).map(function (id) {
-      return favTile(hass, id);
+      return placed(favTile(hass, id), { fav: true });
     });
     if (!tiles.length) return null;
     // The favorites grid: 9 px below, where a room's is 11.
@@ -1889,6 +1966,24 @@
   function busy() {
     return Date.now() - touched < BUSY_MS || (window.hkPopupCover || 0) > 0;
   }
+  // A CHANGE MADE ON THIS SCREEN (2026-10-01: an accessory's gear, on a
+  // sheet here -- its Tile Size, name, icon): the person who made it is
+  // looking for it, so it is built the moment the sheet closes, not after
+  // the 30 s of nobody touching an unattended change waits for -- and the
+  // page stays where it was scrolled to. Good for MINE_MS after the change.
+  var MINE_MS = 120000, MINE_POLL = 300;
+  function ownChange() { built.mine = Date.now(); }
+  function mine() { return !!built.mine && Date.now() - built.mine < MINE_MS; }
+  function refreshKeepingPlace() {
+    var y = window.scrollY || 0;
+    refresh();
+    if (!y) return;
+    // the rebuilt view draws over a frame or two; put the page back each
+    // time until it is tall enough to be put back
+    [80, 250, 600, 1200].forEach(function (ms) {
+      setTimeout(function () { if (Math.abs((window.scrollY || 0) - y) > 2) window.scrollTo(0, y); }, ms);
+    });
+  }
   function watch(seg, sig) {
     built.seg = seg; built.sig = sig; built.at = Date.now();
     if (built.hooked || !window.hkSettings || !window.hkSettings.onChange) return;
@@ -1896,14 +1991,17 @@
     var due = function () {
       built.timer = null;
       if (dashSeg() !== built.seg || inputs(built.seg) === built.sig) return;
-      if (busy()) { built.timer = setTimeout(due, 5000); return; }
+      var own = mine();
+      if (own ? (window.hkPopupCover || 0) > 0 : busy()) { built.timer = setTimeout(due, own ? MINE_POLL : 5000); return; }
       built.sig = inputs(built.seg);
-      refresh();
+      built.mine = 0;
+      if (own) refreshKeepingPlace(); else refresh();
     };
     window.hkSettings.onChange(function () {
       if (!built.seg || dashSeg() !== built.seg || inputs(built.seg) === built.sig) return;
-      if (built.timer) return;
-      built.timer = setTimeout(due, Math.max(0, 10000 - (Date.now() - built.at)));
+      if (built.timer && !mine()) return;
+      clearTimeout(built.timer);
+      built.timer = setTimeout(due, mine() ? 0 : Math.max(0, 10000 - (Date.now() - built.at)));
     });
   }
   function refresh() {
@@ -1996,7 +2094,7 @@
   // For tests and the console: hkStrategy.generate(config, hass).
   window.hkStrategy = { generate: HkDashboardStrategy.generate, tile: TILE, shortName: shortName,
                         lateError: lateError, recoverLate: recoverLate, defineHere: defineHere,
-                        tileFor: tileFor, roomCards: roomCards, groupOf: groupOf,
+                        tileFor: tileFor, roomCards: roomCards, groupOf: groupOf, ownChange: ownChange,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,
                         kioskOf: kioskOf, saverBlock: saverBlock,

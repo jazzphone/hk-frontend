@@ -1392,7 +1392,7 @@
     bare_icon_color: 'Icon color without circle', well_background: 'Icon circle color',
     room: 'Room name', label: 'Status text (fixed)', label_mode: 'Status text',
     label_map: 'Status text for each state', label_default: 'Status text fallback',
-    animation: 'Icon animation', layout: 'Layout', elevated: 'Drop shadow',
+    animation: 'Icon animation', layout: 'Layout', elevated: 'Drop shadow', size: 'Tile size',
     color: 'Color',
     option: 'Lit when state is', navigation_path: 'Link to page',
     chevron: 'Link text', height: 'Height', padding: 'Padding', margin: 'Margin',
@@ -1466,6 +1466,7 @@
     icon_size: 'CSS size, e.g. 30px. Leave empty for the default.',
     icon_states: 'YAML: state: icon. Quote on and off, e.g. "on": hk:lightbulb-on',
     bare_icon: 'While on, draw the icon without the colored circle behind it.',
+    size: 'Tall spans two rows: give it view_layout grid-row: span 2. Empty: the card\'s own.',
     well_background: 'e.g. transparent. Leave empty for the default.',
     label: 'Replaces the status text completely.',
     label_mode: 'How the state becomes the status text under the name.',
@@ -2170,8 +2171,8 @@
   // menu.docked, ...), which settings.py still fills in from the items for a
   // screen running an older copy of this file.
   var BOARD = { menu: 'auto', dock_min: MENU_DOCK, time_weather: 'page', ha_row: false,
-                categories: [], tab_position: '', tab_size: 'large', room_order: [], menu_rooms: 'az', home_rooms: 'as_is',
-                page_rooms: 'floor',
+                categories: [], tab_position: '', tab_size: 'large', tab_size_phone: 'standard', room_order: [], menu_rooms: 'az', home_rooms: 'as_is',
+                page_rooms: 'floor', rooms_custom: false,
                 // 1.7: Home, Pages, Screen (settings.py BOARD_DEFAULTS). chips_quiet
                 // null = the chip row's own default (hk-chip.js QUIET_DEFAULT).
                 chips_row: true, chips: [], chips_quiet: null, chips_extra: [], camera_strip: true, cameras: [],

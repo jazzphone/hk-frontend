@@ -525,8 +525,10 @@ print('\n=== accessory settings: the gear ===');
   h.entities = { 'switch.coffee': { device_id: 'dv' } };
   h.callWS = function (m) { WS.push(m); return Promise.resolve({}); };
   var saved = window.hkSettings;
+  // ONE settings object, as hk-settings.js hands out: the pane must not write into it
+  var LIVE = { entities: { 'switch.coffee': { name: 'Coffee', status: false } }, rooms: {} };
   window.hkSettings = { get: function (p, f) {
-    if (p === 'accessories') return { entities: { 'switch.coffee': { name: 'Coffee', status: false } }, rooms: {} };
+    if (p === 'accessories') return LIVE;
     if (p === 'boards') return { 'dashboard-kitchen': { favorites: ['lock.front'] } };
     return f; } };
   ok('an admin can edit; a tablet cannot', _.canEdit(h) && !_.canEdit({ user: { is_admin: false } }) && !_.canEdit({}));
@@ -622,7 +624,74 @@ print('\n=== accessory settings: the gear ===');
   q('.sure .go')._listeners.click[0]();
   ok('...Reset clears every setting of the accessory', WS[n1] && WS[n1].name === null && WS[n1].color === null &&
      WS[n1].attribute === null && WS[n1].label === null && WS[n1].fav_with === null, WS[n1]);
+  ok('...its tile size too', WS[n1] && WS[n1].size === null, WS[n1]);
+  // TILE SIZE: Automatic, Regular or Tall, saved as chosen
+  var n2 = WS.length, tall = { dataset: { v: 'tall' } }, autoS = { dataset: { v: '' } };
+  q('.seg.size')._listeners.click[0]({ target: { closest: function () { return tall; } } });
+  ok('Tile size: Tall', WS[n2] && WS[n2].size === 'tall' && WS[n2].entity_id === 'switch.coffee', WS[n2]);
+  q('.seg.size')._listeners.click[0]({ target: { closest: function () { return autoS; } } });
+  ok('...Automatic is no size of its own', WS[n2 + 1] && WS[n2 + 1].size === null, WS[n2 + 1]);
+  ok('the pane never writes into the live settings (or the feed\'s answer looks like no change, and no screen redraws)',
+     JSON.stringify(LIVE.entities['switch.coffee']) === '{"name":"Coffee","status":false}', LIVE.entities['switch.coffee']);
   window.hkSettings = saved;
+})();
+
+// ARRANGE: a tile moved left or right among the tiles it sits with; what is
+// not on show there keeps its place in the saved order
+(function () {
+  var mv = _.arrangeMove;
+  var r = mv(['a', 'b', 'c'], ['x', 'a', 'y', 'b', 'c'], 'b', -1);
+  ok('Move Left: it swaps with the tile before it', r.visible.join() === 'b,a,c', r);
+  ok('...and the others in the saved order keep their places', r.full.join() === 'x,b,y,a,c', r);
+  r = mv(['a', 'b', 'c'], ['a', 'b', 'c'], 'b', 1);
+  ok('Move Right: with the tile after it (the end of a row wraps: it is reading order)', r.visible.join() === 'a,c,b' && r.full.join() === 'a,c,b');
+  ok('nothing further left than the first, or right than the last',
+     mv(['a', 'b'], ['a', 'b'], 'a', -1) === null && mv(['a', 'b'], ['a', 'b'], 'b', 1) === null);
+  // a room page lists its lights A to Z until the room has an order of its
+  // own: the move saves the lights in the order just seen
+  r = mv(['l1', 'l2'], ['l2', 'fan', 'l1'], 'l1', 1);
+  ok('...lights shown A to Z keep the order just seen once saved', r.visible.join() === 'l2,l1' && r.full.join() === 'l2,fan,l1', r);
+  // read off the page: the tile, its neighbours, where it lives
+  var kid = function (e, place, extra) { return { _config: Object.assign({ entity: e, name: e.toUpperCase(), hk_place: place }, extra || {}) }; };
+  var row = { children: [] };
+  var P = { area: 'kitchen', group: 'Lights' };
+  row.children = [kid('light.a', P), kid('light.b', P, { size: 'tall' }), kid('light.c', P)];
+  row.children.forEach(function (k) { k.parentNode = row; });
+  var h = { states: {}, areas: { kitchen: { name: 'Kitchen' } } };
+  var a = _.arrangeOf(h, 'light.b', row.children[1]);
+  ok('Arrange reads its neighbours off the page, in order', !!a && a.visible.join() === 'light.a,light.b,light.c' && a.area === 'kitchen', a);
+  ok('...a tall tile is tall in the small copy', a && a.look['light.b'].tall === true && a.look['light.a'].tall === false);
+  ok('...and says in plain words what it moves among', a && a.note === 'Moves it among the lights in the Kitchen.', a && a.note);
+  var lone = { children: [] }; lone.children = [kid('light.z', P)]; lone.children[0].parentNode = lone;
+  ok('nothing to arrange (alone, or a tile with no place): no Arrange', _.arrangeOf(h, 'light.z', lone.children[0]) === null &&
+     _.arrangeOf(h, 'light.a', { _config: { entity: 'light.a' }, parentNode: row }) === null);
+  var favRow = { children: [] }, F = { fav: true };
+  favRow.children = [kid('lock.front', F), kid('light.a', F)];
+  favRow.children.forEach(function (k) { k.parentNode = favRow; });
+  var savedHS = window.hkSettings;
+  window.hkSettings = { get: function (p, f) { return p === 'boards' ? { 'dashboard-kitchen': { favorites: ['lock.front', 'gone.x', 'light.a'] } } : f; } };
+  var fv = _.arrangeOf(h, 'light.a', favRow.children[1]);
+  ok('Favorites: this screen\'s list, moved as seen', !!fv && fv.fav && fv.full.join() === 'lock.front,gone.x,light.a' &&
+     _.arrangeMove(fv.visible, fv.full, 'light.a', -1).full.join() === 'light.a,gone.x,lock.front', fv);
+  window.hkSettings = savedHS;
+})();
+
+// SEARCH EVERY ICON: the hk: glyphs first, then Home Assistant's Material
+// icons by name or keyword -- less those with an hk: twin
+(function () {
+  var MDI = [{ name: 'fan', keywords: ['home automation'] }, { name: 'ceiling-fan-light', keywords: [] },
+             { name: 'hamburger', keywords: ['food', 'burger'] }, { name: 'fan-off', keywords: [] }];
+  var a = _.glyphSearch('fan', MDI);
+  ok('a word finds the hk: glyphs', a.hk.some(function (x) { return x.v === 'hk:ceiling-fan'; }) &&
+     a.hk.every(function (x) { return /fan/.test(x.v); }), a.hk);
+  ok('...then the Material ones, without an hk: twin', a.mdi.map(function (x) { return x.v; }).join() === 'mdi:fan-off', a.mdi);
+  ok('a keyword finds a Material icon', _.glyphSearch('burger', MDI).mdi[0].v === 'mdi:hamburger');
+  var M2 = [{ name: 'unicorn', keywords: ['fantasy'] }, { name: 'fan-alert', keywords: [] }];
+  ok('...a name match comes before a keyword that only begins with the word',
+     _.glyphSearch('fan', M2).mdi.map(function (x) { return x.v; }).join() === 'mdi:fan-alert,mdi:unicorn');
+  ok('every word must match', _.glyphSearch('ceiling light fan', MDI).hk.map(function (x) { return x.v; }).join() === 'hk:ceiling-fan-light');
+  ok('each kind is offered Apple\'s Home glyphs', _.glyphsFor('fan.x', null).indexOf('ceiling-fan') >= 0 &&
+     _.glyphsFor('cover.x', null).indexOf('curtains') >= 0 && _.glyphsFor('climate.x', null)[0] === 'thermostat');
 })();
 
 

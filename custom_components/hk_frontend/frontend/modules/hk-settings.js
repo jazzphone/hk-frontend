@@ -60,7 +60,9 @@
     menu: { dashboards: [], docked: [], dock_min: 1000, time_weather: [], button: 'auto', tab_position: '', glyph: 'sidebar', clock: true,
             order: 'az', categories: [], ha_sidebar: [] },
     rooms: { headings: true, status: ['temperature', 'humidity', 'outlets', 'blinds', 'fans', 'windows',
-                                      'doors', 'locks', 'garage', 'motion', 'occupancy', 'leaks'] },
+                                      'doors', 'locks', 'garage', 'motion', 'occupancy', 'leaks'],
+             // All Screens' rooms, for the screens that don't set their own
+             order: [], home: 'as_is', menu: 'az', pages: 'floor' },
     look: { glass: 'clear', frost: 50, blur: 50, details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {},
             // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
@@ -111,7 +113,9 @@
       rooms: (ac && ac.rooms && typeof ac.rooms === 'object') ? JSON.parse(JSON.stringify(ac.rooms)) : {},
       into: (ac && ac.into && typeof ac.into === 'object') ? JSON.parse(JSON.stringify(ac.into)) : {},
       // a category page's own order (the Vacuums page, say)
-      pages: (ac && ac.pages && typeof ac.pages === 'object') ? JSON.parse(JSON.stringify(ac.pages)) : {}
+      pages: (ac && ac.pages && typeof ac.pages === 'object') ? JSON.parse(JSON.stringify(ac.pages)) : {},
+      // a room's scenes row on its page ([]: none; a room missing: Automatic)
+      scenes: (ac && ac.scenes && typeof ac.scenes === 'object') ? JSON.parse(JSON.stringify(ac.scenes)) : {}
     };
     // THE HOUSE'S CUSTOM PAGES (settings.custom_pages): a list,
     // taken whole -- each its address, title, icon and view

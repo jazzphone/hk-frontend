@@ -47,12 +47,14 @@ def test_items_follow_only_their_named_fields():
 
 def test_accessories_move_the_settings_and_every_order():
     data = {"entities": {OLD: {"name": "Lamp"}, "light.k": {"fav_with": [OLD, "light.z"]}},
-            "rooms": {"kitchen": ["light.k", OLD]}, "pages": {"vacuums": ["vacuum.x"]}, "into": {}}
+            "rooms": {"kitchen": ["light.k", OLD]}, "pages": {"vacuums": ["vacuum.x"]}, "into": {},
+            "scenes": {"den": [OLD], "garage": []}}
     out, changed, clash = R.rewrite_accessories(data, OLD, NEW)
     assert out["entities"][NEW] == {"name": "Lamp"} and OLD not in out["entities"]
     assert out["entities"]["light.k"]["fav_with"] == [NEW, "light.z"]
     assert out["rooms"]["kitchen"] == ["light.k", NEW] and out["pages"] == {"vacuums": ["vacuum.x"]}
-    assert not clash and len(changed) == 3
+    assert out["scenes"] == {"den": [NEW], "garage": []}
+    assert not clash and len(changed) == 4
 
 
 def test_accessories_never_overwrite_the_new_ids_own_settings():

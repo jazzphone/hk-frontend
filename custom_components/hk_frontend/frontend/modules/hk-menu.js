@@ -382,12 +382,14 @@
     // THE TAB'S SIZE, a screen's own (board tab_size, 2026-09-30): Standard is
     // the tab that fits the margin; a finger on a wall tablet wants more, so
     // Large is the default and it may lie over the page's edge -- it is drawn
-    // on top. A phone (under M.NARROW) always gets Standard: there the tab
-    // already lies over the first column of tiles. [width, height, glyph].
+    // on top. A phone (under M.NARROW) has a size of its own (tab_size_phone,
+    // 2026-10-01), Standard unless chosen: there even the slim tab already
+    // lies over the first column of tiles. [width, height, glyph].
     var TAB_SIZES = { standard: [TAB_W, TAB_H, 16], large: [36, 86, 20], xl: [46, 110, 24] };
     function tabSize() {
-      if ((window.innerWidth || 1280) < M.NARROW) return TAB_SIZES.standard;
-      return TAB_SIZES[(M.board() || {}).tab_size] || TAB_SIZES.large;
+      var b = M.board() || {};
+      if ((window.innerWidth || 1280) < M.NARROW) return TAB_SIZES[b.tab_size_phone] || TAB_SIZES.standard;
+      return TAB_SIZES[b.tab_size] || TAB_SIZES.large;
     }
     var IDLE_MS = 60000;      // an open menu nobody touches closes itself
     // The time and weather's box inset: the list's 14 px plus a row's 14 px,

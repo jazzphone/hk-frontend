@@ -234,6 +234,12 @@ ok('a button is pressed; its look is the one `looks` gives it', pills[0].tap_act
 ok('the scenes row\'s geometry', sp.config.cards[1].layout.margin === '-14px -22px -7px -22px' &&
    sp.config.cards[1].cards[0].card_width === 'var(--hk-pill, 192px)');
 ok('turned off on the dashboard: nothing', SC.plan({}, { scenes_row: false }, sh).config === null);
+// A ROOM'S ROW (room: true, a room page's): exactly the scenes it is given
+sp = SC.plan({ room: true, scenes: ['input_button.gm'] }, { scenes: ['scene.bed'], scenes_row: false, scenes_pages: ['music'] }, sh);
+pills = sp.config && sp.config.cards[1].cards[0].cards;
+ok('a room row ignores the screen\'s Home row, its switch and its page pills',
+   !!pills && pills.length === 1 && pills[0].entity === 'input_button.gm' && !sp.auto);
+ok('...and is nothing given nothing (never every scene in the house)', SC.plan({ room: true, scenes: [] }, {}, sh).config === null);
 var realCfg2 = HC.menu.config;
 HC.menu.config = function () { return { views: [{ path: 'home' }, { path: 'live-tv' }, { path: 'alarm' }] }; };
 sp = SC.plan({}, { scenes: ['scene.bed'], scenes_pages: ['live_tv', 'security', 'music'] }, sh);

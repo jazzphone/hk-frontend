@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import copy
+import json
 import re
 from typing import Any
 
@@ -209,7 +210,13 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              "ha_sidebar": []},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
-    "rooms": {"headings": True, "status": list(STATUS_KINDS)},
+    # ROOMS, for every screen that doesn't set its own (a screen's
+    # rooms_custom): the order of the rooms and which are on Home (`order`,
+    # `home` -- empty: floor by floor, then A to Z), the menu's rooms A to Z or
+    # in that order (`menu`), and the pages that group by room by floor or in
+    # it (`pages`). Before 2026-10-01 each screen held its own copy.
+    "rooms": {"headings": True, "status": list(STATUS_KINDS), "order": [], "home": "as_is", "menu": "az",
+              "pages": "floor"},
     # How the glass surfaces look (hk-settings.js applies it; hk-glass.js draws
     # the shared blur): clear -- the original plate, the status chips blur
     # themselves; frosted -- a frosted material, no blur at all; blur -- ONE
@@ -497,9 +504,10 @@ def as_client(entry: ConfigEntry | None,
 # EACH DASHBOARD ITS OWN ITEM: a subentry of type "dashboard", keyed by its
 # url path, listed under Dashboards on the integration's page with its own
 # settings -- the menu, where the time and weather sit, the Home Assistant
-# row, its categories and its room order. Only the menu's icon, the clock tap
-# and the room pages' status line are shared by every screen (HK Settings ->
-# Menu & Rooms). docs/Menu.md and docs/Screens.md.
+# row, its categories -- and its rooms, All Screens' (HK Settings -> Rooms)
+# unless it sets its own (rooms_custom). The menu's icon and the clock tap are
+# shared by every screen (HK Settings -> Menu). docs/Menu.md, docs/Rooms.md
+# and docs/Screens.md.
 SUBENTRY_DASHBOARD = "dashboard"
 # menu: off, a button (automatic / the pinned chip / the edge tab), or open
 # (always beside the page, folding to the automatic button when narrower
@@ -536,15 +544,19 @@ BOARD_NARROW = ("chip", "chip_scroll", "tab")
 # what a phone shows at the top of Home: the clock and weather header, or the
 # one-line weather strip (a generated screen; a YAML one draws its own)
 BOARD_PHONE = ("header", "strip")
-# the menu's edge tab: its size on a tablet or wider (a phone always has the
-# standard one, which already lies over the first column) -- hk-menu.js
+# the menu's edge tab: its size on a tablet or wider (tab_size), and on a phone
+# (tab_size_phone, under 640 px), each the screen's own -- hk-menu.js. A phone
+# starts with the standard one, which already lies over the first column.
 BOARD_TAB_SIZES = ("standard", "large", "xl")
 VIEW_PATH = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
 BOARD_DEFAULTS: dict[str, Any] = {
     # the menu
     "menu": "auto", "dock_min": 1000, "time_weather": "page", "ha_row": False,
-    "categories": [], "tab_position": "", "tab_size": "large", "room_order": [],
+    "categories": [], "tab_position": "", "tab_size": "large", "tab_size_phone": "standard", "room_order": [],
     "menu_rooms": "az", "home_rooms": "as_is", "page_rooms": "floor",
+    # rooms_custom: the four room settings above are this screen's own; off,
+    # they are All Screens' (settings `rooms`, filled in by resolved())
+    "rooms_custom": False,
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
     "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
@@ -650,6 +662,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     except (TypeError, ValueError):
         pass
     out["ha_row"] = bool(d.get("ha_row", False))
+    out["rooms_custom"] = bool(d.get("rooms_custom", False))
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
         out[k] = strs(d.get(k)) or []
@@ -674,6 +687,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     t = tab_position(d.get("tab_position"))
     out["tab_position"] = t if t is not None else ""
     out["tab_size"] = pick("tab_size", BOARD_TAB_SIZES)
+    out["tab_size_phone"] = pick("tab_size_phone", BOARD_TAB_SIZES)
     out["glass"] = pick("glass", BOARD_GLASS)
     for k in ("frost", "blur"):
         out[k] = amount_or_none(d.get(k))
@@ -942,27 +956,75 @@ def popups(entry: ConfigEntry | None) -> list[dict[str, Any]]:
     return sorted(out, key=lambda p: (p["name"] or p["hash"]).lower())
 
 
+# A SCREEN'S ROOM SETTINGS and All Screens' (settings `rooms`) they follow
+# unless the screen sets its own (rooms_custom)
+ROOM_KEYS = {"room_order": "order", "home_rooms": "home", "menu_rooms": "menu", "page_rooms": "pages"}
+AREA_ID = re.compile(r"^[a-z0-9_]+$")
+
+
+def house_rooms(rooms: Mapping[str, Any] | None) -> dict[str, Any]:
+    """All Screens' room settings, each checked, as a screen's keys."""
+    r = dict(rooms or {})
+    order = [a for a in r.get("order") or [] if isinstance(a, str) and AREA_ID.match(a)] \
+        if isinstance(r.get("order"), list) else []
+    return {"room_order": list(dict.fromkeys(order)),
+            "home_rooms": r.get("home") if r.get("home") in BOARD_HOME_ROOMS else BOARD_DEFAULTS["home_rooms"],
+            "menu_rooms": r.get("menu") if r.get("menu") in BOARD_MENU_ROOMS else BOARD_DEFAULTS["menu_rooms"],
+            "page_rooms": r.get("pages") if r.get("pages") in BOARD_PAGE_ROOMS else BOARD_DEFAULTS["page_rooms"]}
+
+
 def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
-             house: Mapping[str, Any] | None = None) -> dict[str, Any]:
+             house: Mapping[str, Any] | None = None, rooms: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """A screen's settings as READ: a null screensaver_options filled in with
     All Screens' (`house`, or read from `options`), and `screensaver_house`
-    saying which it is."""
+    saying which it is; and its rooms, All Screens' (`rooms`, or read from
+    `options`) unless it sets its own, `rooms_house` saying which."""
     out = dict(b)
     own = b.get("screensaver_options")
     if own is None and house is None:
         house = merged(options)["look"]["saver"]
     out["screensaver_house"] = own is None
     out["screensaver_options"] = dict(house) if own is None else own
+    out["rooms_house"] = not b.get("rooms_custom")
+    if out["rooms_house"]:
+        out.update(house_rooms(merged(options)["rooms"] if rooms is None else rooms))
     return out
+
+
+def rooms_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]]
+                 ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """THE ROOMS MOVE TO ALL SCREENS (entry 1.8, 2026-10-01). Before, each
+    screen held its own room order, Home's rooms, the menu's and the pages'
+    -- a house with five tablets kept five copies of one order. The room
+    settings the most screens chose (counting only screens that chose any)
+    become All Screens'; a screen with exactly those, or with none of its
+    own, follows All Screens from now on; one that differs keeps its own
+    (rooms_custom). Returns (new options or None: unchanged, {path: new
+    item data}). A house that already has All Screens' order is left alone."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    if "order" in (stored.get("rooms") or {}):
+        return None, {}
+    keys = tuple(ROOM_KEYS)
+    defaults = tuple(json.dumps(BOARD_DEFAULTS[k]) for k in keys)
+    sig = {p: tuple(json.dumps(board(d)[k]) for k in keys) for p, d in items.items()}
+    chosen = [s for s in sig.values() if s != defaults]
+    if not chosen:
+        return None, {p: {**d, "rooms_custom": False} for p, d in items.items()}
+    top = max(dict.fromkeys(chosen), key=chosen.count)         # ties: the first screen's
+    picked = {k: json.loads(v) for k, v in zip(keys, top)}
+    rooms = {**(stored.get("rooms") or {}), **{ROOM_KEYS[k]: picked[k] for k in keys}}
+    new_options = {**(options or {}), CONF_DASHBOARD: {**stored, "rooms": rooms}}
+    return new_options, {p: {**d, "rooms_custom": sig[p] not in (top, defaults)} for p, d in items.items()}
 
 
 def boards(entry: ConfigEntry | None) -> dict[str, dict[str, Any]]:
     """Every dashboard item's settings, by url path (as read: resolved())."""
     out: dict[str, dict[str, Any]] = {}
-    house = merged(entry.options if entry is not None else None)["look"]["saver"]
+    m = merged(entry.options if entry is not None else None)
+    house, rooms = m["look"]["saver"], m["rooms"]
     for sub in (entry.subentries.values() if entry is not None else ()):
         if sub.subentry_type == SUBENTRY_DASHBOARD and sub.unique_id:
-            out[sub.unique_id] = resolved(board(sub.data), None, house)
+            out[sub.unique_id] = resolved(board(sub.data), None, house, rooms)
     return out
 
 
