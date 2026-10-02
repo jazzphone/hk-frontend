@@ -221,9 +221,13 @@
     button: function (id, name) {
       // "Office PC - Wake On Lan" is the Office PC
       name = String(name || '').replace(/\s*[-\u2013]?\s*wake[\s-]*on[\s-]*lan\s*$/i, '') || name;
+      // A light's split: the GLYPH wakes it, the name opens its sheet (one
+      // big Wake button and when it was last woken), as a light's glyph
+      // toggles and its name opens its sheet.
       return sized({ type: 'custom:hk-tile-card', entity: id, name: name, icon: 'hk:desktop-tower',
         icon_color: 'yellow', label: 'Wake',
-        tap_action: { action: 'perform-action', perform_action: 'button.press', target: { entity_id: id } } });
+        tap_action: { action: 'more-info' },
+        icon_tap_action: { action: 'perform-action', perform_action: 'button.press', target: { entity_id: id } } });
     },
     alarm_control_panel: function (id, name) {
       var armed = {};

@@ -110,6 +110,7 @@
         case 'select': case 'input_select': return 'select';
         case 'alarm_control_panel': return 'alarm';
         case 'camera': return 'camera';
+        case 'button': case 'input_button': return 'button';
         default: return null;
       }
     }
@@ -2613,6 +2614,50 @@
       }
     }
 
+    // A BUTTON -- a computer's Wake on LAN, an input_button -- is the lock's
+    // ring with one tap and no hold: it has no state to protect, and pressing
+    // it twice only sends the packet twice. Its state is the time it was
+    // last pressed, so the ring pulses "Sent" for a moment after a press
+    // and the line under it says when that was.
+    var SENT_MS = 4000;
+    class ButtonPanel extends RingPanel {
+      hkWidthKind() { return 'lock'; }
+      _wakes() {
+        var s = this._stateObj;
+        return /wake[\s_-]*on[\s_-]*lan/i.test(String(this._id) + ' ' + String(at(s, 'friendly_name') || ''));
+      }
+      spec(s) {
+        // 'unknown' is a button never pressed since Home Assistant started --
+        // not a dead one: only 'unavailable' is
+        var bad = !s || s.state === 'unavailable', wake = this._wakes();
+        var t = Date.parse(s.state), sent = isFinite(t) && Date.now() - t < SENT_MS && Date.now() >= t - 2000;
+        return {
+          word: bad ? 'Unavailable' : sent ? (wake ? 'Waking…' : 'Sent') : wake ? 'Wake' : 'Press',
+          glyph: this._src.icon || at(s, 'icon') || (wake ? 'hk:desktop-tower' : 'mdi:gesture-tap-button'),
+          busy: sent, bad: bad,
+          tap: bad ? null : [domainOf(this._id), 'press'],
+          hint: bad ? '' : lastText(s.state, wake),
+          label: wake ? 'Wake ' + this._who(s, 'the computer') : 'Press ' + this._who(s, 'the button')
+        };
+      }
+      _render() {
+        super._render();
+        // the pulse ends by itself: no state change comes to end it
+        var s = this._stateObj, t = s ? Date.parse(s.state) : NaN, left = t + SENT_MS - Date.now(), self = this;
+        clearTimeout(this._sentT);
+        if (isFinite(left) && left > 0 && left <= SENT_MS) this._sentT = setTimeout(function () { self._render(); }, left + 50);
+      }
+      disconnectedCallback() { clearTimeout(this._sentT); if (super.disconnectedCallback) super.disconnectedCallback(); }
+    }
+    // "Last woken 9:14 PM" today, "Last woken Oct 1, 9:14 PM" before that
+    function lastText(iso, wake) {
+      var t = Date.parse(iso), verb = wake ? 'Last woken ' : 'Last pressed ';
+      if (!isFinite(t)) return wake ? 'Tap to wake' : 'Tap to press';
+      var d = new Date(t), time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      if (d.toDateString() === new Date().toDateString()) return verb + time;
+      return verb + d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + time;
+    }
+
     // ------------------------------------------------------------ climate
     // The home's own thermostat card (hk-thermostat-card) in `bare` mode --
     // the dial, modes and fan exactly as on the Climate page -- plus the
@@ -4551,7 +4596,7 @@
       cover_buttons: 'hk-detail-cover', garage: 'hk-detail-garage',
       vacuum: 'hk-detail-vacuum', valve: 'hk-detail-valve', number: 'hk-detail-number',
       select: 'hk-detail-select', humidifier: 'hk-detail-humidifier', water_heater: 'hk-detail-water-heater',
-      lock: 'hk-detail-lock',
+      lock: 'hk-detail-lock', button: 'hk-detail-button',
       climate: 'hk-detail-climate',
       media: 'hk-detail-media',
       sensor: 'hk-detail-sensor',
@@ -4569,6 +4614,7 @@
     def('hk-detail-cover', CoverPanel);
     def('hk-detail-lock', LockPanel);
     def('hk-detail-garage', GaragePanel);
+    def('hk-detail-button', ButtonPanel);
     def('hk-detail-climate', ClimatePanel);
     def('hk-detail-media', MediaPanel);
     def('hk-detail-sensor', SensorPanel);
