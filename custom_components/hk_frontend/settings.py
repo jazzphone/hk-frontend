@@ -104,6 +104,10 @@ def parse_mmdd(text: str | None) -> str | bool | None:
 #   order:  the Rooms list, A to Z or in the dashboard's own view order.
 MENU_BUTTONS = ("auto", "chip", "tab")
 MENU_GLYPHS = ("sidebar", "lines")
+# THE MENU'S HIGHLIGHT (its icons and the current page's row): one of Apple's
+# system colours by name (hk-menu.js ACCENTS has their values), or "#rrggbb".
+ACCENTS = ("orange", "yellow", "green", "mint", "teal", "cyan", "blue", "indigo", "purple", "pink", "red")
+ACCENT_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 # A dashboard item's Menu -> Tab position: a distance from the top of the page, or a share
 # of its height. A bare number is px.
 TAB_POSITION = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(px|%)?\s*$")
@@ -207,7 +211,16 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "menu": {"dashboards": [], "docked": [], "dock_min": 1000, "time_weather": [],
              "button": "auto", "tab_position": "",
              "glyph": "sidebar", "clock": True, "order": "az", "categories": [],
-             "ha_sidebar": []},
+             "ha_sidebar": [],
+             # ALL SCREENS' MENU (entry 1.9, 2026-10-02): every screen's menu
+             # settings but whether it has one (its `menu`: off, a button,
+             # always open), for each screen that doesn't set its own
+             # (menu_custom). MENU_KEYS maps them onto a screen's keys; named
+             # apart from the older lists above, which settings.py still
+             # fills in for an older hk-base.js.
+             "style": "auto", "narrow": "chip", "tab_at": "", "tab_size": "large",
+             "tab_size_phone": "standard", "open_min": 1000, "time_weather_at": "page",
+             "ha_row": False, "accent": "orange"},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -557,6 +570,10 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # rooms_custom: the four room settings above are this screen's own; off,
     # they are All Screens' (settings `rooms`, filled in by resolved())
     "rooms_custom": False,
+    # menu_custom: the menu settings in MENU_KEYS are this screen's own; off,
+    # they are All Screens' (settings `menu`, filled in by resolved()) -- all
+    # but `menu` itself, whose button style alone follows
+    "menu_custom": False, "accent": "orange", "glyph": "sidebar", "clock": True,
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
     "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
@@ -663,6 +680,10 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
         pass
     out["ha_row"] = bool(d.get("ha_row", False))
     out["rooms_custom"] = bool(d.get("rooms_custom", False))
+    out["menu_custom"] = bool(d.get("menu_custom", False))
+    out["accent"] = accent(d.get("accent")) or out["accent"]
+    out["glyph"] = pick("glyph", MENU_GLYPHS)
+    out["clock"] = bool(d.get("clock", True))
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
         out[k] = strs(d.get(k)) or []
@@ -959,6 +980,44 @@ def popups(entry: ConfigEntry | None) -> list[dict[str, Any]]:
 # A SCREEN'S ROOM SETTINGS and All Screens' (settings `rooms`) they follow
 # unless the screen sets its own (rooms_custom)
 ROOM_KEYS = {"room_order": "order", "home_rooms": "home", "menu_rooms": "menu", "page_rooms": "pages"}
+# A SCREEN'S MENU KEYS and All Screens' (settings `menu`) they follow. `menu`
+# is special: off and always open are the screen's own, and only a button's
+# style follows (MENU_STYLES).
+MENU_KEYS = {"menu": "style", "narrow": "narrow", "tab_position": "tab_at", "tab_size": "tab_size",
+             "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
+             "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock"}
+MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open"))
+
+
+def accent(v: Any) -> str | None:
+    """A menu highlight as stored: a name in ACCENTS or "#rrggbb" (lower
+    case); None for anything else."""
+    t = str(v or "").strip().lower()
+    return t if t in ACCENTS or ACCENT_HEX.match(t) else None
+
+
+def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
+    """All Screens' menu settings, each checked, as a screen's keys (`menu`
+    is the button style)."""
+    m = dict(menu or {})
+    d = BOARD_DEFAULTS
+    pick = lambda k, allowed, dflt: m.get(k) if m.get(k) in allowed else dflt  # noqa: E731
+    t = tab_position(m.get("tab_at"))
+    try:
+        dock = int(min(max(float(m.get("open_min") or 1000), DOCK_MIN[0]), DOCK_MIN[1]))
+    except (TypeError, ValueError):
+        dock = d["dock_min"]
+    return {"menu": pick("style", MENU_STYLES, "auto"),
+            "narrow": pick("narrow", BOARD_NARROW, d["narrow"]),
+            "tab_position": t if t is not None else "",
+            "tab_size": pick("tab_size", BOARD_TAB_SIZES, d["tab_size"]),
+            "tab_size_phone": pick("tab_size_phone", BOARD_TAB_SIZES, d["tab_size_phone"]),
+            "dock_min": dock,
+            "time_weather": pick("time_weather_at", BOARD_TIME, d["time_weather"]),
+            "ha_row": bool(m.get("ha_row", False)),
+            "accent": accent(m.get("accent")) or d["accent"],
+            "glyph": pick("glyph", MENU_GLYPHS, d["glyph"]),
+            "clock": m.get("clock") is not False}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -974,11 +1033,14 @@ def house_rooms(rooms: Mapping[str, Any] | None) -> dict[str, Any]:
 
 
 def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
-             house: Mapping[str, Any] | None = None, rooms: Mapping[str, Any] | None = None) -> dict[str, Any]:
+             house: Mapping[str, Any] | None = None, rooms: Mapping[str, Any] | None = None,
+             menu: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """A screen's settings as READ: a null screensaver_options filled in with
     All Screens' (`house`, or read from `options`), and `screensaver_house`
-    saying which it is; and its rooms, All Screens' (`rooms`, or read from
-    `options`) unless it sets its own, `rooms_house` saying which."""
+    saying which it is; its rooms, All Screens' (`rooms`, or read from
+    `options`) unless it sets its own, `rooms_house` saying which; and its
+    menu settings the same way (`menu`, `menu_house`) -- off and always open
+    staying the screen's own."""
     out = dict(b)
     own = b.get("screensaver_options")
     if own is None and house is None:
@@ -988,7 +1050,78 @@ def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
     out["rooms_house"] = not b.get("rooms_custom")
     if out["rooms_house"]:
         out.update(house_rooms(merged(options)["rooms"] if rooms is None else rooms))
+    out["menu_house"] = not b.get("menu_custom")
+    if out["menu_house"]:
+        hm = house_menu(merged(options)["menu"] if menu is None else menu)
+        style = hm.pop("menu")
+        out.update(hm)
+        if out.get("menu") in MENU_STYLES:
+            out["menu"] = style
     return out
+
+
+def preset_menu(data: Mapping[str, Any], preset: Mapping[str, Any],
+                options: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A new screen from a preset (SCREEN_PRESETS): it follows All Screens'
+    menu unless the preset chooses a menu setting All Screens' differs on
+    (a wall tablet's time and weather in the menu), when it starts with its
+    own (menu_custom). Whether it has a menu is its own either way."""
+    house = house_menu(merged(options)["menu"])
+    keys = [k for k in preset if k in MENU_KEYS and k != "menu"]
+    return {**data, "menu_custom": any(json.dumps(data[k]) != json.dumps(house[k]) for k in keys)}
+
+
+# Which of a screen's menu keys show at all, by its menu: a button never
+# docks, an always-open menu has no button style; off shows none. The edge
+# tab's only where the screen shows it (hk-settings-model.js showsTab).
+_MENU_SHOWN = {"button": ("menu", "narrow", "ha_row"),
+               "open": ("dock_min", "narrow", "time_weather", "ha_row")}
+_MENU_TAB = ("tab_position", "tab_size", "tab_size_phone")
+_TAB_STYLES = ("auto", "chip_scroll", "chip_home", "tab")
+
+
+def _menu_shown(b: Mapping[str, Any]) -> tuple[str, ...]:
+    kind = "button" if b["menu"] in MENU_STYLES else b["menu"]
+    keys = _MENU_SHOWN.get(kind, ())
+    tab = (kind == "button" and b["menu"] in _TAB_STYLES) or b["narrow"] in ("tab", "chip_scroll")
+    return keys + _MENU_TAB if keys and tab else keys
+
+
+def menu_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]]
+                ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """THE MENU MOVES TO ALL SCREENS (entry 1.9, 2026-10-02), as the rooms
+    did. Each of a screen's menu settings becomes All Screens' as most of the
+    screens it SHOWS on have it (a button's style among the buttons, Keep
+    Open Down To among the always-open, ...; ties: the first screen's); the
+    icon and the clock tap were All Screens' already. A screen whose own
+    match on everything it shows follows All Screens from now on; one that
+    differs keeps its own (menu_custom). Returns (new options or None:
+    unchanged, {path: new item data}). A house that already has All Screens'
+    menu style is left alone."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    if "style" in (stored.get("menu") or {}):
+        return None, {}
+    boards_ = {p: board(d) for p, d in items.items()}
+    shown = {p: _menu_shown(b) for p, b in boards_.items()}
+    picked: dict[str, Any] = {}
+    for k in ("menu", "narrow", "tab_position", "tab_size", "tab_size_phone", "dock_min", "time_weather", "ha_row"):
+        seen = [json.dumps(b[k]) for p, b in boards_.items() if k in shown[p]]
+        picked[k] = json.loads(max(dict.fromkeys(seen), key=seen.count)) if seen else BOARD_DEFAULTS[k]
+    if picked["menu"] not in MENU_STYLES:
+        picked["menu"] = "auto"
+    old = dict(stored.get("menu") or {})
+    menu = {**old, **{MENU_KEYS[k]: v for k, v in picked.items()}}
+    new_options = {**(options or {}), CONF_DASHBOARD: {**stored, "menu": menu}}
+    out = {}
+    for p, d in items.items():
+        b = boards_[p]
+        differs = any(json.dumps(b[k]) != json.dumps(picked[k]) for k in shown[p])
+        out[p] = {**d, "menu_custom": differs}
+        if differs:
+            # its own copy starts from what it showed: the shared look too
+            out[p].update({"glyph": old.get("glyph", "sidebar") if old.get("glyph") in MENU_GLYPHS else "sidebar",
+                           "clock": old.get("clock") is not False})
+    return new_options, out
 
 
 def rooms_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]]
@@ -1021,10 +1154,10 @@ def boards(entry: ConfigEntry | None) -> dict[str, dict[str, Any]]:
     """Every dashboard item's settings, by url path (as read: resolved())."""
     out: dict[str, dict[str, Any]] = {}
     m = merged(entry.options if entry is not None else None)
-    house, rooms = m["look"]["saver"], m["rooms"]
+    house, rooms, menu = m["look"]["saver"], m["rooms"], m["menu"]
     for sub in (entry.subentries.values() if entry is not None else ()):
         if sub.subentry_type == SUBENTRY_DASHBOARD and sub.unique_id:
-            out[sub.unique_id] = resolved(board(sub.data), None, house, rooms)
+            out[sub.unique_id] = resolved(board(sub.data), None, house, rooms, menu)
     return out
 
 

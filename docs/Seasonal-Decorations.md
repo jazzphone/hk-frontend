@@ -70,6 +70,29 @@ that day only.
 so all your screens show the same thing, and nothing changes in front of you
 during the day.
 
+## On the forecast screensaver
+
+The [forecast screensaver](Screensaver-and-Idle.md#no-photos-the-forecast)
+draws its own landscape rather than the frames above, so on the same days
+the landscape itself is decorated, and whatever moves (leaves, bats, the
+witch, the sleigh, snow, confetti) still crosses it. Turning a decoration off,
+or the **Seasonal decorations** switch, turns it off here too.
+
+| | |
+|---|---|
+| ![Halloween night on the forecast screensaver: jack-o’-lanterns under the trees, a big moon and bats](images/tablet-forecast-halloween.png) | ![Christmas night on the forecast screensaver: the two big trees wrapped in lights, a snowman and presents, Santa’s sleigh crossing a big moon](images/tablet-forecast-christmas.png) |
+| Halloween | Christmas |
+| ![The Fourth of July at night on the forecast screensaver: bunting, café lights and a flag under the trees, fireworks over the hills](images/tablet-forecast-july4.png) | ![A birthday on the forecast screensaver: two bunches of balloons staked in the grass beside the trees](images/tablet-forecast-birthday.png) |
+| The Fourth of July | A birthday |
+
+| Decoration | On the forecast screensaver |
+|---|---|
+| Fall & Halloween | At dusk and by night, carved jack-o’-lanterns, corn stalks and hay bales at the foot of the trees, their candles flickering; leaves fall by day. Spooky nights add the big moon, bats and the witch. |
+| Christmas | The two big trees wrapped in warm white lights, a snowman and presents, by day, at dusk and by night. After dark the lights glow and twinkle one by one, and snow drifts. On a Christmas night a big full moon rises between the clock and Home Status, and the sleigh flies across it. |
+| Fourth of July | Bunting and café lights strung between the trees and a flag beside them, all day; after dark the lights glow and fireworks burst over the hills. |
+| Birthdays | Two bunches of balloons staked in the grass beside the trees, swaying, with confetti. Over whatever season the birthday falls in. |
+| The rest | The season’s own landscape, with the decoration’s particles and flyby (petals and a butterfly, hearts, crystals, sparkles, a rocket or a fairy) over it. |
+
 ## Dates and how often
 
 Each decoration’s page in **HK Settings → Sky** has:

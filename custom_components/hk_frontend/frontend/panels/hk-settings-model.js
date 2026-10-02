@@ -144,7 +144,8 @@
     card_options: 'Options must be YAML keys and values (key: value), under 20,000 characters.',
     birthday: 'Each birthday needs a name and a date.', path: 'Use letters, digits and dashes only.',
     count: 'That list couldn’t be read.', date: 'That isn’t a date.',
-    tab_position: 'Enter a distance such as 140px or a share such as 20%.',
+    tab_position: 'Enter a number: pixels from the top, or a percentage of the screen’s height.',
+    accent: 'Choose a color, or a color of your own as #rrggbb.',
     dock_min: 'Enter 700 to 3,000 px.', bad_room: 'Use lower-case letters, digits and underscores, like living_room.',
     user: 'That isn’t a user name.', unknown: 'That setting doesn’t exist.',
     icon: 'Use an icon name such as mdi:music or hk:apple.',
@@ -191,6 +192,65 @@
     for (var i = 0; i < MENU_STYLES.length; i++) if (MENU_STYLES[i][0] === v) return MENU_STYLES[i][1];
     return v;
   }
+  // THE MENU'S HIGHLIGHT (settings.py ACCENTS; hk-base.js has the same
+  // values): Apple's system colours, as in dark mode
+  var ACCENTS = [['orange', 'Orange', '#ff9f0a'], ['yellow', 'Yellow', '#ffd60a'], ['green', 'Green', '#30d158'],
+                 ['mint', 'Mint', '#63e6e2'], ['teal', 'Teal', '#40c8e0'], ['cyan', 'Cyan', '#64d2ff'],
+                 ['blue', 'Blue', '#0a84ff'], ['indigo', 'Indigo', '#5e5ce6'], ['purple', 'Purple', '#bf5af2'],
+                 ['pink', 'Pink', '#ff375f'], ['red', 'Red', '#ff453a']];
+  function accentOf(v) {
+    v = String(v || 'orange').toLowerCase();
+    for (var i = 0; i < ACCENTS.length; i++) if (ACCENTS[i][0] === v) return { name: ACCENTS[i][1], hex: ACCENTS[i][2], custom: false };
+    return /^#[0-9a-f]{6}$/.test(v) ? { name: 'Custom', hex: v, custom: true } : { name: 'Orange', hex: '#ff9f0a', custom: false };
+  }
+  // TAB POSITION as two choices: level with the date ('') or a distance from
+  // the top in px or % (settings.py tab_position) -- [mode, number, unit]
+  function tabPosParts(v) {
+    var m = /^\s*(\d+(?:\.\d+)?)\s*(px|%)?\s*$/.exec(String(v || ''));
+    return m ? { mode: 'custom', n: m[1], unit: m[2] || 'px' } : { mode: 'date', n: '', unit: 'px' };
+  }
+  function tabPosJoin(n, unit) {
+    var t = String(n == null ? '' : n).replace(/[^\d.]/g, '');
+    return t ? t + (unit === '%' ? '%' : 'px') : '';
+  }
+  function tabPosLabel(v) {
+    var p = tabPosParts(v);
+    return p.mode === 'date' ? 'Level with Date' : p.n + (p.unit === '%' ? ' % from Top' : ' px from Top');
+  }
+  // ALL SCREENS' MENU (settings `menu`) as a screen's keys, and back
+  // (settings.py MENU_KEYS): the same rows serve both
+  var MENU_KEYS = { menu: 'style', narrow: 'narrow', tab_position: 'tab_at', tab_size: 'tab_size',
+                    tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
+                    ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock' };
+  var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
+                        dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true };
+  function houseMenuAsBoard(m) {
+    m = m || {};
+    var out = {};
+    Object.keys(MENU_KEYS).forEach(function (k) {
+      var v = m[MENU_KEYS[k]];
+      out[k] = v === undefined || v === null ? MENU_DEFAULTS[k] : v;
+    });
+    out.clock = out.clock !== false;
+    return out;
+  }
+  function houseMenuSave(ch) {
+    var out = {};
+    Object.keys(ch).forEach(function (k) { if (MENU_KEYS[k]) out['menu.' + MENU_KEYS[k]] = ch[k]; });
+    return out;
+  }
+  // A SCREEN TAKING ITS MENU AS ITS OWN: what it shows now, written as its
+  // own, so nothing moves; its `menu` (off, a button, always open) is its
+  // own already
+  function menuOwnChanges(b) {
+    var out = { menu_custom: true };
+    Object.keys(MENU_KEYS).forEach(function (k) { if (k !== 'menu' && b[k] !== undefined) out[k] = b[k]; });
+    // a button's style (All Screens', as it shows now) becomes its own too
+    if (b.menu && b.menu !== 'off' && b.menu !== 'open') out.menu = b.menu;
+    return out;
+  }
+  // one line for a screen's Menu Settings row
+  function menuSummary(b) { return b.menu_custom ? 'This Screen’s Own' : 'Same as All Screens'; }
   function showsTab(b) {
     if (menuMode(b) === 'off') return false;
     return (menuMode(b) === 'button' && !!TAB_STYLES[b.menu]) || b.narrow === 'tab' || b.narrow === 'chip_scroll';
@@ -700,18 +760,12 @@
   // `screen: true` rows are on every screen's page.
   var SEARCH = [
     ['Menu', 'screen', 'menu', 'sidebar drawer navigation off button always open docked', true],
-    ['Button Style', 'screen/menu-style', 'menu-style', 'chip tab edge pinned', true],
-    ['Tab Position', 'screen', 'tab_position', 'edge tab height', true],
-    ['Tab Size', 'screen', 'tab_size', 'edge tab menu bigger larger touch target tablet', true],
-    ['Tab Size on Phones', 'screen', 'tab_size_phone', 'edge tab menu bigger larger touch target phone iphone', true],
-    ['Keep Open Down To', 'screen', 'dock_min', 'fold width docked', true],
-    ['Time & Weather in Menu', 'screen', 'time_weather', 'clock header', true],
+    ['Menu Settings', 'screen/menu', 'menu_custom', 'same as all screens own menu this screen', true],
     ['Pages in Menu', 'screen/menu-pages', 'categories', 'categories menu list', true],
     ['On Phones', 'screen', 'phone_header', 'phone weather strip clock header narrow', true],
     ['Home Page', 'screen/pages', 'home_page', 'only custom pages energy panel no home', true],
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
     ['Rooms in Menu', 'screen/rooms', 'menu_rooms', 'a to z order', true],
-    ['Home Assistant Section', 'screen', 'ha_row', 'sidebar settings access integrations automations notifications profile show menu', true],
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
     ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera', true],
     ['Live Camera Follows', 'screen/cameras/live', 'camera_live', 'live camera follows motion person detection dropdown input select automation', true],
@@ -774,6 +828,15 @@
     ['Holiday Season Sensor', 'house/sky/advanced', 'sky.holidays', 'calendar'],
     ['Menu Button Icon', 'house/menu', 'menu.glyph', 'glyph sidebar lines hamburger'],
     ['Tap Clock to Open Menu', 'house/menu', 'menu.clock', ''],
+    ['Highlight Color', 'house/menu/accent', 'menu.accent', 'menu color colour accent tint orange icons selected page highlight'],
+    ['Button Style', 'house/menu/style', 'menu.style', 'menu chip tab edge pinned'],
+    ['On Narrow Screens', 'house/menu/narrow', 'menu.narrow', 'menu when folded chip tab phone ipad'],
+    ['Tab Position', 'house/menu', 'menu.tab_at', 'edge tab height level with date from top'],
+    ['Tab Size', 'house/menu', 'menu.tab_size', 'edge tab menu bigger larger touch target tablet'],
+    ['Tab Size on Phones', 'house/menu', 'menu.tab_size_phone', 'edge tab menu bigger larger touch target phone iphone'],
+    ['Keep Open Down To', 'house/menu', 'menu.open_min', 'menu fold width docked always open'],
+    ['Time & Weather in Menu', 'house/menu', 'menu.time_weather_at', 'clock header always open'],
+    ['Home Assistant Section', 'house/menu', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
     ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
     ['Room Order', 'house/rooms/order', 'rooms.order', 'rooms on home order which rooms'],
     ['Rooms in Menu', 'house/rooms', 'rooms.menu', 'a to z order menu rooms'],
@@ -842,8 +905,9 @@
   // one group here or in COPY_NEVER (settings.py BOARD_DEFAULTS -- a Python
   // test holds the two together). [key, label, board keys, copied by default]
   var COPY_GROUPS = [
-    ['menu', 'Menu', ['menu', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size', 'tab_size_phone',
-                      'menu_top', 'narrow', 'phone_header'], true],
+    // a screen's menu: All Screens' or its own (menu_custom)
+    ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
+                      'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock'], true],
     ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
@@ -954,7 +1018,10 @@
     skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',
     CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS,
-    MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
+    MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel,
+    ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
+    MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
+    menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
     PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
     CHIP_TOKEN: CHIP_TOKEN, chipsAddCustom: chipsAddCustom, chipsRemoveCustom: chipsRemoveCustom,

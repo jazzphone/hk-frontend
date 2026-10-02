@@ -309,5 +309,31 @@ ok('...already so: nothing to save', M.roomOnHome(hb, AZ, 'kitchen', true) === n
 ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_order: [] }) === 'Automatic' &&
    M.roomsSummary({ room_order: ['a'], home_rooms: 'order' }) === 'Custom Order');
 
+// ---- the menu, All Screens' (2026-10-02)
+(function () {
+  var tp = M.tabPosParts;
+  ok('tab position: empty is Level with Date', tp('').mode === 'date' && tp(null).mode === 'date');
+  ok('tab position: 140px, 140 and 20% are custom', tp('140px').n === '140' && tp('140').unit === 'px' && tp('20%').unit === '%');
+  ok('tab position: joined back', M.tabPosJoin('140', 'px') === '140px' && M.tabPosJoin(' 18 ', '%') === '18%' && M.tabPosJoin('', 'px') === '');
+  ok('tab position: as a row says it', M.tabPosLabel('') === 'Level with Date' && M.tabPosLabel('20%') === '20 % from Top');
+  ok('highlight: a name, your own, and anything else as orange',
+     M.accentOf('blue').hex === '#0a84ff' && M.accentOf('#123abc').custom && M.accentOf('#123abc').name === 'Custom' &&
+     M.accentOf('nope').name === 'Orange' && M.accentOf(null).hex === '#ff9f0a');
+  ok('highlight: Apple\'s eleven', M.ACCENTS.length === 11);
+  var hb = M.houseMenuAsBoard({ style: 'tab', tab_at: '20%', open_min: 1200, time_weather_at: 'menu', accent: 'teal', clock: false });
+  ok('All Screens\' menu as a screen\'s keys', hb.menu === 'tab' && hb.tab_position === '20%' && hb.dock_min === 1200 &&
+     hb.time_weather === 'menu' && hb.accent === 'teal' && hb.clock === false && hb.glyph === 'sidebar' && hb.tab_size === 'large');
+  var sv = M.houseMenuSave({ menu: 'chip', tab_position: '', accent: 'red', glyph: 'lines' });
+  ok('...and back', sv['menu.style'] === 'chip' && sv['menu.tab_at'] === '' && sv['menu.accent'] === 'red' && sv['menu.glyph'] === 'lines' &&
+     Object.keys(sv).length === 4, sv);
+  var own = M.menuOwnChanges({ menu: 'chip_scroll', accent: 'teal', tab_size: 'xl', narrow: 'tab', dock_min: 1000 });
+  ok('taking its own: what it shows now, the button\'s style too', own.menu_custom === true && own.menu === 'chip_scroll' &&
+     own.accent === 'teal' && own.tab_size === 'xl', own);
+  ok('...but never off or always open', !('menu' in M.menuOwnChanges({ menu: 'open' })));
+  ok('a screen\'s row says whose they are', M.menuSummary({ menu_custom: true }) === 'This Screen’s Own' &&
+     M.menuSummary({}) === 'Same as All Screens');
+  ok('search finds the highlight on All Screens\' Menu', M.search('highlight color', []).some(function (r) { return r.route === 'house/menu/accent'; }));
+})();
+
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

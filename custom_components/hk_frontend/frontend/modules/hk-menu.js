@@ -487,10 +487,11 @@
       '  font:inherit;font-size:17px;font-weight:400;letter-spacing:-0.41px;text-align:left;',
       '  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
       '.row + .row{margin-top:2px}',
-      '.row ha-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex;color:#ff9f0a}',
+      // the highlight: the screen's Highlight Colour (paintIcons), Apple's orange by default
+      '.row ha-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex;color:var(--hk-accent,#ff9f0a)}',
       '.row span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.row.here{background:#ff9f0a;color:#fff}',
-      '.row.here ha-icon{color:#fff}',
+      '.row.here{background:var(--hk-accent,#ff9f0a);color:var(--hk-on-accent,#fff)}',
+      '.row.here ha-icon{color:var(--hk-on-accent,#fff)}',
       // the Home Assistant section: iOS count bubbles, "More" and its rows
       '.row .bdg{flex:none;min-width:22px;height:22px;padding:0 7px;box-sizing:border-box;border-radius:11px;',
       '  background:#ff3b30;color:#fff;font-size:13px;font-weight:600;line-height:22px;text-align:center;letter-spacing:0}',
@@ -701,6 +702,12 @@
 
     function paintIcons() {
       var icon = M.icon();
+      // (an hk-base.js from before 1.5 has no accent: the orange stays)
+      var a = typeof M.accent === 'function' ? M.accent() : null;
+      if (a && S.host) {
+        S.host.style.setProperty('--hk-accent', a.color);
+        S.host.style.setProperty('--hk-on-accent', a.on);
+      }
       [S.tab, S.fab].forEach(function (b) {
         var i = b && b.querySelector('ha-icon');
         if (i && i.getAttribute('icon') !== icon) i.setAttribute('icon', icon);

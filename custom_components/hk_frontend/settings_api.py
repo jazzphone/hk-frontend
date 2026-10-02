@@ -264,6 +264,16 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "look.page_pills": _page_pills,
     "menu.glyph": _choice(S.MENU_GLYPHS),
     "menu.clock": _bool,
+    # All Screens' menu (settings.MENU_KEYS): every screen that doesn't set its own
+    "menu.style": _choice(S.MENU_STYLES),
+    "menu.narrow": _choice(S.BOARD_NARROW),
+    "menu.tab_at": lambda v: _tab_position(v),
+    "menu.tab_size": _choice(S.BOARD_TAB_SIZES),
+    "menu.tab_size_phone": _choice(S.BOARD_TAB_SIZES),
+    "menu.open_min": lambda v: _dock_min(v),
+    "menu.time_weather_at": _choice(S.BOARD_TIME),
+    "menu.ha_row": _bool,
+    "menu.accent": lambda v: _accent(v),
     "rooms.headings": _bool,
     "rooms.status": _subset(S.STATUS_KINDS),
     "rooms.order": _ids,
@@ -343,6 +353,13 @@ def _tab_position(v: Any) -> str:
     t = S.tab_position(v)
     if t is None:
         raise Invalid("tab_position")
+    return t
+
+
+def _accent(v: Any) -> str:
+    t = S.accent(v)
+    if t is None:
+        raise Invalid("accent")
     return t
 
 
@@ -442,6 +459,10 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "menu_rooms": _choice(S.BOARD_MENU_ROOMS),
     "home_rooms": _choice(S.BOARD_HOME_ROOMS),
     "rooms_custom": _bool,
+    "menu_custom": _bool,
+    "accent": _accent,
+    "glyph": _choice(S.MENU_GLYPHS),
+    "clock": _bool,
     "page_rooms": _choice(S.BOARD_PAGE_ROOMS),
     "chips_row": _bool,
     "chips": _chips,

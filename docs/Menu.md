@@ -7,7 +7,11 @@ The menu lists the screen’s pages and rooms, like the sidebar of Apple’s Hom
 app: **Home** first, then the pages at the top, then **Categories** and
 **Rooms**. The page you are on is highlighted.
 
-Each screen chooses its own menu, under **Screens → (the screen) → Menu**:
+Each screen chooses whether it has a menu, under **Screens → (the screen) →
+Menu**. Everything else about the menu (its look, its button, the edge tab,
+what’s in it) is set once for every screen in [All Screens →
+Menu](#menu-settings-for-all-screens), and a screen can
+[set its own](#a-screens-menu-settings):
 
 - **Off**: no menu. Pages are reached from the chips and pills.
 - **Button**: the menu is hidden until opened. **Button Style** picks how:
@@ -20,6 +24,8 @@ Each screen chooses its own menu, under **Screens → (the screen) → Menu**:
   - **Chip on Home, Tab Elsewhere**.
   - **Edge Tab**: a slim tab on the left edge, level with the date. **Tab
     Position** can move it.
+
+  The button’s style is All Screens’ unless the screen sets its own.
 - **Always Open**: the menu stays beside the page, with no button. It needs
   room: narrower than **Keep Open Down To** (1,000 px unless you change it),
   it folds away and **When Folded** stands in for it. One screen can then serve
@@ -32,8 +38,11 @@ button menu uses **On Narrow Screens** instead of its Button Style: the chip
 (the default), the chip then the tab, or the edge tab.
 
 **Tapping the clock** also opens the menu, and the weather beside it opens the
-Weather page. Both are [Menu](#menu-settings-for-all-screens) settings for
-every screen, along with the button’s icon.
+Weather page.
+
+**The highlight** (the menu’s icons and the page you’re on) is Apple’s orange
+unless you choose another **Highlight Color**: one of Apple’s system colors
+or a color of your own. Over a pale one the page’s name turns dark.
 
 **Top of Menu and Categories.** On a generated screen, Weather, Cameras and
 Live TV sit at the top of the menu, right under Home, and every other page is
@@ -125,31 +134,66 @@ Every card’s options: [Card Library](Card-Library.md).
 
 ## Menu settings
 
+**Screens → (the screen) → Menu.**
+
 | Setting | Default | What it does |
 |---|---|---|
-| Menu | Button (a YAML screen added as *Something Else*: Off) | **Off**: no menu. **Button**: the menu is hidden until you open it. **Always Open**: the menu stays beside the page, like the sidebar of the Home app on a Mac. The screen’s [preset](Screens.md#add-screen) sets this first. |
-| Button Style | Automatic | *Menu: Button.* **Automatic**: a round chip at the start of the status chips when the Home page has a menu button, otherwise the edge tab. **Chip**: the round chip. **Chip, Then Tab**: the chip, and a slim tab slides in from the left edge while the chip is scrolled out of sight. **Chip on Home, Tab Elsewhere**: the chip on Home, the edge tab on every other page. **Edge Tab**: a slim tab on the left edge, level with the date. |
-| On Narrow Screens | Chip | *Menu: Button.* Below 1,024 px wide (an iPad held upright, a phone), this takes over from Button Style: **Chip**, **Chip, Then Tab** or **Edge Tab**. |
-| Tab Position | Level with the date | Shown when the edge tab can appear. Where the tab’s center sits: empty for level with the date under the clock, a distance from the top (`140px`, or just `140`), or a share of the screen’s height (`20%`). |
-| Tab Size | Large | Shown with Tab Position. How big the edge tab is on a tablet, an iPad or a computer: **Standard** (the slim tab that fits the margin), **Large** or **Extra Large**. A bigger tab lies over the page’s edge and stays on top of it, and its touch area reaches a little past it. |
-| Tab Size on Phones | Standard | Shown with Tab Position. The same three sizes for a phone (narrower than 640 px), set apart from the tablet’s. On a phone even the standard tab lies over the first column of tiles, so a bigger one covers more of it. |
-| Keep Open Down To | 1,000 px | *Menu: Always Open.* Narrower than this (700 to 3,000 px), the menu folds away and When Folded stands in for it. 1,000 keeps it open on a computer and an iPad held sideways and folds it on a small iPad held upright or a phone. |
-| When Folded | Chip | *Menu: Always Open.* What stands in for a folded menu: **Chip**, **Chip, Then Tab** or **Edge Tab**. It is the same setting as On Narrow Screens. |
-| Time & Weather in Menu | Off (Wall Tablet preset: on) | *Menu: Always Open.* The time, date and weather sit at the top of the menu instead of in the Home page’s header, and the status chips move up into the space. When the menu folds away, the header comes back. |
+| Menu | Button (a YAML screen added as *Something Else*: Off) | **Off**: no menu. **Button**: the menu is hidden until you open it. **Always Open**: the menu stays beside the page, like the sidebar of the Home app on a Mac. The screen’s [preset](Screens.md#add-screen) sets this first. Always the screen’s own. |
+| Menu Settings | Same as All Screens | Everything below: [All Screens’](#menu-settings-for-all-screens), or [this screen’s own](#a-screens-menu-settings). |
 | Pages in Menu | Automatic | *YAML screens.* For each page: **Top of Menu** (right under Home), **Categories**, or **Not in Menu**. A generated screen sets this on its [Pages](Pages.md) instead. **Use the Automatic Menu** clears your choices. |
-| Home Assistant Section | Off | Adds a **Home Assistant** section to the menu, above Categories: Integrations, Automations, Settings (with its updates-and-repairs count), Notifications (with its count), **More** (the rest of that person’s Home Assistant sidebar, in their order), **Show Menu** (Home Assistant’s own sidebar, even where it is hidden) and Profile. Each person sees only what they may open. Leave it off on a shared wall tablet. |
-
-![The edge tab at its three sizes on a wall tablet: Standard, Large (the default) and Extra Large](images/menu-tab-sizes.png)
 
 ## Menu settings for all screens
 
-**All Screens → Menu.** What every screen’s menu shares. Whether a screen has a
-menu, and its style, is set [on the screen](#menu-settings). The menu’s rooms
-(A to Z or in the room order) are in [Rooms](Rooms.md).
+**All Screens → Menu.** Every screen with a menu follows these, unless it sets
+its own. The settings for a menu button apply to the screens with a button,
+those for an always-open menu to the screens with one, so a wall tablet and a
+phone can both follow them. The page ends with every screen that has a menu,
+and whether it follows these. The menu’s rooms (A to Z or in the room order)
+are in [Rooms](Rooms.md).
 
 <a id="menu--rooms-settings"></a>
 
 | Setting | Default | What it does |
 |---|---|---|
+| Highlight Color | Orange | The menu’s icons and the page you’re on: **Orange**, **Yellow**, **Green**, **Mint**, **Teal**, **Cyan**, **Blue**, **Indigo**, **Purple**, **Pink** or **Red** (Apple’s system colors), or **Your Own Color**. Over a pale color the page’s name turns dark. |
 | Button Icon | Sidebar | The menu button’s picture: **Sidebar** or **Three Lines**. |
 | Tap Clock to Open Menu | On | Tapping the header’s clock opens the menu. The weather beside it still opens the Weather page. |
+| Button Style | Automatic | *A menu button.* **Automatic**: a round chip at the start of the status chips when the Home page has a menu button, otherwise the edge tab. **Chip**: the round chip. **Chip, Then Tab**: the chip, and a slim tab slides in from the left edge while the chip is scrolled out of sight. **Chip on Home, Tab Elsewhere**: the chip on Home, the edge tab on every other page. **Edge Tab**: a slim tab on the left edge, level with the date. |
+| On Narrow Screens | Chip | *A menu button.* Below 1,024 px wide (an iPad held upright, a phone), this takes over from Button Style: **Chip**, **Chip, Then Tab** or **Edge Tab**. An always-open menu that folds away uses it too (its **When Folded**). |
+| Keep Open Down To | 1,000 px | *Always open.* Narrower than this (700 to 3,000 px), the menu folds away and On Narrow Screens stands in for it. 1,000 keeps it open on a computer and an iPad held sideways and folds it on a small iPad held upright or a phone. |
+| Time & Weather in Menu | Off | *Always open.* The time, date and weather sit at the top of the menu instead of in the Home page’s header, and the status chips move up into the space. When the menu folds away, the header comes back. A Wall Tablet screen turns it on for itself when All Screens has it off. |
+| Tab Position | Level with Date | *The edge tab.* **Level with Date**: the tab’s middle lines up with the date under the clock. **Custom**: a **Distance from Top**, **Measured In** **Pixels** or **% of Screen Height**. |
+| Tab Size | Large | *The edge tab.* How big it is on a tablet, an iPad or a computer: **Standard** (the slim tab that fits the margin), **Large** or **Extra Large**. A bigger tab lies over the page’s edge and stays on top of it, and its touch area reaches a little past it. |
+| Tab Size on Phones | Standard | *The edge tab.* The same three sizes for a phone (narrower than 640 px). On a phone even the standard tab lies over the first column of tiles, so a bigger one covers more of it. |
+| Home Assistant Section | Off | Adds a **Home Assistant** section to the menu, above Categories: Integrations, Automations, Settings (with its updates-and-repairs count), Notifications (with its count), **More** (the rest of that person’s Home Assistant sidebar, in their order), **Show Menu** (Home Assistant’s own sidebar, even where it is hidden) and Profile. Each person sees only what they may open. Leave it off on a shared wall tablet. |
+
+![All Screens → Menu: the highlight, the button, the always-open menu and the edge tab](images/settings-menu.png)
+
+### A screen’s menu settings
+
+**Screens → (the screen) → Menu → Menu Settings.**
+
+| Setting | Default | What it does |
+|---|---|---|
+| Same as All Screens | On | The screen’s menu is All Screens’. The page shows what they are, each a way to All Screens → Menu. |
+
+![A screen’s Menu Settings, following All Screens](images/settings-screen-menu.png)
+
+Turn **Same as All Screens** off to give the screen its own: they start as
+they are, then change on their own: the highlight, the icon, the clock tap,
+the button (a screen with a button) or Keep Open Down To, When Folded and
+Time & Weather (one always open), the edge tab and the Home Assistant section.
+Turn it back on to follow All Screens again. Whether the screen has a menu at
+all stays its own either way.
+
+![The edge tab at its three sizes on a wall tablet: Standard, Large (the default) and Extra Large](images/menu-tab-sizes.png)
+
+
+## Coming from 1.4
+
+Before, each screen held its own copy of every menu setting. On the first
+start after updating, each one became All Screens’ as most screens with a
+menu had it (the button’s style among the screens with a button, Keep Open
+Down To among the always-open ones). A screen with exactly those follows All
+Screens; one that differed keeps its own (its Same as All Screens is off).
+Nothing on any screen moves.

@@ -51,12 +51,19 @@ SELF = os.path.abspath(__file__)
 TEXT = (".py", ".js", ".json", ".yaml", ".yml", ".md", ".css", ".html", ".txt", ".sh", "")
 
 
+# AN ART DELIVERY'S PROOFS (tools/sky/src/land-holiday/): its sources and
+# DONE.json are published; the artist's working folder, contact sheets and
+# diff maps are not (.gitignore says the same)
+SKIP_ART = re.compile(r"(^|/)tools/sky/src/[^/]+/(work/|contact-[^/]*\.png$|diff-[^/]*\.png$)")
+
+
 def files_under(root: str):
     for d, dirs, files in os.walk(root):
         dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
         for f in files:
-            if f not in SKIP_DIRS:
-                yield os.path.join(d, f)
+            path = os.path.join(d, f)
+            if f not in SKIP_DIRS and not SKIP_ART.search(os.path.relpath(path, root).replace(os.sep, "/")):
+                yield path
 
 
 def plan() -> list[tuple[str, str]]:
