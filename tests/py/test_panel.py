@@ -50,7 +50,8 @@ async def test_a_screens_lists_through_the_one_write(hass, frontend):
     ws_board_set(hass, conn, {"id": 1, "type": "hk_frontend/board/set", "dashboard": "dashboard-hall",
                               "changes": {"chips": ["security", "lights", "sensor.mail"], "chips_extra": ["sensor.mail"],
                                           "pages": ["lights", "weather"], "scenes": ["page:live_tv", "scene.bed"],
-                                          "scenes_pages": ["live_tv"], "room_order": ["kitchen"], "home_rooms": "only"}})
+                                          "scenes_pages": ["live_tv"], "room_order": ["kitchen"], "home_rooms": "only",
+                                          "rooms_custom": True}})
     assert conn.sent[-1]["success"], conn.sent[-1]
     b = as_client(entry(hass))["boards"]["dashboard-hall"]
     assert b["chips"] == ["security", "lights", "sensor.mail"] and b["pages"] == ["lights", "weather"]

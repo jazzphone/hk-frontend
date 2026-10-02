@@ -8,6 +8,7 @@
 **Screens**
 * [How screens work](Screens.md)
 * [The Home page](Home-Page.md)
+* [Rooms](Rooms.md)
 * [Status chips](Status-Chips.md)
 * [Cameras](Cameras.md)
 * [Pages](Pages.md)

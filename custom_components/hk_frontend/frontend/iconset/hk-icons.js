@@ -61,11 +61,17 @@ const HK_GLYPHS = (window.hkGlyphs
 // icon database: /static/mdi/iconMetadata.json says which chunk holds a name,
 // and the chunk (/static/mdi/<file>.json) holds its path -- the files ha-icon
 // itself reads, so nothing ships here. Apple's artwork is then an upgrade, not
-// a requirement. The nine names this set made up have a stand-in.
+// a requirement. The names this set made up have a stand-in: nine of the
+// first set, and ten of the Home glyphs added 2026-10-01 (Apple draws a desk
+// fan, a Roman shade, French doors... Material does not).
 const MDI_ALIAS = {
   "air-humidifier-active": "air-humidifier", "apple-tv": "apple", "christmas-tree": "pine-tree",
   "cross-latin": "cross", "homepod": "speaker", "homepod-mini": "speaker", "sparkles": "creation",
-  "spigot": "valve", "star-fill": "star"
+  "spigot": "valve", "star-fill": "star",
+  "fan-desk": "fan", "fan-floor": "fan", "dehumidifier": "air-humidifier-off",
+  "roman-shade": "roller-shade-closed", "roman-shade-open": "roller-shade", "skylight": "window-closed-variant",
+  "door-french": "door-closed", "garage-double": "garage-variant", "contact-sensor": "magnet",
+  "power-strip": "power-socket-us"
 };
 let MDI_META = null;
 const MDI_CHUNKS = {};

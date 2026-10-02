@@ -49,7 +49,7 @@ row, and its accessories in groups: Climate, Lights, Speakers & TVs, Security,
 Water and Other.
 
 What the status row can show is set in
-[Menu & Rooms → Status Row](Menu.md#menu--rooms-settings). The temperature and
+[Rooms → Status Row](Rooms.md#rooms-settings). The temperature and
 humidity are the area’s own sensors: **Settings → Areas → (the area) → Related
 sensors**.
 

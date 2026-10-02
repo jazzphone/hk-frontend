@@ -335,5 +335,20 @@ var scn = Object.create(Scene.prototype);
 scn._config = { entity: 'input_button.nap' };
 ok('an input_button scene pill is momentary too', scn._momentary(), true);
 
+// ------------------------------------------------------------- size
+// THE TILE'S HEIGHT (`size`): any tile tall or regular, whatever its card
+// draws by default -- the layout swaps for its twin, and the card says how
+// many rows it wants.
+print('=== size ===');
+var Tall = customElements.get('hk-tall-card'), Light = customElements.get('hk-light-card');
+var CT = customElements.get('hk-climate-tall-card');
+function lay(Ctor, cfg) { var c = card(Ctor, cfg); return c._layout() + ' ' + c.getCardSize(); }
+ok('a light is a pill by default', lay(Light, { entity: 'light.a' }), 'standard 1');
+ok('...tall when asked', lay(Light, { entity: 'light.a', size: 'tall' }), 'tall 2');
+ok('a lock\'s tall tile', lay(Tall, { entity: 'lock.a', layout: 'tall' }), 'tall 2');
+ok('...a pill when asked', lay(Tall, { entity: 'lock.a', layout: 'tall', size: 'regular' }), 'standard 1');
+ok('a thermostat\'s tall tile, regular: the temperature pill', lay(CT, { entity: 'climate.a', layout: 'climate_tall', size: 'regular' }), 'climate_pill 1');
+ok('an unknown size changes nothing', lay(Tall, { entity: 'lock.a', layout: 'tall', size: 'huge' }), 'tall 2');
+
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed'
                    : 'ALL ' + pass + ' TILE TESTS PASS'));

@@ -401,7 +401,9 @@ def ws_board_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         _refused(connection, msg["id"], errors)
         return
     hass.config_entries.async_update_subentry(entry, sub, data=data)
-    connection.send_result(msg["id"], {"board": data})
+    # as READ (resolved): a screen following All Screens' rooms or screensaver
+    # is handed back with them, as the settings feed sends it
+    connection.send_result(msg["id"], {"board": S.resolved(S.board(data), entry.options)})
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hk_frontend/setup/check"})

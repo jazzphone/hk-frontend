@@ -491,6 +491,240 @@
   "motion": {
    "path": "M 15.7000,1.5000 L 21.3000,12.0000 L 15.7000,22.5000 L 10.1000,12.0000 Z M 15.7000,5.2188 L 12.0833,12.0000 L 15.7000,18.7812 L 19.3167,12.0000 Z M 10.8367,3.5000 L 6.3033,12.0000 L 10.8367,20.5000 L 12.8200,20.5000 L 8.2867,12.0000 L 12.8200,3.5000 Z M 2.7400,12.0000 a 0.85,0.85 0 1,0 1.7000,0 a 0.85,0.85 0 1,0 -1.7000,0 Z M 3.9667,14.3000 a 0.85,0.85 0 1,0 1.7000,0 a 0.85,0.85 0 1,0 -1.7000,0 Z M 3.9667,9.7000 a 0.85,0.85 0 1,0 1.7000,0 a 0.85,0.85 0 1,0 -1.7000,0 Z M 5.1933,16.6000 a 0.85,0.85 0 1,0 1.7000,0 a 0.85,0.85 0 1,0 -1.7000,0 Z M 5.1933,7.4000 a 0.85,0.85 0 1,0 1.7000,0 a 0.85,0.85 0 1,0 -1.7000,0 Z M 6.4200,18.9000 a 0.85,0.85 0 1,0 1.7000,0 a 0.85,0.85 0 1,0 -1.7000,0 Z M 6.4200,5.1000 a 0.85,0.85 0 1,0 1.7000,0 a 0.85,0.85 0 1,0 -1.7000,0 Z",
    "source": "drawn for this set: the Home app's motion status glyph (a diamond with a solid and a dotted trail), which is not a public SF Symbol"
+  },
+  "ceiling-light-multiple": {
+   "symbol": "chandelier.fill"
+  },
+  "ceiling-fan": {
+   "symbol": "fan.ceiling.fill"
+  },
+  "ceiling-fan-light": {
+   "symbol": "fan.and.light.ceiling.fill"
+  },
+  "light-switch": {
+   "symbol": "lightswitch.on.fill"
+  },
+  "lightbulb-variant": {
+   "symbol": "lightbulb.led.wide.fill"
+  },
+  "lightbulb-fluorescent-tube": {
+   "symbol": "light.tube.rays"
+  },
+  "lightbulb-spot": {
+   "symbol": "light.recessed.inverse"
+  },
+  "wall-sconce-flat": {
+   "symbol": "light.cylindrical.ceiling.inverse"
+  },
+  "fan-desk": {
+   "symbol": "fan.desk.fill"
+  },
+  "fan-floor": {
+   "symbol": "fan.floor.fill"
+  },
+  "air-purifier": {
+   "symbol": "air.purifier.fill"
+  },
+  "dehumidifier": {
+   "symbol": "dehumidifier.fill"
+  },
+  "radiator": {
+   "symbol": "heater.vertical.fill"
+  },
+  "fireplace": {
+   "symbol": "fireplace.fill"
+  },
+  "heat-wave": {
+   "symbol": "heat.waves"
+  },
+  "blinds-vertical": {
+   "symbol": "blinds.vertical.open"
+  },
+  "blinds-vertical-closed": {
+   "symbol": "blinds.vertical.closed"
+  },
+  "window-shutter": {
+   "symbol": "window.shade.closed"
+  },
+  "window-shutter-open": {
+   "symbol": "window.shade.open"
+  },
+  "roman-shade": {
+   "symbol": "roman.shade.closed"
+  },
+  "roman-shade-open": {
+   "symbol": "roman.shade.open"
+  },
+  "curtains": {
+   "symbol": "curtains.open"
+  },
+  "curtains-closed": {
+   "symbol": "curtains.closed"
+  },
+  "window-closed": {
+   "symbol": "window.horizontal.closed"
+  },
+  "window-open": {
+   "symbol": "window.horizontal"
+  },
+  "awning": {
+   "symbol": "window.awning.closed"
+  },
+  "skylight": {
+   "symbol": "window.ceiling.closed"
+  },
+  "door-sliding": {
+   "symbol": "door.sliding.left.hand.closed"
+  },
+  "door-sliding-open": {
+   "symbol": "door.sliding.left.hand.open"
+  },
+  "door-french": {
+   "symbol": "door.french.closed"
+  },
+  "garage-double": {
+   "symbol": "door.garage.double.bay.closed"
+  },
+  "gate": {
+   "symbol": "pedestrian.gate.closed"
+  },
+  "gate-open": {
+   "symbol": "pedestrian.gate.open"
+  },
+  "lock-smart": {
+   "symbol": "entry.lever.keypad.fill"
+  },
+  "contact-sensor": {
+   "symbol": "contact.sensor.fill"
+  },
+  "smoke-detector": {
+   "symbol": "smoke.fill"
+  },
+  "molecule-co": {
+   "symbol": "carbon.monoxide.cloud.fill"
+  },
+  "molecule-co2": {
+   "symbol": "carbon.dioxide.cloud.fill"
+  },
+  "air-filter": {
+   "symbol": "aqi.medium"
+  },
+  "doorbell-video": {
+   "symbol": "video.doorbell.fill"
+  },
+  "webcam": {
+   "symbol": "web.camera.fill"
+  },
+  "bell": {
+   "symbol": "bell.fill"
+  },
+  "power-strip": {
+   "symbol": "poweroutlet.strip.fill"
+  },
+  "power-plug": {
+   "symbol": "powerplug.fill"
+  },
+  "gesture-tap-button": {
+   "symbol": "button.programmable"
+  },
+  "remote": {
+   "symbol": "switch.programmable.fill"
+  },
+  "sprinkler": {
+   "symbol": "sprinkler.fill"
+  },
+  "pipe-leak": {
+   "symbol": "pipe.and.drop.fill"
+  },
+  "pool": {
+   "symbol": "figure.pool.swim"
+  },
+  "waves": {
+   "symbol": "water.waves"
+  },
+  "tumble-dryer": {
+   "symbol": "dryer.fill"
+  },
+  "toaster-oven": {
+   "symbol": "oven.fill"
+  },
+  "pot-steam": {
+   "symbol": "cooktop.fill"
+  },
+  "pot": {
+   "symbol": "frying.pan.fill"
+  },
+  "popcorn": {
+   "symbol": "popcorn.fill"
+  },
+  "dresser": {
+   "symbol": "cabinet.fill"
+  },
+  "seat": {
+   "symbol": "chair.fill"
+  },
+  "audio-video": {
+   "symbol": "hifireceiver.fill"
+  },
+  "projector": {
+   "symbol": "videoprojector.fill"
+  },
+  "remote-tv": {
+   "symbol": "av.remote.fill"
+  },
+  "television-speaker": {
+   "symbol": "tv.and.hifispeaker.fill"
+  },
+  "speaker-multiple": {
+   "symbol": "hifispeaker.2.fill"
+  },
+  "radio": {
+   "symbol": "radio.fill"
+  },
+  "volume-high": {
+   "symbol": "speaker.wave.2.fill"
+  },
+  "router-wireless": {
+   "symbol": "wifi.router.fill"
+  },
+  "wifi": {
+   "symbol": "wifi"
+  },
+  "laptop": {
+   "symbol": "laptopcomputer"
+  },
+  "cellphone": {
+   "symbol": "iphone"
+  },
+  "tablet": {
+   "symbol": "ipad"
+  },
+  "watch": {
+   "symbol": "applewatch"
+  },
+  "printer": {
+   "symbol": "printer.fill"
+  },
+  "party-popper": {
+   "symbol": "party.popper.fill"
+  },
+  "balloon": {
+   "symbol": "balloon.fill"
+  },
+  "paw": {
+   "symbol": "pawprint.fill"
+  },
+  "ev-station": {
+   "symbol": "ev.charger.fill"
+  },
+  "clock": {
+   "symbol": "clock.fill"
+  },
+  "alarm": {
+   "symbol": "alarm.fill"
+  },
+  "trash-can": {
+   "symbol": "trash.fill"
   }
  },
  "twotone": {

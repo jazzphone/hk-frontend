@@ -192,7 +192,8 @@ async def test_a_renamed_screen_renames_its_device(hass, frontend):
     hass.config_entries.async_update_subentry(entry(hass), sub, title="Front Hall")
     await hass.async_block_till_done(wait_background_tasks=True)
     dev = dr.async_get(hass).async_get(er.async_get(hass).async_get(SW).device_id)
-    assert dev.name == "Front Hall" and dev.config_entries_subentries[entry(hass).entry_id] == {sub.subentry_id}
+    from conftest import device_place
+    assert dev.name == "Front Hall" and device_place(dev) == (entry(hass).entry_id, sub.subentry_id)
     assert hass.states.get(SW).name == "Front Hall Photo screensaver"
 
 

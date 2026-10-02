@@ -35,7 +35,7 @@ async def test_an_admin_names_and_draws_an_accessory_and_every_screen_is_told(ha
     from custom_components.hk_frontend.accessories import ws_accessory_set
     screen = FakeConnection(None)
     ws_settings_subscribe(hass, screen, {"id": 1})
-    assert screen.sent[-1]["event"]["accessories"] == {"entities": {}, "rooms": {}, "into": {}, "pages": {}}
+    assert screen.sent[-1]["event"]["accessories"] == {"entities": {}, "rooms": {}, "into": {}, "pages": {}, "scenes": {}}
     conn = await _admin(hass)
     ws_accessory_set(hass, conn, {"id": 2, "type": "hk_frontend/accessory/set", "entity_id": "switch.coffee",
                                   "name": "Coffee Maker", "icon": "hk:coffee"})
@@ -131,7 +131,7 @@ async def test_the_store_survives_a_restart(hass, frontend, hass_storage):
     fresh = A.Accessories(hass)
     await fresh.async_load()
     assert fresh.data == {"entities": {"light.lamp": {"name": "Lamp", "home": False}},
-                          "rooms": {"living_room": ["light.lamp"]}, "into": {}, "pages": {}}
+                          "rooms": {"living_room": ["light.lamp"]}, "into": {}, "pages": {}, "scenes": {}}
 
 
 async def test_a_room_shown_inside_another(hass, frontend):
@@ -219,7 +219,7 @@ def test_clean_drops_what_it_cannot_use():
                                            "status": True, "names": {"BAD PATH": "x", "dash-a": "A"}},
                                "not an id": {"name": "y"}},
                   "rooms": {"kitchen": ["light.x", 3, "light.x"], "Bad Area": ["light.y"]}}) == {
-        "entities": {"light.x": {"names": {"dash-a": "A"}}}, "rooms": {"kitchen": ["light.x"]}, "into": {}, "pages": {}}
+        "entities": {"light.x": {"names": {"dash-a": "A"}}}, "rooms": {"kitchen": ["light.x"]}, "into": {}, "pages": {}, "scenes": {}}
 
 
 def test_a_chip_can_show_an_attribute():
@@ -229,3 +229,39 @@ def test_a_chip_can_show_an_attribute():
     assert clean_entity({"attribute": "Alerts.0.Event"}) == {"attribute": "Alerts.0.Event"}
     assert clean_entity({"attribute": "<script>"}) == {}
     assert clean_entity({"attribute": ""}) == {}
+
+
+def test_a_tile_can_be_tall_or_regular():
+    """Size: a light as a tall tile, a lock as a pill -- or its kind's own."""
+    from custom_components.hk_frontend.accessories import clean_entity
+    assert clean_entity({"size": "tall"}) == {"size": "tall"}
+    assert clean_entity({"size": "regular"}) == {"size": "regular"}
+    assert clean_entity({"size": "huge"}) == {}
+    assert clean_entity({"size": None}) == {}
+
+
+async def test_an_admin_makes_a_light_tall(hass, frontend):
+    from custom_components.hk_frontend.accessories import ws_accessory_set
+    conn = await _admin(hass)
+    ws_accessory_set(hass, conn, {"id": 1, "type": "hk_frontend/accessory/set", "entity_id": "light.lamp", "size": "tall"})
+    assert conn.sent[-1]["result"] == {"size": "tall"}
+    ws_accessory_set(hass, conn, {"id": 2, "type": "hk_frontend/accessory/set", "entity_id": "light.lamp", "size": None})
+    assert conn.sent[-1]["result"] == {}
+
+
+async def test_a_rooms_scenes_row(hass, frontend):
+    """A room's scenes row: its own list, none ([] -- kept, not dropped), or
+    Automatic again (None)."""
+    from custom_components.hk_frontend.accessories import clean, current, ws_accessory_room_scenes
+    conn = await _admin(hass)
+    ws_accessory_room_scenes(hass, conn, {"id": 1, "type": "hk_frontend/accessory/room_scenes", "area_id": "kitchen",
+                                          "entities": ["input_button.nap", "scene.dinner", "input_button.nap"]})
+    assert conn.sent[-1]["result"] == {"scenes": ["input_button.nap", "scene.dinner"]}
+    ws_accessory_room_scenes(hass, conn, {"id": 2, "type": "hk_frontend/accessory/room_scenes", "area_id": "garage",
+                                          "entities": []})
+    assert current(hass)["scenes"] == {"kitchen": ["input_button.nap", "scene.dinner"], "garage": []}
+    ws_accessory_room_scenes(hass, conn, {"id": 3, "type": "hk_frontend/accessory/room_scenes", "area_id": "kitchen",
+                                          "entities": None})
+    assert current(hass)["scenes"] == {"garage": []}
+    assert clean({"scenes": {"Bad Area": ["scene.x"], "den": "scene.x", "loft": ["scene.y", 3]}})["scenes"] == {
+        "loft": ["scene.y"]}

@@ -118,8 +118,23 @@
     // shapes as above with `i` swapped for `temp`; the well is display:none
     // under .climate so it takes no track.
     climate:      '"temp room" "temp n" "temp l"',
-    climate_tall: '"temp" "." "n" "l"'
+    climate_tall: '"temp" "." "n" "l"',
+    // a thermostat as a regular pill (size: regular): the favourite's shape
+    // without its room line
+    climate_pill: '"temp n" "temp l"'
   };
+  // THE TILE'S HEIGHT, A CHOICE (`size`, 2026-10-01): any tile can be tall
+  // or regular, whatever its card draws by default -- a light as a tall tile,
+  // a lock as a pill. The layout swaps for its other-height twin; the grid
+  // cell it sits in is the dashboard's to size (`view_layout: {grid-row:
+  // span 2}`, which the generated dashboard sets from the accessory's Size).
+  var TALL_OF = { standard: 'tall', action: 'tall', climate: 'climate_tall', climate_pill: 'climate_tall' };
+  var SHORT_OF = { tall: 'standard', climate_tall: 'climate_pill' };
+  function sizedLayout(layout, size) {
+    if (size === 'tall') return TALL_OF[layout] || layout;
+    if (size === 'regular') return SHORT_OF[layout] || layout;
+    return layout;
+  }
 
   // THE ONE COLOUR MAP: a named colour maps, an arbitrary CSS colour passes
   // through, otherwise the domain decides. The same expression feeds the
@@ -520,7 +535,11 @@
     // an action (a scene pill that navigates, like Live TV) does not.
     _entityOptional() { return false; }
 
-    getCardSize() { return 1; }
+    getCardSize() { return this._layout() === 'tall' || this._layout() === 'climate_tall' ? 2 : 1; }
+    _layout() {
+      var cfg = this._config || {};
+      return sizedLayout(LAYOUTS[cfg.layout] ? cfg.layout : 'standard', cfg.size);
+    }
 
     // Subclasses answer these four; everything else is shared.
 
@@ -587,7 +606,7 @@
       var cfg = this._config || {};
       var st = this._st(cfg.entity);
       var on = !!this._isOn(st) || this._pressed();
-      var layout = LAYOUTS[cfg.layout] ? cfg.layout : 'standard';
+      var layout = this._layout();
 
       if (!this._built) {
         this._root.innerHTML =
@@ -633,8 +652,16 @@
       e.grid.style.gridTemplateAreas = LAYOUTS[layout];
       e.card.setAttribute('data-on', on ? '1' : '0');
       var variant = this._variant();
-      // A variant may be two classes ('scene elevated'), so split it.
-      if (variant) variant.split(' ').forEach(function (c) { e.card.classList.add(c); });
+      // A variant may be two classes ('scene elevated'), so split it. Its
+      // height classes follow the LAYOUT, not the variant: a tall tile made
+      // regular (size) loses `tall`, a pill made tall gains it, and a
+      // thermostat's tall tile made regular wears the pill's `climate`.
+      var cls = (variant ? variant.split(' ') : []).filter(function (c) { return c && c !== 'tall' && c !== 'climate_tall'; });
+      if (layout === 'climate_tall') cls.push('climate_tall');
+      if (layout === 'climate_pill' && cls.indexOf('climate') < 0) cls.push('climate');
+      cls.forEach(function (c) { e.card.classList.add(c); });
+      e.card.classList.toggle('tall', layout === 'tall' || layout === 'climate_tall');
+      if (layout !== 'climate_tall') e.card.classList.remove('climate_tall');
       if (e.label) e.label.style.display = (layout === 'action') ? 'none' : '';
 
       // well_background is the per-card escape hatch -- the Home app draws
@@ -829,7 +856,8 @@
           { name: 'icon', selector: { icon: {} } },
           { name: 'icon_color', selector: C.selColour() },
           { name: 'icon_size', selector: { text: {} } },
-          { name: 'bare_icon', selector: { boolean: {} } }
+          { name: 'bare_icon', selector: { boolean: {} } },
+          { name: 'size', selector: C.selOptions(['regular', 'tall']) }
         ].concat(appearanceExtra || []) },
         // A state -> icon map. An object selector (a small YAML editor) rather
         // than a bespoke row builder: the map is two or three lines and this is
@@ -1227,13 +1255,11 @@
       return !!s && ['off', 'unavailable', 'unknown'].indexOf(s) === -1;
     }
     _noTemp() { return ''; }
-    getCardSize() { return 2; }
   }
 
   class HkTallCard extends HkTileCard {
     _variant() { return 'tall'; }
     setConfig(config) { super.setConfig(Object.assign({ layout: 'tall' }, config)); }
-    getCardSize() { return 2; }
   }
 
   var WELL = { name: 'well_background', selector: { text: {} } };

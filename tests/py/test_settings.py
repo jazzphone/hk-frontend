@@ -505,6 +505,20 @@ def test_the_menu_tab_size():
         A.BOARD["tab_size"]("huge")
 
 
+def test_the_menu_tab_size_on_phones():
+    """A phone's tab has the same three sizes, set apart from the tablet's:
+    Standard unless the screen says otherwise."""
+    from custom_components.hk_frontend import settings as S, settings_api as A
+    assert S.board({})["tab_size_phone"] == "standard"
+    assert S.board({"tab_size_phone": "xl", "tab_size": "standard"})["tab_size_phone"] == "xl"
+    assert S.board({"tab_size_phone": "xl"})["tab_size"] == "large"
+    assert S.board({"tab_size_phone": "huge"})["tab_size_phone"] == "standard"
+    assert A.BOARD["tab_size_phone"]("large") == "large"
+    import pytest
+    with pytest.raises(A.Invalid):
+        A.BOARD["tab_size_phone"]("huge")
+
+
 def test_the_screensaver_shows_photos_or_the_forecast():
     """Show: photos (the forecast whenever there are none) or forecast."""
     from custom_components.hk_frontend import settings as S
@@ -563,3 +577,78 @@ def test_the_calendar_is_a_page_a_screen_can_have():
     assert PAGE_KINDS.index("calendar") == PAGE_KINDS.index("weather") + 1
     assert "calendar" in PAGE_ORDER and "calendar" in SCENE_PAGES
     assert "calendar" in PAGE_RESERVED, "no custom page may take its address"
+
+
+ORDER = ["living_room", "kitchen", "office"]
+
+
+def test_a_screen_follows_all_screens_rooms_unless_it_sets_its_own():
+    """Rooms (2026-10-01): All Screens' order, Home's rooms, the menu's and
+    the pages' -- filled into every screen that doesn't set its own."""
+    from custom_components.hk_frontend import settings as S
+    opts = {"dashboard": {"rooms": {"order": ORDER, "home": "only", "menu": "order", "pages": "order"}}}
+    follows = S.resolved(S.board({"room_order": ["x"], "menu_rooms": "az"}), opts)
+    assert follows["rooms_house"] is True
+    assert (follows["room_order"], follows["home_rooms"], follows["menu_rooms"], follows["page_rooms"]) == (
+        ORDER, "only", "order", "order")
+    own = S.resolved(S.board({"rooms_custom": True, "room_order": ["office"], "menu_rooms": "az"}), opts)
+    assert own["rooms_house"] is False and own["room_order"] == ["office"] and own["menu_rooms"] == "az"
+    # nothing set for All Screens: the automatic rooms
+    plain = S.resolved(S.board({}), {})
+    assert (plain["room_order"], plain["home_rooms"], plain["menu_rooms"], plain["page_rooms"]) == (
+        [], "as_is", "az", "floor")
+    # what is stored is checked on reading
+    bad = S.resolved(S.board({}), {"dashboard": {"rooms": {"order": ["ok", "Not An Id", 3], "home": "x"}}})
+    assert bad["room_order"] == ["ok"] and bad["home_rooms"] == "as_is"
+
+
+def test_all_screens_rooms_are_checked():
+    from custom_components.hk_frontend import settings_api as A
+    import pytest
+    assert A.HOUSE["rooms.order"](ORDER) == ORDER
+    assert A.HOUSE["rooms.menu"]("order") == "order"
+    assert A.BOARD["rooms_custom"](True) is True
+    for k, v in (("rooms.home", "most"), ("rooms.pages", "x"), ("rooms.order", "kitchen")):
+        with pytest.raises(A.Invalid):
+            A.HOUSE[k](v)
+
+
+def test_the_rooms_move_to_all_screens():
+    """1.7 -> 1.8: the room settings most screens chose become All Screens';
+    a screen with them, or with none, follows; one that differs keeps its own."""
+    from custom_components.hk_frontend import settings as S
+    same = {"room_order": ORDER, "home_rooms": "order", "menu_rooms": "az", "page_rooms": "order"}
+    items = {"a": dict(same), "b": dict(same, menu="open"), "c": {"room_order": ["office"], "home_rooms": "only"},
+             "car": {}}
+    options, out = S.rooms_lifted({"dashboard": {"rooms": {"headings": False}}}, items)
+    assert options["dashboard"]["rooms"] == {"headings": False, "order": ORDER, "home": "order", "menu": "az",
+                                             "pages": "order"}
+    assert [out[p]["rooms_custom"] for p in ("a", "b", "c", "car")] == [False, False, True, False]
+    assert out["b"]["menu"] == "open", "the rest of a screen is untouched"
+    for p in items:                                   # and nothing anyone sees changes
+        if p != "car":
+            before = S.board(items[p])
+            after = S.resolved(S.board(out[p]), options)
+            assert all(before[k] == after[k] for k in S.ROOM_KEYS), p
+    # a house already moved is left alone; one where no screen chose rooms
+    # gets nothing new, and its screens follow
+    assert S.rooms_lifted(options, items) == (None, {})
+    none_opts, none_items = S.rooms_lifted({}, {"x": {}})
+    assert none_opts is None and none_items["x"]["rooms_custom"] is False
+
+
+async def test_an_entry_from_1_7_moves_its_rooms(hass, base):
+    from conftest import house_entry
+    from custom_components.hk_frontend import settings as S
+    same = {"room_order": ORDER, "home_rooms": "order", "menu_rooms": "order", "page_rooms": "floor"}
+    old = house_entry({"subentry_type": "dashboard", "unique_id": "dashboard-a", "title": "A", "data": dict(same)},
+                      {"subentry_type": "dashboard", "unique_id": "dashboard-b", "title": "B", "data": dict(same)},
+                      minor_version=7)
+    old.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(old.entry_id)
+    await hass.async_block_till_done()
+    assert old.minor_version == 8
+    assert S.merged(old.options)["rooms"]["order"] == ORDER
+    got = S.boards(old)
+    assert all(got[p]["rooms_house"] and got[p]["room_order"] == ORDER and got[p]["menu_rooms"] == "order"
+               for p in ("dashboard-a", "dashboard-b"))

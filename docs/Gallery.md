@@ -69,6 +69,8 @@ The [calendar pane](Screensaver-and-Idle.md#the-calendar-pane) beside the photo 
 | Lock | Garage door |
 | ![The alarm keypad pop-up](images/popup-alarm.png) | ![The doorbell pop-up](images/popup-doorbell.png) |
 | Alarm keypad | Doorbell |
+| ![Arrange in a tile’s settings](images/sheet-arrange.png) | ![Search all icons in a tile’s settings](images/sheet-icon-search.png) |
+| Arrange | Search all icons |
 
 ## The sky
 
@@ -109,5 +111,9 @@ More: [Live Sky](Live-Sky.md).
 | Screensaver Options | Menu Tab Size |
 | ![Header & Sidebar](images/settings-header-sidebar.png) | ![Your Own Dashboards](images/settings-yaml-reference.png) |
 | Header & Sidebar | Your Own Dashboards |
+| ![Rooms, for all screens](images/settings-rooms.png) | ![A room’s own settings](images/settings-room.png) |
+| Rooms | A room |
+| ![A screen’s Rooms, Same as All Screens](images/settings-screen-rooms.png) | ![Arrange in a tile’s settings](images/sheet-arrange.png) |
+| A screen’s Rooms | Arrange |
 
 More: [HK Settings](HK-Settings.md).

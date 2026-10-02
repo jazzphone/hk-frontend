@@ -61,6 +61,8 @@ Or skip the conversion and use `SF-Pro.ttf` as it is.
 
    For every `hk:` icon, `tools/sf_symbols/manifest.json` names the SF Symbol it is drawn from. The script exports each one with the command-line exporter inside the SF Symbols app and fits it into the icon set’s 24 × 24 box. The weather symbols are kept as they are, in layers, so they can be drawn in color. The first run exports every symbol and takes a while; the exports are kept in `tools/sf_symbols/.sfcache`, so a second run is quick. It ends with `wrote …: N glyphs, M two-tone, W weather`.
 
+**When an update adds glyphs, run it again.** A release can add `hk:` icons to the manifest (1.4.1 adds 78 of Apple’s Home glyphs: ceiling fans, curtains, Roman shades, smoke and CO sensors, appliances…). Until you rebuild, a glyph your file doesn’t have is drawn as the Material Design icon of the same name, so nothing goes blank. The exports already in `.sfcache` are reused, so only the new symbols are exported.
+
 If the script stops:
 
 | Message | What to do |

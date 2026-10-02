@@ -37,7 +37,7 @@ and weather header, or a one-line **Weather Strip**.
 | Scenes | Automatic | Opens [Scenes](#scenes-settings). |
 | Favorites | None | *Generated.* Opens [Favorites](#favorites). |
 | On Phones | Clock and Weather | *Generated.* What the top of Home shows under 640 px: **Clock and Weather** (the header) or **Weather Strip** (one line of weather). |
-| Rooms | Automatic | Opens [Rooms](#rooms). |
+| Rooms | Same as All Screens | Opens the screen’s [Rooms](Rooms.md#a-screens-rooms): All Screens’ room order, or its own. |
 
 A YAML screen draws its own Home page. These settings reach it where it uses
 the cards that read them: the status chips (`custom:hk-chips-card`), the scenes
@@ -102,7 +102,7 @@ A favorite’s name, room line and icon as a favorite are in its
 
 ## Rooms
 
-![A room page: the status row, cameras and the room’s accessories by group](images/tablet-room.png)
+![A room page: the status row, the room’s scenes and its accessories by group](images/tablet-room.png)
 
 A generated screen has a section on Home for every area with something in it,
 floor by floor (in your floors’ order), then A to Z. Only things that are in an
@@ -111,27 +111,8 @@ area get a tile; to show something with no area, add it to
 
 A room heading with a › opens the room’s own page (see [Room pages](Pages.md#room-pages)).
 
-To change the rooms, open **Screens → (the screen) → Rooms**:
-
-- Turn **Automatic** off, then drag the rooms into the order you want. This is
-  the screen’s **room order**.
-- Move a room to **Not on Home** to leave it off Home. It keeps its room page
-  and its place in the menu.
-- **Rooms on Pages** (generated screens): whether the Lights, Climate, Water and
-  other pages group rooms **By Floor** or in the **Room Order**.
-
-Two settings live with each room in **HK Settings → Library → Accessories →
-(the room)**, and apply on every generated screen:
-
-- **Show As Part Of**: show a room inside another (a deck inside the
-  backyard).
-- **Tile Order**: the order of the room’s tiles, on Home and on its room page.
-
-### Rooms settings
-
-| Setting | Default | What it does |
-|---|---|---|
-| Automatic | On | Home shows its rooms as the screen lists them: on a generated screen, floor by floor (in your floors’ order), then A to Z. |
-| On Home | — | Your areas, in order. This is the **room order**, also used by Rooms in Menu and Rooms on Pages. |
-| Not on Home | — | Rooms left off Home. Each keeps its room page and its row in the menu. |
-| Rooms on Pages | By Floor | *Generated.* How the Lights, Climate, Water and other pages group rooms: **By Floor** (floor by floor, A to Z) or **Room Order**. |
+The rooms’ order, which are on Home, and each room’s own settings (its
+scenes, tile order, whether it shows, what it’s part of) are in
+**HK Settings → All Screens → [Rooms](Rooms.md)**. A screen follows them,
+or sets its own order in **Screens → (the screen) → Rooms** (see
+[A screen’s rooms](Rooms.md#a-screens-rooms)).

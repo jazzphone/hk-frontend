@@ -384,10 +384,13 @@ async def test_hidden_from_screens_and_the_retired_parts(hass, frontend):
 async def test_menu_and_rooms(hass, frontend):
     from custom_components.hk_frontend.settings import as_client
     await _set(hass, {"menu.glyph": "lines", "menu.clock": False, "rooms.headings": False,
-                      "rooms.status": ["motion", "temperature"]})
+                      "rooms.status": ["motion", "temperature"], "rooms.order": ["kitchen", "office"],
+                      "rooms.home": "only", "rooms.menu": "order"})
     d = entry(hass).options["dashboard"]
     assert d["menu"]["glyph"] == "lines" and d["menu"]["clock"] is False
-    assert d["rooms"] == {"headings": False, "status": ["temperature", "motion"]}, "in the house order"
+    assert {k: d["rooms"][k] for k in ("headings", "status", "order", "home", "menu")} == {
+        "headings": False, "status": ["temperature", "motion"], "order": ["kitchen", "office"], "home": "only",
+        "menu": "order"}, "in the house order"
     c = as_client(entry(hass))
     assert c["menu"]["clock"] is False and c["rooms"]["headings"] is False
 
@@ -520,7 +523,7 @@ def test_copy_settings_covers_every_screen_setting_and_round_trips():
     groups = src[src.index("var COPY_GROUPS = ["):src.index("function copyDefaults")]
     keys = set(re.findall(r"'([a-z_]+)'", groups.split("];")[0])) | set(
         re.findall(r"'([a-z_]+)'", groups[groups.index("COPY_NEVER"):]))
-    labels = {"menu", "home", "cameras", "scenes", "favorites", "pages", "look", "behavior", "saver",
+    labels = {"menu", "home", "rooms", "Rooms", "cameras", "scenes", "favorites", "pages", "look", "behavior", "saver",
               "Menu", "Appearance", "Behavior", "Screensaver", "Cameras", "Scenes", "Favorites", "Pages"}
     assert set(S.BOARD_DEFAULTS) <= keys, set(S.BOARD_DEFAULTS) - keys
     assert keys - labels - set(S.BOARD_DEFAULTS) == set(), keys - labels - set(S.BOARD_DEFAULTS)

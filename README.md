@@ -34,7 +34,7 @@ Add a screen and HK Frontend builds it from your floors, areas and devices: the 
 
 ## Tap for the controls
 
-Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens.
+Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens. Its gear holds the accessory’s own settings: its name, its icon (any of Apple’s Home glyphs, or Home Assistant’s), a regular or tall tile, and its place among the tiles beside it.
 
 <p align="center">
 <img src="docs/images/sheet-light.png" width="49%" alt="A light’s detail sheet with a brightness slider">

@@ -78,6 +78,28 @@ ok('a change while a sheet covers the page waits', refreshes === 0, refreshes);
 window.hkPopupCover = 0;
 settle();
 ok('...and is applied once it closes', refreshes === 1, refreshes);
+
+// A CHANGE MADE ON THIS SCREEN (its sheet's gear): built as soon as the sheet
+// closes, though the screen was just touched
+__resetTimers(); refreshes = 0;
+window.hkPopupCover = 1;
+window.dispatchEvent({ type: 'pointerdown' });
+window.hkStrategy.ownChange();
+push(['light.b']);
+settle();
+ok('a change made here waits for its sheet...', refreshes === 0, refreshes);
+window.hkPopupCover = 0;
+T += 1000;
+settle();
+ok('...and is built the moment it closes, not 30 s later', refreshes === 1, refreshes);
+__resetTimers(); refreshes = 0;
+window.dispatchEvent({ type: 'pointerdown' });
+push(['light.a']);
+settle();
+ok('the next change from elsewhere waits as before', refreshes === 0, refreshes);
+T += 31000;
+settle();
+ok('...until the screen is left alone', refreshes === 1, refreshes);
 Date.now = realNow;
 
 // ONE ROOM THAT CANNOT BE BUILT: Home Assistant would replace every view with

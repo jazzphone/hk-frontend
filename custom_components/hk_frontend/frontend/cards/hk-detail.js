@@ -629,6 +629,7 @@
     //               "Only on this dashboard", this one's)
     //   Room        Home Assistant's area for it
     //   Show As     a switch drawn and counted as a light, a fan, an outlet
+    //   Size        its tile regular or tall, over its kind's own
     //   Icon        the glyph
     //   Include in Status   counted by the chips (What counts)
     //   Show on Home        on a generated Home; its room's page lists it anyway
@@ -685,6 +686,31 @@
       '.acc .swatches button.on{border-color:var(--acc-text,#fff);box-shadow:0 0 0 2px rgba(0,0,0,0.4) inset}',
       '.acc .swatches button:first-child{width:auto;padding:0 10px}',
       '.acc .glyphs.fvg{border-top:1px solid var(--acc-sep,rgba(255,255,255,0.09))}',
+      // ARRANGE: Move Left / Move Right, over a small copy of the tiles it
+      // moves among, laid out as the dashboard lays them out
+      '.acc .arrb{display:flex;gap:8px;padding:10px 12px 0}',
+      '.acc .arrb button{flex:1;height:40px;border:0;border-radius:10px;background:var(--acc-glyph,rgba(255,255,255,0.12));',
+      '  color:var(--acc-text,#fff);font:inherit;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;',
+      '  justify-content:center;gap:6px;--mdc-icon-size:18px}',
+      '.acc .arrb button:disabled{opacity:.35;cursor:default}',
+      '.acc .arrb button:not(:disabled):active{background:var(--acc-seg-on,rgba(255,255,255,0.24))}',
+      '.acc .mini{display:grid;grid-auto-flow:dense;grid-auto-rows:30px;gap:5px;padding:12px}',
+      '.acc .mini .mt{display:flex;align-items:center;gap:5px;min-width:0;border-radius:9px;padding:0 7px;',
+      '  background:var(--acc-glyph,rgba(255,255,255,0.10));color:var(--acc-label2,rgba(255,255,255,0.7));font-size:11px;',
+      '  --mdc-icon-size:14px;transition:background .2s,color .2s}',
+      '.acc .mini .mt.tall{grid-row:span 2;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:7px}',
+      '.acc .mini .mt span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
+      '.acc .mini .mt.on{background:var(--acc-glyph-on-bg,rgba(255,255,255,0.92));color:var(--acc-glyph-on-fg,#000);font-weight:600}',
+      '.acc .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}',
+      // SEARCH EVERY ICON: the Apple glyphs, then Home Assistant's Material ones
+      '.acc .gsearch{display:block;padding:12px 12px 0}',
+      '.acc .gsearch input{width:100%;box-sizing:border-box;height:36px;border:0;border-radius:10px;padding:0 12px;',
+      '  background:var(--acc-glyph,rgba(255,255,255,0.10));color:var(--acc-text,#fff);font:inherit;font-size:15px;outline:none}',
+      '.acc .gsearch input::placeholder{color:var(--acc-label3,rgba(255,255,255,0.4))}',
+      '.acc .gsearch.fvs{border-top:1px solid var(--acc-sep,rgba(255,255,255,0.09))}',
+      '.acc .glyphs .gh{grid-column:1/-1;font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;',
+      '  color:var(--acc-label2,rgba(255,255,255,0.55));padding:4px 2px 0}',
+      '.acc .glyphs .gn{grid-column:1/-1;font-size:13px;color:var(--acc-label2,rgba(255,255,255,0.55));padding:0 2px}',
       '.acc .with{display:flex;flex-wrap:wrap;gap:8px;padding:0 14px 12px}',
       '.acc .with[hidden]{display:none}',
       '.acc .with button{height:32px;border-radius:16px;border:0;background:var(--acc-glyph,rgba(255,255,255,0.14));color:var(--acc-text,#fff);',
@@ -705,27 +731,63 @@
       '.acc .tg:focus-visible,.acc button:focus-visible,.acc select:focus-visible,.acc input:focus-visible{outline:2px solid var(--acc-focus,#0a84ff);outline-offset:2px}'
     ].join('');
 
-    // The glyphs a kind of thing is offered, the Home app's vocabulary first.
+    // The glyphs a kind of thing is offered, the Home app's vocabulary first
+    // -- Apple's Home symbols for that kind (2026-10-01: every one the glyph
+    // file has), then the house's own favorites. Anything else is a search
+    // away (glyphSearch): every hk: glyph, and Home Assistant's Material
+    // Design icons.
     var GLYPHS = {
-      light: ['lightbulb', 'lightbulb-group', 'lightbulb-multiple', 'ceiling-light', 'chandelier', 'lamp',
-              'floor-lamp', 'desk-lamp', 'wall-sconce', 'vanity-light', 'light-recessed', 'light-flood-down',
-              'outdoor-lamp', 'coach-lamp', 'string-lights', 'led-strip-variant', 'christmas-tree', 'pine-tree',
-              'lightbulb-night', 'motion-sensor', 'sword', 'fire'],
-      outlet: ['power-socket-us', 'toggle-switch', 'coffee', 'lamp', 'string-lights', 'christmas-tree', 'fire',
-               'fan', 'television', 'monitor', 'desktop-tower', 'server', 'server-network', 'printer-3d',
-               'amplifier', 'gamepad-variant', 'run-fast', 'washing-machine', 'dishwasher', 'fridge',
-               'microwave', 'stove', 'water-boiler', 'sprinkler-variant', 'faucet', 'scent',
-               'guitar-acoustic', 'teddy-bear', 'ev-plug-tesla', 'power-plug-battery-outline'],
-      fan: ['fan', 'air-conditioner', 'hvac', 'air-humidifier'],
-      cover: ['blinds-horizontal', 'roller-shade', 'window-closed-variant', 'garage', 'garage-variant', 'door-closed'],
+      light: ['lightbulb', 'lightbulb-group', 'lightbulb-multiple', 'lightbulb-variant', 'lightbulb-on', 'lightbulb-night',
+              'ceiling-light', 'ceiling-light-multiple', 'chandelier', 'ceiling-fan-light', 'lamp', 'floor-lamp', 'desk-lamp',
+              'wall-sconce', 'wall-sconce-flat', 'vanity-light', 'light-recessed', 'lightbulb-spot', 'light-flood-down',
+              'lightbulb-fluorescent-tube', 'outdoor-lamp', 'coach-lamp', 'string-lights', 'led-strip-variant',
+              'light-switch', 'christmas-tree', 'pine-tree', 'motion-sensor', 'sword', 'fire'],
+      outlet: ['power-socket-us', 'power-strip', 'power-plug', 'toggle-switch', 'light-switch', 'remote',
+               'gesture-tap-button', 'coffee', 'lamp', 'string-lights', 'christmas-tree', 'fire', 'fireplace',
+               'fan', 'fan-desk', 'fan-floor', 'air-purifier', 'radiator', 'television', 'monitor', 'projector',
+               'audio-video', 'desktop-tower', 'laptop', 'server', 'server-network', 'router-wireless', 'printer',
+               'printer-3d', 'amplifier', 'gamepad-variant', 'run-fast', 'washing-machine', 'tumble-dryer',
+               'dishwasher', 'fridge', 'microwave', 'toaster-oven', 'stove', 'pot-steam', 'pot', 'popcorn',
+               'water-boiler', 'sprinkler-variant', 'sprinkler', 'pool', 'faucet', 'scent', 'guitar-acoustic',
+               'teddy-bear', 'party-popper', 'bell', 'clock', 'ev-plug-tesla', 'ev-station', 'power-plug-battery-outline'],
+      fan: ['fan', 'ceiling-fan', 'ceiling-fan-light', 'fan-desk', 'fan-floor', 'air-purifier', 'air-conditioner',
+            'hvac', 'air-humidifier', 'dehumidifier', 'radiator', 'fireplace', 'heat-wave', 'snowflake'],
+      climate: ['thermostat', 'home-thermometer', 'air-conditioner', 'hvac', 'radiator', 'fireplace', 'heat-wave',
+                'snowflake', 'fan', 'ceiling-fan', 'air-purifier', 'water-boiler', 'thermometer-water'],
+      humidifier: ['air-humidifier', 'air-humidifier-active', 'dehumidifier', 'air-purifier', 'water-percent', 'scent'],
+      cover: ['blinds-horizontal', 'blinds-vertical', 'blinds-vertical-closed', 'roller-shade', 'roman-shade',
+              'roman-shade-open', 'window-shutter', 'window-shutter-open', 'curtains', 'curtains-closed',
+              'window-closed-variant', 'window-closed', 'window-open', 'awning', 'skylight', 'garage',
+              'garage-variant', 'garage-double', 'gate', 'door-closed', 'door-sliding', 'door-french'],
       // a door or window sensor: each is drawn open and shut (its pair)
-      contact: ['door-closed', 'window-closed-variant', 'garage', 'garage-variant'],
-      media_player: ['television', 'apple-tv', 'homepod', 'homepod-mini', 'speaker', 'speaker-play', 'music',
-                     'amplifier', 'monitor'],
-      lock: ['lock', 'door-closed-lock', 'key-variant', 'garage'],
+      contact: ['door-closed', 'door-sliding', 'door-french', 'window-closed-variant', 'window-closed', 'skylight',
+                'garage', 'garage-variant', 'garage-double', 'gate', 'contact-sensor', 'mailbox-up'],
+      sensor: ['motion-sensor', 'motion', 'contact-sensor', 'smoke-detector', 'molecule-co', 'molecule-co2',
+               'air-filter', 'home-thermometer', 'water-percent', 'water', 'water-alert', 'pipe-leak',
+               'lightning-bolt', 'home-battery', 'speedometer', 'doorbell-video', 'bell', 'mailbox-up', 'walk'],
+      media_player: ['television', 'apple-tv', 'homepod', 'homepod-mini', 'speaker', 'speaker-multiple',
+                     'speaker-play', 'television-speaker', 'audio-video', 'amplifier', 'radio', 'projector',
+                     'remote-tv', 'music', 'volume-high', 'monitor', 'laptop', 'cellphone', 'tablet', 'gamepad-variant'],
+      lock: ['lock', 'lock-smart', 'door-closed-lock', 'door-french', 'door-sliding', 'gate', 'key-variant', 'garage',
+             'garage-double', 'shield-lock'],
+      camera: ['camera', 'webcam', 'doorbell-video', 'motion'],
+      alarm_control_panel: ['shield-home', 'shield-lock', 'alarm-light', 'alarm-light-off', 'bell', 'motion-sensor'],
+      vacuum: ['robot-vacuum'],
+      valve: ['spigot', 'sprinkler', 'sprinkler-variant', 'water', 'pipe-leak', 'faucet', 'shower', 'bathtub',
+              'pool', 'waves', 'water-boiler'],
+      scene: ['home', 'sparkles', 'star-fill', 'weather-night', 'white-balance-sunny', 'weather-sunset-up', 'bed',
+              'sofa', 'seat', 'silverware-fork-knife', 'television', 'music', 'party-popper', 'balloon', 'walk',
+              'location-enter', 'bag-suitcase', 'car', 'sleep', 'lightbulb', 'fire', 'christmas-tree', 'shield-home'],
       other: ['home', 'star-fill', 'sparkles', 'toggle-switch', 'power-socket-us', 'lightbulb', 'fan',
-              'thermometer-water', 'water', 'timer-sand', 'bed', 'sofa', 'shield-home', 'car']
+              'thermometer-water', 'water', 'timer-sand', 'clock', 'alarm', 'bell', 'bed', 'sofa', 'seat', 'dresser',
+              'desk', 'table-furniture', 'bookshelf', 'stairs', 'bathtub', 'shower', 'toilet', 'hanger', 'shield-home',
+              'car', 'ev-station', 'paw', 'flower', 'pine-tree', 'party-popper', 'balloon', 'trash-can', 'package-variant',
+              'wifi', 'cellphone', 'tablet', 'watch', 'laptop', 'wrench']
     };
+    GLYPHS.water_heater = GLYPHS.climate;
+    GLYPHS.binary_sensor = GLYPHS.sensor;
+    GLYPHS.script = GLYPHS.scene;
+    GLYPHS.input_button = GLYPHS.button = GLYPHS.outlet;
     function glyphsFor(id, show) {
       var d = domainOf(id);
       if (show === 'light') return GLYPHS.light;
@@ -737,6 +799,110 @@
         if (/^(door|window|garage_door|opening)$/.test(String(dc || ''))) return GLYPHS.contact;
       }
       return GLYPHS[d] || GLYPHS.other;
+    }
+    // SEARCH EVERY ICON: the hk: glyphs (the house's glyph file, else the
+    // names the lists above use), then Home Assistant's own Material Design
+    // icons, read from its icon list with their keywords (/static/mdi/
+    // iconList.json -- the file its own icon picker reads), less those with
+    // an hk: twin of the same name (one is drawn as the other: an mdi: icon
+    // is drawn from the hk set where it has one). [{v, icon, mdi}] matching
+    // every word, at most MAX of the Material ones.
+    var MDI_LIST = null;
+    function mdiList() {
+      if (!MDI_LIST) {
+        MDI_LIST = (typeof fetch === 'function' ? fetch('/static/mdi/iconList.json')
+          .then(function (r) { return r.ok ? r.json() : []; }) : Promise.resolve([]))
+          .catch(function () { return []; })
+          .then(function (l) { return Array.isArray(l) ? l : []; });
+      }
+      return MDI_LIST;
+    }
+    function hkNames() {
+      var g = window.hkGlyphs && window.hkGlyphs.icons, seen = {}, out = [];
+      var add = function (n) { if (!seen[n]) { seen[n] = 1; out.push(n); } };
+      Object.keys(g || {}).forEach(add);
+      Object.keys(GLYPHS).forEach(function (k) { GLYPHS[k].forEach(add); });
+      return out.sort();
+    }
+    function glyphSearch(q, list) {
+      var words = String(q || '').toLowerCase().split(/[\s-]+/).filter(Boolean);
+      var hit = function (t) { return words.every(function (w) { return t.indexOf(w) >= 0; }); };
+      var names = hkNames(), have = {};
+      names.forEach(function (n) { have[n] = 1; });
+      var hk = names.filter(function (n) { return hit(n.replace(/-/g, ' ')); })
+        .map(function (n) { return { v: 'hk:' + n, icon: 'hk:' + n }; });
+      var mdi = (list || []).filter(function (it) {
+        return it && it.name && !have[it.name] && hit(it.name.replace(/-/g, ' ') + ' ' + (it.keywords || []).join(' ').toLowerCase());
+      });
+      // BY ITS NAME FIRST: an icon whose name has the words ("fan-off") before
+      // one found only by a keyword that happens to begin with them (a unicorn,
+      // "fantasy") -- in Home Assistant's order within each
+      var byName = function (it) { return hit(it.name.replace(/-/g, ' ')) ? 0 : 1; };
+      mdi = mdi.map(function (it, i) { return [byName(it), i, it]; })
+        .sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; }).map(function (x) { return x[2]; });
+      return { hk: hk, mdi: mdi.map(function (it) { return { v: 'mdi:' + it.name, icon: 'mdi:' + it.name, mdi: true }; }) };
+    }
+    var SEARCH_MAX = 120;
+
+    // ARRANGE (2026-10-01): a tile moved left or right among the tiles it
+    // sits with -- read off the page, from the tile the sheet opened from.
+    // The generated dashboard says where each tile lives (hk-strategy.js
+    // hk_place): a room's section on Home, a group on a room page, or the
+    // Favorites. What moves is the tile's place in the room's Tile Order
+    // (accessories `rooms`, every screen) or this screen's favorites; what
+    // is NOT on show there (a tile off Home, another group's) keeps its
+    // place. Left and right are reading order: the end of a row wraps.
+    var GROUP_WORDS = { Climate: 'climate accessories', Lights: 'lights', 'Speakers & TVs': 'speakers and TVs',
+                        Security: 'security accessories', Water: 'water accessories', Other: 'other accessories' };
+    function arrangeOf(h, id, tile) {
+      var cfg = tile && tile._config, place = cfg && cfg.hk_place;
+      var root = tile && tile.parentNode;
+      if (!place || !root || !root.children) return null;
+      var kids = [].filter.call(root.children, function (k) { return k._config && k._config.entity; });
+      var visible = kids.map(function (k) { return k._config.entity; });
+      if (visible.length < 2 || visible.indexOf(id) < 0) return null;
+      var look = {};
+      kids.forEach(function (k) {
+        var c = k._config, vl = c.view_layout || {};
+        look[c.entity] = { name: c.name || at(stOf(h, c.entity), 'friendly_name') || c.entity, icon: c.icon || '',
+                           tall: c.size === 'tall' || /span\s*2/.test(String(vl['grid-row'] || '')) };
+      });
+      var cols = 0;
+      try { cols = String(getComputedStyle(root).gridTemplateColumns || '').trim().split(/\s+/).filter(Boolean).length; }
+      catch (e) { /* no layout (a test) */ }
+      cols = Math.max(1, Math.min(6, cols || 4));
+      if (place.fav) {
+        var dash = dashNow(), b = (((window.hkSettings && window.hkSettings.get('boards', null)) || {})[dash]) || {};
+        var favs = (b.favorites || []).slice();
+        visible.forEach(function (x) { if (favs.indexOf(x) < 0) favs.push(x); });
+        return { fav: true, dash: dash, visible: visible, full: favs, look: look, cols: cols,
+                 note: 'Moves it among the Favorites on this screen.' };
+      }
+      var area = place.area, areas = h.areas || {};
+      if (!area || !areas[area]) return null;
+      var full = [];
+      try {
+        var HS = window.hkSettings, G = (HS && HS.get('generated', null)) || {};
+        var r = window.hkStrategy && window.hkStrategy.rooms
+          ? window.hkStrategy.rooms(h, { areas: [area], include_entities: G.include_entities || [] }) : [];
+        full = (r[0] && r[0].entities) ? r[0].entities.slice() : [];
+      } catch (e) { full = []; }
+      visible.forEach(function (x) { if (full.indexOf(x) < 0) full.push(x); });
+      var room = areas[area].name;
+      return { area: area, visible: visible, full: full, look: look, cols: cols,
+               note: place.group ? 'Moves it among the ' + (GROUP_WORDS[place.group] || 'accessories') + ' in the ' + room + '.'
+                                 : 'Moves it among the tiles in the ' + room + '.' };
+    }
+    // one step left (-1) or right (1): the new visible order, and the whole
+    // list it is saved as -- the visible tiles take the places they held, in
+    // their new order; the others stay where they were. null at an end.
+    function arrangeMove(visible, full, id, dir) {
+      var i = visible.indexOf(id), j = i + dir;
+      if (i < 0 || j < 0 || j >= visible.length) return null;
+      var v = visible.slice(); v[i] = v[j]; v[j] = id;
+      var out = full.slice(), n = 0;
+      out.forEach(function (x, k) { if (visible.indexOf(x) >= 0) out[k] = v[n++]; });
+      return { visible: v, full: out };
     }
     function accessoriesNow() {
       var HS = window.hkSettings;
@@ -773,7 +939,11 @@
       opts = opts || {};
       var el = document.createElement('div');
       el.className = 'acc';
-      var cur = accOf(id), dash = dashNow();
+      // ITS OWN COPY: the pane writes what was just chosen into `cur` as it
+      // saves (cur.icon = ...), and accOf() hands back the live settings'
+      // own object -- written there, the settings feed's answer looked like
+      // no change, so no screen redrew until a reload (2026-10-01)
+      var cur = JSON.parse(JSON.stringify(accOf(id))), dash = dashNow();
       var d = domainOf(id);
       var s = stOf(h, id);
       var HS = window.hkSettings;
@@ -805,6 +975,9 @@
       }
       function save(changes) {
         if (errBox) errBox.hidden = true;
+        // changed on a dashboard's own sheet: that screen shows it as soon as
+        // the sheet closes (hk-strategy.js ownChange)
+        if (!opts.panel && window.hkStrategy && window.hkStrategy.ownChange) window.hkStrategy.ownChange();
         return h.callWS(Object.assign({ type: 'hk_frontend/accessory/set', entity_id: id }, changes)).then(function (r) {
           if (opts.onSave) opts.onSave(true);
           return r;
@@ -831,7 +1004,20 @@
           '<div class="row"><span class="k">When off</span><input class="nm offtx" type="text" maxlength="30" aria-label="When off, it says" ' +
           'placeholder="Off" autocomplete="off" spellcheck="false"></div></div></div>';
       }
-      html += '<div><div class="cap">Icon</div><div class="grp"><div class="glyphs"></div></div></div>';
+      // ITS TILE'S HEIGHT on a generated dashboard: a light as a tall tile, a
+      // lock as a pill (Automatic: what its kind is drawn as)
+      html += '<div><div class="cap">Tile size</div><div class="grp"><div class="seg size"></div></div></div>';
+      var arr = opts.tile ? arrangeOf(h, id, opts.tile) : null;
+      if (arr) {
+        html += '<div class="sec arr"><div class="cap">Arrange</div><div class="grp">' +
+          '<div class="arrb"><button class="mvl" aria-label="Move Left"><ha-icon icon="mdi:chevron-left"></ha-icon>Move Left</button>' +
+          '<button class="mvr" aria-label="Move Right">Move Right<ha-icon icon="mdi:chevron-right"></ha-icon></button></div>' +
+          '<div class="mini" aria-hidden="true"></div><span class="sr" aria-live="polite"></span></div>' +
+          '<div class="note">' + esc(arr.note) + '</div></div>';
+      }
+      html += '<div><div class="cap">Icon</div><div class="grp"><label class="gsearch"><input type="search" class="gq" ' +
+        'placeholder="Search all icons" aria-label="Search all icons" autocomplete="off" spellcheck="false"></label>' +
+        '<div class="glyphs"></div></div></div>';
       html += '<div><div class="cap">Where it shows</div><div class="grp">' +
         '<div class="row"><span class="k">Include in Status</span><input class="tg status" type="checkbox" role="switch" aria-label="Include in Status"></div>' +
         '<div class="row"><span class="k">Show on Home</span><input class="tg home" type="checkbox" role="switch" aria-label="Show on Home"></div>' +
@@ -847,6 +1033,8 @@
         // the room line above its name there (a helper with no area)
         '<div class="row"><span class="k">Room</span><input class="nm fvr" type="text" maxlength="40" aria-label="Room line as a favorite" ' +
         'autocomplete="off" spellcheck="false"></div>' +
+        '<label class="gsearch fvs"><input type="search" class="fvq" placeholder="Search all icons" ' +
+        'aria-label="Search all icons as a favorite" autocomplete="off" spellcheck="false"></label>' +
         '<div class="glyphs fvg"></div>' +
         (joinable ? '<div class="row"><span class="k">Together with</span><select class="fvw" aria-label="Together with"></select></div>' +
                     '<div class="with"></div>' : '') +
@@ -938,19 +1126,93 @@
         });
       }
 
+      // SIZE
+      var sizeSeg = el.querySelector('.seg.size');
+      var paintSize = function () {
+        sizeSeg.innerHTML = [['', 'Automatic'], ['regular', 'Regular'], ['tall', 'Tall']].map(function (o) {
+          return '<button data-v="' + o[0] + '"' + ((cur.size || '') === o[0] ? ' class="on"' : '') +
+                 ' aria-pressed="' + ((cur.size || '') === o[0]) + '">' + o[1] + '</button>';
+        }).join('');
+      };
+      paintSize();
+      sizeSeg.addEventListener('click', function (ev) {
+        var b = ev.target.closest('button');
+        if (!b) return;
+        cur.size = b.dataset.v || null;
+        paintSize();
+        save({ size: cur.size });
+      });
+
+      // ARRANGE
+      if (arr) {
+        var mini = el.querySelector('.mini'), mvl = el.querySelector('.mvl'), mvr = el.querySelector('.mvr');
+        var sr = el.querySelector('.arr .sr'), queue = Promise.resolve();
+        var paintArr = function () {
+          mini.style.gridTemplateColumns = 'repeat(' + arr.cols + ',minmax(0,1fr))';
+          mini.innerHTML = arr.visible.map(function (x) {
+            var t = arr.look[x] || {};
+            return '<div class="mt' + (t.tall ? ' tall' : '') + (x === id ? ' on' : '') + '">' +
+              (t.icon ? '<ha-icon icon="' + esc(t.icon) + '"></ha-icon>' : '') + '<span>' + esc(t.name || x) + '</span></div>';
+          }).join('');
+          var i = arr.visible.indexOf(id);
+          mvl.disabled = i <= 0;
+          mvr.disabled = i >= arr.visible.length - 1;
+        };
+        var move = function (dir) {
+          var next = arrangeMove(arr.visible, arr.full, id, dir);
+          if (!next) return;
+          arr.visible = next.visible; arr.full = next.full;
+          paintArr();
+          var i = arr.visible.indexOf(id);
+          if (sr) sr.textContent = 'Now ' + (i + 1) + ' of ' + arr.visible.length;
+          if (window.hkStrategy && window.hkStrategy.ownChange) window.hkStrategy.ownChange();
+          if (errBox) errBox.hidden = true;
+          var msg = arr.fav ? { type: 'hk_frontend/board/set', dashboard: arr.dash, changes: { favorites: next.full } }
+                            : { type: 'hk_frontend/accessory/order', area_id: arr.area, entities: next.full };
+          // one at a time, in the order tapped
+          queue = queue.then(function () { return h.callWS(msg); }).catch(fail);
+        };
+        mvl.addEventListener('click', function () { move(-1); });
+        mvr.addEventListener('click', function () { move(1); });
+        paintArr();
+      }
+
       // ICON
       var grid = el.querySelector('.glyphs');
-      function paintGlyphs(show) {
-        var chosen = String(cur.icon || '');
-        var list = glyphsFor(id, show === undefined ? cur.show_as : show);
-        if (chosen && list.indexOf(chosen.replace(/^(hk|mdi):/, '')) < 0) list = [chosen.replace(/^(hk|mdi):/, '')].concat(list);
-        grid.innerHTML = '<button data-v="" class="' + (chosen ? '' : 'on') + '" aria-label="Automatic">Auto</button>' +
-          list.map(function (g) {
-            var on = chosen === 'hk:' + g || chosen === 'mdi:' + g;
-            return '<button data-v="hk:' + g + '" aria-label="' + g + '"' + (on ? ' class="on"' : '') +
-                   '><ha-icon icon="hk:' + g + '"></ha-icon></button>';
-          }).join('');
+      // A GLYPH GRID: its kind's list (Auto first), or what a search finds --
+      // the hk: glyphs, then the Material ones under their own heading.
+      function glyphGrid(box, q, chosen, list, auto) {
+        var btn = function (it) {
+          var on = chosen === it.v || chosen.replace(/^(hk|mdi):/, '') === it.v.replace(/^(hk|mdi):/, '');
+          return '<button data-v="' + esc(it.v) + '" aria-label="' + esc(it.v.replace(/^(hk|mdi):/, '').replace(/-/g, ' ')) +
+                 (it.mdi ? ' (Material)' : '') + '"' + (on ? ' class="on"' : '') + '><ha-icon icon="' + esc(it.icon) + '"></ha-icon></button>';
+        };
+        var query = String(q || '').trim();
+        box._q = query;
+        if (!query) {
+          if (chosen && list.indexOf(chosen.replace(/^(hk|mdi):/, '')) < 0) list = [chosen.replace(/^(hk|mdi):/, '')].concat(list);
+          box.innerHTML = '<button data-v="" class="' + (chosen ? '' : 'on') + '" aria-label="' + auto[1] + '">' + auto[0] + '</button>' +
+            list.map(function (g) { return btn({ v: 'hk:' + g, icon: 'hk:' + g }); }).join('');
+          return;
+        }
+        var paint = function (mdiAll) {
+          if (box._q !== query) return;           // a later search won
+          var got = glyphSearch(query, mdiAll);
+          var mdi = got.mdi.slice(0, SEARCH_MAX);
+          box.innerHTML = got.hk.map(btn).join('') +
+            (mdi.length ? '<div class="gh">Material Design</div>' + mdi.map(btn).join('') : '') +
+            (got.mdi.length > SEARCH_MAX ? '<div class="gn">' + SEARCH_MAX + ' of ' + got.mdi.length + ' Material icons. Keep typing to narrow it down.</div>' : '') +
+            (!got.hk.length && !got.mdi.length ? '<div class="gn">' + (mdiAll ? 'No icon matches.' : 'Searching…') + '</div>' : '');
+        };
+        paint(null);
+        mdiList().then(paint);
       }
+      var gq = el.querySelector('.gq');
+      function paintGlyphs(show) {
+        if (show !== undefined) gq.value = '';
+        glyphGrid(grid, gq.value, String(cur.icon || ''), glyphsFor(id, show === undefined ? cur.show_as : show), ['Auto', 'Automatic']);
+      }
+      gq.addEventListener('input', function () { paintGlyphs(); });
       paintGlyphs();
       grid.addEventListener('click', function (ev) {
         var b = ev.target.closest('button');
@@ -990,17 +1252,11 @@
       fvn.addEventListener('input', function () { clearTimeout(ft); ft = setTimeout(saveFav, 700); });
       fvn.addEventListener('change', saveFav);
       fvn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') fvn.blur(); });
+      var fvq = el.querySelector('.fvq');
       function paintFavGlyphs() {
-        var chosen = String(cur.fav_icon || '');
-        var list = glyphsFor(id, cur.show_as);
-        if (chosen && list.indexOf(chosen.replace(/^(hk|mdi):/, '')) < 0) list = [chosen.replace(/^(hk|mdi):/, '')].concat(list);
-        fvg.innerHTML = '<button data-v="" class="' + (chosen ? '' : 'on') + '" aria-label="Same as its icon">Same</button>' +
-          list.map(function (g) {
-            var on = chosen === 'hk:' + g || chosen === 'mdi:' + g;
-            return '<button data-v="hk:' + g + '" aria-label="' + g + '"' + (on ? ' class="on"' : '') +
-                   '><ha-icon icon="hk:' + g + '"></ha-icon></button>';
-          }).join('');
+        glyphGrid(fvg, fvq.value, String(cur.fav_icon || ''), glyphsFor(id, cur.show_as), ['Same', 'Same as its icon']);
       }
+      fvq.addEventListener('input', function () { paintFavGlyphs(); });
       paintFavGlyphs();
       fvg.addEventListener('click', function (ev) {
         var b = ev.target.closest('button');
@@ -1105,13 +1361,14 @@
       });
       goBtn.addEventListener('click', function () {
         sure.hidden = true; resetBtn.hidden = false;
-        var all = { name: null, icon: null, show_as: null, status: null, home: null, color: null, when: null, label: null,
+        var all = { name: null, icon: null, show_as: null, size: null, status: null, home: null, color: null, when: null, label: null,
                     attribute: null, fav_name: null, fav_icon: null, fav_with: null, fav_room: null,
                     on_text: null, off_text: null };
         save(all).then(function () { return save({ name: null, screen: dash }); }).then(function () {
           cur = {};
           nm.value = ''; hereBox.checked = false; st.checked = true; hm.checked = true;
           if (seg) seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', !x.dataset.v); });
+          paintSize();
           paintGlyphs(null);
           fvn.value = ''; paintFavGlyphs(); paintWith();
           // everything the reset cleared shows cleared (the colour, what a
@@ -1212,7 +1469,7 @@
             // name is back the next time the sheet opens)
             if (D.el === el) D.tt.textContent = name || (D.src && D.src.name) ||
               at(stOf(C.hass(), id), 'friendly_name') || id;
-          }));
+          }, { tile: D.el === el && D.src ? D.src.el : null }));
           body.scrollTop = 0;
           gear.firstChild.setAttribute('icon', 'mdi:check');
           gear.setAttribute('aria-label', 'Done');
@@ -1369,8 +1626,11 @@
         if (c.entity !== id) continue;
         var conf = (c.icon_tap_action && c.icon_tap_action.confirmation) ||
                    (c.tap_action && c.tap_action.confirmation) || null;
-        return { name: c.name, icon: c.icon, icon_color: c.icon_color, confirmation: conf,
-                 type: el.tagName.toLowerCase(), config: c };
+        var out = { name: c.name, icon: c.icon, icon_color: c.icon_color, confirmation: conf,
+                    type: el.tagName.toLowerCase(), config: c };
+        // the tile itself, for Arrange (accessoryPane): hidden from any copy
+        Object.defineProperty(out, 'el', { value: el, enumerable: false });
+        return out;
       }
       return {};
     }
@@ -4585,7 +4845,7 @@
         downsample: downsample, kelvinRgb: kelvinRgb, lightCaps: lightCaps, defaultFavourites: defaultFavourites,
         favMatches: favMatches, fromDashboard: fromDashboard, sourceOf: sourceOf, colourName: colourName,
         nearWhite: nearWhite, spanTo: spanTo, trendOf: trendOf, reportsAction: reportsAction,
-        accessoryPane: accessoryPane, accName: accName, accIcon: accIcon, canEdit: canEdit, glyphsFor: glyphsFor, ACC_CSS: ACC_CSS,
+        accessoryPane: accessoryPane, accName: accName, accIcon: accIcon, canEdit: canEdit, glyphsFor: glyphsFor, glyphSearch: glyphSearch, arrangeOf: arrangeOf, arrangeMove: arrangeMove, ACC_CSS: ACC_CSS,
         popupFor: popupFor, openPopup: openPopup, route: route, asked: asked, onDashboard: onDashboard,
         state: function () { return D; }
       }

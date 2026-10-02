@@ -10,6 +10,9 @@
     icon       an hk: glyph (or mdi:) for its tile and its sheet.
     show_as    light / fan / switch / outlet -- what it is drawn as and which
                chip counts it (a coffee maker on an outlet, a fan on a switch).
+    size       regular / tall -- its tile's height on a generated dashboard's
+               rooms and pages, over what its kind is drawn as (a light as a
+               tall tile, a lock as a pill). None: its kind's own.
     status     False: left out of the status chips (What counts). None: as
                found.
     home       False: not shown on a generated dashboard's rooms and pages.
@@ -33,7 +36,9 @@
                empty: its area's name.
 
 and, per room (area id), the order of its tiles -- and `into`: a room shown
-as part of another (the Deck inside the Backyard) -- and `pages`: the order
+as part of another (the Deck inside the Backyard) -- and `scenes`: the row of
+scene pills on its room page (2026-10-01; a room missing here: Automatic, the
+Home Assistant scenes in that room; an empty list: no row) -- and `pages`: the order
 of a category page that mixes rooms, where the automatic A to Z is not how
 the house thinks of them (PAGE_ORDERS; the Vacuums: Downstairs, Upstairs,
 Office; Security's locks and garage doors: Front, Garage, Back).
@@ -64,6 +69,7 @@ STORAGE_VERSION = 1
 SAVE_DELAY = 2.0
 
 SHOW_AS = ("light", "fan", "switch", "outlet")
+SIZES = ("regular", "tall")
 COLORS = ("white", "yellow", "orange", "red", "pink", "purple", "blue", "teal", "mint", "green")
 ENTITY = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 ICON = re.compile(r"^(hk|mdi):[a-z0-9-]+$")
@@ -71,13 +77,13 @@ AREA = re.compile(r"^[a-z0-9_]+$")
 PATH = re.compile(r"^[a-z0-9_-]+$")
 PAGE_ORDERS = ("vacuums", "security")
 ATTR = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ .-]{0,59}$")
-FIELDS = ("name", "icon", "show_as", "status", "home", "color", "when", "label", "attribute",
+FIELDS = ("name", "icon", "show_as", "size", "status", "home", "color", "when", "label", "attribute",
           "fav_name", "fav_icon", "fav_with", "fav_room", "on_text", "off_text")
 FAV_WITH_MAX = 8
 
 
 def blank() -> dict[str, Any]:
-    return {"entities": {}, "rooms": {}, "into": {}, "pages": {}}
+    return {"entities": {}, "rooms": {}, "into": {}, "pages": {}, "scenes": {}}
 
 
 def _ids(v: Any) -> list[str]:
@@ -100,6 +106,8 @@ def clean_entity(v: Any) -> dict[str, Any]:
         out["icon"] = icon
     if v.get("show_as") in SHOW_AS:
         out["show_as"] = v["show_as"]
+    if v.get("size") in SIZES:
+        out["size"] = v["size"]
     if v.get("color") in COLORS:
         out["color"] = v["color"]
     for k, n in (("when", 60), ("label", 40), ("on_text", 30), ("off_text", 30), ("fav_room", 40)):
@@ -158,7 +166,11 @@ def clean(data: Any) -> dict[str, Any]:
     into = {a: into.get(b, b) for a, b in into.items() if into.get(b, b) != a}
     pages = {k: _ids(v) for k, v in (data.get("pages") or {}).items() if k in PAGE_ORDERS}
     pages = {k: v for k, v in pages.items() if v}
-    return {"entities": ents, "rooms": rooms, "into": into, "pages": pages}
+    # a room's scenes row: its own list, kept EMPTY too (an empty list is "no
+    # row", not "automatic")
+    scenes = {a: _ids(v) for a, v in (data.get("scenes") or {}).items()
+              if isinstance(a, str) and AREA.match(a) and isinstance(v, list)}
+    return {"entities": ents, "rooms": rooms, "into": into, "pages": pages, "scenes": scenes}
 
 
 class Accessories:
@@ -238,6 +250,19 @@ class Accessories:
         return ids
 
     @callback
+    def room_scenes(self, area_id: str, entities: list[str] | None) -> list[str] | None:
+        """A room's scenes row: these, in this order ([]: no row), or None:
+        Automatic again."""
+        cur = dict(self.data.get("scenes") or {})
+        if entities is None:
+            cur.pop(area_id, None)
+        else:
+            cur[area_id] = _ids(entities)
+        self.data["scenes"] = cur
+        self._changed()
+        return cur.get(area_id)
+
+    @callback
     def order(self, area_id: str, entities: list[str]) -> list[str]:
         ids = clean({"rooms": {area_id: entities}})["rooms"].get(area_id, [])
         if ids:
@@ -264,6 +289,7 @@ def current(hass: HomeAssistant) -> dict[str, Any]:
     vol.Optional("name"): vol.Any(None, vol.All(str, vol.Length(max=60))),
     vol.Optional("icon"): vol.Any(None, vol.All(str, vol.Match(ICON))),
     vol.Optional("show_as"): vol.Any(None, vol.In(SHOW_AS)),
+    vol.Optional("size"): vol.Any(None, vol.In(SIZES)),
     vol.Optional("status"): vol.Any(None, bool),
     vol.Optional("home"): vol.Any(None, bool),
     vol.Optional("color"): vol.Any(None, vol.In(COLORS)),
@@ -370,7 +396,26 @@ def ws_accessory_page_order(hass: HomeAssistant, connection: websocket_api.Activ
     connection.send_result(msg["id"], acc.page_order(msg["page"], msg["entities"]))
 
 
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/accessory/room_scenes",
+    vol.Required("area_id"): vol.All(str, vol.Match(AREA)),
+    vol.Required("entities"): vol.Any(None, [vol.All(str, vol.Match(ENTITY))]),
+})
+@websocket_api.require_admin
+@callback
+def ws_accessory_room_scenes(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                             msg: dict[str, Any]) -> None:
+    """A room's scenes row on its page: a list ([] for none), or None for
+    Automatic."""
+    acc = get(hass)
+    if acc is None:
+        connection.send_error(msg["id"], "not_ready", "HK Frontend is still starting")
+        return
+    connection.send_result(msg["id"], {"scenes": acc.room_scenes(msg["area_id"], msg["entities"])})
+
+
 def register(hass: HomeAssistant) -> None:
+    websocket_api.async_register_command(hass, ws_accessory_room_scenes)
     websocket_api.async_register_command(hass, ws_accessory_page_order)
     websocket_api.async_register_command(hass, ws_accessory_into)
     websocket_api.async_register_command(hass, ws_accessory_set)

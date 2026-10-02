@@ -299,8 +299,8 @@ async def test_a_pre_release_alarm_pin_entry_is_folded_into_the_house(hass, base
     assert ent.name == "Alarm Panel Keypad" and ent.device_id == dev.id
     moved = dreg.async_get(dev.id)
     assert moved.identifiers == {(DOMAIN, old.entry_id)}
-    assert moved.config_entries == {house.entry_id}
-    assert moved.config_entries_subentries == {house.entry_id: {old.entry_id}}
+    from conftest import device_place
+    assert device_place(moved) == (house.entry_id, old.entry_id)
     st = hass.states.get(panel)
     assert st.state == "disarmed" and st.attributes["protects"] == ALARM
     await call(hass, "alarm_arm_away", panel)                      # the arm rule came along

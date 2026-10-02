@@ -285,9 +285,12 @@
              chips: (b.chips || []).filter(function (k) { return k !== CHIP_TOKEN + key; }) };
   }
   // own chips come and go without leaving automatic
-  function chipsAddOwn(b, id) {
-    var extra = (b.chips_extra || []).concat(id).filter(function (x, i, a) { return a.indexOf(x) === i; });
-    var chips = (b.chips || []).length ? b.chips.concat(b.chips.indexOf(id) < 0 ? [id] : []) : [];
+  // one accessory chip, or several (a picker's Select)
+  function chipsAddOwn(b, ids) {
+    ids = [].concat(ids);
+    var extra = (b.chips_extra || []).concat(ids).filter(function (x, i, a) { return a.indexOf(x) === i; });
+    var chips = (b.chips || []).length ? b.chips.concat(ids.filter(function (id, i) {
+      return b.chips.indexOf(id) < 0 && ids.indexOf(id) === i; })) : [];
     return { chips_extra: extra, chips: chips };
   }
   function chipsRemoveOwn(b, id) {
@@ -460,6 +463,31 @@
   }
   // back to automatic: no order, Home as the screen lists its rooms
   function roomsAuto() { return { room_order: [], home_rooms: 'as_is' }; }
+  // ALL SCREENS' ROOMS (settings `rooms`) as a screen's keys, and back: the
+  // same list editor and model serve both
+  function houseRoomsAsBoard(r) {
+    r = r || {};
+    return { room_order: r.order || [], home_rooms: r.home || 'as_is', menu_rooms: r.menu || 'az', page_rooms: r.pages || 'floor' };
+  }
+  function houseRoomsSave(ch) {
+    var out = {};
+    if ('room_order' in ch) out['rooms.order'] = ch.room_order;
+    if ('home_rooms' in ch) out['rooms.home'] = ch.home_rooms;
+    if ('menu_rooms' in ch) out['rooms.menu'] = ch.menu_rooms;
+    if ('page_rooms' in ch) out['rooms.pages'] = ch.page_rooms;
+    return out;
+  }
+  // ONE ROOM ON HOME, or not (a room's own Show on Home): the order as it
+  // stands, with the room taken out or added at its end
+  function roomOnHome(b, areasAZ, area, on) {
+    var rows = roomsModel(b, areasAZ).rows.map(function (r) { return r.value; });
+    var has = rows.indexOf(area) >= 0;
+    if (on === has) return null;
+    return roomsSave(on ? rows.concat(area) : rows.filter(function (a) { return a !== area; }), areasAZ);
+  }
+  function roomsSummary(b) {
+    return !(b.room_order || []).length ? 'Automatic' : b.home_rooms === 'only' ? b.room_order.length + ' on Home' : 'Custom Order';
+  }
 
   // CAMERAS: automatic = one of every camera (its low channel)
   function camerasModel(b, ok, autoCams) {
@@ -674,21 +702,22 @@
     ['Menu', 'screen', 'menu', 'sidebar drawer navigation off button always open docked', true],
     ['Button Style', 'screen/menu-style', 'menu-style', 'chip tab edge pinned', true],
     ['Tab Position', 'screen', 'tab_position', 'edge tab height', true],
-    ['Tab Size', 'screen', 'tab_size', 'edge tab menu bigger larger touch target', true],
+    ['Tab Size', 'screen', 'tab_size', 'edge tab menu bigger larger touch target tablet', true],
+    ['Tab Size on Phones', 'screen', 'tab_size_phone', 'edge tab menu bigger larger touch target phone iphone', true],
     ['Keep Open Down To', 'screen', 'dock_min', 'fold width docked', true],
     ['Time & Weather in Menu', 'screen', 'time_weather', 'clock header', true],
     ['Pages in Menu', 'screen/menu-pages', 'categories', 'categories menu list', true],
     ['On Phones', 'screen', 'phone_header', 'phone weather strip clock header narrow', true],
     ['Home Page', 'screen/pages', 'home_page', 'only custom pages energy panel no home', true],
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
-    ['Rooms in Menu', 'screen', 'menu_rooms', 'a to z order', true],
+    ['Rooms in Menu', 'screen/rooms', 'menu_rooms', 'a to z order', true],
     ['Home Assistant Section', 'screen', 'ha_row', 'sidebar settings access integrations automations notifications profile show menu', true],
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
     ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera', true],
     ['Live Camera Follows', 'screen/cameras/live', 'camera_live', 'live camera follows motion person detection dropdown input select automation', true],
     ['Scenes', 'screen/scenes', 'scenes', 'scene pills row', true],
     ['Favorites', 'screen/favorites', 'favorites', 'favourites', true],
-    ['Rooms', 'screen/rooms', 'room_order', 'room order home rooms on pages', true],
+    ['Rooms', 'screen/rooms', 'rooms_custom', 'room order home rooms on pages same as all screens', true],
     ['Pages', 'screen/pages', 'pages', 'category pages custom pages', true],
     ['Glass', 'screen/glass', 'glass', 'look blur frosted clear', true],
     ['Live Sky', 'screen', 'sky', 'background animated', true],
@@ -745,8 +774,12 @@
     ['Holiday Season Sensor', 'house/sky/advanced', 'sky.holidays', 'calendar'],
     ['Menu Button Icon', 'house/menu', 'menu.glyph', 'glyph sidebar lines hamburger'],
     ['Tap Clock to Open Menu', 'house/menu', 'menu.clock', ''],
-    ['Room Headings Open Room Pages', 'house/menu', 'rooms.headings', 'room page link'],
-    ['Room Status Row', 'house/menu/status', 'rooms.status', 'room page temperature humidity'],
+    ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
+    ['Room Order', 'house/rooms/order', 'rooms.order', 'rooms on home order which rooms'],
+    ['Rooms in Menu', 'house/rooms', 'rooms.menu', 'a to z order menu rooms'],
+    ['Rooms on Pages', 'house/rooms', 'rooms.pages', 'by floor room order lights climate'],
+    ['Room Headings Open Room Pages', 'house/rooms', 'rooms.headings', 'room page link'],
+    ['Room Status Row', 'house/rooms/status', 'rooms.status', 'room page temperature humidity'],
     ['Browse Music Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
     ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
     ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
@@ -809,14 +842,15 @@
   // one group here or in COPY_NEVER (settings.py BOARD_DEFAULTS -- a Python
   // test holds the two together). [key, label, board keys, copied by default]
   var COPY_GROUPS = [
-    ['menu', 'Menu', ['menu', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
-                      'menu_rooms', 'menu_top', 'narrow', 'phone_header'], true],
-    ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom',
-                           'home_rooms', 'room_order'], true],
+    ['menu', 'Menu', ['menu', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size', 'tab_size_phone',
+                      'menu_top', 'narrow', 'phone_header'], true],
+    ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
+    // a screen's rooms: All Screens' or its own (rooms_custom)
+    ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
     ['cameras', 'Cameras', ['camera_strip', 'cameras', 'camera_live'], true],
     ['scenes', 'Scenes', ['scenes_row', 'scenes', 'scenes_pages'], false],
     ['favorites', 'Favorites', ['favorites'], false],
-    ['pages', 'Pages', ['pages', 'page_rooms', 'custom_pages'], true],
+    ['pages', 'Pages', ['pages', 'custom_pages'], true],
     ['look', 'Appearance', ['glass', 'frost', 'blur', 'sky'], true],
     ['behavior', 'Behavior', ['idle_return', 'popups', 'car', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins',
                               'kiosk_engine', 'kiosk_options', 'now_playing'], true],
@@ -933,7 +967,8 @@
     chipQuiet: chipQuiet,
     scenesModel: scenesModel, scenesSave: scenesSave, scenesPagePill: scenesPagePill,
     pagesModel: pagesModel, pagesSave: pagesSave, pagesCustom: pagesCustom,
-    roomsModel: roomsModel, roomsSave: roomsSave, roomsAuto: roomsAuto,
+    roomsModel: roomsModel, roomsSave: roomsSave, roomsAuto: roomsAuto, houseRoomsAsBoard: houseRoomsAsBoard,
+    houseRoomsSave: houseRoomsSave, roomOnHome: roomOnHome, roomsSummary: roomsSummary,
     MENU_FIXED: MENU_FIXED, MENU_PLACES: MENU_PLACES, menuPathOf: menuPathOf, menuItems: menuItems,
     topsOf: topsOf, placeOf: placeOf, placeSet: placeSet,
     camerasModel: camerasModel, autoCameras: autoCameras, livePlan: livePlan, liveYaml: liveYaml, liveNames: liveNames,

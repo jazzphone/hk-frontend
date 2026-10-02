@@ -170,7 +170,7 @@ def house_entry(*items: dict, **kw):
     """The house's entry as storage holds it, not yet set up (a
     MockConfigEntry to add before the integration starts), with `items`."""
     from pytest_homeassistant_custom_component.common import MockConfigEntry
-    kw = {"title": "HK Frontend", "unique_id": DOMAIN, "version": 1, "minor_version": 7,
+    kw = {"title": "HK Frontend", "unique_id": DOMAIN, "version": 1, "minor_version": 8,
           "data": {}, "options": {}, **kw}
     return MockConfigEntry(domain=DOMAIN, subentries_data=list(items), **kw)
 
@@ -197,3 +197,17 @@ class FakeConnection:
 
     def send_result(self, msg_id, result=None):
         self.sent.append({"id": msg_id, "type": "result", "success": True})
+
+
+def device_place(dev) -> tuple[str | None, str | None]:
+    """Where a device belongs: (config entry id, config subentry id). Home
+    Assistant 2026.10 gives a device ONE entry (config_entry_id /
+    config_subentry_id) and deprecates the sets before them
+    (config_entries / config_entries_subentries) -- reading those raises in
+    its test harness -- so this reads whichever the version has."""
+    if hasattr(dev, "config_subentry_id"):
+        return dev.config_entry_id, dev.config_subentry_id
+    entries = sorted(dev.config_entries)
+    eid = entries[0] if len(entries) == 1 else None
+    subs = sorted(x for x in (dev.config_entries_subentries.get(eid) or ()) if x) if eid else []
+    return eid, subs[0] if len(subs) == 1 else None

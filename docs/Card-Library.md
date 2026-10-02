@@ -85,6 +85,7 @@ add a few of their own.
 | `icon_size` | A CSS size, for example `30px`. |
 | `bare_icon` | While on, draw the icon without the colored circle behind it. `bare_icon_color` colors it. |
 | `well_background` | The icon circle’s color, for example `transparent`. |
+| `size` | `tall` or `regular`: the tile’s height, over the card’s own (a light as a tall tile, a lock as a pill). A tall tile is two rows high, so give it `view_layout: {grid-row: span 2}` in a grid. |
 | `label` | Fixed status text, replacing the automatic one. |
 | `label_mode` | How the state becomes the status text (below). |
 | `group`, `group_lit` | Other entities this tile stands for, and whether it lights with the main entity (`entity`) or with any of them (`any`). |
@@ -166,7 +167,7 @@ optionally on an `attribute`).
 
 `items` on the room status card chooses from `temperature`, `humidity`,
 `outlets`, `blinds`, `fans`, `windows`, `doors`, `locks`, `garage`, `motion`,
-`occupancy` and `leaks`. Empty follows **HK Settings → Menu & Rooms**.
+`occupancy` and `leaks`. Empty follows **HK Settings → Rooms → Status Row**.
 Temperature and humidity come from the area’s own related sensors
 (**Settings → Areas**) unless you name them.
 

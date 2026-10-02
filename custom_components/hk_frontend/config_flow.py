@@ -140,7 +140,10 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
     # settings, each pop-up, page, chip and feature are items of it
     # (subentries). An older minor version is brought to 7 by
     # async_migrate_entry.
-    MINOR_VERSION = 7
+    # 8 (2026-10-01): the room settings are All Screens' (settings `rooms`);
+    # a screen keeps its own only where it differs (rooms_custom) --
+    # settings.rooms_lifted.
+    MINOR_VERSION = 8
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:
