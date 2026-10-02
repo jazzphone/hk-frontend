@@ -45,6 +45,12 @@ Decorations appear only on the live sky.
 When the tablet is behind a screensaver, or its browser tab is hidden, the sky
 stops moving.
 
+The [forecast screensaver](Screensaver-and-Idle.md#no-photos-the-forecast)
+draws this same sky over a landscape, and livelier: its clouds drift faster,
+the brighter stars twinkle, a clear night has the odd shooting star, a summer
+night has fireflies, and on the holidays the landscape itself is decorated
+([Seasonal Decorations](Seasonal-Decorations.md#on-the-forecast-screensaver)).
+
 ## Turn it on or off
 
 **Every generated screen at once:** pick an input boolean or switch as the
