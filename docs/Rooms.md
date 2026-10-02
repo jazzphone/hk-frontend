@@ -30,7 +30,9 @@ are **Same as All Screens**. The page says which screens set their own.
 
 ## A room’s settings
 
-**All Screens → Rooms → (the room).** These apply on every screen.
+**All Screens → Rooms → (the room).** These apply on every screen. A room
+opens here from the Rooms list, and from any room order: tap a room in All
+Screens’ Room Order or in a screen’s own list, and Back returns you there.
 
 ![A room’s own settings: shown on screens and on Home, part of another room, its scenes and tile order](images/settings-room.png)
 
@@ -60,6 +62,11 @@ Turn **Same as All Screens** off to set them for this screen only. They start
 as All Screens’ are, then change on their own: the room order (with **On
 Home** and **Not on Home**), **Rooms in Menu** and, on a generated screen,
 **Rooms on Pages**. Turn it back on to follow All Screens again.
+
+Tap a room in the screen’s list for [its own settings](#a-rooms-settings):
+its scenes, tile order, and whether it shows. Those are the room’s, the same
+on every screen; what this screen decides is only which rooms are on its Home,
+and in what order.
 
 A room’s own settings (its scenes, tile order, whether it shows) are the same
 on every screen.
