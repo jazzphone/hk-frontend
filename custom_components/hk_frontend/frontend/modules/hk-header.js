@@ -649,6 +649,32 @@
   // (canvas has no font-variant-numeric). Returns null while the font is still
   // loading, so the caller can try again rather than bake in a fallback face.
   var inkCache = {};
+  // IS THE FACE THE TEXT ASKS FOR IN? A measurement taken with the fallback
+  // face is right for the fallback and ~17 px wrong for SF Pro -- and it was
+  // kept: the clock sat off the date's edge until its next redraw, up to a
+  // minute (2026-10-01). Such a measurement is used but not kept, and when a
+  // font finishes loading (below) everything is measured again.
+  function faceIn(family) {
+    var F = document.fonts;
+    if (!F || typeof F.forEach !== 'function') return true;
+    var bare = function (s) { return String(s || '').trim().replace(/^["']|["']$/g, '').toLowerCase(); };
+    var name = bare(String(family || '').split(',')[0]), any = false, ok = false;
+    try {
+      F.forEach(function (f) { if (bare(f.family) === name) { any = true; if (f.status === 'loaded') ok = true; } });
+    } catch (e) { return true; }
+    return !any || ok;              // no face of that name: a system font, nothing to wait for
+  }
+  // A FONT FINISHED LOADING (SF Pro, after the first paint): every measurement
+  // again, and every card redrawn (MODULE WAKE, hk-base.js) -- so each clock
+  // lines up with its date as soon as the face it is drawn in is here.
+  try {
+    if (document.fonts && document.fonts.addEventListener) {
+      document.fonts.addEventListener('loadingdone', function () {
+        inkCache = {};
+        try { window.dispatchEvent(new CustomEvent('hk-module-ready', { detail: { module: 'hk-fonts' } })); } catch (e) { /* no bus */ }
+      });
+    }
+  } catch (e) { /* no font loading API */ }
   function firstInk(el) {
     var text = (el && el.textContent || '').replace(/^\s+/, '');
     if (!text) return 0;
@@ -692,7 +718,7 @@
       ink += (a.getBoundingClientRect().width - b.getBoundingClientRect().width) / 2;
       host.removeChild(a); host.removeChild(b);
     }
-    inkCache[key] = ink;
+    if (faceIn(cs.fontFamily)) inkCache[key] = ink;
     return ink;
   }
   // NEVER THROWS. Safari 27 can raise "SyntaxError: The string did not match
