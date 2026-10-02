@@ -168,5 +168,34 @@ ok('more-info is guarded too', fired.length, 0);
 tap('yes');
 ok('and opens on confirm', fired[0], 'hass-more-info');
 
+print('\n=== a right-click opens detail: a mouse\'s, never a finger\'s ===');
+// what a tile does with its card: _bindDetail on the card element
+function rightClick(cfg, ev, press) {
+  var t = actor(cfg), el = document.createElement('div');
+  t._bindDetail(el);
+  if (press !== undefined) document.dispatchEvent({ type: 'pointerdown', pointerType: press });
+  var stopped = { prevented: false };
+  ev.preventDefault = function () { stopped.prevented = true; };
+  ev.stopPropagation = function () {};
+  (el._listeners.contextmenu || []).forEach(function (f) { f(ev); });
+  return [fired[0] || null, stopped.prevented, calls.length];
+}
+ok('a mouse right-click on a light opens its detail, toggles nothing, hides the browser menu',
+   rightClick({ entity: 'light.lamp', tap_action: { action: 'toggle' } }, { pointerType: 'mouse' }),
+   ['hass-more-info', true, 0]);
+ok('a long press on Android (a touch contextmenu) does nothing: no card has a hold',
+   rightClick({ entity: 'light.lamp' }, { pointerType: 'touch' }), [null, false, 0]);
+ok('a pen too', rightClick({ entity: 'light.lamp' }, { pointerType: 'pen' }), [null, false, 0]);
+ok('Safari (no pointerType) after a mouse press: opens',
+   rightClick({ entity: 'light.lamp' }, {}, 'mouse'), ['hass-more-info', true, 0]);
+ok('Safari after a finger press: nothing',
+   rightClick({ entity: 'light.lamp' }, {}, 'touch'), [null, false, 0]);
+ok('an event that says it fires touch events: nothing',
+   rightClick({ entity: 'light.lamp' }, { sourceCapabilities: { firesTouchEvents: true } }, 'mouse'), [null, false, 0]);
+ok('a tile with no entity keeps the browser\'s menu',
+   rightClick({ tap_action: { action: 'navigate', navigation_path: './x' } }, { pointerType: 'mouse' }), [null, false, 0]);
+ok('a lock opens its detail (never toggles)',
+   rightClick({ entity: 'lock.front_door_lock' }, { pointerType: 'mouse' }), ['hass-more-info', true, 0]);
+
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed'
                    : 'ALL ' + pass + ' ACTION TESTS PASS'));

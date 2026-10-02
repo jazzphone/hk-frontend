@@ -39,6 +39,10 @@ actions: `more-info`, `toggle`, `navigate`, `perform-action`, `url` and `none`,
 with an optional `confirmation`. Two things differ:
 
 - **No hold.** A long press does what a tap does. There is no `hold_action`.
+- **A right-click opens detail.** With a mouse or trackpad, right-clicking a
+  tile (or Control-clicking on a Mac) opens its detail sheet, whatever its
+  `tap_action`. A tile with no entity keeps the browser’s menu. A finger’s long
+  press never does this.
 - **Some things never change from one tap.** A `toggle` on a lock, an alarm
   panel, a valve, a thermostat, a water heater, a siren, a vacuum, a camera, or
   a garage door, gate or door (a cover of that device class) opens its detail

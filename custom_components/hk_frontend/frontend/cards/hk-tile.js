@@ -642,6 +642,8 @@
         // visible to a computed-style check -- it has to be carried
         // deliberately, which is what icon_tap_action does.
         this._bind(this._els.card, 'tap_action');
+        // a right-click (a mouse's, never a finger's) opens detail: hk-base
+        this._bindDetail(this._els.card);
         if (this._config.icon_tap_action) {
           this._bind(this._els.well, 'icon_tap_action', null);
         }

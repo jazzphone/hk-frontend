@@ -408,6 +408,22 @@
     return !!(st && st.attributes && DOOR_COVERS[st.attributes.device_class]);
   }
 
+  // WAS THIS CONTEXTMENU A MOUSE'S? Chrome hands contextmenu over as a
+  // PointerEvent that says so; Safari and older WebViews don't, so the press
+  // that preceded it decides (a long press on Android is a 'touch' press).
+  // Unknown counts as NOT a mouse: a wall tablet must never open a sheet
+  // from a resting finger.
+  var lastPress = '';
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('pointerdown', function (e) { lastPress = e.pointerType || ''; },
+                              { capture: true, passive: true });
+  }
+  function fromMouse(e) {
+    if (e.pointerType) return e.pointerType === 'mouse';
+    if (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return false;
+    return lastPress === 'mouse';
+  }
+
   function confirmSheet(text, onOk, opts) {
     opts = opts || {};
     if (!_sheet) {
@@ -970,6 +986,23 @@
       el.addEventListener('click', function (e) {
         e.stopPropagation();
         self._act((self._config || {})[tapKey], tapKey === 'tap_action');
+      });
+    }
+
+    // A RIGHT-CLICK OPENS DETAIL (tiles only, on a computer). On a light the
+    // glyph's click toggles, so this is the mouse's way to the sheet without
+    // aiming at the name. MOUSE ONLY: Android fires contextmenu on a long
+    // press too, and a finger resting on a tile must still do what a tap does
+    // (no card has a hold). A tile with no entity behind it keeps the
+    // browser's own menu.
+    _bindDetail(el) {
+      var self = this;
+      el.addEventListener('contextmenu', function (e) {
+        var cfg = self._config || {};
+        if (!cfg.entity || !fromMouse(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        self._act({ action: 'more-info' }, true);
       });
     }
 
