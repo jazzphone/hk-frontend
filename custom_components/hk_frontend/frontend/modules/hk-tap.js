@@ -186,6 +186,9 @@
 
   document.addEventListener('pointerdown', function (ev) {
     abort();                            // a new press supersedes the old one
+    // A right-click (or a Mac's control-click) opens detail and does not tap
+    // the tile, so it shows no tap either.
+    if (ev.pointerType === 'mouse' && (ev.button !== 0 || ev.ctrlKey)) { return; }
     var card = cardUnder(ev);
     if (!card || !optedIn(card)) { return; }
     // MOUSE: applied immediately -- a mouse press is not ambiguous the way a
