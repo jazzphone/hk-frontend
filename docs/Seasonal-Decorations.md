@@ -7,6 +7,10 @@ the year.
 Decorations are photographs laid over the live sky, and they never
 change your lights or anything else in the house.
 
+**Beside an open menu:** on a screen whose menu stays open, the decorations
+start at the menu's edge instead of behind it. The sky itself still runs under
+the menu, blurred by its glass.
+
 ![A spooky Halloween night: a big moon, bare branches, fog and bats](images/sky-halloween.png)
 
 **Turning them all off:** the **Seasonal decorations** switch,
