@@ -37,7 +37,7 @@ LAYOUT -- the URL is the path under frontend/
     /hk/iconset/hk-icons.js     frontend/iconset/   the hk: iconset loader
     /hk/pages/skyprobe.html     frontend/pages/     standalone pages
     /hk/fonts/sf-pro.css        frontend/fonts/     the @font-face (the font is yours)
-    /hk/sky/clouds-a.png        frontend/sky/       sky artwork
+    /hk/sky/clouds-a.webp       frontend/sky/       sky artwork
 
 Everything else in this component (tests/, docs/, tools/, helpers/, theme/)
 sits OUTSIDE frontend/ and is therefore unreachable over HTTP by construction,

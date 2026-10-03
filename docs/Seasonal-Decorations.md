@@ -15,10 +15,10 @@ the menu, blurred by its glass.
 
 **Turning them all off:** the **Seasonal decorations** switch,
 `switch.hk_frontend_seasonal_decorations`, on the HK Frontend device. The same
-switch is **HK Settings → All Screens → Sky → Seasonal Decorations**, and an
+switch is **HK Settings → All Screens → Sky / Background → Seasonal Decorations**, and an
 automation can flip it like any switch.
 
-**Turning one off:** HK Settings → Sky → the decoration → **Show**.
+**Turning one off:** HK Settings → Sky / Background → the decoration → **Show**.
 
 ## The seasons
 
@@ -61,7 +61,7 @@ treat rather than a month of wallpaper.
 - **Storybook Magic** and **Space Night** each have their own fixed days in
   every month: **Once**, **Twice** or **Four Times a Month**. They never
   share a day.
-- **Birthdays**: HK Settings → Sky → Birthdays → **Add a Birthday**, with a
+- **Birthdays**: HK Settings → Sky / Background → Birthdays → **Add a Birthday**, with a
   name, month and day.
 
 **Which one wins.** Only one decoration shows on a day, in this order: a
@@ -99,7 +99,7 @@ or the **Seasonal decorations** switch, turns it off here too.
 
 ## Dates and how often
 
-Each decoration’s page in **HK Settings → Sky** has:
+Each decoration’s page in **HK Settings → Sky / Background** has:
 
 - **Starts** and **Ends**: its window (a window may run past New Year).
   Thanksgiving’s can end on **Thanksgiving Day**. **Use Default Dates** goes
@@ -108,7 +108,7 @@ Each decoration’s page in **HK Settings → Sky** has:
 
 ## Advanced
 
-**HK Settings → Sky → Advanced:**
+**HK Settings → Sky / Background → Advanced:**
 
 | Setting | What it does |
 |---|---|
@@ -119,9 +119,9 @@ Each decoration’s page in **HK Settings → Sky** has:
 
 ## Sky settings
 
-![The Sky page in HK Settings](images/settings-sky.png)
+![The Sky / Background page in HK Settings](images/settings-sky.png)
 
-Beside the Sky page, a live preview shows your Home screen’s sky right now.
+Beside the Sky / Background page, a live preview shows your Home screen’s sky right now.
 Open a decoration and the preview shows it on your Home screen -- whatever
 today’s date, even while it is turned off -- with **Day**, **Night** and, for
 Fall & Halloween, **Spooky Night** to switch between. Only the preview

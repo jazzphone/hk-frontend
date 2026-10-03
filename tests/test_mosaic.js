@@ -313,6 +313,33 @@ ok('visible again -> interval restarted', !!vis._timer);
 vis.disconnectedCallback();
 ok('detached -> interval cleared', !vis._timer);
 
+print('\n=== live camera survives the screensaver entrance ===');
+var saverOn = false, saverCovered = false;
+window.hkSaver = { running: function () { return saverOn; }, covered: function () { return saverCovered; } };
+var fading = withPic('Front Door'), entranceLive = fading._liveSlot.el;
+saverOn = true;
+dispatchEvent(new CustomEvent('hk-saver', { detail: { on: true } }));
+ok('stills stop refreshing during the entrance', !fading._timer);
+ok('live camera remains mounted through the fade', fading._liveSlot.el === entranceLive && !fading._liveSlot.asleep);
+saverOn = false;
+dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
+ok('early dismissal keeps the same live stream', fading._liveSlot.el === entranceLive && !!fading._timer);
+saverOn = true;
+dispatchEvent(new CustomEvent('hk-saver', { detail: { on: true } }));
+saverCovered = true;
+dispatchEvent(new Event('hk-saver-covered'));
+ok('fully covered releases the live stream', fading._liveSlot.asleep && fading._liveSlot.el !== entranceLive && !fading._timer);
+var late = withPic('Front Door');
+ok('a camera attached under the covered saver also sleeps', late._liveSlot.asleep && !late._timer);
+__fireVisibility(true); __fireVisibility(false);
+ok('visibility changes do not restart a covered camera', fading._liveSlot.asleep && !fading._timer);
+saverOn = saverCovered = false;
+dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
+ok('wake restores live video and refreshes', !fading._liveSlot.asleep && fading._liveSlot.el.config.camera_view === 'live' && !!fading._timer);
+fading.disconnectedCallback(); late.disconnectedCallback();
+ok('detaching removes the covered listener', !fading._onSaverCovered && !late._onSaverCovered);
+delete window.hkSaver;
+
 
 
 print('\n=== live-tile remount on wake ===');

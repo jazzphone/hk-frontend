@@ -227,6 +227,8 @@ async def test_the_page_reads_what_it_lays_out(hass, frontend):
     for k in ("counts", "users", "integration", "thirdparty", "choices"):
         assert k in r, k
     assert r["counts"]["locks"]["auto"] == ["lock.front"] and r["counts"]["locks"]["saved"] is False
+    from custom_components.hk_frontend import settings as S
+    assert r["choices"]["sky_backdrops"] == list(S.SKY_BACKDROPS)
     assert r["integration"]["sidebar"] is True and "files" in r["integration"]
     ws_setup_check(hass, conn, {"id": 2, "type": "hk_frontend/setup/check"})
     await hass.async_block_till_done(wait_background_tasks=True)
@@ -561,3 +563,49 @@ def test_the_calendars_and_their_colours_are_checked():
         except Invalid:
             continue
         raise AssertionError(bad)
+
+
+def test_sky_background_house_and_screen_writes():
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house, apply_board
+    stops = {"day": ["#ABCDEF"] * 4, "night": ["#010203"] * 4}
+    changes = {"sky.animations": False, "sky.weather": False, "sky.decorations": False,
+               "sky.gradient": "custom", "sky.gradient_custom": stops}
+    new, err = apply_house({}, changes)
+    assert err == {}
+    sky = S.merged(new)["sky"]
+    assert sky["animations"] is False and sky["weather"] is False and sky["decorations"] is False
+    assert sky["gradient"] == "custom" and sky["gradient_custom"] == S.sky_stops(stops)
+    for palette in S.SKY_BACKDROP_IDS:
+        assert apply_house({}, {"sky.gradient": palette})[1] == {}
+        assert apply_board({}, {"sky_gradient": palette})[1] == {}
+    own = {"sky_animations": False, "sky_weather": True, "sky_decorations": True,
+           "sky_gradient": "custom", "sky_custom": stops}
+    board, err = apply_board({}, own)
+    assert err == {} and S.board(board)["sky_custom"] == S.sky_stops(stops)
+    board, err = apply_board(board, {key: None for key in own})
+    assert err == {} and all(S.board(board)[key] is None for key in own)
+    same, err = apply_house(new, {"sky.animations": None, "sky.weather": 0, "sky.gradient": "bad", "sky.gradient_custom": {}})
+    assert same == new and err == {"sky.animations": "bool", "sky.weather": "bool", "sky.gradient": "choice", "sky.gradient_custom": "stops"}
+    same, err = apply_board(board, {"sky_animations": 0, "sky_weather": "off", "sky_decorations": 1,
+                                    "sky_gradient": "bad", "sky_custom": {"day": stops["day"]}})
+    assert same == board and err == {"sky_animations": "bool", "sky_weather": "bool", "sky_decorations": "bool",
+                                     "sky_gradient": "choice", "sky_custom": "stops"}
+
+
+async def test_sky_background_screen_websocket_round_trip(hass, frontend):
+    from homeassistant.config_entries import ConfigSubentry
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.panel import ws_board_set
+    conn = await _admin(hass)
+    hass.config_entries.async_add_subentry(entry(hass), ConfigSubentry(
+        data={}, subentry_type="dashboard", title="Sky Test", unique_id="dashboard-sky-test"))
+    changes = {"sky_animations": False, "sky_weather": False, "sky_decorations": True, "sky_gradient": "fjord",
+               "sky_custom": {"day": ["#123456"] * 4, "night": ["#010203"] * 4}}
+    ws_board_set(hass, conn, {"id": 1, "type": "hk_frontend/board/set", "dashboard": "dashboard-sky-test", "changes": changes})
+    assert conn.sent[-1]["success"], conn.sent[-1]
+    assert all(S.as_client(entry(hass))["boards"]["dashboard-sky-test"][key] == value for key, value in changes.items())
+    ws_board_set(hass, conn, {"id": 2, "type": "hk_frontend/board/set", "dashboard": "dashboard-sky-test",
+                              "changes": {"sky_gradient": "bad", "sky_custom": {}}})
+    assert conn.sent[-1]["error"] == "invalid_format"
+    assert json.loads(conn.sent[-1]["message"]) == {"sky_gradient": "choice", "sky_custom": "stops"}

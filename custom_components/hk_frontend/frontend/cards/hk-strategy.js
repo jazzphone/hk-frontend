@@ -829,6 +829,47 @@
   }
 
   // ------------------------------------------------------------- the views
+  // Climate summaries and their open sheets share these exact lists. The
+  // server resolves What counts; before it answers, prefer related sensors
+  // and then a room's thermostat, never every temperature sensor in a house.
+  function climateMembers(hass, o) {
+    o = o || {};
+    var K = setting('kinds') || {}, A = hass.areas || {}, st = hass.states || {};
+    var G = setting('generated') || {}, cl = setting('climate') || {};
+    var opts = {};
+    ['exclude_entities', 'exclude_devices', 'exclude_areas'].forEach(function (k) {
+      opts[k] = [].concat(G[k] || [], o[k] || [], k === 'exclude_areas' ? cl.exclude_areas || [] : []);
+    });
+    function visible(id) {
+      var e = (hass.entities || {})[id] || {}, own = accOf(id) || {};
+      return st[id] && !e.hidden && !e.entity_category && !e.disabled_by && own.status !== false &&
+        !Array.isArray(st[id].attributes.entity_id) && !hidden(hass, opts, id);
+    }
+    function reading(k) {
+      if (Array.isArray(K[k])) return K[k].filter(function (id) { return st[id] && !hidden(hass, opts, id); });
+      var ids = [];
+      Object.keys(A).forEach(function (a) {
+        if (opts.exclude_areas.indexOf(a) >= 0) return;
+        var id = A[a][k + '_entity_id'];
+        if (id) { if (visible(id)) ids.push(id); return; }
+        Object.keys(st).forEach(function (eid) {
+          if (eid.indexOf('climate.') === 0 && areaOf(hass, eid) === a &&
+              ('current_' + k) in st[eid].attributes && visible(eid)) ids.push(eid);
+        });
+      });
+      return ids.filter(function (id, i) { return ids.indexOf(id) === i; }).sort();
+    }
+    function accessories(k, d) {
+      if (Array.isArray(K[k])) return K[k].filter(function (id) { return st[id] && !hidden(hass, opts, id); });
+      return Object.keys(st).filter(function (id) {
+        return id.indexOf(d + '.') === 0 && visible(id) && (k !== 'blinds' ||
+          ['awning', 'blind', 'curtain', 'shade', 'shutter', 'window', undefined].indexOf(dc(st[id])) >= 0);
+      }).sort();
+    }
+    return { temperature: reading('temperature'), humidity: reading('humidity'),
+             blinds: accessories('blinds', 'cover'), fans: accessories('fans', 'fan') };
+  }
+
   // ------------------------------------------------------------ the chips
   // hk-chips-card (hk-chip.js): the kinds from What counts, in this
   // dashboard's order.
@@ -943,7 +984,9 @@
           roomsWith(hass, opts, function (id) { return !!lit[id]; }).map(function (r) {
             return section(r.name, roomTiles(hass, r)); })) }));
     }
-    if (inv.climates.length || inv.fans.length || inv.blinds.length) {
+    var climateSources = climateMembers(hass, opts);
+    if (inv.climates.length || inv.fans.length || inv.blinds.length ||
+        climateSources.temperature.length || climateSources.humidity.length) {
       // THE CLIMATE PAGE: the rooms' fans, humidifiers and blinds on
       // the left, the thermostats on a rail to the right (--hk-page-split
       // stacks them on a narrow page), both stacks top-aligned.
@@ -967,8 +1010,8 @@
       if (inv.climates.length) {
         right.push(heading('Thermostats'));
         right.push({ type: 'custom:hk-grid-card',
-          layout: { 'grid-template-columns': 'var(--hk-col-fill, minmax(0, 1fr))', 'grid-auto-rows': 'min-content',
-                    'place-content': 'start start', 'grid-row-gap': '16px', margin: '0px 0px 16px 0px', padding: '0px' },
+          layout: { 'grid-template-columns': 'repeat(auto-fit, minmax(min(100%, 340px), 364px))', 'grid-auto-rows': 'min-content',
+                    'place-content': 'start end', 'grid-column-gap': '16px', 'grid-row-gap': '16px', margin: '0px 0px 16px 0px', padding: '0px' },
           cards: inv.climates.map(function (id) {
             return { type: 'custom:hk-thermostat-card', entity: id, name: fullName(hass, id) };
           }) });
@@ -978,7 +1021,9 @@
             layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, 1fr) var(--hk-climate-dials, 364px))',
                       'grid-column-gap': '28px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } }
         : stack(left.length ? left : right);
-      var cards = [titleBar('Climate'), column([body])];
+      var cards = [titleBar('Climate'), { type: 'custom:hk-climate-status-card', view_layout: COL2,
+        exclude_entities: opts.exclude_entities, exclude_devices: opts.exclude_devices, exclude_areas: opts.exclude_areas }];
+      if (left.length || right.length) cards.push(column([body]));
       out.push(view({ title: 'Climate', icon: 'mdi:home-thermometer', path: 'climate', subview: true, sky_variant: 'climate',
                       background: '#0d1a1c', cards: cards }));
     }
@@ -2098,7 +2143,7 @@
   // For tests and the console: hkStrategy.generate(config, hass).
   window.hkStrategy = { generate: HkDashboardStrategy.generate, tile: TILE, shortName: shortName,
                         lateError: lateError, recoverLate: recoverLate, defineHere: defineHere,
-                        tileFor: tileFor, roomCards: roomCards, groupOf: groupOf, ownChange: ownChange,
+                        tileFor: tileFor, roomCards: roomCards, climateMembers: climateMembers, groupOf: groupOf, ownChange: ownChange,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,
                         kioskOf: kioskOf, saverBlock: saverBlock,

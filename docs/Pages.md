@@ -19,7 +19,7 @@ the menu open them; a back button returns to Home.
 | Live TV | The Live TV feature | The channel guide; tap a channel to watch it full screen |
 | Security | An alarm panel (the one in General, else the first) | The alarm keypad, with the locks and garage doors beside it |
 | Doors & Windows | Door or window contacts | The doors, then the windows, each with its room above its name |
-| Climate | Thermostats, fans or blinds | Fans, humidifiers and blinds by room, and the thermostats |
+| [Climate](Climate.md) | Thermostats, fans, blinds or temperature/humidity sources | Temperature and humidity ranges, fan and blind summaries with accessory lists, fans/humidifiers/blinds by room, and responsive thermostat dials |
 | Lights | Lights | The lights by room (titled *Lights & Outlets* when What Counts counts an outlet as a light) |
 | Timers | Timers | The running timers. With the optional quick-timer helpers (`helpers/quick_timers.yaml`), also presets, a New Timer keypad and your [House Timers](HK-Settings.md#general) |
 | Vacuums | Vacuums | Each vacuum with its controls; with the Clean Areas feature, a picker to clean chosen rooms |
@@ -34,7 +34,7 @@ doors are on Security.
 
 | | | |
 |---|---|---|
-| ![The Weather page](images/tablet-weather.png) | ![The Security page: the alarm keypad with the locks and garage door beside it](images/tablet-security.png) | ![The Climate page](images/tablet-climate.png) |
+| ![The Weather page](images/tablet-weather.png) | ![The Security page: the alarm keypad with the locks and garage door beside it](images/tablet-security.png) | ![The Climate page](images/tablet-climate.jpg) |
 | Weather | Security | Climate |
 | ![The Doors & Windows page](images/tablet-doors-windows.png) | ![The Water page](images/tablet-water.png) | ![The Timers page](images/tablet-timers.png) |
 | Doors & Windows | Water | Timers |

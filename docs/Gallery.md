@@ -12,7 +12,7 @@ camera pictures are blurred on purpose.
 |---|---|
 | ![A room page](images/tablet-room.png) | ![The Lights page](images/tablet-lights.png) |
 | A room | Lights |
-| ![The Climate page](images/tablet-climate.png) | ![The Security page](images/tablet-security.png) |
+| ![The Climate page](images/tablet-climate.jpg) | ![The Security page](images/tablet-security.png) |
 | Climate | Security |
 | ![The Doors & Windows page](images/tablet-doors-windows.png) | ![The Water page](images/tablet-water.png) |
 | Doors & Windows | Water |
@@ -52,6 +52,19 @@ By night: a shooting star, and fireflies in summer.
 ![The photo screensaver with the calendar pane down the right](images/tablet-screensaver-calendar.png)
 
 The [calendar pane](Screensaver-and-Idle.md#the-calendar-pane) beside the photo (sample events).
+
+## Climate summaries and lists
+
+These Climate screenshots use fictional rooms, devices and readings.
+
+![Climate on a wide page, with two thermostats side by side](images/desktop-climate.jpg)
+
+| | |
+|---|---|
+| ![Temperature sources in a Climate sheet](images/sheet-climate-temperature.jpg) | <img src="images/phone-climate-temperature.jpg" width="260" alt="The Temperature list on a phone"> |
+| Room-labelled sources | The same list on a phone |
+
+Source selection and exclusions: [Climate](Climate.md).
 
 ## A computer, an iPad and a phone
 

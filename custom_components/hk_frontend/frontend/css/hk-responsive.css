@@ -82,37 +82,12 @@
  * on the car's own dashboard, so the wall tablets and the Home dashboard can
  * never carry the attribute and are provably unaffected by this gate.
  * =========================================================================== */
-/* ============================================================================
- * CLIMATE PAGE -- THE DIAL COLUMN WIDTH IS THE KNOB
- *
- * The room column is `minmax(0, 1fr)` and the thermostats sit in a fixed track
- * pinned to the page's right edge, so the rooms fit as many 192px tracks as the
- * viewport allows -- 4 at a 1280 tablet, 5 at 1600, 7 at 1920, 10 at 2560.
- * Pinned flat at 620px (three tracks) at every width, the rooms would waste
- * 152.8px at 1280 and 767.2px at 1920.
- *
- * THIS VARIABLE IS THE KNOB FOR "HOW MANY PILLS FIT". A room column needs
- * `204n + 4` px for n tracks (192 + 12 gap, plus 8 + 8 for hk-grid-card's 4px
- * side margins charged once per nesting level, plus 4 slack). So at a given
- * viewport:
- *
- *     room = 0.96*vw - 8 - 28 - <this value>
- *
- * and every 204px taken off the dials is one more pill per row. 364 is chosen so
- * a 1280px wall tablet gets four: 1220.8 - 28 - 364 = 828.8, and 4 tracks need
- * 824. At 420 only three fit.
- *
- * DO NOT RAISE IT ABOVE ~420. hk-thermostat-card is `width:100%` with the dial
- * capped at `max-width:300px` (hk-control.js), so a wide column does not grow
- * the dial -- it strands it in an oversized card that looks unfinished.
- * Lowering is safe; 364 still leaves
- * 32px each side of the dial.
- *
- * Undefined here would give 364 anyway -- the view carries it as the fallback.
- * It is stated so the number is tunable without regenerating the view.
- * ========================================================================= */
+/* Climate's thermostat rail grows to two dials when the page can also
+   leave four regular pills per room. A 1280px tablet keeps its 364px rail;
+   wider pages can use up to 760px. The dial grid wraps against its actual
+   available width, including HA's sidebar and the dashboard's dock. */
 :root {
-  --hk-climate-dials: 364px;
+  --hk-climate-dials: clamp(364px, calc(100% - 852px), 760px);
 }
 
 /* 430px keypad + 408px locks + 18px gap need room for page gutters,

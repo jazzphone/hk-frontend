@@ -57,7 +57,7 @@ TEXT = (".py", ".js", ".json", ".yaml", ".yml", ".md", ".css", ".html", ".txt", 
 SKIP_ART = re.compile(r"(^|/)tools/sky/src/[^/]+/(work/|contact-[^/]*\.png$|diff-[^/]*\.png$)")
 # THE DASHBOARD SCENES' ART (tools/sky/src/decor*/): concepts and motion layers
 # still in review, untracked and not in any release -- none of it is published
-SKIP_UNRELEASED = re.compile(r"(^|/)tools/sky/src/decor[^/]*/")
+SKIP_UNRELEASED = re.compile(r"(^|/)(tools/sky/src/decor[^/]*|frontend/sky/scenes)/")
 
 
 def files_under(root: str):

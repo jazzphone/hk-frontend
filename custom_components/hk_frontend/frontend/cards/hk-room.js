@@ -182,6 +182,58 @@
     return out;
   }
 
+  var CLIMATE_KINDS = ['temperature', 'humidity', 'blinds', 'fans'];
+  // Current ambient readings, shared by the summary and the popup pills.
+  // A thermostat's setpoint is deliberately never a reading source.
+  function climateReading(hass, id, kind) {
+    var s = (hass.states || {})[id];
+    if (!s || OFF[s.state]) return null;
+    var a = s.attributes || {}, d = dom(id);
+    var raw = d === 'climate' ? a['current_' + kind] : (d === 'sensor' ? s.state : null);
+    if (raw == null || String(raw).trim() === '') return null;
+    var v = Number(raw);
+    if (!isFinite(v)) return null;
+    if (kind === 'humidity') return v >= 0 && v <= 100 ? v : null;
+    var target = ((hass.config || {}).unit_system || {}).temperature || '°F';
+    var unit = a.unit_of_measurement || (d === 'climate' ? target : null);
+    var from = String(unit || '').replace('°', '').toUpperCase();
+    var to = String(target).replace('°', '').toUpperCase();
+    if (['C', 'F', 'K'].indexOf(from) < 0 || ['C', 'F', 'K'].indexOf(to) < 0) return null;
+    var c = from === 'F' ? (v - 32) * 5 / 9 : from === 'K' ? v - 273.15 : v;
+    return to === 'F' ? c * 9 / 5 + 32 : to === 'K' ? c + 273.15 : c;
+  }
+  function climateItems(hass, o) {
+    o = o || {};
+    var S = window.hkStrategy;
+    var by = S && S.climateMembers ? S.climateMembers(hass, o) : {};
+    var cl = window.hkSettings && window.hkSettings.get ? window.hkSettings.get('climate', {}) : {};
+    var pick = Array.isArray(o.items) ? o.items : (Array.isArray(cl.status) ? cl.status : CLIMATE_KINDS);
+    var out = [];
+    CLIMATE_KINDS.forEach(function (k) {
+      var ids = by[k] || [];
+      if (pick.indexOf(k) < 0 || !ids.length) return;
+      if (k === 'temperature' || k === 'humidity') {
+        var values = ids.map(function (id) { return climateReading(hass, id, k); }).filter(function (v) { return v != null; });
+        var lo = values.length ? Math.round(Math.min.apply(null, values)) : null;
+        var hi = values.length ? Math.round(Math.max.apply(null, values)) : null;
+        var avg = values.length ? values.reduce(function (a, b) { return a + b; }, 0) / values.length : 0;
+        var unit = ((hass.config || {}).unit_system || {}).temperature || '°F';
+        out.push({ kind: k, title: k === 'temperature' ? 'Temperature' : 'Humidity', ids: ids,
+          value: values.length ? (lo === hi ? String(lo) : lo + '–' + hi) + (k === 'temperature' ? '°' : '%') : 'Unavailable',
+          dim: !values.length, gauge: !values.length ? 0.5 : k === 'humidity' ? avg / 100 :
+            /C$/.test(unit) ? (avg - 7) / 29 : /K$/.test(unit) ? (avg - 280.15) / 29 : (avg - 45) / 52 });
+        return;
+      }
+      var valid = ids.filter(function (id) { var s = hass.states[id]; return s && !OFF[s.state]; });
+      var on = valid.filter(function (id) { return isOn(k, hass.states[id]); }).length;
+      var n = ids.length, words = WORDS[k], unknown = n - valid.length;
+      out.push({ kind: k, title: (n === 1 ? '' : n + ' ') + NOUN[k][n === 1 ? 0 : 1], ids: ids,
+        value: !valid.length ? 'Unavailable' : unknown ? on + ' ' + words[1] + ' · ' + unknown + ' Unavailable' :
+          on === 0 || on === n ? words[on ? 1 : 0] : on + ' ' + words[1], on: on, dim: !valid.length });
+    });
+    return out;
+  }
+
   // The glyph for each kind -- SF Symbols where the hk: set has them,
   // the same-named Material icon where it does not.
   var ICON = { temperature: 'home-thermometer', humidity: 'water-percent', outlets: 'power-socket-us',
@@ -212,7 +264,8 @@
       '<circle cx="' + d[0] + '" cy="' + d[1] + '" r="2.7" fill="currentColor"/></svg>';
   }
 
-  window.hkRoom = { version: '1.0.0', _: { items: items, kindOf: kindOf, members: members, gauge: gauge, KINDS: KINDS } };
+  window.hkRoom = { version: '1.0.0', climateItems: climateItems, climateReading: climateReading,
+    _: { items: items, kindOf: kindOf, members: members, gauge: gauge, KINDS: KINDS } };
 
   whenBase(function (C) {
     if (window.hkRoom.Card) return;
@@ -275,17 +328,18 @@
         return { items: c.items || C.setting('rooms.status', null), temperature: c.temperature,
                  humidity: c.humidity, include: c.include, exclude: c.exclude, entities: c.entities };
       }
+      _itemsFor(h) { return items(h, this._areas(), this._opts()); }
       // The entities it reads, and the settings that shape it.
       _sigOf() {
         var h = this._hass;
         if (!h || !h.states) return null;
-        var list = items(h, this._areas(), this._opts());
+        var list = this._itemsFor(h);
         this._items = list;
-        var sig = JSON.stringify(this._opts().items || '') + ';';
+        var sig = JSON.stringify(list) + ';';
         list.forEach(function (it) {
           sig += it.kind + ':' + it.ids.map(function (id) {
             var s = h.states[id];
-            return s ? s.state : 'x';
+            return id + ':' + (s ? s.state : 'x');
           }).join(',') + ';';
         });
         return sig + (window.hkGlyphs ? 'g' : '');
@@ -293,7 +347,7 @@
       _render() {
         var h = this._hass;
         if (!h) return;
-        var list = this._items || items(h, this._areas(), this._opts());
+        var list = this._items || this._itemsFor(h);
         this.toggleAttribute('hidden', !list.length);
         // THE ROW STAYS, its buttons change: replacing the scroller would put
         // a phone's sideways-scrolled row back at the start under the reader's
@@ -319,21 +373,23 @@
       // scrolls on a phone, and a scroll must not open a sheet.
       _wire() {
         this._wired = true;
-        var self = this, down = null;
+        var self = this, down = null, dragged = false;
         this._root.addEventListener('pointerdown', function (e) {
           var b = e.target.closest && e.target.closest('.it');
           down = b ? { b: b, x: e.clientX, y: e.clientY } : null;
+          dragged = false;
           if (b) b.classList.add('pressed');
         });
         var clear = function () {
           self._root.querySelectorAll('.it.pressed').forEach(function (b) { b.classList.remove('pressed'); });
         };
         this._root.addEventListener('pointermove', function (e) {
-          if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) { down = null; clear(); }
+          if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) { dragged = true; down = null; clear(); }
         });
-        this._root.addEventListener('pointercancel', function () { down = null; clear(); });
+        this._root.addEventListener('pointercancel', function () { dragged = true; down = null; clear(); });
         this._root.addEventListener('click', function (e) {
           clear();
+          if (dragged && e.detail !== 0) { dragged = false; return; }
           var b = e.target.closest && e.target.closest('.it');
           if (!b) return;
           var it = self._list && self._list[+b.getAttribute('data-i')];
@@ -356,6 +412,31 @@
           detail: { entityId: it.ids[0] } }));
       }
     }
+
+    class HkClimateStatusCard extends HkRoomStatusCard {
+      setConfig(config) { HkBase.prototype.setConfig.call(this, config || {}); }
+      _opts() { return this._config || {}; }
+      _itemsFor(h) { return climateItems(h, this._opts()); }
+      _open(it) {
+        var D = window.hkDetail, self = this;
+        if (D && D.openGroup) {
+          D.openGroup(it.title, it.ids, { icon: icon(it), kind: it.kind,
+            climate: this._opts(), resolve: function (h) {
+              return self._itemsFor(h).filter(function (x) { return x.kind === it.kind; })[0] ||
+                { title: it.kind === 'fans' ? 'Fans' : it.kind === 'blinds' ? 'Blinds' : it.title, ids: [], value: 'No accessories' };
+            } });
+          return;
+        }
+        // While detail.js is loading, retain HA's own accessible fallback.
+        this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true,
+          detail: { entityId: it.ids[0] } }));
+      }
+    }
+    C.register('hk-climate-status-card', HkClimateStatusCard, 'HK Climate Status',
+      'Whole-home temperature and humidity ranges, blinds and fans. Tap to see the included accessories.',
+      [{ name: 'items', selector: { select: { multiple: true, mode: 'list', options: CLIMATE_KINDS } } },
+       { name: 'exclude_areas', selector: { area: { multiple: true } } },
+       { name: 'exclude_entities', selector: { entity: { multiple: true } } }], function () { return {}; });
 
     C.register('hk-room-status-card', HkRoomStatusCard, 'HK Room Status',
       "A room's status line -- temperature, humidity, and what is on, open or detected -- read from its area.",

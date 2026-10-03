@@ -31,7 +31,7 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **What Counts**, **Weather**, **Calendar**, **Appearance**, **Sky**, **Menu**, **[Rooms](Rooms.md)**, **Wall Tablets** | Every screen |
+| **All Screens** | **General**, **What Counts**, **[Climate Status](Climate.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **Wall Tablets** | Every screen |
 | **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas** | Every screen |
 | **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
@@ -162,3 +162,16 @@ optional, and each has a fallback.
 | A screen’s Cameras → Live Camera Follows | An input select set by your automation | The first camera is live |
 | Advanced → Clean-Areas Script | A script that takes `areas` | The Clean Areas feature sends the vacuums |
 | Advanced → Wrong-Code Indicator | An input boolean your alarm automation flashes | Refused codes are shown automatically |
+
+
+## Sky / Background
+
+Under **All Screens → Sky / Background**, choose whether the sky animates,
+shows weather, or adds seasonal decorations. **Backdrop** offers Live sky,
+eight curated palettes, and Custom with four Day colors and four Night colors.
+
+A screen has the same controls under **Appearance → Sky / Background**.
+Each flag follows All Screens until changed; **Use All-Screens…** restores
+that relationship. Its Backdrop picker offers **Same as All Screens** or a
+backdrop just for that screen. Copy Settings includes these appearance settings.
+See [Live Sky](Live-Sky.md#choose-its-look) for what each switch changes.

@@ -23,4 +23,13 @@ ok('a screen opens its page', open('#/screens/dashboard-kitchen'), 'screen:dashb
 ok('#/screens with no screen named opens the Overview, not a screen called undefined', open('#/screens'), 'overview');
 ok('...and so does #/screens/ (an empty name)', open('#/screens/'), 'overview');
 
+page.data = { settings: { sky: {}, look: {} }, choices: {} };
+ok('house backdrop opens its own page', open('#/house/sky/backdrop').title, 'Backdrop');
+page.dash = function (path) { return { path: path, title: 'Sky Test', item: true }; };
+page.data.boards = { 'dashboard-sky': {} };
+ok('screen sky opens the named page', P.p_screen.call(page, 'dashboard-sky', ['sky']).title, 'Sky / Background');
+var backdrop = P.p_screen.call(page, 'dashboard-sky', ['sky', 'backdrop']);
+ok('screen backdrop opens its picker', backdrop.title, 'Backdrop');
+ok('screen backdrop Back returns to Sky / Background', backdrop.back[1], '#/screens/dashboard-sky/sky');
+
 print(fail ? 'FAIL ' + fail + ' SETTINGS ROUTE TESTS' : 'ALL ' + pass + ' SETTINGS ROUTE TESTS PASS');

@@ -81,6 +81,13 @@ Each kind’s page:
 | Show | When Active for Weather Alerts, Doors & Windows, Blinds and Water; Always for the rest | **When Active**: the chip appears only while something is on, open, running or wet. **Always**: it is always there. |
 | What It Counts | — | Links to the [What Counts](#what-counts) kinds, and to the single settings the chip reads (Alarm Panel, Indoor Temperature, Power Use, Weather Alerts). The same on every screen. |
 
+## Climate page summaries
+
+The [Climate page](Climate.md) also has a room-style status row: temperature
+and humidity ranges, blinds and fans. Tap a summary for its room-labelled
+accessory list. Choose the summaries and areas in **All Screens → Climate
+Status**, and adjust their sources in **What Counts**.
+
 ## What Counts
 
 **All Screens → What Counts.** What each status chip, its page and the header’s
@@ -91,6 +98,8 @@ Lights chip and the Lights page count the same lights, so they can’t disagree.
 
 | Kind | Found automatically | The chip counts |
 |---|---|---|
+| Temperature | An area’s designated temperature sensor, else its thermostat’s current temperature | Range on the Climate page |
+| Humidity | An area’s designated humidity sensor, else its thermostat’s current humidity | Range on the Climate page |
 | Lights | Every light | On (Lights chip) |
 | Fans | Every fan | On (Climate chip) |
 | Doors | Binary sensors of class door | Open (Doors & Windows chip) |

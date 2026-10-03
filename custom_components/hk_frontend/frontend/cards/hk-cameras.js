@@ -1046,10 +1046,11 @@
       if (!this._vis) {
         // A wall tablet spends most of its life behind the screensaver.
         // Ticking there is pure waste -- and on a 4GB tablet, waste that
-        // matters. document.hidden covers the screensaver and a backgrounded
-        // tab.
+        // matters. document.hidden covers a backgrounded tab; HK's overlay
+        // has its own lifecycle below.
         this._vis = function () {
           if (document.hidden) { self._stopInterval(); return; }
+          if (window.hkSaver && window.hkSaver.covered && window.hkSaver.covered()) return;
           self._remountLive();
           self._startInterval();
         };
@@ -1063,12 +1064,19 @@
       // stills straight back.
       if (!this._onSaver) {
         this._onSaver = function (e) {
-          if (e && e.detail && e.detail.on) { self._stopInterval(); self._sleepLive(); return; }
+          // Stop still refreshes immediately, but leave the live picture in
+          // place through the entrance fade. Removing it here flashes the
+          // poster while the user can still see the mosaic.
+          if (e && e.detail && e.detail.on) { self._stopInterval(); return; }
           if (document.hidden) return;
           self._wakeLive();
           self._startInterval();
         };
         window.addEventListener('hk-saver', this._onSaver);
+      }
+      if (!this._onSaverCovered) {
+        this._onSaverCovered = function () { self._stopInterval(); self._sleepLive(); };
+        window.addEventListener('hk-saver-covered', this._onSaverCovered);
       }
       // THE OBSERVER BELONGS HERE, NOT IN _render. _stopTimer disconnects it,
       // and _stopTimer runs on disconnectedCallback -- HA detaches and
@@ -1077,7 +1085,9 @@
       // on a live page even though _render had plainly run). Setup and
       // teardown have to be the same pair of functions.
       this._watchReveal();
-      this._startInterval();
+      // Cards can be reattached or rebuilt while the screensaver is up.
+      if (window.hkSaver && window.hkSaver.covered && window.hkSaver.covered()) this._onSaverCovered();
+      else if (!(window.hkSaver && window.hkSaver.running && window.hkSaver.running())) this._startInterval();
     }
     _stopInterval() {
       if (this._timer) { clearInterval(this._timer); this._timer = null; }
@@ -1090,6 +1100,7 @@
       if (this._io) { this._io.disconnect(); this._io = null; }
       if (this._vis) { document.removeEventListener('visibilitychange', this._vis); this._vis = null; }
       if (this._onSaver) { window.removeEventListener('hk-saver', this._onSaver); this._onSaver = null; }
+      if (this._onSaverCovered) { window.removeEventListener('hk-saver-covered', this._onSaverCovered); this._onSaverCovered = null; }
       if (this._onPopup) { window.removeEventListener('hk-popup-change', this._onPopup); this._onPopup = null; }
     }
     connectedCallback() {

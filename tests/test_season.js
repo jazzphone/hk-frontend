@@ -238,4 +238,49 @@ witchChecks('phone 390x844: ', 390, 844);
   check('holiday lights: a birthday has none', LI(bday, 'night') === null);
 })();
 
+
+// Sky look reaches the renderer: weather is removed before paint, while the
+// astronomical inputs stay available. No pins or preview are active here.
+HS._apply({ sky: { animations: false, weather: false, decorations: false, gradient: 'fjord' } });
+var weatherReading = window.hkSky._read({ states: {
+  'sun.sun': { attributes: { elevation: -15, azimuth: 240 } },
+  'weather.test': { state: 'lightning-rainy', attributes: { cloud_coverage: 95, wind_speed: 30 } }
+} });
+check('Weather off removes clouds, precipitation, lightning and fog', weatherReading.cover === 0 && weatherReading.wind === 0 && !weatherReading.fog && weatherReading.wet.kind === 'none' && !weatherReading.wet.bolt && weatherReading.weather === false);
+check('the sun and moon inputs survive Weather off', weatherReading.elev === -15 && weatherReading.azim === 240 && typeof weatherReading.moon === 'number');
+check('Decorations off empties the season and surprise gate', weatherReading.season === '' && weatherReading.seasonalOn === false);
+check('animation and curated backdrop reach paint', weatherReading.animations === false && weatherReading.backdrop.night.length === 4);
+HS._apply({});
+
+// Paint a small DOM fixture: the gradient and scrim outputs, the animation
+// switch, and the ordinary moon while a forced theme is absent.
+(function () {
+  var nodes = {}, classes = {};
+  function node() {
+    var n = stub(), values = {};
+    n.style.setProperty = function (k, v) { values[k] = v; };
+    n.style.getPropertyValue = function (k) { return values[k] || ''; };
+    n.classList = { contains: function (k) { return !!classes[k]; },
+      toggle: function (k, on) { classes[k] = on; }, add: function (k) { classes[k] = true; } };
+    return n;
+  }
+  var el = node(); el.clientWidth = 1280; el.clientHeight = 800;
+  el.querySelector = function (sel) { return nodes[sel] || (nodes[sel] = node()); };
+  var state = { elev: 12, azim: 180, cover: 0, wind: 0, fog: false,
+    wet: { kind: 'none', rate: 0 }, moon: .5, season: '', seasonalOn: false,
+    animations: false, decorations: false,
+    backdrop: { day: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'], night: ['#010203', '#020304', '#030405', '#040506'] } };
+  window.hkSky._force({ show: true, spooky: true });
+  window.hkSky._paint(el, state);
+  check('custom day stops reach the renderer', el.style.getPropertyValue('--sk0') === '#ffffff');
+  check('bright custom gradients use the normal renderer scrim', el._hkRaw > 86 && el._hkL < el._hkRaw / 2 && Number(el.style.getPropertyValue('--scB')) > .5);
+  check('Animations off marks the real sky element', classes.noanim === true);
+  state.elev = -15; state.animations = true;
+  window.hkSky._paint(el, state);
+  check('custom night stops use the sun elevation', el.style.getPropertyValue('--sk0') === '#010203');
+  check('Animations on clears the previous off state', classes.noanim === false);
+  check('a forced theme without decorations leaves the ordinary moon', el.style.getPropertyValue('--moonS') === '58px');
+  window.hkSky._force(null);
+})();
+
 print(fail ?'FAIL ' + fail + ' SEASON TESTS' : 'ALL ' + pass + ' SEASON TESTS PASS');

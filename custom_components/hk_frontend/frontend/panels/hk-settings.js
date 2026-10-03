@@ -260,6 +260,7 @@
     '  --code-editor-background-color:transparent;--code-editor-gutter-color:transparent}',
     'pre.ex{margin:0;padding:12px 16px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--hk-label);white-space:pre-wrap}',
     '.yaml textarea{width:100%;min-height:220px;border:0;background:none;color:var(--hk-label);font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;resize:vertical}',
+    '.skycolors{display:flex;gap:8px;flex-wrap:wrap}.skycolors input[type=color]{width:44px;height:44px;padding:3px;border:1px solid var(--hk-label2);border-radius:8px;background:transparent}',
     '.ok{color:var(--hk-green)} .warn{color:var(--hk-orange)} .note{color:var(--hk-label2)}',
     '.live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}',
     '.loading{display:flex;align-items:center;justify-content:center;height:100%;color:var(--hk-label2)}',
@@ -285,8 +286,9 @@
     ['general', 'General', 'mdi:home', C.gray], ['counts', 'What Counts', 'mdi:counter', C.green],
     ['weather', 'Weather', 'mdi:weather-partly-cloudy', C.cyan], ['calendar', 'Calendar', 'mdi:calendar-month', C.red],
     ['appearance', 'Appearance', 'mdi:palette', C.indigo],
-    ['sky', 'Sky', 'mdi:weather-night', C.purple], ['menu', 'Menu', 'mdi:dock-left', C.orange],
+    ['sky', 'Sky / Background', 'mdi:weather-night', C.purple], ['menu', 'Menu', 'mdi:dock-left', C.orange],
     ['rooms', 'Rooms', 'mdi:sofa', C.brown],
+    ['climate', 'Climate Status', 'mdi:home-thermometer', C.teal],
     ['tablets', 'Wall Tablets', 'mdi:tablet', C.blue]
   ];
   // Category pages with an order of their own (accessories.py PAGE_ORDERS):
@@ -1415,6 +1417,8 @@
       if (s === 'favorites') return mk('Favorites', function (c) { self.s_favorites(c, x, b); });
       if (s === 'rooms') return mk('Rooms', function (c) { self.s_rooms(c, x, b); });
       if (s === 'pages') return mk('Pages', function (c) { self.s_pages(c, x, b); });
+      if (s === 'sky' && sub[1] === 'backdrop') return mk('Backdrop', function (c) { self.s_backdrop(c, x, b); }, ['Sky / Background', base + '/sky']);
+      if (s === 'sky') return mk('Sky / Background', function (c) { self.s_sky(c, x, b); });
       if (s === 'glass') return mk('Glass', function (c) { self.s_glass(c, x, b); });
       if (s === 'copy') return mk('Copy Settings', function (c) { self.s_copy(c, x, b); });
       if (s === 'screensaver') {
@@ -1511,6 +1515,7 @@
           onClick: function () { var o = {}; o[k] = null; set(o); } }));
       });
       app.push(K.toggle({ label: 'Live Sky', sk: 'b:sky', on: b.sky, onChange: function (on) { set({ sky: on }); } }));
+      app.push(K.nav({ label: 'Sky / Background', href: base + '/sky', sk: 'b:sky_look', value: M.skySummary(b) }));
       // HIDE HOME ASSISTANT'S HEADER AND SIDEBAR: every screen, generated or
       // not -- HK Frontend does it (hk-kiosk.js), or on a generated screen
       // that chooses it, the Kiosk Mode plugin
@@ -1520,7 +1525,7 @@
                                     value: M.kioskSummary(b, gen) }));
       var skySw = look.sky_switch;
       var appFoot = [];
-      if (gen && skySw && b.sky) appFoot.push('The sky also follows ' + this.name(skySw) + ' (Sky).');
+      if (gen && skySw && b.sky) appFoot.push('The sky also follows ' + this.name(skySw) + ' (Sky / Background).');
       if (!gen) appFoot.push('A YAML screen’s sky comes from its YAML; Live Sky can only turn it off here.');
       if (gen && b.kiosk && b.kiosk_engine === 'kiosk_mode' && (this.data.thirdparty.kiosk || {}).state !== 'ready') {
         appFoot.push((this.data.thirdparty.kiosk || {}).note || '');
@@ -2702,6 +2707,8 @@
         return { title: title, top: true, scope: 'What the status chips, their pages and the header count — on every screen.',
                  body: function (c) { self.h_counts(c); } };
       }
+      if (page === 'climate') return { title: title, top: true, scope: scope,
+        body: function (c) { self.h_climate(c); } };
       if (page === 'weather') {
         if (sub[0] === 'sensors') return mk('Sensors', function (c) { self.h_weatherSensors(c); });
         if (sub[0] === 'radar') {
@@ -2727,6 +2734,7 @@
       }
       if (page === 'sky') {
         if (sub[0] === 'advanced') return mk('Advanced', function (c) { self.h_skyAdvanced(c); });
+        if (sub[0] === 'backdrop') return mk('Backdrop', function (c) { self.h_backdrop(c); });
         // THE SKY'S PREVIEW: today's sky on the Sky page, a theme's on its
         // own page (skyPreview), on the house's Home screen
         var spv = M.skyPreviewScreen(this.data.dashboards, this.data.boards);
@@ -2801,6 +2809,25 @@
               .map(function (id) { return { value: id, label: self.name(id), sub: id }; }); },
             onPick: function (id) { if (id) set(cur.concat(id)); } }));
         } }));
+    }
+    h_climate(c) {
+      var self = this, all = ['temperature', 'humidity', 'blinds', 'fans'];
+      var cl = this.data.settings.climate || { status: all, exclude_areas: [] };
+      c.appendChild(K.group({ header: 'Status Row', footer: 'On the Climate page. Tap a summary to see every included accessory.' }, all.map(function (k) {
+        var on = cl.status.indexOf(k) >= 0;
+        return K.check({ label: M.STATUS_LABELS[k] || k, multi: true, on: on, fk: 'climate:' + k,
+          onClick: function () { self.setH({ 'climate.status': all.filter(function (y) { return y === k ? !on : cl.status.indexOf(y) >= 0; }) }); } });
+      })));
+      c.appendChild(K.group({ header: 'Sources', footer: 'Related sensors are chosen in Home Assistant’s area settings. Temperature and humidity use current readings; unavailable readings do not affect the range.' }, all.map(function (k) {
+        var ck = (self.data.counts || {})[k] || { found: [] };
+        return K.nav({ label: M.STATUS_LABELS[k] || k, value: ck.found.length + ' Included', href: '#/house/counts/' + k });
+      })));
+      c.appendChild(K.group({ header: 'Rooms', footer: 'Leave outdoor or equipment areas out of Climate summaries and popups without hiding them elsewhere.' },
+        Object.keys((this._hass && this._hass.areas) || {}).sort(function (a, b) { return self.areaName(a).localeCompare(self.areaName(b)); }).map(function (aid) {
+          var included = cl.exclude_areas.indexOf(aid) < 0;
+          return K.check({ label: self.areaName(aid), multi: true, on: included, fk: 'climate-area:' + aid,
+            onClick: function () { self.setH({ 'climate.exclude_areas': included ? cl.exclude_areas.concat(aid) : cl.exclude_areas.filter(function (a) { return a !== aid; }) }); } });
+        })));
     }
     h_counts(c) {
       var d = this.data;
@@ -2979,6 +3006,12 @@
       c.appendChild(K.group({ header: 'Live Sky', footer: 'While this helper is off, no generated screen shows the live sky. A screen written in YAML names its own. Each screen can also turn its sky off.' }, [
         this.entityRow({ label: 'Sky Switch', sk: 'look.sky_switch', value: look.sky_switch, none: 'None (Always On)',
                          filter: { domains: ['input_boolean', 'switch'] }, onPick: function (v) { self.setH({ 'look.sky_switch': v }); } })]));
+      c.appendChild(K.group({ header: 'Background' }, [
+        K.toggle({ label: 'Animations', sub: 'The moving parts — drifting clouds, falling weather and the seasons',
+          sk: 'sky.animations', on: sky.animations !== false, onChange: function (on) { self.setH({ 'sky.animations': on }); } }),
+        K.toggle({ label: 'Weather', sub: 'Clouds, rain, snow and fog. The sun, moon and stars stay',
+          sk: 'sky.weather', on: sky.weather !== false, onChange: function (on) { self.setH({ 'sky.weather': on }); } }),
+        K.nav({ label: 'Backdrop', value: this.backdropLabel(sky.gradient), href: '#/house/sky/backdrop', sk: 'sky.gradient' })]));
       var rows = [K.toggle({ label: 'Seasonal Decorations', sk: 'sky.decorations', on: sky.decorations !== false,
                              onChange: function (on) { self.setH({ 'sky.decorations': on }); } })];
       if (sky.decorations !== false) {
@@ -2990,6 +3023,105 @@
       var gate = sky.seasonal ? ' They also need ' + this.name(sky.seasonal) + ' to be on (Advanced).' : '';
       c.appendChild(K.group({ header: 'Seasonal Decorations', footer: 'What the live sky dresses up for. This is the same switch as Seasonal Decorations on the HK Frontend device.' + gate }, rows));
       c.appendChild(K.group({}, [K.nav({ label: 'Advanced', value: sky.hemisphere === 'south' ? 'Southern' : 'Northern', href: '#/house/sky/advanced' })]));
+    }
+    // The picker reads choices from the server, just like dates and themes.
+    // Loading the dashboard's settings module here would start its websocket
+    // subscriptions merely to obtain a static palette table.
+    backdropLabel(id) {
+      var p = ((this.data.choices || {}).sky_backdrops || []).filter(function (p) { return p.id === (id || 'live'); })[0];
+      return p ? p.label : 'Live sky';
+    }
+    backdropRows(id, custom, pick, prefix) {
+      return ((this.data.choices || {}).sky_backdrops || []).map(function (p) {
+        var stops = p.day || (p.id === 'custom' && custom && custom.day);
+        return K.check({ label: p.label, on: p.id === id, fk: prefix + p.id,
+          tile: [p.id === 'live' ? 'mdi:weather-sunset' : 'mdi:palette',
+                 stops ? 'linear-gradient(180deg, ' + stops.join(',') + ')' : C.purple],
+          onClick: function () { pick(p.id); } });
+      });
+    }
+    // Two sets of four native color controls. Keep edits during panel redraws
+    // (hass updates can arrive while the OS color picker is open). Commit a
+    // snapshot on change; never hand setH/setB a mutable draft.
+    customBackdrop(c, stored, scope, save) {
+      var fallback = ((this.data.choices || {}).sky_backdrops || []).filter(function (p) { return p.id === 'dusk'; })[0];
+      if (!fallback) return;
+      var source = stored || { day: fallback.day, night: fallback.night };
+      var signature = JSON.stringify(source);
+      this._skyDrafts = this._skyDrafts || {};
+      var cache = this._skyDrafts[scope];
+      if (!cache || cache.signature !== signature) {
+        cache = this._skyDrafts[scope] = { signature: signature, stops: JSON.parse(signature) };
+      }
+      var rows = ['day', 'night'].map(function (key) {
+        var label = key === 'day' ? 'Day' : 'Night';
+        var colors = cache.stops[key].map(function (v, i) {
+          var input = h('input', { type: 'color', 'aria-label': label + ' stop ' + (i + 1),
+            'data-fk': scope + ':' + key + ':' + i });
+          input.value = v;
+          input.addEventListener('input', function () { cache.stops[key][i] = input.value; });
+          input.addEventListener('change', function () {
+            cache.stops[key][i] = input.value;
+            save(JSON.parse(JSON.stringify(cache.stops)));
+          });
+          return input;
+        });
+        return h('div', { class: 'cell', 'data-sk': scope + ':' + key }, [K.label(label), h('div', { class: 'skycolors' }, colors)]);
+      });
+      c.appendChild(this.withError(K.group({ header: 'Custom Stops', footer: 'Four colors from the top of the sky to the horizon. Day when the sun is above the horizon; Night otherwise.' }, rows), scope.indexOf('b:') === 0 ? 'b:sky_custom' : scope));
+    }
+    h_backdrop(c) {
+      var self = this, sky = this.data.settings.sky;
+      var pick = function (id) {
+        var changes = { 'sky.gradient': id };
+        // Selecting Custom starts with a real palette immediately. Otherwise
+        // its checked row would say Custom while the renderer fell back to live.
+        if (id === 'custom' && !sky.gradient_custom) {
+          var dusk = self.data.choices.sky_backdrops.filter(function (p) { return p.id === 'dusk'; })[0];
+          changes['sky.gradient_custom'] = { day: dusk.day.slice(), night: dusk.night.slice() };
+        }
+        self.setH(changes);
+      };
+      c.appendChild(K.group({ footer: 'Each screen can choose its own backdrop. The other sky settings still apply.' },
+        this.backdropRows(sky.gradient || 'live', sky.gradient_custom, pick, 'hbackdrop:')));
+      if (sky.gradient === 'custom') this.customBackdrop(c, sky.gradient_custom, 'sky.gradient_custom', function (v) {
+        self.setH({ 'sky.gradient_custom': v });
+      });
+    }
+    s_sky(c, x, b) {
+      var self = this, sky = this.data.settings.sky, rows = [];
+      [['animations', 'Animations'], ['weather', 'Weather'], ['decorations', 'Decorations']].forEach(function (entry) {
+        var key = 'sky_' + entry[0], own = b[key] != null, house = sky[entry[0]] !== false;
+        rows.push(K.toggle({ label: entry[1], sk: 'b:' + key, on: own ? b[key] : house,
+          sub: own ? 'Just this screen' : 'Same as All Screens', onChange: function (v) { var o = {}; o[key] = v; self.setB(x.path, o); } }));
+        if (own) rows.push(K.button({ label: 'Use All-Screens ' + entry[1] + ' (' + (house ? 'On' : 'Off') + ')', sk: 'b:' + key + ':reset',
+          onClick: function () { var o = {}; o[key] = null; self.setB(x.path, o); } }));
+      });
+      rows.push(K.nav({ label: 'Backdrop', sk: 'b:sky_gradient', href: '#/screens/' + encodeURIComponent(x.path) + '/sky/backdrop',
+        value: b.sky_gradient == null ? 'Same as All Screens (' + this.backdropLabel(sky.gradient) + ')' : this.backdropLabel(b.sky_gradient) }));
+      c.appendChild(K.group({ footer: 'Weather off leaves the sun, moon and stars. Decorations use the dates and themes for All Screens.' }, rows));
+    }
+    s_backdrop(c, x, b) {
+      var self = this, sky = this.data.settings.sky;
+      var back = '#/screens/' + encodeURIComponent(x.path) + '/sky';
+      c.appendChild(K.group({ footer: 'Follows the backdrop and custom colors for All Screens as they change.' }, [
+        K.check({ label: 'Same as All Screens', sub: 'Now ' + this.backdropLabel(sky.gradient), on: b.sky_gradient == null,
+          fk: 'bbackdrop:house', onClick: function () { self.setB(x.path, { sky_gradient: null, sky_custom: null }); self.back(back); } })]));
+      var pick = function (id) {
+        var changes = { sky_gradient: id };
+        if (id === 'custom' && !b.sky_custom) {
+          var dusk = self.data.choices.sky_backdrops.filter(function (p) { return p.id === 'dusk'; })[0];
+          var start = sky.gradient_custom || dusk;
+          changes.sky_custom = { day: start.day.slice(), night: start.night.slice() };
+        }
+        self.setB(x.path, changes);
+        if (id !== 'custom') self.back(back);
+      };
+      c.appendChild(K.group({ header: 'Just This Screen' }, this.backdropRows(b.sky_gradient, b.sky_custom || sky.gradient_custom, pick, 'bbackdrop:')));
+      // A following screen has no selected own row, including Live.
+      if (b.sky_gradient === 'custom') this.customBackdrop(c, b.sky_custom || sky.gradient_custom, 'b:sky_custom:' + x.path, function (v) {
+        self.setB(x.path, { sky_custom: v });
+      });
     }
     h_theme(c, t) {
       var self = this, sky = this.data.settings.sky, themes = sky.themes || [], on = themes.indexOf(t.id) >= 0;

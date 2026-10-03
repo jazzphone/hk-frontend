@@ -185,6 +185,17 @@ def _count(v: Any) -> dict[str, list[str]] | None:
     return {k: _entities()(got[k]) for k in ("exclude", "include")}
 
 
+def _sky_stops(v: Any) -> dict[str, list[str]] | None:
+    """A custom backdrop's stops ({day, night}: four "#rrggbb" each), or
+    None: no stops of its own."""
+    if v is None:
+        return None
+    got = S.sky_stops(v)
+    if got is None:
+        raise Invalid("stops")
+    return got
+
+
 # EVERY HOUSE SETTING THE PAGE CAN WRITE: "section.key" -> its check. (The
 # sky's dates are checked against the hemisphere in apply_house.)
 SENSOR = _entity("sensor")
@@ -276,6 +287,8 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.accent": lambda v: _accent(v),
     "rooms.headings": _bool,
     "rooms.status": _subset(S.STATUS_KINDS),
+    "climate.status": _subset(("temperature", "humidity", "blinds", "fans")),
+    "climate.exclude_areas": _ids,
     "rooms.order": _ids,
     "rooms.home": _choice(S.BOARD_HOME_ROOMS),
     "rooms.menu": _choice(S.BOARD_MENU_ROOMS),
@@ -287,6 +300,10 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "generated.exclude_entities": _entities(),
     "generated.include_entities": _entities(),
     "sky.decorations": _bool,
+    "sky.animations": _bool,
+    "sky.weather": _bool,
+    "sky.gradient": _choice(S.SKY_BACKDROP_IDS),
+    "sky.gradient_custom": _sky_stops,
     "sky.themes": _subset(S.THEMES),
     "sky.hemisphere": _choice(("north", "south")),
     "sky.moon": SENSOR,
@@ -387,6 +404,10 @@ def _amount_or_none(v: Any) -> int | None:
     return None if v is None else _amount(v)
 
 
+def _bool_or_none(v: Any) -> bool | None:
+    return None if v is None else _bool(v)
+
+
 def _chip_keys(v: Any) -> list[str]:
     """The custom chips a screen shows (their keys)."""
     if not isinstance(v, list) or not all(isinstance(x, str) and S.CHIP_KEY.match(x) for x in v):
@@ -483,6 +504,12 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "frost": _amount_or_none,
     "blur": _amount_or_none,
     "sky": _bool,
+    # this screen's own Sky / Background; None: follow All Screens
+    "sky_animations": _bool_or_none,
+    "sky_weather": _bool_or_none,
+    "sky_decorations": _bool_or_none,
+    "sky_gradient": _choice(S.SKY_BACKDROP_IDS, none=True),
+    "sky_custom": _sky_stops,
     "idle_return": _bool,
     "idle_room": _room,
     "car": _bool,

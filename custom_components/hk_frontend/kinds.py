@@ -35,6 +35,7 @@ from typing import Any
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
@@ -52,10 +53,13 @@ class Kind:
     also: tuple[str, ...]
     classes: tuple[str | None, ...] | None = None
     not_classes: tuple[str, ...] = ()
+    reading: str | None = None
 
 
 # The order is the page's, and the chip row's.
 KINDS: dict[str, Kind] = {
+    "temperature": Kind(("sensor", "climate"), also=("sensor", "climate"), reading="temperature"),
+    "humidity": Kind(("sensor", "climate"), also=("sensor", "climate"), reading="humidity"),
     "lights": Kind(("light",), also=("light", "switch")),
     "fans": Kind(("fan",), also=("fan", "switch")),
     "doors": Kind(("binary_sensor",), classes=("door",), also=("binary_sensor", "cover")),
@@ -104,12 +108,16 @@ class Candidate:
     shown: bool          # not hidden, disabled, config/diagnostic, or a group
     device_id: str | None
     area_id: str | None
+    readings: tuple[str, ...] = ()
+    automatic_readings: tuple[str, ...] = ()
 
 
 def matches(kind: Kind, cand: Candidate) -> bool:
     domain = cand.entity_id.split(".", 1)[0]
     if domain not in kind.domains:
         return False
+    if kind.reading:
+        return kind.reading in cand.readings
     if cand.device_class in kind.not_classes:
         return False
     if kind.classes is None:
@@ -123,6 +131,9 @@ def matches(kind: Kind, cand: Candidate) -> bool:
 def candidates(hass: HomeAssistant) -> list[Candidate]:
     ents = er.async_get(hass)
     devs = dr.async_get(hass)
+    areas = ar.async_get(hass).areas
+    nominated = {k: {getattr(a, k + "_entity_id", None) for a in areas.values()}
+                 for k in ("temperature", "humidity")}
     # The domains Also count may name too: an included switch must be present.
     wanted = {d for k in KINDS.values() for d in k.domains + k.also}
     out = []
@@ -140,8 +151,17 @@ def candidates(hass: HomeAssistant) -> list[Candidate]:
             if area_id is None and device_id:
                 dev = devs.async_get(device_id)
                 area_id = dev.area_id if dev else None
+        readings = tuple(k for k in nominated if
+                         (domain == "sensor" and st.attributes.get("device_class") == k)
+                         or (domain == "climate" and "current_" + k in st.attributes))
+        area = areas.get(area_id)
+        # Room-related sensors are deliberate ambient readings. Other matching
+        # sensors are offered by Also count, never guessed from their names.
+        auto = tuple(k for k in readings if st.entity_id in nominated[k]
+                     or (domain == "climate" and area is not None
+                         and not getattr(area, k + "_entity_id", None)))
         out.append(Candidate(st.entity_id, st.attributes.get("device_class"), shown,
-                             device_id, area_id))
+                             device_id, area_id, readings, auto))
     return out
 
 
@@ -158,7 +178,7 @@ def automatic(cands: Iterable[Candidate], leave_out: Mapping[str, Any] | None
                 or (c.area_id and c.area_id in x_area):
             continue
         for name, kind in KINDS.items():
-            if matches(kind, c):
+            if matches(kind, c) and (not kind.reading or kind.reading in c.automatic_readings):
                 out[name].append(c.entity_id)
     for v in out.values():
         v.sort()
@@ -272,7 +292,14 @@ class Tracker:
 
         @callback
         def added_or_gone(data: Mapping[str, Any]) -> bool:
-            return data.get("old_state") is None or data.get("new_state") is None
+            old, new = data.get("old_state"), data.get("new_state")
+            if old is None or new is None:
+                return True
+            # Reclassify when capabilities change, not when a reading moves.
+            keys = ("device_class", "entity_id")
+            return any(old.attributes.get(k) != new.attributes.get(k) for k in keys) or any(
+                (k in old.attributes) != (k in new.attributes)
+                for k in ("current_temperature", "current_humidity"))
 
         @callback
         def poke(_event: Event | None = None) -> None:
@@ -283,6 +310,7 @@ class Tracker:
             bus.async_listen(EVENT_STATE_CHANGED, poke, event_filter=added_or_gone),
             bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, poke),
             bus.async_listen(dr.EVENT_DEVICE_REGISTRY_UPDATED, poke),
+            bus.async_listen(ar.EVENT_AREA_REGISTRY_UPDATED, poke),
         ]
         # callback(): a bare lambda is an executor job, and stop() removes bus
         # listeners and cancels the debouncer, which belong on the event loop

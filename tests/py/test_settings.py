@@ -25,7 +25,7 @@ def test_defaults_assume_no_house():
     assert named == ["sensor.time", "sensor.date"]
     assert m["sky"]["hemisphere"] == "north" and len(m["sky"]["themes"]) == 10
     assert set(m["counts"]) == {"lights", "fans", "doors", "windows", "garage", "locks", "blinds",
-                                "leaks", "thermostats", "timers", "vacuums", "speakers"}
+                                "leaks", "thermostats", "timers", "vacuums", "speakers", "temperature", "humidity"}
     assert all(v is None for v in m["counts"].values()), "every kind automatic"
 
 
@@ -735,3 +735,57 @@ async def test_an_entry_from_1_8_moves_its_menu(hass, base):
     got = S.boards(old)
     assert got["dashboard-a"]["menu_house"] and got["dashboard-c"]["menu_house"]
     assert not got["dashboard-b"]["menu_house"] and got["dashboard-b"]["tab_position"] == "30%"
+
+
+def test_sky_palette_mirror_and_readability():
+    """A full-table comparison protects the first paint and panel swatches;
+    the curated colors must remain within the established glass budget."""
+    import json
+    import os
+    import re
+    import subprocess
+    from custom_components.hk_frontend import settings as S
+    src = open(os.path.join(COMPONENT, "frontend", "modules", "hk-settings.js")).read()
+    body = re.search(r"var SKY_BACKDROPS = (\[.*?\n  \]);", src, re.S)
+    assert body
+    engines = [["node", "-e", "console.log(JSON.stringify(" + body[1] + "))"],
+               ["/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc",
+                "-e", "print(JSON.stringify(" + body[1] + "))"]]
+    for cmd in engines:
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            break
+        except FileNotFoundError:
+            continue
+    else:
+        raise AssertionError("a JavaScript engine is required for palette parity")
+    assert json.loads(out.stdout) == list(S.SKY_BACKDROPS)
+    assert len(set(S.SKY_BACKDROP_IDS)) == 10
+    assert len([p for p in S.SKY_BACKDROPS if "day" in p]) == 8
+    def luma(color):
+        return sum(int(color[i:i + 2], 16) * w for i, w in zip((1, 3, 5), (.2126, .7152, .0722)))
+    pos = (0, .42, .72, 1)
+    for p in S.SKY_BACKDROPS:
+        if "day" not in p:
+            continue
+        assert S.sky_stops(p) is not None
+        for key in ("day", "night"):
+            values = list(map(luma, p[key]))
+            assert values[-1] <= 146, (p["id"], key, values[-1])
+            assert sum((values[i] + values[i + 1]) / 2 * (pos[i + 1] - pos[i]) for i in range(3)) <= 86
+
+
+def test_sky_stops_and_screen_look_read_defensively():
+    from custom_components.hk_frontend import settings as S
+    stops = {"day": ["#ABCDEF"] * 4, "night": ["#010203"] * 4}
+    assert S.sky_stops(stops) == {"day": ["#abcdef"] * 4, "night": stops["night"]}
+    for bad in (None, [], "blue", {}, {"day": ["#abc"] * 4, "night": stops["night"]},
+                {"day": stops["day"][:3], "night": stops["night"]}, {"day": [42] * 4, "night": stops["night"]}):
+        assert S.sky_stops(bad) is None
+    parsed = S.board({"sky_animations": False, "sky_weather": True, "sky_decorations": None,
+                      "sky_gradient": "custom", "sky_custom": stops})
+    assert parsed["sky_animations"] is False and parsed["sky_weather"] is True
+    assert parsed["sky_gradient"] == "custom" and parsed["sky_custom"] == S.sky_stops(stops)
+    parsed = S.board({"sky_animations": 0, "sky_weather": "off", "sky_decorations": 1,
+                      "sky_gradient": "unknown", "sky_custom": {}})
+    assert all(parsed[k] is None for k in ("sky_animations", "sky_weather", "sky_decorations", "sky_gradient", "sky_custom"))
