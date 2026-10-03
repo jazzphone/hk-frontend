@@ -129,6 +129,36 @@ ok('...then screen B, the same look at its own 90: 36 px (it kept A\'s 4 px)',
    /blur\(36px\)/.test(rs['--hk-blur-filter'] || ''), rs['--hk-blur-filter']);
 HS._apply({ configured: true });
 
+
+print('=== Sky / Background inheritance ===');
+location.pathname = '/dashboard-sky/home';
+var houseStops = { day: ['#123456', '#223344', '#334455', '#445566'], night: ['#010203', '#020304', '#030405', '#040506'] };
+var ownStops = { day: ['#555555', '#444444', '#333333', '#222222'], night: ['#111111', '#222222', '#333333', '#444444'] };
+HS._apply({ sky: { animations: false, weather: false, decorations: false, gradient: 'custom', gradient_custom: houseStops },
+            boards: { 'dashboard-sky': { sky_gradient: null, sky_custom: ownStops } } });
+var sl = HS.skyLook();
+ok('following uses all house flags and house custom colors, even with a stored own draft',
+   !sl.animations && !sl.weather && !sl.decorations && JSON.stringify(sl.backdrop) === JSON.stringify(houseStops));
+HS._apply({ sky: { decorations: false, gradient: 'dusk' }, boards: { 'dashboard-sky': {
+  sky_animations: false, sky_weather: false, sky_decorations: true, sky_gradient: 'live' } } });
+sl = HS.skyLook();
+ok('own Live overrides a fixed house backdrop', sl.backdrop === null);
+ok('own decorations on overrides house off through the seasonal gate', sl.decorations && HS.seasonalOn({}));
+HS._apply({ sky: { seasonal: 'input_boolean.extra', decorations: false },
+            boards: { 'dashboard-sky': { sky_decorations: true, sky_gradient: 'custom', sky_custom: ownStops } } });
+ok('own custom colors resolve', JSON.stringify(HS.skyLook().backdrop) === JSON.stringify(ownStops));
+ok('the extra seasonal gate still applies to an own decorations override', !HS.seasonalOn({ 'input_boolean.extra': st('off') }));
+HS._apply({ sky: { gradient: 'fjord' }, boards: { 'dashboard-sky': { sky_gradient: null } } });
+ok('curated backdrop matches the published palette', JSON.stringify(HS.skyLook().backdrop.day) === JSON.stringify(HS.skyPalettes().filter(function(p) { return p.id === 'fjord'; })[0].day));
+location.pathname = '/dashboard-other/home';
+ok('moving to another dashboard uses that dashboard settings', HS.skyLook().animations === true);
+HS._apply({ sky: { gradient: 'custom', gradient_custom: null } });
+ok('unset custom stops fall back to live', HS.skyLook().backdrop === null);
+HS._apply({ sky: { gradient: 'bad' } });
+ok('unknown persisted palette falls back to live', HS.skyLook().backdrop === null);
+HS._apply({ configured: true });
+location.pathname = '/';
+
 print('\n=== a subscription that survives ===');
 function settle() { var p = Promise.resolve(); for (var i = 0; i < 6; i++) p = p.then(function () {}); return p; }
 var calls = [], readyL = [], unsubs = 0;

@@ -36,7 +36,11 @@ var hass = {
   }
 };
 var asked = 0, unsubbed = 0, WB = null, ACC = null, CP = null;
-function cards(v) { return JSON.stringify(v); }
+// Exclusions are now carried by the live Climate row. They are metadata,
+// not displayed entities: ignore them when checking the generated cards.
+function cards(v) { return JSON.stringify(v, function (key, value) {
+  return /^exclude_(entities|devices|areas)$/.test(key) ? undefined : value;
+}); }
 function roomNames(home) {
   return home.cards.filter(function (c) { return c.type === 'grid' && c.cards && c.cards[0].type === 'custom:hk-heading-card'; })
     .map(function (c) { return c.cards[0].name; });

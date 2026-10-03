@@ -21,6 +21,14 @@ Home Assistant’s own dialog instead, turn off
 | ![A thermostat’s detail sheet](images/sheet-thermostat.png) | ![A lock’s detail sheet](images/sheet-lock.png) | ![A garage door’s detail sheet](images/sheet-garage.png) |
 | Thermostat | Lock | Garage door |
 
+**Climate lists.** The [Climate page](Climate.md) has temperature, humidity,
+blind and fan summaries. Tapping one opens its room-labelled accessory pills.
+Tap a pill for its details; the Back button, closing the accessory sheet or
+browser Back returns to the category list. The list and its summary follow
+live readings and membership changes.
+
+![The Climate Temperature list](images/sheet-climate-temperature.jpg)
+
 **Pop-ups** are sheets that an automation opens on a screen: the doorbell when
 someone rings, the alarm keypad when the alarm needs a code. Each pop-up has an
 address (a hash, such as `#front-door`) that any screen answers.

@@ -12,6 +12,7 @@
 * [Status chips](Status-Chips.md)
 * [Cameras](Cameras.md)
 * [Pages](Pages.md)
+* [Climate](Climate.md)
 * [The menu](Menu.md)
 * [Detail sheets & pop-ups](Detail-Sheets-and-Popups.md)
 * [Accessories](Accessories.md)

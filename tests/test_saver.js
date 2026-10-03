@@ -33,6 +33,19 @@ Fake.prototype.remove = function () {
 Fake.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
 Fake.prototype.removeAttribute = function (k) { delete this.attrs[k]; };
 Fake.prototype.hasAttribute = function (k) { return k in this.attrs; };
+// Exercise photo handoffs with actual load/decode promises. Without Image,
+// the harness silently failed every photo and never tested a successful fade.
+Object.defineProperty(Fake.prototype, 'src', {
+  get: function () { return this.attrs.src || ''; },
+  set: function (url) {
+    this.attrs.src = String(url); this.complete = true;
+    this.naturalWidth = 1280; this.naturalHeight = 800;
+    var im = this;
+    Promise.resolve().then(function () { if (im.src === url && im.onload) im.onload(); });
+  }
+});
+Fake.prototype.decode = function () { return Promise.resolve(); };
+globalThis.Image = function () { return new Fake('img'); };
 Fake.prototype.addEventListener = function (t, f) { (this._l[t] = this._l[t] || []).push(f); };
 Fake.prototype.attachShadow = function () { this.shadowRoot = new Fake('#shadow'); return this.shadowRoot; };
 Object.defineProperty(Fake.prototype, 'className', { get: function () { return Object.keys(this._cls).join(' '); },
@@ -63,7 +76,11 @@ var LOVELACE = { config: { views: [], hk_screensaver: {
   cards: [{ type: 'custom:hk-clock-card' }] } } };
 var lovelacePanel = { lovelace: LOVELACE };
 var mainEl = { shadowRoot: { querySelector: function (s) { return s === 'ha-panel-lovelace' ? lovelacePanel : null; } } };
-var haRoot = { shadowRoot: { querySelector: function (s) { return s === 'home-assistant-main' ? mainEl : null; } } };
+var visibilityStyle = { value: 'visible', priority: 'important',
+  getPropertyValue: function () { return this.value; }, getPropertyPriority: function () { return this.priority; },
+  setProperty: function (k, v, p) { this.value = v; this.priority = p || ''; },
+  removeProperty: function () { this.value = ''; this.priority = ''; } };
+var haRoot = { style: visibilityStyle, shadowRoot: { querySelector: function (s) { return s === 'home-assistant-main' ? mainEl : null; } } };
 function hassWith(state, userName) {
   var st = {}; st[SW] = { entity_id: SW, state: state, attributes: {} };
   return { states: st, user: { name: userName || 'Kitchen Tablet' },
@@ -169,8 +186,17 @@ dispatchEvent({ type: 'pointerdown', clientX: 640, clientY: 400, pointerType: 't
 ok('a touch in the middle stops it', !S.running());
 ok('...turns the switch off', calls.join() === 'input_boolean.turn_off ' + SW, calls);
 ok('...and swallows taps for a moment after', S.stats().blocking);
+var blockingHost = saverEl();
+ok('wake retains visuals for the outgoing fade', !blockingHost.hasAttribute('released'));
+__runTimersUnder(400);
+ok('after the fade only the tap-catching host remains', saverEl() === blockingHost && blockingHost.hasAttribute('blocking') && blockingHost.hasAttribute('released') && blockingHost.shadowRoot.children.every(function (e) { return e.tagName === 'STYLE'; }), {attrs:blockingHost.attrs,children:blockingHost.shadowRoot.children.map(function(e){return e.tagName;}),same:saverEl()===blockingHost});
+ok('releasing graphics preserves accidental-tap protection', S.stats().blocking && S.stats().cards === 0);
 push(hassWith('off'));
 S.start();
+var restartedHost = saverEl();
+ok('restarting after visual cleanup builds fresh content', restartedHost !== blockingHost && !restartedHost.hasAttribute('released'));
+__runTimersUnder(3200);
+ok('the old stop timers cannot remove the restarted saver', S.running() && saverEl() === restartedHost && !restartedHost.hasAttribute('released'));
 var shownBefore = S.stats().shown;
 calls = [];
 dispatchEvent({ type: 'pointerdown', clientX: 1250, clientY: 400, pointerType: 'touch' });
@@ -257,7 +283,8 @@ var withPhotos = { children: [{ title: 'a.jpg', media_class: 'image', media_cont
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'forecast' });
 lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
 var hf = hassOwn('off');
-hf.callWS = function (m) { ws.push(m); return Promise.resolve(m.type === 'media_source/browse_media' ? withPhotos : {}); };
+hf.callWS = function (m) { ws.push(m); return Promise.resolve(m.type === 'media_source/browse_media' ? withPhotos :
+  m.type === 'media_source/resolve_media' ? { url: 'photo-a.jpg' } : {}); };
 push(hf); dispatchEvent({ type: 'location-changed' }); __runTimers();
 ws = []; scenes = [];
 ok('Show: Forecast is read from the config', S.config() && S.config().show === 'forecast', S.config());
@@ -278,24 +305,59 @@ LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensave
 lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
 push(hf); dispatchEvent({ type: 'location-changed' }); __runTimers(); scenes = [];
 ok('Photos & Forecast is read, with how often', S.config().show === 'both' && S.config().forecast_every === 3, S.config());
+var covers = [];
+function recordCover() { covers.push({ hidden: visibilityStyle.value === 'hidden', covered: S.covered() }); }
+addEventListener('hk-saver-covered', recordCover);
+S.start(); S.stop(); __runTimersUnder(3200);
+ok('dismissing during the entrance cancels the covered notification', covers.length === 0 && !S.covered());
 S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
+ok('the entrance keeps cameras visible until fully covered', !S.covered() && covers.length === 0);
 ok('...it starts with the photos', S.stats().mode === 'photos' && !S.stats().forecastSlide && scenes.length === 0, S.stats());
 U.slide.since(3); U.slide.schedule(); __runTimers();
 ok('after forecast_every photos the forecast fades in as a slide', S.stats().forecastSlide === true && scenes.length === 1, S.stats());
 ok('...over the photos ([fcslide]), its sky moving', 'fcslide' in saverEl().attrs && scenes[0].paused === false, scenes[0].paused);
 ok('...WITH its forecast details (the band) -- they were missing from the slide', 'band' in saverEl().attrs && S.stats().band, saverEl().attrs);
 ok('...and the count starts again', S.stats().sinceForecast === 0);
+var photoRoot = saverEl().shadowRoot;
+var forecastLayer = photoRoot.querySelector('.fc');
+var outgoingPhoto = photoRoot.querySelectorAll('.ph').filter(function (p) { return p.classList.contains('top'); })[0];
+ok('real photos have loaded in this test', S.stats().shown > 0 && outgoingPhoto.querySelector('img.fg').src === 'photo-a.jpg');
+ok('photo to forecast keeps the outgoing photo opaque beneath the incoming forecast',
+   outgoingPhoto.classList.contains('top') && outgoingPhoto.style.zIndex === '1' &&
+   forecastLayer.classList.contains('top') && forecastLayer.style.zIndex === '2');
+__runTimersUnder(3200);
+ok('after the forecast fade, the old photo is released', !outgoingPhoto.classList.contains('top') && !outgoingPhoto.querySelector('img.fg').src);
+ok('the fully covered dashboard releases its paint layers', visibilityStyle.value === 'hidden');
+ok('camera teardown is notified only after the dashboard is hidden', covers.length === 1 && covers[0].hidden && covers[0].covered);
+removeEventListener('hk-saver-covered', recordCover);
+
 dispatchEvent({ type: 'pointerdown', clientX: 1250, clientY: 400, pointerType: 'touch' });
-// the forecast stays until the next photo is in under it (faded first, it
-// showed the photo from before it, then the next one cross-fading in)
+// Keep the forecast visible while the photo loads, then fade the new
+// photo above it instead of exposing an occluded photo underneath.
 ok('an edge tap on the forecast slide keeps the forecast up while the next photo loads', S.stats().forecastSlide === true, S.stats());
 drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
 ok('...then goes on to the next photo, still on', S.running() && !S.stats().forecastSlide, S.stats());
 ok('...and the band goes with it (not over the photos by default)', !('band' in saverEl().attrs), saverEl().attrs);
-__runTimers();
+var incomingPhoto = photoRoot.querySelectorAll('.ph').filter(function (p) { return p.classList.contains('top'); })[0];
+ok('forecast to photo keeps the forecast opaque until the photo has faded in above it',
+   forecastLayer.classList.contains('top') && forecastLayer.style.zIndex === '1' && incomingPhoto.style.zIndex === '2');
+__runTimersUnder(3200);
+ok('the forecast is hidden only after the photo fade completes', !forecastLayer.classList.contains('top') && incomingPhoto.classList.contains('top'));
+ok('the incoming photo is not erased by cleanup', incomingPhoto.querySelector('img.fg').src === 'photo-a.jpg');
+
+__runTimersUnder(3200);
 ok('...and the forecast\'s sky holds still until it comes back', scenes[0].paused === true, scenes[0].paused);
 U.slide.show();
 ok('it comes back on the same layer (one sky, built once)', S.stats().forecastSlide && scenes.length === 1 && !scenes[0].destroyed, scenes.length);
+var photoWS = hf.callWS, failedBefore = S.stats().failed;
+hf.callWS = function (m) { return m.type === 'media_source/resolve_media' ? Promise.reject(new Error('offline')) : photoWS(m); };
+S.next(); drainMicrotasks();
+ok('three failed photo loads leave the forecast and its details visible', S.stats().forecastSlide && S.stats().band && S.stats().failed === failedBefore + 3);
+hf.callWS = photoWS;
+S.stop();
+ok('stopping restores the dashboard visibility and its previous priority immediately', visibilityStyle.value === 'visible' && visibilityStyle.priority === 'important');
+ok('stopping clears the covered state', !S.covered());
+
 S.stop(); __runTimers();
 ok('...and is let go with the screensaver', scenes[0].destroyed === true);
 

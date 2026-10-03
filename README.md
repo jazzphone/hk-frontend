@@ -29,10 +29,21 @@ Add a screen and HK Frontend builds it from your floors, areas and devices: the 
 
 <p align="center">
 <img src="docs/images/tablet-lights.png" width="49%" alt="The Lights page">
-<img src="docs/images/tablet-climate.png" width="49%" alt="The Climate page">
+<img src="docs/images/tablet-climate.jpg" width="49%" alt="The Climate page">
 </p>
 
 ## Tap for the controls
+
+The [Climate page](https://github.com/jazzphone/hk-frontend/wiki/Climate) has the same status row as a room: temperature and humidity
+ranges across the included rooms, plus blinds and fans. Tap a summary to open
+its accessory pills; close an accessory’s controls to return to the list.
+**HK Settings → All Screens → Climate Status** chooses which summaries and
+rooms participate. **What Counts → Temperature / Humidity** lets you leave
+sources out or add others. Automatic readings use Home Assistant’s area
+Related sensors, falling back to a thermostat’s current reading when an area
+has no designated sensor. Unavailable readings stay in the list and do not
+affect the range. Thermostats sit side by side when space permits and stack
+on narrower pages.
 
 Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens. Its gear holds the accessory’s own settings: its name, its icon (any of Apple’s Home glyphs, or Home Assistant’s), a regular or tall tile, and its place among the tiles beside it.
 

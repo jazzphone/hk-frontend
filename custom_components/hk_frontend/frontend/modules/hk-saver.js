@@ -218,6 +218,8 @@
   var idleT = null, slideT = null, blockUntil = 0, pendingSwitch = null;
   var deck = null, listAt = 0, listing = null, listKey = '';
   var layer = 0;               // which of the two photo layers is on top
+  var displayLayer = null, fadeDone = null, photoRun = 0;
+  var coverT = null, coveredPage = null, pageVisibility = null;
   // THE FORECAST (1.3): the live sky over the season's land (hkSky.scene),
   // with the forecast band -- when a screen asks for it, or has no photos
   var mode = 'photos', fscene = null, fband = null, fTick = null, fSig = '';
@@ -392,7 +394,7 @@
     // -> 214 layers at every photo), and each of those made the tablets'
     // WebView re-raster what sits over the photos -- the flicker around each
     // change that WallPanel had too (fixed there 2026-09-15 the same way).
-    '.ph{position:absolute;inset:0;opacity:0;transition:opacity ' + CROSSFADE_MS + 'ms ease;will-change:opacity}',
+    '.ph{position:absolute;inset:0;z-index:0;opacity:0;transition:opacity ' + CROSSFADE_MS + 'ms ease;will-change:opacity}',
     '.ph.top{opacity:1}',
     // the images paint INTO their layer: an <img> with a layer of its own
     // loses it whenever its src is let go after a fade, which is the same
@@ -410,7 +412,7 @@
     // with a deep shadow, everything aligned to the left edge. The now-playing
     // and timer cards pin themselves to their corners (position:fixed);
     // nothing here may transform or filter, or "fixed" would mean "in here".
-    '.info{position:absolute;left:0;top:0;width:var(--hk-saver-card-width,' + DEFAULT_CARD_WIDTH + 'px);',
+    '.info{position:absolute;z-index:4;left:0;top:0;width:var(--hk-saver-card-width,' + DEFAULT_CARD_WIDTH + 'px);',
     '  padding:31px 0 0 30px;box-sizing:content-box;text-align:left;display:flex;flex-direction:column;gap:9px;',
     '  --ha-card-background:none;--ha-card-box-shadow:none;--ha-card-border-width:0px;',
     '  --primary-text-color:#ffffff;--secondary-text-color:#dddddd;color:#fff;',
@@ -425,9 +427,9 @@
     // or faded in as one slide among the photos ([fcslide])
     // (opaque: the sky is drawn a moment after the layer is built, and no
     // photo may show through it meanwhile)
-    '.fc{position:absolute;inset:0;opacity:0;pointer-events:none;will-change:opacity;background:#000;',
+    '.fc{position:absolute;inset:0;z-index:0;opacity:0;visibility:hidden;pointer-events:none;will-change:opacity;background:#000;',
     '  transition:opacity ' + CROSSFADE_MS + 'ms ease}',
-    ':host([forecast]) .fc,:host([fcslide]) .fc{opacity:1}',
+    '.fc.top{opacity:1;visibility:visible}',
     '.fsky{position:absolute;inset:0}',
     // the land under the band darkened toward the bottom: a sunlit meadow is
     // as bright as the band's text. Static (no blur), so it costs no frames.
@@ -442,7 +444,7 @@
     // THE FORECAST DETAILS (the band: today, the hours, the days) on a layer
     // of their own, so they can show over the forecast OR the photos
     // (options band / band_photos); the weather line steps aside for them
-    '.fcb{position:absolute;inset:0;opacity:0;pointer-events:none;will-change:opacity;',
+    '.fcb{position:absolute;inset:0;z-index:3;opacity:0;pointer-events:none;will-change:opacity;',
     '  transition:opacity ' + CROSSFADE_MS + 'ms ease}',
     ':host([band]) .fcb{opacity:1}',
     // the band's glass never blurs what is behind it here: behind it the
@@ -462,7 +464,7 @@
     ':host([cal]) .ph img.bg[hidden]{display:block}',
     ':host([cal]) .fc,:host([cal]) .fcb{right:var(--hk-pane-w,0px)}',
     ':host([cal]) #hk-sky.own{position:absolute}',
-    '.pane{position:absolute;top:0;right:0;bottom:0;width:var(--hk-pane-w,' + PANE_W + 'px);display:none;',
+    '.pane{position:absolute;z-index:4;top:0;right:0;bottom:0;width:var(--hk-pane-w,' + PANE_W + 'px);display:none;',
     '  border-left:1px solid rgba(255,255,255,0.10);background:linear-gradient(to bottom,rgba(8,12,22,0.30),rgba(8,12,22,0.60));',
     '  color:#fff;cursor:default}',
     ':host([cal]) .pane{display:block}',
@@ -508,15 +510,26 @@
     buildCards(info);
   }
   function teardown() {
+    coverDashboard(false);
+    releaseVisuals();
+    if (host) host.remove();
+    host = null; root = null;
+  }
+  // The transparent host may still be catching wake-up taps. Its graphics
+  // and card subscriptions need not survive that interaction-only period.
+  function releaseVisuals() {
+    if (fadeDone) fadeDone();
+    displayLayer = null;
     leaveForecast();
     if (unsubHass) { unsubHass(); unsubHass = null; }
     cards = [];
     if (host) {
       // let the browser drop the decoded photos now, not at the next GC
       root.querySelectorAll('img').forEach(function (im) { im.removeAttribute('src'); });
-      host.remove();
+      Array.from(root.children).forEach(function (el) { if (el.tagName !== 'STYLE') el.remove(); });
+      host.setAttribute('released', '');
     }
-    host = null; root = null; paneEl = null; paneSc = null; paneCard = null;
+    paneEl = null; paneSc = null; paneCard = null;
     if (paneT) { clearInterval(paneT); paneT = null; }
     if (paneResetT) { clearTimeout(paneResetT); paneResetT = null; }
   }
@@ -528,7 +541,7 @@
     (cfg.cards || []).forEach(function (c) {
       var tag = tagOf(c.type);
       var make = function () {
-        if (!host) return;
+        if (!host || !on || info.parentNode !== root) return;
         try {
           var el = document.createElement(tag);
           var conf = Object.assign({}, c, { type: c.type });
@@ -557,17 +570,24 @@
     if (on || !cfg || !allowed()) return false;
     if (idleT) { clearTimeout(idleT); idleT = null; }
     on = true; startedBy = reason || 'idle'; mx = null; my = null; blockUntil = 0;
+    photoRun++; busy = false; queued = null;
     // BUILT FOR OTHER SETTINGS: its cards were set up for them (Home Status
     // sized for the calendar pane, or for the corner), and a host kept from
     // an earlier start kept them -- the pane turned off on HK Settings left
     // Home Status small, halfway along the top (2026-10-01). Built again.
-    if (host && (host.hasAttribute('blocking') || builtFor !== cfgKey())) teardown();
+    if (host && (host.hasAttribute('blocking') || host.hasAttribute('released') || builtFor !== cfgKey())) teardown();
     if (!host) { build(); builtFor = cfgKey(); }
     host.style.setProperty('--fade', FADE_IN_MS + 'ms');
     if (cfg.zoom) host.setAttribute('zoom', ''); else host.removeAttribute('zoom');
     host.removeAttribute('blocking');
     // the next frame, so the fade runs from 0
     requestAnimationFrame(function () { if (on && host) host.setAttribute('on', ''); });
+    // Once fully covered, release the dashboard's paint layers. Pausing its
+    // animations alone still retains clouds, glass and offscreen cards. On
+    // Android those plus the forecast exceeded the tile memory budget and
+    // the WebView dropped photos, the clock and forecast days from the screen.
+    if (coverT) clearTimeout(coverT);
+    coverT = setTimeout(function () { coverT = null; if (on) coverDashboard(true); }, FADE_IN_MS + 100);
     tellOthers();
     if (reason !== 'switch') writeSwitch('on');
     resetForecast();            // an element still fading out is reused
@@ -579,17 +599,22 @@
   function stop(reason) {
     if (!on) return false;
     on = false;
+    photoRun++; busy = false; queued = null;
+    coverDashboard(false);
     if (slideT) { clearTimeout(slideT); slideT = null; }
     var ms = reason === 'switch' ? FADE_SWITCH_MS : FADE_TOUCH_MS;
     if (reason === 'touch') { writeSwitch('off'); blockUntil = Date.now() + BLOCK_MS; }
     tellOthers();
-    var h = host;
+    var h = host, stoppedRun = photoRun;
     if (h) {
       h.style.setProperty('--fade', ms + 'ms');
       h.removeAttribute('on');
       if (reason === 'touch') h.setAttribute('blocking', '');
+      if (reason === 'touch') setTimeout(function () {
+        if (!on && host === h && photoRun === stoppedRun) releaseVisuals();
+      }, ms + 50);
       var wait = reason === 'touch' ? Math.max(ms, BLOCK_MS) : ms;
-      setTimeout(function () { if (!on && host === h) teardown(); }, wait + 50);
+      setTimeout(function () { if (!on && host === h && photoRun === stoppedRun) teardown(); }, wait + 50);
     }
     lastInput = Date.now();
     armIdle();
@@ -599,6 +624,31 @@
   function tellOthers() {
     try { if (window.hkSky && window.hkSky.saverChanged) window.hkSky.saverChanged(); } catch (e) { /* ignore */ }
     try { window.dispatchEvent(new CustomEvent('hk-saver', { detail: { on: on } })); } catch (e) { /* ignore */ }
+  }
+
+  // visibility preserves layout, scroll position and the connected HA data
+  // subscription. Restore it before the screensaver fades out, and preserve
+  // any visibility style that was already set by the page.
+  function coverDashboard(covered) {
+    if (!covered) {
+      if (coverT) { clearTimeout(coverT); coverT = null; }
+      if (coveredPage) {
+        var st = coveredPage.style;
+        if (pageVisibility.value) st.setProperty('visibility', pageVisibility.value, pageVisibility.priority);
+        else st.removeProperty('visibility');
+      }
+      coveredPage = null; pageVisibility = null;
+      return;
+    }
+    if (coveredPage) return;
+    var page = document.querySelector('home-assistant');
+    if (!page || !page.style) return;
+    coveredPage = page;
+    pageVisibility = { value: page.style.getPropertyValue('visibility'), priority: page.style.getPropertyPriority('visibility') };
+    page.style.setProperty('visibility', 'hidden', 'important');
+    // Camera teardown can visibly replace live video with its poster. Only
+    // allow that once the entrance fade has covered and hidden the dashboard.
+    try { window.dispatchEvent(new Event('hk-saver-covered')); } catch (e) { /* ignore */ }
   }
 
   // ------------------------------------------------------------ photos
@@ -663,10 +713,13 @@
     if (!on || mode === 'forecast') return;
     if (busy) { queued = pick; return; }
     busy = true;
+    var run = photoRun, saverRoot = root;
+    function active() { return on && run === photoRun && root === saverRoot; }
     if (slideT) { clearTimeout(slideT); slideT = null; }
     var tries = 0;
     function attempt() {
       return listPhotos().then(function (d) {
+        if (!active()) return null;
         // NO PHOTOS (an empty folder, one that can't be read): the forecast
         if (!d || !d.items || !d.items.length) {
           if (on && (cfg.fallback || cfg.show === 'both')) enterForecast();
@@ -675,6 +728,7 @@
         var item = pick();
         if (!item) return null;
         return load(item).catch(function (e) {
+          if (!active()) return null;
           failed++;
           if (++tries < 3) { pick = function () { return d.next(); }; return attempt(); }
           throw e;
@@ -682,14 +736,11 @@
       });
     }
     attempt().then(function (ph) {
-      // OFF THE FORECAST SLIDE: the next photo is loaded first, put under
-      // the forecast at once, and only then does the forecast fade -- to that
-      // photo alone. Faded first, it showed the photo from before the
-      // forecast, then the next one cross-fading in over it, both through the
-      // fading forecast (the "photo behind the forecast").
-      if (ph && on) paint(ph, first || fcShowing);
-    }).catch(function () { /* nothing to show: stay on the last photo */ }).then(function () {
-      if (mode !== 'forecast') hideForecastSlide();
+      if (ph && active()) { paint(ph, first); return true; }
+      return false;
+    }).catch(function () { return false; }).then(function (painted) {
+      if (!active()) return;
+      if (painted && mode !== 'forecast') hideForecastSlide();
       busy = false;
       if (!on) return;
       if (mode === 'forecast') { queued = null; return; }
@@ -709,10 +760,49 @@
       showNext(false);
     }, cfg.each_photo * 1000);
   }
+  // Fade the incoming view ABOVE an opaque outgoing view. Swapping a photo
+  // underneath an opaque forecast leaves it occluded: Android WebView can
+  // defer rasterizing it until after the forecast has already faded to black.
+  // The clock/pane and forecast details have fixed stacking levels above both.
+  function reveal(next, first) {
+    if (fadeDone) fadeDone();
+    if (next === displayLayer) return;
+    var old = displayLayer;
+    next.style.transition = 'none';
+    next.classList.remove('top');
+    next.style.zIndex = '2';
+    if (old) old.style.zIndex = '1';
+    void next.offsetWidth;
+    next.style.transition = first || !old ? 'none' : '';
+    next.classList.add('top');
+    displayLayer = next;
+    var timer;
+    var done = fadeDone = function () {
+      if (fadeDone !== done) return;
+      clearTimeout(timer);
+      // An edge tap can interrupt a fade. Finish its incoming view before
+      // removing the opaque backing, so the next handoff never starts dim.
+      next.style.transition = 'none';
+      void next.offsetWidth;
+      if (old) {
+        old.style.transition = 'none';
+        old.classList.remove('top');
+        old.style.zIndex = '0';
+        if (old.classList.contains('ph')) {
+          old.classList.remove('zoom');
+          old.querySelectorAll('img').forEach(function (im) { im.removeAttribute('src'); });
+        }
+      }
+      next.style.zIndex = '1';
+      fadeDone = null;
+    };
+    timer = setTimeout(done, first || !old ? 0 : CROSSFADE_MS + 100);
+  }
   function paint(ph, first) {
     if (!root) return;
+    if (fadeDone) fadeDone();
     var layers = root.querySelectorAll('.ph');
-    var next = layers[1 - layer], cur = layers[layer];
+    var next = layers[1 - layer];
     var fit = fitOf(ph.w, ph.h, cfg.fill);
     var bg = next.querySelector('img.bg'), fg = next.querySelector('img.fg');
     next.classList.remove('zoom');
@@ -726,24 +816,9 @@
       void next.offsetWidth;               // restart the zoom from 1
       next.classList.add('zoom');
     }
-    // the first photo appears with the screensaver's own fade, not a cross-fade;
-    // one put under the forecast slide is there at once -- and the photo it
-    // replaces gone at once, or (the upper of the two layers) it would still
-    // be fading out over the new one as the forecast goes
-    if (first) { next.style.transition = cur.style.transition = 'none'; void next.offsetWidth; }
-    next.classList.add('top');
-    cur.classList.remove('top');
-    if (first) requestAnimationFrame(function () { next.style.transition = cur.style.transition = ''; });
+    reveal(next, first);
     layer = 1 - layer;
     shown++; sinceFc++; lastPhoto = ph.item.title || ph.item.id;
-    // the old layer's photo can go once the cross-fade is over
-    var old = cur;
-    setTimeout(function () {
-      if (!old.classList.contains('top')) {
-        old.classList.remove('zoom');
-        old.querySelectorAll('img').forEach(function (im) { im.removeAttribute('src'); });
-      }
-    }, CROSSFADE_MS + 100);
   }
 
   function restartPreview() {
@@ -811,6 +886,7 @@
     buildForecast();
     updateBand();
     forecastTick(true);
+    reveal(root.querySelector('.fc'), true);
   }
   // one slide among the photos (Photos & Forecast)
   function showForecastSlide() {
@@ -820,6 +896,7 @@
     host.setAttribute('fcslide', '');
     updateBand();
     forecastTick(true);
+    reveal(root.querySelector('.fc'), false);
   }
   function hideForecastSlide() {
     if (!fcShowing) return;
@@ -835,6 +912,8 @@
     fband = null; fSig = ''; mode = 'photos'; fcShowing = false; sinceFc = 0;
   }
   function resetForecast() {
+    if (fadeDone) fadeDone();
+    displayLayer = null;
     leaveForecast();
     if (root) root.querySelectorAll('.fc,.fcb').forEach(function (n) { n.remove(); });
     if (host) {
@@ -1140,6 +1219,7 @@
 
   window.hkSaver = {
     running: function () { return on; },
+    covered: function () { return on && !!coveredPage; },
     // the forecast is what is showing (not photos)
     forecast: function () { return on && mode === 'forecast'; },
     // HK Settings' preview frame: show it now and keep it up; false takes it away

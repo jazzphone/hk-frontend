@@ -34,6 +34,7 @@
   // Mirror of settings.py DEFAULTS. The server's answer always carries every
   // key, so this only matters before the first answer on a fresh browser.
   var DEFAULTS = {
+    climate: { status: ['temperature', 'humidity', 'blinds', 'fans'], exclude_areas: [] },
     security: { alarm: null, garage: [], locks: [], doors: [], windows: [] },
     clock: { time: 'sensor.time', date: 'sensor.date' },
     weather: { entity: null, feels_like: null, humidity: null, wind: null, gust: null, uv: null,
@@ -41,6 +42,12 @@
                // the Weather Radar Card's own options (YAML), over the tuned map
                radar: {} },
     sky: { moon: null, holidays: null, seasonal: null, birthdays: [], decorations: true,
+           // The sky's own look (Sky / Background): the moving parts, the
+           // weather (clouds, rain, snow, fog -- the sun, moon and stars
+           // stay), and the backdrop ("live" or a SKY_BACKDROPS id below,
+           // whose stops for "custom" are gradient_custom). Each screen may
+           // set its own (the board's sky_* keys, null = follow these).
+           animations: true, weather: true, gradient: 'live', gradient_custom: null,
            themes: ['halloween', 'thanksgiving', 'christmas', 'birthday', 'fourth-of-july',
                     'valentines-day', 'spring-garden', 'winter-wonderland', 'storybook-magic',
                     'space-night'],
@@ -88,6 +95,52 @@
       { key: 'favourite_radio', title: 'Favorite radio', media_type: 'radio', favorite: true }
     ] }
   };
+  // The sky's backdrops (Sky / Background): a fixed all-day gradient
+  // instead of the live sky. This is the pre-answer mirror of settings.py
+  // SKY_BACKDROPS -- tests/py/test_settings.py compares the entire table.
+  // Each palette is four stops, top of sky to horizon, in a day set and a
+  // night set. Where they come from: dusk and midnight are the live sky's
+  // own measured rows (hk-sky.js SKY, elevations 4/-4 and 60/-18); fjord,
+  // dune, graphite, plum, ember and mist are its static palettes (hk-sky.js
+  // STATIC: ecoflow, energy, cameras, playmusic, doors, climate) -- the
+  // horizon stops pulled to the glass plates' ground, at or under the live
+  // sky's own 146 -- and each night set keeps its day set's hue at night
+  // depth. Checked the way hk-sky.js checks a palette (mean under CAP,
+  // horizon at or under 146); the test holds it.
+  var SKY_BACKDROPS = [
+    { id: 'live', label: 'Live sky' },
+    { id: 'dusk', label: 'Dusk', day: ['#141f3d', '#26314f', '#5c4460', '#b06a4a'],
+      night: ['#0c1428', '#161d35', '#33263f', '#5e3730'] },
+    { id: 'midnight', label: 'Midnight', day: ['#0d2f57', '#154272', '#256192', '#5b93b8'],
+      night: ['#04070f', '#060a16', '#0a0f1f', '#111726'] },
+    { id: 'fjord', label: 'Fjord', day: ['#121634', '#183456', '#1e6e7c', '#579eaa'],
+      night: ['#0a0d22', '#0f2136', '#133f47', '#336163'] },
+    { id: 'dune', label: 'Dune', day: ['#171d12', '#3a4020', '#7a5a24', '#b07f38'],
+      night: ['#0d100a', '#1e2112', '#3f2e14', '#5e4522'] },
+    { id: 'graphite', label: 'Graphite', day: ['#080a0e', '#0f1219', '#171b23', '#222833'],
+      night: ['#040507', '#080a0d', '#0d1015', '#11141a'] },
+    { id: 'plum', label: 'Plum', day: ['#150e1f', '#2e1b42', '#5c2f76', '#9a6bb0'],
+      night: ['#0b0713', '#170e24', '#2e1a3f', '#4c3659'] },
+    { id: 'ember', label: 'Ember', day: ['#1c0e10', '#3c1a1e', '#7a2f34', '#b0605f'],
+      night: ['#100708', '#1e0d10', '#3d191c', '#5d3231'] },
+    { id: 'mist', label: 'Mist', day: ['#0d1a1c', '#173437', '#22646a', '#56a0a0'],
+      night: ['#080f10', '#0d1e21', '#12373d', '#325556'] },
+    { id: 'custom', label: 'Custom' }
+  ];
+  function backdropStops(id, custom) {
+    // "live" (or an unknown id): the live sky. "custom": the house's own
+    // stops, when they carry four of each; else the live sky too.
+    if (id === 'custom') {
+      if (custom && custom.day && custom.night && custom.day.length === 4 && custom.night.length === 4)
+        return { day: custom.day, night: custom.night };
+      return null;
+    }
+    for (var i = 0; i < SKY_BACKDROPS.length; i++) {
+      var p = SKY_BACKDROPS[i];
+      if (p.id === id && p.day) return { day: p.day, night: p.night };
+    }
+    return null;
+  }
   var KEY = 'hk_settings';
 
   function merge(over) {
@@ -239,6 +292,27 @@
     if (b && LOOKS[b.glass]) return b.glass;
     var g = get('look.glass');
     return LOOKS[g] ? g : 'clear';
+  }
+  // Sky / Background (HK Settings -> Sky / Background; a screen's own on
+  // its Screen page): this page's sky look, resolved like glass() -- this
+  // dashboard's own values when it sets them (not null), else All Screens'
+  // (sky.*). backdrop: null is the live sky; {day: [4], night: [4]} a fixed
+  // all-day gradient (the day set by day, the night set by night -- hk-sky.js
+  // paint). The boards' keys are sky_animations / sky_weather /
+  // sky_decorations / sky_gradient / sky_custom.
+  function skyLook() {
+    var b = boardHere();
+    var own = function (bk, hk, dflt) {
+      var v = b ? b[bk] : undefined;
+      return (v === null || v === undefined) ? get(hk, dflt) : v;
+    };
+    return {
+      animations: own('sky_animations', 'sky.animations', true) !== false,
+      weather: own('sky_weather', 'sky.weather', true) !== false,
+      decorations: own('sky_decorations', 'sky.decorations', true) !== false,
+      backdrop: backdropStops(own('sky_gradient', 'sky.gradient', 'live'),
+                              b && b.sky_gradient != null ? own('sky_custom', 'sky.gradient_custom', null) : get('sky.gradient_custom', null))
+    };
   }
   function applyLook() {
     var root = document.documentElement;
@@ -526,7 +600,7 @@
   // optional extra entity when one is chosen -- only an explicit 'off' of
   // that one says no.
   function seasonalOn(states) {
-    if (get('sky.decorations') === false) return false;
+    if (!skyLook().decorations) return false;
     var g = st(states, get('sky.seasonal'));
     return !(g && g.state === 'off');
   }
@@ -609,6 +683,8 @@
       return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
     },
     glass: glass,
+    skyLook: skyLook,
+    skyPalettes: function () { return SKY_BACKDROPS; },
     previewGlass: function (mode) {
       glassPreview = LOOKS[mode] ? mode : null;
       applyLook();

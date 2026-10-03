@@ -187,6 +187,7 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
             "themes": list(S.THEMES), "sky_often": {k: list(v) for k, v in S.SKY_OFTEN.items()},
             "sky_built_in": {k: {"north": list(S.sky_built_in(k, "north")),
                                  "south": list(S.sky_built_in(k, "south"))} for k in S.SKY_BUILT_IN},
+            "sky_backdrops": [dict(p) for p in S.SKY_BACKDROPS],
             "chips_quiet": list(S.CHIPS_QUIET),
         },
     })

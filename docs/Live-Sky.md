@@ -54,7 +54,7 @@ night has fireflies, and on the holidays the landscape itself is decorated
 ## Turn it on or off
 
 **Every generated screen at once:** pick an input boolean or switch as the
-**Sky Switch** under **HK Settings → All Screens → Sky → Live Sky**. While it
+**Sky Switch** under **HK Settings → All Screens → Sky / Background → Live Sky**. While it
 is off, no generated screen shows the live sky. With none chosen, the sky is
 always on.
 
@@ -93,3 +93,37 @@ the developer animation settings all turn that on, and the browser can keep
 reporting it until the tablet restarts. If the sky is frozen on one tablet and
 moving everywhere else, check those settings and restart the tablet. More in
 [Troubleshooting](Troubleshooting.md).
+
+
+## Choose its look
+
+**HK Settings → All Screens → Sky / Background** sets the defaults. Each
+screen can choose its own under **Appearance → Sky / Background**:
+
+| Setting | What it changes |
+|---|---|
+| **Animations** | Off stops the sky's animated layers, including clouds, precipitation, lightning, decorations and forecast landscape effects. The sky still follows the sun and updates its appearance. |
+| **Weather** | Off removes clouds, rain, snow, lightning and fog, including decorative snow and Halloween fog. The sun, moon and stars remain. |
+| **Decorations** | Off removes seasonal and surprise scenes. On uses the shared dates, themes and optional extra gate. |
+| **Backdrop** | Live sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
+
+A fixed backdrop changes the gradient; the other switches still apply. For a
+quiet gradient, turn Animations, Weather and Decorations off. The usual
+luminance scrim keeps glass and text readable over custom colors.
+
+Per-screen flags follow All Screens until you change them. **Use All-Screens…**
+restores a flag. **Same as All Screens** in the Backdrop picker follows the
+global palette and its custom colors; an explicit **Live sky** overrides a
+fixed global backdrop. Selecting Custom starts with Dusk (or, for a screen,
+the global custom colors if available). An own Custom palette keeps its colors
+when you change the global palette.
+
+These settings apply wherever the live sky is shown, including the forecast
+screensaver. Category pages retain their existing still washes and album art.
+The Live Sky switch continues to control whether the background is present.
+
+The standalone `/hk/pages/skyprobe.html` diagnostic can sample all sixteen
+combinations of Animations, Weather, Decorations and a fixed backdrop. It
+reports running CSS animation counts and requestAnimationFrame callback
+cadence. Cadence is not display fps or CPU/GPU usage; the probe itself adds
+per-frame work. Performance claims require a physical-device measurement.

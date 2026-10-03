@@ -969,6 +969,14 @@
   // The plain tile. A label is a static string, a named mode, or
   // (falling through) the on/off default.
   class HkTileCard extends HkTileBase {
+    _sigOf() {
+      var sig = super._sigOf(), mode = (this._config || {}).label_mode;
+      if (mode === 'climate_temperature' || mode === 'climate_humidity') {
+        sig += ';reading:' + !!(window.hkRoom && window.hkRoom.climateReading) + ':' +
+          ((((this._hass || {}).config || {}).unit_system || {}).temperature || '°F');
+      }
+      return sig;
+    }
     // NOT REPORTING (the generated Water page's Sensor Coverage):
     // how many of `group` have said nothing -- neither on nor off -- shown
     // lit, since the tile is only there while that is more than none.
@@ -987,6 +995,11 @@
       if (cfg.label != null) return cfg.label;
       if (cfg.label_mode === 'unreported') return String(this._unreported());
       var s = (st && st.state) || 'unknown';
+      if (cfg.label_mode === 'climate_temperature' || cfg.label_mode === 'climate_humidity') {
+        var kind = cfg.label_mode.slice(8), R = window.hkRoom;
+        var reading = R && R.climateReading && this._hass ? R.climateReading(this._hass, cfg.entity, kind) : null;
+        return reading == null ? 'Unavailable' : Math.round(reading) + (kind === 'temperature' ? '°' : '%');
+      }
 
       // The Home app names the JOB, not the state: "Lowering to 45%" on a
       // dehumidifier, the same way a thermostat reads "Cool to 72" rather than

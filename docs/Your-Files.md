@@ -71,7 +71,7 @@ The folder lives outside the integration’s own folder on purpose: an HK Fronte
 
 ## Other files in the folder
 
-Anything else you put in the folder is served too, at the same address under `/hk/`, and a file at the same path as one of HK Frontend’s own takes its place. For example, `hk_local/sky/clouds-a.png` replaces the bundled cloud texture. Your copy stays in place after updates, so if an update changes that file, you keep the old one until you remove yours.
+Anything else you put in the folder is served too, at the same address under `/hk/`, and a file at the same path as one of HK Frontend’s own takes its place. For example, `hk_local/sky/clouds-a.webp` replaces the bundled cloud texture. Your copy stays in place after updates, so if an update changes that file, you keep the old one until you remove yours.
 
 ## Security
 

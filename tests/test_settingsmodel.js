@@ -335,5 +335,12 @@ ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_
   ok('search finds the highlight on All Screens\' Menu', M.search('highlight color', []).some(function (r) { return r.route === 'house/menu/accent'; }));
 })();
 
+
+ok('sky summary: absent and null settings follow All Screens', M.skySummary({}) === 'Same as All Screens' && M.skySummary({ sky_gradient: null }) === 'Same as All Screens');
+ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: false, sky_weather: false, sky_decorations: false, sky_gradient: 'live' }) === 'No Animation, No Weather, No Decorations, Own Backdrop');
+ok('sky summary: true is an own setting too', M.skySummary({ sky_animations: true }) === 'Own Settings');
+ok('sky summary: stored own colors count', M.skySummary({ sky_custom: {} }) === 'Own Settings');
+ok('search includes the backdrop picker', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.label === 'Backdrop' && r.route === 'house/sky/backdrop'; }));
+
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

@@ -1404,6 +1404,8 @@
       // rather than stacking a second: pushing again would leave the first
       // entry behind, and the next Back press would land on it and do nothing.
       var reuse = false;
+      var returnGroup = D.el && D.kind === 'group' && D.group && D.group.climate ? D.group
+        : D.el && D.returnGroup ? D.returnGroup : null;
       if (D.el) { reuse = D.pushed && ours(D); close(true); }
 
       var s = stOf(h, id);
@@ -1423,7 +1425,8 @@
       // member set would only make it re-measure the page on every open and
       // close.
       panel.setConfig(Object.assign({ entity: id, kind: kind, src: src || {}, glass: false },
-        opts.group ? { entities: opts.group.ids, room: opts.group.room, groupKind: opts.group.kind } :
+        opts.group ? { entities: opts.group.ids, room: opts.group.room, groupKind: opts.group.kind,
+                       climate: opts.group.climate, resolve: opts.group.resolve } :
         opts.cards ? { cards: opts.cards.cards, width: opts.cards.width } : {}));
 
       D = {
@@ -1438,6 +1441,8 @@
         // a pop-up's own "Close after" (Pop-ups)
         autoMs: opts.autoClose > 0 ? opts.autoClose : 0
       };
+      D.group = opts.group || null;
+      D.returnGroup = !opts.group && !opts.cards ? returnGroup : null;
       sheet.style.setProperty('--hkd-w', (WIDTH[panel.hkWidthKind ? panel.hkWidthKind(h, s) : kind] || 440) + 'px');
       if (panel.hkFill && panel.hkFill()) panel.classList.add('fill');
       // A sheet as tall as its content (the camera's picture) instead of the
@@ -1448,6 +1453,14 @@
       sheet.querySelector('.body').appendChild(panel);
       el.querySelector('.bd').addEventListener('click', function () { close(); });
       el.querySelector('.x').addEventListener('click', function (e) { e.stopPropagation(); close(); });
+      if (D.returnGroup) {
+        var back = document.createElement('button');
+        back.className = 'x';
+        back.setAttribute('aria-label', 'Back to ' + D.returnGroup.title);
+        back.innerHTML = '<ha-icon icon="mdi:chevron-left"></ha-icon>';
+        back.addEventListener('click', function (e) { e.stopPropagation(); close(); });
+        el.querySelector('.hd').insertBefore(back, el.querySelector('.well'));
+      }
       // THE GEAR: this accessory's settings in place of its controls, and
       // back (admins only; not on a picture sheet or a group of several).
       var gear = el.querySelector('.gear');
@@ -1543,6 +1556,10 @@
     function close(silent) {
       var d = D;
       if (!d.el || d.closing) return;
+      if (!silent && d.returnGroup && ours(d) && location.pathname === d.path && location.hash === d.hash) {
+        restoreGroup(d.returnGroup);
+        return;
+      }
       d.closing = true;
       if (d.covers) { d.covers = false; covering(-1); }
       clearTimeout(d.auto);
@@ -1558,7 +1575,10 @@
     }
 
     window.addEventListener('popstate', function () {
-      if (D.el && !ours(D)) close(true);
+      if (D.el && !ours(D)) {
+        if (D.returnGroup && location.pathname === D.path && location.hash === D.hash) restoreGroup(D.returnGroup);
+        else close(true);
+      }
     });
 
     // A POP-UP OR ANOTHER PAGE TAKES THE SCREEN: the sheet goes, quietly. A
@@ -4649,6 +4669,15 @@
       // the accessory's own name (its gear), as on every other page
       var name = accName(id) || (S && S.shortName ? S.shortName(full, room) : full);
       var d = domainOf(id);
+      if (kind === 'temperature' || kind === 'humidity') {
+        var e = (h.entities || {})[id] || {}, dev = (h.devices || {})[e.device_id] || {};
+        var area = (h.areas || {})[e.area_id || dev.area_id] || {};
+        room = area.name || '';
+        name = accName(id) || (S && S.shortName ? S.shortName(full, room) : full);
+        return { type: 'custom:hk-tile-card', entity: id, name: name, room: room, layout: room ? 'favourite' : 'standard',
+          icon: kind === 'temperature' ? 'hk:home-thermometer' : 'hk:water-percent', icon_color: 'blue',
+          label_mode: 'climate_' + kind, tap_action: { action: 'more-info' } };
+      }
       if (d !== 'binary_sensor' && d !== 'sensor' && S && S.tileFor) {
         var t = S.tileFor(h, id, name);
         if (t) { t = Object.assign({}, t); delete t.view_layout; return t; }
@@ -4671,6 +4700,7 @@
         // has none, so each pill would run 8 px into the gap and the right
         // column would be cut off at the sheet's edge on a phone.
         return ':host{display:block;--hk-pill:192px;--hk-cell-bleed:0px}' +
+          '.summary{color:rgba(235,235,245,.66);font-size:16px;padding:0 0 18px;text-align:center}' +
           '.grp{display:grid;grid-template-columns:repeat(2,192px);grid-auto-rows:70px;gap:12px;' +
           '  justify-content:center;align-content:start;padding:2px 0 8px}' +
           '@media (max-width:600px){.grp{grid-template-columns:repeat(2,minmax(0,1fr))}}';
@@ -4681,17 +4711,51 @@
       _render() {
         var h = this._hass, cfg = this._config || {};
         if (!h) return;
-        if (!this._built) {
+        var resolved = cfg.resolve ? cfg.resolve(h) : null;
+        var ids = resolved ? resolved.ids : cfg.entities || [];
+        var configs = ids.map(function (id) {
+          var room = cfg.room;
+          if (cfg.climate) {
+            var e = (h.entities || {})[id] || {}, d = (h.devices || {})[e.device_id] || {};
+            room = ((h.areas || {})[e.area_id || d.area_id] || {}).name || '';
+          }
+          var t = groupTile(h, id, room, cfg.groupKind);
+          if (cfg.climate) {
+            t.room = room || '';
+            // The room line needs its own explicit grid track. Leaving the
+            // standard two-row layout creates an implicit third column and
+            // squeezes the accessory name/readout almost out of view.
+            t.layout = room ? 'favourite' : 'standard';
+            t.size = 'regular';
+            t.tap_action = { action: 'more-info' };
+            delete t.icon_tap_action;
+          }
+          return t;
+        });
+        var key = JSON.stringify(configs);
+        if (!this._built || key !== this._key) {
           this._built = true;
+          this._key = key;
+          var scroll = this.parentNode && this.parentNode.scrollTop;
           var grid = document.createElement('div');
           grid.className = 'grp';
-          this._kids = (cfg.entities || []).map(function (id) {
-            var el = C.create(groupTile(h, id, cfg.room, cfg.groupKind));
+          this._kids = configs.map(function (config) {
+            var el = C.create(config);
             if (el) grid.appendChild(el);
             return el;
           }).filter(Boolean);
           this._root.innerHTML = '';
+          if (cfg.climate) {
+            this._summary = document.createElement('div');
+            this._summary.className = 'summary';
+            this._root.appendChild(this._summary);
+          }
           this._root.appendChild(grid);
+          if (this.parentNode && scroll != null) this.parentNode.scrollTop = scroll;
+        }
+        if (resolved && this._summary) {
+          this._summary.textContent = resolved.value;
+          if (D.panel === this) D.tt.textContent = resolved.title;
         }
         (this._kids || []).forEach(function (el) { if (el.hkSetHass) el.hkSetHass(h); else el.hass = h; });
       }
@@ -4746,7 +4810,15 @@
       o = o || {};
       if (!ids || !ids.length) return false;
       return open(null, { name: title, icon: o.icon, icon_color: o.color || 'rgba(255,255,255,0.92)' },
-                  Object.assign({ group: { ids: ids.slice(), room: o.room || '', kind: o.kind || '' } }, extra || {}));
+                  Object.assign({ group: { title: title, ids: ids.slice(), room: o.room || '', kind: o.kind || '',
+                    icon: o.icon, color: o.color, climate: o.climate, resolve: o.resolve } }, extra || {}));
+    }
+    function restoreGroup(g) {
+      var current = g.resolve && g.resolve(C.hass());
+      // An empty category still needs a way back out after its last member
+      // was removed while a device's controls were open.
+      return open(null, { name: current ? current.title : g.title, icon: g.icon },
+        { group: Object.assign({}, g, { ids: current ? current.ids : g.ids }) });
     }
 
     // ================================================================ POP-UPS

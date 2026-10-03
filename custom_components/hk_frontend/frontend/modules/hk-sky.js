@@ -111,6 +111,8 @@
   // These feed the luminance estimate below -- guessing at cloud cover is what
   // would let a midday sky drift over CAP without anything noticing.
   // Re-measure whenever the textures change; the generator prints these.
+  // (The WebP masks are a bit-exact re-encode of these same pixels --
+  // cloud_webp.py -- so the values hold for the .webp the decks load.)
   var CLOUD_ALPHA = { a: 0.200, b: 0.124, c: 0.130 };
 
   // ------------------------------------------------------------- seasons
@@ -401,6 +403,30 @@
       // string to carry the gate for them.
       seasonalOn: HS ? HS.seasonalOn(hass.states) : true
     };
+    // Sky / Background (hk-settings.js skyLook): this screen's own look,
+    // else All Screens'. Weather off leaves the gradient, sun, moon and
+    // stars -- no clouds, falling weather or fog. Decorations off empties
+    // the season: '' is not in its key, so the next paint clears the field
+    // (paintSeason). A non-null backdrop is the fixed all-day gradient
+    // paint() paints instead of the live ramp. The PIN below still overrides
+    // any of it for the dev probe.
+    var look = HS && HS.skyLook ? HS.skyLook() : null;
+    if (look) {
+      out.animations = look.animations;
+      out.weather = look.weather;
+      out.decorations = look.decorations;
+      out.backdrop = look.backdrop;
+      if (!look.weather) {
+        out.cover = 0;
+        out.wind = 0;
+        out.fog = false;
+        out.wet = { kind: 'none', rate: 0 };
+      }
+      if (!look.decorations) {
+        out.season = '';
+        out.seasonalOn = false;
+      }
+    }
     // DEV PIN. Null in normal operation. When set, its fields override the
     // live reading for EVERY tick -- which is the only way to hold a scene
     // still on a tablet. Driving hkSkyAt() on a short interval instead does
@@ -475,11 +501,22 @@
     // The overhang is on the RIGHT only and is exactly --tw, the distance the
     // layer travels -- enough to loop seamlessly, and no more texture memory
     // than that costs.
-    '#hk-sky .cl{top:-3%;bottom:-3%;left:0;right:calc(-1 * var(--tw));',
+    //
+    // SURFACE AREA: the layer's box is exactly its painted band, not a full
+    // height with mostly transparent space below -- that idle raster was the
+    // Living Room's graphics pressure (hk_house/docs/GRAPHICS-PRESSURE-
+    // 2026-10-02.md, rec 3). The old box was 106% of the sky (top/bottom
+    // -3%) and the band sat in its top --th of it, so the new box is --thf of
+    // 106%: the same top edge, the same mask pixels, the same drift. The mask
+    // tile stays --tw WIDE -- never 100%, or the clouds would stretch -- and
+    // the gradient's lower stop is pushed out to 100%/--thf, which lands at
+    // the same point of the same ramp the taller box used to show, so the
+    // colors the band displays are the colors it always had.
+    '#hk-sky .cl{top:-3%;height:calc(var(--thf) * 106%);left:0;right:calc(-1 * var(--tw));',
     '  -webkit-mask-repeat:repeat-x;mask-repeat:repeat-x;',
-    '  -webkit-mask-size:var(--tw) var(--th);mask-size:var(--tw) var(--th);',
+    '  -webkit-mask-size:var(--tw) 100%;mask-size:var(--tw) 100%;',
     '  -webkit-mask-position:0 0;mask-position:0 0;',
-    '  background:linear-gradient(to bottom,var(--clTop),var(--clBot));',
+    '  background:linear-gradient(to bottom,var(--clTop),var(--clBot) calc(100% / var(--thf)));',
     '  opacity:var(--o);will-change:transform;transition:opacity 4s linear;',
     '  animation:hk-drift var(--d) linear infinite}',
     // --tw is DOUBLE the textures' natural feature width. At 640/440/280 each
@@ -491,12 +528,24 @@
     //
     // IF YOU CHANGE THESE, change the `tw` map in paint() too -- the drift
     // duration is derived from it, and a mismatch makes the loop jump.
-    '#hk-sky .cl.a{--tw:1280px;--th:66%;-webkit-mask-image:url(' + BASE + 'clouds-a.png' + VER + ');',
-    '  mask-image:url(' + BASE + 'clouds-a.png' + VER + ')}',
-    '#hk-sky .cl.b{--tw:880px;--th:54%;-webkit-mask-image:url(' + BASE + 'clouds-b.png' + VER + ');',
-    '  mask-image:url(' + BASE + 'clouds-b.png' + VER + ')}',
-    '#hk-sky .cl.c{--tw:560px;--th:42%;-webkit-mask-image:url(' + BASE + 'clouds-c.png' + VER + ');',
-    '  mask-image:url(' + BASE + 'clouds-c.png' + VER + ')}',
+    //
+    // --thf is the old --th: the band as a fraction of the old full-height
+    // box (see the SURFACE AREA note above). The values are unchanged, and
+    // the art they mask is unchanged.
+    //
+    // The masks ship as LOSSLESS WebP (cloud_webp.py): 45-55% smaller and
+    // faster to decode, the alpha bit-identical -- and the alpha is the whole
+    // picture, since the mask is the shape and the gradient is the color.
+    // The PNGs remain alongside for the rollout (an old page revalidates the
+    // .png it fetched, and a vanished file is a 404 -- and a missing
+    // mask-image is a solid tinted slab, not no clouds); they are removed
+    // in a later change, once every page has loaded on the .webp URLs.
+    '#hk-sky .cl.a{--tw:1280px;--thf:.66;-webkit-mask-image:url(' + BASE + 'clouds-a.webp' + VER + ');',
+    '  mask-image:url(' + BASE + 'clouds-a.webp' + VER + ')}',
+    '#hk-sky .cl.b{--tw:880px;--thf:.54;-webkit-mask-image:url(' + BASE + 'clouds-b.webp' + VER + ');',
+    '  mask-image:url(' + BASE + 'clouds-b.webp' + VER + ')}',
+    '#hk-sky .cl.c{--tw:560px;--thf:.42;-webkit-mask-image:url(' + BASE + 'clouds-c.webp' + VER + ');',
+    '  mask-image:url(' + BASE + 'clouds-c.webp' + VER + ')}',
 
     // Rain: two gradient sheets at slightly different angles and speeds. One
     // sheet alone reads as a moving texture; two read as depth. No per-drop
@@ -987,6 +1036,14 @@
     // stop the animations and hand the GPU layers back.
     '#hk-sky.static .season{opacity:0}',
     '#hk-sky.static .season *{animation:none!important;will-change:auto!important}',
+
+    // SKY / BACKGROUND -> ANIMATIONS OFF (hk-settings.js skyLook, toggled in
+    // paint): the same treatment as the .static and .idle rules -- stop the
+    // ticks AND hand the oversized composited decks back, because
+    // animation:none alone leaves them resident. Every animated descendant
+    // obeys it, including lightning and the landscape lights and fireflies.
+    '#hk-sky.noanim *{',
+    '  animation:none!important;will-change:auto!important}',
 
     '@media (prefers-reduced-motion:reduce){#hk-sky *{animation:none!important}}'
   ].join('');
@@ -1853,7 +1910,7 @@
     el._hkHoliday = { name: name, surprise: surprise, spooky: spooky };
     // Decorative snow stands down when it is actually snowing, or the weather
     // deck and this field composite into a doubled blizzard.
-    var snowOK = !(s.wet && s.wet.kind === 'snow' && s.wet.rate > 0);
+    var snowOK = s.weather !== false && !(s.wet && s.wet.kind === 'snow' && s.wet.rate > 0);
 
     // ---- scene lighting, applied EVERY paint and never baked
     // A continuous ramp on real sun elevation, not the binary `night` above:
@@ -1889,7 +1946,7 @@
     var xmasNight = landed && name === 'christmas' && night;
     var moonKeyed = spooky || xmasNight;
     var key = name + '|' + surprise + '|' + (spooky ? 's' : '-') +
-              '|' + (night ? 'n' : 'd') +
+              '|' + (night ? 'n' : 'd') + '|' + (s.weather === false ? 'dry' : 'weather') +
               '|' + dayKey(now) + '|' + Math.round(W) + 'x' + Math.round(H) +
               '|' + (moonKeyed ? Math.round(moonXf * 1000) + ',' +
                                  Math.round(moonYf * 1000) + ',' + moonS : 0) +
@@ -1937,7 +1994,7 @@
         }, rnd);
       }
       if (spooky) {
-        fogWisps(host, rnd);
+        if (s.weather !== false) fogWisps(host, rnd);
         batField(host, W, 3, rnd);
         // The RESOLVED moon center, not a guess, so she and the moon always
         // agree. Appended before the branches to match the depth order -- but
@@ -1948,10 +2005,12 @@
         if (!landed) {
           branchLayer(host);
           cobweb(host, W);
-          var gf = document.createElement('div');
-          gf.className = 'gfog';
-          gf.style.setProperty('--gfo', '0.9');
-          host.insertBefore(gf, host.firstChild);
+          if (s.weather !== false) {
+            var gf = document.createElement('div');
+            gf.className = 'gfog';
+            gf.style.setProperty('--gfo', '0.9');
+            host.insertBefore(gf, host.firstChild);
+          }
         }
       }
       if (name === 'christmas') cozyWindow(host, W, H, rnd, snowOK, landed,
@@ -1989,8 +2048,10 @@
       // hole.
       if (!landed) cover.push([SEASON.branchA * 0.78, SEASON.branchL]);
       // Two mist instances, each ~125% wide by ~25% tall at ~0.135 opacity.
-      cover.push([1.25 * 0.25 * SEASON.fogA * 0.135, SEASON.fogL]);
-      cover.push([1.25 * 0.25 * SEASON.fogA * 0.135, SEASON.fogL]);
+      if (s.weather !== false) {
+        cover.push([1.25 * 0.25 * SEASON.fogA * 0.135, SEASON.fogL]);
+        cover.push([1.25 * 0.25 * SEASON.fogA * 0.135, SEASON.fogL]);
+      }
       // The web is kept in the estimate only because it is trivial to carry;
       // at 0.019 alpha over 1.7% of the frame it rounds away.
       cover.push([0.13 * 0.13 * SEASON.webA * 0.28, SEASON.webL]);
@@ -2513,6 +2574,17 @@
     // so what arrives later -- a land, its lights, holiday.json -- carries on
     // from the last reading itself (again()).
     var last = null;
+    // A resize -- an orientation change, an inset dashboard -- carries no
+    // weather change, and the saver repaints only on a sun or weather change:
+    // a rotated screensaver would otherwise keep its old season layout and
+    // its old twinkles. Re-run both passes on a size change; the part() keys
+    // and the faders dedupe, so nothing re-rolls or re-fades unless a size
+    // actually changed. (Salvaged from the 2026-10-03 cloud commit, which
+    // was reverted for its art, not for this.)
+    var resize = typeof ResizeObserver === 'function' ? new ResizeObserver(function () {
+      if (last && el.isConnected && el.clientWidth) { paint(el, last[1]); again(); }
+    }) : null;
+    if (resize) resize.observe(el);
     function again() { if (last && el.isConnected) alive(last[0], last[1]); }
     var landF = fader(el.querySelectorAll('.land > i'), function () { el.classList.add('landed'); again(); });
     var hlEl = el.querySelector('.hl');
@@ -2598,6 +2670,7 @@
       landShown: function () { return landF.shown(); },
       lightsShown: function () { return lightF.shown(); },
       destroy: function () {
+        if (resize) resize.disconnect();
         el.remove();
         if (own && root.adoptedStyleSheets) {
           root.adoptedStyleSheets = root.adoptedStyleSheets.filter(function (x) { return x !== own; });
@@ -2637,8 +2710,21 @@
   // ------------------------------------------------------------------ paint
   function paint(el, s) {
     var st = el.style;
-    var sky = ramp(SKY, s.elev);
+    // Sky / Background: a chosen backdrop takes the live ramp's place -- its
+    // day set while the sun is above the horizon, its night set below.
+    // The --sk0..3 cross-fade is the same either way, and the luma estimate
+    // further down reads these same four stops, so a bright custom horizon
+    // scrims the glass exactly as the live sky's own 146 does.
+    var sky = (s.backdrop && (s.elev > 0 ? s.backdrop.day : s.backdrop.night)) ||
+              ramp(SKY, s.elev);
     for (var i = 0; i < 4; i++) st.setProperty('--sk' + i, sky[i]);
+    // Animations off (Sky / Background): still the moving layers -- the
+    // decks, the season's motion, the screensaver's twinkle (see .noanim in
+    // SHEET, which the screensaver's own sky adopts too). Toggled with a
+    // force, so the class always matches the paint that last ran -- a
+    // console hkSkyAt preview turns it off for its own picture, and the
+    // next real paint restores whatever is set.
+    el.classList.toggle('noanim', s.animations === false);
     // Clear the grain. The sky element SURVIVES navigation (see watch()), so a
     // weather page arrived at from a static one inherits whatever the static
     // page set -- the same reason every other layer here is written on every
@@ -2691,7 +2777,8 @@
     // schedule() is a pure function of the date, so calling it here and again
     // in paintSeason gives the same answer.
     var plan = plannedFor(s.season || '', new Date());
-    var spooky = plan.show && plan.spooky && s.elev < -4;
+    var spooky = s.season === 'halloween' && s.decorations !== false &&
+                 plan.show && plan.spooky && s.elev < -4;
     var moonEl = el.querySelector('.moon');
     if (moonEl) moonEl.classList.toggle('hallow', spooky);
     // Opposite the sun: roughly true near full, and the only placement that
@@ -3356,6 +3443,11 @@
   //     sky: true                                # a view: the live sky
   //     sky_variant: energy                      # a view: a fixed palette
   //
+  // The page sky's own look -- animations, weather, the backdrop -- is not
+  // YAML: it is the Sky / Background settings (HK Settings), which read()
+  // folds in on every tick. A view's sky_variant wins for that view either
+  // way (see render below).
+  //
   // OPT-IN IS PER DASHBOARD. With no `sky:` block in the dashboard config this
   // driver does nothing at all -- it never mounts and, crucially, never TEARS
   // DOWN -- so a dashboard without a sky is left exactly as it is.
@@ -3594,7 +3686,8 @@
     if (!mounted) return 'not mounted';
     var s = Object.assign({ elev: elev, azim: 250, cover: 0.3, wind: 6,
                             cond: 'partlycloudy', fog: false,
-                            wet: { kind: 'none', rate: 0 }, moon: 0.5 },
+                            wet: { kind: 'none', rate: 0 }, moon: 0.5,
+                            animations: true, decorations: true, backdrop: null },
                           opts || {});
     paint(mounted, s);
     return 'raw ' + mounted._hkRaw + ' -> capped ' + mounted._hkL;

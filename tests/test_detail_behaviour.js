@@ -26,13 +26,19 @@ function __aug(el) {
   var El0 = ce.call(document, 'div').constructor;
   document.createElement = function (t) {
     var K = customElements.get(String(t).toLowerCase());
-    if (K) { var k = new K(); k.tagName = String(t).toUpperCase(); return k; }
+    if (K) { var k = new K(); k.tagName = String(t).toUpperCase();
+      if (!k.classList) k.classList = ce.call(document, 'div').classList;
+      return k; }
     return __aug(ce.call(document, t));
   };
   El0.prototype.querySelector = function (sel) {
     this.__q = this.__q || {};
     if (!this.__q[sel]) { var e = __aug(new El0('stub')); e.__sel = sel; e.parentNode = this; this.__q[sel] = e; }
     return this.__q[sel];
+  };
+  El0.prototype.insertBefore = function (el, ref) {
+    var i = this.children.indexOf(ref);
+    this.children.splice(i < 0 ? 0 : i, 0, el); el.parentNode = this; return el;
   };
   HTMLElement.prototype.querySelector = El0.prototype.querySelector;
   var as = HTMLElement.prototype.attachShadow;
@@ -819,6 +825,43 @@ print('\n=== an unavailable camera is said, not black ===');
   p.hass = Object.assign({}, H);
   ok('a camera gone while open: the stream card leaves, the placeholder alone remains',
      !!card && !p._card && card.parentNode !== p._root && !!p._naEl && p._naEl.parentNode === p._root);
+})();
+
+print('\n=== Climate category sheets ===');
+(function () {
+  D.close(true); resetHistory(); __resetTimers();
+  var h = house({ 'sensor.den_t': ['71', { friendly_name: 'Den Temperature', unit_of_measurement: '°F' }],
+                  'sensor.bedroom_t': ['80', { friendly_name: 'Bedroom Temperature', unit_of_measurement: '°F' }] });
+  h.areas = { den: { name: 'Den' }, bedroom: { name: 'Bedroom' } };
+  h.entities = { 'sensor.den_t': { area_id: 'den' }, 'sensor.bedroom_t': { area_id: 'bedroom' } };
+  HA.hass = h;
+  C.hass = function () { return HA.hass; };
+  var originalCreate = C.create;
+  C.create = function (cfg) { var el = document.createElement('div'); el.config = cfg; return el; };
+  var members = ['sensor.den_t', 'sensor.bedroom_t'];
+  function resolve() { return { ids: members.slice(), title: 'Temperature', value: members.length === 2 ? '71–80°' : members.length ? '80°' : 'No accessories' }; }
+  ok('a Climate category opens as a sheet', D.openGroup('Temperature', members, { kind: 'temperature', climate: {}, resolve: resolve }));
+  var group = D._.state().panel;
+  ok('each sensor is a room-labelled reading pill', group._kids[0].config.room === 'Den' &&
+    group._kids[0].config.label_mode === 'climate_temperature' && group._kids[1].config.room === 'Bedroom' &&
+    group._kids[0].config.layout === 'favourite' && group._kids[0].config.size === 'regular');
+  ok('the popup displays the same range as the row', group._summary.textContent === '71–80°');
+  var kid = group._kids[0];
+  group.hass = Object.assign({}, h);
+  ok('ordinary state pushes keep the pill instances', group._kids[0] === kid);
+  members = ['sensor.bedroom_t']; group.hass = Object.assign({}, h);
+  ok('membership and the summary update while the popup is open', group._kids.length === 1 && group._summary.textContent === '80°');
+  ok('a pill opens its sensor details', D.open('sensor.bedroom_t', {}));
+  ok('device details retain the parent Climate category', D._.state().returnGroup.kind === 'temperature' && HIST.i === 1);
+  D.close();
+  ok('closing device details returns to the live category without another history entry', D._.state().kind === 'group' && HIST.i === 1);
+  D.open('sensor.bedroom_t', {}); history.back(); flushPops();
+  ok('browser Back from a device returns to the category', D._.state().kind === 'group' && HIST.i === 1);
+  D.open('sensor.bedroom_t', {}); members = []; D.close();
+  ok('removing the last member still returns to a dismissible empty category', D._.state().kind === 'group' && D._.state().panel._kids.length === 0);
+  D.close(); flushPops();
+  ok('closing the category returns to the page with no leftover history', !D._.state().el && HIST.i === 0);
+  C.create = originalCreate;
 })();
 
 print('\n' + (fail ? 'FAIL ' + fail + ' DETAIL BEHAVIOUR TESTS' : 'ALL ' + pass + ' DETAIL BEHAVIOUR TESTS PASS'));

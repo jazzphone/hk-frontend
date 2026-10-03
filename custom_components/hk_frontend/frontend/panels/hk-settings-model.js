@@ -39,6 +39,8 @@
     vacuums: 'Vacuums', music: 'Play Music', browse: 'Browse Music', water: 'Water', rooms: 'Room Pages'
   };
   var COUNT_KINDS = [
+    ['temperature', 'Temperature', 'Room-related temperature sensors, or a thermostat’s current reading where a room has no related sensor. Other sensors can be added explicitly.'],
+    ['humidity', 'Humidity', 'Room-related humidity sensors, or a thermostat’s current humidity where a room has no related sensor. Other sensors can be added explicitly.'],
     ['lights', 'Lights', 'Every light. The Lights chip counts the ones that are on.'],
     ['fans', 'Fans', 'Every fan. The Climate chip counts the ones that are on.'],
     ['doors', 'Doors', 'Door contacts. The Doors & Windows chip counts the open ones.'],
@@ -144,6 +146,7 @@
     card_options: 'Options must be YAML keys and values (key: value), under 20,000 characters.',
     birthday: 'Each birthday needs a name and a date.', path: 'Use letters, digits and dashes only.',
     count: 'That list couldn’t be read.', date: 'That isn’t a date.',
+    stops: 'Choose four colors for Day and four for Night.',
     tab_position: 'Enter a number: pixels from the top, or a percentage of the screen’s height.',
     accent: 'Choose a color, or a color of your own as #rrggbb.',
     dock_min: 'Enter 700 to 3,000 px.', bad_room: 'Use lower-case letters, digits and underscores, like living_room.',
@@ -775,6 +778,7 @@
     ['Pages', 'screen/pages', 'pages', 'category pages custom pages', true],
     ['Glass', 'screen/glass', 'glass', 'look blur frosted clear', true],
     ['Live Sky', 'screen', 'sky', 'background animated', true],
+    ['Sky / Background', 'screen/sky', 'sky_look', 'backdrop animations weather decorations palette own look', true],
     ['Hide Home Assistant Header & Sidebar', 'screen', 'kiosk', 'kiosk mode', true],
     ['Return to Home When Idle', 'screen', 'idle_return', 'idle timeout wall tablet', true],
     ['Tablet Room', 'screen', 'idle_room', 'wall tablet room helpers', true],
@@ -821,6 +825,9 @@
     ['Blur Amount', 'house/appearance', 'look.blur', 'blur strength'],
     ['HK Detail Sheets', 'house/appearance', 'look.details', 'more info dialog sheet'],
     ['Sky Switch', 'house/sky', 'look.sky_switch', 'live sky helper'],
+    ['Animations', 'house/sky', 'sky.animations', 'sky moving clouds seasons'],
+    ['Weather', 'house/sky', 'sky.weather', 'sky clouds rain snow fog'],
+    ['Backdrop', 'house/sky/backdrop', 'sky.gradient', 'backdrop palette gradient fixed sky color dusk midnight fjord dune graphite plum ember mist custom'],
     ['Seasonal Decorations', 'house/sky', 'sky.decorations', 'holiday halloween christmas'],
     ['Birthdays', 'house/sky/birthday', 'sky.birthdays', 'balloons'],
     ['Hemisphere', 'house/sky/advanced', 'sky.hemisphere', 'southern northern'],
@@ -843,6 +850,7 @@
     ['Rooms on Pages', 'house/rooms', 'rooms.pages', 'by floor room order lights climate'],
     ['Room Headings Open Room Pages', 'house/rooms', 'rooms.headings', 'room page link'],
     ['Room Status Row', 'house/rooms/status', 'rooms.status', 'room page temperature humidity'],
+    ['Climate Status', 'house/climate', 'climate.status', 'temperature humidity ranges blinds fans room exclusions'],
     ['Browse Music Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
     ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
     ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
@@ -915,7 +923,8 @@
     ['scenes', 'Scenes', ['scenes_row', 'scenes', 'scenes_pages'], false],
     ['favorites', 'Favorites', ['favorites'], false],
     ['pages', 'Pages', ['pages', 'custom_pages'], true],
-    ['look', 'Appearance', ['glass', 'frost', 'blur', 'sky'], true],
+    ['look', 'Appearance', ['glass', 'frost', 'blur', 'sky', 'sky_animations', 'sky_weather',
+                            'sky_decorations', 'sky_gradient', 'sky_custom'], true],
     ['behavior', 'Behavior', ['idle_return', 'popups', 'car', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins',
                               'kiosk_engine', 'kiosk_options', 'now_playing'], true],
     ['saver', 'Screensaver', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true]
@@ -1010,7 +1019,21 @@
     return { options: keys.map(function (k) { return [k, MOMENT_LABELS[k]]; }), value: m[1] };
   }
 
+  // Null is a continuing relationship to All Screens, including custom
+  // stops. A true flag is still an override, even when it matches the house.
+  function skySummary(b) {
+    var keys = ['sky_animations', 'sky_weather', 'sky_decorations', 'sky_gradient', 'sky_custom'];
+    if (keys.every(function (k) { return b[k] == null; })) return 'Same as All Screens';
+    var parts = [];
+    if (b.sky_animations === false) parts.push('No Animation');
+    if (b.sky_weather === false) parts.push('No Weather');
+    if (b.sky_decorations === false) parts.push('No Decorations');
+    if (b.sky_gradient != null) parts.push('Own Backdrop');
+    return parts.join(', ') || 'Own Settings';
+  }
+
   root.hkSettingsModel = {
+    skySummary: skySummary,
     YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
     SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,

@@ -83,6 +83,43 @@ SKY_OFTEN = {"halloween_often": SEASON_OFTEN, "thanksgiving_often": SEASON_OFTEN
              "christmas_often": SEASON_OFTEN, "spring_often": SURPRISE_OFTEN,
              "winter_often": SURPRISE_OFTEN, "storybook_per_month": PER_MONTH,
              "space_per_month": PER_MONTH, "spooky_often": SPOOKY_OFTEN}
+# The sky's backdrops (HK Settings -> Sky / Background): a fixed all-day
+# gradient instead of the live sky. "live" is the live sky itself; "custom"
+# is the house's own stops (sky.gradient_custom below).
+# Python owns the complete palette table; the panel receives it in choices.
+# hk-settings.js mirrors it for the dashboard's first paint, before a server
+# answer. The parity test compares labels and every stop as well as ids.
+# Four stops top to horizon, at [0, .42, .72, 1]. The curated sets stay
+# under the live sky's luminance cap; custom stops use its normal scrim.
+SKY_BACKDROPS = (
+    {"id": "live", "label": "Live sky"},
+    {"id": "dusk", "label": "Dusk",
+     "day": ["#141f3d", "#26314f", "#5c4460", "#b06a4a"],
+     "night": ["#0c1428", "#161d35", "#33263f", "#5e3730"]},
+    {"id": "midnight", "label": "Midnight",
+     "day": ["#0d2f57", "#154272", "#256192", "#5b93b8"],
+     "night": ["#04070f", "#060a16", "#0a0f1f", "#111726"]},
+    {"id": "fjord", "label": "Fjord",
+     "day": ["#121634", "#183456", "#1e6e7c", "#579eaa"],
+     "night": ["#0a0d22", "#0f2136", "#133f47", "#336163"]},
+    {"id": "dune", "label": "Dune",
+     "day": ["#171d12", "#3a4020", "#7a5a24", "#b07f38"],
+     "night": ["#0d100a", "#1e2112", "#3f2e14", "#5e4522"]},
+    {"id": "graphite", "label": "Graphite",
+     "day": ["#080a0e", "#0f1219", "#171b23", "#222833"],
+     "night": ["#040507", "#080a0d", "#0d1015", "#11141a"]},
+    {"id": "plum", "label": "Plum",
+     "day": ["#150e1f", "#2e1b42", "#5c2f76", "#9a6bb0"],
+     "night": ["#0b0713", "#170e24", "#2e1a3f", "#4c3659"]},
+    {"id": "ember", "label": "Ember",
+     "day": ["#1c0e10", "#3c1a1e", "#7a2f34", "#b0605f"],
+     "night": ["#100708", "#1e0d10", "#3d191c", "#5d3231"]},
+    {"id": "mist", "label": "Mist",
+     "day": ["#0d1a1c", "#173437", "#22646a", "#56a0a0"],
+     "night": ["#080f10", "#0d1e21", "#12373d", "#325556"]},
+    {"id": "custom", "label": "Custom"},
+)
+SKY_BACKDROP_IDS = tuple(p["id"] for p in SKY_BACKDROPS)
 _MMDD = re.compile(r"^\s*(\d{1,2})-(\d{1,2})\s*$")
 
 
@@ -94,6 +131,23 @@ def parse_mmdd(text: str | None) -> str | bool | None:
     if not m or not (1 <= int(m.group(1)) <= 12 and 1 <= int(m.group(2)) <= 31):
         return False
     return f"{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+
+
+def sky_stops(v: Any) -> dict[str, list[str]] | None:
+    """A custom backdrop's stops, as stored: {day: ["#rrggbb" x 4],
+    night: [...]}, lowercased; None when it is None or says nothing else."""
+    if v is None:
+        return None
+    if not isinstance(v, Mapping):
+        return None
+    out: dict[str, list[str]] = {}
+    for k in ("day", "night"):
+        s = v.get(k)
+        if not isinstance(s, (list, tuple)) or len(s) != 4 \
+                or not all(isinstance(x, str) and ACCENT_HEX.fullmatch(x) for x in s):
+            return None
+        out[k] = [x.lower() for x in s]
+    return out
 
 
 # The menu (hk-sidebar.js) and the room pages (docs/Menu.md, docs/Pages.md).
@@ -137,6 +191,7 @@ STATUS_KINDS =("temperature", "humidity", "outlets", "blinds", "fans", "windows"
                 "doors", "locks", "garage", "motion", "occupancy", "leaks")
 
 DEFAULTS: dict[str, dict[str, Any]] = {
+    "climate": {"status": ["temperature", "humidity", "blinds", "fans"], "exclude_areas": []},
     # The header's right-hand line: "Disarmed · 2 Doors Open" / "Home Secured".
     "security": {"alarm": None, "garage": [], "locks": [], "doors": [], "windows": []},
     # The header clock. Home Assistant's Time & Date integration; the page
@@ -156,6 +211,15 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # switch.py); seasonal: optionally, an entity of the house's that must also be on.
     "sky": {"moon": None, "holidays": None, "seasonal": None, "birthdays": [],
             "decorations": True,
+            # The sky's own look (Sky / Background): animations -- the moving
+            # parts (drifting clouds, falling rain and snow, the seasons);
+            # weather -- the clouds, rain, snow and fog (the sun, moon and
+            # stars stay when it is off); gradient -- "live" or a backdrop
+            # id (SKY_BACKDROPS); gradient_custom -- its own stops, for
+            # "custom". Each screen may set its own (the board's
+            # sky_animations ... sky_custom keys, None = follow these).
+            "animations": True, "weather": True,
+            "gradient": "live", "gradient_custom": None,
             # Which themes may run (all by default) and the hemisphere, which
             # flips the spring and winter surprise windows. (christmas_from is
             # one of SKY_DATES below: None = the built-in 12-07.)
@@ -592,6 +656,12 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Screen: frost, blur: this screen's own amounts (0-100 %) -- None
     # follows the shared look (HK Settings -> Appearance).
     "glass": "house", "frost": None, "blur": None, "sky": True, "idle_return": False, "idle_room": "", "car": False,
+    # Sky / Background, this screen's own: None for each follows All
+    # Screens (the house's sky animations / weather / decorations, and the
+    # house's backdrop -- sky_gradient: a SKY_BACKDROPS id, sky_custom: its
+    # stops, for "custom").
+    "sky_animations": None, "sky_weather": None, "sky_decorations": None,
+    "sky_gradient": None, "sky_custom": None,
     # kiosk: the screen hides Home Assistant's header and sidebar -- HK
     # Frontend itself (hk-kiosk.js), any screen, generated or not. Which of
     # the two (kiosk_header, kiosk_sidebar), and whether for admins too
@@ -712,6 +782,13 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["glass"] = pick("glass", BOARD_GLASS)
     for k in ("frost", "blur"):
         out[k] = amount_or_none(d.get(k))
+    # The screen's own Sky / Background: each flag stored as anything but a
+    # boolean is not set (follow All Screens), as a backdrop id not in
+    # SKY_BACKDROPS and stops that do not parse are (sky_stops()).
+    for k in ("sky_animations", "sky_weather", "sky_decorations"):
+        out[k] = d.get(k) if isinstance(d.get(k), bool) else None
+    out["sky_gradient"] = d.get("sky_gradient") if d.get("sky_gradient") in SKY_BACKDROP_IDS else None
+    out["sky_custom"] = sky_stops(d.get("sky_custom"))
     for k in ("chips_row", "camera_strip", "scenes_row", "sky", "idle_return", "car", "kiosk", "popups",
               "now_playing", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
         out[k] = bool(d.get(k, BOARD_DEFAULTS[k]))

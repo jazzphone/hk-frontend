@@ -164,6 +164,7 @@ optionally on an `attribute`).
 | `hk-heading-card` | A section title. With `area`, it links to that area’s room page when the dashboard has one. | `name` (required), `area`, `navigation_path`, `chevron` (text after the title), `height`, `padding`, `grid_rows` |
 | `hk-stat-card` | An icon, a caption and a large reading, with no background. | `entity` (required), `name`, `value_mode` (`temperature`, `power`, `runtime`, `cost`, `flow`), `icon`, `icon_color`, `value` (fixed text) |
 | `hk-rank-card` | A tile with a large reading: a value, a percentage, or a device’s power use ranked against others. | `entity` (required), `name`, `mode` (`hero`, `pct`, `rank`), `power`, `stat`, `peers`, `icon_color_steps`, `label_entity`, `label_suffix`, `label_decimals` |
+| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Climate Status and What Counts. | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
 | `hk-room-status-card` | A room’s status line: temperature and humidity, then what is on, open or detected, read from its area. | `area` (required; one or a list), `items`, `temperature`, `humidity`, `entities`, `exclude`, `include` |
 
 `icon_color_steps` is a list whose first match wins, for example
