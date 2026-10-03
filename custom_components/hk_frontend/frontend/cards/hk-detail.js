@@ -4720,6 +4720,11 @@
             room = ((h.areas || {})[e.area_id || d.area_id] || {}).name || '';
           }
           var t = groupTile(h, id, room, cfg.groupKind);
+          // The sheet already blurs its backdrop. Every nested pill must
+          // stay out of the shared glass renderer too: its clipped layer in
+          // the scrolling body adds a second blur inside an animated blur
+          // surface, producing rectangular artifacts on tablet GPUs.
+          t.glass = false;
           if (cfg.climate) {
             t.room = room || '';
             // The room line needs its own explicit grid track. Leaving the

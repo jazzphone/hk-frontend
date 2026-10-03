@@ -846,6 +846,8 @@ print('\n=== Climate category sheets ===');
     group._kids[0].config.label_mode === 'climate_temperature' && group._kids[1].config.room === 'Bedroom' &&
     group._kids[0].config.layout === 'favourite' && group._kids[0].config.size === 'regular');
   ok('the popup displays the same range as the row', group._summary.textContent === '71–80°');
+  ok('every nested reading pill uses the sheet blur without joining shared glass',
+    group._kids.every(function (el) { return el.config.glass === false; }));
   var kid = group._kids[0];
   group.hass = Object.assign({}, h);
   ok('ordinary state pushes keep the pill instances', group._kids[0] === kid);
