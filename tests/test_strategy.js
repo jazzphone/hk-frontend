@@ -263,6 +263,15 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     var clim = m2.views.filter(function (v) { return v.path === 'climate'; })[0];
     ok('the Climate page shows the thermostats, not the car', cards(clim).indexOf('climate.den') > 0 &&
        cards(clim).indexOf('climate.car') < 0);
+    var dialGrid;
+    (function walk(n) {
+      if (!n || typeof n !== 'object') return;
+      if (n.cards && n.cards.some(function (c) { return c.type === 'custom:hk-thermostat-card'; })) dialGrid = n;
+      Object.keys(n).forEach(function (k) { walk(n[k]); });
+    })(clim);
+    ok('thermostat dials share the heading left edge while retaining responsive columns',
+       dialGrid && dialGrid.layout['place-content'] === 'start start' &&
+       dialGrid.layout['grid-template-columns'] === 'repeat(auto-fit, minmax(min(100%, 340px), 364px))');
     var garage = tilesOf(m2.views[0], 'Garage').filter(function (t) { return t.entity === 'climate.car'; })[0];
     ok('a tile is named by its FULL name, not the registry short name', garage && garage.name === 'Family Car Climate', garage && garage.name);
     // WHAT COUNTS answers first: the integration's kinds decide the pages.

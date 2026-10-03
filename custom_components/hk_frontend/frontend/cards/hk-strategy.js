@@ -1011,7 +1011,9 @@
         right.push(heading('Thermostats'));
         right.push({ type: 'custom:hk-grid-card',
           layout: { 'grid-template-columns': 'repeat(auto-fit, minmax(min(100%, 340px), 364px))', 'grid-auto-rows': 'min-content',
-                    'place-content': 'start end', 'grid-column-gap': '16px', 'grid-row-gap': '16px', margin: '0px 0px 16px 0px', padding: '0px' },
+                    // The heading and dials share their left edge even when
+                    // this rail has spare width before a second dial fits.
+                    'place-content': 'start start', 'grid-column-gap': '16px', 'grid-row-gap': '16px', margin: '0px 0px 16px 0px', padding: '0px' },
           cards: inv.climates.map(function (id) {
             return { type: 'custom:hk-thermostat-card', entity: id, name: fullName(hass, id) };
           }) });

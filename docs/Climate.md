@@ -70,6 +70,7 @@ does not hide that area’s accessories from the rest of the dashboard.
 On wide pages the thermostat section grows to put two dials side by side.
 On narrower pages the dials stack. On a phone the room accessories and
 thermostat section also stack, with no horizontal page overflow.
+The Thermostats heading stays aligned with the first dial at every width.
 
 ![The Climate page at tablet width, with stacked thermostats](images/tablet-climate.jpg)
 
