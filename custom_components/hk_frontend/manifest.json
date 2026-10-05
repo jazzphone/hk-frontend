@@ -3,6 +3,7 @@
   "name": "HK Frontend",
   "after_dependencies": [
     "camera",
+    "energy",
     "go2rtc",
     "lovelace",
     "music_assistant"

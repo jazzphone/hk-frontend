@@ -89,16 +89,24 @@ From top to bottom:
      more contrasty than their surroundings.
 5. **The meadow — y ≈ 990 to the bottom:** open grass (snow in winter),
    continuous from edge to edge, getting nearer and a little darker toward
-   the bottom. A faint, low-contrast trodden path may wind through it toward
-   the gap between the two trees. Nothing else in it.
+   the bottom. A faint trodden path may approach the gap between the two
+   trees, visible only above y ≈ 1030 and fading out below it. Nothing else
+   in it. (Most of the meadow is under the forecast card — see below.)
 
 **Keep clear and calm** (text is drawn over these):
 
 - **Clock corner — x < 1150, y < 700:** a large white clock and date sit
   there. Whatever is behind it (hills, the edge of the left crown) must be
   dark, low-contrast and calm. No bright foliage, no prop.
-- **Forecast panel — y > 1180:** low-contrast meadow, darker toward the
-  bottom edge. No flowers, rocks, props or bright detail.
+- **The forecast card — everything below y = 1030 is under it.** The
+  multi-day forecast card fills the bottom of the screen, and on every screen
+  size (tablet, desk, laptop, ultrawide, phone, portrait tablet) its area
+  starts at **art y ≈ 1030**. So: **every tree, root, prop and its shadow
+  must end above y = 1020** — the trunk feet at y ≈ 990 leave room for the
+  grass and contact shadow at their base and no more; nothing may stand lower
+  in the meadow. Below y = 1030: plain, low-contrast meadow only, darker
+  toward the bottom edge — no flowers, rocks, path detail, props or bright
+  patches (the card's text sits on it).
 - **Portrait crop — the centre 1000 px (x ≈ 780–1780):** upright tablets
   show only this. Both trees are in it; it must be a good picture on its own.
 
@@ -213,7 +221,7 @@ added, and nothing else changed** — every pixel outside the things you add
 of the base. Add each thing with a small, irregular, feathered mask around
 it; **never a rectangle**. A thing standing on the ground is drawn in contact
 with it (its own small shadow, grass or snow overlapping its base), exactly
-as §5 asks of the trees. Nothing new below y = 1060. Keep everything in §4's
+as §5 asks of the trees. Nothing new below y = 1020 (the forecast card, §4). Keep everything in §4's
 calm areas calm.
 
 The things are the dashboard's, seen from far away, where the dashboard has
