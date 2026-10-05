@@ -146,5 +146,23 @@ panel.lovelace = { config: { views: [], hk_kiosk: { admins: false } } };
 K.refresh();
 ok('an admin on a screen that leaves admins alone: nothing hidden', !main.hasAttribute('hk-kiosk-sidebar') && !root.hasAttribute('hk-kiosk-header'));
 
+// A WALL TABLET KEEPS ITS CONNECTION: signed in as a screen's Tablet User,
+// Home Assistant's "Automatically close connection" is turned off, once, by
+// the event its profile switch fires
+ok('a screen\'s Tablet User is one', _.tabletUser({ a: { tablet_user: 'kitchen' }, b: null }, 'kitchen') &&
+   !_.tabletUser({ a: { tablet_user: 'kitchen' } }, 'Mark') && !_.tabletUser(null, 'kitchen'));
+var sent = [];
+ha.dispatchEvent = function (e) { sent.push(e); return true; };
+BOARDS = { 'dashboard-kitchen': { tablet_user: 'kitchen' } };
+ha.hass = { user: { is_admin: false, name: 'Mark' } };
+K.refresh();
+ok('a person\'s own browser keeps Home Assistant\'s setting', sent.length === 0);
+ha.hass = { user: { is_admin: false, name: 'kitchen' }, suspendWhenHidden: true };
+K.refresh();
+ok('the tablet\'s user: the connection is kept while the screen is dark',
+   sent.length === 1 && sent[0].type === 'hass-suspend-when-hidden' && sent[0].detail.suspend === false, sent.length);
+K.refresh();
+ok('...once', sent.length === 1);
+
 print(fail ? '  ' + fail + ' KIOSK TESTS FAILED (' + pass + ' passed)' : '  ALL ' + pass + ' KIOSK TESTS PASS');
 if (fail) throw new Error('kiosk tests failed');

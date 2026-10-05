@@ -3810,11 +3810,18 @@
   var NEAR_HORIZON = { summer: .708, fall: .569, winter: .596, spring: .574, halloween: .502,
                        christmas: .596, july4: .587, birthday: .578 };
   function rcWet(s) { return /rain|pour|snow|hail|sleet|lightning/.test(String(s.cond || '')); }
+  // A THUNDERSTORM IS THE GREY LID, whatever cover the weather reports with
+  // it: a storm under a broken, sunlit sky drew white cumulus and a white
+  // tower on blue (2026-10-05) -- it should look grey and heavy.
+  function rcCover(s) {
+    var c = clamp(s.cover || 0, 0, 1);
+    return /lightning/.test(String(s.cond || '')) ? Math.max(c, .9) : c;
+  }
   // Which clouds the sky has: a few small far ones on a fair day, the big
   // cumulus and broken sheets as it clouds over, the overcast deck (with
   // darker masses drifting over it) when it is a lid.
   function rcPlan(s, r) {
-    var c = clamp(s.cover || 0, 0, 1), cond = String(s.cond || ''), sets = [];
+    var c = rcCover(s), sets = [];
     function add(set, n) { for (var i = 0; i < n; i++) sets.push(set); }
     // (the deck alone: the darker masses drifting over it read as pasted
     // on -- their lit rims never match the deck under them)
@@ -3842,7 +3849,6 @@
     var veil = c < .3 ? 0 : clamp((c - .3) / .55, 0, 1) * .5;
     add('altocumulus', c > .55 && c < .8 && r() < .15 ? 1 : 0);
     add('horizon-haze', c >= .4 ? 1 : 0);
-    add('cumulonimbus', /lightning/.test(cond) ? 1 : 0);
     return { deck: false, veil: veil, sets: sets };
   }
   // A CUMULUS IN PERSPECTIVE (rcSpawn, set 'cu'). Fair-weather cumulus share
@@ -3868,7 +3874,7 @@
   // GREY only under a lid: a shower from a broken sky still has sunlit
   // clouds, and grey ones in a clear blue sky read as cut out.
   function rcLight(s) {
-    var c = s.cover || 0;
+    var c = rcCover(s);
     if (s.elev <= -7) return 'night';
     if (s.elev < 0) return 'dusk';
     if (s.elev < 10) return c >= .9 ? 'grey' : 'golden';

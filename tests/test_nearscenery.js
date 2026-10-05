@@ -173,7 +173,9 @@ check('...never more than 28 clouds',[0,.1,.3,.5,.7,.84].every(function(c){retur
 var lid=hkSky._rcPlan({cover:.95,cond:'cloudy'}),wetLid=hkSky._rcPlan({cover:.65,cond:'rainy'});
 check('...overcast, or rain under a heavy sky, is the deck as a ceiling, scud under it (more in rain) and haze on the horizon',
   lid.deck&&wetLid.deck&&rcCount(lid,'scud')===3&&rcCount(wetLid,'scud')===5&&rcCount(lid,'horizon-haze')===1);
-check('...a storm shows its tower on the horizon',rcCount(hkSky._rcPlan({cover:.5,cond:'lightning'}),'cumulonimbus')===1);
+check('...a thunderstorm is the grey lid, whatever cover it is reported with',hkSky._rcPlan({cover:.5,cond:'lightning'}).deck===true&&
+  hkSky._rcPlan({cover:.2,cond:'lightning-rainy'}).deck===true&&hkSky._rcLight({elev:40,cover:.5,cond:'lightning'})==='grey'&&
+  hkSky._rcLight({elev:5,cover:.3,cond:'lightning-rainy'})==='grey');
 check('...the light: day (a shower from a broken sky too), grey under a lid, golden low, dusk below the horizon, night',
   hkSky._rcLight({elev:40,cover:.3})==='day'&&hkSky._rcLight({elev:40,cover:.9})==='grey'&&hkSky._rcLight({elev:40,cover:.3,cond:'rainy'})==='day'&&
   hkSky._rcLight({elev:5,cover:.3})==='golden'&&hkSky._rcLight({elev:-3,cover:.3})==='dusk'&&hkSky._rcLight({elev:-12,cover:.3})==='night');

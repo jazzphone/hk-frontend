@@ -138,8 +138,8 @@ condition and cloud cover; the lighting from the sun.
 | **Sunny** — a few far cumulus, low on the horizon | **Partly cloudy** — cumulus near and far, now and then a high wisp |
 | ![Realistic clouds, mostly cloudy: big cumulus and broken sheets](images/clouds-mostly-cloudy.jpg) | ![Realistic clouds, overcast: a photographic deck across the sky](images/clouds-overcast.jpg) |
 | **Mostly cloudy** — big cumulus, broken sheets and a haze along the horizon | **Overcast** (85 % cover or more) — one photographic deck, drifting to and fro |
-| ![Realistic clouds in the rain](images/clouds-rain.jpg) | ![Realistic clouds, a thunderstorm: a towering cumulonimbus among the cumulus](images/clouds-thunderstorm.jpg) |
-| **Rain** — the grey deck, with the rain falling in front | **Thunderstorm** — a towering cumulonimbus among the cumulus, lightning flashing in the sky |
+| ![Realistic clouds in the rain](images/clouds-rain.jpg) | ![Realistic clouds, a thunderstorm: the grey storm deck](images/clouds-thunderstorm.jpg) |
+| **Rain** — the grey deck, with the rain falling in front | **Thunderstorm** — the grey storm deck, whatever cover is reported, lightning flashing in it |
 | ![Realistic clouds in the snow](images/clouds-snow.jpg) | ![Classic clouds on the same partly cloudy sky](images/clouds-classic.jpg) |
 | **Snow** — the grey deck, with the snow falling | **Classic**, the same partly cloudy sky, for comparison |
 

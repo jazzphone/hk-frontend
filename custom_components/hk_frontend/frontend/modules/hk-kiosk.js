@@ -33,6 +33,14 @@
 // (the Kiosk Mode plugin's rules outlived the dashboard that set them: see
 // hk-menu.js syncOutside, which still handles a screen using the plugin).
 //
+// A WALL TABLET KEEPS ITS CONNECTION. Signed in as any screen's Tablet User,
+// this browser's "Automatically close connection" (Home Assistant's profile
+// setting, kept in the browser) is turned off, once, the way the profile's
+// own switch does it. Home Assistant closes the connection of a page hidden
+// for five minutes; a kiosk app restarted while its screen is dark loads the
+// page hidden, and when the screen woke the page never heard it -- the clock
+// stood at the restart and nothing else updated (Master Bathroom, 2026-10-05).
+//
 // hkKiosk.hold(true) shows the sidebar while the menu's Show Menu has Home
 // Assistant's sidebar open over the page (hk-menu.js), hold(false) hides it
 // again.
@@ -138,10 +146,27 @@
     else if (el.hasAttribute(attr)) el.removeAttribute(attr);
   }
 
+  // Is `name` some screen's Tablet User? (settings.py board tablet_user)
+  function tabletUser(boards, name) {
+    if (!boards || !name) return false;
+    return Object.keys(boards).some(function (k) { return !!boards[k] && boards[k].tablet_user === name; });
+  }
+  var keptOn = false;
+  function keepConnected(ha, h) {
+    if (keptOn || !ha || !h || !h.user) return;
+    var HS = window.hkSettings;
+    if (!tabletUser(HS && HS.get ? HS.get('boards', null) : null, h.user.name)) return;
+    keptOn = true;
+    if (h.suspendWhenHidden === false) return;
+    try { ha.dispatchEvent(new CustomEvent('hass-suspend-when-hidden', { detail: { suspend: false } })); }
+    catch (e) { /* an older Home Assistant */ }
+  }
+
   function apply() {
     var p = parts();
     if (!p.main) return;
     var HS = window.hkSettings, h = p.ha && p.ha.hass;
+    keepConnected(p.ha, h);
     var w = decide({ dashboard: HS && HS.lovelacePanel ? HS.lovelacePanel() : null, cfg: configOf(p), board: boardOf(),
                      admin: !!(h && h.user && h.user.is_admin), off: off, forced: forced });
     now = w;
@@ -195,6 +220,6 @@
     state: function () { return now ? { header: now.header, sidebar: now.sidebar && !held, source: now.source } : null; },
     hold: function (on) { held = !!on; apply(); },
     refresh: apply,
-    _: { norm: norm, fromBoard: fromBoard, decide: decide, CSS: CSS }
+    _: { norm: norm, fromBoard: fromBoard, decide: decide, CSS: CSS, tabletUser: tabletUser }
   };
 })();
