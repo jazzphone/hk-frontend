@@ -1212,7 +1212,10 @@
     timers: ['Timers', 'hk:timer-sand', 'white', ['timers']],
     vacuums: ['Vacuums', 'hk:robot-vacuum', 'white', ['vacuums']],
     music: ['Play Music', 'hk:music', 'white', ['playmusic']],
-    water: ['Water', 'hk:water', 'white', ['water']]
+    water: ['Water', 'hk:water', 'white', ['water']],
+    // the Energy feature's page: drawn only where the screen has it (the
+    // feature added, the page on its Pages)
+    energy: ['Energy', 'mdi:lightning-bolt', 'white', ['energy']]
   };
   function pagePill(key) {
     var p = PAGE_PILLS[key];

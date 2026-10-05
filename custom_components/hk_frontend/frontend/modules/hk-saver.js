@@ -1087,20 +1087,25 @@
     paneW = w;
     // a new width for the pane is a new room for the band beside it
     if (fband && fband.isConnected) setTimeout(function () { if (fband && fband.isConnected) centerBand(fband); }, 0);
-    var W = window.innerWidth || 0, px = function (n) { return Math.round(n * z) + 'px'; };
+    var px = function (n) { return Math.round(n * z) + 'px'; };
     host.style.setProperty('--hk-pane-w', w + 'px');
     // one margin for everything in the pane: the list, Home Status, its foot
     host.style.setProperty('--hk-pane-pad', px(28));
     // WHAT PLAYS AND THE TIMERS, in the pane's foot (hk-media.js,
     // hk-timers.js): on its 28 px margins, left-aligned with the list,
-    // smaller than in a corner of the photos
-    host.style.setProperty('--hk-ss-now-left', (W - w + Math.round(28 * z)) + 'px');
+    // smaller than in a corner of the photos. Their left edge is measured
+    // from the screen's RIGHT (100% of the screen-sized host, the box their
+    // position:fixed resolves against), so a window resized or a screen
+    // turned at the same scale -- the pane's width unchanged, this skipped --
+    // leaves them in the pane, never where the old width put them.
+    var footLeft = 'calc(100% - ' + (w - Math.round(28 * z)) + 'px)';
+    host.style.setProperty('--hk-ss-now-left', footLeft);
     host.style.setProperty('--hk-ss-now-max', (w - Math.round(56 * z)) + 'px');
     host.style.setProperty('--hk-ss-np-art', px(64));
     host.style.setProperty('--hk-ss-np-title', px(20));
     host.style.setProperty('--hk-ss-np-artist', px(16));
     host.style.setProperty('--hk-ss-np-gap', px(14));
-    host.style.setProperty('--hk-ss-timers-left', (W - w + Math.round(28 * z)) + 'px');
+    host.style.setProperty('--hk-ss-timers-left', footLeft);
     host.style.setProperty('--hk-ss-timers-right', px(28));
     host.style.setProperty('--hk-ss-timers-max', (w - Math.round(56 * z)) + 'px');
     host.style.setProperty('--hk-ss-status-right', Math.round(28 * z) + 'px');

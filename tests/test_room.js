@@ -107,6 +107,15 @@ ok('...each once, and a kind it does not know is skipped',
    items(hass, ['den'], { items: ['motion', 'sprinklers', 'motion'] }).map(function (i) { return i.kind; }).join() === 'motion');
 var ex = items(hass, ['den'], { exclude: ['binary_sensor.den_camera_motion'] });
 ok('exclude: takes one out of a count', ex.filter(function (i) { return i.kind === 'motion'; })[0].ids.length === 1);
+// HIDDEN FROM SCREENS (the 2026-10-04 review): the room's row leaves out
+// what every page and chip leaves out -- an entity, its device, its area
+var occ = function (o) { return items(hass, ['den'], o).filter(function (i) { return i.kind === 'occupancy'; }).length; };
+ok('exclude_entities (Hidden from Screens): the radar is not the room\'s occupancy', occ({ exclude_entities: ['binary_sensor.den_radar'] }) === 0);
+ok('exclude_devices: the desk fan\'s device left out takes the fan with it',
+   items(hass, ['den'], { exclude_devices: ['dev1'] }).filter(function (i) { return i.kind === 'fans'; })[0].ids.join() === 'fan.den_ceiling');
+ok('exclude_areas: the porch left out of a two-area room takes its leak sensor',
+   !items(hass, ['den', 'porch'], { exclude_areas: ['porch'] }).some(function (i) { return i.kind === 'leaks'; }));
+ok('...and with nothing left out, the radar counts', occ({}) === 1);
 ok('a card may name its own temperature sensor',
    items(hass, ['porch'], { temperature: 'sensor.den_temp' })[0].value === '71°');
 ok('no area sensor and nothing to count: nothing to show', items(hass, ['other'], { items: ['temperature', 'fans'] }).length === 0);
@@ -178,6 +187,10 @@ rc.hass = { states: S2, entities: hass.entities, devices: hass.devices, areas: h
 var row1 = rc._root.querySelector('.row');
 ok('a fan turning on redraws the buttons', rc._list.filter(function (i) { return i.kind === 'fans'; })[0].value !== undefined);
 ok('...in the same scroller, still scrolled', row1 === row0 && row1.scrollLeft === 120);
+window.hkSettings = { get: function (p, f) { return p === 'generated' ? { exclude_entities: ['binary_sensor.den_radar'] } : f; } };
+ok('the card reads the house\'s Hidden from Screens live: no occupancy from a hidden radar',
+   !rc._itemsFor(H1).some(function (i) { return i.kind === 'occupancy'; }));
+delete window.hkSettings;
 
 print('\n=== the room page as a view strategy ===');
 window.hkStrategy.room({ area: 'den' }, { states: S, entities: hass.entities, devices: hass.devices, areas: hass.areas,
@@ -185,6 +198,12 @@ window.hkStrategy.room({ area: 'den' }, { states: S, entities: hass.entities, de
   var types = v.cards.map(function (c) { return c.type; });
   ok('custom:hk-room builds the page from the area', v.type === 'custom:hk-grid-view' && types[1] === 'custom:hk-room-status-card', types.join());
   ok('...named by the area, in the HK Kiosk theme', v.cards[0].cards[1].name === 'Den' && v.theme === 'HK Kiosk');
+  return window.hkStrategy.room({ area: 'den', exclude_entities: ['binary_sensor.den_radar'] },
+    { states: S, entities: hass.entities, devices: hass.devices, areas: hass.areas, themes: { themes: {} } });
+}).then(function (v) {
+  var rs = v.cards.filter(function (c) { return c.type === 'custom:hk-room-status-card'; })[0];
+  ok('the generated room page hands its row the dashboard\'s own exclusions',
+     rs && (rs.exclude_entities || []).indexOf('binary_sensor.den_radar') >= 0, JSON.stringify(rs));
   print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed' : 'ALL ' + pass + ' ROOM TESTS PASS'));
   if (fail) throw new Error(fail + ' failed');
 }).catch(function (e) { print('FAIL ' + e); throw e; });

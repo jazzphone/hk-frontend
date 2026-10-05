@@ -330,7 +330,8 @@ class Tracker:
             # nor when a thermostat's readings vanish with its going
             # unavailable (candidates() keeps them). Coming back still counts:
             # one that started unavailable is first seen then.
-            keys = ("device_class", "entity_id")
+            # entity_id / group_entities: whether it is a group (candidates())
+            keys = ("device_class", "entity_id", "group_entities")
             if any(old.attributes.get(k) != new.attributes.get(k) for k in keys):
                 return True
             return new.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN) and any(

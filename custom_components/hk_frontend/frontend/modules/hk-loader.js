@@ -1,6 +1,6 @@
 // hk-loader.js - imports the order-independent dashboard modules (MODULES
 // below: kiosk, stats, charts, sky, idle, viewfade, glass, timers, saver,
-// campost, menu).
+// campost, menu, tabbar).
 //
 // WHY THIS EXISTS
 // The bootstrap list -- the files every page loads before any card renders --
@@ -51,7 +51,11 @@
                  // The menu of pages and rooms (Configure -> Menu and room
                  // pages). Draws nothing on a dashboard without it; nothing to
                  // do before first paint, so it waits for the cards.
-                 'hk-menu.js'];
+                 'hk-menu.js',
+                 // The tab bar (a screen's Tab Bar, docs/Tab-Bar.md): reads
+                 // the menu's list, so it waits for hk-menu.js itself.
+                 // Nothing on a screen without it.
+                 'hk-tabbar.js'];
 
   // NO GRID-LAYOUT PATCH MODULE. An inline box containing block content makes
   // every section creep 6px per tap in Safari; hk-grid-card and hk-grid-view

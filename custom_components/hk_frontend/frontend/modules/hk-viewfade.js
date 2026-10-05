@@ -70,40 +70,71 @@
 
   // hui-view lives in hui-root's SHADOW root, so a document stylesheet cannot
   // reach it. Adopt into that root instead -- the same approach hk-sky.js uses
-  // for the layer it inserts there.
-  function rootOf() {
-    var seen = [], found = null;
+  // for the layer it inserts there. Found by its known path (as hk-kiosk.js
+  // finds it); a walk of the whole page only if that path is gone (a Home
+  // Assistant that has moved its parts).
+  function parts() {
+    var ha = document.querySelector('home-assistant');
+    var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+    var resolver = main && main.shadowRoot && main.shadowRoot.querySelector('partial-panel-resolver');
+    var panel = resolver && resolver.querySelector('ha-panel-lovelace');
+    var hr = panel && panel.shadowRoot && panel.shadowRoot.querySelector('hui-root');
+    return { main: main, resolver: resolver, panel: panel, root: (hr && hr.shadowRoot) || null };
+  }
+  function walkRoot() {
+    var seen = new Set(), found = null;
     (function walk(r, d) {
       if (!r || d > 30 || found) return;
       var kids = r.querySelectorAll ? r.querySelectorAll('*') : [];
       for (var i = 0; i < kids.length; i++) {
         var e = kids[i];
         if (e.tagName === 'HUI-ROOT' && e.shadowRoot) { found = e.shadowRoot; return; }
-        if (e.shadowRoot && seen.indexOf(e.shadowRoot) < 0) {
-          seen.push(e.shadowRoot); walk(e.shadowRoot, d + 1);
-        }
+        if (e.shadowRoot && !seen.has(e.shadowRoot)) { seen.add(e.shadowRoot); walk(e.shadowRoot, d + 1); }
       }
     })(document, 0);
     return found;
   }
 
   function apply() {
-    // Only a Lovelace panel has a hui-root; skip the walk everywhere else.
+    var p = parts();
+    watch(p);
+    // Only a Lovelace panel has a hui-root.
     var HS = window.hkSettings;
     if (HS && HS.lovelacePanel && HS.lovelacePanel() === false) return false;
-    var root = rootOf(), s = styleSheet();
+    var root = p.root || (p.main && p.resolver ? null : walkRoot()), s = styleSheet();
     if (!root || !s || !root.adoptedStyleSheets) return false;
     if (root.adoptedStyleSheets.indexOf(s) >= 0) return true;
     root.adoptedStyleSheets = root.adoptedStyleSheets.concat([s]);
     return true;
   }
 
-  // hui-root is rebuilt when the dashboard changes, so re-adopt on navigation
-  // as well as on a slow first load.
-  var tries = 0;
-  var iv = setInterval(function () {
-    if (apply() || ++tries > 40) clearInterval(iv);   // 10s
-  }, 250);
+  // A NEW DASHBOARD IS A NEW hui-root. Another dashboard is a new
+  // ha-panel-lovelace in the panel resolver, and it draws its hui-root only
+  // once its config is in -- after location-changed, so a look at that moment
+  // found the old one (measured headless, 2026-10-04: home -> kitchen and back,
+  // neither new hui-root had the fade). Watched where they change, the
+  // resolver's children and the panel's, never the whole page.
+  var seen = { resolver: null, panel: null }, mo = null;
+  function watch(p) {
+    if (typeof MutationObserver === 'undefined') return;
+    var r = p.resolver || null, pn = (p.panel && p.panel.shadowRoot) || null;
+    if (r === seen.resolver && pn === seen.panel) return;
+    if (mo) mo.disconnect();
+    mo = new MutationObserver(function () { apply(); });
+    if (r) mo.observe(r, { childList: true });
+    if (pn) mo.observe(pn, { childList: true });
+    seen = { resolver: r, panel: pn };
+  }
+
+  // Until Home Assistant's page is there (a cold tablet can take a while):
+  // every 250 ms for 10 s, then every 2 s while this is its page. Once the
+  // resolver is watched, the observer has it.
+  (function wait(n) {
+    apply();
+    if (seen.resolver) return;
+    if (n >= 40 && !document.querySelector('home-assistant')) return;
+    setTimeout(function () { wait(n + 1); }, n < 40 ? 250 : 2000);
+  })(0);
   window.addEventListener('location-changed', apply);
   window.addEventListener('popstate', apply);
 

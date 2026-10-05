@@ -1,0 +1,5 @@
+# The v6 holiday sources are tracked (holiday_webp.py rebuilds the shipped art
+# from them); Codex's working files and review sheets are not.
+work/
+masters-compare.png
+contact-sheet.png

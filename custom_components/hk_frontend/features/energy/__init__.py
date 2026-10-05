@@ -17,6 +17,7 @@ Energy settings or the registries change.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -25,18 +26,22 @@ import voluptuous as vol
 from homeassistant.config_entries import SubentryFlowResult
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from ...const import SIGNAL_CONFIG
 from .. import ENERGY, TITLES, Feature, entries, frontend_entry, item_data, loaded, unique_id
 from . import plan, settings_ws
-from .const import CONF_FOLLOW, DATA, SIGNAL_CHANGED
+from .const import CONF_FOLLOW, DATA
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list = []
 RELOAD = False          # nothing to rebuild: the plan is worked out when asked
 RENAME = {"options": ("top", "total")}   # followed through an entity rename (rename.py)
 
 CACHE_S = 30.0          # a plan is reused this long, unless something it reads changed
+REGISTRY_S = 2.0        # registry changes come in bursts: the plan is worked out once after them
 
 
 def _data(hass: HomeAssistant) -> dict[str, Any]:
@@ -73,32 +78,43 @@ def current(hass: HomeAssistant, fresh: bool = False) -> dict[str, Any] | None:
     opts = dict(feats[0].options)
     ctx = plan.collect(hass, prefs(hass), opts, house(hass))
     out = plan.build(ctx, opts)
-    d["plan"] = (time.monotonic(), out)
-    d["ctx"] = ctx
+    d["plan"] = (time.monotonic(), out, ctx)
     return out
 
 
+def context(hass: HomeAssistant) -> dict[str, Any] | None:
+    """What the last plan was worked out from (plan.collect), or None."""
+    hit = _data(hass).get("plan")
+    return hit[2] if hit else None
+
+
 def client(hass: HomeAssistant) -> dict[str, Any] | None:
-    """The settings feed's `energy`."""
+    """The settings feed's `energy` -- remembered as what the screens were
+    last sent, so a registry change can tell whether they need it again."""
     try:
-        return current(hass)
+        out = current(hass)
     except Exception:  # noqa: BLE001 -- the rest of the feed still goes out
-        import logging
-        logging.getLogger(__name__).exception("hk_frontend: the Energy page could not be worked out")
+        _LOGGER.exception("hk_frontend: the Energy page could not be worked out")
         return None
+    _data(hass)["sent"] = out
+    return out
 
 
 @callback
 def invalidate(hass: HomeAssistant, tell: bool = True) -> None:
+    """The plan is worked out again when next asked; tell: the screens are
+    sent it now (only where nothing else is about to -- a change to the
+    feature's item is sent by the house's update listener)."""
     _data(hass).pop("plan", None)
     if tell:
-        async_dispatcher_send(hass, SIGNAL_CHANGED)
         async_dispatcher_send(hass, SIGNAL_CONFIG)
 
 
 async def _ensure_manager(hass: HomeAssistant) -> None:
     """Home Assistant's Energy settings, and a word from it when they are
-    saved -- once (it has no way to stop listening)."""
+    saved -- once: its manager has no way to stop listening, so the listener
+    stays for the life of Home Assistant and does nothing while the feature
+    is not added."""
     d = _data(hass)
     if d.get("manager") is not None:
         return
@@ -111,7 +127,8 @@ async def _ensure_manager(hass: HomeAssistant) -> None:
     d["manager"] = mgr
 
     async def updated() -> None:
-        invalidate(hass)
+        if loaded(hass, ENERGY):
+            invalidate(hass)
 
     mgr.async_listen_updates(updated)
 
@@ -123,26 +140,36 @@ async def async_setup(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
     await _ensure_manager(hass)
 
+    async def rebuild() -> None:
+        # worked out again, and sent to the screens only when it changed
+        if not loaded(hass, ENERGY):
+            return
+        d = _data(hass)
+        before = d.get("sent")
+        if current(hass, fresh=True) != before:
+            async_dispatcher_send(hass, SIGNAL_CONFIG)
+
+    later = Debouncer(hass, _LOGGER, cooldown=REGISTRY_S, immediate=False, function=rebuild)
+
     @callback
     def registry(event: Event) -> None:
         # a rename, a new power sensor, a meter removed: worked out again
         if event.data.get("action") in ("create", "remove", "update"):
             _data(hass).pop("plan", None)
+            later.async_schedule_call()
 
     entry.async_on_unload(hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, registry))
+    entry.async_on_unload(later.async_cancel)
     invalidate(hass, tell=False)
-    async_dispatcher_send(hass, SIGNAL_CHANGED)
     return True
 
 
 async def async_changed(hass: HomeAssistant, entry: Feature) -> None:
     invalidate(hass, tell=False)
-    async_dispatcher_send(hass, SIGNAL_CHANGED)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Feature) -> bool:
     _data(hass).pop("plan", None)
-    async_dispatcher_send(hass, SIGNAL_CHANGED)
     return True
 
 

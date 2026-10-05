@@ -248,7 +248,8 @@ witchChecks('phone 390x844: ', 390, 844);
   var HL = window.hkSky._holidayLand, LI = window.hkSky._holidayLights;
   var hal = { name: 'halloween', surprise: '' }, xmas = { name: 'christmas', surprise: '' };
   var j4 = { name: '', surprise: 'fourth-of-july' }, bday = { name: '', surprise: 'birthday' };
-  check('holiday land: Halloween by day is plain fall', HL(hal, 'day') === null);
+  // (v6: Halloween has a day land; until its file ships, the fader falls back to plain fall)
+  check('holiday land: Halloween by day has its lanterns and pumpkins', HL(hal, 'day') === 'land-halloween-day');
   check('holiday land: Halloween at dusk and night has its pumpkins',
         HL(hal, 'dusk') === 'land-halloween-dusk' && HL(hal, 'night') === 'land-halloween-night');
   check('holiday land: Christmas all day', HL(xmas, 'day') === 'land-christmas-day' && HL(xmas, 'night') === 'land-christmas-night');

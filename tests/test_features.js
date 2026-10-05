@@ -111,5 +111,20 @@ ok('...how its power sensor was found, in words', F._.energyFound({ found: 'sour
 ok('Energy is listed among the features', F.LIST.some(function (x) { return x[0] === 'energy' && x[1] === 'hk_energy'; }) &&
    F.search({ hk_energy: { installed: true, entries: [] } }).some(function (e) { return e.route === 'features/energy/sections'; }));
 
+// THE BATTERIES AS STORED: only what was set here, never the resolved look
+var bd = { options: { batteries: [{ entity: 'sensor.car', name: 'Tesla' }, { entity: 'sensor.pw', label_suffix: ' left' }] } };
+var shownBats = [{ key: 'sensor.pw', entity: 'sensor.pw', name: 'Powerwall', icon: 'hk:home-battery-outline', label: 'sensor.pw_stored',
+                   label_suffix: ' kWh stored', label_decimals: 1 },
+                 { key: 'sensor.car', entity: 'sensor.car', name: 'Tesla', icon: 'hk:battery-high', label: 'sensor.car_range',
+                   label_suffix: ' mi range', label_decimals: 0 }];
+var stored = F._.batteriesStored(bd, shownBats);
+ok('batteries reordered: each keeps exactly its own stored entry (The House Battery off stays off)',
+   JSON.stringify(stored) === JSON.stringify([{ entity: 'sensor.pw', label_suffix: ' left' }, { entity: 'sensor.car', name: 'Tesla' }]), stored);
+stored = F._.batteriesStored({ options: {} }, shownBats);
+ok('...taken from Automatic: the entity and the house battery\'s flag, nothing resolved pinned',
+   JSON.stringify(stored) === JSON.stringify([{ entity: 'sensor.pw', house: true }, { entity: 'sensor.car' }]), stored);
+stored = F._.batteriesStored({ options: {} }, [{ key: 'sensor.pw', entity: 'sensor.pw', house: false, icon: 'hk:home-battery-outline' }]);
+ok('...a plan row that says house: false is believed over its glyph', JSON.stringify(stored) === JSON.stringify([{ entity: 'sensor.pw' }]), stored);
+
 print('\n' + (fail ? 'FAIL ' + fail + ' of ' + (pass + fail) : 'ALL ' + pass + ' FEATURES TESTS PASS'));
 if (fail) throw new Error(fail + ' failed');

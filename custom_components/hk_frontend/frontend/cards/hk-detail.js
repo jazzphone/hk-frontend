@@ -1106,16 +1106,11 @@
         enh.addEventListener('change', function () { enSave({ hidden: !enh.checked }); });
         ens.addEventListener('change', function () {
           if (!ens.value) return;
-          // the page's sections as they are, with this device moved
-          var secs = (enPlan.sections || []).map(function (x) {
-            var y = { id: x.id, name: x.name, items: (x.items || []).map(function (i) { return i.key; })
-                      .filter(function (k) { return k !== enRec.key; }) };
-            if (x.link) y.link = x.link;
-            if (x.id === ens.value) y.items.push(enRec.key);
-            return y;
-          });
-          h.callWS({ type: 'hk_energy/settings/set', changes: { sections: secs } }).catch(fail);
-          if (!enh.checked) { enh.checked = true; enSave({ hidden: false }); }
+          // moved by the server, in the sections as STORED: the plan here
+          // leaves out hidden devices and empty sections, and rebuilding the
+          // list from it lost both. The device is shown there too.
+          enh.checked = true;
+          h.callWS({ type: 'hk_energy/device/section', key: enRec.key, section: ens.value }).catch(fail);
         });
       }
 
@@ -3315,6 +3310,17 @@
       }
       return null;
     }
+    // AN AMOUNT IN THE HOUSE'S CURRENCY (Settings -> System -> General):
+    // "$1.24", "€1,24"; a currency the browser cannot name is its code
+    function money(h, v, digits) {
+      var cur = String((h && h.config && h.config.currency) || 'USD').toUpperCase();
+      try {
+        return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur,
+          minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
+      } catch (e) {
+        return v.toFixed(digits) + ' ' + cur;
+      }
+    }
     var EN_CSS = [
       '.en{display:flex;flex-direction:column;gap:12px}',
       '.en[hidden]{display:none}',
@@ -3442,7 +3448,7 @@
           if (prev.length) usual = prev.reduce(function (a, b) { return a + b; }, 0) / prev.length;
         }
         var f1 = function (v) { return v == null ? '—' : (v >= 100 ? Math.round(v) : v.toFixed(1)) + ' kWh'; };
-        var cost = kwh != null && price != null ? '$' + (kwh * price).toFixed(2) : '—';
+        var cost = kwh != null && price != null ? money(h, kwh * price, 2) : '—';
         var cmp = '';
         if (kwh != null && usual) {
           // a day is not over: compare with the usual day so far
@@ -3469,7 +3475,7 @@
         if (rec.stat && (this._range === 'hour' || this._range === 'day')) {
           var sh = '<div><div class="k">Today</div><div class="v">' + f1(kwh) + '</div><div class="sub">' + esc(cmp) + '</div></div>' +
             '<div><div class="k">Cost Today</div><div class="v">' + cost + '</div><div class="sub">' +
-              (price != null ? '$' + price.toFixed(3) + ' a kWh' : '') + '</div></div>' +
+              (price != null ? money(h, price, 3) + ' a kWh' : '') + '</div></div>' +
             '<div><div class="k">Usual Day</div><div class="v">' + f1(usual) + '</div><div class="sub">Last 7 days</div></div>';
           this._stats.classList.add('ens');
           this._stats.classList.remove('stale');
@@ -4933,10 +4939,29 @@
       }
       hkWidthKind() { return 'group'; }
       hkFill() { return true; }
+      // null: every hass goes on to the pills, which gate themselves. The
+      // LIST is worked out again (resolve -- a page's members, a walk of the
+      // house -- and every pill's config) only when what it reads moved:
+      // its members' states, the registries (rooms, areas), the settings
+      // and the modules (GEN, via _hkGen) -- not on every push.
       _sigOf() { return null; }
+      _listSig(h) {
+        var regs = [h.entities, h.devices, h.areas];
+        if (!this._regs || regs.some(function (r, i) { return r !== this._regs[i]; }, this)) {
+          this._regs = regs;
+          this._regN = (this._regN || 0) + 1;
+        }
+        var HS = window.hkSettings, st = h.states || {}, out = this._regN + '|' + this._hkGen + '|' + (HS && HS.version) + '|';
+        (this._ids || []).forEach(function (id) { out += id + '=' + (st[id] ? st[id].last_updated : 'x') + ';'; });
+        return out;
+      }
       _render() {
         var h = this._hass, cfg = this._config || {};
         if (!h) return;
+        if (this._built && this._lsig === this._listSig(h)) {
+          (this._kids || []).forEach(function (el) { if (el.hkSetHass) el.hkSetHass(h); else el.hass = h; });
+          return;
+        }
         var resolved = cfg.resolve ? cfg.resolve(h) : null;
         var ids = resolved ? resolved.ids : cfg.entities || [];
         var configs = ids.map(function (id) {
@@ -4988,6 +5013,8 @@
           this._summary.textContent = resolved.value;
           if (D.panel === this) D.tt.textContent = resolved.title;
         }
+        this._ids = ids.slice();
+        this._lsig = this._listSig(h);
         (this._kids || []).forEach(function (el) { if (el.hkSetHass) el.hkSetHass(h); else el.hass = h; });
       }
     }
@@ -5220,7 +5247,7 @@
         downsample: downsample, kelvinRgb: kelvinRgb, lightCaps: lightCaps, defaultFavourites: defaultFavourites,
         favMatches: favMatches, fromDashboard: fromDashboard, sourceOf: sourceOf, colourName: colourName,
         nearWhite: nearWhite, spanTo: spanTo, trendOf: trendOf, reportsAction: reportsAction,
-        accessoryPane: accessoryPane, accName: accName, accIcon: accIcon, canEdit: canEdit, glyphsFor: glyphsFor, glyphSearch: glyphSearch, arrangeOf: arrangeOf, arrangeMove: arrangeMove, ACC_CSS: ACC_CSS,
+        accessoryPane: accessoryPane, accName: accName, accIcon: accIcon, canEdit: canEdit, glyphsFor: glyphsFor, glyphSearch: glyphSearch, arrangeOf: arrangeOf, arrangeMove: arrangeMove, money: money, ACC_CSS: ACC_CSS,
         popupFor: popupFor, openPopup: openPopup, route: route, asked: asked, onDashboard: onDashboard,
         state: function () { return D; }
       }

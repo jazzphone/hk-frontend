@@ -6,6 +6,11 @@
                                                   (name, icon, color, power,
                                                   control, hidden); a null
                                                   value goes back to Automatic
+    hk_energy/device/section {key, section}    -> one device moved into a
+                                                  section (and shown): every
+                                                  other device keeps its place,
+                                                  hidden ones and empty
+                                                  sections too
 
 The page is the stored options, the plan the screens draw, and every device
 the page could show -- hidden ones too -- with how its power sensor was
@@ -55,11 +60,22 @@ def _entry(hass: HomeAssistant) -> Feature | None:
     return next(iter(entries(hass, ENERGY)), None)
 
 
+def _ctx(hass: HomeAssistant, entry: Feature) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """(the plan worked out afresh, or None while the feature is not
+    running; what it was worked out from)."""
+    from . import context, current, house, prefs
+    pl = current(hass, fresh=True)
+    ctx = context(hass) if pl is not None else None
+    if ctx is None:
+        ctx = plan.collect(hass, prefs(hass), dict(entry.options), house(hass))
+    return pl, ctx
+
+
 def page(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
-    from . import current, house, prefs
+    from . import prefs
     opts = dict(entry.options)
-    pl = current(hass, fresh=True) or {}
-    ctx = plan.collect(hass, prefs(hass), opts, house(hass))
+    pl, ctx = _ctx(hass, entry)
+    pl = pl or {}
     devs = plan.devices(ctx, opts)
     names = {d["key"]: d["name"] for d in devs}
     bats = plan.batteries(ctx, opts)
@@ -309,14 +325,41 @@ def apply_device(options: dict[str, Any], key: str, changes: dict[str, Any]) -> 
     return {**options, CONF_DEVICES: devs}, None
 
 
+def move_device(options: dict[str, Any], placed: list[dict[str, Any]], keys: set[str], key: str,
+                section: str) -> tuple[dict[str, Any], dict[str, str]]:
+    """One device into a section, the rest as they are. `placed` is every
+    section with every device in it (plan.sections -- hidden devices and
+    empty sections too, not the plan's, which leaves both out); the device
+    is shown there."""
+    if key not in keys:
+        return options, {"key": MSG["device"]}
+    if not any(s["id"] == section for s in placed):
+        return options, {"section": MSG["section"]}
+    stored = {s.get("id") for s in options.get(CONF_SECTIONS) or [] if isinstance(s, dict)}
+    secs = []
+    for s in placed:
+        items = [k for k in s["items"] if k != key] + ([key] if s["id"] == section else [])
+        if not items and s["id"] not in stored:
+            continue        # a section only the guesses made, emptied: not kept
+        secs.append({"id": s["id"], "name": s["name"], "items": items,
+                     **({"link": s["link"]} if isinstance(s.get("link"), dict) else {})})
+    out, errors = apply(options, {CONF_SECTIONS: secs})
+    if errors:
+        return options, errors
+    return apply_device(out, key, {"hidden": None})[0], {}
+
+
 # ---------------------------------------------------------------- commands
 def _save(hass: HomeAssistant, entry: Feature, options: dict[str, Any]) -> None:
+    """Stored; the house's update listener then sends the screens the new
+    plan (once -- features.async_sync does not, and neither does this)."""
     if options != dict(entry.options):
         async_update(hass, entry, options=options)
         from . import invalidate
-        invalidate(hass)
+        invalidate(hass, tell=False)
 
 
+# fresh: HK Settings' common ask (hk-settings.js); every answer here is fresh
 @websocket_api.websocket_command({vol.Required("type"): "hk_energy/settings/get",
                                   vol.Optional("fresh"): bool})
 @websocket_api.require_admin
@@ -359,7 +402,30 @@ def ws_device_set(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
     connection.send_result(msg["id"], page(hass, entry))
 
 
+@websocket_api.websocket_command({vol.Required("type"): "hk_energy/device/section", vol.Required("key"): str,
+                                  vol.Required("section"): str})
+@websocket_api.require_admin
+@callback
+def ws_device_section(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    entry = _entry(hass)
+    if entry is None:
+        connection.send_error(msg["id"], "not_set_up", "Energy is not added")
+        return
+    opts = dict(entry.options)
+    _pl, ctx = _ctx(hass, entry)
+    devs = plan.devices(ctx, opts)
+    bats = plan.batteries(ctx, opts)
+    placed = plan.sections(devs, bats, opts)
+    keys = {d["key"] for d in devs} | {b["key"] for b in bats}
+    options, errors = move_device(opts, placed, keys, msg["key"], msg["section"])
+    if errors:
+        connection.send_error(msg["id"], "invalid_format", json.dumps(errors))
+        return
+    _save(hass, entry, options)
+    connection.send_result(msg["id"], page(hass, entry))
+
+
 @callback
 def async_register(hass: HomeAssistant) -> None:
-    for cmd in (ws_settings_get, ws_settings_set, ws_device_set):
+    for cmd in (ws_settings_get, ws_settings_set, ws_device_set, ws_device_section):
         websocket_api.async_register_command(hass, cmd)

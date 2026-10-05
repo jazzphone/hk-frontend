@@ -1,0 +1,1300 @@
+{
+  "version": 2,
+  "variants": [
+    "day",
+    "grey",
+    "golden",
+    "dusk",
+    "night"
+  ],
+  "clouds": [
+    {
+      "id": "cumulus-small-01",
+      "set": "cumulus-small",
+      "width": 1000,
+      "height": 400,
+      "base_y": 292,
+      "bbox": [
+        98,
+        79,
+        897,
+        309
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.20103061764705882,
+      "files": {
+        "day": "cumulus-small-01-day-v2-src.png",
+        "grey": "cumulus-small-01-grey-v2-src.png",
+        "golden": "cumulus-small-01-golden-v2-src.png",
+        "dusk": "cumulus-small-01-dusk-v2-src.png",
+        "night": "cumulus-small-01-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-02",
+      "set": "cumulus-small",
+      "width": 1100,
+      "height": 450,
+      "base_y": 351,
+      "bbox": [
+        96,
+        79,
+        999,
+        368
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.2647436324024559,
+      "files": {
+        "day": "cumulus-small-02-day-v2-src.png",
+        "grey": "cumulus-small-02-grey-v2-src.png",
+        "golden": "cumulus-small-02-golden-v2-src.png",
+        "dusk": "cumulus-small-02-dusk-v2-src.png",
+        "night": "cumulus-small-02-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-03",
+      "set": "cumulus-small",
+      "width": 900,
+      "height": 360,
+      "base_y": 261,
+      "bbox": [
+        198,
+        75,
+        699,
+        278
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.15885841200677803,
+      "files": {
+        "day": "cumulus-small-03-day-v2-src.png",
+        "grey": "cumulus-small-03-grey-v2-src.png",
+        "golden": "cumulus-small-03-golden-v2-src.png",
+        "dusk": "cumulus-small-03-dusk-v2-src.png",
+        "night": "cumulus-small-03-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-04",
+      "set": "cumulus-small",
+      "width": 1000,
+      "height": 420,
+      "base_y": 318,
+      "bbox": [
+        248,
+        76,
+        751,
+        335
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.1254142670401494,
+      "files": {
+        "day": "cumulus-small-04-day-v2-src.png",
+        "grey": "cumulus-small-04-grey-v2-src.png",
+        "golden": "cumulus-small-04-golden-v2-src.png",
+        "dusk": "cumulus-small-04-dusk-v2-src.png",
+        "night": "cumulus-small-04-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-05",
+      "set": "cumulus-small",
+      "width": 850,
+      "height": 340,
+      "base_y": 226,
+      "bbox": [
+        98,
+        91,
+        749,
+        243
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.13967153809620736,
+      "files": {
+        "day": "cumulus-small-05-day-v2-src.png",
+        "grey": "cumulus-small-05-grey-v2-src.png",
+        "golden": "cumulus-small-05-golden-v2-src.png",
+        "dusk": "cumulus-small-05-dusk-v2-src.png",
+        "night": "cumulus-small-05-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-06",
+      "set": "cumulus-small",
+      "width": 1050,
+      "height": 440,
+      "base_y": 339,
+      "bbox": [
+        312,
+        76,
+        736,
+        356
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.12684314574314573,
+      "files": {
+        "day": "cumulus-small-06-day-v2-src.png",
+        "grey": "cumulus-small-06-grey-v2-src.png",
+        "golden": "cumulus-small-06-golden-v2-src.png",
+        "dusk": "cumulus-small-06-dusk-v2-src.png",
+        "night": "cumulus-small-06-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-07",
+      "set": "cumulus-small",
+      "width": 750,
+      "height": 310,
+      "base_y": 215,
+      "bbox": [
+        159,
+        75,
+        586,
+        232
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.1284897659709045,
+      "files": {
+        "day": "cumulus-small-07-day-v2-src.png",
+        "grey": "cumulus-small-07-grey-v2-src.png",
+        "golden": "cumulus-small-07-golden-v2-src.png",
+        "dusk": "cumulus-small-07-dusk-v2-src.png",
+        "night": "cumulus-small-07-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-08",
+      "set": "cumulus-small",
+      "width": 1100,
+      "height": 450,
+      "base_y": 348,
+      "bbox": [
+        264,
+        76,
+        835,
+        365
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.18099886710239652,
+      "files": {
+        "day": "cumulus-small-08-day-v2-src.png",
+        "grey": "cumulus-small-08-grey-v2-src.png",
+        "golden": "cumulus-small-08-golden-v2-src.png",
+        "dusk": "cumulus-small-08-dusk-v2-src.png",
+        "night": "cumulus-small-08-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-09",
+      "set": "cumulus-small",
+      "width": 950,
+      "height": 380,
+      "base_y": 277,
+      "bbox": [
+        186,
+        76,
+        760,
+        294
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.15035814458747487,
+      "files": {
+        "day": "cumulus-small-09-day-v2-src.png",
+        "grey": "cumulus-small-09-grey-v2-src.png",
+        "golden": "cumulus-small-09-golden-v2-src.png",
+        "dusk": "cumulus-small-09-dusk-v2-src.png",
+        "night": "cumulus-small-09-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-10",
+      "set": "cumulus-small",
+      "width": 1000,
+      "height": 390,
+      "base_y": 292,
+      "bbox": [
+        274,
+        78,
+        727,
+        309
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.11448494720965309,
+      "files": {
+        "day": "cumulus-small-10-day-v2-src.png",
+        "grey": "cumulus-small-10-grey-v2-src.png",
+        "golden": "cumulus-small-10-golden-v2-src.png",
+        "dusk": "cumulus-small-10-dusk-v2-src.png",
+        "night": "cumulus-small-10-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-11",
+      "set": "cumulus-small",
+      "width": 800,
+      "height": 320,
+      "base_y": 220,
+      "bbox": [
+        176,
+        75,
+        622,
+        237
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.11760723039215686,
+      "files": {
+        "day": "cumulus-small-11-day-v2-src.png",
+        "grey": "cumulus-small-11-grey-v2-src.png",
+        "golden": "cumulus-small-11-golden-v2-src.png",
+        "dusk": "cumulus-small-11-dusk-v2-src.png",
+        "night": "cumulus-small-11-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-12",
+      "set": "cumulus-small",
+      "width": 1050,
+      "height": 420,
+      "base_y": 319,
+      "bbox": [
+        282,
+        75,
+        767,
+        336
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.12913176826286069,
+      "files": {
+        "day": "cumulus-small-12-day-v2-src.png",
+        "grey": "cumulus-small-12-grey-v2-src.png",
+        "golden": "cumulus-small-12-golden-v2-src.png",
+        "dusk": "cumulus-small-12-dusk-v2-src.png",
+        "night": "cumulus-small-12-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-13",
+      "set": "cumulus-small",
+      "width": 900,
+      "height": 350,
+      "base_y": 252,
+      "bbox": [
+        221,
+        76,
+        676,
+        269
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.12717775287892935,
+      "files": {
+        "day": "cumulus-small-13-day-v2-src.png",
+        "grey": "cumulus-small-13-grey-v2-src.png",
+        "golden": "cumulus-small-13-golden-v2-src.png",
+        "dusk": "cumulus-small-13-dusk-v2-src.png",
+        "night": "cumulus-small-13-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-14",
+      "set": "cumulus-small",
+      "width": 1100,
+      "height": 450,
+      "base_y": 350,
+      "bbox": [
+        202,
+        75,
+        897,
+        367
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.20846054268171915,
+      "files": {
+        "day": "cumulus-small-14-day-v2-src.png",
+        "grey": "cumulus-small-14-grey-v2-src.png",
+        "golden": "cumulus-small-14-golden-v2-src.png",
+        "dusk": "cumulus-small-14-dusk-v2-src.png",
+        "night": "cumulus-small-14-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-15",
+      "set": "cumulus-small",
+      "width": 850,
+      "height": 360,
+      "base_y": 263,
+      "bbox": [
+        243,
+        76,
+        606,
+        280
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.1013048571062412,
+      "files": {
+        "day": "cumulus-small-15-day-v2-src.png",
+        "grey": "cumulus-small-15-grey-v2-src.png",
+        "golden": "cumulus-small-15-golden-v2-src.png",
+        "dusk": "cumulus-small-15-dusk-v2-src.png",
+        "night": "cumulus-small-15-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-16",
+      "set": "cumulus-small",
+      "width": 1000,
+      "height": 400,
+      "base_y": 300,
+      "bbox": [
+        279,
+        76,
+        719,
+        317
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.13469033333333333,
+      "files": {
+        "day": "cumulus-small-16-day-v2-src.png",
+        "grey": "cumulus-small-16-grey-v2-src.png",
+        "golden": "cumulus-small-16-golden-v2-src.png",
+        "dusk": "cumulus-small-16-dusk-v2-src.png",
+        "night": "cumulus-small-16-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-17",
+      "set": "cumulus-small",
+      "width": 950,
+      "height": 370,
+      "base_y": 266,
+      "bbox": [
+        144,
+        75,
+        803,
+        283
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.16591449530025382,
+      "files": {
+        "day": "cumulus-small-17-day-v2-src.png",
+        "grey": "cumulus-small-17-grey-v2-src.png",
+        "golden": "cumulus-small-17-golden-v2-src.png",
+        "dusk": "cumulus-small-17-dusk-v2-src.png",
+        "night": "cumulus-small-17-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-18",
+      "set": "cumulus-small",
+      "width": 1050,
+      "height": 430,
+      "base_y": 326,
+      "bbox": [
+        266,
+        77,
+        782,
+        343
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.1492220702234382,
+      "files": {
+        "day": "cumulus-small-18-day-v2-src.png",
+        "grey": "cumulus-small-18-grey-v2-src.png",
+        "golden": "cumulus-small-18-golden-v2-src.png",
+        "dusk": "cumulus-small-18-dusk-v2-src.png",
+        "night": "cumulus-small-18-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-19",
+      "set": "cumulus-small",
+      "width": 800,
+      "height": 330,
+      "base_y": 224,
+      "bbox": [
+        223,
+        76,
+        571,
+        241
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.08328339275103981,
+      "files": {
+        "day": "cumulus-small-19-day-v2-src.png",
+        "grey": "cumulus-small-19-grey-v2-src.png",
+        "golden": "cumulus-small-19-golden-v2-src.png",
+        "dusk": "cumulus-small-19-dusk-v2-src.png",
+        "night": "cumulus-small-19-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-20",
+      "set": "cumulus-small",
+      "width": 1100,
+      "height": 440,
+      "base_y": 329,
+      "bbox": [
+        160,
+        76,
+        934,
+        346
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.18706434127369956,
+      "files": {
+        "day": "cumulus-small-20-day-v2-src.png",
+        "grey": "cumulus-small-20-grey-v2-src.png",
+        "golden": "cumulus-small-20-golden-v2-src.png",
+        "dusk": "cumulus-small-20-dusk-v2-src.png",
+        "night": "cumulus-small-20-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-21",
+      "set": "cumulus-small",
+      "width": 900,
+      "height": 360,
+      "base_y": 262,
+      "bbox": [
+        279,
+        76,
+        620,
+        279
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.0951340232389252,
+      "files": {
+        "day": "cumulus-small-21-day-v2-src.png",
+        "grey": "cumulus-small-21-grey-v2-src.png",
+        "golden": "cumulus-small-21-golden-v2-src.png",
+        "dusk": "cumulus-small-21-dusk-v2-src.png",
+        "night": "cumulus-small-21-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-22",
+      "set": "cumulus-small",
+      "width": 1000,
+      "height": 410,
+      "base_y": 308,
+      "bbox": [
+        235,
+        77,
+        766,
+        325
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.17626792922046866,
+      "files": {
+        "day": "cumulus-small-22-day-v2-src.png",
+        "grey": "cumulus-small-22-grey-v2-src.png",
+        "golden": "cumulus-small-22-golden-v2-src.png",
+        "dusk": "cumulus-small-22-dusk-v2-src.png",
+        "night": "cumulus-small-22-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-23",
+      "set": "cumulus-small",
+      "width": 850,
+      "height": 340,
+      "base_y": 242,
+      "bbox": [
+        171,
+        76,
+        676,
+        259
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.12293378112490672,
+      "files": {
+        "day": "cumulus-small-23-day-v2-src.png",
+        "grey": "cumulus-small-23-grey-v2-src.png",
+        "golden": "cumulus-small-23-golden-v2-src.png",
+        "dusk": "cumulus-small-23-dusk-v2-src.png",
+        "night": "cumulus-small-23-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-small-24",
+      "set": "cumulus-small",
+      "width": 1050,
+      "height": 450,
+      "base_y": 331,
+      "bbox": [
+        294,
+        75,
+        755,
+        348
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.10863250544662309,
+      "files": {
+        "day": "cumulus-small-24-day-v2-src.png",
+        "grey": "cumulus-small-24-grey-v2-src.png",
+        "golden": "cumulus-small-24-golden-v2-src.png",
+        "dusk": "cumulus-small-24-dusk-v2-src.png",
+        "night": "cumulus-small-24-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-01",
+      "set": "cumulus-large",
+      "width": 2600,
+      "height": 1100,
+      "base_y": 905,
+      "bbox": [
+        97,
+        124,
+        2500,
+        923
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.3975723131770191,
+      "files": {
+        "day": "cumulus-large-01-day-v2-src.png",
+        "grey": "cumulus-large-01-grey-v2-src.png",
+        "golden": "cumulus-large-01-golden-v2-src.png",
+        "dusk": "cumulus-large-01-dusk-v2-src.png",
+        "night": "cumulus-large-01-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-02",
+      "set": "cumulus-large",
+      "width": 2800,
+      "height": 1300,
+      "base_y": 1125,
+      "bbox": [
+        97,
+        117,
+        2697,
+        1143
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.36931858327946565,
+      "files": {
+        "day": "cumulus-large-02-day-v2-src.png",
+        "grey": "cumulus-large-02-grey-v2-src.png",
+        "golden": "cumulus-large-02-golden-v2-src.png",
+        "dusk": "cumulus-large-02-dusk-v2-src.png",
+        "night": "cumulus-large-02-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-03",
+      "set": "cumulus-large",
+      "width": 2400,
+      "height": 1000,
+      "base_y": 867,
+      "bbox": [
+        342,
+        81,
+        2055,
+        885
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.388643954248366,
+      "files": {
+        "day": "cumulus-large-03-day-v2-src.png",
+        "grey": "cumulus-large-03-grey-v2-src.png",
+        "golden": "cumulus-large-03-golden-v2-src.png",
+        "dusk": "cumulus-large-03-dusk-v2-src.png",
+        "night": "cumulus-large-03-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-04",
+      "set": "cumulus-large",
+      "width": 2700,
+      "height": 1200,
+      "base_y": 1063,
+      "bbox": [
+        498,
+        82,
+        2197,
+        1081
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.29988560639070444,
+      "files": {
+        "day": "cumulus-large-04-day-v2-src.png",
+        "grey": "cumulus-large-04-grey-v2-src.png",
+        "golden": "cumulus-large-04-golden-v2-src.png",
+        "dusk": "cumulus-large-04-dusk-v2-src.png",
+        "night": "cumulus-large-04-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-05",
+      "set": "cumulus-large",
+      "width": 2500,
+      "height": 1100,
+      "base_y": 971,
+      "bbox": [
+        97,
+        99,
+        2399,
+        989
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.46595512156862745,
+      "files": {
+        "day": "cumulus-large-05-day-v2-src.png",
+        "grey": "cumulus-large-05-grey-v2-src.png",
+        "golden": "cumulus-large-05-golden-v2-src.png",
+        "dusk": "cumulus-large-05-dusk-v2-src.png",
+        "night": "cumulus-large-05-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-06",
+      "set": "cumulus-large",
+      "width": 2800,
+      "height": 1300,
+      "base_y": 1130,
+      "bbox": [
+        502,
+        81,
+        2294,
+        1148
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.2556147963800905,
+      "files": {
+        "day": "cumulus-large-06-day-v2-src.png",
+        "grey": "cumulus-large-06-grey-v2-src.png",
+        "golden": "cumulus-large-06-golden-v2-src.png",
+        "dusk": "cumulus-large-06-dusk-v2-src.png",
+        "night": "cumulus-large-06-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-07",
+      "set": "cumulus-large",
+      "width": 2200,
+      "height": 950,
+      "base_y": 832,
+      "bbox": [
+        360,
+        82,
+        1836,
+        850
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.28570856740782435,
+      "files": {
+        "day": "cumulus-large-07-day-v2-src.png",
+        "grey": "cumulus-large-07-grey-v2-src.png",
+        "golden": "cumulus-large-07-golden-v2-src.png",
+        "dusk": "cumulus-large-07-dusk-v2-src.png",
+        "night": "cumulus-large-07-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-large-08",
+      "set": "cumulus-large",
+      "width": 2600,
+      "height": 1150,
+      "base_y": 1034,
+      "bbox": [
+        515,
+        83,
+        2083,
+        1051
+      ],
+      "band": "overhead",
+      "lit_from": "left",
+      "mean_alpha": 0.2907826637812315,
+      "files": {
+        "day": "cumulus-large-08-day-v2-src.png",
+        "grey": "cumulus-large-08-grey-v2-src.png",
+        "golden": "cumulus-large-08-golden-v2-src.png",
+        "dusk": "cumulus-large-08-dusk-v2-src.png",
+        "night": "cumulus-large-08-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-01",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 540,
+      "base_y": 389,
+      "bbox": [
+        24,
+        125,
+        3578,
+        407
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.20076290849673203,
+      "files": {
+        "day": "cumulus-row-01-day-v2-src.png",
+        "grey": "cumulus-row-01-grey-v2-src.png",
+        "golden": "cumulus-row-01-golden-v2-src.png",
+        "dusk": "cumulus-row-01-dusk-v2-src.png",
+        "night": "cumulus-row-01-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-02",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 620,
+      "base_y": 414,
+      "bbox": [
+        25,
+        186,
+        3577,
+        431
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.09870413416262563,
+      "files": {
+        "day": "cumulus-row-02-day-v2-src.png",
+        "grey": "cumulus-row-02-grey-v2-src.png",
+        "golden": "cumulus-row-02-golden-v2-src.png",
+        "dusk": "cumulus-row-02-dusk-v2-src.png",
+        "night": "cumulus-row-02-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-03",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 480,
+      "base_y": 359,
+      "bbox": [
+        25,
+        99,
+        3575,
+        376
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.18940713507625273,
+      "files": {
+        "day": "cumulus-row-03-day-v2-src.png",
+        "grey": "cumulus-row-03-grey-v2-src.png",
+        "golden": "cumulus-row-03-golden-v2-src.png",
+        "dusk": "cumulus-row-03-dusk-v2-src.png",
+        "night": "cumulus-row-03-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-04",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 580,
+      "base_y": 466,
+      "bbox": [
+        26,
+        87,
+        3573,
+        484
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.208469594696116,
+      "files": {
+        "day": "cumulus-row-04-day-v2-src.png",
+        "grey": "cumulus-row-04-grey-v2-src.png",
+        "golden": "cumulus-row-04-golden-v2-src.png",
+        "dusk": "cumulus-row-04-dusk-v2-src.png",
+        "night": "cumulus-row-04-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-05",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 420,
+      "base_y": 318,
+      "bbox": [
+        26,
+        80,
+        3574,
+        335
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.19074139174188193,
+      "files": {
+        "day": "cumulus-row-05-day-v2-src.png",
+        "grey": "cumulus-row-05-grey-v2-src.png",
+        "golden": "cumulus-row-05-golden-v2-src.png",
+        "dusk": "cumulus-row-05-dusk-v2-src.png",
+        "night": "cumulus-row-05-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-06",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 620,
+      "base_y": 514,
+      "bbox": [
+        26,
+        80,
+        3571,
+        531
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.1985035016515567,
+      "files": {
+        "day": "cumulus-row-06-day-v2-src.png",
+        "grey": "cumulus-row-06-grey-v2-src.png",
+        "golden": "cumulus-row-06-golden-v2-src.png",
+        "dusk": "cumulus-row-06-dusk-v2-src.png",
+        "night": "cumulus-row-06-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-07",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 520,
+      "base_y": 413,
+      "bbox": [
+        28,
+        82,
+        3573,
+        430
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.1585479428523546,
+      "files": {
+        "day": "cumulus-row-07-day-v2-src.png",
+        "grey": "cumulus-row-07-grey-v2-src.png",
+        "golden": "cumulus-row-07-golden-v2-src.png",
+        "dusk": "cumulus-row-07-dusk-v2-src.png",
+        "night": "cumulus-row-07-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-row-08",
+      "set": "cumulus-row",
+      "width": 3600,
+      "height": 560,
+      "base_y": 449,
+      "bbox": [
+        30,
+        81,
+        3577,
+        467
+      ],
+      "band": "horizon",
+      "lit_from": "left",
+      "mean_alpha": 0.2097796977124183,
+      "files": {
+        "day": "cumulus-row-08-day-v2-src.png",
+        "grey": "cumulus-row-08-grey-v2-src.png",
+        "golden": "cumulus-row-08-golden-v2-src.png",
+        "dusk": "cumulus-row-08-dusk-v2-src.png",
+        "night": "cumulus-row-08-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-01",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 450,
+      "base_y": null,
+      "bbox": [
+        127,
+        99,
+        3836,
+        355
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.01639502614379085,
+      "files": {
+        "day": "cirrus-streak-01-day-v2-src.png",
+        "grey": "cirrus-streak-01-grey-v2-src.png",
+        "golden": "cirrus-streak-01-golden-v2-src.png",
+        "dusk": "cirrus-streak-01-dusk-v2-src.png",
+        "night": "cirrus-streak-01-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-02",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 600,
+      "base_y": null,
+      "bbox": [
+        127,
+        93,
+        3873,
+        507
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.024264331699346407,
+      "files": {
+        "day": "cirrus-streak-02-day-v2-src.png",
+        "grey": "cirrus-streak-02-grey-v2-src.png",
+        "golden": "cirrus-streak-02-golden-v2-src.png",
+        "dusk": "cirrus-streak-02-dusk-v2-src.png",
+        "night": "cirrus-streak-02-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-03",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 400,
+      "base_y": null,
+      "bbox": [
+        149,
+        93,
+        3835,
+        306
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.011649708333333333,
+      "files": {
+        "day": "cirrus-streak-03-day-v2-src.png",
+        "grey": "cirrus-streak-03-grey-v2-src.png",
+        "golden": "cirrus-streak-03-golden-v2-src.png",
+        "dusk": "cirrus-streak-03-dusk-v2-src.png",
+        "night": "cirrus-streak-03-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-04",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 550,
+      "base_y": null,
+      "bbox": [
+        138,
+        94,
+        3882,
+        454
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.03572198217468806,
+      "files": {
+        "day": "cirrus-streak-04-day-v2-src.png",
+        "grey": "cirrus-streak-04-grey-v2-src.png",
+        "golden": "cirrus-streak-04-golden-v2-src.png",
+        "dusk": "cirrus-streak-04-dusk-v2-src.png",
+        "night": "cirrus-streak-04-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-05",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 350,
+      "base_y": null,
+      "bbox": [
+        140,
+        91,
+        3863,
+        260
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.012145549019607843,
+      "files": {
+        "day": "cirrus-streak-05-day-v2-src.png",
+        "grey": "cirrus-streak-05-grey-v2-src.png",
+        "golden": "cirrus-streak-05-golden-v2-src.png",
+        "dusk": "cirrus-streak-05-dusk-v2-src.png",
+        "night": "cirrus-streak-05-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-06",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 600,
+      "base_y": null,
+      "bbox": [
+        137,
+        103,
+        3861,
+        500
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.02637375980392157,
+      "files": {
+        "day": "cirrus-streak-06-day-v2-src.png",
+        "grey": "cirrus-streak-06-grey-v2-src.png",
+        "golden": "cirrus-streak-06-golden-v2-src.png",
+        "dusk": "cirrus-streak-06-dusk-v2-src.png",
+        "night": "cirrus-streak-06-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-07",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 480,
+      "base_y": null,
+      "bbox": [
+        108,
+        89,
+        3889,
+        377
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.016115222630718955,
+      "files": {
+        "day": "cirrus-streak-07-day-v2-src.png",
+        "grey": "cirrus-streak-07-grey-v2-src.png",
+        "golden": "cirrus-streak-07-golden-v2-src.png",
+        "dusk": "cirrus-streak-07-dusk-v2-src.png",
+        "night": "cirrus-streak-07-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cirrus-streak-08",
+      "set": "cirrus-streak",
+      "width": 4000,
+      "height": 520,
+      "base_y": null,
+      "bbox": [
+        157,
+        94,
+        3871,
+        432
+      ],
+      "band": "high",
+      "lit_from": "left",
+      "mean_alpha": 0.024285918174962295,
+      "files": {
+        "day": "cirrus-streak-08-day-v2-src.png",
+        "grey": "cirrus-streak-08-grey-v2-src.png",
+        "golden": "cirrus-streak-08-golden-v2-src.png",
+        "dusk": "cirrus-streak-08-dusk-v2-src.png",
+        "night": "cirrus-streak-08-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-01",
+      "set": "cumulus-fractus",
+      "width": 650,
+      "height": 280,
+      "base_y": null,
+      "bbox": [
+        135,
+        73,
+        516,
+        202
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.03518166343460461,
+      "files": {
+        "day": "cumulus-fractus-01-day-v2-src.png",
+        "grey": "cumulus-fractus-01-grey-v2-src.png",
+        "golden": "cumulus-fractus-01-golden-v2-src.png",
+        "dusk": "cumulus-fractus-01-dusk-v2-src.png",
+        "night": "cumulus-fractus-01-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-02",
+      "set": "cumulus-fractus",
+      "width": 700,
+      "height": 300,
+      "base_y": null,
+      "bbox": [
+        144,
+        73,
+        554,
+        225
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.029359607843137254,
+      "files": {
+        "day": "cumulus-fractus-02-day-v2-src.png",
+        "grey": "cumulus-fractus-02-grey-v2-src.png",
+        "golden": "cumulus-fractus-02-golden-v2-src.png",
+        "dusk": "cumulus-fractus-02-dusk-v2-src.png",
+        "night": "cumulus-fractus-02-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-03",
+      "set": "cumulus-fractus",
+      "width": 600,
+      "height": 270,
+      "base_y": null,
+      "bbox": [
+        215,
+        74,
+        376,
+        195
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.011176688453159042,
+      "files": {
+        "day": "cumulus-fractus-03-day-v2-src.png",
+        "grey": "cumulus-fractus-03-grey-v2-src.png",
+        "golden": "cumulus-fractus-03-golden-v2-src.png",
+        "dusk": "cumulus-fractus-03-dusk-v2-src.png",
+        "night": "cumulus-fractus-03-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-04",
+      "set": "cumulus-fractus",
+      "width": 700,
+      "height": 300,
+      "base_y": null,
+      "bbox": [
+        94,
+        85,
+        599,
+        213
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.029229897292250232,
+      "files": {
+        "day": "cumulus-fractus-04-day-v2-src.png",
+        "grey": "cumulus-fractus-04-grey-v2-src.png",
+        "golden": "cumulus-fractus-04-golden-v2-src.png",
+        "dusk": "cumulus-fractus-04-dusk-v2-src.png",
+        "night": "cumulus-fractus-04-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-05",
+      "set": "cumulus-fractus",
+      "width": 550,
+      "height": 260,
+      "base_y": null,
+      "bbox": [
+        202,
+        74,
+        349,
+        182
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.007384313725490196,
+      "files": {
+        "day": "cumulus-fractus-05-day-v2-src.png",
+        "grey": "cumulus-fractus-05-grey-v2-src.png",
+        "golden": "cumulus-fractus-05-golden-v2-src.png",
+        "dusk": "cumulus-fractus-05-dusk-v2-src.png",
+        "night": "cumulus-fractus-05-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-06",
+      "set": "cumulus-fractus",
+      "width": 650,
+      "height": 290,
+      "base_y": null,
+      "bbox": [
+        210,
+        74,
+        438,
+        216
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.01284784937847818,
+      "files": {
+        "day": "cumulus-fractus-06-day-v2-src.png",
+        "grey": "cumulus-fractus-06-grey-v2-src.png",
+        "golden": "cumulus-fractus-06-golden-v2-src.png",
+        "dusk": "cumulus-fractus-06-dusk-v2-src.png",
+        "night": "cumulus-fractus-06-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-07",
+      "set": "cumulus-fractus",
+      "width": 700,
+      "height": 300,
+      "base_y": null,
+      "bbox": [
+        239,
+        75,
+        462,
+        226
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.018361475256769375,
+      "files": {
+        "day": "cumulus-fractus-07-day-v2-src.png",
+        "grey": "cumulus-fractus-07-grey-v2-src.png",
+        "golden": "cumulus-fractus-07-golden-v2-src.png",
+        "dusk": "cumulus-fractus-07-dusk-v2-src.png",
+        "night": "cumulus-fractus-07-night-v2-src.png"
+      }
+    },
+    {
+      "id": "cumulus-fractus-08",
+      "set": "cumulus-fractus",
+      "width": 600,
+      "height": 280,
+      "base_y": null,
+      "bbox": [
+        213,
+        74,
+        386,
+        205
+      ],
+      "band": "mid",
+      "lit_from": "left",
+      "mean_alpha": 0.00716953781512605,
+      "files": {
+        "day": "cumulus-fractus-08-day-v2-src.png",
+        "grey": "cumulus-fractus-08-grey-v2-src.png",
+        "golden": "cumulus-fractus-08-golden-v2-src.png",
+        "dusk": "cumulus-fractus-08-dusk-v2-src.png",
+        "night": "cumulus-fractus-08-night-v2-src.png"
+      }
+    }
+  ]
+}

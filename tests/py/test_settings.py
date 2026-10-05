@@ -151,6 +151,25 @@ async def test_screens_get_the_kinds_and_their_changes(hass, frontend):
     assert len(conn.sent) == n
 
 
+async def test_a_light_that_becomes_a_group_is_no_longer_counted(hass, frontend):
+    """An integration's group that came up unavailable (no attributes yet)
+    and then reports its group_entities is reclassified: its members are
+    not counted twice."""
+    from custom_components.hk_frontend import kinds as K
+    from datetime import timedelta
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    hass.states.async_set("light.den", "on")
+    hass.states.async_set("light.den_lamps", "unavailable", {})
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
+    await hass.async_block_till_done()
+    assert "light.den_lamps" in K.current(hass)["lights"]
+    hass.states.async_set("light.den_lamps", "on", {"group_entities": ["light.den"]})
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=4))
+    await hass.async_block_till_done()
+    assert K.current(hass)["lights"] == ["light.den"]
+
+
 def test_card_options_are_a_mapping_of_plain_values():
     from custom_components.hk_frontend.settings import board, card_options
     assert card_options(None) == {} and card_options("") == {} and card_options({}) == {}
@@ -828,3 +847,38 @@ def test_each_pages_background_is_kept_only_when_it_means_something():
         {"energy": "live", "climate": "own", "ecoflow": "dusk"}
     assert S.board({"sky_pages": {"energy": "midnight"}})["sky_pages"] == {"energy": "midnight"}
     assert S.board({})["sky_pages"] == {} and S.merged({})["sky"]["pages"] == {}
+
+
+def test_the_tab_bar_is_a_menu_choice_and_a_narrow_choice():
+    """The tab bar (hk-tabbar.js) is the menu's other form: `menu` "tabbar"
+    (no side menu) or `narrow` "tabbar" (the side menu wide, the bar where it
+    folds) -- never both. Its look is a menu setting, All Screens' unless the
+    screen sets its own menu; read defensively."""
+    from custom_components.hk_frontend import settings as S
+    b = S.board({})
+    assert (b["tab_bar_scroll"], b["tab_bar_rooms"], b["tab_bar_glass"]) == ("shrink", "more", "house")
+    assert [S.board({"tab_bar_rooms": v})["tab_bar_rooms"] for v in (True, False, "button", "off", "x")] == \
+        ["more", "off", "button", "off", "more"], "a boolean from the first form; In More by default"
+    assert S.board({"menu": "tabbar"})["menu"] == "tabbar" and S.board({"narrow": "tabbar"})["narrow"] == "tabbar"
+    assert "tabbar" not in S.MENU_STYLES, "not a button style"
+    odd = S.board({"tab_bar_scroll": "fade", "tab_bar_rooms": "no", "tab_bar_glass": "glitter"})
+    assert (odd["tab_bar_scroll"], odd["tab_bar_rooms"], odd["tab_bar_glass"]) == ("shrink", "more", "house")
+    opts = {"dashboard": {"menu": {"bar_scroll": "hide", "bar_rooms": "button", "bar_glass": "blur", "narrow": "tabbar"}}}
+    follows = S.resolved(S.board({"menu": "open"}), opts)
+    assert (follows["tab_bar_scroll"], follows["tab_bar_rooms"], follows["tab_bar_glass"], follows["narrow"]) == \
+        ("hide", "button", "blur", "tabbar")
+    assert S.resolved(S.board({"menu": "tabbar"}), opts)["menu"] == "tabbar", "the tab bar is the screen's own, as off is"
+    own = S.resolved(S.board({"menu_custom": True, "tab_bar_scroll": "stay", "tab_bar_glass": "clear"}), opts)
+    assert (own["tab_bar_scroll"], own["tab_bar_rooms"], own["tab_bar_glass"]) == ("stay", "more", "clear")
+    assert S.merged(None)["menu"]["bar_scroll"] == "shrink" and "tab_bar" not in S.merged(None)
+    assert S.legacy_lists({"d": S.board({"menu": "tabbar"})})["dashboards"] == [], "an older page sees no menu"
+
+
+def test_the_tab_bars_first_form_is_read_once():
+    """2026-10-05: for a few hours the tab bar had a `tab_bar` of its own."""
+    from custom_components.hk_frontend import settings as S
+    assert S.board({"menu": "off", "tab_bar": "always"})["menu"] == "tabbar"
+    assert S.board({"menu": "open", "tab_bar": "narrow"})["narrow"] == "tabbar"
+    assert S.board({"menu": "open", "narrow": "chip", "tab_bar": "narrow"})["narrow"] == "chip", "a choice made since stands"
+    assert S.board({"menu": "off", "tab_bar": "narrow"})["menu"] == "off"
+    assert "tab_bar" not in S.board({"tab_bar": "always"}), "written back without it"

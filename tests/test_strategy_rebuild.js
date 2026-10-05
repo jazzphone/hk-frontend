@@ -100,6 +100,59 @@ ok('the next change from elsewhere waits as before', refreshes === 0, refreshes)
 T += 31000;
 settle();
 ok('...until the screen is left alone', refreshes === 1, refreshes);
+
+// WHAT THE BUILD READS, AND ONLY THAT (the 2026-10-04 review). The menu's
+// look is read live by hk-base's menuState; the Climate row's left-out rooms
+// and the kinds only live cards count (motion, occupancy, Smoke & CO) shape
+// no page -- none of them may rebuild a screen (every sheet closed, every
+// camera reconnected). A screen with no Home DOES read `menu`: no menu, no
+// back button on its first page.
+function pushBoard(k, v) {
+  CUR = JSON.parse(JSON.stringify(CUR));
+  CUR.boards['dashboard-kitchen'][k] = v;
+  L.forEach(function (f) { f(CUR); });
+}
+function pushTop(k, v) {
+  CUR = JSON.parse(JSON.stringify(CUR));
+  CUR[k] = v;
+  L.forEach(function (f) { f(CUR); });
+}
+function quiet(name, change) {
+  __resetTimers(); refreshes = 0;
+  change();
+  T += 60000;
+  settle();
+  ok(name, refreshes === 0, refreshes);
+}
+quiet('the menu\'s highlight colour rebuilds nothing', function () { pushBoard('accent', 'blue'); });
+quiet('...nor Swipe from Left Edge, the button\'s glyph, the clock, or the tab sizes', function () {
+  pushBoard('swipe', true); pushBoard('glyph', 'lines'); pushBoard('clock', false);
+  pushBoard('tab_size', 'small'); pushBoard('tab_size_phone', 'large');
+  pushBoard('menu_custom', true); pushBoard('menu_house', false);
+});
+quiet('a motion, occupancy or smoke sensor found rebuilds nothing', function () {
+  pushTop('kinds', { motion: ['binary_sensor.m'], occupancy: ['binary_sensor.o'], smoke: ['binary_sensor.s'] });
+});
+quiet('the Climate row leaving a room out rebuilds nothing (no page depends on it)', function () {
+  pushTop('status_rows', { climate: { exclude_areas: ['k'] } });
+});
+__resetTimers(); refreshes = 0;
+pushTop('kinds', { motion: ['binary_sensor.m'], occupancy: ['binary_sensor.o'], smoke: ['binary_sensor.s'],
+                   lights: ['light.a'] });
+T += 60000; settle();
+ok('...but a kind a page is built from still does', refreshes === 1, refreshes);
+__resetTimers(); refreshes = 0;
+pushBoard('menu', 'off');
+T += 60000; settle();
+ok('a screen with Home: its menu style is live, no rebuild', refreshes === 0, refreshes);
+pushBoard('home_page', false);
+T += 60000; settle();
+__resetTimers(); refreshes = 0;
+pushBoard('menu', 'auto');
+T += 60000; settle();
+ok('a screen with no Home: its menu decides the first page\'s back button, so it rebuilds', refreshes === 1, refreshes);
+pushBoard('home_page', true);
+T += 60000; settle();
 Date.now = realNow;
 
 // ONE ROOM THAT CANNOT BE BUILT: Home Assistant would replace every view with

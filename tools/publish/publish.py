@@ -76,6 +76,13 @@ def git_ignored(root: str) -> set[str]:
     return {p for p in out.decode().split("\0") if p}
 
 
+# WHO A PUBLISHED COMMIT SAYS MADE IT: the project's GitHub account and its
+# noreply address -- never this machine's git identity, which put a full name
+# and a host name on the public history (1.4.5 to 1.5.0). The scan above
+# reads files only; a commit's author is not a file.
+AS_PUBLISHER = ("-c", "user.name=jazzphone", "-c", "user.email=jazzphone@users.noreply.github.com")
+
+
 def files_under(root: str):
     ignored = git_ignored(root)
     for d, dirs, files in os.walk(root):
@@ -250,12 +257,12 @@ def main() -> int:
         if a.wiki:
             stage(a.wiki)
             if subprocess.call(["git", "diff", "--cached", "--quiet"], cwd=a.wiki) != 0 and \
-                    run(["git", "commit", "-q", "-m", a.commit], a.wiki) != 0:
+                    run(["git", *AS_PUBLISHER, "commit", "-q", "-m", a.commit], a.wiki) != 0:
                 return 1
         if not os.path.isdir(os.path.join(a.repo, ".git")):
             run(["git", "init", "-b", "main"], a.repo)
         stage(a.repo)
-        if run(["git", "commit", "-q", "-m", a.commit], a.repo) != 0:
+        if run(["git", *AS_PUBLISHER, "commit", "-q", "-m", a.commit], a.repo) != 0:
             return 1
         if a.push and run(["git", "push", "-u", "origin", "main", "--tags"], a.repo) != 0:
             return 1

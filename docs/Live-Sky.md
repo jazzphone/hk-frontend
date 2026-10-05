@@ -107,7 +107,7 @@ screen can choose its own under **Appearance → Sky / Background**:
 | **Animations** | Off stops the sky's animated layers, including clouds, precipitation, lightning, decorations and forecast landscape effects. The sky still follows the sun and updates its appearance. |
 | **Weather** | Off removes clouds, rain, snow, lightning and fog, including decorative snow and Halloween fog. The sun, moon and stars remain. |
 | **Decorations** | Off removes seasonal and surprise scenes. On uses the shared dates, themes and optional extra gate. |
-| **Clouds** | **Classic** is the drifting haze the sky has always had. **Realistic** draws photographic clouds instead — fair-weather cumulus, broken sheets, high wisps, a storm tower on the horizon, an overcast lid with darker masses drifting under it — chosen from the weather's cloud cover and condition, lit by the sun (gold at sunset, pink at dusk, moonlit at night), across the whole sky down to the horizon, behind New Decorations' trees. Each cloud crosses once and comes back as another, so nothing repeats. A screen can choose its own. |
+| **Clouds** | **Classic** is the drifting haze the sky has always had. **Realistic** draws photographic clouds instead — fair-weather cumulus, broken sheets, high wisps, a storm tower on the horizon, an overcast lid with darker masses drifting under it — chosen from the weather's cloud cover and condition, lit by the sun (gold at sunset, pink at dusk, moonlit at night), across the whole sky down to the horizon, behind New Decorations' trees. They sit in perspective: near clouds big and high, far ones small, many and softer toward the horizon, with long cirrus streaks above and, as it clouds over, the overcast's ceiling receding behind them. Each cloud crosses once and comes back as another, so nothing repeats. A screen can choose its own. |
 | **Backdrop** | Live sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
 
 A fixed backdrop changes the gradient; the other switches still apply. For a
@@ -138,8 +138,8 @@ condition and cloud cover; the lighting from the sun.
 | **Sunny** — a few far cumulus, low on the horizon | **Partly cloudy** — cumulus near and far, now and then a high wisp |
 | ![Realistic clouds, mostly cloudy: big cumulus and broken sheets](images/clouds-mostly-cloudy.jpg) | ![Realistic clouds, overcast: a photographic deck across the sky](images/clouds-overcast.jpg) |
 | **Mostly cloudy** — big cumulus, broken sheets and a haze along the horizon | **Overcast** (85 % cover or more) — one photographic deck, drifting to and fro |
-| ![Realistic clouds in the rain](images/clouds-rain.jpg) | ![Realistic clouds, a thunderstorm: grey storm clouds and a towering cumulonimbus](images/clouds-thunderstorm.jpg) |
-| **Rain** — the grey deck, with the rain falling in front | **Thunderstorm** — grey storm clouds round a towering cumulonimbus, lightning flashing in the sky |
+| ![Realistic clouds in the rain](images/clouds-rain.jpg) | ![Realistic clouds, a thunderstorm: a towering cumulonimbus among the cumulus](images/clouds-thunderstorm.jpg) |
+| **Rain** — the grey deck, with the rain falling in front | **Thunderstorm** — a towering cumulonimbus among the cumulus, lightning flashing in the sky |
 | ![Realistic clouds in the snow](images/clouds-snow.jpg) | ![Classic clouds on the same partly cloudy sky](images/clouds-classic.jpg) |
 | **Snow** — the grey deck, with the snow falling | **Classic**, the same partly cloudy sky, for comparison |
 

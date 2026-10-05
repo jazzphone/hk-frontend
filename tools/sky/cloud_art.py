@@ -26,7 +26,7 @@ lighting's alpha-weighted Rec.709 luminance -- the luminance cap's inputs
 import json, os, sys
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.environ.get("HK_CLOUD_SRC") or os.path.join(HERE, "src", "clouds")
@@ -36,7 +36,24 @@ COMPONENT = (os.path.join(_UP, "custom_components", "hk_frontend")
 OUT = os.environ.get("HK_CLOUD_OUT") or os.path.join(COMPONENT, "frontend", "sky", "clouds")
 QUALITY = 84
 SCALE = {"overcast-deck": 0.625}          # every other set: 0.5
+# SOFT EDGES (px at the shipped size): the delivered cut-outs go from solid to
+# clear in a pixel or two, which reads as paper, not vapour. Each cloud's rim
+# is thinned inward -- its outline's detail kept, not blurred (a blur read as
+# out of focus) -- once, from its day lighting, so its five stay identical;
+# more for the big near clouds than the small far ones. The wisps, the
+# overcast deck and the haze are soft already.
+FEATHER = {"cumulus-near": 7.0, "stratocumulus": 7.0, "cumulonimbus": 5.0, "cumulus-mid": 5.0,
+           "overcast-patch": 5.0, "altocumulus": 3.0, "cumulus-far": 2.0}
 VARIANTS = ("day", "grey", "golden", "dusk", "night")
+# DEPTH OF FIELD: every cloud the sky draws at a distance also ships at a
+# ladder of smaller widths (<id>-<variant>-w<N>.webp, a hair of blur each).
+# The sky picks, by a cloud's distance, the copy it upscales by as much as
+# that distance should soften it -- the nearest sharp, the far ones soft --
+# for nothing on a tablet: no filter, and less to hold.
+SOFT_SETS = ("cumulus-near", "cumulus-large", "cumulus-mid", "cumulus-small", "cumulus-far",
+             "stratocumulus", "cumulus-fractus", "cumulus-row", "overcast-patch")
+SOFT_WIDTHS = (480, 240, 120, 64, 32)
+SOFT_BLUR = 0.5
 
 
 def luma(px):
@@ -54,6 +71,48 @@ def shipped(c, variant):
     return np.asarray(im.resize((w, h), Image.LANCZOS))
 
 
+def feather(arrays, radius):
+    """The same thinned alpha on every lighting: the outline's own detail kept,
+    its rim faded inward over about `radius` px, the body solid."""
+    if not radius:
+        return arrays
+    a = arrays["day"][..., 3]
+    near = np.asarray(Image.fromarray(a).filter(ImageFilter.GaussianBlur(radius))).astype(np.float64) / 255.0
+    alpha = a.astype(np.float64) * np.clip(near * 1.6 - 0.15, 0, 1) ** 1.1
+    alpha = np.round(alpha).astype(np.uint8)
+    out = {}
+    for v, px in arrays.items():
+        q = px.copy(); q[..., 3] = alpha; out[v] = q
+    return out
+
+
+def soft_copy(px, width):
+    """A smaller, softened copy of a shipped cloud (alpha and colour blurred
+    alike; the colour is bled under the rim, so no halo)."""
+    h, w = px.shape[:2]
+    fh = max(1, round(h * width / w))
+    im = Image.fromarray(px).resize((width, fh), Image.LANCZOS)
+    return np.asarray(im.filter(ImageFilter.GaussianBlur(SOFT_BLUR)))
+
+
+def fade_base(arrays, c):
+    """A far bank's underside fades into the haze, not onto a straight line:
+    its alpha thins over the lowest fifth of what is drawn (the same on all
+    five lightings)."""
+    a = arrays["day"][..., 3].astype(np.float64)
+    h = a.shape[0]
+    ys = np.nonzero(a.max(1) > 4)[0]
+    top, bot = ys.min(), ys.max() + 1
+    y = np.arange(h)[:, None].astype(np.float64)
+    start = bot - (bot - top) * 0.22
+    ramp = np.clip((bot - y) / max(bot - start, 1), 0, 1) ** 1.3
+    alpha = np.round(a * ramp).astype(np.uint8)
+    out = {}
+    for v, px in arrays.items():
+        q = px.copy(); q[..., 3] = alpha; out[v] = q
+    return out
+
+
 def entry(c, arrays):
     day = arrays["day"]
     h, w = day.shape[:2]
@@ -61,7 +120,8 @@ def entry(c, arrays):
     ys, xs = np.nonzero(a > 4)
     return {"id": c["id"], "set": c["set"], "band": c.get("band"), "w": w, "h": h,
             # the visual base and the drawn bounds, as fractions of the box
-            "base": round(c["base_y"] / c["height"], 4),
+            # (wisps and fractus have no flat base: their lowest drawn row)
+            "base": round((c["base_y"] if c.get("base_y") is not None else c["bbox"][3]) / c["height"], 4),
             "bbox": [round(xs.min() / w, 4), round(ys.min() / h, 4),
                      round((xs.max() + 1) / w, 4), round((ys.max() + 1) / h, 4)],
             "alpha": round(float(a.mean()) / 255.0, 4),
@@ -69,13 +129,35 @@ def entry(c, arrays):
 
 
 def build(write):
-    man = json.load(open(os.path.join(SRC, "clouds-v1.json")))
+    # every delivery's manifest: v1 (CODEX-BRIEF-v1) and v2 (CODEX-BRIEF-v2,
+    # more cumulus, horizon rows, cirrus streaks, fractus -- soft-edged as
+    # delivered, so FEATHER leaves them be)
+    man = {"clouds": []}
+    for name in ("clouds-v1.json", "clouds-v2.json"):
+        path = os.path.join(SRC, name)
+        if os.path.exists(path):
+            man["clouds"] += json.load(open(path))["clouds"]
     if write:
         os.makedirs(OUT, exist_ok=True)
     out, problems, total = [], [], 0
     for c in man["clouds"]:
-        arrays = {v: shipped(c, v) for v in VARIANTS}
+        arrays = feather({v: shipped(c, v) for v in VARIANTS}, FEATHER.get(c["set"], 0))
+        if c["set"] == "cumulus-row":
+            arrays = fade_base(arrays, c)
         out.append(entry(c, arrays))
+        if c["set"] in SOFT_SETS:
+            widths = [x for x in SOFT_WIDTHS if x < arrays["day"].shape[1] * 0.8]
+            out[-1]["soft"] = widths
+            for sw in widths:
+                for v in VARIANTS:
+                    path = os.path.join(OUT, "%s-%s-w%d.webp" % (c["id"], v, sw))
+                    if write:
+                        Image.fromarray(soft_copy(arrays[v], sw)).save(path, "WEBP", quality=QUALITY, alpha_quality=100,
+                                                                      method=6, exact=False)
+                    if not os.path.exists(path):
+                        problems.append("missing %s -- run cloud_art.py" % os.path.basename(path))
+                    else:
+                        total += os.path.getsize(path)
         for v in VARIANTS:
             path = os.path.join(OUT, "%s-%s.webp" % (c["id"], v))
             if write:
@@ -98,7 +180,8 @@ def build(write):
             f.write("\n")
     elif not os.path.exists(mpath) or json.load(open(mpath)) != manifest:
         problems.append("manifest.json is stale -- run cloud_art.py")
-    print("  %d clouds, %d files, %.1f MB shipped" % (len(out), len(out) * len(VARIANTS), total / 1e6))
+    files = sum(len(VARIANTS) * (1 + len(c.get("soft", []))) for c in out)
+    print("  %d clouds, %d files, %.1f MB shipped" % (len(out), files, total / 1e6))
     return problems
 
 

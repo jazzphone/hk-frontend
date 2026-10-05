@@ -47,8 +47,8 @@ every screen from a phone to a desk:
 | Scene | Touches |
 |---|---|
 | Halloween | Jack-o’-lanterns hung in the trees and on the ground, lit by flickering candles after dark, their light pooling on the leaves; bats every night in twos and threes, one flock across the moon (a swarm on a spooky night, with the witch); an owl’s eyes in the old tree; mist drifting over the moon. |
-| Christmas | The strings of lights twinkle one bulb after another; Santa crosses the moon on Christmas Eve; moonlit snow glints; a real wind blows snow off the branches. |
-| Winter | Glints on moonlit snow, snow blown off the branches in a real wind, and on an occasional clear, dark night the northern lights. |
+| Christmas | The strings of lights twinkle one bulb after another; Santa crosses the moon on Christmas Eve; moonlit snow glints. |
+| Winter | Glints on moonlit snow, and on an occasional clear, dark night the northern lights. |
 | Autumn | Leaves fall with the real wind, and a gust swirls a few across the scene; geese pass now and then by day; a full moon rises warm and orange — a harvest moon — and whitens as the night goes on. |
 | Spring | Petals drift down from the blossoms; when the sun comes out after real rain, a rainbow (summer too). |
 | Summer and the Fourth | Fireflies come out at dusk; the cafe lights breathe along their wire; fireworks on the Fourth. |
@@ -121,10 +121,12 @@ or the **Seasonal decorations** switch, turns it off here too.
 
 | | |
 |---|---|
-| ![Halloween night on the forecast screensaver: jack-o’-lanterns under the trees, a big moon and bats](images/tablet-forecast-halloween.png) | ![Christmas night on the forecast screensaver: the two big trees wrapped in lights, a snowman and presents, Santa’s sleigh crossing a big moon](images/tablet-forecast-christmas.png) |
-| Halloween | Christmas |
-| ![The Fourth of July at night on the forecast screensaver: bunting, café lights and a flag under the trees, fireworks over the hills](images/tablet-forecast-july4.png) | ![A birthday on the forecast screensaver: two bunches of balloons staked in the grass beside the trees](images/tablet-forecast-birthday.png) |
-| The Fourth of July | A birthday |
+| ![Halloween night on the forecast screensaver: carved lanterns hanging in the trees, jack-o’-lanterns at their feet, a big moon and bats](images/tablet-forecast-halloween.png) | ![Halloween by day on the forecast screensaver: the lanterns and jack-o’-lanterns in the autumn trees](images/tablet-forecast-halloween-day.png) |
+| Halloween night | Halloween by day |
+| ![Christmas night on the forecast screensaver: strings of bulbs through both trees, a snowman and presents at the right tree, Santa’s sleigh crossing a big moon](images/tablet-forecast-christmas.png) | ![The Fourth of July at night on the forecast screensaver: bunting, the flag, café lights and hydrangeas under the trees, fireworks over the hills](images/tablet-forecast-july4.png) |
+| Christmas | The Fourth of July |
+| ![A birthday on the forecast screensaver: café lights, presents and balloons over the summer land](images/tablet-forecast-birthday.png) | |
+| A birthday | |
 
 | Decoration | On the forecast screensaver |
 |---|---|

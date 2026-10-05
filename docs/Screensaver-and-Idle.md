@@ -83,8 +83,11 @@ photo shows; its sky only moves while it is on screen.
   blink over the meadow. The moon keeps to the right, clear of the clock.
 - On the holidays the landscape dresses up, on the same days as the
   [seasonal decorations](Seasonal-Decorations.md#on-the-forecast-screensaver):
-  jack-o’-lanterns at Halloween, lit trees and a snowman at Christmas,
-  bunting and fireworks on the Fourth of July, and balloons on a birthday.
+  carved lanterns in the trees and jack-o’-lanterns at their feet at
+  Halloween (by day as well as at dusk and night), strings of bulbs through
+  the trees with a snowman and presents at Christmas, bunting, the flag,
+  café lights and hydrangeas on the Fourth of July, and on a birthday café
+  lights, presents and balloons over whichever season is showing.
 - Along the bottom, the forecast details: today’s conditions, the next 12
   hours and the next 6 days, from the weather set in **HK Settings →
   Weather**. **Forecast Details** turns them off, for the sky and the

@@ -2222,7 +2222,9 @@
                 // folded; the pages at the top of the menu (empty: the views' own)
                 narrow: 'chip', menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, only_pages: [], home_view: '',
                 // swipe right from the left edge opens the menu, at every width
-                swipe: false };
+                swipe: false,
+                // the tab bar (menu or narrow 'tabbar', hk-tabbar.js): menu settings
+                tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house' };
   var ACCENTS = { orange: '#ff9f0a', yellow: '#ffd60a', green: '#30d158', mint: '#63e6e2', teal: '#40c8e0',
                   cyan: '#64d2ff', blue: '#0a84ff', indigo: '#5e5ce6', purple: '#bf5af2', pink: '#ff375f',
                   red: '#ff453a' };
@@ -2379,16 +2381,32 @@
     } catch (e) { /* no toolbar to find */ }
     return top;
   }
+  // THE TAB BAR (hk-tabbar.js) IS THE MENU'S OTHER FORM, never beside it:
+  // the screen's Menu "tabbar" is the bar at every width and no side menu;
+  // its narrow choice "tabbar" is the side menu where it fits -- a button
+  // from TAB_MIN up, always open from Keep Open Down To up -- and the bar
+  // where it would fold. Wherever the bar shows, the side menu is off: no
+  // chip, no tab, no swipe, no clock tap.
+  function sideMenu() { var m = boardOf(dashSeg()).menu; return m !== 'off' && m !== 'tabbar'; }
+  function dockedHere() {
+    if (!sideMenu() || menuNarrow()) return false;
+    return boardOf(dashSeg()).menu === 'open' && panelWidth() >= dockMin();
+  }
+  function tabBarHere() {
+    var b = boardOf(dashSeg());
+    if (b.menu === 'tabbar') return true;
+    if (!sideMenu() || b.narrow !== 'tabbar') return false;
+    return b.menu === 'open' ? !dockedHere() : tabless();
+  }
   var menuState = {
     // this dashboard's own settings (boardOf above)
     board: function () { return boardOf(dashSeg()); },
-    on: function () { return boardOf(dashSeg()).menu !== 'off'; },
+    on: function () { return sideMenu() && !tabBarHere(); },
+    // the tab bar shows here, in the menu's place
+    tabBar: tabBarHere,
     // Shown beside the page all the time (its item's Menu: "Always open
     // beside the page"), when there is room for it.
-    docked: function () {
-      if (!menuState.on() || menuNarrow()) return false;
-      return boardOf(dashSeg()).menu === 'open' && panelWidth() >= dockMin();
-    },
+    docked: dockedHere,
     // The time, date and weather at the top of the menu (its item's "Time
     // and weather": in the menu) -- only while it is docked here; the Home
     // header (hk-weather.js) steps aside for it.

@@ -29,8 +29,9 @@ The sidebar has every page.
   door, speaker or vacuum and a sheet opens with the controls it needs.
   ([Detail Sheets and Pop-ups](Detail-Sheets-and-Popups.md))
 - **A menu of pages and rooms**, open beside the page, behind a button or a
-  swipe from the left edge, with an optional Home Assistant section.
-  ([Menu](Menu.md))
+  swipe from the left edge, with an optional Home Assistant section — or a
+  **tab bar** floating along the bottom of the screen, as in iOS apps.
+  ([Menu](Menu.md), [Tab Bar](Tab-Bar.md))
 - **HK Settings**, a settings page in the sidebar with a live preview of each
   screen as a phone, an iPad, a wall tablet, a desktop or a car.
   ([HK Settings](HK-Settings.md))

@@ -555,7 +555,9 @@
     // transform alone; its two <i> are its lighting now and, only while the
     // light changes, the next. At rest (Animations off, reduced motion) a
     // cloud stands where it was (--xs), not stacked at the left edge.
-    '#hk-sky .rcl{overflow:hidden;pointer-events:none}',
+    // isolation: the clouds' own z-order (near in front of far) stays among
+    // the clouds -- never above the scenery drawn after them
+    '#hk-sky .rcl{overflow:hidden;pointer-events:none;isolation:isolate;z-index:0}',
     '#hk-sky .rcl .rc,#hk-sky .rcl .rcd{position:absolute;left:0;will-change:transform;',
     '  transition:opacity 4s linear}',
     '#hk-sky .rcl .rc{transform:translate3d(var(--xs),0,0);animation:hk-rc var(--d) linear var(--dl) 1 both}',
@@ -1142,8 +1144,9 @@
     // so their animations stop; the bats, fog and candles are the scene.
     '#hk-sky .near-scenery.spooky .near-motion.leaves{display:none}',
     '#hk-sky .near-scenery .near-motion.near-mist{opacity:var(--near-mist,1)}',
-    '#hk-sky .near-scenery .near-motion.night{opacity:var(--near-night)}',
-    '#hk-sky .near-scenery .near-motion.day{opacity:var(--near-day)}',
+    // No fade on these two, so off is simply not there (its animations stop).
+    '#hk-sky .near-scenery:not(.is-night) .near-motion.night,',
+    '#hk-sky .near-scenery:not(.is-day) .near-motion.day{display:none}',
     // Two bats on a long, mostly empty cycle: a brief crossing now and then.
     '#hk-sky .near-scenery .bat{opacity:0;animation-name:near-bat}',
     '@keyframes near-bat{0%{opacity:0;transform:translate3d(var(--x0),0,0)}1%{opacity:.5}',
@@ -1173,6 +1176,9 @@
     '#hk-sky .near-scenery .near-motion.dark{opacity:var(--near-dark,0);transition:opacity 20s linear}',
     '#hk-sky .near-scenery .near-motion.dusk{opacity:var(--near-dusk,0);transition:opacity 20s linear}',
     '#hk-sky .near-scenery .near-motion.glints{opacity:var(--near-moonlit,0);transition:opacity 20s linear}',
+    // ...and once faded right out, not there at all (nearTouches: fade)
+    '#hk-sky .near-scenery.out-dark .near-motion.dark,#hk-sky .near-scenery.out-dusk .near-motion.dusk,',
+    '#hk-sky .near-scenery.out-glints .near-motion.glints{display:none}',
     '#hk-sky .near-scenery .near-motion.windy-only,#hk-sky .near-scenery .near-motion.eve{display:none}',
     '#hk-sky .near-scenery .sleigh{filter:brightness(0) drop-shadow(0 0 2px rgba(206,218,240,.7));opacity:.9}',
     '#hk-sky .near-scenery.windy .near-motion.windy-only,#hk-sky .near-scenery.eve .near-motion.eve{display:block}',
@@ -1213,14 +1219,6 @@
     '  animation:near-glint var(--gd) ease-in-out var(--gdel) infinite}',
     '@keyframes near-glint{0%,82%,100%{opacity:0;transform:scale(.4)}88%{opacity:1;transform:scale(1.25)}',
     '  93%{opacity:.2;transform:scale(.6)}}',
-    // Snow blown off the branches in a real wind.
-    '#hk-sky .near-scenery .puff{position:absolute;width:calc(46px * var(--near-u,1));',
-    '  height:calc(30px * var(--near-u,1));border-radius:50%;opacity:0;',
-    '  background:radial-gradient(ellipse,rgba(250,252,255,.75),rgba(250,252,255,.25) 45%,transparent 70%);',
-    '  animation:near-puff var(--pd) ease-out var(--pdel) infinite}',
-    '@keyframes near-puff{0%{opacity:0;transform:translate3d(0,0,0) scale(.4)}6%{opacity:.85}',
-    '  35%,100%{opacity:0;transform:translate3d(calc(var(--pdx) * var(--near-u,1)),',
-    '    calc(48px * var(--near-u,1)),0) scale(2.2)}}',
     // The northern lights: two slow curtains behind the trees.
     '#hk-sky .near-scenery .aurora{position:absolute;left:0;right:0;top:0;height:50%;display:none;overflow:hidden;',
     '  -webkit-mask-image:linear-gradient(#000 50%,transparent);mask-image:linear-gradient(#000 50%,transparent)}',
@@ -2326,7 +2324,7 @@
       // every Halloween night -- not only the rare spooky roll (.dark)
       var dark = field('dark');
       built.flockA = flock(dark, 3, 71, 9);
-      built.flockA._at = 0.16 + rnd() * 0.34;          // somewhere in the sky
+      built.flockA._at = rnd();                        // its place in the clear band
       built.flockB = flock(dark, 2, 113, 52);          // across the moon
       built.owl = el(dark, 'owl');
       el(built.owl, 'eye', 'i'); el(built.owl, 'eye', 'i');
@@ -2335,7 +2333,7 @@
       // a spooky night: a swarm, and the witch across the moon (.night)
       var swarm = field('night');
       built.swarm = flock(swarm, 7, 41, 5);
-      built.swarm._at = 0.22 + rnd() * 0.3;
+      built.swarm._at = rnd();
       for (var sb = 0; sb < built.swarm.children.length; sb++) built.swarm.children[sb]._dy *= 2.4;
       built.spooky = swarm;
     }
@@ -2355,16 +2353,8 @@
         gl.style.setProperty('--gd', (5 + rnd() * 7).toFixed(2) + 's');
         gl.style.setProperty('--gdel', (-rnd() * 12).toFixed(2) + 's');
       }
-      var puffs = field('windy-only puffs');
-      for (var q = 0; q < 6; q++) {
-        var pf = el(puffs, 'puff', 'i'), right = q % 2;
-        // off the branches: the canopies reach down each side
-        pf.style.left = (right ? 72 + rnd() * 26 : 2 + rnd() * 26).toFixed(2) + '%';
-        pf.style.top = (2 + rnd() * 44).toFixed(2) + '%';
-        pf.style.setProperty('--pd', (9 + rnd() * 6).toFixed(2) + 's');
-        pf.style.setProperty('--pdel', (-rnd() * 14).toFixed(2) + 's');
-        pf.style.setProperty('--pdx', (right ? -1 : 1) * (60 + rnd() * 70) + 'px');
-      }
+      // (No snow blown off the branches: drawn on a 2D page it read as a
+      // glowing blob, then as a dotted line -- nothing real looks like either.)
       built.aurora = root.insertBefore(document.createElement('div'), root.children[0] || null);
       built.aurora.className = 'aurora';
       el(built.aurora, 'band a', 'i'); el(built.aurora, 'band b', 'i');
@@ -2432,7 +2422,9 @@
       for (var i = 0; i < kids.length; i++) {
         var b = kids[i], size = b._size * u;
         b.style.width = b.style.height = size.toFixed(0) + 'px';
-        b.style.top = (top + b._dy * u - size / 2).toFixed(0) + 'px';
+        // never above the screen's top edge: a swarm's spread (its _dy) would
+        // otherwise park a bat at a negative top, a crossing nobody sees
+        b.style.top = Math.max(0, top + b._dy * u - size / 2).toFixed(0) + 'px';
         b.style.setProperty('--x0', (f._ltr ? -size - 40 : W + 40) + 'px');
         b.style.setProperty('--xd', (f._ltr ? W + size + 80 : -(W + size + 80)) + 'px');
       }
@@ -2481,6 +2473,20 @@
     }
 
     var lastRain = 0, auroraDay = '', auroraOn = false;
+    // A FIELD FADED TO NOTHING IS TAKEN OUT (display:none), so its animations
+    // stop: opacity 0 alone left a Halloween day running every bat's frames,
+    // the owl and the mist (NEW-DECORATIONS-PERF: 76 animations by day, 78 by
+    // night). Out once the 20 s fade has finished; back in at 0 and given its
+    // value on the NEXT paint, so it still fades in rather than popping.
+    var FADE_MS = 20000, zeroSince = {};
+    function fade(prop, cls, v) {
+      var outCls = 'out-' + cls, out = root.classList.contains(outCls);
+      if (v > 0 && out) { root.classList.remove(outCls); root.style.setProperty(prop, '0'); return; }
+      root.style.setProperty(prop, String(v));
+      if (v > 0) { zeroSince[cls] = 0; return; }
+      if (!zeroSince[cls]) zeroSince[cls] = Date.now();
+      else if (!out && Date.now() - zeroSince[cls] > FADE_MS + 1000) root.classList.add(outCls);
+    }
     function update(state, W, H, narrow, artW, artH) {
       var now = state.now || new Date(), night = state.elev < -4;
       var moon = night ? moonAt() : null;
@@ -2490,15 +2496,22 @@
       var u = clamp(Math.min(W, H * 1.6) / 1280, 0.6, 1.6);
       root.style.setProperty('--near-u', u.toFixed(2));
       root.classList.toggle('windy', windy(state));
-      root.style.setProperty('--near-dark', night ? '1' : '0');
-      root.style.setProperty('--near-dusk', clamp((3 - state.elev) / 6, 0, 1).toFixed(2));
+      fade('--near-dark', 'dark', night ? 1 : 0);
+      fade('--near-dusk', 'dusk', +clamp((3 - state.elev) / 6, 0, 1).toFixed(2));
       var lit = (1 - Math.cos(2 * Math.PI * (state.moon == null ? .5 : state.moon))) / 2;
-      root.style.setProperty('--near-moonlit', (night ? lit * (1 - .7 * clamp(state.cover || 0, 0, 1)) : 0).toFixed(1));
+      fade('--near-moonlit', 'glints', +(night ? lit * (1 - .7 * clamp(state.cover || 0, 0, 1)) : 0).toFixed(1));
       if (built.flockA) {
         if (W !== W0 || H !== H0 || built.moonY !== (moon ? Math.round(moon.y) : -1)) {
-          across(built.flockA, W, H * built.flockA._at, u);
-          across(built.flockB, W, moon ? moon.y : H * 0.2, u);
-          across(built.swarm, W, H * built.swarm._at, u);
+          // THE CLEAR BAND: brief flights stay in the sky above the camera
+          // mosaic -- behind the header's text, never under an opaque tile.
+          // A phone's header is taller. across() is the ONLY thing that
+          // places a flock bat (a fixed-row override in update() once fought
+          // it on every paint and won).
+          var band = narrow ? [185, 245] : [70, 150];
+          var inBand = function (f) { return band[0] + f * (band[1] - band[0]); };
+          across(built.flockA, W, inBand(built.flockA._at), u);
+          across(built.flockB, W, moon ? moon.y : inBand(0.5), u);
+          across(built.swarm, W, inBand(built.swarm._at), u);
           // the owl's tree is the left one, which a phone does not show
           built.owl.style.display = narrow ? 'none' : '';
           built.owl.style.left = (NEAR_OWL[0] / 1586 * artW).toFixed(0) + 'px';
@@ -2744,8 +2757,8 @@
       setStep('--scene-light', .1 + .65 * (1 - t));
       setStep('--scene-lit', 1 - t);
       root.style.setProperty('--near-mist', state.weather === false ? '0' : '.65');
-      root.style.setProperty('--near-night', state.elev < -4 && state.spooky !== false ? '1' : '0');
-      root.style.setProperty('--near-day', state.elev < -4 ? '0' : '1');
+      root.classList.toggle('is-night', state.elev < -4 && state.spooky !== false);
+      root.classList.toggle('is-day', !(state.elev < -4));
       root.style.setProperty('--near-sway', (.8 + Math.min(25, state.wind || 0) * .06) + 'deg');
       root.style.setProperty('--near-particles', state.wet && state.wet.rate >= .7 ? '.35' : '1');
       fallLeaves(windBucket(state.weather === false ? 0 : state.wind || 0));
@@ -2761,8 +2774,7 @@
       for (i = 0; i < nodes.length; i++) nodes[i].style.setProperty('--dist', (H + 190) + 'px');
       // Keep brief flights in clear sky above the camera mosaic. Their paths
       // stay behind controls, but should not disappear beneath camera tiles.
-      nodes = root.querySelectorAll('.bat');
-      for (i = 0; i < nodes.length; i++) nodes[i].style.top = (narrow ? 185 + i * 8 : 84 + i * 20) + 'px';
+      // (The Halloween flocks' own band is in nearTouches.)
       nodes = root.querySelectorAll('.day .sp-fly');
       for (i = 0; i < nodes.length; i++) nodes[i].style.top = (narrow ? 185 : 95) + 'px';
       nodes = root.querySelectorAll('.sp-burst');
@@ -3227,6 +3239,9 @@
     '  animation:hk-bulb var(--td) ease-in-out var(--tdel) infinite}',
 '@keyframes hk-bulb{0%,100%{opacity:0}7%{opacity:0}12%{opacity:var(--pk)}21%{opacity:0}40%{opacity:0}45%{opacity:var(--pk)}54%{opacity:0}73%{opacity:0}78%{opacity:var(--pk)}87%{opacity:0}}',
     // the birthday balloons, each cluster swaying on its own knot
+    '#hk-sky .bx .bprops{position:absolute;inset:auto;background:center/100% 100% no-repeat;',
+    '  filter:brightness(var(--landB,1))}',
+    '#hk-sky .bx .bprops.glow{filter:none;mix-blend-mode:screen}',
     '#hk-sky .bx .bln{position:absolute;inset:auto;background:center/100% 100% no-repeat;',
     '  transform-origin:var(--ox) var(--oy);will-change:transform;',
     '  transition:background-image 4s ease;filter:brightness(var(--landB,1));',
@@ -3317,7 +3332,8 @@
   // THE HOLIDAY LANDS (tools/sky/src/land-holiday/): the season's own place,
   // decorated. Whatever paintSeason decided today (el._hkHoliday) -- a season
   // that is showing, or a surprise that replaced it -- picks the land:
-  //   Halloween      its pumpkins at dusk and night (by day, plain fall)
+  //   Halloween      its lanterns and pumpkins, day (when the art has a day:
+  //                  land-halloween-day, else plain fall), dusk and night
   //   Christmas      its lights, day, dusk and night
   //   Fourth of July its bunting and flag, day, dusk and night
   //   a birthday     the season's own land, with balloons (holidayBalloons)
@@ -3325,7 +3341,7 @@
     if (!h) return null;
     if (h.surprise === 'fourth-of-july') return 'land-july4-' + light;
     if (h.surprise) return null;
-    if (h.name === 'halloween') return light === 'day' ? null : 'land-halloween-' + light;
+    if (h.name === 'halloween') return 'land-halloween-' + light;
     if (h.name === 'christmas') return 'land-christmas-' + light;
     return null;
   }
@@ -3503,6 +3519,25 @@
     });
   }
 
+  // A BIRTHDAY'S PROPS (holiday.json props: cafe lights and presents), laid
+  // over whichever season's land is showing, as the balloons are; their
+  // glow over them at dusk and night.
+  function birthdayProps(host, light) {
+    var p = HOL && HOL.props;
+    if (!p) return;
+    var b = p.box;
+    ['', light !== 'day' && (p.lights || []).indexOf(light) >= 0 ? '-lights' : null].forEach(function (suffix) {
+      if (suffix === null) return;
+      var d = document.createElement('div');
+      d.className = 'bprops' + (suffix ? ' glow' : '');
+      d.dataset.suffix = suffix;
+      d.style.left = ax(b[0]); d.style.top = ay(b[1]);
+      d.style.width = ax(b[2]); d.style.height = ay(b[3]);
+      d.style.backgroundImage = 'url("' + BASE + 'birthday-props-' + light + suffix + '.webp' + VER + '")';
+      host.appendChild(d);
+    });
+  }
+
   // A pair of layers that cross-fade to whatever image is asked for, once it
   // has decoded; the first of `list` that is there wins. (The land, and a
   // holiday's lights.)
@@ -3619,6 +3654,8 @@
 
       // the holiday's land, then -- once that land is the one showing -- its lights
       var hol = holidayLand(h, light);
+      // (a holiday land the art does not have -- Halloween by day before v6 --
+      // is missing, and the fader falls back to the season's own)
       landF.show(hol ? [hol + '.webp', landFile(hass, s)] : [landFile(hass, s)]);
       var lit = hol && landF.shown() === hol + '.webp' ? holidayLights(h, light) : null;
       lightF.show(lit ? [lit.file + '.webp'] : []);
@@ -3632,12 +3669,13 @@
       });
 
       var bday = h.surprise === 'birthday';
-      part('bx', day + '|' + (bday ? 'b' : '-') + '|' + (HOL ? 1 : 0), function () {
+      part('bx', day + '|' + (bday ? 'b' : '-') + '|' + (HOL ? 1 : 0) + '|' + light, function () {
         bx.textContent = '';
-        if (bday) balloons(bx, light, rng(day * 11 + 1));
+        if (bday) { birthdayProps(bx, light); balloons(bx, light, rng(day * 11 + 1)); }
       });
       // the balloons follow the light (their background-image cross-fades)
-      Array.prototype.forEach.call(bx.children, function (b) {
+      // (the props are rebuilt when the light changes: bx's key has it)
+      Array.prototype.forEach.call(bx.querySelectorAll('.bln'), function (b) {
         var url = 'url("' + BASE + 'birthday-' + b.dataset.cluster + '-' + light + '.webp' + VER + '")';
         if (b.style.backgroundImage !== url) b.style.backgroundImage = url;
       });
@@ -3721,7 +3759,8 @@
   // landscape's (~60%), else the gradient's own (72%).
   //
   // THE TABLET'S BUDGET (hk_house/docs/NEW-DECORATIONS-PERF-2026-10-04.md):
-  // at most ~14 clouds, each one composited layer moved by transform only --
+  // at most ~28 clouds (most of them small and far), each one composited
+  // layer moved by transform only --
   // no filter, no mask, nothing repainted per frame. The lighting is baked
   // into the art: a change of light fades the new lighting in OVER the old on
   // the cloud's second layer, then drops the old one, so only during that fade
@@ -3750,14 +3789,21 @@
   // low), opacity]
   var RC_SETS = {
     'cirrus':         [760, .40, [.12, .34], .85],
-    'altocumulus':    [700, .45, [.22, .46], .9],
+    'altocumulus':    [700, .45, [.22, .46], .8],
     'cumulus-near':   [640, 1.0, [.38, .60], 1],
     'stratocumulus':  [1000, .85, [.40, .66], 1],
-    'cumulus-mid':    [400, .62, [.60, .82], .95],
-    'cumulus-far':    [300, .32, [.90, 1.0], .9],
+    'cumulus-mid':    [400, .62, [.60, .82], .85],
+    'cumulus-far':    [300, .32, [.90, 1.0], .65],
     'horizon-haze':   [0, .15, [.99, 1.04], .45],
-    'cumulonimbus':   [300, .20, [.99, 1.02], .9],
-    'overcast-patch': [640, .90, [.25, .75], .95]
+    'cumulonimbus':   [300, .20, [.99, 1.02], .75],
+    'overcast-patch': [640, .90, [.25, .75], .95],
+    // v2 (CODEX-BRIEF-v2): rows of far cumulus on the horizon, long cirrus
+    // streaks, ragged fractus drifting among the cumulus
+    'cumulus-row':    [0, .18, [.95, 1.0], .75],
+    'cirrus-streak':  [0, .40, [.08, .3], .6],
+    'cumulus-fractus':[170, .7, [.45, .85], .6],
+    // under an overcast: fractus as low scud, big, soft and quick
+    'scud':           [820, 1.3, [.35, .8], .55]
   };
   // The woodland's horizon: where its hills meet the sky, measured on each
   // theme's art (1586 x 992) down the middle fifth.
@@ -3772,47 +3818,115 @@
     function add(set, n) { for (var i = 0; i < n; i++) sets.push(set); }
     // (the deck alone: the darker masses drifting over it read as pasted
     // on -- their lit rims never match the deck under them)
-    if (c >= .85 || (rcWet(s) && c >= .6)) return { deck: true, sets: sets };
-    add('cirrus', c < .6 && r() < .6 ? 1 : 0);
-    add('altocumulus', c > .3 && c < .8 && r() < .5 ? 1 : 0);
-    add('cumulus-far', c < .04 ? (r() < .4 ? 1 : 0) : Math.min(3, 1 + Math.round(c * 4)));
-    add('cumulus-mid', c < .15 ? 0 : Math.min(3, 1 + Math.round((c - .15) * 4)));
-    add('cumulus-near', c < .25 ? 0 : Math.min(3, 1 + Math.round((c - .25) * 3.5)));
-    add('stratocumulus', c < .5 ? 0 : Math.min(3, 1 + Math.round((c - .5) * 7)));
+    // FULL COVER: the deck as a ceiling in perspective (paintRealClouds), with
+    // ragged scud drifting under it, faster, and haze on the horizon
+    if (c >= .85 || (rcWet(s) && c >= .6)) {
+      add('scud', rcWet(s) ? 5 : 3);
+      add('horizon-haze', 1);
+      return { deck: true, sets: sets };
+    }
+    // THE CUMULUS FIELD ('cu'): one cloud deck in perspective -- how many
+    // grows with the cover; which cloud, how big and how high is decided per
+    // cloud by its distance (rcDepth)
+    add('cu', c < .04 ? (r() < .5 ? 1 : 0) : Math.min(20, Math.round(2 + c * 34)));
+    // the cirrus: v2's long streaks, v1's tufts only now and then
+    var wisps = c < .6 && r() < .6 ? (r() < .4 ? 2 : 1) : 0;
+    for (var wi = 0; wi < wisps; wi++) add(r() < .8 ? 'cirrus-streak' : 'cirrus', 1);
+    // FAR BANKS on the horizon once it clouds up, and fractus among the rest
+    add('cumulus-row', c < .2 ? 0 : c < .5 ? 1 : 2);
+    add('cumulus-fractus', c < .25 ? 0 : Math.min(2, Math.round(c * 4)));
+    // THE CEILING'S DEPTH IN A BROKEN SKY: from a third cover up, the
+    // overcast's receding ceiling, faint behind the cumulus -- thin cloud
+    // that compresses into the horizon, so the cumulus sit in a sky with
+    // depth, not on a clean gradient. Stronger as it clouds over.
+    var veil = c < .3 ? 0 : clamp((c - .3) / .55, 0, 1) * .5;
+    add('altocumulus', c > .55 && c < .8 && r() < .15 ? 1 : 0);
     add('horizon-haze', c >= .4 ? 1 : 0);
     add('cumulonimbus', /lightning/.test(cond) ? 1 : 0);
-    return { deck: false, sets: sets };
+    return { deck: false, veil: veil, sets: sets };
+  }
+  // A CUMULUS IN PERSPECTIVE (rcSpawn, set 'cu'). Fair-weather cumulus share
+  // one base height, so on screen a cloud's distance decides everything: the
+  // nearest are big, high and fast, their flat bases well up the sky; further
+  // off they shrink, slow, sit lower and fade into the haze, until near the
+  // horizon they crowd into rows. `near` is 1 for the nearest, toward 0 at
+  // the horizon; drawn evenly over the ground, so most clouds are far.
+  function rcDepth(st) {
+    var near = .1 + .9 * Math.pow(st.rnd(), 1.5);
+    // far rows are puffy cumulus drawn small (the flat far art, now and then)
+    // the near: v1's and v2's big cumulus, broken sheets when it clouds up;
+    // the rest mostly v2's small cumulus (24 shapes, so nothing repeats)
+    var r1 = st.rnd(), set = near > .55
+      ? (st.cover > .5 && r1 < .35 ? 'stratocumulus' : r1 < .65 ? 'cumulus-large' : 'cumulus-near')
+      : near < .18 && r1 < .12 ? 'cumulus-far' : r1 < .82 ? 'cumulus-small' : 'cumulus-mid';
+    return { near: near, set: set,
+             w: Math.max(70 * st.u, st.W * .62 * near * (.8 + .45 * st.rnd()) * (.65 + .5 * Math.min(1, st.cover * 1.6))),
+             base: st.hy - (st.hy - st.hy * .3) * near,
+             o: .55 + .45 * Math.pow(near, .6), speed: .25 + .75 * near };
   }
   // The lighting baked into the art the sky shows now.
+  // GREY only under a lid: a shower from a broken sky still has sunlit
+  // clouds, and grey ones in a clear blue sky read as cut out.
   function rcLight(s) {
     var c = s.cover || 0;
     if (s.elev <= -7) return 'night';
     if (s.elev < 0) return 'dusk';
     if (s.elev < 10) return c >= .9 ? 'grey' : 'golden';
-    return c >= .8 || rcWet(s) ? 'grey' : 'day';
+    return c >= .8 ? 'grey' : 'day';
   }
   // An overcast deck under a grey sky is its DAY art: that is already a
   // photograph of an overcast sky, and its grey relight lost the structure.
-  function rcUrl(c, light) {
+  // `sw`: one of its smaller soft copies (cloud_art.py SOFT_WIDTHS), or 0
+  function rcUrl(c, light, sw) {
     if (light === 'grey' && c.set === 'overcast-deck') light = 'day';
-    return 'url(' + RC_BASE + c.id + '-' + light + '.webp' + VER + ')';
+    return 'url(' + RC_BASE + c.id + '-' + light + (sw ? '-w' + sw : '') + '.webp' + VER + ')';
+  }
+  // DEPTH OF FIELD: the copy a cloud is drawn from. `soften` is how many
+  // screen pixels its detail should spread -- 1 for the nearest, up to ~6
+  // far off -- and the copy is the smallest one it is upscaled from by no
+  // more than that. The upscale is the blur: no filter, nothing per frame.
+  function rcSoft(c, w, soften) {
+    var px = w * (window.devicePixelRatio || 1), best = 0;
+    (c.soft || []).forEach(function (sw) { if (sw * soften >= px && (!best || sw < best)) best = sw; });
+    return best;
   }
   // Bring a cloud in: one of its set not already in the sky, sized for its
   // place in its band, starting off the upwind edge (phase 0) or, on a fresh
   // sky, already part-way across (phase), so the sky is never empty.
   function rcSpawn(st, k, set, phase) {
-    var list = RC_MAN.clouds.filter(function (c) { return c.set === set; });
+    var dep = set === 'cu' ? rcDepth(st) : null;
+    var art = dep ? dep.set : set === 'scud' ? 'cumulus-fractus' : set;
+    var list = RC_MAN.clouds.filter(function (c) { return c.set === art; });
     var used = st.clouds.map(function (x) { return x.c && x.c.id; });
     var pick = list.filter(function (c) { return used.indexOf(c.id) < 0; });
     if (!pick.length) pick = list;
-    var c = pick[Math.floor(st.rnd() * pick.length)], cfg = RC_SETS[set];
-    var t = st.rnd(), W = st.W;
-    var w = set === 'horizon-haze' ? W * 1.6 : cfg[0] * st.u * (1.15 - .35 * t) * (.85 + .3 * st.rnd());
-    var h = w * c.h / c.w;
-    var baseY = st.hy * (cfg[2][0] + (cfg[2][1] - cfg[2][0]) * t);
+    var c = pick[Math.floor(st.rnd() * pick.length)], cfg = RC_SETS[art];
+    var t = st.rnd(), W = st.W, w, h, baseY, speed;
+    if (dep) {
+      w = dep.w; h = w * c.h / c.w; baseY = dep.base; speed = dep.speed; k.o = dep.o;
+    } else if (set === 'cirrus' || set === 'cirrus-streak') {
+      // WISPS RUN LONG: a streak across a good part of the sky, thinner
+      // than drawn, high up
+      w = W * (set === 'cirrus-streak' ? .8 + .5 * t : .55 + .4 * t);
+      h = w * c.h / c.w * (set === 'cirrus-streak' ? .8 : .55);
+      baseY = st.hy * (.1 + .22 * st.rnd()); speed = cfg[1]; k.o = .6;
+    } else if (set === 'cumulus-row') {
+      // a far bank: wider than the screen, its base on the horizon
+      w = W * (1.0 + .5 * t); h = w * c.h / c.w;
+      baseY = st.hy * (cfg[2][0] + (cfg[2][1] - cfg[2][0]) * st.rnd()); speed = cfg[1]; k.o = cfg[3];
+    } else {
+      w = set === 'horizon-haze' ? W * 1.6 : cfg[0] * st.u * (1.15 - .35 * t) * (.85 + .3 * st.rnd());
+      h = w * c.h / c.w;
+      baseY = st.hy * (cfg[2][0] + (cfg[2][1] - cfg[2][0]) * t);
+      speed = cfg[1]; k.o = cfg[3];
+    }
     var x0 = st.dir > 0 ? -w : W, x1 = st.dir > 0 ? W : -w;
-    var dur = (W + w) / (st.v * cfg[1]);
-    k.c = c; k.set = set; k.w = w; k.h = h; k.o = cfg[3];
+    var dur = (W + w) / (st.v * speed);
+    k.c = c; k.set = set; k.w = w; k.h = h;
+    // DISTANCE SOFTENS: nearest sharp, further ever softer (rcSoft)
+    var soften = dep ? 1 + 5 * Math.pow(1 - dep.near, 1.6)
+               : set === 'cumulus-row' ? 3.5 : set === 'scud' ? 2.2 : set === 'cumulus-fractus' ? 2 : 1;
+    k.sw = rcSoft(c, w, soften);
     var n = k.node, ns = n.style;
     ns.width = w.toFixed(0) + 'px';
     ns.height = h.toFixed(0) + 'px';
@@ -3822,16 +3936,22 @@
     ns.setProperty('--xs', (x0 + (x1 - x0) * phase).toFixed(0) + 'px');
     ns.setProperty('--d', dur.toFixed(0) + 's');
     ns.setProperty('--dl', (-phase * dur).toFixed(0) + 's');
+    // the nearer in front; the haze and the wisps behind every cumulus
+    ns.zIndex = dep ? String(10 + Math.round(dep.near * 900))
+      // a far bank among the furthest cumulus: the furthest go behind it
+      : set === 'cirrus' || set === 'cirrus-streak' || set === 'horizon-haze' ? '1' : set === 'cumulus-row' ? '235' : '300';
+    if (set === 'scud') ns.zIndex = '200';
     // the art is lit from the left: mirror it when the light is on the right;
-    // under a grey sky the light has no side
+    // under a grey sky the light has no side. NEVER TILTED: a cumulus's base
+    // is level, and a tilted one reads as pivoted at once.
     var mirror = st.light === 'grey' ? st.rnd() < .5 : st.lightRight;
-    ns.setProperty('--tf', (mirror ? 'scaleX(-1) ' : '') + 'rotate(' + ((st.rnd() - .5) * 6).toFixed(1) + 'deg)');
+    ns.setProperty('--tf', mirror ? 'scaleX(-1)' : 'none');
     // a fresh run restarts the crossing (two names, the same keyframes: a
     // new animation-name restarts it without forcing a layout)
     k.run = !k.run;
     ns.animationName = k.run ? 'hk-rc' : 'hk-rc2';
     k.front = 0;
-    n.children[0].style.backgroundImage = rcUrl(c, st.light);
+    n.children[0].style.backgroundImage = rcUrl(c, st.light, k.sw);
     n.children[0].style.opacity = '1';
     n.children[1].style.backgroundImage = 'none';
     n.children[1].style.opacity = '0';
@@ -3868,8 +3988,8 @@
   function rcRelight(st, k, light, now) {
     if (k.lit === light) return;
     var a = k.node.children[0].style, b = k.node.children[1].style;
-    if (k.front === 0) { b.backgroundImage = rcUrl(k.c, light); b.opacity = '1'; k.front = 1; }
-    else { a.backgroundImage = rcUrl(k.c, light); a.opacity = '1'; b.opacity = '0'; k.front = 0; }
+    if (k.front === 0) { b.backgroundImage = rcUrl(k.c, light, k.sw); b.opacity = '1'; k.front = 1; }
+    else { a.backgroundImage = rcUrl(k.c, light, k.sw); a.opacity = '1'; b.opacity = '0'; k.front = 0; }
     k.lit = light;
     k.tidy = now + 11000;
   }
@@ -3897,11 +4017,12 @@
     if (el.classList.contains('own')) v *= OWN_DRIFT;
     var hy = H * hzFrac;
     var r = rng(seed * 7 + 3), plan = rcPlan(s, r);
-    var size = [Math.round(W / 40), Math.round(H / 40), Math.round(hy / 20), plan.deck, seed].join('|');
+    var size = [Math.round(W / 40), Math.round(H / 40), Math.round(hy / 20), plan.deck, seed,
+                Math.round(clamp(s.cover || 0, 0, 1) * 10)].join('|');
     if (!st || st.size !== size) {
       // a new sky (another day, another screen size or horizon, the overcast
       // deck arriving or leaving): the old clouds fade out as the new fade in
-      var old = layer.querySelectorAll('.rc,.rcd');
+      var old = layer.querySelectorAll('.rc,.rcd,.rcpl');
       for (var o = 0; o < old.length; o++) {
         old[o].style.opacity = '0';
         old[o].className += ' gone';
@@ -3922,22 +4043,54 @@
     }
     st.W = W; st.H = H; st.hy = hy; st.v = v; st.light = light; st.lightRight = lightRight;
     st.u = clamp(Math.min(W, H * 1.6) / 1280, 0.6, 1.6);
+    st.cover = clamp(s.cover || 0, 0, 1);
     st.dir = (seed % 2) ? 1 : -1;
     st.plan = plan;
     // the overcast deck: the whole sky, drifting slowly to and fro
-    if (plan.deck && !st.deck) {
+    if ((plan.deck || plan.veil) && !st.ceil) {
       var decks = RC_MAN.clouds.filter(function (c) { return c.set === 'overcast-deck'; });
-      var dc = decks[seed % decks.length], dh = H * 1.04, dw = Math.max(W * 1.25, dh * dc.w / dc.h);
+      var dc = decks[seed % decks.length];
+      if (plan.deck) {
+      // the flat deck: the whole screen, beneath -- what shows below the
+      // horizon and through the ceiling's faded edge
+      var fh = H * 1.04, fw = Math.max(W * 1.25, fh * dc.w / dc.h);
       var dn = rcNode(st, 'rcd');
-      dn.style.width = dw.toFixed(0) + 'px';
-      dn.style.height = dh.toFixed(0) + 'px';
+      dn.style.zIndex = '0';
+      dn.style.width = fw.toFixed(0) + 'px';
+      dn.style.height = fh.toFixed(0) + 'px';
       dn.style.top = (-H * .02).toFixed(0) + 'px';
-      dn.style.setProperty('--x1', (W - dw).toFixed(0) + 'px');
-      dn.style.setProperty('--d', Math.max(60, (dw - W) / (v * .25)).toFixed(0) + 's');
+      dn.style.setProperty('--x1', (W - fw).toFixed(0) + 'px');
+      dn.style.setProperty('--d', Math.max(60, (fw - W) / (v * .25)).toFixed(0) + 's');
       dn.children[0].style.backgroundImage = rcUrl(dc, light);
       dn.children[0].style.opacity = '1';
-      st.deck = { node: dn, c: dc, w: dw, h: dh, o: 1, front: 0, lit: light, set: 'overcast-deck', fresh: true };
+      st.deck = { node: dn, c: dc, w: fw, h: fh, o: 1, front: 0, lit: light, set: 'overcast-deck', fresh: true };
+      }
+      // A CEILING, NOT A BLANKET: over it, the same deck on a plane hinged at
+      // the horizon and tilted toward the viewer, so its texture is large
+      // overhead and compresses into fine bands toward the skyline; its
+      // lowest part fades into the flat deck. One 3D transform and one
+      // static mask, drawn by the compositor -- nothing per frame
+      var plane = document.createElement('div');
+      plane.className = 'rcpl';
+      var pw = W * 2.2, ph = hy * 1.9;
+      plane.style.cssText = 'position:absolute;z-index:1;left:' + (-(pw - W) / 2).toFixed(0) + 'px;width:' + pw.toFixed(0) +
+        'px;top:' + (hy - ph).toFixed(0) + 'px;height:' + ph.toFixed(0) + 'px;transform-origin:50% 100%;' +
+        'transform:perspective(' + (H * 1.1).toFixed(0) + 'px) rotateX(-62deg);' +
+        '-webkit-mask-image:linear-gradient(to top,transparent 0,#000 22%);mask-image:linear-gradient(to top,transparent 0,#000 22%)';
+      st.layer.appendChild(plane);
+      var ch = ph, cw = Math.max(pw * 1.2, ch * dc.w / dc.h);
+      var cn = rcNode(st, 'rcd');
+      plane.appendChild(cn);
+      cn.style.width = cw.toFixed(0) + 'px';
+      cn.style.height = ch.toFixed(0) + 'px';
+      cn.style.top = '0px';
+      cn.style.setProperty('--x1', (pw - cw).toFixed(0) + 'px');
+      cn.style.setProperty('--d', Math.max(60, (cw - pw) / (v * .4)).toFixed(0) + 's');
+      cn.children[0].style.backgroundImage = rcUrl(dc, light);
+      cn.children[0].style.opacity = '1';
+      st.ceil = { node: cn, c: dc, w: cw * .5, h: ch * .5, o: .85, front: 0, lit: light, set: 'overcast-deck', fresh: true };
     }
+    if (st.ceil) st.ceil.o = plan.deck ? .85 : plan.veil;
     // FAINT: a texture over the sky, not a lid -- more of it the more
     // complete the cover, a little more in rain
     if (st.deck) {
@@ -3954,10 +4107,10 @@
       for (var i = have[set] || 0; i < count[set]; i++) {
         var k = { node: rcNode(st, 'rc'), fresh: true };
         st.clouds.push(k);
-        rcSpawn(st, k, set, fresh ? (i + .2 + .6 * st.rnd()) / count[set] : 0);
+        rcSpawn(st, k, set, fresh ? (set === 'cu' ? st.rnd() : (i + .2 + .6 * st.rnd()) / count[set]) : 0);
       }
     }
-    var all = st.deck ? [st.deck].concat(st.clouds) : st.clouds, out = [], area = W * H;
+    var all = (st.deck ? [st.deck] : []).concat(st.ceil ? [st.ceil] : [], st.clouds), out = [], area = W * H;
     all.forEach(function (k) {
       rcRelight(st, k, light, now);
       rcTidy(k, now);
@@ -4046,8 +4199,10 @@
     // this route is resolved once here and handed to paintSeason below.
     var route = routeOf(s, new Date());
     var plan = route.plan;
-    var spooky = s.season === 'halloween' && s.decorations !== false &&
-                 plan.show && plan.spooky && s.elev < -4;
+    // route.name, not s.season: a surprise (a birthday) blanks the season for
+    // the day, and the Halloween moon must sit it out with the scene.
+    var spooky = route.name === 'halloween' && s.decorations !== false &&
+                 plan.spooky && s.elev < -4;
     var moonEl = el.querySelector('.moon');
     if (moonEl) moonEl.classList.toggle('hallow', spooky);
     // Opposite the sun: roughly true near full, and the only placement that
@@ -4135,7 +4290,7 @@
       var moonPhone = moonW < 640;
       var seasonNode = el.querySelector('.season');
       var menuInset = seasonNode ? parseFloat(getComputedStyle(seasonNode).left) || 0 : 0;
-      var halloweenMoon = s.season === 'halloween' && plan.show;
+      var halloweenMoon = route.name === 'halloween';
       moonS = moonPhone ? (halloweenMoon ? 42 : 32) : halloweenMoon ? 168 : 76;
       moonXf = moonPhone ? .16 : menuInset > 0 ? .84 : moonW < 1200 ? .9 : .76;
       moonYf = (moonPhone ? 112 : menuInset > 0 ? 76 : 104) / moonH;
@@ -4181,8 +4336,15 @@
     // Clouds: Realistic draws its own (paintRealClouds, after the seasons);
     // the classic decks stay off while its manifest loads, and stand in only
     // if it cannot (rcManifest)
-    var realOn = s.cloudStyle === 'realistic' && (rcManifest(), !RC_FAILED);
-    var cov = realOn ? 0 : s.cover;
+    // Weather off draws no clouds in either style: read() zeroes the classic
+    // decks' cover, and the realistic plan would still add a cirrus or a far
+    // cumulus at cover 0.
+    // 'blend' (Sky Lab, on trial): the realistic clouds over the classic
+    // decks at half their cover -- the clouds sitting in a veil of haze and
+    // thin cloud, not on a clean gradient
+    var realOn = (s.cloudStyle === 'realistic' || s.cloudStyle === 'blend') && s.weather !== false &&
+                 (rcManifest(), !RC_FAILED);
+    var cov = realOn ? (s.cloudStyle === 'blend' ? s.cover * .55 : 0) : s.cover;
     var oA = clamp(cov * 1.5, 0, 0.85);
     var oB = clamp((cov - 0.18) * 1.5, 0, 0.92);
     var oC = clamp((cov - 0.42) * 1.7, 0, 0.95);

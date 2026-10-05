@@ -336,7 +336,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # fills in for an older hk-base.js.
              "style": "auto", "narrow": "chip", "tab_at": "", "tab_size": "large",
              "tab_size_phone": "standard", "open_min": 1000, "time_weather_at": "page",
-             "ha_row": False, "accent": "orange", "swipe": False},
+             "ha_row": False, "accent": "orange", "swipe": False,
+             # the tab bar (2026-10-05): while scrolling, its Rooms button,
+             # its glass
+             "bar_scroll": "shrink", "bar_rooms": "more", "bar_glass": "house"},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -649,7 +652,8 @@ SUBENTRY_DASHBOARD = "dashboard"
 # of sight; chip_home: that on Home, the tab on every other page. none: no
 # button at all, the swipe from the left edge opens it -- only with `swipe`
 # on (hk-base.js treats it as auto without it).
-BOARD_MENUS = ("off", "auto", "chip", "chip_scroll", "chip_home", "tab", "none", "open")
+# tabbar: no side menu at all -- the tab bar (hk-tabbar.js), at every width.
+BOARD_MENUS = ("off", "auto", "chip", "chip_scroll", "chip_home", "tab", "none", "open", "tabbar")
 BOARD_TIME = ("page", "menu")          # the time and weather: header or menu
 BOARD_MENU_ROOMS = ("az", "order")     # rooms in the menu: A to Z / room order
 # rooms on Home: as written / in room order / only the rooms in room order
@@ -677,7 +681,8 @@ BOARD_GLASS = ("house", "clear", "frosted", "blur", "blur_each")   # house: the 
 # always-open menu is folded -- the chip, the chip then the edge tab once
 # scrolled past, the edge tab, or none (the swipe alone; the chip without
 # it) -- hk-base.js narrowStyle
-BOARD_NARROW = ("chip", "chip_scroll", "tab", "none")
+# ...or the tab bar in its place (hk-tabbar.js)
+BOARD_NARROW = ("chip", "chip_scroll", "tab", "none", "tabbar")
 # what a phone shows at the top of Home: the clock and weather header, or the
 # one-line weather strip (a generated screen; a YAML one draws its own)
 BOARD_PHONE = ("header", "strip")
@@ -685,6 +690,32 @@ BOARD_PHONE = ("header", "strip")
 # (tab_size_phone, under 640 px), each the screen's own -- hk-menu.js. A phone
 # starts with the standard one, which already lies over the first column.
 BOARD_TAB_SIZES = ("standard", "large", "xl")
+# THE TAB BAR (hk-tabbar.js, docs/Tab-Bar.md): iOS's floating tab bar, the
+# menu's other form. A screen's `menu` "tabbar" is the bar at every width
+# and no side menu; its `narrow` "tabbar" is the side menu (a button, or
+# always open) on wide screens and the bar where that menu would fold. The
+# two never show together. How the bar behaves while the page scrolls, its
+# Rooms button and its glass are menu settings (MENU_KEYS): All Screens'
+# unless the screen sets its own menu (menu_custom).
+# shrink: folds into a small round button while scrolling down; hide: slides
+# away; stay: never moves. Both come back on any scroll up, at the page's
+# ends and on a page change.
+TAB_BAR_SCROLLS = ("shrink", "hide", "stay")
+# house: the screen's glass (its own or All Screens'); clear: a near-solid
+# tint -- a see-through bar cannot be read over the tiles (measured
+# 2026-10-05)
+TAB_BAR_GLASS = ("house", "clear", "frosted", "blur")
+# the rooms: a section of More (under its pages), a round button of their own
+# beside the tabs, or not in the bar at all
+TAB_BAR_ROOMS = ("more", "button", "off")
+
+
+def tab_bar_rooms(v: Any) -> str:
+    """The Rooms setting as stored; a boolean from before 2026-10-05
+    evening: True is In More."""
+    if v is False:
+        return "off"
+    return v if v in TAB_BAR_ROOMS else "more"
 VIEW_PATH = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
 BOARD_DEFAULTS: dict[str, Any] = {
     # the menu
@@ -701,6 +732,9 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # swipe: a drag right from the left edge opens the menu, at every width,
     # beside whatever button there is (hk-menu.js wireEdge)
     "swipe": False,
+    # the tab bar (menu or narrow "tabbar"): while scrolling, its Rooms
+    # button, its glass -- menu settings (MENU_KEYS)
+    "tab_bar_scroll": "shrink", "tab_bar_rooms": "more", "tab_bar_glass": "house",
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
     "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
@@ -828,6 +862,17 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["glyph"] = pick("glyph", MENU_GLYPHS)
     out["clock"] = bool(d.get("clock", True))
     out["swipe"] = d.get("swipe") is True
+    # THE TAB BAR'S FIRST FORM (2026-10-05, a few hours): a `tab_bar` of its
+    # own beside the menu. Always is now the menu's Tab Bar; Narrow Screens
+    # the narrow choice. Read once: the next write of the item drops the key.
+    old_bar = d.get("tab_bar")
+    if old_bar == "always" and "tabbar" not in (d.get("menu"), d.get("narrow")):
+        out["menu"] = "tabbar"
+    elif old_bar == "narrow" and out["menu"] not in ("off", "tabbar") and d.get("narrow") is None:
+        out["narrow"] = "tabbar"
+    out["tab_bar_scroll"] = pick("tab_bar_scroll", TAB_BAR_SCROLLS)
+    out["tab_bar_rooms"] = tab_bar_rooms(d.get("tab_bar_rooms"))
+    out["tab_bar_glass"] = pick("tab_bar_glass", TAB_BAR_GLASS)
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
         out[k] = strs(d.get(k)) or []
@@ -1140,8 +1185,10 @@ ROOM_KEYS = {"room_order": "order", "home_rooms": "home", "menu_rooms": "menu", 
 # style follows (MENU_STYLES).
 MENU_KEYS = {"menu": "style", "narrow": "narrow", "tab_position": "tab_at", "tab_size": "tab_size",
              "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
-             "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe"}
-MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open"))
+             "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe",
+             "tab_bar_scroll": "bar_scroll", "tab_bar_rooms": "bar_rooms", "tab_bar_glass": "bar_glass"}
+# a menu BUTTON's styles: not off, always open or the tab bar
+MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open", "tabbar"))
 
 
 def accent(v: Any) -> str | None:
@@ -1173,7 +1220,10 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "accent": accent(m.get("accent")) or d["accent"],
             "glyph": pick("glyph", MENU_GLYPHS, d["glyph"]),
             "clock": m.get("clock") is not False,
-            "swipe": m.get("swipe") is True}
+            "swipe": m.get("swipe") is True,
+            "tab_bar_scroll": pick("bar_scroll", TAB_BAR_SCROLLS, d["tab_bar_scroll"]),
+            "tab_bar_rooms": tab_bar_rooms(m.get("bar_rooms")),
+            "tab_bar_glass": pick("bar_glass", TAB_BAR_GLASS, d["tab_bar_glass"])}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -1360,7 +1410,7 @@ def legacy_screens(items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
 def legacy_lists(items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     """The menu's older house-wide lists, read off the items -- for a screen
     still running an older hk-base.js until it reloads."""
-    on = [p for p, b in items.items() if b["menu"] != "off"]
+    on = [p for p, b in items.items() if b["menu"] not in ("off", "tabbar")]
     docked = [p for p in on if items[p]["menu"] == "open"]
     # one button style, one tab position, one set of categories for all: the
     # older file knows no other. The buttons' shared choice when they agree

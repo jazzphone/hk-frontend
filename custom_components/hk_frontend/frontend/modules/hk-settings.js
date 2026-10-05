@@ -83,7 +83,9 @@
             // All Screens' menu, for the screens that don't set their own
             // (settings.py MENU_KEYS); a screen reads it already filled in
             style: 'auto', narrow: 'chip', tab_at: '', tab_size: 'large', tab_size_phone: 'standard',
-            open_min: 1000, time_weather_at: 'page', ha_row: false, accent: 'orange', swipe: false },
+            open_min: 1000, time_weather_at: 'page', ha_row: false, accent: 'orange', swipe: false,
+            // the tab bar's (a screen's menu or narrow choice "tabbar")
+            bar_scroll: 'shrink', bar_rooms: 'more', bar_glass: 'house' },
     rooms: { headings: true, status: ['temperature', 'humidity', 'security', 'tvs', 'lights', 'outlets', 'blinds',
                                  'fans', 'windows', 'doors', 'locks', 'garage', 'valves', 'motion', 'occupancy',
                                  'leaks', 'speakers'],

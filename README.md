@@ -25,7 +25,7 @@ Built from your own rooms and devices, and set up entirely in the UI.
 
 ## Screens that build themselves
 
-Add a screen and HK Frontend builds it from your floors, areas and devices: the clock and weather, status chips, cameras, scenes, favorites, a section for every room, a page for each room and each kind of device, and a [calendar](https://github.com/jazzphone/hk-frontend/wiki/Calendar) of the month, week or day. A new light shows up on its own. The same screen works on a wall tablet, a computer, an iPad and a phone.
+Add a screen and HK Frontend builds it from your floors, areas and devices: the clock and weather, status chips, cameras, scenes, favorites, a section for every room, a page for each room and each kind of device, and a [calendar](https://github.com/jazzphone/hk-frontend/wiki/Calendar) of the month, week or day. A new light shows up on its own. The same screen works on a wall tablet, a computer, an iPad and a phone. Get around it with a [menu of pages and rooms](https://github.com/jazzphone/hk-frontend/wiki/Menu) beside the page or behind a button, or an iOS-style [tab bar](https://github.com/jazzphone/hk-frontend/wiki/Tab-Bar) floating along the bottom.
 
 <p align="center">
 <img src="docs/images/tablet-lights.png" width="49%" alt="The Lights page">

@@ -1,0 +1,4 @@
+{
+  "status": "ready",
+  "notes": "Stage 1 only: four 2560x1600 RGBA masters are in land-holiday/. masters-compare.png shows base/master full frames at 1280x800 over the specified sky gradients, every decorated area at exact 3x, and birthday props over summer-day and winter-day. Generated prop silhouettes use local feathered alpha masks; original landscape pixels outside these masks are exactly unchanged (maximum channel difference 0). Prop silhouettes and bulbs meet the specified sizes. The transparent top 34%, clock box, and meadow below y=1040 are untouched. Source season lands, dashboard references, and old holiday artwork hashes are unchanged. Birthday is transparent away from cafe lights, presents and soft shadows. Built-in image_gen prompts, placements, masks and validation are recorded in work/. No Stage 2 files or lights layers were produced. Awaiting the owner reply approved."
+}

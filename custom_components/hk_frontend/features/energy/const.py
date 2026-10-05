@@ -1,7 +1,6 @@
 """Energy's constants."""
 
 DATA = "hk_energy"                       # hass.data: the Energy manager's listener, once
-SIGNAL_CHANGED = "hk_energy_changed"     # its settings or HA's Energy settings changed
 
 # THE STORED OPTIONS (the feature item's options). Every one may be missing:
 # missing means Automatic.

@@ -216,17 +216,20 @@
     if (k === 'valves' && live.every(function (id) { return attr(st[id], 'device_class') === 'gas'; })) {
       words = ['Closed', 'Open'];
     }
-    var m = live.length;
-    return { kind: k, title: noun,
-             // one: its state; several: all in one state, or how many are in the other
-             value: m === 1 || on === 0 || on === m ? words[on ? 1 : 0] : on + ' ' + words[1],
-             ids: ids, dim: false, on: on, alert: k === 'locks' && !!on };
+    // THE ONE RULE for an accessory kind, every row's (a room's, a category
+    // page's, Climate's blinds and fans): one state when all that answer
+    // agree, else how many are in the other -- and any that cannot answer
+    // said, never folded in: "2 On · 1 Unavailable", not "3 Lights On".
+    var m = live.length, gone = n - m;
+    var value = gone ? on + ' ' + words[1] + ' · ' + gone + ' Unavailable'
+              : on === 0 || on === m ? words[on ? 1 : 0] : on + ' ' + words[1];
+    return { kind: k, title: noun, value: value, ids: ids, dim: false, on: on, alert: k === 'locks' && !!on };
   }
 
   // THE ROW'S ITEMS -- a pure function of hass, the areas and the kinds, so
   // the tests hold it to every rule without a page.
   //   o: { items: [kinds], temperature, humidity, include: [ids], exclude: [ids],
-  //        entities: [ids] }
+  //        entities: [ids], exclude_entities, exclude_devices, exclude_areas }
   //
   // `entities:` -- THE ACCESSORIES ON THE PAGE. Given, the accessory kinds
   // (lights, outlets, blinds, fans, locks, ...) count only these, so "2 Fans"
@@ -241,12 +244,27 @@
     var kinds = (o.items && o.items.length ? o.items : KINDS).filter(function (k, i, arr) {
       return KINDS.indexOf(k) !== -1 && arr.indexOf(k) === i;
     });
-    var skip = {};
-    (o.exclude || []).forEach(function (id) { skip[id] = true; });
+    // LEFT OUT: the card's own `exclude`, and Hidden from Screens -- the
+    // house's (generated) and the dashboard's own exclude_entities /
+    // _devices / _areas -- by the generated dashboard's rule (hidden()): an
+    // entity, its device, or its area. A hidden motion sensor is no more the
+    // room's than it is a page's or a chip's.
+    var skip = {}, offDev = {}, offArea = {};
+    (o.exclude || []).concat(o.exclude_entities || []).forEach(function (id) { skip[id] = true; });
+    (o.exclude_devices || []).forEach(function (d) { offDev[d] = true; });
+    (o.exclude_areas || []).forEach(function (a) { offArea[a] = true; });
+    var ents = hass.entities || {};
+    var left = function (id) {
+      if (skip[id]) return true;
+      var e = ents[id] || {};
+      if (e.device_id && offDev[e.device_id]) return true;
+      var a = areaOf(hass, id);
+      return !!(a && offArea[a]);
+    };
     var ids = members(hass, areas).concat(o.include || []).filter(function (id, i, arr) {
-      return !skip[id] && arr.indexOf(id) === i;
+      return !left(id) && arr.indexOf(id) === i;
     });
-    var own = Array.isArray(o.entities) ? o.entities.filter(function (id) { return !skip[id]; }) : null;
+    var own = Array.isArray(o.entities) ? o.entities.filter(function (id) { return !left(id); }) : null;
     var by = {};
     function count(list, accessories) {
       list.forEach(function (id) {
@@ -356,12 +374,9 @@
             /C$/.test(unit) ? (avg - 7) / 29 : /K$/.test(unit) ? (avg - 280.15) / 29 : (avg - 45) / 52 });
         return;
       }
-      var valid = ids.filter(function (id) { var s = hass.states[id]; return s && !OFF[s.state]; });
-      var on = valid.filter(function (id) { return isOn(k, hass.states[id]); }).length;
-      var n = ids.length, words = WORDS[k], unknown = n - valid.length;
-      out.push({ kind: k, title: (n === 1 ? '' : n + ' ') + NOUN[k][n === 1 ? 0 : 1], ids: ids,
-        value: !valid.length ? 'Unavailable' : unknown ? on + ' ' + words[1] + ' · ' + unknown + ' Unavailable' :
-          on === 0 || on === n ? words[on ? 1 : 0] : on + ' ' + words[1], on: on, dim: !valid.length });
+      // blinds and fans: the one accessory rule every row uses
+      var it = describe(hass, k, ids, false);
+      if (it) out.push(it);
     });
     return out;
   }
@@ -458,9 +473,14 @@
       getCardSize() { return 1; }
       _areas() { return [].concat(this._config.area || []).filter(Boolean); }
       _opts() {
-        var c = this._config;
+        var c = this._config, G = C.setting('generated', null) || {};
+        // Hidden from Screens: the house's (live), and what the generated
+        // dashboard handed it (its own YAML's too)
+        var both = function (k) { return [].concat(G[k] || [], c[k] || []); };
         return { items: c.items || C.setting('rooms.status', null), temperature: c.temperature,
-                 humidity: c.humidity, include: c.include, exclude: c.exclude, entities: c.entities };
+                 humidity: c.humidity, include: c.include, exclude: c.exclude, entities: c.entities,
+                 exclude_entities: both('exclude_entities'), exclude_devices: both('exclude_devices'),
+                 exclude_areas: both('exclude_areas') };
       }
       _itemsFor(h) { return items(h, this._areas(), this._opts()); }
       // The entities it reads, and the settings that shape it.

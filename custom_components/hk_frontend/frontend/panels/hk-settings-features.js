@@ -976,18 +976,31 @@
     } })]));
   }
 
+  // THE BATTERIES AS STORED, from rows as shown (d.batteries, resolved):
+  // only what the house set itself -- a battery already in the stored list
+  // keeps its own entry; one taken from Automatic is just its entity, and
+  // the house battery's flag (the plan's own, else its automatic glyph).
+  // Never the resolved name, label, suffix or glyph: pinned, they outlived
+  // the choice that made them (The House Battery off kept the house glyph,
+  // and the next save turned it back on).
+  var HOUSE_GLYPH = 'hk:home-battery-outline', BATTERY_GLYPH = 'hk:battery-high';
+  function batteriesStored(d, list) {
+    var own = {};
+    var o = (d && d.options) || {};
+    (Array.isArray(o.batteries) ? o.batteries : []).forEach(function (b) { if (b && b.entity) own[b.entity] = b; });
+    return list.filter(Boolean).map(function (b) {
+      var key = b.entity || b.key;
+      if (own[key]) return Object.assign({}, own[key]);
+      var y = { entity: key };
+      if (b.house === true || (b.house === undefined && b.icon === HOUSE_GLYPH)) y.house = true;
+      return y;
+    });
+  }
   function energyBatteries(P, c, d) {
     var o = d.options || {};
     var auto = !Array.isArray(o.batteries);
     var bats = d.batteries || [];
-    var asStored = function (list) {
-      return list.map(function (b) {
-        var y = { entity: b.entity || b.key };
-        ['name', 'label', 'label_suffix', 'label_decimals', 'icon'].forEach(function (k) { if (b[k] != null && b[k] !== '') y[k] = b[k]; });
-        if (b.house || (b.icon === 'hk:home-battery-outline')) y.house = true;
-        return y;
-      });
-    };
+    var asStored = function (list) { return batteriesStored(d, list); };
     c.appendChild(K.listEditor({ fk: 'enbat', auto: auto, minRows: 0, announce: P.announce.bind(P),
       autoFooter: 'Automatic: the house battery’s level (Home Assistant’s Energy settings) and every car’s — a battery level on a device that also reports a range.',
       shownFooter: 'Their level, colored by it, in the Charging section (or where Sections places them).',
@@ -1029,7 +1042,11 @@
       K.text({ label: 'After It', sk: 'f:' + EN + ':bat:suffix', value: b.label_suffix != null ? b.label_suffix : '',
                placeholder: shown.label_suffix || ' mi range', maxlength: 40, onCommit: function (v) { put({ label_suffix: v }); } }),
       K.toggle({ label: 'The House Battery', sub: 'Its glyph is the house’s', on: !!b.house, sk: 'f:' + EN + ':bat:house',
-                 onChange: function (on) { put({ house: on || null }); } })]));
+                 // a default glyph saved by an older page goes with it, or
+                 // the house's glyph would stay after turning this off
+                 onChange: function (on) {
+                   put({ house: on || null, icon: b.icon === HOUSE_GLYPH || b.icon === BATTERY_GLYPH ? null : b.icon });
+                 } })]));
   }
 
   function energyPage(P, sub, mk, withData, name, domain) {
@@ -1149,6 +1166,7 @@
     LIST: LIST, listed: listed, stateOf: stateOf, page: page, use: use, addHref: addHref, search: search, musicTop: musicTop,
     integrationHref: integrationHref, SCOPE: SCOPE, WHAT: WHAT,
     _: { tvLists: tvLists, tvCount: tvCount, speakerLists: speakerLists, speakerName: speakerName, playlistSub: playlistSub, vacuumSub: vacuumSub, vacuumsAfter: vacuumsAfter,
-         roomLists: roomLists, roomCount: roomCount, energyFound: energyFound, sectionsAfter: sectionsAfter }
+         roomLists: roomLists, roomCount: roomCount, energyFound: energyFound, sectionsAfter: sectionsAfter,
+         batteriesStored: batteriesStored }
   };
 })();

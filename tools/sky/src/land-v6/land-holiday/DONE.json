@@ -1,0 +1,1271 @@
+{
+  "version": 6,
+  "task": "hk-holiday-landscapes",
+  "files": [
+    {
+      "name": "land-halloween-day-src.png",
+      "kind": "land",
+      "holiday": "halloween",
+      "light": "day",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "b8bd3c5451d7fe794875ed559afdf7a9ce5599828f1f12ab64a85d691b83b318",
+      "base": "land-fall-day-src.png"
+    },
+    {
+      "name": "land-halloween-dusk-src.png",
+      "kind": "land",
+      "holiday": "halloween",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "54e335ed5cdf41e3953a8439f03fc0e303042f1f1159eb56d7892d65c3f797bc",
+      "base": "land-fall-dusk-src.png"
+    },
+    {
+      "name": "land-halloween-night-src.png",
+      "kind": "land",
+      "holiday": "halloween",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "fd346ab2b5318f7493d44404e98bfb7c9ef35f95d0046bd74d87dd21ade8966c",
+      "base": "land-fall-night-src.png"
+    },
+    {
+      "name": "land-christmas-day-src.png",
+      "kind": "land",
+      "holiday": "christmas",
+      "light": "day",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "1f16a1c6a236e052ce914421c937366ecb16aea56a487fca7c01f0557a2f8732",
+      "base": "land-winter-day-src.png"
+    },
+    {
+      "name": "land-christmas-dusk-src.png",
+      "kind": "land",
+      "holiday": "christmas",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "b3a90dca5b8e102e0bd61ae8ed2a44ccd173495f9d9cd6ec18a6508e29553b01",
+      "base": "land-winter-dusk-src.png"
+    },
+    {
+      "name": "land-christmas-night-src.png",
+      "kind": "land",
+      "holiday": "christmas",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "bfa9426ee8f91e29a0eb8a4380c451317601fd0bdb6dc95fa91390bc9d223a31",
+      "base": "land-winter-night-src.png"
+    },
+    {
+      "name": "land-july4-day-src.png",
+      "kind": "land",
+      "holiday": "july4",
+      "light": "day",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "62f3db1685af795ee335c858775c52aca96cb1e7399b5e45280659d037d699a1",
+      "base": "land-summer-day-src.png"
+    },
+    {
+      "name": "land-july4-dusk-src.png",
+      "kind": "land",
+      "holiday": "july4",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "6db78612af4883c3ec8e828daf4e25c3336ce0741d75fd2e7520bc8e76123eea",
+      "base": "land-summer-dusk-src.png"
+    },
+    {
+      "name": "land-july4-night-src.png",
+      "kind": "land",
+      "holiday": "july4",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "54481795c8c027078529950cdafc11500f4d91e9afb00b1e1f5f7ef89fd98838",
+      "base": "land-summer-night-src.png"
+    },
+    {
+      "name": "birthday-props-day-src.png",
+      "kind": "overlay",
+      "holiday": "birthday",
+      "light": "day",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "2b475851cfdbd8bd390c0e2784521b980ac6de804394715d7647dc2a300051d9"
+    },
+    {
+      "name": "birthday-props-dusk-src.png",
+      "kind": "overlay",
+      "holiday": "birthday",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "62c01e689d21d38539c8da55998f980125a9a750c479c936e891f5633c6986f3"
+    },
+    {
+      "name": "birthday-props-night-src.png",
+      "kind": "overlay",
+      "holiday": "birthday",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "8dadf4e3b954fe9de50f05f6477e10ca6a02aa3d752ea0dd9c0c27a29a19473d"
+    },
+    {
+      "name": "land-halloween-dusk-lights.png",
+      "kind": "lights",
+      "holiday": "halloween",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "a9eeffe973fa840871b56b538026490b7380fa3fc3486919a87cee2128e2ec56",
+      "over": "land-halloween-dusk-src.png",
+      "lights": [
+        {
+          "x": 1202.61,
+          "y": 1005.48,
+          "r": 18.92,
+          "kind": "candle"
+        },
+        {
+          "x": 1292.62,
+          "y": 998.4,
+          "r": 17.16,
+          "kind": "candle"
+        },
+        {
+          "x": 1506.32,
+          "y": 1009.86,
+          "r": 14.4,
+          "kind": "candle"
+        },
+        {
+          "x": 1617.89,
+          "y": 1001.1,
+          "r": 19.51,
+          "kind": "candle"
+        },
+        {
+          "x": 1179.21,
+          "y": 846.66,
+          "r": 13.57,
+          "kind": "candle"
+        },
+        {
+          "x": 1335.66,
+          "y": 875.87,
+          "r": 14.2,
+          "kind": "candle"
+        },
+        {
+          "x": 1484.64,
+          "y": 850.48,
+          "r": 11.88,
+          "kind": "candle"
+        },
+        {
+          "x": 1636.73,
+          "y": 878.12,
+          "r": 14.36,
+          "kind": "candle"
+        }
+      ]
+    },
+    {
+      "name": "land-halloween-night-lights.png",
+      "kind": "lights",
+      "holiday": "halloween",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "659fef3917afc8d8cc09cc609b166ab64b19fa228a335681708dccbae6cef1b4",
+      "over": "land-halloween-night-src.png",
+      "lights": [
+        {
+          "x": 1202.61,
+          "y": 1005.48,
+          "r": 18.92,
+          "kind": "candle"
+        },
+        {
+          "x": 1292.62,
+          "y": 998.4,
+          "r": 17.16,
+          "kind": "candle"
+        },
+        {
+          "x": 1506.32,
+          "y": 1009.86,
+          "r": 14.4,
+          "kind": "candle"
+        },
+        {
+          "x": 1617.89,
+          "y": 1001.1,
+          "r": 19.51,
+          "kind": "candle"
+        },
+        {
+          "x": 1179.21,
+          "y": 846.66,
+          "r": 13.57,
+          "kind": "candle"
+        },
+        {
+          "x": 1335.66,
+          "y": 875.87,
+          "r": 14.2,
+          "kind": "candle"
+        },
+        {
+          "x": 1484.64,
+          "y": 850.48,
+          "r": 11.88,
+          "kind": "candle"
+        },
+        {
+          "x": 1636.73,
+          "y": 878.12,
+          "r": 14.36,
+          "kind": "candle"
+        }
+      ]
+    },
+    {
+      "name": "land-christmas-dusk-lights.png",
+      "kind": "lights",
+      "holiday": "christmas",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "dae829c6a875023e24b3834713ea450643a2747f200d509fe6e877db478e1452",
+      "over": "land-christmas-dusk-src.png",
+      "lights": [
+        {
+          "x": 1104.38,
+          "y": 733.44,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1125.0,
+          "y": 743.2,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1145.62,
+          "y": 749.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1166.25,
+          "y": 753.65,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1184.4,
+          "y": 753.4,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1204.2,
+          "y": 749.96,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1224.0,
+          "y": 743.5,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1242.0,
+          "y": 735.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1261.5,
+          "y": 743.75,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1282.95,
+          "y": 750.49,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1304.4,
+          "y": 754.2,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1323.0,
+          "y": 754.95,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1339.5,
+          "y": 752.89,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1356.0,
+          "y": 747.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1372.5,
+          "y": 739.69,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1112.5,
+          "y": 813.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1131.75,
+          "y": 825.76,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1152.75,
+          "y": 835.36,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1172.0,
+          "y": 841.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1190.7,
+          "y": 837.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1211.1,
+          "y": 830.36,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1231.5,
+          "y": 819.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1247.88,
+          "y": 818.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1266.78,
+          "y": 828.24,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1285.67,
+          "y": 833.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1303.0,
+          "y": 836.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1318.67,
+          "y": 831.46,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1335.78,
+          "y": 823.06,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1351.45,
+          "y": 812.2,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1423.5,
+          "y": 780.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1444.4,
+          "y": 791.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1465.3,
+          "y": 799.64,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1486.2,
+          "y": 804.45,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1501.4,
+          "y": 804.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1517.08,
+          "y": 800.01,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1532.75,
+          "y": 793.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1547.0,
+          "y": 784.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1564.0,
+          "y": 793.25,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1582.7,
+          "y": 800.54,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1601.4,
+          "y": 804.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1618.75,
+          "y": 806.05,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1639.38,
+          "y": 804.54,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1660.0,
+          "y": 800.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1680.62,
+          "y": 792.44,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1428.55,
+          "y": 862.35,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1449.72,
+          "y": 873.49,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1472.83,
+          "y": 882.19,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1494.0,
+          "y": 887.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1508.03,
+          "y": 883.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1523.33,
+          "y": 876.36,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1538.62,
+          "y": 865.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1553.62,
+          "y": 865.44,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1574.33,
+          "y": 875.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1595.03,
+          "y": 882.84,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1614.0,
+          "y": 886.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1633.53,
+          "y": 881.46,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1654.83,
+          "y": 873.06,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1674.35,
+          "y": 862.2,
+          "r": 1.3,
+          "kind": "bulb"
+        }
+      ]
+    },
+    {
+      "name": "land-christmas-night-lights.png",
+      "kind": "lights",
+      "holiday": "christmas",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "e9d7737e35c58515e96a3471d49fa898b1c1c1fb0fbaba0293cc3e868e7b7c34",
+      "over": "land-christmas-night-src.png",
+      "lights": [
+        {
+          "x": 1104.38,
+          "y": 733.44,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1125.0,
+          "y": 743.2,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1145.62,
+          "y": 749.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1166.25,
+          "y": 753.65,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1184.4,
+          "y": 753.4,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1204.2,
+          "y": 749.96,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1224.0,
+          "y": 743.5,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1242.0,
+          "y": 735.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1261.5,
+          "y": 743.75,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1282.95,
+          "y": 750.49,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1304.4,
+          "y": 754.2,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1323.0,
+          "y": 754.95,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1339.5,
+          "y": 752.89,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1356.0,
+          "y": 747.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1372.5,
+          "y": 739.69,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1112.5,
+          "y": 813.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1131.75,
+          "y": 825.76,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1152.75,
+          "y": 835.36,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1172.0,
+          "y": 841.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1190.7,
+          "y": 837.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1211.1,
+          "y": 830.36,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1231.5,
+          "y": 819.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1247.88,
+          "y": 818.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1266.78,
+          "y": 828.24,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1285.67,
+          "y": 833.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1303.0,
+          "y": 836.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1318.67,
+          "y": 831.46,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1335.78,
+          "y": 823.06,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1351.45,
+          "y": 812.2,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1423.5,
+          "y": 780.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1444.4,
+          "y": 791.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1465.3,
+          "y": 799.64,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1486.2,
+          "y": 804.45,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1501.4,
+          "y": 804.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1517.08,
+          "y": 800.01,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1532.75,
+          "y": 793.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1547.0,
+          "y": 784.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1564.0,
+          "y": 793.25,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1582.7,
+          "y": 800.54,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1601.4,
+          "y": 804.8,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1618.75,
+          "y": 806.05,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1639.38,
+          "y": 804.54,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1660.0,
+          "y": 800.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1680.62,
+          "y": 792.44,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1428.55,
+          "y": 862.35,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1449.72,
+          "y": 873.49,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1472.83,
+          "y": 882.19,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1494.0,
+          "y": 887.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1508.03,
+          "y": 883.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1523.33,
+          "y": 876.36,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1538.62,
+          "y": 865.56,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1553.62,
+          "y": 865.44,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1574.33,
+          "y": 875.94,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1595.03,
+          "y": 882.84,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1614.0,
+          "y": 886.0,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1633.53,
+          "y": 881.46,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1654.83,
+          "y": 873.06,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1674.35,
+          "y": 862.2,
+          "r": 1.3,
+          "kind": "bulb"
+        }
+      ]
+    },
+    {
+      "name": "land-july4-night-lights.png",
+      "kind": "lights",
+      "holiday": "july4",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "7a6f0be1f046c1ceb44011ec2decb802b9ddd69133f589fd7b15dfe1841a2662",
+      "over": "land-july4-night-src.png",
+      "lights": [
+        {
+          "x": 1255.25,
+          "y": 816.51,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1293.38,
+          "y": 829.81,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1323.88,
+          "y": 837.39,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1362.0,
+          "y": 843.04,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1392.5,
+          "y": 844.5,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1423.0,
+          "y": 843.24,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1461.12,
+          "y": 837.84,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1491.62,
+          "y": 830.46,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1529.75,
+          "y": 817.41,
+          "r": 1.3,
+          "kind": "bulb"
+        }
+      ]
+    },
+    {
+      "name": "birthday-props-dusk-lights.png",
+      "kind": "lights",
+      "holiday": "birthday",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "5d9d3506112f8d2b4cc279b26790ae1c82c912e8681b3a1f091d9577292a4d7e",
+      "over": "birthday-props-dusk-src.png",
+      "lights": [
+        {
+          "x": 1255.25,
+          "y": 816.51,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1293.38,
+          "y": 829.81,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1323.88,
+          "y": 837.39,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1362.0,
+          "y": 843.04,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1392.5,
+          "y": 844.5,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1423.0,
+          "y": 843.24,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1461.12,
+          "y": 837.84,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1491.62,
+          "y": 830.46,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1529.75,
+          "y": 817.41,
+          "r": 1.3,
+          "kind": "bulb"
+        }
+      ]
+    },
+    {
+      "name": "birthday-props-night-lights.png",
+      "kind": "lights",
+      "holiday": "birthday",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "7a6f0be1f046c1ceb44011ec2decb802b9ddd69133f589fd7b15dfe1841a2662",
+      "over": "birthday-props-night-src.png",
+      "lights": [
+        {
+          "x": 1255.25,
+          "y": 816.51,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1293.38,
+          "y": 829.81,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1323.88,
+          "y": 837.39,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1362.0,
+          "y": 843.04,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1392.5,
+          "y": 844.5,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1423.0,
+          "y": 843.24,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1461.12,
+          "y": 837.84,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1491.62,
+          "y": 830.46,
+          "r": 1.3,
+          "kind": "bulb"
+        },
+        {
+          "x": 1529.75,
+          "y": 817.41,
+          "r": 1.3,
+          "kind": "bulb"
+        }
+      ]
+    },
+    {
+      "name": "birthday-balloons-day-src.png",
+      "kind": "overlay",
+      "holiday": "birthday",
+      "light": "day",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "b9f6118a1af1f629a173059446625b51d737996d0b4dd2bed9f5bc2e4ed9456f",
+      "anchors": [
+        {
+          "cluster": "left",
+          "x": 1240,
+          "y": 985
+        },
+        {
+          "cluster": "right",
+          "x": 1545,
+          "y": 995
+        }
+      ]
+    },
+    {
+      "name": "birthday-balloons-dusk-src.png",
+      "kind": "overlay",
+      "holiday": "birthday",
+      "light": "dusk",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "b34ba8102757e28bebe27c0a69f8e2d9178f68267751ef5f85172f0b26baddf2",
+      "anchors": [
+        {
+          "cluster": "left",
+          "x": 1240,
+          "y": 985
+        },
+        {
+          "cluster": "right",
+          "x": 1545,
+          "y": 995
+        }
+      ]
+    },
+    {
+      "name": "birthday-balloons-night-src.png",
+      "kind": "overlay",
+      "holiday": "birthday",
+      "light": "night",
+      "width": 2560,
+      "height": 1600,
+      "mode": "RGBA",
+      "sha256": "61e271a24b6eb7c97286226073026705a8348f413c0ad09fa6c487dd5ad351de",
+      "anchors": [
+        {
+          "cluster": "left",
+          "x": 1240,
+          "y": 985
+        },
+        {
+          "cluster": "right",
+          "x": 1545,
+          "y": 995
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "top_34_percent_transparent": true,
+    "nothing_added_below_y_1040": true,
+    "nothing_added_below_y_1060": true,
+    "unchanged_outside_decorations": true,
+    "same_decorations_in_every_light": true,
+    "same_prop_alpha_masks_in_every_light": true,
+    "approved_masters_unmodified": true,
+    "specified_prop_sizes": true,
+    "clock_box_clear": true,
+    "glow_only_on_transparency": true,
+    "all_light_sources_listed_and_aligned": true,
+    "birthday_props_transparent_elsewhere": true,
+    "birthday_props_over_all_12_season_lands": true,
+    "balloon_entries_and_anchors_copied_unchanged": true,
+    "balloon_files_copied_unchanged": true,
+    "balloon_knots_on_trunks_all_12": true,
+    "balloon_clusters_separate": true,
+    "no_new_alpha_holes": true,
+    "no_text_or_watermark": true,
+    "edges_checked_light_and_dark": true,
+    "base_files_unmodified": true,
+    "dashboard_references_and_old_holiday_art_unmodified": true
+  },
+  "notes": "22 RGBA assets: 9 seasonal holiday lands, 3 birthday props overlays, 7 glow layers, and 3 unchanged balloon overlays. Four approved Stage 1 masters are byte-identical. Other lights reuse their exact alpha silhouettes with scene-matched color relighting. Outside prop masks and at y>=1040 every base pixel is unchanged. Candles are dark in all lands; 8 carved-face masks supply aligned light. Christmas has 58 bulbs; July4 and birthday each have 9 cafe bulbs. Every light is listed. Existing season alpha holes and skyline edges are preserved; no new alpha holes are introduced. The no_alpha_holes key from the old manifest is superseded by the accurate no_new_alpha_holes check. Balloon entries including anchors are copied verbatim. Contact sheet shows original balloons at the current page scale/placement, and July4 dusk uses its night glow at 55%. No converter or repository runtime files were modified."
+}

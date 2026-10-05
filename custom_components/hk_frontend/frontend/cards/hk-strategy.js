@@ -674,10 +674,17 @@
     if (groups.Lights && !ordered) {
       groups.Lights.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
     }
-    // the status row counts the accessories ON THIS PAGE (hk-room.js `entities`)
-    var cards = [titleBar(name),
-      { type: 'custom:hk-room-status-card', area: areas.length === 1 ? areas[0] : areas,
-        entities: Object.keys(seen), view_layout: COL2 }];
+    // the status row counts the accessories ON THIS PAGE (hk-room.js
+    // `entities`), and its sensors less what this dashboard leaves out --
+    // its own YAML's exclusions (the house's Hidden from Screens the card
+    // reads live as well)
+    var status = { type: 'custom:hk-room-status-card', area: areas.length === 1 ? areas[0] : areas,
+                   entities: Object.keys(seen), view_layout: COL2 };
+    ['exclude_entities', 'exclude_devices', 'exclude_areas'].forEach(function (k) {
+      var l = ((opts || {})[k] || []);
+      if (l.length) status[k] = l.slice();
+    });
+    var cards = [titleBar(name), status];
     // THE CAMERAS AS SNAPSHOTS, ONE TILE EACH: a still that
     // refreshes, never a live stream, and no mosaic -- in one row that
     // scrolls sideways, three showing on a tablet, two on an iPad held
@@ -867,13 +874,23 @@
   // Climate summaries and their open sheets share these exact lists. The
   // server resolves Status & Chips; before it answers, prefer related sensors
   // and then a room's thermostat, never every temperature sensor in a house.
+  //
+  // TWO QUESTIONS, kept apart: what the HOUSE has (climateFound -- the build
+  // asks it whether there is a Climate page at all) and what the Climate
+  // ROW counts (climateMembers -- that, less the rooms the row leaves out,
+  // status_rows.climate, read live by the row). A row's exclusions are never
+  // a reason for the page to exist or not, so the build reads no status_rows.
   function climateMembers(hass, o) {
+    var cl = (setting('status_rows') || {}).climate || {};
+    return climateFound(hass, o, cl.exclude_areas || []);
+  }
+  function climateFound(hass, o, rowAreas) {
     o = o || {};
     var K = setting('kinds') || {}, A = hass.areas || {}, st = hass.states || {};
-    var G = setting('generated') || {}, cl = (setting('status_rows') || {}).climate || {};
+    var G = setting('generated') || {};
     var opts = {};
     ['exclude_entities', 'exclude_devices', 'exclude_areas'].forEach(function (k) {
-      opts[k] = [].concat(G[k] || [], o[k] || [], k === 'exclude_areas' ? cl.exclude_areas || [] : []);
+      opts[k] = [].concat(G[k] || [], o[k] || [], k === 'exclude_areas' ? rowAreas || [] : []);
     });
     function visible(id) {
       var e = (hass.entities || {})[id] || {}, own = accOf(id) || {};
@@ -1055,7 +1072,8 @@
           roomsWith(hass, opts, function (id) { return !!lit[id]; }).map(function (r) {
             return section(r.name, roomTiles(hass, r)); })) }));
     }
-    var climateSources = climateMembers(hass, opts);
+    // the house's readings, not the row's (its rooms left out are the row's)
+    var climateSources = climateFound(hass, opts, []);
     if (inv.climates.length || inv.fans.length || inv.blinds.length ||
         climateSources.temperature.length || climateSources.humidity.length) {
       // THE CLIMATE PAGE: the rooms' fans, humidifiers and blinds on
@@ -1698,10 +1716,10 @@
                 vacuums: 'vacuums', water: 'water', energy: 'energy' };
     var order = picked.length ? picked : ['weather', 'calendar', 'cameras', 'live_tv', 'security', 'doors_windows', 'climate',
                                           'lights', 'timers', 'vacuums', 'music', 'water', 'energy', 'rooms'];
-    var placed = order.indexOf('browse') >= 0;
+    var browsePlaced = order.indexOf('browse') >= 0;
     var mine = listOf(b, 'custom_pages');
     order.forEach(function (k) {
-      if (k === 'music') { out = out.concat(play, placed ? [] : browse); play = []; if (!placed) browse = []; return; }
+      if (k === 'music') { out = out.concat(play, browsePlaced ? [] : browse); play = []; if (!browsePlaced) browse = []; return; }
       if (k === 'browse') { out = out.concat(browse); browse = []; return; }
       if (KEY[k]) {
         var v = pages[KEY[k]];
@@ -2291,8 +2309,8 @@
   // screen. This item's keys that live cards and modules follow by
   // themselves are left out (the chips row, scenes, menu, look, pop-ups);
   // of the other items only their cameras, which pick the channel this one
-  // shows (houseCameras); of the accessories not `status`, which only What
-  // counts reads (and that arrives as `kinds`). Any key not named here still
+  // shows (houseCameras); of the accessories not `status`, which only Status
+  // & Chips reads (and that arrives as `kinds`). Any key not named here still
   // rebuilds, so a new one is safe by default.
   // (`popups` is NOT live -- it decides this build's own #alarm
   // card, so it rebuilds, and so does the house's pop-up list; the look's
@@ -2301,13 +2319,32 @@
   var LIVE_KEYS = { chips: 1, chips_quiet: 1, chips_extra: 1, scenes: 1, scenes_pages: 1, scenes_row: 1,
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
                     tab_position: 1, home_rooms: 1, glass: 1, frost: 1, blur: 1, camera_live: 1,
-                    car: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1 };
+                    car: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1,
+                    // THE MENU'S OWN LOOK (2026-10-04: All Screens' unless the
+                    // screen sets its own -- settings.py resolved()): hk-base's
+                    // menuState reads each live and no build reads one, so an
+                    // accent picked for the house no longer rebuilds every
+                    // screen (closing its sheets, reconnecting its cameras)
+                    accent: 1, swipe: 1, glyph: 1, clock: 1, tab_size: 1, tab_size_phone: 1,
+                    menu_custom: 1, menu_house: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };
+  // Status & Chips' kinds only live cards read -- the pages' status rows
+  // (pageMembers, per push) and the Smoke & CO chip: no page, tile or link
+  // is built from them, so a sensor found or left out rebuilds nothing
+  var LIVE_KINDS = { motion: 1, occupancy: 1, smoke: 1 };
   function inputs(seg) {
     var b = boardOf(seg), mine = {};
     Object.keys(b).forEach(function (k) { if (!LIVE_KEYS[k]) mine[k] = b[k]; });
+    // ...but a screen with no Home reads `menu` as it builds: with no menu its
+    // first page has no back button (standalone, onlyPages)
+    if (b.home_page === false) mine.menu = b.menu;
+    var K = setting('kinds'), kinds = K;
+    if (K && typeof K === 'object') {
+      kinds = {};
+      Object.keys(K).forEach(function (k) { if (!LIVE_KINDS[k]) kinds[k] = K[k]; });
+    }
     var all = setting('boards') || {}, cams = {};
     Object.keys(all).forEach(function (k) { if (all[k] && all[k].cameras) cams[k] = all[k].cameras; });
     var acc = setting('accessories') || {}, ents = {}, rest = {};
@@ -2317,7 +2354,7 @@
       Object.keys(a).forEach(function (k) { if (!CHIP_ONLY[k]) o[k] = a[k]; });
       ents[id] = o;
     });
-    return JSON.stringify([mine, cams, setting('kinds'), setting('generated'),
+    return JSON.stringify([mine, cams, kinds, setting('generated'),
                            setting('security'), setting('sky.moon'), setting('weather'), setting('features'),
                            ents, rest, setting('look.sky_switch'), setting('look.photos'),
                            setting('extras'), setting('custom_pages'), setting('popups'), setting('added'),
@@ -2347,7 +2384,7 @@
   // page stays where it was scrolled to. Good for MINE_MS after the change.
   var MINE_MS = 120000, MINE_POLL = 300;
   function ownChange() { built.mine = Date.now(); }
-  function mine() { return !!built.mine && Date.now() - built.mine < MINE_MS; }
+  function ownRecent() { return !!built.mine && Date.now() - built.mine < MINE_MS; }
   function refreshKeepingPlace() {
     var y = window.scrollY || 0;
     refresh();
@@ -2365,7 +2402,7 @@
     var due = function () {
       built.timer = null;
       if (dashSeg() !== built.seg || inputs(built.seg) === built.sig) return;
-      var own = mine();
+      var own = ownRecent();
       if (own ? (window.hkPopupCover || 0) > 0 : busy()) { built.timer = setTimeout(due, own ? MINE_POLL : 5000); return; }
       built.sig = inputs(built.seg);
       built.mine = 0;
@@ -2373,9 +2410,9 @@
     };
     window.hkSettings.onChange(function () {
       if (!built.seg || dashSeg() !== built.seg || inputs(built.seg) === built.sig) return;
-      if (built.timer && !mine()) return;
+      if (built.timer && !ownRecent()) return;
       clearTimeout(built.timer);
-      built.timer = setTimeout(due, mine() ? 0 : Math.max(0, 10000 - (Date.now() - built.at)));
+      built.timer = setTimeout(due, ownRecent() ? 0 : Math.max(0, 10000 - (Date.now() - built.at)));
     });
   }
   function refresh() {

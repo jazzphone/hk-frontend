@@ -68,6 +68,16 @@ ok('a lamp plug drawn as a light is a light; the coffee outlet is an outlet',
    find(lt, 'lights').ids.join() === 'light.den,light.hall,switch.lamp_plug' && find(lt, 'outlets').ids.join() === 'switch.coffee',
    lt);
 ok('the Home app\'s words: "3 Lights -- 2 On", "Outlet -- Off"', JSON.stringify(say(lt)) === '["3 Lights=2 On","Outlet=Off"]', say(lt));
+// ONE RULE FOR WHAT CANNOT ANSWER (the 2026-10-04 review): with the hall's
+// light gone, the two that answer are both on -- that is "2 On · 1
+// Unavailable", never "3 Lights -- On"
+h.states['light.hall'].state = 'unavailable';
+ok('a light that cannot answer is said, not folded into "On"', find(row('lights'), 'lights').value === '2 On · 1 Unavailable',
+   find(row('lights'), 'lights'));
+h.states['light.den'].state = 'off'; h.states['switch.lamp_plug'].state = 'off';
+ok('...and with none of the rest on: "0 On · 1 Unavailable", as the Climate row says it',
+   find(row('lights'), 'lights').value === '0 On · 1 Unavailable', find(row('lights'), 'lights'));
+h.states['light.den'].state = 'on'; h.states['switch.lamp_plug'].state = 'on'; h.states['light.hall'].state = 'off';
 
 print('\n=== Doors & Windows: the room it is detected in ===');
 var dw = row('doors_windows');

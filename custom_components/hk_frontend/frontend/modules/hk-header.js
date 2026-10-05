@@ -657,23 +657,48 @@
   function faceIn(family) {
     var F = document.fonts;
     if (!F || typeof F.forEach !== 'function') return true;
-    var bare = function (s) { return String(s || '').trim().replace(/^["']|["']$/g, '').toLowerCase(); };
-    var name = bare(String(family || '').split(',')[0]), any = false, ok = false;
+    var name = bareFamily(String(family || '').split(',')[0]), any = false, ok = false;
     try {
-      F.forEach(function (f) { if (bare(f.family) === name) { any = true; if (f.status === 'loaded') ok = true; } });
+      F.forEach(function (f) { if (bareFamily(f.family) === name) { any = true; if (f.status === 'loaded') ok = true; } });
     } catch (e) { return true; }
     return !any || ok;              // no face of that name: a system font, nothing to wait for
   }
-  // A FONT FINISHED LOADING (SF Pro, after the first paint): every measurement
-  // again, and every card redrawn (MODULE WAKE, hk-base.js) -- so each clock
-  // lines up with its date as soon as the face it is drawn in is here.
-  try {
-    if (document.fonts && document.fonts.addEventListener) {
-      document.fonts.addEventListener('loadingdone', function () {
-        inkCache = {};
-        try { window.dispatchEvent(new CustomEvent('hk-module-ready', { detail: { module: 'hk-fonts' } })); } catch (e) { /* no bus */ }
+  // A FONT FINISHED LOADING (SF Pro, after the first paint): measured again,
+  // so each clock lines up with its date as soon as the face it is drawn in
+  // is here. ONLY WHAT WAS MEASURED: a load counts when one of its faces is
+  // a family some measured text names (its whole font-family list -- the
+  // fallback draws it until the first face is in), and only the cards that
+  // measured (clockShift's callers: the header and the clock) are redrawn,
+  // once a frame however many loads land together. It was hk-module-ready,
+  // which redrew every card, grid, chip and the menu at every font load.
+  var inkFamilies = {};             // bare family name -> true, from firstInk
+  var inkCards = [];                // the cards that called clockShift
+  var fontWake = 0;
+  function bareFamily(s) { return String(s || '').trim().replace(/^["']|["']$/g, '').toLowerCase(); }
+  function measuredBy(root) {
+    var host = root && (root.host || (root.getRootNode && root.getRootNode().host));
+    if (!host || typeof host.requestUpdate !== 'function') return;
+    inkCards = inkCards.filter(function (c) { return c.isConnected; });
+    if (inkCards.indexOf(host) < 0) inkCards.push(host);
+  }
+  function fontsLoaded(e) {
+    var faces = e && e.fontfaces;
+    if (faces && faces.length && !Array.prototype.some.call(faces, function (f) {
+      return inkFamilies[bareFamily(f && f.family)];
+    })) return;                     // none of them is drawn in anything measured
+    inkCache = {};
+    if (fontWake || !inkCards.length) return;
+    var go = function () {
+      fontWake = 0;
+      inkCards = inkCards.filter(function (c) { return c.isConnected; });
+      inkCards.forEach(function (c) {
+        try { c.requestUpdate(); } catch (x) { console.error('[hk-header] font wake', x); }
       });
-    }
+    };
+    fontWake = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(go) : setTimeout(go, 16);
+  }
+  try {
+    if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', fontsLoaded);
   } catch (e) { /* no font loading API */ }
   function firstInk(el) {
     var text = (el && el.textContent || '').replace(/^\s+/, '');
@@ -684,6 +709,7 @@
     var tab = /tabular-nums/.test(cs.fontVariantNumeric || '');
     var key = ch + '|' + font + '|' + tab;
     if (Object.prototype.hasOwnProperty.call(inkCache, key)) return inkCache[key];
+    String(cs.fontFamily || '').split(',').forEach(function (f) { var b = bareFamily(f); if (b) inkFamilies[b] = true; });
     // Wait ONLY while fonts are actually still loading. check() is not a
     // reliable "is this face ready" on every engine -- Safari can return
     // false for a loaded face -- and a caller that retries on null after
@@ -728,6 +754,7 @@
   // simply is not nudged.
   function clockShift(root) {
     try {
+      measuredBy(root);
       var t = root && root.querySelector('[data-hk-clock="time"]');
       var d = root && root.querySelector('[data-hk-clock="date"]');
       if (!t || !d) return 0;

@@ -648,3 +648,24 @@ def test_page_backgrounds_are_saved_for_a_screen_and_for_all_screens():
     assert "sky_pages" in err
     out, err = apply_house({}, {"sky.pages": {"weather": "own", "energy": "dusk"}})
     assert err == {} and out["dashboard"]["sky"]["pages"] == {"weather": "own", "energy": "dusk"}
+
+
+def test_the_tab_bar_is_saved_for_a_screen_and_for_all_screens():
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    data, err = apply_board({}, {"menu": "tabbar", "menu_custom": True, "tab_bar_scroll": "hide",
+                                 "tab_bar_rooms": "button", "tab_bar_glass": "frosted"})
+    assert err == {}
+    assert (data["menu"], data["tab_bar_scroll"], data["tab_bar_rooms"], data["tab_bar_glass"]) == \
+        ("tabbar", "hide", "button", "frosted")
+    data, err = apply_board(data, {"menu": "open", "narrow": "tabbar"})
+    assert err == {} and (data["menu"], data["narrow"]) == ("open", "tabbar")
+    _, err = apply_board(data, {"tab_bar": "always", "tab_bar_scroll": "fade", "tab_bar_rooms": "attic"})
+    assert err == {"tab_bar": "unknown", "tab_bar_scroll": "choice", "tab_bar_rooms": "choice"}
+    assert apply_board(data, {"tab_bar_rooms": False})[0]["tab_bar_rooms"] == "off"
+    opts, err = apply_house({}, {"menu.bar_scroll": "stay", "menu.bar_glass": "blur", "menu.narrow": "tabbar"})
+    assert err == {}
+    m = S.merged(opts)["menu"]
+    assert (m["bar_scroll"], m["bar_rooms"], m["bar_glass"], m["narrow"]) == ("stay", "more", "blur", "tabbar")
+    _, err = apply_house(opts, {"menu.style": "tabbar"})
+    assert err == {"menu.style": "choice"}, "All Screens' button style is a button"

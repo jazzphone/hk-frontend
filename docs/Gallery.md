@@ -76,8 +76,16 @@ Source selection and exclusions: [Climate](Climate.md).
 
 | | | |
 |---|---|---|
-| ![The Home screen on a phone](images/phone-home.png) | ![A room page on a phone](images/phone-room.png) | ![A light’s detail sheet on a phone](images/phone-sheet-light.png) |
+| ![The Home screen on a phone, with the tab bar along the bottom](images/phone-home.png) | ![A room page on a phone](images/phone-room.png) | ![A light’s detail sheet on a phone](images/phone-sheet-light.png) |
 | Home | A room | A detail sheet |
+
+The [tab bar](Tab-Bar.md): More holds the pages that don't fit and every room;
+scrolled, the bar folds into one small button.
+
+| | |
+|---|---|
+| ![The tab bar's More sheet on a phone: the pages as icons, then the rooms](images/phone-tabbar-more.png) | ![The tab bar folded to a small button while the page is scrolled](images/phone-tabbar-folded.png) |
+| More | Folded while scrolling |
 
 ## Detail sheets and pop-ups
 

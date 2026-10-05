@@ -66,7 +66,8 @@
     ['chip_scroll', 'Chip, Then Tab', 'The chip; the edge tab slides in while the chip is scrolled out of sight.'],
     ['chip_home', 'Chip on Home, Tab Elsewhere', 'The chip on Home, and the edge tab on every other page.'],
     ['tab', 'Edge Tab', 'A slim tab on the left edge, level with the date.'],
-    ['none', 'No Button', 'Nothing on the page: swipe from the left edge to open the menu.']
+    ['none', 'No Button', 'Nothing on the page: swipe from the left edge to open the menu.'],
+    ['tabbar', 'Tab Bar', 'No side menu: the tab bar along the bottom of the screen instead.']
   ];
   // ON NARROW SCREENS / WHEN FOLDED: below 1,024 px, and while
   // an always-open menu is folded
@@ -227,7 +228,8 @@
     live_tv: ['Live TV', 'hk:television', 'white'], security: ['Security', 'hk:shield-lock', 'white'],
     doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white'], climate: ['Climate', 'hk:thermostat', 'white'],
     lights: ['Lights', 'hk:lightbulb', 'white'], timers: ['Timers', 'hk:timer-sand', 'white'],
-    vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Play Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'white']
+    vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Play Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'white'],
+    energy: ['Energy', 'mdi:lightning-bolt', 'white']
   };
   var PILL_COLORS = ['white', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'teal', 'mint', 'green'];
   // A CALENDAR'S AUTOMATIC COLOUR: the next of these by its place in the list
@@ -243,12 +245,25 @@
   }
 
   // ------------------------------------------------------------- the menu
-  function menuMode(b) { return b.menu === 'off' ? 'off' : b.menu === 'open' ? 'open' : 'button'; }
+  function menuMode(b) {
+    return b.menu === 'off' || b.menu === 'open' || b.menu === 'tabbar' ? b.menu : 'button';
+  }
   // Switching the segmented control: a button keeps the style it had.
   function menuFor(mode, b, last) {
-    if (mode === 'off') return 'off';
-    if (mode === 'open') return 'open';
-    return (b.menu !== 'off' && b.menu !== 'open') ? b.menu : (last || 'auto');
+    if (mode === 'off' || mode === 'open' || mode === 'tabbar') return mode;
+    return menuMode(b) === 'button' ? b.menu : (last || 'auto');
+  }
+  // THE TAB BAR (hk-tabbar.js): the screen's Menu "Tab Bar", or the side
+  // menu with "Tab Bar" where it folds -- does this screen ever show it?
+  function hasTabBar(b) { return !!b && (b.menu === 'tabbar' || (b.menu !== 'off' && b.narrow === 'tabbar')); }
+  var TAB_BAR_SCROLLS = [['shrink', 'Shrink'], ['hide', 'Hide'], ['stay', 'Stay']];
+  var TAB_BAR_ROOMS = [['more', 'In More'], ['button', 'Own Button'], ['off', 'Off']];
+  // a boolean from the first form: true is In More
+  function roomsPlace(v) { return v === false || v === 'off' ? 'off' : v === 'button' ? 'button' : 'more'; }
+  var TAB_BAR_GLASS = [['house', 'Screen’s Glass'], ['blur', 'Blur'], ['frosted', 'Frosted'], ['clear', 'Tinted']];
+  function choiceLabel(list, v) {
+    for (var i = 0; i < list.length; i++) if (list[i][0] === v) return list[i][1];
+    return v;
   }
   function menuStyleLabel(v) {
     for (var i = 0; i < MENU_STYLES.length; i++) if (MENU_STYLES[i][0] === v) return MENU_STYLES[i][1];
@@ -283,10 +298,11 @@
   // (settings.py MENU_KEYS): the same rows serve both
   var MENU_KEYS = { menu: 'style', narrow: 'narrow', tab_position: 'tab_at', tab_size: 'tab_size',
                     tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
-                    ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe' };
+                    ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe',
+                    tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass' };
   var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true,
-                        swipe: false };
+                        swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house' };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -296,6 +312,7 @@
     });
     out.clock = out.clock !== false;
     out.swipe = out.swipe === true;
+    out.tab_bar_rooms = roomsPlace(out.tab_bar_rooms);
     return out;
   }
   function houseMenuSave(ch) {
@@ -310,7 +327,7 @@
     var out = { menu_custom: true };
     Object.keys(MENU_KEYS).forEach(function (k) { if (k !== 'menu' && b[k] !== undefined) out[k] = b[k]; });
     // a button's style (All Screens', as it shows now) becomes its own too
-    if (b.menu && b.menu !== 'off' && b.menu !== 'open') out.menu = b.menu;
+    if (menuMode(b) === 'button') out.menu = b.menu;
     return out;
   }
   // one line for a screen's Menu Settings row
@@ -891,6 +908,7 @@
     ['Menu', 'screen', 'menu', 'sidebar drawer navigation off button always open docked', true],
     ['Menu Settings', 'screen/menu', 'menu_custom', 'same as all screens own menu this screen', true],
     ['Pages in Menu', 'screen/menu-pages', 'categories', 'categories menu list', true],
+    ['Tab Bar', 'screen', 'menu', 'tab bar bottom bar floating ios navigation dock tabs more rooms', true],
     ['On Phones', 'screen', 'phone_header', 'phone weather strip clock header narrow', true],
     ['Home Page', 'screen/pages', 'home_page', 'only these pages standalone energy panel security cameras climate no home', true],
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
@@ -974,6 +992,9 @@
     ['Tab Size on Phones', 'house/menu', 'menu.tab_size_phone', 'edge tab menu bigger larger touch target phone iphone'],
     ['Keep Open Down To', 'house/menu', 'menu.open_min', 'menu fold width docked always open'],
     ['Time & Weather in Menu', 'house/menu', 'menu.time_weather_at', 'clock header always open'],
+    ['While Scrolling', 'house/menu', 'menu.bar_scroll', 'tab bar shrink hide stay scroll auto hide'],
+    ['Rooms in Tab Bar', 'house/menu', 'menu.bar_rooms', 'tab bar rooms more button sheet round'],
+    ['Tab Bar Glass', 'house/menu', 'menu.bar_glass', 'tab bar blur frosted tinted clear transparency look'],
     ['Home Assistant Section', 'house/menu', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
     ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
     ['Room Order', 'house/rooms/order', 'rooms.order', 'rooms on home order which rooms'],
@@ -1051,7 +1072,8 @@
   var COPY_GROUPS = [
     // a screen's menu: All Screens' or its own (menu_custom)
     ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
-                      'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe'], true],
+                      'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe',
+                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass'], true],
     ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
@@ -1155,6 +1177,15 @@
     return { options: keys.map(function (k) { return [k, MOMENT_LABELS[k]]; }), value: m[1] };
   }
 
+  // A SCREEN'S BACKDROP BACK TO ALL SCREENS: its own custom stops go too --
+  // unless one of its pages' backgrounds is Custom, whose colors they are
+  // (hk-settings.js pageBackdrop): clearing them would turn that page into
+  // All Screens' custom colors, or the live sky
+  function backdropFollow(b) {
+    var pages = (b && b.sky_pages) || {};
+    var used = Object.keys(pages).some(function (k) { return pages[k] === 'custom'; });
+    return used ? { sky_gradient: null } : { sky_gradient: null, sky_custom: null };
+  }
   // Null is a continuing relationship to All Screens, including custom
   // stops. A true flag is still an override, even when it matches the house.
   function skySummary(b) {
@@ -1173,7 +1204,7 @@
   }
 
   root.hkSettingsModel = {
-    skySummary: skySummary,
+    skySummary: skySummary, backdropFollow: backdropFollow,
     YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
     SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
@@ -1184,6 +1215,7 @@
     MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel,
     ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
     MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
+    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
     WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES,

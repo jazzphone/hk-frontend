@@ -282,6 +282,16 @@ sp = SC.plan({}, { scenes: ['page:live_tv', 'scene.bed', 'page:music'], scenes_p
 pills = sp.config.cards[1].cards[0].cards;
 ok('Order -> Scenes places a page pill among the scenes; scenes_pages says which exist',
    pills.map(function (p) { return p.name; }).join() === 'Live TV,Bedtime,Security', JSON.stringify(pills.map(function (p) { return p.name; })));
+HC.menu.config = function () { return { views: [{ path: 'home' }, { path: 'energy' }] }; };
+sp = SC.plan({}, { scenes: ['scene.bed'], scenes_pages: ['energy'] }, sh);
+pills = sp.config.cards[1].cards[0].cards;
+ok('the Energy page pill opens the Energy page, where the screen has it', pills.length === 2 && pills[1].name === 'Energy' &&
+   pills[1].icon === 'mdi:lightning-bolt' && pills[1].tap_action.navigation_path === './energy',
+   JSON.stringify(pills.map(function (p) { return p.name; })));
+HC.menu.config = function () { return { views: [{ path: 'home' }] }; };
+sp = SC.plan({}, { scenes: ['scene.bed'], scenes_pages: ['energy'] }, sh);
+pills = sp.config.cards[1].cards[0].cards;
+ok('...and is no pill on a screen without it (no Energy feature)', pills.length === 1, JSON.stringify(pills.map(function (p) { return p.name; })));
 HC.menu.config = realCfg2;
 
 print('\n=== the chip\'s markup is a string ===');

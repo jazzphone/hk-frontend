@@ -10,7 +10,7 @@ import pytest
 from conftest import add_feature, feature_entries, feature_gear, update_feature
 
 from custom_components.hk_frontend.features.energy import plan
-from custom_components.hk_frontend.features.energy.settings_ws import apply, apply_device
+from custom_components.hk_frontend.features.energy.settings_ws import apply, apply_device, move_device
 
 # A HOUSE like the one this page was first written for: a whole-home meter
 # counted by a Utility Meter over an Integral over a power sensor, circuits
@@ -258,6 +258,27 @@ def test_one_device_at_a_time():
     assert out["devices"] == {}
 
 
+def test_a_device_moved_keeps_every_other_place():
+    """The sheet's Section picker: hidden devices keep their section, an
+    empty section stays, links stay, and the device moved is shown."""
+    placed = [{"id": "rooms", "name": "Rooms", "items": ["sensor.a", "sensor.hidden"], "link": {"path": "/x", "text": "X"}},
+              {"id": "spare", "name": "Spare", "items": [], "link": None},
+              {"id": "other", "name": "Other", "items": ["sensor.b"], "link": None}]
+    opts = {"devices": {"sensor.b": {"hidden": True, "name": "Bee"}, "sensor.hidden": {"hidden": True}},
+            "sections": [{"id": "rooms", "name": "Rooms", "items": ["sensor.a"]}, {"id": "spare", "name": "Spare"}]}
+    keys = {"sensor.a", "sensor.b", "sensor.hidden"}
+    out, err = move_device(opts, placed, keys, "sensor.b", "rooms")
+    assert not err
+    assert out["sections"] == [
+        {"id": "rooms", "name": "Rooms", "items": ["sensor.a", "sensor.hidden", "sensor.b"], "link": {"path": "/x", "text": "X"}},
+        {"id": "spare", "name": "Spare", "items": []}]       # Other was only guessed: emptied, it goes
+    assert out["devices"] == {"sensor.b": {"name": "Bee"}, "sensor.hidden": {"hidden": True}}
+    _, err = move_device(opts, placed, keys, "sensor.b", "nowhere")
+    assert err == {"section": "Each section needs an id and a name."}
+    _, err = move_device(opts, placed, keys, "sensor.nobody", "rooms")
+    assert "key" in err
+
+
 # ------------------------------------------------------------- the feature
 async def test_added_once_and_its_plan_goes_to_the_screens(hass, frontend):
     hass.states.async_set("sensor.main_live", "1.5", {"device_class": "power", "unit_of_measurement": "kW"})
@@ -314,3 +335,79 @@ async def test_its_gear_and_its_settings_page(hass, frontend):
     assert e.options["devices"] == {"sensor.x": {"name": "Fridge"}}
     update_feature(hass, e, options={})
     await hass.async_block_till_done()
+
+
+def _count_config(hass):
+    from homeassistant.helpers.dispatcher import async_dispatcher_connect
+    from custom_components.hk_frontend.const import SIGNAL_CONFIG
+    sent = []
+    async_dispatcher_connect(hass, SIGNAL_CONFIG, lambda *a: sent.append(1))
+    return sent
+
+
+async def test_a_save_reaches_the_screens_once(hass, frontend):
+    from custom_components.hk_frontend.features.energy.settings_ws import ws_device_section, ws_settings_set
+    conn = Conn(await hass.auth.async_create_user("Admin", group_ids=["system-admin"]))
+    await add_feature(hass, "energy", {"follow": False})
+    (e,) = feature_entries(hass, "energy")
+    sent = _count_config(hass)
+    r = await _call(hass, conn, ws_settings_set, type="hk_energy/settings/set", changes={"title": "Power"})
+    assert r["success"] and len(sent) == 1, sent
+    # a device moved through its sheet: one save, the screens told once
+    update_feature(hass, e, options={"follow": False, "extra": [{"key": "fridge", "name": "Fridge", "power": "sensor.fridge_w"}],
+                                     "sections": [{"id": "rooms", "name": "Rooms", "items": []},
+                                                  {"id": "spare", "name": "Spare", "items": []}],
+                                     "devices": {"fridge": {"hidden": True}}})
+    await hass.async_block_till_done()
+    sent.clear()
+    r = await _call(hass, conn, ws_device_section, type="hk_energy/device/section", key="fridge", section="rooms")
+    assert r["success"] and len(sent) == 1, sent
+    assert e.options["sections"] == [{"id": "rooms", "name": "Rooms", "items": ["fridge"]},
+                                     {"id": "spare", "name": "Spare", "items": []}]
+    assert "devices" not in e.options or "fridge" not in e.options["devices"]
+    r = await _call(hass, conn, ws_device_section, type="hk_energy/device/section", key="fridge", section="nope")
+    assert not r["success"]
+
+
+async def test_a_wall_tablet_cannot_move_a_device(hass, frontend):
+    from homeassistant.exceptions import Unauthorized
+    from custom_components.hk_frontend.features.energy.settings_ws import ws_device_section
+    await hass.auth.async_create_user("Owner")
+    tablet = Conn(await hass.auth.async_create_user("kitchen"))
+    with pytest.raises(Unauthorized):
+        ws_device_section(hass, tablet, {"id": 1, "type": "hk_energy/device/section", "key": "x", "section": "y"})
+
+
+async def test_a_registry_change_reaches_the_screens_only_when_the_plan_changes(hass, frontend):
+    from datetime import timedelta
+    from homeassistant.helpers import entity_registry as er
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from custom_components.hk_frontend.features import energy
+    await add_feature(hass, "energy", {"follow": False})
+    (e,) = feature_entries(hass, "energy")
+    update_feature(hass, e, options={"follow": False, "extra": [{"key": "fridge", "name": "Fridge",
+                                                                 "stat": "sensor.fridge_kwh"}]})
+    await hass.async_block_till_done()
+    assert energy.client(hass)["sections"][0]["items"][0]["power"] is None
+    sent = _count_config(hass)
+    reg = er.async_get(hass)
+    # an unrelated entity: the plan is the same, nothing is sent
+    reg.async_get_or_create("sensor", "test", "elsewhere", suggested_object_id="elsewhere")
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=3))
+    await hass.async_block_till_done()
+    assert sent == []
+    # the meter's device gains a power sensor: the screens are told
+    from homeassistant.helpers import device_registry as dr
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    ce = MockConfigEntry(domain="test")
+    ce.add_to_hass(hass)
+    dev = dr.async_get(hass).async_get_or_create(config_entry_id=ce.entry_id, identifiers={("test", "fridge")})
+    reg.async_get_or_create("sensor", "test", "fridge_kwh", suggested_object_id="fridge_kwh", device_id=dev.id)
+    reg.async_get_or_create("sensor", "test", "fridge_w", suggested_object_id="fridge_w", device_id=dev.id)
+    hass.states.async_set("sensor.fridge_kwh", "3", {"device_class": "energy", "unit_of_measurement": "kWh"})
+    hass.states.async_set("sensor.fridge_w", "120", {"device_class": "power", "unit_of_measurement": "W"})
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    assert len(sent) == 1, sent
+    assert energy.client(hass)["sections"][0]["items"][0]["power"] == "sensor.fridge_w"

@@ -1337,14 +1337,17 @@
       // THE PAGE HOLDS STILL UNDER A SWIPE: touch-action pan-y lets the
       // browser scroll the up-and-down part of any drag, and a thumb's arc
       // (about 40 degrees) scrolled the page some hundreds of px behind the
-      // opening menu. A finger that has gone more across than up or down,
-      // from its first move, keeps the page still; one that goes more up or
-      // down is the page's scroll, as ever. Only touches that start here
-      // (16-24 px of margin) are held -- this listener is the strip's own.
+      // opening menu. A finger the menu follows -- one that has made a swipe
+      // (swipeStarts, the same test that pulls the menu out) -- keeps the
+      // page still; anything short of that is left to the browser, so a
+      // scroll that starts here with a wobble to the right still scrolls
+      // (WebKit lets a touch scroll no more once one of its moves is
+      // cancelled). Only touches that start here (16-24 px of margin) are
+      // held -- this listener is the strip's own.
       el.addEventListener('touchmove', function (e) {
         var g = S.drag, t = g && ours(e.changedTouches);
         if (!t) return;
-        if (g.live || t.clientX - g.x > Math.abs(t.clientY - g.y)) e.preventDefault();
+        if (g.live || swipeStarts(t.clientX - g.x, t.clientY - g.y)) e.preventDefault();
       }, { passive: false });
       el.addEventListener('pointerdown', function (e) {
         if (e.pointerType === 'touch') return;     // the touch events above have it
@@ -1412,14 +1415,17 @@
     //     before it lifts, and the last move alone made a quick swipe read as
     //     a slow one, so the panel slid back. A finger that stopped before
     //     lifting has no speed. FLICK_V and at least FLICK_MIN px open it.
-    var SWIPE_SLOPE = 1.2, FLICK_MS = 100, FLICK_V = 0.3, FLICK_MIN = 24;
+    var SWIPE_SLOPE = 1.2, SWIPE_MIN = 10, FLICK_MS = 100, FLICK_V = 0.3, FLICK_MIN = 24;
+    // the one test for "this is a swipe": the menu comes out, and the page
+    // is held still, from the same move (dx right, dy down, from the start)
+    function swipeStarts(dx, dy) { return dx >= SWIPE_MIN && dx >= SWIPE_SLOPE * Math.abs(dy); }
     function dragTo(cx, cy) {
       var g = S.drag;
       quiet(true);
       var dx = cx - g.x, dy = cy - g.y;
       if (!g.live) {
         if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { endDrag(false); return; }
-        if (dx < 10 || dx < SWIPE_SLOPE * Math.abs(dy)) return;
+        if (!swipeStarts(dx, dy)) return;
         // it is a swipe: the list is made ready as the panel comes out
         if (listKey() !== S.built) build();
         markHere();
@@ -1428,7 +1434,7 @@
         S.root.classList.add('dragging');
         S.panel.setAttribute('aria-hidden', 'false');
       }
-      var d = Math.max(0, Math.min(g.w, dx - 10));
+      var d = Math.max(0, Math.min(g.w, dx - SWIPE_MIN));
       g.dx = d;
       g.trail.push({ t: Date.now(), d: d });
       if (g.trail.length > 8) g.trail.shift();

@@ -1,0 +1,126 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Sky Lab</title>
+<!-- Sky Lab: the real hk-sky.js in a real view container, driven by hand --
+     every weather, time of day and scene, to see what the sky does. Nothing
+     is saved, nothing reaches Home Assistant. Served as /hk/pages/skylab.html. -->
+<style>
+ :root{--panel:#0d1420e6;--line:#26324a;--text:#eaf0ff;--dim:#8fa4c8;--accent:#5ab0ff}
+ html,body{margin:0;height:100%;background:#0d1420;color:var(--text);font:15px/1.4 -apple-system,system-ui,sans-serif;overflow:hidden}
+ #skyframe{display:block;position:fixed;inset:0;z-index:0}
+ #panel{position:fixed;z-index:2;top:12px;right:12px;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;
+   background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-sizing:border-box;
+   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+ #panel.min{width:auto}#panel.min .body{display:none}
+ h1{font-size:16px;margin:0;display:flex;align-items:center;justify-content:space-between;gap:10px}
+ h1 button{font:inherit;font-size:13px;background:#ffffff1a;color:var(--text);border:0;border-radius:8px;padding:6px 10px;cursor:pointer}
+ .row{margin-top:12px}.row label{display:flex;justify-content:space-between;color:var(--dim);font-size:13px;margin-bottom:4px}
+ .row label b{color:var(--text);font-weight:600}
+ input[type=range]{width:100%;accent-color:var(--accent)}
+ select{width:100%;font:inherit;padding:7px 8px;border-radius:8px;background:#0b111c;color:var(--text);border:1px solid var(--line)}
+ .seg{display:flex;gap:4px;flex-wrap:wrap}.seg button{flex:1;font:inherit;font-size:13px;padding:7px 6px;border-radius:8px;border:1px solid var(--line);
+   background:#0b111c;color:var(--dim);cursor:pointer;white-space:nowrap}.seg button.on{background:var(--accent);color:#04121f;border-color:var(--accent);font-weight:600}
+ .check{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:14px}.check label{display:flex;align-items:center;gap:6px}
+ #info{margin-top:12px;font:12px/1.45 ui-monospace,monospace;color:var(--dim);white-space:pre-wrap;border-top:1px solid var(--line);padding-top:10px}
+ #cards{position:fixed;z-index:1;left:24px;bottom:24px;display:none;gap:12px;flex-wrap:wrap;max-width:calc(100vw - 400px)}
+ #cards.on{display:flex}#cards div{width:170px;height:62px;border-radius:16px;background:#ffffff26;border:1px solid #ffffff2e;
+   -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);padding:10px 14px;box-sizing:border-box;font-weight:600}
+ #cards div small{display:block;color:#ffffffb0;font-weight:400}
+</style>
+<hui-view-container id=skyframe><div id=card></div></hui-view-container>
+<div id=cards><div>Living Room<small>3 Lights On</small></div><div>Climate<small>72° · Cooling</small></div><div>Front Door<small>Locked</small></div><div>Kitchen<small>Off</small></div></div>
+<div id=panel>
+ <h1>Sky Lab <span><button id=cardsBtn>Cards</button> <button id=minBtn>Hide</button></span></h1>
+ <div class=body>
+  <div class=row><label>Clouds</label><div class=seg data-k=style><button data-v=realistic class=on>Realistic</button><button data-v=blend>Blend</button><button data-v=classic>Classic</button></div></div>
+  <div class=row><label>Time of day <b id=timeV></b></label><input type=range id=time min=0 max=24 step=0.25 value=14></div>
+  <div class=row><label>Cloud cover <b id=coverV></b></label><input type=range id=cover min=0 max=100 step=1 value=40></div>
+  <div class=row><label>Condition</label><select id=cond>
+    <option value=auto>From cloud cover</option><option value=sunny>Sunny / clear</option><option value=partlycloudy>Partly cloudy</option>
+    <option value=cloudy>Cloudy</option><option value=rainy>Rain</option><option value=pouring>Pouring</option><option value=snowy>Snow</option>
+    <option value=lightning-rainy>Thunderstorm</option><option value=fog>Fog</option></select></div>
+  <div class=row id=rateRow><label>Rain / snow intensity <b id=rateV></b></label><input type=range id=rate min=0 max=100 step=1 value=40></div>
+  <div class=row><label>Wind <b id=windV></b></label><input type=range id=wind min=0 max=30 step=1 value=6></div>
+  <div class=row><label>Moon phase <b id=moonV></b></label><input type=range id=moon min=0 max=1 step=0.01 value=0.5></div>
+  <div class=row><label>Scene</label><select id=scene>
+    <option value="">Plain sky (no decorations)</option>
+    <optgroup label="Woodland between occasions"><option value=land:spring>Spring</option><option value=land:summer>Summer</option>
+      <option value=land:fall>Autumn</option><option value=land:winter>Winter</option></optgroup>
+    <optgroup label="Holidays and occasions"><option value=halloween>Halloween</option><option value=thanksgiving>Thanksgiving</option>
+      <option value=christmas>Christmas</option><option value=winter-wonderland>Winter Wonderland</option><option value=spring-garden>Spring Garden</option>
+      <option value=fourth-of-july>Fourth of July</option><option value=birthday>Birthday</option></optgroup></select></div>
+  <div class=row><label>Decorations</label><div class=seg data-k=deco><button data-v=new class=on>New</button><button data-v=old>Old</button></div></div>
+  <div class=check><label><input type=checkbox id=anim checked> Animations</label><label><input type=checkbox id=fog> Fog</label></div>
+  <div id=info>Loading the sky…</div>
+ </div>
+</div>
+<script>
+(async function () {
+  const $ = id => document.getElementById(id), info = $('info');
+  const seg = { style: 'realistic', deco: 'new' };
+  document.querySelectorAll('.seg').forEach(g => g.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    g.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    seg[g.dataset.k] = b.dataset.v; apply();
+  }));
+  $('minBtn').onclick = () => { const p = $('panel'); p.classList.toggle('min'); $('minBtn').textContent = p.classList.contains('min') ? 'Show' : 'Hide'; };
+  $('cardsBtn').onclick = () => $('cards').classList.toggle('on');
+
+  // the sun, by the hour: up at 7, down at 19, 55° at noon; deep night after
+  function sunAt(h) {
+    const day = (h - 7) / 12;
+    if (day >= 0 && day <= 1) return { elev: 55 * Math.sin(Math.PI * day), azim: 90 + 180 * day };
+    const t = h < 7 ? (7 - h) / 7 : (h - 19) / 5;            // hours from the nearest sun
+    return { elev: -Math.min(40, 40 * Math.sin(Math.PI / 2 * Math.min(1, t)) + 0.5), azim: h < 7 ? 80 : 280 };
+  }
+  const clock = h => { const hh = Math.floor(h) % 24, mm = Math.round((h % 1) * 60); return (hh % 12 || 12) + ':' + String(mm).padStart(2, '0') + (hh < 12 ? ' AM' : ' PM'); };
+  const HOLIDAY_SEASON = { halloween: 1, thanksgiving: 1, christmas: 1 };
+
+  function state() {
+    const h = +$('time').value, sun = sunAt(h), cover = +$('cover').value / 100;
+    let cond = $('cond').value;
+    if (cond === 'auto') cond = cover < .1 ? (sun.elev > 0 ? 'sunny' : 'clear-night') : cover < .7 ? 'partlycloudy' : 'cloudy';
+    const rate = +$('rate').value / 100;
+    const wet = /rain|pouring|lightning/.test(cond) ? { kind: 'rain', rate: cond === 'pouring' ? Math.max(rate, .8) : rate, bolt: /lightning/.test(cond) }
+              : cond === 'snowy' ? { kind: 'snow', rate } : { kind: 'none', rate: 0 };
+    return { h, sun, cover, cond, wet };
+  }
+  function apply() {
+    if (!window.hkSky || !window.hkSkyAt) return;
+    const st = state(), scene = $('scene').value, land = scene.indexOf('land:') === 0 ? scene.slice(5) : '';
+    const holiday = scene && !land ? scene : '';
+    $('timeV').textContent = clock(st.h) + ' · sun ' + st.sun.elev.toFixed(0) + '°';
+    $('coverV').textContent = Math.round(st.cover * 100) + '%';
+    $('rateV').textContent = st.wet.kind === 'none' ? '—' : Math.round(st.wet.rate * 100) + '%';
+    $('windV').textContent = $('wind').value + ' mph';
+    const m = +$('moon').value; $('moonV').textContent = m < .03 || m > .97 ? 'new' : Math.abs(m - .5) < .03 ? 'full' : m < .5 ? 'waxing ' + Math.round(m * 200) + '%' : 'waning ' + Math.round((1 - m) * 200) + '%';
+    try { hkSky.preview(holiday || null, st.sun.elev > -4 ? 'day' : 'night'); } catch (e) { /* older module */ }
+    const decorated = !!scene;
+    window.hkSkyAt(st.sun.elev, {
+      azim: st.sun.azim, cover: st.cover, wind: +$('wind').value, cond: st.cond, fog: $('fog').checked || st.cond === 'fog',
+      wet: st.wet, moon: m, animations: $('anim').checked, weather: true,
+      decorations: decorated, seasonalOn: decorated, decorationStyle: seg.deco,
+      season: HOLIDAY_SEASON[holiday] ? holiday : '', land: land || undefined,
+      cloudStyle: seg.style, backdrop: null
+    });
+    const sky = hkSky._mounted && hkSky._mounted(), rc = sky && sky.querySelector('.rcl'), r = rc && rc._rc;
+    info.textContent = 'condition  ' + st.cond + (st.wet.kind !== 'none' ? ' (' + st.wet.kind + ')' : '') +
+      '\nclouds     ' + (seg.style === 'classic' ? 'classic decks' : (seg.style === 'blend' ? 'classic veil + ' : '') + (r ? (r.deck ? 'overcast deck + ' : '') + r.clouds.length + ' clouds, ' + r.light + ' light' : 'loading…')) +
+      (r && r.plan ? '\n           ' + Object.entries(r.plan.sets.reduce((a, x) => (a[x] = (a[x] || 0) + 1, a), {})).map(([k, v]) => v + ' ' + k).join(', ') : '') +
+      '\nscene      ' + (sky && sky._hkNearTheme ? 'woodland: ' + sky._hkNearTheme : scene ? scene + ' (' + seg.deco + ')' : 'plain sky');
+  }
+  ['time', 'cover', 'rate', 'wind', 'moon'].forEach(id => $(id).addEventListener('input', apply));
+  ['cond', 'scene', 'anim', 'fog'].forEach(id => $(id).addEventListener('change', apply));
+
+  const script = document.createElement('script');
+  script.src = '/hk/modules/hk-sky.js?v=' + Date.now();
+  try {
+    await new Promise((res, rej) => { script.onload = res; script.onerror = rej; document.head.appendChild(script); });
+    hkSky.render({ states: {} }, $('card'));
+    apply();
+    // the sky's own tick has no Home Assistant here; hold the chosen weather
+    // (the realistic clouds' manifest arrives after the first paint, too)
+    setInterval(apply, 3000);
+    setTimeout(apply, 700);
+  } catch (e) { info.textContent = 'The sky did not load: ' + e.message; }
+})();
+</script>

@@ -4,7 +4,7 @@ load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-room.js');
 load(HK_ROOT + '/frontend/cards/hk-strategy.js');
 load(HK_ROOT + '/frontend/cards/hk-tile.js');
-var pass = 0, fail = 0;
+var pass = 0, fail = 0, only;
 function ok(n, c, d) { if (c) { pass++; print('  PASS  ' + n); } else { fail++; print('  FAIL  ' + n + ' ' + JSON.stringify(d)); } }
 var settings = { status_rows: { climate: { status: ['temperature', 'humidity', 'blinds', 'fans'], exclude_areas: [] } } };
 window.hkSettings = { weatherId: function () { return null; }, get: function (path, fallback) {
@@ -55,6 +55,14 @@ ok('equal rounded endpoints collapse to one reading', window.hkRoom.climateItems
 ok('screen entity and device exclusions apply', window.hkStrategy.climateMembers(h, { exclude_entities: ['sensor.den_t'], exclude_devices: ['bedroom'] }).temperature.length === 0);
 settings.kinds = { temperature: ['sensor.den_t'], humidity: ['sensor.den_h'], fans: ['fan.den'], blinds: [] };
 ok('server Status & Chips lists are authoritative', window.hkRoom.climateItems(h, {}).map(function (x) { return x.kind; }).join() === 'temperature,humidity,fans');
+// blinds and fans read by the one accessory rule every row uses (describe)
+settings.kinds.fans = ['fan.den', 'fan.bedroom'];
+h.states['fan.bedroom'].state = 'unavailable';
+var fanItem = window.hkRoom.climateItems(h, {}).filter(function (x) { return x.kind === 'fans'; })[0];
+ok('a fan that cannot answer: "2 Fans -- 1 On · 1 Unavailable", the same words as every row',
+   fanItem && fanItem.title === '2 Fans' && fanItem.value === '1 On · 1 Unavailable' &&
+   fanItem.value === window.hkRoom._.describe(h, 'fans', ['fan.den', 'fan.bedroom'], false).value, fanItem);
+h.states['fan.bedroom'].state = 'off'; settings.kinds.fans = ['fan.den'];
 settings.status_rows.climate.status = [];
 ok('an explicitly empty status list hides the whole row', window.hkRoom.climateItems(h, {}).length === 0);
 settings.status_rows.climate.status = ['temperature', 'humidity', 'blinds', 'fans'];
@@ -90,12 +98,18 @@ window.hkStrategy.generate({ music: false }, { states: h.states, entities: h.ent
   ok('generated Climate page places the shared status row immediately below the title', view && view.cards[1].type === 'custom:hk-climate-status-card');
   ok('Climate title, status and devices all occupy the main column, never a gutter',
      view.cards.every(function (c) { return c.view_layout && c.view_layout['grid-column'] === '2'; }));
-  var only = { states: { 'sensor.den_t': h.states['sensor.den_t'] }, entities: { 'sensor.den_t': h.entities['sensor.den_t'] }, areas: h.areas, devices: {} };
+  only = { states: { 'sensor.den_t': h.states['sensor.den_t'] }, entities: { 'sensor.den_t': h.entities['sensor.den_t'] }, areas: h.areas, devices: {} };
   settings.kinds = { temperature: ['sensor.den_t'], humidity: [], fans: [], blinds: [], thermostats: [] };
+  // the ROW leaves the den out: that is the row's business, not whether the
+  // house has a Climate page (the build reads no status_rows -- 2026-10-04)
+  settings.status_rows.climate.exclude_areas = ['den', 'outside'];
   return window.hkStrategy.generate({ music: false }, only);
 }).then(function (cfg) {
   var view = cfg.views.filter(function (v) { return v.path === 'climate'; })[0];
   ok('sensor-only homes get a Climate page without an empty body grid', view && view.cards.length === 2);
+  ok('...even while the Climate row leaves out the only room with a reading',
+     !!view && window.hkStrategy.climateMembers(only, {}).temperature.length === 0);
+  settings.status_rows.climate.exclude_areas = ['outside'];
   print('\n' + (fail ? 'FAIL ' + fail + ' CLIMATE TESTS' : 'ALL ' + pass + ' CLIMATE TESTS PASS'));
   if (fail) throw new Error('climate tests failed');
 }).catch(function (e) { print('FAIL ' + e); throw e; });

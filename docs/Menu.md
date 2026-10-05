@@ -1,7 +1,8 @@
 # Menu
 
 The menu lists a screen’s pages and rooms, like the sidebar of Apple’s Home
-app.
+app. For a row of tabs at the bottom of the screen instead (or as well), see
+[The tab bar](Tab-Bar.md).
 
 The menu lists the screen’s pages and rooms, like the sidebar of Apple’s Home
 app: **Home** first, then the pages at the top, then **Categories** and
@@ -14,6 +15,9 @@ Menu](#menu-settings-for-all-screens), and a screen can
 [set its own](#a-screens-menu-settings):
 
 - **Off**: no menu. Pages are reached from the chips and pills.
+- **Tab Bar**: no side menu; [the tab bar](Tab-Bar.md) along the bottom of
+  the screen instead. **On Narrow Screens** and **When Folded** can also be
+  **Tab Bar**: the side menu where it fits, the tab bar where it would fold.
 - **Button**: the menu is hidden until opened. **Button Style** picks how:
   - **Automatic**: the round chip when Home has a menu button, otherwise the
     edge tab.

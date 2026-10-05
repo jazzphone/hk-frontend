@@ -1,0 +1,6 @@
+{
+  "version": 6,
+  "status": "complete",
+  "holiday_check": "PASS: exit 0; all 16 checked: 2560x1600 RGBA, checksums match, top 34% clear, decorated not redrawn; no PROBLEM output. Run only with --check.",
+  "notes": "22 PNGs, manifest with all checks true, contact sheet and notes complete. Additional v6 validation covers Halloween day and birthday props/glow. Approved masters, season lands, dashboard references, old holiday sources and copied balloon entries are unchanged. Exact original pixels outside props and below y=1040; matching prop alpha masks across day/dusk/night; every candle/bulb listed and aligned; birthday verified across all 12 bases. See notes-v6.md and work/validation-v6.json."
+}

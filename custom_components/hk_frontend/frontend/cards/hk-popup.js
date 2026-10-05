@@ -70,6 +70,10 @@
     // inset 0, still covers everything.
     '.hkp:not(.plain){padding-left:var(--hk-content-left,0px)}',
     '.hkp.bottom{align-items:flex-end}',
+    // THE TAB BAR (hk-tabbar.js) keeps the bottom of the screen: a bar that
+    // grows up from the bottom (the now-playing bar) sits above it, as iOS
+    // stacks its mini player over the tab bar. Unset without one.
+    '.hkp.bottom.plain{padding-bottom:var(--hk-tabbar-h,0px)}',
     // Bubble's backdrop, measured: rgba(17,17,17,0.8), 0.3s opacity fade.
     '.hkp .bd{position:absolute;inset:0;background:rgba(17,17,17,0.8);opacity:0;',
     '  transition:opacity .3s ease;pointer-events:auto;-webkit-tap-highlight-color:transparent}',

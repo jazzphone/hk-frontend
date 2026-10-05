@@ -9,7 +9,7 @@ globalThis.getComputedStyle=function(){return {left:'300px'};};
 function node(){
  var n={children:[],className:'',values:{},classes:{},clientWidth:1280,clientHeight:800};
  n.style={setProperty:function(k,v){n.values[k]=v;},getPropertyValue:function(k){return n.values[k]||'';}};
- n.classList={contains:function(k){return !!n.classes[k];},toggle:function(k,on){n.classes[k]=on;},add:function(k){n.classes[k]=true;}};
+ n.classList={contains:function(k){return !!n.classes[k];},toggle:function(k,on){n.classes[k]=on;},add:function(k){n.classes[k]=true;},remove:function(k){delete n.classes[k];}};
  n.appendChild=function(c){c.parent=n;n.children.push(c);return c;};
  n.insertBefore=function(c,b){if(c.parent)c.remove();c.parent=n;var i=n.children.indexOf(b);n.children.splice(i<0?n.children.length:i,0,c);return c;};
  n.querySelectorAll=function(sel){var out=[];function walk(a){a.children.forEach(function(c){if(sel.split(',').some(function(t){return c.className.split(' ').indexOf(t.slice(1))>=0;}))out.push(c);walk(c);});}walk(n);return out;};
@@ -33,8 +33,8 @@ check('tablet foreground fits its height without vertical cover cropping',Number
 check('the bulbs twinkle one by one along their strands',root.querySelectorAll('.bulb').length===12&&
   bulbs[0].values['--phase']==='-0.43s'&&bulbs[1].values['--phase']==='-0.86s');
 check('...placed on their tree as it is laid out: the first at its painted place',bulbs[0].style.left==='98.4px'&&bulbs[0].style.width==='35.5px');
-check('Christmas has its snow glints, wind-blown puffs and the northern lights behind the trees',
-  root.querySelectorAll('.glint').length===22&&root.querySelectorAll('.puff').length===6&&root.children[0].className==='aurora');
+check('Christmas has its snow glints and the northern lights behind the trees, and no blown-snow puffs',
+  root.querySelectorAll('.glint').length===22&&root.querySelectorAll('.puff').length===0&&root.children[0].className==='aurora');
 check('the original Christmas renderer is not built underneath',!parts['.season'].children.length&&sky._hkSeasonKey===null);
 s.elev=-18;s.wind=23;s.cover=.9;s.wet={kind:'snow',rate:.8};hkSky._paint(sky,s);
 check('a real wind blows the snow off the branches',root.classes.windy===true);
@@ -78,6 +78,21 @@ check('bats every Halloween night, not only a spooky one: two flocks in the nigh
   hr.querySelectorAll('.dark')[0].querySelectorAll('.flock').length===2&&hr.querySelectorAll('.night')[0].querySelectorAll('.bat').length===7&&
   hr.values['--near-dark']==='1');
 check('...the owl in its tree and the mist over the moon',hr.querySelectorAll('.owl').length===1&&hr.querySelectorAll('.wisp').length===2);
+var flockTops=function(){return hr.querySelectorAll('.flock').map(function(f){return f.children.map(function(b){return b.style.top;}).join(',');}).join('|');};
+var tops=flockTops();hkSky._paint(sky,s);hkSky._paint(sky,s);
+check('the flocks keep the places across() gives them, paint after paint (no fixed-row override)',flockTops()===tops&&tops.indexOf('px')>0);
+check('...inside the clear band above the camera mosaic',hr.querySelectorAll('.flock')[0].children.every(function(b){var t=parseFloat(b.style.top)+parseFloat(b.style.height)/2;return t>=40&&t<=180;}));
+check('an ordinary Halloween night shows the dark field (flocks, owl) but not the spooky swarm\'s night field',!hr.classes['is-night']&&!hr.classes['is-day']&&!hr.classes['out-dark']);
+var realNow=Date.now,clock=realNow.call(Date);Date.now=function(){return clock;};
+s.elev=25;hkSky._paint(sky,s);
+check('by day the dark field fades to 0 first (still there for its 20 s fade)',hr.values['--near-dark']==='0'&&!hr.classes['out-dark']&&!hr.classes['is-night']&&hr.classes['is-day']===true);
+clock+=22000;hkSky._paint(sky,s);
+check('...then it is taken out, so its bats, owl and mist stop running',hr.classes['out-dark']===true);
+s.elev=-18;hkSky._paint(sky,s);
+check('after dark it comes back at 0 first...',!hr.classes['out-dark']&&hr.values['--near-dark']==='0');
+clock+=3000;hkSky._paint(sky,s);
+check('...and fades in on the next paint',hr.values['--near-dark']==='1');
+Date.now=realNow;
 check('Halloween moon is visible without a rare spooky event',sky.values['--moonI'].indexOf('moon-hallow.webp')>=0&&sky.values['--moonS']==='168px'&&Number(sky.values['--moonO'])>0);
 hkSky._force({show:true,spooky:true});s.elev=25;hkSky._paint(sky,s);
 check('...and by day, even on a spooky date',spookyRoot.classes.spooky===false);
@@ -151,14 +166,15 @@ s.decorations=true;s.season='christmas';hkSky._force({show:true});sky.classes.ow
 // CLOUDS: REALISTIC -- which clouds a sky has, and in what light
 function rcCount(p,set){return p.sets.filter(function(x){return x===set;}).length;}
 var fair=hkSky._rcPlan({cover:.15,cond:'sunny'}),partly=hkSky._rcPlan({cover:.45,cond:'partlycloudy'}),mostly=hkSky._rcPlan({cover:.75,cond:'cloudy'});
-check('realistic clouds: a fair day has a few small far ones, no big cumulus',!fair.deck&&rcCount(fair,'cumulus-far')>=1&&rcCount(fair,'cumulus-near')===0);
-check('...partly cloudy brings the big cumulus overhead, and the haze on the horizon',rcCount(partly,'cumulus-near')>=1&&rcCount(partly,'horizon-haze')===1);
-check('...mostly cloudy adds broken sheets, and never more than 14 clouds',rcCount(mostly,'stratocumulus')>=2&&mostly.sets.length<=14&&
-  [0,.1,.3,.5,.7,.84].every(function(c){return hkSky._rcPlan({cover:c,cond:'lightning'},7).sets.length<=14;}));
+check('realistic clouds: a fair day has a handful of cumulus, a partly cloudy sky more, a mostly cloudy one most',
+  !fair.deck&&rcCount(fair,'cu')>=3&&rcCount(fair,'cu')<rcCount(partly,'cu')&&rcCount(partly,'cu')<rcCount(mostly,'cu'));
+check('...the haze on the horizon once it clouds up',rcCount(partly,'horizon-haze')===1&&rcCount(fair,'horizon-haze')===0);
+check('...never more than 28 clouds',[0,.1,.3,.5,.7,.84].every(function(c){return hkSky._rcPlan({cover:c,cond:'lightning'},7).sets.length<=28&&hkSky._rcPlan({cover:c,cond:'partlycloudy'},7).sets.length<=28;}));
 var lid=hkSky._rcPlan({cover:.95,cond:'cloudy'}),wetLid=hkSky._rcPlan({cover:.65,cond:'rainy'});
-check('...overcast, or rain under a heavy sky, is the deck alone',lid.deck&&wetLid.deck&&lid.sets.length===0&&wetLid.sets.length===0);
+check('...overcast, or rain under a heavy sky, is the deck as a ceiling, scud under it (more in rain) and haze on the horizon',
+  lid.deck&&wetLid.deck&&rcCount(lid,'scud')===3&&rcCount(wetLid,'scud')===5&&rcCount(lid,'horizon-haze')===1);
 check('...a storm shows its tower on the horizon',rcCount(hkSky._rcPlan({cover:.5,cond:'lightning'}),'cumulonimbus')===1);
-check('...the light: day, grey under a lid or rain, golden low, dusk below the horizon, night',
-  hkSky._rcLight({elev:40,cover:.3})==='day'&&hkSky._rcLight({elev:40,cover:.9})==='grey'&&hkSky._rcLight({elev:40,cover:.3,cond:'rainy'})==='grey'&&
+check('...the light: day (a shower from a broken sky too), grey under a lid, golden low, dusk below the horizon, night',
+  hkSky._rcLight({elev:40,cover:.3})==='day'&&hkSky._rcLight({elev:40,cover:.9})==='grey'&&hkSky._rcLight({elev:40,cover:.3,cond:'rainy'})==='day'&&
   hkSky._rcLight({elev:5,cover:.3})==='golden'&&hkSky._rcLight({elev:-3,cover:.3})==='dusk'&&hkSky._rcLight({elev:-12,cover:.3})==='night');
 print(fail?'FAIL '+fail+' NEAR SCENERY TESTS':'ALL '+pass+' NEAR SCENERY TESTS PASS');

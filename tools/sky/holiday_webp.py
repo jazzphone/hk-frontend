@@ -40,7 +40,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import land_webp  # noqa: E402  (repair_alpha, and where the season lands live)
 
-SRC = os.environ.get("HK_HOLIDAY_SRC") or os.path.join(HERE, "src", "land-holiday")
+# the v6 delivery (CODEX-BRIEF-v6: the season lands decorated like the
+# dashboards) when it is there, else the 1.5 one
+SRC = (os.environ.get("HK_HOLIDAY_SRC") or
+       (os.path.join(HERE, "src", "land-v6", "land-holiday")
+        if os.path.isdir(os.path.join(HERE, "src", "land-v6", "land-holiday"))
+        else os.path.join(HERE, "src", "land-holiday")))
 BASE_SRC = land_webp.SRC
 OUT = land_webp.OUT
 W, H = land_webp.W, land_webp.H
@@ -55,6 +60,13 @@ LANDS = [  # (holiday, light, base season)
     ("christmas", "day", "winter"), ("christmas", "dusk", "winter"), ("christmas", "night", "winter"),
     ("july4", "day", "summer"), ("july4", "dusk", "summer"), ("july4", "night", "summer"),
 ]
+# v6 (tools/sky/src/land-v6, CODEX-BRIEF-v6): Halloween by day too, when its
+# file is there
+if os.path.exists(os.path.join(SRC, "land-halloween-day-src.png")):
+    LANDS.insert(0, ("halloween", "day", "fall"))
+# ...and a birthday's props (cafe lights, presents): an overlay over any
+# season, as the balloons are, with its lights at dusk and night
+PROPS = os.path.exists(os.path.join(SRC, "birthday-props-day-src.png"))
 LIGHTS = [("halloween", "dusk"), ("halloween", "night"), ("christmas", "dusk"),
           ("christmas", "night"), ("july4", "night")]
 BALLOON_LIGHTS = ("day", "dusk", "night")
@@ -286,6 +298,24 @@ def convert(imgs, man):
                                  "knot": [int(knot[0]), int(knot[1])],
                                  "at": list(BALLOON_AT[side]), "scale": BALLOON_SCALE})
         print("    %s cluster: box %s, knot %s" % (side, data["balloons"][-1]["box"], knot))
+    if PROPS:
+        # one box round what the props draw in any light (and their glow)
+        ims = {l: Image.open(os.path.join(SRC, "birthday-props-%s-src.png" % l)).convert("RGBA") for l in BALLOON_LIGHTS}
+        glow = {l: Image.open(os.path.join(SRC, "birthday-props-%s-lights.png" % l)).convert("RGBA")
+                for l in ("dusk", "night") if os.path.exists(os.path.join(SRC, "birthday-props-%s-lights.png" % l))}
+        m = np.zeros((H, W), bool)
+        for im in list(ims.values()) + list(glow.values()):
+            m |= np.asarray(im.getchannel("A")) > 4
+        ys, xs = np.nonzero(m)
+        pad = 8
+        x0, y0 = max(0, xs.min() - pad), max(0, ys.min() - pad)
+        x1, y1 = min(W, xs.max() + pad + 1), min(H, ys.max() + pad + 1)
+        for l, im in ims.items():
+            save(im.crop((x0, y0, x1, y1)), "birthday-props-%s.webp" % l)
+        for l, im in glow.items():
+            save(im.crop((x0, y0, x1, y1)), "birthday-props-%s-lights.webp" % l)
+        data["props"] = {"box": [int(x0), int(y0), int(x1 - x0), int(y1 - y0)], "lights": sorted(glow)}
+        print("    birthday props: box %s, lights %s" % (data["props"]["box"], sorted(glow)))
     with open(os.path.join(OUT, "holiday.json"), "w") as f:
         json.dump(data, f, separators=(",", ":"))
     print("  holiday.json %d KB" % (os.path.getsize(os.path.join(OUT, "holiday.json")) // 1024))

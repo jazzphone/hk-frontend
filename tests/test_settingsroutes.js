@@ -32,4 +32,38 @@ var backdrop = P.p_screen.call(page, 'dashboard-sky', ['sky', 'backdrop']);
 ok('screen backdrop opens its picker', backdrop.title, 'Backdrop');
 ok('screen backdrop Back returns to Sky / Background', backdrop.back[1], '#/screens/dashboard-sky/sky');
 
+print('\n=== leaving the page: nothing of it keeps running ===');
+(function () {
+  var pg = Object.create(P), calls = [];
+  var sr = { addEventListener: function () {}, removeEventListener: function () {} };
+  Object.defineProperty(pg, 'shadowRoot', { value: sr });
+  var connected = true;
+  Object.defineProperty(pg, 'isConnected', { get: function () { return connected; } });
+  var resolveSub = null, unsubbed = 0;
+  pg._hass = { connection: { subscribeMessage: function () {
+    return new Promise(function (r) { resolveSub = r; }); } } };
+  P.subscribe.call(pg);
+  P.subscribe.call(pg);
+  ok('one subscription asked for, however often subscribe() runs while it is on its way', typeof resolveSub, 'function');
+  pg._soonT = setTimeout(function () { calls.push('soon'); }, 0);
+  pg._stT = setTimeout(function () { calls.push('status'); }, 0);
+  pg._skyWait = setInterval(function () { calls.push('sky'); }, 0);
+  pg._saverWait = setInterval(function () { calls.push('saver'); }, 0);
+  connected = false;
+  P.disconnectedCallback.call(pg);
+  ok('its timers are cleared', [pg._soonT, pg._stT, pg._skyWait, pg._saverWait].every(function (t) { return t == null; }), true);
+  resolveSub(function () { unsubbed++; });
+  drainMicrotasks();
+  ok('a subscription that arrives after the page left is ended at once', unsubbed, 1);
+  ok('...and not kept', pg._unsub == null, true);
+  // back on the page: a fresh one is kept
+  connected = true;
+  P.subscribe.call(pg);
+  resolveSub(function () { unsubbed++; });
+  drainMicrotasks();
+  ok('on the page again: the new subscription is kept', typeof pg._unsub, 'function');
+  __runTimers();
+  ok('...and the old timers never fire', calls.length, 0);
+})();
+
 print(fail ? 'FAIL ' + fail + ' SETTINGS ROUTE TESTS' : 'ALL ' + pass + ' SETTINGS ROUTE TESTS PASS');

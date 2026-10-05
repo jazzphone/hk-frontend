@@ -15,6 +15,7 @@
 * [Pages](Pages.md)
 * [Climate](Climate.md)
 * [The menu](Menu.md)
+* [The tab bar](Tab-Bar.md)
 * [Detail sheets & pop-ups](Detail-Sheets-and-Popups.md)
 * [Accessories](Accessories.md)
 

@@ -45,7 +45,8 @@ The two trees: left trunk centred at **x ≈ 1240**, right at **x ≈ 1545**.
    gap between the two trees, a little higher where they meet, as the
    dashboard pair frame the valley between them. The crowns may grow, shrink
    or change outline **only inside the box**, and their top must stay below
-   y = 600.
+   y = 562 (revised from 600, which made Codex cut a crown flat) — with a
+   naturally rounded outline, never a straight cut.
 3. **The trunks join the unchanged ground exactly.** At y = 950–960 the trunk
    you draw must have the same x position, width and colour as the original
    trunk at y = 960, so the row at y = 960 continues without a seam. Blend

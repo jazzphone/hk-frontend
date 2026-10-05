@@ -387,5 +387,16 @@ ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.
   ok('...Page Color offered only where there is one', M3.skyModeOptions(rows[1], bds, 'A').map(function (o) { return o[0]; }).indexOf('own') < 0);
   ok('...a mode in words', M3.skyModeLabel('dusk', bds) === 'Dusk' && M3.skyModeLabel('live', bds) === 'Live sky');
 })();
+(function () {
+  var MM = M;
+  ok('the Energy page pill has its own look, as the other page pills', JSON.stringify(MM.PAGE_PILL_DEFAULTS.energy) ===
+     JSON.stringify(['Energy', 'mdi:lightning-bolt', 'white']));
+  ok('Backdrop back to All Screens: the screen\'s own stops go with it',
+     JSON.stringify(MM.backdropFollow({ sky_gradient: 'custom', sky_custom: { day: [], night: [] }, sky_pages: { energy: 'dusk' } })) ===
+     JSON.stringify({ sky_gradient: null, sky_custom: null }));
+  ok('...but stay while a page\'s background is Custom (they are its colors)',
+     JSON.stringify(MM.backdropFollow({ sky_gradient: 'custom', sky_custom: { day: [], night: [] }, sky_pages: { energy: 'custom' } })) ===
+     JSON.stringify({ sky_gradient: null }));
+})();
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

@@ -913,8 +913,23 @@ print('\n=== Climate category sheets ===');
   var kid = group._kids[0];
   group.hass = Object.assign({}, h);
   ok('ordinary state pushes keep the pill instances', group._kids[0] === kid);
-  members = ['sensor.bedroom_t']; group.hass = Object.assign({}, h);
+  // THE LIST IS NOT WORKED OUT AGAIN ON EVERY PUSH: an unrelated state
+  // change only hands the pills hass; a member's, or a registry change, does
+  var asked = 0, realResolve = resolve;
+  group._config.resolve = function (x) { asked++; return realResolve(x); };
+  var pushed = 0, kidHass = kid.hass;
+  h.states['light.elsewhere'] = { entity_id: 'light.elsewhere', state: 'on', attributes: {}, last_updated: 'u1' };
+  group.hass = Object.assign({}, h);
+  ok('an unrelated state change does not resolve the list again', asked === 0, asked);
+  ok('...but the pills still get the new hass', kid.hass !== kidHass && group._kids[0] === kid);
+  h.states['sensor.den_t'] = Object.assign({}, h.states['sensor.den_t'], { state: '72', last_updated: 'u2' });
+  group.hass = Object.assign({}, h);
+  ok('a member\'s change does', asked === 1, asked);
+  members = ['sensor.bedroom_t'];
+  h.entities = Object.assign({}, h.entities);            // the entity registry moved
+  group.hass = Object.assign({}, h);
   ok('membership and the summary update while the popup is open', group._kids.length === 1 && group._summary.textContent === '80°');
+  group._config.resolve = realResolve;
   ok('a pill opens its sensor details', D.open('sensor.bedroom_t', {}));
   ok('device details retain the parent Climate category', D._.state().returnGroup.kind === 'temperature' && HIST.i === 1);
   D.close();
@@ -932,6 +947,37 @@ print('\n=== Climate category sheets ===');
   D.close(); flushPops();
   ok('closing the category returns to the page with no leftover history', !D._.state().el && HIST.i === 0);
   C.create = originalCreate;
+})();
+
+print('\n=== the Energy page, from an accessory\'s gear and its sheet ===');
+(function () {
+  D.close(true); __resetTimers(); resetHistory();
+  var WS = [];
+  var h = house({ 'sensor.fridge_w': ['120', { friendly_name: 'Fridge Power', unit_of_measurement: 'W', device_class: 'power' }] });
+  h.user = { is_admin: true }; h.areas = {}; h.entities = {}; h.devices = {};
+  h.callWS = function (m) { WS.push(m); return Promise.resolve({}); };
+  var saved = window.hkSettings;
+  var PLAN = { names: { fridge: 'Fridge' }, devices: { 'sensor.fridge_w': { key: 'fridge', name: 'Fridge', power: 'sensor.fridge_w' } },
+               sections: [{ id: 'rooms', name: 'Rooms', items: [{ key: 'other' }] }, { id: 'kitchen', name: 'Kitchen', items: [] }] };
+  window.hkSettings = { get: function (p, f) {
+    if (p === 'accessories') return { entities: {}, rooms: {} };
+    if (p === 'energy') return PLAN;
+    return f; } };
+  var pane = _.accessoryPane(h, 'sensor.fridge_w', null, { generated: true });
+  var ens = pane.querySelector('.ens'), enh = pane.querySelector('.enh');
+  var paneHtml = pane._html || pane.innerHTML || '';
+  ok('a hidden device: Hidden, and Show there off', !!ens && !!enh && /<option value="" selected>Hidden<\/option>/.test(paneHtml) &&
+     !/class="tg enh"[^>]* checked/.test(paneHtml));
+  ens.value = 'kitchen'; ens._listeners.change[0]();
+  ok('a section chosen: ONE move, by the server, in the sections as stored',
+     WS.length === 1 && WS[0].type === 'hk_energy/device/section' && WS[0].key === 'fridge' && WS[0].section === 'kitchen', WS);
+  ok('...and it shows there', enh.checked === true);
+  window.hkSettings = saved;
+  // ITS COST in the house's currency
+  ok('dollars by default', /^\$?1\.24$|1\.24/.test(_.money({ config: {} }, 1.239, 2)), _.money({ config: {} }, 1.239, 2));
+  var eur = _.money({ config: { currency: 'EUR' } }, 1.239, 2);
+  ok('the house\'s own currency, not a dollar sign', eur.indexOf('$') < 0 && /1[.,]24/.test(eur) && /€|EUR/.test(eur), eur);
+  ok('a currency the browser cannot name is its code', /XYZ|¤/.test(_.money({ config: { currency: 'XYZ' } }, 2, 2)));
 })();
 
 print('\n' + (fail ? 'FAIL ' + fail + ' DETAIL BEHAVIOUR TESTS' : 'ALL ' + pass + ' DETAIL BEHAVIOUR TESTS PASS'));

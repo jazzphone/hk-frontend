@@ -313,6 +313,10 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.ha_row": _bool,
     "menu.swipe": _bool,
     "menu.accent": lambda v: _accent(v),
+    # ...and its tab bar's
+    "menu.bar_scroll": _choice(S.TAB_BAR_SCROLLS),
+    "menu.bar_rooms": lambda v: _rooms_place(v),
+    "menu.bar_glass": _choice(S.TAB_BAR_GLASS),
     "rooms.headings": _bool,
     "rooms.status": _ordered(S.STATUS_KINDS),
     **{f"status_rows.{p}": _status_row(p) for p in S.STATUS_ROWS},
@@ -397,6 +401,14 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any]
 
 
 # ------------------------------------------------------------ one screen
+def _rooms_place(v: Any) -> str:
+    """The tab bar's Rooms: In More, a button of their own, or off (a
+    boolean, from the first form, is read as the settings read it)."""
+    if isinstance(v, bool) or v in S.TAB_BAR_ROOMS:
+        return S.tab_bar_rooms(v)
+    raise Invalid("choice")
+
+
 def _tab_position(v: Any) -> str:
     t = S.tab_position(v)
     if t is None:
@@ -516,6 +528,9 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "glyph": _choice(S.MENU_GLYPHS),
     "clock": _bool,
     "swipe": _bool,
+    "tab_bar_scroll": _choice(S.TAB_BAR_SCROLLS),
+    "tab_bar_rooms": lambda v: _rooms_place(v),
+    "tab_bar_glass": _choice(S.TAB_BAR_GLASS),
     "page_rooms": _choice(S.BOARD_PAGE_ROOMS),
     "chips_row": _bool,
     "chips": _chips,

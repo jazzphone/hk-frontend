@@ -1,0 +1,73 @@
+{
+  "status": "complete",
+  "finished_at": "2026-10-05T13:54:31.412874+00:00",
+  "version": 2,
+  "clouds": 56,
+  "files": 280,
+  "counts": {
+    "cumulus-small": 24,
+    "cumulus-large": 8,
+    "cumulus-row": 8,
+    "cirrus-streak": 8,
+    "cumulus-fractus": 8
+  },
+  "checks": {
+    "source_sizes_ok": true,
+    "margins_ok": true,
+    "alpha_identical_across_variants": true,
+    "no_halo_rgb_bleed": true,
+    "file_names_ok": true,
+    "rgba_8bit_srgb": true,
+    "cirrus_mostly_translucent": true,
+    "bases_level": true,
+    "edge_gradients_soft": true,
+    "rows_ends_feathered": true,
+    "counts_ok": true,
+    "shapes_unique": true,
+    "existing_files_unchanged": false,
+    "approved_samples_unchanged": true,
+    "v1_files_unchanged": true,
+    "edges_dissolve": true,
+    "lighting_direction": true,
+    "photoreal": true,
+    "nothing_but_cloud": true,
+    "no_visible_halos": true,
+    "sample_sky_perspective": true,
+    "visual_review_complete": true,
+    "visual_review_hashes_match": true
+  },
+  "problems": [
+    {
+      "file": ".gitignore",
+      "check": "existing_files_unchanged",
+      "problem": "Concurrent external edit added two v2 sample ignore entries. This task did not edit .gitignore and preserved it. All protected v1 files remain byte-identical.",
+      "kind": "external_change",
+      "affects_artwork": false
+    }
+  ],
+  "external_changes": [
+    {
+      "file": ".gitignore",
+      "baseline_sha256": "52bc3ea3fbff6440f008218b20124b7457d5b9e9cdebf2419c0566a610a5558a",
+      "current_sha256": "1baa240c10093979f330f04c140cf604303dc2e72128a207f895d7560463f6a4",
+      "modified_at_local": "2026-10-05T09:05:08-04:00",
+      "added_lines": [
+        "sample-sky-v2.jpg",
+        "SAMPLE-READY-v2.json"
+      ],
+      "attribution": "Concurrent external edit: this task made no write to .gitignore. Removing exactly these two appended lines reproduces the original protected hash. Current file preserved untouched.",
+      "affects_artwork": false
+    }
+  ],
+  "tool": "built-in image_gen",
+  "deliverables_sha256": {
+    "clouds-v2.json": "7fce293d1021d1ee5e753dfd5bf4be2737bcde949ba6f88f6d37ccec2b1f91e8",
+    "contact-sheet-v2.jpg": "6bfd12a5eeb1863aa6f2b35f3a6a176814a4c9c21762e5cd951caf77ed12bc54",
+    "sample-sky-v2.jpg": "099cc7af052ab960e4eef207f103052a8e34077ebd26d5714db8f2f5c1998073",
+    "clouds-artwork-v2.md": "73f89bb50a9b794b76d31c8979e469fec81f1e87c3a7634e3ae8bc5a96507237",
+    "work/v2/prompts-full.json": "aae2480abdb8a5d9786432d158cf9fee37918b98c4f2ff67f06dd7939e496082",
+    "work/v2/validation-full.json": "184a7e5808926179d1bf2f74f4f74bd57b5f6d144ad6c604f1982368c348af9c",
+    "work/v2/visual-review-full.json": "46d024ef5e6138537470d05293f99fd09f0a26352bc565f645e56e1982624451",
+    "work/v2/external-change-audit.json": "6da76468e717c307a9b6019e053048679cf98e375802218a3dc190f358c9e250"
+  }
+}
