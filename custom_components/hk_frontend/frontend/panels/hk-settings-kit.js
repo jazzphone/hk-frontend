@@ -114,7 +114,10 @@
     '.cell.fitm > .lbl .t{white-space:nowrap}',
     // never narrower than its longest word ("Camer / a" beside a long value,
     // 2026-09-30); a word longer than the whole row still breaks
-    '.lbl .t{overflow-wrap:break-word}',
+    // WHOLE-PIXEL LINES: at the font's own line height a row with a second
+    // line was 50.69 px tall, every row under it sat on a fraction of a
+    // pixel, and their half-pixel separators came and went
+    '.lbl .t{overflow-wrap:break-word;line-height:21px}',
     '.cell > .lbl{min-width:min-content;max-width:100%}',
     // an entity id under a name breaks where it must, never past the row
     '.lbl small{font-size:13px;line-height:17px;color:var(--hk-label2);overflow-wrap:anywhere}',
@@ -211,7 +214,7 @@
     '  margin:-6px 0;padding:6px 0;cursor:pointer}',
     '@media (hover:hover){.li a.lnk:hover .t{text-decoration:none}}',
     '.li:has(a.lnk:active){background:var(--hk-press)}',
-    '.li .fixed{font-size:13px;color:var(--hk-label2)}',
+    '.li .fixed{font-size:13px;line-height:17px;color:var(--hk-label2)}',
     // DIALOG
     '.dlgbd{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.36);display:flex;align-items:center;justify-content:center;',
     '  padding:24px;animation:hkfade .18s ease}',

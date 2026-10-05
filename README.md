@@ -37,13 +37,15 @@ Add a screen and HK Frontend builds it from your floors, areas and devices: the 
 The [Climate page](https://github.com/jazzphone/hk-frontend/wiki/Climate) has the same status row as a room: temperature and humidity
 ranges across the included rooms, plus blinds and fans. Tap a summary to open
 its accessory pills; close an accessory’s controls to return to the list.
-**HK Settings → All Screens → Climate Status** chooses which summaries and
-rooms participate. **What Counts → Temperature / Humidity** lets you leave
+**HK Settings → All Screens → Status Rows → Climate** chooses which summaries and
+rooms participate. **Status & Chips → Temperature / Humidity** lets you leave
 sources out or add others. Automatic readings use Home Assistant’s area
 Related sensors, falling back to a thermostat’s current reading when an area
 has no designated sensor. Unavailable readings stay in the list and do not
 affect the range. Thermostats sit side by side when space permits and stack
-on narrower pages.
+on narrower pages. The Lights, Doors & Windows, Water and Security pages, and
+every room page, have [status rows](https://github.com/jazzphone/hk-frontend/wiki/Status-Rows)
+of their own — *Motion · Emma’s Room*, *Valve · Running* — in the order you choose.
 
 Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens. Its gear holds the accessory’s own settings: its name, its icon (any of Apple’s Home glyphs, or Home Assistant’s), a regular or tall tile, and its place among the tiles beside it.
 
@@ -54,11 +56,19 @@ Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens 
 
 ## A live sky
 
-Behind every page, a sky that follows the weather and the time of day, with seasonal decorations for the holidays.
+Behind every page, a sky that follows the weather and the time of day, with seasonal decorations for the holidays. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Each page can keep its own color, show the live sky, or a still backdrop.
 
 <p align="center">
-<img src="docs/images/sky-rain.png" width="49%" alt="The live sky in the rain">
-<img src="docs/images/sky-halloween.png" width="49%" alt="A spooky Halloween night: a big moon, fog and bats">
+<img src="docs/images/sky-new-halloween.jpg" width="49%" alt="New Decorations: Halloween night, jack-o'-lanterns in the trees under a full moon">
+<img src="docs/images/sky-realistic-golden.jpg" width="49%" alt="Realistic clouds lit gold near sunset">
+</p>
+
+## Energy at a glance
+
+The **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** feature builds an Energy page from Home Assistant’s own Energy settings: today’s cost, the whole home live, a fortnight of daily bars and a live tile for every circuit, room, appliance and outlet. A screen can show only some pages — a wall panel that is just the Energy page, say.
+
+<p align="center">
+<img src="docs/images/tablet-energy.png" width="100%" alt="The Energy page on a wall tablet">
 </p>
 
 ## Set up in the UI
@@ -90,6 +100,7 @@ Add each from **Settings** → **Devices & services** → **HK Frontend** → **
 | **[Live TV](https://github.com/jazzphone/hk-frontend/wiki/Live-TV)** | An HDHomeRun tuner’s channels and guide, full screen on any screen |
 | **[Clean Areas](https://github.com/jazzphone/hk-frontend/wiki/Clean-Areas)** | Pick rooms and send the vacuums that reach them |
 | **[Alarm PIN](https://github.com/jazzphone/hk-frontend/wiki/Alarm-PIN)** | A PIN in front of an alarm panel that takes no code of its own |
+| **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** | An Energy page built from Home Assistant’s Energy settings, with a live tile per circuit and device |
 | **[Wall tablets](https://github.com/jazzphone/hk-frontend/wiki/Wall-Tablets)** | Return to Home when idle, a photo screensaver or the forecast over a landscape that dresses up for the holidays (with the coming events beside it, if you like) and a full-screen kiosk look |
 
 ## Help

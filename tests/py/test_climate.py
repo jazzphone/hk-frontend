@@ -29,19 +29,14 @@ async def test_related_readings_and_thermostat_fallback(hass):
     # The primary source remains the chosen source when temporarily unavailable.
     hass.states.async_set("sensor.den_t", "unavailable", {"device_class": "temperature"})
     assert "sensor.den_t" in K.resolve(K.candidates(hass), {})["temperature"]
+    # ...and so does a thermostat, though Home Assistant strips its
+    # current_temperature / current_humidity while it is unavailable.
+    hass.states.async_set(thermostat.entity_id, "unavailable", {})
+    gone = K.resolve(K.candidates(hass), {})
+    assert "climate.bedroom" in gone["temperature"] and "climate.bedroom" in gone["humidity"]
+    hass.states.async_set(thermostat.entity_id, "cool", {"current_temperature": 80, "current_humidity": 89})
     # Changing the area's designated sensor changes discovery without copying
     # any entity lists into the Climate page config.
     areas.async_update(den.id, temperature_entity_id="sensor.cpu_t")
     assert "sensor.cpu_t" in K.resolve(K.candidates(hass), {})["temperature"]
     assert "sensor.den_t" not in K.resolve(K.candidates(hass), {})["temperature"]
-
-
-def test_climate_settings_are_validated():
-    from custom_components.hk_frontend import settings_api as A, settings as S
-    updated, errors = A.apply_house({}, {"climate.status": [], "climate.exclude_areas": ["outside"],
-                                         "counts.temperature": {"exclude": ["sensor.outside"], "include": []}})
-    assert not errors
-    merged = S.merged(updated)
-    assert merged["climate"] == {"status": [], "exclude_areas": ["outside"]}
-    _, errors = A.apply_house({}, {"climate.status": ["locks"]})
-    assert "climate.status" in errors

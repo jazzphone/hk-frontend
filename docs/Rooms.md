@@ -22,7 +22,7 @@ A screen follows these unless you give it rooms of its own (see
 | Rooms in Menu | A to Z | The menu’s rooms **A to Z**, or in the **Room Order**. |
 | Rooms on Pages | By Floor | How Lights, Climate, Water and the other pages that group by room list them: **By Floor** (floor by floor, A to Z) or in the **Room Order**. |
 | Room Headings Open Room Pages | On | A room heading on Home gets a › and opens that room’s page, when the screen has one. |
-| Status Row | All 12 | What a room page’s status row can show, in this order when there’s something to say: Temperature, Humidity, Outlets, Blinds, Fans, Windows, Doors, Locks, Garage Doors, Motion, Occupancy, Leaks. Temperature and humidity are the area’s own sensors (**Settings → Areas → the area → Related sensors**). |
+| Status Row | All 17 | What a room page’s status row shows, and in what order, when there’s something to say: Temperature, Humidity, Security System, TV, Lights, Outlets, Blinds, Fans, Windows, Doors, Locks, Garage Doors, Valves, Motion, Occupancy, Leak, Speakers — drag to reorder ([Status rows](Status-Rows.md)). Temperature and humidity are the area’s own sensors (**Settings → Areas → the area → Related sensors**). |
 | Rooms | — | Every room. Tap one for its own settings (below). The note beside a room says when it’s hidden, part of another room, not on Home, or has scenes. |
 
 The order, Rooms in Menu and Rooms on Pages apply to every screen whose Rooms
@@ -38,7 +38,7 @@ Screens’ Room Order or in a screen’s own list, and Back returns you there.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Show on Screens | On | Off: the room is left off every generated screen, with its accessories, and What Counts never counts them. (The same list as **Accessories → Hidden from Screens → Rooms**.) |
+| Show on Screens | On | Off: the room is left off every generated screen, with its accessories, and Status & Chips never counts them. (The same list as **Accessories → Hidden from Screens → Rooms**.) |
 | Show on Home | On | Off: the room isn’t on Home. It keeps its room page and its row in the menu. This is the Room Order above, one room at a time; a screen with rooms of its own keeps its own. |
 | Show As Part Of | Its Own Room | Another room this one belongs to (a deck in the backyard). Its accessories, scenes and tile order join that room’s on generated screens. |
 | Scenes | Automatic | A row of scene pills on the room’s page, under its status row (and its cameras), scrolling sideways like Home’s. **Automatic**: the Home Assistant scenes in the room, A to Z — no row when there are none. Turn Automatic off to choose the room’s own scenes, scripts and buttons, in your order; remove them all for a room with no scenes row. |

@@ -13,6 +13,9 @@
 //   hkSettings.seasonName(states)             'Halloween' | 'Thanksgiving' | 'Christmas' | ''
 //   hkSettings.seasonalOn(states)             false only when the gate is explicitly off
 //   hkSettings.themeOn('thanksgiving')        may this sky theme run at all
+//   hkSettings.skyLook()                      this screen's Sky / Background: animations,
+//                                             weather, decorations, decorationStyle, backdrop
+//   hkSettings.skyPalettes()                  the fixed backdrops, by id
 //   hkSettings.onChange(fn)                   called after a change; returns unsubscribe
 //
 // WHERE THE VALUES COME FROM, in order:
@@ -34,20 +37,31 @@
   // Mirror of settings.py DEFAULTS. The server's answer always carries every
   // key, so this only matters before the first answer on a fresh browser.
   var DEFAULTS = {
-    climate: { status: ['temperature', 'humidity', 'blinds', 'fans'], exclude_areas: [] },
+    // the pages' status rows (settings.STATUS_ROWS): what each shows, in order
+    status_rows: {
+      climate: { status: ['temperature', 'humidity', 'blinds', 'fans'], exclude_areas: [] },
+      lights: { status: ['lights', 'outlets'], exclude_areas: [] },
+      doors_windows: { status: ['doors', 'windows', 'motion', 'occupancy'], exclude_areas: [] },
+      water: { status: ['leaks', 'valves'], exclude_areas: [] },
+      security: { status: ['security', 'locks', 'garage', 'doors', 'windows', 'leaks'], exclude_areas: [] }
+    },
     security: { alarm: null, garage: [], locks: [], doors: [], windows: [] },
     clock: { time: 'sensor.time', date: 'sensor.date' },
     weather: { entity: null, feels_like: null, humidity: null, wind: null, gust: null, uv: null,
                forecast_daily: null, forecast_hourly: null, alerts: null, place: null, outside: null,
                // the Weather Radar Card's own options (YAML), over the tuned map
                radar: {} },
-    sky: { moon: null, holidays: null, seasonal: null, birthdays: [], decorations: true,
+    sky: { moon: null, holidays: null, seasonal: null, birthdays: [], decorations: true, decoration_style: 'old', cloud_style: 'classic',
+           woodland: ['spring', 'summer', 'fall', 'winter'],
            // The sky's own look (Sky / Background): the moving parts, the
            // weather (clouds, rain, snow, fog -- the sun, moon and stars
            // stay), and the backdrop ("live" or a SKY_BACKDROPS id below,
            // whose stops for "custom" are gradient_custom). Each screen may
            // set its own (the board's sky_* keys, null = follow these).
            animations: true, weather: true, gradient: 'live', gradient_custom: null,
+           // each page's background: {page: 'own' | 'live' | backdrop id}
+           // -- a page missing is Automatic (settings.py sky.pages)
+           pages: {},
            themes: ['halloween', 'thanksgiving', 'christmas', 'birthday', 'fourth-of-july',
                     'valentines-day', 'spring-garden', 'winter-wonderland', 'storybook-magic',
                     'space-night'],
@@ -69,9 +83,10 @@
             // All Screens' menu, for the screens that don't set their own
             // (settings.py MENU_KEYS); a screen reads it already filled in
             style: 'auto', narrow: 'chip', tab_at: '', tab_size: 'large', tab_size_phone: 'standard',
-            open_min: 1000, time_weather_at: 'page', ha_row: false, accent: 'orange' },
-    rooms: { headings: true, status: ['temperature', 'humidity', 'outlets', 'blinds', 'fans', 'windows',
-                                      'doors', 'locks', 'garage', 'motion', 'occupancy', 'leaks'],
+            open_min: 1000, time_weather_at: 'page', ha_row: false, accent: 'orange', swipe: false },
+    rooms: { headings: true, status: ['temperature', 'humidity', 'security', 'tvs', 'lights', 'outlets', 'blinds',
+                                 'fans', 'windows', 'doors', 'locks', 'garage', 'valves', 'motion', 'occupancy',
+                                 'leaks', 'speakers'],
              // All Screens' rooms, for the screens that don't set their own
              order: [], home: 'as_is', menu: 'az', pages: 'floor' },
     look: { glass: 'clear', frost: 50, blur: 50, details: true, browse_view: 'music-browse', sky_switch: null,
@@ -79,7 +94,8 @@
             // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
             saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
                      weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true,
-                     forecast_every: 5, band: true, band_photos: false, calendar: false, calendar_days: 2 } },
+                     forecast_every: 5, band: true, band_photos: false, calendar: false, calendar_days: 2,
+                     fade_back: 500 } },
     // The Calendar page and the screensaver's calendar pane (All Screens ->
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)
@@ -158,7 +174,7 @@
     // than key by key against a default -- the loop above would drop it.
     var b = over && over.boards;
     out.boards = (b && typeof b === 'object' && !Array.isArray(b)) ? JSON.parse(JSON.stringify(b)) : {};
-    // WHAT COUNTS, resolved by the integration (kinds.py): kind -> entity ids.
+    // STATUS & CHIPS, resolved by the integration (kinds.py): kind -> entity ids.
     // Taken whole too; empty until a server that sends it answers.
     var kd = over && over.kinds;
     out.kinds = (kd && typeof kd === 'object' && !Array.isArray(kd)) ? JSON.parse(JSON.stringify(kd)) : {};
@@ -186,6 +202,10 @@
     // clean_areas, alarm_pin -- their actions exist either way
     var ad = over && over.added;
     out.added = Array.isArray(ad) ? ad.filter(function (k) { return typeof k === 'string'; }) : [];
+    // THE ENERGY PAGE'S PLAN (features/energy/plan.py), while Energy is
+    // added: taken whole; null without it
+    var en = over && over.energy;
+    out.energy = (en && typeof en === 'object' && !Array.isArray(en)) ? JSON.parse(JSON.stringify(en)) : null;
     // THE OPTIONAL HACS CARDS that are installed (settings.find_extras):
     // key -> the card's URL, or null. Taken whole.
     var ex = over && over.extras;
@@ -299,7 +319,8 @@
   // (sky.*). backdrop: null is the live sky; {day: [4], night: [4]} a fixed
   // all-day gradient (the day set by day, the night set by night -- hk-sky.js
   // paint). The boards' keys are sky_animations / sky_weather /
-  // sky_decorations / sky_gradient / sky_custom.
+  // sky_decorations / sky_decoration_style / sky_cloud_style / sky_gradient /
+  // sky_custom.
   function skyLook() {
     var b = boardHere();
     var own = function (bk, hk, dflt) {
@@ -310,9 +331,29 @@
       animations: own('sky_animations', 'sky.animations', true) !== false,
       weather: own('sky_weather', 'sky.weather', true) !== false,
       decorations: own('sky_decorations', 'sky.decorations', true) !== false,
+      decorationStyle: own('sky_decoration_style', 'sky.decoration_style', 'old'),
+      cloudStyle: own('sky_cloud_style', 'sky.cloud_style', 'classic'),
       backdrop: backdropStops(own('sky_gradient', 'sky.gradient', 'live'),
                               b && b.sky_gradient != null ? own('sky_custom', 'sky.gradient_custom', null) : get('sky.gradient_custom', null))
     };
+  }
+  // A PAGE'S BACKGROUND (Sky / Background -> Pages): this screen's choice
+  // for the page, else All Screens', else null (Automatic: a page with a
+  // color of its own keeps it, the rest show the live sky). `key`: a page
+  // kind (energy, climate, rooms ...) or a custom page's address.
+  function pageSky(key) {
+    if (!key) return null;
+    var b = boardHere(), mine = b && b.sky_pages && b.sky_pages[key];
+    if (mine) return mine;
+    var all = get('sky.pages', {}) || {};
+    return all[key] || null;
+  }
+  // a backdrop's stops by id, {day, night} -- "custom" this screen's own
+  // colors (else All Screens'); null for the live sky or an unknown id
+  function pageBackdrop(id) {
+    var b = boardHere();
+    var custom = b && b.sky_custom ? b.sky_custom : get('sky.gradient_custom', null);
+    return backdropStops(id, custom);
   }
   function applyLook() {
     var root = document.documentElement;
@@ -684,6 +725,8 @@
     },
     glass: glass,
     skyLook: skyLook,
+    pageSky: pageSky,
+    pageBackdrop: pageBackdrop,
     skyPalettes: function () { return SKY_BACKDROPS; },
     previewGlass: function (mode) {
       glassPreview = LOOKS[mode] ? mode : null;

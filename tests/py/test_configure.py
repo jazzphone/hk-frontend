@@ -88,6 +88,16 @@ async def test_a_generated_dashboard_starts_with_its_menu(hass, frontend, dashbo
     assert (b["menu"], b["car"], b["kiosk"]) == ("off", True, True)
 
 
+async def test_an_energy_display_is_only_the_energy_page(hass, frontend, dashboards):
+    """Shown On -> Energy Display: no Home, only the Energy page (`energy`
+    among its pages is the Energy feature's), no menu, no header."""
+    from custom_components.hk_frontend.settings import as_client
+    r = await _add(hass, "dashboard-hall", kind="energy", generated=True)
+    assert r["type"] == "create_entry"
+    b = as_client(entry(hass))["boards"]["dashboard-hall"]
+    assert (b["home_page"], b["only_pages"], b["pages"], b["menu"], b["kiosk"]) == (False, ["energy"], [], "off", True)
+
+
 async def test_its_gear_points_at_the_screens_page(hass, frontend, dashboards):
     await _add(hass, "dashboard-hall", kind="personal")
     e = entry(hass)
@@ -109,7 +119,7 @@ def test_every_field_left_is_labelled_and_documented():
     dash = TR["config_subentries"]["dashboard"]["step"]
     assert set(dash) == {"user", "kind"} and dash["kind"]["data"]["kind"]
     for name in ("HK Settings page", "Show HK Settings in the sidebar", "Your files", "Setup check",
-                 "General", "What Counts", "Weather", "Appearance", "Sky", "Menu", "Rooms", "Music",
+                 "General", "Status & Chips", "Weather", "Appearance", "Sky", "Menu", "Rooms", "Music",
                  "Wall Tablets", "Accessories", "Pop-ups", "Custom Pages", "Advanced"):
         assert name.lower() in DOC.lower(), name
     for kind in ("popup", "page"):

@@ -336,6 +336,20 @@ ok('visibility changes do not restart a covered camera', fading._liveSlot.asleep
 saverOn = saverCovered = false;
 dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
 ok('wake restores live video and refreshes', !fading._liveSlot.asleep && fading._liveSlot.el.config.camera_view === 'live' && !!fading._timer);
+// dismissed while the page is hidden (the tablet's screen off): the hk-saver
+// event bails, so the page coming back must wake the slot -- left "asleep",
+// the next cover would skip it and keep the live stream decoding all night
+saverOn = true; dispatchEvent(new CustomEvent('hk-saver', { detail: { on: true } }));
+saverCovered = true; dispatchEvent(new Event('hk-saver-covered'));
+document.hidden = true;
+saverOn = saverCovered = false; dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
+__fireVisibility(false);
+var backLive = fading._liveSlot.el;
+ok('a saver dismissed while hidden: visible again wakes the live camera', !fading._liveSlot.asleep && backLive.config.camera_view === 'live');
+saverOn = true; dispatchEvent(new CustomEvent('hk-saver', { detail: { on: true } }));
+saverCovered = true; dispatchEvent(new Event('hk-saver-covered'));
+ok('...so the next cover releases its stream again', fading._liveSlot.asleep && fading._liveSlot.el !== backLive);
+saverOn = saverCovered = false; dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
 fading.disconnectedCallback(); late.disconnectedCallback();
 ok('detaching removes the covered listener', !fading._onSaverCovered && !late._onSaverCovered);
 delete window.hkSaver;

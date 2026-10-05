@@ -31,8 +31,8 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **What Counts**, **[Climate Status](Climate.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **Wall Tablets** | Every screen |
-| **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas** | Every screen |
+| **All Screens** | **General**, **Status & Chips**, **[Status Rows](Status-Rows.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **Wall Tablets** | Every screen |
+| **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **Energy** | Every screen |
 | **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
 
@@ -79,7 +79,7 @@ sizes read **Portrait** and **Landscape**.
     dozen sensors from your screens is one search and two taps.
 - **Removing, deleting and going back to Automatic ask first.**
 - **Back returns to the page you came from.** A page you reached from a link on
-  another page (a screen’s link to What Counts, say) goes back there.
+  another page (a screen’s link to Status & Chips, say) goes back there.
 
 ## Search
 

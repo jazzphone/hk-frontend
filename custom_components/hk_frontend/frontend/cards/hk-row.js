@@ -124,19 +124,20 @@
     '  left:var(--hk-row-pl,0px);display:flex}',
     '.row.has-lead{margin-left:calc(var(--hk-row-pl,0px) + var(--hk-lead-w,0px)) !important;',
     '  padding-left:var(--hk-lead-gap,0px) !important}',
-    // PHONE: match the grids. A scroll row has no track, so a child cannot
-    // inherit --hk-track. `phone_card_width` lets a row state its children's
-    // width below 640px as a share of the ROW -- the same content box the
-    // grids measure against -- so `calc((100% - 12px) / 2)` lands on exactly
-    // the 2-up track the tiles use. Opt-in per row: the chips are fit-content
-    // and the cameras are 360px, and neither should be resized.
-    '@media (max-width: 640px){',
-    // A near-vertical drag over a horizontal scroller gets split between the
-    // two axes, so the page slides sideways while you scroll it. pan-x says this row
-    // handles HORIZONTAL panning only; vertical goes to the page. Phone only,
-    // so the wall tablets keep the behaviour they have.
-    '  .row{touch-action:pan-x}',
-    '}',
+    // NO `touch-action` ON THE ROW, AT ANY WIDTH. It once carried `pan-x` on a
+    // phone, read as "this row pans sideways, vertical goes to the page". That
+    // is not what it means: touch-action is INTERSECTED down the chain from the
+    // finger to the scroller that would move, so `pan-x` on the row forbids a
+    // vertical pan of the PAGE for any touch that lands on it -- a swipe up
+    // that started on the chips, the scenes or the camera strip moved the
+    // page 0 px (row_scroll.py, 2026-10-04). Left at `auto`, the browser locks
+    // each drag to its main axis and hands a vertical one to the page, as the
+    // wall tablets always did. The page sliding sideways that `pan-x` was for
+    // is held by `overflow-x: clip` on the document (hk-responsive.css).
+    //
+    // NOR IS IT NEEDED AGAINST FALSE TAPS: every action fires from `click`,
+    // and a browser that takes a drag for scrolling sends pointercancel and
+    // never makes the click.
     // A ROW MAY BLEED INTO THE GUTTER, NEVER PAST THE SCREEN -- AT EVERY
     // WIDTH, not only on a phone: an iPad mini held upright (744 px, an
     // 18.9 px gutter) would scroll sideways by the 3 px the chips' 22 px
@@ -173,6 +174,12 @@
     '  .row.has-lead{',
     '    margin-left:calc(var(--hk-row-pl,0px) - var(--hk-bleed-l,0px) + var(--hk-bleed-lc,var(--hk-bleed-l,0px)) + var(--hk-lead-w,0px)) !important;',
     '    padding-left:var(--hk-lead-gap,0px) !important}',
+    // PHONE: match the grids. A scroll row has no track, so a child cannot
+    // inherit --hk-track. `phone_card_width` lets a row state its children's
+    // width below 640px as a share of the ROW -- the same content box the
+    // grids measure against -- so `calc((100% - 12px) / 2)` lands on exactly
+    // the 2-up track the tiles use. Opt-in per row: the chips are fit-content
+    // and the cameras are 360px, and neither should be resized.
     '@media (max-width: 640px){',
     // not the shared glass layer (hk-glass.js), which sizes itself to its band
     '  .row.phone-sized > :not([data-hk-glass-layer]){width:var(--hk-row-phone-w) !important;',

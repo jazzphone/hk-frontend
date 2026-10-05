@@ -13,7 +13,7 @@ a holiday or a birthday: [Seasonal Decorations](Seasonal-Decorations.md).
 |---|---|
 | **Time of day** | The colors follow the sun’s elevation, from a deep noon blue through sunset to night. The sun’s glow sits where the sun is. |
 | **Night** | Stars, and the moon drawn at its real phase. |
-| **Clouds** | As many as the weather says (its cloud coverage, or a guess from the condition when there is none). At sunset they are lit warm from below. |
+| **Clouds** | As many as the weather says (its cloud coverage, or a guess from the condition when there is none). At sunset they are lit warm from below. **Clouds** below chooses their look: Classic or Realistic. |
 | **Rain and snow** | Falling while the weather is rainy, pouring, hailing or snowy; lightning in a thunderstorm; a haze in fog. |
 
 The sky is kept dark enough that glass tiles and white text on top of it stay
@@ -35,12 +35,14 @@ It reads:
 
 ### Where it appears
 
-On a generated screen, the live sky is behind **Home**, **Weather** and the
-room pages. The category pages (Lights, Climate, Doors & Windows, Security,
-Timers, Vacuums, Water, Cameras, Live TV, Play Music and Browse Music) each
-have a still wash of their own color instead, matching the chip that opens
-them. A custom page shows the live sky when its YAML says `sky: true`.
-Decorations appear only on the live sky.
+On a generated screen, the live sky is behind **Home**, **Weather**,
+**Calendar** and the room pages. The category pages (Lights, Climate, Doors &
+Windows, Security, Timers, Vacuums, Water, Cameras, Live TV, Play Music and
+Browse Music, and Energy) each have a still wash of their own color instead,
+matching the chip that opens them. A custom page shows the live sky when its
+YAML says `sky: true`. Decorations appear only on the live sky.
+
+Any page can change this under [Page Backgrounds](#page-backgrounds).
 
 When the tablet is behind a screensaver, or its browser tab is hidden, the sky
 stops moving.
@@ -105,6 +107,7 @@ screen can choose its own under **Appearance → Sky / Background**:
 | **Animations** | Off stops the sky's animated layers, including clouds, precipitation, lightning, decorations and forecast landscape effects. The sky still follows the sun and updates its appearance. |
 | **Weather** | Off removes clouds, rain, snow, lightning and fog, including decorative snow and Halloween fog. The sun, moon and stars remain. |
 | **Decorations** | Off removes seasonal and surprise scenes. On uses the shared dates, themes and optional extra gate. |
+| **Clouds** | **Classic** is the drifting haze the sky has always had. **Realistic** draws photographic clouds instead — fair-weather cumulus, broken sheets, high wisps, a storm tower on the horizon, an overcast lid with darker masses drifting under it — chosen from the weather's cloud cover and condition, lit by the sun (gold at sunset, pink at dusk, moonlit at night), across the whole sky down to the horizon, behind New Decorations' trees. Each cloud crosses once and comes back as another, so nothing repeats. A screen can choose its own. |
 | **Backdrop** | Live sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
 
 A fixed backdrop changes the gradient; the other switches still apply. For a
@@ -119,11 +122,66 @@ the global custom colors if available). An own Custom palette keeps its colors
 when you change the global palette.
 
 These settings apply wherever the live sky is shown, including the forecast
-screensaver. Category pages retain their existing still washes and album art.
-The Live Sky switch continues to control whether the background is present.
+screensaver and any page set to Live Sky or a backdrop (below). A page that
+keeps its own color shows none of them. The Live Sky switch continues to
+control whether the background is present.
 
-The standalone `/hk/pages/skyprobe.html` diagnostic can sample all sixteen
-combinations of Animations, Weather, Decorations and a fixed backdrop. It
-reports running CSS animation counts and requestAnimationFrame callback
-cadence. Cadence is not display fps or CPU/GPU usage; the probe itself adds
-per-frame work. Performance claims require a physical-device measurement.
+### Realistic clouds in every weather
+
+What **Clouds → Realistic** draws for each weather, the sky alone (on a
+screen, your cards sit over it). The mix comes from the weather entity's
+condition and cloud cover; the lighting from the sun.
+
+| | |
+|---|---|
+| ![Realistic clouds, sunny: a few far cumulus low on the horizon](images/clouds-sunny.jpg) | ![Realistic clouds, partly cloudy: cumulus near and far](images/clouds-partly-cloudy.jpg) |
+| **Sunny** — a few far cumulus, low on the horizon | **Partly cloudy** — cumulus near and far, now and then a high wisp |
+| ![Realistic clouds, mostly cloudy: big cumulus and broken sheets](images/clouds-mostly-cloudy.jpg) | ![Realistic clouds, overcast: a photographic deck across the sky](images/clouds-overcast.jpg) |
+| **Mostly cloudy** — big cumulus, broken sheets and a haze along the horizon | **Overcast** (85 % cover or more) — one photographic deck, drifting to and fro |
+| ![Realistic clouds in the rain](images/clouds-rain.jpg) | ![Realistic clouds, a thunderstorm: grey storm clouds and a towering cumulonimbus](images/clouds-thunderstorm.jpg) |
+| **Rain** — the grey deck, with the rain falling in front | **Thunderstorm** — grey storm clouds round a towering cumulonimbus, lightning flashing in the sky |
+| ![Realistic clouds in the snow](images/clouds-snow.jpg) | ![Classic clouds on the same partly cloudy sky](images/clouds-classic.jpg) |
+| **Snow** — the grey deck, with the snow falling | **Classic**, the same partly cloudy sky, for comparison |
+
+The same partly cloudy sky through the day's lightings:
+
+| | | |
+|---|---|---|
+| ![Realistic clouds lit gold near sunset](images/clouds-golden.jpg) | ![Realistic clouds at dusk](images/clouds-dusk.jpg) | ![Realistic clouds at night, moonlit](images/clouds-night.jpg) |
+| **Golden hour** (the sun under 10°) | **Dusk** (just below the horizon) | **Night** |
+
+On a dashboard:
+
+![Realistic clouds behind the Home page on a wall tablet](images/sky-realistic-clouds.jpg)
+
+### Page backgrounds
+
+**Sky / Background → Pages** lists every page with its background ("Energy:
+Page Color", "Weather: Backdrop"). Tap a page to choose its background. It is
+set under All Screens, and each screen's Sky / Background can choose its own
+for any page.
+
+On a [page screen](Pages.md#whole-screens-and-page-screens) the list is its
+own pages, at the top of its Sky / Background (for example **Energy
+Backdrop**). Its **Backdrop** page is those pages' backgrounds, since it has
+no Home or room page for the sky's own backdrop.
+
+| Choice | The page shows |
+|---|---|
+| **Automatic** | A page with a color of its own (Energy, Climate, Lights …) keeps it. Weather, Calendar and the room pages use the Backdrop. A custom page is as its YAML says. |
+| **Page Color** | The page's own still wash. Play Music's is the album art. |
+| **Live sky** | The live sky, following the sun, with the screen's weather, clouds and decorations. |
+| **Dusk, Midnight, Fjord … Custom** | That color as a still wash, like Page Color: no clouds, weather, sun or moon glow, or decorations. Its day colors show while the sun is up, its night colors after. |
+
+A color picked for a page is only that color. The **Sky** backdrop (Home, the
+room pages, Weather and Calendar) is different: it recolors the live sky, and
+the weather and decorations still show over it.
+
+All Screens' **Backdrop** page sets the defaults, and each screen can choose
+its own. A change shows on the screens within a few seconds, with no reload.
+
+On a page screen, **Sky / Background** starts with **This Screen's Pages**,
+with each page's backdrop. When none of them uses the live sky, it says so,
+because then the animations, weather and decorations settings below it don't
+show anywhere. The screen's **Appearance → Sky / Background**
+row shows what its pages use, for example **Page Color**.

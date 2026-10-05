@@ -346,6 +346,15 @@
     // honoured. If that module never loads the ring stays invisible and the
     // rest of the feedback still works.
     '@keyframes hk-ring-sweep{from{--hk-ring:0deg}to{--hk-ring:360deg}}',
+    // A PILL IN A COLOUR (HkSceneCard._tint), lit or tapped: its colour fills
+    // a circle -- the accessory's well -- behind a white glyph at the
+    // accessory's 25px, the ring sweeping round the circle. !important: the
+    // tapped plate's near-black glyph above is !important too, and the well's
+    // off background is written inline.
+    '.card.scene.tinted .well{border-radius:50%;transition:background-color 1.2s ease-out}',
+    'ha-card.card.scene.tinted[data-on="1"] .icon,ha-card.card.scene.tinted.hk-tapped .icon{width:25px;height:25px}',
+    'ha-card.card.scene.tinted.hk-tapped .well{transition:none;background:var(--hk-tint)!important}',
+    'ha-card.card.scene.tinted.hk-tapped .icon{color:#fff!important;fill:#fff!important}',
     '@media (prefers-reduced-motion:reduce){',
     '  ha-card.card.scene,ha-card.card.scene:active,ha-card.card.scene.hk-tapped,',
     '  .card.scene .well,.card.scene .name,.card.scene .icon{',
@@ -1207,12 +1216,33 @@
       return !!st && st.state === 'on';
     }
     _hasLabel() { return false; }
-    _wellBackground() { return null; }     // the scene stylesheet owns it
     _label() { return ''; }
-    // Flat white off, near-black on -- a scene glyph never takes the colour
-    // map, because there is no well behind it to carry a colour.
+    // ITS COLOUR, AS CHOSEN: an accessory's Color (its detail sheet), a page
+    // pill's (HK Settings). White -- or none chosen -- is the Home app's own
+    // scene: a bare white glyph, and a tapped one flips to near-black on the
+    // white plate. A COLOUR is worn as an accessory wears it: off, the glyph
+    // takes it; lit (a running script, a scene the moment it is tapped:
+    // .hk-tapped), it fills a circle behind a white glyph on the white plate.
+    _tint(cfg) {
+      var c = cfg.icon_color ? String(cfg.icon_color).toLowerCase().trim() : '';
+      return c && c !== 'white' ? colourFor(cfg, null) : null;
+    }
+    // no well unless lit in a colour: the scene stylesheet owns it otherwise
+    _wellBackground(cfg, st, on) {
+      var t = this._tint(cfg);
+      return t ? (on ? t : 'none') : null;
+    }
     _iconColour(cfg, st, on) {
+      var t = this._tint(cfg);
+      if (t) return on ? 'white' : t;
       return on ? 'rgba(0, 0, 0, 0.95)' : 'rgba(255, 255, 255, 0.94)';
+    }
+    _render() {
+      super._render();
+      var e = this._els, t = this._tint(this._config || {});
+      if (!e || !e.card) return;
+      e.card.classList.toggle('tinted', !!t);
+      if (t) e.card.style.setProperty('--hk-tint', t);
     }
   }
 

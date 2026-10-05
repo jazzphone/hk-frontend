@@ -166,7 +166,7 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
         # offers it)
         "suggest": ({"alarm": S.suggestions(hass)["alarm"]}
                     if (entry.options.get(S.CONF_DASHBOARD) or {}).get("security") is None else {}),
-        # the page lays every setting out itself: What counts kind by kind,
+        # the page lays every setting out itself: Status & Chips kind by kind,
         # the people a wall tablet can sign in as, the integration's own
         # options and switch, the optional cards' state
         "counts": _counts(hass, entry),
@@ -184,6 +184,7 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
         "features": await _features(hass),
         "choices": {
             "status_kinds": list(S.STATUS_KINDS), "browse_categories": list(S.BROWSE_CATEGORIES),
+            "status_rows": {p: {"kinds": list(k), "default": list(d)} for p, (k, d) in S.STATUS_ROWS.items()},
             "themes": list(S.THEMES), "sky_often": {k: list(v) for k, v in S.SKY_OFTEN.items()},
             "sky_built_in": {k: {"north": list(S.sky_built_in(k, "north")),
                                  "south": list(S.sky_built_in(k, "south"))} for k in S.SKY_BUILT_IN},
@@ -302,7 +303,7 @@ async def _features(hass: HomeAssistant) -> dict[str, dict[str, Any]]:
 
 
 def _counts(hass: HomeAssistant, entry) -> dict[str, dict[str, Any]]:
-    """What counts, kind by kind: what it finds by itself (`auto`), what it
+    """Status & Chips, kind by kind: what it finds by itself (`auto`), what it
     counts now (`found`), the saved Leave out / Also count (or the house's
     old list turned into them, as Configure offers it), whether anything is
     saved, and the domains Also count may add."""

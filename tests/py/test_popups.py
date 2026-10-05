@@ -79,6 +79,19 @@ async def test_show_popup_reaches_the_screens(hass, frontend):
         await hass.services.async_call(DOMAIN, "show_popup", {"popup": "nope"}, blocking=True)
 
 
+async def test_close_popup_reaches_the_screens(hass, frontend):
+    # the alarm keypad comes down when the alarm clears: no navigation, so a
+    # kiosk that cannot load a URL (Kiosk Satellite) can still be told
+    from custom_components.hk_frontend import ws_events_subscribe
+    screen = FakeConnection(None)
+    ws_events_subscribe(hass, screen, {"id": 9})
+    await hass.services.async_call(DOMAIN, "close_popup", {"popup": "#Alarm", "dashboards": ["/dashboard-loft/"]},
+                                   blocking=True)
+    await hass.async_block_till_done()
+    ev = screen.sent[-1]["event"]
+    assert ev == {"type": "popup_close", "popup": "alarm", "dashboards": ["dashboard-loft"], "users": []}
+
+
 def test_popup_normaliser():
     from custom_components.hk_frontend.settings import popup, slug
     assert slug("Emma’s Room!") == "emmas-room"

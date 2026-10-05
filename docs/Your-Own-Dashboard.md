@@ -85,6 +85,7 @@ hk_screensaver:
   band_photos: false   # ...and over the photos
   calendar: false      # the calendar pane, down the right
   calendar_days: 2     # ...today and tomorrow (1 to 7 days)
+  fade_back: 500       # ms back to the dashboard (0: at once)
   cards:
     - type: custom:hk-clock-card
     - type: custom:hk-weather-strip-card

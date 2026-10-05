@@ -16,9 +16,46 @@ the menu, blurred by its glass.
 **Turning them all off:** the **Seasonal decorations** switch,
 `switch.hk_frontend_seasonal_decorations`, on the HK Frontend device. The same
 switch is **HK Settings → All Screens → Sky / Background → Seasonal Decorations**, and an
-automation can flip it like any switch.
+automation can flip it like any switch. A screen whose own **Sky / Background →
+Decorations** is set to On keeps its decorations while the switch is off; set it
+back to **Same as All Screens** for the switch to reach it.
 
 **Turning one off:** HK Settings → Sky / Background → the decoration → **Show**.
+
+**Old and New Decorations:** **Sky / Background → Decoration Style** chooses
+how they are drawn. **Old Decorations**, the default, is everything on this
+page. **New Decorations** draws close woodland scenery instead -- rooted trees
+either side of the screen with the live sky between them -- for autumn and
+Thanksgiving, Halloween, spring, summer and the Fourth of July, birthdays,
+winter and Christmas, lit by the time of day, the clouds and the moon. On days
+with no holiday or birthday the season's own woodland shows; choose which
+seasons in **Sky / Background → Woodland Between Occasions** — a holiday's
+**Show** decides only the holiday. The other surprises, and the forecast screensaver, keep their usual look. Each
+screen can choose its own style or follow All Screens.
+
+| | |
+|---|---|
+| ![New Decorations: Halloween night, jack-o'-lanterns in the trees under a full moon](images/sky-new-halloween.jpg) | ![New Decorations: Christmas night, snowy trees strung with lights](images/sky-new-christmas.jpg) |
+| Halloween | Christmas |
+| ![New Decorations: the autumn woodland between occasions](images/sky-new-autumn.jpg) | ![New Decorations: a birthday, a pennant banner from tree to tree and balloons](images/sky-new-birthday.jpg) |
+| Autumn, between occasions | A birthday |
+
+New Decorations' scenes come alive with small touches, through the whole scene
+— some pass behind your cards, as they would behind a window frame — sized for
+every screen from a phone to a desk:
+
+| Scene | Touches |
+|---|---|
+| Halloween | Jack-o’-lanterns hung in the trees and on the ground, lit by flickering candles after dark, their light pooling on the leaves; bats every night in twos and threes, one flock across the moon (a swarm on a spooky night, with the witch); an owl’s eyes in the old tree; mist drifting over the moon. |
+| Christmas | The strings of lights twinkle one bulb after another; Santa crosses the moon on Christmas Eve; moonlit snow glints; a real wind blows snow off the branches. |
+| Winter | Glints on moonlit snow, snow blown off the branches in a real wind, and on an occasional clear, dark night the northern lights. |
+| Autumn | Leaves fall with the real wind, and a gust swirls a few across the scene; geese pass now and then by day; a full moon rises warm and orange — a harvest moon — and whitens as the night goes on. |
+| Spring | Petals drift down from the blossoms; when the sun comes out after real rain, a rainbow (summer too). |
+| Summer and the Fourth | Fireflies come out at dusk; the cafe lights breathe along their wire; fireworks on the Fourth. |
+| Birthdays | A pennant banner strung from tree to tree — **HAPPY BIRTHDAY**, then the name from **Birthdays** (on a phone, the name alone) — confetti on the hour, and a big bunch of balloons rising from behind the mossy rock and the presents. |
+
+Everything stops when **Animations** is off, on a reduced-motion device, behind
+the screensaver and on a hidden page.
 
 ## The seasons
 
@@ -133,6 +170,8 @@ changes; your screens keep today’s sky.
 |---|---|---|
 | Sky Switch | None (Always On) | An input boolean or switch. While it is off, no generated screen shows the live sky. A YAML screen names its own. Each screen can also turn its sky off. |
 | Seasonal Decorations | On | Pauses every decoration. The same switch as **Seasonal decorations** on the HK Frontend device. |
+| Decoration Style | Old Decorations | **New Decorations** draws the seasons and holidays as close woodland scenery (above). Each screen can choose its own. |
+| Woodland Between Occasions | All Seasons | With New Decorations, which seasons' woodland — Spring, Summer, Autumn, Winter — shows on days with no holiday or birthday. Separate from each holiday's **Show**. |
 | (each decoration) | On | Opens its page (below). |
 | Advanced | Northern | Opens the Advanced page (below). |
 

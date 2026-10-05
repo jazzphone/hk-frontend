@@ -1,0 +1,13 @@
+{
+  "status": "complete",
+  "finished_at": "2026-10-04T12:56:55-04:00",
+  "clouds": 45,
+  "files": 225,
+  "checks": {
+    "margins_ok": true,
+    "alpha_identical_across_variants": true,
+    "no_halo_rgb_bleed": true,
+    "file_names_ok": true
+  },
+  "problems": []
+}

@@ -10,6 +10,7 @@
 * [The Home page](Home-Page.md)
 * [Rooms](Rooms.md)
 * [Status chips](Status-Chips.md)
+* [Status rows](Status-Rows.md)
 * [Cameras](Cameras.md)
 * [Pages](Pages.md)
 * [Climate](Climate.md)
@@ -30,6 +31,7 @@
 * [Live TV](Live-TV.md)
 * [Clean Areas](Clean-Areas.md)
 * [Alarm PIN](Alarm-PIN.md)
+* [Energy](Energy.md)
 
 **Wall tablets**
 * [Setting up a tablet](Wall-Tablets.md)

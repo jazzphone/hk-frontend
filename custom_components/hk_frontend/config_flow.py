@@ -36,7 +36,7 @@ from . import features as F
 from . import files
 from . import settings as S
 from .const import CONF_FILES_FOLDER, DEFAULT_FILES_FOLDER, DOMAIN
-from .features import alarm_pin, clean_areas, live_tv, music
+from .features import alarm_pin, clean_areas, energy, live_tv, music
 from .features.music.const import SUB_PLAYLIST, SUB_PRESET
 from .features.music.flows import PlaylistFlow, PresetFlow
 
@@ -145,7 +145,7 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
     # settings.rooms_lifted.
     # 9 (2026-10-02): the menu settings too (settings `menu`, menu_custom) --
     # settings.menu_lifted.
-    MINOR_VERSION = 9
+    MINOR_VERSION = 10
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:
@@ -178,8 +178,8 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
 
 class FeatureFlow(music.AddSteps, music.ReconfigureSteps, live_tv.AddSteps, live_tv.ReconfigureSteps,
                   clean_areas.AddSteps, clean_areas.ReconfigureSteps, alarm_pin.AddSteps,
-                  alarm_pin.ReconfigureSteps, ConfigSubentryFlow):
-    """ADD FEATURE: Music, Live TV, Clean Areas or Alarm PIN, as an item of the
+                  alarm_pin.ReconfigureSteps, energy.AddSteps, energy.ReconfigureSteps, ConfigSubentryFlow):
+    """ADD FEATURE: Music, Live TV, Clean Areas, Alarm PIN or Energy, as an item of the
     house's entry (features/__init__.py). The first step is a menu of those
     the house does not have yet (Alarm PIN can protect several alarms, so it
     is always offered); each feature's own steps follow, their ids starting

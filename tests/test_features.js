@@ -95,5 +95,21 @@ ok('Alarm PIN and Clean by Area are found when installed (added or not)',
    s2.some(function (e) { return e.label === 'Change PIN' && e.route === 'features/alarm'; }) &&
    s2.some(function (e) { return e.label === 'Rooms' && e.route === 'features/clean/rooms'; }));
 
+// ------------------------------------------------------------ energy
+var ed = { sections: [{ id: 'rooms', name: 'Rooms', items: ['a', 'b'], link: { path: './ecoflow', text: 'EcoFlow' } },
+                      { id: 'appliances', name: 'Appliances', items: ['c'] }],
+           section_kinds: [['hvac', 'Heating & Cooling'], ['rooms', 'Rooms'], ['charging', 'Charging']] };
+var moved = F._.sectionsAfter(ed, 'a', 'appliances');
+ok('energy: a device moved to another section leaves its old one, links kept',
+   JSON.stringify(moved) === JSON.stringify([{ id: 'rooms', name: 'Rooms', items: ['b'], link: { path: './ecoflow', text: 'EcoFlow' } },
+                                             { id: 'appliances', name: 'Appliances', items: ['c', 'a'] }]), moved);
+var made = F._.sectionsAfter(ed, 'c', 'hvac');
+ok('...to a section the page has not got yet: made, with its name', made[2].id === 'hvac' && made[2].name === 'Heating & Cooling' &&
+   made[2].items[0] === 'c' && made[1].items.length === 0, made);
+ok('...how its power sensor was found, in words', F._.energyFound({ found: 'source' }) === 'Found through its meter’s source' &&
+   /today’s kWh/.test(F._.energyFound({ found: '' })));
+ok('Energy is listed among the features', F.LIST.some(function (x) { return x[0] === 'energy' && x[1] === 'hk_energy'; }) &&
+   F.search({ hk_energy: { installed: true, entries: [] } }).some(function (e) { return e.route === 'features/energy/sections'; }));
+
 print('\n' + (fail ? 'FAIL ' + fail + ' of ' + (pass + fail) : 'ALL ' + pass + ' FEATURES TESTS PASS'));
 if (fail) throw new Error(fail + ' failed');

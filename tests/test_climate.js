@@ -6,7 +6,7 @@ load(HK_ROOT + '/frontend/cards/hk-strategy.js');
 load(HK_ROOT + '/frontend/cards/hk-tile.js');
 var pass = 0, fail = 0;
 function ok(n, c, d) { if (c) { pass++; print('  PASS  ' + n); } else { fail++; print('  FAIL  ' + n + ' ' + JSON.stringify(d)); } }
-var settings = { climate: { status: ['temperature', 'humidity', 'blinds', 'fans'], exclude_areas: [] } };
+var settings = { status_rows: { climate: { status: ['temperature', 'humidity', 'blinds', 'fans'], exclude_areas: [] } } };
 window.hkSettings = { weatherId: function () { return null; }, get: function (path, fallback) {
   var v = settings; path.split('.').forEach(function (k) { v = v && v[k]; });
   return v == null ? fallback : v;
@@ -27,7 +27,7 @@ add('climate.bedroom', 'cool', { current_temperature: 80, current_humidity: 89, 
 add('fan.den', 'on'); add('fan.bedroom', 'off', {}, { device_id: 'bedroom' });
 add('cover.den', 'open', { device_class: 'shade' });
 add('cover.garage', 'open', { device_class: 'garage' });
-settings.climate.exclude_areas = ['outside'];
+settings.status_rows.climate.exclude_areas = ['outside'];
 var sources = window.hkStrategy.climateMembers(h, {});
 ok('related sensors and thermostat fallback, not equipment or outdoor readings',
    sources.temperature.join() === 'climate.bedroom,sensor.den_t', sources);
@@ -43,16 +43,21 @@ h.config.unit_system.temperature = '°F';
 h.states['sensor.den_t'].state = 'unavailable';
 items = window.hkRoom.climateItems(h, {});
 ok('unavailable sensor remains a popup member without affecting the range', items[0].value === '80°' && items[0].ids.length === 2);
-h.states['climate.bedroom'].state = 'unavailable';
-ok('all unavailable has an honest label and remains tappable', window.hkRoom.climateItems(h, {})[0].value === 'Unavailable');
-h.states['climate.bedroom'].state = 'cool'; h.states['sensor.den_t'].state = '26.6666666667';
+// as Home Assistant has it: an unavailable thermostat loses its current_* attributes
+var bedroomAttrs = h.states['climate.bedroom'].attributes;
+h.states['climate.bedroom'] = { entity_id: 'climate.bedroom', state: 'unavailable', attributes: {} };
+items = window.hkRoom.climateItems(h, {});
+ok('all unavailable has an honest label and remains tappable', items[0].value === 'Unavailable' &&
+   items[0].ids.indexOf('climate.bedroom') >= 0, items[0]);
+h.states['climate.bedroom'] = { entity_id: 'climate.bedroom', state: 'cool', attributes: bedroomAttrs };
+h.states['sensor.den_t'].state = '26.6666666667';
 ok('equal rounded endpoints collapse to one reading', window.hkRoom.climateItems(h, {})[0].value === '80°');
 ok('screen entity and device exclusions apply', window.hkStrategy.climateMembers(h, { exclude_entities: ['sensor.den_t'], exclude_devices: ['bedroom'] }).temperature.length === 0);
 settings.kinds = { temperature: ['sensor.den_t'], humidity: ['sensor.den_h'], fans: ['fan.den'], blinds: [] };
-ok('server What counts lists are authoritative', window.hkRoom.climateItems(h, {}).map(function (x) { return x.kind; }).join() === 'temperature,humidity,fans');
-settings.climate.status = [];
+ok('server Status & Chips lists are authoritative', window.hkRoom.climateItems(h, {}).map(function (x) { return x.kind; }).join() === 'temperature,humidity,fans');
+settings.status_rows.climate.status = [];
 ok('an explicitly empty status list hides the whole row', window.hkRoom.climateItems(h, {}).length === 0);
-settings.climate.status = ['temperature', 'humidity', 'blinds', 'fans'];
+settings.status_rows.climate.status = ['temperature', 'humidity', 'blinds', 'fans'];
 var opened;
 window.hkDetail = { openGroup: function (title, ids, opts) { opened = { title: title, ids: ids, opts: opts }; } };
 var Card = customElements.get('hk-climate-status-card'), card = new Card();

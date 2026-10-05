@@ -194,6 +194,35 @@ witchChecks('phone 390x844: ', 390, 844);
         r.elev === 12 && r.cond === 'rainy' && r.wet.kind !== 'none');
 })();
 
+// ...and it works with Decorations switched OFF -- choosing what to switch on
+// is its point. read() empties the season when Decorations is off and the PIN
+// puts it back; paint()'s spooky moon also tests s.decorations, so the PIN has
+// to carry that too, or Spooky Night previews the ordinary 58px moon.
+(function () {
+  var K = window.hkSky, nodes = {};
+  function node() {
+    var n = stub(), values = {}, classes = {};
+    n.style.setProperty = function (k, v) { values[k] = v; };
+    n.style.getPropertyValue = function (k) { return values[k] || ''; };
+    n.classList = { contains: function (k) { return !!classes[k]; },
+      toggle: function (k, on) { classes[k] = on; }, add: function (k) { classes[k] = true; } };
+    n.classes = classes;
+    return n;
+  }
+  var el = node(); el.clientWidth = 1280; el.clientHeight = 800;
+  // no .season box: this is about the moon, which paint() places first
+  el.querySelector = function (sel) { return sel === '.season' ? null : (nodes[sel] || (nodes[sel] = node())); };
+  HS._apply({ configured: true, sky: { decorations: false } });
+  K.preview('halloween', 'spooky');
+  var r = K._read({ states: { 'sun.sun': { state: 'above_horizon', attributes: { elevation: 12, azimuth: 100 } } } });
+  K._paint(el, r);
+  check('preview with Decorations off: Spooky Night still shows the spooky moon',
+        r.decorations === true && el.style.getPropertyValue('--moonS') !== '58px' &&
+        el.style.getPropertyValue('--moonI').indexOf('moon-hallow') >= 0 && nodes['.moon'].classes.hallow === true);
+  K.preview(null);
+  HS._apply({ configured: true });
+})();
+
 // THE FORECAST SCREENSAVER'S LAND (hkSky.scene): which landscape, by the
 // month and hemisphere, the snow, and the sun
 (function () {

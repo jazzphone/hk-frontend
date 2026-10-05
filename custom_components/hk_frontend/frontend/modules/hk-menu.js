@@ -28,8 +28,12 @@
 //   chip_scroll / chip_home -- the chip, and the tab slides in while the
 //           chip is scrolled out of sight (chip_home: the tab outright on
 //           every page but Home). See "the scrolled tab" below.
+//   none -- no button at all (only with the swipe on; hk-base.js falls back
+//           to Automatic, or the chip on narrow screens, without it).
 // And the clock itself opens the menu when "Tapping the clock opens the menu"
-// is on (hk-header-card). Under 1,024 px (TAB_MIN in hk-base.js), and while
+// is on (hk-header-card); and with Swipe from Left Edge on, a drag right from
+// the dashboard's left edge pulls it out, at every width, alongside whatever
+// button there is (see "the edge swipe" below). Under 1,024 px (TAB_MIN in hk-base.js), and while
 // an always-open menu is folded, the screen's "On Narrow Screens" choice
 // decides: the round button (the default -- a phone's margin has
 // little room for a tab), the chip then the tab once scrolled past, or the
@@ -561,6 +565,18 @@
       '.root.fabbed .fab{display:flex}',
       '.root.open .fab{display:none}',
       '.fab ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
+      // THE EDGE SWIPE'S STRIP (wireEdge): the page's left margin, invisible,
+      // under the tab (the clip paints after it). touch-action pan-y: a drag
+      // up or down still scrolls the page, but a sideways one is ours -- no
+      // browser takes it for a back swipe or a scroll, and no tile under it
+      // takes the touch.
+      // Below Home Assistant's toolbar while it shows: its menu button is there.
+      '.edge{position:fixed;left:var(--l,0px);top:var(--edge-t,0px);bottom:0;width:var(--edge-w,20px);',
+      '  display:none;touch-action:pan-y;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}',
+      '.root.swipe .edge{display:block}',
+      '.root.open .edge,.root.docked .edge{display:none}',
+      // following the finger: no easing while it drags
+      '.root.dragging .panel,.root.dragging .scrim{transition:none}',
       '@media (prefers-reduced-motion:reduce){.panel,.scrim,.sh svg,.row.more svg,.root.tabscroll .tab{transition:none}}'
     ].join('\n');
 
@@ -592,7 +608,7 @@
       var sr = S.host.attachShadow({ mode: 'open' });
       sr.innerHTML = '<style>' + CSS + '</style>' +
         '<div class="root" part="root">' +
-          '<div class="scrim"></div>' +
+          '<div class="scrim"></div><div class="edge" aria-hidden="true"></div>' +
           '<div class="clip"><nav class="panel" aria-label="Menu" aria-hidden="true">' +
             '<div class="mat"></div>' +
             '<div class="now" hidden><div class="tm"><span class="t"></span><span class="ap"></span></div>' +
@@ -606,6 +622,7 @@
       S.root = sr.querySelector('.root');
       S.panel = sr.querySelector('.panel');
       S.list = sr.querySelector('.list');
+      S.scrim = sr.querySelector('.scrim');
       S.now = sr.querySelector('.now');
       S.rule = sr.querySelector('.rule');
       [sr.querySelector('.now .wx'), sr.querySelector('.now .c')].forEach(function (el) {
@@ -614,7 +631,12 @@
       S.tab = sr.querySelector('.tab');
       S.fab = sr.querySelector('.fab');
       sr.querySelector('.scrim').addEventListener('click', function () { close(); });
-      S.tab.addEventListener('click', function (e) { e.stopPropagation(); toggle(); });
+      S.tab.addEventListener('click', function (e) {
+        e.stopPropagation();
+        // a swipe that started on the tab and opened the menu is not a tap
+        if (Date.now() - (S.pulled || 0) < 500) return;
+        toggle(!e.detail);                 // detail 0: pressed with a key, not tapped
+      });
       S.fab.addEventListener('click', function (e) { e.stopPropagation(); open(); });
       S.list.addEventListener('click', onList);
       // Anything done INSIDE the menu is activity: it keeps it open.
@@ -622,6 +644,15 @@
         S.panel.addEventListener(t, armIdle, { passive: true });
       });
       wireSwipe();
+      S.edge = sr.querySelector('.edge');
+      // TOUCH ADJUSTMENT: Chrome moves a finger's touch onto the nearest
+      // element that answers a tap, and pointer listeners alone do not make
+      // one -- measured, a touch 3 px from the edge went to the tile 13 px
+      // away, or to <html>, about half the time. A click listener does (and
+      // does nothing: a tap that lands here passes on as it would).
+      S.edge.addEventListener('click', function () {});
+      wireEdge(S.edge);
+      wireEdge(S.tab);
       r.appendChild(S.host);
       return true;
     }
@@ -640,11 +671,15 @@
       S.root.style.setProperty('--l', l + 'px');
       S.root.style.setProperty('--t', t + 'px');
       S.root.style.setProperty('--h', h + 'px');
+      S.root.style.setProperty('--edge-w', edgeWidth(r ? r.width : (window.innerWidth || 0)) + 'px');
       // THE TAB, centered on the date line (hk-header-card publishes it per
       // dashboard, from the top of the page); without one yet, where the Home
       // header's date sits on a wall tablet. The tab lives in the panel, whose
       // top is the dashboard's -- the page starts lower when HA's toolbar shows.
       var top = M.viewTop();
+      // the toolbar's height: the page's top at rest, less the panel's
+      var bar = r ? Math.max(0, top - (r.top + (window.scrollY || 0))) : 0;
+      S.root.style.setProperty('--edge-t', (t + bar) + 'px');
       var ts = tabSize();
       S.root.style.setProperty('--tab-w', ts[0] + 'px');
       S.root.style.setProperty('--tab-h', ts[1] + 'px');
@@ -720,6 +755,7 @@
     function sync() {
       var on = M.on();
       watchPanel();
+      guardDrawer();
       if (!on) {
         if (S.open) close(true);
         undock();
@@ -748,6 +784,8 @@
       // a phone's Home with no chip to hold the button
       else if (style === 'chip' && narrow() && home && !homeHasChip()) cls.push('fabbed');
       if (S.open && !dock) cls.push('open');
+      if (swipeOn()) cls.push('swipe');
+      if (S.drag && S.drag.live) cls.push('dragging');
       S.root.className = cls.join(' ');
       S.panel.setAttribute('aria-hidden', (S.open || dock) ? 'false' : 'true');
       S.tab.setAttribute('aria-expanded', S.open ? 'true' : 'false');
@@ -1218,14 +1256,22 @@
         S.list.scrollTop = here.offsetTop - S.list.clientHeight / 2 + 22;
       }
     }
-    function close(quiet) {
+    // byKey: closed from the keyboard (Escape, or the tab pressed with a key),
+    // which alone takes the focus back to the tab -- where a keyboard user
+    // was. A tap never does: the tab would hold the focus with no one
+    // looking, and the Home Assistant app's web view draws the focus ring
+    // round it now and then (a white stroke, 2026-10-04). Focus a tap left
+    // on the tab is let go of too.
+    function close(quiet, byKey) {
       if (!S.open) return;
       S.open = false;
       clearTimeout(S.idle);
       sync();
-      if (!quiet && S.tab && S.root.classList.contains('tabbed')) S.tab.focus({ preventScroll: true });
+      if (!S.tab) return;
+      if (byKey && !quiet && S.root.classList.contains('tabbed')) S.tab.focus({ preventScroll: true });
+      else if (S.host && S.host.shadowRoot && S.host.shadowRoot.activeElement === S.tab) S.tab.blur();
     }
-    function toggle() { if (S.open) close(); else open(); }
+    function toggle(byKey) { if (S.open) close(false, byKey); else open(); }
     function armIdle() {
       clearTimeout(S.idle);
       if (S.open) S.idle = setTimeout(function () { close(true); }, IDLE_MS);
@@ -1249,6 +1295,222 @@
       ['pointerup', 'pointercancel'].forEach(function (t) {
         S.panel.addEventListener(t, function () { g = null; }, { passive: true });
       });
+    }
+
+    // ------------------------------------------------ the edge swipe
+    // SWIPE FROM THE LEFT EDGE (the screen's Swipe from Left Edge, hk-base.js
+    // menu.swipe()), the iPad gesture the other way: a drag that starts in
+    // the page's left margin -- the strip (.edge) -- or on the edge tab, and
+    // travels right more than it travels down, pulls the menu out under the
+    // finger, as the Home app's sidebar and Android's drawer do; let go past
+    // a third of it, or flicked, and it opens, otherwise it slides back. Any
+    // width, any button style (No Button relies on it).
+    //
+    // A strip of its own, not a listener on the page: its touch-action keeps
+    // the sideways drag from the browser (no back swipe, no scroll, the
+    // events keep coming), and the tiles never see a touch that was a swipe.
+    // As wide as the page's margin -- 2% + 4 px, 16 px on a phone -- so it
+    // covers nothing that can be tapped; it sits under the pop-ups and
+    // sheets (the root's z-index), which cover it while they are up.
+    var EDGE_MIN = 14, EDGE_MAX = 24;
+    function edgeWidth(pw) {
+      if ((window.innerWidth || 1280) < M.NARROW) return 16;
+      return Math.round(Math.max(EDGE_MIN, Math.min(EDGE_MAX, 0.02 * pw + 4)));
+    }
+    function swipeOn() { return typeof M.swipe === 'function' && !!M.swipe(); }
+    // A FINGER IS FOLLOWED BY ITS TOUCH EVENTS, never by pointer capture.
+    // On an iPhone (the Home Assistant app, 2026-10-04) a captured touch was
+    // never let go: the lift did not reach the strip, WebKit kept every later
+    // touch on it -- hidden or not -- and nothing on the page could be tapped
+    // again (the menu's rows, the scrim, then the whole dashboard) until a
+    // reload, while scrolling, which is the browser's own, still went to the
+    // page. A touch's events go to where it started without any capture, and
+    // always end in touchend or touchcancel. A mouse (or pen) uses pointer
+    // events and the capture, which ends with its button.
+    function wireEdge(el) {
+      el.addEventListener('touchstart', function (e) {
+        if (S.drag) finishDrag();          // one that never heard its end: settle it first
+        if (e.touches.length !== 1) return;
+        var t = e.changedTouches[0];
+        startDrag(el, t.clientX, t.clientY, 't' + t.identifier);
+      }, { passive: true });
+      // THE PAGE HOLDS STILL UNDER A SWIPE: touch-action pan-y lets the
+      // browser scroll the up-and-down part of any drag, and a thumb's arc
+      // (about 40 degrees) scrolled the page some hundreds of px behind the
+      // opening menu. A finger that has gone more across than up or down,
+      // from its first move, keeps the page still; one that goes more up or
+      // down is the page's scroll, as ever. Only touches that start here
+      // (16-24 px of margin) are held -- this listener is the strip's own.
+      el.addEventListener('touchmove', function (e) {
+        var g = S.drag, t = g && ours(e.changedTouches);
+        if (!t) return;
+        if (g.live || t.clientX - g.x > Math.abs(t.clientY - g.y)) e.preventDefault();
+      }, { passive: false });
+      el.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'touch') return;     // the touch events above have it
+        if (S.drag) finishDrag();
+        if (e.button !== 0) return;
+        if (startDrag(el, e.clientX, e.clientY, e.pointerId)) {
+          try { el.setPointerCapture(e.pointerId); } catch (x) { /* already gone */ }
+          S.drag.captured = true;
+        }
+      });
+    }
+    function startDrag(el, x, y, id) {
+      if (S.open || docked() || !swipeOn()) return false;
+      // the tab answers a tap on its own (and the panel's swipe closes it)
+      S.drag = { x: x, y: y, id: id, el: el, live: false, w: W, dx: 0, trail: [] };
+      S.edgeAt = Date.now();
+      follow(true);
+      return true;
+    }
+    // The rest of the gesture, heard at the document, and ended by any of
+    // its ends: the finger lifted or cancelled, the mouse button up, a new
+    // touch or press anywhere, or a drag gone quiet (DRAG_IDLE).
+    var DRAG_IDLE = 4000;
+    var DRAG_EVENTS = { touchstart: onTouchOther, touchmove: onTouchMove, touchend: onTouchEnd, touchcancel: onTouchEnd,
+                        pointermove: onPointerMove, pointerup: onPointerEnd, pointercancel: onPointerEnd,
+                        pointerdown: onPointerOther };
+    function follow(on) {
+      Object.keys(DRAG_EVENTS).forEach(function (t) {
+        if (on) document.addEventListener(t, DRAG_EVENTS[t], { capture: true, passive: true });
+        else document.removeEventListener(t, DRAG_EVENTS[t], { capture: true, passive: true });
+      });
+      quiet(on);
+    }
+    function quiet(on) {
+      clearTimeout(S.dragIdle);
+      if (on) S.dragIdle = setTimeout(function () { finishDrag(); }, DRAG_IDLE);
+    }
+    function ours(list) {
+      for (var i = 0; list && i < list.length; i++) if ('t' + list[i].identifier === S.drag.id) return list[i];
+      return null;
+    }
+    function onTouchMove(e) {
+      var t = S.drag && ours(e.changedTouches);
+      if (t) dragTo(t.clientX, t.clientY);
+    }
+    function onTouchOther(e) { if (S.drag && !ours(e.changedTouches)) finishDrag(); }
+    function onTouchEnd(e) {
+      if (!S.drag) return;
+      if (ours(e.changedTouches) || !(e.touches && e.touches.length)) finishDrag();
+    }
+    function onPointerMove(e) { if (S.drag && e.pointerId === S.drag.id) dragTo(e.clientX, e.clientY); }
+    function onPointerEnd(e) { if (S.drag && e.pointerId === S.drag.id) finishDrag(); }
+    // a press elsewhere (a mouse's, or a touch the drag is not following)
+    function onPointerOther(e) {
+      if (S.drag && e.pointerId !== S.drag.id && !(e.pointerType === 'touch' && String(S.drag.id).charAt(0) === 't')) finishDrag();
+    }
+    // WHAT COUNTS AS A SWIPE, AND AS A FLICK (2026-10-04, "it doesn't always
+    // trigger"):
+    //   the start -- right at least SWIPE_SLOPE times as far as up or down
+    //     (about 40 degrees: a thumb swings in an arc; it was 1.5, 34
+    //     degrees). One that goes more up or down than across, past 12 px,
+    //     is the page's scroll.
+    //   the flick -- its speed over the last FLICK_MS of the finger, as the
+    //     Home app's and Android's drawers measure it: a finger slows just
+    //     before it lifts, and the last move alone made a quick swipe read as
+    //     a slow one, so the panel slid back. A finger that stopped before
+    //     lifting has no speed. FLICK_V and at least FLICK_MIN px open it.
+    var SWIPE_SLOPE = 1.2, FLICK_MS = 100, FLICK_V = 0.3, FLICK_MIN = 24;
+    function dragTo(cx, cy) {
+      var g = S.drag;
+      quiet(true);
+      var dx = cx - g.x, dy = cy - g.y;
+      if (!g.live) {
+        if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { endDrag(false); return; }
+        if (dx < 10 || dx < SWIPE_SLOPE * Math.abs(dy)) return;
+        // it is a swipe: the list is made ready as the panel comes out
+        if (listKey() !== S.built) build();
+        markHere();
+        g.live = true;
+        g.w = (S.panel.getBoundingClientRect().width) || W;
+        S.root.classList.add('dragging');
+        S.panel.setAttribute('aria-hidden', 'false');
+      }
+      var d = Math.max(0, Math.min(g.w, dx - 10));
+      g.dx = d;
+      g.trail.push({ t: Date.now(), d: d });
+      if (g.trail.length > 8) g.trail.shift();
+      S.panel.style.transform = 'translateX(' + (d - g.w) + 'px)';
+      S.scrim.style.opacity = String(d / g.w);
+    }
+    // px/ms rightward over the finger's last FLICK_MS (and the move before,
+    // where moves come further apart); 0 once it has stood still that long
+    function flickSpeed(g) {
+      var tr = g.trail, n = tr.length, last = tr[n - 1];
+      if (n < 2 || Date.now() - last.t > FLICK_MS) return 0;
+      var i = n - 1;
+      while (i > 0 && last.t - tr[i - 1].t <= FLICK_MS) i--;
+      if (i === n - 1) i = n - 2;
+      return (last.d - tr[i].d) / Math.max(16, last.t - tr[i].t);
+    }
+    // where it was left decides: past a third, or flicked, it opens
+    function finishDrag() {
+      var g = S.drag;
+      endDrag(!!g && g.live && (g.dx > g.w / 3 || (g.dx >= FLICK_MIN && flickSpeed(g) > FLICK_V)));
+    }
+    // Let go: open from where the finger left it, or slide back. The classes
+    // change first (sync drops `dragging`, open adds `open`), then the inline
+    // drag styles go, so the panel's own transition carries it the rest of
+    // the way either way.
+    function endDrag(opens) {
+      var g = S.drag;
+      S.drag = null;
+      follow(false);
+      if (!g) return;
+      S.edgeAt = Date.now();
+      if (g.captured) { try { g.el.releasePointerCapture(g.id); } catch (x) { /* already released */ } }
+      if (!g.live) return;
+      S.pulled = Date.now();
+      if (opens) open(); else sync();
+      S.panel.style.transform = '';
+      S.scrim.style.opacity = '';
+    }
+
+    // ------------------------------------- Home Assistant's hidden drawer
+    // THE HOME ASSISTANT APP HAS A LEFT-EDGE SWIPE OF ITS OWN (its Gestures:
+    // Swipe Right, "Show Sidebar" by default), and it sends the page
+    // `sidebar/show`. Where Home Assistant's sidebar is hidden (kiosk mode,
+    // HK's or the plugin's) that opens its drawer all the same: a modal no
+    // one can see, and the whole page goes inert under it -- measured, a tap
+    // mid-screen lands on <html class="wa-scroll-lock"> -- until a reload.
+    // On an iPhone it came with every Swipe from Left Edge (2026-10-04).
+    //
+    // So a drawer that opens while the sidebar is hidden, and not for the
+    // menu's own Show Menu (HA.active), is closed again at once: the screen
+    // keeps its sidebar hidden, as it chose. If it came with the edge swipe,
+    // the screen says once (per session) what to change in the app; the app
+    // tells the page nothing of its gestures, so this is when it can know.
+    var GUARD = { drawer: null, mo: null };
+    var TOLD_KEY = 'hk-app-swipe-told';
+    function guardDrawer() {
+      if (!window.MutationObserver) return;
+      var p = haParts();
+      if (!p.drawer || GUARD.drawer === p.drawer) return;
+      if (GUARD.mo) GUARD.mo.disconnect();
+      GUARD.drawer = p.drawer;
+      GUARD.mo = new MutationObserver(function () { if (p.drawer.open) unseenDrawer(); });
+      GUARD.mo.observe(p.drawer, { attributes: true, attributeFilter: ['open'] });
+    }
+    function unseenDrawer() {
+      if (HA.active) return;
+      var p = haParts();
+      if (!p.drawer || !p.sidebar) return;
+      var hidden;
+      try { hidden = getComputedStyle(p.sidebar).display === 'none' || p.sidebar.getBoundingClientRect().width === 0; }
+      catch (e) { return; }
+      if (!hidden) return;
+      p.drawer.open = false;
+      if (S.drag || Date.now() - (S.edgeAt || 0) < 2500) tellAppSwipe();
+    }
+    function tellAppSwipe() {
+      try { if (sessionStorage.getItem(TOLD_KEY)) return; sessionStorage.setItem(TOLD_KEY, '1'); } catch (e) { /* private */ }
+      var ha = document.querySelector('home-assistant');
+      if (!ha) return;
+      ha.dispatchEvent(new CustomEvent('hass-notification', { bubbles: true, composed: true, detail: {
+        message: 'The Home Assistant app’s own swipe opens its sidebar too. In the app, set Settings → ' +
+                 'Companion App → Gestures → Swipe Right to None.', duration: 12000 } }));
     }
 
     // DOCKED (Menu: "Always open beside the page"): the panel stays beside
@@ -1275,7 +1537,7 @@
     window.addEventListener('popstate', onNav);
     window.addEventListener('hashchange', function () { if (S.open) close(true); });
     window.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && S.open) { e.stopPropagation(); close(); }
+      if (e.key === 'Escape' && S.open) { e.stopPropagation(); close(false, true); }
     });
     document.addEventListener('visibilitychange', function () { if (document.hidden && S.open) close(true); });
     window.addEventListener('resize', function () { sync(); });

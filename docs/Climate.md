@@ -19,9 +19,10 @@ The row uses the same summaries as a room page, across the included rooms:
 | Blinds | How many blinds participate, and whether they are open, closed or a mixture. |
 | Fans | How many fans participate, and whether they are on, off or a mixture. |
 
-A kind with no sources does not show. Turn individual summaries on or off in
-**HK Settings → All Screens → Climate Status**. Turning all four off hides
-the row.
+A kind with no sources does not show. Choose the summaries and their order
+in **HK Settings → All Screens → Status Rows → Climate**. Turning all four off
+hides the row. The Lights, Doors & Windows, Water and Security pages have rows
+of their own ([Status rows](Status-Rows.md)).
 
 ## Tap for the accessory list
 
@@ -34,7 +35,8 @@ list.
 Tap a pill to open that accessory’s controls or sensor details. **Back to
 Temperature** (or the category you opened), closing the accessory sheet, or
 browser Back returns to the category list. Closing the category returns to
-Climate. Escape and the backdrop also dismiss a sheet.
+Climate. Escape and the backdrop also dismiss a sheet. Left alone, an accessory
+opened from a category closes together with the category.
 
 The summary and its open list update as readings and membership change. An
 unavailable reading stays in the list, labelled **Unavailable**, and does not
@@ -51,26 +53,29 @@ reading is used instead. Target temperatures are never range readings.
 Unrelated equipment and diagnostic sensors are not pulled in just because
 they report temperature or humidity.
 
-To adjust individual sources, open **HK Settings → All Screens → What Counts
+To adjust individual sources, open **HK Settings → All Screens → Status & Chips
 → Temperature** or **Humidity**. **Leave Out…** removes a source; **Also
 Count…** adds a compatible source. Exclusions win if a source is in both
 lists. **Reset to Automatic…** restores automatic discovery.
 
-Fans and blinds follow the existing **What Counts → Fans / Blinds** lists,
+Fans and blinds follow the existing **Status & Chips → Fans / Blinds** lists,
 including any switches explicitly counted as fans. Generated-screen
 accessory exclusions still apply.
 
 To leave an entire area out of the Climate summaries, uncheck it in
-**All Screens → Climate Status**. This is useful for outdoor areas, an attic
+**All Screens → Status Rows → Climate → Rooms**. This is useful for outdoor areas, an attic
 or equipment spaces. It affects the Climate summary row and its lists; it
 does not hide that area’s accessories from the rest of the dashboard.
 
 ## Thermostat layout
 
-On wide pages the thermostat section grows to put two dials side by side.
-On narrower pages the dials stack. On a phone the room accessories and
-thermostat section also stack, with no horizontal page overflow.
-The Thermostats heading stays aligned with the first dial at every width.
+The rooms take only the width their busiest room needs — two to four pills
+across — and the thermostats sit right beside them, as many dials across as
+fit, with any spare width at the right as on every other page. On narrower
+pages the rooms give way first and the dials stack. On a phone the room
+accessories and thermostat section also stack, with no horizontal page
+overflow. The Thermostats heading stays aligned with the first dial at every
+width.
 
 ![The Climate page at tablet width, with stacked thermostats](images/tablet-climate.jpg)
 

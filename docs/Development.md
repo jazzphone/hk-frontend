@@ -17,7 +17,7 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ settings_api.py      the HK Settings page's writes, checked as Configure checks them
 ├─ panel.py             the HK Settings page: registration and its read commands
 ├─ accessories.py       per-accessory settings (name, room, icon, where it shows)
-├─ kinds.py             What Counts: which entities each status chip counts
+├─ kinds.py             Status & Chips: which entities each status chip counts
 ├─ files.py             your files folder, served under /hk/ ahead of the bundle
 ├─ resources.py         adds the card files as Lovelace resources (storage mode)
 ├─ setup_check.py       Setup Check, and the Repairs issues
@@ -139,6 +139,8 @@ Home Assistant’s own test harness. Each feature has its own
 
 | Tool | What it does |
 |---|---|
+| `tools/sky/cloud_art.py` | Converts the realistic clouds (`tools/sky/src/clouds/`, Codex's cut-outs to `CODEX-BRIEF-v1.md`; the 236 MB of sources are not in git) to half-size WebP in `frontend/sky/clouds/`, and measures `manifest.json` — each cloud's size, base, bounds, mean alpha and each lighting's luminance, which `hk-sky.js` reads. `--check` holds them to the sources. |
+| `tools/sky/near_webp.py` | Converts New Decorations' woodland art (`tools/sky/src/near/`) to WebP, and cuts the lighting art — lanterns, lit pumpkins, lit bulbs — and the birthday’s rock and presents (drawn over its balloons) into small patches with their places in `manifest.json`. `--check` holds the WebP to the sources and `hk-sky.js`’s `NEAR_LIGHT` and `NEAR_PATCHES` to the manifest. |
 | `tools/sky/gen_sky.py` | Generates the live sky’s noise textures (clouds, stars, rain, snow, grain) in pure Python, no libraries, into `frontend/sky/`. Run it after changing a texture’s parameters; it prints each texture’s measured mean alpha, which `hk-sky.js` uses to keep the sky under its brightness cap. The decoration art’s source images are in `tools/sky/src/`. |
 | `tools/sf_symbols/build_glyphs.py` | Builds a user’s `hk-glyphs.js` from the SF Symbols app, on a Mac (see its README). `manifest.json` maps every `hk:` glyph to the symbol it is drawn from; `--check <file>` compares a build with an existing file. |
 | `tools/font/make_woff2.py` | Turns Apple’s variable `SF-Pro.ttf` into a woff2 about a third of the size (see its README). |

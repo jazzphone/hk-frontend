@@ -22,7 +22,7 @@
     lights: 'Lights', blinds: 'Blinds', timers: 'Timers', vacuums: 'Vacuums', speakers: 'Speakers',
     water: 'Water', energy: 'Energy'
   };
-  // What each chip counts, and where that is set: What Counts kinds, or a
+  // What each chip counts, and where that is set: Status & Chips kinds, or a
   // single setting (General, Weather).
   var CHIP_SOURCES = {
     weather_alert: { setting: ['house/weather/sensors', 'Weather Alerts Sensor'] },
@@ -36,38 +36,59 @@
   var PAGE_LABELS = {
     weather: 'Weather', calendar: 'Calendar', cameras: 'Cameras', live_tv: 'Live TV', security: 'Security',
     doors_windows: 'Doors & Windows', climate: 'Climate', lights: 'Lights', timers: 'Timers',
-    vacuums: 'Vacuums', music: 'Play Music', browse: 'Browse Music', water: 'Water', rooms: 'Room Pages'
+    vacuums: 'Vacuums', music: 'Play Music', browse: 'Browse Music', water: 'Water', energy: 'Energy', rooms: 'Room Pages'
   };
+  // Each kind: key, name, the detail page’s description, and the list page’s
+  // sub-line -- what the kind feeds, in the chips’ and pages’ own words.
   var COUNT_KINDS = [
-    ['temperature', 'Temperature', 'Room-related temperature sensors, or a thermostat’s current reading where a room has no related sensor. Other sensors can be added explicitly.'],
-    ['humidity', 'Humidity', 'Room-related humidity sensors, or a thermostat’s current humidity where a room has no related sensor. Other sensors can be added explicitly.'],
-    ['lights', 'Lights', 'Every light. The Lights chip counts the ones that are on.'],
-    ['fans', 'Fans', 'Every fan. The Climate chip counts the ones that are on.'],
-    ['doors', 'Doors', 'Door contacts. The Doors & Windows chip counts the open ones.'],
-    ['windows', 'Windows', 'Window contacts.'],
-    ['garage', 'Garage Doors', 'Garage doors and gates: the cover, or a garage-door contact.'],
-    ['locks', 'Locks', 'Every lock. The Security chip counts the unlocked ones.'],
-    ['blinds', 'Blinds', 'Blinds, shades, curtains, shutters and awnings. The Blinds chip counts the open ones.'],
-    ['leaks', 'Leak Sensors', 'Moisture sensors. The Water chip appears when one is wet.'],
-    ['thermostats', 'Thermostats', 'The house’s thermostats. The Climate chip’s glyph follows them.'],
-    ['timers', 'Timers', 'Timer helpers. The Timers chip counts the running ones.'],
-    ['vacuums', 'Vacuums', 'Robot vacuums. The Vacuums chip counts the ones cleaning.'],
-    ['speakers', 'Speakers', 'Media players that aren’t TVs or receivers (or Music’s rooms, when it’s added).']
+    ['smoke', 'Smoke & CO', 'Smoke and carbon monoxide alarms. When one goes off, the Smoke & CO chip appears in red at the start of every screen’s chip row — whatever chips the screen shows. Anything else that should set it off — a gas detector, say — can be added explicitly.', 'The Smoke & CO chip appears first, in red, when one goes off.'],
+    ['temperature', 'Temperature', 'Room-related temperature sensors, or a thermostat’s current reading where a room has no related sensor. Other sensors can be added explicitly.', 'The Climate page’s temperature range.'],
+    ['humidity', 'Humidity', 'Room-related humidity sensors, or a thermostat’s current humidity where a room has no related sensor. Other sensors can be added explicitly.', 'The Climate page’s humidity range.'],
+    ['lights', 'Lights', 'Every light. The Lights chip counts the ones that are on.', 'The Lights chip counts the ones that are on.'],
+    ['fans', 'Fans', 'Every fan. The Climate chip counts the ones that are on.', 'The Climate chip counts the ones that are on.'],
+    ['doors', 'Doors', 'Door contacts. The Doors & Windows chip counts the open ones.', 'The Doors & Windows chip counts the open ones.'],
+    ['windows', 'Windows', 'Window contacts. The Doors & Windows chip counts the open ones.', 'The Doors & Windows chip counts the open ones.'],
+    ['garage', 'Garage Doors', 'Garage doors and gates: the cover, or a garage-door contact. The Doors & Windows chip counts the open ones.', 'The Doors & Windows chip counts the open ones.'],
+    ['locks', 'Locks', 'Every lock. The Security chip counts the unlocked ones.', 'The Security chip counts the unlocked ones.'],
+    ['blinds', 'Blinds', 'Blinds, shades, curtains, shutters and awnings. The Blinds chip counts the open ones.', 'The Blinds chip counts the open ones.'],
+    ['leaks', 'Leak Sensors', 'Moisture sensors. The Water chip appears when one is wet.', 'The Water chip appears when one is wet.'],
+    ['thermostats', 'Thermostats', 'The house’s thermostats. The Climate chip’s glyph follows them.', 'The Climate chip’s glyph follows them.'],
+    ['timers', 'Timers', 'Timer helpers. The Timers chip counts the running ones.', 'The Timers chip counts the running ones.'],
+    ['vacuums', 'Vacuums', 'Robot vacuums. The Vacuums chip counts the ones cleaning.', 'The Vacuums chip counts the ones cleaning.'],
+    ['speakers', 'Speakers', 'Media players that aren’t TVs or receivers (or Music’s rooms, when it’s added). The Speakers chip counts the ones playing.', 'The Speakers chip counts the ones playing.'],
+    ['motion', 'Motion', 'Motion sensors. The status rows of Doors & Windows and Security say which rooms have motion.', 'Doors & Windows’ and Security’s status rows.'],
+    ['occupancy', 'Occupancy', 'Occupancy and presence sensors. The status rows say which rooms are occupied.', 'Doors & Windows’ and Security’s status rows.'],
+    ['valves', 'Valves', 'Water valves: a sprinkler, the house’s main water. Not gas valves. The Water page lists them and its status row says which are running.', 'The Water page and its status row.']
   ];
   var MENU_STYLES = [
     ['auto', 'Automatic', 'The chip when Home has a menu button; otherwise the edge tab.'],
     ['chip', 'Chip', 'A round button at the start of the chip row.'],
     ['chip_scroll', 'Chip, Then Tab', 'The chip; the edge tab slides in while the chip is scrolled out of sight.'],
     ['chip_home', 'Chip on Home, Tab Elsewhere', 'The chip on Home, and the edge tab on every other page.'],
-    ['tab', 'Edge Tab', 'A slim tab on the left edge, level with the date.']
+    ['tab', 'Edge Tab', 'A slim tab on the left edge, level with the date.'],
+    ['none', 'No Button', 'Nothing on the page: swipe from the left edge to open the menu.']
   ];
   // ON NARROW SCREENS / WHEN FOLDED: below 1,024 px, and while
   // an always-open menu is folded
   var NARROW = [
     ['chip', 'Chip', 'A round button at the start of the chip row.'],
     ['chip_scroll', 'Chip, Then Tab', 'The chip; the edge tab slides in once the chip scrolls out of sight.'],
-    ['tab', 'Edge Tab', 'A slim tab on the left edge. On a phone it sits over the page’s margin.']
+    ['tab', 'Edge Tab', 'A slim tab on the left edge. On a phone it sits over the page’s margin.'],
+    ['none', 'No Button', 'Nothing on the page: swipe from the left edge to open the menu.']
   ];
+  // NO BUTTON needs the swipe (hk-base.js falls back without it): offered
+  // only while Swipe from Left Edge is on, or while it is the choice already
+  function stylesFor(list, swipe, cur) {
+    return list.filter(function (s) { return s[0] !== 'none' || swipe || cur === 'none'; });
+  }
+  // Turning the swipe off: a No Button choice goes back to the default with
+  // it, so the screen keeps a way in
+  function swipeChanges(on, v) {
+    var ch = { swipe: !!on };
+    if (!on && v.menu === 'none') ch.menu = 'auto';
+    if (!on && v.narrow === 'none') ch.narrow = 'chip';
+    return ch;
+  }
   function narrowLabel(v) {
     for (var i = 0; i < NARROW.length; i++) if (NARROW[i][0] === (v || 'chip')) return NARROW[i][1];
     return 'Chip';
@@ -85,13 +106,51 @@
     personal: ['Phone or iPad', 'Menu behind a button, time and weather in the header.'],
     computer: ['Computer', 'Menu open beside the page.'],
     car: ['Car', 'No menu, sized for a car’s browser.'],
+    energy: ['Energy Display', 'Only the Energy page, no menu, no Home Assistant header. Needs the Energy feature.'],
     custom: ['Something Else', 'Starts from the defaults.']
   };
   var STATUS_LABELS = {
-    temperature: 'Temperature', humidity: 'Humidity', outlets: 'Outlets', blinds: 'Blinds', fans: 'Fans',
-    windows: 'Windows', doors: 'Doors', locks: 'Locks', garage: 'Garage Doors', motion: 'Motion',
-    occupancy: 'Occupancy', leaks: 'Leaks'
+    temperature: 'Temperature', humidity: 'Humidity', security: 'Security System', tvs: 'TVs', lights: 'Lights',
+    outlets: 'Outlets', blinds: 'Blinds', fans: 'Fans', windows: 'Windows', doors: 'Doors', locks: 'Locks',
+    garage: 'Garage Doors', valves: 'Valves', motion: 'Motion', occupancy: 'Occupancy', leaks: 'Leaks',
+    speakers: 'Speakers'
   };
+  // What an item says, under its name in Status Rows' lists
+  var STATUS_SAYS = {
+    temperature: 'The reading — a page’s from every room, a room’s from its own sensor', humidity: 'The reading, as temperature',
+    security: 'Disarmed, Armed Home, Armed Away …', tvs: 'On or Off', lights: 'How many are on', outlets: 'How many are on',
+    blinds: 'Open or Closed', fans: 'How many are on', windows: 'Open or Closed', doors: 'Open or Closed',
+    locks: 'Locked or Unlocked', garage: 'Open or Closed', valves: 'Running or Off', motion: 'Where it’s detected',
+    occupancy: 'Which rooms are occupied', leaks: 'Where a leak is detected', speakers: 'Playing or not'
+  };
+  // THE STATUS ROWS (HK Settings -> Status Rows): a room page's, then each
+  // category page's (settings.STATUS_ROWS). [key, title, icon, what it is]
+  var STATUS_ROWS = [
+    ['rooms', 'Room Pages', 'mdi:sofa', 'Under a room’s name, as the Home app shows it.'],
+    ['climate', 'Climate', 'mdi:home-thermometer', 'The temperature and humidity across the rooms, blinds and fans.'],
+    ['lights', 'Lights', 'mdi:lightbulb', 'The lights, and the outlets counted with them.'],
+    ['doors_windows', 'Doors & Windows', 'mdi:window-closed-variant', 'What’s open, and where there’s motion or someone home.'],
+    ['water', 'Water', 'mdi:water', 'The leak sensors and the water valves.'],
+    ['security', 'Security', 'mdi:lock', 'The security system and everything that guards the house.']
+  ];
+  // the Status & Chips kind each item counts with (the security system is the
+  // Alarm Panel, General's)
+  var STATUS_SOURCE = { lights: 'lights', outlets: 'lights', blinds: 'blinds', fans: 'fans', windows: 'windows',
+                        doors: 'doors', locks: 'locks', garage: 'garage', valves: 'valves', motion: 'motion',
+                        occupancy: 'occupancy', leaks: 'leaks', temperature: 'temperature', humidity: 'humidity' };
+  // New Decorations' seasons between occasions (sky.woodland), in order
+  var WOODLAND = [['spring', 'Spring'], ['summer', 'Summer'], ['fall', 'Autumn'], ['winter', 'Winter']];
+  // the clouds' looks (sky.cloud_style), as the Clouds menus offer them
+  var CLOUD_STYLES = [['classic', 'Classic'], ['realistic', 'Realistic']];
+  function woodlandSummary(list) {
+    if (!Array.isArray(list)) return 'All Seasons';
+    var on = WOODLAND.filter(function (w) { return list.indexOf(w[0]) >= 0; });
+    return on.length === WOODLAND.length ? 'All Seasons' : on.length ? on.map(function (w) { return w[1]; }).join(', ') : 'None';
+  }
+  // "4 Shown", or Off for a row with nothing in it
+  function statusSummary(list) {
+    return list && list.length ? list.length + ' Shown' : 'Off';
+  }
   var BROWSE_LABELS = {
     artists: 'Artists', albums: 'Albums', tracks: 'Songs', playlists: 'Playlists', radio: 'Radio',
     podcasts: 'Podcasts', audiobooks: 'Audiobooks'
@@ -164,11 +223,11 @@
   };
   // A PAGE PILL'S OWN LOOK (hk-chip.js PAGE_PILLS): name, icon, color
   var PAGE_PILL_DEFAULTS = {
-    weather: ['Weather', 'hk:weather-partly-cloudy', 'white'], calendar: ['Calendar', 'mdi:calendar-month', 'red'], cameras: ['Cameras', 'hk:camera', 'green'],
-    live_tv: ['Live TV', 'hk:television', 'blue'], security: ['Security', 'hk:shield-lock', 'green'],
-    doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white'], climate: ['Climate', 'hk:thermostat', 'blue'],
-    lights: ['Lights', 'hk:lightbulb', 'yellow'], timers: ['Timers', 'hk:timer-sand', 'orange'],
-    vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Play Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'blue']
+    weather: ['Weather', 'hk:weather-partly-cloudy', 'white'], calendar: ['Calendar', 'mdi:calendar-month', 'white'], cameras: ['Cameras', 'hk:camera', 'white'],
+    live_tv: ['Live TV', 'hk:television', 'white'], security: ['Security', 'hk:shield-lock', 'white'],
+    doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white'], climate: ['Climate', 'hk:thermostat', 'white'],
+    lights: ['Lights', 'hk:lightbulb', 'white'], timers: ['Timers', 'hk:timer-sand', 'white'],
+    vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Play Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'white']
   };
   var PILL_COLORS = ['white', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'teal', 'mint', 'green'];
   // A CALENDAR'S AUTOMATIC COLOUR: the next of these by its place in the list
@@ -224,9 +283,10 @@
   // (settings.py MENU_KEYS): the same rows serve both
   var MENU_KEYS = { menu: 'style', narrow: 'narrow', tab_position: 'tab_at', tab_size: 'tab_size',
                     tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
-                    ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock' };
+                    ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe' };
   var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
-                        dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true };
+                        dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true,
+                        swipe: false };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -235,6 +295,7 @@
       out[k] = v === undefined || v === null ? MENU_DEFAULTS[k] : v;
     });
     out.clock = out.clock !== false;
+    out.swipe = out.swipe === true;
     return out;
   }
   function houseMenuSave(ch) {
@@ -432,6 +493,70 @@
              rows: order.map(function (k) { return { value: k, custom: custom[k] !== undefined, fixed: k === 'browse' }; }),
              more: more };
   }
+  // A SCREEN WITH NO HOME PAGE: the pages it is only, in order -- any page
+  // kind and any custom page. Its `only_pages`; a screen set up before
+  // 2026-10-04 has only `custom_pages`, where `energy` is the Energy
+  // feature's page (energyOn). `pageOrder` is the kinds the house can have.
+  function onlyModel(b, pageOrder, custom, energyOn) {
+    var kind = function (k) { return pageOrder.indexOf(k) >= 0; };
+    var cur = (b.only_pages || []).length
+      ? b.only_pages.filter(function (k) { return kind(k) || custom[k] !== undefined; })
+      : (b.custom_pages || []).filter(function (k) { return custom[k] !== undefined || (k === 'energy' && energyOn && kind(k)); });
+    if (cur.indexOf('music') >= 0 && cur.indexOf('browse') < 0) cur.splice(cur.indexOf('music') + 1, 0, 'browse');
+    cur = cur.filter(function (k) { return k !== 'browse' || cur.indexOf('music') >= 0; });
+    var more = pageOrder.filter(function (k) { return k !== 'browse' && cur.indexOf(k) < 0; })
+      .map(function (k) { return { value: k }; })
+      .concat(Object.keys(custom).filter(function (k) { return cur.indexOf(k) < 0; })
+        .map(function (k) { return { value: k, custom: true }; }));
+    return { rows: cur.map(function (k) { return { value: k, custom: custom[k] !== undefined, fixed: k === 'browse' }; }),
+             more: more };
+  }
+  // EACH PAGE'S BACKGROUND (Sky / Background -> Page Backgrounds): the pages
+  // there are, each with whether it has a color of its own (hk-sky.js
+  // STATIC -- Automatic keeps it) or shows the live sky by default. `keys`:
+  // the pages to list (page kinds, `rooms`, custom page addresses);
+  // `custom`: address -> title.
+  var SKY_OWN = { cameras: 1, live_tv: 1, security: 1, doors_windows: 1, climate: 1, lights: 1, timers: 1,
+                  vacuums: 1, music: 1, water: 1, energy: 1 };
+  var SKY_PAGE_LABELS = { music: 'Play Music & Browse Music', rooms: 'Room Pages', live_tv: 'Live TV' };
+  function skyPageRows(keys, custom) {
+    return keys.filter(function (k) { return k !== 'browse'; }).map(function (k) {
+      var isCustom = custom && custom[k] !== undefined;
+      return { key: k, label: isCustom ? custom[k] : (SKY_PAGE_LABELS[k] || PAGE_LABELS[k] || k), custom: isCustom,
+               own: !isCustom && !!SKY_OWN[k] };
+    });
+  }
+  // what Automatic means for a page, in words
+  function skyAutoLabel(row) {
+    return row.custom ? 'As Written' : row.own ? 'Page Color' : 'Backdrop';
+  }
+  // a mode in words: 'own', 'live' or a backdrop id (backdrops: [{id, label}])
+  function skyModeLabel(mode, backdrops) {
+    if (mode === 'own') return 'Page Color';
+    var b = (backdrops || []).filter(function (x) { return x.id === mode; })[0];
+    return b ? b.label : mode === 'live' ? 'Live sky' : mode;
+  }
+  // the choices for one page: Automatic (or Same as All Screens), Page Color
+  // where it has one, the live sky, then every fixed backdrop
+  function skyModeOptions(row, backdrops, first) {
+    var out = [['', first]];
+    if (row.own) out.push(['own', 'Page Color']);
+    (backdrops || []).forEach(function (b) { out.push([b.id, b.label]); });
+    return out;
+  }
+  // WHAT A SCREEN SHOWS, in a few words: null for a whole screen (Home,
+  // rooms, every page); for one with no Home page, "Only Energy", "Only
+  // Security & Cameras", "Only 4 Pages" -- or "No Pages Picked Yet" (it
+  // shows everything until one is). `label(k)`: a page's name.
+  function onlySummary(b, pageOrder, custom, energyOn, label) {
+    if (!b || b.home_page !== false) return null;
+    var keys = onlyModel(b, pageOrder, custom, energyOn).rows.map(function (r) { return r.value; })
+      .filter(function (k) { return k !== 'browse'; });
+    if (!keys.length) return { keys: [], text: 'No Pages Picked Yet' };
+    var names = keys.map(label);
+    return { keys: keys, text: keys.length === 1 ? 'Only ' + names[0] : keys.length === 2 ? 'Only ' + names[0] + ' & ' + names[1]
+                                                  : 'Only ' + keys.length + ' Pages', names: names };
+  }
   function pagesSave(values, custom) {
     var withMusic = values.indexOf('music') >= 0;
     var keep = values.filter(function (k) { return k !== 'browse' || withMusic; });
@@ -462,7 +587,7 @@
   //   [{path, top: its own default, auto: listed when automatic}]
   var MENU_PATHS = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', live_tv: 'live-tv', security: 'security',
                      doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
-                     vacuums: 'vacuums', music: 'playmusic', water: 'water' };
+                     vacuums: 'vacuums', music: 'playmusic', water: 'water', energy: 'energy' };
   var MENU_TOPS = { weather: 1, cameras: 1, live_tv: 1 };
   var MENU_FIXED = { browse: 'With Play Music', rooms: 'Under Rooms' };
   var MENU_PLACES = [['top', 'Top of Menu'], ['list', 'Categories'], ['off', 'Not in Menu']];
@@ -693,6 +818,7 @@
                 '  band_photos: false   # ...and over the photos\n' +
                 '  calendar: false      # the calendar pane, down the right\n' +
                 '  calendar_days: 2     # ...today and tomorrow (1 to 7 days)\n' +
+                '  fade_back: 500       # ms back to the dashboard (0: at once)\n' +
                 '  cards:\n    - type: custom:hk-clock-card\n    - type: custom:hk-weather-strip-card\n      variant: inline\n' +
                 '    - type: custom:hk-screensaver-now-card\n      music: true\n    - type: custom:hk-timer-strip-card\n' +
                 '      entity: sensor.running_quick_timers\n      fixed: true\n    - type: custom:hk-screensaver-status-card' },
@@ -766,7 +892,7 @@
     ['Menu Settings', 'screen/menu', 'menu_custom', 'same as all screens own menu this screen', true],
     ['Pages in Menu', 'screen/menu-pages', 'categories', 'categories menu list', true],
     ['On Phones', 'screen', 'phone_header', 'phone weather strip clock header narrow', true],
-    ['Home Page', 'screen/pages', 'home_page', 'only custom pages energy panel no home', true],
+    ['Home Page', 'screen/pages', 'home_page', 'only these pages standalone energy panel security cameras climate no home', true],
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
     ['Rooms in Menu', 'screen/rooms', 'menu_rooms', 'a to z order', true],
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
@@ -813,7 +939,7 @@
     ['Indoor Temperature', 'house/general', 'features.temperature', 'climate chip'],
     ['Power Use', 'house/general', 'features.power', 'energy chip watts'],
     ['House Timers', 'house/general/timers', 'features.house_timers', 'nap bedtime timers page'],
-    ['What Counts', 'house/counts', 'counts', 'lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
+    ['Status & Chips', 'house/counts', 'counts', 'what counts smoke carbon monoxide co alarm lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
     ['Weather Service', 'house/weather', 'weather.entity', 'forecast'],
     ['Place', 'house/weather', 'weather.place', 'location label'],
     ['Weather Sensors', 'house/weather/sensors', 'weather.sensors', 'feels like humidity wind gust uv forecast alerts outside temperature'],
@@ -827,14 +953,19 @@
     ['Sky Switch', 'house/sky', 'look.sky_switch', 'live sky helper'],
     ['Animations', 'house/sky', 'sky.animations', 'sky moving clouds seasons'],
     ['Weather', 'house/sky', 'sky.weather', 'sky clouds rain snow fog'],
+    ['Page Backgrounds', 'house/sky', 'sky.pages', 'page color background backdrop energy climate lights still live sky'],
     ['Backdrop', 'house/sky/backdrop', 'sky.gradient', 'backdrop palette gradient fixed sky color dusk midnight fjord dune graphite plum ember mist custom'],
-    ['Seasonal Decorations', 'house/sky', 'sky.decorations', 'holiday halloween christmas'],
+    ['Seasonal Decorations', 'house/sky', 'sky.decorations', 'holiday halloween christmas old new woodland style'],
+    ['Decoration Style', 'house/sky', 'sky.decoration_style', 'old new seasons holidays birthdays woodland'],
+    ['Clouds', 'house/sky', 'sky.cloud_style', 'clouds classic realistic photographic weather sky'],
+    ['Woodland Between Occasions', 'house/sky/woodland', 'sky.woodland', 'spring summer autumn fall winter woodland seasons scenery new decorations'],
     ['Birthdays', 'house/sky/birthday', 'sky.birthdays', 'balloons'],
     ['Hemisphere', 'house/sky/advanced', 'sky.hemisphere', 'southern northern'],
     ['Moon Phase Sensor', 'house/sky/advanced', 'sky.moon', ''],
     ['Holiday Season Sensor', 'house/sky/advanced', 'sky.holidays', 'calendar'],
     ['Menu Button Icon', 'house/menu', 'menu.glyph', 'glyph sidebar lines hamburger'],
     ['Tap Clock to Open Menu', 'house/menu', 'menu.clock', ''],
+    ['Swipe from Left Edge', 'house/menu', 'menu.swipe', 'menu gesture swipe drag edge open no button'],
     ['Highlight Color', 'house/menu/accent', 'menu.accent', 'menu color colour accent tint orange icons selected page highlight'],
     ['Button Style', 'house/menu/style', 'menu.style', 'menu chip tab edge pinned'],
     ['On Narrow Screens', 'house/menu/narrow', 'menu.narrow', 'menu when folded chip tab phone ipad'],
@@ -849,8 +980,13 @@
     ['Rooms in Menu', 'house/rooms', 'rooms.menu', 'a to z order menu rooms'],
     ['Rooms on Pages', 'house/rooms', 'rooms.pages', 'by floor room order lights climate'],
     ['Room Headings Open Room Pages', 'house/rooms', 'rooms.headings', 'room page link'],
-    ['Room Status Row', 'house/rooms/status', 'rooms.status', 'room page temperature humidity'],
-    ['Climate Status', 'house/climate', 'climate.status', 'temperature humidity ranges blinds fans room exclusions'],
+    ['Status Rows', 'house/status', 'status_rows', 'status row page header chips summary climate status order'],
+    ['Room Status Row', 'house/status/rooms', 'rooms.status', 'room page temperature humidity security tv lights speaker order'],
+    ['Climate Status Row', 'house/status/climate', 'status_rows.climate', 'temperature humidity ranges blinds fans room exclusions'],
+    ['Lights Status Row', 'house/status/lights', 'status_rows.lights', 'lights outlets on'],
+    ['Doors & Windows Status Row', 'house/status/doors_windows', 'status_rows.doors_windows', 'doors windows motion occupancy occupied'],
+    ['Water Status Row', 'house/status/water', 'status_rows.water', 'leak valve sprinkler running'],
+    ['Security Status Row', 'house/status/security', 'status_rows.security', 'alarm security system locks garage doors windows leak'],
     ['Browse Music Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
     ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
     ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
@@ -901,7 +1037,7 @@
   // starts from, and whether it has changed any
   var SAVER_DEFAULTS = { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false,
                          clock: true, weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true, forecast_every: 5,
-                         band: true, band_photos: false, calendar: false, calendar_days: 2 };
+                         band: true, band_photos: false, calendar: false, calendar_days: 2, fade_back: 500 };
   function saverOptions(o) {
     var out = {};
     Object.keys(SAVER_DEFAULTS).forEach(function (k) {
@@ -915,16 +1051,16 @@
   var COPY_GROUPS = [
     // a screen's menu: All Screens' or its own (menu_custom)
     ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
-                      'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock'], true],
+                      'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe'], true],
     ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
     ['cameras', 'Cameras', ['camera_strip', 'cameras', 'camera_live'], true],
     ['scenes', 'Scenes', ['scenes_row', 'scenes', 'scenes_pages'], false],
     ['favorites', 'Favorites', ['favorites'], false],
-    ['pages', 'Pages', ['pages', 'custom_pages'], true],
+    ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages'], true],
     ['look', 'Appearance', ['glass', 'frost', 'blur', 'sky', 'sky_animations', 'sky_weather',
-                            'sky_decorations', 'sky_gradient', 'sky_custom'], true],
+                            'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_gradient', 'sky_custom', 'sky_pages'], true],
     ['behavior', 'Behavior', ['idle_return', 'popups', 'car', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins',
                               'kiosk_engine', 'kiosk_options', 'now_playing'], true],
     ['saver', 'Screensaver', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true]
@@ -1022,13 +1158,17 @@
   // Null is a continuing relationship to All Screens, including custom
   // stops. A true flag is still an override, even when it matches the house.
   function skySummary(b) {
-    var keys = ['sky_animations', 'sky_weather', 'sky_decorations', 'sky_gradient', 'sky_custom'];
-    if (keys.every(function (k) { return b[k] == null; })) return 'Same as All Screens';
+    var keys = ['sky_animations', 'sky_weather', 'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_gradient', 'sky_custom'];
+    var pages = Object.keys(b.sky_pages || {}).length;
+    if (keys.every(function (k) { return b[k] == null; }) && !pages) return 'Same as All Screens';
     var parts = [];
     if (b.sky_animations === false) parts.push('No Animation');
     if (b.sky_weather === false) parts.push('No Weather');
     if (b.sky_decorations === false) parts.push('No Decorations');
+    if (b.sky_decoration_style != null) parts.push(b.sky_decoration_style === 'new' ? 'New Decorations' : 'Old Decorations');
+    if (b.sky_cloud_style != null) parts.push(b.sky_cloud_style === 'realistic' ? 'Realistic Clouds' : 'Classic Clouds');
     if (b.sky_gradient != null) parts.push('Own Backdrop');
+    if (pages) parts.push(pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds');
     return parts.join(', ') || 'Own Settings';
   }
 
@@ -1045,6 +1185,8 @@
     ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
     MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
+    STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
+    WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
     PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
     CHIP_TOKEN: CHIP_TOKEN, chipsAddCustom: chipsAddCustom, chipsRemoveCustom: chipsRemoveCustom,
@@ -1052,11 +1194,13 @@
     SEARCH: SEARCH,
     errorText: errorText, refusals: refusals,
     menuMode: menuMode, menuFor: menuFor, menuStyleLabel: menuStyleLabel, showsTab: showsTab,
+    stylesFor: stylesFor, swipeChanges: swipeChanges,
     glassLabel: glassLabel, glassOf: glassOf, amountOf: amountOf, amountsFor: amountsFor,
     chipsModel: chipsModel, chipsSave: chipsSave, chipsAddOwn: chipsAddOwn, chipsRemoveOwn: chipsRemoveOwn,
     chipQuiet: chipQuiet,
     scenesModel: scenesModel, scenesSave: scenesSave, scenesPagePill: scenesPagePill,
-    pagesModel: pagesModel, pagesSave: pagesSave, pagesCustom: pagesCustom,
+    pagesModel: pagesModel, pagesSave: pagesSave, pagesCustom: pagesCustom, onlyModel: onlyModel, onlySummary: onlySummary,
+    skyPageRows: skyPageRows, skyAutoLabel: skyAutoLabel, skyModeLabel: skyModeLabel, skyModeOptions: skyModeOptions,
     roomsModel: roomsModel, roomsSave: roomsSave, roomsAuto: roomsAuto, houseRoomsAsBoard: houseRoomsAsBoard,
     houseRoomsSave: houseRoomsSave, roomOnHome: roomOnHome, roomsSummary: roomsSummary,
     MENU_FIXED: MENU_FIXED, MENU_PLACES: MENU_PLACES, menuPathOf: menuPathOf, menuItems: menuItems,

@@ -263,14 +263,32 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         vol.Optional("users"): vol.All(cv.ensure_list, [cv.string]),
     }))
 
-    # ACCESSORY SETTINGS (accessories.py): loaded before What counts, which
+    # CLOSE POP-UP: the other half. An alarm keypad held up for as long as
+    # the alarm lasts has to come down the moment it clears, and the only way
+    # an automation had was to navigate the tablet away from the #hash -- a
+    # Fully Kiosk load_url, which a kiosk without one (Kiosk Satellite) cannot
+    # do. The same screens as Show pop-up; a screen not showing it ignores it.
+    async def close_popup(call: ServiceCall) -> None:
+        hash_ = str(call.data["popup"]).strip().lstrip("#").lower()
+        async_dispatcher_send(hass, SIGNAL_POPUP, {
+            "type": "popup_close", "popup": hash_,
+            "dashboards": [str(d).strip("/") for d in call.data.get("dashboards") or []],
+            "users": [str(u) for u in call.data.get("users") or []]})
+
+    hass.services.async_register(DOMAIN, "close_popup", close_popup, schema=vol.Schema({
+        vol.Required("popup"): cv.string,
+        vol.Optional("dashboards"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("users"): vol.All(cv.ensure_list, [cv.string]),
+    }))
+
+    # ACCESSORY SETTINGS (accessories.py): loaded before Status & Chips, which
     # reads their `status` and `show_as`.
     acc = accessories.Accessories(hass)
     await acc.async_load()
     hass.data.setdefault(DOMAIN, {})[accessories.DATA] = acc
     accessories.register(hass)
 
-    # WHAT COUNTS (kinds.py), resolved and kept current for every screen.
+    # STATUS & CHIPS (kinds.py), resolved and kept current for every screen.
     def settings_now() -> dict[str, Any]:
         entry = _entry(hass)
         return {**dash_settings.merged(entry.options if entry else None),
@@ -329,6 +347,10 @@ def ws_settings_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveC
         # which features are added and set up (features/): a card offers what
         # one gives only when it is -- their actions are always registered
         payload["added"] = [k for k in F.KINDS if F.loaded(hass, k)]
+        # THE ENERGY PAGE's plan (features/energy/plan.py), while Energy is
+        # added: a screen whose Pages list Energy draws it from this
+        from .features import energy
+        payload["energy"] = energy.client(hass)
         connection.send_message(websocket_api.event_message(msg["id"], payload))
 
     connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_CONFIG, send)
@@ -467,11 +489,12 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Every entry is version 1.9; one from a later major version is refused
+    """Every entry is version 1.10; one from a later major version is refused
     rather than guessed at. An older minor version is marked 7 (the versions
     that made such entries already moved their data), then 7 -> 8 moves the
-    screens' room settings to All Screens (settings.rooms_lifted), and 8 -> 9
-    their menu settings (settings.menu_lifted)."""
+    screens' room settings to All Screens (settings.rooms_lifted), 8 -> 9
+    their menu settings (settings.menu_lifted), and 9 -> 10 makes the pages'
+    status rows (settings.status_lifted)."""
     if entry.version > 1:
         return False
     if entry.minor_version < 7:
@@ -499,6 +522,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if options is not None:
                 hass.config_entries.async_update_entry(entry, options=options)
         hass.config_entries.async_update_entry(entry, minor_version=9)
+    if entry.minor_version < 10:
+        # the pages' status rows: Climate's moves in, a saved room row grows
+        # (settings.status_lifted)
+        if F.kind_of(entry) == F.FRONTEND:
+            options = dash_settings.status_lifted(entry.options)
+            if options is not None:
+                hass.config_entries.async_update_entry(entry, options=options)
+        hass.config_entries.async_update_entry(entry, minor_version=10)
     return True
 
 

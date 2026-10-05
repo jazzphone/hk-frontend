@@ -51,6 +51,11 @@ empty or can’t be read.
   anywhere else closes it**, and that tap never presses anything on the
   screen behind; taps are ignored for 3 seconds after, so a second tap cannot
   either.
+- **Tap the forecast details** (today, the hours and the days along the
+  bottom) to close it onto the dashboard’s **Weather** page, when it has one.
+- **Back to the dashboard**: whether a tap closes it or the switch is turned
+  off, the dashboard is first drawn underneath, then the screensaver fades
+  away over **Fade Back** (half a second; **Instant**, 1 or 2 seconds).
 - Behind the photos the live sky, every animation and the live camera tile
   hold still, so the tablet does very little while it shows.
 
@@ -87,10 +92,13 @@ photo shows; its sky only moves while it is on screen.
   photos too.
 - The clock and date, Home Status, now playing and timers stay, the last two
   above the forecast.
-- While the screen is dark (Fully Kiosk Browser’s own screensaver, or the
-  screen off) the sky holds still. Fully Kiosk is asked through its JavaScript
-  interface (**Advanced Web Settings → Enable JavaScript Interface**); without it,
-  the sky holds still only when the browser reports the page as hidden.
+- While the screen is dark (the kiosk app’s own screensaver, or the screen
+  off) the sky holds still. Fully Kiosk is asked through its JavaScript
+  interface (**Advanced Web Settings → Enable JavaScript Interface**); Kiosk
+  Satellite announces its screensaver and screen to the page itself. Without
+  either, the sky holds still only when the browser reports the page as hidden.
+- When the photos have covered the page, the dashboard goes back to its top,
+  unseen, so the next wake starts there.
 - A tap anywhere closes it. There are no photos to page through.
 
 ### The calendar pane
@@ -286,6 +294,7 @@ hk_screensaver:
   band_photos: false   # ...and over the photos
   calendar: false      # the calendar pane, down the right
   calendar_days: 2     # ...today and tomorrow (1 to 7 days)
+  fade_back: 500       # ms back to the dashboard (0: at once)
   cards:
     - type: custom:hk-clock-card
     - type: custom:hk-weather-strip-card

@@ -126,16 +126,16 @@ state instead).
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-chips-card` | The row of status chips under the header. Which chips, their order, and which appear only when there is something to report come from the screen’s settings in HK Settings. | `chips`, `quiet` (the row when the screen’s settings name none), `extra` (your own chips: `[{after: <kind> or start or end, card: …}]`) |
+| `hk-chips-card` | The row of status chips under the header. Which chips, their order, and which appear only when there is something to report come from the screen’s settings in HK Settings; the Smoke & CO chip always leads it, in a home with an alarm. | `chips`, `quiet` (the row when the screen’s settings name none), `extra` (your own chips: `[{after: <kind> or start or end, card: …}]`) |
 | `hk-status-chip-card` | One chip: an icon and two lines of text. | `kind` (below), or your own with `entity`, `name`, `icon`, `label` |
 | `hk-scenes-card` | The row of scene pills. Which scenes, and their order, come from the screen’s settings. | `scenes` (when the settings name none; empty: every scene, A to Z), `name` (the heading), `looks` (`{<entity>: {name, icon, icon_color, tap_action}}`) |
 | `hk-toggle-card` | A text-only pill that lights when an entity is on, or equals `option`. | `entity` (required), `name`, `option`, `tap_action` |
 | `hk-row-card` | A row of any cards that scrolls sideways. | `cards`, `lead` (a card pinned at the start, such as the menu button), `card_width`, `gap`, `phone_card_width`, `phone_gap`, `pad_top` / `pad_bottom` / `pad_left` / `pad_right`, `margin` |
 
-**A chip of a kind.** `kind` is one of `weather_alert`, `security`,
+**A chip of a kind.** `kind` is one of `smoke`, `weather_alert`, `security`,
 `doors_windows`, `climate`, `lights`, `blinds`, `timers`, `vacuums`,
 `speakers`, `water` and `energy`. The chip then counts what **HK Settings →
-What Counts** finds for that kind, and fills in its own icon, name and text.
+Status & Chips** finds for that kind, and fills in its own icon, name and text.
 `quiet: true` shows it only while there is something to report.
 
 **A chip of your own.** Point it at one entity, or build its text:
@@ -164,15 +164,19 @@ optionally on an `attribute`).
 | `hk-heading-card` | A section title. With `area`, it links to that area’s room page when the dashboard has one. | `name` (required), `area`, `navigation_path`, `chevron` (text after the title), `height`, `padding`, `grid_rows` |
 | `hk-stat-card` | An icon, a caption and a large reading, with no background. | `entity` (required), `name`, `value_mode` (`temperature`, `power`, `runtime`, `cost`, `flow`), `icon`, `icon_color`, `value` (fixed text) |
 | `hk-rank-card` | A tile with a large reading: a value, a percentage, or a device’s power use ranked against others. | `entity` (required), `name`, `mode` (`hero`, `pct`, `rank`), `power`, `stat`, `peers`, `icon_color_steps`, `label_entity`, `label_suffix`, `label_decimals` |
-| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Climate Status and What Counts. | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Status Rows → Climate and Status & Chips. | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-page-status-card` | A category page’s status row — Lights, Doors & Windows, Water, Security (or Climate) — with accessory-list sheets on tap. Follows All Screens → Status Rows and Status & Chips. | `page` (required: `lights`, `doors_windows`, `water`, `security`, `climate`), `items`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
 | `hk-room-status-card` | A room’s status line: temperature and humidity, then what is on, open or detected, read from its area. | `area` (required; one or a list), `items`, `temperature`, `humidity`, `entities`, `exclude`, `include` |
 
 `icon_color_steps` is a list whose first match wins, for example
 `[{above: 60, color: green}, {above: 25, color: yellow}, {color: red}]`.
 
 `items` on the room status card chooses from `temperature`, `humidity`,
-`outlets`, `blinds`, `fans`, `windows`, `doors`, `locks`, `garage`, `motion`,
-`occupancy` and `leaks`. Empty follows **HK Settings → Rooms → Status Row**.
+`security`, `tvs`, `lights`, `outlets`, `blinds`, `fans`, `windows`, `doors`,
+`locks`, `garage`, `valves`, `motion`, `occupancy`, `leaks` and `speakers`, shown
+in the order you list them. Empty follows **HK Settings → Status Rows → Room
+Pages**. On the page status card, `items` chooses from what that page can show
+([Status rows](Status-Rows.md#a-category-pages-row)).
 Temperature and humidity come from the area’s own related sensors
 (**Settings → Areas**) unless you name them.
 

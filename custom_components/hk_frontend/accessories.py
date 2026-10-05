@@ -13,7 +13,10 @@
     size       regular / tall -- its tile's height on a generated dashboard's
                rooms and pages, over what its kind is drawn as (a light as a
                tall tile, a lock as a pill). None: its kind's own.
-    status     False: left out of the status chips (What counts). None: as
+    anim       whether its tile's glyph spins while it is on (a fan): 'spin'
+               or 'none'. None (Automatic): its kind's own -- a fan spins,
+               every other kind does not.
+    status     False: left out of the status chips (Status & Chips). None: as
                found.
     home       False: not shown on a generated dashboard's rooms and pages.
                None: shown.
@@ -47,7 +50,7 @@ Stored in `.storage/hk_frontend.accessories`, not in the config entry's
 options: a house has hundreds of accessories, and each change is one small
 write. Sent to every screen inside the settings feed (`accessories`).
 Changed from the gear on a detail sheet (admins only), through the
-websocket commands below; What counts is re-resolved and every screen told.
+websocket commands below; Status & Chips is re-resolved and every screen told.
 """
 from __future__ import annotations
 
@@ -70,6 +73,7 @@ SAVE_DELAY = 2.0
 
 SHOW_AS = ("light", "fan", "switch", "outlet")
 SIZES = ("regular", "tall")
+ANIMS = ("spin", "none")
 COLORS = ("white", "yellow", "orange", "red", "pink", "purple", "blue", "teal", "mint", "green")
 ENTITY = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 ICON = re.compile(r"^(hk|mdi):[a-z0-9-]+$")
@@ -77,7 +81,7 @@ AREA = re.compile(r"^[a-z0-9_]+$")
 PATH = re.compile(r"^[a-z0-9_-]+$")
 PAGE_ORDERS = ("vacuums", "security")
 ATTR = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ .-]{0,59}$")
-FIELDS = ("name", "icon", "show_as", "size", "status", "home", "color", "when", "label", "attribute",
+FIELDS = ("name", "icon", "show_as", "size", "anim", "status", "home", "color", "when", "label", "attribute",
           "fav_name", "fav_icon", "fav_with", "fav_room", "on_text", "off_text")
 FAV_WITH_MAX = 8
 
@@ -108,6 +112,8 @@ def clean_entity(v: Any) -> dict[str, Any]:
         out["show_as"] = v["show_as"]
     if v.get("size") in SIZES:
         out["size"] = v["size"]
+    if v.get("anim") in ANIMS:
+        out["anim"] = v["anim"]
     if v.get("color") in COLORS:
         out["color"] = v["color"]
     for k, n in (("when", 60), ("label", 40), ("on_text", 30), ("off_text", 30), ("fav_room", 40)):
@@ -187,7 +193,7 @@ class Accessories:
     @callback
     def _changed(self) -> None:
         self._store.async_delay_save(lambda: self.data, SAVE_DELAY)
-        # What counts reads `status` and `show_as`: re-resolve it first, so the
+        # Status & Chips reads `status` and `show_as`: re-resolve it first, so the
         # screens are sent the new lists with the new settings.
         from . import kinds
         tracker = self.hass.data.get(DOMAIN, {}).get(kinds.DATA)
@@ -290,6 +296,7 @@ def current(hass: HomeAssistant) -> dict[str, Any]:
     vol.Optional("icon"): vol.Any(None, vol.All(str, vol.Match(ICON))),
     vol.Optional("show_as"): vol.Any(None, vol.In(SHOW_AS)),
     vol.Optional("size"): vol.Any(None, vol.In(SIZES)),
+    vol.Optional("anim"): vol.Any(None, vol.In(ANIMS)),
     vol.Optional("status"): vol.Any(None, bool),
     vol.Optional("home"): vol.Any(None, bool),
     vol.Optional("color"): vol.Any(None, vol.In(COLORS)),

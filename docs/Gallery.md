@@ -22,8 +22,8 @@ camera pictures are blurred on purpose.
 | Weather | Cameras |
 | ![The Play Music page](images/tablet-play-music.png) | ![The Browse Music page](images/tablet-browse-music.png) |
 | Play Music ([Music](Music.md)) | Browse Music |
-| ![The Live TV guide](images/tablet-live-tv.png) | ![A custom page](images/tablet-energy.png) |
-| Live TV ([Live TV](Live-TV.md)) | A [custom page](Pages.md#custom-pages) |
+| ![The Live TV guide](images/tablet-live-tv.png) | ![The Energy page](images/tablet-energy.png) |
+| Live TV ([Live TV](Live-TV.md)) | [Energy](Energy.md) |
 | ![The Calendar page: the month](images/tablet-calendar.png) | ![The Calendar page: the week](images/tablet-calendar-week.png) |
 | [Calendar](Calendar.md): the month | The week |
 | ![The Calendar page: the day](images/tablet-calendar-day.png) | ![A new event](images/tablet-calendar-new-event.png) |
@@ -103,6 +103,22 @@ Source selection and exclusions: [Climate](Climate.md).
 
 ![A Halloween night](images/sky-halloween.png)
 
+[Realistic clouds](Live-Sky.md#realistic-clouds-in-every-weather) (every weather is on the Live Sky page):
+
+| | |
+|---|---|
+| ![Realistic clouds on a partly cloudy afternoon](images/sky-realistic-clouds.jpg) | ![Realistic clouds near sunset](images/sky-realistic-golden.jpg) |
+| A partly cloudy afternoon | Near sunset |
+
+[New Decorations](Seasonal-Decorations.md), woodland scenery for the seasons and holidays:
+
+| | |
+|---|---|
+| ![Halloween night in the woodland](images/sky-new-halloween.jpg) | ![Christmas night in the woodland](images/sky-new-christmas.jpg) |
+| Halloween | Christmas |
+| ![The autumn woodland](images/sky-new-autumn.jpg) | ![A birthday in the woodland](images/sky-new-birthday.jpg) |
+| Autumn | A birthday |
+
 More: [Live Sky](Live-Sky.md).
 
 ## HK Settings
@@ -117,8 +133,8 @@ More: [Live Sky](Live-Sky.md).
 | The preview at phone size | Accessories |
 | ![Custom chips](images/settings-custom-chips.png) | ![Pop-ups](images/settings-popups.png) |
 | Custom chips | Pop-ups |
-| ![Custom pages](images/settings-pages.png) | ![What Counts](images/settings-counts.png) |
-| Custom pages | What Counts |
+| ![Custom pages](images/settings-pages.png) | ![Status & Chips](images/settings-counts.png) |
+| Custom pages | Status & Chips |
 | ![Weather](images/settings-weather.png) | ![Sky](images/settings-sky.png) |
 | Weather | Sky |
 | ![A decoration with its preview](images/settings-sky-theme.png) | ![Appearance](images/settings-appearance.png) |
@@ -135,5 +151,9 @@ More: [Live Sky](Live-Sky.md).
 | Rooms | A room |
 | ![A screen’s Rooms, Same as All Screens](images/settings-screen-rooms.png) | ![Arrange in a tile’s settings](images/sheet-arrange.png) |
 | A screen’s Rooms | Arrange |
+| ![Status Rows](images/settings-status-rows.png) | ![Energy](images/settings-energy.png) |
+| Status Rows | Energy |
+| ![Energy’s devices](images/settings-energy-devices.png) | ![The menu](images/settings-menu.png) |
+| Energy’s devices | The menu |
 
 More: [HK Settings](HK-Settings.md).

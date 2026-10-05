@@ -1437,7 +1437,7 @@
     value: 'Value (fixed text)', mode: 'Show', value_mode: 'Value format',
     value_attribute: 'Read attribute', value_suffix: 'Value suffix',
     value_peer: 'Energy meter sensor', idle_text: 'Idle text',
-    power: 'Power sensor', stat: 'Energy statistic', peers: 'Compare with',
+    power: 'Power sensor', stat: 'Energy statistic', peers: 'Compare with', cost_stat: 'Cost statistic',
     label_entity: 'Status from entity', label_suffix: 'Status suffix',
     label_decimals: 'Status decimals', icon_color_steps: 'Icon color by value',
     charge: 'Charging power sensor', discharge: 'Discharging power sensor',
@@ -1493,7 +1493,7 @@
 
   // One line under the field, only where the label cannot carry the meaning.
   var HK_HELPERS = {
-    kind: 'Counts what Configure -> What counts finds for it. Leave empty for a chip of your own (an entity).',
+    kind: 'Counts what HK Settings → Status & Chips finds for it. Leave empty for a chip of your own (an entity).',
     chips: 'The row when this dashboard\'s settings (under Dashboards) name none. Empty: every kind the house has.',
     scenes: 'The row when this dashboard\'s settings name none. Empty: every scene, A to Z.',
     looks: 'YAML: entity: {name, icon, icon_color, tap_action}.',
@@ -1584,8 +1584,9 @@
     source_first: 'Source, else playback state',
     // other choices
     spin: 'Spin while on', none: 'None', entity: 'The entity is on', any: 'Any group member is on',
-    hero: 'Value', pct: 'Percent', rank: 'Power use',
-    temperature: 'Temperature', power: 'Power', runtime: 'Runtime', cost: 'Cost', flow: 'Charge / discharge',
+    hero: 'Value', pct: 'Percent', rank: 'Power use', energy: 'Energy today',
+    temperature: 'Temperature', power: 'Power', runtime: 'Runtime', cost: 'Cost', cost_today: 'Cost today (statistics)',
+    flow: 'Charge / discharge',
     glass: 'Glass', flat: 'Flat', filled: 'Filled',
     climate: 'Climate', security: 'Security', number: 'Slider', media_player: 'Media controls',
     wind: 'Wind', sun: 'Sunrise / sunset', moon: 'Moon', uv: 'UV index',
@@ -2219,7 +2220,9 @@
                 popups: true, now_playing: false, screensaver: false, tablet_user: '', custom_pages: [],
                 // the button below TAB_MIN and while an open menu is
                 // folded; the pages at the top of the menu (empty: the views' own)
-                narrow: 'chip', menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, home_view: '' };
+                narrow: 'chip', menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, only_pages: [], home_view: '',
+                // swipe right from the left edge opens the menu, at every width
+                swipe: false };
   var ACCENTS = { orange: '#ff9f0a', yellow: '#ffd60a', green: '#30d158', mint: '#63e6e2', teal: '#40c8e0',
                   cyan: '#64d2ff', blue: '#0a84ff', indigo: '#5e5ce6', purple: '#bf5af2', pink: '#ff375f',
                   red: '#ff453a' };
@@ -2300,11 +2303,16 @@
   function tabless() { return menuNarrow() || (window.innerWidth || 1280) < TAB_MIN; }
   // ON NARROW SCREENS (the screen's own setting): where the tab has no
   // room, and wherever an always-open menu has folded -- the chip,
-  // the chip then the tab once scrolled past, or the tab.
+  // the chip then the tab once scrolled past, the tab, or no button at all
+  // (the swipe alone).
   function narrowStyle() {
     var n = boardOf(dashSeg()).narrow;
+    if (n === 'none') return swipeOn() ? 'none' : 'chip';
     return n === 'tab' || n === 'chip_scroll' ? n : 'chip';
   }
+  // NO BUTTON leans on the swipe: with the swipe off it is never left with
+  // no way in -- the button style is Automatic's, the narrow one the chip.
+  function swipeOn() { return !!boardOf(dashSeg()).swipe; }
   function folded() { return tabless() || boardOf(dashSeg()).menu === 'open'; }
   // Is Home the page showing? (its path, or none, or 0)
   function homeHere() {
@@ -2398,11 +2406,13 @@
     //   chip_home    the chip on Home (sliding to the tab the same way), the
     //                tab on every other page
     // Where the tab has no room (under TAB_MIN) the narrow choice decides.
+    // 'none': no button at all -- the swipe (and the clock) open it.
     style: function () {
       if (!menuState.on()) return null;
       if (menuState.docked()) return 'docked';
-      if (folded()) return narrowStyle() === 'tab' ? 'tab' : 'chip';
+      if (folded()) { var n = narrowStyle(); return n === 'tab' || n === 'none' ? n : 'chip'; }
       var b = boardOf(dashSeg()).menu;
+      if (b === 'none' && swipeOn()) return 'none';
       if (b === 'chip' || b === 'tab') return b;
       if (b === 'chip_scroll') return 'chip';
       if (b === 'chip_home') return homeHere() ? 'chip' : 'tab';
@@ -2457,6 +2467,11 @@
     clock: function () {
       return menuState.on() && !menuState.docked() && boardOf(dashSeg()).clock !== false;
     },
+    // SWIPE FROM THE LEFT EDGE (the screen's Swipe from Left Edge): a drag
+    // right from the dashboard's left edge pulls the menu out -- hk-menu.js
+    // -- alongside whatever button there is, at every width; not while the
+    // menu is docked, open already.
+    swipe: function () { return menuState.on() && !menuState.docked() && swipeOn(); },
     // THE MENU'S HIGHLIGHT: its icons and the current page's row -- one of
     // Apple's system colours (dark-mode values), or the screen's own
     // "#rrggbb". `on`: the text over it, dark on the light ones.

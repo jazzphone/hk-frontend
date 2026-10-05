@@ -45,6 +45,7 @@ COMPANIONS = (
     ("hk_alarm_pin", "alarm_pin", "Alarm PIN", "a PIN in front of the alarm"),
     ("hk_clean_areas", "clean_areas", "Clean Areas", "vacuum by area"),
     ("hk_tv", "live_tv", "Live TV", "Live TV"),
+    ("hk_energy", "energy", "Energy", "the Energy page"),
 )
 SHOW = 6                       # names listed before "and N more"
 # The domains a room page draws as tiles (hk-strategy.js TILE). A device with

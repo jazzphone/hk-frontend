@@ -102,7 +102,9 @@ delete S['cover.den_shades_matter']; delete hass.entities['cover.den_shades_matt
 
 print('\n=== choosing what shows ===');
 var only = items(hass, ['den'], { items: ['motion', 'temperature'] });
-ok('items: shows only those, in the house order', only.map(function (i) { return i.kind; }).join() === 'temperature,motion');
+ok('items: shows only those, in the order given (the house may order its row)', only.map(function (i) { return i.kind; }).join() === 'motion,temperature');
+ok('...each once, and a kind it does not know is skipped',
+   items(hass, ['den'], { items: ['motion', 'sprinklers', 'motion'] }).map(function (i) { return i.kind; }).join() === 'motion');
 var ex = items(hass, ['den'], { exclude: ['binary_sensor.den_camera_motion'] });
 ok('exclude: takes one out of a count', ex.filter(function (i) { return i.kind === 'motion'; })[0].ids.length === 1);
 ok('a card may name its own temperature sensor',
@@ -110,6 +112,59 @@ ok('a card may name its own temperature sensor',
 ok('no area sensor and nothing to count: nothing to show', items(hass, ['other'], { items: ['temperature', 'fans'] }).length === 0);
 S['sensor.den_temp'].attributes.unit_of_measurement = '°C'; S['sensor.den_temp'].state = '21.5';
 ok('Celsius centres on 21.5', Math.abs(items(hass, ['den'], {})[0].gauge - 0.5) < 0.02);
+
+print('\n=== a bedroom, as the Home app shows it ===');
+// Temperature, Humidity, Security System, TV, 4 Lights, Outlet, Blinds, Fan,
+// 3 Windows, Motion, Occupancy, Speaker -- the Home app's room (2026-10-04)
+hass.areas.bed = { name: 'Bedroom', temperature_entity_id: 'sensor.bed_t', humidity_entity_id: 'sensor.bed_h' };
+function inBed(id, state, attrs) { add(id, state, attrs, { area_id: 'bed' }); }
+inBed('sensor.bed_t', '72', { unit_of_measurement: '°F' });
+inBed('sensor.bed_h', '45', { unit_of_measurement: '%' });
+inBed('alarm_control_panel.house', 'disarmed', {});
+inBed('media_player.bed_tv', 'on', { device_class: 'tv' });
+inBed('media_player.bed_receiver', 'on', { device_class: 'receiver' });     // the TV's sound
+inBed('light.bed_a', 'on', {}); inBed('light.bed_b', 'on', {}); inBed('light.bed_c', 'off', {});
+inBed('light.bed_all', 'on', { entity_id: ['light.bed_a', 'light.bed_b'] });  // a group: its members count
+inBed('light.bed_pair', 'on', { group_entities: ['light.bed_a', 'light.bed_b'] });  // a Hue room, a Zigbee group
+inBed('switch.bed_lamp', 'on', {});                                            // drawn as a light (its gear)
+inBed('switch.bed_plug', 'on', { device_class: 'outlet' });
+inBed('cover.bed_shade', 'open', { device_class: 'shade' });
+inBed('fan.bed', 'on', {});
+['l', 'm', 'r'].forEach(function (x) { inBed('binary_sensor.bed_window_' + x, 'off', { device_class: 'window' }); });
+inBed('binary_sensor.bed_motion', 'off', { device_class: 'motion' });
+inBed('binary_sensor.bed_occupancy', 'on', { device_class: 'occupancy' });
+inBed('media_player.bed_speaker', 'playing', {});
+add('media_player.bed_apple_tv', 'off', {}, { area_id: 'bed', device_id: 'atv' });         // no device class
+hass.devices.atv = { area_id: 'bed', model: 'Apple TV 4K (gen 3)' };
+inBed('alarm_control_panel.keypad', 'disarmed', {});                          // the same system's keypad
+window.hkSettings = { get: function (p, f) {
+  if (p === 'security.alarm') return 'alarm_control_panel.house';
+  return p === 'accessories' ? { entities: { 'switch.bed_lamp': { show_as: 'light' } } } : f; } };
+var bed = items(hass, ['bed'], {});
+ok('every item, in the Home app\'s order',
+   JSON.stringify(bed.map(function (i) { return i.title + '=' + i.value; })) === JSON.stringify(['Temperature=72°', 'Humidity=45%',
+     'Security System=Disarmed', '2 TVs=1 On', '4 Lights=3 On', 'Outlet=On', 'Blinds=Open', 'Fan=On', '3 Windows=Closed',
+     'Motion=Not Detected', 'Occupancy=Detected', 'Speaker=Playing']), JSON.stringify(bed.map(function (i) { return i.title + '=' + i.value; })));
+var lit = bed.filter(function (i) { return i.kind === 'lights'; })[0];
+ok('a light group -- a helper\'s or an integration\'s -- is not a fifth light; a switch drawn as a light is one',
+   lit.ids.indexOf('light.bed_all') < 0 && lit.ids.indexOf('light.bed_pair') < 0 &&
+   lit.ids.indexOf('switch.bed_lamp') >= 0 && lit.ids.length === 4, lit.ids.join());
+ok('two panels for one alarm: the Alarm Panel chosen in General is THE security system',
+   bed.filter(function (i) { return i.kind === 'security'; })[0].ids.join() === 'alarm_control_panel.house');
+ok('an Apple TV is a TV by its model, not a speaker', bed.filter(function (i) { return i.kind === 'tvs'; })[0].ids.indexOf('media_player.bed_apple_tv') >= 0);
+ok('a receiver is not a speaker of its own', !bed.some(function (i) { return i.ids.indexOf('media_player.bed_receiver') >= 0; }));
+S['media_player.bed_tv'].state = 'standby'; S['media_player.bed_speaker'].state = 'paused';
+var quiet = items(hass, ['bed'], {});
+ok('a TV on standby is off; a paused speaker is "Not Playing"',
+   quiet.filter(function (i) { return i.kind === 'tvs'; })[0].value === 'Off' &&
+   quiet.filter(function (i) { return i.kind === 'speakers'; })[0].value === 'Not Playing');
+S['alarm_control_panel.house'].state = 'armed_away';
+ok('the security system says how it is armed', items(hass, ['bed'], {}).filter(function (i) { return i.kind === 'security'; })[0].value === 'Armed Away');
+ok('given the page\'s tiles, the lights count only those', items(hass, ['bed'], { entities: ['light.bed_a', 'light.bed_b'] })
+   .filter(function (i) { return i.kind === 'lights'; })[0].title === '2 Lights');
+ok('a house\'s own order wins: the speaker first', items(hass, ['bed'], { items: ['speakers', 'temperature', 'lights'] })
+   .map(function (i) { return i.kind; }).join() === 'speakers,temperature,lights');
+delete window.hkSettings;
 
 print('\n=== the row keeps its place when something in the room changes ===');
 var RC = customElements.get('hk-room-status-card');

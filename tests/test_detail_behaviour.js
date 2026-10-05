@@ -667,6 +667,52 @@ print('\n=== accessory settings: the gear ===');
   window.hkSettings = saved;
 })();
 
+// THE SPIN CONTROL (the accessory's `anim`): offered on a fan's gear, saved as
+// Automatic / Spin / Still, and NOT on a non-fan.
+(function () {
+  __resetTimers(); resetHistory();
+  var WS = [];
+  var h = house({ 'fan.den': ['on', { friendly_name: 'Den Fan' }] });
+  h.user = { is_admin: true };
+  h.areas = { den: { area_id: 'den', name: 'Den' } };
+  h.entities = { 'fan.den': { area_id: 'den' } };
+  h.callWS = function (m) { WS.push(m); return Promise.resolve({}); };
+  var saved = window.hkSettings;
+  window.hkSettings = { get: function (p, f) {
+    if (p === 'accessories') return { entities: { 'fan.den': { anim: 'none' } }, rooms: {} };
+    if (p === 'boards') return {};
+    return f; } };
+  var pane = _.accessoryPane(h, 'fan.den', null, { generated: true });
+  var html = pane._html || pane.innerHTML || '';
+  ok("a fan's gear offers the Spinning control", /class="seg spin"/.test(html), html.slice(0, 120));
+  var spin = pane.querySelector('.seg.spin');
+  var pick = function (v) { spin._listeners.click[0]({ target: { closest: function () { return { dataset: { v: v } }; } } }); };
+  pick('none');
+  ok('Still saves anim none (keep a chosen icon from spinning)', WS[0].type === 'hk_frontend/accessory/set' &&
+     WS[0].entity_id === 'fan.den' && WS[0].anim === 'none', WS[0]);
+  pick('spin');
+  ok('Spin saves anim spin (said explicitly)', WS[1].anim === 'spin', WS[1]);
+  pick('');
+  ok('Automatic clears it back to its kind', WS[2].anim === null, WS[2]);
+  // a non-fan: the section is not drawn at all
+  window.hkSettings = { get: function (p, f) {
+    if (p === 'accessories') return { entities: {}, rooms: {} };
+    if (p === 'boards') return {};
+    return f; } };
+  var other = house({ 'switch.coffee': ['off', { friendly_name: 'Coffee' }] });
+  other.user = { is_admin: true }; other.areas = {}; other.entities = {}; other.callWS = function () { return Promise.resolve({}); };
+  var coffee = _.accessoryPane(other, 'switch.coffee', null, { generated: true });
+  // a switch: built, but hidden until Show As makes it a fan -- and back
+  ok("a switch's gear keeps it hidden", /class="spinrow" hidden/.test(coffee._html || coffee.innerHTML || ''));
+  var row = coffee.querySelector('.spinrow');
+  var asFan = { dataset: { v: 'fan' } }, asLight = { dataset: { v: 'light' } };
+  coffee.querySelector('.seg.show')._listeners.click[0]({ target: { closest: function () { return asFan; } } });
+  ok('...shown the moment Show As is Fan, no reopening', row.hidden === false);
+  coffee.querySelector('.seg.show')._listeners.click[0]({ target: { closest: function () { return asLight; } } });
+  ok('...and hidden again for Light', row.hidden === true);
+  window.hkSettings = saved;
+})();
+
 // ARRANGE: a tile moved left or right among the tiles it sits with; what is
 // not on show there keeps its place in the saved order
 (function () {
@@ -800,6 +846,22 @@ print('\n=== a pop-up sheet goes with its hash; any sheet covers the page ===');
   ok('...no second history entry', HIST.stack.length === depth, HIST.stack.length + ' vs ' + depth);
   ok('...and its Close after runs again from now',
      __timers.filter(Boolean).some(function (t) { return t.ms === 3600000; }));
+  // CLOSE POP-UP (the alarm cleared): only the sheet that IS that pop-up, and
+  // only on the screens asked
+  ok('close asked for another pop-up: this sheet stays',
+     _.asked({ detail: { type: 'popup_close', popup: 'doorbell' } }) === false && _.state().el === el0);
+  ok('...kept to another dashboard: stays',
+     _.asked({ detail: { type: 'popup_close', popup: 'gate', dashboards: ['dashboard-den'] } }) === false && _.state().el === el0);
+  ok('...kept to another user: stays',
+     _.asked({ detail: { type: 'popup_close', popup: 'gate', users: ['u2'] } }) === false && _.state().el === el0);
+  ok('close asked for this one, here: the sheet goes',
+     _.asked({ detail: { type: 'popup_close', popup: 'gate', dashboards: ['dashboard-kitchen'] } }) === true && !_.state().el);
+  ok('...the page is uncovered', window.hkPopupCover === 0);
+  ok('...and the hash goes with it, so a reload does not bring it back', location.hash !== '#gate', location.hash);
+  // and the case the rest of this test covers: the hash leaving closes it too
+  history.pushState(null, '', 'http://ha/dashboard-kitchen/0#gate');
+  D.open('light.a', {}, { hashed: true });
+  _.state().popup = 'gate';
   history.pushState(null, '', 'http://ha/dashboard-kitchen/0');
   dispatchEvent({ type: 'location-changed' });
   ok('the hash leaves: the sheet goes (an automation asking again opens it fresh)', !_.state().el);
@@ -841,7 +903,7 @@ print('\n=== Climate category sheets ===');
   var members = ['sensor.den_t', 'sensor.bedroom_t'];
   function resolve() { return { ids: members.slice(), title: 'Temperature', value: members.length === 2 ? '71–80°' : members.length ? '80°' : 'No accessories' }; }
   ok('a Climate category opens as a sheet', D.openGroup('Temperature', members, { kind: 'temperature', climate: {}, resolve: resolve }));
-  var group = D._.state().panel;
+  var group = D._.state().panel, listColor = D._.state().icon.style.color;
   ok('each sensor is a room-labelled reading pill', group._kids[0].config.room === 'Den' &&
     group._kids[0].config.label_mode === 'climate_temperature' && group._kids[1].config.room === 'Bedroom' &&
     group._kids[0].config.layout === 'favourite' && group._kids[0].config.size === 'regular');
@@ -859,6 +921,12 @@ print('\n=== Climate category sheets ===');
   ok('closing device details returns to the live category without another history entry', D._.state().kind === 'group' && HIST.i === 1);
   D.open('sensor.bedroom_t', {}); history.back(); flushPops();
   ok('browser Back from a device returns to the category', D._.state().kind === 'group' && HIST.i === 1);
+  ok('...with the list\'s own glyph colour, not the gray fallback', listColor && D._.state().icon.style.color === listColor,
+     [listColor, D._.state().icon.style.color]);
+  D.open('sensor.bedroom_t', {});
+  var auto = D._.state().auto; __timers[auto - 1].fn(); flushPops();
+  ok('left to idle, a device opened from a category closes with it (one timeout, not two)', !D._.state().el && HIST.i === 0);
+  D.openGroup('Temperature', members, { kind: 'temperature', climate: {}, resolve: resolve });
   D.open('sensor.bedroom_t', {}); members = []; D.close();
   ok('removing the last member still returns to a dismissible empty category', D._.state().kind === 'group' && D._.state().panel._kids.length === 0);
   D.close(); flushPops();

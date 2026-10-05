@@ -26,9 +26,11 @@ automations what they need to read; see
 - An Android tablet. Any size works; a 10–11 inch tablet that reports about
   1280 × 800 in its browser shows the full layout. Choose one with **6 GB of
   memory or more**: memory, not the processor, is what makes the difference.
-- **Fully Kiosk Browser** on it. Its PLUS license adds remote administration,
-  which the **Fully Kiosk Browser** integration in Home Assistant uses to
-  reload the page and see the screen.
+- A kiosk app on it: **Fully Kiosk Browser** (its PLUS license adds remote
+  administration, which the **Fully Kiosk Browser** integration in Home
+  Assistant uses to reload the page and see the screen) or **Kiosk
+  Satellite**, which joins Home Assistant as an ESPHome device and can also
+  be a voice satellite and a Bluetooth proxy. Set up one of them, step 3.
 - Nothing else from HACS: hiding Home Assistant’s header and sidebar, and the
   photo screensaver, are part of HK Frontend.
 
@@ -97,7 +99,9 @@ pick it under **Existing Dashboards** and choose **Wall Tablet**. It gets the
 same settings, hiding the header and the photo screensaver included; see
 [Your Own Dashboard](Your-Own-Dashboard.md) for what its own YAML can add.
 
-## 3. Set up Fully Kiosk Browser
+## 3. Set up the kiosk app
+
+### Fully Kiosk Browser
 
 In Fully Kiosk Browser’s settings on the tablet:
 
@@ -115,6 +119,35 @@ In Fully Kiosk Browser’s settings on the tablet:
   reloads the tablet from Home Assistant.
 
 Sign in once as the tablet’s user.
+
+### Or Kiosk Satellite
+
+In Kiosk Satellite’s setup on the tablet:
+
+- **Connect** with a long-lived access token **created by the tablet’s user**
+  (sign in as that user in a browser on the tablet, then Profile → Security).
+  Kiosk Satellite signs the dashboard in with it, and the photo screensaver
+  runs only for the tablet’s own user.
+- **Dashboard**: the screen’s dashboard.
+- **Screensaver: off.** HK Frontend’s photo screensaver is the screensaver.
+  Kiosk Satellite’s Black screensaver can still be put up from Home Assistant
+  as the tablet’s “dark” (its **Screensaver** and **Screensaver active**
+  switches); HK Frontend notices it and holds the sky still.
+- **Filter dashboard updates: off** (Home Assistant Configuration →
+  Optimizations). It drops updates for entities it does not see on the page,
+  and HK Frontend’s sky, status and screensaver read beyond the page.
+- **Return to home dashboard view** and **dashboard view rotation: off** —
+  HK Frontend already returns the tablet to its dashboard.
+- Add it in Home Assistant with the **ESPHome** integration.
+
+Two things to know:
+
+- Its **Screen** is a `light` in the tablet’s area, so a “turn off the room’s
+  lights” automation or voice command turns the tablet off too. Hide the
+  kiosk’s entities (Settings → Entities → select → Hide) and area targeting
+  passes them by.
+- Its own **Camera** and **Screenshot** never join the Cameras page or a
+  camera strip, the same as Fully Kiosk’s camera.
 
 On the tablet itself:
 

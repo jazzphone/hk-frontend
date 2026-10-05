@@ -18,7 +18,7 @@ LOSSLESS, deliberately, not the quality-82 of the landscape converter: the
 alpha EDGES are the art, and lossless keeps the check trivial -- re-decode
 and the alpha plane must equal the PNG's byte for byte. (The encoder may
 still differ a little in the unused luminance payload; the mask ignores it,
-and the CLOUD_ALPHA mean-alphas in hk-sky.py -- measured on the pixels, not
+and the CLOUD_ALPHA mean-alphas in hk-sky.js -- measured on the pixels, not
 the file -- apply to both.)
 
 RUN IT AFTER gen_sky.py, then run the suites.

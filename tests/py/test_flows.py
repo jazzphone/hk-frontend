@@ -23,7 +23,7 @@ async def test_setup_starts_empty_and_assumes_no_house(hass, base):
     assert r["type"] == "create_entry"
     e = entry(hass)
     assert e.options == {} and not e.subentries
-    assert e.minor_version == 9, "a new entry is already the latest version"
+    assert e.minor_version == 10, "a new entry is already the latest version"
 
 
 async def test_its_items_in_the_order_its_page_lists_them(hass, frontend):
@@ -39,11 +39,11 @@ async def test_add_feature_offers_what_the_house_does_not_have(hass, frontend):
     flows = hass.config_entries.subentries
     r = await flows.async_init((frontend.entry_id, "feature"), context={"source": "user"})
     assert r["type"] == "menu" and r["step_id"] == "user"
-    assert r["menu_options"] == ["music", "live_tv", "clean_areas", "alarm_pin"]
+    assert r["menu_options"] == ["music", "live_tv", "clean_areas", "alarm_pin", "energy"]
     flows.async_abort(r["flow_id"])
     await add_feature(hass, "clean_areas", {})
     r = await flows.async_init((frontend.entry_id, "feature"), context={"source": "user"})
-    assert r["menu_options"] == ["music", "live_tv", "alarm_pin"]
+    assert r["menu_options"] == ["music", "live_tv", "alarm_pin", "energy"]
     flows.async_abort(r["flow_id"])
 
 
@@ -58,4 +58,4 @@ async def test_the_house_entry_holds_no_music(hass, frontend):
     assert not frontend.subentries
     # its actions: Show pop-up, and the features' own (each answers "not
     # added" until its feature is)
-    assert {"show_popup", "clean_areas"} <= set(hass.services.async_services_for_domain(DOMAIN))
+    assert {"show_popup", "close_popup", "clean_areas"} <= set(hass.services.async_services_for_domain(DOMAIN))

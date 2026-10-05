@@ -90,10 +90,20 @@ shade). A door or window sensor’s glyph comes as an open and a shut pair.
 Material Design icons by name or keyword (“burger” finds the hamburger). A
 Material icon with an Apple glyph of the same name is drawn as the Apple one.
 
+## Spinning
+
+*For a fan, or something drawn as one.* Whether its tile’s glyph turns while
+it is on. A fan’s glyph spins by default, but a chosen icon isn’t always one
+that reads as a fan — a ceiling fan does, a purifier doesn’t. **Automatic**
+keeps its kind (a fan spins, anything else doesn’t), **Spin** makes it turn,
+**Still** keeps it still. It only turns while the fan is on; a favorite’s
+glyph keeps the favorites’ still, one-height look. It is set in the accessory’s
+settings (the gear on its sheet), not with the fan’s own controls.
+
 ## Where it shows
 
-- **Include in Status**: off, no chip counts it, and What Counts leaves it out
-  of every kind. Because the category pages list what What Counts counts, it
+- **Include in Status**: off, no chip counts it, and Status & Chips leaves it out
+  of every kind. Because the category pages list what Status & Chips counts, it
   also leaves those pages.
 - **Show on Home**: off, it isn’t on a generated screen’s Home. Its room page
   and the category pages still list it, as in the Home app.
@@ -111,14 +121,22 @@ Shown for something that is a favorite on any screen:
   controls as one favorite. “Main + Table Lights” turns both on and off, is lit
   while either is, and shows their brightness.
 
-## Color and chip settings
+## Color
 
-Shown for a chip, a scene pill or a favorite:
+One color for the accessory, everywhere it appears: its tile on its room’s
+page, on Home and on category pages like Lights, its favorite, its chip, and —
+for a scene, script or button — its button in the **Scenes** row. A tile or
+favorite shows it as the Home app does: the glyph in that color while off, a
+circle of it behind a white glyph while on. A scene’s button shows the glyph in
+that color, and the circle when you tap it (or while a script runs). **Auto**
+keeps the color of its kind (lights yellow, fans blue …); a scene’s is plain
+white.
 
-- **Color**: its color as a chip, a scene pill, or a favorite’s glyph while it
-  is on.
-- For an accessory chip: **Show only when it is** (a state), **Shows** (its
-  state or one of its attributes) and **Label** (words to show instead).
+## As a chip
+
+For an accessory shown as a chip: **Show only when it is** (a state),
+**Shows** (its state or one of its attributes) and **Label** (words to show
+instead).
 
 ## Reset to Automatic
 
@@ -149,7 +167,7 @@ are untouched.
 | Setting | Default | What it does |
 |---|---|---|
 | Search Accessories | — | Find an accessory by name, entity ID or room. |
-| Hidden from Screens | None | Rooms (**Hide a Room…**), devices (**Hide a Device…**) and single accessories (**Hide an Accessory…**) left off every generated screen (its rooms, chips and pages) and never counted by What Counts, on any screen. To hide something from Home only, use its **Show on Home**. |
+| Hidden from Screens | None | Rooms (**Hide a Room…**), devices (**Hide a Device…**) and single accessories (**Hide an Accessory…**) left off every generated screen (its rooms, chips and pages) and never counted by Status & Chips, on any screen. To hide something from Home only, use its **Show on Home**. |
 | Also Shown | None | Things a generated screen wouldn’t show by itself: scenes, scripts, sensors. Each appears in its room, or in a section called **More** at the end of Home if it has no room. |
 | Page Order → Vacuums | A to Z | The order of the Vacuums page. |
 | Page Order → Security | Locks A to Z, then garage doors | The order of the locks and garage doors on the Security page. |
@@ -171,11 +189,12 @@ An accessory’s page holds the same settings as the gear on its
 | Tile size | Automatic | **Regular** or **Tall**: its tile’s height on generated screens, over what its kind is drawn as. Favorites keep their one height. |
 | What it says → When on · When off | On · Off | *Switches and input booleans.* What its states are called on its tiles and as a favorite (“Blocked” and “Allowed” for a switch that blocks a game). Whether it is lit still follows its state. |
 | Icon | Auto | A glyph offered by what it is, or any glyph or Material Design icon found with **Search all icons**. A door or window sensor’s glyph comes as an open and shut pair. |
-| Include in Status | On | Off: no chip counts it, and What Counts leaves it out everywhere. |
+| Spinning | Automatic | *Shown for a fan, or something drawn as one.* **Spin** or **Still**: whether its tile’s glyph turns while it is on. Automatic is its kind (a fan spins, anything else doesn’t). |
+| Include in Status | On | Off: no chip counts it, and Status & Chips leaves it out everywhere. |
 | Show on Home | On | Off: not on a generated screen’s Home. Its room page and the category pages still list it. |
 | Favorite on this dashboard | Off | *On a generated screen’s sheet only.* Adds it to, or takes it off, this screen’s Favorites. |
 | As a favorite → Name · Room · glyph · Together with | Its own | *Shown for a favorite.* Its name, the room line above it and its glyph on the Favorites row of every screen where it is a favorite. **Room** is for something with no area of its own (a helper). **Together with** (lights, switches and input booleans): up to 8 more it controls as one favorite (“Main + Table Lights”). |
-| Color | Auto | *Shown for a chip, a scene pill or a favorite.* White, Yellow, Orange, Red, Pink, Purple, Blue, Teal, Mint or Green: its color as a chip, a scene pill, or a favorite’s glyph while it is on. |
+| Color | Auto | White, Yellow, Orange, Red, Pink, Purple, Blue, Teal, Mint or Green: its color everywhere it appears — its tiles on every page, its favorite, its chip and its button in the Scenes row. Auto: its kind’s color (a scene’s: white). |
 | Show only when it is | Any state | *Shown for an accessory chip.* The chip appears only in this state. |
 | Shows | Its state | *Shown for an accessory chip.* One of its attributes instead of its state. |
 | Label | What it shows | *Shown for an accessory chip.* Words to show instead. |

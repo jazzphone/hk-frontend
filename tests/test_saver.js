@@ -99,6 +99,9 @@ function push(h) { haRoot.hass = h; hub.slice().forEach(function (f) { f(h); });
 
 load(DIR + 'frontend/modules/hk-saver.js');
 var S = window.hkSaver, U = S._;
+// a stop's fade back runs after the dashboard is drawn (frames, then a hold):
+// every timer twice
+function woke() { __runTimers(); __runTimers(); }
 
 print('=== config ===');
 var c = U.readCfg({ user: 'T', entity: SW, starts_after: 0, each_photo: 20, order: 'sorted', fill: false, zoom: true,
@@ -116,6 +119,9 @@ ok('...anything else is ignored', U.readCfg({ entity: 'light.x' }).entity === nu
 ok('the calendar pane: off, two days, by default', d.calendar === false && d.calendar_days === 2);
 ok('...on, with the days asked for (1 to 7)', U.readCfg({ calendar: true, calendar_days: 5 }).calendar === true &&
    U.readCfg({ calendar_days: 5 }).calendar_days === 5 && U.readCfg({ calendar_days: 30 }).calendar_days === 2);
+ok('Fade Back: half a second by default; 0 (at once) to 5 s', d.fade_back === 500 && U.readCfg({ fade_back: 0 }).fade_back === 0 &&
+   U.readCfg({ fade_back: 2000 }).fade_back === 2000 && U.readCfg({ fade_back: 9000 }).fade_back === 500 &&
+   U.readCfg({ fade_back: 'x' }).fade_back === 500);
 ok('nonsense timing falls back', U.readCfg({ starts_after: -5, each_photo: 'x' }).starts_after === 180 &&
    U.readCfg({ each_photo: 'x' }).each_photo === 30);
 ok('no block, no screensaver', U.readCfg(null) === null && U.readCfg('x') === null);
@@ -186,9 +192,19 @@ dispatchEvent({ type: 'pointerdown', clientX: 640, clientY: 400, pointerType: 't
 ok('a touch in the middle stops it', !S.running());
 ok('...turns the switch off', calls.join() === 'input_boolean.turn_off ' + SW, calls);
 ok('...and swallows taps for a moment after', S.stats().blocking);
+ok('each photo layer carries its own scrim for the forecast details (fades with its photo)',
+   saverEl().shadowRoot.querySelectorAll('.ph').every(function (ph) { return !!ph.querySelector('.phscrim'); }));
 var blockingHost = saverEl();
 ok('wake retains visuals for the outgoing fade', !blockingHost.hasAttribute('released'));
-__runTimersUnder(400);
+ok('...and first stays over the dashboard, 99 % (waking), while it is drawn underneath',
+   blockingHost.hasAttribute('waking') && blockingHost.style['--fade'] === '0ms', blockingHost.attrs);
+ok('...the dashboard is shown again under it at once', visibilityStyle.value !== 'hidden');
+__runTimersUnder(1); __runTimersUnder(1);
+ok('...for two frames and more', blockingHost.hasAttribute('waking'));
+__runTimersUnder(200);
+ok('...then fades over Fade Back (500 ms)', !blockingHost.hasAttribute('on') && !blockingHost.hasAttribute('waking') &&
+   blockingHost.style['--fade'] === '500ms', { attrs: blockingHost.attrs, fade: blockingHost.style['--fade'] });
+__runTimersUnder(600);
 ok('after the fade only the tap-catching host remains', saverEl() === blockingHost && blockingHost.hasAttribute('blocking') && blockingHost.hasAttribute('released') && blockingHost.shadowRoot.children.every(function (e) { return e.tagName === 'STYLE'; }), {attrs:blockingHost.attrs,children:blockingHost.shadowRoot.children.map(function(e){return e.tagName;}),same:saverEl()===blockingHost});
 ok('releasing graphics preserves accidental-tap protection', S.stats().blocking && S.stats().cards === 0);
 push(hassWith('off'));
@@ -204,6 +220,69 @@ dispatchEvent({ type: 'touchstart', touches: [{ clientX: 1250 }] });
 ok('a tap on the right edge keeps it on (next photo)', S.running() && calls.length === 0, calls);
 S.stop();
 ok('hkSaver.stop() takes it away without writing the switch', !S.running() && calls.length === 0, calls);
+S.start(); S.stop(); S.start();
+ok('started again while waking: covering again, not left at 99 %', S.running() && !saverEl().hasAttribute('waking'), saverEl().attrs);
+woke();
+ok('...and the old wake\'s fade never takes it away', S.running() && saverEl().hasAttribute('on'), saverEl().attrs);
+S.stop(); woke();
+
+print('\n=== the cards over the photos keep their order, whenever they load ===');
+(function () {
+  var waits = {}, realGet = customElements.get, realWhen = customElements.whenDefined, realCreate = document.createElement;
+  customElements.get = function (n) { return /^hk-(clock|weather-strip)-card$/.test(n) ? undefined : realGet.call(customElements, n); };
+  customElements.whenDefined = function (n) { return new Promise(function (res) { waits[n] = res; }); };
+  document.createElement = function (t) {
+    if (/^hk-(clock|weather-strip)-card$/.test(t)) { var f = new Fake(t); f.setConfig = function () {}; return f; }
+    return realCreate.call(document, t);
+  };
+  var c = S.config(), savedCards = c.cards;
+  c.cards = [{ type: 'custom:hk-clock-card' }, { type: 'custom:hk-weather-strip-card' }];
+  S.start();
+  // hk-weather.js defines the weather strip first, then the clock
+  waits['hk-weather-strip-card'](); waits['hk-clock-card']();
+  drainMicrotasks(); drainMicrotasks();
+  var info = saverEl().shadowRoot.querySelector('.info');
+  var order = info.children.map(function (e) { return e.tagName; });
+  ok('a page reloaded under the switch: the clock still above the weather', order.join() === 'HK-CLOCK-CARD,HK-WEATHER-STRIP-CARD', order);
+  S.stop();
+  c.cards = savedCards;
+  customElements.get = realGet; customElements.whenDefined = realWhen; document.createElement = realCreate;
+})();
+
+print('\n=== a tap on the forecast details: the Weather page ===');
+var pushed = [], navs = 0;
+globalThis.history = { pushState: function (st, t, url) { pushed.push(url); location.pathname = url; } };
+addEventListener('location-changed', function () { navs++; });
+function withBand() {
+  var r = saverEl().shadowRoot, box = r.querySelector('.fcband');
+  if (!box) { box = new Fake('div'); box.className = 'fcband'; r.appendChild(box); }
+  var el = new Fake('hk-weather-forecast-card');
+  el.getBoundingClientRect = function () { return { left: 30, right: 1250, top: 500, bottom: 780, width: 1220, height: 280 }; };
+  box.children = []; box.appendChild(el);
+  saverEl().setAttribute('band', '');
+}
+var savedViews = lovelacePanel.lovelace.config.views;
+lovelacePanel.lovelace.config.views = [{ path: '0' }, { path: 'weather' }];
+var home = location.pathname;
+S.start(); withBand(); pushed = []; navs = 0;
+dispatchEvent({ type: 'pointerdown', clientX: 640, clientY: 600, pointerType: 'touch' });
+ok('it wakes onto this dashboard\'s Weather page', !S.running() && pushed.join() === '/' + home.split('/')[1] + '/weather' && navs === 1, pushed);
+location.pathname = home;
+S.start(); withBand(); pushed = [];
+dispatchEvent({ type: 'pointerdown', clientX: 1260, clientY: 600, pointerType: 'touch' });
+ok('...on the edges too (the details run under them), not the next photo', !S.running() && pushed.length === 1, pushed);
+location.pathname = home;
+S.start(); withBand(); pushed = [];
+dispatchEvent({ type: 'pointerdown', clientX: 640, clientY: 200, pointerType: 'touch' });
+ok('a tap above them just closes it, where it was', !S.running() && pushed.length === 0, pushed);
+S.start(); saverEl().removeAttribute('band'); pushed = [];
+dispatchEvent({ type: 'pointerdown', clientX: 640, clientY: 600, pointerType: 'touch' });
+ok('...as it does with no details showing', !S.running() && pushed.length === 0, pushed);
+lovelacePanel.lovelace.config.views = [{ path: '0' }];
+S.start(); withBand(); pushed = [];
+dispatchEvent({ type: 'pointerdown', clientX: 640, clientY: 600, pointerType: 'touch' });
+ok('a dashboard with no Weather page: it just closes', !S.running() && pushed.length === 0, pushed);
+lovelacePanel.lovelace.config.views = savedViews;
 
 print('\n=== HK Frontend\'s own switch, and touches ===');
 var OWN = 'switch.kitchen_photo_screensaver', ws = [];
@@ -259,7 +338,7 @@ window.hkSky = { saverChanged: function () {}, scene: function (box) {
   scenes.push(sc); return sc; } };
 window.fully = { isInScreensaver: function () { return FULLY.saver; }, getScreenOn: function () { return FULLY.on; } };
 function saverEl() { return walkFake(document.body).filter(function (e) { return e.tagName === 'HK-SCREENSAVER'; }).pop(); }
-S.stop(); __runTimers();
+S.stop(); woke();
 push(hassOwn('off'));
 S.start();
 drainMicrotasks(); drainMicrotasks();
@@ -272,9 +351,18 @@ FULLY.saver = false; FULLY.on = false; __runTimers();
 ok('...and with the screen off', scenes[0].paused === true);
 FULLY.on = true; __runTimers();
 ok('...and moves again when the screen is lit', scenes[0].paused === false, scenes[0].paused);
+// KIOSK SATELLITE says so with window events (its API is promise-based)
+dispatchEvent({ type: 'kiosksatellite:screensaverstart' }); __runTimers();
+ok('Kiosk Satellite\'s own (Black) screensaver: the sky holds still', scenes[0].paused === true, scenes[0].paused);
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' }); __runTimers();
+ok('...and moves again when it ends', scenes[0].paused === false, scenes[0].paused);
+dispatchEvent({ type: 'kiosksatellite:screenoff' }); __runTimers();
+ok('...holds still with its panel off', scenes[0].paused === true);
+dispatchEvent({ type: 'kiosksatellite:screenon' }); __runTimers();
+ok('...and moves when the panel is lit', scenes[0].paused === false);
 dispatchEvent({ type: 'pointerdown', clientX: 1250, clientY: 400, pointerType: 'touch' });
 ok('an edge tap on the forecast closes it (there is no next photo)', !S.running());
-__runTimers();
+woke();
 ok('...and the sky is let go', scenes[0].destroyed === true);
 
 // Show: Forecast -- never even lists the photos
@@ -291,15 +379,23 @@ ok('Show: Forecast is read from the config', S.config() && S.config().show === '
 S.start(); drainMicrotasks();
 ok('Show: Forecast goes straight to the forecast', S.stats().mode === 'forecast' && scenes.length === 1, S.stats());
 ok('...without listing the photos at all', !ws.some(function (m) { return m.type === 'media_source/browse_media'; }), ws);
-S.stop(); __runTimers();
+S.stop(); woke();
 ok('...and a restart after it starts clean (one sky, not two)', (S.start(), drainMicrotasks(), scenes.length === 2 && scenes[0].destroyed));
-S.stop(); __runTimers();
+S.stop(); woke();
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'photos' });
 lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
 push(hf); dispatchEvent({ type: 'location-changed' }); __runTimers(); scenes = [];
 S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
 ok('Show: Photos with photos in the folder: the photos, no forecast', S.stats().mode === 'photos' && scenes.length === 0, S.stats());
-S.stop(); __runTimers();
+// STARTED AGAIN BEFORE THE STOP'S TEARDOWN: the host is reused with its last
+// photo still on top; the new first photo must take over from it, not sit
+// under it (or beside it, both opaque)
+function topPhotos() { return saverEl().shadowRoot.querySelectorAll('.ph').filter(function (p) { return p.classList.contains('top'); }); }
+var keptHost = saverEl(), lastShown = topPhotos()[0];
+S.stop(); S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); __runTimersUnder(1);
+ok('a restart within the stop\'s fade reuses the host, and only the new photo is on top', saverEl() === keptHost &&
+   topPhotos().length === 1 && topPhotos()[0] !== lastShown && !lastShown.querySelector('img.fg').src, topPhotos().length);
+S.stop(); woke();
 // Photos & Forecast: the forecast as a slide every few photos
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'both', forecast_every: 3, fallback: true });
 lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
@@ -308,10 +404,14 @@ ok('Photos & Forecast is read, with how often', S.config().show === 'both' && S.
 var covers = [];
 function recordCover() { covers.push({ hidden: visibilityStyle.value === 'hidden', covered: S.covered() }); }
 addEventListener('hk-saver-covered', recordCover);
+var scrolled = [];
+window.scrollTo = function (o) { scrolled.push(o); };
 S.start(); S.stop(); __runTimersUnder(3200);
 ok('dismissing during the entrance cancels the covered notification', covers.length === 0 && !S.covered());
+ok('...and the page is not scrolled under somebody who is still looking', scrolled.length === 0, scrolled);
 S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
 ok('the entrance keeps cameras visible until fully covered', !S.covered() && covers.length === 0);
+ok('...and the page keeps its scroll until then', scrolled.length === 0, scrolled);
 ok('...it starts with the photos', S.stats().mode === 'photos' && !S.stats().forecastSlide && scenes.length === 0, S.stats());
 U.slide.since(3); U.slide.schedule(); __runTimers();
 ok('after forecast_every photos the forecast fades in as a slide', S.stats().forecastSlide === true && scenes.length === 1, S.stats());
@@ -329,6 +429,9 @@ __runTimersUnder(3200);
 ok('after the forecast fade, the old photo is released', !outgoingPhoto.classList.contains('top') && !outgoingPhoto.querySelector('img.fg').src);
 ok('the fully covered dashboard releases its paint layers', visibilityStyle.value === 'hidden');
 ok('camera teardown is notified only after the dashboard is hidden', covers.length === 1 && covers[0].hidden && covers[0].covered);
+ok('...and the page goes back to its top then, unseen (the sleep script\'s javascript: scroll, retired)',
+   scrolled.length === 1 && scrolled[0] && scrolled[0].top === 0, scrolled);
+delete window.scrollTo;
 removeEventListener('hk-saver-covered', recordCover);
 
 dispatchEvent({ type: 'pointerdown', clientX: 1250, clientY: 400, pointerType: 'touch' });
@@ -358,7 +461,7 @@ S.stop();
 ok('stopping restores the dashboard visibility and its previous priority immediately', visibilityStyle.value === 'visible' && visibilityStyle.priority === 'important');
 ok('stopping clears the covered state', !S.covered());
 
-S.stop(); __runTimers();
+woke();
 ok('...and is let go with the screensaver', scenes[0].destroyed === true);
 
 // FORECAST DETAILS: off on the forecast; on over the photos
@@ -372,7 +475,7 @@ U.slide.show();
 ok('Forecast Details off on the forecast: the slide is the sky and the land alone', S.stats().forecastSlide && !('band' in saverEl().attrs), saverEl().attrs);
 U.slide.hide();
 ok('...and back over the photos, the band again', 'band' in saverEl().attrs);
-S.stop(); __runTimers();
+S.stop(); woke();
 
 // Forecast When There Are No Photos: off -- a dark screen, as before 1.3
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'photos', fallback: false });
@@ -381,7 +484,7 @@ push(hassOwn('off')); dispatchEvent({ type: 'location-changed' }); __runTimers()
 ok('the fallback setting is read', S.config() && S.config().fallback === false, S.config());
 S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
 ok('fallback off and no photos: no forecast, the screen stays dark', S.running() && S.stats().mode === 'photos' && scenes.length === 0, S.stats());
-S.stop(); __runTimers();
+S.stop(); woke();
 
 print('\n=== an existing dashboard: the block from its screen\'s HK settings ===');
 var BOARD_B = { screensaver: true, tablet_user: 'Kitchen Tablet', screensaver_engine: 'hk',

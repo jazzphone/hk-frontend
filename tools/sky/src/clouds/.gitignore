@@ -1,0 +1,8 @@
+# Style references only (screenshots of Apple Weather) -- never committed or shipped.
+reference/
+# The sources (236 MB of PNG) stay here, untracked: tools/sky/cloud_art.py
+# turns them into frontend/sky/clouds/, which is what ships and what git keeps.
+*-src.png
+contact-sheet-v1.jpg
+# Codex's working folder (prompts, intermediates, reviews)
+work/

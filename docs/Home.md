@@ -19,18 +19,24 @@ The sidebar has every page.
   something to show. ([Pages](Pages.md))
 - **One screen for every device.** The same screen works on a wall tablet, a
   computer, an iPad and a phone; tiles and the weather reflow below 640 px.
+- **Status rows** under every room’s name and the Climate, Lights, Doors &
+  Windows, Water and Security pages’ titles, as the Home app has them.
+  ([Status Rows](Status-Rows.md))
 - **A live sky** behind every page that follows the weather and the time of
-  day, with seasonal decorations. ([Live Sky](Live-Sky.md))
+  day, with seasonal decorations, optional realistic clouds and woodland
+  [New Decorations](Seasonal-Decorations.md). ([Live Sky](Live-Sky.md))
 - **Glass tiles and detail sheets.** Tap a light, thermostat, lock, garage
   door, speaker or vacuum and a sheet opens with the controls it needs.
   ([Detail Sheets and Pop-ups](Detail-Sheets-and-Popups.md))
-- **A menu of pages and rooms**, open beside the page or behind a button, with
-  an optional Home Assistant section. ([Menu](Menu.md))
+- **A menu of pages and rooms**, open beside the page, behind a button or a
+  swipe from the left edge, with an optional Home Assistant section.
+  ([Menu](Menu.md))
 - **HK Settings**, a settings page in the sidebar with a live preview of each
   screen as a phone, an iPad, a wall tablet, a desktop or a car.
   ([HK Settings](HK-Settings.md))
 - **Optional features:** whole-home [Music](Music.md), [Live TV](Live-TV.md),
-  [Clean Areas](Clean-Areas.md) and an [Alarm PIN](Alarm-PIN.md).
+  [Clean Areas](Clean-Areas.md), an [Alarm PIN](Alarm-PIN.md), and an
+  [Energy](Energy.md) page built from Home Assistant’s Energy settings.
 - **Wall tablet support:** return to Home when idle, a photo screensaver, and
   a full-screen kiosk look. ([Wall Tablets](Wall-Tablets.md))
 - **A card library** for dashboards you build yourself.

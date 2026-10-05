@@ -120,6 +120,9 @@ SKY_BACKDROPS = (
     {"id": "custom", "label": "Custom"},
 )
 SKY_BACKDROP_IDS = tuple(p["id"] for p in SKY_BACKDROPS)
+# A PAGE'S BACKGROUND (Sky / Background -> Pages): its own color, or any
+# backdrop -- "live" among them, the live sky
+SKY_PAGE_MODES = ("own",) + SKY_BACKDROP_IDS
 _MMDD = re.compile(r"^\s*(\d{1,2})-(\d{1,2})\s*$")
 
 
@@ -131,6 +134,18 @@ def parse_mmdd(text: str | None) -> str | bool | None:
     if not m or not (1 <= int(m.group(1)) <= 12 and 1 <= int(m.group(2)) <= 31):
         return False
     return f"{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+
+
+def sky_pages(v: Any) -> dict[str, str] | None:
+    """Each page's background as stored: {page kind or custom page address:
+    a SKY_PAGE_MODES value}; None when it cannot be read. An unknown page or
+    mode is left out (a page removed, a backdrop retired)."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    return {str(k): m for k, m in v.items()
+            if isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k) and m in SKY_PAGE_MODES}
 
 
 def sky_stops(v: Any) -> dict[str, list[str]] | None:
@@ -185,13 +200,39 @@ def tab_position(text: object) -> str | None:
     return f"{n:g}{unit}"
 
 
-# What a room page's status row may show, in the order it shows them
-# (the Home app's own: readings, then accessories, then sensors).
-STATUS_KINDS =("temperature", "humidity", "outlets", "blinds", "fans", "windows",
-                "doors", "locks", "garage", "motion", "occupancy", "leaks")
+# What a room page's status row may show, in the order it shows them by
+# default: the Home app's own (a room there, 2026-10-04) -- readings, the
+# security system, the accessories, the sensors, and what is playing. The
+# saved list (rooms.status) is in the house's own order.
+STATUS_KINDS = ("temperature", "humidity", "security", "tvs", "lights", "outlets", "blinds", "fans",
+                "windows", "doors", "locks", "garage", "valves", "motion", "occupancy", "leaks", "speakers")
+# ...those added in entry 1.10 (HK Frontend 1.5), which a list saved before is given
+STATUS_KINDS_ADDED = ("security", "tvs", "lights", "valves", "speakers")
+
+# THE PAGES' STATUS ROWS (hk-room.js pageItems): the row under a category
+# page's title, as Climate's. Each page: (what it may show, what it shows by
+# default, in order). Saved as status_rows.<page> = {status, exclude_areas}.
+STATUS_ROWS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "climate": (("temperature", "humidity", "blinds", "fans"),
+                ("temperature", "humidity", "blinds", "fans")),
+    "lights": (("lights", "outlets"), ("lights", "outlets")),
+    "doors_windows": (("doors", "windows", "garage", "motion", "occupancy"),
+                      ("doors", "windows", "motion", "occupancy")),
+    "water": (("leaks", "valves"), ("leaks", "valves")),
+    "security": (("security", "locks", "garage", "doors", "windows", "leaks", "motion", "occupancy"),
+                 ("security", "locks", "garage", "doors", "windows", "leaks")),
+}
+
+# The clouds' looks (sky.cloud_style, a screen's sky_cloud_style)
+CLOUD_STYLES = ("classic", "realistic")
+
+# The seasons whose woodland New Decorations shows between occasions (sky.woodland)
+WOODLAND_SEASONS = ("spring", "summer", "fall", "winter")
 
 DEFAULTS: dict[str, dict[str, Any]] = {
-    "climate": {"status": ["temperature", "humidity", "blinds", "fans"], "exclude_areas": []},
+    # the pages' status rows: what each shows, in its order, and the rooms it
+    # leaves out (an outdoor area's temperature, a shed's leak sensor)
+    "status_rows": {p: {"status": list(d), "exclude_areas": []} for p, (_k, d) in STATUS_ROWS.items()},
     # The header's right-hand line: "Disarmed · 2 Doors Open" / "Home Secured".
     "security": {"alarm": None, "garage": [], "locks": [], "doors": [], "windows": []},
     # The header clock. Home Assistant's Time & Date integration; the page
@@ -210,7 +251,13 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # decorations: the integration's own on/off (switch.<...>_seasonal_decorations,
     # switch.py); seasonal: optionally, an entity of the house's that must also be on.
     "sky": {"moon": None, "holidays": None, "seasonal": None, "birthdays": [],
-            "decorations": True,
+            "decorations": True, "decoration_style": "old",
+            # the clouds' look: "classic" (the drifting noise decks) or
+            # "realistic" (photographic cloud cut-outs, tools/sky/cloud_art.py)
+            "cloud_style": "classic",
+            # New Decorations' woodland on days with no holiday or birthday,
+            # season by season -- its own choice, not the holidays' Show
+            "woodland": list(WOODLAND_SEASONS),
             # The sky's own look (Sky / Background): animations -- the moving
             # parts (drifting clouds, falling rain and snow, the seasons);
             # weather -- the clouds, rain, snow and fog (the sun, moon and
@@ -220,6 +267,11 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # sky_animations ... sky_custom keys, None = follow these).
             "animations": True, "weather": True,
             "gradient": "live", "gradient_custom": None,
+            # EACH PAGE'S BACKGROUND (sky_pages below): page kind or custom
+            # page address -> "own" (its own color), "live" (the live sky,
+            # with this look) or a backdrop id. Missing: Automatic -- a page
+            # with a color of its own keeps it, the rest show the live sky.
+            "pages": {},
             # Which themes may run (all by default) and the hemisphere, which
             # flips the spring and winter surprise windows. (christmas_from is
             # one of SKY_DATES below: None = the built-in 12-07.)
@@ -237,23 +289,23 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # Dashboards opened in a car browser: the viewport is pinned (tesla-viewport.js).
     "car": {"dashboards": []},
     # The generated dashboards (custom:hk-dashboard): what to leave out (also
-    # out of What counts, everywhere) and what to add. A dashboard's own YAML
+    # out of Status & Chips, everywhere) and what to add. A dashboard's own YAML
     # options add to these. (Which parts a screen shows -- chips, pages, sky,
     # rooms -- is each screen's own, and a dashboard's YAML can say
     # `chips: false` and the like.)
     "generated": {"exclude_areas": [], "exclude_devices": [], "exclude_entities": [],
                   "include_entities": []},
-    # WHAT COUNTS (kinds.py): each kind's Leave out / Also count, by kind;
+    # STATUS & CHIPS (kinds.py): each kind's Leave out / Also count, by kind;
     # None = nothing saved, so the kind is automatic (or its older list,
     # kinds.LEGACY).
     "counts": kinds.blank(),
     # Entities single cards fall back to when their config does not name one.
     "features": {"vacuum_script": None, "alarm_bad_code": None,
-                 # thermostats: the older list What counts replaced
+                 # thermostats: the older list Status & Chips replaced
                  # (kinds.LEGACY) -- read only while "thermostats" is unsaved.
                  # temperature: the indoor temperature the Climate chip shows
                  # (else the first thermostat's); power: the house's power
-                 # draw, for the Energy chip. Both on the What counts page.
+                 # draw, for the Energy chip. Both on the Status & Chips page.
                  "thermostats": [], "temperature": None, "power": None,
                  # The Timers page's "House timers": the timers people start
                  # themselves (a nap, bedtime), in order, one tap each.
@@ -284,7 +336,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # fills in for an older hk-base.js.
              "style": "auto", "narrow": "chip", "tab_at": "", "tab_size": "large",
              "tab_size_phone": "standard", "open_min": 1000, "time_weather_at": "page",
-             "ha_row": False, "accent": "orange"},
+             "ha_row": False, "accent": "orange", "swipe": False},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -440,6 +492,9 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # screen, the photos (or the forecast) beside it; and how many days it
     # lists -- today, tomorrow, and so on
     "calendar": False, "calendar_days": 2,
+    # BACK TO THE DASHBOARD: how long the screensaver takes to fade away, ms
+    # (0: at once), after the dashboard has been drawn underneath it
+    "fade_back": 500,
 }
 SAVER_ORDERS = ("random", "sorted")
 SAVER_SHOWS = ("photos", "both", "forecast")
@@ -448,6 +503,7 @@ SAVER_SHOWS = ("photos", "both", "forecast")
 DEFAULTS["look"]["saver"] = dict(SAVER_DEFAULTS)
 SAVER_FC_EVERY = (2, 100)
 SAVER_CAL_DAYS = (1, 7)
+SAVER_FADE_BACK = (0, 5000)
 SAVER_ENGINES = ("hk", "wallpanel")
 # WHO HIDES HOME ASSISTANT'S HEADER AND SIDEBAR on a screen with Hide Home
 # Assistant Header & Sidebar: HK Frontend itself (hk-kiosk.js, 1.3), or the
@@ -486,9 +542,9 @@ def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
     for k, val in v.items():
         if k not in SAVER_DEFAULTS:
             return None
-        if k in ("starts_after", "each_photo", "forecast_every", "calendar_days"):
+        if k in ("starts_after", "each_photo", "forecast_every", "calendar_days", "fade_back"):
             lo, hi = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_every": SAVER_FC_EVERY,
-                      "calendar_days": SAVER_CAL_DAYS}[k]
+                      "calendar_days": SAVER_CAL_DAYS, "fade_back": SAVER_FADE_BACK}[k]
             if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= val <= hi:
                 return None
             out[k] = int(val)
@@ -543,7 +599,7 @@ def as_client(entry: ConfigEntry | None,
     from the items too, so a screen still running an older hk-base.js (the
     first load after an update) keeps its menu until it reloads.
 
-    `kinds` (found): What counts, resolved (kinds.py) -- each kind's entity
+    `kinds` (found): Status & Chips, resolved (kinds.py) -- each kind's entity
     ids. The raw Leave out / Also count stay here; a screen needs only the
     answer. The older lists the header and the generated dashboard read
     (security.locks ..., features.thermostats) are the same answer, for a
@@ -590,8 +646,10 @@ SUBENTRY_DASHBOARD = "dashboard"
 # (always beside the page, folding to the automatic button when narrower
 # than dock_min).
 # chip_scroll: the chip, and the edge tab slides in while it is scrolled out
-# of sight; chip_home: that on Home, the tab on every other page.
-BOARD_MENUS = ("off", "auto", "chip", "chip_scroll", "chip_home", "tab", "open")
+# of sight; chip_home: that on Home, the tab on every other page. none: no
+# button at all, the swipe from the left edge opens it -- only with `swipe`
+# on (hk-base.js treats it as auto without it).
+BOARD_MENUS = ("off", "auto", "chip", "chip_scroll", "chip_home", "tab", "none", "open")
 BOARD_TIME = ("page", "menu")          # the time and weather: header or menu
 BOARD_MENU_ROOMS = ("az", "order")     # rooms in the menu: A to Z / room order
 # rooms on Home: as written / in room order / only the rooms in room order
@@ -604,8 +662,9 @@ CHIP_KINDS = ("weather_alert", "security", "doors_windows", "climate", "lights",
               "timers", "vacuums", "speakers", "water", "energy")
 CHIPS_QUIET = ["weather_alert", "doors_windows", "blinds", "water"]
 # THE PAGES a generated dashboard can have (hk-strategy.js), in menu order.
+# Energy: the Energy feature's page (features/energy), while it is added.
 PAGE_KINDS = ("weather", "calendar", "cameras", "live_tv", "security", "doors_windows", "climate", "lights",
-              "timers", "vacuums", "music", "water", "rooms")
+              "timers", "vacuums", "music", "water", "energy", "rooms")
 # A DASHBOARD'S PAGE ORDER: the kinds above, plus Browse Music as a place of
 # its own (it comes with Play Music -- never on its own -- and follows it
 # unless placed), plus the house's custom pages by address, so every page in
@@ -616,8 +675,9 @@ PAGE_ORDER = (PAGE_KINDS[:PAGE_KINDS.index("music") + 1] + (PAGE_BROWSE,)
 BOARD_GLASS = ("house", "clear", "frosted", "blur", "blur_each")   # house: the shared look
 # ON NARROW SCREENS: the button under 1,024 px and while an
 # always-open menu is folded -- the chip, the chip then the edge tab once
-# scrolled past, or the edge tab (hk-base.js narrowStyle)
-BOARD_NARROW = ("chip", "chip_scroll", "tab")
+# scrolled past, the edge tab, or none (the swipe alone; the chip without
+# it) -- hk-base.js narrowStyle
+BOARD_NARROW = ("chip", "chip_scroll", "tab", "none")
 # what a phone shows at the top of Home: the clock and weather header, or the
 # one-line weather strip (a generated screen; a YAML one draws its own)
 BOARD_PHONE = ("header", "strip")
@@ -638,6 +698,9 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # they are All Screens' (settings `menu`, filled in by resolved()) -- all
     # but `menu` itself, whose button style alone follows
     "menu_custom": False, "accent": "orange", "glyph": "sidebar", "clock": True,
+    # swipe: a drag right from the left edge opens the menu, at every width,
+    # beside whatever button there is (hk-menu.js wireEdge)
+    "swipe": False,
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
     "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
@@ -660,8 +723,11 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Screens (the house's sky animations / weather / decorations, and the
     # house's backdrop -- sky_gradient: a SKY_BACKDROPS id, sky_custom: its
     # stops, for "custom").
-    "sky_animations": None, "sky_weather": None, "sky_decorations": None,
-    "sky_gradient": None, "sky_custom": None,
+    "sky_animations": None, "sky_weather": None, "sky_decorations": None, "sky_decoration_style": None,
+    "sky_cloud_style": None, "sky_gradient": None, "sky_custom": None,
+    # each page's background, this screen's own: {page: mode}; a page
+    # missing follows All Screens' (sky.pages)
+    "sky_pages": {},
     # kiosk: the screen hides Home Assistant's header and sidebar -- HK
     # Frontend itself (hk-kiosk.js), any screen, generated or not. Which of
     # the two (kiosk_header, kiosk_sidebar), and whether for admins too
@@ -686,9 +752,13 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # addresses, in this order), after its category pages and before the
     # rooms
     "custom_pages": [],
-    # HOME PAGE: off, a generated screen is only its custom pages and opens
-    # on the first -- an Energy dashboard in the sidebar, say
-    "home_page": True,
+    # HOME PAGE: off, a generated screen is only the pages it lists
+    # (`only_pages`: any page kind or custom page, in order) and opens on the
+    # first -- an Energy display, a Security panel. Its own list, apart from
+    # the whole screen's `pages`, so turning Home back on finds the whole
+    # screen as it was. Listing none (a screen set up before 2026-10-04):
+    # only its custom pages, `energy` among them the Energy feature's page
+    "home_page": True, "only_pages": [],
     # ...and on, WHICH Home: "" the generated one, or the address of one of
     # the house's custom pages -- a car's own first page over the generated
     # category pages
@@ -713,6 +783,9 @@ SCREEN_PRESETS: dict[str, dict[str, Any]] = {
     "computer": {"menu": "open", "time_weather": "page"},
     # a car's browser: no menu, the car's viewport, no chrome
     "car": {"menu": "off", "car": True, "kiosk": True},
+    # an energy display: only the Energy page (the Energy feature's), no
+    # menu, no Home Assistant chrome -- a screen beside the electrical panel
+    "energy": {"menu": "off", "home_page": False, "only_pages": ["energy"], "kiosk": True},
     "custom": {},
 }
 
@@ -754,6 +827,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["accent"] = accent(d.get("accent")) or out["accent"]
     out["glyph"] = pick("glyph", MENU_GLYPHS)
     out["clock"] = bool(d.get("clock", True))
+    out["swipe"] = d.get("swipe") is True
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
         out[k] = strs(d.get(k)) or []
@@ -765,6 +839,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     quiet = strs(d.get("chips_quiet"))
     out["chips_quiet"] = list(CHIPS_QUIET) if quiet is None else [k for k in quiet if k in CHIP_KINDS]
     out["pages"] = page_order(strs(d.get("pages")) or [])
+    out["only_pages"] = page_order(strs(d.get("only_pages")) or [])
     # scenes: scene entities and "page:<kind>" -- a pill that opens a page,
     # placed among them; which pages have a pill at all is scenes_pages' to
     # say
@@ -787,8 +862,11 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     # SKY_BACKDROPS and stops that do not parse are (sky_stops()).
     for k in ("sky_animations", "sky_weather", "sky_decorations"):
         out[k] = d.get(k) if isinstance(d.get(k), bool) else None
+    out["sky_decoration_style"] = d.get("sky_decoration_style") if d.get("sky_decoration_style") in ("old", "new") else None
+    out["sky_cloud_style"] = d.get("sky_cloud_style") if d.get("sky_cloud_style") in CLOUD_STYLES else None
     out["sky_gradient"] = d.get("sky_gradient") if d.get("sky_gradient") in SKY_BACKDROP_IDS else None
     out["sky_custom"] = sky_stops(d.get("sky_custom"))
+    out["sky_pages"] = sky_pages(d.get("sky_pages")) or {}
     for k in ("chips_row", "camera_strip", "scenes_row", "sky", "idle_return", "car", "kiosk", "popups",
               "now_playing", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
         out[k] = bool(d.get(k, BOARD_DEFAULTS[k]))
@@ -1062,7 +1140,7 @@ ROOM_KEYS = {"room_order": "order", "home_rooms": "home", "menu_rooms": "menu", 
 # style follows (MENU_STYLES).
 MENU_KEYS = {"menu": "style", "narrow": "narrow", "tab_position": "tab_at", "tab_size": "tab_size",
              "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
-             "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock"}
+             "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe"}
 MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open"))
 
 
@@ -1094,7 +1172,8 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "ha_row": bool(m.get("ha_row", False)),
             "accent": accent(m.get("accent")) or d["accent"],
             "glyph": pick("glyph", MENU_GLYPHS, d["glyph"]),
-            "clock": m.get("clock") is not False}
+            "clock": m.get("clock") is not False,
+            "swipe": m.get("swipe") is True}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -1199,6 +1278,35 @@ def menu_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[s
             out[p].update({"glyph": old.get("glyph", "sidebar") if old.get("glyph") in MENU_GLYPHS else "sidebar",
                            "clock": old.get("clock") is not False})
     return new_options, out
+
+
+def status_lifted(options: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """THE STATUS ROWS (entry 1.10, 2026-10-04): the Climate page's row
+    (`climate`, 1.4.6) becomes one of the pages' (status_rows.climate), and a
+    room status row saved before gains what the row can show now -- the
+    security system, TVs, lights, valves and speakers. A list saved before was
+    always in the house order, so the new kinds go in their places in it.
+    Returns the new options, or None: unchanged."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    changed = False
+    old = stored.pop("climate", None)
+    if isinstance(old, dict):
+        rows = dict(stored.get("status_rows") or {})
+        rows.setdefault("climate", {"status": old.get("status", list(STATUS_ROWS["climate"][1])),
+                                    "exclude_areas": old.get("exclude_areas", [])})
+        stored["status_rows"] = rows
+        changed = True
+    elif old is not None:
+        changed = True
+    rooms = dict(stored.get("rooms") or {})
+    if isinstance(rooms.get("status"), list):
+        saved = rooms["status"]
+        rooms["status"] = [k for k in STATUS_KINDS if k in saved or k in STATUS_KINDS_ADDED]
+        stored["rooms"] = rooms
+        changed = changed or rooms["status"] != saved
+    if not changed:
+        return None
+    return {**(options or {}), CONF_DASHBOARD: stored}
 
 
 def rooms_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]]
@@ -1314,7 +1422,7 @@ def format_rooms(rooms: dict[str, str]) -> str:
 
 
 def suggestions(hass: HomeAssistant) -> dict[str, Any]:
-    """What a house that has never saved What counts probably wants: every
+    """What a house that has never saved Status & Chips probably wants: every
     lock, every door and window contact, every garage door -- a garage_door
     contact or a garage/gate COVER (the door itself is usually a cover; a
     contact named "Garage Door" is often the door INTO the garage, and its

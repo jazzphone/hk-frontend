@@ -336,11 +336,56 @@ ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_
 })();
 
 
+ok('sky summary includes an independent decoration style', M.skySummary({ sky_decoration_style: 'new' }) === 'New Decorations' && M.skySummary({ sky_decoration_style: 'old' }) === 'Old Decorations');
 ok('sky summary: absent and null settings follow All Screens', M.skySummary({}) === 'Same as All Screens' && M.skySummary({ sky_gradient: null }) === 'Same as All Screens');
 ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: false, sky_weather: false, sky_decorations: false, sky_gradient: 'live' }) === 'No Animation, No Weather, No Decorations, Own Backdrop');
 ok('sky summary: true is an own setting too', M.skySummary({ sky_animations: true }) === 'Own Settings');
 ok('sky summary: stored own colors count', M.skySummary({ sky_custom: {} }) === 'Own Settings');
 ok('search includes the backdrop picker', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.label === 'Backdrop' && r.route === 'house/sky/backdrop'; }));
 
+// No Button: offered only with the swipe on (or when it is the choice), and
+// turning the swipe off takes it back to the default
+var ids = function (l) { return l.map(function (x) { return x[0]; }).join(','); };
+ok('No Button hidden without the swipe', ids(M.stylesFor(M.MENU_STYLES, false, 'auto')).indexOf('none') < 0);
+ok('...offered with it', ids(M.stylesFor(M.MENU_STYLES, true, 'auto')).indexOf('none') >= 0 &&
+   ids(M.stylesFor(M.NARROW, true, 'chip')).indexOf('none') >= 0);
+ok('...and shown while it is the choice', ids(M.stylesFor(M.NARROW, false, 'none')).indexOf('none') >= 0);
+ok('swipe off puts No Button back', JSON.stringify(M.swipeChanges(false, { menu: 'none', narrow: 'none' })) ===
+   JSON.stringify({ swipe: false, menu: 'auto', narrow: 'chip' }));
+ok('...and leaves any other style alone', JSON.stringify(M.swipeChanges(false, { menu: 'tab', narrow: 'chip_scroll' })) ===
+   JSON.stringify({ swipe: false }) && JSON.stringify(M.swipeChanges(true, { menu: 'tab' })) === JSON.stringify({ swipe: true }));
+ok('All Screens\' swipe maps onto a screen', M.houseMenuAsBoard({ swipe: true }).swipe === true &&
+   M.houseMenuAsBoard({}).swipe === false && M.houseMenuSave({ swipe: true })['menu.swipe'] === true);
+ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.label === 'Swipe from Left Edge'; }));
+
+// A SCREEN WITH NO HOME: any page, in its order
+(function () {
+  var M2 = (typeof window !== 'undefined' ? window : globalThis).hkSettingsModel;
+  var kinds = ['weather', 'cameras', 'security', 'climate', 'music', 'browse', 'water', 'energy', 'rooms'];
+  var m = M2.onlyModel({ only_pages: ['security', 'ecoflow', 'nope'], pages: ['weather'] }, kinds, { ecoflow: 'EcoFlow' }, true);
+  ok('no Home: its pages, kinds and custom alike; one that is gone left out',
+     JSON.stringify(m.rows.map(function (r) { return r.value; })) === '["security","ecoflow"]' && m.rows[1].custom === true, m.rows);
+  ok('...the rest to add, Browse Music never on its own', m.more.map(function (r) { return r.value; }).indexOf('browse') < 0 &&
+     m.more.some(function (r) { return r.value === 'energy'; }));
+  var legacy = M2.onlyModel({ custom_pages: ['energy', 'ecoflow'] }, kinds, { ecoflow: 'EcoFlow' }, true);
+  ok('a screen from before: its custom pages, `energy` the Energy page', JSON.stringify(legacy.rows.map(function (r) { return r.value; })) === '["energy","ecoflow"]' &&
+     legacy.rows[0].custom === false, legacy.rows);
+  var mus = M2.onlyModel({ only_pages: ['music'] }, kinds, {}, true);
+  ok('...Play Music brings Browse Music, fixed after it', JSON.stringify(mus.rows.map(function (r) { return r.value; })) === '["music","browse"]' && mus.rows[1].fixed);
+  ok('...a whole screen\'s own page order is not this list', M2.onlyModel({ pages: ['weather'], custom_pages: [] }, kinds, {}, true).rows.length === 0);
+})();
+// EACH PAGE'S BACKGROUND
+(function () {
+  var M3 = (typeof window !== 'undefined' ? window : globalThis).hkSettingsModel;
+  var rows = M3.skyPageRows(['energy', 'weather', 'music', 'browse', 'rooms', 'ecoflow'], { ecoflow: 'EcoFlow' });
+  ok('page backgrounds: each page once, Browse Music with Play Music', rows.map(function (r) { return r.key; }).join(',') === 'energy,weather,music,rooms,ecoflow');
+  ok('...Automatic in words: a page with its own color keeps it, the rest the live sky, a custom page as written',
+     M3.skyAutoLabel(rows[0]) === 'Page Color' && M3.skyAutoLabel(rows[1]) === 'Backdrop' && M3.skyAutoLabel(rows[4]) === 'As Written');
+  var bds = [{ id: 'live', label: 'Live sky' }, { id: 'dusk', label: 'Dusk' }];
+  var ops = M3.skyModeOptions(rows[0], bds, 'Automatic').map(function (o) { return o[0]; }).join(',');
+  ok('...the choices: Automatic, Page Color where it has one, then every backdrop (Live sky first)', ops === ',own,live,dusk', ops);
+  ok('...Page Color offered only where there is one', M3.skyModeOptions(rows[1], bds, 'A').map(function (o) { return o[0]; }).indexOf('own') < 0);
+  ok('...a mode in words', M3.skyModeLabel('dusk', bds) === 'Dusk' && M3.skyModeLabel('live', bds) === 'Live sky');
+})();
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

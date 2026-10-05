@@ -96,11 +96,13 @@ and so does **HK Settings → Advanced → Your Own Dashboards**.
 |---|---|---|
 | Name | — | Its title in the sidebar. Its address is made from the name (`hk-kitchen` for Kitchen). |
 | Shown On | Wall Tablet | The preset it starts from (below). |
+| Shows | Everything | **Everything**: a whole screen, with Home, rooms and every page. **Only Some Pages**: a page screen with no Home page, where you pick its pages next. **Only the Energy Page**: an energy display (with the Energy feature). See [Whole screens and page screens](Pages.md#whole-screens-and-page-screens). |
 | Copy Settings From | Nothing | Another screen to start from: after the preset, the parts you tick are copied from it (see [Copy settings from another screen](#copy-settings-from-another-screen)). |
 | Only Admins Can Open It | Off | Only administrators see it in the sidebar. |
 
 **Existing Dashboards** lists your other dashboards. Pick one, choose what it is
-**Shown On**, and select **Set Up Screen** to give it HK settings.
+**Shown On** (and, for a generated one, what it **Shows**), and select **Set Up
+Screen** to give it HK settings.
 
 What each preset starts with (everything else is the default, and every value
 can be changed afterwards; nothing remembers the preset):
@@ -111,6 +113,7 @@ can be changed afterwards; nothing remembers the preset):
 | Phone or iPad | Menu as a button (Automatic), the time and weather in the header |
 | Computer | Menu Always Open |
 | Car | No menu, Car Browser on, Home Assistant’s header and sidebar hidden |
+| Energy Display | Home Page off and only the [Energy](Energy.md) page, no menu, Home Assistant’s header and sidebar hidden (needs the Energy feature) |
 | Something Else | The defaults: a generated screen gets the menu as a button, a YAML one no menu |
 
 Hiding Home Assistant’s header and sidebar and the photo screensaver are part

@@ -73,6 +73,11 @@ HS._apply({ configured: true, added: ['clean_areas', 'music', 5] });
 ok('the added features reach the screens', JSON.stringify(HS.get('added', null)) === '["clean_areas","music"]');
 HS._apply({ configured: true });
 ok('...none added: an empty list', JSON.stringify(HS.get('added', null)) === '[]');
+// THE ENERGY PAGE'S PLAN reaches the screens whole; none without the feature
+HS._apply({ configured: true, added: ['energy'], energy: { title: 'Energy', sections: [{ id: 'rooms', items: [] }] } });
+ok('the Energy page\'s plan reaches the screens', HS.get('energy.title', null) === 'Energy' && HS.get('energy.sections', []).length === 1);
+HS._apply({ configured: true });
+ok('...none without Energy', HS.get('energy', 'none') === 'none');
 HS._apply({ configured: true, boards: { 'dashboard-hall': { menu: 'open', time_weather: 'menu' } } });
 ok('the dashboard items are kept whole', HS.get('boards.dashboard-hall.menu') === 'open' &&
    HS.get('boards.dashboard-hall.time_weather') === 'menu');
@@ -130,6 +135,15 @@ ok('...then screen B, the same look at its own 90: 36 px (it kept A\'s 4 px)',
 HS._apply({ configured: true });
 
 
+HS._apply({ sky: {} });
+ok('existing users retain Old Decorations', HS.skyLook().decorationStyle === 'old');
+location.pathname = '/dashboard-sky/home';
+HS._apply({sky:{decoration_style:'new'},boards:{'dashboard-sky':{sky_decoration_style:'old'}}});
+ok('screen keeps old style while house uses new', HS.skyLook().decorationStyle === 'old');
+HS._apply({sky:{decoration_style:'old'},boards:{'dashboard-sky':{sky_decoration_style:'new'}}});
+ok('screen can opt into new style independently', HS.skyLook().decorationStyle === 'new');
+HS._apply({sky:{decoration_style:'new'},boards:{'dashboard-sky':{sky_decoration_style:null}}});
+ok('reset style follows All Screens', HS.skyLook().decorationStyle === 'new');
 print('=== Sky / Background inheritance ===');
 location.pathname = '/dashboard-sky/home';
 var houseStops = { day: ['#123456', '#223344', '#334455', '#445566'], night: ['#010203', '#020304', '#030405', '#040506'] };

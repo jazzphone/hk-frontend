@@ -80,6 +80,7 @@
         "personal": "Phones and iPads -- the menu behind a button, the time in the header",
         "computer": "A computer -- the menu open beside the page",
         "car": "A car's browser -- no menu, sized for the car",
+        "energy": "An energy display -- only the Energy page (HK Frontend's Energy feature), no menu, no Home Assistant header",
         "custom": "Something else -- the defaults"
       }
     },
@@ -128,7 +129,28 @@
             "music": "Music — whole-home music through Music Assistant",
             "live_tv": "Live TV — an HDHomeRun tuner’s channels on the screens",
             "clean_areas": "Clean Areas — clean chosen rooms with whichever vacuums reach them",
-            "alarm_pin": "Alarm PIN — a PIN in front of an alarm that takes none"
+            "alarm_pin": "Alarm PIN — a PIN in front of an alarm that takes none",
+            "energy": "Energy — an Energy page built from Home Assistant’s Energy settings"
+          }
+        },
+        "energy": {
+          "title": "Energy",
+          "description": "An Energy page for your screens: the whole home’s power and today’s cost, a fortnight of daily use, and a live tile for each circuit, room, appliance and outlet. It starts from Home Assistant’s own Energy settings (Settings → Dashboards → Energy); its sections, names and rows are then on the HK Settings page, Features → Energy. A screen shows it once Energy is on its Pages, or pick “Energy Display” when you add a screen.",
+          "data": {
+            "follow": "List Home Assistant’s Energy devices"
+          },
+          "data_description": {
+            "follow": "On: every device in Home Assistant’s Energy settings gets a tile, including ones added later. Off: only the devices you add on its HK Settings page."
+          }
+        },
+        "energy_options": {
+          "title": "Energy",
+          "description": "Its sections, names, readings and daily bars are on the HK Settings page: {url}",
+          "data": {
+            "follow": "List Home Assistant’s Energy devices"
+          },
+          "data_description": {
+            "follow": "On: every device in Home Assistant’s Energy settings gets a tile, including ones added later. Off: only the devices you add on its HK Settings page."
           }
         },
         "alarm_pin": {
@@ -562,6 +584,24 @@
         "popup": {
           "name": "Pop-up",
           "description": "Its hash, for example doorbell."
+        },
+        "dashboards": {
+          "name": "Dashboards",
+          "description": "Only screens showing these dashboards (url paths). Empty: any dashboard."
+        },
+        "users": {
+          "name": "Users",
+          "description": "Only screens signed in as these users (user ids). Empty: anyone."
+        }
+      }
+    },
+    "close_popup": {
+      "name": "Close pop-up",
+      "description": "Closes a pop-up (Pop-ups on HK Frontend's page) on the screens showing it -- the other half of Show pop-up, for one held open as long as something lasts (the alarm keypad). A screen not showing it is left alone.",
+      "fields": {
+        "popup": {
+          "name": "Pop-up",
+          "description": "Its hash, for example alarm."
         },
         "dashboards": {
           "name": "Dashboards",

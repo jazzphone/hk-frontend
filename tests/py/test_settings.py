@@ -24,8 +24,9 @@ def test_defaults_assume_no_house():
     named = [v for sec in m.values() for v in sec.values() if isinstance(v, str) and "." in v]
     assert named == ["sensor.time", "sensor.date"]
     assert m["sky"]["hemisphere"] == "north" and len(m["sky"]["themes"]) == 10
-    assert set(m["counts"]) == {"lights", "fans", "doors", "windows", "garage", "locks", "blinds",
-                                "leaks", "thermostats", "timers", "vacuums", "speakers", "temperature", "humidity"}
+    assert set(m["counts"]) == {"smoke", "lights", "fans", "doors", "windows", "garage", "locks", "blinds",
+                                "leaks", "thermostats", "timers", "vacuums", "speakers", "temperature", "humidity",
+                                "motion", "occupancy", "valves"}
     assert all(v is None for v in m["counts"].values()), "every kind automatic"
 
 
@@ -65,10 +66,15 @@ def _house(hass):
     hass.states.async_set("cover.car_frunk", "closed", {"device_class": "door"})
     hass.states.async_set("light.den", "on")
     hass.states.async_set("light.all", "on", {"entity_id": ["light.den"]})
+    # an integration's group (a Hue room, a Zigbee group): Home Assistant 2026's group_entities
+    hass.states.async_set("light.den_lamps", "on", {"group_entities": ["light.den"]})
     hass.states.async_set("switch.coffee", "on")
     hass.states.async_set("binary_sensor.sink_leak", "off", {"device_class": "moisture"})
     hass.states.async_set("media_player.kitchen", "idle", {"device_class": "speaker"})
     hass.states.async_set("media_player.tv", "idle", {"device_class": "tv"})
+    hass.states.async_set("binary_sensor.hall_smoke", "off", {"device_class": "smoke"})
+    hass.states.async_set("binary_sensor.hall_co", "off", {"device_class": "carbon_monoxide"})
+    hass.states.async_set("binary_sensor.basement_gas", "off", {"device_class": "gas"})
 
 
 def test_each_kind_finds_its_own(hass):
@@ -80,9 +86,10 @@ def test_each_kind_finds_its_own(hass):
     assert found["windows"] == ["binary_sensor.den_window"]
     assert found["garage"] == ["cover.garage"], "a garage cover; not a door-class cover"
     assert found["blinds"] == ["cover.blinds", "cover.plain"], "a cover with no class is a blind"
-    assert found["lights"] == ["light.den"], "a light group would count its members twice"
+    assert found["lights"] == ["light.den"], "a light group, a helper's or an integration's, would count its members twice"
     assert found["leaks"] == ["binary_sensor.sink_leak"]
     assert found["speakers"] == ["media_player.kitchen"], "not the TV"
+    assert found["smoke"] == ["binary_sensor.hall_co", "binary_sensor.hall_smoke"], "smoke and CO; gas only if added"
 
 
 def test_leave_out_and_also_count(hass):
@@ -370,7 +377,7 @@ def test_the_screens_defaults_are_these_defaults():
     if out is None:
         import pytest
         pytest.skip("no JavaScript engine to read the JS defaults")
-    # What counts' adjustments never reach a screen (it gets `kinds`, resolved),
+    # Status & Chips' adjustments never reach a screen (it gets `kinds`, resolved),
     # and Browse Music's rows reach it as the queries (discover_rows).
     from custom_components.hk_frontend.settings import discover_rows
     want = {k: v for k, v in DEFAULTS.items() if k != "counts"}
@@ -529,6 +536,10 @@ def test_the_screensaver_shows_photos_or_the_forecast():
     assert S.saver_options({"fallback": False})["fallback"] is False
     assert S.saver_options({"fallback": "no"}) is None
     assert S.saver_options({"show": "both"})["show"] == "both" and S.saver_options({})["forecast_every"] == 5
+    # Fade Back: ms from the screensaver to the dashboard, 0 (at once) to 5 s
+    assert S.saver_options({})["fade_back"] == 500
+    assert S.saver_options({"fade_back": 0})["fade_back"] == 0 and S.saver_options({"fade_back": 2000})["fade_back"] == 2000
+    assert S.saver_options({"fade_back": 9000}) is None and S.saver_options({"fade_back": True}) is None
     assert S.saver_options({"forecast_every": 10})["forecast_every"] == 10
     assert S.saver_options({"forecast_every": 1}) is None and S.saver_options({"forecast_every": 500}) is None
     d = S.saver_options({})
@@ -647,7 +658,7 @@ async def test_an_entry_from_1_7_moves_its_rooms(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 9
+    assert old.minor_version == 10
     assert S.merged(old.options)["rooms"]["order"] == ORDER
     got = S.boards(old)
     assert all(got[p]["rooms_house"] and got[p]["room_order"] == ORDER and got[p]["menu_rooms"] == "order"
@@ -700,6 +711,23 @@ def test_a_screen_follows_all_screens_menu_but_keeps_off_and_always_open():
     assert (own["menu"], own["accent"], own["menu_house"]) == ("tab", "red", False)
 
 
+def test_the_swipe_and_no_button():
+    """Swipe from Left Edge: off unless stored True, All Screens' unless the
+    screen sets its own; No Button is a button style and a narrow choice."""
+    from custom_components.hk_frontend import settings as S
+    assert S.board({})["swipe"] is False and S.board({"swipe": "yes"})["swipe"] is False
+    assert S.board({"swipe": True})["swipe"] is True
+    assert S.board({"menu": "none", "narrow": "none"})["menu"] == "none"
+    assert S.board({"narrow": "none"})["narrow"] == "none"
+    assert "none" in S.MENU_STYLES and S.house_menu({"style": "none"})["menu"] == "none"
+    assert S.house_menu({})["swipe"] is False and S.house_menu({"swipe": True})["swipe"] is True
+    opts = {"dashboard": {"menu": {"style": "none", "swipe": True}}}
+    follows = S.resolved(S.board({"menu": "tab"}), opts)
+    assert (follows["menu"], follows["swipe"]) == ("none", True)
+    own = S.resolved(S.board({"menu": "tab", "menu_custom": True}), opts)
+    assert (own["menu"], own["swipe"]) == ("tab", False)
+
+
 def test_menu_accent_is_a_name_or_a_hex():
     from custom_components.hk_frontend import settings as S
     assert S.accent("Teal") == "teal" and S.accent("#A1B2C3") == "#a1b2c3"
@@ -730,7 +758,7 @@ async def test_an_entry_from_1_8_moves_its_menu(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 9
+    assert old.minor_version == 10
     assert (S.merged(old.options)["menu"]["style"], S.merged(old.options)["menu"]["tab_size"]) == ("tab", "xl")
     got = S.boards(old)
     assert got["dashboard-a"]["menu_house"] and got["dashboard-c"]["menu_house"]
@@ -789,3 +817,14 @@ def test_sky_stops_and_screen_look_read_defensively():
     parsed = S.board({"sky_animations": 0, "sky_weather": "off", "sky_decorations": 1,
                       "sky_gradient": "unknown", "sky_custom": {}})
     assert all(parsed[k] is None for k in ("sky_animations", "sky_weather", "sky_decorations", "sky_gradient", "sky_custom"))
+
+
+def test_each_pages_background_is_kept_only_when_it_means_something():
+    """Sky / Background -> Page Backgrounds: {page: own | a backdrop id}, a
+    screen's own over All Screens'; an unknown page name or mode is left out."""
+    from custom_components.hk_frontend import settings as S
+    assert S.sky_pages(None) == {} and S.sky_pages("x") is None
+    assert S.sky_pages({"energy": "live", "climate": "own", "ecoflow": "dusk", "bad key!": "live", "water": "plaid"}) == \
+        {"energy": "live", "climate": "own", "ecoflow": "dusk"}
+    assert S.board({"sky_pages": {"energy": "midnight"}})["sky_pages"] == {"energy": "midnight"}
+    assert S.board({})["sky_pages"] == {} and S.merged({})["sky"]["pages"] == {}

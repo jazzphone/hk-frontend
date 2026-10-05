@@ -44,7 +44,7 @@ The font and glyph entries name the tools by their path in the HK Frontend repos
 
 ## A change doesn’t show on a screen
 
-**A setting.** A change in HK Settings reaches every open screen within about a second, with no reload. A generated screen rebuilds itself within about ten seconds when something it is built from changes — its pages, favorites and cameras, What Counts, hidden accessories, the alarm, the weather — and stays on the page you are looking at. It also rebuilds when you move a device to another area, or rename an area or a floor.
+**A setting.** A change in HK Settings reaches every open screen within about a second, with no reload. A generated screen rebuilds itself within about ten seconds when something it is built from changes — its pages, favorites and cameras, Status & Chips, hidden accessories, the alarm, the weather — and stays on the page you are looking at. It also rebuilds when you move a device to another area, or rename an area or a floor.
 
 **An update of HK Frontend.** After HACS updates HK Frontend, restart Home Assistant, then reload each screen — twice. Everything HK Frontend serves under `/hk/` is sent with `Cache-Control: no-cache`, so a browser checks for a newer copy every time it loads a screen. But the first load after an update can still be answered from Home Assistant’s service worker with the previous copy; the second load gets the new one. Judge a change only after the second reload.
 

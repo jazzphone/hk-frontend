@@ -453,7 +453,7 @@
   // surfaces cannot disagree about what "secure" means (separate copies
   // drift: one skips the window checks, another reads a different alarm
   // panel).
-  // THE ENTITY LISTS are Configure -> What counts (kinds.py, sent as `kinds`):
+  // THE ENTITY LISTS are HK Settings -> Status & Chips (kinds.py, sent as `kinds`):
   // an alarm panel, and the locks, door and window contacts and garage doors
   // that "Home Secured" is made of. Read per call, so an edit applies at once.
   // `kinds` is the answer; security.* is the same answer from a server that

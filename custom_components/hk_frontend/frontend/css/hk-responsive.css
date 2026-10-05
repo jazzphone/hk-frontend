@@ -52,18 +52,17 @@
  * also slides the page left and right.
  *
  * Measured: the DOCUMENT does not overflow -- scrollWidth == clientWidth == 402
- * on every page checked. So this is not stray content; it is the horizontal
- * scrollers (the chip row, the scenes row, the camera strip) capturing
- * near-vertical drags and panning sideways while you scroll the page. The
- * `touch-action: pan-x` below is the real fix: it tells the browser those rows
- * handle HORIZONTAL panning only, so a vertical gesture goes straight to the
- * page instead of being split between the two.
+ * on every page checked. `overflow-x` on the document below costs nothing
+ * while nothing overflows, and it means a card that does overflow cannot drag
+ * the whole page off-centre.
  *
- * `overflow-x: hidden` on the document is the belt to that braces -- it costs
- * nothing while nothing overflows, and it means a future card that does
- * overflow cannot drag the whole page off-centre.
+ * NOT `touch-action: pan-x` on the sideways rows (chips, scenes, cameras).
+ * That was here once, and it BLOCKED vertical scrolling for any swipe that
+ * started on a row: touch-action intersects down to the scroller that would
+ * move, so pan-x on the row forbids the PAGE's vertical pan. hk-row.js has
+ * the measurement (2026-10-04).
  *
- * Both are inside the media query: the wall tablets are not touched.
+ * Inside the media query: the wall tablets are not touched.
  * =========================================================================== */
 /* ===========================================================================
  * `:root:not([data-hk-zoomed])` ON BOTH BLOCKS -- the belt to this whole
@@ -82,13 +81,6 @@
  * on the car's own dashboard, so the wall tablets and the Home dashboard can
  * never carry the attribute and are provably unaffected by this gate.
  * =========================================================================== */
-/* Climate's thermostat rail grows to two dials when the page can also
-   leave four regular pills per room. A 1280px tablet keeps its 364px rail;
-   wider pages can use up to 760px. The dial grid wraps against its actual
-   available width, including HA's sidebar and the dashboard's dock. */
-:root {
-  --hk-climate-dials: clamp(364px, calc(100% - 852px), 760px);
-}
 
 /* 430px keypad + 408px locks + 18px gap need room for page gutters,
    nested card margins and HA's navigation rail as well as the columns.
@@ -149,11 +141,11 @@
      * ------------------------------------------------------------------ */
 
     /* A two-column PAGE (content beside a rail) collapses to one. Used by
-       Climate (620px + rest) and Vacuums (460px + area picker). */
+       Climate (rooms + the thermostat rail) and Vacuums (460px + area picker). */
     --hk-page-split: minmax(0, 1fr);
 
-    /* A column pinned to a fixed width fills instead. Climate's 420px
-       thermostat column, Vacuums' three 460px card columns. */
+    /* A column pinned to a fixed width fills instead: Vacuums' three 460px
+       card columns. */
     --hk-col-fill: minmax(0, 1fr);
 
     /* Fixed-count metric rows halve rather than collapse -- these are small
@@ -316,8 +308,8 @@
  * long, a 545 px keypad. From 860 px of page (`data-hk-band="wide"`,
  * hk-menu.js) those go back to the wall tablet's own arrangement; the pill,
  * the rails, the stacked Timers page and the two-up cameras stay as they are.
- * The keypad is capped at the tablet's 430 and the block centres (the panel's
- * `place-content: stretch center`). */
+ * The keypad is capped at the tablet's 430, the block on the page's left edge
+ * like every page's content (the panel's `place-content: stretch start`). */
 :root[data-hk-band="wide"]:not([data-hk-zoomed]) {
   --hk-cols-4: repeat(4, minmax(0, 1fr));
   /* ...but Energy's top row stays two by two: four across cuts Today's cost

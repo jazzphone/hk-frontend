@@ -38,8 +38,18 @@
 
   // ------------------------------------------------------------ constants
   var FADE_IN_MS = 3000;                   // the screensaver appears
-  var FADE_TOUCH_MS = 300;                 // a touch takes it away
-  var FADE_SWITCH_MS = 100;                // the house turned the switch off
+  // BACK TO THE DASHBOARD (option fade_back, ms; 0: no fade). A touch, the
+  // switch turned off by the house, or the console -- all the same fade.
+  var FADE_BACK_MS = 500;
+  // ...and first, the dashboard drawn UNDER the screensaver. It was hidden
+  // (coverDashboard) and its graphics let go; shown again in the same frame
+  // the fade starts, it painted in pieces under the fading photo -- the sky,
+  // then the scenes, the cameras last (headless frames, 2026-10-04). An
+  // opaque layer over it would keep the browser from drawing it at all
+  // (it is occluded), so for this hold the screensaver is 99 % opaque.
+  // (an object, so the tests and a probe can change them)
+  var WAKE = { hold: 150,                  // after two frames, this much more
+               max: 600 };                 // a hidden page draws no frames
   var CROSSFADE_MS = 3000;                 // photo to photo
   var BLOCK_MS = 3000;                     // taps swallowed after a touch stop
   var EDGE = 0.15;                         // left/right 15 %: previous/next photo
@@ -98,6 +108,7 @@
       // the calendar pane down the right (1.4), and the days it lists
       calendar: raw.calendar === true,
       calendar_days: n(raw.calendar_days, 1, 7, 2),
+      fade_back: n(raw.fade_back, 0, 5000, FADE_BACK_MS),
       // no photos: the forecast (default), or a dark screen
       fallback: raw.fallback !== false,
       cards: Array.isArray(raw.cards) ? raw.cards.filter(function (c) {
@@ -354,9 +365,14 @@
       if ((t === 'touchstart' || t === 'mousedown') && window.PointerEvent) return;
       if (t === 'pointerdown' || t === 'touchstart' || t === 'mousedown') {
         var x = t === 'touchstart' ? (e.touches && e.touches[0] && e.touches[0].clientX) : e.clientX;
+        var y = t === 'touchstart' ? (e.touches && e.touches[0] && e.touches[0].clientY) : e.clientY;
+        // A TAP ON THE FORECAST DETAILS opens the Weather page (ahead of
+        // the edges: the details run under both)
+        var wpage = weatherAt(x, y) && weatherPage();
+        if (wpage) { stop('touch'); go(wpage); return; }
         // the edges of the PHOTOS: beside the calendar pane, its left edge
         var z = zoneOf(x, (window.innerWidth || 0) - (cfg && cfg.calendar ? paneW : 0));
-        // (off the forecast slide too: the photo comes in under it first)
+        // (on the forecast slide a tap anywhere wakes: there is no photo to step)
         if (z && mode !== 'forecast') { if (z === 'next') nextPhoto(); else previousPhoto(); }
         else stop('touch');
         return;
@@ -374,6 +390,32 @@
   ['pointerdown', 'touchstart', 'touchmove', 'wheel', 'keydown', 'click', 'mousedown', 'pointermove']
     .forEach(function (t) { window.addEventListener(t, onInput, { passive: true, capture: true }); });
 
+  // THE FORECAST DETAILS (today, the hours, the days) where they show, a
+  // finger's slop around them. Laid out with pointer-events off, so found
+  // by place.
+  var SLOP = 12;
+  function weatherAt(x, y) {
+    if (!root || !host || !host.hasAttribute('band') || x == null || y == null) return false;
+    var box = root.querySelector('.fcband');
+    return Array.prototype.slice.call((box && box.children) || []).some(function (el) {
+      if (!el || !el.getBoundingClientRect) return false;
+      var r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && x >= r.left - SLOP && x <= r.right + SLOP && y >= r.top - SLOP && y <= r.bottom + SLOP;
+    });
+  }
+  // this dashboard's Weather page, when it has one
+  function weatherPage() {
+    var p = panel(), conf = p && p.lovelace && p.lovelace.config;
+    var has = conf && Array.isArray(conf.views) && conf.views.some(function (v) { return v && v.path === 'weather'; });
+    return has ? '/' + (String(location.pathname).split('/')[1] || '') + '/weather' : null;
+  }
+  // as a navigate tap_action does (hk-base.js): HA follows location-changed;
+  // the dashboard is still under the screensaver, drawing (stop's WAKE)
+  function go(path) {
+    if (String(location.pathname) === path) return;
+    try { history.pushState(null, '', path); window.dispatchEvent(new CustomEvent('location-changed')); } catch (e) { /* stay */ }
+  }
+
   // ------------------------------------------------------------ the element
   var CSS = [
     ':host{position:fixed;inset:0;z-index:2147483000;display:block;background:#000;opacity:0;',
@@ -386,8 +428,11 @@
     // onto --hk-saver-font; the theme's root variable is the fallback.
     '  font-family:var(--hk-saver-font,var(--ha-font-family-body,Roboto,Noto,sans-serif))}',
     ':host([on]){opacity:1}',
-    // after a touch stop the element stays, invisible, to swallow taps
-    ':host([blocking]){background:transparent;cursor:default}',
+    // waking: the dashboard drawing underneath (WAKE)
+    ':host([on][waking]){opacity:.99}',
+    // after a touch stop the element stays, invisible, to swallow taps (its
+    // black kept: it is set as the fade back starts, over a dark screen)
+    ':host([blocking]){cursor:default}',
     // EVERY PHOTO LAYER IS ITS OWN COMPOSITING LAYER, ALL THE TIME. Without
     // will-change a layer exists only while its opacity is animating: the
     // cross-fade created two and dropped them 3 s later (headless: 214 -> 216
@@ -406,6 +451,15 @@
     '.ph img.bg[hidden]{display:none}',
     '.ph img.fg{object-fit:var(--fit,cover)}',
     '.ph.zoom img.fg{animation:hk-saver-zoom var(--zd,33s) linear forwards}',
+    // THE PHOTOS' SCRIM, under the forecast details over them (band_photos):
+    // black, toward the bottom, chosen on the tablet 2026-10-04. Painted into
+    // each photo's own layer, so it fades with its photo and is covered by
+    // the forecast slide like the photo is -- never a gradient that jumps.
+    '.phscrim{position:absolute;left:0;right:0;bottom:0;height:58%;pointer-events:none;opacity:0;',
+    '  transition:opacity ' + CROSSFADE_MS + 'ms ease;',
+    '  background:linear-gradient(to bottom,rgba(0,0,0,0) 0%,rgba(0,0,0,.28) 35%,rgba(0,0,0,.55) 75%,rgba(0,0,0,.62) 100%)}',
+    ':host([band]) .phscrim{opacity:1}',
+    ':host([cal]) .phscrim{right:var(--hk-pane-w,0px)}',
     '@keyframes hk-saver-zoom{from{transform:scale(1)}to{transform:scale(' + ZOOM + ')}}',
     // THE INFO BOX: where WallPanel put the cards, and how it dressed them,
     // measured on the tablets -- top-left, 600 px, bold white on the photo
@@ -433,8 +487,12 @@
     '.fsky{position:absolute;inset:0}',
     // the land under the band darkened toward the bottom: a sunlit meadow is
     // as bright as the band's text. Static (no blur), so it costs no frames.
-    '.fcscrim{position:absolute;left:0;right:0;bottom:0;height:48%;pointer-events:none;',
+    // (on the forecast only: the photos have their own, .phscrim; it comes
+    // and goes with the forecast slide)
+    '.fcscrim{position:absolute;left:0;right:0;bottom:0;height:48%;pointer-events:none;opacity:0;',
+    '  transition:opacity ' + CROSSFADE_MS + 'ms ease;',
     '  background:linear-gradient(to bottom,rgba(6,10,18,0) 0%,rgba(6,10,18,.5) 30%,rgba(6,10,18,.66) 100%)}',
+    ':host([forecast]) .fcscrim,:host([fcslide]) .fcscrim{opacity:1}',
     // column-reverse with auto margins: centred while it fits; a band
     // taller than the zone (a small screen) keeps to the bottom and grows up
     '.fcband{position:absolute;left:30px;right:30px;bottom:0;height:' + BAND_ZONE + ';box-sizing:border-box;',
@@ -481,7 +539,7 @@
     '  -webkit-mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 90px),transparent 100%);',
     '  mask-image:linear-gradient(to bottom,#000 0,#000 calc(100% - 90px),transparent 100%)}',
     '.pane .sc::-webkit-scrollbar{display:none}',
-    '@media (prefers-reduced-motion:reduce){.ph{transition:none}.ph.zoom img.fg{animation:none}}'
+    '@media (prefers-reduced-motion:reduce){.ph,.phscrim,.fcscrim{transition:none}.ph.zoom img.fg{animation:none}}'
   ].join('\n');
 
   function build() {
@@ -494,7 +552,8 @@
       var ph = document.createElement('div'); ph.className = 'ph';
       var bg = document.createElement('img'); bg.className = 'bg'; bg.alt = ''; bg.hidden = true;
       var fg = document.createElement('img'); fg.className = 'fg'; fg.alt = '';
-      ph.appendChild(bg); ph.appendChild(fg); root.appendChild(ph);
+      var scrim = document.createElement('div'); scrim.className = 'phscrim';
+      ph.appendChild(bg); ph.appendChild(fg); ph.appendChild(scrim); root.appendChild(ph);
     }
     var pane = document.createElement('div'); pane.className = 'pane';
     var sc = document.createElement('div'); sc.className = 'sc'; pane.appendChild(sc); root.appendChild(pane);
@@ -538,7 +597,7 @@
   function buildCards(info) {
     var h = hassNow();
     cards = [];
-    (cfg.cards || []).forEach(function (c) {
+    (cfg.cards || []).forEach(function (c, i) {
       var tag = tagOf(c.type);
       var make = function () {
         if (!host || !on || info.parentNode !== root) return;
@@ -551,7 +610,13 @@
           if (cfg.calendar && tag === 'hk-timer-strip-card') conf.scale = Math.round(1.15 * scaleOf() * 100) / 100;
           el.setConfig(conf);
           if (h) el.hass = h;
-          info.appendChild(el);
+          // IN THE ORDER WRITTEN, whenever each one is defined: a page
+          // reloaded under the switch started this before hk-weather.js had
+          // loaded, and the weather (defined first there) came in above the
+          // clock (2026-10-04)
+          el.__hkSaverIdx = i;
+          var after = Array.prototype.filter.call(info.children, function (x) { return x.__hkSaverIdx > i; })[0];
+          if (after) info.insertBefore(el, after); else info.appendChild(el);
           cards.push(el);
         } catch (e) { console.warn('[hk-saver] card', tag, e); }
       };
@@ -580,14 +645,23 @@
     host.style.setProperty('--fade', FADE_IN_MS + 'ms');
     if (cfg.zoom) host.setAttribute('zoom', ''); else host.removeAttribute('zoom');
     host.removeAttribute('blocking');
-    // the next frame, so the fade runs from 0
-    requestAnimationFrame(function () { if (on && host) host.setAttribute('on', ''); });
+    host.removeAttribute('waking');       // started again while waking
     // Once fully covered, release the dashboard's paint layers. Pausing its
     // animations alone still retains clouds, glass and offscreen cards. On
     // Android those plus the forecast exceeded the tile memory budget and
     // the WebView dropped photos, the clock and forecast days from the screen.
+    // Counted from the frame the fade starts, not from here: a hidden page
+    // runs timeouts but no frames, and would hide the dashboard under a saver
+    // still at opacity 0.
     if (coverT) clearTimeout(coverT);
-    coverT = setTimeout(function () { coverT = null; if (on) coverDashboard(true); }, FADE_IN_MS + 100);
+    coverT = null;
+    // the next frame, so the fade runs from 0
+    requestAnimationFrame(function () {
+      if (!on || !host) return;
+      host.setAttribute('on', '');
+      if (coverT) clearTimeout(coverT);
+      coverT = setTimeout(function () { coverT = null; if (on) coverDashboard(true); }, FADE_IN_MS + 100);
+    });
     tellOthers();
     if (reason !== 'switch') writeSwitch('on');
     resetForecast();            // an element still fading out is reused
@@ -602,23 +676,41 @@
     photoRun++; busy = false; queued = null;
     coverDashboard(false);
     if (slideT) { clearTimeout(slideT); slideT = null; }
-    var ms = reason === 'switch' ? FADE_SWITCH_MS : FADE_TOUCH_MS;
+    var ms = cfg ? cfg.fade_back : FADE_BACK_MS;
     if (reason === 'touch') { writeSwitch('off'); blockUntil = Date.now() + BLOCK_MS; }
+    // the dashboard, its sky and its cameras wake now, under the screensaver
     tellOthers();
     var h = host, stoppedRun = photoRun;
     if (h) {
-      h.style.setProperty('--fade', ms + 'ms');
-      h.removeAttribute('on');
-      if (reason === 'touch') h.setAttribute('blocking', '');
-      if (reason === 'touch') setTimeout(function () {
-        if (!on && host === h && photoRun === stoppedRun) releaseVisuals();
-      }, ms + 50);
-      var wait = reason === 'touch' ? Math.max(ms, BLOCK_MS) : ms;
-      setTimeout(function () { if (!on && host === h && photoRun === stoppedRun) teardown(); }, wait + 50);
+      var still = function () { return !on && host === h && photoRun === stoppedRun; };
+      h.style.setProperty('--fade', '0ms');
+      h.setAttribute('waking', '');
+      afterDraw(function () {
+        if (!still()) return;
+        h.style.setProperty('--fade', ms + 'ms');
+        h.removeAttribute('on');
+        h.removeAttribute('waking');
+        if (reason === 'touch') h.setAttribute('blocking', '');
+        if (reason === 'touch') setTimeout(function () { if (still()) releaseVisuals(); }, ms + 50);
+        // a touch's host stays until the taps are no longer swallowed
+        var wait = reason === 'touch' ? Math.max(ms, blockUntil - Date.now()) : ms;
+        setTimeout(function () { if (still()) teardown(); }, wait + 50);
+      });
     }
     lastInput = Date.now();
     armIdle();
     return true;
+  }
+  // Two frames drawn (the dashboard under the 99 % screensaver), then
+  // WAKE.hold for its pictures to come in; never longer than WAKE.max --
+  // a hidden page (the screen off) draws no frames.
+  function afterDraw(fn) {
+    var done = false, go = function () { if (!done) { done = true; fn(); } };
+    setTimeout(go, WAKE.max);
+    if (typeof requestAnimationFrame !== 'function') return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { setTimeout(go, WAKE.hold); });
+    });
   }
   // The sky, the cards and a dismissed pop-up's record all follow this.
   function tellOthers() {
@@ -646,6 +738,15 @@
     coveredPage = page;
     pageVisibility = { value: page.style.getPropertyValue('visibility'), priority: page.style.getPropertyPriority('visibility') };
     page.style.setProperty('visibility', 'hidden', 'important');
+    // BACK TO THE TOP, UNSEEN (2026-10-04). The house's sleep script used to
+    // do this with a Fully `javascript:` load_url -- which stole the
+    // foreground from a running app (TABLET-INVARIANTS section 2) and which
+    // Kiosk Satellite cannot run at all. The page is covered and hidden now,
+    // so the jump is never seen, and the next wake lands on the top of the
+    // dashboard whichever kiosk app is showing it.
+    if (typeof window.scrollTo === 'function') {
+      try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (e) { window.scrollTo(0, 0); }
+    }
     // Camera teardown can visibly replace live video with its poster. Only
     // allow that once the entrance fade has covered and hidden the dashboard.
     try { window.dispatchEvent(new Event('hk-saver-covered')); } catch (e) { /* ignore */ }
@@ -913,7 +1014,12 @@
   }
   function resetForecast() {
     if (fadeDone) fadeDone();
-    displayLayer = null;
+    // A host reused from a stop that had not yet torn it down still has its
+    // last photo on top: hand it to the first reveal as the outgoing view, so
+    // that reveal un-tops and empties it rather than leaving it opaque over
+    // the new photo (or under the forecast, decoded, for the whole session).
+    var last = root && root.querySelectorAll('.ph')[layer];
+    displayLayer = last && last.classList.contains('top') ? last : null;
     leaveForecast();
     if (root) root.querySelectorAll('.fc,.fcb').forEach(function (n) { n.remove(); });
     if (host) {
@@ -1115,10 +1221,21 @@
     var want = Math.round(cur + ((RW - hi) - lo) / 2 / z);
     if (Math.abs(want - cur) >= 1) card.style.setProperty('--hk-band-shift', want + 'px');
   }
+  // KIOSK SATELLITE'S DARK. Its API is promise-based, so it cannot be asked
+  // inline the way Fully is below; it announces its screensaver and the panel
+  // power as window events instead, and these follow them. Its screensaver
+  // usually also hides the page (Pause dashboard during screensaver), but
+  // that is a setting, so the events are the fact.
+  // (Listened for on any page: nothing else fires them.)
+  var ksSaver = false, ksOff = false;
+  window.addEventListener('kiosksatellite:screensaverstart', function () { ksSaver = true; });
+  window.addEventListener('kiosksatellite:screensaverstop', function () { ksSaver = false; });
+  window.addEventListener('kiosksatellite:screenoff', function () { ksOff = true; });
+  window.addEventListener('kiosksatellite:screenon', function () { ksOff = false; });
   // Every few seconds: the sky follows the sun and the weather; it holds still
-  // while the screen is dark (Fully Kiosk's own screensaver or screen off --
-  // the page cannot tell, so Fully is asked -- or a hidden page); and the
-  // corner rows stay above the band.
+  // while the screen is dark (the kiosk's own screensaver or screen off --
+  // the page cannot tell, so Fully is asked and Kiosk Satellite is listened
+  // to -- or a hidden page); and the corner rows stay above the band.
   function forecastTick(force) {
     var h = hassNow();
     if (fscene && h && h.states) {
@@ -1130,7 +1247,7 @@
         try { fscene.update(h); } catch (e) { console.warn('[hk-saver] forecast sky', e); }
       }
     }
-    var F = window.fully, dark = !!document.hidden;
+    var F = window.fully, dark = !!document.hidden || ksSaver || ksOff;
     try {
       if (F && ((typeof F.isInScreensaver === 'function' && F.isInScreensaver()) ||
                 (typeof F.getScreenOn === 'function' && F.getScreenOn() === false))) dark = true;
@@ -1244,12 +1361,13 @@
                shown: shown, failed: failed, last: lastPhoto, cards: cards.length,
                idleIn: cfg && !on && cfg.starts_after ? Math.max(0, Math.round((lastInput + cfg.starts_after * 1000 - Date.now()) / 1000)) : null,
                blocking: Date.now() < blockUntil, switch: switchState(),
+               waking: !!(host && host.hasAttribute('waking')), fadeBack: cfg ? cfg.fade_back : null,
                mode: on ? mode : null, land: fscene && fscene.landShown ? fscene.landShown() || null : null,
                forecastSlide: on && fcShowing, sinceForecast: sinceFc, preview: previewOn,
                band: !!(host && host.hasAttribute('band')),
                calendar: !!(host && host.hasAttribute('cal')), paneW: paneW, paneCard: !!paneCard };
     },
-    _: { readCfg: readCfg, gate: gate, zoneOf: zoneOf, fitOf: fitOf, shuffle: shuffle, Deck: Deck, isImage: isImage,
+    _: { readCfg: readCfg, gate: gate, wake: WAKE, zoneOf: zoneOf, fitOf: fitOf, shuffle: shuffle, Deck: Deck, isImage: isImage,
          // tests: the slide without real photos to count
          slide: { show: showForecastSlide, hide: hideForecastSlide, since: function (n) { sinceFc = n; }, schedule: function () { schedule(); } } }
   };

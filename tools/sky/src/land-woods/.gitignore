@@ -1,0 +1,5 @@
+# Codex's woodland screensaver art (540 MB, not used by anything yet): kept
+# here, untracked. Only the briefs are in git.
+*
+!.gitignore
+!CODEX-BRIEF-*.md

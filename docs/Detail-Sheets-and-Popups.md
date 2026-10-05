@@ -21,6 +21,12 @@ Home Assistant’s own dialog instead, turn off
 | ![A thermostat’s detail sheet](images/sheet-thermostat.png) | ![A lock’s detail sheet](images/sheet-lock.png) | ![A garage door’s detail sheet](images/sheet-garage.png) |
 | Thermostat | Lock | Garage door |
 
+**Energy devices.** A device on the [Energy](Energy.md) page has more on its
+sheet: today’s kWh, its cost and the usual day; Week and Month as daily bars
+from its meter; the circuit it is part of and the ones inside it; and the
+switch it is plugged into. Its gear adds **On the Energy page** (its name and
+section there, and whether it shows).
+
 **Climate lists.** The [Climate page](Climate.md) has temperature, humidity,
 blind and fan summaries. Tapping one opens its room-labelled accessory pills.
 Tap a pill for its details; the Back button, closing the accessory sheet or
@@ -89,7 +95,29 @@ data:
 | `dashboards` | Only screens showing these dashboards (their addresses, such as `hk-kitchen`). Empty: any. |
 | `users` | Only screens signed in as these users (user IDs). Empty: anyone. |
 
-It doesn’t wake a sleeping tablet or change its page.
+It doesn’t wake a sleeping tablet or change its page. A screen that is dark
+when the action arrives keeps it, and opens the pop-up when it lights again
+(within the pop-up’s **Close after**). Asked again while the pop-up is up, it
+stays open and its **Close after** starts over — so a second ring of the
+doorbell keeps the camera up, and a keypad being typed into is never closed.
+
+**The Close pop-up action** is the other half, for a pop-up held open for as
+long as something lasts — the alarm keypad while the alarm sounds:
+
+```yaml
+action: hk_frontend.close_popup
+data:
+  popup: alarm
+  dashboards:
+    - hk-kitchen
+```
+
+It takes the same fields as Show pop-up. Only a screen showing that pop-up
+closes it; anything else open on a screen is left alone.
+
+On a wall tablet running **Kiosk Satellite**, wake the tablet first (its
+**Screensaver active** switch off, and its **Bring to front** button), then
+call Show pop-up — the photo screensaver would otherwise cover the sheet.
 
 **The screen’s address with the pop-up’s hash**, such as
 `/hk-kitchen/0#front-door`, opens the screen and then the pop-up. A kiosk

@@ -592,7 +592,9 @@
 
     function armAuto() {
       clearTimeout(D.auto);
-      D.auto = setTimeout(function () { close(); }, D.autoMs || AUTO_CLOSE_MS);
+      // all: an accessory opened from a Climate list goes with its list --
+      // left to idle, the tablet is back on its page in one timeout, not two
+      D.auto = setTimeout(function () { close(false, true); }, D.autoMs || AUTO_CLOSE_MS);
     }
 
     // Does this dashboard have a view at `path`? true / false, or null when
@@ -631,8 +633,9 @@
     //   Room        Home Assistant's area for it
     //   Show As     a switch drawn and counted as a light, a fan, an outlet
     //   Size        its tile regular or tall, over its kind's own
+    //   Spinning    a fan's tile glyph turning while it is on, or still
     //   Icon        the glyph
-    //   Include in Status   counted by the chips (What counts)
+    //   Include in Status   counted by the chips (Status & Chips)
     //   Show on Home        on a generated Home; its room's page lists it anyway
     //   Favorite on this dashboard
     var ACC_CSS = [
@@ -729,6 +732,7 @@
       '.acc .note{font-size:13px;line-height:18px;color:var(--acc-label2,rgba(255,255,255,0.5));padding:0 6px}',
       '.acc .err{color:var(--acc-orange,#ff9f0a)}',
       '.acc .sec[hidden],.acc .row[hidden]{display:none}',
+      '.acc a.row{color:inherit;text-decoration:none}.acc a.row svg{opacity:.45}',
       '.acc .tg:focus-visible,.acc button:focus-visible,.acc select:focus-visible,.acc input:focus-visible{outline:2px solid var(--acc-focus,#0a84ff);outline-offset:2px}'
     ].join('');
 
@@ -953,15 +957,13 @@
       var gen = opts.generated !== undefined ? !!opts.generated : generatedHere();
       var board = opts.panel || !gen ? null : boards[dash];
       // WHAT IS RELEVANT: "As a favorite" for something that is a favorite
-      // somewhere, "As a chip or scene pill" for a chip or a pill -- or for
-      // anything that already has those set, so nothing set hides.
+      // somewhere, "As a chip" for a chip -- or for anything that already has
+      // those set, so nothing set hides. Its Color is for everything.
       var anyBoard = function (key) {
         return Object.keys(boards).some(function (p) { return ((boards[p] || {})[key] || []).indexOf(id) >= 0; });
       };
       var isChip = anyBoard('chips_extra');
-      var isPill = /^(scene|script|input_button|button)\./.test(id) || anyBoard('scenes');
       var favShown = anyBoard('favorites') || !!(cur.fav_name || cur.fav_icon || cur.fav_room || (cur.fav_with && cur.fav_with.length));
-      var chipShown = isChip || isPill || !!(cur.color || cur.when || cur.attribute || cur.label);
       var chipRows = isChip || !!(cur.when || cur.attribute || cur.label);
       var e = (h.entities || {})[id] || {};
       var devArea = e.device_id && h.devices && h.devices[e.device_id] ? h.devices[e.device_id].area_id : null;
@@ -1019,11 +1021,39 @@
       html += '<div><div class="cap">Icon</div><div class="grp"><label class="gsearch"><input type="search" class="gq" ' +
         'placeholder="Search all icons" aria-label="Search all icons" autocomplete="off" spellcheck="false"></label>' +
         '<div class="glyphs"></div></div></div>';
+      // SPIN: for a fan (or what is drawn as one) -- its tile's glyph turns
+      // while it is on, and a chosen icon is not always one that reads as
+      // spinning. Still: never. Automatic: its kind (a fan spins). Built for
+      // anything Show As can make a fan, and shown while it is one.
+      if (d === 'fan' || showable) {
+        html += '<div class="spinrow"' + (d === 'fan' || cur.show_as === 'fan' ? '' : ' hidden') + '>' +
+          '<div class="cap">Spinning</div><div class="grp"><div class="seg spin" role="group" aria-label="Spinning"></div>' +
+          '<div class="note">Whether its tile’s glyph turns while it is on.</div></div></div>';
+      }
       html += '<div><div class="cap">Where it shows</div><div class="grp">' +
         '<div class="row"><span class="k">Include in Status</span><input class="tg status" type="checkbox" role="switch" aria-label="Include in Status"></div>' +
         '<div class="row"><span class="k">Show on Home</span><input class="tg home" type="checkbox" role="switch" aria-label="Show on Home"></div>' +
         (board ? '<div class="row"><span class="k">Favorite on this dashboard</span><input class="tg fav" type="checkbox" role="switch" aria-label="Favorite on this dashboard"></div>' : '') +
         '</div></div>';
+      // ON THE ENERGY PAGE (the Energy feature): a device's own settings
+      // there -- its name, its section, shown or not -- and the way to the
+      // rest (its power sensor, its switch) on HK Settings
+      var enRec = energyRec(id), enPlan = enRec ? energyPlan() : null;
+      if (enRec) {
+        var enSecs = (enPlan.sections || []);
+        var enIn = enSecs.filter(function (x) { return (x.items || []).some(function (i) { return i.key === enRec.key; }); })[0];
+        html += '<div class="sec energy"><div class="cap">On the Energy page</div><div class="grp">' +
+          '<div class="row"><span class="k">Name there</span><input class="nm enn" type="text" maxlength="40" aria-label="Name on the Energy page" ' +
+          'autocomplete="off" spellcheck="false"></div>' +
+          '<div class="row"><span class="k">Section</span><select class="ens" aria-label="Section on the Energy page">' +
+          (enIn ? '' : '<option value="" selected>Hidden</option>') +
+          enSecs.map(function (x) { return '<option value="' + esc(x.id) + '"' + (enIn && enIn.id === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') +
+          '</select></div>' +
+          '<div class="row"><span class="k">Show there</span><input class="tg enh" type="checkbox" role="switch" aria-label="Show on the Energy page"' +
+          (enIn ? ' checked' : '') + '></div>' +
+          '<a class="row enl" href="/hk-settings#/features/energy/devices/' + encodeURIComponent(enRec.key) + '"><span class="k">More energy settings</span>' + CHEV + '</a>' +
+          '</div><div class="note">Its power sensor and its switch are on HK Settings → Features → Energy.</div></div>';
+      }
       // AS A FAVORITE: its name and glyph on the favorites row,
       // on every dashboard where it is a favorite, and the lights it controls
       // together with there ("Main + Table Lights")
@@ -1040,17 +1070,18 @@
         (joinable ? '<div class="row"><span class="k">Together with</span><select class="fvw" aria-label="Together with"></select></div>' +
                     '<div class="with"></div>' : '') +
         '</div></div>';
-      // AS A CHIP OR A SCENE PILL: its colour there, and as a chip ("Also as
-      // chips") a label in place of its state and "show only when"
-      html += '<div class="sec chip"' + (chipShown || favShown ? '' : ' hidden') + '><div class="cap">' +
-        (!chipShown ? 'Its color, as a favorite' : isChip || !isPill ? 'As a chip or scene pill' : 'As a scene pill') + '</div><div class="grp">' +
-        '<div class="swatches"></div>' +
-        '<div class="row"' + (chipRows ? '' : ' hidden') + '><span class="k">Show only when it is</span><input class="nm when" type="text" maxlength="60" aria-label="Show only when it is" ' +
+      // ITS COLOR: one choice, worn everywhere it is drawn -- its tiles on
+      // every page, its favorite, its chip, its pill in the Scenes row
+      // (hk-strategy tileOf, hk-chip, hk-tile HkSceneCard). Every accessory
+      // has it. Then, as a chip only, what the chip reads and when it shows.
+      html += '<div class="sec chip"><div class="cap">Color</div><div class="grp"><div class="swatches"></div></div></div>' +
+        '<div class="sec chiprows"' + (chipRows ? '' : ' hidden') + '><div class="cap">As a chip</div><div class="grp">' +
+        '<div class="row"><span class="k">Show only when it is</span><input class="nm when" type="text" maxlength="60" aria-label="Show only when it is" ' +
         'placeholder="any state" autocomplete="off" spellcheck="false"></div>' +
         // what the chip reads: its state, or one of its attributes, so a
         // chip of your own can pick what it shows
-        '<div class="row"' + (chipRows ? '' : ' hidden') + '><span class="k">Shows</span><select class="attr" aria-label="Shows"></select></div>' +
-        '<div class="row"' + (chipRows ? '' : ' hidden') + '><span class="k">Label</span><input class="nm lbl" type="text" maxlength="40" aria-label="Label" ' +
+        '<div class="row"><span class="k">Shows</span><select class="attr" aria-label="Shows"></select></div>' +
+        '<div class="row"><span class="k">Label</span><input class="nm lbl" type="text" maxlength="40" aria-label="Label" ' +
         'placeholder="what it shows" autocomplete="off" spellcheck="false"></div></div></div>';
       html += '<button class="reset">Reset to Automatic</button>' +
         '<div class="sure" hidden role="group" aria-label="Reset to Automatic"><div class="q">Every setting of this accessory goes back ' +
@@ -1061,6 +1092,32 @@
         'the name and icon are these dashboards\' only.</div>';
       el.innerHTML = html;
       errBox = el.querySelector('.err');
+
+      // ON THE ENERGY PAGE: through the Energy feature's own commands
+      if (enRec) {
+        var enSave = function (changes) {
+          return h.callWS({ type: 'hk_energy/device/set', key: enRec.key, changes: changes }).catch(fail);
+        };
+        var enn = el.querySelector('.enn'), ens = el.querySelector('.ens'), enh = el.querySelector('.enh');
+        var enName = (enPlan.names || {})[enRec.key] || enRec.name || '';
+        enn.placeholder = enName;
+        enn.addEventListener('change', function () { enSave({ name: enn.value.trim() || null }); });
+        enn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') enn.blur(); });
+        enh.addEventListener('change', function () { enSave({ hidden: !enh.checked }); });
+        ens.addEventListener('change', function () {
+          if (!ens.value) return;
+          // the page's sections as they are, with this device moved
+          var secs = (enPlan.sections || []).map(function (x) {
+            var y = { id: x.id, name: x.name, items: (x.items || []).map(function (i) { return i.key; })
+                      .filter(function (k) { return k !== enRec.key; }) };
+            if (x.link) y.link = x.link;
+            if (x.id === ens.value) y.items.push(enRec.key);
+            return y;
+          });
+          h.callWS({ type: 'hk_energy/settings/set', changes: { sections: secs } }).catch(fail);
+          if (!enh.checked) { enh.checked = true; enSave({ hidden: false }); }
+        });
+      }
 
       // NAME
       var nm = el.querySelector('.nm'), hereBox = el.querySelector('.here') || { checked: false, addEventListener: function () {} };
@@ -1122,8 +1179,10 @@
           var b = ev.target.closest('button');
           if (!b) return;
           seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
-          save({ show_as: b.dataset.v || null });
-          paintGlyphs(b.dataset.v || null);
+          cur.show_as = b.dataset.v || null;
+          save({ show_as: cur.show_as });
+          paintGlyphs(cur.show_as);
+          showSpin();
         });
       }
 
@@ -1143,6 +1202,28 @@
         paintSize();
         save({ size: cur.size });
       });
+
+      // SPIN (a fan)
+      var spinSeg = el.querySelector('.seg.spin'), spinRow = el.querySelector('.spinrow');
+      function showSpin() { if (spinRow) spinRow.hidden = !(d === 'fan' || cur.show_as === 'fan'); }
+      var paintSpin = function () {
+        if (!spinSeg) return;
+        var v = cur.anim || '';
+        spinSeg.innerHTML = [['', 'Automatic'], ['spin', 'Spin'], ['none', 'Still']].map(function (o) {
+          return '<button data-v="' + o[0] + '"' + (v === o[0] ? ' class="on"' : '') +
+                 ' aria-pressed="' + (v === o[0]) + '">' + o[1] + '</button>';
+        }).join('');
+      };
+      paintSpin();
+      if (spinSeg) {
+        spinSeg.addEventListener('click', function (ev) {
+          var b = ev.target.closest('button');
+          if (!b) return;
+          cur.anim = b.dataset.v || null;
+          paintSpin();
+          save({ anim: cur.anim });
+        });
+      }
 
       // ARRANGE
       if (arr) {
@@ -1362,7 +1443,7 @@
       });
       goBtn.addEventListener('click', function () {
         sure.hidden = true; resetBtn.hidden = false;
-        var all = { name: null, icon: null, show_as: null, size: null, status: null, home: null, color: null, when: null, label: null,
+        var all = { name: null, icon: null, show_as: null, size: null, anim: null, status: null, home: null, color: null, when: null, label: null,
                     attribute: null, fav_name: null, fav_icon: null, fav_with: null, fav_room: null,
                     on_text: null, off_text: null };
         save(all).then(function () { return save({ name: null, screen: dash }); }).then(function () {
@@ -1370,6 +1451,8 @@
           nm.value = ''; hereBox.checked = false; st.checked = true; hm.checked = true;
           if (seg) seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', !x.dataset.v); });
           paintSize();
+          paintSpin();
+          showSpin();
           paintGlyphs(null);
           fvn.value = ''; paintFavGlyphs(); paintWith();
           // everything the reset cleared shows cleared (the colour, what a
@@ -1404,7 +1487,7 @@
       // rather than stacking a second: pushing again would leave the first
       // entry behind, and the next Back press would land on it and do nothing.
       var reuse = false;
-      var returnGroup = D.el && D.kind === 'group' && D.group && D.group.climate ? D.group
+      var returnGroup = D.el && D.kind === 'group' && D.group && D.group.row ? D.group
         : D.el && D.returnGroup ? D.returnGroup : null;
       if (D.el) { reuse = D.pushed && ours(D); close(true); }
 
@@ -1426,7 +1509,7 @@
       // close.
       panel.setConfig(Object.assign({ entity: id, kind: kind, src: src || {}, glass: false },
         opts.group ? { entities: opts.group.ids, room: opts.group.room, groupKind: opts.group.kind,
-                       climate: opts.group.climate, resolve: opts.group.resolve } :
+                       row: opts.group.row, resolve: opts.group.resolve } :
         opts.cards ? { cards: opts.cards.cards, width: opts.cards.width } : {}));
 
       D = {
@@ -1553,10 +1636,11 @@
           { detail: { open: window.hkPopupOpen || 0, cover: window.hkPopupCover } }));
       } catch (e) { /* no event bus (a test) */ }
     }
-    function close(silent) {
+    // all: not back to the list an accessory was opened from (returnGroup)
+    function close(silent, all) {
       var d = D;
       if (!d.el || d.closing) return;
-      if (!silent && d.returnGroup && ours(d) && location.pathname === d.path && location.hash === d.hash) {
+      if (!silent && !all && d.returnGroup && ours(d) && location.pathname === d.path && location.hash === d.hash) {
         restoreGroup(d.returnGroup);
         return;
       }
@@ -3207,6 +3291,54 @@
       if (/°|%/.test(unit)) d = Math.abs(v) >= 100 ? 0 : 1;
       return Number(v).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: 0 });
     }
+    // AN ENERGY DEVICE'S SHEET (the Energy feature's plan, the settings
+    // feed's `energy`): the power sensor or the meter of a device on the
+    // Energy page. Its sheet adds today's use, its cost and the usual day,
+    // daily bars from its meter for Week and Month, the circuit it is part
+    // of and the ones inside it, and the switch it is plugged into.
+    function energyPlan() {
+      var HS = window.hkSettings, p = HS && HS.get('energy', null);
+      return p && typeof p === 'object' ? p : null;
+    }
+    function energyRec(id) {
+      var p = energyPlan();
+      return p && p.devices && id ? p.devices[id] || null : null;
+    }
+    function priceOf(h, P, today) {
+      var T = (P && P.total) || {};
+      if (typeof T.price === 'number') return T.price;
+      if (typeof T.price === 'string') { var st = stOf(h, T.price); var v = st && num(st.state); if (v != null) return v; }
+      // the house's own cost today over its kWh today: what a kWh costs now
+      if (T.cost && T.stat && today) {
+        var c = today(T.cost), k = today(T.stat);
+        if (c != null && k) return c / k;
+      }
+      return null;
+    }
+    var EN_CSS = [
+      '.en{display:flex;flex-direction:column;gap:12px}',
+      '.en[hidden]{display:none}',
+      '.stats.ens .sub{font-size:12px;color:rgba(235,235,245,0.5);margin-top:2px;min-height:15px}',
+      '.en .rows{border-radius:20px;background:rgba(255,255,255,0.08);overflow:hidden}',
+      '.en .row{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px 0 18px;border:0;width:100%;',
+      '  background:transparent;color:inherit;font:inherit;font-size:16px;text-align:left;cursor:pointer;box-sizing:border-box}',
+      '.en .row + .row{border-top:1px solid rgba(255,255,255,0.08)}',
+      '.en .row .k{color:rgba(235,235,245,0.6);font-size:14px;min-width:84px}',
+      '.en .row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}',
+      '.en .row .v{color:rgba(235,235,245,0.72);font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.en .row svg{flex-shrink:0;color:rgba(235,235,245,0.35)}',
+      '.en .sw{flex-shrink:0;height:34px;min-width:64px;padding:0 14px;border-radius:17px;border:0;font:inherit;font-size:15px;',
+      '  font-weight:600;cursor:pointer;background:rgba(255,255,255,0.14);color:#fff}',
+      '.en .sw.on{background:#30d158;color:#fff}'
+    ].join('');
+    function wattsText(h, id) {
+      var st = stOf(h, id);
+      if (!st || !window.hkChart) return '';
+      var w = window.hkChart.power(h.states, id, { watts: true, fallback: null });
+      if (w == null) return '';
+      return Math.abs(w) >= 1000 ? (w / 1000).toFixed(2) + ' kW' : Math.round(w) + ' W';
+    }
+
     class SensorPanel extends Panel {
       static get CSS() {
         return PANEL_CSS + [
@@ -3242,10 +3374,21 @@
           '.stats .v{font-size:19px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
           '@media (max-width:600px){.val .n{font-size:60px}.val .u{font-size:22px}',
           '  .chart{padding:14px 14px 12px}.stats{padding:12px 14px;gap:8px}.stats .v{font-size:17px}}'
-        ].join('');
+        ].join('') + EN_CSS;
       }
       hkWidthKind() { return 'sensor'; }
       _wideAt() { return 700; }
+      // an energy device's sheet also follows its switch and the circuits
+      // beside it (their watts on its rows)
+      _sigOf() {
+        var base = super._sigOf(), h = this._hass, rec = energyRec(this._id);
+        if (!rec || !h) return base;
+        var P = energyPlan() || {}, ids = [rec.control];
+        [rec.parent].concat(rec.children || []).forEach(function (k) { var o = (P.devices || {})[k]; if (o) ids.push(o.power); });
+        return base + '|' + ids.filter(Boolean).map(function (i) {
+          var x = h.states[i]; return i + '=' + (x ? x.last_updated : 'x');
+        }).join(';');
+      }
       _render() {
         var s = this._stateObj, self = this;
         if (!s) return;
@@ -3258,7 +3401,7 @@
           this._root.innerHTML = '<div class="pn"><div class="top"><div class="rd"><div class="val"><span class="n"></span><span class="u"></span></div>' +
             '<div class="upd"></div></div>' +
             '<div class="seg">' + ranges.map(function (r) { return '<button data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div></div>' +
-            '<div class="chart"></div><div class="stats"></div></div>';
+            '<div class="chart"></div><div class="stats"></div><div class="en" hidden></div></div>';
           this._root.querySelectorAll('.seg button').forEach(function (b) {
             b.addEventListener('click', function () { self._range = b.getAttribute('data-r'); self._paintSeg(); self.redraw(); });
           });
@@ -3266,6 +3409,7 @@
           this._u = this._root.querySelector('.u');
           this._chart = this._root.querySelector('.chart');
           this._stats = this._root.querySelector('.stats');
+          this._en = this._root.querySelector('.en');
           this._paintSeg();
           this._upd = this._root.querySelector('.upd');
           if (!this._tickT) this._tickT = setInterval(function () { self._paintUpd(self._stateObj); }, 30000);
@@ -3274,7 +3418,82 @@
         this._n.textContent = v == null ? (unavailable(s) ? '—' : s.state) : fmtNum(v, s);
         this._u.textContent = at(s, 'unit_of_measurement') || '';
         this._paintUpd(s);
+        this._rec = energyRec(this._id);
         this._paintChart(s, energy);
+        this._paintEnergy(s, energy);
+      }
+      // AN ENERGY DEVICE: today, its cost, the usual day; where it sits; its switch
+      _paintEnergy(s, energy) {
+        var rec = this._rec, el = this._en, h = this._hass, self = this;
+        if (!el) return;
+        if (!rec) { el.hidden = true; el.innerHTML = ''; return; }
+        var P = energyPlan() || {}, T = P.total || {}, S = window.hkStats;
+        var ids = [rec.stat, T.stat, T.cost].filter(Boolean);
+        var all = rec.stat && S ? S.daily(h, ids, 8, this) : null;
+        var today = function (id) {
+          var a = all && all[id], v = a && a.length ? a[a.length - 1].v : null;
+          return Number.isFinite(v) ? v : null;
+        };
+        var kwh = rec.stat ? today(rec.stat) : null;
+        var price = priceOf(h, P, all ? today : null);
+        var usual = null;
+        if (all && all[rec.stat]) {
+          var prev = all[rec.stat].slice(0, -1).map(function (p) { return p && p.v; }).filter(function (v) { return Number.isFinite(v); });
+          if (prev.length) usual = prev.reduce(function (a, b) { return a + b; }, 0) / prev.length;
+        }
+        var f1 = function (v) { return v == null ? '—' : (v >= 100 ? Math.round(v) : v.toFixed(1)) + ' kWh'; };
+        var cost = kwh != null && price != null ? '$' + (kwh * price).toFixed(2) : '—';
+        var cmp = '';
+        if (kwh != null && usual) {
+          // a day is not over: compare with the usual day so far
+          var frac = Math.max(0.05, (Date.now() - new Date().setHours(0, 0, 0, 0)) / 864e5);
+          var r = kwh / (usual * frac);
+          cmp = r > 1.15 ? 'Above usual so far' : r < 0.85 ? 'Below usual so far' : 'About usual so far';
+        }
+        var rows = [];
+        var names = P.names || {};
+        var other = function (key) { return (P.devices || {})[key] || null; };
+        if (rec.parent) {
+          var pr = other(rec.parent);
+          rows.push({ k: 'Part of', t: names[rec.parent] || (pr && pr.name) || rec.parent, v: pr && pr.power ? wattsText(h, pr.power) : '',
+                      go: pr ? (pr.power || pr.stat) : null });
+        }
+        (rec.children || []).forEach(function (key) {
+          var c = other(key);
+          rows.push({ k: 'Includes', t: names[key] || (c && c.name) || key, v: c && c.power ? wattsText(h, c.power) : '',
+                      go: c ? (c.power || c.stat) : null });
+        });
+        var sw = rec.control && stOf(h, rec.control);
+        // TODAY, ITS COST, THE USUAL DAY: the figures under the chart on Hour
+        // and Day (Week and Month show the meter's own bars and totals)
+        if (rec.stat && (this._range === 'hour' || this._range === 'day')) {
+          var sh = '<div><div class="k">Today</div><div class="v">' + f1(kwh) + '</div><div class="sub">' + esc(cmp) + '</div></div>' +
+            '<div><div class="k">Cost Today</div><div class="v">' + cost + '</div><div class="sub">' +
+              (price != null ? '$' + price.toFixed(3) + ' a kWh' : '') + '</div></div>' +
+            '<div><div class="k">Usual Day</div><div class="v">' + f1(usual) + '</div><div class="sub">Last 7 days</div></div>';
+          this._stats.classList.add('ens');
+          this._stats.classList.remove('stale');
+          if (this._stats._en !== sh || this._stats.innerHTML.indexOf('Usual Day') < 0) { this._stats.innerHTML = sh; this._stats._en = sh; }
+        } else {
+          this._stats.classList.remove('ens');
+        }
+        var html = (rows.length || sw ? '<div class="rows">' + rows.map(function (r, i) {
+            return '<button class="row" data-i="' + i + '"><span class="k">' + esc(r.k) + '</span><span class="t">' + esc(r.t) + '</span>' +
+              '<span class="v">' + esc(r.v) + '</span>' + (r.go ? CHEV : '') + '</button>';
+          }).join('') + (sw ? '<div class="row"><span class="k">Switch</span><span class="t">' +
+            esc((sw.attributes && sw.attributes.friendly_name) || rec.control) + '</span><button class="sw' +
+            (sw.state === 'on' ? ' on' : '') + '" aria-label="Turn ' + (sw.state === 'on' ? 'off' : 'on') + '">' +
+            (sw.state === 'on' ? 'On' : sw.state === 'off' ? 'Off' : esc(sw.state)) + '</button></div>' : '') + '</div>' : '');
+        el.hidden = !html;
+        if (el._html === html) return;
+        el._html = html;
+        el.innerHTML = html;
+        el.querySelectorAll('.row[data-i]').forEach(function (b) {
+          var r = rows[Number(b.getAttribute('data-i'))];
+          if (r && r.go) b.addEventListener('click', function () { if (window.hkDetail) window.hkDetail.open(r.go); });
+        });
+        var btn = el.querySelector('.sw');
+        if (btn) btn.addEventListener('click', function () { self._call('switch', 'toggle', { entity_id: rec.control }); });
       }
       // when the reading last changed ("Updated just now", "Updated 5 min ago")
       _paintUpd(s) {
@@ -3290,10 +3509,10 @@
         this._root.querySelectorAll('.seg button').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-r') === r); });
       }
       // The series for the range, or null while it loads.
-      _series(s, energy) {
-        var h = this._hass, id = this._id, r = this._range, S = window.hkStats;
+      _series(s, energy, meter) {
+        var h = this._hass, id = meter || this._id, r = this._range, S = window.hkStats;
         if (!S) return null;
-        var self = this, key = r + (energy ? 'e' : '');
+        var self = this, key = r + (energy ? 'e' : '') + (meter ? 'm' : '');
         var viaStats = function (fn, n, opts) {
           var d = S[fn](h, id, n, self, opts);
           if (d && d.some(function (p) { return p && p.v != null; })) return d;
@@ -3317,13 +3536,20 @@
         return out === undefined ? S.history(h, id, 336, this) : out;
       }
       _paintChart(s, energy) {
-        var pts = this._series(s, energy);
-        var unit = at(s, 'unit_of_measurement') || '', u = esc(unit);
         var r = this._range;
+        // AN ENERGY DEVICE'S POWER: Week and Month are its meter's daily use
+        var meter = !energy && this._rec && this._rec.stat && (r === 'week' || r === 'month') ? this._rec.stat : null;
+        if (meter) {
+          energy = true;
+          s = { entity_id: meter, state: '', attributes: { unit_of_measurement: 'kWh' } };
+        }
+        var pts = this._series(s, energy, meter);
+        var unit = at(s, 'unit_of_measurement') || '', u = esc(unit);
         // plot height and time labels: a tall chart in the wide sheet, a
         // shorter one with three times on a phone
         var phone = matchMedia('(max-width:600px)').matches;
-        var H = phone ? 180 : 250, NT = phone ? 3 : 5, MS = RANGE_H[r] * 3600000;
+        // an energy device's sheet keeps room under the chart for its rows
+        var H = phone ? 180 : (this._rec ? 200 : 250), NT = phone ? 3 : 5, MS = RANGE_H[r] * 3600000;
         // NOTHING CHANGES HEIGHT ON A RANGE SWITCH, so the card does not bounce.
         // The stats row is never taken out -- dashes when there is nothing to
         // say -- and a chart already drawn stays, dimmed, until the new range
@@ -4715,7 +4941,7 @@
         var ids = resolved ? resolved.ids : cfg.entities || [];
         var configs = ids.map(function (id) {
           var room = cfg.room;
-          if (cfg.climate) {
+          if (cfg.row) {
             var e = (h.entities || {})[id] || {}, d = (h.devices || {})[e.device_id] || {};
             room = ((h.areas || {})[e.area_id || d.area_id] || {}).name || '';
           }
@@ -4725,7 +4951,7 @@
           // the scrolling body adds a second blur inside an animated blur
           // surface, producing rectangular artifacts on tablet GPUs.
           t.glass = false;
-          if (cfg.climate) {
+          if (cfg.row) {
             t.room = room || '';
             // The room line needs its own explicit grid track. Leaving the
             // standard two-row layout creates an implicit third column and
@@ -4750,7 +4976,7 @@
             return el;
           }).filter(Boolean);
           this._root.innerHTML = '';
-          if (cfg.climate) {
+          if (cfg.row) {
             this._summary = document.createElement('div');
             this._summary.className = 'summary';
             this._root.appendChild(this._summary);
@@ -4810,19 +5036,24 @@
       }
     }
     def('hk-detail-cards', CardsPanel);
-    // openGroup(title, ids, { icon, room, kind, color })
+    // openGroup(title, ids, { icon, room, kind, color, row, resolve })
+    //   row: a page's status row the list was opened from (hk-room.js; the
+    //   Climate page's was `climate`, still taken): each pill says its own
+    //   room, a summary heads the list, `resolve` keeps both live, and an
+    //   accessory opened from it comes back to it
     function openGroup(title, ids, o, extra) {
       o = o || {};
       if (!ids || !ids.length) return false;
       return open(null, { name: title, icon: o.icon, icon_color: o.color || 'rgba(255,255,255,0.92)' },
                   Object.assign({ group: { title: title, ids: ids.slice(), room: o.room || '', kind: o.kind || '',
-                    icon: o.icon, color: o.color, climate: o.climate, resolve: o.resolve } }, extra || {}));
+                    icon: o.icon, color: o.color, row: o.row || o.climate, resolve: o.resolve } }, extra || {}));
     }
     function restoreGroup(g) {
       var current = g.resolve && g.resolve(C.hass());
       // An empty category still needs a way back out after its last member
       // was removed while a device's controls were open.
-      return open(null, { name: current ? current.title : g.title, icon: g.icon },
+      return open(null, { name: current ? current.title : g.title, icon: g.icon,
+                          icon_color: g.color || 'rgba(255,255,255,0.92)' },
         { group: Object.assign({}, g, { ids: current ? current.ids : g.ids }) });
     }
 
@@ -4922,8 +5153,29 @@
       var h2 = held; held = null;
       if (Date.now() < h2.until) asked(h2.ev);
     });
+    // CLOSE POP-UP (hk_frontend.close_popup): the same screens, the other
+    // half -- the alarm keypad held up for as long as the alarm lasts comes
+    // down when it clears. Only a sheet that IS this pop-up closes; anything
+    // else on screen is somebody's and stays. A request held for a hidden
+    // page goes too, or the keypad would come up on the next wake for an
+    // alarm that is already over.
+    function closeAsked(e) {
+      var dash = dashNow(), h = C.hass();
+      if (e.dashboards && e.dashboards.length && e.dashboards.indexOf(dash) < 0) return false;
+      if (e.users && e.users.length && !(h && h.user && e.users.indexOf(h.user.id) >= 0)) return false;
+      if (held && held.ev && held.ev.detail && held.ev.detail.popup === e.popup) held = null;
+      if (!D.el || D.popup !== e.popup) return false;
+      close(false, true);
+      // the hash goes too, whoever opened the sheet: left on the address, a
+      // reload (the midnight one) would put the keypad back up
+      if (location.hash === '#' + e.popup) {
+        try { history.replaceState(history.state, '', location.pathname + location.search); } catch (err) { /* ok */ }
+      }
+      return true;
+    }
     function asked(ev) {
       var e = ev && ev.detail;
+      if (e && e.type === 'popup_close' && e.popup) return closeAsked(e);
       if (!e || e.type !== 'popup' || !e.popup) return false;
       if (!onDashboard()) return false;
       if (document.visibilityState === 'hidden') {

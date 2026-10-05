@@ -555,7 +555,7 @@
   // ============================================================ CHIP KINDS
   //
   // `kind: lights` -- a chip that names WHAT it stands for instead of listing
-  // it. Its entities are Configure -> What counts, resolved by
+  // it. Its entities are HK Settings -> Status & Chips, resolved by
   // the integration (kinds.py) and handed over as `kinds`, so the chip, its
   // page and the header's security line count the same things, and a light
   // added to the house is counted without anyone editing a list. A chip
@@ -569,10 +569,11 @@
   // `quiet: true` -- shown only when there is something to report: Doors &
   // Windows only while one is open, Water only while a sensor is wet. Which
   // chips a dashboard shows, in what order, and which are quiet, is that
-  // dashboard's (its item's Home page; hk-chips-card below).
+  // dashboard's (its item's Home page; hk-chips-card below) -- all but
+  // Smoke & CO, which no screen chooses: it leads every row (rowPlan), quiet.
   var KIND_ORDER = ['weather_alert', 'security', 'doors_windows', 'climate', 'lights', 'blinds',
                     'timers', 'vacuums', 'speakers', 'water', 'energy'];
-  var KIND_NAMES = { weather_alert: 'Weather Alerts', security: 'Security', doors_windows: 'Doors & Windows',
+  var KIND_NAMES = { smoke: 'Smoke & CO', weather_alert: 'Weather Alerts', security: 'Security', doors_windows: 'Doors & Windows',
                      climate: 'Climate', lights: 'Lights', blinds: 'Blinds', timers: 'Timers',
                      vacuums: 'Vacuums', speakers: 'Speakers', water: 'Water', energy: 'Energy' };
   // Quiet unless a dashboard says otherwise: news, not a permanent slot.
@@ -590,10 +591,10 @@
   function C0() { return window.hkCards || {}; }
 
   // FOUND BY THE INTEGRATION, or -- before it has answered on a brand-new
-  // browser, or from a server that predates What counts -- found here by the
+  // browser, or from a server that predates Status & Chips -- found here by the
   // same rules (kinds.py), less its groups and hidden entities test.
   var FIND = {
-    lights: [['light']], fans: [['fan']], doors: [['binary_sensor'], ['door']],
+    smoke: [['binary_sensor'], ['smoke', 'carbon_monoxide']], lights: [['light']], fans: [['fan']], doors: [['binary_sensor'], ['door']],
     windows: [['binary_sensor'], ['window']], garage: [['cover', 'binary_sensor'], ['garage', 'gate', 'garage_door']],
     locks: [['lock']], blinds: [['cover'], ['awning', 'blind', 'curtain', 'shade', 'shutter', 'window', undefined]],
     leaks: [['binary_sensor'], ['moisture']], thermostats: [['climate']], timers: [['timer']],
@@ -636,6 +637,28 @@
     var tap = nav(kindPage(kind));
     var n = function (k) { return found(k, hass); };
     switch (kind) {
+      case 'smoke': {
+        // SMOKE & CO: nothing to say until an alarm goes off, then what it
+        // is -- "Smoke Detected", "CO Detected", both -- in red. Opens nothing:
+        // there is nothing to do on a screen but leave.
+        var sm = n('smoke'), co = [], gas = [], smoke = [];
+        if (!sm.length) return null;
+        sm.forEach(function (id) {
+          var o = hass && hass.states && hass.states[id];
+          var dc = o && o.attributes && o.attributes.device_class;
+          (dc === 'carbon_monoxide' ? co : dc === 'gas' ? gas : smoke).push(id);
+        });
+        var parts = [], icons = [];
+        [[smoke, 'Smoke Detected', 'hk:smoke-detector'], [co, 'CO Detected', 'hk:molecule-co'],
+         [gas, 'Gas Detected', 'hk:smoke-detector']].forEach(function (g) {
+          if (!g[0].length) return;
+          parts.push({ when: { any_of: g[0], state: 'on' }, label: g[1] });
+          icons.push({ when: { any_of: g[0], state: 'on' }, icon: g[2] });
+        });
+        icons.push({ icon: 'hk:smoke-detector' });
+        return { name: 'Smoke & CO', join: ' • ', fallback: 'Clear', parts: parts, icon_rules: icons,
+          icon_color: 'red', active: [{ any_of: sm, state: 'on' }], tap_action: { action: 'none' } };
+      }
       case 'weather_alert': {
         var al = S('weather.alerts', null);
         if (!al) return null;
@@ -760,7 +783,8 @@
           active: [{ count: { entities: lk, match: 'on' }, above: 0 }], tap_action: tap };
       }
       case 'energy': {
-        var pw = S('features.power', null);
+        // Power Use (General), else the Energy feature's whole home
+        var pw = S('features.power', null) || ((S('energy', null) || {}).total || {}).power || null;
         if (!pw) return null;
         var st = hass && hass.states[pw];
         var u = st && st.attributes && st.attributes.unit_of_measurement;
@@ -778,7 +802,7 @@
     return KIND_ORDER.filter(function (k) { return !!kindConfig(k, hass); });
   }
   // A KIND'S CONFIG, rebuilt only when something it is built from moved:
-  // the settings (What counts, the alarm, the page list), HK Music's rooms,
+  // the settings (Status & Chips, the alarm, the page list), HK Music's rooms,
   // the dashboard's views, or -- before the integration's kinds arrive --
   // the set of entities. Not per hass push: the chip's signature walks its
   // config, and a new object every push would re-walk it several times a second.
@@ -787,7 +811,8 @@
     if (!raw || !raw.kind) return;
     var HS = window.hkSettings, M = C0().menu;
     var lc = M && M.config ? M.config() : null;
-    var key = [HS ? HS.version : -1, window.hkMusic ? window.hkMusic.rooms().length : -1,
+    // (hass at all: Smoke & CO sorts its alarms by their device class)
+    var key = [HS ? HS.version : -1, window.hkMusic ? window.hkMusic.rooms().length : -1, card._hass ? 1 : 0,
                kindsLive() ? '' : Object.keys((card._hass && card._hass.states) || {}).length].join('|');
     if (key === card._kindKey && lc === card._kindLc && card._config && card._config.__kind) return;
     card._kindKey = key; card._kindLc = lc;
@@ -1023,6 +1048,9 @@
     var copy = function (card) { return JSON.parse(JSON.stringify(card)); };
     var quiet = Array.isArray(b.chips_quiet) ? b.chips_quiet
               : Array.isArray(cfg.quiet) ? cfg.quiet : QUIET_DEFAULT;
+    // SMOKE & CO is no screen's choice: it leads every row of a house that
+    // has an alarm, shown only while one is going off.
+    tokens = tokens.filter(function (t) { return t !== 'smoke'; });
     var keys = [], cards = [];
     tokens.forEach(function (t) {
       if (t && typeof t === 'object') { keys.push(null); cards.push(t); return; }
@@ -1044,6 +1072,7 @@
       keys.splice(at, 0, null);
       cards.splice(at, 0, x.card);
     });
+    if (found('smoke', hass).length) cards.unshift({ type: 'custom:hk-status-chip-card', kind: 'smoke', quiet: true });
     var row = { type: 'custom:hk-row-card', card_width: 'fit-content', gap: 10, pad_top: 14,
                 pad_bottom: 30, pad_left: 22, pad_right: 22, margin: '-15px -22px -32px -22px',
                 cards: cards };
@@ -1173,17 +1202,17 @@
   // this dashboard (the first of these paths it has), or no pill.
   var PAGE_PILLS = {
     weather: ['Weather', 'hk:weather-partly-cloudy', 'white', ['weather']],
-    calendar: ['Calendar', 'mdi:calendar-month', 'red', ['calendar']],
-    cameras: ['Cameras', 'hk:camera', 'green', ['cameras']],
-    live_tv: ['Live TV', 'hk:television', 'blue', ['live-tv']],
-    security: ['Security', 'hk:shield-lock', 'green', ['security', 'alarm']],
+    calendar: ['Calendar', 'mdi:calendar-month', 'white', ['calendar']],
+    cameras: ['Cameras', 'hk:camera', 'white', ['cameras']],
+    live_tv: ['Live TV', 'hk:television', 'white', ['live-tv']],
+    security: ['Security', 'hk:shield-lock', 'white', ['security', 'alarm']],
     doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white', ['doors-windows', 'doors']],
-    climate: ['Climate', 'hk:thermostat', 'blue', ['climate']],
-    lights: ['Lights', 'hk:lightbulb', 'yellow', ['lights']],
-    timers: ['Timers', 'hk:timer-sand', 'orange', ['timers']],
+    climate: ['Climate', 'hk:thermostat', 'white', ['climate']],
+    lights: ['Lights', 'hk:lightbulb', 'white', ['lights']],
+    timers: ['Timers', 'hk:timer-sand', 'white', ['timers']],
     vacuums: ['Vacuums', 'hk:robot-vacuum', 'white', ['vacuums']],
     music: ['Play Music', 'hk:music', 'white', ['playmusic']],
-    water: ['Water', 'hk:water', 'blue', ['water']]
+    water: ['Water', 'hk:water', 'white', ['water']]
   };
   function pagePill(key) {
     var p = PAGE_PILLS[key];
@@ -1325,7 +1354,7 @@
   register('hk-status-chip-card', HkStatusChipCard, 'HK Status Chip',
            'A small header chip with an icon, a title and a one-line summary.',
            [
-             // A kind fills in everything else from What counts; set one, or
+             // A kind fills in everything else from Status & Chips; set one, or
              // an entity for a chip of your own.
              { name: 'kind', selector: { select: { mode: 'dropdown', options: KIND_OPTIONS } } },
              { name: 'quiet', selector: { boolean: {} } },

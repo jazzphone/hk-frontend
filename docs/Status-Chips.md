@@ -7,6 +7,7 @@ Each chip summarizes one kind of thing and opens its page:
 
 | Chip | Shows | Opens |
 |---|---|---|
+| Smoke & CO | *Smoke Detected* or *CO Detected*, in red, while an alarm is going off | Nothing |
 | Weather Alerts | The current alert, while there is one | Weather |
 | Security | The alarm’s state, or how many locks are unlocked | Security |
 | Doors & Windows | How many doors, windows and garage doors are open | Doors & Windows |
@@ -20,10 +21,16 @@ Each chip summarizes one kind of thing and opens its page:
 | Energy | Power use, in kW | A [custom page](Pages.md#custom-pages) with the address `energy`, if the screen has one |
 
 What each chip counts is the same on every screen, and is set in
-[What Counts](#what-counts). The alarm, indoor temperature and power
+[Status & Chips](#status--chips). The alarm, indoor temperature and power
 sensor are in [General](HK-Settings.md#general); the alerts sensor is in
 [Weather](Weather.md). A kind your home has nothing of never shows a
 chip.
+
+**Smoke & CO is on every screen.** In a home with a smoke or carbon monoxide
+alarm, the Smoke & CO chip leads every screen’s chip row, before the chips the
+screen chooses, and appears only while an alarm is going off. A screen can’t
+remove or move it; turn the whole row off (**Show Status Chips**) and it goes
+with it. Which alarms set it off is set in [Status & Chips](#status--chips).
 
 ![A screen’s Status Chips page in HK Settings](images/settings-chips.png)
 
@@ -79,25 +86,32 @@ Each kind’s page:
 | Setting | Default | What it does |
 |---|---|---|
 | Show | When Active for Weather Alerts, Doors & Windows, Blinds and Water; Always for the rest | **When Active**: the chip appears only while something is on, open, running or wet. **Always**: it is always there. |
-| What It Counts | — | Links to the [What Counts](#what-counts) kinds, and to the single settings the chip reads (Alarm Panel, Indoor Temperature, Power Use, Weather Alerts). The same on every screen. |
+| What It Counts | — | Links to the [Status & Chips](#status--chips) kinds, and to the single settings the chip reads (Alarm Panel, Indoor Temperature, Power Use, Weather Alerts). The same on every screen. |
 
-## Climate page summaries
+## The pages’ status rows
 
-The [Climate page](Climate.md) also has a room-style status row: temperature
-and humidity ranges, blinds and fans. Tap a summary for its room-labelled
-accessory list. Choose the summaries and areas in **All Screens → Climate
-Status**, and adjust their sources in **What Counts**.
+The [Climate](Climate.md), Lights, Doors & Windows, Water and Security pages
+have a room-style status row under their titles: *3 Lights · 2 On*, *Motion ·
+Emma’s Room*, *Valve · Running*. Each counts what Status & Chips finds; tap
+an item for its room-labelled accessory list. Choose what each row shows, its
+order and the rooms it leaves out in **All Screens → Status Rows** ([Status
+rows](Status-Rows.md)).
 
-## What Counts
+## Status & Chips
 
-**All Screens → What Counts.** What each status chip, its page and the header’s
-security line count. Every kind finds its own entities; you only adjust. The
-Lights chip and the Lights page count the same lights, so they can’t disagree.
+**All Screens → Status & Chips.** What each status chip, the header’s security
+line and the generated pages count. Every kind finds its own entities; you only
+adjust. The Lights chip and the Lights page count the same lights, so they can’t
+disagree. The page lists every kind under **Status Chips**, and the kinds that
+feed only the pages’ status rows — temperature, humidity, motion, occupancy and
+valves — under **Status Rows**; the number is what is counted now, and
+*Adjusted* means you have left some out or added some.
 
-![What Counts in HK Settings: each kind and how many it finds](images/settings-counts.png)
+![Status & Chips in HK Settings: each kind and how many it counts](images/settings-counts.png)
 
 | Kind | Found automatically | The chip counts |
 |---|---|---|
+| Smoke & CO | Binary sensors of class smoke or carbon monoxide | Going off (the Smoke & CO chip appears). Add a gas detector with **Also Count**; leave out a camera that only hears the alarm. |
 | Temperature | An area’s designated temperature sensor, else its thermostat’s current temperature | Range on the Climate page |
 | Humidity | An area’s designated humidity sensor, else its thermostat’s current humidity | Range on the Climate page |
 | Lights | Every light | On (Lights chip) |
@@ -132,7 +146,7 @@ Each kind’s page:
 
 A kind you never touch stays automatic, so a light you add tomorrow is counted
 tomorrow. The category pages of a generated screen (Lights, Doors & Windows, …)
-list what What Counts counts.
+list what Status & Chips counts.
 
 ## Custom Chips
 

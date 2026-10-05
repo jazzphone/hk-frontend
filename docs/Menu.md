@@ -24,6 +24,8 @@ Menu](#menu-settings-for-all-screens), and a screen can
   - **Chip on Home, Tab Elsewhere**.
   - **Edge Tab**: a slim tab on the left edge, level with the date. **Tab
     Position** can move it.
+  - **No Button**: nothing on the page; swipe from the left edge to open the
+    menu. Offered only while **Swipe from Left Edge** is on.
 
   The button’s style is All Screens’ unless the screen sets its own.
 - **Always Open**: the menu stays beside the page, with no button. It needs
@@ -35,10 +37,33 @@ Menu](#menu-settings-for-all-screens), and a screen can
 
 **On narrow screens.** Below 1,024 px wide (an iPad held upright, a phone), a
 button menu uses **On Narrow Screens** instead of its Button Style: the chip
-(the default), the chip then the tab, or the edge tab.
+(the default), the chip then the tab, the edge tab, or No Button.
 
-**Tapping the clock** also opens the menu, and the weather beside it opens the
-Weather page.
+**Other ways to open it.** These work alongside the button, each switched on
+or off by itself:
+
+- **Swipe from Left Edge**: drag right from the screen's left edge and the
+  menu follows your finger, the way the Home app's sidebar does. Let go past
+  a third of the way, or flick it, and it opens; otherwise it slides back. It
+  works at
+  every width and with every Button Style, and an always-open menu gets it
+  once it folds away. Dragging up or down at the edge still scrolls the page.
+  In Safari the browser's own back swipe can get there first at the very edge.
+  **In the Home Assistant Companion app**, set the app's own Swipe Right
+  gesture to **None** (Settings → Companion App → Gestures). By default it
+  opens Home Assistant's sidebar on the same swipe. If it does, HK Frontend
+  closes that sidebar again at once (the screen keeps it hidden) and says once
+  what to change in the app. The same happens on any screen that hides Home
+  Assistant's sidebar, with or without the swipe, so the app's gesture can
+  never leave the page frozen under a sidebar you can't see.
+- **Tap Clock to Open Menu**: tapping the clock opens the menu, and the
+  weather beside it opens the Weather page.
+
+The chip and the edge tab aren't separate switches, because they depend on
+each other: "Chip, Then Tab" shows the tab only once the chip has scrolled out
+of sight. That's why they stay one **Button Style**. With the swipe on, Button
+Style can be No Button. If the swipe is turned off, a No Button screen goes
+back to Automatic (the chip on narrow screens), so it always keeps a way in.
 
 **The highlight** (the menu’s icons and the page you’re on) is Apple’s orange
 unless you choose another **Highlight Color**: one of Apple’s system colors
@@ -124,7 +149,7 @@ Give it a status row with `custom:hk-room-status-card`:
 | Option | What it does |
 |---|---|
 | `area` | Required. One area or a list. |
-| `items` | Which kinds show. Default: [Rooms → Status Row](Rooms.md#rooms-settings). |
+| `items` | Which kinds show, in this order. Default: [Status Rows → Room Pages](Status-Rows.md#settings). |
 | `temperature`, `humidity` | A sensor to use instead of the area’s own. |
 | `entities` | The accessories on this page. Outlets, blinds, fans, locks and garage doors are then counted from this list rather than the whole area. |
 | `exclude` | Entities to leave out of the counts. |
@@ -157,9 +182,10 @@ are in [Rooms](Rooms.md).
 |---|---|---|
 | Highlight Color | Orange | The menu’s icons and the page you’re on: **Orange**, **Yellow**, **Green**, **Mint**, **Teal**, **Cyan**, **Blue**, **Indigo**, **Purple**, **Pink** or **Red** (Apple’s system colors), or **Your Own Color**. Over a pale color the page’s name turns dark. |
 | Button Icon | Sidebar | The menu button’s picture: **Sidebar** or **Three Lines**. |
-| Tap Clock to Open Menu | On | Tapping the header’s clock opens the menu. The weather beside it still opens the Weather page. |
-| Button Style | Automatic | *A menu button.* **Automatic**: a round chip at the start of the status chips when the Home page has a menu button, otherwise the edge tab. **Chip**: the round chip. **Chip, Then Tab**: the chip, and a slim tab slides in from the left edge while the chip is scrolled out of sight. **Chip on Home, Tab Elsewhere**: the chip on Home, the edge tab on every other page. **Edge Tab**: a slim tab on the left edge, level with the date. |
-| On Narrow Screens | Chip | *A menu button.* Below 1,024 px wide (an iPad held upright, a phone), this takes over from Button Style: **Chip**, **Chip, Then Tab** or **Edge Tab**. An always-open menu that folds away uses it too (its **When Folded**). |
+| Button Style | Automatic | *A menu button.* **Automatic**: a round chip at the start of the status chips when the Home page has a menu button, otherwise the edge tab. **Chip**: the round chip. **Chip, Then Tab**: the chip, and a slim tab slides in from the left edge while the chip is scrolled out of sight. **Chip on Home, Tab Elsewhere**: the chip on Home, the edge tab on every other page. **Edge Tab**: a slim tab on the left edge, level with the date. **No Button**: nothing on the page; the swipe opens it (only with Swipe from Left Edge on). |
+| On Narrow Screens | Chip | *A menu button.* Below 1,024 px wide (an iPad held upright, a phone), this takes over from Button Style: **Chip**, **Chip, Then Tab**, **Edge Tab** or **No Button**. An always-open menu that folds away uses it too (its **When Folded**). |
+| Swipe from Left Edge | Off | *Other ways to open.* Drag right from the screen’s left edge to pull the menu out, at any width, alongside the button. Lets Button Style be **No Button**. In the Home Assistant Companion app, set the app’s own Swipe Right gesture to None. |
+| Tap Clock to Open Menu | On | *Other ways to open.* Tapping the header’s clock opens the menu. The weather beside it still opens the Weather page. |
 | Keep Open Down To | 1,000 px | *Always open.* Narrower than this (700 to 3,000 px), the menu folds away and On Narrow Screens stands in for it. 1,000 keeps it open on a computer and an iPad held sideways and folds it on a small iPad held upright or a phone. |
 | Time & Weather in Menu | Off | *Always open.* The time, date and weather sit at the top of the menu instead of in the Home page’s header, and the status chips move up into the space. When the menu folds away, the header comes back. A Wall Tablet screen turns it on for itself when All Screens has it off. |
 | Tab Position | Level with Date | *The edge tab.* **Level with Date**: the tab’s middle lines up with the date under the clock. **Custom**: a **Distance from Top**, **Measured In** **Pixels** or **% of Screen Height**. |

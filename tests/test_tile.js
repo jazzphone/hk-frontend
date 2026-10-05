@@ -239,6 +239,21 @@ ok('parent says lit -> lit even when off', (function () {
   return !!c._isOn(st('script.x', 'off'));
 })(), true);
 
+// A SCENE PILL IN ITS CHOSEN COLOUR (an accessory's Color, a page pill's):
+// off, the glyph wears it; lit, it fills the circle behind a white glyph.
+// White, or none, is the Home app's own white glyph and near-black when lit.
+var YEL = window.hkCards.PALETTE.icon.yellow;
+ok('a yellow scene: its glyph yellow while off', card(Scene, { entity: 'script.x', icon_color: 'yellow' }, {})._iconColour({ icon_color: 'yellow' }, st('script.x', 'off'), false), YEL);
+ok('...lit: a yellow circle behind a white glyph', (function () {
+  var c = card(Scene, { entity: 'script.x', icon_color: 'yellow' }, {}), cfg = { icon_color: 'yellow' }, s = st('script.x', 'on');
+  return c._wellBackground(cfg, s, true) === YEL && c._iconColour(cfg, s, true) === 'white' && c._wellBackground(cfg, s, false) === 'none';
+})(), true);
+ok('a white scene stays the Home app\'s: white glyph, near-black lit, no well', (function () {
+  var c = card(Scene, { entity: 'script.x', icon_color: 'white' }, {}), cfg = { icon_color: 'white' }, s = st('script.x', 'on');
+  return c._iconColour(cfg, s, false) === 'rgba(255, 255, 255, 0.94)' && c._iconColour(cfg, s, true) === 'rgba(0, 0, 0, 0.95)' &&
+    c._wellBackground(cfg, s, true) === null && c._wellBackground({}, s, true) === null;
+})(), true);
+
 // THE SIGNATURE GATE ON A PILL WITH NO ENTITY. The Live TV pill only
 // navigates; with no entity, a null default signature would re-render it on
 // EVERY hass push. Driven through the real `set hass` gate: ten pushes that
@@ -349,6 +364,19 @@ ok('a lock\'s tall tile', lay(Tall, { entity: 'lock.a', layout: 'tall' }), 'tall
 ok('...a pill when asked', lay(Tall, { entity: 'lock.a', layout: 'tall', size: 'regular' }), 'standard 1');
 ok('a thermostat\'s tall tile, regular: the temperature pill', lay(CT, { entity: 'climate.a', layout: 'climate_tall', size: 'regular' }), 'climate_pill 1');
 ok('an unknown size changes nothing', lay(Tall, { entity: 'lock.a', layout: 'tall', size: 'huge' }), 'tall 2');
+
+// ------------------------------------------------------------------- spin
+// The fan's glyph turns while it is on; animation is the card option the
+// accessory's spin setting (the gear, 2026-10-03) is written as, so a config
+// of none keeps a chosen icon from reading as a fan.
+print('=== spin ===');
+var Fan = customElements.get('hk-fan-card');
+function anim(Ctor, cfg) { return card(Ctor, cfg)._animation(); }
+ok('a fan spins by default', anim(Fan, { entity: 'fan.a' }), 'spin');
+ok('...and a config of none is still (a non-spinning icon)', anim(Fan, { entity: 'fan.a', animation: 'none' }), 'none');
+ok('...and an explicit spin is the same as its kind', anim(Fan, { entity: 'fan.a', animation: 'spin' }), 'spin');
+ok('a switch does not spin by its kind', anim(Tile, { entity: 'switch.a' }), 'none');
+ok('...but a switch can be told to, as a fan', anim(Tile, { entity: 'switch.a', animation: 'spin' }), 'spin');
 
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed'
                    : 'ALL ' + pass + ' TILE TESTS PASS'));

@@ -416,6 +416,10 @@
     //   power        live watts through hkChart, already unit-formatted
     //   runtime      hours as "19h 3m", or `idle_text` at or below zero
     //   cost         "$1.23 \u00b7 45 kWh" -- a currency sensor and its meter
+    //   cost_today   the same, from STATISTICS: today's change of a kWh meter
+    //                (`stat`) and of its cost (`cost_stat`), or the kWh times
+    //                `price` (a number, or an entity holding one) -- for a
+    //                house with no "today's cost" sensor (the Energy page)
     //   flow         two sensors, charge and discharge; whichever is running
     //                wins, with its sign. Also picks the glyph (see _icon).
     //
@@ -451,6 +455,26 @@
       var fmt = function (id) { return C.power(h2.states, id); };
 
       if (m === 'power') return fmt(cfg.power || cfg.entity);
+
+      if (m === 'cost_today') {
+        var S2 = window.hkStats;
+        if (!S2 || !cfg.stat) return '--';
+        var ids = [cfg.stat].concat(cfg.cost_stat ? [cfg.cost_stat] : []);
+        var all = S2.daily(h2, ids, 2, this);
+        var today = function (id) {
+          var a = all && all[id], v = a && a.length ? a[a.length - 1].v : null;
+          return Number.isFinite(v) ? v : null;
+        };
+        var kwh = today(cfg.stat), money = cfg.cost_stat ? today(cfg.cost_stat) : null;
+        if (money === null && kwh !== null && cfg.price != null) {
+          var pr = typeof cfg.price === 'number' ? cfg.price : n(this._st(cfg.price) && this._st(cfg.price).state);
+          if (pr !== null) money = kwh * pr;
+        }
+        if (kwh === null && money === null) return '--';
+        var ms = money === null ? null : ('$' + money.toFixed(2));
+        var ks = kwh === null ? null : (Math.round(kwh) + ' kWh');
+        return [ms, ks].filter(Boolean).join(' \u00b7 ');
+      }
 
       if (m === 'cost') {
         var c = n(st && st.state);
@@ -492,7 +516,8 @@
     _sigOf() {
       var h = this._hass, c = this._config;
       if (!h || !c) return null;
-      var ids = [c.entity, c.power, c.value_peer, c.charge, c.discharge]
+      var ids = [c.entity, c.power, c.value_peer, c.charge, c.discharge,
+                 typeof c.price === 'string' ? c.price : null]
                   .filter(Boolean);
       var out = '';
       for (var i = 0; i < ids.length; i++) {
@@ -625,6 +650,11 @@
           var val = kilo ? (w / 1000).toFixed(2) : String(Math.round(w));
           html = val + '<span class="unit">' + (kilo ? 'kW' : 'W') + '</span>';
         }
+      } else if (mode === 'energy') {
+        // NO POWER SENSOR: today's kWh is the reading, and the label says so
+        var td = this._today();
+        idle = !(td > 0.05);
+        if (td !== null) html = td.toFixed(1) + '<span class="unit">kWh</span>';
       } else if (mode === 'pct') {
         var v = Number(st && st.state);
         idle = false;
@@ -656,13 +686,25 @@
              (cfg.label_suffix || ''))
           : '';
       }
-      if (!cfg.label && !cfg.label_entity && cfg.stat && window.hkStats && this._hass) {
+      if (mode === 'energy' && !cfg.label && !cfg.label_entity) {
+        lb = this._today() !== null ? 'Today' : '';
+      } else if (!cfg.label && !cfg.label_entity && cfg.stat && window.hkStats && this._hass) {
         var all = window.hkStats.daily(this._hass, cfg.peers || [cfg.stat], 14, this);
         var a = all && all[cfg.stat];
         var t = (a && a.length) ? a[a.length - 1].v : null;
         lb = Number.isFinite(t) ? (t.toFixed(1) + ' kWh today') : '';
       }
       if (e.label.textContent !== lb) e.label.textContent = lb;
+    }
+
+    // TODAY'S kWh from the meter's statistics (with its section's peers, in
+    // one request); null until they arrive
+    _today() {
+      var cfg = this._config, id = cfg.stat || cfg.entity;
+      if (!window.hkStats || !this._hass || !id) return null;
+      var all = window.hkStats.daily(this._hass, cfg.peers || [id], 14, this);
+      var a = all && all[id], t = (a && a.length) ? a[a.length - 1].v : null;
+      return Number.isFinite(t) ? t : null;
     }
 
     // The reading changes when the POWER entity moves, which may not be the
@@ -715,7 +757,7 @@
              { type: 'grid', name: '', schema: [
                { name: 'name', selector: { text: {} } },
                { name: 'value_mode', selector: C2.selOptions(
-                   ['temperature', 'power', 'runtime', 'cost', 'flow']) }
+                   ['temperature', 'power', 'runtime', 'cost', 'cost_today', 'flow']) }
              ] },
              C2.section('Appearance', [
                { type: 'grid', name: '', schema: [
@@ -731,7 +773,9 @@
                  { name: 'idle_text', selector: { text: {} } },
                  { name: 'value_peer', selector: { entity: { filter: { domain: 'sensor' } } } },
                  { name: 'charge', selector: { entity: { filter: { domain: 'sensor' } } } },
-                 { name: 'discharge', selector: { entity: { filter: { domain: 'sensor' } } } }
+                 { name: 'discharge', selector: { entity: { filter: { domain: 'sensor' } } } },
+                 { name: 'stat', selector: { entity: { filter: { domain: 'sensor' } } } },
+                 { name: 'cost_stat', selector: { entity: { filter: { domain: 'sensor' } } } }
                ] }
              ], 'mdi:tune'),
              C2.section('Interactions', [
@@ -746,8 +790,8 @@
              { name: 'entity', required: true, selector: { entity: {} } },
              { type: 'grid', name: '', schema: [
                { name: 'name', selector: { text: {} } },
-               { name: 'mode', selector: C2.selOptions(['hero', 'pct', 'rank']),
-                 helper: 'Value: the state. Percent: a 0–100 reading. Power use: live watts, with today\'s energy below.' }
+               { name: 'mode', selector: C2.selOptions(['hero', 'pct', 'rank', 'energy']),
+                 helper: 'Value: the state. Percent: a 0–100 reading. Power use: live watts, with today\'s energy below. Energy: today\'s kWh, for a meter with no power sensor.' }
              ] },
              C2.section('Power use', [
                { name: 'power', selector: { entity: { filter: { domain: 'sensor' } } } },

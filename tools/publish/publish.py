@@ -55,17 +55,35 @@ TEXT = (".py", ".js", ".json", ".yaml", ".yml", ".md", ".css", ".html", ".txt", 
 # DONE.json are published; the artist's working folder, contact sheets and
 # diff maps are not (.gitignore says the same)
 SKIP_ART = re.compile(r"(^|/)tools/sky/src/[^/]+/(work/|contact-[^/]*\.png$|diff-[^/]*\.png$)")
-# THE DASHBOARD SCENES' ART (tools/sky/src/decor*/): concepts and motion layers
-# still in review, untracked and not in any release -- none of it is published
-SKIP_UNRELEASED = re.compile(r"(^|/)(tools/sky/src/decor[^/]*|frontend/sky/scenes)/")
+# THE DASHBOARD SCENES' ART (tools/sky/src/decor*/) and what their parked
+# preview built from it (frontend/sky/scenes/): concepts and motion layers still
+# in review, untracked and not in any release -- none of it is published. Nor is
+# New Decorations' review page, a mock dashboard for judging the art by hand.
+SKIP_UNRELEASED = re.compile(r"(^|/)((tools/sky/src/decor[^/]*|frontend/sky/scenes)/"
+                             r"|frontend/pages/seasonal-scenery-review\.html$)")
+
+
+# WHAT GIT IGNORES IS NEVER PUBLISHED: an art delivery's sources stay beside
+# what was made from them, untracked (Realistic clouds' 236 MB of PNG in
+# tools/sky/src/clouds/, Codex's unused woodland art in land-woods/), and the
+# patterns above only know the folders they name. Empty outside a checkout.
+def git_ignored(root: str) -> set[str]:
+    try:
+        out = subprocess.run(["git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "."],
+                             cwd=root, capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return set()
+    return {p for p in out.decode().split("\0") if p}
 
 
 def files_under(root: str):
+    ignored = git_ignored(root)
     for d, dirs, files in os.walk(root):
         dirs[:] = [x for x in dirs if x not in SKIP_DIRS]
         for f in files:
             path = os.path.join(d, f)
-            if f not in SKIP_DIRS and not SKIP_ART.search(rel := os.path.relpath(path, root).replace(os.sep, "/")) and not SKIP_UNRELEASED.search(rel):
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            if f not in SKIP_DIRS and rel not in ignored and not SKIP_ART.search(rel) and not SKIP_UNRELEASED.search(rel):
                 yield path
 
 

@@ -123,6 +123,37 @@ alerts[0].Severity = 'SEVERE';
 ok('severe: red', draw('weather_alert', { 'sensor.alerts': S('1', { Alerts: [alerts[0]] }) }).color === 'red');
 ok('no alerts: not active', !draw('weather_alert', { 'sensor.alerts': S('0', { Alerts: [] }) }).active);
 
+print('\n=== Smoke & CO: what went off, in red, and only then ===');
+SET.kinds.smoke = ['binary_sensor.loft_smoke', 'binary_sensor.loft_co'];
+function alarm(smoke, co) {
+  return draw('smoke', { 'binary_sensor.loft_smoke': S(smoke, { device_class: 'smoke' }),
+                         'binary_sensor.loft_co': S(co, { device_class: 'carbon_monoxide' }) });
+}
+d = alarm('off', 'off');
+ok('all clear: not active (quiet: not shown)', !d.active, JSON.stringify(d));
+d = alarm('on', 'off');
+ok('smoke: Smoke Detected, smoke detector, red', d.active && d.label === 'Smoke Detected' && d.icon === 'hk:smoke-detector' && d.color === 'red', JSON.stringify(d));
+d = alarm('off', 'on');
+ok('carbon monoxide: CO Detected, the CO glyph', d.active && d.label === 'CO Detected' && d.icon === 'hk:molecule-co', JSON.stringify(d));
+d = alarm('on', 'on');
+ok('both: both said', d.label === 'Smoke Detected • CO Detected', d.label);
+ok('named Smoke & CO; opens nothing', d.name === 'Smoke & CO' && d.tap.action === 'none');
+var plan0 = K.rowPlan({}, { chips: ['lights', 'security'], chips_quiet: [] }, { states: {} });
+ok('the row: first, before the screen\'s own chips, and quiet whatever the screen says',
+   plan0.cards[0].kind === 'smoke' && plan0.cards[0].quiet === true && plan0.cards[1].kind === 'lights', JSON.stringify(plan0.cards[0]));
+plan0 = K.rowPlan({ extra: [{ after: 'start', card: { type: 'x-first' } }] }, { chips: ['smoke', 'lights'] }, { states: {} });
+ok('...before an extra at the start; never twice', plan0.cards[0].kind === 'smoke' && plan0.cards[1].type === 'x-first' &&
+   plan0.cards.filter(function (c) { return c.kind === 'smoke'; }).length === 1);
+ok('not one of the kinds a screen chooses', K.auto({ states: {} }).indexOf('smoke') < 0);
+delete SET.kinds.smoke;
+ok('a house without an alarm: no Smoke & CO chip in the row',
+   K.rowPlan({}, { chips: ['lights'] }, { states: {} }).cards[0].kind === 'lights');
+ok('found from the states before the integration answers: smoke and CO classes',
+   (function () { var k = SET; SET = { security: {}, features: {}, weather: {} };
+     var f = K.found('smoke', { states: { 'binary_sensor.s': S('off', { device_class: 'smoke' }),
+       'binary_sensor.c': S('off', { device_class: 'carbon_monoxide' }), 'binary_sensor.cam': S('off') } }).join();
+     SET = k; return f; })() === 'binary_sensor.c,binary_sensor.s');
+
 print('\n=== a kind the house does not have draws nothing ===');
 var keep = SET;
 SET = { kinds: { lights: [] }, security: {}, features: {}, weather: {} };

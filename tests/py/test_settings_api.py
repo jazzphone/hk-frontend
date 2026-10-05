@@ -34,7 +34,7 @@ def test_every_screen_setting_can_be_written():
 
 def test_every_house_setting_a_person_can_change_can_be_written():
     """Every stored house key but the older lists the house cannot set
-    (read only while What counts is unsaved), the menu's pre-item lists, the
+    (read only while Status & Chips is unsaved), the menu's pre-item lists, the
     idle/car lists derived from the screens, and the retired house-wide Parts
     switches (generated.chips ... -- each screen's own setting)."""
     from custom_components.hk_frontend import settings as S, settings_api as A
@@ -109,7 +109,9 @@ def test_birthdays_themes_and_ordered_lists():
     assert [b["name"] for b in m["sky"]["birthdays"]] == ["Emma", "Alex"], "in date order"
     assert m["sky"]["themes"] == ["halloween", "christmas"], "in the house's order"
     assert m["browse"]["discover"] == ["most_played", "recently_played"], "in the order given"
-    assert m["browse"]["hide"] == ["artists", "tracks"] and m["rooms"]["status"] == ["temperature", "locks"]
+    assert m["browse"]["hide"] == ["artists", "tracks"]
+    assert m["rooms"]["status"] == ["locks", "temperature"], "a room's row in the house's own order"
+
     _, err = apply_house({}, {"sky.birthdays": [{"name": "", "month": 1, "day": 1}],
                               "browse.discover": ["stations_for_you"]})
     assert set(err) == {"sky.birthdays", "browse.discover"}
@@ -391,8 +393,8 @@ async def test_menu_and_rooms(hass, frontend):
     d = entry(hass).options["dashboard"]
     assert d["menu"]["glyph"] == "lines" and d["menu"]["clock"] is False
     assert {k: d["rooms"][k] for k in ("headings", "status", "order", "home", "menu")} == {
-        "headings": False, "status": ["temperature", "motion"], "order": ["kitchen", "office"], "home": "only",
-        "menu": "order"}, "in the house order"
+        "headings": False, "status": ["motion", "temperature"], "order": ["kitchen", "office"], "home": "only",
+        "menu": "order"}, "the status row in the order chosen"
     c = as_client(entry(hass))
     assert c["menu"]["clock"] is False and c["rooms"]["headings"] is False
 
@@ -438,6 +440,18 @@ def test_narrow_screens_and_the_top_of_the_menu():
     assert board({})["narrow"] == "chip" and board({})["menu_top"] == []
 
 
+def test_the_swipe_is_saved_for_a_screen_and_for_all_screens():
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    data, err = apply_board({}, {"swipe": True, "menu": "none", "narrow": "none"})
+    assert err == {} and (data["swipe"], data["menu"], data["narrow"]) == (True, "none", "none")
+    _, err = apply_board({}, {"swipe": "sometimes"})
+    assert "swipe" in err
+    out, err = apply_house({}, {"menu.swipe": True, "menu.style": "none"})
+    assert err == {}
+    menu = out["dashboard"]["menu"]
+    assert (menu["swipe"], menu["style"]) == (True, "none")
+
+
 async def test_the_page_knows_which_features_the_house_has(hass, frontend):
     """Features: each one's entries -- the page lists a page for each one
     added, and offers Add for one that is not. Always installed (they are
@@ -448,7 +462,7 @@ async def test_the_page_knows_which_features_the_house_has(hass, frontend):
     ws_panel_get(hass, conn, {"id": 1, "type": "hk_frontend/panel/get"})
     await hass.async_block_till_done(wait_background_tasks=True)
     f = conn.sent[-1]["result"]["features"]
-    assert set(f) == {"hk_music", "hk_alarm_pin", "hk_clean_areas", "hk_tv"}
+    assert set(f) == {"hk_music", "hk_alarm_pin", "hk_clean_areas", "hk_tv", "hk_energy"}
     assert f["hk_clean_areas"] == {"name": "Clean Areas", "kind": "clean_areas", "installed": True, "entries": []}
     await add_feature(hass, "clean_areas", {})
     ws_panel_get(hass, conn, {"id": 2, "type": "hk_frontend/panel/get"})
@@ -609,3 +623,28 @@ async def test_sky_background_screen_websocket_round_trip(hass, frontend):
                               "changes": {"sky_gradient": "bad", "sky_custom": {}}})
     assert conn.sent[-1]["error"] == "invalid_format"
     assert json.loads(conn.sent[-1]["message"]) == {"sky_gradient": "choice", "sky_custom": "stops"}
+
+
+def test_decoration_style_selection_and_reset():
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house, apply_board
+    assert S.merged({})["sky"]["decoration_style"] == "old"
+    for style in ("old", "new"):
+        house, err = apply_house({}, {"sky.decoration_style": style})
+        assert not err and S.merged(house)["sky"]["decoration_style"] == style
+        screen, err = apply_board({}, {"sky_decoration_style": style})
+        assert not err and S.board(screen)["sky_decoration_style"] == style
+        reset, err = apply_board(screen, {"sky_decoration_style": None})
+        assert not err and S.board(reset)["sky_decoration_style"] is None
+    assert apply_house({}, {"sky.decoration_style": "broken"})[1]
+    assert apply_board({}, {"sky_decoration_style": "broken"})[1]
+
+
+def test_page_backgrounds_are_saved_for_a_screen_and_for_all_screens():
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    data, err = apply_board({}, {"sky_pages": {"energy": "live", "climate": ""}})
+    assert err == {} and data["sky_pages"] == {"energy": "live"}
+    _, err = apply_board({}, {"sky_pages": {"energy": "plaid"}})
+    assert "sky_pages" in err
+    out, err = apply_house({}, {"sky.pages": {"weather": "own", "energy": "dusk"}})
+    assert err == {} and out["dashboard"]["sky"]["pages"] == {"weather": "own", "energy": "dusk"}

@@ -1051,14 +1051,19 @@
         this._vis = function () {
           if (document.hidden) { self._stopInterval(); return; }
           if (window.hkSaver && window.hkSaver.covered && window.hkSaver.covered()) return;
-          self._remountLive();
+          // put to sleep by a saver that was dismissed while the page was
+          // hidden (its hk-saver event bailed): wake it, or the next cover
+          // finds it "asleep" and leaves its stream decoding all night
+          var slot = self._liveSlot;
+          if (slot && slot.asleep) self._wakeLive(); else self._remountLive();
           self._startInterval();
         };
         document.addEventListener('visibilitychange', this._vis);
       }
       // ...AND BEHIND HK FRONTEND'S OWN PHOTO SCREENSAVER (hk-saver.js), which
-      // does NOT hide the page: the stills stop, and the live tile lets go
-      // of its stream (a WebRTC video decoded continuously for nobody --
+      // does not hide the page from the browser: the stills stop as it starts,
+      // and once it covers the dashboard (hk-saver-covered) the live tile lets
+      // go of its stream (a WebRTC video decoded continuously for nobody --
       // ~10 % of a core, measured 2026-09-29). The photos going away brings
       // a fresh live tile back, the way a stalled stream is revived, and the
       // stills straight back.

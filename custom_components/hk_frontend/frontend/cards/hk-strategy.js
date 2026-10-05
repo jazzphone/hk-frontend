@@ -122,11 +122,18 @@
     return tile;
   }
 
+  // A GROUP's members, or null: a helper's (attributes.entity_id) or, since
+  // Home Assistant 2026, any integration's -- a Hue room, a Zigbee group --
+  // in attributes.group_entities.
+  function membersOf(st) {
+    var a = (st && st.attributes) || {};
+    return Array.isArray(a.entity_id) ? a.entity_id : Array.isArray(a.group_entities) ? a.group_entities : null;
+  }
   // A light's glyph from what it is called -- the one place a guess is made,
   // and only between glyphs the Home app itself uses for lights.
   function lightGlyph(st, name) {
     var n = (name || '').toLowerCase();
-    if (st && st.attributes && Array.isArray(st.attributes.entity_id)) return 'hk:lightbulb-group';
+    if (membersOf(st)) return 'hk:lightbulb-group';
     if (/floor lamp/.test(n)) return 'hk:floor-lamp';
     if (/desk lamp/.test(n)) return 'hk:desk-lamp';
     if (/lamp/.test(n)) return 'hk:lamp';
@@ -369,6 +376,18 @@
       delete t.icon_size;
       sized(t);
     }
+    // THE ACCESSORY'S SPIN (its gear, 2026-10-03): a fan's tile glyph turns
+    // while it is on by DEFAULT, and a chosen icon is not always one that
+    // reads as spinning -- so the setting is per accessory. Only when set:
+    // a hand-written tile's own animation (the card's option) still wins on
+    // a dashboard the strategy does not build, and an unset setting changes
+    // nothing. For a switch drawn as a fan, the tile's own default is still,
+    // so only an explicit 'spin' is new behaviour.
+    if (t && a && a.anim && (d === 'fan' || show === 'fan')) t.animation = a.anim;
+    // THE ACCESSORY'S COLOR (its detail sheet): one choice, worn by every
+    // tile it is drawn as -- its room's, Home's, a category page's and its
+    // favorite (which is built from this) -- as by its chip and its pill
+    if (t && a && a.color) t.icon_color = a.color;
     if (t && t.icon_size === undefined) delete t.icon_size;
     return t && a && a.size ? resized(t, a.size) : t;
   }
@@ -588,8 +607,8 @@
   // medium and low resolution channels -- so a room page listing every
   // camera entity in the area would give a front yard 14 tiles for 5
   // cameras. And two kinds of "camera" are not the house's at all: a wall
-  // tablet's own front camera (Fully Kiosk) and Live TV's channels (the
-  // Live TV page).
+  // tablet's own (Fully Kiosk's front camera; Kiosk Satellite's Camera and
+  // Screenshot) and Live TV's channels (the Live TV page).
   //
   // One per DEVICE, picked in this order: the one this screen lists for its
   // strip, one any screen lists, a low-resolution channel (a still refreshes
@@ -598,6 +617,15 @@
   // not the house's cameras: a wall tablet's own, and Live TV's channels
   // (HK Frontend's only cameras; hk_tv before 1.0)
   var NOT_HOUSE_CAMERAS = { fully_kiosk: 1, hk_frontend: 1, hk_tv: 1 };
+  // A KIOSK SATELLITE TABLET'S CAMERAS come through ESPHome, the platform an
+  // ESP32 camera on the porch uses too -- so it is the DEVICE that tells them
+  // apart: Kiosk Satellite registers itself with manufacturer
+  // `kiosk_satellite`. Never the platform alone.
+  function notHouseCamera(hass, e) {
+    if (NOT_HOUSE_CAMERAS[e.platform]) return true;
+    var d = e.device_id && (hass.devices || {})[e.device_id];
+    return !!d && d.manufacturer === 'kiosk_satellite';
+  }
   function houseCameras(hass, opts, pred) {
     var ents = hass.entities || {};
     var mine = listOf((opts && opts.board) || {}, 'cameras');
@@ -608,7 +636,7 @@
     var byDev = {}, devs = [];
     shown(hass, opts, 'camera').forEach(function (id) {
       var e = ents[id] || {};
-      if (NOT_HOUSE_CAMERAS[e.platform] || (pred && !pred(id))) return;
+      if (notHouseCamera(hass, e) || (pred && !pred(id))) return;
       var d = e.device_id || id;
       if (!byDev[d]) { byDev[d] = []; devs.push(d); }
       byDev[d].push(id);
@@ -780,7 +808,7 @@
   // --------------------------------------------------------- what exists
   // One pass over the house, shared by the chips, the pages and the header.
   //
-  // WHAT COUNTS FIRST (kinds.py): the integration resolves each
+  // STATUS & CHIPS FIRST (kinds.py): the integration resolves each
   // kind for the whole house -- the chips read the same lists -- and this
   // keeps the ones this dashboard shows (its own YAML may leave out more).
   // Before the integration has answered, the rules below.
@@ -796,7 +824,7 @@
       return { lights: mine('lights'), climates: mine('thermostats'), fans: mine('fans'),
                blinds: mine('blinds'), locks: mine('locks'), doors: mine('doors'), windows: mine('windows'),
                garage: gar, vacuums: mine('vacuums'), timers: mine('timers'), speakers: mine('speakers'),
-               leaks: mine('leaks') };
+               leaks: mine('leaks'), motion: mine('motion'), occupancy: mine('occupancy'), valves: mine('valves') };
     }
     var sec = window.hkSettings ? window.hkSettings.get('security', {}) : {};
     var has = function (l) { return Array.isArray(l) && l.length; };
@@ -804,8 +832,15 @@
     var contact = function (kind) {
       return function (st) { return dc(st) === kind; };
     };
+    var classes = function (list) {
+      return function (st) { return list.indexOf(dc(st)) >= 0; };
+    };
     return {
       leaks: shown(hass, opts, 'binary_sensor', contact('moisture')),
+      motion: shown(hass, opts, 'binary_sensor', classes(['motion', 'moving'])),
+      occupancy: shown(hass, opts, 'binary_sensor', classes(['occupancy', 'presence'])),
+      // a water valve (the Water page's), not a gas one
+      valves: shown(hass, opts, 'valve', function (st) { return dc(st) !== 'gas'; }),
       lights: shown(hass, opts, 'light'),
       climates: (function () {
         var t = window.hkSettings ? window.hkSettings.get('features.thermostats', []) : [];
@@ -830,12 +865,12 @@
 
   // ------------------------------------------------------------- the views
   // Climate summaries and their open sheets share these exact lists. The
-  // server resolves What counts; before it answers, prefer related sensors
+  // server resolves Status & Chips; before it answers, prefer related sensors
   // and then a room's thermostat, never every temperature sensor in a house.
   function climateMembers(hass, o) {
     o = o || {};
     var K = setting('kinds') || {}, A = hass.areas || {}, st = hass.states || {};
-    var G = setting('generated') || {}, cl = setting('climate') || {};
+    var G = setting('generated') || {}, cl = (setting('status_rows') || {}).climate || {};
     var opts = {};
     ['exclude_entities', 'exclude_devices', 'exclude_areas'].forEach(function (k) {
       opts[k] = [].concat(G[k] || [], o[k] || [], k === 'exclude_areas' ? cl.exclude_areas || [] : []);
@@ -843,7 +878,7 @@
     function visible(id) {
       var e = (hass.entities || {})[id] || {}, own = accOf(id) || {};
       return st[id] && !e.hidden && !e.entity_category && !e.disabled_by && own.status !== false &&
-        !Array.isArray(st[id].attributes.entity_id) && !hidden(hass, opts, id);
+        !membersOf(st[id]) && !hidden(hass, opts, id);
     }
     function reading(k) {
       if (Array.isArray(K[k])) return K[k].filter(function (id) { return st[id] && !hidden(hass, opts, id); });
@@ -852,9 +887,12 @@
         if (opts.exclude_areas.indexOf(a) >= 0) return;
         var id = A[a][k + '_entity_id'];
         if (id) { if (visible(id)) ids.push(id); return; }
+        // (an unavailable thermostat has lost its current_* attributes: every
+        // thermostat reads a temperature, so it stays in that list)
         Object.keys(st).forEach(function (eid) {
-          if (eid.indexOf('climate.') === 0 && areaOf(hass, eid) === a &&
-              ('current_' + k) in st[eid].attributes && visible(eid)) ids.push(eid);
+          var s = st[eid], off = s.state === 'unavailable' || s.state === 'unknown';
+          if (eid.indexOf('climate.') === 0 && areaOf(hass, eid) === a && visible(eid) &&
+              (('current_' + k) in s.attributes || (off && k === 'temperature'))) ids.push(eid);
         });
       });
       return ids.filter(function (id, i) { return ids.indexOf(id) === i; }).sort();
@@ -869,9 +907,42 @@
     return { temperature: reading('temperature'), humidity: reading('humidity'),
              blinds: accessories('blinds', 'cover'), fans: accessories('fans', 'fan') };
   }
+  // A CATEGORY PAGE'S STATUS ROW (hk-room.js pageItems): each kind it may
+  // show, from the same lists the page and the chips are built from
+  // (inventory: Status & Chips', or found before the server answers), less
+  // the screen's and the row's own rooms left out (status_rows.<page>).
+  // Lights and outlets are the Lights page's two halves: what is a light
+  // (or drawn as one), and the switches Status & Chips counts with them.
+  function pageMembers(hass, page, o) {
+    o = o || {};
+    if (page === 'climate') return climateMembers(hass, o);
+    var G = setting('generated') || {}, row = (setting('status_rows') || {})[page] || {};
+    var opts = {};
+    ['exclude_entities', 'exclude_devices', 'exclude_areas'].forEach(function (k) {
+      opts[k] = [].concat(G[k] || [], o[k] || [], k === 'exclude_areas' ? row.exclude_areas || [] : []);
+    });
+    var inv = inventory(hass, opts);
+    var isLight = function (id) {
+      var as = (accOf(id) || {}).show_as;
+      return as ? as === 'light' : id.split('.')[0] === 'light';
+    };
+    var alarm = setting('security.alarm') || firstOf(hass, 'alarm_control_panel');
+    if (alarm && (!hass.states[alarm] || hidden(hass, opts, alarm))) alarm = null;
+    return { lights: inv.lights.filter(isLight), outlets: inv.lights.filter(function (id) { return !isLight(id); }),
+             doors: inv.doors, windows: inv.windows, garage: inv.garage, locks: inv.locks, leaks: inv.leaks,
+             motion: inv.motion || [], occupancy: inv.occupancy || [], valves: inv.valves || [],
+             security: alarm ? [alarm] : [] };
+  }
+  // the row under a category page's title (hk-room.js hk-page-status-card)
+  function pageRow(page, opts) {
+    return { type: 'custom:hk-page-status-card', page: page, view_layout: COL2,
+             exclude_entities: opts.exclude_entities, exclude_devices: opts.exclude_devices,
+             exclude_areas: opts.exclude_areas };
+  }
+
 
   // ------------------------------------------------------------ the chips
-  // hk-chips-card (hk-chip.js): the kinds from What counts, in this
+  // hk-chips-card (hk-chip.js): the kinds from Status & Chips, in this
   // dashboard's order.
 
   // ------------------------------------------------------- category pages
@@ -970,17 +1041,17 @@
     var out = [];
     var dom = function (list) { return function (id) { return list.indexOf(id.split('.')[0]) !== -1; }; };
     if (inv.lights.length) {
-      // What counts' lights -- which may be an outlet the house thinks of as
+      // Status & Chips' lights -- which may be an outlet the house thinks of as
       // a light -- room by room, as the chip counts them.
       var lit = {};
       inv.lights.forEach(function (id) { lit[id] = true; });
-      // LIGHTS & OUTLETS when What counts has an outlet (a switch) among the
+      // LIGHTS & OUTLETS when Status & Chips has an outlet (a switch) among the
       // lights; "Lights" in the menu
       var outlets = inv.lights.some(function (id) { return id.split('.')[0] !== 'light'; });
       var ltitle = outlets ? 'Lights & Outlets' : 'Lights';
       out.push(view({ title: ltitle, menu_title: outlets ? 'Lights' : undefined, icon: 'mdi:lightbulb', path: 'lights',
         subview: true, sky_variant: 'lights',
-        background: '#1c1608', cards: [titleBar(ltitle)].concat(
+        background: '#1c1608', cards: [titleBar(ltitle), pageRow('lights', opts)].concat(
           roomsWith(hass, opts, function (id) { return !!lit[id]; }).map(function (r) {
             return section(r.name, roomTiles(hass, r)); })) }));
     }
@@ -997,11 +1068,12 @@
           layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content',
                     'place-content': 'start stretch', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } };
       };
-      var left = [];
+      var left = [], widest = 0;
       roomsWith(hass, opts, function (id) {
         var d = id.split('.')[0];
         return d === 'fan' || d === 'humidifier' || (d === 'cover' && blinds[id]);
       }).forEach(function (r) {
+        widest = Math.max(widest, r.entities.length);
         left.push(heading(r.name));
         left.push({ type: 'custom:hk-grid-card', cards: roomTiles(hass, r),
           layout: Object.assign({}, GRID, { padding: '0px 0px 19px 0px' }) });
@@ -1018,9 +1090,20 @@
             return { type: 'custom:hk-thermostat-card', entity: id, name: fullName(hass, id) };
           }) });
       }
+      // THE ROOMS, THEN THE THERMOSTATS RIGHT BESIDE THEM -- left aligned,
+      // as every page is, with what is spare at the right. The rooms are as
+      // wide as their widest room needs: two to four pills, each 192 + 12,
+      // plus the nested grids' 20 px of margins (four: 824, measured); more
+      // than four wrap. The thermostats take the rest, as many dials across
+      // as fit (364 each, 16 apart). On a narrower page the rooms give way
+      // first and the rail keeps one dial: 364, or an iPad band's narrower
+      // one (--hk-climate-dials, hk-responsive.css). --hk-page-split stacks
+      // the two on a phone.
+      var roomsW = 204 * Math.max(2, Math.min(4, widest)) + 8;
       var body = left.length && right.length
         ? { type: 'custom:hk-grid-card', cards: [stack(left), stack(right)],
-            layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, 1fr) var(--hk-climate-dials, 364px))',
+            layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, ' + roomsW + 'px) ' +
+                        'minmax(min(var(--hk-climate-dials, 364px), 364px), 1fr))',
                       'grid-column-gap': '28px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } }
         : stack(left.length ? left : right);
       var cards = [titleBar('Climate'), { type: 'custom:hk-climate-status-card', view_layout: COL2,
@@ -1035,7 +1118,7 @@
     // as the favorites do, so a name stays the accessory's own ("Left
     // Window", "Entry") however many rooms the page mixes.
     if (inv.doors.length || inv.windows.length) {
-      var dw = [titleBar('Doors & Windows')];
+      var dw = [titleBar('Doors & Windows'), pageRow('doors_windows', opts)];
       if (inv.doors.length) dw.push(section('Doors', inv.doors.map(function (id) { return contactTile(hass, id, 'hk:door-open', 'hk:door-closed'); })));
       if (inv.windows.length) dw.push(section('Windows', inv.windows.map(function (id) { return contactTile(hass, id, 'hk:window-open-variant', 'hk:window-closed-variant'); })));
       out.push(view({ title: 'Doors & Windows', icon: 'mdi:window-closed-variant', path: 'doors-windows', subview: true, sky_variant: 'doors',
@@ -1248,18 +1331,16 @@
     delete t.view_layout;                     // one height, like every favorite
     delete t.size;                            // ...whatever the accessory's own size
     delete t.hk_place;                        // its place here is the favorites'
-    // A LIGHT GROUP (a helper: its members in attributes.entity_id) reads how
-    // many are on, "2 On", as the hand-written favorites did; a blind its
-    // position.
-    var members = d === 'light' && st && Array.isArray(st.attributes.entity_id)
-      ? st.attributes.entity_id.filter(function (x) { return x !== id && hass.states[x]; }) : [];
+    delete t.animation;                       // ...and its still glyph (a fan's Spin is its tile's)
+    // A LIGHT GROUP (its members: membersOf) reads how many are on, "2 On",
+    // as the hand-written favorites did; a blind its position.
+    var members = d === 'light' && membersOf(st)
+      ? membersOf(st).filter(function (x) { return x !== id && hass.states[x]; }) : [];
     if (members.length) { t.label_mode = 'group_count'; t.group = members; }
     else if (d === 'light') t.label_mode = 'brightness';
     else if (d === 'switch' || d === 'input_boolean') t.label_mode = 'on_off';
     else if (d === 'cover') t.label_mode = 'position';
     mine(t);
-    // its own colour when on (the accessory's Color)
-    if (fa.color) t.icon_color = fa.color;
     var together = (Array.isArray(fa.fav_with) ? fa.fav_with : []).filter(function (x) {
       return x !== id && hass.states[x];
     });
@@ -1509,7 +1590,8 @@
 
     // SECURITY: the keypad, and the locks and garage doors
     // on a rail beside it (--hk-alarm-* stack it on
-    // a narrow page), under the doors sky.
+    // a narrow page), under the doors sky -- from the page's left edge, under
+    // its title and status row, as every other page's content starts.
     if (alarm) {
       // the locks, then the garage doors -- or the page's own order
       // (Accessories -> Page Order -> Security)
@@ -1527,7 +1609,7 @@
       var keypad = { type: 'custom:hk-alarm-keypad-card', entity: alarm, view_layout: { 'grid-area': 'alarm' } };
       var panel = guards.length ? { type: 'custom:hk-grid-card',
         layout: { 'grid-template-columns': 'var(--hk-alarm-cols, 430px 408px)', 'grid-column-gap': '18px',
-                  'grid-row-gap': '0px', 'place-content': 'stretch center', margin: '0px', padding: '0px',
+                  'grid-row-gap': '0px', 'place-content': 'stretch start', margin: '0px', padding: '0px',
                   'grid-template-areas': 'var(--hk-alarm-areas, "alarm locks")' },
         cards: [keypad, { type: 'custom:hk-grid-card', view_layout: { 'grid-area': 'locks' },
           layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content',
@@ -1536,14 +1618,15 @@
             layout: { 'grid-template-columns': 'var(--hk-alarm-locks, repeat(2, 192px))', 'grid-column-gap': '12px',
                       'grid-row-gap': '0px', 'grid-auto-rows': '82px', margin: '0px 0px -16px 0px', padding: '0px' } }] }] }
         : { type: 'custom:hk-grid-card', cards: [keypad],
-            layout: { 'grid-template-columns': 'minmax(0, 430px)', 'place-content': 'stretch center',
+            layout: { 'grid-template-columns': 'minmax(0, 430px)', 'place-content': 'stretch start',
                       'grid-template-areas': '"alarm"', margin: '0px', padding: '0px' } };
       pages.security = view({ title: 'Security', path: 'security', subview: true, icon: 'mdi:lock',
-        sky_variant: 'doors', background: '#1c0e10', cards: [titleBar('Security'), column([panel])] });
+        sky_variant: 'doors', background: '#1c0e10', cards: [titleBar('Security'), pageRow('security', opts), column([panel])] });
     }
 
-    // WATER: the leak sensors, room by room.
-    if (opts.pages !== false && inv.leaks && inv.leaks.length) {
+    // WATER: the valves, then the leak sensors, room by room.
+    var valves = inv.valves || [];
+    if (opts.pages !== false && ((inv.leaks && inv.leaks.length) || valves.length)) {
       var wet = {};
       inv.leaks.forEach(function (id) { wet[id] = true; });
       var byRoom = roomsWith(hass, Object.assign({}, opts, { include_entities: [].concat(opts.include_entities || [], inv.leaks) }),
@@ -1552,18 +1635,30 @@
       // Assistant started -- neither wet nor dry. Sleepy battery sensors can stay
       // silent for days after a restart, and a page of calm tiles would hide
       // that nobody is listening. A count, not an alarm.
-      var cover = { type: 'conditional', view_layout: COL2,
+      var cover = !inv.leaks.length ? null : { type: 'conditional', view_layout: COL2,
         conditions: [{ condition: 'or', conditions: inv.leaks.map(function (id) {
           return { condition: 'state', entity: id, state_not: ['on', 'off'] }; }) }],
         card: section('Sensor Coverage', [{ type: 'custom:hk-tile-card', name: 'Not Reporting', icon: 'hk:water-alert',
           icon_color: 'red', label_mode: 'unreported', group: inv.leaks.slice(), tap_action: { action: 'none' } }]) };
       pages.water = view({ title: 'Water', path: 'water', subview: true, icon: 'mdi:water', sky_variant: 'water',
-        background: '#0c1526', cards: [titleBar('Water'), cover].concat(byRoom.map(function (r) {
-          return section(r.name, r.entities.map(function (id) {
-            return { type: 'custom:hk-tile-card', entity: id, name: friendly(hass, id, r.name), icon: 'hk:water-alert',
-                     icon_color: 'red', label_mode: 'leak' };
-          }));
-        })) });
+        background: '#0c1526', cards: [titleBar('Water'), pageRow('water', opts)].concat(
+          cover ? [cover] : [],
+          valves.length ? [section('Valves', valves.map(function (id) { return tileFor(hass, id, fullName(hass, id)); }))] : [],
+          byRoom.map(function (r) {
+            return section(r.name, r.entities.map(function (id) {
+              return { type: 'custom:hk-tile-card', entity: id, name: friendly(hass, id, r.name), icon: 'hk:water-alert',
+                       icon_color: 'red', label_mode: 'leak' };
+            }));
+          })) });
+    }
+
+    // ENERGY: the Energy feature's page, from its plan (the settings feed's
+    // `energy`, features/energy/plan.py) -- while the feature is added
+    if (opts.pages !== false && want('energy')) {
+      var ev = guarded('the Energy page', function () {
+        return energyView(hass, view, { climate: !!pages.climate });
+      });
+      if (ev) pages.energy = ev;
     }
 
     if (music) {
@@ -1600,9 +1695,9 @@
     out = out.filter(function (v) { return play.indexOf(v) < 0 && browse.indexOf(v) < 0; });
     var KEY = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', live_tv: 'live_tv', security: 'security',
                 doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
-                vacuums: 'vacuums', water: 'water' };
+                vacuums: 'vacuums', water: 'water', energy: 'energy' };
     var order = picked.length ? picked : ['weather', 'calendar', 'cameras', 'live_tv', 'security', 'doors_windows', 'climate',
-                                          'lights', 'timers', 'vacuums', 'music', 'water', 'rooms'];
+                                          'lights', 'timers', 'vacuums', 'music', 'water', 'energy', 'rooms'];
     var placed = order.indexOf('browse') >= 0;
     var mine = listOf(b, 'custom_pages');
     order.forEach(function (k) {
@@ -1610,11 +1705,15 @@
       if (k === 'browse') { out = out.concat(browse); browse = []; return; }
       if (KEY[k]) {
         var v = pages[KEY[k]];
-        if (v) { out.push(v); delete pages[KEY[k]]; }
-        return;
+        if (v) { out.push(v); delete pages[KEY[k]]; return; }
+        // no Energy feature: a custom page of the same address, as before it
+        if (k !== 'energy') return;
       }
-      // a custom page, when this dashboard shows it
-      if (mine.indexOf(k) >= 0) { var cv = customView(k); if (cv) out.push(cv); }
+      // a custom page, when this dashboard shows it -- never a second page
+      // at an address a generated one has
+      if (mine.indexOf(k) >= 0 && !out.some(function (x) { return x && x.path === k; })) {
+        var cv = customView(k); if (cv) out.push(cv);
+      }
     });
     // A PAGE PER ROOM (Parts -> Room pages): each room heading on Home opens it.
     if (opts.rooms !== false && want('rooms')) {
@@ -1731,10 +1830,26 @@
       opts.board = boardOf(seg);
       if (opts.board.sky === false) opts.sky = false;
       var b = opts.board;
-      // HOME PAGE OFF (its Pages page): the screen is only its
-      // custom pages, in its order, and opens on the first -- an Energy
-      // panel. With none listed it is a whole screen as usual.
-      var only = b.home_page === false ? listOf(b, 'custom_pages').map(customView).filter(Boolean) : [];
+      // HOME PAGE OFF (its Pages page): the screen is only the pages it
+      // lists, in its order, and opens on the first -- any of them: the
+      // Energy page, Climate, Cameras, a custom page. With none listed it is
+      // a whole screen as usual.
+      //   only_pages listed (Pages): the screen built as usual from that list
+      //     -- views() keeps only the listed pages, in their order -- less
+      //     its Home
+      //   none (a screen set up before 2026-10-04): its custom pages, where
+      //     `energy` is the Energy feature's page (onlyPages)
+      var only = [];
+      if (b.home_page === false && listOf(b, 'only_pages').length) {
+        var mus = opts.music === false ? false : await musicConfigured(hass);
+        var keep = listOf(b, 'only_pages');
+        // its own list as the page list; a key that is no kind is a custom page
+        var ob = Object.assign({}, b, { pages: keep, custom_pages: keep });
+        only = views(hass, Object.assign({}, opts, { board: ob }), mus).slice(1);
+        if (only.length) standalone(only[0], b);
+      } else if (b.home_page === false) {
+        only = onlyPages(hass, opts, b);
+      }
       var cfg;
       if (only.length) {
         // the menu's first item is this page, under its own name -- not "Home"
@@ -1746,6 +1861,8 @@
         cfg = { views: views(hass, opts, music) };
         customPages(cfg.views, listOf(b, 'custom_pages'));
       }
+      energyLinks(cfg.views, seg);
+      skyPages(cfg.views);
       var saver = screensaverOf(hass, b);
       if (opts.sky !== false) {
         // THE SKY (hk-sky.js): off everywhere with the house's switch (Look ->
@@ -1811,6 +1928,209 @@
     });
   }
 
+  // WHICH PAGE EACH VIEW IS, for its background (Sky / Background -> Pages,
+  // read by hk-sky.js on every tick): the page kind, `rooms` for a room's
+  // page, a custom page's own address. Home has none -- it is the screen's
+  // own sky.
+  var SKY_PAGE = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', 'live-tv': 'live_tv',
+                   security: 'security', 'doors-windows': 'doors_windows', climate: 'climate', lights: 'lights',
+                   timers: 'timers', vacuums: 'vacuums', playmusic: 'music', 'music-browse': 'music', water: 'water',
+                   energy: 'energy' };
+  function skyPages(list) {
+    var custom = {};
+    (setting('custom_pages') || []).forEach(function (p) { if (p && p.path) custom[p.path] = true; });
+    list.forEach(function (v) {
+      if (!v || v.sky_page || !v.path) return;
+      var p = String(v.path);
+      var k = SKY_PAGE[p] || (/^room-/.test(p) ? 'rooms' : custom[p] ? p : null);
+      if (k) v.sky_page = k;
+    });
+  }
+
+  // THE FIRST PAGE OF A SCREEN WITH NO HOME: not a sub-page, and -- with no
+  // menu -- no back button (there is nowhere to go back to)
+  function standalone(v, b) {
+    v.subview = false;
+    if (b.menu !== 'off') return;
+    var bar = v.cards && v.cards[0];
+    var kids = bar && bar.type === 'custom:hk-grid-card' && Array.isArray(bar.cards) ? bar.cards : null;
+    if (kids && kids[0] && kids[0].type === 'custom:hk-back-card') {
+      v.cards[0] = Object.assign({}, bar, { cards: kids.slice(1),
+        layout: Object.assign({}, bar.layout, { 'grid-template-columns': 'minmax(0, 1fr)' }) });
+    }
+  }
+
+  // A SCREEN WITH NO HOME PAGE: its custom pages, in its order -- and
+  // `energy` among them is the Energy feature's page while it is added (a
+  // generated page wins its address, as on a whole screen). The first page
+  // has no back button while the screen has no menu (nowhere to go back to).
+  function onlyPages(hass, opts, b) {
+    var mine = listOf(b, 'custom_pages'), keys = mine;
+    var themes = (hass.themes && hass.themes.themes) || {};
+    var theme = opts.theme || kioskTheme(themes);
+    var sky = opts.sky !== false;
+    var mk = function (o) {
+      var v = Object.assign({ type: 'custom:hk-grid-view', layout: VIEW_LAYOUT, background: '#05070e' }, o);
+      if (theme) v.theme = theme;
+      if (o.sky_variant) { delete v.sky; if (!sky) delete v.sky_variant; }
+      return v;
+    };
+    var out = [];
+    keys.forEach(function (k) {
+      var v = null;
+      if (k === 'energy') {
+        v = guarded('the Energy page', function () { return energyView(hass, mk, {}, !out.length && b.menu === 'off'); });
+      }
+      if (!v && mine.indexOf(k) >= 0) v = customView(k);
+      if (v && !out.some(function (x) { return x.path === v.path; })) out.push(v);
+    });
+    return out;
+  }
+
+  // A SECTION LINK TO A PAGE THIS SCREEN DOES NOT HAVE ("./ecoflow" on a
+  // screen that is only the Energy page): the same page on a screen that
+  // has it -- one whose custom pages list it, a screen of only it first
+  function energyLinks(list, seg) {
+    var have = {};
+    list.forEach(function (v) { if (v && v.path) have[v.path] = true; });
+    var ev = list.filter(function (v) { return v && v.path === 'energy'; })[0];
+    if (!ev) return;
+    var boards = setting('boards') || {};
+    var elsewhere = function (p) {
+      var keys = Object.keys(boards).filter(function (k) { return k !== seg && listOf(boards[k] || {}, 'custom_pages').indexOf(p) >= 0; });
+      keys.sort(function (x, y) { return (boards[y].home_page === false) - (boards[x].home_page === false); });
+      return keys.length ? '/' + keys[0] + '/' + p : null;
+    };
+    (function walk(n) {
+      if (!n || typeof n !== 'object') return;
+      if (n.type === 'custom:hk-heading-card' && typeof n.navigation_path === 'string' && /^\.\/[a-z0-9-]+$/.test(n.navigation_path)) {
+        var p = n.navigation_path.slice(2);
+        if (!have[p]) { var to = elsewhere(p); if (to) n.navigation_path = to; }
+      }
+      Object.keys(n).forEach(function (k) { walk(n[k]); });
+    })(ev);
+  }
+
+  // THE ENERGY PAGE (the Energy feature's), drawn from its plan -- the
+  // settings feed's `energy` (features/energy/plan.py): the readings row
+  // (today's cost, thermostats, outside), the whole home's live graph, a
+  // fortnight of daily use for the devices that matter, a section of live
+  // tiles for each group of devices, and Home Assistant's own energy charts.
+  // null when the feature is not added. `has`: the pages this screen has
+  // (a thermostat opens Climate when there is one, else its sheet);
+  // `first`: the screen's first page, with no menu -- no back button.
+  var TRACK_GRID = { 'grid-auto-flow': 'dense', 'grid-auto-rows': '164px', 'grid-column-gap': '12px',
+                     'grid-row-gap': '0px', 'grid-template-columns': 'repeat(auto-fill, var(--hk-track, 192px))',
+                     margin: '0px 0px -12px 0px', padding: '0px' };
+  var BATTERY_STEPS = [{ at_least: 60, color: 'green' }, { at_least: 25, color: 'yellow' }, { color: 'red' }];
+  function energyHeading(name, link) {
+    var hd = { type: 'custom:hk-heading-card', name: name, height: '42px', padding: '18px 0px 8px 3px' };
+    if (link && link.path) {
+      hd.navigation_path = link.path;
+      hd.chevron = (link.text || 'More') + (/›$/.test(link.text || '') ? '' : '›');
+    }
+    return hd;
+  }
+  function energyView(hass, view, has, first) {
+    var P = added('energy') ? setting('energy') : null;
+    if (!P || typeof P !== 'object') return null;
+    has = has || {};
+    var states = hass.states || {};
+    var T = P.total || {};
+    var body = [];
+    // THE READINGS ROW
+    var top = (P.top || []).map(function (t) {
+      if (t.kind === 'cost') {
+        return { type: 'custom:hk-stat-card', entity: T.stat, value_mode: 'cost_today', stat: T.stat,
+                 cost_stat: T.cost || undefined, price: T.price != null ? T.price : undefined,
+                 name: 'Today’s Cost', icon: 'hk:home-lightning-bolt', icon_color: 'green',
+                 tap_action: T.power ? { action: 'more-info', entity: T.power } : { action: 'none' } };
+      }
+      if (t.kind === 'climate') {
+        return { type: 'custom:hk-stat-card', entity: t.entity, name: t.name, icon: 'hk:thermostat', icon_color: 'red',
+                 value_mode: 'temperature', value_attribute: 'current_temperature',
+                 tap_action: has.climate ? { action: 'navigate', navigation_path: './climate' } : { action: 'more-info' } };
+      }
+      var st = states[t.entity];
+      var unit = (st && st.attributes && st.attributes.unit_of_measurement) || '';
+      return t.kind === 'temp'
+        ? { type: 'custom:hk-stat-card', entity: t.entity, name: t.name, icon: 'hk:home-thermometer', icon_color: 'teal',
+            value_mode: 'temperature', value_suffix: unit || undefined }
+        : { type: 'custom:hk-stat-card', entity: t.entity, name: t.name, icon: 'hk:gauge', icon_color: 'teal' };
+    });
+    // red, then pink: two thermostats side by side read as two
+    var reds = top.filter(function (c) { return c.icon === 'hk:thermostat'; });
+    if (reds.length > 1) reds[1].icon_color = 'pink';
+    if (top.length) {
+      body.push({ type: 'custom:hk-grid-card', cards: top,
+        layout: { 'grid-column-gap': '12px', 'grid-row-gap': '8px', margin: '0px 0px -12px 0px', padding: '0px',
+                  'grid-template-columns': 'var(--hk-energy-top, var(--hk-cols-4, repeat(4, minmax(0, 1fr))))' } });
+    }
+    // THE WHOLE HOME, LIVE
+    if (T.power && states[T.power]) {
+      body.push({ type: 'custom:hk-trace-card', entity: T.power, margin: top.length ? '12px 3px 0px 3px' : '0px 3px',
+                  tap_action: { action: 'more-info' }, trace: { colour: 'orange', hours: 3, title: 'Whole Home Power' } });
+    }
+    // THE DAILY BARS
+    var usages = (P.usages || []).filter(function (u) { return u && u.entity; }).map(function (u) {
+      var o = { colour: u.color || 'orange' };
+      if (u.runtime) Object.assign(o, { format: 'hm', noun: 'Daily runtime', source: 'dailyPeak' });
+      return { type: 'custom:hk-usage-card', entity: u.entity, stat: u.stat || u.entity, name: u.name, opts: o,
+               tap_action: { action: 'more-info' } };
+    });
+    if (usages.length) {
+      body.push(energyHeading('Usages'));
+      body.push({ type: 'custom:hk-grid-card', cards: usages,
+        layout: { 'grid-column-gap': '12px', 'grid-row-gap': '0px', margin: '0px 0px -12px 0px', padding: '0px',
+                  'grid-template-columns': 'var(--hk-usages-row, repeat(3, minmax(0, 1fr)))' } });
+    }
+    // THE SECTIONS: a live tile per device (watts now, kWh today), and the
+    // batteries (their level, and a car's range)
+    (P.sections || []).forEach(function (s) {
+      var peers = (s.items || []).filter(function (i) { return i.kind === 'device' && i.stat; })
+        .map(function (i) { return i.stat; });
+      var tiles = (s.items || []).map(function (i) {
+        if (i.kind === 'battery') {
+          var bt = { type: 'custom:hk-rank-card', entity: i.entity, name: i.name, icon: i.icon, mode: 'pct',
+                     icon_color_steps: BATTERY_STEPS };
+          if (i.label) {
+            bt.label_entity = i.label;
+            bt.label_suffix = i.label_suffix || '';
+            if (i.label_decimals) bt.label_decimals = i.label_decimals;
+          }
+          return bt;
+        }
+        var t = { type: 'custom:hk-rank-card', entity: i.power || i.stat, name: i.name, icon: i.icon,
+                  icon_color: i.color };
+        if (i.stat) { t.stat = i.stat; t.peers = peers; }
+        if (!i.power) t.mode = 'energy';
+        return t;
+      }).filter(function (t) { return t.entity; });
+      if (!tiles.length) return;
+      body.push(energyHeading(s.name, s.link));
+      body.push({ type: 'custom:hk-grid-card', cards: tiles, layout: TRACK_GRID });
+    });
+    // HOME ASSISTANT'S OWN CHARTS: the day, its sources, and each device
+    if (P.detail) {
+      body.push(energyHeading('Detail'));
+      body.push({ type: 'custom:hk-frame-card', card: { type: 'energy-date-selection' }, margin: '0px 0px 12px 0px' });
+      body.push({ type: 'custom:hk-frame-card', card: { type: 'energy-sources-table' }, margin: '0px 0px 12px 0px',
+                  phone: 'hide', vars: { 'card-background-color': 'transparent', 'divider-color': 'rgba(255,255,255,0.13)' } });
+      body.push({ type: 'custom:hk-frame-card', card: { type: 'energy-devices-detail-graph' }, margin: '0px 0px 12px 0px' });
+      body.push({ type: 'custom:hk-frame-card', card: { type: 'energy-devices-graph' } });
+    }
+    if (!body.length) {
+      body.push({ type: 'markdown', content: 'Nothing to show yet: add devices in Home Assistant’s Energy settings, ' +
+        'or on HK Settings → Features → Energy.' });
+    }
+    var title = P.title || 'Energy';
+    var bar = titleBar(title);
+    if (first) bar.cards = bar.cards.slice(1);
+    if (first) bar.layout = Object.assign({}, bar.layout, { 'grid-template-columns': 'minmax(0, 1fr)' });
+    return view({ title: title, path: 'energy', subview: !first, icon: 'mdi:lightning-bolt', sky_variant: 'energy',
+                  background: '#171d12', cards: [bar, column(body)] });
+  }
+
   // THE PHOTO SCREENSAVER (a generated wall tablet's Screen page):
   // HK Frontend's own (hk-saver.js), or WallPanel (HACS) for a screen that
   // chooses it -- either way for the tablet's own user only (a desk opening
@@ -1865,6 +2185,7 @@
       forecast_every: o.forecast_every || 5,
       band: o.band !== false, band_photos: o.band_photos === true,
       calendar: o.calendar === true, calendar_days: o.calendar_days || 2,
+      fade_back: typeof o.fade_back === 'number' ? o.fade_back : 500,
       cards: cards.filter(function (c, i) { return keep[i]; })
     };
   }
@@ -1959,7 +2280,7 @@
 
   // REBUILT WHEN ITS SETTINGS CHANGE. A strategy builds the dashboard once,
   // when it opens -- so an edit to this dashboard's item (its pages, camera
-  // strip, favorites), to What counts or to the hidden / also-shown lists would wait
+  // strip, favorites), to Status & Chips or to the hidden / also-shown lists would wait
   // for a reload. Instead, when what it was built from changes, it asks
   // Home Assistant to rebuild it (`config-refresh`, what the dashboard
   // menu's own Refresh does), at most every 10 s. The chips and scenes are
@@ -1981,7 +2302,7 @@
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
                     tab_position: 1, home_rooms: 1, glass: 1, frost: 1, blur: 1, camera_live: 1,
                     car: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1 };
-  // an accessory's fields only the chips read (What counts' status, a custom
+  // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };
   function inputs(seg) {
@@ -2000,6 +2321,8 @@
                            setting('security'), setting('sky.moon'), setting('weather'), setting('features'),
                            ents, rest, setting('look.sky_switch'), setting('look.photos'),
                            setting('extras'), setting('custom_pages'), setting('popups'), setting('added'),
+                           // the Energy page's plan (features/energy/plan.py)
+                           setting('energy'),
                            // which calendars there are decides whether there is a Calendar page
                            (setting('calendar') || {}).entities]);
   }
@@ -2145,7 +2468,8 @@
   // For tests and the console: hkStrategy.generate(config, hass).
   window.hkStrategy = { generate: HkDashboardStrategy.generate, tile: TILE, shortName: shortName,
                         lateError: lateError, recoverLate: recoverLate, defineHere: defineHere,
-                        tileFor: tileFor, roomCards: roomCards, climateMembers: climateMembers, groupOf: groupOf, ownChange: ownChange,
+                        tileFor: tileFor, roomCards: roomCards, climateMembers: climateMembers, pageMembers: pageMembers,
+                        groupOf: groupOf, ownChange: ownChange,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,
                         kioskOf: kioskOf, saverBlock: saverBlock,

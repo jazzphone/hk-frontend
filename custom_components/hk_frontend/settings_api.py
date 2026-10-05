@@ -99,6 +99,19 @@ def _subset(options: tuple[str, ...]) -> Callable[[Any], list[str]]:
     return check
 
 
+def _status_row(page: str) -> Callable[[Any], dict[str, Any]]:
+    """A page's status row (settings.STATUS_ROWS): {status: what it shows, in
+    its order; exclude_areas: the rooms it leaves out}. A key left out keeps
+    its default."""
+    kinds, default = S.STATUS_ROWS[page]
+    status = _ordered(kinds)
+    def check(v: Any) -> dict[str, Any]:
+        if not isinstance(v, Mapping) or set(v) - {"status", "exclude_areas"}:
+            raise Invalid("choice")
+        return {"status": status(v.get("status", list(default))), "exclude_areas": _ids(v.get("exclude_areas"))}
+    return check
+
+
 def _ordered(options: tuple[str, ...] | list[str]) -> Callable[[Any], list[str]]:
     """Some of `options`, each once, in the order given (the page's order)."""
     def check(v: Any) -> list[str]:
@@ -176,13 +189,27 @@ def _photos(v: Any) -> str:
 
 
 def _count(v: Any) -> dict[str, list[str]] | None:
-    """One kind of What counts: {exclude, include}, or None -- automatic."""
+    """One kind of Status & Chips: {exclude, include}, or None -- automatic."""
     if v is None:
         return None
     got = K.clean(v)
     if got is None:
         raise Invalid("count")
     return {k: _entities()(got[k]) for k in ("exclude", "include")}
+
+
+def _sky_pages(v: Any) -> dict[str, str]:
+    """Each page's background ({page: mode}); a page set to "" or None goes
+    back to Automatic (left out)."""
+    if v is None:
+        return {}
+    if not isinstance(v, dict):
+        raise Invalid("choice")
+    clean = {k: m for k, m in v.items() if m not in (None, "")}
+    got = S.sky_pages(clean)
+    if got is None or len(got) != len(clean):
+        raise Invalid("choice")
+    return got
 
 
 def _sky_stops(v: Any) -> dict[str, list[str]] | None:
@@ -284,11 +311,11 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.open_min": lambda v: _dock_min(v),
     "menu.time_weather_at": _choice(S.BOARD_TIME),
     "menu.ha_row": _bool,
+    "menu.swipe": _bool,
     "menu.accent": lambda v: _accent(v),
     "rooms.headings": _bool,
-    "rooms.status": _subset(S.STATUS_KINDS),
-    "climate.status": _subset(("temperature", "humidity", "blinds", "fans")),
-    "climate.exclude_areas": _ids,
+    "rooms.status": _ordered(S.STATUS_KINDS),
+    **{f"status_rows.{p}": _status_row(p) for p in S.STATUS_ROWS},
     "rooms.order": _ids,
     "rooms.home": _choice(S.BOARD_HOME_ROOMS),
     "rooms.menu": _choice(S.BOARD_MENU_ROOMS),
@@ -300,9 +327,13 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "generated.exclude_entities": _entities(),
     "generated.include_entities": _entities(),
     "sky.decorations": _bool,
+    "sky.decoration_style": _choice(("old", "new")),
+    "sky.cloud_style": _choice(S.CLOUD_STYLES),
+    "sky.woodland": _subset(S.WOODLAND_SEASONS),
     "sky.animations": _bool,
     "sky.weather": _bool,
     "sky.gradient": _choice(S.SKY_BACKDROP_IDS),
+    "sky.pages": _sky_pages,
     "sky.gradient_custom": _sky_stops,
     "sky.themes": _subset(S.THEMES),
     "sky.hemisphere": _choice(("north", "south")),
@@ -484,6 +515,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "accent": _accent,
     "glyph": _choice(S.MENU_GLYPHS),
     "clock": _bool,
+    "swipe": _bool,
     "page_rooms": _choice(S.BOARD_PAGE_ROOMS),
     "chips_row": _bool,
     "chips": _chips,
@@ -497,6 +529,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "scenes_pages": _ordered(S.SCENE_PAGES),
     "favorites": _entities(),
     "pages": _pages,
+    "only_pages": _pages,
     "custom_pages": _custom_pages,
     "home_page": _bool,
     "home_view": _home_view,
@@ -508,7 +541,10 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_animations": _bool_or_none,
     "sky_weather": _bool_or_none,
     "sky_decorations": _bool_or_none,
+    "sky_decoration_style": _choice(("old", "new"), none=True),
+    "sky_cloud_style": _choice(S.CLOUD_STYLES, none=True),
     "sky_gradient": _choice(S.SKY_BACKDROP_IDS, none=True),
+    "sky_pages": _sky_pages,
     "sky_custom": _sky_stops,
     "idle_return": _bool,
     "idle_room": _room,

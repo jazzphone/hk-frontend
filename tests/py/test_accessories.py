@@ -1,5 +1,5 @@
 """Accessory settings (accessories.py): stored house-wide, changed by admins,
-sent to every screen, and read by What counts."""
+sent to every screen, and read by Status & Chips."""
 from __future__ import annotations
 
 import pytest
@@ -247,6 +247,39 @@ async def test_an_admin_makes_a_light_tall(hass, frontend):
     assert conn.sent[-1]["result"] == {"size": "tall"}
     ws_accessory_set(hass, conn, {"id": 2, "type": "hk_frontend/accessory/set", "entity_id": "light.lamp", "size": None})
     assert conn.sent[-1]["result"] == {}
+
+
+def test_a_fan_can_be_told_not_to_spin():
+    """Anim: a fan's glyph turns while it is on by default -- 'still' keeps
+    a chosen icon from doing so. None is automatic (its kind)."""
+    from custom_components.hk_frontend.accessories import clean_entity
+    assert clean_entity({"anim": "none"}) == {"anim": "none"}
+    assert clean_entity({"anim": "spin"}) == {"anim": "spin"}
+    assert clean_entity({"anim": "wobble"}) == {}
+    assert clean_entity({"anim": None}) == {}
+    assert clean_entity({"anim": "Still"}) == {}, "case: only the two choices"
+
+
+async def test_an_admin_stills_a_fan_and_every_screen_is_told(hass, frontend):
+    from custom_components.hk_frontend import ws_settings_subscribe
+    from custom_components.hk_frontend.accessories import ws_accessory_set
+    hass.states.async_set("fan.den", "on", {})
+    import voluptuous as vol
+    screen = FakeConnection(None)
+    ws_settings_subscribe(hass, screen, {"id": 1})
+    conn = await _admin(hass)
+    ws_accessory_set(hass, conn, {"id": 2, "type": "hk_frontend/accessory/set",
+                                  "entity_id": "fan.den", "anim": "none", "icon": "hk:ceiling-fan"})
+    assert conn.sent[-1]["result"] == {"icon": "hk:ceiling-fan", "anim": "none"}
+    await hass.async_block_till_done()
+    assert screen.sent[-1]["event"]["accessories"]["entities"]["fan.den"] == {
+        "icon": "hk:ceiling-fan", "anim": "none"}
+    schema = ws_accessory_set._ws_schema
+    with pytest.raises(vol.Invalid):
+        schema({"id": 3, "type": "hk_frontend/accessory/set", "entity_id": "fan.den", "anim": "wobble"})
+    ws_accessory_set(hass, conn, {"id": 4, "type": "hk_frontend/accessory/set",
+                                  "entity_id": "fan.den", "anim": None})
+    assert conn.sent[-1]["result"] == {"icon": "hk:ceiling-fan"}, "None: back to its kind -- it spins again"
 
 
 async def test_a_rooms_scenes_row(hass, frontend):

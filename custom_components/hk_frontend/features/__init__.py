@@ -7,6 +7,8 @@ Settings -> Devices & services -> HK Frontend -> Add feature:
     clean_areas  Clean Areas: "clean these rooms" for the house's vacuums
     alarm_pin    Alarm PIN: a PIN in front of an alarm that takes none
                  (one item per alarm)
+    energy       Energy: the Energy page, built from Home Assistant's own
+                 Energy settings
 
 WHY ITEMS, NOT ENTRIES. HACS installs one integration per repository, so the
 features live in this one. Given more than one entry, Home Assistant's
@@ -71,10 +73,11 @@ MUSIC = "music"
 LIVE_TV = "live_tv"
 CLEAN_AREAS = "clean_areas"
 ALARM_PIN = "alarm_pin"
-KINDS = (MUSIC, LIVE_TV, CLEAN_AREAS, ALARM_PIN)
+ENERGY = "energy"
+KINDS = (MUSIC, LIVE_TV, CLEAN_AREAS, ALARM_PIN, ENERGY)
 # one per house; Alarm PIN has one per protected alarm
-SINGLE = (MUSIC, LIVE_TV, CLEAN_AREAS)
-TITLES = {MUSIC: "Music", LIVE_TV: "Live TV", CLEAN_AREAS: "Clean Areas", ALARM_PIN: "Alarm PIN"}
+SINGLE = (MUSIC, LIVE_TV, CLEAN_AREAS, ENERGY)
+TITLES = {MUSIC: "Music", LIVE_TV: "Live TV", CLEAN_AREAS: "Clean Areas", ALARM_PIN: "Alarm PIN", ENERGY: "Energy"}
 # every platform a feature adds to: the house's entry forwards them all
 PLATFORMS = [Platform.ALARM_CONTROL_PANEL, Platform.CAMERA, Platform.SENSOR]
 

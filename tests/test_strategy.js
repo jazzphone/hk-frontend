@@ -240,8 +240,11 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('Security in its own order: the garage door, then the lock', rail.indexOf('"entity":"cover.garage"') > 0 &&
      rail.indexOf('"entity":"cover.garage"') < rail.indexOf('"entity":"lock.front"'), rail.slice(0, 200));
   var dw = m.views.filter(function (v) { return v.path === 'doors-windows'; })[0];
-  var secs = {}; dw.cards.slice(1).forEach(function (c) { secs[c.cards[0].name] = c.cards[1].cards.map(function (t) { return t.entity; }); });
-  var doorTile = dw.cards.slice(1).filter(function (c) { return c.cards[0].name === 'Doors'; })[0].cards[1].cards[0];
+  ok('Doors & Windows and Security each have a status row under the title, as Climate does',
+     dw.cards[1].type === 'custom:hk-page-status-card' && dw.cards[1].page === 'doors_windows' &&
+     secv.cards[1].type === 'custom:hk-page-status-card' && secv.cards[1].page === 'security', dw.cards[1]);
+  var secs = {}; dw.cards.slice(2).forEach(function (c) { secs[c.cards[0].name] = c.cards[1].cards.map(function (t) { return t.entity; }); });
+  var doorTile = dw.cards.slice(2).filter(function (c) { return c.cards[0].name === 'Doors'; })[0].cards[1].cards[0];
   ok('a page that mixes rooms puts the room ABOVE the name, as the favorites do',
      doorTile.type === 'custom:hk-favorite-card' && doorTile.room === 'Garage' && doorTile.name === 'Door', doorTile);
   ok('the settings decide: the entry contact is a Door; the locks and the garage door are not here',
@@ -272,9 +275,37 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     ok('thermostat dials share the heading left edge while retaining responsive columns',
        dialGrid && dialGrid.layout['place-content'] === 'start start' &&
        dialGrid.layout['grid-template-columns'] === 'repeat(auto-fit, minmax(min(100%, 340px), 364px))');
+    var climBody;
+    (function walk(n) {
+      if (!n || typeof n !== 'object' || climBody) return;
+      if (n.layout && /hk-climate-dials/.test(n.layout['grid-template-columns'] || '')) { climBody = n; return; }
+      Object.keys(n).forEach(function (k) { walk(n[k]); });
+    })(clim);
+    ok('the thermostats sit right beside the rooms: the rooms as wide as they need, the rail the rest (one dial at least)',
+       climBody && /^var\(--hk-page-split, minmax\(0, \d+px\) minmax\(min\(var\(--hk-climate-dials, 364px\), 364px\), 1fr\)\)$/
+         .test(climBody.layout['grid-template-columns']), climBody && climBody.layout);
     var garage = tilesOf(m2.views[0], 'Garage').filter(function (t) { return t.entity === 'climate.car'; })[0];
     ok('a tile is named by its FULL name, not the registry short name', garage && garage.name === 'Family Car Climate', garage && garage.name);
-    // WHAT COUNTS answers first: the integration's kinds decide the pages.
+    // TWO THERMOSTATS: the rooms keep the pills their widest room needs (two
+    // to four), and the dials take the rest, side by side where they fit
+    window.hkSettings.get = function (p, f) {
+      return p === 'features.thermostats' ? ['climate.den', 'climate.car'] : base(p, f);
+    };
+    return window.hkStrategy.generate({ music: false }, hass);
+  }).then(function (m2b) {
+    var clim2 = m2b.views.filter(function (v) { return v.path === 'climate'; })[0], body2 = null, widest = 0;
+    (function walk(n) {
+      if (!n || typeof n !== 'object') return;
+      if (n.layout && /hk-climate-dials/.test(n.layout['grid-template-columns'] || '')) body2 = body2 || n;
+      if (n.layout && n.layout['grid-template-columns'] === 'repeat(auto-fill, var(--hk-track, 192px))' &&
+          !(n.cards || []).some(function (c) { return c.type === 'custom:hk-thermostat-card'; })) widest = Math.max(widest, n.cards.length);
+      Object.keys(n).forEach(function (k) { walk(n[k]); });
+    })(clim2);
+    var at = /minmax\(0, (\d+)px\)/.exec(body2 && body2.layout['grid-template-columns']);
+    ok('the rooms are as wide as their widest room needs (' + widest + ' tiles at most; two to four pills)',
+       widest > 0 && !!at && +at[1] === 204 * Math.max(2, Math.min(4, widest)) + 8,
+       body2 && body2.layout['grid-template-columns']);
+    // STATUS & CHIPS answers first: the integration's kinds decide the pages.
     window.hkSettings.get = function (p, f) {
       if (p === 'kinds') return { thermostats: ['climate.car'], lights: ['light.kitchen_table_light'] };
       return base(p, f);
@@ -282,7 +313,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     return window.hkStrategy.generate({ music: false }, hass);
   }).then(function (m3) {
     var clim = m3.views.filter(function (v) { return v.path === 'climate'; })[0];
-    ok('What counts decides the thermostats', cards(clim).indexOf('climate.car') > 0 && cards(clim).indexOf('climate.den') < 0);
+    ok('Status & Chips decides the thermostats', cards(clim).indexOf('climate.car') > 0 && cards(clim).indexOf('climate.den') < 0);
     var li = m3.views.filter(function (v) { return v.path === 'lights'; })[0];
     ok('...and the lights', cards(li).indexOf('light.kitchen_table_light') > 0 && cards(li).indexOf('light.kitchen_lights') < 0);
     delete window.hkSettings;
@@ -377,7 +408,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     ok('any other speaker is a speaker', T('media_player.s', 'S', { attributes: {} }, 'pi').icon === 'hk:speaker');
     // Security: the keypad with the locks on a rail, under the doors sky
     var sec = g.views.filter(function (v) { return v.path === 'security'; })[0];
-    var panel = sec.cards[1].cards[0];
+    var panel = sec.cards[2].cards[0];
     ok('Security: keypad and a Locks rail', panel.layout['grid-template-columns'] === 'var(--hk-alarm-cols, 430px 408px)' &&
        cards(panel).indexOf('"name":"Locks"') > 0 && cards(panel).indexOf('lock.front') > 0 && sec.sky_variant === 'doors',
        JSON.stringify(panel).slice(0, 200));
@@ -419,7 +450,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     // Rooms on pages: floor by floor (Main, then Upstairs), or in room order
     var litRooms = function (gv) {
       var lv = gv.views.filter(function (v) { return v.path === 'lights'; })[0];
-      return lv.cards.slice(1).map(function (c) { return c.cards[0].name; });
+      return lv.cards.slice(2).map(function (c) { return c.cards[0].name; });
     };
     S['light.den_lamp'] = st('light.den_lamp', 'off', { friendly_name: 'Den Lamp' });
     hass.entities['light.den_lamp'] = { area_id: 'den' };
@@ -625,6 +656,13 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ACC.entities['switch.kitchen_coffee'] = { icon: 'hk:washing-machine' };
   sw = window.hkStrategy.tileFor({ states: S, entities: { 'switch.kitchen_coffee': {} } }, 'switch.kitchen_coffee', 'x');
   ok('...and one with no measured size keeps the card\'s default', sw.icon === 'hk:washing-machine' && !('icon_size' in sw), sw);
+  // THE ACCESSORY'S COLOR: one choice, worn by every tile it is drawn as
+  ACC.entities['switch.kitchen_coffee'] = { color: 'pink' };
+  sw = window.hkStrategy.tileFor({ states: S, entities: { 'switch.kitchen_coffee': {} } }, 'switch.kitchen_coffee', 'x');
+  ok('its chosen Color on its tile, on every page', sw.icon_color === 'pink', sw.icon_color);
+  ACC.entities['switch.kitchen_coffee'] = {};
+  sw = window.hkStrategy.tileFor({ states: S, entities: { 'switch.kitchen_coffee': {} } }, 'switch.kitchen_coffee', 'x');
+  ok('...and none chosen keeps its kind\'s', sw.icon_color !== 'pink', sw.icon_color);
   // TILE SIZE (the gear's Size): a light tall, a lock a pill -- the card's
   // size and its cell's two rows, or one
   var H2 = { states: S, entities: { 'switch.kitchen_coffee': {}, 'lock.front': {} } };
@@ -889,7 +927,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ST.boards['dashboard-loft'].chips = ['lights'];
   ok('another screen\'s chips: no rebuild', sig() === s0);
   ST.accessories.entities['light.a'].status = false;
-  ok('an accessory\'s What counts switch (arrives as kinds): no rebuild', sig() === s0);
+  ok('an accessory\'s Status & Chips switch (arrives as kinds): no rebuild', sig() === s0);
   ST.accessories.entities['light.a'].when = 'on'; ST.accessories.entities['light.a'].label = 'Lit';
   ok('an accessory\'s chip-only fields (when, label): no rebuild', sig() === s0);
   ST.boards['hk-kitchen-ui'].chips_custom = ['mail'];
@@ -925,7 +963,9 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     ok('an outlet among the lights: the page is Lights & Outlets, the menu says Lights',
        byP.lights.title === 'Lights & Outlets' && byP.lights.menu_title === 'Lights' && cards(byP.lights).indexOf('Lights & Outlets') > 0,
        [byP.lights.title, byP.lights.menu_title]);
-    var cover = byP.water && byP.water.cards[1];
+    ok('Lights and Water have their status rows', byP.lights.cards[1].page === 'lights' &&
+       byP.water.cards[1].type === 'custom:hk-page-status-card' && byP.water.cards[1].page === 'water');
+    var cover = byP.water && byP.water.cards[2];
     ok('Water: Sensor Coverage while a leak sensor has not reported (neither on nor off)',
        cover && cover.type === 'conditional' && cover.conditions[0].condition === 'or' &&
        JSON.stringify(cover.conditions[0].conditions[0].state_not) === '["on","off"]' &&
@@ -935,6 +975,22 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     return window.hkStrategy.generate({ music: false }, hass);
   }).then(function (g2) {
     ok('On Phones = header (the default): the header alone', g2.views[0].cards[0].cards[0].type === 'custom:hk-header-card');
+    // WATER WITH VALVES: a sprinkler's valve has a section of its own, and a
+    // house with valves and no leak sensors still has the page
+    S['valve.sprinkler'] = st('valve.sprinkler', 'open', { friendly_name: 'Front Sprinkler', device_class: 'water' });
+    hass.entities['valve.sprinkler'] = { area_id: 'kitchen' };
+    var kinds0 = window.hkSettings.get;
+    window.hkSettings.get = function (p, f) {
+      return p === 'kinds' ? { lights: ['light.kitchen_table_light'], leaks: [], valves: ['valve.sprinkler'] } : kinds0(p, f);
+    };
+    return window.hkStrategy.generate({ music: false }, hass);
+  }).then(function (g3) {
+    var w = g3.views.filter(function (v) { return v.path === 'water'; })[0];
+    var valves = w && w.cards.filter(function (c) { return c.cards && c.cards[0] && c.cards[0].name === 'Valves'; })[0];
+    ok('Water with valves and no leak sensors: the page, its row, a Valves section -- no Sensor Coverage',
+       !!w && w.cards[1].page === 'water' && !!valves && cards(valves).indexOf('valve.sprinkler') > 0 &&
+       !w.cards.some(function (c) { return c.type === 'conditional'; }), w && JSON.stringify(w.cards).slice(0, 300));
+    delete S['valve.sprinkler']; delete hass.entities['valve.sprinkler'];
     delete window.hkSettings;
   });
 }).then(function () {
@@ -1000,6 +1056,8 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     var sb = window.hkStrategy.saverBlock ? window.hkStrategy.saverBlock(hass, { tablet_user: 'Kitchen', screensaver: true,
       screensaver_options: { calendar: true, calendar_days: 4 } }) : null;
     ok('the screensaver block carries the calendar pane and its days', !!sb && sb.calendar === true && sb.calendar_days === 4, sb);
+    ok('...and Fade Back: half a second unless set, 0 kept (at once)', sb.fade_back === 500 &&
+       window.hkStrategy.saverBlock(hass, { tablet_user: 'Kitchen', screensaver: true, screensaver_options: { fade_back: 0 } }).fade_back === 0);
     window.hkSettings = saved;
   });
 }).then(function () {
@@ -1034,6 +1092,79 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   RS.den = [];
   ok('an empty list: no row, even with scenes in the room', row('den') === null);
   window.hkSettings = saved;
+  // A FAN'S SPIN (the accessory's `anim`): its tile's glyph turns while it is
+  // on by default; a chosen icon is not always one that reads as spinning, so
+  // the setting is per accessory and lands on the tile -- never on its
+  // favorite, whose glyph is still like every favorite's.
+  S['fan.den'] = st('fan.den', 'on', { friendly_name: 'Den Fan', percentage: 50, percentage_step: 25 });
+  hass.entities['fan.den'] = { area_id: 'den' };
+  var ACCS = { entities: {}, rooms: {}, scenes: {} };
+  // ITS OWN SETTINGS, delegating to NOTHING: the shared settings object has
+  // been re-mocked by earlier blocks (a generated with an excluded device, a
+  // kinds with no fans), and inheriting any of it would keep the fan out of
+  // the rooms. null everywhere is a fresh house.
+  var savedAcc = window.hkSettings;
+  window.hkSettings = { get: function (p, f) {
+      if (p === 'accessories') return ACCS;
+      if (p === 'boards') return { '': { favorites: ['fan.den'] } };
+      return f; },
+    weatherId: function () { return 'weather.home'; } };
+  var denFan = function (cfg) {
+    var found = null;
+    // the IIFE is CALLED (the suite's thermostat test walks the same way) --
+    // an un-called (function(){...}); would fall through to dom.js's global
+    // DOM walk and visit nothing at all
+    (function walk(n) { if (found || !n || typeof n !== 'object') return;
+      if (n.entity === 'fan.den' && n.type === 'custom:hk-fan-card') found = n;
+      Object.keys(n).forEach(function (k) { if (!found) walk(n[k]); }); })(cfg);
+    return found;
+  };
+  var denFav = function (cfg) {
+    var found = null;
+    (function walk(n) { if (found || !n || typeof n !== 'object') return;
+      if (n.entity === 'fan.den' && n.type === 'custom:hk-favorite-card') found = n;
+      Object.keys(n).forEach(function (k) { if (!found) walk(n[k]); }); })(cfg.views[0]);
+    return found;
+  };
+  return window.hkStrategy.generate({ music: false, popups: false }, hass).then(function (m) {
+    ok('a fan without the setting: no animation in its config (its kind decides -- it spins)',
+       !!denFan(m) && denFan(m).type === 'custom:hk-fan-card' && !('animation' in denFan(m)), denFan(m));
+    ACCS.entities['fan.den'] = { anim: 'none' };
+    return window.hkStrategy.generate({ music: false, popups: false }, hass);
+  }).then(function (m) {
+    var t = denFan(m);
+    ok('anim none: the room tile stops spinning', !!t && t.type === 'custom:hk-fan-card' && t.animation === 'none', t);
+    ok('...and its favorite on the home row stays still, as every favorite does', !!denFav(m) && !('animation' in denFav(m)), denFav(m));
+    ACCS.entities['fan.den'].anim = 'spin';
+    return window.hkStrategy.generate({ music: false, popups: false }, hass);
+  }).then(function (m) {
+    ok('anim spin: said explicitly, the same as its kind', denFan(m).animation === 'spin');
+    ok('...and still not on its favorite', !!denFav(m) && !('animation' in denFav(m)), denFav(m));
+    // a switch drawn as a fan: still by its own kind's default -- only an
+    // explicit spin is new behaviour
+    ACCS.entities['fan.den'] = {};
+    S['switch.porch_fan_plug'] = st('switch.porch_fan_plug', 'on', { friendly_name: 'Porch Fan' });
+    hass.entities['switch.porch_fan_plug'] = { area_id: 'garage' };
+    ACCS.entities['switch.porch_fan_plug'] = { show_as: 'fan' };
+    return window.hkStrategy.generate({ music: false, popups: false }, hass);
+  }).then(function (m) {
+    var f = (function () { var r = null;
+      (function walk(n) { if (r || !n || typeof n !== 'object') return;
+        if (n.entity === 'switch.porch_fan_plug') r = n; Object.keys(n).forEach(function (k) { if (!r) walk(n[k]); }); })(m);
+      return r; })();
+    ok('a switch drawn as a fan, unset: still (the tile kind does not spin)', !!f && f.type === 'custom:hk-tile-card' && !('animation' in f), f);
+    ACCS.entities['switch.porch_fan_plug'].anim = 'spin';
+    return window.hkStrategy.generate({ music: false, popups: false }, hass);
+  }).then(function (m) {
+    var f = (function () { var r = null;
+      (function walk(n) { if (r || !n || typeof n !== 'object') return;
+        if (n.entity === 'switch.porch_fan_plug') r = n; Object.keys(n).forEach(function (k) { if (!r) walk(n[k]); }); })(m);
+      return r; })();
+    ok('...with anim spin: it spins, the fan way', f && f.animation === 'spin' && f.icon === 'hk:fan', f);
+    window.hkSettings = savedAcc;
+    delete S['fan.den']; delete hass.entities['fan.den'];
+    delete S['switch.porch_fan_plug']; delete hass.entities['switch.porch_fan_plug'];
+  });
 }).then(function () {
   print(fail ? 'FAIL ' + fail + ' STRATEGY TESTS' : 'ALL ' + pass + ' STRATEGY TESTS PASS');
 }).catch(function (e) { print('Exception: ' + e + ' ' + (e.stack || '')); });

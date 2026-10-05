@@ -14,6 +14,22 @@ show_popup:
       selector:
         text:
           multiple: true
+close_popup:
+  fields:
+    popup:
+      required: true
+      example: alarm
+      selector:
+        text:
+    dashboards:
+      example: dashboard-kitchen
+      selector:
+        text:
+          multiple: true
+    users:
+      selector:
+        text:
+          multiple: true
 clean_areas:
   fields:
     areas:

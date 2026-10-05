@@ -1,8 +1,11 @@
-// hk-room.js -- a room page's STATUS ROW (hk-room-status-card).
+// hk-room.js -- a room page's STATUS ROW (hk-room-status-card), and a
+// category page's (hk-page-status-card: Climate, Lights, Doors & Windows,
+// Water, Security).
 //
 // The line under a room's name in the Home app: "Temperature 71° · Humidity
-// 46% · Outlet On · Blinds Open · 2 Fans On · 3 Windows Closed · Motion Not
-// Detected · Occupancy None". NOT the home page's chip row -- the Home app
+// 46% · Security System Disarmed · TV On · 4 Lights On · Outlet On · Blinds
+// Open · Fan On · 3 Windows Closed · Motion Not Detected · Occupancy Detected
+// · Speaker Playing". NOT the home page's chip row -- the Home app
 // draws a room's status differently: no plate, no
 // border, no well: a bare white glyph and two lines of text straight on the
 // sky. Temperature and humidity draw a ring open at the bottom with a dot at
@@ -17,8 +20,12 @@
 //                          else their device's), leaving out hidden, disabled
 //                          and diagnostic/config entities -- a tablet's battery
 //                          temperature is not the room's.
-// Which kinds show, and in what order, is Configure -> Menu and room pages ->
-// Status row shows (settings rooms.status); a card's `items:` wins.
+// Which kinds show, and in what order, is HK Settings -> Status Rows (settings
+// rooms.status, status_rows.<page>); a card's `items:` wins.
+//
+// A CATEGORY PAGE'S ROW counts what the page shows -- Status & Chips' lists
+// (hkStrategy.pageMembers) -- less the rooms it leaves out, and its sensors
+// name the room: "Motion: Emma's Room", "3 Rooms: Occupied".
 //
 // TAP: one sensor opens its sheet (hk-detail.js, or HA's dialog); a count of
 // several opens a sheet of those devices (hkDetail.openGroup).
@@ -32,24 +39,61 @@
     }, { once: true });
   }
 
-  // The kinds, in the Home app's order: readings, accessories, sensors.
-  var KINDS = ['temperature', 'humidity', 'outlets', 'blinds', 'fans', 'windows', 'doors',
-               'locks', 'garage', 'motion', 'occupancy', 'leaks'];
+  // The kinds, in the Home app's order (a room there, 2026-10-04): the
+  // readings, the security system, the accessories, the sensors, and what is
+  // playing. The house may order them its own way (settings rooms.status).
+  var KINDS = ['temperature', 'humidity', 'security', 'tvs', 'lights', 'outlets', 'blinds', 'fans',
+               'windows', 'doors', 'locks', 'garage', 'valves', 'motion', 'occupancy', 'leaks', 'speakers'];
   var DOOR_COVERS = { garage: 1, gate: 1, door: 1 };
-  // The kinds that are accessories -- things on the page -- rather than sensors.
-  var ACCESSORY = { outlets: 1, blinds: 1, fans: 1, locks: 1, garage: 1 };
+  // The kinds that are accessories -- tiles on the page -- rather than sensors.
+  var ACCESSORY = { security: 1, tvs: 1, lights: 1, outlets: 1, blinds: 1, fans: 1, locks: 1, garage: 1,
+                    valves: 1, speakers: 1 };
   var OFF = { unavailable: 1, unknown: 1 };
 
   function dom(id) { return String(id).split('.')[0]; }
   function attr(st, k) { return st && st.attributes ? st.attributes[k] : undefined; }
+  function setting(path, fallback) {
+    var HS = window.hkSettings;
+    return HS && HS.get ? HS.get(path, fallback) : fallback;
+  }
+  // What the accessory is drawn as (its gear's Show As): a switch shown as a
+  // light is counted with the lights, as its tile is drawn with them.
+  function shownAs(id) {
+    return (((setting('accessories', {}) || {}).entities || {})[id] || {}).show_as;
+  }
 
-  // Which kind an entity counts toward, or null.
-  function kindOf(id, st) {
+  // Which kind an entity counts toward, or null. A group of other entities
+  // never: its members count themselves -- a helper's (attributes.entity_id)
+  // or any integration's, a Hue room, a Zigbee group (group_entities).
+  function kindOf(id, st, hass) {
     var d = dom(id), dc = attr(st, 'device_class');
+    if (Array.isArray(attr(st, 'entity_id')) || Array.isArray(attr(st, 'group_entities'))) return null;
+    if (d === 'light' || d === 'switch' || d === 'input_boolean') {
+      var as = shownAs(id);
+      if (as === 'light' || as === 'outlet' || as === 'fan') return as === 'light' ? 'lights' : as + 's';
+      if (as === 'switch') return null;
+      if (d === 'light') return 'lights';
+      return d === 'switch' && dc === 'outlet' ? 'outlets' : null;
+    }
     if (d === 'fan') return 'fans';
     if (d === 'lock') return 'locks';
-    if (d === 'switch' && dc === 'outlet') return 'outlets';
     if (d === 'cover') return DOOR_COVERS[dc] ? 'garage' : 'blinds';
+    if (d === 'valve') return 'valves';
+    // THE security system: a house's alarm is often two panels -- its own
+    // integration's and a keypad's -- and the Home app has one. With
+    // General's Alarm Panel chosen, that one is it.
+    if (d === 'alarm_control_panel') {
+      var main = setting('security.alarm', null);
+      return !main || main === id ? 'security' : null;
+    }
+    // a receiver is the TV's sound, not a thing of its own; an Apple TV says
+    // no device class, but its device's model says what it is (as its tile)
+    if (d === 'media_player') {
+      if (dc === 'tv') return 'tvs';
+      if (dc === 'receiver') return null;
+      var e = hass && (hass.entities || {})[id], dev = e && (hass.devices || {})[e.device_id];
+      return dev && /apple tv/i.test(dev.model || '') ? 'tvs' : 'speakers';
+    }
     if (d === 'binary_sensor') {
       if (dc === 'window') return 'windows';
       if (dc === 'door') return 'doors';
@@ -81,10 +125,15 @@
     Object.keys(ents).forEach(function (id) {
       var e = ents[id] || {};
       if (e.hidden || e.entity_category) return;
-      var a = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id);
+      var a = areaOf(hass, id);
       if (a && want[a]) out.push(id);
     });
     return out.sort();
+  }
+  // its own area, else its device's
+  function areaOf(hass, id) {
+    var e = (hass.entities || {})[id] || {}, devs = hass.devices || {};
+    return e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id) || null;
   }
 
   function isOn(kind, st) {
@@ -93,16 +142,86 @@
       return dom(st.entity_id) === 'cover' ? (s === 'open' || s === 'opening' || s === 'closing') : s === 'on';
     }
     if (kind === 'locks') return s !== 'locked';
+    if (kind === 'valves') return dom(st.entity_id) === 'valve' ? (s === 'open' || s === 'opening') : s === 'on';
+    if (kind === 'tvs') return s !== 'off' && s !== 'standby';
+    if (kind === 'speakers') return s === 'playing';
+    if (kind === 'security') return s !== 'disarmed';
     return s === 'on';
   }
 
   // Words, as the Home app says them.
   var NOUN = { outlets: ['Outlet', 'Outlets'], blinds: ['Blinds', 'Blinds'], fans: ['Fan', 'Fans'],
                windows: ['Window', 'Windows'], doors: ['Door', 'Doors'], locks: ['Lock', 'Locks'],
-               garage: ['Garage Door', 'Garage Doors'] };
+               garage: ['Garage Door', 'Garage Doors'], lights: ['Light', 'Lights'], tvs: ['TV', 'TVs'],
+               valves: ['Valve', 'Valves'], speakers: ['Speaker', 'Speakers'],
+               security: ['Security System', 'Security Systems'] };
   var WORDS = { outlets: ['Off', 'On'], blinds: ['Closed', 'Open'], fans: ['Off', 'On'],
                 windows: ['Closed', 'Open'], doors: ['Closed', 'Open'], locks: ['Locked', 'Unlocked'],
-                garage: ['Closed', 'Open'] };
+                garage: ['Closed', 'Open'], lights: ['Off', 'On'], tvs: ['Off', 'On'],
+                // a water valve runs (the Home app's faucet); a gas one opens
+                valves: ['Off', 'Running'], speakers: ['Not Playing', 'Playing'] };
+  // Each kind's name, for a card editor
+  var LABEL = { temperature: 'Temperature', humidity: 'Humidity', security: 'Security System', tvs: 'TVs',
+                lights: 'Lights', outlets: 'Outlets', blinds: 'Blinds', fans: 'Fans', windows: 'Windows',
+                doors: 'Doors', locks: 'Locks', garage: 'Garage Doors', valves: 'Valves', motion: 'Motion',
+                occupancy: 'Occupancy', leaks: 'Leak Sensors', speakers: 'Speakers' };
+  // An alarm panel's state, in its own words; anything else is "Armed".
+  var ALARM = { disarmed: 'Disarmed', armed_home: 'Armed Home', armed_away: 'Armed Away',
+                armed_night: 'Armed Night', armed_vacation: 'Armed Vacation', arming: 'Arming',
+                pending: 'Pending', disarming: 'Disarming', triggered: 'Triggered' };
+  // A sensor kind's words: [title, nothing detected, detected]
+  var SENSE = { motion: ['Motion', 'Not Detected', 'Detected'], occupancy: ['Occupancy', 'None', 'Detected'],
+                leaks: ['Leak', 'None', 'Detected'] };
+
+  // ONE ITEM: a kind and its entities (those with nothing to say -- unknown,
+  // unavailable -- in the count but not the words). `where`: a sensor says
+  // the ROOM it is detected in ("Motion -- Emma's Room", "3 Rooms --
+  // Occupied"), as a category page's row does; a room's own row has no
+  // need. null: nothing to show.
+  function describe(hass, k, ids, where) {
+    var st = hass.states || {}, n = ids.length;
+    if (!n) return null;
+    var live = ids.filter(function (id) { var s = st[id]; return s && !OFF[s.state]; });
+    var hot = live.filter(function (id) { return isOn(k, st[id]); });
+    var on = hot.length;
+    if (!live.length) {
+      // a sleepy sensor that has said nothing since Home Assistant started
+      // is "unknown", not gone: No Report, as its tile says (the Water page)
+      var silent = SENSE[k] && ids.every(function (id) { return st[id] && st[id].state === 'unknown'; });
+      return { kind: k, title: (SENSE[k] || [])[0] || (n === 1 ? '' : n + ' ') + NOUN[k][n === 1 ? 0 : 1],
+               value: silent ? 'No Report' : 'Unavailable', ids: ids, dim: true, on: 0 };
+    }
+    if (SENSE[k]) {
+      var w = SENSE[k], title = w[0], value = w[on ? 2 : 1];
+      if (where && on) {
+        var rooms = [];
+        hot.forEach(function (id) {
+          var a = (hass.areas || {})[areaOf(hass, id)];
+          if (a && a.name && rooms.indexOf(a.name) < 0) rooms.push(a.name);
+        });
+        if (rooms.length === 1) value = rooms[0];
+        else if (rooms.length > 1 && k === 'occupancy') { title = rooms.length + ' Rooms'; value = 'Occupied'; }
+        else if (rooms.length > 1) value = rooms.length + ' Rooms';
+      }
+      return { kind: k, title: title, value: value, ids: ids, dim: !on, alert: k === 'leaks' && !!on, on: on };
+    }
+    var noun = (n === 1 ? '' : n + ' ') + NOUN[k][n === 1 ? 0 : 1];
+    if (k === 'security') {
+      var said = live.map(function (id) { var s = st[id].state; return ALARM[s] || 'Armed'; });
+      var same = said.every(function (x) { return x === said[0]; });
+      return { kind: k, title: noun, value: same ? said[0] : on + ' Armed', ids: ids, dim: false, on: on,
+               alert: live.some(function (id) { return st[id].state === 'triggered'; }) };
+    }
+    var words = WORDS[k];
+    if (k === 'valves' && live.every(function (id) { return attr(st[id], 'device_class') === 'gas'; })) {
+      words = ['Closed', 'Open'];
+    }
+    var m = live.length;
+    return { kind: k, title: noun,
+             // one: its state; several: all in one state, or how many are in the other
+             value: m === 1 || on === 0 || on === m ? words[on ? 1 : 0] : on + ' ' + words[1],
+             ids: ids, dim: false, on: on, alert: k === 'locks' && !!on };
+  }
 
   // THE ROW'S ITEMS -- a pure function of hass, the areas and the kinds, so
   // the tests hold it to every rule without a page.
@@ -110,7 +229,7 @@
   //        entities: [ids] }
   //
   // `entities:` -- THE ACCESSORIES ON THE PAGE. Given, the accessory kinds
-  // (outlets, blinds, fans, locks, garage doors) count only these, so "2 Fans"
+  // (lights, outlets, blinds, fans, locks, ...) count only these, so "2 Fans"
   // is always the two fan tiles below it -- the Home app's own rule. An area
   // can hold more than the page shows: a second integration's copy of the
   // same shades (a Matter bridge), a relay that is not a room's device. The
@@ -118,9 +237,10 @@
   function items(hass, areas, o) {
     o = o || {};
     var st = hass.states || {}, A = hass.areas || {}, out = [];
-    // always in the house order, whatever order a card or the settings list them in
-    var pick = o.items && o.items.length ? o.items : KINDS;
-    var kinds = KINDS.filter(function (k) { return pick.indexOf(k) !== -1; });
+    // in the order the card or the house lists them (each once, known ones)
+    var kinds = (o.items && o.items.length ? o.items : KINDS).filter(function (k, i, arr) {
+      return KINDS.indexOf(k) !== -1 && arr.indexOf(k) === i;
+    });
     var skip = {};
     (o.exclude || []).forEach(function (id) { skip[id] = true; });
     var ids = members(hass, areas).concat(o.include || []).filter(function (id, i, arr) {
@@ -132,7 +252,7 @@
       list.forEach(function (id) {
         var s = st[id];
         if (!s || OFF[s.state]) return;
-        var k = kindOf(id, s);
+        var k = kindOf(id, s, hass);
         if (!k || !!ACCESSORY[k] !== accessories) return;
         if (by[k] && by[k].indexOf(id) !== -1) return;
         (by[k] = by[k] || []).push(id);
@@ -164,25 +284,39 @@
                    gauge: k === 'humidity' ? v / 100 : (c ? (v - 7) / 29 : (v - 45) / 52) });
         return;
       }
-      var list = by[k];
-      if (!list || !list.length) return;
-      var on = list.filter(function (id) { return isOn(k, st[id]); }).length, n = list.length;
-      if (k === 'motion' || k === 'occupancy' || k === 'leaks') {
-        var words = { motion: ['Not Detected', 'Detected'], occupancy: ['None', 'Detected'], leaks: ['None', 'Detected'] }[k];
-        out.push({ kind: k, title: { motion: 'Motion', occupancy: 'Occupancy', leaks: 'Leak' }[k],
-                   value: words[on ? 1 : 0], ids: list, dim: !on, alert: k === 'leaks' && !!on, on: on });
-        return;
-      }
-      var w = WORDS[k];
-      out.push({ kind: k, title: (n === 1 ? '' : n + ' ') + NOUN[k][n === 1 ? 0 : 1],
-                 // one: its state; several: all in one state, or how many are in the other
-                 value: n === 1 || on === 0 || on === n ? w[on ? 1 : 0] : on + ' ' + w[1],
-                 ids: list, dim: false, on: on, alert: k === 'locks' && !!on });
+      var it = describe(hass, k, by[k] || [], false);
+      if (it) out.push(it);
     });
     return out;
   }
 
-  var CLIMATE_KINDS = ['temperature', 'humidity', 'blinds', 'fans'];
+  // THE CATEGORY PAGES' ROWS (settings.STATUS_ROWS): what each may show.
+  // What it does show, and in what order, is the house's (status_rows.<page>).
+  var PAGE_ROWS = { climate: ['temperature', 'humidity', 'blinds', 'fans'], lights: ['lights', 'outlets'],
+                    doors_windows: ['doors', 'windows', 'garage', 'motion', 'occupancy'], water: ['leaks', 'valves'],
+                    security: ['security', 'locks', 'garage', 'doors', 'windows', 'leaks', 'motion', 'occupancy'] };
+  var CLIMATE_KINDS = PAGE_ROWS.climate;
+  function rowSetting(page) {
+    var HS = window.hkSettings;
+    return (HS && HS.get ? (HS.get('status_rows', {}) || {})[page] : null) || {};
+  }
+  // What a page's row shows, in its order: the card's own `items`, else the
+  // house's, each once and only what the page may show.
+  function picked(page, o) {
+    var row = rowSetting(page), may = PAGE_ROWS[page] || [];
+    var pick = Array.isArray(o.items) ? o.items : Array.isArray(row.status) ? row.status : may;
+    return pick.filter(function (k, i) { return may.indexOf(k) >= 0 && pick.indexOf(k) === i; });
+  }
+  // A CATEGORY PAGE'S ROW (Lights, Doors & Windows, Water, Security): the
+  // same lists the page and the chips count (hkStrategy.pageMembers), and its
+  // sensors say which rooms -- "Motion: Emma's Room".
+  function pageItems(hass, page, o) {
+    o = o || {};
+    if (page === 'climate') return climateItems(hass, o);
+    var S = window.hkStrategy;
+    var by = S && S.pageMembers ? S.pageMembers(hass, page, o) : {};
+    return picked(page, o).map(function (k) { return describe(hass, k, by[k] || [], true); }).filter(Boolean);
+  }
   // Current ambient readings, shared by the summary and the popup pills.
   // A thermostat's setpoint is deliberately never a reading source.
   function climateReading(hass, id, kind) {
@@ -206,12 +340,10 @@
     o = o || {};
     var S = window.hkStrategy;
     var by = S && S.climateMembers ? S.climateMembers(hass, o) : {};
-    var cl = window.hkSettings && window.hkSettings.get ? window.hkSettings.get('climate', {}) : {};
-    var pick = Array.isArray(o.items) ? o.items : (Array.isArray(cl.status) ? cl.status : CLIMATE_KINDS);
     var out = [];
-    CLIMATE_KINDS.forEach(function (k) {
+    picked('climate', o).forEach(function (k) {
       var ids = by[k] || [];
-      if (pick.indexOf(k) < 0 || !ids.length) return;
+      if (!ids.length) return;
       if (k === 'temperature' || k === 'humidity') {
         var values = ids.map(function (id) { return climateReading(hass, id, k); }).filter(function (v) { return v != null; });
         var lo = values.length ? Math.round(Math.min.apply(null, values)) : null;
@@ -237,12 +369,13 @@
   // The glyph for each kind -- SF Symbols where the hk: set has them,
   // the same-named Material icon where it does not.
   var ICON = { temperature: 'home-thermometer', humidity: 'water-percent', outlets: 'power-socket-us',
+               security: 'alarm-light', tvs: 'television', lights: 'lightbulb', valves: 'spigot', speakers: 'speaker',
                blinds: 'blinds-horizontal', fans: 'fan', windows: 'window-closed-variant',
                // `motion`: the Home app's diamond with trails, drawn for this set
                // (not a public SF Symbol); a tile's motion sensor is `motion-sensor`
                doors: 'door-closed', locks: 'lock', garage: 'garage', motion: 'motion',
                occupancy: 'walk', leaks: 'water' };
-  var ICON_ON = { blinds: 'blinds-horizontal', windows: 'window-open-variant', doors: 'door-open',
+  var ICON_ON = { lights: 'lightbulb-on', blinds: 'blinds-horizontal', windows: 'window-open-variant', doors: 'door-open',
                   locks: 'lock-open-variant', garage: 'garage-open', leaks: 'water-alert' };
   function icon(it) {
     var n = (it.on && ICON_ON[it.kind]) || ICON[it.kind];
@@ -264,8 +397,9 @@
       '<circle cx="' + d[0] + '" cy="' + d[1] + '" r="2.7" fill="currentColor"/></svg>';
   }
 
-  window.hkRoom = { version: '1.0.0', climateItems: climateItems, climateReading: climateReading,
-    _: { items: items, kindOf: kindOf, members: members, gauge: gauge, KINDS: KINDS } };
+  window.hkRoom = { version: '1.1.0', climateItems: climateItems, climateReading: climateReading,
+    pageItems: pageItems, PAGE_ROWS: PAGE_ROWS,
+    _: { items: items, kindOf: kindOf, members: members, gauge: gauge, describe: describe, KINDS: KINDS } };
 
   whenBase(function (C) {
     if (window.hkRoom.Card) return;
@@ -413,30 +547,50 @@
       }
     }
 
-    class HkClimateStatusCard extends HkRoomStatusCard {
+    // A CATEGORY PAGE'S ROW (`page:` climate, lights, doors_windows, water,
+    // security). A tap opens the item's accessories as a list -- even one --
+    // each pill with its room, kept live, and closing an accessory opened
+    // from it comes back to the list. One security system opens its own
+    // sheet: the page already has its keypad.
+    class HkPageStatusCard extends HkRoomStatusCard {
       setConfig(config) { HkBase.prototype.setConfig.call(this, config || {}); }
+      _page() { return (this._config || {}).page || 'climate'; }
       _opts() { return this._config || {}; }
-      _itemsFor(h) { return climateItems(h, this._opts()); }
+      _itemsFor(h) { return pageItems(h, this._page(), this._opts()); }
       _open(it) {
         var D = window.hkDetail, self = this;
-        if (D && D.openGroup) {
+        if (D && D.openGroup && !(it.kind === 'security' && it.ids.length === 1)) {
           D.openGroup(it.title, it.ids, { icon: icon(it), kind: it.kind,
-            climate: this._opts(), resolve: function (h) {
+            row: this._opts(), resolve: function (h) {
               return self._itemsFor(h).filter(function (x) { return x.kind === it.kind; })[0] ||
-                { title: it.kind === 'fans' ? 'Fans' : it.kind === 'blinds' ? 'Blinds' : it.title, ids: [], value: 'No accessories' };
+                { title: NOUN[it.kind] ? NOUN[it.kind][1] : it.title, ids: [], value: 'No accessories' };
             } });
           return;
         }
-        // While detail.js is loading, retain HA's own accessible fallback.
+        // One security system, or detail.js still loading: HA's own sheet.
         this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true,
           detail: { entityId: it.ids[0] } }));
       }
     }
+    // The Climate page's, as it was first (1.4.6): a page row for `climate`.
+    class HkClimateStatusCard extends HkPageStatusCard {
+      _page() { return 'climate'; }
+    }
+    var EXCLUDES = [{ name: 'exclude_areas', selector: { area: { multiple: true } } },
+                    { name: 'exclude_entities', selector: { entity: { multiple: true } } }];
     C.register('hk-climate-status-card', HkClimateStatusCard, 'HK Climate Status',
       'Whole-home temperature and humidity ranges, blinds and fans. Tap to see the included accessories.',
-      [{ name: 'items', selector: { select: { multiple: true, mode: 'list', options: CLIMATE_KINDS } } },
-       { name: 'exclude_areas', selector: { area: { multiple: true } } },
-       { name: 'exclude_entities', selector: { entity: { multiple: true } } }], function () { return {}; });
+      [{ name: 'items', selector: { select: { multiple: true, mode: 'list', options: CLIMATE_KINDS } } }].concat(EXCLUDES),
+      function () { return {}; });
+    C.register('hk-page-status-card', HkPageStatusCard, 'HK Page Status',
+      'A category page\'s status row -- the lights, the doors and windows, the water, the security -- as the Climate page has. Tap to see the accessories.',
+      [{ name: 'page', required: true, selector: { select: { mode: 'dropdown', options: [
+          { value: 'lights', label: 'Lights' }, { value: 'doors_windows', label: 'Doors & Windows' },
+          { value: 'water', label: 'Water' }, { value: 'security', label: 'Security' }, { value: 'climate', label: 'Climate' }] } } },
+       { name: 'items', selector: { select: { multiple: true, mode: 'list', options: KINDS.map(function (k) {
+          return { value: k, label: LABEL[k] };
+        }) } }, helper: 'Leave empty to follow HK Settings → Status Rows.' }].concat(EXCLUDES),
+      function () { return { page: 'lights' }; });
 
     C.register('hk-room-status-card', HkRoomStatusCard, 'HK Room Status',
       "A room's status line -- temperature, humidity, and what is on, open or detected -- read from its area.",
@@ -444,14 +598,14 @@
         { name: 'area', required: true, selector: { area: { multiple: true } },
           helper: 'The room: one area, or several for a room that spans them.' },
         { name: 'items', selector: { select: { multiple: true, mode: 'list', options: KINDS.map(function (k) {
-          return { value: k, label: k.charAt(0).toUpperCase() + k.slice(1) };
-        }) } }, helper: 'Leave empty to follow Configure → Menu and room pages → Status row shows.' },
+          return { value: k, label: LABEL[k] };
+        }) } }, helper: 'Leave empty to follow HK Settings → Status Rows → Room Pages.' },
         C.section('Sensors', [
           { name: 'temperature', selector: { entity: { domain: 'sensor', device_class: 'temperature' } },
             helper: "Else the area's own temperature sensor (Settings → Areas)." },
           { name: 'humidity', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
           { name: 'entities', selector: { entity: { multiple: true } },
-            helper: "The page's own devices: outlets, blinds, fans, locks and garage doors are counted from these (else the whole area)." },
+            helper: "The page's own devices: the accessories (lights, outlets, blinds, fans, locks, TVs, ...) are counted from these (else the whole area)." },
           { name: 'exclude', selector: { entity: { multiple: true } }, helper: 'Leave these out of the counts.' },
           { name: 'include', selector: { entity: { multiple: true } }, helper: 'Count these too, from outside the area.' }
         ], 'mdi:tune')
