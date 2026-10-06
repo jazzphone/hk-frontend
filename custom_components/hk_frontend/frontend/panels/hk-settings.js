@@ -176,7 +176,9 @@
     '.page.split.nohead .pvcol{margin-top:-28px}',
     // narrower: the preview sits under the title of the screen's own page
     ':host(:not([xwide])) .page.split{display:block;max-width:680px}',
-    ':host(:not([xwide])) .page.split .pvcol{margin:0 0 30px;max-width:480px}',
+    // ...and scrolls away with the page: sticky there, the settings scrolled
+    // up under it and it lay over them (2026-10-06)
+    ':host(:not([xwide])) .page.split .pvcol{margin:0 0 30px;max-width:480px;position:static}',
     '.pvcol:empty{display:none}',
     '.code{margin:-14px 0 28px;padding:12px 16px;border-radius:10px;background:var(--hk-cell);color:var(--hk-label);',
     // YAML keeps its lines (wrapped, its indentation would lie): it scrolls
