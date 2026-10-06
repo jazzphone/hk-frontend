@@ -64,6 +64,12 @@
   // HOW HIGH IT FLOATS: 14 px, or on an iPhone down into the home indicator's
   // safe area as iOS's own tab bar sits (34 px of safe area: 22 px up)
   var LIFT_CSS = 'max(' + LIFT + 'px, calc(env(safe-area-inset-bottom, 0px) - 12px))';
+  // AT THE TOP (Tab Bar Position): 12 px down, or just under an iPhone's
+  // status bar and Dynamic Island
+  var TOP_CSS = 'max(12px, calc(env(safe-area-inset-top, 0px) + 4px))';
+  // THE RAIL (Left / Right, a tablet or wider): RAIL_W wide, the screen's
+  // height less a gutter at each end; a tab RAIL_TAB tall, RAIL_GAP apart
+  var RAIL_W = 84, RAIL_TAB = 66, RAIL_GAP = 6, RAIL_PAD = 10;
   // THE SHEETS: at least this share of the window (on a phone, up to about
   // the middle of the page), and never under SHEET_MIN px
   var SHEET_SHARE = 0.55, SHEET_MIN = 300;
@@ -92,6 +98,20 @@
     var inner = Math.min(avail, cells * TAB_MAX_W + Math.max(0, cells - 1) * TAB_GAP);
     var tab = cells ? (inner - Math.max(0, cells - 1) * TAB_GAP) / cells : 0;
     return { shown: shown, more: more, width: Math.round(inner + 2 * PAD), plate: tab >= PLATE_MIN };
+  }
+
+  // THE RAIL'S FIT: as fit(), down a rail `height` tall
+  function railFit(n, top, height, extra) {
+    var avail = Math.max(0, height - 2 * GUTTER - 2 * RAIL_PAD);
+    var slots = Math.max(1, Math.min(MAX_TABS, Math.floor((avail + RAIL_GAP) / (RAIL_TAB + RAIL_GAP))));
+    var more = top > 0 || n > slots || !!extra;
+    return { shown: more ? Math.max(0, Math.min(n, slots - 1)) : n, more: more, width: RAIL_W, plate: true };
+  }
+  // WHERE THE BAR SITS: the screen's Tab Bar Position, a phone keeping the
+  // bottom for a rail's (too little width beside it)
+  function position(pos, width) {
+    pos = pos === 'top' || pos === 'left' || pos === 'right' ? pos : 'bottom';
+    return (pos === 'left' || pos === 'right') && width < 640 ? 'bottom' : pos;
   }
 
   // What the bar holds, from the menu's list (hkMenu._.model's answer).
@@ -137,7 +157,7 @@
   }
 
   window.hkTabBar = { version: '1.0.0', _: { fit: fit, parts: parts, scrollStep: scrollStep, material: material,
-                                             roomsMode: roomsMode,
+                                             roomsMode: roomsMode, railFit: railFit, position: position,
                                              SIZES: { TAB_MIN_W: TAB_MIN_W, TAB_MAX_W: TAB_MAX_W, MAX_TABS: MAX_TABS,
                                                       GUTTER: GUTTER, GAP: GAP, ROUND: ROUND, PAD: PAD } } };
 
@@ -291,6 +311,42 @@
       '.sheet.list .it.here span,.sheet.list .it.here ha-icon{color:var(--hk-on-accent,#fff)}',
       '.sheet.list .roomgrid .it ha-icon{width:22px;height:22px;background:none;--mdc-icon-size:22px}',
       '.it:active{filter:brightness(1.25)}',
+      // ---- TAB BAR POSITION: TOP. The bottom's mirror: More hangs from the
+      // bar, the bar hides upward
+      ':host([data-pos="top"]) .row{top:' + TOP_CSS + ';bottom:auto}',
+      ':host([data-pos="top"]) .root.gone .row{transform:translateY(calc(-100% - 8px - ' + TOP_CSS + '))}',
+      ':host([data-pos="top"]) .sheet{top:calc(' + (BAR_H + 10) + 'px + ' + TOP_CSS + ');bottom:auto;transform:translateY(-16px) scale(.98);',
+      '  max-height:calc(var(--hk-vh,100dvh) - ' + (BAR_H + 10 + TOP_GAP) + 'px - ' + TOP_CSS + ' - env(safe-area-inset-bottom,0px))}',
+      ':host([data-pos="top"]) .sheet.open{transform:none}',
+      ':host([data-pos="top"]) .root.joined .sheet{top:calc(' + (BAR_H - 1) + 'px + ' + TOP_CSS + ');border-radius:0 0 28px 28px;',
+      '  border-bottom:1px solid rgba(255,255,255,0.14);border-top:0;transform:none;clip-path:inset(0 0 100% 0)}',
+      ':host([data-pos="top"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0)}',
+      ':host([data-pos="top"]) .root.joined.sheeted .pill{border-radius:' + (BAR_H / 2) + 'px ' + (BAR_H / 2) + 'px 0 0;',
+      '  border-top-color:rgba(255,255,255,0.14);border-bottom-color:transparent;box-shadow:0 -6px 20px -8px rgba(0,0,0,0.25)}',
+      // ---- LEFT / RIGHT: A RAIL the screen's height; the tabs stacked, icon
+      // over name; More slides out sideways from it, as one piece
+      ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{top:' + GUTTER + 'px;bottom:' + GUTTER + 'px;width:' + RAIL_W + 'px;',
+      '  flex-direction:column;justify-content:center;transform:none}',
+      ':host([data-pos="left"]) .row{left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:auto}',
+      ':host([data-pos="right"]) .row{right:' + GUTTER + 'px;left:auto}',
+      ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{width:' + RAIL_W + 'px;height:100%;max-width:none;flex-direction:column;',
+      '  justify-content:center;gap:' + RAIL_GAP + 'px;border-radius:' + (RAIL_W / 2) + 'px;padding:' + RAIL_PAD + 'px 5px}',
+      ':host([data-pos="left"]) .tab,:host([data-pos="right"]) .tab{flex:0 0 ' + RAIL_TAB + 'px;width:100%;padding:0 4px}',
+      ':host([data-pos="left"]) .tab span,:host([data-pos="right"]) .tab span{white-space:normal;text-align:center;line-height:1.15;',
+      '  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}',
+      ':host([data-pos="left"]) .tab.here::before,:host([data-pos="right"]) .tab.here::before{left:0;right:0;top:-3px;bottom:-3px}',
+      ':host([data-pos="left"]) .roomsbtn,:host([data-pos="right"]) .roomsbtn{display:none}',
+      ':host([data-pos="left"]) .sheet,:host([data-pos="right"]) .sheet{top:' + GUTTER + 'px;bottom:' + GUTTER + 'px;max-height:none;',
+      '  width:var(--sheet-w,640px);max-width:none;margin:0;border-bottom:1px solid rgba(255,255,255,0.14);transform:none}',
+      ':host([data-pos="left"]) .root.joined .sheet{left:calc(var(--hk-content-left,0px) + ' + (GUTTER + RAIL_W - 1) + 'px);right:auto;',
+      '  border-radius:0 28px 28px 0;border-left:0;clip-path:inset(0 100% 0 0)}',
+      ':host([data-pos="right"]) .root.joined .sheet{right:' + (GUTTER + RAIL_W - 1) + 'px;left:auto;',
+      '  border-radius:28px 0 0 28px;border-right:0;clip-path:inset(0 0 0 100%)}',
+      ':host([data-pos="left"]) .root.joined .sheet.open,:host([data-pos="right"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0)}',
+      ':host([data-pos="left"]) .root.joined.sheeted .pill{border-radius:' + (RAIL_W / 2) + 'px 0 0 ' + (RAIL_W / 2) + 'px;',
+      '  border-top-color:rgba(255,255,255,0.14);border-right-color:transparent}',
+      ':host([data-pos="right"]) .root.joined.sheeted .pill{border-radius:0 ' + (RAIL_W / 2) + 'px ' + (RAIL_W / 2) + 'px 0;',
+      '  border-top-color:rgba(255,255,255,0.14);border-left-color:transparent}',
       '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet{transition:none}}'
     ].join('\n');
 
@@ -373,7 +429,7 @@
     }
     function listKey(width) {
       var h = C.hass(), b = M.board();
-      return [M.dash(), cfgId(M.config()), width, b.tab_bar_rooms, b.tab_bar_more, b.tab_bar_more_phone, b.ha_row, JSON.stringify(S.haPrefs || null),
+      return [M.dash(), cfgId(M.config()), width, window.innerHeight, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_more, b.tab_bar_more_phone, b.ha_row, JSON.stringify(S.haPrefs || null),
               h && h.user && h.user.is_admin, h && h.panels ? Object.keys(h.panels).join(',') : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
@@ -384,7 +440,9 @@
     function build() {
       var b = M.board(), m = model();
       var width = (window.innerWidth || 0) - leftOf();
+      var pos = position(b.tab_bar_pos, window.innerWidth || 1280), rail = pos === 'left' || pos === 'right';
       var rm = m.rooms.length ? roomsMode(b.tab_bar_rooms) : 'off';
+      if (rail && rm === 'button') rm = 'more';      // a rail has no room for a second button
       var roomsOn = rm === 'button';
       // THE HOME ASSISTANT SECTION, between the pages and the rooms (the
       // screen's Menu -> Home Assistant
@@ -396,7 +454,10 @@
         .filter(function (it) { return it.kind !== 'more'; }) : [];
       if (b.ha_row && S.haPrefs === undefined) loadPrefs();
       var tabs = [m.home].concat(m.categories).filter(Boolean);
-      var f = fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0);
+      var f = rail ? railFit(tabs.length, m.top.length, window.innerHeight || 800, rm === 'more' || S.ha.length > 0)
+                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0);
+      S.pos = pos;
+      if (rail && S.mode !== 'full') setMode('full');
       var p = parts(m, f);
       S.tabs = p.tabs; S.more = p.more; S.rooms = rm === 'off' ? [] : p.rooms; S.roomsMode = rm;
       var html = '';
@@ -417,6 +478,8 @@
       var phone = (window.innerWidth || 1280) < (M.NARROW || 640);
       var list = (phone ? b.tab_bar_more_phone : b.tab_bar_more) === 'list', sheetW = list ? 420 : 860;
       var joinW = Math.min(Math.max(0, width - 2 * GUTTER), Math.max(f.width, sheetW));
+      // a rail's More slides out beside it: 380 px as a list, 640 as icons
+      if (rail) joinW = Math.min(Math.max(0, width - 2 * GUTTER - RAIL_W - 16), list ? 380 : 640);
       S.pill.style.setProperty('--pill-w', (roomsOn ? f.width : joinW) + 'px');
       S.root.classList.toggle('hasrooms', roomsOn);
       S.tight = !f.plate;
@@ -589,7 +652,7 @@
       S.root.classList.toggle('gone', mode === 'gone');
     }
     function onScroll(e) {
-      if (!S.on || S.sheet) return;
+      if (!S.on || S.sheet || S.pos === 'left' || S.pos === 'right') return;      // a rail covers nothing: it stays
       var t = e.target;
       var el = (t === document || t === document.documentElement) ? document.scrollingElement : t;
       if (!el || el.nodeType !== 1 || el === S.host) return;
@@ -609,21 +672,36 @@
       var p = M.panel(), root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
       return (root && root.shadowRoot && root.shadowRoot.querySelector('#view')) || null;
     }
+    // THE PAGE MAKES ROOM on the bar's side: --hk-tabbar-h at the bottom
+    // (the now-playing bar stands on it too), the view's top at the top, its
+    // side beside a rail
+    var SIDES = { bottom: 'paddingBottom', top: 'paddingTop', left: 'paddingLeft', right: 'paddingRight' };
     function publish(on) {
       var de = document.documentElement;
       if (!de || !de.style) return;
-      var v = on ? 'calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ')' : '';
+      var pos = on ? (S.pos || 'bottom') : null;
+      var v = pos === 'bottom' ? 'calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ')' : '';
       if (de.style.getPropertyValue('--hk-tabbar-h') !== v) {
         if (v) de.style.setProperty('--hk-tabbar-h', v);
         else de.style.removeProperty('--hk-tabbar-h');
       }
-      // the view's own bottom padding, plus the bar's
+      // the view's own padding on that side, plus the bar's
       var view = on ? viewEl() : null;
-      if (S.view && S.view !== view) { S.view.style.paddingBottom = S.viewPad || ''; S.view = null; }
+      if (S.view && (S.view !== view || S.viewSide !== pos)) {
+        S.view.style.removeProperty(S.viewProp || 'padding-bottom');
+        if (S.viewPad) S.view.style.setProperty(S.viewProp, S.viewPad);
+        S.view = null;
+      }
       if (view && S.view !== view) {
-        S.viewPad = view.style.paddingBottom;
-        var base = getComputedStyle(view).paddingBottom || '0px';
-        view.style.paddingBottom = 'calc(' + base + ' + var(--hk-tabbar-h,0px))';
+        var prop = { bottom: 'padding-bottom', top: 'padding-top', left: 'padding-left', right: 'padding-right' }[pos];
+        S.viewProp = prop; S.viewSide = pos;
+        S.viewPad = view.style.getPropertyValue(prop);
+        var base = getComputedStyle(view)[SIDES[pos]] || '0px';
+        var add = pos === 'bottom' ? 'var(--hk-tabbar-h,0px)'
+          : pos === 'top' ? 'calc(' + (BAR_H + 8) + 'px + ' + TOP_CSS + ')'
+          : (GUTTER + RAIL_W + 8) + 'px';
+        // !important: a kiosk screen's own rule sets the view's top padding
+        view.style.setProperty(prop, 'calc(' + base + ' + ' + add + ')', pos === 'top' ? 'important' : '');
         S.view = view;
       }
     }
@@ -647,6 +725,7 @@
       if (a) { S.host.style.setProperty('--hk-accent', a.color); S.host.style.setProperty('--hk-on-accent', a.on); }
       var width = (window.innerWidth || 0) - leftOf();
       if (listKey(width) !== S.built) build();
+      if (S.host.getAttribute('data-pos') !== S.pos) S.host.setAttribute('data-pos', S.pos || 'bottom');
       var cls = ['root', 'on', mat];
       if (S.roomsMode === 'button' && S.rooms.length) cls.push('hasrooms');
       if (S.tight) cls.push('tight');

@@ -1778,6 +1778,7 @@
                 tile: ['', M.accentOf(b.accent).hex] })];
       if (M.hasTabBar(b)) {
         rows.push(K.nav({ label: 'Tab Bar While Scrolling', value: M.choiceLabel(M.TAB_BAR_SCROLLS, b.tab_bar_scroll), href: hm, sk: 'b:tab_bar_scroll' }));
+        rows.push(K.nav({ label: 'Tab Bar Position', value: M.choiceLabel(M.TAB_BAR_POS, b.tab_bar_pos || 'bottom'), href: hm, sk: 'b:tab_bar_pos' }));
         rows.push(K.nav({ label: 'More Style', value: M.choiceLabel(M.TAB_BAR_MORE, b.tab_bar_more || 'icons'), href: hm, sk: 'b:tab_bar_more' }));
         rows.push(K.nav({ label: 'More Style on Phones', value: M.choiceLabel(M.TAB_BAR_MORE, b.tab_bar_more_phone || 'list'), href: hm, sk: 'b:tab_bar_more_phone' }));
         rows.push(K.nav({ label: 'Rooms in Tab Bar', value: M.choiceLabel(M.TAB_BAR_ROOMS, M.roomsPlace(b.tab_bar_rooms)), href: hm, sk: 'b:tab_bar_rooms' }));
@@ -3719,6 +3720,9 @@
           'brings it back. Tinted: a near-solid bar, no blur.' }, [
         K.seg({ label: 'While Scrolling', sk: sk('tab_bar_scroll'), value: v.tab_bar_scroll || 'shrink', stack: !wide,
                 options: M.TAB_BAR_SCROLLS, onChange: function (x) { set({ tab_bar_scroll: x }); } }),
+        K.seg({ label: 'Position', sub: 'Left and right are a rail on a tablet or wider; a phone keeps the bar at the bottom.',
+                sk: sk('tab_bar_pos'), value: v.tab_bar_pos || 'bottom', stack: !wide, options: M.TAB_BAR_POS,
+                onChange: function (x) { set({ tab_bar_pos: x }); } }),
         K.seg({ label: 'More Style', sub: 'On a tablet, an iPad or a computer.', sk: sk('tab_bar_more'), value: v.tab_bar_more || 'icons',
                 stack: !wide, options: M.TAB_BAR_MORE, onChange: function (x) { set({ tab_bar_more: x }); } }),
         K.seg({ label: 'More Style on Phones', sub: 'Under 640 px.', sk: sk('tab_bar_more_phone'), value: v.tab_bar_more_phone || 'list',

@@ -900,3 +900,16 @@ def test_the_tab_bars_more_style():
     assert err == {} and S.resolved(S.board({}), opts)["tab_bar_more_phone"] == "icons"
     data, err = apply_board({}, {"tab_bar_more_phone": "icons"})
     assert err == {} and data["tab_bar_more_phone"] == "icons"
+
+
+def test_the_tab_bars_position():
+    """Bottom by default; top, left or right -- a menu setting, All Screens'
+    unless the screen sets its own."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    assert S.board({})["tab_bar_pos"] == "bottom" and S.board({"tab_bar_pos": "middle"})["tab_bar_pos"] == "bottom"
+    opts, err = apply_house({}, {"menu.bar_pos": "right"})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_pos"] == "right"
+    data, err = apply_board({}, {"menu_custom": True, "tab_bar_pos": "top"})
+    assert err == {} and S.resolved(data, opts)["tab_bar_pos"] == "top"
+    assert apply_board({}, {"tab_bar_pos": "middle"})[1] == {"tab_bar_pos": "choice"}

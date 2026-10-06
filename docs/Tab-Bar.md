@@ -49,6 +49,20 @@ Wherever the tab bar shows, the side menu is off: no chip, no edge tab, no
 swipe from the edge and no tap on the clock. It also hides in Home
 Assistant's edit mode.
 
+## Position
+
+**Tab Bar Position** (All Screens → Menu → Tab Bar, or a screen's own Menu
+Settings) puts the bar:
+
+- **Bottom** (the default) or **Top**: across the screen. At the top, More
+  drops down out of the bar and the page starts below it.
+- **Left** or **Right**: a rail down that side of the screen, the tabs
+  stacked, each icon over its name. More slides out sideways from it (about
+  640 px of icons, or 380 px as a list), and the page leaves room beside it.
+  A rail stays put while the page scrolls, and Rooms are always in More. On a
+  phone, where a rail would take too much of the width, the bar stays at the
+  bottom.
+
 ## While scrolling
 
 - **Shrink** (the default): scrolling down folds the bar into one small
