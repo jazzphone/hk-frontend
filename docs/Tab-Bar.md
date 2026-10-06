@@ -13,6 +13,12 @@ the one in iOS apps. It is a second way around a screen, next to the
   By default the rooms are a section of More, under its pages. A phone
   shows five, as Apple Music does: Home, three more tabs and More.
 
+With the screen's **Home Assistant Section** on, More has it too, after the pages and above Rooms:
+Integrations, Automations and Settings (for admins), Notifications, **Show
+Menu** (Home Assistant's own sidebar, over the page) and Profile.
+
+Opening More, the bar widens and the menu grows up out of it, as one piece; closing, it folds back into the bar. (With Rooms as their own button, More opens as a separate sheet.)
+
 More is as tall as it needs to be. It scrolls past that, always leaving a
 strip of the page above it to tap to close. On a room page the More tab is
 highlighted.
@@ -69,6 +75,9 @@ A page too short to scroll keeps the bar.
     The More and Rooms sheets are then the same height, and Rooms scrolls.
     There, each room's icon sits in a round plate.
   - **Off:** the rooms are left out of the tab bar.
+- **More Style:** **Icons** (the default), a grid that uses a tablet's
+  width, or **List**, rows like the side menu's, about a phone's width on
+  every screen.
 - **Glass:**
   - **Screen's Glass** follows the screen's
     [Glass Style](Appearance.md). Frosted stays frosted; any other style is

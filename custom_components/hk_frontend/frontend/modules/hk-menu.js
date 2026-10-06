@@ -1499,10 +1499,19 @@
       GUARD.mo = new MutationObserver(function () { if (p.drawer.open) unseenDrawer(); });
       GUARD.mo.observe(p.drawer, { attributes: true, attributeFilter: ['open'] });
     }
+    // ONLY WHERE THIS PAGE HIDES THE SIDEBAR: a dashboard whose screen hides
+    // it (hk-kiosk.js says so; the Kiosk Mode plugin's, by the sidebar's own
+    // look). Never on Home Assistant's own pages -- there its sidebar is the
+    // way round, and on a phone, where it is a drawer, the sidebar is still 0 px
+    // wide at the moment the drawer starts opening, which read as hidden and
+    // shut it again at once (2026-10-05).
     function unseenDrawer() {
-      if (HA.active) return;
+      if (HA.active || !onDashboard()) return;
+      var K = window.hkKiosk, ks = K && typeof K.state === 'function' ? K.state() : null;
+      if (ks && !ks.sidebar) return;
       var p = haParts();
       if (!p.drawer || !p.sidebar) return;
+      if (ks && ks.sidebar) { p.drawer.open = false; if (S.drag || Date.now() - (S.edgeAt || 0) < 2500) tellAppSwipe(); return; }
       var hidden;
       try { hidden = getComputedStyle(p.sidebar).display === 'none' || p.sidebar.getBoundingClientRect().width === 0; }
       catch (e) { return; }

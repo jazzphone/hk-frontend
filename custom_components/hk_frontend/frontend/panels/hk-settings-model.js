@@ -257,6 +257,7 @@
   // menu with "Tab Bar" where it folds -- does this screen ever show it?
   function hasTabBar(b) { return !!b && (b.menu === 'tabbar' || (b.menu !== 'off' && b.narrow === 'tabbar')); }
   var TAB_BAR_SCROLLS = [['shrink', 'Shrink'], ['hide', 'Hide'], ['stay', 'Stay']];
+  var TAB_BAR_MORE = [['icons', 'Icons'], ['list', 'List']];
   var TAB_BAR_ROOMS = [['more', 'In More'], ['button', 'Own Button'], ['off', 'Off']];
   // a boolean from the first form: true is In More
   function roomsPlace(v) { return v === false || v === 'off' ? 'off' : v === 'button' ? 'button' : 'more'; }
@@ -299,10 +300,12 @@
   var MENU_KEYS = { menu: 'style', narrow: 'narrow', tab_position: 'tab_at', tab_size: 'tab_size',
                     tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
                     ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe',
-                    tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass' };
+                    tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass',
+                    tab_bar_more: 'bar_more' };
   var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true,
-                        swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house' };
+                        swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house',
+                        tab_bar_more: 'icons' };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -994,6 +997,7 @@
     ['Time & Weather in Menu', 'house/menu', 'menu.time_weather_at', 'clock header always open'],
     ['While Scrolling', 'house/menu', 'menu.bar_scroll', 'tab bar shrink hide stay scroll auto hide'],
     ['Rooms in Tab Bar', 'house/menu', 'menu.bar_rooms', 'tab bar rooms more button sheet round'],
+    ['More Style', 'house/menu', 'menu.bar_more', 'tab bar more icons list grid sheet'],
     ['Tab Bar Glass', 'house/menu', 'menu.bar_glass', 'tab bar blur frosted tinted clear transparency look'],
     ['Home Assistant Section', 'house/menu', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
     ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
@@ -1073,7 +1077,7 @@
     // a screen's menu: All Screens' or its own (menu_custom)
     ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
                       'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe',
-                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass'], true],
+                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more'], true],
     ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
@@ -1215,7 +1219,7 @@
     MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel,
     ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
     MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
-    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
+    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
     WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES,

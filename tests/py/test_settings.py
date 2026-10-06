@@ -882,3 +882,15 @@ def test_the_tab_bars_first_form_is_read_once():
     assert S.board({"menu": "open", "narrow": "chip", "tab_bar": "narrow"})["narrow"] == "chip", "a choice made since stands"
     assert S.board({"menu": "off", "tab_bar": "narrow"})["menu"] == "off"
     assert "tab_bar" not in S.board({"tab_bar": "always"}), "written back without it"
+
+
+def test_the_tab_bars_more_style():
+    """More: a grid of icons (the default) or a list like the side menu's --
+    a menu setting, All Screens' unless the screen sets its own."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    assert S.board({})["tab_bar_more"] == "icons" and S.board({"tab_bar_more": "tiles"})["tab_bar_more"] == "icons"
+    opts, err = apply_house({}, {"menu.bar_more": "list"})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_more"] == "list"
+    assert S.resolved(S.board({"menu_custom": True, "tab_bar_more": "icons"}), opts)["tab_bar_more"] == "icons"
+    assert apply_board({}, {"tab_bar_more": "tiles"})[1] == {"tab_bar_more": "choice"}

@@ -1776,6 +1776,7 @@
                 tile: ['', M.accentOf(b.accent).hex] })];
       if (M.hasTabBar(b)) {
         rows.push(K.nav({ label: 'Tab Bar While Scrolling', value: M.choiceLabel(M.TAB_BAR_SCROLLS, b.tab_bar_scroll), href: hm, sk: 'b:tab_bar_scroll' }));
+        rows.push(K.nav({ label: 'More Style', value: M.choiceLabel(M.TAB_BAR_MORE, b.tab_bar_more || 'icons'), href: hm, sk: 'b:tab_bar_more' }));
         rows.push(K.nav({ label: 'Rooms in Tab Bar', value: M.choiceLabel(M.TAB_BAR_ROOMS, M.roomsPlace(b.tab_bar_rooms)), href: hm, sk: 'b:tab_bar_rooms' }));
         rows.push(K.nav({ label: 'Tab Bar Glass', value: M.choiceLabel(M.TAB_BAR_GLASS, b.tab_bar_glass), href: hm, sk: 'b:tab_bar_glass' }));
       }
@@ -3711,10 +3712,12 @@
     tabBarRows(c, v, set, sk, house) {
       var wide = this.hasAttribute('wide');
       c.appendChild(K.group({ header: 'Tab Bar', footer: (house ? 'For a screen whose Menu, On Narrow Screens or When Folded is Tab Bar. ' : '') +
-          'Rooms In More: under the pages in More. Shrink folds the bar into one small button as you scroll; scrolling up ' +
+          'More Style: a grid of icons, wide on a tablet, or a list like the side menu. Rooms In More: under the pages in More. Shrink folds the bar into one small button as you scroll; scrolling up ' +
           'brings it back. Tinted: a near-solid bar, no blur.' }, [
         K.seg({ label: 'While Scrolling', sk: sk('tab_bar_scroll'), value: v.tab_bar_scroll || 'shrink', stack: !wide,
                 options: M.TAB_BAR_SCROLLS, onChange: function (x) { set({ tab_bar_scroll: x }); } }),
+        K.seg({ label: 'More Style', sk: sk('tab_bar_more'), value: v.tab_bar_more || 'icons', stack: !wide,
+                options: M.TAB_BAR_MORE, onChange: function (x) { set({ tab_bar_more: x }); } }),
         K.seg({ label: 'Rooms', sk: sk('tab_bar_rooms'), value: M.roomsPlace(v.tab_bar_rooms), stack: !wide,
                 options: M.TAB_BAR_ROOMS, onChange: function (x) { set({ tab_bar_rooms: x }); } }),
         K.select({ label: 'Glass', sk: sk('tab_bar_glass'), value: v.tab_bar_glass || 'house', options: M.TAB_BAR_GLASS,

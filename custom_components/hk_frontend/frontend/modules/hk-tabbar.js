@@ -224,7 +224,7 @@
       '.scrim{position:fixed;inset:0;display:none;pointer-events:auto}',
       '.root.sheeted .scrim{display:block}',
       '.sheet{position:fixed;left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:' + GUTTER + 'px;margin:0 auto;',
-      '  bottom:calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ');max-width:560px;box-sizing:border-box;',
+      '  bottom:calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ');max-width:var(--sheet-w,860px);box-sizing:border-box;',
       // ...as tall as it needs, but always leaving TOP_GAP of the page above
       // it to tap out on
       '  max-height:calc(var(--hk-vh,100dvh) - ' + (BAR_H + 10 + TOP_GAP) + 'px - ' + LIFT_CSS + ' - env(safe-area-inset-top,0px));',
@@ -238,37 +238,65 @@
       '.body.scrolls{-webkit-mask-image:linear-gradient(#000 calc(100% - 28px),transparent);',
       '  mask-image:linear-gradient(#000 calc(100% - 28px),transparent);padding-bottom:28px}',
       '.sheet.open{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition:opacity .22s ease,transform .3s ' + EASE + '}',
+      // THE BAR GROWS INTO MORE (2026-10-06): with no Rooms button the bar and
+      // More are one piece -- the bar widens to More's width and squares its
+      // top, More stands on it and is uncovered upward from it (a clip, so
+      // nothing is laid out again per frame), its content fading in after
+      '.root.joined .sheet{bottom:calc(' + (BAR_H - 1) + 'px + ' + LIFT_CSS + ');border-radius:28px 28px 0 0;border-bottom:0;',
+      '  opacity:1;transform:none;clip-path:inset(100% 0 0 0);',
+      '  transition:clip-path .4s ' + EASE + ',visibility 0s linear .4s}',
+      '.root.joined .sheet.open{clip-path:inset(0 0 0 0);transition:clip-path .42s ' + EASE + '}',
+      '.root.joined .sheet h2,.root.joined .sheet .body{opacity:0;transition:opacity .12s ease}',
+      '.root.joined .sheet.open h2,.root.joined .sheet.open .body{opacity:1;transition:opacity .22s ease .16s}',
+      '.root.joined.sheeted .pill{border-radius:0 0 ' + (BAR_H / 2) + 'px ' + (BAR_H / 2) + 'px;border-top-color:transparent;',
+      '  box-shadow:0 12px 24px -8px rgba(0,0,0,0.30)}',
+      '.root.joined .pill{transition:width .4s ' + EASE + ',border-radius .3s ' + EASE + '}',
       // a sheet over the tiles wants more body than the bar
       '.blur .sheet.g{background:linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.03)),rgba(26,28,38,0.66);',
       '  -webkit-backdrop-filter:blur(30px) saturate(1.7);backdrop-filter:blur(30px) saturate(1.7)}',
       '.sheet h2{flex:none;margin:0 6px 12px;font-size:17px;font-weight:700;letter-spacing:-0.41px;color:#fff}',
-      '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:16px 4px;align-content:start}',
+      // THE BIG GRID (2026-10-06): cells at least 84 px -- three across on a
+      // phone, six on a computer -- big icons, and names on up to two lines
+      // instead of cut off
+      '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;align-content:start}',
       // the Rooms section in More, headed as the menu heads its sections
       '.sheet h3{margin:22px 6px 12px;font-size:15px;font-weight:600;letter-spacing:-0.24px;color:rgba(235,235,245,0.6)}',
       '.sheet h3[hidden],.grid[hidden]{display:none}',
       // MORE: the icon and its name, no plate (the Home Screen's look)
-      '.it{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:7px;min-width:0;',
-      '  box-sizing:border-box;padding:4px 2px;border:0;margin:0;border-radius:14px;background:none;',
-      '  color:rgba(255,255,255,0.95);font:inherit;font-size:12.5px;font-weight:600;letter-spacing:-0.08px;',
-      '  text-align:center;cursor:pointer;transition:background-color .15s ease}',
-      '.it ha-icon{--mdc-icon-size:34px;width:34px;height:34px;flex:none;display:flex;color:var(--hk-accent,#ff9f0a)}',
-      '.it span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.it{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-width:0;min-height:104px;',
+      '  box-sizing:border-box;padding:12px 4px 10px;border:0;margin:0;border-radius:22px;background:none;',
+      '  color:rgba(255,255,255,0.95);font:inherit;font-size:12px;font-weight:600;letter-spacing:-0.08px;',
+      '  text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
+      '.it ha-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:var(--hk-accent,#ff9f0a)}',
+      '.it span{max-width:100%;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;',
+      '  overflow-wrap:anywhere}',
+      // THE PAGE YOU ARE ON keeps a plate round its icon and name, as the
+      // tab bar's capsule does; nothing lights up under the pointer
+      '.it.here{background:rgba(255,255,255,0.16)}',
       '.it.here span{color:var(--hk-accent,#ff9f0a)}',
       // ROOMS ON THEIR OWN SHEET (the Rooms button): each icon in a soft round
       // plate (Control Center's look). In More they look like its pages.
       '[data-sheet="rooms"] .roomgrid .it ha-icon{--mdc-icon-size:28px;width:58px;height:58px;border-radius:50%;',
       '  align-items:center;justify-content:center;background:rgba(255,255,255,0.12);transition:background-color .15s ease}',
       '[data-sheet="rooms"] .roomgrid .it.here ha-icon{background:var(--hk-accent,#ff9f0a);color:var(--hk-on-accent,#fff)}',
-      '@media (hover:hover){.it:not(.here):hover{background:rgba(255,255,255,0.08)}',
-      '  [data-sheet="rooms"] .roomgrid .it:not(.here):hover{background:none}',
-      '  [data-sheet="rooms"] .roomgrid .it:not(.here):hover ha-icon{background:rgba(255,255,255,0.2)}}',
+      // THE LIST (More Style: List): rows like the side menu's -- the icon
+      // beside the whole name, the page you are on in the highlight colour --
+      // and about a phone's width on every screen
+      '.sheet.list .grid{grid-template-columns:1fr;gap:2px}',
+      '.sheet.list .it{flex-direction:row;justify-content:flex-start;gap:14px;min-height:44px;padding:0 14px;border-radius:12px;',
+      '  font-size:17px;font-weight:400;letter-spacing:-0.41px;text-align:left}',
+      '.sheet.list .it ha-icon{--mdc-icon-size:22px;width:22px;height:22px}',
+      '.sheet.list .it span{display:block;flex:1;min-width:0;white-space:nowrap;text-overflow:ellipsis}',
+      '.sheet.list .it.here{background:var(--hk-accent,#ff9f0a);color:var(--hk-on-accent,#fff)}',
+      '.sheet.list .it.here span,.sheet.list .it.here ha-icon{color:var(--hk-on-accent,#fff)}',
+      '.sheet.list .roomgrid .it ha-icon{width:22px;height:22px;background:none;--mdc-icon-size:22px}',
       '.it:active{filter:brightness(1.25)}',
       '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet{transition:none}}'
     ].join('\n');
 
     var MORE_ICON = 'mdi:dots-horizontal', ROOMS_ICON = 'mdi:view-grid';
 
-    var S = { host: null, root: null, on: false, mode: 'full', down: 0, up: 0, sheet: null, built: '',
+    var S = { host: null, root: null, on: false, mode: 'full', down: 0, up: 0, sheet: null, built: '', ha: [], haPrefs: undefined,
               tabs: [], more: [], rooms: [], last: new WeakMap(), view: null, viewPad: null };
 
     function haRoot() {
@@ -293,7 +321,8 @@
         '<div class="root">' +
           '<div class="scrim"></div>' +
           '<section class="sheet g" data-sheet="more" aria-label="More"><h2>More</h2><div class="body">' +
-            '<div class="grid pages"></div><h3 hidden>Rooms</h3><div class="grid roomgrid" hidden></div></div></section>' +
+            '<div class="grid pages"></div><h3 class="hh" hidden>Home Assistant</h3><div class="grid hagrid" hidden></div>' +
+            '<h3 class="rh" hidden>Rooms</h3><div class="grid roomgrid" hidden></div></div></section>' +
           '<section class="sheet g" data-sheet="rooms" aria-label="Rooms"><h2>Rooms</h2><div class="body">' +
             '<div class="grid roomgrid"></div></div></section>' +
           '<div class="row">' +
@@ -344,7 +373,8 @@
     }
     function listKey(width) {
       var h = C.hass(), b = M.board();
-      return [M.dash(), cfgId(M.config()), width, b.tab_bar_rooms, b.menu_rooms, JSON.stringify(b.room_order),
+      return [M.dash(), cfgId(M.config()), width, b.tab_bar_rooms, b.tab_bar_more, b.ha_row, JSON.stringify(S.haPrefs || null),
+              h && h.user && h.user.is_admin, h && h.panels ? Object.keys(h.panels).join(',') : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
               JSON.stringify(h && h.areas ? Object.keys(h.areas).map(function (k) {
@@ -356,8 +386,17 @@
       var width = (window.innerWidth || 0) - leftOf();
       var rm = m.rooms.length ? roomsMode(b.tab_bar_rooms) : 'off';
       var roomsOn = rm === 'button';
+      // THE HOME ASSISTANT SECTION, between the pages and the rooms (the
+      // screen's Menu -> Home Assistant
+      // Section), the side menu's own list (hkMenu._.haItems) as it shows
+      // folded: Integrations, Automations, Settings, Notifications, Show
+      // Menu (Home Assistant's whole sidebar, for the rest) and Profile
+      var h = C.hass();
+      S.ha = b.ha_row ? H.haItems(h, S.haPrefs, { moreOpen: false, sidebarShown: false })
+        .filter(function (it) { return it.kind !== 'more'; }) : [];
+      if (b.ha_row && S.haPrefs === undefined) loadPrefs();
       var tabs = [m.home].concat(m.categories).filter(Boolean);
-      var f = fit(tabs.length, m.top.length, width, roomsOn, rm === 'more');
+      var f = fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0);
       var p = parts(m, f);
       S.tabs = p.tabs; S.more = p.more; S.rooms = rm === 'off' ? [] : p.rooms; S.roomsMode = rm;
       var html = '';
@@ -371,16 +410,31 @@
       }
       S.pill.querySelectorAll('.tab').forEach(function (x) { x.remove(); });
       S.pill.insertAdjacentHTML('beforeend', html);
-      S.pill.style.setProperty('--pill-w', f.width + 'px');
+      // ONE WIDTH FOR THE BAR AND MORE (joined, no Rooms button): the wider
+      // of the two -- More's (860 px of icons, 420 of list) or what the tabs
+      // need -- within the screen, so opening More never widens anything
+      var list = b.tab_bar_more === 'list', sheetW = list ? 420 : 860;
+      var joinW = Math.min(Math.max(0, width - 2 * GUTTER), Math.max(f.width, sheetW));
+      S.pill.style.setProperty('--pill-w', (roomsOn ? f.width : joinW) + 'px');
       S.root.classList.toggle('hasrooms', roomsOn);
       S.tight = !f.plate;
       fill(S.sheets.more.querySelector('.pages'), S.more, 'p');
       var mr = S.sheets.more.querySelector('.roomgrid');
       fill(mr, rm === 'more' ? S.rooms : [], 'r');
-      mr.hidden = S.sheets.more.querySelector('h3').hidden = rm !== 'more' || !S.more.length;
-      if (rm === 'more' && !S.more.length) mr.hidden = false;      // only rooms: no heading
+      mr.hidden = S.sheets.more.querySelector('.rh').hidden = rm !== 'more';
+      // only rooms in More: no heading
+      if (rm === 'more' && !S.more.length && !S.ha.length) S.sheets.more.querySelector('.rh').hidden = true;
       S.sheets.more.querySelector('.pages').hidden = !S.more.length;
       fill(S.sheets.rooms.querySelector('.roomgrid'), rm === 'button' ? S.rooms : [], 'r');
+      var hg = S.sheets.more.querySelector('.hagrid');
+      fill(hg, S.ha, 'h');
+      hg.hidden = S.sheets.more.querySelector('.hh').hidden = !S.ha.length;
+      // More Style: the list, about a phone's width; the icons, wide -- and
+      // joined, exactly the bar's width
+      Object.keys(S.sheets).forEach(function (k) {
+        S.sheets[k].classList.toggle('list', list);
+        S.sheets[k].style.setProperty('--sheet-w', (roomsOn ? sheetW : joinW) + 'px');
+      });
       S.built = listKey(width);
     }
     function fill(grid, items, k) {
@@ -416,7 +470,7 @@
       S.roomsBtn.classList.toggle('here', inRoom && S.roomsMode === 'button');
       Object.keys(S.sheets).forEach(function (k) {
         S.sheets[k].querySelectorAll('.it').forEach(function (el) {
-          var it = (el.getAttribute('data-k') === 'r' ? S.rooms : S.more)[+el.getAttribute('data-i')];
+          var it = listOf(el.getAttribute('data-k'))[+el.getAttribute('data-i')];
           el.classList.toggle('here', !!it && H.isHere(it, path));
         });
       });
@@ -445,7 +499,38 @@
     function onSheet(e) {
       var el = e.target.closest && e.target.closest('.it');
       if (!el) return;
-      go((el.getAttribute('data-k') === 'r' ? S.rooms : S.more)[+el.getAttribute('data-i')]);
+      var k = el.getAttribute('data-k'), it = listOf(k)[+el.getAttribute('data-i')];
+      if (k === 'h') haGo(it); else go(it);
+    }
+    function listOf(k) { return k === 'r' ? S.rooms : k === 'h' ? S.ha : S.more; }
+    // A HOME ASSISTANT ROW does what the side menu's does (hk-menu.js onList):
+    // Show Menu opens Home Assistant's own sidebar over the page,
+    // Notifications its drawer, the rest open Home Assistant's page
+    function haGo(it) {
+      if (!it) return;
+      closeSheet(true);
+      var ha = document.querySelector('home-assistant');
+      if (it.kind === 'ha') { if (window.hkMenu && window.hkMenu.openHaSidebar) window.hkMenu.openHaSidebar(); return; }
+      if (it.kind === 'notif') {
+        var hm = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+        if (hm) hm.dispatchEvent(new CustomEvent('hass-show-notifications', { bubbles: true, composed: true }));
+        return;
+      }
+      if (!it.path) return;
+      try { sessionStorage.setItem('hk-ha-row-used', '1'); } catch (e) { /* private mode */ }
+      history.pushState(null, '', it.path);
+      window.dispatchEvent(new CustomEvent('location-changed'));
+    }
+    // this user's Home Assistant sidebar order and hidden pages (More's Home
+    // Assistant section follows them, as the side menu's does): read once
+    function loadPrefs() {
+      S.haPrefs = null;
+      var h = C.hass(), conn = h && h.connection;
+      if (!conn || typeof conn.sendMessagePromise !== 'function') return;
+      conn.sendMessagePromise({ type: 'frontend/get_user_data', key: 'sidebar' }).then(function (r) {
+        S.haPrefs = (r && r.value) || null;
+        S.built = ''; sync();
+      }, function () { /* no prefs: Home Assistant's own order */ });
     }
     function toggleSheet(k) { if (S.sheet === k) closeSheet(); else openSheet(k); }
     function openSheet(k) {
@@ -566,6 +651,7 @@
       if (S.mode === 'small') cls.push('small');
       if (S.mode === 'gone') cls.push('gone');
       if (S.sheet) cls.push('sheeted');
+      if (S.roomsMode !== 'button') cls.push('joined');
       S.root.className = cls.join(' ');
       S.on = true;
       markHere();
