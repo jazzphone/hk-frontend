@@ -928,7 +928,7 @@
     function listKey() {
       var cfg = M.config(), h = C.hass();
       var b = M.board();
-      return [M.dash(), b.menu_rooms, JSON.stringify(b.room_order), b.ha_row,
+      return [M.dash(), b.ha_place, b.menu_rooms, JSON.stringify(b.room_order), b.ha_row,
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row,
               haSidebarShown(),
@@ -975,16 +975,24 @@
           (!shut) + '">' + esc(title) + CHEV_D + '</button>' + (shut ? '' : items.map(row).join(''));
       }
       if (m.home) html += row(m.home);
-      html += m.top.map(row).join('');
       S.haOn = m.ha;
       haCounts(m.ha);
+      // THE HOME ASSISTANT SECTION where the screen puts it (ha_place): right
+      // under Home, above Categories, above Rooms (the default) or last
+      var ha = '';
       if (m.ha) {
         haUpdates(h, true);
-        html += section('ha', 'Home Assistant', haItems(h, S.haPrefs, { moreOpen: !!S.shut.ha_more,
-                                                                        sidebarShown: haSidebarShown() }));
+        ha = section('ha', 'Home Assistant', haItems(h, S.haPrefs, { moreOpen: !!S.shut.ha_more,
+                                                                     sidebarShown: haSidebarShown() }));
       }
+      var place = b.ha_place || 'rooms';
+      if (place === 'top') html += ha;
+      html += m.top.map(row).join('');
+      if (place === 'categories') html += ha;
       html += section('categories', 'Categories', m.categories);
+      if (place === 'rooms') html += ha;
       html += section('rooms', 'Rooms', m.rooms);
+      if (place === 'bottom') html += ha;
       var keep = S.list.scrollTop;
       S.list.innerHTML = html;
       S.list.scrollTop = keep;

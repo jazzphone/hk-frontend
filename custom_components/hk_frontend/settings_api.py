@@ -311,6 +311,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.open_min": lambda v: _dock_min(v),
     "menu.time_weather_at": _choice(S.BOARD_TIME),
     "menu.ha_row": _bool,
+    "menu.ha_at": _choice(S.HA_PLACES),
     "menu.swipe": _bool,
     "menu.accent": lambda v: _accent(v),
     # ...and its tab bar's
@@ -324,6 +325,9 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.bar_start": _choice(S.TAB_BAR_START),
     "menu.bar_adjust": _bool,
     "menu.bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS, none=True),
+    "menu.bar_tabs": lambda v: _tabs(v),
+    "menu.bar_size": _choice(S.TAB_BAR_SIZES),
+    "menu.bar_tabs_rail": lambda v: _tabs(v),
     "rooms.headings": _bool,
     "rooms.status": _ordered(S.STATUS_KINDS),
     **{f"status_rows.{p}": _status_row(p) for p in S.STATUS_ROWS},
@@ -408,6 +412,19 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any]
 
 
 # ------------------------------------------------------------ one screen
+def _tabs(v: Any) -> int:
+    """Tabs in Bar / Rail: pages, a whole number from 2 to 8."""
+    if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        raise Invalid("choice")
+    try:
+        n = int(v)
+    except ValueError as err:
+        raise Invalid("choice") from err
+    if n != float(v) or not S.TAB_BAR_TABS[0] <= n <= S.TAB_BAR_TABS[1]:
+        raise Invalid("choice")
+    return n
+
+
 def _rooms_place(v: Any) -> str:
     """The tab bar's Rooms: In More, a button of their own, or off (a
     boolean, from the first form, is read as the settings read it)."""
@@ -522,6 +539,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "dock_min": _dock_min,
     "time_weather": _choice(S.BOARD_TIME),
     "ha_row": _bool,
+    "ha_place": _choice(S.HA_PLACES),
     "categories": _views,
     "tab_position": _tab_position,
     "tab_size": _choice(S.BOARD_TAB_SIZES),
@@ -545,6 +563,9 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "tab_bar_start": _choice(S.TAB_BAR_START),
     "tab_bar_adjust": _bool,
     "tab_bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS, none=True),
+    "tab_bar_tabs": _tabs,
+    "tab_bar_size": _choice(S.TAB_BAR_SIZES),
+    "tab_bar_tabs_rail": _tabs,
     "page_rooms": _choice(S.BOARD_PAGE_ROOMS),
     "chips_row": _bool,
     "chips": _chips,

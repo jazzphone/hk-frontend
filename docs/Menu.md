@@ -95,6 +95,10 @@ sees only what they may open -- a wall tablet’s user gets Notifications,
 More, Show Menu and Profile. On Home Assistant’s own pages its sidebar (or
 its ☰) is the way back. Leave it off on a wall tablet everyone uses.
 
+**Placement** puts the section right under Home (**Top**), **Above
+Categories**, **Above Rooms** (the default) or last (**Bottom**). It applies
+in the menu and in the tab bar's More alike.
+
 ![The menu's Home Assistant section, with More folded out](images/desktop-menu-ha.png)
 
 The menu closes itself when you choose a row, tap outside it, press Escape,
@@ -197,7 +201,7 @@ are in [Rooms](Rooms.md).
 | Tab Size on Phones | Standard | *The edge tab.* The same three sizes for a phone (narrower than 640 px). On a phone even the standard tab lies over the first column of tiles, so a bigger one covers more of it. |
 | Home Assistant Section | Off | Adds a **Home Assistant** section to the menu, above Categories: Integrations, Automations, Settings (with its updates-and-repairs count), Notifications (with its count), **More** (the rest of that person’s Home Assistant sidebar, in their order), **Show Menu** (Home Assistant’s own sidebar, even where it is hidden) and Profile. Each person sees only what they may open. Leave it off on a shared wall tablet. |
 
-![All Screens → Menu: the highlight, the button, the always-open menu and the edge tab](images/settings-menu.png)
+![All Screens → Menu: the highlight, the button and the Tab Bar group, its Size among them](images/settings-menu.png)
 
 ### A screen’s menu settings
 

@@ -336,7 +336,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # fills in for an older hk-base.js.
              "style": "auto", "narrow": "chip", "tab_at": "", "tab_size": "large",
              "tab_size_phone": "standard", "open_min": 1000, "time_weather_at": "page",
-             "ha_row": False, "accent": "orange", "swipe": False,
+             "ha_row": False, "accent": "orange", "swipe": False, "ha_at": "rooms",
              # the tab bar (2026-10-05): while scrolling, its Rooms button,
              # its glass
              "bar_scroll": "shrink", "bar_rooms": "more", "bar_glass": "house", "bar_more": "icons",
@@ -346,7 +346,9 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              "bar_adjust": True,
              # a phone's own While Scrolling (under 640 px); None: the same as
              # the tablets'
-             "bar_scroll_phone": None},
+             "bar_scroll_phone": None,
+             # Tabs in Bar / Tabs in Rail (TAB_BAR_TABS)
+             "bar_tabs": 6, "bar_tabs_rail": 6, "bar_size": "medium"},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -708,6 +710,10 @@ BOARD_TAB_SIZES = ("standard", "large", "xl")
 # away; stay: never moves. Both come back on any scroll up, at the page's
 # ends and on a page change.
 TAB_BAR_SCROLLS = ("shrink", "hide", "stay")
+# WHERE THE HOME ASSISTANT SECTION SITS, in the side menu and in the tab bar's
+# More alike: right under Home (More: first), above Categories (More: between
+# the top pages and the rest), above Rooms, or after them
+HA_PLACES = ("top", "categories", "rooms", "bottom")
 # house: the screen's glass (its own or All Screens'); clear: a near-solid
 # tint -- a see-through bar cannot be read over the tiles (measured
 # 2026-10-05)
@@ -729,6 +735,24 @@ TAB_BAR_FOLD = ("start", "end")
 # with Shrink: the bar rests full (and folds as the page scrolls), or rests
 # small -- a tap opens it, scrolling or a page change folds it again
 TAB_BAR_START = ("full", "small")
+# the bar's size: its thickness (a rail's width), icons and labels together
+TAB_BAR_SIZES = ("small", "medium", "large")
+# how many PAGES a bar (bottom / top) and a rail (left / right) show at
+# most, Home and More not counted (6: eight tabs in all) -- a phone never
+# more than 3, what fits its width
+TAB_BAR_TABS = (2, 8)
+
+
+def tab_count(v: Any, default: int = 6) -> int:
+    """A Tabs setting as stored: a whole number in TAB_BAR_TABS, else the
+    default."""
+    if isinstance(v, bool):
+        return default
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        return default
+    return n if TAB_BAR_TABS[0] <= n <= TAB_BAR_TABS[1] else default
 
 
 def tab_bar_rooms(v: Any) -> str:
@@ -740,7 +764,7 @@ def tab_bar_rooms(v: Any) -> str:
 VIEW_PATH = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
 BOARD_DEFAULTS: dict[str, Any] = {
     # the menu
-    "menu": "auto", "dock_min": 1000, "time_weather": "page", "ha_row": False,
+    "menu": "auto", "dock_min": 1000, "time_weather": "page", "ha_row": False, "ha_place": "rooms",
     "categories": [], "tab_position": "", "tab_size": "large", "tab_size_phone": "standard", "room_order": [],
     "menu_rooms": "az", "home_rooms": "as_is", "page_rooms": "floor",
     # rooms_custom: the four room settings above are this screen's own; off,
@@ -760,6 +784,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "tab_bar_adjust": True,
     # a phone's own While Scrolling; None: the same as tab_bar_scroll
     "tab_bar_scroll_phone": None,
+    "tab_bar_tabs": 6, "tab_bar_tabs_rail": 6, "tab_bar_size": "medium",
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
     "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
@@ -881,6 +906,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     except (TypeError, ValueError):
         pass
     out["ha_row"] = bool(d.get("ha_row", False))
+    out["ha_place"] = pick("ha_place", HA_PLACES)
     out["rooms_custom"] = bool(d.get("rooms_custom", False))
     out["menu_custom"] = bool(d.get("menu_custom", False))
     out["accent"] = accent(d.get("accent")) or out["accent"]
@@ -904,6 +930,9 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_fold"] = pick("tab_bar_fold", TAB_BAR_FOLD)
     out["tab_bar_start"] = pick("tab_bar_start", TAB_BAR_START)
     out["tab_bar_adjust"] = d.get("tab_bar_adjust") is not False
+    out["tab_bar_tabs"] = tab_count(d.get("tab_bar_tabs"))
+    out["tab_bar_size"] = pick("tab_bar_size", TAB_BAR_SIZES)
+    out["tab_bar_tabs_rail"] = tab_count(d.get("tab_bar_tabs_rail"))
     out["tab_bar_scroll_phone"] = d.get("tab_bar_scroll_phone") if d.get("tab_bar_scroll_phone") in TAB_BAR_SCROLLS else None
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
@@ -1217,11 +1246,12 @@ ROOM_KEYS = {"room_order": "order", "home_rooms": "home", "menu_rooms": "menu", 
 # style follows (MENU_STYLES).
 MENU_KEYS = {"menu": "style", "narrow": "narrow", "tab_position": "tab_at", "tab_size": "tab_size",
              "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
-             "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe",
+             "ha_row": "ha_row", "ha_place": "ha_at", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe",
              "tab_bar_scroll": "bar_scroll", "tab_bar_rooms": "bar_rooms", "tab_bar_glass": "bar_glass",
              "tab_bar_more": "bar_more", "tab_bar_more_phone": "bar_more_phone", "tab_bar_pos": "bar_pos",
              "tab_bar_fold": "bar_fold", "tab_bar_start": "bar_start", "tab_bar_adjust": "bar_adjust",
-             "tab_bar_scroll_phone": "bar_scroll_phone"}
+             "tab_bar_scroll_phone": "bar_scroll_phone", "tab_bar_tabs": "bar_tabs",
+             "tab_bar_tabs_rail": "bar_tabs_rail", "tab_bar_size": "bar_size"}
 # a menu BUTTON's styles: not off, always open or the tab bar
 MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open", "tabbar"))
 
@@ -1252,6 +1282,7 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "dock_min": dock,
             "time_weather": pick("time_weather_at", BOARD_TIME, d["time_weather"]),
             "ha_row": bool(m.get("ha_row", False)),
+            "ha_place": pick("ha_at", HA_PLACES, d["ha_place"]),
             "accent": accent(m.get("accent")) or d["accent"],
             "glyph": pick("glyph", MENU_GLYPHS, d["glyph"]),
             "clock": m.get("clock") is not False,
@@ -1265,7 +1296,9 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "tab_bar_fold": pick("bar_fold", TAB_BAR_FOLD, d["tab_bar_fold"]),
             "tab_bar_start": pick("bar_start", TAB_BAR_START, d["tab_bar_start"]),
             "tab_bar_adjust": m.get("bar_adjust") is not False,
-            "tab_bar_scroll_phone": m.get("bar_scroll_phone") if m.get("bar_scroll_phone") in TAB_BAR_SCROLLS else None}
+            "tab_bar_scroll_phone": m.get("bar_scroll_phone") if m.get("bar_scroll_phone") in TAB_BAR_SCROLLS else None,
+            "tab_bar_tabs": tab_count(m.get("bar_tabs")), "tab_bar_tabs_rail": tab_count(m.get("bar_tabs_rail")),
+            "tab_bar_size": pick("bar_size", TAB_BAR_SIZES, d["tab_bar_size"])}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")
 
 

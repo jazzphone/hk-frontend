@@ -84,7 +84,7 @@ scrolled, the bar folds into one small button.
 
 | | |
 |---|---|
-| ![The tab bar's More sheet on a phone: the pages as icons, then the rooms](images/phone-tabbar-more.png) | ![The tab bar folded to a small button while the page is scrolled](images/phone-tabbar-folded.png) |
+| ![The tab bar's More sheet on a phone, as a list: the other pages, then Home Assistant and the rooms](images/phone-tabbar-more.png) | ![The tab bar folded to a small button while the page is scrolled](images/phone-tabbar-folded.png) |
 | More | Folded while scrolling |
 
 ## Detail sheets and pop-ups

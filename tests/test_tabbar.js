@@ -35,7 +35,7 @@ print('=== the fit ===');
 var f = fit(9, 3, 402, true);
 ok('a 402 px iPhone with a Rooms button: Home, two categories and More',
    f.shown === 3 && f.more === true, JSON.stringify(f));
-ok('...the pill fills what is left beside the Rooms button', f.width === 402 - 2 * T.SIZES.GUTTER - 72, String(f.width));
+ok('...the pill fills what is left beside the Rooms button', f.width === 402 - 2 * T.SIZES.GUTTER - (T.barH(402) + T.SIZES.GAP), String(f.width));
 ok('without the Rooms button there is room for one more tab', fit(9, 3, 402, false).shown === 4);
 ok('a 320 px phone still gets Home, one more and More', fit(9, 3, 320, true).shown === 2);
 ok('an iPad upright (820): seven tabs and More -- never more than eight in all',
@@ -54,8 +54,8 @@ ok('...and the rooms alone bring More, even when every page fits', fit(3, 0, 128
 var rm = T.roomsMode;
 ok('the Rooms setting: In More by default; a boolean from the first form read as In More / Off',
    rm(undefined) === 'more' && rm(true) === 'more' && rm(false) === 'off' && rm('off') === 'off' && rm('button') === 'button');
-ok('tabs too narrow for the highlight\'s capsule (a 320 px phone with a Rooms button) are tinted instead',
-   fit(9, 3, 320, true).plate === false && fit(9, 3, 1280, true).plate === true);
+ok('tabs too narrow for the highlight\'s capsule (a 300 px phone with a Rooms button) are tinted instead',
+   fit(9, 3, 300, true).plate === false && fit(9, 3, 1280, true).plate === true);
 ok('a screen with only Home: one tab', fit(1, 0, 402, true).shown === 1 && !fit(1, 0, 402, true).more);
 
 var MODEL = {
@@ -80,6 +80,42 @@ ok('a phone keeps a rail\'s bar at the bottom; a tablet has the rail', T.positio
 var rf = T.railFit(9, 3, 800, true);
 ok('an 800 px tablet\'s rail holds Home, six more and More -- eight, as the bottom bar', rf.shown === 7 && rf.more, JSON.stringify(rf));
 ok('...a short window fewer', T.railFit(9, 3, 500, true).shown === 5);
+
+print('=== tabs in bar / rail ===');
+ok('Tabs in Bar counts pages: 6 -- a tablet shows Home, six pages and More', fit(9, 3, 1280, false, true, 6).shown === 7 &&
+   fit(9, 3, 1280, false, true, 6).more);
+ok('...8 pages: ten tabs', fit(12, 3, 1280, false, true, 8).shown === 9);
+ok('...a phone never more than 3 pages, a lower setting still counts', fit(9, 3, 402, false, true, 8).shown === 4 &&
+   fit(9, 3, 402, false, true, 2).shown === 3);
+ok('...unset is 6 pages', fit(9, 3, 1280, true).shown === 7);
+var r6 = T.railFit(9, 3, 800, true, 6);
+ok('Tabs in Rail 6: Home, six pages and More, the rail hugging them (8 x 66 + 7 x 6 + 20 = 590 px)',
+   r6.shown === 7 && r6.more && r6.height === 590, JSON.stringify(r6));
+ok('...8 pages fit an 800 px tablet\'s rail (10 tabs, 734 px)', T.railFit(12, 3, 800, true, 8).height === 734);
+ok('...a short window holds fewer than asked', T.railFit(9, 3, 500, true, 8).shown === 5);
+
+ok('the bar is 60 px on a phone, 72 on a tablet -- the rail\'s width too', T.barH(390) === 60 && T.barH(1280) === 72 &&
+   T.railFit(9, 3, 800, true).width === 72);
+print('=== Tab Bar Size ===');
+ok('Small, Medium, Large: a phone 52 / 60 / 68, a tablet 64 / 72 / 80',
+   [T.barH(390, 'small'), T.barH(390, 'medium'), T.barH(390, 'large'), T.barH(390)].join() === '52,60,68,60' &&
+   [T.barH(1280, 'small'), T.barH(1280, 'medium'), T.barH(1280, 'large'), T.barH(1280, 'huge')].join() === '64,72,80,72');
+ok('...the rail as thick as the tablet\'s bar at every size',
+   ['small', 'medium', 'large'].every(function (z) { return T.railFit(9, 3, 800, true, 6, z).width === T.barH(1280, z); }));
+var rs = T.railFit(9, 3, 800, true, 6, 'small'), rm = T.railFit(9, 3, 800, true, 6), rl = T.railFit(9, 3, 800, true, 6, 'large');
+ok('...its tabs 58 / 66 / 74 tall: the rail hugs them, the same pages at each size',
+   rs.shown === rm.shown && rl.shown === rm.shown && rm.height - rs.height === 8 * 8 && rl.height - rm.height === 8 * 8,
+   [rs.height, rm.height, rl.height].join());
+ok('...a short window: Large fits fewer down the rail, Small more',
+   T.railFit(12, 3, 600, true, 8, 'large').shown < T.railFit(12, 3, 600, true, 8).shown &&
+   T.railFit(12, 3, 600, true, 8, 'small').shown > T.railFit(12, 3, 600, true, 8).shown);
+ok('a phone keeps Home, three pages and More at every size',
+   ['small', 'medium', 'large'].every(function (z) { return fit(9, 3, 402, false, true, 6, z).shown === 4; }));
+ok('...the Rooms button as thick as the bar', fit(9, 3, 402, true, true, 6, 'large').width ===
+   402 - 2 * T.SIZES.GUTTER - (T.barH(402, 'large') + T.SIZES.GAP));
+var bs = fit(9, 3, 1280, false, true, 6, 'small'), bm = fit(9, 3, 1280, false, true, 6), bl = fit(9, 3, 1280, false, true, 6, 'large');
+ok('a tablet\'s bar: the same 6 pages, its tabs narrower or wider with the size',
+   bs.shown === 7 && bm.shown === 7 && bl.shown === 7 && bs.width < bm.width && bm.width < bl.width, [bs.width, bm.width, bl.width].join());
 
 print('=== scrolling ===');
 function run(setting, moves, max) {

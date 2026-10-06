@@ -950,3 +950,42 @@ def test_the_tab_bars_while_scrolling_on_phones():
     data, err = apply_board({}, {"menu_custom": True, "tab_bar_scroll_phone": "stay"})
     assert err == {} and data["tab_bar_scroll_phone"] == "stay"
     assert apply_board({}, {"tab_bar_scroll_phone": "zoom"})[1] == {"tab_bar_scroll_phone": "choice"}
+
+
+def test_the_tab_bars_tab_counts():
+    """Tabs in Bar / Tabs in Rail: pages (Home and More not counted), 2 to 8, 6 unless chosen."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    b = S.board({})
+    assert (b["tab_bar_tabs"], b["tab_bar_tabs_rail"]) == (6, 6)
+    assert [S.board({"tab_bar_tabs": v})["tab_bar_tabs"] for v in (2, 8, 1, 9, "7", True, None)] == [2, 8, 6, 6, 7, 6, 6]
+    opts, err = apply_house({}, {"menu.bar_tabs": 8, "menu.bar_tabs_rail": 5})
+    assert err == {} and (S.resolved(S.board({}), opts)["tab_bar_tabs"], S.resolved(S.board({}), opts)["tab_bar_tabs_rail"]) == (8, 5)
+    data, err = apply_board({}, {"menu_custom": True, "tab_bar_tabs": 2})
+    assert err == {} and data["tab_bar_tabs"] == 2
+    assert apply_board({}, {"tab_bar_tabs": 9, "tab_bar_tabs_rail": 2.5})[1] == {"tab_bar_tabs": "choice", "tab_bar_tabs_rail": "choice"}
+
+
+def test_the_tab_bars_size():
+    """Small, Medium (today's) or Large -- a menu setting."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    assert S.board({})["tab_bar_size"] == "medium" and S.board({"tab_bar_size": "huge"})["tab_bar_size"] == "medium"
+    opts, err = apply_house({}, {"menu.bar_size": "large"})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_size"] == "large"
+    data, err = apply_board({}, {"menu_custom": True, "tab_bar_size": "small"})
+    assert err == {} and S.resolved(data, opts)["tab_bar_size"] == "small"
+    assert apply_board({}, {"tab_bar_size": "huge"})[1] == {"tab_bar_size": "choice"}
+
+
+def test_the_home_assistant_sections_placement():
+    """Where the Home Assistant section sits, in the side menu and More alike:
+    Above Rooms unless chosen; a menu setting."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    assert S.board({})["ha_place"] == "rooms" and S.board({"ha_place": "middle"})["ha_place"] == "rooms"
+    opts, err = apply_house({}, {"menu.ha_at": "top"})
+    assert err == {} and S.resolved(S.board({}), opts)["ha_place"] == "top"
+    data, err = apply_board({}, {"menu_custom": True, "ha_place": "bottom"})
+    assert err == {} and S.resolved(data, opts)["ha_place"] == "bottom"
+    assert apply_board({}, {"ha_place": "middle"})[1] == {"ha_place": "choice"}

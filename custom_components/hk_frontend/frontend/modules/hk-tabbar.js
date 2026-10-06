@@ -50,7 +50,10 @@
   // is never narrower than TAB_MIN_W (a 10.5 px label like "Security" is
   // ~44 px of ink) nor wider than TAB_MAX_W; at most MAX_TABS, More
   // included, however wide the screen.
-  var TAB_MIN_W = 54, TAB_MAX_W = 96, MAX_TABS = 8;
+  var TAB_MIN_W = 54, TAB_MAX_W = 96, MAX_TABS = 10;
+  // Tabs in Bar / in Rail count PAGES -- Home and More come on top (6 pages:
+  // eight tabs in all)
+  var PAGES_DEFAULT = 6;
   // A PHONE (under PHONE_W, hk-base.js MENU_NARROW) gets five at most, More
   // included, as Apple Music has: Home and three more were the comfortable
   // fit, four were cramped (2026-10-05)
@@ -61,6 +64,20 @@
   // 2026-10-05): a 60 pt bar, the selected tab's capsule ~76 x 53 pt -- ours
   // 77 x 54 (a 67 px tab plus 5 px each side)
   var GUTTER = 21, GAP = 10, ROUND = 62, PAD = 4, BAR_H = 60, LIFT = 14, TAB_GAP = 4, WIDEN = 5;
+  // THE BAR'S THICKNESS: a phone's 60 (Apple Music's), a tablet or wider 72
+  // -- the rail's width too, so the bar and the rail are the same size
+  // (2026-10-06). CSS reads it as --bh.
+  var BAR_H_WIDE = 72;
+  // TAB BAR SIZE (2026-10-06): Small, Medium (the sizes above) or Large --
+  // 8 px thinner or thicker, on a phone and a tablet alike, the rail's width
+  // and its tabs' height with it; the icons and names a step smaller or
+  // larger (CSS: --ti, --ci, --tf). The highlight's gaps (4 px from the
+  // bar's edge, the rail's ends) are padding, so they hold at every size.
+  var SIZE_STEP = { small: -8, medium: 0, large: 8 };
+  function step(size) { return SIZE_STEP[size] || 0; }
+  function barH(width, size) {
+    return ((width === undefined ? (window.innerWidth || 1280) : width) < 640 ? BAR_H : BAR_H_WIDE) + step(size);
+  }
   // HOW HIGH IT FLOATS: 14 px, or on an iPhone down into the home indicator's
   // safe area as iOS's own tab bar sits (34 px of safe area: 22 px up)
   var LIFT_CSS = 'max(' + LIFT + 'px, calc(env(safe-area-inset-bottom, 0px) - 12px))';
@@ -69,7 +86,9 @@
   var TOP_CSS = 'max(12px, calc(env(safe-area-inset-top, 0px) + 4px))';
   // THE RAIL (Left / Right, a tablet or wider): RAIL_W wide, the screen's
   // height less a gutter at each end; a tab RAIL_TAB tall, RAIL_GAP apart
-  var RAIL_W = 84, RAIL_TAB = 66, RAIL_GAP = 6, RAIL_PAD = 10;
+  var RAIL_W = 72, RAIL_TAB = 66, RAIL_GAP = 6, RAIL_PAD = 10;
+  // (at Medium: a rail is always a tablet's, as thick as its bar)
+  function railW(size) { return RAIL_W + step(size); }
   // THE SHEETS: at least this share of the window (on a phone, up to about
   // the middle of the page), and never under SHEET_MIN px
   var SHEET_SHARE = 0.55, SHEET_MIN = 300;
@@ -88,24 +107,33 @@
   // wide, with or without the Rooms button (`button`); `extra`: More has
   // something of its own to hold either way (the rooms, In More). Pure, for
   // the tests.
-  function fit(n, top, width, button, extra) {
-    var avail = Math.max(0, width - 2 * GUTTER - (button ? ROUND + GAP : 0) - 2 * PAD);
-    var most = width < PHONE_W ? PHONE_TABS : MAX_TABS;
-    var slots = Math.max(1, Math.min(most, Math.floor((avail + TAB_GAP) / (TAB_MIN_W + TAB_GAP))));
+  // `most`: the screen's Tabs in Bar (Home and More included), 8 if unset;
+  // a phone never more than PHONE_TABS
+  // `size`: Tab Bar Size -- a tab's least and most width move with it
+  function fit(n, top, width, button, extra, most, size) {
+    var avail = Math.max(0, width - 2 * GUTTER - (button ? barH(width, size) + GAP : 0) - 2 * PAD);
+    var minW = TAB_MIN_W + step(size) * 3 / 4, maxW = TAB_MAX_W + step(size);
+    var cap = Math.min(MAX_TABS, (most || PAGES_DEFAULT) + 2);
+    most = width < PHONE_W ? Math.min(PHONE_TABS, cap) : cap;
+    var slots = Math.max(1, Math.min(most, Math.floor((avail + TAB_GAP) / (minW + TAB_GAP))));
     var more = top > 0 || n > slots || !!extra;
     var shown = more ? Math.max(0, Math.min(n, slots - 1)) : n;
     var cells = shown + (more ? 1 : 0);
-    var inner = Math.min(avail, cells * TAB_MAX_W + Math.max(0, cells - 1) * TAB_GAP);
+    var inner = Math.min(avail, cells * maxW + Math.max(0, cells - 1) * TAB_GAP);
     var tab = cells ? (inner - Math.max(0, cells - 1) * TAB_GAP) / cells : 0;
     return { shown: shown, more: more, width: Math.round(inner + 2 * PAD), plate: tab >= PLATE_MIN };
   }
 
   // THE RAIL'S FIT: as fit(), down a rail `height` tall
-  function railFit(n, top, height, extra) {
-    var avail = Math.max(0, height - 2 * GUTTER - 2 * RAIL_PAD);
-    var slots = Math.max(1, Math.min(MAX_TABS, Math.floor((avail + RAIL_GAP) / (RAIL_TAB + RAIL_GAP))));
+  // `most`: the screen's Tabs in Rail. `height`: the rail as tall as its
+  // tabs (it hugs them, centred on its side; opening More stretches it)
+  function railFit(n, top, height, extra, most, size) {
+    var avail = Math.max(0, height - 2 * GUTTER - 2 * RAIL_PAD), tab = RAIL_TAB + step(size);
+    var slots = Math.max(1, Math.min(Math.min(MAX_TABS, (most || PAGES_DEFAULT) + 2), Math.floor((avail + RAIL_GAP) / (tab + RAIL_GAP))));
     var more = top > 0 || n > slots || !!extra;
-    return { shown: more ? Math.max(0, Math.min(n, slots - 1)) : n, more: more, width: RAIL_W, plate: true };
+    var shown = more ? Math.max(0, Math.min(n, slots - 1)) : n, cells = shown + (more ? 1 : 0);
+    return { shown: shown, more: more, width: railW(size), plate: true,
+             height: 2 * RAIL_PAD + cells * tab + Math.max(0, cells - 1) * RAIL_GAP };
   }
   // WHERE THE BAR SITS: the screen's Tab Bar Position, a phone keeping the
   // bottom for a rail's (too little width beside it)
@@ -190,7 +218,9 @@
   window.hkTabBar = { version: '1.0.0', _: { fit: fit, parts: parts, scrollStep: scrollStep, material: material,
                                              roomsMode: roomsMode, railFit: railFit, position: position, room: room, scrollOf: scrollOf,
                                              SIZES: { TAB_MIN_W: TAB_MIN_W, TAB_MAX_W: TAB_MAX_W, MAX_TABS: MAX_TABS,
-                                                      GUTTER: GUTTER, GAP: GAP, ROUND: ROUND, PAD: PAD } } };
+                                                      GUTTER: GUTTER, GAP: GAP, ROUND: ROUND, PAD: PAD, RAIL_PAD: RAIL_PAD,
+                                                      RAIL_GAP: RAIL_GAP, SIZE_STEP: SIZE_STEP },
+                                             barH: barH, railW: railW } };
 
   function whenReady(fn) {
     var done = false;
@@ -212,7 +242,13 @@
     var M = C.menu, H = window.hkMenu._;
     var EASE = 'cubic-bezier(.32,.72,0,1)';
     var CSS = [
-      ':host{all:initial}',
+      ':host{all:initial;--bh:' + BAR_H + 'px;--ti:24px;--ci:26px;--tf:10.5px}',
+      ':host([data-size="small"]){--ti:22px;--ci:24px;--tf:10px}',
+      ':host([data-size="large"]){--ti:26px;--ci:28px;--tf:11.5px}',
+      // ...but a phone's names stay Medium's: its bar is already the
+      // screen's width, so larger names would only be cut shorter
+      ':host([data-size="large"]:not([data-wide])){--tf:10.5px}',
+      ':host([data-wide]){--bh:' + BAR_H_WIDE + 'px}',
       '.root{position:fixed;left:0;top:0;width:0;height:0;z-index:6;',
       '  font-family:var(--paper-font-body1_-_font-family,"SF Pro",-apple-system,Roboto,sans-serif);',
       '  -webkit-font-smoothing:antialiased;color:#fff;-webkit-tap-highlight-color:transparent}',
@@ -234,15 +270,15 @@
       // THE PILL
       // TAB_GAP between tabs: two highlights side by side (the page you are
       // on, the one under the pointer) never touch
-      '.pill{position:relative;display:flex;align-items:stretch;gap:' + TAB_GAP + 'px;height:' + BAR_H + 'px;padding:' + (PAD - 1) + 'px;',
-      '  border-radius:' + (BAR_H / 2) + 'px;width:var(--pill-w,auto);max-width:100%;overflow:hidden;',
+      '.pill{position:relative;display:flex;align-items:stretch;gap:' + TAB_GAP + 'px;height:var(--bh);padding:' + (PAD - 1) + 'px;',
+      '  border-radius:calc(var(--bh) / 2);width:var(--pill-w,auto);max-width:100%;overflow:hidden;',
       '  transition:width .34s ' + EASE + '}',
       '.tab{position:relative;z-index:0;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;',
       // 10 px in from each side: the capsule's round ends curve ~9 px in at
       // the label's foot, so a long name's ellipsis stays inside it
-      '  border:0;margin:0;padding:0 10px;border-radius:' + ((BAR_H - 2 * (PAD - 1)) / 2) + 'px;background:none;color:rgba(255,255,255,0.94);',
-      '  font:inherit;font-size:10.5px;font-weight:600;letter-spacing:0;cursor:pointer;transition:background-color .2s ease,opacity .2s ease}',
-      '.tab ha-icon{--mdc-icon-size:24px;width:24px;height:24px;display:flex}',
+      '  border:0;margin:0;padding:0 10px;border-radius:calc(var(--bh) / 2 - ' + (PAD - 1) + 'px);background:none;color:rgba(255,255,255,0.94);',
+      '  font:inherit;font-size:var(--tf);font-weight:600;letter-spacing:0;cursor:pointer;transition:background-color .2s ease,opacity .2s ease}',
+      '.tab ha-icon{--mdc-icon-size:var(--ti);width:var(--ti);height:var(--ti);display:flex}',
       '.tab span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       // THE PAGE YOU ARE ON: its capsule reaches WIDEN px past the tab on each
       // side, into the gaps, as Apple Music's does -- nothing else ever
@@ -258,27 +294,27 @@
       // FOLDED (shrink): one round button with the current page's icon
       '.cur{display:none;flex:1;align-items:center;justify-content:center;border:0;padding:0;margin:0;background:none;',
       '  color:var(--hk-accent,#ff9f0a);cursor:pointer;border-radius:50%}',
-      '.cur ha-icon{--mdc-icon-size:26px;width:26px;height:26px;display:flex}',
-      '.root.small .pill{width:' + (BAR_H - 6) + 'px;height:' + (BAR_H - 6) + 'px;border-radius:50%}',
+      '.cur ha-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
+      '.root.small .pill{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px);border-radius:50%}',
       '.root.small .tab{display:none}',
       '.root.small .cur{display:flex}',
       // THE ROOMS BUTTON
-      '.roomsbtn{flex:none;width:' + ROUND + 'px;height:' + ROUND + 'px;border-radius:50%;display:none;align-items:center;',
+      '.roomsbtn{flex:none;width:var(--bh);height:var(--bh);border-radius:50%;display:none;align-items:center;',
       '  justify-content:center;padding:0;margin:0;color:rgba(255,255,255,0.94);cursor:pointer;',
       '  transition:width .34s ' + EASE + ',height .34s ' + EASE + '}',
       '.root.hasrooms .roomsbtn{display:flex}',
-      '.roomsbtn ha-icon{--mdc-icon-size:26px;width:26px;height:26px;display:flex}',
+      '.roomsbtn ha-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
       '.roomsbtn.here,.roomsbtn[aria-expanded="true"]{color:var(--hk-accent,#ff9f0a)}',
-      '.root.small .roomsbtn{width:' + (BAR_H - 6) + 'px;height:' + (BAR_H - 6) + 'px}',
+      '.root.small .roomsbtn{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px)}',
       '.tab:active,.roomsbtn:active,.cur:active{filter:brightness(1.25)}',
       // THE SHEETS (More, Rooms): above the bar, the page still showing
       '.scrim{position:fixed;inset:0;display:none;pointer-events:auto}',
       '.root.sheeted .scrim{display:block}',
       '.sheet{position:fixed;left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:' + GUTTER + 'px;margin:0 auto;',
-      '  bottom:calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ');max-width:var(--sheet-w,860px);box-sizing:border-box;',
+      '  bottom:calc(var(--bh) + 10px + ' + LIFT_CSS + ');max-width:var(--sheet-w,860px);box-sizing:border-box;',
       // ...as tall as it needs, but always leaving TOP_GAP of the page above
       // it to tap out on
-      '  max-height:calc(var(--hk-vh,100dvh) - ' + (BAR_H + 10 + TOP_GAP) + 'px - ' + LIFT_CSS + ' - env(safe-area-inset-top,0px));',
+      '  max-height:calc(var(--hk-vh,100dvh) - var(--bh) - ' + (10 + TOP_GAP) + 'px - ' + LIFT_CSS + ' - env(safe-area-inset-top,0px));',
       '  display:flex;flex-direction:column;overflow:hidden;',
       '  border-radius:28px;padding:16px 12px 0;opacity:0;transform:translateY(16px) scale(.98);pointer-events:none;',
       '  transition:opacity .22s ease,transform .3s ' + EASE + ',visibility 0s linear .3s;visibility:hidden}',
@@ -293,18 +329,19 @@
       // More are one piece -- the bar widens to More's width and squares its
       // top, More stands on it and is uncovered upward from it (a clip, so
       // nothing is laid out again per frame), its content fading in after
-      '.root.joined .sheet{bottom:calc(' + (BAR_H - 1) + 'px + ' + LIFT_CSS + ');border-radius:28px 28px 0 0;border-bottom:0;',
+      '.root.joined .sheet{bottom:calc(var(--bh) - 1px + ' + LIFT_CSS + ');border-radius:28px 28px 0 0;border-bottom:0;',
       // THE CLIP CARRIES THE SHEET'S ROUND CORNERS: a plain inset() is a
       // square clip, and Chrome then draws the frosted backdrop to its square
       // corners, outside the border-radius (2026-10-06)
-      '  opacity:1;transform:none;clip-path:inset(100% 0 0 0 round 28px 28px 0 0);',
+      '  opacity:1;transform:none;clip-path:inset(100% var(--bar-gap,0px) 0 var(--bar-gap,0px) round 28px 28px 0 0);',
       '  transition:clip-path .4s ' + EASE + ',visibility 0s linear .4s}',
       '.root.joined .sheet.open{clip-path:inset(0 0 0 0 round 28px 28px 0 0);transition:clip-path .42s ' + EASE + '}',
-      '.root.joined .sheet h2,.root.joined .sheet .body{opacity:0;transition:opacity .12s ease}',
-      '.root.joined .sheet.open h2,.root.joined .sheet.open .body{opacity:1;transition:opacity .22s ease .16s}',
-      '.root.joined.sheeted .pill{border-radius:0 0 ' + (BAR_H / 2) + 'px ' + (BAR_H / 2) + 'px;border-top-color:transparent;',
+      // the content is there from the start, uncovered as the shape opens
+      // (a fade after the clip read as an empty slab, then a pop-in)
+      '.root.joined.sheeted .pill{border-radius:0 0 calc(var(--bh) / 2) calc(var(--bh) / 2);border-top-color:transparent;',
       '  box-shadow:0 12px 24px -8px rgba(0,0,0,0.30)}',
-      '.root.joined .pill{transition:width .4s ' + EASE + ',border-radius .3s ' + EASE + '}',
+      '.root.joined .pill{transition:width .42s ' + EASE + ',border-radius .3s ' + EASE + '}',
+      '.root.joined.sheeted .pill{width:var(--pill-open-w,var(--pill-w,auto))}',
       // a sheet over the tiles wants more body than the bar
       '.blur .sheet.g{background:linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.03)),rgba(26,28,38,0.66);',
       '  -webkit-backdrop-filter:blur(30px) saturate(1.7);backdrop-filter:blur(30px) saturate(1.7)}',
@@ -349,38 +386,55 @@
       // bar, the bar hides upward
       ':host([data-pos="top"]) .row{top:' + TOP_CSS + ';bottom:auto}',
       ':host([data-pos="top"]) .root.gone .row{transform:translateY(calc(-100% - 8px - ' + TOP_CSS + '))}',
-      ':host([data-pos="top"]) .sheet{top:calc(' + (BAR_H + 10) + 'px + ' + TOP_CSS + ');bottom:auto;transform:translateY(-16px) scale(.98);',
-      '  max-height:calc(var(--hk-vh,100dvh) - ' + (BAR_H + 10 + TOP_GAP) + 'px - ' + TOP_CSS + ' - env(safe-area-inset-bottom,0px))}',
+      ':host([data-pos="top"]) .sheet{top:calc(var(--bh) + 10px + ' + TOP_CSS + ');bottom:auto;transform:translateY(-16px) scale(.98);',
+      '  max-height:calc(var(--hk-vh,100dvh) - var(--bh) - ' + (10 + TOP_GAP) + 'px - ' + TOP_CSS + ' - env(safe-area-inset-bottom,0px))}',
       ':host([data-pos="top"]) .sheet.open{transform:none}',
-      ':host([data-pos="top"]) .root.joined .sheet{top:calc(' + (BAR_H - 1) + 'px + ' + TOP_CSS + ');border-radius:0 0 28px 28px;',
-      '  border-bottom:1px solid rgba(255,255,255,0.14);border-top:0;transform:none;clip-path:inset(0 0 100% 0 round 0 0 28px 28px)}',
+      ':host([data-pos="top"]) .root.joined .sheet{top:calc(var(--bh) - 1px + ' + TOP_CSS + ');border-radius:0 0 28px 28px;',
+      '  border-bottom:1px solid rgba(255,255,255,0.14);border-top:0;transform:none;clip-path:inset(0 var(--bar-gap,0px) 100% var(--bar-gap,0px) round 0 0 28px 28px)}',
       ':host([data-pos="top"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 0 0 28px 28px)}',
-      ':host([data-pos="top"]) .root.joined.sheeted .pill{border-radius:' + (BAR_H / 2) + 'px ' + (BAR_H / 2) + 'px 0 0;',
+      ':host([data-pos="top"]) .root.joined.sheeted .pill{border-radius:calc(var(--bh) / 2) calc(var(--bh) / 2) 0 0;',
       '  border-top-color:rgba(255,255,255,0.14);border-bottom-color:transparent;box-shadow:0 -6px 20px -8px rgba(0,0,0,0.25)}',
       // ---- LEFT / RIGHT: A RAIL the screen's height; the tabs stacked, icon
       // over name; More slides out sideways from it, as one piece
-      ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{top:' + GUTTER + 'px;bottom:' + GUTTER + 'px;width:' + RAIL_W + 'px;',
+      ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{top:' + GUTTER + 'px;bottom:' + GUTTER + 'px;width:var(--bh);',
       '  flex-direction:column;justify-content:center;transform:none}',
       ':host([data-pos="left"]) .row{left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:auto}',
       ':host([data-pos="right"]) .row{right:' + GUTTER + 'px;left:auto}',
-      ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{width:' + RAIL_W + 'px;height:100%;max-width:none;flex-direction:column;',
-      '  justify-content:center;gap:' + RAIL_GAP + 'px;border-radius:' + (RAIL_W / 2) + 'px;padding:' + RAIL_PAD + 'px 5px}',
-      ':host([data-pos="left"]) .tab,:host([data-pos="right"]) .tab{flex:0 0 ' + RAIL_TAB + 'px;width:100%;padding:0 4px}',
+      // the pill hugs its tabs by top/bottom insets in its full-height column
+      // (--rail-gap), and opening More takes them to 0: More and the rail
+      // share one box exactly (a percentage height left Safari 4 px short)
+      ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{position:absolute;left:0;right:0;top:var(--rail-gap,0px);',
+      '  bottom:var(--rail-gap,0px);width:auto;height:auto;max-width:none;flex-direction:column;',
+      '  justify-content:center;gap:' + RAIL_GAP + 'px;border-radius:calc(var(--bh) / 2);padding:' + RAIL_PAD + 'px 5px}',
+      // the highlight follows the rail's round ends: a capsule, its radius the
+      // rail's less its 5 px inset (a bar's was the bar's, not the rail's)
+      ':host([data-pos="left"]) .tab,:host([data-pos="right"]) .tab{flex:0 0 calc(var(--bh) - ' + (RAIL_W - RAIL_TAB) + 'px);width:100%;padding:0 4px;',
+      '  border-radius:calc(var(--bh) / 2 - 5px)}',
+      // opening More stretches the rail to More's full height, as one piece
+      ':host([data-pos="left"]) .root.joined.sheeted .pill,:host([data-pos="right"]) .root.joined.sheeted .pill{top:0;bottom:0}',
       ':host([data-pos="left"]) .tab span,:host([data-pos="right"]) .tab span{white-space:normal;text-align:center;line-height:1.15;',
       '  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}',
-      ':host([data-pos="left"]) .tab.here::before,:host([data-pos="right"]) .tab.here::before{left:0;right:0;top:-3px;bottom:-3px}',
+      // ...and the page you are on: a VERTICAL pill, as the bar's is a
+      // horizontal one -- taller than wide, its ends fully round
+      // the bar's own rule, turned upright: the pill keeps the SAME gap from
+      // the rail's edge all round -- 4 px, as the bar's capsule keeps from the
+      // bar's (its border and 3 px) -- reaching into the gaps between tabs,
+      // and at the ends only inward (measured: -6 leaves 4)
+      ':host([data-pos="left"]) .tab.here::before,:host([data-pos="right"]) .tab.here::before{left:-2px;right:-2px;top:-8px;bottom:-8px;border-radius:38px}',
+      ':host([data-pos="left"]) .cur + .tab.here::before,:host([data-pos="right"]) .cur + .tab.here::before{top:-' + (RAIL_PAD - 4) + 'px}',
+      ':host([data-pos="left"]) .tab.here:last-child::before,:host([data-pos="right"]) .tab.here:last-child::before{bottom:-' + (RAIL_PAD - 4) + 'px}',
       ':host([data-pos="left"]) .roomsbtn,:host([data-pos="right"]) .roomsbtn{display:none}',
       ':host([data-pos="left"]) .sheet,:host([data-pos="right"]) .sheet{top:' + GUTTER + 'px;bottom:' + GUTTER + 'px;max-height:none;',
       '  width:var(--sheet-w,640px);max-width:none;margin:0;border-bottom:1px solid rgba(255,255,255,0.14);transform:none}',
-      ':host([data-pos="left"]) .root.joined .sheet{left:calc(var(--hk-content-left,0px) + ' + (GUTTER + RAIL_W - 1) + 'px);right:auto;',
-      '  border-radius:0 28px 28px 0;border-left:0;clip-path:inset(0 100% 0 0 round 0 28px 28px 0)}',
-      ':host([data-pos="right"]) .root.joined .sheet{right:' + (GUTTER + RAIL_W - 1) + 'px;left:auto;',
-      '  border-radius:28px 0 0 28px;border-right:0;clip-path:inset(0 0 0 100% round 28px 0 0 28px)}',
+      ':host([data-pos="left"]) .root.joined .sheet{left:calc(var(--hk-content-left,0px) + var(--bh) + ' + (GUTTER - 1) + 'px);right:auto;',
+      '  border-radius:0 28px 28px 0;border-left:0;clip-path:inset(var(--rail-gap,0px) 100% var(--rail-gap,0px) 0 round 0 28px 28px 0)}',
+      ':host([data-pos="right"]) .root.joined .sheet{right:calc(var(--bh) + ' + (GUTTER - 1) + 'px);left:auto;',
+      '  border-radius:28px 0 0 28px;border-right:0;clip-path:inset(var(--rail-gap,0px) 0 var(--rail-gap,0px) 100% round 28px 0 0 28px)}',
       ':host([data-pos="left"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 0 28px 28px 0)}',
       ':host([data-pos="right"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 28px 0 0 28px)}',
-      ':host([data-pos="left"]) .root.joined.sheeted .pill{border-radius:' + (RAIL_W / 2) + 'px 0 0 ' + (RAIL_W / 2) + 'px;',
+      ':host([data-pos="left"]) .root.joined.sheeted .pill{border-radius:calc(var(--bh) / 2) 0 0 calc(var(--bh) / 2);',
       '  border-top-color:rgba(255,255,255,0.14);border-right-color:transparent}',
-      ':host([data-pos="right"]) .root.joined.sheeted .pill{border-radius:0 ' + (RAIL_W / 2) + 'px ' + (RAIL_W / 2) + 'px 0;',
+      ':host([data-pos="right"]) .root.joined.sheeted .pill{border-radius:0 calc(var(--bh) / 2) calc(var(--bh) / 2) 0;',
       '  border-top-color:rgba(255,255,255,0.14);border-left-color:transparent}',
       // ---- SHRINKS TO (tab_bar_fold): the small button at the bar's end --
       // a bar's right (the Rooms button, if any, swaps to the left), a
@@ -390,9 +444,11 @@
       // the rail's column; Hide slides it off its own side
       ':host([data-pos="left"]) .root.small .row,:host([data-pos="right"]) .root.small .row{justify-content:flex-start;align-items:center}',
       ':host([data-pos="left"]) .root.small.fold-end .row,:host([data-pos="right"]) .root.small.fold-end .row{flex-direction:column;justify-content:flex-end}',
-      ':host([data-pos="left"]) .root.small .pill,:host([data-pos="right"]) .root.small .pill{width:' + (BAR_H - 6) + 'px;height:' + (BAR_H - 6) + 'px;',
+      ':host([data-pos="left"]) .root.small .pill,:host([data-pos="right"]) .root.small .pill{left:3px;right:3px;top:0;',
+      '  bottom:calc(100% - var(--bh) + 6px);width:auto;height:auto;',
       '  padding:' + (PAD - 1) + 'px;border-radius:50%}',
-      ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{transition:width .34s ' + EASE + ',height .34s ' + EASE + ',border-radius .3s ' + EASE + '}',
+      ':host([data-pos="left"]) .root.small.fold-end .pill,:host([data-pos="right"]) .root.small.fold-end .pill{top:calc(100% - var(--bh) + 6px);bottom:0}',
+      ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{transition:top .42s ' + EASE + ',bottom .42s ' + EASE + ',left .34s ' + EASE + ',right .34s ' + EASE + ',border-radius .3s ' + EASE + '}',
       ':host([data-pos="left"]) .root.gone .row{transform:translateX(calc(-100% - ' + (GUTTER + 8) + 'px - var(--hk-content-left,0px)))}',
       ':host([data-pos="right"]) .root.gone .row{transform:translateX(calc(100% + ' + (GUTTER + 8) + 'px))}',
       ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{transition:transform .34s ' + EASE + '}',
@@ -426,7 +482,8 @@
         '<div class="root">' +
           '<div class="scrim"></div>' +
           '<section class="sheet g" data-sheet="more" aria-label="More"><h2>More</h2><div class="body">' +
-            '<div class="grid pages"></div><h3 class="hh" hidden>Home Assistant</h3><div class="grid hagrid" hidden></div>' +
+            '<div class="grid pages"></div><h3 class="ch" hidden>Categories</h3><div class="grid pages2" hidden></div>' +
+            '<h3 class="hh" hidden>Home Assistant</h3><div class="grid hagrid" hidden></div>' +
             '<h3 class="rh" hidden>Rooms</h3><div class="grid roomgrid" hidden></div></div></section>' +
           '<section class="sheet g" data-sheet="rooms" aria-label="Rooms"><h2>Rooms</h2><div class="body">' +
             '<div class="grid roomgrid"></div></div></section>' +
@@ -478,7 +535,7 @@
     }
     function listKey(width) {
       var h = C.hass(), b = M.board();
-      return [M.dash(), cfgId(M.config()), width, window.innerHeight, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_more, b.tab_bar_more_phone, b.ha_row, JSON.stringify(S.haPrefs || null),
+      return [M.dash(), cfgId(M.config()), width, window.innerHeight, b.ha_place, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_more, b.tab_bar_more_phone, b.tab_bar_size, b.tab_bar_tabs, b.tab_bar_tabs_rail, b.ha_row, JSON.stringify(S.haPrefs || null),
               h && h.user && h.user.is_admin, h && h.panels ? Object.keys(h.panels).join(',') : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
@@ -503,8 +560,9 @@
         .filter(function (it) { return it.kind !== 'more'; }) : [];
       if (b.ha_row && S.haPrefs === undefined) loadPrefs();
       var tabs = [m.home].concat(m.categories).filter(Boolean);
-      var f = rail ? railFit(tabs.length, m.top.length, window.innerHeight || 800, rm === 'more' || S.ha.length > 0)
-                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0);
+      var sz = b.tab_bar_size;
+      var f = rail ? railFit(tabs.length, m.top.length, window.innerHeight || 800, rm === 'more' || S.ha.length > 0, b.tab_bar_tabs_rail, sz)
+                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0, b.tab_bar_tabs, sz);
       S.pos = pos;
       if (S.posWas !== pos && S.mode !== 'full') setMode('full');
       S.posWas = pos;
@@ -532,21 +590,47 @@
       var list = (phone ? b.tab_bar_more_phone : b.tab_bar_more) === 'list', sheetW = list ? 420 : 860;
       var joinW = Math.min(Math.max(0, width - 2 * GUTTER), Math.max(f.width, sheetW));
       // a rail's More slides out beside it: 380 px as a list, 640 as icons
-      if (rail) joinW = Math.min(Math.max(0, width - 2 * GUTTER - RAIL_W - 16), list ? 380 : 640);
-      S.pill.style.setProperty('--pill-w', (roomsOn ? f.width : joinW) + 'px');
+      if (rail) joinW = Math.min(Math.max(0, width - 2 * GUTTER - railW(sz) - 16), list ? 380 : 640);
+      // HUG AND GROW (2026-10-06): at rest the bar is as wide as its tabs (a
+      // rail as tall as them); opening More grows it to More's size in the
+      // same motion, so they meet as one shape
+      S.pill.style.setProperty('--pill-w', f.width + 'px');
+      // (a rail grows in height only: it keeps its own width)
+      S.pill.style.setProperty('--pill-open-w', (rail ? railW(sz) : roomsOn ? f.width : joinW) + 'px');
+      // ONE SHAPE GROWING: More's clip starts exactly where the bar is --
+      // a bar's width inside More's (--bar-gap each side), a rail's height
+      // inside the screen's (--rail-gap above and below) -- and opens with it
+      var railGap = rail && f.height ? Math.max(0, Math.round(((window.innerHeight || 800) - 2 * GUTTER - f.height) / 2)) : 0;
+      var barGap = !rail && !roomsOn ? Math.max(0, Math.round((joinW - f.width) / 2)) : 0;
+      S.host.style.setProperty('--rail-gap', railGap + 'px');
+      S.host.style.setProperty('--bar-gap', barGap + 'px');
       S.root.classList.toggle('hasrooms', roomsOn);
       S.tight = !f.plate;
-      fill(S.sheets.more.querySelector('.pages'), S.more, 'p');
+      // the pages: one grid, or -- the Home Assistant section placed above
+      // Categories -- the top pages, then the section, then the rest
+      var place = b.ha_place || 'rooms', split = place === 'categories' && S.ha.length && f.more ? (m.top || []).length : -1;
+      var pg = S.sheets.more.querySelector('.pages'), pg2 = S.sheets.more.querySelector('.pages2');
+      fill(pg, split >= 0 ? S.more.slice(0, split) : S.more, 'p');
+      fill(pg2, split >= 0 ? S.more.slice(split) : [], 'p', split >= 0 ? split : 0);
+      pg2.hidden = split < 0 || !S.more.slice(split).length;
+      var ch = S.sheets.more.querySelector('.ch');
+      ch.hidden = pg2.hidden;          // after the section, the rest headed as the side menu heads them
       var mr = S.sheets.more.querySelector('.roomgrid');
       fill(mr, rm === 'more' ? S.rooms : [], 'r');
       mr.hidden = S.sheets.more.querySelector('.rh').hidden = rm !== 'more';
       // only rooms in More: no heading
       if (rm === 'more' && !S.more.length && !S.ha.length) S.sheets.more.querySelector('.rh').hidden = true;
-      S.sheets.more.querySelector('.pages').hidden = !S.more.length;
+      pg.hidden = split >= 0 ? !split : !S.more.length;
       fill(S.sheets.rooms.querySelector('.roomgrid'), rm === 'button' ? S.rooms : [], 'r');
       var hg = S.sheets.more.querySelector('.hagrid');
       fill(hg, S.ha, 'h');
       hg.hidden = S.sheets.more.querySelector('.hh').hidden = !S.ha.length;
+      // ...and the section where the screen puts it
+      var body = S.sheets.more.querySelector('.body'), hh = S.sheets.more.querySelector('.hh');
+      var rh = S.sheets.more.querySelector('.rh'), rg = S.sheets.more.querySelector('.roomgrid');
+      var order = place === 'top' ? [hh, hg, pg, ch, pg2, rh, rg] : place === 'categories' ? [pg, hh, hg, ch, pg2, rh, rg]
+        : place === 'bottom' ? [pg, ch, pg2, rh, rg, hh, hg] : [pg, ch, pg2, hh, hg, rh, rg];
+      order.forEach(function (el) { body.appendChild(el); });
       // More Style: the list, about a phone's width; the icons, wide -- and
       // joined, exactly the bar's width
       Object.keys(S.sheets).forEach(function (k) {
@@ -555,9 +639,9 @@
       });
       S.built = listKey(width);
     }
-    function fill(grid, items, k) {
+    function fill(grid, items, k, at) {
       grid.innerHTML = items.map(function (it, i) {
-        return '<button class="it" data-k="' + k + '" data-i="' + i + '"><ha-icon icon="' + icon(it.icon) + '"></ha-icon><span>' +
+        return '<button class="it" data-k="' + k + '" data-i="' + (i + (at || 0)) + '"><ha-icon icon="' + icon(it.icon) + '"></ha-icon><span>' +
           esc(it.title) + '</span></button>';
       }).join('');
     }
@@ -735,7 +819,8 @@
     // hides -- a transform, so the compositor animates it and nothing is
     // laid out again. On hui-view, not the view container: the sky (fixed)
     // lives in the container and must stay put.
-    var ASIDE = (GUTTER + RAIL_W + 8);
+    function sizeNow() { return (M.board() || {}).tab_bar_size; }
+    function asideW() { return GUTTER + railW(sizeNow()) + 8; }
     // THE NOW-PLAYING BAR KEEPS CLEAR OF A RAIL (hk-popup.js reads these):
     // the rail's column, while the rail shows (full or folded), on its side
     function railRoom() {
@@ -743,7 +828,7 @@
       if (!de || !de.style) return;
       var pos = S.on ? S.pos : null, show = (pos === 'left' || pos === 'right') && S.mode !== 'gone';
       [['--hk-tabbar-l', 'left'], ['--hk-tabbar-r', 'right']].forEach(function (kv) {
-        var v = show && pos === kv[1] ? (GUTTER + RAIL_W + 12) + 'px' : '';      // 12 px clear of the rail
+        var v = show && pos === kv[1] ? (GUTTER + railW(sizeNow()) + 12) + 'px' : '';      // 12 px clear of the rail
         if (de.style.getPropertyValue(kv[0]) !== v) {
           if (v) de.style.setProperty(kv[0], v); else de.style.removeProperty(kv[0]);
         }
@@ -770,7 +855,7 @@
         // content, as at the bottom
         var top = 12;
         try { top = parseFloat(getComputedStyle(S.root.querySelector('.row')).top) || 12; } catch (e) { /* default */ }
-        var px = Math.round(top + BAR_H + 8);
+        var px = Math.round(top + barH(undefined, sizeNow()) + 8);
         S.shift = px;
         hv.style.transformOrigin = '';
         hv.style.transform = full && (S.scrollY || 0) < px ? 'translateY(' + px + 'px)' : '';
@@ -778,7 +863,7 @@
         return;
       }
       var w = hv.getBoundingClientRect().width / (S.asideScale || 1) || window.innerWidth || 1280;
-      var k = Math.max(0.5, (w - ASIDE) / w);
+      var k = Math.max(0.5, (w - asideW()) / w);
       hv.style.transformOrigin = (pos === 'left' ? 'right' : 'left') + ' top';
       hv.style.transform = full ? 'scale(' + k.toFixed(4) + ')' : '';
       S.asideScale = full ? k : 1;
@@ -798,14 +883,19 @@
       // as the page scrolls, whatever it does.
       var b = M.board() || {};
       if (pos && room(pos, scrollOf(b), b.tab_bar_adjust) !== 'pad') pos = null;
-      var v = pos === 'bottom' ? 'calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ')' : '';
+      var v = pos === 'bottom' ? 'calc(' + (barH(undefined, sizeNow()) + 10) + 'px + ' + LIFT_CSS + ')' : '';
       if (de.style.getPropertyValue('--hk-tabbar-h') !== v) {
         if (v) de.style.setProperty('--hk-tabbar-h', v);
         else de.style.removeProperty('--hk-tabbar-h');
       }
       // the view's own padding on that side, plus the bar's
       var view = pos ? viewEl() : null;
-      if (S.view && (S.view !== view || S.viewSide !== pos)) {
+      // what the bar adds -- a new size or a turn past 640 px changes it, and
+      // the padding is laid again
+      var add = pos === 'bottom' ? 'var(--hk-tabbar-h,0px)'
+        : pos === 'top' ? 'calc(' + (barH(undefined, sizeNow()) + 8) + 'px + ' + TOP_CSS + ')'
+        : pos ? asideW() + 'px' : '';
+      if (S.view && (S.view !== view || S.viewSide !== pos || S.viewAdd !== add)) {
         S.view.style.removeProperty(S.viewProp || 'padding-bottom');
         if (S.viewPad) S.view.style.setProperty(S.viewProp, S.viewPad);
         S.view = null;
@@ -815,9 +905,7 @@
         S.viewProp = prop; S.viewSide = pos;
         S.viewPad = view.style.getPropertyValue(prop);
         var base = getComputedStyle(view)[SIDES[pos]] || '0px';
-        var add = pos === 'bottom' ? 'var(--hk-tabbar-h,0px)'
-          : pos === 'top' ? 'calc(' + (BAR_H + 8) + 'px + ' + TOP_CSS + ')'
-          : (GUTTER + RAIL_W + 8) + 'px';
+        S.viewAdd = add;
         // !important: a kiosk screen's own rule sets the view's top padding
         view.style.setProperty(prop, 'calc(' + base + ' + ' + add + ')', pos === 'top' ? 'important' : '');
         S.view = view;
@@ -845,6 +933,11 @@
       var width = (window.innerWidth || 0) - leftOf();
       if (listKey(width) !== S.built) build();
       if (S.host.getAttribute('data-pos') !== S.pos) S.host.setAttribute('data-pos', S.pos || 'bottom');
+      S.host.toggleAttribute('data-wide', barH() !== BAR_H);
+      // TAB BAR SIZE: the thickness itself, and the icons' and names' step
+      var size = SIZE_STEP[b.tab_bar_size] !== undefined ? b.tab_bar_size : 'medium';
+      S.host.style.setProperty('--bh', barH(undefined, size) + 'px');
+      if (S.host.getAttribute('data-size') !== size) S.host.setAttribute('data-size', size);
       var cls = ['root', 'on', mat];
       if (S.roomsMode === 'button' && S.rooms.length) cls.push('hasrooms');
       if (S.tight) cls.push('tight');

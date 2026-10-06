@@ -25,29 +25,32 @@ Built from your own rooms and devices, and set up entirely in the UI.
 
 ## Screens that build themselves
 
-Add a screen and HK Frontend builds it from your floors, areas and devices: the clock and weather, status chips, cameras, scenes, favorites, a section for every room, a page for each room and each kind of device, and a [calendar](https://github.com/jazzphone/hk-frontend/wiki/Calendar) of the month, week or day. A new light shows up on its own. The same screen works on a wall tablet, a computer, an iPad and a phone. Get around it with a [menu of pages and rooms](https://github.com/jazzphone/hk-frontend/wiki/Menu) beside the page or behind a button, or an iOS-style [tab bar](https://github.com/jazzphone/hk-frontend/wiki/Tab-Bar) floating along the bottom.
+Add a screen and HK Frontend builds it from your floors, areas and devices: the clock and weather, status chips, cameras, scenes, favorites, a section for every room, a page for each room and each kind of device, and a [calendar](https://github.com/jazzphone/hk-frontend/wiki/Calendar) of the month, week or day. A new light shows up on its own. The same screen works on a wall tablet, a computer, an iPad and a phone.
 
 <p align="center">
 <img src="docs/images/tablet-lights.png" width="49%" alt="The Lights page">
 <img src="docs/images/tablet-climate.jpg" width="49%" alt="The Climate page">
 </p>
 
+## Get around your way
+
+Every screen chooses how you move between its pages and rooms.
+
+- **A menu like the Home app's sidebar**: always open beside the page, behind a button, or pulled out with a swipe from the left edge. ([Menu](https://github.com/jazzphone/hk-frontend/wiki/Menu))
+- **A floating tab bar like iOS apps have**, along the bottom or the top, or as a rail down either side of a tablet.
+  - It can shrink to a small button or hide as you scroll, and even start small.
+  - Small, Medium or Large, and you choose how many pages get a tab.
+  - The page moves smoothly clear of it, so nothing important hides underneath.
+  - **More** holds the rest: the other pages, every room, and Home Assistant's own Settings, Integrations and Notifications, as icons or as a list. ([Tab Bar](https://github.com/jazzphone/hk-frontend/wiki/Tab-Bar))
+
+<p align="center">
+<img src="docs/images/tablet-menu.png" width="49%" alt="A wall tablet with the side menu open: Home, the pages and every room">
+<img src="docs/images/tablet-tabbar-rail.png" width="49%" alt="The tab bar as a rail down the right side, More open beside it as a list">
+</p>
+
 ## Tap for the controls
 
-The [Climate page](https://github.com/jazzphone/hk-frontend/wiki/Climate) has the same status row as a room: temperature and humidity
-ranges across the included rooms, plus blinds and fans. Tap a summary to open
-its accessory pills; close an accessory’s controls to return to the list.
-**HK Settings → All Screens → Status Rows → Climate** chooses which summaries and
-rooms participate. **Status & Chips → Temperature / Humidity** lets you leave
-sources out or add others. Automatic readings use Home Assistant’s area
-Related sensors, falling back to a thermostat’s current reading when an area
-has no designated sensor. Unavailable readings stay in the list and do not
-affect the range. Thermostats sit side by side when space permits and stack
-on narrower pages. The Lights, Doors & Windows, Water and Security pages, and
-every room page, have [status rows](https://github.com/jazzphone/hk-frontend/wiki/Status-Rows)
-of their own — *Motion · Emma’s Room*, *Valve · Running* — in the order you choose.
-
-Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens. Its gear holds the accessory’s own settings: its name, its icon (any of Apple’s Home glyphs, or Home Assistant’s), a regular or tall tile, and its place among the tiles beside it.
+Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Each room and category page has a [status row](https://github.com/jazzphone/hk-frontend/wiki/Status-Rows) like the Home app's: *Motion · Emma’s Room*, *Valve · Running*. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens. Every accessory can have its own name, icon (any of Apple’s Home glyphs, or Home Assistant’s), tile size and place among its neighbours.
 
 <p align="center">
 <img src="docs/images/sheet-light.png" width="49%" alt="A light’s detail sheet with a brightness slider">
@@ -56,11 +59,22 @@ Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens 
 
 ## A live sky
 
-Behind every page, a sky that follows the weather and the time of day, with seasonal decorations for the holidays. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Each page can keep its own color, show the live sky, or a still backdrop.
+Behind every page, a sky that follows the weather and the time of day: clear and starry, golden at sunset, grey and flashing in a thunderstorm, with rain or snow when it falls. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Each page can keep its own color, show the live sky, or a still backdrop.
 
 <p align="center">
 <img src="docs/images/sky-new-halloween.jpg" width="49%" alt="New Decorations: Halloween night, jack-o'-lanterns in the trees under a full moon">
 <img src="docs/images/sky-realistic-golden.jpg" width="49%" alt="Realistic clouds lit gold near sunset">
+</p>
+
+## Made for the wall
+
+Put a screen on a wall tablet and it looks after itself. It returns to Home when left alone, and fills the screen with no Home Assistant header or sidebar.
+
+When nobody is using it, it shows your photos, or the forecast over a living landscape: the sky, the clouds and the light of the moment. The landscape dresses up for Halloween, Christmas, the Fourth of July and birthdays, like the dashboards. Over the top go the clock, the weather, what's playing, the timers and whether the house is secure, with your coming events beside them if you like. ([Screensaver and idle](https://github.com/jazzphone/hk-frontend/wiki/Screensaver-and-Idle))
+
+<p align="center">
+<img src="docs/images/tablet-forecast-halloween.png" width="49%" alt="The forecast screensaver on Halloween night: lanterns in the trees, jack-o’-lanterns, a big moon">
+<img src="docs/images/tablet-forecast-christmas.png" width="49%" alt="The forecast screensaver on Christmas night: lit trees, a snowman and Santa’s sleigh across the moon">
 </p>
 
 ## Energy at a glance
@@ -101,7 +115,6 @@ Add each from **Settings** → **Devices & services** → **HK Frontend** → **
 | **[Clean Areas](https://github.com/jazzphone/hk-frontend/wiki/Clean-Areas)** | Pick rooms and send the vacuums that reach them |
 | **[Alarm PIN](https://github.com/jazzphone/hk-frontend/wiki/Alarm-PIN)** | A PIN in front of an alarm panel that takes no code of its own |
 | **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** | An Energy page built from Home Assistant’s Energy settings, with a live tile per circuit and device |
-| **[Wall tablets](https://github.com/jazzphone/hk-frontend/wiki/Wall-Tablets)** | Return to Home when idle, a photo screensaver or the forecast over a landscape that dresses up for the holidays (with the coming events beside it, if you like) and a full-screen kiosk look |
 
 ## Help
 

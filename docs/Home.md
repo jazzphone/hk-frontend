@@ -29,17 +29,21 @@ The sidebar has every page.
   door, speaker or vacuum and a sheet opens with the controls it needs.
   ([Detail Sheets and Pop-ups](Detail-Sheets-and-Popups.md))
 - **A menu of pages and rooms**, open beside the page, behind a button or a
-  swipe from the left edge, with an optional Home Assistant section — or a
-  **tab bar** floating along the bottom of the screen, as in iOS apps.
-  ([Menu](Menu.md), [Tab Bar](Tab-Bar.md))
+  swipe from the left edge, with an optional Home Assistant section — or an
+  iOS-style **tab bar** along the bottom or the top, or a rail down either
+  side of a tablet, that can shrink or hide as you scroll and keeps the rest
+  in More. ([Menu](Menu.md), [Tab Bar](Tab-Bar.md))
 - **HK Settings**, a settings page in the sidebar with a live preview of each
   screen as a phone, an iPad, a wall tablet, a desktop or a car.
   ([HK Settings](HK-Settings.md))
 - **Optional features:** whole-home [Music](Music.md), [Live TV](Live-TV.md),
   [Clean Areas](Clean-Areas.md), an [Alarm PIN](Alarm-PIN.md), and an
   [Energy](Energy.md) page built from Home Assistant’s Energy settings.
-- **Wall tablet support:** return to Home when idle, a photo screensaver, and
-  a full-screen kiosk look. ([Wall Tablets](Wall-Tablets.md))
+- **Wall tablet support:** return to Home when idle, a full-screen kiosk look,
+  and a screensaver of your photos or the forecast over a landscape that
+  dresses up for the holidays, with the clock, what's playing, the timers,
+  Home Status and your coming events.
+  ([Wall Tablets](Wall-Tablets.md), [Screensaver and Idle](Screensaver-and-Idle.md))
 - **A card library** for dashboards you build yourself.
   ([Card Library](Card-Library.md))
 

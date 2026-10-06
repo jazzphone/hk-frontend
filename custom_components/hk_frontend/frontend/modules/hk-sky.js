@@ -3846,7 +3846,7 @@
     // overcast's receding ceiling, faint behind the cumulus -- thin cloud
     // that compresses into the horizon, so the cumulus sit in a sky with
     // depth, not on a clean gradient. Stronger as it clouds over.
-    var veil = c < .3 ? 0 : clamp((c - .3) / .55, 0, 1) * .5;
+    var veil = c < .4 ? 0 : clamp((c - .4) / .45, 0, 1) * .5;
     add('altocumulus', c > .55 && c < .8 && r() < .15 ? 1 : 0);
     add('horizon-haze', c >= .4 ? 1 : 0);
     return { deck: false, veil: veil, sets: sets };
@@ -4470,7 +4470,13 @@
         var a = p[0] * p[1];
         L = L * (1 - a) + ct * a;
       });
-    realCover.forEach(function (p) { L = L * (1 - p[0]) + p[1] * p[0]; });
+    // THE REALISTIC CLOUDS COUNT AS LIGHTLY AS THE CLASSIC DECKS. Counted at
+    // full weight, a partly cloudy sky's bright white cumulus tripped the cap
+    // and darkened the whole sky -- the blue as well as the clouds -- twice as
+    // much as Classic (a 45% bottom scrim at 40% cover against Classic's 20%):
+    // a sunny day looked sad. The cap is for the glass over the sky as a
+    // whole; scattered clouds are local, so they weigh in at a third.
+    realCover.forEach(function (p) { var a = p[0] * .35; L = L * (1 - a) + p[1] * a; });
     if (s.fog) L = L * 0.84 + 150 * 0.16;
 
     // Seasonal layers, same alpha-composite arithmetic as the decks. The

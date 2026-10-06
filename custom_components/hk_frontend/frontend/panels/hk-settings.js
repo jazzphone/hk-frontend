@@ -1780,6 +1780,9 @@
         rows.push(K.nav({ label: 'Tab Bar While Scrolling', value: M.choiceLabel(M.TAB_BAR_SCROLLS, b.tab_bar_scroll), href: hm, sk: 'b:tab_bar_scroll' }));
         rows.push(K.nav({ label: 'While Scrolling on Phones', value: M.choiceLabel(M.TAB_BAR_SCROLLS_PHONE, b.tab_bar_scroll_phone || 'same'), href: hm, sk: 'b:tab_bar_scroll_phone' }));
         rows.push(K.nav({ label: 'Adjust Content', value: b.tab_bar_adjust !== false ? 'On' : 'Off', href: hm, sk: 'b:tab_bar_adjust' }));
+        rows.push(K.nav({ label: 'Tab Bar Size', value: M.choiceLabel(M.TAB_BAR_SIZES, b.tab_bar_size || 'medium'), href: hm, sk: 'b:tab_bar_size' }));
+        rows.push(K.nav({ label: 'Tabs in Bar', value: String(b.tab_bar_tabs || 6), href: hm, sk: 'b:tab_bar_tabs' }));
+        rows.push(K.nav({ label: 'Tabs in Rail', value: String(b.tab_bar_tabs_rail || 6), href: hm, sk: 'b:tab_bar_tabs_rail' }));
         rows.push(K.nav({ label: 'Tab Bar Position', value: M.choiceLabel(M.TAB_BAR_POS, b.tab_bar_pos || 'bottom'), href: hm, sk: 'b:tab_bar_pos' }));
         if ((b.tab_bar_scroll || 'shrink') === 'shrink' || b.tab_bar_scroll_phone === 'shrink') {
           rows.push(K.nav({ label: 'Start Small', value: b.tab_bar_start === 'small' ? 'On' : 'Off', href: hm, sk: 'b:tab_bar_start' }));
@@ -1791,6 +1794,8 @@
         rows.push(K.nav({ label: 'Tab Bar Glass', value: M.choiceLabel(M.TAB_BAR_GLASS, b.tab_bar_glass), href: hm, sk: 'b:tab_bar_glass' }));
       }
       if (mode === 'tabbar') {
+        rows.push(K.nav({ label: 'Home Assistant Section', value: b.ha_row ? 'On' : 'Off', href: hm, sk: 'b:ha_row' }));
+        if (b.ha_row) rows.push(K.nav({ label: 'Home Assistant Placement', value: M.choiceLabel(M.HA_PLACES, b.ha_place || 'rooms'), href: hm, sk: 'b:ha_place' }));
         c.appendChild(K.group({ header: 'All Screens’ Menu', footer: 'Change these in All Screens → Menu: they change on every screen that follows it.' }, rows));
         return;
       }
@@ -1803,6 +1808,7 @@
         rows.push(K.nav({ label: 'Time & Weather in Menu', value: b.time_weather === 'menu' ? 'On' : 'Off', href: hm, sk: 'b:time_weather' }));
       }
       rows.push(K.nav({ label: 'Home Assistant Section', value: b.ha_row ? 'On' : 'Off', href: hm, sk: 'b:ha_row' }));
+      if (b.ha_row) rows.push(K.nav({ label: 'Home Assistant Placement', value: M.choiceLabel(M.HA_PLACES, b.ha_place || 'rooms'), href: hm, sk: 'b:ha_place' }));
       c.appendChild(K.group({ header: 'All Screens’ Menu', footer: 'Change these in All Screens → Menu: they change on every screen that follows it.' }, rows));
     }
     // THE MENU'S SETTINGS, for All Screens (o.house: every row, each kind of
@@ -1821,7 +1827,7 @@
                 onChange: function (g) { set({ glyph: g }); } }));
       c.appendChild(K.group({ header: 'Look', footer: 'The highlight colors the menu’s icons and the page you’re on.' }, look));
       if (o.house || o.mode === 'tabbar' || v.narrow === 'tabbar') this.tabBarRows(c, v, set, sk, o.house);
-      if (o.mode === 'tabbar') return;
+      if (o.mode === 'tabbar') { this.haRows(c, v, set, sk, o.house); return; }
       if (btn) {
         c.appendChild(K.group({ header: o.house ? 'Menu Button' : 'Button', footer: (o.house ? 'For a screen whose menu is a button. ' : '') +
             'Below 1,024 px (an iPad held upright, a phone), On Narrow Screens takes over from the Button Style.' }, [
@@ -1880,10 +1886,17 @@
         c.appendChild(K.group({ header: 'Edge Tab', footer: (o.house ? 'For a screen that shows the edge tab: as its Button Style, On Narrow Screens or When Folded. ' : '') +
             'Level with Date lines the tab up with the date under the clock. Custom places it a distance from the top, in pixels or as a share of the screen’s height.' }, trows));
       }
-      c.appendChild(K.group({ header: 'In the Menu', footer: 'The Home Assistant section shows only what each person may open; Show Menu there opens Home Assistant’s own sidebar.' }, [
-        K.toggle({ label: 'Home Assistant Section', sk: sk('ha_row'), on: !!v.ha_row,
-                   sub: 'Integrations, Automations, Settings, Notifications and more, above Categories.',
-                   onChange: function (on) { set({ ha_row: on }); } })]));
+      this.haRows(c, v, set, sk, o.house);
+    }
+    // THE HOME ASSISTANT SECTION, on and where: the side menu's and the tab
+    // bar's More alike, so it shows for a tab bar screen too
+    haRows(c, v, set, sk, house) {
+      var inMenu = [K.toggle({ label: 'Home Assistant Section', sk: sk('ha_row'), on: !!v.ha_row,
+                   sub: 'Integrations, Automations, Settings, Notifications and more.',
+                   onChange: function (on) { set({ ha_row: on }); } })];
+      if (v.ha_row || house) inMenu.push(K.select({ label: 'Placement', sub: 'In the side menu and in the tab bar’s More.',
+        sk: sk('ha_place'), value: v.ha_place || 'rooms', options: M.HA_PLACES, onChange: function (x) { set({ ha_place: x }); } }));
+      c.appendChild(K.group({ header: 'In the Menu', footer: 'The Home Assistant section shows only what each person may open; Show Menu there opens Home Assistant’s own sidebar.' }, inMenu));
     }
     // ONE PICK OF MANY, then back: the button style, the narrow-screen
     // choice, the highlight (All Screens' or a screen's own)
@@ -3741,6 +3754,15 @@
                               sk: sk('tab_bar_start'), on: v.tab_bar_start === 'small',
                               onChange: function (on) { set({ tab_bar_start: on ? 'small' : 'full' }); } }));
       }
+      place.push(K.seg({ label: 'Size', sub: 'The bar’s thickness (a rail’s width), its icons and labels.',
+                         sk: sk('tab_bar_size'), value: v.tab_bar_size || 'medium', stack: !wide, options: M.TAB_BAR_SIZES,
+                         onChange: function (x) { set({ tab_bar_size: x }); } }));
+      place.push(K.seg({ label: 'Tabs in Bar', sub: 'Pages at the bottom or the top, besides Home and More. A phone shows 3 at most.',
+                         sk: sk('tab_bar_tabs'), value: v.tab_bar_tabs || 6, stack: !wide, options: M.TAB_BAR_TABS,
+                         onChange: function (x) { set({ tab_bar_tabs: Number(x) }); } }));
+      place.push(K.seg({ label: 'Tabs in Rail', sub: 'Pages down the left or the right, besides Home and More.',
+                         sk: sk('tab_bar_tabs_rail'), value: v.tab_bar_tabs_rail || 6, stack: !wide, options: M.TAB_BAR_TABS,
+                         onChange: function (x) { set({ tab_bar_tabs_rail: Number(x) }); } }));
       place.push(K.toggle({ label: 'Adjust Content', sub: 'The page moves clear of the open bar. Off, the bar floats over the page.',
                             sk: sk('tab_bar_adjust'), on: v.tab_bar_adjust !== false,
                             onChange: function (on) { set({ tab_bar_adjust: on }); } }));

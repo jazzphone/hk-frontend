@@ -15,7 +15,7 @@ the one in iOS apps. It is a second way around a screen, next to the
 
 With the screen's **Home Assistant Section** on, More has it too, after the pages and above Rooms:
 Integrations, Automations and Settings (for admins), Notifications, **Show
-Menu** (Home Assistant's own sidebar, over the page) and Profile.
+Menu** (Home Assistant's own sidebar, over the page) and Profile. Its **Placement** (Menu settings) decides where in More it sits.
 
 Opening More, the bar widens and the menu grows up out of it, as one piece; closing, it folds back into the bar. (With Rooms as their own button, More opens as a separate sheet.)
 
@@ -25,7 +25,7 @@ highlighted.
 
 | | |
 |---|---|
-| ![The Home screen on a phone, with the tab bar along the bottom: Home, three pages and More](images/phone-home.png) | ![The More sheet: the pages that didn't fit as icons, then every room](images/phone-tabbar-more.png) |
+| ![The Home screen on a phone, with the tab bar along the bottom: Home, three pages and More](images/phone-home.png) | ![The More sheet on a phone, as a list: the pages that didn't fit, then Home Assistant and every room](images/phone-tabbar-more.png) |
 | The tab bar | More |
 
 The tab for the page you are on is highlighted in the menu's
@@ -69,6 +69,36 @@ Settings) puts the bar:
 |---|---|
 | ![A tablet with the tab bar as a rail down the right side, More open beside it as a list](images/tablet-tabbar-rail.png) | ![A tablet with the tab bar along the top, the page starting below it](images/tablet-tabbar-top.png) |
 | Right, More open as a list | Top |
+
+**Tabs in Bar** (along the bottom or the top) and **Tabs in Rail** (down
+the left or the right) set how many pages get a tab of their own: 2 to 8,
+6 unless you choose. Home and More always have theirs and aren't counted.
+A phone shows Home, 3 pages and More at most, and a short window fits
+fewer down a rail. The bar is only as big as its tabs; opening More grows
+it into More's size in the same motion (a rail stretches to the screen's
+height), and closing shrinks it back.
+
+## Size
+
+**Size** makes the whole bar smaller or larger: its thickness (a rail's
+width), its icons and its names together.
+
+| | Small | Medium (default) | Large |
+|---|---|---|---|
+| Phone bar | 52 px | 60 px | 68 px |
+| Tablet bar or rail | 64 px | 72 px | 80 px |
+| Icons | 22 px | 24 px | 26 px |
+| Names | 10 px | 10.5 px | 11.5 px (10.5 on a phone) |
+
+![The tab bar on a tablet at each size: Small, Medium and Large, top to bottom](images/tablet-tabbar-sizes.png)
+
+A phone's names stay Medium's at Large: its bar already spans the screen,
+so bigger names would only be cut shorter.
+
+The highlight on the page you're on keeps the same 4 px gap from the
+bar's edge at every size. Everything around the bar follows the size too:
+the small button it shrinks to, the Rooms button, where More opens, the
+room Adjust Content makes, and the now-playing bar beside a rail.
 
 ## Adjust Content
 
