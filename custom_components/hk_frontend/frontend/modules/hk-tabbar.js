@@ -114,6 +114,21 @@
     return (pos === 'left' || pos === 'right') && width < 640 ? 'bottom' : pos;
   }
 
+  // HOW THE PAGE MAKES ROOM FOR THE BAR (Adjust Content):
+  //   'pad'   a fixed strip on the bar's side -- Stay, and the bottom (room
+  //           at the page's end only, so the last row scrolls clear)
+  //   'scale' a rail that shrinks or hides: the dashboard eases aside while
+  //           the rail is full
+  //   'shift' the top, shrinking or hiding: the page slides down clear of the
+  //           full bar at the top of the page, and back up as it folds
+  //   'none'  Adjust Content off: the bar floats over the page
+  function room(pos, scroll, adjust) {
+    if (adjust === false) return 'none';
+    if (scroll !== 'shrink' && scroll !== 'hide') return 'pad';
+    if (pos === 'left' || pos === 'right') return 'scale';
+    return pos === 'top' ? 'shift' : 'pad';
+  }
+
   // What the bar holds, from the menu's list (hkMenu._.model's answer).
   function parts(m, f) {
     var tabs = [m.home].concat(m.categories || []).filter(Boolean);
@@ -165,7 +180,7 @@
   }
 
   window.hkTabBar = { version: '1.0.0', _: { fit: fit, parts: parts, scrollStep: scrollStep, material: material,
-                                             roomsMode: roomsMode, railFit: railFit, position: position,
+                                             roomsMode: roomsMode, railFit: railFit, position: position, room: room,
                                              SIZES: { TAB_MIN_W: TAB_MIN_W, TAB_MAX_W: TAB_MAX_W, MAX_TABS: MAX_TABS,
                                                       GUTTER: GUTTER, GAP: GAP, ROUND: ROUND, PAD: PAD } } };
 
@@ -688,6 +703,9 @@
       var el = (t === document || t === document.documentElement) ? document.scrollingElement : t;
       if (!el || el.nodeType !== 1 || el === S.host) return;
       var y = el.scrollTop, max = el.scrollHeight - el.clientHeight;
+      var band = S.shift ? (y < S.shift) !== ((S.scrollY || 0) < S.shift) : false;
+      S.scrollY = y;
+      if (band) aside();
       var prev = S.last.get(el);
       S.last.set(el, y);
       if (prev === undefined || prev === y) return;
@@ -712,19 +730,34 @@
     var ASIDE = (GUTTER + RAIL_W + 8);
     function aside() {
       var b = M.board() || {}, pos = S.pos;
-      var on = S.on && (pos === 'left' || pos === 'right') && (b.tab_bar_scroll === 'shrink' || b.tab_bar_scroll === 'hide');
+      var how = S.on && pos ? room(pos, b.tab_bar_scroll, b.tab_bar_adjust) : 'none';
+      var on = how === 'scale' || how === 'shift';
       var v = viewEl(), hv = v && v.querySelector('hui-view');
       if (S.asideEl && S.asideEl !== hv) { S.asideEl.style.transform = ''; S.asideEl.style.transformOrigin = ''; S.asideEl = null; }
       if (!hv || !on) {
         if (hv && S.asideEl === hv) { hv.style.transform = ''; S.asideEl = null; }
+        S.asideScale = 1; S.shift = 0;
+        return;
+      }
+      S.asideEl = hv;
+      hv.style.transition = 'transform .34s cubic-bezier(.32,.72,0,1)';
+      var full = S.mode === 'full';
+      if (how === 'shift') {
+        // the bar's foot, from its own resolved top (safe area included):
+        // only while the page is at its top -- mid-page the bar is over the
+        // content, as at the bottom
+        var top = 12;
+        try { top = parseFloat(getComputedStyle(S.root.querySelector('.row')).top) || 12; } catch (e) { /* default */ }
+        var px = Math.round(top + BAR_H + 8);
+        S.shift = px;
+        hv.style.transformOrigin = '';
+        hv.style.transform = full && (S.scrollY || 0) < px ? 'translateY(' + px + 'px)' : '';
+        S.asideScale = 1;
         return;
       }
       var w = hv.getBoundingClientRect().width / (S.asideScale || 1) || window.innerWidth || 1280;
       var k = Math.max(0.5, (w - ASIDE) / w);
-      S.asideEl = hv;
-      hv.style.transition = 'transform .34s cubic-bezier(.32,.72,0,1)';
       hv.style.transformOrigin = (pos === 'left' ? 'right' : 'left') + ' top';
-      var full = S.mode === 'full';
       hv.style.transform = full ? 'scale(' + k.toFixed(4) + ')' : '';
       S.asideScale = full ? k : 1;
     }
@@ -741,8 +774,8 @@
       // page runs full width under it (2026-10-06). A bar along the bottom or
       // the top only pads the page's ends, so it is over the content as soon
       // as the page scrolls, whatever it does.
-      var b = M.board() || {}, rail = pos === 'left' || pos === 'right';
-      if (rail && (b.tab_bar_scroll === 'shrink' || b.tab_bar_scroll === 'hide')) pos = null;
+      var b = M.board() || {};
+      if (pos && room(pos, b.tab_bar_scroll, b.tab_bar_adjust) !== 'pad') pos = null;
       var v = pos === 'bottom' ? 'calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ')' : '';
       if (de.style.getPropertyValue('--hk-tabbar-h') !== v) {
         if (v) de.style.setProperty('--hk-tabbar-h', v);
@@ -811,6 +844,7 @@
     }
     function onNav() {
       closeSheet(true);
+      S.scrollY = 0;
       setMode(rest());
       S.last = new WeakMap();
       sync();

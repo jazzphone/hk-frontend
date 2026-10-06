@@ -109,6 +109,13 @@ ok('Start Small: scrolling up, or reaching the top, does not open it', runRest([
 ok('...opened by a tap, scrolling down folds it again', runRest([200, 20, 20], 'full') === 'small');
 ok('...and the end of the page leaves it as it is', runRest([3996], 'small') === 'small');
 
+var rr = T.room;
+ok('Adjust Content: a rail that shrinks or hides eases the page aside; the top slides it; the bottom and Stay keep room',
+   rr('left', 'shrink', true) === 'scale' && rr('right', 'hide', true) === 'scale' && rr('top', 'shrink', true) === 'shift' &&
+   rr('bottom', 'hide', true) === 'pad' && rr('right', 'stay', true) === 'pad' && rr('top', 'stay', true) === 'pad');
+ok('...off, the bar floats over the page everywhere', ['left', 'right', 'top', 'bottom'].every(function (p) {
+   return rr(p, 'shrink', false) === 'none' && rr(p, 'stay', false) === 'none'; }));
+
 print('=== the material ===');
 var mat = T.material;
 ok('the screen\'s look: frosted stays frosted', mat('house', 'frosted') === 'frosted');

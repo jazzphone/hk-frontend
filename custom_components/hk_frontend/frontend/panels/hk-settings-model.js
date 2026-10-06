@@ -308,12 +308,13 @@
                     ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe',
                     tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass',
                     tab_bar_more: 'bar_more', tab_bar_more_phone: 'bar_more_phone',
-                    tab_bar_pos: 'bar_pos', tab_bar_fold: 'bar_fold', tab_bar_start: 'bar_start' };
+                    tab_bar_pos: 'bar_pos', tab_bar_fold: 'bar_fold', tab_bar_start: 'bar_start',
+                    tab_bar_adjust: 'bar_adjust' };
   var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true,
                         swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house',
                         tab_bar_more: 'icons', tab_bar_more_phone: 'list', tab_bar_pos: 'bottom',
-                        tab_bar_fold: 'start', tab_bar_start: 'full' };
+                        tab_bar_fold: 'start', tab_bar_start: 'full', tab_bar_adjust: true };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -324,6 +325,7 @@
     out.clock = out.clock !== false;
     out.swipe = out.swipe === true;
     out.tab_bar_rooms = roomsPlace(out.tab_bar_rooms);
+    out.tab_bar_adjust = out.tab_bar_adjust !== false;
     return out;
   }
   function houseMenuSave(ch) {
@@ -1006,6 +1008,7 @@
     ['While Scrolling', 'house/menu', 'menu.bar_scroll', 'tab bar shrink hide stay scroll auto hide'],
     ['Rooms in Tab Bar', 'house/menu', 'menu.bar_rooms', 'tab bar rooms more button sheet round'],
     ['More Style', 'house/menu', 'menu.bar_more', 'tab bar more icons list grid sheet tablet'],
+    ['Adjust Content', 'house/menu', 'menu.bar_adjust', 'tab bar adjust content make room move page float over overlap padding'],
     ['Start Small', 'house/menu', 'menu.bar_start', 'tab bar start small shrunk folded rest collapsed button'],
     ['Shrinks To', 'house/menu', 'menu.bar_fold', 'tab bar shrink fold small button corner left right top bottom side'],
     ['Tab Bar Position', 'house/menu', 'menu.bar_pos', 'tab bar position top bottom left right rail side placement'],
@@ -1089,7 +1092,7 @@
     // a screen's menu: All Screens' or its own (menu_custom)
     ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
                       'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe',
-                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start'], true],
+                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust'], true],
     ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],

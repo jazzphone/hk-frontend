@@ -55,17 +55,30 @@ Assistant's edit mode.
 Settings) puts the bar:
 
 - **Bottom** (the default) or **Top**: across the screen. At the top, More
-  drops down out of the bar and the page starts below it.
+  drops down out of the bar.
 - **Left** or **Right**: a rail down that side of the screen, the tabs
-  stacked, each icon over its name. With Shrink or Hide, while the rail is
-  full the dashboard eases slightly smaller, away from it, so the time and
-  Home Status stay clear, and back to full size as the rail folds or hides.
-  With Stay the page keeps a strip of room beside it. More slides
+  stacked, each icon over its name (see Adjust Content below for how the
+  page makes room). More slides
   out sideways from it (about
   640 px of icons, or 380 px as a list).
   Rooms are always in More on a rail. On a
   phone, where a rail would take too much of the width, the bar stays at the
   bottom.
+
+## Adjust Content
+
+**Adjust Content** (on by default) moves the page clear of the open bar:
+
+- **Top**, with Shrink or Hide: at the top of the page the page slides down
+  below the bar, and back up as the bar folds or hides. Further down the page
+  the bar sits over the content. With Start Small there's no gap at all
+  until you open the bar.
+- **Left / Right**, with Shrink or Hide: the dashboard eases slightly
+  smaller, away from the open rail, and back to full width as it folds.
+- **Bottom**: room at the very end of the page, so the last row scrolls clear.
+- **Stay**, any position: a fixed strip of room on the bar's side.
+
+Turned off, the bar floats over the page everywhere.
 
 ## While scrolling
 

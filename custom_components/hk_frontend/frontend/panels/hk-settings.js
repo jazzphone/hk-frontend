@@ -1778,6 +1778,7 @@
                 tile: ['', M.accentOf(b.accent).hex] })];
       if (M.hasTabBar(b)) {
         rows.push(K.nav({ label: 'Tab Bar While Scrolling', value: M.choiceLabel(M.TAB_BAR_SCROLLS, b.tab_bar_scroll), href: hm, sk: 'b:tab_bar_scroll' }));
+        rows.push(K.nav({ label: 'Adjust Content', value: b.tab_bar_adjust !== false ? 'On' : 'Off', href: hm, sk: 'b:tab_bar_adjust' }));
         rows.push(K.nav({ label: 'Tab Bar Position', value: M.choiceLabel(M.TAB_BAR_POS, b.tab_bar_pos || 'bottom'), href: hm, sk: 'b:tab_bar_pos' }));
         if ((b.tab_bar_scroll || 'shrink') === 'shrink') {
           rows.push(K.nav({ label: 'Start Small', value: b.tab_bar_start === 'small' ? 'On' : 'Off', href: hm, sk: 'b:tab_bar_start' }));
@@ -3736,6 +3737,9 @@
                               sk: sk('tab_bar_start'), on: v.tab_bar_start === 'small',
                               onChange: function (on) { set({ tab_bar_start: on ? 'small' : 'full' }); } }));
       }
+      place.push(K.toggle({ label: 'Adjust Content', sub: 'The page moves clear of the open bar. Off, the bar floats over the page.',
+                            sk: sk('tab_bar_adjust'), on: v.tab_bar_adjust !== false,
+                            onChange: function (on) { set({ tab_bar_adjust: on }); } }));
       place.push(K.select({ label: 'Glass', sk: sk('tab_bar_glass'), value: v.tab_bar_glass || 'house', options: M.TAB_BAR_GLASS,
                             onChange: function (x) { set({ tab_bar_glass: x }); } }));
       c.appendChild(K.group({ header: 'Tab Bar', footer: (house ? 'For a screen whose Menu, On Narrow Screens or When Folded is Tab Bar. ' : '') +

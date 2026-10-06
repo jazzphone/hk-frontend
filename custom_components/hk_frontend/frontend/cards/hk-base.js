@@ -2226,7 +2226,7 @@
                 // the tab bar (menu or narrow 'tabbar', hk-tabbar.js): menu settings
                 tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house', tab_bar_more: 'icons',
                 tab_bar_more_phone: 'list', tab_bar_pos: 'bottom', tab_bar_fold: 'start',
-                tab_bar_start: 'full' };
+                tab_bar_start: 'full', tab_bar_adjust: true };
   var ACCENTS = { orange: '#ff9f0a', yellow: '#ffd60a', green: '#30d158', mint: '#63e6e2', teal: '#40c8e0',
                   cyan: '#64d2ff', blue: '#0a84ff', indigo: '#5e5ce6', purple: '#bf5af2', pink: '#ff375f',
                   red: '#ff453a' };

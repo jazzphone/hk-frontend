@@ -929,3 +929,9 @@ def test_the_tab_bars_shrink_end():
     opts, err = apply_house({}, {"menu.bar_start": "small"})
     assert err == {} and S.resolved(S.board({}), opts)["tab_bar_start"] == "small"
     assert apply_board({}, {"tab_bar_start": "tiny"})[1] == {"tab_bar_start": "choice"}
+    # Adjust Content: on unless turned off
+    assert S.board({})["tab_bar_adjust"] is True and S.board({"tab_bar_adjust": False})["tab_bar_adjust"] is False
+    opts, err = apply_house({}, {"menu.bar_adjust": False})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_adjust"] is False
+    data, err = apply_board({}, {"menu_custom": True, "tab_bar_adjust": False})
+    assert err == {} and data["tab_bar_adjust"] is False
