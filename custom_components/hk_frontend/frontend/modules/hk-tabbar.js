@@ -126,8 +126,16 @@
   // One step of the bar's state as the page scrolls: `st` { mode: 'full' |
   // 'small' | 'gone', down, up }, the scroll's change `dy`, where it is now
   // `y` and the most it can go `max`, and the setting. Pure, for the tests.
-  function scrollStep(st, dy, y, max, setting) {
+  // `rest` 'small' (Start Small, with Shrink): the bar rests small -- only a
+  // tap opens it, and scrolling down folds it again; nothing else brings it
+  // back.
+  function scrollStep(st, dy, y, max, setting, rest) {
     var s = { mode: st.mode || 'full', down: st.down || 0, up: st.up || 0 };
+    if (setting === 'shrink' && rest === 'small') {
+      if (dy > 0) { s.down += dy; s.up = 0; if (s.mode === 'full' && s.down >= DOWN) s.mode = 'small'; }
+      else if (dy < 0) { s.down = 0; }
+      return s;
+    }
     if (setting === 'stay' || max < SHORT) return { mode: 'full', down: 0, up: 0 };
     // the top (an iPhone's rubber band goes past it) and the end
     if (y <= EDGE || y >= max - EDGE) return { mode: 'full', down: 0, up: 0 };
@@ -263,9 +271,12 @@
       // top, More stands on it and is uncovered upward from it (a clip, so
       // nothing is laid out again per frame), its content fading in after
       '.root.joined .sheet{bottom:calc(' + (BAR_H - 1) + 'px + ' + LIFT_CSS + ');border-radius:28px 28px 0 0;border-bottom:0;',
-      '  opacity:1;transform:none;clip-path:inset(100% 0 0 0);',
+      // THE CLIP CARRIES THE SHEET'S ROUND CORNERS: a plain inset() is a
+      // square clip, and Chrome then draws the frosted backdrop to its square
+      // corners, outside the border-radius (2026-10-06)
+      '  opacity:1;transform:none;clip-path:inset(100% 0 0 0 round 28px 28px 0 0);',
       '  transition:clip-path .4s ' + EASE + ',visibility 0s linear .4s}',
-      '.root.joined .sheet.open{clip-path:inset(0 0 0 0);transition:clip-path .42s ' + EASE + '}',
+      '.root.joined .sheet.open{clip-path:inset(0 0 0 0 round 28px 28px 0 0);transition:clip-path .42s ' + EASE + '}',
       '.root.joined .sheet h2,.root.joined .sheet .body{opacity:0;transition:opacity .12s ease}',
       '.root.joined .sheet.open h2,.root.joined .sheet.open .body{opacity:1;transition:opacity .22s ease .16s}',
       '.root.joined.sheeted .pill{border-radius:0 0 ' + (BAR_H / 2) + 'px ' + (BAR_H / 2) + 'px;border-top-color:transparent;',
@@ -319,8 +330,8 @@
       '  max-height:calc(var(--hk-vh,100dvh) - ' + (BAR_H + 10 + TOP_GAP) + 'px - ' + TOP_CSS + ' - env(safe-area-inset-bottom,0px))}',
       ':host([data-pos="top"]) .sheet.open{transform:none}',
       ':host([data-pos="top"]) .root.joined .sheet{top:calc(' + (BAR_H - 1) + 'px + ' + TOP_CSS + ');border-radius:0 0 28px 28px;',
-      '  border-bottom:1px solid rgba(255,255,255,0.14);border-top:0;transform:none;clip-path:inset(0 0 100% 0)}',
-      ':host([data-pos="top"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0)}',
+      '  border-bottom:1px solid rgba(255,255,255,0.14);border-top:0;transform:none;clip-path:inset(0 0 100% 0 round 0 0 28px 28px)}',
+      ':host([data-pos="top"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 0 0 28px 28px)}',
       ':host([data-pos="top"]) .root.joined.sheeted .pill{border-radius:' + (BAR_H / 2) + 'px ' + (BAR_H / 2) + 'px 0 0;',
       '  border-top-color:rgba(255,255,255,0.14);border-bottom-color:transparent;box-shadow:0 -6px 20px -8px rgba(0,0,0,0.25)}',
       // ---- LEFT / RIGHT: A RAIL the screen's height; the tabs stacked, icon
@@ -339,14 +350,29 @@
       ':host([data-pos="left"]) .sheet,:host([data-pos="right"]) .sheet{top:' + GUTTER + 'px;bottom:' + GUTTER + 'px;max-height:none;',
       '  width:var(--sheet-w,640px);max-width:none;margin:0;border-bottom:1px solid rgba(255,255,255,0.14);transform:none}',
       ':host([data-pos="left"]) .root.joined .sheet{left:calc(var(--hk-content-left,0px) + ' + (GUTTER + RAIL_W - 1) + 'px);right:auto;',
-      '  border-radius:0 28px 28px 0;border-left:0;clip-path:inset(0 100% 0 0)}',
+      '  border-radius:0 28px 28px 0;border-left:0;clip-path:inset(0 100% 0 0 round 0 28px 28px 0)}',
       ':host([data-pos="right"]) .root.joined .sheet{right:' + (GUTTER + RAIL_W - 1) + 'px;left:auto;',
-      '  border-radius:28px 0 0 28px;border-right:0;clip-path:inset(0 0 0 100%)}',
-      ':host([data-pos="left"]) .root.joined .sheet.open,:host([data-pos="right"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0)}',
+      '  border-radius:28px 0 0 28px;border-right:0;clip-path:inset(0 0 0 100% round 28px 0 0 28px)}',
+      ':host([data-pos="left"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 0 28px 28px 0)}',
+      ':host([data-pos="right"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 28px 0 0 28px)}',
       ':host([data-pos="left"]) .root.joined.sheeted .pill{border-radius:' + (RAIL_W / 2) + 'px 0 0 ' + (RAIL_W / 2) + 'px;',
       '  border-top-color:rgba(255,255,255,0.14);border-right-color:transparent}',
       ':host([data-pos="right"]) .root.joined.sheeted .pill{border-radius:0 ' + (RAIL_W / 2) + 'px ' + (RAIL_W / 2) + 'px 0;',
       '  border-top-color:rgba(255,255,255,0.14);border-left-color:transparent}',
+      // ---- SHRINKS TO (tab_bar_fold): the small button at the bar's end --
+      // a bar's right (the Rooms button, if any, swaps to the left), a
+      // rail's bottom; its start (left / top) otherwise
+      '.root.small.fold-end .row{flex-direction:row-reverse}',
+      // a RAIL folds too: the small button at its top or bottom, centred in
+      // the rail's column; Hide slides it off its own side
+      ':host([data-pos="left"]) .root.small .row,:host([data-pos="right"]) .root.small .row{justify-content:flex-start;align-items:center}',
+      ':host([data-pos="left"]) .root.small.fold-end .row,:host([data-pos="right"]) .root.small.fold-end .row{flex-direction:column;justify-content:flex-end}',
+      ':host([data-pos="left"]) .root.small .pill,:host([data-pos="right"]) .root.small .pill{width:' + (BAR_H - 6) + 'px;height:' + (BAR_H - 6) + 'px;',
+      '  padding:' + (PAD - 1) + 'px;border-radius:50%}',
+      ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{transition:width .34s ' + EASE + ',height .34s ' + EASE + ',border-radius .3s ' + EASE + '}',
+      ':host([data-pos="left"]) .root.gone .row{transform:translateX(calc(-100% - ' + (GUTTER + 8) + 'px - var(--hk-content-left,0px)))}',
+      ':host([data-pos="right"]) .root.gone .row{transform:translateX(calc(100% + ' + (GUTTER + 8) + 'px))}',
+      ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{transition:transform .34s ' + EASE + '}',
       '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet{transition:none}}'
     ].join('\n');
 
@@ -457,7 +483,11 @@
       var f = rail ? railFit(tabs.length, m.top.length, window.innerHeight || 800, rm === 'more' || S.ha.length > 0)
                    : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0);
       S.pos = pos;
-      if (rail && S.mode !== 'full') setMode('full');
+      if (S.posWas !== pos && S.mode !== 'full') setMode('full');
+      S.posWas = pos;
+      // Start Small switched on or off (or first drawn): rest there
+      var r = rest();
+      if (S.restWas !== r) { S.restWas = r; setMode(r); }
       var p = parts(m, f);
       S.tabs = p.tabs; S.more = p.more; S.rooms = rm === 'off' ? [] : p.rooms; S.roomsMode = rm;
       var html = '';
@@ -650,9 +680,10 @@
       if (!S.root) return;
       S.root.classList.toggle('small', mode === 'small');
       S.root.classList.toggle('gone', mode === 'gone');
+      aside();
     }
     function onScroll(e) {
-      if (!S.on || S.sheet || S.pos === 'left' || S.pos === 'right') return;      // a rail covers nothing: it stays
+      if (!S.on || S.sheet) return;
       var t = e.target;
       var el = (t === document || t === document.documentElement) ? document.scrollingElement : t;
       if (!el || el.nodeType !== 1 || el === S.host) return;
@@ -661,7 +692,7 @@
       S.last.set(el, y);
       if (prev === undefined || prev === y) return;
       var b = M.board() || {};
-      var st = scrollStep({ mode: S.mode, down: S.down, up: S.up }, y - prev, y, max, b.tab_bar_scroll);
+      var st = scrollStep({ mode: S.mode, down: S.down, up: S.up }, y - prev, y, max, b.tab_bar_scroll, b.tab_bar_start);
       var was = S.mode;
       setMode(st.mode);
       if (st.mode === was) { S.down = st.down; S.up = st.up; }
@@ -672,6 +703,32 @@
       var p = M.panel(), root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
       return (root && root.shadowRoot && root.shadowRoot.querySelector('#view')) || null;
     }
+    // A FULL RAIL PUSHES THE PAGE ASIDE (Shrink or Hide; Stay keeps a strip
+    // of room instead): while the rail is full the dashboard is scaled down
+    // away from it, just enough to clear it, and eased back as it folds or
+    // hides -- a transform, so the compositor animates it and nothing is
+    // laid out again. On hui-view, not the view container: the sky (fixed)
+    // lives in the container and must stay put.
+    var ASIDE = (GUTTER + RAIL_W + 8);
+    function aside() {
+      var b = M.board() || {}, pos = S.pos;
+      var on = S.on && (pos === 'left' || pos === 'right') && (b.tab_bar_scroll === 'shrink' || b.tab_bar_scroll === 'hide');
+      var v = viewEl(), hv = v && v.querySelector('hui-view');
+      if (S.asideEl && S.asideEl !== hv) { S.asideEl.style.transform = ''; S.asideEl.style.transformOrigin = ''; S.asideEl = null; }
+      if (!hv || !on) {
+        if (hv && S.asideEl === hv) { hv.style.transform = ''; S.asideEl = null; }
+        return;
+      }
+      var w = hv.getBoundingClientRect().width / (S.asideScale || 1) || window.innerWidth || 1280;
+      var k = Math.max(0.5, (w - ASIDE) / w);
+      S.asideEl = hv;
+      hv.style.transition = 'transform .34s cubic-bezier(.32,.72,0,1)';
+      hv.style.transformOrigin = (pos === 'left' ? 'right' : 'left') + ' top';
+      var full = S.mode === 'full';
+      hv.style.transform = full ? 'scale(' + k.toFixed(4) + ')' : '';
+      S.asideScale = full ? k : 1;
+    }
+
     // THE PAGE MAKES ROOM on the bar's side: --hk-tabbar-h at the bottom
     // (the now-playing bar stands on it too), the view's top at the top, its
     // side beside a rail
@@ -680,13 +737,19 @@
       var de = document.documentElement;
       if (!de || !de.style) return;
       var pos = on ? (S.pos || 'bottom') : null;
+      // A RAIL THAT SHRINKS OR HIDES keeps no strip of the page's width: the
+      // page runs full width under it (2026-10-06). A bar along the bottom or
+      // the top only pads the page's ends, so it is over the content as soon
+      // as the page scrolls, whatever it does.
+      var b = M.board() || {}, rail = pos === 'left' || pos === 'right';
+      if (rail && (b.tab_bar_scroll === 'shrink' || b.tab_bar_scroll === 'hide')) pos = null;
       var v = pos === 'bottom' ? 'calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ')' : '';
       if (de.style.getPropertyValue('--hk-tabbar-h') !== v) {
         if (v) de.style.setProperty('--hk-tabbar-h', v);
         else de.style.removeProperty('--hk-tabbar-h');
       }
       // the view's own padding on that side, plus the bar's
-      var view = on ? viewEl() : null;
+      var view = pos ? viewEl() : null;
       if (S.view && (S.view !== view || S.viewSide !== pos)) {
         S.view.style.removeProperty(S.viewProp || 'padding-bottom');
         if (S.viewPad) S.view.style.setProperty(S.viewProp, S.viewPad);
@@ -715,6 +778,7 @@
         if (S.root) { closeSheet(true); S.root.className = 'root'; }
         S.on = false;
         publish(false);
+        aside();
         return;
       }
       if (!mount()) return;
@@ -733,14 +797,21 @@
       if (S.mode === 'gone') cls.push('gone');
       if (S.sheet) cls.push('sheeted');
       if (S.roomsMode !== 'button') cls.push('joined');
+      if ((M.board() || {}).tab_bar_fold === 'end') cls.push('fold-end');
       S.root.className = cls.join(' ');
       S.on = true;
       markHere();
       publish(true);
+      aside();
+    }
+    // where the bar rests: small with Start Small (and Shrink), else full
+    function rest() {
+      var b = M.board() || {};
+      return b.tab_bar_scroll === 'shrink' && b.tab_bar_start === 'small' ? 'small' : 'full';
     }
     function onNav() {
       closeSheet(true);
-      setMode('full');
+      setMode(rest());
       S.last = new WeakMap();
       sync();
       // a new view element arrives a moment after the navigation

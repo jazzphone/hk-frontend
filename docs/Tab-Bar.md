@@ -57,9 +57,13 @@ Settings) puts the bar:
 - **Bottom** (the default) or **Top**: across the screen. At the top, More
   drops down out of the bar and the page starts below it.
 - **Left** or **Right**: a rail down that side of the screen, the tabs
-  stacked, each icon over its name. More slides out sideways from it (about
-  640 px of icons, or 380 px as a list), and the page leaves room beside it.
-  A rail stays put while the page scrolls, and Rooms are always in More. On a
+  stacked, each icon over its name. With Shrink or Hide, while the rail is
+  full the dashboard eases slightly smaller, away from it, so the time and
+  Home Status stay clear, and back to full size as the rail folds or hides.
+  With Stay the page keeps a strip of room beside it. More slides
+  out sideways from it (about
+  640 px of icons, or 380 px as a list).
+  Rooms are always in More on a rail. On a
   phone, where a rail would take too much of the width, the bar stays at the
   bottom.
 
@@ -67,7 +71,12 @@ Settings) puts the bar:
 
 - **Shrink** (the default): scrolling down folds the bar into one small
   round button showing the page you're on, so it's always in reach.
-- **Hide:** scrolling down slides the bar off the screen.
+  **Shrinks To** picks where that button sits: the bar's **Left** or
+  **Right** at the bottom or the top, or the rail's **Top** or **Bottom** on
+  the left or the right. **Start Small** has the bar rest as that button:
+  a tap opens the bar, and scrolling down or changing pages folds it again.
+- **Hide:** scrolling down slides the bar off its edge: down, up, or out to
+  the side for a rail.
 - **Stay:** the bar never moves.
 
 With Shrink or Hide, the full bar comes back when you:
@@ -78,8 +87,6 @@ With Shrink or Hide, the full bar comes back when you:
 - tap the small button (Shrink).
 
 A page too short to scroll keeps the bar.
-
-![The tab bar folded to one small button while the page is scrolled](images/phone-tabbar-folded.png)
 
 ## Look
 

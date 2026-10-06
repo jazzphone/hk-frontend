@@ -74,6 +74,13 @@ ok('More: the pages at the top first, then the categories that did not fit',
 ok('the rooms are the menu\'s rooms', titles(p.rooms) === 'Den');
 ok('no More: nothing listed in it', parts(MODEL, { shown: 6, more: false }).more.length === 0);
 
+print('=== position ===');
+ok('a phone keeps a rail\'s bar at the bottom; a tablet has the rail', T.position('left', 390) === 'bottom' &&
+   T.position('right', 1280) === 'right' && T.position('top', 390) === 'top' && T.position('sideways', 1280) === 'bottom');
+var rf = T.railFit(9, 3, 800, true);
+ok('an 800 px tablet\'s rail holds Home, six more and More -- eight, as the bottom bar', rf.shown === 7 && rf.more, JSON.stringify(rf));
+ok('...a short window fewer', T.railFit(9, 3, 500, true).shown === 5);
+
 print('=== scrolling ===');
 function run(setting, moves, max) {
   var st = { mode: 'full' }, y = 0;
@@ -92,6 +99,15 @@ ok('the end of the page brings it back', run('shrink', [3000, 996], 4000) === 'f
 ok('the top of the page (an iPhone\'s rubber band past it) brings it back', run('shrink', [300, -296]) === 'full' &&
    step({ mode: 'small' }, -10, -30, 4000, 'shrink').mode === 'full');
 ok('a page too short to scroll never folds it', run('shrink', [20, 20], 40) === 'full');
+
+function runRest(moves, start) {
+  var st = { mode: start || 'small' }, y = 0;
+  moves.forEach(function (dy) { y += dy; st = step(st, dy, y, 4000, 'shrink', 'small'); });
+  return st.mode;
+}
+ok('Start Small: scrolling up, or reaching the top, does not open it', runRest([300, -290]) === 'small' && runRest([-10]) === 'small');
+ok('...opened by a tap, scrolling down folds it again', runRest([200, 20, 20], 'full') === 'small');
+ok('...and the end of the page leaves it as it is', runRest([3996], 'small') === 'small');
 
 print('=== the material ===');
 var mat = T.material;

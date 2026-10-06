@@ -398,5 +398,9 @@ ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.
      JSON.stringify(MM.backdropFollow({ sky_gradient: 'custom', sky_custom: { day: [], night: [] }, sky_pages: { energy: 'custom' } })) ===
      JSON.stringify({ sky_gradient: null }));
 })();
+// SHRINKS TO is named by the bar's direction
+var fb = M.foldOptions('bottom'), fr = M.foldOptions('right');
+ok('Shrinks To: a bar\'s left or right, a rail\'s top or bottom',
+      fb[0][1] === 'Left' && fb[1][1] === 'Right' && fr[0][1] === 'Top' && fr[1][1] === 'Bottom' && M.foldOptions('top')[1][1] === 'Right');
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

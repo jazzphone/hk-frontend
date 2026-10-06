@@ -913,3 +913,19 @@ def test_the_tab_bars_position():
     data, err = apply_board({}, {"menu_custom": True, "tab_bar_pos": "top"})
     assert err == {} and S.resolved(data, opts)["tab_bar_pos"] == "top"
     assert apply_board({}, {"tab_bar_pos": "middle"})[1] == {"tab_bar_pos": "choice"}
+
+
+def test_the_tab_bars_shrink_end():
+    """Shrinks To: the start of the bar (a bar's left, a rail's top) unless
+    the end is chosen."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    assert S.board({})["tab_bar_fold"] == "start" and S.board({"tab_bar_fold": "middle"})["tab_bar_fold"] == "start"
+    opts, err = apply_house({}, {"menu.bar_fold": "end"})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_fold"] == "end"
+    assert apply_board({}, {"tab_bar_fold": "middle"})[1] == {"tab_bar_fold": "choice"}
+    # Start Small: rests full unless chosen
+    assert S.board({})["tab_bar_start"] == "full"
+    opts, err = apply_house({}, {"menu.bar_start": "small"})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_start"] == "small"
+    assert apply_board({}, {"tab_bar_start": "tiny"})[1] == {"tab_bar_start": "choice"}

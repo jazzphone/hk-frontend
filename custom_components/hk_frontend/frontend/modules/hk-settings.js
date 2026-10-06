@@ -86,7 +86,7 @@
             open_min: 1000, time_weather_at: 'page', ha_row: false, accent: 'orange', swipe: false,
             // the tab bar's (a screen's menu or narrow choice "tabbar")
             bar_scroll: 'shrink', bar_rooms: 'more', bar_glass: 'house', bar_more: 'icons',
-            bar_more_phone: 'list', bar_pos: 'bottom' },
+            bar_more_phone: 'list', bar_pos: 'bottom', bar_fold: 'start', bar_start: 'full' },
     rooms: { headings: true, status: ['temperature', 'humidity', 'security', 'tvs', 'lights', 'outlets', 'blinds',
                                  'fans', 'windows', 'doors', 'locks', 'garage', 'valves', 'motion', 'occupancy',
                                  'leaks', 'speakers'],

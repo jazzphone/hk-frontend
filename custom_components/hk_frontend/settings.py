@@ -340,7 +340,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # the tab bar (2026-10-05): while scrolling, its Rooms button,
              # its glass
              "bar_scroll": "shrink", "bar_rooms": "more", "bar_glass": "house", "bar_more": "icons",
-             "bar_more_phone": "list", "bar_pos": "bottom"},
+             "bar_more_phone": "list", "bar_pos": "bottom", "bar_fold": "start", "bar_start": "full"},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -717,6 +717,12 @@ TAB_BAR_MORE = ("icons", "list")
 # where the bar sits: along the bottom or the top, or a rail down the left or
 # the right (tablets and wider -- a phone keeps it at the bottom)
 TAB_BAR_POS = ("bottom", "top", "left", "right")
+# where Shrink folds the bar to, along it: its start (a bar's left, a rail's
+# top) or its end (right / bottom)
+TAB_BAR_FOLD = ("start", "end")
+# with Shrink: the bar rests full (and folds as the page scrolls), or rests
+# small -- a tap opens it, scrolling or a page change folds it again
+TAB_BAR_START = ("full", "small")
 
 
 def tab_bar_rooms(v: Any) -> str:
@@ -744,7 +750,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # the tab bar (menu or narrow "tabbar"): while scrolling, its Rooms
     # button, its glass -- menu settings (MENU_KEYS)
     "tab_bar_scroll": "shrink", "tab_bar_rooms": "more", "tab_bar_glass": "house", "tab_bar_more": "icons",
-    "tab_bar_more_phone": "list", "tab_bar_pos": "bottom",
+    "tab_bar_more_phone": "list", "tab_bar_pos": "bottom", "tab_bar_fold": "start", "tab_bar_start": "full",
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
     "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
@@ -886,6 +892,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_more"] = pick("tab_bar_more", TAB_BAR_MORE)
     out["tab_bar_more_phone"] = pick("tab_bar_more_phone", TAB_BAR_MORE)
     out["tab_bar_pos"] = pick("tab_bar_pos", TAB_BAR_POS)
+    out["tab_bar_fold"] = pick("tab_bar_fold", TAB_BAR_FOLD)
+    out["tab_bar_start"] = pick("tab_bar_start", TAB_BAR_START)
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
         out[k] = strs(d.get(k)) or []
@@ -1200,7 +1208,8 @@ MENU_KEYS = {"menu": "style", "narrow": "narrow", "tab_position": "tab_at", "tab
              "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
              "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe",
              "tab_bar_scroll": "bar_scroll", "tab_bar_rooms": "bar_rooms", "tab_bar_glass": "bar_glass",
-             "tab_bar_more": "bar_more", "tab_bar_more_phone": "bar_more_phone", "tab_bar_pos": "bar_pos"}
+             "tab_bar_more": "bar_more", "tab_bar_more_phone": "bar_more_phone", "tab_bar_pos": "bar_pos",
+             "tab_bar_fold": "bar_fold", "tab_bar_start": "bar_start"}
 # a menu BUTTON's styles: not off, always open or the tab bar
 MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open", "tabbar"))
 
@@ -1240,7 +1249,9 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "tab_bar_glass": pick("bar_glass", TAB_BAR_GLASS, d["tab_bar_glass"]),
             "tab_bar_more": pick("bar_more", TAB_BAR_MORE, d["tab_bar_more"]),
             "tab_bar_more_phone": pick("bar_more_phone", TAB_BAR_MORE, d["tab_bar_more_phone"]),
-            "tab_bar_pos": pick("bar_pos", TAB_BAR_POS, d["tab_bar_pos"])}
+            "tab_bar_pos": pick("bar_pos", TAB_BAR_POS, d["tab_bar_pos"]),
+            "tab_bar_fold": pick("bar_fold", TAB_BAR_FOLD, d["tab_bar_fold"]),
+            "tab_bar_start": pick("bar_start", TAB_BAR_START, d["tab_bar_start"])}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")
 
 

@@ -1779,6 +1779,10 @@
       if (M.hasTabBar(b)) {
         rows.push(K.nav({ label: 'Tab Bar While Scrolling', value: M.choiceLabel(M.TAB_BAR_SCROLLS, b.tab_bar_scroll), href: hm, sk: 'b:tab_bar_scroll' }));
         rows.push(K.nav({ label: 'Tab Bar Position', value: M.choiceLabel(M.TAB_BAR_POS, b.tab_bar_pos || 'bottom'), href: hm, sk: 'b:tab_bar_pos' }));
+        if ((b.tab_bar_scroll || 'shrink') === 'shrink') {
+          rows.push(K.nav({ label: 'Start Small', value: b.tab_bar_start === 'small' ? 'On' : 'Off', href: hm, sk: 'b:tab_bar_start' }));
+          rows.push(K.nav({ label: 'Shrinks To', value: M.choiceLabel(M.foldOptions(b.tab_bar_pos || 'bottom'), b.tab_bar_fold || 'start'), href: hm, sk: 'b:tab_bar_fold' }));
+        }
         rows.push(K.nav({ label: 'More Style', value: M.choiceLabel(M.TAB_BAR_MORE, b.tab_bar_more || 'icons'), href: hm, sk: 'b:tab_bar_more' }));
         rows.push(K.nav({ label: 'More Style on Phones', value: M.choiceLabel(M.TAB_BAR_MORE, b.tab_bar_more_phone || 'list'), href: hm, sk: 'b:tab_bar_more_phone' }));
         rows.push(K.nav({ label: 'Rooms in Tab Bar', value: M.choiceLabel(M.TAB_BAR_ROOMS, M.roomsPlace(b.tab_bar_rooms)), href: hm, sk: 'b:tab_bar_rooms' }));
@@ -3714,23 +3718,38 @@
     // THE TAB BAR'S ROWS (a screen whose Menu, or whose narrow choice, is
     // Tab Bar; every one in All Screens'), in a screen's keys
     tabBarRows(c, v, set, sk, house) {
-      var wide = this.hasAttribute('wide');
-      c.appendChild(K.group({ header: 'Tab Bar', footer: (house ? 'For a screen whose Menu, On Narrow Screens or When Folded is Tab Bar. ' : '') +
-          'More Style: a grid of icons, wide on a tablet, or a list like the side menu. Rooms In More: under the pages in More. Shrink folds the bar into one small button as you scroll; scrolling up ' +
-          'brings it back. Tinted: a near-solid bar, no blur.' }, [
-        K.seg({ label: 'While Scrolling', sk: sk('tab_bar_scroll'), value: v.tab_bar_scroll || 'shrink', stack: !wide,
-                options: M.TAB_BAR_SCROLLS, onChange: function (x) { set({ tab_bar_scroll: x }); } }),
+      var wide = this.hasAttribute('wide'), pos = v.tab_bar_pos || 'bottom', scroll = v.tab_bar_scroll || 'shrink';
+      var rail = pos === 'left' || pos === 'right';
+      // WHERE IT SITS AND WHAT IT DOES AS YOU SCROLL -- Shrinks To only with
+      // Shrink, its two ends named by the bar's direction
+      var place = [
         K.seg({ label: 'Position', sub: 'Left and right are a rail on a tablet or wider; a phone keeps the bar at the bottom.',
-                sk: sk('tab_bar_pos'), value: v.tab_bar_pos || 'bottom', stack: !wide, options: M.TAB_BAR_POS,
+                sk: sk('tab_bar_pos'), value: pos, stack: !wide, options: M.TAB_BAR_POS,
                 onChange: function (x) { set({ tab_bar_pos: x }); } }),
+        K.seg({ label: 'While Scrolling', sk: sk('tab_bar_scroll'), value: scroll, stack: !wide,
+                options: M.TAB_BAR_SCROLLS, onChange: function (x) { set({ tab_bar_scroll: x }); } })];
+      if (scroll === 'shrink') {
+        place.push(K.seg({ label: 'Shrinks To', sub: rail ? 'The end of the rail the small button sits at.' : 'The side the small button sits at.',
+                           sk: sk('tab_bar_fold'), value: v.tab_bar_fold || 'start', stack: !wide, options: M.foldOptions(pos),
+                           onChange: function (x) { set({ tab_bar_fold: x }); } }));
+        place.push(K.toggle({ label: 'Start Small', sub: 'The bar rests as the small button; tap it to open the bar.',
+                              sk: sk('tab_bar_start'), on: v.tab_bar_start === 'small',
+                              onChange: function (on) { set({ tab_bar_start: on ? 'small' : 'full' }); } }));
+      }
+      place.push(K.select({ label: 'Glass', sk: sk('tab_bar_glass'), value: v.tab_bar_glass || 'house', options: M.TAB_BAR_GLASS,
+                            onChange: function (x) { set({ tab_bar_glass: x }); } }));
+      c.appendChild(K.group({ header: 'Tab Bar', footer: (house ? 'For a screen whose Menu, On Narrow Screens or When Folded is Tab Bar. ' : '') +
+          'Shrink folds the bar into one small button as you scroll down; Hide slides it off its edge. Scrolling up, either end ' +
+          'of the page or a tap brings it back. Tinted glass: a near-solid bar, no blur.' }, place));
+      // WHAT MORE SHOWS
+      c.appendChild(K.group({ header: 'More', footer: 'Icons: a grid, as wide as a tablet allows. List: rows like the side menu. ' +
+          'Rooms In More: under the pages in More; Own Button: a round button beside the bar (at the bottom or the top).' }, [
         K.seg({ label: 'More Style', sub: 'On a tablet, an iPad or a computer.', sk: sk('tab_bar_more'), value: v.tab_bar_more || 'icons',
                 stack: !wide, options: M.TAB_BAR_MORE, onChange: function (x) { set({ tab_bar_more: x }); } }),
         K.seg({ label: 'More Style on Phones', sub: 'Under 640 px.', sk: sk('tab_bar_more_phone'), value: v.tab_bar_more_phone || 'list',
                 stack: !wide, options: M.TAB_BAR_MORE, onChange: function (x) { set({ tab_bar_more_phone: x }); } }),
         K.seg({ label: 'Rooms', sk: sk('tab_bar_rooms'), value: M.roomsPlace(v.tab_bar_rooms), stack: !wide,
-                options: M.TAB_BAR_ROOMS, onChange: function (x) { set({ tab_bar_rooms: x }); } }),
-        K.select({ label: 'Glass', sk: sk('tab_bar_glass'), value: v.tab_bar_glass || 'house', options: M.TAB_BAR_GLASS,
-                   onChange: function (x) { set({ tab_bar_glass: x }); } })]));
+                options: M.TAB_BAR_ROOMS, onChange: function (x) { set({ tab_bar_rooms: x }); } })]));
     }
     // ---------------------------------------------------------- rooms
     // ROOMS, ALL SCREENS (2026-10-01): one place for everything about rooms.
