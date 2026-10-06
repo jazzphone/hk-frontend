@@ -894,3 +894,9 @@ def test_the_tab_bars_more_style():
     assert err == {} and S.resolved(S.board({}), opts)["tab_bar_more"] == "list"
     assert S.resolved(S.board({"menu_custom": True, "tab_bar_more": "icons"}), opts)["tab_bar_more"] == "icons"
     assert apply_board({}, {"tab_bar_more": "tiles"})[1] == {"tab_bar_more": "choice"}
+    # a phone's own: a list unless chosen
+    assert S.board({})["tab_bar_more_phone"] == "list"
+    opts, err = apply_house({}, {"menu.bar_more_phone": "icons"})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_more_phone"] == "icons"
+    data, err = apply_board({}, {"tab_bar_more_phone": "icons"})
+    assert err == {} and data["tab_bar_more_phone"] == "icons"

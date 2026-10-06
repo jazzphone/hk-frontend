@@ -373,7 +373,7 @@
     }
     function listKey(width) {
       var h = C.hass(), b = M.board();
-      return [M.dash(), cfgId(M.config()), width, b.tab_bar_rooms, b.tab_bar_more, b.ha_row, JSON.stringify(S.haPrefs || null),
+      return [M.dash(), cfgId(M.config()), width, b.tab_bar_rooms, b.tab_bar_more, b.tab_bar_more_phone, b.ha_row, JSON.stringify(S.haPrefs || null),
               h && h.user && h.user.is_admin, h && h.panels ? Object.keys(h.panels).join(',') : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
@@ -413,7 +413,9 @@
       // ONE WIDTH FOR THE BAR AND MORE (joined, no Rooms button): the wider
       // of the two -- More's (860 px of icons, 420 of list) or what the tabs
       // need -- within the screen, so opening More never widens anything
-      var list = b.tab_bar_more === 'list', sheetW = list ? 420 : 860;
+      // More Style: a phone's own (under M.NARROW, 640 px), else the tablet's
+      var phone = (window.innerWidth || 1280) < (M.NARROW || 640);
+      var list = (phone ? b.tab_bar_more_phone : b.tab_bar_more) === 'list', sheetW = list ? 420 : 860;
       var joinW = Math.min(Math.max(0, width - 2 * GUTTER), Math.max(f.width, sheetW));
       S.pill.style.setProperty('--pill-w', (roomsOn ? f.width : joinW) + 'px');
       S.root.classList.toggle('hasrooms', roomsOn);

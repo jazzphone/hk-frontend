@@ -301,11 +301,11 @@
                     tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
                     ha_row: 'ha_row', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe',
                     tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass',
-                    tab_bar_more: 'bar_more' };
+                    tab_bar_more: 'bar_more', tab_bar_more_phone: 'bar_more_phone' };
   var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true,
                         swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house',
-                        tab_bar_more: 'icons' };
+                        tab_bar_more: 'icons', tab_bar_more_phone: 'list' };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -997,7 +997,8 @@
     ['Time & Weather in Menu', 'house/menu', 'menu.time_weather_at', 'clock header always open'],
     ['While Scrolling', 'house/menu', 'menu.bar_scroll', 'tab bar shrink hide stay scroll auto hide'],
     ['Rooms in Tab Bar', 'house/menu', 'menu.bar_rooms', 'tab bar rooms more button sheet round'],
-    ['More Style', 'house/menu', 'menu.bar_more', 'tab bar more icons list grid sheet'],
+    ['More Style', 'house/menu', 'menu.bar_more', 'tab bar more icons list grid sheet tablet'],
+    ['More Style on Phones', 'house/menu', 'menu.bar_more_phone', 'tab bar more icons list grid sheet phone iphone'],
     ['Tab Bar Glass', 'house/menu', 'menu.bar_glass', 'tab bar blur frosted tinted clear transparency look'],
     ['Home Assistant Section', 'house/menu', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
     ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
@@ -1077,7 +1078,7 @@
     // a screen's menu: All Screens' or its own (menu_custom)
     ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
                       'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe',
-                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more'], true],
+                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone'], true],
     ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],

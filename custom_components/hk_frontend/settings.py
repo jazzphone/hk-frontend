@@ -339,7 +339,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              "ha_row": False, "accent": "orange", "swipe": False,
              # the tab bar (2026-10-05): while scrolling, its Rooms button,
              # its glass
-             "bar_scroll": "shrink", "bar_rooms": "more", "bar_glass": "house", "bar_more": "icons"},
+             "bar_scroll": "shrink", "bar_rooms": "more", "bar_glass": "house", "bar_more": "icons",
+             "bar_more_phone": "list"},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -709,7 +710,9 @@ TAB_BAR_GLASS = ("house", "clear", "frosted", "blur")
 # beside the tabs, or not in the bar at all
 TAB_BAR_ROOMS = ("more", "button", "off")
 # More's look: a grid of icons (wide on a tablet), or a list like the side
-# menu's (about a phone's width everywhere)
+# menu's (about a phone's width everywhere) -- on a tablet or wider
+# (tab_bar_more) and on a phone, under 640 px (tab_bar_more_phone), as the
+# edge tab's two sizes are
 TAB_BAR_MORE = ("icons", "list")
 
 
@@ -738,6 +741,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # the tab bar (menu or narrow "tabbar"): while scrolling, its Rooms
     # button, its glass -- menu settings (MENU_KEYS)
     "tab_bar_scroll": "shrink", "tab_bar_rooms": "more", "tab_bar_glass": "house", "tab_bar_more": "icons",
+    "tab_bar_more_phone": "list",
     # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
     # right under Home -- empty is the views' own `menu: top`
     "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
@@ -877,6 +881,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_rooms"] = tab_bar_rooms(d.get("tab_bar_rooms"))
     out["tab_bar_glass"] = pick("tab_bar_glass", TAB_BAR_GLASS)
     out["tab_bar_more"] = pick("tab_bar_more", TAB_BAR_MORE)
+    out["tab_bar_more_phone"] = pick("tab_bar_more_phone", TAB_BAR_MORE)
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
         out[k] = strs(d.get(k)) or []
@@ -1191,7 +1196,7 @@ MENU_KEYS = {"menu": "style", "narrow": "narrow", "tab_position": "tab_at", "tab
              "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
              "ha_row": "ha_row", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe",
              "tab_bar_scroll": "bar_scroll", "tab_bar_rooms": "bar_rooms", "tab_bar_glass": "bar_glass",
-             "tab_bar_more": "bar_more"}
+             "tab_bar_more": "bar_more", "tab_bar_more_phone": "bar_more_phone"}
 # a menu BUTTON's styles: not off, always open or the tab bar
 MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open", "tabbar"))
 
@@ -1229,7 +1234,8 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "tab_bar_scroll": pick("bar_scroll", TAB_BAR_SCROLLS, d["tab_bar_scroll"]),
             "tab_bar_rooms": tab_bar_rooms(m.get("bar_rooms")),
             "tab_bar_glass": pick("bar_glass", TAB_BAR_GLASS, d["tab_bar_glass"]),
-            "tab_bar_more": pick("bar_more", TAB_BAR_MORE, d["tab_bar_more"])}
+            "tab_bar_more": pick("bar_more", TAB_BAR_MORE, d["tab_bar_more"]),
+            "tab_bar_more_phone": pick("bar_more_phone", TAB_BAR_MORE, d["tab_bar_more_phone"])}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")
 
 

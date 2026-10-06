@@ -75,9 +75,10 @@ A page too short to scroll keeps the bar.
     The More and Rooms sheets are then the same height, and Rooms scrolls.
     There, each room's icon sits in a round plate.
   - **Off:** the rooms are left out of the tab bar.
-- **More Style:** **Icons** (the default), a grid that uses a tablet's
-  width, or **List**, rows like the side menu's, about a phone's width on
-  every screen.
+- **More Style** and **More Style on Phones** (under 640 px), each
+  **Icons**, a grid that uses a tablet's width, or **List**, rows like the
+  side menu's, about a phone's width. Out of the box a phone gets the list
+  and a tablet or computer the icons.
 - **Glass:**
   - **Screen's Glass** follows the screen's
     [Glass Style](Appearance.md). Frosted stays frosted; any other style is
