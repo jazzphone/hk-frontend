@@ -935,3 +935,18 @@ def test_the_tab_bars_shrink_end():
     assert err == {} and S.resolved(S.board({}), opts)["tab_bar_adjust"] is False
     data, err = apply_board({}, {"menu_custom": True, "tab_bar_adjust": False})
     assert err == {} and data["tab_bar_adjust"] is False
+
+
+def test_the_tab_bars_while_scrolling_on_phones():
+    """A phone's own While Scrolling: None (Same as Tablets) unless chosen."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    assert S.board({})["tab_bar_scroll_phone"] is None
+    assert S.board({"tab_bar_scroll_phone": "zoom"})["tab_bar_scroll_phone"] is None
+    opts, err = apply_house({}, {"menu.bar_scroll_phone": "hide"})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_scroll_phone"] == "hide"
+    opts, err = apply_house(opts, {"menu.bar_scroll_phone": None})
+    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_scroll_phone"] is None, "back to Same as Tablets"
+    data, err = apply_board({}, {"menu_custom": True, "tab_bar_scroll_phone": "stay"})
+    assert err == {} and data["tab_bar_scroll_phone"] == "stay"
+    assert apply_board({}, {"tab_bar_scroll_phone": "zoom"})[1] == {"tab_bar_scroll_phone": "choice"}

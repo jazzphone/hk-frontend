@@ -74,6 +74,11 @@
     // grows up from the bottom (the now-playing bar) sits above it, as iOS
     // stacks its mini player over the tab bar. Unset without one.
     '.hkp.bottom.plain{padding-bottom:var(--hk-tabbar-h,0px)}',
+    // ...and beside a tab bar RAIL (left or right, --hk-tabbar-l / -r while
+    // it shows): it keeps the rail's column, so it never lies over the
+    // rail's foot -- its More tab, or its small button (the bar is 100% wide,
+    // so it fits what is left by itself)
+    '.hkp.bottom.plain{padding-left:var(--hk-tabbar-l,0px);padding-right:var(--hk-tabbar-r,0px)}',
     // Bubble's backdrop, measured: rgba(17,17,17,0.8), 0.3s opacity fade.
     '.hkp .bd{position:absolute;inset:0;background:rgba(17,17,17,0.8);opacity:0;',
     '  transition:opacity .3s ease;pointer-events:auto;-webkit-tap-highlight-color:transparent}',

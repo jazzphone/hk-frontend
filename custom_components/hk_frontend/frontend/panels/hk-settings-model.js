@@ -257,6 +257,8 @@
   // menu with "Tab Bar" where it folds -- does this screen ever show it?
   function hasTabBar(b) { return !!b && (b.menu === 'tabbar' || (b.menu !== 'off' && b.narrow === 'tabbar')); }
   var TAB_BAR_SCROLLS = [['shrink', 'Shrink'], ['hide', 'Hide'], ['stay', 'Stay']];
+  // a phone's own: Same as Tablets (null), or its own
+  var TAB_BAR_SCROLLS_PHONE = [['same', 'Same as Tablets']].concat(TAB_BAR_SCROLLS);
   var TAB_BAR_MORE = [['icons', 'Icons'], ['list', 'List']];
   var TAB_BAR_POS = [['bottom', 'Bottom'], ['top', 'Top'], ['left', 'Left'], ['right', 'Right']];
   // SHRINKS TO, named by the bar's direction: a bar's left or right, a
@@ -309,12 +311,13 @@
                     tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass',
                     tab_bar_more: 'bar_more', tab_bar_more_phone: 'bar_more_phone',
                     tab_bar_pos: 'bar_pos', tab_bar_fold: 'bar_fold', tab_bar_start: 'bar_start',
-                    tab_bar_adjust: 'bar_adjust' };
+                    tab_bar_adjust: 'bar_adjust', tab_bar_scroll_phone: 'bar_scroll_phone' };
   var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, accent: 'orange', glyph: 'sidebar', clock: true,
                         swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house',
                         tab_bar_more: 'icons', tab_bar_more_phone: 'list', tab_bar_pos: 'bottom',
-                        tab_bar_fold: 'start', tab_bar_start: 'full', tab_bar_adjust: true };
+                        tab_bar_fold: 'start', tab_bar_start: 'full', tab_bar_adjust: true,
+                        tab_bar_scroll_phone: null };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -326,6 +329,7 @@
     out.swipe = out.swipe === true;
     out.tab_bar_rooms = roomsPlace(out.tab_bar_rooms);
     out.tab_bar_adjust = out.tab_bar_adjust !== false;
+    if (out.tab_bar_scroll_phone === undefined) out.tab_bar_scroll_phone = null;
     return out;
   }
   function houseMenuSave(ch) {
@@ -1008,6 +1012,7 @@
     ['While Scrolling', 'house/menu', 'menu.bar_scroll', 'tab bar shrink hide stay scroll auto hide'],
     ['Rooms in Tab Bar', 'house/menu', 'menu.bar_rooms', 'tab bar rooms more button sheet round'],
     ['More Style', 'house/menu', 'menu.bar_more', 'tab bar more icons list grid sheet tablet'],
+    ['While Scrolling on Phones', 'house/menu', 'menu.bar_scroll_phone', 'tab bar phone shrink hide stay always shown scroll'],
     ['Adjust Content', 'house/menu', 'menu.bar_adjust', 'tab bar adjust content make room move page float over overlap padding'],
     ['Start Small', 'house/menu', 'menu.bar_start', 'tab bar start small shrunk folded rest collapsed button'],
     ['Shrinks To', 'house/menu', 'menu.bar_fold', 'tab bar shrink fold small button corner left right top bottom side'],
@@ -1092,7 +1097,7 @@
     // a screen's menu: All Screens' or its own (menu_custom)
     ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'categories', 'tab_position', 'tab_size',
                       'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe',
-                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust'], true],
+                      'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust', 'tab_bar_scroll_phone'], true],
     ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
@@ -1234,7 +1239,7 @@
     MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel,
     ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
     MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
-    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
+    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_SCROLLS_PHONE: TAB_BAR_SCROLLS_PHONE, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
     WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES,

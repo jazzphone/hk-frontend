@@ -114,6 +114,14 @@
     return (pos === 'left' || pos === 'right') && width < 640 ? 'bottom' : pos;
   }
 
+  // WHILE SCROLLING HERE: a phone's own (under 640 px, hk-base.js
+  // MENU_NARROW), when it has one, else the tablets'
+  function scrollOf(b, width) {
+    b = b || {};
+    var w = width === undefined ? (window.innerWidth || 1280) : width;
+    return w < 640 && b.tab_bar_scroll_phone ? b.tab_bar_scroll_phone : (b.tab_bar_scroll || 'shrink');
+  }
+
   // HOW THE PAGE MAKES ROOM FOR THE BAR (Adjust Content):
   //   'pad'   a fixed strip on the bar's side -- Stay, and the bottom (room
   //           at the page's end only, so the last row scrolls clear)
@@ -180,7 +188,7 @@
   }
 
   window.hkTabBar = { version: '1.0.0', _: { fit: fit, parts: parts, scrollStep: scrollStep, material: material,
-                                             roomsMode: roomsMode, railFit: railFit, position: position, room: room,
+                                             roomsMode: roomsMode, railFit: railFit, position: position, room: room, scrollOf: scrollOf,
                                              SIZES: { TAB_MIN_W: TAB_MIN_W, TAB_MAX_W: TAB_MAX_W, MAX_TABS: MAX_TABS,
                                                       GUTTER: GUTTER, GAP: GAP, ROUND: ROUND, PAD: PAD } } };
 
@@ -710,7 +718,7 @@
       S.last.set(el, y);
       if (prev === undefined || prev === y) return;
       var b = M.board() || {};
-      var st = scrollStep({ mode: S.mode, down: S.down, up: S.up }, y - prev, y, max, b.tab_bar_scroll, b.tab_bar_start);
+      var st = scrollStep({ mode: S.mode, down: S.down, up: S.up }, y - prev, y, max, scrollOf(b), b.tab_bar_start);
       var was = S.mode;
       setMode(st.mode);
       if (st.mode === was) { S.down = st.down; S.up = st.up; }
@@ -728,9 +736,23 @@
     // laid out again. On hui-view, not the view container: the sky (fixed)
     // lives in the container and must stay put.
     var ASIDE = (GUTTER + RAIL_W + 8);
+    // THE NOW-PLAYING BAR KEEPS CLEAR OF A RAIL (hk-popup.js reads these):
+    // the rail's column, while the rail shows (full or folded), on its side
+    function railRoom() {
+      var de = document.documentElement;
+      if (!de || !de.style) return;
+      var pos = S.on ? S.pos : null, show = (pos === 'left' || pos === 'right') && S.mode !== 'gone';
+      [['--hk-tabbar-l', 'left'], ['--hk-tabbar-r', 'right']].forEach(function (kv) {
+        var v = show && pos === kv[1] ? (GUTTER + RAIL_W + 12) + 'px' : '';      // 12 px clear of the rail
+        if (de.style.getPropertyValue(kv[0]) !== v) {
+          if (v) de.style.setProperty(kv[0], v); else de.style.removeProperty(kv[0]);
+        }
+      });
+    }
     function aside() {
+      railRoom();
       var b = M.board() || {}, pos = S.pos;
-      var how = S.on && pos ? room(pos, b.tab_bar_scroll, b.tab_bar_adjust) : 'none';
+      var how = S.on && pos ? room(pos, scrollOf(b), b.tab_bar_adjust) : 'none';
       var on = how === 'scale' || how === 'shift';
       var v = viewEl(), hv = v && v.querySelector('hui-view');
       if (S.asideEl && S.asideEl !== hv) { S.asideEl.style.transform = ''; S.asideEl.style.transformOrigin = ''; S.asideEl = null; }
@@ -775,7 +797,7 @@
       // the top only pads the page's ends, so it is over the content as soon
       // as the page scrolls, whatever it does.
       var b = M.board() || {};
-      if (pos && room(pos, b.tab_bar_scroll, b.tab_bar_adjust) !== 'pad') pos = null;
+      if (pos && room(pos, scrollOf(b), b.tab_bar_adjust) !== 'pad') pos = null;
       var v = pos === 'bottom' ? 'calc(' + (BAR_H + 10) + 'px + ' + LIFT_CSS + ')' : '';
       if (de.style.getPropertyValue('--hk-tabbar-h') !== v) {
         if (v) de.style.setProperty('--hk-tabbar-h', v);
@@ -840,7 +862,7 @@
     // where the bar rests: small with Start Small (and Shrink), else full
     function rest() {
       var b = M.board() || {};
-      return b.tab_bar_scroll === 'shrink' && b.tab_bar_start === 'small' ? 'small' : 'full';
+      return scrollOf(b) === 'shrink' && b.tab_bar_start === 'small' ? 'small' : 'full';
     }
     function onNav() {
       closeSheet(true);

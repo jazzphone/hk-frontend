@@ -87,7 +87,7 @@
             // the tab bar's (a screen's menu or narrow choice "tabbar")
             bar_scroll: 'shrink', bar_rooms: 'more', bar_glass: 'house', bar_more: 'icons',
             bar_more_phone: 'list', bar_pos: 'bottom', bar_fold: 'start', bar_start: 'full',
-            bar_adjust: true },
+            bar_adjust: true, bar_scroll_phone: null },
     rooms: { headings: true, status: ['temperature', 'humidity', 'security', 'tvs', 'lights', 'outlets', 'blinds',
                                  'fans', 'windows', 'doors', 'locks', 'garage', 'valves', 'motion', 'occupancy',
                                  'leaks', 'speakers'],

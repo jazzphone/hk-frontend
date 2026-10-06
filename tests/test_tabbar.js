@@ -116,6 +116,12 @@ ok('Adjust Content: a rail that shrinks or hides eases the page aside; the top s
 ok('...off, the bar floats over the page everywhere', ['left', 'right', 'top', 'bottom'].every(function (p) {
    return rr(p, 'shrink', false) === 'none' && rr(p, 'stay', false) === 'none'; }));
 
+var so = T.scrollOf;
+ok('While Scrolling on Phones: a phone\'s own under 640 px; Same as Tablets (null) follows the tablets\'',
+   so({ tab_bar_scroll: 'shrink', tab_bar_scroll_phone: 'hide' }, 390) === 'hide' &&
+   so({ tab_bar_scroll: 'shrink', tab_bar_scroll_phone: 'hide' }, 1280) === 'shrink' &&
+   so({ tab_bar_scroll: 'stay', tab_bar_scroll_phone: null }, 390) === 'stay' && so({}, 390) === 'shrink');
+
 print('=== the material ===');
 var mat = T.material;
 ok('the screen\'s look: frosted stays frosted', mat('house', 'frosted') === 'frosted');

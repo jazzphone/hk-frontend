@@ -65,6 +65,11 @@ Settings) puts the bar:
   phone, where a rail would take too much of the width, the bar stays at the
   bottom.
 
+| | |
+|---|---|
+| ![A tablet with the tab bar as a rail down the right side, More open beside it as a list](images/tablet-tabbar-rail.png) | ![A tablet with the tab bar along the top, the page starting below it](images/tablet-tabbar-top.png) |
+| Right, More open as a list | Top |
+
 ## Adjust Content
 
 **Adjust Content** (on by default) moves the page clear of the open bar:
@@ -91,6 +96,10 @@ Turned off, the bar floats over the page everywhere.
 - **Hide:** scrolling down slides the bar off its edge: down, up, or out to
   the side for a rail.
 - **Stay:** the bar never moves.
+
+**While Scrolling** is for tablets, iPads and computers. **While Scrolling
+on Phones** (under 640 px) can choose differently. It's **Same as Tablets**
+unless you pick Shrink, Hide or Stay for phones.
 
 With Shrink or Hide, the full bar comes back when you:
 

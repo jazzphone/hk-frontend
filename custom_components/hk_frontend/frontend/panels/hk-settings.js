@@ -1778,9 +1778,10 @@
                 tile: ['', M.accentOf(b.accent).hex] })];
       if (M.hasTabBar(b)) {
         rows.push(K.nav({ label: 'Tab Bar While Scrolling', value: M.choiceLabel(M.TAB_BAR_SCROLLS, b.tab_bar_scroll), href: hm, sk: 'b:tab_bar_scroll' }));
+        rows.push(K.nav({ label: 'While Scrolling on Phones', value: M.choiceLabel(M.TAB_BAR_SCROLLS_PHONE, b.tab_bar_scroll_phone || 'same'), href: hm, sk: 'b:tab_bar_scroll_phone' }));
         rows.push(K.nav({ label: 'Adjust Content', value: b.tab_bar_adjust !== false ? 'On' : 'Off', href: hm, sk: 'b:tab_bar_adjust' }));
         rows.push(K.nav({ label: 'Tab Bar Position', value: M.choiceLabel(M.TAB_BAR_POS, b.tab_bar_pos || 'bottom'), href: hm, sk: 'b:tab_bar_pos' }));
-        if ((b.tab_bar_scroll || 'shrink') === 'shrink') {
+        if ((b.tab_bar_scroll || 'shrink') === 'shrink' || b.tab_bar_scroll_phone === 'shrink') {
           rows.push(K.nav({ label: 'Start Small', value: b.tab_bar_start === 'small' ? 'On' : 'Off', href: hm, sk: 'b:tab_bar_start' }));
           rows.push(K.nav({ label: 'Shrinks To', value: M.choiceLabel(M.foldOptions(b.tab_bar_pos || 'bottom'), b.tab_bar_fold || 'start'), href: hm, sk: 'b:tab_bar_fold' }));
         }
@@ -3720,6 +3721,7 @@
     // Tab Bar; every one in All Screens'), in a screen's keys
     tabBarRows(c, v, set, sk, house) {
       var wide = this.hasAttribute('wide'), pos = v.tab_bar_pos || 'bottom', scroll = v.tab_bar_scroll || 'shrink';
+      var phoneScroll = v.tab_bar_scroll_phone || null;
       var rail = pos === 'left' || pos === 'right';
       // WHERE IT SITS AND WHAT IT DOES AS YOU SCROLL -- Shrinks To only with
       // Shrink, its two ends named by the bar's direction
@@ -3727,9 +3729,11 @@
         K.seg({ label: 'Position', sub: 'Left and right are a rail on a tablet or wider; a phone keeps the bar at the bottom.',
                 sk: sk('tab_bar_pos'), value: pos, stack: !wide, options: M.TAB_BAR_POS,
                 onChange: function (x) { set({ tab_bar_pos: x }); } }),
-        K.seg({ label: 'While Scrolling', sk: sk('tab_bar_scroll'), value: scroll, stack: !wide,
-                options: M.TAB_BAR_SCROLLS, onChange: function (x) { set({ tab_bar_scroll: x }); } })];
-      if (scroll === 'shrink') {
+        K.seg({ label: 'While Scrolling', sub: 'On a tablet, an iPad or a computer.', sk: sk('tab_bar_scroll'), value: scroll, stack: !wide,
+                options: M.TAB_BAR_SCROLLS, onChange: function (x) { set({ tab_bar_scroll: x }); } }),
+        K.select({ label: 'While Scrolling on Phones', sub: 'Under 640 px.', sk: sk('tab_bar_scroll_phone'), value: phoneScroll || 'same',
+                   options: M.TAB_BAR_SCROLLS_PHONE, onChange: function (x) { set({ tab_bar_scroll_phone: x === 'same' ? null : x }); } })];
+      if (scroll === 'shrink' || phoneScroll === 'shrink') {
         place.push(K.seg({ label: 'Shrinks To', sub: rail ? 'The end of the rail the small button sits at.' : 'The side the small button sits at.',
                            sk: sk('tab_bar_fold'), value: v.tab_bar_fold || 'start', stack: !wide, options: M.foldOptions(pos),
                            onChange: function (x) { set({ tab_bar_fold: x }); } }));
