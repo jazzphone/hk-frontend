@@ -11,13 +11,13 @@ a holiday or a birthday: [Seasonal Decorations](Seasonal-Decorations.md).
 
 | | What the sky does |
 |---|---|
-| **Time of day** | The colors follow the sun’s elevation, from a deep noon blue through sunset to night. The sun’s glow sits where the sun is. |
+| **Time of day** | The colors follow the sun’s elevation, from a bright midday blue through sunset to night. The sun’s glow sits where the sun is. **Daytime Sky** below sets how bright the midday blue runs. |
 | **Night** | Stars, and the moon drawn at its real phase. |
 | **Clouds** | As many as the weather says (its cloud coverage, or a guess from the condition when there is none). At sunset they are lit warm from below. **Clouds** below chooses their look: Classic or Realistic. |
 | **Rain and snow** | Falling while the weather is rainy, pouring, hailing or snowy; lightning in a thunderstorm; a haze in fog. |
 
-The sky is kept dark enough that glass tiles and white text on top of it stay
-readable, even at noon.
+Glass tiles and white text on top of the sky stay readable, even at noon:
+when the sky gets bright, a soft shade comes in behind the cards.
 
 ![The live sky at night](images/sky-night.png)
 
@@ -108,7 +108,13 @@ screen can choose its own under **Appearance → Sky / Background**:
 | **Weather** | Off removes clouds, rain, snow, lightning and fog, including decorative snow and Halloween fog. The sun, moon and stars remain. |
 | **Decorations** | Off removes seasonal and surprise scenes. On uses the shared dates, themes and optional extra gate. |
 | **Clouds** | **Classic** is the drifting haze the sky has always had. **Realistic** draws photographic clouds instead — fair-weather cumulus, broken sheets, high wisps, a storm tower on the horizon, an overcast lid with darker masses drifting under it — chosen from the weather's cloud cover and condition, lit by the sun (gold at sunset, pink at dusk, moonlit at night), across the whole sky down to the horizon, behind New Decorations' trees. They sit in perspective: near clouds big and high, far ones small, many and softer toward the horizon, with long cirrus streaks above and, as it clouds over, the overcast's ceiling receding behind them. Each cloud crosses once and comes back as another, so nothing repeats. A fair or partly cloudy day keeps the sky as bright and blue as Classic's; the overcast's faint ceiling only comes in as the sky clouds over. A screen can choose its own. |
+| **Daytime Sky** | How bright the midday blue runs. **Natural** (the default) is a real midday sky. **Deep** is the darker, dusky blue the sky had before; **Balanced** is in between. The shade behind the cards rises with it, so all three stay readable. Sunrise, sunset, dusk and night look the same in all three. A screen can choose its own. |
 | **Backdrop** | Live sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
+
+**To try a look before choosing it,** open **Sky Lab** (`/hk/pages/skylab.html`):
+set the time of day, the weather, the clouds and the daytime brightness by hand,
+over the sky alone or over one of your own dashboards (preview only — nothing
+in your home switches). See [Tools → Sky Lab](Tools.md#sky-lab).
 
 A fixed backdrop changes the gradient; the other switches still apply. For a
 quiet gradient, turn Animations, Weather and Decorations off. The usual

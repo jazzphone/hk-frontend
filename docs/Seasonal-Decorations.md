@@ -171,6 +171,8 @@ changes; your screens keep today’s sky.
 | Setting | Default | What it does |
 |---|---|---|
 | Sky Switch | None (Always On) | An input boolean or switch. While it is off, no generated screen shows the live sky. A YAML screen names its own. Each screen can also turn its sky off. |
+| Clouds | Classic | **Realistic** draws photographic clouds instead of the drifting haze ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
+| Daytime Sky | Natural | How bright the midday blue runs: **Natural**, **Balanced** or **Deep** ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
 | Seasonal Decorations | On | Pauses every decoration. The same switch as **Seasonal decorations** on the HK Frontend device. |
 | Decoration Style | Old Decorations | **New Decorations** draws the seasons and holidays as close woodland scenery (above). Each screen can choose its own. |
 | Woodland Between Occasions | All Seasons | With New Decorations, which seasons' woodland — Spring, Summer, Autumn, Winter — shows on days with no holiday or birthday. Separate from each holiday's **Show**. |

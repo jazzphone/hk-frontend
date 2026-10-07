@@ -6,7 +6,7 @@ to finish: its own user, its screen, the kiosk browser, a photo screensaver,
 and returning to Home when nobody is using it. It works the same for one
 tablet or ten, of any brand.
 
-![A wall tablet showing the Home page, with the menu open beside it](images/tablet-home.png)
+![A wall tablet showing the Home page](images/tablet-home.png)
 
 ## What HK Frontend does, and what it leaves to you
 

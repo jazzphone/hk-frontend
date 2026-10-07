@@ -226,6 +226,12 @@ STATUS_ROWS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 # The clouds' looks (sky.cloud_style, a screen's sky_cloud_style)
 CLOUD_STYLES = ("classic", "realistic")
 
+# The daytime sky (sky.daytime, a screen's sky_daytime): how bright the midday
+# blue runs -- natural (a real midday sky), balanced, or deep (the dusky blue
+# the palette was first authored as). hk-sky.js raises its luminance cap with
+# it, so the cards stay readable at all three. Dusk and night are the same.
+DAYTIME_SKIES = ("natural", "balanced", "deep")
+
 # The seasons whose woodland New Decorations shows between occasions (sky.woodland)
 WOODLAND_SEASONS = ("spring", "summer", "fall", "winter")
 
@@ -255,6 +261,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # the clouds' look: "classic" (the drifting noise decks) or
             # "realistic" (photographic cloud cut-outs, tools/sky/cloud_art.py)
             "cloud_style": "classic",
+            # the daytime sky's brightness (DAYTIME_SKIES)
+            "daytime": "natural",
             # New Decorations' woodland on days with no holiday or birthday,
             # season by season -- its own choice, not the holidays' Show
             "woodland": list(WOODLAND_SEASONS),
@@ -808,7 +816,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # house's backdrop -- sky_gradient: a SKY_BACKDROPS id, sky_custom: its
     # stops, for "custom").
     "sky_animations": None, "sky_weather": None, "sky_decorations": None, "sky_decoration_style": None,
-    "sky_cloud_style": None, "sky_gradient": None, "sky_custom": None,
+    "sky_cloud_style": None, "sky_daytime": None, "sky_gradient": None, "sky_custom": None,
     # each page's background, this screen's own: {page: mode}; a page
     # missing follows All Screens' (sky.pages)
     "sky_pages": {},
@@ -970,6 +978,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
         out[k] = d.get(k) if isinstance(d.get(k), bool) else None
     out["sky_decoration_style"] = d.get("sky_decoration_style") if d.get("sky_decoration_style") in ("old", "new") else None
     out["sky_cloud_style"] = d.get("sky_cloud_style") if d.get("sky_cloud_style") in CLOUD_STYLES else None
+    out["sky_daytime"] = d.get("sky_daytime") if d.get("sky_daytime") in DAYTIME_SKIES else None
     out["sky_gradient"] = d.get("sky_gradient") if d.get("sky_gradient") in SKY_BACKDROP_IDS else None
     out["sky_custom"] = sky_stops(d.get("sky_custom"))
     out["sky_pages"] = sky_pages(d.get("sky_pages")) or {}

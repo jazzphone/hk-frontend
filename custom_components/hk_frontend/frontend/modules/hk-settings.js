@@ -52,6 +52,7 @@
                // the Weather Radar Card's own options (YAML), over the tuned map
                radar: {} },
     sky: { moon: null, holidays: null, seasonal: null, birthdays: [], decorations: true, decoration_style: 'old', cloud_style: 'classic',
+           daytime: 'natural',
            woodland: ['spring', 'summer', 'fall', 'winter'],
            // The sky's own look (Sky / Background): the moving parts, the
            // weather (clouds, rain, snow, fog -- the sun, moon and stars
@@ -324,8 +325,10 @@
   // (sky.*). backdrop: null is the live sky; {day: [4], night: [4]} a fixed
   // all-day gradient (the day set by day, the night set by night -- hk-sky.js
   // paint). The boards' keys are sky_animations / sky_weather /
-  // sky_decorations / sky_decoration_style / sky_cloud_style / sky_gradient /
-  // sky_custom.
+  // sky_decorations / sky_decoration_style / sky_cloud_style / sky_daytime /
+  // sky_gradient / sky_custom. brightness: the daytime sky (settings.py
+  // DAYTIME_SKIES) as hk-sky.js paints it, 0 (deep) .. 1 (natural).
+  var DAYTIME = { natural: 1, balanced: 0.5, deep: 0 };
   function skyLook() {
     var b = boardHere();
     var own = function (bk, hk, dflt) {
@@ -338,6 +341,8 @@
       decorations: own('sky_decorations', 'sky.decorations', true) !== false,
       decorationStyle: own('sky_decoration_style', 'sky.decoration_style', 'old'),
       cloudStyle: own('sky_cloud_style', 'sky.cloud_style', 'classic'),
+      brightness: DAYTIME.hasOwnProperty(own('sky_daytime', 'sky.daytime', 'natural'))
+        ? DAYTIME[own('sky_daytime', 'sky.daytime', 'natural')] : 1,
       backdrop: backdropStops(own('sky_gradient', 'sky.gradient', 'live'),
                               b && b.sky_gradient != null ? own('sky_custom', 'sky.gradient_custom', null) : get('sky.gradient_custom', null))
     };

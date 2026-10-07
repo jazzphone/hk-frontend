@@ -144,6 +144,17 @@ HS._apply({sky:{decoration_style:'old'},boards:{'dashboard-sky':{sky_decoration_
 ok('screen can opt into new style independently', HS.skyLook().decorationStyle === 'new');
 HS._apply({sky:{decoration_style:'new'},boards:{'dashboard-sky':{sky_decoration_style:null}}});
 ok('reset style follows All Screens', HS.skyLook().decorationStyle === 'new');
+print('=== Daytime Sky ===');
+HS._apply({ sky: {} });
+ok('the daytime sky is Natural by default (full brightness)', HS.skyLook().brightness === 1);
+HS._apply({ sky: { daytime: 'balanced' } });
+ok('Balanced is half', HS.skyLook().brightness === 0.5);
+HS._apply({ sky: { daytime: 'balanced' }, boards: { 'dashboard-sky': { sky_daytime: 'deep' } } });
+ok('a screen can choose Deep on its own', HS.skyLook().brightness === 0);
+HS._apply({ sky: { daytime: 'deep' }, boards: { 'dashboard-sky': { sky_daytime: null } } });
+ok('...and follows All Screens again when reset', HS.skyLook().brightness === 0);
+HS._apply({ sky: { daytime: 'glaring' } });
+ok('an unknown daytime sky is Natural', HS.skyLook().brightness === 1);
 print('=== Sky / Background inheritance ===');
 location.pathname = '/dashboard-sky/home';
 var houseStops = { day: ['#123456', '#223344', '#334455', '#445566'], night: ['#010203', '#020304', '#030405', '#040506'] };

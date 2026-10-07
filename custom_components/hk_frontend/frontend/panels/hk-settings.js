@@ -3342,6 +3342,9 @@
         K.select({ label: 'Clouds', sub: 'Classic drifting haze, or realistic photographic clouds', sk: 'sky.cloud_style',
           value: sky.cloud_style || 'classic', options: M.CLOUD_STYLES,
           onChange: function (v) { self.setH({ 'sky.cloud_style': v }); } }),
+        K.select({ label: 'Daytime Sky', sub: 'How bright the daytime blue runs. Sunsets and nights are the same', sk: 'sky.daytime',
+          value: sky.daytime || 'natural', options: M.DAYTIME_SKIES,
+          onChange: function (v) { self.setH({ 'sky.daytime': v }); } }),
         K.nav({ label: 'Backdrop', value: this.backdropLabel(sky.gradient), href: '#/house/sky/backdrop', sk: 'sky.gradient' })]));
       this.skyPagesGroup(c, null, null);
       var rows = [K.toggle({ label: 'Seasonal Decorations', sk: 'sky.decorations', on: sky.decorations !== false,
@@ -3500,6 +3503,9 @@
       rows.push(K.select({ label: 'Clouds', sk: 'b:sky_cloud_style',
         value: b.sky_cloud_style || '', options: [['', 'Same as All Screens']].concat(M.CLOUD_STYLES),
         onChange: function (v) { self.setB(x.path, { sky_cloud_style: v || null }); } }));
+      rows.push(K.select({ label: 'Daytime Sky', sk: 'b:sky_daytime',
+        value: b.sky_daytime || '', options: [['', 'Same as All Screens']].concat(M.DAYTIME_SKIES),
+        onChange: function (v) { self.setB(x.path, { sky_daytime: v || null }); } }));
       // a page screen's backdrop is its pages' (above): no second one here
       if (!(pk.only && pk.only.keys.length)) {
         rows.push(K.nav({ label: 'Backdrop', sk: 'b:sky_gradient', href: '#/screens/' + encodeURIComponent(x.path) + '/sky/backdrop',

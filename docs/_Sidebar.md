@@ -53,5 +53,6 @@
 * [Troubleshooting](Troubleshooting.md)
 * [Diagnostics & reporting](Diagnostics.md)
 * [Development](Development.md)
+* [Tools](Tools.md)
 
 **[Gallery](Gallery.md)**

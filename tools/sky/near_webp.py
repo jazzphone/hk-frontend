@@ -3,7 +3,7 @@
     python3 tools/sky/near_webp.py            convert, then verify
     python3 tools/sky/near_webp.py --check    verify only (nothing is written)
 
-SOURCES  tools/sky/src/near/<name>-v1-src.png    9 RGBA cut-outs (docs/New-Decorations.md):
+SOURCES  tools/sky/src/near/<name>-v1-src.png    9 RGBA cut-outs (docs/Seasonal-Decorations.md):
            fall, halloween, christmas, winter, spring, summer, july4, birthday
            1585/1586 x 992; balloons 1024 x 1536
 OUTPUT   frontend/sky/near/<name>-v1.webp        mountNearScenery() in hk-sky.js

@@ -278,6 +278,20 @@
     [-10, ['#080e1d', '#0e1428', '#1b1a2e', '#2e2233']],
     [-18, ['#04070f', '#060a16', '#0a0f1f', '#111726']]
   ];
+  // DAYTIME BRIGHTNESS (s.brightness 0..1, Sky Lab's slider; DAY_BRIGHT
+  // when unset): the day stops lean toward a real midday blue and the cap
+  // rises with them by as much, so the brighter sky is not simply scrimmed
+  // back down. Full from 25 deg of sun, faded out by 10 deg -- golden hour,
+  // sunset, dusk and night are untouched (faded only to the horizon, it
+  // greyed a sunset's warm horizon). At full: a mean luma near 130 against the deep sky's 75,
+  // so the cap rises by up to BRIGHT_CAP. Every screen runs at full since
+  // 2026-10-07 (chosen in Sky Lab: "way more natural"); 0 is the deep sky
+  // the palette above was authored as. HK Settings -> Sky -> Daytime Sky
+  // (sky.daytime, a screen's sky_daytime) sets it: Natural 1, Balanced 0.5,
+  // Deep 0 (hk-settings.js skyLook).
+  var SKY_BRIGHT = ['#1f5e9e', '#3a7fc0', '#5c9fd6', '#a3cbe6'];
+  var BRIGHT_CAP = 60;
+  var DAY_BRIGHT = 1;
 
   // Cloud tint by elevation. Clouds lit warm from below at sunset is the
   // single cue that reads as "sunset" rather than "dark blue picture".
@@ -323,6 +337,12 @@
       }
     }
     return table[last][1].slice();
+  }
+
+  // mix() for either form a ramp() stop can be in ('#rrggbb' or 'rgb()')
+  function mixAny(a, b, t) {
+    var A = a.charAt(0) === '#' ? hex(a) : a.replace(/[^\d,]/g, '').split(',').map(Number), B = hex(b);
+    return 'rgb(' + A.map(function (v, k) { return Math.round(v + (B[k] - v) * t); }).join(',') + ')';
   }
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
@@ -420,6 +440,7 @@
       out.decorations = look.decorations;
       out.decorationStyle = look.decorationStyle;
       out.cloudStyle = look.cloudStyle;
+      if (typeof look.brightness === 'number') out.brightness = look.brightness;
       out.backdrop = look.backdrop;
       if (!look.weather) {
         out.cover = 0;
@@ -4145,6 +4166,14 @@
     // scrims the glass exactly as the live sky's own 146 does.
     var sky = (s.backdrop && (s.elev > 0 ? s.backdrop.day : s.backdrop.night)) ||
               ramp(SKY, s.elev);
+    var bright = s.backdrop ? 0 : clamp(num(s.brightness, DAY_BRIGHT), 0, 1) * clamp((s.elev - 10) / 15, 0, 1);
+    // A GREY DAY STAYS GREY: the bright blue is a fair day's. Under an
+    // overcast it showed as a pale blue band along the horizon, below the
+    // clouds' ceiling -- so it fades out from 55% cover to 85%, and rain,
+    // snow, a storm or fog take it away altogether.
+    var wetSky = !!(s.fog || (s.wet && (s.wet.kind !== 'none' || s.wet.bolt)));
+    bright *= wetSky ? 0 : 1 - clamp((num(s.cover, 0) - 0.55) / 0.3, 0, 1);
+    if (bright) sky = sky.map(function (c, k) { return mixAny(c, SKY_BRIGHT[k], bright); });
     for (var i = 0; i < 4; i++) st.setProperty('--sk' + i, sky[i]);
     // Animations off (Sky / Background): still the moving layers -- the
     // decks, the season's motion, the screensaver's twinkle (see .noanim in
@@ -4486,12 +4515,13 @@
       L = L * (1 - a) + c[1] * a;
     });
 
-    applyScrim(el, L);
+    applyScrim(el, L, CAP + BRIGHT_CAP * bright);
   }
 
-  function applyScrim(el, L) {
+  function applyScrim(el, L, cap) {
     var st = el.style;
-    var k2 = L > CAP ? clamp(1 - CAP / L, 0, 0.72) : 0;
+    cap = cap || CAP;
+    var k2 = L > cap ? clamp(1 - cap / L, 0, 0.72) : 0;
     // Weight the scrim to the bottom: that is where the pills and the glass
     // plates sit, and it leaves the top of the sky its color.
     st.setProperty('--scT', (k2 * 0.72).toFixed(3));
@@ -4914,7 +4944,12 @@
     _force: function (v) { FORCE = v || null; return FORCE; },
     // hkSky._pin({season:'halloween', elev:-20, cond:'clear'}) holds a scene
     // across the 3s tick without a competing timer. _pin(null) restores.
-    _pin: function (v) { PIN = v || null; return PIN; },
+    // It repaints at once (Sky Lab drives a real dashboard's sky with it).
+    _pin: function (v) {
+      PIN = v || null;
+      try { stateTick(); } catch (e) { /* not mounted yet: the next tick paints it */ }
+      return PIN;
+    },
     // the realistic clouds' choices, for the tests
     _rcPlan: function (s, seed) { return rcPlan(s, rng(seed || 1)); },
     _rcLight: rcLight,

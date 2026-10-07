@@ -167,7 +167,9 @@ optional, and each has a fallback.
 ## Sky / Background
 
 Under **All Screens → Sky / Background**, choose whether the sky animates,
-shows weather, or adds seasonal decorations. **Backdrop** offers Live sky,
+shows weather, or adds seasonal decorations, how its clouds look (**Clouds**:
+Classic or Realistic) and how bright its midday blue runs (**Daytime Sky**:
+Natural, Balanced or Deep). **Backdrop** offers Live sky,
 eight curated palettes, and Custom with four Day colors and four Night colors.
 
 A screen has the same controls under **Appearance → Sky / Background**.

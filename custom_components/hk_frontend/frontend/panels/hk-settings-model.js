@@ -143,6 +143,8 @@
   var WOODLAND = [['spring', 'Spring'], ['summer', 'Summer'], ['fall', 'Autumn'], ['winter', 'Winter']];
   // the clouds' looks (sky.cloud_style), as the Clouds menus offer them
   var CLOUD_STYLES = [['classic', 'Classic'], ['realistic', 'Realistic']];
+  // the daytime sky's brightness (sky.daytime, settings.py DAYTIME_SKIES)
+  var DAYTIME_SKIES = [['natural', 'Natural'], ['balanced', 'Balanced'], ['deep', 'Deep']];
   function woodlandSummary(list) {
     if (!Array.isArray(list)) return 'All Seasons';
     var on = WOODLAND.filter(function (w) { return list.indexOf(w[0]) >= 0; });
@@ -1000,6 +1002,7 @@
     ['Seasonal Decorations', 'house/sky', 'sky.decorations', 'holiday halloween christmas old new woodland style'],
     ['Decoration Style', 'house/sky', 'sky.decoration_style', 'old new seasons holidays birthdays woodland'],
     ['Clouds', 'house/sky', 'sky.cloud_style', 'clouds classic realistic photographic weather sky'],
+    ['Daytime Sky', 'house/sky', 'sky.daytime', 'brightness bright dark deep natural balanced blue midday day sky'],
     ['Woodland Between Occasions', 'house/sky/woodland', 'sky.woodland', 'spring summer autumn fall winter woodland seasons scenery new decorations'],
     ['Birthdays', 'house/sky/birthday', 'sky.birthdays', 'balloons'],
     ['Hemisphere', 'house/sky/advanced', 'sky.hemisphere', 'southern northern'],
@@ -1118,7 +1121,7 @@
     ['favorites', 'Favorites', ['favorites'], false],
     ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages'], true],
     ['look', 'Appearance', ['glass', 'frost', 'blur', 'sky', 'sky_animations', 'sky_weather',
-                            'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_gradient', 'sky_custom', 'sky_pages'], true],
+                            'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages'], true],
     ['behavior', 'Behavior', ['idle_return', 'popups', 'car', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins',
                               'kiosk_engine', 'kiosk_options', 'now_playing'], true],
     ['saver', 'Screensaver', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true]
@@ -1225,7 +1228,7 @@
   // Null is a continuing relationship to All Screens, including custom
   // stops. A true flag is still an override, even when it matches the house.
   function skySummary(b) {
-    var keys = ['sky_animations', 'sky_weather', 'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_gradient', 'sky_custom'];
+    var keys = ['sky_animations', 'sky_weather', 'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom'];
     var pages = Object.keys(b.sky_pages || {}).length;
     if (keys.every(function (k) { return b[k] == null; }) && !pages) return 'Same as All Screens';
     var parts = [];
@@ -1234,6 +1237,7 @@
     if (b.sky_decorations === false) parts.push('No Decorations');
     if (b.sky_decoration_style != null) parts.push(b.sky_decoration_style === 'new' ? 'New Decorations' : 'Old Decorations');
     if (b.sky_cloud_style != null) parts.push(b.sky_cloud_style === 'realistic' ? 'Realistic Clouds' : 'Classic Clouds');
+    if (b.sky_daytime != null) parts.push({ natural: 'Natural', balanced: 'Balanced', deep: 'Deep' }[b.sky_daytime] + ' Daytime Sky');
     if (b.sky_gradient != null) parts.push('Own Backdrop');
     if (pages) parts.push(pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds');
     return parts.join(', ') || 'Own Settings';
@@ -1254,7 +1258,7 @@
     TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_SCROLLS_PHONE: TAB_BAR_SCROLLS_PHONE, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
-    WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES,
+    WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, DAYTIME_SKIES: DAYTIME_SKIES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
     PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
     CHIP_TOKEN: CHIP_TOKEN, chipsAddCustom: chipsAddCustom, chipsRemoveCustom: chipsRemoveCustom,

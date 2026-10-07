@@ -22,6 +22,18 @@ function node(){
 globalThis.document={createElement:node,readyState:'complete',head:node(),body:node(),addEventListener:function(){},querySelector:function(){return null;},querySelectorAll:function(){return [];},getElementById:function(){return null;}};
 load(HK_ROOT+'/frontend/modules/hk-sky.js');
 var sky=node(),parts={};sky.querySelector=function(sel){return parts[sel]||(parts[sel]=node());};
+// DAYTIME SKY: a fair midday is the bright blue; an overcast or a wet one keeps the deep sky
+(function(){
+ var b=node(),q={};b.querySelector=function(sel){return q[sel]||(q[sel]=node());};
+ function hz(o){var t={elev:40,azim:180,cover:.1,wind:6,fog:false,wet:{kind:'none',rate:0},moon:.5,season:'',decorations:false,cloudStyle:'classic'};
+  for(var k in o)t[k]=o[k];hkSky._paint(b,t);return b.values['--sk3'];}
+ var deep=hz({brightness:0}),fair=hz({}),grey=hz({cover:.9}),rain=hz({cover:.6,wet:{kind:'rain',rate:.5}}),half=hz({cover:.7});
+ check('Natural is the default: a fair midday is brighter than Deep',fair!==deep&&hz({brightness:1})===fair);
+ check('an overcast sky (90% cover) keeps the deep horizon',grey===deep);
+ check('rain keeps the deep horizon whatever the cover',rain===deep);
+ check('70% cover is between the two',half!==deep&&half!==fair);
+ check('golden hour (8 deg of sun) is untouched',hz({elev:8})===hz({elev:8,brightness:0}));
+})();
 var s={decorationStyle:'new',elev:25,azim:180,cover:.1,wind:6,fog:false,wet:{kind:'none',rate:0},moon:.5,season:'christmas',seasonalOn:true,decorations:true};
 hkSky._force({show:true,spooky:false});hkSky._paint(sky,s);
 var root=sky._hkNear.root, first=root.querySelectorAll('.scenery-art')[0],bulbs=root.querySelectorAll('.patch'),light=Number(root.values['--scene-light']);

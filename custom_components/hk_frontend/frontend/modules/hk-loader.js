@@ -97,6 +97,16 @@
 
   load(null);
 
+  // -------------------------------------------------------------- ?skylab
+  // SKY LAB on a real dashboard: /<dashboard>?skylab. Only the flag's
+  // presence is read, never a value. The module covers the page and locks its
+  // connection down before it shows anything (hk-skylab.js).
+  if (/[?&]skylab(=|&|$)/.test(location.search)) {
+    import('/hk/modules/hk-skylab.js?t=' + Date.now()).catch(function (err) {
+      console.error('[hk-loader] could not load Sky Lab', err);
+    });
+  }
+
   // ------------------------------------------------------------ ?hkprobe=1
   // The layout probe, loaded ONLY when the URL asks for it, so it costs a
   // normal page load nothing -- not a request, not a byte.
