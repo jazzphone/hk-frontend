@@ -110,6 +110,10 @@
     '.cell.lkeep > .lbl{flex:0 0 auto;max-width:62%}',
     '.cell.lkeep > .val,.cell.lkeep > .pop{flex:1 1 0;min-width:0;justify-content:flex-end}',
     '.cell.vkeep > .val,.cell.vkeep > .pop{flex:0 0 auto;max-width:60%}',
+    // the title and the whole value fit side by side: the value keeps every
+    // word and a long subtitle wraps under the title instead (2026-10-09: a
+    // subtitle squeezed "6" and "10 · Adjusted" to "…" on a phone)
+    '.cell.vfull > .val,.cell.vfull > .pop{flex:0 0 auto}',
     '.cell.fitm > .lbl,.cell.fitm > .val,.cell.fitm > .pop{flex:none !important;max-width:none !important}',
     '.cell.fitm > .lbl .t{white-space:nowrap}',
     // never narrower than its longest word ("Camer / a" beside a long value,
@@ -342,7 +346,7 @@
     if (!w || w === cell._fitW) return;
     cell._fitW = w;
     var lbl = cell.querySelector(':scope > .lbl'), val = cell.querySelector(':scope > .val, :scope > .pop');
-    cell.classList.remove('vkeep', 'lkeep');
+    cell.classList.remove('vkeep', 'lkeep', 'vfull');
     if (!lbl || !val) return;
     cell.classList.add('fitm');
     var t = lbl.querySelector('.t'), r = document.createRange();
@@ -356,7 +360,7 @@
       if (c !== lbl && c !== val) other += c.getBoundingClientRect().width;
     });
     var avail = cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - other - gap * Math.max(0, n - 1);
-    if (lw + vw <= avail + 0.5) return;
+    if (lw + vw <= avail + 0.5) { cell.classList.add('vfull'); return; }
     // a value that fits in 60% of the row keeps its words; a longer one gives way
     cell.classList.add(vw <= avail * 0.6 ? 'vkeep' : 'lkeep');
   }
@@ -404,14 +408,18 @@
     return watchRow(h('div', { class: 'cell', 'data-sk': o.sk }, [lead(o), label(o.label, o.sub, lid), pop]));
   }
   // THE POP-UP MENU ITSELF: the value and ⌃⌄, the system's own menu over it.
-  // o.label (its accessible name) or o.labelledby; o.options [[value, text]]
+  // o.label (its accessible name) or o.labelledby; o.options [[value, text,
+  // shown]] -- `shown`, when given, is what the row says once it is picked:
+  // the menu's "Same as All Screens (Classic)" is "Classic" on a phone's
+  // narrow row, the row's own subtitle saying whose it is
   function popup(o) {
     var s = h('select', { 'aria-label': o.labelledby ? null : o.label, 'aria-labelledby': o.labelledby,
                           'data-fk': o.fk, disabled: !!o.disabled });
     var shown = '';
     o.options.forEach(function (op) {
       var opt = h('option', { value: op[0], text: op[1] });
-      if (String(op[0]) === String(o.value)) { opt.selected = true; shown = op[1]; }
+      if (op[2]) opt.setAttribute('data-shown', op[2]);
+      if (String(op[0]) === String(o.value)) { opt.selected = true; shown = op[2] || op[1]; }
       s.appendChild(opt);
     });
     var pv = h('span', { class: 'pv', text: shown || o.placeholder || '' });
@@ -420,7 +428,7 @@
     // old choice until it was
     s.addEventListener('change', function () {
       var op = s.options[s.selectedIndex];
-      pv.textContent = (op && op.text) || o.placeholder || '';
+      pv.textContent = (op && (op.getAttribute('data-shown') || op.text)) || o.placeholder || '';
       o.onChange(s.value);
     });
     return h('span', { class: 'pop' }, [pv, svg(UPDOWN), s]);
@@ -430,14 +438,16 @@
   function slider(o) {
     var lid = id('l');
     var min = o.min || 0, max = o.max === undefined ? 100 : o.max;
-    var out = h('span', { class: 'val', text: o.value + (o.unit || '') });
+    // o.labels: a word for each step (Off, Few, Normal...) in place of the number
+    var say = function (v) { return o.labels ? o.labels[Number(v) - min] : v + (o.unit || ''); };
+    var out = h('span', { class: 'val', text: say(o.value) });
     var r = h('input', { type: 'range', min: min, max: max, step: o.step || 1, 'aria-labelledby': lid,
-                         'data-fk': o.fk || o.sk, 'aria-valuetext': o.value + (o.unit || '') });
+                         'data-fk': o.fk || o.sk, 'aria-valuetext': say(o.value) });
     r.value = o.value;
     var paint = function () {
       r.style.setProperty('--p', ((r.value - min) / (max - min) * 100) + '%');
-      out.textContent = r.value + (o.unit || '');
-      r.setAttribute('aria-valuetext', r.value + (o.unit || ''));
+      out.textContent = say(r.value);
+      r.setAttribute('aria-valuetext', say(r.value));
     };
     paint();
     r.addEventListener('input', paint);

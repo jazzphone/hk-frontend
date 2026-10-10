@@ -55,9 +55,12 @@
     main: ':host([' + SIDEBAR + ']){--ha-sidebar-width:0px !important}' +
           ':host([' + SIDEBAR + ']) ha-drawer > ha-sidebar{display:none !important}',
     // ...its shell (which keeps a 1 px border at no width) and the phone's
-    // pull-out drawer, which would open empty
+    // pull-out drawer, which would open empty. AT ONCE: Home Assistant
+    // animates the page's padding (0.25 s), so hiding the sidebar on load slid
+    // the whole dashboard 256 px left as it appeared, the menu with it
+    // (2026-10-09). Showing it again (hold, Show Menu) still animates.
     drawer: ':host([' + SIDEBAR + ']) .sidebar-shell{display:none !important}' +
-            ':host([' + SIDEBAR + ']) .app-content{padding-inline-start:0 !important}' +
+            ':host([' + SIDEBAR + ']) .app-content{padding-inline-start:0 !important;transition:none !important}' +
             ':host([' + SIDEBAR + ']) wa-drawer{display:none !important}',
     // the header, and the room the views keep for it
     root: ':host([' + HEADER + ']) .header{display:none !important}' +

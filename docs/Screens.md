@@ -78,11 +78,11 @@ shows only what it can use:
 | Rooms (room order) | Room sections in a `custom:hk-grid-view` view: a card whose first card is an `hk-heading-card` with `area:` |
 | Glass, Live Sky | Every view. Live Sky can only turn off a sky the YAML turns on. |
 | Return to Home, Tablet Room, Allow Pop-ups, Car Browser | The whole dashboard |
-| Hide Home Assistant Header & Sidebar | The whole dashboard, unless its YAML has `hk_kiosk:` or `kiosk_mode:` |
+| Home Assistant Header & Sidebar | The whole dashboard, unless its YAML has `hk_kiosk:` or `kiosk_mode:` |
 | Photo Screensaver, its options and Tablet User | The whole dashboard, with its switch and In Use sensor, unless its YAML has `hk_screensaver:` |
 
-Favorites, the camera strip switch, On Phones, Pages and the now-playing bar
-are for generated screens only. A YAML dashboard says those things in its own
+Favorites, the camera strip switch, Header on Phones, Pages, the now-playing
+bar and WallPanel are for generated screens only. A YAML dashboard says those things in its own
 YAML: [Your Own Dashboard](Your-Own-Dashboard.md) has everything it can write,
 and so does **HK Settings → Advanced → Your Own Dashboards**.
 
@@ -142,23 +142,35 @@ Its settings come in groups, each explained on its own page:
 | Group | Page |
 |---|---|
 | Menu | [Menu](Menu.md#menu-settings) |
-| Home Page, and its Status Chips, Cameras, Scenes, Favorites and Rooms | [Home Page](Home-Page.md), [Status Chips](Status-Chips.md), [Cameras](Cameras.md) |
+| Home Page: Status Chips, Cameras, Scenes, Favorites and Rooms | [Home Page](Home-Page.md), [Status Chips](Status-Chips.md), [Cameras](Cameras.md) |
+| Header | [below](#header) |
 | Pages | [Pages](Pages.md#pages-settings) |
 | Appearance | [Appearance](Appearance.md#one-screen) |
 | Behavior | [below](#behavior) |
+| When Idle | [below](#when-idle) |
+| This Device | [below](#this-device) |
+
+### Header
+
+| Setting | Default | What it does |
+|---|---|---|
+| Header on Phones | Clock & Weather | *Generated.* What the top of Home shows on a phone held upright (narrower than 640 px): **Clock & Weather** (the header) or **Weather Strip** (one line of weather). See [Home Page](Home-Page.md). |
+| Home Assistant Header & Sidebar | Off (Wall Tablet, Car and Energy Display presets: Both Hidden) | Whether Home Assistant’s own header and sidebar show around this screen. It reads **Off**, **Both Hidden**, **Header Hidden**, **Sidebar Hidden** or **Kiosk Mode Plugin**, and opens its own page ([Header & Sidebar](Appearance.md#home-assistant-header--sidebar)). |
 
 ### Behavior
 
 | Setting | Default | What it does |
 |---|---|---|
-| Return to Home When Idle | Off (Wall Tablet preset: on) | A page left untouched goes back to Home. For wall tablets, not for screens people sit at. How long it waits: [Wall Tablets](Screensaver-and-Idle.md#wall-tablets-settings). |
-| Tablet Room | Empty | Shown when Return to Home is on (or the screen uses WallPanel). The tablet’s room, in lowercase letters, digits and underscores (`kitchen`, `living_room`). It names Return to Home’s optional helpers (see [Wall Tablets](Screensaver-and-Idle.md#wall-tablets-settings)). HK Frontend’s own screensaver doesn’t need it. |
 | Allow Pop-ups | On | Your [pop-ups](Detail-Sheets-and-Popups.md#pop-ups-settings) may open over this screen. Off: never here (a car’s screen, say). |
-| Car Browser | Off (Car preset: on) | Fits a car’s narrow browser to a desktop layout. Add `?vw=1000` to the address to change the width it lays out (a bigger number makes everything smaller), or `?vw=off` to turn it off in that browser. |
 | Now Playing Bar | Off | *Generated.* A bar that rises from the bottom while music plays or a quick timer runs. Needs the Music feature. |
-| Photo Screensaver | Off | *Generated.* A photo screensaver for the tablet’s own user (how it works: [Screensaver and Idle](Screensaver-and-Idle.md#5-add-the-photo-screensaver)). The live sky and the cards hold still behind it. |
-| Screensaver Options | Default | *Generated, with Photo Screensaver on.* See below. |
-| Tablet User | None | *With Photo Screensaver on.* The Home Assistant user the wall tablet signs in as. Only that user gets the screensaver, so a computer opening the same screen never does. Choosing it adds the screen’s [switch and In Use sensor](Screensaver-and-Idle.md#its-switch-and-in-use-sensor). |
+
+### When Idle
+
+| Setting | Default | What it does |
+|---|---|---|
+| Return to Home When Idle | Off (Wall Tablet preset: on) | A page left untouched goes back to Home. For wall tablets, not for screens people sit at. How long it waits: [Wall Tablets](Screensaver-and-Idle.md#wall-tablets-settings). |
+| Photo Screensaver | Off | A photo screensaver for the tablet’s own user (how it works: [Screensaver and Idle](Screensaver-and-Idle.md#5-add-the-photo-screensaver)). The live sky and the cards hold still behind it. |
+| Screensaver Options | Same as All Screens | *With Photo Screensaver on.* **Same as All Screens**, **Just This Screen**, or **WallPanel** when WallPanel draws it. See below. |
 
 #### Screensaver Options
 
@@ -166,14 +178,15 @@ Its settings come in groups, each explained on its own page:
 
 | Setting | Default | What it does |
 |---|---|---|
-| Same as All Screens | On | The screensaver settings for All Screens (**Wall Tablets → Screensaver**). Off: this screen has its own, starting from those; every option below is then this screen’s. A screen set up before 1.3 keeps the options it had. |
+| Same as All Screens | On | The screensaver settings for All Screens (**Wall Tablets → Screensaver for All Screens**). Off: this screen has its own (**Just This Screen**), starting from those; every option below is then this screen’s. A screen set up before 1.3 keeps the options it had. |
 | Show | Photos | **Photos**: your photos, and the forecast whenever there are none. **Photos & Forecast**: your photos, with the forecast as one of them every few photos. **Forecast**: always the forecast, over the live sky and the season’s landscape ([more](Screensaver-and-Idle.md#no-photos-the-forecast)). With Forecast, the photo settings are hidden. |
 | Forecast | Every 5 Photos | *With Photos & Forecast.* How often the forecast comes round: every 3, 5, 10 or 20 photos. It stays for **Each Photo For**, like a photo. |
 | Forecast When There Are No Photos | On | *With Show: Photos.* Off: when the folder has no photos (or can’t be read), the screen stays dark instead, as before 1.3. (Photos & Forecast always shows the forecast then.) |
-| Forecast Details (Show group) | On | *Wherever the forecast can show.* On the forecast: today, the next hours and the coming days along the bottom. Off: the sky and the landscape alone. |
-| Forecast Details (Over the Photos) | Off | *With Photos or Photos & Forecast.* The same details along the bottom of the photos. |
+| Details on the Forecast | On | *Wherever the forecast can show.* On the forecast: today, the next hours and the coming days along the bottom. Off: the sky and the landscape alone. |
+| Forecast Along the Bottom (Over the Photos) | Off | *With Photos or Photos & Forecast.* The same details along the bottom of the photos. |
 | Starts After | 3 Minutes | 1 to 30 minutes untouched. **The one timer:** the screen’s In Use sensor stays on for a minute less after each touch, so it is always off before the photos come up ([more](Screensaver-and-Idle.md#one-timer-starts-after)). |
 | Each Photo For | 30 Seconds | 10 seconds to 5 minutes. |
+| Fade Back | 0.5 Seconds | From the screensaver to the dashboard, after a touch or when the switch turns off: **Instant**, **0.5 Seconds**, **1 Second** or **2 Seconds**. |
 | Order | Random | **Random** (every photo once before any repeats) or **In Order** (by name). |
 | Fill the Screen | On | A landscape photo fills the screen. Off: the whole photo, with room around it. A portrait photo is always whole, over a blurred copy. |
 | Slow Zoom | Off | A slow zoom across each photo. The tablet keeps drawing the whole time, so it runs warmer. |
@@ -181,10 +194,18 @@ Its settings come in groups, each explained on its own page:
 | Calendar Pane | Off | The coming events down the right of the screen, from the calendars in [All Screens → Calendar](Calendar.md): the photos (or the forecast) move over beside it; Home Status moves to its top, and Now Playing and Timers to its foot. A swipe on it scrolls it; a touch anywhere else closes the screensaver ([more](Screensaver-and-Idle.md#the-calendar-pane)). |
 | Days | Today & Tomorrow | *With Calendar Pane.* How many days it lists: today, today and tomorrow, or up to 7 days. |
 | For Automations → Photo Screensaver, In Use | — | The screen’s `switch.<screen>_photo_screensaver` and `binary_sensor.<screen>_screen_in_use`, made by HK Frontend once the screen has a Tablet User. Tap one to open it. What they do: [Screensaver and Idle](Screensaver-and-Idle.md#its-switch-and-in-use-sensor). |
-| Use the Defaults… | — | Shown once anything is changed. |
-| Use WallPanel Instead | Off | Shown when [WallPanel](https://github.com/j-a-n/lovelace-wallpanel) is installed from HACS: it draws this screen’s screensaver instead, with its own options page (and Options in YAML). |
+| Reset to Defaults… | — | Shown once anything is changed. |
+| Use WallPanel Instead | Off | *Generated.* Shown when [WallPanel](https://github.com/j-a-n/lovelace-wallpanel) is installed from HACS: it draws this screen’s screensaver instead, with its own options page (and Options in YAML). |
 
-The photos come from [Wall Tablets → Screensaver Photos](Screensaver-and-Idle.md#wall-tablets-settings).
+The photos come from **Screensaver Photos**, at the top of [Wall Tablets → Screensaver for All Screens](Screensaver-and-Idle.md#wall-tablets-settings).
+
+### This Device
+
+| Setting | Default | What it does |
+|---|---|---|
+| Tablet User | None | The Home Assistant user the wall tablet signs in as. Only that user gets the screensaver, so a computer opening the same screen never does. Choosing it adds the screen’s [switch and In Use sensor](Screensaver-and-Idle.md#its-switch-and-in-use-sensor). |
+| Tablet Room | Empty | The tablet’s room, in lowercase letters, digits and underscores (`kitchen`, `living_room`). It names Return to Home’s optional helpers (see [Wall Tablets](Screensaver-and-Idle.md#wall-tablets-settings)) and the room **Calm When Nobody’s Around** watches ([Liveliness](Seasonal-Decorations.md#liveliness)). HK Frontend’s own screensaver doesn’t need it. |
+| Car Browser | Off (Car preset: on) | Fits a car’s narrow browser to a desktop layout. Add `?vw=1000` to the address to change the width it lays out (a bigger number makes everything smaller), or `?vw=off` to turn it off in that browser. |
 
 ### Copy settings from another screen
 
@@ -193,16 +214,18 @@ what to copy, and select **Copy**. Only this screen changes.
 
 | Part | Ticked | What it copies |
 |---|---|---|
-| Menu | Yes | Whether it has a menu (a button, or always open), its Menu Settings (Same as All Screens, or its own: the highlight, the button or edge tab and its size and position, and the rest), and a YAML screen’s pages in it |
-| Home Page | Yes | Whether it has a Home page, the status chips and their order |
-| Rooms | Yes | Same as All Screens, or its own room order, Rooms in Menu and Rooms on Pages |
+| Menu | Yes | Whether it has a menu (a button, or always open), its Menu Settings (Same as All Screens, or Just This Screen: the highlight, the button or edge tab and its size and position, the tab bar, and the rest) for Tablets & Computers and for Phones |
+| Home Page | Yes | The status chips and their order |
+| Rooms | Yes | Same as All Screens, or Just This Screen: its room order, Rooms in Menu and Rooms on Pages |
 | Cameras | Yes | The camera strip and which cameras, and the live camera |
 | Scenes | No | The scenes row and its pills |
 | Favorites | No | The favorites |
-| Pages | Yes | Which pages and custom pages, in their order |
+| Header | Yes | Header on Phones, and Home Assistant Header & Sidebar |
+| Pages | Yes | Which pages and custom pages, the Home page, Only These Pages, and each page’s place in the menu |
 | Appearance | Yes | Glass, frost, blur, live sky |
-| Behavior | Yes | Return to Home, pop-ups, car browser, kiosk, the now-playing bar |
-| Screensaver | Yes | Photo Screensaver, its options (or Same as All Screens), WallPanel instead |
+| Behavior | Yes | Pop-ups, the Now Playing Bar |
+| When Idle | Yes | Return to Home, Photo Screensaver, its options (or Same as All Screens), WallPanel instead |
+| This Device | No | Car Browser |
 
 A screen’s **Tablet User** and **Tablet Room** are never copied: they belong
 to its own tablet. **Add Screen → Copy Settings From** does the same for a

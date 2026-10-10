@@ -471,14 +471,14 @@
           if (pr !== null) money = kwh * pr;
         }
         if (kwh === null && money === null) return '--';
-        var ms = money === null ? null : ('$' + money.toFixed(2));
+        var ms = money === null ? null : window.hkCards.money(h2, money, 2);
         var ks = kwh === null ? null : (Math.round(kwh) + ' kWh');
         return [ms, ks].filter(Boolean).join(' \u00b7 ');
       }
 
       if (m === 'cost') {
         var c = n(st && st.state);
-        var cs = c === null ? '--' : ('$' + c.toFixed(2));
+        var cs = c === null ? '--' : window.hkCards.money(this._hass, c, 2);
         var k = n(this._st(cfg.value_peer) && this._st(cfg.value_peer).state);
         return k === null ? cs : (cs + ' \u00b7 ' + Math.round(k) + ' kWh');
       }

@@ -88,7 +88,8 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   var krLights = kr.cards.filter(function (c) { return c.type === 'grid' && c.cards[0].name === 'Lights'; })[0].cards[1].cards;
   var names = krLights.map(function (t) { return t.name; });
   ok('lights A to Z, as the Home app lists them', JSON.stringify(names) === JSON.stringify(names.slice().sort()), JSON.stringify(names));
-  // a room's cameras: one snapshot tile each, never a live mosaic
+  // a room's cameras: the camera strip, stills only (2026-10-09; one
+  // snapshot tile each in a row before)
   var yardHass = { states: { 'camera.yard_left': { entity_id: 'camera.yard_left', state: 'idle', attributes: {} },
                              'camera.yard_right': { entity_id: 'camera.yard_right', state: 'idle', attributes: {} },
                              'light.yard': { entity_id: 'light.yard', state: 'off', attributes: {} } },
@@ -98,17 +99,19 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   var yc = window.hkStrategy.roomCards(yardHass, ['yard'], 'Yard', {});
   var camSec = yc.filter(function (c) { return c.type === 'grid' && c.cards[0].name === 'Cameras'; })[0];
   var camGrid = camSec && camSec.cards[1];
-  ok('a room\'s cameras are one snapshot tile each, in one row that scrolls sideways',
-     !!camGrid && camGrid.type === 'custom:hk-row-card' && /--hk-cam-row/.test(camGrid.card_width) &&
-     camGrid.cards.length === 2 && camGrid.cards.every(function (t) { return t.type === 'picture-entity' && t.camera_view === 'auto'; }),
+  var strip = camGrid && camGrid.cards[0];
+  ok('a room\'s cameras are the camera strip, in a row that scrolls sideways when it is wider',
+     !!camGrid && camGrid.type === 'custom:hk-row-card' && camGrid.card_width === 'fit-content' &&
+     camGrid.cards.length === 1 && strip.type === 'custom:hk-camera-mosaic-card' && strip.cameras.length === 2,
      JSON.stringify(camSec));
-  ok('...no mosaic, no stream', JSON.stringify(yc).indexOf('mosaic') === -1 && JSON.stringify(yc).indexOf('"live"') === -1);
+  ok('...stills only, no stream, and the room\'s own cameras (not the Home strip list)',
+     strip.stills_only === true && strip.own_cameras === true && JSON.stringify(yc).indexOf('"live"') === -1);
   // ONE TILE PER CAMERA: a UniFi camera is up to three camera entities, one
   // per channel, and a wall tablet's own camera is not a room camera.
   function camIds(h, areas, o) {
     var sec = window.hkStrategy.roomCards(h, areas, 'Yard', o || {}).filter(function (c) {
       return c.type === 'grid' && c.cards[0].name === 'Cameras'; })[0];
-    return sec ? sec.cards[1].cards.map(function (t) { return t.entity; }) : [];
+    return sec ? sec.cards[1].cards[0].cameras.map(function (t) { return t.entity; }) : [];
   }
   var chHass = { states: {}, entities: {}, devices: { d1: { area_id: 'yard' }, d2: { area_id: 'yard' }, tab: { area_id: 'yard' } },
                  areas: { yard: { area_id: 'yard', name: 'Yard' } } };
@@ -397,7 +400,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     var water = g.views.filter(function (v) { return v.path === 'water'; })[0];
     ok('Water: the leak sensors, room by room', cards(water).indexOf('binary_sensor.sink_leak') > 0 && cards(water).indexOf('"label_mode":"leak"') > 0);
     var cams = g.views.filter(function (v) { return v.path === 'cameras'; })[0];
-    ok('Cameras: every camera live, beside Home in the menu', cams.menu === 'top' && cards(cams).indexOf('"camera_view":"live"') > 0);
+    ok('Cameras: every camera live (taking turns), beside Home in the menu', cams.menu === 'top' && cards(cams).indexOf('"type":"custom:hk-camera-live-card"') > 0);
     ok('the category pages carry their icons for the menu', g.views.filter(function (v) { return v.path === 'lights'; })[0].icon === 'mdi:lightbulb');
     ok('no kiosk unless the item asks', !g.kiosk_mode);
     // HomePods and Apple TVs by their device's model

@@ -124,7 +124,7 @@ sits in the menu.
 | Automatic | On | Every page your home has something for, in the usual order: Weather, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Play Music (with Browse Music), Water, Energy, Room Pages. Custom pages you add go before Room Pages. |
 | Shown / More | — | The pages, in order. The order here is the menu’s order too. Browse Music always comes with Play Music. Custom pages are marked *Custom page*. |
 | (each page) in the menu | Weather, Cameras and Live TV: Top of Menu. The rest: Categories | **Top of Menu** (right under Home), **Categories**, or **Not in Menu** (still one tap away on its chip or pill). Room Pages are always under Rooms. Categories keeps at least one page. |
-| Use the Automatic Menu | — | Shown once you have moved a page. Puts every page back where it was. |
+| Reset to Automatic Menu | — | Shown once you have moved a page. Puts every page back where it was. |
 
 ## Custom Pages settings
 

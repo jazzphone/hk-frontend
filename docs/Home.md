@@ -44,6 +44,10 @@ The sidebar has every page.
   dresses up for the holidays, with the clock, what's playing, the timers,
   Home Status and your coming events.
   ([Wall Tablets](Wall-Tablets.md), [Screensaver and Idle](Screensaver-and-Idle.md))
+- **Sleep Screen:** each wall tablet dark when nobody needs it and awake the
+  moment somebody does: from presence sensors, quiet hours, the doorbell and
+  smoke, with its brightness for day and night. HK Frontend decides it for you,
+  or your automations do. ([Sleep Screen](Sleep-Screen.md))
 - **A card library** for dashboards you build yourself.
   ([Card Library](Card-Library.md))
 
@@ -55,6 +59,7 @@ The sidebar has every page.
 | Shape a screen: its Home page, pages and menu | [Screens](Screens.md) and the pages under it |
 | Change how one accessory shows up | [Accessories](Accessories.md) |
 | Put a screen on a wall | [Wall Tablets](Wall-Tablets.md) |
+| Make a wall tablet sleep and wake by itself | [Sleep Screen](Sleep-Screen.md) |
 | Give a dashboard of your own the screensaver, the kiosk look, the sky | [Your Own Dashboard](Your-Own-Dashboard.md) |
 | Write your own dashboard with the cards | [Card Library](Card-Library.md) |
 | Use Apple’s font and glyphs | [Your Files](Your-Files.md) |

@@ -112,22 +112,23 @@ ok('...and the tab is drawn outright', cls().indexOf(' tabbed ') >= 0 && cls().i
 window.innerWidth = 800;
 ok('no room for a tab (an iPad upright): the chip everywhere, never the tab',
    M.style() === 'chip' && M.round('page') && M.tab() === 'never', M.style() + ' ' + M.tab());
-// ON NARROW SCREENS: the screen's own setting says what happens there
-SETTINGS.boards['dashboard-hall'].narrow = 'chip_scroll';
-ok('narrow, "chip then tab": the chip, and the tab once scrolled past',
+// WHERE THE TABLETS' MENU DOESN'T FIT: the screen's Phones menu, in its
+// button style (button_phone)
+SETTINGS.boards['dashboard-hall'].button_phone = 'chip_scroll';
+ok('no room, Phones\' "chip then tab": the chip, and the tab once scrolled past',
    M.style() === 'chip' && M.round('home') && M.tab() === 'scrolled', M.style() + ' ' + M.tab());
-SETTINGS.boards['dashboard-hall'].narrow = 'tab';
-ok('narrow, "edge tab": the tab, no round buttons',
+SETTINGS.boards['dashboard-hall'].button_phone = 'tab';
+ok('no room, Phones\' "edge tab": the tab, no round buttons',
    M.style() === 'tab' && M.tab() === 'always' && !M.round('home') && !M.round('page'), M.style() + ' ' + M.tab());
 // an always-open menu folds into the same choice -- even wider than 1,024
 SETTINGS.boards['dashboard-hall'].menu = 'open';
 SETTINGS.boards['dashboard-hall'].dock_min = 1500;
 window.innerWidth = 1280;
-ok('an always-open menu folded (narrower than its fold width): the narrow choice',
+ok('an always-open menu folded (narrower than its fold width): Phones\' menu',
    M.style() === 'tab' && M.tab() === 'always', M.style() + ' ' + M.tab());
-SETTINGS.boards['dashboard-hall'].narrow = 'chip';
+SETTINGS.boards['dashboard-hall'].button_phone = 'chip';
 ok('...the chip by default', M.style() === 'chip' && M.round('page') && M.tab() === 'never', M.style() + ' ' + M.tab());
-delete SETTINGS.boards['dashboard-hall'].narrow;
+delete SETTINGS.boards['dashboard-hall'].button_phone;
 delete SETTINGS.boards['dashboard-hall'].dock_min;
 window.innerWidth = 1280;
 SETTINGS.boards['dashboard-hall'].menu = 'chip';
@@ -194,11 +195,11 @@ ok('No Button without the swipe is Automatic: never left with no way in', M.styl
    M.style() + ' ' + M.tab());
 B.swipe = true;
 window.innerWidth = 800;
-B.narrow = 'none';
-ok('narrow No Button with the swipe: nothing', M.style() === 'none' && !M.round('page') && M.tab() === 'never', M.style());
+B.button_phone = 'none';
+ok('no room, Phones\' No Button with the swipe: nothing', M.style() === 'none' && !M.round('page') && M.tab() === 'never', M.style());
 B.swipe = false;
 ok('...without it, the chip', M.style() === 'chip' && M.round('page'), M.style());
-delete B.narrow;
+delete B.button_phone;
 window.innerWidth = 1280;
 B.menu = 'open';
 ok('a docked menu needs no swipe', M.docked() && !M.swipe() || !M.docked(), String(M.docked()));

@@ -216,7 +216,7 @@
     c.appendChild(K.group({ header: 'Picture', footer: '720p is plenty on a wall tablet or a phone. 1080p uses about 40% more of Home Assistant’s processor for each channel being watched.' }, [
       K.seg({ label: 'Quality', sk: 'f:hk_tv:quality', value: d.quality, options: [['720', '720p'], ['1080', '1080p']],
               onChange: function (v) { set({ quality: v }); } })]));
-    c.appendChild(K.group({ header: 'Tuner and Guide', footer: 'The guide is an XMLTV file (from a service such as Schedules Direct, or a program that builds one). With a guide, each channel shows what’s on now and uses the network’s name.' }, [
+    c.appendChild(K.group({ header: 'Tuner & Guide', footer: 'The guide is an XMLTV file (from a service such as Schedules Direct, or a program that builds one). With a guide, each channel shows what’s on now and uses the network’s name.' }, [
       K.text({ label: 'Tuner Address', sk: 'f:hk_tv:host', value: d.host, placeholder: 'IP address or host name',
                error: P.err('f:hk_tv:host'), onCommit: function (v) { set({ host: v }); } }),
       K.text({ label: 'Guide Address', sk: 'f:hk_tv:guide_url', value: d.guide_url, placeholder: 'None',
@@ -367,7 +367,7 @@
     var free = (d.choices || []).filter(function (x) { return !x.entry; });
     c.appendChild(K.group({ footer: free.length ? 'For an alarm that arms and disarms for anyone who can reach it.'
                                                 : 'Every alarm panel in this house has a PIN.' },
-      free.length ? [K.nav({ label: 'Add a PIN to an Alarm', href: '#/features/alarm/add', icon: 'mdi:plus-circle-outline', fk: 'alarm:add' })] : []));
+      free.length ? [K.nav({ label: 'Add PIN', href: '#/features/alarm/add', icon: 'mdi:plus-circle-outline', fk: 'alarm:add' })] : []));
     openIn(c, 'Alarm PIN', 'hk_alarm_pin');
   }
   function pinFields(P, c, form, footer) {
@@ -450,7 +450,7 @@
       K.slider({ label: 'House Volume', sub: 'Where a playlist starts, in every room it plays in.', sk: 'f:hk_music:volume',
                  value: Math.round((d.volume || 0) * 100), min: 0, max: 100, step: 5, unit: '%', fk: 'music:volume',
                  onChange: function (v) { P.featSet('hk_music', { volume: v / 100 }); } })]));
-    c.appendChild(K.group({ header: 'Presets and Playlists' }, [
+    c.appendChild(K.group({ header: 'Presets & Playlists' }, [
       K.nav({ label: 'Presets', value: String((d.presets || []).length), href: '#/features/music/presets', fk: 'music:presets' }),
       K.nav({ label: 'Playlists', value: String((d.playlists || []).length), href: '#/features/music/playlists', fk: 'music:playlists' })]));
   }
@@ -695,7 +695,7 @@
       K.toggle({ label: 'Home Assistant’s Charts', sub: 'The day’s sources and each device, at the end', on: o.detail !== false,
                  sk: 'f:' + EN + ':detail', onChange: function (on) { energySet(P, { detail: on }); } })]));
     var tot = o.total || {};
-    c.appendChild(K.group({ header: 'Whole Home', footer: 'Automatic: the grid meter in Home Assistant’s Energy settings, its cost, and the power sensor behind it (or General → Power Use).' }, [
+    c.appendChild(K.group({ header: 'Whole Home', footer: 'Automatic: the grid meter in Home Assistant’s Energy settings, its cost, and the power sensor behind it (or Status & Chips → Power Use).' }, [
       P.entityRow({ label: 'Power', sk: 'f:' + EN + ':total:power', value: tot.power || null,
                     none: 'Automatic' + (T.power && !tot.power ? ' (' + enName(P, T.power) + ')' : ''),
                     filter: { domains: ['sensor'], dc: 'power' },
@@ -740,9 +740,9 @@
       rows: ids.map(function (id) { return { value: id, label: P.name(id), sub: id }; }),
       onAuto: function (on) { energySet(P, { top: on ? null : ids }); },
       onChange: function (v) { energySet(P, { top: v }); },
-      addLabel: ids.length < 4 - (o.cost !== false ? 1 : 0) ? 'Add a Reading' : null,
+      addLabel: ids.length < 4 - (o.cost !== false ? 1 : 0) ? 'Add Reading' : null,
       onAddOther: function () {
-        P.go(P.picker('energy-top', { title: 'Add a Reading', value: null, items: function () {
+        P.go(P.picker('energy-top', { title: 'Add Reading', value: null, items: function () {
           return P.entityIds({ domains: ['climate', 'sensor'], shown: true }).filter(function (id) {
             var a = (P._hass.states[id] || {}).attributes || {};
             return id.indexOf('climate.') === 0 || a.device_class === 'temperature' || a.device_class === 'humidity' ||
@@ -773,9 +773,9 @@
       }),
       onAuto: function (on) { if (on) energySet(P, { usages: null }); else save(rows); },
       onChange: function (v) { save(v.map(function (i) { return rows[Number(i)]; })); },
-      addLabel: rows.length < 9 ? 'Add a Bar' : null,
+      addLabel: rows.length < 9 ? 'Add Bar' : null,
       onAddOther: function () {
-        P.go(P.picker('energy-usage', { title: 'Add a Bar', value: null, items: function () {
+        P.go(P.picker('energy-usage', { title: 'Add Bar', value: null, items: function () {
           return P.entityIds({ domains: ['sensor'], shown: true }).filter(function (id) {
             var a = (P._hass.states[id] || {}).attributes || {};
             return ['power', 'energy', 'duration'].indexOf(a.device_class) >= 0;
@@ -830,7 +830,7 @@
       onChange: function (v) {
         energySet(P, { sections: asStored(v.map(function (id) { return secs.filter(function (s) { return s.id === id; })[0]; })) });
       },
-      addLabel: 'Add a Section',
+      addLabel: 'Add Section',
       onAddOther: function () {
         var n = 1, id = 'section-1';
         while (secs.some(function (s) { return s.id === id; })) id = 'section-' + (++n);
@@ -904,7 +904,7 @@
       if (rows.length) c.appendChild(K.group({ header: s.name }, rows));
     });
     c.appendChild(K.group({ footer: 'A device Home Assistant’s Energy settings don’t list: a circuit or a plug with its own power sensor.' }, [
-      K.nav({ label: 'Add a Device', href: '#/features/energy/add', icon: 'mdi:plus-circle-outline', fk: 'energy:add' })]));
+      K.nav({ label: 'Add Device', href: '#/features/energy/add', icon: 'mdi:plus-circle-outline', fk: 'energy:add' })]));
   }
   function energyDevice(P, c, d, key) {
     var x = devByKey(d, key);
@@ -1012,9 +1012,9 @@
       onChange: function (v) {
         energySet(P, { batteries: asStored(v.map(function (k) { return bats.filter(function (b) { return b.key === k; })[0]; })) });
       },
-      addLabel: 'Add a Battery',
+      addLabel: 'Add Battery',
       onAddOther: function () {
-        P.go(P.picker('energy-battery', { title: 'Add a Battery', value: null, items: function () {
+        P.go(P.picker('energy-battery', { title: 'Add Battery', value: null, items: function () {
           return P.entityIds({ domains: ['sensor'], dc: 'battery', shown: true })
             .map(function (id) { return { value: id, label: P.name(id), sub: id }; });
         }, onPick: function (v) { if (v) energySet(P, { batteries: asStored(bats).concat([{ entity: v }]) }); } }));
@@ -1069,7 +1069,7 @@
       return mk(dv ? dv.name : 'Device', withData(function (c, d) { energyDevice(P, c, d, key); }), ['Devices', '#/features/energy/devices']);
     }
     if (sub[0] === 'devices') return mk('Devices', withData(function (c, d) { energyDevices(P, c, d); }), back);
-    if (sub[0] === 'add') return mk('Add a Device', withData(function (c, d) { energyAdd(P, c, d); }), ['Devices', '#/features/energy/devices']);
+    if (sub[0] === 'add') return mk('Add Device', withData(function (c, d) { energyAdd(P, c, d); }), ['Devices', '#/features/energy/devices']);
     if (sub[0] === 'batteries' && sub[1]) {
       var bk = decodeURIComponent(sub[1]);
       return mk('Battery', withData(function (c, d) { energyBattery(P, c, d, bk); }), ['Batteries', '#/features/energy/batteries']);
@@ -1135,7 +1135,7 @@
       if (sub[0] === 'playlists') return mk('Playlists', withData(function (c, d) { musicPlaylists(P, c, d); }), back);
     }
     if (route === 'alarm') {
-      if (sub[0] === 'add') return mk('Add a PIN', withData(function (c, d) { alarmAdd(P, c, d); }));
+      if (sub[0] === 'add') return mk('Add PIN', withData(function (c, d) { alarmAdd(P, c, d); }));
       if (sub[0] && sub[1] === 'pin') return mk('Change PIN', withData(function (c, d) { alarmPin(P, c, d, sub[0]); }));
       if (sub[0] && sub[1] === 'alarm') return mk('Protects', withData(function (c, d) { alarmPick(P, c, d, sub[0]); }));
       return { title: name, top: true, scope: SCOPE[domain], body: withData(function (c, d) { alarmMain(P, c, d); }) };

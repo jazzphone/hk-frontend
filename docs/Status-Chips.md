@@ -21,8 +21,9 @@ Each chip summarizes one kind of thing and opens its page:
 | Energy | Power use, in kW | A [custom page](Pages.md#custom-pages) with the address `energy`, if the screen has one |
 
 What each chip counts is the same on every screen, and is set in
-[Status & Chips](#status--chips). The alarm, indoor temperature and power
-sensor are in [General](HK-Settings.md#general); the alerts sensor is in
+[Status & Chips](#status--chips). The alarm is in
+[General](HK-Settings.md#general), the indoor temperature and power sensor
+under [Status & Chips → Readings](#status--chips); the alerts sensor is in
 [Weather](Weather.md). A kind your home has nothing of never shows a
 chip.
 
@@ -104,8 +105,9 @@ line and the generated pages count. Every kind finds its own entities; you only
 adjust. The Lights chip and the Lights page count the same lights, so they can’t
 disagree. The page lists every kind under **Status Chips**, and the kinds that
 feed only the pages’ status rows — temperature, humidity, motion, occupancy and
-valves — under **Status Rows**; the number is what is counted now, and
-*Adjusted* means you have left some out or added some.
+valves — under **For Status Rows**; the number is what is counted now, and
+*Adjusted* means you have left some out or added some. Between them,
+**Readings** has the two sensors the chips read (below).
 
 ![Status & Chips in HK Settings: each kind and how many it counts](images/settings-counts.png)
 
@@ -143,6 +145,13 @@ Each kind’s page:
 | Left Out · Leave Out… | Found, but not wanted: a car’s windows, a second copy of a blind. |
 | Also Counted · Also Count… | Not found, but wanted: an outlet you think of as a light, a switch that runs a fan. |
 | Reset to Automatic… | Clears both lists. |
+
+**Readings**, the two sensors the chips read:
+
+| Setting | Default | What it does |
+|---|---|---|
+| Indoor Temperature | First Thermostat’s | A temperature sensor for the Climate chip. |
+| Power Use | None | A power sensor for the Energy chip, which needs it. W or kW; shown in kW. |
 
 A kind you never touch stays automatic, so a light you add tomorrow is counted
 tomorrow. The category pages of a generated screen (Lights, Doors & Windows, …)

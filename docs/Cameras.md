@@ -1,20 +1,81 @@
 # Cameras
 
-The camera strip on Home, and the Cameras page.
+Your cameras appear in three places:
 
-One camera plays live; the others show snapshots that refresh. Tap any camera
-to open it full size, with sound, and hold-to-talk if it has a speaker (talking
-needs Home Assistant over https).
+- **The camera strip on Home.** One camera plays live, the others show
+  snapshots that refresh.
+- **The Cameras page.** Every camera live, three across.
+- **A room’s page.** That room’s cameras, as snapshots.
 
-- **Choose the cameras**: **Screens → (the screen) → Cameras**, turn
-  **Automatic** off, then add, remove and drag. Automatic shows one tile per
-  camera, using its low-resolution channel when it has several, and never a
-  wall tablet’s own camera or a Live TV channel.
+Tap any camera to open it full size, live, with sound, and hold-to-talk if
+it has a speaker (talking needs Home Assistant over https).
+
+![The Cameras page](images/tablet-cameras.png)
+
+## Which cameras, in what order
+
+**HK Settings → All Screens → Cameras** is one list for every screen: its
+camera strip on Home, its Cameras page, and the cameras on its room pages, in
+this order.
+
+- **Automatic** (on) shows one tile per camera, using its low-resolution
+  channel when it has several, and never a wall tablet’s own camera or a Live
+  TV channel. Turn it off to add, remove and drag cameras into your order.
+- **A screen of its own:** **Screens → (the screen) → Cameras → Same as All
+  Screens**, off, and that screen keeps its own list (it starts from All
+  Screens’). Turn it on again to follow All Screens.
+
+![All Screens → Cameras](images/settings-cameras.png)
+
+Before 1.6.0 every screen kept its own list. Upgrading moves the list most
+screens shared to All Screens, and every screen with that list (or none)
+follows it. A screen whose list was different keeps its own.
+
+## The camera strip
+
+The strip under the status chips on a generated screen’s Home: the live camera
+large on the left, then the others in columns, two stacked and one tall,
+taking turns.
+
 - **Choose the live one**: see [Live Camera Follows](#live-camera-follows)
   below. Nothing chosen: the first camera.
-- **Turn it off**: **Show Camera Strip**.
+- **Turn it off**: **Screens → (the screen) → Cameras → Show Camera Strip**.
 
-A generated screen’s Cameras page shows the same cameras, all live.
+![A screen’s Cameras: the strip, Live Camera Follows, and Same as All Screens](images/settings-screen-cameras.png)
+
+## The Cameras page
+
+Every camera live, three across. To be easy on the browser and on Home
+Assistant’s streaming, the cameras **take turns connecting**, three at a time:
+
+- Each tile opens on the camera’s last picture: the last frame kept from the
+  strip or the page, else its snapshot.
+- When its turn comes it connects underneath that picture, and the picture
+  goes away only once the live video is actually on screen, so a tile never
+  blinks blank.
+- The next camera starts as soon as one is playing, or after 2.5 seconds at
+  most.
+- A camera that hasn’t shown a picture after 8 seconds is reconnected, up to
+  three times.
+- Leaving the page puts every tile back on its picture, so coming back takes
+  turns again.
+
+All the cameras are live within a few seconds. The page is all silent: sound
+plays only in a camera’s own sheet (tap it).
+
+Why turns: desktop Safari could not connect nine live cameras at once. Each
+connection hung for good, and the page showed nothing but snapshots. Three at
+a time connect every time, in every browser.
+
+## On a room’s page
+
+A room with cameras shows them under its status, as a strip of snapshots,
+never live: one tall, then two stacked, and so on, as the Home app draws a
+room. A room with a single camera shows one wide 16:9 snapshot. Each shows how
+old its picture is, and tapping one opens it live. The order is the camera
+list’s (above).
+
+![A room’s cameras](images/tablet-room-cameras.png)
 
 ## Live Camera Follows
 
@@ -94,7 +155,8 @@ in the dropdown.
 | Setting | Default | What it does |
 |---|---|---|
 | Show Camera Strip | On | *Generated.* The live camera strip under the chips. |
+| Same as All Screens | On | The cameras and their order are All Screens’ (**All Screens → Cameras**). Off: this screen’s own, starting from All Screens’. |
 | Live Camera Follows | First Camera | A dropdown helper (input select or select) whose option names the camera to show live, set by an automation (for example on person detection). An option matches the camera whose name starts with it. The other tiles show snapshots. |
 | Set Up Live Camera Follows | — | Explains it, lists the option each camera needs, makes the dropdown for you (**Create the Dropdown**), and writes the automation for your cameras’ person or motion sensors (**Copy Automation**). See [Screens](#live-camera-follows). |
-| Automatic | On | One tile per camera, using its low-resolution channel when it has several. Never a wall tablet’s own camera or a Live TV channel. |
-| Shown / More | — | The cameras, in order. A generated screen’s Cameras page shows the same ones. |
+| Automatic | On | One tile per camera, using its low-resolution channel when it has several. Never a wall tablet’s own camera or a Live TV channel. (All Screens, or a screen of its own.) |
+| Shown / More | — | The cameras, in order: the strip, the Cameras page and the room pages. |

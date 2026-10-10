@@ -108,7 +108,7 @@ Copy the `fonts` and `iconset` folders into `/config/hk_local` on your Home Assi
 ## Step 5: Reload and check
 
 1. **If you just created the folder**, reload HK Frontend: **Settings** → **Devices & services** → **HK Frontend** → **⋮** on the HK Frontend entry → **Reload** (or restart Home Assistant). HK Frontend looks for the folder when it starts and when you change the folder setting, so a folder created afterwards isn’t served until then. Reloading also clears the two Repairs entries.
-2. Open **HK Settings** → **Setup Check**. It should say **SF Pro and the SF Symbols glyphs — Found.** (HK Settings → **Advanced** → **Your Files** shows *Found* for each as well.)
+2. Open **HK Settings** → **Setup Check**. It should say **SF Pro & the SF Symbols Glyphs — Found.** (HK Settings → **Advanced** → **Your Files** shows *Found* for each as well.)
 3. Reload each screen. If a screen still shows Roboto or Material Design icons, reload it once more: the first load after a change can still use the browser’s previous copy. See [A change doesn’t show on a screen](Troubleshooting.md#a-change-doesnt-show-on-a-screen).
 
 No restart of Home Assistant is needed for files you replace later: screens check for a newer copy every time they load.

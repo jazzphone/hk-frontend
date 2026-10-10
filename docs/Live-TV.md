@@ -66,9 +66,9 @@ the gear does not:
 | Setting | Default | What it does |
 |---|---|---|
 | Channels | Those picked when the feature was added | Add or remove channels from the tuner’s lineup (**Shown** and **More Channels**). Tap a channel to **rename** it (up to 40 characters), or to use its network’s or station’s name. |
-| Quality | 720p | **720p** or **1080p**. 1080p uses about 40 % more of Home Assistant’s processor for each channel being watched. |
-| Tuner Address | Set when the feature was added | The HDHomeRun’s address, if it moves. The new address is checked before it is saved. |
-| Guide Address | None | An XMLTV file (`http://` or `https://`), or empty for no guide. With a guide, each channel shows what’s on and uses the network’s name. |
+| Quality | 720p | **720p** or **1080p**. 1080p uses about 40% more of Home Assistant’s processor for each channel being watched. |
+| Tuner & Guide → Tuner Address | Set when the feature was added | The HDHomeRun’s address, if it moves. The new address is checked before it is saved. |
+| Tuner & Guide → Guide Address | None | An XMLTV file (`http://` or `https://`), or empty for no guide. With a guide, each channel shows what’s on and uses the network’s name. |
 
 ![The Live TV settings on the HK Settings page](images/settings-live-tv.png)
 

@@ -149,6 +149,7 @@ def test_the_whole_page_from_home_assistants_energy_settings_alone():
     # the car's battery joins Charging, with its range
     car = [i for i in items(p, "charging") if i["kind"] == "battery"][0]
     assert car["name"] == "Roadster" and car["label"] == "sensor.car_range" and car["label_suffix"] == " mi range"
+    assert car["house"] is False, "each battery row says whether it is the house's (HK Settings reads it)"
     # the readings row: cost, two thermostats, outside
     assert [t["kind"] for t in p["top"]] == ["cost", "climate", "climate", "temp"]
     assert p["top"][1]["name"] == "Downstairs" and p["top"][3]["name"] == "Outside"

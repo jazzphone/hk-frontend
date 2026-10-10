@@ -56,7 +56,7 @@ several at once.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Same as All Screens | On | The screen’s room order, Rooms in Menu and Rooms on Pages are All Screens’. The page shows what they are, with a link to Rooms. |
+| Same as All Screens | On | The screen’s room order, Rooms in Menu and Rooms on Pages are All Screens’. The page lists what they are under **From All Screens**, ending with **All Screens → Rooms**. |
 
 Turn **Same as All Screens** off to set them for this screen only. They start
 as All Screens’ are, then change on their own: the room order (with **On

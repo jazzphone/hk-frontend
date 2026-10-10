@@ -335,7 +335,10 @@ def batteries(ctx: Mapping[str, Any], options: Mapping[str, Any]) -> list[dict[s
         else:
             suffix = ""
         name = b.get("name") or short_name(re.sub(r"\s+battery( level)?$", "", str(e.get("name") or eid), flags=re.I))
+        # `house` said, not left to the glyph: HK Settings' Batteries list
+        # reads it (it guessed from the icon, which a custom icon breaks)
         out.append({"key": eid, "kind": "battery", "entity": eid, "name": name or eid,
+                    "house": bool(b.get("house")),
                     "icon": b.get("icon") or ("hk:home-battery-outline" if b.get("house") else "hk:battery-high"),
                     "label": label or None, "label_suffix": suffix,
                     "label_decimals": b.get("label_decimals", 1 if "stored" in suffix else 0)})

@@ -9,6 +9,7 @@ from datetime import timedelta
 from pytest_homeassistant_custom_component.common import MockUser, async_fire_time_changed  # noqa: F401
 
 from homeassistant.config_entries import ConfigSubentry
+from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 
 from conftest import entry
@@ -255,8 +256,8 @@ async def test_a_new_house_gets_a_working_screensaver_without_making_anything(ha
                                                          can_expand=False)])
     monkeypatch.setattr(media_source, "async_browse_media", browse)
     lines = {x.title: x for x in await setup_check.async_run(hass, dict(entry(hass).options), S.boards(entry(hass)))}
-    assert lines["Screensaver tablets"].ok is True and "switch.kitchen" in lines["Screensaver tablets"].detail
-    assert lines["Screensaver photos"].ok is True
+    assert lines["Screensaver Tablets"].ok is True and "switch.kitchen" in lines["Screensaver Tablets"].detail
+    assert lines["Screensaver Photos"].ok is True
     assert "WallPanel" not in lines, "nothing from HACS is asked for"
 
 
@@ -273,3 +274,101 @@ async def test_a_screen_following_all_screens_takes_its_timer_from_there(hass, f
     assert admin.sent[-1]["success"], admin.sent[-1]
     sw = hass.states.get(SW)
     assert sw.attributes["starts_after"] == 300 and sw.attributes["in_use_window"] == 240
+
+
+# ------------------------------------------------------------ the black screen (2026-10-09)
+BLACK = "switch.hall_black_screen"
+
+
+def _black(hass, conn, black, n=1, path="dashboard-hall"):
+    from custom_components.hk_frontend.screensaver import ws_black
+    ws_black(hass, conn, {"id": n, "type": "hk_frontend/screensaver/black", "dashboard": path, "black": black})
+    return conn.sent[-1]
+
+
+async def test_each_screen_gets_a_black_screen_switch_naming_its_setting(hass, frontend):
+    sub = _hall()
+    await _add(hass, sub)
+    b = hass.states.get(BLACK)
+    assert b is not None and b.state == "off" and b.name == "Hall Black screen"
+    assert b.attributes["black_screen"] == "kiosk", "Kiosk Satellite's black until the screen chooses HK's"
+    assert b.attributes["brightness"] is None and b.attributes["confirmed"] is False
+    await _change(hass, sub, black_screen="hk")
+    assert hass.states.get(BLACK).attributes["black_screen"] == "hk", "the scripts branch on it"
+    await _change(hass, sub, screensaver=False)
+    assert hass.states.get(BLACK) is None, "goes with the screensaver's other entities"
+
+
+async def test_set_black_screen_carries_the_brightness_and_the_page_confirms(hass, frontend):
+    await _add(hass, _hall(black_screen="hk"))
+    await hass.services.async_call(DOMAIN, "set_black_screen", {"entity_id": BLACK, "black": True, "brightness": 174},
+                                   blocking=True)
+    b = hass.states.get(BLACK)
+    assert b.state == "on" and b.attributes["brightness"] == 174 and b.attributes["confirmed"] is False
+    tablet = Conn(await hass.auth.async_create_user("hall"))     # the screen's tablet user
+    assert _black(hass, tablet, True)["success"]
+    assert hass.states.get(BLACK).attributes["confirmed"] is True, "the page is black"
+    await hass.services.async_call(DOMAIN, "set_black_screen", {"entity_id": BLACK, "brightness": 40}, blocking=True)
+    b = hass.states.get(BLACK)
+    assert b.state == "on" and b.attributes["brightness"] == 40 and b.attributes["confirmed"] is True, \
+        "a new wake brightness while black: still black, still confirmed"
+    assert _black(hass, tablet, False, 2)["success"]
+    assert hass.states.get(BLACK).state == "off", "a tap woke it on the tablet: the switch follows"
+    await hass.services.async_call("switch", "turn_on", {"entity_id": BLACK}, blocking=True)
+    assert hass.states.get(BLACK).attributes["confirmed"] is False, "every new black waits for the page again"
+
+
+async def test_a_tap_wake_is_in_use_before_the_black_is_gone(hass, frontend):
+    """The house's want sensor renders on the switch going off: in use must
+    already be on then, or it reads "nobody here" and sleeps the tablet."""
+    await _add(hass, _hall(black_screen="hk"))
+    await hass.services.async_call("switch", "turn_on", {"entity_id": BLACK}, blocking=True)
+    assert hass.states.get(INUSE).state == "off"
+    seen = []
+
+    @callback
+    def _changed(ev):
+        if ev.data["entity_id"] == BLACK and ev.data["new_state"].state == "off":
+            seen.append(hass.states.get(INUSE).state)
+    hass.bus.async_listen("state_changed", _changed)
+    tablet = Conn(await hass.auth.async_create_user("hall"))
+    assert _black(hass, tablet, False)["success"]
+    assert seen == ["on"], "in use as the black went"
+    assert _black(hass, tablet, False, 2)["success"]
+    assert seen == ["on"], "an off switch is left alone"
+
+
+async def test_only_the_screens_tablet_or_an_admin_may_say_it_is_black(hass, frontend):
+    await _add(hass, _hall(black_screen="hk"))
+    await hass.auth.async_create_user("Owner")
+    desk = Conn(await hass.auth.async_create_user("desk"))
+    await hass.services.async_call("switch", "turn_on", {"entity_id": BLACK}, blocking=True)
+    r = _black(hass, desk, False)
+    assert r["success"] is False and r["error"] == "unauthorized"
+    assert hass.states.get(BLACK).state == "on"
+    admin = Conn(await hass.auth.async_create_user("Admin", group_ids=["system-admin"]))
+    assert _black(hass, admin, True, 2)["success"]
+    r = _black(hass, admin, True, 3, path="dashboard-nowhere")
+    assert r["success"] is False and r["error"] == "not_found"
+
+
+async def test_the_feed_names_each_screens_black_switch(hass, frontend):
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.screensaver import manager
+    await _add(hass, _hall())
+    ids = manager(hass).black_ids()
+    assert ids == {"dashboard-hall": BLACK}
+    client = S.as_client(entry(hass), switches=manager(hass).switch_ids(), blacks=ids)
+    assert client["boards"]["dashboard-hall"]["black_switch"] == BLACK
+    assert client["boards"]["dashboard-hall"]["black_screen"] == "kiosk"
+
+
+async def test_black_screen_is_kiosk_or_hk_only(hass, frontend):
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board
+    assert S.board({"black_screen": "hk"})["black_screen"] == "hk"
+    assert S.board({"black_screen": "fully"})["black_screen"] == "kiosk", "anything else is the default"
+    data, err = apply_board({}, {"black_screen": "hk"})
+    assert err == {} and data["black_screen"] == "hk"
+    _, err = apply_board({}, {"black_screen": "both"})
+    assert err == {"black_screen": "choice"}

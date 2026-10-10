@@ -37,6 +37,7 @@
 **Wall tablets**
 * [Setting up a tablet](Wall-Tablets.md)
 * [Screensaver & idle](Screensaver-and-Idle.md)
+* [Sleep Screen](Sleep-Screen.md)
 
 **Build your own**
 * [Your own dashboard](Your-Own-Dashboard.md)

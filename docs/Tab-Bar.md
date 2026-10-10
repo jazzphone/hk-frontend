@@ -29,21 +29,25 @@ highlighted.
 | The tab bar | More |
 
 The tab for the page you are on is highlighted in the menu's
-**Highlight Color**. Choosing a page, tapping outside a sheet or pressing
-Escape closes the sheet.
+**Highlight Color**. Choosing another page slides the highlight over to it, as
+iOS does: along the bar, or down the rail (not with the system's Reduce
+Motion on). Choosing a page, tapping outside a sheet or pressing Escape closes
+the sheet.
 
 ## Where it shows
 
 The tab bar is part of the menu: a screen shows one or the other, never both.
-Choose it under **Screens → (the screen) → Menu**:
+Choose it under **Screens → (the screen) → Menu**, for each kind of device
+([phones and tablets](Menu.md#phones-and-tablets)):
 
-- **Menu: Tab Bar** shows the tab bar at every width, with no side menu.
-- **On Narrow Screens: Tab Bar** (for a menu that is a **Button**) keeps the
-  menu button from 1,024 px up. Narrower than that (phones, an iPad held
-  upright), the tab bar takes its place.
-- **When Folded: Tab Bar** (for a menu that is **Always Open**) keeps the menu
-  open beside the page where it fits. Where it would fold, the tab bar
-  shows instead.
+- **Phones: Tab Bar** shows the tab bar on a phone, held either way up,
+  whatever tablets and computers have.
+- **Tablets & Computers: Tab Bar** shows the tab bar on every tablet and
+  computer, with no side menu.
+- Where a tablet’s own menu doesn’t fit (an always-open menu narrower than
+  Keep Open Down To, a button below 1,024 px: an iPad held upright, Split
+  View), the screen shows its Phones menu — so **Phones: Tab Bar** shows the
+  bar there too, while the menu stays beside the page where it fits.
 
 Wherever the tab bar shows, the side menu is off: no chip, no edge tab, no
 swipe from the edge and no tap on the clock. It also hides in Home
@@ -95,8 +99,10 @@ width), its icons and its names together.
 A phone's names stay Medium's at Large: its bar already spans the screen,
 so bigger names would only be cut shorter.
 
-The highlight on the page you're on keeps the same 4 px gap from the
-bar's edge at every size. Everything around the bar follows the size too:
+The gaps inside the bar grow with it: the highlight's gap from the bar's
+edge and ends, the space between tabs, and a rail's the same, are always the
+bar's thickness ÷ 15 -- 4 px on a phone's Medium bar (as Apple Music's), 4.8
+px on a tablet's, about 4.3 and 5.3 px at Small and Large. Everything around the bar follows the size too:
 the small button it shrinks to, the Rooms button, where More opens, the
 room Adjust Content makes, and the now-playing bar beside a rail.
 
@@ -127,9 +133,9 @@ Turned off, the bar floats over the page everywhere.
   the side for a rail.
 - **Stay:** the bar never moves.
 
-**While Scrolling** is for tablets, iPads and computers. **While Scrolling
-on Phones** (under 640 px) can choose differently. It's **Same as Tablets**
-unless you pick Shrink, Hide or Stay for phones.
+**While Scrolling** is each device's own: under **Menu Settings → Tablets &
+Computers** and **Menu Settings → Phones**. Each is its own: Shrink unless you
+pick Hide or Stay.
 
 With Shrink or Hide, the full bar comes back when you:
 
@@ -148,12 +154,14 @@ A page too short to scroll keeps the bar.
     The More and Rooms sheets are then the same height, and Rooms scrolls.
     There, each room's icon sits in a round plate.
   - **Off:** the rooms are left out of the tab bar.
-- **More Style** and **More Style on Phones** (under 640 px), each
+
+  Each device has its own (Menu Settings → Phones → More → Rooms for phones).
+- **More Style**, each device's own (Tablets & Computers, and Phones), each
   **Icons**, a grid that uses a tablet's width, or **List**, rows like the
   side menu's, about a phone's width. Out of the box a phone gets the list
   and a tablet or computer the icons.
 - **Glass:**
-  - **Screen's Glass** follows the screen's
+  - **Same as Screen** follows the screen's
     [Glass Style](Appearance.md). Frosted stays frosted; any other style is
     one blur.
   - **Blur:** one blur behind the bar.

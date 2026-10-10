@@ -98,7 +98,7 @@ treat rather than a month of wallpaper.
 - **Storybook Magic** and **Space Night** each have their own fixed days in
   every month: **Once**, **Twice** or **Four Times a Month**. They never
   share a day.
-- **Birthdays**: HK Settings → Sky / Background → Birthdays → **Add a Birthday**, with a
+- **Birthdays**: HK Settings → Sky / Background → Birthdays → **Add Birthday**, with a
   name, month and day.
 
 **Which one wins.** Only one decoration shows on a day, in this order: a
@@ -136,14 +136,52 @@ or the **Seasonal decorations** switch, turns it off here too.
 | Birthdays | Two bunches of balloons staked in the grass beside the trees, swaying, with confetti. Over whatever season the birthday falls in. |
 | The rest | The season’s own landscape, with the decoration’s particles and flyby (petals and a butterfly, hearts, crystals, sparkles, a rocket or a fairy) over it. |
 
-## Dates and how often
+## Dates and days
 
 Each decoration’s page in **HK Settings → Sky / Background** has:
 
 - **Starts** and **Ends**: its window (a window may run past New Year).
-  Thanksgiving’s can end on **Thanksgiving Day**. **Use Default Dates** goes
+  Thanksgiving’s can end on **Thanksgiving Day**. **Reset to Default Dates** goes
   back to the built-in ones.
-- **How Often**, as above.
+- **Days**: which days in its window it shows, as above.
+
+## Liveliness
+
+How many of the little moving things there are -- bats, geese, falling
+leaves, petals, fireflies, snow sparkles -- and how often the ones that cross
+come by: the witch, Santa’s sleigh, a flyby, a shooting star, a firework.
+
+**All Screens → Sky / Background → Liveliness** sets one choice for every
+decoration, woodland season and the Night Sky: **Subtle**, **Classic** (the
+default), **Festive** or **Party**. Choose **Custom** to set each one its own:
+**Each Occasion** then lists them all, and each one’s page (a decoration’s
+own page, a woodland season’s, the Night Sky’s) has its **Liveliness**:
+
+| Choice | What it does |
+|---|---|
+| Subtle | A few touches, now and then. |
+| Classic | As it has always been (the default). |
+| Festive | Busier, and more often. |
+| Party | Everything, as often as it comes. |
+| Custom | Each effect your own way: a slider for **how many** or **how often** (Off, Few, Normal, Lots, Max; for a crossing Never, Rarely, Normal, Often, Very Often), a switch for one that is only on or off (the owl, the mist, the rainbow, the lights’ twinkle). It starts from the choice it was on. |
+
+Custom lists only the effects your decoration style draws: the owl, the
+geese and the swarm are New Decorations; the snowfall is Old Decorations’.
+A crossing that comes more or less often still crosses at the same speed.
+
+**Each screen** can have its own, the same way, on its **Sky / Background**
+page: **Same as All Screens** (the default), one of the four for every
+occasion, or **Custom** -- its own **Each Occasion** list, each with a preset
+or its own sliders, just for that screen. A slow tablet can be Subtle
+everywhere, or a bedroom screen calm only on Halloween.
+
+**Calm When Nobody’s Around** (a screen whose **Tablet Room**, under This Device, names its room, when
+that room has an occupancy, motion or presence sensor): half as much moves
+while the room has been empty for five minutes, and all of it again as soon as
+someone is there. Nothing is rebuilt either way.
+
+**Sky Lab** (`?skylab` on any dashboard, [Tools](Tools.md)) previews every
+choice, and **Show Me Now** sends the next crossing across at once.
 
 ## Advanced
 
@@ -175,20 +213,23 @@ changes; your screens keep today’s sky.
 | Daytime Sky | Natural | How bright the midday blue runs: **Natural**, **Balanced** or **Deep** ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
 | Seasonal Decorations | On | Pauses every decoration. The same switch as **Seasonal decorations** on the HK Frontend device. |
 | Decoration Style | Old Decorations | **New Decorations** draws the seasons and holidays as close woodland scenery (above). Each screen can choose its own. |
-| Woodland Between Occasions | All Seasons | With New Decorations, which seasons' woodland — Spring, Summer, Autumn, Winter — shows on days with no holiday or birthday. Separate from each holiday's **Show**. |
+| Liveliness | Classic | **Subtle**, **Classic**, **Festive** or **Party** for every decoration, woodland season and the Night Sky, or **Custom** ([Liveliness](#liveliness)). Each screen can choose its own. |
+| Each Occasion | — | *With Liveliness Custom.* Every decoration, woodland season and the Night Sky (the forecast screensaver’s twinkling and shooting stars), each with its own Liveliness. |
+| Woodland Between Occasions | All Seasons | With New Decorations, which seasons' woodland — Spring, Summer, Autumn, Winter — shows on days with no holiday or birthday, each season on its own page with its **Show** and [Liveliness](#liveliness). Separate from each holiday's **Show**. |
 | (each decoration) | On | Opens its page (below). |
-| Advanced | Northern | Opens the Advanced page (below). |
+| Advanced | — | Opens the Advanced page (below): the hemisphere, sources, and what decorations need. |
 
 Each decoration’s page:
 
 | Setting | What it does |
 |---|---|
 | Show (decoration) | Turns this decoration on or off. |
-| Starts · Ends | Its dates. A window may run past New Year. **Use Default Dates** goes back to the built-in ones. |
-| How Often | Seasons (Fall & Halloween, Thanksgiving, Christmas): **Every Day**, **Sometimes** (some days, more often as the last day nears, always the final days) or **Only the Last Days**. Spring Garden and Winter Wonderland: **Often**, **Sometimes** or **Rarely**. Storybook Magic and Space Night: **Once**, **Twice** or **Four Times a Month**. |
+| Liveliness | *With Sky / Background → Liveliness Custom.* How many little moving things and how often they come: **Subtle**, **Classic**, **Festive**, **Party** or **Custom** ([Liveliness](#liveliness)). Otherwise the row says the one choice for every occasion. |
+| Starts · Ends | Its dates. A window may run past New Year. **Reset to Default Dates** goes back to the built-in ones. |
+| Days | Seasons (Fall & Halloween, Thanksgiving, Christmas): **Every Day**, **Sometimes** (some days, more often as the last day nears, always the final days) or **Only the Last Days**. Spring Garden and Winter Wonderland: **Often**, **Sometimes** or **Rarely**. Storybook Magic and Space Night: **Once**, **Twice** or **Four Times a Month**. |
 | Spooky Nights | *Fall & Halloween.* **Sometimes**, **Every Night** or **Never**: a big moon, fog, bats and a witch. |
 
-| Decoration | Default dates | Default how often |
+| Decoration | Default dates | Default days |
 |---|---|---|
 | Fall & Halloween | Sep 22 – Oct 31 | Sometimes; Spooky Nights Sometimes |
 | Thanksgiving | Nov 1 – Thanksgiving Day | Sometimes |
@@ -199,6 +240,6 @@ Each decoration’s page:
 | Winter Wonderland | Dec 21 – Mar 19 (Southern: Jun 21 – Sep 21) | Sometimes (about one day in eight) |
 | Storybook Magic | — | Once a Month |
 | Space Night | — | Once a Month |
-| Birthdays | — | On the day. Add each person’s name, month and day under **Add a Birthday**. |
+| Birthdays | — | On the day. Add each person’s name, month and day under **Add Birthday**. |
 
 The Advanced page’s settings are under [Advanced](#advanced) above.

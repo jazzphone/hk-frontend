@@ -343,7 +343,8 @@ def ws_settings_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveC
         mgr = screensaver.manager(hass)
         payload = dash_settings.as_client(_entry(hass), kinds.current(hass), accessories.current(hass),
                                           hass.data.get(DOMAIN, {}).get("extras"),
-                                          mgr.switch_ids() if mgr else None)
+                                          mgr.switch_ids() if mgr else None,
+                                          mgr.black_ids() if mgr else None)
         # which features are added and set up (features/): a card offers what
         # one gives only when it is -- their actions are always registered
         payload["added"] = [k for k in F.KINDS if F.loaded(hass, k)]
@@ -489,12 +490,16 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Every entry is version 1.10; one from a later major version is refused
+    """Every entry is version 1.13; one from a later major version is refused
     rather than guessed at. An older minor version is marked 7 (the versions
     that made such entries already moved their data), then 7 -> 8 moves the
     screens' room settings to All Screens (settings.rooms_lifted), 8 -> 9
-    their menu settings (settings.menu_lifted), and 9 -> 10 makes the pages'
-    status rows (settings.status_lifted)."""
+    their menu settings (settings.menu_lifted), 9 -> 10 makes the pages'
+    status rows (settings.status_lifted), 10 -> 11 writes down each
+    screen's menu on a phone (settings.phones_lifted), 11 -> 12 gives
+    Phones one set of settings of their own (settings.settings_tidied), and
+    12 -> 13 moves the screens' camera lists to All Screens
+    (settings.cameras_lifted)."""
     if entry.version > 1:
         return False
     if entry.minor_version < 7:
@@ -530,6 +535,44 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if options is not None:
                 hass.config_entries.async_update_entry(entry, options=options)
         hass.config_entries.async_update_entry(entry, minor_version=10)
+    if entry.minor_version < 11:
+        # phones get their own menu, written down as they show it now
+        # (settings.phones_lifted)
+        if F.kind_of(entry) == F.FRONTEND:
+            subs = {s.unique_id: s for s in entry.subentries.values()
+                    if s.subentry_type == dash_settings.SUBENTRY_DASHBOARD and s.unique_id}
+            options, items = dash_settings.phones_lifted(entry.options, {p: dict(s.data) for p, s in subs.items()})
+            for p, data in items.items():
+                if data != dict(subs[p].data):
+                    hass.config_entries.async_update_subentry(entry, subs[p], data=data)
+            if options is not None:
+                hass.config_entries.async_update_entry(entry, options=options)
+        hass.config_entries.async_update_entry(entry, minor_version=11)
+    if entry.minor_version < 12:
+        # one set of Phones' settings, no narrow choice, the tab bar's
+        # Tinted glass by its own name (settings.settings_tidied)
+        if F.kind_of(entry) == F.FRONTEND:
+            subs = {s.unique_id: s for s in entry.subentries.values()
+                    if s.subentry_type == dash_settings.SUBENTRY_DASHBOARD and s.unique_id}
+            options, items = dash_settings.settings_tidied(entry.options, {p: dict(s.data) for p, s in subs.items()})
+            for p, data in items.items():
+                if data != dict(subs[p].data):
+                    hass.config_entries.async_update_subentry(entry, subs[p], data=data)
+            if options is not None:
+                hass.config_entries.async_update_entry(entry, options=options)
+        hass.config_entries.async_update_entry(entry, minor_version=12)
+    if entry.minor_version < 13:
+        # the screens' camera lists move to All Screens (settings.cameras_lifted)
+        if F.kind_of(entry) == F.FRONTEND:
+            subs = {s.unique_id: s for s in entry.subentries.values()
+                    if s.subentry_type == dash_settings.SUBENTRY_DASHBOARD and s.unique_id}
+            options, items = dash_settings.cameras_lifted(entry.options, {p: dict(s.data) for p, s in subs.items()})
+            for p, data in items.items():
+                if data != dict(subs[p].data):
+                    hass.config_entries.async_update_subentry(entry, subs[p], data=data)
+            if options is not None:
+                hass.config_entries.async_update_entry(entry, options=options)
+        hass.config_entries.async_update_entry(entry, minor_version=13)
     return True
 
 

@@ -19,7 +19,7 @@ feed is shown, never edited.
 | Setting | Default | What it does |
 |---|---|---|
 | Automatic | On | Every calendar in Home Assistant, A to Z. Off: only the calendars you choose, in your order (**Add Calendar…**, drag to reorder). |
-| Calendars → a calendar → Color | Automatic | Its events’ colour on the page and the screensaver. Automatic: orange, green, purple, blue, pink and so on, by its place in the list. The page also says whether its events can be added, changed and deleted. |
+| Calendars → a calendar → Color | Automatic | Its events’ colour on the page and the screensaver. Automatic: orange, green, purple, blue, pink and so on, by its place in the list; the row says which, *Automatic (Green)*. The page also says whether its events can be added, changed and deleted. |
 
 ## The Calendar page
 

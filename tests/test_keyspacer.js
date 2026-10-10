@@ -61,6 +61,7 @@ H.run('KEY AND SPACER', [
     H.noThrow('first hass', function () { card.hass = house.hass(); });
     staticGate('key', card, house);
     tap(H.part(R, '.key'));
+    H.runTimers();
     H.eq('tap: "./timer-new" resolves against THIS dashboard', pushed, ['/dashboard-kitchen/timer-new']);
     H.eq('...and calls no service', house.calls.length, 0);
     return H.lifecycle('key', card, house, function (c) { c.hass = house.hass(); });

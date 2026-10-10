@@ -64,6 +64,17 @@
   // 2026-10-05): a 60 pt bar, the selected tab's capsule ~76 x 53 pt -- ours
   // 77 x 54 (a 67 px tab plus 5 px each side)
   var GUTTER = 21, GAP = 10, ROUND = 62, PAD = 4, BAR_H = 60, LIFT = 14, TAB_GAP = 4, WIDEN = 5;
+  // THE HIGHLIGHT'S GAPS GROW WITH THE BAR (2026-10-09): every gap inside
+  // the bar -- the highlight from the bar's edge and ends, the space between
+  // tabs, how far the highlight reaches into it, and a rail's the same -- is
+  // the bar's thickness / GAP_RATIO. Apple Music's 4 px on a 60 px phone bar
+  // is the ratio; PAD, TAB_GAP, WIDEN and RAIL_* above and below are those
+  // gaps at that size, and gapsOf() scales them to any other.
+  var GAP_RATIO = 15;
+  function gapsOf(thick) {
+    var g = thick / GAP_RATIO, k = g / 4;
+    return { pad: PAD * k, tab: TAB_GAP * k, widen: WIDEN * k, railPad: RAIL_PAD * k, railGap: RAIL_GAP * k };
+  }
   // THE BAR'S THICKNESS: a phone's 60 (Apple Music's), a tablet or wider 72
   // -- the rail's width too, so the bar and the rail are the same size
   // (2026-10-06). CSS reads it as --bh.
@@ -75,8 +86,11 @@
   // bar's edge, the rail's ends) are padding, so they hold at every size.
   var SIZE_STEP = { small: -8, medium: 0, large: 8 };
   function step(size) { return SIZE_STEP[size] || 0; }
-  function barH(width, size) {
-    return ((width === undefined ? (window.innerWidth || 1280) : width) < 640 ? BAR_H : BAR_H_WIDE) + step(size);
+  // `phone`: a phone's bar (hk-base.js menu.phone(): under 640 px, or a
+  // phone held sideways); unset, by `width` (or the device, without one)
+  function barH(width, size, phone) {
+    var ph = phone !== undefined ? phone : width === undefined ? phoneAt() : width < PHONE_W;
+    return (ph ? BAR_H : BAR_H_WIDE) + step(size);
   }
   // HOW HIGH IT FLOATS: 14 px, or on an iPhone down into the home indicator's
   // safe area as iOS's own tab bar sits (34 px of safe area: 22 px up)
@@ -110,44 +124,76 @@
   // `most`: the screen's Tabs in Bar (Home and More included), 8 if unset;
   // a phone never more than PHONE_TABS
   // `size`: Tab Bar Size -- a tab's least and most width move with it
-  function fit(n, top, width, button, extra, most, size) {
-    var avail = Math.max(0, width - 2 * GUTTER - (button ? barH(width, size) + GAP : 0) - 2 * PAD);
+  // `phone`: a phone's fit (five at most, a phone's bar), even held
+  // sideways; unset, a width under PHONE_W is one
+  function fit(n, top, width, button, extra, most, size, phone) {
+    var ph = phone !== undefined ? !!phone : width < PHONE_W;
+    var gs = gapsOf(barH(width, size, ph)), pad = gs.pad, tg = gs.tab;
+    var avail = Math.max(0, width - 2 * GUTTER - (button ? barH(width, size, ph) + GAP : 0) - 2 * pad);
     var minW = TAB_MIN_W + step(size) * 3 / 4, maxW = TAB_MAX_W + step(size);
     var cap = Math.min(MAX_TABS, (most || PAGES_DEFAULT) + 2);
-    most = width < PHONE_W ? Math.min(PHONE_TABS, cap) : cap;
-    var slots = Math.max(1, Math.min(most, Math.floor((avail + TAB_GAP) / (minW + TAB_GAP))));
+    most = ph ? Math.min(PHONE_TABS, cap) : cap;
+    var slots = Math.max(1, Math.min(most, Math.floor((avail + tg) / (minW + tg))));
     var more = top > 0 || n > slots || !!extra;
     var shown = more ? Math.max(0, Math.min(n, slots - 1)) : n;
     var cells = shown + (more ? 1 : 0);
-    var inner = Math.min(avail, cells * maxW + Math.max(0, cells - 1) * TAB_GAP);
-    var tab = cells ? (inner - Math.max(0, cells - 1) * TAB_GAP) / cells : 0;
-    return { shown: shown, more: more, width: Math.round(inner + 2 * PAD), plate: tab >= PLATE_MIN };
+    var inner = Math.min(avail, cells * maxW + Math.max(0, cells - 1) * tg);
+    var tab = cells ? (inner - Math.max(0, cells - 1) * tg) / cells : 0;
+    return { shown: shown, more: more, width: Math.round(inner + 2 * pad), plate: tab >= PLATE_MIN };
   }
 
   // THE RAIL'S FIT: as fit(), down a rail `height` tall
   // `most`: the screen's Tabs in Rail. `height`: the rail as tall as its
   // tabs (it hugs them, centred on its side; opening More stretches it)
   function railFit(n, top, height, extra, most, size) {
-    var avail = Math.max(0, height - 2 * GUTTER - 2 * RAIL_PAD), tab = RAIL_TAB + step(size);
-    var slots = Math.max(1, Math.min(Math.min(MAX_TABS, (most || PAGES_DEFAULT) + 2), Math.floor((avail + RAIL_GAP) / (tab + RAIL_GAP))));
+    var gs = gapsOf(railW(size)), rp = gs.railPad, rg = gs.railGap;
+    var avail = Math.max(0, height - 2 * GUTTER - 2 * rp), tab = RAIL_TAB + step(size);
+    var slots = Math.max(1, Math.min(Math.min(MAX_TABS, (most || PAGES_DEFAULT) + 2), Math.floor((avail + rg) / (tab + rg))));
     var more = top > 0 || n > slots || !!extra;
     var shown = more ? Math.max(0, Math.min(n, slots - 1)) : n, cells = shown + (more ? 1 : 0);
     return { shown: shown, more: more, width: railW(size), plate: true,
-             height: 2 * RAIL_PAD + cells * tab + Math.max(0, cells - 1) * RAIL_GAP };
+             height: 2 * rp + cells * tab + Math.max(0, cells - 1) * rg };
   }
   // WHERE THE BAR SITS: the screen's Tab Bar Position, a phone keeping the
   // bottom for a rail's (too little width beside it)
-  function position(pos, width) {
+  function position(pos, width, phone) {
     pos = pos === 'top' || pos === 'left' || pos === 'right' ? pos : 'bottom';
-    return (pos === 'left' || pos === 'right') && width < 640 ? 'bottom' : pos;
+    var ph = phone !== undefined ? !!phone : width < PHONE_W;
+    return (pos === 'left' || pos === 'right') && ph ? 'bottom' : pos;
   }
 
-  // WHILE SCROLLING HERE: a phone's own (under 640 px, hk-base.js
-  // MENU_NARROW), when it has one, else the tablets'
+  // A PHONE'S OWN SETTINGS (the screen's Phones section): at `width` (the
+  // tests), else as hk-base.js decides it -- under 640 px, or a phone's
+  // screen held sideways (hkCards.menu.phone)
+  function phoneAt(width) {
+    if (width !== undefined) return width < PHONE_W;
+    var Mn = window.hkCards && window.hkCards.menu;
+    return Mn && Mn.phone ? !!Mn.phone() : (window.innerWidth || 1280) < PHONE_W;
+  }
+  // PHONES' SETTINGS HERE (While Scrolling, More): a phone, and a tablet
+  // showing Phones' menu where its own doesn't fit (hkCards.menu.phoneForm)
+  function phoneSet(width) {
+    if (width !== undefined) return width < PHONE_W;
+    var Mn = window.hkCards && window.hkCards.menu;
+    return Mn && Mn.phoneForm ? !!Mn.phoneForm() : phoneAt();
+  }
+  // WHILE SCROLLING HERE: Phones' own where Phones' menu shows, else the
+  // tablets'
   function scrollOf(b, width) {
     b = b || {};
-    var w = width === undefined ? (window.innerWidth || 1280) : width;
-    return w < 640 && b.tab_bar_scroll_phone ? b.tab_bar_scroll_phone : (b.tab_bar_scroll || 'shrink');
+    return phoneSet(width) ? (b.tab_bar_scroll_phone || 'shrink') : (b.tab_bar_scroll || 'shrink');
+  }
+  // MORE'S ROOMS HERE: Phones' own (tab_bar_rooms_phone) where Phones' menu
+  // shows, else the tablets' -- In More, Own Button or Off (roomsMode)
+  function roomsOf(b, width) {
+    b = b || {};
+    return roomsMode(phoneSet(width) ? b.tab_bar_rooms_phone : b.tab_bar_rooms);
+  }
+  // MORE'S STYLE HERE: Phones' own (List unless chosen) where Phones' menu
+  // shows, else the tablets'
+  function moreOf(b, width) {
+    b = b || {};
+    return phoneSet(width) ? (b.tab_bar_more_phone || 'list') : (b.tab_bar_more || 'icons');
   }
 
   // HOW THE PAGE MAKES ROOM FOR THE BAR (Adjust Content):
@@ -216,10 +262,11 @@
   }
 
   window.hkTabBar = { version: '1.0.0', _: { fit: fit, parts: parts, scrollStep: scrollStep, material: material,
-                                             roomsMode: roomsMode, railFit: railFit, position: position, room: room, scrollOf: scrollOf,
+                                             roomsMode: roomsMode, roomsOf: roomsOf, moreOf: moreOf, phoneSet: phoneSet, railFit: railFit, position: position, room: room, scrollOf: scrollOf,
                                              SIZES: { TAB_MIN_W: TAB_MIN_W, TAB_MAX_W: TAB_MAX_W, MAX_TABS: MAX_TABS,
                                                       GUTTER: GUTTER, GAP: GAP, ROUND: ROUND, PAD: PAD, RAIL_PAD: RAIL_PAD,
-                                                      RAIL_GAP: RAIL_GAP, SIZE_STEP: SIZE_STEP },
+                                                      RAIL_GAP: RAIL_GAP, SIZE_STEP: SIZE_STEP, GAP_RATIO: GAP_RATIO },
+                                             gapsOf: gapsOf,
                                              barH: barH, railW: railW } };
 
   function whenReady(fn) {
@@ -241,8 +288,12 @@
   whenReady(function (C) {
     var M = C.menu, H = window.hkMenu._;
     var EASE = 'cubic-bezier(.32,.72,0,1)';
+    // the highlight's slide: a touch past and back, as a UIKit spring
+    var SPRING = 'cubic-bezier(.34,1.24,.42,1)';
     var CSS = [
       ':host{all:initial;--bh:' + BAR_H + 'px;--ti:24px;--ci:26px;--tf:10.5px}',
+      // the gaps' unit (gapsOf): the thickness / GAP_RATIO -- 4 px on a 60 px bar
+      ':host{--g:calc(var(--bh) / ' + GAP_RATIO + ')}',
       ':host([data-size="small"]){--ti:22px;--ci:24px;--tf:10px}',
       ':host([data-size="large"]){--ti:26px;--ci:28px;--tf:11.5px}',
       // ...but a phone's names stay Medium's: its bar is already the
@@ -270,13 +321,13 @@
       // THE PILL
       // TAB_GAP between tabs: two highlights side by side (the page you are
       // on, the one under the pointer) never touch
-      '.pill{position:relative;display:flex;align-items:stretch;gap:' + TAB_GAP + 'px;height:var(--bh);padding:' + (PAD - 1) + 'px;',
+      '.pill{position:relative;display:flex;align-items:stretch;gap:var(--g);height:var(--bh);padding:calc(var(--g) - 1px);',
       '  border-radius:calc(var(--bh) / 2);width:var(--pill-w,auto);max-width:100%;overflow:hidden;',
       '  transition:width .34s ' + EASE + '}',
       '.tab{position:relative;z-index:0;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;',
       // 10 px in from each side: the capsule's round ends curve ~9 px in at
       // the label's foot, so a long name's ellipsis stays inside it
-      '  border:0;margin:0;padding:0 10px;border-radius:calc(var(--bh) / 2 - ' + (PAD - 1) + 'px);background:none;color:rgba(255,255,255,0.94);',
+      '  border:0;margin:0;padding:0 10px;border-radius:calc(var(--bh) / 2 - var(--g) + 1px);background:none;color:rgba(255,255,255,0.94);',
       '  font:inherit;font-size:var(--tf);font-weight:600;letter-spacing:0;cursor:pointer;transition:background-color .2s ease,opacity .2s ease}',
       '.tab ha-icon{--mdc-icon-size:var(--ti);width:var(--ti);height:var(--ti);display:flex}',
       '.tab span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -285,8 +336,14 @@
       // lights up beside it (no hover), so it has the room. The end tabs
       // reach inward only, staying inside the bar.
       '.tab.here{color:var(--hk-accent,#ff9f0a)}',
-      '.tab.here::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:-' + WIDEN + 'px;right:-' + WIDEN + 'px;',
-      '  border-radius:inherit;background:rgba(255,255,255,0.16)}',
+      '.tab.here::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:calc(var(--g) * -1.25);right:calc(var(--g) * -1.25);',
+      '  border-radius:inherit;background:rgba(255,255,255,0.16);',
+      // IT SLIDES TO THE NEW PAGE (2026-10-09, as iOS's does): slide() starts
+      // it where the last page's was (--hx/--hy, --sx/--sy), then lets go --
+      // a short spring along the bar, or down the rail
+      '  transform-origin:0 0;transform:translate(var(--hx,0px),var(--hy,0px)) scale(var(--sx,1),var(--sy,1));',
+      '  transition:transform .46s ' + SPRING + '}',
+      '.tab.here.slide-from::before{transition:none}',
       '.cur + .tab.here::before{left:0}',
       '.tab.here:last-child::before{right:0}',
       '.root.tight .tab.here::before{display:none}',
@@ -405,11 +462,11 @@
       // share one box exactly (a percentage height left Safari 4 px short)
       ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{position:absolute;left:0;right:0;top:var(--rail-gap,0px);',
       '  bottom:var(--rail-gap,0px);width:auto;height:auto;max-width:none;flex-direction:column;',
-      '  justify-content:center;gap:' + RAIL_GAP + 'px;border-radius:calc(var(--bh) / 2);padding:' + RAIL_PAD + 'px 5px}',
+      '  justify-content:center;gap:calc(var(--g) * 1.5);border-radius:calc(var(--bh) / 2);padding:calc(var(--g) * 2.5) calc(var(--g) + 1px)}',
       // the highlight follows the rail's round ends: a capsule, its radius the
       // rail's less its 5 px inset (a bar's was the bar's, not the rail's)
       ':host([data-pos="left"]) .tab,:host([data-pos="right"]) .tab{flex:0 0 calc(var(--bh) - ' + (RAIL_W - RAIL_TAB) + 'px);width:100%;padding:0 4px;',
-      '  border-radius:calc(var(--bh) / 2 - 5px)}',
+      '  border-radius:calc(var(--bh) / 2 - var(--g) - 1px)}',
       // opening More stretches the rail to More's full height, as one piece
       ':host([data-pos="left"]) .root.joined.sheeted .pill,:host([data-pos="right"]) .root.joined.sheeted .pill{top:0;bottom:0}',
       ':host([data-pos="left"]) .tab span,:host([data-pos="right"]) .tab span{white-space:normal;text-align:center;line-height:1.15;',
@@ -420,9 +477,9 @@
       // the rail's edge all round -- 4 px, as the bar's capsule keeps from the
       // bar's (its border and 3 px) -- reaching into the gaps between tabs,
       // and at the ends only inward (measured: -6 leaves 4)
-      ':host([data-pos="left"]) .tab.here::before,:host([data-pos="right"]) .tab.here::before{left:-2px;right:-2px;top:-8px;bottom:-8px;border-radius:38px}',
-      ':host([data-pos="left"]) .cur + .tab.here::before,:host([data-pos="right"]) .cur + .tab.here::before{top:-' + (RAIL_PAD - 4) + 'px}',
-      ':host([data-pos="left"]) .tab.here:last-child::before,:host([data-pos="right"]) .tab.here:last-child::before{bottom:-' + (RAIL_PAD - 4) + 'px}',
+      ':host([data-pos="left"]) .tab.here::before,:host([data-pos="right"]) .tab.here::before{left:-2px;right:-2px;top:calc(var(--g) * -2);bottom:calc(var(--g) * -2);border-radius:38px}',
+      ':host([data-pos="left"]) .cur + .tab.here::before,:host([data-pos="right"]) .cur + .tab.here::before{top:calc(var(--g) * -1.5)}',
+      ':host([data-pos="left"]) .tab.here:last-child::before,:host([data-pos="right"]) .tab.here:last-child::before{bottom:calc(var(--g) * -1.5)}',
       ':host([data-pos="left"]) .roomsbtn,:host([data-pos="right"]) .roomsbtn{display:none}',
       ':host([data-pos="left"]) .sheet,:host([data-pos="right"]) .sheet{top:' + GUTTER + 'px;bottom:' + GUTTER + 'px;max-height:none;',
       '  width:var(--sheet-w,640px);max-width:none;margin:0;border-bottom:1px solid rgba(255,255,255,0.14);transform:none}',
@@ -446,13 +503,13 @@
       ':host([data-pos="left"]) .root.small.fold-end .row,:host([data-pos="right"]) .root.small.fold-end .row{flex-direction:column;justify-content:flex-end}',
       ':host([data-pos="left"]) .root.small .pill,:host([data-pos="right"]) .root.small .pill{left:3px;right:3px;top:0;',
       '  bottom:calc(100% - var(--bh) + 6px);width:auto;height:auto;',
-      '  padding:' + (PAD - 1) + 'px;border-radius:50%}',
+      '  padding:calc(var(--g) - 1px);border-radius:50%}',
       ':host([data-pos="left"]) .root.small.fold-end .pill,:host([data-pos="right"]) .root.small.fold-end .pill{top:calc(100% - var(--bh) + 6px);bottom:0}',
       ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{transition:top .42s ' + EASE + ',bottom .42s ' + EASE + ',left .34s ' + EASE + ',right .34s ' + EASE + ',border-radius .3s ' + EASE + '}',
       ':host([data-pos="left"]) .root.gone .row{transform:translateX(calc(-100% - ' + (GUTTER + 8) + 'px - var(--hk-content-left,0px)))}',
       ':host([data-pos="right"]) .root.gone .row{transform:translateX(calc(100% + ' + (GUTTER + 8) + 'px))}',
       ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{transition:transform .34s ' + EASE + '}',
-      '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet{transition:none}}'
+      '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet,.tab.here::before{transition:none}}'
     ].join('\n');
 
     var MORE_ICON = 'mdi:dots-horizontal', ROOMS_ICON = 'mdi:view-grid';
@@ -493,7 +550,7 @@
           '</div>' +
         '</div>';
       S.root = sr.querySelector('.root');
-      S.pill = sr.querySelector('.pill');
+      S.pill = sr.querySelector('.pill'); S.tabHtml = null;
       S.cur = sr.querySelector('.cur');
       S.roomsBtn = sr.querySelector('.roomsbtn');
       S.sheets = { more: sr.querySelector('[data-sheet="more"]'), rooms: sr.querySelector('[data-sheet="rooms"]') };
@@ -535,7 +592,7 @@
     }
     function listKey(width) {
       var h = C.hass(), b = M.board();
-      return [M.dash(), cfgId(M.config()), width, window.innerHeight, b.ha_place, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_more, b.tab_bar_more_phone, b.tab_bar_size, b.tab_bar_tabs, b.tab_bar_tabs_rail, b.ha_row, JSON.stringify(S.haPrefs || null),
+      return [M.dash(), cfgId(M.config()), width, window.innerHeight, b.ha_place, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_rooms_phone, phoneAt(), phoneSet(), b.tab_bar_more, b.tab_bar_more_phone, b.tab_bar_size, b.tab_bar_tabs, b.tab_bar_tabs_rail, b.ha_row, JSON.stringify(S.haPrefs || null),
               h && h.user && h.user.is_admin, h && h.panels ? Object.keys(h.panels).join(',') : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
@@ -546,8 +603,11 @@
     function build() {
       var b = M.board(), m = model();
       var width = (window.innerWidth || 0) - leftOf();
-      var pos = position(b.tab_bar_pos, window.innerWidth || 1280), rail = pos === 'left' || pos === 'right';
-      var rm = m.rooms.length ? roomsMode(b.tab_bar_rooms) : 'off';
+      // a phone, by its screen as well as its width: a phone held
+      // sideways keeps a phone's bar, fit and place
+      var ph = phoneAt();
+      var pos = position(b.tab_bar_pos, window.innerWidth || 1280, ph), rail = pos === 'left' || pos === 'right';
+      var rm = m.rooms.length ? roomsOf(b) : 'off';
       if (rail && rm === 'button') rm = 'more';      // a rail has no room for a second button
       var roomsOn = rm === 'button';
       // THE HOME ASSISTANT SECTION, between the pages and the rooms (the
@@ -562,7 +622,7 @@
       var tabs = [m.home].concat(m.categories).filter(Boolean);
       var sz = b.tab_bar_size;
       var f = rail ? railFit(tabs.length, m.top.length, window.innerHeight || 800, rm === 'more' || S.ha.length > 0, b.tab_bar_tabs_rail, sz)
-                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0, b.tab_bar_tabs, sz);
+                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0, b.tab_bar_tabs, sz, ph);
       S.pos = pos;
       if (S.posWas !== pos && S.mode !== 'full') setMode('full');
       S.posWas = pos;
@@ -580,14 +640,19 @@
         html += '<button class="tab" data-t="more" aria-expanded="false"><ha-icon icon="' + icon(MORE_ICON) +
           '"></ha-icon><span>More</span></button>';
       }
-      S.pill.querySelectorAll('.tab').forEach(function (x) { x.remove(); });
-      S.pill.insertAdjacentHTML('beforeend', html);
+      // THE SAME TABS ARE KEPT, not drawn again: a module arriving on a new
+      // page (hk-module-ready) asks for a rebuild, and new buttons would cut
+      // the highlight's slide short and flash the icons (2026-10-09)
+      if (html !== S.tabHtml) {
+        S.pill.querySelectorAll('.tab').forEach(function (x) { x.remove(); });
+        S.pill.insertAdjacentHTML('beforeend', html);
+        S.tabHtml = html;
+      }
       // ONE WIDTH FOR THE BAR AND MORE (joined, no Rooms button): the wider
       // of the two -- More's (860 px of icons, 420 of list) or what the tabs
       // need -- within the screen, so opening More never widens anything
-      // More Style: a phone's own (under M.NARROW, 640 px), else the tablet's
-      var phone = (window.innerWidth || 1280) < (M.NARROW || 640);
-      var list = (phone ? b.tab_bar_more_phone : b.tab_bar_more) === 'list', sheetW = list ? 420 : 860;
+      // More Style: a phone's own, else the tablet's (moreOf)
+      var list = moreOf(b) === 'list', sheetW = list ? 420 : 860;
       var joinW = Math.min(Math.max(0, width - 2 * GUTTER), Math.max(f.width, sheetW));
       // a rail's More slides out beside it: 380 px as a list, 640 as icons
       if (rail) joinW = Math.min(Math.max(0, width - 2 * GUTTER - railW(sz) - 16), list ? 380 : 640);
@@ -600,7 +665,9 @@
       // ONE SHAPE GROWING: More's clip starts exactly where the bar is --
       // a bar's width inside More's (--bar-gap each side), a rail's height
       // inside the screen's (--rail-gap above and below) -- and opens with it
-      var railGap = rail && f.height ? Math.max(0, Math.round(((window.innerHeight || 800) - 2 * GUTTER - f.height) / 2)) : 0;
+      // (not rounded: the rail is exactly its tabs and gaps tall, so the
+      // highlight's gap at its ends is the same as at its sides)
+      var railGap = rail && f.height ? Math.max(0, ((window.innerHeight || 800) - 2 * GUTTER - f.height) / 2) : 0;
       var barGap = !rail && !roomsOn ? Math.max(0, Math.round((joinW - f.width) / 2)) : 0;
       S.host.style.setProperty('--rail-gap', railGap + 'px');
       S.host.style.setProperty('--bar-gap', barGap + 'px');
@@ -657,17 +724,40 @@
     }
 
     // ------------------------------------------------- the current page
+    // THE HIGHLIGHT GLIDES from the page you were on to the one you are on:
+    // the new tab's capsule starts over the old one's box (relative to the
+    // bar, so a re-drawn bar still knows where it was) and eases home. Not
+    // while folded, nor where the tabs are too narrow for a capsule.
+    function slide(el, from, to) {
+      if (!from || !to || from.pos !== to.pos || S.mode !== 'full' || S.tight) return;
+      if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) return;
+      el.classList.add('slide-from');
+      el.style.setProperty('--hx', (from.x - to.x) + 'px');
+      el.style.setProperty('--hy', (from.y - to.y) + 'px');
+      el.style.setProperty('--sx', String(from.w / (to.w || 1)));
+      el.style.setProperty('--sy', String(from.h / (to.h || 1)));
+      void el.offsetWidth;                      // that start, drawn
+      el.classList.remove('slide-from');
+      ['--hx', '--hy', '--sx', '--sy'].forEach(function (v) { el.style.removeProperty(v); });
+    }
+    function boxOf(el) {
+      var p = S.pill.getBoundingClientRect(), r = el.getBoundingClientRect();
+      return { x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height, pos: S.pos };
+    }
     function markHere() {
-      var path = location.pathname, curIcon = null;
+      var path = location.pathname, curIcon = null, hereEl = null;
       S.pill.querySelectorAll('.tab').forEach(function (el) {
         var k = el.getAttribute('data-t');
         var here = k === 'more' ? S.more.concat(S.roomsMode === 'more' ? S.rooms : [])
                                     .some(function (it) { return H.isHere(it, path); })
                                 : !!S.tabs[+k] && H.isHere(S.tabs[+k], path);
         el.classList.toggle('here', here);
-        if (here) { el.setAttribute('aria-current', 'page'); curIcon = k === 'more' ? MORE_ICON : S.tabs[+k].icon; }
+        if (here) { el.setAttribute('aria-current', 'page'); curIcon = k === 'more' ? MORE_ICON : S.tabs[+k].icon; hereEl = el; }
         else el.removeAttribute('aria-current');
       });
+      var box = hereEl && S.on ? boxOf(hereEl) : null;
+      if (box && S.hereBox) slide(hereEl, S.hereBox, box);
+      S.hereBox = box;
       var inRoom = S.rooms.some(function (it) { return H.isHere(it, path); });
       S.roomsBtn.classList.toggle('here', inRoom && S.roomsMode === 'button');
       Object.keys(S.sheets).forEach(function (k) {
@@ -994,6 +1084,10 @@
     window.hkTabBar.close = closeSheet;
     window.hkTabBar.mode = function () { return S.mode; };
     window.hkTabBar._.state = function () { return S; };
-    window.dispatchEvent(new CustomEvent('hk-module-ready', { detail: { module: 'hk-tabbar' } }));
+    // NO hk-module-ready HERE: that event redraws every card on the page
+    // (hk-base.js MODULE WAKE) and no card reads the bar -- the now-playing
+    // bar follows it through --hk-tabbar-h / -l / -r alone. Announcing
+    // ourselves cost every screen, tab bar or not, a whole-page redraw (and
+    // this bar a second build) on every load.
   });
 })();

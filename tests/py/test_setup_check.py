@@ -71,12 +71,12 @@ async def test_the_check_page_says_what_is_ready_and_what_to_fix(hass, frontend)
     assert r["type"] == "form" and r["step_id"] == "check"
     text = r["description_placeholders"]["report"]
     assert text.startswith("**1 thing to fix.**"), text.splitlines()[0]
-    assert "⚠️\u2002**HK Kiosk theme**" in text
+    assert "⚠️\u2002**HK Kiosk Theme**" in text
     assert "ℹ️\u2002**1 device in no area** — Hall Lamp." in text
     assert "Bridge" not in text and "Watch" not in text, "only devices with a tile count"
     assert "ℹ️\u2002**1 area with no icon** — Porch." in text
     assert "ℹ️\u2002**1 area with no temperature or humidity sensor** — Porch." in text
-    assert "ℹ️\u2002**Menu and room pages** — Off on every dashboard." in text
+    assert "ℹ️\u2002**Menu & Room Pages** — Off on every dashboard." in text
     assert "ℹ️\u2002**Live TV** — Not added." in text
     # the things to fix come first
     assert text.index("⚠️") < text.index("✅") < text.index("ℹ️")
@@ -93,15 +93,19 @@ async def test_the_menu_line_names_a_dashboard_that_does_not_exist(hass, fronten
     hass.data[LOVELACE_DATA] = SimpleNamespace(
         dashboards={None: object(), "dashboard-hall": object()}, resource_mode="yaml",
         resources=SimpleNamespace(async_items=lambda: items))
-    lines = await setup_check.async_run(hass, {"dashboard": {"menu": {"dashboards": ["dashboard-hall", "dashboard-gone"]}}})
+    from custom_components.hk_frontend import settings as S
+    lines = await setup_check.async_run(hass, {}, {"dashboard-hall": S.board({"menu": "auto"}),
+                                                   "dashboard-gone": S.board({"menu": "off", "menu_phone": "tabbar"}),
+                                                   "dashboard-none": S.board({"menu": "off", "menu_phone": "off"})})
     by = {x.title: x for x in lines}
-    assert by["Menu and room pages"].ok is False and "dashboard-gone" in by["Menu and room pages"].detail
-    assert "dashboard-hall" not in by["Menu and room pages"].detail
-    cards = by["Card files"]
+    assert by["Menu & Room Pages"].ok is False and "dashboard-gone" in by["Menu & Room Pages"].detail
+    assert "dashboard-hall" not in by["Menu & Room Pages"].detail, "a phones-only menu counts too"
+    assert "dashboard-none" not in by["Menu & Room Pages"].detail
+    cards = by["Card Files"]
     assert cards.ok is False and "YAML mode" in cards.detail and "/hk/cards/hk-base.js" not in cards.detail
     assert "/hk/cards/hk-room.js" in cards.detail
-    lines = await setup_check.async_run(hass, {"dashboard": {"menu": {"dashboards": ["dashboard-hall"]}}})
-    assert {x.title: x for x in lines}["Menu and room pages"].ok is True
+    lines = await setup_check.async_run(hass, {}, {"dashboard-hall": S.board({"menu": "off", "menu_phone": "button"})})
+    assert {x.title: x for x in lines}["Menu & Room Pages"].ok is True
 
 
 async def test_the_menu_line_reads_the_dashboard_items(hass, frontend):
@@ -112,10 +116,10 @@ async def test_the_menu_line_reads_the_dashboard_items(hass, frontend):
         dashboards={None: object(), "dashboard-hall": object()}, resource_mode="storage",
         resources=SimpleNamespace(async_items=lambda: []))
     boards = {"dashboard-hall": {"menu": "open"}, "dashboard-den": {"menu": "off"}}
-    line = {x.title: x for x in await setup_check.async_run(hass, {}, boards)}["Menu and room pages"]
+    line = {x.title: x for x in await setup_check.async_run(hass, {}, boards)}["Menu & Room Pages"]
     assert line.ok is True and "1 dashboard" in line.detail, "an item with the menu off does not count"
     boards["dashboard-gone"] = {"menu": "tab"}
-    line = {x.title: x for x in await setup_check.async_run(hass, {}, boards)}["Menu and room pages"]
+    line = {x.title: x for x in await setup_check.async_run(hass, {}, boards)}["Menu & Room Pages"]
     assert line.ok is False and "dashboard-gone" in line.detail and "Dashboards" in line.detail
 
 
@@ -138,11 +142,11 @@ async def test_the_screensaver_lines(hass, frontend, monkeypatch):
     monkeypatch.setattr(media_source, "async_browse_media", browse)
     titles = lambda lines: {x.title: x for x in lines}
     lines = titles(await setup_check.async_run(hass, {}, {"dashboard-k": {"menu": "open"}}))
-    assert "WallPanel" not in lines and "Screensaver photos" not in lines, "no screensaver, neither line"
+    assert "WallPanel" not in lines and "Screensaver Photos" not in lines, "no screensaver, neither line"
     lines = titles(await setup_check.async_run(hass, {}, {"dashboard-k": {"menu": "open", "screensaver": True}}))
     assert "WallPanel" not in lines, "HK Frontend draws the screensaver itself"
-    assert lines["Screensaver photos"].ok is True and "2 photos" in lines["Screensaver photos"].detail \
-        and "1 folder" in lines["Screensaver photos"].detail
+    assert lines["Screensaver Photos"].ok is True and "2 photos" in lines["Screensaver Photos"].detail \
+        and "1 folder" in lines["Screensaver Photos"].detail
     lines = titles(await setup_check.async_run(hass, {}, {"dashboard-k": {"screensaver": True,
                                                                           "screensaver_engine": "wallpanel"}}))
     assert "WallPanel" in lines, "a screen that chooses WallPanel is told whether it is ready"
@@ -151,21 +155,21 @@ async def test_the_screensaver_lines(hass, frontend, monkeypatch):
     lines = titles(await setup_check.async_run(hass, {}, {"k": {"kiosk": True, "kiosk_engine": "kiosk_mode"}}))
     assert "Kiosk Mode" in lines, "a screen that chooses the Kiosk Mode plugin is told whether it is ready"
     folder["children"] = []
-    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True}}))["Screensaver photos"]
+    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True}}))["Screensaver Photos"]
     assert line.ok is None and "empty" in line.detail and "forecast" in line.detail, \
         "no photos is not a fault: the forecast shows instead"
     folder = None
-    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True}}))["Screensaver photos"]
+    line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True}}))["Screensaver Photos"]
     assert line.ok is None and "can’t read" in line.detail and "forecast" in line.detail
     lines = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True,
                                                               "screensaver_options": {"show": "forecast"}}}))
-    assert "Screensaver photos" not in lines, "a screen set to Forecast never looks for photos"
+    assert "Screensaver Photos" not in lines, "a screen set to Forecast never looks for photos"
     folder = {"children": []}
     line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True,
-                                                             "screensaver_options": {"fallback": False}}}))["Screensaver photos"]
+                                                             "screensaver_options": {"fallback": False}}}))["Screensaver Photos"]
     assert line.ok is False and "stays dark" in line.detail, "fallback off: no photos is a dark screen again"
     line = titles(await setup_check.async_run(hass, {}, {"k": {"screensaver": True, "screensaver_options":
-                                                             {"fallback": False, "show": "both"}}}))["Screensaver photos"]
+                                                             {"fallback": False, "show": "both"}}}))["Screensaver Photos"]
     assert line.ok is None and "forecast" in line.detail, "Photos & Forecast: no photos is the forecast, never dark"
 
 
@@ -186,7 +190,7 @@ async def test_a_screensaver_screen_needs_its_tablet_user(hass, frontend, monkey
     await hass.auth.async_create_user("Kitchen Tablet")
 
     async def saver(board):
-        return {x.title: x for x in await setup_check.async_run(hass, {}, {"dashboard-k": board})}.get("Screensaver tablets")
+        return {x.title: x for x in await setup_check.async_run(hass, {}, {"dashboard-k": board})}.get("Screensaver Tablets")
     assert await saver({"menu": "open"}) is None, "no screensaver, no line"
     got = await saver({"screensaver": True})
     assert got.ok is False and "no Tablet User on Kitchen" in got.detail

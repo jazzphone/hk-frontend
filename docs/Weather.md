@@ -43,4 +43,4 @@ Radar Card is installed from HACS; the page says so when it isn’t.
 | Playback Controls | On | The play and step controls. |
 | Move and Zoom the Map | Off | Off: a still map. |
 | Options in YAML | None | Any other [Weather Radar Card](https://github.com/Makin-Things/weather-radar-card) option, such as `zoom_level: 7`. Only what you write changes; `key: null` removes a key. |
-| Use the Tuned Setup… | — | Shown once anything is changed. Clears every change. |
+| Reset to Tuned Setup… | — | Shown once anything is changed. Clears every change. |

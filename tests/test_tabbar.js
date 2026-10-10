@@ -43,7 +43,9 @@ ok('an iPad upright (820): seven tabs and More -- never more than eight in all',
 ok('a wall tablet (1280): the same eight', fit(9, 3, 1280, true).shown === 7);
 var few = fit(3, 0, 1280, true);
 ok('everything fits and nothing is at the top: no More', few.shown === 3 && few.more === false, JSON.stringify(few));
-ok('...and the pill is only as wide as its tabs (96 px each, 4 px apart, plus its padding)', few.width === 3 * 96 + 2 * 4 + 8, String(few.width));
+var g72 = 72 / 15;
+ok('...and the pill is only as wide as its tabs (96 px each, a tablet\'s 4.8 px apart, plus its padding)',
+   few.width === Math.round(3 * 96 + 2 * g72 + 2 * g72), String(few.width));
 ok('the pages at the top always bring More, even with room to spare', fit(3, 1, 1280, true).more === true);
 var fm = fit(9, 3, 402, false, true);
 ok('the rooms In More: a 402 px phone has Home, three categories and More -- five, as Apple Music has',
@@ -89,9 +91,10 @@ ok('...a phone never more than 3 pages, a lower setting still counts', fit(9, 3,
    fit(9, 3, 402, false, true, 2).shown === 3);
 ok('...unset is 6 pages', fit(9, 3, 1280, true).shown === 7);
 var r6 = T.railFit(9, 3, 800, true, 6);
-ok('Tabs in Rail 6: Home, six pages and More, the rail hugging them (8 x 66 + 7 x 6 + 20 = 590 px)',
-   r6.shown === 7 && r6.more && r6.height === 590, JSON.stringify(r6));
-ok('...8 pages fit an 800 px tablet\'s rail (10 tabs, 734 px)', T.railFit(12, 3, 800, true, 8).height === 734);
+// the rail's gaps at a 72 px rail: its ends 12, its tabs 7.2 apart (10 and 6 at 60)
+ok('Tabs in Rail 6: Home, six pages and More, the rail hugging them (8 x 66 + 7 x 7.2 + 24 = 602 px)',
+   r6.shown === 7 && r6.more && Math.round(r6.height) === 602, JSON.stringify(r6));
+ok('...8 pages fit an 800 px tablet\'s rail (10 tabs, 749 px)', Math.round(T.railFit(12, 3, 800, true, 8).height) === 749);
 ok('...a short window holds fewer than asked', T.railFit(9, 3, 500, true, 8).shown === 5);
 
 ok('the bar is 60 px on a phone, 72 on a tablet -- the rail\'s width too', T.barH(390) === 60 && T.barH(1280) === 72 &&
@@ -103,9 +106,19 @@ ok('Small, Medium, Large: a phone 52 / 60 / 68, a tablet 64 / 72 / 80',
 ok('...the rail as thick as the tablet\'s bar at every size',
    ['small', 'medium', 'large'].every(function (z) { return T.railFit(9, 3, 800, true, 6, z).width === T.barH(1280, z); }));
 var rs = T.railFit(9, 3, 800, true, 6, 'small'), rm = T.railFit(9, 3, 800, true, 6), rl = T.railFit(9, 3, 800, true, 6, 'large');
-ok('...its tabs 58 / 66 / 74 tall: the rail hugs them, the same pages at each size',
-   rs.shown === rm.shown && rl.shown === rm.shown && rm.height - rs.height === 8 * 8 && rl.height - rm.height === 8 * 8,
+ok('...its tabs 58 / 66 / 74 tall and its gaps with them: the rail hugs them, the same pages at each size',
+   rs.shown === rm.shown && rl.shown === rm.shown && Math.round(rs.height) === 530 && Math.round(rm.height) === 602 && Math.round(rl.height) === 675,
    [rs.height, rm.height, rl.height].join());
+// THE GAPS GROW WITH THE BAR (2026-10-09): thickness / 15 -- a phone's
+// Medium bar keeps Apple Music's 4 px; every other size in proportion
+var G = T.gapsOf;
+ok('a 60 px phone bar keeps today\'s gaps: 4 from the edge, 4 between tabs, the highlight 5 into them; a rail 10 and 6',
+   G(60).pad === 4 && G(60).tab === 4 && G(60).widen === 5 && G(60).railPad === 10 && G(60).railGap === 6);
+ok('...a tablet\'s 72 px bar 4.8, its 64 and 80 px 4.3 and 5.3; a phone\'s 52 and 68 px 3.5 and 4.5',
+   Math.abs(G(72).pad - 4.8) < 1e-9 && Math.abs(G(64).pad - 4.267) < 1e-3 && Math.abs(G(80).pad - 5.333) < 1e-3 &&
+   Math.abs(G(52).pad - 3.467) < 1e-3 && Math.abs(G(68).pad - 4.533) < 1e-3);
+ok('...every gap in the same proportion to the bar, at every size', [52, 60, 64, 68, 72, 80].every(function (t) {
+  var g = G(t); return Math.abs(g.pad / t - 4 / 60) < 1e-9 && Math.abs(g.railGap / g.pad - 1.5) < 1e-9 && Math.abs(g.widen / g.tab - 1.25) < 1e-9; }));
 ok('...a short window: Large fits fewer down the rail, Small more',
    T.railFit(12, 3, 600, true, 8, 'large').shown < T.railFit(12, 3, 600, true, 8).shown &&
    T.railFit(12, 3, 600, true, 8, 'small').shown > T.railFit(12, 3, 600, true, 8).shown);
@@ -153,10 +166,10 @@ ok('...off, the bar floats over the page everywhere', ['left', 'right', 'top', '
    return rr(p, 'shrink', false) === 'none' && rr(p, 'stay', false) === 'none'; }));
 
 var so = T.scrollOf;
-ok('While Scrolling on Phones: a phone\'s own under 640 px; Same as Tablets (null) follows the tablets\'',
+ok('While Scrolling on Phones: Phones\' own under 640 px (Shrink unless chosen), never the tablets\'',
    so({ tab_bar_scroll: 'shrink', tab_bar_scroll_phone: 'hide' }, 390) === 'hide' &&
    so({ tab_bar_scroll: 'shrink', tab_bar_scroll_phone: 'hide' }, 1280) === 'shrink' &&
-   so({ tab_bar_scroll: 'stay', tab_bar_scroll_phone: null }, 390) === 'stay' && so({}, 390) === 'shrink');
+   so({ tab_bar_scroll: 'stay' }, 390) === 'shrink' && so({}, 390) === 'shrink');
 
 print('=== the material ===');
 var mat = T.material;
@@ -176,24 +189,99 @@ function at(w, board) {
 var t = at(1440, { menu: 'tabbar' });
 ok('Menu: Tab Bar -- the bar at every width, and no side menu', t.bar && !t.menu && t.style === null &&
    at(402, { menu: 'tabbar' }).bar, JSON.stringify(t));
-t = at(1440, { menu: 'open', narrow: 'tabbar' });
-ok('Always Open with Tab Bar when folded: the menu docked on a computer, no bar', !t.bar && t.docked && t.style === 'docked',
+t = at(1440, { menu: 'open', menu_phone: 'tabbar' });
+ok('Always Open with the tab bar on Phones: the menu docked on a computer, no bar', !t.bar && t.docked && t.style === 'docked',
    JSON.stringify(t));
-t = at(900, { menu: 'open', narrow: 'tabbar' });
-ok('...folded (under Keep Open Down To): the bar, and no side menu at all', t.bar && !t.menu && !t.docked && t.style === null,
+t = at(900, { menu: 'open', menu_phone: 'tabbar' });
+ok('...folded (under Keep Open Down To): Phones\' menu, the bar, and no side menu at all', t.bar && !t.menu && !t.docked && t.style === null,
    JSON.stringify(t));
-t = at(1280, { menu: 'auto', narrow: 'tabbar' });
-ok('A button with Tab Bar on narrow screens: the button from 1,024 px', !t.bar && t.menu, JSON.stringify(t));
-t = at(820, { menu: 'auto', narrow: 'tabbar' });
-ok('...under 1,024 px: the bar instead of the button', t.bar && !t.menu && t.style === null, JSON.stringify(t));
+t = at(1280, { menu: 'auto', menu_phone: 'tabbar' });
+ok('A button with the tab bar on Phones: the button from 1,024 px', !t.bar && t.menu, JSON.stringify(t));
+t = at(820, { menu: 'auto', menu_phone: 'tabbar' });
+ok('...under 1,024 px (no room for the edge tab): Phones\' bar instead of the button', t.bar && !t.menu && t.style === null, JSON.stringify(t));
 ok('no swipe and no clock tap where the bar is', (function () {
-  at(820, { menu: 'auto', narrow: 'tabbar', swipe: true, clock: true });
+  at(820, { menu: 'auto', menu_phone: 'tabbar', swipe: true, clock: true });
   return !M.swipe() && !M.clock();
 })());
-ok('Off: neither', (function () { var x = at(402, { menu: 'off', narrow: 'tabbar' }); return !x.bar && !x.menu; })());
-ok('a narrow choice of chip: never the bar', !at(402, { menu: 'auto', narrow: 'chip' }).bar);
+ok('Off on both: neither', (function () { var x = at(402, { menu: 'off', menu_phone: 'off' }); return !x.bar && !x.menu; })());
+ok('a button on Phones: never the bar', !at(402, { menu: 'auto', menu_phone: 'button' }).bar);
 SETTINGS.boards = { 'dashboard-other': { menu: 'tabbar' } };
 ok('a dashboard with no item of its own: no tab bar', M.tabBar() === false);
+
+
+print('=== by device: Phones have their own menu (2026-10-08) ===');
+function dev(w, scr, board) {
+  window.innerWidth = w;
+  window.screen = scr ? { width: scr[0], height: scr[1] } : undefined;
+  SETTINGS.boards = { 'dashboard-hall': board };
+  return { phone: M.phone(), bar: M.tabBar(), menu: M.on(), docked: M.docked(), style: M.style(), tab: M.tab() };
+}
+ok('a phone: a window under 640 px', dev(402, null, { menu: 'open' }).phone && !dev(820, null, { menu: 'open' }).phone);
+ok('...or a phone held sideways (its screen 390 x 844, the window 844 wide)', dev(844, [390, 844], { menu: 'open' }).phone);
+ok('...but an iPad mini, a 1024 x 600 tablet and a wall tablet are tablets either way up',
+   !dev(1133, [744, 1133], {}).phone && !dev(1024, [1024, 600], {}).phone && !dev(800, [800, 1280], {}).phone &&
+   !dev(1280, [1280, 800], {}).phone);
+ok('...and a short desktop window is not a phone (its screen is the desktop\'s)', !dev(1440, [1728, 1117], {}).phone);
+var t2 = dev(1440, [1728, 1117], { menu: 'open', menu_phone: 'tabbar' });
+ok('Always Open on tablets, the tab bar on phones: docked on a computer', t2.docked && !t2.bar, JSON.stringify(t2));
+t2 = dev(402, [402, 874], { menu: 'open', menu_phone: 'tabbar' });
+ok('...the bar on a phone, no side menu', t2.bar && !t2.menu && t2.style === null, JSON.stringify(t2));
+t2 = dev(820, [820, 1180], { menu: 'open', menu_phone: 'tabbar' });
+ok('...and an upright iPad, where Always Open doesn\'t fit, shows Phones\' bar (not a phone: a tablet\'s fit)',
+   t2.bar && !t2.menu && !t2.phone && M.phoneForm() && M.compact(), JSON.stringify(t2));
+t2 = dev(1180, [1180, 820], { menu: 'open', menu_phone: 'tabbar' });
+ok('...held sideways, with room: the menu docked again', t2.docked && !t2.bar && !M.phoneForm(), JSON.stringify(t2));
+t2 = dev(874, [402, 874], { menu: 'open', menu_phone: 'tabbar' });
+ok('...a phone held sideways keeps the phone\'s bar', t2.bar && !t2.menu, JSON.stringify(t2));
+t2 = dev(402, [402, 874], { menu: 'tabbar', menu_phone: 'button', button_phone: 'tab' });
+ok('Tab Bar on tablets, a button on phones: the edge tab on a phone', !t2.bar && t2.menu && t2.style === 'tab' && t2.tab === 'always',
+   JSON.stringify(t2));
+ok('...and the bar on a tablet', dev(1280, [1280, 800], { menu: 'tabbar', menu_phone: 'button' }).bar);
+t2 = dev(402, [402, 874], { menu: 'auto', menu_phone: 'off' });
+ok('Off on phones only: nothing on a phone, the button on a tablet', !t2.bar && !t2.menu &&
+   dev(1280, [1280, 800], { menu: 'auto', menu_phone: 'off' }).menu, JSON.stringify(t2));
+t2 = dev(402, [402, 874], { menu: 'off', menu_phone: 'button' });
+ok('...and a menu on phones only', t2.menu && !dev(1280, [1280, 800], { menu: 'off', menu_phone: 'button' }).menu);
+ok('Phones\' button style is its own; the tab bar is no button style',
+   dev(402, null, { menu: 'auto', button_phone: 'chip_scroll' }).tab === 'scrolled' &&
+   dev(402, null, { menu: 'auto', button_phone: 'tab' }).style === 'tab' &&
+   dev(402, null, { menu: 'open', menu_phone: 'button', button_phone: 'tabbar' }).style === 'chip');
+ok('No Button on phones needs the swipe', dev(402, null, { menu: 'auto', menu_phone: 'button', button_phone: 'none' }).style === 'chip' &&
+   dev(402, null, { menu: 'auto', menu_phone: 'button', button_phone: 'none', swipe: true }).style === 'none');
+
+// WHERE THE TABLETS' MENU DOESN'T FIT IT IS PHONES', on every kind; with
+// room it never is -- whatever Phones has
+var KINDS = ['off', 'auto', 'chip', 'chip_scroll', 'chip_home', 'tab', 'none', 'open', 'tabbar'];
+var PHONES = [['off', 'chip'], ['button', 'tab'], ['button', 'chip_scroll'], ['tabbar', 'chip']];
+var bad = [];
+KINDS.forEach(function (m) { PHONES.forEach(function (ph) {
+  var b = { menu: m, menu_phone: ph[0], button_phone: ph[1], swipe: true };
+  var phone = dev(402, [402, 874], b), wide = dev(1440, [1728, 1117], b), wall = dev(1280, [1280, 800], b);
+  var upright = dev(820, [820, 1180], b);
+  var pbar = ph[0] === 'tabbar', pon = ph[0] === 'button';
+  if (phone.bar !== pbar || phone.menu !== pon) bad.push('phone ' + JSON.stringify(b));
+  var tabletBar = m === 'tabbar', tabletOn = m !== 'off' && m !== 'tabbar';
+  [wide, wall].forEach(function (x) { if (x.bar !== tabletBar || x.menu !== tabletOn) bad.push('room ' + JSON.stringify(b)); });
+  // an upright iPad: an always-open menu (Keep Open Down To 1,000) and a button
+  // (under 1,024) don't fit -- Phones' menu, Off meaning the chip
+  var fits = m === 'off' || m === 'tabbar';
+  var ubar = fits ? tabletBar : pbar, uon = fits ? tabletOn : !pbar;
+  if (upright.bar !== ubar || upright.menu !== uon) bad.push('upright ' + JSON.stringify(b) + ' ' + JSON.stringify(upright));
+}); });
+ok('every kind x Phones: a phone shows Phones\', a tablet with room its own, an upright iPad Phones\' where its own doesn\'t fit',
+   !bad.length, bad.slice(0, 3).join(' | '));
+
+print('=== by device: More and the scroll ===');
+window.screen = { width: 402, height: 874 }; window.innerWidth = 874;
+ok('More\'s rooms: Phones\' own (also held sideways; In More unless chosen), never the tablets\'',
+   T.roomsOf({ tab_bar_rooms: 'more', tab_bar_rooms_phone: 'off' }) === 'off' &&
+   T.roomsOf({ tab_bar_rooms: 'button' }) === 'more' &&
+   T.roomsOf({ tab_bar_rooms: 'more', tab_bar_rooms_phone: 'button' }, 1280) === 'more');
+ok('More\'s style: a phone\'s own (List unless chosen), the tablets\' otherwise',
+   T.moreOf({ tab_bar_more: 'icons' }) === 'list' && T.moreOf({ tab_bar_more_phone: 'icons' }) === 'icons' &&
+   T.moreOf({ tab_bar_more: 'list' }, 1280) === 'list' && T.moreOf({}, 1280) === 'icons');
+ok('While Scrolling: a sideways phone uses the phone\'s', so({ tab_bar_scroll: 'shrink', tab_bar_scroll_phone: 'stay' }) === 'stay');
+window.screen = undefined;
 
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed' : 'ALL ' + pass + ' TAB BAR TESTS PASS'));
 if (fail) throw new Error(fail + ' failed');

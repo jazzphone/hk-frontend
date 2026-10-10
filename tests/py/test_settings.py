@@ -209,28 +209,36 @@ def test_screensaver_options_defaults_checks_and_the_wallpanel_carry_over():
 
 
 def test_hiding_home_assistants_header_is_hk_frontends_own_unless_a_screen_is_tuned_for_the_plugin():
+    """1.3's rule for a 1.2 screen, written down once by the 1.12 upgrade
+    (settings_tidied); board() then reads what is stored."""
+    from custom_components.hk_frontend import settings as S
     from custom_components.hk_frontend.settings import board
-    b = board({"kiosk": True})
+
+    def tidy(d):
+        return board(S.settings_tidied({}, {"x": d})[1]["x"])
+    b = tidy({"kiosk": True})
     assert b["kiosk_engine"] == "hk" and b["kiosk_header"] and b["kiosk_sidebar"] and b["kiosk_admins"], \
         "1.3: HK Frontend hides both itself, for admins too"
-    assert board({"kiosk": True, "kiosk_options": {}})["kiosk_engine"] == "hk"
-    old = board({"kiosk": True, "kiosk_options": {"admin_settings": {"hide_header": False}}})
+    assert tidy({"kiosk": True, "kiosk_options": {}})["kiosk_engine"] == "hk"
+    old = tidy({"kiosk": True, "kiosk_options": {"admin_settings": {"hide_header": False}}})
     assert old["kiosk_engine"] == "kiosk_mode", \
         "a 1.2 screen whose options HK Frontend can't say (admins see the header, not the sidebar) keeps the plugin"
     assert board(dict(old))["kiosk_engine"] == "kiosk_mode", "...and keeps it once stored"
-    assert board({"kiosk": True, "kiosk_options": {"hide_search": True}})["kiosk_engine"] == "kiosk_mode", \
+    assert tidy({"kiosk": True, "kiosk_options": {"hide_search": True}})["kiosk_engine"] == "kiosk_mode", \
         "...as does one with any other option of the plugin's"
-    car = board({"kiosk": True, "kiosk_options": {"admin_settings": {"hide_header": False, "hide_sidebar": False}}})
+    car = tidy({"kiosk": True, "kiosk_options": {"admin_settings": {"hide_header": False, "hide_sidebar": False}}})
     assert car["kiosk_engine"] == "hk" and car["kiosk_admins"] is False and car["kiosk_header"] and car["kiosk_sidebar"], \
         "admins seeing both: HK Frontend's For Admins Too off -- the screen moves over as it was"
-    only = board({"kiosk": True, "kiosk_options": {"hide_sidebar": False}})
+    only = tidy({"kiosk": True, "kiosk_options": {"hide_sidebar": False}})
     assert only["kiosk_engine"] == "hk" and only["kiosk_header"] and only["kiosk_sidebar"] is False and only["kiosk_admins"]
-    mine = board({"kiosk": True, "kiosk_options": {"hide_sidebar": False}, "kiosk_sidebar": True})
+    mine = tidy({"kiosk": True, "kiosk_options": {"hide_sidebar": False}, "kiosk_sidebar": True})
     assert mine["kiosk_sidebar"] is True, "a setting of its own is never overwritten from the plugin's options"
     chosen = board({"kiosk": True, "kiosk_engine": "hk", "kiosk_options": {"hide_header": False}})
     assert chosen["kiosk_engine"] == "hk" and chosen["kiosk_options"] == {"hide_header": False}, \
         "a screen moved to HK Frontend's own keeps its plugin options, unused, for going back"
     assert board({"kiosk_engine": "other"})["kiosk_engine"] == "hk"
+    assert board({"kiosk": True, "kiosk_options": {"hide_search": True}})["kiosk_engine"] == "hk", \
+        "read as stored: no engine is HK Frontend's"
     mine = board({"kiosk": True, "kiosk_header": False, "kiosk_admins": 0})
     assert mine["kiosk_header"] is False and mine["kiosk_sidebar"] is True and mine["kiosk_admins"] is False
 
@@ -432,69 +440,6 @@ def test_the_tab_position_reads_a_distance_or_a_share():
     assert tab_position("120%") is None and tab_position("-5px") is None and tab_position("top") is None
 
 
-def test_the_old_lists_carry_the_button_the_items_agree_on():
-    """A screen on the previous hk-base.js reads ONE button style: the one the
-    items share (a migrated house), else automatic."""
-    from custom_components.hk_frontend.settings import board, legacy_lists
-    items = {"a": board({"menu": "tab", "tab_position": "140px"}), "b": board({"menu": "tab"}),
-             "c": board({"menu": "open"})}
-    old = legacy_lists(items)
-    assert old["button"] == "tab" and old["tab_position"] == "140px" and old["docked"] == ["c"]
-    items["b"] = board({"menu": "chip"})
-    assert legacy_lists(items)["button"] == "auto"
-
-
-async def test_a_hand_written_screens_menu_layout(hass, frontend):
-    """What a YAML screen's Pages in Menu lists (panel._menu_layout):
-    not Home, not rooms or a follower; each page's own `menu: top`, and whether
-    Categories lists it while automatic -- Home's chips open it."""
-    from unittest.mock import MagicMock
-    from custom_components.hk_frontend.panel import _menu_layout
-    from homeassistant.components.lovelace.const import LOVELACE_DATA
-
-    class Board:
-        def __init__(self, cfg): self.cfg = cfg
-        async def async_load(self, force): return self.cfg
-
-    chip = lambda path: {"type": "custom:hk-status-chip-card", "tap_action": {"action": "navigate",  # noqa: E731
-                                                                              "navigation_path": path}}
-    data = MagicMock()
-    data.dashboards = {"dash-y": Board({"views": [
-        {"title": "Home", "cards": [{"type": "grid", "cards": [chip("./lights"), chip("/dash-y/energy#x")]}]},
-        {"title": "Weather", "path": "weather", "menu": "top"},
-        {"title": "Lights", "path": "lights"},
-        {"title": "Climate", "path": "climate"},
-        {"title": "Energy", "path": "energy", "menu_title": "Power"},
-        {"title": "Browse", "path": "browse", "menu_follows": "music"},
-        {"title": "Kitchen", "path": "kitchen", "area": "kitchen"},
-        {"title": "Secret", "path": "secret", "menu": False}]})}
-    hass.data[LOVELACE_DATA] = data
-    got = await _menu_layout(hass, "dash-y")
-    assert got == [
-        {"path": "weather", "title": "Weather", "top": True, "auto": False},
-        {"path": "lights", "title": "Lights", "top": False, "auto": True},
-        {"path": "climate", "title": "Climate", "top": False, "auto": False},
-        {"path": "energy", "title": "Power", "top": False, "auto": True, "page": "Energy"},
-        {"path": "secret", "title": "Secret", "top": False, "auto": False}]
-    assert await _menu_layout(hass, "nowhere") == []
-
-    # THE CHIPS CARD: its kinds (the screen's Chips, else every kind) as the
-    # first of their pages the dashboard has, then the chips written out
-    data.dashboards["dash-c"] = Board({"views": [
-        {"title": "Home", "cards": [{"type": "custom:hk-chips-card", "extra": [{"card": chip("./ecoflow")}]}]},
-        {"title": "Alarm", "path": "alarm"}, {"title": "Lights", "path": "lights"},
-        {"title": "Water", "path": "water"}, {"title": "EcoFlow", "path": "ecoflow", "menu_title": "House Battery"}]})
-    auto = {i["path"]: i["auto"] for i in await _menu_layout(hass, "dash-c")}
-    assert auto == {"alarm": True, "lights": True, "water": True, "ecoflow": True}
-    auto = {i["path"]: i["auto"] for i in await _menu_layout(hass, "dash-c", {"chips": ["lights", "sensor.mail"]})}
-    assert auto == {"alarm": False, "lights": True, "water": False, "ecoflow": True}
-    auto = {i["path"]: i["auto"] for i in await _menu_layout(hass, "dash-c", {"chips_row": False})}
-    assert auto == {"alarm": False, "lights": False, "water": False, "ecoflow": True}
-    data.dashboards["dash-c"].cfg["views"][0]["cards"][0]["in_menu"] = False
-    auto = {i["path"]: i["auto"] for i in await _menu_layout(hass, "dash-c")}
-    assert auto == {"alarm": True, "lights": True, "water": True, "ecoflow": True}   # no chips: every page
-
-
 def test_a_screens_amounts_and_menu_mixes_are_read_defensively():
     from custom_components.hk_frontend.settings import board
     assert board({})["frost"] is None and board({})["blur"] is None
@@ -667,6 +612,59 @@ def test_the_rooms_move_to_all_screens():
     assert none_opts is None and none_items["x"]["rooms_custom"] is False
 
 
+def test_the_cameras_move_to_all_screens():
+    """1.12 -> 1.13: the camera list most screens chose becomes All Screens';
+    a screen with it, or with none (Automatic), follows; one that differs
+    keeps its own -- and what each screen shows is unchanged."""
+    from custom_components.hk_frontend import settings as S
+    nine = ["camera.c%d" % i for i in range(9)]
+    items = {"a": {"cameras": list(nine)}, "b": {"cameras": list(nine), "menu": "open"},
+             "c": {"cameras": ["camera.c3", "camera.c1"]}, "car": {}}
+    options, out = S.cameras_lifted({"dashboard": {"rooms": {"headings": False}}}, items)
+    assert options["dashboard"]["cameras"] == {"order": nine}
+    assert options["dashboard"]["rooms"] == {"headings": False}, "the rest of the settings untouched"
+    assert [out[p]["cameras_custom"] for p in ("a", "b", "c", "car")] == [False, False, True, False]
+    assert out["b"]["menu"] == "open"
+    for p in ("a", "b", "c"):
+        assert S.resolved(S.board(out[p]), options)["cameras"] == S.board(items[p])["cameras"], p
+    car = S.resolved(S.board(out["car"]), options)
+    assert car["cameras_house"] and car["cameras"] == nine, "an Automatic screen follows All Screens now"
+    assert S.cameras_lifted(options, items) == (None, {}), "a house already moved is left alone"
+    none_opts, none_items = S.cameras_lifted({}, {"x": {}})
+    assert none_opts is None and none_items["x"]["cameras_custom"] is False
+    # All Screens' list, checked: junk dropped, duplicates once
+    assert S.house_cameras(["camera.a", "camera.a", "not an id", 7]) == ["camera.a"]
+    assert S.house_cameras("camera.a") == []
+
+
+def test_the_camera_settings_are_checked():
+    from custom_components.hk_frontend import settings_api as A
+    assert A.HOUSE["cameras.order"](["camera.a", "camera.b"]) == ["camera.a", "camera.b"]
+    assert A.BOARD["cameras_custom"](True) is True
+    with pytest.raises(A.Invalid):
+        A.HOUSE["cameras.order"](["light.a"])
+
+
+async def test_an_entry_from_1_12_moves_its_cameras(hass, base):
+    from conftest import house_entry
+    from custom_components.hk_frontend import settings as S
+    cams = ["camera.front", "camera.back"]
+    old = house_entry({"subentry_type": "dashboard", "unique_id": "dashboard-a", "title": "A", "data": {"cameras": cams}},
+                      {"subentry_type": "dashboard", "unique_id": "dashboard-b", "title": "B", "data": {"cameras": cams}},
+                      {"subentry_type": "dashboard", "unique_id": "dashboard-c", "title": "C",
+                       "data": {"cameras": ["camera.back"]}},
+                      minor_version=12)
+    old.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(old.entry_id)
+    await hass.async_block_till_done()
+    assert old.minor_version == 13
+    assert S.merged(old.options)["cameras"]["order"] == cams
+    got = S.boards(old)
+    assert got["dashboard-a"]["cameras_house"] and got["dashboard-b"]["cameras_house"]
+    assert got["dashboard-a"]["cameras"] == cams
+    assert not got["dashboard-c"]["cameras_house"] and got["dashboard-c"]["cameras"] == ["camera.back"]
+
+
 async def test_an_entry_from_1_7_moves_its_rooms(hass, base):
     from conftest import house_entry
     from custom_components.hk_frontend import settings as S
@@ -677,7 +675,7 @@ async def test_an_entry_from_1_7_moves_its_rooms(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 10
+    assert old.minor_version == 13
     assert S.merged(old.options)["rooms"]["order"] == ORDER
     got = S.boards(old)
     assert all(got[p]["rooms_house"] and got[p]["room_order"] == ORDER and got[p]["menu_rooms"] == "order"
@@ -713,7 +711,8 @@ def test_menu_lifted_takes_what_most_screens_show_and_marks_the_rest():
         if before["menu"] == "off":
             continue
         for k in S._menu_shown(before):
-            assert after[k] == before[k], (p, k)
+            if k != "narrow":          # retired in 1.12 (settings_tidied)
+                assert after[k] == before[k], (p, k)
     # once All Screens has a style, nothing moves again
     assert S.menu_lifted(options, out) == (None, {})
 
@@ -736,8 +735,8 @@ def test_the_swipe_and_no_button():
     from custom_components.hk_frontend import settings as S
     assert S.board({})["swipe"] is False and S.board({"swipe": "yes"})["swipe"] is False
     assert S.board({"swipe": True})["swipe"] is True
-    assert S.board({"menu": "none", "narrow": "none"})["menu"] == "none"
-    assert S.board({"narrow": "none"})["narrow"] == "none"
+    assert S.board({"menu": "none"})["menu"] == "none"
+    assert S.board({"button_phone": "none"})["button_phone"] == "none"
     assert "none" in S.MENU_STYLES and S.house_menu({"style": "none"})["menu"] == "none"
     assert S.house_menu({})["swipe"] is False and S.house_menu({"swipe": True})["swipe"] is True
     opts = {"dashboard": {"menu": {"style": "none", "swipe": True}}}
@@ -777,11 +776,143 @@ async def test_an_entry_from_1_8_moves_its_menu(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 10
+    assert old.minor_version == 13
     assert (S.merged(old.options)["menu"]["style"], S.merged(old.options)["menu"]["tab_size"]) == ("tab", "xl")
     got = S.boards(old)
     assert got["dashboard-a"]["menu_house"] and got["dashboard-c"]["menu_house"]
     assert not got["dashboard-b"]["menu_house"] and got["dashboard-b"]["tab_position"] == "30%"
+
+
+# ------------------------------------------ phones' own menu (1.11, 2026-10-08)
+def test_phone_menu_is_what_a_phone_showed_before_it_had_one():
+    from custom_components.hk_frontend import settings as S
+    pm = S.phone_menu
+    assert pm({"menu": "tabbar", "narrow": "chip"}) == "tabbar"
+    assert pm({"menu": "off", "narrow": "tabbar"}) == "off"
+    assert pm({"menu": "open", "narrow": "tabbar"}) == "tabbar"
+    assert pm({"menu": "auto", "narrow": "tabbar"}) == "tabbar"
+    assert pm({"menu": "auto", "narrow": "tab"}) == "button"
+    # its own wins, whatever the tablets have
+    assert pm({"menu": "off", "narrow": "chip", "menu_phone": "tabbar"}) == "tabbar"
+    assert pm({"menu": "tabbar", "menu_phone": "button"}) == "button"
+    assert S.button_phone("tab") == "tab" and S.button_phone("tabbar") == "chip" and S.button_phone(None) == "chip"
+
+
+def test_the_phone_keys_are_checked_and_each_their_own():
+    from custom_components.hk_frontend import settings as S
+    b = S.board({})
+    assert (b["menu_phone"], b["button_phone"], b["tab_bar_rooms_phone"], b["tab_bar_scroll_phone"]) == \
+        (None, "chip", "more", "shrink")
+    b = S.board({"menu_phone": "open", "button_phone": "tabbar", "tab_bar_rooms_phone": "nope", "tab_bar_scroll_phone": None})
+    assert (b["menu_phone"], b["button_phone"], b["tab_bar_rooms_phone"], b["tab_bar_scroll_phone"]) == \
+        (None, "chip", "more", "shrink"), "always open is no phone's menu, the tab bar no button style"
+    assert "narrow" not in S.board({"narrow": "tab"}), "the narrow choice is retired (1.12)"
+    b = S.board({"menu_phone": "tabbar", "button_phone": "none", "tab_bar_rooms_phone": "off"})
+    assert (b["menu_phone"], b["button_phone"], b["tab_bar_rooms_phone"]) == ("tabbar", "none", "off")
+    hm = S.house_menu({"button_phone": "chip_scroll", "bar_rooms_phone": "button"})
+    assert hm["button_phone"] == "chip_scroll" and hm["tab_bar_rooms_phone"] == "button"
+    assert (S.house_menu({})["button_phone"], S.house_menu({})["tab_bar_rooms_phone"], S.house_menu({})["tab_bar_scroll_phone"]) == \
+        ("chip", "more", "shrink")
+    assert "narrow" not in S.house_menu({"narrow": "tab"}) and "narrow" not in S.MENU_KEYS
+    # the screen's menu on a phone is its own, as its Menu is; the rest follow All Screens
+    assert "menu_phone" not in S.MENU_KEYS and S.MENU_KEYS["button_phone"] == "button_phone"
+    r = S.resolved(S.board({"menu": "auto", "menu_phone": "off", "button_phone": "tab"}), None, {}, {},
+                   {"button_phone": "none", "bar_rooms_phone": "off"})
+    assert r["menu_phone"] == "off" and r["button_phone"] == "none" and r["tab_bar_rooms_phone"] == "off"
+
+
+def test_phones_lifted_writes_down_what_each_phone_shows():
+    from custom_components.hk_frontend import settings as S
+    options = {"dashboard": {"menu": {"style": "auto", "narrow": "tabbar"}}}
+    items = {"a": {"menu": "auto"},                                     # follows All Screens: the bar on phones
+             "b": {"menu": "open", "menu_custom": True, "narrow": "tab"},   # its own: the tab
+             "c": {"menu": "off"},
+             "d": {"menu": "tabbar"},
+             "e": {"menu": "auto", "menu_phone": "button"}}             # already its own: kept
+    opts, out = S.phones_lifted(options, items)
+    assert opts["dashboard"]["menu"]["button_phone"] == "chip", "All Screens' narrow is the bar: a phone button is the chip"
+    assert opts["dashboard"]["menu"]["narrow"] == "tabbar"
+    assert [out[p]["menu_phone"] for p in "abcde"] == ["tabbar", "button", "off", "tabbar", "button"]
+    assert out["b"]["button_phone"] == "tab" and "button_phone" not in out["a"]
+    # run again: nothing left to write
+    again, out2 = S.phones_lifted(opts, out)
+    assert again is None and out2 == out
+
+
+async def test_an_entry_from_1_10_writes_down_its_phones(hass, base):
+    from conftest import house_entry
+    from custom_components.hk_frontend import settings as S
+    old = house_entry({"subentry_type": "dashboard", "unique_id": "dashboard-a", "title": "A",
+                       "data": {"menu": "open", "menu_custom": True, "narrow": "tabbar"}},
+                      {"subentry_type": "dashboard", "unique_id": "dashboard-b", "title": "B",
+                       "data": {"menu": "auto"}},
+                      options={"dashboard": {"menu": {"narrow": "tab"}}}, minor_version=10)
+    old.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(old.entry_id)
+    await hass.async_block_till_done()
+    assert old.minor_version == 13
+    got = S.boards(old)
+    assert got["dashboard-a"]["menu_phone"] == "tabbar" and got["dashboard-a"]["button_phone"] == "chip"
+    assert got["dashboard-b"]["menu_phone"] == "button" and got["dashboard-b"]["button_phone"] == "tab"
+
+
+# ------------------------------- one set of Phones' settings (1.12, 2026-10-09)
+def test_settings_tidied_gives_phones_their_own_and_drops_the_narrow_choice():
+    from custom_components.hk_frontend import settings as S
+    options = {"dashboard": {"menu": {"style": "chip_scroll", "narrow": "tab", "bar_scroll": "hide", "bar_rooms": "button",
+                                      "bar_scroll_phone": None, "bar_rooms_phone": None, "bar_glass": "clear",
+                                      "dashboards": ["x"], "docked": [], "button": "auto", "order": "az",
+                                      "glyph": "lines", "clock": False}}}
+    items = {"follows": {"menu": "auto", "menu_phone": "button"},
+             "own": {"menu": "open", "menu_custom": True, "narrow": "chip_scroll", "tab_bar_scroll": "stay",
+                     "tab_bar_rooms": "off", "tab_bar_glass": "clear", "menu_phone": "tabbar"},
+             "never": {"menu": "open", "narrow": "tabbar"},          # from before 1.11: no menu_phone yet
+             "set": {"menu": "auto", "menu_custom": True, "narrow": "tab", "menu_phone": "button",
+                     "button_phone": "none", "tab_bar_scroll_phone": "stay", "tab_bar_rooms_phone": "more"}}
+    opts, out = S.settings_tidied(options, items)
+    m = opts["dashboard"]["menu"]
+    assert (m["bar_scroll_phone"], m["bar_rooms_phone"], m["button_phone"], m["bar_glass"]) == ("hide", "button", "tab", "tinted"), \
+        "Same as Tablets becomes the tablets' value; the phone's button the narrow choice; Tinted by its name"
+    assert "narrow" not in m and not any(k in m for k in ("dashboards", "docked", "button", "order"))
+    assert (m["glyph"], m["clock"], m["style"]) == ("lines", False, "chip_scroll"), "the rest is kept"
+    assert "narrow" not in out["follows"] and "button_phone" not in out["follows"], "a following screen takes All Screens'"
+    own = out["own"]
+    assert (own["tab_bar_scroll_phone"], own["tab_bar_rooms_phone"], own["button_phone"], own["tab_bar_glass"]) == \
+        ("stay", "off", "chip_scroll", "tinted")
+    assert out["never"]["menu_phone"] == "button", "it follows All Screens, whose narrow choice was the tab: a button"
+    assert out["set"]["button_phone"] == "none" and out["set"]["tab_bar_scroll_phone"] == "stay", "its own are kept"
+    again, out2 = S.settings_tidied(opts, out)
+    assert again is None and out2 == out
+    # nothing a phone shows changes
+    for p in items:
+        hb = S.resolved(S.board(out[p]), None, {}, {}, m)
+        assert S.phone_menu(hb) == S.phone_menu({**S.board(items[p]), "narrow": S._narrow(items[p] if items[p].get("menu_custom") else options["dashboard"]["menu"]), "menu_phone": items[p].get("menu_phone")})
+
+
+def test_the_tab_bars_tinted_glass_has_its_own_name():
+    from custom_components.hk_frontend import settings as S
+    assert S.board({"tab_bar_glass": "clear"})["tab_bar_glass"] == "tinted"
+    assert S.board({"tab_bar_glass": "tinted"})["tab_bar_glass"] == "tinted"
+    assert S.house_menu({"bar_glass": "clear"})["tab_bar_glass"] == "tinted"
+    assert "clear" not in S.TAB_BAR_GLASS
+
+
+async def test_an_entry_from_1_11_tidies_its_menu(hass, base):
+    from conftest import house_entry
+    from custom_components.hk_frontend import settings as S
+    old = house_entry({"subentry_type": "dashboard", "unique_id": "dashboard-a", "title": "A",
+                       "data": {"menu": "open", "menu_custom": True, "narrow": "chip_scroll", "menu_phone": "tabbar",
+                                "tab_bar_scroll": "hide"}},
+                      options={"dashboard": {"menu": {"narrow": "tab", "button_phone": "tab", "dashboards": ["x"]}}},
+                      minor_version=11)
+    old.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(old.entry_id)
+    await hass.async_block_till_done()
+    assert old.minor_version == 13
+    assert "narrow" not in old.options["dashboard"]["menu"] and "dashboards" not in old.options["dashboard"]["menu"]
+    got = S.boards(old)["dashboard-a"]
+    assert (got["menu_phone"], got["button_phone"], got["tab_bar_scroll_phone"]) == ("tabbar", "chip_scroll", "hide")
+    assert "narrow" not in got
 
 
 def test_sky_palette_mirror_and_readability():
@@ -849,38 +980,35 @@ def test_each_pages_background_is_kept_only_when_it_means_something():
     assert S.board({})["sky_pages"] == {} and S.merged({})["sky"]["pages"] == {}
 
 
-def test_the_tab_bar_is_a_menu_choice_and_a_narrow_choice():
-    """The tab bar (hk-tabbar.js) is the menu's other form: `menu` "tabbar"
-    (no side menu) or `narrow` "tabbar" (the side menu wide, the bar where it
-    folds) -- never both. Its look is a menu setting, All Screens' unless the
-    screen sets its own menu; read defensively."""
+def test_the_tab_bar_is_a_menu_choice_on_each_device():
+    """The tab bar (hk-tabbar.js) is the menu's other form: the tablets'
+    `menu` "tabbar" or Phones' `menu_phone` "tabbar" -- never beside a side
+    menu. Its look is a menu setting, All Screens' unless the screen sets its
+    own menu; read defensively."""
     from custom_components.hk_frontend import settings as S
     b = S.board({})
     assert (b["tab_bar_scroll"], b["tab_bar_rooms"], b["tab_bar_glass"]) == ("shrink", "more", "house")
     assert [S.board({"tab_bar_rooms": v})["tab_bar_rooms"] for v in (True, False, "button", "off", "x")] == \
         ["more", "off", "button", "off", "more"], "a boolean from the first form; In More by default"
-    assert S.board({"menu": "tabbar"})["menu"] == "tabbar" and S.board({"narrow": "tabbar"})["narrow"] == "tabbar"
+    assert S.board({"menu": "tabbar"})["menu"] == "tabbar" and S.board({"menu_phone": "tabbar"})["menu_phone"] == "tabbar"
     assert "tabbar" not in S.MENU_STYLES, "not a button style"
     odd = S.board({"tab_bar_scroll": "fade", "tab_bar_rooms": "no", "tab_bar_glass": "glitter"})
     assert (odd["tab_bar_scroll"], odd["tab_bar_rooms"], odd["tab_bar_glass"]) == ("shrink", "more", "house")
-    opts = {"dashboard": {"menu": {"bar_scroll": "hide", "bar_rooms": "button", "bar_glass": "blur", "narrow": "tabbar"}}}
+    opts = {"dashboard": {"menu": {"bar_scroll": "hide", "bar_rooms": "button", "bar_glass": "blur"}}}
     follows = S.resolved(S.board({"menu": "open"}), opts)
-    assert (follows["tab_bar_scroll"], follows["tab_bar_rooms"], follows["tab_bar_glass"], follows["narrow"]) == \
-        ("hide", "button", "blur", "tabbar")
+    assert (follows["tab_bar_scroll"], follows["tab_bar_rooms"], follows["tab_bar_glass"]) == ("hide", "button", "blur")
     assert S.resolved(S.board({"menu": "tabbar"}), opts)["menu"] == "tabbar", "the tab bar is the screen's own, as off is"
     own = S.resolved(S.board({"menu_custom": True, "tab_bar_scroll": "stay", "tab_bar_glass": "clear"}), opts)
-    assert (own["tab_bar_scroll"], own["tab_bar_rooms"], own["tab_bar_glass"]) == ("stay", "more", "clear")
+    assert (own["tab_bar_scroll"], own["tab_bar_rooms"], own["tab_bar_glass"]) == ("stay", "more", "tinted")
     assert S.merged(None)["menu"]["bar_scroll"] == "shrink" and "tab_bar" not in S.merged(None)
-    assert S.legacy_lists({"d": S.board({"menu": "tabbar"})})["dashboards"] == [], "an older page sees no menu"
 
 
-def test_the_tab_bars_first_form_is_read_once():
-    """2026-10-05: for a few hours the tab bar had a `tab_bar` of its own."""
+def test_a_stray_tab_bar_key_changes_nothing():
+    """The tab bar's first form (a `tab_bar` key of its own, 2026-10-05) was
+    never released, and its one-time conversion could overrule the menu a
+    screen had chosen since: an unknown key is dropped like any other."""
     from custom_components.hk_frontend import settings as S
-    assert S.board({"menu": "off", "tab_bar": "always"})["menu"] == "tabbar"
-    assert S.board({"menu": "open", "tab_bar": "narrow"})["narrow"] == "tabbar"
-    assert S.board({"menu": "open", "narrow": "chip", "tab_bar": "narrow"})["narrow"] == "chip", "a choice made since stands"
-    assert S.board({"menu": "off", "tab_bar": "narrow"})["menu"] == "off"
+    assert S.board({"menu": "open", "tab_bar": "always"})["menu"] == "open"
     assert "tab_bar" not in S.board({"tab_bar": "always"}), "written back without it"
 
 
@@ -938,15 +1066,15 @@ def test_the_tab_bars_shrink_end():
 
 
 def test_the_tab_bars_while_scrolling_on_phones():
-    """A phone's own While Scrolling: None (Same as Tablets) unless chosen."""
+    """Phones' own While Scrolling: Shrink unless chosen (each its own since 1.12)."""
     from custom_components.hk_frontend import settings as S
     from custom_components.hk_frontend.settings_api import apply_board, apply_house
-    assert S.board({})["tab_bar_scroll_phone"] is None
-    assert S.board({"tab_bar_scroll_phone": "zoom"})["tab_bar_scroll_phone"] is None
+    assert S.board({})["tab_bar_scroll_phone"] == "shrink"
+    assert S.board({"tab_bar_scroll_phone": "zoom"})["tab_bar_scroll_phone"] == "shrink"
     opts, err = apply_house({}, {"menu.bar_scroll_phone": "hide"})
     assert err == {} and S.resolved(S.board({}), opts)["tab_bar_scroll_phone"] == "hide"
-    opts, err = apply_house(opts, {"menu.bar_scroll_phone": None})
-    assert err == {} and S.resolved(S.board({}), opts)["tab_bar_scroll_phone"] is None, "back to Same as Tablets"
+    assert apply_house(opts, {"menu.bar_scroll_phone": None})[1] == {"menu.bar_scroll_phone": "choice"}, \
+        "no Same as Tablets any more"
     data, err = apply_board({}, {"menu_custom": True, "tab_bar_scroll_phone": "stay"})
     assert err == {} and data["tab_bar_scroll_phone"] == "stay"
     assert apply_board({}, {"tab_bar_scroll_phone": "zoom"})[1] == {"tab_bar_scroll_phone": "choice"}

@@ -27,6 +27,37 @@
   var HkBase = C.HkBase, register = C.register, hkEditor = C.editor,
       create = C.create, snapCacheGet = C.snapCache.get,
       snapCachePut = C.snapCache.put;
+  // the live stream after the screensaver: this long after it is gone,
+  // or at most this long after it stopped (_wakeLiveLater)
+  var LIVE_AFTER_WAKE = 1500, LIVE_WAKE_MAX = 6000;
+  // ...and after the kiosk's own Black screensaver: this long after it ends
+  var AFTER_BLACK = 2500;
+  // THE LIVE CARD IS HIDDEN UNTIL IT HAS A PICTURE ONLY ON ANDROID, whose
+  // WebView draws video outside the page (see .live>hui-card.wait). Safari
+  // will not start a hidden muted video at all, so there the card would wait
+  // for ever (hk-campost.js, ANDROID ONLY).
+  var VIDEO_OUTSIDE = /Android/i.test((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+
+  // Is this video's current frame solid black? 8x8 pixels on a scratch
+  // canvas; a night camera's infrared grey is far above the line. Unreadable
+  // (no canvas, a tainted frame): not black, as before.
+  var scratch = null;
+  function blackFrame(v) {
+    try {
+      if (!scratch) {
+        scratch = document.createElement('canvas');
+        scratch.width = scratch.height = 8;
+        scratch.x = scratch.getContext('2d', { willReadFrequently: true });
+      }
+      if (!scratch.x || typeof scratch.x.getImageData !== 'function') return false;
+      scratch.x.drawImage(v, 0, 0, 8, 8);
+      var d = scratch.x.getImageData(0, 0, 8, 8).data, sum = 0;
+      for (var i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+      return sum < 64 * 3 * 4;            // every channel of every pixel under ~4
+    } catch (e) {
+      return false;
+    }
+  }
 
   // ======================================================================
   // hk-camera-mosaic-card -- the Home app's camera strip, as one joined mosaic.
@@ -171,7 +202,27 @@
         '.live>img{position:absolute;inset:0;width:100%;height:100%;',
         '  object-fit:cover;opacity:0;z-index:0}',
         '.live>img.on{opacity:1}',
-        '.live>hui-card{position:absolute;inset:0;z-index:1}',
+        '.live>hui-card{position:absolute;inset:0;z-index:1;transition:opacity .3s ease}',
+        // NO PICTURE, NO VIDEO (2026-10-09): until the stream has a frame,
+        // and from the moment a navigation away begins, the live card is
+        // out of sight and the frame copied under it shows (_grabLive). A
+        // video without a picture showed the tablet's own background
+        // through the page -- the tile went WHITE as the page was left and
+        // black as it came back (screen-recorded). At once when it goes;
+        // the picture fades in over the copied frame when it comes.
+        // VISIBILITY, not opacity alone: the tablet draws a video outside
+        // the page, where opacity does not reach -- a fresh live card at
+        // opacity 0 still showed white for a frame (screen-recorded).
+        '.live>hui-card.wait{opacity:0;visibility:hidden;transition:none}',
+        // ...AND THE COPIED FRAME STAYS ON TOP until the video has DRAWN one
+        // (2026-10-09). Shown the moment it reports a picture, the video's own
+        // surface was still black for 60-350 ms in 3 returns to Home of 5
+        // (screen-recorded) -- once the page stopped being held back after
+        // every navigation, nothing hid that any more. So the still is lifted
+        // over the card as the card comes back, and dropped one frame after
+        // the video's first presented frame (_liveShown) -- as the camera
+        // sheet does (.db.moving).
+        '.live.lift>canvas,.live.lift>img{z-index:2}',
         // A LIVE TILE WITH A POP-UP TAKES NO INPUT ITSELF. HA's picture-entity
         // runs its action handler even with tap_action none, and on TOUCH that
         // handler preventDefault()s the touchend, so the browser never makes a
@@ -212,6 +263,8 @@
     }
     _cams() {
       var own = (this._config && this._config.cameras) || [];
+      // a room's own cameras, not the screen's Home strip list
+      if (this._config && this._config.own_cameras) return own;
       var ids = this._board().cameras;
       if (!Array.isArray(ids) || !ids.length) return own;
       var h = this._hass, by = {};
@@ -273,7 +326,7 @@
       // one render on the way in, one when the camera is back.
       if (C.staleEpoch()) {
         var pl = this._plan();
-        if (pl && C.stale(h.states[pl.live.entity])) key += '|wait';
+        if (pl && pl.live && C.stale(h.states[pl.live.entity])) key += '|wait';
       }
       var sel = this._selector();
       if (!sel) return 'fixed|' + key;
@@ -287,6 +340,11 @@
     _plan() {
       var cams = this._cams();
       if (!cams.length) return null;
+      // STILLS ONLY (a room page, 2026-10-09): no live tile -- every camera
+      // in the pattern, starting with a full-height single, as the Home app
+      // draws a room's cameras (one tall, then two stacked).
+      var stillsOnly = !!(this._config && this._config.stills_only);
+      if (stillsOnly) return { live: null, cols: this._columns(cams, false) };
       var selId = this._selector();
       var selSt = this._hass && selId ? this._hass.states[selId] : null;
       var sel = selSt ? selSt.state : null;
@@ -297,6 +355,10 @@
       }
       if (!live) live = cams[0];
       var stills = cams.filter(function (c) { return c !== live; });
+      return { live: live, cols: this._columns(stills, true) };
+    }
+
+    _columns(stills, stackFirst) {
       // Alternate starting with a STACK: slot 1 is already full-height, and two
       // full-height tiles side by side read as two big tiles, not a mosaic.
       // The Home app does the same -- the front door, then two others stacked.
@@ -309,7 +371,7 @@
       // follows it can still be a stack (>=2 left) or nothing at all. Four
       // stills become [2,2] instead; eight stay [2,1,2,1,2].
       var cols = [];
-      var j = 0, stack = true;
+      var j = 0, stack = stackFirst;
       while (j < stills.length) {
         var left = stills.length - j;
         var wantSingle = !stack;
@@ -317,7 +379,7 @@
         if (!wantSingle && left >= 2) { cols.push([stills[j], stills[j + 1]]); j += 2; stack = false; }
         else                          { cols.push([stills[j]]); j += 1; stack = true; }
       }
-      return { live: live, cols: cols };
+      return cols;
     }
 
     _pic(cam, live, ar) {
@@ -669,13 +731,110 @@
       if (v) slot._ct = v.currentTime;
       this._reviveLive(slot, playing);
       if (playing) {
-        // out of the video's way, and stop fetching something nobody can see
+        // stop fetching something nobody can see -- but keep a copy of the
+        // live picture under the video (_grabLive), for whenever it is gone
         slot.poster.imgs[0].classList.remove('on');
         slot.poster.imgs[1].classList.remove('on');
-        if (slot.poster.cv) slot.poster.cv.classList.remove('on');
+        if (!this._grabLive() && slot.poster.cv && !slot.poster.black) slot.poster.cv.classList.remove('on');
         return;
       }
       this._loadSlot(slot.poster, every, 0);
+    }
+
+    // THE LIVE PICTURE, COPIED UNDER THE VIDEO: the current frame drawn
+    // onto the poster's canvas, cropped as the stills are. Each refresh tick
+    // while it plays, and as the screensaver or a navigation takes it away,
+    // so a tile whose video is gone or not yet back shows a frame at most
+    // one tick old rather than nothing. One drawImage of a tile-sized canvas.
+    _grabLive() {
+      var slot = this._liveSlot, ps = slot && slot.poster;
+      var v = this._liveVideo();
+      if (!ps || !ps.ctx || !ps.cv || !v || !(v.readyState >= 2) || !v.videoWidth || !v.videoHeight) return false;
+      // A BLACK COPY IS NO COPY (2026-10-09): a video the tablet draws on its
+      // own surface can copy out as solid black, and the tile came back black
+      // on about every third return to Home (screen-recorded). Tested on 8x8
+      // pixels first; black, the last good copy stays (and stays shown).
+      if (blackFrame(v)) { ps.black = true; return false; }
+      ps.black = false;
+      try {
+        var dpr = Math.min(window.devicePixelRatio || 1, 3);
+        var W = Math.max(1, Math.round(ps.cssW * dpr)), H = Math.max(1, Math.round(ps.cssH * dpr));
+        if (ps.cv.width !== W) ps.cv.width = W;
+        if (ps.cv.height !== H) ps.cv.height = H;
+        var nw = v.videoWidth, nh = v.videoHeight, k = Math.max(W / nw, H / nh), sw = W / k, sh = H / k;
+        ps.ctx.drawImage(v, (nw - sw) / 2, (nh - sh) / 2, sw, sh, 0, 0, W, H);
+        ps.cv.classList.add('on');
+        ps.at = Date.now();
+        return true;
+      } catch (e) { return false; }
+    }
+    // LEAVING THE PAGE, THE STILLS GO INTO THE SHARED CACHE, with the time
+    // each was taken: Home's Cameras button opens the cameras page, which
+    // shows a cached frame only while it is fresh (two minutes) -- written
+    // every five minutes at most, they mostly were not, and its tiles came
+    // up empty one by one as the streams started (screen-recorded).
+    _keepStills() {
+      var snaps = this._snaps || [], now = Date.now();
+      for (var i = 0; i < snaps.length; i++) {
+        var s = snaps[i], im = s.front >= 0 ? s.imgs[s.front] : null;
+        if (!im || !s.at || now - s.at > 120000 || !s.cam || !s.cam.entity) continue;
+        snapCachePut(s.cam.entity, im, true, s.at);
+      }
+    }
+    // The live card out of sight until its video has a picture (.wait), and
+    // back -- fading in over the copied frame -- once it has.
+    _liveWait(on) {
+      var el = this._liveSlot && this._liveSlot.el;
+      if (el && el.classList) el.classList.toggle('wait', !!on && VIDEO_OUTSIDE);
+    }
+    _liveShown() {
+      // a navigation that did not leave after all (the path is back)
+      if (this._leaving && location.pathname === this._navPath) this._leaving = false;
+      var el = this._liveSlot && this._liveSlot.el;
+      if (!el || !el.classList || !el.classList.contains('wait') || this._leaving) return;
+      if (!this._liveCovering()) return;
+      var box = this._liveSlot.box, v = this._liveVideo(), done = false;
+      if (box && box.classList) box.classList.add('lift');
+      el.classList.remove('wait');
+      var drop = function () {
+        if (done) return;
+        done = true;
+        requestAnimationFrame(function () { if (box && box.classList) box.classList.remove('lift'); });
+      };
+      if (v && typeof v.requestVideoFrameCallback === 'function') v.requestVideoFrameCallback(drop);
+      // a video that never presents (it died just now): the still goes anyway
+      setTimeout(drop, v && typeof v.requestVideoFrameCallback === 'function' ? 1000 : 400);
+    }
+
+    // THE STREAM BACK AFTER THE SCREENSAVER, GENTLY (2026-10-09). Started at
+    // the screensaver's stop, under the kiosk's black, its video arrived a
+    // second or two later in the middle of the tablet drawing the whole
+    // page again -- and the bottom of the sky's land vanished for three
+    // frames (screen-recorded). So the stream starts LIVE_AFTER_WAKE after
+    // the screensaver is completely gone (hk-saver-done), the copied frame
+    // showing meanwhile, and fades in over it. LIVE_WAKE_MAX if that is
+    // never heard.
+    _wakeLiveLater() {
+      var self = this, slot = this._liveSlot;
+      this._cancelWakeLater();
+      if (!slot || !slot.asleep) return;
+      var go = function () {
+        self._cancelWakeLater();
+        if (self.isConnected === false) return;
+        if (window.hkSaver && window.hkSaver.running && window.hkSaver.running()) return;
+        self._wakeLive();
+      };
+      this._onSaverDone = function () {
+        window.removeEventListener('hk-saver-done', self._onSaverDone); self._onSaverDone = null;
+        clearTimeout(self._wakeT);
+        self._wakeT = setTimeout(go, LIVE_AFTER_WAKE);
+      };
+      window.addEventListener('hk-saver-done', this._onSaverDone);
+      this._wakeT = setTimeout(go, LIVE_WAKE_MAX);
+    }
+    _cancelWakeLater() {
+      if (this._wakeT) { clearTimeout(this._wakeT); this._wakeT = null; }
+      if (this._onSaverDone) { window.removeEventListener('hk-saver-done', this._onSaverDone); this._onSaverDone = null; }
     }
 
     // A DEAD STREAM IS REMOUNTED, WITH BACKOFF. Home Assistant's WebRTC
@@ -843,6 +1002,7 @@
 
     _tickAges() {
       this._wireLiveLabel();
+      this._liveShown();
       var list = (this._snaps || []).slice();
       var ps = this._liveSlot && this._liveSlot.poster;
       if (ps) list.push(ps);
@@ -947,6 +1107,7 @@
       if (!slot || !slot.el || !slot.el.parentNode) return;
       var old = slot.el;
       var fresh = this._pic(slot.cam, true, slot.ar);
+      if (VIDEO_OUTSIDE && fresh.classList) fresh.classList.add('wait');
       // The grid placement lives on the .live BOX, not on the card -- the card
       // is absolutely positioned inside it -- so there is nothing to copy over.
       old.parentNode.replaceChild(fresh, old);
@@ -963,6 +1124,7 @@
     _sleepLive() {
       var slot = this._liveSlot;
       if (!slot || slot.asleep || !slot.el || !slot.el.parentNode) return;
+      this._grabLive();
       var old = slot.el, ph = document.createElement('div');
       old.parentNode.replaceChild(ph, old);
       this._children = (this._children || []).filter(function (k) { return k !== old; });
@@ -1026,10 +1188,10 @@
         this._raf = requestAnimationFrame(function () { self._raf = null; self._tick(); });
       }
       if (every > 0) this._timer = setInterval(function () { self._tick(); }, every * 1000);
-      if (this._config.show_age !== false) {
-        this._tickAges();
-        this._ages = setInterval(function () { self._tickAges(); }, 1000);
-      }
+      // every second whether or not the labels show: it is also what brings
+      // the live card back once its video has a picture (_liveShown)
+      this._tickAges();
+      this._ages = setInterval(function () { self._tickAges(); }, 1000);
     }
 
     // The listener is registered ONCE and kept, separately from the interval.
@@ -1072,12 +1234,56 @@
           // Stop still refreshes immediately, but leave the live picture in
           // place through the entrance fade. Removing it here flashes the
           // poster while the user can still see the mosaic.
-          if (e && e.detail && e.detail.on) { self._stopInterval(); return; }
+          if (e && e.detail && e.detail.on) { self._grabLive(); self._stopInterval(); return; }
           if (document.hidden) return;
-          self._wakeLive();
           self._startInterval();
+          self._wakeLiveLater();
         };
         window.addEventListener('hk-saver', this._onSaver);
+      }
+      // UNDER THE KIOSK'S BLACK SCREENSAVER (2026-10-09): the same rest as
+      // behind the photos. The page runs there but nothing is drawn, so the
+      // stills were fetched and the live stream decoded for nobody -- and it
+      // all resumed in the very moment of the wake, while the tablet drew the
+      // whole page again: the bottom of the sky's scenery went missing for
+      // three frames (screen-recorded on the Loft; none on a page without
+      // the strip). So the frame is kept, everything stops, and starts again
+      // AFTER_BLACK after the black has ended.
+      if (!this._onBlack) {
+        this._onBlack = function (e) {
+          // (hk-black: HK's own black screen, or any black -- hk-saver.js)
+          var up = e && (e.type === 'kiosksatellite:screensaverstart' || e.type === 'kiosksatellite:screenoff' ||
+                         (e.type === 'hk-black' && !!(e.detail && e.detail.on)));
+          clearTimeout(self._blackT); self._blackT = null;
+          if (up) { self._grabLive(); self._stopInterval(); self._sleepLive(); return; }
+          self._blackT = setTimeout(function () {
+            self._blackT = null;
+            if (self.isConnected === false || document.hidden) return;
+            // behind the photos still: theirs to bring back (hk-saver events)
+            if (window.hkSaver && window.hkSaver.running && window.hkSaver.running()) return;
+            self._startInterval();
+            self._wakeLive();
+          }, AFTER_BLACK);
+        };
+        ['kiosksatellite:screensaverstart', 'kiosksatellite:screensaverstop',
+         'kiosksatellite:screenoff', 'kiosksatellite:screenon', 'hk-black'].forEach(function (t) {
+          window.addEventListener(t, self._onBlack);
+        });
+      }
+      // LEAVING THE PAGE: the frame copied, and the video out of sight
+      // before it is torn down (see .live>hui-card.wait). A pop-up opening
+      // changes the query, not the path, and is not a leave.
+      this._navPath = location.pathname;
+      this._leaving = false;
+      if (!this._onNav) {
+        this._onNav = function () {
+          if (location.pathname === self._navPath) return;
+          self._grabLive();
+          self._keepStills();
+          self._leaving = true;
+          self._liveWait(true);
+        };
+        window.addEventListener('location-changed', this._onNav);
       }
       if (!this._onSaverCovered) {
         this._onSaverCovered = function () { self._stopInterval(); self._sleepLive(); };
@@ -1107,6 +1313,15 @@
       if (this._onSaver) { window.removeEventListener('hk-saver', this._onSaver); this._onSaver = null; }
       if (this._onSaverCovered) { window.removeEventListener('hk-saver-covered', this._onSaverCovered); this._onSaverCovered = null; }
       if (this._onPopup) { window.removeEventListener('hk-popup-change', this._onPopup); this._onPopup = null; }
+      if (this._onNav) { window.removeEventListener('location-changed', this._onNav); this._onNav = null; }
+      if (this._onBlack) {
+        var ob = this._onBlack;
+        ['kiosksatellite:screensaverstart', 'kiosksatellite:screensaverstop',
+         'kiosksatellite:screenoff', 'kiosksatellite:screenon', 'hk-black'].forEach(function (t) { window.removeEventListener(t, ob); });
+        this._onBlack = null;
+      }
+      if (this._blackT) { clearTimeout(this._blackT); this._blackT = null; }
+      this._cancelWakeLater();
     }
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
@@ -1130,12 +1345,15 @@
       var SEAM = this._num('seam', 2);
       var liveW = Math.round(H * this._num('live_ratio', 16 / 9));
       var colW  = Math.round(H * this._num('column_ratio', 4 / 3));
+      // ONE CAMERA, NO LIVE TILE (a room with a single camera): one still,
+      // the live tile's 16:9 -- not a lone column, which read as a crop
+      if (!plan.live && plan.cols.length === 1 && plan.cols[0].length === 1) colW = liveW;
       var halfH = (H - SEAM) / 2;
 
       this._children = [];
       var plate = document.createElement('div');
       plate.className = 'plate';
-      var tracks = [liveW + 'px'];
+      var tracks = plan.live ? [liveW + 'px'] : [];
       for (var i = 0; i < plan.cols.length; i++) tracks.push(colW + 'px');
       plate.style.gridTemplateColumns = tracks.join(' ');
       plate.style.gridTemplateRows = halfH + 'px ' + halfH + 'px';
@@ -1145,50 +1363,53 @@
       plate.style.background = (this._config.seam_color || '#0b0d12');
       plate.style.boxShadow = (this._config.shadow || '0 8px 22px rgba(0,0,0,0.12)');
 
-      // slot 1: the live camera, full height, uncropped
-      var liveAr = liveW + 'x' + Math.round(H);
-      // no live card on a state the new server has not sent (see _sigOf): the
-      // poster holds the slot until the camera is back
-      var lv = C.stale(this._hass.states[plan.live.entity]) ? document.createElement('div')
-                                                             : this._pic(plan.live, true, liveAr);
-      var liveBox = document.createElement('div');
-      liveBox.className = 'live';
-      liveBox.style.gridColumn = '1';
-      liveBox.style.gridRow = '1 / 3';
-      var pa = document.createElement('img'), pb = document.createElement('img');
-      pa.decoding = 'async'; pb.decoding = 'async'; pa.alt = ''; pb.alt = '';
-      var liveAge = null;
-      if (this._config.show_age !== false) {
-        liveAge = document.createElement('span');
-        liveAge.className = 'age';
+      if (plan.live) {
+        // slot 1: the live camera, full height, uncropped
+        var liveAr = liveW + 'x' + Math.round(H);
+        // no live card on a state the new server has not sent (see _sigOf): the
+        // poster holds the slot until the camera is back
+        var lv = C.stale(this._hass.states[plan.live.entity]) ? document.createElement('div')
+                                                               : this._pic(plan.live, true, liveAr);
+        if (VIDEO_OUTSIDE && lv.classList) lv.classList.add('wait');
+        var liveBox = document.createElement('div');
+        liveBox.className = 'live';
+        liveBox.style.gridColumn = '1';
+        liveBox.style.gridRow = '1 / 3';
+        var pa = document.createElement('img'), pb = document.createElement('img');
+        pa.decoding = 'async'; pb.decoding = 'async'; pa.alt = ''; pb.alt = '';
+        var liveAge = null;
+        if (this._config.show_age !== false) {
+          liveAge = document.createElement('span');
+          liveAge.className = 'age';
+        }
+        // The poster canvas goes FIRST so it stays under the live card (z 1).
+        var pcv = this._canvasFor(liveBox);
+        if (pcv.el) liveBox.append(pcv.el);
+        liveBox.append(pa, pb, lv);
+        if (liveAge) liveBox.appendChild(liveAge);
+        // EVERY live tile takes its tap on the box, pop-up or not: left to
+        // picture-entity, whose touch handler swallows the click, a finger
+        // would open nothing -- and its more-info would go to HA's dialog. The
+        // box opens the camera sheet.
+        var me = this, liveCam = plan.live;
+        liveBox.classList.add('pop', 'tap');
+        liveBox.addEventListener('click', function () { me._openCam(liveCam); });
+        plate.appendChild(liveBox);
+        // The poster is SLOT-SHAPED on purpose: it then goes through the exact
+        // same _loadSlot path as the stills -- double buffer, three-way release,
+        // hard swap -- instead of a second copy of that logic.
+        this._liveSlot = {
+          el: lv, cam: plan.live, ar: liveAr, box: liveBox,
+          poster: { box: liveBox, cam: plan.live, imgs: [pa, pb], front: -1,
+                    loading: [false, false], cssW: liveW, cssH: H, age: liveAge,
+                    cv: pcv.el, ctx: pcv.ctx }
+        };
+        this._wireRestore(this._liveSlot.poster);
       }
-      // The poster canvas goes FIRST so it stays under the live card (z 1).
-      var pcv = this._canvasFor(liveBox);
-      if (pcv.el) liveBox.append(pcv.el);
-      liveBox.append(pa, pb, lv);
-      if (liveAge) liveBox.appendChild(liveAge);
-      // EVERY live tile takes its tap on the box, pop-up or not: left to
-      // picture-entity, whose touch handler swallows the click, a finger
-      // would open nothing -- and its more-info would go to HA's dialog. The
-      // box opens the camera sheet.
-      var me = this, liveCam = plan.live;
-      liveBox.classList.add('pop', 'tap');
-      liveBox.addEventListener('click', function () { me._openCam(liveCam); });
-      plate.appendChild(liveBox);
-      // The poster is SLOT-SHAPED on purpose: it then goes through the exact
-      // same _loadSlot path as the stills -- double buffer, three-way release,
-      // hard swap -- instead of a second copy of that logic.
-      this._liveSlot = {
-        el: lv, cam: plan.live, ar: liveAr, box: liveBox,
-        poster: { box: liveBox, cam: plan.live, imgs: [pa, pb], front: -1,
-                  loading: [false, false], cssW: liveW, cssH: H, age: liveAge,
-                  cv: pcv.el, ctx: pcv.ctx }
-      };
-      this._wireRestore(this._liveSlot.poster);
 
       var self = this;
       plan.cols.forEach(function (col, n) {
-        var track = n + 2;                       // slot 1 is the live tile
+        var track = n + (plan.live ? 2 : 1);     // slot 1 is the live tile, when there is one
         if (col.length === 2) {
           [1, 2].forEach(function (rowN, k) {
             var el = self._snap(col[k], colW, halfH);
@@ -1434,6 +1655,257 @@
   if (!customElements.get('hk-camera-mosaic-card')) {
     customElements.define('hk-camera-mosaic-card', HkCameraMosaicCard);
   }
+
+  // ------------------------------------------------------------------
+  // THE CAMERAS PAGE'S TILES TAKE TURNS GOING LIVE (2026-10-09).
+  //
+  // Nine live cameras opened at once, and desktop Safari could not connect
+  // them: each WebRTC connection sat in ICE "checking" for good, go2rtc
+  // dropping the browser's candidates as not matching the session ("doesn't
+  // match the current ufrags"). In a WebKit window, A/B: one live camera
+  // connected 3 of 3 times; the page's nine connected in 2 of 12 tries,
+  // with or without this file's other modules. Chrome connected all nine
+  // every time. So the page's tiles open one at a time: each shows the
+  // camera's still (a `camera_view: auto` picture card), and when its turn
+  // comes the live card is laid over it. LIVE_AT_ONCE connect together (in
+  // the WebKit window, three at a time: all nine live in 3 tries of 3, the
+  // last 4-6 s after the first; one at a time took the ninth 18 s); a turn
+  // ends as soon as its video plays, or LIVE_TURN_MS on at the most. A video with no
+  // picture by LIVE_STUCK_MS is opened again (LIVE_RETRIES times). The still
+  // goes once the video plays, so a tile is never blank.
+  //
+  // `hk-camera-live-card` is the strategy's (hk-strategy.js, the Cameras
+  // page); it takes `entity`, `aspect_ratio` and `fit_mode`.
+  var LIVE_AT_ONCE = 3, LIVE_TURN_MS = 2500, LIVE_STUCK_MS = 8000, LIVE_RETRIES = 3, LIVE_POLL_MS = 250;
+  // A TILE WAITING ITS TURN SHOWS THE LAST FRAME KEPT FOR ITS CAMERA (the
+  // shared cache: the Home strip's stills, this page's frames as it is left)
+  // at once -- not Home Assistant's loading ring while it fetches the still --
+  // until that still has loaded or the video plays. Older than SAVED_MAX_MS,
+  // no frame at all: the ring, as before.
+  var SAVED_MAX_MS = 15 * 60 * 1000, SAVED_GIVE_UP_MS = 20000, LIVE_PRESENT_MS = 1200;
+  function loadedImg(root) {
+    var stack = [root], n = 0;
+    while (stack.length && n++ < 400) {
+      var e = stack.pop();
+      if (e.tagName === 'IMG' && e.complete && e.naturalWidth > 0) return e;
+      if (e.shadowRoot) stack.push(e.shadowRoot);
+      var k = e.children || [];
+      for (var i = 0; i < k.length; i++) stack.push(k[i]);
+    }
+    return null;
+  }
+  function stillLoaded(root) { return !!loadedImg(root); }
+  var liveQueue = [], liveTurns = [];
+  function liveNext() {
+    while (liveTurns.length < LIVE_AT_ONCE && liveQueue.length) {
+      var slot = liveQueue.shift();
+      if (slot.isConnected && !slot._live) { liveTurns.push(slot); slot._goLive(); }
+    }
+  }
+  function liveDone(slot) {
+    var i = liveTurns.indexOf(slot);
+    if (i < 0) return;
+    liveTurns.splice(i, 1);
+    liveNext();
+  }
+  // The live card's <video>, through the shadow roots in between
+  // (hui-card > picture card > hui-image > ha-camera-stream > player).
+  function liveVideo(root) {
+    var stack = [root], n = 0;
+    while (stack.length && n++ < 400) {
+      var e = stack.pop();
+      if (e.tagName === 'VIDEO') return e;
+      if (e.shadowRoot) stack.push(e.shadowRoot);
+      var k = e.children || [];
+      for (var i = 0; i < k.length; i++) stack.push(k[i]);
+    }
+    return null;
+  }
+  // The video that PLAYS: a camera card holds two (Home Assistant's WebRTC
+  // player and its HLS fallback, which stays paused), so "the first video"
+  // can be the wrong one.
+  function playingVideo(root) {
+    var stack = [root], n = 0;
+    while (stack.length && n++ < 400) {
+      var e = stack.pop();
+      if (e.tagName === 'VIDEO' && e.readyState >= 2 && e.videoWidth > 0 && !e.paused) return e;
+      if (e.shadowRoot) stack.push(e.shadowRoot);
+      var k = e.children || [];
+      for (var i = 0; i < k.length; i++) stack.push(k[i]);
+    }
+    return null;
+  }
+  function playing(root) { return !!playingVideo(root); }
+  class HkCameraLiveCard extends HTMLElement {
+    setConfig(c) {
+      if (!c || !c.entity) throw new Error('hk-camera-live-card: entity is required');
+      this._config = c;
+      if (this._still) this._reset();
+    }
+    set hass(h) {
+      this._hass = h;
+      if (this._still) this._still.hass = h;
+      if (this._liveEl) this._liveEl.hass = h;
+      if (!this._still && this.isConnected && this._config) this._reset();
+    }
+    getCardSize() { return 3; }
+    static getStubConfig(hass) {
+      var id = Object.keys((hass && hass.states) || {}).filter(function (k) { return k.indexOf('camera.') === 0; })[0];
+      return { entity: id || 'camera.front_door', aspect_ratio: '16x9', fit_mode: 'cover' };
+    }
+    connectedCallback() {
+      if (super.connectedCallback) super.connectedCallback();
+      this.style.display = 'block';
+      this.style.position = 'relative';
+      this.style.isolation = 'isolate';            // the layers below stack here, not on the page
+      if (this._config && this._hass && !this._still) this._reset();
+      else if (this._still && !this._live && !this._frame) this._saved();
+      this._tries = 0;
+      if (liveQueue.indexOf(this) < 0) liveQueue.push(this);
+      var self = this;
+      // after this task, so every tile attached together queues before the first goes
+      setTimeout(liveNext, 0);
+    }
+    // LEFT (Home Assistant keeps the page): back to the still, so a return
+    // takes turns again instead of opening all nine at once
+    disconnectedCallback() {
+      if (super.disconnectedCallback) super.disconnectedCallback();
+      this._stop();
+      liveQueue = liveQueue.filter(function (s) { return s !== this; }, this);
+      // the frame it is leaving, for a return (and the strip) to open on
+      var v = this._liveEl && playingVideo(this._liveEl), C0 = window.hkCards;
+      if (v && v.readyState >= 2 && v.videoWidth > 0 && C0 && C0.snapCache) C0.snapCache.put(this._config.entity, v, true);
+      this._dropFrame();
+      if (this._liveEl) { this._liveEl.remove(); this._liveEl = null; }
+      this._live = false;
+      if (this._still) this._still.style.visibility = '';
+      liveDone(this);
+    }
+    _card(live) {
+      var c = this._config;
+      var el = document.createElement('hui-card');
+      el.hass = this._hass;
+      el.preview = false;
+      el.config = { type: 'picture-entity', entity: c.entity, camera_view: live ? 'live' : 'auto',
+                    show_name: false, show_state: false, aspect_ratio: c.aspect_ratio || '16x9',
+                    fit_mode: c.fit_mode || 'cover' };
+      el.load();
+      return el;
+    }
+    _reset() {
+      this._stop();
+      this._dropFrame();
+      while (this.firstChild) this.removeChild(this.firstChild);
+      this._liveEl = null;
+      this._live = false;
+      this._still = this._card(false);
+      // THE LAYERS, bottom up: the live card (it connects underneath -- a
+      // video still loading is a blank box with a spinner), the still, the
+      // kept frame. The video is shown by taking the two above it away once
+      // it PLAYS. Covered is not hidden: Safari starts it all the same.
+      this._still.style.position = 'relative';
+      this._still.style.zIndex = '1';
+      this.appendChild(this._still);
+      this._saved();
+      this._keepStill();
+    }
+    _saved() {
+      this._dropFrame();
+      var C0 = window.hkCards, hit = C0 && C0.snapCache && C0.snapCache.get(this._config.entity, SAVED_MAX_MS);
+      if (!hit || !hit.d) return;
+      var im = document.createElement('img');
+      im.alt = '';
+      im.decoding = 'async';
+      im.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;' +
+        'object-fit:' + (this._config.fit_mode === 'contain' ? 'contain' : 'cover') + ';' +
+        'border-radius:var(--ha-card-border-radius,12px)';
+      im.src = hit.d;
+      this._frame = im;
+      this.appendChild(im);
+      var self = this, t0 = Date.now();
+      this._framePoll = setInterval(function () {
+        if (!self._frame) return;
+        if (stillLoaded(self._still) || Date.now() - t0 > SAVED_GIVE_UP_MS) self._dropFrame();
+      }, 300);
+    }
+    // EVERY STILL THAT LOADS IS KEPT (at most once a minute per camera, the
+    // cache's own gap), so a camera that is not on Home's strip has a frame
+    // for the next visit too
+    _keepStill() {
+      var self = this, t0 = Date.now(), C0 = window.hkCards;
+      if (this._keepPoll || !C0 || !C0.snapCache) return;
+      this._keepPoll = setInterval(function () {
+        var im = loadedImg(self._still);
+        if (im || Date.now() - t0 > SAVED_GIVE_UP_MS || !self.isConnected) {
+          clearInterval(self._keepPoll); self._keepPoll = null;
+          if (im) C0.snapCache.put(self._config.entity, im, false);
+        }
+      }, 500);
+    }
+    _dropFrame() {
+      if (this._framePoll) { clearInterval(this._framePoll); this._framePoll = null; }
+      if (this._frame) { this._frame.remove(); this._frame = null; }
+    }
+    _goLive() {
+      if (!this.isConnected) { liveDone(this); return; }
+      this._live = true;
+      var el = this._liveEl = this._card(true);
+      el.style.cssText = 'position:absolute;inset:0;z-index:0';
+      this.appendChild(el);
+      var self = this, t0 = Date.now(), released = false;
+      this._stop();
+      this._poll = setInterval(function () {
+        if (!self.isConnected) { self._stop(); return; }
+        var on = playing(el), age = Date.now() - t0;
+        if (on) {
+          self._stop();
+          liveDone(self);
+          // UNCOVERED ONLY ONCE A FRAME IS ON SCREEN: Safari says `playing`
+          // (a picture, the clock moving) before it has painted one, and the
+          // tile went gray for half a second between the kept frame and the
+          // video (screen-recorded). So: the video's first PRESENTED frame
+          // (requestVideoFrameCallback), then two frames drawn, then the still
+          // and the kept frame go -- as the camera sheet does (.db.moving).
+          var v = playingVideo(el), done = false;
+          var uncover = function () {
+            if (done || self._liveEl !== el) return;
+            done = true;
+            var raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : function (f) { setTimeout(f, 16); };
+            raf(function () { raf(function () {
+              if (self._liveEl !== el) return;
+              self._dropFrame();
+              if (self._still) self._still.style.visibility = 'hidden';
+            }); });
+          };
+          if (v && typeof v.requestVideoFrameCallback === 'function') v.requestVideoFrameCallback(uncover);
+          setTimeout(uncover, LIVE_PRESENT_MS);        // no callback (or none coming): uncover anyway
+          return;
+        }
+        if (!released && age >= LIVE_TURN_MS) { released = true; liveDone(self); }
+        if (age >= LIVE_STUCK_MS) {
+          self._stop();
+          el.remove();
+          self._liveEl = null;
+          self._live = false;
+          if (++self._tries <= LIVE_RETRIES) { liveQueue.push(self); liveNext(); }
+          else self._live = true;                     // left on its still; no more turns
+        }
+      }, LIVE_POLL_MS);
+    }
+    _stop() {
+      if (this._poll) { clearInterval(this._poll); this._poll = null; }
+    }
+  }
+  register('hk-camera-live-card', HkCameraLiveCard, 'HK Camera Tile',
+    'One live camera. On a page of them, each opens after the one before is playing, so they all connect.',
+    [
+      { name: 'entity', label: 'Camera', selector: { entity: { domain: 'camera' } } },
+      { type: 'grid', name: '', schema: [
+        { name: 'aspect_ratio', label: 'Shape', selector: { text: {} }, helper: 'Width by height, e.g. 16x9.' },
+        { name: 'fit_mode', label: 'Fit', selector: { select: { mode: 'dropdown', options: [
+          { value: 'cover', label: 'Fill the tile' }, { value: 'contain', label: 'Show it all' }] } } }
+      ] }
+    ]);
   window.customCards = window.customCards || [];
   window.customCards.push({
     type: 'hk-camera-mosaic-card',
@@ -2689,5 +3161,8 @@
     function () { return {}; });
 
   window.hkCameras = { version: '1.0.0' };
+  // for tests: the Cameras page's take-turns queue (hk-camera-live-card)
+  window.hkCameras._live = { queue: function () { return liveQueue; }, turns: function () { return liveTurns.slice(); },
+                             video: liveVideo, TURN_MS: LIVE_TURN_MS, STUCK_MS: LIVE_STUCK_MS, SAVED_MAX_MS: SAVED_MAX_MS };
   });
 })();

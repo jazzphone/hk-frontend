@@ -125,8 +125,7 @@ def area_readiness(hass: HomeAssistant) -> dict[str, list[str]]:
 
 async def async_run(hass: HomeAssistant, options: dict[str, Any],
                     boards: dict[str, dict[str, Any]] | None = None) -> list[Line]:
-    """`boards`: the dashboard items (settings.boards); None reads the menu's
-    older house-wide list from `options`."""
+    """`boards`: the dashboard items (settings.boards), as read."""
     lines: list[Line] = []
 
     # Home Assistant
@@ -138,9 +137,9 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
 
     # The theme
     if theme_loaded(hass):
-        lines.append(Line(True, "HK Kiosk theme", "Loaded."))
+        lines.append(Line(True, "HK Kiosk Theme", "Loaded."))
     else:
-        lines.append(Line(False, "HK Kiosk theme",
+        lines.append(Line(False, "HK Kiosk Theme",
                           "Not loaded, so every page draws in the wrong colors. "
                           "HK Frontend loads it itself and could not; see Settings → Repairs."))
 
@@ -151,7 +150,7 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
     st = await hass.async_add_executor_job(files.status, hass)
     have_font, have_glyphs = bool(st["font"]), bool(st["glyphs"])
     if have_font and have_glyphs:
-        lines.append(Line(True, "SF Pro and the SF Symbols glyphs", "Found."))
+        lines.append(Line(True, "SF Pro & the SF Symbols Glyphs", "Found."))
     else:
         if not have_font and not have_glyphs:
             why = "Not added yet, so the pages use Roboto and Material Design icons."
@@ -159,7 +158,7 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
             why = "SF Pro isn’t added yet, so the pages use Roboto."
         else:
             why = "The SF Symbols glyphs aren’t added yet, so the pages use Material Design icons."
-        lines.append(Line(None, "Apple’s font and glyphs",
+        lines.append(Line(None, "Apple’s Font & Glyphs",
                           why + " Optional: Configure → Your files says where they go."))
 
     # Areas
@@ -170,7 +169,7 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
                           "they are under Accessories → Also Shown), and no room page shows them. "
                           "[Assign them](/config/devices/dashboard)."))
     else:
-        lines.append(Line(True, "Every device with a tile is in an area", ""))
+        lines.append(Line(True, "Every Device with a Tile Is in an Area", ""))
     if r["no_icon"]:
         lines.append(Line(None, f"{_n(len(r['no_icon']), 'area')} with no icon",
                           f"{_names(r['no_icon'])}. The menu draws a plain room glyph for them. "
@@ -178,14 +177,12 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
     sensors = sorted(set(r["no_temperature"]) | set(r["no_humidity"]))
     if sensors:
         lines.append(Line(None, f"{_n(len(sensors), 'area')} with no temperature or humidity sensor",
-                          f"{_names(sensors)}. A room page's status line leaves those readings "
-                          "out. Set them in the area's *Related sensors*."))
+                          f"{_names(sensors)}. A room page’s status row leaves those readings "
+                          "out. Set them in the area’s *Related sensors*."))
 
-    # The menu's dashboards: those whose item has the menu on
-    if boards:
-        chosen = [p for p, b in boards.items() if b.get("menu") != "off"]
-    else:
-        chosen = list(dash_settings.merged(options).get("menu", {}).get("dashboards") or [])
+    # The menu's dashboards: those with a menu on tablets or on phones
+    chosen = [p for p, b in (boards or {}).items()
+              if b.get("menu") != "off" or dash_settings.phone_menu(b) != "off"]
     lines.append(_menu_line(hass, chosen))
 
     # The third-party cards a generated dashboard uses (thirdparty.py):
@@ -266,7 +263,7 @@ async def _saver_users_line(hass: HomeAssistant, boards: dict[str, dict[str, Any
             why.append(f"no Tablet User on {_names(none)}, so the screensaver never shows there")
         if gone:
             why.append(f"no Home Assistant user by that name for {_names(gone)}")
-        return Line(False, "Screensaver tablets",
+        return Line(False, "Screensaver Tablets",
                     "Photo Screensaver is on, but " + "; and ".join(why) + ". Choose the Tablet User "
                     "under the screen’s Behavior in HK Settings: the user the wall tablet signs in as.")
     from . import screensaver
@@ -274,7 +271,7 @@ async def _saver_users_line(hass: HomeAssistant, boards: dict[str, dict[str, Any
     ids = mgr.switch_ids() if mgr else {}
     hk = [p for p, b in savers.items() if b.get("screensaver_engine") != "wallpanel"]
     what = (f", each with its switch ({_names([ids[p] for p in hk if p in ids])})" if any(p in ids for p in hk) else "")
-    return Line(True, "Screensaver tablets", f"{_n(len(savers), 'screen')} with a Tablet User{what}.")
+    return Line(True, "Screensaver Tablets", f"{_n(len(savers), 'screen')} with a Tablet User{what}.")
 
 
 async def _photos_line(hass: HomeAssistant, folder: str, dark: bool = False) -> Line:
@@ -284,7 +281,7 @@ async def _photos_line(hass: HomeAssistant, folder: str, dark: bool = False) -> 
         from homeassistant.components import media_source
         item = await media_source.async_browse_media(hass, folder)
     except Exception as err:  # noqa: BLE001 -- any failure is the line's message
-        return Line(False if dark else None, "Screensaver photos",
+        return Line(False if dark else None, "Screensaver Photos",
                     f"The screensaver can’t read its photos folder ({folder}): {err}. "
                     + ("A screen with Forecast When There Are No Photos off stays dark. " if dark else
                        "It shows the forecast instead. ")
@@ -294,14 +291,14 @@ async def _photos_line(hass: HomeAssistant, folder: str, dark: bool = False) -> 
         c.media_class == "image" or str(c.media_content_type or "").startswith("image/")))
     folders = sum(1 for c in kids if c.can_expand)
     if not photos and not folders:
-        return Line(False if dark else None, "Screensaver photos",
+        return Line(False if dark else None, "Screensaver Photos",
                     f"The photos folder ({folder}) is empty, so "
                     + ("a screen with Forecast When There Are No Photos off stays dark. " if dark else
                        "the screensaver shows the forecast. ")
                     + "To show photos, add some to it in Media, or choose another folder under Wall "
                     "Tablets → Screensaver Photos.")
     more = f", and {_n(folders, 'folder')} it also looks in" if folders else ""
-    return Line(True, "Screensaver photos", f"{_n(photos, 'photo')} in {folder}{more}.")
+    return Line(True, "Screensaver Photos", f"{_n(photos, 'photo')} in {folder}{more}.")
 
 
 async def _resources_line(hass: HomeAssistant) -> Line:
@@ -310,26 +307,26 @@ async def _resources_line(hass: HomeAssistant) -> Line:
         data = hass.data[LOVELACE_DATA]
         collection = data.resources
     except (ImportError, KeyError, AttributeError):
-        return Line(None, "Card files", "Lovelace has not started yet.")
+        return Line(None, "Card Files", "Lovelace has not started yet.")
     if hasattr(collection, "async_get_info"):
         await collection.async_get_info()
     have = {str(i.get("url", "")).split("?")[0] for i in collection.async_items()}
     wanted = await hass.async_add_executor_job(resources.wanted)
     missing = [url for _t, url in wanted if url not in have]
     if not missing:
-        return Line(True, "Card files", f"All {len(wanted)} registered as dashboard resources.")
+        return Line(True, "Card Files", f"All {len(wanted)} registered as dashboard resources.")
     if getattr(data, "resource_mode", "storage") == "yaml":
-        return Line(False, "Card files",
+        return Line(False, "Card Files",
                     f"Resources are in YAML mode, so add these {len(missing)} yourself: "
                     + ", ".join(f"`{u}`" for u in missing) + ".")
-    return Line(False, "Card files",
+    return Line(False, "Card Files",
                 f"{len(missing)} not registered yet ({', '.join(missing[:3])}…). "
                 "They are added once Home Assistant has started; restart if this persists.")
 
 
 def _menu_line(hass: HomeAssistant, chosen: list[str]) -> Line:
     if not chosen:
-        return Line(None, "Menu and room pages", "Off on every dashboard.")
+        return Line(None, "Menu & Room Pages", "Off on every dashboard.")
     try:
         from homeassistant.components.lovelace.const import LOVELACE_DATA
         known = {k for k in hass.data[LOVELACE_DATA].dashboards if k}
@@ -337,10 +334,10 @@ def _menu_line(hass: HomeAssistant, chosen: list[str]) -> Line:
         known = set(chosen)
     gone = [d for d in chosen if d not in known]
     if gone:
-        return Line(False, "Menu and room pages",
+        return Line(False, "Menu & Room Pages",
                     f"On for dashboards that do not exist: {', '.join(gone)}. "
                     "Remove their items under Dashboards on this integration's page.")
-    return Line(True, "Menu and room pages", f"On for {_n(len(chosen), 'dashboard')}.")
+    return Line(True, "Menu & Room Pages", f"On for {_n(len(chosen), 'dashboard')}.")
 
 
 def report(lines: list[Line]) -> str:

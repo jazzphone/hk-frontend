@@ -144,6 +144,14 @@ def _saver_options(v: Any) -> dict[str, Any]:
     return got
 
 
+def _sleep(v: Any) -> dict[str, Any]:
+    from . import sleep_rules as SR
+    got = SR.sleep_options(v)
+    if got is None:
+        raise Invalid("sleep")
+    return got
+
+
 def _saver_engine(v: Any) -> str:
     if v not in S.SAVER_ENGINES:
         raise Invalid("choice")
@@ -210,6 +218,19 @@ def _sky_pages(v: Any) -> dict[str, str]:
     if got is None or len(got) != len(clean):
         raise Invalid("choice")
     return got
+
+
+def _parsed(parse: Callable[[Any], Any], empty: Any) -> Callable[[Any], Any]:
+    """A value settings.py parses whole (Liveliness): None or {} is `empty`,
+    anything it cannot parse refused."""
+    def check(v: Any) -> Any:
+        if v is None or v == {}:
+            return empty
+        got = parse(v)
+        if got is None:
+            raise Invalid("choice")
+        return got
+    return check
 
 
 def _sky_stops(v: Any) -> dict[str, list[str]] | None:
@@ -293,6 +314,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "calendar.colors": _calendar_colors,
     "look.glass": _choice(S.GLASS),
     "look.frost": _amount,
+    "look.frost_tint": _bool,
     "look.blur": _amount,
     "look.details": _bool,
     "look.sky_switch": _entity("input_boolean", "switch"),
@@ -304,7 +326,6 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.clock": _bool,
     # All Screens' menu (settings.MENU_KEYS): every screen that doesn't set its own
     "menu.style": _choice(S.MENU_STYLES),
-    "menu.narrow": _choice(S.BOARD_NARROW),
     "menu.tab_at": lambda v: _tab_position(v),
     "menu.tab_size": _choice(S.BOARD_TAB_SIZES),
     "menu.tab_size_phone": _choice(S.BOARD_TAB_SIZES),
@@ -324,14 +345,19 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.bar_fold": _choice(S.TAB_BAR_FOLD),
     "menu.bar_start": _choice(S.TAB_BAR_START),
     "menu.bar_adjust": _bool,
-    "menu.bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS, none=True),
+    "menu.bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS),
     "menu.bar_tabs": lambda v: _tabs(v),
     "menu.bar_size": _choice(S.TAB_BAR_SIZES),
     "menu.bar_tabs_rail": lambda v: _tabs(v),
+    # ...and Phones' own (None: as before phones had their own)
+    "menu.button_phone": _choice(S.BOARD_BUTTON_PHONE),
+    "menu.bar_rooms_phone": lambda v: _rooms_place(v),
     "rooms.headings": _bool,
     "rooms.status": _ordered(S.STATUS_KINDS),
     **{f"status_rows.{p}": _status_row(p) for p in S.STATUS_ROWS},
     "rooms.order": _ids,
+    # All Screens' cameras (settings.resolved): every screen that doesn't set its own
+    "cameras.order": _entities("camera"),
     "rooms.home": _choice(S.BOARD_HOME_ROOMS),
     "rooms.menu": _choice(S.BOARD_MENU_ROOMS),
     "rooms.pages": _choice(S.BOARD_PAGE_ROOMS),
@@ -357,6 +383,9 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "sky.holidays": SENSOR,
     "sky.seasonal": _entity("input_boolean", "switch"),
     "sky.birthdays": _birthdays,
+    "sky.liveliness_all": _choice(S.LIVELY_PRESETS),
+    "sky.liveliness": _parsed(S.lively, empty={}),
+    "sky.liveliness_custom": _parsed(S.lively_custom, empty={}),
     **{f"sky.{k}": _choice(v, none=True) for k, v in S.SKY_OFTEN.items()},
     **{f"counts.{k}": _count for k in K.KINDS},
 }
@@ -533,7 +562,6 @@ def _custom_pages(v: Any) -> list[str]:
 
 BOARD: dict[str, Callable[[Any], Any]] = {
     "menu": _choice(S.BOARD_MENUS),
-    "narrow": _choice(S.BOARD_NARROW),
     "phone_header": _choice(S.BOARD_PHONE),
     "chips_custom": _chip_keys,
     "menu_top": _views,
@@ -549,6 +577,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "menu_rooms": _choice(S.BOARD_MENU_ROOMS),
     "home_rooms": _choice(S.BOARD_HOME_ROOMS),
     "rooms_custom": _bool,
+    "cameras_custom": _bool,
     "menu_custom": _bool,
     "accent": _accent,
     "glyph": _choice(S.MENU_GLYPHS),
@@ -563,10 +592,13 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "tab_bar_fold": _choice(S.TAB_BAR_FOLD),
     "tab_bar_start": _choice(S.TAB_BAR_START),
     "tab_bar_adjust": _bool,
-    "tab_bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS, none=True),
+    "tab_bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS),
     "tab_bar_tabs": _tabs,
     "tab_bar_size": _choice(S.TAB_BAR_SIZES),
     "tab_bar_tabs_rail": _tabs,
+    "menu_phone": _choice(S.BOARD_PHONE_MENUS, none=True),
+    "button_phone": _choice(S.BOARD_BUTTON_PHONE),
+    "tab_bar_rooms_phone": lambda v: _rooms_place(v),
     "page_rooms": _choice(S.BOARD_PAGE_ROOMS),
     "chips_row": _bool,
     "chips": _chips,
@@ -586,6 +618,9 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "home_view": _home_view,
     "glass": _choice(S.BOARD_GLASS),
     "frost": _amount_or_none,
+    "frost_tint": _bool_or_none,
+    "black_screen": _choice(S.BLACK_SCREENS),
+    "sleep": _sleep,
     "blur": _amount_or_none,
     "sky": _bool,
     # this screen's own Sky / Background; None: follow All Screens
@@ -598,6 +633,10 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_gradient": _choice(S.SKY_BACKDROP_IDS, none=True),
     "sky_pages": _sky_pages,
     "sky_custom": _sky_stops,
+    "sky_liveliness": _choice(S.LIVELY_PRESETS, none=True),
+    "sky_liveliness_occ": _parsed(S.lively, empty={}),
+    "sky_liveliness_custom": _parsed(S.lively_custom, empty={}),
+    "sky_calm_empty": _bool,
     "idle_return": _bool,
     "idle_room": _room,
     "car": _bool,

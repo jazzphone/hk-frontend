@@ -89,10 +89,19 @@ ok('action: none does nothing', fired.length, 0);
 
 history._pushed = [];
 a = actor({ entity: 'x.y' });
+a.style = { filter: '' };
+__resetTimers();
 a._act({ action: 'navigate', navigation_path: './ecoflow' }, false);
+// THE TAP IS ANSWERED FIRST: dimmed, and the page changes after a frame
+ok('navigate: not yet -- a frame is drawn first', history._pushed.length, 0);
+ok('...with the tapped card dimmed for it', a.style.filter, 'brightness(0.78)');
+__runTimers();
 ok('"./x" resolves against the current dashboard', history._pushed[0], '/lovelace-kitchen/ecoflow');
+ok('...once, though the frame and the backstop both fire', (__runTimers(), history._pushed.length), 1);
+ok('...and the card is itself again', a.style.filter, '');
 history._pushed = [];
 a._act({ action: 'navigate', navigation_path: '/absolute/page' }, false);
+__runTimers();
 ok('an absolute path is untouched', history._pushed[0], '/absolute/page');
 
 a = actor({ entity: 'x.y' });
@@ -117,10 +126,12 @@ var NAV = { action: 'navigate', navigation_path: './ecoflow',
 location.pathname = '/lovelace-kitchen/energy';
 history._pushed = [];
 actor({})._act(NAV, false);
+__runTimers();
 ok('an unlisted dashboard takes the default', history._pushed[0], '/lovelace-kitchen/ecoflow');
 location.pathname = '/energy-tablet/energy';
 history._pushed = [];
 actor({})._act(NAV, false);
+__runTimers();
 ok('energy-tablet takes the override', history._pushed[0], '/ecoflow-panel/ecoflow');
 location.pathname = '/lovelace-kitchen/energy';
 
@@ -160,6 +171,7 @@ history._pushed = [];
 a._act({ action: 'navigate', navigation_path: '/p', confirmation: { text: 'Go?' } }, false);
 ok('navigate is guarded too', history._pushed.length, 0);
 tap('yes');
+__runTimers();
 ok('and navigates on confirm', history._pushed[0], '/p');
 
 a = actor({ entity: 'x.y' });

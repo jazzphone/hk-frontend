@@ -106,11 +106,19 @@
       },
       "photo_screensaver": {
         "name": "Photo screensaver"
+      },
+      "black_screen": {
+        "name": "Black screen"
       }
     },
     "binary_sensor": {
       "screen_in_use": {
         "name": "Screen in use"
+      }
+    },
+    "sensor": {
+      "sleep_screen": {
+        "name": "Sleep screen"
       }
     }
   },
@@ -698,6 +706,20 @@
         "media_content_type": {
           "name": "Type",
           "description": "The media type."
+        }
+      }
+    },
+    "set_black_screen": {
+      "name": "Set black screen",
+      "description": "A wall tablet's HK Frontend black screen (Black Screen: HK Frontend on its screen): black over the page and the backlight at its lowest, and the brightness it comes back to.",
+      "fields": {
+        "black": {
+          "name": "Black",
+          "description": "On: black now. Off: the page fades back in at the wake brightness."
+        },
+        "brightness": {
+          "name": "Wake brightness",
+          "description": "The backlight it comes back to, 0-255. Kept while black; the page restores it as it fades in."
         }
       }
     }

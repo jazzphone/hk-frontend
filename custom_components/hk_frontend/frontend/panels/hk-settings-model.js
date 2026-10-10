@@ -28,10 +28,10 @@
     weather_alert: { setting: ['house/weather/sensors', 'Weather Alerts Sensor'] },
     security: { kinds: ['locks', 'garage'], setting: ['house/general', 'Alarm Panel'] },
     doors_windows: { kinds: ['doors', 'windows'] },
-    climate: { kinds: ['thermostats', 'fans'], setting: ['house/general', 'Indoor Temperature'] },
+    climate: { kinds: ['thermostats', 'fans'], setting: ['house/counts', 'Indoor Temperature'] },
     lights: { kinds: ['lights'] }, blinds: { kinds: ['blinds'] }, timers: { kinds: ['timers'] },
     vacuums: { kinds: ['vacuums'] }, speakers: { kinds: ['speakers'] }, water: { kinds: ['leaks'] },
-    energy: { setting: ['house/general', 'Power Use'] }
+    energy: { setting: ['house/counts', 'Power Use'] }
   };
   var PAGE_LABELS = {
     weather: 'Weather', calendar: 'Calendar', cameras: 'Cameras', live_tv: 'Live TV', security: 'Security',
@@ -60,21 +60,23 @@
     ['occupancy', 'Occupancy', 'Occupancy and presence sensors. The status rows say which rooms are occupied.', 'Doors & Windows’ and Security’s status rows.'],
     ['valves', 'Valves', 'Water valves: a sprinkler, the house’s main water. Not gas valves. The Water page lists them and its status row says which are running.', 'The Water page and its status row.']
   ];
+  // A TABLET'S BUTTON STYLE (menu, a button). The tab bar is a Menu of its
+  // own, never a button style (settings.py MENU_STYLES refuses it).
   var MENU_STYLES = [
     ['auto', 'Automatic', 'The chip when Home has a menu button; otherwise the edge tab.'],
     ['chip', 'Chip', 'A round button at the start of the chip row.'],
     ['chip_scroll', 'Chip, Then Tab', 'The chip; the edge tab slides in while the chip is scrolled out of sight.'],
     ['chip_home', 'Chip on Home, Tab Elsewhere', 'The chip on Home, and the edge tab on every other page.'],
-    ['tab', 'Edge Tab', 'A slim tab on the left edge, level with the date.'],
-    ['none', 'No Button', 'Nothing on the page: swipe from the left edge to open the menu.'],
-    ['tabbar', 'Tab Bar', 'No side menu: the tab bar along the bottom of the screen instead.']
+    ['tab', 'Edge Tab', 'A slim tab on the left edge.'],
+    ['none', 'No Button', 'Nothing on the page: swipe from the left edge to open the menu.']
   ];
-  // ON NARROW SCREENS / WHEN FOLDED: below 1,024 px, and while
-  // an always-open menu is folded
-  var NARROW = [
+  // PHONES' BUTTON STYLE (button_phone): on a phone, and on a tablet whose
+  // own menu doesn't fit (hk-base.js phoneForm) -- the chip, the chip then
+  // the tab, the tab, or no button (the swipe alone)
+  var BUTTON_PHONE = [
     ['chip', 'Chip', 'A round button at the start of the chip row.'],
-    ['chip_scroll', 'Chip, Then Tab', 'The chip; the edge tab slides in once the chip scrolls out of sight.'],
-    ['tab', 'Edge Tab', 'A slim tab on the left edge. On a phone it sits over the page’s margin.'],
+    ['chip_scroll', 'Chip, Then Tab', 'The chip; the edge tab slides in while the chip is scrolled out of sight.'],
+    ['tab', 'Edge Tab', 'A slim tab on the left edge, over the first column of tiles.'],
     ['none', 'No Button', 'Nothing on the page: swipe from the left edge to open the menu.']
   ];
   // NO BUTTON needs the swipe (hk-base.js falls back without it): offered
@@ -87,11 +89,11 @@
   function swipeChanges(on, v) {
     var ch = { swipe: !!on };
     if (!on && v.menu === 'none') ch.menu = 'auto';
-    if (!on && v.narrow === 'none') ch.narrow = 'chip';
+    if (!on && v.button_phone === 'none') ch.button_phone = 'chip';
     return ch;
   }
-  function narrowLabel(v) {
-    for (var i = 0; i < NARROW.length; i++) if (NARROW[i][0] === (v || 'chip')) return NARROW[i][1];
+  function phoneStyleLabel(v) {
+    for (var i = 0; i < BUTTON_PHONE.length; i++) if (BUTTON_PHONE[i][0] === (v || 'chip')) return BUTTON_PHONE[i][1];
     return 'Chip';
   }
   // the styles that can show the edge tab (Tab Position applies)
@@ -189,6 +191,79 @@
     { id: 'space-night', label: 'Space Night', often: 'space_per_month', desc: 'On its own fixed days every month.' },
     { id: 'birthday', label: 'Birthdays', desc: 'Balloons and confetti on the day, even in place of a season’s decoration.' }
   ];
+  // SKY LIVELINESS (hk-sky.js lvOf; settings.py LIVELY_*): the words for
+  // it. The knobs each occasion has, and the style that draws each, come
+  // from the integration (choices.sky_lively); their names are here.
+  var LIVELY_STEPS = ['Off', 'Few', 'Normal', 'Lots', 'Max'];
+  var LIVELY_OFTEN = ['Never', 'Rarely', 'Normal', 'Often', 'Very Often'];
+  var LIVELY_PRESETS = [['subtle', 'Subtle', 'A few touches, now and then'],
+                        ['classic', 'Classic', 'As it has always been'],
+                        ['festive', 'Festive', 'Busier, and more often'],
+                        ['party', 'Party', 'Everything, as often as it comes'],
+                        ['custom', 'Custom', 'Each effect your own way']];
+  // ONE CHOICE FOR EVERY OCCASION (2026-10-09), All Screens' and a screen's
+  // alike: a preset, or Custom -- then each occasion its own
+  var LIVELY_ALL = LIVELY_PRESETS.map(function (p) { return [p[0], p[1]]; });
+  // an occasion's name in the Each Occasion list: a holiday's, a woodland
+  // season's, the Night Sky
+  function livelyOccLabel(id) {
+    if (id === 'night') return 'Night Sky';
+    var w = WOODLAND.filter(function (x) { return x[0] === id; })[0];
+    if (w) return w[1] + ' Woodland';
+    var t = SKY_THEMES.filter(function (x) { return x.id === id; })[0];
+    return t ? t.label : id;
+  }
+  var LIVELY = {
+    bats: 'Bat Flocks', bats_often: 'Bat Flocks', swarm: 'Spooky Night Swarm', witch: 'Witch Across the Moon',
+    geese: 'Geese', sleigh: 'Santa’s Sleigh', flyby: 'Flyby', balloons: 'Balloons',
+    leaves: 'Falling Leaves', swirl: 'Leaf Gusts', petals: 'Petals', snow: 'Snowfall', particles: 'Particles',
+    mist: 'Mist', fireflies: 'Fireflies', glints: 'Snow Sparkles', lights: 'Lights Twinkle', owl: 'Owl',
+    rainbow: 'Rainbow After Rain', stars: 'Twinkling Stars', meteors: 'Shooting Stars', fireworks: 'Fireworks',
+    aurora: 'Northern Lights'
+  };
+  // ...a few say what they are on their own occasion
+  var LIVELY_OWN = {
+    'valentines-day': { particles: 'Hearts' }, 'winter-wonderland': { particles: 'Ice Crystals' },
+    'storybook-magic': { particles: 'Sparkles', flyby: 'Fairy' }, 'space-night': { particles: 'Sparkles', flyby: 'Rocket' },
+    birthday: { particles: 'Confetti' }, 'fourth-of-july': { particles: 'Sparkles' },
+    'spring-garden': { flyby: 'Butterfly' }, spring: { flyby: 'Butterfly' }
+  };
+  var LIVELY_PRESET_STEP = { subtle: 1, classic: 2, festive: 3, party: 4 };
+  // The knobs to show for an occasion: [knob, name, type] for those drawn by
+  // a decoration style in use (`styles`: {old: true, new: true}).
+  function livelyKnobs(table, occ, styles) {
+    var t = table || {}, list = (t.occasions || {})[occ] || [], knobs = t.knobs || {};
+    return list.filter(function (k) { return k[1] === 'both' || styles[k[1]]; }).map(function (k) {
+      var own = LIVELY_OWN[occ] || {};
+      return [k[0], own[k[0]] || LIVELY[k[0]] || k[0], (knobs[k[0]] || [])[1] || 'many'];
+    });
+  }
+  function livelyPresetLabel(p) {
+    var x = LIVELY_PRESETS.filter(function (e) { return e[0] === p; })[0];
+    return x ? x[1] : 'Classic';
+  }
+  // A Custom occasion starts from the preset it was on: every knob at that step
+  function livelyFrom(preset, knobs) {
+    var step = LIVELY_PRESET_STEP[preset] || 2, out = {};
+    knobs.forEach(function (k) { out[k[0]] = k[2] === 'show' ? (step ? 2 : 0) : step; });
+    return out;
+  }
+  // The occupancy, motion and presence sensors in a room -- where Calm When
+  // Nobody's Around can tell the room is empty (the same rule as hk-sky.js
+  // roomSensorIds)
+  function roomSensors(hass, room) {
+    if (!room || !hass) return [];
+    var ents = hass.entities || {}, devs = hass.devices || {}, out = [];
+    Object.keys(hass.states || {}).forEach(function (id) {
+      if (id.indexOf('binary_sensor.') !== 0) return;
+      var st = hass.states[id], e = ents[id];
+      var dc = st && st.attributes && st.attributes.device_class;
+      if (!(dc === 'occupancy' || dc === 'motion' || dc === 'presence') || !e || e.hidden) return;
+      var area = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id);
+      if (area === room) out.push(id);
+    });
+    return out;
+  }
   var OFTEN_LABELS = {
     halloween_often: { every_day: 'Every Day', sometimes: 'Sometimes', near_end: 'Only the Last Days' },
     thanksgiving_often: { every_day: 'Every Day', sometimes: 'Sometimes', near_end: 'Only the Last Days' },
@@ -197,7 +272,7 @@
     winter_often: { often: 'Often', sometimes: 'Sometimes', rarely: 'Rarely' },
     storybook_per_month: { 1: 'Once a Month', 2: 'Twice a Month', 4: 'Four Times a Month' },
     space_per_month: { 1: 'Once a Month', 2: 'Twice a Month', 4: 'Four Times a Month' },
-    spooky_often: { sometimes: 'Sometimes', every_night: 'Every Night', never: 'Never' }
+    spooky_often: { every_night: 'Every Night', sometimes: 'Sometimes', never: 'Never' }
   };
   var OFTEN_DEFAULT = { storybook_per_month: '1', space_per_month: '1' };
 
@@ -257,10 +332,50 @@
   }
   // THE TAB BAR (hk-tabbar.js): the screen's Menu "Tab Bar", or the side
   // menu with "Tab Bar" where it folds -- does this screen ever show it?
-  function hasTabBar(b) { return !!b && (b.menu === 'tabbar' || (b.menu !== 'off' && b.narrow === 'tabbar')); }
+  function hasTabBar(b) { return !!b && (tabletTabBar(b) || phoneMenu(b) === 'tabbar'); }
+  function tabletTabBar(b) { return !!b && b.menu === 'tabbar'; }
+  // PHONES' OWN MENU (2026-10-08; hk-base.js phoneMenu, settings.py
+  // BOARD_PHONE_MENUS): a phone -- an iPhone or an Android phone either way
+  // up, or a window under 640 px -- and a tablet whose own menu doesn't fit
+  // (2026-10-09, hk-base.js phoneForm) show the screen's Phones menu: off, a
+  // button, or the tab bar. Unset: the tablets' when that is off or the tab
+  // bar, else a button.
+  var PHONE_MENUS = [['off', 'Off'], ['button', 'Button'], ['tabbar', 'Tab Bar']];
+  // THE DEVICES, said the same way on every page
+  var DEVICES = {
+    phones: 'An iPhone or an Android phone, either way up, or a window narrower than 640 px.',
+    tablets: 'An iPad, a wall tablet or a computer.',
+    // the one sentence for where a tablet's menu doesn't fit
+    fold: 'Where its menu doesn’t fit — an iPad held upright, Split View — a tablet shows the Phones menu.'
+  };
+  // the edge tab's sizes, a tablet's and a phone's (settings.py BOARD_TAB_SIZES)
+  var TAB_SIZES = [['standard', 'Standard'], ['large', 'Large'], ['xl', 'Extra Large']];
+  function phoneMenu(b) {
+    var m = b && b.menu_phone;
+    if (m === 'off' || m === 'button' || m === 'tabbar') return m;
+    if (!b) return 'off';
+    return b.menu === 'off' || b.menu === 'tabbar' ? b.menu : 'button';
+  }
+  // ...its button's style
+  function phoneButton(b) {
+    var v = (b && b.button_phone) || 'chip';
+    return v === 'chip_scroll' || v === 'tab' || v === 'none' ? v : 'chip';
+  }
+  // one line for each device's row: a screen's (its menu, then the style)
+  // or All Screens' (`house`: the style alone -- whether a screen has a menu
+  // is its own)
+  function tabletSummary(b, house) {
+    if (house) return menuStyleLabel(b.menu);
+    var m = menuMode(b);
+    // a button's style names a button already: "Chip, Then Tab"
+    return m === 'off' ? 'Off' : m === 'open' ? 'Always Open' : m === 'tabbar' ? 'Tab Bar' : menuStyleLabel(b.menu);
+  }
+  function phoneSummary(b, house) {
+    if (house) return phoneStyleLabel(phoneButton(b));
+    var m = phoneMenu(b);
+    return m === 'off' ? 'Off' : m === 'tabbar' ? 'Tab Bar' : phoneStyleLabel(phoneButton(b));
+  }
   var TAB_BAR_SCROLLS = [['shrink', 'Shrink'], ['hide', 'Hide'], ['stay', 'Stay']];
-  // a phone's own: Same as Tablets (null), or its own
-  var TAB_BAR_SCROLLS_PHONE = [['same', 'Same as Tablets']].concat(TAB_BAR_SCROLLS);
   var TAB_BAR_MORE = [['icons', 'Icons'], ['list', 'List']];
   var TAB_BAR_SIZES = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']];
   // where the Home Assistant section sits, in the side menu and More alike
@@ -276,7 +391,9 @@
   var TAB_BAR_ROOMS = [['more', 'In More'], ['button', 'Own Button'], ['off', 'Off']];
   // a boolean from the first form: true is In More
   function roomsPlace(v) { return v === false || v === 'off' ? 'off' : v === 'button' ? 'button' : 'more'; }
-  var TAB_BAR_GLASS = [['house', 'Screen’s Glass'], ['blur', 'Blur'], ['frosted', 'Frosted'], ['clear', 'Tinted']];
+  // ('tinted' was stored as 'clear' before entry 1.12: Appearance's
+  // see-through glass is 'clear')
+  var TAB_BAR_GLASS = [['house', 'Same as Screen'], ['blur', 'Blur'], ['frosted', 'Frosted'], ['tinted', 'Tinted']];
   function choiceLabel(list, v) {
     for (var i = 0; i < list.length; i++) if (list[i][0] === v) return list[i][1];
     return v;
@@ -312,21 +429,22 @@
   }
   // ALL SCREENS' MENU (settings `menu`) as a screen's keys, and back
   // (settings.py MENU_KEYS): the same rows serve both
-  var MENU_KEYS = { menu: 'style', narrow: 'narrow', tab_position: 'tab_at', tab_size: 'tab_size',
+  var MENU_KEYS = { menu: 'style', tab_position: 'tab_at', tab_size: 'tab_size',
                     tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
                     ha_row: 'ha_row', ha_place: 'ha_at', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe',
                     tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass',
                     tab_bar_more: 'bar_more', tab_bar_more_phone: 'bar_more_phone',
                     tab_bar_pos: 'bar_pos', tab_bar_fold: 'bar_fold', tab_bar_start: 'bar_start',
                     tab_bar_adjust: 'bar_adjust', tab_bar_scroll_phone: 'bar_scroll_phone',
-                    tab_bar_tabs: 'bar_tabs', tab_bar_tabs_rail: 'bar_tabs_rail', tab_bar_size: 'bar_size' };
-  var MENU_DEFAULTS = { menu: 'auto', narrow: 'chip', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
+                    tab_bar_tabs: 'bar_tabs', tab_bar_tabs_rail: 'bar_tabs_rail', tab_bar_size: 'bar_size',
+                    button_phone: 'button_phone', tab_bar_rooms_phone: 'bar_rooms_phone' };
+  var MENU_DEFAULTS = { menu: 'auto', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, ha_place: 'rooms', accent: 'orange', glyph: 'sidebar', clock: true,
                         swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house',
                         tab_bar_more: 'icons', tab_bar_more_phone: 'list', tab_bar_pos: 'bottom',
                         tab_bar_fold: 'start', tab_bar_start: 'full', tab_bar_adjust: true,
-                        tab_bar_scroll_phone: null, tab_bar_tabs: 6, tab_bar_tabs_rail: 6,
-                        tab_bar_size: 'medium' };
+                        tab_bar_scroll_phone: 'shrink', tab_bar_tabs: 6, tab_bar_tabs_rail: 6,
+                        tab_bar_size: 'medium', button_phone: 'chip', tab_bar_rooms_phone: 'more' };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -338,7 +456,8 @@
     out.swipe = out.swipe === true;
     out.tab_bar_rooms = roomsPlace(out.tab_bar_rooms);
     out.tab_bar_adjust = out.tab_bar_adjust !== false;
-    if (out.tab_bar_scroll_phone === undefined) out.tab_bar_scroll_phone = null;
+    out.tab_bar_rooms_phone = roomsPlace(out.tab_bar_rooms_phone);
+    if (out.tab_bar_glass === 'clear') out.tab_bar_glass = 'tinted';
     return out;
   }
   function houseMenuSave(ch) {
@@ -357,11 +476,19 @@
     return out;
   }
   // one line for a screen's Menu Settings row
-  function menuSummary(b) { return b.menu_custom ? 'This Screen’s Own' : 'Same as All Screens'; }
-  function showsTab(b) {
-    if (menuMode(b) === 'off') return false;
-    return (menuMode(b) === 'button' && !!TAB_STYLES[b.menu]) || b.narrow === 'tab' || b.narrow === 'chip_scroll';
+  function menuSummary(b) { return b.menu_custom ? 'Just This Screen' : 'Same as All Screens'; }
+  // THE EDGE TAB, on each device: a tablet's button or folded menu, a
+  // phone's button
+  function tabletTab(b) {
+    var m = menuMode(b);
+    if (m === 'off' || m === 'tabbar') return false;
+    return m === 'button' && !!TAB_STYLES[b.menu];
   }
+  function phoneTab(b) {
+    var s = phoneButton(b);
+    return phoneMenu(b) === 'button' && (s === 'tab' || s === 'chip_scroll');
+  }
+  function showsTab(b) { return tabletTab(b) || phoneTab(b); }
 
   // ------------------------------------------------------------ the glass
   function glassLabel(v) {
@@ -383,6 +510,14 @@
   // which amount the glass uses (the others are kept but not shown)
   function amountsFor(effective) {
     return { frost: effective === 'frosted', blur: effective === 'blur' || effective === 'blur_each' };
+  }
+  // the Glass group's footer, for the style shown (All Screens' Appearance
+  // and a screen's page say the same)
+  function glassFooter(style) {
+    var t = 'How the pills, tiles and chips look.';
+    if (style === 'frosted') t += ' Frost: how milky, 50% is the middle. Tint from Background: each card takes the color of the page behind it instead of one gray.';
+    if (style === 'blur' || style === 'blur_each') t += ' Blur: how strong, 50% is 20 px.';
+    return t;
   }
 
   // ------------------------------------------------------------ the lists
@@ -577,7 +712,7 @@
   function skyModeLabel(mode, backdrops) {
     if (mode === 'own') return 'Page Color';
     var b = (backdrops || []).filter(function (x) { return x.id === mode; })[0];
-    return b ? b.label : mode === 'live' ? 'Live sky' : mode;
+    return b ? b.label : mode === 'live' ? 'Live Sky' : mode;
   }
   // the choices for one page: Automatic (or Same as All Screens), Page Color
   // where it has one, the live sky, then every fixed backdrop
@@ -934,32 +1069,32 @@
     ['Menu', 'screen', 'menu', 'sidebar drawer navigation off button always open docked', true],
     ['Menu Settings', 'screen/menu', 'menu_custom', 'same as all screens own menu this screen', true],
     ['Pages in Menu', 'screen/menu-pages', 'categories', 'categories menu list', true],
-    ['Tab Bar', 'screen', 'menu', 'tab bar bottom bar floating ios navigation dock tabs more rooms', true],
-    ['On Phones', 'screen', 'phone_header', 'phone weather strip clock header narrow', true],
+    ['Tab Bar', 'house/menu', 'menu.bar_pos', 'tab bar bottom bar floating ios navigation dock tabs more rooms position size glass'],
     ['Home Page', 'screen/pages', 'home_page', 'only these pages standalone energy panel security cameras climate no home', true],
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
     ['Rooms in Menu', 'screen/rooms', 'menu_rooms', 'a to z order', true],
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
-    ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera', true],
+    ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera same as all screens order', true],
     ['Live Camera Follows', 'screen/cameras/live', 'camera_live', 'live camera follows motion person detection dropdown input select automation', true],
     ['Scenes', 'screen/scenes', 'scenes', 'scene pills row', true],
     ['Favorites', 'screen/favorites', 'favorites', 'favourites', true],
     ['Rooms', 'screen/rooms', 'rooms_custom', 'room order home rooms on pages same as all screens', true],
     ['Pages', 'screen/pages', 'pages', 'category pages custom pages', true],
     ['Glass', 'screen/glass', 'glass', 'look blur frosted clear', true],
-    ['Live Sky', 'screen', 'sky', 'background animated', true],
+    ['Live Sky', 'screen/sky', 'sky', 'background animated on off', true],
     ['Sky / Background', 'screen/sky', 'sky_look', 'backdrop animations weather decorations palette own look', true],
-    ['Hide Home Assistant Header & Sidebar', 'screen', 'kiosk', 'kiosk mode', true],
+    ['Liveliness', 'screen/sky', 'sky_liveliness', 'liveliness subtle classic festive party custom busy calm moving bats leaves each occasion', true],
+    ['Calm When Nobody\u2019s Around', 'screen/sky', 'sky_calm_empty', 'empty room nobody occupancy motion presence calm quiet', true],
+    ['Home Assistant Header & Sidebar', 'screen', 'kiosk', 'kiosk mode hide', true],
     ['Return to Home When Idle', 'screen', 'idle_return', 'idle timeout wall tablet', true],
     ['Tablet Room', 'screen', 'idle_room', 'wall tablet room helpers', true],
     ['Allow Pop-ups', 'screen', 'popups', 'answer doorbell alarm popup', true],
-    ['On Narrow Screens', 'screen/menu-narrow', 'narrow', 'phone ipad chip tab folded when folded', true],
     ['Car Browser', 'screen', 'car', 'tesla viewport', true],
     ['Rename Screen', 'screen', 'rename', 'rename name title dashboard sidebar pencil', true],
     ['Now Playing Bar', 'screen', 'now_playing', 'music media bar', true],
     ['Photo Screensaver', 'screen', 'screensaver', 'photos wall tablet slideshow', true],
     ['Screensaver Options', 'screen/screensaver', 'screensaver_options', 'photo timing starts after each photo order random slideshow', true],
-    ['Screensaver for All Screens', 'house/tablets/screensaver', 'look.saver', 'screensaver all screens global default every tablet'],
+    ['Screensaver for All Screens', 'house/tablets', 'look.saver', 'screensaver all screens global default every tablet'],
     ['Same as All Screens (Screensaver)', 'screen/screensaver', 'saver:house', 'screensaver all screens own global', true],
     ['Screensaver Shows', 'screen/screensaver', 'saver:show', 'screensaver forecast weather photos no photos landscape', true],
     ['Forecast When There Are No Photos', 'screen/screensaver', 'saver:fallback', 'screensaver forecast fallback empty folder dark', true],
@@ -973,15 +1108,15 @@
     ['Screen In Use', 'screen/screensaver', 'saver:ent:binary_sensor', 'in use touched tablet binary sensor automation window starts after timer', true],
     ['Use WallPanel Instead', 'screen/screensaver', 'b:screensaver_engine', 'wallpanel hacs screensaver', true],
     ['Your Own Dashboards', 'advanced', 'yaml-ref', 'yaml reference own dashboard hand written raw configuration snippets examples copy'],
-    ['Header & Sidebar', 'screen/kiosk', 'kiosk_page', 'kiosk hide header sidebar what is hidden', true],
+    ['Hide Header & Sidebar', 'screen/kiosk', 'kiosk', 'kiosk hide header sidebar what is hidden admins', true],
     ['Hide Header', 'screen/kiosk', 'kiosk_header', 'kiosk header toolbar top bar title views', true],
     ['Hide Sidebar', 'screen/kiosk', 'kiosk_sidebar', 'kiosk sidebar drawer', true],
     ['For Admins Too', 'screen/kiosk', 'kiosk_admins', 'kiosk header sidebar admin administrators', true],
     ['Use the Kiosk Mode Plugin Instead', 'screen/kiosk', 'kiosk_engine', 'kiosk mode plugin hacs', true],
     ['Kiosk Mode Options', 'screen/kiosk-mode', 'kiosk_options', 'kiosk mode plugin yaml header sidebar admins', true],
     ['Alarm Panel', 'house/general', 'security.alarm', 'security keypad'],
-    ['Indoor Temperature', 'house/general', 'features.temperature', 'climate chip'],
-    ['Power Use', 'house/general', 'features.power', 'energy chip watts'],
+    ['Indoor Temperature', 'house/counts', 'features.temperature', 'climate chip reading'],
+    ['Power Use', 'house/counts', 'features.power', 'energy chip watts reading'],
     ['House Timers', 'house/general/timers', 'features.house_timers', 'nap bedtime timers page'],
     ['Status & Chips', 'house/counts', 'counts', 'what counts smoke carbon monoxide co alarm lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
     ['Weather Service', 'house/weather', 'weather.entity', 'forecast'],
@@ -993,7 +1128,8 @@
     ['Glass Style', 'house/appearance/glass', 'look.glass', 'blur frosted clear look'],
     ['Frost Amount', 'house/appearance', 'look.frost', 'frosted'],
     ['Blur Amount', 'house/appearance', 'look.blur', 'blur strength'],
-    ['HK Detail Sheets', 'house/appearance', 'look.details', 'more info dialog sheet'],
+    ['HK Detail Sheets', 'accessories', 'look.details', 'more info dialog sheet tap accessory'],
+    ['Page Pills', 'house/appearance/pills', 'look.page_pills', 'page pill scenes row name icon color colour play music cameras calendar live tv'],
     ['Sky Switch', 'house/sky', 'look.sky_switch', 'live sky helper'],
     ['Animations', 'house/sky', 'sky.animations', 'sky moving clouds seasons'],
     ['Weather', 'house/sky', 'sky.weather', 'sky clouds rain snow fog'],
@@ -1003,6 +1139,8 @@
     ['Decoration Style', 'house/sky', 'sky.decoration_style', 'old new seasons holidays birthdays woodland'],
     ['Clouds', 'house/sky', 'sky.cloud_style', 'clouds classic realistic photographic weather sky'],
     ['Daytime Sky', 'house/sky', 'sky.daytime', 'brightness bright dark deep natural balanced blue midday day sky'],
+    ['Night Sky', 'house/sky', 'sky.liveliness:night', 'stars shooting stars meteors twinkling screensaver night liveliness'],
+    ['Liveliness', 'house/sky', 'sky.liveliness_all', 'liveliness lively busy calm bats geese leaves petals fireflies snow sleigh witch owl how many how often subtle classic festive party custom each occasion'],
     ['Woodland Between Occasions', 'house/sky/woodland', 'sky.woodland', 'spring summer autumn fall winter woodland seasons scenery new decorations'],
     ['Birthdays', 'house/sky/birthday', 'sky.birthdays', 'balloons'],
     ['Hemisphere', 'house/sky/advanced', 'sky.hemisphere', 'southern northern'],
@@ -1012,29 +1150,33 @@
     ['Tap Clock to Open Menu', 'house/menu', 'menu.clock', ''],
     ['Swipe from Left Edge', 'house/menu', 'menu.swipe', 'menu gesture swipe drag edge open no button'],
     ['Highlight Color', 'house/menu/accent', 'menu.accent', 'menu color colour accent tint orange icons selected page highlight'],
-    ['Button Style', 'house/menu/style', 'menu.style', 'menu chip tab edge pinned'],
-    ['On Narrow Screens', 'house/menu/narrow', 'menu.narrow', 'menu when folded chip tab phone ipad'],
+    ['Tablets & Computers', 'house/menu', 'menu:tablets', 'menu tablet ipad computer wall device'],
+    ['Phones', 'house/menu', 'menu:phones', 'menu phone iphone android device sideways'],
+    ['Button Style', 'house/menu/tablets/style', 'menu.style', 'menu chip tab edge pinned tablet'],
+    ['Button Style on Phones', 'house/menu/phones/style', 'menu.button_phone', 'menu chip tab edge phone iphone android'],
     ['Tab Position', 'house/menu', 'menu.tab_at', 'edge tab height level with date from top'],
-    ['Tab Size', 'house/menu', 'menu.tab_size', 'edge tab menu bigger larger touch target tablet'],
-    ['Tab Size on Phones', 'house/menu', 'menu.tab_size_phone', 'edge tab menu bigger larger touch target phone iphone'],
-    ['Keep Open Down To', 'house/menu', 'menu.open_min', 'menu fold width docked always open'],
-    ['Time & Weather in Menu', 'house/menu', 'menu.time_weather_at', 'clock header always open'],
-    ['While Scrolling', 'house/menu', 'menu.bar_scroll', 'tab bar shrink hide stay scroll auto hide'],
-    ['Rooms in Tab Bar', 'house/menu', 'menu.bar_rooms', 'tab bar rooms more button sheet round'],
-    ['More Style', 'house/menu', 'menu.bar_more', 'tab bar more icons list grid sheet tablet'],
-    ['While Scrolling on Phones', 'house/menu', 'menu.bar_scroll_phone', 'tab bar phone shrink hide stay always shown scroll'],
+    ['Tab Size', 'house/menu/tablets', 'menu.tab_size', 'edge tab menu bigger larger touch target tablet'],
+    ['Tab Size on Phones', 'house/menu/phones', 'menu.tab_size_phone', 'edge tab menu bigger larger touch target phone iphone'],
+    ['Keep Open Down To', 'house/menu/tablets', 'menu.open_min', 'menu fold width docked always open'],
+    ['Time & Weather in Menu', 'house/menu/tablets', 'menu.time_weather_at', 'clock header always open'],
+    ['While Scrolling', 'house/menu/tablets', 'menu.bar_scroll', 'tab bar shrink hide stay scroll auto hide tablet'],
+    ['Rooms in Tab Bar', 'house/menu/tablets', 'menu.bar_rooms', 'tab bar rooms more button sheet round tablet'],
+    ['Rooms in Tab Bar on Phones', 'house/menu/phones', 'menu.bar_rooms_phone', 'tab bar rooms more button sheet round phone iphone'],
+    ['More Style', 'house/menu/tablets', 'menu.bar_more', 'tab bar more icons list grid sheet tablet'],
+    ['While Scrolling on Phones', 'house/menu/phones', 'menu.bar_scroll_phone', 'tab bar phone shrink hide stay always shown scroll'],
     ['Adjust Content', 'house/menu', 'menu.bar_adjust', 'tab bar adjust content make room move page float over overlap padding'],
     ['Start Small', 'house/menu', 'menu.bar_start', 'tab bar start small shrunk folded rest collapsed button'],
     ['Shrinks To', 'house/menu', 'menu.bar_fold', 'tab bar shrink fold small button corner left right top bottom side'],
     ['Tab Bar Size', 'house/menu', 'menu.bar_size', 'tab bar size small medium large bigger thicker icons text'],
-    ['Tabs in Bar', 'house/menu', 'menu.bar_tabs', 'tab bar how many tabs number count favorites bottom top'],
-    ['Tabs in Rail', 'house/menu', 'menu.bar_tabs_rail', 'tab bar rail how many tabs number count favorites left right side'],
+    ['Tabs in Bar', 'house/menu/tablets', 'menu.bar_tabs', 'tab bar how many tabs number count favorites bottom top'],
+    ['Tabs in Rail', 'house/menu/tablets', 'menu.bar_tabs_rail', 'tab bar rail how many tabs number count favorites left right side'],
     ['Tab Bar Position', 'house/menu', 'menu.bar_pos', 'tab bar position top bottom left right rail side placement'],
-    ['More Style on Phones', 'house/menu', 'menu.bar_more_phone', 'tab bar more icons list grid sheet phone iphone'],
+    ['More Style on Phones', 'house/menu/phones', 'menu.bar_more_phone', 'tab bar more icons list grid sheet phone iphone'],
     ['Tab Bar Glass', 'house/menu', 'menu.bar_glass', 'tab bar blur frosted tinted clear transparency look'],
     ['Home Assistant Section Placement', 'house/menu', 'menu.ha_at', 'home assistant section where top categories rooms bottom order position place'],
     ['Home Assistant Section', 'house/menu', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
     ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
+    ['Cameras', 'house/cameras', 'cameras.order', 'camera order which cameras strip cameras page room pages all screens'],
     ['Room Order', 'house/rooms/order', 'rooms.order', 'rooms on home order which rooms'],
     ['Rooms in Menu', 'house/rooms', 'rooms.menu', 'a to z order menu rooms'],
     ['Rooms on Pages', 'house/rooms', 'rooms.pages', 'by floor room order lights climate'],
@@ -1050,7 +1192,7 @@
     ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
     ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
     ['Default Idle Time', 'house/tablets', 'idle.default', 'wall tablet idle seconds'],
-    ['Screensaver Photos', 'house/tablets', 'look.photos', 'media folder wallpanel'],
+    ['Screensaver Photos', 'house/tablets/screensaver', 'look.photos', 'media folder wallpanel photos'],
     ['Hidden from Screens', 'accessories/hidden', 'generated.exclude', 'leave out hide rooms devices'],
     ['Also Shown', 'accessories/also', 'generated.include_entities', 'add entities more'],
     ['Vacuums Page Order', 'accessories/page/vacuums', 'accessories.pages.vacuums', 'vacuum order'],
@@ -1065,6 +1207,33 @@
     ['Setup Check', 'check', 'check', 'problems diagnostics'],
     ['Setup Assistant', 'setup', 'setup', 'wizard']
   ];
+  // ...and the rows search could not find by name (2026-10-09 audit): each
+  // occasion and woodland season by its name, the screen's device rows
+  SKY_THEMES.forEach(function (t) {
+    SEARCH.push([t.label, 'house/sky/' + t.id, 'sky.themes:' + t.id,
+                 'seasonal decorations occasion holiday show dates starts ends days liveliness ' + t.label.toLowerCase()]);
+  });
+  WOODLAND.forEach(function (w) {
+    SEARCH.push([w[1] + ' Woodland', 'house/sky/woodland/' + w[0], 'lively:' + w[0],
+                 'woodland season new decorations liveliness ' + w[1].toLowerCase() + (w[0] === 'fall' ? ' fall' : '')]);
+  });
+  SEARCH.push(
+    ['Tablet User', 'screen', 'tablet_user', 'wall tablet user person signed in screensaver this device', true],
+    ['Car Browser', 'screen', 'car', 'car tesla browser this device', true],
+    ['Header on Phones', 'screen', 'phone_header', 'phone weather strip clock header', true],
+    ['Decorations Also Need', 'house/sky/advanced', 'sky.seasonal', 'decorations need season sensor holidays also needs'],
+    ['Fade Back (Screensaver)', 'screen/screensaver', 'saver:fade_back', 'screensaver fade back dashboard touch switch', true],
+    ['Fill the Screen (Screensaver)', 'screen/screensaver', 'saver:fill', 'screensaver photos crop fill whole photo', true],
+    ['Clock & Date (Screensaver)', 'screen/screensaver', 'saver:clock', 'screensaver clock date time', true],
+    ['UV Index Sensor', 'house/weather/sensors', 'weather.uv', 'weather uv index sensor'],
+    ['Wind Sensor', 'house/weather/sensors', 'weather.wind', 'weather wind speed sensor'],
+    ['Daily Forecast', 'house/weather/sensors', 'weather.forecast_daily', 'weather forecast daily days'],
+    ['Hourly Forecast', 'house/weather/sensors', 'weather.forecast_hourly', 'weather forecast hourly hours'],
+    ['Menu on Tablets & Computers', 'screen/menu/tablets', 'menu', 'menu tablet ipad computer off button always open tab bar', true],
+    ['Menu on Phones', 'screen/menu/phones', 'menu_phone', 'menu phone iphone android off button tab bar folded upright ipad', true],
+    ['Highlight Color', 'screen/menu', 'accent', 'menu color colour accent highlight', true],
+    ['Keep Open Down To', 'screen/menu/tablets', 'dock_min', 'menu fold width docked always open', true]
+  );
   // matches for `q`: [{label, route, key, where}] -- a screen setting once
   // per screen (`screens`: [{path, title}])
   function search(q, screens, extra) {
@@ -1076,8 +1245,14 @@
     SEARCH.forEach(function (s) {
       if (!hit(s[0] + ' ' + s[3])) return;
       if (s[4]) {
+        // A SCREEN'S ROWS ARE LABELLED b:<key> on its page AND on every page
+        // under it (Menu Settings, Pages, Header & Sidebar...); a key with a
+        // prefix of its own (saver:, chips:) is already the row's label. The
+        // panel decided this from the route and missed the pages under a
+        // screen (nine results opened their page and lit nothing).
+        var key = s[2].indexOf(':') < 0 ? 'b:' + s[2] : s[2];
         (screens || []).forEach(function (x) {
-          out.push({ label: s[0], route: s[1].replace(/^screen/, 'screens/' + x.path), key: s[2], where: x.title });
+          out.push({ label: s[0], route: s[1].replace(/^screen/, 'screens/' + x.path), key: key, where: x.title });
         });
       } else {
         out.push({ label: s[0], route: s[1], key: s[2], where: null });
@@ -1108,26 +1283,33 @@
   // one group here or in COPY_NEVER (settings.py BOARD_DEFAULTS -- a Python
   // test holds the two together). [key, label, board keys, copied by default]
   var COPY_GROUPS = [
+    // the groups as the screen's page has them (2026-10-09): Menu, Home
+    // Page, Header, Pages, Appearance, Behavior, When Idle, This Device
     // a screen's menu: All Screens' or its own (menu_custom)
-    ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'ha_place', 'categories', 'tab_position', 'tab_size',
-                      'tab_size_phone', 'menu_top', 'narrow', 'phone_header', 'accent', 'glyph', 'clock', 'swipe',
+    ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'ha_place', 'tab_position', 'tab_size',
+                      'tab_size_phone', 'accent', 'glyph', 'clock', 'swipe',
                       'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust', 'tab_bar_scroll_phone', 'tab_bar_tabs',
-                      'tab_bar_tabs_rail', 'tab_bar_size'], true],
-    ['home', 'Home Page', ['home_page', 'home_view', 'chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
+                      'tab_bar_tabs_rail', 'tab_bar_size', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone'], true],
+    ['home', 'Home Page', ['chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
-    ['cameras', 'Cameras', ['camera_strip', 'cameras', 'camera_live'], true],
+    // a screen's cameras: All Screens' or its own (cameras_custom)
+    ['cameras', 'Cameras', ['camera_strip', 'cameras_custom', 'cameras', 'camera_live'], true],
     ['scenes', 'Scenes', ['scenes_row', 'scenes', 'scenes_pages'], false],
     ['favorites', 'Favorites', ['favorites'], false],
-    ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages'], true],
-    ['look', 'Appearance', ['glass', 'frost', 'blur', 'sky', 'sky_animations', 'sky_weather',
-                            'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages'], true],
-    ['behavior', 'Behavior', ['idle_return', 'popups', 'car', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins',
-                              'kiosk_engine', 'kiosk_options', 'now_playing'], true],
-    ['saver', 'Screensaver', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true]
+    ['header', 'Header', ['phone_header', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins', 'kiosk_engine', 'kiosk_options'], true],
+    // the pages, Home among them, and where each sits in the menu (set on Pages)
+    ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories'], true],
+    ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'sky', 'sky_animations', 'sky_weather',
+                            'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
+                            'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty'], true],
+    ['behavior', 'Behavior', ['popups', 'now_playing'], true],
+    ['idle', 'When Idle', ['idle_return', 'screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
+    ['device', 'This Device', ['car', 'black_screen'], false]
   ];
   // a screen's own tablet: never copied
-  var COPY_NEVER = ['tablet_user', 'idle_room'];
+  // (sleep: Sleep Screen names THIS tablet's kiosk and its room's sensors)
+  var COPY_NEVER = ['tablet_user', 'idle_room', 'sleep'];
   function copyDefaults() { return COPY_GROUPS.filter(function (g) { return g[3]; }).map(function (g) { return g[0]; }); }
   // the changes that copy `groups` of the screen `src` (its settings as read)
   function copyChanges(src, groups) {
@@ -1156,7 +1338,8 @@
   function saverSummary(o) {
     o = saverOptions(o);
     var show = o.show === 'forecast' ? 'Forecast' : o.show === 'both' ? 'Photos & Forecast' : 'Photos';
-    var n = o.starts_after, t = n < 60 ? n + ' s' : (n % 60 ? Math.round(n / 6) / 10 : n / 60) + ' min';
+    var n = o.starts_after, m = n % 60 ? Math.round(n / 6) / 10 : n / 60;
+    var t = n < 60 ? n + ' Seconds' : m + (m === 1 ? ' Minute' : ' Minutes');
     return show + ' · ' + t;
   }
   function saverCustom(o) {
@@ -1252,22 +1435,27 @@
     skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',
     CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS,
-    MENU_STYLES: MENU_STYLES, NARROW: NARROW, narrowLabel: narrowLabel,
+    MENU_STYLES: MENU_STYLES, phoneStyleLabel: phoneStyleLabel,
+    PHONE_MENUS: PHONE_MENUS, DEVICES: DEVICES, TAB_SIZES: TAB_SIZES, BUTTON_PHONE: BUTTON_PHONE, phoneMenu: phoneMenu, phoneButton: phoneButton,
+    tabletSummary: tabletSummary, phoneSummary: phoneSummary, tabletTab: tabletTab, phoneTab: phoneTab, tabletTabBar: tabletTabBar,
     ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
     MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
-    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_SCROLLS_PHONE: TAB_BAR_SCROLLS_PHONE, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
+    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
     WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, DAYTIME_SKIES: DAYTIME_SKIES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
     PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
     CHIP_TOKEN: CHIP_TOKEN, chipsAddCustom: chipsAddCustom, chipsRemoveCustom: chipsRemoveCustom,
+    LIVELY: LIVELY, LIVELY_STEPS: LIVELY_STEPS, LIVELY_OFTEN: LIVELY_OFTEN, LIVELY_PRESETS: LIVELY_PRESETS,
+    LIVELY_ALL: LIVELY_ALL, livelyOccLabel: livelyOccLabel, livelyKnobs: livelyKnobs,
+    livelyPresetLabel: livelyPresetLabel, livelyFrom: livelyFrom, roomSensors: roomSensors,
     SKY_THEMES: SKY_THEMES, OFTEN_LABELS: OFTEN_LABELS, OFTEN_DEFAULT: OFTEN_DEFAULT, PAGE_TOKEN: PAGE_TOKEN,
     SEARCH: SEARCH,
     errorText: errorText, refusals: refusals,
     menuMode: menuMode, menuFor: menuFor, menuStyleLabel: menuStyleLabel, showsTab: showsTab,
     stylesFor: stylesFor, swipeChanges: swipeChanges,
-    glassLabel: glassLabel, glassOf: glassOf, amountOf: amountOf, amountsFor: amountsFor,
+    glassLabel: glassLabel, glassOf: glassOf, amountOf: amountOf, amountsFor: amountsFor, glassFooter: glassFooter,
     chipsModel: chipsModel, chipsSave: chipsSave, chipsAddOwn: chipsAddOwn, chipsRemoveOwn: chipsRemoveOwn,
     chipQuiet: chipQuiet,
     scenesModel: scenesModel, scenesSave: scenesSave, scenesPagePill: scenesPagePill,

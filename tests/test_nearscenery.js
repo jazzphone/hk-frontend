@@ -2,7 +2,8 @@
 var pass=0,fail=0;
 function check(label,condition){print((condition?'PASS ':'FAIL ')+label);condition?pass++:fail++;}
 globalThis.window=globalThis;globalThis.location={pathname:'/test'};
-globalThis.addEventListener=function(){};globalThis.setInterval=function(){return 1;};globalThis.clearInterval=function(){};
+var LISTEN={};globalThis.addEventListener=function(t,f){(LISTEN[t]=LISTEN[t]||[]).push(f);};
+function fire(t){(LISTEN[t]||[]).forEach(function(f){f({type:t});});}globalThis.setInterval=function(){return 1;};globalThis.clearInterval=function(){};
 var activeObservers=0;
 globalThis.ResizeObserver=function(){activeObservers++;this.observe=function(){};this.disconnect=function(){activeObservers--;};};
 globalThis.getComputedStyle=function(){return {left:'300px'};};
@@ -100,8 +101,10 @@ s.elev=25;hkSky._paint(sky,s);
 check('by day the dark field fades to 0 first (still there for its 20 s fade)',hr.values['--near-dark']==='0'&&!hr.classes['out-dark']&&!hr.classes['is-night']&&hr.classes['is-day']===true);
 clock+=22000;hkSky._paint(sky,s);
 check('...then it is taken out, so its bats, owl and mist stop running',hr.classes['out-dark']===true);
+check('...and by day the lit candles and bulbs leave too (their layer is at opacity 0 all day)',hr.classes['lit-out']===true);
 s.elev=-18;hkSky._paint(sky,s);
 check('after dark it comes back at 0 first...',!hr.classes['out-dark']&&hr.values['--near-dark']==='0');
+check('...and the lit patches are back the moment they light',!hr.classes['lit-out']);
 clock+=3000;hkSky._paint(sky,s);
 check('...and fades in on the next paint',hr.values['--near-dark']==='1');
 Date.now=realNow;
@@ -177,6 +180,32 @@ s.decorationStyle='new';hkSky._paint(sky,s);s.decorations=false;hkSky._surpriseF
 s.decorations=true;s.season='christmas';hkSky._force({show:true});sky.classes.own=true;hkSky._paint(sky,s);check('forecast always keeps original distant renderer',!sky._hkNear&&activeObservers===0);
 // CLOUDS: REALISTIC -- which clouds a sky has, and in what light
 function rcCount(p,set){return p.sets.filter(function(x){return x===set;}).length;}
+// ASLEEP: the screen's own photo switch counts only while the photos show
+(function(){
+ var running=false, saverEntity='switch.loft_photo_screensaver';
+ window.hkSaver={running:function(){return running;},config:function(){return {entity:saverEntity};}};
+ hkSky._sleepAs('switch.loft_photo_screensaver','on');
+ check('the photo switch on, the photos not showing (under the kiosk\'s black): the sky stays awake',hkSky.asleep()===false);
+ running=true;
+ check('...the photos showing: asleep',hkSky.asleep()===true);
+ running=false; saverEntity='switch.other_photo_screensaver';
+ check('a sleep entity hk-saver does not own: followed as before (on = asleep)',hkSky.asleep()===true);
+ hkSky._sleepAs('switch.loft_photo_screensaver','off');
+ check('...off = awake',hkSky.asleep()===false);
+ saverEntity='switch.loft_photo_screensaver'; hkSky._sleepAs('switch.loft_photo_screensaver','on');
+ fire('kiosksatellite:screensaverstart');
+ check('under the kiosk\'s black (photos not showing): asleep for the idle work, and the cards pause',hkSky.asleep()===true&&window.__hkAsleep===true);
+ fire('kiosksatellite:screensaverstop');
+ check('...the black ends: awake, the cards move again',hkSky.asleep()===false&&window.__hkAsleep===false);
+ fire('kiosksatellite:screenoff');
+ check('the panel off: the same',hkSky.asleep()===true);
+ fire('kiosksatellite:screenon');
+ (LISTEN['hk-black']||[]).forEach(function(f){f({type:'hk-black',detail:{on:true}});});
+ check('HK\'s own black screen (hk-black): held the same',hkSky.asleep()===true&&window.__hkAsleep===true);
+ (LISTEN['hk-black']||[]).forEach(function(f){f({type:'hk-black',detail:{on:false}});});
+ check('...and awake when it ends',hkSky.asleep()===false);
+ delete window.hkSaver; hkSky._sleepAs(null,'off');
+})();
 var fair=hkSky._rcPlan({cover:.15,cond:'sunny'}),partly=hkSky._rcPlan({cover:.45,cond:'partlycloudy'}),mostly=hkSky._rcPlan({cover:.75,cond:'cloudy'});
 check('realistic clouds: a fair day has a handful of cumulus, a partly cloudy sky more, a mostly cloudy one most',
   !fair.deck&&rcCount(fair,'cu')>=3&&rcCount(fair,'cu')<rcCount(partly,'cu')&&rcCount(partly,'cu')<rcCount(mostly,'cu'));

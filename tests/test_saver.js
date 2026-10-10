@@ -63,7 +63,7 @@ Fake.prototype.querySelectorAll = function (sel) {
 Fake.prototype.querySelector = function (sel) { return this.querySelectorAll(sel)[0] || null; };
 var __create = document.createElement;
 document.createElement = function (t) {
-  return /^(hk-screensaver|div|img|style|body)$/i.test(t) ? new Fake(t) : __create.call(document, t);
+  return /^(hk-screensaver|div|img|canvas|style|body)$/i.test(t) ? new Fake(t) : __create.call(document, t);
 };
 document.body = document.createElement('body');
 if (!customElements.whenDefined) customElements.whenDefined = function () { return new Promise(function () {}); };
@@ -99,9 +99,27 @@ function push(h) { haRoot.hass = h; hub.slice().forEach(function (f) { f(h); });
 
 load(DIR + 'frontend/modules/hk-saver.js');
 var S = window.hkSaver, U = S._;
+// THE RESUME CLOCK held still: no stop here comes after a frozen page,
+// except where a test says so (the section on waking from one)
+var T0 = 1e12; U.clock.now = function () { return T0; }; U.beat();
+// THE BLACK OVER THE PHOTOS (goDark's dark path) is what most of the kiosk
+// tests below exercise; the house's tablets now take the screensaver down
+// under the black instead (tested on its own, further down)
+U.darkUnderBlack(true);
 // a stop's fade back runs after the dashboard is drawn (frames, then a hold):
-// every timer twice
-function woke() { __runTimers(); __runTimers(); }
+// every timer twice, then what those set going, a few steps deep (two
+// frames, the hold, then the fade's own timers) -- a pass runs only the
+// timers there when it starts, and running every kept one again each step
+// multiplies them (minutes)
+function woke() {
+  __runTimers();
+  var from = __timers.length, list;
+  __runTimers();
+  for (var i = 0; i < 2; i++) {
+    list = __timers.slice(from); from = __timers.length;
+    list.filter(Boolean).forEach(function (t) { t.fn(); });
+  }
+}
 
 print('=== config ===');
 var c = U.readCfg({ user: 'T', entity: SW, starts_after: 0, each_photo: 20, order: 'sorted', fill: false, zoom: true,
@@ -222,6 +240,7 @@ S.stop();
 ok('hkSaver.stop() takes it away without writing the switch', !S.running() && calls.length === 0, calls);
 S.start(); S.stop(); S.start();
 ok('started again while waking: covering again, not left at 99 %', S.running() && !saverEl().hasAttribute('waking'), saverEl().attrs);
+drainMicrotasks(); drainMicrotasks(); drainMicrotasks();   // its first photo in: the fade may start
 woke();
 ok('...and the old wake\'s fade never takes it away', S.running() && saverEl().hasAttribute('on'), saverEl().attrs);
 S.stop(); woke();
@@ -352,7 +371,7 @@ ok('...and with the screen off', scenes[0].paused === true);
 FULLY.on = true; __runTimers();
 ok('...and moves again when the screen is lit', scenes[0].paused === false, scenes[0].paused);
 // KIOSK SATELLITE says so with window events (its API is promise-based)
-dispatchEvent({ type: 'kiosksatellite:screensaverstart' }); __runTimers();
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' }); __runTimers();
 ok('Kiosk Satellite\'s own (Black) screensaver: the sky holds still', scenes[0].paused === true, scenes[0].paused);
 dispatchEvent({ type: 'kiosksatellite:screensaverstop' }); __runTimers();
 ok('...and moves again when it ends', scenes[0].paused === false, scenes[0].paused);
@@ -463,6 +482,348 @@ ok('stopping clears the covered state', !S.covered());
 
 woke();
 ok('...and is let go with the screensaver', scenes[0].destroyed === true);
+
+// THE FADE WAITS FOR THE FIRST PHOTO (2026-10-09): until it is decoded,
+// painted and two frames drawn, the screensaver is only [prep] -- drawn,
+// too faint to see -- so the tablet rasters it before anyone sees it; the
+// host's black never shows through a photo not yet drawn
+// (a clean slate of timers: by here the harness has ~147,000 kept ones, and
+// running them all again multiplies them)
+__timers.length = 0;
+var hostLoad = hf.callWS, pending = [];
+hf.callWS = function (m) { return m.type === 'media_source/resolve_media' ? new Promise(function (r) { pending.push(r); }) : hostLoad(m); };
+S.start(); __runTimersUnder(1000); __runTimersUnder(1000);
+ok('started, its first photo still loading: ready but not fading in', S.running() && saverEl().hasAttribute('prep') && !saverEl().hasAttribute('on'),
+   saverEl().attrs);
+hf.callWS = hostLoad;
+pending.forEach(function (r) { r({ url: 'photo-late.jpg' }); }); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
+__runTimersUnder(1); __runTimersUnder(1);
+ok('...the photo in and two frames drawn: the fade starts', saverEl().hasAttribute('on') && !saverEl().hasAttribute('prep'), saverEl().attrs);
+S.stop(); woke();
+hf.callWS = function (m) { return m.type === 'media_source/resolve_media' ? new Promise(function () {}) : hostLoad(m); };
+S.start(); __runTimersUnder(1600); __runTimersUnder(1); __runTimersUnder(1);
+ok('a photo that never comes: it fades in anyway, by ENTRANCE_MAX', saverEl().hasAttribute('on') && !saverEl().hasAttribute('prep'), saverEl().attrs);
+hf.callWS = hostLoad;
+S.stop(); woke();
+ok('stopped: nothing left getting ready', !saverEl() || !saverEl().hasAttribute('prep'));
+// WOKEN FROM A FROZEN PAGE (Kiosk Satellite's Black screensaver stops the
+// tablet drawing and running the page): the stop that arrives as it comes
+// back shows no stale photo -- plain black, the dashboard drawn under it, then
+// the fade back to it
+S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); __runTimersUnder(1); __runTimersUnder(1);
+ok('a normal stop (the page running all along) is the usual fade, no black', (function () { S.stop(); return !saverEl().hasAttribute('dark'); })());
+woke(); __timers.length = 0;
+S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); __runTimersUnder(1); __runTimersUnder(1);
+T0 += 60000;                       // a minute frozen: no heartbeat
+ok('the page frozen a minute: it knows it has just come back', U.justResumed());
+S.stop();
+ok('...so the stop is plain black over the dashboard at once (no stale photo), still covering it while it draws',
+   saverEl().hasAttribute('dark') && saverEl().hasAttribute('on') && saverEl().hasAttribute('waking'), saverEl().attrs);
+__runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(200);
+ok('...then fades away to it', !saverEl().hasAttribute('on'), saverEl().attrs);
+U.beat(); T0 += 1000; U.beat(); T0 += 1000; U.beat(); T0 += 1000; U.beat();
+ok('the heartbeat steady again for 3 s: the page is no longer just back', !U.justResumed());
+__runTimersUnder(1000);
+// UNDER THE KIOSK'S BLACK, BLACK: the frame the tablet keeps (and shows as
+// the black comes down) is plain black, never the photos
+woke(); __timers.length = 0;
+S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); __runTimersUnder(1); __runTimersUnder(1);
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+ok('the kiosk\'s Black screensaver goes up: plain black at once, no fade', saverEl().hasAttribute('dark') && saverEl().hasAttribute('on') &&
+   saverEl().style.getPropertyValue('--fade') === '0ms', saverEl().attrs);
+ok('...the dashboard not hidden under it (it would be drawn again from nothing at the wake)', !S.covered());
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+S.stop();                            // the house's wake: photos off under the black
+ok('...the wake: still black over the dashboard while it draws', saverEl().hasAttribute('dark') && saverEl().hasAttribute('waking') && !S.covered(),
+   saverEl().attrs);
+__runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(200);
+ok('...then the fade from black to the dashboard (the photos never shown)', !saverEl().hasAttribute('on') && !saverEl().hasAttribute('undark'),
+   saverEl().attrs);
+woke(); __timers.length = 0;
+// THE WAKE GOES ON FROM THE FRAME THE TABLET LAST DREW: under the kiosk's
+// black the page runs but nothing is drawn (frames held here), and as it
+// comes back the tablet shows that last frame first
+var realRAF = globalThis.requestAnimationFrame, heldFrames = [];
+function holdFrames() { globalThis.requestAnimationFrame = function (f) { heldFrames.push(f); return heldFrames.length; }; }
+function drawAgain() { globalThis.requestAnimationFrame = realRAF; heldFrames.splice(0).forEach(function (f) { f(); }); }
+function photosUp() { S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(1); }
+// last drawn: black (the photos up, then the kiosk's black -- the sleep)
+photosUp(); woke(); __timers.length = 0;
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+__runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(1);     // the black drawn, and shown
+holdFrames();
+S.stop();                              // the house's wake: photos off under the black
+__runTimersUnder(700); __runTimersUnder(700); __runTimersUnder(5000);
+ok('last drawn black, stopped where nothing is drawn: plain black, no fade however long', saverEl().hasAttribute('dark') && saverEl().hasAttribute('on'),
+   saverEl().attrs);
+ok('...the dashboard hidden under the photos stays hidden while nothing is drawn', visibilityStyle.value === 'hidden', visibilityStyle);
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+drawAgain();
+ok('...drawn again: the dashboard not shown yet -- the black is being drawn again first', visibilityStyle.value === 'hidden', visibilityStyle);
+__runTimersUnder(1); __runTimersUnder(1);
+ok('...two frames on: the dashboard shown, under the black', visibilityStyle.value !== 'hidden' && saverEl().hasAttribute('on') && saverEl().hasAttribute('dark'),
+   visibilityStyle);
+__runTimersUnder(1); __runTimersUnder(1);
+ok('...still black over the dashboard while it draws (WAKE.lit)', saverEl().hasAttribute('on') && saverEl().hasAttribute('waking'), saverEl().attrs);
+__runTimersUnder(401);
+ok('...then the fade from black to the dashboard', !saverEl().hasAttribute('on'), saverEl().attrs);
+woke(); __timers.length = 0;
+// THE SCREENSAVER GOES WHEN ITS FADE HAS ENDED, not on a timer of the
+// fade's length (a late-starting fade was cut short)
+photosUp(); woke(); __timers.length = 0;
+S.stop(); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(200); __runTimersUnder(600);
+var fading = saverEl();
+ok('the fade back under way past its length: the screensaver still there', fading && fading.parentNode && !fading.hasAttribute('on'), fading && fading.attrs);
+(fading._l.transitionend || []).forEach(function (f) { f({ target: fading, propertyName: 'opacity' }); });
+ok('...gone once the fade has ended', !saverEl());
+woke(); __timers.length = 0;
+// the black begun on a frame and never shown (the tablet stopped drawing
+// mid-frame): not counted -- the wake goes on from the photos
+photosUp(); woke(); __timers.length = 0;
+holdFrames();
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+heldFrames.shift()();
+S.stop();
+__runTimersUnder(700); __runTimersUnder(700);
+ok('stopped under the black: nothing at all until it ends', saverEl().hasAttribute('dark') && saverEl().hasAttribute('on'), saverEl().attrs);
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+ok('the black begun on one frame only: still the photos as it comes back, no blink to black', !saverEl().hasAttribute('dark') && saverEl().hasAttribute('on'),
+   saverEl().attrs);
+drawAgain(); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(401);
+ok('...then the fade', !saverEl().hasAttribute('on'), saverEl().attrs);
+woke(); __timers.length = 0;
+// last drawn: the photos (a page loaded under the black never heard it)
+photosUp(); woke(); __timers.length = 0;
+holdFrames();
+S.stop();
+__runTimersUnder(700); __runTimersUnder(700);
+ok('last drawn the photos: no cut to black -- the photos it shows, then the fade', !saverEl().hasAttribute('dark') && saverEl().hasAttribute('on'),
+   saverEl().attrs);
+drawAgain(); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(1); __runTimersUnder(401);
+ok('...the fade once it is drawn again', !saverEl().hasAttribute('on'), saverEl().attrs);
+woke(); __timers.length = 0;
+// THE DEFAULT ON THE TABLETS: under the kiosk's black the screensaver is
+// taken down, whatever it was showing -- the dashboard, drawn there, is what
+// the tablet wakes onto
+U.darkUnderBlack(false);
+photosUp(); T0 += 5000; U.beat();
+dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+ok('photos up for a while, then the black: the screensaver taken down at once (the dashboard back under the black)',
+   !S.running() && !saverEl(), saverEl() && saverEl().attrs);
+ok('...the dashboard shown again, not left hidden', visibilityStyle.value !== 'hidden', visibilityStyle);
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' }); woke(); __timers.length = 0;
+U.darkUnderBlack(true);
+// OUR OWN CURTAIN: black over the page while the kiosk's black is up, and
+// away only once the page has drawn as it comes down
+woke(); __timers.length = 0;
+function curtainEl() { return walkFake(document.body).filter(function (e) { return e.attrs && 'data-hk-curtain' in e.attrs; })[0]; }
+dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+ok('the kiosk\'s black goes up: our curtain over everything, opaque', curtainEl() && curtainEl().style.opacity === '1' &&
+   curtainEl().style.zIndex === '2147483647' && curtainEl().style.position === 'fixed', curtainEl() && curtainEl().style);
+holdFrames();
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+__runTimersUnder(1000);
+ok('the black comes down, no frame drawn yet: the curtain stays', curtainEl() && curtainEl().style.opacity === '1');
+drawAgain(); __runTimersUnder(1); __runTimersUnder(1);
+ok('...two frames: still up for CURTAIN_HOLD', curtainEl() && curtainEl().style.opacity === '1');
+__runTimersUnder(301);
+ok('...then it fades away', curtainEl() && curtainEl().style.opacity === '0' && /opacity 450ms/.test(curtainEl().style.transition));
+__runTimersUnder(600);
+ok('...and is gone after the fade', !curtainEl());
+holdFrames();
+dispatchEvent({ type: 'kiosksatellite:screensaverstart' }); dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+__runTimersUnder(2100);
+ok('frames that never come: faded by CURTAIN_MAX all the same', !curtainEl() || curtainEl().style.opacity === '0');
+drawAgain(); woke(); __timers.length = 0;
+
+// BLACK SCREEN: HK FRONTEND -- the screen's black is this page's own: the
+// curtain, the backlight down (Kiosk Satellite's page API), said to the
+// house; off, the backlight comes back with the curtain's fade; a tap wakes
+// it here. Only on the screen's tablet.
+(function () {
+  woke(); __timers.length = 0;
+  var SEG = String(location.pathname).split('/')[1] || '', BLK = 'switch.kitchen_black_screen', boards = {};
+  boards[SEG] = { black_screen: 'hk', black_switch: BLK };
+  var savedHS = window.hkSettings;
+  window.hkSettings = { get: function (p, f) { return p === 'boards' ? boards : f; }, onChange: function () {} };
+  var lights = [], bright = 0.68;
+  window.kioskSatellite = {
+    getBrightness: function () { return Promise.resolve(bright); },
+    setBrightness: function (v) { lights.push(v); bright = v; return Promise.resolve(true); }
+  };
+  var sent = [], said = [];
+  addEventListener('hk-black', function (e) { said.push(e.detail && e.detail.on); });
+  function hassBlack(state, brightness, userName) {
+    var h = hassOwn('off', userName);
+    h.states[BLK] = { entity_id: BLK, state: state, attributes: { brightness: brightness == null ? null : brightness } };
+    h.callWS = function (m) { sent.push(m); return Promise.resolve({}); };
+    return h;
+  }
+  function curtainEl() { return walkFake(document.body).filter(function (e) { return e.attrs && 'data-hk-curtain' in e.attrs; })[0]; }
+  function settle() { for (var i = 0; i < 4; i++) { __runTimersUnder(1); drainMicrotasks(); } }
+
+  push(hassBlack('on', 174, 'Someone at a desk')); settle();
+  ok('another user showing the same screen: never black', !curtainEl() && lights.length === 0, lights);
+
+  var saidBefore = said.length;
+  push(hassBlack('on', 174)); settle();
+  ok('the sky and the camera strip not told before the curtain has been drawn (two frames)', said.length === saidBefore, said);
+  __runTimersUnder(60); settle();
+  ok('the switch on, on the screen\'s tablet: the curtain up, catching taps', curtainEl() && curtainEl().style.opacity === '1' &&
+     curtainEl().style.pointerEvents === 'auto', curtainEl() && curtainEl().style);
+  ok('...the backlight down to its lowest once it is drawn (setBrightness(0))', lights[lights.length - 1] === 0, lights);
+  ok('...the brightness before kept for the wake, and the house told it is black',
+     localStorage.getItem('hk-black-bright') === '0.68' && localStorage.getItem('hk-black') === SEG &&
+     sent.some(function (m) { return m.type === 'hk_frontend/screensaver/black' && m.black === true && m.dashboard === SEG; }), sent);
+  ok('...the sky and the camera strip told to rest (hk-black, on)', said[said.length - 1] === true, said);
+
+  lights = []; push(hassBlack('off', 200)); settle();
+  ok('the switch off: the curtain stays a moment (CURTAIN_HOLD_HK) ...', curtainEl() && curtainEl().style.opacity === '1');
+  __runTimersUnder(61); settle();
+  ok('...then fades', curtainEl() && curtainEl().style.opacity === '0', curtainEl() && curtainEl().style.opacity);
+  __runTimersUnder(400); settle();
+  ok('...with the backlight ramping up to the house\'s wake brightness (200 of 255)', lights.length >= 5 &&
+     Math.abs(lights[lights.length - 1] - 200 / 255) < 0.01 && lights[0] < lights[lights.length - 1], lights);
+  __runTimersUnder(600);
+  ok('...and is gone; nothing kept for a reload', !curtainEl() && localStorage.getItem('hk-black') === null);
+  ok('...the sky and the camera strip told it is over (hk-black, off)', said[said.length - 1] === false, said);
+
+  // a tap wakes it here
+  sent = []; lights = []; woke(); __timers.length = 0;
+  var before = bright;
+  push(hassBlack('on', null)); settle();
+  var c = curtainEl();
+  (c._l.pointerdown || []).forEach(function (f) { f({ type: 'pointerdown', preventDefault: function () {}, stopPropagation: function () {} }); });
+  settle();
+  ok('a tap on the curtain: awake at once, the house told (black: false)', sent.some(function (m) { return m.type === 'hk_frontend/screensaver/black' && m.black === false; }), sent);
+  ok('...and touched (the screen in use)', sent.some(function (m) { return m.type === 'hk_frontend/screensaver/touch'; }), sent);
+  push(hassBlack('on', null)); settle(); __runTimersUnder(61); settle();
+  ok('...the switch still on for a moment (on its way off): it stays awake', curtainEl() && curtainEl().style.opacity === '0', curtainEl() && curtainEl().style.opacity);
+  __runTimersUnder(400); settle();
+  ok('...the backlight back to what it was before the black (no brightness from the house)', Math.abs(lights[lights.length - 1] - before) < 0.01, [before, lights]);
+  push(hassBlack('off', null)); woke(); __timers.length = 0;
+
+  // a page reloaded while black: hk-settings.js put up a cover; taken over
+  T0 += 7000; U.beat();                      // past the tap's hold (HK_WOKE_HOLD)
+  var cover = new Fake('div'); cover.id = 'hk-black-boot'; document.body.appendChild(cover);
+  document.getElementById = function (id) { return walkFake(document.body).filter(function (e) { return e.id === id; })[0] || null; };
+  push(hassBlack('on', 174)); settle();
+  ok('reloaded while black: the boot cover gives way to the curtain', !document.getElementById('hk-black-boot') && curtainEl());
+  push(hassBlack('off', 174)); settle(); __runTimersUnder(61); __runTimersUnder(600); woke(); __timers.length = 0;
+  delete document.getElementById;
+
+  // the house's fallback: Kiosk's black up as well -- HK's ending is not
+  // the end; the backlight comes up as the kiosk's comes down
+  push(hassBlack('on', 120)); settle();
+  dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+  lights = []; push(hassBlack('off', 120)); settle(); __runTimersUnder(61); __runTimersUnder(600); settle();
+  ok('HK\'s black off under the kiosk\'s: still black, the backlight left down', curtainEl() && curtainEl().style.opacity === '1' && lights.length === 0, lights);
+  dispatchEvent({ type: 'kiosksatellite:screensaverstop' }); settle();
+  __runTimersUnder(61); settle(); __runTimersUnder(400); settle();
+  ok('...the kiosk\'s off too: the curtain fades and the backlight ramps to the house\'s 120', lights.length >= 5 &&
+     Math.abs(lights[lights.length - 1] - 120 / 255) < 0.01, lights);
+  __runTimersUnder(600); woke(); __timers.length = 0;
+
+  // A RELOAD UNDER THE BLACK, its settings still arriving (the Loft,
+  // 2026-10-09: the cover faded at once, the dashboard showed, the page went
+  // black again -- and that black had no curtain)
+  document.getElementById = function (id) { return walkFake(document.body).filter(function (e) { return e.id === id; })[0] || null; };
+  var liveSettings = window.hkSettings, notYet = { get: function (p, f) { return p === 'boards' ? {} : f; }, live: false, onChange: function () {} };
+  window.hkSettings = notYet;
+  var cover2 = new Fake('div'); cover2.id = 'hk-black-boot'; document.body.appendChild(cover2);
+  sent = []; lights = []; U.hkFresh();     // a page just loaded
+  push(hassBlack('on', 174)); settle(); __runTimersUnder(600); settle();
+  ok('reloaded under the black, the screen\'s settings not in yet: the cover stays, nothing decided',
+     document.getElementById('hk-black-boot') === cover2 && !curtainEl() && sent.length === 0 && lights.length === 0,
+     { cover: !!document.getElementById('hk-black-boot'), sent: sent, lights: lights });
+  window.hkSettings = liveSettings;
+  push(hassBlack('on', 174)); settle();
+  var c2 = curtainEl();
+  ok('...in: black -- the page\'s own curtain, the cover gone', c2 && c2 !== cover2 && !document.getElementById('hk-black-boot') &&
+     c2.style.opacity === '1' && sent.some(function (m) { return m.type === 'hk_frontend/screensaver/black' && m.black === true; }));
+  lights = []; push(hassBlack('off', 174)); settle(); __runTimersUnder(61); settle(); __runTimersUnder(400); settle();
+  ok('...and the wake: faded, the backlight ramped to 174', curtainEl() && curtainEl().style.opacity === '0' &&
+     lights.length >= 5 && Math.abs(lights[lights.length - 1] - 174 / 255) < 0.01, lights);
+  __runTimersUnder(600); woke(); __timers.length = 0;
+
+  // a reload whose black ended while it loaded: the cover is swapped for a
+  // curtain that fades -- the cover itself is never the curtain (its id and
+  // its 30 s backstop would take a later black's curtain away)
+  T0 += 7000; U.beat();
+  cover2 = new Fake('div'); cover2.id = 'hk-black-boot'; document.body.appendChild(cover2);
+  window.hkSettings = notYet; push(hassBlack('off', 150)); settle();
+  window.hkSettings = liveSettings; lights = [];
+  U.hkFresh();                               // a page just loaded
+  push(hassBlack('off', 150)); settle();
+  var c3 = curtainEl();
+  ok('reloaded, the black ended meanwhile: the cover swapped for a curtain', c3 && c3 !== cover2 && !document.getElementById('hk-black-boot'));
+  __runTimersUnder(1); settle(); __runTimersUnder(400); settle();
+  ok('...which fades, the backlight coming back to the house\'s 150 with it', lights.length >= 5 &&
+     Math.abs(lights[lights.length - 1] - 150 / 255) < 0.01, lights);
+  __runTimersUnder(600); settle();
+  push(hassBlack('on', 150)); settle();
+  ok('...a later black: its curtain up, and it stays (not taken for the cover)', curtainEl() && curtainEl().style.opacity === '1');
+  push(hassBlack('off', 150)); settle(); __runTimersUnder(61); __runTimersUnder(600); woke(); __timers.length = 0;
+  delete document.getElementById;
+
+  boards[SEG].black_screen = 'kiosk'; sent = [];
+  push(hassBlack('on', 174)); settle();
+  ok('Black Screen: Kiosk Satellite -- the switch is not this page\'s to follow', !curtainEl() && sent.length === 0, sent);
+  push(hassBlack('off', 174)); settle();
+  delete window.kioskSatellite;
+  if (savedHS) window.hkSettings = savedHS; else delete window.hkSettings;
+  localStorage.removeItem('hk-black-bright');
+  push(hf); woke(); __timers.length = 0;
+})();
+
+// BLACK WHILE IT WAS STILL STARTING (a real sleep: the photos on 0.1-0.2 s
+// before the black): taken back, as if it had never begun
+photosUp();
+dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+ok('black within SHOWN_MIN of the photos showing: the start taken back -- the dashboard, as the tablet last showed it',
+   !S.running() && !saverEl(), saverEl() && saverEl().attrs);
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' }); woke(); __timers.length = 0;
+var heldPhoto = hf.callWS;
+hf.callWS = function (m) { return m.type === 'media_source/resolve_media' ? new Promise(function () {}) : heldPhoto(m); };
+S.start(); __runTimersUnder(1);
+ok('(a start still getting ready, its photo not in yet)', S.running() && saverEl().hasAttribute('prep'));
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+ok('...black: taken back too, however long it has been getting ready', !S.running() && !saverEl());
+hf.callWS = heldPhoto;
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' }); woke(); __timers.length = 0;
+// NOTHING STARTS UNDER THE BLACK (the house's sleep: the photos on and the
+// black up together). Started and turned black there, the tablet still
+// showed the dashboard it last drew -- and the wake blinked through black.
+holdFrames();
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
+ok('the photos turned on under the black: not started -- nothing under it changes', !S.running() && (!saverEl() || !saverEl().hasAttribute('on')));
+push(hassOwn('on'));
+ok('...not by the switch either', !S.running());
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+push(hassOwn('on'));
+ok('the black ends, the switch still on: not at once (the house turns them off within 2 s of a tap)', !S.running());
+T0 += 3000; __runTimersUnder(2600);
+ok('...but once LIT_GRACE is up and they are still wanted, they start', S.running());
+drawAgain(); S.stop(); push(hassOwn('off')); woke(); __timers.length = 0;
+push(hf);                              // back to the connection with photos
+woke(); __timers.length = 0;
+photosUp();
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+__runTimersUnder(2400);
+ok('a tap ends the black, the photos still wanted: black a moment longer (the house may yet stop it)', saverEl().hasAttribute('dark'), saverEl().attrs);
+__runTimersUnder(2600);
+ok('...then the photos drawn again under the black', saverEl().hasAttribute('undark') && saverEl().hasAttribute('dark'), saverEl().attrs);
+__runTimersUnder(1); __runTimersUnder(1);
+ok('...and the black fades off them', !saverEl().hasAttribute('dark') && !saverEl().hasAttribute('undark') && saverEl().hasAttribute('on') &&
+   saverEl().style.getPropertyValue('--blk') === '600ms', saverEl().attrs);
+S.stop(); woke(); __timers.length = 0;
+T0 += 1000; U.beat(); dispatchEvent({ type: 'kiosksatellite:screensaverstart' });
+ok('the kiosk\'s black over the dashboard: nothing to darken', !S.running());
+dispatchEvent({ type: 'kiosksatellite:screensaverstop' });
+ok('stopped: nothing left dark', !saverEl() || !saverEl().hasAttribute('dark'));
+
 
 // FORECAST DETAILS: off on the forecast; on over the photos
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'both', forecast_every: 3, band: false, band_photos: true });

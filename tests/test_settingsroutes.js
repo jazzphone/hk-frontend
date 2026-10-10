@@ -3,7 +3,13 @@
 // with each page stubbed to say its name.
 if (typeof HK_ROOT === 'undefined') throw new Error('run through tests/run');
 load(HK_ROOT + '/tests/dom.js');
-load(HK_ROOT + '/frontend/panels/hk-settings.js');
+// the panel as the page has it: its model, kit and features first (the page
+// imports them before it draws), so routes that read the model resolve
+load(HK_ROOT + '/frontend/panels/hk-settings-model.js');
+load(HK_ROOT + '/frontend/panels/hk-settings-kit.js');
+load(HK_ROOT + '/frontend/panels/hk-settings-features.js');
+(0, eval)(read(HK_ROOT + '/frontend/panels/hk-settings.js').replace('  var M = null, K = null, h = null, F = null;',
+  '  var M = window.hkSettingsModel, K = window.hkSettingsKit, h = K.h, F = window.hkSettingsFeatures; F.use(K);'));
 var pass = 0, fail = 0;
 function ok(name, got, want) {
   if (got === want) { pass++; print('  PASS  ' + name); }
@@ -31,6 +37,12 @@ ok('screen sky opens the named page', P.p_screen.call(page, 'dashboard-sky', ['s
 var backdrop = P.p_screen.call(page, 'dashboard-sky', ['sky', 'backdrop']);
 ok('screen backdrop opens its picker', backdrop.title, 'Backdrop');
 ok('screen backdrop Back returns to Sky / Background', backdrop.back[1], '#/screens/dashboard-sky/sky');
+// SKY LIVELINESS (2026-10-08): a woodland season has its own page now, Back
+// to the seasons; the night sky has one too
+ok('a woodland season opens its own page', open('#/house/sky/woodland/fall').title, 'Autumn');
+ok('...Back to the seasons', open('#/house/sky/woodland/fall').back[1], '#/house/sky/woodland');
+ok('...an unknown one is the seasons\' list', open('#/house/sky/woodland/monsoon').title, 'Woodland Between Occasions');
+ok('the night sky opens its page', open('#/house/sky/night').title, 'Night Sky');
 
 print('\n=== leaving the page: nothing of it keeps running ===');
 (function () {

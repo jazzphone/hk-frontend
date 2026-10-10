@@ -136,6 +136,46 @@ quiet('a motion, occupancy or smoke sensor found rebuilds nothing', function () 
 quiet('the Climate row leaving a room out rebuilds nothing (no page depends on it)', function () {
   pushTop('status_rows', { climate: { exclude_areas: ['k'] } });
 });
+// EVERY MENU SETTING, from the server's own list (settings.py MENU_KEYS), not
+// a copy: the menu, the tab bar and the Home Assistant section read them all
+// live, so none may rebuild a screen. A key added there and not to the
+// strategy's LIVE_KEYS fails here (the tab bar's thirteen and `ha_place` once
+// rebuilt every screen -- sheets closed, cameras reconnected -- on each change).
+(function () {
+  var py = read(HK_ROOT + '/settings.py');
+  var m = /\nMENU_KEYS = \{([\s\S]*?)\}\n/.exec(py);
+  var keys = m ? (m[1].match(/"([a-z_]+)":/g) || []).map(function (k) { return k.slice(1, -2); }) : [];
+  ok('settings.py MENU_KEYS read (' + keys.length + ' keys)', keys.length >= 20, keys.length);
+  var VALS = { tab_bar_adjust: false, tab_bar_tabs: 4, tab_bar_tabs_rail: 4, dock_min: 900, clock: false,
+               swipe: true, ha_row: true };
+  var loud = [];
+  keys.filter(function (k) { return k !== 'menu'; }).forEach(function (k) {
+    __resetTimers(); refreshes = 0;
+    pushBoard(k, k in VALS ? VALS[k] : 'changed-' + k);
+    T += 60000; settle();
+    if (refreshes) loud.push(k);
+  });
+  ok('...and not one of them rebuilds a screen', loud.length === 0, loud);
+  // THE SCREEN'S OWN SKY, the same way: every sky_* key of BOARD_DEFAULTS is
+  // read live by the sky (the build never reads one); `sky` itself -- the live
+  // sky on or off -- is the build's, so it still rebuilds
+  var bd = /\nBOARD_DEFAULTS[^=]*= \{([\s\S]*?)\n\}/.exec(py);
+  var skyKeys = bd ? (bd[1].match(/"(sky_[a-z_]+)":/g) || []).map(function (k) { return k.slice(1, -2); }) : [];
+  ok('settings.py BOARD_DEFAULTS sky_* keys read (' + skyKeys.length + ' keys)', skyKeys.length >= 8, skyKeys);
+  var loudSky = [];
+  skyKeys.forEach(function (k) {
+    __resetTimers(); refreshes = 0;
+    pushBoard(k, k === 'sky_pages' || k === 'sky_custom' ? { x: 'changed' } : 'changed-' + k);
+    T += 60000; settle();
+    if (refreshes) loudSky.push(k);
+  });
+  ok('...and not one of them rebuilds a screen', loudSky.length === 0, loudSky);
+  __resetTimers(); refreshes = 0;
+  pushBoard('sky', false);
+  T += 60000; settle();
+  ok('...while turning the screen\'s live sky off does (the build decides it)', refreshes === 1, refreshes);
+  pushBoard('sky', true); T += 60000; settle();
+})();
 __resetTimers(); refreshes = 0;
 pushTop('kinds', { motion: ['binary_sensor.m'], occupancy: ['binary_sensor.o'], smoke: ['binary_sensor.s'],
                    lights: ['light.a'] });

@@ -378,5 +378,22 @@ ok('...and an explicit spin is the same as its kind', anim(Fan, { entity: 'fan.a
 ok('a switch does not spin by its kind', anim(Tile, { entity: 'switch.a' }), 'none');
 ok('...but a switch can be told to, as a fan', anim(Tile, { entity: 'switch.a', animation: 'spin' }), 'spin');
 
+// ---------------------------------------------------------------- the vacuum card's wake
+// Its battery is an ATTRIBUTE of the vacuum: a battery that charges while the
+// vacuum stays `docked` must change the signature (it read `state` alone, and
+// the percentage froze until the vacuum next moved).
+print('=== hk-vacuum-card signature ===');
+var Vac = customElements.get('hk-vacuum-card');
+function vsig(vs) {
+  var c = Object.create(Vac.prototype);
+  c._config = { entity: 'vacuum.v' };
+  c._hass = { states: { 'vacuum.v': vs } };
+  return c._sigOf();
+}
+var v1 = { entity_id: 'vacuum.v', state: 'docked', attributes: { battery_level: 40 }, last_updated: 't1' };
+var v2 = { entity_id: 'vacuum.v', state: 'docked', attributes: { battery_level: 55 }, last_updated: 't2' };
+ok('a battery change while docked moves the signature', vsig(v1) !== vsig(v2), true);
+ok('...and nothing new keeps it still', vsig(v1) === vsig(Object.assign({}, v1)), true);
+
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed'
                    : 'ALL ' + pass + ' TILE TESTS PASS'));

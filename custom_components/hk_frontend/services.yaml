@@ -123,3 +123,18 @@ music_play_media:
       required: true
       selector:
         text:
+set_black_screen:
+  target:
+    entity:
+      integration: hk_frontend
+      domain: switch
+  fields:
+    black:
+      selector:
+        boolean:
+    brightness:
+      example: 174
+      selector:
+        number:
+          min: 0
+          max: 255

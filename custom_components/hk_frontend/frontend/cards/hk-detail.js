@@ -3312,15 +3312,7 @@
     }
     // AN AMOUNT IN THE HOUSE'S CURRENCY (Settings -> System -> General):
     // "$1.24", "€1,24"; a currency the browser cannot name is its code
-    function money(h, v, digits) {
-      var cur = String((h && h.config && h.config.currency) || 'USD').toUpperCase();
-      try {
-        return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur,
-          minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
-      } catch (e) {
-        return v.toFixed(digits) + ' ' + cur;
-      }
-    }
+    function money(h, v, digits) { return window.hkCards.money(h, v, digits); }
     var EN_CSS = [
       '.en{display:flex;flex-direction:column;gap:12px}',
       '.en[hidden]{display:none}',

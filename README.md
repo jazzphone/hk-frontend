@@ -59,7 +59,7 @@ Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens 
 
 ## A live sky
 
-Behind every page, a sky that follows the weather and the time of day: clear and starry, golden at sunset, grey and flashing in a thunderstorm, with rain or snow when it falls. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Each page can keep its own color, show the live sky, or a still backdrop.
+Behind every page, a sky that follows the weather and the time of day: clear and starry, golden at sunset, grey and flashing in a thunderstorm, with rain or snow when it falls. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Each page can keep its own color, show the live sky, or a still backdrop. **Liveliness** sets how much moves in it — the bats, leaves and fireflies, and how often something crosses the moon — for each occasion and each screen, calming down when nobody is around.
 
 <p align="center">
 <img src="docs/images/sky-new-halloween.jpg" width="49%" alt="New Decorations: Halloween night, jack-o'-lanterns in the trees under a full moon">
@@ -71,6 +71,8 @@ Behind every page, a sky that follows the weather and the time of day: clear and
 Put a screen on a wall tablet and it looks after itself. It returns to Home when left alone, and fills the screen with no Home Assistant header or sidebar.
 
 When nobody is using it, it shows your photos, or the forecast over a living landscape: the sky, the clouds and the light of the moment. The landscape dresses up for Halloween, Christmas, the Fourth of July and birthdays, like the dashboards. Over the top go the clock, the weather, what's playing, the timers and whether the house is secure, with your coming events beside them if you like. ([Screensaver and idle](https://github.com/jazzphone/hk-frontend/wiki/Screensaver-and-Idle))
+
+**[Sleep Screen](https://github.com/jazzphone/hk-frontend/wiki/Sleep-Screen)** keeps each tablet dark when nobody needs it and awake the moment somebody does. HK Frontend decides from the room’s presence sensors, quiet hours, the doorbell, smoke and away mode, sets the brightness for day and night, and fades in from black without a flicker — or your own automations decide, with one action.
 
 <p align="center">
 <img src="docs/images/tablet-forecast-halloween.png" width="49%" alt="The forecast screensaver on Halloween night: lanterns in the trees, jack-o’-lanterns, a big moon">

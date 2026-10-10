@@ -566,6 +566,9 @@
   }
 
   // ------------------------------------------------------------ the page
+  // THE RIGHT-HAND COLUMN'S WIDTH: the month's day panel, the day view's
+  // column, and the view switch's place above them
+  var RCOL = 380;
   var GLASS = function () {
     return M.glass + ';border:' + M.border + ';border-radius:' + M.radius +
       ';box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),var(--hk-glass-shadow-lg,0 10px 28px rgba(0,0,0,0.12))';
@@ -578,13 +581,20 @@
       '.ttl{font-size:34px;font-weight:700;letter-spacing:-0.6px;white-space:nowrap}',
       '.ttl span{font-weight:300;opacity:0.8}',
       '.arrows{display:flex;gap:8px}',
-      '.rb{width:44px;height:44px;border-radius:22px;border:' + M.border + ';background:' + M.bg + ';display:flex;align-items:center;justify-content:center;padding:0}',
-      '.pb{height:44px;padding:0 18px;border-radius:22px;border:' + M.border + ';background:' + M.bg + ';font-size:15px;font-weight:600}',
+      // THE CONTROLS ARE GLASS LIKE THE PANELS (M.glass, not only its color):
+      // the marker that cuts them out of the shared blur, so they follow the
+      // screen's Glass setting as the calendar under them does
+      '.rb{width:44px;height:44px;border-radius:22px;border:' + M.border + ';' + M.glass + ';display:flex;align-items:center;justify-content:center;padding:0}',
+      '.pb{height:44px;padding:0 18px;border-radius:22px;border:' + M.border + ';' + M.glass + ';font-size:15px;font-weight:600}',
       '.sp{flex:1}',
-      '.seg{height:44px;padding:3px;border-radius:22px;border:' + M.border + ';background:' + M.bg + ';display:flex;gap:2px}',
-      '.seg button{width:80px;height:36px;border-radius:18px;border:0;background:transparent;font-size:15px;font-weight:600}',
+      // the view switch and New Event over the right-hand column, the switch
+      // starting where that column does (RCOL, the day panel and the day
+      // view's column alike)
+      '.rgt{width:' + RCOL + 'px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px}',
+      '.seg{height:44px;padding:3px;border-radius:22px;border:' + M.border + ';' + M.glass + ';display:flex;gap:2px}',
+      '.seg button{width:74px;height:36px;border-radius:18px;border:0;background:transparent;font-size:15px;font-weight:600}',
       '.seg button[aria-selected="true"]{background:#fff;color:#1c1c1e}',
-      '.new{height:44px;padding:0 18px 0 14px;border-radius:22px;border:0;background:#fff;color:#1c1c1e;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}',
+      '.new{height:44px;padding:0 18px 0 14px;border-radius:22px;border:0;background:#fff;color:#1c1c1e;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}',
       '.panel{' + GLASS() + ';position:relative;overflow:hidden}',
       '.body{display:flex;gap:20px;align-items:stretch}',
       '.wide .body{height:var(--cal-h,620px)}',
@@ -613,7 +623,7 @@
       '.dots{position:absolute;left:0;right:0;bottom:6px;display:flex;justify-content:center;gap:3px}',
       '.dots i{width:6px;height:6px;border-radius:3px}',
       // ---- the day's list (month) and the agenda rows
-      '.side{width:380px;flex:none;padding:22px 22px 18px;display:flex;flex-direction:column}',
+      '.side{width:' + RCOL + 'px;flex:none;padding:22px 22px 18px;display:flex;flex-direction:column}',
       '.dname{font-size:28px;font-weight:700;letter-spacing:-0.4px}',
       '.dsub{font-size:15px;font-weight:500;color:rgba(255,255,255,0.8);margin-top:2px}',
       '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin-top:10px}',
@@ -659,7 +669,7 @@
       '.now::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:5px;background:#ff453a}',
       '.nowl{position:absolute;left:0;width:50px;text-align:right;font-size:11px;font-weight:700;color:#ff6961;pointer-events:none}',
       // ---- the day's right column: the month, the event
-      '.rcol{width:400px;flex:none;display:flex;flex-direction:column;gap:16px;min-height:0}',
+      '.rcol{width:' + RCOL + 'px;flex:none;display:flex;flex-direction:column;gap:16px;min-height:0}',
       '.mini{padding:16px 18px 14px;flex:none}',
       '.mini .mh{display:flex;align-items:center}',
       '.mini .mh b{font-size:17px;font-weight:700;flex:1}',
@@ -691,6 +701,7 @@
       '.narrow .sp{display:none}',
       '.narrow .arrows{margin-left:auto}',
       '.narrow .pb{order:4}',
+      '.narrow .rgt{display:contents}',
       '.narrow .seg{order:5;flex:1}',
       '.narrow .seg button{flex:1;width:auto}',
       '.narrow .new{order:6}',
@@ -915,9 +926,9 @@
         '<div class="arrows"><button class="rb" data-a="prev" aria-label="' + prevL + '">' + IC.left + '</button>' +
         '<button class="rb" data-a="next" aria-label="' + nextL + '">' + IC.right + '</button></div>' +
         '<button class="pb" data-a="today"' + (isToday ? ' aria-current="date"' : '') + '>Today</button>' +
-        '<div class="sp"></div><div class="seg" role="tablist" aria-label="View">' + seg + '</div>' +
+        '<div class="sp"></div><div class="rgt"><div class="seg" role="tablist" aria-label="View">' + seg + '</div>' +
         (writable(h).length ? '<button class="new" data-a="new" aria-label="New Event">' + IC.plus + (wide ? 'New Event' : '') + '</button>' : '') +
-        '</div>';
+        '</div></div>';
     }
     // ---- the month
     _month(h, wide) {

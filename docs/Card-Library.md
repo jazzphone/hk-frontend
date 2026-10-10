@@ -54,7 +54,7 @@ on (`./lights`), so one card works on every dashboard. A path that is a hash
 
 Tapping an accessory opens its **detail sheet**, HK Frontend’s own
 replacement for Home Assistant’s more-info dialog. Turn them off for every
-screen with **HK Settings → Appearance → HK Detail Sheets**, or for one card
+screen with **HK Settings → Library → Accessories → HK Detail Sheets**, or for one card
 with `detail: false`.
 
 ---
@@ -272,7 +272,8 @@ Frontend (`helpers/quick_timers.yaml`); see
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-camera-mosaic-card` | The camera strip: one camera live, the others as snapshots, in one scrolling plate. Tap a camera for its sheet. | `cameras` (`[{entity, name, option}]`), `selector` (an `input_select` whose option picks the live camera; `option` matches a camera to it), `height`, `refresh` (seconds between snapshots, default 10; 0 stops them), `seam`, `radius` |
+| `hk-camera-mosaic-card` | The camera strip: one camera live, the others as snapshots, in one scrolling plate. Tap a camera for its sheet. | `cameras` (`[{entity, name, option}]`), `selector` (an `input_select` whose option picks the live camera; `option` matches a camera to it), `height`, `refresh` (seconds between snapshots, default 10; 0 stops them), `seam`, `radius`, `stills_only` (no live tile: every camera a snapshot, one tall then two stacked, as a room page shows them; a single camera is one 16:9 snapshot), `own_cameras` (this card’s `cameras`, not the screen’s camera list) |
+| `hk-camera-live-card` | One camera live, as a tile. On a page of them, each waits its turn: three connect at a time, each opening on the camera’s last picture until its video is on screen (the Cameras page). | `entity` (a camera), `aspect_ratio` (default `16x9`), `fit_mode` (`cover` or `contain`) |
 | `hk-doorbell-card` | One camera live **with its sound**. With a speaker, a hold-to-talk button. | `entity` (a camera), `name`, `speaker`, `live` (stream as you speak, for UniFi Protect doorbells; off: a recorded message played when you let go), `sound`, `aspect_ratio` (default `4x3`), `fill`, `tuning` |
 | `hk-tv-guide-card` | The [Live TV](Live-TV.md) guide: every channel with what is on, and a tap that plays one full screen. | `title` |
 

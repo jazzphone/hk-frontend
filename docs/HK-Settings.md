@@ -31,7 +31,7 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **Status & Chips**, **[Status Rows](Status-Rows.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **Wall Tablets** | Every screen |
+| **All Screens** | **General**, **Status & Chips**, **[Status Rows](Status-Rows.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **[Cameras](Cameras.md)**, **Wall Tablets** | Every screen |
 | **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **Energy** | Every screen |
 | **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
@@ -62,9 +62,14 @@ sizes read **Portrait** and **Landscape**.
   generated screen (see [Screens](Screens.md#two-kinds-of-screen)) rebuilds
   itself within about ten seconds when something it is built from changes, and
   stays on the page you were looking at. Nothing here needs a restart.
-- **A screen setting that can follow All Screens says so.** A screen’s Glass
-  reads *Same as All Screens (Blur)* until you choose one for that screen, and
+- **A screen setting that can follow All Screens says so.** Under its name a
+  screen’s row reads *Same as All Screens*, beside the value it follows
+  (*Blur*), until you choose one for that screen, and
   its amount sliders are marked *Same as All Screens* until you move them.
+  Once it has its own, it reads *Just This Screen*, and a **Reset to All
+  Screens (50%)** button follows All Screens again. A screen that follows All
+  Screens’ Menu Settings, Rooms or Cameras lists the values it takes, in place, under
+  **From All Screens**, ending with a link to that All Screens page.
 - **Lists work the same way everywhere** (status chips, cameras, scenes,
   favorites, rooms, pages, Discover rows, a room’s tile order):
   - An **Automatic** switch at the top. On, the list follows your home: a
@@ -105,9 +110,10 @@ When the same thing can be set in more than one place, the most specific wins:
 | Setting | Default | What it does |
 |---|---|---|
 | Alarm Panel | No Alarm | The alarm for the header’s security line, the Security chip and page, and every alarm keypad that names no panel of its own. When none is chosen, the page offers **Use (your first alarm panel)**; a generated screen’s Security page uses the first alarm panel until you choose. |
-| Indoor Temperature | First Thermostat’s | A temperature sensor for the Climate chip. |
-| Power Use | None | A power sensor for the Energy chip, which needs it. W or kW; shown in kW. |
 | House Timers | None | Timer helpers people start themselves (a nap, bedtime), shown as one-tap pills on the Timers page, in order. Each starts for its own duration and is named as the timer is, less a trailing “Timer”. |
+
+The chips’ Indoor Temperature and Power Use are under
+[Status & Chips → Readings](Status-Chips.md#status--chips).
 
 ## Advanced
 
@@ -150,8 +156,8 @@ optional, and each has a fallback.
 | Setting | Typically points at | Left empty |
 |---|---|---|
 | Advanced → Time Sensor, Date Sensor | `sensor.time`, `sensor.date` (Time & Date) | Each screen’s own clock |
-| General → Indoor Temperature | Any temperature sensor (an average, say) | The first thermostat’s reading |
-| General → Power Use | A whole-home power sensor | No Energy chip |
+| Status & Chips → Indoor Temperature | Any temperature sensor (an average, say) | The first thermostat’s reading |
+| Status & Chips → Power Use | A whole-home power sensor | No Energy chip |
 | Weather → Sensors → forecasts | Template sensors over `weather.get_forecasts` | Read from the weather entity |
 | Weather → Sensors → Weather Alerts | The NWS Alerts integration (HACS) | No alerts chip or card |
 | Sky → Sky Switch | An input boolean | Always on |
@@ -169,11 +175,21 @@ optional, and each has a fallback.
 Under **All Screens → Sky / Background**, choose whether the sky animates,
 shows weather, or adds seasonal decorations, how its clouds look (**Clouds**:
 Classic or Realistic) and how bright its midday blue runs (**Daytime Sky**:
-Natural, Balanced or Deep). **Backdrop** offers Live sky,
+Natural, Balanced or Deep). **Liveliness** -- how many little moving things,
+and how often the crossers come -- is one choice for every decoration, woodland
+season and the night sky, or Custom for each its own
+([Seasonal Decorations](Seasonal-Decorations.md#liveliness)).
+**Backdrop** offers Live Sky,
 eight curated palettes, and Custom with four Day colors and four Night colors.
 
-A screen has the same controls under **Appearance → Sky / Background**.
-Each flag follows All Screens until changed; **Use All-Screens…** restores
-that relationship. Its Backdrop picker offers **Same as All Screens** or a
-backdrop just for that screen. Copy Settings includes these appearance settings.
+A screen has the same controls under **Appearance → Sky / Background**, below
+its own **Live Sky** switch, plus its own **Liveliness** (Same as All Screens,
+a preset for every occasion, or Custom for each) and **Calm When Nobody’s
+Around**. Its Clouds, Daytime Sky and Decoration Style are the same tabs as All
+Screens’, saying **Same as All Screens** until changed; **Reset to All Screens**
+follows them again.
+Each flag reads **Same as All Screens** until changed, then **Just This
+Screen**; **Reset to All Screens (On)** follows All Screens again. Its
+Backdrop picker offers **Same as All Screens** or a backdrop just for that
+screen. Copy Settings includes these appearance settings.
 See [Live Sky](Live-Sky.md#choose-its-look) for what each switch changes.

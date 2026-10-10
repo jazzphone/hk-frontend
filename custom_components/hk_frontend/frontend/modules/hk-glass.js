@@ -309,7 +309,21 @@
     // sheet's or the screensaver's cards arriving meanwhile would keep a
     // page hidden until the backstop.
     if (v === gate) { lastJoin = performance.now(); return; }
-    if (v.hasAttribute('data-hk-frost')) return;
+    if (v.hasAttribute('data-hk-frost')) {
+      // A PAGE HOME ASSISTANT KEPT, BACK: shown at once, before the tablet
+      // had drawn it again -- its plates with nothing on them for a frame
+      // (screen-recorded on the second visit to Lights). Faint until no
+      // card on it has a render pending, then for AGAIN_FRAMES drawn, then
+      // shown. It was once also at least 250 ms and 8 frames (a wall tablet
+      // short of tile memory drew 4 frames in 468 ms, and the part it had
+      // not drawn showed the moment the faint ended) -- a quarter second of
+      // nothing on every return, and the tile shortage it waited out is
+      // gone since the cloud ceiling became a canvas (TABLET-INVARIANTS
+      // 16q; screen-recorded 2026-10-09). Only a page that left (`away`, set as its cards left
+      // with it), never a card appearing on a page on screen.
+      if (away.has(v)) { away.delete(v); faintAgain(v); }
+      return;
+    }
     // A newer view while one is still held (a second navigation inside the
     // settle): the old one is on its way out; let it go.
     if (gate) release();
@@ -321,21 +335,108 @@
     v.setAttribute('data-hk-frost', 'pending');
     gateTimer = setTimeout(release, HOLD_MS);
   }
+  // Pages that left with their cards still in them (kept by Home Assistant).
+  var away = new WeakSet(), AGAIN_FRAMES = 2;
+  function faintAgain(v) {
+    if (v.__hkFaint) return;
+    v.__hkFaint = true;
+    v.style.opacity = FAINT;
+    var n = 0, drawn = 0;
+    requestAnimationFrame(function next() {
+      // while a card on it still has a render pending (its cards render
+      // again as they come back), at most REVEAL_FRAMES; then AGAIN_FRAMES
+      // drawn complete, so the tablet has rastered what it is about to show
+      if (++n < REVEAL_FRAMES && pendingIn(v)) { requestAnimationFrame(next); return; }
+      if (++drawn <= AGAIN_FRAMES) { requestAnimationFrame(next); return; }
+      v.__hkFaint = false;
+      if (v.style.opacity === FAINT) v.style.opacity = '';
+    });
+  }
+  // ...AND WHERE THE PAGES GO: a view element put back into the page is a
+  // page coming back (its cards' leaving was not always heard on a wall
+  // tablet -- the first return from Lights showed half drawn). Only a VIEW
+  // being inserted counts; a card appearing never inserts one.
+  var viewMo = null, viewBox = null;
+  function watchViews() {
+    if (typeof MutationObserver === 'undefined') return;
+    var box = viewContainer();
+    if (!box || box === viewBox) return;
+    if (viewMo) viewMo.disconnect();
+    viewBox = box;
+    viewMo = new MutationObserver(function (recs) {
+      if (!active) return;
+      recs.forEach(function (r) {
+        Array.prototype.forEach.call(r.addedNodes || [], function (n) {
+          if (n.nodeType === 1 && VIEWS.indexOf(n.tagName) >= 0 && n.getAttribute('data-hk-frost') === 'done') {
+            away.delete(n); faintAgain(n);
+          }
+        });
+      });
+    });
+    viewMo.observe(box, { childList: true });
+  }
+  function viewContainer() {
+    var ha = document.querySelector('home-assistant');
+    var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+    var res = main && main.shadowRoot && main.shadowRoot.querySelector('partial-panel-resolver');
+    var panel = res && res.querySelector('ha-panel-lovelace');
+    var hr = panel && panel.shadowRoot && panel.shadowRoot.querySelector('hui-root');
+    var root = hr && hr.shadowRoot;
+    return (root && (root.querySelector('hui-view-container') || root.querySelector('#view'))) || null;
+  }
   function release() {
     if (!gate) return;
     var v = gate;
-    gate = null;
+    gate = null; revealing = null;
     clearTimeout(gateTimer); gateTimer = null;
     clearTimeout(settleTimer); settleTimer = null;
     v.style.visibility = '';
+    if (v.style.opacity === FAINT) v.style.opacity = '';
     v.setAttribute('data-hk-frost', 'done');
+  }
+  // THE WHOLE PAGE, DRAWN, BEFORE IT SHOWS (2026-10-09). Settled joins say
+  // the GLASS cards are in; the headings, the title and the cards inside
+  // others may still be rendering -- the Lights page showed its cards
+  // without a heading for a frame (headless), and on a wall tablet its
+  // plates with nothing on them (screen-recorded). So: until no element in
+  // the view has a render pending (Lit's isUpdatePending, or hasUpdated
+  // false before its first), at most REVEAL_FRAMES; then two frames drawn
+  // at FAINT -- too faint to see, but drawn, so the tablet has rastered it
+  // (the photo screensaver's [prep], for the same reason) -- then shown.
+  var FAINT = '0.004', REVEAL_FRAMES = 30, revealing = null;
+  function pendingIn(v) {
+    var stack = [v];
+    while (stack.length) {
+      var n = stack.pop();
+      if (n !== v && (n.isUpdatePending === true || n.hasUpdated === false)) return true;
+      var kids = n.children || [];
+      for (var i = 0; i < kids.length; i++) stack.push(kids[i]);
+      if (n.shadowRoot) stack.push(n.shadowRoot);
+    }
+    return false;
+  }
+  function showWhenDrawn() {
+    if (!gate || revealing === gate) return;
+    var v = gate, n = 0;
+    revealing = v;
+    (function look() {
+      if (gate !== v) return;
+      if (++n < REVEAL_FRAMES && pendingIn(v)) { requestAnimationFrame(look); return; }
+      v.style.opacity = FAINT;
+      v.style.visibility = '';
+      var f1 = false;                     // each step once
+      requestAnimationFrame(function () {
+        if (f1) return; f1 = true;
+        requestAnimationFrame(function () { if (gate === v) release(); });
+      });
+    })();
   }
   // After an update: the held view may paint once the joins have settled;
   // until then, look again when they should have.
   function settled() {
     if (!gate) return;
     var wait = SETTLE_MS - (performance.now() - lastJoin);
-    if (wait <= 0) { release(); return; }
+    if (wait <= 0) { showWhenDrawn(); return; }
     clearTimeout(settleTimer);
     settleTimer = setTimeout(function () { settleTimer = null; schedule(false); }, wait + 5);
   }
@@ -506,6 +607,7 @@
   function update() {
     queued = false;
     if (!active) return;
+    watchViews();
     var t0 = performance.now();
     scaleMemo = new Map();
     var groups = new Map(), rects = 0;
@@ -641,6 +743,8 @@
   function start() {
     if (active) return;
     active = true; full = true;
+    watchViews();
+    window.addEventListener('location-changed', watchViews);
     // Every view already on the page has been painted: see seen().
     cards.forEach(function (c) { if (c.isConnected) seen(c); });
     document.addEventListener('pointerdown', onDown, true);
@@ -665,6 +769,8 @@
     if (!active) return;
     active = false;
     release();
+    window.removeEventListener('location-changed', watchViews);
+    if (viewMo) { viewMo.disconnect(); viewMo = null; viewBox = null; }
     clearInterval(timer); timer = null;
     window.removeEventListener('resize', onResize);
     document.removeEventListener('visibilitychange', onVisible);
@@ -694,6 +800,7 @@
       if (!active) return;
       if (!card) { schedule(true); return; }
       if (on) hold(card);
+      else { var lv = viewOf(card); if (lv && !lv.isConnected) away.add(lv); }
       dirty.add(card);
       schedule(false);
     },

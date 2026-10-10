@@ -15,11 +15,13 @@
  *
  * PREVIEW ONLY, ON A DASHBOARD. Before the panel shows -- and with the page
  * under a cover until then -- this window's Home Assistant connection is
- * locked down: every service call, script and event, and every message whose
- * last word is a write (save, set, delete, favorite, order...), is answered as
- * if it had worked and never sent; so is every fetch that is not a GET. A
- * toast says what was held back. Taps still open pop-ups and pages. Exit
- * reloads the page without ?skylab, which is the only way the lockdown ends.
+ * locked down: only messages known to READ go out (READS below -- states,
+ * registries, subscriptions, history, camera streams); every other message --
+ * a service call, a script, an event, any write, anything not recognised -- is
+ * answered as if it had worked and never sent; so is every fetch that is not a
+ * GET. A toast says what was held back. Taps still open pop-ups and pages.
+ * Exit reloads the page without ?skylab, which is the only way the lockdown
+ * ends.
  *
  * Nothing is saved but the panel's own settings, in this tab's sessionStorage,
  * so Sky only and Dashboard keep the same sky between them.
@@ -39,12 +41,35 @@
   }
 
   // ------------------------------------------------------------- lockdown
-  var WRITE_VERB = /^(save|update|create|delete|remove|set|add|order|favorite|section|watching|touch|move|reorder|enable|disable|reload|restart|clean|start|stop|reset|import|upload|write|rename|toggle|trigger|run|press)$|^set_|_set$/;
-  function isWrite(type) {
+  // READS, NOT WRITES: what may go out is listed, and anything else is held.
+  // A list of write verbs (2026-10-07 audit) let through what it had not
+  // thought of -- hk_frontend/talk/live, which streams the tablet's
+  // microphone to the doorbell speaker, backup/generate, conversation/process.
+  // A read missing here only shows as a "was not sent" toast, the safe way
+  // round for a preview.
+  var READS = { ping: 1, get_states: 1, get_config: 1, get_services: 1, get_panels: 1,
+    subscribe_events: 1, unsubscribe_events: 1, subscribe_entities: 1, render_template: 1,
+    supported_features: 1, 'auth/current_user': 1, 'auth/sign_path': 1,
+    'lovelace/config': 1, 'lovelace/resources': 1, 'lovelace/info': 1,
+    'manifest/list': 1, 'manifest/get': 1, 'entity/source': 1, 'search/related': 1, 'extract_from_target': 1,
+    'camera/stream': 1, 'camera/capabilities': 1, 'camera/webrtc/offer': 1, 'camera/webrtc/candidate': 1,
+    'media_player/browse_media': 1, 'media_player/search_media': 1,
+    'media_source/browse_media': 1, 'media_source/resolve_media': 1,
+    'history/history_during_period': 1, 'history/stream': 1, 'logbook/event_stream': 1,
+    'recorder/statistics_during_period': 1, 'recorder/get_statistics_metadata': 1,
+    'weather/subscribe_forecast': 1, 'todo/item/subscribe': 1, 'energy/info': 1,
+    'energy/fossil_energy_consumption': 1, 'repairs/list_issues': 1,
+    'sensor/numeric_device_classes': 1, 'hk_frontend/art/sign': 1, 'hk_tv/channels': 1 };
+  // ...and any `<domain>/.../<verb>` whose last word only reads
+  // (frontend/get_themes, config/area_registry/list, hk_music/subscribe)
+  var READ_VERB = /^(get|list|subscribe|check|info|get_[a-z_]+|list_[a-z_]+|subscribe_[a-z_]+)$/;
+  function isRead(type) {
     type = String(type || '');
-    if (/^(call_service|execute_script|fire_event)$/.test(type)) return true;
-    return type.indexOf('/') > 0 && WRITE_VERB.test(type.split('/').pop());
+    if (READS[type]) return true;
+    return type.indexOf('/') > 0 && READ_VERB.test(type.split('/').pop());
   }
+  function isWrite(type) { return !isRead(type); }
+  window.hkSkyLab = { _: { isRead: isRead } };   // for tests/test_skylab.js
   var locked = false;
   function lockDown() {
     if (locked) return true;
@@ -100,6 +125,8 @@
     '#toast{position:fixed;z-index:2147483002;left:50%;bottom:20px;transform:translateX(-50%);background:#0d1420f0;border:1px solid var(--line);',
     '  border-radius:12px;padding:9px 14px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:calc(100vw - 32px)}',
     '#toast.on{opacity:1}',
+    '.wide{width:100%;font:inherit;font-size:14px;font-weight:600;padding:8px;border-radius:8px;border:1px solid var(--accent);',
+    '  background:#0b111c;color:var(--accent);cursor:pointer}',
     '#cards{position:fixed;z-index:1;left:24px;bottom:24px;display:none;gap:12px;flex-wrap:wrap;max-width:calc(100vw - 400px)}',
     '#cards.on{display:flex}#cards div{width:170px;height:62px;border-radius:16px;background:#ffffff26;border:1px solid #ffffff2e;',
     '  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);padding:10px 14px;box-sizing:border-box;font-weight:600}',
@@ -133,6 +160,12 @@
     '      <option value=christmas>Christmas</option><option value=winter-wonderland>Winter Wonderland</option><option value=spring-garden>Spring Garden</option>' +
     '      <option value=fourth-of-july>Fourth of July</option><option value=birthday>Birthday</option></optgroup></select></div>' +
     '  <div class=row><label>Decorations</label><div class=seg data-k=deco><button data-v=new>New</button><button data-v=old>Old</button></div></div>' +
+    // LIVELINESS (hk-sky.js lvOf): one preset on every occasion at once, as
+    // a screen's Liveliness is -- the sky pinned, nothing saved
+    '  <div class=row><label>Liveliness</label><div class=seg data-k=lively><button data-v=subtle>Subtle</button>' +
+    '    <button data-v=classic>Classic</button><button data-v=festive>Festive</button><button data-v=party>Party</button></div></div>' +
+    '  <div class=row><button id=nowBtn class=wide>Show Me Now</button>' +
+    '    <small>The next bat, goose, witch, sleigh, flyby, shooting star or firework, across now.</small></div>' +
     '  <div class=check><label><input type=checkbox id=anim checked> Animations</label><label><input type=checkbox id=fog> Fog</label></div>' +
     '  <div id=info>Loading the sky…</div>' +
     ' </div>' +
@@ -140,7 +173,7 @@
     (STANDALONE ? '<div id=cards><div>Living Room<small>3 Lights On</small></div><div>Climate<small>72° · Cooling</small></div>' +
                   '<div>Front Door<small>Locked</small></div><div>Kitchen<small>Off</small></div></div>' : '');
 
-  var root, $, seg = { show: STANDALONE ? 'sky' : 'dash', style: 'realistic', deco: 'new' };
+  var root, $, seg = { show: STANDALONE ? 'sky' : 'dash', style: 'realistic', deco: 'new', lively: 'classic' };
   var SLIDERS = ['time', 'bri', 'cover', 'rate', 'wind', 'moon'], PICKS = ['cond', 'scene'], CHECKS = ['anim', 'fog'];
 
   var toastT = 0;
@@ -171,6 +204,10 @@
     $('minBtn').onclick = function () {
       var p = $('panel'); p.classList.toggle('min'); $('minBtn').textContent = p.classList.contains('min') ? 'Show' : 'Hide';
     };
+    $('nowBtn').onclick = function () {
+      var n = window.hkSky && window.hkSky.showNow ? window.hkSky.showNow() : 0;
+      toast(n ? 'Across now: ' + n + (n === 1 ? ' crossing' : ' crossings') : 'Nothing crosses in this scene right now');
+    };
     if (STANDALONE) $('cardsBtn').onclick = function () { $('cards').classList.toggle('on'); };
     else {
       // leaving: the page again without ?skylab -- a full load, so the
@@ -194,7 +231,7 @@
     else location.href = '/' + (store(DASH_KEY) || 'dashboard-livingroom') + '?skylab';
   }
   function save() {
-    var v = { style: seg.style, deco: seg.deco };
+    var v = { style: seg.style, deco: seg.deco, lively: seg.lively };
     SLIDERS.concat(PICKS).forEach(function (id) { v[id] = $(id).value; });
     CHECKS.forEach(function (id) { v[id] = $(id).checked; });
     store(KEY, v);
@@ -203,6 +240,7 @@
     var v = store(KEY); if (!v) return;
     if (v.style) seg.style = v.style;
     if (v.deco) seg.deco = v.deco;
+    if (v.lively) seg.lively = v.lively;
     SLIDERS.concat(PICKS).forEach(function (id) { if (v[id] !== undefined) $(id).value = v[id]; });
     CHECKS.forEach(function (id) { if (v[id] !== undefined) $(id).checked = v[id]; });
   }
@@ -252,7 +290,8 @@
         fog: $('fog').checked || cond === 'fog', wet: wet, moon: m, animations: $('anim').checked,
         weather: true, decorations: !!scene, seasonalOn: !!scene, decorationStyle: seg.deco,
         season: HOLIDAY_SEASON[holiday] ? holiday : '', land: land || undefined,
-        cloudStyle: seg.style, backdrop: null, brightness: +$('bri').value / 100
+        cloudStyle: seg.style, backdrop: null, brightness: +$('bri').value / 100,
+        lively: { all: seg.lively }
       }
     };
   }
@@ -300,7 +339,10 @@
     var tries = 0;
     var t = setInterval(function () {
       if (!document.body || !lockDown()) {
-        if (++tries === 300) host.textContent = 'Sky Lab could not start: Home Assistant did not connect. Reload to try again.';
+        if (++tries >= 300) {
+          clearInterval(t);
+          host.textContent = 'Sky Lab could not start: Home Assistant did not connect. Reload to try again.';
+        }
         return;
       }
       clearInterval(t);

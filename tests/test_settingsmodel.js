@@ -121,7 +121,7 @@ ok('a stale path (Browse Music, a page no longer here) is dropped',
    eq(M.placeSet({ categories: ['security', 'music-browse', 'vacuums'] }, IT, 'lights', 'list'), { menu_top: [], categories: ['security', 'lights'] }));
 ok('the last page cannot leave Categories (empty means every page)',
    M.placeSet({ categories: ['security'] }, IT, 'security', 'off') === null);
-ok('narrow labels', M.narrowLabel('chip_scroll') === 'Chip, Then Tab' && M.narrowLabel(undefined) === 'Chip');
+ok('Phones\' button style labels', M.phoneStyleLabel('chip_scroll') === 'Chip, Then Tab' && M.phoneStyleLabel(undefined) === 'Chip');
 
 // ------------------------------------------------------------ rooms
 var AZ = ['attic', 'garage', 'kitchen'];
@@ -178,7 +178,25 @@ ok('search: a screen setting is found once per screen, a house one once',
 var hp = M.search('home page', [{ path: 'energy-tablet', title: 'Energy' }]).filter(function (x) { return x.label === 'Home Page' || /home_page|Home Page/.test(JSON.stringify(x)); });
 ok('search: Home Page opens the screen\'s own Pages page (not the house\'s Custom Pages)',
    hp.length > 0 && hp.every(function (x) { return x.route === 'screens/energy-tablet/pages'; }), hp);
+// THE TAB BAR IS A MENU, NEVER A BUTTON STYLE: All Screens' server refuses
+// it as a style (settings.py MENU_STYLES), and a screen's would have turned
+// its whole menu into the bar (2026-10-09 audit B1)
+ok('no Tab Bar among the button styles', !M.MENU_STYLES.some(function (n) { return n[0] === 'tabbar'; }) &&
+   !M.BUTTON_PHONE.some(function (n) { return n[0] === 'tabbar'; }));
 ok('search: every word must match', M.search('wall photos', []).length === 1 && M.search('zzz', []).length === 0);
+// THE ROW TO LIGHT UP: a screen's rows are b:<key> on the screen's page and on
+// the pages under it -- Menu Settings and Hide Header lit nothing before
+var keyOf = function (q, label) {
+  var x = M.search(q, [{ path: 'dashboard-kitchen', title: 'Kitchen' }]).filter(function (y) { return y.label === label; })[0];
+  return x && x.key;
+};
+ok('search: a screen page\'s row is lit by its b: label', keyOf('menu', 'Menu') === 'b:menu');
+ok('...and so is one on a page under the screen (Menu Settings, Hide Header)',
+   keyOf('menu settings', 'Menu Settings') === 'b:menu_custom' && keyOf('hide header', 'Hide Header') === 'b:kiosk_header');
+ok('...while a key with its own prefix stays as it is',
+   keyOf('forecast no photos', 'Forecast When There Are No Photos') === 'saver:fallback');
+ok('...and a house setting keeps its own key', M.search('backdrop', []).filter(function (y) { return y.route === 'house/sky/backdrop'; })
+   .every(function (y) { return !/^b:/.test(y.key); }));
 ok('errors: a refusal map is read from the message', eq(M.refusals({ message: '{"look.glass":"choice"}' }), { 'look.glass': 'choice' }) &&
    M.refusals({ message: 'Unknown command' }) === null && /isn’t one of/.test(M.errorText('choice')));
 ok('reorder', eq(M.move(['a', 'b', 'c'], 0, 2), ['b', 'c', 'a']) && eq(M.move(['a', 'b', 'c'], 2, 0), ['c', 'a', 'b']));
@@ -326,11 +344,11 @@ ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_
   var sv = M.houseMenuSave({ menu: 'chip', tab_position: '', accent: 'red', glyph: 'lines' });
   ok('...and back', sv['menu.style'] === 'chip' && sv['menu.tab_at'] === '' && sv['menu.accent'] === 'red' && sv['menu.glyph'] === 'lines' &&
      Object.keys(sv).length === 4, sv);
-  var own = M.menuOwnChanges({ menu: 'chip_scroll', accent: 'teal', tab_size: 'xl', narrow: 'tab', dock_min: 1000 });
+  var own = M.menuOwnChanges({ menu: 'chip_scroll', accent: 'teal', tab_size: 'xl', button_phone: 'tab', dock_min: 1000 });
   ok('taking its own: what it shows now, the button\'s style too', own.menu_custom === true && own.menu === 'chip_scroll' &&
      own.accent === 'teal' && own.tab_size === 'xl', own);
   ok('...but never off or always open', !('menu' in M.menuOwnChanges({ menu: 'open' })));
-  ok('a screen\'s row says whose they are', M.menuSummary({ menu_custom: true }) === 'This Screen’s Own' &&
+  ok('a screen\'s row says whose they are', M.menuSummary({ menu_custom: true }) === 'Just This Screen' &&
      M.menuSummary({}) === 'Same as All Screens');
   ok('search finds the highlight on All Screens\' Menu', M.search('highlight color', []).some(function (r) { return r.route === 'house/menu/accent'; }));
 })();
@@ -348,11 +366,11 @@ ok('search includes the backdrop picker', M.search('backdrop', [{path:'dashboard
 var ids = function (l) { return l.map(function (x) { return x[0]; }).join(','); };
 ok('No Button hidden without the swipe', ids(M.stylesFor(M.MENU_STYLES, false, 'auto')).indexOf('none') < 0);
 ok('...offered with it', ids(M.stylesFor(M.MENU_STYLES, true, 'auto')).indexOf('none') >= 0 &&
-   ids(M.stylesFor(M.NARROW, true, 'chip')).indexOf('none') >= 0);
-ok('...and shown while it is the choice', ids(M.stylesFor(M.NARROW, false, 'none')).indexOf('none') >= 0);
-ok('swipe off puts No Button back', JSON.stringify(M.swipeChanges(false, { menu: 'none', narrow: 'none' })) ===
-   JSON.stringify({ swipe: false, menu: 'auto', narrow: 'chip' }));
-ok('...and leaves any other style alone', JSON.stringify(M.swipeChanges(false, { menu: 'tab', narrow: 'chip_scroll' })) ===
+   ids(M.stylesFor(M.BUTTON_PHONE, true, 'chip')).indexOf('none') >= 0);
+ok('...and shown while it is the choice', ids(M.stylesFor(M.BUTTON_PHONE, false, 'none')).indexOf('none') >= 0);
+ok('swipe off puts No Button back', JSON.stringify(M.swipeChanges(false, { menu: 'none', button_phone: 'none' })) ===
+   JSON.stringify({ swipe: false, menu: 'auto', button_phone: 'chip' }));
+ok('...and leaves any other style alone', JSON.stringify(M.swipeChanges(false, { menu: 'tab', button_phone: 'chip_scroll' })) ===
    JSON.stringify({ swipe: false }) && JSON.stringify(M.swipeChanges(true, { menu: 'tab' })) === JSON.stringify({ swipe: true }));
 ok('All Screens\' swipe maps onto a screen', M.houseMenuAsBoard({ swipe: true }).swipe === true &&
    M.houseMenuAsBoard({}).swipe === false && M.houseMenuSave({ swipe: true })['menu.swipe'] === true);
@@ -381,11 +399,11 @@ ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.
   ok('page backgrounds: each page once, Browse Music with Play Music', rows.map(function (r) { return r.key; }).join(',') === 'energy,weather,music,rooms,ecoflow');
   ok('...Automatic in words: a page with its own color keeps it, the rest the live sky, a custom page as written',
      M3.skyAutoLabel(rows[0]) === 'Page Color' && M3.skyAutoLabel(rows[1]) === 'Backdrop' && M3.skyAutoLabel(rows[4]) === 'As Written');
-  var bds = [{ id: 'live', label: 'Live sky' }, { id: 'dusk', label: 'Dusk' }];
+  var bds = [{ id: 'live', label: 'Live Sky' }, { id: 'dusk', label: 'Dusk' }];
   var ops = M3.skyModeOptions(rows[0], bds, 'Automatic').map(function (o) { return o[0]; }).join(',');
-  ok('...the choices: Automatic, Page Color where it has one, then every backdrop (Live sky first)', ops === ',own,live,dusk', ops);
+  ok('...the choices: Automatic, Page Color where it has one, then every backdrop (Live Sky first)', ops === ',own,live,dusk', ops);
   ok('...Page Color offered only where there is one', M3.skyModeOptions(rows[1], bds, 'A').map(function (o) { return o[0]; }).indexOf('own') < 0);
-  ok('...a mode in words', M3.skyModeLabel('dusk', bds) === 'Dusk' && M3.skyModeLabel('live', bds) === 'Live sky');
+  ok('...a mode in words', M3.skyModeLabel('dusk', bds) === 'Dusk' && M3.skyModeLabel('live', bds) === 'Live Sky');
 })();
 (function () {
   var MM = M;
@@ -402,5 +420,30 @@ ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.
 var fb = M.foldOptions('bottom'), fr = M.foldOptions('right');
 ok('Shrinks To: a bar\'s left or right, a rail\'s top or bottom',
       fb[0][1] === 'Left' && fb[1][1] === 'Right' && fr[0][1] === 'Top' && fr[1][1] === 'Bottom' && M.foldOptions('top')[1][1] === 'Right');
+// PHONES' OWN MENU (2026-10-08): the same answers as hk-base.js and settings.py phone_menu
+var pm = M.phoneMenu;
+ok('Phones\' menu: its own, else the tablets\' when off or the bar, else a button',
+   pm({ menu: 'tabbar' }) === 'tabbar' && pm({ menu: 'off' }) === 'off' &&
+   pm({ menu: 'open' }) === 'button' && pm({ menu: 'auto' }) === 'button' &&
+   pm({ menu: 'off', menu_phone: 'tabbar' }) === 'tabbar' && pm({ menu: 'tabbar', menu_phone: 'button' }) === 'button');
+ok('...its button: its own, else the chip',
+   M.phoneButton({}) === 'chip' && M.phoneButton({ button_phone: 'tab' }) === 'tab' && M.phoneButton({ button_phone: 'tabbar' }) === 'chip');
+ok('...no tab bar among a phone\'s button styles', M.BUTTON_PHONE.every(function (n) { return n[0] !== 'tabbar'; }) &&
+   M.BUTTON_PHONE.length === 4);
+ok('each device\'s line: a screen\'s says its menu, All Screens\' its style',
+   M.tabletSummary({ menu: 'open' }) === 'Always Open' && M.tabletSummary({ menu: 'tab' }) === 'Edge Tab' &&
+   M.phoneSummary({ menu: 'open', menu_phone: 'tabbar' }) === 'Tab Bar' && M.phoneSummary({ menu: 'auto', button_phone: 'chip_scroll' }) === 'Chip, Then Tab' &&
+   M.tabletSummary({ menu: 'chip' }, true) === 'Chip' && M.phoneSummary({ button_phone: null }, true) === 'Chip');
+ok('the edge tab per device: a tablet\'s tab bar menu has none, a phone\'s button may',
+   !M.tabletTab({ menu: 'tabbar' }) && !M.tabletTab({ menu: 'open' }) && M.tabletTab({ menu: 'chip_scroll' }) && M.phoneTab({ menu: 'tabbar', menu_phone: 'button', button_phone: 'tab' }) &&
+   M.showsTab({ menu: 'tabbar', menu_phone: 'button', button_phone: 'tab' }) && !M.showsTab({ menu: 'tabbar' }));
+ok('the tab bar anywhere: on tablets, or on phones alone', M.hasTabBar({ menu: 'auto', menu_phone: 'tabbar' }) &&
+   !M.tabletTabBar({ menu: 'auto', menu_phone: 'tabbar' }) && !M.hasTabBar({ menu: 'auto', menu_phone: 'button' }));
+ok('swipe off: a phone\'s No Button goes back to the chip', M.swipeChanges(false, { button_phone: 'none' }).button_phone === 'chip');
+var hb = M.houseMenuAsBoard({ button_phone: 'tab', bar_rooms_phone: 'button' });
+ok('All Screens\' phone keys read as a screen\'s, and save back', hb.button_phone === 'tab' && hb.tab_bar_rooms_phone === 'button' &&
+   M.houseMenuAsBoard({}).button_phone === 'chip' && M.houseMenuAsBoard({}).tab_bar_rooms_phone === 'more' &&
+   M.houseMenuAsBoard({ bar_glass: 'clear' }).tab_bar_glass === 'tinted' && !('narrow' in M.houseMenuAsBoard({})) &&
+   eq(M.houseMenuSave({ button_phone: 'chip', tab_bar_rooms_phone: null }), { 'menu.button_phone': 'chip', 'menu.bar_rooms_phone': null }));
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

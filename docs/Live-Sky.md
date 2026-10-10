@@ -60,7 +60,10 @@ night has fireflies, and on the holidays the landscape itself is decorated
 is off, no generated screen shows the live sky. With none chosen, the sky is
 always on.
 
-**One screen:** HK Settings → the screen → **Appearance → Live Sky**.
+**One screen:** HK Settings → the screen → **Appearance → Sky / Background**,
+whose first row is the screen’s **Live Sky** switch (the row reads **Off**
+while it is off). A generated screen’s sky also follows the Sky Switch; a YAML
+screen’s sky comes from its YAML, and this switch can only turn it off.
 
 **A dashboard you write in YAML:** the dashboard opts in with a `sky:` block,
 and each view that wants the sky says `sky: true`:
@@ -100,16 +103,17 @@ moving everywhere else, check those settings and restart the tablet. More in
 ## Choose its look
 
 **HK Settings → All Screens → Sky / Background** sets the defaults. Each
-screen can choose its own under **Appearance → Sky / Background**:
+screen can choose its own under **Appearance → Sky / Background**, below its
+**Live Sky** switch:
 
 | Setting | What it changes |
 |---|---|
 | **Animations** | Off stops the sky's animated layers, including clouds, precipitation, lightning, decorations and forecast landscape effects. The sky still follows the sun and updates its appearance. |
 | **Weather** | Off removes clouds, rain, snow, lightning and fog, including decorative snow and Halloween fog. The sun, moon and stars remain. |
-| **Decorations** | Off removes seasonal and surprise scenes. On uses the shared dates, themes and optional extra gate. |
+| **Seasonal Decorations** | Off removes seasonal and surprise scenes. On uses the shared dates, themes and optional extra gate. |
 | **Clouds** | **Classic** is the drifting haze the sky has always had. **Realistic** draws photographic clouds instead — fair-weather cumulus, broken sheets, high wisps, a storm tower on the horizon, an overcast lid with darker masses drifting under it — chosen from the weather's cloud cover and condition, lit by the sun (gold at sunset, pink at dusk, moonlit at night), across the whole sky down to the horizon, behind New Decorations' trees. They sit in perspective: near clouds big and high, far ones small, many and softer toward the horizon, with long cirrus streaks above and, as it clouds over, the overcast's ceiling receding behind them. Each cloud crosses once and comes back as another, so nothing repeats. A fair or partly cloudy day keeps the sky as bright and blue as Classic's; the overcast's faint ceiling only comes in as the sky clouds over. A screen can choose its own. |
 | **Daytime Sky** | How bright the midday blue runs. **Natural** (the default) is a real midday sky. **Deep** is the darker, dusky blue the sky had before; **Balanced** is in between. The shade behind the cards rises with it, so all three stay readable. Sunrise, sunset, dusk and night look the same in all three. A screen can choose its own. |
-| **Backdrop** | Live sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
+| **Backdrop** | Live Sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
 
 **To try a look before choosing it,** open **Sky Lab** (`/hk/pages/skylab.html`):
 set the time of day, the weather, the clouds and the daytime brightness by hand,
@@ -117,12 +121,14 @@ over the sky alone or over one of your own dashboards (preview only — nothing
 in your home switches). See [Tools → Sky Lab](Tools.md#sky-lab).
 
 A fixed backdrop changes the gradient; the other switches still apply. For a
-quiet gradient, turn Animations, Weather and Decorations off. The usual
+quiet gradient, turn Animations, Weather and Seasonal Decorations off. The usual
 luminance scrim keeps glass and text readable over custom colors.
 
-Per-screen flags follow All Screens until you change them. **Use All-Screens…**
-restores a flag. **Same as All Screens** in the Backdrop picker follows the
-global palette and its custom colors; an explicit **Live sky** overrides a
+Per-screen flags follow All Screens until you change them: each reads **Same
+as All Screens**, then **Just This Screen**, and **Reset to All Screens (On)**
+follows All Screens again. A screen’s Decoration Style, Clouds and Daytime Sky
+are the same tabs as All Screens’, showing All Screens’ choice, until changed. **Same as All Screens** in the Backdrop picker follows the
+global palette and its custom colors; an explicit **Live Sky** overrides a
 fixed global backdrop. Selecting Custom starts with Dusk (or, for a screen,
 the global custom colors if available). An own Custom palette keeps its colors
 when you change the global palette.
@@ -143,7 +149,7 @@ condition and cloud cover; the lighting from the sun.
 | ![Realistic clouds, sunny: a few small cumulus in a clear blue sky](images/clouds-sunny.jpg) | ![Realistic clouds, partly cloudy: cumulus near and far](images/clouds-partly-cloudy.jpg) |
 | **Sunny** — a few far cumulus, low on the horizon | **Partly cloudy** — cumulus near and far, now and then a high wisp |
 | ![Realistic clouds, mostly cloudy: big cumulus and broken sheets](images/clouds-mostly-cloudy.jpg) | ![Realistic clouds, overcast: a photographic deck across the sky](images/clouds-overcast.jpg) |
-| **Mostly cloudy** — big cumulus, broken sheets and a haze along the horizon | **Overcast** (85 % cover or more) — one photographic deck, drifting to and fro |
+| **Mostly cloudy** — big cumulus, broken sheets and a haze along the horizon | **Overcast** (85% cover or more) — one photographic deck, drifting to and fro |
 | ![Realistic clouds in the rain](images/clouds-rain.jpg) | ![Realistic clouds, a thunderstorm: the grey storm deck](images/clouds-thunderstorm.jpg) |
 | **Rain** — the grey deck, with the rain falling in front | **Thunderstorm** — the grey storm deck, whatever cover is reported, lightning flashing in it |
 | ![Realistic clouds in the snow](images/clouds-snow.jpg) | ![Classic clouds on the same partly cloudy sky](images/clouds-classic.jpg) |
@@ -176,7 +182,7 @@ no Home or room page for the sky's own backdrop.
 |---|---|
 | **Automatic** | A page with a color of its own (Energy, Climate, Lights …) keeps it. Weather, Calendar and the room pages use the Backdrop. A custom page is as its YAML says. |
 | **Page Color** | The page's own still wash. Play Music's is the album art. |
-| **Live sky** | The live sky, following the sun, with the screen's weather, clouds and decorations. |
+| **Live Sky** | The live sky, following the sun, with the screen's weather, clouds and decorations. |
 | **Dusk, Midnight, Fjord … Custom** | That color as a still wash, like Page Color: no clouds, weather, sun or moon glow, or decorations. Its day colors show while the sun is up, its night colors after. |
 
 A color picked for a page is only that color. The **Sky** backdrop (Home, the

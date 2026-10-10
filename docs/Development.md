@@ -76,7 +76,7 @@ lives, not by a rule.
    (never a poll: timers barely run in a hidden tab, which is where a wall
    tablet spends its time).
 3. **The loader.** `hk-loader.js` imports the page modules, first
-   `hk-kiosk` (Hide Home Assistant Header & Sidebar, so a kiosk screen shows
+   `hk-kiosk` (Home Assistant Header & Sidebar, so a kiosk screen shows
    them as briefly as possible), then those with nothing to do before first
    paint: `hk-stats`, `hk-charts`, `hk-sky`, `hk-idle`,
    `hk-viewfade`, `hk-glass`, `hk-timers`, `hk-saver` (the photo screensaver),

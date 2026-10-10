@@ -1,6 +1,8 @@
 // Resolved relative to this file so the suite runs from anywhere.
 var DIR = (function(){ var p = HK_ROOT + '/tests/'; return p; })();
 load(DIR + 'dom.js');
+// a wall tablet (Android's WebView): the live card hides until it has a picture
+globalThis.navigator = { userAgent: 'Mozilla/5.0 (Linux; Android 16; SM-X230 Build/BP2A; wv) AppleWebKit/537.36 Chrome/153.0 Safari/537.36' };
 // `hui-card` is a real HA element with a .load(); the shim has no idea about
 // it. Stub it so the planner can be tested -- hk-row.js calls el.load()
 // unguarded too, so the card is matching the established pattern, not cutting
@@ -36,6 +38,34 @@ function card(sel){
   c.hass={states:{'input_select.cameras':{state:sel, last_updated:'t'}}};
   return c;
 }
+
+
+print('=== stills only (a room page): no live tile, the pattern from a tall single ===');
+function room(n, extra){
+  var cams=CAMS.slice(0,n), st={};
+  cams.forEach(function(c){ st[c.entity]={state:'recording',
+    attributes:{entity_picture:'/api/camera_proxy/'+c.entity+'?token=ABC'}}; });
+  var rc=new C(); rc.isConnected=true;
+  rc.setConfig(Object.assign({cameras:cams, height:195, seam:2, stills_only:true, own_cameras:true}, extra||{}));
+  rc.hass={states:st}; return rc;
+}
+[[1,'1'],[2,'2'],[3,'1,2'],[5,'1,2,2']].forEach(function(t){
+  var rp=room(t[0])._plan();
+  var shape=rp.cols.map(function(x){return x.length;}).join(',');
+  ok(t[0]+' camera(s): no live tile, columns ['+t[1]+']', rp.live===null && shape===t[1], shape);
+});
+var r3=room(3);
+ok('drawn: no live slot, a still for every camera', !r3._liveSlot && (r3._snaps||[]).length===3, (r3._snaps||[]).length);
+var plate3=(r3._root.children||[]).filter(function(e){ return e.className==='plate'; })[0];
+ok('...every column the column width, none the live width', !!plate3 && plate3.style.gridTemplateColumns===
+   [Math.round(195*4/3)+'px', Math.round(195*4/3)+'px'].join(' '), plate3 && plate3.style.gridTemplateColumns);
+var r1=room(1), plate1=(r1._root.children||[]).filter(function(e){ return e.className==='plate'; })[0];
+ok('one camera: one still, 16:9 like the live tile', !!plate1 && plate1.style.gridTemplateColumns===Math.round(195*16/9)+'px' &&
+   r1._snaps.length===1 && !!r1._snaps[0].age, plate1 && plate1.style.gridTemplateColumns);
+var ro=room(2); ro._board=function(){ return { cameras:[CAMS[1].entity] }; };
+ok('own_cameras: the room\'s cameras, not the screen\'s Home strip list', ro._cams().length===2 && ro._cams()[0].entity===CAMS[0].entity);
+var rb=room(2,{own_cameras:false}); rb._board=function(){ return { cameras:[CAMS[1].entity] }; };
+ok('...without it, the screen\'s list (the Home strip, as before)', rb._cams().length===1, rb._cams().length);
 
 print('=== the column plan ===');
 var c=card('Front Door');
@@ -335,7 +365,68 @@ __fireVisibility(true); __fireVisibility(false);
 ok('visibility changes do not restart a covered camera', fading._liveSlot.asleep && !fading._timer);
 saverOn = saverCovered = false;
 dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
-ok('wake restores live video and refreshes', !fading._liveSlot.asleep && fading._liveSlot.el.config.camera_view === 'live' && !!fading._timer);
+ok('wake: the stills refresh at once, the live stream waits for the screensaver to be gone', fading._liveSlot.asleep && !!fading._timer);
+dispatchEvent(new Event('hk-saver-done'));
+ok('...not even the moment it is gone', fading._liveSlot.asleep);
+__runTimersUnder(1600);
+ok('wake restores live video and refreshes, LIVE_AFTER_WAKE after the screensaver is gone',
+   !fading._liveSlot.asleep && fading._liveSlot.el.config.camera_view === 'live' && !!fading._timer);
+ok('...out of sight until its video has a picture', fading._liveSlot.el.classList.contains('wait'));
+// the screensaver never says it is gone: the stream comes back anyway
+saverOn = true; dispatchEvent(new CustomEvent('hk-saver', { detail: { on: true } }));
+saverCovered = true; dispatchEvent(new Event('hk-saver-covered'));
+saverOn = saverCovered = false; dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
+__runTimersUnder(6100);
+ok('...or LIVE_WAKE_MAX after the stop if it is never heard to be gone', !fading._liveSlot.asleep);
+
+print('\n=== under the kiosk\'s Black screensaver: the strip rests, and comes back after ===');
+var blk = withPic('Front Door');
+ok('(a strip on the page, ticking, its live tile mounted)', !!blk._timer && !blk._liveSlot.asleep);
+dispatchEvent(new Event('kiosksatellite:screensaverstart'));
+ok('the black goes up: stills stopped, live stream let go', !blk._timer && blk._liveSlot.asleep);
+dispatchEvent(new Event('kiosksatellite:screensaverstop'));
+ok('the black ends: not at once (the tablet is drawing the page again)', !blk._timer && blk._liveSlot.asleep);
+__runTimersUnder(2600);
+ok('...AFTER_BLACK later: stills ticking and the live stream back', !!blk._timer && !blk._liveSlot.asleep);
+dispatchEvent(new Event('kiosksatellite:screenoff'));
+ok('the panel off: the same rest', !blk._timer && blk._liveSlot.asleep);
+dispatchEvent(new Event('kiosksatellite:screenon')); __runTimersUnder(2600);
+ok('...and back after it is on', !!blk._timer && !blk._liveSlot.asleep);
+dispatchEvent(new CustomEvent('hk-black', { detail: { on: true } }));
+ok('HK\'s own black screen (hk-black): the same rest', !blk._timer && blk._liveSlot.asleep);
+dispatchEvent(new CustomEvent('hk-black', { detail: { on: false } })); __runTimersUnder(2600);
+ok('...and back after it ends', !!blk._timer && !blk._liveSlot.asleep);
+blk.disconnectedCallback();
+dispatchEvent(new Event('kiosksatellite:screensaverstart'));
+ok('a strip taken off the page hears nothing more', !blk._timer);
+
+print('\n=== leaving the page: the live video out of sight before it is torn down ===');
+location.pathname = '/dashboard-livingroom/home';
+var nav = withPic('Front Door');
+nav._liveSlot.el.classList.remove('wait');              // as if it were showing a picture
+location.search = '?pop=1';
+dispatchEvent(new Event('location-changed'));
+ok('a pop-up opening (same path) is not a leave', !nav._liveSlot.el.classList.contains('wait') && !nav._leaving);
+location.pathname = '/dashboard-lights/0';
+dispatchEvent(new Event('location-changed'));
+ok('a navigation away hides the live card at once', nav._liveSlot.el.classList.contains('wait') && nav._leaving);
+location.pathname = '/dashboard-livingroom/home';
+nav._tickAges();
+ok('...and the path coming back (a navigation that did not leave) ends it', !nav._leaving);
+// back, its video with a picture: shown -- under the copied frame until it
+// has DRAWN one (the tablet's video surface was black 60-350 ms after it said so)
+var vfc = [], fakeV = { readyState: 4, videoWidth: 1280, videoHeight: 720,
+                        requestVideoFrameCallback: function (f) { vfc.push(f); } };
+nav._liveVideo = function () { return fakeV; };
+nav._liveShown();
+ok('the video shown, the still lifted over it', !nav._liveSlot.el.classList.contains('wait') &&
+   nav._liveSlot.box.classList.contains('lift'));
+vfc.forEach(function (f) { f(); });
+ok('...still lifted the frame its first picture is presented', nav._liveSlot.box.classList.contains('lift'));
+__runTimersUnder(1);
+ok('...dropped one frame later', !nav._liveSlot.box.classList.contains('lift'));
+nav.disconnectedCallback();
+
 // dismissed while the page is hidden (the tablet's screen off): the hk-saver
 // event bails, so the page coming back must wake the slot -- left "asleep",
 // the next cover would skip it and keep the live stream decoding all night
@@ -809,8 +900,13 @@ var css = C.CSS || (customElements.get('hk-camera-mosaic-card').CSS) || '';
 if (!css) { var probe=withPic('Front Door');
   css = (probe.shadowRoot && probe.shadowRoot.__css) || probe._cssText || ''; }
 ok('the card exposes its CSS to test', !!css, 'len='+css.length);
+// (the live CARD may fade in: it comes in over the frame copied under it,
+// an opaque canvas, so the tile never dims -- see .live>hui-card)
+var cssNoLive = css.replace(/\.live>hui-card\{[^}]*\}/g, '');
 ok('NO opacity transition on a still', !/\.snap img\{[^}]*transition/.test(css) &&
-   !/transition:opacity/.test(css), (css.match(/transition[^;}]*/g)||[]).join(' | '));
+   !/transition:opacity/.test(cssNoLive), (cssNoLive.match(/transition[^;}]*/g)||[]).join(' | '));
+ok('...the live card fades in, and goes at once', /\.live>hui-card\{[^}]*transition:opacity/.test(css) &&
+   /\.live>hui-card\.wait\{opacity:0;visibility:hidden;transition:none\}/.test(css));
 ok('NO opacity transition on the live poster either',
    !/\.live>img\{[^}]*transition/.test(css));
 ok('a still still starts hidden and is revealed by .on',

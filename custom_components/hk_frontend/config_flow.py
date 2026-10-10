@@ -145,7 +145,11 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
     # settings.rooms_lifted.
     # 9 (2026-10-02): the menu settings too (settings `menu`, menu_custom) --
     # settings.menu_lifted.
-    MINOR_VERSION = 10
+    # 11 (2026-10-08): each screen's menu on a phone written down
+    # (menu_phone, button_phone) -- settings.phones_lifted.
+    # 12 (2026-10-09): Phones' settings each their own, the narrow choice
+    # and the pre-1.9 menu lists gone -- settings.settings_tidied.
+    MINOR_VERSION = 13
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:

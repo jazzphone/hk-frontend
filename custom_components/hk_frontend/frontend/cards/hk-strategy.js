@@ -685,24 +685,27 @@
       if (l.length) status[k] = l.slice();
     });
     var cards = [titleBar(name), status];
-    // THE CAMERAS AS SNAPSHOTS, ONE TILE EACH: a still that
-    // refreshes, never a live stream, and no mosaic -- in one row that
-    // scrolls sideways, three showing on a tablet, two on an iPad held
-    // upright, one and a bit on a phone (--hk-cam-row, hk-responsive.css).
-    // A tap opens the camera, as any camera card does.
+    // THE CAMERAS AS SNAPSHOTS: stills that refresh, never a live stream --
+    // in the camera strip's pattern (below), in a row that scrolls sideways
+    // when it is wider than the page. A tap opens the camera, live.
     var cams = roomCameras(hass, areas, opts);
     if (cams.length) {
       cards.push({ type: 'grid', columns: 1, square: false, view_layout: COL2, cards: [heading('Cameras'),
         // the row reaches out by the tiles' shadow and pads it back inside,
         // as the scenes row does (a scroller clips at its own edge); 26 at the
         // sides lines the first camera up with the tiles, which sit 4 px in
-        { type: 'custom:hk-row-card', gap: 12, pad_top: 14, pad_bottom: 30, pad_left: 26, pad_right: 26,
-          margin: '-14px -22px -30px -22px',
-          card_width: 'calc((100% - (var(--hk-cam-row, 3) - 1) * 12px) / var(--hk-cam-row, 3))',
-          cards: cams.map(function (id) {
-            return { type: 'picture-entity', entity: id, camera_view: 'auto', show_name: false,
-                     show_state: false, aspect_ratio: '16x9', fit_mode: 'cover' };
-          }) }] });
+        // THE ROOM'S CAMERAS AS A STRIP (2026-10-09), Home's camera strip
+        // with no live tile: one tall, then two stacked, and so on, as the Home
+        // app draws a room. Stills only -- a tap opens the camera, live --
+        // and the room's own cameras, not the screen's Home strip list.
+        // The row pads 14/30 for the strip's shadow; the margins give back
+        // all but 6 above and 20 below, so the strip sits from its heading
+        // and from the next one as a row of tiles does.
+        { type: 'custom:hk-row-card', card_width: 'fit-content', pad_top: 14, pad_bottom: 30,
+          pad_left: 26, pad_right: 26, margin: '-8px -22px -10px -22px',
+          cards: [{ type: 'custom:hk-camera-mosaic-card', height: 195, seam: 2, snapshot_cap: '480x270',
+                    max_upscale: 1.2, show_age: true, stills_only: true, own_cameras: true,
+                    cameras: cams.map(function (id) { return { entity: id, name: fullName(hass, id) }; }) }] }] });
     }
     // THE ROOM'S SCENES (2026-10-01): a row of scene pills under the status
     // row -- under the cameras when it has some -- that scrolls sideways, as
@@ -1572,7 +1575,9 @@
                       menu: 'top', cards: [titleBar('Weather'), column(body)] });
     }
 
-    // CAMERAS: every camera live, three across.
+    // CAMERAS: every camera live, three across -- opened one after another
+    // (hk-camera-live-card, hk-cameras.js: nine at once never connected in
+    // desktop Safari).
     if (hasCams) {
       pages.cameras = view({ title: 'Cameras', path: 'cameras', subview: true, icon: 'mdi:camera', menu: 'top',
         sky_variant: 'cameras', background: '#080a0e', cards: [titleBar('Cameras'), column([{
@@ -1580,8 +1585,7 @@
           layout: { 'grid-template-columns': 'var(--hk-cameras, repeat(3, minmax(0, 1fr)))', 'grid-column-gap': '4px',
                     'grid-row-gap': '0px', margin: '0px', padding: '0px' },
           cards: cams.map(function (id) {
-            return { type: 'picture-entity', entity: id, camera_view: 'live', show_name: false, show_state: false,
-                     aspect_ratio: '16x9', fit_mode: 'cover' };
+            return { type: 'custom:hk-camera-live-card', entity: id, aspect_ratio: '16x9', fit_mode: 'cover' };
           }) }])] });
     }
 
@@ -2318,7 +2322,7 @@
   // modules, so they do not rebuild -- a rebuild reconnects every camera.)
   var LIVE_KEYS = { chips: 1, chips_quiet: 1, chips_extra: 1, scenes: 1, scenes_pages: 1, scenes_row: 1,
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
-                    tab_position: 1, home_rooms: 1, glass: 1, frost: 1, blur: 1, camera_live: 1,
+                    tab_position: 1, home_rooms: 1, glass: 1, frost: 1, frost_tint: 1, blur: 1, black_screen: 1, camera_live: 1,
                     car: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1,
                     // THE MENU'S OWN LOOK (2026-10-04: All Screens' unless the
                     // screen sets its own -- settings.py resolved()): hk-base's
@@ -2326,7 +2330,27 @@
                     // accent picked for the house no longer rebuilds every
                     // screen (closing its sheets, reconnecting its cameras)
                     accent: 1, swipe: 1, glyph: 1, clock: 1, tab_size: 1, tab_size_phone: 1,
-                    menu_custom: 1, menu_house: 1 };
+                    menu_custom: 1, menu_house: 1,
+                    // ...and the tab bar's and the Home Assistant section's
+                    // (hk-tabbar.js / hk-menu.js read them live). Every key
+                    // of settings.py MENU_KEYS but `menu` belongs here:
+                    // test_strategy_rebuild.js reads that list and fails on
+                    // one left out
+                    ha_place: 1, tab_bar_scroll: 1, tab_bar_rooms: 1, tab_bar_glass: 1, tab_bar_more: 1,
+                    tab_bar_more_phone: 1, tab_bar_pos: 1, tab_bar_fold: 1, tab_bar_start: 1,
+                    tab_bar_adjust: 1, tab_bar_scroll_phone: 1, tab_bar_tabs: 1, tab_bar_tabs_rail: 1,
+                    tab_bar_size: 1,
+                    // ...and Phones' own menu (hk-base.js phoneMenu, 2026-10-08)
+                    menu_phone: 1, button_phone: 1, tab_bar_rooms_phone: 1,
+                    // ...and the screen's own sky: hk-settings.js skyLook() /
+                    // skyPage() read every sky_* key live and the sky repaints
+                    // on its next tick; no build reads one (`sky` itself, the
+                    // live sky on or off, does: it stays out). Every sky_* key
+                    // of settings.py BOARD_DEFAULTS belongs here, held by
+                    // test_strategy_rebuild.js
+                    sky_animations: 1, sky_weather: 1, sky_decorations: 1, sky_decoration_style: 1,
+                    sky_cloud_style: 1, sky_daytime: 1, sky_gradient: 1, sky_custom: 1, sky_pages: 1,
+                    sky_liveliness: 1, sky_liveliness_occ: 1, sky_liveliness_custom: 1, sky_calm_empty: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };

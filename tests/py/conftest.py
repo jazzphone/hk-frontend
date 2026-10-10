@@ -170,7 +170,7 @@ def house_entry(*items: dict, **kw):
     """The house's entry as storage holds it, not yet set up (a
     MockConfigEntry to add before the integration starts), with `items`."""
     from pytest_homeassistant_custom_component.common import MockConfigEntry
-    kw = {"title": "HK Frontend", "unique_id": DOMAIN, "version": 1, "minor_version": 10,
+    kw = {"title": "HK Frontend", "unique_id": DOMAIN, "version": 1, "minor_version": 13,
           "data": {}, "options": {}, **kw}
     return MockConfigEntry(domain=DOMAIN, subentries_data=list(items), **kw)
 

@@ -12,7 +12,8 @@ button, such as a computer’s Wake on LAN, has a sheet with one big button: tap
 it to wake the computer (or press the button), and the line under it says when
 that last happened. To use
 Home Assistant’s own dialog instead, turn off
-[HK Detail Sheets](Appearance.md#every-screen).
+[HK Detail Sheets](Accessories.md#accessories-settings) (**Library →
+Accessories**).
 
 ![A light’s detail sheet](images/sheet-light.png)
 
@@ -191,11 +192,11 @@ A pop-up’s page:
 | Camera | — | *Camera or Doorbell.* The camera it shows. |
 | Talk-Back Speaker | The speaker on the camera’s own device, if any | *Camera or Doorbell.* The speaker for the talk button. |
 | Live Stream | The camera device’s high-resolution channel, else the camera itself | *Camera or Doorbell.* The camera entity streamed in the sheet. |
-| Alarm Panel | Same as General | *Alarm Keypad.* The panel it controls. |
+| Alarm Panel | Same as General | *Alarm Keypad.* The panel it controls. **Same as General** names the panel it uses now, *Same as General (Front Door Alarm)*. |
 | Accessories | — | *Accessories.* What the sheet shows, in order. |
 | Cards | None | *Custom.* The sheet’s cards, as a YAML list: any card, Home Assistant’s own or a custom card’s. A card that can’t be built shows Home Assistant’s error card in its place. |
 | Icon | `mdi:card-text-outline` | *Custom.* The glyph beside its name (`mdi:` or `hk:`). |
 | Width | Narrow | *Custom.* **Narrow** (460 px, a detail sheet’s) or **Wide** (820 px). |
 | Close After | 1 Minute (an Alarm Keypad added here: 1 Hour) | It closes itself this long after the last touch: 30 seconds to 1 hour. |
-| Screens → All Screens | On | Off: tick the screens that answer its address. A screen with Allow Pop-ups off never shows one. |
+| Screens → Show on Every Screen | On | Off: tick the screens that answer its address. A screen with Allow Pop-ups off never shows one. |
 | Delete Pop-up… | — | Automations that open it will open nothing. |

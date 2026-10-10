@@ -92,7 +92,7 @@ SKY_OFTEN = {"halloween_often": SEASON_OFTEN, "thanksgiving_often": SEASON_OFTEN
 # Four stops top to horizon, at [0, .42, .72, 1]. The curated sets stay
 # under the live sky's luminance cap; custom stops use its normal scrim.
 SKY_BACKDROPS = (
-    {"id": "live", "label": "Live sky"},
+    {"id": "live", "label": "Live Sky"},
     {"id": "dusk", "label": "Dusk",
      "day": ["#141f3d", "#26314f", "#5c4460", "#b06a4a"],
      "night": ["#0c1428", "#161d35", "#33263f", "#5e3730"]},
@@ -165,13 +165,8 @@ def sky_stops(v: Any) -> dict[str, list[str]] | None:
     return out
 
 
-# The menu (hk-sidebar.js) and the room pages (docs/Menu.md, docs/Pages.md).
-#   button: auto -- the pinned chip when the dashboard's Home view carries a
-#           menu button card, else the edge tab; chip; tab. Phones always get
-#           the round button (a phone's margin has no room for a tab).
-#   glyph:  the button's picture -- the iPad sidebar glyph, or three lines.
-#   order:  the Rooms list, A to Z or in the dashboard's own view order.
-MENU_BUTTONS = ("auto", "chip", "tab")
+# The menu (docs/Menu.md): its button's picture -- the iPad sidebar glyph, or
+# three lines.
 MENU_GLYPHS = ("sidebar", "lines")
 # THE MENU'S HIGHLIGHT (its icons and the current page's row): one of Apple's
 # system colours by name (hk-menu.js ACCENTS has their values), or "#rrggbb".
@@ -235,6 +230,81 @@ DAYTIME_SKIES = ("natural", "balanced", "deep")
 # The seasons whose woodland New Decorations shows between occasions (sky.woodland)
 WOODLAND_SEASONS = ("spring", "summer", "fall", "winter")
 
+# LIVELINESS (hk-sky.js lvOf; docs/Sky-Liveliness.md): how many of the little
+# moving things there are and how often the ones that cross come by. A KNOB is
+# one setting of one effect: its kind -- what a screen's own Custom scales --
+# and its type: "many" a count, "often" a crossing's cycle (Off: it never
+# comes), "show" on or off. A knob's step is 0-4: Off, Few, Normal, Lots, Max.
+# hk-sky.js LV_KNOBS and hk-settings-model.js LIVELY carry the same table
+# (tests/test_liveliness.js holds the three together).
+LIVELY_KNOBS: dict[str, tuple[str, str]] = {
+    "bats": ("flying", "many"), "bats_often": ("flying", "often"), "swarm": ("flying", "many"),
+    "witch": ("flying", "often"), "geese": ("flying", "often"), "sleigh": ("flying", "often"),
+    "flyby": ("flying", "often"), "balloons": ("flying", "show"),
+    "leaves": ("falling", "many"), "swirl": ("falling", "many"), "petals": ("falling", "many"),
+    "snow": ("falling", "many"), "particles": ("falling", "many"), "mist": ("falling", "show"),
+    "fireflies": ("glowing", "many"), "glints": ("glowing", "many"), "lights": ("glowing", "show"),
+    "owl": ("glowing", "show"), "rainbow": ("glowing", "show"),
+    "stars": ("night", "many"), "meteors": ("night", "often"), "fireworks": ("night", "often"),
+    "aurora": ("night", "often"),
+}
+# LIVELINESS, THE SAME AT EVERY LEVEL (2026-10-09): one choice for every
+# occasion (sky.liveliness_all; a screen's sky_liveliness, None: Same as All
+# Screens) -- a preset, or "custom": then each occasion its own preset or
+# Custom knobs (sky.liveliness / sky.liveliness_custom; a screen's
+# sky_liveliness_occ / sky_liveliness_custom)
+LIVELY_PRESETS = ("subtle", "classic", "festive", "party", "custom")
+# EACH OCCASION'S KNOBS (each theme, each woodland season, and "night": the
+# screensaver's stars), with the decoration style that draws each: "new",
+# "old" or "both". HK Settings shows only the knobs of a style in use.
+LIVELY_OCCASIONS: dict[str, tuple[tuple[str, str], ...]] = {
+    "halloween": (("bats", "both"), ("bats_often", "new"), ("swarm", "new"), ("witch", "both"),
+                  ("owl", "new"), ("mist", "both"), ("leaves", "both"), ("lights", "both")),
+    "thanksgiving": (("leaves", "both"), ("swirl", "new"), ("geese", "new")),
+    "christmas": (("snow", "old"), ("sleigh", "both"), ("glints", "new"), ("aurora", "new"), ("lights", "both")),
+    "fourth-of-july": (("fireworks", "both"), ("fireflies", "new"), ("particles", "old"), ("lights", "new")),
+    "valentines-day": (("particles", "old"),),
+    "spring-garden": (("petals", "both"), ("flyby", "both"), ("rainbow", "new")),
+    "winter-wonderland": (("particles", "old"), ("glints", "new"), ("aurora", "new")),
+    "storybook-magic": (("particles", "old"), ("flyby", "old")),
+    "space-night": (("particles", "old"), ("flyby", "old")),
+    "birthday": (("particles", "both"), ("balloons", "new"), ("lights", "new")),
+    "spring": (("petals", "new"), ("flyby", "new"), ("rainbow", "new")),
+    "summer": (("fireflies", "both"), ("rainbow", "new"), ("lights", "new")),
+    "fall": (("leaves", "new"), ("swirl", "new"), ("geese", "new")),
+    "winter": (("glints", "new"), ("aurora", "new")),
+    "night": (("stars", "both"), ("meteors", "both")),
+}
+
+
+def lively(v: Any) -> dict[str, str] | None:
+    """Each occasion's Liveliness preset ({occasion: preset}); None when it
+    does not parse. An occasion left out is Classic."""
+    if not isinstance(v, dict):
+        return None
+    if any(k not in LIVELY_OCCASIONS or p not in LIVELY_PRESETS for k, p in v.items()):
+        return None
+    return dict(v)
+
+
+def lively_custom(v: Any) -> dict[str, dict[str, int]] | None:
+    """Custom occasions' knobs ({occasion: {knob: 0-4}}), each knob one its
+    occasion has; None when it does not parse."""
+    if not isinstance(v, dict):
+        return None
+    out: dict[str, dict[str, int]] = {}
+    for occ, knobs in v.items():
+        own = {k for k, _style in LIVELY_OCCASIONS.get(occ, ())}
+        if not own or not isinstance(knobs, dict):
+            return None
+        for k, step in knobs.items():
+            if k not in own or isinstance(step, bool) or not isinstance(step, int) or not 0 <= step <= 4:
+                return None
+        out[occ] = dict(knobs)
+    return out
+
+
+
 DEFAULTS: dict[str, dict[str, Any]] = {
     # the pages' status rows: what each shows, in its order, and the rooms it
     # leaves out (an outdoor area's temperature, a shed's leak sensor)
@@ -280,6 +350,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # with this look) or a backdrop id. Missing: Automatic -- a page
             # with a color of its own keeps it, the rest show the live sky.
             "pages": {},
+            # LIVELINESS: one preset for every occasion (LIVELY_PRESETS), or
+            # "custom" -- then each occasion's preset (missing = classic) and
+            # a Custom one's knobs ({occasion: {knob: 0-4}})
+            "liveliness_all": "classic", "liveliness": {}, "liveliness_custom": {},
             # Which themes may run (all by default) and the hemisphere, which
             # flips the spring and winter surprise windows. (christmas_from is
             # one of SKY_DATES below: None = the built-in 12-07.)
@@ -332,17 +406,14 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # narrower, it folds into the dashboard's button (an iPad mini upright, a
     # phone). time_weather: the dashboards whose DOCKED menu carries the time,
     # date and weather at its top, the Home header giving its space back.
-    "menu": {"dashboards": [], "docked": [], "dock_min": 1000, "time_weather": [],
-             "button": "auto", "tab_position": "",
-             "glyph": "sidebar", "clock": True, "order": "az", "categories": [],
-             "ha_sidebar": [],
+    "menu": {"glyph": "sidebar", "clock": True,
              # ALL SCREENS' MENU (entry 1.9, 2026-10-02): every screen's menu
              # settings but whether it has one (its `menu`: off, a button,
              # always open), for each screen that doesn't set its own
-             # (menu_custom). MENU_KEYS maps them onto a screen's keys; named
-             # apart from the older lists above, which settings.py still
-             # fills in for an older hk-base.js.
-             "style": "auto", "narrow": "chip", "tab_at": "", "tab_size": "large",
+             # (menu_custom). MENU_KEYS maps them onto a screen's keys. (The
+             # house-wide lists before 1.9 -- dashboards, docked, ... -- went
+             # in entry 1.12, settings_tidied.)
+             "style": "auto", "tab_at": "", "tab_size": "large",
              "tab_size_phone": "standard", "open_min": 1000, "time_weather_at": "page",
              "ha_row": False, "accent": "orange", "swipe": False, "ha_at": "rooms",
              # the tab bar (2026-10-05): while scrolling, its Rooms button,
@@ -352,9 +423,11 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # Adjust Content: the page makes room for the bar (on), or the
              # bar floats over it everywhere (off)
              "bar_adjust": True,
-             # a phone's own While Scrolling (under 640 px); None: the same as
-             # the tablets'
-             "bar_scroll_phone": None,
+             # PHONES' OWN (2026-10-08; each its own value since entry 1.12):
+             # While Scrolling, a menu button's style (BOARD_BUTTON_PHONE) and
+             # More's rooms -- on a phone and wherever a tablet's own menu
+             # doesn't fit (hk-base.js phoneForm)
+             "bar_scroll_phone": "shrink", "button_phone": "chip", "bar_rooms_phone": "more",
              # Tabs in Bar / Tabs in Rail (TAB_BAR_TABS)
              "bar_tabs": 6, "bar_tabs_rail": 6, "bar_size": "medium"},
     # The room pages: whether room headings on Home open them, and what the
@@ -366,6 +439,12 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # it (`pages`). Before 2026-10-01 each screen held its own copy.
     "rooms": {"headings": True, "status": list(STATUS_KINDS), "order": [], "home": "as_is", "menu": "az",
               "pages": "floor"},
+    # THE CAMERAS, for every screen that doesn't set its own (a screen's
+    # cameras_custom): which cameras its Home strip and Cameras page show and
+    # in what order -- and a room page's cameras, in that order (`order`;
+    # empty: Automatic, one of every camera). Before 2026-10-09 each screen
+    # held its own copy.
+    "cameras": {"order": []},
     # How the glass surfaces look (hk-settings.js applies it; hk-glass.js draws
     # the shared blur): clear -- the original plate, the status chips blur
     # themselves; frosted -- a frosted material, no blur at all; blur -- ONE
@@ -373,8 +452,11 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # surface blurs itself (phones, iPads, computers: too heavy for a wall
     # tablet). frost: how milky Frosted is; blur: how strong both blurs are
     # -- each 0-100 %, 50 (the middle) as designed: 20 px of blur.
+    # frost_tint: Frosted takes the color behind each card (the page's sky
+    # at its height, the scenery's ground below) in place of one gray
+    # (hk-frosttint.js), held at one darkness so white text reads the same.
     # docs/ (each setting on its topic's page).
-    "look": {"glass": "clear", "frost": 50, "blur": 50,
+    "look": {"glass": "clear", "frost": 50, "blur": 50, "frost_tint": False,
              # The detail sheets (hk-detail.js), after the Home app's, in
              # place of HA's more-info dialog on the dashboards, and the view
              # a speaker's sheet opens with "Browse Music" (a view path on the
@@ -400,6 +482,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
                                         "recently_added", "favourite_radio"]},
 }
 GLASS = ("clear", "frosted", "blur", "blur_each")
+BLACK_SCREENS = ("kiosk", "hk")    # a screen's Black Screen (BOARD_DEFAULTS)
 AMOUNT = (0, 100)                  # look.frost and look.blur, in %; 50 is the default
 
 # Music Assistant's own categories on Browse Music's first page, by the id
@@ -612,12 +695,11 @@ def as_client(entry: ConfigEntry | None,
               found: dict[str, list[str]] | None = None,
               accessories: dict[str, Any] | None = None,
               extras: dict[str, Any] | None = None,
-              switches: dict[str, str] | None = None) -> dict[str, Any]:
+              switches: dict[str, str] | None = None,
+              blacks: dict[str, str] | None = None) -> dict[str, Any]:
     """What a screen is handed. The same for every user: the house-wide
     sections, and `boards` -- each dashboard item's own menu settings, by
-    url path. The menu's older lists (dashboards, docked, ...) are filled in
-    from the items too, so a screen still running an older hk-base.js (the
-    first load after an update) keeps its menu until it reloads.
+    url path.
 
     `kinds` (found): Status & Chips, resolved (kinds.py) -- each kind's entity
     ids. The raw Leave out / Also count stay here; a screen needs only the
@@ -631,9 +713,10 @@ def as_client(entry: ConfigEntry | None,
     # (screensaver.py) -- a rename in the UI keeps working
     for path, b in items.items():
         b["screensaver_switch"] = (switches or {}).get(path)
+        # ...and its black screen switch, for Black Screen: HK Frontend
+        b["black_switch"] = (blacks or {}).get(path)
     out["boards"] = items
     if items:
-        out["menu"].update(legacy_lists(items))
         for section, values in legacy_screens(items).items():
             out[section].update(values)
     # Browse Music's rows go out as the queries themselves, so a screen needs
@@ -699,7 +782,18 @@ BOARD_GLASS = ("house", "clear", "frosted", "blur", "blur_each")   # house: the 
 # scrolled past, the edge tab, or none (the swipe alone; the chip without
 # it) -- hk-base.js narrowStyle
 # ...or the tab bar in its place (hk-tabbar.js)
+# (the narrow choice retired in entry 1.12: Phones' menu shows wherever the
+# tablets' doesn't fit; read only by the migrations, from stored data)
 BOARD_NARROW = ("chip", "chip_scroll", "tab", "none", "tabbar")
+# PHONES' OWN MENU (menu_phone, 2026-10-08): a phone -- a window under 640
+# px, or a phone's screen held sideways -- and, since 2026-10-09, a tablet
+# whose own menu doesn't fit (an always-open menu under Keep Open Down To, a
+# button under 1,024 px: hk-base.js phoneForm) show the screen's Phones menu:
+# none, a button, or the tab bar; never always open. None: what a phone
+# showed before it had one (phone_menu()). Its button's style (button_phone):
+# the chip, the chip then the tab, the tab, or no button (the swipe alone).
+BOARD_PHONE_MENUS = ("off", "button", "tabbar")
+BOARD_BUTTON_PHONE = ("chip", "chip_scroll", "tab", "none")
 # what a phone shows at the top of Home: the clock and weather header, or the
 # one-line weather strip (a generated screen; a YAML one draws its own)
 BOARD_PHONE = ("header", "strip")
@@ -725,7 +819,7 @@ HA_PLACES = ("top", "categories", "rooms", "bottom")
 # house: the screen's glass (its own or All Screens'); clear: a near-solid
 # tint -- a see-through bar cannot be read over the tiles (measured
 # 2026-10-05)
-TAB_BAR_GLASS = ("house", "clear", "frosted", "blur")
+TAB_BAR_GLASS = ("house", "tinted", "frosted", "blur")
 # the rooms: a section of More (under its pages), a round button of their own
 # beside the tabs, or not in the bar at all
 TAB_BAR_ROOMS = ("more", "button", "off")
@@ -763,6 +857,14 @@ def tab_count(v: Any, default: int = 6) -> int:
     return n if TAB_BAR_TABS[0] <= n <= TAB_BAR_TABS[1] else default
 
 
+def tab_bar_glass(v: Any) -> str:
+    """The tab bar's glass as stored; "clear" (before entry 1.12) is Tinted,
+    a name Appearance's glass uses for its see-through look."""
+    if v == "clear":
+        return "tinted"
+    return v if v in TAB_BAR_GLASS else "house"
+
+
 def tab_bar_rooms(v: Any) -> str:
     """The Rooms setting as stored; a boolean from before 2026-10-05
     evening: True is In More."""
@@ -778,6 +880,9 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # rooms_custom: the four room settings above are this screen's own; off,
     # they are All Screens' (settings `rooms`, filled in by resolved())
     "rooms_custom": False,
+    # cameras_custom: `cameras` is this screen's own; off, it is All Screens'
+    # (settings `cameras`, filled in by resolved())
+    "cameras_custom": False,
     # menu_custom: the menu settings in MENU_KEYS are this screen's own; off,
     # they are All Screens' (settings `menu`, filled in by resolved()) -- all
     # but `menu` itself, whose button style alone follows
@@ -790,12 +895,16 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "tab_bar_scroll": "shrink", "tab_bar_rooms": "more", "tab_bar_glass": "house", "tab_bar_more": "icons",
     "tab_bar_more_phone": "list", "tab_bar_pos": "bottom", "tab_bar_fold": "start", "tab_bar_start": "full",
     "tab_bar_adjust": True,
-    # a phone's own While Scrolling; None: the same as tab_bar_scroll
-    "tab_bar_scroll_phone": None,
+    # Phones' While Scrolling (each its own since entry 1.12)
+    "tab_bar_scroll_phone": "shrink",
     "tab_bar_tabs": 6, "tab_bar_tabs_rail": 6, "tab_bar_size": "medium",
-    # narrow: BOARD_NARROW; menu_top: the view paths at the top of the menu,
-    # right under Home -- empty is the views' own `menu: top`
-    "narrow": "chip", "menu_top": [], "phone_header": "header", "chips_custom": [],
+    # PHONES' OWN (BOARD_PHONE_MENUS): the menu, the screen's own as `menu`
+    # is (None: as before phones had their own, phone_menu()); the button's
+    # style and More's rooms, menu settings (MENU_KEYS)
+    "menu_phone": None, "button_phone": "chip", "tab_bar_rooms_phone": "more",
+    # menu_top: the view paths at the top of the menu, right under Home --
+    # empty is the views' own `menu: top`
+    "menu_top": [], "phone_header": "header", "chips_custom": [],
     # Home: the chips -- empty = every kind the house has; quiet = only when
     # there is something to report; extra = entities as chips of their own
     # -- then the camera strip, the scenes row and the favorites.
@@ -809,14 +918,27 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Pages (generated dashboards): empty = every page the house has.
     "pages": [],
     # Screen: frost, blur: this screen's own amounts (0-100 %) -- None
-    # follows the shared look (HK Settings -> Appearance).
-    "glass": "house", "frost": None, "blur": None, "sky": True, "idle_return": False, "idle_room": "", "car": False,
+    # follows the shared look (HK Settings -> Appearance); frost_tint: its own
+    # Tint from Background, None follows All Screens.
+    "glass": "house", "frost": None, "blur": None, "frost_tint": None, "sky": True, "idle_return": False, "idle_room": "", "car": False,
+    # Black Screen (a wall tablet asleep): kiosk -- Kiosk Satellite's Black
+    # screensaver; hk -- HK Frontend's own black and backlight
+    # (switch.<screen>_black_screen, hk-saver.js). docs/Screensaver.md.
+    "black_screen": "kiosk",
+    # Sleep Screen: WHEN the tablet sleeps and wakes (sleep_rules.py
+    # SLEEP_DEFAULTS; None: the defaults -- an automation decides)
+    "sleep": None,
     # Sky / Background, this screen's own: None for each follows All
     # Screens (the house's sky animations / weather / decorations, and the
     # house's backdrop -- sky_gradient: a SKY_BACKDROPS id, sky_custom: its
     # stops, for "custom").
     "sky_animations": None, "sky_weather": None, "sky_decorations": None, "sky_decoration_style": None,
     "sky_cloud_style": None, "sky_daytime": None, "sky_gradient": None, "sky_custom": None,
+    # Liveliness, this screen's own, as All Screens' is: one preset for every
+    # occasion or "custom" (None: Same as All Screens), then each occasion's
+    # preset and Custom knobs; calm_empty -- Calm When Nobody's Around (the
+    # screen's idle room empty: hk-sky.js roomQuiet)
+    "sky_liveliness": None, "sky_liveliness_occ": {}, "sky_liveliness_custom": {}, "sky_calm_empty": False,
     # each page's background, this screen's own: {page: mode}; a page
     # missing follows All Screens' (sky.pages)
     "sky_pages": {},
@@ -907,8 +1029,10 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["menu_rooms"] = pick("menu_rooms", BOARD_MENU_ROOMS)
     out["home_rooms"] = pick("home_rooms", BOARD_HOME_ROOMS)
     out["page_rooms"] = pick("page_rooms", BOARD_PAGE_ROOMS)
-    out["narrow"] = pick("narrow", BOARD_NARROW)
     out["phone_header"] = pick("phone_header", BOARD_PHONE)
+    out["black_screen"] = pick("black_screen", BLACK_SCREENS)
+    from . import sleep_rules as SR
+    out["sleep"] = SR.sleep_options(d.get("sleep")) or SR.sleep_options(None)
     try:
         out["dock_min"] = int(min(max(float(d.get("dock_min") or 1000), DOCK_MIN[0]), DOCK_MIN[1]))
     except (TypeError, ValueError):
@@ -916,22 +1040,15 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["ha_row"] = bool(d.get("ha_row", False))
     out["ha_place"] = pick("ha_place", HA_PLACES)
     out["rooms_custom"] = bool(d.get("rooms_custom", False))
+    out["cameras_custom"] = bool(d.get("cameras_custom", False))
     out["menu_custom"] = bool(d.get("menu_custom", False))
     out["accent"] = accent(d.get("accent")) or out["accent"]
     out["glyph"] = pick("glyph", MENU_GLYPHS)
     out["clock"] = bool(d.get("clock", True))
     out["swipe"] = d.get("swipe") is True
-    # THE TAB BAR'S FIRST FORM (2026-10-05, a few hours): a `tab_bar` of its
-    # own beside the menu. Always is now the menu's Tab Bar; Narrow Screens
-    # the narrow choice. Read once: the next write of the item drops the key.
-    old_bar = d.get("tab_bar")
-    if old_bar == "always" and "tabbar" not in (d.get("menu"), d.get("narrow")):
-        out["menu"] = "tabbar"
-    elif old_bar == "narrow" and out["menu"] not in ("off", "tabbar") and d.get("narrow") is None:
-        out["narrow"] = "tabbar"
     out["tab_bar_scroll"] = pick("tab_bar_scroll", TAB_BAR_SCROLLS)
     out["tab_bar_rooms"] = tab_bar_rooms(d.get("tab_bar_rooms"))
-    out["tab_bar_glass"] = pick("tab_bar_glass", TAB_BAR_GLASS)
+    out["tab_bar_glass"] = tab_bar_glass(d.get("tab_bar_glass"))
     out["tab_bar_more"] = pick("tab_bar_more", TAB_BAR_MORE)
     out["tab_bar_more_phone"] = pick("tab_bar_more_phone", TAB_BAR_MORE)
     out["tab_bar_pos"] = pick("tab_bar_pos", TAB_BAR_POS)
@@ -941,7 +1058,10 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_tabs"] = tab_count(d.get("tab_bar_tabs"))
     out["tab_bar_size"] = pick("tab_bar_size", TAB_BAR_SIZES)
     out["tab_bar_tabs_rail"] = tab_count(d.get("tab_bar_tabs_rail"))
-    out["tab_bar_scroll_phone"] = d.get("tab_bar_scroll_phone") if d.get("tab_bar_scroll_phone") in TAB_BAR_SCROLLS else None
+    out["tab_bar_scroll_phone"] = pick("tab_bar_scroll_phone", TAB_BAR_SCROLLS)
+    out["menu_phone"] = d.get("menu_phone") if d.get("menu_phone") in BOARD_PHONE_MENUS else None
+    out["button_phone"] = pick("button_phone", BOARD_BUTTON_PHONE)
+    out["tab_bar_rooms_phone"] = tab_bar_rooms(d.get("tab_bar_rooms_phone"))
     strs = lambda v: [str(x) for x in v if x] if isinstance(v, list) else None  # noqa: E731
     for k in ("categories", "room_order", "cameras", "scenes", "favorites", "chips_extra"):
         out[k] = strs(d.get(k)) or []
@@ -971,6 +1091,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["glass"] = pick("glass", BOARD_GLASS)
     for k in ("frost", "blur"):
         out[k] = amount_or_none(d.get(k))
+    out["frost_tint"] = d.get("frost_tint") if isinstance(d.get("frost_tint"), bool) else None
     # The screen's own Sky / Background: each flag stored as anything but a
     # boolean is not set (follow All Screens), as a backdrop id not in
     # SKY_BACKDROPS and stops that do not parse are (sky_stops()).
@@ -982,6 +1103,12 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_gradient"] = d.get("sky_gradient") if d.get("sky_gradient") in SKY_BACKDROP_IDS else None
     out["sky_custom"] = sky_stops(d.get("sky_custom"))
     out["sky_pages"] = sky_pages(d.get("sky_pages")) or {}
+    out["sky_liveliness"] = d.get("sky_liveliness") if d.get("sky_liveliness") in LIVELY_PRESETS else None
+    out["sky_liveliness_occ"] = lively(d.get("sky_liveliness_occ")) or {}
+    # (before 2026-10-09 a screen's Custom was by kind -- {flying: 2, ...}:
+    # that reads as nothing)
+    out["sky_liveliness_custom"] = lively_custom(d.get("sky_liveliness_custom")) or {}
+    out["sky_calm_empty"] = d.get("sky_calm_empty") is True
     for k in ("chips_row", "camera_strip", "scenes_row", "sky", "idle_return", "car", "kiosk", "popups",
               "now_playing", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
         out[k] = bool(d.get(k, BOARD_DEFAULTS[k]))
@@ -1002,19 +1129,9 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
         legacy = saver_options(None, out["wallpanel_options"])
         out["screensaver_options"] = legacy if legacy != SAVER_DEFAULTS else None
     out["screensaver_engine"] = d.get("screensaver_engine") if d.get("screensaver_engine") in SAVER_ENGINES else "hk"
-    # WHO HIDES THE HEADER: HK Frontend (1.3), unless the screen is still
-    # tuned for the Kiosk Mode plugin. A 1.2 screen whose Kiosk Mode Options
-    # say only what HK Frontend can (kiosk_from_plugin) moves over with them;
-    # any other options keep the plugin, and so everything they say.
-    eng = d.get("kiosk_engine")
-    if eng in KIOSK_ENGINES:
-        out["kiosk_engine"] = eng
-    else:
-        same = kiosk_from_plugin(out["kiosk_options"])
-        out["kiosk_engine"] = "hk" if same is not None else "kiosk_mode"
-        for k, v in (same or {}).items():
-            if k not in d:
-                out[k] = v
+    # WHO HIDES THE HEADER: HK Frontend, unless the screen chose the Kiosk
+    # Mode plugin (a 1.2 screen's choice is written down by settings_tidied)
+    out["kiosk_engine"] = d.get("kiosk_engine") if d.get("kiosk_engine") in KIOSK_ENGINES else "hk"
     live = str(d.get("camera_live") or "").strip()
     out["camera_live"] = live if re.fullmatch(r"(input_select|select)\.[a-z0-9_]+", live) else ""
     room = str(d.get("idle_room") or "").strip()
@@ -1253,14 +1370,15 @@ ROOM_KEYS = {"room_order": "order", "home_rooms": "home", "menu_rooms": "menu", 
 # A SCREEN'S MENU KEYS and All Screens' (settings `menu`) they follow. `menu`
 # is special: off and always open are the screen's own, and only a button's
 # style follows (MENU_STYLES).
-MENU_KEYS = {"menu": "style", "narrow": "narrow", "tab_position": "tab_at", "tab_size": "tab_size",
+MENU_KEYS = {"menu": "style", "tab_position": "tab_at", "tab_size": "tab_size",
              "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
              "ha_row": "ha_row", "ha_place": "ha_at", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe",
              "tab_bar_scroll": "bar_scroll", "tab_bar_rooms": "bar_rooms", "tab_bar_glass": "bar_glass",
              "tab_bar_more": "bar_more", "tab_bar_more_phone": "bar_more_phone", "tab_bar_pos": "bar_pos",
              "tab_bar_fold": "bar_fold", "tab_bar_start": "bar_start", "tab_bar_adjust": "bar_adjust",
              "tab_bar_scroll_phone": "bar_scroll_phone", "tab_bar_tabs": "bar_tabs",
-             "tab_bar_tabs_rail": "bar_tabs_rail", "tab_bar_size": "bar_size"}
+             "tab_bar_tabs_rail": "bar_tabs_rail", "tab_bar_size": "bar_size",
+             "button_phone": "button_phone", "tab_bar_rooms_phone": "bar_rooms_phone"}
 # a menu BUTTON's styles: not off, always open or the tab bar
 MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open", "tabbar"))
 
@@ -1284,7 +1402,6 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
     except (TypeError, ValueError):
         dock = d["dock_min"]
     return {"menu": pick("style", MENU_STYLES, "auto"),
-            "narrow": pick("narrow", BOARD_NARROW, d["narrow"]),
             "tab_position": t if t is not None else "",
             "tab_size": pick("tab_size", BOARD_TAB_SIZES, d["tab_size"]),
             "tab_size_phone": pick("tab_size_phone", BOARD_TAB_SIZES, d["tab_size_phone"]),
@@ -1298,16 +1415,18 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "swipe": m.get("swipe") is True,
             "tab_bar_scroll": pick("bar_scroll", TAB_BAR_SCROLLS, d["tab_bar_scroll"]),
             "tab_bar_rooms": tab_bar_rooms(m.get("bar_rooms")),
-            "tab_bar_glass": pick("bar_glass", TAB_BAR_GLASS, d["tab_bar_glass"]),
+            "tab_bar_glass": tab_bar_glass(m.get("bar_glass")),
             "tab_bar_more": pick("bar_more", TAB_BAR_MORE, d["tab_bar_more"]),
             "tab_bar_more_phone": pick("bar_more_phone", TAB_BAR_MORE, d["tab_bar_more_phone"]),
             "tab_bar_pos": pick("bar_pos", TAB_BAR_POS, d["tab_bar_pos"]),
             "tab_bar_fold": pick("bar_fold", TAB_BAR_FOLD, d["tab_bar_fold"]),
             "tab_bar_start": pick("bar_start", TAB_BAR_START, d["tab_bar_start"]),
             "tab_bar_adjust": m.get("bar_adjust") is not False,
-            "tab_bar_scroll_phone": m.get("bar_scroll_phone") if m.get("bar_scroll_phone") in TAB_BAR_SCROLLS else None,
+            "tab_bar_scroll_phone": pick("bar_scroll_phone", TAB_BAR_SCROLLS, d["tab_bar_scroll_phone"]),
             "tab_bar_tabs": tab_count(m.get("bar_tabs")), "tab_bar_tabs_rail": tab_count(m.get("bar_tabs_rail")),
-            "tab_bar_size": pick("bar_size", TAB_BAR_SIZES, d["tab_bar_size"])}
+            "tab_bar_size": pick("bar_size", TAB_BAR_SIZES, d["tab_bar_size"]),
+            "button_phone": pick("button_phone", BOARD_BUTTON_PHONE, d["button_phone"]),
+            "tab_bar_rooms_phone": tab_bar_rooms(m.get("bar_rooms_phone"))}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -1322,15 +1441,24 @@ def house_rooms(rooms: Mapping[str, Any] | None) -> dict[str, Any]:
             "page_rooms": r.get("pages") if r.get("pages") in BOARD_PAGE_ROOMS else BOARD_DEFAULTS["page_rooms"]}
 
 
+def house_cameras(order: Any) -> list[str]:
+    """All Screens' cameras, checked, as a screen's `cameras`."""
+    if not isinstance(order, list):
+        return []
+    return list(dict.fromkeys(str(x) for x in order if isinstance(x, str) and ENTITY_ID.match(x)))
+
+
 def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
              house: Mapping[str, Any] | None = None, rooms: Mapping[str, Any] | None = None,
-             menu: Mapping[str, Any] | None = None) -> dict[str, Any]:
+             menu: Mapping[str, Any] | None = None, cameras: list[str] | None = None) -> dict[str, Any]:
     """A screen's settings as READ: a null screensaver_options filled in with
     All Screens' (`house`, or read from `options`), and `screensaver_house`
     saying which it is; its rooms, All Screens' (`rooms`, or read from
     `options`) unless it sets its own, `rooms_house` saying which; and its
     menu settings the same way (`menu`, `menu_house`) -- off and always open
-    staying the screen's own."""
+    staying the screen's own; and its cameras, All Screens' (`cameras`, or
+    read from `options`) unless it sets its own, `cameras_house` saying
+    which."""
     out = dict(b)
     own = b.get("screensaver_options")
     if own is None and house is None:
@@ -1340,6 +1468,9 @@ def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
     out["rooms_house"] = not b.get("rooms_custom")
     if out["rooms_house"]:
         out.update(house_rooms(merged(options)["rooms"] if rooms is None else rooms))
+    out["cameras_house"] = not b.get("cameras_custom")
+    if out["cameras_house"]:
+        out["cameras"] = house_cameras(merged(options)["cameras"]["order"] if cameras is None else cameras)
     out["menu_house"] = not b.get("menu_custom")
     if out["menu_house"]:
         hm = house_menu(merged(options)["menu"] if menu is None else menu)
@@ -1361,6 +1492,125 @@ def preset_menu(data: Mapping[str, Any], preset: Mapping[str, Any],
     return {**data, "menu_custom": any(json.dumps(data[k]) != json.dumps(house[k]) for k in keys)}
 
 
+def phone_menu(b: Mapping[str, Any]) -> str:
+    """A screen's menu on a phone: its own menu_phone, else what a phone
+    showed before there was one -- the screen's Menu when that is off or the
+    tab bar, else the tab bar when its narrow choice (stored before 1.12;
+    the migrations hand it over) was, else a button (hk-base.js phoneMenu)."""
+    if b.get("menu_phone") in BOARD_PHONE_MENUS:
+        return b["menu_phone"]
+    if b.get("menu") in ("off", "tabbar"):
+        return b["menu"]
+    return "tabbar" if b.get("narrow") == "tabbar" else "button"
+
+
+def button_phone(narrow: Any) -> str:
+    """A phone's button style, from before phones had their own: the narrow
+    choice when it is a button style, else the chip."""
+    return narrow if narrow in BOARD_BUTTON_PHONE else "chip"
+
+
+def phones_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]]
+                  ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """PHONES GET THEIR OWN MENU (entry 1.11, 2026-10-08): each screen's
+    menu on a phone, and All Screens' (and each screen with its own menu
+    settings') button style on a phone, written down as a phone shows them
+    now -- so that changing a tablet's menu from here on leaves phones as
+    they are. Nothing on any screen changes. Returns (new options or None:
+    unchanged, {path: new item data})."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    menu = dict(stored.get("menu") or {})
+    new_options = None
+    if menu.get("button_phone") not in BOARD_BUTTON_PHONE:
+        menu["button_phone"] = button_phone(_narrow(menu))
+        new_options = {**(options or {}), CONF_DASHBOARD: {**stored, "menu": menu}}
+    house_narrow = _narrow(menu)
+    out = {}
+    for p, d in items.items():
+        b = resolved(board(d), None, house={}, rooms={}, menu=menu, cameras=[])
+        data = dict(d)
+        if data.get("menu_phone") not in BOARD_PHONE_MENUS:
+            narrow = _narrow(d) if d.get("menu_custom") else house_narrow
+            data["menu_phone"] = phone_menu({**b, "menu_phone": None, "narrow": narrow})
+        if data.get("menu_custom") and data.get("button_phone") not in BOARD_BUTTON_PHONE:
+            data["button_phone"] = button_phone(_narrow(d))
+        out[p] = data
+    return new_options, out
+
+
+def _narrow(d: Mapping[str, Any] | None) -> str:
+    """The narrow choice as stored before entry 1.12 (a screen's, or All
+    Screens' menu), for the migrations."""
+    v = (d or {}).get("narrow")
+    return v if v in BOARD_NARROW else "chip"
+
+
+# THE HOUSE-WIDE MENU LISTS before entry 1.9, which every save still wrote
+# back until 1.12
+_OLD_MENU_LISTS = ("dashboards", "docked", "dock_min", "time_weather", "button", "tab_position",
+                   "order", "categories", "ha_sidebar")
+
+
+def settings_tidied(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]]
+                    ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """ONE SET OF PHONES' SETTINGS, NO NARROW CHOICE (entry 1.12,
+    2026-10-09). Phones' menu now shows wherever the tablets' doesn't fit,
+    so the narrow choice (On Narrow Screens / When Folded) goes: a screen's
+    menu on phones is written down if it isn't yet (as phones_lifted), and
+    each "Same as Tablets" phone setting -- While Scrolling, More's rooms,
+    the button's style -- becomes its own, the value it showed. The tab
+    bar's Tinted glass is stored as "tinted" ("clear" is Appearance's
+    see-through look), the house-wide menu lists from before 1.9 go, and a
+    1.2 screen's header and sidebar choice (kiosk_from_plugin, read every
+    time until now) is written down.
+    Nothing a phone or a tablet with room shows changes. Returns (new
+    options or None: unchanged, {path: new item data})."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    menu = dict(stored.get("menu") or {})
+    before = dict(menu)
+    house_narrow = _narrow(menu)
+
+    # All Screens': the keys as stored (bar_*)
+    for phone_key, tablet_key in (("bar_scroll_phone", "bar_scroll"), ("bar_rooms_phone", "bar_rooms")):
+        if menu.get(phone_key) in (None, ""):
+            menu[phone_key] = menu.get(tablet_key) if menu.get(tablet_key) is not None else DEFAULTS["menu"][phone_key]
+    if menu.get("button_phone") not in BOARD_BUTTON_PHONE:
+        menu["button_phone"] = button_phone(house_narrow)
+    if menu.get("bar_glass") == "clear":
+        menu["bar_glass"] = "tinted"
+    menu.pop("narrow", None)
+    for k in _OLD_MENU_LISTS:
+        menu.pop(k, None)
+    new_options = None if menu == before else {**(options or {}), CONF_DASHBOARD: {**stored, "menu": menu}}
+
+    out = {}
+    for p, d in items.items():
+        data = dict(d)
+        narrow = _narrow(d) if d.get("menu_custom") else house_narrow
+        if data.get("menu_phone") not in BOARD_PHONE_MENUS:
+            b = board(d)
+            data["menu_phone"] = phone_menu({**b, "menu_phone": None, "narrow": narrow})
+        if data.get("menu_custom"):
+            for phone_key, tablet_key in (("tab_bar_scroll_phone", "tab_bar_scroll"), ("tab_bar_rooms_phone", "tab_bar_rooms")):
+                if data.get(phone_key) in (None, ""):
+                    data[phone_key] = data.get(tablet_key) if data.get(tablet_key) is not None else BOARD_DEFAULTS[phone_key]
+            if data.get("button_phone") not in BOARD_BUTTON_PHONE:
+                data["button_phone"] = button_phone(narrow)
+        if data.get("tab_bar_glass") == "clear":
+            data["tab_bar_glass"] = "tinted"
+        data.pop("narrow", None)
+        # a 1.2 screen still tuned for the Kiosk Mode plugin: HK Frontend's
+        # own kiosk when its options say only what that can (1.3's rule,
+        # read every time until now), else the plugin
+        if data.get("kiosk_engine") not in KIOSK_ENGINES:
+            same = kiosk_from_plugin(data.get("kiosk_options") if isinstance(data.get("kiosk_options"), dict) else None)
+            data["kiosk_engine"] = "hk" if same is not None else "kiosk_mode"
+            for k, v in (same or {}).items():
+                data.setdefault(k, v)
+        out[p] = data
+    return new_options, out
+
+
 # Which of a screen's menu keys show at all, by its menu: a button never
 # docks, an always-open menu has no button style; off shows none. The edge
 # tab's only where the screen shows it (hk-settings-model.js showsTab).
@@ -1373,7 +1623,7 @@ _TAB_STYLES = ("auto", "chip_scroll", "chip_home", "tab")
 def _menu_shown(b: Mapping[str, Any]) -> tuple[str, ...]:
     kind = "button" if b["menu"] in MENU_STYLES else b["menu"]
     keys = _MENU_SHOWN.get(kind, ())
-    tab = (kind == "button" and b["menu"] in _TAB_STYLES) or b["narrow"] in ("tab", "chip_scroll")
+    tab = (kind == "button" and b["menu"] in _TAB_STYLES) or b.get("narrow") in ("tab", "chip_scroll")
     return keys + _MENU_TAB if keys and tab else keys
 
 
@@ -1391,16 +1641,16 @@ def menu_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[s
     stored = dict((options or {}).get(CONF_DASHBOARD) or {})
     if "style" in (stored.get("menu") or {}):
         return None, {}
-    boards_ = {p: board(d) for p, d in items.items()}
+    boards_ = {p: {**board(d), "narrow": _narrow(d)} for p, d in items.items()}
     shown = {p: _menu_shown(b) for p, b in boards_.items()}
     picked: dict[str, Any] = {}
     for k in ("menu", "narrow", "tab_position", "tab_size", "tab_size_phone", "dock_min", "time_weather", "ha_row"):
         seen = [json.dumps(b[k]) for p, b in boards_.items() if k in shown[p]]
-        picked[k] = json.loads(max(dict.fromkeys(seen), key=seen.count)) if seen else BOARD_DEFAULTS[k]
+        picked[k] = json.loads(max(dict.fromkeys(seen), key=seen.count)) if seen else BOARD_DEFAULTS.get(k, "chip")
     if picked["menu"] not in MENU_STYLES:
         picked["menu"] = "auto"
     old = dict(stored.get("menu") or {})
-    menu = {**old, **{MENU_KEYS[k]: v for k, v in picked.items()}}
+    menu = {**old, **{{**MENU_KEYS, "narrow": "narrow"}[k]: v for k, v in picked.items()}}
     new_options = {**(options or {}), CONF_DASHBOARD: {**stored, "menu": menu}}
     out = {}
     for p, d in items.items():
@@ -1469,14 +1719,37 @@ def rooms_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[
     return new_options, {p: {**d, "rooms_custom": sig[p] not in (top, defaults)} for p, d in items.items()}
 
 
+def cameras_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]]
+                   ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """THE CAMERAS MOVE TO ALL SCREENS (entry 1.13, 2026-10-09), as the rooms
+    did (rooms_lifted): each screen held its own camera list -- a house with
+    six screens kept six copies of one order. The list the most screens chose
+    (counting only screens that chose one) becomes All Screens'; a screen
+    with exactly that list, or with none of its own (Automatic), follows All
+    Screens from now on; one that differs keeps its own (cameras_custom).
+    Returns (new options or None: unchanged, {path: new item data}). A house
+    that already has All Screens' cameras is left alone."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    if (stored.get("cameras") or {}).get("order"):
+        return None, {}
+    lists = {p: tuple(board(d)["cameras"]) for p, d in items.items()}
+    chosen = [v for v in lists.values() if v]
+    if not chosen:
+        return None, {p: {**d, "cameras_custom": False} for p, d in items.items()}
+    top = max(dict.fromkeys(chosen), key=chosen.count)         # ties: the first screen's
+    cams = {**(stored.get("cameras") or {}), "order": list(top)}
+    new_options = {**(options or {}), CONF_DASHBOARD: {**stored, "cameras": cams}}
+    return new_options, {p: {**d, "cameras_custom": lists[p] not in (top, ())} for p, d in items.items()}
+
+
 def boards(entry: ConfigEntry | None) -> dict[str, dict[str, Any]]:
     """Every dashboard item's settings, by url path (as read: resolved())."""
     out: dict[str, dict[str, Any]] = {}
     m = merged(entry.options if entry is not None else None)
-    house, rooms, menu = m["look"]["saver"], m["rooms"], m["menu"]
+    house, rooms, menu, cams = m["look"]["saver"], m["rooms"], m["menu"], m["cameras"]["order"]
     for sub in (entry.subentries.values() if entry is not None else ()):
         if sub.subentry_type == SUBENTRY_DASHBOARD and sub.unique_id:
-            out[sub.unique_id] = resolved(board(sub.data), None, house, rooms, menu)
+            out[sub.unique_id] = resolved(board(sub.data), None, house, rooms, menu, cams)
     return out
 
 
@@ -1489,25 +1762,6 @@ def legacy_screens(items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     return {"idle": {"dashboards": idle,
                      "rooms": {p: items[p]["idle_room"] for p in idle if items[p]["idle_room"]}},
             "car": {"dashboards": [p for p, b in items.items() if b["car"]]}}
-
-
-def legacy_lists(items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
-    """The menu's older house-wide lists, read off the items -- for a screen
-    still running an older hk-base.js until it reloads."""
-    on = [p for p, b in items.items() if b["menu"] not in ("off", "tabbar")]
-    docked = [p for p in on if items[p]["menu"] == "open"]
-    # one button style, one tab position, one set of categories for all: the
-    # older file knows no other. The buttons' shared choice when they agree
-    # (a migrated entry always does), else automatic.
-    styles = {items[p]["menu"] for p in on if items[p]["menu"] in MENU_BUTTONS}
-    first = items[(on or list(items))[0]] if items else board(None)
-    return {"dashboards": on, "docked": docked,
-            "time_weather": [p for p in docked if items[p]["time_weather"] == "menu"],
-            "ha_sidebar": [p for p in on if items[p]["ha_row"]],
-            "dock_min": items[docked[0]]["dock_min"] if docked else 1000,
-            "button": styles.pop() if len(styles) == 1 else "auto",
-            "tab_position": first["tab_position"], "categories": list(first["categories"]),
-            "order": "dashboard" if first["menu_rooms"] == "order" else "az"}
 
 
 # ------------------------------------------------------------ text fields

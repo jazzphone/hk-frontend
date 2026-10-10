@@ -132,6 +132,19 @@ def test_saving_one_kind_retires_only_its_old_list():
 
 
 # ------------------------------------------------------------ one screen
+def test_frost_tint_is_off_by_default_and_a_house_switch():
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house
+    m = S.merged({"dashboard": {}})
+    assert m["look"]["frost_tint"] is False, "off until somebody turns it on"
+    new, err = apply_house({}, {"look.frost_tint": True})
+    assert err == {} and S.merged(new)["look"]["frost_tint"] is True
+    _, err = apply_house({}, {"look.frost_tint": "on"})
+    assert "look.frost_tint" in err
+    assert S.board({"frost_tint": 1})["frost_tint"] is None, "a stored non-boolean follows All Screens"
+    assert S.board({"frost_tint": False})["frost_tint"] is False
+
+
 def test_screen_changes_are_checked_not_defaulted():
     from custom_components.hk_frontend.settings_api import apply_board
     data, err = apply_board({"menu": "chip"}, {"menu": "open", "dock_min": 1100, "frost": 30,
@@ -141,6 +154,13 @@ def test_screen_changes_are_checked_not_defaulted():
     assert data["chips"] == ["lights", "sensor.mail"] and data["tab_position"] == "140px"
     data, err = apply_board(data, {"frost": None, "glass": "house"})
     assert err == {} and data["frost"] is None, "None follows the house again"
+    # Tint from Background: a screen's own on or off, None follows All Screens
+    data, err = apply_board(data, {"frost_tint": True})
+    assert err == {} and data["frost_tint"] is True
+    data, err = apply_board(data, {"frost_tint": None})
+    assert err == {} and data["frost_tint"] is None
+    _, err = apply_board(data, {"frost_tint": "yes"})
+    assert "frost_tint" in err, "only a boolean or None"
     same, err = apply_board(data, {"tab_position": "somewhere", "idle_room": "Living Room!",
                                    "menu": "sideways", "chips": ["spaceships"], "wallpanel_options": [1],
                                    "whatever": 1})
@@ -424,26 +444,27 @@ def test_home_page_off_is_a_screen_of_custom_pages():
     assert "home_page" in err
 
 
-def test_narrow_screens_and_the_top_of_the_menu():
-    """On Narrow Screens / When Folded, and the pages at the top of the menu:
-    checked, not defaulted; "-" is "nothing at the top"."""
+def test_phones_button_and_the_top_of_the_menu():
+    """Phones' button style (the narrow choice's successor, 1.12) and the
+    pages at the top of the menu: checked, not defaulted; "-" is "nothing at
+    the top"; the retired narrow choice is refused."""
     from custom_components.hk_frontend.settings import board
     from custom_components.hk_frontend.settings_api import apply_board
-    data, err = apply_board({}, {"narrow": "chip_scroll", "menu_top": ["weather", "energy", "energy"]})
-    assert err == {} and data["narrow"] == "chip_scroll" and data["menu_top"] == ["weather", "energy"]
+    data, err = apply_board({}, {"button_phone": "chip_scroll", "menu_top": ["weather", "energy", "energy"]})
+    assert err == {} and data["button_phone"] == "chip_scroll" and data["menu_top"] == ["weather", "energy"]
     data, err = apply_board(data, {"menu_top": ["-"]})
     assert err == {} and data["menu_top"] == ["-"], "nothing at the top"
-    _, err = apply_board(data, {"narrow": "sideways", "menu_top": ["no spaces please"]})
-    assert err == {"narrow": "choice", "menu_top": "list"}
-    b = board({"narrow": "hover", "menu_top": ["ok", "Not Ok!", 3]})
-    assert b["narrow"] == "chip" and b["menu_top"] == ["ok", "3"], "read defensively (a view index is a path)"
-    assert board({})["narrow"] == "chip" and board({})["menu_top"] == []
+    _, err = apply_board(data, {"button_phone": "tabbar", "menu_top": ["no spaces please"], "narrow": "tab"})
+    assert err == {"button_phone": "choice", "menu_top": "list", "narrow": "unknown"}
+    b = board({"button_phone": "hover", "menu_top": ["ok", "Not Ok!", 3]})
+    assert b["button_phone"] == "chip" and b["menu_top"] == ["ok", "3"], "read defensively (a view index is a path)"
+    assert board({})["button_phone"] == "chip" and board({})["menu_top"] == []
 
 
 def test_the_swipe_is_saved_for_a_screen_and_for_all_screens():
     from custom_components.hk_frontend.settings_api import apply_board, apply_house
-    data, err = apply_board({}, {"swipe": True, "menu": "none", "narrow": "none"})
-    assert err == {} and (data["swipe"], data["menu"], data["narrow"]) == (True, "none", "none")
+    data, err = apply_board({}, {"swipe": True, "menu": "none", "button_phone": "none"})
+    assert err == {} and (data["swipe"], data["menu"], data["button_phone"]) == (True, "none", "none")
     _, err = apply_board({}, {"swipe": "sometimes"})
     assert "swipe" in err
     out, err = apply_house({}, {"menu.swipe": True, "menu.style": "none"})
@@ -539,8 +560,8 @@ def test_copy_settings_covers_every_screen_setting_and_round_trips():
     groups = src[src.index("var COPY_GROUPS = ["):src.index("function copyDefaults")]
     keys = set(re.findall(r"'([a-z_]+)'", groups.split("];")[0])) | set(
         re.findall(r"'([a-z_]+)'", groups[groups.index("COPY_NEVER"):]))
-    labels = {"menu", "home", "rooms", "Rooms", "cameras", "scenes", "favorites", "pages", "look", "behavior", "saver",
-              "Menu", "Appearance", "Behavior", "Screensaver", "Cameras", "Scenes", "Favorites", "Pages"}
+    labels = {"menu", "home", "rooms", "Rooms", "cameras", "scenes", "favorites", "pages", "look", "behavior", "header", "idle",
+              "device", "Menu", "Appearance", "Behavior", "Header", "Cameras", "Scenes", "Favorites", "Pages"}
     assert set(S.BOARD_DEFAULTS) <= keys, set(S.BOARD_DEFAULTS) - keys
     assert keys - labels - set(S.BOARD_DEFAULTS) == set(), keys - labels - set(S.BOARD_DEFAULTS)
     # a busy screen's settings, copied onto a fresh one, are all accepted
@@ -658,14 +679,64 @@ def test_the_tab_bar_is_saved_for_a_screen_and_for_all_screens():
     assert err == {}
     assert (data["menu"], data["tab_bar_scroll"], data["tab_bar_rooms"], data["tab_bar_glass"]) == \
         ("tabbar", "hide", "button", "frosted")
-    data, err = apply_board(data, {"menu": "open", "narrow": "tabbar"})
-    assert err == {} and (data["menu"], data["narrow"]) == ("open", "tabbar")
+    data, err = apply_board(data, {"menu": "open", "menu_phone": "tabbar"})
+    assert err == {} and (data["menu"], data["menu_phone"]) == ("open", "tabbar")
     _, err = apply_board(data, {"tab_bar": "always", "tab_bar_scroll": "fade", "tab_bar_rooms": "attic"})
     assert err == {"tab_bar": "unknown", "tab_bar_scroll": "choice", "tab_bar_rooms": "choice"}
     assert apply_board(data, {"tab_bar_rooms": False})[0]["tab_bar_rooms"] == "off"
-    opts, err = apply_house({}, {"menu.bar_scroll": "stay", "menu.bar_glass": "blur", "menu.narrow": "tabbar"})
+    opts, err = apply_house({}, {"menu.bar_scroll": "stay", "menu.bar_glass": "tinted"})
     assert err == {}
     m = S.merged(opts)["menu"]
-    assert (m["bar_scroll"], m["bar_rooms"], m["bar_glass"], m["narrow"]) == ("stay", "more", "blur", "tabbar")
+    assert (m["bar_scroll"], m["bar_rooms"], m["bar_glass"]) == ("stay", "more", "tinted")
+    assert apply_house(opts, {"menu.narrow": "tabbar"})[1] == {"menu.narrow": "unknown"}, "retired in 1.12"
     _, err = apply_house(opts, {"menu.style": "tabbar"})
     assert err == {"menu.style": "choice"}, "All Screens' button style is a button"
+
+
+def test_liveliness_house_and_screen_writes():
+    """Sky Liveliness (hk-sky.js lvOf), the same at both levels (2026-10-09):
+    one preset for every occasion or Custom, then each occasion's preset and
+    a Custom one's knobs; a screen's own, and Calm When Nobody's Around --
+    checked, refused by field, read back."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house, apply_board
+    assert S.merged({})["sky"]["liveliness_all"] == "classic"
+    assert apply_house({}, {"sky.liveliness_all": "frantic"})[1] == {"sky.liveliness_all": "choice"}
+    new, err = apply_house({}, {"sky.liveliness_all": "custom",
+                                "sky.liveliness": {"halloween": "festive", "fall": "custom", "night": "subtle"},
+                                "sky.liveliness_custom": {"fall": {"leaves": 4, "geese": 0}}})
+    assert err == {}, err
+    sky = S.merged(new)["sky"]
+    assert sky["liveliness"] == {"halloween": "festive", "fall": "custom", "night": "subtle"}
+    assert sky["liveliness_custom"] == {"fall": {"leaves": 4, "geese": 0}}
+    assert S.merged({})["sky"]["liveliness"] == {} and S.merged({})["sky"]["liveliness_custom"] == {}, "Classic by default"
+    for bad in ({"atlantis": "party"}, {"halloween": "wild"}, ["halloween"]):
+        assert apply_house(new, {"sky.liveliness": bad})[1] == {"sky.liveliness": "choice"}, bad
+    for bad in ({"fall": {"bats": 2}}, {"fall": {"leaves": 5}}, {"fall": {"leaves": True}}, {"halloween": {"geese": 1}}):
+        assert apply_house(new, {"sky.liveliness_custom": bad})[1] == {"sky.liveliness_custom": "choice"}, bad
+    assert S.merged(apply_house(new, {"sky.liveliness": None})[0])["sky"]["liveliness"] == {}, "None is back to Classic"
+    board, err = apply_board({}, {"sky_liveliness": "custom", "sky_liveliness_occ": {"halloween": "custom", "night": "party"},
+                                  "sky_liveliness_custom": {"halloween": {"bats": 0}}, "sky_calm_empty": True})
+    assert err == {}, err
+    b = S.board(board)
+    assert (b["sky_liveliness"], b["sky_liveliness_occ"], b["sky_liveliness_custom"], b["sky_calm_empty"]) == \
+        ("custom", {"halloween": "custom", "night": "party"}, {"halloween": {"bats": 0}}, True)
+    assert S.board({})["sky_liveliness"] is None and S.board({})["sky_calm_empty"] is False, "Same as All Screens by default"
+    assert apply_board({}, {"sky_liveliness": "festive"})[0]["sky_liveliness"] == "festive", "one preset for every occasion"
+    same, err = apply_board(board, {"sky_liveliness": "lively", "sky_liveliness_occ": {"atlantis": "party"},
+                                    "sky_liveliness_custom": {"flying": 2}, "sky_calm_empty": "yes"})
+    assert same == board and err == {"sky_liveliness": "choice", "sky_liveliness_occ": "choice",
+                                     "sky_liveliness_custom": "choice", "sky_calm_empty": "bool"}, \
+        "the old Calm / Normal / Lively and Custom by kind are refused"
+    assert S.board({"sky_liveliness": "calm", "sky_liveliness_custom": {"flying": 0}})["sky_liveliness"] is None and \
+        S.board({"sky_liveliness_custom": {"flying": 0}})["sky_liveliness_custom"] == {}, "and read as Same as All Screens"
+    board, err = apply_board(board, {"sky_liveliness": None, "sky_liveliness_occ": None, "sky_liveliness_custom": None})
+    assert err == {} and S.board(board)["sky_liveliness"] is None and S.board(board)["sky_liveliness_custom"] == {}
+
+
+def test_every_liveliness_occasion_is_a_theme_a_woodland_season_or_the_night():
+    from custom_components.hk_frontend import settings as S
+    assert set(S.LIVELY_OCCASIONS) == set(S.THEMES) | set(S.WOODLAND_SEASONS) | {"night"}
+    for occ, knobs in S.LIVELY_OCCASIONS.items():
+        assert all(k in S.LIVELY_KNOBS and style in ("new", "old", "both") for k, style in knobs), occ
+    assert {k for v in S.LIVELY_OCCASIONS.values() for k, _s in v} == set(S.LIVELY_KNOBS), "every knob drawn somewhere"

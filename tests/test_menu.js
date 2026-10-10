@@ -232,11 +232,12 @@ ok('an mdi icon this home has as an SF Symbol is drawn as the symbol', window.hk
 ok('one it does not have stays Material', window.hkMenu._.glyph('mdi:grill') === 'mdi:grill');
 ok('an hk: icon is left alone', window.hkMenu._.glyph('hk:lock') === 'hk:lock');
 
-print('\n=== on or off, chip or tab ===');
+print('\n=== on or off, chip or tab (each dashboard its own item: settings.py boards) ===');
 CFG = { views: VIEWS };
-ok('off by default: no dashboard listed', M.on() === false && M.style() === null);
-SETTINGS = { menu: { dashboards: ['dashboard-hall'], button: 'auto' } };
-ok('on for a listed dashboard', M.on() === true);
+var HALL = function () { return SETTINGS.boards['dashboard-hall']; };
+ok('off by default: no item for the dashboard', M.on() === false && M.style() === null);
+SETTINGS = { boards: { 'dashboard-hall': { menu: 'auto' } } };
+ok('on for a dashboard with a menu', M.on() === true);
 ok('Automatic, no menu button on Home: the edge tab', M.style() === 'tab');
 CFG = { views: [{ title: 'Hall', cards: [{ type: 'custom:hk-row-card', cards: [],
         lead: { type: 'custom:hk-menu-button-card' } }] }].concat(VIEWS.slice(1)) };
@@ -251,14 +252,14 @@ CFG = { views: [{ title: 'Hall', cards: [{ type: 'custom:hk-chips-card', lead: {
 ok('...nor when its lead is some other card', !M.homeButton());
 CFG = { views: [{ title: 'Hall', cards: [{ type: 'custom:hk-row-card', cards: [],
         lead: { type: 'custom:hk-menu-button-card' } }] }].concat(VIEWS.slice(1)) };
-SETTINGS.menu.button = 'tab';
+HALL().menu = 'tab';
 ok('Edge tab wins over a chip row', M.style() === 'tab');
-SETTINGS.menu.button = 'chip';
+HALL().menu = 'chip';
 CFG = { views: VIEWS };
 ok('Pinned chip is the chip even without one on Home', M.style() === 'chip');
-SETTINGS.menu.button = 'tab';
+HALL().menu = 'tab';
 window.innerWidth = 402;
-ok('a phone always gets the round button', M.style() === 'chip');
+ok('a phone gets Phones\' menu: a button, the chip unless it says otherwise', M.style() === 'chip');
 window.innerWidth = 744;
 ok('so does an iPad mini held upright: its 18.9 px margin has no room for the tab', M.style() === 'chip');
 window.innerWidth = 1133;
@@ -269,15 +270,15 @@ ok('another dashboard has no menu', M.on() === false && M.style() === null && M.
 location.pathname = '/dashboard-hall/lights';
 ok('every page of a dashboard shares its style', M.style() === 'tab');
 ok('the clock opens it by default', M.clock() === true);
-SETTINGS.menu.clock = false;
+HALL().clock = false;
 ok('...unless that is turned off', M.clock() === false);
 ok('the sidebar glyph by default', M.icon() === 'hk:dock-left');
-SETTINGS.menu.glyph = 'lines';
+HALL().glyph = 'lines';
 ok('three lines when chosen', M.icon() === 'hk:menu');
 
 print('\n=== always shown ===');
-SETTINGS.menu = { dashboards: ['dashboard-hall'], button: 'tab', docked: ['dashboard-hall'] };
-ok('always shown on a listed dashboard with room for it: no button at all', M.docked() === true && M.style() === 'docked');
+SETTINGS = { boards: { 'dashboard-hall': { menu: 'open' } } };
+ok('always shown with room for it: no button at all', M.docked() === true && M.style() === 'docked');
 ok('...and the clock has nothing to open', M.clock() === false);
 window.innerWidth = 402;
 ok('a phone has no room: hidden, behind the round button', M.docked() === false && M.style() === 'chip');
@@ -287,33 +288,28 @@ panelW = 744;
 ok('an iPad mini held upright (744): folded, behind the round button', M.docked() === false && M.style() === 'chip');
 panelW = 1000;
 ok('1,000 px, the default fold point: still open', M.docked() === true);
-SETTINGS.menu.dock_min = 1400;
+HALL().dock_min = 1400;
 panelW = 1280;
 ok('...and the fold point is a setting: at 1,400 a 1,280 dashboard folds', M.docked() === false);
-delete SETTINGS.menu.dock_min;
+delete HALL().dock_min;
 window.innerWidth = 1280;
-SETTINGS.menu.docked = ['dashboard-other'];
-ok('a dashboard not listed stays hidden until opened', M.docked() === false && M.style() === 'tab');
+HALL().menu = 'tab';
+ok('a button menu stays hidden until opened', M.docked() === false && M.style() === 'tab');
 
 print('\n=== the time and weather in the menu ===');
-SETTINGS.menu = { dashboards: ['dashboard-hall'], docked: ['dashboard-hall'] };
-ok('off unless its dashboard is listed', M.hasTime() === false);
-SETTINGS.menu.time_weather = ['dashboard-hall'];
-ok('listed, and the menu always shown: the menu has the time', M.hasTime() === true);
+SETTINGS = { boards: { 'dashboard-hall': { menu: 'open' } } };
+ok('off unless the dashboard says so', M.hasTime() === false);
+HALL().time_weather = 'menu';
+ok('on, and the menu always shown: the menu has the time', M.hasTime() === true);
 panelW = 900;
 ok('folded (narrower than the fold point): the header has it back', M.docked() === false && M.hasTime() === false);
 panelW = 1280;
-SETTINGS.menu.docked = [];
-ok('listed but not always shown: nowhere to put it, the header keeps it', M.hasTime() === false);
-SETTINGS.menu = { dashboards: ['dashboard-hall'], docked: ['dashboard-hall'], time_weather: ['dashboard-other'] };
-ok('another dashboard listed: not this one', M.hasTime() === false);
-SETTINGS.menu = { dashboards: ['dashboard-hall'], button: 'tab' };
+HALL().menu = 'tab';
+ok('on but not always shown: nowhere to put it, the header keeps it', M.hasTime() === false);
 
 print('\n=== each dashboard its own item (settings.py boards) ===');
-SETTINGS = { menu: { dashboards: ['dashboard-hall'], docked: [], button: 'tab' },
-             boards: { 'dashboard-other': { menu: 'chip' } } };
-ok('once any item exists, a dashboard without one has no menu (the menu.dashboards lists are ignored)',
-   M.on() === false && M.style() === null);
+SETTINGS = { boards: { 'dashboard-other': { menu: 'chip' } } };
+ok('a dashboard without an item has no menu', M.on() === false && M.style() === null);
 SETTINGS.boards['dashboard-hall'] = { menu: 'tab', ha_row: true, categories: ['lights'], tab_position: '140px' };
 ok('its own button style', M.on() === true && M.style() === 'tab');
 ok('...and its own row, categories and tab position, the rest at their defaults',
@@ -322,12 +318,16 @@ ok('...and its own row, categories and tab position, the rest at their defaults'
 SETTINGS.boards['dashboard-hall'] = { menu: 'open', time_weather: 'menu' };
 ok('always open, with the time in it', M.docked() === true && M.style() === 'docked' && M.hasTime() === true);
 SETTINGS.boards['dashboard-hall'].dock_min = 1400;
-// (Folded, it is the screen's When Folded choice -- the chip unless it says
-// otherwise -- not the automatic button)
-ok('its own fold point: at 1,400 a 1,280 dashboard folds, to its When Folded choice, and the header has the time',
+// (Folded, it is the screen's Phones menu -- a button, the chip unless it
+// says otherwise -- not the automatic button)
+ok('its own fold point: at 1,400 a 1,280 dashboard folds, to its Phones menu, and the header has the time',
    M.docked() === false && M.style() === 'chip' && M.hasTime() === false);
-SETTINGS.boards['dashboard-hall'].narrow = 'tab';
-ok('...folded to the edge tab when that is its choice', M.style() === 'tab' && M.tab() === 'always');
+SETTINGS.boards['dashboard-hall'].button_phone = 'tab';
+ok('...folded to the edge tab when that is Phones\' button', M.style() === 'tab' && M.tab() === 'always');
+SETTINGS.boards['dashboard-hall'].menu_phone = 'tabbar';
+ok('...and to the tab bar when that is Phones\' menu', M.tabBar() === true && M.on() === false && M.docked() === false);
+SETTINGS.boards['dashboard-hall'].menu_phone = 'off';
+ok('...Phones off: a folded tablet keeps the chip, never no way in', M.on() === true && M.tabBar() === false);
 SETTINGS.boards['dashboard-hall'] = { menu: 'off' };
 ok('off', M.on() === false);
 location.pathname = '/dashboard-other/0';
@@ -341,7 +341,7 @@ var byDeck = model({ views: VIEWS }, AREAS, { dash: 'dashboard-hall', order: 'or
 ok('a room spanning two areas is placed by either', byDeck.rooms[0].title === 'Yard');
 var none = model({ views: VIEWS }, AREAS, { dash: 'dashboard-hall', order: 'order', roomOrder: [] });
 ok('an empty room order is the dashboard\'s order', none.rooms.map(function (x) { return x.title; }).join(',') === 'Kitchen,Den,Yard,Attic page');
-SETTINGS = { menu: { dashboards: ['dashboard-hall'], button: 'tab' } };
+SETTINGS = { boards: { 'dashboard-hall': { menu: 'tab' } } };
 
 print('\n=== room headings ===');
 ok('a heading for an area leads to its room page', M.roomPath('kitchen') === '/dashboard-hall/room-kitchen');
@@ -365,27 +365,27 @@ ok('a heading with no area is untouched', plain._roomWas === null || plain._room
 print('\n=== the round buttons ===');
 var B = customElements.get('hk-menu-button-card');
 var b = new B();
-SETTINGS.menu = { dashboards: ['dashboard-hall'], button: 'tab' };
+SETTINGS = { boards: { 'dashboard-hall': { menu: 'tab' } } };
 b.setConfig({});
 ok('with the edge tab the menu chip draws nothing and takes no space', b._showWas === false && b.hasAttribute('hidden'));
-SETTINGS.menu.button = 'chip';
+HALL().menu = 'chip';
 b.setConfig({});
 ok('with the chip it draws', b._showWas === true && !b.hasAttribute('hidden'));
 var Back = customElements.get('hk-back-card');
 var bk = new Back();
 bk.setConfig({});
 ok('the back button carries the menu button in chip style', bk._menuWas === true);
-SETTINGS.menu.button = 'tab';
+HALL().menu = 'tab';
 bk.setConfig({});
 ok('...and not with the edge tab', bk._menuWas === false);
-SETTINGS.menu.dashboards = [];
+HALL().menu = 'off';
 bk.setConfig({});
 ok('...nor on a dashboard without the menu', bk._menuWas === false);
-SETTINGS.menu = { dashboards: ['dashboard-hall'], button: 'chip', docked: ['dashboard-hall'] };
+SETTINGS = { boards: { 'dashboard-hall': { menu: 'open' } } };
 b.setConfig({});
 bk.setConfig({});
 ok('always shown: the menu chip and the button beside the chevron both go', b._showWas === false && bk._menuWas === false);
-SETTINGS.menu = { dashboards: ['dashboard-hall'], button: 'chip' };
+SETTINGS = { boards: { 'dashboard-hall': { menu: 'chip' } } };
 var keep = C.menu;
 delete C.menu;
 var old = new Back();

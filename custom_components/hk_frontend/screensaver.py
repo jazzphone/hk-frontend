@@ -12,7 +12,15 @@ integration, tied to that screen's item:
         person can touch the page: no command to the tablet's browser (a
         brightness write, starting its screensaver) can fake it.
 
-Attributes on both: starts_after, in_use_window, last_touch (the screen's
+    switch.<screen>_black_screen  (2026-10-09) on while the screen is black:
+        HK Frontend's own black over the page and the backlight at its
+        lowest, for a screen whose Black Screen is HK Frontend (in place of
+        Kiosk Satellite's Black screensaver). Turned on and off by the
+        house's sleep and wake (hk_frontend.set_black_screen also carries the
+        brightness to come back to); the page confirms it went black
+        (`confirmed`), and turns it off itself when a tap wakes it.
+
+Attributes on all: starts_after, in_use_window, last_touch (the screen's
 last touch, reported by hk-saver.js at most every 10 s while touched).
 
 THE OLD HELPER, MIRRORED. A house that followed the 1.2 docs has
@@ -43,6 +51,7 @@ from .const import DOMAIN, SIGNAL_CONFIG
 _LOGGER = logging.getLogger(__name__)
 DATA = "saver"                 # hass.data[DOMAIN][DATA]: the manager
 SWITCH_KEY = "photo_screensaver"
+BLACK_KEY = "black_screen"
 INUSE_KEY = "screen_in_use"
 MARGIN = 60                    # s: the window is Starts After less this
 MIN_WINDOW = 15
@@ -76,8 +85,13 @@ class Manager:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass, self.entry = hass, entry
         self.adders: dict[str, Any] = {}              # platform -> async_add_entities
-        self.entities: dict[str, dict[str, Any]] = {}  # path -> {"switch": e, "binary_sensor": e}
+        # path -> {"switch": photos, "black": black screen, "binary_sensor": in use}
+        self.entities: dict[str, dict[str, Any]] = {}
         self.touch: dict[str, datetime] = {}
+        # Sleep Screen: path -> its engine (sleep_engine.py), while its screen
+        # is Decided By HK Frontend or in shadow; and what it was built from
+        self.engines: dict[str, Any] = {}
+        self._engine_keys: dict[str, str] = {}
 
     def attach(self, platform: str, add: Any) -> None:
         self.adders[platform] = add
@@ -101,7 +115,8 @@ class Manager:
                 if dev:
                     devs.async_remove_device(dev.id)
         from .binary_sensor import ScreenInUse
-        from .switch import PhotoScreensaver
+        from .sensor import SleepScreenSensor
+        from .switch import BlackScreen, PhotoScreensaver
         for path, w in want.items():
             have = self.entities.setdefault(path, {})
             # a renamed screen renames its device (unless the house named it)
@@ -109,16 +124,51 @@ class Manager:
             title = w["sub"].title or path
             if dev and dev.name != title:
                 devs.async_update_device(dev.id, name=title)
-            for platform, cls in (("switch", PhotoScreensaver), ("binary_sensor", ScreenInUse)):
-                if platform in have or platform not in self.adders:
+            for kind, platform, cls in (("switch", "switch", PhotoScreensaver), ("black", "switch", BlackScreen),
+                                        ("binary_sensor", "binary_sensor", ScreenInUse),
+                                        ("sleep", "sensor", SleepScreenSensor)):
+                if kind in have or platform not in self.adders:
                     continue
                 ent = cls(self, path, w["sub"].title or path)
-                have[platform] = ent
+                have[kind] = ent
                 self.adders[platform]([ent], config_subentry_id=w["sub"].subentry_id)
+        self._sync_engines(want)
         for have in self.entities.values():
             for ent in have.values():
                 if ent.hass is not None:
                     ent.async_write_ha_state()
+
+    @callback
+    def _sync_engines(self, want: dict[str, Any]) -> None:
+        """An engine for each screen whose Sleep Screen is Decided By HK
+        Frontend (or shadow), built again when what it reads changes."""
+        import json
+        from .sleep_engine import Engine
+        for path in list(self.engines):
+            sl = (want.get(path) or {}).get("board", {}).get("sleep") or {}
+            if sl.get("decided_by") not in ("hk", "shadow"):
+                self.engines.pop(path).unload()
+                self._engine_keys.pop(path, None)
+        for path, w in want.items():
+            b = w["board"]
+            if (b.get("sleep") or {}).get("decided_by") not in ("hk", "shadow"):
+                continue
+            have = self.entities.get(path, {})
+            ids = {k: getattr(e, "entity_id", None) for k, e in have.items()}
+            key = json.dumps([b.get("sleep"), b.get("black_screen"), b.get("screensaver_options"), ids], sort_keys=True, default=str)
+            if self._engine_keys.get(path) == key:
+                continue
+            eng = self.engines.get(path) or Engine(self.hass, self, path)
+            self.engines[path] = eng
+            self._engine_keys[path] = key
+            eng.configure(b)
+
+    @callback
+    def unload(self) -> None:
+        for eng in self.engines.values():
+            eng.unload()
+        self.engines.clear()
+        self._engine_keys.clear()
 
     def board(self, path: str) -> dict[str, Any]:
         w = wanted(self.entry).get(path)
@@ -133,14 +183,25 @@ class Manager:
                 out[path] = sw.entity_id
         return out
 
+    def black_ids(self) -> dict[str, str]:
+        """{path: entity id} of each screen's black screen switch."""
+        out: dict[str, str] = {}
+        for path, have in self.entities.items():
+            b = have.get("black")
+            if b is not None and b.entity_id:
+                out[path] = b.entity_id
+        return out
+
     def entity_ids(self) -> dict[str, dict[str, str | None]]:
         """{path: {"switch": id, "in_use": id}} for the settings page, which
         names them on the screen's Screensaver page."""
         out: dict[str, dict[str, str | None]] = {}
         for path, have in self.entities.items():
-            sw, use = have.get("switch"), have.get("binary_sensor")
+            sw, use, blk, slp = have.get("switch"), have.get("binary_sensor"), have.get("black"), have.get("sleep")
             out[path] = {"switch": sw.entity_id if sw is not None else None,
-                         "in_use": use.entity_id if use is not None else None}
+                         "in_use": use.entity_id if use is not None else None,
+                         "black": blk.entity_id if blk is not None else None,
+                         "sleep": slp.entity_id if slp is not None else None}
         return out
 
     @callback
@@ -195,6 +256,7 @@ async def async_setup_platform(hass: HomeAssistant, entry: ConfigEntry, platform
 
         @callback
         def _forget() -> None:
+            mgr.unload()
             if hass.data.get(DOMAIN, {}).get(DATA) is mgr:
                 hass.data[DOMAIN].pop(DATA)
         entry.async_on_unload(_forget)
@@ -228,5 +290,37 @@ def ws_touch(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
     connection.send_result(msg["id"], {"window": window_of(mgr.board(path)["screensaver_options"]["starts_after"])})
 
 
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/screensaver/black",
+    vol.Required("dashboard"): str,
+    vol.Required("black"): bool,
+})
+@callback
+def ws_black(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """hk-saver.js, Black Screen: HK Frontend -- black: true once the page is
+    black (its curtain drawn, the backlight down): the house's sleep waits for
+    it, and falls back to Kiosk Satellite's black without it. black: false when
+    a tap woke it on the tablet: the switch follows. The tablet's own user (or
+    an admin) only, as for a touch."""
+    mgr = manager(hass)
+    path = msg["dashboard"]
+    blk = mgr.entities.get(path, {}).get("black") if mgr else None
+    if blk is None:
+        connection.send_error(msg["id"], "not_found", "No black screen on that screen")
+        return
+    user = connection.user
+    if not (user and (user.is_admin or user.name == mgr.board(path)["tablet_user"])):
+        connection.send_error(msg["id"], "unauthorized", "Only the screen's tablet user")
+        return
+    # A TAP WOKE IT: in use first, then not black, in this one callback -- so
+    # the house's want sensor never sees the black gone without the touch
+    # (it would read "nobody here" and send the tablet back to sleep)
+    if not msg["black"] and blk.is_on:
+        mgr.touched(path)
+    blk.page_says(msg["black"])
+    connection.send_result(msg["id"], {"on": blk.is_on})
+
+
 def register_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_touch)
+    websocket_api.async_register_command(hass, ws_black)

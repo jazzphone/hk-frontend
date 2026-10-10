@@ -89,7 +89,7 @@ The **Wall Tablet** preset starts the screen with:
 | Menu | Always open beside the page |
 | Time and weather | In the menu, at its top (the Home page’s header steps aside) |
 | Return to Home When Idle | On |
-| Hide Home Assistant Header & Sidebar | On |
+| Home Assistant Header & Sidebar | Both Hidden |
 
 A preset is only a starting point. Every value can be changed afterwards on
 the screen’s page in HK Settings.
@@ -132,7 +132,13 @@ In Kiosk Satellite’s setup on the tablet:
 - **Screensaver: off.** HK Frontend’s photo screensaver is the screensaver.
   Kiosk Satellite’s Black screensaver can still be put up from Home Assistant
   as the tablet’s “dark” (its **Screensaver** and **Screensaver active**
-  switches); HK Frontend notices it and holds the sky still.
+  switches); HK Frontend notices it and holds the sky still. Or let HK
+  Frontend make the dark itself, and decide when: the screen’s **Sleep Screen**
+  ([Sleep Screen](Sleep-Screen.md)).
+- **Pause dashboard during screensaver: off** (Home Assistant Configuration →
+  Optimizations). On, the tablet throws the drawn page away under the black
+  and a wake can show it half drawn; HK Frontend holds the page still under
+  any black itself.
 - **Filter dashboard updates: off** (Home Assistant Configuration →
   Optimizations). It drops updates for entities it does not see on the page,
   and HK Frontend’s sky, status and screensaver read beyond the page.
@@ -162,10 +168,11 @@ On the tablet itself:
 
 ## 4. Hide Home Assistant’s header and sidebar
 
-1. In **HK Settings**, open the screen. Under **Appearance**, turn on **Hide
-   Home Assistant Header & Sidebar** (the Wall Tablet preset already did).
-2. Optional: **Header & Sidebar** beside it: **Hide Header**, **Hide
-   Sidebar**, and **For Admins Too** (off: an admin still sees them).
+1. In **HK Settings**, open the screen. Under **Header**, open **Home
+   Assistant Header & Sidebar** and turn on **Hide Header & Sidebar** (the
+   Wall Tablet preset already did).
+2. Optional, on the same page: **Hide Header**, **Hide Sidebar**, and **For
+   Admins Too** (off: an admin still sees them).
 
 HK Frontend does this itself: nothing to install. Leaving the screen (for
 Settings, say) always brings them back, and `?hk_kiosk=off` on the screen’s
@@ -187,9 +194,10 @@ hk_kiosk: true
 **Coming from the Kiosk Mode plugin.** Screens that hid Home Assistant’s
 header through the Kiosk Mode plugin (HACS) do it themselves from 1.3, with
 nothing to change. A screen with **Kiosk Mode Options** of its own moves over
-too when **Header & Sidebar** can say the same (hide the header, the sidebar,
+too when **Home Assistant Header & Sidebar** can say the same (hide the header, the sidebar,
 and admins seeing both); with any other option it keeps the plugin until you
-turn off **Header & Sidebar → Use the Kiosk Mode Plugin Instead**. A
+turn off **Home Assistant Header & Sidebar → Use the Kiosk Mode Plugin
+Instead**. A
 dashboard with its own `kiosk_mode:` block keeps it too: HK Frontend leaves
 that dashboard alone. Once nothing uses the plugin, you can remove it in HACS.
 

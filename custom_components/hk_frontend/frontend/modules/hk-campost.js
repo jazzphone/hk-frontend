@@ -84,6 +84,7 @@
     var n = 0, pending = 0;
     for (var i = 0; i < players.length; i++) {
       var p = players[i];
+      if (OUTSIDE && !quiet(p)) pending++;        // its video not there yet
       if (p.__hkPosted) continue;                 // once per element
       pending++;
       // The entity is on the ha-camera-stream ABOVE the player, which is the
@@ -92,16 +93,137 @@
       var st = host && host.stateObj;
       if (!st || !st.entity_id) continue;
       var hit = C.snapCache.get(st.entity_id, C.snapCache.FRESH);
-      if (!hit) { p.__hkPosted = true; continue; }  // stale or absent: leave HA's
+      if (!hit) { p.__hkPosted = true; if (OUTSIDE) backdrop(p, p.posterUrl); continue; }  // stale or absent: HA's
       try {
         p.posterUrl = hit.d;
         p.__hkPosted = true;
+        if (OUTSIDE) posterFrom(p, hit.d);
         n++;
       } catch (e) { p.__hkPosted = true; }
     }
     // Every player on this view is handled, so further ticks can only walk the
     // tree and find nothing to change.
     return pending === 0 ? DONE : n;
+  }
+
+  // NO PICTURE, NO VIDEO (2026-10-09). A wall tablet draws video outside
+  // the page, and a video with no picture showed the tablet's own
+  // background through it: the strip's live tile went WHITE as its page was
+  // left and black as it came back (screen-recorded; hk-cameras.js has the
+  // same rule). So each player's <video> is out of sight (visibility, which
+  // reaches it -- opacity does not) until it has a picture, and the poster
+  // is painted BEHIND it, on the player, where nothing has to load it again.
+  //
+  // ANDROID ONLY (2026-10-09): ALL of the above, and the frames painted
+  // behind and kept on leaving below. Only Android's WebView draws video
+  // outside the page, so only there does a video without a picture show
+  // through. Anywhere else it broke the Cameras page outright: Safari will not
+  // start a hidden muted video, and with the video shown but the rest in
+  // place, desktop Safari's WebRTC streams still never delivered a frame --
+  // the page sat on its posters (a WebKit window, A/B: this module on, no
+  // camera live; off, all nine). Everywhere else the players are Home
+  // Assistant's own again, as before 2026-10-09: only a cached frame as the
+  // poster (sweep).
+  var OUTSIDE = /Android/i.test((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+  function quiet(p) {
+    var v = p.shadowRoot && p.shadowRoot.querySelector && p.shadowRoot.querySelector('video');
+    if (!v) return false;
+    var show = function (e) {
+      if (leaving) return;
+      // LEFT, THEN BACK (a page Home Assistant kept): its readyState is the
+      // torn-down stream's, and showing on it put a dead, black video over
+      // the frame kept behind it for a frame (screen-recorded). Only the new
+      // stream's own event shows it.
+      if (v.__hkLeft && !e) return;
+      if (v.readyState >= 2 && v.videoWidth > 0) { v.__hkLeft = false; v.style.visibility = ''; }
+    };
+    if (v.__hkQuiet) return true;
+    v.__hkQuiet = true;
+    // above the poster canvas (paint()). HA places the video absolutely in
+    // the card's ratio box; only one it left in the flow is positioned here.
+    v.style.zIndex = '1';
+    try { if (getComputedStyle(v).position === 'static') v.style.position = 'relative'; } catch (e) { /* no layout */ }
+    v.style.visibility = 'hidden';
+    if (v.addEventListener) { v.addEventListener('loadeddata', show); v.addEventListener('playing', show); }
+    show();
+    return true;
+  }
+  function backdrop(p, url) {
+    if (!url || !p.style) return;
+    p.style.background = 'center / cover no-repeat url("' + String(url).replace(/"/g, '%22') + '")';
+  }
+  // A FRAME WE HAVE IS A CANVAS, not a background image: the tablet decodes
+  // a background late, and the page came back with nine black tiles for a
+  // few frames before its saved frames showed (screen-recorded) -- a canvas
+  // holds its pixels (the strip's reason too, hk-cameras.js). Behind the
+  // video, the player's size, cropped to cover it. False without a 2D
+  // context: then the background is the fallback.
+  function paint(p, src) {
+    try {
+      var r = p.shadowRoot, nw = src.naturalWidth || src.videoWidth, nh = src.naturalHeight || src.videoHeight;
+      if (!r || !nw || !nh) return false;
+      var cv = p.__hkCv;
+      if (!cv || cv.parentNode !== r) {
+        cv = document.createElement('canvas');
+        if (!cv.getContext || !cv.getContext('2d', { alpha: false })) return false;
+        // THE PLAYER IS 0 PX TALL: HA sizes the video absolutely in the
+        // card's ratio box further up, so the canvas does the same (the
+        // player is not made its containing block)
+        cv.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none';
+        r.insertBefore(cv, r.firstChild);
+        p.__hkCv = cv;
+      }
+      var box = cv.getBoundingClientRect ? cv.getBoundingClientRect() : null;
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var W = Math.max(1, Math.round(((box && box.width) || 400) * dpr));
+      var H = Math.max(1, Math.round(((box && box.height) || 225) * dpr));
+      if (cv.width !== W) cv.width = W;
+      if (cv.height !== H) cv.height = H;
+      var k = Math.max(W / nw, H / nh), sw = W / k, sh = H / k;
+      cv.getContext('2d', { alpha: false }).drawImage(src, (nw - sw) / 2, (nh - sh) / 2, sw, sh, 0, 0, W, H);
+      return true;
+    } catch (e) { return false; }
+  }
+  // a cached frame (a data: URL): decoded, then painted -- long before the
+  // page is shown, which waits for it to be drawn (hk-glass.js)
+  function posterFrom(p, url) {
+    if (typeof Image !== 'function') { backdrop(p, url); return; }
+    var im = new Image();
+    im.onload = function () { if (!paint(p, im)) backdrop(p, url); };
+    im.onerror = function () { backdrop(p, url); };
+    im.src = url;
+  }
+
+  // LEAVING THE PAGE: each playing camera's frame kept -- behind its video,
+  // and in the shared cache, so coming back within SNAP_FRESH opens on the
+  // frames that were left -- and every video out of sight before it is
+  // torn down. A pop-up changes the query, not the path, and is not a leave.
+  var lastPath = String(location.pathname), leaving = false;
+  function leave() {
+    if (!OUTSIDE) return;                         // see ANDROID ONLY
+    var C = window.hkCards;
+    deepFind(PLAYERS).forEach(function (p) {
+      var v = p.shadowRoot && p.shadowRoot.querySelector && p.shadowRoot.querySelector('video');
+      if (!v) return;
+      var host = p.getRootNode && p.getRootNode().host;
+      var st = host && host.stateObj;
+      if (v.readyState >= 2 && v.videoWidth > 0) {
+        var d = st && C && C.snapCache ? C.snapCache.put(st.entity_id, v, true) : null;
+        if (!paint(p, v)) backdrop(p, d);
+      }
+      v.style.visibility = 'hidden';
+      v.__hkLeft = true;
+    });
+  }
+  function navigated() {
+    var path = String(location.pathname);
+    if (path !== lastPath) {
+      leaving = true;
+      try { leave(); } catch (e) { /* the page goes anyway */ }
+      lastPath = path;
+      leaving = false;
+    }
+    chase();
   }
 
   // CAN THIS VIEW HOLD ONE AT ALL? Home Assistant's players come only from a
@@ -124,7 +246,8 @@
     if (!view && !seg) view = cfg.views[0];
     if (!view) return true;
     var s = JSON.stringify(view);
-    return s.indexOf('"camera_view":"live"') >= 0 || s.indexOf('hk-camera-mosaic-card') >= 0;
+    return s.indexOf('"camera_view":"live"') >= 0 || s.indexOf('hk-camera-mosaic-card') >= 0 ||
+           s.indexOf('hk-camera-live-card') >= 0;
   }
 
   // THE SAME SHAPE AS hk-sky's FIRST MOUNT, and for the same reason: the
@@ -146,13 +269,14 @@
     }, 60);
   }
 
-  window.addEventListener('location-changed', chase);
-  window.addEventListener('popstate', chase);
+  window.addEventListener('location-changed', navigated);
+  window.addEventListener('popstate', navigated);
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', chase);
   } else {
     chase();
   }
   window.hkCamPost.sweep = sweep;
+  window.hkCamPost._quiet = quiet;
   window.hkCamPost.mayHavePlayers = mayHavePlayers;
 })();

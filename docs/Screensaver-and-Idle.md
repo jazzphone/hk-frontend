@@ -15,14 +15,16 @@ any running timers and the home’s status over them. It is part of HK Frontend
 one of your photos.)*
 
 1. Put some photos in a folder of Home Assistant’s media, and tell HK
-   Frontend where: **HK Settings → Wall Tablets → Screensaver Photos**. The
+   Frontend where: **HK Settings → Wall Tablets → Screensaver for All Screens
+   → Screensaver Photos**. The
    default, `media-source://media_source/local/photos`, is a `photos` folder in
    your local media. Folders inside it are shown too.
-2. Open the screen in HK Settings. Under **Behavior**, turn on **Photo
-   Screensaver** and choose the **Tablet User**.
+2. Open the screen in HK Settings. Under **When Idle**, turn on **Photo
+   Screensaver**; under **This Device**, choose the **Tablet User**.
 3. Optional: **Screensaver Options** (see [the settings](Screens.md#screensaver-options)). A
-   screen uses the settings for All Screens (**Wall Tablets → Screensaver**)
-   unless you turn off **Same as All Screens** and give it its own.
+   screen uses the settings for All Screens (**Wall Tablets → Screensaver for
+   All Screens**) unless you turn off **Same as All Screens** and give it its
+   own; the row then reads **Just This Screen**.
 
 ![Screensaver Options in HK Settings: timing, photos and what shows over them, with the screensaver itself in the preview](images/settings-screensaver.png)
 
@@ -90,9 +92,9 @@ photo shows; its sky only moves while it is on screen.
   lights, presents and balloons over whichever season is showing.
 - Along the bottom, the forecast details: today’s conditions, the next 12
   hours and the next 6 days, from the weather set in **HK Settings →
-  Weather**. **Forecast Details** turns them off, for the sky and the
-  landscape alone; **Over the Photos → Forecast Details** puts them over your
-  photos too.
+  Weather**. **Details on the Forecast** turns them off, for the sky and the
+  landscape alone; **Over the Photos → Forecast Along the Bottom** puts them
+  over your photos too.
 - The clock and date, Home Status, now playing and timers stay, the last two
   above the forecast.
 - While the screen is dark (the kiosk app’s own screensaver, or the screen
@@ -129,13 +131,15 @@ dimmed, and the next one says how soon (“in 46 min”).
 ### Its switch and In Use sensor
 
 You create nothing. As soon as a screen has **Photo Screensaver** on and a
-**Tablet User**, HK Frontend adds two entities for it, named after the screen
+**Tablet User**, HK Frontend adds these entities for it, named after the screen
 (a screen called Kitchen gets these):
 
 | Entity | What it is |
 |---|---|
 | `switch.kitchen_photo_screensaver` | **On while the photos show.** The screensaver turns it on when it starts and off when someone taps it. Turn it **on** to start the photos now (bedtime, say); turn it **off** to close them (a doorbell automation bringing the dashboard back). It keeps its state across restarts. |
 | `binary_sensor.kitchen_screen_in_use` | **On while someone is using the screen**: on at each touch, off once the screen has been left alone for its window (below). Only a real touch on the page counts. Nothing sent to the tablet from outside (a brightness change, a kiosk browser command) can turn it on. |
+| `switch.kitchen_black_screen` | **On while the screen is HK Frontend’s own black**, for a screen whose **Sleep Screen** is drawn by *HK Frontend* ([Sleep Screen](Sleep-Screen.md)). Its `black_screen` attribute says which the screen uses (`kiosk` or `hk`), `brightness` the backlight to come back to, and `confirmed` that the page went black. |
+| `sensor.kitchen_sleep_screen` | **What Sleep Screen decides** (`dark`, `photos`, `dashboard`, `hold`) and why, while HK Frontend decides; `automation` otherwise ([Sleep Screen](Sleep-Screen.md)). |
 
 Both carry the same attributes: `dashboard`, `starts_after` and
 `in_use_window` (seconds), and `last_touch` (when the screen was last touched).
@@ -148,6 +152,19 @@ Automations**. Tap one there to open it.
 Only the tablet’s own user ever changes them: a computer opening the same
 screen never gets a screensaver, never writes the switch, and never counts as
 a touch.
+
+### Sleep Screen
+
+Dark when nobody needs the tablet, awake the moment somebody does: **When Idle
+→ Sleep Screen** sets how it goes dark (Kiosk Satellite’s black, or HK
+Frontend’s own with the backlight at its lowest or the display off) and who
+decides when: **your automations**, with the `hk_frontend.set_black_screen`
+action, or **HK Frontend itself**, from presence sensors, quiet hours, the
+doorbell, smoke, away mode and more, with the brightness for day and night.
+
+**[Sleep Screen](Sleep-Screen.md) has all of it:** every setting, the order
+its rules win, ready-made recipes for a kitchen, a bathroom and a bedroom,
+and how automations work alongside it.
 
 ### One timer: Starts After
 
@@ -245,7 +262,7 @@ work, and you can choose per screen.
 | Effects | Cross-fade; Slow Zoom | Cross-fade; Ken Burns (pan and zoom), with more controls |
 | While it shows | The live sky, card animations and the live camera tile hold still | Its own slideshow |
 | Won’t start over | An open detail sheet, Live TV | An Assist dialog; optionally a Browser Mod pop-up |
-| Beyond the screensaver | Hide Home Assistant Header & Sidebar, a setting beside it | Hides the header and sidebar, full screen, keeps the screen on, wakes on motion seen by the tablet’s camera |
+| Beyond the screensaver | Home Assistant Header & Sidebar, in the screen’s Header group | Hides the header and sidebar, full screen, keeps the screen on, wakes on motion seen by the tablet’s camera |
 | Checked by | Setup Check (photos found, Tablet User) | — |
 
 **Choose HK Frontend’s screensaver** for a screen on a wall tablet
@@ -318,7 +335,7 @@ page (a tablet you are working on, say).
 
 ## 6. Return to Home when idle
 
-With **Return to Home When Idle** on (the screen’s **Behavior**), a page that
+With **Return to Home When Idle** on (the screen’s **When Idle**), a page that
 nobody has touched goes back to the screen’s first view: open Lights, walk
 away, and the tablet is back on Home 50 seconds later. Scrolling or tapping
 starts the count again.
@@ -333,7 +350,7 @@ Turn it on for wall tablets only. On a desk, a phone or a car, a page someone
 is reading should stay put.
 
 **Finer control, per tablet (optional).** Set the screen’s **Tablet Room**
-(lower-case letters, digits and underscores, like `living_room`), then create
+(under **This Device**; lower-case letters, digits and underscores, like `living_room`), then create
 any of these helpers for that room:
 
 | Helper | What it does |
@@ -382,14 +399,14 @@ More help: [Troubleshooting](Troubleshooting.md).
 ## Wall Tablets settings
 
 **All Screens → Wall Tablets.** Settings for every wall tablet. Each tablet’s
-own switches (Return to Home, Tablet Room, Photo Screensaver) are on its
-[screen](Screens.md#behavior). More about wall tablets: [Wall tablets](Wall-Tablets.md).
+own settings are on its screen: Return to Home and Photo Screensaver under
+[When Idle](Screens.md#when-idle), its Tablet User and Tablet Room under
+[This Device](Screens.md#this-device). More about wall tablets: [Wall tablets](Wall-Tablets.md).
 
 | Setting | Default | What it does |
 |---|---|---|
-| Default Idle Time | 60 Seconds | An input number or number entity: the room idle time for a tablet whose room has no `input_number.<room>_tablet_room_idle` of its own. Used only when the tablet’s return is set to `Auto` (below). |
-| Photos | `media-source://media_source/local/photos` | The media folder a generated wall tablet’s photo screensaver shows. |
-| Screensaver | Photos · 3 min | The screensaver options every screen uses unless it has its own (a screen’s **Screensaver Options → Same as All Screens**): the same options as a screen’s page, with a preview of the first screen that uses them, and which screens do. |
+| Idle → Default Idle Time | 60 Seconds | An input number or number entity: the room idle time for a tablet whose room has no `input_number.<room>_tablet_room_idle` of its own. Used only when the tablet’s return is set to `Auto` (below). |
+| Screensaver → Screensaver for All Screens | Photos · 3 Minutes | Its page starts with **Photos → Screensaver Photos**, the media folder every screen’s photo screensaver shows (default `media-source://media_source/local/photos`). Then the screensaver options every screen uses unless it has its own (a screen’s **Screensaver Options → Same as All Screens**): the same options as a screen’s page, with a preview of the first screen that uses them, and **Screens**, each with **Same as All Screens** or **Just This Screen**. |
 | Wall Tablets | — | Every screen with Return to Home or Photo Screensaver on, with its room. |
 
 **How long Return to Home waits.** Without a Tablet Room, or without the

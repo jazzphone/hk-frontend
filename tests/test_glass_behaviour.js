@@ -179,8 +179,66 @@ frame();
 ok('...still hidden once its layer is placed (the joins have not settled)', hidden(V1.v) && layersIn(V1.v).length === 1);
 while (hidden(V1.v) && T - t1 < 3000) frame();
 ok('shown ~SETTLE_MS after the last join, not at the backstop', T - t1 >= 120 && T - t1 < 200, T - t1);
+ok('...first too faint to see, for the tablet to draw it', V1.v.style.opacity === '0.004', V1.v.style.opacity);
+frame(); frame();
+ok('...then at full strength, two frames on', !V1.v.style.opacity, V1.v.style.opacity);
 ok('...remembered as done', V1.v.getAttribute('data-hk-frost') === 'done');
 V1.v.remove(); Array.from(GL).forEach(leave); advance(300);
+
+// ---------------------------------------------------------------------------
+print('\n=== a page Home Assistant kept, coming back, is drawn before it shows ===');
+var VK = view(), kc = [];
+for (i = 0; i < 4; i++) kc.push(add(VK.grid, card({ x: 20 + i * 204, y: 40, w: 192, h: 70 })));
+advance(400);
+ok('first visit shown and done', !hidden(VK.v) && !VK.v.style.opacity && VK.v.getAttribute('data-hk-frost') === 'done');
+add(VK.grid, card({ x: 20, y: 140, w: 192, h: 70 }));
+ok('a card appearing on the page on screen: never faint, never hidden', !VK.v.style.opacity && !hidden(VK.v), VK.v.style.opacity);
+BODY.removeChild(VK.v); Array.from(GL).forEach(leave);            // navigated away; the page kept
+advance(100);
+var tk = T; BODY.appendChild(VK.v); kc.forEach(join);              // and back
+ok('back: faint at once, never hidden', VK.v.style.opacity === '0.004' && !hidden(VK.v), VK.v.style.opacity);
+frame(); frame();
+ok('...still faint for its AGAIN_FRAMES drawn', VK.v.style.opacity === '0.004');
+frame();
+ok('...then shown -- no quarter-second wait on every return', !VK.v.style.opacity && T - tk < 80, T - tk);
+VK.v.remove(); Array.from(GL).forEach(leave); advance(300);
+
+print('\n=== a kept page coming back with a card still rendering waits for it ===');
+var VR = view(), rc = [];
+for (i = 0; i < 3; i++) rc.push(add(VR.grid, card({ x: 20 + i * 204, y: 40, w: 192, h: 70 })));
+advance(400);
+BODY.removeChild(VR.v); Array.from(GL).forEach(leave); advance(100);
+rc[1].isUpdatePending = true;
+var tr = T; BODY.appendChild(VR.v); rc.forEach(join);
+for (i = 0; i < 6; i++) frame();
+ok('a card rendering again: still faint', VR.v.style.opacity === '0.004');
+rc[1].isUpdatePending = false;
+frame(); frame();
+ok('...faint for its frames drawn once it is done', VR.v.style.opacity === '0.004');
+frame();
+ok('...then shown', !VR.v.style.opacity, T - tr);
+VR.v.remove(); Array.from(GL).forEach(leave); advance(300);
+
+print('\n=== a view with a render still pending is not shown yet ===');
+var V1p = view(), t1p = T;
+var slow = card({ x: 20, y: 40, w: 192, h: 70 });
+var heading = new E('HUI-HEADING-CARD', {}, { x: 20, y: 10, w: 400, h: 24 });
+heading.isUpdatePending = true;
+V1p.grid.appendChild(heading);
+add(V1p.grid, slow);
+advance(200);
+ok('the glass card settled, a heading still rendering: still hidden', hidden(V1p.v), V1p.v.style.visibility);
+heading.isUpdatePending = false; heading.hasUpdated = true;
+frame();
+ok('...shown (faintly) the frame its render is done', !hidden(V1p.v) && V1p.v.style.opacity === '0.004', V1p.v.style.opacity);
+frame(); frame();
+ok('...then fully', !V1p.v.style.opacity);
+var heading2 = new E('HUI-HEADING-CARD', {}, { x: 20, y: 10, w: 400, h: 24 });
+var V1q = view(), t1q = T; heading2.isUpdatePending = true; V1q.grid.appendChild(heading2);
+add(V1q.grid, card({ x: 20, y: 40, w: 192, h: 70 }));
+while (hidden(V1q.v) && T - t1q < 3000) frame();
+ok('a render that never finishes holds it at most ~REVEAL_FRAMES, not the backstop', T - t1q < 600, T - t1q);
+V1p.v.remove(); V1q.v.remove(); Array.from(GL).forEach(leave); advance(300);
 
 // ---------------------------------------------------------------------------
 print('\n=== joins OUTSIDE the held view do not keep it hidden ===');

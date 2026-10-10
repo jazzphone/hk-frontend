@@ -8,8 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import voluptuous as vol
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import Event, callback
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.config_entries import ConfigEntry
@@ -23,9 +26,16 @@ from .entity import HkEntity
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddConfigEntryEntitiesCallback) -> None:
     async_add_entities([SeasonalDecorations(entry)])
-    # each screen's photo screensaver switch (screensaver.py)
+    # each screen's photo screensaver and black screen switches (screensaver.py)
     from . import screensaver
     await screensaver.async_setup_platform(hass, entry, "switch", async_add_entities)
+    # hk_frontend.set_black_screen: black on or off, and the brightness it
+    # comes back to, in one call (the house's sleep and wake scripts)
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        "set_black_screen",
+        {vol.Optional("black"): cv.boolean,
+         vol.Optional("brightness"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255))},
+        "async_set_black_screen")
 
 
 class SeasonalDecorations(HkEntity, SwitchEntity):
@@ -55,7 +65,7 @@ class SeasonalDecorations(HkEntity, SwitchEntity):
 
 
 # ------------------------------------------------------------ the screensaver
-from .screensaver import SWITCH_KEY, SaverEntity  # noqa: E402
+from .screensaver import BLACK_KEY, SWITCH_KEY, SaverEntity  # noqa: E402
 
 
 class PhotoScreensaver(SaverEntity, SwitchEntity, RestoreEntity):
@@ -137,3 +147,71 @@ class PhotoScreensaver(SaverEntity, SwitchEntity, RestoreEntity):
     def touched(self) -> None:
         self._watch_legacy()
         self.async_write_ha_state()
+
+
+class BlackScreen(SaverEntity, SwitchEntity, RestoreEntity):
+    """switch.<screen>_black_screen -- on while the screen is HK Frontend's own
+    black (Black Screen: HK Frontend; screensaver.py). Its attributes:
+    black_screen (the screen's setting: kiosk or hk -- the house's scripts
+    branch on it), brightness (the backlight to come back to, 0-255),
+    confirmed (the page said it is black, since this last turned on)."""
+
+    _attr_icon = "mdi:monitor-off"
+
+    def __init__(self, mgr: Any, path: str, title: str) -> None:
+        SaverEntity.__init__(self, mgr, path, title, BLACK_KEY)
+        self._on = False
+        self._brightness: int | None = None
+        self._confirmed = False
+
+    @property
+    def is_on(self) -> bool:
+        return self._on
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {**super().extra_state_attributes,
+                "black_screen": self._mgr.board(self._path).get("black_screen", "kiosk"),
+                "brightness": self._brightness, "confirmed": self._on and self._confirmed}
+
+    async def async_added_to_hass(self) -> None:
+        from homeassistant.helpers.dispatcher import async_dispatcher_send
+        from .const import SIGNAL_CONFIG
+        self.hass.loop.call_soon(async_dispatcher_send, self.hass, SIGNAL_CONFIG)
+        last = await self.async_get_last_state()
+        if last is not None:
+            self._on = last.state == "on"
+            b = last.attributes.get("brightness")
+            self._brightness = int(b) if isinstance(b, (int, float)) else None
+            # a page that reloads while black says so again (hk-saver.js)
+            self._confirmed = False
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self._set(False)
+
+    async def async_set_black_screen(self, black: bool | None = None, brightness: int | None = None) -> None:
+        if brightness is not None:
+            self._brightness = int(brightness)
+        if black is not None and black != self._on:
+            self._set(black)
+        else:
+            self.async_write_ha_state()
+
+    def _set(self, on: bool) -> None:
+        if on != self._on:
+            self._confirmed = False
+        self._on = on
+        self.async_write_ha_state()
+
+    @callback
+    def page_says(self, black: bool) -> None:
+        """The page: black now (confirmed), or woken by a tap (off)."""
+        if black:
+            if self._on and not self._confirmed:
+                self._confirmed = True
+                self.async_write_ha_state()
+        elif self._on:
+            self._set(False)

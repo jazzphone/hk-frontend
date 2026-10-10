@@ -182,7 +182,7 @@ ok('update() releases it once the layers are placed and the joins have settled',
    /stats\.lastMs[^\n]*\n\s*settled\(\);/.test(gsrc) && /SETTLE_MS - \(performance\.now\(\) - lastJoin\)/.test(gsrc));
 ok('turning the blur off releases it too', /function stop\(\)[\s\S]{0,120}release\(\);/.test(gsrc));
 ok('a view is held once (the attribute remembers), with a backstop',
-   /v\.hasAttribute\('data-hk-frost'\)\) return;[\s\S]*setTimeout\(release, HOLD_MS\)/.test(gsrc) && window.hkGlass._holdMs === 2500);
+   /v\.hasAttribute\('data-hk-frost'\)\) \{[\s\S]{0,1000}?faintAgain\(v\); \}\s*return;\s*\}[\s\S]*setTimeout\(release, HOLD_MS\)/.test(gsrc) && window.hkGlass._holdMs === 2500);
 ok('a newer view lets a still-held one go', /if \(gate\) release\(\);\n\s*gate = v;/.test(gsrc));
 ok('HkBase passes the card and direction to changed()', /hkGlass\.changed\(card, join\)/.test(readFile(HK_ROOT + '/frontend/cards/hk-base.js')));
 

@@ -20,6 +20,8 @@ camera pictures are blurred on purpose.
 | Timers | Vacuums |
 | ![The Weather page](images/tablet-weather.png) | ![The Cameras page](images/tablet-cameras.png) |
 | Weather | Cameras |
+| ![A room’s cameras: one tall, two stacked](images/tablet-room-cameras.png) | ![A screen’s Cameras](images/settings-screen-cameras.png) |
+| A room’s [cameras](Cameras.md#on-a-rooms-page) | A screen’s Cameras settings |
 | ![The Play Music page](images/tablet-play-music.png) | ![The Browse Music page](images/tablet-browse-music.png) |
 | Play Music ([Music](Music.md)) | Browse Music |
 | ![The Live TV guide](images/tablet-live-tv.png) | ![The Energy page](images/tablet-energy.png) |
@@ -154,7 +156,7 @@ More: [Live Sky](Live-Sky.md).
 | ![Screensaver Options](images/settings-screensaver.png) | ![The menu tab’s three sizes](images/menu-tab-sizes.png) |
 | Screensaver Options | Menu Tab Size |
 | ![Header & Sidebar](images/settings-header-sidebar.png) | ![Your Own Dashboards](images/settings-yaml-reference.png) |
-| Header & Sidebar | Your Own Dashboards |
+| Home Assistant Header & Sidebar | Your Own Dashboards |
 | ![Rooms, for all screens](images/settings-rooms.png) | ![A room’s own settings](images/settings-room.png) |
 | Rooms | A room |
 | ![A screen’s Rooms, Same as All Screens](images/settings-screen-rooms.png) | ![Arrange in a tile’s settings](images/sheet-arrange.png) |
@@ -163,5 +165,9 @@ More: [Live Sky](Live-Sky.md).
 | Status Rows | Energy |
 | ![Energy’s devices](images/settings-energy-devices.png) | ![The menu](images/settings-menu.png) |
 | Energy’s devices | The menu |
+| ![Sleep Screen, decided by HK Frontend](images/settings-sleep-screen.png) | ![A bedroom’s Sleep Screen: quiet hours, the display off](images/settings-sleep-screen-bedroom.png) |
+| [Sleep Screen](Sleep-Screen.md) | A bedroom’s Sleep Screen |
+| ![Cameras, for all screens](images/settings-cameras.png) | ![The menu on Tablets & Computers](images/settings-menu-tablets.png) |
+| [Cameras](Cameras.md), for all screens | The menu by device |
 
 More: [HK Settings](HK-Settings.md).

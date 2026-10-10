@@ -90,12 +90,12 @@ a range. They go into Charging, with their range under the level.
 | List Their Devices | On | Every device in Home Assistant’s Energy settings gets a tile, including ones you add there later. Off: only the devices you add here. |
 | Title | Energy | The page’s name, in the menu and at the top of the page. |
 | Readings | Automatic | Today’s Cost (on or off), then up to three readings. Automatic: the first two thermostats from [Status & Chips](Status-Chips.md), then the outside temperature from [Weather](Weather.md). |
-| Daily Bars | Automatic | Up to nine. Automatic: the whole home, then the five devices whose meters read the most. Each bar can have its own name and color. A runtime sensor (hours) shows its daily runtime. |
-| Sections | Automatic | The sections in order. Rename one, give its heading a **Link** to another page (a panel’s own dashboard, say), drag tiles into order, or **Move Here** from another section. Turning Automatic off keeps the sections as they are now. A device you place in no section goes to the one its name suggests, or *Other*. |
-| Devices | — | Each device’s **Name**, **Glyph** and **Color**, **Show on the Energy Page**, its **Section**, its **Power Sensor**, and **Switched By** (the plug or switch that powers it). The page also says how its power sensor was found. **Add a Device** adds one the Energy settings don’t list. |
-| Batteries | Automatic | The house battery and the cars. Each has a name, and a reading under it: a range, or the energy stored. |
+| Daily Bars | Automatic | Up to nine (**Add Bar**). Automatic: the whole home, then the five devices whose meters read the most. Each bar can have its own name and color. A runtime sensor (hours) shows its daily runtime. |
+| Sections | Automatic | The sections in order. Rename one, give its heading a **Link** to another page (a panel’s own dashboard, say), drag tiles into order, or **Move Here** from another section. **Add Section** adds one. Turning Automatic off keeps the sections as they are now. A device you place in no section goes to the one its name suggests, or *Other*. |
+| Devices | — | Each device’s **Name**, **Glyph** and **Color**, **Show on the Energy Page**, its **Section**, its **Power Sensor**, and **Switched By** (the plug or switch that powers it). The page also says how its power sensor was found. **Add Device** adds one the Energy settings don’t list. |
+| Batteries | Automatic | The house battery and the cars (**Add Battery**). Each has a name, and a reading under it: a range, or the energy stored. |
 | Home Assistant’s Charts | On | The day’s sources and each device’s use at the end of the page. |
-| Whole Home | Automatic | The power sensor, energy meter and cost the top of the page uses. Automatic: the grid meter, its cost, and the power sensor behind it (or **General → Power Use**). |
+| Whole Home | Automatic | The power sensor, energy meter and cost the top of the page uses. Automatic: the grid meter, its cost, and the power sensor behind it (or **Status & Chips → Power Use**). |
 
 Its gear in **Devices & services** has **List Their Devices**. Everything
 else is on the HK Settings page.

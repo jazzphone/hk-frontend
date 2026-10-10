@@ -17,15 +17,15 @@ Open it from **HK Settings** → **Overview** → **Setup Check** (also under **
 | Line | Ready when | Otherwise |
 |---|---|---|
 | **Home Assistant** *(version)* | 2026.8 or newer | **Needs Doing.** Older frontends draw the screens wrongly. Update Home Assistant. Also a Repairs entry. |
-| **HK Kiosk theme** | The theme is loaded | **Needs Doing.** Every screen draws in the wrong colors. HK Frontend loads the theme itself, so this means it couldn’t: the log says why, and the Repairs entry gives the `configuration.yaml` lines that load it instead. |
-| **Card files** | All the card files are dashboard resources | **Needs Doing.** In storage mode they are added once Home Assistant has started; if the line persists, restart. In YAML mode the line lists the URLs to add to `lovelace: resources:` yourself ([Install → The card resources](Install.md#the-card-resources)). *Lovelace has not started yet* means Home Assistant is still starting: check again in a moment. |
-| **SF Pro and the SF Symbols glyphs** | Both are in your files folder | A **note** (*Apple’s font and glyphs*): the screens use Roboto and Material Design icons meanwhile. Optional — [Your files](Your-Files.md). |
+| **HK Kiosk Theme** | The theme is loaded | **Needs Doing.** Every screen draws in the wrong colors. HK Frontend loads the theme itself, so this means it couldn’t: the log says why, and the Repairs entry gives the `configuration.yaml` lines that load it instead. |
+| **Card Files** | All the card files are dashboard resources | **Needs Doing.** In storage mode they are added once Home Assistant has started; if the line persists, restart. In YAML mode the line lists the URLs to add to `lovelace: resources:` yourself ([Install → The card resources](Install.md#the-card-resources)). *Lovelace has not started yet* means Home Assistant is still starting: check again in a moment. |
+| **SF Pro & the SF Symbols Glyphs** | Both are in your files folder | A **note** (*Apple’s Font & Glyphs*): the screens use Roboto and Material Design icons meanwhile. Optional — [Your files](Your-Files.md). |
 | **Devices in no area** | Every device with a tile is in an area | A **note** naming the devices. A generated screen shows them under **More**, and no room page shows them. Assign each an area. Only devices with a tile count (lights, switches, fans, covers, locks, players, thermostats and so on), not phones or trackers. |
 | **Areas with no icon** | — | A **note**: the menu draws a plain room glyph for them. Pick an icon in the area’s settings. |
 | **Areas with no temperature or humidity sensor** | — | A **note**: a room page’s status line leaves those readings out. Set them in the area’s *Related sensors*. |
-| **Menu and room pages** | The menu is on for one or more screens, all of which exist | **Needs Doing** when the menu is on for a dashboard that has since been deleted: remove that dashboard’s item under **Settings** → **Devices & services** → **HK Frontend** (its list of dashboards). A **note** when the menu is off on every screen. |
-| **Screensaver tablets** | Each screen with the photo screensaver has a Tablet User, and Home Assistant has a user of that name (shown when a screen has the photo screensaver) | **Needs Doing** when one has none, or names a user that doesn’t exist: the screensaver never shows there. Choose it under the screen’s **Behavior**. |
-| **Screensaver photos** | The photos folder has photos (shown when a screen shows photos) | A **note** when the folder is empty or can’t be read: the screensaver shows the forecast instead. To show photos, check **HK Settings → Wall Tablets → Screensaver Photos**. |
+| **Menu & Room Pages** | The menu is on for one or more screens, all of which exist | **Needs Doing** when the menu is on for a dashboard that has since been deleted: remove that dashboard’s item under **Settings** → **Devices & services** → **HK Frontend** (its list of dashboards). A **note** when the menu is off on every screen. |
+| **Screensaver Tablets** | Each screen with the photo screensaver has a Tablet User, and Home Assistant has a user of that name (shown when a screen has the photo screensaver) | **Needs Doing** when one has none, or names a user that doesn’t exist: the screensaver never shows there. Choose it under the screen’s **This Device**. |
+| **Screensaver Photos** | The photos folder has photos (shown when a screen shows photos) | A **note** when the folder is empty or can’t be read: the screensaver shows the forecast instead. To show photos, check **HK Settings → Wall Tablets → Screensaver for All Screens → Screensaver Photos**. |
 | **Weather Radar Card** (and **WallPanel** or **Kiosk Mode**, for a screen that uses one instead of HK Frontend’s own) | Installed from HACS, and — for WallPanel and Kiosk Mode — loaded as a dashboard resource | A **note**. Not installed: no radar map on the Weather page, no WallPanel screensaver, or Home Assistant’s header and sidebar showing on a screen set to use the Kiosk Mode plugin. *Installed but not loaded*: the line names the URL to add under **Settings** → **Dashboards** → **⋮** → **Resources** (type *JavaScript module*). |
 | **Music**, **Alarm PIN**, **Clean Areas**, **Live TV** | Added | A **note**: each is optional. Add it from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**. |
 
@@ -68,7 +68,7 @@ The HK Kiosk theme isn’t loaded, or isn’t applied.
 
 The card files aren’t loaded as dashboard resources.
 
-- Open Setup Check and read the **Card files** line.
+- Open Setup Check and read the **Card Files** line.
 - In storage mode, the files are added once Home Assistant has finished starting. If the line still lists missing files after a restart, add them by hand under **Settings** → **Dashboards** → **⋮** → **Resources**: the two stylesheets as *Stylesheet*, every `/hk/cards/*.js` file as *JavaScript module*.
 - In YAML mode, add the URLs the line lists to `lovelace: resources:`.
 - Then reload the screen, twice.
@@ -109,15 +109,15 @@ Music, Live TV, Clean Areas and Alarm PIN appear only once they are added. Add e
 
 ### No screensaver on a wall tablet
 
-- The screensaver runs only for the screen’s **Tablet User** (its **Behavior** group): check that the tablet signs in as exactly that user. A computer opening the same screen never gets it. **Setup Check → Screensaver tablets** says when a screen has none, or names a user Home Assistant doesn’t have.
-- The forecast instead of your photos? The photos folder is empty or can’t be read; **Setup Check** says which. Check **HK Settings → Wall Tablets → Screensaver Photos**, and that **Show** is **Photos**.
+- The screensaver runs only for the screen’s **Tablet User** (its **This Device** group): check that the tablet signs in as exactly that user. A computer opening the same screen never gets it. **Setup Check → Screensaver Tablets** says when a screen has none, or names a user Home Assistant doesn’t have.
+- The forecast instead of your photos? The photos folder is empty or can’t be read; **Setup Check** says which. Check **HK Settings → Wall Tablets → Screensaver for All Screens → Screensaver Photos**, and that **Show** is **Photos**.
 - It waits while a detail sheet is open or Live TV is playing, and starts **Starts After** (3 minutes) after the last touch.
 - `?hk_saver=off` in the page’s address turns it off for that page.
 - In a browser’s console on the tablet, `hkSaver.stats()` says whether it is allowed there, how many photos it found and when it will start.
 
 ### Home Assistant’s header still shows on a wall tablet
 
-- Check the screen’s **Appearance → Hide Home Assistant Header & Sidebar**, and under **Header & Sidebar**, **For Admins Too** if the tablet signs in as an admin.
+- Check the screen’s **Header → Home Assistant Header & Sidebar**: **Hide Header & Sidebar**, and **For Admins Too** if the tablet signs in as an admin.
 - `?hk_kiosk=off` on the address shows them until the page is reloaded: reload it (Fully Kiosk Browser’s **Load Start URL**).
 - A dashboard whose own YAML has `kiosk_mode:`, or a screen set to **Use the Kiosk Mode Plugin Instead**, is left to that plugin: Setup Check says whether it is installed and loaded.
 - In a browser’s console on the screen, `hkKiosk.state()` says what is hidden and why (`settings`, `config` or `url`), or `null`.

@@ -14,9 +14,9 @@ It asks a few questions about your home, then makes your first screen. Every con
 | Step | What it asks |
 |---|---|
 | **Welcome** | Nothing. Select **Get Started**. |
-| **General** | **Alarm Panel** — the alarm the header, the Security chip and page, and the keypad use. If you have one, a button offers it. **Indoor Temperature** (default: the first thermostat’s reading) for the Climate chip. **Power Use**, a power sensor for the Energy chip. **House Timers** — timer helpers offered as one-tap timers on the Timers page. |
+| **General** | **Alarm Panel** — the alarm the header, the Security chip and page, and the keypad use. If you have one, a button offers it. **House Timers** — timer helpers offered as one-tap timers on the Timers page. |
 | **Weather** | **Weather Service** (default: the first weather entity), and **Place**, the name shown above the temperature (default: your home’s name). Optionally, **Sensors** that replace the weather service’s own readings, and the **Radar Map** (needs Weather Radar Card from HACS). |
-| **Appearance** | **Glass Style** for tiles, pills and chips: *Clear* (the default), *Frosted*, *Blur* or *Blur Each Card* — the last is too heavy for a wall tablet. **Frost** or **Blur** amount for the style you picked. A switch for the **detail sheets** that open when you tap an accessory (on by default; off uses Home Assistant’s own dialog). |
+| **Appearance** | **Glass Style** for tiles, pills and chips: *Clear* (the default), *Frosted*, *Blur* or *Blur Each Card* — the last is too heavy for a wall tablet. **Frost** or **Blur** amount for the style you picked. **Page Pills**, the look of the pills that open a page. |
 | **Features** | The four optional features. One you have added links to its settings; one you haven’t shows **Set Up** and a line about what it does. You can also add them later — see [What next](#what-next). |
 | **First Screen** | Your first screen — see the next step. **Skip** leaves it for later. |
 | **Done** | A link to open the screen you made, and **Done**. |

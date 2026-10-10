@@ -50,7 +50,7 @@ The **gear** on an Alarm PIN item (“Front Door Alarm PIN”):
 
 **HK Settings → Features → Alarm PIN** lists every protected alarm, each with
 **Change PIN**, **PIN to Arm**, **Protects** (move it to another alarm), its
-**Keypad Panel**, **Use on All Screens** (shown when General → Alarm Panel is another panel; it points every screen at this PIN panel), and **Remove PIN**. **Add a PIN to an Alarm** protects
+**Keypad Panel**, **Use on All Screens** (shown when General → Alarm Panel is another panel; it points every screen at this PIN panel), and **Remove PIN**. **Add PIN** protects
 another one.
 
 ![The Alarm PIN settings on the HK Settings page](images/settings-alarm-pin.png)

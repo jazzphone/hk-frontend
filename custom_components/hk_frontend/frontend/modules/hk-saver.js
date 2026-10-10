@@ -49,7 +49,8 @@
   // (it is occluded), so for this hold the screensaver is 99 % opaque.
   // (an object, so the tests and a probe can change them)
   var WAKE = { hold: 150,                  // after two frames, this much more
-               max: 600 };                 // a hidden page draws no frames
+               max: 600,                   // no frame by then: not being drawn
+               lit: 400 };                 // ...and the hold once it is again
   var CROSSFADE_MS = 3000;                 // photo to photo
   var BLOCK_MS = 3000;                     // taps swallowed after a touch stop
   var EDGE = 0.15;                         // left/right 15 %: previous/next photo
@@ -230,6 +231,8 @@
   var deck = null, listAt = 0, listing = null, listKey = '';
   var layer = 0;               // which of the two photo layers is on top
   var displayLayer = null, fadeDone = null, photoRun = 0;
+  // the screensaver's fade in, waiting for its first photo (start)
+  var entrance = null, ENTRANCE_MAX = 1500;
   var coverT = null, coveredPage = null, pageVisibility = null;
   // THE FORECAST (1.3): the live sky over the season's land (hkSky.scene),
   // with the forecast band -- when a screen asks for it, or has no photos
@@ -301,6 +304,7 @@
   // Every new hass: the switch decides, unless it is still echoing our own
   // write the other way.
   function onHass(h) {
+    hkSync(h);
     if (previewOn || !cfg || !cfg.entity || !allowed()) return;
     var st = switchState();
     if (pendingSwitch) {
@@ -428,6 +432,21 @@
     // onto --hk-saver-font; the theme's root variable is the fallback.
     '  font-family:var(--hk-saver-font,var(--ha-font-family-body,Roboto,Noto,sans-serif))}',
     ':host([on]){opacity:1}',
+    // GETTING READY (2026-10-09): barely there -- too faint to see, but drawn,
+    // so the first photo's layer is rastered before the fade shows it. From
+    // opacity 0 the tablets' WebView rastered it during the fade, and the
+    // host's black showed through the tiles not yet drawn: a black block over
+    // the incoming photo (screen-recorded on the Living Room tablet).
+    ':host([prep]){opacity:.004}',
+    // PLAIN BLACK ([dark]): under the kiosk's Black screensaver (goDark), or
+    // woken from a frozen page (stop) -- the photos, the forecast and the
+    // clock out of sight, so the frame the tablet keeps is black and the
+    // dashboard draws underneath before the fade away to it. [undark]: drawn
+    // again under .blk's black, which then fades off them (lightSoon)
+    ':host([dark]:not([undark])) .ph,:host([dark]:not([undark])) .fc,:host([dark]:not([undark])) .fcb,',
+    ':host([dark]:not([undark])) .info,:host([dark]:not([undark])) .pane{visibility:hidden}',
+    '.blk{position:absolute;inset:0;z-index:9;background:#000;opacity:0;pointer-events:none;transition:opacity var(--blk,0ms) ease}',
+    ':host([dark]) .blk{opacity:1}',
     // waking: the dashboard drawing underneath (WAKE)
     ':host([on][waking]){opacity:.99}',
     // after a touch stop the element stays, invisible, to swallow taps (its
@@ -447,8 +466,11 @@
     // animates the image, gives it one.
     '.ph img{position:absolute;inset:0;width:100%;height:100%;display:block}',
     ':host([zoom]) .ph img.fg{will-change:transform}',
-    '.ph img.bg{object-fit:cover;filter:blur(40px) brightness(80%);transform:scale(1.15)}',
-    '.ph img.bg[hidden]{display:none}',
+    // THE BLURRED COPY BEHIND A PORTRAIT PHOTO: drawn once into a small canvas
+    // (drawBackdrop) and scaled up -- the look of the old 40 px blur of the
+    // whole photo, at a sliver of the cost to raster (2026-10-09)
+    '.ph canvas.bg{position:absolute;left:-7.5%;top:-7.5%;width:115%;height:115%;display:block;filter:brightness(80%)}',
+    '.ph canvas.bg[hidden]{display:none}',
     '.ph img.fg{object-fit:var(--fit,cover)}',
     '.ph.zoom img.fg{animation:hk-saver-zoom var(--zd,33s) linear forwards}',
     // THE PHOTOS' SCRIM, under the forecast details over them (band_photos):
@@ -519,7 +541,7 @@
     // under the pane (the backdrop img, always shown), the forecast and its
     // details beside it too -- the sky held to its box, not the screen
     ':host([cal]) .ph img.fg{width:calc(100% - var(--hk-pane-w,0px))}',
-    ':host([cal]) .ph img.bg[hidden]{display:block}',
+    ':host([cal]) .ph canvas.bg[hidden]{display:block}',
     ':host([cal]) .fc,:host([cal]) .fcb{right:var(--hk-pane-w,0px)}',
     ':host([cal]) #hk-sky.own{position:absolute}',
     '.pane{position:absolute;z-index:4;top:0;right:0;bottom:0;width:var(--hk-pane-w,' + PANE_W + 'px);display:none;',
@@ -550,7 +572,7 @@
     var st = document.createElement('style'); st.textContent = CSS; root.appendChild(st);
     for (var i = 0; i < 2; i++) {
       var ph = document.createElement('div'); ph.className = 'ph';
-      var bg = document.createElement('img'); bg.className = 'bg'; bg.alt = ''; bg.hidden = true;
+      var bg = document.createElement('canvas'); bg.className = 'bg'; bg.hidden = true;
       var fg = document.createElement('img'); fg.className = 'fg'; fg.alt = '';
       var scrim = document.createElement('div'); scrim.className = 'phscrim';
       ph.appendChild(bg); ph.appendChild(fg); ph.appendChild(scrim); root.appendChild(ph);
@@ -559,6 +581,7 @@
     var sc = document.createElement('div'); sc.className = 'sc'; pane.appendChild(sc); root.appendChild(pane);
     paneEl = pane; paneSc = sc; paneCard = null;
     var info = document.createElement('div'); info.className = 'info'; root.appendChild(info);
+    var blk = document.createElement('div'); blk.className = 'blk'; root.appendChild(blk);
     // taps on the screensaver itself: the window listener above has already
     // decided (edge zone or stop); here they are only kept from reaching
     // anything else
@@ -569,10 +592,15 @@
     buildCards(info);
   }
   function teardown() {
+    if (host) { host.removeAttribute('dark'); host.removeAttribute('undark'); }
     coverDashboard(false);
+    blackPage(false);
     releaseVisuals();
     if (host) host.remove();
     host = null; root = null;
+    noteDrawn();
+    // gone for good: the camera strip starts its live stream after this
+    try { window.dispatchEvent(new Event('hk-saver-done')); } catch (e) { /* ignore */ }
   }
   // The transparent host may still be catching wake-up taps. Its graphics
   // and card subscriptions need not survive that interaction-only period.
@@ -585,6 +613,7 @@
     if (host) {
       // let the browser drop the decoded photos now, not at the next GC
       root.querySelectorAll('img').forEach(function (im) { im.removeAttribute('src'); });
+      root.querySelectorAll('canvas').forEach(clearCanvas);
       Array.from(root.children).forEach(function (el) { if (el.tagName !== 'STYLE') el.remove(); });
       host.setAttribute('released', '');
     }
@@ -633,9 +662,19 @@
   // ------------------------------------------------------------ start / stop
   function start(reason) {
     if (on || !cfg || !allowed()) return false;
+    // NOTHING STARTS UNDER THE KIOSK'S BLACK (2026-10-09). The house's sleep
+    // turns the photos on and puts the black up in the same moment; started
+    // under it and turned black at once, the screensaver was never shown --
+    // the tablet's last frame was the dashboard -- yet the wake went through
+    // black: dashboard, black, dashboard (screen-recorded on the Loft). Under
+    // the black nobody sees photos anyway. The switch asks again on every
+    // update, so they start when the black has ended -- after LIT_GRACE, the
+    // house's answer to a tap (photos off within 2 s, TABLET-INVARIANTS 16c).
+    if (black()) return false;
+    if (reason === 'switch' && clock.now() - litAt < LIT_GRACE) return false;
     if (idleT) { clearTimeout(idleT); idleT = null; }
-    on = true; startedBy = reason || 'idle'; mx = null; my = null; blockUntil = 0;
-    photoRun++; busy = false; queued = null;
+    on = true; startedBy = reason || 'idle'; mx = null; my = null; blockUntil = 0; shownAt = 0;
+    photoRun++; busy = false; queued = null; litWait = null;
     // BUILT FOR OTHER SETTINGS: its cards were set up for them (Home Status
     // sized for the calendar pane, or for the corner), and a host kept from
     // an earlier start kept them -- the pane turned off on HK Settings left
@@ -646,6 +685,7 @@
     if (cfg.zoom) host.setAttribute('zoom', ''); else host.removeAttribute('zoom');
     host.removeAttribute('blocking');
     host.removeAttribute('waking');       // started again while waking
+    host.removeAttribute('dark');
     // Once fully covered, release the dashboard's paint layers. Pausing its
     // animations alone still retains clouds, glass and offscreen cards. On
     // Android those plus the forecast exceeded the tile memory budget and
@@ -655,13 +695,36 @@
     // still at opacity 0.
     if (coverT) clearTimeout(coverT);
     coverT = null;
-    // the next frame, so the fade runs from 0
-    requestAnimationFrame(function () {
-      if (!on || !host) return;
-      host.setAttribute('on', '');
-      if (coverT) clearTimeout(coverT);
-      coverT = setTimeout(function () { coverT = null; if (on) coverDashboard(true); }, FADE_IN_MS + 100);
-    });
+    // THE FADE STARTS ONCE THERE IS SOMETHING TO SHOW (2026-10-09): the first
+    // photo decoded and painted -- or the forecast built -- and two frames
+    // drawn at [prep]'s barely-there opacity, so the tablet has rastered it;
+    // never later than ENTRANCE_MAX
+    host.setAttribute('prep', '');
+    var run = photoRun, entered = false;
+    entrance = function (force) {
+      if (entered) return;
+      // ...AND THE FORECAST BAND IN ITS PLACE (2026-10-09): it is built
+      // hidden, centred, drawn again for its width beside the calendar pane
+      // and only then shown (addBand, ~0.65 s). Started before that, the fade
+      // ran over its redraw, and a tablet shows frames during a fade before
+      // what changed is drawn: the band vanished for two frames halfway
+      // through (screen-recorded on the Kitchen). Its `placed` calls this
+      // again; ENTRANCE_MAX forces it.
+      if (!force && fband && !fband.__hkPlaced && host && host.hasAttribute('band')) return;
+      entered = true; entrance = null;
+      var f1 = false, f2 = false;           // each frame's step once
+      requestAnimationFrame(function () { if (f1) return; f1 = true; requestAnimationFrame(function () {
+        if (f2) return; f2 = true;
+        if (!on || !host || photoRun !== run) return;
+        host.removeAttribute('prep');
+        host.setAttribute('on', '');
+        shownAt = clock.now();
+        noteDrawn();
+        if (coverT) clearTimeout(coverT);
+        coverT = setTimeout(function () { coverT = null; if (on) coverDashboard(true); }, FADE_IN_MS + 100);
+      }); });
+    };
+    setTimeout(function () { if (photoRun === run && entrance) entrance(true); }, ENTRANCE_MAX);
     tellOthers();
     if (reason !== 'switch') writeSwitch('on');
     resetForecast();            // an element still fading out is reused
@@ -673,8 +736,21 @@
   function stop(reason) {
     if (!on) return false;
     on = false;
+    entrance = null;
+    if (host) host.removeAttribute('prep');
+    // JUST WOKEN FROM A FROZEN PAGE (justResumed): what the screensaver shows
+    // is stale and half drawn, so it wakes from black -- plain black at once,
+    // the dashboard drawn under it, then the usual fade back to it
+    if (host && justResumed()) { host.setAttribute('dark', ''); host.setAttribute('on', ''); }
+    noteDrawn();
     photoRun++; busy = false; queued = null;
-    coverDashboard(false);
+    // UNDER THE KIOSK'S BLACK, A DASHBOARD HIDDEN UNDER THE PHOTOS STAYS
+    // HIDDEN until the tablet draws again (afterDraw's `drawing`): shown
+    // where nothing is drawn, the tablet's first frame back had to draw all
+    // of it at once, and showed it half drawn over everything for a frame
+    // (screen-recorded)
+    var keep = !!(host && host.hasAttribute('dark') && black());
+    if (!keep) coverDashboard(false);
     if (slideT) { clearTimeout(slideT); slideT = null; }
     var ms = cfg ? cfg.fade_back : FADE_BACK_MS;
     if (reason === 'touch') { writeSwitch('off'); blockUntil = Date.now() + BLOCK_MS; }
@@ -685,32 +761,142 @@
       var still = function () { return !on && host === h && photoRun === stoppedRun; };
       h.style.setProperty('--fade', '0ms');
       h.setAttribute('waking', '');
-      afterDraw(function () {
+      var fade = function () {
         if (!still()) return;
         h.style.setProperty('--fade', ms + 'ms');
         h.removeAttribute('on');
         h.removeAttribute('waking');
+        noteDrawn();
         if (reason === 'touch') h.setAttribute('blocking', '');
         if (reason === 'touch') setTimeout(function () { if (still()) releaseVisuals(); }, ms + 50);
-        // a touch's host stays until the taps are no longer swallowed
-        var wait = reason === 'touch' ? Math.max(ms, blockUntil - Date.now()) : ms;
-        setTimeout(function () { if (still()) teardown(); }, wait + 50);
-      });
+        // a touch's host stays until the taps are no longer swallowed;
+        // otherwise it goes when its fade has ENDED, not when a timer of the
+        // fade's length says so: just woken, the page is busy, the fade's
+        // frames start late, and the timer cut its last fifth off -- the
+        // dashboard stepped up at the end (screen-recorded)
+        if (reason === 'touch') {
+          var wait = Math.max(ms, blockUntil - Date.now());
+          setTimeout(function () { if (still()) teardown(); }, wait + 50);
+        } else afterFade(h, ms, function () { if (still()) teardown(); });
+      };
+      var shown = function () { if (still()) { coverDashboard(false); blackPage(false); } };
+      // AS IT COMES BACK the tablet first shows the frame it last drew
+      // (through the kiosk's own fade off its black), so the wake goes on
+      // from that frame -- never a cut to something else
+      var fromLast = function () {
+        if (!still()) return;
+        if (drawnAs === 'dark') h.setAttribute('dark', '');      // black, then the fade
+        else if (drawnAs === 'dashboard') {                       // the dashboard, at once
+          shown();
+          h.removeAttribute('on'); h.removeAttribute('waking'); h.removeAttribute('dark');
+        }
+        else { shown(); h.removeAttribute('dark'); }             // the photos, then the fade
+      };
+      if (keep) {
+        // STOPPED UNDER THE KIOSK'S BLACK (the house's wake turns the photos
+        // off just before it takes the black down): nothing until the black
+        // has ended. The tablet draws the page again a moment BEFORE it ends,
+        // and its first frames after the black left out the screensaver's
+        // own black -- the dashboard showed through, half drawn, for a frame
+        // (screen-recorded). So the dashboard stays hidden over the page's
+        // black background until frames have been drawn after it.
+        blackPage(true);
+        litWait = function () { fromLast(); afterDraw(fade, shown, null, drawnAs === 'dark'); };
+      } else afterDraw(fade, shown, fromLast);
     }
     lastInput = Date.now();
     armIdle();
     return true;
   }
-  // Two frames drawn (the dashboard under the 99 % screensaver), then
-  // WAKE.hold for its pictures to come in; never longer than WAKE.max --
-  // a hidden page (the screen off) draws no frames.
-  function afterDraw(fn) {
-    var done = false, go = function () { if (!done) { done = true; fn(); } };
-    setTimeout(go, WAKE.max);
+  // A wake held until the kiosk's black (or its panel off) has ended.
+  var litWait = null;
+  function lit() {
+    if (black() || !litWait) return;
+    var fn = litWait; litWait = null; fn();
+  }
+  // THE PAGE'S OWN BACKGROUND BLACK while the dashboard is held hidden under
+  // the kiosk's black: whatever the tablet has not drawn again yet shows it.
+  var pageBg = null;
+  function blackPage(black) {
+    var st = document.documentElement && document.documentElement.style;
+    if (!st || !st.setProperty) return;
+    if (black && pageBg === null) {
+      pageBg = { value: st.getPropertyValue('background-color'), priority: st.getPropertyPriority ? st.getPropertyPriority('background-color') : '' };
+      st.setProperty('background-color', '#000', 'important');
+    } else if (!black && pageBg !== null) {
+      if (pageBg.value) st.setProperty('background-color', pageBg.value, pageBg.priority);
+      else st.removeProperty('background-color');
+      pageBg = null;
+    }
+  }
+  // Once the host's opacity transition has ended -- or FADE_LATE after its
+  // length, should it never (no transition at 0 ms, or none drawn).
+  var FADE_LATE = 1500;
+  function afterFade(h, ms, fn) {
+    var done = false;
+    var end = function (e) { if (!e || (e.target === h && e.propertyName === 'opacity')) go(); };
+    var go = function () {
+      if (done) return;
+      done = true;
+      if (h.removeEventListener) h.removeEventListener('transitionend', end);
+      fn();
+    };
+    if (h.addEventListener) h.addEventListener('transitionend', end);
+    setTimeout(go, ms ? ms + FADE_LATE : 50);
+  }
+  // WHAT THE TABLET LAST SHOWED: after each change, seen in a frame's
+  // callback -- one runs only when a frame is drawn, so never under the
+  // kiosk's black -- and counted once two more frames have begun. One is not
+  // enough: the frame the black went up on was begun and never shown (the
+  // wake blinked from the old dashboard to black, screen-recorded).
+  var drawnAs = 'dashboard', noteRun = 0;
+  function noteDrawn() {
     if (typeof requestAnimationFrame !== 'function') return;
+    var run = ++noteRun, seen = null;
     requestAnimationFrame(function () {
-      requestAnimationFrame(function () { setTimeout(go, WAKE.hold); });
+      if (seen) return;                    // each step once
+      seen = !host || !host.hasAttribute('on') ? 'dashboard' : host.hasAttribute('dark') ? 'dark' : 'photos';
+      requestAnimationFrame(function () { requestAnimationFrame(function () { if (run === noteRun) drawnAs = seen; }); });
     });
+  }
+  // Two frames drawn (the dashboard under the 99 % screensaver), then
+  // WAKE.hold for its pictures to come in.
+  // NO FRAME BY WAKE.max: the page is not being drawn -- under the kiosk's
+  // Black screensaver (it runs the page but draws none of it: the house's
+  // wake turns the photos off before it takes the black down, and a night's
+  // power-off selects the dashboard under it), or hidden. A fade run then
+  // went unseen, and the black came down on a dashboard not yet drawn, half
+  // its tiles missing for a frame (screen-recorded, 2026-10-09). So
+  // `paused` (plain black), and the wait goes on for the frames however
+  // long, then WAKE.lit -- the whole dashboard is drawn again.
+  // `slow`: as after a wait from the start.
+  // `drawing`: at the first frame -- or after a wait, the third: a tablet
+  // that has not drawn the page meanwhile has let go of what it had drawn,
+  // the screensaver's black too, and its first frame back showed the
+  // dashboard through the black not yet drawn again (screen-recorded).
+  function afterDraw(fn, drawing, paused, slow) {
+    var done = false, drawn = false, waited = !!slow;
+    var go = function () { if (!done) { done = true; if (drawing) drawing(); fn(); } };
+    var frames = function (n, then) { requestAnimationFrame(n > 1 ? function () { frames(n - 1, then); } : then); };
+    if (typeof requestAnimationFrame !== 'function') { setTimeout(go, WAKE.max); return; }
+    requestAnimationFrame(function () {
+      if (drawn) return;                   // each step once
+      drawn = true;
+      if (!waited) {
+        if (drawing) drawing();
+        frames(1, function () { setTimeout(go, WAKE.hold); });
+        return;
+      }
+      frames(2, function () {
+        if (drawing) drawing();
+        frames(2, function () { setTimeout(go, WAKE.lit); });
+      });
+    });
+    setTimeout(function () {
+      if (drawn || done) return;
+      if (!paused) { if (!slow) go(); return; }
+      waited = true; paused();
+    }, WAKE.max);
   }
   // The sky, the cards and a dismissed pop-up's record all follow this.
   function tellOthers() {
@@ -799,7 +985,7 @@
         im.decoding = 'async';
         im.onload = function () {
           (im.decode ? im.decode().catch(function () { /* drawn anyway */ }) : Promise.resolve())
-            .then(function () { ok({ url: url, w: im.naturalWidth, h: im.naturalHeight, item: item }); });
+            .then(function () { ok({ url: url, w: im.naturalWidth, h: im.naturalHeight, item: item, img: im }); });
         };
         im.onerror = function () { fail(new Error('load')); };
         im.src = url;
@@ -892,6 +1078,7 @@
         if (old.classList.contains('ph')) {
           old.classList.remove('zoom');
           old.querySelectorAll('img').forEach(function (im) { im.removeAttribute('src'); });
+          old.querySelectorAll('canvas').forEach(clearCanvas);
         }
       }
       next.style.zIndex = '1';
@@ -899,19 +1086,36 @@
     };
     timer = setTimeout(done, first || !old ? 0 : CROSSFADE_MS + 100);
   }
+  // THE BACKDROP: the photo drawn small and blurred (a 96 px wide copy at the
+  // screen's shape, cover-cropped), which the canvas's CSS scales to the
+  // screen -- the upscale itself is the softness
+  var BACKDROP_W = 96;
+  function drawBackdrop(c, img) {
+    if (!c || !img) return;
+    var W = Math.max(1, window.innerWidth || 1280), H = Math.max(1, window.innerHeight || 800);
+    c.width = BACKDROP_W; c.height = Math.max(1, Math.round(BACKDROP_W * H / W));
+    var ctx = c.getContext && c.getContext('2d');
+    if (!ctx) return;
+    var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (!iw || !ih) return;
+    var k = Math.max(c.width / iw, c.height / ih), dw = iw * k, dh = ih * k;
+    try { ctx.filter = 'blur(2px)'; } catch (e) { /* no filter: the upscale alone */ }
+    ctx.drawImage(img, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
+  }
+  function clearCanvas(c) { if (c && c.width) { c.width = 0; c.height = 0; } }
   function paint(ph, first) {
     if (!root) return;
     if (fadeDone) fadeDone();
     var layers = root.querySelectorAll('.ph');
     var next = layers[1 - layer];
     var fit = fitOf(ph.w, ph.h, cfg.fill);
-    var bg = next.querySelector('img.bg'), fg = next.querySelector('img.fg');
+    var bg = next.querySelector('canvas.bg'), fg = next.querySelector('img.fg');
     next.classList.remove('zoom');
     next.style.setProperty('--fit', fit.fit);
     fg.src = ph.url;
     // (with the calendar pane the blurred copy is always there: it is the
     // pane's background)
-    if (fit.backdrop || cfg.calendar) { bg.src = ph.url; bg.hidden = false; } else { bg.hidden = true; bg.removeAttribute('src'); }
+    if (fit.backdrop || cfg.calendar) { drawBackdrop(bg, ph.img); bg.hidden = false; } else { bg.hidden = true; clearCanvas(bg); }
     if (cfg.zoom) {
       next.style.setProperty('--zd', (cfg.each_photo * 1000 + CROSSFADE_MS) + 'ms');
       void next.offsetWidth;               // restart the zoom from 1
@@ -919,6 +1123,8 @@
     }
     reveal(next, first);
     layer = 1 - layer;
+    // the first photo is in: the screensaver may fade in now (start)
+    if (first && entrance) entrance();
     shown++; sinceFc++; lastPhoto = ph.item.title || ph.item.id;
   }
 
@@ -988,6 +1194,7 @@
     updateBand();
     forecastTick(true);
     reveal(root.querySelector('.fc'), true);
+    if (entrance) entrance();
   }
   // one slide among the photos (Photos & Forecast)
   function showForecastSlide() {
@@ -1168,6 +1375,8 @@
           centerBand(el);
           el.style.transition = 'opacity ' + BAND_REVEAL_MS + 'ms ease';
           el.style.opacity = '';
+          el.__hkPlaced = true;
+          if (entrance) entrance();               // the fade may begin now
         };
         // centred as soon as it has drawn, not at the next tick -- beside the
         // pane once more after it has redrawn for its width
@@ -1232,11 +1441,348 @@
   // usually also hides the page (Pause dashboard during screensaver), but
   // that is a setting, so the events are the fact.
   // (Listened for on any page: nothing else fires them.)
-  var ksSaver = false, ksOff = false;
-  window.addEventListener('kiosksatellite:screensaverstart', function () { ksSaver = true; });
-  window.addEventListener('kiosksatellite:screensaverstop', function () { ksSaver = false; });
-  window.addEventListener('kiosksatellite:screenoff', function () { ksOff = true; });
-  window.addEventListener('kiosksatellite:screenon', function () { ksOff = false; });
+  var ksSaver = false, ksOff = false, hkOn = false;
+  // UNDER A BLACK: the kiosk's Black screensaver, its panel off, or HK's own
+  // (Black Screen: HK Frontend, below)
+  function black() { return ksSaver || ksOff || hkOn; }
+  var wasBlack = false, downOpts = null;
+  function blackChanged() {
+    var now = black();
+    if (now === wasBlack) return;
+    wasBlack = now;
+    if (now) { downOpts = null; curtainUp(); goDark(); }
+    else { var d = downOpts; downOpts = null; lit(); lightSoon(); litNow(); curtainDown(d); }
+    tellBlack(now);
+  }
+  // THE SKY AND THE CAMERA STRIP REST UNDER ANY BLACK (hk-sky.js,
+  // hk-cameras.js) -- ONCE THE CURTAIN IS ON THE SCREEN (2026-10-09). Told at
+  // once, the strip let go of its live video in the same moment: the video's
+  // own layer went at once, and the tile showed white for five frames before
+  // the frame with the curtain came (screen-recorded on the Loft, HK's black).
+  // So "on" waits two frames and a little (BLACK_TELL_MS; a page not drawing
+  // -- hidden -- by BLACK_TELL_MAX); "off" is told at once.
+  var blackTold = false, blackTellRun = 0, BLACK_TELL_MS = 50, BLACK_TELL_MAX = 300;
+  function tellBlack(on) {
+    var run = ++blackTellRun, sent = false;
+    var send = function () {
+      if (sent || run !== blackTellRun) return;
+      sent = true;
+      if (blackTold === on) return;
+      blackTold = on;
+      try { window.dispatchEvent(new CustomEvent('hk-black', { detail: { on: on } })); } catch (e) { /* no window events */ }
+    };
+    if (!on || typeof requestAnimationFrame !== 'function') { send(); return; }
+    requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(send, BLACK_TELL_MS); }); });
+    setTimeout(send, BLACK_TELL_MAX);
+  }
+  window.addEventListener('kiosksatellite:screensaverstart', function () { ksSaver = true; blackChanged(); });
+  window.addEventListener('kiosksatellite:screensaverstop', function () { ksSaver = false; blackChanged(); });
+  window.addEventListener('kiosksatellite:screenoff', function () { ksOff = true; blackChanged(); });
+  window.addEventListener('kiosksatellite:screenon', function () { ksOff = false; blackChanged(); });
+  // OUR OWN CURTAIN UNDER THE KIOSK'S BLACK (2026-10-09). As the black
+  // comes down the tablet draws the whole page again, and its largest layers
+  // -- the sky's scenery -- arrive two or three frames after the rest: the
+  // bottom of the screen showed bare sky for a moment (screen-recorded on the
+  // Loft, at a fixed 60 Hz, two wakes in five). So a plain black layer goes
+  // up over everything as the kiosk's black does -- one solid color, nothing
+  // to draw late -- and comes away only once the page has drawn: two frames,
+  // CURTAIN_HOLD, then a CURTAIN_FADE fade. Never held longer than
+  // CURTAIN_MAX after the black ends, frames or none.
+  //
+  // IT IS ALSO HK'S OWN BLACK SCREEN (Black Screen: HK Frontend, below): it
+  // then catches taps (a tap wakes the screen, and is swallowed -- the card
+  // under it is not pressed), and as it fades the backlight comes up with it
+  // (onFade). Out of HK's own black it comes down sooner, CURTAIN_HOLD_HK: the
+  // page was drawn under it all along.
+  var curtain = null, curtainRun = 0, CURTAIN_HOLD = 300, CURTAIN_HOLD_HK = 60, CURTAIN_FADE = 450, CURTAIN_MAX = 2000;
+  function curtainUp() {
+    curtainRun++;
+    if (drawCurtain()) bootCover(false);
+  }
+  // the curtain on the page, opaque, now
+  function drawCurtain() {
+    if (!document.body || typeof document.createElement !== 'function') return false;
+    if (!curtain) {
+      curtain = document.createElement('div');
+      curtain.setAttribute('data-hk-curtain', '');
+      if (curtain.addEventListener) curtain.addEventListener('pointerdown', curtainTapped, true);
+    }
+    var cs = curtain.style;
+    cs.position = 'fixed'; cs.inset = '0'; cs.top = cs.left = '0'; cs.width = '100vw'; cs.height = '100vh';
+    cs.zIndex = '2147483647'; cs.background = '#000'; cs.pointerEvents = hkOn ? 'auto' : 'none';
+    cs.transition = 'none'; cs.opacity = '1';
+    if (curtain.parentNode !== document.body) document.body.appendChild(curtain);
+    return true;
+  }
+  // `opts`: { hold: ms after two frames, onFade: called as the fade starts }
+  function curtainDown(opts) {
+    opts = opts || {};
+    if (black()) return;
+    // no curtain to fade (a page that never drew one): the backlight all the same
+    if (!curtain || !curtain.parentNode) { if (opts.onFade) { try { opts.onFade(); } catch (e) { /* none */ } } return; }
+    var run = ++curtainRun, c = curtain, going = false;
+    var go = function () {
+      if (going || run !== curtainRun) return;
+      going = true;
+      c.style.transition = 'opacity ' + CURTAIN_FADE + 'ms ease';
+      c.style.opacity = '0';
+      if (opts.onFade) { try { opts.onFade(); } catch (e) { /* the curtain goes all the same */ } }
+      // a tap still catching it is swallowed until it is gone
+      setTimeout(function () { if (run === curtainRun && c.parentNode) c.remove(); }, CURTAIN_FADE + 80);
+    };
+    setTimeout(go, CURTAIN_MAX);
+    if (typeof requestAnimationFrame !== 'function') return;
+    var f1 = false, f2 = false;                // each frame's step once
+    requestAnimationFrame(function () { if (f1) return; f1 = true; requestAnimationFrame(function () {
+      if (f2) return; f2 = true;
+      setTimeout(go, opts.hold != null ? opts.hold : CURTAIN_HOLD);
+    }); });
+  }
+  function curtainTapped(e) {
+    if (!hkOn) return;
+    if (e) { if (e.preventDefault) e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); }
+    hkTapWake();
+  }
+
+  // ------------------------------------------------------------ HK's own black
+  // BLACK SCREEN: HK FRONTEND (2026-10-09; a screen's When Idle -> Black
+  // Screen). In place of Kiosk Satellite's Black screensaver, the screen's
+  // black is this page's: the curtain over everything, the sky and the cards
+  // held, and the backlight at its lowest (Kiosk Satellite's page API --
+  // setBrightness(0) is the same minimum its own black uses, measured). The
+  // house turns switch.<screen>_black_screen on and off
+  // (hk_frontend.set_black_screen, which also carries the brightness to come
+  // back to); the page says when it is black (the sleep waits for that, and
+  // falls back to Kiosk's black without it), and a tap on the curtain wakes
+  // it at once, here, and turns the switch off. Only on the screen's own
+  // tablet, as for the photos: a desk showing the same screen never goes
+  // black. docs/TABLET-INVARIANTS.md 16p.
+  var hkRun = 0, hkAcked = false, hkDown = false, hkAckTry = 0, hkWokeAt = 0, HK_WOKE_HOLD = 6000, hkFirst = true;
+  var BLACK_KEY = 'hk-black', BRIGHT_KEY = 'hk-black-bright';
+  function dashSeg() { return String(location.pathname).split('/')[1] || ''; }
+  function hkBoard() {
+    var HS = window.hkSettings, all = HS && HS.get ? HS.get('boards', {}) : null;
+    return (all && all[dashSeg()]) || null;
+  }
+  // BLACK OR NOT -- OR NOT KNOWN YET (null): a page loading has its settings,
+  // its screensaver's config, its user and the switch arrive one by one, and
+  // "not known" is not "not black". Read as no, a page reloaded under its
+  // black (the 00:02 app restart, a cache clear) faded its cover, showed
+  // the dashboard, then went black again a moment later (the Loft,
+  // 2026-10-09). Until it can tell, nothing changes: the cover stays.
+  function hkWanted(h) {
+    var HS = window.hkSettings, b = hkBoard(), live = !!(HS && HS.live);
+    if (!b) return live ? false : null;
+    if (b.black_screen !== 'hk') return false;
+    // only on the screen's own tablet, as for the photos
+    if (framed || previewOn || force) return false;
+    if (/[?&](hk_saver|wp_enabled)=(force|off|false)\b/.test(location.search)) return false;
+    if (!b.black_switch) return live ? false : null;
+    if (!cfg || !user()) return null;
+    if (!cfg.user || user() !== cfg.user) return false;
+    // woken by a tap a moment ago: the switch is on its way off
+    if (clock.now() - hkWokeAt < HK_WOKE_HOLD) return false;
+    var st = h && h.states && h.states[b.black_switch];
+    return st ? st.state === 'on' : null;
+  }
+  function kiosk() { return window.kioskSatellite || null; }
+  function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, String(v)); } catch (e) { /* no storage */ } }
+  function stored(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function setBacklight(v) {
+    var k = kiosk();
+    if (!k || typeof k.setBrightness !== 'function') return;
+    try { Promise.resolve(k.setBrightness(v)).catch(function () { /* the kiosk said no */ }); } catch (e) { /* the kiosk said no */ }
+  }
+  // the backlight up to `v` (0-1) over `ms`, with the curtain's fade
+  var rampRun = 0, rampAt = 0;
+  function rampBacklight(v, ms) {
+    var run = ++rampRun, steps = 6;
+    rampAt = 0;
+    for (var i = 1; i <= steps; i++) {
+      (function (i) {
+        setTimeout(function () {
+          // each step once, and only ever up
+          if (run !== rampRun || i <= rampAt) return;
+          rampAt = i;
+          setBacklight(+(v * i / steps).toFixed(3));
+        }, Math.round(ms * (i - 1) / steps));
+      })(i);
+    }
+  }
+  // what to come back to: the house's (the switch's brightness, 0-255),
+  // else what it was before this black
+  function wakeBrightness(h) {
+    var b = hkBoard(), st = b && h && h.states && h.states[b.black_switch];
+    var a = st && st.attributes && st.attributes.brightness;
+    if (typeof a === 'number' && a >= 0) return Math.max(0.004, Math.min(1, a / 255));
+    var saved = parseFloat(stored(BRIGHT_KEY));
+    return isFinite(saved) && saved > 0 ? saved : null;
+  }
+  function hkAck(on) {
+    callWS({ type: 'hk_frontend/screensaver/black', dashboard: dashSeg(), black: on })
+      .then(function () { if (on) hkAcked = true; }, function () { /* older integration: the sleep falls back */ });
+  }
+  // black: once the curtain is drawn, the backlight down, then say so
+  function hkDarken() {
+    var run = ++hkRun, done = false;
+    var go = function () {
+      if (done || run !== hkRun || !hkOn) return;
+      done = true;
+      var k = kiosk(), down = function () { if (run === hkRun && hkOn) { setBacklight(0); hkDown = true; hkAckTry = clock.now(); hkAck(true); } };
+      if (k && typeof k.getBrightness === 'function') {
+        try {
+          Promise.resolve(k.getBrightness()).then(function (b) {
+            // (a page reloaded while black reads its own minimum: keep the one before)
+            if (typeof b === 'number' && b > 0.02) store(BRIGHT_KEY, b);
+          }, function () {}).then(down);
+        } catch (e) { down(); }
+      } else down();
+    };
+    setTimeout(go, 600);
+    if (typeof requestAnimationFrame !== 'function') { go(); return; }
+    var f1 = false;
+    requestAnimationFrame(function () { if (f1) return; f1 = true; requestAnimationFrame(go); });
+  }
+  function hkLeave(h) {
+    hkRun++; hkAcked = false; hkDown = false;
+    store(BLACK_KEY, null);
+    var v = wakeBrightness(h);
+    // kept until the black really ends: under the kiosk's black as well (the
+    // house's fallback), the backlight comes up as THAT one comes down
+    downOpts = { hold: CURTAIN_HOLD_HK, onFade: function () { if (v != null) rampBacklight(v, CURTAIN_FADE); } };
+    blackChanged();
+  }
+  // every new hass and every settings change
+  function hkSync(h) {
+    h = h || hassNow();
+    var want = hkWanted(h);
+    if (want === null) return;                 // not known yet: as it is
+    var first = hkFirst;
+    hkFirst = false;
+    if (want === hkOn) {
+      // black, but not yet heard by the house (the connection was not up):
+      // say so again, every few seconds
+      if (want && hkDown && !hkAcked && clock.now() - hkAckTry > 3000) { hkAckTry = clock.now(); hkAck(true); }
+      // a page loaded under a black that is no longer wanted: the cover
+      // fades, and the backlight the last page lowered comes back with it
+      if (first && !want) bootCover(true, h);
+      return;
+    }
+    hkOn = want;
+    if (want) { store(BLACK_KEY, dashSeg()); blackChanged(); if (curtain) curtain.style.pointerEvents = 'auto'; hkDarken(); }
+    else hkLeave(h);
+  }
+  // a tap on the curtain: awake now, here -- the house hears it from the
+  // switch going off and from the touch
+  function hkTapWake() {
+    if (!hkOn) return;
+    hkWokeAt = clock.now();
+    hkOn = false;
+    hkAck(false);
+    touchSent = 0; reportTouch();
+    lastInput = Date.now();
+    hkLeave(hassNow());
+  }
+  // THE BLACK THROUGH A RELOAD: hk-settings.js puts a cover up at once on a
+  // page that was black (BLACK_KEY); here it gives way to the curtain --
+  // removed under it, or, when the black is no longer wanted, swapped for it
+  // and faded out. Never kept AS the curtain: it keeps its id (the next
+  // black's bootCover(false) would remove it) and its 30 s backstop.
+  function bootCover(fade, h) {
+    var el = document.getElementById && document.getElementById('hk-black-boot');
+    if (!el) return;
+    if (!fade || (curtain && curtain.parentNode)) { el.remove(); return; }
+    curtainRun++;
+    var drawn = drawCurtain(), v = wakeBrightness(h);
+    el.remove();
+    if (drawn) curtainDown({ hold: 0, onFade: function () { if (v != null) rampBacklight(v, CURTAIN_FADE); } });
+  }
+  try {
+    var HS0 = window.hkSettings;
+    if (HS0 && HS0.onChange) HS0.onChange(function () { hkSync(); });
+  } catch (e) { /* no settings module (a test harness) */ }
+  // UNDER THE KIOSK'S BLACK, BLACK (2026-10-09). The tablet stops drawing
+  // the page under it and, as it comes down, shows the last frame the page
+  // drew until the page draws again: the photos as they were when the
+  // tablet slept -- a stale photo flashed before the fade to the dashboard
+  // (screen-recorded on the Living Room tablet, 0.9 s of it). So the
+  // screensaver goes plain black at once, its photos out of sight. The
+  // dashboard is NOT let go under it (and a pending cover is dropped): one
+  // hidden there is drawn again from nothing as the black comes down.
+  // BLACK WHILE IT WAS STILL STARTING: never really shown -- still getting
+  // ready, or fading in for under SHOWN_MIN. The house's sleep turns the
+  // photos on 0.1-0.2 s before the black goes up; turned black, a start
+  // like that left the tablet showing the dashboard it had drawn, yet the
+  // wake went through black: dashboard, black, dashboard (screen-recorded on
+  // the Loft, a real sleep). Such a start is taken back instead, as if it
+  // had never begun, and asks again once the black has ended (start()).
+  var shownAt = 0, SHOWN_MIN = 500;
+  function unstart() {
+    on = false; entrance = null; photoRun++; busy = false; queued = null; lightRun++;
+    if (coverT) { clearTimeout(coverT); coverT = null; }
+    if (slideT) { clearTimeout(slideT); slideT = null; }
+    teardown();
+    tellOthers();
+  }
+  // UNDER THE KIOSK'S BLACK, THE DASHBOARD COMES BACK -- whatever had been
+  // shown (2026-10-09, with Kiosk Satellite's "Pause dashboard during
+  // screensaver" OFF on every tablet). Off, the tablet keeps the page it
+  // drew and still draws for ~2 s after the black goes up, so the
+  // screensaver taken down there leaves a whole, drawn dashboard to wake
+  // onto. Kept up (dark) instead, it was put away at the wake itself, the
+  // one moment a tablet cannot draw in time: a half-drawn dashboard, then
+  // black, then the fade (screen-recorded on the Loft). The photos come back
+  // after the black ends if they are still wanted (start(): LIT_GRACE).
+  var DARK_UNDER_BLACK = false;
+  function goDark() {
+    if (!on || !host) return;
+    if (!DARK_UNDER_BLACK || host.hasAttribute('prep') || !shownAt || clock.now() - shownAt < SHOWN_MIN) { unstart(); return; }
+    entrance = null; lightRun++;
+    host.style.setProperty('--fade', '0ms');
+    host.style.setProperty('--blk', '0ms');
+    host.removeAttribute('prep');
+    host.removeAttribute('undark');
+    host.setAttribute('dark', '');
+    host.setAttribute('on', '');
+    if (coverT) { clearTimeout(coverT); coverT = null; }
+    noteDrawn();
+  }
+  // ...and as it ends. The house's wake turns the photos off under the
+  // black, and stop() fades from black to the dashboard. Still on after
+  // LIGHT_WAIT (a tap ended the black, and the house -- which turns the
+  // photos off within 2 s of a tap -- still wants them): the photos come
+  // back out of the black, drawn under .blk for two frames, then its fade
+  // off them. Not sooner: the photos for a moment, then the dashboard, was
+  // a flash of the wrong thing.
+  var LIGHT_WAIT = 2500, LIGHT_FADE = 600, lightRun = 0;
+  // THE BLACK HAS ENDED: as good as a touch (no screensaver straight back by
+  // idle), and the switch is heard again after LIT_GRACE (start())
+  var LIT_GRACE = 2500, litAt = 0;
+  function litNow() {
+    if (black()) return;
+    litAt = clock.now();
+    lastInput = Date.now();
+    armIdle();
+    setTimeout(function () { var h = hassNow(); if (h && !on) onHass(h); }, LIT_GRACE + 50);
+  }
+  function lightSoon() {
+    if (black() || !on || !host || !host.hasAttribute('dark')) return;
+    var h = host, run = ++lightRun;
+    var still = function () { return !black() && on && host === h && lightRun === run && h.hasAttribute('dark'); };
+    setTimeout(function () {
+      if (!still()) return;
+      h.setAttribute('undark', '');
+      var f1 = false, f2 = false;           // each frame's step once
+      requestAnimationFrame(function () { if (f1) return; f1 = true; requestAnimationFrame(function () {
+        if (f2) return; f2 = true;
+        if (!still()) return;
+        h.style.setProperty('--blk', LIGHT_FADE + 'ms');
+        h.removeAttribute('dark');
+        h.removeAttribute('undark');
+        noteDrawn();
+      }); });
+    }, LIGHT_WAIT);
+  }
   // Every few seconds: the sky follows the sun and the weather; it holds still
   // while the screen is dark (the kiosk's own screensaver or screen off --
   // the page cannot tell, so Fully is asked and Kiosk Satellite is listened
@@ -1252,7 +1798,7 @@
         try { fscene.update(h); } catch (e) { console.warn('[hk-saver] forecast sky', e); }
       }
     }
-    var F = window.fully, dark = !!document.hidden || ksSaver || ksOff;
+    var F = window.fully, dark = !!document.hidden || black();
     try {
       if (F && ((typeof F.isInScreensaver === 'function' && F.isInScreensaver()) ||
                 (typeof F.getScreenOn === 'function' && F.getScreenOn() === false))) dark = true;
@@ -1322,8 +1868,30 @@
   window.addEventListener('popstate', function () { setTimeout(refresh, 0); });
   window.addEventListener('resize', function () { if (on) layoutPane(); });
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) { lastInput = Date.now(); armIdle(); }
+    if (!document.hidden) { lastInput = Date.now(); armIdle(); resumedAt = clock.now(); }
   });
+  // A FROZEN PAGE. Kiosk Satellite's Black screensaver stops the tablet
+  // DRAWING the page but not running it (traced 2026-10-09: its events, the
+  // house's messages and the timers all arrive under it; goDark and
+  // afterDraw handle that). A page the system has frozen outright -- an app
+  // sent to the background, a device asleep -- gets everything the house
+  // did meanwhile in one burst as it comes back. Whether the page is just
+  // back: a heartbeat that went quiet, or a visibility change, in the last
+  // RESUME_MS. (The heartbeat gap catches a message handled before the
+  // timer that would have noticed.)
+  // (`clock`: the tests drive it; the page reads the wall clock)
+  var RESUME_MS = 2500, clock = { now: function () { return Date.now(); } };
+  var resumedAt = 0, lastBeat = clock.now();
+  function beat() {
+    var n = clock.now();
+    if (n - lastBeat > RESUME_MS) resumedAt = n;
+    lastBeat = n;
+  }
+  setInterval(beat, 1000);
+  function justResumed() {
+    var n = clock.now();
+    return n - resumedAt < RESUME_MS || n - lastBeat > RESUME_MS;
+  }
   var hubOff = null;
   function hookHass() {
     if (hubOff || !(window.hkCards && window.hkCards.onHass)) return false;
@@ -1372,7 +1940,10 @@
                band: !!(host && host.hasAttribute('band')),
                calendar: !!(host && host.hasAttribute('cal')), paneW: paneW, paneCard: !!paneCard };
     },
-    _: { readCfg: readCfg, gate: gate, wake: WAKE, zoneOf: zoneOf, fitOf: fitOf, shuffle: shuffle, Deck: Deck, isImage: isImage,
+    _: { darkUnderBlack: function (v) { DARK_UNDER_BLACK = !!v; }, clock: clock, beat: beat, justResumed: function () { return justResumed(); },
+         // tests: as a page just loaded, for HK's black (its first decision)
+         hkFresh: function () { hkFirst = true; },
+         readCfg: readCfg, gate: gate, wake: WAKE, zoneOf: zoneOf, fitOf: fitOf, shuffle: shuffle, Deck: Deck, isImage: isImage,
          // tests: the slide without real photos to count
          slide: { show: showForecastSlide, hide: hideForecastSlide, since: function (n) { sinceFc = n; }, schedule: function () { schedule(); } } }
   };

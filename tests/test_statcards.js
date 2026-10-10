@@ -74,6 +74,13 @@ H.run('STAT CARDS', [
     card.hass = house.set('sensor.main_power_daily_cost', '1.31');
     H.ok('the entity itself is an input', card.__renders === r0 + 1 &&
          H.part(R, '.state').textContent === '$1.31 · 9 kWh');
+    // THE HOUSE'S CURRENCY, not a "$" of the card's own (2026-10-07 audit)
+    var eu = house.hass();
+    card._hass = Object.assign({}, eu, { config: Object.assign({}, eu.config, { currency: 'EUR' }) });
+    card.redraw();
+    var euro = H.part(R, '.state').textContent;
+    H.ok('the cost is in the house\'s currency (EUR: no dollar sign)', euro.indexOf('$') < 0 && /€|EUR/.test(euro));
+    card.hass = house.hass(); card.redraw();
     return H.lifecycle('stat', card, house, function (c) { c.hass = house.hass(); });
   },
 

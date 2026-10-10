@@ -6,7 +6,7 @@ three ways, easiest first:
 
 1. **Its HK settings, with nothing written.** HK Settings → Screens → Add
    Screen → **Existing Dashboards** gives it a page of settings like any
-   screen’s: the menu, Hide Home Assistant Header & Sidebar, the photo
+   screen’s: the menu, Home Assistant Header & Sidebar, the photo
    screensaver and more (the table below).
 2. **A few lines at the top of its YAML**, for what its settings don’t reach.
 3. **HK cards in its views.** Every card is in the card picker too, with a
@@ -32,7 +32,7 @@ the top, beside `views:`.
 
 | Feature | From its HK settings | In its YAML |
 |---|---|---|
-| Hide Home Assistant’s header and sidebar | Hide Home Assistant Header & Sidebar | [`hk_kiosk:`](#hide-home-assistants-header-and-sidebar) |
+| Hide Home Assistant’s header and sidebar | Home Assistant Header & Sidebar | [`hk_kiosk:`](#hide-home-assistants-header-and-sidebar) |
 | Photo screensaver (and the forecast) | Photo Screensaver, its options, and its switch and In Use sensor | [`hk_screensaver:`](#photo-screensaver) |
 | Live sky | Live Sky can turn it off | [`sky:`](#live-sky) |
 | The menu | The menu’s settings | [Views](#a-page-in-the-menu) say what it lists |

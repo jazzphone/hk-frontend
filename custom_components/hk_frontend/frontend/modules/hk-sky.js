@@ -442,6 +442,14 @@
       out.cloudStyle = look.cloudStyle;
       if (typeof look.brightness === 'number') out.brightness = look.brightness;
       out.backdrop = look.backdrop;
+      // Liveliness, and whether Calm When Nobody's Around holds the scene
+      // calm right now (lvOf)
+      if (look.lively) {
+        out.lively = look.lively;
+        if (look.lively.calmEmpty && look.lively.room) {
+          out.lively = Object.assign({}, look.lively, { quiet: roomQuiet(hass, look.lively.room) });
+        }
+      }
       if (!look.weather) {
         out.cover = 0;
         out.wind = 0;
@@ -463,6 +471,37 @@
     // reads as "the decoration is expensive" when it is nothing of the kind.
     if (PIN) for (var k in PIN) if (PIN.hasOwnProperty(k)) out[k] = PIN[k];
     return out;
+  }
+
+  // CALM WHEN NOBODY'S AROUND: the screen's room is empty -- every
+  // occupancy, motion and presence sensor in it off, and for QUIET_MS -- so
+  // its scene is thinned (.lv-quiet). A room with none is never quiet; HK
+  // Settings offers the switch only where there are some, by the same rule
+  // (hk-settings-model.js roomSensors).
+  var QUIET_MS = 5 * 60000, QUIET_CLASSES = { occupancy: 1, motion: 1, presence: 1 }, quietIds = { ents: null, room: '', ids: [] };
+  function roomSensorIds(hass, room) {
+    if (quietIds.ents === hass.entities && quietIds.room === room) return quietIds.ids;
+    var ents = hass.entities || {}, devs = hass.devices || {}, ids = [];
+    Object.keys(hass.states || {}).forEach(function (id) {
+      if (id.indexOf('binary_sensor.') !== 0) return;
+      var st = hass.states[id], e = ents[id];
+      if (!QUIET_CLASSES[st.attributes && st.attributes.device_class] || !e || e.hidden) return;
+      var area = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id);
+      if (area === room) ids.push(id);
+    });
+    quietIds = { ents: hass.entities, room: room, ids: ids };
+    return ids;
+  }
+  function roomQuiet(hass, room) {
+    var ids = roomSensorIds(hass, room), now = Date.now();
+    for (var i = 0; i < ids.length; i++) {
+      var st = hass.states[ids[i]];
+      if (!st) continue;
+      if (st.state === 'on') return false;
+      var since = Date.parse(st.last_changed || '');
+      if (!(now - since >= QUIET_MS)) return false;
+    }
+    return ids.length > 0;
   }
 
   // ------------------------------------------------------------------- moon
@@ -493,8 +532,13 @@
   // CSS object inside this IIFE and silently break CSS.registerProperty below,
   // which would cost the cross-fade with no error anywhere.
   var SHEET = [
+    // ITS OWN COLOR IS THE PALETTE'S MIDDLE (2026-10-09). The gradient
+    // covers it everywhere, but a wall tablet repainting the gradient after a
+    // page change shows the parts it has not drawn yet in this color for a
+    // frame: navy under the Lights page's gold was a dark block across the
+    // screen (screen-recorded). #05070e where color-mix is not known.
     '#hk-sky{position:fixed;inset:0;z-index:-1;contain:strict;pointer-events:none;',
-    '  background:#05070e}',
+    '  background:#05070e;background:color-mix(in srgb,var(--sk1,#05070e),var(--sk2,#05070e))}',
     '#hk-sky>*{position:absolute;inset:0}',
 
     // Sky gradient. The stops are registered custom properties (see register()),
@@ -585,6 +629,8 @@
     '#hk-sky .rcl .rcd{animation:hk-rcd var(--d) ease-in-out infinite alternate}',
     '#hk-sky .rcl i{position:absolute;inset:0;background:0 0/100% 100% no-repeat;',
     '  transform:var(--tf,none);transition:opacity 9s linear}',
+    // the ceiling's art (ceilCanvases), stretched over its box as the <i> was
+    '#hk-sky .rcl canvas{position:absolute;left:0;top:0;width:100%;height:100%;transition:opacity 9s linear}',
     '@keyframes hk-rc{from{transform:translate3d(var(--x0),0,0)}to{transform:translate3d(var(--x1),0,0)}}',
     '@keyframes hk-rc2{from{transform:translate3d(var(--x0),0,0)}to{transform:translate3d(var(--x1),0,0)}}',
     '@keyframes hk-rcd{from{transform:translate3d(0,0,0)}to{transform:translate3d(var(--x1),0,0)}}',
@@ -701,6 +747,10 @@
     // tablet is already re-rendering the whole page anyway.
     '#hk-sky.hidden *{animation-play-state:paused!important;',
     '  will-change:auto!important}',
+    // HELD: the dashboard's sky under Kiosk Satellite's Black screensaver
+    // (applyHidden) -- still, but its layers KEPT, so the wake has nothing to
+    // put back (letting them go there made the scenery blink at every wake)
+    '#hk-sky.held *{animation-play-state:paused!important}',
     // A static page has no weather, so the drifting and falling layers are not
     // merely invisible at opacity 0 -- they are switched off. opacity:0 still
     // composites every frame, which on a wall tablet is the whole cost with
@@ -1129,6 +1179,15 @@
     // candles flickering, bulbs twinkling one by one.
     '#hk-sky .near-scenery .patches,#hk-sky .near-scenery .patches-lit{position:absolute;inset:0}',
     '#hk-sky .near-scenery .patches-lit{opacity:var(--scene-lit,0);transition:opacity 3s linear}',
+    '#hk-sky .near-scenery.lit-out .patches-lit{display:none}',
+    // LIVELINESS (lvOf): Lights' twinkle Off holds every light at a steady
+    // glow; Calm When Nobody's Around takes every second counted thing out
+    '#hk-sky .lv-still .patch.lit{animation:none;opacity:.85}',
+    '#hk-sky .lv-still .scenery-bulb.wave{animation:none}',
+    '#hk-sky .lv-still .xlight{animation:none;opacity:.45}',
+    '#hk-sky.lv-still .hx .tw{display:none}',
+    '#hk-sky.lv-still .hx .cf{animation:none;opacity:.7}',
+    '#hk-sky.lv-quiet .lv-t,#hk-sky .lv-quiet .lv-t{display:none}',
     '#hk-sky .near-scenery .patch{position:absolute;background-size:100% 100%;background-repeat:no-repeat}',
     '#hk-sky .near-scenery .patch.prop{filter:brightness(var(--scene-b)) saturate(var(--scene-s));',
     '  transition:filter 3s linear}',
@@ -1414,6 +1473,194 @@
     if (tag) tag.remove();
   }
 
+  // ------------------------------------------------------------ LIVELINESS
+  // How many of the little moving things there are, and how often the ones
+  // that cross come by (HK Settings -> Sky / Background: each occasion's and
+  // each woodland season's Liveliness, and each screen's; plan:
+  // hk_house/docs/PLAN-SKY-LIVELINESS-2026-10-08.md). A KNOB is one setting
+  // of one effect; its step 0-4 is Off - Few - Normal - Lots - Max. A preset
+  // sets every knob of its occasion at once; Classic (Normal, 2) is the sky
+  // exactly as it was drawn before there were knobs.
+  //   many   a count: so many leaves, petals, fireflies, bats in a flock
+  //   often  a crossing's cycle: a flock, the geese, the witch, the sleigh,
+  //          a flyby, a shooting star, a firework (Off: never comes)
+  //   show   on or off: the owl, the mist, the rainbow, the balloons, the
+  //          lights' twinkle
+  // A knob's kind -- what a screen's own Custom scales: Flying, Falling,
+  // Glowing, Night Sky. The same table is in settings.py (LIVELY_KNOBS) and
+  // panels/hk-settings-model.js (LIVELY); test_season.js holds the three
+  // together.
+  var LV_KNOBS = {
+    bats: ['flying', 'many'], bats_often: ['flying', 'often'], swarm: ['flying', 'many'],
+    witch: ['flying', 'often'], geese: ['flying', 'often'], sleigh: ['flying', 'often'],
+    flyby: ['flying', 'often'], balloons: ['flying', 'show'],
+    leaves: ['falling', 'many'], swirl: ['falling', 'many'], petals: ['falling', 'many'],
+    snow: ['falling', 'many'], particles: ['falling', 'many'], mist: ['falling', 'show'],
+    fireflies: ['glowing', 'many'], glints: ['glowing', 'many'], lights: ['glowing', 'show'],
+    owl: ['glowing', 'show'], rainbow: ['glowing', 'show'],
+    stars: ['night', 'many'], meteors: ['night', 'often'], fireworks: ['night', 'often'],
+    aurora: ['night', 'often']
+  };
+  var LV_MANY = [0, 0.5, 1, 1.6, 2.5];          // a count's factor, by step
+  var LV_CYCLE = [0, 2, 1, 0.6, 0.4];           // a cycle's factor (0: never comes)
+  var LV_PRESETS = { subtle: 1, classic: 2, festive: 3, party: 4 };
+  function lvStep(v, dflt) { v = Number(v); return v >= 0 && v <= 4 && Math.round(v) === v ? v : dflt; }
+  // The resolved Liveliness for a reading (read() puts skyLook().lively on it
+  // as s.lively: this screen's own, or All Screens' -- the same shape at both
+  // levels, 2026-10-09). `all`: one preset for every occasion, or 'custom':
+  // then `occ` -- each occasion's preset -- and `custom`, a Custom one's
+  // knobs. knob(occ, k): this occasion's step for knob k (2 = Normal); many /
+  // cycle: the factors to apply; on: whether a `show` or `often` knob is on
+  // at all. `sig` changes with every setting that can change what is built,
+  // so a scene is rebuilt on a change and never otherwise.
+  function lvOf(s) {
+    var L = (s && s.lively) || {};
+    var all = LV_PRESETS.hasOwnProperty(L.all) || L.all === 'custom' ? L.all : 'classic';
+    var occs = L.occ || {}, cust = L.custom || {};
+    function preset(occ) { return all === 'custom' ? (occs[occ] || 'classic') : all; }
+    function knob(occ, k) {
+      var p = preset(occ);
+      if (p === 'custom') return lvStep((cust[occ] || {})[k], 2);
+      return LV_PRESETS.hasOwnProperty(p) ? LV_PRESETS[p] : 2;
+    }
+    return {
+      knob: knob,
+      many: function (occ, k) { return LV_MANY[knob(occ, k)]; },
+      cycle: function (occ, k) { return LV_CYCLE[knob(occ, k)]; },
+      on: function (occ, k) { return knob(occ, k) !== 0; },
+      // Calm When Nobody's Around, right now: thin the scene (lvThin) without
+      // a rebuild
+      quiet: !!L.quiet,
+      sig: JSON.stringify([all, all === 'custom' ? occs : null, all === 'custom' ? cust : null]),
+      // what changes THIS occasion's scene: its own setting (another
+      // occasion's change rebuilds nothing on show)
+      sigFor: function (occ) {
+        var p = preset(occ);
+        return JSON.stringify([p, p === 'custom' ? cust[occ] || null : null]);
+      }
+    };
+  }
+  // A count, scaled: Off is none; anything else at least one when there was
+  // one to scale.
+  function lvCount(base, f) {
+    if (!(f > 0) || !(base > 0)) return 0;
+    return Math.max(1, Math.round(base * f));
+  }
+  // MORE OR FEWER, AND THE REST OF THE SCENE UNMOVED. A builder draws its
+  // `base` elements from the scene's own rnd exactly as before -- Classic is
+  // byte-for-byte the old scene, and every later builder's draws are the
+  // same whatever this one's count -- keeps the first `n` of them, and draws
+  // any beyond the base from a stream of its own (`extra`). `each(i, r)`
+  // builds element i from r and returns it; lvRange returns the kept ones.
+  function lvRange(base, n, rnd, extraSeed, each) {
+    var out = [], extra = null;
+    for (var i = 0; i < Math.max(base, n); i++) {
+      var r = rnd;
+      if (i >= base) r = extra || (extra = rng(extraSeed));
+      var node = each(i, r, i < n);
+      if (i < n && node) out.push(node);
+    }
+    return out;
+  }
+  // CALM WHEN NOBODY'S AROUND thins a scene by half with no rebuild: every
+  // second element of a count is marked `lv-t`, and a quiet scene
+  // (.lv-quiet on its root) takes those out of the render tree.
+  function lvThin(nodes) {
+    for (var i = 1; i < nodes.length; i += 2) if (nodes[i] && nodes[i].classList) nodes[i].classList.add('lv-t');
+    return nodes;
+  }
+
+  // A CROSSING THAT COMES MORE OR LESS OFTEN, AT THE SAME SPEED. Its
+  // keyframes put the crossing in the first few percent of the cycle; a
+  // longer or shorter cycle with the same keyframes would crawl or race
+  // across. So a scaled copy is made -- every percentage times base/new --
+  // and the element runs that copy for the new cycle. Made once per root
+  // and scale (a constructed sheet of its own, beside the sky's).
+  var KF_ROOTS = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function kfText(base) {
+    var css = SHEET + (typeof OWN_CSS === 'string' ? OWN_CSS : '');
+    var at = css.indexOf('@keyframes ' + base + '{');
+    if (at < 0) return null;
+    var i = css.indexOf('{', at) + 1, depth = 1, j = i;
+    while (j < css.length && depth) { if (css[j] === '{') depth++; else if (css[j] === '}') depth--; j++; }
+    return css.slice(i, j - 1);
+  }
+  function kfScale(body, s) {
+    // selectors only: the text before each '{' at the top level of the body
+    return body.replace(/(^|\})([^{}]*)\{/g, function (m, close, sel) {
+      return close + sel.replace(/([0-9.]+)%/g, function (mm, p) {
+        var v = Number(p);
+        if (v === 0 || v === 100) return mm;
+        return Math.min(99.9, v * s).toFixed(3).replace(/\.?0+$/, '') + '%';
+      }) + '{';
+    });
+  }
+  function lvKeyframes(ref, base, s) {
+    if (!(s > 0) || Math.abs(s - 1) < 1e-3) return base;
+    var name = base + '-x' + Math.round(s * 1000);
+    try {
+      var root = ref && ref.isConnected && ref.getRootNode ? ref.getRootNode() : document;
+      var rec = KF_ROOTS && KF_ROOTS.get(root);
+      if (!rec) {
+        rec = { names: {}, sheet: null, tag: null };
+        if ('adoptedStyleSheets' in root && typeof CSSStyleSheet === 'function') {
+          rec.sheet = new CSSStyleSheet();
+          root.adoptedStyleSheets = root.adoptedStyleSheets.concat(rec.sheet);
+        } else {
+          rec.tag = document.createElement('style');
+          (root.appendChild && root !== document ? root : document.head).appendChild(rec.tag);
+        }
+        if (KF_ROOTS) KF_ROOTS.set(root, rec);
+      }
+      if (!rec.names[name]) {
+        var body = kfText(base);
+        if (body === null) return base;
+        rec.names[name] = 1;
+        var rule = '@keyframes ' + name + '{' + kfScale(body, s) + '}';
+        if (rec.sheet) rec.sheet.insertRule(rule, rec.sheet.cssRules.length);
+        else rec.tag.textContent += rule;
+      }
+    } catch (e) { /* no stylesheet (a test harness): the name still says what was asked */ }
+    return name;
+  }
+  // Run `el` on a crossing `base` keyframes for `baseCycle` seconds at a
+  // factor of that cycle: the duration through `durVar` (or the animation
+  // itself), the scaled keyframes by name. Returns the new cycle.
+  // SHOW ME NOW (Sky Lab): every crosser in `el` -- a flock, the geese, the
+  // witch, the sleigh, a flyby, a shooting star, a firework -- sent across at
+  // once: each running crossing moved to the start of its next cycle, where
+  // its crossing is. Returns how many.
+  var CROSSERS = /^(near-flock|near-geese|hk-witchfly|hk-sleigh|hk-spfly|hk-spburst|hk-meteor|hk-fw)(-x[0-9]+)?$/;
+  function showNow(el) {
+    var n = 0;
+    (function walk(node) {
+      if (!node || !node.querySelectorAll) return;
+      var all = node.querySelectorAll('*');
+      for (var i = 0; i < all.length; i++) {
+        var anims = all[i].getAnimations ? all[i].getAnimations() : [];
+        for (var j = 0; j < anims.length; j++) {
+          var a = anims[j];
+          if (!CROSSERS.test(a.animationName || '') || a.playState !== 'running' || !a.effect) continue;
+          var t = a.effect.getComputedTiming();
+          if (typeof t.progress !== 'number' || !(t.duration > 0)) continue;
+          a.currentTime = a.currentTime + (1 - t.progress) * t.duration + 50;
+          n++;
+        }
+        if (all[i].shadowRoot) walk(all[i].shadowRoot);
+      }
+    })(el);
+    return n;
+  }
+  function lvCycleOn(el, ref, base, baseCycle, f, durVar) {
+    var cyc = baseCycle * f;
+    if (Math.abs(f - 1) < 1e-3) return baseCycle;
+    var name = lvKeyframes(ref, base, baseCycle / cyc);
+    el.style.animationName = name;
+    if (durVar) el.style.setProperty(durVar, cyc.toFixed(1) + 's');
+    else el.style.animationDuration = cyc.toFixed(1) + 's';
+    return cyc;
+  }
+
   // ------------------------------------------------------ season builders
   // Each returns nothing and appends into the .season container. They are
   // called ONLY when the season key changes (see paintSeason), never on the
@@ -1426,8 +1673,11 @@
     // NO --lbri/--lsat here. They are set on .season every paint and
     // inherit, so dusk is a gradual change to a live variable rather than a
     // rebuild of the whole field at the moment elevation crosses -4.
-    var n = Math.max(6, Math.round(o.count * (W / 1280)));
-    for (var i = 0; i < n; i++) {
+    var base = Math.max(6, Math.round(o.count * (W / 1280)));
+    var n = o.many === undefined ? base : lvCount(base, o.many);
+    // (Liveliness: each leaf made from its draws as before, and kept or not
+    // -- lvRange; `rnd` below is the leaf's own stream)
+    lvThin(lvRange(base, n, rnd, o.seed || 7907, function (i, rnd, keep) {
       var lf = document.createElement('div');
       lf.className = 'lf';
       // TWO DEPTHS from one draw. One size range for every leaf (18-43px,
@@ -1485,13 +1735,15 @@
       g.appendChild(document.createElement('u')).className = 'f';
       g.appendChild(document.createElement('u')).className = 'b';
       lf.appendChild(g);
+      if (!keep) return null;
       f.appendChild(lf);
-    }
+      return lf;
+    }));
     host.appendChild(f);
   }
 
-  function batField(host, W, n, rnd) {
-    for (var i = 0; i < n; i++) {
+  function batField(host, W, n0, rnd, many) {
+    lvThin(lvRange(n0, many === undefined ? n0 : lvCount(n0, many), rnd, 7933, function (i, rnd, keep) {
       var b = document.createElement('div');
       b.className = 'bat';
       var size = 26 + Math.pow(rnd(), 1.3) * 34;
@@ -1510,15 +1762,19 @@
       var dur = 26 + rnd() * 26;
       b.style.setProperty('--bd', dur.toFixed(1) + 's');
       b.style.setProperty('--bdel', (-rnd() * dur).toFixed(1) + 's');
+      if (!keep) return null;
       host.appendChild(b);
-    }
+      return b;
+    }));
   }
 
   // ONE builder for all seven themes. The differences are data (SURPRISE), not
   // code: seven sets of settings, one runtime.
-  function surpriseScene(host, W, H, id, night, heavy, rnd, landed) {
+  function surpriseScene(host, W, H, id, night, heavy, rnd, landed, occ, L) {
     var cfg = SURPRISE[id];
     if (!cfg) return;
+    L = L || lvOf(null);
+    occ = occ || id;
 
     if (cfg.frame && !landed) {
       var f = document.createElement('div');
@@ -1533,7 +1789,9 @@
     var n = Math.max(3, Math.round((heavy ? Math.min(4, cfg.count) : cfg.count) *
                                    (W / 1280)));
     var CONF = ['#e7c986', '#eaa5b9', '#a5d7df', '#c2addf'];
-    for (var i = 0; i < n; i++) {
+    // Liveliness: petals are Petals (spring), the rest the occasion's Particles
+    var pk = cfg.part === 'petal' ? 'petals' : 'particles';
+    lvThin(lvRange(n, lvCount(n, L.many(occ, pk)), rnd, 7949, function (i, rnd, keep) {
       var p = document.createElement('div');
       p.className = 'sp-fall';
       var size = cfg.kind === 'sparkle' ? 2 + rnd() * 3 : 8 + rnd() * 12;
@@ -1564,8 +1822,10 @@
       g.style.setProperty('--sd', (6 + rnd() * 9).toFixed(1) + 's');
       g.style.setProperty('--sdel', (-rnd() * 12).toFixed(1) + 's');
       p.appendChild(g);
+      if (!keep) return null;
       host.appendChild(p);
-    }
+      return p;
+    }));
 
     // The flyby, and its day/night gate. Fireworks only after dark; the spring
     // butterfly only by day. Gating at BUILD time rather than at runtime is
@@ -1579,6 +1839,9 @@
     e.style.setProperty('--spe', 'url(' + SP_ASSET[cfg.event] + ')');
     // 210s of which the crossing is 7% -- about 15s, then parked. Rare on
     // purpose: a flyby you see every minute stops being a surprise.
+    // (Liveliness: the firework is Fireworks, the rest the Flyby; the draws
+    // below are made whether it comes or not, for the builders after it)
+    var fc = L.cycle(occ, cfg.event === 'firework' ? 'fireworks' : 'flyby');
     e.style.setProperty('--fd', '210s');
     e.style.setProperty('--fdel', (5 + rnd() * 40).toFixed(1) + 's');
     if (cfg.event === 'firework') {
@@ -1597,6 +1860,8 @@
       e.style.setProperty('--x0', (-w - 120) + 'px');
       e.style.setProperty('--xd', (W + w + 260).toFixed(0) + 'px');
     }
+    if (!fc) return;
+    if (fc !== 1) lvCycleOn(e, host, cfg.event === 'firework' ? 'hk-spburst' : 'hk-spfly', 210, fc, '--fd');
     host.appendChild(e);
   }
 
@@ -1624,9 +1889,10 @@
     host.appendChild(d);
   }
 
-  function fogWisps(host, rnd) {
+  function fogWisps(host, rnd, on) {
     // TWO instances, not three: each is a real texture rather than a
     // gradient, and a third only buys haze .gfog already supplies.
+    // (`on` false -- Liveliness: Mist Off -- draws them and keeps none.)
     for (var i = 0; i < 2; i++) {
       var w = document.createElement('div');
       w.className = 'fwisp';
@@ -1643,7 +1909,7 @@
       w.style.setProperty('--wt', (85 + rnd() * 28).toFixed(0) + 's');
       w.style.setProperty('--wdel', (-rnd() * 90).toFixed(0) + 's');
       w.style.setProperty('--wo', (0.09 + rnd() * 0.09).toFixed(2));
-      host.appendChild(w);
+      if (on !== false) host.appendChild(w);
     }
   }
 
@@ -1673,7 +1939,7 @@
              dx: Math.round(x1 - x0), dy: Math.round(y1 - y0) };
   }
 
-  function witchFly(host, W, H, moonS, moonXf, moonYf, rnd) {
+  function witchFly(host, W, H, moonS, moonXf, moonYf, rnd, cf) {
     var p = witchPath(W, H, moonS, moonXf, moonYf);
     var w = document.createElement('div');
     w.className = 'witch';
@@ -1690,11 +1956,17 @@
     // positive delay would put her across the moon within seconds of every
     // reload.
     var wait = 45 + rnd() * 75;
-    w.style.setProperty('--wdel', (-(WITCH_CYCLE - wait)).toFixed(1) + 's');
+    // Liveliness (how often): a longer or shorter cycle, the flight itself the
+    // same speed; Off builds no witch (her draw above is made either way)
+    if (cf === 0) return;
+    var cyc = cf && cf !== 1 ? lvCycleOn(w, host, 'hk-witchfly', WITCH_CYCLE, cf) : WITCH_CYCLE;
+    w.style.setProperty('--wdel', (-(cyc - wait)).toFixed(1) + 's');
     host.appendChild(w);
   }
 
-  function cozyWindow(host, W, H, rnd, snowOK, landed, moon) {
+  function cozyWindow(host, W, H, rnd, snowOK, landed, moon, occ, L) {
+    L = L || lvOf(null);
+    occ = occ || 'christmas';
     // Order matters and mirrors the delivered layering: decoration, then the
     // halos on its bulbs, then snow in front of both, then the flyby. Over a
     // landscape (`landed`) the garland and its halos stand aside: the land's
@@ -1732,7 +2004,7 @@
     // doubled blizzard -- so it stands down rather than competing.
     if (snowOK) {
       var n = Math.max(8, Math.round(28 * (W / 1280)));
-      for (var i = 0; i < n; i++) {
+      lvThin(lvRange(n, lvCount(n, L.many(occ, 'snow')), rnd, 7951, function (i, rnd, keep) {
         var f = document.createElement('div');
         f.className = 'xflake';
         // Biased small: mostly 3-6px specks with the occasional real crystal,
@@ -1754,8 +2026,10 @@
         g.style.setProperty('--sdel', (-rnd() * 12).toFixed(1) + 's');
         g.style.setProperty('--turn', (rnd() < 0.5 ? -360 : 360) + 'deg');
         f.appendChild(g);
+        if (!keep) return null;
         host.appendChild(f);
-      }
+        return f;
+      }));
     }
 
     var sl = document.createElement('div');
@@ -1779,6 +2053,10 @@
     // Positive, and staggered, so several wall tablets do not fly him in unison
     // and he is not already mid-flight on the first frame.
     sl.style.setProperty('--fdel', (6 + rnd() * 26).toFixed(1) + 's');
+    // Liveliness (how often): Off, no sleigh; otherwise his cycle scaled
+    var sc = L.cycle(occ, 'sleigh');
+    if (!sc) return;
+    if (sc !== 1) lvCycleOn(sl, host, 'hk-sleigh', 200, sc, '--fd');
     host.appendChild(sl);
   }
 
@@ -2312,68 +2590,91 @@
   function windBucket(mph) { return mph < 6 ? 3 : mph < 14 ? 9 : 18; }
   function windy(state) { return (state.wind || 0) >= 10 && state.weather !== false; }
 
-  function nearTouches(sky, root, theme, rnd, field) {
+  function nearTouches(sky, root, theme, rnd, field, occ, L) {
     var built = {}, W0 = 0, H0 = 0;
+    // each count's extras on a stream of their own (lvRange), by theme
+    var xs = theme.length * 7919 + 101;
     function el(parent, cls, tag) {
       var n = parent.appendChild(document.createElement(tag || 'div'));
       n.className = cls;
       return n;
     }
-    function bat(host, size) {
+    function bat(host, size, fl) {
       var b = el(host, 'bat');
       b._size = size;                      // at a 1280 px tablet; across() scales it
       for (var k = 0; k < BAT_FRAMES.length; k++) {
         el(b, 'f' + (k + 1), 'i').style.backgroundImage = 'url(' + BAT_FRAMES[k] + ')';
       }
-      b.style.setProperty('--fl', (0.28 + rnd() * 0.2).toFixed(3) + 's');
+      b.style.setProperty('--fl', fl.toFixed(3) + 's');
       return b;
     }
     // A FLOCK: two or three bats a beat apart, crossing every `cycle`
-    // seconds; the first crossing `wait` seconds in, not on load.
-    function flock(host, n, cycle, wait) {
+    // seconds; the first crossing `wait` seconds in, not on load. `n` of
+    // them (Liveliness: how many) and the cycle times `cf` (how often; the
+    // crossing itself keeps its speed, lvCycleOn).
+    function flock(host, base, n, cycle, wait, cf, seed) {
       var f = el(host, 'flock');
       f._ltr = rnd() < 0.5;                // the whole flock one way
-      for (var i = 0; i < n; i++) {
-        var b = bat(f, 32 + rnd() * 18);
-        b._dy = (i - (n - 1) / 2) * 16 + (rnd() - .5) * 10;
-        b.style.setProperty('--bd', cycle + 's');
-        b.style.setProperty('--bdel', (-(cycle - wait) + i * (0.35 + rnd() * 0.3)).toFixed(2) + 's');
-      }
+      var cyc = cycle * cf, shown = Math.max(n, 1);
+      lvThin(lvRange(base, n, rnd, seed, function (i, r, keep) {
+        // the draws in their old order: size, wing beat, place, gap
+        var size = 32 + r() * 18, fl = 0.28 + r() * 0.2;
+        var dy = (i - (shown - 1) / 2) * 16 + (r() - .5) * 10, gap = 0.35 + r() * 0.3;
+        if (!keep) return null;
+        var b = bat(f, size, fl);
+        b._dy = dy;
+        if (cf !== 1) lvCycleOn(b, sky, 'near-flock', cycle, cf, '--bd');
+        else b.style.setProperty('--bd', cycle + 's');
+        b.style.setProperty('--bdel', (-(cyc - wait) + i * gap).toFixed(2) + 's');
+        return b;
+      }));
       return f;
     }
     if (theme === 'halloween') {
       // every Halloween night -- not only the rare spooky roll (.dark)
       var dark = field('dark');
-      built.flockA = flock(dark, 3, 71, 9);
+      var batN = L.many(occ, 'bats'), batC = L.cycle(occ, 'bats_often');
+      built.flockA = flock(dark, 3, batC ? lvCount(3, batN) : 0, 71, 9, batC, xs + 1);
       built.flockA._at = rnd();                        // its place in the clear band
-      built.flockB = flock(dark, 2, 113, 52);          // across the moon
+      built.flockB = flock(dark, 2, batC ? lvCount(2, batN) : 0, 113, 52, batC, xs + 2);   // across the moon
       built.owl = el(dark, 'owl');
       el(built.owl, 'eye', 'i'); el(built.owl, 'eye', 'i');
+      if (!L.on(occ, 'owl')) built.owl.style.display = 'none';
       built.mist = el(dark, 'moon-mist');
       el(built.mist, 'wisp a', 'i'); el(built.mist, 'wisp b', 'i');
+      if (!L.on(occ, 'mist')) built.mist.style.display = 'none';
       // a spooky night: a swarm, and the witch across the moon (.night)
       var swarm = field('night');
-      built.swarm = flock(swarm, 7, 41, 5);
+      built.swarm = flock(swarm, 7, lvCount(7, L.many(occ, 'swarm')), 41, 5, 1, xs + 3);
       built.swarm._at = rnd();
       for (var sb = 0; sb < built.swarm.children.length; sb++) built.swarm.children[sb]._dy *= 2.4;
       built.spooky = swarm;
+      built.witchC = L.cycle(occ, 'witch');
     }
     if (theme === 'christmas') {
       built.eve = field('eve');
       built.sleigh = el(built.eve, 'sleigh');
       built.sleigh.style.setProperty('--fd', '150s');
       built.sleigh.style.setProperty('--fdel', (6 + rnd() * 20).toFixed(1) + 's');
+      var slC = L.cycle(occ, 'sleigh');
+      if (!slC) { built.sleigh.remove(); built.sleigh = null; }
+      else if (slC !== 1) lvCycleOn(built.sleigh, sky, 'hk-sleigh', 150, slC, '--fd');
     }
     if (theme === 'christmas' || theme === 'winter') {
       var glints = field('glints');
-      for (var g = 0; g < 22; g++) {
+      lvThin(lvRange(22, lvCount(22, L.many(occ, 'glints')), rnd, xs + 4, function (i, r, keep) {
         // on the snow: the ground and the drifts round the trees' feet
+        var left = r() * 100, top = 62 + r() * 36, gd = 5 + r() * 7, gdel = -r() * 12;
+        if (!keep) return null;
         var gl = el(glints, 'glint', 'i');
-        gl.style.left = (rnd() * 100).toFixed(2) + '%';
-        gl.style.top = (62 + rnd() * 36).toFixed(2) + '%';
-        gl.style.setProperty('--gd', (5 + rnd() * 7).toFixed(2) + 's');
-        gl.style.setProperty('--gdel', (-rnd() * 12).toFixed(2) + 's');
-      }
+        gl.style.left = left.toFixed(2) + '%';
+        gl.style.top = top.toFixed(2) + '%';
+        gl.style.setProperty('--gd', gd.toFixed(2) + 's');
+        gl.style.setProperty('--gdel', gdel.toFixed(2) + 's');
+        return gl;
+      }));
+      // the northern lights: one clear night in four, at Normal
+      built.auroraC = L.cycle(occ, 'aurora');
       // (No snow blown off the branches: drawn on a 2D page it read as a
       // glowing blob, then as a dotted line -- nothing real looks like either.)
       built.aurora = root.insertBefore(document.createElement('div'), root.children[0] || null);
@@ -2382,50 +2683,65 @@
     }
     if (theme === 'fall') {
       var swirl = field('windy-only swirl');
-      for (var w = 0; w < 5; w++) {
+      lvThin(lvRange(5, lvCount(5, L.many(occ, 'swirl')), rnd, xs + 5, function (w, r, keep) {
+        var top = 30 + (w % 5) * 4 + r() * 8;
+        if (!keep) return null;
         var sl = el(swirl, 'swirl-leaf', 'i');
         sl.style.backgroundImage = 'url(' + LEAF_SPECIES[w % LEAF_SPECIES.length][0] + ')';
-        sl.style.top = (30 + w * 4 + rnd() * 8).toFixed(1) + '%';
+        sl.style.top = top.toFixed(1) + '%';
         sl.style.setProperty('--sdel', (8 + w * 0.45).toFixed(2) + 's');
-      }
-      var geese = el(field('day'), 'geese');
-      // a V of seven on a 160 x 46 grid
-      for (var v = 0; v < 7; v++) {
-        var goose = el(geese, 'goose', 'i');
-        goose.style.left = ((6 + v * 20) / 1.6).toFixed(2) + '%';
-        goose.style.top = ((4 + Math.abs(v - 3) * 9) / .46).toFixed(2) + '%';
+        return sl;
+      }));
+      var gC = L.cycle(occ, 'geese');
+      if (gC) {
+        var geese = el(field('day'), 'geese');
+        if (gC !== 1) lvCycleOn(geese, sky, 'near-geese', 240, gC);
+        // a V of seven on a 160 x 46 grid
+        for (var v = 0; v < 7; v++) {
+          var goose = el(geese, 'goose', 'i');
+          goose.style.left = ((6 + v * 20) / 1.6).toFixed(2) + '%';
+          goose.style.top = ((4 + Math.abs(v - 3) * 9) / .46).toFixed(2) + '%';
+        }
       }
     }
     if (theme === 'spring') {
       var petals = field('petals');
-      for (var p = 0; p < 10; p++) {
-        var pt = el(petals, 'petal', 'i'), side = p % 2;
-        pt.style.setProperty('--ps', (7 + rnd() * 7).toFixed(1) + 'px');
+      lvThin(lvRange(10, lvCount(10, L.many(occ, 'petals')), rnd, xs + 6, function (p, r, keep) {
+        var side = p % 2, ps = 7 + r() * 7, left = side ? 55 + r() * 45 : r() * 45, top = -3 + r() * 26,
+            pd = 11 + r() * 7, pdel = -r() * 18;
+        if (!keep) return null;
+        var pt = el(petals, 'petal', 'i');
+        pt.style.setProperty('--ps', ps.toFixed(1) + 'px');
         // from the blossoms: both canopies, out across the top
-        pt.style.left = (side ? 55 + rnd() * 45 : rnd() * 45).toFixed(2) + '%';
-        pt.style.top = (-3 + rnd() * 26).toFixed(2) + '%';
-        pt.style.setProperty('--pd', (11 + rnd() * 7).toFixed(2) + 's');
-        pt.style.setProperty('--pdel', (-rnd() * 18).toFixed(2) + 's');
+        pt.style.left = left.toFixed(2) + '%';
+        pt.style.top = top.toFixed(2) + '%';
+        pt.style.setProperty('--pd', pd.toFixed(2) + 's');
+        pt.style.setProperty('--pdel', pdel.toFixed(2) + 's');
         pt.style.setProperty('--pside', side ? '-1' : '1');
-      }
+        return pt;
+      }));
     }
-    if (theme === 'spring' || theme === 'summer') {
+    if ((theme === 'spring' || theme === 'summer') && L.on(occ, 'rainbow')) {
       built.rainbow = root.insertBefore(document.createElement('div'), root.children[0] || null);
       built.rainbow.className = 'rainbow';
     }
     if (theme === 'summer' || theme === 'july4') {
       var flies = field('dusk');
-      for (var f = 0; f < 14; f++) {
+      lvThin(lvRange(14, lvCount(14, L.many(occ, 'fireflies')), rnd, xs + 7, function (f, r, keep) {
         // low over the grass and among the trees' feet
+        var left = r() * 100, top = 48 + r() * 48, wd = 7 + r() * 6, fd = 3.5 + r() * 4, fdel = -r() * 8,
+            fx = (r() - .5) * 46, fy = (r() - .5) * 30;
+        if (!keep) return null;
         var ff = el(flies, 'firefly', 'i');
-        ff.style.left = (rnd() * 100).toFixed(2) + '%';
-        ff.style.top = (48 + rnd() * 48).toFixed(2) + '%';
-        ff.style.setProperty('--wd', (7 + rnd() * 6).toFixed(2) + 's');
-        ff.style.setProperty('--fd', (3.5 + rnd() * 4).toFixed(2) + 's');
-        ff.style.setProperty('--fdel', (-rnd() * 8).toFixed(2) + 's');
-        ff.style.setProperty('--fx', ((rnd() - .5) * 46).toFixed(0) + 'px');
-        ff.style.setProperty('--fy', ((rnd() - .5) * 30).toFixed(0) + 'px');
-      }
+        ff.style.left = left.toFixed(2) + '%';
+        ff.style.top = top.toFixed(2) + '%';
+        ff.style.setProperty('--wd', wd.toFixed(2) + 's');
+        ff.style.setProperty('--fd', fd.toFixed(2) + 's');
+        ff.style.setProperty('--fdel', fdel.toFixed(2) + 's');
+        ff.style.setProperty('--fx', fx.toFixed(0) + 'px');
+        ff.style.setProperty('--fy', fy.toFixed(0) + 'px');
+        return ff;
+      }));
     }
     if (theme === 'birthday') built.banner = el(root, 'bday-banner');
 
@@ -2534,7 +2850,7 @@
           across(built.flockB, W, moon ? moon.y : inBand(0.5), u);
           across(built.swarm, W, inBand(built.swarm._at), u);
           // the owl's tree is the left one, which a phone does not show
-          built.owl.style.display = narrow ? 'none' : '';
+          built.owl.style.display = narrow || !L.on(occ, 'owl') ? 'none' : '';
           built.owl.style.left = (NEAR_OWL[0] / 1586 * artW).toFixed(0) + 'px';
           built.owl.style.top = (NEAR_OWL[1] / 992 * artH).toFixed(0) + 'px';
           built.owl.style.setProperty('--owl', (artH / 992).toFixed(3));
@@ -2547,10 +2863,10 @@
           built.moonY = moon ? Math.round(moon.y) : -1;
         }
         // the witch flies when a spooky night has a moon to cross
-        var witch = state.spooky === true && moon;
+        var witch = state.spooky === true && moon && built.witchC > 0;
         if (witch && (!built.witch || Math.abs(built.witchAt - moon.x) > 8)) {
           if (built.witch) built.witch.remove();
-          witchFly(built.spooky, W, H, moon.s, moon.x / W, moon.y / H, rnd);
+          witchFly(built.spooky, W, H, moon.s, moon.x / W, moon.y / H, rnd, built.witchC);
           built.witch = built.spooky.querySelector('.witch');
           built.witchAt = moon.x;
         } else if (!witch && built.witch) {
@@ -2575,7 +2891,12 @@
         // ONE NIGHT IN FOUR, by the date: every screen agrees, and a clear,
         // dark night is still not a promise
         var day = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate();
-        if (day !== auroraDay) { auroraDay = day; auroraOn = rng(now.getFullYear() * 400 + now.getMonth() * 31 + now.getDate())() < 0.25; }
+        // (Liveliness: Few half as often, Max nearly every clear night, Off never)
+        if (day !== auroraDay) {
+          auroraDay = day;
+          auroraOn = built.auroraC > 0 &&
+                     rng(now.getFullYear() * 400 + now.getMonth() * 31 + now.getDate())() < Math.min(0.95, 0.25 / built.auroraC);
+        }
         root.classList.toggle('aurora-on', auroraOn && state.elev < -10 && (state.cover || 0) < 0.25 &&
                                            state.weather !== false && !narrow);
       }
@@ -2612,8 +2933,10 @@
   // Build one theme's scenery into the sky, under the fog. Returns its root,
   // update(state) -- every paint: light, size, weather -- and dispose().
   // Built once per theme; nothing here is rebuilt by a paint.
-  function mountNearScenery(sky, theme) {
+  function mountNearScenery(sky, theme, occ, L) {
     if (!sky) return null;
+    L = L || lvOf(null);
+    occ = occ || theme;
     var old = sky.querySelectorAll('.near-scenery');
     for (var o = 0; o < old.length; o++) old[o].remove();
     var root = document.createElement('div');
@@ -2724,25 +3047,30 @@
       if (!leaves || wind === leafWind) return;
       leafWind = wind;
       leaves.textContent = '';
-      leafField(leaves, fieldW, height, { count: 6, fallMin: 37, fallMax: 63, wind: wind }, rng(7919 + wind));
+      leafField(leaves, fieldW, height, { count: 6, fallMin: 37, fallMax: 63, wind: wind,
+                                          many: L.many(occ, 'leaves'), seed: 7919 + wind + 13 }, rng(7919 + wind));
     }
     fallLeaves(3);
-    if (theme === 'halloween') fogWisps(field('near-mist'), rnd);
-    if (theme === 'spring') surpriseScene(field('day'), fieldW, height, 'spring-garden', false, true, rnd, true);
+    if (theme === 'halloween') fogWisps(field('near-mist'), rnd, L.on(occ, 'mist'));
+    if (theme === 'spring') surpriseScene(field('day'), fieldW, height, 'spring-garden', false, true, rnd, true, occ, L);
     if (theme === 'july4') {
       var fireworks = field('night');
-      surpriseScene(fireworks, fieldW, height, 'fourth-of-july', true, true, rnd, true);
+      surpriseScene(fireworks, fieldW, height, 'fourth-of-july', true, true, rnd, true, occ, L);
       // the bursts only: no drifting sparkles over the trees
       var sparks = fireworks.querySelectorAll('.sp-fall');
       for (var f = 0; f < sparks.length; f++) sparks[f].remove();
     }
     if (theme === 'birthday') {
-      surpriseScene(field('confetti'), fieldW, height, 'birthday', false, true, rnd, true);
+      surpriseScene(field('confetti'), fieldW, height, 'birthday', false, true, rnd, true, occ, L);
       // behind the rock and the presents (the front patches)
-      root.insertBefore(document.createElement('div'), props || null).className = 'balloons left';
-      root.insertBefore(document.createElement('div'), props || null).className = 'balloons right';
+      if (L.on(occ, 'balloons')) {
+        root.insertBefore(document.createElement('div'), props || null).className = 'balloons left';
+        root.insertBefore(document.createElement('div'), props || null).className = 'balloons right';
+      }
     }
-    var touches = nearTouches(sky, root, theme, rnd, field);
+    // Lights Off: every candle and bulb at a steady glow (.lv-still)
+    root.classList.toggle('lv-still', !L.on(occ, 'lights'));
+    var touches = nearTouches(sky, root, theme, rnd, field, occ, L);
     sky.insertBefore(root, sky.querySelector('.fog'));
 
     var state = { elev: 25, cover: 0 };
@@ -2752,7 +3080,7 @@
     // restarted the filter transition over the whole screen. Steps of 0.02
     // are below what the eye sees and change every few minutes instead; a
     // value is written only when its step changes.
-    var written = {};
+    var written = {}, litZero = 0;
     function setStep(name, v) {
       var q = (Math.round(v / 0.02) * 0.02).toFixed(2);
       if (written[name] === q) return;
@@ -2764,6 +3092,7 @@
       var W = root.clientWidth, H = root.clientHeight, narrow = W < 640;
       root.classList.toggle('narrow', narrow);
       root.classList.toggle('heavy-weather', !!(state.wet && state.wet.rate >= .7));
+      root.classList.toggle('lv-quiet', !!(state.lively && state.lively.quiet));
       // paintSeason passes Halloween's own spooky flag (night and the spooky
       // roll); every other theme gets true, which only opens its night field.
       root.classList.toggle('spooky', theme === 'halloween' && state.spooky === true);
@@ -2777,6 +3106,13 @@
       setStep('--scene-s', .7 + .16 * t);
       setStep('--scene-light', .1 + .65 * (1 - t));
       setStep('--scene-lit', 1 - t);
+      // THE LIT PATCHES LEAVE THE RENDER TREE BY DAY: their layer is at
+      // opacity 0 from sunrise to dusk, yet every candle's flicker and bulb's
+      // twinkle ran all day. Out once the 3 s fade has finished; back in on the
+      // first paint that lights them, so they fade up as before.
+      if (written['--scene-lit'] !== '0.00') { litZero = 0; root.classList.remove('lit-out'); }
+      else if (!litZero) litZero = Date.now();
+      else if (Date.now() - litZero > 4000) root.classList.add('lit-out');
       root.style.setProperty('--near-mist', state.weather === false ? '0' : '.65');
       root.classList.toggle('is-night', state.elev < -4 && state.spooky !== false);
       root.classList.toggle('is-day', !(state.elev < -4));
@@ -2914,13 +3250,19 @@
     // what the scene's land and lights follow (holidayOf)
     el._hkHoliday = { name: name, surprise: surprise, spooky: spooky };
     var nearTheme = nearThemeOf(el, s, route);
+    // LIVELINESS: the occasion whose settings apply -- the holiday or the
+    // surprise, else the woodland season itself -- and a rebuild when any of
+    // them changes (L.sig), never otherwise
+    var L = lvOf(s);
     if (nearTheme) {
-      if (!el._hkNear || el._hkNearTheme !== nearTheme) {
+      var occ = surprise || name || nearTheme;
+      if (!el._hkNear || el._hkNearTheme !== nearTheme || el._hkNearLv !== L.sigFor(occ) + '|' + occ) {
         if (el._hkNear) el._hkNear.dispose();
         host.textContent = '';
         el._hkSeasonKey = null;
-        el._hkNear = mountNearScenery(el, nearTheme);
+        el._hkNear = mountNearScenery(el, nearTheme, occ, L);
         el._hkNearTheme = nearTheme;
+        el._hkNearLv = L.sigFor(occ) + '|' + occ;
       }
       el._hkNear.update(Object.assign({}, s, { spooky: nearTheme === 'halloween' ? spooky : true, now: now }));
       var measured = NEAR_LIGHT[nearTheme];
@@ -2930,7 +3272,11 @@
       el._hkNear.dispose();
       el._hkNear = null;
       el._hkNearTheme = null;
+      el._hkNearLv = null;
     }
+    var lvOcc = surprise || name;
+    host.classList.toggle('lv-quiet', L.quiet);
+    host.classList.toggle('lv-still', !L.on(lvOcc, 'lights'));
     // Decorative snow stands down when it is actually snowing, or the weather
     // deck and this field composite into a doubled blizzard.
     var snowOK = s.weather !== false && !(s.wet && s.wet.kind === 'snow' && s.wet.rate > 0);
@@ -2974,7 +3320,7 @@
               '|' + (moonKeyed ? Math.round(moonXf * 1000) + ',' +
                                  Math.round(moonYf * 1000) + ',' + moonS : 0) +
               '|' + (name === 'christmas' && snowOK ? 'w' : '-') +
-              '|' + (spooky ? '-' : windB + (heavy ? 'h' : '-'));
+              '|' + (spooky ? '-' : windB + (heavy ? 'h' : '-')) + '|' + L.sigFor(lvOcc);
 
     if (el._hkSeasonKey !== key) {
       el._hkSeasonKey = key;
@@ -3013,18 +3359,19 @@
           count: heavy ? 6 : (more ? 22 : 16),
           fallMin: more ? 16 : 19,
           fallMax: more ? 30 : 36,
-          wind: windB
+          wind: windB,
+          many: L.many(lvOcc, 'leaves'), seed: 7927
         }, rnd);
       }
       if (spooky) {
-        if (s.weather !== false) fogWisps(host, rnd);
-        batField(host, W, 3, rnd);
+        if (s.weather !== false) fogWisps(host, rnd, L.on(lvOcc, 'mist'));
+        batField(host, W, 3, rnd, L.many(lvOcc, 'bats'));
         // The RESOLVED moon center, not a guess, so she and the moon always
         // agree. Appended before the branches to match the depth order -- but
         // the z-index rules are what enforce it. The branches and cobweb draw
         // nothing random, so building her ahead of them leaves every other
         // value from rnd() unaffected.
-        witchFly(host, W, H, moonS, moonXf, moonYf, rnd);
+        witchFly(host, W, H, moonS, moonXf, moonYf, rnd, L.cycle(lvOcc, 'witch'));
         if (!landed) {
           branchLayer(host);
           cobweb(host, W);
@@ -3037,8 +3384,8 @@
         }
       }
       if (name === 'christmas') cozyWindow(host, W, H, rnd, snowOK, landed,
-        xmasNight ? { s: moonS, x: moonXf, y: moonYf } : null);
-      if (surprise) surpriseScene(host, W, H, surprise, night, heavy, rnd, landed);
+        xmasNight ? { s: moonS, x: moonXf, y: moonYf } : null, lvOcc, L);
+      if (surprise) surpriseScene(host, W, H, surprise, night, heavy, rnd, landed, lvOcc, L);
     }
 
     // ---- contribution to the luminance estimate
@@ -3383,6 +3730,32 @@
   // so together one about every 77 s of a clear night) that re-aim at random
   // after every crossing: never the same streak twice.
   var METEOR_CYCLES = [127, 193];
+
+  // RE-AIMED IN THE DARK, FROM A TIMER -- NEVER AN animationiteration
+  // LISTENER. One such listener anywhere in the document makes Chromium wake
+  // the main thread at every loop end of EVERY CSS animation on the page --
+  // every bat wing, candle and twinkle -- for the life of the page; the flag
+  // is never cleared (measured on a Halloween night: 18 -> 58 style recalcs a
+  // second, busy 3.8 -> 7.0 %, from one listener on a detached element). The
+  // screensaver's first forecast slide used to set it on every wall tablet.
+  // So `el` is re-aimed once per loop of `anim`, read from its own clock, while
+  // the loop is past its streak (which shows only at the loop's start) -- so a
+  // sky the saver holds between slides can never move one mid-flight. A few
+  // looks a minute: often while it runs, seldom while it is held.
+  function reaim(el, anim, period, aim) {
+    var ms = period * 1000, seen = false, done = null;
+    var RUN = Math.min(5000, ms / 4), HELD = 15000;
+    function tick() {
+      if (!el.isConnected) { if (!seen) setTimeout(tick, HELD); return; }   // rebuilt: stop
+      seen = true;
+      var a = anim.getAnimations ? anim.getAnimations()[0] : null;
+      var t = a && a.playState === 'running' && a.effect ? a.effect.getComputedTiming() : null;
+      if (!t || typeof t.progress !== 'number') { setTimeout(tick, HELD); return; }   // hidden or held
+      if (t.currentIteration !== done && t.progress > 0.1 && t.progress < 0.9) { done = t.currentIteration; aim(); }
+      setTimeout(tick, RUN);
+    }
+    setTimeout(tick, RUN);
+  }
   function meteorAim(ss, rnd) {
     var right = rnd() < 0.5, a = 16 + rnd() * 24;
     ss.style.left = (right ? 8 + rnd() * 52 : 40 + rnd() * 52).toFixed(1) + '%';
@@ -3391,10 +3764,12 @@
     ss.style.setProperty('--run', (320 + rnd() * 360).toFixed(0) + 'px');
     ss.style.setProperty('--len', (90 + rnd() * 90).toFixed(0) + 'px');
   }
-  function twinkles(host, W, H, rnd) {
+  function twinkles(host, W, H, rnd, L) {
     host.textContent = '';
+    L = L || lvOf(null);
     var n = Math.round(clamp(34 * W / 1280, 18, 60));
-    for (var i = 0; i < n; i++) {
+    // (Liveliness, Night Sky: Twinkling Stars how many, Shooting Stars how often)
+    lvThin(lvRange(n, lvCount(n, L.many('night', 'stars')), rnd, 7963, function (i, rnd, keep) {
       var d = document.createElement('div');
       d.className = 'st';
       d.style.left = (rnd() * 100).toFixed(2) + '%';
@@ -3406,9 +3781,13 @@
       d.style.setProperty('--td', td.toFixed(1) + 's');
       d.style.setProperty('--tdel', (-rnd() * td).toFixed(1) + 's');
       d.style.setProperty('--pk', (0.6 + rnd() * 0.4).toFixed(2));
+      if (!keep) return null;
       host.appendChild(d);
-    }
-    METEOR_CYCLES.forEach(function (md) {
+      return d;
+    }));
+    var mc = L.cycle('night', 'meteors');
+    METEOR_CYCLES.forEach(function (md0) {
+      var md = md0 * (mc || 1);
       var ss = document.createElement('div');
       ss.className = 'ss';
       var i = document.createElement('i');
@@ -3416,7 +3795,9 @@
       // the first one 20-80 s after the scene is built, not on its first frame
       i.style.setProperty('--mdel', (-(md - 20 - rnd() * 60)).toFixed(1) + 's');
       meteorAim(ss, rnd);
-      i.addEventListener('animationiteration', function () { meteorAim(ss, Math.random); });
+      if (!mc) return;                   // Off: drawn for the streams after, never shown
+      if (mc !== 1) lvCycleOn(i, host, 'hk-meteor', md0, mc, '--md');
+      reaim(ss, i, md, function () { meteorAim(ss, Math.random); });
       ss.appendChild(i);
       host.appendChild(ss);
     });
@@ -3424,9 +3805,10 @@
 
   // FIREFLIES: along the foot of the tree line and over the top of the
   // meadow (the art's y 830-1080), above the forecast's own place.
-  function fireflies(host, W, rnd) {
+  function fireflies(host, W, rnd, occ, L) {
+    L = L || lvOf(null);
     var n = Math.round(clamp(22 * W / 1280, 14, 36));
-    for (var i = 0; i < n; i++) {
+    lvThin(lvRange(n, lvCount(n, L.many(occ || 'summer', 'fireflies')), rnd, 7969, function (i, rnd, keep) {
       var f = document.createElement('div');
       f.className = 'ff';
       f.style.left = ax(160 + rnd() * 2240);
@@ -3444,8 +3826,10 @@
       g.style.setProperty('--bd', bd.toFixed(1) + 's');
       g.style.setProperty('--bdl', (-rnd() * bd).toFixed(1) + 's');
       f.appendChild(g);
+      if (!keep) return null;
       host.appendChild(f);
-    }
+      return f;
+    }));
   }
 
   // FIREWORKS over the hills on the Fourth's night: five shells on prime-ish
@@ -3459,14 +3843,19 @@
     e.style.width = (9 + rnd() * 7).toFixed(1) + '%';
     e.style.setProperty('--hue', FW_HUES[Math.floor(rnd() * FW_HUES.length)] + 'deg');
   }
-  function fireworks(host, rnd) {
-    FW_CYCLES.forEach(function (fd, k) {
+  function fireworks(host, rnd, L) {
+    L = L || lvOf(null);
+    var fc = L.cycle('fourth-of-july', 'fireworks');
+    FW_CYCLES.forEach(function (fd0, k) {
+      var fd = fd0 * (fc || 1);
       var e = document.createElement('div');
       e.className = 'fw';
       e.style.setProperty('--fd', fd + 's');
       e.style.setProperty('--fdl', (-(fd - 2 - k * 3.1 - rnd() * 3)).toFixed(1) + 's');
       fireworkAim(e, rnd);
-      e.addEventListener('animationiteration', function () { fireworkAim(e, Math.random); });
+      if (!fc) return;                   // Off: drawn, never shown
+      if (fc !== 1) lvCycleOn(e, host, 'hk-fw', fd0, fc, '--fd');
+      reaim(e, e, fd, function () { fireworkAim(e, Math.random); });
       host.appendChild(e);
     });
   }
@@ -3660,17 +4049,20 @@
       var light = landLight(s.elev), h = el._hkHoliday || {};
       var wet = !!(s.wet && s.wet.rate > 0);
 
-      part('twk', day + '|' + size, function () { twinkles(twk, W, H, rng(day * 31 + 7)); });
+      // LIVELINESS: the screen's own (s.lively), in every part's key
+      var L = lvOf(s);
+      el.classList.toggle('lv-quiet', L.quiet);
+      part('twk', day + '|' + size + '|' + L.sigFor('night'), function () { twinkles(twk, W, H, rng(day * 31 + 7), L); });
       var night = clamp((-4 - s.elev) / 10, 0, 1);
       el.classList.toggle('meteors', night > 0.6 && s.cover < 0.3 && !wet && !s.fog);
 
       var flies = landSeason(hass, s) === 'summer' && s.elev < -5 && !wet && s.wind < 18;
       var fw = h.surprise === 'fourth-of-july' && s.elev < -4;
-      part('life', day + '|' + (flies ? 'f' : '-') + (fw ? 'w' : '-') + '|' + size, function () {
+      part('life', day + '|' + (flies ? 'f' : '-') + (fw ? 'w' : '-') + '|' + size + '|' + L.sigFor('summer') + L.sigFor('fourth-of-july'), function () {
         life.textContent = '';
         var rnd = rng(day * 17 + 3);
-        if (flies) fireflies(life, W, rnd);
-        if (fw) fireworks(life, rnd);
+        if (flies) fireflies(life, W, rnd, 'summer', L);
+        if (fw) fireworks(life, rnd, L);
       });
 
       // the holiday's land, then -- once that land is the one showing -- its lights
@@ -3684,6 +4076,8 @@
       hlEl.style.setProperty('--hlO', lightsUp ? String(lit.o) : '0');
       hlEl.classList.toggle('flick', !!(lit && lit.mode === 'flick'));
       hlEl.classList.toggle('breathe', !!(lit && lit.mode === 'breathe'));
+      // Lights Off (the holiday's own): its candles and bulbs hold a steady glow
+      el.classList.toggle('lv-still', !!(lit && !L.on(h.surprise || h.name, 'lights')));
       part('hx', day + '|' + (lightsUp ? lit.file : '') + '|' + (HOL ? 1 : 0), function () {
         hx.textContent = '';
         if (lightsUp) holidayGlints(hx, lit, rng(day * 13 + 5));
@@ -3792,17 +4186,26 @@
   // painted again the moment it arrives -- not at the next 3 s tick. Until
   // then the sky simply has no clouds: the classic decks are NOT shown in the
   // meantime (they would show for a few seconds and then swap). Only if it
-  // cannot be had (RC_FAILED) do the classic decks stand in.
-  var RC_MAN = null, RC_LOADING = false, RC_FAILED = false;
+  // cannot be had (RC_FAILED) do the classic decks stand in -- and only for a
+  // while: it is asked for again a minute later, then every five (a tablet
+  // that loaded while Home Assistant restarted kept Classic clouds until its
+  // next reload, 2026-10-07 audit). The classic decks stay up during a retry,
+  // so a sky never goes empty waiting for it.
+  var RC_MAN = null, RC_LOADING = false, RC_FAILED = false, RC_RETRY = 0, RC_TRIES = 0;
   function rcManifest() {
-    if (RC_MAN || RC_LOADING || RC_FAILED) return RC_MAN;
-    if (typeof fetch !== 'function') { RC_FAILED = true; return null; }
+    if (RC_MAN || RC_LOADING) return RC_MAN;
+    if (RC_FAILED && Date.now() < RC_RETRY) return null;
+    if (typeof fetch !== 'function') { RC_FAILED = true; RC_RETRY = Infinity; return null; }
     RC_LOADING = true;
     fetch(RC_BASE + 'manifest.json' + VER).then(function (r) {
       if (!r.ok) throw Error(r.status);
       return r.json();
-    }).then(function (m) { RC_MAN = m; RC_LOADING = false; selfRender(); },
-            function () { RC_FAILED = true; RC_LOADING = false; selfRender(); });
+    }).then(function (m) { RC_MAN = m; RC_FAILED = false; RC_LOADING = false; selfRender(); },
+            function () {
+              RC_FAILED = true; RC_LOADING = false; RC_TRIES++;
+              RC_RETRY = Date.now() + (RC_TRIES === 1 ? 60000 : 300000);
+              selfRender();
+            });
     return null;
   }
   // set: [width at --near-u 1 (px; haze: the screen's 1.6), speed (x the
@@ -3904,10 +4307,11 @@
   // An overcast deck under a grey sky is its DAY art: that is already a
   // photograph of an overcast sky, and its grey relight lost the structure.
   // `sw`: one of its smaller soft copies (cloud_art.py SOFT_WIDTHS), or 0
-  function rcUrl(c, light, sw) {
+  function rcSrc(c, light, sw) {
     if (light === 'grey' && c.set === 'overcast-deck') light = 'day';
-    return 'url(' + RC_BASE + c.id + '-' + light + (sw ? '-w' + sw : '') + '.webp' + VER + ')';
+    return RC_BASE + c.id + '-' + light + (sw ? '-w' + sw : '') + '.webp' + VER;
   }
+  function rcUrl(c, light, sw) { return 'url(' + rcSrc(c, light, sw) + ')'; }
   // DEPTH OF FIELD: the copy a cloud is drawn from. `soften` is how many
   // screen pixels its detail should spread -- 1 for the nearest, up to ~6
   // far off -- and the copy is the smallest one it is upscaled from by no
@@ -4014,6 +4418,7 @@
   // again.
   function rcRelight(st, k, light, now) {
     if (k.lit === light) return;
+    if (k.cv) { ceilRelight(k, light); return; }
     var a = k.node.children[0].style, b = k.node.children[1].style;
     if (k.front === 0) { b.backgroundImage = rcUrl(k.c, light, k.sw); b.opacity = '1'; k.front = 1; }
     else { a.backgroundImage = rcUrl(k.c, light, k.sw); a.opacity = '1'; b.opacity = '0'; k.front = 0; }
@@ -4023,8 +4428,81 @@
   function rcTidy(k, now) {
     if (!k.tidy || now < k.tidy) return;
     k.tidy = 0;
+    if (k.cv) { ceilFree(k.node.children[k.front ? 0 : 1]); if (k.front) k.node.children[0].style.opacity = '0'; return; }
     k.node.children[k.front ? 0 : 1].style.backgroundImage = 'none';
     if (k.front) k.node.children[0].style.opacity = '0';
+  }
+  // THE CEILING IS DRAWN ON A CANVAS (2026-10-09). As a background on a
+  // plane tilted in 3D, the browser rasterized it into tiles at the scale of
+  // its nearest, most magnified edge, over all the plane it could see -- on
+  // the Loft (SM-X210) about six screens of the WebView's tile memory, with
+  // the whole page then about one screen under the budget. Anything that
+  // added a layer for a moment (the camera strip's stream coming back after
+  // the black, the black going up, a rebuilt page) went over it, and the
+  // tablet left the scenery's bottom tiles undrawn for three frames
+  // (cc/tiles/tile_manager.cc "tile memory limits exceeded" in logcat at
+  // that moment). A canvas is one texture of its own size whatever the
+  // transform does to it: measured on the Loft, the page went from one
+  // screen of headroom to seven, the same as with no ceiling at all, and
+  // looked the same (TABLET-INVARIANTS 16q). The plane's fade (it was a
+  // mask, a second tiled layer) is drawn into the canvas: the deck only
+  // drifts sideways, so a fade from the bottom stays put on it.
+  // Two canvases, as the <i> are two: the relight fades the new light in
+  // over (or out from over) the old, and the one no longer shown is freed.
+  var CEIL_FADE = .22;
+  function ceilCanvases(n) {
+    var cvs;
+    try {
+      cvs = [document.createElement('canvas'), document.createElement('canvas')];
+      if (!cvs[0].getContext || !cvs[0].getContext('2d') || !cvs[1].getContext('2d')) return false;
+    } catch (e) { return false; }
+    while (n.firstChild) n.removeChild(n.firstChild);
+    cvs.forEach(function (cv, i) {
+      cv.style.opacity = i ? '0' : '1';
+      // a GPU reset on Android gives a canvas back blank: draw it again
+      if (cv.addEventListener) cv.addEventListener('contextrestored', function () { if (cv.__src) ceilDraw(cv, cv.__src); });
+      n.appendChild(cv);
+    });
+    return true;
+  }
+  // the art at its own size, faded to nothing at the bottom (CEIL_FADE of
+  // the height, where the plane meets the flat deck); `done` once it is on
+  // the canvas -- a fade begun before would fade in nothing
+  function ceilDraw(cv, src, done) {
+    cv.__src = src;
+    var img = new Image();
+    img.onload = function () {
+      if (cv.__src !== src) return;            // asked for another light meanwhile
+      try {
+        var w = img.naturalWidth, h = img.naturalHeight, cx = cv.getContext('2d');
+        if (!w || !h || !cx) return;
+        cv.width = w; cv.height = h;
+        cx.drawImage(img, 0, 0, w, h);
+        cx.globalCompositeOperation = 'destination-in';
+        var g = cx.createLinearGradient(0, h, 0, 0);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(CEIL_FADE, '#000');
+        cx.fillStyle = g;
+        cx.fillRect(0, 0, w, h);
+        cx.globalCompositeOperation = 'source-over';
+      } catch (e) { return; }
+      if (done) done();
+    };
+    img.src = src;
+  }
+  function ceilFree(cv) { cv.__src = null; cv.width = 0; cv.height = 0; }
+  function ceilRelight(k, light) {
+    var a = k.node.children[0], b = k.node.children[1], src = rcSrc(k.c, light);
+    k.lit = light;
+    k.tidy = 0;
+    var shown = function () { k.tidy = Date.now() + 11000; };
+    if (k.front === 0) {
+      k.front = 1;
+      ceilDraw(b, src, function () { if (k.lit === light) { b.style.opacity = '1'; shown(); } });
+    } else {
+      k.front = 0;
+      ceilDraw(a, src, function () { if (k.lit === light) { a.style.opacity = '1'; b.style.opacity = '0'; shown(); } });
+    }
   }
   // Paint the realistic clouds; returns what they composite, [alpha, luma]
   // pairs, for the luminance cap. `light`: which side the sun or moon is on.
@@ -4102,8 +4580,7 @@
       var pw = W * 2.2, ph = hy * 1.9;
       plane.style.cssText = 'position:absolute;z-index:1;left:' + (-(pw - W) / 2).toFixed(0) + 'px;width:' + pw.toFixed(0) +
         'px;top:' + (hy - ph).toFixed(0) + 'px;height:' + ph.toFixed(0) + 'px;transform-origin:50% 100%;' +
-        'transform:perspective(' + (H * 1.1).toFixed(0) + 'px) rotateX(-62deg);' +
-        '-webkit-mask-image:linear-gradient(to top,transparent 0,#000 22%);mask-image:linear-gradient(to top,transparent 0,#000 22%)';
+        'transform:perspective(' + (H * 1.1).toFixed(0) + 'px) rotateX(-62deg)';
       st.layer.appendChild(plane);
       var ch = ph, cw = Math.max(pw * 1.2, ch * dc.w / dc.h);
       var cn = rcNode(st, 'rcd');
@@ -4113,9 +4590,16 @@
       cn.style.top = '0px';
       cn.style.setProperty('--x1', (pw - cw).toFixed(0) + 'px');
       cn.style.setProperty('--d', Math.max(60, (cw - pw) / (v * .4)).toFixed(0) + 's');
-      cn.children[0].style.backgroundImage = rcUrl(dc, light);
-      cn.children[0].style.opacity = '1';
-      st.ceil = { node: cn, c: dc, w: cw * .5, h: ch * .5, o: .85, front: 0, lit: light, set: 'overcast-deck', fresh: true };
+      // ON A CANVAS, its fade drawn in (ceilCanvases); with no 2D canvas,
+      // the art as a background and the fade as the plane's mask
+      var cv = ceilCanvases(cn);
+      if (cv) ceilDraw(cn.children[0], rcSrc(dc, light));
+      else {
+        plane.style.webkitMaskImage = plane.style.maskImage = 'linear-gradient(to top,transparent 0,#000 ' + (CEIL_FADE * 100) + '%)';
+        cn.children[0].style.backgroundImage = rcUrl(dc, light);
+        cn.children[0].style.opacity = '1';
+      }
+      st.ceil = { node: cn, c: dc, w: cw * .5, h: ch * .5, o: .85, front: 0, lit: light, set: 'overcast-deck', fresh: true, cv: cv };
     }
     if (st.ceil) st.ceil.o = plan.deck ? .85 : plan.veil;
     // FAINT: a texture over the sky, not a lid -- more of it the more
@@ -4746,7 +5230,7 @@
   var mountedVariant = null;
   // Set when the next paint must be instant rather than eased -- see the
   // .hk-snap rule in SHEET.
-  var snapNext = false;
+  var snapNext = false, paintSig = '';
 
   function teardown() {
     if (!mounted) return;
@@ -4804,14 +5288,51 @@
   // ASLEEP = the tablet's screensaver switch is on, OR HK Frontend's own
   // screensaver is showing (hk-saver.js) -- a screen with no switch (no
   // Tablet Room) still pauses behind its photos.
+  //
+  // THE SCREEN'S OWN PHOTO SWITCH IS HK-SAVER'S TO READ (2026-10-09). When the
+  // sleep entity is the switch hk-saver follows, the sky is asleep only while
+  // the photos are actually showing. The house's sleep turns that switch on
+  // and puts the kiosk's Black screensaver up; the photos are not shown under
+  // the black (hk-saver), yet the sky went .hidden there -- its layers let go
+  // -- and took them all back as the wake turned the switch off: the bottom
+  // of the scenery vanished for three frames, every scripted wake
+  // (screen-recorded on the Loft: a direct wake that left the switch on never
+  // did it; turning the switch off made it every time).
   function sleeping() {
-    return asleep || !!(window.hkSaver && window.hkSaver.running && window.hkSaver.running());
+    var S = window.hkSaver, running = !!(S && S.running && S.running());
+    var c = S && S.config && S.config();
+    if (c && c.entity && c.entity === sleepEntity) return running;
+    return asleep || running;
   }
+  // UNDER THE KIOSK'S BLACK, HELD (2026-10-09). With Kiosk Satellite's
+  // "Pause dashboard during screensaver" off, the tablet draws the page
+  // behind its black for as long as anything moves on it: the sky and the
+  // cards kept animating there and the Loft spent 1.3 cores on nothing
+  // (measured). Held: the sky's and the cards' animations paused, the sky's
+  // layers kept -- letting them go (.hidden) is for when the photos cover
+  // the page; let go under the black, they all came back at the wake and
+  // the scenery blinked.
+  var ksDark = false;
+  ['kiosksatellite:screensaverstart', 'kiosksatellite:screenoff'].forEach(function (t) {
+    try { window.addEventListener(t, function () { ksDark = true; applyHidden(); }); } catch (e) { /* no window events */ }
+  });
+  ['kiosksatellite:screensaverstop', 'kiosksatellite:screenon'].forEach(function (t) {
+    try { window.addEventListener(t, function () { ksDark = false; applyHidden(); }); } catch (e) { /* no window events */ }
+  });
+  // ...and HK's own black screen (hk-saver.js: any black, said after the
+  // kiosk's own events, so it has the last word)
+  try {
+    window.addEventListener('hk-black', function (e) { ksDark = !!(e && e.detail && e.detail.on); applyHidden(); });
+  } catch (e) { /* no window events */ }
   function applyHidden() {
-    var z = sleeping();
-    if (mounted) mounted.classList.toggle('hidden', document.hidden || z);
+    var hid = document.hidden || sleeping(), z = sleeping() || ksDark;
+    if (mounted) {
+      mounted.classList.toggle('hidden', hid);
+      mounted.classList.toggle('held', !hid && ksDark);
+    }
     // ...and tell the cards, which pause their own animations behind the
-    // screensaver too (hk-base.js, hk-asleep). Only on a change.
+    // screensaver and the kiosk's black too (hk-base.js, hk-asleep). Only on
+    // a change.
     if (!!window.__hkAsleep !== z) {
       window.__hkAsleep = z;
       try { window.dispatchEvent(new Event('hk-asleep')); } catch (e) { /* no window events: nothing to tell */ }
@@ -4823,7 +5344,9 @@
     // photos are up). WallPanel is an overlay in this same document, so
     // document.hidden stays false behind it; a module with idle work of its
     // own (hk-glass's backstop) asks this too.
-    asleep: function () { return sleeping(); },
+    asleep: function () { return sleeping() || ksDark; },
+    // tests: the sleep entity and its state, as render() would read them
+    _sleepAs: function (entity, state) { sleepEntity = entity; asleep = state === 'on'; },
     // hk-saver.js calls this when its screensaver starts or stops
     saverChanged: function () { applyHidden(); },
     // the forecast screensaver's own sky + landscape (scene() above)
@@ -4914,6 +5437,14 @@
           paint(mounted, rs);
         }
         applyHidden();
+        // THE COLORS MOVED: said once per change, not on every render (12 a
+        // second) -- Tint from Background follows them (hk-frosttint.js)
+        var pst = mounted.style, psig = ['--sk0', '--sk1', '--sk2', '--sk3', '--artO']
+          .map(function (k) { return pst.getPropertyValue(k); }).join('|') + '|' + location.pathname;
+        if (psig !== paintSig) {
+          paintSig = psig;
+          try { window.dispatchEvent(new Event('hk-sky-paint')); } catch (e) { /* no window events */ }
+        }
 
         if (snapping) {
           // Force a style flush WHILE transitions are still off, so the new
@@ -4942,6 +5473,10 @@
     // hkSky._force({show:true, spooky:true}) then hkSkyAt(-20,{season:'halloween'})
     // previews a spooky night on any date. hkSky._force(null) restores.
     _force: function (v) { FORCE = v || null; return FORCE; },
+    // Sky Lab's Show Me Now: the next crossing of everything that crosses, now
+    showNow: function () { return showNow(mounted); },
+    // Liveliness internals, for tests/test_liveliness.js
+    _lv: { lvOf: lvOf, lvRange: lvRange, lvCount: lvCount, kfScale: kfScale, KNOBS: LV_KNOBS },
     // hkSky._pin({season:'halloween', elev:-20, cond:'clear'}) holds a scene
     // across the 3s tick without a competing timer. _pin(null) restores.
     // It repaints at once (Sky Lab drives a real dashboard's sky with it).
@@ -4953,6 +5488,10 @@
     // the realistic clouds' choices, for the tests
     _rcPlan: function (s, seed) { return rcPlan(s, rng(seed || 1)); },
     _rcLight: rcLight,
+    // ...and the overcast ceiling on its canvas (tests/test_cloudceiling.js):
+    // its pieces, and one paint of the realistic clouds with a given manifest
+    _ceil: { canvases: ceilCanvases, draw: ceilDraw, relight: ceilRelight, tidy: rcTidy, FADE: CEIL_FADE },
+    _rcPaint: function (el, s, man) { RC_MAN = man; return paintRealClouds(el, s, true, .45, false, 1); },
     // HK Settings' preview of a theme (see PREVIEW above)
     preview: preview,
     get previewing() { return PREVIEW; },

@@ -2,9 +2,9 @@
 //
 // Which entities the pages read -- the header's locks and contacts, the weather
 // entity and its sensors, the sky's moon and holiday sources, the idle-return
-// dashboards, the car browsers -- is chosen in Settings -> Devices & services ->
-// HK Frontend -> Configure and stored in the integration (settings.py). This
-// module holds it for the page: window.hkSettings.
+// dashboards, the car browsers -- is chosen in HK Settings (the sidebar panel)
+// and stored in the integration (settings.py). This module holds it for the
+// page: window.hkSettings.
 //
 //   hkSettings.get('weather.entity')          one value (or a fallback)
 //   hkSettings.weatherId(states)              the weather entity to read
@@ -33,6 +33,25 @@
 (function () {
   'use strict';
   if (window.hkSettings) return;
+
+  // THE BLACK SCREEN THROUGH A RELOAD (Black Screen: HK Frontend, 2026-10-09).
+  // A tablet whose page reloads while it is black (its nightly restart, a
+  // cache clear) would light Home Assistant's own loading screen and the
+  // dashboard until hk-saver.js loaded. This is the first of HK's modules to
+  // run: a page that was black (hk-saver.js keeps 'hk-black') is covered at
+  // once, and hk-saver.js takes the cover over -- or fades it, if the black
+  // is no longer wanted. Never kept past BOOT_COVER_MAX on its own.
+  try {
+    var seg0 = String(location.pathname).split('/')[1] || '';
+    if (seg0 && window.localStorage && localStorage.getItem('hk-black') === seg0 &&
+        !document.getElementById('hk-black-boot')) {
+      var cover = document.createElement('div');
+      cover.id = 'hk-black-boot';
+      cover.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:2147483647;background:#000';
+      (document.body || document.documentElement).appendChild(cover);
+      setTimeout(function () { if (cover.parentNode) cover.remove(); }, 30000);   // BOOT_COVER_MAX
+    }
+  } catch (e) { /* no storage, no document (a test harness) */ }
 
   // Mirror of settings.py DEFAULTS. The server's answer always carries every
   // key, so this only matters before the first answer on a fresh browser.
@@ -73,29 +92,40 @@
            winter_from: null, winter_to: null,
            halloween_often: null, thanksgiving_often: null, christmas_often: null,
            spring_often: null, winter_often: null, storybook_per_month: null, space_per_month: null,
-           spooky_often: null },
+           spooky_often: null,
+           // LIVELINESS (hk-sky.js lvOf): one preset for every occasion
+           // (subtle | classic | festive | party), or custom -- then each
+           // occasion's or woodland season's preset, {id: preset}, missing =
+           // classic, and a Custom one's knobs, {id: {knob: 0-4}}. A screen's
+           // own, the same: its board's sky_liveliness, sky_liveliness_occ,
+           // sky_liveliness_custom (and sky_calm_empty).
+           liveliness_all: 'classic', liveliness: {}, liveliness_custom: {} },
     idle: { dashboards: [], rooms: {}, 'default': null },
     car: { dashboards: [] },
     generated: { exclude_areas: [], exclude_devices: [], exclude_entities: [], include_entities: [] },
     features: { vacuum_script: null, alarm_bad_code: null, thermostats: [], temperature: null, power: null,
                 house_timers: [] },
-    menu: { dashboards: [], docked: [], dock_min: 1000, time_weather: [], button: 'auto', tab_position: '', glyph: 'sidebar', clock: true,
-            order: 'az', categories: [], ha_sidebar: [],
+    menu: { glyph: 'sidebar', clock: true,
             // All Screens' menu, for the screens that don't set their own
             // (settings.py MENU_KEYS); a screen reads it already filled in
-            style: 'auto', narrow: 'chip', tab_at: '', tab_size: 'large', tab_size_phone: 'standard',
+            style: 'auto', tab_at: '', tab_size: 'large', tab_size_phone: 'standard',
             open_min: 1000, time_weather_at: 'page', ha_row: false, ha_at: 'rooms', accent: 'orange', swipe: false,
-            // the tab bar's (a screen's menu or narrow choice "tabbar")
+            // the tab bar's (a device's Menu "tabbar")
             bar_scroll: 'shrink', bar_rooms: 'more', bar_glass: 'house', bar_more: 'icons',
             bar_more_phone: 'list', bar_pos: 'bottom', bar_fold: 'start', bar_start: 'full',
-            bar_adjust: true, bar_scroll_phone: null,
-            bar_tabs: 6, bar_tabs_rail: 6, bar_size: 'medium' },
+            bar_adjust: true,
+            bar_tabs: 6, bar_tabs_rail: 6, bar_size: 'medium',
+            // Phones' own (hk-base.js phoneForm: a phone, or a tablet whose
+            // own menu doesn't fit)
+            bar_scroll_phone: 'shrink', button_phone: 'chip', bar_rooms_phone: 'more' },
     rooms: { headings: true, status: ['temperature', 'humidity', 'security', 'tvs', 'lights', 'outlets', 'blinds',
                                  'fans', 'windows', 'doors', 'locks', 'garage', 'valves', 'motion', 'occupancy',
                                  'leaks', 'speakers'],
              // All Screens' rooms, for the screens that don't set their own
              order: [], home: 'as_is', menu: 'az', pages: 'floor' },
-    look: { glass: 'clear', frost: 50, blur: 50, details: true, browse_view: 'music-browse', sky_switch: null,
+    // All Screens' cameras, for the screens that don't set their own (empty: Automatic)
+    cameras: { order: [] },
+    look: { glass: 'clear', frost: 50, blur: 50, frost_tint: false, details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {},
             // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
             saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
@@ -106,7 +136,7 @@
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)
     calendar: { entities: [], colors: {} },
-    // Browse Music (Configure -> Browse Music). The Discover rows arrive as
+    // Browse Music (HK Settings -> Features -> Music). The Discover rows arrive as
     // the queries themselves (settings.py discover_rows); these are its
     // default five.
     browse: { hide: [], discover: [
@@ -130,7 +160,7 @@
   // depth. Checked the way hk-sky.js checks a palette (mean under CAP,
   // horizon at or under 146); the test holds it.
   var SKY_BACKDROPS = [
-    { id: 'live', label: 'Live sky' },
+    { id: 'live', label: 'Live Sky' },
     { id: 'dusk', label: 'Dusk', day: ['#141f3d', '#26314f', '#5c4460', '#b06a4a'],
       night: ['#0c1428', '#161d35', '#33263f', '#5e3730'] },
     { id: 'midnight', label: 'Midnight', day: ['#0d2f57', '#154272', '#256192', '#5b93b8'],
@@ -275,10 +305,21 @@
     try { seg = String(location.pathname).split('/')[1] || ''; } catch (e) { /* a test harness */ }
     return (cur.boards && cur.boards[seg]) || null;
   }
-  function frost(n) {
+  // `wash`: [r, g, b] in place of the gray -- Tint from Background
+  // (hk-frosttint.js), a little stronger so the color reads (0.42 to 0.34)
+  function frost(n, wash) {
     var f = n / 50, a = function (v) { return +Math.min(0.92, v * f).toFixed(3); };
+    var w = wash ? 'rgba(' + wash.join(',') + ',' + a(0.42) + ')' : 'rgba(58,60,68,' + a(0.34) + ')';
     return GRAIN + ', linear-gradient(145deg, rgba(255,255,255,' + a(0.18) + '), rgba(255,255,255,' + a(0.09) + ')), ' +
-      'linear-gradient(rgba(58,60,68,' + a(0.34) + '), rgba(58,60,68,' + a(0.34) + '))';
+      'linear-gradient(' + w + ', ' + w + ')';
+  }
+  // TINT FROM BACKGROUND, for this screen: its own when it sets one (not
+  // null), else All Screens'; only ever with the Frosted look
+  function frostTint() {
+    if (glass() !== 'frosted') return false;
+    var b = boardHere();
+    if (b && typeof b.frost_tint === 'boolean') return b.frost_tint;
+    return get('look.frost_tint') === true;
   }
   // Over a blur: the plate the status chips always had over their own.
   var OVER_BLUR = 'linear-gradient(145deg, rgba(255,255,255,0.16), rgba(255,255,255,0.07))';
@@ -344,7 +385,21 @@
       brightness: DAYTIME.hasOwnProperty(own('sky_daytime', 'sky.daytime', 'natural'))
         ? DAYTIME[own('sky_daytime', 'sky.daytime', 'natural')] : 1,
       backdrop: backdropStops(own('sky_gradient', 'sky.gradient', 'live'),
-                              b && b.sky_gradient != null ? own('sky_custom', 'sky.gradient_custom', null) : get('sky.gradient_custom', null))
+                              b && b.sky_gradient != null ? own('sky_custom', 'sky.gradient_custom', null) : get('sky.gradient_custom', null)),
+      // Liveliness: this screen's own when it has one (sky_liveliness),
+      // else All Screens' -- the same shape (hk-sky.js lvOf). `room` is
+      // where Calm When Nobody's Around looks for someone (the screen's idle
+      // room).
+      lively: (b && b.sky_liveliness) ? {
+        all: b.sky_liveliness, occ: b.sky_liveliness_occ || {}, custom: b.sky_liveliness_custom || {},
+        calmEmpty: !!b.sky_calm_empty, room: b.idle_room || ''
+      } : {
+        all: get('sky.liveliness_all', 'classic') || 'classic',
+        occ: get('sky.liveliness', {}) || {},
+        custom: get('sky.liveliness_custom', {}) || {},
+        calmEmpty: !!(b && b.sky_calm_empty),
+        room: (b && b.idle_room) || ''
+      }
     };
   }
   // A PAGE'S BACKGROUND (Sky / Background -> Pages): this screen's choice
@@ -373,6 +428,7 @@
       if (look[k]) root.style.setProperty(k, look[k]); else root.style.removeProperty(k);
     });
     if (root.setAttribute) root.setAttribute('data-hk-glass', glass());
+    if (root.toggleAttribute) root.toggleAttribute('data-hk-frost-tint', frostTint());
   }
   // Marks a glass surface for the shared blur layer. NOT inherited, so only
   // the plate itself carries it, never the text and icons inside.
@@ -678,7 +734,7 @@
   // Compared as the look AND its amounts: two dashboards can share a look and
   // differ in how strong it is (each Screen's own Blur / Frost), and comparing
   // the name alone kept the first one's strength on the second.
-  function lookKey() { return glass() + '|' + amount('blur') + '|' + amount('frost'); }
+  function lookKey() { return glass() + '|' + amount('blur') + '|' + amount('frost') + '|' + frostTint(); }
   var lookNow = lookKey();
   function onNav() {
     var g = lookKey();
@@ -734,6 +790,10 @@
       return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
     },
     glass: glass,
+    frostTint: frostTint,
+    // the Frosted plate with `wash` ([r, g, b]) in place of its gray, at this
+    // screen's Frost amount (hk-frosttint.js)
+    frostPlate: function (wash) { return frost(amount('frost'), wash); },
     skyLook: skyLook,
     pageSky: pageSky,
     pageBackdrop: pageBackdrop,

@@ -31,8 +31,8 @@ from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from homeassistant.helpers import entity_registry as er
 
 from ...const import DOMAIN
-from .. import (ALARM_PIN, SUBENTRY_FEATURE, Feature, async_remove, async_update, entries, frontend_entry,
-                item, unique_id)
+from .. import (ALARM_PIN, SUBENTRY_FEATURE, Feature, async_remove, async_sync, async_update, entries,
+                frontend_entry, item, unique_id)
 from . import checks
 from .const import ALREADY, CONF_ALARM, CONF_ARM_REQUIRED
 from .pin import MIN_LENGTH, hash_pin
@@ -201,6 +201,11 @@ async def ws_add(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
         _refused(connection, msg["id"], {CONF_ALARM: MSG["not_alarm"]})
         return
     if r["type"] == FlowResultType.CREATE_ENTRY:
+        # ITS PANEL BEFORE THE ANSWER: the house's update listener starts the
+        # new item (async_sync), a task of its own that is usually still
+        # importing the panel's platform here. Follow the items now -- the
+        # same lock, so whichever runs second finds nothing to do.
+        await async_sync(hass, house)
         connection.send_result(msg["id"], page(hass))
         return
     if r["type"] == FlowResultType.FORM:

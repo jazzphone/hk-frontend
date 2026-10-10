@@ -313,4 +313,17 @@ HS._apply({});
   window.hkSky._force(null);
 })();
 
+// NO animationiteration LISTENER ANYWHERE (2026-10-07 audit). One listener in
+// the document makes Chromium wake the main thread at every loop end of every
+// CSS animation on the page, for the page's life (measured 18 -> 58 style
+// recalcs a second); the shooting stars and fireworks re-aim from a timer
+// instead (hk-sky.js reaim).
+(function () {
+  var files = ['modules/hk-sky.js', 'modules/hk-saver.js', 'modules/hk-glass.js', 'modules/hk-menu.js',
+               'modules/hk-tabbar.js', 'modules/hk-header.js', 'cards/hk-base.js', 'cards/hk-tile.js',
+               'cards/hk-weather.js', 'cards/hk-popup.js', 'cards/hk-media.js', 'cards/hk-cameras.js'];
+  var bad = files.filter(function (f) { return /['"]animationiteration['"]/.test(read(root + '/frontend/' + f)); });
+  check('no animationiteration listener in the sky, the saver or the cards', bad.length === 0);
+})();
+
 print(fail ?'FAIL ' + fail + ' SEASON TESTS' : 'ALL ' + pass + ' SEASON TESTS PASS');

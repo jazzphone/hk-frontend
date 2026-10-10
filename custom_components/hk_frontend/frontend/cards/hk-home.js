@@ -107,7 +107,9 @@
     }
     getCardSize() { return 3; }
 
-    // The card reads four sensors its `entity` does not name.
+    // The card reads four sensors its `entity` does not name -- and the
+    // vacuum's own attributes (battery_level), so last_updated, not state:
+    // a battery that charges while the vacuum stays `docked` must redraw.
     _sigOf() {
       var h = this._hass, c = this._config;
       if (!h || !c) return null;
@@ -116,7 +118,7 @@
       var out = '';
       for (var i = 0; i < ids.length; i++) {
         var s = h.states[ids[i]];
-        out += ids[i] + '=' + (s ? s.state : 'x') + ';';
+        out += ids[i] + '=' + (s ? s.last_updated : 'x') + ';';
       }
       return out;
     }

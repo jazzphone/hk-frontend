@@ -424,6 +424,33 @@
     return lastPress === 'mouse';
   }
 
+  // A TAP THAT CHANGES PAGE IS ANSWERED BEFORE THE PAGE IS (2026-10-09).
+  // Opening a page keeps a wall tablet's main thread busy for 0.4-0.7 s
+  // before the new page draws (the Living Room, traced), and the tap itself
+  // was answered with nothing: touch :active lands in the same task as the
+  // click, so the press look was never drawn, even under a 120 ms finger
+  // (screen-recorded). So the control dims for one drawn frame first, then
+  // the page changes. A DIM, NOT THE PRESS'S SHRINK: the shared blur's cut-out
+  // follows a shrinking card only from the main thread, which is busy with
+  // the new page -- a ring of frost would show around it for the whole wait.
+  // A page with no frames to draw (hidden) still goes, after GO_MS.
+  var GOING = 'brightness(0.78)', GO_MS = 120;
+  function navigate(path, el) {
+    var gone = false, lit = el && el.style ? el : null, was = lit ? lit.style.filter : '';
+    function go() {
+      if (gone) return;
+      gone = true;
+      history.pushState(null, '', path);
+      window.dispatchEvent(new CustomEvent('location-changed'));
+      // the page it is on has left: back again, it is itself
+      if (lit) lit.style.filter = was;
+    }
+    if (typeof requestAnimationFrame !== 'function') { go(); return; }
+    if (lit) lit.style.filter = GOING;
+    requestAnimationFrame(function () { setTimeout(go, 0); });
+    setTimeout(go, GO_MS);
+  }
+
   function confirmSheet(text, onOk, opts) {
     opts = opts || {};
     if (!_sheet) {
@@ -573,20 +600,28 @@
 
   // Called from a successful load. Cheap on the common path: it reads the map,
   // sees a recent entry and returns before touching a canvas.
-  function snapCachePut(entity, img) {
+  // `img` may also be a playing <video> (its current frame), and `force`
+  // writes whatever the age of the last entry: the cameras page keeps the
+  // frames it is leaving (hk-campost.js), the strip its stills. `at`: when
+  // the frame was TAKEN (a still can be older than now), so FRESH stays
+  // honest. Returns the data URL it wrote.
+  function snapCachePut(entity, img, force, at) {
     try {
       var all = snapCacheAll();
       var prev = all[entity];
-      if (prev && (Date.now() - prev.t) < SNAP_MIN_GAP) return;
-      if (!img.naturalWidth) return;
-      var h = Math.max(1, Math.round(SNAP_W * img.naturalHeight / img.naturalWidth));
+      if (!force && prev && (Date.now() - prev.t) < SNAP_MIN_GAP) return null;
+      var iw = img.naturalWidth || img.videoWidth, ih = img.naturalHeight || img.videoHeight;
+      if (!iw || !ih) return null;
+      var h = Math.max(1, Math.round(SNAP_W * ih / iw));
       var cv = document.createElement('canvas');
       cv.width = SNAP_W; cv.height = h;
       cv.getContext('2d').drawImage(img, 0, 0, SNAP_W, h);
       // SAME ORIGIN, so the canvas is not tainted: camera_proxy is served by
       // HA itself. A cross-origin still would throw here and be swallowed.
-      all[entity] = { d: cv.toDataURL('image/jpeg', 0.5), t: Date.now() };
+      var d = cv.toDataURL('image/jpeg', 0.5);
+      all[entity] = { d: d, t: at || Date.now() };
       localStorage.setItem(SNAP_KEY, JSON.stringify(all));
+      return d;
     } catch (e) {
       // Quota, a tainted canvas, or no storage at all. The strip works
       // without the cache; it just starts black again.
@@ -1050,8 +1085,7 @@
         if (p.slice(0, 2) === './') {
           p = '/' + seg + '/' + p.slice(2);
         }
-        history.pushState(null, '', p);
-        window.dispatchEvent(new CustomEvent('location-changed'));
+        navigate(p, this);
         return;
       }
       // `url` is rare, and falling through to more-info would be the wrong
@@ -1378,6 +1412,8 @@
       glassJoin(this, true);
       ON_PAGE.add(this);
       markAsleep(this);
+      // Tint from Background (Frosted): tinted before it is first drawn
+      if (window.hkFrostTint) window.hkFrostTint.joined(this);
       if (!this._hkStatsLost) return;
       this._hkStatsLost = false;
       if (this._hass && this._config) this.requestUpdate();
@@ -1735,6 +1771,7 @@
   window.hkCards.create = create;
   window.hkCards.BASE_CSS = BASE_CSS;
   window.hkCards.confirmSheet = confirmSheet;
+  window.hkCards.navigate = navigate;
   window.hkCards.neverToggles = neverToggles;
   // The door-like cover classes, so hk-detail.js draws a door as a door
   // (the lock's ring) from the same list this guard uses.
@@ -1745,6 +1782,19 @@
   window.hkCards.px = px;
   window.hkCards.bleedSides = bleedSides;
   window.hkCards.esc = esc;
+  // MONEY in the house's currency (hass.config.currency) and its language --
+  // never a "$" of our own: the Energy page's Today's Cost and the detail
+  // sheet's both come through here
+  window.hkCards.money = function (h, v, digits) {
+    var cur = String((h && h.config && h.config.currency) || 'USD').toUpperCase();
+    var lang = (h && h.locale && h.locale.language) || (h && h.language) || undefined;
+    try {
+      return new Intl.NumberFormat(lang, { style: 'currency', currency: cur,
+        minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
+    } catch (e) {
+      return v.toFixed(digits) + ' ' + cur;
+    }
+  };
   window.hkCards._artRemote = artRemote;       // tests
   window.hkCards._artSign = artSign;
   window.hkCards.button = button;
@@ -2182,7 +2232,18 @@
   }
   function dashSeg() { return String(location.pathname).split('/')[1] || ''; }
   var MENU_NARROW = 640;
-  function menuNarrow() { return (window.innerWidth || 1280) < MENU_NARROW; }
+  // A PHONE (the screen's Phones menu settings): a window under MENU_NARROW,
+  // or a device whose screen's shorter side is under PHONE_SIDE -- a phone
+  // held sideways (iPhones 375-440, Android phones 360-412) is still one.
+  // The device's screen, not the window: an iPad mini (744), a 1024 x 600
+  // tablet and the 1280 x 800 wall tablets stay tablets either way up, and a
+  // short desktop window is never a phone.
+  var PHONE_SIDE = 500;
+  function menuNarrow() {
+    if ((window.innerWidth || 1280) < MENU_NARROW) return true;
+    var sc = window.screen, a = sc && Number(sc.width), b = sc && Number(sc.height);
+    return a > 0 && b > 0 && Math.min(a, b) < PHONE_SIDE;
+  }
   // THE EDGE TAB NEEDS A MARGIN TO LIVE IN: 26 px of it, beside a page
   // margin of 2% + 4 px -- 29.6 px on a 1280 wall tablet, 26.7 on an iPad
   // held sideways, but 18.9 on an iPad mini held upright, where the tab would
@@ -2202,13 +2263,11 @@
   // EACH DASHBOARD'S OWN MENU SETTINGS: the dashboard items
   // under Dashboards on the integration's page, handed over as `boards`, by
   // url path (settings.py board()). A dashboard with no item has no menu.
-  // Before any item exists -- a house that has not migrated, the tests -- the
-  // same answers come from the older house-wide lists (menu.dashboards,
-  // menu.docked, ...), which settings.py still fills in from the items for a
-  // screen running an older copy of this file.
   var BOARD = { menu: 'auto', dock_min: MENU_DOCK, time_weather: 'page', ha_row: false,
                 categories: [], tab_position: '', tab_size: 'large', tab_size_phone: 'standard', room_order: [], menu_rooms: 'az', home_rooms: 'as_is',
                 page_rooms: 'floor', rooms_custom: false,
+                // the cameras: All Screens' unless cameras_custom (settings.py resolved())
+                cameras_custom: false,
                 // the menu: All Screens' unless menu_custom (settings.py resolved())
                 menu_custom: false, accent: 'orange', glyph: 'sidebar', clock: true,
                 // 1.7: Home, Pages, Screen (settings.py BOARD_DEFAULTS). chips_quiet
@@ -2218,16 +2277,18 @@
                 scenes_row: true, scenes: [], scenes_pages: [], favorites: [], pages: [],
                 glass: 'house', frost: null, blur: null, sky: true, idle_return: false, idle_room: '', car: false, kiosk: false,
                 popups: true, now_playing: false, screensaver: false, tablet_user: '', custom_pages: [],
-                // the button below TAB_MIN and while an open menu is
-                // folded; the pages at the top of the menu (empty: the views' own)
-                narrow: 'chip', menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, only_pages: [], home_view: '',
+                // the pages at the top of the menu (empty: the views' own)
+                menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, only_pages: [], home_view: '',
                 // swipe right from the left edge opens the menu, at every width
                 swipe: false, ha_place: 'rooms',
-                // the tab bar (menu or narrow 'tabbar', hk-tabbar.js): menu settings
+                // the tab bar (a device's Menu 'tabbar', hk-tabbar.js): menu settings
                 tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house', tab_bar_more: 'icons',
                 tab_bar_more_phone: 'list', tab_bar_pos: 'bottom', tab_bar_fold: 'start',
-                tab_bar_start: 'full', tab_bar_adjust: true, tab_bar_scroll_phone: null,
-                tab_bar_tabs: 6, tab_bar_tabs_rail: 6, tab_bar_size: 'medium' };
+                tab_bar_start: 'full', tab_bar_adjust: true, tab_bar_scroll_phone: 'shrink',
+                tab_bar_tabs: 6, tab_bar_tabs_rail: 6, tab_bar_size: 'medium',
+                // PHONES' OWN (phoneForm): the menu (null: as before there
+                // was one -- phoneMenu), the button's style, More's rooms
+                menu_phone: null, button_phone: 'chip', tab_bar_rooms_phone: 'more' };
   var ACCENTS = { orange: '#ff9f0a', yellow: '#ffd60a', green: '#30d158', mint: '#63e6e2', teal: '#40c8e0',
                   cyan: '#64d2ff', blue: '#0a84ff', indigo: '#5e5ce6', purple: '#bf5af2', pink: '#ff375f',
                   red: '#ff453a' };
@@ -2251,18 +2312,8 @@
       for (k in BOARD) if (b[k] !== undefined && b[k] !== null) out[k] = b[k];
       return out;
     }
-    var L = function (key) { var v = msetting('menu.' + key, []); return Array.isArray(v) ? v : []; };
-    var on = L('dashboards').indexOf(dash) !== -1, open = on && L('docked').indexOf(dash) !== -1;
-    var btn = msetting('menu.button', 'auto');
-    out.menu = !on ? 'off' : open ? 'open' : (btn === 'chip' || btn === 'tab') ? btn : 'auto';
-    out.dock_min = msetting('menu.dock_min', MENU_DOCK);
-    out.time_weather = L('time_weather').indexOf(dash) !== -1 ? 'menu' : 'page';
-    out.ha_row = L('ha_sidebar').indexOf(dash) !== -1;
-    out.categories = L('categories');
-    out.tab_position = msetting('menu.tab_position', '') || '';
-    out.menu_rooms = msetting('menu.order', 'az') === 'dashboard' ? 'order' : 'az';
-    out.glyph = msetting('menu.glyph', 'sidebar');
-    out.clock = msetting('menu.clock', true) !== false;
+    // no item for any dashboard (a house not set up yet, a test): no menu
+    out.menu = 'off';
     return out;
   }
   function panelWidth() {
@@ -2304,21 +2355,32 @@
     }
     return false;
   }
-  // No room for the edge tab: a phone, or any window under TAB_MIN.
-  function tabless() { return menuNarrow() || (window.innerWidth || 1280) < TAB_MIN; }
-  // ON NARROW SCREENS (the screen's own setting): where the tab has no
-  // room, and wherever an always-open menu has folded -- the chip,
+  // THE PHONES MENU, WHERE THE TABLETS' DOESN'T FIT (2026-10-09): a
+  // tablet or computer whose own menu has no room -- an always-open menu
+  // under Keep Open Down To, a button under TAB_MIN (the edge tab has no
+  // margin there) -- shows the screen's Phones menu instead, with all of
+  // Phones' settings: an iPad held upright, Split View, a narrow window.
+  // The tab bar fits at every width, so a tablets' Tab Bar never folds.
+  function compact() {
+    if (menuNarrow()) return false;
+    var m = boardOf(dashSeg()).menu;
+    if (m === 'off' || m === 'tabbar') return false;
+    return m === 'open' ? panelWidth() < dockMin() : (window.innerWidth || 1280) < TAB_MIN;
+  }
+  // Phones' menu and settings here: a phone, or a tablet whose menu doesn't fit
+  function phoneForm() { return menuNarrow() || compact(); }
+  // THE BUTTON'S STYLE where Phones' menu shows (button_phone): the chip,
   // the chip then the tab once scrolled past, the tab, or no button at all
   // (the swipe alone).
   function narrowStyle() {
-    var n = boardOf(dashSeg()).narrow;
+    var n = boardOf(dashSeg()).button_phone;
     if (n === 'none') return swipeOn() ? 'none' : 'chip';
     return n === 'tab' || n === 'chip_scroll' ? n : 'chip';
   }
   // NO BUTTON leans on the swipe: with the swipe off it is never left with
-  // no way in -- the button style is Automatic's, the narrow one the chip.
+  // no way in -- the button style is Automatic's, the phone's the chip.
   function swipeOn() { return !!boardOf(dashSeg()).swipe; }
-  function folded() { return tabless() || boardOf(dashSeg()).menu === 'open'; }
+  function folded() { return phoneForm(); }
   // Is Home the page showing? (its path, or none, or 0)
   function homeHere() {
     var here = String(location.pathname).split('/')[2] || '';
@@ -2385,21 +2447,39 @@
     return top;
   }
   // THE TAB BAR (hk-tabbar.js) IS THE MENU'S OTHER FORM, never beside it:
-  // the screen's Menu "tabbar" is the bar at every width and no side menu;
-  // its narrow choice "tabbar" is the side menu where it fits -- a button
-  // from TAB_MIN up, always open from Keep Open Down To up -- and the bar
-  // where it would fold. Wherever the bar shows, the side menu is off: no
-  // chip, no tab, no swipe, no clock tap.
-  function sideMenu() { var m = boardOf(dashSeg()).menu; return m !== 'off' && m !== 'tabbar'; }
+  // the tablets' Menu "tabbar" is the bar at every width and no side menu,
+  // and Phones' Menu "tabbar" the bar on a phone and wherever the tablets'
+  // menu doesn't fit (compact). Wherever the bar shows, the side menu is
+  // off: no chip, no tab, no swipe, no clock tap.
+  //
+  // PHONES' MENU (menu_phone): off, a button (in button_phone's style) or
+  // the tab bar -- never always open. Unset (a screen from before phones had
+  // their own; settings.py phones_lifted writes it down): the tablets' Menu
+  // when that is off or the tab bar, else a button.
+  function phoneMenu(b) {
+    var m = b.menu_phone;
+    if (m === 'off' || m === 'button' || m === 'tabbar') return m;
+    return b.menu === 'off' || b.menu === 'tabbar' ? b.menu : 'button';
+  }
+  // ...and where a tablet borrows it: Off would leave it with no way in at
+  // all, so it is the chip
+  function phoneMenuHere(b) {
+    var m = phoneMenu(b);
+    return m === 'off' && !menuNarrow() ? 'button' : m;
+  }
+  function sideMenu() {
+    var b = boardOf(dashSeg());
+    if (phoneForm()) return phoneMenuHere(b) === 'button';
+    return b.menu !== 'off' && b.menu !== 'tabbar';
+  }
   function dockedHere() {
-    if (!sideMenu() || menuNarrow()) return false;
+    if (phoneForm()) return false;
     return boardOf(dashSeg()).menu === 'open' && panelWidth() >= dockMin();
   }
   function tabBarHere() {
     var b = boardOf(dashSeg());
-    if (b.menu === 'tabbar') return true;
-    if (!sideMenu() || b.narrow !== 'tabbar') return false;
-    return b.menu === 'open' ? !dockedHere() : tabless();
+    if (phoneForm()) return phoneMenuHere(b) === 'tabbar';
+    return b.menu === 'tabbar';
   }
   var menuState = {
     // this dashboard's own settings (boardOf above)
@@ -2407,6 +2487,16 @@
     on: function () { return sideMenu() && !tabBarHere(); },
     // the tab bar shows here, in the menu's place
     tabBar: tabBarHere,
+    // a phone, by its width or its screen (menuNarrow): a phone's shape
+    // (the tab bar's height, its fit, no rail)
+    phone: menuNarrow,
+    // Phones' menu and settings here: a phone, or a tablet whose own menu
+    // doesn't fit (compact)
+    phoneForm: phoneForm,
+    compact: compact,
+    // Phones' menu for a screen's settings `b`, as it resolves ('off',
+    // 'button' or 'tabbar') -- HK Settings names what Automatic does
+    phoneMenu: phoneMenu,
     // Shown beside the page all the time (its item's Menu: "Always open
     // beside the page"), when there is room for it.
     docked: dockedHere,
@@ -2418,15 +2508,16 @@
     },
     // 'tab', 'chip', or 'docked' -- a menu that is always there needs no
     // button at all: no tab, no chip, no round button beside the chevron.
-    // Folded, an always-open menu -- and any menu under TAB_MIN -- is the
-    // screen's "On Narrow Screens" choice (narrowStyle above).
+    // Where the tablets' menu doesn't fit (folded: a phone, an always-open
+    // menu under Keep Open Down To, a button under TAB_MIN) it is Phones'
+    // button style (narrowStyle above).
     //
     // TWO MIXES:
     //   chip_scroll  the chip everywhere; the edge tab slides in while the
     //                chip is scrolled out of sight
     //   chip_home    the chip on Home (sliding to the tab the same way), the
     //                tab on every other page
-    // Where the tab has no room (under TAB_MIN) the narrow choice decides.
+    // Where the tab has no room (under TAB_MIN) Phones' button style decides.
     // 'none': no button at all -- the swipe (and the clock) open it.
     style: function () {
       if (!menuState.on()) return null;

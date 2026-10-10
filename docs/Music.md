@@ -67,9 +67,9 @@ speaker:
 |---|---|---|
 | Speakers | None | The rooms music plays in: Music Assistant players, one per room. Each is named by its area and grouped by floor; within a floor, in the order you drag them. A preset’s sync group can’t also be a room. |
 | Home Rooms | None | For each Home Assistant user, the room they start in when they play music. A wall tablet signs in as its own user, so this is where each tablet hangs. |
-| House Volume | 35 % | The volume every room is set to when a playlist starts. |
-| Presets | None | A Music Assistant sync group and the rooms it plays in (**Name**, **Sync Group**, **Rooms**). Choosing exactly those rooms on a screen plays through the group, in step. |
-| Playlists | None | The pills on Play Music, in order (**Name**, **Icon**, **Chooser**, and the library playlists it **Plays**, as one queue). Pills with the same Chooser become one pill that asks which. |
+| House Volume | 35% | The volume every room is set to when a playlist starts. |
+| Presets & Playlists → Presets | None | A Music Assistant sync group and the rooms it plays in (**Name**, **Sync Group**, **Rooms**). Choosing exactly those rooms on a screen plays through the group, in step. |
+| Presets & Playlists → Playlists | None | The pills on Play Music, in order (**Name**, **Icon**, **Chooser**, and the library playlists it **Plays**, as one queue). Pills with the same Chooser become one pill that asks which. |
 | Browse Music → Categories | All shown | Music Assistant’s categories at the top of Browse Music: Artists, Albums, Songs, Playlists, Radio, Podcasts, Audiobooks. Untick the ones nobody opens. |
 | Browse Music → Discover Rows | Recently played, Favorite playlists, Most played, Recently added, Favorite radio | The rows under the categories, in order. None: no Discover section. A row with nothing in it yet isn’t shown. |
 | Advanced → Browse Page | `music-browse` | The page a speaker’s sheet opens with **Browse Music**, on YAML screens (a path on the same dashboard). Generated screens always use their own. Empty: no Browse button. |

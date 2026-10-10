@@ -24,20 +24,22 @@ A generated screen’s Home page shows, from the top:
 
 ![The Home page on a phone: two columns of tiles](images/phone-home.png)
 
-**On a phone** the tiles reflow to two columns. The screen’s **On Phones**
-setting (Home Page group) picks what sits at the top under 640 px: the clock
-and weather header, or a one-line **Weather Strip**.
+**On a phone** the tiles reflow to two columns. The screen’s **Header on Phones**
+setting (its Header group) picks what sits at the top on a phone held upright
+(narrower than 640 px): **Clock & Weather**, the header, or a one-line
+**Weather Strip**.
 
 ## Home Page settings
 
 | Setting | Default | What it does |
 |---|---|---|
 | Status Chips | Automatic | Opens [Status Chips](Status-Chips.md). |
-| Cameras | Automatic | Opens [Cameras](Cameras.md#cameras-settings). |
+| Cameras | Same as All Screens | Opens [Cameras](Cameras.md#cameras-settings): the strip, and which cameras (All Screens’ list, or this screen’s own). |
 | Scenes | Automatic | Opens [Scenes](#scenes-settings). |
-| Favorites | None | *Generated.* Opens [Favorites](#favorites). |
-| On Phones | Clock and Weather | *Generated.* What the top of Home shows under 640 px: **Clock and Weather** (the header) or **Weather Strip** (one line of weather). |
-| Rooms | Same as All Screens | Opens the screen’s [Rooms](Rooms.md#a-screens-rooms): All Screens’ room order, or its own. |
+| Favorites | None | *Generated.* Opens [Favorites](#favorites). Reads how many, *10 Favorites*. |
+| Rooms | Same as All Screens | Opens the screen’s [Rooms](Rooms.md#a-screens-rooms): All Screens’ room order, or Just This Screen. |
+
+**Header on Phones** is in the screen’s [Header](Screens.md#header) group.
 
 A YAML screen draws its own Home page. These settings reach it where it uses
 the cards that read them: the status chips (`custom:hk-chips-card`), the scenes
@@ -54,8 +56,9 @@ Automatic shows every scene, A to Z. To choose, open **Scenes**, turn
 color come from its [accessory settings](Accessories.md).
 
 **Page pills** open a page instead of running anything: a Play Music pill, a
-Cameras pill. Add them from **More** on the Scenes page. Tap a page pill’s row
-to change its name, icon and color; that look is the same on every screen.
+Cameras pill. Add them from **More** on the Scenes page. Their name, icon and color are
+the same on every screen, set in **All Screens → Appearance → Page Pills**;
+tapping a page pill’s row on the Scenes page opens it there.
 
 ### Scenes settings
 
@@ -67,7 +70,8 @@ to change its name, icon and color; that look is the same on every screen.
 | More | — | Page pills: a pill that opens a page (Weather, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Play Music, Water) instead of running something. A page the screen doesn’t have gets no pill. |
 | Add Scene or Shortcut… | — | Any scene, script, button or input button. |
 
-A page pill’s own page:
+A page pill’s own page (**All Screens → Appearance → Page Pills**, which lists
+every page pill):
 
 | Setting | Default | What it does |
 |---|---|---|

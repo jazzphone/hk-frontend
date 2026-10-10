@@ -167,6 +167,7 @@ are untouched.
 | Setting | Default | What it does |
 |---|---|---|
 | Search Accessories | — | Find an accessory by name, entity ID or room. |
+| Tapping an Accessory → HK Detail Sheets | On | Tapping an accessory’s name opens a Home app–style [detail sheet](Detail-Sheets-and-Popups.md) (a slider, the thermostat, the player, a graph), on every screen. Off: Home Assistant’s own more-info dialog. Either way, locks, the alarm, garage doors and thermostats never change from a single tap. A card keeps Home Assistant’s dialog with `detail: false` in its YAML. |
 | Hidden from Screens | None | Rooms (**Hide a Room…**), devices (**Hide a Device…**) and single accessories (**Hide an Accessory…**) left off every generated screen (its rooms, chips and pages) and never counted by Status & Chips, on any screen. To hide something from Home only, use its **Show on Home**. |
 | Also Shown | None | Things a generated screen wouldn’t show by itself: scenes, scripts, sensors. Each appears in its room, or in a section called **More** at the end of Home if it has no room. |
 | Page Order → Vacuums | A to Z | The order of the Vacuums page. |

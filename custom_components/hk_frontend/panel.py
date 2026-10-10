@@ -24,6 +24,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from . import accessories, kinds, settings_api
 from . import settings as S
+from . import sleep_rules as SR
 from .const import CONF_FILES_FOLDER, DEFAULT_FILES_FOLDER, DOMAIN
 
 URL_PATH = "hk-settings"
@@ -77,6 +78,14 @@ def async_unregister(hass: HomeAssistant) -> None:
 def _entry(hass: HomeAssistant):
     from . import features as F
     return F.frontend_entry(hass)
+
+
+def _kiosks(hass: HomeAssistant) -> list[dict[str, str]]:
+    from .sleep_engine import kiosks
+    try:
+        return kiosks(hass)
+    except Exception:                                   # noqa: BLE001 -- a registry mid-change
+        return []
 
 
 def _screensavers(hass: HomeAssistant) -> dict[str, dict[str, str | None]]:
@@ -189,7 +198,14 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
             "sky_built_in": {k: {"north": list(S.sky_built_in(k, "north")),
                                  "south": list(S.sky_built_in(k, "south"))} for k in S.SKY_BUILT_IN},
             "sky_backdrops": [dict(p) for p in S.SKY_BACKDROPS],
+            # Liveliness: every knob's kind and type, and each occasion's
+            # knobs with the decoration style that draws each
+            "sky_lively": {"knobs": {k: list(v) for k, v in S.LIVELY_KNOBS.items()},
+                           "occasions": {o: [list(x) for x in v] for o, v in S.LIVELY_OCCASIONS.items()}},
             "chips_quiet": list(S.CHIPS_QUIET),
+            # Sleep Screen: the Kiosk Satellite devices, and its choices
+            "kiosks": _kiosks(hass),
+            "sleep": {"after_saver": list(SR.AFTER_SAVER), "linger": list(SR.LINGER)},
         },
     })
 

@@ -361,8 +361,8 @@
       var seg = String(location.pathname).split('/');
       var up = parents[seg[2] || ''];
       var path = '/' + seg[1] + (up ? '/' + up : '');
-      history.pushState(null, '', path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
+      // dimmed for a drawn frame first: the tap answered before the page is
+      window.hkCards.navigate(path, this._root && this._root.querySelector('ha-card.back'));
     }
   }
 

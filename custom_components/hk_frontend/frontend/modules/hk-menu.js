@@ -386,13 +386,14 @@
     // THE TAB'S SIZE, a screen's own (board tab_size, 2026-09-30): Standard is
     // the tab that fits the margin; a finger on a wall tablet wants more, so
     // Large is the default and it may lie over the page's edge -- it is drawn
-    // on top. A phone (under M.NARROW) has a size of its own (tab_size_phone,
+    // on top. Where Phones' menu shows (M.phoneForm(): a phone, either way
+    // up, or a tablet whose own menu doesn't fit) it is Phones' size (tab_size_phone,
     // 2026-10-01), Standard unless chosen: there even the slim tab already
     // lies over the first column of tiles. [width, height, glyph].
     var TAB_SIZES = { standard: [TAB_W, TAB_H, 16], large: [36, 86, 20], xl: [46, 110, 24] };
     function tabSize() {
       var b = M.board() || {};
-      if ((window.innerWidth || 1280) < M.NARROW) return TAB_SIZES[b.tab_size_phone] || TAB_SIZES.standard;
+      if (M.phoneForm ? M.phoneForm() : (window.innerWidth || 1280) < M.NARROW) return TAB_SIZES[b.tab_size_phone] || TAB_SIZES.standard;
       return TAB_SIZES[b.tab_size] || TAB_SIZES.large;
     }
     var IDLE_MS = 60000;      // an open menu nobody touches closes itself
@@ -430,6 +431,10 @@
       // menu stays open). Up and down still scroll.
       '  touch-action:pan-y}',
       '.root.open .panel,.root.docked .panel{transform:none}',
+      // DOCKED BY ITSELF (a load, a window grown wide): in place, not slid in
+      // -- and not drawn until the dashboard's left edge holds still (settle)
+      '.root.still .panel{transition:none}',
+      '.root.settling .panel{visibility:hidden}',
       '.mat{position:absolute;inset:0;background:rgba(22,26,42,0.56);',
       '  -webkit-backdrop-filter:blur(30px) saturate(1.8);backdrop-filter:blur(30px) saturate(1.8);',
       '  border-right:1px solid rgba(255,255,255,0.10);pointer-events:none}',
@@ -749,6 +754,33 @@
       });
     }
 
+    // A MENU DOCKING BY ITSELF (2026-10-09). On a load the dashboard's left
+    // edge is still moving -- Home Assistant's sidebar going (hk-kiosk.js)
+    // -- and the menu slid in from where the sidebar had been, then settled
+    // a little further left: a bounce on every load (screen-recorded). So it
+    // waits, unseen, until that edge holds still for SETTLE_FRAMES frames
+    // (at most SETTLE_MAX), then is drawn in place with no slide; the slide
+    // stays for opening it by hand.
+    var SETTLE_FRAMES = 2, SETTLE_MAX = 30;
+    function settle() {
+      var run = S.settleRun = (S.settleRun || 0) + 1, last = null, same = 0, n = 0;
+      S.still = true; S.settling = true;
+      var cls = function (c, on) { if (S.root) S.root.classList.toggle(c, on); };
+      cls('still', true); cls('settling', true);
+      var frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : function (f) { return setTimeout(f, 16); };
+      (function look() {
+        if (run !== S.settleRun) return;
+        var p = M.panel(), r = p && p.getBoundingClientRect ? p.getBoundingClientRect() : null;
+        var l = r ? Math.round(r.left) : 0;
+        same = l === last ? same + 1 : 0; last = l; n++;
+        if (same < SETTLE_FRAMES && n < SETTLE_MAX) { frame(look); return; }
+        place();
+        S.settling = false; cls('settling', false);
+        // the slide back on after the frame it was drawn in
+        frame(function () { frame(function () { if (run === S.settleRun) { S.still = false; cls('still', false); } }); });
+      })();
+    }
+
     // Everything that can change which pieces show: called on every page
     // change, settings change, resize and hass push -- all cheap, all
     // idempotent.
@@ -771,6 +803,11 @@
       var cls = ['root'];
       if (glass === 'frosted') cls.push('frosted');
       var tabAt = typeof M.tab === 'function' ? M.tab() : (style === 'tab' ? 'always' : 'never');
+      // a menu docking by itself appears where it belongs (settle)
+      if (dock && !S.wasDock) settle();
+      S.wasDock = dock;
+      if (S.still) cls.push('still');
+      if (S.settling) cls.push('settling');
       if (dock) cls.push('docked');
       else if (tabAt === 'always') cls.push('tabbed');
       // While the menu is open the tab stays as it was when it opened:

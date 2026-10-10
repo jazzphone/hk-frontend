@@ -208,3 +208,28 @@ async def test_only_an_admin(hass, alarms, frontend):
     with pytest.raises(Unauthorized):
         await _call(hass, Conn(await hass.auth.async_create_user("Kitchen")), ws_settings_get,
                     type="hk_alarm_pin/settings/get")
+
+
+async def test_the_add_reply_waits_for_the_new_panel(hass, alarms, frontend, monkeypatch):
+    """The page shows what the reply says: a PIN whose panel was still
+    starting (a slow first import on a real server) came back with no panel
+    and `not_loaded`. The reply now waits for the house to follow its items."""
+    import asyncio
+    from custom_components.hk_frontend import features as F
+    from custom_components.hk_frontend.features.alarm_pin.settings_ws import ws_add
+    real = F._start
+
+    async def slow(hass_, house, item_id):
+        await asyncio.sleep(0.3)
+        return await real(hass_, house, item_id)
+    monkeypatch.setattr(F, "_start", slow)
+    conn = await _admin(hass)
+    ws_add(hass, conn, {"id": 1, "type": "hk_alarm_pin/add", "alarm": ALARM,
+                        "pin": "4321", "pin_again": "4321", "arm_required": True})
+    for _ in range(300):                 # the reply as sent, before anything else settles
+        if conn.sent:
+            break
+        await asyncio.sleep(0.01)
+    a = conn.sent[0]["result"]["alarms"][0]
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert a["panel"] and a["state"] == "loaded", a

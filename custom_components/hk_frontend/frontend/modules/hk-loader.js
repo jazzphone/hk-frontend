@@ -36,6 +36,9 @@
                  // The shared blur layer (look.glass = blur). Cards join it
                  // from HkBase whichever of the two loads first.
                  'hk-glass.js',
+                 // Frosted's Tint from Background: after hk-sky, whose
+                 // colors it reads (it finds the sky element itself)
+                 'hk-frosttint.js',
                  // The timer countdowns. They appear inside both
                  // hk-timer-strip-card and hk-timers-card, so the module
                  // belongs here rather than being loaded by one card.
