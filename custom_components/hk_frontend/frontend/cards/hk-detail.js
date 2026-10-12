@@ -436,7 +436,9 @@
       // it as padding, so what scrolls slides under the name (the shadow at
       // its foot, shadeCss) instead of being cut off a gap below it. At rest
       // nothing moves. (A bare sheet's header floats: it has no gap to take.)
-      '.hkd .sheet:not(.bare) .body{margin-top:-20px;padding-top:20px}',
+      // ...but not right against the glyph and the X (2026-10-12: the line
+      // touched them): 12 px of the gap stay clear above where it scrolls
+      '.hkd .sheet:not(.bare) .body{margin-top:-8px;padding-top:8px}',
       // THE CONTROL SITS IN THE MIDDLE of what the header leaves. Auto
       // margins, not justify-content:center: when a short window makes the
       // content taller than the body, auto margins fall to zero and the body
@@ -469,7 +471,7 @@
       '    height:min(' + PHONE_H + 'px, calc(var(--hk-vh, 100dvh) - 80px))}',
       '  .hkd .well,.hkd .x{width:40px;height:40px;border-radius:20px}',
       '  .hkd .hd{height:40px;gap:12px}',
-      '  .hkd .sheet:not(.bare) .body{margin-top:-16px;padding-top:16px}',
+      '  .hkd .sheet:not(.bare) .body{margin-top:-6px;padding-top:6px}',
       '  .hkd .tt{font-size:20px;line-height:22px}',
       '}',
       '@media (prefers-reduced-motion:reduce){.hkd .bd,.hkd .sheet{transition:none}}'

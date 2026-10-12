@@ -49,8 +49,8 @@ from homeassistant.helpers.event import async_track_state_change_event
 from ...const import DOMAIN, SIGNAL_POPUP
 from .. import NOTIFICATIONS, TITLES, Feature, entries, item_data, loaded, unique_id
 from . import rules, settings_ws, snaps as S
-from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, DATA, DEFAULTS, MESSAGE_MAX, TAPS,
-                    TITLE_MAX, WAKE_MAX_S, WAKE_MIN_S)
+from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, CONF_WAKE, DATA, DEFAULTS, MESSAGE_MAX,
+                    TAPS, TITLE_MAX, WAKE_MAX_S, WAKE_MIN_S)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -242,10 +242,13 @@ def about(hass: HomeAssistant, item: dict[str, Any]) -> dict[str, Any]:
     kind = cat[2][0]
     when = item.get("when") or cat[3].get("when") or rules.default_when(kind)
     _t, message = rules.words(kind, when, "", (when, {}), fired_on=when)
+    title = "Each one’s name"
+    if kind == "calendar":
+        title, message = "The event’s name", "When it is, and where"
     icon, tint = rules.look(kind)
     return {"category": key, "kind": kind, "name": cat[1], "choices": [list(c) for c in rules.choices(kind)],
             "when": cat[3].get("when") or rules.default_when(kind), "camera": None, "event": False,
-            "title": "Each one’s name", "message": message, "icon": icon, "tint": tint,
+            "title": title, "message": message, "icon": icon, "tint": tint,
             "important": bool(cat[3].get("important")), "missing": False}
 
 
@@ -307,7 +310,10 @@ def build(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any], new: 
         "icon": icon, "tint": tint,
         "picture": (new.attributes.get("entity_picture") if new is not None and kind == "people" else None),
         "initials": _initials(d["name"]) if kind == "people" else None,
-        "important": important, "wake": important and bool(item.get("wake")),
+        # Wakes the Screen: its own, else All Notifications' (Do Not Disturb
+        # still wins for one that isn't Important: wake_screens, each screen)
+        "important": important,
+        "wake": item.get("wake") if isinstance(item.get("wake"), bool) else bool(opts.get(CONF_WAKE)),
         "stay": stay, "saver": opts[CONF_SAVER], "chime": bool(opts[CONF_CHIME]), "dnd": opts[CONF_DND],
         "pop": item.get("pop") or None, "camera": camera, "snap": None,
         # (Live Camera with no snapshot: the accessory's sheet, as the page shows it)
@@ -345,8 +351,8 @@ NOTIFY_SCHEMA = vol.Schema({
 
 def build_action(hass: HomeAssistant, opts: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     """What goes to the screens for the action: an item's payload, its words
-    the automation's. Wakes the Screen makes it Important (as an item's is
-    only for an Important one). An accessory named: its icon, its sheet, its
+    the automation's. Wakes the Screen as an item's: Do Not Disturb holds it
+    back unless it is Important. An accessory named: its icon, its sheet, its
     buttons. Tap Opens, unless given: the camera, else the accessory's sheet,
     else nothing."""
     eid = data.get(ATTR_ENTITY)
@@ -361,7 +367,7 @@ def build_action(hass: HomeAssistant, opts: dict[str, Any], data: dict[str, Any]
     if tap == "sheet" and not eid:
         tap = "none"
     wake = bool(data.get(ATTR_WAKE))
-    important = wake or bool(data.get(ATTR_IMPORTANT))
+    important = bool(data.get(ATTR_IMPORTANT))
     stay = data.get(ATTR_STAY)
     return {
         "type": "notification", "id": uuid.uuid4().hex, "item": None, "entity": eid, "kind": kind,
@@ -385,17 +391,46 @@ def _wake_for(stay: int) -> int:
     return WAKE_MAX_S if stay <= 0 else max(WAKE_MIN_S, min(WAKE_MAX_S, stay))
 
 
+def dnd_on(hass: HomeAssistant, dnd: dict[str, Any] | None, now: Any = None) -> bool:
+    """Do Not Disturb on now (hk-notify.js dndOn, the same rule): in its
+    hours when scheduled (they may run past midnight; from == to is all
+    day), or while an entity listed is on (a timer while it runs)."""
+    if not dnd:
+        return False
+    from homeassistant.util import dt as dt_util
+    if dnd.get("schedule"):
+        local = dt_util.as_local(now or dt_util.utcnow())
+        n = local.hour * 60 + local.minute
+        try:
+            a, b = (int(str(x).split(":")[0]) * 60 + int(str(x).split(":")[1]) for x in (dnd.get("from"), dnd.get("to")))
+        except (ValueError, IndexError):
+            a = b = None
+        if a is not None and b is not None and (a == b or (a <= n < b if a < b else (n >= a or n < b))):
+            return True
+    for eid in dnd.get("while") or []:
+        st = hass.states.get(eid)
+        if st is not None and st.state in ("on", "active", "home", "open", "playing"):
+            return True
+    return False
+
+
 @callback
-def wake_screens(hass: HomeAssistant, title: str, seconds: int) -> list[str]:
-    """Every screen the Sleep Screen decides for, that allows notifications,
-    woken for `seconds`. The paths woken."""
+def wake_screens(hass: HomeAssistant, title: str, seconds: int, important: bool = True,
+                 dnd: dict[str, Any] | None = None) -> list[str]:
+    """Every screen the Sleep Screen decides for, that allows notifications
+    and -- unless it is Important -- isn't in Do Not Disturb (its own, else
+    All Screens' `dnd`), woken for `seconds`: up to its screensaver, the
+    banner over the photos. The paths woken."""
     from ...screensaver import manager
     mgr = manager(hass)
     if mgr is None:
         return []
     out = []
     for path, eng in list(mgr.engines.items()):
-        if mgr.board(path).get("notify", True) is False or not eng.acting:
+        b = mgr.board(path)
+        if b.get("notify", True) is False or not eng.acting:
+            continue
+        if not important and dnd_on(hass, b.get("notify_dnd") or dnd):
             continue
         eng.notify_wake(title, seconds)
         out.append(path)
@@ -416,8 +451,154 @@ async def async_deliver(hass: HomeAssistant, payload: dict[str, Any]) -> dict[st
         payload["snap"] = await S.async_take(hass, _data(hass)["snaps"], payload["camera"])
     async_dispatcher_send(hass, SIGNAL_POPUP, payload)
     if payload["wake"]:
-        wake_screens(hass, payload["title"], _wake_for(payload["stay"]))
+        wake_screens(hass, payload["title"], _wake_for(payload["stay"]), bool(payload.get("important")), payload.get("dnd"))
     return payload
+
+
+# CALENDARS: an event coming up. The house asks each chosen calendar every
+# minute (calendar.get_events -- Home Assistant's own, every calendar
+# integration answers it) for the events starting within the lead time, and
+# sends each one once, when "start - lead" has just passed. All-day events
+# are left out ("15 minutes before" one would be midnight).
+CAL_TICK_S = 60
+
+
+def _event_time(v: Any) -> Any:
+    """A timed event's start or end as a local datetime; None for an all-day
+    one (a date) or one that cannot be read."""
+    from homeassistant.util import dt as dt_util
+    if not isinstance(v, str) or "T" not in v and " " not in v:
+        return None
+    t = dt_util.parse_datetime(v)
+    return dt_util.as_local(t) if t is not None else None
+
+
+def build_calendar(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any], cal: str,
+                   event: dict[str, Any], lead: int, test: bool = False) -> dict[str, Any]:
+    """An event's notification: the event's name, when it is and where (the
+    calendar's typed Title/Message over them)."""
+    p = build(hass, opts, item, None, test=test, eid=cal)
+    start, end = _event_time(event.get("start")), _event_time(event.get("end"))
+    title, message = (rules.calendar_words(str(event.get("summary") or ""), start, end, lead, str(event.get("location") or ""))
+                      if start is not None else (str(event.get("summary") or "Event"), ""))
+    icon, tint = rules.look("calendar")
+    p.update({"kind": "calendar", "icon": icon, "tint": tint, "buttons": [], "camera": p["camera"] if item.get("snap") else None,
+              "title": (item.get("title") or "").strip() or title, "message": (item.get("message") or "").strip() or message})
+    if p["tap"] == "camera" and not p["camera"]:
+        p["tap"] = "none"
+    return p
+
+
+def build_allday(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any], cal: str,
+                 event: dict[str, Any], test: bool = False) -> dict[str, Any]:
+    """An all-day event's notification, the morning it starts: its name,
+    "Today · All Day · the place"."""
+    p = build_calendar(hass, opts, item, cal, {**event, "start": None, "end": None}, 0, test=test)
+    title, message = rules.allday_words(str(event.get("summary") or ""), str(event.get("location") or ""))
+    p.update({"title": (item.get("title") or "").strip() or title,
+              "message": (item.get("message") or "").strip() or message})
+    return p
+
+
+async def async_events(hass: HomeAssistant, cals: list[str], start: Any, end: Any) -> dict[str, list[dict[str, Any]]]:
+    """The calendars' events between `start` and `end` (calendar.get_events);
+    a calendar that answers nothing has none."""
+    if not cals or not hass.services.has_service("calendar", "get_events"):
+        return {}
+    try:
+        r = await hass.services.async_call("calendar", "get_events", {
+            "entity_id": cals, "start_date_time": start.isoformat(), "end_date_time": end.isoformat()},
+            blocking=True, return_response=True)
+    except Exception as err:  # noqa: BLE001 -- a calendar that can't be read: no notification
+        _LOGGER.debug("notifications: calendar events: %s", err)
+        return {}
+    return {k: list((v or {}).get("events") or []) for k, v in (r or {}).items()}
+
+
+class CalendarWatch:
+    """The calendars' look-ahead: once a minute, the events whose
+    "start - lead" fell since the last look -- each sent once."""
+
+    def __init__(self, hass: HomeAssistant, entry: Feature) -> None:
+        self.hass, self.entry = hass, entry
+        self._unsub: Any = None
+        self._last: Any = None
+        self._sent: dict[str, float] = {}
+
+    def start(self, on: bool) -> None:
+        if self._unsub:
+            self._unsub()
+            self._unsub = None
+        if not on:
+            return
+        from datetime import timedelta
+        from homeassistant.helpers.event import async_track_time_interval
+        self._unsub = async_track_time_interval(self.hass, self._tick, timedelta(seconds=CAL_TICK_S))
+
+    def stop(self) -> None:
+        self.start(False)
+
+    async def _tick(self, now: Any = None) -> list[dict[str, Any]]:
+        """Look: what came due since the last look (the first: the last
+        minute). What was sent."""
+        from datetime import timedelta
+        from homeassistant.util import dt as dt_util
+        now = now or dt_util.utcnow()
+        last = self._last if self._last is not None else now - timedelta(seconds=CAL_TICK_S)
+        self._last = now
+        out = []
+        for item in options(self.entry)[CONF_ITEMS]:
+            if item.get("category") != "calendars":
+                continue
+            cals = members(self.hass, item)
+            try:
+                lead = max(0, int(item.get("when") or 15))
+            except ValueError:
+                lead = 15
+            got = await async_events(self.hass, cals, last + timedelta(minutes=lead) - timedelta(seconds=1),
+                                     now + timedelta(minutes=lead) + timedelta(seconds=1))
+            for cal, events in got.items():
+                for ev in events:
+                    start = _event_time(ev.get("start"))
+                    if start is None:
+                        continue                      # all day
+                    due = start - timedelta(minutes=lead)
+                    if not (last < due <= now):
+                        continue
+                    key = "%s|%s|%s|%s" % (item.get("id"), cal, ev.get("summary"), ev.get("start"))
+                    if key in self._sent:
+                        continue
+                    self._sent[key] = start.timestamp()
+                    if not _only_ok(self.hass, item.get("only") or "always"):
+                        continue
+                    p = build_calendar(self.hass, options(self.entry), item, cal, ev, lead)
+                    out.append(await async_deliver(self.hass, p))
+            # ALL-DAY EVENTS: the morning they start, once the chosen time has
+            # just passed -- each of today's
+            at = item.get("allday")
+            if at in rules.ALLDAY_TIMES:
+                local = dt_util.as_local(now)
+                hh, mm = (int(x) for x in at.split(":"))
+                due = local.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                if dt_util.as_local(last) < due <= local:
+                    day = local.replace(hour=0, minute=0, second=0, microsecond=0)
+                    got = await async_events(self.hass, cals, day, day + timedelta(days=1) - timedelta(seconds=1))
+                    for cal, events in got.items():
+                        for ev in events:
+                            st = ev.get("start")
+                            if not isinstance(st, str) or "T" in st or st[:10] != day.date().isoformat():
+                                continue                      # timed, or begun on an earlier day
+                            key = "%s|%s|%s|%s|day" % (item.get("id"), cal, ev.get("summary"), st)
+                            if key in self._sent:
+                                continue
+                            self._sent[key] = due.timestamp()
+                            if not _only_ok(self.hass, item.get("only") or "always"):
+                                continue
+                            out.append(await async_deliver(self.hass, build_allday(self.hass, options(self.entry), item, cal, ev)))
+        # forget what is long past
+        cut = (now - timedelta(days=1)).timestamp()
+        self._sent = {k: v for k, v in self._sent.items() if v > cut}
+        return out
 
 
 class Watcher:
@@ -431,6 +612,7 @@ class Watcher:
         # A CATEGORY FOLLOWS THE HOUSE: an accessory added, removed, hidden or
         # renamed is found again (registry changes come in bursts: once after)
         self._later = Debouncer(hass, _LOGGER, cooldown=REGISTRY_S, immediate=False, function=self._refresh)
+        self.calendars = CalendarWatch(hass, entry)
 
     async def _refresh(self) -> None:
         self.start()
@@ -452,7 +634,9 @@ class Watcher:
             self._unsub()
             self._unsub = None
         items = options(self.entry)[CONF_ITEMS]
-        self._members = {str(i.get("id")): set(members(self.hass, i)) for i in items}
+        # (a calendar is looked at by the clock, not followed by its state)
+        self.calendars.start(any(i.get("category") == "calendars" for i in items))
+        self._members = {str(i.get("id")): set(members(self.hass, i)) for i in items if i.get("category") != "calendars"}
         ids = sorted(set().union(*self._members.values())) if self._members else []
         if ids:
             self._unsub = async_track_state_change_event(self.hass, ids, self._changed)
@@ -465,6 +649,7 @@ class Watcher:
             u()
         self._listen = []
         self._later.async_cancel()
+        self.calendars.stop()
 
     @callback
     def _changed(self, event: Event) -> None:

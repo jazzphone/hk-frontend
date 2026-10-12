@@ -64,6 +64,9 @@ _CHOICES: dict[str, list[tuple[str, str]]] = {
     "state": [("any", "Changes")],
     # a camera's: whatever its trigger detects
     "camera": [("on", "Detects Activity")],
+    # a calendar's: an event coming up -- how long before it starts (minutes)
+    "calendar": [("0", "At the Start"), ("5", "5 Minutes Before"), ("10", "10 Minutes Before"),
+                 ("15", "15 Minutes Before"), ("30", "30 Minutes Before"), ("60", "1 Hour Before")],
 }
 
 # (icon, tint) by kind -- tints are HK's palette (Home app colors)
@@ -79,7 +82,7 @@ _LOOK = {
     "binary": ("hk:toggle-switch", GRAY), "people": ("hk:location-enter", GREEN), "lock": ("hk:lock-open-variant", ORANGE),
     "garage": ("hk:garage-open", ORANGE), "cover": ("hk:roller-shade", ORANGE), "alarm_panel": ("hk:shield-home", RED),
     "event": ("hk:bell", BLUE), "switch": ("hk:power-plug", YELLOW), "timer": ("hk:timer-sand", ORANGE),
-    "vacuum": ("hk:robot-vacuum", TEAL), "camera": ("hk:camera", BLUE),
+    "vacuum": ("hk:robot-vacuum", TEAL), "camera": ("hk:camera", BLUE), "calendar": ("mdi:calendar", RED),
     "state": ("hk:bell", GRAY),
 }
 # an Important notification by default: what you'd want to see whatever the hour
@@ -118,6 +121,8 @@ def kind_of(domain: str, device_class: str | None, object_id: str = "") -> str:
         return "vacuum"
     if domain == "camera":
         return "camera"
+    if domain == "calendar":
+        return "calendar"
     return "state"
 
 
@@ -280,6 +285,9 @@ CATEGORIES: list[tuple[str, str, tuple[str, ...], dict[str, Any]]] = [
     ("packages", "Packages", ("package",), {"when": "on", "snap": True, "cooldown": 900, "tap": "camera"}),
     ("doorbells", "Doorbells", ("doorbell",), {"when": "on", "snap": True, "pop": "doorbell", "tap": "camera"}),
     ("vacuums", "Vacuums", ("vacuum",), {"when": "done"}),
+    # CALENDARS: an event coming up, the chosen time before it starts (the
+    # house looks ahead every minute -- features/notifications CalendarWatch)
+    ("calendars", "Calendars", ("calendar",), {"when": "15", "tap": "none", "allday": "08:00"}),
     ("alarms", "Alarm", ("alarm_panel",), {"when": "triggered", "important": True, "wake": True, "stay": 0}),
 ]
 CATEGORY_KEYS = tuple(c[0] for c in CATEGORIES)
@@ -292,3 +300,31 @@ def category(key: str) -> tuple[str, str, tuple[str, ...], dict[str, Any]] | Non
 def category_of(kind: str) -> str | None:
     """The category an accessory of this kind falls in, or None."""
     return next((c[0] for c in CATEGORIES if kind in c[2]), None)
+
+
+def _clock(t: Any) -> str:
+    return t.strftime("%-I:%M %p")
+
+
+def calendar_words(summary: str, start: Any, end: Any, lead: int, location: str = "") -> tuple[str, str]:
+    """An event coming up, as its banner says it: (its name, "In 15 minutes
+    · 10:30 – 11:00 AM · the place"). `start`/`end` local datetimes."""
+    when = "Starting now" if lead <= 0 else ("In 1 hour" if lead == 60 else "In %d minutes" % lead)
+    span = _clock(start)
+    if end is not None and end > start:
+        a, b = _clock(start), _clock(end)
+        # one AM/PM when both share it: "10:30 – 11:00 AM"
+        span = (a[:-3] + " – " + b) if a[-2:] == b[-2:] and end.date() == start.date() else (a + " – " + b)
+    parts = [when, span] + ([location.strip()] if location and location.strip() else [])
+    return (summary or "Event").strip(), " · ".join(parts)
+
+
+# All-Day Events: the morning they start, at one of these (or Off)
+ALLDAY_TIMES = ("06:00", "07:00", "08:00", "09:00", "10:00")
+
+
+def allday_words(summary: str, location: str = "") -> tuple[str, str]:
+    """An all-day event, the morning it starts: (its name, "Today · All Day
+    · the place")."""
+    parts = ["Today", "All Day"] + ([location.strip()] if location and location.strip() else [])
+    return (summary or "Event").strip(), " · ".join(parts)

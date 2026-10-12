@@ -29,7 +29,7 @@ from homeassistant.helpers import area_registry as ar, device_registry as dr, en
 from ... import settings as HS
 from .. import NOTIFICATIONS, Feature, async_update, entries
 from . import rules
-from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, COOLDOWNS, ITEM_FIELDS, ITEMS_MAX,
+from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, CONF_WAKE, COOLDOWNS, ITEM_FIELDS, ITEMS_MAX,
                     MESSAGE_MAX, ONLY, SAVERS, STAYS, TAPS, TITLE_MAX)
 
 
@@ -93,7 +93,7 @@ def page(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
         "configured": True,
         "state": entry.state.value,
         "options": {CONF_STAY: opts[CONF_STAY], CONF_SAVER: opts[CONF_SAVER], CONF_CHIME: opts[CONF_CHIME],
-                    CONF_DND: opts[CONF_DND]},
+                    CONF_DND: opts[CONF_DND], CONF_WAKE: opts[CONF_WAKE]},
         "items": items,
         "categories": cats,
         "limits": {"stays": list(STAYS), "savers": list(SAVERS), "only": list(ONLY), "cooldowns": list(COOLDOWNS),
@@ -208,7 +208,7 @@ def _dnd(v: Any) -> dict[str, Any]:
     return out
 
 
-HOUSE = {CONF_STAY: _in(STAYS), CONF_SAVER: _in(SAVERS), CONF_CHIME: _bool, CONF_DND: _dnd}
+HOUSE = {CONF_STAY: _in(STAYS), CONF_SAVER: _in(SAVERS), CONF_CHIME: _bool, CONF_DND: _dnd, CONF_WAKE: _bool}
 
 FIELDS = {
     "entity": _entity,
@@ -218,13 +218,15 @@ FIELDS = {
     "title": _text(TITLE_MAX),
     "message": _text(MESSAGE_MAX),
     "important": _bool,
-    "wake": _bool,
+    "wake": lambda v: None if v is None else _bool(v),       # None: as All Notifications'
     "stay": _stay,
     "pop": _pop,
     "snap": _bool,
     "camera": lambda v: None if v in (None, "") else _entity(v, ("camera",)),
     "exclude": lambda v: _entities(v),
     "pairs": lambda v: _pairs(v),
+    # a Calendars category's all-day events: the morning they start (or None: not)
+    "allday": lambda v: None if v in (None, "") else _in(rules.ALLDAY_TIMES)(v),
     "tap": _in(TAPS),
 }
 
@@ -255,8 +257,9 @@ def new_category(key: str, taken: set[str]) -> dict[str, Any]:
     start = cat[3]
     return {"id": _new_id(taken), "category": key, "exclude": [], "when": start.get("when"), "only": "always",
             "cooldown": start.get("cooldown", 0), "title": "", "message": "", "important": bool(start.get("important")),
-            "wake": bool(start.get("wake")), "stay": start.get("stay"), "pop": start.get("pop"),
-            "snap": bool(start.get("snap")), "camera": None, "tap": start.get("tap", "sheet")}
+            "wake": start.get("wake"), "stay": start.get("stay"), "pop": start.get("pop"),
+            "snap": bool(start.get("snap")), "camera": None, "tap": start.get("tap", "sheet"),
+            **({"allday": start["allday"]} if "allday" in start else {})}
 
 
 def new_item(hass: HomeAssistant, entity: str, taken: set[str]) -> dict[str, Any]:
@@ -266,7 +269,7 @@ def new_item(hass: HomeAssistant, entity: str, taken: set[str]) -> dict[str, Any
     sid = _new_id(taken)
     return {"id": sid, "entity": entity, "when": d["when"], "only": "always", "cooldown": 60 if d["camera"] and
             d["kind"] in ("motion", "presence", "person", "vehicle", "animal") else 0,
-            "title": "", "message": "", "important": d["important"], "wake": False, "stay": None,
+            "title": "", "message": "", "important": d["important"], "wake": None, "stay": None,
             "pop": "doorbell" if d["kind"] == "doorbell" else None, "snap": bool(d["camera"]),
             "camera": d["camera"], "tap": "camera" if d["camera"] else "sheet"}
 
@@ -282,7 +285,8 @@ def apply_item(hass: HomeAssistant, item: dict[str, Any], changes: dict[str, Any
             # a category's is its own kind of notification: no accessory of its
             # own; an accessory's has no category or left-out ones
             if k not in FIELDS or (k == "entity" and item.get("category")) or (k == "exclude" and not item.get("category")) \
-                    or (k == "pairs" and item.get("category") != "cameras"):
+                    or (k == "pairs" and item.get("category") != "cameras") \
+                    or (k == "allday" and item.get("category") != "calendars"):
                 raise Bad("unknown")
             out[k] = FIELDS[k](v)
         except Bad as err:
@@ -299,8 +303,6 @@ def apply_item(hass: HomeAssistant, item: dict[str, Any], changes: dict[str, Any
         out["camera"] = d["camera"]
         if not out["camera"]:
             return item, {"camera": "entity"}
-    if not out.get("important"):
-        out["wake"] = False
     if not out.get("snap") and out.get("tap") == "camera":
         out["tap"] = "sheet"
     return out, {}
@@ -421,8 +423,35 @@ async def ws_test(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
     if eid is None:
         connection.send_error(msg["id"], "not_found", "It has no accessory to test with")
         return
+    if item.get("category") == "calendars":
+        sent = await _test_calendar(hass, entry, dict(item), members(hass, item))
+        connection.send_result(msg["id"], {"sent": sent["id"], "snap": False})
+        return
     sent = await async_send(hass, entry, dict(item), hass.states.get(eid), test=True, eid=eid)
     connection.send_result(msg["id"], {"sent": sent["id"], "snap": bool(sent["snap"])})
+
+
+async def _test_calendar(hass: HomeAssistant, entry: Feature, item: dict[str, Any], cals: list[str]) -> dict[str, Any]:
+    """Calendars' test: the next timed event of the chosen calendars within a
+    week, as it will look -- else a made-up one."""
+    from datetime import timedelta
+    from homeassistant.util import dt as dt_util
+    from . import _event_time, async_deliver, async_events, build_calendar, options
+    try:
+        lead = max(0, int(item.get("when") or 15))
+    except ValueError:
+        lead = 15
+    now = dt_util.utcnow()
+    got = await async_events(hass, cals, now, now + timedelta(days=7))
+    found = sorted(((_event_time(ev.get("start")), cal, ev) for cal, evs in got.items() for ev in evs
+                    if _event_time(ev.get("start")) is not None), key=lambda x: x[0])
+    if found:
+        _t, cal, ev = found[0]
+    else:
+        start = dt_util.as_local(now + timedelta(minutes=lead))
+        cal, ev = cals[0], {"summary": "Sample Event", "start": start.isoformat(),
+                            "end": (start + timedelta(hours=1)).isoformat()}
+    return await async_deliver(hass, build_calendar(hass, options(entry), item, cal, ev, lead, test=True))
 
 
 @callback

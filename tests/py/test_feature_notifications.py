@@ -122,7 +122,7 @@ def test_a_screens_own_settings():
 
 def test_a_notification_wakes_the_screen_even_in_quiet_hours():
     facts = {"quiet": True, "present": True, "in_use": False, "lit": True, "notice": "Water Leak"}
-    assert R.decide(facts) == ("dashboard", "notification: Water Leak")
+    assert R.decide(facts) == ("photos", "notification: Water Leak")       # up to its screensaver
     assert R.decide({**facts, "notice": ""})[0] == "dark"
 
 
@@ -253,7 +253,7 @@ async def test_its_checks_refuse_by_field(hass, notify, admin):
     assert json.loads(bad["message"]) == {"when": "choice"}       # a garage door opens or closes
     ok = await _call(hass, admin, W.ws_item_save, item=iid, changes={"when": "closed", "stay": 0, "wake": True})
     it = ok["result"]["items"][0]
-    assert it["when"] == "closed" and it["stay"] == 0 and it["wake"] is False   # only an Important one wakes
+    assert it["when"] == "closed" and it["stay"] == 0 and it["wake"] is True    # any one can wake the screen (2026-10-12)
     # Live Camera with the snapshot off: the accessory's sheet
     r2 = await _call(hass, admin, W.ws_item_save, changes={"entity": "binary_sensor.front_door_camera_person_detected"})
     cam = r2["result"]["saved"]
@@ -320,12 +320,12 @@ async def test_only_when_and_a_typed_title(hass, notify, admin):
                                                                 "message": "Somebody opened it."})
     got = _sent(hass)
     hass.states.async_set("sun.sun", "above_horizon")
-    hass.states.async_set("cover.garage_door", "opening", {"device_class": "garage"})
+    hass.states.async_set("cover.garage_door", "opening", {"device_class": "garage", "friendly_name": "Garage Door"})
     await hass.async_block_till_done(wait_background_tasks=True)
     assert got == []
-    hass.states.async_set("cover.garage_door", "closed", {"device_class": "garage"})
+    hass.states.async_set("cover.garage_door", "closed", {"device_class": "garage", "friendly_name": "Garage Door"})
     hass.states.async_set("sun.sun", "below_horizon")
-    hass.states.async_set("cover.garage_door", "opening", {"device_class": "garage"})
+    hass.states.async_set("cover.garage_door", "opening", {"device_class": "garage", "friendly_name": "Garage Door"})
     await hass.async_block_till_done(wait_background_tasks=True)
     assert len(got) == 1
     assert got[0]["title"] == "Garage" and got[0]["message"] == "Somebody opened it."
@@ -516,15 +516,15 @@ async def test_the_action_on_an_accessory_and_one_that_wakes(hass, notify):
     got = _sent(hass)
     woken = []
     with patch("custom_components.hk_frontend.features.notifications.wake_screens",
-               side_effect=lambda h, t, s: woken.append((t, s)) or []):
+               side_effect=lambda h, t, s, imp=True, dnd=None: woken.append((t, s, imp)) or []):
         await hass.services.async_call(DOMAIN, "notify", {"title": "Garage open", "entity": "cover.garage_door",
                                                           "wake": True, "stay": 0}, blocking=True)
     p = got[0]
     assert p["dashboards"] == [] and p["users"] == []                  # every screen, anyone
     assert p["entity"] == "cover.garage_door" and p["kind"] == "garage" and p["icon"] == "hk:garage-open"
     assert [b["id"] for b in p["buttons"]] == ["close"] and p["tap"] == "sheet" and p["camera"] is None
-    assert p["important"] is True and p["wake"] is True and p["stay"] == 0      # waking makes it Important
-    assert woken == [("Garage open", 300)]
+    assert p["important"] is False and p["wake"] is True and p["stay"] == 0      # waking no longer makes it Important
+    assert woken == [("Garage open", 300, False)]
     # nothing to open: a tap does nothing
     await hass.services.async_call(DOMAIN, "notify", {"title": "Hi", "tap": "camera"}, blocking=True)
     assert got[-1]["tap"] == "none" and got[-1]["icon"] == "hk:bell" and got[-1]["message"] == ""
@@ -548,3 +548,160 @@ async def test_the_action_needs_notifications_added(hass, frontend):
     from custom_components.hk_frontend.const import DOMAIN
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(DOMAIN, "notify", {"title": "Hi"}, blocking=True)
+
+
+async def test_wakes_the_screen_for_all_and_dnd_wins(hass, notify, admin):
+    """All Notifications' Wakes the Screen, a notification's own over it, and
+    Do Not Disturb holding back one that isn't Important (a screen's own DND
+    first, else All Screens')."""
+    from custom_components.hk_frontend.features.notifications import settings_ws as W
+    r = await _call(hass, admin, W.ws_item_save, changes={"entity": "cover.garage_door"})
+    gid = r["result"]["saved"]
+    assert [i for i in r["result"]["items"] if i["id"] == gid][0]["wake"] is None       # follows All Notifications
+    await _call(hass, admin, W.ws_item_save, item=gid, changes={"snap": False})
+    r = await _call(hass, admin, W.ws_settings_set, changes={"wake": True})
+    assert r["result"]["options"]["wake"] is True
+
+    class Eng:
+        def __init__(self):
+            self.acting, self.woken = True, []
+
+        def notify_wake(self, title, secs):
+            self.woken.append(title)
+
+    engs = {"dashboard-kitchen": Eng(), "dashboard-bedroom": Eng()}
+    boards = {"dashboard-kitchen": {}, "dashboard-bedroom": {"notify_dnd": {"schedule": False, "while": ["input_boolean.nap"]}}}
+    mgr = type("M", (), {"engines": engs, "board": lambda self, p: boards[p]})()
+    hass.states.async_set("input_boolean.nap", "on")
+    got = _sent(hass)
+    with patch("custom_components.hk_frontend.screensaver.manager", return_value=mgr):
+        hass.states.async_set("cover.garage_door", "opening", {"device_class": "garage", "friendly_name": "Garage Door"})
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert got[-1]["wake"] is True and got[-1]["important"] is False
+        assert engs["dashboard-kitchen"].woken == ["Garage Door"] and engs["dashboard-bedroom"].woken == []   # its nap
+        # its own Off over All Notifications' On
+        await _call(hass, admin, W.ws_item_save, item=gid, changes={"wake": False})
+        hass.states.async_set("cover.garage_door", "closed", {"device_class": "garage", "friendly_name": "Garage Door"})
+        hass.states.async_set("cover.garage_door", "opening", {"device_class": "garage", "friendly_name": "Garage Door"})
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert got[-1]["wake"] is False and engs["dashboard-kitchen"].woken == ["Garage Door"]
+        # Important: through Do Not Disturb
+        await _call(hass, admin, W.ws_item_save, item=gid, changes={"wake": None, "important": True})
+        hass.states.async_set("cover.garage_door", "closed", {"device_class": "garage", "friendly_name": "Garage Door"})
+        hass.states.async_set("cover.garage_door", "opening", {"device_class": "garage", "friendly_name": "Garage Door"})
+        await hass.async_block_till_done(wait_background_tasks=True)
+        assert engs["dashboard-bedroom"].woken == ["Garage Door"]
+
+
+def test_do_not_disturb_the_same_rule_as_the_screens(hass):
+    from datetime import datetime
+    from custom_components.hk_frontend.features.notifications import dnd_on
+    from homeassistant.util import dt as dt_util
+    at = lambda h, m=0: dt_util.as_utc(datetime(2026, 10, 12, h, m, tzinfo=dt_util.get_default_time_zone()))  # noqa: E731
+    d = {"schedule": True, "from": "22:00", "to": "07:00", "while": []}
+    assert dnd_on(hass, d, at(23)) and dnd_on(hass, d, at(6, 59)) and not dnd_on(hass, d, at(7))
+    assert dnd_on(hass, {**d, "from": "09:00", "to": "09:00"}, at(3))           # all day
+    assert not dnd_on(hass, None) and not dnd_on(hass, {**d, "schedule": False}, at(23))
+    hass.states.async_set("timer.night_timer", "active")
+    assert dnd_on(hass, {**d, "schedule": False, "while": ["timer.night_timer"]}, at(12))
+
+
+# ---------------------------------------------------------------- calendars
+def test_an_events_words():
+    from datetime import datetime
+    assert rules.calendar_words("Dentist", datetime(2026, 10, 12, 10, 30), datetime(2026, 10, 12, 11, 0), 15, "Main St") == \
+        ("Dentist", "In 15 minutes · 10:30 – 11:00 AM · Main St")
+    assert rules.calendar_words("Lunch", datetime(2026, 10, 12, 11, 30), datetime(2026, 10, 12, 13, 0), 0) == \
+        ("Lunch", "Starting now · 11:30 AM – 1:00 PM")
+    assert rules.calendar_words("Call", datetime(2026, 10, 12, 9, 0), None, 60) == ("Call", "In 1 hour · 9:00 AM")
+    assert [c[0] for c in rules.choices("calendar")] == ["0", "5", "10", "15", "30", "60"]
+
+
+async def test_a_calendar_event_coming_up(hass, notify, admin):
+    from datetime import timedelta
+    from homeassistant.core import SupportsResponse
+    from homeassistant.util import dt as dt_util
+    from custom_components.hk_frontend.features.notifications import settings_ws as W
+    now = dt_util.now().replace(second=0, microsecond=0)
+    start = now + timedelta(minutes=15)
+    events = {
+        "calendar.family": [{"summary": "Soccer", "start": start.isoformat(), "end": (start + timedelta(hours=1)).isoformat(),
+                             "location": "City Park"},
+                            {"summary": "Halloween", "start": start.date().isoformat(), "end": start.date().isoformat()}],
+        "calendar.work": [{"summary": "Standup", "start": start.isoformat(), "end": (start + timedelta(minutes=15)).isoformat()}],
+    }
+    asked = []
+
+    async def get_events(call):
+        asked.append(sorted(call.data["entity_id"]))
+        a, b = dt_util.parse_datetime(call.data["start_date_time"]), dt_util.parse_datetime(call.data["end_date_time"])
+        # (an all-day event, a date: always in the answer, as a real calendar's is that day)
+        return {e: {"events": [ev for ev in events.get(e, []) if "T" not in ev["start"]
+                               or a <= dt_util.parse_datetime(ev["start"]) <= b]}
+                for e in call.data["entity_id"]}
+    hass.services.async_register("calendar", "get_events", get_events, supports_response=SupportsResponse.ONLY)
+    for e in ("calendar.family", "calendar.work"):
+        hass.states.async_set(e, "off", {"friendly_name": e.split(".")[1].title()})
+    r = await _call(hass, admin, W.ws_item_save, changes={"category": "calendars"})
+    cid = r["result"]["saved"]
+    it = [i for i in r["result"]["items"] if i["id"] == cid][0]
+    assert it["when"] == "15" and it["auto_title"] == "The event’s name"
+    assert {a["entity"] for a in [c for c in r["result"]["categories"] if c["key"] == "calendars"][0]["accessories"]} \
+        == {"calendar.family", "calendar.work"}
+    await _call(hass, admin, W.ws_item_save, item=cid, changes={"exclude": ["calendar.work"]})
+    got = _sent(hass)
+    w = notify.runtime_data.calendars
+    sent = await w._tick(dt_util.as_utc(now) + timedelta(seconds=5))     # start - 15 min has just passed
+    await hass.async_block_till_done()
+    assert asked[-1] == ["calendar.family"]                                 # Work left out
+    assert [(p["title"], p["message"]) for p in got] == [("Soccer", "In 15 minutes · %s · City Park" % rules.calendar_words(
+        "", start, start + timedelta(hours=1), 15)[1].split(" · ")[1])]
+    assert got[0]["icon"] == "mdi:calendar" and got[0]["tap"] == "none" and len(sent) == 1
+    again = await w._tick(dt_util.as_utc(now) + timedelta(seconds=65))      # once
+    assert again == [] and len(got) == 1
+    # its test: the next event, as it will look
+    W.ws_test(hass, admin, {"id": 90, "type": "x", "item": cid})
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert got[-1]["test"] is True and got[-1]["title"] == "Soccer"
+
+
+async def test_an_all_day_event_the_morning_it_starts(hass, notify, admin):
+    from datetime import timedelta
+    from homeassistant.core import SupportsResponse
+    from homeassistant.util import dt as dt_util
+    from custom_components.hk_frontend.features.notifications import settings_ws as W
+    eight = dt_util.now().replace(hour=8, minute=0, second=0, microsecond=0)
+    today, tomorrow = eight.date().isoformat(), (eight.date() + timedelta(days=1)).isoformat()
+    events = {"calendar.family": [{"summary": "Grandma's Birthday", "start": today, "end": tomorrow},
+                                  {"summary": "Vacation", "start": (eight.date() - timedelta(days=1)).isoformat(), "end": tomorrow},
+                                  {"summary": "Soccer", "start": (eight + timedelta(hours=9)).isoformat(),
+                                   "end": (eight + timedelta(hours=10)).isoformat()}]}
+
+    async def get_events(call):
+        return {e: {"events": list(events.get(e, []))} for e in call.data["entity_id"]}
+    hass.services.async_register("calendar", "get_events", get_events, supports_response=SupportsResponse.ONLY)
+    hass.states.async_set("calendar.family", "off", {"friendly_name": "Family"})
+    r = await _call(hass, admin, W.ws_item_save, changes={"category": "calendars"})
+    cid = r["result"]["saved"]
+    assert [i for i in r["result"]["items"] if i["id"] == cid][0]["allday"] == "08:00"
+    bad = await _call(hass, admin, W.ws_item_save, item=cid, changes={"allday": "08:15"})
+    assert json.loads(bad["message"]) == {"allday": "choice"}
+    got = _sent(hass)
+    w = notify.runtime_data.calendars
+    await w._tick(dt_util.as_utc(eight) - timedelta(seconds=55))               # 7:59
+    assert got == []
+    await w._tick(dt_util.as_utc(eight) + timedelta(seconds=5))                # 8:00 has just passed
+    await hass.async_block_till_done()
+    assert [(p["title"], p["message"]) for p in got] == [("Grandma's Birthday", "Today · All Day")]   # not the one begun yesterday
+    await w._tick(dt_util.as_utc(eight) + timedelta(seconds=65))
+    assert len(got) == 1                                                        # once
+    # Off: none
+    await _call(hass, admin, W.ws_item_save, item=cid, changes={"allday": None})
+    w._sent.clear()
+    w._last = dt_util.as_utc(eight) - timedelta(seconds=55)
+    await w._tick(dt_util.as_utc(eight) + timedelta(seconds=5))
+    assert len(got) == 1
+    # and only on a Calendars category
+    r2 = await _call(hass, admin, W.ws_item_save, changes={"category": "doors"})
+    bad = await _call(hass, admin, W.ws_item_save, item=r2["result"]["saved"], changes={"allday": "08:00"})
+    assert json.loads(bad["message"]) == {"allday": "unknown"}

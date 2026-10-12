@@ -190,7 +190,7 @@ class Engine:
 
     @callback
     def notify_wake(self, title: str, seconds: int) -> None:
-        """A notification wakes this screen: the dashboard for `seconds`
+        """A notification wakes this screen: up to its photos for `seconds`
         (then the rules again; somebody using it keeps it, as ever)."""
         self._notice = (str(title or "a notification"), dt_util.utcnow() + timedelta(seconds=max(1, int(seconds))))
         self.evaluate()
@@ -454,7 +454,9 @@ class Engine:
             if what == "sleep":
                 await self.sleep(self.power_off_wanted())
             else:
-                await self.wake()
+                # a notification's wake comes up to the photos, the banner over
+                # them; any other, to the dashboard as ever
+                await self.wake(photos=self.want == "photos" and bool(self.facts_now.get("notice")))
         except asyncio.CancelledError:
             raise
         except Exception:                                   # noqa: BLE001
@@ -524,8 +526,10 @@ class Engine:
         st = self._st(eid)
         return st.attributes.get(key) if st is not None else None
 
-    async def wake(self) -> None:
-        """The house's <room>_tablet_wake."""
+    async def wake(self, photos: bool = False) -> None:
+        """The house's <room>_tablet_wake. `photos`: up to the photo
+        screensaver instead of the dashboard (a notification's)."""
+        photo_svc = "turn_on" if photos else "turn_off"
         if self._app_front():
             return
         own, k, t = self._own(), self.kiosk, self.target()
@@ -536,7 +540,7 @@ class Engine:
                 data["brightness"] = t
             await self._call("light", "turn_on", data)
         if own.get("photos"):
-            await self._call("switch", "turn_off", {"entity_id": own["photos"]})
+            await self._call("switch", photo_svc, {"entity_id": own["photos"]})
         blk = self._black()
         hk_black = bool(blk is not None and blk.is_on and self.board.get("black_screen") == "hk")
         if blk is not None and blk.is_on:
@@ -566,7 +570,7 @@ class Engine:
         if self._app_front():
             return
         if own.get("photos"):
-            await self._call("switch", "turn_off", {"entity_id": own["photos"]})
+            await self._call("switch", photo_svc, {"entity_id": own["photos"]})
         if k.get("front"):
             await self._call("button", "press", {"entity_id": k["front"]})
 

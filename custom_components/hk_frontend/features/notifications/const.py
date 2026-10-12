@@ -9,18 +9,19 @@ CONF_STAY = "stay"                 # seconds a banner stays (each can set its ow
 CONF_SAVER = "saver"               # over a screensaver: all / important / off
 CONF_CHIME = "chime"               # a soft chime on wall tablets and computers
 CONF_DND = "dnd"                   # Do Not Disturb for All Screens (settings.notify_dnd)
-OPTION_KEYS = (CONF_STAY, CONF_SAVER, CONF_CHIME, CONF_DND)
+CONF_WAKE = "wake"                 # Wakes the Screen, for every notification that doesn't set its own
+OPTION_KEYS = (CONF_STAY, CONF_SAVER, CONF_CHIME, CONF_DND, CONF_WAKE)
 
 STAYS = (10, 30, 60, 120, 300)     # Stays On Screen; an item's 0 is Until Dismissed
 STAY_DEFAULT = 30
 SAVERS = ("all", "important", "off")
 SAVER_DEFAULT = "important"
-DEFAULTS = {CONF_STAY: STAY_DEFAULT, CONF_SAVER: SAVER_DEFAULT, CONF_CHIME: True,
+DEFAULTS = {CONF_STAY: STAY_DEFAULT, CONF_SAVER: SAVER_DEFAULT, CONF_CHIME: True, CONF_WAKE: False,
             CONF_DND: {"schedule": False, "from": "22:00", "to": "07:00", "while": []}}
 
 # one notification's fields
 ITEM_FIELDS = ("entity", "category", "exclude", "pairs", "when", "only", "cooldown", "title", "message", "important", "wake", "stay",
-               "pop", "snap", "camera", "tap")
+               "pop", "snap", "camera", "tap", "allday")
 ONLY = ("always", "home", "away", "night")
 COOLDOWNS = (0, 60, 300, 900, 3600)
 TAPS = ("camera", "sheet", "none")

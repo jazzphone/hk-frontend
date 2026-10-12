@@ -56,7 +56,10 @@ ok('over the screensaver: All Screens says Important', N.decide(n, ctx({ saver: 
 ok('...an Important one shows', N.decide(Object.assign({}, n, { important: true }), ctx({ saver: true })) === 'show');
 ok('...the screen says All', N.decide(n, ctx({ saver: true, board: { notify_saver: 'all' } })) === 'show');
 ok('...the screen says Off', N.decide(Object.assign({}, n, { important: true }), ctx({ saver: true, board: { notify_saver: 'off' } })) === 'drop:saver');
-ok('...one that wakes the screen wakes it', N.decide(Object.assign({}, n, { important: true, wake: true }), ctx({ saver: true, board: { notify_saver: 'off' } })) === 'wake');
+ok('...one that wakes the screen shows over the photos (it stays on the screensaver)', N.decide(Object.assign({}, n, { wake: true }), ctx({ saver: true, board: { notify_saver: 'off' } })) === 'show');
+ok('one that wakes, asleep, not Important: wakes it', N.decide(Object.assign({}, n, { wake: true }), ctx({ asleep: true })) === 'wake');
+ok('...but Do Not Disturb wins', N.decide(Object.assign({}, n, { wake: true, dnd: DND }), ctx({ asleep: true, now: at(23) })) === 'drop:dnd');
+ok('...unless it is Important', N.decide(Object.assign({}, n, { wake: true, important: true, dnd: DND }), ctx({ asleep: true, now: at(23) })) === 'wake');
 ok('asleep: nothing', N.decide(Object.assign({}, n, { important: true }), ctx({ asleep: true })) === 'drop:asleep');
 ok('asleep: one that wakes', N.decide(Object.assign({}, n, { important: true, wake: true }), ctx({ asleep: true })) === 'wake');
 var bell = Object.assign({}, n, { pop: 'doorbell' });
@@ -68,7 +71,9 @@ ok('...to this one', N.decide(Object.assign({}, n, { dashboards: ['dashboard-hal
 ok('sent to another person', N.decide(Object.assign({}, n, { users: ['u2'] }), ctx({ user: 'u1' })) === 'drop:elsewhere');
 ok('a test shows past DND and the saver', N.decide(Object.assign({}, n, { test: true, dnd: DND }), ctx({ now: at(23), saver: true })) === 'show');
 ok('a test that wakes the screen, asleep: wakes it', N.decide(Object.assign({}, n, { test: true, wake: true, important: true }), ctx({ asleep: true })) === 'wake');
-ok('...over the screensaver: wakes it', N.decide(Object.assign({}, n, { test: true, wake: true, important: true }), ctx({ saver: true })) === 'wake');
+ok('...over the screensaver: shown there', N.decide(Object.assign({}, n, { test: true, wake: true, important: true }), ctx({ saver: true })) === 'show');
+ok('the chime: on for all', N.chimes({ chime: true }, false) && !N.chimes({ chime: true }, true));
+ok('...off: only an Important one', !N.chimes({ chime: false }, false) && N.chimes({ chime: false, important: true }, false));
 ok('a test that does not, asleep: nothing', N.decide(Object.assign({}, n, { test: true }), ctx({ asleep: true })) === 'drop:asleep');
 ok('...but never where notifications are off', N.decide(Object.assign({}, n, { test: true }), ctx({ board: { notify: false } })) === 'drop:off');
 
@@ -86,7 +91,9 @@ ok('listed once installed', F.listed({ hk_notify: { installed: true } }).some(fu
 ok('stays', F._.stayLabel(0) === 'Until Dismissed' && F._.stayLabel(30) === '30 s' && F._.stayLabel(120) === '2 Minutes');
 ok('Not Again For', F._.cooldownLabel(0) === 'Every Time' && F._.cooldownLabel(3600) === '1 Hour');
 ok('a summary', F._.notifySummary({ when: 'on', choices: [['on', 'Detects a Person']], snap: true, camera: 'camera.x', important: true, wake: true })
-   === 'Detects a Person · with a snapshot · Important, wakes the screen');
+   === 'Detects a Person · with a snapshot · Important · wakes the screen');
+ok('Wakes the Screen: its own, else All Notifications\'', F._.wakesOf({ wake: null }, { wake: true }) && !F._.wakesOf({ wake: false }, { wake: true })
+   && F._.wakesOf({ wake: true }, { wake: false }) && !F._.wakesOf({}, {}));
 ok('Goes Off When: tabs for a few short ones', F._.whenControl([['on', 'Opens'], ['off', 'Closes'], ['any', 'Either']]) === 'seg');
 ok('...a drop-down for more', F._.whenControl([['unlocked', 'Unlocks'], ['locked', 'Locks'], ['jammed', 'Jams'], ['any', 'Any Change']]) === 'select');
 ok('DND summary', F.dndSummary({ schedule: true, from: '22:00', to: '07:00', 'while': ['input_boolean.x'] }) === '10:00 PM–7:00 AM, while 1 is on'

@@ -37,7 +37,7 @@
         },
         "wake": {
           "name": "Wakes the screen",
-          "description": "Turns a sleeping screen on, or leaves its screensaver, to show it. Makes it Important too."
+          "description": "Turns a sleeping screen on, up to its screensaver, to show it. Do Not Disturb still holds it back unless it is Important."
         },
         "stay": {
           "name": "Stays on screen",

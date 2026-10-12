@@ -1102,10 +1102,13 @@
     return c ? c[1] : it.when;
   }
   // under each one in the list: what sets it off, and what it carries
-  function notifySummary(it) {
+  // o: All Notifications' (a notification that follows its Wakes the Screen)
+  function wakesOf(it, o) { return typeof it.wake === 'boolean' ? it.wake : !!(o && o.wake); }
+  function notifySummary(it, o) {
     var out = [choiceWord(it)];
     if (it.snap && it.camera) out.push('with a snapshot');
-    if (it.important) out.push(it.wake ? 'Important, wakes the screen' : 'Important');
+    if (it.important) out.push('Important');
+    if (wakesOf(it, o)) out.push('wakes the screen');
     if (it.only && it.only !== 'always') out.push(ONLY_WORDS[it.only] || it.only);
     if (it.missing) out.push('the accessory is missing');
     return out.join(' · ');
@@ -1170,12 +1173,12 @@
         cats.map(function (ct) {
           var it = ct.item ? notifyItemOf(d, ct.item) : null;
           var n = ct.accessories.length, left = it ? n - ct.accessories.filter(function (a) { return (it.exclude || []).indexOf(a.entity) >= 0; }).length : 0;
-          return K.nav({ label: ct.label, sub: it ? notifySummary(it) : null, value: it ? left + ' of ' + n : 'Off',
+          return K.nav({ label: ct.label, sub: it ? notifySummary(it, o) : null, value: it ? left + ' of ' + n : 'Off',
                          tile: [ct.icon, ct.tint], href: '#/features/notify/c/' + encodeURIComponent(ct.key), fk: 'notify:cat:' + ct.key });
         })));
     }
     var rows = items.map(function (it) {
-      return K.nav({ label: notifyTitle(it), sub: notifySummary(it), href: '#/features/notify/' + encodeURIComponent(it.id),
+      return K.nav({ label: notifyTitle(it), sub: notifySummary(it, o), href: '#/features/notify/' + encodeURIComponent(it.id),
                      tile: [it.icon || 'hk:bell', it.tint || '#8e8e93'], fk: 'notify:item:' + it.id });
     });
     rows.push(K.nav({ label: 'Add Notification', icon: 'mdi:plus-circle-outline', href: '#/features/notify/new', fk: 'notify:add' }));
@@ -1196,7 +1199,10 @@
       K.select({ label: 'Stays On Screen', value: String(o.stay), sk: 'f:' + NT + ':stay',
                  options: (d.limits && d.limits.stays || [10, 30, 60, 120, 300]).map(function (v) { return [String(v), stayLabel(v)]; }),
                  onChange: function (v) { notifySet(P, { stay: Number(v) }); } }),
-      K.toggle({ label: 'Chime', sub: 'Wall tablets and computers play a soft chime; an Important one plays it twice', on: o.chime !== false,
+      K.toggle({ label: 'Wakes the Screen', sub: 'From its Sleep Screen, up to its screensaver, the banner over the photos. Each notification can choose its own.',
+                 on: !!o.wake, sk: 'f:' + NT + ':wake', onChange: function (on) { notifySet(P, { wake: on }); } }),
+      K.toggle({ label: 'Chime', sub: o.chime !== false ? 'Wall tablets and computers play a soft chime; an Important one plays it twice'
+                   : 'Off: only an Important one chimes', on: o.chime !== false,
                  sk: 'f:' + NT + ':chime', onChange: function (on) { notifySet(P, { chime: on }); } })]));
   }
   function notifyNew(P, c, d) {
@@ -1224,6 +1230,7 @@
         ? K.seg({ label: 'Goes Off When', value: it.when, sk: sk('when'), options: whenOpts, onChange: function (v) { save({ when: v }); } })
         : K.select({ label: 'Goes Off When', value: it.when, sk: sk('when'), options: whenOpts, onChange: function (v) { save({ when: v }); } });
     c.appendChild(K.group({ header: 'When', footer: it.missing ? 'The accessory isn’t in Home Assistant right now; this goes off again once it is.'
+        : it.kind === 'calendar' ? 'Each event notifies once. All-Day Events: the morning one starts, at that time.'
         : 'Not Again For: a camera that sees someone for a minute sends one notification, not twenty.' }, [
       it.category ? null : P.entityRow({ label: 'Accessory', sk: sk('entity'), value: it.entity, title: 'Notify When',
         filter: { domains: ['binary_sensor', 'event', 'person', 'lock', 'cover', 'alarm_control_panel', 'input_boolean',
@@ -1232,6 +1239,9 @@
       when,
       K.select({ label: 'Only When', value: it.only || 'always', sk: sk('only'),
                  options: Object.keys(ONLY_WORDS).map(function (k) { return [k, ONLY_WORDS[k]]; }), onChange: function (v) { save({ only: v }); } }),
+      it.kind === 'calendar' ? K.select({ label: 'All-Day Events', value: it.allday || '', sk: sk('allday'),
+        options: [['', 'Off'], ['06:00', '6:00 AM'], ['07:00', '7:00 AM'], ['08:00', '8:00 AM'], ['09:00', '9:00 AM'], ['10:00', '10:00 AM']],
+        onChange: function (v) { save({ allday: v || null }); } }) :
       K.select({ label: 'Not Again For', value: String(it.cooldown || 0), sk: sk('cooldown'),
                  options: Object.keys(COOL_WORDS).map(function (k) { return [k, COOL_WORDS[k]]; }), onChange: function (v) { save({ cooldown: Number(v) }); } })]));
     var o = (d.options || {});
@@ -1245,16 +1255,22 @@
       K.select({ label: 'Stays On Screen', sub: it.stay === null || it.stay === undefined ? 'Same as All Notifications' : 'Just This Notification',
                  value: it.stay === null || it.stay === undefined ? '' : String(it.stay), sk: sk('stay'), options: stays,
                  onChange: function (v) { save({ stay: v === '' ? null : Number(v) }); } }),
-      K.toggle({ label: 'Important', sub: 'Outlined red; gets through Do Not Disturb, and shows on a screensaver set to Important', on: !!it.important,
+      K.toggle({ label: 'Important', sub: 'Outlined red; gets through Do Not Disturb, always chimes, and shows on a screensaver set to Important', on: !!it.important,
                  sk: sk('important'), onChange: function (on) { save({ important: on }); } })];
-    if (it.important) {
-      banner.push(K.toggle({ label: 'Wakes the Screen', sub: 'Turns a sleeping screen on, or leaves its screensaver, and shows the banner on the dashboard',
-                             on: !!it.wake, sk: sk('wake'), onChange: function (on) { save({ wake: on }); } }));
-    }
-    c.appendChild(K.group({ header: 'Banner', footer: 'Empty Title and Message: the accessory’s name and what it just did, as shown in gray.' }, banner));
+    // WAKES THE SCREEN: All Notifications', or its own (Do Not Disturb still
+    // holds back one that isn't Important)
+    var hw = o.wake ? 'On' : 'Off', own = typeof it.wake === 'boolean';
+    banner.push(K.select({ label: 'Wakes the Screen', sub: own ? 'Just This Notification' : 'Same as All Notifications',
+      value: own ? (it.wake ? 'on' : 'off') : '', sk: sk('wake'),
+      options: [['', 'Default (' + hw + ')', hw], ['on', 'On'], ['off', 'Off']],
+      onChange: function (v) { save({ wake: v === '' ? null : v === 'on' }); } }));
+    // A CALENDAR'S: an event, not an accessory -- no pop-up, no snapshot, nothing to open
+    var cal = it.kind === 'calendar';
+    c.appendChild(K.group({ header: 'Banner', footer: cal ? 'Empty Title and Message: the event’s name, then when and where it is (“In 15 minutes · 10:30 – 11:00 AM · the place”). An all-day one: “Today · All Day”.'
+      : 'Empty Title and Message: the accessory’s name and what it just did, as shown in gray.' }, banner));
     var pops = ((P.data && P.data.popups) || []).map(function (p) { return p.hash; }).filter(Boolean);
     if (it.pop && pops.indexOf(it.pop) < 0) pops.push(it.pop);
-    c.appendChild(K.group({ header: 'Where', footer: it.pop
+    if (!cal) c.appendChild(K.group({ header: 'Where', footer: it.pop
       ? 'A screen that opens the #' + it.pop + ' pop-up for it shows the pop-up alone; screens without it (a phone, a computer) show the banner.'
       : 'For the doorbell: its pop-up on the wall tablets, the banner everywhere else.' }, [
       K.select({ label: 'Not Where a Pop-up Shows', value: it.pop || '', sk: sk('pop'),
@@ -1284,14 +1300,15 @@
         filter: { domains: ['camera'], shown: true },
         onPick: function (v) { if (v || it.category) save({ camera: v || null }); } }));
     }
-    c.appendChild(K.group({ header: 'Snapshot', footer: it.snap ? 'Every screen shows the same picture: the moment it went off.'
+    if (!cal) c.appendChild(K.group({ header: 'Snapshot', footer: it.snap ? 'Every screen shows the same picture: the moment it went off.'
       : 'Any notification can carry a snapshot — someone arriving can show the driveway.' }, snapRows));
     var taps = [['camera', 'Live Camera'], ['sheet', 'Accessory Sheet'], ['none', 'Nothing']].filter(function (x) { return x[0] !== 'camera' || it.snap; });
-    c.appendChild(K.group({ header: 'Opened', footer: 'A tap opens the banner: the snapshot big, and buttons for what the accessory can do now (Close a garage door, Lock a lock, Open Camera). Tap Opens is what a tap on the picture does.' }, [
+    if (!cal) c.appendChild(K.group({ header: 'Opened', footer: 'A tap opens the banner: the snapshot big, and buttons for what the accessory can do now (Close a garage door, Lock a lock, Open Camera). Tap Opens is what a tap on the picture does.' }, [
       K.select({ label: 'Tap Opens', value: it.tap === 'camera' && !it.snap ? 'sheet' : (it.tap || 'sheet'), sk: sk('tap'), options: taps,
                  onChange: function (v) { save({ tap: v }); } })]));
     if (it.category) {
-      c.appendChild(K.group({ footer: 'Send Test shows it now — for one of its accessories — on every screen that allows notifications, as if it went off.' }, [
+      c.appendChild(K.group({ footer: it.kind === 'calendar' ? 'Send Test shows the next event of its calendars (within a week) now, on every screen that allows notifications.'
+        : 'Send Test shows it now — for one of its accessories — on every screen that allows notifications, as if it went off.' }, [
         K.button({ label: 'Send Test', fk: 'notify:test:' + id, onClick: function () {
           P.ws({ type: 'hk_notify/test', item: id }).then(function (ok) { if (ok) P.announce('Sent.'); });
         } })]));
@@ -1325,11 +1342,12 @@
         if (on) P.featCall(NT, { type: 'hk_notify/item/save', changes: { category: key } }, ['category']);
         else if (it) P.featCall(NT, { type: 'hk_notify/item/remove', item: it.id });
       } })];
-    rows.push(K.nav({ label: key === 'cameras' ? 'Cameras' : 'Accessories', value: left + ' of ' + n,
+    rows.push(K.nav({ label: key === 'cameras' ? 'Cameras' : key === 'calendars' ? 'Calendars' : 'Accessories', value: left + ' of ' + n,
                       href: '#/features/notify/c/' + encodeURIComponent(key) + '/accessories',
                       fk: 'notify:cat:acc:' + key }));
     c.appendChild(K.group({ footer: key === 'cameras' ? (it ? 'Each camera notifies when its trigger goes off — its own person, doorbell, motion or presence detection unless you choose another — with its own snapshot and live view.'
       : 'Each camera, with the sensor that sets it off and the camera its snapshot and live view come from.')
+      : key === 'calendars' && it ? 'Each event of the ticked calendars notifies the chosen time before it starts — its name, when and where. A calendar added later is included, unless you leave it out.'
       : it ? 'Each banner names its own accessory. An accessory of this kind added later is included, unless you leave it out.'
       : ct.accessories.slice(0, 6).map(function (a) { return a.name; }).join(', ') + (n > 6 ? ' and ' + (n - 6) + ' more' : '') + '.' }, rows));
     if (it) notifyItem(P, c, d, it.id);
@@ -1502,7 +1520,7 @@
                     ['Cameras', base + '/c/cameras/accessories']);
         }
         if (sub[2] === 'accessories') {
-          return mk(ck === 'cameras' ? 'Cameras' : 'Accessories', withData(function (c, d) {
+          return mk(ck === 'cameras' ? 'Cameras' : ck === 'calendars' ? 'Calendars' : 'Accessories', withData(function (c, d) {
             if (ck === 'cameras') notifyCameraList(P, c, d); else notifyCategoryAccessories(P, c, d, ck);
           }), [cc ? cc.label : 'Category', base + '/c/' + sub[1]]);
         }
@@ -1544,6 +1562,6 @@
     _: { tvLists: tvLists, tvCount: tvCount, speakerLists: speakerLists, speakerName: speakerName, playlistSub: playlistSub, vacuumSub: vacuumSub, vacuumsAfter: vacuumsAfter,
          roomLists: roomLists, roomCount: roomCount, energyFound: energyFound, sectionsAfter: sectionsAfter,
          batteriesStored: batteriesStored, stayLabel: stayLabel, notifySummary: notifySummary, whenControl: whenControl,
-         cooldownLabel: cooldownLabel, trigWord: trigWord }
+         cooldownLabel: cooldownLabel, wakesOf: wakesOf, trigWord: trigWord }
   };
 })();

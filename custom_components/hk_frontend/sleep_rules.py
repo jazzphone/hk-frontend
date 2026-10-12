@@ -226,7 +226,8 @@ def decide(f: Mapping[str, Any]) -> tuple[str, str]:
       touched_since_dark  touched since the lit lights last changed
       prev          the last decision (for a hold on missing inputs)
       notice        a notification set to Wake the Screen, for its while
-                    (its title; "" when none)
+                    (its title; "" when none): up to the photos, the banner
+                    over them (a screen already on its dashboard stays there)
     """
     def first(names: Iterable[str]) -> str:
         return next(iter(names), "")
@@ -234,7 +235,7 @@ def decide(f: Mapping[str, Any]) -> tuple[str, str]:
     inputs_missing = present is None or in_use is None
     prev = f.get("prev") if f.get("prev") in ("dark", "photos", "dashboard") else None
     if f.get("notice"):
-        return "dashboard", "notification: %s" % f["notice"]
+        return "photos", "notification: %s" % f["notice"]
     if f.get("wake_q"):
         return "dashboard", "%s is on" % first(f["wake_q"])
     saver_use = bool(f.get("saver_use"))

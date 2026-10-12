@@ -307,11 +307,13 @@ async def test_a_notification_wakes_it_in_quiet_hours_for_its_while(hass, fronte
     engine(hass).notify_wake("Water Leak", 2)       # (a real while is a minute or more)
     await settle(hass)
     s = hass.states.get(SLEEP)
-    assert s.state == "dashboard" and s.attributes["reason"] == "notification: Water Leak"
+    assert s.state == "photos" and s.attributes["reason"] == "notification: Water Leak"   # up to its screensaver
     assert hass.states.get(K["screen"]).state == "on" and hass.states.get(BLACK).state == "off"
+    assert hass.states.get(PHOTOS).state == "on", "the photos turned on, not the dashboard"
     await settle(hass, 2.6)
     s = hass.states.get(SLEEP)
     assert s.state == "dark" and s.attributes["reason"] == "quiet hours"
+    engine(hass).stop()            # (the photos' own next change, still timed)
 
 
 async def test_good_night_darkens_an_occupied_room_until_it_is_re_entered(hass, frontend):

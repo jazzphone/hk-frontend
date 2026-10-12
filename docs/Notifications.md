@@ -20,7 +20,7 @@ Show** and **Banner**.
 
 At the top of the page, **Categories** lists the kinds of accessory your home
 has — Doors, Windows, Locks, Garage Doors, Leaks, Smoke & CO, People Arriving
-& Leaving, Cameras, Packages, Doorbells, Vacuums, Alarm — found by
+& Leaving, Cameras, Packages, Doorbells, Vacuums, Calendars, Alarm — found by
 themselves from Home Assistant (accessories hidden in Home Assistant, and
 HK Frontend’s own, are left out). A category your home has nothing for isn’t
 listed. Each row says **Off**, or how many of its accessories notify
@@ -56,9 +56,20 @@ They start sensibly:
 | Packages | A camera detects a package | A snapshot, Not Again For 15 minutes |
 | Doorbells | Rings | A snapshot; not where the `#doorbell` pop-up shows |
 | Vacuums | Finishes Cleaning (or Needs Help, Starts Cleaning) | |
+| Calendars | 15 Minutes Before (at the start, 5, 10, 30 minutes or an hour) | All-day events at 8:00 AM |
 | Alarm | Is Triggered | Important, Wakes the Screen, Until Dismissed |
 
 Change any of them on the category’s page.
+
+### Calendars
+
+**Calendars** lists your calendars: tick the ones that take part, and choose
+**Goes Off When** — at the start, or 5, 10, 15 or 30 minutes or an hour
+before. Each event’s banner is its name, then when and where it is (“In 15
+minutes · 10:30 – 11:00 AM · the park”). The house looks ahead every minute
+with Home Assistant’s own calendar events, and sends each event once.
+**All-Day Events**: the morning one starts, at 6, 7, 8 (to start with), 9 or
+10 AM — “Today · All Day” — or Off.
 
 ### Cameras
 
@@ -96,7 +107,7 @@ and its camera are suggested from what the accessory is; change any of them.
 | **Title**, **Message** | Empty: the accessory’s name and what it just did (“Garage Door” · “Opened.”, “Emma arrived” · “Emma is home.”), shown in gray. |
 | **Stays On Screen** | How long its banner stays. **Default** follows Banner → Stays On Screen (30 seconds unless changed); or 10 seconds up to 5 minutes, or **Until Dismissed**. |
 | **Important** | Outlined red. Gets through Do Not Disturb, and shows on a screensaver set to show only the Important ones. |
-| **Wakes the Screen** | (Shown for an Important one.) Wakes every screen that allows notifications: from its photo screensaver, or from the [Sleep Screen](Sleep-Screen.md)’s dark, quiet hours too. The banner shows once the screen is up. |
+| **Wakes the Screen** | Default follows **All Notifications** (below); or **On** / **Off** for this one. Wakes every screen that allows notifications from the [Sleep Screen](Sleep-Screen.md)’s dark — quiet hours too — up to its **screensaver**, the banner over the photos; a screen already on its screensaver stays on it and shows the banner. Do Not Disturb still wins: one that isn’t Important neither shows nor wakes a screen in Do Not Disturb. |
 | **Not Where a Pop-up Shows** | A screen that opens this pop-up for it shows the pop-up alone. The doorbell’s is `#doorbell`, so the wall tablets show the doorbell pop-up and phones and computers show the banner. |
 | **Camera Snapshot**, **Camera** | A picture taken the moment it goes off. A camera’s own sensor suggests the camera on the same device; any notification can have one (someone arriving can show the driveway). For an accessory with no camera of its own (a washer), turning it on asks which camera first. |
 | **Tap Opens** | What a tap on the picture does: **Live Camera** (with a snapshot), **Accessory Sheet**, or **Nothing**. |
@@ -123,8 +134,8 @@ it went off, marked *Test*. **Delete Notification…** removes it.
 - **Several at once** stack, the newest on top, with **N more** and
   **Clear All** under them. N more fans them out into a list; each one can be
   swiped away.
-- A wall tablet or a computer plays a soft chime (twice for an Important one)
-  when **Chime** is on.
+- A wall tablet or a computer plays a soft chime (twice for an Important one).
+  With **Chime** off, only an Important one chimes.
 - A screen that is hidden (another app in front, the page in the background)
   shows what came in meanwhile when it comes back, if it hasn’t timed out.
 
@@ -139,7 +150,7 @@ On **Features → Notifications → Where They Show**:
 | Setting | Default | What it does |
 |---|---|---|
 | **Screens** | Every screen | Each screen’s **Allow Notifications**, all on one page. Every notification goes to every screen that allows them. |
-| **On the Screensaver** | Important | **All**, **Important** (only the Important ones over the photos), or **Off**. A notification set to Wakes the Screen wakes it whatever this says. |
+| **On the Screensaver** | Important | **All**, **Important** (only the Important ones over the photos), or **Off**. A notification set to Wakes the Screen shows over the photos whatever this says. |
 | **Do Not Disturb** | Off | No banner while it is on, except an Important one. **Scheduled**: every day, from–to (it starts at 10 PM–7 AM, and may run past midnight). **While This Is On** (Add…): any entity listed being on — an input_boolean, a switch, a timer while it runs. |
 
 And under **Banner**:
@@ -147,7 +158,8 @@ And under **Banner**:
 | Setting | Default | What it does |
 |---|---|---|
 | **Stays On Screen** | 30 Seconds | How long a banner stays: 10 seconds up to 5 minutes. Each notification can choose its own, Until Dismissed included. |
-| **Chime** | On | Wall tablets and computers play a soft chime; an Important one plays it twice. |
+| **Wakes the Screen** | Off | For every notification that doesn’t set its own: a sleeping screen wakes up to its screensaver to show it (Do Not Disturb still wins, unless it is Important). |
+| **Chime** | On | Wall tablets and computers play a soft chime; an Important one plays it twice. Off: only an Important one chimes. |
 
 Each screen can have its own, in its **Notifications** group, after
 Behavior ([Screens](Screens.md#notifications)): **Allow Notifications**, **On the
@@ -170,7 +182,7 @@ don’t cover: the washer finishing, a reminder, a door left open too long.
 | **Title** | Required, up to 40 characters. |
 | **Message** | Up to 120 characters. |
 | **Important** | Gets through Do Not Disturb, and shows on a screensaver set to Important. |
-| **Wakes the Screen** | Turns a sleeping screen on to show it (and makes it Important). |
+| **Wakes the Screen** | Turns a sleeping screen on, up to its screensaver, to show it. Do Not Disturb still holds it back unless it is Important. |
 | **Stays On Screen** | Seconds; 0 keeps it until dismissed. Empty: All Screens’ Stays On Screen. |
 | **Icon** | Any `hk:` or `mdi:` icon. |
 | **Accessory** | Its icon and buttons (Close a garage door, Lock a lock); a tap opens its sheet. |
@@ -208,10 +220,11 @@ so every screen shows the same picture. Each screen then decides whether to
 show it (its settings, Do Not Disturb, its screensaver, asleep, a pop-up).
 
 Wakes the Screen asks the [Sleep Screen](Sleep-Screen.md) of every screen it
-decides for to show the dashboard for a while (the banner’s time, at least a
-minute and at most five; five for Until Dismissed). A screen whose Sleep
-Screen is *Decided By: An Automation* is not woken by the house; its
-screensaver still closes for it if the page is up.
+decides for — that allows notifications and, unless the notification is
+Important, isn’t in Do Not Disturb — to show its screensaver for a while (the
+banner’s time, at least a minute and at most five; five for Until
+Dismissed). A screen already on its dashboard stays there. A screen whose
+Sleep Screen is *Decided By: An Automation* is not woken by the house.
 
 New screen code reaches a wall tablet when its kiosk’s cache is cleared (see
 [Wall tablets](Wall-Tablets.md)).

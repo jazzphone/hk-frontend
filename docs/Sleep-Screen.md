@@ -214,7 +214,7 @@ decides.
 
 | # | Rule | The tablet | Example |
 |---|---|---|---|
-| 0 | A [notification](Notifications.md) set to **Wakes the Screen** | wakes to the dashboard for its while, even at 3 AM | a water leak |
+| 0 | A [notification](Notifications.md) set to **Wakes the Screen** | wakes up to the screensaver for its while, the banner over the photos, even at 3 AM | a water leak |
 | 1 | **Wake For**, ticked *Also in Quiet Hours* | wakes to the dashboard, even at 3 AM | smoke, CO, a water leak |
 | 2 | **Quiet hours**: the **Schedule** (from–to), or anything in **Quiet While** on | dark, even with somebody in the room; only a tap, or what is ticked *Also in Quiet Hours* under Hold While, changes that | 10 PM–7 AM in a bedroom; a nap timer |
 | 3 | **Wake For** | wakes to the dashboard, and stays up while it is on | the garage door left open |

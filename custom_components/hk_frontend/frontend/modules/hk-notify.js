@@ -77,14 +77,16 @@
     if (n.test) {
       // as if it went off: one that wakes the screen wakes it (the house
       // wakes the tablet for a test too); past Do Not Disturb and the saver
-      if (n.wake && (c.asleep || c.saver)) return 'wake';
+      if (n.wake && c.asleep) return 'wake';
       return c.asleep ? 'drop:asleep' : 'show';
     }
     var dnd = b.notify_dnd || n.dnd;
     if (!n.important && dndOn(dnd, c.now || new Date(), c.states)) return 'drop:dnd';
     if (c.asleep) return n.wake ? 'wake' : 'drop:asleep';
     if (c.saver) {
-      if (n.wake) return 'wake';
+      // one that wakes the screen stays on the screensaver too: shown over
+      // the photos whatever the screensaver's own choice (2026-10-12)
+      if (n.wake) return 'show';
       var ch = b.notify_saver || n.saver || 'important';
       if (ch === 'off') return 'drop:saver';
       if (ch === 'important' && !n.important) return 'drop:saver';
@@ -95,6 +97,8 @@
     }
     return 'show';
   }
+  // Chime off: only an Important one still chimes (2026-10-12); a phone never
+  function chimes(n, phone) { return !phone && !!(n.chime || n.important); }
   function isPhone() {
     var C = window.hkCards;
     try { if (C && C.menu && typeof C.menu.phone === 'function') return !!C.menu.phone(); } catch (e) { /* not yet */ }
@@ -145,7 +149,10 @@
 
   // ------------------------------------------------------------- the host
   var CSS = [
-    ':host{all:initial}',
+    ':host{all:initial;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
+    // NOTHING HERE IS TEXT TO SELECT: a mouse dragging a banner away drew the
+    // page's blue selection over it (2026-10-12)
+    '.layer,.layer *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
     '.layer{position:fixed;left:0;right:0;top:0;height:0;z-index:' + Z + ';pointer-events:none;',
     '  font-family:-apple-system,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;color:#fff;',
     '  --top:max(18px, calc(env(safe-area-inset-top, 0px) + 8px));--w:min(600px, calc(100vw - 32px));--r:30px;--pad:16px 18px 16px 16px;--gap:16px;--ic:50px;--f1:20px;--f2:18px;--th:70px;--cw:min(680px, calc(100vw - 32px))}',
@@ -403,6 +410,8 @@
     el.addEventListener('pointerdown', function (e) {
       if (e.pointerType !== 'mouse') return;
       if (!start(e.clientX, e.clientY)) return;
+      e.preventDefault();        // a drag, not the start of a text selection
+      try { var sel = window.getSelection && window.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); } catch (err) { /* none */ }
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* gone */ }
     });
     el.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse') move(e.clientX, e.clientY); });
@@ -491,7 +500,7 @@
   // --------------------------------------------------------------- chime
   var audio = null;
   function chime(n) {
-    if (!n.chime || isPhone()) return;
+    if (!chimes(n, isPhone())) return;
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
@@ -523,7 +532,9 @@
   function route(n, c) {
     var what = decide(n, c);
     if (what === 'show') { show(n); return; }
-    if (what === 'wake') { wakeSaver(); whenAwake(function () { show(n); }); return; }
+    // asleep: the house wakes it up to its screensaver (Sleep Screen), then
+    // the banner shows over the photos
+    if (what === 'wake') { whenAwake(function () { show(n); }); return; }
     if (what === 'wait-pop') {
       var t0 = Date.now();
       (function check() {
@@ -574,7 +585,7 @@
     show: function (n) { return show(n); },
     shown: function () { return stack.map(function (it) { return it.n; }); },
     clear: clearAll,
-    _: { decide: decide, dndOn: dndOn, inWindow: inWindow, ago: ago, actionsOf: actionsOf, route: route,
+    _: { decide: decide, chimes: chimes, dndOn: dndOn, inWindow: inWindow, ago: ago, actionsOf: actionsOf, route: route,
          state: function () { return { stack: stack, fan: fan, open: open, black: black }; } }
   };
   try { window.dispatchEvent(new CustomEvent('hk-module-ready', { detail: { module: 'notify' } })); } catch (e) { /* none */ }
