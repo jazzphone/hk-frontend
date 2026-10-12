@@ -6,6 +6,10 @@ Built from your own rooms and devices, and set up entirely in the UI.
 </p>
 
 <p align="center">
+<sub>Built and designed using <b>Claude Opus</b> for the code and <b>Codex</b> for the image assets.</sub>
+</p>
+
+<p align="center">
 <a href="https://github.com/jazzphone/hk-frontend/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/jazzphone/hk-frontend?style=flat-square&label=release&color=0a84ff"></a>
 <a href="https://hacs.xyz"><img alt="HACS custom repository" src="https://img.shields.io/badge/HACS-custom-41BDF5?style=flat-square"></a>
 <img alt="Home Assistant 2026.8 or newer" src="https://img.shields.io/badge/Home%20Assistant-2026.8%2B-18BCF2?style=flat-square">
@@ -112,12 +116,14 @@ Add each from **Settings** → **Devices & services** → **HK Frontend** → **
 
 | | |
 |---|---|
-| **[Music](https://github.com/jazzphone/hk-frontend/wiki/Music)** | Whole-home music through Music Assistant: rooms, speaker groups and playlists |
+| **[Music](https://github.com/jazzphone/hk-frontend/wiki/Music)** | Whole-home music through Music Assistant: one Music page to play and browse, rooms, speaker groups and playlists, a docked Now Playing bar, and the music on the screensaver |
 | **[Live TV](https://github.com/jazzphone/hk-frontend/wiki/Live-TV)** | An HDHomeRun tuner’s channels and guide, full screen on any screen |
 | **[Clean Areas](https://github.com/jazzphone/hk-frontend/wiki/Clean-Areas)** | Pick rooms and send the vacuums that reach them |
 | **[Alarm PIN](https://github.com/jazzphone/hk-frontend/wiki/Alarm-PIN)** | A PIN in front of an alarm panel that takes no code of its own |
 | **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** | An Energy page built from Home Assistant’s Energy settings, with a live tile per circuit and device |
-| **[Notifications](https://github.com/jazzphone/hk-frontend/wiki/Notifications)** | A banner at the top of the screens when something happens at home, with a camera’s snapshot; whole categories of accessories at once |
+| **[Notifications](https://github.com/jazzphone/hk-frontend/wiki/Notifications)** | A banner at the top of the screens when something happens at home, with a camera’s snapshot; whole categories at once — doors, locks, leaks, cameras, vacuums, the alarm — and your calendars’ events before they start. Do Not Disturb, and a wake up to the screensaver |
+
+**Built in, nothing to add:** the **[Calendar](https://github.com/jazzphone/hk-frontend/wiki/Calendar)** (month, week or day, and your coming events on the screensaver), **[Weather](https://github.com/jazzphone/hk-frontend/wiki/Weather)**, **[Cameras](https://github.com/jazzphone/hk-frontend/wiki/Cameras)**, **[Pop-ups](https://github.com/jazzphone/hk-frontend/wiki/Detail-Sheets-and-Popups)** an automation opens (the doorbell, the alarm keypad), the **[Screensaver](https://github.com/jazzphone/hk-frontend/wiki/Screensaver-and-Idle)** and the **[Sleep Screen](https://github.com/jazzphone/hk-frontend/wiki/Sleep-Screen)**.
 
 ## Help
 
