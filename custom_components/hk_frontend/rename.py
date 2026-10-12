@@ -52,7 +52,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # option subtrees that are free-form third-party card options
 OPTION_SKIP = {("weather", "radar")}
-BOARD_KEYS = ("favorites", "cameras", "scenes", "chips", "chips_extra", "camera_live")
+BOARD_KEYS = ("favorites", "cameras", "scenes", "chips", "chips_extra", "camera_live", "notify_dnd")
 POPUP_KEYS = ("entity", "speaker", "stream", "entities")
 FREE_BOARD_KEYS = ("wallpanel_options", "kiosk_options")
 NOTIFY_ID = "hk_frontend_rename"
@@ -77,14 +77,29 @@ def _swap(value: Any, old: str, new: str) -> tuple[Any, bool]:
 
 
 def _swap_values(value: Any, old: str, new: str) -> tuple[Any, bool]:
-    """_swap, and for a mapping its values (Music's homes: user -> room player)."""
+    """_swap, and for a mapping its values (Music's homes: user -> room player),
+    and for a list of mappings each one's (Notifications' items: entity,
+    camera) -- a list of mappings in one of those as well, at any depth (the
+    Cameras category's pairs: camera, trigger, view). A mapping inside a
+    mapping is left alone, as before."""
+    if _mappings(value):
+        outs, hit = [], False
+        for v in value:
+            o, h = _swap_values(v, old, new)
+            outs.append(o)
+            hit = hit or h
+        return (outs, True) if hit else (value, False)
     if isinstance(value, dict):
         out, hit = {}, False
         for k, v in value.items():
-            out[k], h = _swap(v, old, new)
+            out[k], h = _swap_values(v, old, new) if _mappings(v) else _swap(v, old, new)
             hit = hit or h
         return (out, True) if hit else (value, False)
     return _swap(value, old, new)
+
+
+def _mappings(value: Any) -> bool:
+    return isinstance(value, list) and bool(value) and all(isinstance(v, dict) for v in value)
 
 
 def rewrite_feature(stored: Any, spec: dict[str, tuple[str, ...]], old: str,
@@ -145,9 +160,10 @@ def rewrite_fields(data: Any, keys: tuple[str, ...], old: str, new: str) -> tupl
     paths = []
     for k in keys:
         if k in out:
-            nv, hit = _swap(out[k], old, new)
+            # (_swap_values: a screen's notify_dnd is a mapping -- its While list)
+            nv, hit = _swap_values(out[k], old, new)
             if hit:
-                out[k] = copy.deepcopy(nv) if isinstance(nv, list) else nv
+                out[k] = copy.deepcopy(nv) if isinstance(nv, (list, dict)) else nv
                 paths.append(k)
     return out, paths
 

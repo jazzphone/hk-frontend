@@ -39,11 +39,10 @@ ok('every plate blurs itself at the chosen strength, the chips the same',
    st.getPropertyValue('--hk-glass-backdrop') === 'blur(30px) saturate(1.4) brightness(0.82)' &&
    v.back === st.getPropertyValue('--hk-glass-backdrop'), [st.getPropertyValue('--hk-glass-backdrop'), v.back]);
 ok('the plate over it is the chips\' own gradient, as with the shared layer', /0\.16\).*0\.07\)/.test(v.plate), v.plate);
-ok('the view fade gives way to a hard cut', st.getPropertyValue('--hk-view-anim') === 'none');
 ok('the page is told (hk-glass.js stays off: it runs for blur only)', rootAttrs['data-hk-glass'] === 'blur_each');
 HS._apply({ configured: true, look: { glass: 'blur' } });
-ok('leaving it takes every plate\'s blur and the hard cut back',
-   !st.getPropertyValue('--hk-glass-backdrop') && !st.getPropertyValue('--hk-view-anim'));
+ok('leaving it takes every plate\'s blur back',
+   !st.getPropertyValue('--hk-glass-backdrop'));
 
 print('\n=== the amount of frost ===');
 HS._apply({ configured: true, look: { glass: 'frosted' } });
@@ -158,8 +157,13 @@ print('\n=== a layer is drawn at full strength from its first frame (no fade) ==
 var gsrc = readFile(HK_ROOT + '/frontend/modules/hk-glass.js');
 // A bloom (opacity 0 -> 1) would run on every return to a page HA has kept,
 // so the frost would visibly fade in going back to Home.
+// (Pre-rendered's picture swaps cross-fade -- an image inside the layer, the
+// layer itself untouched -- but the first picture a layer wears is whole.)
+var newLayerSrc = gsrc.slice(gsrc.indexOf('function newLayer('), gsrc.indexOf('function preImg('));
+var dressSrc = gsrc.slice(gsrc.indexOf('function preDress('), gsrc.indexOf('function preUndress('));
 ok('a layer is never created transparent or with a transition',
-   !/opacity:0/.test(gsrc) && !/transition:opacity/.test(gsrc) && !/BLOOM_MS/.test(gsrc));
+   !/opacity/.test(newLayerSrc) && !/transition/.test(newLayerSrc) && !/BLOOM_MS/.test(gsrc));
+ok('...nor is the first picture a Pre-rendered layer wears', newLayerSrc.indexOf('preDress(layer)') > 0 && !/opacity/.test(dressSrc));
 ok('nothing sets a layer\'s opacity later either', !/layer\.style\.opacity/.test(gsrc) && !/function reveal/.test(gsrc));
 ok('no bloom length is exported', window.hkGlass._bloomMs === undefined);
 
@@ -175,15 +179,12 @@ ok('the anchor\'s lengths are divided by zoom TIMES the transforms on and above 
    /function scaleOf\(A\)[\s\S]{0,400}n = flatParent\(n\);/.test(gsrc) &&
    /\(v - b\.left\) \/ kx/.test(gsrc) && /\(v - b\.top\) \/ ky/.test(gsrc));
 
-print('\n=== every new view is held until it is frosted (a hard cut, no fade) ===');
-ok('a joining card holds the view unpainted (visibility) and cancels its fade',
-   /function hold\(card\)[\s\S]*visibility = 'hidden'[\s\S]*animation = 'none'/.test(gsrc));
-ok('update() releases it once the layers are placed and the joins have settled',
-   /stats\.lastMs[^\n]*\n\s*settled\(\);/.test(gsrc) && /SETTLE_MS - \(performance\.now\(\) - lastJoin\)/.test(gsrc));
-ok('turning the blur off releases it too', /function stop\(\)[\s\S]{0,120}release\(\);/.test(gsrc));
-ok('a view is held once (the attribute remembers), with a backstop',
-   /v\.hasAttribute\('data-hk-frost'\)\) \{[\s\S]{0,1000}?faintAgain\(v\); \}\s*return;\s*\}[\s\S]*setTimeout\(release, HOLD_MS\)/.test(gsrc) && window.hkGlass._holdMs === 2500);
-ok('a newer view lets a still-held one go', /if \(gate\) release\(\);\n\s*gate = v;/.test(gsrc));
+print('\n=== a page is shown as soon as it is built (2026-10-11) ===');
+ok('nothing holds a view back: no hidden view, no faint, no backstop',
+   !/visibility = 'hidden'/.test(gsrc) && !/function hold\(/.test(gsrc) && !/faintAgain/.test(gsrc) && !/HOLD_MS/.test(gsrc));
+ok('...a view put on the page, or a card joining it, is the page on screen for the picture (viewShown)',
+   /if \(v\.__hkShown\) \{ viewShown\(\); return; \}/.test(gsrc) && /VIEWS\.indexOf\(n\.tagName\) >= 0\) onPage\(n\)/.test(gsrc) &&
+   /if \(on\) \{ var v = viewOf\(card\); if \(v\) onPage\(v\); \}/.test(gsrc));
 ok('HkBase passes the card and direction to changed()', /hkGlass\.changed\(card, join\)/.test(readFile(HK_ROOT + '/frontend/cards/hk-base.js')));
 
 // The press loop, the row promotions, the hold of a view already painted and

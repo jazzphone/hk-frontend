@@ -72,6 +72,16 @@ ok('missing entity is not a match', met([{ condition: 'state', entity: 'zz', sta
 ok('numeric above', met([{ condition: 'numeric_state', entity: 'n', above: 0 }], S), true);
 ok('numeric below', met([{ condition: 'numeric_state', entity: 'n', below: 3 }], S), false);
 ok('numeric on "unknown" is false, not NaN-true', met([{ condition: 'numeric_state', entity: 'u', below: 5 }], S), false);
+// a page's say: an attribute on <html> (the Music page's hk-music-mini)
+var deWas = document.documentElement;
+ok('flag: no <html> at all is false', met([{ condition: 'flag', flag: 'hk-test-flag' }], S), false);
+document.documentElement = deWas || document.createElement('html');
+ok('flag: false while <html> has no such attribute', met([{ condition: 'flag', flag: 'hk-test-flag' }], S), false);
+document.documentElement.setAttribute('hk-test-flag', '');
+ok('flag: true while it has', met([{ condition: 'flag', flag: 'hk-test-flag' }, { condition: 'numeric_state', entity: 'n', above: 0 }], S), true);
+document.documentElement.removeAttribute('hk-test-flag');
+ok('flag: no name is false', met([{ condition: 'flag' }], S), false);
+document.documentElement = deWas;
 ok('or', met([{ condition: 'or', conditions: [
   { condition: 'state', entity: 'a', state: 'off' }, { condition: 'numeric_state', entity: 'n', above: 2 }] }], S), true);
 ok('and', met([{ condition: 'and', conditions: [
@@ -119,6 +129,22 @@ media.hass = { states: { m: st('idle') } };
 ok('falling edge (trigger_close default) removes the hash', location.hash, '');
 ok('  closes', media._open, false);
 ok('  and runs close_action, as Bubble Card does', media.acts.length, 1);
+
+print('=== a bar arriving with its page opens in place; one coming up on it slides ===');
+// (_show reads _settled: false = part of the page appearing -> no slide)
+go('');
+var arr = popup({ hash: '#media', trigger: T, modal: false, dismissable: true });   // as the bar is
+arr._show = function () { this._open = true; this.shows++; this.inPlace = !this._settled; };
+arr.hass = { states: { m: st('playing') } };
+ok('wanted when the page appears (back to Home, music on): in place', arr.inPlace, true);
+arr.hass = { states: { m: st('idle') } };
+arr.hass = { states: { m: st('playing') } };
+ok('music starting while the page is up: slides', arr.inPlace, false);
+arr._conn = false; arr.disconnectedCallback(); go('');
+arr._conn = true; arr.connectedCallback();
+arr.hass = { states: { m: st('playing') } };
+ok('the page shown again with the music still on: in place again', arr.inPlace, true);
+arr._conn = false; arr.disconnectedCallback(); go('');
 
 print('=== first evaluation never closes a sheet opened by URL ===');
 go('#media');

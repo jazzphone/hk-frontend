@@ -16,7 +16,7 @@ It asks a few questions about your home, then makes your first screen. Every con
 | **Welcome** | Nothing. Select **Get Started**. |
 | **General** | **Alarm Panel** — the alarm the header, the Security chip and page, and the keypad use. If you have one, a button offers it. **House Timers** — timer helpers offered as one-tap timers on the Timers page. |
 | **Weather** | **Weather Service** (default: the first weather entity), and **Place**, the name shown above the temperature (default: your home’s name). Optionally, **Sensors** that replace the weather service’s own readings, and the **Radar Map** (needs Weather Radar Card from HACS). |
-| **Appearance** | **Glass Style** for tiles, pills and chips: *Clear* (the default), *Frosted*, *Blur* or *Blur Each Card* — the last is too heavy for a wall tablet. **Frost** or **Blur** amount for the style you picked. **Page Pills**, the look of the pills that open a page. |
+| **Appearance** | **Glass Style** for tiles, pills and chips: *Glass* (the default), *Frosted* or *Blur* — and Blur's mode: *Shared Layer*, *Pre-rendered* (the lightest, still experimental) or *Each Card* (too heavy for a wall tablet). **Frost** or **Blur** amount for the style you picked. **Page Pills**, the look of the pills that open a page. |
 | **Features** | The four optional features. One you have added links to its settings; one you haven’t shows **Set Up** and a line about what it does. You can also add them later — see [What next](#what-next). |
 | **First Screen** | Your first screen — see the next step. **Skip** leaves it for later. |
 | **Done** | A link to open the screen you made, and **Done**. |
@@ -91,7 +91,7 @@ The step-by-step guide, including how to do it without a Mac or without Python o
 ## What next
 
 - **Shape your screens:** the menu, the Home page’s chips, cameras, scenes and favorites, which pages to show, per-screen appearance — [Screens](Screens.md) and the pages under it. How HK Settings works — [HK Settings](HK-Settings.md).
-- **Optional features** — Music, Live TV, Clean Areas and Alarm PIN. Add each from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**, then set it up under **Features** in HK Settings: [Features](Features.md).
+- **Optional features** — Music, Live TV, Clean Areas, Alarm PIN, Energy and Notifications. Add each from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**, then set it up under **Features** in HK Settings: [Features](Features.md).
 - **Wall tablets:** Fully Kiosk Browser, a user per tablet, the photo screensaver and returning to Home when idle — [Wall tablets](Wall-Tablets.md).
 - **The live sky** and its seasonal decorations — [Live Sky](Live-Sky.md).
 - **Timers you set from the Timers page** need a set of timer helpers that come with the integration: `helpers/quick_timers.yaml`, included as a package. The top of that file says how.

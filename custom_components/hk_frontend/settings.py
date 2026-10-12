@@ -220,6 +220,11 @@ STATUS_ROWS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 
 # The clouds' looks (sky.cloud_style, a screen's sky_cloud_style)
 CLOUD_STYLES = ("classic", "realistic")
+# Moving Things: where the sky's moving things are drawn (sky.moving)
+SKY_MOVING = ("behind", "front")
+# Notifications on a screen's screensaver: every one, only the Important ones,
+# none (a notification set to Wakes the Screen wakes it whatever this says)
+NOTIFY_SAVERS = ("all", "important", "off")
 
 # The daytime sky (sky.daytime, a screen's sky_daytime): how bright the midday
 # blue runs -- natural (a real midday sky), balanced, or deep (the dusky blue
@@ -277,6 +282,33 @@ LIVELY_OCCASIONS: dict[str, tuple[tuple[str, str], ...]] = {
 }
 
 
+def hhmm(v: Any) -> str | None:
+    """A time of day as "HH:MM", or None."""
+    if not isinstance(v, str):
+        return None
+    try:
+        h, m = (int(x) for x in v.strip().split(":")[:2])
+    except ValueError:
+        return None
+    return "%02d:%02d" % (h, m) if 0 <= h < 24 and 0 <= m < 60 else None
+
+
+DND_MAX = 10
+
+
+def notify_dnd(v: Any) -> dict[str, Any] | None:
+    """Do Not Disturb for notifications: {"schedule": bool, "from": "HH:MM",
+    "to": "HH:MM", "while": [entity ids]} -- on during the hours (they may wrap
+    midnight; from == to is all day) when `schedule`, and while any entity
+    listed is on (an input_boolean, a switch; a timer while it runs). None
+    when `v` is not one; a screen's None follows All Screens."""
+    if not isinstance(v, dict):
+        return None
+    ids = [x for x in (v.get("while") or []) if isinstance(x, str) and re.fullmatch(r"[a-z0-9_]+\.[a-z0-9_]+", x)]
+    return {"schedule": v.get("schedule") is True, "from": hhmm(v.get("from")) or "22:00",
+            "to": hhmm(v.get("to")) or "07:00", "while": list(dict.fromkeys(ids))[:DND_MAX]}
+
+
 def lively(v: Any) -> dict[str, str] | None:
     """Each occasion's Liveliness preset ({occasion: preset}); None when it
     does not parse. An occasion left out is Classic."""
@@ -328,6 +360,12 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # switch.py); seasonal: optionally, an entity of the house's that must also be on.
     "sky": {"moon": None, "holidays": None, "seasonal": None, "birthdays": [],
             "decorations": True, "decoration_style": "old",
+            # Moving Things (2026-10-11): the rain and snow, falling leaves,
+            # bats and birds, flybys and confetti drawn "behind" the cards
+            # (the sky) or "front" over them -- touch passes through either
+            # way (hk-sky.js FRONT). Fireworks, fog, clouds and the
+            # scenery stay behind.
+            "moving": "behind",
             # the clouds' look: "classic" (the drifting noise decks) or
             # "realistic" (photographic cloud cut-outs, tools/sky/cloud_art.py)
             "cloud_style": "classic",
@@ -339,11 +377,16 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # The sky's own look (Sky / Background): animations -- the moving
             # parts (drifting clouds, falling rain and snow, the seasons);
             # weather -- the clouds, rain, snow and fog (the sun, moon and
-            # stars stay when it is off); gradient -- "live" or a backdrop
-            # id (SKY_BACKDROPS); gradient_custom -- its own stops, for
-            # "custom". Each screen may set its own (the board's
+            # stars stay when it is off); precipitation -- the falling rain
+            # and snow alone (Rain & Snow, 2026-10-10: off, the clouds and
+            # fog still move; never drawn while animations are off, where it
+            # could only hang still); focus_pause -- Pause When Not in Focus
+            # (2026-10-10: on a computer, the sky's and the cards' animations
+            # hold while another window has the focus); gradient -- "live" or
+            # a backdrop id (SKY_BACKDROPS); gradient_custom -- its own
+            # stops, for "custom". Each screen may set its own (the board's
             # sky_animations ... sky_custom keys, None = follow these).
-            "animations": True, "weather": True,
+            "animations": True, "weather": True, "precipitation": True, "focus_pause": True,
             "gradient": "live", "gradient_custom": None,
             # EACH PAGE'S BACKGROUND (sky_pages below): page kind or custom
             # page address -> "own" (its own color), "live" (the live sky,
@@ -443,12 +486,16 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # cameras_custom): which cameras its Home strip and Cameras page show and
     # in what order -- and a room page's cameras, in that order (`order`;
     # empty: Automatic, one of every camera). Before 2026-10-09 each screen
-    # held its own copy.
-    "cameras": {"order": []},
+    # held its own copy. live: the Home strip's first tile plays live video
+    # (off: a snapshot like the others, lighter on the device -- 2026-10-10);
+    # a screen's camera_live_video, when set, is its own.
+    "cameras": {"order": [], "live": True},
     # How the glass surfaces look (hk-settings.js applies it; hk-glass.js draws
     # the shared blur): clear -- the original plate, the status chips blur
     # themselves; frosted -- a frosted material, no blur at all; blur -- ONE
-    # blur layer per scroller behind every glass surface; blur_each -- every
+    # blur layer per scroller behind every glass surface; blur_pre -- the
+    # same layers holding a picture of the sky blurred once (hk-glass.js
+    # PRE-RENDERED, 2026-10-10: no live blur); blur_each -- every
     # surface blurs itself (phones, iPads, computers: too heavy for a wall
     # tablet). frost: how milky Frosted is; blur: how strong both blurs are
     # -- each 0-100 %, 50 (the middle) as designed: 20 px of blur.
@@ -481,7 +528,11 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "browse": {"hide": [], "discover": ["recently_played", "favourite_playlists", "most_played",
                                         "recently_added", "favourite_radio"]},
 }
-GLASS = ("clear", "frosted", "blur", "blur_each")
+GLASS = ("clear", "frosted", "blur", "blur_pre", "blur_each")
+# Looks that were tried and taken out, read as the one that replaced them:
+# Baked (blur_baked, each surface its own slice of the picture) cost more
+# than it saved and went on 2026-10-10 -- Pre-rendered is the same picture.
+RETIRED_GLASS = {"blur_baked": "blur_pre"}
 BLACK_SCREENS = ("kiosk", "hk")    # a screen's Black Screen (BOARD_DEFAULTS)
 AMOUNT = (0, 100)                  # look.frost and look.blur, in %; 50 is the default
 
@@ -543,6 +594,8 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
         if section in out and isinstance(values, dict):
             out[section].update({k: v for k, v in values.items() if k in out[section]})
     out["look"]["saver"] = saver_options(out["look"].get("saver")) or dict(SAVER_DEFAULTS)
+    g = RETIRED_GLASS.get(out["look"].get("glass"), out["look"].get("glass"))
+    out["look"]["glass"] = g if g in GLASS else DEFAULTS["look"]["glass"]
     return out
 
 
@@ -595,6 +648,14 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # screen, the photos (or the forecast) beside it; and how many days it
     # lists -- today, tomorrow, and so on
     "calendar": False, "calendar_days": 2,
+    # THE MUSIC: what plays, big -- a slide among the photos every
+    # `forecast_every` photos (taking turns with the forecast), or over the
+    # forecast while music plays; and in the pane down the right (under the
+    # calendar when both are on)
+    "music_slide": False, "music_pane": False,
+    # MUSIC FIRST: while music plays it fills the screen (over the photos or
+    # the forecast) until 20 s after it stops
+    "music_first": False,
     # BACK TO THE DASHBOARD: how long the screensaver takes to fade away, ms
     # (0: at once), after the dashboard has been drawn underneath it
     "fade_back": 500,
@@ -776,7 +837,7 @@ PAGE_KINDS = ("weather", "calendar", "cameras", "live_tv", "security", "doors_wi
 PAGE_BROWSE = "browse"
 PAGE_ORDER = (PAGE_KINDS[:PAGE_KINDS.index("music") + 1] + (PAGE_BROWSE,)
               + PAGE_KINDS[PAGE_KINDS.index("music") + 1:])
-BOARD_GLASS = ("house", "clear", "frosted", "blur", "blur_each")   # house: the shared look
+BOARD_GLASS = ("house", "clear", "frosted", "blur", "blur_pre", "blur_each")   # house: the shared look
 # ON NARROW SCREENS: the button under 1,024 px and while an
 # always-open menu is folded -- the chip, the chip then the edge tab once
 # scrolled past, the edge tab, or none (the swipe alone; the chip without
@@ -911,8 +972,10 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # chips_row: the row itself.
     "chips_row": True, "chips": [], "chips_quiet": list(CHIPS_QUIET), "chips_extra": [],
     # camera_live: an input_select/select whose option names the live camera
-    # (an automation picks one -- from person detection, say)
-    "camera_strip": True, "cameras": [], "camera_live": "",
+    # (an automation picks one -- from person detection, say);
+    # camera_live_video: whether that first tile plays live at all (None:
+    # Same as All Screens, settings cameras.live)
+    "camera_strip": True, "cameras": [], "camera_live": "", "camera_live_video": None,
     "scenes_row": True, "scenes": [], "scenes_pages": [],
     "favorites": [],
     # Pages (generated dashboards): empty = every page the house has.
@@ -932,7 +995,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Screens (the house's sky animations / weather / decorations, and the
     # house's backdrop -- sky_gradient: a SKY_BACKDROPS id, sky_custom: its
     # stops, for "custom").
-    "sky_animations": None, "sky_weather": None, "sky_decorations": None, "sky_decoration_style": None,
+    "sky_animations": None, "sky_weather": None, "sky_precipitation": None, "sky_focus_pause": None,
+    "sky_decorations": None, "sky_decoration_style": None, "sky_moving": None,
     "sky_cloud_style": None, "sky_daytime": None, "sky_gradient": None, "sky_custom": None,
     # Liveliness, this screen's own, as All Screens' is: one preset for every
     # occasion or "custom" (None: Same as All Screens), then each occasion's
@@ -952,11 +1016,21 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # popups: this dashboard answers the house's pop-ups (Pop-ups) -- off for
     # a screen that must never be covered (a car's)
     "popups": True,
+    # NOTIFICATIONS (Features -> Notifications): notify, the screen shows
+    # their banners at all; notify_saver, over its screensaver (None: as All
+    # Screens -- the feature's own `saver`); notify_dnd, its Do Not Disturb
+    # (None: as All Screens; else its own, notify_dnd())
+    "notify": True, "notify_saver": None, "notify_dnd": None,
     # a GENERATED wall tablet's own: the now-playing bar, and the photo
     # screensaver for the tablet's HA user (HK Frontend's own, hk-saver.js;
     # or WallPanel if the screen chooses it) -- the sky and the cards pause
     # behind it
-    "now_playing": False, "screensaver": False, "tablet_user": "",
+    # the docked bar's two parts: the player (Now Playing Bar) and the running
+    # quick timers (Timer Bar; unset, a screen saved before it -- it follows
+    # its Now Playing Bar, which had the timers in it)
+    "now_playing": False, "timer_bar": False, "screensaver": False, "tablet_user": "",
+    # ...on every page, not Home alone (the bar is carried from page to page)
+    "bar_all_pages": False,
     # null: the settings for All Screens (resolved() fills them in)
     "screensaver_options": None, "screensaver_engine": "hk",
     # a GENERATED dashboard's third-party cards' own options (YAML), over the
@@ -1088,16 +1162,18 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_position"] = t if t is not None else ""
     out["tab_size"] = pick("tab_size", BOARD_TAB_SIZES)
     out["tab_size_phone"] = pick("tab_size_phone", BOARD_TAB_SIZES)
-    out["glass"] = pick("glass", BOARD_GLASS)
+    out["glass"] = RETIRED_GLASS.get(d.get("glass")) or pick("glass", BOARD_GLASS)
     for k in ("frost", "blur"):
         out[k] = amount_or_none(d.get(k))
     out["frost_tint"] = d.get("frost_tint") if isinstance(d.get("frost_tint"), bool) else None
     # The screen's own Sky / Background: each flag stored as anything but a
     # boolean is not set (follow All Screens), as a backdrop id not in
     # SKY_BACKDROPS and stops that do not parse are (sky_stops()).
-    for k in ("sky_animations", "sky_weather", "sky_decorations"):
+    for k in ("sky_animations", "sky_weather", "sky_precipitation", "sky_focus_pause", "sky_decorations",
+              "camera_live_video"):
         out[k] = d.get(k) if isinstance(d.get(k), bool) else None
     out["sky_decoration_style"] = d.get("sky_decoration_style") if d.get("sky_decoration_style") in ("old", "new") else None
+    out["sky_moving"] = d.get("sky_moving") if d.get("sky_moving") in SKY_MOVING else None
     out["sky_cloud_style"] = d.get("sky_cloud_style") if d.get("sky_cloud_style") in CLOUD_STYLES else None
     out["sky_daytime"] = d.get("sky_daytime") if d.get("sky_daytime") in DAYTIME_SKIES else None
     out["sky_gradient"] = d.get("sky_gradient") if d.get("sky_gradient") in SKY_BACKDROP_IDS else None
@@ -1109,9 +1185,12 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     # that reads as nothing)
     out["sky_liveliness_custom"] = lively_custom(d.get("sky_liveliness_custom")) or {}
     out["sky_calm_empty"] = d.get("sky_calm_empty") is True
-    for k in ("chips_row", "camera_strip", "scenes_row", "sky", "idle_return", "car", "kiosk", "popups",
-              "now_playing", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
+    out["notify_saver"] = d.get("notify_saver") if d.get("notify_saver") in NOTIFY_SAVERS else None
+    out["notify_dnd"] = notify_dnd(d.get("notify_dnd"))
+    for k in ("chips_row", "camera_strip", "scenes_row", "sky", "idle_return", "car", "kiosk", "popups", "notify",
+              "now_playing", "bar_all_pages", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
         out[k] = bool(d.get(k, BOARD_DEFAULTS[k]))
+    out["timer_bar"] = bool(d.get("timer_bar", out["now_playing"]))
     user = str(d.get("tablet_user") or "").strip()
     out["tablet_user"] = user if re.fullmatch(r"[A-Za-z0-9_.@ -]{1,64}", user) else ""
     for k in ("wallpanel_options", "kiosk_options"):

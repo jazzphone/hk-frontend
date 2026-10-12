@@ -15,8 +15,7 @@ OUTPUT (all tileable, all written to custom_components/hk_frontend/frontend/sky/
                hk-sky.js loads; the PNGs stay as the canonical pixels)
   stars.png      RGBA                        night star field
   flakes.png     RGBA                        snow
-  rain-a.png     RGBA                        near rain streaks
-  rain-b.png     RGBA                        far rain streaks
+  rain.png       RGBA                        rain streaks, near and far
 
 The cloud textures carry shape in the ALPHA channel only (luminance is a flat
 255). They are used as CSS mask-image over a gradient-filled div, so the SAME
@@ -278,7 +277,7 @@ def flakes(name, w, h, seed, count):
 
 
 # -------------------------------------------------------------------- rain
-def streaks(name, w, h, seed, count, lmin, lmax, peak_lo, peak_hi):
+def streaks(name, w, h, fields):
     """Rain, as a tileable field of short VERTICAL streaks.
 
     WHY A TEXTURE AND NOT A GRADIENT
@@ -297,32 +296,41 @@ def streaks(name, w, h, seed, count, lmin, lmax, peak_lo, peak_hi):
     Length is a power law so a single field has near drops and far drops in it,
     which is the same trick stars and flakes use and for the same reason -- one
     uniform size reads as a manufactured pattern.
+
+    FIELDS: (seed, count, lmin, lmax, peak_lo, peak_hi) each, drawn into the
+    one tile. The rain is ONE deck (2026-10-10): its far streaks -- short,
+    dim, dense -- in the same tile as the near ones, so it costs the tablet's
+    GPU one full-screen layer, not two. The depth was always the contrast
+    between them, not their speed.
     """
-    rnd = random.Random(seed)
     px = [[0, 0, 0, 0] for _ in range(w * h)]
-    for _ in range(count):
-        cx, cy = rnd.randrange(w), rnd.randrange(h)
-        near = rnd.random() ** 1.7          # power law: mostly far drops
-        L = int(lmin + near * (lmax - lmin))
-        peak = int(peak_lo + near * (peak_hi - peak_lo))
-        # Slightly blue-white.
-        cr, cg, cb = 206, 226, 248
-        for dy in range(L):
-            # Taper BOTH ends: a streak with square ends reads as a dash. The
-            # head is left a little brighter than the tail, which is what a
-            # real motion-blurred drop looks like.
-            t = dy / float(L - 1) if L > 1 else 0.0
-            env = math.sin(math.pi * t) ** 0.65
-            env *= 0.72 + 0.28 * (1.0 - t)
-            yy = (cy + dy) % h
-            # 1px core with soft shoulders, so the streak is a hairline rather
-            # than a bar but still survives downscaling on the tablet.
-            for dx, k in ((-1, 0.34), (0, 1.0), (1, 0.34)):
-                xx = (cx + dx) % w
-                a = int(peak * env * k)
-                q = px[yy * w + xx]
-                if a > q[3]:
-                    q[0], q[1], q[2], q[3] = cr, cg, cb, a
+    count = 0
+    for seed, n, lmin, lmax, peak_lo, peak_hi in fields:
+        rnd = random.Random(seed)
+        count += n
+        for _ in range(n):
+            cx, cy = rnd.randrange(w), rnd.randrange(h)
+            near = rnd.random() ** 1.7          # power law: mostly far drops
+            L = int(lmin + near * (lmax - lmin))
+            peak = int(peak_lo + near * (peak_hi - peak_lo))
+            # Slightly blue-white.
+            cr, cg, cb = 206, 226, 248
+            for dy in range(L):
+                # Taper BOTH ends: a streak with square ends reads as a dash. The
+                # head is left a little brighter than the tail, which is what a
+                # real motion-blurred drop looks like.
+                t = dy / float(L - 1) if L > 1 else 0.0
+                env = math.sin(math.pi * t) ** 0.65
+                env *= 0.72 + 0.28 * (1.0 - t)
+                yy = (cy + dy) % h
+                # 1px core with soft shoulders, so the streak is a hairline rather
+                # than a bar but still survives downscaling on the tablet.
+                for dx, k in ((-1, 0.34), (0, 1.0), (1, 0.34)):
+                    xx = (cx + dx) % w
+                    a = int(peak * env * k)
+                    q = px[yy * w + xx]
+                    if a > q[3]:
+                        q[0], q[1], q[2], q[3] = cr, cg, cb, a
     rows = []
     total = 0
     for y in range(h):
@@ -343,10 +351,12 @@ print("snow:")
 flakes("flakes.png", 512, 512, 3, 260)
 
 print("rain:")
-# Near deck: longer, brighter, fewer. Far deck: short, dim, dense -- that
-# contrast between the two is what gives the rain depth rather than speed.
-streaks("rain-a.png", 512, 512, 11, 240, 16, 52, 70, 165)
-streaks("rain-b.png", 384, 384, 17, 210,  9, 26, 40,  96)
+# Near streaks: longer, brighter, fewer. Far: short, dim, dense -- that
+# contrast is what gives the rain depth rather than speed. ONE TILE, ONE DECK
+# (2026-10-10): the far ones were a second 384 px deck at 0.55/0.90 of the
+# near deck's opacity; here at their old density in a 512 tile (210 at 384^2
+# -> 373) and that strength (peaks x 0.61).
+streaks("rain.png", 512, 512, [(11, 240, 16, 52, 70, 165), (17, 373, 9, 26, 24, 59)])
 
 def grain(name, w, h, seed, coarse_amp, fine_amp):
     """A tileable luminance GRAIN, for the flat static palettes.

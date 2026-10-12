@@ -27,7 +27,7 @@ Open it from **HK Settings** → **Overview** → **Setup Check** (also under **
 | **Screensaver Tablets** | Each screen with the photo screensaver has a Tablet User, and Home Assistant has a user of that name (shown when a screen has the photo screensaver) | **Needs Doing** when one has none, or names a user that doesn’t exist: the screensaver never shows there. Choose it under the screen’s **This Device**. |
 | **Screensaver Photos** | The photos folder has photos (shown when a screen shows photos) | A **note** when the folder is empty or can’t be read: the screensaver shows the forecast instead. To show photos, check **HK Settings → Wall Tablets → Screensaver for All Screens → Screensaver Photos**. |
 | **Weather Radar Card** (and **WallPanel** or **Kiosk Mode**, for a screen that uses one instead of HK Frontend’s own) | Installed from HACS, and — for WallPanel and Kiosk Mode — loaded as a dashboard resource | A **note**. Not installed: no radar map on the Weather page, no WallPanel screensaver, or Home Assistant’s header and sidebar showing on a screen set to use the Kiosk Mode plugin. *Installed but not loaded*: the line names the URL to add under **Settings** → **Dashboards** → **⋮** → **Resources** (type *JavaScript module*). |
-| **Music**, **Alarm PIN**, **Clean Areas**, **Live TV** | Added | A **note**: each is optional. Add it from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**. |
+| **Music**, **Alarm PIN**, **Clean Areas**, **Live TV**, **Energy**, **Notifications** | Added | A **note**: each is optional. Add it from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**. |
 
 ## Repairs
 
@@ -91,7 +91,7 @@ They have no area. Assign each device an area (**Settings** → **Devices & serv
 
 ### A feature’s pages or controls are missing
 
-Music, Live TV, Clean Areas and Alarm PIN appear only once they are added. Add each from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**, then set it up under **Features** in HK Settings. For example, the Play Music page appears only when Music is added and has speakers. An automation calling `hk_frontend.music_play` or `hk_frontend.clean_areas` before the feature is added gets an error that says so. See [Features](Features.md).
+Music, Live TV, Clean Areas, Alarm PIN, Energy and Notifications appear only once they are added. Add each from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**, then set it up under **Features** in HK Settings. For example, the Music page appears only when Music is added and has speakers. An automation calling `hk_frontend.music_play` or `hk_frontend.clean_areas` before the feature is added gets an error that says so. See [Features](Features.md).
 
 ### Live TV: a channel never starts
 
@@ -99,6 +99,29 @@ Music, Live TV, Clean Areas and Alarm PIN appear only once they are added. Add e
 - **go2rtc.** The picture reaches your screens through Home Assistant’s own go2rtc integration, which is part of `default_config:`. If you don’t use `default_config:`, add `go2rtc:` to `configuration.yaml`.
 - **Busy tuners.** If every tuner in the HDHomeRun is in use (by another app, or other channels), the log shows a warning that mentions `503`.
 - The first picture takes a few seconds to arrive. That is normal.
+
+### A wall tablet stutters when scrolling, or feels slow
+
+Most of a wall tablet’s work is the animated sky, then the glass. In order of
+what helps most:
+
+- **Glass Style.** Blur’s **Each Card** is far too heavy for a wall tablet
+  (about 32 frames a second while scrolling). **Pre-rendered** scrolls the
+  most smoothly, the Now Playing bar up or not; **Shared Layer** is fine
+  until the page scrolls under the bar. See
+  [Appearance → Blur Mode](Appearance.md#blur-mode).
+- **Rain & Snow** off keeps the clouds but drops the falling weather;
+  **Animations** off stills the whole sky ([Live Sky](Live-Sky.md#choose-its-look)).
+- **Live First Camera** off makes the camera strip all snapshots: no video to
+  decode ([Cameras](Cameras.md)).
+- On a computer, **Pause When Not in Focus** (on by default) holds everything
+  still while another window is in front.
+
+Since 1.7, changing pages on a wall tablet takes about half as long as
+before (roughly 0.1–0.3 seconds from the tap to the page shown), and a
+tablet left on Home with music playing does far less work. A tablet needs
+its kiosk’s cache cleared to get new HK Frontend code
+([Wall tablets](Wall-Tablets.md)).
 
 ### HK Settings isn’t in the sidebar
 

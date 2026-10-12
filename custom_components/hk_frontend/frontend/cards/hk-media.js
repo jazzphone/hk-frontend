@@ -226,6 +226,31 @@
     ].join('');
   }
 
+  // The bar's Speakers panel: the bar's dark plate as glass; over the button
+  // on a tablet (springing from it), a sheet from the foot on a phone
+  var SPK_CSS = [
+    '.scrim{position:fixed;inset:0;background:rgba(0,0,0,0);transition:background .3s}',
+    '.scrim.on{background:rgba(0,0,0,.18)}.scrim.dim.on{background:rgba(0,0,0,.4)}',
+    '.mpanel{background:rgba(32,30,38,.86);-webkit-backdrop-filter:blur(28px) saturate(1.4);backdrop-filter:blur(28px) saturate(1.4)}',
+    '.mpanel .mpbg,.mpanel .mpshade{display:none}',
+    '.mpanel .mpin{width:100%!important;height:100%!important}',
+    '.mpanel .mpact{font-size:15px;gap:6px}.mpanel .mpact svg{width:16px;height:16px}.mpanel .mpact.stop svg{width:18px;height:18px}',
+    '.mpanel.pop{position:fixed;border-radius:22px;box-shadow:0 26px 70px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.12);',
+    '  opacity:0;transform:scale(.6) translateY(24px);transition:transform .34s cubic-bezier(.32,.72,0,1),opacity .2s}',
+    '.mpanel.pop.in{opacity:1;transform:none}',
+    '.mpanel.sheet{position:fixed;left:0;right:0;bottom:0;top:auto;border-radius:28px 28px 0 0;',
+    '  box-shadow:0 -10px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.14);',
+    '  transform:translateY(100%);transition:transform .38s cubic-bezier(.32,.72,0,1)}',
+    '.mpanel.sheet.in{transform:none}',
+    '@media (prefers-reduced-motion:reduce){.mpanel.pop,.mpanel.sheet{transition:none}}'
+  ].join('');
+  // the screensaver's Browse glyph (mdi library-music)
+  var LIB = 'M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-2 5h-3v5.5a2.5 2.5 0 1 1-1-2V5h4v2z';
+  // THE MUSIC PAGE (hk-music.js): its two addresses
+  function onMusicPage() {
+    var seg = String(location.pathname).split('/')[2] || '';
+    return seg === 'playmusic' || seg === 'music-browse';
+  }
   class HkNowPlayingCard extends HkBase {
     static get CSS() {
       return [
@@ -384,16 +409,23 @@
         // without one.
         '.np .stop{grid-area:stop;display:flex}',
         '.np .close{grid-area:close;display:none}',
-        // Dimmer than the transport: it dismisses the bar, it does not act on
-        // the music, and it should not compete with play/pause for the eye.
-        //
-        // AND IT KEEPS ITS WELL though the transport has none. That is the
-        // point rather than an oversight: the well is what separates chrome
-        // from the controls beside it, and this selector is more specific
-        // than `.np .tb`, so the fill survives. It carries no glyph shadow
-        // either -- a shadow would make it read as another floating control.
-        '.np.bar .close{display:flex;background:rgba(255,255,255,.10)}',
-        '.np.bar .close ha-icon{opacity:.75;filter:none}',
+        // the bar's alone: hidden elsewhere, or each would take a track of its own
+        '.np .spk,.np .brw{display:none}',
+        '.np.bar .spk{grid-area:spk;display:flex}.np.bar .brw{grid-area:brw;display:flex}',
+        // a step quieter than the transport: they open things, they do not
+        // act on the music
+        '.np.bar .spk ha-icon{width:28px;height:28px;--mdc-icon-size:28px;color:rgba(255,255,255,.82)}',
+        '.np.bar .brw{color:rgba(255,255,255,.82)}',
+        '.np.bar .brw svg{width:26px;height:26px;filter:drop-shadow(0 2px 5px rgba(0,0,0,.55))}',
+        '.np.bar .spk.lit{background:rgba(255,255,255,.18)}',
+        // ON THE MUSIC PAGE (a phone's: the bar is its mini player) there is
+        // nothing to browse to
+        '.np.bar.onmusic .brw{display:none}',
+        // NO CLOSE BUTTON (2026-10-11): the bar is put away by swiping it
+        // down (_swipe), as a phone's mini player -- the X took 54px of a
+        // phone's title. Its element stays: the full player has none either.
+        // (The bar takes vertical drags itself; sideways, the sliders.)
+        'ha-card.np.bar{touch-action:pan-x}',
 
         // ---- BAR ------------------------------------------------------------
         // The persistent now-playing bar: bottom of the screen, full width,
@@ -405,8 +437,13 @@
         // TWO ROWS of half height, not one: title over artist is the only
         // part that wants stacking, and everything else spans both. The
         // full screen width is why nothing is cramped.
-        'ha-card.np.bar{height:var(--hk-np-height,84px);border-radius:22px;',
+        'ha-card.np.bar{height:var(--hk-np-height,84px);border-radius:var(--hk-np-radius,22px);',
         '  padding:var(--hk-np-pad,10px 14px)}',
+        // DOCKED AT THE BOTTOM (the #media bar, 2026-10-10): square, full width,
+        // a hairline along its top and a soft shadow up onto the page -- the
+        // screensaver's pane, laid along the bottom. Set by the bar's sheet
+        // (--hk-np-radius/-edge/-shadow); a floating bar keeps its own.
+        'ha-card.np.bar{border-top:var(--hk-np-edge,none);box-shadow:var(--hk-np-shadow,none)}',
         // CONTENT-SIZED ROWS, CENTRED AS A BLOCK. With 1fr rows the title is
         // align-self:end in the top half and the artist sits below the row
         // boundary, putting the pair's centre 3px under the artwork's.
@@ -490,7 +527,10 @@
         // tall a 34px blur is most of the element. Dimmer than the page's .62
         // as well, where it reads under the .92 plate below as the bar's own
         // depth.
-        '.np.bar .bg img{filter:blur(22px);opacity:.30}',
+        // (a touch brighter, 2026-10-11: the user found the cover's color
+        // too faint under the docked bar's opaque plate -- .30 and the wash
+        // below at .56/.40/.26 before)
+        '.np.bar .bg img{filter:blur(22px);opacity:.38}',
         // NO BACKDROP BLUR. The bar is FIXED over a page that scrolls, so a
         // backdrop-filter on it (blur 24px, 1244x104) re-blurs the strip behind
         // it on every scroll frame. Measured on an Android wall tablet, 1500 px
@@ -501,12 +541,14 @@
         // and the shade still give it depth. .92, not .82: without the blur the
         // page behind is SHARP, and at .82 the favorites' labels read clearly
         // through the bar and fight its own text.
-        'ha-card.np.bar{background:rgba(22,23,26,.92)}',
+        // (--hk-np-plate: docked along the bottom it is opaque -- the page
+        // ends above it, so nothing is meant to show through)
+        'ha-card.np.bar{background:var(--hk-np-plate,rgba(22,23,26,.92))}',
         // A lighter wash than the page's .86/.62/.44: chosen for the
         // translucent bar (at the page's values the transparency did not
         // read), and left as is under the .92 plate.
-        '.np.bar .shade{background:linear-gradient(100deg,rgba(8,9,12,.56) 0%,',
-        '  rgba(8,9,12,.40) 48%,rgba(8,9,12,.26) 100%)}',
+        '.np.bar .shade{background:linear-gradient(100deg,rgba(8,9,12,.50) 0%,',
+        '  rgba(8,9,12,.34) 48%,rgba(8,9,12,.20) 100%)}',
         // NARROW WINDOWS.
         //
         // A wall tablet is typically 1280 CSS px (see the viewport note), so the
@@ -534,21 +576,36 @@
         // is not enough: its 380px track is fixed by the grid and stays there,
         // empty. These give the narrow bar its own simpler plan, which also
         // means it does not have to be kept in step with the vars' numbers.
+        // (On the Music page -- .onmusic, a phone's at most -- the same
+        // plans without Browse, at every width; the bar's own vars: plan,
+        // past 1176, has its .onmusic twin here too.)
+        'ha-card.np.bar.onmusic{',
+        '  --hk-np-cols:72px minmax(220px,max-content) 1fr 56px 64px 64px 64px 64px 1fr minmax(0,380px);',
+        '  --hk-np-areas:"art title . spk prev play next stop . meta"',
+        '                "art artist . spk prev play next stop . meta"',
+        '                "art sub . spk prev play next stop . meta"}',
         '@media (max-width:1176px){ha-card.np.bar{',
-        '  --hk-np-cols:72px minmax(0,1fr) 64px 64px 64px 64px 48px;',
-        '  --hk-np-areas:"art title prev play next stop close"',
-        '                "art artist prev play next stop close"',
-        '                "art sub prev play next stop close"}',
+        '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px 64px 52px;',
+        '  --hk-np-areas:"art title spk prev play next stop brw"',
+        '                "art artist spk prev play next stop brw"',
+        '                "art sub spk prev play next stop brw"}',
+        '  ha-card.np.bar.onmusic{',
+        '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px 64px;',
+        '  --hk-np-areas:"art title spk prev play next stop"',
+        '                "art artist spk prev play next stop"',
+        '                "art sub spk prev play next stop"}',
         '  .np.bar .meta{display:none}}',
         // Past that the stop button goes too: play/pause covers it, and at
         // this width nobody is glancing at the bar from across a room. 860
         // by the same sum without the volume track: 912 - 380 + gaps + padding.
-        '@media (max-width:860px){ha-card.np.bar{',
-        '  --hk-np-cols:72px minmax(0,1fr) 64px 64px 64px 48px;',
-        '  --hk-np-areas:"art title prev play next close"',
-        '                "art artist prev play next close"',
-        '                "art sub prev play next close"}',
-        '  .np.bar .stop{display:none}}',
+        // Browse goes with it: the art and the title open the Music page
+        // anyway, and with it the title kept 65px at 641.
+        '@media (max-width:860px){ha-card.np.bar,ha-card.np.bar.onmusic{',
+        '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px;',
+        '  --hk-np-areas:"art title spk prev play next"',
+        '                "art artist spk prev play next"',
+        '                "art sub spk prev play next"}',
+        '  .np.bar .stop,.np.bar .brw{display:none}}',
         // PHONE.
         //
         // The 860 plan bottoms out at EXACTLY a phone, which is why this is a
@@ -574,11 +631,24 @@
         //
         //   64 + 44 + 44 + three 10px gaps = 182, so the title gets 152px of
         //   the 334 a 402px phone has, and 125px of the 307 at 375.
-        '@media (max-width:640px){ha-card.np.bar{',
-        '  --hk-np-cols:64px minmax(0,1fr) 44px 44px;',
-        '  --hk-np-areas:"art title play close"',
-        '                "art artist play close"',
-        '                "art sub play close"}',
+        //
+        // SPEAKERS IN, CLOSE OUT (2026-10-11): the title keeps ~160px of a
+        // 402px phone.
+        '@media (max-width:640px){ha-card.np.bar,ha-card.np.bar.onmusic{',
+        '  --hk-np-cols:56px minmax(0,1fr) 44px 44px;',
+        '  --hk-np-areas:"art title spk play"',
+        '                "art artist spk play"',
+        '                "art sub spk play"}',
+        '  .np.bar .spk ha-icon{width:22px;height:22px;--mdc-icon-size:22px}',
+        // SLIMMER, AND NO CHIN ON TOP OF A CHIN (2026-10-11): 56px artwork
+        // and 12px round it, the progress a line under the song (its times
+        // go: phone_times in the strategy) -- and the foot's 12px is TAKEN
+        // FROM an iPhone's home-indicator inset, not added to it. The
+        // controls stay above the inset either way (34pt on an iPhone:
+        // 102pt in all, was 138; 80 where there is none).
+        '  ha-card.np.bar{--hk-np-height:calc(68px + max(12px, env(safe-area-inset-bottom, 0px)));',
+        '    --hk-np-pad:12px 24px max(12px, env(safe-area-inset-bottom, 0px))}',
+        '  .np.bar .grid{row-gap:3px}',
         // column-gap DIRECTLY, not --hk-np-gap. `.np.bar .grid` hard-codes
         // 14px (see above), which beats the variable outright -- so an
         // `hk-np-gap` in the bar's `vars:` is inert, and setting it here would
@@ -587,7 +657,7 @@
         // the sheet, so this wins.
         '  .np.bar .grid{column-gap:10px}',
         '  .np.bar .prev,.np.bar .next{display:none}',
-        '  .np.bar .art{width:64px;height:64px;border-radius:11px}',
+        '  .np.bar .art{width:56px;height:56px;border-radius:10px}',
         '  .np.bar .tb{width:44px;height:44px}',
         '  .np.bar .tb ha-icon{width:22px;height:22px;--mdc-icon-size:22px}',
         // One step down each, so a title that fits at 19px still fits here.
@@ -652,8 +722,197 @@
     set hass(h) {
       if (window.hkMusic) window.hkMusic.attach(h);
       Object.getOwnPropertyDescriptor(HkBase.prototype, 'hass').set.call(this, h);
+      // the open Speakers panel follows the house, a few times a second at
+      // most (rooms joining, levels, the queue's song); gone with the music
+      var me = this._spk;
+      if (me && Date.now() - me.ticked > 400) {
+        me.ticked = Date.now();
+        if (!this._musicCtx()) this._closeSpk(); else me.p.update();
+      }
     }
     get hass() { return this._hass; }
+    // the bar on the Music page (.onmusic): no Browse, no Close
+    _closeGlyph() {
+      var hc = this._root && this._root.querySelector('ha-card.bar');
+      if (!hc) return;
+      hc.classList.toggle('onmusic', onMusicPage());
+      if (!this._onLoc) {
+        var self = this;
+        this._onLoc = function () { setTimeout(function () { self._closeGlyph(); }, 0); self._closeSpk(); };
+        window.addEventListener('location-changed', this._onLoc);
+        window.addEventListener('popstate', this._onLoc);
+      }
+    }
+
+    // THE BAR'S SPEAKERS (2026-10-11): the screensaver's panel (Speakers /
+    // Volume / Queue, hk-saver-panel.js), on any page but the Music page --
+    // a popover over the button on a tablet, a sheet from the foot on a
+    // phone. On <body> under a shadow root of its own, not in the bar: the
+    // docked sheet clips, and the panel fires no events that need
+    // home-assistant to hear them. It closes on a tap outside, on its X,
+    // a moment after a request has landed, when the music goes, and when
+    // the page changes.
+    _openSpk() {
+      var P = window.hkSaverPanel, self = this, h = this._hass;
+      if (this._spk) { this._closeSpk(); return; }
+      var btn = this._root && this._root.querySelector('.spk'), card = this._root && this._root.querySelector('ha-card');
+      if (!P || !btn || !card || !h || !this._musicCtx()) return;
+      var phone = window.innerWidth <= 640, b = btn.getBoundingClientRect(), top = card.getBoundingClientRect().top;
+      var W = phone ? window.innerWidth : 430, H = phone ? Math.round(Math.min(640, window.innerHeight * 0.86)) : Math.round(Math.min(560, top - 28));
+      var left = phone ? 0 : Math.round(Math.min(window.innerWidth - W - 16, Math.max(16, b.left + b.width / 2 - W / 2)));
+      var host = document.createElement('div');
+      host.style.cssText = 'position:fixed;inset:0;z-index:12;';
+      var sr = host.attachShadow({ mode: 'open' }), HC = window.hkCards;
+      var st = document.createElement('style');
+      st.textContent = P.CSS + (HC && HC.shadeCss ? HC.shadeCss('.mpanel') : '') + SPK_CSS;
+      sr.appendChild(st);
+      var scrim = document.createElement('div'); scrim.className = 'scrim' + (phone ? ' dim' : '');
+      sr.appendChild(scrim);
+      var me = { host: host, scrim: scrim, phone: phone, doneT: null, ticked: 0 };
+      me.p = P.create({
+        tabs: ['speakers', 'volume', 'queue'],
+        hass: function () { return self._hass; },
+        ctx: function () { return self._musicCtx(); },
+        art: function () { return null; },
+        stop: true,
+        follow: function (key) { var Mu = window.hkMusic; if (key && Mu && Mu.known(key)) Mu.setFocus(key); },
+        done: function (ms) {
+          if (self._spk !== me) return;
+          clearTimeout(me.doneT);
+          me.doneT = setTimeout(function () { if (self._spk === me) self._closeSpk(); }, ms || 0);
+        },
+        wide: function () { return false; }
+      });
+      var el = me.p.el;
+      el.classList.add('up', phone ? 'sheet' : 'pop');
+      el.style.cssText = phone ? 'height:' + H + 'px' :
+        'left:' + left + 'px;top:' + (top - H - 14) + 'px;width:' + W + 'px;height:' + H + 'px;' +
+        'transform-origin:' + Math.round(b.left + b.width / 2 - left) + 'px 100%';
+      sr.appendChild(el);
+      me.p.size(W, H, 1);
+      me.p.show('speakers');
+      scrim.addEventListener('click', function () { self._closeSpk(); });
+      me.key = function (ev) { if (ev.key === 'Escape') self._closeSpk(); };
+      window.addEventListener('keydown', me.key);
+      document.body.appendChild(host);
+      this._spk = me;
+      btn.classList.add('lit');
+      requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add('in'); scrim.classList.add('on'); }); });
+    }
+    _closeSpk() {
+      var me = this._spk;
+      if (!me) return;
+      this._spk = null;
+      clearTimeout(me.doneT);
+      window.removeEventListener('keydown', me.key);
+      var btn = this._root && this._root.querySelector('.spk');
+      if (btn) btn.classList.remove('lit');
+      me.p.el.classList.remove('in'); me.scrim.classList.remove('on');
+      setTimeout(function () { me.p.destroy(); me.host.remove(); }, 320);
+    }
+    // the screen's bottom safe-area inset (an iPhone's home indicator), as
+    // CSS has it: env() is not readable from script but through a box
+    _insetBottom() {
+      var r = this._root;
+      if (!r) return 0;
+      var p = this._insetProbe;
+      if (!p || !p.isConnected) {
+        p = this._insetProbe = document.createElement('div');
+        p.style.cssText = 'position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;' +
+          'height:env(safe-area-inset-bottom,0px)';
+        r.appendChild(p);
+      }
+      return p.offsetHeight || 0;
+    }
+    // PUT AWAY: hk-popup's own close path (the hash cleared), the one its
+    // backdrop and X use -- with `dismissable` it stays shut on this screen
+    // until the music or the timers change
+    _putAway() {
+      if (location.hash) {
+        history.replaceState(null, '', location.pathname + location.search);
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }
+    }
+    // SWIPED DOWN, PUT AWAY (2026-10-11): the bar's close, as a phone's mini
+    // player's. On purpose only --
+    //   * it starts ON the bar (fixed: the page's scrolling never reaches
+    //     it), not on its sliders (volume, progress) -- and not in the
+    //     home-indicator strip at its foot (an iPhone's safe-area inset):
+    //     a swipe down there is iOS's Reachability, sideways its app
+    //     switcher, and no page can stop them -- the screen dropped
+    //     with the bar, recorded 2026-10-11;
+    //   * mostly downward: sideways or up is nothing at all (up from the
+    //     foot is an iPhone's Home);
+    //   * the plate follows the finger, and only past 40% of its height or
+    //     on a downward flick does it go -- short of that it springs back;
+    //   * past the slop it is a swipe, and no button under the finger fires.
+    // It moves the docked SHEET, the timers' strip over the bar with it --
+    // the whole of what goes away.
+    _swipe(card) {
+      var self = this, d = null, SLOP = 10;
+      var sheetOf = function () {
+        var n = self;
+        while (n && !(n.classList && n.classList.contains('sheet'))) n = n.parentNode;
+        return n;
+      };
+      card.addEventListener('pointerdown', function (ev) {
+        if (d || self._spk || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+        var path = ev.composedPath ? ev.composedPath() : [], e = self._e || {};
+        if (path.indexOf(e.meta) >= 0 || path.indexOf(e.sub) >= 0) return;
+        if (ev.clientY > window.innerHeight - self._insetBottom() - 4) return;
+        var sh = sheetOf();
+        if (!sh) return;
+        d = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, sh: sh, h: sh.offsetHeight || 100, on: false,
+              last: [ev.timeStamp, ev.clientY], prev: null };
+      });
+      card.addEventListener('pointermove', function (ev) {
+        if (!d || ev.pointerId !== d.id) return;
+        var dx = ev.clientX - d.x, dy = ev.clientY - d.y;
+        if (!d.on) {
+          if (Math.abs(dx) > SLOP && Math.abs(dx) > Math.abs(dy)) { d = null; return; }
+          if (dy < -SLOP) { d = null; return; }
+          if (!(dy > SLOP && dy > Math.abs(dx) * 1.4)) return;
+          d.on = true;
+          try { card.setPointerCapture(d.id); } catch (x) { /* gone */ }
+          d.sh.style.transition = 'none';
+        }
+        d.sh.style.transform = 'translateY(' + Math.max(0, dy - SLOP) + 'px)';
+        d.prev = d.last; d.last = [ev.timeStamp, ev.clientY];
+      });
+      var end = function (ev) {
+        if (!d || ev.pointerId !== d.id) return;
+        var g = d, sh = g.sh;
+        d = null;
+        if (!g.on) return;
+        self._swallow = Date.now();
+        var y = ev.clientY - g.y - SLOP;
+        var v = g.prev ? (g.last[1] - g.prev[1]) / Math.max(1, g.last[0] - g.prev[0]) : 0;
+        if (ev.type === 'pointerup' && (y > g.h * 0.4 || (v > 0.5 && y > 20))) {
+          sh.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)';
+          sh.style.transform = 'translateY(100%)';
+          // ...then closed where it already is: the sheet's own closed
+          // place is the same translateY(100%), so nothing jumps
+          setTimeout(function () { self._putAway(); sh.style.transition = ''; sh.style.transform = ''; }, 200);
+        } else {
+          sh.style.transition = 'transform .28s cubic-bezier(.2,.8,.2,1)';
+          sh.style.transform = '';
+          setTimeout(function () { if (!sh.style.transform) sh.style.transition = ''; }, 300);
+        }
+      };
+      card.addEventListener('pointerup', end);
+      card.addEventListener('pointercancel', end);
+      // a swipe is not a tap on what it started on
+      card.addEventListener('click', function (ev) {
+        if (self._swallow && Date.now() - self._swallow < 400) { ev.stopPropagation(); ev.preventDefault(); }
+      }, true);
+    }
+
+    // what plays on this screen's music, as hkMusic resolves it
+    _musicCtx() {
+      var Mu = window.hkMusic, h = this._hass;
+      var r = Mu && h ? Mu.resolve(h) : null;
+      return r && r.context ? r.context : null;
+    }
 
     // A FOCUS CHANGE REPAINTS WITHOUT A HASS PUSH -- a context tapped on the
     // Play Music page, a request sent -- so the card listens for it, tied to
@@ -670,6 +929,7 @@
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
       if (this._musicOff) { this._musicOff(); this._musicOff = null; }
+      this._closeSpk();
     }
 
     // The card re-renders when the RESOLVED player changes or when that
@@ -847,6 +1107,13 @@
           // backdrop tap and the X both use, so `dismissable` behaves
           // identically -- the sheet stays shut on this screen until playback
           // stops or the dismiss_scope changes.
+          // SPEAKERS AND BROWSE (bar only, 2026-10-11): on either side of
+          // the transport, as on the screensaver -- the screensaver's panel
+          // (Speakers / Volume / Queue) and the Music page's search
+          '<div class="tb spk" role="button" aria-label="Speakers"' +
+          ' data-hk-role="spk"><ha-icon icon="hk:homepod"></ha-icon></div>' +
+          '<div class="tb brw" role="button" aria-label="Browse Music" data-hk-role="brw">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + LIB + '"/></svg></div>' +
           '<div class="tb close" role="button" aria-label="Close"' +
           ' data-hk-role="close"><ha-icon icon="mdi:close"></ha-icon></div>' +
           '</div></ha-card>';
@@ -869,6 +1136,15 @@
         // the Play Music view's `path:`.
         if (cfg.bar) {
           var goPage = function () {
+            // ON THE MUSIC PAGE ITSELF (2026-10-11): the bar is its mini
+            // player -- a tap opens its Now Playing (a phone's sheet)
+            if (onMusicPage()) { window.dispatchEvent(new CustomEvent('hk-music-bar', { detail: { what: 'now' } })); return; }
+            // ...and from anywhere else the same thing, there: the page opens
+            // its Now Playing once it has laid itself out -- a phone's sheet;
+            // at two or three columns the player is the page and there is
+            // nothing to open (hk-music.js _wanted). A tap on the song is
+            // always "show me the player" (2026-10-11).
+            window.hkMusicWant = { what: 'now', at: Date.now() };
             var t = './playmusic';
             if (t.slice(0, 2) === './') {
               t = '/' + String(location.pathname).split('/')[1] + '/' + t.slice(2);
@@ -883,12 +1159,22 @@
             if (el) el.addEventListener('click', goPage);
           });
         }
-        q('.close').addEventListener('click', function () {
-          if (location.hash) {
-            history.replaceState(null, '', location.pathname + location.search);
-            window.dispatchEvent(new HashChangeEvent('hashchange'));
-          }
-        });
+        if (cfg.bar) {
+          // SPEAKERS: on the Music page, the page's own (it has Play Next On);
+          // anywhere else the screensaver's panel, over the bar
+          q('.spk').addEventListener('click', function () {
+            if (onMusicPage()) { window.dispatchEvent(new CustomEvent('hk-music-bar', { detail: { what: 'speakers' } })); return; }
+            self._openSpk();
+          });
+          // BROWSE: the Music page, in its search box
+          q('.brw').addEventListener('click', function () {
+            self._closeSpk();
+            history.pushState(null, '', '/' + String(location.pathname).split('/')[1] + '/music-browse');
+            window.dispatchEvent(new CustomEvent('location-changed'));
+          });
+        }
+        q('.close').addEventListener('click', function () { self._putAway(); });
+        if (cfg.bar) this._swipe(q('ha-card'));
         // NO BROWSE BUTTON IN THE PLAYER: there is one on the page.
         // hk-speaker-picker-card appends a "Browse Music" tile to its row
         // whenever `browse_url` is set -- the picker's `browse_url` is the live
@@ -937,6 +1223,15 @@
         this._built = true;
       }
       var e = this._e, p = this._player(), pic = this._art(p);
+      if (cfg.bar) this._closeGlyph();
+      // HIDE_IDLE (the docked #media bar): nothing playing or paused, no
+      // player at all -- the bar opened for the timers alone is just their
+      // strip, not a "Nothing Playing" row under it
+      if (cfg.hide_idle) {
+        var idle = !p || !(p.state === 'playing' || p.state === 'paused') || !(p.attributes && p.attributes.media_title);
+        if (this.style.display !== (idle ? 'none' : '')) this.style.display = idle ? 'none' : '';
+        if (idle) return;
+      }
 
       // PUBLISH THE ARTWORK for whoever paints the page background.
       //
@@ -963,10 +1258,20 @@
       // and `thumbnail` come from the media source -- Music Assistant passes
       // the streaming service's own CDN URL through, and a signed one is full
       // of `&` and can carry quotes.
+      //
+      // DECODED BEFORE IT IS DRAWN (decoding="sync"). Safari decodes a large
+      // picture off to the side and draws NOTHING where it goes until that is
+      // done -- and every page change puts a new copy of the docked bar on
+      // the new page: on the Mac its cover and its blurred backdrop were
+      // missing for ~4 frames at each click (the user's screen recording,
+      // 2026-10-11: the thumbnail an empty square, the bar flat and dark).
+      // Chrome decodes in time, so the tablets never showed it. The cover is
+      // already loaded (the same picture): decoding it in the frame costs a
+      // few ms once, where the gap cost a visible blink every time.
       var picAttr = esc(pic);
-      var bg = pic ? ('<img src="' + picAttr + '" alt="">') : '<div class="flat"></div>';
+      var bg = pic ? ('<img src="' + picAttr + '" alt="" decoding="sync">') : '<div class="flat"></div>';
       window.hkCards.morph(e.bg, bg);
-      var art = pic ? ('<img src="' + picAttr + '" alt="">')
+      var art = pic ? ('<img src="' + picAttr + '" alt="" decoding="sync">')
                     : '<div class="none">&#9835;</div>';
       window.hkCards.morph(e.art, art);
 

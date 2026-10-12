@@ -86,8 +86,19 @@
     // CELLS
     '.cell{position:relative;display:flex;align-items:center;gap:12px;min-height:var(--hk-row);padding:6px 16px;',
     '  width:100%;border:0;background:none;text-align:left;color:inherit}',
-    '.cell + .cell::before,.cell + .cellwrap::before,.cellwrap + .cell::before,.cellwrap + .cellwrap::before{content:"";position:absolute;top:0;right:0;left:16px;height:1px;',
-    '  background:var(--hk-sep);transform:scaleY(.5);transform-origin:top}',
+    // THE LINE IS A BORDER, not a box filled with it: a browser lays a box
+    // on whole CSS pixels, which on a Mac's display (WebKit, at 1.7x or 1.5x
+    // over Screen Sharing; at 2x the half-pixel line) fall between device
+    // pixels -- the line was split over two rows at half strength and read
+    // as missing (the row under Blur Mode's first, 2026-10-10). A border
+    // is snapped to whole device pixels: measured in WebKit and Chrome at
+    // 1x, 1.5x, 1.7x and 2x, every line at full strength.
+    '.cell + .cell::before,.cell + .cellwrap::before,.cellwrap + .cell::before,.cellwrap + .cellwrap::before{content:"";position:absolute;top:0;right:0;left:16px;height:0;',
+    '  border-top:1px solid var(--hk-sep)}',
+    // HALF A PIXEL ONLY WHERE A PIXEL HALVES: at 2x and more, one device
+    // pixel, as iOS draws it
+    '@media (min-resolution:2dppx){.cell + .cell::before,.cell + .cellwrap::before,.cellwrap + .cell::before,.cellwrap + .cellwrap::before{',
+    '  border-top-width:.5px}}',
     '.cellwrap{position:relative}',
     // A SEPARATOR STARTS WHERE ITS ROW'S TEXT DOES (the row below it): after
     // a 22 px glyph, a 30 px tile, a list's remove button, or both

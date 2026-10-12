@@ -23,6 +23,14 @@ integration, tied to that screen's item:
 Attributes on all: starts_after, in_use_window, last_touch (the screen's
 last touch, reported by hk-saver.js at most every 10 s while touched).
 
+A TOUCH ON THE SCREENSAVER'S OWN CONTROLS (2026-10-11) is reported apart
+(`saver: true`): the music's buttons, its volume, its Speakers / Volume /
+Browse panel, a photo stepped at an edge. Those leave the photos up, so they
+are not somebody at the dashboard: Sleep Screen reads them as the screensaver
+in use and keeps the photos (sleep_engine.py, saver_use) -- the kiosk's own
+last tap would otherwise read as "somebody is at the tablet" and wake the
+dashboard out from under the person using them.
+
 THE OLD HELPER, MIRRORED. A house that followed the 1.2 docs has
 input_boolean.wallpanel_screensaver_<room> (its Tablet Room) and automations
 on it. While that helper exists the switch mirrors it both ways, so nothing
@@ -88,6 +96,9 @@ class Manager:
         # path -> {"switch": photos, "black": black screen, "binary_sensor": in use}
         self.entities: dict[str, dict[str, Any]] = {}
         self.touch: dict[str, datetime] = {}
+        # path -> the last touch on the screensaver's own controls (ws_touch
+        # saver: true) -- not a touch of the page, never "in use"
+        self.saver_touch: dict[str, datetime] = {}
         # Sleep Screen: path -> its engine (sleep_engine.py), while its screen
         # is Decided By HK Frontend or in shadow; and what it was built from
         self.engines: dict[str, Any] = {}
@@ -205,6 +216,9 @@ class Manager:
         return out
 
     @callback
+    def saver_touched(self, path: str) -> None:
+        self.saver_touch[path] = dt_util.utcnow()
+
     def touched(self, path: str) -> None:
         self.touch[path] = dt_util.utcnow()
         for ent in self.entities.get(path, {}).values():
@@ -271,6 +285,8 @@ def manager(hass: HomeAssistant) -> Manager | None:
 @websocket_api.websocket_command({
     vol.Required("type"): "hk_frontend/screensaver/touch",
     vol.Required("dashboard"): str,
+    # a touch on the screensaver's own controls, the photos still up
+    vol.Optional("saver", default=False): bool,
 })
 @callback
 def ws_touch(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
@@ -286,7 +302,10 @@ def ws_touch(hass: HomeAssistant, connection: websocket_api.ActiveConnection, ms
     if not (user and (user.is_admin or user.name == mgr.board(path)["tablet_user"])):
         connection.send_error(msg["id"], "unauthorized", "Only the screen's tablet user")
         return
-    mgr.touched(path)
+    if msg.get("saver"):
+        mgr.saver_touched(path)
+    else:
+        mgr.touched(path)
     connection.send_result(msg["id"], {"window": window_of(mgr.board(path)["screensaver_options"]["starts_after"])})
 
 

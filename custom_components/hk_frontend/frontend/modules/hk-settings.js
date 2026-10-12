@@ -14,7 +14,8 @@
 //   hkSettings.seasonalOn(states)             false only when the gate is explicitly off
 //   hkSettings.themeOn('thanksgiving')        may this sky theme run at all
 //   hkSettings.skyLook()                      this screen's Sky / Background: animations,
-//                                             weather, decorations, decorationStyle, backdrop
+//                                             weather, precipitation, focusPause,
+//                                             decorations, decorationStyle, backdrop
 //   hkSettings.skyPalettes()                  the fixed backdrops, by id
 //   hkSettings.onChange(fn)                   called after a change; returns unsubscribe
 //
@@ -70,7 +71,7 @@
                forecast_daily: null, forecast_hourly: null, alerts: null, place: null, outside: null,
                // the Weather Radar Card's own options (YAML), over the tuned map
                radar: {} },
-    sky: { moon: null, holidays: null, seasonal: null, birthdays: [], decorations: true, decoration_style: 'old', cloud_style: 'classic',
+    sky: { moon: null, holidays: null, seasonal: null, birthdays: [], decorations: true, decoration_style: 'old', moving: 'behind', cloud_style: 'classic',
            daytime: 'natural',
            woodland: ['spring', 'summer', 'fall', 'winter'],
            // The sky's own look (Sky / Background): the moving parts, the
@@ -78,7 +79,10 @@
            // stay), and the backdrop ("live" or a SKY_BACKDROPS id below,
            // whose stops for "custom" are gradient_custom). Each screen may
            // set its own (the board's sky_* keys, null = follow these).
-           animations: true, weather: true, gradient: 'live', gradient_custom: null,
+           // precipitation: the falling rain and snow alone; focus_pause:
+           // Pause When Not in Focus (2026-10-10).
+           animations: true, weather: true, precipitation: true, focus_pause: true,
+           gradient: 'live', gradient_custom: null,
            // each page's background: {page: 'own' | 'live' | backdrop id}
            // -- a page missing is Automatic (settings.py sky.pages)
            pages: {},
@@ -124,14 +128,16 @@
              // All Screens' rooms, for the screens that don't set their own
              order: [], home: 'as_is', menu: 'az', pages: 'floor' },
     // All Screens' cameras, for the screens that don't set their own (empty: Automatic)
-    cameras: { order: [] },
+    // live: the Home strip's first tile plays live video (a screen's
+    // camera_live_video, when set, is its own)
+    cameras: { order: [], live: true },
     look: { glass: 'clear', frost: 50, blur: 50, frost_tint: false, details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {},
             // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
             saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
                      weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true,
                      forecast_every: 5, band: true, band_photos: false, calendar: false, calendar_days: 2,
-                     fade_back: 500 } },
+                     music_slide: false, music_pane: false, music_first: false, fade_back: 500 } },
     // The Calendar page and the screensaver's calendar pane (All Screens ->
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)
@@ -268,6 +274,9 @@
   //            costs nothing per frame
   //   blur     ONE shared blur layer behind every glass surface (hk-glass.js);
   //            nothing blurs itself
+  //   blur_pre the same layers holding a picture of the sky blurred once and
+  //            pinned to the screen (hk-glass.js PRE-RENDERED): no live blur;
+  //            the sky's motion does not show through
   //   blur_each  every glass surface blurs what is behind it (hkCards.M.glass
   //            reads --hk-glass-backdrop) -- for phones, iPads and
   //            computers: nothing to measure or line up, so a sheet opening, a
@@ -334,30 +343,36 @@
     blur:      function () {
       return { '--hk-glass-plate': OVER_BLUR, '--hk-chip-backdrop': 'none', '--hk-blur-filter': blurFilter(amount('blur')) };
     },
-    // every plate blurs itself, the chips too; hk-viewfade's fade gives way
-    // to a hard cut
+    // the shared layers wearing a still picture of the sky, blurred once
+    // (hk-glass.js PRE-RENDERED): to every card the same as blur
+    blur_pre:  function () { return LOOKS.blur(); },
+    // every plate blurs itself, the chips too
     blur_each: function () {
       var b = blurFilter(amount('blur'));
-      return { '--hk-glass-plate': OVER_BLUR, '--hk-glass-backdrop': b, '--hk-chip-backdrop': b, '--hk-view-anim': 'none' };
+      return { '--hk-glass-plate': OVER_BLUR, '--hk-glass-backdrop': b, '--hk-chip-backdrop': b };
     }
   };
+  // looks taken out, worn as the one that replaced them (settings.py
+  // RETIRED_GLASS) -- a cached copy from before may still name one
+  var RETIRED = { blur_baked: 'blur_pre' };
   var LOOK_VARS = ['--hk-glass-plate', '--hk-chip-plate', '--hk-chip-backdrop', '--hk-glass-backdrop',
-                   '--hk-view-anim', '--hk-blur-filter'];
-  // A PREVIEW ON ONE SCREEN: ?hkglass=clear|frosted|blur|blur_each on the URL
+                   '--hk-blur-filter'];
+  // A PREVIEW ON ONE SCREEN: ?hkglass=clear|frosted|blur|blur_pre|blur_each on the URL
   // (or hkSettings.previewGlass(), which the test probe uses) wears that look
   // on this page only, without changing the house's setting or the cache.
   var glassPreview = null;
   try {
-    var gm = /[?&]hkglass=(clear|frosted|blur_each|blur)\b/.exec(location.search);
+    var gm = /[?&]hkglass=(clear|frosted|blur_each|blur_pre|blur)\b/.exec(location.search);
     if (gm) glassPreview = gm[1];
   } catch (e) { /* no location (a test harness) */ }
   // A DASHBOARD'S OWN LOOK: its item's Screen page, else the house's.
   // Re-applied as the page moves between dashboards (location-changed).
   function glass() {
     if (glassPreview) return glassPreview;
-    var b = boardHere();
-    if (b && LOOKS[b.glass]) return b.glass;
+    var b = boardHere(), bg = b && (RETIRED[b.glass] || b.glass);
+    if (bg && LOOKS[bg]) return bg;
     var g = get('look.glass');
+    g = RETIRED[g] || g;
     return LOOKS[g] ? g : 'clear';
   }
   // Sky / Background (HK Settings -> Sky / Background; a screen's own on
@@ -379,8 +394,15 @@
     return {
       animations: own('sky_animations', 'sky.animations', true) !== false,
       weather: own('sky_weather', 'sky.weather', true) !== false,
+      // Rain & Snow: the falling weather alone (2026-10-10); and Pause When
+      // Not in Focus -- on a computer, the sky and the cards hold while
+      // another window has the focus (hk-sky.js FOCUS)
+      precipitation: own('sky_precipitation', 'sky.precipitation', true) !== false,
+      focusPause: own('sky_focus_pause', 'sky.focus_pause', true) !== false,
       decorations: own('sky_decorations', 'sky.decorations', true) !== false,
       decorationStyle: own('sky_decoration_style', 'sky.decoration_style', 'old'),
+      // Moving Things: 'front' draws them over the cards (hk-sky.js FRONT)
+      moving: own('sky_moving', 'sky.moving', 'behind'),
       cloudStyle: own('sky_cloud_style', 'sky.cloud_style', 'classic'),
       brightness: DAYTIME.hasOwnProperty(own('sky_daytime', 'sky.daytime', 'natural'))
         ? DAYTIME[own('sky_daytime', 'sky.daytime', 'natural')] : 1,

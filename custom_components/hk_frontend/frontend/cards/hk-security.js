@@ -152,6 +152,22 @@
       return { icon: m[0], color: m[1], word: m[2] };
     }
 
+    // AN ALARM THAT TAKES NO CODE (its code_format null -- a panel that arms
+    // and disarms with a tap): no digits, only the buttons it can do, each
+    // sent without a code. One that takes a code keeps the keypad.
+    static codeless(s) {
+      var a = s && s.attributes;
+      return !!a && !a.code_format && s.state !== 'unavailable' && s.state !== 'unknown';
+    }
+    // The modes it can be armed in (supported_features), in the order the
+    // buttons go: Home, Away, Night, Vacation, Custom. Not reported: Home and
+    // Away, as before.
+    static modes(s) {
+      var f = s && s.attributes && s.attributes.supported_features;
+      if (typeof f !== 'number') return ['home', 'away'];
+      return [['home', 1], ['away', 2], ['night', 4], ['vacation', 32], ['custom_bypass', 16]]
+        .filter(function (m) { return f & m[1]; }).map(function (m) { return m[0]; });
+    }
     // The card's own entity, else the alarm chosen in Configure -> Your home.
     _panel() { return this._config.entity || setting('security.alarm'); }
     // The server's wrong-code flash: the card's own, else Configure -> Advanced.
@@ -174,9 +190,9 @@
       // panels that fail SILENTLY -- a template panel that checks the code
       // itself and simply does nothing on a mismatch: its own automation turns
       // the indicator on, and _paint shows that too.
-      this._callErr('alarm_control_panel', service, {
-        entity_id: this._panel(), code: this._code
-      }).then(function (r) {
+      var data = { entity_id: this._panel() };
+      if (!this._codeless) data.code = this._code;      // a panel with no code gets none
+      this._callErr('alarm_control_panel', service, data).then(function (r) {
         if (r.ok) return;
         self._flash(/code/i.test(String(r.error)) ? 'Wrong code' : 'Alarm not responding');
       });
@@ -219,11 +235,20 @@
     _paint() {
       var read = this._root.querySelector('.read');
       if (!read) { return; }
+      // the panel became one with a code, or without one: drawn again
+      if (this._built && this._config && this._hass) {
+        var ps = this._st(this._panel());
+        var shape = (HkAlarmKeypadCard.codeless(ps) ? 'tap:' : 'pad:') + HkAlarmKeypadCard.modes(ps).join(',');
+        if (this._shape && shape !== this._shape) { this._built = false; this._render(); return; }
+      }
       var bad = this._st(this._badCode());
       var isBad = !!this._msg || (bad && bad.state === 'on');
       read.setAttribute('data-bad', isBad ? '1' : '0');
       var rest = !isBad && !this._code && this._config.status !== false;
       read.setAttribute('data-mode', rest ? 'status' : 'code');
+      // no code and no status to say (the alarm sheet says it above): the
+      // readout only for "Alarm not responding"
+      if (read.style) read.style.display = this._codeless && !rest && !isBad ? 'none' : '';
       var span = read.querySelector('.code');
       span.textContent = isBad ? (this._msg || 'Wrong code')
                        : (this._code ? new Array(this._code.length + 1).join('\u2022')
@@ -253,7 +278,14 @@
 
     _render() {
       if (!this._config) { return; }
-      if (this._built) { this._paint(); return; }
+      // what the panel is decides what is drawn: with a code or without, and
+      // its modes -- drawn again only when that changes
+      var ps = this._st(this._panel());
+      var codeless = HkAlarmKeypadCard.codeless(ps), modes = HkAlarmKeypadCard.modes(ps);
+      var shape = (codeless ? 'tap:' : 'pad:') + modes.join(',');
+      if (this._built && this._shape === shape) { this._paint(); return; }
+      this._shape = shape;
+      this._codeless = codeless;
       var self = this;
       this._root.innerHTML = '';
 
@@ -266,6 +298,27 @@
       st.appendChild(document.createElement('span'));
       read.appendChild(code); read.appendChild(st);
       this._root.appendChild(read);
+
+      var WORDS = { home: ['Home', 'hk:shield-home', 'home'], away: ['Away', 'hk:shield-lock', 'away'],
+                    night: ['Night', 'hk:weather-night', 'home'], vacation: ['Vacation', 'hk:bag-suitcase', 'away'],
+                    custom_bypass: ['Custom', 'hk:shield-lock', 'away'] };
+      if (codeless) {
+        // NO CODE: a button for each mode it can be armed in, and Disarm --
+        // three to a row, like the keypad's own row of actions
+        var tap = document.createElement('div'); tap.className = 'acts';
+        // an even grid: two or four in pairs, three or five three to a row
+        var n = modes.length + 1;
+        tap.style.gridTemplateColumns = 'repeat(' + (n === 2 || n === 4 ? 2 : Math.min(3, n)) + ',1fr)';
+        modes.forEach(function (m) {
+          var w = WORDS[m];
+          tap.appendChild(self._key('a ' + w[2], w[0], function () { self._alarm('alarm_arm_' + m); }, w[1]));
+        });
+        tap.appendChild(self._key('a off', 'Disarm', function () { self._alarm('alarm_disarm'); }, 'hk:shield-off'));
+        this._root.appendChild(tap);
+        this._built = true;
+        this._paint();
+        return;
+      }
 
       var pad = document.createElement('div'); pad.className = 'pad';
       ['1','2','3','4','5','6','7','8','9'].forEach(function (d) {
@@ -285,8 +338,9 @@
       this._root.appendChild(pad);
 
       var acts = document.createElement('div'); acts.className = 'acts';
-      acts.appendChild(self._key('a home', 'Home', function () { self._alarm('alarm_arm_home'); }, 'hk:shield-home'));
-      acts.appendChild(self._key('a away', 'Away', function () { self._alarm('alarm_arm_away'); }, 'hk:shield-lock'));
+      // (Home and Away, those it can do: a panel with no Home has no Home key)
+      if (modes.indexOf('home') >= 0) acts.appendChild(self._key('a home', 'Home', function () { self._alarm('alarm_arm_home'); }, 'hk:shield-home'));
+      if (modes.indexOf('away') >= 0) acts.appendChild(self._key('a away', 'Away', function () { self._alarm('alarm_arm_away'); }, 'hk:shield-lock'));
       acts.appendChild(self._key('a off', 'Disarm', function () { self._alarm('alarm_disarm'); }, 'hk:shield-off'));
       this._root.appendChild(acts);
 

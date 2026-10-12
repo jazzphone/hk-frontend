@@ -104,7 +104,10 @@
     '.app{display:flex;height:100%;overflow:hidden;position:relative}',
     '.side{flex:none;width:320px;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:0 16px 40px;',
     '  border-right:.5px solid var(--hk-sep)}',
-    '.sidetop{position:sticky;top:0;z-index:2;background:var(--hk-bg);padding:10px 0 12px;margin:0 -4px}',
+    '.sidetop{position:sticky;top:0;z-index:2;background:var(--hk-bg);padding:10px 0 12px;margin:0 -4px;',
+    '  border-bottom:.5px solid transparent;transition:border-color .2s}',
+    // the list scrolled under the search: its hairline, as the top bar's
+    '.side.scrolled .sidetop{border-bottom-color:var(--hk-sep)}',
     // the title on the column the search field and the lists start on (4px
     // undoes .sidetop's -4px); only with Home Assistant's ☰ in front of it
     // is the row pulled left, so the button's own padding sits in the margin
@@ -519,6 +522,9 @@
       this.liveEl = s.querySelector('.live');
       this.scrollEl.addEventListener('scroll', function () {
         self.bar.classList.toggle('scrolled', self.scrollEl.scrollTop > 30);
+      }, { passive: true });
+      this.sideEl.addEventListener('scroll', function () {
+        self.sideEl.classList.toggle('scrolled', self.sideEl.scrollTop > 2);
       }, { passive: true });
       new ResizeObserver(function () { self.measure(); }).observe(this);
       this.measure();
@@ -1651,11 +1657,57 @@
       var beh = [K.toggle({ label: 'Allow Pop-ups', sk: 'b:popups', on: b.popups, onChange: function (on) { set({ popups: on }); } })];
       if (gen) {
         beh.push(K.toggle({ label: 'Now Playing Bar', sk: 'b:now_playing', on: b.now_playing,
+                            sub: 'The music playing, docked along the bottom of the screen.',
                             onChange: function (on) { set({ now_playing: on }); } }));
+        // (shown once the integration knows it: an older one would drop it)
+        if (b.timer_bar !== undefined) {
+          beh.push(K.toggle({ label: 'Timer Bar', sk: 'b:timer_bar', on: b.timer_bar,
+                              sub: 'Running quick timers, docked along the bottom — over the player when music plays.',
+                              onChange: function (on) { set({ timer_bar: on }); } }));
+        }
+        if (b.bar_all_pages !== undefined && (b.now_playing || b.timer_bar)) {
+          beh.push(K.toggle({ label: 'On Every Page', sk: 'b:bar_all_pages', on: b.bar_all_pages,
+                              sub: 'The bar on every page of this screen, not Home alone.',
+                              onChange: function (on) { set({ bar_all_pages: on }); } }));
+        }
       }
       var pops = (this.data.popups || []).map(function (p) { return p.name || '#' + p.hash; });
       c.appendChild(K.group({ header: 'Behavior', footer: (pops.length ? 'Pop-ups (' + pops.join(', ') + ')' : 'Pop-ups') +
         ' open over this screen when an automation shows one. Off: never here — a car’s screen, say.' }, beh));
+
+      // NOTIFICATIONS (Features -> Notifications): this screen's switch, its
+      // screensaver, its Do Not Disturb -- each Same as All Screens unless set
+      if (F.stateOf(this.data.features, 'hk_notify') === 'added') {
+        var nd = (this.feat('hk_notify').data || {}).options || {};
+        var SAVERS = { all: 'All', important: 'Important Only', off: 'Off' };
+        var nrows = [K.toggle({ label: 'Allow Notifications', sk: 'b:notify', on: b.notify !== false,
+                                sub: 'Banners from Notifications show on this screen',
+                                onChange: function (on) { set({ notify: on }); } })];
+        var nwhile = null;
+        if (b.notify !== false) {
+          var hs = SAVERS[nd.saver] || 'Important Only';
+          nrows.push(K.select({ label: 'On the Screensaver', sub: b.notify_saver ? 'Just This Screen' : 'Same as All Screens',
+            value: b.notify_saver || '', sk: 'b:notify_saver',
+            options: [['', 'Same as All Screens (' + hs + ')', hs], ['all', 'All'], ['important', 'Important Only'], ['off', 'Off']],
+            onChange: function (v) { set({ notify_saver: v || null }); } }));
+          var dnd = b.notify_dnd, own = !!(dnd && (dnd.schedule || (dnd['while'] || []).length));
+          var hd = F.dndSummary(nd.dnd);
+          nrows.push(K.select({ label: 'Do Not Disturb', sub: dnd ? 'Just This Screen' : 'Same as All Screens',
+            value: !dnd ? '' : own ? 'own' : 'off', sk: 'b:notify_dnd',
+            options: [['', 'Same as All Screens (' + hd + ')', hd], ['off', 'Off on This Screen', 'Off'], ['own', 'Its Own Hours']],
+            onChange: function (v) {
+              set({ notify_dnd: v === '' ? null : v === 'off' ? { schedule: false, 'while': [] }
+                : { schedule: true, from: (nd.dnd || {}).from || '22:00', to: (nd.dnd || {}).to || '07:00', 'while': [] } });
+            } }));
+          if (own) {
+            var dr = F.dndRows(this, dnd, function (x) { set({ notify_dnd: x }); }, 'b:notify_dnd');
+            nrows = nrows.concat(dr.rows);
+            nwhile = dr.whileRows;
+          }
+        }
+        c.appendChild(K.group({ header: 'Notifications', footer: 'Which notifications there are, and All Screens’ choices, are in Notifications. An Important one gets through Do Not Disturb.' }, nrows));
+        if (nwhile) c.appendChild(K.group({ header: 'Do Not Disturb While This Is On', footer: 'An input_boolean, a switch, a timer while it runs.' }, nwhile));
+      }
 
       // WHEN IDLE: back to Home, and the photo screensaver -- every screen;
       // an existing dashboard's comes from these settings unless its own YAML
@@ -2262,8 +2314,15 @@
         filter: { domains: ['input_select', 'select'] }, onPick: function (v) { set({ camera_live: v || '' }); } }));
       top.push(K.nav({ label: 'Set Up Live Camera Follows', href: '#/screens/' + encodeURIComponent(x.path) + '/cameras/live',
                        icon: 'mdi:cctv', fk: 'cams:live' }));
-      c.appendChild(K.group({ footer: 'The first tile plays live video; the others show snapshots. A dropdown helper can choose which camera is live — the one where someone was just seen, say.' }, top));
-      if (x.generated && !b.camera_strip) return;
+      // LIVE FIRST CAMERA, this screen's own or All Screens' (2026-10-10)
+      var hLive = (this.data.settings.cameras || {}).live !== false, ownLive = typeof b.camera_live_video === 'boolean';
+      top.push(K.toggle({ label: 'Live First Camera', sk: 'b:camera_live_video', on: ownLive ? b.camera_live_video : hLive,
+        sub: ownLive ? 'Just This Screen' : 'Same as All Screens', onChange: function (on) { set({ camera_live_video: on }); } }));
+      if (ownLive) top.push(K.button({ label: 'Reset to All Screens (' + (hLive ? 'On' : 'Off') + ')', sk: 'b:camera_live_video:reset',
+                                       onClick: function () { set({ camera_live_video: null }); } }));
+      c.appendChild(K.group({ footer: 'The first tile plays live video; the others show snapshots. A dropdown helper can choose which camera is first — the one where someone was just seen, say. ' +
+          'Live First Camera off makes the first tile a snapshot too: no video to decode, lighter on a computer or an older tablet.' }, top));
+      if (x.generated && !b.camera_strip) { this.cameraRelated(c, x); return; }
       // WHICH CAMERAS: All Screens' (Cameras, on the sidebar), or this
       // screen's own. Turning Same off starts from All Screens' as they are.
       var follows = !b.cameras_custom;
@@ -2277,6 +2336,7 @@
       if (follows) {
         this.fromAllScreens(c, [K.info({ label: 'Cameras', value: (b.cameras || []).length ? b.cameras.length + ' Cameras' : 'Automatic' })],
                             'Cameras', '#/house/cameras');
+        this.cameraRelated(c, x);
         return;
       }
       var mdl = M.camerasModel(b, ok, autoCams);
@@ -2290,6 +2350,7 @@
               function () { set({ cameras: [] }); });
         },
         onChange: function (v) { set({ cameras: v }); } }));
+      this.cameraRelated(c, x);
     }
     // LIVE CAMERA FOLLOWS, explained where it is set: what it does, the
     // dropdown's options for this screen's cameras (made for you, if you
@@ -2711,8 +2772,7 @@
           emptyText: 'No pages yet — add one from More. Until then the screen shows everything.',
           shownFooter: 'In this order; the screen opens on the first. Any page a generated screen can have, and your custom pages.',
           rows: om.rows.map(function (r) {
-            return { value: r.value, label: lab(r.value), sub: subOf(r), href: hrefOf(r), fixed: r.fixed,
-                     fixedText: 'Comes with Play Music' };
+            return { value: r.value, label: lab(r.value), sub: subOf(r), href: hrefOf(r) };
           }),
           more: om.more.map(function (r) { return { value: r.value, label: lab(r.value), sub: subOf(r) }; }),
           onChange: function (v) { set({ only_pages: v }); } }));
@@ -2740,7 +2800,7 @@
         shownFooter: menuOn ? 'Top of Menu: right under Home, above Categories. Not in Menu: still one tap away on its chip. ' +
           'The order here is the menu’s order.' : 'This screen has no menu (Menu is Off).',
         rows: mdl.rows.map(function (r) {
-          return { value: r.value, label: lab(r.value), fixed: r.fixed, fixedText: 'Comes with Play Music',
+          return { value: r.value, label: lab(r.value),
                    sub: r.custom ? 'Custom page' : null, removable: r.custom,
                    href: r.custom ? '#/pages/' + encodeURIComponent(r.value) : null,
                    control: placeCtl(r.value), value2: menuOn && M.MENU_FIXED[r.value] && !r.fixed ? M.MENU_FIXED[r.value] : null };
@@ -2762,15 +2822,34 @@
       c.appendChild(K.group({ footer: h('span', {}, ['Custom pages are written in ',
         h('a', { href: '#/pages', text: 'Custom Pages' }), '.']) }, []));
     }
+    // THE GLASS STYLE, All Screens' or a screen's (2026-10-10): Glass,
+    // Frosted or Blur, and -- while Blur is chosen -- how it blurs (Blur
+    // Mode), each with what it costs. `cur`: the stored value shown as
+    // chosen (null: none -- a screen following All Screens); `fallback`: the
+    // blur mode Blur starts from; `pick(v)` saves; `fk` prefixes the keys.
+    glassChoices(c, cur, fallback, pick, fk, header) {
+      var style = cur ? M.glassStyle(cur) : null;
+      c.appendChild(K.group({ header: header || 'Style' }, M.GLASS_STYLES.map(function (g) {
+        return K.check({ label: g[1], sub: g[2], on: style === g[0], fk: fk + g[0], onClick: function () {
+          // Blur keeps the mode already chosen
+          pick(g[0] === 'blur' ? (M.isBlur(cur) ? cur : fallback) : g[0]);
+        } });
+      })));
+      if (style !== 'blur') return;
+      c.appendChild(K.group({ header: 'Blur Mode', footer: 'Shared Layer and Each Card blur live; Pre-rendered blurs a picture of the sky once. ' +
+          'On a wall tablet, anything but Each Card. Pop-up sheets blur live in Shared Layer and Pre-rendered.' }, M.BLUR_MODES.map(function (m) {
+        return K.check({ label: m[1], sub: m[2], on: cur === m[0], fk: fk + 'mode:' + m[0], onClick: function () { pick(m[0]); } });
+      })));
+    }
     s_glass(c, x, b) {
       var self = this, look = this.data.settings.look;
-      var pick = function (v) { self.setB(x.path, { glass: v }); self.back('#/screens/' + encodeURIComponent(x.path)); };
+      var pick = function (v) { self.setB(x.path, { glass: v }); };
+      var follows = !b.glass || b.glass === 'house';
       c.appendChild(K.group({ footer: 'Same as All Screens follows All Screens → Appearance, so this screen changes with the others.' }, [
-        K.check({ label: 'Same as All Screens', sub: 'Now ' + M.glassLabel(look.glass), on: !b.glass || b.glass === 'house', fk: 'glass:house',
+        K.check({ label: 'Same as All Screens', sub: 'Now ' + M.glassLabel(look.glass), on: follows, fk: 'glass:house',
                   onClick: function () { pick('house'); } })]));
-      c.appendChild(K.group({ header: 'Just This Screen' }, M.GLASS.map(function (g) {
-        return K.check({ label: g[1], sub: g[2], on: b.glass === g[0], fk: 'glass:' + g[0], onClick: function () { pick(g[0]); } });
-      })));
+      // Blur here starts from All Screens' mode when theirs is a blur too
+      this.glassChoices(c, follows ? null : b.glass, M.isBlur(look.glass) ? look.glass : 'blur', pick, 'glass:', 'Just This Screen');
     }
 
     // AN OPTIONS PAGE: OPTION_PAGES' controls over the options mapping, then
@@ -2805,7 +2884,7 @@
                                       href: '#/house/tablets/screensaver', sk: 'saver:house-page' })] : [])));
       if (!house) {
         this.saverGroups(c, cur, function (k, v) {
-          var o = M.saverOptions(cur); o[k] = v;
+          var o = M.saverOptions(cur); if (k && typeof k === 'object') Object.assign(o, k); else o[k] = v;
           return self.setB(path, { screensaver_options: self.saverOut(o) });
         });
         if (M.saverCustom(cur)) {
@@ -2836,25 +2915,56 @@
       // ONE TIMER: Starts After also decides how long a touch keeps the screen
       // In Use (a minute less, never under 15 s -- screensaver.py window_of)
       var win = Math.max(15, cur.starts_after - 60);
-      // WHAT IT SHOWS: the photos (and the forecast whenever there are none),
-      // or always the forecast -- the live sky over the season's land
+      // WHAT IT SHOWS (2026-10-10): the photos -- with slides between them,
+      // the forecast and the music -- or the forecast, the music over it
+      // while it plays. Stored as before: show is photos, both (the forecast
+      // slide on) or forecast; music_slide beside it.
       var fc = cur.show === 'forecast', both = cur.show === 'both';
+      var muKnown = self.saverKnown('music_slide'), mu = muKnown && !!cur.music_slide;
       var every = function (n) { return 'Every ' + n + ' Photos'; };
       c.appendChild(K.group({ header: 'Show', footer: fc
           ? 'The forecast over the live sky and the season’s landscape: today, the next hours and the coming days. No photos needed.'
-          : both ? 'Your photos, with the forecast as one of them: after every few photos it fades in for as long as a photo shows, then the photos go on. Its sky only moves while it is on screen. With no photos, the forecast alone.'
           : cur.fallback ? 'Your photos. When the photos folder has none, or can’t be read, the forecast shows instead.'
           : 'Your photos. When the photos folder has none, or can’t be read, the screen stays dark.' }, [
-        K.seg({ label: 'Show', value: cur.show, sk: 'saver:show', stack: !self.hasAttribute('wide'),
-                options: [['photos', 'Photos'], ['both', 'Photos & Forecast'], ['forecast', 'Forecast']], onChange: function (v) { put('show', v); } })
-      ].concat(both ? [K.select({ label: 'Forecast', sk: 'saver:forecast_every', value: String(cur.forecast_every),
-                                  options: [3, 5, 10, 20].concat([3, 5, 10, 20].indexOf(cur.forecast_every) < 0 ? [cur.forecast_every] : [])
-                                    .map(function (n) { return [String(n), every(n)]; }),
-                                  onChange: function (v) { put('forecast_every', Number(v)); } })]
-               : fc ? [] : [tog('Forecast When There Are No Photos', 'fallback')],
+        K.seg({ label: 'Show', value: fc ? 'forecast' : 'photos', sk: 'saver:show',
+                options: [['photos', 'Photos'], ['forecast', 'Forecast']],
+                onChange: function (v) { put('show', v === 'forecast' ? 'forecast' : 'photos'); } })
+      ].concat(fc ? [] : [tog('Forecast When There Are No Photos', 'fallback')],
                // the details ON the forecast, wherever a forecast can show
                (fc || both || cur.fallback) ? [tog('Details on the Forecast', 'band',
                  'On the forecast: today, the next hours and the coming days along the bottom. Off: the sky and the landscape alone.')] : [])));
+      // MUSIC FIRST (music_first; with Forecast, the older music_slide over
+      // it is the same): while music plays it fills the screen
+      var mfKnown = self.saverKnown('music_first'), mf = (mfKnown && !!cur.music_first) || (fc && mu);
+      // THE SLIDES between the photos (the music's only when it isn't first)
+      if (!fc) {
+        var muSlide = mu && !mf;
+        c.appendChild(K.group({ header: 'Between the Photos', footer: (both || muSlide)
+            ? 'After every few photos a slide fades in for as long as a photo shows, then the photos go on.' +
+              (both && muSlide ? ' The forecast and the music take turns.' : '') +
+              (muSlide ? ' The music only while something plays; its buttons skip or pause without closing the screensaver, and a tap on its album art opens Music.' : '')
+            : 'Slides among the photos: the forecast' + (mf ? '.' : ', and what’s playing.') }, [
+          K.toggle({ label: 'Forecast', sub: 'The forecast over the live sky, as one of the photos. Its sky only moves while it is on screen.',
+                     on: both, sk: 'saver:slide_forecast', onChange: function (on) { put('show', on ? 'both' : 'photos'); } })
+        ].concat(muKnown && !mf ? [tog('Music', 'music_slide', 'What’s playing, full screen: the album art, the song and what’s up next, with buttons for the previous or next song.')] : [],
+                 (both || muSlide) ? [K.select({ label: 'A Slide', sk: 'saver:forecast_every', value: String(cur.forecast_every),
+                                    options: [3, 5, 10, 20].concat([3, 5, 10, 20].indexOf(cur.forecast_every) < 0 ? [cur.forecast_every] : [])
+                                      .map(function (n) { return [String(n), every(n)]; }),
+                                    onChange: function (v) { put('forecast_every', Number(v)); } })] : [])));
+      }
+      if (mfKnown || (fc && muKnown)) {
+        c.appendChild(K.group({ header: 'While Music Plays', footer: mf
+            ? 'While music plays anywhere in the house, the album art fills the screen in place of the ' + (fc ? 'forecast' : 'photos') +
+              ', with the song, what’s up next and its buttons (they skip or pause without closing the screensaver; a tap on the art opens Music). The ' +
+              (fc ? 'forecast' : 'photos') + ' come back 20 seconds after the music stops.'
+            : 'Off: the ' + (fc ? 'forecast stays' : 'photos go on') + ' while music plays' + (fc ? '.' : (mu ? ', the music as one of the slides.' : '.')) }, [
+          K.toggle({ label: 'Music First', sub: 'The music fills the screen while it plays.', on: mf, sk: 'saver:music_first',
+                     onChange: function (on) {
+                       // (the older Forecast switch, music_slide over it, is folded in)
+                       if (!mfKnown) { put('music_slide', on); return; }
+                       put(fc ? { music_first: on, music_slide: false } : { music_first: on });
+                     } })]));
+      }
       // BACK TO THE DASHBOARD (hk-saver.js stop): a touch or the switch
       var FADES = [[0, 'Instant'], [500, '0.5 Seconds'], [1000, '1 Second'], [2000, '2 Seconds']];
       var fadeOpts = FADES.concat(FADES.some(function (f) { return f[0] === cur.fade_back; }) ? []
@@ -2881,16 +2991,22 @@
         tog('Now Playing', 'music', 'Music playing anywhere in the house, bottom left.'),
         tog('Timers', 'timers', 'Running timers, bottom right.'),
         tog('Home Status', 'status', 'Top right: Home Secured when the alarm is armed and everything is shut, or what’s open or unlocked. Nothing when there’s nothing to say.')], overPhotos)));
-      // THE CALENDAR PANE: the coming events down the right, the photos (or
-      // the forecast) beside it
+      // THE PANE down the right: the coming events, what plays, or both --
+      // the calendar above the music -- the photos (or the forecast) beside it
       var days = function (n) { return n === 1 ? 'Today' : n === 2 ? 'Today & Tomorrow' : n + ' Days'; };
-      c.appendChild(K.group({ header: 'Calendar', footer: cur.calendar
+      var pmKnown = self.saverKnown('music_pane'), pm = pmKnown && !!cur.music_pane, what = fc ? 'forecast' : 'photos';
+      c.appendChild(K.group({ header: 'Side Pane', footer: cur.calendar && pm
+          ? 'Down the right of the screen, Home Status at its top: the calendar’s events, and below them what’s playing while music plays. The ' + what + ' move over beside it. A swipe on the events scrolls them; the music’s buttons skip or pause; a touch anywhere else closes the screensaver.'
+          : cur.calendar
           ? 'The events of the calendars in All Screens → Calendar, down the right of the screen, with Home Status at its top; the ' +
-            (fc ? 'forecast' : 'photos') + ' move over beside it. A swipe on it scrolls it; a touch anywhere else closes the screensaver.'
-          : 'The coming events, down the right of the screen.' }, [
-        tog('Calendar Pane', 'calendar')].concat(cur.calendar ? [K.select({ label: 'Days', sk: 'saver:calendar_days',
+            what + ' move over beside it. A swipe on it scrolls it; a touch anywhere else closes the screensaver.'
+          : pm ? 'While music plays, what’s playing down the right of the screen, with Home Status at its top; the ' + what +
+            ' move over beside it, with the next photo. Its buttons skip or pause without closing the screensaver, and a tap on its album art opens Music. 20 seconds after the music stops, the pane goes.'
+          : 'Down the right of the screen: the coming events, what’s playing, or both.' }, [
+        tog('Calendar', 'calendar')].concat(cur.calendar ? [K.select({ label: 'Days', sk: 'saver:calendar_days',
           value: String(cur.calendar_days), options: [1, 2, 3, 4, 5, 6, 7].map(function (n) { return [String(n), days(n)]; }),
-          onChange: function (v) { put('calendar_days', Number(v)); } })] : [])));
+          onChange: function (v) { put('calendar_days', Number(v)); } })] : [],
+          pmKnown ? [tog('Music', 'music_pane')] : [])));
     }
     // ALL SCREENS' SCREENSAVER (Wall Tablets → Screensaver): every screen whose
     // Same as All Screens is on uses these. The preview shows the first such
@@ -2904,7 +3020,7 @@
         K.text({ label: 'Screensaver Photos', sk: 'look.photos', value: this.hs('look.photos'), placeholder: 'media-source://…', error: this.err('look.photos'),
                  onCommit: function (v) { self.setH({ 'look.photos': v }); } })]));
       this.saverGroups(c, cur, function (k, v) {
-        var o = M.saverOptions(cur); o[k] = v;
+        var o = M.saverOptions(cur); if (k && typeof k === 'object') Object.assign(o, k); else o[k] = v;
         return self.setH({ 'look.saver': self.saverOut(o) });
       });
       var name = function (p) { return (self.dash(p) || { title: p }).title; };
@@ -3781,29 +3897,44 @@
     }
     h_glass(c) {
       var self = this, look = this.data.settings.look;
-      c.appendChild(K.group({ footer: 'Each screen can choose its own under its Appearance.' }, M.GLASS.map(function (g) {
-        return K.check({ label: g[1], sub: g[2], on: look.glass === g[0], fk: 'hglass:' + g[0], onClick: function () {
-          self.setH({ 'look.glass': g[0] }); self.back('#/house/appearance');
-        } });
-      })));
+      this.glassChoices(c, look.glass || 'clear', 'blur', function (v) { self.setH({ 'look.glass': v }); }, 'hglass:');
+      c.appendChild(K.group({ footer: 'Each screen can choose its own under its Appearance.' }, []));
     }
     h_sky(c) {
       var self = this, sky = this.data.settings.sky, look = this.data.settings.look;
       c.appendChild(K.group({ header: 'Live Sky', footer: 'While this helper is off, no generated screen shows the live sky. A screen written in YAML names its own. Each screen can also turn its sky off.' }, [
         this.entityRow({ label: 'Sky Switch', sk: 'look.sky_switch', value: look.sky_switch, none: 'None (Always On)',
                          filter: { domains: ['input_boolean', 'switch'] }, onPick: function (v) { self.setH({ 'look.sky_switch': v }); } })]));
-      c.appendChild(K.group({ header: 'Background' }, [
-        K.toggle({ label: 'Animations', sub: 'The moving parts — drifting clouds, falling weather and the seasons',
-          sk: 'sky.animations', on: sky.animations !== false, onChange: function (on) { self.setH({ 'sky.animations': on }); } }),
-        K.toggle({ label: 'Weather', sub: 'Clouds, rain, snow and fog. The sun, moon and stars stay',
-          sk: 'sky.weather', on: sky.weather !== false, onChange: function (on) { self.setH({ 'sky.weather': on }); } }),
+      // RAIN & SNOW only while there is weather to fall; PAUSE WHEN NOT IN
+      // FOCUS only while anything moves (2026-10-10)
+      var bg = [
+        K.toggle({ label: 'Animations', sub: 'The moving parts — drifting clouds, falling rain and snow, the seasons, and a running fan’s spinning icon',
+          sk: 'sky.animations', on: sky.animations !== false, onChange: function (on) { self.setH({ 'sky.animations': on }); } })];
+      if (sky.animations !== false) {
+        bg.push(K.toggle({ label: 'Pause When Not in Focus', sub: 'On a computer, everything holds still while another window is in front, ' +
+            'and picks up where it left off when you come back. Saves most of the work the dashboard does while you aren’t looking',
+          sk: 'sky.focus_pause', on: sky.focus_pause !== false, onChange: function (on) { self.setH({ 'sky.focus_pause': on }); } }));
+        bg.push(K.seg({ label: 'Moving Things', sub: 'Rain and snow, falling leaves, bats and birds, flybys and confetti. ' +
+            'In front, they cross over the cards — taps still go straight through to them. Fireworks, fog and clouds stay behind',
+          sk: 'sky.moving', value: sky.moving || 'behind', options: M.SKY_MOVING, stack: !this.hasAttribute('wide'),
+          onChange: function (v) { self.setH({ 'sky.moving': v }); } }));
+      }
+      bg.push(K.toggle({ label: 'Weather', sub: 'Clouds, rain, snow and fog. The sun, moon and stars stay',
+          sk: 'sky.weather', on: sky.weather !== false, onChange: function (on) { self.setH({ 'sky.weather': on }); } }));
+      if (sky.weather !== false) {
+        bg.push(K.toggle({ label: 'Rain & Snow', sub: sky.animations === false
+            ? 'Not shown while Animations are off — it can’t fall'
+            : 'The falling rain and snow. Off, the clouds and fog still move, and it takes less work to draw',
+          sk: 'sky.precipitation', on: sky.precipitation !== false, onChange: function (on) { self.setH({ 'sky.precipitation': on }); } }));
+      }
+      c.appendChild(K.group({ header: 'Background' }, bg.concat([
         K.seg({ label: 'Clouds', sub: 'Classic drifting haze, or realistic photographic clouds', sk: 'sky.cloud_style',
           value: sky.cloud_style || 'classic', options: M.CLOUD_STYLES, stack: !this.hasAttribute('wide'),
           onChange: function (v) { self.setH({ 'sky.cloud_style': v }); } }),
         K.seg({ label: 'Daytime Sky', sub: 'How bright the daytime blue runs. Sunsets and nights are the same', sk: 'sky.daytime', stack: !this.hasAttribute('wide'),
           value: sky.daytime || 'natural', options: M.DAYTIME_SKIES,
           onChange: function (v) { self.setH({ 'sky.daytime': v }); } }),
-        K.nav({ label: 'Backdrop', value: this.backdropLabel(sky.gradient), href: '#/house/sky/backdrop', sk: 'sky.gradient' })]));
+        K.nav({ label: 'Backdrop', value: this.backdropLabel(sky.gradient), href: '#/house/sky/backdrop', sk: 'sky.gradient' })])));
       this.skyPagesGroup(c, null, null);
       var rows = [K.toggle({ label: 'Seasonal Decorations', sk: 'sky.decorations', on: sky.decorations !== false,
                              onChange: function (on) { self.setH({ 'sky.decorations': on }); } })];
@@ -4087,7 +4218,14 @@
                            href: base + '/sky/page/' + encodeURIComponent(o.r.key), sk: 'b:sky_pages:' + o.r.key });
           })));
       }
-      [['animations', 'Animations'], ['weather', 'Weather'], ['decorations', 'Seasonal Decorations']].forEach(function (entry) {
+      // Pause When Not in Focus only while anything moves here, Rain & Snow
+      // only while there is weather (2026-10-10), as on All Screens' page
+      var moving = b.sky_animations != null ? b.sky_animations : sky.animations !== false;
+      var weathery = b.sky_weather != null ? b.sky_weather : sky.weather !== false;
+      [['animations', 'Animations'], ['focus_pause', 'Pause When Not in Focus', moving],
+       ['weather', 'Weather'], ['precipitation', 'Rain & Snow', weathery],
+       ['decorations', 'Seasonal Decorations']].forEach(function (entry) {
+        if (entry.length > 2 && !entry[2]) return;
         var key = 'sky_' + entry[0], own = b[key] != null, house = sky[entry[0]] !== false;
         rows.push(K.toggle({ label: entry[1], sk: 'b:' + key, on: own ? b[key] : house,
           sub: own ? 'Just This Screen' : 'Same as All Screens', onChange: function (v) { var o = {}; o[key] = v; self.setB(x.path, o); } }));
@@ -4142,6 +4280,7 @@
           onClick: function () { var o = {}; o[key] = null; self.setB(x.path, o); } }));
       };
       segOwn('Decoration Style', 'sky_decoration_style', [['old', 'Old Decorations'], ['new', 'New Decorations']], sky.decoration_style || 'old');
+      segOwn('Moving Things', 'sky_moving', M.SKY_MOVING, sky.moving || 'behind');
       segOwn('Clouds', 'sky_cloud_style', M.CLOUD_STYLES, sky.cloud_style || 'classic');
       segOwn('Daytime Sky', 'sky_daytime', M.DAYTIME_SKIES, sky.daytime || 'natural');
       // a page screen's backdrop is its pages' (above): no second one here
@@ -4150,7 +4289,9 @@
           sub: b.sky_gradient == null ? 'Same as All Screens' : 'Just This Screen',
           value: this.backdropLabel(b.sky_gradient == null ? sky.gradient : b.sky_gradient) }));
       }
-      c.appendChild(K.group({ footer: 'Weather off leaves the sun, moon and stars. Decorations use the dates and themes for All Screens. ' +
+      c.appendChild(K.group({ footer: 'Animations off also stops a running fan’s icon spinning, and hides falling rain and snow. ' +
+          'Pause When Not in Focus: on a computer, everything holds still while another window is in front. ' +
+          'Weather off leaves the sun, moon and stars; Rain & Snow off keeps the clouds and fog. Decorations use the dates and themes for All Screens. ' +
           'Liveliness: how many little things move, and how often — the same for every occasion, or Custom for each its own.' }, rows));
       // a whole screen's pages, under its sky (a page screen lists its own
       // at the top)
@@ -4406,6 +4547,16 @@
             ', which set' + (own.length === 1 ? 's its' : ' their') + ' own (that screen → Home Page → Cameras).'
           : 'Every screen follows these: its camera strip on Home, its Cameras page, and the cameras on the room pages, in this order. A screen can set its own in its Cameras.' }, [
         K.info({ label: 'Screens Following', value: (Object.keys(bd).length - own.length) + ' of ' + Object.keys(bd).length })]));
+      // LIVE FIRST CAMERA (2026-10-10): the strip's first tile live, or a
+      // snapshot like the others (hk-cameras.js _liveOn)
+      var live = (this.data.settings.cameras || {}).live !== false;
+      var ownLive = Object.keys(bd).filter(function (p) { return typeof bd[p].camera_live_video === 'boolean'; });
+      c.appendChild(K.group({ header: 'Camera Strip on Home', footer: 'On, the first tile plays live video and the others show snapshots. ' +
+          'Off, the first tile is a snapshot too — no video to decode, which is lighter on a computer or an older tablet. ' +
+          'The Cameras page and the camera pop-ups still play live.' +
+          (ownLive.length ? ' ' + ownLive.map(function (p) { var d = self.dash(p); return d ? d.title : p; }).join(', ') +
+            (ownLive.length === 1 ? ' sets its own.' : ' set their own.') : ' A screen can set its own in its Cameras.') }, [
+        K.toggle({ label: 'Live First Camera', sk: 'cameras.live', on: live, onChange: function (on) { self.setH({ 'cameras.live': on }); } })]));
       var mdl = M.camerasModel({ cameras: ((this.data.settings.cameras || {}).order || []) }, ok, autoCams);
       c.appendChild(K.listEditor({ fk: 'house-cams', auto: mdl.auto, minRows: 1, announce: this.announce.bind(this),
         autoFooter: 'Automatic shows one of every camera, its low-resolution channel.',
@@ -4417,6 +4568,45 @@
               function () { save([]); });
         },
         onChange: function (v) { save(v); } }));
+      this.cameraRelated(c, null);
+    }
+    // EVERYTHING ELSE ABOUT CAMERAS, from either Cameras page (2026-10-10):
+    // the pop-ups that show one, each screen's own strip (its Live Camera
+    // Follows, its own list), the Cameras page's background, and cameras
+    // hidden from every screen. `x`: the screen whose Cameras this is.
+    cameraRelated(c, x) {
+      var self = this, bd = this.data.boards || {}, pops = this.data.popups || [];
+      var camPops = pops.filter(function (p) { return p.kind === 'camera'; }).length;
+      var rows = [K.nav({ label: 'Pop-ups', sub: 'The doorbell and other camera sheets an automation opens',
+                          value: camPops ? camPops + (camPops === 1 ? ' Camera Pop-up' : ' Camera Pop-ups') : 'None Yet',
+                          href: '#/popups', icon: 'mdi:doorbell-video', fk: 'cams-rel:popups' })];
+      if (x) {
+        rows.push(K.nav({ label: 'Cameras for All Screens', sub: 'The camera list and Live First Camera every screen starts from',
+                          href: '#/house/cameras', icon: 'mdi:cctv', fk: 'cams-rel:house' }));
+      } else {
+        // the screens with a Home strip: not a page screen (no Home) nor one
+        // whose Home is a page of its own (the car's)
+        this.data.dashboards.filter(function (d) {
+          var b = d.item && bd[d.path];
+          return b && b.home_page !== false && !b.home_view;
+        }).forEach(function (d) {
+          var b = bd[d.path], notes = [];
+          if (b.camera_strip === false) notes.push('No Strip');
+          else {
+            if (b.camera_live) notes.push('Live Follows ' + self.name(b.camera_live));
+            if (b.cameras_custom) notes.push('Own Cameras');
+            if (typeof b.camera_live_video === 'boolean') notes.push(b.camera_live_video ? 'Live' : 'No Live');
+          }
+          rows.push(K.nav({ label: d.title + ' Camera Strip', value: notes.join(' · '), icon: 'mdi:monitor-dashboard',
+                            href: '#/screens/' + encodeURIComponent(d.path) + '/cameras', fk: 'cams-rel:' + d.path }));
+        });
+      }
+      rows.push(K.nav({ label: 'Cameras Page Background', sub: 'Its own color, the live sky or a backdrop',
+                        href: (x ? '#/screens/' + encodeURIComponent(x.path) : '#/house') + '/sky/page/cameras',
+                        icon: 'mdi:palette', fk: 'cams-rel:bg' }));
+      rows.push(K.nav({ label: 'Hidden from Screens', sub: 'A camera hidden here shows on no screen', href: '#/accessories/hidden',
+                        icon: 'mdi:eye-off', fk: 'cams-rel:hidden' }));
+      c.appendChild(K.group({ header: 'Related' }, rows));
     }
     h_rooms(c) {
       var self = this, rooms = this.data.settings.rooms, hb = this.houseRooms(), wide = this.hasAttribute('wide');
@@ -4509,10 +4699,10 @@
       // THE MUSIC FEATURE'S OWN SETTINGS first (hk-settings-features.js)
       F.musicTop(this, c);
       var cats = (this.data.choices || {}).browse_categories || [];
-      c.appendChild(K.group({ header: 'Browse Music', footer: 'On every screen’s Browse Music page. A page whose YAML lists its own keeps them.' }, [
+      c.appendChild(K.group({ header: 'Browse', footer: 'The Browse side of every screen’s Music page. A page whose YAML lists its own keeps them.' }, [
         K.nav({ label: 'Categories', value: (cats.length - (browse.hide || []).length) + ' of ' + cats.length + ' Shown', href: '#/features/music/categories', sk: 'browse.hide' }),
         K.nav({ label: 'Discover Rows', value: (browse.discover || []).length ? String(browse.discover.length) : 'None', href: '#/features/music/discover', sk: 'browse.discover' })]));
-      c.appendChild(K.group({ header: 'Advanced', footer: 'The page a speaker’s sheet opens with Browse Music, on screens written in YAML (generated screens always use their own). Empty: no Browse button.' }, [
+      c.appendChild(K.group({ header: 'Advanced', footer: 'The page a speaker’s sheet opens with Browse, on screens written in YAML (generated screens always use their own). Empty: no Browse button.' }, [
         K.text({ label: 'Browse Page', sk: 'look.browse_view', value: look.browse_view, placeholder: 'None', error: this.err('look.browse_view'),
                  onCommit: function (v) { self.setH({ 'look.browse_view': v }); } })]));
       if (F.stateOf(this.data.features, 'hk_music') === 'added') {
@@ -4522,7 +4712,7 @@
     }
     h_categories(c) {
       var self = this, cats = (this.data.choices || {}).browse_categories || [], hide = this.data.settings.browse.hide || [];
-      c.appendChild(K.group({ header: 'Shown', footer: 'The categories at the top of Browse Music.' }, cats.map(function (k) {
+      c.appendChild(K.group({ header: 'Shown', footer: 'The Library categories on the Music page’s Browse side.' }, cats.map(function (k) {
         var on = hide.indexOf(k) < 0;
         return K.check({ label: M.BROWSE_LABELS[k] || k, multi: true, on: on, fk: 'cat:' + k, onClick: function () {
           self.setH({ 'browse.hide': cats.filter(function (y) { return y === k ? on : hide.indexOf(y) >= 0; }) });

@@ -33,6 +33,7 @@
 * [Clean Areas](Clean-Areas.md)
 * [Alarm PIN](Alarm-PIN.md)
 * [Energy](Energy.md)
+* [Notifications](Notifications.md)
 
 **Wall tablets**
 * [Setting up a tablet](Wall-Tablets.md)

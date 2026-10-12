@@ -751,6 +751,8 @@
           this._root.innerHTML = '<ha-card class="ssstat" data-hk-role="card"><div class="sscorner"></div></ha-card>';
           this._e = this._root.querySelector('.sscorner');
           this._built = true;
+          // a rebuild (a new config) starts empty: what it last drew is gone
+          this._last = null;
         }
         var html = this._html();
         if (this._last === html) return;
@@ -918,7 +920,7 @@
           // render. A hardcoded `repeat(12, ...)` packs six cells into the
           // first six of twelve tracks and leaves half the band empty.
           '.strip{display:grid;column-gap:4px}',
-          '.hrule{height:1px;background:' + RULE + ';width:100%}',
+          '.hrule{height:0;border-top:1px solid ' + RULE + ';width:100%}',     // a border: snapped to device pixels
           '.cell{display:flex;flex-direction:column;align-items:center;',
           '  gap:5px;min-width:0}',
           '.lbl{font-size:13px;font-weight:600;color:rgba(255,255,255,0.6);',

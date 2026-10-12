@@ -49,7 +49,7 @@ strategy:
   include_entities: [scene.movie_night]
   theme: HK Kiosk                      # default: HK Kiosk, when it is loaded
   sky: false                           # no live sky
-  music: false                         # no Play Music or Browse Music pages
+  music: false                         # no Music page
   chips: false                         # no status chips
   pages: false                         # no Lights, Climate, Doors & Windows, Timers, Vacuums or Water pages
   rooms: false                         # no room pages
@@ -147,6 +147,7 @@ Its settings come in groups, each explained on its own page:
 | Pages | [Pages](Pages.md#pages-settings) |
 | Appearance | [Appearance](Appearance.md#one-screen) |
 | Behavior | [below](#behavior) |
+| Notifications | [below](#notifications) |
 | When Idle | [below](#when-idle) |
 | This Device | [below](#this-device) |
 
@@ -159,10 +160,26 @@ Its settings come in groups, each explained on its own page:
 
 ### Behavior
 
+![A screen's Behavior in HK Settings: Allow Pop-ups, Now Playing Bar, Timer Bar and On Every Page](images/settings-screen-behavior.png)
+*A screen’s Behavior: the docked bar’s three switches under Allow Pop-ups.*
+
 | Setting | Default | What it does |
 |---|---|---|
 | Allow Pop-ups | On | Your [pop-ups](Detail-Sheets-and-Popups.md#pop-ups-settings) may open over this screen. Off: never here (a car’s screen, say). |
-| Now Playing Bar | Off | *Generated.* A bar that rises from the bottom while music plays or a quick timer runs. Needs the Music feature. |
+| Now Playing Bar | Off | *Generated.* The music playing, docked along the bottom of the screen, full width (the page ends above it; a tab bar along the bottom rides over it). Needs the Music feature. What it does: [Music → The Now Playing bar](Music.md#the-now-playing-bar). |
+| Timer Bar | Off | *Generated.* Running quick timers, a slim row docked along the bottom, over the player when music plays: soonest first, Restart, +1 min and Finish (swiped one at a time on a phone). Needs the quick timers, not Music. A screen that had the Now Playing Bar before has it on. |
+| On Every Page | Off | *With the Now Playing Bar or the Timer Bar.* The bar on every page of the screen, not Home alone; it stays in place as you change pages. A tablet’s Music page is its own player, so the bar leaves it out there. |
+
+### Notifications
+
+Shown once the [Notifications](Notifications.md) feature is added, right
+after Behavior.
+
+| Setting | Default | What it does |
+|---|---|---|
+| Allow Notifications | On | Banners show on this screen. Off: never here. |
+| On the Screensaver | Same as All Screens | *With Allow Notifications on.* Which banners show over this screen’s photo screensaver: **All**, **Important Only** or **Off**. |
+| Do Not Disturb | Same as All Screens | *With Allow Notifications on.* **Off on This Screen**, or **Its Own Hours**: its own schedule (From, To) and **Do Not Disturb While This Is On** list. An Important notification still gets through. |
 
 ### When Idle
 
@@ -179,11 +196,14 @@ Its settings come in groups, each explained on its own page:
 | Setting | Default | What it does |
 |---|---|---|
 | Same as All Screens | On | The screensaver settings for All Screens (**Wall Tablets → Screensaver for All Screens**). Off: this screen has its own (**Just This Screen**), starting from those; every option below is then this screen’s. A screen set up before 1.3 keeps the options it had. |
-| Show | Photos | **Photos**: your photos, and the forecast whenever there are none. **Photos & Forecast**: your photos, with the forecast as one of them every few photos. **Forecast**: always the forecast, over the live sky and the season’s landscape ([more](Screensaver-and-Idle.md#no-photos-the-forecast)). With Forecast, the photo settings are hidden. |
-| Forecast | Every 5 Photos | *With Photos & Forecast.* How often the forecast comes round: every 3, 5, 10 or 20 photos. It stays for **Each Photo For**, like a photo. |
-| Forecast When There Are No Photos | On | *With Show: Photos.* Off: when the folder has no photos (or can’t be read), the screen stays dark instead, as before 1.3. (Photos & Forecast always shows the forecast then.) |
+| Show | Photos | **Photos**: your photos, and the forecast whenever there are none, with slides between them (below). **Forecast**: always the forecast, over the live sky and the season’s landscape ([more](Screensaver-and-Idle.md#no-photos-the-forecast)). With Forecast, the photo settings are hidden. |
+| Between the Photos → Forecast | Off | *With Show: Photos.* The forecast as one of the photos every few photos. |
+| Between the Photos → Music | Off | *With Show: Photos.* What’s playing, full screen, as one of the photos every few photos, only while music plays: the album art, the song, what’s up next, and previous, play or pause, next and volume that work without closing the screensaver ([more](Screensaver-and-Idle.md#the-music)). With Forecast on too, they take turns. |
+| A Slide | Every 5 Photos | *With either slide on.* How often a slide comes round: every 3, 5, 10 or 20 photos. It stays for **Each Photo For**, like a photo. |
+| While Music Plays → Music First | Off | While music plays it fills the screen in place of the photos (or the forecast), and stays; they come back 20 seconds after it stops. With it on, the Music slide is not needed. |
+| Forecast When There Are No Photos | On | *With Show: Photos.* Off: when the folder has no photos (or can’t be read), the screen stays dark instead, as before 1.3. (With the Forecast slide on, the forecast always shows then.) |
 | Details on the Forecast | On | *Wherever the forecast can show.* On the forecast: today, the next hours and the coming days along the bottom. Off: the sky and the landscape alone. |
-| Forecast Along the Bottom (Over the Photos) | Off | *With Photos or Photos & Forecast.* The same details along the bottom of the photos. |
+| Forecast Along the Bottom (Over the Photos) | Off | *With Show: Photos.* The same details along the bottom of the photos. |
 | Starts After | 3 Minutes | 1 to 30 minutes untouched. **The one timer:** the screen’s In Use sensor stays on for a minute less after each touch, so it is always off before the photos come up ([more](Screensaver-and-Idle.md#one-timer-starts-after)). |
 | Each Photo For | 30 Seconds | 10 seconds to 5 minutes. |
 | Fade Back | 0.5 Seconds | From the screensaver to the dashboard, after a touch or when the switch turns off: **Instant**, **0.5 Seconds**, **1 Second** or **2 Seconds**. |
@@ -191,8 +211,9 @@ Its settings come in groups, each explained on its own page:
 | Fill the Screen | On | A landscape photo fills the screen. Off: the whole photo, with room around it. A portrait photo is always whole, over a blurred copy. |
 | Slow Zoom | Off | A slow zoom across each photo. The tablet keeps drawing the whole time, so it runs warmer. |
 | Over the Photos → Clock & Date, Weather, Now Playing, Timers, Home Status | On | What shows over the photos: the clock and date and the weather top left, what’s playing anywhere in the house bottom left, running timers bottom right, and the home’s status top right (Home Secured, or what’s open or unlocked). |
-| Calendar Pane | Off | The coming events down the right of the screen, from the calendars in [All Screens → Calendar](Calendar.md): the photos (or the forecast) move over beside it; Home Status moves to its top, and Now Playing and Timers to its foot. A swipe on it scrolls it; a touch anywhere else closes the screensaver ([more](Screensaver-and-Idle.md#the-calendar-pane)). |
-| Days | Today & Tomorrow | *With Calendar Pane.* How many days it lists: today, today and tomorrow, or up to 7 days. |
+| Side Pane → Calendar | Off | The coming events down the right of the screen, from the calendars in [All Screens → Calendar](Calendar.md): the photos (or the forecast) move over beside it; Home Status moves to its top, and Now Playing and Timers to its foot. A swipe on it scrolls it; a touch anywhere else closes the screensaver ([more](Screensaver-and-Idle.md#the-side-pane-calendar-and-music)). |
+| Days | Today & Tomorrow | *With Calendar.* How many days it lists: today, today and tomorrow, or up to 7 days. |
+| Side Pane → Music | Off | What’s playing in the same pane, while music plays: the art, the song, the buttons and the volume (they work without closing the screensaver; a tap on the art opens Music). Alone it fills the pane, which comes with the next photo once music plays and goes 20 seconds after it stops; with Calendar, the events are above it. |
 | For Automations → Photo Screensaver, In Use | — | The screen’s `switch.<screen>_photo_screensaver` and `binary_sensor.<screen>_screen_in_use`, made by HK Frontend once the screen has a Tablet User. Tap one to open it. What they do: [Screensaver and Idle](Screensaver-and-Idle.md#its-switch-and-in-use-sensor). |
 | Reset to Defaults… | — | Shown once anything is changed. |
 | Use WallPanel Instead | Off | *Generated.* Shown when [WallPanel](https://github.com/j-a-n/lovelace-wallpanel) is installed from HACS: it draws this screen’s screensaver instead, with its own options page (and Options in YAML). |
@@ -223,7 +244,7 @@ what to copy, and select **Copy**. Only this screen changes.
 | Header | Yes | Header on Phones, and Home Assistant Header & Sidebar |
 | Pages | Yes | Which pages and custom pages, the Home page, Only These Pages, and each page’s place in the menu |
 | Appearance | Yes | Glass, frost, blur, live sky |
-| Behavior | Yes | Pop-ups, the Now Playing Bar |
+| Behavior | Yes | Pop-ups, the Now Playing Bar, the Timer Bar, On Every Page, and the Notifications group (Allow Notifications, On the Screensaver, Do Not Disturb) |
 | When Idle | Yes | Return to Home, Photo Screensaver, its options (or Same as All Screens), WallPanel instead |
 | This Device | No | Car Browser |
 

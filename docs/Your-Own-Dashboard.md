@@ -78,13 +78,16 @@ hk_screensaver:
   order: random        # or sorted
   fill: true
   zoom: false
-  show: photos         # photos, both (Photos & Forecast) or forecast
-  forecast_every: 5    # both: the forecast after this many photos
+  show: photos         # photos, both (the forecast slide on) or forecast
+  forecast_every: 5    # a slide (the forecast, the music) after this many photos
+  music_slide: false   # what plays, full screen: a slide among the photos
+  music_first: false   # ...or the music fills the screen while it plays
   fallback: true       # no photos: the forecast (false: a dark screen)
   band: true           # the forecast’s details on the forecast
   band_photos: false   # ...and over the photos
   calendar: false      # the calendar pane, down the right
   calendar_days: 2     # ...today and tomorrow (1 to 7 days)
+  music_pane: false    # what plays, in the pane (under the calendar)
   fade_back: 500       # ms back to the dashboard (0: at once)
   cards:
     - type: custom:hk-clock-card

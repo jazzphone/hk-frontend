@@ -32,7 +32,7 @@ bookmarks work.
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
 | **All Screens** | **General**, **Status & Chips**, **[Status Rows](Status-Rows.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **[Cameras](Cameras.md)**, **Wall Tablets** | Every screen |
-| **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **Energy** | Every screen |
+| **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **Energy**, **[Notifications](Notifications.md)** | Every screen |
 | **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
 
@@ -172,8 +172,11 @@ optional, and each has a fallback.
 
 ## Sky / Background
 
-Under **All Screens → Sky / Background**, choose whether the sky animates,
-shows weather, or adds seasonal decorations, how its clouds look (**Clouds**:
+Under **All Screens → Sky / Background**, choose whether the sky animates
+(and, while it does, whether it holds still when the window isn’t in focus,
+**Pause When Not in Focus**, and whether its **Moving Things** pass behind the
+cards or in front of them), shows weather (and its falling **Rain & Snow**),
+or adds seasonal decorations, how its clouds look (**Clouds**:
 Classic or Realistic) and how bright its midday blue runs (**Daytime Sky**:
 Natural, Balanced or Deep). **Liveliness** -- how many little moving things,
 and how often the crossers come -- is one choice for every decoration, woodland
@@ -185,7 +188,7 @@ eight curated palettes, and Custom with four Day colors and four Night colors.
 A screen has the same controls under **Appearance → Sky / Background**, below
 its own **Live Sky** switch, plus its own **Liveliness** (Same as All Screens,
 a preset for every occasion, or Custom for each) and **Calm When Nobody’s
-Around**. Its Clouds, Daytime Sky and Decoration Style are the same tabs as All
+Around**. Its Clouds, Daytime Sky, Decoration Style and Moving Things are the same tabs as All
 Screens’, saying **Same as All Screens** until changed; **Reset to All Screens**
 follows them again.
 Each flag reads **Same as All Screens** until changed, then **Just This

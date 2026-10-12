@@ -221,7 +221,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         # painted and must not blank for a beat on every load.
         "/hk/modules/hk-header.js",
         # Imports the order-independent modules (stats, charts, sky, idle,
-        # viewfade, timers, campost, glass) -- see its MODULES list.
+        # timers, campost, glass, skyshot, notify) -- see its MODULES list.
         "/hk/modules/hk-loader.js",
         # The generated dashboards' STRATEGY. Home Assistant waits at most 5 s
         # for a custom strategy's element and then shows "Error loading the

@@ -429,6 +429,11 @@
 
     '@keyframes hk-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
     'ha-card.card[data-on="1"] .icon.spin{animation:hk-spin 1.35s linear infinite}',
+    // ANIMATIONS OFF (Sky / Background, hk-base.js hk-still, 2026-10-10): the
+    // glyph stands upright. Running alone it kept the page drawing every
+    // frame once the sky stood still (a Mac: 19% of a core with the sky
+    // paused, 8% with the fans too).
+    ':host([hk-still]) ha-card.card .icon.spin{animation:none}',
 
     '@media (prefers-reduced-motion:reduce){',
     '  ha-card.card,ha-card.card:active,.well,.icon{transition:none;transform:none;animation:none}}',

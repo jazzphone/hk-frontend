@@ -54,6 +54,13 @@ SETTLE_S = 0.9           # a wake's settle (the house's wake script)
 BACKSTOP_S = 2.0         # the backlight back up, or written here
 HAND_LIT_S = 30          # a display lit by hand, before quiet hours turn it off again
 HAND_WAKE_S = 60         # ...and lit by the power button: in use this long (the house's hand-wake minute)
+# s: the kiosk's last tap, by the tablet's clock, still the screensaver's own
+# control touch reported this long before it (clock drift, the report's trip)
+SAVER_SLOP = 10
+# s: a new tap with the photos up waits this long for the screensaver's own
+# report of it -- Kiosk Satellite's can arrive first (measured: the same
+# second), and read alone it is somebody at the tablet
+SAVER_WAIT = 3
 ACTIONS_PER_MIN = 6       # more and it waits: a loop, never a run of real changes
 
 
@@ -115,6 +122,12 @@ class Engine:
         self._target: int | None = None
         self._display_on_at: datetime | None = None
         self._hand_at: datetime | None = None
+        # a notification set to Wake the Screen (features/notifications): the
+        # dashboard until then, whatever else holds -- quiet hours too
+        self._notice: tuple[str, datetime] | None = None
+        # the last touch seen, and when it was first seen (SAVER_WAIT)
+        self._touch_val: datetime | None = None
+        self._touch_seen: datetime | None = None
 
     # ------------------------------------------------------------ lifecycle
     def configure(self, board: dict[str, Any]) -> None:
@@ -173,6 +186,13 @@ class Engine:
         if eid and eid == self.kiosk.get("screen") and new is not None:
             if new.state == "on" and (old is None or old.state != "on"):
                 self._display_on_at = dt_util.utcnow()
+        self.evaluate()
+
+    @callback
+    def notify_wake(self, title: str, seconds: int) -> None:
+        """A notification wakes this screen: the dashboard for `seconds`
+        (then the rules again; somebody using it keeps it, as ever)."""
+        self._notice = (str(title or "a notification"), dt_util.utcnow() + timedelta(seconds=max(1, int(seconds))))
         self.evaluate()
 
     @callback
@@ -278,6 +298,31 @@ class Engine:
         use = self._st(self._own().get("in_use"))
         recent = touch is not None and (now - touch).total_seconds() < window
         hand = self._hand_at is not None and (now - self._hand_at).total_seconds() < HAND_WAKE_S
+        # THE SCREENSAVER IN USE: the photos up, and the last touch one the
+        # screensaver itself reported as on its own controls (the music, its
+        # panel, a photo stepped). The kiosk's last tap is that same tap, a
+        # moment later and by the tablet's clock (SAVER_SLOP). Somebody using
+        # the photos keeps them, as somebody at the dashboard keeps it -- it
+        # is not a wake (the screensaver takes itself away on any other tap).
+        st = self.mgr.saver_touch.get(self.path)
+        on_saver = actual == "photos" and touch is not None and st is not None \
+            and touch <= st + timedelta(seconds=SAVER_SLOP)
+        f["saver_use"] = bool(on_saver and recent)
+        if on_saver:
+            recent = False
+        # ...AND ITS REPORT MAY STILL BE ON ITS WAY: a tap first seen with the
+        # photos up is not yet a wake. The screensaver closes itself on any
+        # tap that is not its own (its switch off: then it is the dashboard,
+        # and the tap counts at once); one on its controls is answered within
+        # SAVER_WAIT. (Kiosk's report of the tap came in the same second as
+        # the screensaver's on the Master Bedroom, 2026-10-11, and won.)
+        if touch is not None and touch != self._touch_val:
+            self._touch_val, self._touch_seen = touch, now
+        f["saver_wait"] = False
+        if actual == "photos" and recent and self._touch_seen is not None \
+                and (now - self._touch_seen).total_seconds() < SAVER_WAIT:
+            f["saver_wait"] = True
+            recent = False
         f["in_use"] = bool(((use is not None and use.state == "on") or recent) and actual != "dark") or hand
         lit_ids = o.get("lit") or []
         f["lit"] = (not lit_ids) or bool(self._on(lit_ids))
@@ -300,6 +345,7 @@ class Engine:
             if now >= fire:
                 slept, why = True, "the photos have run %d min untouched" % mins
         f["slept"], f["slept_why"] = slept, why
+        f["notice"] = self._notice[0] if self._notice is not None and now < self._notice[1] else ""
         f["prev"] = self.want
         return f
 
@@ -325,6 +371,10 @@ class Engine:
             cands.append(self._display_on_at + timedelta(seconds=HAND_LIT_S))
         if self._hand_at is not None:
             cands.append(self._hand_at + timedelta(seconds=HAND_WAKE_S))
+        if self._notice is not None:
+            cands.append(self._notice[1])
+        if self.facts_now.get("saver_wait") and self._touch_seen is not None:
+            cands.append(self._touch_seen + timedelta(seconds=SAVER_WAIT))
         cands = [c + timedelta(milliseconds=200) for c in cands if c is not None and c > now]
         return min(cands) if cands else None
 
@@ -562,7 +612,8 @@ class Engine:
     def attributes(self) -> dict[str, Any]:
         f = self.facts_now
         return {"decided_by": self.o.get("decided_by"), "reason": self.reason, "actual": self.actual,
-                "present": f.get("present"), "in_use": f.get("in_use"), "quiet": f.get("quiet"),
+                "present": f.get("present"), "in_use": f.get("in_use"), "saver_use": f.get("saver_use"), "quiet": f.get("quiet"),
+                "last_saver_touch": (lambda st: st.isoformat() if st else None)(self.mgr.saver_touch.get(self.path)),
                 "last_touch": f.get("last_touch"), "after_saver_at": f.get("after_saver_at"),
                 "kiosk": self.kiosk.get("screen"), "target_brightness": self.target(),
                 "last_action": "%s at %s" % self.last_action if self.last_action else None}

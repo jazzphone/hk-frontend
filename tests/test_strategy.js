@@ -213,8 +213,11 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('music set up in the integration: Play and Browse Music views', paths.indexOf('playmusic') > 0 && paths.indexOf('music-browse') > 0, paths);
   ok('...the question is asked once and closed', asked === 1 && unsubbed === 1);
   var pm = m.views.filter(function (v) { return v.path === 'playmusic'; })[0];
-  ok('Play Music: the album-art sky, the player with progress and volume', pm.sky_variant === 'playmusic' &&
-     JSON.stringify(pm).indexOf('"parts":["progress"]') > 0 && JSON.stringify(pm).indexOf('"parts":["volume"]') > 0);
+  ok('Music: the album-art sky, one page (hk-music-card) under its title', pm.sky_variant === 'playmusic' && pm.title === 'Music' &&
+     pm.cards.length === 2 && pm.cards[1].type === 'custom:hk-music-card' && !pm.cards[1].focus_search);
+  var mb = m.views.filter(function (v) { return v.path === 'music-browse'; })[0];
+  ok('...Browse Music\'s address opens the same page in its search box, out of the menu', mb.cards[1].type === 'custom:hk-music-card' &&
+     mb.cards[1].focus_search === true && mb.menu === false && mb.sky_variant === 'playmusic');
   ok('...reached from the Speakers chip and the menu, not a heading on Home', JSON.stringify(m.views[0]).indexOf('./playmusic') < 0);
   return window.hkStrategy.generate({ music: false }, hass);
 }).then(function (m) {
@@ -552,6 +555,57 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   return window.hkStrategy.generate({}, hass);
 }).then(function (g) {
   ok('...none of it unless asked', !g.wallpanel && !g.hk_screensaver && !g.sky.sleep && JSON.stringify(g.views[0]).indexOf('"#media"') < 0);
+  // THE DOCKED BAR'S TWO SWITCHES: the Now Playing Bar (the player) and the
+  // Timer Bar (the quick timers), each its own part of the one bar
+  hass.states['sensor.running_quick_timers'] = { entity_id: 'sensor.running_quick_timers', state: '0', attributes: { running: [] } };
+  WB.timer_bar = true;
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  var media = function (gg) {
+    var hit = null;
+    (function f(o) { if (hit || !o || typeof o !== 'object') return; if (o.hash === '#media') { hit = o; return; } Object.keys(o).forEach(function (k) { f(o[k]); }); })(gg.views[0]);
+    return hit;
+  };
+  var kinds = function (m) { return m ? m.cards.map(function (c) { return c.type; }).join(',') : 'none'; };
+  var m = media(g);
+  ok('the Timer Bar alone: the docked bar with the timers and no player', m && m.dock === true && kinds(m) === 'custom:hk-timer-strip-card' &&
+     JSON.stringify(m.trigger).indexOf('running_quick_timers') > 0 && JSON.stringify(m.trigger).indexOf('music') < 0, kinds(m));
+  WB.now_playing = true; WB.timer_bar = false;
+  return window.hkStrategy.generate({}, hass).then(function (g2) {
+    var m2 = media(g2);
+    ok('the Now Playing Bar alone: the player and no timers', kinds(m2) === 'custom:hk-now-playing-card' &&
+       JSON.stringify(m2.trigger).indexOf('running_quick_timers') < 0, kinds(m2));
+    delete WB.timer_bar;
+    return window.hkStrategy.generate({}, hass);
+  }).then(function (g3) {
+    var m3 = media(g3);
+    ok('...a screen saved before the Timer Bar keeps its timers with its Now Playing Bar',
+       kinds(m3) === 'custom:hk-timer-strip-card,custom:hk-now-playing-card', kinds(m3));
+    var onPages = function (gg) { return gg.views.filter(function (v) { return JSON.stringify(v).indexOf('"#media"') > 0; }).map(function (v) { return v.path; }); };
+    ok('the bar on Home, and the Music page, by default', JSON.stringify(onPages(g3)) === '["home","playmusic","music-browse"]', onPages(g3));
+    // THE MUSIC PAGE'S: a phone's only -- while the page says it is one
+    // column (`hk-music-mini`), ahead of the bar's own trigger
+    var mb = null;
+    (function f(o) { if (mb || !o || typeof o !== 'object') return; if (o.hash === '#media') { mb = o; return; } Object.keys(o).forEach(function (k) { f(o[k]); }); })(g3.views.filter(function (v) { return v.path === 'playmusic'; })[0]);
+    ok('...the Music page\'s opens on the page\'s flag, then the bar\'s own trigger', mb && mb.trigger[0].condition === 'flag' &&
+       mb.trigger[0].flag === 'hk-music-mini' && JSON.stringify(mb.trigger.slice(1)) === JSON.stringify(m3.trigger) && mb.carry === true && m3.carry === true, mb && mb.trigger);
+    // (both carried: a phone's Home bar becomes the page's in place)
+    ok('...and Home\'s has no flag', JSON.stringify(m3.trigger).indexOf('flag') < 0);
+    WB.bar_all_pages = true;
+    return window.hkStrategy.generate({}, hass).then(function (g4) {
+      var pg = onPages(g4), grid = g4.views.filter(function (v) { return v.type === 'custom:hk-grid-view'; }).map(function (v) { return v.path; });
+      ok('On Every Page: every page of HK\'s own kind has it', pg.length > 2 && grid.every(function (p) { return pg.indexOf(p) >= 0; }), [pg, grid]);
+      // ...the Music page's once (its flagged one), carried like the rest
+      var mp = g4.views.filter(function (v) { return v.path === 'playmusic'; })[0], n = JSON.stringify(mp).split('"#media"').length - 1;
+      ok('...the Music page once, its phone-only bar, carried', n === 1 && JSON.stringify(mp).indexOf('hk-music-mini') > 0 && JSON.stringify(mp).indexOf('"carry":true') > 0, n);
+      delete WB.bar_all_pages;
+      return g4;
+    });
+    WB.now_playing = false;
+    delete hass.states['sensor.running_quick_timers'];
+    return g3;
+  });
+}).then(function () {
   // THE HOUSE'S CUSTOM PAGES: the ones this dashboard lists,
   // from the settings -- nothing fetched
   WB.custom_pages = ['energy', 'nope', 'lights', 'ecoflow'];
@@ -580,8 +634,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
      at('playmusic') > 0 && at('energy') === at('playmusic') + 1 && at('music-browse') === at('energy') + 1, paths);
   ok('...a custom page not placed still comes, before the rooms', at('ecoflow') > at('music-browse') &&
      (at('room-kitchen') < 0 || at('ecoflow') < at('room-kitchen')), paths);
-  ok('...and Browse Music follows Play Music in the menu', g.views[at('music-browse')].menu_follows === 'playmusic' &&
-     g.views[at('music-browse')].menu !== false);
+  ok('...and Browse Music follows Music in the menu when placed there', g.views[at('music-browse')].menu_follows === 'playmusic');
   // HOME PAGE OFF: only its custom pages, the first opening
   WB.home_page = false;
   WB.custom_pages = ['ecoflow', 'nope', 'energy'];

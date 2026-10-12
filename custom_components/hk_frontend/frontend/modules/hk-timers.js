@@ -202,7 +202,84 @@
     customElements.define('hk-countdown', Countdown);
   }
 
+  // ---- THE DOCKED STRIP (2026-10-10): the timers as part of the docked
+  // now-playing bar (hk-popup `dock`), on its plate, one slim row (52 px) on
+  // every screen -- the user asked that it take hardly more room than the
+  // player. Soonest to finish first. Wide (>= 600 px of row): one column each,
+  // up to four across, hairlines between. Narrow (a phone): one timer at a
+  // time, swiped across, dots saying how many. Each timer's time left is a
+  // ring round its glyph, driven by the countdown's own tick (--hk-left on
+  // the countdown's parent, the segment).
+  var DOCK_CSS = [
+    '.td{position:relative;container-type:inline-size;background:var(--hk-td-plate,rgb(22,23,26));',
+    '  border-bottom:1px solid rgba(255,255,255,0.08)}',
+    '.td .sc{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}',
+    '.td .sc::-webkit-scrollbar{display:none}',
+    // a quarter of the row each, whatever the count, from the left (in line
+    // with the player's art): one timer stretched across it read as a strange
+    // empty bar with its buttons far from its name
+    '.td .sg{position:relative;flex:0 0 25%;min-width:0;height:52px;box-sizing:border-box;padding:0 16px;',
+    '  display:grid;grid-template-columns:30px minmax(0,1fr) auto;grid-template-rows:auto auto;',
+    '  grid-template-areas:"g n c" "g t c";column-gap:12px;align-content:center;scroll-snap-align:start}',
+    '.td .sg+.sg::before{content:"";position:absolute;left:0;top:10px;bottom:10px;border-left:1px solid rgba(255,255,255,0.10)}',
+    '.td .rg{grid-area:g;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;',
+    '  background:conic-gradient(#ff9f0a calc(var(--hk-left,1) * 360deg),rgba(255,255,255,0.14) 0)}',
+    '.td .gl{width:24px;height:24px;border-radius:50%;background:#ff9f0a;display:flex;align-items:center;justify-content:center;',
+    '  box-shadow:0 0 0 2px var(--hk-td-plate,rgb(22,23,26))}',
+    '.td .gl ha-icon{--mdc-icon-size:15px;color:rgba(0,0,0,0.82)}',
+    '.td .nm{grid-area:n;font-size:12px;font-weight:600;line-height:1.15;color:rgba(255,255,255,0.6);',
+    '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}',
+    '.td hk-countdown{grid-area:t;font-size:18px;line-height:1.1;letter-spacing:-0.3px;color:rgba(255,255,255,0.97);text-align:left}',
+    '.td .ct{grid-area:c;display:flex;align-items:center;gap:6px;pointer-events:auto}',
+    '.td .ct button{width:36px;height:36px;border-radius:18px;border:0;padding:0;cursor:pointer;background:rgba(255,255,255,0.14);',
+    '  display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}',
+    '.td .ct ha-icon{--mdc-icon-size:18px;color:rgba(255,255,255,0.92)}',
+    '.td .dt{display:none}',
+    // NARROW: one at a time, swiped; Restart goes (the Timers page has it)
+    '@container (max-width:599px){',
+    '  .td .sg{flex:0 0 100%}',
+    '  .td .sg+.sg::before{display:none}',
+    '  .td .ct .rs{display:none}',
+    '  .td .dt{display:flex;position:absolute;left:0;right:0;bottom:4px;justify-content:center;gap:5px;pointer-events:none}',
+    '  .td .dt i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,0.28)}',
+    '  .td .dt i.on{background:rgba(255,255,255,0.85)}}'
+  ].join('');
+  function docked(rows, o) {
+    var esc = function (v) {
+      return String(v).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+    };
+    rows = rows.slice().sort(function (a, b) { return Date.parse(a.finishes_at) - Date.parse(b.finishes_at); });
+    var btn = function (id, cls, icon, what, label) {
+      return '<button type="button" class="' + cls + '" aria-label="' + label + '" ' +
+        "onclick=\"event.stopPropagation();window.hkTimers&&window.hkTimers.act('" + esc(id) + "','" + what + "')\">" +
+        '<ha-icon icon="' + icon + '"></ha-icon></button>';
+    };
+    var segs = rows.map(function (r) {
+      var end = Date.parse(r.finishes_at);
+      if (isNaN(end)) return '';
+      var total = r.total ? ' total="' + Number(r.total) + '"' : '';
+      return '<div class="sg">' +
+        '<div class="rg"><div class="gl"><ha-icon icon="mdi:timer-outline"></ha-icon></div></div>' +
+        '<div class="nm">' + esc(r.name || 'Timer') + '</div>' +
+        '<hk-countdown deadline="' + end + '"' + total + '></hk-countdown>' +
+        (r.entity_id ? '<div class="ct">' + btn(r.entity_id, 'rs', 'mdi:restart', 'restart', 'Restart timer') +
+          btn(r.entity_id, 'pl', 'mdi:plus', 'plus', 'Add one minute') +
+          btn(r.entity_id, 'fn', 'mdi:flag-checkered', 'finish', 'Finish timer') + '</div>' : '') +
+        '</div>';
+    }).join('');
+    var dots = rows.length > 1 ? '<div class="dt">' + rows.map(function (r, i) { return '<i' + (i ? '' : ' class="on"') + '></i>'; }).join('') + '</div>' : '';
+    return '<style>' + DOCK_CSS + '</style><div class="td"><div class="sc" onscroll="window.hkTimers&&window.hkTimers.dots(this)">' +
+      segs + '</div>' + dots + '</div>';
+  }
+
   window.hkTimers = {
+    // THE DOCKED STRIP'S DOTS follow its swipe
+    dots: function (sc) {
+      var d = sc && sc.nextElementSibling;
+      if (!d || !sc.clientWidth) return;
+      var n = Math.round(sc.scrollLeft / sc.clientWidth);
+      Array.prototype.forEach.call(d.children, function (dot, i) { dot.classList.toggle('on', i === n); });
+    },
     // Called from the card templates. Returns the markup for one countdown.
     //
     // `finishes_at` is an ISO string on a RUNNING timer and absent on a paused
@@ -332,6 +409,7 @@
       var o = opts || {};
       var rows = (list || []).filter(function (r) { return r && r.finishes_at; });
       if (!rows.length) return '';
+      if (o.docked) return docked(rows, o);
 
       var scale = o.scale || 1;                 // screensaver draws it larger
       var px = function (n) { return Math.round(n * scale) + 'px'; };

@@ -14,6 +14,7 @@ function setInterval(fn, ms) { var id = ++tid; timers.push({ id: id, at: T + ms,
 function clearTimeout(id) { timers = timers.filter(function (t) { return t.id !== id; }); }
 var clearInterval = clearTimeout;
 function requestAnimationFrame(fn) { rafq.push(fn); return rafq.length; }
+function cancelAnimationFrame() {}
 var performance = { now: function () { return T; } };
 function runTimers() {
   for (;;) {
@@ -33,6 +34,7 @@ globalThis.window = globalThis;
 function Style() {}
 Object.defineProperty(Style.prototype, 'setProperty', { enumerable: false, value: function (k, v) { this[k] = v; } });
 Object.defineProperty(Style.prototype, 'getPropertyValue', { enumerable: false, value: function (k) { return this[k] || ''; } });
+Object.defineProperty(Style.prototype, 'removeProperty', { enumerable: false, value: function (k) { delete this[k]; } });
 var DOCUMENT_NODE = { nodeType: 9 };
 function E(tag, cs, rect) {
   this.tagName = tag; this.nodeType = 1; this.children = []; this.parentNode = null;
@@ -95,7 +97,7 @@ function getComputedStyle(el) {
   return {
     position: c.position || 'static', overflowX: c.overflowX || 'visible', overflowY: c.overflowY || 'visible',
     transform: c.transform || 'none', borderTopLeftRadius: c.radius || '0px',
-    getPropertyValue: function (k) { return k === '--hk-glass-surface' ? (c.glass ? ' 1' : ' 0') : ''; }
+    getPropertyValue: function (k) { return k === '--hk-glass-surface' ? (c.glass ? ' 1' : ' 0') : ((c.vars || {})[k] || ''); }
   };
 }
 var docL = {};
@@ -107,11 +109,18 @@ var document = {
   addEventListener: function (t, f) { (docL[t] = docL[t] || []).push(f); },
   removeEventListener: function (t, f) { docL[t] = (docL[t] || []).filter(function (x) { return x !== f; }); }
 };
-window.addEventListener = function () {};
+var winL = {};                                   // window's listeners, to fire by hand
+window.addEventListener = function (t, f) { (winL[t] = winL[t] || []).push(f); };
+window.removeEventListener = function (t, f) { winL[t] = (winL[t] || []).filter(function (x) { return x !== f; }); };
 window.removeEventListener = function () {};
 window.devicePixelRatio = 1.5;                   // a 1920 x 1200 tablet at 1280 x 800 CSS
-function ResizeObserver() {}
-ResizeObserver.prototype.observe = ResizeObserver.prototype.unobserve = ResizeObserver.prototype.disconnect = function () {};
+// (each one kept, with what it watches, so a test can say a box changed size)
+var ROS = [];
+function ResizeObserver(cb) { this.cb = cb; this.els = new Set(); ROS.push(this); }
+ResizeObserver.prototype.observe = function (el) { this.els.add(el); };
+ResizeObserver.prototype.unobserve = function (el) { this.els.delete(el); };
+ResizeObserver.prototype.disconnect = function () { this.els.clear(); };
+function resized(el) { ROS.forEach(function (o) { if (o.els.has(el)) o.cb([{ target: el }]); }); }
 
 var LOOK = 'blur', settingsL = [];
 window.hkSettings = { glass: function () { return LOOK; }, onChange: function (fn) { settingsL.push(fn); } };
@@ -160,6 +169,7 @@ print('=== a view painted before hk-glass loaded is never held later ===');
 // HkBase joins cards whichever loads first; here the cards are on screen first.
 var V0 = view();
 var c0 = card({ x: 20, y: 40, w: 192, h: 70 }); V0.grid.appendChild(c0); GL.add(c0);
+globalThis.CSS = { supports: function (p, v) { return /-webkit-cross-fade/.test(v); } };   // WebKit and Chrome both
 load(HK_ROOT + '/frontend/modules/hk-glass.js');
 var G = window.hkGlass;
 advance(100);
@@ -169,90 +179,21 @@ ok('a conditional card appearing later does not hide the page', !hidden(V0.v), V
 V0.v.remove(); Array.from(GL).forEach(leave); advance(300);
 
 // ---------------------------------------------------------------------------
-print('\n=== a NEW view is held until frosted, then shown ===');
+print('\n=== a page is shown as soon as it is built, frosted from its first frame (2026-10-11) ===');
 var V1 = view();
-var t1 = T;
 for (var i = 0; i < 6; i++) add(V1.grid, card({ x: 20 + i * 204, y: 40, w: 192, h: 70 }));
-ok('hidden from the first join, its fade cancelled', hidden(V1.v) && V1.v.style.animation === 'none' &&
-   V1.v.getAttribute('data-hk-frost') === 'pending');
+ok('a new view: never hidden, never faint', !hidden(V1.v) && !V1.v.style.opacity && !V1.v.style.animation);
 frame();
-ok('...still hidden once its layer is placed (the joins have not settled)', hidden(V1.v) && layersIn(V1.v).length === 1);
-while (hidden(V1.v) && T - t1 < 3000) frame();
-ok('shown ~SETTLE_MS after the last join, not at the backstop', T - t1 >= 120 && T - t1 < 200, T - t1);
-ok('...first too faint to see, for the tablet to draw it', V1.v.style.opacity === '0.004', V1.v.style.opacity);
-frame(); frame();
-ok('...then at full strength, two frames on', !V1.v.style.opacity, V1.v.style.opacity);
-ok('...remembered as done', V1.v.getAttribute('data-hk-frost') === 'done');
+ok('...its layer in place on the first frame', layersIn(V1.v).length === 1 && !hidden(V1.v));
 V1.v.remove(); Array.from(GL).forEach(leave); advance(300);
-
-// ---------------------------------------------------------------------------
-print('\n=== a page Home Assistant kept, coming back, is drawn before it shows ===');
 var VK = view(), kc = [];
 for (i = 0; i < 4; i++) kc.push(add(VK.grid, card({ x: 20 + i * 204, y: 40, w: 192, h: 70 })));
 advance(400);
-ok('first visit shown and done', !hidden(VK.v) && !VK.v.style.opacity && VK.v.getAttribute('data-hk-frost') === 'done');
-add(VK.grid, card({ x: 20, y: 140, w: 192, h: 70 }));
-ok('a card appearing on the page on screen: never faint, never hidden', !VK.v.style.opacity && !hidden(VK.v), VK.v.style.opacity);
 BODY.removeChild(VK.v); Array.from(GL).forEach(leave);            // navigated away; the page kept
 advance(100);
-var tk = T; BODY.appendChild(VK.v); kc.forEach(join);              // and back
-ok('back: faint at once, never hidden', VK.v.style.opacity === '0.004' && !hidden(VK.v), VK.v.style.opacity);
-frame(); frame();
-ok('...still faint for its AGAIN_FRAMES drawn', VK.v.style.opacity === '0.004');
-frame();
-ok('...then shown -- no quarter-second wait on every return', !VK.v.style.opacity && T - tk < 80, T - tk);
+BODY.appendChild(VK.v); kc.forEach(join);                          // and back
+ok('a kept page coming back: shown at once, never faint or hidden', !VK.v.style.opacity && !hidden(VK.v), VK.v.style.opacity);
 VK.v.remove(); Array.from(GL).forEach(leave); advance(300);
-
-print('\n=== a kept page coming back with a card still rendering waits for it ===');
-var VR = view(), rc = [];
-for (i = 0; i < 3; i++) rc.push(add(VR.grid, card({ x: 20 + i * 204, y: 40, w: 192, h: 70 })));
-advance(400);
-BODY.removeChild(VR.v); Array.from(GL).forEach(leave); advance(100);
-rc[1].isUpdatePending = true;
-var tr = T; BODY.appendChild(VR.v); rc.forEach(join);
-for (i = 0; i < 6; i++) frame();
-ok('a card rendering again: still faint', VR.v.style.opacity === '0.004');
-rc[1].isUpdatePending = false;
-frame(); frame();
-ok('...faint for its frames drawn once it is done', VR.v.style.opacity === '0.004');
-frame();
-ok('...then shown', !VR.v.style.opacity, T - tr);
-VR.v.remove(); Array.from(GL).forEach(leave); advance(300);
-
-print('\n=== a view with a render still pending is not shown yet ===');
-var V1p = view(), t1p = T;
-var slow = card({ x: 20, y: 40, w: 192, h: 70 });
-var heading = new E('HUI-HEADING-CARD', {}, { x: 20, y: 10, w: 400, h: 24 });
-heading.isUpdatePending = true;
-V1p.grid.appendChild(heading);
-add(V1p.grid, slow);
-advance(200);
-ok('the glass card settled, a heading still rendering: still hidden', hidden(V1p.v), V1p.v.style.visibility);
-heading.isUpdatePending = false; heading.hasUpdated = true;
-frame();
-ok('...shown (faintly) the frame its render is done', !hidden(V1p.v) && V1p.v.style.opacity === '0.004', V1p.v.style.opacity);
-frame(); frame();
-ok('...then fully', !V1p.v.style.opacity);
-var heading2 = new E('HUI-HEADING-CARD', {}, { x: 20, y: 10, w: 400, h: 24 });
-var V1q = view(), t1q = T; heading2.isUpdatePending = true; V1q.grid.appendChild(heading2);
-add(V1q.grid, card({ x: 20, y: 40, w: 192, h: 70 }));
-while (hidden(V1q.v) && T - t1q < 3000) frame();
-ok('a render that never finishes holds it at most ~REVEAL_FRAMES, not the backstop', T - t1q < 600, T - t1q);
-V1p.v.remove(); V1q.v.remove(); Array.from(GL).forEach(leave); advance(300);
-
-// ---------------------------------------------------------------------------
-print('\n=== joins OUTSIDE the held view do not keep it hidden ===');
-var V2 = view(), t2 = T;
-add(V2.grid, card({ x: 20, y: 40, w: 192, h: 70 }));
-var elsewhere = new E('DIV', { position: 'fixed' }, { x: 0, y: 0, w: 10, h: 10 }); BODY.appendChild(elsewhere);
-var outside = [];
-while (hidden(V2.v) && T - t2 < 3000) {
-  // a pop-up's / detail sheet's / screensaver's card attaching every ~100 ms
-  if (Math.round(T - t2) % 99 < FRAME) outside.push(add(elsewhere, card({ x: 0, y: 0, w: 5, h: 5 }, { noPlate: true })));
-  frame();
-}
-ok('released on its own settle, not the 2.5 s backstop', T - t2 < 300, T - t2);
-V2.v.remove(); elsewhere.remove(); Array.from(GL).forEach(leave); advance(300);
 
 // ---------------------------------------------------------------------------
 print('\n=== a view on screen when the blur is switched on is never held ===');
@@ -375,17 +316,39 @@ ok('at rest, a pass reads no card\'s tree again (only each plate\'s radius and a
    computed - cs0 <= 5 * 2 * 2, computed - cs0);
 var late = new E('HA-CARD', { glass: 1, radius: '20px' }, { x: 0, y: 300, w: 300, h: 40 });
 plain[0].shadowRoot.appendChild(late);           // a card that renders its plate late
-advance(2050);
+G.rendered(plain[0]);                            // (HkBase says so after every draw)
+advance(50);
 ok('...but a card whose tree changed is collected again: its late plate is frosted',
    (pathOfLayer(V8.v).match(/M/g) || []).length === 2, pathOfLayer(V8.v).slice(0, 80));
+// A PAGE COMING BACK (Home Assistant re-attaches a cached view): its cards
+// leave and join again, unchanged -- what was collected is kept, not read
+// again element by element; a card that changed while away is collected.
+var gParent = g8.parentNode;
+g8.remove(); leave(g8); advance(50);
+var cs1 = computed;
+gParent.appendChild(g8); join(g8); advance(50);
+var backCost = computed - cs1;
+ok('...and still frosted', (pathOfLayer(V8.v).match(/M/g) || []).length === 2, pathOfLayer(V8.v).slice(0, 80));
+g8.remove(); leave(g8); advance(50);
+g8.shadowRoot.appendChild(new E('DIV'));          // drawn again while away
+var cs2 = computed;
+gParent.appendChild(g8); join(g8); advance(50);
+ok('a card back with its page, unchanged: not collected again (a pass measures each plate only)', backCost <= 2 * 3, backCost);
+ok('...one that changed while away is collected again', computed - cs2 > backCost, (computed - cs2) + ' vs ' + backCost);
+// A CARD THAT GROWS says so itself (its own box observed): the plates below
+// it are measured again on the next frame, with no backstop to wait for.
+var upG = G.stats().updates;
+resized(plain[3]);
+advance(50);
+ok('a card growing above a plate: measured again at once', G.stats().updates - upG === 1, G.stats().updates - upG);
 // BEHIND THE PHOTO SCREENSAVER (an overlay: document.hidden stays false) the
 // backstop has nobody to measure for: it pauses, and resumes with the screen.
 var up0 = G.stats().updates;
 window.hkSky = { asleep: function () { return true; } };
-advance(5 * 2000 + 50);
-ok('the 2 s backstop does not run while the photo screensaver is up', G.stats().updates - up0 === 0, G.stats().updates - up0);
+advance(5 * 30000 + 50);
+ok('the backstop does not run while the photo screensaver is up', G.stats().updates - up0 === 0, G.stats().updates - up0);
 window.hkSky.asleep = function () { return false; };
-advance(2050);
+advance(30050);
 ok('...and runs again once it is down', G.stats().updates - up0 >= 1, G.stats().updates - up0);
 delete window.hkSky;
 V8.v.remove(); Array.from(GL).forEach(leave); advance(300);
@@ -420,6 +383,244 @@ var threw = null;
 try { advance(2050); } catch (e) { threw = String(e); }
 ok('promote() stops at the document instead of throwing inside update()', threw === null, threw);
 V9.v.remove(); Array.from(GL).forEach(leave); advance(300);
+
+// ---------------------------------------------------------------------------
+print('\n=== Pre-rendered: the same layers, a picture of the sky pinned in each ===');
+window.innerWidth = 1280; window.innerHeight = 800;
+var imgRect = { x: 0, y: 0, w: 1280, h: 800 }, mkEl = document.createElement;
+document.createElement = function (t) { var e = mkEl(t); if (t === 'img' || t === 'canvas') e._rect = imgRect; return e; };
+// (the picture is a canvas holding it: data-src names it)
+var imgsOf = function (l) { return l.children.filter(function (c) { return c.tagName === 'CANVAS' && c.getAttribute('data-src'); })
+  .map(function (c) { c.src = c.getAttribute('data-src'); return c; }); };
+var live = function (l) { return /blur\(/.test(l.style.backdropFilter) && !imgsOf(l).length; };
+var V10 = view();
+add(V10.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+setLook('blur_pre'); advance(300);
+var pl = layersIn(V10.v);
+ok('blur_pre runs the shared layers, as Shared Layer does', G.stats().active && G.stats().pre && pl.length > 0, G.stats());
+ok('...blurring live until there is a picture to wear', pl.every(live));
+G._pre.show('blob:one');
+ok('a picture: each layer wears it, pinned to the screen, and blurs nothing live',
+   pl.every(function (l) { return l.style.backdropFilter === 'none' && imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:one'; }) &&
+   /position:fixed/.test(imgsOf(pl[0])[0].style.cssText) && /100vw/.test(imgsOf(pl[0])[0].style.cssText));
+ok('...the first picture is whole, not faded in', pl.every(function (l) { return imgsOf(l)[0].style.opacity !== '0'; }));
+G._pre.show('blob:two');
+ok('a new picture arrives transparent over the old', pl.every(function (l) { var i = imgsOf(l); return i.length === 2 && i[1].style.opacity === '0'; }));
+advance(1000);
+ok('...slowly: still both a second in (a 2.5 s fade on the same page, a drift and not a jump)',
+   pl.every(function (l) { return imgsOf(l).length === 2; }));
+advance(1800);
+ok('...fades in and the old one goes', pl.every(function (l) { var i = imgsOf(l); return i.length === 1 && i[0].src === 'blob:two' && i[0].style.opacity === '1'; }));
+// a late frame (a tablet busy just after a page load): the timers run on, no
+// frame comes
+G._pre.show('blob:late');
+T += 3000; runTimers();
+ok('the next frame late: the old picture stays -- the new one has not started its fade (it left the pills bare for two frames)',
+   pl.every(function (l) { var i = imgsOf(l); return i.length === 2 && i[0].src === 'blob:two' && i[1].style.opacity === '0'; }));
+advance(1000);
+ok('...the frame comes, the fade starts: both still on, a second in', pl.every(function (l) { return imgsOf(l).length === 2; }));
+advance(1800);
+ok('...and the old one goes once the new one is in', pl.every(function (l) { var i = imgsOf(l); return i.length === 1 && i[0].src === 'blob:late' && i[0].style.opacity === '1'; }));
+G._pre.show('blob:three', undefined, 600);
+ok('a change (a new page, a new cover, rain) fades in quickly', pl.every(function (l) { var i = imgsOf(l); return i.length === 2 && /opacity 600ms/.test(i[1].style.transition); }),
+   imgsOf(pl[0]).map(function (i) { return i.style.transition; }));
+advance(900);
+ok('...done in well under a second', pl.every(function (l) { var i = imgsOf(l); return i.length === 1 && i[0].src === 'blob:three'; }));
+imgRect = { x: 30, y: 24, w: 1200, h: 760 };       // a sheet sliding in: its transform is the fixed child's box
+var r10 = row(V10.grid, 500);
+add(r10, card({ x: 20, y: 507, w: 192, h: 70 })); advance(300);
+ok('a layer whose picture cannot be pinned to the screen blurs live instead', layersIn(r10).length > 0 && layersIn(r10).every(live));
+ok('...and the others keep their picture', pl.every(function (l) { return imgsOf(l).length === 1; }));
+G._pre.none();
+ok('no sky to paint (a page in its own color): every layer blurs live again', pl.every(live));
+imgRect = { x: 0, y: 0, w: 1280, h: 800 };
+G._pre.show('blob:three'); setLook('blur'); advance(300);
+ok('back to Shared Layer: the layers are rebuilt, live, no pictures anywhere',
+   G.stats().active && !G.stats().pre && layersIn(V10.v).every(live) && layersIn(V10.v).length > 0);
+V10.v.remove(); Array.from(GL).forEach(leave); advance(300);
+document.createElement = mkEl;
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+print('\n=== a page change: no gap -- the last picture stays until the new one is painted ===');
+globalThis.location = { pathname: '/dashboard-home/home' };
+imgRect = { x: 0, y: 0, w: 1280, h: 800 }; document.createElement = function (t) { var e = mkEl(t); if (t === 'img' || t === 'canvas') e._rect = imgRect; return e; };
+var V12 = view(); add(V12.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+setLook('blur_pre'); advance(300); G._pre.show('blob:home');
+var hl = layersIn(V12.v);
+ok('(Home wears Home\'s picture)', hl.length > 0 && hl.every(function (l) { return imgsOf(l).length === 1; }));
+location.pathname = '/dashboard-home/climate'; G._pre.nav();
+ok('the page moves: the layers keep the last picture (taking it off left the sky unblurred for a third of a second)',
+   hl.every(function (l) { return imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:home' && l.style.backdropFilter === 'none'; }));
+G._pre.show('blob:climate'); advance(1000);
+ok('the new picture: the last page\'s layers keep theirs until they leave (they wore it while Home Assistant swapped the page)',
+   hl.every(function (l) { return imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:home'; }));
+var V12b = view(); add(V12b.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
+ok('...and the new page\'s layers wear the new picture', layersIn(V12b.v).length > 0 &&
+   layersIn(V12b.v).every(function (l) { return imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:climate'; }));
+V12b.v.remove();
+location.pathname = '/dashboard-home/lights'; G._pre.nav();
+ok('another page change: the layers still on screen keep a picture -- never bare', hl.every(function (l) { return imgsOf(l).length === 1 && l.style.backdropFilter === 'none'; }));
+setLook('blur'); V12.v.remove(); Array.from(GL).forEach(leave); advance(300);
+document.createElement = mkEl; delete globalThis.location;
+
+// ---------------------------------------------------------------------------
+print('\n=== back on a page: its last picture goes on with the page, before any paint ===');
+globalThis.location = { pathname: '/dashboard-home/home' };
+imgRect = { x: 0, y: 0, w: 1280, h: 800 }; document.createElement = function (t) { var e = mkEl(t); if (t === 'img' || t === 'canvas') e._rect = imgRect; return e; };
+var srcOf = function (v) { var ls = layersIn(v); return ls.length ? ls.map(function (l) { var i = imgsOf(l); return i.length ? i[i.length - 1].src : ''; }).join(' ') : 'no layers'; };
+var V14 = view(); add(V14.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+var side = new E('DIV', {}, { x: 0, y: 0, w: 300, h: 800 }); BODY.appendChild(side);
+setLook('blur_pre'); advance(300);
+G.pin(side, 'linear-gradient(red,red)');
+G._pre.show('blob:home-1');
+location.pathname = '/dashboard-home/weather'; G._pre.nav(); G._pre.show('blob:weather-1');
+ok('the sidebar keeps Home\'s picture while Home is still the page on screen', /blob:home-1/.test(side.style.background || ''), side.style.background);
+ok('on Weather: Home\'s layers keep Home\'s picture while they are still on screen', /^(blob:home-1 ?)+$/.test(srcOf(V14.v)), srcOf(V14.v));
+var V14w = view(), cw = add(V14w.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
+ok('...and Weather\'s layers wear Weather\'s', /^(blob:weather-1 ?)+$/.test(srcOf(V14w.v)), srcOf(V14w.v));
+var sideMid = side.style.background || '';
+ok('...and as Weather\'s view shows the sidebar fades across: Home\'s picture and Weather\'s blended, part way',
+   /^linear-gradient\(red,red\), -webkit-cross-fade\(url\("blob:home-1"\), url\("blob:weather-1"\), ([1-9]\d?)%\) -?0\.0px -?0\.0px \/ 1280px 800px no-repeat$/.test(sideMid), sideMid);
+advance(400);
+ok('...ending on Weather\'s alone', /blob:weather-1/.test(side.style.background || '') && !/blob:home-1|cross-fade/.test(side.style.background), side.style.background);
+V14w.v.remove(); leave(cw);
+location.pathname = '/dashboard-home/home'; G._pre.nav();
+var V14b = view(); add(V14b.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
+ok('back on Home: Home\'s remembered picture is on at once, no paint awaited', /^(blob:home-1 ?)+$/.test(srcOf(V14b.v)), srcOf(V14b.v));
+advance(1600);
+ok('...and the sidebar follows, at the latest when no view ever says it is up', /blob:home-1/.test(side.style.background || ''), side.style.background);
+G.unpin(side); side.remove();
+setLook('blur'); V14.v.remove(); V14b.v.remove(); Array.from(GL).forEach(leave); advance(300);
+document.createElement = mkEl; delete globalThis.location;
+
+print('\n=== what is behind a layer decides it: the sky (a picture) or the page (live) ===');
+imgRect = { x: 0, y: 0, w: 1280, h: 800 }; document.createElement = function (t) { var e = mkEl(t); if (t === 'img' || t === 'canvas') e._rect = imgRect; return e; };
+var V22 = view(); add(V22.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+var bar = new E('DIV', { position: 'fixed' }, { x: 0, y: 700, w: 1280, h: 100 }); V22.grid.appendChild(bar);
+var inBar = add(bar, card({ x: 20, y: 710, w: 192, h: 70 }));
+setLook('blur_pre'); advance(300); G._pre.show('blob:sky');
+var barL = layersIn(bar), pageL = layersIn(V22.v).filter(function (l) { return barL.indexOf(l) < 0; });
+ok('a layer held over the page (in a fixed box) blurs live, though its picture would line up',
+   barL.length > 0 && barL.every(live), barL.map(function (l) { return l.style.backdropFilter; }));
+ok('...while the page\'s own layers wear the picture', pageL.length > 0 && pageL.every(function (l) { return imgsOf(l).length === 1 && !live(l); }));
+var r22 = row(V22.grid, 450); add(r22, card({ x: 20, y: 457, w: 192, h: 70 }));
+imgRect = { x: 30, y: 24, w: 1200, h: 760 };    // something above it moving: its picture out of line
+advance(300);
+ok('a page layer whose picture is out of line blurs live meanwhile', layersIn(r22).length > 0 && layersIn(r22).every(live));
+imgRect = { x: 0, y: 0, w: 1280, h: 800 };       // still again
+G.refresh(); advance(300);
+ok('...and wears the picture again once it lines up (it stayed live for good)', layersIn(r22).every(function (l) { return imgsOf(l).length === 1 && !live(l); }));
+setLook('blur'); V22.v.remove(); Array.from(GL).forEach(leave); advance(300);
+document.createElement = mkEl;
+
+print('\n=== pinned glass: the menu and tab bar wear the picture too ===');
+var V13 = view(); add(V13.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+var mat = new E('DIV', {}, { x: 0, y: 0, w: 300, h: 800 }); BODY.appendChild(mat);
+setLook('blur'); advance(300);
+G.pin(mat, 'linear-gradient(red,red)');
+ok('Shared Layer: a pinned surface keeps its own live blur (nothing set on it)', !mat.style.background && !mat.style['backdrop-filter']);
+setLook('blur_pre'); advance(300); G._pre.show('blob:pin');
+ok('Pre-rendered: the pinned panel wears its slice under its own tint, its live blur off',
+   /^linear-gradient\(red,red\), url\("blob:pin"\) -?0\.0px -?0\.0px \/ 1280px 800px no-repeat$/.test(mat.style.background || '') && mat.style['backdrop-filter'] === 'none', mat.style.background);
+setLook('blur'); advance(300);
+ok('back to Shared Layer: its own background and blur back', !mat.style.background && !mat.style['backdrop-filter']);
+G.unpin(mat); mat.remove(); V13.v.remove(); Array.from(GL).forEach(leave); advance(300);
+
+// ---------------------------------------------------------------------------
+// LAST: a paint started here never finishes in this harness (pre.busy stays)
+print('\n=== painted again on what changes it, never by looking every few seconds ===');
+globalThis.location = { pathname: '/dashboard-home/home' };
+var realNow = Date.now, BASE = realNow(); Date.now = function () { return BASE + T; };
+var skyN = new E('DIV', {}, { x: 0, y: 0, w: 1280, h: 800 }); BODY.appendChild(skyN);
+var SB = 'weather|8c1', SL = '--sk0: #123';
+window.hkSky = { element: function () { return skyN; }, asleep: function () { return false; }, cloudsPending: function () { return false; },
+                 sig: function () { return { big: SB, small: SL }; } };
+var V21 = view(); add(V21.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+setLook('blur_pre'); advance(300);
+var st21 = G._pre.state(), paints = function () { return st21.busy; };
+var painted = function () {                       // as a finished paint leaves it
+  st21.busy = false; st21.again = false; st21.url = 'blob:p'; st21.path = st21.drawn = '/dashboard-home/home';
+  var sg = G._pre.sigs(); st21.big = sg.big; st21.small = sg.small; st21.at = Date.now();
+};
+var skyPaint = function () { (winL['hk-sky-paint'] || []).forEach(function (f) { f(); }); };
+painted(); skyPaint();
+advance(60000);
+ok('nothing changes for a minute: no paint (it looked every 5 s)', !paints());
+painted(); SL = '--sk0: #124'; skyPaint();
+ok('the light moves just after a paint: not painted at once (at most every 45 s)...', !paints());
+advance(43000);
+ok('...nor before its 45 s are up', !paints());
+advance(3000);
+ok('...but painted by then, with nothing else to say so', paints(), [Date.now() - st21.at]);
+painted(); skyPaint(); SB = 'weather rain|8c1'; skyPaint();
+ok('what the sky shows changes (rain): painted at once', paints());
+var g0 = st21.gen; SB = 'weather snow|8c1'; skyPaint();
+ok('it changes again while that paint runs: a new paint starts at once, not queued behind it', st21.gen === g0 + 1 && paints(), st21.gen - g0);
+var g1 = st21.gen; skyPaint();
+ok('...but asked again with nothing new, it waits for the running one', st21.gen === g1 && st21.again === true);
+painted(); var g2 = st21.gen; SB = 'weather snow wind|8c1'; (winL['hk-sky-change'] || []).forEach(function (f) { f(); });
+ok('the sky saying it changed (hk-sky-change, at once) paints it', st21.gen === g2 + 1 && paints());
+painted(); st21.unsettled = true; var g3 = st21.gen; skyPaint();
+ok('a picture that read a slow fade half-way: painted again once the sky has settled', st21.gen === g3 + 1 && st21.unsettled === false);
+painted(); var g4 = st21.gen; skyPaint();
+ok('...and a settled one is not', st21.gen === g4 && !paints());
+painted(); advance(121000);
+ok('and every 2 minutes whatever (the clouds drift with nothing to say so)', paints());
+var ANIM = false, DRIFT = false;
+window.hkSettings.skyLook = function () { return { animations: ANIM }; };
+window.hkSky.drifting = function () { return DRIFT; };
+ANIM = true; DRIFT = true; painted(); skyPaint();
+advance(1500);
+ok('the clouds drifting (Animations on): not painted again before 2 s...', !paints());
+advance(600);
+ok('...but every 2 s, so the pills follow them', paints());
+painted(); skyPaint(); advance(1000);
+(winL.pointerdown || []).forEach(function (f) { f({ type: 'pointerdown' }); });
+advance(3000);
+ok('a finger on the page: no paint for the clouds while it is down', !paints());
+(winL.pointerup || []).forEach(function (f) { f({ type: 'pointerup' }); });
+advance(400);
+ok('...nor straight after it lifts', !paints());
+advance(500);
+ok('...painted once the page has been still a moment', paints());
+painted(); skyPaint(); advance(1900);
+(winL.scroll || []).forEach(function (f) { f({ type: 'scroll' }); });
+advance(500);
+ok('scrolling: the 2 s paint waits for it to stop', !paints());
+advance(400);
+ok('...and comes once it has', paints());
+painted(); (winL.pointerdown || []).forEach(function (f) { f({ type: 'pointerdown' }); }); skyPaint();
+SB = 'weather fog|8c1'; skyPaint();
+ok('a change of what the sky shows is painted at once, finger down or not', paints());
+(winL.pointerup || []).forEach(function (f) { f({ type: 'pointerup' }); });
+DRIFT = false; painted(); skyPaint(); advance(3000);
+ok('nothing drifting (a still page, its clouds paused): no 2 s paints', !paints());
+advance(28000);
+ok('...the 30 s of a moving sky instead', paints());
+ANIM = false; delete window.hkSettings.skyLook;
+painted(); window.innerWidth = 1100; (winL.resize || []).forEach(function (f) { f(); });
+ok('a new window size: painted at once', paints());
+window.innerWidth = 1280;
+setLook('blur'); V21.v.remove(); skyN.remove(); Array.from(GL).forEach(leave); advance(300);
+Date.now = realNow; delete window.hkSky; delete globalThis.location;
+
+print('\n=== the first picture waits for the realistic clouds ===');
+globalThis.location = { pathname: '/dashboard-home/home' };
+var skyNode = new E('DIV', {}, { x: 0, y: 0, w: 1280, h: 800 }); BODY.appendChild(skyNode);
+var pending = true;
+window.hkSky = { element: function () { return skyNode; }, asleep: function () { return false; },
+                 cloudsSig: function () { return pending ? '' : '6c1'; }, cloudsPending: function () { return pending; } };
+var V20 = view(); add(V20.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+G._pre.state().busy = false; G._pre.state().again = false;   // left by earlier paints this harness never finishes
+setLook('blur_pre'); advance(300);
+ok('at load, with the clouds still on their way, no picture is painted (it wore a cloudless sky, darker, for 5 s)',
+   !G._pre.state().url && !G._pre.state().busy, G._pre.state());
+pending = false;
+(winL['hk-sky-paint'] || []).forEach(function (f) { f(); });
+ok('...the sky saying they are up paints it at once', G._pre.state().busy === true);
+setLook('blur'); V20.v.remove(); skyNode.remove(); Array.from(GL).forEach(leave); advance(300);
+delete window.hkSky; delete globalThis.location;
 
 print(fail ? 'FAIL ' + fail + ' GLASS BEHAVIOUR TESTS' : 'ALL ' + pass + ' GLASS BEHAVIOUR TESTS PASS');
 if (fail) throw new Error('glass behaviour tests failed');

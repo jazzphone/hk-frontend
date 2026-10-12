@@ -96,7 +96,8 @@ Material icon with an Apple glyph of the same name is drawn as the Apple one.
 it is on. A fan’s glyph spins by default, but a chosen icon isn’t always one
 that reads as a fan — a ceiling fan does, a purifier doesn’t. **Automatic**
 keeps its kind (a fan spins, anything else doesn’t), **Spin** makes it turn,
-**Still** keeps it still. It only turns while the fan is on; a favorite’s
+**Still** keeps it still. It only turns while the fan is on, and never with
+the sky’s **Animations** off ([Live Sky](Live-Sky.md#choose-its-look)); a favorite’s
 glyph keeps the favorites’ still, one-height look. It is set in the accessory’s
 settings (the gear on its sheet), not with the fan’s own controls.
 

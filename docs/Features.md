@@ -1,6 +1,6 @@
 # Features
 
-HK Frontend has five optional features. Each one is added on its own, can be
+HK Frontend has six optional features. Each one is added on its own, can be
 removed on its own, and none of them changes your dashboards when it is not
 there.
 
@@ -11,6 +11,7 @@ there.
 | [Clean Areas](Clean-Areas.md) | “Clean these rooms,” sent to whichever vacuums reach them | Vacuums, with room maps for those that clean by area |
 | [Alarm PIN](Alarm-PIN.md) | A PIN in front of an alarm panel that takes no code of its own | An alarm panel |
 | [Energy](Energy.md) | An Energy page: whole-home power, today’s cost, daily use and a live tile per circuit | Home Assistant’s Energy settings (or power sensors you pick) |
+| [Notifications](Notifications.md) | A banner at the top of the screens when an accessory does something, with a camera’s snapshot | Nothing |
 
 ## Adding a feature
 
@@ -28,7 +29,7 @@ entry, marked **Feature**. From there:
 
 - Its **gear** changes its settings.
 - Its **⋮** menu → **Delete** removes it. The dashboards stay; whatever the
-  feature drew (a Play Music page, the Live TV guide, the vacuum area picker)
+  feature drew (the Music page, the Live TV guide, the vacuum area picker)
   goes away or says it is not set up. Its entities go with it.
 
 Once a feature is added, its settings are also on the HK Settings page (in

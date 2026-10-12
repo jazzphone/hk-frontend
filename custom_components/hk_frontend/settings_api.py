@@ -358,6 +358,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "rooms.order": _ids,
     # All Screens' cameras (settings.resolved): every screen that doesn't set its own
     "cameras.order": _entities("camera"),
+    "cameras.live": _bool,
     "rooms.home": _choice(S.BOARD_HOME_ROOMS),
     "rooms.menu": _choice(S.BOARD_MENU_ROOMS),
     "rooms.pages": _choice(S.BOARD_PAGE_ROOMS),
@@ -369,11 +370,14 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "generated.include_entities": _entities(),
     "sky.decorations": _bool,
     "sky.decoration_style": _choice(("old", "new")),
+    "sky.moving": _choice(S.SKY_MOVING),
     "sky.cloud_style": _choice(S.CLOUD_STYLES),
     "sky.daytime": _choice(S.DAYTIME_SKIES),
     "sky.woodland": _subset(S.WOODLAND_SEASONS),
     "sky.animations": _bool,
     "sky.weather": _bool,
+    "sky.precipitation": _bool,
+    "sky.focus_pause": _bool,
     "sky.gradient": _choice(S.SKY_BACKDROP_IDS),
     "sky.pages": _sky_pages,
     "sky.gradient_custom": _sky_stops,
@@ -560,6 +564,20 @@ def _custom_pages(v: Any) -> list[str]:
     return list(dict.fromkeys(v))
 
 
+def _dnd(v: Any) -> dict[str, Any] | None:
+    """Do Not Disturb hours (settings.notify_dnd); None follows All Screens."""
+    if v is None:
+        return None
+    if not isinstance(v, dict) or set(v) - {"schedule", "from", "to", "while"}:
+        raise Invalid("unknown")
+    if any(v.get(k) not in (None, "") and S.hhmm(v.get(k)) is None for k in ("from", "to")):
+        raise Invalid("time")
+    w = v.get("while") or []
+    if not isinstance(w, list) or len(w) > S.DND_MAX or not all(isinstance(x, str) and S.ENTITY_ID.match(x) for x in w):
+        raise Invalid("entity")
+    return S.notify_dnd(v)
+
+
 BOARD: dict[str, Callable[[Any], Any]] = {
     "menu": _choice(S.BOARD_MENUS),
     "phone_header": _choice(S.BOARD_PHONE),
@@ -626,8 +644,12 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     # this screen's own Sky / Background; None: follow All Screens
     "sky_animations": _bool_or_none,
     "sky_weather": _bool_or_none,
+    "sky_precipitation": _bool_or_none,
+    "sky_focus_pause": _bool_or_none,
+    "camera_live_video": _bool_or_none,
     "sky_decorations": _bool_or_none,
     "sky_decoration_style": _choice(("old", "new"), none=True),
+    "sky_moving": _choice(S.SKY_MOVING, none=True),
     "sky_cloud_style": _choice(S.CLOUD_STYLES, none=True),
     "sky_daytime": _choice(S.DAYTIME_SKIES, none=True),
     "sky_gradient": _choice(S.SKY_BACKDROP_IDS, none=True),
@@ -646,7 +668,12 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "kiosk_admins": _bool,
     "kiosk_engine": _choice(S.KIOSK_ENGINES),
     "popups": _bool,
+    "notify": _bool,
+    "notify_saver": _choice(S.NOTIFY_SAVERS, none=True),
+    "notify_dnd": _dnd,
     "now_playing": _bool,
+    "timer_bar": _bool,
+    "bar_all_pages": _bool,
     "screensaver": _bool,
     "tablet_user": _user,
     "wallpanel_options": _card_options,

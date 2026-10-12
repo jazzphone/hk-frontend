@@ -176,10 +176,12 @@ window.hkIcons = { version: "1.1.0", mdiPath, MDI_ALIAS };
   // window, not an ongoing risk.
   //
   // So the poll switches itself off: after QUIET_SWEEPS consecutive clean
-  // sweeps it stops, and anything that could plausibly introduce a
-  // pre-registration element again -- a navigation, coming back from the
-  // screensaver -- re-arms it. A page that genuinely keeps losing icons keeps
-  // being swept, because a sweep that repairs something resets the counter.
+  // sweeps it stops (a sweep that repairs something resets the counter).
+  // A navigation or the screensaver going does NOT re-arm it any more: an
+  // element rendered after this module evaluated finds the set, so neither
+  // can make a blank icon -- and the walk landed at the tail of every page
+  // change (300 ms in, ~8 ms of each at 6x slower, measured headless) and
+  // re-armed three more whole-page walks a minute apart.
   const SWEEP_MS = 60000;
   const QUIET_SWEEPS = 3;          // 3 clean minutes and we are done
   let timer = null, quiet = 0;
@@ -198,13 +200,6 @@ window.hkIcons = { version: "1.1.0", mdiPath, MDI_ALIAS };
   [200, 600, 1500, 3000, 6000, 12000].forEach((t) => setTimeout(repair, t));
   arm();
 
-  // The kiosk screensaver hides the page for hours; re-check on the way back.
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) { setTimeout(repair, 300); arm(); }
-  });
-  window.addEventListener("location-changed", () => {
-    setTimeout(repair, 300); arm();
-  });
   // manual: hkRepairIcons() in the console. Also re-arms the poll, so it is
   // the right thing to call if you are chasing a blank icon.
   window.hkRepairIcons = () => { arm(); return repair(); };

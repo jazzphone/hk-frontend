@@ -117,6 +117,7 @@ Add each from **Settings** → **Devices & services** → **HK Frontend** → **
 | **[Clean Areas](https://github.com/jazzphone/hk-frontend/wiki/Clean-Areas)** | Pick rooms and send the vacuums that reach them |
 | **[Alarm PIN](https://github.com/jazzphone/hk-frontend/wiki/Alarm-PIN)** | A PIN in front of an alarm panel that takes no code of its own |
 | **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** | An Energy page built from Home Assistant’s Energy settings, with a live tile per circuit and device |
+| **[Notifications](https://github.com/jazzphone/hk-frontend/wiki/Notifications)** | A banner at the top of the screens when something happens at home, with a camera’s snapshot; whole categories of accessories at once |
 
 ## Help
 

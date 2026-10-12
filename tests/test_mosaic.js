@@ -394,13 +394,20 @@ dispatchEvent(new Event('kiosksatellite:screenon')); __runTimersUnder(2600);
 ok('...and back after it is on', !!blk._timer && !blk._liveSlot.asleep);
 dispatchEvent(new CustomEvent('hk-black', { detail: { on: true } }));
 ok('HK\'s own black screen (hk-black): the same rest', !blk._timer && blk._liveSlot.asleep);
+// a pick under the black (Live Camera Follows moving on): the strip rebuilds,
+// and its new live tile is built asleep -- the Kitchen decoded one for nobody
+var underBlack = {}; for (var k in blk._hass.states) underBlack[k] = blk._hass.states[k];
+underBlack['input_select.cameras'] = { state: NAMES[1], last_updated: 't2' };
+blk.hass = { states: underBlack };
+ok('a new pick under the black: rebuilt for it, its live tile asleep -- no stream mounted',
+   blk._liveSlot.cam.name === NAMES[1] && blk._liveSlot.asleep && !(blk._liveSlot.el.config && blk._liveSlot.el.config.camera_view === 'live') && !blk._timer);
 dispatchEvent(new CustomEvent('hk-black', { detail: { on: false } })); __runTimersUnder(2600);
 ok('...and back after it ends', !!blk._timer && !blk._liveSlot.asleep);
 blk.disconnectedCallback();
 dispatchEvent(new Event('kiosksatellite:screensaverstart'));
 ok('a strip taken off the page hears nothing more', !blk._timer);
 
-print('\n=== leaving the page: the live video out of sight before it is torn down ===');
+print('\n=== leaving the page: marked as left, nothing hidden or copied (2026-10-11) ===');
 location.pathname = '/dashboard-livingroom/home';
 var nav = withPic('Front Door');
 nav._liveSlot.el.classList.remove('wait');              // as if it were showing a picture
@@ -409,7 +416,7 @@ dispatchEvent(new Event('location-changed'));
 ok('a pop-up opening (same path) is not a leave', !nav._liveSlot.el.classList.contains('wait') && !nav._leaving);
 location.pathname = '/dashboard-lights/0';
 dispatchEvent(new Event('location-changed'));
-ok('a navigation away hides the live card at once', nav._liveSlot.el.classList.contains('wait') && nav._leaving);
+ok('a navigation away: left, the live card not hidden', !nav._liveSlot.el.classList.contains('wait') && nav._leaving);
 location.pathname = '/dashboard-livingroom/home';
 nav._tickAges();
 ok('...and the path coming back (a navigation that did not leave) ends it', !nav._leaving);
@@ -418,6 +425,7 @@ ok('...and the path coming back (a navigation that did not leave) ends it', !nav
 var vfc = [], fakeV = { readyState: 4, videoWidth: 1280, videoHeight: 720,
                         requestVideoFrameCallback: function (f) { vfc.push(f); } };
 nav._liveVideo = function () { return fakeV; };
+nav._liveSlot.el.classList.add('wait');                  // (a tile waiting for its picture)
 nav._liveShown();
 ok('the video shown, the still lifted over it', !nav._liveSlot.el.classList.contains('wait') &&
    nav._liveSlot.box.classList.contains('lift'));

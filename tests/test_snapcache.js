@@ -24,8 +24,14 @@ function ok(n, got, want) {
   if (g === w) { pass++; print('  PASS  ' + n + '   ' + g); }
   else { fail++; print('  FAIL  ' + n + '\n          got  ' + g + '\n          want ' + w); }
 }
+// (the cache reads storage once and saves when idle: these read it again
+// after seeding storage, and save before reading storage back)
+var SC = function () { return window.hkCards.snapCache; };
+var realSet = localStorage.setItem.bind(localStorage);
+localStorage.setItem = function (k, v) { var r = realSet(k, v); if (k === 'hk-snap-v1' && !globalThis.__saving) SC()._reset(); return r; };
 function reset() {
   localStorage.clear();
+  SC()._reset();
   globalThis.__lsThrows = false;
   globalThis.__canvasTaints = false;
   globalThis.__canvasCalls = [];
@@ -49,7 +55,7 @@ function fakeImg(w, h) {
   return i;
 }
 var KEY = 'hk-snap-v1';
-function stored() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+function stored() { globalThis.__saving = true; try { SC()._flush(); } finally { globalThis.__saving = false; } try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
 
 // The cache functions are not exported -- they are reached through the card,
 // which is the only thing that uses them. _snap() reads on build and the load

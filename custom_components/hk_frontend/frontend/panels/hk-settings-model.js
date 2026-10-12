@@ -36,7 +36,7 @@
   var PAGE_LABELS = {
     weather: 'Weather', calendar: 'Calendar', cameras: 'Cameras', live_tv: 'Live TV', security: 'Security',
     doors_windows: 'Doors & Windows', climate: 'Climate', lights: 'Lights', timers: 'Timers',
-    vacuums: 'Vacuums', music: 'Play Music', browse: 'Browse Music', water: 'Water', energy: 'Energy', rooms: 'Room Pages'
+    vacuums: 'Vacuums', music: 'Music', browse: 'Browse Music', water: 'Water', energy: 'Energy', rooms: 'Room Pages'
   };
   // Each kind: key, name, the detail page’s description, and the list page’s
   // sub-line -- what the kind feeds, in the chips’ and pages’ own words.
@@ -98,12 +98,26 @@
   }
   // the styles that can show the edge tab (Tab Position applies)
   var TAB_STYLES = { auto: 1, chip_scroll: 1, chip_home: 1, tab: 1 };
-  var GLASS = [
-    ['clear', 'Clear', 'The original glass. The status chips blur what’s behind them.'],
-    ['frosted', 'Frosted', 'A frosted material with no blur. Costs a tablet nothing per frame.'],
-    ['blur', 'Blur', 'What’s behind the glass is blurred as one shared layer, so tablets keep their frame rate.'],
-    ['blur_each', 'Blur Each Card', 'Every surface blurs what’s behind it. For phones, iPads and computers — too heavy for a wall tablet.']
+  // THE GLASS (2026-10-10): three styles, and Blur's three modes -- one
+  // stored value each (look.glass / a screen's glass): clear, frosted, blur
+  // (Shared Layer), blur_pre (Pre-rendered), blur_each (Each Card)
+  var GLASS_STYLES = [
+    ['clear', 'Glass', 'The original see-through glass. The status chips blur what’s behind them.'],
+    ['frosted', 'Frosted', 'A milky material with no blur. Costs nothing per frame on any device.'],
+    ['blur', 'Blur', 'What’s behind the glass, blurred. Choose how in Blur Mode.']
   ];
+  var BLUR_MODES = [
+    ['blur', 'Shared Layer', 'Live: the sky blurs as it moves, one blur for the whole page. Fine on wall tablets — but while the sky moves, the device blurs it again on every frame.'],
+    ['blur_pre', 'Pre-rendered (Experimental)', 'Experimental: it can still trail or miss a change now and then. A picture of the sky, blurred once and painted again as the sky changes. The lightest blur, and the smoothest scrolling on a wall tablet. Drifting clouds catch up every 2 seconds and the light within a minute; rain, snow and a passing flock don’t show through the glass.'],
+    ['blur_each', 'Each Card', 'Live: every card blurs what’s behind it, so a sheet or a scrolling row never leaves its frost behind. The heaviest — for phones, iPads and computers, not wall tablets.']
+  ];
+  // every stored value, its full name and its note (a list, a summary)
+  var GLASS = [GLASS_STYLES[0], GLASS_STYLES[1]].concat(BLUR_MODES.map(function (m) {
+    return [m[0], 'Blur · ' + m[1], m[2]];
+  }));
+  function isBlur(v) { return v === 'blur' || v === 'blur_pre' || v === 'blur_each'; }
+  // the style a stored value belongs to
+  function glassStyle(v) { return isBlur(v) ? 'blur' : v === 'frosted' ? 'frosted' : 'clear'; }
   var PRESETS = {
     wall_tablet: ['Wall Tablet', 'Menu always open with the time and weather, back to Home when idle, no Home Assistant header.'],
     personal: ['Phone or iPad', 'Menu behind a button, time and weather in the header.'],
@@ -145,6 +159,8 @@
   var WOODLAND = [['spring', 'Spring'], ['summer', 'Summer'], ['fall', 'Autumn'], ['winter', 'Winter']];
   // the clouds' looks (sky.cloud_style), as the Clouds menus offer them
   var CLOUD_STYLES = [['classic', 'Classic'], ['realistic', 'Realistic']];
+  // Moving Things (sky.moving / a screen's sky_moving)
+  var SKY_MOVING = [['behind', 'Behind the Cards'], ['front', 'In Front of the Cards']];
   // the daytime sky's brightness (sky.daytime, settings.py DAYTIME_SKIES)
   var DAYTIME_SKIES = [['natural', 'Natural'], ['balanced', 'Balanced'], ['deep', 'Deep']];
   function woodlandSummary(list) {
@@ -282,7 +298,7 @@
     choice: 'That isn’t one of the choices.', text: 'That text is too long.', amount: 'Choose 0 to 100 %.',
     card_options: 'Options must be YAML keys and values (key: value), under 20,000 characters.',
     birthday: 'Each birthday needs a name and a date.', path: 'Use letters, digits and dashes only.',
-    count: 'That list couldn’t be read.', date: 'That isn’t a date.',
+    count: 'That list couldn’t be read.', date: 'That isn’t a date.', time: 'That isn’t a time of day.',
     stops: 'Choose four colors for Day and four for Night.',
     tab_position: 'Enter a number: pixels from the top, or a percentage of the screen’s height.',
     accent: 'Choose a color, or a color of your own as #rrggbb.',
@@ -305,7 +321,7 @@
     live_tv: ['Live TV', 'hk:television', 'white'], security: ['Security', 'hk:shield-lock', 'white'],
     doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white'], climate: ['Climate', 'hk:thermostat', 'white'],
     lights: ['Lights', 'hk:lightbulb', 'white'], timers: ['Timers', 'hk:timer-sand', 'white'],
-    vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Play Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'white'],
+    vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'white'],
     energy: ['Energy', 'mdi:lightning-bolt', 'white']
   };
   var PILL_COLORS = ['white', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'teal', 'mint', 'green'];
@@ -509,14 +525,14 @@
   }
   // which amount the glass uses (the others are kept but not shown)
   function amountsFor(effective) {
-    return { frost: effective === 'frosted', blur: effective === 'blur' || effective === 'blur_each' };
+    return { frost: effective === 'frosted', blur: isBlur(effective) };
   }
   // the Glass group's footer, for the style shown (All Screens' Appearance
   // and a screen's page say the same)
   function glassFooter(style) {
     var t = 'How the pills, tiles and chips look.';
     if (style === 'frosted') t += ' Frost: how milky, 50% is the middle. Tint from Background: each card takes the color of the page behind it instead of one gray.';
-    if (style === 'blur' || style === 'blur_each') t += ' Blur: how strong, 50% is 20 px.';
+    if (isBlur(style)) t += ' Blur: how strong, 50% is 20 px.';
     return t;
   }
 
@@ -641,11 +657,15 @@
     return out;
   }
 
-  // PAGES (a generated screen): the kinds, Browse Music (it comes with Play
-  // Music) and the house's custom pages, in one order; `custom_pages` says
-  // which custom pages this screen shows.
+  // PAGES (a generated screen): the kinds and the house's custom pages, in
+  // one order; `custom_pages` says which custom pages this screen shows.
+  // BROWSE MUSIC IS NOT A PAGE OF ITS OWN since 2026-10-11 (it is part of the
+  // Music page): never a row, never saved -- an older saved order's `browse`
+  // is dropped as it is read.
+  function noBrowse(list) { return list.filter(function (k) { return k !== 'browse'; }); }
   function pagesModel(b, pageOrder, custom) {
-    var pages = b.pages || [], cp = (b.custom_pages || []).filter(function (k) { return custom[k] !== undefined; });
+    pageOrder = noBrowse(pageOrder);
+    var pages = noBrowse(b.pages || []), cp = (b.custom_pages || []).filter(function (k) { return custom[k] !== undefined; });
     var auto = !pages.length;
     var order;
     if (auto) {
@@ -660,15 +680,13 @@
         var r = order.indexOf('rooms');
         order.splice(r >= 0 ? r : order.length, 0, k);
       });
-      if (order.indexOf('music') >= 0 && order.indexOf('browse') < 0) order.splice(order.indexOf('music') + 1, 0, 'browse');
-      order = order.filter(function (k) { return k !== 'browse' || order.indexOf('music') >= 0; });
     }
     var more = pageOrder.filter(function (k) { return k !== 'browse' && order.indexOf(k) < 0; })
       .map(function (k) { return { value: k }; })
       .concat(Object.keys(custom).filter(function (k) { return order.indexOf(k) < 0; })
         .map(function (k) { return { value: k, custom: true }; }));
     return { auto: auto,
-             rows: order.map(function (k) { return { value: k, custom: custom[k] !== undefined, fixed: k === 'browse' }; }),
+             rows: order.map(function (k) { return { value: k, custom: custom[k] !== undefined }; }),
              more: more };
   }
   // A SCREEN WITH NO HOME PAGE: the pages it is only, in order -- any page
@@ -676,17 +694,17 @@
   // 2026-10-04 has only `custom_pages`, where `energy` is the Energy
   // feature's page (energyOn). `pageOrder` is the kinds the house can have.
   function onlyModel(b, pageOrder, custom, energyOn) {
+    pageOrder = noBrowse(pageOrder);
     var kind = function (k) { return pageOrder.indexOf(k) >= 0; };
     var cur = (b.only_pages || []).length
       ? b.only_pages.filter(function (k) { return kind(k) || custom[k] !== undefined; })
       : (b.custom_pages || []).filter(function (k) { return custom[k] !== undefined || (k === 'energy' && energyOn && kind(k)); });
-    if (cur.indexOf('music') >= 0 && cur.indexOf('browse') < 0) cur.splice(cur.indexOf('music') + 1, 0, 'browse');
-    cur = cur.filter(function (k) { return k !== 'browse' || cur.indexOf('music') >= 0; });
+    cur = noBrowse(cur);
     var more = pageOrder.filter(function (k) { return k !== 'browse' && cur.indexOf(k) < 0; })
       .map(function (k) { return { value: k }; })
       .concat(Object.keys(custom).filter(function (k) { return cur.indexOf(k) < 0; })
         .map(function (k) { return { value: k, custom: true }; }));
-    return { rows: cur.map(function (k) { return { value: k, custom: custom[k] !== undefined, fixed: k === 'browse' }; }),
+    return { rows: cur.map(function (k) { return { value: k, custom: custom[k] !== undefined }; }),
              more: more };
   }
   // EACH PAGE'S BACKGROUND (Sky / Background -> Page Backgrounds): the pages
@@ -696,7 +714,7 @@
   // `custom`: address -> title.
   var SKY_OWN = { cameras: 1, live_tv: 1, security: 1, doors_windows: 1, climate: 1, lights: 1, timers: 1,
                   vacuums: 1, music: 1, water: 1, energy: 1 };
-  var SKY_PAGE_LABELS = { music: 'Play Music & Browse Music', rooms: 'Room Pages', live_tv: 'Live TV' };
+  var SKY_PAGE_LABELS = { music: 'Music', rooms: 'Room Pages', live_tv: 'Live TV' };
   function skyPageRows(keys, custom) {
     return keys.filter(function (k) { return k !== 'browse'; }).map(function (k) {
       var isCustom = custom && custom[k] !== undefined;
@@ -736,9 +754,7 @@
                                                   : 'Only ' + keys.length + ' Pages', names: names };
   }
   function pagesSave(values, custom) {
-    var withMusic = values.indexOf('music') >= 0;
-    var keep = values.filter(function (k) { return k !== 'browse' || withMusic; });
-    if (withMusic && keep.indexOf('browse') < 0) keep.splice(keep.indexOf('music') + 1, 0, 'browse');
+    var keep = noBrowse(values);
     return { pages: keep, custom_pages: keep.filter(function (k) { return custom[k] !== undefined; }) };
   }
   // a custom page shown or not while automatic: only custom_pages changes
@@ -767,7 +783,7 @@
                      doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
                      vacuums: 'vacuums', music: 'playmusic', water: 'water', energy: 'energy' };
   var MENU_TOPS = { weather: 1, cameras: 1, live_tv: 1 };
-  var MENU_FIXED = { browse: 'With Play Music', rooms: 'Under Rooms' };
+  var MENU_FIXED = { rooms: 'Under Rooms' };
   var MENU_PLACES = [['top', 'Top of Menu'], ['list', 'Categories'], ['off', 'Not in Menu']];
   var NO_TOP = '-';
   function menuPathOf(k, custom) { return MENU_PATHS[k] || (custom && custom[k] !== undefined ? k : null); }
@@ -989,13 +1005,16 @@
           yaml: 'hk_screensaver:\n  user: {user}   # the tablet’s Home Assistant user\n' +
                 '  entity: input_boolean.kitchen_photos   # optional: yours, kept in step\n' +
                 '  photos: {photos}\n  starts_after: 180\n  each_photo: 30\n  order: random        # or sorted\n  fill: true\n  zoom: false\n' +
-                '  show: photos         # photos, both (Photos & Forecast) or forecast\n' +
-                '  forecast_every: 5    # both: the forecast after this many photos\n' +
+                '  show: photos         # photos, both (the forecast slide on) or forecast\n' +
+                '  forecast_every: 5    # a slide (the forecast, the music) after this many photos\n' +
+                '  music_slide: false   # what plays, full screen: a slide among the photos\n' +
+                '  music_first: false   # ...or the music fills the screen while it plays\n' +
                 '  fallback: true       # no photos: the forecast (false: a dark screen)\n' +
                 '  band: true           # the forecast’s details on the forecast\n' +
                 '  band_photos: false   # ...and over the photos\n' +
                 '  calendar: false      # the calendar pane, down the right\n' +
                 '  calendar_days: 2     # ...today and tomorrow (1 to 7 days)\n' +
+                '  music_pane: false    # what plays, in the pane (under the calendar)\n' +
                 '  fade_back: 500       # ms back to the dashboard (0: at once)\n' +
                 '  cards:\n    - type: custom:hk-clock-card\n    - type: custom:hk-weather-strip-card\n      variant: inline\n' +
                 '    - type: custom:hk-screensaver-now-card\n      music: true\n    - type: custom:hk-timer-strip-card\n' +
@@ -1076,6 +1095,7 @@
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
     ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera same as all screens order', true],
     ['Live Camera Follows', 'screen/cameras/live', 'camera_live', 'live camera follows motion person detection dropdown input select automation', true],
+    ['Live First Camera', 'screen/cameras', 'camera_live_video', 'camera strip live video snapshot first tile performance', true],
     ['Scenes', 'screen/scenes', 'scenes', 'scene pills row', true],
     ['Favorites', 'screen/favorites', 'favorites', 'favourites', true],
     ['Rooms', 'screen/rooms', 'rooms_custom', 'room order home rooms on pages same as all screens', true],
@@ -1089,9 +1109,14 @@
     ['Return to Home When Idle', 'screen', 'idle_return', 'idle timeout wall tablet', true],
     ['Tablet Room', 'screen', 'idle_room', 'wall tablet room helpers', true],
     ['Allow Pop-ups', 'screen', 'popups', 'answer doorbell alarm popup', true],
+    ['Allow Notifications', 'screen', 'notify', 'notifications banner alerts', true],
+    ['Notifications on the Screensaver', 'screen', 'notify_saver', 'notifications screensaver photos important', true],
+    ['Do Not Disturb', 'screen', 'notify_dnd', 'notifications quiet hours dnd silence schedule input boolean timer', true],
     ['Car Browser', 'screen', 'car', 'tesla viewport', true],
     ['Rename Screen', 'screen', 'rename', 'rename name title dashboard sidebar pencil', true],
     ['Now Playing Bar', 'screen', 'now_playing', 'music media bar', true],
+    ['Timer Bar', 'screen', 'timer_bar', 'timers quick timer bar countdown docked bottom', true],
+    ['On Every Page', 'screen', 'bar_all_pages', 'now playing timer bar every page all pages everywhere', true],
     ['Photo Screensaver', 'screen', 'screensaver', 'photos wall tablet slideshow', true],
     ['Screensaver Options', 'screen/screensaver', 'screensaver_options', 'photo timing starts after each photo order random slideshow', true],
     ['Screensaver for All Screens', 'house/tablets', 'look.saver', 'screensaver all screens global default every tablet'],
@@ -1099,10 +1124,14 @@
     ['Screensaver Shows', 'screen/screensaver', 'saver:show', 'screensaver forecast weather photos no photos landscape', true],
     ['Forecast When There Are No Photos', 'screen/screensaver', 'saver:fallback', 'screensaver forecast fallback empty folder dark', true],
     ['Forecast Details (Screensaver)', 'screen/screensaver', 'saver:band', 'screensaver forecast band days hours multi-day details bottom', true],
-    ['Photos & Forecast', 'screen/screensaver', 'saver:forecast_every', 'screensaver forecast every photos slide mix both', true],
+    ['Forecast Slide', 'screen/screensaver', 'saver:slide_forecast', 'screensaver forecast slide between photos mix both', true],
+    ['Music Slide', 'screen/screensaver', 'saver:music_slide', 'screensaver music now playing album art full screen slide song next previous', true],
+    ['Music First', 'screen/screensaver', 'saver:music_first', 'screensaver music first priority playing full screen instead of photos forecast', true],
+    ['Slide Every', 'screen/screensaver', 'saver:forecast_every', 'screensaver slide every photos how often forecast music', true],
     ['Slow Zoom', 'screen/screensaver', 'saver:zoom', 'screensaver photo zoom ken burns', true],
     ['Over the Photos', 'screen/screensaver', 'saver:clock', 'screensaver clock weather now playing music timers', true],
     ['Calendar Pane', 'screen/screensaver', 'saver:calendar', 'screensaver calendar events agenda pane right side upcoming today tomorrow days', true],
+    ['Music Pane', 'screen/screensaver', 'saver:music_pane', 'screensaver music pane right side now playing album art song next previous', true],
     ['Home Status', 'screen/screensaver', 'saver:status', 'screensaver security secured locks doors alarm top right', true],
     ['Screensaver Switch', 'screen/screensaver', 'saver:ent:switch', 'screensaver photo switch automation entity turn on off bedtime doorbell', true],
     ['Screen In Use', 'screen/screensaver', 'saver:ent:binary_sensor', 'in use touched tablet binary sensor automation window starts after timer', true],
@@ -1125,7 +1154,8 @@
     ['Radar Map', 'house/weather/radar', 'weather.radar', 'weather radar card yaml zoom noaa rainviewer'],
     ['Calendars', 'house/calendar', 'calendar.entities', 'calendar page events agenda month week day which calendars order'],
     ['Calendar Colors', 'house/calendar', 'calendar.colors', 'calendar colour color events dot'],
-    ['Glass Style', 'house/appearance/glass', 'look.glass', 'blur frosted clear look'],
+    ['Glass Style', 'house/appearance/glass', 'look.glass', 'blur frosted clear glass look'],
+    ['Blur Mode', 'house/appearance/glass', 'look.glass', 'blur shared layer pre-rendered prerendered each card performance cpu gpu'],
     ['Frost Amount', 'house/appearance', 'look.frost', 'frosted'],
     ['Blur Amount', 'house/appearance', 'look.blur', 'blur strength'],
     ['HK Detail Sheets', 'accessories', 'look.details', 'more info dialog sheet tap accessory'],
@@ -1133,10 +1163,14 @@
     ['Sky Switch', 'house/sky', 'look.sky_switch', 'live sky helper'],
     ['Animations', 'house/sky', 'sky.animations', 'sky moving clouds seasons'],
     ['Weather', 'house/sky', 'sky.weather', 'sky clouds rain snow fog'],
+    ['Rain & Snow', 'house/sky', 'sky.precipitation', 'sky rain snow falling precipitation weather performance'],
+    ['Pause When Not in Focus', 'house/sky', 'sky.focus_pause', 'pause idle focus background window computer animations performance cpu'],
+    ['Live First Camera', 'house/cameras', 'cameras.live', 'camera strip live video snapshot first tile performance'],
     ['Page Backgrounds', 'house/sky', 'sky.pages', 'page color background backdrop energy climate lights still live sky'],
     ['Backdrop', 'house/sky/backdrop', 'sky.gradient', 'backdrop palette gradient fixed sky color dusk midnight fjord dune graphite plum ember mist custom'],
     ['Seasonal Decorations', 'house/sky', 'sky.decorations', 'holiday halloween christmas old new woodland style'],
     ['Decoration Style', 'house/sky', 'sky.decoration_style', 'old new seasons holidays birthdays woodland'],
+    ['Moving Things', 'house/sky', 'sky.moving', 'front behind over cards rain snow leaves bats birds flyby confetti sky layer'],
     ['Clouds', 'house/sky', 'sky.cloud_style', 'clouds classic realistic photographic weather sky'],
     ['Daytime Sky', 'house/sky', 'sky.daytime', 'brightness bright dark deep natural balanced blue midday day sky'],
     ['Night Sky', 'house/sky', 'sky.liveliness:night', 'stars shooting stars meteors twinkling screensaver night liveliness'],
@@ -1188,7 +1222,7 @@
     ['Doors & Windows Status Row', 'house/status/doors_windows', 'status_rows.doors_windows', 'doors windows motion occupancy occupied'],
     ['Water Status Row', 'house/status/water', 'status_rows.water', 'leak valve sprinkler running'],
     ['Security Status Row', 'house/status/security', 'status_rows.security', 'alarm security system locks garage doors windows leak'],
-    ['Browse Music Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
+    ['Music Browse Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
     ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
     ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
     ['Default Idle Time', 'house/tablets', 'idle.default', 'wall tablet idle seconds'],
@@ -1271,7 +1305,8 @@
   // starts from, and whether it has changed any
   var SAVER_DEFAULTS = { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false,
                          clock: true, weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true, forecast_every: 5,
-                         band: true, band_photos: false, calendar: false, calendar_days: 2, fade_back: 500 };
+                         band: true, band_photos: false, calendar: false, calendar_days: 2, music_slide: false, music_pane: false, music_first: false,
+                         fade_back: 500 };
   function saverOptions(o) {
     var out = {};
     Object.keys(SAVER_DEFAULTS).forEach(function (k) {
@@ -1294,16 +1329,16 @@
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
     // a screen's cameras: All Screens' or its own (cameras_custom)
-    ['cameras', 'Cameras', ['camera_strip', 'cameras_custom', 'cameras', 'camera_live'], true],
+    ['cameras', 'Cameras', ['camera_strip', 'cameras_custom', 'cameras', 'camera_live', 'camera_live_video'], true],
     ['scenes', 'Scenes', ['scenes_row', 'scenes', 'scenes_pages'], false],
     ['favorites', 'Favorites', ['favorites'], false],
     ['header', 'Header', ['phone_header', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins', 'kiosk_engine', 'kiosk_options'], true],
     // the pages, Home among them, and where each sits in the menu (set on Pages)
     ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories'], true],
-    ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'sky', 'sky_animations', 'sky_weather',
-                            'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
+    ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
+                            'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
                             'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty'], true],
-    ['behavior', 'Behavior', ['popups', 'now_playing'], true],
+    ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages'], true],
     ['idle', 'When Idle', ['idle_return', 'screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
     ['device', 'This Device', ['car', 'black_screen'], false]
   ];
@@ -1337,7 +1372,11 @@
   }
   function saverSummary(o) {
     o = saverOptions(o);
-    var show = o.show === 'forecast' ? 'Forecast' : o.show === 'both' ? 'Photos & Forecast' : 'Photos';
+    // what shows, and the slides among it: Photos + Forecast & Music
+    // (Music First: the music before them, while it plays)
+    var first = o.music_first || (o.show === 'forecast' && o.music_slide);
+    var extra = (o.show === 'both' ? ['Forecast'] : []).concat(o.music_slide && !first ? ['Music'] : []);
+    var show = (first ? 'Music, Then ' : '') + (o.show === 'forecast' ? 'Forecast' : 'Photos') + (extra.length ? ' + ' + extra.join(' & ') : '');
     var n = o.starts_after, m = n % 60 ? Math.round(n / 6) / 10 : n / 60;
     var t = n < 60 ? n + ' Seconds' : m + (m === 1 ? ' Minute' : ' Minutes');
     return show + ' · ' + t;
@@ -1411,14 +1450,17 @@
   // Null is a continuing relationship to All Screens, including custom
   // stops. A true flag is still an override, even when it matches the house.
   function skySummary(b) {
-    var keys = ['sky_animations', 'sky_weather', 'sky_decorations', 'sky_decoration_style', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom'];
+    var keys = ['sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause', 'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom'];
     var pages = Object.keys(b.sky_pages || {}).length;
     if (keys.every(function (k) { return b[k] == null; }) && !pages) return 'Same as All Screens';
     var parts = [];
     if (b.sky_animations === false) parts.push('No Animation');
     if (b.sky_weather === false) parts.push('No Weather');
+    if (b.sky_precipitation === false) parts.push('No Rain & Snow');
+    if (b.sky_focus_pause != null) parts.push(b.sky_focus_pause ? 'Pauses When Not in Focus' : 'Never Pauses');
     if (b.sky_decorations === false) parts.push('No Decorations');
     if (b.sky_decoration_style != null) parts.push(b.sky_decoration_style === 'new' ? 'New Decorations' : 'Old Decorations');
+    if (b.sky_moving != null) parts.push(b.sky_moving === 'front' ? 'Moving Things in Front' : 'Moving Things Behind');
     if (b.sky_cloud_style != null) parts.push(b.sky_cloud_style === 'realistic' ? 'Realistic Clouds' : 'Classic Clouds');
     if (b.sky_daytime != null) parts.push({ natural: 'Natural', balanced: 'Balanced', deep: 'Deep' }[b.sky_daytime] + ' Daytime Sky');
     if (b.sky_gradient != null) parts.push('Own Backdrop');
@@ -1441,9 +1483,10 @@
     ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
     MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
     TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
-    menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
+    menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS,
+    GLASS_STYLES: GLASS_STYLES, BLUR_MODES: BLUR_MODES, isBlur: isBlur, glassStyle: glassStyle, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
-    WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, DAYTIME_SKIES: DAYTIME_SKIES,
+    WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, SKY_MOVING: SKY_MOVING, DAYTIME_SKIES: DAYTIME_SKIES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
     PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
     CHIP_TOKEN: CHIP_TOKEN, chipsAddCustom: chipsAddCustom, chipsRemoveCustom: chipsRemoveCustom,

@@ -135,5 +135,39 @@ H.run('CONTROL CARDS', [
     H.eq('...a round one without a decimal', card._valueText(3000, 'W'), '3 kW');
     H.eq('...and under a kilowatt in watts', card._valueText(800, 'W'), '800 W');
     H.eq('...other units untouched', card._valueText(90, '%'), '90 %');
+  },
+  function () {
+    H.section('the media progress bar moves on the compositor');
+    // A width animation laid the whole page out every frame while music
+    // played (60 recalcs + layouts a second). The fill slides by a transform,
+    // in quarter-second steps, and sits at its place when it cannot animate.
+    var SPK = 'media_player.kitchen';
+    var at = function () { return { media_duration: 200, media_position: 50, media_position_updated_at: new Date().toISOString(),
+                                     volume_level: 0.4, supported_features: 16389 }; };
+    var house = H.house({ [SPK]: ['playing', at()] });
+    var card = make('hk-control-card', { type: 'custom:hk-control-card', entity: SPK, parts: ['progress'] });
+    card.hass = house.hass();
+    var html = card.shadowRoot.__html;
+    // what _progRun animates: the fill element, as the harness has no layout
+    var anims = [], fillEl = { animate: function (kf, o) { var an = { kf: kf, o: o, currentTime: null, cancelled: false, cancel: function () { this.cancelled = true; } }; anims.push(an); return an; } };
+    card.shadowRoot.querySelector = function (sel) { return sel === '.prog-fill' ? fillEl : null; };
+    card._render();
+    var an = anims[anims.length - 1];
+    H.ok('the fill moves a transform, never the width',
+      an && an.kf[0].transform === 'translateX(-100%)' && an.kf[1].transform === 'translateX(0)' && !/width/.test(JSON.stringify(an.kf)), an && an.kf);
+    H.ok('playing: stepped, four steps a second, the whole track long',
+      an && an.o.duration === 200000 && an.o.easing === 'steps(800)', an && an.o);
+    H.ok('...set to where the song is (on the clock: it keeps going while the bar is off the page, as a CSS animation did not)',
+      an && an.currentTime >= 50000 && an.currentTime < 51000, an && an.currentTime);
+    H.ok('...and never held at its end (a finished one held in effect would keep the card alive)', an && !an.o.fill);
+    H.ok('the static position is drawn as well (where it cannot animate)',
+      /class="prog-fill" style="transform:translateX\(-7[45]\.\d\d%\)"/.test(html), html.match(/class="prog-fill"[^>]*/));
+    var n = anims.length;
+    card._render();
+    H.ok('drawn again: the last run is ended, one new one runs', anims[n - 1].cancelled && anims.length === n + 1);
+    card.hass = house.set(SPK, 'paused', at());
+    H.ok('paused: held at its place, not animated',
+      /class="prog-fill" style="transform:translateX\(-7[45]\.\d\d%\)"/.test(card.shadowRoot.__html) && anims.length === n + 1 && anims[n].cancelled,
+      card.shadowRoot.__html.match(/class="prog-fill"[^>]*/));
   }
 ]);

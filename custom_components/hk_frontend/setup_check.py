@@ -46,6 +46,7 @@ COMPANIONS = (
     ("hk_clean_areas", "clean_areas", "Clean Areas", "vacuum by area"),
     ("hk_tv", "live_tv", "Live TV", "Live TV"),
     ("hk_energy", "energy", "Energy", "the Energy page"),
+    ("hk_notify", "notifications", "Notifications", "banners when something happens"),
 )
 SHOW = 6                       # names listed before "and N more"
 # The domains a room page draws as tiles (hk-strategy.js TILE). A device with

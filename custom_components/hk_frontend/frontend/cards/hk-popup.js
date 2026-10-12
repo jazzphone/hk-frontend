@@ -45,7 +45,7 @@
 // browser's top layer, so they still open ABOVE the sheet.
 //
 // NOT inside the card's own shadow root: the view can carry a transform or
-// opacity (hk-viewfade.js), and position:fixed under a transformed ancestor is
+// opacity, and position:fixed under a transformed ancestor is
 // positioned against that ancestor, not the screen.
 //
 // THE CHILD CARDS are built once, on first open, by HA's own
@@ -74,6 +74,35 @@
     // grows up from the bottom (the now-playing bar) sits above it, as iOS
     // stacks its mini player over the tab bar. Unset without one.
     '.hkp.bottom.plain{padding-bottom:var(--hk-tabbar-h,0px)}',
+    // DOCKED (`dock`): the sheet is the screen's bottom edge, full width, its
+    // cards' own frames square to it
+    // its hairline and its shadow up onto the page are the whole docked
+    // group's -- the timers over the player as much as the player alone
+    '.hkp.dock .sheet{overflow:visible;border-top:1px solid rgba(255,255,255,0.10);',
+    '  box-shadow:0 -14px 36px rgba(0,0,0,.40),0 -2px 10px rgba(0,0,0,.24)}',
+    '.hkp.dock.empty .sheet{border-top-color:transparent;box-shadow:none}',
+    // (one plate: no gap between what is docked in it)
+    '.hkp.dock .sheet>:not([data-hk-glass-layer]):not(.x)~:not([data-hk-glass-layer]):not(.x){margin-top:0}',
+    // the screen's very bottom, under the tab bar: the tab bar rides above it
+    '.hkp.bottom.plain.dock{padding-bottom:0;z-index:5}',
+    // ...THE WHOLE WIDTH, under a docked menu and a tab bar rail as well:
+    // they end above it instead (hk-menu.js, hk-tabbar.js --hk-dock-h), as a
+    // bottom tab bar rides over it -- nothing lies over it, and no gap is
+    // left beside it (2026-10-10, the user's call)
+    '.hkp.bottom.plain.dock{padding-left:0;padding-right:0}',
+    // A DOCKED BAR'S BOX IS THE BAR, NOT THE WINDOW. Composited, the box is a
+    // layer of its own, and at inset:0 that layer was the whole window and
+    // more (its shadow's overflow): 1388 x 840 on a 1280 x 800 tablet, 1.14
+    // screens of tile memory for a 105 px bar, repainted on every tick of the
+    // progress bar. A wall tablet's WebView has about one screen to spare on
+    // Home, so coming back to Home it ran out ("tile memory limits exceeded")
+    // and left the bar undrawn for a frame or two -- the bar blinking off and
+    // on as it came up. Ending the box at the bar's top edge makes the layer
+    // the bar and its shadow (~1280 x 210). Nothing above the bar is the
+    // sheet's to catch: a non-modal sheet's backdrop is never drawn or
+    // touched, so it goes (it was a full-window box of its own).
+    '.hkp.bottom.plain.dock{top:auto}',
+    '.hkp.dock .bd{display:none}',
     // ...and beside a tab bar RAIL (left or right, --hk-tabbar-l / -r while
     // it shows): it keeps the rail's column, so it never lies over the
     // rail's foot -- its More tab, or its small button (the bar is 100% wide,
@@ -94,6 +123,7 @@
     '  transition:opacity .25s ease,transform .3s cubic-bezier(.2,.8,.2,1)}',
     '.hkp.bottom .sheet{transform:translateY(100%)}',
     '.hkp.open .sheet{opacity:1;transform:none}',
+    '.hkp.instant .sheet{transition:none}',
     '.hkp .sheet>*{display:block}',
     // Between CARDS only. hk-glass.js puts its frost layer (absolute, out of
     // flow) first in the sheet, and a plain `*+*` would give the first card
@@ -202,6 +232,16 @@
         if (ctx.now >= until) { g.left = 0; return false; }
         ctx.next = Math.min(ctx.next, until);
         return true;
+      // A PAGE'S SAY (`condition: flag, flag: <name>`): an attribute a card on
+      // the page sets on <html> while it wants the sheet -- the Music page's
+      // `hk-music-mini` while it is one column (a phone), where the docked
+      // bar is its mini player; at two or three columns its own player is
+      // the page and the bar would only repeat it. The card fires
+      // `hk-popup-flags` when it changes, which re-evaluates (no hass push
+      // carries it).
+      case 'flag':
+        var de = document.documentElement;
+        return !!(c.flag && de && de.hasAttribute && de.hasAttribute(c.flag));
       case 'numeric_state':
         var n = Number(v);
         if (v === undefined || v === '' || !isFinite(n)) return false;
@@ -323,9 +363,12 @@
   // past the menu (--hk-page-left). It lies over the menu's foot, and says
   // how much of the screen's bottom it covers (publishBar): the docked menu
   // pads its list by that much, so every row still scrolls up clear of it.
+  // (--hk-content-left is hk-menu's, written on <html>'s own style: read
+  // there, not through getComputedStyle, which restyles the whole document
+  // when anything is pending -- every page change)
   function insetLeft() {
     var c = 0;
-    try { c = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hk-content-left')) || 0; }
+    try { c = parseFloat(document.documentElement.style.getPropertyValue('--hk-content-left')) || 0; }
     catch (e) { c = 0; }
     return Math.max(sidebarWidth(), Math.round(c));
   }
@@ -336,11 +379,207 @@
   function publishBar(el, sheet) {
     var de = document.documentElement;
     if (!de || !de.style) return;
-    if (!el || !sheet || !sheet.isConnected) { de.style.removeProperty('--hk-bar-h'); return; }
-    var h = Math.max(0, Math.round((el.clientHeight || window.innerHeight || 0) - (sheet.offsetTop || 0)));
+    if (!el || !sheet || !sheet.isConnected) { de.style.removeProperty('--hk-bar-h'); dockRoom(0); return; }
+    // (a docked bar's box ends at its top edge -- see .hkp.dock in CSS -- so
+    // its height IS the bar's, and an empty one is 0, not "the window")
+    var dock = el.classList.contains('dock');
+    var h = Math.max(0, Math.round((dock ? (el.offsetHeight || 0) : (el.clientHeight || window.innerHeight || 0)) - (sheet.offsetTop || 0)));
     var v = h + 'px';
     if (de.style.getPropertyValue('--hk-bar-h') !== v) de.style.setProperty('--hk-bar-h', v);
+    if (dock) {
+      // NOTHING IN IT (the music stopped, no timers, the bar still up for its
+      // grace): its hairline and shadow go too, and the page's room
+      // (no cards in it YET -- a page's bar still being built -- is not
+      // empty: what it shows is not known, and the room stays as it is)
+      var built = Array.prototype.some.call(sheet.children, function (k) {
+        return !k.hasAttribute('data-hk-glass-layer') && !k.classList.contains('x');
+      });
+      if (!built) return;
+      var none = (sheet.offsetHeight || 0) <= 2;
+      el.classList.toggle('empty', none);
+      dockRoom(none ? 0 : sheet.offsetHeight);
+    }
   }
+  // A DOCKED BAR (`dock: true`, the now-playing bar since 2026-10-10) is the
+  // bottom of the screen, and the page ends above it: the view on screen gets
+  // that much room after it, so its last row scrolls up clear of the bar.
+  // (A tab bar's own room is on the view's container -- hk-tabbar.js -- so
+  // the two add up, and the bar sits above the tab bar.) Every view given
+  // room is remembered: Home Assistant keeps views it has shown, and one
+  // shown again after the bar has gone must not keep it.
+  var dockH = 0, docked = new Set();
+  // ONE DOCKED BAR FROM PAGE TO PAGE (On Every Page): each page holds its own
+  // pop-up, so changing pages takes one down and puts the next up. By hash:
+  // how many are open, and when the last went because its page did. A bar
+  // opening while another is open, or just after its page went, is the same
+  // bar: it is there at once, no slide, and the one leaving goes at once.
+  var CARRY = {}, CARRY_MS = 1500;
+  // WHERE THE STASH SITS (on <html>, so the tab bar's state can move it):
+  // the bottom-right corner, above a tab bar along the bottom
+  // (--hk-tabbar-top) or clear of an iPhone's home-indicator strip. A tab
+  // bar FOLDED to its small button (hk-tabbar.js `hk-tabbar-fold`): in its
+  // row, at the other end, the same size -- iOS's folded tab bar and its
+  // player side by side; hidden: the bare corner.
+  var STASH_EASE = 'cubic-bezier(.32,.72,0,1)';
+  var STASH_PAGE_CSS = [
+    '.hk-stash{position:fixed;z-index:5;--s:48px;',
+    '  right:max(16px, calc(env(safe-area-inset-right, 0px) + 8px));',
+    '  bottom:max(var(--hk-tabbar-top, 0px), 16px, calc(env(safe-area-inset-bottom, 0px) + 10px));',
+    '  transition:bottom .42s ' + STASH_EASE + ',opacity .22s ease,transform .3s cubic-bezier(.2,.8,.2,1)}',
+    'html[hk-tabbar-fold=start] .hk-stash,html[hk-tabbar-fold=end] .hk-stash{--s:calc(var(--hk-tabbar-bh, 54px) - 6px);',
+    '  bottom:var(--hk-tabbar-row, 14px)}',
+    // (the bar's own gutter, 21 px: the two buttons mirror each other)
+    'html[hk-tabbar-fold=start] .hk-stash{right:max(21px, calc(env(safe-area-inset-right, 0px) + 8px))}',
+    'html[hk-tabbar-fold=end] .hk-stash{right:auto;left:max(21px, calc(env(safe-area-inset-left, 0px) + 8px))}',
+    'html[hk-tabbar-fold=gone] .hk-stash{bottom:max(16px, calc(env(safe-area-inset-bottom, 0px) + 10px))}',
+    // ACROSS THE SCREEN (folded to the right, and back) it does not slide
+    // or jump: it pops up where it now goes -- a new animation name
+    // restarts the pop; up and down the same side, `bottom` eases instead
+    '@keyframes hkStashL{from{opacity:0;transform:scale(.6)}}@keyframes hkStashR{from{opacity:0;transform:scale(.6)}}',
+    '.hk-stash.in{animation:hkStashR .3s cubic-bezier(.2,.8,.2,1)}',
+    'html[hk-tabbar-fold=end] .hk-stash.in{animation-name:hkStashL}'
+  ].join('');
+  // the stash's button: the dashboard's round glass, a glyph in it
+  var STASH_CSS = [
+    '.b{box-sizing:border-box;width:var(--s,48px);height:var(--s,48px);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;',
+    '  background:rgba(32,30,38,.78);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);',
+    '  border:1px solid rgba(255,255,255,.14);box-shadow:0 8px 24px rgba(0,0,0,.38);color:#fff;',
+    '  -webkit-tap-highlight-color:transparent;transition:transform .12s ease}',
+    '.b:active{transform:scale(.94)}',
+    '.b ha-icon{--mdc-icon-size:24px;width:24px;height:24px;opacity:.92}'
+  ].join('');
+  // Does the page now on the address have a pop-up of this hash? A bar is
+  // carried only to a page that has one (not Play Music, its own player the
+  // page); to any other it goes as it always has.
+  // the view the URL shows, from the dashboard's config (null: not found)
+  function shownView() {
+    try {
+      var ha = document.querySelector('home-assistant');
+      var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+      var sr = main && main.shadowRoot, p = sr && sr.querySelector('ha-panel-lovelace');
+      if (!p && sr) { var r0 = sr.querySelector('partial-panel-resolver'); p = r0 && r0.querySelector('ha-panel-lovelace'); }
+      var views = p && p.lovelace && p.lovelace.config && p.lovelace.config.views;
+      if (!Array.isArray(views)) return null;
+      var seg = String(location.pathname).split('/')[2] || '';
+      return views.filter(function (x, i) { return x && (x.path === seg || (!x.path && String(i) === seg)); })[0] || (!seg ? views[0] : null);
+    } catch (e) { return null; }
+  }
+  // every sheet config with this hash in a view
+  function sheetsIn(v, hash) {
+    var out = [];
+    (function walk(o) {
+      if (!o || typeof o !== 'object') return;
+      if (o.hash === hash) { out.push(o); return; }
+      Object.keys(o).forEach(function (k) { walk(o[k]); });
+    })(v);
+    return out;
+  }
+  function pageHas(hash) {
+    try {
+      var v = shownView();
+      if (!v) return false;
+      // A SHEET THERE THAT WAITS ON A PAGE'S SAY (`flag`: the Music page's
+      // bar, a phone's only) may or may not take it over, and the page has
+      // not said yet -- it lays itself out after this. So: the flags it
+      // waits on, and the bar stays up till the page says (see FLAGS
+      // below): taken over in place on a phone, slid away on a tablet.
+      var de = document.documentElement, wait = [], sure = false;
+      sheetsIn(v, hash).forEach(function (o) {
+        var f = [].concat(o.trigger || []).filter(function (c) { return c && c.condition === 'flag' && c.flag; })
+          .map(function (c) { return c.flag; })
+          .filter(function (n) { return !(de && de.hasAttribute && de.hasAttribute(n)); });
+        if (!f.length) sure = true; else wait = wait.concat(f);
+      });
+      return sure || (wait.length ? wait : false);
+    } catch (e) { return false; }
+  }
+  // A PAGE HAS SAID (hk-popup-flags): a bar kept up for a sheet waiting on a
+  // flag the page did not raise goes now -- slid away, as a bar leaving
+  // with its page always has -- not at CARRY_MS. One the page did raise is
+  // the next sheet's to take over (it opens on the same event).
+  window.addEventListener('hk-popup-flags', function () {
+    var de = document.documentElement;
+    Object.keys(CARRY).forEach(function (h) {
+      var cr = CARRY[h], g = cr && cr.ghost;
+      if (!g || !g.wait) return;
+      if (g.wait.some(function (n) { return de && de.hasAttribute && de.hasAttribute(n); })) return;
+      dropGhost(cr, true);
+      if (!(cr.open > 0)) publishBar(null);
+    });
+  });
+  // IS THIS SHEET THE SHOWN PAGE'S? A page's bar can still be connected for
+  // a moment after the URL has moved on (a focus change, a flag, landing in
+  // that moment), and it must not put its hash on the next page: there, a
+  // sheet of the same hash would open by the URL whatever its own trigger
+  // says -- the Music page's phone-only bar, up on a tablet. Yes when that
+  // page has a sheet of this hash with the same trigger (a bar On Every Page
+  // is the same everywhere), or when the dashboard cannot be read.
+  function shownIsMine(cfg, hash) {
+    var v = shownView();
+    if (!v) return true;
+    var t = JSON.stringify(cfg.trigger || null);
+    return sheetsIn(v, hash).some(function (o) { return JSON.stringify(o.trigger || null) === t; });
+  }
+  function dropGhost(cr, slide) {
+    var g = cr && cr.ghost;
+    if (!g) return;
+    cr.ghost = null;
+    clearTimeout(g.t);
+    var gone = function () {
+      // (only what is still in it: a page gone back to has taken its cards)
+      g.kids.forEach(function (k) { if (k.parentNode && g.el.contains(k)) k.parentNode.removeChild(k); });
+      if (g.el.parentNode) g.el.parentNode.removeChild(g.el);
+    };
+    // (slide: nothing takes it over -- away as a closing sheet goes)
+    if (slide) { g.el.classList.remove('open'); setTimeout(gone, 320); } else gone();
+  }
+  function viewNow() {
+    try {
+      var ha = document.querySelector('home-assistant');
+      var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
+      var sr = main && main.shadowRoot, p = sr && sr.querySelector('ha-panel-lovelace');
+      if (!p && sr) { var r0 = sr.querySelector('partial-panel-resolver'); p = r0 && r0.querySelector('ha-panel-lovelace'); }
+      var root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
+      var v = root && root.shadowRoot && root.shadowRoot.querySelector('#view');
+      // the view itself, not the background beside it (fixed, first)
+      return (v && (v.querySelector(':scope > hui-view') || v.lastElementChild)) || null;
+    } catch (e) { return null; }
+  }
+  function dockRoom(h) {
+    dockH = h > 0 ? h : 0;
+    // ...and the tab bar rides above it (hk-tabbar.js lifts itself by this)
+    var de = document.documentElement, dv = dockH ? dockH + 'px' : '';
+    if (de && de.style && de.style.getPropertyValue('--hk-dock-h') !== dv) {
+      if (dv) de.style.setProperty('--hk-dock-h', dv); else de.style.removeProperty('--hk-dock-h');
+      try { window.dispatchEvent(new Event('hk-dock')); } catch (e) { /* no listeners */ }
+    }
+    // (a tab bar along the bottom gives the page the room for both: its
+    // lift takes the bar's height in)
+    // (hk-tabbar's, on <html>'s own style -- as insetLeft)
+    var tabbed = de && de.style.getPropertyValue('--hk-tabbar-h').trim();
+    var view = dockH && !tabbed ? viewNow() : null;
+    docked.forEach(function (v) { if (v !== view) { v.style.removeProperty('margin-bottom'); docked.delete(v); } });
+    if (!view) return;
+    var m = dockH + 'px';
+    if (view.style.marginBottom !== m) view.style.marginBottom = m;
+    docked.add(view);
+  }
+  // ...and the next page, as it comes: the view is swapped some frames after
+  // the address changes, and a generated view says when it is up
+  // (hk-view-ready, hk-layout.js) -- the room is given then, once. (It was
+  // looked for ten times over 1.5 s, each look restyling the document in the
+  // middle of the page's build.) A view of another kind says nothing: one
+  // look once the page change is surely done.
+  var dockWait = null;
+  window.addEventListener('location-changed', function () {
+    if (!dockH) return;
+    clearTimeout(dockWait);
+    dockWait = setTimeout(function () { dockWait = null; dockRoom(dockH); }, 1500);
+  });
+  window.addEventListener('hk-view-ready', function () {
+    if (dockWait) { clearTimeout(dockWait); dockWait = null; }
+    if (dockH) dockRoom(dockH);
+  });
 
   var memStore = {};
   function dget(h) {
@@ -559,9 +798,17 @@
         // back must re-evaluate even if no entity moved in the meantime.
         // Clearing the gate's signature is what guarantees the next hass does.
         this._trigSig = null;
+        // ARRIVING WITH THE PAGE: until the trigger has been looked at since
+        // this card joined the page, a sheet that opens is part of the page
+        // appearing (see _show), not something that just happened on it.
+        this._settled = false;
         // A FOCUS CHANGE IS A TRIGGER CHANGE when the trigger follows the
         // music (`entity_from: {music: true}`): tapping another context on the
         // Play Music page must move the bar with it, and nothing in hass moved.
+        if (!this._onFlags) {
+          this._onFlags = function () { if (self._hass) self._evalTrigger(); };
+          window.addEventListener('hk-popup-flags', this._onFlags);
+        }
         if (!this._musicOff && window.hkMusic) {
           this._musicOff = window.hkMusic.onChange(function () {
             // The speaker list is part of the trigger's entity list: read it
@@ -591,6 +838,8 @@
         ['location-changed', 'hashchange', 'popstate'].forEach(function (ev) {
           window.removeEventListener(ev, self._onLoc);
         });
+        if (this._onFlags) { window.removeEventListener('hk-popup-flags', this._onFlags); this._onFlags = null; }
+        this._stashShow(false);
         if (this._musicOff) { this._musicOff(); this._musicOff = null; }
         clearTimeout(this._graceTimer);
         clearTimeout(this._dismissTimer);
@@ -602,7 +851,9 @@
         }
         // The view went away (navigated to a page). Take the sheet down, but
         // leave the hash and run no close_action -- nobody closed it.
+        this._leaving = (this._config && this._config.carry && pageHas(this._hash)) || false;
         this._close(false);
+        this._leaving = false;
       }
 
       // Match the sheet to the URL.
@@ -623,7 +874,10 @@
           // The pathname is what separates the two. A hand close leaves the
           // page alone; a trip to another page does not.
           var moved = this._openPath && location.pathname !== this._openPath;
+          // (a bar carried from page to page leaves with its page)
+          this._leaving = (moved && this._config.carry && pageHas(this._hash)) || false;
           this._close(!moved && !(h && h !== this._hash && sheetHash(h)));
+          this._leaving = false;
         }
       }
 
@@ -658,6 +912,52 @@
           if (sc.above != null) return Number(v) > Number(sc.above) ? '1' : '0';
           return v;
         }).join('|');
+      }
+
+      // THE WAY BACK (`stash: {icon, label}`): a dismissable sheet put away
+      // while its trigger holds leaves a small round button in the bottom
+      // right corner -- as iOS leaves a tab for a picture-in-picture video
+      // pushed off the screen -- and a tap brings it back (the dismissal
+      // dropped, the trigger looked at again). Above the tab bar when there
+      // is one (--hk-tabbar-top, its own gap included), else clear of an
+      // iPhone's home-indicator strip. Gone when the trigger is (the music
+      // stopped) or the sheet is back. On <body>: it needs no
+      // home-assistant events, and it is a single button.
+      _stashShow(on) {
+        var st = this._config && this._config.stash, self = this, b = this._stashEl;
+        if (!st || !on || !this.isConnected) {
+          if (b) {
+            this._stashEl = null;
+            b.classList.remove('in'); b.style.opacity = '0'; b.style.transform = 'scale(.6)';
+            setTimeout(function () { b.remove(); }, 260);
+          }
+          return;
+        }
+        if (b) return;
+        b = this._stashEl = document.createElement('div');
+        b.className = 'hk-stash';
+        var sr = b.attachShadow({ mode: 'open' });
+        sr.innerHTML = '<style>' + STASH_CSS + '</style><div class="b" role="button" tabindex="0" aria-label="' +
+          String(st.label || 'Show').replace(/"/g, '&quot;') + '"><ha-icon icon="' +
+          String(st.icon || 'mdi:chevron-up').replace(/"/g, '') + '"></ha-icon></div>';
+        if (!document.getElementById('hk-stash-css')) {
+          var css = document.createElement('style');
+          css.id = 'hk-stash-css';
+          css.textContent = STASH_PAGE_CSS;
+          document.head.appendChild(css);
+        }
+        b.style.opacity = '0'; b.style.transform = 'scale(.6)';
+        var back = function () {
+          dset(self._hash, null);
+          self._stashShow(false);
+          self._trigSig = null;
+          if (self._hass) self._evalTrigger();
+        };
+        sr.querySelector('.b').addEventListener('click', back);
+        sr.querySelector('.b').addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') back(); });
+        document.body.appendChild(b);
+        // (in after the sheet has gone down)
+        setTimeout(function () { if (self._stashEl === b) { b.style.opacity = '1'; b.style.transform = 'none'; b.classList.add('in'); } }, 180);
       }
 
       _evalTrigger() {
@@ -695,6 +995,8 @@
             clearTimeout(this._dismissTimer);
           }
         }
+        // put away while it would be up: its way back, in the corner
+        this._stashShow(now && dismissed);
 
         clearTimeout(this._graceTimer);
         // Read by the gate in `set hass` above: true while this card owes
@@ -712,7 +1014,7 @@
           // a reload or a trip to a subview and back, which an edge never sees.
           // It does not take the screen from another sheet that is open.
           var other = sheetHash(h);
-          if (now && !dismissed && (cfg.dismissable ? !other : rose)) setHash(this._hash);
+          if (now && !dismissed && (cfg.dismissable ? !other : rose) && shownIsMine(cfg, this._hash)) setHash(this._hash);
         } else if (!now && cfg.trigger_close !== false) {
           // FIRST-EVALUATION GRACE, AND WHY IT NEEDS A TIMER.
           //
@@ -741,6 +1043,7 @@
             setHash('');
           }
         }
+        this._settled = true;
       }
 
       _build() {
@@ -786,7 +1089,8 @@
           this._mount = (ha && ha.shadowRoot) || document.body;
           var el = document.createElement('div');
           el.className = 'hkp' + (cfg.position === 'bottom' ? ' bottom' : '') +
-                         (cfg.modal === false ? ' plain' : '');
+                         (cfg.modal === false ? ' plain' : '') +
+                         (cfg.dock && cfg.position === 'bottom' && cfg.modal === false ? ' dock' : '');
           el.innerHTML = '<style>' + CSS + '</style><div class="bd"></div><div class="sheet"></div>';
           var sheet = el.querySelector('.sheet');
           var bottom = cfg.position === 'bottom';
@@ -896,10 +1200,24 @@
         });
         var el = this._el, gen = this._prepGen = (this._prepGen || 0) + 1;
         el.classList.toggle('prep', prep);
+        // the bar already up on the page before: this one is it, in place
+        var carry = false;
+        if (cfg.dock && cfg.carry) {
+          var cr = CARRY[this._hash] || (CARRY[this._hash] = { open: 0, gone: 0, ghost: null });
+          carry = cr.open > 0 || Date.now() - cr.gone < CARRY_MS;
+          cr.open++;
+          this._carried = true;
+        }
         this._mount.appendChild(el);
         // AFTER the mount: a detached element measures nothing, and so would
-        // the sidebar read taken before it.
-        if (this._onInset) this._onInset();
+        // the sidebar read taken before it. In the coming frame, before it is
+        // drawn: a sheet opening with its page is mounted in the middle of
+        // the page's build, and measuring then laid the half-built page out
+        // once more than the frame itself does.
+        if (this._onInset) {
+          var inset = this._onInset;
+          requestAnimationFrame(function () { if (self._onInset === inset) inset(); });
+        }
         // The bar's height follows its content (a timer strip above the
         // player grows it): re-published whenever the sheet changes size.
         if (cfg.modal === false && this._sheet && typeof ResizeObserver === 'function') {
@@ -907,9 +1225,31 @@
           this._barRO.observe(this._sheet);
         }
         // Two frames: the first paints the closed state, so the transition runs.
-        requestAnimationFrame(function () {
-          requestAnimationFrame(function () { if (self._open) el.classList.add('open'); });
-        });
+        // (Carried: open now, with no transition -- it is already up.)
+        // ARRIVING WITH ITS PAGE (back to Home with the music on, a reload
+        // onto it): up with the page, in place, as the page's own cards are.
+        // A slide started then is started while the page is being built, and
+        // a wall tablet's main thread is busy for half a second with it: the
+        // compositor's slide has run out before the frame is shown, so the
+        // bar is first drawn already up, then the main thread starts the
+        // transition again from its first frame -- the bar off screen, for a
+        // frame -- and it ends up again. Recorded on the Living Room tablet,
+        // every return to Home: up, gone a frame, up. The slide is for a bar
+        // that comes up while the page is already there (music starting).
+        var arriving = !this._settled && cfg.modal === false;
+        if (carry || arriving) {
+          el.classList.add('instant', 'open');
+          // ...and the last page's, kept up till now, goes once this is drawn
+          var hash0 = this._hash;
+          requestAnimationFrame(function () { requestAnimationFrame(function () {
+            el.classList.remove('instant');
+            if (carry) dropGhost(CARRY[hash0]);
+          }); });
+        } else {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () { if (self._open) el.classList.add('open'); });
+          });
+        }
         if (prep) {
           var reveal = function () { if (self._prepGen === gen) el.classList.remove('prep'); };
           var cap = setTimeout(reveal, PREP_MAX_MS);
@@ -942,16 +1282,36 @@
         if (!this._open) return;
         this._open = false;
         openCount(-1, this._config.modal !== false);
+        var leaving = !!(this._leaving && this._carried);
+        if (this._carried) {
+          var cr = CARRY[this._hash];
+          if (cr) { cr.open = Math.max(0, cr.open - 1); if (this._leaving) cr.gone = Date.now(); }
+          this._carried = false;
+        }
         if (this._config.modal === false) {
           if (this._barRO) this._barRO.disconnect();
-          publishBar(null);
+          // (leaving with its page: the next page's bar takes the room over;
+          // let it go only if none has)
+          if (!leaving) publishBar(null);
+          else setTimeout(function () { var c2 = CARRY[self._hash]; if (!(c2 && c2.open > 0)) publishBar(null); }, CARRY_MS);
         }
         clearTimeout(this._auto);
         var el = this._el, kids = this._kids || [];
-        if (el) {
+        var self = this;
+        if (el && leaving) {
+          // CARRIED TO THE NEXT PAGE: it stays up, as it is, until the next
+          // page's bar is (no frame without one), then goes at once -- never
+          // slid away; gone by CARRY_MS if no page takes it over
+          var crg = CARRY[this._hash];
+          if (crg) {
+            dropGhost(crg);
+            crg.ghost = { el: el, kids: kids, t: setTimeout(function () { dropGhost(crg, true); }, CARRY_MS),
+                          wait: Array.isArray(this._leaving) ? this._leaving : null };
+          }
+          this._el = null;
+        } else if (el) {
           el.classList.remove('open');
           // Detach after the fade. A reopen inside the fade cancels this.
-          var self = this;
           setTimeout(function () {
             if (self._open) return;
             kids.forEach(function (k) { if (k.parentNode) k.parentNode.removeChild(k); });
@@ -982,6 +1342,7 @@
           clearTimeout(this._dismissTimer);
           this._dismissTimer = setTimeout(function () { self2._evalTrigger(); },
                                           TOUCH_MS);
+          this._stashShow(true);
         }
         this._triggerClosing = false;
         if (runAction && this._config.close_action && this._hass) {

@@ -213,10 +213,36 @@ class HkControlCard extends HTMLElement {
     // the plate and names the entity, so the control drops its own surface
     // and its name/header.
     if (this._config.bare && domain !== "media_player") body = body.replace('class="surface', 'class="surface bare');
+    if(domain!=="media_player") this._prog = null;
     this.shadowRoot.innerHTML=`<style>${this._baseCss()}${this._extraCss()}</style>${body}`;
+    this._progRun();
     var _a=this._accent();
     if(_a) this.style.setProperty("--hk-accent",_a); else this.style.removeProperty("--hk-accent");
     this._bind();
+  }
+  // THE BAR ADVANCES ON THE CLOCK, NOT FROM WHEN IT WAS PUT ON THE PAGE
+  // (2026-10-11). It was a CSS animation started at the position with a
+  // negative delay -- and a CSS animation starts over whenever its element
+  // is taken off the page and put back (or hidden): back on Home, the docked
+  // bar's card -- not drawn again, nothing about the song having changed --
+  // ran its fill from where the song was when it was last DRAWN, while the
+  // time beside it was right (the user, on the tablets: "it starts at the
+  // beginning"; measured headless: 102 px on Lights, 80 px back on Home).
+  // A script animation is not ended by its element leaving the page: it
+  // keeps the document's time, so whenever the bar is shown it is where the
+  // song is. Quarter-second steps (each a frame drawn; continuous it drew
+  // every frame, 2026-10-11 d42f5b30). Not `fill: forwards` -- one held at
+  // its end stays in effect, and would keep a card taken off for good alive;
+  // at the end the static position shows, until the next song draws it.
+  _progRun(){
+    if(this._progAnim){ try{ this._progAnim.cancel(); }catch(e){} this._progAnim = null; }
+    const P = this._prog, f = P && this.shadowRoot && this.shadowRoot.querySelector && this.shadowRoot.querySelector(".prog-fill");
+    if(!f || typeof f.animate !== "function") return;
+    try{ if(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; }catch(e){}
+    const an = f.animate([{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
+      { duration: P.dur*1000, easing: `steps(${Math.max(1,Math.ceil(P.dur*4))})` });
+    an.currentTime = Math.min(P.dur*1000, P.pos*1000 + (Date.now()-P.at));
+    this._progAnim = an;
   }
   _extraCss(){
     return `
@@ -285,9 +311,15 @@ class HkControlCard extends HTMLElement {
       .value{font-size:21px;font-weight:720;letter-spacing:-.35px;margin-left:auto;white-space:nowrap}
       .range-wrap{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;margin-top:14px;touch-action:pan-y;cursor:pointer;-webkit-tap-highlight-color:transparent}
       .prog-track{height:6px;border-radius:4px;background:rgba(255,255,255,.16);overflow:hidden;margin:2px 0 7px}
-      .prog-fill{height:100%;border-radius:4px;background:var(--hk-accent,rgba(255,255,255,.92))}
-      @keyframes hk-prog{from{width:0%}to{width:100%}}
-      @media (prefers-reduced-motion:reduce){.prog-fill{animation:none!important}}
+      /* THE FILL SLIDES IN, IT DOES NOT GROW: full width, moved by a transform
+         (the track's overflow clips it; its rounded right end is its own).
+         Animating width laid the page out again every frame -- 60 style
+         recalcs and layouts a second for as long as music played (measured
+         headless: 301 in 3 s; a transform, none). Its STEPS are a quarter
+         second each: the edge moves by about a pixel per step, so it reads
+         as smooth, and the compositor draws a frame only when a step changes
+         -- 4 a second, where a linear transform still drew 60. */
+      .prog-fill{width:100%;height:100%;border-radius:4px;background:var(--hk-accent,rgba(255,255,255,.92))}
       .prog-times{display:flex;justify-content:space-between;font-size:12px;font-weight:600;
         letter-spacing:.2px;color:rgba(255,255,255,.55);margin-bottom:4px;font-variant-numeric:tabular-nums}
       /* appearance:none ON THE INPUT, not just on the thumb.
@@ -350,6 +382,12 @@ class HkControlCard extends HTMLElement {
          NO BACKTICKS IN HERE: this CSS is a template literal. */
       .media-bare.only-vol .range-wrap{margin-top:0}
       .media-bare.only-prog .prog-track{margin-top:0}
+      /* phone_times: false -- no times on a phone, the bar's progress a
+         plain line under the song (as a phone's mini player) */
+      @media (max-width:640px){
+        .media-bare.no-phone-times .prog-times{display:none}
+        .media-bare.no-phone-times .prog-track{margin:0;height:4px}
+      }
     `;
   }
   // Fraction (0..1 of the ring) -> a point on it. The ring runs 135deg to
@@ -481,13 +519,13 @@ class HkControlCard extends HTMLElement {
   // already drives a native range for `number`, and this is the same control
   // aimed at media_player.volume_set.
   //
-  // The progress bar is a pure CSS animation rather than a JS ticker. HA only
+  // The progress bar is an animation rather than a JS ticker. HA only
   // pushes media_position occasionally, so a bar drawn from the last known
   // value would sit still and then jump. Instead the fill runs a
-  // 0%->100% keyframe lasting the whole track with a NEGATIVE animation-delay
-  // equal to the current position, which starts it exactly where the track
-  // actually is and advances it smoothly with no timer at all. Paused tracks
-  // get a static width, because an animation that is not running would sit at
+  // 0%->100% animation lasting the whole track, set to the current position
+  // (_progRun), which starts it exactly where the track actually is and
+  // advances it on the compositor with no timer at all. Paused tracks get a
+  // static position, because an animation that is not running would sit at
   // its start.
   _media(s){
     const a=s?.attributes||{};
@@ -508,18 +546,17 @@ class HkControlCard extends HTMLElement {
     const clock=t=>{const n=Math.max(0,Math.round(t));
       const h=Math.floor(n/3600), m=Math.floor((n%3600)/60), sec=n%60;
       return (h?h+":":"")+(h&&m<10?"0":"")+m+":"+String(sec).padStart(2,"0");};
-    // The STATIC width is always set, animation or not. .prog-fill has no width
-    // of its own, so a block element defaults to 100% -- which means any
-    // environment that declines to run the animation (a Fully Kiosk capture
-    // does exactly this, and so does prefers-reduced-motion) draws a bar that
-    // is completely full while the times beside it read 0:36 of 3:26. An
-    // animated property beats an inline one for as long as the animation is
-    // running, so this costs the smooth advance nothing and makes the wrong
-    // answer impossible.
+    // The STATIC position is always set, animation or not: an environment
+    // that declines to run the animation (prefers-reduced-motion, a capture)
+    // would otherwise draw a full bar while the times beside it read 0:36 of
+    // 3:26. An animated property beats an inline one for as long as the
+    // animation runs, so this costs the advance nothing.
     const pct = dur>0 ? (pos/dur*100).toFixed(2) : 0;
-    const fill = dur>0 && playing
-      ? `style="width:${pct}%;animation:hk-prog ${dur}s linear forwards;animation-delay:-${pos}s"`
-      : `style="width:${pct}%"`;
+    const at = `transform:translateX(${(pct-100).toFixed(2)}%)`;
+    const fill = `style="${at}"`;
+    // ...and the advance is run once drawn (_progRun), from this position
+    // at this moment
+    this._prog = dur>0 && playing ? { dur, pos, at: Date.now() } : null;
     // THE ELAPSED TIME OWNS ITS OWN REPAINT. As rendered text it would freeze:
     // this card only re-renders on a signature change, and a track playing is
     // not one. The bar beside it is a CSS animation that keeps advancing, so
@@ -567,6 +604,7 @@ class HkControlCard extends HTMLElement {
     const cls = (this._config.bare ? "media-bare" : "surface compact")
       + (hasProg && !hasVol ? " only-prog" : "")
       + (hasVol && !hasProg ? " only-vol" : "")
+      + (this._config.phone_times === false ? " no-phone-times" : "")
       + (s ? "" : " off");
     return `<div class="${cls}">
       ${hasProg ? `<div class="prog-track"><div class="prog-fill" ${fill}></div></div>

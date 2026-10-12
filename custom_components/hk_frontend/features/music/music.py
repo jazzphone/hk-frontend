@@ -751,7 +751,7 @@ class MusicManager:
 
     async def play_media(self, player: str, content_id: str, content_type: str,
                          user: str | None = None) -> dict[str, Any]:
-        """One item from Browse Music, on the player the screen is showing.
+        """One item from the Music page's Browse, on the player the screen is showing.
 
         Not a playlist press: no grouping, no house volume -- Browse plays to
         whatever the page is pointed at. What it adds is the check that the

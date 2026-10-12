@@ -12,11 +12,43 @@ choose its own.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Glass Style | Clear | How pills, tiles, chips, scenes and keypads look: **Clear**, the original glass, with the status chips blurring what’s behind them. **Frosted**, a frosted material with no blur: it costs a tablet nothing per frame. **Blur**, what’s behind the glass blurred as one shared layer, so wall tablets keep their frame rate. **Blur Each Card**, every surface blurs what’s behind it: for phones, iPads and computers, too heavy for a wall tablet. |
+| Glass Style | Glass | How pills, tiles, chips, scenes and keypads look: **Glass**, the original see-through glass, with the status chips and the round menu button beside them blurring what’s behind them. **Frosted**, a milky material with no blur: it costs nothing per frame on any device. **Blur**, what’s behind the glass blurred — choose how with **Blur Mode**. |
+| Blur Mode | Shared Layer | Shown when the Glass Style is Blur: **Shared Layer**, **Pre-rendered (Experimental)** or **Each Card**. What each costs and can’t do: [Blur Mode](#blur-mode) below. |
 | Frost | 50% | Shown when the Glass Style is Frosted. How milky it is, 0 to 100%. |
-| Tint from Background | Off | Shown when the Glass Style is Frosted. On: each card's frost takes the color of the page behind it (the sky at the card's height, the scenery's ground lower down) instead of one gray, at one darkness so white text reads the same on every page. It changes with the live sky through the day. Cards in pop-ups, the screensaver and Play Music (album art) keep the gray. Costs nothing per frame. |
-| Blur | 50% | Shown when the Glass Style is Blur or Blur Each Card. How strong the blur is, 0 to 100%: 50% is 20 px, 100% is 40 px. |
+| Tint from Background | Off | Shown when the Glass Style is Frosted. On: each card's frost takes the color of the page behind it (the sky at the card's height, the scenery's ground lower down) instead of one gray, at one darkness so white text reads the same on every page. It changes with the live sky through the day. Cards in pop-ups, the screensaver and Music (album art) keep the gray. Costs nothing per frame. |
+| Blur | 50% | Shown when the Glass Style is Blur, in any Blur Mode. How strong the blur is, 0 to 100%: 50% is 20 px, 100% is 40 px. |
 | Page Pills | Default | Every page pill: the pills in a screen’s Scenes row that open a page. Tap one to set its name, icon and color, the same on every screen ([Home Page](Home-Page.md#scenes-and-page-pills)). |
+
+![The Glass Style page: Glass, Frosted and Blur, with Blur Mode's three choices under it](images/settings-glass-style.png)
+*All Screens → Appearance → Glass Style, with Blur chosen and its Blur Mode below.*
+
+### Blur Mode
+
+With the Glass Style on **Blur**, **Blur Mode** chooses how the blur is
+made. All three look alike standing still; they differ in what they cost
+and what they show while things move.
+
+| Mode | Good at | Gives up | Best for |
+|---|---|---|---|
+| **Shared Layer** (the default) | Live: the sky blurs as it moves, drifting clouds and rain included. One blur for the whole page, so a wall tablet keeps its frame rate standing still. | While the sky moves, the device blurs it again on every frame, and scrolling pays for it. Something fixed over the page that blurs live — the Now Playing bar — adds to it. | Most screens; wall tablets that rarely scroll. |
+| **Pre-rendered (Experimental)** | A picture of the sky, blurred once, behind every card. The lightest blur: almost nothing per frame, so scrolling stays smooth on a wall tablet even with the bar up. | Motion that doesn’t drift across the sky — rain, a passing flock, a flicker — doesn’t show through the glass. The picture is painted again as the sky changes: at once for a new page, size, weather, season or song; every 2 seconds while clouds drift (a little work each time, never while a finger is on the page or it scrolls); and as the light changes. It can still trail the sky a moment or briefly not match it, which is why it is marked Experimental. Pop-up sheets and pages with no sky blur live, as in Shared Layer. | Wall tablets, especially ones that scroll or show the Now Playing bar. |
+| **Each Card** | Live, and every surface blurs exactly what is behind it, so a sliding sheet or a scrolling row never leaves its frost behind. | The heaviest by far: one blur per card (over a hundred on a typical Home). | Phones, iPads and computers, not wall tablets. |
+
+Scrolling Home on a wall tablet (a Samsung Galaxy Tab A9+, sky animations
+on), measured for 1.7:
+
+| Mode | Bar off | With the Now Playing bar |
+|---|---|---|
+| Pre-rendered | 59 frames a second, 1.5% of frames late | 59, 1.8% late |
+| Shared Layer | 58, 3.6% late | 54.5, 10.3% late |
+| Each Card | 32, 72% late | 28, 83% late |
+
+Standing still, every mode is close to 60 frames a second; on these tablets
+most of the work is the animated sky itself, whatever the glass. Glass and
+Frosted scroll about as smoothly as Pre-rendered.
+
+A screen or All Screens set to **Baked**, a mode tried before 1.7 and taken
+out, now uses Pre-rendered.
 
 A card can stay out of the shared blur with `glass: false`. Whether tapping an
 accessory opens an HK detail sheet is **HK Detail Sheets**, under
@@ -28,11 +60,11 @@ accessory opens an HK detail sheet is **HK Detail Sheets**, under
 
 | Setting | Default | What it does |
 |---|---|---|
-| Glass Style | Same as All Screens | **Same as All Screens** (the row says *Same as All Screens* under its name, and the glass it follows, *Clear*), or under **Just This Screen** **Clear**, **Frosted**, **Blur** or **Blur Each Card**. See [Appearance](#every-screen) for what each looks like. |
+| Glass Style | Same as All Screens | **Same as All Screens** (the row says *Same as All Screens* under its name, and the glass it follows, *Glass*), or under **Just This Screen** **Glass**, **Frosted** or **Blur** — and with Blur, its **Blur Mode**: **Shared Layer**, **Pre-rendered (Experimental)** or **Each Card**. See [Appearance](#every-screen) for what each looks like and costs. |
 | Frost / Blur | Same as All Screens | Shown for the amount this screen’s glass uses. Moving it gives this screen its own amount. |
 | Reset to All Screens (50%) | — | Shown once the screen has its own amount, with All Screens’ amount. Goes back to following All Screens. |
 | Tint from Background | Same as All Screens | Shown when this screen uses Frosted. Turning it on or off gives this screen its own; **Reset to All Screens** goes back to following All Screens. |
-| Sky / Background | On | The screen’s [Sky / Background](Live-Sky.md#choose-its-look) page, which starts with its **Live Sky** switch. Reads **Off** when the live sky is off: a plain background instead of the animated sky. A YAML screen’s sky comes from its YAML; Live Sky can only turn it off. |
+| Sky / Background | On | The screen’s [Sky / Background](Live-Sky.md#choose-its-look) page, which starts with its **Live Sky** switch. Reads **Off** when the live sky is off: a plain background instead of the animated sky. Its own **Moving Things**, **Pause When Not in Focus**, **Rain & Snow**, Clouds and the rest are there too, each Same as All Screens until changed. A YAML screen’s sky comes from its YAML; Live Sky can only turn it off. |
 
 ## Home Assistant header & sidebar
 

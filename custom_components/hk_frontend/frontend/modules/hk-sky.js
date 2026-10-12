@@ -75,7 +75,7 @@
   // IDLE DECKS. The kill switch for the whole optimization below: set to
   // false and every deck animates all the time, visible or not.
   //
-  // The weather decks (.rain x2, .snow x2) and the cloud decks carry
+  // The weather decks (.rain, .snow x2) and the cloud decks carry
   // `will-change:transform` UNCONDITIONALLY, so each one holds a composited
   // GPU layer LARGER THAN THE VIEWPORT (~1920x1720 for a rain deck, by the
   // arithmetic in the .rain/.snow note) and runs an infinite hk-fall/hk-drift
@@ -437,8 +437,10 @@
     if (look) {
       out.animations = look.animations;
       out.weather = look.weather;
+      out.precipitation = look.precipitation;
       out.decorations = look.decorations;
       out.decorationStyle = look.decorationStyle;
+      out.moving = look.moving;
       out.cloudStyle = look.cloudStyle;
       if (typeof look.brightness === 'number') out.brightness = look.brightness;
       out.backdrop = look.backdrop;
@@ -531,6 +533,7 @@
   // NOTE: this is called SHEET, not CSS. Naming it CSS would shadow the global
   // CSS object inside this IIFE and silently break CSS.registerProperty below,
   // which would cost the cross-fade with no error anywhere.
+  var FRONT_Z = 1;
   var SHEET = [
     // ITS OWN COLOR IS THE PALETTE'S MIDDLE (2026-10-09). The gradient
     // covers it everywhere, but a wall tablet repainting the gradient after a
@@ -659,11 +662,11 @@
     // stops the ticks but keeps the texture promoted.
     '#hk-sky .cl.idle,#hk-sky .rain.idle,#hk-sky .snow.idle{',
     '  animation:none;will-change:auto}',
-    '#hk-sky .rain{background-repeat:repeat;background-size:var(--fS)}',
-    '#hk-sky .rain.r1{background-image:url(' + BASE + 'rain-a.png' + VER + ')}',
-    '#hk-sky .rain.r2{background-image:url(' + BASE + 'rain-b.png' + VER + ')}',
-    '#hk-sky .snow{background:url(' + BASE + 'flakes.png' + VER + ') repeat;',
-    '  background-size:var(--fS)}',
+    // ONE RAIN DECK (2026-10-10): the near and the far streaks in one tile
+    // (tools/sky/gen_sky.py) -- a second full-screen layer blended on every
+    // frame was a wall tablet's GPU's whole extra cost of the rain. Each deck
+    // is drawn into its canvas at half the screen's resolution (fallDraw).
+    '#hk-sky .rain>canvas,#hk-sky .snow>canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}',
 
     '#hk-sky .fog{background:linear-gradient(to bottom,',
     '  rgba(178,188,198,.06),rgba(178,188,198,.26));',
@@ -747,8 +750,8 @@
     // tablet is already re-rendering the whole page anyway.
     '#hk-sky.hidden *{animation-play-state:paused!important;',
     '  will-change:auto!important}',
-    // HELD: the dashboard's sky under Kiosk Satellite's Black screensaver
-    // (applyHidden) -- still, but its layers KEPT, so the wake has nothing to
+    // HELD: the dashboard's sky under Kiosk Satellite's Black screensaver,
+    // or on a computer whose window is not in focus (applyHidden) -- still, but its layers KEPT, so the wake has nothing to
     // put back (letting them go there made the scenery blink at every wake)
     '#hk-sky.held *{animation-play-state:paused!important}',
     // A static page has no weather, so the drifting and falling layers are not
@@ -757,7 +760,14 @@
     // none of the picture. The opacity TRANSITION still runs, so arriving from
     // a weather page still cross-fades them away rather than blinking.
     '#hk-sky.static .rcl{opacity:0;transition:opacity 4s linear}',
-    '#hk-sky.static .rcl *{animation:none!important;will-change:auto!important}',
+    // ...the clouds PAUSED, not stopped (2026-10-11): stopped, they started
+    // over from their first frame on every return to a weather page -- the
+    // clouds jumped back to where they began, and the Pre-rendered blur's
+    // remembered picture of that page no longer matched the sky behind it
+    // (measured headless: 7.9/255 on average, 95 in the worst cell, until
+    // its next repaint). Paused, they come back where they were, so does the
+    // picture; will-change goes, as under .hidden, so no texture is held.
+    '#hk-sky.static .rcl *{animation-play-state:paused!important;will-change:auto!important}',
     '#hk-sky.static .cl,#hk-sky.static .rain,#hk-sky.static .snow{',
     // will-change too, for the same reason as the .idle and .hidden rules:
     // stopping the animation leaves the oversized composited texture resident,
@@ -799,8 +809,13 @@
     // gets away with that because a raindrop has no orientation to lose.
     // 20 elements of ~40px also cost far LESS than the two composited layers
     // larger than the viewport that a pair of decks would need.
-    '#hk-sky .leaffield{position:absolute;inset:0;overflow:hidden;',
-    '  perspective:650px;filter:brightness(var(--lbri,1)) saturate(var(--lsat,1))}',
+    // NO FILTER ON THE FIELD. The scene's light (--lbri/--lsat, inherited)
+    // is folded into each face's own filter below: a filter here made the
+    // whole screen-sized field a surface the GPU filtered again on every
+    // frame a leaf moved. Brightness and saturate are linear (brightness a
+    // then b is a*b; saturate a then b is a*b) and commute, so the faces lit
+    // one by one are the field lit at once.
+    '#hk-sky .leaffield{position:absolute;inset:0;overflow:hidden;perspective:650px}',
     // preserve-3d on BOTH the faller and the tumbler, or the two faces
     // collapse into one plane and backface-visibility never gets a chance to
     // hide either of them.
@@ -810,9 +825,8 @@
     // NOTHING that groups may sit on this element. `filter` and `opacity`
     // below 1 both force a used transform-style of FLAT, which would flatten
     // the faces into it and show front and back at once. The per-leaf
-    // brightness/saturation/opacity therefore live on the faces, and the
-    // field-wide pair on .leaffield (whose own flattening is harmless -- it
-    // has no 3D of its own, and `perspective` still projects its children).
+    // brightness/saturation/opacity therefore live on the faces -- the
+    // field-wide light too (.leaffield above).
     '#hk-sky .lf > i{display:block;width:100%;height:100%;position:relative;',
     '  transform-style:preserve-3d;',
     '  animation:hk-leaftumble var(--td) linear var(--tdel) infinite}',
@@ -822,7 +836,7 @@
     // --a is per-leaf JITTER around 1; --lopa is the scene level, inherited
     // from .season and rewritten on every paint. Splitting them is what lets
     // dusk be gradual instead of a rebuild.
-    '  filter:brightness(var(--b)) saturate(var(--s));',
+    '  filter:brightness(calc(var(--b) * var(--lbri,1))) saturate(calc(var(--s) * var(--lsat,1)));',
     '  opacity:calc(var(--a) * var(--lopa,.64));',
     '  -webkit-backface-visibility:hidden;backface-visibility:hidden}',
     '#hk-sky .lf u.f{background-image:var(--spf)}',
@@ -1153,6 +1167,9 @@
     '#hk-sky .near-scenery .scenery-depth{background-position:center top;background-size:200% 100%;',
     '  -webkit-mask-image:linear-gradient(transparent 35%,#000 40%);',
     '  mask-image:linear-gradient(transparent 35%,#000 40%)}',
+    // ONE CANVAS FOR THE FOUR (nearFlat): the same art, masks and wash,
+    // drawn once at the screen's size; relit by the same filter
+    '#hk-sky .near-scenery .scenery-flat{display:block;width:100%;height:100%;background:none}',
     '#hk-sky .near-scenery .scenery-ground{',
     '  background:linear-gradient(transparent 60%,var(--ground-color) 90%);',
     '  -webkit-mask-image:none;mask-image:none}',
@@ -1248,7 +1265,7 @@
     // .hidden and .noanim are the sheet-wide rules below and above; a static
     // page drops the scenery like the .season frames.
     '#hk-sky.static .near-scenery{opacity:0}',
-    '#hk-sky.static .near-scenery *{animation:none!important}',
+    '#hk-sky.static .near-scenery *{animation:none!important;will-change:auto!important}',
     '@media (prefers-reduced-motion:reduce){#hk-sky .near-scenery *{transition:none!important}}',
 
     // ---- NEW DECORATIONS: THE TOUCHES (nearTouches). Transform and opacity
@@ -1309,6 +1326,9 @@
     '    linear-gradient(transparent 8%,rgba(80,255,170,.5) 42%,rgba(60,180,255,.14) 72%,transparent);',
     '  animation:near-aurora 46s ease-in-out infinite alternate}',
     '#hk-sky .near-scenery .aurora .band.b{animation-duration:63s;animation-delay:-20s;top:-4%}',
+    // (drawn: the same gradients on a small canvas -- auroraDraw)
+    '#hk-sky .near-scenery .aurora .band.cv{background:none}',
+    '#hk-sky .near-scenery .aurora .band canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}',
     '@keyframes near-aurora{0%{transform:translate3d(-6%,0,0) skewX(-8deg);opacity:.45}50%{opacity:.85}',
     '  100%{transform:translate3d(6%,2%,0) skewX(8deg);opacity:.55}}',
     // A rainbow after real rain: an arc behind the trees, fading in.
@@ -1392,6 +1412,15 @@
 
     '@media (prefers-reduced-motion:reduce){#hk-sky *{animation:none!important}}'
   ].join('');
+  // MOVING THINGS IN FRONT (FRONT, below): every rule about the sky's insides
+  // reaches the front layer too, where the moving things are drawn over the
+  // cards -- only the rules about the sky ELEMENT itself (#hk-sky{...}: its
+  // place under the page, its color) stay the sky's.
+  SHEET = SHEET.replace(/#hk-sky(?=[ .>:])/g, ':is(#hk-sky,#hk-sky-front)') +
+    // over the page's cards, under everything HK puts over the page (the
+    // menu, the tab bar, the docked bar, pop-ups); not one touch lands here
+    '#hk-sky-front{position:fixed;inset:0;z-index:' + FRONT_Z + ';contain:strict;overflow:hidden}' +
+    '#hk-sky-front,#hk-sky-front *{pointer-events:none!important}';
 
   // Registering the gradient stops as <color> is what lets the sky CROSS-FADE
   // instead of jumping. An unregistered custom property has no type, so it can
@@ -1471,6 +1500,175 @@
     var tag = (root && root.querySelector && root.querySelector('#hk-sky-style'))
            || document.getElementById('hk-sky-style');
     if (tag) tag.remove();
+  }
+
+  // ------------------------------------------------------------ AURORA
+  // THE NORTHERN LIGHTS AS SMALL CANVASES (2026-10-11). Each curtain was a
+  // box 140% of the screen wide painted with two soft gradients -- about
+  // half a screen of a wall tablet's tile memory each, a screen and a half
+  // with the container (Christmas night had 2 screens less headroom than
+  // the old decorations, measured headless with the budget capped). Nothing
+  // in them is finer than a 50 px ramp, so they are drawn at a quarter of
+  // their size into a canvas, which keeps its own pixel size on the GPU, and
+  // scaled up; the curtains still drift and breathe as before (the band's
+  // own animation). The same gradients as the CSS they replace: the
+  // vertical glow under the 100deg stripes repeating every 18% of the
+  // gradient line, each transparent stop the transparent of its neighbour
+  // (CSS mixes premultiplied, so 'transparent' never greys a ramp).
+  // (Measured against the CSS curtains: a mean difference of 0.7/255, and
+  // Christmas night's headroom 4 -> 6 screens, the old decorations' own.)
+  var AUR_RES = 0.25;
+  function auroraCanvas(band) {
+    var cv = document.createElement('canvas');
+    if (!cv.getContext || !cv.getContext('2d')) return;
+    band.appendChild(cv);
+    band.classList.add('cv');
+    band._hkCv = cv;
+  }
+  function auroraDraw(band) {
+    var cv = band._hkCv;
+    if (!cv) return;
+    var W = band.clientWidth, H = band.clientHeight;
+    if (!(W > 0) || !(H > 0)) return;
+    var key = W + 'x' + H;
+    if (cv._hkKey === key) return;
+    cv._hkKey = key;
+    cv.width = Math.max(1, Math.round(W * AUR_RES));
+    cv.height = Math.max(1, Math.round(H * AUR_RES));
+    var x = cv.getContext('2d');
+    x.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+    // the glow: transparent to 8%, green by 42%, blue by 72%, gone at the foot
+    var g = x.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0.08, 'rgba(80,255,170,0)'); g.addColorStop(0.42, 'rgba(80,255,170,.5)');
+    g.addColorStop(0.72, 'rgba(60,180,255,.14)'); g.addColorStop(1, 'rgba(60,180,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    // the stripes at 100deg: the CSS gradient line through the centre, its
+    // length |W sin| + |H cos|, carried on to a whole number of repeats
+    var a = 100 * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a);
+    var L = Math.abs(W * dx) + Math.abs(H * dy), P = 0.18, n = Math.ceil(1 / P);
+    var x0 = W / 2 - dx * L / 2, y0 = H / 2 - dy * L / 2, span = L * P * n;
+    var st = x.createLinearGradient(x0, y0, x0 + dx * span, y0 + dy * span);
+    for (var k = 0; k < n; k++) {
+      var b = k / n, u = 1 / n / P;      // a stop at fraction f of the line: b + f * u
+      st.addColorStop(b, 'rgba(90,255,170,0)');
+      st.addColorStop(b + 0.06 * u, 'rgba(90,255,170,0)');
+      st.addColorStop(b + 0.09 * u, 'rgba(90,255,170,.42)');
+      st.addColorStop(b + 0.13 * u, 'rgba(80,220,200,.18)');
+      st.addColorStop(Math.min(1, b + 0.18 * u), 'rgba(80,220,200,0)');
+    }
+    x.fillStyle = st; x.fillRect(0, 0, W, H);
+  }
+
+  // ------------------------------------------------------------ FRONT
+  // MOVING THINGS (Sky / Background, 2026-10-11): 'front' draws the rain and
+  // snow, the falling leaves and petals, the bats and birds, the flybys, the
+  // confetti and the fireflies OVER the cards; fireworks, fog and mist,
+  // clouds and the scenery stay behind. The sky is one fixed layer under the
+  // page (z-index -1, contain:strict), so nothing in it can be lifted over
+  // the cards: the moving things are MOVED into a second layer, #hk-sky-front,
+  // over the page and under everything HK lays over it, and back again.
+  //   * Each keeps its CSS: every #hk-sky rule reaches #hk-sky-front (SHEET),
+  //     and each moved node sits in a SHELL of each parent it had -- same tag,
+  //     class and style, kept in step (a MutationObserver) -- so a rule like
+  //     ".near-scenery.spooky .near-motion.night" still applies.
+  //   * Its builders keep their references (a moved node is the same node);
+  //     the lookups by selector look in the front too (skyQ / skyQA).
+  //   * A placeholder marks where it was: back there on 'behind', and dropped
+  //     with its home when the scene is rebuilt (the placeholder goes too).
+  //   * Not one touch: pointer-events:none on the layer and everything in it.
+  var FRONT_SEL = [
+    ':scope > .rain', ':scope > .snow',
+    ':scope > .near-scenery > .near-motion.leaves', ':scope > .near-scenery > .near-motion.swirl',
+    ':scope > .near-scenery > .near-motion.petals', ':scope > .near-scenery > .near-motion.confetti',
+    ':scope > .near-scenery > .near-motion.dusk', ':scope > .near-scenery > .near-motion.day',
+    ':scope > .near-scenery > .near-motion.eve', ':scope > .near-scenery > .near-motion.night:not(.fireworks)',
+    ':scope > .near-scenery > .near-motion.dark > .flock',
+    ':scope > .season > .bat', ':scope > .season > .witch', ':scope > .season > .xflake',
+    ':scope > .season > .sleigh', ':scope > .season > .leaffield', ':scope > .season > .sp-fall',
+    ':scope > .season > .sp-fly'
+  ].join(',');
+  // the node itself, or its moved twin's -- where a moving thing is now
+  function skyQ(node, sel) {
+    var n = node.querySelector(sel);
+    if (!n && node._hkShell) n = node._hkShell.querySelector(sel);
+    return n;
+  }
+  function skyQA(node, sel) {
+    var out = Array.prototype.slice.call(node.querySelectorAll(sel));
+    if (node._hkShell) out = out.concat(Array.prototype.slice.call(node._hkShell.querySelectorAll(sel)));
+    return out;
+  }
+  function mirror(from, to) {
+    var c = String(from.className || '').replace(/\bown\b/, '').trim();
+    if (to.className !== c) to.className = c;
+    var st = from.getAttribute('style') || '';
+    if ((to.getAttribute('style') || '') !== st) to.setAttribute('style', st);
+  }
+  function frontOf(sky) {
+    var F = sky._hkFront;
+    if (F && F.el.isConnected) return F;
+    var el = document.createElement('div');
+    el.id = 'hk-sky-front';
+    el.setAttribute('aria-hidden', 'true');
+    sky.parentNode.insertBefore(el, sky.nextSibling);
+    F = sky._hkFront = { el: el, moved: [], shells: [], mo: null };
+    sky._hkShell = el;
+    F.mo = typeof MutationObserver === 'function' ? new MutationObserver(function (recs) {
+      recs.forEach(function (r) { var t = r.target; if (t._hkShell) mirror(t, t._hkShell); });
+    }) : null;
+    F.watch = function (orig) { if (F.mo) F.mo.observe(orig, { attributes: true, attributeFilter: ['class', 'style'] }); };
+    F.watch(sky);
+    mirror(sky, el);
+    return F;
+  }
+  // the shell of `orig` (a parent of a moved node) in the front, made once
+  function shellOf(F, sky, orig) {
+    if (orig === sky) return F.el;
+    if (orig._hkShell && orig._hkShell.isConnected) return orig._hkShell;
+    var sh = document.createElement(orig.localName || 'div');
+    mirror(orig, sh);
+    shellOf(F, sky, orig.parentNode).appendChild(sh);
+    orig._hkShell = sh;
+    F.shells.push(orig);
+    F.watch(orig);
+    return sh;
+  }
+  function frontSync(sky, on) {
+    var F = sky._hkFront;
+    if (!on) {
+      if (!F) return;
+      // every moving thing back where it was (gone with its home: gone)
+      F.moved.forEach(function (m) {
+        if (m.mark.parentNode) m.mark.parentNode.replaceChild(m.node, m.mark); else m.node.remove();
+      });
+      F.shells.forEach(function (o) { o._hkShell = null; });
+      if (F.mo) F.mo.disconnect();
+      F.el.remove();
+      sky._hkFront = null; sky._hkShell = null;
+      return;
+    }
+    if (!sky.parentNode) return;
+    F = frontOf(sky);
+    // a scene rebuilt took its placeholders with it: its moved things go too
+    F.moved = F.moved.filter(function (m) {
+      if (m.mark.isConnected) return true;
+      m.node.remove();
+      return false;
+    });
+    F.shells = F.shells.filter(function (o) {
+      if (o.isConnected) return true;
+      if (o._hkShell) o._hkShell.remove();
+      o._hkShell = null;
+      return false;
+    });
+    Array.prototype.forEach.call(sky.querySelectorAll(FRONT_SEL), function (n) {
+      var mark = document.createComment('hk-front');
+      var home = shellOf(F, sky, n.parentNode);
+      n.parentNode.insertBefore(mark, n);
+      home.appendChild(n);
+      F.moved.push({ node: n, mark: mark });
+    });
+    mirror(sky, F.el);
   }
 
   // ------------------------------------------------------------ LIVELINESS
@@ -2679,7 +2877,8 @@
       // glowing blob, then as a dotted line -- nothing real looks like either.)
       built.aurora = root.insertBefore(document.createElement('div'), root.children[0] || null);
       built.aurora.className = 'aurora';
-      el(built.aurora, 'band a', 'i'); el(built.aurora, 'band b', 'i');
+      built.bands = [el(built.aurora, 'band a', 'i'), el(built.aurora, 'band b', 'i')];
+      built.bands.forEach(auroraCanvas);
     }
     if (theme === 'fall') {
       var swirl = field('windy-only swirl');
@@ -2815,16 +3014,21 @@
     // the owl and the mist (NEW-DECORATIONS-PERF: 76 animations by day, 78 by
     // night). Out once the 20 s fade has finished; back in at 0 and given its
     // value on the NEXT paint, so it still fades in rather than popping.
-    var FADE_MS = 20000, zeroSince = {};
+    // NEVER SHOWN, NOTHING TO FADE (2026-10-10): a field at 0 from its first
+    // paint -- the night's bats, owl and mist on a page loaded by day -- is
+    // out at once. Waiting out a fade that never began ran 37 invisible
+    // animations for the first 21 s of every load.
+    var FADE_MS = 20000, zeroSince = {}, shown = {};
     function fade(prop, cls, v) {
       var outCls = 'out-' + cls, out = root.classList.contains(outCls);
       if (v > 0 && out) { root.classList.remove(outCls); root.style.setProperty(prop, '0'); return; }
       root.style.setProperty(prop, String(v));
-      if (v > 0) { zeroSince[cls] = 0; return; }
+      if (v > 0) { zeroSince[cls] = 0; shown[cls] = true; return; }
+      if (!shown[cls]) { if (!out) root.classList.add(outCls); return; }
       if (!zeroSince[cls]) zeroSince[cls] = Date.now();
       else if (!out && Date.now() - zeroSince[cls] > FADE_MS + 1000) root.classList.add(outCls);
     }
-    function update(state, W, H, narrow, artW, artH) {
+    function update(state, W, H, narrow, artW, artH, real) {
       var now = state.now || new Date(), night = state.elev < -4;
       var moon = night ? moonAt() : null;
       // EVERY SCREEN ITS OWN SCALE: what is drawn at a 1280 x 800 tablet,
@@ -2833,10 +3037,14 @@
       var u = clamp(Math.min(W, H * 1.6) / 1280, 0.6, 1.6);
       root.style.setProperty('--near-u', u.toFixed(2));
       root.classList.toggle('windy', windy(state));
-      fade('--near-dark', 'dark', night ? 1 : 0);
-      fade('--near-dusk', 'dusk', +clamp((3 - state.elev) / 6, 0, 1).toFixed(2));
-      var lit = (1 - Math.cos(2 * Math.PI * (state.moon == null ? .5 : state.moon))) / 2;
-      fade('--near-moonlit', 'glints', +(night ? lit * (1 - .7 * clamp(state.cover || 0, 0, 1)) : 0).toFixed(1));
+      // not on the mount's placeholder sky (mountNearScenery: `real`): its
+      // noon would take a night's bats out before the night's first paint
+      if (real) {
+        fade('--near-dark', 'dark', night ? 1 : 0);
+        fade('--near-dusk', 'dusk', +clamp((3 - state.elev) / 6, 0, 1).toFixed(2));
+        var lit = (1 - Math.cos(2 * Math.PI * (state.moon == null ? .5 : state.moon))) / 2;
+        fade('--near-moonlit', 'glints', +(night ? lit * (1 - .7 * clamp(state.cover || 0, 0, 1)) : 0).toFixed(1));
+      }
       if (built.flockA) {
         if (W !== W0 || H !== H0 || built.moonY !== (moon ? Math.round(moon.y) : -1)) {
           // THE CLEAR BAND: brief flights stay in the sky above the camera
@@ -2899,6 +3107,8 @@
         }
         root.classList.toggle('aurora-on', auroraOn && state.elev < -10 && (state.cover || 0) < 0.25 &&
                                            state.weather !== false && !narrow);
+        // drawn while it shows (its size known), again only at a new size
+        if (root.classList.contains('aurora-on')) built.bands.forEach(auroraDraw);
       }
       if (built.rainbow) {
         var wet = state.wet && state.wet.kind === 'rain' && state.wet.rate > 0;
@@ -2930,6 +3140,92 @@
     };
   }
 
+  // THE STILL ART AS ONE CANVAS (2026-10-11). The ground wash, the far valley
+  // and the two foreground trees were four full-screen layers -- each its
+  // own copy of the screen in the tablet's tile memory, the trees masked,
+  // all four filtered -- about 3 screens of a wall tablet's budget on Home
+  // (measured headless with the budget capped: headroom 2 -> 5 screens
+  // without them), which ran out coming back to Home and left parts of the
+  // page undrawn for 2-3 frames (screen-recorded on the Living Room
+  // tablet). Drawn here exactly as the CSS laid them out -- the same
+  // picture, positions, masks and wash, in that order -- at the screen's
+  // size and density, again only when the size changes. The relighting is
+  // still the CSS filter (.scenery-art, its 3 s transition), now on the one
+  // canvas: brightness and saturate are linear, so filtering the four
+  // together equals filtering each. Until the art and masks have loaded
+  // the canvas is empty, as the backgrounds were.
+  // (Measured against the four layers: the same pixels -- a mean difference
+  // of 0.3-0.5/255, rounding -- at 1280x800@1.5, 1512x945@2, 1920x1080 and
+  // a 390-wide phone, and for every theme.) Null where a canvas cannot be
+  // drawn: the four layers, as before.
+  function nearFlat(root, src, masks, ground) {
+    var cv = document.createElement('canvas');
+    if (!cv.getContext || !cv.getContext('2d')) return null;
+    root.appendChild(cv);
+    cv.className = 'scenery-art scenery-flat';
+    var imgs = {}, want = null, drawn = '', scratch = null;
+    function load(k, url) {
+      var im = new Image();
+      im.onload = function () { imgs[k] = im; if (want) draw.apply(null, want); };
+      im.src = url;
+    }
+    load('art', src); load('left', masks.left); load('right', masks.right);
+    function rgba(hex, a) {
+      var h = hex.replace('#', ''), n = parseInt(h.length === 3 ? h.replace(/(.)/g, '$1$1') : h, 16);
+      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+    }
+    // one piece drawn on its own, cut by its mask, then laid on the canvas
+    function piece(x, cw, ch, dpr, paint, cut) {
+      if (!scratch) scratch = document.createElement('canvas');
+      scratch.width = cw; scratch.height = ch;
+      var s = scratch.getContext('2d');
+      // (a resize resets the context, but not every engine's -- say it)
+      s.globalCompositeOperation = 'source-over';
+      s.setTransform(dpr, 0, 0, dpr, 0, 0);
+      s.imageSmoothingQuality = 'high';
+      paint(s);
+      s.globalCompositeOperation = 'destination-in';
+      cut(s);
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      x.drawImage(scratch, 0, 0);
+      x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function draw(W, H, narrow, artW, artH) {
+      want = [W, H, narrow, artW, artH];
+      if (!imgs.art || !imgs.left || !imgs.right || !(W > 0) || !(H > 0)) return;
+      var dpr = window.devicePixelRatio || 1;
+      var key = [W, H, narrow, artW, artH, dpr].join();
+      if (key === drawn) return;
+      drawn = key;
+      var cw = Math.round(W * dpr), ch = Math.round(H * dpr), art = imgs.art;
+      cv.width = cw; cv.height = ch;
+      var x = cv.getContext('2d');
+      x.setTransform(dpr, 0, 0, dpr, 0, 0);
+      x.imageSmoothingQuality = 'high';
+      // a phone: the right tree alone, filling the width, unmasked
+      if (narrow) { x.drawImage(art, W - artW, 0, artW, artH); return; }
+      // .scenery-ground: the wash, transparent to 60%, the ground color by 90%
+      var g = x.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0.6, rgba(ground, 0)); g.addColorStop(0.9, rgba(ground, 1));
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      // .scenery-depth: the picture at twice the width, centred, from 35-40% down
+      piece(x, cw, ch, dpr, function (s) { s.drawImage(art, -W / 2, 0, 2 * W, H); }, function (s) {
+        var m = s.createLinearGradient(0, 0, 0, H);
+        m.addColorStop(0.35, 'rgba(0,0,0,0)'); m.addColorStop(0.4, 'rgba(0,0,0,1)');
+        s.fillStyle = m; s.fillRect(0, 0, W, H);
+      });
+      // .scenery-side: each tree at the art's size, on its own edge, by its mask
+      piece(x, cw, ch, dpr, function (s) { s.drawImage(art, 0, 0, artW, artH); },
+            function (s) { s.drawImage(imgs.left, 0, 0, artW, artH); });
+      piece(x, cw, ch, dpr, function (s) { s.drawImage(art, W - artW, 0, artW, artH); },
+            function (s) { s.drawImage(imgs.right, W - artW, 0, artW, artH); });
+      // ...and the working canvas let go: a second screen-sized bitmap
+      // (~9 MB at 1920 x 1200) held for nothing until the next resize
+      if (scratch) { scratch.width = scratch.height = 0; scratch = null; }
+    }
+    return { canvas: cv, draw: draw };
+  }
+
   // Build one theme's scenery into the sky, under the fog. Returns its root,
   // update(state) -- every paint: light, size, weather -- and dispose().
   // Built once per theme; nothing here is rebuilt by a paint.
@@ -2947,6 +3243,7 @@
     // Christmas and the birthday fade their tree feet out later (from 96% of
     // the height, not 86%).
     var tail = theme === 'christmas' || theme === 'birthday' ? '96%' : '86%';
+    var maskSvg = {};
     ['left', 'right'].forEach(function (side) {
       var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1586 992"><defs>' +
         '<linearGradient id="tail" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="992">' +
@@ -2957,10 +3254,15 @@
         '<path d="' + NEAR_TREE_MASKS[side] + '" fill="url(#tail)" filter="url(#soft)"/></svg>';
       root.style.setProperty('--tree-' + side + '-mask',
         'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")');
+      // (sized, for a canvas: an SVG with only a viewBox has no size of its own there)
+      maskSvg[side] = 'data:image/svg+xml,' + encodeURIComponent(svg.replace('viewBox=', 'width="1586" height="992" viewBox='));
     });
-    ['scenery-ground', 'scenery-depth', 'scenery-side left', 'scenery-side right'].forEach(function (cls) {
-      root.appendChild(document.createElement('div')).className = 'scenery-art ' + cls;
-    });
+    var flat = nearFlat(root, NEAR_ART + theme + '-v1.webp' + VER, maskSvg, NEAR_GROUND[theme] || '#302919');
+    if (!flat) {
+      ['scenery-ground', 'scenery-depth', 'scenery-side left', 'scenery-side right'].forEach(function (cls) {
+        root.appendChild(document.createElement('div')).className = 'scenery-art ' + cls;
+      });
+    }
     // The lighting patches, over the trees they belong to: what hangs there
     // (lit by the scene, like the trees), and over it what is lit after dark
     // -- the candles flickering, the bulbs twinkling one by one along the
@@ -3055,6 +3357,7 @@
     if (theme === 'spring') surpriseScene(field('day'), fieldW, height, 'spring-garden', false, true, rnd, true, occ, L);
     if (theme === 'july4') {
       var fireworks = field('night');
+      fireworks.classList.add('fireworks');     // (stays behind: FRONT_SEL)
       surpriseScene(fireworks, fieldW, height, 'fourth-of-july', true, true, rnd, true, occ, L);
       // the bursts only: no drifting sparkles over the trees
       var sparks = fireworks.querySelectorAll('.sp-fall');
@@ -3087,8 +3390,11 @@
       written[name] = q;
       root.style.setProperty(name, q);
     }
+    // REAL once a paint has handed over the sky: until then `state` is the
+    // placeholder noon above (the mount's own update, the observer's first)
+    var real = false;
     function update(next) {
-      for (var k in next) if (next.hasOwnProperty(k)) state[k] = next[k];
+      for (var k in next) if (next.hasOwnProperty(k)) { state[k] = next[k]; real = true; }
       var W = root.clientWidth, H = root.clientHeight, narrow = W < 640;
       root.classList.toggle('narrow', narrow);
       root.classList.toggle('heavy-weather', !!(state.wet && state.wet.rate >= .7));
@@ -3127,12 +3433,13 @@
       var artW = artH * (theme === 'christmas' || theme === 'fall' ? 1585 : 1586) / 992;
       root.style.setProperty('--art-h', artH + 'px');
       root.style.setProperty('--art-w', artW + 'px');
-      var i, nodes = root.querySelectorAll('.lf,.sp-fall');
+      if (flat) flat.draw(W, H, narrow, artW, artH);
+      var i, nodes = skyQA(root, '.lf,.sp-fall');
       for (i = 0; i < nodes.length; i++) nodes[i].style.setProperty('--dist', (H + 190) + 'px');
       // Keep brief flights in clear sky above the camera mosaic. Their paths
       // stay behind controls, but should not disappear beneath camera tiles.
       // (The Halloween flocks' own band is in nearTouches.)
-      nodes = root.querySelectorAll('.day .sp-fly');
+      nodes = skyQA(root, '.day .sp-fly');
       for (i = 0; i < nodes.length; i++) nodes[i].style.top = (narrow ? 185 : 95) + 'px';
       nodes = root.querySelectorAll('.sp-burst');
       for (i = 0; i < nodes.length; i++) nodes[i].style.top = (narrow ? 180 : 4) + 'px';
@@ -3173,7 +3480,7 @@
         bst.top = (bl.at[1] * k - bh).toFixed(1) + 'px';
         bst.transformOrigin = Math.round(bl.knot[0] * 100) + '% 100%';
       }
-      touches.update(state, W, H, narrow, artW, artH);
+      touches.update(state, W, H, narrow, artW, artH, real);
     }
     var observer = typeof ResizeObserver === 'function'
       ? new ResizeObserver(function () { update({}); }) : null;
@@ -3492,8 +3799,7 @@
             '<div class="lbox"><div class="hl"><b><i></i><i></i></b></div>' +
             '<div class="hx"></div><div class="bx"></div><div class="life"></div></div>' : '') +
     '<div class="fog"></div>' +
-    '<div class="rain r1"></div>' +
-    '<div class="rain r2"></div>' +
+    '<div class="rain"></div>' +
     '<div class="snow s1"></div>' +
     '<div class="snow s2"></div>' +
     '<div class="bolt"></div>' +
@@ -4143,6 +4449,45 @@
   // snaps to either 0 or an absurd 45 degrees. Wind drives SPEED instead.
   // Rain falls straight too, which is wanted: angled as a full-height
   // gradient it reads as diagonal hatching rather than weather.
+  // FALLING WEATHER, DRAWN INTO A CANVAS (2026-10-10). A rain or snow deck
+  // is a layer taller than the screen that the GPU blends on every frame.
+  // THE RAIN AT HALF the screen's own resolution, stretched: a quarter of the
+  // texture to hold and to read each frame (on a 1920 x 1200 tablet ~15 MB
+  // down to ~4 MB of the WebView's tile budget), and its soft streaks look
+  // the same. THE SNOW AT FULL: halved, its small flakes went faint (compared
+  // side by side at 1.5x). Drawn again only when the deck's size or tile
+  // changes, and not while it is idle (nothing falling).
+  var fallImgs = {};
+  function fallImg(name) {
+    var im = fallImgs[name];
+    if (!im && typeof Image === 'undefined') return null;          // a test harness
+    if (!im) { im = fallImgs[name] = new Image(); im.decoding = 'async'; im.src = BASE + name + VER; }
+    return im.complete && im.naturalWidth ? im : null;
+  }
+  function fallDraw(deckEl, name, tile, res) {
+    if (!deckEl) return;
+    var cv = deckEl.firstElementChild;
+    if (!cv || cv.localName !== 'canvas') { cv = document.createElement('canvas'); deckEl.appendChild(cv); }
+    if (deckEl.classList.contains('idle')) return;
+    var im = fallImg(name);
+    // (the image not here yet: the next paint draws it -- or now, as it lands)
+    var pend = fallImgs[name];
+    if (!im) { if (pend && !pend.__hkWait) { pend.__hkWait = true; pend.addEventListener('load', function () { fallDraw(deckEl, name, tile, res); }); } return; }
+    // (the scale a whole number of pixels a tile: no seams between them)
+    var k = Math.max(1, Math.round(tile * Math.min(2, window.devicePixelRatio || 1) * res)) / tile;
+    var w = Math.ceil((deckEl.offsetWidth || 0) * k), h = Math.ceil((deckEl.offsetHeight || 0) * k);
+    if (!w || !h) return;
+    var key = w + 'x' + h + '|' + tile + '|' + name + '|' + res;
+    if (cv.__hkKey === key) return;
+    cv.__hkKey = key; cv.width = w; cv.height = h;
+    var ctx = cv.getContext('2d');
+    if (!ctx) return;
+    // the tile at the canvas's scale, from the deck's top-left as a
+    // background repeats -- the fall is a whole tile, so the loop is seamless
+    var t = tile * k;
+    ctx.imageSmoothingQuality = 'high';
+    for (var y = 0; y < h; y += t) for (var x = 0; x < w; x += t) ctx.drawImage(im, x, y, t, t);
+  }
   function fallTiled(styleObj, tile, periods, pxPerSec) {
     var dist = tile * periods;
     styleObj.setProperty('--fx', '0px');
@@ -4486,11 +4831,14 @@
         cx.fillRect(0, 0, w, h);
         cx.globalCompositeOperation = 'source-over';
       } catch (e) { return; }
+      cv.__drawn = src;
+      // the ceiling's art is on: say so (a pre-rendered blur paints it in)
+      try { window.dispatchEvent(new Event('hk-sky-paint')); } catch (e) { /* no window events */ }
       if (done) done();
     };
     img.src = src;
   }
-  function ceilFree(cv) { cv.__src = null; cv.width = 0; cv.height = 0; }
+  function ceilFree(cv) { cv.__src = null; cv.__drawn = null; cv.width = 0; cv.height = 0; }
   function ceilRelight(k, light) {
     var a = k.node.children[0], b = k.node.children[1], src = rcSrc(k.c, light);
     k.lit = light;
@@ -4509,6 +4857,7 @@
   function paintRealClouds(el, s, on, hzFrac, lightRight, nightO) {
     var layer = el.querySelector('.rcl');
     if (!layer) return [];
+    layer._rcOn = !!on;
     var st = layer._rc;
     if (!on || !rcManifest()) {
       if (st) { layer.innerHTML = ''; layer._rc = null; }
@@ -4524,6 +4873,12 @@
     var r = rng(seed * 7 + 3), plan = rcPlan(s, r);
     var size = [Math.round(W / 40), Math.round(H / 40), Math.round(hy / 20), plan.deck, seed,
                 Math.round(clamp(s.cover || 0, 0, 1) * 10)].join('|');
+    // THE FIRST SKY THIS LAYER HAS (the page loading, the clouds coming on):
+    // nothing to fade from, so its clouds are simply there -- they faded in
+    // over 4 s at every load (2026-10-10, the user's report). A sky that
+    // replaces another still cross-fades, and arriving from a page with no
+    // weather the whole layer fades in (.static .rcl).
+    var first = !st;
     if (!st || st.size !== size) {
       // a new sky (another day, another screen size or horizon, the overcast
       // deck arriving or leaving): the old clouds fade out as the new fade in
@@ -4628,7 +4983,17 @@
       var op = k.o * nightO;
       // a cloud made in this paint fades in from the next frame: written in
       // the same task as its opacity 0, a transition would never run
-      if (k.fresh) {
+      if (k.fresh && first) {
+        k.fresh = false;
+        var n0 = k.node.style;
+        n0.transition = 'none';
+        n0.opacity = op.toFixed(2);
+        // the transition back for what comes later (a relight, a new sky),
+        // once this opacity has been drawn
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(function () { requestAnimationFrame(function () { n0.transition = ''; }); });
+        } else n0.transition = '';
+      } else if (k.fresh) {
         k.fresh = false;
         var fadeIn = function () { k.node.style.opacity = op.toFixed(2); };
         if (typeof requestAnimationFrame === 'function') {
@@ -4641,7 +5006,16 @@
     return out;
   }
 
+  // The sky painted, then its moving things put where Moving Things says
+  // (a screensaver's own sky keeps them: it has no cards to be in front of).
   function paint(el, s) {
+    var out = paintSky(el, s);
+    if (!el.classList.contains('own')) {
+      try { frontSync(el, !!s && s.moving === 'front'); } catch (e) { console.error('[hk-sky] moving things', e); }
+    }
+    return out;
+  }
+  function paintSky(el, s) {
     var st = el.style;
     // Sky / Background: a chosen backdrop takes the live ramp's place -- its
     // day set while the sun is above the horizon, its night set below.
@@ -4838,7 +5212,7 @@
     // nobody can see. Below IDLE_BELOW the
     // deck is idled and its --o written as 0, so the fade-out still runs.
     function deck(sel, o) {
-      var n = el.querySelector(sel);
+      var n = skyQ(el, sel);
       n.classList.toggle('idle', IDLE_INVISIBLE && !(o >= IDLE_BELOW));
       return n.style;
     }
@@ -4903,34 +5277,38 @@
     // ---- weather
     st.setProperty('--fogO', s.fog ? '1' : '0');
 
-    var rain = s.wet.kind === 'rain' ? s.wet.rate : 0;
-    var snow = s.wet.kind === 'snow' ? s.wet.rate : 0;
+    // RAIN & SNOW (Sky / Background, 2026-10-10): off, nothing falls -- the
+    // clouds, fog and a wet sky's gray stay. And never while Animations are
+    // off: a fall that cannot move hangs over the sky as a still texture.
+    var falls = s.precipitation !== false && s.animations !== false;
+    var rain = falls && s.wet.kind === 'rain' ? s.wet.rate : 0;
+    var snow = falls && s.wet.kind === 'snow' ? s.wet.rate : 0;
 
     // Wind drives precipitation SPEED, not angle. Both decks are tiled
     // bitmaps, and a tiled bitmap can only fall straight down without
     // seaming -- see fallTiled. Up to +60% in a gale.
     var gust = 1 + clamp(s.wind, 0, 26) / 26 * 0.6;
 
-    // Two decks, near and far. The depth comes from the CONTRAST between them
-    // -- long bright streaks over short dim ones -- not from speed; a
-    // gradient that leans on speed reads as hatching.
-    var r1 = deck('.rain.r1', rain * 0.90);
-    var r2 = deck('.rain.r2', rain * 0.55);
-    r1.setProperty('--o', vis(rain * 0.90));
-    r1.setProperty('--fS', '512px 512px');
-    fallTiled(r1, 512, 1, (170 + rain * 130) * gust);
-    r2.setProperty('--o', vis(rain * 0.55));
-    r2.setProperty('--fS', '384px 384px');
-    fallTiled(r2, 384, 1, (100 + rain * 80) * gust);
+    // ONE DECK, near and far streaks in its one tile. The depth comes from
+    // the CONTRAST between them -- long bright streaks over short dim ones --
+    // not from speed; a gradient that leans on speed reads as hatching. (Two
+    // decks once, the far one at 0.55/0.90 of this one's opacity: baked into
+    // the tile now, so the rain is one full-screen layer, not two.)
+    var rn = deck('.rain', rain * 0.90);
+    rn.setProperty('--o', vis(rain * 0.90));
+    fallTiled(rn, 512, 1, (170 + rain * 130) * gust);
+    fallDraw(skyQ(el, '.rain'), 'rain.png', 512, 0.5);
 
+    // (snow keeps its two decks: it falls slowly, and its depth is the big
+    // flakes falling faster than the small ones -- one speed looked flat)
     var s1 = deck('.snow.s1', snow * 0.85);
     var s2 = deck('.snow.s2', snow * 0.5);
     s1.setProperty('--o', vis(snow * 0.85));
-    s1.setProperty('--fS', '320px 320px');
     fallTiled(s1, 320, 1, (46 + snow * 34) * gust);
+    fallDraw(skyQ(el, '.snow.s1'), 'flakes.png', 320, 1);
     s2.setProperty('--o', vis(snow * 0.5));
-    s2.setProperty('--fS', '190px 190px');
     fallTiled(s2, 190, 1, (24 + snow * 20) * gust);
+    fallDraw(skyQ(el, '.snow.s2'), 'flakes.png', 190, 1);
 
     el.querySelector('.bolt').style.display = s.wet.bolt ? '' : 'none';
 
@@ -4952,7 +5330,12 @@
     if (el._hkNear && NEAR_HORIZON[el._hkNearTheme]) {
       var aH = Math.max(EH, SW * 992 / 1586);
       hz = ((EH - aH) / 2 + NEAR_HORIZON[el._hkNearTheme] * aH) / EH;
-    } else if (el.classList.contains('landed')) {
+    } else if (el.querySelector('.land')) {
+      // THE LAND'S HORIZON FROM THE FIRST PAINT, not once its art has faded
+      // in ('landed'): laid out against the gradient's until then, the
+      // clouds were thrown away and laid out again at the next paint -- on
+      // the screensaver, the next forecast slide, a few seconds after it
+      // came in (2026-10-10)
       var lH = Math.max(EH, EW * 1600 / 2560);
       hz = (EH - lH + 0.6 * lH) / EH;
     }
@@ -5086,9 +5469,9 @@
     st.setProperty('--starO', '0');
     st.setProperty('--moonO', '0');
     st.setProperty('--fogO', '0');
-    ['.cl.a', '.cl.b', '.cl.c', '.rain.r1', '.rain.r2', '.snow.s1', '.snow.s2']
+    ['.cl.a', '.cl.b', '.cl.c', '.rain', '.snow.s1', '.snow.s2']
       .forEach(function (sel) {
-        var n = el.querySelector(sel);
+        var n = skyQ(el, sel);
         if (n) n.style.setProperty('--o', '0');
       });
     var bolt = el.querySelector('.bolt');
@@ -5194,7 +5577,9 @@
   function paintAlbum(el, url, gradL) {
     if (!url) {
       el.style.setProperty('--artO', '0');
+      el.style.removeProperty('--art');
       applyScrim(el, gradL);
+      if (el === mounted) announce();
       return;
     }
     measureArt(url, function (L) {
@@ -5218,6 +5603,7 @@
       applyScrim(el, o * lum + (1 - o) * gradL);
       el._hkArtL = L === null ? null : Math.round(L);
       el._hkArtO = o;
+      if (el === mounted) announce();
     });
   }
 
@@ -5324,11 +5710,182 @@
   try {
     window.addEventListener('hk-black', function (e) { ksDark = !!(e && e.detail && e.detail.on); applyHidden(); });
   } catch (e) { /* no window events */ }
+  // NOT IN FOCUS (Sky / Background -> Pause When Not in Focus, 2026-10-10).
+  // A computer leaves the dashboard open beside other work, and while
+  // anything moves the browser draws the whole window every frame -- the
+  // sky changing under the frosted plates re-blurs them each time. Measured
+  // on a Mac (Chrome, Home, 1512x945 at 2x): 31% of a core with nobody
+  // looking at it -- GPU process 21, renderer 10, main thread only 3. So
+  // while another window has the focus the sky and the cards are HELD, as
+  // under the kiosk's black: their layers kept, so the focus coming back
+  // starts them on the next frame from where they stood (measured 15 ms,
+  // the cloud deck at -9.96 px resuming at -9.99): 3%.
+  // ONLY WHERE THERE IS A MOUSE. A wall tablet's or a phone's WebView can
+  // report no focus until its first touch -- held there, a screen would sit
+  // still from boot -- and nothing on one is ever beside other work.
+  // Starts focused: only a real blur holds it.
+  var unfocused = false;
+  var FOCUS_DEVICE = (function () {
+    try { return !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); } catch (e) { return false; }
+  })();
+  function focusPause() {
+    var S = window.hkSettings, look = null;
+    try { look = S && S.skyLook ? S.skyLook() : null; } catch (e) { look = null; }
+    return !look || look.focusPause !== false;
+  }
+  function focusCheck() {
+    var u = FOCUS_DEVICE && focusPause() && typeof document.hasFocus === 'function' && !document.hasFocus();
+    if (u === unfocused) return;
+    unfocused = u;
+    applyHidden();
+  }
+  if (FOCUS_DEVICE) {
+    try {
+      // after the blur settles: the focus moving into a frame on the page
+      // blurs the window, while the document still has it
+      window.addEventListener('blur', function () { setTimeout(focusCheck, 0); });
+      window.addEventListener('focus', focusCheck);
+      // a press or a key means the focus, should its event go missing
+      document.addEventListener('pointerdown', focusCheck, true);
+      document.addEventListener('keydown', focusCheck, true);
+      // the setting changed, or another screen's settings now apply
+      window.addEventListener('hk-module-ready', focusCheck);
+      window.addEventListener('location-changed', focusCheck);
+    } catch (e) { /* no window events */ }
+  }
+  // WHAT THE REALISTIC CLOUDS ARE NOW: how many are up, and how many of the
+  // ceiling's canvases have their art on. A pre-rendered blur (hk-glass.js)
+  // painted at load came before them -- the manifest and the art arrive
+  // after the first paint -- and wore a sky with no clouds, darker than the
+  // one behind it, until its next paint 5 s on (2026-10-10).
+  function cloudsSig(el) {
+    var l = el && el.querySelector ? el.querySelector('.rcl') : null;
+    if (!l) return '';
+    var n = l.querySelectorAll('.rc:not(.gone),.rcd:not(.gone)').length, d = 0, cvs = l.querySelectorAll('canvas');
+    for (var i = 0; i < cvs.length; i++) if (cvs[i].__drawn) d++;
+    return n + 'c' + d;
+  }
+  // WHAT THE SKY SHOWS, as a signature: big -- what is in it (its classes,
+  // less the ones that only say how it is shown: hidden, held, cut to,
+  // still; and its realistic clouds), small -- its light (the colors and
+  // places written on it). It changes when, and only when, the sky's
+  // picture does: hk-sky-paint is said then, and a pre-rendered blur
+  // (hk-glass.js) paints from it instead of looking every few seconds.
+  var SKY_STATES = /(^|\s)(hidden|held|hk-snap|noanim)(?=\s|$)/g;
+  function skySig(el) {
+    if (!el) return { big: 'none', small: '' };
+    // (the Play Music page's album art is what is IN it: a new song's cover
+    // is a new picture, not a change of light)
+    return { big: String(el.className).replace(SKY_STATES, ' ').replace(/\s+/g, ' ').trim() + '|' + cloudsSig(el) +
+                  '|' + (el.style.getPropertyValue('--art') || ''),
+             small: el.getAttribute('style') || '' };
+  }
+  // THE SKY CHANGED (skySig, or the page): said once per change, not on
+  // every render -- Tint from Background follows its colors
+  // (hk-frosttint.js), a pre-rendered blur its picture (hk-glass.js). Said
+  // after every render, and as a new song's cover lands on the Play Music
+  // page (paintAlbum: no render follows a track change, and the pills kept
+  // the last song's blur until their own refresh, 2026-10-10).
+  // ...ONCE IT HAS SETTLED. A change fades in -- the album wash's opacity
+  // (1.2 s), the scrim (4 s), the light -- and a picture taken at its start
+  // kept the fade's first frame, with nothing to say so later: the signature
+  // already read as the end. So a change is said when the sky's transitions
+  // have finished (the browser's own list of them; the loops that drift and
+  // fall are animations, not transitions, and never wait), at most SETTLE_MS on.
+  //
+  // ...AND AT ONCE, as hk-sky-change, for what can paint the end of a fade
+  // before it is reached: a pre-rendered blur (hk-glass.js) paints the sky
+  // as it will be (hk-skyshot.js, opts.settle) and fades in with it -- the
+  // pills changed only once the song's wash had finished, then faded for
+  // 2.5 s more (2026-10-11). Said once per change; what reads colors as
+  // they are now (Tint from Background) keeps waiting for hk-sky-paint.
+  var SETTLE_MS = 6000, settleGen = 0, saidSig = null, saidFor = null, changeSig = null, changedSig = null, changedFor = null;
+  function announce() {
+    if (!mounted) return;
+    var sg = skySig(mounted), psig = sg.big + '||' + sg.small + '|' + location.pathname;
+    if (psig === paintSig) return;
+    if (psig !== changeSig) {
+      changeSig = psig; changedSig = sg; changedFor = mounted;
+      try { window.dispatchEvent(new Event('hk-sky-change')); } catch (e) { /* no window events */ }
+    }
+    var fading = [];
+    try {
+      if (mounted.getAnimations && typeof CSSTransition !== 'undefined') {
+        fading = mounted.getAnimations({ subtree: true }).filter(function (an) {
+          return an instanceof CSSTransition && an.playState === 'running';
+        });
+      }
+    } catch (e) { fading = []; }
+    if (fading.length) {
+      var gen = ++settleGen;
+      Promise.race([
+        Promise.all(fading.map(function (an) { return an.finished.catch(function () { /* cancelled: settled */ }); })),
+        new Promise(function (ok) { setTimeout(ok, SETTLE_MS); })
+      ]).then(function () { if (gen === settleGen) announce(); });
+      return;
+    }
+    settleGen++;
+    paintSig = psig;
+    saidSig = sg; saidFor = mounted;
+    try { window.dispatchEvent(new Event('hk-sky-paint')); } catch (e) { /* no window events */ }
+  }
+  // WHAT MOVES ACROSS THE SCENE, by the animation that carries it: what
+  // flies, falls, bursts, wanders, flashes -- bats, the witch and the
+  // sleigh, geese, falling leaves and petals, flakes, fireworks and
+  // confetti, meteors, lightning, fireflies, the glints. A still picture of
+  // the sky (hk-skyshot.js, the Pre-rendered blur) leaves these out: frozen,
+  // each would be a smudge where nothing is a moment later. What drifts
+  // slowly stays in (the clouds, the fog's wisps, the aurora), and so do the
+  // rain and snow decks (hk-fall): blurred, a veil, which they are live too.
+  // Names here are prefixes (the flights' are made per speed: near-flock-x…).
+  var MOVERS = ['hk-spfly', 'hk-spfall', 'hk-xfall', 'hk-spburst', 'near-swirl', 'hk-bolt', 'near-confetti',
+                'hk-meteor', 'near-glow', 'near-glint', 'hk-ffwander', 'hk-witchfly', 'hk-sleigh', 'hk-batfly',
+                'near-flock', 'hk-leaffall', 'hk-leaftumble', 'near-petal', 'near-geese'];
+  // WHAT DRIFTS ACROSS THE SKY while staying in its picture: the clouds
+  // (realistic and classic decks), the fog's wisps, the moon's mist, the
+  // aurora. A pre-rendered blur (hk-glass.js) paints its picture again every
+  // couple of seconds while any of these runs -- the pills over a cloud lag
+  // it otherwise (the user, 2026-10-11). Not what loops in place (a candle's
+  // flicker, a twinkle, a sway, the rain and snow decks): a picture taken at
+  // a random moment of a loop would make the glass pulse.
+  var DRIFTS = ['hk-rc', 'hk-drift', 'hk-fwisp', 'near-wisp', 'near-aurora'];
+  function drifting() {
+    var el = mounted && mounted.isConnected ? mounted : null;
+    // (paused -- not on screen, the window not in focus, the kiosk's black,
+    // a still page -- is not drifting: nothing to follow)
+    if (!el || !el.getAnimations || /(^|\s)(static|noanim|hidden|held)(\s|$)/.test(el.className)) return false;
+    var list;
+    try { list = el.getAnimations({ subtree: true }); } catch (e) { return false; }
+    for (var i = 0; i < list.length; i++) {
+      var an = list[i], nm = String(an.animationName || '');
+      if (an.playState !== 'running' || !nm) continue;
+      for (var j = 0; j < DRIFTS.length; j++) if (nm.indexOf(DRIFTS[j]) === 0) return true;
+    }
+    return false;
+  }
+  function moves(cs) {
+    var names = String(cs && cs.animationName || '').split(',');
+    for (var i = 0; i < names.length; i++) {
+      var nm = names[i].trim();
+      for (var j = 0; j < MOVERS.length; j++) if (nm.indexOf(MOVERS[j]) === 0) return true;
+    }
+    return false;
+  }
+  // ...and whether they are still on their way: wanted, but the manifest or
+  // the ceiling's art not in yet
+  function cloudsPending(el) {
+    var l = el && el.querySelector ? el.querySelector('.rcl') : null;
+    if (!l || !l._rcOn || RC_FAILED) return false;
+    if (!RC_MAN) return true;
+    var cvs = l.querySelectorAll('canvas');
+    for (var i = 0; i < cvs.length; i++) if (cvs[i].__src && !cvs[i].__drawn) return true;
+    return false;
+  }
   function applyHidden() {
-    var hid = document.hidden || sleeping(), z = sleeping() || ksDark;
+    var hid = document.hidden || sleeping(), still = ksDark || unfocused, z = sleeping() || still;
     if (mounted) {
       mounted.classList.toggle('hidden', hid);
-      mounted.classList.toggle('held', !hid && ksDark);
+      mounted.classList.toggle('held', !hid && still);
     }
     // ...and tell the cards, which pause their own animations behind the
     // screensaver and the kiosk's black too (hk-base.js, hk-asleep). Only on
@@ -5344,7 +5901,33 @@
     // photos are up). WallPanel is an overlay in this same document, so
     // document.hidden stays false behind it; a module with idle work of its
     // own (hk-glass's backstop) asks this too.
-    asleep: function () { return sleeping() || ksDark; },
+    asleep: function () { return sleeping() || ksDark || unfocused; },
+    // a black screen is up (the kiosk's or HK's own): the page runs but is
+    // not drawn -- a card built meanwhile must not start what nobody sees
+    // (hk-cameras.js _resting)
+    dark: function () { return ksDark; },
+    // the mounted sky element, or null (hk-glass.js paints its pre-rendered
+    // frost from it)
+    element: function () { return mounted; },
+    // for a pre-rendered blur (hk-glass.js): what the sky shows (skySig),
+    // and whether more of it is on its way (the realistic clouds)
+    // what the sky SHOWS: the last change said (announce, hk-sky-change) --
+    // said the moment it starts, as the picture is painted as it will be
+    // once its fades are done (hk-skyshot.js settle); a fade too slow for
+    // that is painted again when the sky has settled (hk-sky-paint). (It was
+    // the last change SETTLED, as a picture then caught a fade half-way and
+    // kept it: the Play Music pills, a page loaded straight onto it.)
+    sig: function () {
+      var el = mounted && mounted.isConnected ? mounted : null;
+      if (!el) return skySig(null);
+      if (changedSig && changedFor === el) return changedSig;
+      return saidSig && saidFor === el ? saidSig : skySig(el);
+    },
+    cloudsPending: function () { return cloudsPending(mounted); },
+    // is anything drifting across the sky now (DRIFTS)?
+    drifting: drifting,
+    // does this piece move across the scene (MOVERS)? -- given its computed style
+    moves: moves,
     // tests: the sleep entity and its state, as render() would read them
     _sleepAs: function (entity, state) { sleepEntity = entity; asleep = state === 'on'; },
     // hk-saver.js calls this when its screensaver starts or stops
@@ -5437,14 +6020,10 @@
           paint(mounted, rs);
         }
         applyHidden();
-        // THE COLORS MOVED: said once per change, not on every render (12 a
-        // second) -- Tint from Background follows them (hk-frosttint.js)
-        var pst = mounted.style, psig = ['--sk0', '--sk1', '--sk2', '--sk3', '--artO']
-          .map(function (k) { return pst.getPropertyValue(k); }).join('|') + '|' + location.pathname;
-        if (psig !== paintSig) {
-          paintSig = psig;
-          try { window.dispatchEvent(new Event('hk-sky-paint')); } catch (e) { /* no window events */ }
-        }
+        // THE SKY CHANGED (skySig, or the page): said once per change, not on
+        // every render -- Tint from Background follows its colors
+        // (hk-frosttint.js), a pre-rendered blur its picture (hk-glass.js)
+        announce();
 
         if (snapping) {
           // Force a style flush WHILE transitions are still off, so the new
@@ -5465,6 +6044,8 @@
     },
 
     _paint: paint,
+    _nearFlat: nearFlat,
+    _auroraDraw: auroraDraw,
     _schedule: schedule,
     _witchPath: witchPath,
     _daysUntil: daysUntil,
@@ -5563,8 +6144,32 @@
   // element and assumes its absence means something goes wrong.
   // lovelace.config is the authority.
   function lovelaceCfg() {
-    var p = deepFind('HA-PANEL-LOVELACE');
+    var p = lovelacePanelEl();
     return (p && p.lovelace && p.lovelace.config) || null;
+  }
+  // HOME ASSISTANT'S OWN PATH TO THE PANEL AND ITS VIEW CONTAINER, read
+  // straight down (as hk-popup's viewNow does) -- deepFind walked every
+  // element and shadow root on the page twice a render: every 3 s tick and
+  // every page change (measured headless, 6x slower: ~40 ms per 12 page
+  // changes in the walks alone). The walk stays as the fallback should
+  // Home Assistant ever move them.
+  function lovelacePanelEl() {
+    try {
+      var ha = document.querySelector('home-assistant');
+      var sr = ha && ha.shadowRoot, main = sr && sr.querySelector('home-assistant-main');
+      var ms = main && main.shadowRoot, p = ms && ms.querySelector('ha-panel-lovelace');
+      if (!p && ms) { var r0 = ms.querySelector('partial-panel-resolver'); p = r0 && r0.querySelector('ha-panel-lovelace'); }
+      if (p) return p;
+    } catch (e) { /* the walk below */ }
+    return deepFind('HA-PANEL-LOVELACE');
+  }
+  function viewContainerEl() {
+    try {
+      var p = lovelacePanelEl(), root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
+      var c = root && root.shadowRoot && root.shadowRoot.querySelector('hui-view-container');
+      if (c) return c;
+    } catch (e) { /* the walk below */ }
+    return deepFind('HUI-VIEW-CONTAINER');
   }
 
   function currentView(cfg) {
@@ -5647,7 +6252,7 @@
     if (!hass) return;
     // hui-view-container satisfies container()'s very first test, so it is its
     // own anchor and no card is needed.
-    var host = deepFind('HUI-VIEW-CONTAINER');
+    var host = viewContainerEl();
     if (!host) return;
     window.hkSky.render(hass, host, want);
   }
@@ -5713,10 +6318,22 @@
     }, 60);
   }
 
+  // IN THE FRAME THE PAGE IS FIRST DRAWN IN, AT ITS START. hk-view-ready is
+  // said from inside Home Assistant's page build, with the page's cards
+  // still drawing: painting then measured (laid out) the half-built page,
+  // and the frame laid it out again -- ~60 ms of each page change at 6x
+  // (headless), most of the sky's share. At the frame's start the build is
+  // done, the paint's measuring IS the frame's layout, and the new palette
+  // is still in the same frame as the page.
+  var readyFrame = 0;
   function onViewReady() {
     if (navWait) { clearInterval(navWait); navWait = null; }
-    navPending = 0;
-    selfRender();
+    if (readyFrame) return;
+    readyFrame = requestAnimationFrame(function () {
+      readyFrame = 0;
+      navPending = 0;
+      selfRender();
+    });
   }
 
   // THE 3s STATE TICK MUST NOT JUMP A NAVIGATION. Between location-changed and

@@ -78,9 +78,12 @@ lives, not by a rule.
 3. **The loader.** `hk-loader.js` imports the page modules, first
    `hk-kiosk` (Home Assistant Header & Sidebar, so a kiosk screen shows
    them as briefly as possible), then those with nothing to do before first
-   paint: `hk-stats`, `hk-charts`, `hk-sky`, `hk-idle`,
-   `hk-viewfade`, `hk-glass`, `hk-timers`, `hk-saver` (the photo screensaver),
-   `hk-campost` and `hk-menu`. Adding
+   paint: `hk-stats`, `hk-charts`, `hk-sky`, `hk-idle`, `hk-skyshot`
+   (the picture of the sky Pre-rendered blurs), `hk-glass`, `hk-frosttint`,
+   `hk-timers`, `hk-saver` (the photo screensaver), `hk-saver-panel` (the
+   Speakers / Volume / Browse panel the screensaver and the Now Playing bar
+   share), `hk-campost`, `hk-menu`, `hk-tabbar` and `hk-notify`
+   (Notifications’ banners). Adding
    one to its list is live on the next page load. Each module sets its
    `window.hk…` global and fires `hk-module-ready`, which redraws the cards
    waiting for it.
@@ -171,9 +174,9 @@ them, so the Wiki always describes the latest release.
    `group`). A card that reads no entity returns `'static'`; the default
    `null` means “always render,” on every state change in the house.
 4. **Glass.** Write a glass surface with `M.glass` (never a background of your
-   own), and never put `backdrop-filter` on a card: the Blur look is one
-   shared layer (`hk-glass.js`), and a blur per card is what slows a tablet
-   down. `glass: false` in a card’s config keeps it out of the shared layer.
+   own), and never put `backdrop-filter` on a card: Blur’s Shared Layer and
+   Pre-rendered modes are one shared layer (`hk-glass.js`), and a blur per
+   card is what slows a tablet down. `glass: false` in a card’s config keeps it out of the shared layer.
 5. **Register it**:
 
    ```js

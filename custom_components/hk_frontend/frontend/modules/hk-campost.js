@@ -114,8 +114,7 @@
   // reaches it -- opacity does not) until it has a picture, and the poster
   // is painted BEHIND it, on the player, where nothing has to load it again.
   //
-  // ANDROID ONLY (2026-10-09): ALL of the above, and the frames painted
-  // behind and kept on leaving below. Only Android's WebView draws video
+  // ANDROID ONLY (2026-10-09): ALL of the above. Only Android's WebView draws video
   // outside the page, so only there does a video without a picture show
   // through. Anywhere else it broke the Cameras page outright: Safari will not
   // start a hidden muted video, and with the video shown but the rest in
@@ -128,14 +127,8 @@
   function quiet(p) {
     var v = p.shadowRoot && p.shadowRoot.querySelector && p.shadowRoot.querySelector('video');
     if (!v) return false;
-    var show = function (e) {
-      if (leaving) return;
-      // LEFT, THEN BACK (a page Home Assistant kept): its readyState is the
-      // torn-down stream's, and showing on it put a dead, black video over
-      // the frame kept behind it for a frame (screen-recorded). Only the new
-      // stream's own event shows it.
-      if (v.__hkLeft && !e) return;
-      if (v.readyState >= 2 && v.videoWidth > 0) { v.__hkLeft = false; v.style.visibility = ''; }
+    var show = function () {
+      if (v.readyState >= 2 && v.videoWidth > 0) v.style.visibility = '';
     };
     if (v.__hkQuiet) return true;
     v.__hkQuiet = true;
@@ -194,34 +187,15 @@
     im.src = url;
   }
 
-  // LEAVING THE PAGE: each playing camera's frame kept -- behind its video,
-  // and in the shared cache, so coming back within SNAP_FRESH opens on the
-  // frames that were left -- and every video out of sight before it is
-  // torn down. A pop-up changes the query, not the path, and is not a leave.
-  var lastPath = String(location.pathname), leaving = false;
-  function leave() {
-    if (!OUTSIDE) return;                         // see ANDROID ONLY
-    var C = window.hkCards;
-    deepFind(PLAYERS).forEach(function (p) {
-      var v = p.shadowRoot && p.shadowRoot.querySelector && p.shadowRoot.querySelector('video');
-      if (!v) return;
-      var host = p.getRootNode && p.getRootNode().host;
-      var st = host && host.stateObj;
-      if (v.readyState >= 2 && v.videoWidth > 0) {
-        var d = st && C && C.snapCache ? C.snapCache.put(st.entity_id, v, true) : null;
-        if (!paint(p, v)) backdrop(p, d);
-      }
-      v.style.visibility = 'hidden';
-      v.__hkLeft = true;
-    });
-  }
+  // LEAVING THE PAGE takes nothing with it (2026-10-11): each playing
+  // camera's frame was copied behind its video and into the shared cache, and
+  // every video hidden, as the page changed -- nine video read-backs while
+  // the next page waited. Coming back, the cached poster (sweep) stands in.
+  var lastPath = String(location.pathname);
   function navigated() {
     var path = String(location.pathname);
     if (path !== lastPath) {
-      leaving = true;
-      try { leave(); } catch (e) { /* the page goes anyway */ }
       lastPath = path;
-      leaving = false;
     }
     chase();
   }

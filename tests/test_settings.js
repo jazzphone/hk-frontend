@@ -144,6 +144,15 @@ HS._apply({sky:{decoration_style:'old'},boards:{'dashboard-sky':{sky_decoration_
 ok('screen can opt into new style independently', HS.skyLook().decorationStyle === 'new');
 HS._apply({sky:{decoration_style:'new'},boards:{'dashboard-sky':{sky_decoration_style:null}}});
 ok('reset style follows All Screens', HS.skyLook().decorationStyle === 'new');
+print('=== Moving Things ===');
+HS._apply({ sky: {} });
+ok('moving things behind the cards unless chosen', HS.skyLook().moving === 'behind');
+HS._apply({sky:{moving:'front'},boards:{'dashboard-sky':{sky_moving:null}}});
+ok('...All Screens\' in front', HS.skyLook().moving === 'front');
+HS._apply({sky:{moving:'front'},boards:{'dashboard-sky':{sky_moving:'behind'}}});
+ok('...a screen can keep them behind', HS.skyLook().moving === 'behind');
+HS._apply({sky:{moving:'behind'},boards:{'dashboard-sky':{sky_moving:'front'}}});
+ok('...or bring them in front on its own', HS.skyLook().moving === 'front');
 print('=== Daytime Sky ===');
 HS._apply({ sky: {} });
 ok('the daytime sky is Natural by default (full brightness)', HS.skyLook().brightness === 1);

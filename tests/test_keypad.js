@@ -75,4 +75,16 @@ ok('typing puts the code line back', r5.read.attrs['data-mode'] === 'code' && r5
 k5._code = ''; k5._config.status = false; K.prototype._paint.call(k5);
 ok('status: false (the alarm sheet) keeps the dash', r5.read.attrs['data-mode'] === 'code' && r5.parts['.code'].textContent === '\u2014');
 
+// AN ALARM WITH NO CODE: no digits, its own modes, nothing sent as a code
+var noCode = function (f) { return { state: 'disarmed', attributes: { code_format: null, supported_features: f } }; };
+ok('a panel with no code is codeless', K.codeless(noCode(3)) && !K.codeless({ state: 'disarmed', attributes: { code_format: 'number' } }));
+ok('...not while it is unavailable', !K.codeless({ state: 'unavailable', attributes: {} }));
+ok('its modes from supported_features, in button order', JSON.stringify(K.modes(noCode(1 | 2 | 4 | 32))) === '["home","away","night","vacation"]');
+ok('away only', JSON.stringify(K.modes(noCode(2))) === '["away"]');
+ok('not reported: Home and Away', JSON.stringify(K.modes({ state: 'disarmed', attributes: {} })) === '["home","away"]');
+var k5 = keypad(function () { return Promise.resolve(); });
+k5._codeless = true; k5._code = '';
+k5._alarm('alarm_arm_night'); drain();
+ok('a codeless arm sends no code at all', k5.calls[0][1] === 'alarm_arm_night' && !('code' in k5.calls[0][2]), k5.calls[0]);
+
 print(fail ? 'FAIL ' + fail + ' KEYPAD TESTS' : 'ALL ' + pass + ' KEYPAD TESTS PASS');

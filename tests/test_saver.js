@@ -143,6 +143,22 @@ ok('Fade Back: half a second by default; 0 (at once) to 5 s', d.fade_back === 50
 ok('nonsense timing falls back', U.readCfg({ starts_after: -5, each_photo: 'x' }).starts_after === 180 &&
    U.readCfg({ each_photo: 'x' }).each_photo === 30);
 ok('no block, no screensaver', U.readCfg(null) === null && U.readCfg('x') === null);
+// THE MUSIC: a slide, and the pane's
+ok('the music: off by default, on only when asked', d.music_slide === false && d.music_pane === false &&
+   U.readCfg({ music_slide: true, music_pane: true }).music_slide === true && U.readCfg({ music_pane: 'yes' }).music_pane === false);
+ok('the pane is up for the calendar, the music, or both', !U.paneOf(d) && U.paneOf({ calendar: true }) && U.paneOf({ music_pane: true }) &&
+   U.paneOf({ calendar: true, music_pane: true }) && !U.paneOf(null));
+ok('a slide among the photos: the forecast (Photos & Forecast)', U.slideOf({ show: 'both' }, false, '') === 'forecast' &&
+   U.slideOf({ show: 'both' }, true, '') === 'forecast');
+ok('...the music only while it plays', U.slideOf({ show: 'photos', music_slide: true }, true, '') === 'music' &&
+   U.slideOf({ show: 'photos', music_slide: true }, false, 'music') === null);
+ok('...both: they take turns', U.slideOf({ show: 'both', music_slide: true }, true, 'forecast') === 'music' &&
+   U.slideOf({ show: 'both', music_slide: true }, true, 'music') === 'forecast' &&
+   U.slideOf({ show: 'both', music_slide: true }, false, 'forecast') === 'forecast');
+ok('...none asked for, none', U.slideOf({ show: 'photos' }, true, '') === null);
+ok('Music First: off by default, on only when asked', d.music_first === false && U.readCfg({ music_first: true }).music_first === true &&
+   U.readCfg({ music_first: 1 }).music_first === false);
+ok('song times read as m:ss', U.mmss(0) === '0:00' && U.mmss(65.7) === '1:05' && U.mmss(3725) === '1:02:05' && U.mmss(-3) === '0:00');
 
 print('\n=== who gets it ===');
 var cfg = U.readCfg({ user: 'Kitchen Tablet' });
@@ -225,6 +241,12 @@ ok('...then fades over Fade Back (500 ms)', !blockingHost.hasAttribute('on') && 
 __runTimersUnder(600);
 ok('after the fade only the tap-catching host remains', saverEl() === blockingHost && blockingHost.hasAttribute('blocking') && blockingHost.hasAttribute('released') && blockingHost.shadowRoot.children.every(function (e) { return e.tagName === 'STYLE'; }), {attrs:blockingHost.attrs,children:blockingHost.shadowRoot.children.map(function(e){return e.tagName;}),same:saverEl()===blockingHost});
 ok('releasing graphics preserves accidental-tap protection', S.stats().blocking && S.stats().cards === 0);
+__runTimersUnder(600);
+ok('...the finger still down: still swallowed (its lift and click would press what is under it)', S.stats().blocking);
+dispatchEvent({ type: 'pointerup', pointerType: 'touch' }); T0 += 100; __runTimersUnder(2100);   // the fade over (its timer, 500 + FADE_LATE)
+ok('...lifted, but the click a touch makes comes later: still swallowed', S.stats().blocking && saverEl() === blockingHost);
+T0 += 400; __runTimersUnder(2100);
+ok('...and a moment after, the dashboard takes taps again -- not 3 s of every tap ignored', !S.stats().blocking && saverEl() !== blockingHost);
 push(hassWith('off'));
 S.start();
 var restartedHost = saverEl();

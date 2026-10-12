@@ -44,7 +44,7 @@
       "step": {
         "user": {
           "title": "Add a playlist",
-          "description": "A pill on the Play Music page. Pick one or more playlists from the Music Assistant library; they play as one shuffled queue.",
+          "description": "A pill under Your Playlists on the Music page. Pick one or more playlists from the Music Assistant library; they play as one shuffled queue.",
           "data": {
             "name": "Name",
             "icon": "Icon",
@@ -59,7 +59,7 @@
         },
         "reconfigure": {
           "title": "Edit playlist",
-          "description": "A pill on the Play Music page.",
+          "description": "A pill under Your Playlists on the Music page.",
           "data": {
             "name": "Name",
             "icon": "Icon",
@@ -87,11 +87,11 @@
       "step": {
         "music": {
           "title": "Music",
-          "description": "Whole-home music through Music Assistant: the speakers each room plays on, sync-group presets, and playlist pills, for the Play Music page and for automations. It starts empty: choose the speakers with its gear (or in HK Settings), then add presets and playlists with Add music preset and Add music playlist."
+          "description": "Whole-home music through Music Assistant: the speakers each room plays on, sync-group presets, and playlist pills, for the Music page and for automations. It starts empty: choose the speakers with its gear (or in HK Settings), then add presets and playlists with Add music preset and Add music playlist."
         },
         "music_options": {
           "title": "Speakers and volume",
-          "description": "The rooms the Play Music page offers, and the volume every room is set to when a playlist starts. Room names and floors come from each speaker’s area.",
+          "description": "The rooms the Music page offers, and the volume every room is set to when a playlist starts. Room names and floors come from each speaker’s area.",
           "data": {
             "speakers": "Speakers (rooms)",
             "volume": "House playlist volume"
@@ -103,7 +103,7 @@
         },
         "music_homes": {
           "title": "Each tablet’s room",
-          "description": "Each wall tablet signs in as its own user. The room picked here is what its Play Music page shows when nothing else is chosen, and wins when music plays in more than one place."
+          "description": "Each wall tablet signs in as its own user. The room picked here is what its Music page shows when nothing else is chosen, and wins when music plays in more than one place."
         }
       },
       "error": {
@@ -171,7 +171,7 @@
     },
     "music_play_media": {
       "name": "Play music item",
-      "description": "Play one item from the library on a player (Browse Music).",
+      "description": "Play one item from the library on a player (Browse on the Music page).",
       "fields": {
         "player": {
           "name": "Player",

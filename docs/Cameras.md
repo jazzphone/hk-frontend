@@ -40,6 +40,17 @@ taking turns.
 - **Choose the live one**: see [Live Camera Follows](#live-camera-follows)
   below. Nothing chosen: the first camera.
 - **Turn it off**: **Screens → (the screen) → Cameras → Show Camera Strip**.
+- **No live video**: **Cameras → Live First Camera** (All Screens), or a
+  screen's own under its **Cameras**. Off, the first tile is a snapshot too —
+  in the same place and size, still the camera Live Camera Follows picks — so
+  there is no video to decode: lighter on a computer or an older tablet. The
+  Cameras page and the camera pop-ups still play live.
+- **Under a black screen or the photo screensaver** the strip rests: its stills
+  stop and its live video lets go, even if it is rebuilt meanwhile (Live
+  Camera Follows picking another camera), and both come back after.
+- **Related settings**: both Cameras pages end with links to the camera
+  pop-ups, each screen's strip, the Cameras page's background and the cameras
+  hidden from every screen.
 
 ![A screen’s Cameras: the strip, Live Camera Follows, and Same as All Screens](images/settings-screen-cameras.png)
 

@@ -139,6 +139,8 @@ s.cover=.95;hkSky._paint(sky,s);check('...but not under a heavy sky',!sp.classes
 hkSky._surpriseForce('fourth-of-july');s.elev=-2;hkSky._paint(sky,s);var j4=sky._hkNear.root;
 check('the Fourth: fireflies coming out at dusk, the cafe lights breathing',j4.querySelectorAll('.firefly').length===14&&
   Number(j4.values['--near-dusk'])>0.8&&j4.querySelectorAll('.slow').length===6);
+check('never shown, nothing to fade: a field built at dusk has the night\'s bats and owl out at once, not after 21 s',
+  j4.classes['out-dark']===true&&j4.classes['out-dusk']!==true);
 window.hkSettings={get:function(p,f){return p==='sky.birthdays'?[{name:'Emma',month:6,day:12}]:f;},themeOn:function(){return true;}};
 hkSky._surpriseForce('birthday');hkSky._paint(sky,s);var bd=sky._hkNear.root;bd.clientWidth=1280;bd.clientHeight=800;
 bd.querySelector('.bday-banner').innerHTML='';sky._hkNear.update({now:new Date(2026,5,12,14,0)});
@@ -163,12 +165,22 @@ globalThis.getComputedStyle=gcs;
 delete window.hkSettings;
 // WOODLAND BETWEEN OCCASIONS (sky.woodland) is its own: the Fourth of July
 // switched off leaves summer's woodland up; the setting takes it down.
+// ON A DAY BETWEEN OCCASIONS: the sky reads the calendar (routeOf(s, new
+// Date())), and from 11 October Halloween is in season -- these failed on
+// the real date from then on. A summer day and an early-autumn one, outside
+// every occasion's window.
+var RealDate=Date,fixedAt=null;
+function FixedDate(){if(!arguments.length&&fixedAt!==null)return new RealDate(fixedAt);return new (Function.prototype.bind.apply(RealDate,[null].concat([].slice.call(arguments))))();}
+FixedDate.prototype=RealDate.prototype;FixedDate.UTC=RealDate.UTC;FixedDate.parse=RealDate.parse;
+FixedDate.now=function(){return fixedAt!==null?fixedAt:RealDate.now();};
+globalThis.Date=FixedDate;fixedAt=new RealDate(2026,7,10,12,0).getTime();
 var woods=null;window.hkSettings={get:function(p,f){return p==='sky.woodland'?woods:f;},themeOn:function(id){return id!=='fourth-of-july'&&id!=='thanksgiving';}};
 s.season='';hkSky._force(null);hkSky._surpriseForce(null);s.land='summer';s.elev=20;hkSky._paint(sky,s);
 check('summer woodland stays with the Fourth of July switched off',sky._hkNearTheme==='summer');
 woods=['spring','fall','winter'];hkSky._paint(sky,s);check('...and goes when Woodland Between Occasions leaves summer out',!sky._hkNear);
-s.land='fall';woods=['fall'];hkSky._paint(sky,s);check('autumn woodland with Thanksgiving switched off',sky._hkNearTheme==='fall');
+fixedAt=new RealDate(2026,8,15,12,0).getTime();s.land='fall';woods=['fall'];hkSky._paint(sky,s);check('autumn woodland with Thanksgiving switched off',sky._hkNearTheme==='fall');
 woods=[];hkSky._paint(sky,s);check('...none chosen: no woodland between occasions',!sky._hkNear);
+globalThis.Date=RealDate;
 delete s.land;delete window.hkSettings;
 // An unmapped surprise keeps the original renderer AND the ordinary moon.
 s.season='';hkSky._force(null);hkSky._surpriseForce('valentines-day');hkSky._paint(sky,s);
@@ -220,4 +232,52 @@ check('...a thunderstorm is the grey lid, whatever cover it is reported with',hk
 check('...the light: day (a shower from a broken sky too), grey under a lid, golden low, dusk below the horizon, night',
   hkSky._rcLight({elev:40,cover:.3})==='day'&&hkSky._rcLight({elev:40,cover:.9})==='grey'&&hkSky._rcLight({elev:40,cover:.3,cond:'rainy'})==='day'&&
   hkSky._rcLight({elev:5,cover:.3})==='golden'&&hkSky._rcLight({elev:-3,cover:.3})==='dusk'&&hkSky._rcLight({elev:-12,cover:.3})==='night');
+// THE STILL ART AS ONE CANVAS (nearFlat): the four layers' own geometry,
+// drawn in their order, once per size; the phone the right tree alone.
+(function(){
+ var ops=[],ctxs=0,dc=document.createElement,ImgWas=globalThis.Image,dpr0=globalThis.devicePixelRatio;
+ function ctx(name){ctxs++;var c={setTransform:function(){},createLinearGradient:function(){var g={stops:[],addColorStop:function(o,col){g.stops.push(o+' '+col);}};return g;},
+  fillRect:function(x,y,w,h){ops.push(name+' fill '+[x,y,w,h].join(',')+' '+(c.fillStyle&&c.fillStyle.stops?c.fillStyle.stops.join('|'):''));},
+  drawImage:function(im,x,y,w,h){ops.push(name+' '+((c.globalCompositeOperation||'source-over')==='source-over'?'over':c.globalCompositeOperation)+' '+(im.src||'scratch').split('/').pop().slice(0,12)+' '+[x,y,w,h].filter(function(v){return v!==undefined;}).map(function(v){return Math.round(v);}).join(','));}};return c;}
+ document.createElement=function(t){var n=dc(t);if(t==='canvas'){var name=ctxs?'piece':'main';n.getContext=function(){return n._c||(n._c=ctx(name));};}return n;};
+ globalThis.Image=function(){var im=this;Object.defineProperty(im,'src',{set:function(v){im._s=v;im.onload&&im.onload();},get:function(){return im._s;}});};
+ globalThis.devicePixelRatio=1.5;
+ var r=node(),f=hkSky._nearFlat(r,'/art/halloween-v1.webp',{left:'mask-left.svg',right:'mask-right.svg'},'#302919');
+ check('the still art is ONE canvas in the scenery, relit like the layers were',!!f&&r.children.length===1&&/scenery-art/.test(f.canvas.className)&&/scenery-flat/.test(f.canvas.className));
+ f.draw(1280,800,false,1279,800);
+ check('...the screen at its density',f.canvas.width===1920&&f.canvas.height===1200);
+ var main=ops.filter(function(o){return o.indexOf('main')===0;}),piece=ops.filter(function(o){return o.indexOf('piece')===0;});
+ check('...the wash first: transparent to 60%, the ground color by 90%',/^main fill 0,0,1280,800 0.6 rgba\(48,41,25,0\)\|0.9 rgba\(48,41,25,1\)$/.test(main[0]),main[0]);
+ check('...then the valley at twice the width, centred, cut from 35% to 40% down',piece[0]==='piece over halloween-v1 -640,0,2560,800'&&/^piece fill 0,0,1280,800 0.35 rgba\(0,0,0,0\)\|0.4 rgba\(0,0,0,1\)$/.test(piece[1]),piece.slice(0,2));
+  check('...then each tree at the art\'s size on its own edge, cut by its mask',piece[2]==='piece over halloween-v1 0,0,1279,800'&&piece[3]==='piece destination-in mask-left.sv 0,0,1279,800'&&
+  piece[4]==='piece over halloween-v1 1,0,1279,800'&&piece[5]==='piece destination-in mask-right.s 1,0,1279,800',piece.slice(2));
+ check('...each laid on the canvas in that order',main.slice(1).join()==='main over scratch 0,0,main over scratch 0,0,main over scratch 0,0');
+ var n=ops.length;f.draw(1280,800,false,1279,800);
+ check('...drawn again only when the size changes',ops.length===n);
+ ops.length=0;f.draw(390,844,true,1349.4,844);
+ check('a phone: the right tree alone, filling the width, unmasked',ops.length===1&&ops[0]==='main over halloween-v1 -959,0,1349,844',ops);
+ document.createElement=function(t){var n=dc(t);if(t==='canvas')n.getContext=function(){return null;};return n;};
+ check('no canvas to draw on: none (the four layers instead)',hkSky._nearFlat(node(),'a',{left:'l',right:'r'},'#000')===null);
+ document.createElement=dc;globalThis.Image=ImgWas;globalThis.devicePixelRatio=dpr0;
+})();
+// THE NORTHERN LIGHTS AS SMALL CANVASES (auroraDraw): a quarter of the
+// curtain's size, the glow under the stripes, the stripes' 18% repeat.
+(function(){
+ var dc=document.createElement,calls=[];
+ function ctx(){return {setTransform:function(a,b,c,d){calls.push('scale '+a.toFixed(2)+','+d.toFixed(2));},
+  createLinearGradient:function(x0,y0,x1,y1){var g={line:[x0,y0,x1,y1],stops:[],addColorStop:function(o,c){g.stops.push([o,c]);}};return g;},
+  fillRect:function(){calls.push(this.fillStyle);}};}
+ var band=node();band.clientWidth=1792;band.clientHeight=480;
+ var cv=dc('canvas');cv.getContext=function(){return cv._c||(cv._c=ctx());};band._hkCv=cv;
+ hkSky._auroraDraw(band);
+ check('a curtain drawn at a quarter of its size, scaled to it',cv.width===448&&cv.height===120&&calls[0]==='scale 0.25,0.25');
+ var glow=calls[1],stripes=calls[2];
+ check('...the glow first: clear to 8%, green by 42%, blue by 72%, gone at the foot',
+  JSON.stringify(glow.stops)===JSON.stringify([[0.08,'rgba(80,255,170,0)'],[0.42,'rgba(80,255,170,.5)'],[0.72,'rgba(60,180,255,.14)'],[1,'rgba(60,180,255,0)']])&&glow.line.join()==='0,0,0,480');
+ var per=stripes.stops.filter(function(s){return s[1]==='rgba(90,255,170,.42)';}).map(function(s){return s[0];});
+ check('...then the stripes at 100deg, six repeats each 1/6 of the line, the green at 9% of each',
+  per.length===6&&Math.abs(per[1]-per[0]-1/6)<1e-9&&Math.abs(per[0]-0.09/(6*0.18))<1e-9&&stripes.line[2]>stripes.line[0]&&stripes.line[3]>stripes.line[1]);
+ var n=calls.length;hkSky._auroraDraw(band);
+ check('...drawn again only at a new size',calls.length===n);
+})();
 print(fail?'FAIL '+fail+' NEAR SCENERY TESTS':'ALL '+pass+' NEAR SCENERY TESTS PASS');

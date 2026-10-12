@@ -408,6 +408,9 @@
       '  opacity:0;transform:translateY(24px) scale(.98);',
       '  transition:opacity .25s ease,transform .3s cubic-bezier(.2,.8,.2,1)}',
       '.hkd.open .sheet{opacity:1;transform:none}',
+      // THE HEADER RIDES ON THE BODY: a soft shadow along the body's top once
+      // it has scrolled under the name (hk-base.js shade)
+      C.shadeCss('.hkd .sheet'),
       // THE HEADER IS EXACTLY AS TALL AS THE X (44, a phone 40), so the X --
       // centred on the row -- sits the sheet's padding from the top AND from
       // the right. It is the glyph and the NAME, centred together: room, state
@@ -429,6 +432,11 @@
       '.hkd .body{flex-grow:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;',
       '  -webkit-overflow-scrolling:touch;scrollbar-width:none;display:flex;flex-direction:column}',
       '.hkd .body::-webkit-scrollbar{display:none}',
+      // ...RIGHT UP TO THE HEADER: the body takes back the sheet's gap above
+      // it as padding, so what scrolls slides under the name (the shadow at
+      // its foot, shadeCss) instead of being cut off a gap below it. At rest
+      // nothing moves. (A bare sheet's header floats: it has no gap to take.)
+      '.hkd .sheet:not(.bare) .body{margin-top:-20px;padding-top:20px}',
       // THE CONTROL SITS IN THE MIDDLE of what the header leaves. Auto
       // margins, not justify-content:center: when a short window makes the
       // content taller than the body, auto margins fall to zero and the body
@@ -461,6 +469,7 @@
       '    height:min(' + PHONE_H + 'px, calc(var(--hk-vh, 100dvh) - 80px))}',
       '  .hkd .well,.hkd .x{width:40px;height:40px;border-radius:20px}',
       '  .hkd .hd{height:40px;gap:12px}',
+      '  .hkd .sheet:not(.bare) .body{margin-top:-16px;padding-top:16px}',
       '  .hkd .tt{font-size:20px;line-height:22px}',
       '}',
       '@media (prefers-reduced-motion:reduce){.hkd .bd,.hkd .sheet{transition:none}}'
@@ -704,6 +713,12 @@
       '  --mdc-icon-size:14px;transition:background .2s,color .2s}',
       '.acc .mini .mt.tall{grid-row:span 2;flex-direction:column;align-items:flex-start;justify-content:space-between;padding:7px}',
       '.acc .mini .mt span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
+      // a tall tile stacks its name under the glyph: a column's item is as
+      // wide as its text unless held to the tile, and a long name ran over
+      // the next tile instead of ending in an ellipsis
+      // ...and at the foot of the tile with or without a glyph above it (a
+      // water heater has none: alone, space-between put its name at the top)
+      '.acc .mini .mt.tall span{max-width:100%;margin-top:auto}',
       '.acc .mini .mt.on{background:var(--acc-glyph-on-bg,rgba(255,255,255,0.92));color:var(--acc-glyph-on-fg,#000);font-weight:600}',
       '.acc .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}',
       // SEARCH EVERY ICON: the Apple glyphs, then Home Assistant's Material ones
@@ -730,6 +745,8 @@
       '  background:var(--acc-cell,rgba(255,255,255,0.08));color:var(--acc-text,#fff)}',
       '.acc .sure button.go{color:var(--acc-red,#ff453a);font-weight:600}',
       '.acc .note{font-size:13px;line-height:18px;color:var(--acc-label2,rgba(255,255,255,0.5));padding:0 6px}',
+      // a footer under its group, a little apart from it, as iOS sets one
+      '.acc .grp + .note{margin-top:6px}',
       '.acc .err{color:var(--acc-orange,#ff9f0a)}',
       '.acc .sec[hidden],.acc .row[hidden]{display:none}',
       '.acc a.row{color:inherit;text-decoration:none}.acc a.row svg{opacity:.45}',
@@ -1025,10 +1042,20 @@
       // while it is on, and a chosen icon is not always one that reads as
       // spinning. Still: never. Automatic: its kind (a fan spins). Built for
       // anything Show As can make a fan, and shown while it is one.
+      // It spins only while Animations are on (Sky / Background: hk-base.js
+      // hk-still), so the note says so -- and, on a screen where they are
+      // off, that it is standing still for that reason.
       if (d === 'fan' || showable) {
+        var animOff = false;
+        if (!(opts && opts.panel)) {
+          try { animOff = !!(window.hkSettings && window.hkSettings.skyLook && window.hkSettings.skyLook().animations === false); } catch (e) { animOff = false; }
+        }
         html += '<div class="spinrow"' + (d === 'fan' || cur.show_as === 'fan' ? '' : ' hidden') + '>' +
-          '<div class="cap">Spinning</div><div class="grp"><div class="seg spin" role="group" aria-label="Spinning"></div>' +
-          '<div class="note">Whether its tile’s glyph turns while it is on.</div></div></div>';
+          '<div class="cap">Spinning</div><div class="grp"><div class="seg spin" role="group" aria-label="Spinning"></div></div>' +
+          // under its group, as every other note in the pane (Arrange, Energy)
+          '<div class="note">Whether its tile’s glyph turns while it is on. It turns only while Animations are on ' +
+          '(HK Settings → Sky / Background, for All Screens or each screen).' +
+          (animOff ? ' They’re off on this screen, so it stays still.' : '') + '</div></div>';
       }
       html += '<div><div class="cap">Where it shows</div><div class="grp">' +
         '<div class="row"><span class="k">Include in Status</span><input class="tg status" type="checkbox" role="switch" aria-label="Include in Status"></div>' +
@@ -1529,6 +1556,7 @@
       if (panel.hkAutoHeight && panel.hkAutoHeight()) sheet.style.height = 'auto';
       if (panel.hkBare && panel.hkBare()) { sheet.classList.add('bare'); el.classList.add('bare'); }
       sheet.querySelector('.body').appendChild(panel);
+      C.shade(sheet.querySelector('.body'), sheet);
       el.querySelector('.bd').addEventListener('click', function () { close(); });
       el.querySelector('.x').addEventListener('click', function (e) { e.stopPropagation(); close(); });
       if (D.returnGroup) {
@@ -1572,14 +1600,16 @@
 
       haRoot().appendChild(el);
       var d = D;
-      // EVERY NEW HASS, FROM EITHER SOURCE, ONCE. The hub (hk-base.js) moves
-      // only while hk cards are on screen; <home-assistant> always holds the
-      // frontend's current object. It is read once per animation frame while
-      // the sheet is open: one property read and an identity compare, in the
-      // frame a change would paint in, paused with the tab and gone with the
-      // sheet (60 s at most). An event would need Home Assistant to announce
-      // hass changes, which it does not, and wrapping its `hass` setter would
-      // be reaching into the frontend's own element.
+      // EVERY NEW HASS, FROM EITHER SOURCE, ONCE. The hub (hk-base.js) hands
+      // over each new object at once, but moves only while hk cards are on
+      // screen; <home-assistant> always holds the frontend's current object,
+      // so it is looked at too, four times a second while the sheet is open:
+      // one property read and an identity compare, gone with the sheet. (It
+      // was looked at every animation frame, and a callback every frame
+      // kept the tablet drawing 60 frames a second for as long as a sheet
+      // was open.) An event would need Home Assistant to announce hass
+      // changes, which it does not, and wrapping its `hass` setter would be
+      // reaching into the frontend's own element.
       var feed = function (nh) {
         if (!nh || nh === d.fed || D !== d) return;
         d.fed = nh;
@@ -1594,9 +1624,9 @@
       var poll = function () {
         if (D !== d) return;
         if (ha && ha.hass) feed(ha.hass);
-        d.raf = requestAnimationFrame(poll);
+        d.raf = setTimeout(poll, 250);
       };
-      d.raf = requestAnimationFrame(poll);
+      d.raf = setTimeout(poll, 250);
       // THE BACK BUTTON CLOSES IT, like a pop-up: one history entry, same URL.
       // A hash would do the same but would also close any hk-popup sheet the
       // detail was opened from (hk-popup matches the hash exactly).
@@ -1643,7 +1673,7 @@
       if (d.covers) { d.covers = false; covering(-1); }
       clearTimeout(d.auto);
       if (d.off) d.off();
-      if (d.raf && window.cancelAnimationFrame) cancelAnimationFrame(d.raf);
+      if (d.raf) clearTimeout(d.raf);
       d.el.classList.remove('open');
       var el = d.el;
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 320);
@@ -4168,6 +4198,11 @@
           '.pn{flex:1;min-height:0;align-items:stretch;justify-content:center;gap:16px;padding:0}',
           '.list{flex:1 1 auto;min-height:0;max-height:none;display:flex;flex-direction:column}',
           '.list button{flex:1 0 52px}',
+          // AN OPTION WRAPS rather than ending in an ellipsis: a select's
+          // options are sentences as often as names ("Relaxed 2 min (may
+          // return behind screensaver)" lost its point on a phone). Two
+          // lines still fit ROW_MAX.
+          '.list button span{white-space:normal;overflow-wrap:anywhere;line-height:22px;padding:12px 0}',
           '@media (max-width:600px){.list{max-height:none}}'
         ].join('');
       }
@@ -4667,13 +4702,68 @@
           // the shield the Security page's keypad shows at rest, in its colour
           '.big.al ha-icon{--mdc-icon-size:36px;width:36px;height:36px;display:flex;flex:none}',
           'hk-alarm-keypad-card{display:block}',
-          '@media (max-width:600px){.big.al{font-size:34px}}'
+          // AN ALARM WITH NO CODE, AS A SHADE'S SHEET: the state's word, and
+          // under it the slider's own capsule (.vs: its size, its glass) with
+          // the modes spread down it -- the one it is in filled as the
+          // slider's fill is, a hairline between the others
+          '.pn.tapn{align-items:center}',
+          '.pn.tapn .big.trg{color:#ff453a}',
+          // where a shade's Open / Stop / Close row sits: kept empty, so the
+          // word and the capsule land where a shade's do (the sheet centres)
+          '.vpsp{height:52px}',
+          '.vs.vp{height:400px;display:flex;flex-direction:column;padding:6px;box-sizing:border-box;cursor:default;touch-action:manipulation}',
+          '.vp button{position:relative;flex:1 1 0;min-height:0;border:0;border-radius:38px;background:transparent;color:#fff;',
+          '  font:inherit;font-size:19px;font-weight:600;letter-spacing:-.2px;cursor:pointer;',
+          '  -webkit-tap-highlight-color:transparent;transition:background .2s ease,color .2s ease}',
+          '.vp button.on{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.88)}',
+          // (the slider's own tick: 20 px in from each side, 2 px)
+          '.vp button:not(:first-child)::before{content:"";position:absolute;left:14px;right:14px;top:-1px;',
+          '  height:2px;border-radius:1px;background:rgba(255,255,255,0.16);transition:opacity .2s}',
+          '.vp button.on::before,.vp button.on + button::before{opacity:0}',
+          '.vp button:not(.on):active{background:rgba(255,255,255,0.10)}',
+          '.vp button:focus-visible{outline:2px solid rgba(100,181,255,0.8);outline-offset:-2px}',
+          ':host([na]) .vp button{opacity:.4;pointer-events:none}',
+          '@media (max-width:600px){.big.al{font-size:34px}.pn.tapn{gap:16px}.vs.vp{height:330px}.vp button{font-size:17px}.vpsp{height:48px}}'
         ].join('');
       }
       hkWidthKind() { return 'alarm'; }
+      // the modes, in the picker's order, and the state each one sets
+      static picks(K, s) {
+        var W = { home: ['Home', 'armed_home'], away: ['Away', 'armed_away'], night: ['Night', 'armed_night'],
+                  vacation: ['Vacation', 'armed_vacation'], custom_bypass: ['Custom', 'armed_custom_bypass'] };
+        return K.modes(s).map(function (m) { return { key: m, label: W[m][0], state: W[m][1], service: 'alarm_arm_' + m }; })
+          .concat([{ key: 'off', label: 'Off', state: 'disarmed', service: 'alarm_disarm' }]);
+      }
       _render() {
         var s = this._stateObj;
         if (!s) return;
+        var K = customElements.get('hk-alarm-keypad-card');
+        var codeless = !!(K && K.codeless && K.codeless(s));
+        var shape = codeless ? 'tap:' + K.modes(s).join(',') : 'pad';
+        if (this._built && this._shape !== shape) { this._built = false; this._card = null; this._vp = null; }
+        this._shape = shape;
+        if (!this._built && codeless) {
+          this._built = true;
+          this._root.innerHTML = '<div class="pn tapn"><div class="big"><span></span></div>' +
+            '<div class="vs vp" role="radiogroup" aria-label="Mode"></div><div class="vpsp" aria-hidden="true"></div></div>';
+          this._big = this._root.querySelector('.big');
+          this._bigIcon = null;             // the word alone, as a shade's
+          this._bigWord = this._big.querySelector('span');
+          var self = this;
+          this._vp = this._root.querySelector('.vp');
+          AlarmPanel.picks(K, s).forEach(function (p) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.textContent = p.label; b.setAttribute('role', 'radio');
+            b.dataset.state = p.state;
+            b.addEventListener('click', function () {
+              // the pill moves at once; the panel's answer settles it
+              self._want = { state: p.state, until: Date.now() + 10000 };
+              self._paintPicks();
+              self._svc('alarm_control_panel', p.service, {});
+            });
+            self._vp.appendChild(b);
+          });
+        }
         if (!this._built) {
           this._built = true;
           this._root.innerHTML = '<div class="pn"><div class="big al"><ha-icon></ha-icon><span></span></div></div>';
@@ -4692,7 +4782,7 @@
         var st = s.state;
         (this._bigWord || this._big).textContent = unavailable(s) ? 'Unavailable' : ALARM_WORDS[st] || pretty(st);
         this._big.classList.toggle('trg', st === 'triggered');
-        var K = customElements.get('hk-alarm-keypad-card');
+        if (this._vp) this._paintPicks();
         if (this._bigIcon && K && K.status) {
           var look = K.status(s);
           if (this._bigIcon.getAttribute('icon') !== look.icon) this._bigIcon.setAttribute('icon', look.icon);
@@ -4700,6 +4790,20 @@
         }
       }
     }
+
+    // the pill on the mode it is in -- or on the one just tapped while the
+    // panel gets there (arming, pending), until it answers or 10 s pass
+    AlarmPanel.prototype._paintPicks = function () {
+      var s = this._stateObj, st = s ? s.state : '';
+      var w = this._want;
+      if (w && (st === w.state || Date.now() > w.until)) w = this._want = null;
+      var on = w ? w.state : st;
+      [].forEach.call(this._vp.children, function (b) {
+        var yes = b.dataset.state === on;
+        b.classList.toggle('on', yes);
+        b.setAttribute('aria-checked', yes ? 'true' : 'false');
+      });
+    };
 
     // ------------------------------------------------------------ a camera
     // THE CAMERA SHEET: what every camera tap opens -- a tile on the Cameras

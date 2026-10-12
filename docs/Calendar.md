@@ -19,7 +19,7 @@ feed is shown, never edited.
 | Setting | Default | What it does |
 |---|---|---|
 | Automatic | On | Every calendar in Home Assistant, A to Z. Off: only the calendars you choose, in your order (**Add Calendar…**, drag to reorder). |
-| Calendars → a calendar → Color | Automatic | Its events’ colour on the page and the screensaver. Automatic: orange, green, purple, blue, pink and so on, by its place in the list; the row says which, *Automatic (Green)*. The page also says whether its events can be added, changed and deleted. |
+| Calendars → a calendar → Color | Automatic | Its events’ color on the page and the screensaver. Automatic: orange, green, purple, blue, pink and so on, by its place in the list; the row says which, *Automatic (Green)*. The page also says whether its events can be added, changed and deleted. |
 
 ## The Calendar page
 
@@ -34,6 +34,8 @@ gets it once **Calendar** is added there.
   and a red line at the time now.
 - **Day**: the day’s hours, a small month to jump to any day, and the chosen
   event, with **Edit** and **Delete**.
+- **Month, Week and Day** are one switch at the top; the white choice
+  slides over to the new view.
 - **The arrows** go back and forward a month, a week or a day; a sideways
   swipe does the same. **Today** comes back.
 - **New Event** (or a tap on an empty hour in Week or Day, or **Add an Event**
@@ -60,12 +62,12 @@ every five minutes, and straight away after any change made from a screen.
 
 ## The screensaver’s calendar pane
 
-**Screensaver Options → Calendar Pane**: today’s events and the coming days’
+**Screensaver Options → Side Pane → Calendar**: today’s events and the coming days’
 down the right of the screensaver, the photos (or the forecast) beside it.
 
 ![The photo screensaver with the calendar pane](images/tablet-screensaver-calendar.png)
 
-See [Screensaver and Idle](Screensaver-and-Idle.md#the-calendar-pane).
+See [Screensaver and Idle](Screensaver-and-Idle.md#the-side-pane-calendar-and-music).
 
 ## The cards
 
@@ -74,4 +76,4 @@ See [Screensaver and Idle](Screensaver-and-Idle.md#the-calendar-pane).
 | `custom:hk-calendar-card` | The Calendar page. `view: month` (or `week`, `day`) is the view it opens with. |
 | `custom:hk-calendar-pane-card` | The screensaver’s list: `days: 2` (1 to 7). |
 
-Both read **All Screens → Calendar** for which calendars and their colours.
+Both read **All Screens → Calendar** for which calendars and their colors.

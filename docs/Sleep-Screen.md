@@ -214,6 +214,7 @@ decides.
 
 | # | Rule | The tablet | Example |
 |---|---|---|---|
+| 0 | A [notification](Notifications.md) set to **Wakes the Screen** | wakes to the dashboard for its while, even at 3 AM | a water leak |
 | 1 | **Wake For**, ticked *Also in Quiet Hours* | wakes to the dashboard, even at 3 AM | smoke, CO, a water leak |
 | 2 | **Quiet hours**: the **Schedule** (from–to), or anything in **Quiet While** on | dark, even with somebody in the room; only a tap, or what is ticked *Also in Quiet Hours* under Hold While, changes that | 10 PM–7 AM in a bedroom; a nap timer |
 | 3 | **Wake For** | wakes to the dashboard, and stays up while it is on | the garage door left open |
@@ -222,6 +223,7 @@ decides.
 | 6 | **Keep Awake While** | the dashboard stays up | watching live TV on it, a recipe open |
 | 7 | **Stay Dark While** | dark | away mode, the house empty |
 | 8 | Somebody touching it (**In Use**) | the dashboard | |
+| 8½ | Somebody using the photo screensaver’s own controls | the photos stay | the music’s buttons, its Speakers / Volume / Browse panel, a photo stepped at an edge |
 | 9 | Somebody in the room (**Presence**) | awake: a dark tablet wakes to the dashboard, and the photos follow on their own | |
 | 10 | Nobody | dark | |
 
@@ -235,6 +237,18 @@ Three gentler rules sit in the last part of the table:
   (presence clears, then returns).
 - **After the Screensaver**: once the photos have shown that long with
   nobody touching it (and, with Presence, nobody new coming in), dark.
+
+**A tap on the screensaver’s own controls isn’t a wake.** The music’s
+buttons, its volume, its Speakers / Volume / Browse panel and a photo stepped
+at an edge leave the photos up, so the screensaver tells Home Assistant the
+tap was its own. Kiosk Satellite reports the same tap as the tablet’s last
+interaction too, sometimes before the screensaver has said it was its own,
+so a tap seen while the photos are up waits up to 3 seconds for the
+screensaver’s word before it counts as a wake. Sleep Screen reads it as
+*somebody is using the screensaver* and keeps the photos (as long as In Use would keep the
+dashboard), where it would otherwise have woken the dashboard out from under
+the finger. Quiet hours don’t black the screen under it either. Any other tap
+closes the screensaver itself, as always.
 
 > **A missing sensor never guesses.** If a presence sensor or the tablet’s
 > In Use state is unavailable (a sensor restarting, Home Assistant starting

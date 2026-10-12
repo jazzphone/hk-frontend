@@ -2,7 +2,7 @@
 // of speaker, with no shared helper entity.
 //
 // It answers "what is this screen about" for every music card, so every rule
-// in it is a rule the whole Play Music page, the bar and Browse obey. The
+// in it is a rule the whole Music page, the bar and the screensaver obey. The
 // state shapes below are the ones Music Assistant really reports, not idealized:
 //   * a PLAYING group: every member reports the whole group_members list,
 //     leader first;
@@ -132,6 +132,7 @@ ok('focused room is a MEMBER -> the player is its leader', r.player + ':' + r.na
 r = M.resolve(house({ 'media_player.kitchen_homepod_ma': {} }));
 ok('focused room idle, another playing -> show what is playing',
    r.player + ':' + r.reason, e('kitchen') + ':following');
+M.resolve(house({}));   // (not following it: a followed one stays followed when paused -- below)
 r = M.resolve(house({ 'media_player.kitchen_homepod_ma': { state: 'paused' } }));
 ok('...but a PAUSED context does not pull an idle screen',
    r.player + ':' + r.reason, e('loft') + ':idle');
@@ -155,6 +156,23 @@ ok('...but music that STARTS now does pull it', r.player + ':' + r.reason,
 var ol2 = group([e('office'), e('loft')], { since: '2026-09-22T12:30:00Z' });
 r = M.resolve(house(ol2));
 ok('...and so does music that stopped and started again', r.player, e('office'));
+
+// PAUSED, STILL FOLLOWED: the bar's own pause must not drop the screen back
+// to its idle focus (the Living Room tablet, following the Office).
+M._reset();
+M.setFocus(e('loft'));
+M.resolve(house({}));
+var offOn = { 'media_player.office_homepod_ma': { since: '2026-09-22T14:00:00Z' } };
+ok('music started after the choice is followed', M.resolve(house(offOn)).reason, 'following');
+var offPaused = { 'media_player.office_homepod_ma': { state: 'paused', since: '2026-09-22T14:05:00Z' } };
+r = M.resolve(house(offPaused));
+ok('  ...and still followed once paused', r.player + ':' + r.reason, e('office') + ':following');
+r = M.resolve(house(merge(offPaused, { 'media_player.kitchen_homepod_ma': { since: '2026-09-22T13:00:00Z' } })));
+ok('  ...but music that is playing comes before it', r.player, e('kitchen'));
+ok('  ...and once it stops, the screen goes back to its own',
+   (M.resolve(house(offPaused)), M.resolve(house({}))).player + ':' + M.resolve(house({})).reason, e('loft') + ':idle');
+ok('  ...and paused music it was not following does not pull it',
+   M.resolve(house({ 'media_player.extra_room_homepod_ma': { state: 'paused', since: '2026-09-22T15:00:00Z' } })).reason, 'idle');
 
 // A NEW CHOICE STARTS A NEW "ALREADY PLAYING". Following the Kitchen (which
 // started after the focus was set), you tap the idle Kid's Room: the
@@ -254,6 +272,26 @@ ok('an echo arriving mid-write cannot undo the choice', M.focus(), e('loft'));
 drain();
 ok('once the write has landed, the server is followed again',
    (saved.cb({ value: { key: e('office'), at: 9 } }), M.focus()), e('office'));
+
+// A RESTORED CHOICE KEEPS ITS OWN "ALREADY PLAYING" (a reload, a cleared
+// cache): Everywhere chosen at 14:13, Downstairs started at 16:11 -- it was
+// followed before the reload and still is after; music that was playing
+// before 14:13 was not, and still is not. (The Master Bedroom tablet,
+// 2026-10-11: "Ready on Everywhere" and two cards over the art.)
+M._reset();
+saved.cb({ value: { key: EVERY, at: Date.parse('2026-09-22T14:13:00Z') } });
+var later = { 'media_player.office_homepod_ma': { since: '2026-09-22T16:11:00Z' } };
+r = M.resolve(house(later));
+ok('restored: music started after the choice is still followed', r.player + ':' + r.reason, e('office') + ':following');
+M._reset();
+saved.cb({ value: { key: EVERY, at: Date.parse('2026-09-22T14:13:00Z') } });
+var before = { 'media_player.office_homepod_ma': { since: '2026-09-22T13:00:00Z' } };
+r = M.resolve(house(before));
+ok('restored: music playing before the choice still does not pull it', r.player + ':' + r.reason, EVERY + ':idle');
+M._reset();
+M.setFocus(EVERY);
+r = M.resolve(house({ 'media_player.office_homepod_ma': { since: new Date(Date.now() + 5000).toISOString() } }));
+ok('chosen here: whatever plays at the tap is "already", a clock off by seconds or not', r.reason, 'idle');
 
 print('\n=== the configuration arrives from the integration ===');
 var cfgSub = sub('hk_music/subscribe')[0];

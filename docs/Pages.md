@@ -23,7 +23,7 @@ the menu open them; a back button returns to Home.
 | Lights | Lights | The lights by room (titled *Lights & Outlets* when Status & Chips counts an outlet as a light) |
 | Timers | Timers | The running timers. With the optional quick-timer helpers (`helpers/quick_timers.yaml`), also presets, a New Timer keypad and your [House Timers](HK-Settings.md#general) |
 | Vacuums | Vacuums | Each vacuum with its controls; with the Clean Areas feature, a picker to clean chosen rooms |
-| Play Music, Browse Music | The Music feature, with speakers | The player and the speakers; the music library |
+| Music | The Music feature, with speakers | What plays and where (speakers, volume, queue), and the music library to browse and search |
 | Water | Leak sensors | The leak sensors by room, and a count of any that haven’t reported since Home Assistant started |
 | [Energy](Energy.md) | The Energy feature | Today’s cost, the whole home live, daily bars, and a live tile for every circuit, room, appliance and outlet |
 
@@ -86,7 +86,7 @@ A generated screen is one of two kinds:
 | In HK Settings | A plain screen glyph | Its own glyph, with what it shows under its name (“Only Energy”) |
 
 Any page can be on a page screen: Energy, Security, Cameras, Climate, Lights,
-Weather, Calendar, Play Music, Room Pages and your custom pages. Each one is
+Weather, Calendar, Music, Room Pages and your custom pages. Each one is
 built live from your home, exactly as on a whole screen.
 
 **Making one.** In **Add Screen**, set **Shows** to **Only Some Pages** (or
@@ -121,8 +121,8 @@ sits in the menu.
 | Setting | Default | What it does |
 |---|---|---|
 | Home Page | On | Off: a page screen (above). It shows only the pages listed under **This Screen Shows Only**, in order, and opens on the first. Any page or custom page can be listed. With none listed, it still shows everything. HK Settings asks before switching either way. |
-| Automatic | On | Every page your home has something for, in the usual order: Weather, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Play Music (with Browse Music), Water, Energy, Room Pages. Custom pages you add go before Room Pages. |
-| Shown / More | — | The pages, in order. The order here is the menu’s order too. Browse Music always comes with Play Music. Custom pages are marked *Custom page*. |
+| Automatic | On | Every page your home has something for, in the usual order: Weather, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Music, Water, Energy, Room Pages. Custom pages you add go before Room Pages. |
+| Shown / More | — | The pages, in order. The order here is the menu’s order too. Custom pages are marked *Custom page*. |
 | (each page) in the menu | Weather, Cameras and Live TV: Top of Menu. The rest: Categories | **Top of Menu** (right under Home), **Categories**, or **Not in Menu** (still one tap away on its chip or pill). Room Pages are always under Rooms. Categories keeps at least one page. |
 | Reset to Automatic Menu | — | Shown once you have moved a page. Puts every page back where it was. |
 

@@ -92,13 +92,10 @@ a = actor({ entity: 'x.y' });
 a.style = { filter: '' };
 __resetTimers();
 a._act({ action: 'navigate', navigation_path: './ecoflow' }, false);
-// THE TAP IS ANSWERED FIRST: dimmed, and the page changes after a frame
-ok('navigate: not yet -- a frame is drawn first', history._pushed.length, 0);
-ok('...with the tapped card dimmed for it', a.style.filter, 'brightness(0.78)');
-__runTimers();
-ok('"./x" resolves against the current dashboard', history._pushed[0], '/lovelace-kitchen/ecoflow');
-ok('...once, though the frame and the backstop both fire', (__runTimers(), history._pushed.length), 1);
-ok('...and the card is itself again', a.style.filter, '');
+// THE PAGE CHANGES AT ONCE: no frame waited for, nothing dimmed
+ok('navigate: at once, "./x" resolved against the current dashboard', history._pushed[0], '/lovelace-kitchen/ecoflow');
+ok('...once', (__runTimers(), history._pushed.length), 1);
+ok('...and the card is not dimmed', a.style.filter, '');
 history._pushed = [];
 a._act({ action: 'navigate', navigation_path: '/absolute/page' }, false);
 __runTimers();

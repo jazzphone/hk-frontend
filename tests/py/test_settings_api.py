@@ -369,6 +369,10 @@ async def test_the_glass_and_its_amounts_reach_every_screen(hass, frontend):
     assert screen.sent[-1]["event"]["look"]["blur"] == 80, "screens were told"
     r = await _set(hass, {"look.glass": "sparkly"})
     assert r["success"] is False and entry(hass).options["dashboard"]["look"]["glass"] == "blur_each"
+    # Pre-rendered (2026-10-10): stored like any other glass, for All Screens and a screen
+    await _set(hass, {"look.glass": "blur_pre"})
+    assert entry(hass).options["dashboard"]["look"]["glass"] == "blur_pre"
+    assert screen.sent[-1]["event"]["look"]["glass"] == "blur_pre", "screens were told"
 
 
 async def test_music_categories_rows_and_the_browse_page(hass, frontend):
@@ -483,7 +487,7 @@ async def test_the_page_knows_which_features_the_house_has(hass, frontend):
     ws_panel_get(hass, conn, {"id": 1, "type": "hk_frontend/panel/get"})
     await hass.async_block_till_done(wait_background_tasks=True)
     f = conn.sent[-1]["result"]["features"]
-    assert set(f) == {"hk_music", "hk_alarm_pin", "hk_clean_areas", "hk_tv", "hk_energy"}
+    assert set(f) == {"hk_music", "hk_alarm_pin", "hk_clean_areas", "hk_tv", "hk_energy", "hk_notify"}
     assert f["hk_clean_areas"] == {"name": "Clean Areas", "kind": "clean_areas", "installed": True, "entries": []}
     await add_feature(hass, "clean_areas", {})
     ws_panel_get(hass, conn, {"id": 2, "type": "hk_frontend/panel/get"})
@@ -659,6 +663,21 @@ def test_decoration_style_selection_and_reset():
         assert not err and S.board(reset)["sky_decoration_style"] is None
     assert apply_house({}, {"sky.decoration_style": "broken"})[1]
     assert apply_board({}, {"sky_decoration_style": "broken"})[1]
+
+
+def test_moving_things_selection_and_reset():
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house, apply_board
+    assert S.merged({})["sky"]["moving"] == "behind"
+    for where in ("behind", "front"):
+        house, err = apply_house({}, {"sky.moving": where})
+        assert not err and S.merged(house)["sky"]["moving"] == where
+        screen, err = apply_board({}, {"sky_moving": where})
+        assert not err and S.board(screen)["sky_moving"] == where
+        reset, err = apply_board(screen, {"sky_moving": None})
+        assert not err and S.board(reset)["sky_moving"] is None
+    assert apply_house({}, {"sky.moving": "over"})[1]
+    assert apply_board({}, {"sky_moving": "over"})[1]
 
 
 def test_page_backgrounds_are_saved_for_a_screen_and_for_all_screens():

@@ -9,6 +9,8 @@ Settings -> Devices & services -> HK Frontend -> Add feature:
                  (one item per alarm)
     energy       Energy: the Energy page, built from Home Assistant's own
                  Energy settings
+    notifications  Notifications: a banner on the screens when an accessory
+                 does something (a camera's snapshot with it)
 
 WHY ITEMS, NOT ENTRIES. HACS installs one integration per repository, so the
 features live in this one. Given more than one entry, Home Assistant's
@@ -74,10 +76,12 @@ LIVE_TV = "live_tv"
 CLEAN_AREAS = "clean_areas"
 ALARM_PIN = "alarm_pin"
 ENERGY = "energy"
-KINDS = (MUSIC, LIVE_TV, CLEAN_AREAS, ALARM_PIN, ENERGY)
+NOTIFICATIONS = "notifications"
+KINDS = (MUSIC, LIVE_TV, CLEAN_AREAS, ALARM_PIN, ENERGY, NOTIFICATIONS)
 # one per house; Alarm PIN has one per protected alarm
-SINGLE = (MUSIC, LIVE_TV, CLEAN_AREAS, ENERGY)
-TITLES = {MUSIC: "Music", LIVE_TV: "Live TV", CLEAN_AREAS: "Clean Areas", ALARM_PIN: "Alarm PIN", ENERGY: "Energy"}
+SINGLE = (MUSIC, LIVE_TV, CLEAN_AREAS, ENERGY, NOTIFICATIONS)
+TITLES = {MUSIC: "Music", LIVE_TV: "Live TV", CLEAN_AREAS: "Clean Areas", ALARM_PIN: "Alarm PIN", ENERGY: "Energy",
+          NOTIFICATIONS: "Notifications"}
 # every platform a feature adds to: the house's entry forwards them all
 PLATFORMS = [Platform.ALARM_CONTROL_PANEL, Platform.CAMERA, Platform.SENSOR]
 

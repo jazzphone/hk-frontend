@@ -293,6 +293,8 @@
     '  border-radius:28px;border:1px solid rgba(255,255,255,0.14);background:rgba(28,36,54,0.96);color:#fff;',
     '  box-shadow:0 30px 80px rgba(0,0,0,0.45);padding:0 20px 22px}',
     '.hd{display:flex;align-items:center;height:64px;position:sticky;top:0;background:rgba(28,36,54,0.98);z-index:1;margin:0 -20px;padding:0 20px}',
+    // the title riding on the form once it has scrolled (hk-base.js shade)
+    C.shadeCss('.hd'),
     '.hd .t{flex:1;text-align:center;font-size:17px;font-weight:700}',
     'button{appearance:none;font:inherit;cursor:pointer;color:#fff}',
     '.tb{height:40px;padding:0 14px;border:0;border-radius:20px;background:transparent;font-size:17px;font-weight:500;min-width:72px}',
@@ -355,6 +357,8 @@
       '<div class="box" role="dialog" aria-modal="true"></div>';
     document.body.appendChild(host);
     sheet = { host: host, root: root, box: root.querySelector('.box'), onKey: null };
+    // (its header is drawn again with each view: found when it is needed)
+    C.shade(sheet.box, function () { return sheet.box.querySelector('.hd'); }, { foot: true });
     root.querySelector('.back').addEventListener('click', function () { if (sheet.backdrop) closeSheet(); });
     return sheet;
   }
@@ -569,6 +573,25 @@
   // THE RIGHT-HAND COLUMN'S WIDTH: the month's day panel, the day view's
   // column, and the view switch's place above them
   var RCOL = 380;
+  // the view switch's slide: a touch past and back, as a UIKit spring (the tab bar's)
+  var SPRING = 'cubic-bezier(.34,1.24,.42,1)';
+  // where a view button sits in its switch (left and width)
+  function segBox(b) {
+    var sg = b.parentNode && b.parentNode.getBoundingClientRect ? b.parentNode.getBoundingClientRect() : null;
+    var r = b.getBoundingClientRect ? b.getBoundingClientRect() : null;
+    return sg && r && r.width ? { x: r.left - sg.left, w: r.width } : null;
+  }
+  function slideSeg(b, from) {
+    var to = segBox(b);
+    if (!from || !to || Math.abs(from.x - to.x) < 1) return;
+    b.classList.add('slide-from');
+    b.style.setProperty('--hx', (from.x - to.x) + 'px');
+    b.style.setProperty('--sx', String(from.w / to.w));
+    void b.offsetWidth;                         // that start, drawn
+    b.classList.remove('slide-from');
+    b.style.removeProperty('--hx');
+    b.style.removeProperty('--sx');
+  }
   var GLASS = function () {
     return M.glass + ';border:' + M.border + ';border-radius:' + M.radius +
       ';box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),var(--hk-glass-shadow-lg,0 10px 28px rgba(0,0,0,0.12))';
@@ -576,6 +599,8 @@
   var PAGE_CSS = function () {
     return [
       ':host{display:block;color:#fff;-webkit-tap-highlight-color:transparent}',
+      // the bar's and the rest's holders (_render): no box of their own
+      '.hold{display:contents}',
       'button{appearance:none;font:inherit;color:#fff;cursor:pointer;margin:0}',
       '.bar{display:flex;align-items:center;gap:14px;min-height:52px;margin:6px 0 16px;flex-wrap:wrap}',
       '.ttl{font-size:34px;font-weight:700;letter-spacing:-0.6px;white-space:nowrap}',
@@ -591,11 +616,20 @@
       // starting where that column does (RCOL, the day panel and the day
       // view's column alike)
       '.rgt{width:' + RCOL + 'px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px}',
-      '.seg{height:44px;padding:3px;border-radius:22px;border:' + M.border + ';' + M.glass + ';display:flex;gap:2px}',
-      '.seg button{width:74px;height:36px;border-radius:18px;border:0;background:transparent;font-size:15px;font-weight:600}',
-      '.seg button[aria-selected="true"]{background:#fff;color:#1c1c1e}',
+      '.seg{height:44px;padding:3px;border-radius:22px;border:' + M.border + ';' + M.glass + ';display:flex;gap:2px;position:relative}',
+      '.seg button{width:74px;height:36px;border-radius:18px;border:0;background:transparent;font-size:15px;font-weight:600;',
+      '  position:relative;isolation:isolate;transition:color .22s ease}',
+      // THE CHOICE SLIDES TO THE NEW VIEW (2026-10-10), as the menu's and the
+      // tab bar's highlights do: a layer behind the button, started over the
+      // one you were on (--hx, --sx, slideSeg) and sprung home
+      '.seg button[aria-selected="true"]{color:#1c1c1e}',
+      '.seg button[aria-selected="true"]::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:#fff;',
+      '  transform-origin:0 0;transform:translate(var(--hx,0px),0) scale(var(--sx,1),1);transition:transform .42s ' + SPRING + '}',
+      '.seg button.slide-from::before{transition:none}',
+      '@media (prefers-reduced-motion:reduce){.seg button[aria-selected="true"]::before,.seg button{transition:none}}',
       '.new{height:44px;padding:0 18px 0 14px;border-radius:22px;border:0;background:#fff;color:#1c1c1e;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}',
       '.panel{' + GLASS() + ';position:relative;overflow:hidden}',
+      C.shadeCss('.panel'),
       '.body{display:flex;gap:20px;align-items:stretch}',
       '.wide .body{height:var(--cal-h,620px)}',
       '.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -626,7 +660,9 @@
       '.side{width:' + RCOL + 'px;flex:none;padding:22px 22px 18px;display:flex;flex-direction:column}',
       '.dname{font-size:28px;font-weight:700;letter-spacing:-0.4px}',
       '.dsub{font-size:15px;font-weight:500;color:rgba(255,255,255,0.8);margin-top:2px}',
-      '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin-top:10px}',
+      // (its 10 px under the day's name as padding: the list scrolls right up
+      // under the name, the shadow at its foot -- shadeCss)
+      '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:10px}',
       '.ad{width:100%;height:30px;margin-top:6px;border-radius:9px;border:0;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:14px;font-weight:600;text-align:left}',
       '.ad i{flex:none;width:8px;height:8px;border-radius:4px}',
       '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap}',
@@ -890,13 +926,38 @@
       var tl = this._root.querySelector && this._root.querySelector('.tl');
       var keep = tl && tl.getAttribute && tl.getAttribute('data-k') === this._view + (+this._day) ? tl.scrollTop : null;
       var list = this._root.querySelector && this._root.querySelector('.list'), keepL = list ? list.scrollTop : 0;
-      var html = '<div class="' + (wide ? 'wide' : 'narrow') + '">' + this._bar(h, wide);
+      var bar = this._bar(h, wide), html = '';
       if (!calIds(h).length) html += '<div class="panel" style="padding:22px"><div class="empty">No calendars. Add one to Home Assistant (Settings → Devices &amp; Services → Add Integration → Local Calendar) and it shows here.</div></div>';
       else {
         if (this._failed.length) html += '<div class="warn">' + esc(this._failed.map(function (id) { return calName(h, id); }).join(', ')) + ' couldn’t be read.</div>';
         html += this._view === 'week' ? this._week(h, wide) : this._view === 'day' ? this._dayView(h, wide) : this._month(h, wide);
       }
-      this._root.innerHTML = html + '</div>';
+      // THE BAR IS WRITTEN ONLY WHEN IT CHANGES (2026-10-10). The page is
+      // drawn again when its events arrive -- at once when they were fetched
+      // before -- and a bar written again then cut the view switch's slide
+      // short: the new button, mid-way, jumped home. So the bar and the rest
+      // have holders of their own (display:contents: the layout as before),
+      // and the bar's is left alone while its markup is the same.
+      var cls = wide ? 'wide' : 'narrow', wrap = this._wrap;
+      if (!wrap || wrap.parentNode !== this._root || wrap.className !== cls) {
+        this._root.innerHTML = '<div class="' + cls + '"><div class="hold"></div><div class="hold"></div></div>';
+        wrap = this._wrap = this._root.children && this._root.children[0];
+        if (wrap && wrap.children && wrap.children.length === 2) wrap.__bar = null;
+        else wrap = this._wrap = null;
+      }
+      if (!wrap) {
+        // markup that is not parsed (the test shim): the page whole, as before
+        this._root.innerHTML = '<div class="' + cls + '">' + bar + html + '</div>';
+      } else if (wrap.__bar !== bar) {
+        // where the view switch's choice was, for its slide to the new one
+        var was = wrap.children[0].querySelector && wrap.children[0].querySelector('.seg button[aria-selected="true"]');
+        var segFrom = was ? segBox(was) : null;
+        wrap.children[0].innerHTML = bar;
+        wrap.__bar = bar;
+        var nowSeg = segFrom && wrap.children[0].querySelector('.seg button[aria-selected="true"]');
+        if (nowSeg) slideSeg(nowSeg, segFrom);
+      }
+      if (wrap) wrap.children[1].innerHTML = html;
       var tl2 = this._root.querySelector && this._root.querySelector('.tl');
       if (tl2 && tl2.setAttribute) {
         tl2.setAttribute('data-k', this._view + (+this._day));
@@ -905,6 +966,10 @@
       }
       var l2 = this._root.querySelector && this._root.querySelector('.list');
       if (l2 && keepL) l2.scrollTop = keepL;
+      // THE DAY'S HEAD RIDES ON THE LIST, the hours' on the time grid, once
+      // either has scrolled (hk-base.js shade; both drawn anew each time)
+      if (tl2 && tl2.parentNode && C.shade) C.shade(tl2, tl2.parentNode);
+      if (l2 && l2.parentNode && C.shade) C.shade(l2, l2.parentNode);
     }
     _bar(h, wide) {
       var d = this._day, v = this._view, ttl;

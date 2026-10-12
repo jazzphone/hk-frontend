@@ -39,11 +39,11 @@ async def test_add_feature_offers_what_the_house_does_not_have(hass, frontend):
     flows = hass.config_entries.subentries
     r = await flows.async_init((frontend.entry_id, "feature"), context={"source": "user"})
     assert r["type"] == "menu" and r["step_id"] == "user"
-    assert r["menu_options"] == ["music", "live_tv", "clean_areas", "alarm_pin", "energy"]
+    assert r["menu_options"] == ["music", "live_tv", "clean_areas", "alarm_pin", "energy", "notifications"]
     flows.async_abort(r["flow_id"])
     await add_feature(hass, "clean_areas", {})
     r = await flows.async_init((frontend.entry_id, "feature"), context={"source": "user"})
-    assert r["menu_options"] == ["music", "live_tv", "alarm_pin", "energy"]
+    assert r["menu_options"] == ["music", "live_tv", "alarm_pin", "energy", "notifications"]
     flows.async_abort(r["flow_id"])
 
 

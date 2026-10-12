@@ -6,7 +6,8 @@ app. For a row of tabs at the bottom of the screen instead (or as well), see
 
 The menu lists the screen’s pages and rooms, like the sidebar of Apple’s Home
 app: **Home** first, then the pages at the top, then **Categories** and
-**Rooms**. The page you are on is highlighted.
+**Rooms**. The page you are on is highlighted; choosing another slides the
+highlight over to it, as the tab bar’s does.
 
 Each screen chooses its menu **for each kind of device**, under **Screens →
 (the screen) → Menu**: one for **Tablets & Computers** and one for
@@ -110,7 +111,7 @@ Live TV sit at the top of the menu, right under Home, and every other page is
 under **Categories**. To move one, open **Pages** and use the menu beside its
 row: **Top of Menu**, **Categories** or **Not in Menu** (still one tap away on
 its chip or pill). **Use the Automatic Menu** puts them back. Room pages are
-always under **Rooms**, and Browse Music always follows Play Music.
+always under **Rooms**.
 
 **Rooms in the menu** are A to Z, or in the screen’s room order (**Rooms in
 Menu**).

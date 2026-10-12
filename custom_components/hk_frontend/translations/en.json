@@ -138,7 +138,8 @@
             "live_tv": "Live TV — an HDHomeRun tuner’s channels on the screens",
             "clean_areas": "Clean Areas — clean chosen rooms with whichever vacuums reach them",
             "alarm_pin": "Alarm PIN — a PIN in front of an alarm that takes none",
-            "energy": "Energy — an Energy page built from Home Assistant’s Energy settings"
+            "energy": "Energy — an Energy page built from Home Assistant’s Energy settings",
+            "notifications": "Notifications — a banner on the screens when something happens at home"
           }
         },
         "energy": {
@@ -248,11 +249,11 @@
         },
         "music": {
           "title": "Music",
-          "description": "Whole-home music through Music Assistant: the speakers each room plays on, sync-group presets, and playlist pills, for the Play Music page and for automations. It starts empty: choose the speakers with its gear (or in HK Settings), then add presets and playlists with Add music preset and Add music playlist."
+          "description": "Whole-home music through Music Assistant: the speakers each room plays on, sync-group presets, and playlist pills, for the Music page and for automations. It starts empty: choose the speakers with its gear (or in HK Settings), then add presets and playlists with Add music preset and Add music playlist."
         },
         "music_options": {
           "title": "Speakers and volume",
-          "description": "The rooms the Play Music page offers, and the volume every room is set to when a playlist starts. Room names and floors come from each speaker’s area.",
+          "description": "The rooms the Music page offers, and the volume every room is set to when a playlist starts. Room names and floors come from each speaker’s area.",
           "data": {
             "speakers": "Speakers (rooms)",
             "volume": "House playlist volume"
@@ -264,7 +265,15 @@
         },
         "music_homes": {
           "title": "Each tablet’s room",
-          "description": "Each wall tablet signs in as its own user. The room picked here is what its Play Music page shows when nothing else is chosen, and wins when music plays in more than one place."
+          "description": "Each wall tablet signs in as its own user. The room picked here is what its Music page shows when nothing else is chosen, and wins when music plays in more than one place."
+        },
+        "notifications": {
+          "title": "Notifications",
+          "description": "A banner at the top of your screens when an accessory does something — a door opens, someone arrives, a camera sees a person — with a camera’s snapshot taken that moment. Choose the accessories, and where and when banners show, on the HK Settings page: {url}"
+        },
+        "notifications_options": {
+          "title": "Notifications",
+          "description": "The notifications, Do Not Disturb and where they show are on the HK Settings page: {url}"
         }
       },
       "abort": {
@@ -544,7 +553,7 @@
       "step": {
         "user": {
           "title": "Add a playlist",
-          "description": "A pill on the Play Music page. Pick one or more playlists from the Music Assistant library; they play as one shuffled queue.",
+          "description": "A pill under Your Playlists on the Music page. Pick one or more playlists from the Music Assistant library; they play as one shuffled queue.",
           "data": {
             "name": "Name",
             "icon": "Icon",
@@ -559,7 +568,7 @@
         },
         "reconfigure": {
           "title": "Edit playlist",
-          "description": "A pill on the Play Music page.",
+          "description": "A pill under Your Playlists on the Music page.",
           "data": {
             "name": "Name",
             "icon": "Icon",
@@ -693,7 +702,7 @@
     },
     "music_play_media": {
       "name": "Play music item",
-      "description": "Play one item from the library on a player (Browse Music).",
+      "description": "Play one item from the library on a player (Browse on the Music page).",
       "fields": {
         "player": {
           "name": "Player",
@@ -722,6 +731,56 @@
           "description": "The backlight it comes back to, 0-255. Kept while black; the page restores it as it fades in."
         }
       }
+    },
+    "notify": {
+      "name": "Show notification",
+      "description": "Shows a banner at the top of the screens (Notifications), like one of its own: on every screen that allows notifications, or only those listed. Each screen decides as it does for any notification: Do Not Disturb, its screensaver, asleep.",
+      "fields": {
+        "title": {
+          "name": "Title",
+          "description": "The banner's first line (up to 40 characters)."
+        },
+        "message": {
+          "name": "Message",
+          "description": "The second line (up to 120 characters)."
+        },
+        "important": {
+          "name": "Important",
+          "description": "Outlined red; gets through Do Not Disturb, and shows on a screensaver set to Important."
+        },
+        "wake": {
+          "name": "Wakes the screen",
+          "description": "Turns a sleeping screen on, or leaves its screensaver, to show it. Makes it Important too."
+        },
+        "stay": {
+          "name": "Stays on screen",
+          "description": "Seconds it stays; 0 until dismissed. Empty: as All Screens' Stays On Screen."
+        },
+        "icon": {
+          "name": "Icon",
+          "description": "An hk: or mdi: icon. Empty: the accessory's, or a bell."
+        },
+        "entity": {
+          "name": "Accessory",
+          "description": "What it is about: its icon, its buttons (Close a garage door, Lock a lock), and the sheet a tap opens."
+        },
+        "camera": {
+          "name": "Camera snapshot",
+          "description": "A camera to take a snapshot from the moment it is sent; a tap on it opens the live view."
+        },
+        "tap": {
+          "name": "Tap opens",
+          "description": "camera (the live view), sheet (the accessory's sheet) or none. Empty: the camera, else the accessory, else nothing."
+        },
+        "dashboards": {
+          "name": "Dashboards",
+          "description": "Only screens showing these dashboards (url paths). Empty: any dashboard."
+        },
+        "users": {
+          "name": "Users",
+          "description": "Only screens signed in as these users (user ids). Empty: anyone."
+        }
+      }
     }
   },
   "exceptions": {
@@ -736,6 +795,9 @@
     },
     "music_not_set_up": {
       "message": "Music is not added. Add it in Settings -> Devices & services -> HK Frontend -> Add feature."
+    },
+    "notifications_not_set_up": {
+      "message": "Notifications is not added. Add it in Settings -> Devices & services -> HK Frontend -> Add feature."
     }
   }
 }

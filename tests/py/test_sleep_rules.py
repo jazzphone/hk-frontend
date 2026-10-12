@@ -47,6 +47,18 @@ def test_presence_and_use():
     assert R.decide(f(present=True, slept=True, in_use=True))[0] == "dashboard", "a tap still lights it"
 
 
+def test_the_screensaver_in_use():
+    # a touch on the screensaver's own controls (its music, its panel) keeps
+    # the photos: it is neither a wake nor nobody here
+    assert R.decide(f(saver_use=True)) == ("photos", "somebody is using the screensaver")
+    assert R.decide(f(saver_use=True, in_use=True))[0] == "dashboard", "a touch of the page is still a wake"
+    assert R.decide(f(saver_use=True, quiet=True)) == ("photos", "somebody is using the screensaver"), \
+        "quiet hours do not black it under a finger"
+    assert R.decide(f(saver_use=True, dark=["Away"]))[0] == "dark", "a Stay Dark While still wins"
+    assert R.decide(f(saver_use=True, lit=False, touched_since_dark=False))[0] == "dark"
+    assert R.decide(f(saver_use=True, lit=False, touched_since_dark=True))[0] == "photos"
+
+
 def test_the_lit_gate():
     # Master Bathroom, 2026-09-21: lights off after the last touch -> dark now
     assert R.decide(f(present=True, lit=False)) == ("dark", "the room's lights are off")

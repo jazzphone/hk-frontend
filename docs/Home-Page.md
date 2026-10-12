@@ -20,6 +20,12 @@ A generated screen’s Home page shows, from the top:
 6. **Rooms**: a section for each room, with a tile for each accessory.
 7. **More**: things you added under Also Shown that have no room.
 
+Along the bottom, a screen can dock the **Now Playing bar** (what is playing
+on its room) and the **Timer Bar** (running quick timers), on Home or on
+every page: they are switches in the screen’s
+[Behavior](Screens.md#behavior), and what the bar does is under
+[Music → The Now Playing bar](Music.md#the-now-playing-bar).
+
 ![The Home page on an iPad](images/ipad-home.png)
 
 ![The Home page on a phone: two columns of tiles](images/phone-home.png)
@@ -55,7 +61,7 @@ Automatic shows every scene, A to Z. To choose, open **Scenes**, turn
 **Automatic** off, and use **Add Scene or Shortcut…**. A scene’s name, icon and
 color come from its [accessory settings](Accessories.md).
 
-**Page pills** open a page instead of running anything: a Play Music pill, a
+**Page pills** open a page instead of running anything: a Music pill, a
 Cameras pill. Add them from **More** on the Scenes page. Their name, icon and color are
 the same on every screen, set in **All Screens → Appearance → Page Pills**;
 tapping a page pill’s row on the Scenes page opens it there.
@@ -67,7 +73,7 @@ tapping a page pill’s row on the Scenes page opens it there.
 | Show Scenes Row | On | The row of scene pills. |
 | Automatic | On | A generated screen: every scene, A to Z. A YAML screen: the scenes its YAML lists. Then any page pills. |
 | Shown | — | Scenes, scripts and buttons, in order. Choosing here replaces a YAML screen’s own list. A scene’s row opens its accessory settings (its name, icon and color). |
-| More | — | Page pills: a pill that opens a page (Weather, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Play Music, Water) instead of running something. A page the screen doesn’t have gets no pill. |
+| More | — | Page pills: a pill that opens a page (Weather, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Music, Water) instead of running something. A page the screen doesn’t have gets no pill. |
 | Add Scene or Shortcut… | — | Any scene, script, button or input button. |
 
 A page pill’s own page (**All Screens → Appearance → Page Pills**, which lists
@@ -75,7 +81,7 @@ every page pill):
 
 | Setting | Default | What it does |
 |---|---|---|
-| Name | The page’s name | The pill’s name on every screen that shows it (for example “Apple Music” for Play Music). |
+| Name | The page’s name | The pill’s name on every screen that shows it (for example “Apple Music” for Music). |
 | Icon | The page’s icon | An `mdi:` or `hk:` icon. |
 | Color | The page’s color | White, Yellow, Orange, Red, Pink, Purple, Blue, Teal, Mint or Green. |
 

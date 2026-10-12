@@ -327,6 +327,55 @@
   // DISMISSABLE THREE WAYS, like confirmSheet: the backdrop, Escape, and a
   // Cancel row. A sheet on a wall tablet with no way out is the dead end this
   // dashboard is built to avoid.
+  // THE HEADER RIDES ON THE LIST (2026-10-11). Wherever a header stays put
+  // and a list scrolls under it -- the detail sheets, the screensaver's
+  // calendar pane and its music panel, the tab bar's sheets, the calendar's
+  // pop-ups, the choose sheet -- a soft shadow lies along the list's top edge
+  // once the list has scrolled under it, and none while it is at its top
+  // (nothing is under the header then). One look, from here:
+  //
+  //   shade(scroller, target, opts)  `hk-scrolled` on `target` while
+  //       `scroller` is off its top, and --hk-shade-top: the scroller's top
+  //       edge, measured from target's. `target` may be a function (a header
+  //       drawn again with its content); `opts.foot`: the shadow at the
+  //       target's own foot instead (a sticky header inside the scroller).
+  //       Returns a function that unhooks it.
+  //   shadeCss(sel)  the shadow, as `sel`'s ::after: `sel` must be
+  //       positioned, and its ::after free.
+  //
+  // A passive listener that writes only when the edge is crossed, and an
+  // opacity fade: nothing per frame while a list scrolls on a wall tablet.
+  var SHADE_AT = 2;
+  function shade(scroller, target, opts) {
+    if (!scroller || !target || !scroller.addEventListener) return function () {};
+    var foot = !!(opts && opts.foot);
+    var check = function () {
+      var tg = typeof target === 'function' ? target() : target;
+      if (!tg) return;
+      if (!tg.setAttribute || !tg.hasAttribute) return;
+      var want = scroller.scrollTop > SHADE_AT;
+      if (want === tg.hasAttribute('hk-scrolled')) return;
+      if (want) {
+        if (!foot && scroller.getBoundingClientRect && tg.getBoundingClientRect && tg.style && tg.style.setProperty) {
+          var a = scroller.getBoundingClientRect(), b = tg.getBoundingClientRect();
+          tg.style.setProperty('--hk-shade-top', Math.round(a.top - b.top) + 'px');
+        }
+        tg.setAttribute('hk-scrolled', '');
+      } else tg.removeAttribute('hk-scrolled');
+    };
+    scroller.addEventListener('scroll', check, { passive: true });
+    check();
+    var off = function () { scroller.removeEventListener('scroll', check); };
+    off.check = check;
+    return off;
+  }
+  function shadeCss(sel) {
+    return sel + '::after{content:"";position:absolute;left:0;right:0;top:var(--hk-shade-top,100%);height:16px;' +
+      'pointer-events:none;z-index:3;opacity:0;transition:opacity .18s ease;' +
+      'background:linear-gradient(to bottom,rgba(0,0,0,.30),rgba(0,0,0,.10) 45%,transparent)}' +
+      sel + '[hk-scrolled]::after{opacity:1}';
+  }
+
   var _choose = null;
   function chooseSheet(title, options, onPick, opts) {
     opts = opts || {};
@@ -342,7 +391,7 @@
         // --hk-vh: the car's real window height, set only on the zoomed
         // Tesla dashboard (tesla-viewport.js), where 78vh is zoomed too and
         // is ~52% of the screen. Unset everywhere else: plain 100vh.
-        '#hk-choose .box{width:340px;max-height:calc(var(--hk-vh, 100vh) * .78);border-radius:16px;' +
+        '#hk-choose .box{position:relative;width:340px;max-height:calc(var(--hk-vh, 100vh) * .78);border-radius:16px;' +
         '  overflow:hidden;background:rgba(42,42,44,0.94);' +
         '  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);' +
         '  color:#fff;text-align:center;display:flex;flex-direction:column;' +
@@ -361,11 +410,14 @@
         // iOS uses to separate a sheet's dismissal from its choices.
         '#hk-choose .cancel{font-weight:600;' +
         '  box-shadow:inset 0 0.5px 0 rgba(255,255,255,0.18)}' +
+        // the title riding on the list, once it scrolls (shade)
+        shadeCss('#hk-choose .box') +
         '</style>' +
         '<div class="box"><div class="txt"></div>' +
         '<div class="list"></div>' +
         '<button class="opt cancel" data-cancel>Cancel</button></div>';
       document.body.appendChild(_choose);
+      shade(_choose.querySelector('.list'), _choose.querySelector('.box'));
     }
     var close = function () {
       _choose.removeAttribute('data-open');
@@ -380,6 +432,7 @@
     _choose.onclick = function (e) { if (e.target === _choose) close(); };
     var list = _choose.querySelector('.list');
     list.innerHTML = '';
+    list.scrollTop = 0;
     (options || []).forEach(function (o) {
       var b = document.createElement('button');
       b.className = 'opt';
@@ -424,31 +477,15 @@
     return lastPress === 'mouse';
   }
 
-  // A TAP THAT CHANGES PAGE IS ANSWERED BEFORE THE PAGE IS (2026-10-09).
-  // Opening a page keeps a wall tablet's main thread busy for 0.4-0.7 s
-  // before the new page draws (the Living Room, traced), and the tap itself
-  // was answered with nothing: touch :active lands in the same task as the
-  // click, so the press look was never drawn, even under a 120 ms finger
-  // (screen-recorded). So the control dims for one drawn frame first, then
-  // the page changes. A DIM, NOT THE PRESS'S SHRINK: the shared blur's cut-out
-  // follows a shrinking card only from the main thread, which is busy with
-  // the new page -- a ring of frost would show around it for the whole wait.
-  // A page with no frames to draw (hidden) still goes, after GO_MS.
-  var GOING = 'brightness(0.78)', GO_MS = 120;
-  function navigate(path, el) {
-    var gone = false, lit = el && el.style ? el : null, was = lit ? lit.style.filter : '';
-    function go() {
-      if (gone) return;
-      gone = true;
-      history.pushState(null, '', path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
-      // the page it is on has left: back again, it is itself
-      if (lit) lit.style.filter = was;
-    }
-    if (typeof requestAnimationFrame !== 'function') { go(); return; }
-    if (lit) lit.style.filter = GOING;
-    requestAnimationFrame(function () { setTimeout(go, 0); });
-    setTimeout(go, GO_MS);
+  // A TAP THAT CHANGES PAGE CHANGES IT AT ONCE (2026-10-11). It once dimmed
+  // the control for one drawn frame first, so the tap was answered before
+  // the page was -- a frame or two later on every page change, which cost
+  // more than it gave (the whole page change measured on the tablets: twice
+  // as fast with this and the other page-change holds gone). `el` is kept
+  // for the callers.
+  function navigate(path, el) {  // eslint-disable-line no-unused-vars
+    history.pushState(null, '', path);
+    window.dispatchEvent(new CustomEvent('location-changed'));
   }
 
   function confirmSheet(text, onOk, opts) {
@@ -582,33 +619,86 @@
   // as it would with no cache at all.
   var SNAP_FRESH = 2 * 60 * 1000;
 
-  function snapCacheAll() {
+  // IN MEMORY, SAVED LATER (2026-10-11). The cache was read from storage
+  // and parsed whole on every lookup, and every save drew, JPEG-encoded and
+  // re-wrote the whole of it -- synchronously. Leaving Home saved all eight
+  // stills that way, one full rewrite each, while the next page waited:
+  // 21-25 ms of the Master Bedroom tablet's page change on its own
+  // (measured there, 2026-10-11). Now storage is read once; a save only
+  // draws the small thumbnail (it has to be now: a video's frame is gone in
+  // a moment); the encoding is done when someone asks for the picture (a
+  // tile opening on it) or when the tablet is idle, and the whole cache is
+  // written once, then.
+  var SNAP_MEM = null, snapDirty = false, snapSaveT = null;
+  function snapMem() {
+    if (SNAP_MEM) return SNAP_MEM;
+    SNAP_MEM = {};
     try {
-      return JSON.parse(localStorage.getItem(SNAP_KEY) || '{}') || {};
-    } catch (e) { return {}; }
+      var all = JSON.parse(localStorage.getItem(SNAP_KEY) || '{}') || {};
+      Object.keys(all).forEach(function (k) { if (all[k] && all[k].d) SNAP_MEM[k] = snapEntry(null, all[k].t, all[k].d); });
+    } catch (e) { /* no storage: memory alone */ }
+    return SNAP_MEM;
+  }
+  // { t, d } -- `d`, the data URL, encoded from the thumbnail on first use
+  function snapEntry(cv, t, d) {
+    var e = { t: t, _cv: cv, _d: d || null };
+    Object.defineProperty(e, 'd', { enumerable: true, get: function () {
+      if (!e._d && e._cv) {
+        try { e._d = e._cv.toDataURL('image/jpeg', 0.5); } catch (x) { e._d = null; }
+        e._cv = null;
+      }
+      return e._d;
+    } });
+    return e;
+  }
+  function snapFlush() {
+    if (!snapDirty) return;
+    snapDirty = false;
+    try {
+      var out = {}, mem = snapMem();
+      Object.keys(mem).forEach(function (k) { var d = mem[k].d; if (d) out[k] = { d: d, t: mem[k].t }; });
+      localStorage.setItem(SNAP_KEY, JSON.stringify(out));
+    } catch (e) { /* quota or no storage: the memory copy still serves this page */ }
+  }
+  function snapSaveLater() {
+    snapDirty = true;
+    if (snapSaveT) return;
+    var go = function () { snapSaveT = null; snapFlush(); };
+    // when the tablet has a moment -- after the page change, never during
+    if (typeof requestIdleCallback === 'function') snapSaveT = requestIdleCallback(go, { timeout: 8000 });
+    else snapSaveT = setTimeout(go, 3000);
+  }
+  // (and before the page goes away, whatever is still waiting)
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('pagehide', function () {
+      if (!snapDirty) return;
+      if (snapSaveT) {
+        if (typeof cancelIdleCallback === 'function') cancelIdleCallback(snapSaveT); else clearTimeout(snapSaveT);
+        snapSaveT = null;
+      }
+      snapFlush();
+    });
   }
 
   // `maxAge` is opt-in: the strip passes nothing (any age will do, the label
   // tells the truth) and the cameras page passes SNAP_FRESH.
   function snapCacheGet(entity, maxAge) {
-    var all = snapCacheAll();
-    var hit = all[entity];
-    if (!hit || !hit.d) return null;
+    var hit = snapMem()[entity];
+    if (!hit) return null;
     if (maxAge && (Date.now() - hit.t) > maxAge) return null;
-    return hit;
+    return hit.d ? hit : null;
   }
 
-  // Called from a successful load. Cheap on the common path: it reads the map,
-  // sees a recent entry and returns before touching a canvas.
+  // Called from a successful load. Cheap on the common path: it sees a
+  // recent entry and returns before touching a canvas.
   // `img` may also be a playing <video> (its current frame), and `force`
   // writes whatever the age of the last entry: the cameras page keeps the
   // frames it is leaving (hk-campost.js), the strip its stills. `at`: when
   // the frame was TAKEN (a still can be older than now), so FRESH stays
-  // honest. Returns the data URL it wrote.
+  // honest. Returns the entry ({t, d}: d encoded only when read).
   function snapCachePut(entity, img, force, at) {
     try {
-      var all = snapCacheAll();
-      var prev = all[entity];
+      var mem = snapMem(), prev = mem[entity];
       if (!force && prev && (Date.now() - prev.t) < SNAP_MIN_GAP) return null;
       var iw = img.naturalWidth || img.videoWidth, ih = img.naturalHeight || img.videoHeight;
       if (!iw || !ih) return null;
@@ -616,15 +706,13 @@
       var cv = document.createElement('canvas');
       cv.width = SNAP_W; cv.height = h;
       cv.getContext('2d').drawImage(img, 0, 0, SNAP_W, h);
-      // SAME ORIGIN, so the canvas is not tainted: camera_proxy is served by
-      // HA itself. A cross-origin still would throw here and be swallowed.
-      var d = cv.toDataURL('image/jpeg', 0.5);
-      all[entity] = { d: d, t: at || Date.now() };
-      localStorage.setItem(SNAP_KEY, JSON.stringify(all));
-      return d;
+      var e = mem[entity] = snapEntry(cv, at || Date.now(), null);
+      snapSaveLater();
+      return e;
     } catch (e) {
-      // Quota, a tainted canvas, or no storage at all. The strip works
-      // without the cache; it just starts black again.
+      // A tainted canvas, or no canvas at all. The strip works without the
+      // cache; it just starts black again.
+      return null;
     }
   }
 
@@ -695,7 +783,10 @@
     // baseline alignment entirely, which is the cause rather than the
     // symptom -- a -0.81px nudge would be a number nobody could justify
     // later.
-    '.tile .well ha-icon{--mdc-icon-size:23px;width:23px;height:23px;',
+    // WHITE, as the label is, unless a tile colors its own glyph (a scene's,
+    // inline). Inherited, it took the page's text color -- black under a
+    // light Home Assistant theme: the Browse Music categories (2026-10-10).
+    '.tile .well ha-icon{--mdc-icon-size:23px;width:23px;height:23px;color:rgba(255,255,255,0.92);',
     '  display:flex;align-items:center;justify-content:center}',
     '.tile .txt{justify-self:stretch;text-align:left;align-self:center;',
     '  font-weight:600;font-size:15px;line-height:1.1;letter-spacing:-0.23px;',
@@ -828,14 +919,36 @@
   // whichever of the two files loaded first. A card joining while asleep is
   // marked at once.
   var ON_PAGE = window.__hkCardsOnPage = window.__hkCardsOnPage || new Set();
+  // ...and whether this screen's Animations are off (hk-still): read from
+  // its Sky / Background whenever a setting or the page changes. The cards
+  // whose glyph spins (hk-tile.js, hk-chip.js) stand it upright then; a
+  // class here in BASE_CSS would reach every card's own .spin.
+  function stillNow() {
+    var S = window.hkSettings;
+    try { return !!(S && S.skyLook && S.skyLook().animations === false); } catch (e) { return false; }
+  }
+  var still = stillNow();
   function markAsleep(card) {
     // Touch the attribute only when it changes: nearly every card joins awake.
     var on = !!window.__hkAsleep;
-    if (on === !!card._hkAsleep) return;
-    card._hkAsleep = on;
-    if (on) card.setAttribute('hk-asleep', ''); else card.removeAttribute('hk-asleep');
+    if (on !== !!card._hkAsleep) {
+      card._hkAsleep = on;
+      if (on) card.setAttribute('hk-asleep', ''); else card.removeAttribute('hk-asleep');
+    }
+    if (still !== !!card._hkStill) {
+      card._hkStill = still;
+      if (still) card.setAttribute('hk-still', ''); else card.removeAttribute('hk-still');
+    }
   }
   window.addEventListener('hk-asleep', function () { ON_PAGE.forEach(markAsleep); });
+  ['hk-module-ready', 'location-changed'].forEach(function (t) {
+    window.addEventListener(t, function () {
+      var now = stillNow();
+      if (now === still) return;
+      still = now;
+      ON_PAGE.forEach(markAsleep);
+    });
+  });
   function glassJoin(card, on) {
     var off = !!(card._config && card._config.glass === false);
     // Out of "Blur each card" too, and everything inside it (the variable
@@ -851,6 +964,13 @@
     // unpainted until its frost is placed, and this join is how it learns of
     // the view before the view's first paint.
     if (window.hkGlass) window.hkGlass.changed(card, join);
+  }
+
+  // ...and when one has drawn again: the shared blur looks again at a card
+  // whose plates were replaced or added (hk-glass decides, cheaply). Without
+  // this only its 2 s backstop found them.
+  function glassRendered(card) {
+    if (GLASS.has(card) && window.hkGlass && window.hkGlass.rendered) window.hkGlass.rendered(card);
   }
 
   // THE HASS HUB: the newest hass object any card was handed,
@@ -940,6 +1060,7 @@
       this._hkSig = sig;
       this._hkGen = GEN.n;
       this._render();
+      glassRendered(this);
     }
     get hass() { return this._hass; }
 
@@ -1000,6 +1121,7 @@
       this._hkSig = this._hass ? this._sigOf() : null;
       this._hkGen = GEN.n;
       this._render();
+      glassRendered(this);
     }
 
     // ---------------------------------------------------------- actions
@@ -1767,7 +1889,10 @@
   // Exported for hk-campost.js, which reuses this cache as the cameras
   // page's video poster.
   window.hkCards.snapCache = { get: snapCacheGet, put: snapCachePut,
-                               FRESH: SNAP_FRESH };
+                               FRESH: SNAP_FRESH,
+                               // tests only: read storage again; save now
+                               _reset: function () { SNAP_MEM = null; snapDirty = false; snapSaveT = null; },
+                               _flush: function () { snapSaveT = null; snapDirty = true; snapFlush(); } };
   window.hkCards.create = create;
   window.hkCards.BASE_CSS = BASE_CSS;
   window.hkCards.confirmSheet = confirmSheet;
@@ -1777,6 +1902,8 @@
   // (the lock's ring) from the same list this guard uses.
   window.hkCards.DOOR_COVERS = DOOR_COVERS;
   window.hkCards.chooseSheet = chooseSheet;
+  window.hkCards.shade = shade;
+  window.hkCards.shadeCss = shadeCss;
   window.hkCards.M = M;
   window.hkCards.PALETTE = PALETTE;
   window.hkCards.px = px;
@@ -1949,6 +2076,13 @@
     // choice has no hass of its own. Only music NOT in it can pull a screen
     // whose own music has gone quiet.
     var focus = { key: null, at: 0, hold: 0, seen: null };
+    // The context this screen is following (rule 3), so a PAUSE does not let
+    // go of it: the bar's own pause would otherwise drop the screen back to
+    // its idle focus -- the bar gone at the tap, Play Music "Ready on" a
+    // room nobody asked for (measured on the Living Room tablet, following
+    // the Office). A focused key keeps its paused music (rule 1); a
+    // followed one now does too, until it stops or something else starts.
+    var follow = null;
     var listeners = [];
     var conn = null, writing = 0;
 
@@ -2038,13 +2172,29 @@
     // "this is what is playing".
     function resolve(hass) {
       var ctxs = contexts(hass);
+      // (only the LAST answer's follow carries over: any other answer ends it)
+      var was = follow; follow = null;
       var now = Date.now();
       var key = known(focus.key) ? focus.key : null;
       // FIRST RESOLVE AFTER A CHOICE: remember what was already playing, so
       // only something that starts later can pull this screen away.
+      //
+      // "ALREADY" MEANS WHEN THE CHOICE WAS MADE, not when this page loaded.
+      // A choice restored from the server or the first-paint copy (a reload,
+      // a cleared cache) was made at `at`: music that started after it was
+      // being followed before the reload and must still be. Measured from
+      // the load instead, every reload took it as already playing and
+      // dropped it -- the Master Bedroom tablet, its choice Everywhere at
+      // 14:13, Downstairs started at 16:11, after a cleared cache showed
+      // "Ready on Everywhere" and two cards over the art (2026-10-11). A
+      // choice made HERE (`fresh`) keeps the plain rule: whatever plays at
+      // that tap, so a tablet's clock a few seconds off the server's cannot
+      // count music already playing as new.
       if (key && focus.seen === null) {
         focus.seen = {};
-        ctxs.forEach(function (c) { if (c.playing) focus.seen[c.key] = c.since; });
+        ctxs.forEach(function (c) {
+          if (c.playing && (focus.fresh || !focus.at || c.since <= focus.at)) focus.seen[c.key] = c.since;
+        });
       }
       var mine = key && ctxs.filter(function (c) {
         return c.key === key || c.members.indexOf(key) >= 0;
@@ -2053,15 +2203,18 @@
       if (key && now < focus.hold) return { player: key, context: null, reason: 'pending', name: nameOf(key) };
       var seen = key ? focus.seen : null;
       var playing = ctxs.filter(function (c) {
-        return c.playing && (!seen || seen[c.key] !== c.since);
+        return (c.playing || c.key === was) && (!seen || seen[c.key] !== c.since);
       });
       if (playing.length) {
         var h = home();
+        // music that is playing before the followed music paused, then this
+        // tablet's own room, then the newest
         playing.sort(function (a, b) {
           var ah = h && a.members.indexOf(h) >= 0 ? 1 : 0;
           var bh = h && b.members.indexOf(h) >= 0 ? 1 : 0;
-          return (bh - ah) || (b.since - a.since);
+          return ((b.playing ? 1 : 0) - (a.playing ? 1 : 0)) || (bh - ah) || (b.since - a.since);
         });
+        follow = playing[0].key;
         return { player: playing[0].key, context: playing[0], reason: 'following',
                  name: label(playing[0]) };
       }
@@ -2075,7 +2228,7 @@
     function setFocus(key, opts) {
       if (!known(key)) return false;
       var now = Date.now();
-      focus.key = key; focus.at = now; focus.seen = null;
+      focus.key = key; focus.at = now; focus.seen = null; focus.fresh = true; follow = null;
       focus.hold = opts && opts.hold ? now + MUSIC_HOLD : 0;
       try { if (window.localStorage) localStorage.setItem(MUSIC_KEY, JSON.stringify({ key: key, at: now })); }
       catch (e) { /* first-paint copy only */ }
@@ -2136,7 +2289,7 @@
         // A key is taken even if the speaker list has not arrived yet (the
         // two subscriptions answer in either order); resolve() validates it.
         if (writing || !v || typeof v.key !== 'string' || v.key === focus.key) return;
-        focus.key = v.key; focus.at = v.at || 0; focus.hold = 0; focus.seen = null;
+        focus.key = v.key; focus.at = v.at || 0; focus.hold = 0; focus.seen = null; focus.fresh = false;
         try { if (window.localStorage) localStorage.setItem(MUSIC_KEY, JSON.stringify(v)); }
         catch (e) { /* first-paint copy only */ }
         emit();
@@ -2182,7 +2335,7 @@
       libraryEntry: function () { return MUSIC.library || null; },
       HOLD: MUSIC_HOLD,
       // Tests only: start from a clean slate, and hand in a configuration.
-      _reset: function () { focus = { key: null, at: 0, hold: 0, seen: null }; listeners = []; conn = null; writing = 0; },
+      _reset: function () { focus = { key: null, at: 0, hold: 0, seen: null }; follow = null; listeners = []; conn = null; writing = 0; },
       _configure: configure
     };
   })();
@@ -2219,11 +2372,21 @@
   //   Automatic is the chip when the dashboard's HOME view carries a menu
   //   button card, else the tab. Phones always get the chip: a 16 px margin
   //   has no room for a tab without covering the tiles.
+  // The panel element is kept while it is on the page: the menu's questions
+  // and every room heading's link ask for it on each hass push (three
+  // shadow-root lookups a time). A dashboard switch replaces the panel, and
+  // the one kept is then off the page and looked for again.
+  var panelKept = null;
   function panelLovelace() {
+    if (panelKept && panelKept.isConnected) {
+      var lv = panelKept.lovelace, up = lv && lv.urlPath;
+      if (!up || up === dashSeg()) return panelKept;
+    }
     try {
       var ha = document.querySelector('home-assistant');
       var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-      return (main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace')) || null;
+      panelKept = (main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace')) || null;
+      return panelKept;
     } catch (e) { return null; }
   }
   function lovelaceConfig() {
@@ -2273,10 +2436,10 @@
                 // 1.7: Home, Pages, Screen (settings.py BOARD_DEFAULTS). chips_quiet
                 // null = the chip row's own default (hk-chip.js QUIET_DEFAULT).
                 chips_row: true, chips: [], chips_quiet: null, chips_extra: [], camera_strip: true, cameras: [],
-                camera_live: '',
+                camera_live: '', camera_live_video: null,
                 scenes_row: true, scenes: [], scenes_pages: [], favorites: [], pages: [],
                 glass: 'house', frost: null, blur: null, sky: true, idle_return: false, idle_room: '', car: false, kiosk: false,
-                popups: true, now_playing: false, screensaver: false, tablet_user: '', custom_pages: [],
+                popups: true, notify: true, notify_saver: null, notify_dnd: null, now_playing: false, screensaver: false, tablet_user: '', custom_pages: [],
                 // the pages at the top of the menu (empty: the views' own)
                 menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, only_pages: [], home_view: '',
                 // swipe right from the left edge opens the menu, at every width
@@ -2303,8 +2466,25 @@
     var L = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     return 1.05 / (L + 0.05) >= 1.8 ? '#fff' : '#000';
   }
+  // ONE COPY PER SETTINGS VERSION AND DASHBOARD. The menu's questions (sig,
+  // style, on, clock...) each ask boardOf again, and the cards ask them on
+  // every hass push: ~95 keys copied a dozen times a push, measured as the
+  // largest HK cost of an idle Home (headless, 6x slower). hk-settings counts
+  // every feed it applies (version) and replaces the settings whole, never in
+  // place. Callers here only read it; menu.board() hands out a copy. (A
+  // settings stand-in with no version -- a test's -- is read fresh each time.)
+  var boardMemo = { ver: null, all: null, dash: null, out: null };
   function boardOf(dash) {
-    var all = msetting('boards', null), out = {}, k;
+    var HS = window.hkSettings, ver = HS && HS.version, all = msetting('boards', null);
+    if (typeof ver !== 'number') return boardBuild(all, dash);
+    var m = boardMemo;
+    if (m.out && m.ver === ver && m.all === all && m.dash === dash) return m.out;
+    var out = boardBuild(all, dash);
+    boardMemo = { ver: ver, all: all, dash: dash, out: out };
+    return out;
+  }
+  function boardBuild(all, dash) {
+    var out = {}, k;
     for (k in BOARD) out[k] = BOARD[k];
     if (all && typeof all === 'object' && Object.keys(all).length) {
       var b = all[dash];
@@ -2483,7 +2663,7 @@
   }
   var menuState = {
     // this dashboard's own settings (boardOf above)
-    board: function () { return boardOf(dashSeg()); },
+    board: function () { return Object.assign({}, boardOf(dashSeg())); },
     on: function () { return sideMenu() && !tabBarHere(); },
     // the tab bar shows here, in the menu's place
     tabBar: tabBarHere,

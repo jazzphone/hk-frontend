@@ -1,8 +1,8 @@
 """MUSIC: whole-home music through Music Assistant.
 
 Speakers, presets and playlists (its gear and Add preset / Add playlist on
-the integration's page, or the HK Settings page), the actions the Play Music
-page and automations call (music.py's MusicManager), and a feed that hands
+the integration's page, or the HK Settings page), the actions the Music page
+and automations call (music.py's MusicManager), and a feed that hands
 each screen its music configuration. One per house; it starts empty. Its
 presets and playlists are items of the house's entry (ITEM_TYPES).
 
@@ -10,8 +10,10 @@ presets and playlists are items of the house's entry (ITEM_TYPES).
     hk_frontend.music_transfer    move what is playing, or add rooms to it
     hk_frontend.music_stop        stop and ungroup rooms, or the whole house
     hk_frontend.music_transport   play/pause, next, previous, stop, volume
-    hk_frontend.music_play_media  one library item (Browse Music)
+    hk_frontend.music_play_media  one library item (the Music page's Browse)
     hk_music/subscribe            each screen's music configuration (websocket)
+    hk_music/queue                a player's queue: what is playing and what comes next
+    hk_music/queue_play           jump to one song in that queue
 
 Every action ANSWERS: call it with return_response and read {ok, leader} or
 {ok: false, message}. The actions and the feed are registered at start, not
@@ -139,6 +141,8 @@ async def async_setup(hass: HomeAssistant) -> None:
         vol.Required(ATTR_PLAYER): cv.entity_id, vol.Required("media_content_id"): cv.string,
         vol.Required("media_content_type"): cv.string}), supports_response=opt)
     websocket_api.async_register_command(hass, ws_music_subscribe)
+    websocket_api.async_register_command(hass, ws_music_queue)
+    websocket_api.async_register_command(hass, ws_music_queue_play)
     # the HK Settings page (settings_ws.py)
     settings_ws.async_register(hass)
 
@@ -284,3 +288,90 @@ class ReconfigureSteps:
                 sel.SelectSelector(sel.SelectSelectorConfig(
                     options=choices, mode=sel.SelectSelectorMode.DROPDOWN))
         return self.async_show_form(step_id="music_homes", data_schema=vol.Schema(fields))
+
+
+# ------------------------------------------------------------------ the queue
+# THE MUSIC PAGE'S QUEUE (2026-10-11). Home Assistant's music_assistant.get_queue
+# answers the current and the next song only, so the rest of the list comes
+# from Music Assistant itself, through the client its Home Assistant
+# integration already holds (entry.runtime_data.mass) -- its server commands
+# player_queues/items and player_queues/play_index. Not a public Home
+# Assistant contract: when it is not there (Music Assistant missing, or an
+# upgrade moved it) the answer is {ok: false} and the page shows the next song
+# alone.
+QUEUE_MAX = 100
+
+
+def _mass(hass: HomeAssistant) -> Any:
+    for e in hass.config_entries.async_entries("music_assistant"):
+        mass = getattr(getattr(e, "runtime_data", None), "mass", None)
+        if mass is not None:
+            return mass
+    return None
+
+
+async def _queue_id(hass: HomeAssistant, entity_id: str) -> tuple[str | None, Any]:
+    res = await hass.services.async_call("music_assistant", "get_queue", {"entity_id": entity_id},
+                                         blocking=True, return_response=True)
+    q = (res or {}).get(entity_id) or {}
+    return q.get("queue_id"), q.get("current_index")
+
+
+def _item(it: Any) -> dict[str, Any]:
+    d = it if isinstance(it, dict) else (it.to_dict() if hasattr(it, "to_dict") else {})
+    mi = d.get("media_item") or {}
+    artists = mi.get("artists") or []
+    img = d.get("image") or mi.get("image") or (mi.get("album") or {}).get("image")
+    if isinstance(img, dict):
+        img = img.get("path")
+    return {"id": d.get("queue_item_id"), "title": mi.get("name") or d.get("name") or "",
+            "artist": artists[0].get("name", "") if artists and isinstance(artists[0], dict) else "",
+            "duration": d.get("duration"), "image": img if isinstance(img, str) and img.startswith("http") else None}
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hk_music/queue",
+                                  vol.Required("entity_id"): cv.entity_id,
+                                  vol.Optional("limit", default=40): vol.All(int, vol.Range(1, QUEUE_MAX))})
+@websocket_api.async_response
+async def ws_music_queue(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                         msg: dict[str, Any]) -> None:
+    """{ok, index, items: [{id, title, artist, duration, image}]}: the songs from
+    the current one on, `index` the current one's place in the whole queue."""
+    mass = _mass(hass)
+    if mass is None:
+        connection.send_result(msg["id"], {"ok": False, "message": "Music Assistant is not set up."})
+        return
+    try:
+        qid, cur = await _queue_id(hass, msg["entity_id"])
+        if not qid:
+            connection.send_result(msg["id"], {"ok": False, "message": "That speaker has no queue."})
+            return
+        cur = int(cur or 0)
+        items = await mass.send_command("player_queues/items", queue_id=qid, limit=msg["limit"], offset=cur)
+        connection.send_result(msg["id"], {"ok": True, "queue_id": qid, "index": cur,
+                                           "items": [_item(i) for i in (items or [])]})
+    except Exception as err:  # noqa: BLE001 -- an answer, never a dropped request
+        connection.send_result(msg["id"], {"ok": False, "message": str(err) or "The queue could not be read."})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hk_music/queue_play",
+                                  vol.Required("entity_id"): cv.entity_id,
+                                  vol.Required("item_id"): str})
+@websocket_api.async_response
+async def ws_music_queue_play(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                              msg: dict[str, Any]) -> None:
+    """Play one song of the queue (by its queue_item_id: an index moves as the
+    queue plays on)."""
+    mass = _mass(hass)
+    if mass is None:
+        connection.send_result(msg["id"], {"ok": False, "message": "Music Assistant is not set up."})
+        return
+    try:
+        qid, _cur = await _queue_id(hass, msg["entity_id"])
+        if not qid:
+            connection.send_result(msg["id"], {"ok": False, "message": "That speaker has no queue."})
+            return
+        await mass.send_command("player_queues/play_index", queue_id=qid, index=msg["item_id"])
+        connection.send_result(msg["id"], {"ok": True})
+    except Exception as err:  # noqa: BLE001
+        connection.send_result(msg["id"], {"ok": False, "message": str(err) or "That song could not be played."})

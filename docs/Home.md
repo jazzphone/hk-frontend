@@ -37,8 +37,10 @@ The sidebar has every page.
   screen as a phone, an iPad, a wall tablet, a desktop or a car.
   ([HK Settings](HK-Settings.md))
 - **Optional features:** whole-home [Music](Music.md), [Live TV](Live-TV.md),
-  [Clean Areas](Clean-Areas.md), an [Alarm PIN](Alarm-PIN.md), and an
-  [Energy](Energy.md) page built from Home Assistant’s Energy settings.
+  [Clean Areas](Clean-Areas.md), an [Alarm PIN](Alarm-PIN.md), an
+  [Energy](Energy.md) page built from Home Assistant’s Energy settings, and
+  [Notifications](Notifications.md): a banner at the top of the screens when
+  something happens at home, with a camera’s snapshot.
 - **Wall tablet support:** return to Home when idle, a full-screen kiosk look,
   and a screensaver of your photos or the forecast over a landscape that
   dresses up for the holidays, with the clock, what's playing, the timers,

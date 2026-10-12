@@ -219,18 +219,26 @@ def decide(f: Mapping[str, Any]) -> tuple[str, str]:
       slept         that presence predates a Sleep until re-entered, or the
                     photos have run their After the Screensaver
       in_use        touched within the window (None: not known)
+      saver_use     ...but on the screensaver's own controls, the photos up
+                    (its music, its panel): the photos are in use, not the
+                    dashboard
       lit           a lit light is on (True with none chosen)
       touched_since_dark  touched since the lit lights last changed
       prev          the last decision (for a hold on missing inputs)
+      notice        a notification set to Wake the Screen, for its while
+                    (its title; "" when none)
     """
     def first(names: Iterable[str]) -> str:
         return next(iter(names), "")
     in_use, present = f.get("in_use"), f.get("present")
     inputs_missing = present is None or in_use is None
     prev = f.get("prev") if f.get("prev") in ("dark", "photos", "dashboard") else None
+    if f.get("notice"):
+        return "dashboard", "notification: %s" % f["notice"]
     if f.get("wake_q"):
         return "dashboard", "%s is on" % first(f["wake_q"])
-    if f.get("quiet") and not in_use and not f.get("app_front") and not f.get("hold_q"):
+    saver_use = bool(f.get("saver_use"))
+    if f.get("quiet") and not in_use and not saver_use and not f.get("app_front") and not f.get("hold_q"):
         if inputs_missing and prev:
             return prev, "holding - an input is unavailable (quiet hours)"
         return "dark", "quiet hours"
@@ -249,6 +257,8 @@ def decide(f: Mapping[str, Any]) -> tuple[str, str]:
     lit = f.get("lit", True)
     if in_use and (lit or f.get("touched_since_dark")):
         return "dashboard", "somebody is at the tablet"
+    if saver_use and (lit or f.get("touched_since_dark")):
+        return "photos", "somebody is using the screensaver"
     if present and lit and not f.get("slept"):
         return "photos", "somebody is in the room"
     if present and not lit:

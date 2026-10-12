@@ -331,6 +331,96 @@
         '  color:rgba(255,255,255,0.55);overflow:hidden;',
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.shelf{margin:0 0 20px 0}',
+        // THE MUSIC PAGE (`layout: music`): the card is the page's right
+        // column -- the search stays, the rest scrolls under it (with the
+        // shadow every header riding on a list has, shadeCss)
+        ':host([music]){display:block;height:100%}',
+        // (HkBase's own wrapper between the host and the card is as tall as
+        // the host too: left at auto, 100% below it meant nothing, and the
+        // list grew to all it holds instead of scrolling)
+        ':host([music]) > div{height:100%}',
+        // ...but a phone's one column scrolls as a page: no box of its own
+        // (`flow`, set by the Music page), the search scrolling away with it
+        ':host([music][flow]),:host([music][flow]) > div,:host([music][flow]) ha-card{height:auto}',
+        ':host([music][flow]) [data-hk-role="body"]{overflow:visible;flex:none}',
+        ':host([music]) ha-card{height:100%;display:flex;flex-direction:column;position:relative}',
+        // (the search first, level with the page's Playing On; the trail
+        // under it only inside something -- at the first level Your
+        // Playlists says where it plays)
+        ':host([music]) .bar{flex:none;margin:0;padding:0 0 14px 0;display:flex;flex-direction:column-reverse;gap:12px}',
+        ':host([music]) .search{height:50px;border-radius:25px}',
+        ':host([music][atroot]) .crumb{display:none}',
+        // (the trail and, at its end, where it plays: one row)
+        ':host([music]) .crumb{align-items:center;min-height:34px}',
+        ':host([music]) .crumb .route{margin-left:auto}',
+        // THE SEARCH ROW: the field takes what the button leaves (the button
+        // its own size, as tall as the field); the line under them
+        '.srow{display:flex;align-items:center;gap:12px;min-width:0}',
+        '.srow .search{flex:1 1 auto;min-width:0;width:auto}',
+        '.srow .route{flex:none;height:50px;border-radius:25px;padding:0 16px 0 14px;font-size:15px;margin-left:0;max-width:60%}',
+        '.srow .route ha-icon{--mdc-icon-size:20px;width:20px;height:20px}',
+        '.route .full{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}',
+        '.route .full b{overflow:hidden;text-overflow:ellipsis;min-width:0}',
+        '.route .full > span{flex:none}',
+        '.route > svg,.route > ha-icon,.route > .rx{flex:none}',
+        // a phone: a little smaller, and never more than leaves the search its
+        // word (the room names give way first)
+        ':host([music][flow]) .srow .route{font-size:14px;padding:0 13px 0 12px;gap:6px;max-width:calc(100% - 118px)}',
+        ':host([music][flow]) .srow .route .full{gap:6px}',
+        ':host([music][flow]) .srow .route .full > span{font-size:12.5px}',
+        ':host([music][flow]) .srow .route ha-icon{--mdc-icon-size:18px;width:18px;height:18px}',
+        ':host([music][flow]) .srow .search{padding:0 18px}',
+        '.route .num{display:none;min-width:22px;height:22px;border-radius:11px;background:rgba(255,255,255,0.18);font-size:13px;font-weight:700;',
+        '  align-items:center;justify-content:center;padding:0 6px;box-sizing:border-box}',
+        '.route.set .num{background:rgba(29,20,38,0.12)}',
+        // ...on a phone, searching: the glyph and the count, the field the rest
+        ':host([music][flow]) .srow.open .route .full{display:none}',
+        ':host([music][flow]) .srow.open .route .num{display:flex}',
+        ':host([music][flow]) .srow.open .route{padding:0 14px 0 12px;gap:6px}',
+        ':host([music][flow]) .srow.open .route > svg{display:none}',
+        ':host([music]) .bar .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px;font-size:13px;color:rgba(255,255,255,0.8)}',
+        ':host([music]) .bar .nextnote:empty{display:none}',
+        ':host([music]) .bar .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
+        // (14 px of room each side for the tiles' shadows -- a scroller clips
+        // them at its edge -- given back by the margin, so nothing moves)
+        ':host([music]) [data-hk-role="body"]{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;',
+        '  -webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 14px 24px 14px;margin:0 -14px}',
+        ':host([music]) [data-hk-role="body"]::-webkit-scrollbar{display:none}',
+        // ...no more room than the page's own gutter: a phone's is 12 px, and
+        // 14 ran the list 2 px past each side of the screen (the page could
+        // be nudged sideways)
+        '@media (max-width:640px){:host([music]) [data-hk-role="body"]{padding-left:12px;padding-right:12px;margin:0 -12px}}',
+        C.shadeCss(':host([music]) ha-card'),
+        // ...its Your Playlists (the page's rootExtra): the categories' tile
+        '.yp{margin:0 0 22px 0}',
+        // the heading, and on its right where they play: one pill, like a
+        // speaker picker -- Plays on <rooms> >, a tap is Change
+        // ONE GAP DOWN THE COLUMN: the search to Plays on, Plays on to the
+        // pills (and the line between, when there is one) -- the pills' own 14
+        '.yp .yph{display:flex;align-items:center;gap:12px;margin:0 0 14px 2px}',
+        '.yp .yph h3{margin:0;flex:none}',
+        '.route{margin-left:auto;min-width:0;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border-radius:17px;',
+        '  background:rgba(255,255,255,0.10);border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:rgba(255,255,255,0.95)}',
+        '.route:active{background:rgba(255,255,255,0.18)}',
+        '.route ha-icon{--mdc-icon-size:18px;width:18px;height:18px;flex:none;display:flex}',
+        '.route span{font-size:13px;font-weight:500;color:rgba(255,255,255,0.65);flex:none}',
+        '.route b{font-size:14px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '.route svg{width:12px;height:12px;flex:none;fill:none;stroke:rgba(255,255,255,0.6);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}',
+        // PICKED ROOMS FOR THE NEXT MUSIC: the pill white, its X back to what plays
+        '.route.set{background:#fff;color:#1d1426;border-color:transparent}',
+        '.route.set span{color:rgba(29,20,38,0.6)}',
+        '.route .rx{width:22px;height:22px;border-radius:50%;background:rgba(29,20,38,0.12);display:flex;align-items:center;justify-content:center;margin-right:-5px;flex:none}',
+        '.route .rx svg{width:10px;height:10px;stroke:#1d1426}',
+        '.yp .yph{flex-wrap:wrap;row-gap:8px}',
+        '.yp .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px 14px;font-size:13px;color:rgba(255,255,255,0.8)}',
+        '.yp .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
+        '.yp .it.cat.on{background:#fff;color:#1c1c1e}',
+        '.yp .it.cat.on ha-icon,.yp .it.cat.on .txt{color:#1c1c1e}',
+        '.yp .it.cat.busy{opacity:.55}',
+        '.yp .opts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px}',
+        '.yp .opt{height:36px;padding:0 16px;border-radius:18px;display:flex;align-items:center;font-size:14px;font-weight:600;cursor:pointer;',
+        '  color:#fff;border:1.5px solid rgba(255,255,255,0.35);box-sizing:border-box}',
+        '.libh{margin:4px 0 10px 2px;font-size:16px;font-weight:600;letter-spacing:-0.2px;color:rgba(255,255,255,0.92)}',
         '.shelf h3,.sec h3{margin:0 0 10px 2px;font-size:16px;font-weight:600;',
         '  letter-spacing:-0.2px;color:rgba(255,255,255,0.92)}',
         // A SCROLLER, not a wrapping grid: a shelf is a glance, and a row
@@ -505,8 +595,17 @@
     // WHICH PLAYER EVERYTHING TARGETS: hkMusic's answer for this screen, the
     // same one the now-playing card draws (cards/hk-base.js). Every browse,
     // search and play call below names the result.
+    //
+    // `player:` IN THE CONFIG NAMES IT INSTEAD: the screensaver's Browse
+    // (hk-saver-panel.js) plays on the music it is showing, which is not
+    // always the one this screen would pick.
     _player() {
       var M = window.hkMusic;
+      // THE MUSIC PAGE (hk-music.js) answers for itself: what it is showing,
+      // or where the next music plays -- a function, so a change does not
+      // rebuild the card (setConfig would take it back to its first level)
+      if (typeof this.playerFor === 'function') { var pf = this.playerFor(); if (pf) return pf; }
+      if (this._config.player) return this._config.player;
       return (M && this._hass && M.player(this._hass)) ||
              this._config.fallback_player || null;
     }
@@ -892,6 +991,7 @@
     _play(node) {
       var player = this._player(), self = this;
       if (!player || !node) return;
+      if (typeof this.playVia === 'function') { this.playVia(node); return; }
       // AN UNAVAILABLE SPEAKER IS REFUSED HERE, OUT LOUD.
       //
       // Home Assistant skips an unavailable entity inside a service call and
@@ -934,6 +1034,9 @@
         }
         // What you just played is what this screen is about now.
         if (window.hkMusic) window.hkMusic.setFocus(player);
+        // (the screensaver's Browse closes on it)
+        self.dispatchEvent(new CustomEvent('hk-library-played', {
+          detail: { player: player, title: node.title }, bubbles: true, composed: true }));
       });
     }
 
@@ -1050,6 +1153,27 @@
           '<div data-hk-role="body"></div>' +
           '</ha-card>';
         var q = this._root.querySelector.bind(this._root);
+        if (this._config.layout === 'music' && this.routeEl) {
+          // WHERE IT PLAYS, BESIDE THE SEARCH (the Music page's own button,
+          // routeEl, and its line, noteEl): pinned with it, on every level
+          var sr = document.createElement('div');
+          sr.className = 'srow';
+          var inp = q('.search');
+          inp.parentNode.insertBefore(sr, inp);
+          sr.appendChild(inp);
+          sr.appendChild(this.routeEl);
+          // (the bar runs bottom-up -- column-reverse -- so the line goes
+          // before the row to show under it)
+          if (this.noteEl) sr.parentNode.insertBefore(this.noteEl, sr);
+          // a phone's row: searching, the button folds to its glyph and count
+          inp.addEventListener('focus', function () { sr.classList.add('open'); });
+          inp.addEventListener('blur', function () { setTimeout(function () { if (!inp.value) sr.classList.remove('open'); }, 120); });
+          inp.addEventListener('input', function () { if (inp.value) sr.classList.add('open'); });
+        }
+        if (this._config.layout === 'music') {
+          this.setAttribute('music', '');
+          if (C.shade) C.shade(q('[data-hk-role="body"]'), q('ha-card'));
+        }
         this._e = { crumb: q('.crumb'), search: q('.search'),
                     body: q('[data-hk-role="body"]') };
         var self = this;
@@ -1120,6 +1244,15 @@
       // data, because that is the part that would otherwise redraw wrongly.
       var live = this._stack.length ? this._stack[this._stack.length - 1] : null;
       this._crumb(live);
+      // AT THE FIRST LEVEL OR NOT, said when it changes (the screensaver's
+      // Browse shows the house's playlists above the first level only)
+      var first = this._mode !== 'search' && !live;
+      if (this._config.layout === 'music') { if (first) this.setAttribute('atroot', ''); else this.removeAttribute('atroot'); }
+      if (first !== this._first) {
+        this._first = first;
+        this.dispatchEvent(new CustomEvent('hk-library-level', {
+          detail: { root: first }, bubbles: true, composed: true }));
+      }
       var ctx = this._ctx || { top: null, atRoot: true, mode: 'browse' };
       var top = ctx.top;
       // DECLARED HERE, not beside the grid it also feeds. `var` hoists, so a
@@ -1162,6 +1295,24 @@
         return;
       }
 
+      // THE MUSIC PAGE'S FIRST LEVEL (`layout: music`): its own section
+      // first (Your Playlists, rootExtra), then Discover, then the categories
+      // under a Library heading -- what you play most, then suggestions, then
+      // everything
+      var music = this._config.layout === 'music' && atRoot;
+      if (music) {
+        if (this.rootExtra) e.body.appendChild(this.rootExtra);
+        this._loadDiscover();
+        var sh1 = this._shelvesEl();
+        if (sh1) e.body.appendChild(sh1);
+        var lh = document.createElement('h3');
+        lh.className = 'libh';
+        lh.textContent = 'Library';
+        e.body.appendChild(lh);
+        e.body.appendChild(this._grid(items, atRoot, top));
+        return;
+      }
+
       if (this._isTracks(items)) {
         // No header on a search's Tracks section: there is no album above it
         // to describe, and `top` is null there for exactly that reason.
@@ -1186,6 +1337,13 @@
       // what separates the two halves.
       if (atRoot) {
         this._loadDiscover();
+        var shelves = this._shelvesEl();
+        if (shelves) e.body.appendChild(shelves);
+      }
+    }
+    _shelvesEl() {
+      var self = this;
+      {
         var shelves = document.createElement('div');
         shelves.className = 'shelves';
         (this._shelves || []).forEach(function (sh) {
@@ -1206,7 +1364,7 @@
         // `.children.length`, not `.firstChild`: both are real DOM, but only
         // the first one also reads in tests/dom.js, so the ordering here can
         // be asserted rather than eyeballed.
-        if (shelves.children.length) e.body.appendChild(shelves);
+        return shelves.children.length ? shelves : null;
       }
     }
 
@@ -1463,7 +1621,15 @@
     // hkMusic.label() names the context the way the picker does: a preset by
     // its own name ("Downstairs"), a join as "Leader +N", a room by itself.
     _playerName() {
-      var M = window.hkMusic;
+      if (typeof this.playerNameFor === 'function') { var pn = this.playerNameFor(); if (pn) return pn; }
+      var M = window.hkMusic, own = this._config && this._config.player;
+      if (M && this._hass && own) {
+        // the music that player is in, named as everywhere else ("Kitchen +3")
+        var c = M.contexts(this._hass).filter(function (x) {
+          return x.key === own || x.members.indexOf(own) >= 0;
+        })[0];
+        return c ? M.label(c) : (M.nameOf ? M.nameOf(own) : own);
+      }
       if (M && this._hass) return M.resolve(this._hass).name || '';
       return this._player() || '';
     }
@@ -1501,7 +1667,10 @@
       //
       // `.crumb` is its own full-width flex row with `flex-wrap:wrap`, so a
       // deep trail pushes this to a second line rather than squeezing it out.
-      var stamp = function () { if (who) add('\u00b7 ' + who, true, null); };
+      // THE MUSIC PAGE says it with its own button (routeEl), beside the
+      // search on every level
+      var own = !!this.routeEl;
+      var stamp = function () { if (who && !own) add('\u00b7 ' + who, true, null); };
 
       if (this._mode === 'search') {
         add(rootLabel, false, function () { self._toRoot(); });

@@ -185,6 +185,8 @@
 
     '@keyframes hk-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
     'ha-card[data-on="1"] .icon.spin{animation:hk-spin 1.35s linear infinite}',
+    // Animations off (Sky / Background): upright, as on the tile (hk-tile.js)
+    ':host([hk-still]) ha-card .icon.spin{animation:none}',
     '@media (prefers-reduced-motion:reduce){',
     '  ha-card,ha-card:active,.icon{transition:none;transform:none;animation:none}}'
   ].join('');
@@ -1211,7 +1213,7 @@
     lights: ['Lights', 'hk:lightbulb', 'white', ['lights']],
     timers: ['Timers', 'hk:timer-sand', 'white', ['timers']],
     vacuums: ['Vacuums', 'hk:robot-vacuum', 'white', ['vacuums']],
-    music: ['Play Music', 'hk:music', 'white', ['playmusic']],
+    music: ['Music', 'hk:music', 'white', ['playmusic']],
     water: ['Water', 'hk:water', 'white', ['water']],
     // the Energy feature's page: drawn only where the screen has it (the
     // feature added, the page on its Pages)

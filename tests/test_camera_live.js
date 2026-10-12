@@ -93,7 +93,12 @@ ok('a frame older than SAVED_MAX_MS is not shown', !K2._frame);
 __runTimers();
 var playingOne = [K0, K1, K2].filter(function (c) { return !!c._liveEl; })[0];
 play(playingOne); tick(250);
+var vid = playingOne._liveEl.children[playingOne._liveEl.children.length - 1];
+vid.srcObject = { stream: 1 }; vid.pause = function () { this.paused = true; };
 playingOne.isConnected = false; playingOne.disconnectedCallback();
+// A video taken off the page with its stream still on is kept alive by the
+// browser, and its whole card with it: every visit left nine behind.
+ok('leaving: the live tile\'s video is let go (paused, its stream dropped)', vid.paused === true && vid.srcObject === null, vid);
 ok('a still that loads is kept for next time (not forced: the cache keeps its gap)', puts.some(function (x) { return x[0] === 'camera.k0' && x[1] === false; }), puts);
 ok('leaving with the video playing: its frame is kept (forced)', puts.some(function (x) { return x[0] === playingOne._config.entity && x[1] === true; }), puts);
 ok('the layers: live card underneath, the still above it, the kept frame on top',

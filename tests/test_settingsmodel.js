@@ -79,15 +79,15 @@ var PO = ['weather', 'cameras', 'music', 'browse', 'lights', 'rooms'];
 var CUSTOM = { energy: 'Energy', ecoflow: 'EcoFlow' };
 m = M.pagesModel({ pages: [], custom_pages: ['energy'] }, PO, CUSTOM);
 ok('pages: automatic is every kind with this screen’s custom pages before the rooms',
-   m.auto && eq(m.rows.map(function (r) { return r.value; }), ['weather', 'cameras', 'music', 'browse', 'lights', 'energy', 'rooms']));
-ok('...Browse Music is fixed, a custom page is marked', m.rows[3].fixed && m.rows[5].custom);
+   m.auto && eq(m.rows.map(function (r) { return r.value; }), ['weather', 'cameras', 'music', 'lights', 'energy', 'rooms']));
+ok('...Browse Music is no page of its own (part of Music), a custom page is marked', m.rows.every(function (r) { return r.value !== 'browse' && !r.fixed; }) && m.rows[4].custom);
 ok('...More is the custom pages not shown', eq(m.more.map(function (r) { return r.value; }), ['ecoflow']));
-m = M.pagesModel({ pages: ['lights', 'music', 'weather'], custom_pages: ['ecoflow'] }, PO, CUSTOM);
-ok('pages: a set order; Browse follows Play Music; a shown custom page goes before the rooms (or last)',
-   eq(m.rows.map(function (r) { return r.value; }), ['lights', 'music', 'browse', 'weather', 'ecoflow']));
-ok('pages: saving keeps Browse only with Play Music, and says which custom pages',
+m = M.pagesModel({ pages: ['lights', 'music', 'browse', 'weather'], custom_pages: ['ecoflow'] }, PO, CUSTOM);
+ok('pages: a set order (an older saved Browse dropped); a shown custom page goes before the rooms (or last)',
+   eq(m.rows.map(function (r) { return r.value; }), ['lights', 'music', 'weather', 'ecoflow']));
+ok('pages: saving never keeps Browse, and says which custom pages',
    eq(M.pagesSave(['browse', 'lights', 'energy'], CUSTOM), { pages: ['lights', 'energy'], custom_pages: ['energy'] }) &&
-   eq(M.pagesSave(['music', 'lights'], CUSTOM), { pages: ['music', 'browse', 'lights'], custom_pages: [] }));
+   eq(M.pagesSave(['music', 'lights'], CUSTOM), { pages: ['music', 'lights'], custom_pages: [] }));
 ok('pages: a custom page while automatic changes only custom_pages',
    eq(M.pagesCustom({ pages: [], custom_pages: [] }, 'energy', true), { custom_pages: ['energy'] }));
 ok('...and while set is placed before the rooms',
@@ -355,6 +355,8 @@ ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_
 
 
 ok('sky summary includes an independent decoration style', M.skySummary({ sky_decoration_style: 'new' }) === 'New Decorations' && M.skySummary({ sky_decoration_style: 'old' }) === 'Old Decorations');
+ok('...and where its moving things are', M.skySummary({ sky_moving: 'front' }) === 'Moving Things in Front' && M.skySummary({ sky_moving: 'behind' }) === 'Moving Things Behind' &&
+   M.skySummary({ sky_moving: null }) === 'Same as All Screens');
 ok('sky summary: absent and null settings follow All Screens', M.skySummary({}) === 'Same as All Screens' && M.skySummary({ sky_gradient: null }) === 'Same as All Screens');
 ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: false, sky_weather: false, sky_decorations: false, sky_gradient: 'live' }) === 'No Animation, No Weather, No Decorations, Own Backdrop');
 ok('sky summary: true is an own setting too', M.skySummary({ sky_animations: true }) === 'Own Settings');
@@ -389,14 +391,14 @@ ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.
   ok('a screen from before: its custom pages, `energy` the Energy page', JSON.stringify(legacy.rows.map(function (r) { return r.value; })) === '["energy","ecoflow"]' &&
      legacy.rows[0].custom === false, legacy.rows);
   var mus = M2.onlyModel({ only_pages: ['music'] }, kinds, {}, true);
-  ok('...Play Music brings Browse Music, fixed after it', JSON.stringify(mus.rows.map(function (r) { return r.value; })) === '["music","browse"]' && mus.rows[1].fixed);
+  ok('...Music alone (Browse is part of it)', JSON.stringify(mus.rows.map(function (r) { return r.value; })) === '["music"]');
   ok('...a whole screen\'s own page order is not this list', M2.onlyModel({ pages: ['weather'], custom_pages: [] }, kinds, {}, true).rows.length === 0);
 })();
 // EACH PAGE'S BACKGROUND
 (function () {
   var M3 = (typeof window !== 'undefined' ? window : globalThis).hkSettingsModel;
   var rows = M3.skyPageRows(['energy', 'weather', 'music', 'browse', 'rooms', 'ecoflow'], { ecoflow: 'EcoFlow' });
-  ok('page backgrounds: each page once, Browse Music with Play Music', rows.map(function (r) { return r.key; }).join(',') === 'energy,weather,music,rooms,ecoflow');
+  ok('page backgrounds: each page once, Browse part of Music', rows.map(function (r) { return r.key; }).join(',') === 'energy,weather,music,rooms,ecoflow');
   ok('...Automatic in words: a page with its own color keeps it, the rest the live sky, a custom page as written',
      M3.skyAutoLabel(rows[0]) === 'Page Color' && M3.skyAutoLabel(rows[1]) === 'Backdrop' && M3.skyAutoLabel(rows[4]) === 'As Written');
   var bds = [{ id: 'live', label: 'Live Sky' }, { id: 'dusk', label: 'Dusk' }];
@@ -445,5 +447,19 @@ ok('All Screens\' phone keys read as a screen\'s, and save back', hb.button_phon
    M.houseMenuAsBoard({}).button_phone === 'chip' && M.houseMenuAsBoard({}).tab_bar_rooms_phone === 'more' &&
    M.houseMenuAsBoard({ bar_glass: 'clear' }).tab_bar_glass === 'tinted' && !('narrow' in M.houseMenuAsBoard({})) &&
    eq(M.houseMenuSave({ button_phone: 'chip', tab_bar_rooms_phone: null }), { 'menu.button_phone': 'chip', 'menu.bar_rooms_phone': null }));
+// THE GLASS (2026-10-10): Glass, Frosted, Blur -- and Blur's three modes
+ok('glass: three styles, Blur\'s three modes, one stored value each',
+   eq(M.GLASS_STYLES.map(function (g) { return g[0]; }), ['clear', 'frosted', 'blur']) &&
+   eq(M.BLUR_MODES.map(function (g) { return g[0]; }), ['blur', 'blur_pre', 'blur_each']) &&
+   eq(M.GLASS.map(function (g) { return g[0]; }), ['clear', 'frosted', 'blur', 'blur_pre', 'blur_each']));
+ok('...named as you would say them', M.glassLabel('clear') === 'Glass' && M.glassLabel('frosted') === 'Frosted' &&
+   M.glassLabel('blur') === 'Blur · Shared Layer' && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.glassLabel('blur_each') === 'Blur · Each Card');
+ok('...each value\'s style', M.glassStyle('blur_pre') === 'blur' && M.glassStyle('blur_each') === 'blur' && M.glassStyle('blur') === 'blur' &&
+   M.glassStyle('frosted') === 'frosted' && M.glassStyle('clear') === 'clear' && M.glassStyle(undefined) === 'clear' &&
+   M.isBlur('blur_pre') && !M.isBlur('frosted'));
+ok('...Pre-rendered has the Blur amount, and says so', eq(M.amountsFor('blur_pre'), { frost: false, blur: true }) && /Blur: how strong/.test(M.glassFooter('blur_pre')));
+ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return m[2].length > 60; }) &&
+   /lightest/i.test(M.BLUR_MODES[1][2]) && /heaviest/i.test(M.BLUR_MODES[2][2]) &&
+   /every frame/.test(M.BLUR_MODES[0][2]) && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.isBlur('blur_pre') && !M.isBlur('blur_baked'));
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

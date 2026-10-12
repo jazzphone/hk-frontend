@@ -213,6 +213,7 @@ changes; your screens keep today’s sky.
 | Daytime Sky | Natural | How bright the midday blue runs: **Natural**, **Balanced** or **Deep** ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
 | Seasonal Decorations | On | Pauses every decoration. The same switch as **Seasonal decorations** on the HK Frontend device. |
 | Decoration Style | Old Decorations | **New Decorations** draws the seasons and holidays as close woodland scenery (above). Each screen can choose its own. |
+| Moving Things | Behind the Cards | **In Front of the Cards** lets the bats, the witch and the sleigh, falling leaves and petals, snow, confetti and fireflies cross over the cards (taps still reach them). Fireworks stay behind. Each screen can choose its own. |
 | Liveliness | Classic | **Subtle**, **Classic**, **Festive** or **Party** for every decoration, woodland season and the Night Sky, or **Custom** ([Liveliness](#liveliness)). Each screen can choose its own. |
 | Each Occasion | — | *With Liveliness Custom.* Every decoration, woodland season and the Night Sky (the forecast screensaver’s twinkling and shooting stars), each with its own Liveliness. |
 | Woodland Between Occasions | All Seasons | With New Decorations, which seasons' woodland — Spring, Summer, Autumn, Winter — shows on days with no holiday or birthday, each season on its own page with its **Show** and [Liveliness](#liveliness). Separate from each holiday's **Show**. |

@@ -204,6 +204,16 @@ ok('...and Browse Music can be placed on its own',
 var PMnoPlay = PM.map(function (v) { return v.path === 'playmusic' ? Object.assign({}, v, { menu: false }) : v; });
 ok('Browse Music is never in the menu without Play Music', t(model({ views: PMnoPlay }, AREAS, { dash: 'd' })).indexOf('Browse') < 0,
    t(model({ views: PMnoPlay }, AREAS, { dash: 'd' })));
+// BROWSE MUSIC AS THE MUSIC PAGE'S OTHER ADDRESS (2026-10-11): `menu: false`
+// on a follower -- never its own row, even where a screen chose it in its
+// categories back when it was a page of its own (Music listed twice)
+var PMone = PM.map(function (v) { return v.path === 'music-browse' ? Object.assign({}, v, { title: 'Music', menu: false }) :
+                                          v.path === 'playmusic' ? Object.assign({}, v, { title: 'Music' }) : v; });
+ok('an address of another page is not in the menu', t(model({ views: PMone }, AREAS, { dash: 'd' })) === 'Lights,Music,Energy',
+   t(model({ views: PMone }, AREAS, { dash: 'd' })));
+ok('...not even chosen in the screen\'s categories (Music once)',
+   t(model({ views: PMone }, AREAS, { dash: 'd', categories: ['lights', 'playmusic', 'energy', 'music-browse'] })) === 'Lights,Music,Energy',
+   t(model({ views: PMone }, AREAS, { dash: 'd', categories: ['lights', 'playmusic', 'energy', 'music-browse'] })));
 var pp = window.hkMenu._.pagePaths;
 ok('a page order as view paths: kinds, Browse Music, a custom page this dashboard shows (rooms is not a page)',
    pp(['live_tv', 'music', 'browse', 'energy', 'gone', 'rooms'], ['energy']).join() === 'live-tv,playmusic,music-browse,energy',
@@ -394,6 +404,42 @@ try { old.setConfig({}); } catch (e) { threw = e; }
 ok('an older hk-base.js with no menu (the first load after an update): the chevron draws alone',
    !threw && old._menuWas === false, String(threw));
 C.menu = keep;
+
+// THE HIGHLIGHT SLIDES TO THE NEW ROW (2026-10-10), as the tab bar's: a
+// layer behind the row, started over the old row and sprung home by a
+// transform; a tap starts it before the page's work (navigate after a frame)
+var msrc = readFile(root + '/frontend/modules/hk-menu.js');
+ok('the highlight is a layer behind the row, moved by a transform with a spring',
+   /'\.row\.here::before\{[^']*z-index:-1/.test(msrc) && /transform:translate\(var\(--hx,0px\),var\(--hy,0px\)\) scale\(var\(--sx,1\),var\(--sy,1\)\)/.test(msrc) &&
+   /transition:transform \.42s ' \+ SPRING/.test(msrc));
+ok('...not under Reduce Motion', /prefers-reduced-motion:reduce\)\{[^}]*\.row\.here::before\{transition:none\}/.test(msrc));
+ok('...on a page change and on a tap, the tap before the new page is asked for',
+   /slideHere\(hereRow\);/.test(msrc) && /slideHere\(r\);[\s\S]{0,600}?N\(it\.path, null\)/.test(msrc));
+
+// ONE BOARD PER SETTINGS VERSION: the menu's questions are asked on every
+// hass push, and each built the board again (95 keys, a dozen times a push).
+// hk-settings counts the feeds it applies; a new feed is a new board.
+(function () {
+  var keepHS = window.hkSettings, ver = 1;
+  SETTINGS = { boards: { 'dashboard-hall': { menu: 'chip', glyph: 'lines' } } };
+  window.hkSettings = { get: keepHS.get, get version() { return ver; } };
+  location.pathname = '/dashboard-hall/0';
+  var a = M.board(), b = M.board();
+  ok('a copy for each caller, of one board', a !== b && a.menu === 'chip' && b.glyph === 'lines');
+  ok('the menu reads it', M.icon() === 'hk:menu');
+  var reads = 0, hall = { menu: 'chip' };
+  Object.defineProperty(hall, 'glyph', { enumerable: true, get: function () { reads++; return 'lines'; } });
+  SETTINGS = { boards: { 'dashboard-hall': hall } };
+  M.icon(); var once = reads; M.sig(); M.style(); M.icon();
+  ok('...the same version and feed: built once, however often it is asked', once > 0 && reads === once, once + ' then ' + reads);
+  SETTINGS = { boards: { 'dashboard-hall': { menu: 'chip', glyph: 'dock' } } };
+  ver = 2;
+  ok('...a new feed (version) is read at once', M.icon() === 'hk:dock-left');
+  location.pathname = '/dashboard-other/0';
+  ok('...and another dashboard is its own', M.board().menu === 'off');
+  location.pathname = '/dashboard-hall/0';
+  window.hkSettings = keepHS;
+})();
 
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed' : 'ALL ' + pass + ' MENU TESTS PASS'));
 if (fail) throw new Error(fail + ' failed');

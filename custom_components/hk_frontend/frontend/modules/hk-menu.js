@@ -151,6 +151,12 @@
       // menu when its leader is, as its kind, right after it -- or where the
       // page order places it.
       if (v.menu_follows) {
+        // ...unless it says it is not in the menu: then it is only another
+        // address of its leader (Browse Music, since 2026-10-11 the Music
+        // page opened in its search box), and never a row of its own -- not
+        // even where a screen chose it back when it was its own page (four
+        // screens' menus listed Music twice)
+        if (menuOff(v)) continue;
         var li = -1;
         for (var k = 1; k < views.length; k++) if (views[k] && views[k].path === v.menu_follows) { li = k; break; }
         if (li < 0 || !shows(views[li], li) || !(v.menu_title || v.title)) continue;
@@ -404,6 +410,8 @@
     // The iPad band's roomier half (see publishLeft): 860 px of page and up.
     var BAND_WIDE = 860;
     var EASE = 'cubic-bezier(.32,.72,0,1)';   // UIKit's sheet curve
+    // the highlight's slide: a touch past and back, as a UIKit spring (the tab bar's)
+    var SPRING = 'cubic-bezier(.34,1.24,.42,1)';
     var CSS = [
       ':host{all:initial}',
       '.root{position:fixed;left:0;top:0;width:0;height:0;z-index:6;',
@@ -464,7 +472,11 @@
       // dashboard's full width, hk-popup.js), and says how much of the
       // screen's bottom it covers (--hk-bar-h): the list gets that much more
       // room at its end, so its last rows still scroll up clear of the bar.
-      '.root.docked .list{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px) + var(--hk-bar-h,0px))}',
+      '.root.docked .list{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px) + var(--hk-bar-h,0px) - var(--hk-dock-h,0px))}',
+      // DOCKED, the panel ends above the docked now-playing bar, which runs
+      // the screen's whole width under it (hk-popup.js --hk-dock-h); a bar
+      // that floats over the page still lies over its foot (--hk-bar-h above)
+      '.root.docked .panel{height:calc(100% - var(--hk-dock-h,0px))}',
       // THE TIME AND WEATHER (Configure: "Time and weather in the menu on
       // these dashboards"), only while the menu is docked. Fixed above the
       // list -- only the rows scroll, under the hairline -- and no plate of
@@ -488,7 +500,9 @@
       '.now .d,.now .c{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0;color:rgba(255,255,255,0.66);',
       '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
       '.now .c{justify-self:end;text-align:right;cursor:pointer;-webkit-tap-highlight-color:transparent}',
-      '.rule{position:relative;flex:none;height:1px;margin:0 14px;background:rgba(255,255,255,0.14)}',
+      // a border, snapped to device pixels (a filled 1 px box fell between them
+      // on a Mac at 1.5x-1.7x and drew at half strength: hk-settings-kit.js)
+      '.rule{position:relative;flex:none;height:0;margin:0 14px;border-top:1px solid rgba(255,255,255,0.14)}',
       // the safe area is the time's to clear, not the list's
       '.panel.has-now .list{--safe:0px}',
       '.row{display:flex;align-items:center;gap:14px;width:100%;height:44px;box-sizing:border-box;',
@@ -499,7 +513,17 @@
       // the highlight: the screen's Highlight Colour (paintIcons), Apple's orange by default
       '.row ha-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex;color:var(--hk-accent,#ff9f0a)}',
       '.row span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.row.here{background:var(--hk-accent,#ff9f0a);color:var(--hk-on-accent,#fff)}',
+      // THE HIGHLIGHT SLIDES TO THE NEW ROW (2026-10-10), as the tab bar's
+      // does: it is a layer behind the row (::before), started over the row
+      // you were on (--hx/--hy, --sx/--sy, slideHere) and let go -- a short
+      // spring down or up the list. A transform: the compositor's, no layout.
+      '.row{position:relative;isolation:isolate}',
+      '.row.here{color:var(--hk-on-accent,#fff)}',
+      '.row.here::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;',
+      '  background:var(--hk-accent,#ff9f0a);transform-origin:0 0;',
+      '  transform:translate(var(--hx,0px),var(--hy,0px)) scale(var(--sx,1),var(--sy,1));',
+      '  transition:transform .42s ' + SPRING + '}',
+      '.row.here.slide-from::before{transition:none}',
       '.row.here ha-icon{color:var(--hk-on-accent,#fff)}',
       // the Home Assistant section: iOS count bubbles, "More" and its rows
       '.row .bdg{flex:none;min-width:22px;height:22px;padding:0 7px;box-sizing:border-box;border-radius:11px;',
@@ -582,7 +606,7 @@
       '.root.open .edge,.root.docked .edge{display:none}',
       // following the finger: no easing while it drags
       '.root.dragging .panel,.root.dragging .scrim{transition:none}',
-      '@media (prefers-reduced-motion:reduce){.panel,.scrim,.sh svg,.row.more svg,.root.tabscroll .tab{transition:none}}'
+      '@media (prefers-reduced-motion:reduce){.panel,.scrim,.sh svg,.row.more svg,.root.tabscroll .tab,.row.here::before{transition:none}}'
     ].join('\n');
 
     var CHEV_L = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"' +
@@ -635,6 +659,9 @@
       });
       S.tab = sr.querySelector('.tab');
       S.fab = sr.querySelector('.fab');
+      S.mat = sr.querySelector('.mat');
+      // the panel slid in or out: its pinned glass is cut again where it is
+      S.panel.addEventListener('transitionend', function () { if (window.hkGlass && window.hkGlass.repin) window.hkGlass.repin(); });
       sr.querySelector('.scrim').addEventListener('click', function () { close(); });
       S.tab.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -802,6 +829,7 @@
       var home = isHome();
       var cls = ['root'];
       if (glass === 'frosted') cls.push('frosted');
+      pinGlass(glass === 'blur_pre');
       var tabAt = typeof M.tab === 'function' ? M.tab() : (style === 'tab' ? 'always' : 'never');
       // a menu docking by itself appears where it belongs (settle)
       if (dock && !S.wasDock) settle();
@@ -880,6 +908,18 @@
     // ------------------------------------------------ the time and weather
     function nowOn() {
       return !!S.root && docked() && typeof M.hasTime === 'function' && M.hasTime();
+    }
+    // WITH A PICTURE OF THE SKY (Blur Mode Pre-rendered, hk-glass.js
+    // PINNED): the panel, the edge tab and the button wear their slice of it
+    // under their own tints instead of blurring the moving sky live -- the
+    // panel is a full-height blur of it on every page
+    var PIN_TINTS = [['mat', 'linear-gradient(rgba(22,26,42,0.56),rgba(22,26,42,0.56))'],
+                     ['tab', 'linear-gradient(145deg,rgba(255,255,255,0.17),rgba(255,255,255,0.07)),linear-gradient(rgba(26,30,46,0.24),rgba(26,30,46,0.24))'],
+                     ['fab', 'linear-gradient(145deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))']];
+    function pinGlass(on) {
+      var G = window.hkGlass;
+      if (!G || !G.pin) return;
+      PIN_TINTS.forEach(function (p) { if (S[p[0]]) { if (on) G.pin(S[p[0]], p[1]); else G.unpin(S[p[0]]); } });
     }
     function paintNow() {
       if (!S.root) return;
@@ -1111,13 +1151,37 @@
     }
     function markHere() {
       if (!S.items) return;
-      var rows = S.list.querySelectorAll('.row');
+      var rows = S.list.querySelectorAll('.row'), hereRow = null;
       for (var i = 0; i < rows.length; i++) {
         var it = S.items[+rows[i].getAttribute('data-i')];
         var here = !!it && isHere(it, location.pathname);
         rows[i].classList.toggle('here', here);
-        if (here) rows[i].setAttribute('aria-current', 'page'); else rows[i].removeAttribute('aria-current');
+        if (here) { rows[i].setAttribute('aria-current', 'page'); hereRow = rows[i]; } else rows[i].removeAttribute('aria-current');
       }
+      slideHere(hereRow);
+    }
+    // THE HIGHLIGHT GLIDES from the row you were on to the one you are on:
+    // the new row's highlight starts over the old row's box (in the list's
+    // own coordinates, scroll included, so a rebuilt list still knows where it
+    // was) and springs home. Nothing while the menu is out of sight (no box),
+    // or when the row has not moved.
+    function boxOf(el) {
+      var l = S.list.getBoundingClientRect(), r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      return { x: r.left - l.left, y: r.top - l.top + S.list.scrollTop, w: r.width, h: r.height };
+    }
+    function slideHere(el) {
+      var to = el ? boxOf(el) : null, from = S.hereBox;
+      S.hereBox = to;
+      if (!from || !to || (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1)) return;
+      el.classList.add('slide-from');
+      el.style.setProperty('--hx', (from.x - to.x) + 'px');
+      el.style.setProperty('--hy', (from.y - to.y) + 'px');
+      el.style.setProperty('--sx', String(from.w / to.w));
+      el.style.setProperty('--sy', String(from.h / to.h));
+      void el.offsetWidth;                      // that start, drawn
+      el.classList.remove('slide-from');
+      ['--hx', '--hy', '--sx', '--sy'].forEach(function (v) { el.style.removeProperty(v); });
     }
 
     function onList(e) {
@@ -1162,8 +1226,14 @@
       // The selection moves at once, so the tap is answered before the page is.
       S.list.querySelectorAll('.row.here').forEach(function (x) { x.classList.remove('here'); });
       r.classList.add('here');
+      slideHere(r);
       if (!docked()) close(true);
       if (isHere(it, location.pathname)) return;
+      // after a frame drawn (hk-base's navigate, no dim): the highlight's
+      // slide starts before the new page's work, which holds a wall tablet's
+      // main thread for half a second -- or the slide would begin after it
+      var N = window.hkCards && window.hkCards.navigate;
+      if (N) { N(it.path, null); return; }
       history.pushState(null, '', it.path);
       window.dispatchEvent(new CustomEvent('location-changed'));
     }
@@ -1588,10 +1658,20 @@
     }
 
     // ------------------------------------------------------------ wiring
+    // The rest at the start of the next frame: the address changes before
+    // Home Assistant builds the page, and sync measures (the round buttons'
+    // rects for the scrolled tab, the panel) -- read here, mid-change, it
+    // laid the page out once more than the frame does (measured headless, 6x
+    // slower: ~40 ms of each page change on a chip-row board).
+    var navFrame = 0;
     function onNav() {
       if (S.open) close(true);
-      sync();
-      if (S.root && docked()) markHere();
+      if (navFrame) return;
+      navFrame = requestAnimationFrame(function () {
+        navFrame = 0;
+        sync();
+        if (S.root && docked()) markHere();
+      });
     }
     window.addEventListener('location-changed', onNav);
     window.addEventListener('popstate', onNav);

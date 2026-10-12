@@ -16,7 +16,7 @@ Each chip summarizes one kind of thing and opens its page:
 | Blinds | How many blinds are open | Climate |
 | Timers | How many timers are running | Timers |
 | Vacuums | How many vacuums are running | Vacuums |
-| Speakers | How many speakers are playing | Play Music |
+| Speakers | How many speakers are playing | Music |
 | Water | Whether a leak sensor is wet | Water |
 | Energy | Power use, in kW | A [custom page](Pages.md#custom-pages) with the address `energy`, if the screen has one |
 

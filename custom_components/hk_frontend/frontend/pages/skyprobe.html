@@ -106,7 +106,7 @@
       seasonNodes: sky.querySelector('.season').querySelectorAll('*').length,
       stops: [0, 1, 2, 3].map(i => sky.style.getPropertyValue('--sk' + i)),
       noanim: sky.classList.contains('noanim'), moonSize: sky.style.getPropertyValue('--moonS'), fog: sky.style.getPropertyValue('--fogO'),
-      wetOpacity: sky.querySelector('.rain.r1').style.getPropertyValue('--o') });
+      wetOpacity: sky.querySelector('.rain').style.getPropertyValue('--o') });
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     window.skyProbe = { paint, snapshot, flags, results: [] };
     ids.forEach(id => document.getElementById(id).addEventListener('change', () => { paint(flags()); result.textContent = JSON.stringify(snapshot(), null, 2); }));

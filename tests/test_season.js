@@ -320,7 +320,7 @@ HS._apply({});
 // instead (hk-sky.js reaim).
 (function () {
   var files = ['modules/hk-sky.js', 'modules/hk-saver.js', 'modules/hk-glass.js', 'modules/hk-menu.js',
-               'modules/hk-tabbar.js', 'modules/hk-header.js', 'cards/hk-base.js', 'cards/hk-tile.js',
+               'modules/hk-tabbar.js', 'modules/hk-notify.js', 'modules/hk-header.js', 'cards/hk-base.js', 'cards/hk-tile.js',
                'cards/hk-weather.js', 'cards/hk-popup.js', 'cards/hk-media.js', 'cards/hk-cameras.js'];
   var bad = files.filter(function (f) { return /['"]animationiteration['"]/.test(read(root + '/frontend/' + f)); });
   check('no animationiteration listener in the sky, the saver or the cards', bad.length === 0);

@@ -103,8 +103,8 @@ The gaps inside the bar grow with it: the highlight's gap from the bar's
 edge and ends, the space between tabs, and a rail's the same, are always the
 bar's thickness ÷ 15 -- 4 px on a phone's Medium bar (as Apple Music's), 4.8
 px on a tablet's, about 4.3 and 5.3 px at Small and Large. Everything around the bar follows the size too:
-the small button it shrinks to, the Rooms button, where More opens, the
-room Adjust Content makes, and the now-playing bar beside a rail.
+the small button it shrinks to, the Rooms button, where More opens, and the
+room Adjust Content makes.
 
 ## Adjust Content
 
@@ -179,6 +179,8 @@ that sets its own **Menu Settings** has its own copy of them.
 
 - The page gets extra space at the bottom, so its last row scrolls clear of
   the bar.
-- On a wall tablet, the now-playing bar sits above the tab bar, the way iOS
-  stacks its mini player.
+- The [Now Playing bar](Music.md#the-now-playing-bar) is docked along the
+  screen’s bottom edge, full width. A tab bar along the bottom rides above
+  it; a rail ends above it, its tabs fitted to the height left (a tab that
+  no longer fits goes into More), and fits again as the bar comes and goes.
 - Pop-ups, detail sheets and the open menu cover the tab bar.

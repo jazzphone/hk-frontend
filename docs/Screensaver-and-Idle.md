@@ -67,9 +67,9 @@ Without photos (none in the folder yet, or a folder that can’t be read), the
 screensaver shows the **forecast** instead, and you can choose it outright:
 **Screensaver Options → Show → Forecast**. Rather have a dark screen when
 there are no photos? Turn off **Forecast When There Are No Photos**. Or have
-both: **Show → Photos & Forecast** brings the forecast round as one of the
-photos every few photos (**Forecast**: every 3, 5, 10 or 20), for as long as a
-photo shows; its sky only moves while it is on screen.
+both: **Between the Photos → Forecast** brings the forecast round as one of
+the photos every few photos (**A Slide**: every 3, 5, 10 or 20), for as long
+as a photo shows; its sky only moves while it is on screen.
 
 ![The forecast screensaver: the live sky over a fall landscape, the clock top left, Home Status top right, and the forecast along the bottom](images/tablet-forecast.png)
 
@@ -106,15 +106,95 @@ photo shows; its sky only moves while it is on screen.
   unseen, so the next wake starts there.
 - A tap anywhere closes it. There are no photos to page through.
 
-### The calendar pane
+### The music
+
+**Between the Photos → Music** brings what’s playing round as a slide of its
+own, full screen: the album art, large, over a blurred copy of itself, with
+the song, the artist, the album, the room (and how many more are grouped with
+it), how far into the song, and what’s up next. With **Forecast** on too, the
+two take turns. It only comes while music plays anywhere in the house.
+
+![The Music slide on a wall tablet's screensaver: the album art over a blurred copy of itself, the song, Up Next, the buttons and the volume](images/tablet-screensaver-music.png)
+*The Music slide: its buttons and volume work without closing the screensaver.*
+
+- **Its buttons work without closing the screensaver:** previous, play or
+  pause, next, and a volume slider you drag. A slide touched stays its full
+  time again. **A tap on the album art opens Music** on that music. A
+  touch anywhere else closes the screensaver, as always.
+- The clock, the date and the weather stay at the top left; the song sits
+  below them, the art on the right.
+- **While Music Plays → Music First** makes the music the screensaver while
+  it plays: it fills the screen in place of the photos (or the forecast) and
+  stays, and the photos (or the forecast) come back 20 seconds after it
+  stops (a pause from its own button keeps it there meanwhile). The
+  screensaver starts straight into the music when something is already
+  playing.
+- The music is the one this screen follows, as the dashboard’s music pages
+  do: the one you chose there, or what started playing (this tablet’s room
+  first). Up Next and the album’s year come from Music Assistant; other
+  speakers show the rest.
+
+#### Speakers, Volume and Browse
+
+Either side of the music’s buttons are two more: **Speakers** (a HomePod) on
+the left and **Browse** on the right, in the slide and in the side pane. A tap
+turns the album art over (in the side pane, the whole pane) and the panel is
+on its back, with three tabs:
+
+- **Speakers**: every room. The ones in the music are ticked and say *Playing
+  here*; a room playing something else says what. Tap rooms to pick them,
+  then **Add** puts them in with the music, or **Transfer** moves the music
+  to just those rooms (the others stop). Tapping a room that’s playing marks
+  it to leave, and Add becomes **Update**. The line above the buttons says
+  what each will do before you press it. **Everywhere**, **Downstairs** (your
+  presets) fill in the picks, and play on Music Assistant’s own sync group,
+  as on the Music page.
+- **Volume**: a slider for each room in the music (the slider on the front
+  sets them all).
+- **Browse**: your playlists, then the Music page’s Browse itself (search,
+  your Discover rows, Artists, Albums and the rest), all playing on the
+  speakers this music is on, as the line at its top says. Search uses the
+  tablet’s keyboard; the screensaver stays up while you type.
+
+It closes by itself a moment after Add, Transfer or a play has gone through,
+after 30 seconds untouched, and when the music stops; or tap ✕, the same
+button again, or anywhere outside it (that tap never wakes the dashboard).
+![The screensaver's Speakers panel: rooms to tick, with Add, Transfer and Stop](images/tablet-screensaver-music-speakers.png)
+*The Speakers panel on the back of the album art.*
+
+While it’s open the slide stays put and the music’s other buttons still work.
+On a tablet whose Sleep Screen is HK Frontend’s, using it keeps the photos
+up ([Sleep Screen](Sleep-Screen.md)).
+
+### The side pane: calendar and music
 
 ![The photo screensaver with the calendar pane: Home Status at its top, the events, and what plays and the timers at its foot](images/tablet-screensaver-calendar.png)
 
-**Screensaver Options → Calendar Pane** lists the coming events down the
+**Screensaver Options → Side Pane → Calendar** lists the coming events down the
 right of the screen: today, tomorrow and as many days after as **Days** says
 (up to 7), from the calendars in [All Screens → Calendar](Calendar.md), each in
-its calendar’s colour. All-day events come first; today’s past events are
+its calendar’s color. All-day events come first; today’s past events are
 dimmed, and the next one says how soon (“in 46 min”).
+
+**Side Pane → Music** puts what’s playing in the same pane while music plays
+(or is paused): the album art, the song, how far in, previous, play or
+pause and next, the volume, and what’s up next, over a blurred copy of the
+art. On its own it fills the pane, the art as large as fits; with
+**Calendar** on too, the events are above it and the music below, the art
+beside the song. Its buttons and slider work without closing the screensaver;
+a tap on its album art opens Music. **Speakers** and **Browse** are here
+too: the pane turns over, and its back keeps what plays at its foot (play or
+pause, next).
+
+![The photo screensaver's side pane with the calendar above and the music below](images/tablet-screensaver-music-pane.png)
+*Side Pane with Calendar and Music: the events above, what plays below.*
+
+- **Only while music plays.** Twenty seconds after the music stops (a pause
+  between songs doesn’t count), the music leaves: under the calendar, the
+  events take the whole pane; on its own, the pane goes and the photos have
+  the whole screen again.
+- On its own, the pane comes and goes **with the next photo**, never moving
+  the photo on screen; over the forecast, at once.
 
 - The photos move over beside it, so the middle of each photo stays in view;
   behind the pane is a blurred copy of the photo. On the forecast the pane
@@ -122,7 +202,7 @@ dimmed, and the next one says how soon (“in 46 min”).
   left, the hours and the days beside it, as on the other screens.
 - The pane is one column of what is going on: Home Status at its top (on as
   many lines as it needs, the list starting below it), the events, and at its
-  foot what is playing and the running timers. The clock, the date and the
+  foot what is playing (the music, with **Music** on) and the running timers. The clock, the date and the
   weather stay over the photos.
 - **A swipe on the pane scrolls it** without closing the screensaver, the one
   place a finger doesn’t. A touch anywhere else closes it, as always. Left
@@ -257,7 +337,7 @@ work, and you can choose per screen.
 | “Someone is using it” | `binary_sensor.<screen>_screen_in_use`, made for you, with its window set by Starts After | No sensor for touches (a camera motion sensor, below) |
 | Photos | Images from a Home Assistant media folder | Images and videos from a media folder, Immich, Unsplash, entity pictures, or whole websites |
 | Without photos | The forecast, over the live sky and a landscape of the season (or a dark screen, if you prefer) | Nothing to show until a media source has images |
-| The forecast among the photos | Photos & Forecast: the full forecast every few photos | A weather card over the photos, or a weather web page among them |
+| The forecast among the photos | Between the Photos → Forecast: the full forecast every few photos | A weather card over the photos, or a weather web page among them |
 | Over the photos | Clock and date, weather, now playing, timers, Home Status, drawn to match the screens | Any cards, badges or dashboard views; the box can move around; EXIF photo details, a progress bar |
 | Effects | Cross-fade; Slow Zoom | Cross-fade; Ken Burns (pan and zoom), with more controls |
 | While it shows | The live sky, card animations and the live camera tile hold still | Its own slideshow |
@@ -307,13 +387,16 @@ hk_screensaver:
   order: random        # or sorted
   fill: true
   zoom: false
-  show: photos         # photos, both (Photos & Forecast) or forecast
-  forecast_every: 5    # both: the forecast after this many photos
+  show: photos         # photos, both (the forecast slide on) or forecast
+  forecast_every: 5    # a slide (the forecast, the music) after this many photos
+  music_slide: false   # what plays, full screen: a slide among the photos
+  music_first: false   # ...or the music fills the screen while it plays
   fallback: true       # no photos: the forecast (false: a dark screen)
   band: true           # the forecast’s details on the forecast
   band_photos: false   # ...and over the photos
   calendar: false      # the calendar pane, down the right
   calendar_days: 2     # ...today and tomorrow (1 to 7 days)
+  music_pane: false    # what plays, in the pane (under the calendar)
   fade_back: 500       # ms back to the dashboard (0: at once)
   cards:
     - type: custom:hk-clock-card

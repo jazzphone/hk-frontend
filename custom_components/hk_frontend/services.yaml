@@ -138,3 +138,57 @@ set_black_screen:
         number:
           min: 0
           max: 255
+# Notifications' action (features/notifications): an automation's own banner
+notify:
+  fields:
+    title:
+      required: true
+      example: Laundry
+      selector:
+        text:
+    message:
+      example: The washer is done.
+      selector:
+        text:
+    important:
+      default: false
+      selector:
+        boolean:
+    wake:
+      default: false
+      selector:
+        boolean:
+    stay:
+      example: 60
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: s
+    icon:
+      example: mdi:washing-machine
+      selector:
+        icon:
+    entity:
+      selector:
+        entity:
+    camera:
+      selector:
+        entity:
+          domain: camera
+    tap:
+      selector:
+        select:
+          options:
+            - camera
+            - sheet
+            - none
+    dashboards:
+      example: dashboard-kitchen
+      selector:
+        text:
+          multiple: true
+    users:
+      selector:
+        text:
+          multiple: true

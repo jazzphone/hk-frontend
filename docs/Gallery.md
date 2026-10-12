@@ -22,8 +22,8 @@ camera pictures are blurred on purpose.
 | Weather | Cameras |
 | ![A room’s cameras: one tall, two stacked](images/tablet-room-cameras.png) | ![A screen’s Cameras](images/settings-screen-cameras.png) |
 | A room’s [cameras](Cameras.md#on-a-rooms-page) | A screen’s Cameras settings |
-| ![The Play Music page](images/tablet-play-music.png) | ![The Browse Music page](images/tablet-browse-music.png) |
-| Play Music ([Music](Music.md)) | Browse Music |
+| ![The Music page](images/tablet-music.png) | ![Home with the Now Playing bar and the Timer Bar](images/tablet-home-media-bar.png) |
+| [Music](Music.md) | The [Now Playing bar](Music.md#the-now-playing-bar) and Timer Bar |
 | ![The Live TV guide](images/tablet-live-tv.png) | ![The Energy page](images/tablet-energy.png) |
 | Live TV ([Live TV](Live-TV.md)) | [Energy](Energy.md) |
 | ![The Calendar page: the month](images/tablet-calendar.png) | ![The Calendar page: the week](images/tablet-calendar-week.png) |
@@ -53,7 +53,16 @@ By night: a shooting star, and fireflies in summer.
 
 ![The photo screensaver with the calendar pane down the right](images/tablet-screensaver-calendar.png)
 
-The [calendar pane](Screensaver-and-Idle.md#the-calendar-pane) beside the photo (sample events).
+The [calendar pane](Screensaver-and-Idle.md#the-side-pane-calendar-and-music) beside the photo (sample events).
+
+| | |
+|---|---|
+| ![The Music slide on the screensaver](images/tablet-screensaver-music.png) | ![The side pane with the calendar and the music](images/tablet-screensaver-music-pane.png) |
+| The [Music slide](Screensaver-and-Idle.md#the-music) | Calendar and music in the side pane |
+
+![A notification banner on a wall tablet](images/notification-banner.png)
+
+A [notification](Notifications.md) at the top of the screen.
 
 ## Climate summaries and lists
 
@@ -80,6 +89,8 @@ Source selection and exclusions: [Climate](Climate.md).
 |---|---|---|
 | ![The Home screen on a phone, with the tab bar along the bottom](images/phone-home.png) | ![A room page on a phone](images/phone-room.png) | ![A light’s detail sheet on a phone](images/phone-sheet-light.png) |
 | Home | A room | A detail sheet |
+| ![The Music page on a phone](images/phone-music.png) | | |
+| [Music](Music.md) | | |
 
 The [tab bar](Tab-Bar.md): More holds the pages that don't fit and every room;
 scrolled, the bar folds into one small button.
@@ -169,5 +180,9 @@ More: [Live Sky](Live-Sky.md).
 | [Sleep Screen](Sleep-Screen.md) | A bedroom’s Sleep Screen |
 | ![Cameras, for all screens](images/settings-cameras.png) | ![The menu on Tablets & Computers](images/settings-menu-tablets.png) |
 | [Cameras](Cameras.md), for all screens | The menu by device |
+| ![Notifications](images/settings-notifications.png) | ![A notification category](images/settings-notifications-categories.png) |
+| [Notifications](Notifications.md) | A category |
+| ![Glass Style with Blur Mode](images/settings-glass-style.png) | ![A screen’s Behavior](images/settings-screen-behavior.png) |
+| [Glass Style](Appearance.md#blur-mode) | A screen’s [Behavior](Screens.md#behavior) |
 
 More: [HK Settings](HK-Settings.md).

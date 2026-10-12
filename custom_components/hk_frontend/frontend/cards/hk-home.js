@@ -1785,7 +1785,19 @@
       if (T) {
         var st = this._st(cfg.entity || 'sensor.running_quick_timers');
         var list = st && st.attributes && st.attributes.running;
+        // DOCKED (the docked now-playing bar's timers): each with its whole
+        // length, for the ring of time left -- the timer's own `duration`,
+        // which is what it was last started with
+        if (cfg.docked && Array.isArray(list)) {
+          var states = (this._hass && this._hass.states) || {};
+          list = list.map(function (r) {
+            var t = r && r.entity_id && states[r.entity_id];
+            var d = t && t.attributes && T.secs(t.attributes.duration);
+            return d > 0 ? Object.assign({}, r, { total: d }) : r;
+          });
+        }
         html = T.strip(list, {
+          docked: !!cfg.docked,
           scale: Number(cfg.scale) || 1,
           fixed: !!cfg.fixed,
           plated: !!cfg.plated,

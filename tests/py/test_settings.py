@@ -1117,3 +1117,16 @@ def test_the_home_assistant_sections_placement():
     data, err = apply_board({}, {"menu_custom": True, "ha_place": "bottom"})
     assert err == {} and S.resolved(data, opts)["ha_place"] == "bottom"
     assert apply_board({}, {"ha_place": "middle"})[1] == {"ha_place": "choice"}
+
+
+def test_a_screen_can_choose_pre_rendered_blur():
+    """Blur's Pre-rendered mode (2026-10-10) is a glass of its own, for All Screens and a screen."""
+    from custom_components.hk_frontend import settings as S
+    assert "blur_pre" in S.GLASS and "blur_pre" in S.BOARD_GLASS
+    assert S.board({"glass": "blur_pre"})["glass"] == "blur_pre"
+    # Baked was taken out (2026-10-10): a screen or All Screens left on it reads as Pre-rendered
+    assert "blur_baked" not in S.GLASS and "blur_baked" not in S.BOARD_GLASS
+    assert S.board({"glass": "blur_baked"})["glass"] == "blur_pre"
+    assert S.merged({"dashboard": {"look": {"glass": "blur_baked"}}})["look"]["glass"] == "blur_pre"
+    assert S.merged({"dashboard": {"look": {"glass": "no_such_look"}}})["look"]["glass"] == "clear"
+    assert S.board({"glass": "blur_prerendered"})["glass"] == "house"

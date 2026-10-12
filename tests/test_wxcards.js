@@ -69,6 +69,33 @@ function text(el) { return el ? el.textContent : '(missing)'; }
 
 H.run('WEATHER CARDS', [
 
+  // ------------------------------------------------------------ hk-screensaver-status-card
+  function () {
+    H.section('hk-screensaver-status-card (Home Status on the screensaver)');
+    // what Home Status says stands in, sized as asked, and each drawing is
+    // kept (this DOM does not parse HTML): the card is under test
+    var real = window.hkHeader.security, realMorph = window.hkCards.morph, drawn = [];
+    window.hkHeader.security = function (st, o) { return '<div>Front Door Open ' + o.line1Size + '</div>'; };
+    window.hkCards.morph = function (el, v) { drawn.push(v); };
+    var c = H.make('hk-screensaver-status-card');
+    c.setConfig({});
+    c.hass = wxHouse().hass();
+    H.ok('it draws what Home Status says', drawn.length > 0 && /36px/.test(drawn[drawn.length - 1]), drawn);
+    // ...SET AGAIN (the screensaver's pane coming or going sizes it anew): a
+    // rebuild starts empty and must draw again -- the same words included,
+    // never kept in mind as already drawn and the new box left blank
+    c.setConfig({ line1_size: '22px', line_size: '16px', align: 'left' });
+    H.ok('set again, it draws again', /22px/.test(drawn[drawn.length - 1]), drawn);
+    var n = drawn.length;
+    c.setConfig({});
+    H.ok('...and set back, it draws the first again', drawn.length === n + 1 && /36px/.test(drawn[n]), drawn);
+    // ...and SET THE SAME (what the pane does when it is reapplied): the
+    // same words, into a new box -- drawn, not skipped as unchanged
+    c.setConfig({});
+    H.ok('set the same again, it still draws', drawn.length === n + 2, drawn.length - n);
+    window.hkHeader.security = real; window.hkCards.morph = realMorph;
+  },
+
   // ------------------------------------------------------------ hk-alert-card
   function () {
     H.section('hk-alert-card (the Weather page)');

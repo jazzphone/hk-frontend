@@ -218,7 +218,7 @@ pixels.
 | `hk-calendar-pane-card` | Today’s events and the coming days’, as the screensaver’s calendar pane shows them. | `days` (2; 1 to 7) |
 
 Both show the calendars in **HK Settings → All Screens → Calendar**, in their
-colours ([Calendar](Calendar.md)).
+colors ([Calendar](Calendar.md)).
 
 ## Layout
 
@@ -258,7 +258,7 @@ sideways row of tiles does the same with `card_width: var(--hk-pill, 192px)`.
 | `hk-area-select-card` | Pick rooms by floor, then clean just those. | `floors` (empty: the rooms [Clean Areas](Clean-Areas.md) offers, kept up to date), `order`, `start_script` (a script of your own that receives `areas`, instead of Clean Areas) |
 | `hk-timers-page-card` | The whole Timers page: quick start, running timers, house timers and the New Timer keypad. | `timers`, `house`, `presets` (up to six, in minutes; default `[5, 10, 15, 20, 30, 60]`), `name_chips`, `quick_script`, `create_script`, `empty_text`, `tint` |
 | `hk-timers-card` | Every running timer as its own tile, with a live countdown. | `timers` (`[{entity, label, glyph, label_entity}]`), `empty_text`, `tint` |
-| `hk-timer-strip-card` | A compact row of live countdowns for the running quick timers. | `entity` (default `sensor.running_quick_timers`), `scale`, `fixed` (pinned to the bottom, for a screensaver), `plated`, `glass` |
+| `hk-timer-strip-card` | A compact row of live countdowns for the running quick timers. | `entity` (default `sensor.running_quick_timers`), `scale`, `fixed` (pinned to the bottom, for a screensaver), `plated`, `glass`, `docked` (a slim row in a docked bar: soonest first, a quarter of the width each, swiped one at a time on a phone with dots, a ring of time left) |
 | `hk-timer-new-card` | Type a duration, pick a name, start a timer. | `create_script` (default `script.quick_timer_create`), `name_chips` |
 
 The quick-timer cards use the optional timer helpers that come with HK
@@ -290,14 +290,15 @@ room the screen is showing, so they name no speaker themselves.
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-now-playing-card` | Artwork, the track and controls for the screen’s music. | `music: true`, `meta_card`, `sub_card` (the controls under the title, usually `hk-media-control-card`s), `tall` (one column, for a narrow column or a phone) |
-| `hk-speaker-picker-card` | Choose speakers, then tap a playlist. Also Move Music, Stop All and Clear. | `browse_url` (where its Browse Music pill goes, for example `./music-browse`; without it there is no pill) |
+| `hk-music-card` | The whole Music page: what plays and where (Speakers, Volume, Queue) on the left, Browse beside it; one column on a phone. Generated screens use it for their Music page. | `focus_search` (start in the search box) |
+| `hk-now-playing-card` | Artwork, the track and controls for the screen’s music. | `music: true`, `meta_card`, `sub_card` (the controls under the title, usually `hk-media-control-card`s), `tall` (one column, for a narrow column or a phone), `hide_idle` (draws nothing while nothing is playing or paused) |
+| `hk-speaker-picker-card` | Choose speakers, then tap a playlist. Also Move Music, Stop All and Clear. (The older Play Music page’s card; `hk-music-card` replaces it on generated screens.) | `browse_url` (where its Browse Music pill goes, for example `./music-browse`; without it there is no pill) |
 | `hk-library-card` | Browse and search the Music Assistant library, playing to the screen’s room. | `music: true`, `fallback_player`, `hide` (categories to leave out), `discover` (the first page’s rows) |
 | `hk-screensaver-now-card` | What is playing, for a screensaver. | `music: true`, or `players` (in priority order, groups first) |
 | `hk-browse-card` | Music Assistant’s own web player, framed in a page. | `port` (default 8095), `path` (default `/#/home`), `host`, `height` |
 
-`hide` and `discover` default to **HK Settings → Features → Music → Browse
-Music**.
+`hide` and `discover` default to **HK Settings → Features → Music →
+Browse**.
 
 ## Energy
 
@@ -335,6 +336,7 @@ nothing.
 | `detail` | | Instead of `cards`: an entity whose detail sheet the hash opens. |
 | `position` | `center` | `bottom` rises from the bottom edge. |
 | `modal` | `true` | `false`: the page stays usable around it and is not dimmed. |
+| `dock` | `false` | With `position: bottom` and `modal: false`: the screen's bottom edge, full width, beside a docked menu. The page gets room below it so its last row clears it, and a bottom tab bar rides above it. The [Now Playing bar](Music.md#the-now-playing-bar) is docked. |
 | `width`, `max_width`, `padding`, `radius` | `900px`, –, `18px`, `42px` | Its size and shape. |
 | `background` | `#1c1c1e` | `transparent` shows the cards only. |
 | `blur` | | A background blur, for example `40px`. |

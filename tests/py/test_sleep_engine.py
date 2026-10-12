@@ -33,6 +33,7 @@ def quick(monkeypatch):
     monkeypatch.setattr(E, "KIOSK_WAIT_S", 0.2)
     monkeypatch.setattr(E, "SETTLE_S", 0.02)
     monkeypatch.setattr(E, "BACKSTOP_S", 0.2)
+    monkeypatch.setattr(E, "SAVER_WAIT", 0.4)
 
 
 class Kiosk:
@@ -187,6 +188,65 @@ async def test_a_tap_on_the_black_is_in_use_and_never_slept_again(hass, frontend
     assert hass.states.get(BLACK).state == "off"
 
 
+async def test_a_tap_on_the_screensavers_own_controls_keeps_the_photos(hass, frontend):
+    # The music's buttons and its Speakers / Browse panel leave the photos up.
+    # Kiosk Satellite still reports the tap (its last interaction, by the
+    # tablet's clock, ~20 s late): the screensaver's own report says whose it
+    # was, so it is not "somebody at the tablet".
+    from homeassistant.util import dt as dt_util
+    from test_screensaver import _touch
+    k = Kiosk(hass)
+    await screen(hass, k)
+    hass.states.async_set(MOTION, "on")
+    await settle(hass)
+    await hass.services.async_call("switch", "turn_on", {"entity_id": PHOTOS}, blocking=True)
+    await settle(hass)
+    assert hass.states.get(SLEEP).attributes["actual"] == "photos"
+    tablet = Conn(await hass.auth.async_create_user("hall"))
+    from custom_components.hk_frontend.screensaver import ws_touch
+    ws_touch(hass, tablet, {"id": 1, "type": "hk_frontend/screensaver/touch", "dashboard": "dashboard-hall", "saver": True})
+    assert tablet.sent[-1]["success"] is True
+    assert hass.states.get("binary_sensor.hall_screen_in_use").state == "off", "not a touch of the page"
+    hass.states.async_set(K["touched"], dt_util.utcnow().replace(microsecond=0).isoformat())
+    await settle(hass)
+    s = hass.states.get(SLEEP)
+    assert s.state == "photos" and s.attributes["reason"] == "somebody is using the screensaver"
+    assert s.attributes["saver_use"] is True and s.attributes["in_use"] is False
+    assert hass.states.get(PHOTOS).state == "on", "the photos stay up under the finger"
+    # a tap the screensaver did not report as its own (well after its last):
+    # somebody at the tablet, as before
+    hass.states.async_set(K["touched"], (dt_util.utcnow() + timedelta(seconds=30)).replace(microsecond=0).isoformat())
+    await settle(hass, 0.1)
+    assert hass.states.get(PHOTOS).state == "on", "not before the screensaver has had its moment to claim it"
+    await settle(hass, 1.0)
+    s = hass.states.get(SLEEP)
+    assert s.state == "dashboard" and s.attributes["in_use"] is True
+    assert hass.states.get(PHOTOS).state == "off"
+
+
+async def test_kiosks_report_of_the_tap_first_still_keeps_the_photos(hass, frontend):
+    # Measured on the Master Bedroom (2026-10-11): Kiosk Satellite reported a
+    # tap on the music's buttons in the same second, ahead of the
+    # screensaver's own report -- read alone it woke the dashboard.
+    from homeassistant.util import dt as dt_util
+    from custom_components.hk_frontend.screensaver import ws_touch
+    k = Kiosk(hass)
+    await screen(hass, k)
+    hass.states.async_set(MOTION, "on")
+    await settle(hass)
+    await hass.services.async_call("switch", "turn_on", {"entity_id": PHOTOS}, blocking=True)
+    await settle(hass)
+    hass.states.async_set(K["touched"], dt_util.utcnow().replace(microsecond=0).isoformat())
+    await settle(hass, 0.1)
+    assert hass.states.get(PHOTOS).state == "on"
+    tablet = Conn(await hass.auth.async_create_user("hall"))
+    ws_touch(hass, tablet, {"id": 1, "type": "hk_frontend/screensaver/touch", "dashboard": "dashboard-hall", "saver": True})
+    await settle(hass, 1.0)
+    s = hass.states.get(SLEEP)
+    assert s.state == "photos" and s.attributes["saver_use"] is True and s.attributes["last_saver_touch"]
+    assert hass.states.get(PHOTOS).state == "on", "the photos stay up under the finger"
+
+
 async def test_another_app_in_front_is_left_alone(hass, frontend):
     k = Kiosk(hass)
     hass.states.async_set(K["app"], "com.netflix.mediaclient")
@@ -235,6 +295,23 @@ async def test_the_power_button_in_quiet_hours_wakes_it_for_a_minute(hass, front
     s = hass.states.get(SLEEP)
     assert s.state == "dashboard" and s.attributes["in_use"] is True
     assert hass.states.get(BLACK).state == "off"
+
+
+async def test_a_notification_wakes_it_in_quiet_hours_for_its_while(hass, frontend):
+    """Notifications' Wakes the Screen (features/notifications): the dashboard,
+    display and all, at 3 AM -- then dark again once its while is over."""
+    k = Kiosk(hass)
+    hass.states.async_set(NIGHT, "active")
+    await screen(hass, k, quiet_while=[NIGHT], dark_display="off_quiet")
+    assert hass.states.get(SLEEP).state == "dark" and hass.states.get(K["screen"]).state == "off"
+    engine(hass).notify_wake("Water Leak", 2)       # (a real while is a minute or more)
+    await settle(hass)
+    s = hass.states.get(SLEEP)
+    assert s.state == "dashboard" and s.attributes["reason"] == "notification: Water Leak"
+    assert hass.states.get(K["screen"]).state == "on" and hass.states.get(BLACK).state == "off"
+    await settle(hass, 2.6)
+    s = hass.states.get(SLEEP)
+    assert s.state == "dark" and s.attributes["reason"] == "quiet hours"
 
 
 async def test_good_night_darkens_an_occupied_room_until_it_is_re_entered(hass, frontend):

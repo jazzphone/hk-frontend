@@ -19,7 +19,7 @@
 //             a page per category the house has, opened from its chip.
 //   Weather   the band, and wind / sun / moon / UV tiles.       (./weather)
 //   Security  the alarm keypad, when there is an alarm panel.   (./security)
-//   Play/Browse Music, when Music is set up with speakers.     (./playmusic)
+//   Music     Play and Browse, when Music is set up with speakers. (./playmusic)
 //   Rooms     a page per area: its status row, cameras and devices grouped as
 //             the Home app groups them (./room-<area>); each room heading on
 //             Home opens its page. The same page is a view strategy of its own
@@ -1488,8 +1488,13 @@
     if (alarmId && !alarmItem && b.popups !== false) {
       popups.push({ type: 'custom:hk-popup-card', hash: '#alarm', detail: alarmId, name: 'Alarm' });
     }
-    // its Screen page's Now-playing bar (with music set up)
-    if (b.now_playing && music) popups.push(mediaBar());
+    // its Screen page's Now Playing Bar (with music set up) and Timer Bar (with
+    // the quick timers) -- one docked bar, either part or both. (A screen
+    // saved before the Timer Bar had it with its Now Playing Bar.)
+    var npOn = !!(b.now_playing && music);
+    var tbOn = (b.timer_bar === undefined ? !!b.now_playing : !!b.timer_bar) && !!hass.states['sensor.running_quick_timers'];
+    var dockBar = npOn || tbOn ? mediaBar(npOn, tbOn) : null;
+    if (dockBar) popups.push(dockBar);
     if (popups.length) {
       home.push({ type: 'custom:hk-grid-card', view_layout: COL2,
         layout: { 'grid-template-columns': '1fr', 'grid-column-gap': '0px', 'grid-row-gap': '0px',
@@ -1684,29 +1689,20 @@
     }
 
     if (music) {
-      // PLAY MUSIC: the cover is the page's background (the playmusic
-      // sky), the player carries its progress and volume, the speakers rail.
-      out.push(view({ title: 'Play Music', path: 'playmusic', subview: true, sky_variant: 'playmusic',
-        icon: 'mdi:speaker', menu_title: 'Speakers',
-        background: '#150e1f', cards: [titleBar('Play Music'), {
-          type: 'custom:hk-grid-card', view_layout: COL2,
-          layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, 368px) minmax(var(--hk-rail, 0px), 1fr))',
-                    'grid-column-gap': '28px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' },
-          cards: [
-            Object.assign(column([{ type: 'custom:hk-now-playing-card', music: true, tall: true,
-              sub_card: { type: 'custom:hk-media-control-card', color: 'purple', bare: true, parts: ['progress'],
-                          entity_from: { music: true } },
-              meta_card: { type: 'custom:hk-media-control-card', color: 'purple', bare: true, parts: ['volume'],
-                           entity_from: { music: true } } }]), { view_layout: {} }),
-            Object.assign(column([heading('Speakers'),
-                   { type: 'custom:hk-speaker-picker-card', browse_url: './music-browse' }]), { view_layout: {} })
-          ] }] }));
-      // IN THE MENU WITH PLAY MUSIC: listed when Play Music is,
-      // right after it -- or where the Order tab places it (hk-menu.js)
-      out.push(view({ title: 'Browse Music', path: 'music-browse', subview: true, sky_variant: 'playmusic',
-        menu_follows: 'playmusic', icon: 'mdi:music-box-multiple',
-        background: '#150e1f', cards: [titleBar('Browse Music'),
-          column([{ type: 'custom:hk-library-card', music: true }])] }));
+      // MUSIC (2026-10-11): Play Music and Browse Music on one page
+      // (hk-music.js) -- what plays and where on the left, Browse beside it.
+      // The cover is still the page's background (the playmusic sky).
+      out.push(view({ title: 'Music', path: 'playmusic', subview: true, sky_variant: 'playmusic',
+        icon: 'mdi:speaker', menu_title: 'Music',
+        background: '#150e1f', cards: [titleBar('Music'),
+          { type: 'custom:hk-music-card', view_layout: COL2 }] }));
+      // BROWSE MUSIC'S ADDRESS STAYS (links, chips and tap actions that open
+      // it): the same page, starting in the search box -- out of the menu,
+      // where Music is the page
+      out.push(view({ title: 'Music', path: 'music-browse', subview: true, sky_variant: 'playmusic',
+        menu_follows: 'playmusic', icon: 'mdi:music-box-multiple', menu: false,
+        background: '#150e1f', cards: [titleBar('Music'),
+          { type: 'custom:hk-music-card', view_layout: COL2, focus_search: true }] }));
     }
     // THE PAGES IN THIS DASHBOARD'S ORDER (Order -> Pages): the
     // kinds, Browse Music where it is placed (else right after Play Music --
@@ -1749,6 +1745,33 @@
           return view(Object.assign({}, head, { cards: [{ type: 'markdown',
             content: 'This room page could not be built (' + String((e && e.message) || e).replace(/[<>&]/g, '') + ').' }] }));
         }));
+      });
+    }
+    // THE DOCKED BAR ON EVERY PAGE (a screen's On Every Page): each page of
+    // HK's own kind gets the bar too -- a pop-up lives in its page -- and
+    // hk-popup.js carries it from one to the next without a slide
+    if (dockBar && b.bar_all_pages) {
+      dockBar.carry = true;
+      out.forEach(function (v) {
+        // (not the Music page: below)
+        if (!v || v.path === 'home' || MUSIC_PAGE[v.path] || v.type !== 'custom:hk-grid-view' || !Array.isArray(v.cards)) return;
+        v.cards = v.cards.concat([dockCard(dockBar)]);
+      });
+    }
+    // THE MUSIC PAGE gets the bar on a phone only, on or off On Every Page:
+    // one column, the bar is its mini player (hk-music.js says so with the
+    // `hk-music-mini` flag on <html>); at two or three its own player is the
+    // page and the bar would only repeat it. No Now Playing Bar on this
+    // screen: the page's own Now Playing row stands in.
+    // CARRIED to it and from it (a phone's: Home's bar becomes the page's
+    // in place -- it waits there for the page's say, hk-popup.js)
+    if (dockBar && npOn) {
+      dockBar.carry = true;
+      // (no stash there: the page's own Now Playing row stands in)
+      var musicBar = Object.assign({}, dockBar, { carry: true, stash: null,
+        trigger: [{ condition: 'flag', flag: 'hk-music-mini' }].concat(dockBar.trigger) });
+      out.forEach(function (v) {
+        if (v && MUSIC_PAGE[v.path] && Array.isArray(v.cards)) v.cards = v.cards.concat([dockCard(musicBar)]);
       });
     }
     return out;
@@ -2207,6 +2230,7 @@
       forecast_every: o.forecast_every || 5,
       band: o.band !== false, band_photos: o.band_photos === true,
       calendar: o.calendar === true, calendar_days: o.calendar_days || 2,
+      music_slide: o.music_slide === true, music_pane: o.music_pane === true, music_first: o.music_first === true,
       fade_back: typeof o.fade_back === 'number' ? o.fade_back : 500,
       cards: cards.filter(function (c, i) { return keep[i]; })
     };
@@ -2280,24 +2304,44 @@
     if (sv.entity) profiles['user.' + sv.user].screensaver_entity = sv.entity;
     return wp;
   }
-  // THE NOW-PLAYING BAR: rises from
-  // the bottom while music plays or a quick timer runs.
-  function mediaBar() {
-    var bar = { type: 'custom:hk-now-playing-card', bar: true, music: true,
+  // THE DOCKED BAR along the bottom: the Now Playing Bar (the player, while
+  // music plays) and the Timer Bar (the running quick timers, a slim row over
+  // it) -- a screen's two switches, each its own part of the one bar.
+  var MUSIC_PAGE = { playmusic: true, 'music-browse': true };
+  function dockCard(bar) {
+    return { type: 'custom:hk-grid-card', view_layout: COL2,
+      layout: { 'grid-template-columns': '1fr', 'grid-column-gap': '0px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' },
+      cards: [bar] };
+  }
+  function mediaBar(withMusic, withTimers) {
+    var bar = { type: 'custom:hk-now-playing-card', bar: true, music: true, hide_idle: true,
       meta_card: { type: 'custom:hk-media-control-card', color: 'purple', bare: true, parts: ['volume'], entity_from: { music: true } },
-      sub_card: { type: 'custom:hk-media-control-card', color: 'purple', bare: true, parts: ['progress'], entity_from: { music: true } } };
-    return { type: 'custom:hk-popup-card', hash: '#media', position: 'bottom', modal: false,
-      vars: { 'hk-np-height': '104px', 'hk-np-pad': '12px 16px',
-              'hk-np-areas': '"art title . prev play next stop . meta close" "art artist . prev play next stop . meta close" "art sub . prev play next stop . meta close"',
-              'hk-np-cols': '72px minmax(220px, max-content) 1fr 64px 64px 64px 64px 1fr minmax(0, 380px) 48px',
+      sub_card: { type: 'custom:hk-media-control-card', color: 'purple', bare: true, parts: ['progress'], phone_times: false, entity_from: { music: true } } };
+    // DOCKED (2026-10-10): the screen's bottom edge, full width, square, a
+    // hairline on top and a shadow up onto the page, which ends above it --
+    // not a rounded bar floating over it. The very bottom of the screen (its
+    // controls clear of a phone's home indicator); a tab bar rides above it.
+    return { type: 'custom:hk-popup-card', hash: '#media', position: 'bottom', modal: false, dock: true,
+      padding: '0', radius: '0',
+      vars: { 'hk-np-height': 'calc(104px + env(safe-area-inset-bottom, 0px))',
+              'hk-np-pad': '12px 24px calc(12px + env(safe-area-inset-bottom, 0px))',
+              'hk-np-radius': '0', 'hk-np-plate': 'rgb(22,23,26)',
+              // Speakers and Browse on either side of the transport, as on
+              // the screensaver (2026-10-11); the volume gives up the room
+              // (no close button: swiped down to put away, hk-media.js)
+              'hk-np-areas': '"art title . spk prev play next stop brw . meta" "art artist . spk prev play next stop brw . meta" "art sub . spk prev play next stop brw . meta"',
+              'hk-np-cols': '72px minmax(220px, max-content) 1fr 56px 64px 64px 64px 64px 56px 1fr minmax(0, 380px)',
               'hk-np-rows': 'auto auto auto', 'hk-np-gap': '14px' },
       width: '100%', max_width: '100%', background: 'transparent', dismissable: true,
-      dismiss_scope: [{ music: true }, { entity: 'sensor.running_quick_timers', above: 0 }],
-      trigger: [{ condition: 'or', conditions: [
-        { condition: 'numeric_state', entity: 'sensor.running_quick_timers', above: 0 },
-        { condition: 'state', entity_from: { music: true }, state: 'playing', grace: 20 }] }],
+      // swiped away, a speaker in the corner brings it back (hk-popup.js)
+      stash: { icon: 'hk:homepod', label: 'Show Now Playing' },
+      dismiss_scope: [].concat(withMusic ? [{ music: true }] : [], withTimers ? [{ entity: 'sensor.running_quick_timers', above: 0 }] : []),
+      trigger: [{ condition: 'or', conditions: [].concat(
+        withTimers ? [{ condition: 'numeric_state', entity: 'sensor.running_quick_timers', above: 0 }] : [],
+        withMusic ? [{ condition: 'state', entity_from: { music: true }, state: 'playing', grace: 20 }] : []) }],
       trigger_close: true,
-      cards: [{ type: 'custom:hk-timer-strip-card', plated: true, glass: true }, bar] };
+      // the timers on the same plate, a slim row over the player (docked)
+      cards: [].concat(withTimers ? [{ type: 'custom:hk-timer-strip-card', docked: true }] : [], withMusic ? [bar] : []) };
   }
 
   // REBUILT WHEN ITS SETTINGS CHANGE. A strategy builds the dashboard once,
@@ -2322,8 +2366,10 @@
   // modules, so they do not rebuild -- a rebuild reconnects every camera.)
   var LIVE_KEYS = { chips: 1, chips_quiet: 1, chips_extra: 1, scenes: 1, scenes_pages: 1, scenes_row: 1,
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
-                    tab_position: 1, home_rooms: 1, glass: 1, frost: 1, frost_tint: 1, blur: 1, black_screen: 1, camera_live: 1,
+                    tab_position: 1, home_rooms: 1, glass: 1, frost: 1, frost_tint: 1, blur: 1, black_screen: 1, camera_live: 1, camera_live_video: 1,
                     car: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1,
+                    // notifications: hk-notify.js reads them as each one comes
+                    notify: 1, notify_saver: 1, notify_dnd: 1,
                     // THE MENU'S OWN LOOK (2026-10-04: All Screens' unless the
                     // screen sets its own -- settings.py resolved()): hk-base's
                     // menuState reads each live and no build reads one, so an
@@ -2348,7 +2394,7 @@
                     // live sky on or off, does: it stays out). Every sky_* key
                     // of settings.py BOARD_DEFAULTS belongs here, held by
                     // test_strategy_rebuild.js
-                    sky_animations: 1, sky_weather: 1, sky_decorations: 1, sky_decoration_style: 1,
+                    sky_animations: 1, sky_weather: 1, sky_precipitation: 1, sky_focus_pause: 1, sky_decorations: 1, sky_decoration_style: 1, sky_moving: 1,
                     sky_cloud_style: 1, sky_daytime: 1, sky_gradient: 1, sky_custom: 1, sky_pages: 1,
                     sky_liveliness: 1, sky_liveliness_occ: 1, sky_liveliness_custom: 1, sky_calm_empty: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom

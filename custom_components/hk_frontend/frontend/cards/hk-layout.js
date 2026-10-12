@@ -269,8 +269,14 @@
     // THE SAME GLASS AS THE CHIPS, blur and all. M.glass is the
     // plate and the marker that cuts the shared blur to this circle;
     // the chip shadow because it is chip-sized.
+    // (Glass: blurring what is behind it as each chip does -- hk-chip.js; the
+    // other looks set --hk-chip-backdrop: none, as for the chips. It had the
+    // plate and not the blur: the menu chip read clear at the head of a
+    // frosted row.)
     'ha-card.back{width:44px;height:44px;border-radius:50%;padding:0;margin:0;flex:none;',
     '  ' + M.glass + ';border:' + M.border + ';',
+    '  backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
+    '  -webkit-backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
     '  box-shadow:var(--hk-glass-shadow-chip,inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10));',
     '  display:flex;align-items:center;justify-content:center;line-height:0;',
     '  cursor:pointer;color:rgba(255,255,255,0.92);',
@@ -360,6 +366,14 @@
       var parents = this._config.parents || {};
       var seg = String(location.pathname).split('/');
       var up = parents[seg[2] || ''];
+      // Home by its own path: the bare dashboard address made Home Assistant
+      // put Home's path on it with a second page change, and every
+      // page-change listener ran twice on every way back (seen on the tablet:
+      // security -> /<dashboard> -> home)
+      if (!up) {
+        var cfg = menu().config ? menu().config() : null, v0 = cfg && cfg.views && cfg.views[0];
+        if (v0 && v0.path) up = v0.path;
+      }
       var path = '/' + seg[1] + (up ? '/' + up : '');
       // dimmed for a drawn frame first: the tap answered before the page is
       window.hkCards.navigate(path, this._root && this._root.querySelector('ha-card.back'));

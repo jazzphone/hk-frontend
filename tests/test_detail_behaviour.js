@@ -81,6 +81,8 @@ function fire(pred) {
   due.forEach(function (t) { t.fn(); });
 }
 function frames() { fire(function (t) { return t.raf; }); }
+// the open sheet's look at <home-assistant>: four times a second, not every frame
+function polls() { fire(function (t) { return t.ms === 250; }); }
 
 load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-detail.js');
@@ -274,6 +276,9 @@ var H1 = house({ 'light.a': ['on', { supported_color_modes: ['brightness'], brig
                  'media_player.x': ['playing', { supported_features: 16389, volume_level: 0.3, media_title: 'A' }] });
 HA.hass = H1;
 frames();
+frames(); frames(); frames();
+ok('...no callback every frame: an open sheet does not keep the screen drawing', !__timers.some(function (t) { return t && t.raf; }));
+polls();
 ok('with no hk card on screen, the sheet still gets the new state from <home-assistant>', d1.panel._hass === H1 && d1.panel._big.textContent === '100%',
    d1.panel._big.textContent);
 // a sheet opened from a sheet takes over its entry

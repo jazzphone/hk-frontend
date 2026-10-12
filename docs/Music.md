@@ -4,7 +4,8 @@ Whole-home music through Music Assistant. Choose one or more rooms on a
 screen, tap a playlist, and it plays there, grouped and in step. Music can be
 moved to other rooms, added to more rooms, or stopped everywhere.
 
-![The Play Music page on a wall tablet: now playing on the left, the speakers and playlists on the right](images/tablet-play-music.png)
+![The Music page on a wall tablet: what is playing on the left, Browse on the right](images/tablet-music.png)
+*The Music page on a wall tablet: what plays and where on the left, Browse on the right.*
 
 ## What you need
 
@@ -25,13 +26,13 @@ moved to other rooms, added to more rooms, or stopped everywhere.
      playlist starts (default 35%).
    - Then **Each tablet’s room**: one dropdown per person who signs in. A wall
      tablet signs in as its own user, so this is how a tablet knows the room
-     it hangs in. Its Play Music page starts on that room.
+     it hangs in. Its Music page starts on that room.
 3. Optional: select **Add music preset** at the top of HK Frontend’s page for
    each sync group.
    Give it a name, pick the Music Assistant sync group player, and tick the
    rooms it plays in. Home Assistant cannot read a sync group’s rooms from
    Music Assistant, so you pick them here.
-4. Select **Add music playlist** for each pill you want on the Play Music page:
+4. Select **Add music playlist** for each pill you want under Your Playlists on the Music page:
    - **Name** and **Icon** (default `mdi:playlist-music`).
    - **Playlists**: one or more playlists from your Music Assistant library.
      They play as one shuffled queue.
@@ -47,19 +48,64 @@ Every change reaches open screens right away, with no reload.
 On generated screens (see [Screens](Screens.md)), once Music has at least one
 speaker:
 
-- **Play Music**: what is playing, with artwork, controls, progress and
-  volume, and beside it the speakers by floor and the playlist pills. Pick
-  rooms, then tap a playlist. **Move Music** moves what is playing to the
-  rooms you picked (it reads **Add Rooms** when you are adding to it), **Stop
-  All** stops everything, and **Clear** clears your selection. When the rooms
-  you pick are exactly a preset’s rooms, the music plays through that sync
-  group.
-- **Browse Music**: your Music Assistant library (playlists, albums, artists,
-  radio and more), played on the room the screen is showing.
-- The **Speakers** status chip, and the optional **now-playing bar** on a
-  screen (see [Wall tablets](#the-now-playing-bar)).
+- **Music**: one page for playing and browsing. (Play Music and Browse
+  Music, two pages before 1.7, are this one page now.)
+  - **Left: what is playing.** At the top, **Playing on** names the rooms
+    (as many as fit, then “and 2 more”), with **Change**. Under it, when more
+    than one thing is playing in the house, **Playing in the House** lists
+    each one; the one this page controls is lit, and **Switch** on another
+    hands the page to it. Then the artwork, the song, progress, and the
+    controls: **Speakers** (the HomePod), previous, play or pause, next,
+    **Queue**, the volume and Up Next.
+  - **Speakers** (or **Change**) turns what is playing over to the speakers
+    panel, the same one the screensaver has. Tick rooms, then **Add** (they
+    join this music), **Transfer** (it moves to just them; the rest stop) or
+    **Stop**. The line above the buttons says what each will do, including a
+    room that has to stop something else first. Tapping a room that is
+    playing marks it to leave (Add becomes **Update**). **Everywhere** and
+    your other presets fill in the picks; the exact rooms of a preset play
+    through its sync group. **Volume** has a slider for each room, and
+    **Queue** shows what is up next in Music Assistant (tap one to jump to
+    it).
+  - **With nothing playing**, the top reads **Ready on** the screen’s room,
+    and Speakers picks where the next music plays: tick rooms, then pick a
+    playlist, an album or a song and it starts there. If other rooms are
+    playing something else, it asks whether to stop them.
+  - **Right: Browse.** Search at the top. Under it **Your Playlists** (the
+    playlist pills; a Chooser pill like Decades opens its choices in place),
+    then your Discover rows, then the **Library** categories.
+  - **Where the next pick plays: “Plays on …”** beside the search box,
+    pinned at the top on every level (search results and albums too). It
+    starts on the rooms playing now. Tap it for **Play Next On**: tick rooms
+    (or a preset) and **Done**, then pick a playlist, album or song and it
+    starts there. What is playing keeps playing on its other rooms; the line
+    under the search says where. While it differs from what is playing the
+    button is white (“Next plays on Kitchen + Office”); its ✕ puts it back.
+    The left side (Change, Speakers) is always the music that is playing.
+  - On a wide desk screen the speakers have a column of their own on the
+    right.
+  - **On a phone** the page is Browse. What is playing is the mini player
+    at the foot: the screen’s now-playing bar, which comes onto the Music
+    page on a phone even when it isn’t on every page. There it has no
+    Browse, and its Speakers button opens the page’s own Speakers.
+    On a screen without the bar, or with it swiped away, a Now Playing row
+    at the top of the page takes its place.
+    Tap it for **Now Playing**, a sheet with everything the tablet shows on
+    the left; tap or drag its handle down to go back. Tapping the bar on any
+    other page does the same: it opens the Music page with Now Playing up,
+    and closing it leaves you on Browse. While you search,
+    “Plays on” folds to the HomePod and the number of rooms, so the search
+    box has the row; it opens out again when the search is empty.
+  - **Its address** is `playmusic`, as Play Music’s was, so a menu place,
+    a page pill or a link to it still opens it. The old **Browse Music**
+    address (`music-browse`) opens the same page with the search box ready,
+    so existing links and buttons still work; it is never in the menu or a
+    screen’s **Pages** list (Music is, once).
+- The **Speakers** status chip, and the optional **Now Playing bar** docked
+  along the bottom of a screen ([below](#the-now-playing-bar)).
 
-![Browse Music on a wall tablet](images/tablet-browse-music.png)
+![The Music page on a phone: Browse, with what is playing in the bar at the foot](images/phone-music.png)
+*On a phone the Music page is Browse; what is playing is the bar at the foot, and a tap on it opens Now Playing.*
 
 ## Settings
 
@@ -69,12 +115,12 @@ speaker:
 | Home Rooms | None | For each Home Assistant user, the room they start in when they play music. A wall tablet signs in as its own user, so this is where each tablet hangs. |
 | House Volume | 35% | The volume every room is set to when a playlist starts. |
 | Presets & Playlists → Presets | None | A Music Assistant sync group and the rooms it plays in (**Name**, **Sync Group**, **Rooms**). Choosing exactly those rooms on a screen plays through the group, in step. |
-| Presets & Playlists → Playlists | None | The pills on Play Music, in order (**Name**, **Icon**, **Chooser**, and the library playlists it **Plays**, as one queue). Pills with the same Chooser become one pill that asks which. |
-| Browse Music → Categories | All shown | Music Assistant’s categories at the top of Browse Music: Artists, Albums, Songs, Playlists, Radio, Podcasts, Audiobooks. Untick the ones nobody opens. |
-| Browse Music → Discover Rows | Recently played, Favorite playlists, Most played, Recently added, Favorite radio | The rows under the categories, in order. None: no Discover section. A row with nothing in it yet isn’t shown. |
-| Advanced → Browse Page | `music-browse` | The page a speaker’s sheet opens with **Browse Music**, on YAML screens (a path on the same dashboard). Generated screens always use their own. Empty: no Browse button. |
+| Presets & Playlists → Playlists | None | The pills under Your Playlists on the Music page, in order (**Name**, **Icon**, **Chooser**, and the library playlists it **Plays**, as one queue). Pills with the same Chooser become one pill that asks which. |
+| Browse → Categories | All shown | Music Assistant’s categories under **Library** on the Music page’s Browse side: Artists, Albums, Songs, Playlists, Radio, Podcasts, Audiobooks. Untick the ones nobody opens. |
+| Browse → Discover Rows | Recently played, Favorite playlists, Most played, Recently added, Favorite radio | The rows under the categories, in order. None: no Discover section. A row with nothing in it yet isn’t shown. |
+| Advanced → Browse Page | `music-browse` | The page a speaker’s sheet opens with **Browse**, on screens written in YAML (a path on the same dashboard). Generated screens always use their own Music page. Empty: no Browse button. |
 
-A Browse Music card whose YAML sets its own `hide:` or `discover:` keeps them.
+A Browse card (`hk-library-card`) whose YAML sets its own `hide:` or `discover:` keeps them.
 
 The Discover rows you can pick: Recently played, Recently played albums,
 Recently played playlists, Recently played artists, Recently played podcasts,
@@ -91,23 +137,69 @@ playlist pill leaves the playlists in your library.
 
 ![The Music settings on the HK Settings page](images/settings-music.png)
 
-## The now-playing bar
+## The Now Playing bar
 
-With Music added, a generated screen can
-show a bar along the bottom while music plays on its room or a quick timer
-runs: artwork, the track, play and skip, volume and progress. Turn on **Now
-Playing Bar** under the screen’s **Behavior**.
+A generated screen can dock a bar along the bottom of the screen: what is
+playing on its room, and the quick timers that are running. It runs the
+screen’s whole width, square and opaque, with a hairline on top; a docked
+menu and a tab bar rail end above it, and a tab bar along the bottom rides
+over it. The page gets room below so its last row scrolls clear of it.
 
-The bar rises when music starts on the room the screen is showing, and stays
-for 20 seconds after it stops. Close it and it stays closed on that screen
-until the music or the timers change. The dashboard keeps working under it.
+![Home on a wall tablet with the Now Playing bar docked along the bottom and the Timer Bar row above the player](images/tablet-home-media-bar.png)
+*Home on a wall tablet: the Timer Bar’s row over the docked Now Playing bar.*
+
+Three switches under the screen’s **Behavior** ([Screens](Screens.md#behavior))
+shape it:
+
+| Setting | Default | What it does |
+|---|---|---|
+| Now Playing Bar | Off | The player: artwork, the song, progress, play and skip, the volume, and **Speakers** and **Browse**. Needs Music. |
+| Timer Bar | Off | Running quick timers in a slim row on the bar’s plate, over the player when music plays, soonest to finish first: a ring round each glyph for the time left, and **Restart**, **+1 min** and **Finish**. A tablet shows up to four across; a phone shows one at a time, swiped, with dots for how many. With no music, the bar is the timers alone. Needs HK Frontend’s quick timers, not Music. A screen that had the Now Playing Bar before 1.7 has it on. |
+| On Every Page | Off | Shown with either of the above. The bar on every page of the screen, not Home alone. It stays in place as you change pages, without sliding away and back. The Music page on a tablet is its own player, so the bar leaves it out there. |
+
+**The player.**
+
+- **Speakers** (the HomePod) and **Browse** sit either side of play and skip,
+  as on the screensaver. Speakers opens the screensaver’s panel above the
+  button: **Speakers** to add, move (**Transfer**) or **Stop** rooms,
+  **Volume** for each room, and the **Queue**. It closes itself once a
+  request has gone through. On a phone it opens as a sheet from the bottom.
+  Browse opens the Music page with the search box ready. In a narrow window
+  (860 px wide or less) the bar leaves Browse out.
+- **A tap on the song or the artwork opens the player**: the Music page,
+  whose left side is the player on a tablet; on a phone the Music page opens
+  with Now Playing up, and closing it leaves you on Browse.
+- **It comes and goes by itself.** It rises when music starts on the room
+  the screen is showing, and stays for 20 seconds after it stops. Pausing
+  music the screen is following keeps it there.
+
+![The Now Playing bar's Speakers panel open above its button: Speakers, Volume and Queue](images/media-bar-speakers.png)
+*The bar’s Speakers panel: tick rooms, then Add, Transfer or Stop.*
+
+**Putting it away.** The bar has no close button: **swipe it down**. Only a
+swipe that starts on the bar (not on its sliders) and goes down far enough,
+or a quick flick, counts; a short one springs back, and scrolling the page
+never touches it. On an iPhone the strip along the very bottom (the home
+indicator) is left to iOS, whose own swipes start there. Put away, it leaves
+a small **speaker button** in the bottom-right corner (above a tab bar along
+the bottom; when the tab bar folds to its small button, the speaker sits in
+the same row at the other end): tap it to bring the bar back. It also comes
+back by itself when the music stops and starts again, moves to other
+speakers, or a quick timer starts or finishes (on a wall tablet, also when
+its screensaver comes on). The dashboard keeps working under it.
+
+**On a phone** the bar is slimmer: smaller artwork, the progress a plain line
+under the song, and no extra band above the home indicator. On the
+phone’s Music page the bar is the page’s mini player, even on a screen
+without On Every Page: it has no Browse, and its Speakers opens the page’s
+own panel.
 
 Quick timers need HK Frontend’s optional timer helpers; see
 [Your First Screen](Your-First-Screen.md#what-next).
 
 ## Actions
 
-The Play Music page uses these actions, and your automations and scripts can
+The Music page uses these actions, and your automations and scripts can
 too. Every one **answers**: call it with a response variable and read
 `ok: true` (with `leader`, the player now leading the group) or `ok: false`
 with a `message` written for a person. Called without a response variable, a
@@ -203,7 +295,7 @@ data:
 ### `hk_frontend.music_play_media`
 
 Plays one item from the Music Assistant library on a player, the way Browse
-Music does. It does not group rooms or set the house volume. It answers once
+on the Music page does. It does not group rooms or set the house volume. It answers once
 the item is actually playing.
 
 | Field | Required | Description |

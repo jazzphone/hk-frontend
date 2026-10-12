@@ -17,6 +17,11 @@ Accessories**).
 
 ![A light’s detail sheet](images/sheet-light.png)
 
+**An alarm’s sheet.** An alarm that takes a code shows its keypad. One that
+takes none — arming and disarming with a tap — shows its state and, like a
+shade’s sheet, one capsule with the modes it has (Home, Away, Night,
+Vacation, Custom) and Off; the mode it is in is filled.
+
 | | | |
 |---|---|---|
 | ![A thermostat’s detail sheet](images/sheet-thermostat.png) | ![A lock’s detail sheet](images/sheet-lock.png) | ![A garage door’s detail sheet](images/sheet-garage.png) |
