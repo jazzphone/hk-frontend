@@ -398,6 +398,36 @@ hkPopup.open('#alarm');
 ok('asking again pushes nothing', pushes, 1);
 history.pushState = realPush; history.state = null;
 
+
+// THE EDITOR'S FIELDS, by name (sections and grids flattened)
+function editorFields(tag) {
+  var K = customElements.get(tag), p = K.getConfigElement(),
+      EC = customElements.get(String(p.tagName).toLowerCase());
+  var ed = new EC();
+  if (!ed.appendChild) ed.appendChild = function () {};
+  ed.setConfig({});
+  var out = {};
+  (function walk(s) { (s || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+  return out;
+}
+
+print('\n=== its editor ===');
+var PF = editorFields('hk-popup-card');
+ok('Cards is not required (Detail can stand in)', !!PF.cards.required, false);
+ok('...and says so', /Detail/.test(PF.cards.helper), true);
+ok('Detail: an entity', PF.detail && JSON.stringify(PF.detail.selector), '{"entity":{}}');
+ok('Dock at the Bottom', PF.dock && PF.dock.label, 'Dock at the Bottom');
+ok('Modal, shown on while unset', PF.modal && PF.modal.default, true);
+ok('Close Button', PF.close_button && JSON.stringify(PF.close_button.selector), '{"boolean":{}}');
+ok('Maximum Width', PF.max_width && JSON.stringify(PF.max_width.selector), '{"text":{}}');
+var PC = customElements.get('hk-popup-card');
+var pd = new PC();
+var threw = false;
+try { pd.setConfig({ hash: '#x', detail: 'light.a' }); } catch (e) { threw = true; }
+ok('a pop-up with Detail and no Cards is a valid config', threw, false);
+var PG = customElements.get('hk-popup-group-card');
+ok('the pop-up group takes no space, so asks for none', new PG().getCardSize(), 0);
+
 // auto_close and the sheet's mount/animation are checked in the browser --
 // they are timers and DOM, which this shim does not model faithfully.
 

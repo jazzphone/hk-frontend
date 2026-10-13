@@ -57,7 +57,11 @@
         },
         "tap": {
           "name": "Tap opens",
-          "description": "camera (the live view), sheet (the accessory's sheet) or none. Empty: the camera, else the accessory, else nothing."
+          "description": "sheet (the accessory's sheet, the notification at its top), camera (the live view), page (the page below) or none. Empty: the page, else the camera, else the accessory, else nothing."
+        },
+        "page": {
+          "name": "Page",
+          "description": "A page of the screen's own dashboard (its path, like kitchen): a tap opens it, and the accessory's sheet goes to it."
         },
         "dashboards": {
           "name": "Dashboards",

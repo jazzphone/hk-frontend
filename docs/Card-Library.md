@@ -16,9 +16,23 @@ an HK card on a dashboard of your own.
   [Install](Install.md)). There is nothing to install per
   card.
 - In the card picker, HK Frontend’s cards are the ones whose names start with
-  **HK**. Every card has a visual editor and a sensible starting config.
+  **HK**. Every card has a visual editor and a starting config drawn from your
+  home. Two belong only to the photo screensaver’s `cards:` and are left out of
+  the picker: `hk-screensaver-now-card` and `hk-screensaver-status-card`.
 - In YAML, a card’s type is `custom:` and its tag, for example
   `type: custom:hk-light-card`.
+- In Home Assistant’s **Sections** view each card takes a size of its own:
+  tiles half a section (two side by side, filling it); the header, chip and
+  scene rows, the Music page, the calendar and the other page-wide cards the
+  full width; the rest a full column. Change it in the card’s **Layout** tab,
+  as for any card. In a narrow section the wall header stacks (clock, weather,
+  then the security line), and New Timer puts its name and Start under the
+  keypad.
+- On a dashboard of your own with Home Assistant's **light** theme (and no
+  live sky behind the cards), they take the Home app's light look: gray glass,
+  the theme's own text colors, and a white plate for whatever is on. With the
+  dark theme, or the live sky, they look as they do on HK Frontend's screens.
+  Sheets and pop-ups stay dark.
 - Icons named `hk:…` are drawn from your own glyph file (see
   [Your files](Your-Files.md)). Until it is there, each `hk:` icon is drawn as
   the Material Design icon of the same name, and any `mdi:` icon works too.
@@ -91,6 +105,8 @@ add a few of their own.
 | `well_background` | The icon circle’s color, for example `transparent`. |
 | `size` | `tall` or `regular`: the tile’s height, over the card’s own (a light as a tall tile, a lock as a pill). A tall tile is two rows high, so give it `view_layout: {grid-row: span 2}` in a grid. |
 | `label` | Fixed status text, replacing the automatic one. |
+| `detail` | `false`: a tap does what `tap_action` says, never the HK detail sheet. |
+| `animation` | On a plain, tall or favorite tile: `spin` makes the glyph spin while on (a fan drawn on a switch). |
 | `label_mode` | How the state becomes the status text (below). |
 | `group`, `group_lit` | Other entities this tile stands for, and whether it lights with the main entity (`entity`) or with any of them (`any`). |
 | `tap_action` | Default: open the detail sheet. |
@@ -126,16 +142,16 @@ state instead).
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-chips-card` | The row of status chips under the header. Which chips, their order, and which appear only when there is something to report come from the screen’s settings in HK Settings; the Smoke & CO chip always leads it, in a home with an alarm. | `chips`, `quiet` (the row when the screen’s settings name none), `extra` (your own chips: `[{after: <kind> or start or end, card: …}]`) |
+| `hk-chips-card` | The row of status chips under the header. Which chips, their order, and which appear only when there is something to report come from the screen’s settings in HK Settings; the Smoke & CO chip always leads it, in a home with an alarm. | `chips`, `quiet` (the row when the screen’s settings name none), `extra` (your own chips: `[{after: <kind> or start or end, card: …}]`), `lead` (`false`: no menu button at its start), `card_width`, `gap`, `margin` |
 | `hk-status-chip-card` | One chip: an icon and two lines of text. | `kind` (below), or your own with `entity`, `name`, `icon`, `label` |
-| `hk-scenes-card` | The row of scene pills. Which scenes, and their order, come from the screen’s settings. | `scenes` (when the settings name none; empty: every scene, A to Z), `name` (the heading), `looks` (`{<entity>: {name, icon, icon_color, tap_action}}`) |
+| `hk-scenes-card` | The row of scene pills. Which scenes, and their order, come from the screen’s settings. | `scenes` (when the settings name none; empty: every scene, A to Z), `name` (the heading), `looks` (`{<entity>: {name, icon, icon_color, tap_action}}`), `room: true` (only the listed `scenes`, never the screen’s choice or its page pills) |
 | `hk-toggle-card` | A text-only pill that lights when an entity is on, or equals `option`. | `entity` (required), `name`, `option`, `tap_action` |
 | `hk-row-card` | A row of any cards that scrolls sideways. | `cards`, `lead` (a card pinned at the start, such as the menu button), `card_width`, `gap`, `phone_card_width`, `phone_gap`, `pad_top` / `pad_bottom` / `pad_left` / `pad_right`, `margin` |
 
 **A chip of a kind.** `kind` is one of `smoke`, `weather_alert`, `security`,
 `doors_windows`, `climate`, `lights`, `blinds`, `timers`, `vacuums`,
 `speakers`, `water` and `energy`. The chip then counts what **HK Settings →
-Status & Chips** finds for that kind, and fills in its own icon, name and text.
+What Counts** shows for that kind ([What Counts](Status-Chips.md#what-counts)), and fills in its own icon, name and text.
 `quiet: true` shows it only while there is something to report.
 
 **A chip of your own.** Point it at one entity, or build its text:
@@ -161,12 +177,12 @@ optionally on an `attribute`).
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-heading-card` | A section title. With `area`, it links to that area’s room page when the dashboard has one. | `name` (required), `area`, `navigation_path`, `chevron` (text after the title), `height`, `padding`, `grid_rows` |
-| `hk-stat-card` | An icon, a caption and a large reading, with no background. | `entity` (required), `name`, `value_mode` (`temperature`, `power`, `runtime`, `cost`, `flow`), `icon`, `icon_color`, `value` (fixed text) |
-| `hk-rank-card` | A tile with a large reading: a value, a percentage, or a device’s power use ranked against others. | `entity` (required), `name`, `mode` (`hero`, `pct`, `rank`), `power`, `stat`, `peers`, `icon_color_steps`, `label_entity`, `label_suffix`, `label_decimals` |
-| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Status Rows → Climate and Status & Chips. | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
-| `hk-page-status-card` | A category page’s status row — Lights, Doors & Windows, Water, Security (or Climate) — with accessory-list sheets on tap. Follows All Screens → Status Rows and Status & Chips. | `page` (required: `lights`, `doors_windows`, `water`, `security`, `climate`), `items`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
-| `hk-room-status-card` | A room’s status line: temperature and humidity, then what is on, open or detected, read from its area. | `area` (required; one or a list), `items`, `temperature`, `humidity`, `entities`, `exclude`, `include` |
+| `hk-heading-card` | A section title. With `area`, it links to that area’s room page when the dashboard has one. | `name` (required), `area`, `navigation_path`, `chevron` (text after the title), `height`, `padding`, `grid_rows`, `energy_section` (the Energy section’s dot and total on the tab), `energy_period` (`now` pins it to Now) |
+| `hk-stat-card` | An icon, a caption and a large reading, with no background. | `entity` (required), `name`, `value_mode` (`temperature` — in the sensor’s own unit —, `power`, `runtime`, `cost`, `cost_today`, `flow`), `icon`, `icon_color`, `value` (fixed text), `value_suffix` (instead of the unit), `power`, `price` (an entity: price per kWh) |
+| `hk-rank-card` | A tile with a large reading: a value, a percentage, or a device’s power use ranked against others. | `entity` (required), `name`, `mode` (`hero`, `pct`, `rank`, `energy`), `power`, `stat`, `peers`, `energy` (follow the Energy tabs; `now` pins it to Now), `section`, `line_color`, `control` (Switched By: a power button that turns it on, and off after asking), `icon_color_steps`, `label_entity`, `label_suffix`, `label_decimals` |
+| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Status Rows → Climate and What Counts. | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-page-status-card` | A category page’s status row — Lights, Doors & Windows, Water, Security (or Climate) — with accessory-list sheets on tap. Follows All Screens → Status Rows and What Counts. | `page` (required: `lights`, `doors_windows`, `water`, `security`, `climate`), `items`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-room-status-card` | A room’s status line: temperature and humidity, then what is on, open or detected, read from its area. | `area` (required; one or a list), `items`, `temperature`, `humidity`, `entities`, `exclude`, `include`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
 
 `icon_color_steps` is a list whose first match wins, for example
 `[{above: 60, color: green}, {above: 25, color: yellow}, {color: red}]`.
@@ -185,7 +201,7 @@ Temperature and humidity come from the area’s own related sensors
 | Card | What it is |
 |---|---|
 | `hk-thermostat-card` | A thermostat dial with the current temperature, target and mode buttons. |
-| `hk-slider-card` | A slider for a `number` entity, such as a battery’s charge limit. |
+| `hk-slider-card` | A slider for a `number` entity, such as a battery’s charge limit. `layout: tile` makes it 152 px tall on the Energy page’s insets, to sit in a row with its cards. |
 | `hk-media-control-card` | A media player’s progress bar and volume slider. `parts: [progress]` or `[volume]` draws one; `members_map` tells it a sync group’s speakers so the volume can level them. |
 | `hk-control-card` | Picks one of the above from the entity (`control` forces one). Prefer the named cards. |
 
@@ -272,7 +288,7 @@ Frontend (`helpers/quick_timers.yaml`); see
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-camera-mosaic-card` | The camera strip: one camera live, the others as snapshots, in one scrolling plate. Tap a camera for its sheet. | `cameras` (`[{entity, name, option}]`), `selector` (an `input_select` whose option picks the live camera; `option` matches a camera to it), `height`, `refresh` (seconds between snapshots, default 10; 0 stops them), `seam`, `radius`, `stills_only` (no live tile: every camera a snapshot, one tall then two stacked, as a room page shows them; a single camera is one 16:9 snapshot), `own_cameras` (this card’s `cameras`, not the screen’s camera list) |
+| `hk-camera-mosaic-card` | The camera strip: one camera live, the others as snapshots, in one scrolling plate. Tap a camera for its sheet. | `cameras` (`[{entity, name, option}]`), `selector` (an `input_select` or `select` whose option picks the live camera; `option` matches a camera to it), `height`, `refresh` (seconds between snapshots, default 10; 0 stops them), `seam`, `radius`, `stills_only` (no live tile: every camera a snapshot, one tall then two stacked, as a room page shows them; a single camera is one 16:9 snapshot), `own_cameras` (this card’s `cameras`, not the screen’s camera list) |
 | `hk-camera-live-card` | One camera live, as a tile. On a page of them, each waits its turn: three connect at a time, each opening on the camera’s last picture until its video is on screen (the Cameras page). | `entity` (a camera), `aspect_ratio` (default `16x9`), `fit_mode` (`cover` or `contain`) |
 | `hk-doorbell-card` | One camera live **with its sound**. With a speaker, a hold-to-talk button. | `entity` (a camera), `name`, `speaker`, `live` (stream as you speak, for UniFi Protect doorbells; off: a recorded message played when you let go), `sound`, `aspect_ratio` (default `4x3`), `fill`, `tuning` |
 | `hk-tv-guide-card` | The [Live TV](Live-TV.md) guide: every channel with what is on, and a tap that plays one full screen. | `title` |
@@ -285,16 +301,16 @@ on a secure page.
 
 ## Music
 
-These cards need the [Music](Music.md) feature. They follow whichever
+These cards need the [Music](Music.md) feature. Without it, each says so (“Add the Music feature to play music here”) instead of showing empty rooms. They follow whichever
 room the screen is showing, so they name no speaker themselves.
 
 | Card | What it is | Main options |
 |---|---|---|
 | `hk-music-card` | The whole Music page: what plays and where (Speakers, Volume, Queue) on the left, Browse beside it; one column on a phone. Generated screens use it for their Music page. | `focus_search` (start in the search box) |
-| `hk-now-playing-card` | Artwork, the track and controls for the screen’s music. | `music: true`, `meta_card`, `sub_card` (the controls under the title, usually `hk-media-control-card`s), `tall` (one column, for a narrow column or a phone), `hide_idle` (draws nothing while nothing is playing or paused) |
+| `hk-now-playing-card` | Artwork, the track and controls for the screen’s music. Added from the card picker it has its progress and volume already. | `meta_card` (the controls under the title, usually an `hk-media-control-card`), `sub_card` (the controls under the title, usually `hk-media-control-card`s), `tall` (one column, for a narrow column or a phone), `hide_idle` (draws nothing while nothing is playing or paused) |
 | `hk-speaker-picker-card` | Choose speakers, then tap a playlist. Also Move Music, Stop All and Clear. (The older Play Music page’s card; `hk-music-card` replaces it on generated screens.) | `browse_url` (where its Browse Music pill goes, for example `./music-browse`; without it there is no pill) |
-| `hk-library-card` | Browse and search the Music Assistant library, playing to the screen’s room. | `music: true`, `fallback_player`, `hide` (categories to leave out), `discover` (the first page’s rows) |
-| `hk-screensaver-now-card` | What is playing, for a screensaver. | `music: true`, or `players` (in priority order, groups first) |
+| `hk-library-card` | Browse and search the Music Assistant library, playing to the screen’s room. | `player` (always play here), `fallback_player`, `hide` (categories to leave out), `discover` (the first page’s rows) |
+| `hk-screensaver-now-card` | What is playing, for a screensaver’s `cards:` (not in the card picker). | `music: true`, or `players` (in priority order, groups first) |
 | `hk-browse-card` | Music Assistant’s own web player, framed in a page. | `port` (default 8095), `path` (default `/#/home`), `host`, `height` |
 
 `hide` and `discover` default to **HK Settings → Features → Music →
@@ -304,9 +320,30 @@ Browse**.
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-usage-card` | Today’s energy use or runtime against the last two weeks, with a bar chart. | `stat` (required: a sensor with long-term statistics), `name`, `compare`, `align` (`left`, `center`), `opts` (chart options, for example `{colour: orange}`), `height`, `entity`, `tap_action` |
+| `hk-energy-period-card` | The Energy page’s tabs: Now, Today, This Week, This Month. Every HK energy card on the page follows them. | `opens_on` (`now`, `day`, `week`, `month`) |
+| `hk-energy-hero-card` | Now: the whole home’s power, its last three hours and your readings. The other tabs: rings against a usual day, with where the period is heading. | `height`, `climate_path` |
+| `hk-energy-highlights-card` | Four sentences on what stood out. | `height` |
+| `hk-energy-where-card` | One bar of the house’s energy (power on Now) by section. Tap a section to light it on the page. | `height` |
+| `hk-energy-day-card` | The day as a clock, the week as bars, the month as a calendar against a usual day (tap a day for that day’s kWh, cost and devices); wider, the period’s figures and Most Used. | `height` |
+| `hk-energy-battery-card` | The house battery: its level now, what it took in and gave back, and the tab’s own bars. | `height` |
+| `hk-energy-water-card` | Water or gas against a usual amount, with the tab’s own bars. | `source` (`water`, `gas`), `height` |
+| `hk-energy-tracking-card` | The meters and runtimes you follow (the Energy feature’s **Tracking**), a row each: how it compares with its usual, its figure and bars for the tab. | `compact` (Without Bars: each row’s name, figure and comparison only) |
+| `hk-power-flow-card` | Right now: from the grid, the house and the battery, as a flow chart with light running along each line while power flows (on the grid, or on the battery). | `grid`, `home`, `charge`, `discharge` (power sensors), `level`, `grid_status`, `title` |
+| `hk-power-status-card` | A home battery system in sentences: a grid outage or a fault first, in red, then the source, the backup time, EPS and Storm Mode. | `grid_status`, `problem`, `level`, `backup`, `home`, `charge`, `discharge`, `eps`, `storm` |
+| `hk-house-battery-card` | A home battery drawn as a battery: its level, the reserve and limit marked on it, the backup time, its packs and their temperatures, EPS and the charging speed. Light runs through it while it charges or powers the house. | `level` (required), `stored`, `backup`, `reserve`, `limit`, `speed`, `charge`, `discharge`, `eps`, `packs` (`[{name, level, temperature}]`), `title` |
+| `hk-segment-card` | A select’s options as HK Frontend’s segmented control (the calendar’s and the Energy tabs’), with a line saying what the chosen one does (an operating mode). On a phone the names wrap rather than cut off. | `entity` (required), `options` (`[{value, name, description}]`; empty: the select’s own) |
+| `hk-usage-card` | Today’s energy use or runtime against the last two weeks, with a bar chart. | `stat` (required: a sensor with long-term statistics), `name`, `compare`, `align` (`left`, `center`), `opts` (chart options, for example `{colour: orange}`), `height`, `entity` (opened by a tap; empty: `stat`), `tap_action` |
 | `hk-trace-card` | A line graph of a sensor’s last few hours, with its current value. | `entity` (required), `trace` (`{hours, colour, title}`; the key is spelled `colour`), `margin`, `tap_action` |
 | `hk-battery-strip-card` | A home battery’s charge against its reserve and charge limit. | `entity` (required, percent), `name`, `stored`, `discharge`, `reserve`, `limit`, `margin`, `tap_action` |
+
+The `hk-energy-…` cards read the [Energy](Energy.md) feature and Home
+Assistant’s Energy settings, and need no entities of their own; add **HK
+Energy Tabs** first and the others follow its tab. The four home battery
+cards (`hk-power-flow-card`, `hk-power-status-card`, `hk-house-battery-card`
+and `hk-segment-card`) don’t need the feature: each reads the entities you
+give it, so they suit any home battery system, and reads power in W or kW as
+the sensor reports it. On all of them, a tap on a figure, a row or a sentence
+opens that entity’s sheet.
 
 ## Pop-ups
 

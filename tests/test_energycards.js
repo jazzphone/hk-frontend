@@ -211,5 +211,70 @@ H.run('ENERGY CARDS', [
       H.eq('cached statistics draw at once, no second request', house.ws.length, 1);
       return H.lifecycle('usage', card, house, function (c) { c.hass = house.hass(); });
     });
+  },
+
+  // ------------------------------------------- the picker's starter configs
+  // Each card's preview starts on a sensor of the RIGHT kind -- never the
+  // first sensor of any kind (a media bitrate drawn as a battery).
+  function () {
+    H.section('starter configs pick a sensor by kind');
+    var house = H.house({
+      'sensor.media_bitrate': ['0.51', { unit_of_measurement: 'MB' }],
+      'sensor.grid_power': ['1.2', { device_class: 'power', unit_of_measurement: 'kW' }],
+      'sensor.dryer_energy_now': ['0.4', { device_class: 'energy', unit_of_measurement: 'kWh' }],
+      'sensor.main_energy': ['812', { device_class: 'energy', state_class: 'total_increasing', unit_of_measurement: 'kWh' }],
+      'sensor.humidity': ['44', { unit_of_measurement: '%' }],
+      'sensor.pack_level': ['77', { device_class: 'battery', unit_of_measurement: '%' }]
+    }).hass();
+    function stub(tag, h) { return customElements.get(tag).getStubConfig(h); }
+    H.eq('usage: an energy total', stub('hk-usage-card', house).stat, 'sensor.main_energy');
+    H.eq('trace: a power sensor', stub('hk-trace-card', house).entity, 'sensor.grid_power');
+    H.eq('battery strip: a battery sensor', stub('hk-battery-strip-card', house).entity, 'sensor.pack_level');
+    var thin = H.house({
+      'sensor.media_bitrate': ['0.51', { unit_of_measurement: 'MB' }],
+      'sensor.dryer_energy_now': ['0.4', { device_class: 'energy', unit_of_measurement: 'kWh' }],
+      'sensor.humidity': ['44', { unit_of_measurement: '%' }]
+    }).hass();
+    H.eq('usage: any energy sensor when there is no total', stub('hk-usage-card', thin).stat, 'sensor.dryer_energy_now');
+    H.eq('battery strip: a % sensor when there is no battery', stub('hk-battery-strip-card', thin).entity, 'sensor.humidity');
+    H.eq('trace: the first sensor when there is no power one', stub('hk-trace-card', thin).entity, 'sensor.media_bitrate');
+    H.eq('no sensors at all: the placeholder', stub('hk-trace-card', H.house({}).hass()).entity, 'sensor.example');
+  },
+
+  // ------------------------------- hk-usage-card: More info without `entity`
+  function () {
+    H.section('hk-usage-card: More info opens the statistic when there is no entity');
+    var house = energyHouse(), card = H.make('hk-usage-card'), opened = [];
+    card.setConfig({ type: 'custom:hk-usage-card', stat: 'sensor.main_power_utility',
+      tap_action: { action: 'more-info' } });
+    card.hass = house.hass();
+    card.dispatchEvent = function (ev) { opened.push(ev.detail.entityId); return true; };
+    card._act({ action: 'more-info' }, true);
+    H.eq('the statistic\'s sensor opens', opened, ['sensor.main_power_utility']);
+    H.eq('...and the config is left as it was', card._config.entity, undefined);
+    card.setConfig({ type: 'custom:hk-usage-card', stat: 'sensor.main_power_utility',
+      entity: 'sensor.main_power_live', tap_action: { action: 'more-info' } });
+    card._act({ action: 'more-info' }, true);
+    H.eq('an entity, when set, wins', opened[1], 'sensor.main_power_live');
+  },
+
+  // ---------------------------------------------------------------- editors
+  function () {
+    H.section('editors');
+    function fields(tag) {
+      var C = customElements.get(tag), probe = C.getConfigElement();
+      var EC = customElements.get(String(probe.tagName || '').toLowerCase());
+      var ed = EC ? new EC() : probe;
+      if (!ed.appendChild) ed.appendChild = function () {};
+      ed.hass = { states: {} }; ed.setConfig({ type: 'custom:' + tag });
+      var out = {};
+      (function walk(l) { (l || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+      return out;
+    }
+    var u = fields('hk-usage-card'), b = fields('hk-battery-strip-card');
+    H.eq('usage: Center, US spelling', u.align.selector.select.options.map(function (o) { return o.label; }), ['Left', 'Center']);
+    H.eq('battery strip: reserve takes any entity the card can read', b.reserve.selector.entity.filter.domain,
+         ['number', 'input_number', 'sensor']);
+    H.eq('...and limit', b.limit.selector.entity.filter.domain, ['number', 'input_number', 'sensor']);
   }
 ]);

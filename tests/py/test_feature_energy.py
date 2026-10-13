@@ -156,7 +156,12 @@ def test_the_whole_page_from_home_assistants_energy_settings_alone():
     # the daily bars: the whole home, then the biggest top-level meters
     assert [u["name"] for u in p["usages"]][:3] == ["Whole Home", "Upstairs AC", "Wall Connector"]
     assert "Coffee Plug" not in [u["name"] for u in p["usages"]]
-    assert p["detail"] is True
+    # Home Assistant's own charts are off unless chosen (the page has its own)
+    assert p["detail"] is False
+    # what the house has, for Your Day's width: a battery, no water or gas
+    assert p["sources"] == {"battery": True, "water": False, "gas": False, "solar": False, "cost": True}
+    # the daily bars are automatic: each device's sheet has them
+    assert p["usages_auto"] is True and p["page"] == {}
 
 
 def test_a_device_inside_another_is_known_both_ways():
@@ -170,7 +175,7 @@ def test_a_device_inside_another_is_known_both_ways():
 def test_the_options_sort_name_and_hide():
     opts = {"sections": [{"id": "big", "name": "The Big Ones", "items": ["sensor.upstairs_ac_utility",
                                                                           "sensor.refrigerator_utility"],
-                          "link": {"path": "/ecoflow-panel/ecoflow", "text": "Panel›"}},
+                          "link": {"path": "/dashboard-home/power", "text": "Panel›"}},
                          {"id": "rooms", "name": "Rooms", "items": ["sensor.living_room_utility"]}],
             "devices": {"sensor.refrigerator_utility": {"name": "Fridge", "icon": "hk:fridge", "color": "mint"},
                         "sensor.no_power_utility": {"hidden": True}}}
@@ -180,7 +185,7 @@ def test_the_options_sort_name_and_hide():
     # goes to the section its guess names if listed, else Other
     assert ids[:2] == ["big", "rooms"]
     assert [i["name"] for i in items(p, "big")] == ["Upstairs AC", "Fridge"]
-    assert p["sections"][0]["link"] == {"path": "/ecoflow-panel/ecoflow", "text": "Panel›"}
+    assert p["sections"][0]["link"] == {"path": "/dashboard-home/power", "text": "Panel›"}
     assert [i["name"] for i in items(p, "rooms")] == ["Living Room", "Office", "Kitchen & Garage"]
     assert "Dehumidifier" not in [i["name"] for s in p["sections"] for i in s["items"]]
     assert "other" in ids
@@ -412,3 +417,52 @@ async def test_a_registry_change_reaches_the_screens_only_when_the_plan_changes(
     await hass.async_block_till_done()
     assert len(sent) == 1, sent
     assert energy.client(hass)["sections"][0]["items"][0]["power"] == "sensor.fridge_w"
+
+
+def test_the_pages_own_settings_and_section_colors():
+    """HK Settings -> Energy: the tab it opens on, its rings, its usual day,
+    its highlights -- each checked, each field alone, a null back to
+    Automatic -- and a color for a section."""
+    out, err = apply({}, {"page": {"opens_on": "week", "rings": ["energy", "cost", "water"], "typical": 14}})
+    assert not err and out["page"] == {"opens_on": "week", "rings": ["energy", "cost", "water"], "typical": 14}
+    out, err = apply(out, {"page": {"highlights": False}})
+    assert not err and out["page"]["highlights"] is False and out["page"]["opens_on"] == "week", "one field changes alone"
+    out, err = apply(out, {"page": {"opens_on": None}})
+    assert not err and "opens_on" not in out["page"], "a null is Automatic again"
+    for bad in ({"opens_on": "year"}, {"rings": ["energy", "steps"]}, {"rings": []}, {"typical": 10},
+                {"typical": True}, {"highlights": "yes"}, {"other": 1}, "week"):
+        _, err = apply({}, {"page": bad})
+        assert err.get("page"), bad
+    out, err = apply(out, {"page": None})
+    assert not err and "page" not in out
+    out, err = apply({}, {"sections": [{"id": "rooms", "name": "Rooms", "items": [], "color": "purple"}]})
+    assert not err and out["sections"][0]["color"] == "purple"
+    _, err = apply({}, {"sections": [{"id": "rooms", "name": "Rooms", "items": [], "color": "plaid"}]})
+    assert err.get("sections")
+    # the plan carries them to the page
+    ctx = {"prefs": {"energy_sources": [{"type": "grid", "stat_energy_from": "sensor.g"},
+                                        {"type": "water", "stat_energy_from": "sensor.w"},
+                                        {"type": "solar", "stat_energy_from": "sensor.s"}],
+                     "device_consumption": [{"stat_consumption": "sensor.office_utility"}]},
+           "entities": {"sensor.office_utility": {"name": "Office Utility", "dc": "energy", "unit": "kWh"}}}
+    opts = {"page": {"opens_on": "day"}, "usages": [],
+            "sections": [{"id": "rooms", "name": "Rooms", "items": ["sensor.office_utility"], "color": "purple"}]}
+    p = plan.build(ctx, opts)
+    assert p["page"] == {"opens_on": "day"} and p["usages_auto"] is False
+    assert p["sources"]["water"] and p["sources"]["solar"] and not p["sources"]["battery"]
+    assert [s["color"] for s in p["sections"] if s["id"] == "rooms"] == ["purple"]
+
+
+def test_a_device_can_carry_its_runtime():
+    """An AC's daily runtime, chosen on its page: checked as an entity, and in
+    the plan's tile for the page to show its hours."""
+    out, err = apply_device({}, "sensor.ac_utility", {"runtime": "sensor.ac_run_time"})
+    assert err is None and out["devices"]["sensor.ac_utility"]["runtime"] == "sensor.ac_run_time"
+    _, err = apply_device({}, "sensor.ac_utility", {"runtime": "not an entity"})
+    assert err
+    ctx = {"prefs": {"energy_sources": [{"type": "grid", "stat_energy_from": "sensor.g"}],
+                     "device_consumption": [{"stat_consumption": "sensor.ac_utility"}]},
+           "entities": {"sensor.ac_utility": {"name": "Upstairs AC Utility", "dc": "energy", "unit": "kWh"}}}
+    p = plan.build(ctx, out)
+    tile = [i for s in p["sections"] for i in s["items"] if i["key"] == "sensor.ac_utility"][0]
+    assert tile["runtime"] == "sensor.ac_run_time"

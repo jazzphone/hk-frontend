@@ -316,6 +316,8 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "look.frost": _amount,
     "look.frost_tint": _bool,
     "look.blur": _amount,
+    "look.tint": _amount,
+    "look.well": _choice(S.WELLS),
     "look.details": _bool,
     "look.sky_switch": _entity("input_boolean", "switch"),
     "look.photos": _photos,
@@ -640,6 +642,8 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "black_screen": _choice(S.BLACK_SCREENS),
     "sleep": _sleep,
     "blur": _amount_or_none,
+    "tint": _amount_or_none,
+    "well": _choice(S.WELLS, none=True),
     "sky": _bool,
     # this screen's own Sky / Background; None: follow All Screens
     "sky_animations": _bool_or_none,

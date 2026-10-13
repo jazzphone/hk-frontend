@@ -119,7 +119,7 @@ ok('and says so loudly', errs, 1);
 
 print('\n=== navigation_path_map: the one carved-out dashboard ===');
 var NAV = { action: 'navigate', navigation_path: './ecoflow',
-            navigation_path_map: { 'energy-tablet': '/ecoflow-panel/ecoflow' } };
+            navigation_path_map: { 'energy-tablet': '/dashboard-home/power' } };
 location.pathname = '/lovelace-kitchen/energy';
 history._pushed = [];
 actor({})._act(NAV, false);
@@ -129,7 +129,7 @@ location.pathname = '/energy-tablet/energy';
 history._pushed = [];
 actor({})._act(NAV, false);
 __runTimers();
-ok('energy-tablet takes the override', history._pushed[0], '/ecoflow-panel/ecoflow');
+ok('energy-tablet takes the override', history._pushed[0], '/dashboard-home/power');
 location.pathname = '/lovelace-kitchen/energy';
 
 print('\n=== confirmation ===');

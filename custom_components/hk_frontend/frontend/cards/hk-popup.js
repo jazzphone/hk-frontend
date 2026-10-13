@@ -439,10 +439,13 @@
     '.hk-stash.in{animation:hkStashR .3s cubic-bezier(.2,.8,.2,1)}',
     'html[hk-tabbar-fold=end] .hk-stash.in{animation-name:hkStashL}'
   ].join('');
-  // the stash's button: the dashboard's round glass, a glyph in it
+  // the stash's button: the dashboard's round glass, a glyph in it. NO
+  // BLUR (2026-10-12): at .78 it barely showed, and a fixed button over the
+  // scrolling page and the moving sky blurred again on every frame it was
+  // up -- .94 with none looks the same and costs nothing
   var STASH_CSS = [
     '.b{box-sizing:border-box;width:var(--s,48px);height:var(--s,48px);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;',
-    '  background:rgba(32,30,38,.78);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);',
+    '  background:rgba(32,30,38,.94);',
     '  border:1px solid rgba(255,255,255,.14);box-shadow:0 8px 24px rgba(0,0,0,.38);color:#fff;',
     '  -webkit-tap-highlight-color:transparent;transition:transform .12s ease}',
     '.b:active{transform:scale(.94)}',
@@ -1106,6 +1109,11 @@
             'calc(var(--hk-vw, 100vw) - var(--hk-content-left, 0px) - 24px)';
           sheet.style.padding = cfg.padding || '18px';
           sheet.style.background = cfg.background || '#1c1c1e';
+          // a card on the sheet's own plate wears the look's plate for a
+          // sheet (M.bg; Tinted's dark plate on #1c1c1e is a hole); a sheet
+          // with none (the docked bar's, transparent) keeps the page's
+          if (/^(transparent|none)$/i.test(String(sheet.style.background || '').trim())) sheet.style.removeProperty('--hk-plate-here');
+          else sheet.style.setProperty('--hk-plate-here', 'var(--hk-glass-plate-sheet)');
           var rad = bottom ? r + ' ' + r + ' 0 0' : r;
           if (cfg.background === 'transparent') sheet.style.overflowY = 'visible';
           // clip: the content IS the sheet (the doorbell camera). No box
@@ -1362,6 +1370,8 @@
     // ordinary hk-popup-card config (its `type` may be left out).
     class HkPopupGroupCard extends C.HkBase {
       static get CSS() { return ':host{display:none}'; }
+      // it takes no space (display:none), so it asks for none
+      getCardSize() { return 0; }
       _sigOf() { return null; }              // each pop-up gates its own renders
       _render() {
         var h = this._hass, cfg = this._config || {};
@@ -1387,25 +1397,38 @@
     // and the automatic behaviour are sections.
     C.wireEditor('hk-popup-card', HkPopupCard, [
       { name: 'hash', required: true, selector: { text: {} } },
-      { name: 'cards', required: true, selector: { object: {} },
-        helper: 'The cards inside the pop-up, as a YAML list.' },
+      // NOT required: `detail:` stands in for it (setConfig takes either),
+      // and ha-form cannot say "one of these two"
+      { name: 'cards', selector: { object: {} },
+        helper: 'The cards inside the pop-up, as a YAML list. Or set Detail below.' },
+      { name: 'detail', label: 'Opens This Accessory\'s Sheet', selector: { entity: {} },
+        helper: 'Instead of Cards: the hash opens this entity\'s detail sheet.' },
       C.section('Appearance', [
         { type: 'grid', name: '', schema: [
           { name: 'position', selector: C.selOptions(['center', 'bottom']) },
+          { name: 'dock', label: 'Dock at the Bottom', selector: { boolean: {} },
+            helper: 'With Position Bottom and Modal off: full width at the screen\'s bottom edge, like the Now Playing bar.' },
           { name: 'width', selector: { text: {} }, helper: 'Default 900px.' },
+          { name: 'max_width', label: 'Maximum Width', selector: { text: {} },
+            helper: 'Default: the screen\'s width, less a margin.' },
           { name: 'padding', selector: { text: {} }, helper: 'Default 18px.' },
           { name: 'radius', selector: { text: {} }, helper: 'Default 42px.' },
           { name: 'background', selector: { text: {} }, helper: 'Default #1c1c1e. transparent shows the cards only.' },
           { name: 'blur', selector: { text: {} }, helper: 'e.g. 40px.' },
           { name: 'backdrop', selector: { number: { min: 0, max: 1, step: 0.05, mode: 'box' } } },
-          { name: 'clip', selector: { boolean: {} } }
+          { name: 'clip', selector: { boolean: {} } },
+          { name: 'close_button', label: 'Close Button', selector: { boolean: {} },
+            helper: 'An X in the corner.' }
         ] },
         { name: 'vars', selector: { object: {} } }
       ], 'mdi:palette'),
       C.section('Opening and closing', [
         { type: 'grid', name: '', schema: [
+          // on unless `modal: false` -- shown on while the key is absent
+          { name: 'modal', label: 'Modal', selector: { boolean: {} }, default: true,
+            helper: 'On: dims the page and holds the taps. Off: the page stays usable around it.' },
           { name: 'auto_close', selector: { number: { min: 0, step: 1000, mode: 'box' } } },
-          { name: 'close_outside', selector: { boolean: {} } },
+          { name: 'close_outside', default: true, selector: { boolean: {} } },   // on unless false (~1150)
           { name: 'trigger_close', selector: { boolean: {} } },
           { name: 'dismissable', selector: { boolean: {} } }
         ] },

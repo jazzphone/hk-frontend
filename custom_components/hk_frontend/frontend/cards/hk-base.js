@@ -59,13 +59,16 @@
   // the theme supplies these on any HK Kiosk view, and the fallback keeps
   // a card honest anywhere else.
   var M = {
-    // --hk-glass-plate is the look (hk-settings.js: clear / frosted / blur);
-    // unset, the theme's plate, then the literal.
-    bg:      'var(--hk-glass-plate, var(--hk-glass-bg, linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.056))))',
-    border:  'var(--hk-glass-border, 1px solid rgba(255,255,255,0.13))',
-    shSm:    'var(--hk-glass-shadow-sm, 0 8px 22px rgba(0,0,0,0.12))',
+    // --hk-glass-plate is the look (hk-settings.js: clear / frosted / blur /
+    // tinted); unset, the theme's plate, then the literal. --hk-plate-here
+    // comes first: a dark sheet sets it to the look's plate for a card IN a
+    // sheet (--hk-glass-plate-sheet: Tinted's dark plate on a dark sheet is a
+    // hole); unset in every other look, so it falls through to today's.
+    bg:      'var(--hk-plate-here, var(--hk-glass-plate, var(--hk-glass-bg, linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.056)))))',
+    border:  'var(--hk-look-edge, var(--hk-glass-border, 1px solid rgba(255,255,255,0.13)))',
+    shSm:    'var(--hk-look-shadow, var(--hk-glass-shadow-sm, 0 8px 22px rgba(0,0,0,0.12)))',
     radius:  'var(--hk-glass-radius, 23.5px)',
-    well:    'var(--hk-well-bg, rgba(0,0,0,0.14))'
+    well:    'var(--hk-look-well, var(--hk-well-bg, rgba(0,0,0,0.14)))'
   };
   // A GLASS SURFACE: the material, plus the marker hk-glass.js looks for to
   // cut the shared blur layer to this shape (look.glass = blur). Use it as a
@@ -392,12 +395,12 @@
         // Tesla dashboard (tesla-viewport.js), where 78vh is zoomed too and
         // is ~52% of the screen. Unset everywhere else: plain 100vh.
         '#hk-choose .box{position:relative;width:340px;max-height:calc(var(--hk-vh, 100vh) * .78);border-radius:16px;' +
+        // no blur: at .94 over a dimmed page it could not be seen
         '  overflow:hidden;background:rgba(42,42,44,0.94);' +
-        '  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);' +
-        '  color:#fff;text-align:center;display:flex;flex-direction:column;' +
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));text-align:center;display:flex;flex-direction:column;' +
         '  box-shadow:0 24px 64px rgba(0,0,0,0.55),0 2px 10px rgba(0,0,0,0.35)}' +
         '#hk-choose .txt{padding:22px 24px 16px;font-size:15px;font-weight:600;' +
-        '  line-height:1.35;color:rgba(255,255,255,0.95)}' +
+        '  line-height:1.35;color:var(--hk-ink,rgba(255,255,255,0.94))}' +
         // The list scrolls if it ever outgrows the sheet; six fit without it.
         '#hk-choose .list{overflow-y:auto;-webkit-overflow-scrolling:touch}' +
         '#hk-choose .opt{appearance:none;border:0;background:none;width:100%;' +
@@ -508,17 +511,16 @@
         // which on a wall reads as text that only just fits rather than a
         // deliberate button.
         '#hk-confirm .box{width:340px;border-radius:16px;overflow:hidden;' +
-        '  background:rgba(42,42,44,0.94);backdrop-filter:blur(20px);' +
-        '  -webkit-backdrop-filter:blur(20px);color:#fff;text-align:center;' +
+        '  background:rgba(42,42,44,0.94);color:var(--hk-ink,rgba(255,255,255,0.94));text-align:center;' +
         '  box-shadow:0 24px 64px rgba(0,0,0,0.55),' +
         '             0 2px 10px rgba(0,0,0,0.35)}' +
         '#hk-confirm .txt{padding:22px 24px 18px;font-size:15px;font-weight:600;' +
-        '  line-height:1.35;color:rgba(255,255,255,0.95)}' +
+        '  line-height:1.35;color:var(--hk-ink,rgba(255,255,255,0.94))}' +
         // A second line for WHAT the question is about -- the rooms and what
         // they are playing. Collapsed to nothing when unused, so a sheet
         // without one is unchanged to the pixel.
         '#hk-confirm .det{display:none;padding:0 24px 20px;font-size:13px;' +
-        '  font-weight:500;line-height:1.4;color:rgba(255,255,255,0.62)}' +
+        '  font-weight:500;line-height:1.4;color:var(--hk-ink-2,rgba(255,255,255,0.68))}' +
         '#hk-confirm .det[data-on]{display:block}' +
         // The title owns the gap when it is alone; when a detail line follows
         // it, the detail owns the bottom and the title gives some back, or
@@ -540,6 +542,9 @@
         // words say what they do, so both buttons are one weight everywhere
         // and nothing is being recommended by typography.
         '#hk-confirm button + button{border-left:0.5px solid rgba(255,255,255,0.18)}' +
+        // `destructive: true`: the action that takes something away is red
+        // (Apple's destructive style), never bold
+        '#hk-confirm[data-red] [data-yes]{color:#ff453a}' +
         '</style>' +
         '<div class="box" role="alertdialog" aria-modal="true">' +
         '<div class="txt"></div><div class="det"></div>' +
@@ -563,6 +568,7 @@
     _sheet.querySelector('.txt').textContent = text || 'Are you sure?';
     _sheet.querySelector('[data-no]').textContent = opts.no || 'Cancel';
     _sheet.querySelector('[data-yes]').textContent = opts.yes || 'Confirm';
+    if (opts.destructive) _sheet.setAttribute('data-red', ''); else _sheet.removeAttribute('data-red');
     var det = _sheet.querySelector('.det');
     det.textContent = opts.detail || '';
     if (opts.detail) det.setAttribute('data-on', '1');
@@ -738,13 +744,13 @@
     '.pill{height:40px;border-radius:20px;padding:0 14px;margin:0;',
     '  display:grid;grid-template-columns:minmax(0,1fr);align-content:center;',
     '  ' + M.glass + ';border:' + M.border + ';',
-    '  box-shadow:0 6px 18px rgba(0,0,0,0.10);',
+    '  box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10));',
     '  cursor:pointer;user-select:none;',
     '  transition:background-color .22s ease, transform .12s ease}',
     '.pill:active{transform:scale(0.96)}',
     '.pill > span{justify-self:center;font-size:13.5px;font-weight:600;',
     '  letter-spacing:-0.1px;white-space:nowrap;overflow:hidden;',
-    '  text-overflow:ellipsis;color:' + IDLE_TEXT + ';transition:color .22s ease}',
+    '  text-overflow:ellipsis;color:var(--hk-ink,rgba(255,255,255,0.94));transition:color .22s ease}',
     '.pill[aria-pressed="true"]{background:' + SELECTED_BG + '}',
     '.pill[aria-pressed="true"] > span{color:' + SELECTED_TEXT + '}',
 
@@ -786,11 +792,11 @@
     // WHITE, as the label is, unless a tile colors its own glyph (a scene's,
     // inline). Inherited, it took the page's text color -- black under a
     // light Home Assistant theme: the Browse Music categories (2026-10-10).
-    '.tile .well ha-icon{--mdc-icon-size:23px;width:23px;height:23px;color:rgba(255,255,255,0.92);',
+    '.tile .well ha-icon{--mdc-icon-size:23px;width:23px;height:23px;color:var(--hk-glyph,rgba(255,255,255,0.92));',
     '  display:flex;align-items:center;justify-content:center}',
     '.tile .txt{justify-self:stretch;text-align:left;align-self:center;',
     '  font-weight:600;font-size:15px;line-height:1.1;letter-spacing:-0.23px;',
-    '  color:rgba(255,255,255,0.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
 
     // ---- action status line (see _setStatus, below) ----------------------
     //
@@ -806,15 +812,15 @@
     '  font-weight:600;letter-spacing:-0.1px;line-height:20px;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
     '  color:transparent;transition:color .18s ease}',
-    '.hk-status[data-kind="pending"]{color:rgba(255,255,255,0.55)}',
-    '.hk-status[data-kind="sent"]{color:rgba(255,255,255,0.72)}',
+    '.hk-status[data-kind="pending"]{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+    '.hk-status[data-kind="sent"]{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
     '.hk-status[data-kind="warn"]{color:var(--hk-warn, #FFB340)}',
     '.hk-status[data-kind="failed"]{color:var(--hk-fail, #FF6961)}',
     '@media (prefers-reduced-motion: reduce){.hk-status{transition:none}}',
 
     // ---- section heading (transcribed from hk_section_heading) -----------
     '.head{font-size:22px;font-weight:700;letter-spacing:-0.4px;',
-    '  color:rgba(255,255,255,0.95);padding:0 4px 10px 4px}',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));padding:0 4px 10px 4px}',
 
     '@media (prefers-reduced-motion: reduce){',
     '  .pill,.pill:active,.pill > span,.tile,.tile:active{transition:none;transform:none}}',
@@ -950,7 +956,10 @@
     });
   });
   function glassJoin(card, on) {
-    var off = !!(card._config && card._config.glass === false);
+    // ON A LIGHT PAGE (tone() below) the shared blur has no sky to frost: it
+    // laid its tinted layer behind each plate and turned the light glass a
+    // muddy gray. Out of it, as a card that says `glass: false` is.
+    var off = !!(card._config && card._config.glass === false) || !!card._hkLight;
     // Out of "Blur each card" too, and everything inside it (the variable
     // inherits into child cards' shadow roots).
     if (card.style) {
@@ -1053,6 +1062,7 @@
     // _render(), and the two must not collide.
     set hass(h) {
       this._hass = h;
+      tone(this, h);
       hubSeen(h);
       track(this);
       var sig = this._sigOf();
@@ -1530,7 +1540,19 @@
     // subscribes afresh. Only cards that were actually waiting pay for this.
     //
     // A CARD THAT OVERRIDES THIS MUST CHAIN, like disconnectedCallback.
+    // IN A SECTION. Home Assistant's Sections view sets `layout = "grid"` on
+    // every card it holds (Masonry and HK's own grid view set nothing), so a
+    // tile can fill its cell there and keep its measured 192 px everywhere
+    // else (hk-tile.js, hk-stat.js: :host([data-hk-cell])).
+    get layout() { return this._hkLayout; }
+    set layout(v) {
+      this._hkLayout = v;
+      flag(this, 'data-hk-cell', v === 'grid');
+    }
+
     connectedCallback() {
+      place(this);
+      tone(this, this._hass);
       glassJoin(this, true);
       ON_PAGE.add(this);
       markAsleep(this);
@@ -1651,7 +1673,7 @@
 
   // One line under the field, only where the label cannot carry the meaning.
   var HK_HELPERS = {
-    kind: 'Counts what HK Settings → Status & Chips finds for it. Leave empty for a chip of your own (an entity).',
+    kind: 'Counts what HK finds for it (HK Settings → Accessories → What Counts). Leave empty for a chip of your own (an entity).',
     chips: 'The row when this dashboard\'s settings (under Dashboards) name none. Empty: every kind the house has.',
     scenes: 'The row when this dashboard\'s settings name none. Empty: every scene, A to Z.',
     looks: 'YAML: entity: {name, icon, icon_color, tap_action}.',
@@ -1896,8 +1918,95 @@
   window.hkCards.create = create;
   window.hkCards.BASE_CSS = BASE_CSS;
   window.hkCards.confirmSheet = confirmSheet;
+
+  // THE SEGMENTED CONTROL, one for every page that has one (the calendar's
+  // Day / Week / Month, the Energy tabs, a select's segments): HK's glass
+  // plate 44 px tall, 36 px choices at 15 px, the choice white with dark text,
+  // and the white SLIDING to the new choice with a spring (2026-10-10, as
+  // the menu's and the tab bar's highlights do). The markup: `sel` holding
+  // <button aria-selected> choices; after a choice changes, slideSeg(the new
+  // button, segBox(the old one)) runs the slide.
+  var SEG_SPRING = 'cubic-bezier(.34,1.24,.42,1)';
+  //   o.item   a choice (default `button`)
+  //   o.on     how the chosen one is marked (default `[aria-selected="true"]`;
+  //            the control cards say `.active`, the sheets `.sel`)
+  //   o.h      the capsule's height (default 44px; its choices 8 px less)
+  //   o.font   the choices' size (default 15px)
+  //   o.fill   true: the choices share the width equally
+  //   o.plate  the capsule's own background and edge, where HK's glass is
+  //            wrong (over a picture already blurred)
+  window.hkCards.segCss = function (sel, o) {
+    sel = sel || '.seg';
+    o = o || {};
+    var it = sel + ' ' + (o.item || 'button'), on = it + (o.on || '[aria-selected="true"]');
+    var h = o.h || '44px', ih = 'calc(' + h + ' - 8px)';
+    return [
+      sel + '{box-sizing:border-box;height:' + h + ';padding:3px;border-radius:calc(' + h + ' / 2);' +
+        (o.plate || 'border:' + M.border + ';' + M.glass) + ';display:flex;gap:2px;position:relative}',
+      it + '{appearance:none;font:inherit;box-sizing:border-box;min-width:' + (o.fill ? '0' : '74px') + ';height:' + ih + ';' +
+        // sharing the width, a long name wraps to two lines rather than lose its end
+        (o.fill ? 'flex:1 1 0;padding:0 6px;overflow:hidden;text-align:center;line-height:1.1;' : 'padding:0 16px;white-space:nowrap;') +
+        'border-radius:calc(' + ih + ' / 2);border:0;background:transparent;box-shadow:none;',
+      '  font-size:' + (o.font || '15px') + ';font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;margin:0;',
+      '  display:inline-flex;align-items:center;justify-content:center;gap:6px;',
+      '  position:relative;isolation:isolate;transition:color .22s ease;-webkit-tap-highlight-color:transparent}',
+      on + '{color:#1c1c1e;background:transparent;box-shadow:none}',
+      on + '::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:#fff;',
+      '  transform-origin:0 0;transform:translate(var(--hx,0px),0) scale(var(--sx,1),1);transition:transform .42s ' + SEG_SPRING + '}',
+      it + '.slide-from::before{transition:none}',
+      '@media (prefers-reduced-motion:reduce){' + on + '::before,' + it + '{transition:none}}'
+    ].join('');
+  };
+  // THE SLIDE ACROSS A REDRAW, for a card that draws its markup anew (the
+  // control cards): where each control's choice was, before; then each new
+  // choice slid from there. `on` is how a choice is marked.
+  window.hkCards.segBefore = function (root, sel, on) {
+    var out = [];
+    if (!root || !root.querySelectorAll) return out;
+    root.querySelectorAll(sel).forEach(function (g) {
+      var b = g.querySelector(on);
+      out.push(b ? { i: Array.prototype.indexOf.call(g.children, b), box: window.hkCards.segBox(b) } : null);
+    });
+    return out;
+  };
+  window.hkCards.segAfter = function (root, sel, on, before) {
+    if (!root || !root.querySelectorAll || !before || !before.length) return;
+    root.querySelectorAll(sel).forEach(function (g, k) {
+      var was = before[k], b = g.querySelector(on);
+      if (!was || !b || Array.prototype.indexOf.call(g.children, b) === was.i) return;
+      window.hkCards.slideSeg(b, was.box);
+    });
+  };
+  window.hkCards.segBox = function (b) {
+    var sg = b && b.parentNode && b.parentNode.getBoundingClientRect ? b.parentNode.getBoundingClientRect() : null;
+    var r = b && b.getBoundingClientRect ? b.getBoundingClientRect() : null;
+    return sg && r && r.width ? { x: r.left - sg.left, w: r.width } : null;
+  };
+  window.hkCards.slideSeg = function (b, from) {
+    var to = window.hkCards.segBox(b);
+    if (!from || !to || Math.abs(from.x - to.x) < 1) return;
+    b.classList.add('slide-from');
+    b.style.setProperty('--hx', (from.x - to.x) + 'px');
+    b.style.setProperty('--sx', String(from.w / to.w));
+    void b.offsetWidth;                         // that start, drawn
+    b.classList.remove('slide-from');
+    b.style.removeProperty('--hx');
+    b.style.removeProperty('--sx');
+  };
   window.hkCards.navigate = navigate;
   window.hkCards.neverToggles = neverToggles;
+  // WHAT A TAP ON A SCENE PILL DOES: runs it. A scene turns on, a script
+  // runs, a button is pressed, an automation triggers; anything else opens
+  // its sheet. The generated scene rows and a hand-placed hk-scene-card with
+  // no tap_action of its own (the card picker's) both use this.
+  window.hkCards.sceneTap = function (id) {
+    var d = String(id || '').split('.')[0];
+    var svc = d === 'scene' ? 'scene.turn_on' : d === 'script' ? 'script.turn_on'
+            : (d === 'button' || d === 'input_button') ? d + '.press'
+            : d === 'automation' ? 'automation.trigger' : null;
+    return svc ? { action: 'perform-action', perform_action: svc, target: { entity_id: id } }
+               : { action: 'more-info' };
+  };
   // The door-like cover classes, so hk-detail.js draws a door as a door
   // (the lock's ring) from the same list this guard uses.
   window.hkCards.DOOR_COVERS = DOOR_COVERS;
@@ -1928,10 +2037,182 @@
   window.hkCards.sentenceCase = sentenceCase;
   window.hkCards.HkBase = HkBase;
 
+  // ------------------------------------------- ON SOMEONE ELSE'S DASHBOARD
+  // A card on a dashboard of the user's own (HA's Sections, Masonry or Panel
+  // view, or the card editor's preview) and not on an HK screen: nothing of
+  // HK's own -- no grid view, no sky -- is around it. The cards that lay out
+  // differently there read the host's `data-hk-foreign` (the header stacks
+  // when narrow, the chip and scene rows drop the bleed made for HK's page
+  // padding). Walked up from the card through every shadow root once per
+  // connect:
+  //   hk-grid-view first          -> an HK screen (or a YAML dashboard of HK's view)
+  //   HA's view or card editor    -> someone else's dashboard
+  //   neither (the page body)     -> an HK overlay: the screensaver, a sheet,
+  //                                  a pop-up, a banner -- HK's own surface
+  var HK_PAGE = { 'hk-grid-view': 1 };
+  var HA_PAGE = { 'hui-view': 1, 'hui-sections-view': 1, 'hui-masonry-view': 1, 'hui-panel-view': 1,
+                  'hui-sidebar-view': 1, 'hui-card-preview': 1, 'hui-card-picker': 1,
+                  'hui-dialog-edit-card': 1, 'ha-panel-lovelace': 1 };
+  // (Also notes on the card whether it sits INSIDE another HK card --
+  // `_hkNested` -- which tone() reads: only the outermost sets the light look.)
+  function foreign(el) {
+    var n = el, nested = false;
+    for (var i = 0; i < 80 && n; i++) {
+      n = n.parentNode || null;
+      if (n && n.host && !n.localName) n = n.host;         // out of a shadow root
+      var t = n && n.localName;
+      if (!t) continue;
+      if (HK_PAGE[t]) { el._hkNested = nested; return false; }
+      if (HA_PAGE[t]) { el._hkNested = nested; return true; }
+      if (t.indexOf('hk-') === 0) nested = true;
+    }
+    el._hkNested = nested;
+    return false;
+  }
+  // A hint for the layout: it never stops a card from drawing.
+  function flag(el, name, on) {
+    try { if (el.hasAttribute(name) !== on) el.toggleAttribute(name, on); } catch (e) { /* not an element yet */ }
+  }
+  function place(el) {
+    if (!el || !el.toggleAttribute) return false;
+    var f = foreign(el);
+    flag(el, 'data-hk-foreign', f);
+    // NO BLEED. On a phone a tile or key is 8 px wider than its cell
+    // (calc(100% + var(--hk-cell-bleed, 8px))) to cover the 4 px side
+    // margins HK's own grid gives every card. A card placed straight in HA's
+    // view has no such margins, so it overhung its column by 8 px.
+    try {
+      var top = f && el.parentNode && el.parentNode.localName === 'hui-card';
+      if (top) el.style.setProperty('--hk-cell-bleed', '0px');
+      else if (el.style.getPropertyValue && el.style.getPropertyValue('--hk-cell-bleed')) el.style.removeProperty('--hk-cell-bleed');
+    } catch (e) { /* a hint, never a failure */ }
+    return f;
+  }
+
+  // ------------------------------------------------------ ON A LIGHT PAGE
+  // Someone else's dashboard (place() above), Home Assistant in light mode,
+  // and no HK sky behind the cards: the Home app's light look -- gray glass,
+  // the theme's own text colors, white when on. Set as custom properties ON
+  // THE CARD, so they reach every shadow root under it (an HK card nested in
+  // another gets them too) and every literal they replace stays the fallback:
+  //   var(--hk-ink, rgba(255,255,255,0.94))
+  // is today's white wherever the tone is not set -- HK's own screens, a dark
+  // theme, the sky, an overlay. Checked on every hass (a theme switched to
+  // dark arrives as one): a property read, and nothing written unless it
+  // changed.
+  var LIGHT = {
+    '--hk-glass-plate': 'rgba(118, 118, 128, 0.12)',
+    '--hk-glass-bg': 'rgba(118, 118, 128, 0.12)',
+    '--hk-glass-border': '1px solid rgba(0, 0, 0, 0.04)',
+    '--hk-glass-shadow-sm': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-lg': '0 1px 2px rgba(0, 0, 0, 0.04)',
+    '--hk-glass-shadow-pill': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-tall': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-scene': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-chip': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-backdrop': 'none',
+    '--hk-well-bg': 'rgba(118, 118, 128, 0.16)',
+    // text: the theme's own, so a custom light theme is followed too
+    '--hk-ink': 'var(--primary-text-color, #1c1c1e)',
+    '--hk-ink-2': 'var(--secondary-text-color, rgba(60, 60, 67, 0.62))',
+    '--hk-ink-3': 'rgba(60, 60, 67, 0.42)',
+    // a glyph with no color of its own, off
+    '--hk-glyph': 'rgba(60, 60, 67, 0.78)',
+    // a key or chip ON a plate (a tint, not a plate of its own)
+    '--hk-key': 'rgba(118, 118, 128, 0.14)',
+    '--hk-line': 'rgba(60, 60, 67, 0.16)',
+    // NOT TEXT, so not on the text scale: a mark (a dial's off band, a chart
+    // notch, a selection ring, a chevron) and a progress fill with no accent.
+    // Each keeps its own dark value; on a light page, these.
+    '--hk-mark': 'rgba(60, 60, 67, 0.5)',
+    '--hk-track-fill': 'var(--secondary-text-color, rgba(60, 60, 67, 0.62))',
+    // the drop shadows text carries over a photo or the sky
+    '--hk-glow': 'none',
+    // a warning and a failure, as text: the light-mode system orange and red
+    // (the dark ones are too pale on a light page)
+    '--hk-warn': '#c93400',
+    '--hk-fail': '#d70015',
+    // what is on: the white plate lifts off the page
+    '--hk-on-shadow': '0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 18px rgba(0, 0, 0, 0.09)',
+    // the look's own (Tinted, hk-settings.js), set on <html>: not here --
+    // the light page's border, shadows and well above stand instead
+    '--hk-look-edge': 'initial',
+    '--hk-look-edge-color': 'initial',
+    '--hk-look-shadow': 'initial',
+    '--hk-look-well': 'initial',
+    '--hk-look-dash': 'initial'
+  };
+  var LIGHT_KEYS = Object.keys(LIGHT);
+  function skyShown() {
+    var S = window.hkSky, m = S && S.element ? S.element() : null;
+    return !!(m && m.isConnected);
+  }
+  function tone(el, hass) {
+    if (!el || !el.style || !el.hasAttribute) return;
+    var light = false;
+    try {
+      light = el.hasAttribute('data-hk-foreign') && !!hass && !!hass.themes &&
+              hass.themes.darkMode === false && !skyShown();
+    } catch (e) { light = false; }
+    // ONLY THE OUTERMOST HK CARD carries the tokens; a card inside it
+    // inherits them -- so a dark plate inside a card (Now Playing's artwork,
+    // the Music page's phone sheet) can set them back to `initial` for all it
+    // holds. A nested card still gets `data-hk-light` for its own rules.
+    var own = light && !el._hkNested;
+    if (el._hkLight === light && el._hkOwnTone === own) return;
+    el._hkLight = light;
+    el._hkOwnTone = own;
+    flag(el, 'data-hk-light', light);
+    try {
+      LIGHT_KEYS.forEach(function (k) {
+        if (own) el.style.setProperty(k, LIGHT[k]); else el.style.removeProperty(k);
+      });
+    } catch (e) { /* a look, never a failure */ }
+    // out of the shared blur while light, back in when not (glassJoin)
+    if (el instanceof HkBase && el.isConnected) glassJoin(el, true);
+  }
+
+  // ---------------------------------------------------- SIZES IN SECTIONS
+  // What each card asks HA's Sections view for (getGridOptions): of the
+  // section's 12 columns, the tiles half, so two sit side by side and fill
+  // it; the whole-page cards (the header, rows, the Music page, the
+  // calendar...) the full width; the rest a full column they can be
+  // narrowed from. Rows are always 'auto': every card has its own height.
+  // The user's own size in the card's Layout tab wins, as for any card.
+  // HK's own grid view never asks.
+  function gridOf(columns, min) {
+    return columns === 'full' ? { columns: 'full', rows: 'auto' }
+                              : { columns: columns, rows: 'auto', min_columns: min || 3 };
+  }
+  var GRID = {};
+  function sizeAs(o, tags) { tags.forEach(function (t) { GRID[t] = o; }); }
+  sizeAs(gridOf(6, 3), ['hk-tile-card', 'hk-light-card', 'hk-fan-card', 'hk-cover-card',
+    'hk-media-card', 'hk-favorite-card', 'hk-climate-card', 'hk-scene-card', 'hk-tall-card',
+    'hk-climate-tall-card', 'hk-status-chip-card', 'hk-toggle-card', 'hk-stat-card',
+    'hk-rank-card', 'hk-weather-tile-card', 'hk-key-card']);
+  sizeAs(gridOf(3, 2), ['hk-back-card', 'hk-menu-button-card']);
+  sizeAs(gridOf('full'), ['hk-header-card', 'hk-chips-card', 'hk-scenes-card', 'hk-row-card',
+    'hk-grid-card', 'hk-heading-card', 'hk-weather-band-card', 'hk-calendar-card', 'hk-music-card',
+    'hk-library-card', 'hk-speaker-picker-card', 'hk-browse-card', 'hk-timers-page-card',
+    'hk-camera-mosaic-card', 'hk-tv-guide-card', 'hk-area-select-card', 'hk-page-status-card',
+    'hk-room-status-card', 'hk-climate-status-card', 'hk-popup-card', 'hk-popup-group-card',
+    'hk-screensaver-status-card', 'hk-screensaver-now-card']);
+  // everything else (the controls, keypads, players, graphs, New Timer...)
+  var GRID_REST = gridOf(12, 6);
+  function gridFor(tag) { return GRID[tag] || GRID_REST; }
+  // ON THE PROTOTYPE, unless the card has its own. register() and
+  // wireEditor() do it; a card that defines itself calls hkCards.sized
+  // just before its customElements.define.
+  function sized(tag, Ctor) {
+    if (!Ctor || !Ctor.prototype || Object.prototype.hasOwnProperty.call(Ctor.prototype, 'getGridOptions')) return;
+    var o = gridFor(tag);
+    Ctor.prototype.getGridOptions = function () { return Object.assign({}, o); };
+  }
   // ------------------------------------------------ defining a card
   // register(): define the element, wire its editor from a schema, give the
   // picker a stub, list it in the card picker. Every card file uses it.
   function register(tag, Ctor, name, description, schema, stub) {
+    sized(tag, Ctor);
     if (!customElements.get(tag)) customElements.define(tag, Ctor);
     if (schema) {
       var etag = hkEditor(tag, schema);
@@ -1952,6 +2233,7 @@
   // wireEditor(): editor + stub for a card that defines ITSELF (the older,
   // purpose-built cards call customElements.define in their own section).
   function wireEditor(tag, Ctor, schema, stub) {
+    sized(tag, Ctor);
     if (!Object.prototype.hasOwnProperty.call(Ctor, 'getConfigElement')) {
       var etag = hkEditor(tag, schema);
       Ctor.getConfigElement = function () { return document.createElement(etag); };
@@ -2843,6 +3125,22 @@
   });
 
   window.hkCards.register = register;
+  // OUT OF THE CARD PICKER: a card that only belongs to the screensaver (it is
+  // pinned to a corner of the screen at no height, and on a dashboard's page
+  // floats over Home Assistant). Still defined -- the screensaver and any YAML
+  // that names it keep working -- just not offered in "Add card".
+  window.hkCards.unlisted = function (tag) {
+    var list = window.customCards || [];
+    for (var i = list.length - 1; i >= 0; i--) if (list[i] && list[i].type === tag) list.splice(i, 1);
+  };
+  window.hkCards.place = place;            // a card that is not an HkBase calls it on connect
+  window.hkCards.tone = tone;              // ...and this on every hass
+  window.hkCards.LIGHT = LIGHT;            // tests
+  // `initial` for every token: a dark plate inside a card puts this in its
+  // CSS so what is on it keeps today's white even on a light page
+  window.hkCards.LIGHT_OFF = LIGHT_KEYS.map(function (k) { return k + ':initial'; }).join(';');
+  window.hkCards.sized = sized;
+  window.hkCards.gridFor = gridFor;        // tests
   window.hkCards.wireEditor = wireEditor;
   window.hkCards.firstOf = firstOf;
   window.hkCards.SELECTED_BG = SELECTED_BG;

@@ -32,6 +32,10 @@ _BIN = {
 _SEEN = (("person", "person"), ("vehicle", "vehicle"), ("animal", "animal"), ("package", "package"),
          ("doorbell", "doorbell"), ("face", "person"), ("license_plate", "vehicle"))
 
+# WHAT A CAMERA SEES: their sheet is the camera's, live (a person at the door,
+# the doorbell, a package) -- every other accessory's is its own
+CAMERA_KINDS = ("person", "vehicle", "animal", "package", "doorbell")
+
 _CHOICES: dict[str, list[tuple[str, str]]] = {
     "motion": [("on", "Detects Motion"), ("off", "Stops Detecting")],
     "presence": [("on", "Detects Someone"), ("off", "Stops Detecting")],
@@ -287,7 +291,7 @@ CATEGORIES: list[tuple[str, str, tuple[str, ...], dict[str, Any]]] = [
     ("vacuums", "Vacuums", ("vacuum",), {"when": "done"}),
     # CALENDARS: an event coming up, the chosen time before it starts (the
     # house looks ahead every minute -- features/notifications CalendarWatch)
-    ("calendars", "Calendars", ("calendar",), {"when": "15", "tap": "none", "allday": "08:00"}),
+    ("calendars", "Calendars", ("calendar",), {"when": "15", "tap": "sheet", "allday": "08:00"}),
     ("alarms", "Alarm", ("alarm_panel",), {"when": "triggered", "important": True, "wake": True, "stay": 0}),
 ]
 CATEGORY_KEYS = tuple(c[0] for c in CATEGORIES)

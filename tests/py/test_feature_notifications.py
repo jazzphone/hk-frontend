@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
@@ -216,13 +216,19 @@ async def admin(hass):
 
 
 def _sent(hass):
+    # an HA callback runs in the loop as the signal goes out; a plain function
+    # would be an executor job, and could land after blocking=True returns
     got = []
-    async_dispatcher_connect(hass, SIGNAL_POPUP, got.append)
+
+    @callback
+    def _got(payload):
+        got.append(payload)
+    async_dispatcher_connect(hass, SIGNAL_POPUP, _got)
     return got
 
 
 async def test_added_once_with_nothing_to_ask(hass, notify):
-    assert dict(notify.options) == {**DEFAULTS, "items": []}
+    assert dict(notify.options) == {**DEFAULTS, "items": [], "taps_v": 2, "wake_v": 1}     # a new one needs nothing moved
     flows = hass.config_entries.subentries
     r = await flows.async_init((house_entry(hass).entry_id, "feature"), context={"source": "user"})
     assert "notifications" not in r["menu_options"]        # one per house
@@ -536,7 +542,7 @@ async def test_the_action_checks_what_it_is_given(hass, notify):
     got = _sent(hass)
     for bad in ({}, {"title": ""}, {"title": "x" * 41}, {"title": "a", "message": "m" * 121},
                 {"title": "a", "icon": "washing-machine"}, {"title": "a", "camera": "light.porch"},
-                {"title": "a", "stay": -1}, {"title": "a", "stay": 3601}, {"title": "a", "tap": "page"},
+                {"title": "a", "stay": -1}, {"title": "a", "stay": 3601}, {"title": "a", "tap": "web"}, {"title": "a", "page": "Not A Path!"},
                 {"title": "a", "entity": "not an id"}, {"title": "a", "extra": 1}):
         with pytest.raises(vol.Invalid):
             await hass.services.async_call(DOMAIN, "notify", bad, blocking=True)
@@ -656,7 +662,11 @@ async def test_a_calendar_event_coming_up(hass, notify, admin):
     assert asked[-1] == ["calendar.family"]                                 # Work left out
     assert [(p["title"], p["message"]) for p in got] == [("Soccer", "In 15 minutes · %s · City Park" % rules.calendar_words(
         "", start, start + timedelta(hours=1), 15)[1].split(" · ")[1])]
-    assert got[0]["icon"] == "mdi:calendar" and got[0]["tap"] == "none" and len(sent) == 1
+    assert got[0]["icon"] == "mdi:calendar" and got[0]["tap"] == "sheet" and len(sent) == 1
+    # the event rides along, so a tap opens it (HK's event sheet), and its
+    # Mute is that calendar's
+    assert got[0]["event"]["cal"] == "calendar.family" and got[0]["event"]["summary"] == "Soccer"
+    assert got[0]["mute"].endswith(":calendar.family")
     again = await w._tick(dt_util.as_utc(now) + timedelta(seconds=65))      # once
     assert again == [] and len(got) == 1
     # its test: the next event, as it will look
@@ -705,3 +715,105 @@ async def test_an_all_day_event_the_morning_it_starts(hass, notify, admin):
     r2 = await _call(hass, admin, W.ws_item_save, changes={"category": "doors"})
     bad = await _call(hass, admin, W.ws_item_save, item=r2["result"]["saved"], changes={"allday": "08:00"})
     assert json.loads(bad["message"]) == {"allday": "unknown"}
+
+
+# ------------------------------------------------- a tap opens its sheet (2026-10-12)
+async def test_the_sheet_a_tap_opens_and_its_mute(hass, notify, admin):
+    from custom_components.hk_frontend.features.notifications import settings_ws as W
+    from homeassistant.components.camera import Image
+    r = await _call(hass, admin, W.ws_item_save, changes={"entity": "cover.garage_door"})
+    gid = r["result"]["saved"]
+    await _call(hass, admin, W.ws_item_save, changes={"entity": "binary_sensor.front_door_camera_person_detected"})
+    got = _sent(hass)
+    with patch("homeassistant.components.camera.async_get_image", return_value=Image("image/jpeg", b"jpeg")):
+        hass.states.async_set("cover.garage_door", "open", {"device_class": "garage", "friendly_name": "Garage Door"})
+        hass.states.async_set("binary_sensor.front_door_camera_person_detected", "on",
+                              {"friendly_name": "Front Door Camera Person detected"})
+        await hass.async_block_till_done(wait_background_tasks=True)
+    garage = [p for p in got if p["entity"] == "cover.garage_door"][0]
+    person = [p for p in got if p["entity"] != "cover.garage_door"][0]
+    # its sheet: the garage door's own; a person at the door: the camera's, live
+    assert garage["tap"] == "sheet" and garage["sheet"] == "cover.garage_door" and garage["go"] is None
+    assert person["sheet"] == "camera.front_door_camera_high_resolution_channel"
+    # Mute 1 Hour: that notification's accessory, by its key
+    assert garage["mute"] == "%s:cover.garage_door" % gid
+    tablet = Conn(await hass.auth.async_create_user("Kitchen"))        # anyone signed in may mute
+    m = await _call(hass, tablet, W.ws_mute, key=garage["mute"], minutes=60)
+    assert m["success"] and m["result"]["until"] > 0
+    page = (await _call(hass, admin, W.ws_settings_get))["result"]
+    muted = [i for i in page["items"] if i["id"] == gid][0]["muted"]
+    assert [x["entity"] for x in muted] == ["cover.garage_door"] and muted[0]["name"] == "Garage Door"
+    got.clear()
+    hass.states.async_set("cover.garage_door", "closed", {"device_class": "garage", "friendly_name": "Garage Door"})
+    hass.states.async_set("cover.garage_door", "open", {"device_class": "garage", "friendly_name": "Garage Door"})
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert got == []                                                     # muted: nothing
+    # ...an hour on, it goes off again
+    from custom_components.hk_frontend.features.notifications import muted as is_muted
+    import time as _t
+    assert is_muted(hass, garage["mute"]) and not is_muted(hass, garage["mute"], now=_t.time() + 3601)
+    # unmuted by hand (HK Settings' Unmute): it goes off
+    assert (await _call(hass, tablet, W.ws_mute, key=garage["mute"], minutes=0))["result"]["until"] is None
+    hass.states.async_set("cover.garage_door", "closed", {"device_class": "garage", "friendly_name": "Garage Door"})
+    hass.states.async_set("cover.garage_door", "open", {"device_class": "garage", "friendly_name": "Garage Door"})
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert len(got) == 1
+    # only a notification that exists can be muted
+    bad = await _call(hass, tablet, W.ws_mute, key="nope:cover.garage_door")
+    assert not bad["success"] and bad["error"] == "not_found"
+
+
+async def test_tap_opens_a_page_and_go_to(hass, notify, admin):
+    from custom_components.hk_frontend.features import notifications as N
+    from custom_components.hk_frontend.features.notifications import settings_ws as W
+    iid = (await _call(hass, admin, W.ws_item_save, changes={"entity": "cover.garage_door"}))["result"]["saved"]
+    bad = await _call(hass, admin, W.ws_item_save, item=iid, changes={"tap": "page"})
+    assert json.loads(bad["message"]) == {"page": "required"}
+    bad = await _call(hass, admin, W.ws_item_save, item=iid, changes={"tap": "page", "page": "Kitchen Page!"})
+    assert json.loads(bad["message"]) == {"page": "choice"}
+    ok = await _call(hass, admin, W.ws_item_save, item=iid, changes={"tap": "page", "page": "/room-kitchen/"})
+    it = [i for i in ok["result"]["items"] if i["id"] == iid][0]
+    assert it["tap"] == "page" and it["page"] == "room-kitchen"
+    p = N.build(hass, N.options(notify), {**it}, None, test=True)
+    assert p["tap"] == "page" and p["page"] == "room-kitchen"
+    # Go To: Automatic (None), None, or a page
+    ok = await _call(hass, admin, W.ws_item_save, item=iid, changes={"tap": "sheet", "go": "none"})
+    assert [i for i in ok["result"]["items"] if i["id"] == iid][0]["go"] == "none"
+    ok = await _call(hass, admin, W.ws_item_save, item=iid, changes={"go": "auto"})
+    assert [i for i in ok["result"]["items"] if i["id"] == iid][0]["go"] is None
+    # the action: tap page -- a page named opens it, and is its Go To
+    a = N.build_action(hass, N.options(notify), {"title": "Dinner's ready", "page": "room-kitchen"})
+    assert a["tap"] == "page" and a["page"] == "room-kitchen" and a["go"] == "room-kitchen" and a["mute"] is None
+
+
+def test_tap_opens_moves_to_its_new_meaning():
+    from custom_components.hk_frontend.features.notifications import migrate_taps
+    old = {"stay": 30, "items": [
+        {"id": "a", "category": "garage", "tap": "camera"},       # its snapshot opened the camera -> its sheet
+        {"id": "b", "entity": "binary_sensor.washer", "tap": "none"},
+        {"id": "c", "category": "calendars", "tap": "none"},
+        {"id": "d", "category": "cameras", "tap": "camera"},      # what a camera sees: still the camera
+        {"id": "e", "category": "doors", "tap": "sheet"}]}
+    new = migrate_taps(old)
+    assert [i["tap"] for i in new["items"]] == ["sheet", "sheet", "sheet", "camera", "sheet"]
+    assert new["taps_v"] == 2 and new["stay"] == 30
+    assert migrate_taps(new) is None                                # once
+
+
+async def test_wake_false_from_1_7_0_follows_all_notifications(hass, notify):
+    # 1.7.0 saved wake False on every notification: after the migration it
+    # follows All Notifications' Wakes the Screen; a True was chosen and stays
+    from custom_components.hk_frontend.features import notifications as N
+    old = {"stay": 30, "taps_v": 2, "items": [
+        {"id": "a", "entity": "cover.garage_door", "wake": False},
+        {"id": "b", "entity": "cover.garage_door", "wake": True},
+        {"id": "c", "entity": "cover.garage_door"}]}
+    new = N.migrate_wake(old)
+    assert "wake" not in new["items"][0] and new["items"][1]["wake"] is True and "wake" not in new["items"][2]
+    assert new["wake_v"] == 1 and new["stay"] == 30 and new["taps_v"] == 2
+    assert old["items"][0]["wake"] is False                         # the stored options untouched
+    assert N.migrate_wake(new) is None                              # once
+    for house in (True, False):
+        opts = {**N.options(notify), "wake": house}
+        a, b = (N.build(hass, opts, {**new["items"][i]}, None, test=True) for i in (0, 1))
+        assert a["wake"] is house and b["wake"] is True

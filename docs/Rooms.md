@@ -38,7 +38,7 @@ Screens’ Room Order or in a screen’s own list, and Back returns you there.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Show on Screens | On | Off: the room is left off every generated screen, with its accessories, and Status & Chips never counts them. (The same list as **Accessories → Hidden from Screens → Rooms**.) |
+| Show on Screens | On | Off: the room is left off every generated screen, with its accessories, and no chip counts them. (Listed in **Accessories → Hidden Accessories → Whole Rooms**, which links back here.) |
 | Show on Home | On | Off: the room isn’t on Home. It keeps its room page and its row in the menu. This is the Room Order above, one room at a time; a screen with rooms of its own keeps its own. |
 | Show As Part Of | Its Own Room | Another room this one belongs to (a deck in the backyard). Its accessories, scenes and tile order join that room’s on generated screens. |
 | Scenes | Automatic | A row of scene pills on the room’s page, under its status row (and its cameras), scrolling sideways like Home’s. **Automatic**: the Home Assistant scenes in the room, A to Z — no row when there are none. Turn Automatic off to choose the room’s own scenes, scripts and buttons, in your order; remove them all for a room with no scenes row. |

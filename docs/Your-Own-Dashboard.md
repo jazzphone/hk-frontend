@@ -5,9 +5,11 @@ made yourself, in Home Assistant’s editor or in YAML, can have them too, in
 three ways, easiest first:
 
 1. **Its HK settings, with nothing written.** HK Settings → Screens → Add
-   Screen → **Existing Dashboards** gives it a page of settings like any
+   Screen → **Existing Dashboards** (every dashboard you have, Home
+   Assistant’s own **Overview** too) gives it a page of settings like any
    screen’s: the menu, Home Assistant Header & Sidebar, the photo
-   screensaver and more (the table below).
+   screensaver and more (the table below). The Overview keeps Home
+   Assistant’s name for it; it can’t be renamed from HK Settings.
 2. **A few lines at the top of its YAML**, for what its settings don’t reach.
 3. **HK cards in its views.** Every card is in the card picker too, with a
    visual editor ([Card library](Card-Library.md)).
@@ -36,8 +38,11 @@ the top, beside `views:`.
 | Photo screensaver (and the forecast) | Photo Screensaver, its options, and its switch and In Use sensor | [`hk_screensaver:`](#photo-screensaver) |
 | Live sky | Live Sky can turn it off | [`sky:`](#live-sky) |
 | The menu | The menu’s settings | [Views](#a-page-in-the-menu) say what it lists |
-| Status chips, scenes, cameras, room order | The lists the cards read | [The cards](#clock-weather-and-chips) |
-| Return to Home, Tablet Room, pop-ups, car browser, glass | Yes | — |
+| Status chips, scenes, cameras | The lists the cards read | [The cards](#clock-weather-and-chips) |
+| Room order on Home | Rooms | With the `custom:hk-grid-view` view type, each room’s section headed by an `hk-heading-card` with `area:` |
+| Return to Home, Tablet Room, car browser, glass | Yes | — |
+| [Notifications](Notifications.md) (banners, Do Not Disturb, waking the screen) | Yes: added under Existing Dashboards, or never | — |
+| Detail sheets, pop-ups (Library and `hk_frontend.show_popup`) | Nothing to do: they work on any dashboard | — |
 | Live TV, Clean Areas, Music, Timers, the forecast | — | [Their cards](#live-tv) |
 | Favorites, generated pages, the now-playing bar | — (generated screens only) | Build them from cards |
 
@@ -105,7 +110,8 @@ Only `user` is needed: the screensaver runs only in a browser signed in as
 that user, so a desk opening the same dashboard never gets it. `entity` is
 optional: an `input_boolean` or `switch` of yours, turned on while the photos
 show and off when someone taps them; turning it on starts them. `cards` are
-what shows over the photos. Everything else is as on
+what shows over the photos — HK cards only (`custom:hk-…`); any other card in
+the list is left out. Everything else is as on
 [Screensaver & idle](Screensaver-and-Idle.md).
 
 With Photo Screensaver on in the dashboard’s HK settings instead, there is
@@ -164,6 +170,27 @@ To make a room heading on Home open it, give an `hk-heading-card` the same
 In a view’s `cards:`. A card with no entity of its own reads what HK Settings
 chose (the weather, the alarm), so one card works on every dashboard.
 
+**From the card picker.** In Home Assistant’s editor, **Add card** lists HK
+Frontend’s cards under names that start with **HK**. Each opens with a visual
+editor and a starting setup drawn from your home (a switch for the toggle
+pill, three cameras for the camera strip, a sensor of the right kind for a
+graph). The screensaver’s two cards are left out of the picker; they belong
+in `hk_screensaver:` (above).
+
+**In a Sections view** each card takes a size of its own: the tiles, chips
+and reading tiles half a section, two side by side; the header, the chip and
+scene rows, the Music page, the calendar and the other page-wide cards the
+whole width; the rest a full column. Change it in the card’s **Layout** tab.
+In a narrow section the wall header stacks: the clock, the weather, then the
+security line.
+
+**With Home Assistant’s light theme**, the cards take the Home app’s light
+look: gray glass, the theme’s own text colors and a white plate for whatever
+is on. With the dark theme, or the live sky behind them, they look as they do
+on HK Frontend’s screens. Sheets and pop-ups stay dark either way.
+
+Every card and its options: [Card Library](Card-Library.md).
+
 ### Clock, weather and chips
 
 ```yaml
@@ -208,20 +235,96 @@ Needs the [Clean Areas](Clean-Areas.md) feature.
 ### Music
 
 ```yaml
-- type: custom:hk-now-playing-card
-  music: true
-- type: custom:hk-speaker-picker-card
-- type: custom:hk-library-card
-  music: true
+- type: custom:hk-music-card   # the whole Music page
+# ...or just what is playing:
+# - type: custom:hk-now-playing-card
+#   music: true
 ```
 
-Needs the [Music](Music.md) feature.
+The whole Music page as one card: what plays and where (Speakers, Volume,
+Queue), with Browse Music beside it. For just what is playing, the
+now-playing card alone. Needs the [Music](Music.md) feature.
+
+### The Now Playing Bar
+
+```yaml
+- type: custom:hk-popup-card
+  hash: '#media'
+  position: bottom
+  modal: false
+  dock: true
+  padding: '0'
+  radius: '0'
+  width: 100%
+  max_width: 100%
+  background: transparent
+  vars:
+    hk-np-height: calc(104px + env(safe-area-inset-bottom, 0px))
+    hk-np-pad: 12px 24px calc(12px + env(safe-area-inset-bottom, 0px))
+    hk-np-radius: '0'
+    hk-np-plate: rgb(22,23,26)
+    hk-np-areas: '"art title . spk prev play next stop brw . meta" "art artist . spk prev play next stop brw . meta" "art sub . spk prev play next stop brw . meta"'
+    hk-np-cols: 72px minmax(220px, max-content) 1fr 56px 64px 64px 64px 64px 56px 1fr minmax(0, 380px)
+    hk-np-rows: auto auto auto
+    hk-np-gap: 14px
+  trigger:             # open while the music plays...
+    - condition: state
+      entity_from:
+        music: true
+      state: playing
+      grace: 20
+  trigger_close: true # ...and close when it stops
+  dismissable: true   # swiped down, it stays away until the music stops
+  dismiss_scope:
+    - music: true
+  stash:              # ...with a button in the corner to bring it back
+    icon: hk:homepod
+    label: Show Now Playing
+  cards:
+    - type: custom:hk-now-playing-card
+      bar: true
+      music: true
+      hide_idle: true
+      meta_card:
+        type: custom:hk-media-control-card
+        color: purple
+        bare: true
+        parts: [volume]
+        entity_from:
+          music: true
+      sub_card:
+        type: custom:hk-media-control-card
+        color: purple
+        bare: true
+        parts: [progress]
+        phone_times: false
+        entity_from:
+          music: true
+```
+
+The player docked along the bottom of the screen while music plays, as on the
+screens HK Frontend builds. It shows on the views it is placed in, so put it in
+each view that should have it. Needs the [Music](Music.md) feature.
 
 ### Timers
 
 ```yaml
 - type: custom:hk-timers-page-card
 ```
+
+Quick start and New Timer need HK Frontend’s timer helpers
+(`helpers/quick_timers.yaml`); without them they say so and start nothing.
+
+### Energy
+
+```yaml
+- type: custom:hk-energy-period-card   # the tabs: add it first
+- type: custom:hk-energy-hero-card
+- type: custom:hk-energy-day-card
+```
+
+The Energy page’s cards, following the tabs. Needs the [Energy](Energy.md)
+feature.
 
 ## Automations
 

@@ -131,7 +131,7 @@
     // live: the Home strip's first tile plays live video (a screen's
     // camera_live_video, when set, is its own)
     cameras: { order: [], live: true },
-    look: { glass: 'clear', frost: 50, blur: 50, frost_tint: false, details: true, browse_view: 'music-browse', sky_switch: null,
+    look: { glass: 'clear', frost: 50, blur: 50, tint: 50, well: 'dark', frost_tint: false, details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {},
             // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
             saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
@@ -277,6 +277,12 @@
   //   blur_pre the same layers holding a picture of the sky blurred once and
   //            pinned to the screen (hk-glass.js PRE-RENDERED): no live blur;
   //            the sky's motion does not show through
+  //   tinted   Apple's Home app plate (2026-10-12): flat, semi-opaque, dark,
+  //            and NO blur anywhere on the page -- no layer, no picture, no
+  //            plate blurring itself; a contact shadow in place of the soft
+  //            drop and the lit rim, no edge, the icon circles Dark or Light
+  //            (look.well). Sheets and pop-ups keep their own blur (they
+  //            blur while open, as Apple's do)
   //   blur_each  every glass surface blurs what is behind it (hkCards.M.glass
   //            reads --hk-glass-backdrop) -- for phones, iPads and
   //            computers: nothing to measure or line up, so a sheet opening, a
@@ -292,6 +298,8 @@
   //   look.frost  how milky the Frosted material is: the white sheen and the
   //               gray tint scale together, the grain stays (0: grain only)
   //   look.blur   how strong both blur looks are: 50 is 20 px, 100 is 40, 0
+  //   look.tint   how dark the Tinted plate is: 0 is 40 %, 50 is 75 %, 100
+  //               is 90 % (the user's 75 % in the middle, 2026-10-12)
   //               leaves only the darkening (saturate and brightness)
   //
   // THE MATERIAL IS SET HERE, not in hk-glass.js: this module loads before any
@@ -302,7 +310,7 @@
     '<filter id=\'n\'><feTurbulence type=\'fractalNoise\' baseFrequency=\'0.85\' numOctaves=\'2\' stitchTiles=\'stitch\'/>' +
     '<feColorMatrix values=\'0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0\'/></filter>' +
     '<rect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/></svg>")';
-  // key: 'frost' | 'blur' -- this dashboard's own (its Screen page), else
+  // key: 'frost' | 'blur' | 'tint' -- this dashboard's own (its Screen page), else
   // the house's (look.*).
   function amount(key) {
     var b = boardHere(), v = b && b[key];
@@ -337,6 +345,23 @@
   function blurFilter(n) {
     return 'blur(' + +(20 * n / 50).toFixed(1) + 'px) saturate(1.4) brightness(0.82)';
   }
+  // TINTED's plate: black with a touch of blue, as the Home app's off tile
+  // measured (0.68-0.73 x the ground behind it, which it also blurs -- with
+  // no blur the ground shows through sharply, hence darker). Two straight
+  // pieces so the middle of the slider is the chosen 75 %.
+  function tintAlpha(n) {
+    var a = n <= 50 ? 0.40 + 0.35 * n / 50 : 0.75 + 0.15 * (n - 50) / 50;
+    return +a.toFixed(3);
+  }
+  // the icon circle on an off plate: Apple's, darker than the plate, or a
+  // light one that keeps its shape over dark ground -- this screen's own
+  // (its Screen page), else the house's
+  var TINT_WELLS = { dark: 'rgba(0, 0, 0, 0.24)', light: 'rgba(255, 255, 255, 0.10)' };
+  function tintWell() {
+    var b = boardHere(), v = b && b.well;
+    if (!TINT_WELLS[v]) v = get('look.well');
+    return TINT_WELLS[v] ? v : 'dark';
+  }
   var LOOKS = {
     clear:     function () { return {}; },
     frosted:   function () { var m = frost(amount('frost')); return { '--hk-glass-plate': m, '--hk-chip-plate': m, '--hk-chip-backdrop': 'none' }; },
@@ -346,6 +371,24 @@
     // the shared layers wearing a still picture of the sky, blurred once
     // (hk-glass.js PRE-RENDERED): to every card the same as blur
     blur_pre:  function () { return LOOKS.blur(); },
+    // no blur at all: a flat plate, Apple's contact shadow (one dark pixel
+    // under the edge, nothing past it -- measured off the Home app), no lit
+    // rim, no edge (the 1 px box stays, transparent: the info card lines up
+    // on it). Cards on a dark sheet wear a light lift instead
+    // (--hk-glass-plate-sheet, hkCards.M.bg); the speaker picker's
+    // shortcuts keep a dashed edge of their own (--hk-look-dash)
+    tinted:    function () {
+      var p = 'rgba(28, 28, 30, ' + tintAlpha(amount('tint')) + ')';
+      return { '--hk-glass-plate': p, '--hk-chip-plate': p, '--hk-chip-backdrop': 'none',
+               '--hk-glass-plate-sheet': 'rgba(255, 255, 255, 0.08)',
+               '--hk-look-edge': '1px solid transparent', '--hk-look-edge-color': 'transparent',
+               '--hk-look-shadow': '0 1px 2px rgba(0, 0, 0, 0.28)',
+               '--hk-look-well': TINT_WELLS[tintWell()],
+               '--hk-look-dash': '1px dashed rgba(255, 255, 255, 0.32)',
+               // a FLOATING strip over the page (the Energy tabs once they
+               // float): no blur either, the menu's and tab bar's own plate
+               '--hk-float-plate': 'rgba(24, 24, 28, 0.93)', '--hk-float-backdrop': 'none' };
+    },
     // every plate blurs itself, the chips too
     blur_each: function () {
       var b = blurFilter(amount('blur'));
@@ -356,13 +399,14 @@
   // RETIRED_GLASS) -- a cached copy from before may still name one
   var RETIRED = { blur_baked: 'blur_pre' };
   var LOOK_VARS = ['--hk-glass-plate', '--hk-chip-plate', '--hk-chip-backdrop', '--hk-glass-backdrop',
-                   '--hk-blur-filter'];
-  // A PREVIEW ON ONE SCREEN: ?hkglass=clear|frosted|blur|blur_pre|blur_each on the URL
+                   '--hk-blur-filter', '--hk-glass-plate-sheet', '--hk-look-edge', '--hk-look-edge-color',
+                   '--hk-look-shadow', '--hk-look-well', '--hk-look-dash', '--hk-float-plate', '--hk-float-backdrop'];
+  // A PREVIEW ON ONE SCREEN: ?hkglass=clear|frosted|tinted|blur|blur_pre|blur_each on the URL
   // (or hkSettings.previewGlass(), which the test probe uses) wears that look
   // on this page only, without changing the house's setting or the cache.
   var glassPreview = null;
   try {
-    var gm = /[?&]hkglass=(clear|frosted|blur_each|blur_pre|blur)\b/.exec(location.search);
+    var gm = /[?&]hkglass=(clear|frosted|tinted|blur_each|blur_pre|blur)\b/.exec(location.search);
     if (gm) glassPreview = gm[1];
   } catch (e) { /* no location (a test harness) */ }
   // A DASHBOARD'S OWN LOOK: its item's Screen page, else the house's.
@@ -756,7 +800,7 @@
   // Compared as the look AND its amounts: two dashboards can share a look and
   // differ in how strong it is (each Screen's own Blur / Frost), and comparing
   // the name alone kept the first one's strength on the second.
-  function lookKey() { return glass() + '|' + amount('blur') + '|' + amount('frost') + '|' + frostTint(); }
+  function lookKey() { return glass() + '|' + amount('blur') + '|' + amount('frost') + '|' + amount('tint') + '|' + tintWell() + '|' + frostTint(); }
   var lookNow = lookKey();
   function onNav() {
     var g = lookKey();

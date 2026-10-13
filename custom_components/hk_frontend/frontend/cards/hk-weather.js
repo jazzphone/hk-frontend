@@ -32,7 +32,7 @@
     var Base = C.HkBase;
 
     // 0.12, NOT 0.10 -- measured, not eyeballed.
-    var RULE = 'rgba(255, 255, 255, 0.12)';
+    var RULE = 'var(--hk-line, rgba(255, 255, 255, 0.12))';
 
     function num(v) { var n = Number(v); return Number.isFinite(n) ? n : null; }
     // Text going into markup: the place label is typed by a person, the
@@ -101,7 +101,7 @@
           '  border-radius:' + window.hkCards.M.radius + ';padding:14px 16px;margin:0;',
           '  ' + window.hkCards.M.glass + ';',
           '  border:' + window.hkCards.M.border + ';',
-          '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12);',
+          '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
           '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
           // `start` on a tablet, where five tiles share a row at ~230px each and
           // the compass and moon disc read as a left-aligned column of graphics.
@@ -131,7 +131,7 @@
           // the shape of the whole row: heading left, drawing centred.
           '.wtile .cap{grid-area:cap;justify-self:start;text-align:left;',
           '  font-size:12px;font-weight:600;letter-spacing:0.9px;',
-          '  color:rgba(255,255,255,0.5);width:100%;',
+          '  color:var(--hk-ink-2,rgba(255,255,255,0.68));width:100%;',
           '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
           // NO align-self. The grid is `align-content: start`, so the rows pack to
     // the top and the body simply starts under the caption. `center` is wrong
@@ -163,12 +163,12 @@
     '  text-align:center}',
           // ---- shared type inside the drawings
           '.wtile .big{font-size:31px;font-weight:600;letter-spacing:-0.7px;',
-          '  color:rgba(255,255,255,0.96);line-height:1}',
+          '  color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1}',
           '.wtile .uvbig{font-size:40px;font-weight:600;letter-spacing:-1px;',
-          '  color:rgba(255,255,255,0.96);line-height:1}',
-          '.wtile .small{font-size:14px;font-weight:500;color:rgba(255,255,255,0.62)}',
+          '  color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1}',
+          '.wtile .small{font-size:14px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.wtile .side{font-size:16px;font-weight:500;line-height:1.4;',
-          '  color:rgba(255,255,255,0.75)}',
+          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           // flex:0 1 auto, NOT 1 1 auto. Growing makes the text box eat
           // every pixel the disc does not, so the pair always spans the full
           // row and `justify-content:center` has nothing to centre -- the
@@ -177,9 +177,9 @@
           // `1 0 auto` would be the same bug; the shrink half (1) is what keeps
           // a long phase name wrapping instead of clipping.
           '.wtile .moonside{font-size:15px;font-weight:500;line-height:1.35;',
-          '  flex:0 1 auto;min-width:0;color:rgba(255,255,255,0.75)}',
+          '  flex:0 1 auto;min-width:0;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.wtile .band{font-size:18px;font-weight:500;margin-top:4px;',
-          '  color:rgba(255,255,255,0.78)}',
+          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.wtile .uvtrack{position:relative;height:8px;border-radius:4px;margin-top:16px;',
           '  background:linear-gradient(to right,#4cd964,#ffd60a,#ff9f0a,#ff453a,#bf5af2)}',
           '.wtile .uvdot{position:absolute;top:-3px;width:14px;height:14px;',
@@ -252,10 +252,10 @@
           var inner = (i % 9 === 0) ? 26 : 29;
           ticks += '<line x1="' + (cx + inner * Math.sin(t)) + '" y1="' + (cy - inner * Math.cos(t)) +
                    '" x2="' + (cx + 32 * Math.sin(t)) + '" y2="' + (cy - 32 * Math.cos(t)) +
-                   '" stroke="rgba(255,255,255,0.28)" stroke-width="1"/>';
+                   '" style="stroke:var(--hk-line,rgba(255,255,255,0.28))" stroke-width="1"/>';
         }
         var lab = function (x, y, s) {
-          return '<text x="' + x + '" y="' + y + '" fill="rgba(255,255,255,0.5)"' +
+          return '<text x="' + x + '" y="' + y + '" style="fill:var(--hk-ink-2,rgba(255,255,255,0.68))"' +
                  ' font-size="8" text-anchor="middle">' + s + '</text>';
         };
         var dir = brg === null ? '' : DIRS[Math.round((brg % 360) / 45) % 8];
@@ -275,12 +275,12 @@
           '<svg viewBox="0 0 68 68" style="width:108px;height:108px;flex:0 0 auto">' +
           ticks + lab(34, 9, 'N') + lab(34, 64, 'S') + lab(61, 37, 'E') + lab(7, 37, 'W') +
           '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 +
-          '" stroke="rgba(255,255,255,0.92)" stroke-width="2" stroke-linecap="round"/>' +
-          '<circle cx="' + x2 + '" cy="' + y2 + '" r="3.2" fill="rgba(255,255,255,0.95)"/>' +
-          '<circle cx="34" cy="34" r="15" fill="rgba(0,0,0,0.28)"/>' +
-          '<text x="34" y="33" fill="rgba(255,255,255,0.96)" font-size="15" font-weight="600"' +
+          '" style="stroke:var(--hk-glyph,rgba(255,255,255,0.92))" stroke-width="2" stroke-linecap="round"/>' +
+          '<circle cx="' + x2 + '" cy="' + y2 + '" r="3.2" style="fill:var(--hk-glyph,rgba(255,255,255,0.95))"/>' +
+          '<circle cx="34" cy="34" r="15" style="fill:var(--hk-key,rgba(0,0,0,0.28))"/>' +
+          '<text x="34" y="33" style="fill:var(--hk-ink,rgba(255,255,255,0.94))" font-size="15" font-weight="600"' +
           ' text-anchor="middle">' + (spd === null ? '--' : Math.round(spd)) + '</text>' +
-          '<text x="34" y="43" fill="rgba(255,255,255,0.6)" font-size="8"' +
+          '<text x="34" y="43" style="fill:var(--hk-ink-2,rgba(255,255,255,0.68))" font-size="8"' +
           ' text-anchor="middle">' + unit + '</text></svg>' +
           side + '</div>';
       }
@@ -309,8 +309,8 @@
         return '<div style="width:100%">' +
           '<div class="big">' + main + '</div>' +
           '<svg viewBox="0 0 136 44" style="width:100%;height:50px;margin-top:8px">' +
-          '<path d="M8,36 Q68,-6 128,36" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>' +
-          '<line x1="0" y1="38" x2="136" y2="38" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>' +
+          '<path d="M8,36 Q68,-6 128,36" fill="none" style="stroke:var(--hk-line,rgba(255,255,255,0.3))" stroke-width="1.5"/>' +
+          '<line x1="0" y1="38" x2="136" y2="38" style="stroke:var(--hk-line,rgba(255,255,255,0.18))" stroke-width="1"/>' +
           '<circle cx="' + x + '" cy="' + y + '" r="4.5" fill="rgba(255,214,10,0.98)"/></svg>' +
           '<div class="small">' + other + '</div></div>';
       }
@@ -326,7 +326,7 @@
       }
       _moon() {
         var p = this._phase();
-        if (p === null) return '<div style="color:rgba(255,255,255,0.6)">--</div>';
+        if (p === null) return '<div style="color:var(--hk-ink-2,rgba(255,255,255,0.68))">--</div>';
         var illum = (1 - Math.cos(2 * Math.PI * p)) / 2;
         var waxing = p < 0.5;
         var name = p < 0.03 ? 'New Moon'
@@ -372,8 +372,8 @@
         // than be clipped, which is the SUNSET overlap trap in reverse.
         return '<div class="row" style="gap:12px;min-height:100%">' +
           '<svg viewBox="0 0 60 60" style="width:72px;height:72px;flex:0 0 auto">' +
-          '<circle cx="30" cy="30" r="26" fill="rgba(255,255,255,0.10)"/>' +
-          '<path d="' + d + '" fill="rgba(226,232,240,0.95)"/></svg>' +
+          '<circle cx="30" cy="30" r="26" style="fill:var(--hk-key,rgba(255,255,255,0.10))"/>' +
+          '<path d="' + d + '" style="fill:var(--hk-glyph,rgba(226,232,240,0.95))"/></svg>' +
           '<div class="moonside">' + String(name).replace(' ', '<br>') +
           '<br>' + Math.round(illum * 100) + '% lit</div></div>';
       }
@@ -480,6 +480,10 @@
       return !!(M && typeof M.hasTime === 'function' && M.hasTime());
     }
 
+    // Narrower than this on someone else's dashboard, the wall header stacks.
+    // 760: the clock, the weather beside it and the 280 px security line
+    // with the 34 px gaps between them.
+    var HK_STACK_W = 760;
     class HkHeaderCard extends Base {
       static get CSS() {
         return [
@@ -512,7 +516,18 @@
           // only the page's top margin, so the chip row moves up level with
           // the menu's clock -- about 130 px back on a wall tablet.
           'ha-card.hdr.gone{min-height:0;height:' + GONE_H + 'px;padding:0;margin:0}',
-          '.hdr.gone .grid{display:none}'
+          '.hdr.gone .grid{display:none}',
+          // STACKED: on someone else's dashboard (data-hk-foreign) narrower
+          // than HK_STACK_W -- a section, a Masonry column -- the security
+          // line goes under the clock, and the weather under the time when
+          // they don't fit side by side. Nothing is dropped (_fitWx). HK's own
+          // screens never stack: a narrow one keeps dropping the clock.
+          ':host([data-hk-stack]) ha-card.hdr{padding:12px 0px 10px 0px;min-height:0}',
+          ':host([data-hk-stack]) .hdr .grid{grid-template-areas:"left" "right";',
+          '  grid-template-columns:minmax(0,1fr);row-gap:10px}',
+          ':host([data-hk-stack]) .hdr .half{min-height:0}',
+          ':host([data-hk-stack]) .hdr .right{text-align:left;min-width:0}',
+          ':host([data-hk-stack]) .hdr .left > div{flex-wrap:wrap;row-gap:12px}'
         ].join('');
       }
       setConfig(config) { super.setConfig(config || {}); }
@@ -533,8 +548,18 @@
           if (!left) return;
           var was = left.getAttribute('data-hdr-fit');
           left.removeAttribute('data-hdr-fit');
+          // stacked (see the CSS): set before fitting, which then has the
+          // whole width for each line and never drops the clock
+          var w = self.getBoundingClientRect ? self.getBoundingClientRect().width : 0;
+          var stack = !!(self.hasAttribute && self.hasAttribute('data-hk-foreign')) && w > 0 && w < HK_STACK_W;
+          if (self.hasAttribute && self.hasAttribute('data-hk-stack') !== stack) {
+            self.toggleAttribute('data-hk-stack', stack);
+            // the security line is drawn for the arrangement: redraw it
+            self._lastR = null;
+            if (self.requestUpdate) setTimeout(function () { if (self.isConnected) self.requestUpdate(); }, 0);
+          }
           H.fitWeather(left);
-          if (left.getAttribute('data-wx-fit') === 'glyph') {
+          if (!stack && left.getAttribute('data-wx-fit') === 'glyph') {
             left.setAttribute('data-hdr-fit', 'noclock');
             H.fitWeather(left);
           }
@@ -613,7 +638,10 @@
         if (gone) { this._lastL = this._lastR = null; return; }
         var H = window.hkHeader, st = this._hass && this._hass.states;
         var l = (H && st) ? H.row(st, { timeShift: this._shift || 0 }) : 'Header module unavailable';
-        var r = (H && st) ? H.security(st) : 'Header module unavailable';
+        // stacked (_fitWx): under the clock, from the left, no corner padding
+        var stacked = !!(this.hasAttribute && this.hasAttribute('data-hk-stack'));
+        var r = (H && st) ? H.security(st, stacked ? { align: 'left', pad: '0px', minHeight: '0px' } : undefined)
+                          : 'Header module unavailable';
         // Compare against the LAST STRING WRITTEN, never against innerHTML.
         // innerHTML is the browser's re-serialisation, which is not guaranteed
         // to round-trip (a self-closed SVG <path/> comes back as <path></path>,
@@ -773,7 +801,7 @@
           '  padding:16px 20px 14px 20px;margin:0px 0px 12px 0px;',
           '  ' + window.hkCards.M.glass + ';',
           '  border:' + window.hkCards.M.border + ';',
-          '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12);',
+          '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
           '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
           '.alert .grid{display:grid;',
           '  grid-template-areas:"i title" "i src" "body body" "count count";',
@@ -783,14 +811,14 @@
           '.alert .icon{grid-area:i;width:26px;height:26px;--mdc-icon-size:26px;',
           '  align-self:center}',
           '.alert .title{grid-area:title;font-size:19px;font-weight:700;',
-          '  letter-spacing:-0.45px;align-self:end;color:rgba(255,255,255,0.96)}',
+          '  letter-spacing:-0.45px;align-self:end;color:var(--hk-ink,rgba(255,255,255,0.94))}',
           '.alert .src{grid-area:src;font-size:14px;font-weight:500;',
-          '  letter-spacing:-0.2px;align-self:start;color:rgba(255,255,255,0.58)}',
+          '  letter-spacing:-0.2px;align-self:start;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.alert .body{grid-area:body;font-size:15px;font-weight:500;',
           '  letter-spacing:-0.2px;line-height:1.35;text-align:left;margin-top:12px;',
-          '  color:rgba(255,255,255,0.88)}',
+          '  color:var(--hk-ink,rgba(255,255,255,0.94))}',
           '.alert .count{grid-area:count;font-size:13px;font-weight:500;',
-          '  margin-top:10px;color:rgba(255,255,255,0.45)}'
+          '  margin-top:10px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}'
         ].join('');
       }
       setConfig(config) {
@@ -800,7 +828,36 @@
       }
       get hass() { return super.hass; }
       set hass(h) { houseWeather(this, h, ALERT_KEYS); super.hass = h; }
-      getCardSize() { return 2; }
+      getCardSize() { return this._alertShown === false ? 0 : 2; }
+      // Home Assistant sets `preview` on the card in its editor, after
+      // setConfig: draw again, as the sample, when it arrives.
+      get preview() { return !!this._hkPreview; }
+      set preview(v) {
+        if (this._hkPreview === !!v) return;
+        this._hkPreview = !!v;
+        if (this._config) this._render();
+      }
+
+      // Hidden like the chips (hk-chip.js _show): the host `hidden`, and
+      // card-visibility-changed so the hui-card around it hides too -- but
+      // only once it is on the page (hui-card reads `hidden` before that).
+      _showAlert(on) {
+        if (this._alertShown === on) return;
+        this._alertShown = on;
+        this.hidden = !on;
+        if (this.style) this.style.display = on ? '' : 'none';
+        if (this.isConnected) {
+          this.dispatchEvent(new CustomEvent('card-visibility-changed',
+            { detail: { value: on }, bubbles: true, composed: true }));
+        }
+      }
+      connectedCallback() {
+        if (super.connectedCallback) super.connectedCallback();
+        if (this._alertShown === false) {
+          this.dispatchEvent(new CustomEvent('card-visibility-changed',
+            { detail: { value: false }, bubbles: true, composed: true }));
+        }
+      }
 
       _first() {
         var st = this._st(this._config.entity);
@@ -826,6 +883,12 @@
           this._built = true;
         }
         var e = this._e, f = this._first(), a = f.a;
+        // ONLY WHILE AN ALERT IS LIVE. With none (or no sensor) the card hides
+        // the way a conditional does, so a dashboard needs no wrapper around
+        // it. The card editor's preview still draws it, saying when it shows.
+        var sample = !f.n && !!this.preview;
+        this._showAlert(f.n > 0 || sample);
+        if (!f.n && !sample) return;
 
         // NWS severity vocabulary: Extreme / Severe / Moderate / Minor /
         // Unknown. One colour for all would make a tornado warning and a
@@ -841,7 +904,8 @@
         var src = cfg.source || 'National Weather Service';
         if (e.src.textContent !== src) e.src.textContent = src;
 
-        var ev = a.Event || a.Headline || 'Severe weather';
+        var ev = sample ? 'Shown here only while an alert is active'
+               : (a.Event || a.Headline || 'Severe weather');
         var iso = a.Ends || a.Expires;
         var body = ev + '.';
         if (iso) {
@@ -858,7 +922,7 @@
 
         var parts = [];
         if (a.Severity) parts.push(a.Severity);
-        parts.push(f.n + ' ' + (f.n === 1 ? 'alert' : 'alerts'));
+        parts.push(sample ? 'No alerts now' : f.n + ' ' + (f.n === 1 ? 'alert' : 'alerts'));
         // AreasAffected can be a ~600-character semicolon list -- unusable
         // raw on a tablet, and the integration only reports for the home's
         // location anyway, so it is reduced to a count.
@@ -877,8 +941,8 @@
           // disagree; the 20/24 padding and the 12px bottom margin are the
           // band's own.
           'ha-card.band{' + M.glass + ';border:' + M.border + ';',
-          '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),',
-          '    var(--hk-glass-shadow-lg, 0 10px 28px rgba(0,0,0,0.12));',
+          '  box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),',
+          '    var(--hk-glass-shadow-lg, 0 10px 28px rgba(0,0,0,0.12)));',
           '  border-radius:' + M.radius + ';padding:20px 24px;margin:0 0 12px 0;',
           '  display:block;overflow:hidden}',
           // A GRID WITH A FIXED 300px LEFT TRACK AND A 24px COLUMN GAP. A
@@ -896,13 +960,13 @@
           '.now{display:flex;flex-direction:column;justify-content:center;',
           '  align-items:center;text-align:center;padding:0 8px;height:100%}',
           '.place{font-size:12px;font-weight:600;letter-spacing:1.6px;',
-          '  color:rgba(255,255,255,0.5)}',
+          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.temp{font-size:76px;font-weight:200;letter-spacing:-2px;',
-          '  line-height:1.04;margin-top:6px;color:rgba(255,255,255,0.96)}',
+          '  line-height:1.04;margin-top:6px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
           '.cond{font-size:21px;font-weight:600;letter-spacing:-0.3px;',
-          '  margin-top:2px;color:rgba(255,255,255,0.92)}',
+          '  margin-top:2px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
           '.sub{font-size:14px;font-weight:500;margin-top:8px;',
-          '  color:rgba(255,255,255,0.6)}',
+          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.sub.wind{margin-top:2px}',
           '.rule{background:' + RULE + ';width:1px}',
           // NARROW (a phone): when no forecast column fits beside
@@ -923,15 +987,15 @@
           '.hrule{height:0;border-top:1px solid ' + RULE + ';width:100%}',     // a border: snapped to device pixels
           '.cell{display:flex;flex-direction:column;align-items:center;',
           '  gap:5px;min-width:0}',
-          '.lbl{font-size:13px;font-weight:600;color:rgba(255,255,255,0.6);',
+          '.lbl{font-size:13px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
           '  white-space:nowrap}',
-          '.lbl.now{font-weight:700;color:rgba(255,255,255,0.94);padding:0;',
+          '.lbl.now{font-weight:700;color:var(--hk-ink,rgba(255,255,255,0.94));padding:0;',
           '  display:block}',
           '.hi{font-size:17px;font-weight:700;letter-spacing:-0.3px;',
-          '  color:rgba(255,255,255,0.94)}',
-          '.lo{font-size:13px;font-weight:500;color:rgba(255,255,255,0.5)}',
-          '.pop{font-size:12px;font-weight:500;color:rgba(255,255,255,0.34)}',
-          '.pop.wet{color:rgba(255,255,255,0.62)}',
+          '  color:var(--hk-ink,rgba(255,255,255,0.94))}',
+          '.lo{font-size:13px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.pop{font-size:12px;font-weight:500;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+          '.pop.wet{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           // PLAIN (`plain: true`, the screensaver's): no plate -- the band
           // drawn straight on what is behind it, every line white, with a
           // soft shadow for the contrast the plate gave. The 24px sides stay,
@@ -940,9 +1004,10 @@
           // edge.
           'ha-card.band.plain{background:none;border:none;border-radius:0;box-shadow:none;',
           '  -webkit-backdrop-filter:none;backdrop-filter:none;padding:0 24px;margin:0}',
-          '.plain .wrap{text-shadow:0 1px 3px rgba(0,0,0,0.45),0 4px 18px rgba(0,0,0,0.35)}',
-          '.plain .place,.plain .temp,.plain .cond,.plain .sub,.plain .lbl,.plain .hi,',
-          '.plain .lo,.plain .pop,.plain .pop.wet{color:#fff}'
+          '.plain .wrap{text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.45),0 4px 18px rgba(0,0,0,0.35))}',
+          '.plain .place,.plain .sub,.plain .lbl,.plain .lo,.plain .pop.wet{color:var(--hk-ink-2,#fff)}',
+          '.plain .pop{color:var(--hk-ink-3,#fff)}',
+          '.plain .temp,.plain .cond,.plain .lbl.now,.plain .hi{color:var(--hk-ink,#fff)}'
         ].join('');
       }
 
@@ -1379,8 +1444,11 @@
         if (!this._config || !this._hass) return;
         var c = this._config;
         var H = window.hkHeader;
+        // its own `entity` when the config names one; else (entity: null)
+        // HK Settings' weather, as before
         var body = H ? H.weather(this._hass.states, Object.assign({
-          width: '100%', boxSizing: 'border-box'
+          width: '100%', boxSizing: 'border-box',
+          entity: this._hkExplicit ? c.entity : null
         }, opts(c, {
           glyph_size: 'glyph',
           main_size: 'mainSize', main_letter_spacing: 'mainLs',
@@ -1457,7 +1525,7 @@
         var st = 'margin:' + (c.margin != null ? c.margin : '0');
         if (c.height) st += ';height:' + c.height;
         if (c.padding) st += ';padding:' + c.padding;
-        if (c.shadow) st += ';filter:' + SHADOW;
+        if (c.shadow) st += ';filter:var(--hk-glow, ' + SHADOW + ')';
         // `layer: true` GIVES THE CLOCK ITS OWN COMPOSITING LAYER, and only the
         // WallPanel screensaver asks for it. There the text sits
         // over photo layers that WallPanel creates and destroys at every photo
@@ -1509,9 +1577,12 @@
     }
 
     if (!customElements.get('hk-weather-strip-card')) {
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-weather-strip-card', HkWeatherStripCard);
       customElements.define('hk-weather-strip-card', HkWeatherStripCard);
     }
     if (!customElements.get('hk-clock-card')) {
+      // its size in HA's Sections view (hk-base.js GRID)
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-clock-card', HkClockCard);
       customElements.define('hk-clock-card', HkClockCard);
     }
     if (C.editor) {
@@ -1526,7 +1597,7 @@
             { name: 'gap', selector: { text: {} } },
             { name: 'color', selector: { text: {} } },
             { name: 'dim_color', selector: { text: {} } },
-            { name: 'shadow', selector: { text: {} }, helper: 'CSS text-shadow, or none.' },
+            { name: 'shadow', selector: { text: {} }, helper: 'A CSS filter, e.g. drop-shadow(0 1px 6px rgba(0,0,0,.4)), or none.' },
             { name: 'margin', selector: { text: {} } }
           ] }
         ], 'mdi:palette'),
@@ -1570,6 +1641,7 @@
     });
 
     if (!customElements.get('hk-weather-band-card')) {
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-weather-band-card', HkWeatherBandCard);
       customElements.define('hk-weather-band-card', HkWeatherBandCard);
     }
     if (C.editor) {
@@ -1615,12 +1687,16 @@
       preview: true
     });
     if (!customElements.get('hk-alert-card')) {
+      // its size in HA's Sections view (hk-base.js GRID)
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-alert-card', HkAlertCard);
       customElements.define('hk-alert-card', HkAlertCard);
     }
     if (!customElements.get('hk-screensaver-status-card')) {
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-screensaver-status-card', HkScreensaverStatusCard);
       customElements.define('hk-screensaver-status-card', HkScreensaverStatusCard);
-      window.customCards.push({ type: 'hk-screensaver-status-card', name: 'HK Screensaver Home Status',
-        description: 'The house at a glance, top-right of a photo screensaver: Home Secured, or what is open and unlocked.' });
+      // NOT IN THE CARD PICKER: the screensaver's own (pinned top-right at
+      // no height; on a dashboard's page it floats over Home Assistant).
+      // Defined, so the screensaver and YAML that names it keep working.
     }
     if (C.editor) {
       var sstag = C.editor('hk-screensaver-status-card', [
@@ -1636,7 +1712,7 @@
       var atag = C.editor('hk-alert-card', [
         { name: 'entity', required: true, label: 'Alerts sensor',
           helper: 'The NWS Alerts sensor. The card shows only while an alert is active.',
-          selector: { entity: { filter: { domain: 'sensor' } } } },
+          selector: { entity: { filter: { integration: 'nws_alerts', domain: 'sensor' } } } },
         { type: 'grid', name: '', schema: [
           { name: 'title', selector: { text: {} } },
           { name: 'source', selector: { text: {} } },
@@ -1656,6 +1732,8 @@
     });
 
     if (!customElements.get('hk-header-card')) {
+      // its size in HA's Sections view (hk-base.js GRID)
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-header-card', HkHeaderCard);
       customElements.define('hk-header-card', HkHeaderCard);
     }
     if (C.editor) {
@@ -1675,6 +1753,7 @@
     });
 
     if (!customElements.get('hk-weather-tile-card')) {
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-weather-tile-card', HkWeatherTileCard);
       customElements.define('hk-weather-tile-card', HkWeatherTileCard);
     }
     if (C.editor) {

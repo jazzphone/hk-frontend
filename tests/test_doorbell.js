@@ -316,5 +316,26 @@ print('\n=== the camera strip: a failed credential is not used again ===');
   document.createElement = orig;
 })();
 
+
+// THE EDITOR'S FIELDS, by name (sections and grids flattened)
+function editorFields(tag) {
+  var K = customElements.get(tag), p = K.getConfigElement(),
+      EC = customElements.get(String(p.tagName).toLowerCase());
+  var ed = new EC();
+  if (!ed.appendChild) ed.appendChild = function () {};
+  ed.setConfig({});
+  var out = {};
+  (function walk(s) { (s || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+  return out;
+}
+
+print('\n=== its editor shows what the card does: Talk Live and the sound ON unless turned off ===');
+var DF = editorFields('hk-doorbell-card');
+ok('Talk live: shown on while unset', DF.live && DF.live.default === true, DF.live && DF.live.default);
+ok('Play the doorbell sound: shown on while unset', DF.sound && DF.sound.default === true);
+var DS = customElements.get('hk-doorbell-card').getStubConfig({ states: { 'camera.door': {} } });
+ok('the stub writes both on, too', DS.live === true && DS.sound === true && DS.entity === 'camera.door', DS);
+ok('...and the card still treats a missing key as on', /this\._config\.live === false/.test(body) && /c\.sound !== false/.test(body));
+
 print('\n' + (fail ? 'FAIL ' + fail + ' DOORBELL TESTS' : 'ALL ' + pass + ' DOORBELL TESTS PASS'));
 if (fail) throw new Error('doorbell tests failed');

@@ -28,10 +28,10 @@
     weather_alert: { setting: ['house/weather/sensors', 'Weather Alerts Sensor'] },
     security: { kinds: ['locks', 'garage'], setting: ['house/general', 'Alarm Panel'] },
     doors_windows: { kinds: ['doors', 'windows'] },
-    climate: { kinds: ['thermostats', 'fans'], setting: ['house/counts', 'Indoor Temperature'] },
+    climate: { kinds: ['thermostats', 'fans'], setting: ['here', 'Indoor Temperature'] },
     lights: { kinds: ['lights'] }, blinds: { kinds: ['blinds'] }, timers: { kinds: ['timers'] },
     vacuums: { kinds: ['vacuums'] }, speakers: { kinds: ['speakers'] }, water: { kinds: ['leaks'] },
-    energy: { setting: ['house/counts', 'Power Use'] }
+    energy: { setting: ['here', 'Power Use'] }
   };
   var PAGE_LABELS = {
     weather: 'Weather', calendar: 'Calendar', cameras: 'Cameras', live_tv: 'Live TV', security: 'Security',
@@ -104,6 +104,7 @@
   var GLASS_STYLES = [
     ['clear', 'Glass', 'The original see-through glass. The status chips blur what’s behind them.'],
     ['frosted', 'Frosted', 'A milky material with no blur. Costs nothing per frame on any device.'],
+    ['tinted', 'Tinted', 'The Home app’s dark plate, with no blur anywhere on the page. The lightest on any device; sheets and pop-ups still blur while open.'],
     ['blur', 'Blur', 'What’s behind the glass, blurred. Choose how in Blur Mode.']
   ];
   var BLUR_MODES = [
@@ -112,12 +113,19 @@
     ['blur_each', 'Each Card', 'Live: every card blurs what’s behind it, so a sheet or a scrolling row never leaves its frost behind. The heaviest — for phones, iPads and computers, not wall tablets.']
   ];
   // every stored value, its full name and its note (a list, a summary)
-  var GLASS = [GLASS_STYLES[0], GLASS_STYLES[1]].concat(BLUR_MODES.map(function (m) {
+  // (every style but Blur, then Blur's modes -- a style added later is in)
+  var GLASS = GLASS_STYLES.filter(function (s) { return s[0] !== 'blur'; }).concat(BLUR_MODES.map(function (m) {
     return [m[0], 'Blur · ' + m[1], m[2]];
   }));
   function isBlur(v) { return v === 'blur' || v === 'blur_pre' || v === 'blur_each'; }
   // the style a stored value belongs to
-  function glassStyle(v) { return isBlur(v) ? 'blur' : v === 'frosted' ? 'frosted' : 'clear'; }
+  function glassStyle(v) {
+    if (isBlur(v)) return 'blur';
+    for (var i = 0; i < GLASS_STYLES.length; i++) if (GLASS_STYLES[i][0] === v) return v;
+    return 'clear';
+  }
+  // Tinted's icon circles (look.well, a screen's well)
+  var TINT_WELLS = [['dark', 'Dark'], ['light', 'Light']];
   var PRESETS = {
     wall_tablet: ['Wall Tablet', 'Menu always open with the time and weather, back to Home when idle, no Home Assistant header.'],
     personal: ['Phone or iPad', 'Menu behind a button, time and weather in the header.'],
@@ -525,7 +533,7 @@
   }
   // which amount the glass uses (the others are kept but not shown)
   function amountsFor(effective) {
-    return { frost: effective === 'frosted', blur: isBlur(effective) };
+    return { frost: effective === 'frosted', blur: isBlur(effective), tint: effective === 'tinted' };
   }
   // the Glass group's footer, for the style shown (All Screens' Appearance
   // and a screen's page say the same)
@@ -533,6 +541,7 @@
     var t = 'How the pills, tiles and chips look.';
     if (style === 'frosted') t += ' Frost: how milky, 50% is the middle. Tint from Background: each card takes the color of the page behind it instead of one gray.';
     if (isBlur(style)) t += ' Blur: how strong, 50% is 20 px.';
+    if (style === 'tinted') t += ' Darkness: how much of the background shows through, 50% is 75% dark. Icon Circles: Dark as the Home app’s, or Light to keep their shape over dark scenery.';
     return t;
   }
 
@@ -1049,9 +1058,30 @@
         { id: 'clean_areas', title: 'Clean Areas', key: 'hk-area-select-card', anchor: 'clean-areas',
           sub: 'Pick rooms floor by floor, then clean just those. Needs the Clean Areas feature.',
           yaml: '- type: custom:hk-area-select-card' },
-        { id: 'music', title: 'Music', key: 'hk-speaker-picker-card', anchor: 'music',
-          sub: 'What is playing, the speakers and playlists, and the library. Needs the Music feature.',
-          yaml: '- type: custom:hk-now-playing-card\n  music: true\n- type: custom:hk-speaker-picker-card\n- type: custom:hk-library-card\n  music: true' },
+        { id: 'music', title: 'Music', key: 'hk-music-card', anchor: 'music',
+          sub: 'The whole Music page as one card: what plays and where, with Browse Music beside it. Or just what is playing. Needs the Music feature.',
+          yaml: '- type: custom:hk-music-card   # the whole Music page\n# ...or just what is playing:\n' +
+                '# - type: custom:hk-now-playing-card\n#   music: true' },
+        { id: 'media_bar', title: 'The Now Playing Bar', key: 'hk-popup-card', anchor: 'the-now-playing-bar',
+          sub: 'The player docked along the bottom while music plays, as on the screens HK Frontend builds. It shows on the views it is placed in: put it in each one. Needs the Music feature.',
+          yaml: '- type: custom:hk-popup-card\n  hash: \'#media\'\n  position: bottom\n  modal: false\n  dock: true\n' +
+                '  padding: \'0\'\n  radius: \'0\'\n  width: 100%\n  max_width: 100%\n  background: transparent\n' +
+                '  vars:\n    hk-np-height: calc(104px + env(safe-area-inset-bottom, 0px))\n' +
+                '    hk-np-pad: 12px 24px calc(12px + env(safe-area-inset-bottom, 0px))\n' +
+                '    hk-np-radius: \'0\'\n    hk-np-plate: rgb(22,23,26)\n' +
+                '    hk-np-areas: \'"art title . spk prev play next stop brw . meta" "art artist . spk prev play next stop brw . meta" "art sub . spk prev play next stop brw . meta"\'\n' +
+                '    hk-np-cols: 72px minmax(220px, max-content) 1fr 56px 64px 64px 64px 64px 56px 1fr minmax(0, 380px)\n' +
+                '    hk-np-rows: auto auto auto\n    hk-np-gap: 14px\n' +
+                '  trigger:             # open while the music plays...\n    - condition: state\n      entity_from:\n        music: true\n' +
+                '      state: playing\n      grace: 20\n  trigger_close: true # ...and close when it stops\n' +
+                '  dismissable: true   # swiped down, it stays away until the music stops\n' +
+                '  dismiss_scope:\n    - music: true\n  stash:              # ...with a button in the corner to bring it back\n' +
+                '    icon: hk:homepod\n    label: Show Now Playing\n' +
+                '  cards:\n    - type: custom:hk-now-playing-card\n      bar: true\n      music: true\n      hide_idle: true\n' +
+                '      meta_card:\n        type: custom:hk-media-control-card\n        color: purple\n        bare: true\n        parts: [volume]\n' +
+                '        entity_from:\n          music: true\n' +
+                '      sub_card:\n        type: custom:hk-media-control-card\n        color: purple\n        bare: true\n        parts: [progress]\n' +
+                '        phone_times: false\n        entity_from:\n          music: true' },
         { id: 'timers', title: 'Timers', key: 'hk-timers-page-card', anchor: 'timers',
           sub: 'Quick start, the running timers and the New Timer keypad, as one card.',
           yaml: '- type: custom:hk-timers-page-card' }] },
@@ -1144,20 +1174,22 @@
     ['Use the Kiosk Mode Plugin Instead', 'screen/kiosk', 'kiosk_engine', 'kiosk mode plugin hacs', true],
     ['Kiosk Mode Options', 'screen/kiosk-mode', 'kiosk_options', 'kiosk mode plugin yaml header sidebar admins', true],
     ['Alarm Panel', 'house/general', 'security.alarm', 'security keypad'],
-    ['Indoor Temperature', 'house/counts', 'features.temperature', 'climate chip reading'],
-    ['Power Use', 'house/counts', 'features.power', 'energy chip watts reading'],
+    ['Indoor Temperature', 'screen/chips/climate', 'features.temperature', 'climate chip reading', true],
+    ['Power Use', 'screen/chips/energy', 'features.power', 'energy chip watts reading', true],
     ['House Timers', 'house/general/timers', 'features.house_timers', 'nap bedtime timers page'],
-    ['Status & Chips', 'house/counts', 'counts', 'what counts smoke carbon monoxide co alarm lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
+    ['What Counts', 'house/counts', 'counts', 'status & chips status and chips what counts smoke carbon monoxide co alarm lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
     ['Weather Service', 'house/weather', 'weather.entity', 'forecast'],
     ['Place', 'house/weather', 'weather.place', 'location label'],
     ['Weather Sensors', 'house/weather/sensors', 'weather.sensors', 'feels like humidity wind gust uv forecast alerts outside temperature'],
     ['Radar Map', 'house/weather/radar', 'weather.radar', 'weather radar card yaml zoom noaa rainviewer'],
     ['Calendars', 'house/calendar', 'calendar.entities', 'calendar page events agenda month week day which calendars order'],
     ['Calendar Colors', 'house/calendar', 'calendar.colors', 'calendar colour color events dot'],
-    ['Glass Style', 'house/appearance/glass', 'look.glass', 'blur frosted clear glass look'],
+    ['Glass Style', 'house/appearance/glass', 'look.glass', 'blur frosted tinted clear glass look apple home app solid opaque'],
     ['Blur Mode', 'house/appearance/glass', 'look.glass', 'blur shared layer pre-rendered prerendered each card performance cpu gpu'],
     ['Frost Amount', 'house/appearance', 'look.frost', 'frosted'],
     ['Blur Amount', 'house/appearance', 'look.blur', 'blur strength'],
+    ['Darkness', 'house/appearance', 'look.tint', 'tinted dark darkness opacity see through'],
+    ['Icon Circles', 'house/appearance', 'look.well', 'tinted icon circle well dark light'],
     ['HK Detail Sheets', 'accessories', 'look.details', 'more info dialog sheet tap accessory'],
     ['Page Pills', 'house/appearance/pills', 'look.page_pills', 'page pill scenes row name icon color colour play music cameras calendar live tv'],
     ['Sky Switch', 'house/sky', 'look.sky_switch', 'live sky helper'],
@@ -1227,8 +1259,10 @@
     ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
     ['Default Idle Time', 'house/tablets', 'idle.default', 'wall tablet idle seconds'],
     ['Screensaver Photos', 'house/tablets/screensaver', 'look.photos', 'media folder wallpanel photos'],
-    ['Hidden from Screens', 'accessories/hidden', 'generated.exclude', 'leave out hide rooms devices'],
+    ['Hidden Accessories', 'accessories/hidden', 'generated.exclude', 'hidden from screens leave out left out hide rooms devices remove show on home include in status'],
     ['Also Shown', 'accessories/also', 'generated.include_entities', 'add entities more'],
+    ['Also Count As', 'accessories', 'counts', 'what counts chips status rows count include sensor smoke temperature accessory'],
+    ['Existing Dashboards', 'add-screen', 'add-screen', 'overview dashboard you already have own hk settings add screen use lovelace default'],
     ['Vacuums Page Order', 'accessories/page/vacuums', 'accessories.pages.vacuums', 'vacuum order'],
     ['Security Page Order', 'accessories/page/security', 'accessories.pages.security', 'locks garage door order'],
     ['Pop-ups', 'popups', 'popups', 'doorbell alarm hash'],
@@ -1335,7 +1369,7 @@
     ['header', 'Header', ['phone_header', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins', 'kiosk_engine', 'kiosk_options'], true],
     // the pages, Home among them, and where each sits in the menu (set on Pages)
     ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories'], true],
-    ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
+    ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'tint', 'well', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
                             'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
                             'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty'], true],
     ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages'], true],
@@ -1484,7 +1518,7 @@
     MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
     TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS,
-    GLASS_STYLES: GLASS_STYLES, BLUR_MODES: BLUR_MODES, isBlur: isBlur, glassStyle: glassStyle, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
+    GLASS_STYLES: GLASS_STYLES, BLUR_MODES: BLUR_MODES, TINT_WELLS: TINT_WELLS, isBlur: isBlur, glassStyle: glassStyle, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
     WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, SKY_MOVING: SKY_MOVING, DAYTIME_SKIES: DAYTIME_SKIES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,

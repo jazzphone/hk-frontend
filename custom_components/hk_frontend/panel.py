@@ -22,7 +22,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
-from . import accessories, kinds, settings_api
+from . import accessories, hiding, kinds, lovelace_boards, settings_api
 from . import settings as S
 from . import sleep_rules as SR
 from .const import CONF_FILES_FOLDER, DEFAULT_FILES_FOLDER, DOMAIN
@@ -99,16 +99,13 @@ async def _dashboards(hass: HomeAssistant) -> list[dict[str, Any]]:
     whether it has an item (and which)."""
     out: list[dict[str, Any]] = []
     try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        boards = hass.data[LOVELACE_DATA].dashboards
+        boards = lovelace_boards.all_boards(hass)            # the Overview as "lovelace"
     except (ImportError, KeyError, AttributeError):
         return out
     entry = _entry(hass)
     items = {s.unique_id: s.subentry_id for s in (entry.subentries.values() if entry else ())
              if s.subentry_type == S.SUBENTRY_DASHBOARD and s.unique_id}
     for path, dash in boards.items():
-        if not path:
-            continue
         generated = False
         try:
             cfg = await dash.async_load(False)
@@ -116,10 +113,11 @@ async def _dashboards(hass: HomeAssistant) -> list[dict[str, Any]]:
             generated = isinstance(strat, dict) and str(strat.get("type", "")).endswith("hk-dashboard")
         except Exception:  # noqa: BLE001 -- an empty dashboard is simply not generated
             pass
-        conf = getattr(dash, "config", None) or {}
+        conf = lovelace_boards.config(dash)
         # `id`: the dashboards collection's own, which renaming it takes
-        # (lovelace/dashboards/update) -- a YAML dashboard has none
-        out.append({"path": path, "title": conf.get("title") or path, "mode": conf.get("mode") or "storage",
+        # (lovelace/dashboards/update) -- a YAML dashboard has none, nor has
+        # the Overview
+        out.append({"path": path, "title": lovelace_boards.title(hass, path), "mode": lovelace_boards.mode(dash),
                     "id": conf.get("id"),
                     "generated": generated, "require_admin": bool(conf.get("require_admin")),
                     "item": items.get(path)})
@@ -167,6 +165,8 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
         "custom_chips": S.custom_chips(entry),
         "accessories": accessories.current(hass),
         "kinds": {k: len(v) for k, v in found.items()},
+        # Hidden Accessories (hiding.py): what can hide what, and what is hidden
+        "hidden": hiding.snapshot(hass, hiding.settings_of(hass, entry)),
         "presets": list(S.SCREEN_PRESETS),
         "chip_kinds": list(S.CHIP_KINDS), "page_kinds": list(S.PAGE_ORDER),
         "scene_pages": list(S.SCENE_PAGES), "shelves": {k: v["title"] for k, v in S.SHELVES.items()},
@@ -272,8 +272,7 @@ async def _menu_layout(hass: HomeAssistant, path: str,
     while that is automatic (Home's chips open it, or there are no chips).
     `screen`: its settings, for the Chips its chips card draws."""
     try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        board = hass.data[LOVELACE_DATA].dashboards.get(path)
+        board = lovelace_boards.get(hass, path)
         cfg = await board.async_load(False) if board is not None else None
     except Exception:  # noqa: BLE001 -- an unreadable dashboard has no menu to set
         return []
@@ -529,12 +528,8 @@ def ws_chip_remove(hass: HomeAssistant, connection: websocket_api.ActiveConnecti
 def ws_dashboard_titled(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
                         msg: dict[str, Any]) -> None:
     path = msg["dashboard"]
-    try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        board = hass.data[LOVELACE_DATA].dashboards.get(path)
-    except (ImportError, KeyError, AttributeError):
-        board = None
-    title = str(((getattr(board, "config", None) or {}).get("title")) or "") if board else ""
+    board = lovelace_boards.get(hass, path)
+    title = lovelace_boards.title(hass, path) if board is not None else ""
     if not title:
         connection.send_error(msg["id"], "no_dashboard", "There's no dashboard at that address")
         return

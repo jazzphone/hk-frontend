@@ -8,6 +8,10 @@
                                                     needs its entity) or changed
     hk_notify/item/remove {item}
     hk_notify/test {item}                        -> sent now, as if it went off
+    hk_notify/mute {key, minutes?}               -> Mute 1 Hour from a sheet
+                                                    (ANY signed-in user: it
+                                                    only quiets the house);
+                                                    minutes 0 unmutes
 
 Each change is checked the way the field means it and refused BY FIELD (the
 message is a JSON map, field -> a code the page words, as settings_api's).
@@ -29,11 +33,12 @@ from homeassistant.helpers import area_registry as ar, device_registry as dr, en
 from ... import settings as HS
 from .. import NOTIFICATIONS, Feature, async_update, entries
 from . import rules
-from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, CONF_WAKE, COOLDOWNS, ITEM_FIELDS, ITEMS_MAX,
-                    MESSAGE_MAX, ONLY, SAVERS, STAYS, TAPS, TITLE_MAX)
+from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, CONF_WAKE, COOLDOWNS, GO_NONE, ITEM_FIELDS,
+                    ITEMS_MAX, MESSAGE_MAX, MUTE_S, ONLY, PAGE_RE, SAVERS, STAYS, TAPS, TITLE_MAX)
 
 
 POP = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+PAGE = re.compile(PAGE_RE)
 
 
 def _entry(hass: HomeAssistant) -> Feature | None:
@@ -56,15 +61,20 @@ def _named(hass: HomeAssistant, ids: list[str]) -> list[dict[str, str]]:
 
 
 def page(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
-    from . import about, candidates, options
+    from . import about, candidates, mutes, name_of, options
     opts = options(entry)
     items = []
+    on_now = mutes(hass)
     for it in opts[CONF_ITEMS]:
         d = about(hass, it)
+        # its mutes running now: which accessory, until when (Muted until · Unmute)
+        pre = "%s:" % it.get("id")
+        muted = sorted(({"key": k, "entity": k[len(pre):], "name": name_of(hass, k[len(pre):]) if k[len(pre):] else "",
+                         "until": v} for k, v in on_now.items() if k.startswith(pre)), key=lambda m: m["until"])
         items.append({**{k: it.get(k) for k in ("id",) + ITEM_FIELDS}, "kind": d["kind"], "name": d["name"],
                       "choices": d["choices"], "auto_title": d["title"], "auto_message": d["message"],
                       "icon": d["icon"], "tint": d["tint"], "suggested_camera": d["camera"],
-                      "missing": d["missing"]})
+                      "missing": d["missing"], "muted": muted})
     # THE CATEGORIES found here: those with an accessory, each with its
     # accessories (by room) and its notification when it is on
     on = {it.get("category"): it.get("id") for it in opts[CONF_ITEMS] if it.get("category")}
@@ -188,6 +198,23 @@ def _pop(v: Any) -> str | None:
     return h
 
 
+def _page(v: Any) -> str | None:
+    """A page of the screen's own dashboard: a view's path (Tap Opens: A Page)."""
+    if v in (None, ""):
+        return None
+    p = str(v).strip().strip("/").lower() if isinstance(v, str) else ""
+    if not PAGE.match(p):
+        raise Bad("choice")
+    return p
+
+
+def _go(v: Any) -> str | None:
+    """Go To: None (Automatic), "none", or a page."""
+    if v in (None, "", "auto"):
+        return None
+    return GO_NONE if v == GO_NONE else _page(v)
+
+
 def _when(v: Any) -> str:
     """Goes Off When: one of the accessory's choices (apply_item checks which)."""
     if not isinstance(v, str) or not v:
@@ -228,6 +255,8 @@ FIELDS = {
     # a Calendars category's all-day events: the morning they start (or None: not)
     "allday": lambda v: None if v in (None, "") else _in(rules.ALLDAY_TIMES)(v),
     "tap": _in(TAPS),
+    "page": _page,
+    "go": _go,
 }
 
 
@@ -305,6 +334,8 @@ def apply_item(hass: HomeAssistant, item: dict[str, Any], changes: dict[str, Any
             return item, {"camera": "entity"}
     if not out.get("snap") and out.get("tap") == "camera":
         out["tap"] = "sheet"
+    if out.get("tap") == "page" and not out.get("page"):
+        return item, {"page": "required"}
     return out, {}
 
 
@@ -454,7 +485,27 @@ async def _test_calendar(hass: HomeAssistant, entry: Feature, item: dict[str, An
     return await async_deliver(hass, build_calendar(hass, options(entry), item, cal, ev, lead, test=True))
 
 
+# MUTE 1 HOUR, from a notification's sheet: any signed-in user -- a wall
+# tablet's own user too -- since muting only ever makes the house quieter.
+# The key is the payload's own (`mute`): an item's id and its accessory, and
+# only a notification that exists can be muted.
+@websocket_api.websocket_command({vol.Required("type"): "hk_notify/mute", vol.Required("key"): str,
+                                  vol.Optional("minutes", default=MUTE_S // 60): vol.All(int, vol.Range(min=0, max=MUTE_S // 60))})
+@callback
+def ws_mute(hass: HomeAssistant, connection, msg: dict[str, Any]) -> None:
+    from . import options, set_mute
+    entry = _need(hass, connection, msg)
+    if entry is None:
+        return
+    key = msg["key"]
+    sid = key.split(":", 1)[0]
+    if ":" not in key or not any(str(i.get("id")) == sid for i in options(entry)[CONF_ITEMS]):
+        connection.send_error(msg["id"], "not_found", "No such notification")
+        return
+    connection.send_result(msg["id"], {"key": key, "until": set_mute(hass, key, msg["minutes"] * 60)})
+
+
 @callback
 def async_register(hass: HomeAssistant) -> None:
-    for cmd in (ws_settings_get, ws_settings_set, ws_item_save, ws_item_remove, ws_test):
+    for cmd in (ws_settings_get, ws_settings_set, ws_item_save, ws_item_remove, ws_test, ws_mute):
         websocket_api.async_register_command(hass, cmd)

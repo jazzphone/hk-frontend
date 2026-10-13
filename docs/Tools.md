@@ -75,7 +75,7 @@ as long as the page does; a plain reload without them goes back to normal.
 | `?hk_kiosk=on` · `?hk_kiosk=off` | Hides, or shows, Home Assistant’s header and sidebar on this page, whatever the screen’s setting. | [Appearance](Appearance.md) |
 | `?hk_saver=off` | No screensaver on this page. `?wp_enabled=false` (WallPanel’s own flag) does the same. | [Screensaver & idle](Screensaver-and-Idle.md) |
 | `?hk_saver=force` | Lets the screensaver run on this page even for a user it is turned off for (testing). It does not turn the tablet’s screensaver switch on or off. | |
-| `?hkglass=clear` · `frosted` · `blur` · `blur_pre` · `blur_each` | Tries a [glass look](Appearance.md) on this page only; your setting is unchanged. | |
+| `?hkglass=clear` · `frosted` · `tinted` · `blur` · `blur_pre` · `blur_each` | Tries a [glass look](Appearance.md) on this page only; your setting is unchanged. | |
 | `?vw=1000` · `?vw=off` · `?vw=test` | On a car’s dashboard: the layout width it pins (remembered in that browser), forgetting it, or a badge showing what the browser measures without changing anything. | [Screens](Screens.md) |
 | `?hkprobe=name` | Loads a script of your own into the page: `/hk/pages/dev/name.js`, from your [files folder](Your-Files.md) (`pages/dev/name.js` in it). Letters, digits and dashes only; `?hkprobe=1` loads `hk-probe.js`. For finding a problem that only happens in one browser on one device, where pasting into its console is hard. | |
 

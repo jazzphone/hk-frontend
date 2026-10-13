@@ -460,8 +460,9 @@ customElements.define('hk-control-card', function () { this.setConfig = function
   // the four modes are one row; power is its own row under them, as wide
   ok('the four modes are a row (High demand says Demand, Heat Pump is capitalized) and the power is its own full-width row under it', (function () {
     var html = p2._root._html || p2._root.innerHTML;
-    return /<div class="acts" style="--n:4">/.test(html) && /<div class="pwr" style="--n:1"><button class="pw"/.test(html) &&
-      html.indexOf('class="acts"') < html.indexOf('class="pwr"') && p2._pw.querySelector('.pwl').textContent === 'Turn Off' &&
+    // the modes are HK's segmented control (class "acts mseg")
+    return /<div class="acts mseg" style="--n:4">/.test(html) && /<div class="pwr" style="--n:1"><button class="pw"/.test(html) &&
+      html.indexOf('class="acts mseg"') < html.indexOf('class="pwr"') && p2._pw.querySelector('.pwl').textContent === 'Turn Off' &&
       />Demand<\/button>/.test(html) && !/High demand/.test(html) && />Heat Pump<\/button>/.test(html);
   })());
 })();
@@ -586,16 +587,20 @@ print('\n=== accessory settings: the gear ===');
   var pane = _.accessoryPane(h, 'switch.coffee', null, { generated: true });
   var q = function (sel) { return pane.querySelector(sel); };
   ok('Favorite on this dashboard: offered on a generated one', /class="tg fav"/.test(pane._html || pane.innerHTML || ''));
-  ok('Include in Status starts off (status: false saved)', q('.status').checked === false);
-  ok('Show on Home starts on', q('.home').checked === true);
+  // WHERE IT SHOWS (Hidden Accessories): asked of the server as the pane opens
+  // (each pane built here asks: keep this one's, so the writes below count from 1)
+  WS.splice(0, WS.length - 1);
+  ok('Where it shows asks the server what hides it', WS[0].type === 'hk_frontend/hidden/get' &&
+     WS[0].entity_ids.length === 1 && WS[0].entity_ids[0] === 'switch.coffee', WS[0]);
+  ok('...no Include in Status or Show on Home switches of their own any more',
+     !/class="tg status"|class="tg home"/.test(pane._html || ''));
   ok('Favorite on this dashboard: from its item', q('.fav').checked === false);
   ok('the name field holds the house\'s name', q('.nm').value === 'Coffee' && q('.nm').placeholder === 'Kitchen Coffee');
   ok('the room is the device\'s', q('.room').value === 'kitchen');
-  q('.status').checked = true; q('.status')._listeners.change[0]();
-  ok('Include in Status on: back to automatic (null)', WS[0].type === 'hk_frontend/accessory/set' &&
-     WS[0].entity_id === 'switch.coffee' && WS[0].status === null, WS[0]);
-  q('.home').checked = false; q('.home')._listeners.change[0]();
-  ok('Show on Home off: home false', WS[1].home === false);
+  var shownTg = q('.row.wall').querySelector('.tg.shown');
+  shownTg.checked = false; shownTg._listeners.change[0]();
+  ok('Show in HK Frontend off: hidden everywhere, in one write', WS[1].type === 'hk_frontend/hidden/set' &&
+     WS[1].everywhere === true && WS[1].entity_ids[0] === 'switch.coffee' && JSON.stringify(WS[1].places) === '{}', WS[1]);
   q('.fav').checked = true; q('.fav')._listeners.change[0]();
   ok('Favorite: the dashboard\'s own list', WS[2].type === 'hk_frontend/board/favorite' &&
      WS[2].dashboard === 'dashboard-kitchen' && WS[2].favorite === true);
@@ -681,7 +686,7 @@ print('\n=== accessory settings: the gear ===');
   h.user = { is_admin: true };
   h.areas = { den: { area_id: 'den', name: 'Den' } };
   h.entities = { 'fan.den': { area_id: 'den' } };
-  h.callWS = function (m) { WS.push(m); return Promise.resolve({}); };
+  h.callWS = function (m) { if (m.type !== 'hk_frontend/hidden/get') WS.push(m); return Promise.resolve({}); };   // Where it shows' read is not a write
   var saved = window.hkSettings;
   window.hkSettings = { get: function (p, f) {
     if (p === 'accessories') return { entities: { 'fan.den': { anim: 'none' } }, rooms: {} };
@@ -960,7 +965,7 @@ print('\n=== the Energy page, from an accessory\'s gear and its sheet ===');
   var WS = [];
   var h = house({ 'sensor.fridge_w': ['120', { friendly_name: 'Fridge Power', unit_of_measurement: 'W', device_class: 'power' }] });
   h.user = { is_admin: true }; h.areas = {}; h.entities = {}; h.devices = {};
-  h.callWS = function (m) { WS.push(m); return Promise.resolve({}); };
+  h.callWS = function (m) { if (m.type !== 'hk_frontend/hidden/get') WS.push(m); return Promise.resolve({}); };   // Where it shows' read is not a write
   var saved = window.hkSettings;
   var PLAN = { names: { fridge: 'Fridge' }, devices: { 'sensor.fridge_w': { key: 'fridge', name: 'Fridge', power: 'sensor.fridge_w' } },
                sections: [{ id: 'rooms', name: 'Rooms', items: [{ key: 'other' }] }, { id: 'kitchen', name: 'Kitchen', items: [] }] };

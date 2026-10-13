@@ -152,7 +152,8 @@ H.run('TIMERS PAGE', [
     var P = customElements.get('hk-timers-page-card');
     H.eq('preset words and durations', [P.label(5), P.label(60), P.label(90), P.hms(5), P.hms(60)],
          ['5 min', '1 hr', '1 hr 30 min', '00:05:00', '01:00:00']);
-    var house = H.house({ 'timer.nap_timer': ['idle', {}], 'timer.night_timer': ['active', {}], 'timer.good_morning_timer': ['idle', {}] });
+    var house = H.house({ 'timer.nap_timer': ['idle', {}], 'timer.night_timer': ['active', {}], 'timer.good_morning_timer': ['idle', {}],
+                          'script.quick_timer_start': ['off', {}], 'script.quick_timer_create': ['off', {}] });
     var sent = [];
     function answering(resp) {
       var h = house.hass();
@@ -210,6 +211,9 @@ H.run('TIMERS PAGE', [
          pc.hasAttribute('data-stack') && pc._new.hasAttribute('data-wide'));
     window.innerWidth = 744; w = 706; pc._shape();
     H.ok('an iPad mini held upright: stacked', pc.hasAttribute('data-stack'));
+    window.innerWidth = 1440; w = 352; pc._shape();
+    H.ok('a 352 px section on a desk: stacked, the New Timer panel kept narrow',
+         pc.hasAttribute('data-stack') && !pc._new.hasAttribute('data-wide'));
     window.innerWidth = 402; w = 386; pc._shape();
     H.ok('a phone keeps its own layout (the 640 px media query), not this one',
          !pc.hasAttribute('data-stack') && !pc._new.hasAttribute('data-wide'));
@@ -233,8 +237,55 @@ H.run('TIMERS PAGE', [
         house.set('timer.good_morning_timer', 'active', {});
         pc.hass = house.hass();
         H.ok('every House timer running: the section goes', pc._shouse.hidden === true);
+        // NO HELPERS: a Quick start key on a dashboard without the
+        // quick-timer helpers says so and calls nothing
+        var before = sent.length;
+        var bare = H.make('hk-timers-page-card');
+        real(bare._root);
+        bare.setConfig({ timers: SLOTS, house: [], quick_script: 'script.not_installed' });
+        bare.hass = answering({ started: true, slot: 'timer.quick_1' });
+        bare._quick(10);
+        H.ok('no timer helpers: Quick start calls nothing', sent.length === before);
+        H.ok('...and names the helpers, not the network', bare._hkStatus.kind === 'failed' &&
+             /helpers/.test(bare._hkStatus.text) && !/reach/i.test(bare._hkStatus.text), bare._hkStatus);
       });
     });
+  },
+
+  // THE PICKER'S STARTER CONFIG lists the quick-timer slots, as a generated
+  // Timers page does -- `timers: []` would never show a running quick timer.
+  function () {
+    H.section('starter config: the quick-timer slots');
+    var stub = customElements.get('hk-timers-page-card').getStubConfig;
+    var withSlots = H.house({
+      'timer.quick_1': ['idle', {}], 'timer.quick_2': ['active', {}],
+      'input_text.quick_timer_1_name': ['Pasta', {}]
+    }).hass();
+    H.eq('the installed slots, named from their input_text when there is one', stub(withSlots).timers, [
+      { entity: 'timer.quick_1', label: 'Quick Timer 1', glyph: 'mdi:timer-outline', label_entity: 'input_text.quick_timer_1_name' },
+      { entity: 'timer.quick_2', label: 'Quick Timer 2', glyph: 'mdi:timer-outline' }]);
+    H.eq('no helpers: an empty list', stub(H.house({}).hass()).timers, []);
+    H.ok('...and never a house: list (it would override House Timers)', !('house' in stub(withSlots)));
+  },
+
+  // HK TIMERS' SIZE follows what it shows: the empty line, or its rows.
+  function () {
+    H.section('hk-timers-card: getCardSize');
+    var rows = {}, ids = [1, 2, 3, 4, 5, 6, 7].map(function (i) { return 'timer.t' + i; });
+    ids.forEach(function (id) { rows[id] = ['idle', {}]; });
+    var house = H.house(rows), card = H.make('hk-timers-card');
+    card.setConfig({ timers: ids.map(function (id) { return { entity: id }; }) });
+    card.hass = house.hass();
+    H.eq('nothing running: one row (the empty line)', card.getCardSize(), 1);
+    house.set('timer.t1', 'active');
+    card.hass = house.set('timer.t2', 'paused');
+    H.eq('two running: one row of cards', card.getCardSize(), 4);
+    card.hass = house.set('timer.t4', 'active');
+    card.hass = house.set('timer.t5', 'active');
+    H.eq('four running: two rows', card.getCardSize(), 8);
+    card.setConfig({ fit: true, timers: ids.map(function (id) { return { entity: id }; }) });
+    card.hass = house.hass();
+    H.eq('fit, four running: its two compact rows', card.getCardSize(), 7);
   }
 
 ]);

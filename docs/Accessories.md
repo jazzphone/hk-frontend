@@ -1,9 +1,6 @@
 # Accessories
 
 How one accessory shows up on every screen: its name, room, icon, what its
-states are called, and where it appears.
-
-How one accessory shows up on every screen: its name, room, icon, what its
 states are called, and where it appears. These don’t change Home Assistant’s
 own names or icons (only the room is Home Assistant’s own), so voice assistants
 and other dashboards are untouched.
@@ -103,13 +100,34 @@ settings (the gear on its sheet), not with the fan’s own controls.
 
 ## Where it shows
 
-- **Include in Status**: off, no chip counts it, and Status & Chips leaves it out
-  of every kind. Because the category pages list what Status & Chips counts, it
-  also leaves those pages.
-- **Show on Home**: off, it isn’t on a generated screen’s Home. Its room page
-  and the category pages still list it, as in the Home app.
+![A coffee maker’s Where it shows and Also Count As: shown on Home and its room’s page, and counted as a light](images/settings-accessory-where.png)
+
+- **Show in HK Frontend**: off, it is hidden everywhere: every generated
+  screen, page and chip. It stays in Home Assistant and its automations.
+- Then a switch for each place it shows, to hide it from just that one: **Home**
+  (the Home screen’s room sections), **Room Page** (its tile on its own room’s
+  page), and the pages and chips of its kinds — **Climate** for a thermostat
+  (the Climate page and chip), **Lights**, **Security** for a lock, **Water**
+  for a leak sensor, and so on. Only the places it can be in are listed. Off
+  in one place, it still shows everywhere else: off Home, it keeps its room
+  page and the category pages, as in the Home app.
 - **Favorite on this dashboard** (on a generated screen’s sheet): adds it to,
   or removes it from, this screen’s Favorites.
+
+These are the same settings as its row in
+[Hidden Accessories](#hidden-accessories), which lists anything turned off
+here, and where.
+
+## Also Count As
+
+A switch for each kind it isn’t found in by itself but could be counted in: a
+switch as **Lights**, **Fans** or **Valves**, a camera that hears the smoke
+alarm as **Smoke & CO**, a temperature sensor as **Temperature** (a reading,
+only for what reports one). On, it is counted there too — by that kind’s chip,
+its page and its status row — on every screen. Turning it off is how it
+leaves a kind it was only added to. Shown only when there is a kind it could
+join. [What Counts](Status-Chips.md#what-counts) lists these under each
+kind’s **Also Counted**.
 
 ## As a favorite
 
@@ -157,6 +175,75 @@ own, in **HK Settings → Library → Accessories → Page Order**:
 A YAML dashboard’s tiles keep the names and glyphs written in its YAML; its
 detail sheets use these settings.
 
+## Hidden Accessories
+
+**HK Settings → Library → Accessories → Hidden Accessories.** One list of
+everything kept off your screens, and where. Each one stays in Home Assistant,
+and in its automations.
+
+![Hidden Accessories: Hide Accessories…, Show All, Everywhere or Some Places, and the whole devices hidden everywhere](images/settings-hidden.png)
+
+- **Accessories**: each hidden accessory, with its room and entity ID, and on
+  the right where it is hidden: *Everywhere*, or the places, such as
+  *Climate* or *Home, Lights*. Tap one to change where it is hidden, or to
+  **Show Everywhere Again**.
+- **Whole Devices**: a device hidden with all its accessories, one row each.
+- **Whole Rooms**: a hidden room. It opens the room’s settings, where a room is
+  hidden and shown again (**Show on Screens**, in
+  [Rooms](Rooms.md#a-rooms-settings)).
+- **By Page**: each page or chip with something hidden from it, and how many.
+  Its page lists them, and **Show All Again…** shows everything that page finds
+  again. What was added with [Also Count As](#also-count-as) stays.
+- **No Longer in Home Assistant**: hidden once, then removed from Home
+  Assistant. **Clear These** forgets them.
+- **Just Now**, at the top: what you just changed, until you leave the page.
+
+**Show** narrows the list to **Everywhere** or **Some Places**, and **Search
+Hidden** finds one by name, entity ID, room or place.
+
+To hide something:
+
+1. Select **Hide Accessories…**.
+2. Tick one or several (search finds them by name, entity ID or room), or
+   switch to **Whole Devices** and tick devices. Select **Next**.
+3. In **Hide From**, leave **Everywhere** on, or turn it off and choose under
+   **Or Only From**. With several picked, a place only some of them have says
+   so: *applies to 2 of 3*. A whole device is always hidden everywhere.
+4. Select **Hide**.
+
+A row’s **Hide From** is the same page; each switch saves as you change it.
+
+![Hide From for a water heater: not everywhere, only from Climate](images/settings-hide-from.png)
+
+The same switches are on the accessory itself, under
+[Where it shows](#where-it-shows).
+
+| Place | Hides it from |
+|---|---|
+| Everywhere | Every generated screen, page and chip |
+| Home | The Home screen’s room sections |
+| Room Page | Its tile on its own room’s page |
+| Climate | Thermostats on the Climate page and chip |
+| Lights | The Lights page and chip |
+| Security | Locks on the Security page and chip |
+| Water | Leak sensors on the Water page and chip |
+| Doors, Windows | The Doors & Windows page and chip |
+| Garage | The Security page and the Doors & Windows chip |
+| Blinds | The Blinds chip and the Climate page |
+| Fans | The Climate page and chip |
+| Valves | The Water page |
+| Smoke & CO | The Smoke & CO chip |
+| Timers, Vacuums | Their pages and chips |
+| Speakers | The Speakers chip |
+| Temperature, Humidity | The Climate page’s ranges |
+| Motion, Occupancy | The rooms with motion, or with someone in them, on status rows |
+
+Only the places an accessory can be in are offered. A water heater that
+shows up as a thermostat, for example, can be hidden from **Climate** alone:
+it leaves the Climate page and chip and keeps its tile in its room. A kind it
+was only added to with Also Count As isn’t a place to hide it from; turn
+Also Count As off instead.
+
 ## Accessories settings
 
 **Library → Accessories.** How each accessory shows up on every screen: its
@@ -167,10 +254,11 @@ are untouched.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Search Accessories | — | Find an accessory by name, entity ID or room. |
+| Search Accessories | — | Find an accessory by name, entity ID or room; each result shows its entity ID beside its room. It also finds the sensors a chip could count, so their pages (with [Also Count As](#also-count-as)) can be opened. |
 | Tapping an Accessory → HK Detail Sheets | On | Tapping an accessory’s name opens a Home app–style [detail sheet](Detail-Sheets-and-Popups.md) (a slider, the thermostat, the player, a graph), on every screen. Off: Home Assistant’s own more-info dialog. Either way, locks, the alarm, garage doors and thermostats never change from a single tap. A card keeps Home Assistant’s dialog with `detail: false` in its YAML. |
-| Hidden from Screens | None | Rooms (**Hide a Room…**), devices (**Hide a Device…**) and single accessories (**Hide an Accessory…**) left off every generated screen (its rooms, chips and pages) and never counted by Status & Chips, on any screen. To hide something from Home only, use its **Show on Home**. |
+| Hidden Accessories | None | Every hidden accessory and where it is hidden: everywhere, or just from some places (Home, its room’s page, the Climate page…). See [Hidden Accessories](#hidden-accessories). |
 | Also Shown | None | Things a generated screen wouldn’t show by itself: scenes, scripts, sensors. Each appears in its room, or in a section called **More** at the end of Home if it has no room. |
+| What Counts | — | What each status chip and category page counts, kind by kind. Read-only; see [What Counts](Status-Chips.md#what-counts). |
 | Page Order → Vacuums | A to Z | The order of the Vacuums page. |
 | Page Order → Security | Locks A to Z, then garage doors | The order of the locks and garage doors on the Security page. |
 | Rooms | — | Every room with accessories, then Timers and No Room. |
@@ -192,8 +280,9 @@ An accessory’s page holds the same settings as the gear on its
 | What it says → When on · When off | On · Off | *Switches and input booleans.* What its states are called on its tiles and as a favorite (“Blocked” and “Allowed” for a switch that blocks a game). Whether it is lit still follows its state. |
 | Icon | Auto | A glyph offered by what it is, or any glyph or Material Design icon found with **Search all icons**. A door or window sensor’s glyph comes as an open and shut pair. |
 | Spinning | Automatic | *Shown for a fan, or something drawn as one.* **Spin** or **Still**: whether its tile’s glyph turns while it is on. Automatic is its kind (a fan spins, anything else doesn’t). |
-| Include in Status | On | Off: no chip counts it, and Status & Chips leaves it out everywhere. |
-| Show on Home | On | Off: not on a generated screen’s Home. Its room page and the category pages still list it. |
+| Where it shows → Show in HK Frontend | On | Off: hidden everywhere — every generated screen, page and chip. The same as hiding it Everywhere in [Hidden Accessories](#hidden-accessories). |
+| Where it shows → each place | On | One switch per place it can be in: **Home**, **Room Page** (its tile on its own room’s page) and the pages and chips of its kinds (**Climate**, **Lights**, **Security**…). Off: hidden from just that place. See [Where it shows](#where-it-shows). |
+| Also Count As | Off | *Shown when there is a kind it could join.* One switch per kind it isn’t found in by itself (a switch as Lights, Fans or Valves; a camera’s alarm as Smoke & CO; a temperature sensor as Temperature). On: counted there too, on every screen. |
 | Favorite on this dashboard | Off | *On a generated screen’s sheet only.* Adds it to, or takes it off, this screen’s Favorites. |
 | As a favorite → Name · Room · glyph · Together with | Its own | *Shown for a favorite.* Its name, the room line above it and its glyph on the Favorites row of every screen where it is a favorite. **Room** is for something with no area of its own (a helper). **Together with** (lights, switches and input booleans): up to 8 more it controls as one favorite (“Main + Table Lights”). |
 | Color | Auto | White, Yellow, Orange, Red, Pink, Purple, Blue, Teal, Mint or Green: its color everywhere it appears — its tiles on every page, its favorite, its chip and its button in the Scenes row. Auto: its kind’s color (a scene’s: white). |

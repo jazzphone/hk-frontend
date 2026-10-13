@@ -21,10 +21,19 @@ DEFAULTS = {CONF_STAY: STAY_DEFAULT, CONF_SAVER: SAVER_DEFAULT, CONF_CHIME: True
 
 # one notification's fields
 ITEM_FIELDS = ("entity", "category", "exclude", "pairs", "when", "only", "cooldown", "title", "message", "important", "wake", "stay",
-               "pop", "snap", "camera", "tap", "allday")
+               "pop", "snap", "camera", "tap", "page", "go", "allday")
 ONLY = ("always", "home", "away", "night")
 COOLDOWNS = (0, 60, 300, 900, 3600)
-TAPS = ("camera", "sheet", "none")
+# Tap Opens: its sheet (the notification at its top), the live camera, a
+# page of the screen's (`page`), or nothing
+TAPS = ("sheet", "camera", "page", "none")
+# Go To on its sheet: Automatic (None -- the page the screen shows it on, else
+# its room's), "none", or a page's path
+GO_NONE = "none"
+PAGE_RE = r"^[a-z0-9][a-z0-9_-]{0,63}$"
+# Mute 1 Hour (a sheet's button): that notification -- for a category, that
+# accessory -- quiet on every screen
+MUTE_S = 3600
 ITEMS_MAX = 60
 TITLE_MAX = 40
 MESSAGE_MAX = 120

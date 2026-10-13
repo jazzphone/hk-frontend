@@ -240,9 +240,9 @@
     var timeSize = o.timeSize || '72px';
     var ampmSize = o.ampmSize || '26px';
     var dateSize = o.dateSize || '21px';
-    var fg = o.fg || 'rgba(255,255,255,0.95)';
-    var fgDim = o.fgDim || 'rgba(255,255,255,0.70)';
-    var dateFg = o.dateFg || 'rgba(255,255,255,0.72)';
+    var fg = o.fg || 'var(--hk-ink, rgba(255,255,255,0.94))';
+    var fgDim = o.fgDim || 'var(--hk-ink-2, rgba(255,255,255,0.68))';
+    var dateFg = o.dateFg || 'var(--hk-ink-2, rgba(255,255,255,0.68))';
     var dateGap = o.dateGap || '8px';
     // Defaults are the wall header's. A car dashboard scales the sizes and nudges
     // the tracking with them; anything not passed stays the wall's value, so
@@ -361,8 +361,8 @@
     var detailLs = o.detailLs || '-0.44px';
     var detailGap = o.detailGap || '6px';
     var gap = o.gap || '14px';
-    var fg = o.fg || 'rgba(255,255,255,0.95)';
-    var fgDim = o.fgDim || 'rgba(255,255,255,0.72)';
+    var fg = o.fg || 'var(--hk-ink, rgba(255,255,255,0.94))';
+    var fgDim = o.fgDim || 'var(--hk-ink-2, rgba(255,255,255,0.68))';
     // THESE THREE MUST EMIT NOTHING WHEN UNSET, and that is the whole contract
     // that keeps the wall header byte-identical: `row()` passes its own `o`
     // straight through to this function, so any key it sets would leak in here
@@ -374,7 +374,9 @@
     var boxSizing = o.boxSizing ? ' box-sizing:' + o.boxSizing + ';' : '';
     var selfShadow = o.selfShadow ? ' filter:' + o.selfShadow + ';' : '';
 
-    var wid = S() ? S().weatherId(states) : null;
+    // o.entity: a weather entity of the caller's own (the strip card's
+    // `entity`), else the one HK Settings chose
+    var wid = (o.entity && states[o.entity]) ? o.entity : (S() ? S().weatherId(states) : null);
     var w = (wid && states[wid]) || {};
     var a = w.attributes || {};
     var temp = num(a.temperature);
@@ -557,15 +559,15 @@
     o = o || {};
     var line1Size = o.line1Size || '30px';
     var lineSize = o.lineSize || '21px';
-    var fg = o.fg || 'rgba(255,255,255,0.96)';
-    var fgDim = o.fgDim || 'rgba(255,255,255,0.76)';
+    var fg = o.fg || 'var(--hk-ink, rgba(255,255,255,0.94))';
+    var fgDim = o.fgDim || 'var(--hk-ink-2, rgba(255,255,255,0.68))';
     var pad = o.pad || '0px 0px 18px 24px';
     var minHeight = o.minHeight || '96px';
     // right (a corner) or left (the screensaver's calendar pane, with the
     // list under it)
     var align = o.align === 'left' ? 'left' : 'right';
     var shadow = o.shadow ||
-      'drop-shadow(0px 1px 3px rgba(0,0,0,0.30)) drop-shadow(0px 3px 12px rgba(0,0,0,0.28)) drop-shadow(0px 6px 26px rgba(0,0,0,0.30))';
+      'var(--hk-glow, drop-shadow(0px 1px 3px rgba(0,0,0,0.30)) drop-shadow(0px 3px 12px rgba(0,0,0,0.28)) drop-shadow(0px 6px 26px rgba(0,0,0,0.30)))';
 
     var s = status(states);
     var items = s.items;
@@ -614,7 +616,7 @@
     o = o || {};
     var gap = o.gap || '34px';
     var shadow = o.shadow ||
-      'drop-shadow(0px 1px 3px rgba(0,0,0,0.30)) drop-shadow(0px 3px 12px rgba(0,0,0,0.28)) drop-shadow(0px 6px 26px rgba(0,0,0,0.30))';
+      'var(--hk-glow, drop-shadow(0px 1px 3px rgba(0,0,0,0.30)) drop-shadow(0px 3px 12px rgba(0,0,0,0.28)) drop-shadow(0px 6px 26px rgba(0,0,0,0.30)))';
     return '\n' +
       '    <div style="\n' +
       '      display:flex;\n' +

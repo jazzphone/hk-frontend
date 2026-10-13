@@ -180,9 +180,14 @@ notify:
       selector:
         select:
           options:
-            - camera
             - sheet
+            - camera
+            - page
             - none
+    page:
+      example: kitchen
+      selector:
+        text:
     dashboards:
       example: dashboard-kitchen
       selector:

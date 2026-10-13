@@ -676,6 +676,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ACC = { entities: {
       'switch.kitchen_coffee': { name: 'Coffee Maker', icon: 'hk:coffee', show_as: 'light' },
       'light.kitchen_table_light': { home: false },
+      'light.kitchen_lights': { room: false },
       'lock.front': { names: { '': 'Front', other: 'Elsewhere' }, icon: 'mdi:gate' } },
     rooms: { kitchen: ['switch.kitchen_coffee', 'light.kitchen_lights'] } };
   window.hkSettings = { get: function (p, f) { return p === 'accessories' ? ACC : f; },
@@ -688,6 +689,9 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('Show in Home off: not on Home...', JSON.stringify(g.views[0]).indexOf('light.kitchen_table_light') < 0);
   var kr = g.views.filter(function (v) { return v.path === 'room-kitchen'; })[0];
   ok('...but on its room\'s page', JSON.stringify(kr).indexOf('light.kitchen_table_light') > 0);
+  // HIDDEN FROM ITS ROOM PAGE only (Hidden Accessories, room: false): on Home still
+  ok('Room Page off: not on its room\'s page...', JSON.stringify(kr).indexOf('light.kitchen_lights') < 0);
+  ok('...but on Home', JSON.stringify(g.views[0]).indexOf('light.kitchen_lights') > 0);
   ok('the accessory\'s name, as given', k[0].name === 'Coffee Maker', k[0].name);
   ok('its glyph', k[0].icon === 'hk:coffee');
   ok('...at that glyph\'s measured size', k[0].icon_size === '26px', k[0].icon_size);

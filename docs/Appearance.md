@@ -12,15 +12,26 @@ choose its own.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Glass Style | Glass | How pills, tiles, chips, scenes and keypads look: **Glass**, the original see-through glass, with the status chips and the round menu button beside them blurring what’s behind them. **Frosted**, a milky material with no blur: it costs nothing per frame on any device. **Blur**, what’s behind the glass blurred — choose how with **Blur Mode**. |
+| Glass Style | Glass | How pills, tiles, chips, scenes and keypads look: **Glass**, the original see-through glass, with the status chips and the round menu button beside them blurring what’s behind them. **Frosted**, a milky material with no blur: it costs nothing per frame on any device. **Tinted**, the Home app’s look: a flat dark plate with no blur anywhere on the page, the lightest on any device — see [Tinted](#tinted) below. **Blur**, what’s behind the glass blurred — choose how with **Blur Mode**. |
 | Blur Mode | Shared Layer | Shown when the Glass Style is Blur: **Shared Layer**, **Pre-rendered (Experimental)** or **Each Card**. What each costs and can’t do: [Blur Mode](#blur-mode) below. |
 | Frost | 50% | Shown when the Glass Style is Frosted. How milky it is, 0 to 100%. |
 | Tint from Background | Off | Shown when the Glass Style is Frosted. On: each card's frost takes the color of the page behind it (the sky at the card's height, the scenery's ground lower down) instead of one gray, at one darkness so white text reads the same on every page. It changes with the live sky through the day. Cards in pop-ups, the screensaver and Music (album art) keep the gray. Costs nothing per frame. |
 | Blur | 50% | Shown when the Glass Style is Blur, in any Blur Mode. How strong the blur is, 0 to 100%: 50% is 20 px, 100% is 40 px. |
+| Darkness | 50% | Shown when the Glass Style is Tinted. How much of the background shows through an off card: 0% is 40% dark, 50% is 75%, 100% is 90%. |
+| Icon Circles | Dark | Shown when the Glass Style is Tinted. **Dark**, as the Home app draws the circle behind an off accessory’s icon, or **Light**, which keeps its shape over dark scenery. |
 | Page Pills | Default | Every page pill: the pills in a screen’s Scenes row that open a page. Tap one to set its name, icon and color, the same on every screen ([Home Page](Home-Page.md#scenes-and-page-pills)). |
 
-![The Glass Style page: Glass, Frosted and Blur, with Blur Mode's three choices under it](images/settings-glass-style.png)
-*All Screens → Appearance → Glass Style, with Blur chosen and its Blur Mode below.*
+![The Glass Style page: Glass, Frosted, Tinted and Blur, with Blur Mode's three choices under it](images/settings-glass-style.png)
+*All Screens → Appearance → Glass Style: the four styles, and with Blur chosen, its Blur Mode below.*
+
+The four styles side by side:
+
+| Style | What blurs | What it costs | Best for |
+|---|---|---|---|
+| **Glass** (the default) | Only the status chips and the round menu button | Little | Most screens |
+| **Frosted** | Nothing: a milky plate | Nothing per frame | Any device; the plate can take the page's color (**Tint from Background**) |
+| **Tinted** | Nothing on the page: the Home app's flat dark plate | The least of all | A slow wall tablet, or anyone who wants the Home app's look |
+| **Blur** | Whatever is behind the glass, made as **Blur Mode** says | From light (Pre-rendered) to the heaviest (Each Card) | The see-through look; see [Blur Mode](#blur-mode) |
 
 ### Blur Mode
 
@@ -45,10 +56,31 @@ on), measured for 1.7:
 
 Standing still, every mode is close to 60 frames a second; on these tablets
 most of the work is the animated sky itself, whatever the glass. Glass and
-Frosted scroll about as smoothly as Pre-rendered.
+Frosted scroll about as smoothly as Pre-rendered, and Tinted, with nothing
+on the page blurring at all, is lighter still.
 
 A screen or All Screens set to **Baked**, a mode tried before 1.7 and taken
 out, now uses Pre-rendered.
+
+### Tinted
+
+![Home on a wall tablet in the Tinted look: flat dark plates over a sharp sky, the lit accessories white](images/tablet-home-tinted.png)
+*Home in the Tinted look.*
+
+**Tinted** draws every card the way the Home app does: a flat, dark,
+see-through plate, opaque white when the accessory is on, and a tight shadow
+right under the edge instead of a soft glow. Nothing on the page blurs: no
+shared layer, no picture of the sky, no card blurring itself. The status
+chips, the menu’s edge tab and the round menu button are Tinted plates too,
+and the menu panel and the tab bar (set to **Same as Screen**) are near-solid.
+
+The Home app’s plate blurs the wallpaper behind it, so it can stay light.
+Tinted doesn’t, so the scenery shows through sharply, and it is darker to make
+up for it. Choose how dark with **Darkness**.
+
+Detail sheets, pop-ups and notifications still blur what is behind them while
+they are open, as the Home app’s do. Cards inside a sheet get a lighter plate,
+so they never turn into dark holes on the dark sheet.
 
 A card can stay out of the shared blur with `glass: false`. Whether tapping an
 accessory opens an HK detail sheet is **HK Detail Sheets**, under
@@ -60,8 +92,9 @@ accessory opens an HK detail sheet is **HK Detail Sheets**, under
 
 | Setting | Default | What it does |
 |---|---|---|
-| Glass Style | Same as All Screens | **Same as All Screens** (the row says *Same as All Screens* under its name, and the glass it follows, *Glass*), or under **Just This Screen** **Glass**, **Frosted** or **Blur** — and with Blur, its **Blur Mode**: **Shared Layer**, **Pre-rendered (Experimental)** or **Each Card**. See [Appearance](#every-screen) for what each looks like and costs. |
-| Frost / Blur | Same as All Screens | Shown for the amount this screen’s glass uses. Moving it gives this screen its own amount. |
+| Glass Style | Same as All Screens | **Same as All Screens** (the row says *Same as All Screens* under its name, and the glass it follows, *Glass*), or under **Just This Screen** **Glass**, **Frosted**, **Tinted** or **Blur** — and with Blur, its **Blur Mode**: **Shared Layer**, **Pre-rendered (Experimental)** or **Each Card**. See [Appearance](#every-screen) for what each looks like and costs. |
+| Frost / Blur / Darkness | Same as All Screens | Shown for the amount this screen’s glass uses. Moving it gives this screen its own amount. |
+| Icon Circles | Same as All Screens | Shown when this screen uses Tinted. Choosing one gives this screen its own; **Reset to All Screens** goes back to following All Screens. |
 | Reset to All Screens (50%) | — | Shown once the screen has its own amount, with All Screens’ amount. Goes back to following All Screens. |
 | Tint from Background | Same as All Screens | Shown when this screen uses Frosted. Turning it on or off gives this screen its own; **Reset to All Screens** goes back to following All Screens. |
 | Sky / Background | On | The screen’s [Sky / Background](Live-Sky.md#choose-its-look) page, which starts with its **Live Sky** switch. Reads **Off** when the live sky is off: a plain background instead of the animated sky. Its own **Moving Things**, **Pause When Not in Focus**, **Rain & Snow**, Clouds and the rest are there too, each Same as All Screens until changed. A YAML screen’s sky comes from its YAML; Live Sky can only turn it off. |

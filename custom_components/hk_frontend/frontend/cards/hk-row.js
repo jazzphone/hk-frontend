@@ -243,7 +243,13 @@
     // drag at all (_dragOff === null on a live row). Wiring belongs on
     // connect, and it has to be idempotent because connect can fire more
     // than once.
-    connectedCallback() { this._wireDrag(); }
+    connectedCallback() {
+      // on someone else's dashboard: the row, not the cards in it, carries
+      // the light look (hk-base.js place / tone)
+      if (window.hkCards && window.hkCards.place) window.hkCards.place(this);
+      if (window.hkCards && window.hkCards.tone) window.hkCards.tone(this, this._hass);
+      this._wireDrag();
+    }
 
     // A card removed from the DOM must not leave listeners on document.
     disconnectedCallback() {
@@ -502,6 +508,7 @@
     }
 
     set hass(h) {
+      if (window.hkCards && window.hkCards.tone) window.hkCards.tone(this, h);
       this._hass = h;
       for (var i = 0; i < this._children.length; i++) this._children[i].hass = h;
     }
@@ -514,6 +521,8 @@
 
   function reg() {
     var C = window.hkCards;
+    // its size in HA's Sections view (hk-base.js GRID)
+    if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-row-card', HkRowCard);
     if (!customElements.get('hk-row-card')) customElements.define('hk-row-card', HkRowCard);
     if (C && C.editor) {
       var etag = C.editor('hk-row-card', [
@@ -539,7 +548,10 @@
     }
     if (!Object.prototype.hasOwnProperty.call(HkRowCard, 'getStubConfig')) {
       HkRowCard.getStubConfig = function () {
-        return { type: 'hk-row-card', card_width: '192px', gap: 12, cards: [] };
+        // NO `type` here: the card picker lays this over its own
+        // `custom:hk-row-card`, and a bare `hk-row-card` is a type Home
+        // Assistant does not know ("Unknown type").
+        return { card_width: '192px', gap: 12, cards: [] };
       };
     }
     window.customCards = window.customCards || [];

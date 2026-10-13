@@ -44,7 +44,7 @@ The font and glyph entries name the tools by their path in the HK Frontend repos
 
 ## A change doesn’t show on a screen
 
-**A setting.** A change in HK Settings reaches every open screen within about a second, with no reload. A generated screen rebuilds itself within about ten seconds when something it is built from changes — its pages, favorites and cameras, Status & Chips, hidden accessories, the alarm, the weather — and stays on the page you are looking at. It also rebuilds when you move a device to another area, or rename an area or a floor.
+**A setting.** A change in HK Settings reaches every open screen within about a second, with no reload. A generated screen rebuilds itself within about ten seconds when something it is built from changes — its pages, favorites and cameras, what the chips count, hidden accessories, the alarm, the weather — and stays on the page you are looking at. It also rebuilds when you move a device to another area, or rename an area or a floor.
 
 **An update of HK Frontend.** After HACS updates HK Frontend, restart Home Assistant, then reload each screen — twice. Everything HK Frontend serves under `/hk/` is sent with `Cache-Control: no-cache`, so a browser checks for a newer copy every time it loads a screen. But the first load after an update can still be answered from Home Assistant’s service worker with the previous copy; the second load gets the new one. Judge a change only after the second reload.
 
@@ -108,7 +108,8 @@ what helps most:
 - **Glass Style.** Blur’s **Each Card** is far too heavy for a wall tablet
   (about 32 frames a second while scrolling). **Pre-rendered** scrolls the
   most smoothly, the Now Playing bar up or not; **Shared Layer** is fine
-  until the page scrolls under the bar. See
+  until the page scrolls under the bar. **Tinted** blurs nothing on the page
+  and is the lightest of all. See
   [Appearance → Blur Mode](Appearance.md#blur-mode).
 - **Rain & Snow** off keeps the clouds but drops the falling weather;
   **Animations** off stills the whole sky ([Live Sky](Live-Sky.md#choose-its-look)).

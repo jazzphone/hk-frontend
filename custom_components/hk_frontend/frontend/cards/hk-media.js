@@ -27,6 +27,33 @@
       SELECTED_BG = C.SELECTED_BG, SELECTED_TEXT = C.SELECTED_TEXT,
       esc = C.esc, button = C.button;
 
+  // MUSIC NOT ADDED (2026-10-12). Without the Music feature the player and
+  // the speaker picker have no speakers -- empty rooms, "Pick speakers on
+  // Play Music" -- so they say what is missing instead. ONLY ON THE
+  // INTEGRATION'S OWN ANSWERS: hkMusic.configured() is false until
+  // hk_music/subscribe answers, and the settings feed's `added` is a stored
+  // copy until it is live, so a house WITH Music never sees this line while
+  // a page loads. (Same rule in hk-music.js and hk-library.js.)
+  var NO_MUSIC = 'Add the Music feature to play music here (Settings → Devices & services → HK Frontend → Add feature).';
+  function musicMissing() {
+    var Mu = window.hkMusic, HS = window.hkSettings;
+    if (!Mu || !Mu.configured || Mu.configured()) return false;
+    return !!(HS && HS.live && !(C.added && C.added('music')));
+  }
+  // The line, in place of the card. `_built` goes false, so the card builds
+  // itself from scratch once Music is added.
+  function drawNoMusic(card) {
+    card._root.innerHTML = '';
+    var el = document.createElement('ha-card');
+    el.setAttribute('data-hk-role', 'no-music');
+    el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
+      M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
+      'color:var(--hk-ink-2,rgba(255,255,255,0.68))';
+    el.textContent = NO_MUSIC;
+    card._root.appendChild(el);
+    card._built = false;
+  }
+
   // ------------------------------------------------------- hk-now-playing
   //
   // THE player. One card, two places: the Play Music page and the #media
@@ -185,7 +212,19 @@
       // overflow:hidden for their ellipsis, which crops a text-shadow -- see
       // the note on .player. A filter applies to the clipped result instead.
       sel + ' .title,' + sel + ' .artist,' + sel + ' .player{',
-      '  filter:drop-shadow(0 2px 8px rgba(0,0,0,.55))}',
+      '  filter:var(--hk-glow,drop-shadow(0 2px 8px rgba(0,0,0,.55)))}',
+      // ON A LIGHT PAGE (hk-base.js tone(): someone else's dashboard, no
+      // sky) there is no page wash under this plate-less player -- the text
+      // and the transport glyphs take the theme's ink instead of white. Each
+      // fallback is the base rule's own value, so with the tone unset (HK's
+      // screens, where the sky paints the cover) nothing here changes.
+      sel + ' .title{color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      sel + ' .artist{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      sel + ' .player{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+      sel + ' .art .none{background:var(--hk-key,rgba(255,255,255,.07))}',
+      sel + ' .tb ha-icon{color:var(--hk-glyph,rgba(255,255,255,.95));',
+      '  filter:var(--hk-glow,drop-shadow(0 2px 5px rgba(0,0,0,.55)))}',
+      sel + ' .tb:active ha-icon{filter:var(--hk-glow,drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9))}',
       // A LIGHTER SHADOW THAN THE PLATED PLAYER'S, so the album art's shadow
       // looks deliberate. The base rule is `0 22px 54px rgba(0,0,0,.55)`,
       // for artwork on a dark opaque plate that swallows most of it. On a
@@ -701,6 +740,12 @@
         // variables tall() alone defines leak -- which is why it looks like
         // a centring bug rather than the wrong layout.
       '@media (max-width:640px){' + tall('ha-card.np:not(.bar)') + '}',
+      // ITS OWN DARK PLATE (wide and the docked bar): on a light page the
+      // controls on it -- hk-media-control-card's progress and volume --
+      // keep today's white. The tall layout has no plate and takes the light
+      // look (tall() above).
+      ':host([data-hk-light]) ha-card.np.bar{' + window.hkCards.LIGHT_OFF + '}',
+      '@media (min-width:641px){:host([data-hk-light]) ha-card.np:not(.tall){' + window.hkCards.LIGHT_OFF + '}}',
         '@media (prefers-reduced-motion:reduce){',
         '  .np .tb,.np .tb:active{transition:none;transform:none}}'
       ].join('');
@@ -946,7 +991,8 @@
              (p ? p.entity_id + p.last_updated : 'none') + '|' +
              // group_members changes without last_updated moving in some
              // integrations, and the player line names every joined room.
-             ((a.group_members || []).join(',')) + '|' + (a.media_title || '');
+             ((a.group_members || []).join(',')) + '|' + (a.media_title || '') +
+             (musicMissing() ? '|no-music' : '');
     }
 
 
@@ -1058,6 +1104,19 @@
 
     _render() {
       var cfg = this._config;
+      // NO MUSIC FEATURE: the line instead of an empty player -- or, for a
+      // card that hides while nothing plays (the docked bar), nothing
+      if (musicMissing()) {
+        if (cfg.hide_idle) {
+          if (this.style.display !== 'none') this.style.display = 'none';
+          this._root.innerHTML = '';
+          this._built = false;
+        } else {
+          drawNoMusic(this);
+        }
+        this._e = null; this._metaCard = null; this._subCard = null;
+        return;
+      }
       if (!this._built) {
         this._root.innerHTML =
           '<ha-card class="np' + (cfg.bar ? ' bar' : '') + (cfg.tall ? ' tall' : '') +
@@ -1551,7 +1610,7 @@
         // here traces the same box -- as long as it also carries the same
         // radius, hence the shared token rather than the 23.5px literal.
         '.tiles > *{--hk-cell-bleed:0px;border-radius:' + window.hkCards.M.radius + ';',
-        '  box-shadow:0 6px 18px rgba(0,0,0,0.10)}',
+        '  box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10))}',
         // 37px of top padding, and the number is an ALIGNMENT, not a taste.
         //
         // It gives more air above this heading AND lines the bottom of the
@@ -1565,17 +1624,18 @@
         // IT IS ONLY TRUE FOR THIS STACK. Add a speaker, a floor or a
         // playlist row and it drifts -- re-measure rather than trusting it.
         '.sub{font-size:15px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:rgba(235,235,235,0.75);padding:37px 4px 8px 4px}',
+        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:37px 4px 8px 4px}',
         '.notice{font-size:14px;color:var(--hk-warn,#FFB340);',
         '  padding:0 4px 8px 4px}',
         '.notice.note{cursor:pointer}',
         // Same rule as the vacuum picker: it separates things that only change
         // a selection from things that act on the home.
         '.rule{height:1px;margin:6px 4px 16px 4px;padding:0;border:none;',
-        '  border-radius:0;box-shadow:none;background:rgba(255,255,255,0.14)}',
+        '  border-radius:0;box-shadow:none;background:var(--hk-line,rgba(255,255,255,0.14))}',
         // A preset is a shortcut, not a twelfth speaker. The dashed border says
         // "this fills the boxes below" without inventing a new material.
-        '.preset{border-style:dashed}',
+        // (Tinted draws no edge: --hk-look-dash gives the shortcut its own)
+        '.preset{border:var(--hk-look-dash, ' + window.hkCards.M.border + ');border-style:dashed}',
         '.preset[aria-pressed="true"]{border-style:solid}',
 
         // ---- THE CONTEXT ROW: one card per separate thing the home is
@@ -1618,17 +1678,17 @@
         // only new shape is the 38px artwork chip, which is what makes a
         // context recognisable at a glance from across the room.
         '.cx{border-radius:' + M.radius + ';border:' + M.border + ';',
-        '  ' + M.glass + ';box-shadow:0 6px 18px rgba(0,0,0,0.10);',
+        '  ' + M.glass + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10));',
         '  padding:9px 12px;display:grid;grid-template-columns:38px minmax(0,1fr);',
         '  column-gap:10px;align-items:center;cursor:pointer;user-select:none;',
         '  transition:background-color .22s ease, transform .12s ease}',
         '.cx:active{transform:scale(0.97)}',
         '.cx .sw{width:38px;height:38px;border-radius:9px;overflow:hidden;',
-        '  background:rgba(255,255,255,0.10);display:flex;',
+        '  background:var(--hk-key,rgba(255,255,255,0.10));display:flex;',
         '  align-items:center;justify-content:center}',
         '.cx .sw img{width:100%;height:100%;object-fit:cover;display:block}',
         '.cx .sw ha-icon{--mdc-icon-size:20px;width:20px;height:20px;',
-        '  color:rgba(255,255,255,0.7)}',
+        '  color:var(--hk-glyph,rgba(255,255,255,0.7))}',
         // THE TEXT SCROLLS WHEN IT WILL NOT FIT in the smaller pill.
         //
         // On a 192px card, minus a 38px cover and its gap and the padding,
@@ -1642,9 +1702,9 @@
         '.cx .nm,.cx .tr{white-space:nowrap;overflow:hidden;',
         '  text-overflow:ellipsis}',
         '.cx .nm{font-size:13px;font-weight:700;letter-spacing:-0.2px;',
-        '  color:rgba(255,255,255,0.94)}',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94))}',
         '.cx .tr{margin-top:1px;font-size:11.5px;font-weight:500;',
-        '  color:rgba(255,255,255,0.62)}',
+        '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
         // The travelling element loses its ellipsis -- the two together read
         // as a bug, a line that slides AND is cut off at the same edge.
         '.cx .go{text-overflow:clip}',
@@ -1696,7 +1756,7 @@
         // selected white plate.
         '.pill .pi{position:absolute;right:10px;top:0;bottom:0;',
         '  display:flex;align-items:center;pointer-events:none;',
-        '  color:rgba(255,255,255,0.88)}',
+        '  color:var(--hk-glyph,rgba(255,255,255,0.88))}',
         '.pill .pi svg{width:16px;height:16px;display:block;fill:currentColor}',
         // AMBER ONLY FOR THE EXCEPTION. "Playing what you are looking at" is
         // the ordinary case and takes the ordinary colour; "playing something
@@ -1755,7 +1815,7 @@
         // floor label over a grid of things you can tick. Two pages that look
         // the same should BE the same rule, not two near-copies.
         '.floor{font-size:15px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:rgba(235,235,235,0.75);padding:0px 4px 8px 4px}'
+        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:0px 4px 8px 4px}'
       ].join('');
     }
 
@@ -1830,7 +1890,8 @@
         return (c.image || '') + '~' + (c.artist || '');
       }).join(',');
       return r.player + ':' + r.reason + '|' + (src || '-') + '|' +
-             (st ? st.state : '-') + '|' + rooms + '|' + presets + '|' + ctx;
+             (st ? st.state : '-') + '|' + rooms + '|' + presets + '|' + ctx +
+             (musicMissing() ? '|no-music' : '');
     }
 
     // THE HOME COMES FROM THE INTEGRATION: rooms, presets, floors and
@@ -2387,6 +2448,8 @@
 
     _render() {
       if (!this._config) return;
+      // NO MUSIC FEATURE: no rooms, presets or playlists to draw -- say so
+      if (musicMissing()) { drawNoMusic(this); return; }
       this._seed();
       // BEFORE ANYTHING IS DRAWN OR COUNTED. A speaker that went away while
       // it was ticked must not survive into the heading, the play target or
@@ -2949,23 +3012,43 @@
     'Choose one or more speakers, then tap a playlist to play it on them. The speakers, presets and playlists are set up in HK Settings → Features → Music.',
     C && [
       { name: 'browse_url', label: 'Browse page',
-        helper: 'Where the Browse Music pill goes. Speakers, presets and playlists are set up in HK Settings → Features → Music.',
+        helper: 'Where the Browse Music pill goes, e.g. ./music-browse on HK Frontend\'s own screens. Empty: no pill. Speakers, presets and playlists are set up in HK Settings → Features → Music.',
         selector: { text: {} } }
     ],
-    function () { return { browse_url: './music-browse' }; });
+    // NO browse_url IN THE STUB: ./music-browse is a page only HK Frontend's
+    // generated screens have, so on a dashboard of your own the pill would
+    // lead nowhere. Without it there is no pill; the option stays.
+    function () { return {}; });
 
   register('hk-now-playing-card', HkNowPlayingCard, 'HK Now Playing',
     'Artwork, track and controls for the music this screen is showing.',
     C && [
+      { name: 'hide_idle', label: 'Hide When Idle',
+        helper: 'Draws nothing while nothing is playing or paused.',
+        selector: { boolean: {} } },
+      { name: 'tall', label: 'Tall layout',
+        helper: 'Stacks artwork, track and controls in one column, for a narrow column or a phone.',
+        selector: { boolean: {} } },
       C.section('Controls', [
-        { name: 'meta_card', selector: { object: {} } },
-        { name: 'sub_card', helper: 'Second control card, placed in the `sub` grid area. The bar uses it for the progress bar.', selector: { object: {} } },
-        { name: 'tall', label: 'Tall layout',
-          helper: 'Stacks artwork, track and controls in one column, for a narrow column or a phone.',
-          selector: { boolean: {} } }
+        { name: 'meta_card', label: 'Controls Card',
+          helper: 'Drawn under the track, as YAML: usually HK Media Controls following the screen\'s music, with the progress bar and volume (just the volume in the tall layout).',
+          selector: { object: {} } },
+        { name: 'sub_card', label: 'Progress Card',
+          helper: 'Tall layout only: drawn between the track and the buttons, as YAML. Usually HK Media Controls with just the progress bar.',
+          selector: { object: {} } }
       ], 'mdi:play-pause')
     ],
-    function () { return { music: true }; });
+    // A CARD FROM THE PICKER HAS CONTROLS: the progress bar and volume, as an
+    // HK Media Controls card following the screen's music -- what the Play
+    // Music page and the docked bar draw (hk-strategy.js mediaBar), in the one
+    // slot the default (wide) layout has. `sub_card` has no place in the wide
+    // grid (it is the tall layout's and the bar's), so the stub does not use
+    // it. No `music: true`: the player always follows the screen's music
+    // (hkMusic) and never read it.
+    function () {
+      return { meta_card: { type: 'custom:hk-media-control-card', color: 'purple', bare: true,
+                            parts: ['progress', 'volume'], entity_from: { music: true } } };
+    });
 
   register('hk-screensaver-now-card', HkScreensaverNowCard,
     'HK Screensaver Now Playing',
@@ -2976,6 +3059,8 @@
           { name: 'players', helper: 'Instead of the above: these players, in priority order (groups first).',
             selector: { entity: { multiple: true, filter: { domain: 'media_player' } } } }],
     function () { return { music: true }; });
+  // the screensaver's own (hk-saver.js): not offered in the card picker
+  if (C && C.unlisted) C.unlisted('hk-screensaver-now-card');
 
   // ---------------------------------------------------------------------
   // hk-browse-card -- Music Assistant's own web UI, inside a dashboard page.
@@ -3057,7 +3142,7 @@
         this._root.innerHTML =
           '<style>.hkb{display:flex;align-items:center;justify-content:center;' +
           'height:' + (cfg.height || '70vh') + ';padding:0 32px;text-align:center}' +
-          '.hkb .in{max-width:520px;color:var(--hk-text,#fff);font:400 16px/1.5 system-ui}' +
+          '.hkb .in{max-width:520px;color:var(--hk-text,var(--hk-ink,rgba(255,255,255,0.94)));font:400 16px/1.5 system-ui}' +
           '.hkb h3{font:600 20px/1.3 system-ui;margin:0 0 10px}' +
           '.hkb a{color:var(--hk-accent,#2f95dc)}</style>' +
           '<div class="hkb"><div class="in"><h3>Music Assistant is on your local network</h3>' +

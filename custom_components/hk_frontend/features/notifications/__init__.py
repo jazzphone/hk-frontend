@@ -22,6 +22,13 @@ and message, sent the same way -- the same channel, snapshot and wake, each
 screen deciding the same -- to every screen, or only those showing the
 dashboards it lists or signed in as the users it lists.
 
+A TAP OPENS ITS SHEET (hk-notify.js, hk-detail.js `note`): the accessory's
+own, the notification at its top with the page it lives on and Mute 1 Hour.
+A mute (hk_notify/mute, any user -- muting only makes the house quieter) is
+kept here, in memory, by `mute` key -- an item's id and the accessory, so a
+category mutes one door, not every door -- and the Watcher and the calendars
+send nothing for it until it runs out.
+
 WAKES THE SCREEN (an Important one's): every screen the house's Sleep Screen
 decides for, and that allows notifications, is woken for a while
 (sleep_engine.Engine.notify_wake) -- from its photos or from dark, quiet hours
@@ -50,7 +57,7 @@ from ...const import DOMAIN, SIGNAL_POPUP
 from .. import NOTIFICATIONS, TITLES, Feature, entries, item_data, loaded, unique_id
 from . import rules, settings_ws, snaps as S
 from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, CONF_WAKE, DATA, DEFAULTS, MESSAGE_MAX,
-                    TAPS, TITLE_MAX, WAKE_MAX_S, WAKE_MIN_S)
+                    MUTE_S, PAGE_RE, TAPS, TITLE_MAX, WAKE_MAX_S, WAKE_MIN_S)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +71,40 @@ def _data(hass: HomeAssistant) -> dict[str, Any]:
     d = hass.data.setdefault(DATA, {})
     d.setdefault("snaps", S.Snaps())
     d.setdefault("last", {})          # item id -> when it last went off (monotonic)
+    d.setdefault("mute", {})          # mute key -> until (epoch seconds)
     return d
+
+
+def mute_key(item: dict[str, Any], eid: str | None) -> str | None:
+    """What Mute 1 Hour mutes: the notification, and for a category (or a
+    calendar's events) the accessory that went off -- None for an
+    automation's own (no item)."""
+    sid = item.get("id")
+    return "%s:%s" % (sid, eid or item.get("entity") or "") if sid else None
+
+
+def mutes(hass: HomeAssistant, now: float | None = None) -> dict[str, float]:
+    """The mutes still running (key -> until), the ones run out forgotten."""
+    now = time.time() if now is None else now
+    m = _data(hass)["mute"]
+    for k in [k for k, v in m.items() if v <= now]:
+        del m[k]
+    return dict(m)
+
+
+def muted(hass: HomeAssistant, key: str | None, now: float | None = None) -> bool:
+    return bool(key) and key in mutes(hass, now)
+
+
+def set_mute(hass: HomeAssistant, key: str, seconds: int = MUTE_S, now: float | None = None) -> float | None:
+    """Mute `key` for `seconds` (0: unmute). Until when, or None."""
+    now = time.time() if now is None else now
+    m = _data(hass)["mute"]
+    if seconds <= 0:
+        m.pop(key, None)
+        return None
+    m[key] = now + seconds
+    return m[key]
 
 
 def options(entry: Feature) -> dict[str, Any]:
@@ -303,6 +343,11 @@ def build(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any], new: 
     stay = item.get("stay")
     stay = int(opts[CONF_STAY] if stay is None else stay)
     important = bool(item.get("important"))
+    tap = item.get("tap") or "sheet"
+    if tap == "camera" and not camera:
+        tap = "sheet"                 # Live Camera with no camera: the accessory's sheet
+    if tap == "page" and not item.get("page"):
+        tap = "sheet"
     return {
         "type": "notification", "id": uuid.uuid4().hex, "item": item.get("id"), "entity": eid, "kind": kind,
         "title": (item.get("title") or "").strip() or title,
@@ -316,8 +361,14 @@ def build(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any], new: 
         "wake": item.get("wake") if isinstance(item.get("wake"), bool) else bool(opts.get(CONF_WAKE)),
         "stay": stay, "saver": opts[CONF_SAVER], "chime": bool(opts[CONF_CHIME]), "dnd": opts[CONF_DND],
         "pop": item.get("pop") or None, "camera": camera, "snap": None,
-        # (Live Camera with no snapshot: the accessory's sheet, as the page shows it)
-        "tap": "sheet" if (item.get("tap") or "camera") == "camera" and not camera else (item.get("tap") or "sheet"),
+        "tap": tap, "page": item.get("page") if tap == "page" else None,
+        # ITS SHEET: the accessory's own -- for what a camera sees, the
+        # camera's live (its view, else the snapshot's camera)
+        "sheet": (view or (camera_for(hass, eid) if kind in rules.CAMERA_KINDS else None)
+                  or (camera if kind in rules.CAMERA_KINDS else None) or eid),
+        # Go To on its sheet: None automatic (the screen works it out), "none", or a page
+        "go": item.get("go") or None,
+        "mute": mute_key(item, eid), "event": None,
         "buttons": rules.buttons(kind, st, camera), "test": test, "ts": time.time(),
         "dashboards": [], "users": [],
     }
@@ -327,8 +378,8 @@ def build(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any], new: 
 # to all screens or some (dashboards, users), with a snapshot if it names a
 # camera. The same payload as an item's, so each screen decides the same way.
 ATTR_TITLE, ATTR_MESSAGE, ATTR_IMPORTANT, ATTR_WAKE, ATTR_STAY = "title", "message", "important", "wake", "stay"
-ATTR_ICON, ATTR_ENTITY, ATTR_CAMERA, ATTR_TAP, ATTR_DASHBOARDS, ATTR_USERS = (
-    "icon", "entity", "camera", "tap", "dashboards", "users")
+ATTR_ICON, ATTR_ENTITY, ATTR_CAMERA, ATTR_TAP, ATTR_PAGE, ATTR_DASHBOARDS, ATTR_USERS = (
+    "icon", "entity", "camera", "tap", "page", "dashboards", "users")
 SERVICE_NOTIFY = "notify"
 STAY_ACTION_MAX = 3600
 ICON = re.compile(r"^(hk|mdi):[a-z0-9-]+$")
@@ -344,6 +395,8 @@ NOTIFY_SCHEMA = vol.Schema({
     vol.Optional(ATTR_ENTITY): cv.entity_id,
     vol.Optional(ATTR_CAMERA): cv.entity_domain("camera"),
     vol.Optional(ATTR_TAP): vol.In(TAPS),
+    # tap: page -- a view's path on the screen's own dashboard ("kitchen")
+    vol.Optional(ATTR_PAGE): vol.All(cv.string, vol.Strip, vol.Lower, vol.Match(PAGE_RE)),
     vol.Optional(ATTR_DASHBOARDS, default=list): vol.All(cv.ensure_list, [cv.string]),
     vol.Optional(ATTR_USERS, default=list): vol.All(cv.ensure_list, [cv.string]),
 })
@@ -361,7 +414,10 @@ def build_action(hass: HomeAssistant, opts: dict[str, Any], data: dict[str, Any]
     kind = _kind(hass, eid) if eid else "event"
     icon, tint = rules.look(kind, s)
     camera = data.get(ATTR_CAMERA)
-    tap = data.get(ATTR_TAP) or ("camera" if camera else "sheet" if eid else "none")
+    page = data.get(ATTR_PAGE)
+    tap = data.get(ATTR_TAP) or ("page" if page else "camera" if camera else "sheet" if eid else "none")
+    if tap == "page" and not page:
+        tap = "camera" if camera else "sheet" if eid else "none"
     if tap == "camera" and not camera:
         tap = "sheet" if eid else "none"
     if tap == "sheet" and not eid:
@@ -378,7 +434,9 @@ def build_action(hass: HomeAssistant, opts: dict[str, Any], data: dict[str, Any]
         "important": important, "wake": wake,
         "stay": int(opts[CONF_STAY] if stay is None else stay),
         "saver": opts[CONF_SAVER], "chime": bool(opts[CONF_CHIME]), "dnd": opts[CONF_DND],
-        "pop": None, "camera": camera, "snap": None, "tap": tap,
+        "pop": None, "camera": camera, "snap": None, "tap": tap, "sheet": eid,
+        # a page named: its Go To too; an automation's own has no Mute
+        "page": page if tap == "page" else None, "go": page or None, "mute": None, "event": None,
         "buttons": rules.buttons(kind, s, camera) if eid else rules.buttons("event", None, camera),
         "test": False, "ts": time.time(),
         # (a dashboard as its url path: the screen compares its first segment)
@@ -483,7 +541,12 @@ def build_calendar(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, An
                       if start is not None else (str(event.get("summary") or "Event"), ""))
     icon, tint = rules.look("calendar")
     p.update({"kind": "calendar", "icon": icon, "tint": tint, "buttons": [], "camera": p["camera"] if item.get("snap") else None,
-              "title": (item.get("title") or "").strip() or title, "message": (item.get("message") or "").strip() or message})
+              "title": (item.get("title") or "").strip() or title, "message": (item.get("message") or "").strip() or message,
+              # THE EVENT, so a tap opens it (HK's event sheet; the screen
+              # finds it in the calendar by its start and name)
+              "event": {"cal": cal, "summary": str(event.get("summary") or ""), "start": event.get("start"),
+                        "end": event.get("end"), "location": str(event.get("location") or ""),
+                        "description": str(event.get("description") or ""), "uid": event.get("uid")}})
     if p["tap"] == "camera" and not p["camera"]:
         p["tap"] = "none"
     return p
@@ -497,6 +560,7 @@ def build_allday(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any]
     title, message = rules.allday_words(str(event.get("summary") or ""), str(event.get("location") or ""))
     p.update({"title": (item.get("title") or "").strip() or title,
               "message": (item.get("message") or "").strip() or message})
+    p["event"].update({"start": event.get("start"), "end": event.get("end")})
     return p
 
 
@@ -569,7 +633,7 @@ class CalendarWatch:
                     if key in self._sent:
                         continue
                     self._sent[key] = start.timestamp()
-                    if not _only_ok(self.hass, item.get("only") or "always"):
+                    if not _only_ok(self.hass, item.get("only") or "always") or muted(self.hass, mute_key(item, cal)):
                         continue
                     p = build_calendar(self.hass, options(self.entry), item, cal, ev, lead)
                     out.append(await async_deliver(self.hass, p))
@@ -592,7 +656,7 @@ class CalendarWatch:
                             if key in self._sent:
                                 continue
                             self._sent[key] = due.timestamp()
-                            if not _only_ok(self.hass, item.get("only") or "always"):
+                            if not _only_ok(self.hass, item.get("only") or "always") or muted(self.hass, mute_key(item, cal)):
                                 continue
                             out.append(await async_deliver(self.hass, build_allday(self.hass, options(self.entry), item, cal, ev)))
         # forget what is long past
@@ -669,6 +733,9 @@ class Watcher:
                 continue
             if not _only_ok(self.hass, item.get("only") or "always"):
                 continue
+            # Mute 1 Hour: that accessory of that notification, quiet
+            if muted(self.hass, mute_key(item, eid)):
+                continue
             # Not Again For: per accessory (a category's doors each their own)
             key = "%s:%s" % (item.get("id"), eid)
             cool = int(item.get("cooldown") or 0)
@@ -694,7 +761,64 @@ async def async_setup(hass: HomeAssistant) -> None:
                                  supports_response=SupportsResponse.OPTIONAL)
 
 
+# TAP OPENS, ITS MEANING MOVED (2026-10-12). It was what a tap on an opened
+# banner's snapshot did; a tap now opens the accessory's sheet with the
+# notification on it, and Tap Opens is what the banner itself opens. So a
+# notification saved before keeps its sheet: "Nothing" (the picture did
+# nothing) and "Live Camera" on an accessory that isn't what a camera sees
+# (a garage door with its snapshot) become Its Sheet. Once: TAPS_V marks it.
+TAPS_V = "taps_v"
+
+
+def migrate_taps(opts: dict[str, Any]) -> dict[str, Any] | None:
+    """The options with old Tap Opens moved over, or None when there is
+    nothing to do. A new Notifications starts marked (AddSteps)."""
+    if opts.get(TAPS_V):
+        return None
+    cams = ("cameras", "packages", "doorbells")
+    items = []
+    for it in opts.get(CONF_ITEMS) or []:
+        it = dict(it)
+        if it.get("tap") == "none" or (it.get("tap") == "camera" and it.get("category") not in cams):
+            it["tap"] = "sheet"
+        items.append(it)
+    return {**opts, CONF_ITEMS: items, TAPS_V: 2}
+
+
+# WAKES THE SCREEN, ITS OWN OR ALL NOTIFICATIONS' (1.7.1). 1.7.0 saved
+# `wake: False` on every notification it made, and any stored True or False
+# is that notification's own choice -- so none of them followed All
+# Notifications' Wakes the Screen. A stored False becomes "Same as All
+# Notifications" (the key removed, as a new one has None); a True was chosen
+# and stays. Once: WAKE_V marks it.
+WAKE_V = "wake_v"
+
+
+def migrate_wake(opts: dict[str, Any]) -> dict[str, Any] | None:
+    """The options with 1.7.0's `wake: False` following All Notifications,
+    or None when there is nothing to do. A new Notifications starts marked
+    (AddSteps)."""
+    if opts.get(WAKE_V):
+        return None
+    items = []
+    for it in opts.get(CONF_ITEMS) or []:
+        it = dict(it)
+        if it.get("wake") is False:
+            it.pop("wake")
+        items.append(it)
+    return {**opts, CONF_ITEMS: items, WAKE_V: 1}
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
+    opts = dict(entry.options)
+    moved = None
+    for migrate in (migrate_taps, migrate_wake):
+        done = migrate(opts)
+        if done is not None:
+            opts = moved = done
+    if moved is not None:
+        from .. import async_update
+        async_update(hass, entry, options=moved)
     w = Watcher(hass, entry)
     entry.runtime_data = w
     w.start()
@@ -733,7 +857,7 @@ class AddSteps:
         if user_input is not None:
             return self.async_create_entry(
                 title=TITLES[NOTIFICATIONS], unique_id=unique_id(NOTIFICATIONS),
-                data=item_data(NOTIFICATIONS, options={**DEFAULTS, CONF_ITEMS: []}))
+                data=item_data(NOTIFICATIONS, options={**DEFAULTS, CONF_ITEMS: [], TAPS_V: 2, WAKE_V: 1}))
         return self.async_show_form(step_id="notifications", data_schema=_SCHEMA,
                                     description_placeholders={"url": "/hk-settings#/features/notify"})
 

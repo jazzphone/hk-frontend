@@ -34,6 +34,7 @@ from homeassistant.helpers import selector as sel
 
 from . import features as F
 from . import files
+from . import lovelace_boards
 from . import settings as S
 from .const import CONF_FILES_FOLDER, DEFAULT_FILES_FOLDER, DOMAIN
 from .features import alarm_pin, clean_areas, energy, live_tv, music, notifications
@@ -52,8 +53,7 @@ def _entity(domain: str | list[str], multiple: bool = False,
 async def _dashboards(hass) -> list[str]:
     """Every dashboard's url path, for the Screens pickers."""
     try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        return sorted(p for p in hass.data[LOVELACE_DATA].dashboards if p)
+        return sorted(lovelace_boards.all_boards(hass))      # the Overview as "lovelace"
     except Exception:  # noqa: BLE001 -- a picker with custom values still works
         return []
 
@@ -63,8 +63,7 @@ async def _view_of(hass, key: str) -> dict[str, Any] | None:
     serves it (includes resolved), or None."""
     dash, _, path = str(key).partition("/")
     try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        board = hass.data[LOVELACE_DATA].dashboards.get(dash)
+        board = lovelace_boards.get(hass, dash)
         cfg = await board.async_load(False) if board is not None else None
     except Exception:  # noqa: BLE001 -- a dashboard that cannot be read offers nothing
         return None
@@ -80,13 +79,12 @@ async def _importable(hass, exclude: str = "") -> dict[str, str]:
     dashboard that is not generated itself, as "path/view" -> a label
     ("Energy · Energy-Tablet")."""
     try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        boards = hass.data[LOVELACE_DATA].dashboards
+        boards = lovelace_boards.all_boards(hass)
     except (ImportError, KeyError, AttributeError):
         return {}
     out: dict[str, str] = {}
     for path, board in boards.items():
-        if not path or path == exclude:
+        if path == exclude:
             continue
         try:
             cfg = await board.async_load(False)
@@ -94,7 +92,7 @@ async def _importable(hass, exclude: str = "") -> dict[str, str]:
             continue
         if not isinstance(cfg, dict) or cfg.get("strategy"):
             continue
-        title = (getattr(board, "config", None) or {}).get("title") or path
+        title = lovelace_boards.title(hass, path)
         for v in cfg.get("views") or []:
             if isinstance(v, dict) and v.get("path") and v.get("title") and not v.get("area"):
                 out[f"{path}/{v['path']}"] = f"{v['title']} · {title}"
@@ -102,12 +100,7 @@ async def _importable(hass, exclude: str = "") -> dict[str, str]:
 
 
 async def _dashboard_title(hass, path: str) -> str:
-    try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        board = hass.data[LOVELACE_DATA].dashboards.get(path)
-        return str((getattr(board, "config", None) or {}).get("title") or path)
-    except (ImportError, KeyError, AttributeError):
-        return path
+    return lovelace_boards.title(hass, path)
 
 
 async def _strategy_dashboards(hass) -> list[str]:
@@ -115,8 +108,7 @@ async def _strategy_dashboards(hass) -> list[str]:
     (`strategy: type: custom:hk-dashboard`) -- the only ones the Generated
     dashboard page steers. Hand-written dashboards never read it."""
     try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        dashboards = hass.data[LOVELACE_DATA].dashboards
+        dashboards = lovelace_boards.all_boards(hass)
     except (ImportError, KeyError, AttributeError):
         return []
     out = []
@@ -127,7 +119,7 @@ async def _strategy_dashboards(hass) -> list[str]:
             continue
         strategy = (cfg or {}).get("strategy") if isinstance(cfg, dict) else None
         if isinstance(strategy, dict) and strategy.get("type") == "custom:hk-dashboard":
-            out.append(path or "Overview")
+            out.append(path)          # the Overview as "lovelace", its address
     return sorted(out)
 
 

@@ -15,6 +15,7 @@ if (typeof HK_ROOT === 'undefined')
 load(HK_ROOT + '/tests/dom.js');
 load(HK_ROOT + '/tests/card_harness.js');
 load(HK_ROOT + '/tests/sample_settings.js');
+load(HK_ROOT + '/frontend/modules/hk-stats.js');
 load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-calendar.js');
 
@@ -68,6 +69,12 @@ H.run('CALENDAR', [
     H.eq('...an event of another day is not there', U.onDay([ft], new Date(2026, 9, 2)).length, 0);
     H.eq('next month from the 31st: the last day of a shorter month', ymd(U.addMonths(new Date(2026, 0, 31), 1)), '2026-02-28');
     H.eq('the week starts on Sunday', ymd(U.weekStart(new Date(2026, 9, 1))), '2026-09-27');
+    // the user's own first day (their Home Assistant profile), as the Energy page's weeks
+    U.setWeekStart({ locale: { first_weekday: 'monday' } });
+    H.eq('...or on Monday, when that is the user\'s first day: the week, and the month\'s day names', [ymd(U.weekStart(new Date(2026, 9, 1))), U.dows(['S', 'M', 'T', 'W', 'T', 'F', 'S']).join('')],
+         ['2026-09-28', 'MTWTFSS']);
+    U.setWeekStart({ locale: { first_weekday: 'language', language: 'en' } });
+    H.eq('...and English\'s own is Sunday', ymd(U.weekStart(new Date(2026, 9, 1))), '2026-09-27');
     // side by side
     var L = U.lanes([{ s: at(oct1, 9), e: at(oct1, 11) }, { s: at(oct1, 10), e: at(oct1, 12) }, { s: at(oct1, 13), e: at(oct1, 14) }]);
     H.eq('two overlapping events share the width; the third has it alone', L.map(function (x) { return x.col + '/' + x.cols; }), ['0/2', '1/2', '0/1']);
@@ -227,5 +234,26 @@ H.run('CALENDAR', [
     H.eq('...each with its own colour', HS.calendarColor('calendar.home', st), 'blue');
     HS._apply(HK_SAMPLE_SETTINGS);
     H.eq('the screensaver’s defaults carry the pane, off, for two days', [HS.DEFAULTS.look.saver.calendar, HS.DEFAULTS.look.saver.calendar_days], [false, 2]);
+  },
+  // THE EVENT SHEET (hk-detail kind `event`): the event from wherever it came
+  function () {
+    var h = { states: { 'calendar.family': { state: 'on', attributes: { message: 'Soccer', start_time: '2026-10-12 12:15:00',
+      end_time: '2026-10-12 13:45:00', location: 'City Park', description: '' } } } };
+    // a notification's (the house's words for it)
+    var ev = K.fromAny(h, 'calendar.family', { cal: 'calendar.family', summary: 'Soccer', start: '2026-10-12T12:15:00-04:00',
+                                                 end: '2026-10-12T13:45:00-04:00', location: 'City Park' });
+    H.eq('a notification’s event: its name, timed', [ev.title, ev.allDay, ev.loc, ev.cal], ['Soccer', false, 'City Park', 'calendar.family']);
+    H.eq('...its start a moment', +ev.start, Date.parse('2026-10-12T12:15:00-04:00'));
+    // a calendar's tile: its own event, going on or next
+    var tile = K.fromAny(h, 'calendar.family', null);
+    H.eq('a calendar’s own (its tile)', [tile.title, tile.start.getHours(), tile.start.getMinutes(), tile.end.getHours()], ['Soccer', 12, 15, 13]);
+    var all = K.fromAny(h, 'calendar.family', { summary: 'Columbus Day', start: '2026-10-12', end: '2026-10-13' });
+    H.eq('an all-day one', [all.allDay, all.start.getDate(), all.end.getDate()], [true, 12, 13]);
+    H.eq('no event at all', K.fromAny({ states: { 'calendar.work': { state: 'off', attributes: {} } } }, 'calendar.work', null), null);
+    // the time, big: one AM / PM when both share it
+    H.eq('12:15 – 1:45 PM', U.bigTime({ allDay: false, start: at(TODAY, 12, 15), end: at(TODAY, 13, 45) }), '12:15 – 1:45 PM');
+    H.eq('9:00 AM – 1:00 PM', U.bigTime({ allDay: false, start: at(TODAY, 9), end: at(TODAY, 13) }), '9:00 AM – 1:00 PM');
+    H.eq('All Day', U.bigTime({ allDay: true, start: TODAY, end: addDays(TODAY, 1) }), 'All Day');
+    H.ok('its day: Today first', U.longDay(TODAY).indexOf('Today · ') === 0 && U.longDay(addDays(TODAY, 1)).indexOf('Tomorrow · ') === 0);
   }
 ]);

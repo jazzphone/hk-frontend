@@ -144,6 +144,9 @@
       if (v > max) max = v;
       if (v < min) min = v;
     });
+    // a day still to come can carry last period's same day (`ghost`), drawn
+    // recessed like the prior period; it counts toward the scale
+    data.forEach(function (d) { if (d && finite(d.ghost) && d.ghost > max) max = d.ghost; });
     if (max <= 0) max = 1;
     if (finite(opts.max) && opts.max >= max) max = opts.max;
 
@@ -178,6 +181,10 @@
         // 70% of the column, which is the Home app's measured bar:pitch ratio.
         inner = '<div style="width:70%; height:' + h.toFixed(1) + 'px;' +
                 ' border-radius:2px; background:' + fill + ';"></div>';
+      } else if (data[i] && finite(data[i].ghost)) {
+        var gh = Math.max(2, ((data[i].ghost - base) / span) * plotH);
+        inner = '<div style="width:70%; height:' + gh.toFixed(1) + 'px;' +
+                ' border-radius:2px; background:' + C.prior + ';"></div>';
       }
       cells.push('<div style="display:flex; align-items:flex-end;' +
                  ' justify-content:center; height:100%; min-width:0;">' + inner + '</div>');
@@ -232,7 +239,7 @@
         parts += '<div style="position:absolute; text-align:center;' +
                  ' left:' + (j / n * 100).toFixed(3) + '%;' +
                  ' width:' + (100 / n).toFixed(3) + '%;' +
-                 ' color:' + (last ? R.avg : 'rgba(255,255,255,0.40)') + ';' +
+                 ' color:' + (last ? R.avg : 'var(--hk-ink-3,rgba(255,255,255,0.40))') + ';' +
                  ' font-size:10px; line-height:1; white-space:nowrap;' +
                  ' font-weight:' + (last ? '700' : '600') + ';">' +
                  INITIAL.charAt(haFields(data[j].t).weekday) + '</div>';
@@ -268,7 +275,7 @@
         return (max >= 10 ? Math.round(v) : v.toFixed(1)) + (opts.unitLabel ? ' ' + opts.unitLabel : '');
       };
       var Y = 'position:absolute; right:0; ' + LABEL + ' font-weight:500;';
-      var dim = ' color:rgba(255,255,255,0.38);';
+      var dim = ' color:var(--hk-ink-3,rgba(255,255,255,0.40));';
 
       // The axis ends.
       var marks = [
@@ -408,6 +415,9 @@
 
     var timed = p.every(function (point) { return isFinite(point.t); });
     var t0 = timed ? p[0].t : 0, t1 = timed ? p[p.length - 1].t : 0;
+    // { t0, t1 }: a span of the caller's (a calendar week: Sunday to
+    // Saturday, the line stopping at now and the rest of it empty)
+    if (timed && finite(opts.t0) && finite(opts.t1) && opts.t1 > opts.t0) { t0 = opts.t0; t1 = opts.t1; }
     timed = timed && t1 > t0;
     var pts = p.map(function (point, i) {
       var x = timed ? (point.t - t0) * W / (t1 - t0) : i * W / (p.length - 1);
@@ -416,7 +426,7 @@
     var path = pts.map(function (q, i) {
       return (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1);
     }).join(' ');
-    var area = path + ' L' + W + ' ' + H + ' L0 ' + H + ' Z';
+    var area = path + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + H + ' L' + pts[0][0].toFixed(1) + ' ' + H + ' Z';
 
     var col = opts.colour ? ramp(opts.colour) : ramp('orange');
     var stroke = col.lo;
@@ -425,7 +435,7 @@
     var grid = opts.grid === false ? '' :
       '<path d="M0 ' + (H * 0.33).toFixed(0) + 'H' + W +
       'M0 ' + (H * 0.66).toFixed(0) + 'H' + W +
-      '" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="none"/>';
+      '" style="stroke:var(--hk-line,rgba(255,255,255,0.08))" stroke-width="1" fill="none"/>';
 
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"' +
            ' style="width:100%; height:' + H + 'px; display:block;">' +
@@ -471,12 +481,12 @@
     if (finite(opts.limit) && opts.limit > 0 && opts.limit < 100) {
       notch = '<div style="position:absolute; left:' + opts.limit.toFixed(2) + '%;' +
               ' top:-2px; height:' + (H + 4) + 'px; width:2px; margin-left:-1px;' +
-              ' border-radius:1px; background:rgba(255,255,255,0.55);"></div>';
+              ' border-radius:1px; background:var(--hk-mark,rgba(255,255,255,0.55));"></div>';
     }
 
     return '<div style="position:relative; width:100%; height:' + H + 'px;">' +
              '<div style="position:absolute; inset:0; border-radius:' + (H / 2) + 'px;' +
-             ' background:' + C.track + '; overflow:hidden;">' + inner + '</div>' +
+             ' background:var(--hk-line,' + C.track + '); overflow:hidden;">' + inner + '</div>' +
              notch +
            '</div>';
   }

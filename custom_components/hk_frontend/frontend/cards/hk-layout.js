@@ -93,6 +93,18 @@
         // every corner, the same way a tinted plate behind a rounded camera
         // does.
         '.frame{display:block;margin:0}',
+        // HOME ASSISTANT'S OWN CARD, ON HK'S GLASS: it draws with HA's theme
+        // colors, and with the browser in light mode those are dark gray (the
+        // HK Kiosk theme's light mode: #1f1f1f) -- dim on the dark glass (first
+        // seen on HA's own energy cards; HK draws its Energy page itself now,
+        // and this still serves every other framed HA card). On an HK screen the frame hands it HK's text scale instead; on a
+        // light page of someone else's dashboard (data-hk-light) HA's own
+        // light colors are right and stay.
+        ':host(:not([data-hk-light])) .frame{',
+        '  --primary-text-color:rgba(255,255,255,0.94);',
+        '  --secondary-text-color:rgba(255,255,255,0.68);',
+        '  --disabled-text-color:rgba(255,255,255,0.40);',
+        '  --divider-color:rgba(255,255,255,0.12)}',
         // `phone: hide` -- a framed HA card that cannot be made to fit a phone
         // (energy-sources-table is 459px wide at 402 and has no responsive
         // mode of its own) is dropped from the layout there instead of
@@ -111,8 +123,8 @@
           '--ha-card-background': M.bg,
           '--ha-card-border-radius': M.radius,
           '--ha-card-border-width': '1px',
-          '--ha-card-border-color': 'rgba(255,255,255,0.13)',
-          '--ha-card-box-shadow': '0 10px 28px rgba(0,0,0,0.12)'
+          '--ha-card-border-color': 'var(--hk-look-edge-color, rgba(255,255,255,0.13))',
+          '--ha-card-box-shadow': 'var(--hk-look-shadow, 0 10px 28px rgba(0,0,0,0.12))'
         },
         // Full-bleed media (the radar map): rounded like the glass, but a
         // transparent plate with no rim, so the content's own clipped corners
@@ -122,7 +134,7 @@
           '--ha-card-background': 'transparent',
           '--ha-card-border-radius': '23.5px',
           '--ha-card-border-width': '0px',
-          '--ha-card-box-shadow': '0 8px 22px rgba(0,0,0,0.12)'
+          '--ha-card-box-shadow': 'var(--hk-look-shadow, 0 8px 22px rgba(0,0,0,0.12))'
         },
         // No plate at all -- for a card that paints its own.
         none: {
@@ -277,12 +289,15 @@
     '  ' + M.glass + ';border:' + M.border + ';',
     '  backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
     '  -webkit-backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
-    '  box-shadow:var(--hk-glass-shadow-chip,inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10));',
+    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-chip,inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10)));',
     '  display:flex;align-items:center;justify-content:center;line-height:0;',
-    '  cursor:pointer;color:rgba(255,255,255,0.92);',
+    '  cursor:pointer;color:var(--hk-glyph,rgba(255,255,255,0.92));',
     '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0;',
     '  transition:transform .12s ease}',
     'ha-card.back:active{transform:scale(0.97);filter:brightness(0.93)}',
+    // ON A LIGHT PAGE (hk-base.js tone) no blur: brightness(0.82) would
+    // darken the page behind the plate (the chips do the same, hk-chip.js)
+    ':host([data-hk-light]) ha-card.back{backdrop-filter:none;-webkit-backdrop-filter:none}',
     // The menu glyph at the chevron's optical size: an SF glyph fills its
     // 24 box to 21, so 20px here draws it as wide as the 20px chevron.
     'ha-card.back ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
@@ -334,7 +349,7 @@
       var back =
         '<ha-card class="back" data-hk-role="card" role="button" aria-label="Back">' +
         '<svg viewBox="0 0 24 24" width="20" height="20" fill="none"' +
-        ' stroke="rgba(255, 255, 255, 0.92)" stroke-width="2.6"' +
+        ' style="stroke:var(--hk-glyph, rgba(255, 255, 255, 0.92))" stroke-width="2.6"' +
         ' stroke-linecap="round" stroke-linejoin="round">' +
         '<path d="M15 4.5 L7.5 12 L15 19.5"/></svg></ha-card>';
       this._root.innerHTML = withMenu ? '<div class="pair">' + roundMenu() + back + '</div>' : back;
@@ -438,8 +453,8 @@
         'ha-card.key:active{transform:scale(0.97);filter:brightness(0.93)}',
         // ---- flat: the controls inside a vacuum card
         'ha-card.key.flat{height:52px;border-radius:18px;padding:0;border:none;',
-        '  box-shadow:none;background:rgba(255,255,255,0.10)}',
-        'ha-card.key.flat .icon{width:23px;height:23px;color:rgba(255,255,255,0.90)}',
+        '  box-shadow:none;background:var(--hk-key,rgba(255,255,255,0.10))}',
+        'ha-card.key.flat .icon{width:23px;height:23px;color:var(--hk-glyph,rgba(255,255,255,0.90))}',
         // ---- glass: the free-standing duration chips
         // 116x56 and a 20px radius: wider and flatter than the 52px controls
         // above, because a row of NINE 52px squares reads as a keypad, which
@@ -447,12 +462,12 @@
         'ha-card.key.glass{height:56px;width:116px;border-radius:20px;padding:0;',
         '  ' + window.hkCards.M.glass + ';',
         '  border:' + window.hkCards.M.border + ';',
-        '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10)}',
+        '  box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10))}',
         'ha-card.key.filled{height:56px;width:116px;border-radius:20px;padding:0;',
-        '  border:none;box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),',
-        '  0 6px 18px rgba(0,0,0,0.10)}',
+        '  border:none;box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),',
+        '  0 6px 18px rgba(0,0,0,0.10))}',
         '.key .name{font-size:17px;font-weight:600;letter-spacing:-0.4px;',
-        '  color:rgba(255,255,255,0.92);white-space:nowrap}',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap}',
         'ha-card.key.filled .name{color:rgba(0,0,0,0.88);font-weight:700}',
         // PHONE: FILL THE TRACK. The Timers row auto-fills ~118px columns
         // below 640px and a 184px "+ New Timer" would overflow its column,
@@ -524,23 +539,23 @@
         'ha-card.info{box-sizing:border-box;display:block;height:108px;',
         '  border-radius:0;padding:12px;background:none;border:none;box-shadow:none;',
         '  cursor:pointer;',
-        '  filter:drop-shadow(0px 1px 3px rgba(0,0,0,0.30))',
+        '  filter:var(--hk-glow,drop-shadow(0px 1px 3px rgba(0,0,0,0.30))',
         '    drop-shadow(0px 3px 12px rgba(0,0,0,0.28))',
-        '    drop-shadow(0px 6px 26px rgba(0,0,0,0.30));',
+        '    drop-shadow(0px 6px 26px rgba(0,0,0,0.30)));',
         '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
         '.info .grid{display:grid;grid-template-areas:"i n" "i l";',
         '  grid-template-columns:52px minmax(0,1fr);',
         '  grid-template-rows:min-content min-content;',
         '  column-gap:12px;align-content:start;justify-items:start}',
         '.info .icon{grid-area:i;width:34px;height:34px;--mdc-icon-size:34px;',
-        '  color:rgba(255,255,255,0.92);align-self:start;justify-self:center;',
+        '  color:var(--hk-glyph,rgba(255,255,255,0.92));align-self:start;justify-self:center;',
         '  margin-top:2px}',
         '.info .name{grid-area:n;justify-self:start;align-self:end;text-align:left;',
         '  font-weight:600;font-size:26px;letter-spacing:0.3px;',
-        '  color:rgba(255,255,255,0.95);line-height:1.02;width:100%}',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1.02;width:100%}',
         '.info .label{grid-area:l;justify-self:start;align-self:start;text-align:left;',
         '  font-weight:600;font-size:14px;letter-spacing:-0.34px;',
-        '  color:rgba(255,255,255,0.72);line-height:1.1;width:100%}',
+        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));line-height:1.1;width:100%}',
         // Two lines, each clipped on its own. A single wrapping block would
         // let one long alarm string push the other line out of the card.
         '.info .label span{display:block;white-space:nowrap;overflow:hidden;',
@@ -564,9 +579,9 @@
         '.info.state .icon{width:38px;height:38px;--mdc-icon-size:38px;',
         '  align-self:center;justify-self:center;margin-top:0}',
         '.info.state .name{font-size:25px;font-weight:700;letter-spacing:0.14px;',
-        '  align-self:center;color:rgba(255,255,255,0.96)}',
+        '  align-self:center;color:var(--hk-ink,rgba(255,255,255,0.94))}',
         '.info.state .label{font-size:14px;font-weight:400;letter-spacing:-0.15px;',
-        '  color:rgba(255,255,255,0.58);padding-top:4px}'
+        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));padding-top:4px}'
       ].join('');
     }
     setConfig(config) {
@@ -720,7 +735,7 @@
         name: cfg.name || title,
         lines: [cfg.label || '', ''],
         icon: pickFrom(cfg.icon_states, cfg.icon),
-        colour: pickFrom(cfg.icon_colors, 'rgba(255,255,255,0.75)')
+        colour: pickFrom(cfg.icon_colors, 'var(--hk-glyph, rgba(255,255,255,0.75))')
       };
     }
 
@@ -763,7 +778,10 @@
           { name: 'margin', selector: { text: {} } },
           { name: 'phone', selector: C.selOptions(['hide']),
             helper: 'hide: leave this card out of the layout below 640px.' }
-        ] }
+        ] },
+        { name: 'vars', label: 'CSS Variables',
+          helper: 'CSS variables set on the wrapped card, e.g. card-background-color: transparent.',
+          selector: { object: {} } }
       ], 'mdi:palette')
     ],
     function () { return { card: { type: 'energy-usage-graph' } }; });
@@ -828,7 +846,13 @@
           { name: 'temperature', selector: { entity: { filter: { domain: 'sensor' } } } },
           { name: 'downstairs', selector: { entity: { filter: { domain: 'climate' } } } },
           { name: 'upstairs', selector: { entity: { filter: { domain: 'climate' } } } },
-          { name: 'garage', selector: { entity: { filter: { domain: 'cover' } } } }
+          { name: 'garage', selector: { entity: { filter: { domain: 'cover' } } } },
+          { name: 'cool_below', label: 'Cool Below',
+            helper: 'At or below this the temperature shows blue. Default 66 °F (19 °C).',
+            selector: { number: { mode: 'box', step: 0.5 } } },
+          { name: 'warm_above', label: 'Warm Above',
+            helper: 'At or above this the temperature shows red. Default 74 °F (23 °C).',
+            selector: { number: { mode: 'box', step: 0.5 } } }
         ] }
       ], 'mdi:home-thermometer'),
       C.section('Interactions', [
@@ -1025,7 +1049,10 @@
   register('hk-grid-card', HkGridCard, 'HK Grid',
     'A CSS grid of cards. Replaces custom:layout-card / custom:grid-layout.',
     C && [
-      { name: 'layout', selector: { object: {} } }
+      { name: 'layout', selector: { object: {} } },
+      { name: 'cards', label: 'Cards',
+        helper: 'The cards in the grid, as a YAML list; each can place itself with view_layout.',
+        selector: { object: {} } }
     ],
     function () { return { layout: { 'grid-template-columns': '1fr' }, cards: [] }; });
 

@@ -373,6 +373,13 @@ async def test_the_glass_and_its_amounts_reach_every_screen(hass, frontend):
     await _set(hass, {"look.glass": "blur_pre"})
     assert entry(hass).options["dashboard"]["look"]["glass"] == "blur_pre"
     assert screen.sent[-1]["event"]["look"]["glass"] == "blur_pre", "screens were told"
+    # Tinted (2026-10-12), its darkness and icon circles
+    await _set(hass, {"look.glass": "tinted", "look.tint": 70, "look.well": "light"})
+    look = entry(hass).options["dashboard"]["look"]
+    assert (look["glass"], look["tint"], look["well"]) == ("tinted", 70, "light")
+    assert screen.sent[-1]["event"]["look"]["well"] == "light", "screens were told"
+    assert (await _set(hass, {"look.well": "neon"}))["success"] is False
+    assert (await _set(hass, {"look.tint": 101}))["success"] is False
 
 
 async def test_music_categories_rows_and_the_browse_page(hass, frontend):

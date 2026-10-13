@@ -61,6 +61,29 @@
   if (window.hkLibrary) return;                  // double-load guard
   var HkBase = C.HkBase, M = C.M, register = C.register, button = C.button;
 
+  // MUSIC NOT ADDED (2026-10-12): one line saying so, instead of "No speaker selected." with nowhere to play.
+  // ONLY ON THE INTEGRATION'S OWN ANSWERS -- hkMusic.configured() is false
+  // until hk_music/subscribe answers, and the settings feed's `added` is a
+  // stored copy until it is live -- so a house WITH Music never sees it while
+  // a page loads. (The same rule as hk-media.js's.)
+  var NO_MUSIC = 'Add the Music feature to play music here (Settings → Devices & services → HK Frontend → Add feature).';
+  function musicMissing() {
+    var Mu = window.hkMusic, HS = window.hkSettings;
+    if (!Mu || !Mu.configured || Mu.configured()) return false;
+    return !!(HS && HS.live && !(C.added && C.added('music')));
+  }
+  function drawNoMusic(card) {
+    card._root.innerHTML = '';
+    var el = document.createElement('ha-card');
+    el.setAttribute('data-hk-role', 'no-music');
+    el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
+      M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
+      'color:var(--hk-ink-2,rgba(255,255,255,0.68))';
+    el.textContent = NO_MUSIC;
+    card._root.appendChild(el);
+    card._built = false;
+  }
+
   // How many tiles to draw before the "Show more" tile. A library can have
   // hundreds of artists and browse_media returns ALL of them in one response
   // -- there is no server-side paging in this contract -- so the paging is
@@ -159,10 +182,10 @@
         '.bar{display:grid;grid-template-columns:minmax(0,1fr);',
         '  gap:14px;margin:0 0 18px 0}',
         '.search{height:52px;border-radius:26px;padding:0 22px;width:100%;',
-        '  box-sizing:border-box;background:rgba(255,255,255,0.14);',
-        '  border:' + M.border + ';color:rgba(255,255,255,0.95);font-size:17px;',
+        '  box-sizing:border-box;background:var(--hk-key,rgba(255,255,255,0.14));',
+        '  border:' + M.border + ';color:var(--hk-ink,rgba(255,255,255,0.94));font-size:17px;',
         '  font-family:inherit;outline:none}',
-        '.search::placeholder{color:rgba(255,255,255,0.5)}',
+        '.search::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
 
         // ---- ONE BACK CONTROL ON THE PAGE, not two.
         //
@@ -175,11 +198,11 @@
         // "the way back" -- the page chevron stays the only one of those.
         '.crumb{display:flex;align-items:center;gap:8px;min-width:0;',
         '  font-size:19px;font-weight:600;letter-spacing:-0.3px;',
-        '  color:rgba(255,255,255,0.95);flex-wrap:wrap}',
-        '.crumb .dim{color:rgba(255,255,255,0.45);font-weight:500}',
-        '.crumb .up{cursor:pointer;color:rgba(255,255,255,0.62);font-weight:500}',
-        '.crumb .up:hover{color:rgba(255,255,255,0.9)}',
-        '.crumb .sep{color:rgba(255,255,255,0.32);font-weight:400}',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));flex-wrap:wrap}',
+        '.crumb .dim{color:var(--hk-ink-3,rgba(255,255,255,0.40));font-weight:500}',
+        '.crumb .up{cursor:pointer;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-weight:500}',
+        '.crumb .up:hover{color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '.crumb .sep{color:var(--hk-ink-3,rgba(255,255,255,0.40));font-weight:400}',
         '.crumb .here{min-width:0;overflow:hidden;text-overflow:ellipsis;',
         '  white-space:nowrap}',
 
@@ -218,18 +241,18 @@
         '  grid-template-columns:repeat(auto-fit,minmax(var(--hk-lib-track,168px),1fr))}',
         '.it{cursor:pointer;user-select:none;min-width:0}',
         '.it .art{width:100%;aspect-ratio:1;border-radius:14px;overflow:hidden;',
-        '  background:rgba(255,255,255,0.10);box-shadow:0 6px 18px rgba(0,0,0,0.28);',
+        '  background:var(--hk-key,rgba(255,255,255,0.10));box-shadow:0 6px 18px rgba(0,0,0,0.28);',
         '  display:flex;align-items:center;justify-content:center}',
         '.it .art img{width:100%;height:100%;object-fit:cover;display:block}',
         '.it .art ha-icon{--mdc-icon-size:34px;width:34px;height:34px;',
-        '  color:rgba(255,255,255,0.45)}',
+        '  color:var(--hk-glyph,rgba(255,255,255,0.45))}',
         // A round cover for artists, square for everything else -- the same
         // shorthand every music app uses, and it saves a subtitle.
         '.it.artist .art{border-radius:50%}',
         '.it .nm{margin-top:9px;font-size:14px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:rgba(255,255,255,0.95);overflow:hidden;text-overflow:ellipsis;',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:hidden;text-overflow:ellipsis;',
         '  white-space:nowrap}',
-        '.it .sub{font-size:12px;font-weight:500;color:rgba(255,255,255,0.55);',
+        '.it .sub{font-size:12px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
         '  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         // THE ROOT CATEGORIES ARE NOT ARTWORK and should not pretend to be.
         // Drawn as artwork they are seven big empty squares with a generic
@@ -256,9 +279,9 @@
 
         // "Play all" and "Show more" are tiles in the same grid so the row
         // rhythm never breaks.
-        '.it.act .art{background:rgba(255,255,255,0.16);}',
+        '.it.act .art{background:var(--hk-key,rgba(255,255,255,0.16));}',
 
-        '.msg{font-size:15px;font-weight:500;color:rgba(255,255,255,0.65);',
+        '.msg{font-size:15px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
         '  padding:22px 4px}',
 
         // ---- DISCOVER: horizontal shelves, below the categories.
@@ -288,47 +311,47 @@
         '.hd{display:grid;grid-template-columns:132px minmax(0,1fr);',
         '  column-gap:20px;align-items:center;margin:0 0 18px 2px}',
         '.hd .cover{width:132px;height:132px;border-radius:14px;overflow:hidden;',
-        '  background:rgba(255,255,255,0.10);display:flex;',
+        '  background:var(--hk-key,rgba(255,255,255,0.10));display:flex;',
         '  align-items:center;justify-content:center;',
         '  box-shadow:0 10px 26px rgba(0,0,0,0.34)}',
         '.hd .cover img{width:100%;height:100%;object-fit:cover;display:block}',
         '.hd .cover ha-icon{--mdc-icon-size:44px;width:44px;height:44px;',
-        '  color:rgba(255,255,255,0.7)}',
+        '  color:var(--hk-glyph,rgba(255,255,255,0.7))}',
         '.hd .meta{min-width:0}',
         '.hd .h1{font-size:26px;font-weight:700;letter-spacing:-0.5px;',
-        '  color:rgba(255,255,255,0.95);overflow:hidden;',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:hidden;',
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.hd .h2{margin-top:3px;font-size:16px;font-weight:600;',
-        '  letter-spacing:-0.2px;color:rgba(255,255,255,0.72);',
+        '  letter-spacing:-0.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
         '  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.hd .h3{margin-top:7px;font-size:13.5px;font-weight:500;',
-        '  color:rgba(255,255,255,0.5)}',
+        '  color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
 
         '.list{' + M.glass + ';border:' + M.border + ';',
         '  border-radius:' + M.radius + ';overflow:hidden;',
-        '  box-shadow:0 6px 18px rgba(0,0,0,0.10)}',
+        '  box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10))}',
         '.rw{display:grid;grid-template-columns:44px minmax(0,1fr);',
         '  column-gap:14px;align-items:center;height:58px;padding:0 16px;',
         '  cursor:pointer;user-select:none}',
         // inset, not border-top: a border would add a pixel to the row and
         // make every row a different height from the first.
-        '.rw + .rw{box-shadow:inset 0 1px 0 rgba(255,255,255,0.075)}',
-        '.rw:active{background:rgba(255,255,255,0.06)}',
+        '.rw + .rw{box-shadow:inset 0 1px 0 var(--hk-line,rgba(255,255,255,0.075))}',
+        '.rw:active{background:var(--hk-key,rgba(255,255,255,0.06))}',
         '.rw .thumb{width:44px;height:44px;border-radius:8px;overflow:hidden;',
-        '  background:rgba(255,255,255,0.10);display:flex;',
+        '  background:var(--hk-key,rgba(255,255,255,0.10));display:flex;',
         '  align-items:center;justify-content:center}',
         '.rw .thumb img{width:100%;height:100%;object-fit:cover;display:block}',
         '.rw .thumb ha-icon{--mdc-icon-size:22px;width:22px;height:22px;',
-        '  color:rgba(255,255,255,0.8)}',
+        '  color:var(--hk-glyph,rgba(255,255,255,0.8))}',
         // tabular-nums so 9 and 10 do not shuffle the titles sideways.
         '.rw .num{font-size:15px;font-weight:600;text-align:center;',
-        '  font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.45)}',
+        '  font-variant-numeric:tabular-nums;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
         '.rw .txt{min-width:0}',
         '.rw .t1{font-size:15px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:rgba(255,255,255,0.92);overflow:hidden;',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:hidden;',
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.rw .t2{margin-top:1px;font-size:13px;font-weight:500;',
-        '  color:rgba(255,255,255,0.55);overflow:hidden;',
+        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));overflow:hidden;',
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.shelf{margin:0 0 20px 0}',
         // THE MUSIC PAGE (`layout: music`): the card is the page's right
@@ -370,7 +393,7 @@
         ':host([music][flow]) .srow .route .full > span{font-size:12.5px}',
         ':host([music][flow]) .srow .route ha-icon{--mdc-icon-size:18px;width:18px;height:18px}',
         ':host([music][flow]) .srow .search{padding:0 18px}',
-        '.route .num{display:none;min-width:22px;height:22px;border-radius:11px;background:rgba(255,255,255,0.18);font-size:13px;font-weight:700;',
+        '.route .num{display:none;min-width:22px;height:22px;border-radius:11px;background:var(--hk-key,rgba(255,255,255,0.18));font-size:13px;font-weight:700;',
         '  align-items:center;justify-content:center;padding:0 6px;box-sizing:border-box}',
         '.route.set .num{background:rgba(29,20,38,0.12)}',
         // ...on a phone, searching: the glyph and the count, the field the rest
@@ -378,7 +401,7 @@
         ':host([music][flow]) .srow.open .route .num{display:flex}',
         ':host([music][flow]) .srow.open .route{padding:0 14px 0 12px;gap:6px}',
         ':host([music][flow]) .srow.open .route > svg{display:none}',
-        ':host([music]) .bar .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px;font-size:13px;color:rgba(255,255,255,0.8)}',
+        ':host([music]) .bar .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px;font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
         ':host([music]) .bar .nextnote:empty{display:none}',
         ':host([music]) .bar .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
         // (14 px of room each side for the tiles' shadows -- a scroller clips
@@ -400,29 +423,29 @@
         '.yp .yph{display:flex;align-items:center;gap:12px;margin:0 0 14px 2px}',
         '.yp .yph h3{margin:0;flex:none}',
         '.route{margin-left:auto;min-width:0;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border-radius:17px;',
-        '  background:rgba(255,255,255,0.10);border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:rgba(255,255,255,0.95)}',
-        '.route:active{background:rgba(255,255,255,0.18)}',
+        '  background:var(--hk-key,rgba(255,255,255,0.10));border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '.route:active{background:var(--hk-key,rgba(255,255,255,0.18))}',
         '.route ha-icon{--mdc-icon-size:18px;width:18px;height:18px;flex:none;display:flex}',
-        '.route span{font-size:13px;font-weight:500;color:rgba(255,255,255,0.65);flex:none}',
+        '.route span{font-size:13px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));flex:none}',
         '.route b{font-size:14px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '.route svg{width:12px;height:12px;flex:none;fill:none;stroke:rgba(255,255,255,0.6);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}',
+        '.route svg{width:12px;height:12px;flex:none;fill:none;stroke:var(--hk-glyph,rgba(255,255,255,0.6));stroke-width:3;stroke-linecap:round;stroke-linejoin:round}',
         // PICKED ROOMS FOR THE NEXT MUSIC: the pill white, its X back to what plays
         '.route.set{background:#fff;color:#1d1426;border-color:transparent}',
         '.route.set span{color:rgba(29,20,38,0.6)}',
         '.route .rx{width:22px;height:22px;border-radius:50%;background:rgba(29,20,38,0.12);display:flex;align-items:center;justify-content:center;margin-right:-5px;flex:none}',
         '.route .rx svg{width:10px;height:10px;stroke:#1d1426}',
         '.yp .yph{flex-wrap:wrap;row-gap:8px}',
-        '.yp .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px 14px;font-size:13px;color:rgba(255,255,255,0.8)}',
+        '.yp .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px 14px;font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
         '.yp .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
         '.yp .it.cat.on{background:#fff;color:#1c1c1e}',
         '.yp .it.cat.on ha-icon,.yp .it.cat.on .txt{color:#1c1c1e}',
         '.yp .it.cat.busy{opacity:.55}',
         '.yp .opts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px}',
         '.yp .opt{height:36px;padding:0 16px;border-radius:18px;display:flex;align-items:center;font-size:14px;font-weight:600;cursor:pointer;',
-        '  color:#fff;border:1.5px solid rgba(255,255,255,0.35);box-sizing:border-box}',
-        '.libh{margin:4px 0 10px 2px;font-size:16px;font-weight:600;letter-spacing:-0.2px;color:rgba(255,255,255,0.92)}',
+        '  color:var(--hk-ink,rgba(255,255,255,0.94));border:1.5px solid var(--hk-line,rgba(255,255,255,0.35));box-sizing:border-box}',
+        '.libh{margin:4px 0 10px 2px;font-size:16px;font-weight:600;letter-spacing:-0.2px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
         '.shelf h3,.sec h3{margin:0 0 10px 2px;font-size:16px;font-weight:600;',
-        '  letter-spacing:-0.2px;color:rgba(255,255,255,0.92)}',
+        '  letter-spacing:-0.2px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
         // A SCROLLER, not a wrapping grid: a shelf is a glance, and a row
         // that wrapped to three lines would push the categories off the page.
         // THE SCROLLER CLIPS ITS CHILDREN'S SHADOWS, and the padding below is
@@ -634,7 +657,8 @@
     // a group that GREW still reads "+1" and you press play expecting two
     // rooms.
     _sigOf() {
-      return (this._player() || '-') + '|' + this._playerName();
+      return (this._player() || '-') + '|' + this._playerName() +
+             (musicMissing() ? '|no-music' : '');
     }
 
     // Music Assistant's config entry, for get_library: from the integration
@@ -1142,6 +1166,13 @@
 
     // ------------------------------------------------------------ render
     _render() {
+      // NO MUSIC FEATURE AND NO SPEAKER OF ITS OWN (`player:`,
+      // `fallback_player:`): nowhere to play, and the reason is the feature
+      if (musicMissing() && !this._player()) {
+        this._e = null;
+        drawNoMusic(this);
+        return;
+      }
       if (!this._built) {
         this._root.innerHTML =
           '<ha-card data-hk-role="card">' +
@@ -1777,8 +1808,25 @@
   register('hk-library-card', HkLibraryCard, 'HK Music Library',
     'Browse and search Music Assistant, playing to the speaker this screen is showing.',
     C.editor && [
+      { name: 'player', label: 'Speaker',
+        helper: 'Always play here. Empty: the screen\'s music room.',
+        selector: { entity: { filter: { domain: 'media_player' } } } },
       { name: 'fallback_player', selector: { entity: { filter: { domain: 'media_player' } } },
-        helper: 'Used only when this screen has no speaker at all.' }
+        helper: 'Used only when this screen has no speaker at all.' },
+      // THE CATEGORY IDS browse_media gives Music Assistant's first page
+      // (settings.py BROWSE_CATEGORIES, CATEGORY_ICON above), in MA's order
+      { name: 'hide', label: 'Hide Categories',
+        helper: 'Left off the first page. Not set here: the ones hidden in HK Settings → Features → Music.',
+        selector: { select: { multiple: true, mode: 'list', options: [
+          { value: 'artists', label: 'Artists' }, { value: 'albums', label: 'Albums' },
+          { value: 'tracks', label: 'Tracks' }, { value: 'playlists', label: 'Playlists' },
+          { value: 'radio', label: 'Radio' }, { value: 'podcasts', label: 'Podcasts' },
+          { value: 'audiobooks', label: 'Audiobooks' }] } } },
+      // Rows are QUERIES (title, media_type, order_by or favorite), not names
+      // from a list, so they stay YAML
+      { name: 'discover', label: 'Discover Rows',
+        helper: 'The first page\'s rows, as a YAML list of title, media type and order. Not set here: the ones picked in HK Settings → Features → Music.',
+        selector: { object: {} } }
     ],
     function () { return { music: true }; });
 

@@ -174,10 +174,13 @@ ok('While Scrolling on Phones: Phones\' own under 640 px (Shrink unless chosen),
 print('=== the material ===');
 var mat = T.material;
 ok('the screen\'s look: frosted stays frosted', mat('house', 'frosted') === 'frosted');
+ok('...and Tinted stays Tinted: no blur on a bar that is always up', mat('house', 'tinted') === 'tinted');
 ok('...every other look is one blur (the chips blur themselves on Clear)',
    mat('house', 'clear') === 'blur' && mat('house', 'blur_each') === 'blur' && mat('house', null) === 'blur');
-ok('its own choice wins', mat('clear', 'blur') === 'clear' && mat('frosted', 'blur') === 'frosted' &&
+ok('its own choice wins', mat('tinted', 'blur') === 'tinted' && mat('frosted', 'blur') === 'frosted' &&
    mat('blur', 'frosted') === 'blur');
+ok('...Tinted as the server stores it (`tinted`), and by its old name (`clear`)',
+   mat('tinted', 'blur_pre') === 'tinted' && mat('clear', 'frosted') === 'tinted');
 
 print('=== where it shows: the menu\'s other form (hkCards.menu.tabBar) ===');
 var C = window.hkCards, M = C.menu;

@@ -33,7 +33,7 @@ strategy:
 ```
 
 Its settings come from HK Settings (the screen’s own, and **Accessories →
-Hidden from Screens** and **Also Shown**). A few options can also be written
+Hidden Accessories** and **Also Shown**). A few options can also be written
 here; lists add to HK Settings’ lists:
 
 | Option | What it does |

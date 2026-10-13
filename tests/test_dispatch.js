@@ -20,11 +20,16 @@ var logged = [];
 globalThis.console = { error: function () { logged.push([].slice.call(arguments).join(' ')); },
                        warn: function () {}, info: function () {}, log: function () {} };
 
+// The quick-timer helpers' scripts: the keypad checks they exist before it
+// calls one (no helpers installed is its own message, not a network failure).
+var HELPERS = { 'script.quick_timer_create': { state: 'off', attributes: {} },
+                'script.quick_timer_start': { state: 'off', attributes: {} } };
+
 function hassThat(mode) {          // 'ok' | 'reject' | 'throw'
   var sent = [];
   return {
     sent: sent,
-    states: {},
+    states: HELPERS,
     callService: function (d, s, data) {
       sent.push(d + '.' + s);
       if (mode === 'throw') throw new Error('sync boom');
@@ -202,7 +207,7 @@ tick().then(function () {
         check('a successful timer clears the name', kp._name === '');
 
         // Double-tap during the round trip sends once.
-        var slow = { states: {}, sent: [], _res: null,
+        var slow = { states: HELPERS, sent: [], _res: null,
           callService: function (d, s) { this.sent.push(d + '.' + s);
             var self = this; return new Promise(function (r) { self._res = r; }); } };
         var kp2 = card('hk-timer-new-card', {});
@@ -353,7 +358,7 @@ function statusOf(c) { return c._hkStatus || { kind: null, text: '' }; }
 function hassReturning(resp) {
   var sent = [];
   return {
-    sent: sent, states: {},
+    sent: sent, states: HELPERS,
     callService: function (d, s, data, target, notify, returnResponse) {
       sent.push({ call: d + '.' + s, data: data, wantsResponse: returnResponse });
       return Promise.resolve({ response: resp });
@@ -444,7 +449,7 @@ function outcomes() {
                 // _begin must repaint, or the button still says "Start" and is
                 // the thing that gets pressed twice.
                 var painted = 0;
-                var slow = { states: {}, sent: [], _res: null,
+                var slow = { states: HELPERS, sent: [], _res: null,
                   callService: function () { var s = this;
                     return new Promise(function (r) { s._res = r; }); } };
                 var k7 = keypad(slow);
@@ -465,6 +470,20 @@ function outcomes() {
                     k8.disconnectedCallback();
                     check('disconnecting clears the pending status timer',
                           !k8._hkStatusT);
+
+                    // --- no helpers installed ---------------------------------
+                    // A card placed by hand where the quick-timer helpers were
+                    // never added: it says so, and calls nothing.
+                    var bare = hassReturning({ started: true });
+                    bare.states = {};
+                    var k9 = keypad(bare);
+                    k9._start();
+                    check('no timer helpers: nothing is called', bare.sent.length === 0);
+                    check('no timer helpers: says so, as a failure',
+                          statusOf(k9).kind === 'failed' && /helpers/.test(statusOf(k9).text));
+                    check('no timer helpers: not "could not reach Home Assistant"',
+                          !/reach/i.test(statusOf(k9).text));
+                    check('no timer helpers: the typed duration is kept', k9._digits === '15');
 
                     print(fail ? 'FAIL ' + fail + ' DISPATCH TESTS'
                                : 'ALL ' + pass + ' DISPATCH TESTS PASS');

@@ -56,6 +56,31 @@ ok('0 %: the grain alone', /feTurbulence/.test(vars().plate) && /rgba\(255,255,2
 HS._apply({ configured: true, look: { glass: 'frosted', frost: 'lots' } });
 ok('a value that is not a number is the default', vars().plate === f50);
 
+print('\n=== tinted: Apple\'s plate, no blur anywhere ===');
+HS._apply({ configured: true, look: { glass: 'tinted' } });
+v = vars();
+ok('a flat dark plate, 75 % at the middle of the slider, the chips the same', v.plate === 'rgba(28, 28, 30, 0.75)' && v.chip === v.plate, v);
+ok('the chips stop blurring themselves, and no plate blurs', v.back === 'none' && !st.getPropertyValue('--hk-glass-backdrop'), v.back);
+ok('the contact shadow, no edge (the 1 px box kept), the dark icon circle by default',
+   st.getPropertyValue('--hk-look-shadow') === '0 1px 2px rgba(0, 0, 0, 0.28)' &&
+   st.getPropertyValue('--hk-look-edge') === '1px solid transparent' &&
+   st.getPropertyValue('--hk-look-well') === 'rgba(0, 0, 0, 0.24)');
+ok('a card on a dark sheet gets a light lift instead', st.getPropertyValue('--hk-glass-plate-sheet') === 'rgba(255, 255, 255, 0.08)');
+ok('the page is told (hk-glass.js stays off: no layer, no picture)', rootAttrs['data-hk-glass'] === 'tinted');
+HS._apply({ configured: true, look: { glass: 'tinted', tint: 0, well: 'light' } });
+ok('0 %: 40 %; the light icon circle', vars().plate === 'rgba(28, 28, 30, 0.4)' &&
+   st.getPropertyValue('--hk-look-well') === 'rgba(255, 255, 255, 0.10)', [vars().plate, st.getPropertyValue('--hk-look-well')]);
+HS._apply({ configured: true, look: { glass: 'tinted', tint: 100, well: 'neon' } });
+ok('100 %: 90 %; an unknown circle is the dark one', vars().plate === 'rgba(28, 28, 30, 0.9)' &&
+   st.getPropertyValue('--hk-look-well') === 'rgba(0, 0, 0, 0.24)', vars().plate);
+HS._apply({ configured: true, look: { glass: 'tinted' }, boards: { '': { tint: 25, well: 'light' } } });
+ok('a screen\'s own darkness and circle win', vars().plate === 'rgba(28, 28, 30, 0.575)' &&
+   st.getPropertyValue('--hk-look-well') === 'rgba(255, 255, 255, 0.10)', vars().plate);
+HS._apply({ configured: true, look: { glass: 'frosted' } });
+ok('leaving Tinted takes every look-only name back',
+   ['--hk-look-edge', '--hk-look-edge-color', '--hk-look-shadow', '--hk-look-well', '--hk-look-dash', '--hk-glass-plate-sheet']
+     .every(function (k) { return !st.getPropertyValue(k); }));
+
 HS._apply({ configured: true, look: { glass: 'sparkly' } });
 ok('an unknown look is clear', HS.glass() === 'clear' && !vars().plate && !vars().back, vars());
 HS._apply({ configured: true, look: { glass: 'clear' } });
@@ -82,7 +107,30 @@ var tsrc = readFile(HK_ROOT + '/frontend/cards/hk-tile.js'), bsrc = readFile(HK_
 ok('a lit (opaque white) pill never blurs behind itself', /\[data-on="1"\]\{background:white;--hk-glass-backdrop:none\}/.test(tsrc));
 ok('a card set glass: false is out of "Blur each card" too, with everything inside it',
    /if \(off\) card\.style\.setProperty\('--hk-glass-backdrop', 'none'\)/.test(bsrc));
-ok('the material reads the look first, then the theme', /^var\(--hk-glass-plate, var\(--hk-glass-bg,/.test(M.bg), M.bg);
+ok('the material reads a sheet\'s plate first, then the look, then the theme',
+   /^var\(--hk-plate-here, var\(--hk-glass-plate, var\(--hk-glass-bg,/.test(M.bg), M.bg);
+ok('...the border, shadow and well read the look\'s own names first (the theme sits on the view, below <html>)',
+   /^var\(--hk-look-edge, var\(--hk-glass-border,/.test(M.border) && /^var\(--hk-look-shadow, var\(--hk-glass-shadow-sm,/.test(M.shSm) &&
+   /^var\(--hk-look-well, var\(--hk-well-bg,/.test(M.well), [M.border, M.shSm, M.well]);
+var sheetSrc = readFile(HK_ROOT + '/frontend/cards/hk-detail.js'), popSrc = readFile(HK_ROOT + '/frontend/cards/hk-popup.js');
+ok('a card in a detail sheet or on a pop-up\'s plate wears the look\'s plate for a sheet',
+   /'\.hkd\{--hk-plate-here:var\(--hk-glass-plate-sheet\)\}'/.test(sheetSrc) &&
+   /setProperty\('--hk-plate-here', 'var\(--hk-glass-plate-sheet\)'\)/.test(popSrc));
+// every hand-written plate shadow lets the look replace it
+var stuck = [];
+['hk-base', 'hk-chip', 'hk-control', 'hk-energy', 'hk-home', 'hk-layout', 'hk-library', 'hk-media', 'hk-music',
+ 'hk-security', 'hk-stat', 'hk-tile', 'hk-weather', 'hk-calendar'].forEach(function (f) {
+  var src = readFile(HK_ROOT + '/frontend/cards/' + f + '.js');
+  var re = /box-shadow:\s*(?!var\(--hk-look-shadow)(?:var\(--hk-glass-shadow|inset 0 1px 0 rgba\(255,255,255,0\.2|0 (?:6px 18px|10px 28px|8px 22px) rgba\(0,0,0,0?\.1)/g;
+  // (not plates of the look: a light page's own rule, which the tone feeds;
+  // Now Playing's wide card, an opaque plate of its own)
+  var m, lines = src.split('\n');
+  while ((m = re.exec(src))) {
+    var at = src.slice(0, m.index).split('\n').length, line = lines[at - 1] + lines[at - 2];
+    if (!/data-hk-light|22px 60px/.test(line)) stuck.push(f + ':' + at);
+  }
+});
+ok('no plate shadow ignores the look (each reads --hk-look-shadow first)', stuck.length === 0, stuck);
 var bare = [];
 ['hk-base', 'hk-chip', 'hk-energy', 'hk-home', 'hk-layout', 'hk-library', 'hk-media', 'hk-security',
  'hk-stat', 'hk-tile', 'hk-weather'].forEach(function (f) {

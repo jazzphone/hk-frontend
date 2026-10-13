@@ -151,8 +151,11 @@
   // colour alone -- OFF stays rgba(0,0,0,0.14). A card that wants a
   // well-less glyph while OFF says so itself with `well_background:
   // transparent`.
+  // (the look's well first -- Tinted's Dark or Light, hk-settings.js --
+  // then the page's: a light page's gray, the theme's; the literal last)
+  var OFF_WELL = 'var(--hk-look-well, var(--hk-well-bg, rgba(0, 0, 0, 0.14)))';
   function wellColour(cfg, stateObj, on) {
-    if (!on) return 'rgba(0, 0, 0, 0.14)';
+    if (!on) return OFF_WELL;
     if (cfg.bare_icon) return 'transparent';
     return colourFor(cfg, stateObj);
   }
@@ -191,7 +194,7 @@
     // The lit top rim is the glass material -- NOT the gradient. Two surfaces
     // with byte-identical backgrounds and borders read as different materials
     // when only one has this line.
-    '  box-shadow:var(--hk-glass-shadow-pill,inset 0 1px 0 rgba(255,255,255,0.20),0 8px 22px rgba(0,0,0,0.12));',
+    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-pill,inset 0 1px 0 rgba(255,255,255,0.20),0 8px 22px rgba(0,0,0,0.12)));',
     '  border:' + window.hkCards.M.border + ';',
     '  ' + window.hkCards.M.glass + ';',
     '  display:flex;align-items:center;justify-content:center;',
@@ -209,6 +212,8 @@
     // Lit, the plate is opaque white: a blur behind it ("Blur each card")
     // would be composited every frame and never seen.
     'ha-card.card[data-on="1"]{background:white;--hk-glass-backdrop:none}',
+    // ...and on a light page (hk-base.js tone) lifts off it with a shadow
+    ':host([data-hk-light]) ha-card.card[data-on="1"]{box-shadow:var(--hk-on-shadow)}',
 
     '.grid{display:grid;width:100%;',
     '  grid-template-columns:42px minmax(0,1fr);',
@@ -216,7 +221,7 @@
     '  row-gap:2.2px;column-gap:10px;align-content:center}',
 
     '.well{grid-area:i;width:42px;height:42px;border-radius:50%;',
-    '  background:rgba(0,0,0,0.14);align-self:center;justify-self:center;',
+    '  background:' + OFF_WELL + ';align-self:center;justify-self:center;',
     '  display:flex;align-items:center;justify-content:center;overflow:hidden;',
     '  transition:background-color .25s ease}',
 
@@ -233,19 +238,22 @@
     // misses it. Flex centring makes the shadow child fill and centre.
     '.icon{width:23px;height:23px;--mdc-icon-size:100%;' +
     '  display:flex;align-items:center;justify-content:center;line-height:0;',
-    '  color:rgba(255,255,255,0.92);transition:color .25s ease}',
+    '  color:var(--hk-glyph,rgba(255,255,255,0.92));transition:color .25s ease}',
 
     '.name{grid-area:n;justify-self:stretch;text-align:left;align-self:center;',
     '  font-weight:600;font-size:15px;line-height:1.1;letter-spacing:-0.23px;',
-    '  color:rgba(255,255,255,0.92);',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
     '  min-width:0;width:100%}',
     'ha-card.card[data-on="1"] .name{color:black}',
 
     '.label{grid-area:l;justify-self:stretch;text-align:left;align-self:start;',
     '  font-weight:400;font-size:15px;letter-spacing:-0.23px;line-height:1.1;',
-    '  color:rgba(220,220,220,0.70);',
+    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    // IN A SECTION (HA's Sections view, not HK's grid): the tile fills its
+    // cell, two to a section by default, instead of sitting 192 px wide in it.
+    ':host([data-hk-cell]) ha-card.card{width:100%;min-width:0;max-width:none}',
     'ha-card.card[data-on="1"] .label{color:rgba(0,0,0,0.65)}',
 
     // ---- scene variant -------------------------------------------------
@@ -258,11 +266,11 @@
     // No outer shadow by default -- only the inset rim, which is what
     // carries the glass read here; `elevated` adds the pill shadow (the
     // scenes row opens room for it inside its clip, see hk-row-card).
-    'ha-card.card.scene{box-shadow:var(--hk-glass-shadow-scene,inset 0 1px 0 rgba(255,255,255,0.20))}',
+    'ha-card.card.scene{box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-scene,inset 0 1px 0 rgba(255,255,255,0.20)))}',
     // `elevated` -- the action tile -- is a scene with the outer shadow PUT
     // BACK.
-    'ha-card.card.scene.elevated{box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),' +
-    '  0 8px 22px rgba(0,0,0,0.12)}',
+    'ha-card.card.scene.elevated{box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),' +
+    '  0 8px 22px rgba(0,0,0,0.12))}',
     '.card.scene .grid{grid-template-rows:1fr;row-gap:normal;align-items:center}',
     // THE WELL IS NOT PAINTED. A scene centres a bare glyph in the same 42px
     // slot -- no circle, no fill. This is the single easiest difference to miss
@@ -380,7 +388,7 @@
     // -- 12px/600 here shifts the rows by 3.5px.
     '.room{grid-area:room;justify-self:stretch;text-align:left;align-self:center;',
     '  font-size:15px;font-weight:400;line-height:1.1;letter-spacing:-0.23px;',
-    '  color:rgba(230,230,230,0.72);min-width:0;width:100%;',
+    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));min-width:0;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     'ha-card.card[data-on="1"] .room{color:rgba(0,0,0,0.55)}',
 
@@ -397,7 +405,7 @@
     // in a column of pills and tall tiles.
     // Top/bottom/right keep the tall tile's own 12.8.
     'ha-card.card.tall{height:152px;padding:12.8px 12.8px 12.8px 10.3px;',
-    '  box-shadow:var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12))}',
+    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)))}',
     // align-self:stretch is load-bearing. ha-card is flex with
     // align-items:center, so without it the grid is CENTRED inside the 152px
     // card rather than filling it -- every row lands ~25px low, which no
@@ -773,13 +781,15 @@
     // The inherited colour map would tint every media glyph cyan.
     _iconColour(cfg, st, on) {
       if (!on) {
-        return (cfg.bare_icon && cfg.icon_color) ? cfg.icon_color : 'rgba(255, 255, 255, 0.92)';
+        return (cfg.bare_icon && cfg.icon_color) ? cfg.icon_color : 'var(--hk-glyph, rgba(255, 255, 255, 0.92))';
       }
       return super._iconColour(cfg, st, on);
     }
   }
 
   if (!customElements.get('hk-media-card')) {
+    // its size in HA's Sections view (hk-base.js GRID)
+    if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-media-card', HkMediaCard);
     customElements.define('hk-media-card', HkMediaCard);
     if (window.hkCards && window.hkCards.editor) {
       var K = window.hkCards;
@@ -850,9 +860,23 @@
   // keep the empty array: an array is truthy).
   // appearanceExtra: fields that belong with the icon (circle colour, well,
   // animation); extraTop: fields that belong beside the name (room line).
-  function tileSchema(extraTop, labelModes, appearanceExtra) {
+  // opts (the per-card deltas the shared schema cannot guess):
+  //   domains   the entity picker's filter -- a light tile offers lights.
+  //             Omitted: any entity (the plain, tall and favorite tiles).
+  //   climate   a thermostat tile: no icon circle (CSS hides .well) and lit
+  //             by its own _isOn, so the icon, Group and icon-tap fields
+  //             would edit nothing. The code still reads them; only the
+  //             editor leaves them out.
+  //   map       offer label_map / label_default -- only where the status
+  //             text goes through HkTileCard's state->text table (a light,
+  //             fan or cover tile computes its own and never reads them).
+  //   spin      offer `animation` -- a switch drawn as a fan spins too.
+  function tileSchema(extraTop, labelModes, appearanceExtra, opts) {
+    opts = opts || {};
+    var pick = opts.domains
+      ? { filter: opts.domains.map(function (d) { return { domain: d }; }) } : {};
     var top = [
-      { name: 'entity', required: true, selector: { entity: {} } },
+      { name: 'entity', required: true, selector: { entity: pick } },
       { type: 'grid', name: '', schema: [
         { name: 'name', selector: { text: {} } }
       ].concat(extraTop || []) }
@@ -865,6 +889,39 @@
       ] });
     } else {
       top.push({ name: 'label', selector: { text: {} } });
+    }
+    // OFF-BY-DEFAULT EXTRAS, folded away: a hand-written map, the detail
+    // sheet switch, the spin.
+    var advanced = [];
+    if (opts.map) {
+      advanced.push(
+        { name: 'label_map', label: 'Status Text for Each State',
+          helper: 'A state -> text map, e.g. on: Running. Replaces the Status Text choice\'s own map.',
+          selector: { object: {} } },
+        { name: 'label_default', label: 'Status Text Fallback',
+          helper: 'For a state the map does not list: fixed text, or sentence, title or spaces to reword the state.',
+          selector: { text: {} } });
+    }
+    if (opts.spin) {
+      advanced.push({ name: 'animation', label: 'Icon Animation',
+        helper: 'Spin: the icon turns while it is on, for a fan on a switch.',
+        selector: C.selOptions(['spin', 'none']) });
+    }
+    advanced.push({ name: 'detail', label: 'Detail Sheet', default: true,
+      helper: 'Off: a tap does what Tap Action says, never the HK sheet.',
+      selector: { boolean: {} } });
+
+    if (opts.climate) {
+      // the temperature stands where the icon would: size is all there is
+      return top.concat([
+        C.section('Appearance', [
+          { name: 'size', selector: C.selOptions(['regular', 'tall']) }
+        ].concat(appearanceExtra || []), 'mdi:palette'),
+        C.section('Interactions', [
+          { name: 'tap_action', selector: { ui_action: {} } }
+        ], 'mdi:gesture-tap'),
+        C.section('Advanced', advanced, 'mdi:cog')
+      ]);
     }
     return top.concat([
       C.section('Appearance', [
@@ -891,7 +948,8 @@
       C.section('Interactions', [
         { name: 'tap_action', selector: { ui_action: {} } },
         { name: 'icon_tap_action', selector: { ui_action: {} } }
-      ], 'mdi:gesture-tap')
+      ], 'mdi:gesture-tap'),
+      C.section('Advanced', advanced, 'mdi:cog')
     ]);
   }
 
@@ -970,7 +1028,7 @@
     var action = st && st.attributes && st.attributes.hvac_action;
     if (action === 'cooling') return 'rgba(86, 189, 228, 0.98)';
     if (action === 'heating') return 'rgba(255, 69, 58, 0.98)';
-    return on ? 'rgba(0, 0, 0, 0.92)' : 'rgba(255, 255, 255, 0.94)';
+    return on ? 'rgba(0, 0, 0, 0.92)' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))';
   }
 
   var sentence = C.sentenceCase;
@@ -1193,6 +1251,14 @@
   // The scene tile -- the variant with the 33 deltas. Also the action tile,
   // which is a scene with `elevated: true`.
   class HkSceneCard extends HkTileBase {
+    // A TAP RUNS IT. One placed by hand (the card picker's, written without a
+    // tap_action) runs its scene, script or automation like the generated
+    // rows' pills, rather than opening its sheet. A tap_action of its own wins.
+    setConfig(config) {
+      var c = config || {};
+      if (c.entity && !c.tap_action) c = Object.assign({}, c, { tap_action: window.hkCards.sceneTap(String(c.entity)) });
+      super.setConfig(c);
+    }
     _variant() {
       return this._config.elevated ? 'scene elevated' : 'scene';
     }
@@ -1240,7 +1306,7 @@
     _iconColour(cfg, st, on) {
       var t = this._tint(cfg);
       if (t) return on ? 'white' : t;
-      return on ? 'rgba(0, 0, 0, 0.95)' : 'rgba(255, 255, 255, 0.94)';
+      return on ? 'rgba(0, 0, 0, 0.95)' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))';
     }
     _render() {
       super._render();
@@ -1315,54 +1381,57 @@
   var WELL = { name: 'well_background', selector: { text: {} } };
   var BARE_COLOUR = { name: 'bare_icon_color', selector: C.selColour() };
   var ROOM = { name: 'room', selector: { text: {} } };
+  // the same card draws a water heater (HEAT_STATES' eco, gas, electric)
+  var CLIMATE = ['climate', 'water_heater'];
 
   register('hk-favorite-card', HkFavoriteCard, 'HK Favorite Tile',
     'A tile with the room name above the entity name, for a favorites row.',
-    tileSchema([ROOM], undefined, [BARE_COLOUR, WELL]),
+    tileSchema([ROOM], undefined, [BARE_COLOUR, WELL], { map: true, spin: true }),
     function (hass) { return { entity: firstOf(hass, 'light'), room: 'Living Room' }; });
 
   register('hk-climate-card', HkClimateCard, 'HK Climate Favorite Tile',
     'A favorites tile for a thermostat, with the current temperature in place of the icon.',
-    tileSchema([ROOM], ['setpoint', 'setpoint_verb']),
+    tileSchema([ROOM], ['setpoint', 'setpoint_verb'], undefined, { domains: CLIMATE, climate: true }),
     function (hass) { return { entity: firstOf(hass, 'climate'), room: 'Hallway' }; });
 
   register('hk-climate-tall-card', HkClimateTallCard, 'HK Climate Tall Tile',
     'A double-height thermostat tile with the current temperature and target.',
-    tileSchema([], ['setpoint_verb', 'setpoint']),
+    tileSchema([], ['setpoint_verb', 'setpoint'], undefined, { domains: CLIMATE, climate: true }),
     function (hass) { return { entity: firstOf(hass, 'climate') }; });
 
   register('hk-tall-card', HkTallCard, 'HK Tall Tile',
     'A double-height tile for any entity, like the lock and garage tiles in the Home app.',
-    tileSchema([], undefined, [BARE_COLOUR, WELL]),
+    tileSchema([], undefined, [BARE_COLOUR, WELL], { map: true, spin: true }),
     function (hass) { return { entity: firstOf(hass, 'lock') }; });
 
   register('hk-tile-card', HkTileCard, 'HK Tile',
     'A Home app–style tile for any entity: icon, name and a status line.',
-    tileSchema([], undefined, [BARE_COLOUR, WELL]),
+    tileSchema([], undefined, [BARE_COLOUR, WELL], { map: true, spin: true }),
     function (hass) { return { entity: firstOf(hass, 'switch') }; });
 
   register('hk-light-card', HkLightCard, 'HK Light Tile',
     'A light tile that shows brightness. Tap the icon to switch it on or off.',
     // The status text is the whole point of this card -- it computes
     // brightness -- so no status choice is offered.
-    tileSchema([], [], [BARE_COLOUR, WELL]),
+    tileSchema([], [], [BARE_COLOUR, WELL], { domains: ['light'] }),
     function (hass) { return { entity: firstOf(hass, 'light'), icon_tap_action: { action: 'toggle' } }; });
 
   register('hk-fan-card', HkFanCard, 'HK Fan Tile',
     'A fan tile that shows its speed, with a spinning icon while on.',
-    tileSchema([], [], [{ name: 'animation', selector: C.selOptions(['spin', 'none']) }]),
+    tileSchema([], [], [{ name: 'animation', selector: C.selOptions(['spin', 'none']) }], { domains: ['fan'] }),
     function (hass) { return { entity: firstOf(hass, 'fan'), icon_tap_action: { action: 'toggle' } }; });
 
   register('hk-cover-card', HkCoverCard, 'HK Cover Tile',
     'A blind, shade or garage door tile that shows how far open it is.',
-    tileSchema([], []),
+    tileSchema([], [], undefined, { domains: ['cover'] }),
     function (hass) { return { entity: firstOf(hass, 'cover'), icon_tap_action: { action: 'toggle' } }; });
 
   register('hk-scene-card', HkSceneCard, 'HK Scene Tile',
     'A tile that runs a scene or script when tapped, and lights up while it runs.',
     // A scene draws no status text and has no hold, so neither appears here.
     [
-      { name: 'entity', required: true, selector: { entity: {
+      // NOT required: a pill may be only an action (Live TV navigates)
+      { name: 'entity', selector: { entity: {
           filter: [{ domain: 'scene' }, { domain: 'script' }, { domain: 'automation' }] } } },
       { name: 'name', selector: { text: {} } },
       C.section('Appearance', [

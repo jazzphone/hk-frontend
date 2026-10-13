@@ -664,6 +664,10 @@
       if (!r.id) return;                        // "More" is not a room
       r.entities.forEach(function (id) {
         if (seen[id]) return;
+        // HIDDEN FROM ITS ROOM PAGE only (Hidden Accessories, `room: false`):
+        // still on Home and the category pages
+        var acc = accOf(id);
+        if (acc && acc.room === false) return;
         seen[id] = true;
         var g = groupOf(hass, id);
         (groups[g] = groups[g] || []).push(placed(tileFor(hass, id, named(hass, id, name)), { area: areas[0], group: g }));
@@ -1553,9 +1557,14 @@
           conditions: [{ condition: 'numeric_state', entity: alerts, above: 0 }],
           card: { type: 'custom:hk-alert-card', entity: alerts, title: 'Severe Weather', icon: 'mdi:alert' } });
       }
+      // FLUSH WITH THE BAND. The band and the alert sit straight in the
+      // column; the tiles and the radar map sit in a grid of their own, whose
+      // cards take the grid's own 4 px side margin on top of the column's --
+      // they stood 4 px inside the band on each side (seen on a desk,
+      // 2026-10-12). The inner grids pay those 4 px back.
       body.push({ type: 'custom:hk-grid-card', cards: tiles,
         layout: { 'grid-template-columns': 'var(--hk-cols-5, repeat(5, minmax(0, 1fr)))',
-                  'grid-column-gap': '6px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } });
+                  'grid-column-gap': '6px', 'grid-row-gap': '0px', margin: '0px -4px', padding: '0px' } });
       // THE RADAR MAP, when the Weather Radar Card is installed from HACS
       // (settings.find_extras hands its URL; hk-frame-card imports it the
       // first time this page builds -- it is not a Lovelace resource, which
@@ -1566,7 +1575,7 @@
       if (radar) {
         body.push({ type: 'custom:hk-grid-card',
           layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content', 'grid-column-gap': '0px',
-                    'grid-row-gap': '0px', margin: '12px 0px 0px 0px', padding: '0px' },
+                    'grid-row-gap': '0px', margin: '12px -4px 0px -4px', padding: '0px' },
           cards: [{ type: 'custom:hk-frame-card', module: radar, material: 'glass', card: Object.assign(overlay({
             data_source: (hass.config && hass.config.country) === 'US' ? 'NOAA' : 'RainViewer',
             map_style: 'OSM', static_map: true, markers: [{ entity: 'zone.home' }], show_scale: true,
@@ -2080,64 +2089,73 @@
     var P = added('energy') ? setting('energy') : null;
     if (!P || typeof P !== 'object') return null;
     has = has || {};
-    var states = hass.states || {};
-    var T = P.total || {};
     var body = [];
-    // THE READINGS ROW
-    var top = (P.top || []).map(function (t) {
-      if (t.kind === 'cost') {
-        return { type: 'custom:hk-stat-card', entity: T.stat, value_mode: 'cost_today', stat: T.stat,
-                 cost_stat: T.cost || undefined, price: T.price != null ? T.price : undefined,
-                 name: 'Today’s Cost', icon: 'hk:home-lightning-bolt', icon_color: 'green',
-                 tap_action: T.power ? { action: 'more-info', entity: T.power } : { action: 'none' } };
-      }
-      if (t.kind === 'climate') {
-        return { type: 'custom:hk-stat-card', entity: t.entity, name: t.name, icon: 'hk:thermostat', icon_color: 'red',
-                 value_mode: 'temperature', value_attribute: 'current_temperature',
-                 tap_action: has.climate ? { action: 'navigate', navigation_path: './climate' } : { action: 'more-info' } };
-      }
-      var st = states[t.entity];
-      var unit = (st && st.attributes && st.attributes.unit_of_measurement) || '';
-      return t.kind === 'temp'
-        ? { type: 'custom:hk-stat-card', entity: t.entity, name: t.name, icon: 'hk:home-thermometer', icon_color: 'teal',
-            value_mode: 'temperature', value_suffix: unit || undefined }
-        : { type: 'custom:hk-stat-card', entity: t.entity, name: t.name, icon: 'hk:gauge', icon_color: 'teal' };
+    // ONE PAGE, FOUR TABS (hk-energy.js THE ENERGY PAGE): the tabs, then one
+    // three-column grid -- the summary across two columns and the highlights
+    // beside it, Where it went across all three, and the period's shape with
+    // the battery and water (or gas) beside it. Every card keeps its size and
+    // place on every tab; only what is in it changes. The readings and the
+    // whole home's live line are the summary's Now. The cards read the plan
+    // and HA's Energy settings themselves, so they carry no config here.
+    var src = P.sources || {};
+    var hasHouse = (P.sections || []).some(function (s) {
+      return (s.items || []).some(function (i) { return i.kind === 'battery' && i.house; });
     });
-    // red, then pink: two thermostats side by side read as two
-    var reds = top.filter(function (c) { return c.icon === 'hk:thermostat'; });
-    if (reds.length > 1) reds[1].icon_color = 'pink';
-    if (top.length) {
-      body.push({ type: 'custom:hk-grid-card', cards: top,
-        layout: { 'grid-column-gap': '12px', 'grid-row-gap': '8px', margin: '0px 0px -12px 0px', padding: '0px',
-                  'grid-template-columns': 'var(--hk-energy-top, var(--hk-cols-4, repeat(4, minmax(0, 1fr))))' } });
-    }
-    // THE WHOLE HOME, LIVE
-    if (T.power && states[T.power]) {
-      body.push({ type: 'custom:hk-trace-card', entity: T.power, margin: top.length ? '12px 3px 0px 3px' : '0px 3px',
-                  tap_action: { action: 'more-info' }, trace: { colour: 'orange', hours: 3, title: 'Whole Home Power' } });
-    }
-    // THE DAILY BARS
-    var usages = (P.usages || []).filter(function (u) { return u && u.entity; }).map(function (u) {
-      var o = { colour: u.color || 'orange' };
-      if (u.runtime) Object.assign(o, { format: 'hm', noun: 'Daily runtime', source: 'dailyPeak' });
-      return { type: 'custom:hk-usage-card', entity: u.entity, stat: u.stat || u.entity, name: u.name, opts: o,
-               tap_action: { action: 'more-info' } };
+    // WHAT SITS BESIDE YOUR DAY: the house battery (HA's battery, or the
+    // plan's house battery before HA's settings reached the plan), then water,
+    // then gas -- two at most. Your Day takes the columns they leave.
+    var beside = [];
+    if (src.battery || hasHouse) beside.push({ type: 'custom:hk-energy-battery-card' });
+    if (src.water) beside.push({ type: 'custom:hk-energy-water-card', source: 'water' });
+    if (src.gas && beside.length < 2) beside.push({ type: 'custom:hk-energy-water-card', source: 'gas' });
+    beside = beside.slice(0, 2);
+    var page = P.page || {};
+    var showHl = page.highlights !== false;
+    // THE COLUMNS AT EACH WIDTH: three on a wall tablet and a computer, two
+    // in the iPad band, one on a phone (css/hk-responsive.css sets the
+    // --hk-energy-* spans there; elsewhere each var() falls back to its own
+    // value here). 4 px between columns: every grid child has 4 px side
+    // margins, so the gap you see is 12, the tiles' own.
+    var grid = { type: 'custom:hk-grid-card', layout: {
+      'grid-template-columns': 'var(--hk-energy-cols, repeat(3, minmax(0, 1fr)))',
+      'grid-column-gap': '4px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' }, cards: [
+        { type: 'custom:hk-energy-hero-card', view_layout: { 'grid-column': showHl ? 'var(--hk-energy-hero, span 2)' : '1 / -1' } }
+      ] };
+    // a thermostat in the readings opens this screen's Climate page, as the
+    // readings row's tiles did (no Climate page: its sheet)
+    if (has.climate) grid.cards[0].climate_path = './climate';
+    if (showHl) grid.cards.push({ type: 'custom:hk-energy-highlights-card', view_layout: { 'grid-column': 'var(--hk-energy-hl, auto)' } });
+    grid.cards.push({ type: 'custom:hk-energy-where-card', view_layout: { 'grid-column': '1 / -1' } });
+    grid.cards.push({ type: 'custom:hk-energy-day-card', view_layout: {
+      'grid-column': beside.length ? 'var(--hk-energy-day, span ' + (3 - beside.length) + ')' : '1 / -1' } });
+    beside.forEach(function (c) {
+      if (beside.length === 1) c.view_layout = { 'grid-column': 'var(--hk-energy-one, auto)' };
+      grid.cards.push(c);
     });
-    if (usages.length) {
-      body.push(energyHeading('Usages'));
-      body.push({ type: 'custom:hk-grid-card', cards: usages,
-        layout: { 'grid-column-gap': '12px', 'grid-row-gap': '0px', margin: '0px 0px -12px 0px', padding: '0px',
-                  'grid-template-columns': 'var(--hk-usages-row, repeat(3, minmax(0, 1fr)))' } });
+    // NOTHING TO DRAW YET (no meter, no device): where to start, below
+    var T = P.total || {};
+    if (T.stat || T.power || (P.sections || []).length) {
+      body.push({ type: 'custom:hk-energy-period-card' });
+      body.push(grid);
     }
-    // THE SECTIONS: a live tile per device (watts now, kWh today), and the
-    // batteries (their level, and a car's range)
+    // TRACKING: the meters and runtimes a house chose to follow (HK Settings
+    // -> Energy -> Tracking; the plan's own daily bars), one card of rows that
+    // follow the tabs. Automatic ones are each device's sheet.
+    if (P.usages_auto === false && (P.usages || []).some(function (u) { return u && (u.stat || u.entity); })) {
+      body.push(energyHeading('Tracking'));
+      body.push({ type: 'custom:hk-energy-tracking-card' });
+    }
+    // THE SECTIONS: a tile per device that follows the tabs (watts and the
+    // last three hours on Now, kWh against its usual on the others), and the
+    // batteries (their level, and a car's range). The heading carries the
+    // section's dot and total.
     (P.sections || []).forEach(function (s) {
       var peers = (s.items || []).filter(function (i) { return i.kind === 'device' && i.stat; })
         .map(function (i) { return i.stat; });
       var tiles = (s.items || []).map(function (i) {
         if (i.kind === 'battery') {
           var bt = { type: 'custom:hk-rank-card', entity: i.entity, name: i.name, icon: i.icon, mode: 'pct',
-                     icon_color_steps: BATTERY_STEPS };
+                     icon_color_steps: BATTERY_STEPS, energy: true, section: s.id };
           if (i.label) {
             bt.label_entity = i.label;
             bt.label_suffix = i.label_suffix || '';
@@ -2146,18 +2164,22 @@
           return bt;
         }
         var t = { type: 'custom:hk-rank-card', entity: i.power || i.stat, name: i.name, icon: i.icon,
-                  icon_color: i.color };
+                  icon_color: i.color, energy: true, section: s.id };
         if (i.stat) { t.stat = i.stat; t.peers = peers; }
         if (!i.power) t.mode = 'energy';
+        if (i.control) t.control = i.control;
         return t;
       }).filter(function (t) { return t.entity; });
       if (!tiles.length) return;
-      body.push(energyHeading(s.name, s.link));
+      var hd = energyHeading(s.name, s.link);
+      hd.energy_section = s.id;
+      body.push(hd);
       body.push({ type: 'custom:hk-grid-card', cards: tiles, layout: TRACK_GRID });
     });
-    // HOME ASSISTANT'S OWN CHARTS: the day, its sources, and each device
+    // HOME ASSISTANT'S OWN CHARTS, at the end (HK Settings -> Energy -> Home
+    // Assistant's Charts)
     if (P.detail) {
-      body.push(energyHeading('Detail'));
+      body.push(energyHeading('Home Assistant’s Charts'));
       body.push({ type: 'custom:hk-frame-card', card: { type: 'energy-date-selection' }, margin: '0px 0px 12px 0px' });
       body.push({ type: 'custom:hk-frame-card', card: { type: 'energy-sources-table' }, margin: '0px 0px 12px 0px',
                   phone: 'hide', vars: { 'card-background-color': 'transparent', 'divider-color': 'rgba(255,255,255,0.13)' } });

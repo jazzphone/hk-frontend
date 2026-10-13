@@ -40,7 +40,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from .const import (CONF_BATTERIES, CONF_COST, CONF_DETAIL, CONF_DEVICES, CONF_EXTRA, CONF_FOLLOW,
+from .const import (CONF_PAGE, CONF_BATTERIES, CONF_COST, CONF_DETAIL, CONF_DEVICES, CONF_EXTRA, CONF_FOLLOW,
                     CONF_SECTIONS, CONF_TITLE, CONF_TOP, CONF_TOTAL, CONF_USAGES, COLORS, SECTIONS,
                     TOP_MAX, USAGES_MAX)
 
@@ -298,6 +298,9 @@ def devices(ctx: Mapping[str, Any], options: Mapping[str, Any]) -> list[dict[str
             "icon": mine.get("icon") or guess_icon(auto, area_icons.get(_fold(auto))),
             "color": mine.get("color") or None, "control": mine.get("control") or device_switch(ctx, power),
             "hidden": bool(mine.get("hidden")), "extra": bool(r.get("extra")),
+            # its daily runtime (an AC's hours), chosen here; the page also
+            # links a daily bar of runtime named after the device by itself
+            "runtime": mine.get("runtime") or None,
             "rank": _num(e_stat.get("state")) or 0.0})
     by = {d["key"]: d for d in out}
     for d in out:
@@ -360,7 +363,8 @@ def sections(devs: list[dict[str, Any]], bats: list[dict[str, Any]],
             if isinstance(s, dict) and s.get("id"):
                 out.append({"id": str(s["id"]), "name": str(s.get("name") or names.get(s["id"]) or s["id"]),
                             "items": [k for k in (s.get("items") or []) if isinstance(k, str)],
-                            "link": s.get("link") if isinstance(s.get("link"), dict) else None})
+                            "link": s.get("link") if isinstance(s.get("link"), dict) else None,
+                            "color": s.get("color") or None})
     placed = {k for s in out for k in s["items"]}
     by_id = {s["id"]: s for s in out}
     auto = not isinstance(chosen, list)
@@ -416,13 +420,19 @@ def build(ctx: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> d
                 d = by[key]
                 if d["hidden"]:
                     continue
-                items.append({"key": key, "kind": "device", "name": d["name"], "icon": d["icon"],
-                              "color": d["color"] or guess_color(s["id"], len(items)),
-                              "power": d["power"], "stat": d["stat"], "control": d["control"]})
+                it = {"key": key, "kind": "device", "name": d["name"], "icon": d["icon"],
+                      "color": d["color"] or guess_color(s["id"], len(items)),
+                      "power": d["power"], "stat": d["stat"], "control": d["control"]}
+                if d.get("runtime"):
+                    it["runtime"] = d["runtime"]
+                items.append(it)
             elif key in bats_by:
                 items.append(dict(bats_by[key]))
         if items:
-            out_secs.append({"id": s["id"], "name": s["name"], "link": s["link"], "items": items})
+            sec = {"id": s["id"], "name": s["name"], "link": s["link"], "items": items}
+            if s.get("color"):
+                sec["color"] = s["color"]
+            out_secs.append(sec)
 
     # the readings row: Today's Cost, then the house's thermostats and the
     # outside temperature (or the options' own list)
@@ -469,6 +479,13 @@ def build(ctx: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> d
             usages.append({"entity": d["power"] or d["stat"], "stat": d["stat"], "name": d["name"],
                            "color": cyc[i % len(cyc)], "runtime": False})
 
+    # WHAT THE HOUSE HAS, for the page's layout: the generated page is built
+    # before any statistics load, and Your Day's width depends on whether the
+    # house battery and water (or gas) sit beside it
+    kinds = {str(x.get("type")) for x in prefs.get("energy_sources") or [] if isinstance(x, dict)}
+    sources = {"battery": "battery" in kinds, "water": "water" in kinds, "gas": "gas" in kinds,
+               "solar": "solar" in kinds, "cost": bool(cost or total.get("price"))}
+
     # for a detail sheet: what each power sensor (and meter) is part of
     lookup = {}
     for d in devs:
@@ -480,8 +497,13 @@ def build(ctx: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> d
     return {
         "title": str(options.get(CONF_TITLE) or "Energy")[:40],
         "total": total, "top": top, "usages": usages, "sections": out_secs,
-        "detail": bool(options.get(CONF_DETAIL, True)) and bool(prefs.get("energy_sources") or
-                                                                 prefs.get("device_consumption")),
+        "detail": bool(options.get(CONF_DETAIL, False)) and bool(prefs.get("energy_sources") or
+                                                                  prefs.get("device_consumption")),
+        "sources": sources,
+        "page": dict(options.get(CONF_PAGE) or {}),
+        # the daily bars are the house's own choice (shown as their own row)
+        # or automatic (each device's sheet has them)
+        "usages_auto": not isinstance(chosen_u, list),
         "devices": lookup,
         "names": {d["key"]: d["name"] for d in devs},
     }

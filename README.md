@@ -54,7 +54,7 @@ Every screen chooses how you move between its pages and rooms.
 
 ## Tap for the controls
 
-Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Each room and category page has a [status row](https://github.com/jazzphone/hk-frontend/wiki/Status-Rows) like the Home app's: *Motion · Emma’s Room*, *Valve · Running*. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens. Every accessory can have its own name, icon (any of Apple’s Home glyphs, or Home Assistant’s), tile size and place among its neighbours.
+Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens with the controls it needs. Each room and category page has a [status row](https://github.com/jazzphone/hk-frontend/wiki/Status-Rows) like the Home app's: *Motion · Emma’s Room*, *Valve · Running*. Pop-ups show the doorbell camera or the alarm keypad, and an automation can open one on chosen screens. Every accessory can have its own name, icon (any of Apple’s Home glyphs, or Home Assistant’s), tile size and place among its neighbors. Touch a graph for its value, drag a thermostat’s dial and watch it follow your finger.
 
 <p align="center">
 <img src="docs/images/sheet-light.png" width="49%" alt="A light’s detail sheet with a brightness slider">
@@ -63,7 +63,7 @@ Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens 
 
 ## A live sky
 
-Behind every page, a sky that follows the weather and the time of day: clear and starry, golden at sunset, grey and flashing in a thunderstorm, with rain or snow when it falls. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Each page can keep its own color, show the live sky, or a still backdrop. **Liveliness** sets how much moves in it — the bats, leaves and fireflies, and how often something crosses the moon — for each occasion and each screen, calming down when nobody is around.
+Behind every page, a sky that follows the weather and the time of day: clear and starry, golden at sunset, gray and flashing in a thunderstorm, with rain or snow when it falls. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Each page can keep its own color, show the live sky, or a still backdrop. **Liveliness** sets how much moves in it — the bats, leaves and fireflies, and how often something crosses the moon — for each occasion and each screen, calming down when nobody is around.
 
 <p align="center">
 <img src="docs/images/sky-new-halloween.jpg" width="49%" alt="New Decorations: Halloween night, jack-o'-lanterns in the trees under a full moon">
@@ -85,7 +85,7 @@ When nobody is using it, it shows your photos, or the forecast over a living lan
 
 ## Energy at a glance
 
-The **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** feature builds an Energy page from Home Assistant’s own Energy settings: today’s cost, the whole home live, a fortnight of daily bars and a live tile for every circuit, room, appliance and outlet. A screen can show only some pages — a wall panel that is just the Energy page, say.
+The **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** feature builds an Energy page from Home Assistant’s own Energy settings, with four tabs: **Now** (the whole home live, what is drawing the most, the house battery and the cars), and **Today**, **This Week** and **This Month** (rings against a usual day, where the energy went, the month as a calendar, and the meters you track). Every circuit, room, appliance and outlet has a tile, with a power button where there is a switch. A screen can show only some pages — a wall panel that is just the Energy page, say.
 
 <p align="center">
 <img src="docs/images/tablet-energy.png" width="100%" alt="The Energy page on a wall tablet">
@@ -93,7 +93,7 @@ The **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** feature b
 
 ## Set up in the UI
 
-**HK Settings** in the sidebar holds everything, with a live preview of each screen as a phone, an iPad, a wall tablet, a desktop or a car. A Setup Assistant makes your first screen, and Setup Check says what is missing. There is nothing to add to `configuration.yaml`.
+**HK Settings** in the sidebar holds everything, with a live preview of each screen as a phone, an iPad, a wall tablet, a desktop or a car. Choose the glass: see-through, frosted, blurred, or **Tinted**, the Home app’s flat dark plate. A Setup Assistant makes your first screen, and Setup Check says what is missing. There is nothing to add to `configuration.yaml`.
 
 <p align="center">
 <img src="docs/images/settings-screen.png" width="100%" alt="A screen’s settings in HK Settings, beside a live preview of it at wall-tablet size">
@@ -121,7 +121,7 @@ Add each from **Settings** → **Devices & services** → **HK Frontend** → **
 | **[Clean Areas](https://github.com/jazzphone/hk-frontend/wiki/Clean-Areas)** | Pick rooms and send the vacuums that reach them |
 | **[Alarm PIN](https://github.com/jazzphone/hk-frontend/wiki/Alarm-PIN)** | A PIN in front of an alarm panel that takes no code of its own |
 | **[Energy](https://github.com/jazzphone/hk-frontend/wiki/Energy)** | An Energy page built from Home Assistant’s Energy settings, with a live tile per circuit and device |
-| **[Notifications](https://github.com/jazzphone/hk-frontend/wiki/Notifications)** | A banner at the top of the screens when something happens at home, with a camera’s snapshot; whole categories at once — doors, locks, leaks, cameras, vacuums, the alarm — and your calendars’ events before they start. Do Not Disturb, and a wake up to the screensaver |
+| **[Notifications](https://github.com/jazzphone/hk-frontend/wiki/Notifications)** | A banner at the top of the screens when something happens at home, with a camera’s snapshot; whole categories at once — doors, locks, leaks, cameras, vacuums, the alarm — and your calendars’ events before they start. A tap opens the accessory’s sheet with the notification on it. Do Not Disturb, and a wake up to the screensaver |
 
 **Built in, nothing to add:** the **[Calendar](https://github.com/jazzphone/hk-frontend/wiki/Calendar)** (month, week or day, and your coming events on the screensaver), **[Weather](https://github.com/jazzphone/hk-frontend/wiki/Weather)**, **[Cameras](https://github.com/jazzphone/hk-frontend/wiki/Cameras)**, **[Pop-ups](https://github.com/jazzphone/hk-frontend/wiki/Detail-Sheets-and-Popups)** an automation opens (the doorbell, the alarm keypad), the **[Screensaver](https://github.com/jazzphone/hk-frontend/wiki/Screensaver-and-Idle)** and the **[Sleep Screen](https://github.com/jazzphone/hk-frontend/wiki/Sleep-Screen)**.
 

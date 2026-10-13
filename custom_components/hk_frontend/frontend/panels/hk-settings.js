@@ -4,7 +4,7 @@
 //   OVERVIEW       where settings live, setup status
 //   SCREENS        each dashboard, one page: Menu, Home Page, Pages,
 //                  Appearance, Behavior -- a live preview beside it
-//   ALL SCREENS    General, Status & Chips, Weather, Appearance, Sky,
+//   ALL SCREENS    General, What Counts, Weather, Appearance, Sky,
 //                  Menu, Rooms (and each room's page), Wall Tablets
 //   FEATURES       Music, Live TV, Alarm PIN, Clean Areas
 //                  (hk-settings-features.js)
@@ -288,7 +288,10 @@
   var C = { blue: '#007aff', green: '#34c759', indigo: '#5856d6', orange: '#ff9500', pink: '#ff2d55', purple: '#af52de',
             red: '#ff3b30', teal: '#30b0c7', yellow: '#ffcc00', gray: '#8e8e93', cyan: '#32ade6', brown: '#a2845e' };
   var HOUSE = [
-    ['general', 'General', 'mdi:home', C.gray], ['counts', 'Status & Chips', 'mdi:counter', C.green],
+    // What Counts (was Status & Chips, retired from the sidebar 2026-10-12):
+    // read-only now -- changed on each accessory (Hidden Accessories, Also
+    // Count As) -- reached from Accessories, a chip and a status row
+    ['general', 'General', 'mdi:home', C.gray], ['counts', 'What Counts', 'mdi:counter', C.green, 'unlisted'],
     ['weather', 'Weather', 'mdi:weather-partly-cloudy', C.cyan], ['calendar', 'Calendar', 'mdi:calendar-month', C.red],
     ['appearance', 'Appearance', 'mdi:palette', C.indigo],
     ['sky', 'Sky / Background', 'mdi:weather-night', C.purple], ['menu', 'Menu', 'mdi:dock-left', C.orange],
@@ -1098,7 +1101,7 @@
                         fk: 'side:add' }));
       side.appendChild(K.group({ header: 'Screens' }, rows));
       var list = function (header, arr, pre) {
-        side.appendChild(K.group({ header: header }, arr.map(function (p) {
+        side.appendChild(K.group({ header: header }, arr.filter(function (p) { return p[4] !== 'unlisted'; }).map(function (p) {
           var r = (pre || '') + p[0];
           return K.nav({ tile: [p[2], p[3]], label: p[1], href: '#/' + r, current: wide && at(r), fk: 'side:' + r });
         })));
@@ -1633,8 +1636,11 @@
                  onChange: function (v) { var o = {}; o[k] = v; set(o); }, reset: function () { var o = {}; o[k] = null; set(o); } };
       };
       var tOwn = typeof b.frost_tint === 'boolean', tHouse = !!look.frost_tint;
+      var wOwn = b.well === 'dark' || b.well === 'light', wHouse = look.well || 'dark';
       app = app.concat(this.glassRows(gl.effective, {
-        frost: amt('frost'), blur: amt('blur'),
+        frost: amt('frost'), blur: amt('blur'), dark: amt('tint'),
+        well: { value: wOwn ? b.well : wHouse, own: wOwn, house: wHouse,
+                onChange: function (x) { set({ well: x }); }, reset: function () { set({ well: null }); } },
         tint: { on: tOwn ? b.frost_tint : tHouse, own: tOwn, house: tHouse,
                 onChange: function (on) { set({ frost_tint: on }); }, reset: function () { set({ frost_tint: null }); } }
       }, 'b:'));
@@ -2270,7 +2276,7 @@
         }
       }));
       c.appendChild(K.group({ footer: h('span', {}, ['What each chip counts is the same on every screen: ',
-        h('a', { href: '#/house/counts', text: 'Status & Chips' }), '. An accessory chip’s look is in its settings; a custom chip is written in ',
+        h('a', { href: '#/house/counts', text: 'What Counts' }), ' — changed on each accessory. An accessory chip’s look is in its settings; a custom chip is written in ',
         h('a', { href: '#/chips', text: 'Custom Chips' }), '.']) }, []));
     }
     s_chip(c, x, b, kind) {
@@ -2285,9 +2291,16 @@
         var lbl = M.COUNT_KINDS.filter(function (y) { return y[0] === k; })[0];
         rows.push(K.nav({ label: lbl ? lbl[1] : k, value: String(ck.found.length), href: '#/house/counts/' + k }));
       });
-      if (src.setting) {
-        var map = { 'Alarm Panel': 'security.alarm', 'Indoor Temperature': 'features.temperature', 'Power Use': 'features.power',
-                    'Weather Alerts Sensor': 'weather.alerts' };
+      if (src.setting && src.setting[0] === 'here') {
+        // THE CHIP'S READING, chosen here (was Status & Chips -> Readings): the
+        // house's, the same on every screen
+        var rk = src.setting[1] === 'Indoor Temperature' ? 'features.temperature' : 'features.power';
+        rows.push(this.entityRow({ label: src.setting[1], sk: rk, value: this.hs(rk),
+          none: rk === 'features.temperature' ? 'First Thermostat’s' : 'None',
+          filter: { domains: ['sensor'], dc: rk === 'features.temperature' ? 'temperature' : 'power' },
+          onPick: function (v) { var o = {}; o[rk] = v; self.setH(o); } }));
+      } else if (src.setting) {
+        var map = { 'Alarm Panel': 'security.alarm', 'Weather Alerts Sensor': 'weather.alerts' };
         var v = this.hs(map[src.setting[1]]);
         rows.push(K.nav({ label: src.setting[1], value: v ? this.name(v) : 'None', href: '#/' + src.setting[0] }));
       }
@@ -3470,7 +3483,8 @@
           [(M.COUNT_KINDS.filter(function (k) { return k[0] === sub[0]; })[0] || [0, sub[0]])[1], base + '/' + sub[0]]);
         if (sub[0]) return mk((M.COUNT_KINDS.filter(function (k) { return k[0] === sub[0]; })[0] || [0, sub[0]])[1],
                               function (c) { self.h_count(c, sub[0]); });
-        return { title: title, top: true, scope: 'What the status chips, the security line and the generated pages count — on every screen.',
+        return { title: title, back: ['Accessories', '#/accessories'],
+                 scope: 'What the status chips, the security line and the generated pages count — on every screen. Change it on each accessory.',
                  body: function (c) { self.h_counts(c); } };
       }
       if (page === 'status') {
@@ -3613,7 +3627,7 @@
       c.appendChild(K.group({ footer: 'A room page’s row sits under the room’s name; it counts that room.' },
         M.STATUS_ROWS.filter(function (r) { return r[0] === 'rooms'; }).map(link)));
       c.appendChild(K.group({ header: 'Category Pages', footer: 'Each page’s row counts what the page shows — ' +
-          'what Status & Chips finds — and a tap opens the accessories it counts. A page’s row is on every screen with that page.' },
+          'what HK finds, less what’s hidden from it — and a tap opens the accessories it counts. A page’s row is on every screen with that page.' },
         M.STATUS_ROWS.filter(function (r) { return r[0] !== 'rooms'; }).map(link)));
     }
     h_statusRow(c, page) {
@@ -3662,7 +3676,7 @@
       });
       if (sources.length) c.appendChild(K.group({ header: 'Sources', footer: page === 'climate'
           ? 'Related sensors are chosen in Home Assistant’s area settings. Temperature and humidity use current readings; unavailable readings do not affect the range.'
-          : 'What Status & Chips finds, less the rooms left out below. Change what counts there.' }, sources));
+          : 'What HK finds, less the rooms left out below. Change what counts on each accessory: Hidden Accessories and its Also Count As.' }, sources));
       c.appendChild(K.group({ header: 'Rooms', footer: 'Leave a room out of this row and its lists — an outdoor area, a shed — without hiding it anywhere else.' },
         this.areasAZ().map(function (aid) {
           var included = cur.exclude_areas.indexOf(aid) < 0;
@@ -3682,17 +3696,10 @@
       };
       c.appendChild(K.group({ header: 'Status Chips',
           footer: h('span', {}, ['The number is what is counted now; ', h('b', { text: 'Adjusted' }),
-            ' means you have left some out or added some. Accessories ',
-            h('a', { href: '#/accessories/hidden', text: 'hidden from screens' }),
-            ' are never counted, and an accessory’s Include in Status turns it off everywhere. Which chips a screen shows is set on the screen — all but Smoke & CO, which leads every screen’s row.']) },
+            ' means some are hidden from it or added to it — in ',
+            h('a', { href: '#/accessories/hidden', text: 'Hidden Accessories' }),
+            ' and each accessory’s Also Count As. Which chips a screen shows, and the Climate and Energy chips’ readings, are set on the screen — all but Smoke & CO, which leads every screen’s row.']) },
         M.COUNT_KINDS.filter(function (k) { return ROW_ONLY.indexOf(k[0]) < 0; }).map(row)));
-      // THE CHIPS' READINGS (2026-10-09: they were under General)
-      var self = this, setR = function (k) { return function (v) { var o = {}; o[k] = v; self.setH(o); }; };
-      c.appendChild(K.group({ header: 'Readings', footer: 'Indoor temperature is on the Climate chip; power use on the Energy chip, which needs it.' }, [
-        this.entityRow({ label: 'Indoor Temperature', sk: 'features.temperature', value: this.hs('features.temperature'),
-                         none: 'First Thermostat’s', filter: { domains: ['sensor'], dc: 'temperature' }, onPick: setR('features.temperature') }),
-        this.entityRow({ label: 'Power Use', sk: 'features.power', value: this.hs('features.power'), none: 'None',
-                         filter: { domains: ['sensor'], dc: 'power' }, onPick: setR('features.power') })]));
       c.appendChild(K.group({ header: 'For Status Rows',
           footer: h('span', {}, ['These feed the pages’ ', h('a', { href: '#/house/status', text: 'status rows' }),
             ' and lists — Climate’s ranges, the rooms with motion, the running valves — not a chip.']) },
@@ -3702,45 +3709,31 @@
       var self = this, ck = (this.data.counts || {})[kind];
       if (!ck) return;
       var desc = (M.COUNT_KINDS.filter(function (k) { return k[0] === kind; })[0] || [])[2];
-      var save = function (ex, inc) { self.setH((function () { var o = {}; o['counts.' + kind] = { exclude: ex, include: inc }; return o; })()); };
       c.appendChild(K.group({ footer: desc }, [
         K.info({ label: 'Found Automatically', value: String(ck.auto.length) }),
         K.nav({ label: 'Counted', value: String(ck.found.length), href: '#/house/counts/' + kind + '/all' })]));
-      c.appendChild(K.listEditor({ fk: 'ex', reorder: false, shownHeader: 'Left Out',
-                                  shownFooter: 'Found automatically, but not counted — a car’s windows, a second copy of a blind.',
-                                  emptyText: 'Nothing left out',
-        announce: this.announce.bind(this),
-        rows: ck.exclude.map(function (id) { return { value: id, label: self.name(id), sub: self.areaName(self.areaOf(id)) || id }; }),
-        onChange: function (v) { save(v, ck.include); },
-        addLabel: 'Leave Out…', onAddOther: function () {
-          self.go(self.picker('ex-' + kind, { title: 'Leave Out', value: null, multi: true,
-            items: function () { return ck.auto.filter(function (id) { return ck.exclude.indexOf(id) < 0; })
-              .map(function (id) { return { value: id, label: self.name(id), sub: self.areaName(self.areaOf(id)) || id }; }); },
-            onPick: function (id) { if (id) save(ck.exclude.concat(id), ck.include); } }));
-        } }));
-      c.appendChild(K.listEditor({ fk: 'inc', reorder: false, shownHeader: 'Also Counted',
-                                  shownFooter: 'Not found automatically, but counted — an outlet you think of as a light, a switch that runs a fan.',
-                                  emptyText: 'Nothing added',
-        announce: this.announce.bind(this),
-        rows: ck.include.map(function (id) { return { value: id, label: self.name(id), sub: self.areaName(self.areaOf(id)) || id }; }),
-        onChange: function (v) { save(ck.exclude, v); },
-        addLabel: 'Also Count…', onAddOther: function () {
-          self.go(self.picker('inc-' + kind, { title: 'Also Count', value: null, multi: true,
-            items: function () { return self.entityIds({ domains: ck.also }).filter(function (id) {
-              return ck.auto.indexOf(id) < 0 && ck.include.indexOf(id) < 0; })
-              .map(function (id) { return { value: id, label: self.name(id), sub: id }; }); },
-            onPick: function (id) { if (id) save(ck.exclude, ck.include.concat(id)); } }));
-        } }));
-      c.appendChild(K.group({ footer: ck.saved
-          ? 'Automatic counts everything the kind finds, and follows new accessories as they’re added.'
-          : 'Everything is counted automatically — a new accessory is counted the day it is added.' },
-        [ck.saved ? K.button({ label: 'Reset to Automatic…', destructive: true, fk: 'count:reset', onClick: function () {
-          var kname = (M.COUNT_KINDS.filter(function (k) { return k[0] === kind; })[0] || [0, kind])[1];
-          K.confirm(self.shadowRoot, { title: 'Count ' + kname + ' Automatically?', message: 'What’s left out and added here will be cleared.',
-                                        ok: 'Reset', destructive: true }).then(function (yes) {
-            if (yes) self.setH((function () { var o = {}; o['counts.' + kind] = null; return o; })());
-          });
-        } }) : null]));
+      // LEFT OUT is Hidden Accessories' now (hiding.py): listed here, changed there
+      var pname = ((this.hid().places || {})[kind] || [kind])[0];
+      c.appendChild(K.group({ header: 'Left Out', footer: ck.exclude.length
+          ? 'Hidden from ' + pname + ' in Hidden Accessories. Tap one to change where it’s hidden.'
+          : 'To leave something out, hide it from ' + pname + ' in Hidden Accessories.' },
+        ck.exclude.slice().sort(function (a, b) { return self.name(a).localeCompare(self.name(b)); }).map(function (id) {
+          return K.nav({ label: self.name(id), sub: (self.areaName(self.areaOf(id)) || 'No room') + ' · ' + id,
+                         href: '#/accessories/hidden/edit/' + encodeURIComponent(id), fk: 'ex:' + id });
+        }).concat([K.nav({ label: 'Hidden Accessories', href: '#/accessories/hidden', fk: 'ex:hidden' })])));
+      // ALSO COUNTED is on each accessory's page now (Also Count As): listed here
+      c.appendChild(K.group({ header: 'Also Counted', footer: h('span', {}, [
+          ck.include.length ? 'Not found automatically, but counted. Tap one to change it on its page. ' : '',
+          'To count something more — an outlet you think of as a light — open it in ',
+          h('a', { href: '#/accessories', text: 'Accessories' }), ' and turn on Also Count As.']) },
+        ck.include.slice().sort(function (a, b) { return self.name(a).localeCompare(self.name(b)); }).map(function (id) {
+          return K.nav({ label: self.name(id), sub: (self.areaName(self.areaOf(id)) || 'No room') + ' · ' + id,
+                         href: '#/accessories/' + encodeURIComponent(id), fk: 'inc:' + id });
+        })));
+      c.appendChild(K.group({ footer: (ck.exclude.length || ck.include.length) && !ck.saved
+          ? 'Counted as an older setting chose, until something changes.'
+          : 'Everything else is counted automatically — a new accessory is counted the day it is added.' },
+        ck.exclude.length ? [K.nav({ label: 'Show All Again…', href: '#/accessories/hidden/kind/' + kind, fk: 'count:showall' })] : []));
     }
     h_countAll(c, kind) {
       var self = this, ck = (this.data.counts || {})[kind] || { found: [] };
@@ -3849,7 +3842,9 @@
       rows = rows.concat(this.glassRows(look.glass, {
         frost: { value: look.frost, onChange: function (v) { self.setH({ 'look.frost': v }); } },
         tint: { on: !!look.frost_tint, onChange: function (on) { self.setH({ 'look.frost_tint': on }); } },
-        blur: { value: look.blur, onChange: function (v) { self.setH({ 'look.blur': v }); } }
+        blur: { value: look.blur, onChange: function (v) { self.setH({ 'look.blur': v }); } },
+        dark: { value: typeof look.tint === 'number' ? look.tint : 50, onChange: function (v) { self.setH({ 'look.tint': v }); } },
+        well: { value: look.well || 'dark', onChange: function (v) { self.setH({ 'look.well': v }); } }
       }, 'look.'));
       var names = own.map(function (p) { var x = self.dash(p); return x ? x.title : p; });
       c.appendChild(K.group({ header: 'Glass', footer: M.glassFooter(look.glass) +
@@ -3872,17 +3867,20 @@
         })));
     }
     // THE ROWS UNDER GLASS STYLE, the same on All Screens' Appearance and a
-    // screen's page: the amount of the style in use, and with Frosted its
-    // Tint from Background. `v`: {frost, tint, blur} -- each its value and
+    // screen's page: the amount of the style in use, with Frosted its Tint
+    // from Background, with Tinted its Darkness (stored `tint`) and Icon
+    // Circles (`well`). `v`: {frost, tint, blur, dark, well} -- each its value and
     // onChange, and on a screen `own`/`house`/`reset` for the inherited
     // pattern (Same as All Screens / Just This Screen, Reset to All Screens).
     glassRows(style, v, skp) {
       var rows = [], uses = M.amountsFor(style);
-      var amount = function (k, label) {
+      // k: v's entry; key: the stored name, when it differs (Darkness is `tint`)
+      var amount = function (k, label, key) {
         var a = v[k];
-        rows.push(K.slider({ label: label, sk: skp + k, value: a.value, unit: '%', step: 5,
+        key = key || k;
+        rows.push(K.slider({ label: label, sk: skp + key, value: a.value, unit: '%', step: 5,
           badge: a.house != null && !a.own ? 'Same as All Screens' : null, onChange: a.onChange }));
-        if (a.own) rows.push(K.button({ label: 'Reset to All Screens (' + a.house + '%)', sk: skp + k + ':reset', onClick: a.reset }));
+        if (a.own) rows.push(K.button({ label: 'Reset to All Screens (' + a.house + '%)', sk: skp + key + ':reset', onClick: a.reset }));
       };
       if (uses.frost) {
         amount('frost', 'Frost');
@@ -3893,6 +3891,14 @@
           onClick: t.reset }));
       }
       if (uses.blur) amount('blur', 'Blur');
+      if (uses.tint && v.dark) {
+        amount('dark', 'Darkness', 'tint');
+        var w = v.well;
+        rows.push(K.seg({ label: 'Icon Circles', sk: skp + 'well', value: w.value, options: M.TINT_WELLS,
+          sub: w.house == null ? null : (w.own ? 'Just This Screen' : 'Same as All Screens'), onChange: w.onChange }));
+        if (w.own) rows.push(K.button({ label: 'Reset to All Screens (' + M.choiceLabel(M.TINT_WELLS, w.house) + ')',
+          sk: skp + 'well:reset', onClick: w.reset }));
+      }
       return rows;
     }
     h_glass(c) {
@@ -4604,7 +4610,7 @@
       rows.push(K.nav({ label: 'Cameras Page Background', sub: 'Its own color, the live sky or a backdrop',
                         href: (x ? '#/screens/' + encodeURIComponent(x.path) : '#/house') + '/sky/page/cameras',
                         icon: 'mdi:palette', fk: 'cams-rel:bg' }));
-      rows.push(K.nav({ label: 'Hidden from Screens', sub: 'A camera hidden here shows on no screen', href: '#/accessories/hidden',
+      rows.push(K.nav({ label: 'Hidden Accessories', sub: 'A camera hidden there shows on no screen', href: '#/accessories/hidden',
                         icon: 'mdi:eye-off', fk: 'cams-rel:hidden' }));
       c.appendChild(K.group({ header: 'Related' }, rows));
     }
@@ -4672,7 +4678,7 @@
       var own = Object.keys(this.data.boards || {}).filter(function (p) { return self.data.boards[p].rooms_custom; });
       c.appendChild(K.group({ header: 'On Screens', footer: (shown ? 'Show on Home is All Screens’ room order' +
           (own.length ? '; a screen with Rooms of its own keeps its own.' : '.') + ' ' : '') +
-          'Hidden: left off every generated screen, with its accessories, and never counted by Status & Chips.' }, [
+          'Hidden: left off every generated screen, with its accessories, and never counted by a chip.' }, [
         K.toggle({ label: 'Show on Screens', sk: 'room:shown:' + aid, on: shown, onChange: function (on) {
           self.setH({ 'generated.exclude_areas': on ? hidden.filter(function (a) { return a !== aid; }) : hidden.concat(aid) });
         } })].concat(shown ? [
@@ -4760,7 +4766,22 @@
     }
     p_accessories(sub) {
       var self = this, back = ['Accessories', '#/accessories'];
-      if (sub[0] === 'hidden') return { title: 'Hidden from Screens', back: back, body: function (c) { self.a_hidden(c); } };
+      if (sub[0] !== 'hidden') this._hr = null;          // Just Now: until the list is left
+      // HIDDEN ACCESSORIES (hiding.py): the list, Hide Accessories (pick, then
+      // where), and one accessory's or device's own Hide From
+      if (sub[0] === 'hidden') {
+        var hb = ['Hidden Accessories', '#/accessories/hidden'];
+        if (sub[1] !== undefined && sub[1] !== 'edit' && sub[1] !== 'device') this._hr = null;
+        if (sub[1] === 'pick') return { title: 'Hide Accessories', back: hb, body: function (c) { self.a_hidePick(c); } };
+        if (sub[1] === 'where') return { title: 'Hide From', back: ['Hide Accessories', '#/accessories/hidden/pick'], body: function (c) { self.a_hideWhere(c, null); } };
+        if (sub[1] === 'edit' && sub[2]) return { title: 'Hide From', back: hb, scope: K.esc(this.name(sub[2])) + ' · ' + K.esc(sub[2]),
+                                                  body: function (c) { self.a_hideWhere(c, sub[2]); } };
+        if (sub[1] === 'kind' && sub[2]) return { title: this.placeName(sub[2]), back: hb, scope: 'Hidden from ' + K.esc(this.placeName(sub[2])) + '.',
+                                                  body: function (c) { self.a_hideKind(c, sub[2]); } };
+        if (sub[1] === 'device' && sub[2]) return { title: this.devName(sub[2]), back: hb, body: function (c) { self.a_hideDevice(c, sub[2]); } };
+        return { title: 'Hidden Accessories', back: back, scope: 'Each one stays in Home Assistant. Hidden everywhere, or just from the places listed.',
+                 body: function (c) { self.a_hidden(c); } };
+      }
       if (sub[0] === 'also') return { title: 'Also Shown', back: back, body: function (c) { self.a_also(c); } };
       if (sub[0] === 'page' && PAGE_ORDERS[sub[1]]) return { title: PAGE_ORDERS[sub[1]][0] + ' Page', back: back, body: function (c) { self.a_pageOrder(c, sub[1]); } };
       if (sub[0] === 'room' && sub[1]) {
@@ -4794,23 +4815,34 @@
         box.innerHTML = '';
         var q = inp.value.trim().toLowerCase();
         if (q) {
-          var got = ids.filter(function (id) {
+          // SEARCH FINDS MORE THAN THE TILES: a sensor a chip could also count
+          // (a camera's smoke alarm, a temperature sensor) has its page too --
+          // that is where Also Count As is
+          var pool = ids.slice(), seen = {};
+          ids.forEach(function (id) { seen[id] = 1; });
+          var also = {};
+          Object.keys(self.data.counts || {}).forEach(function (k) { (self.data.counts[k].also || []).forEach(function (d) { also[d] = 1; }); });
+          self.entityIds({ domains: Object.keys(also), shown: true }).forEach(function (id) { if (!seen[id]) { seen[id] = 1; pool.push(id); } });
+          var got = pool.filter(function (id) {
             return (self.name(id) + ' ' + id + ' ' + self.areaName(self.areaOf(id))).toLowerCase().indexOf(q) >= 0;
           }).sort(function (a, b) { return self.name(a).localeCompare(self.name(b)); }).slice(0, 200);
           box.appendChild(K.group({ header: 'Accessories', footer: got.length ? null : 'No accessories match.' }, got.map(function (id) {
-            return K.nav({ label: self.name(id), sub: self.areaName(self.areaOf(id)) || 'No room', href: '#/accessories/' + encodeURIComponent(id),
-                           value: acc[id] ? 'Customized' : '' });
+            // the entity id beside its room: two "Water Heater"s (its climate
+            // and its water_heater entity) are told apart without opening each
+            return K.nav({ label: self.name(id), sub: (self.areaName(self.areaOf(id)) || 'No room') + ' · ' + id, href: '#/accessories/' + encodeURIComponent(id),
+                           value: self.hideText(id) ? 'Hidden' : acc[id] ? 'Customized' : '' });
           })));
           return;
         }
-        var hidden = (g.exclude_areas || []).length + (g.exclude_devices || []).length + (g.exclude_entities || []).length;
+        var hidden = self.hiddenCount();
         var lk = self.data.settings.look;
         box.appendChild(K.group({ header: 'Tapping an Accessory', footer: 'Tapping an accessory opens an HK detail sheet. Off: Home Assistant’s own dialog. Either way, locks, the alarm, garage doors and thermostats never change from one tap.' }, [
           K.toggle({ label: 'HK Detail Sheets', sk: 'look.details', on: lk.details !== false,
                      onChange: function (on) { self.setH({ 'look.details': on }); } })]));
-        box.appendChild(K.group({ header: 'Generated Screens', footer: 'Hidden rooms, devices and accessories are left off every generated screen and never counted by Status & Chips, on any screen.' }, [
-          K.nav({ label: 'Hidden from Screens', value: hidden ? String(hidden) : 'None', href: '#/accessories/hidden', sk: 'generated.exclude' }),
-          K.nav({ label: 'Also Shown', value: (g.include_entities || []).length ? String(g.include_entities.length) : 'None', href: '#/accessories/also', sk: 'generated.include_entities' })]));
+        box.appendChild(K.group({ header: 'Generated Screens', footer: 'Hide an accessory everywhere, or just from some places: Home, its room’s page, the Climate page… It stays in Home Assistant.' }, [
+          K.nav({ label: 'Hidden Accessories', value: hidden ? String(hidden) : 'None', href: '#/accessories/hidden', sk: 'generated.exclude' }),
+          K.nav({ label: 'Also Shown', value: (g.include_entities || []).length ? String(g.include_entities.length) : 'None', href: '#/accessories/also', sk: 'generated.include_entities' }),
+          K.nav({ label: 'What Counts', sub: 'What each chip and page counts', href: '#/house/counts', sk: 'counts' })]));
         var po = ((self.data.accessories || {}).pages || {});
         box.appendChild(K.group({ header: 'Page Order', footer: 'Pages that mix rooms list things A to Z unless ordered here.' },
           Object.keys(PAGE_ORDERS).map(function (k) {
@@ -4849,8 +4881,8 @@
                      lock: 'mdi:lock', climate: 'mdi:thermostat', media_player: 'mdi:speaker', vacuum: 'mdi:robot-vacuum',
                      camera: 'mdi:cctv', valve: 'mdi:valve', humidifier: 'mdi:air-humidifier', water_heater: 'mdi:water-boiler',
                      sensor: 'mdi:eye', binary_sensor: 'mdi:radiobox-marked' }[id.split('.')[0]] || 'mdi:circle-small';
-        return K.nav({ label: self.name(id), icon: a.icon ? String(a.icon).replace(/^mdi:/, 'hk:') : (st && st.attributes.icon) || kind,
-                       value: Object.keys(a).length ? 'Customized' : '', href: '#/accessories/' + encodeURIComponent(id) });
+        return K.nav({ label: self.name(id), sub: id, icon: a.icon ? String(a.icon).replace(/^mdi:/, 'hk:') : (st && st.attributes.icon) || kind,
+                       value: self.hideText(id) ? 'Hidden' : Object.keys(a).length ? 'Customized' : '', href: '#/accessories/' + encodeURIComponent(id) });
       })));
     }
     // A ROOM'S SCENES ROW on its page (accessories.py `scenes`): Automatic --
@@ -4921,30 +4953,350 @@
         onAuto: function (on) { save(on ? [] : own.concat(all.filter(function (id) { return own.indexOf(id) < 0; }))); },
         onChange: save }));
     }
-    a_hidden(c) {
-      var self = this, g = this.data.settings.generated, hass = this._hass, devs = hass.devices || {};
-      var set = function (k, v) { var o = {}; o['generated.' + k] = v; self.setH(o); };
-      var dn = function (id) { var d = devs[id]; return d ? (d.name_by_user || d.name || id) : id + ' (gone)'; };
-      var lists = [
-        ['exclude_areas', 'Rooms', 'Hide a Room…', function (id) { return self.areaName(id); },
-         function () { return self.areasAZ().map(function (a) { return { value: a, label: self.areaName(a) }; }); }],
-        ['exclude_devices', 'Devices', 'Hide a Device…', dn,
-         function () { return Object.keys(devs).map(function (id) { return { value: id, label: dn(id), sub: self.areaName(devs[id].area_id) || '' }; }); }],
-        ['exclude_entities', 'Accessories', 'Hide an Accessory…', function (id) { return self.name(id); },
-         function () { return Object.keys(hass.states).map(function (id) { return { value: id, label: self.name(id), sub: id }; }); }]];
-      lists.forEach(function (L) {
-        var cur = g[L[0]] || [];
-        c.appendChild(K.listEditor({ fk: L[0], reorder: false, shownHeader: L[1], emptyText: 'None', announce: self.announce.bind(self),
-          rows: cur.map(function (id) { return { value: id, label: L[3](id) }; })
-            .sort(function (a, b) { return a.label.localeCompare(b.label); }),
-          onChange: function (v) { set(L[0], v); },
-          addLabel: L[2], onAddOther: function () {
-            self.go(self.picker('hide-' + L[0], { title: L[2].replace('…', ''), value: null, multi: true,
-              items: function () { return L[4]().filter(function (it) { return cur.indexOf(it.value) < 0; }); },
-              onPick: function (v) { if (v) set(L[0], cur.concat(v)); } }));
-          } }));
+    // ------------------------------------------------ hidden accessories
+    // What hides what (hiding.py snapshot, in panel/get as `hidden`): each
+    // accessory's places (`can`), the ones it is hidden from (`off`), and
+    // the house's Hidden from Screens lists (everywhere, devices, areas) --
+    // stored as they always were (generated.exclude_*).
+    hid() {
+      return this.data.hidden || { places: {}, order: [], can: {}, off: {}, everywhere: [], devices: [], areas: [] };
+    }
+    devName(did) { var d = (this._hass.devices || {})[did]; return d ? (d.name_by_user || d.name || did) : 'A Removed Device'; }
+    devOf(id) { return ((this._hass.entities || {})[id] || {}).device_id || null; }
+    // what hides it, in a few words: "" when nothing does
+    hideText(id) {
+      var H = this.hid(), dv = this.devOf(id), a = this.areaOf(id);
+      if (dv && H.devices.indexOf(dv) >= 0) return 'With Its Device';
+      if (a && H.areas.indexOf(a) >= 0) return 'With Its Room';
+      if (H.everywhere.indexOf(id) >= 0) return 'Everywhere';
+      var seen = {}, names = [];
+      (H.off[id] || []).forEach(function (k) {
+        var n = k === 'room' ? 'Room Page' : (H.places[k] || [k])[0];
+        if (!seen[n]) { seen[n] = 1; names.push(n); }
       });
-      c.appendChild(K.group({ footer: 'Left off every generated screen — its rooms, chips and pages — and never counted by Status & Chips, on any screen. To hide something from Home only, use Show on Home in its settings.' }, []));
+      return names.length > 2 ? names.slice(0, 2).join(', ') + ' +' + (names.length - 2) : names.join(', ');
+    }
+    placeName(k, ids) {
+      var H = this.hid();
+      if (k !== 'room') return (H.places[k] || [k])[0];
+      var a = ids && ids.length === 1 ? this.areaOf(ids[0]) : null;
+      return a ? this.areaName(a) + ' Room Page' : 'Room Pages';
+    }
+    hiddenCount() {
+      var H = this.hid(), devs = this._hass.devices || {}, areas = this._hass.areas || {};
+      return this.hiddenEntities().length + H.devices.filter(function (d) { return devs[d]; }).length +
+        H.areas.filter(function (a) { return areas[a]; }).length;
+    }
+    // accessories hidden one by one -- not those hidden with a whole device or room
+    hiddenEntities() {
+      var H = this.hid(), self = this, seen = {};
+      return H.everywhere.concat(Object.keys(H.off)).filter(function (id) {
+        if (seen[id] || !self._hass.states[id]) return false;
+        seen[id] = true;
+        var dv = self.devOf(id), a = self.areaOf(id);
+        return !(dv && H.devices.indexOf(dv) >= 0) && !(a && H.areas.indexOf(a) >= 0);
+      });
+    }
+    accGlyph(id) {
+      var a = ((this.data.accessories || {}).entities || {})[id] || {}, st = this._hass.states[id];
+      if (a.icon) return String(a.icon).replace(/^mdi:/, 'hk:');
+      if (st && st.attributes.icon) return st.attributes.icon;
+      return { light: 'mdi:lightbulb', switch: 'mdi:toggle-switch-variant', fan: 'mdi:fan', cover: 'mdi:window-shutter',
+               lock: 'mdi:lock', climate: 'mdi:thermostat', media_player: 'mdi:speaker', vacuum: 'mdi:robot-vacuum',
+               camera: 'mdi:cctv', valve: 'mdi:valve', humidifier: 'mdi:air-humidifier', water_heater: 'mdi:water-boiler',
+               timer: 'mdi:timer-outline', sensor: 'mdi:eye', binary_sensor: 'mdi:radiobox-marked' }[id.split('.')[0]] || 'mdi:circle-small';
+    }
+    // the answer to hidden/set, for the accessories it was about, over the page's copy
+    hideMerge(ids, snap) {
+      var H = this.data.hidden;
+      if (!H || !snap) return;
+      ids.forEach(function (id) {
+        H.everywhere = H.everywhere.filter(function (x) { return x !== id; });
+        if ((snap.everywhere || []).indexOf(id) >= 0) H.everywhere.push(id);
+        if ((snap.off || {})[id]) H.off[id] = snap.off[id]; else delete H.off[id];
+        if ((snap.can || {})[id]) H.can[id] = snap.can[id];
+      });
+    }
+    hideSend(ids, everywhere, places) {
+      var self = this, H = this.hid();
+      // shown at once, as it will be saved; the answer then replaces it
+      var guess = { everywhere: everywhere ? ids.slice() : [], off: {}, can: {} };
+      if (!everywhere) ids.forEach(function (id) {
+        var off = (H.can[id] || []).filter(function (k) { return places[k]; });
+        if (off.length) guess.off[id] = off;
+      });
+      return this.save({ type: DOMAIN + '/hidden/set', entity_ids: ids, everywhere: everywhere, places: everywhere ? {} : places },
+        ['hide'], function () { self.hideMerge(ids, guess); }, function (r) { self.hideMerge(ids, r); });
+    }
+    a_hidden(c) {
+      var self = this, H = this.hid(), hass = this._hass, devs = hass.devices || {};
+      var v = this._hv || (this._hv = { f: 'all', q: '' });
+      c.appendChild(K.group({}, [K.button({ label: 'Hide Accessories…', fk: 'hide:start', onClick: function () {
+        self._hp = { ents: [], devs: [], tab: 'acc', q: '' };
+        self._hd = null;
+        self.go('#/accessories/hidden/pick');
+      } })]));
+      c.appendChild(K.group({}, [K.seg({ label: 'Show', fk: 'hide:filter', value: v.f,
+        options: [['all', 'All'], ['every', 'Everywhere'], ['some', 'Some Places']],
+        onChange: function (x) { v.f = x; self.render(); } })]));
+      var sb = h('div', { class: 'search', style: 'margin:0 0 22px' });
+      sb.appendChild(K.icon('mdi:magnify', 'mag'));
+      var inp = h('input', { type: 'search', placeholder: 'Search Hidden', 'aria-label': 'Search hidden accessories', 'data-fk': 'hide:search' });
+      inp.value = v.q;
+      sb.appendChild(inp);
+      c.appendChild(sb);
+      var box = h('div');
+      c.appendChild(box);
+      var paint = function () {
+        box.innerHTML = '';
+        var q = inp.value.trim().toLowerCase();
+        var m = function (s) { return !q || s.toLowerCase().indexOf(q) >= 0; };
+        var recent = (self._hr || []).filter(function (id) { return !q; });
+        var row = function (id) {
+          var why = self.hideText(id);
+          return K.nav({ label: self.name(id), sub: (self.areaName(self.areaOf(id)) || 'No room') + ' · ' + id, icon: self.accGlyph(id),
+                         value: why || 'Shown Everywhere', href: '#/accessories/hidden/edit/' + encodeURIComponent(id), fk: 'hide:' + id });
+        };
+        if (recent.length) box.appendChild(K.group({ header: 'Just Now', footer: 'What you just changed. It joins the lists below when you leave this page.' },
+          recent.map(function (r) {
+            if (r.indexOf('dev:') === 0) {
+              var did = r.slice(4), hid = H.devices.indexOf(did) >= 0;
+              return K.nav({ label: self.devName(did), icon: 'mdi:devices', value: hid ? 'Everywhere' : 'Shown Everywhere',
+                             href: '#/accessories/hidden/device/' + encodeURIComponent(did) });
+            }
+            return row(r);
+          })));
+        var isRecent = function (x) { return recent.indexOf(x) >= 0; };
+        if (v.f !== 'some') {
+          var rooms = H.areas.filter(function (a) { return (hass.areas || {})[a] && m(self.areaName(a)); });
+          if (rooms.length) box.appendChild(K.group({ header: 'Whole Rooms', footer: 'A room is hidden from its own Room Settings, with everything in it.' },
+            rooms.map(function (a) {
+              return K.nav({ label: self.areaName(a), icon: ((hass.areas || {})[a] || {}).icon || 'mdi:texture-box', value: 'Everywhere',
+                             href: '#/house/rooms/' + encodeURIComponent(a) });
+            })));
+          var dl = H.devices.filter(function (d) { return devs[d] && !isRecent('dev:' + d) && m(self.devName(d) + ' ' + self.areaName(devs[d].area_id)); })
+            .sort(function (a, b) { return self.devName(a).localeCompare(self.devName(b)); });
+          if (dl.length) box.appendChild(K.group({ header: 'Whole Devices', footer: 'Every accessory of a hidden device is hidden everywhere.' },
+            dl.map(function (d) {
+              var n = Object.keys(hass.entities || {}).filter(function (id) { return hass.entities[id].device_id === d && hass.states[id]; }).length;
+              return K.nav({ label: self.devName(d), sub: (self.areaName(devs[d].area_id) || 'No room') + ' · ' + n + (n === 1 ? ' entity' : ' entities'),
+                             icon: 'mdi:devices', value: 'Everywhere', href: '#/accessories/hidden/device/' + encodeURIComponent(d), fk: 'hide:dev:' + d });
+            })));
+        }
+        var ents = self.hiddenEntities().filter(function (id) {
+          if (isRecent(id)) return false;
+          var every = H.everywhere.indexOf(id) >= 0;
+          return (v.f === 'all' || (v.f === 'every') === every) && m(self.name(id) + ' ' + id + ' ' + self.areaName(self.areaOf(id)) + ' ' + self.hideText(id));
+        }).sort(function (a, b) { return self.name(a).localeCompare(self.name(b)); });
+        if (ents.length) box.appendChild(K.group({ header: 'Accessories', footer: 'On the right: where each one is hidden. Tap one to change it.' }, ents.map(row)));
+        // BY PAGE: what each page and chip has hidden from it, with Show All Again
+        var byK = {};
+        Object.keys(H.off).forEach(function (id) { (H.off[id] || []).forEach(function (k) { if (k !== 'home' && k !== 'room') byK[k] = (byK[k] || 0) + 1; }); });
+        var kl = (H.order || []).filter(function (k) { return byK[k] && m(self.placeName(k)); });
+        if (kl.length && v.f !== 'every') box.appendChild(K.group({ header: 'By Page', footer: 'What each page and chip has hidden from it.' },
+          kl.map(function (k) {
+            return K.nav({ label: self.placeName(k), sub: (H.places[k] || ['', ''])[1], value: byK[k] + ' Hidden',
+                           href: '#/accessories/hidden/kind/' + k, fk: 'hide:kind:' + k });
+          })));
+        var goneD = H.devices.filter(function (d) { return !devs[d]; }), goneE = H.everywhere.filter(function (id) { return !hass.states[id]; });
+        if ((goneD.length || goneE.length) && v.f !== 'some' && !q) {
+          box.appendChild(K.group({ header: 'No Longer in Home Assistant', footer: 'Hidden once, then removed from Home Assistant. Nothing shows them now.' },
+            goneD.map(function (d) { return K.info({ label: 'A removed device', sub: d, value: 'Gone' }); })
+              .concat(goneE.map(function (id) { return K.info({ label: id, value: 'Gone' }); }))
+              .concat([K.button({ label: 'Clear These', destructive: true, fk: 'hide:clear', onClick: function () {
+                var g = self.data.settings.generated, ch = {};
+                if (goneD.length) ch['generated.exclude_devices'] = (g.exclude_devices || []).filter(function (d) { return goneD.indexOf(d) < 0; });
+                if (goneE.length) ch['generated.exclude_entities'] = (g.exclude_entities || []).filter(function (id) { return goneE.indexOf(id) < 0; });
+                self.setH(ch);
+              } })])));
+        }
+        if (!box.children.length) box.appendChild(K.group({ footer: q ? 'Nothing hidden matches.' : 'Nothing is hidden.' }, []));
+      };
+      inp.addEventListener('input', function () { v.q = inp.value; paint(); });
+      paint();
+    }
+    // HIDE ACCESSORIES, step one: tick one or several (or whole devices), then Next
+    a_hidePick(c) {
+      var self = this, H = this.hid(), hass = this._hass, devs = hass.devices || {};
+      var p = this._hp || (this._hp = { ents: [], devs: [], tab: 'acc', q: '' });
+      var bar = h('div', { class: 'pickbar', role: 'toolbar', 'aria-label': 'Selected' });
+      c.appendChild(K.group({}, [K.seg({ label: 'Pick', fk: 'hide:tab', value: p.tab, options: [['acc', 'Accessories'], ['dev', 'Whole Devices']],
+        onChange: function (x) { p.tab = x; self.render(); } })]));
+      var sb = h('div', { class: 'search', style: 'margin:0 0 22px' });
+      sb.appendChild(K.icon('mdi:magnify', 'mag'));
+      var inp = h('input', { type: 'search', placeholder: 'Search', 'aria-label': 'Search', 'data-fk': 'hide:pq' });
+      inp.value = p.q;
+      sb.appendChild(inp);
+      c.appendChild(sb);
+      c.appendChild(bar);
+      var box = h('div');
+      c.appendChild(box);
+      var paintBar = function () {
+        bar.innerHTML = '';
+        var n = p.ents.length + p.devs.length;
+        bar.appendChild(h('span', { class: 'pcount', 'aria-live': 'polite', text: n ? n + ' Selected' : 'Pick one or several' }));
+        if (n) {
+          var cl = h('button', { type: 'button', 'data-fk': 'hide:none', text: 'Clear' });
+          cl.addEventListener('click', function () { p.ents = []; p.devs = []; paint(); });
+          bar.appendChild(cl);
+        }
+        var nx = h('button', { type: 'button', class: 'add', 'data-fk': 'hide:next', text: 'Next', disabled: !n });
+        nx.addEventListener('click', function () { self._hd = null; self.go('#/accessories/hidden/where'); });
+        bar.appendChild(nx);
+      };
+      var paint = function () {
+        box.innerHTML = '';
+        paintBar();
+        var words = inp.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        var hit = function (s) { s = s.toLowerCase(); return words.every(function (w) { return s.indexOf(w) >= 0; }); };
+        var byRoom = {}, rooms = [], add = function (r, x) { if (!byRoom[r]) { byRoom[r] = []; rooms.push(r); } byRoom[r].push(x); };
+        if (p.tab === 'acc') {
+          var ids = {};
+          self.accIds().concat(Object.keys(H.can), H.everywhere).forEach(function (id) { if (hass.states[id]) ids[id] = 1; });
+          Object.keys(ids).forEach(function (id) {
+            var r = self.areaName(self.areaOf(id)) || 'No Room';
+            if (hit(self.name(id) + ' ' + id + ' ' + r)) add(r, id);
+          });
+        } else {
+          Object.keys(devs).forEach(function (d) {
+            var n = Object.keys(hass.entities || {}).filter(function (id) { return hass.entities[id].device_id === d && hass.states[id] && !hass.entities[id].entity_category; }).length;
+            if (!n) return;
+            var r = self.areaName(devs[d].area_id) || 'No Room';
+            if (hit(self.devName(d) + ' ' + r)) add(r, d);
+          });
+        }
+        rooms.sort(function (a, b) { return (a === 'No Room') - (b === 'No Room') || a.localeCompare(b); });
+        var shown = 0;
+        rooms.forEach(function (r) {
+          if (shown > 400) return;
+          var list = byRoom[r];
+          list.sort(function (a, b) { return (p.tab === 'acc' ? self.name(a).localeCompare(self.name(b)) : self.devName(a).localeCompare(self.devName(b))); });
+          shown += list.length;
+          box.appendChild(K.group({ header: r }, list.map(function (x) {
+            if (p.tab === 'acc') {
+              var on = p.ents.indexOf(x) >= 0, why = self.hideText(x);
+              return K.check({ label: self.name(x), sub: x, multi: true, on: on, icon: self.accGlyph(x), value: why ? 'Hidden · ' + why : '',
+                fk: 'hpick:' + x, onClick: function () { if (on) p.ents.splice(p.ents.indexOf(x), 1); else p.ents.push(x); paint(); } });
+            }
+            var don = p.devs.indexOf(x) >= 0;
+            return K.check({ label: self.devName(x), multi: true, on: don, icon: 'mdi:devices', value: H.devices.indexOf(x) >= 0 ? 'Hidden · Everywhere' : '',
+              fk: 'hpick:dev:' + x, onClick: function () { if (don) p.devs.splice(p.devs.indexOf(x), 1); else p.devs.push(x); paint(); } });
+          })));
+        });
+        if (!rooms.length) box.appendChild(K.group({ footer: 'Nothing matches.' }, []));
+        else if (shown > 400) box.appendChild(K.group({ footer: 'Search to find more.' }, []));
+      };
+      inp.addEventListener('input', function () { p.q = inp.value; paint(); });
+      paint();
+    }
+    // HIDE FROM: Everywhere, or only from the places chosen. For what was just
+    // picked (id null) it waits for Hide; for one accessory (id) each switch
+    // saves as it changes, as the rest of HK Settings does.
+    a_hideWhere(c, id) {
+      var self = this, H = this.hid(), hass = this._hass;
+      var p = this._hp || { ents: [], devs: [] };
+      var ents = id ? [id] : p.ents.filter(function (x) { return hass.states[x]; }), dvs = id ? [] : p.devs.slice();
+      if (!ents.length && !dvs.length) { c.appendChild(K.group({ footer: 'Nothing picked.' }, [K.nav({ label: 'Pick Accessories', href: '#/accessories/hidden/pick' })])); return; }
+      // the choice: one accessory's is what is saved; a new hide's starts at Everywhere
+      var d;
+      if (id) d = { every: H.everywhere.indexOf(id) >= 0, places: {} };
+      else d = this._hd || (this._hd = { every: true, places: {} });
+      if (id && !d.every) (H.off[id] || []).forEach(function (k) { d.places[k] = true; });
+      var one = ents.length === 1 && !dvs.length ? ents[0] : null;
+      var head = one ? K.info({ label: this.name(one), sub: (this.areaName(this.areaOf(one)) || 'No room') + ' · ' + one, icon: this.accGlyph(one) })
+        : K.info({ label: [ents.length ? ents.length + (ents.length === 1 ? ' Accessory' : ' Accessories') : '',
+                           dvs.length ? dvs.length + (dvs.length === 1 ? ' Device' : ' Devices') : ''].filter(Boolean).join(' and '),
+                   sub: ents.map(function (x) { return self.name(x); }).concat(dvs.map(function (x) { return self.devName(x); })).join(', ') });
+      c.appendChild(K.group({}, [head].concat(id ? [K.nav({ label: 'Accessory Settings', href: '#/accessories/' + encodeURIComponent(id) })] : [])));
+      var dv = id && this.devOf(id), ar = id && this.areaOf(id);
+      if (id && ((dv && H.devices.indexOf(dv) >= 0) || (ar && H.areas.indexOf(ar) >= 0))) {
+        var byDev = dv && H.devices.indexOf(dv) >= 0;
+        c.appendChild(K.group({ footer: byDev ? 'Its whole device is hidden everywhere.' : 'Its whole room is hidden everywhere.' }, [
+          K.nav({ label: byDev ? self.devName(dv) : self.areaName(ar), value: 'Everywhere',
+                  href: byDev ? '#/accessories/hidden/device/' + encodeURIComponent(dv) : '#/house/rooms/' + encodeURIComponent(ar) })]));
+        return;
+      }
+      var commit = function () { if (id) self.hideSend([id], d.every, d.places); else self.render(); };
+      if (!ents.length) {
+        c.appendChild(K.group({ footer: 'A whole device is hidden everywhere. To hide it from just some places, pick its accessories instead.' },
+          [K.toggle({ label: 'Everywhere', on: true, disabled: true, onChange: function () {} })]));
+      } else {
+        c.appendChild(K.group({ footer: 'It stays in Home Assistant, and in its automations.' + (dvs.length ? ' The devices picked are hidden everywhere either way.' : '') }, [
+          K.toggle({ label: 'Everywhere', sub: 'Every screen, page and chip', on: d.every, fk: 'hide:every',
+                     onChange: function (on) { d.every = on; commit(); } })]));
+        var counts = {}, order = H.order || [];
+        ents.forEach(function (x) { (H.can[x] || []).forEach(function (k) { counts[k] = (counts[k] || 0) + 1; }); });
+        var keys = order.filter(function (k) { return counts[k]; });
+        var rows = keys.map(function (k) {
+          var sub = (H.places[k] || ['', ''])[1];
+          if (k === 'room' && one) sub = 'Its tile on the ' + self.areaName(self.areaOf(one)) + ' page';
+          if (ents.length > 1 && counts[k] < ents.length) sub += ' · applies to ' + counts[k] + ' of ' + ents.length;
+          return K.toggle({ label: self.placeName(k, ents), sub: sub, on: d.every || !!d.places[k], disabled: d.every, fk: 'hide:pl:' + k,
+                            onChange: function (on) { d.places[k] = on; commit(); } });
+        });
+        c.appendChild(K.group({ header: 'Or Only From', footer: !rows.length ? 'There’s nowhere else to hide it from.' :
+            d.every ? 'Turn off Everywhere to choose.' : 'Hidden from what’s on. Everywhere else it shows as usual.' }, rows));
+      }
+      if (this.err('hide')) c.appendChild(h('div', { class: 'errline', role: 'alert', text: this.err('hide') }));
+      if (id) {
+        c.appendChild(K.group({}, [K.button({ label: 'Show Everywhere Again', destructive: true, fk: 'hide:show', onClick: function () {
+          self._hr = [id];
+          self.hideSend([id], false, {}).then(function (ok) { if (ok) self.back('#/accessories/hidden'); });
+        } })]));
+        return;
+      }
+      var n = ents.length + dvs.length;
+      var none = !d.every && ents.length && !Object.keys(d.places).some(function (k) { return d.places[k]; });
+      c.appendChild(K.group({}, [K.button({ label: n === 1 ? 'Hide' : 'Hide ' + n, fk: 'hide:go', disabled: !!none, onClick: function () {
+        var jobs = [];
+        if (ents.length) jobs.push(self.hideSend(ents, d.every, d.places));
+        if (dvs.length) {
+          var cur = self.data.settings.generated.exclude_devices || [];
+          jobs.push(self.setH({ 'generated.exclude_devices': cur.concat(dvs.filter(function (x) { return cur.indexOf(x) < 0; })) }));
+        }
+        Promise.all(jobs).then(function (oks) {
+          if (oks.some(function (ok) { return !ok; })) return;
+          self._hr = ents.concat(dvs.map(function (x) { return 'dev:' + x; }));
+          self._hp = null; self._hd = null;
+          self.back('#/accessories/hidden');
+        });
+      } })]));
+    }
+    // ONE PAGE'S HIDDEN (By Page): what is hidden from it, and Show All Again
+    // (was Status & Chips' Reset to Automatic: what was added stays added)
+    a_hideKind(c, kind) {
+      var self = this, H = this.hid(), ck = (this.data.counts || {})[kind] || { exclude: [], include: [] };
+      var ids = Object.keys(H.off).filter(function (id) { return (H.off[id] || []).indexOf(kind) >= 0; })
+        .sort(function (a, b) { return self.name(a).localeCompare(self.name(b)); });
+      c.appendChild(K.group({ footer: (H.places[kind] || ['', ''])[1] + '.' }, ids.map(function (id) {
+        return K.nav({ label: self.name(id), sub: (self.areaName(self.areaOf(id)) || 'No room') + ' · ' + id, icon: self.accGlyph(id),
+                       value: self.hideText(id), href: '#/accessories/hidden/edit/' + encodeURIComponent(id) });
+      })));
+      if (!ids.length) return;
+      c.appendChild(K.group({ footer: 'Everything ' + this.placeName(kind) + ' finds is shown there again. What was added with Also Count As stays.' }, [
+        K.button({ label: 'Show All Again…', destructive: true, fk: 'hide:kindall', onClick: function () {
+          K.confirm(self.shadowRoot, { title: 'Show All on ' + self.placeName(kind) + ' Again?', message: ids.length + ' hidden from it will show again.',
+                                        ok: 'Show All', destructive: true }).then(function (yes) {
+            if (!yes) return;
+            var o = {}; o['counts.' + kind] = { exclude: [], include: ck.include || [] };
+            self._hr = ids.slice();
+            self.setH(o).then(function (ok) { if (ok) self.back('#/accessories/hidden'); });
+          });
+        } })]));
+    }
+    a_hideDevice(c, did) {
+      var self = this, hass = this._hass, g = this.data.settings.generated, cur = g.exclude_devices || [], hid = cur.indexOf(did) >= 0;
+      var dev = (hass.devices || {})[did];
+      var ids = Object.keys(hass.entities || {}).filter(function (id) { return hass.entities[id].device_id === did && hass.states[id] && !hass.entities[id].entity_category; });
+      c.appendChild(K.group({ footer: hid ? 'Every accessory of this device is hidden everywhere. It stays in Home Assistant.' : 'Shown wherever HK puts its accessories.' }, [
+        K.info({ label: this.devName(did), sub: dev ? (this.areaName(dev.area_id) || 'No room') : did, icon: 'mdi:devices' }),
+        K.toggle({ label: 'Hidden Everywhere', on: hid, fk: 'hide:dev', onChange: function (on) {
+          self._hr = ['dev:' + did];
+          self.setH({ 'generated.exclude_devices': on ? cur.concat(did) : cur.filter(function (x) { return x !== did; }) });
+        } })]));
+      if (ids.length) c.appendChild(K.group({ header: 'Its Accessories' }, ids.sort().map(function (id) {
+        return K.nav({ label: self.name(id), sub: id, icon: self.accGlyph(id), href: '#/accessories/' + encodeURIComponent(id) });
+      })));
     }
     a_also(c) {
       var self = this, cur = this.data.settings.generated.include_entities || [];

@@ -287,6 +287,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     await acc.async_load()
     hass.data.setdefault(DOMAIN, {})[accessories.DATA] = acc
     accessories.register(hass)
+    # HIDDEN ACCESSORIES (hiding.py): what keeps each one off the screens
+    from . import hiding
+    hiding.register(hass)
 
     # STATUS & CHIPS (kinds.py), resolved and kept current for every screen.
     def settings_now() -> dict[str, Any]:
@@ -579,12 +582,5 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 def dashboard_title(hass: HomeAssistant, path: str) -> str:
     """A dashboard's title as the sidebar shows it ("Living Room"), else its
     url path -- the lovelace data may not be there yet during a migration."""
-    try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        board = hass.data[LOVELACE_DATA].dashboards.get(path)
-        title = (getattr(board, "config", None) or {}).get("title")
-        if title:
-            return str(title)
-    except (ImportError, KeyError, AttributeError):
-        pass
-    return path
+    from . import lovelace_boards
+    return lovelace_boards.title(hass, path)

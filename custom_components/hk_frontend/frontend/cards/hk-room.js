@@ -445,23 +445,23 @@
       '  padding:6px 12px 8px 16px;margin:0 -12px}',
       '.row::-webkit-scrollbar{display:none}',
       '.it{display:flex;align-items:center;gap:10px;flex:none;margin:0;padding:0;border:0;',
-      '  background:none;color:#fff;font:inherit;text-align:left;cursor:pointer;',
+      '  background:none;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;text-align:left;cursor:pointer;',
       '  -webkit-tap-highlight-color:transparent;transition:opacity .15s ease}',
       '.it.pressed{opacity:0.55}',
       '.g{width:32px;height:32px;flex:none;position:relative;display:flex;align-items:center;',
-      '  justify-content:center;color:rgba(255,255,255,0.96);',
-      '  filter:drop-shadow(0 1px 2px rgba(0,0,0,0.28)) drop-shadow(0 2px 6px rgba(0,0,0,0.16))}',
+      '  justify-content:center;color:var(--hk-glyph,rgba(255,255,255,0.96));',
+      '  filter:var(--hk-glow,drop-shadow(0 1px 2px rgba(0,0,0,0.28)) drop-shadow(0 2px 6px rgba(0,0,0,0.16)))}',
       '.g ha-icon{--mdc-icon-size:27px;width:27px;height:27px;display:flex}',
       '.g svg{position:absolute;inset:0}',
       '.g.ring ha-icon{--mdc-icon-size:14px;width:14px;height:14px}',
       '.it.dim .g{opacity:0.5}',
       '.tx{display:flex;flex-direction:column;min-width:0}',
       '.t,.v{font-size:15px;line-height:19px;letter-spacing:-0.24px;white-space:nowrap;',
-      '  text-shadow:0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22)}',
-      '.t{font-weight:600;color:rgba(255,255,255,0.94)}',
-      '.v{font-weight:400;color:rgba(235,235,245,0.66)}',
+      '  text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22))}',
+      '.t{font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      '.v{font-weight:400;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.it.alert .v{color:#ff9f0a}',
-      '.it:focus-visible{outline:2px solid rgba(255,255,255,0.7);outline-offset:4px;border-radius:6px}'
+      '.it:focus-visible{outline:2px solid var(--hk-ink-2,rgba(255,255,255,0.68));outline-offset:4px;border-radius:6px}'
     ].join('');
 
     class HkRoomStatusCard extends HkBase {

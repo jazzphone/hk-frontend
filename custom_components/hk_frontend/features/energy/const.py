@@ -14,10 +14,11 @@ CONF_SECTIONS = "sections"    # [{id, name, items: [keys], link?: {path, text}}]
 CONF_DEVICES = "devices"      # {key: {name, icon, color, power, control, hidden}}
 CONF_EXTRA = "extra"          # [{key, name, power?, stat?}]: devices HA's Energy settings do not list
 CONF_BATTERIES = "batteries"  # [{entity, name?, label?, label_suffix?, label_decimals?}], or None = automatic
-CONF_DETAIL = "detail"        # bool: Home Assistant's own energy charts at the end (default True)
+CONF_DETAIL = "detail"        # bool: Home Assistant's own energy charts at the end (default False)
+CONF_PAGE = "page"            # {opens_on, rings, typical, highlights}: the page's tabs and summary
 
 OPTION_KEYS = (CONF_FOLLOW, CONF_TITLE, CONF_TOTAL, CONF_TOP, CONF_COST, CONF_USAGES, CONF_SECTIONS,
-               CONF_DEVICES, CONF_EXTRA, CONF_BATTERIES, CONF_DETAIL)
+               CONF_DEVICES, CONF_EXTRA, CONF_BATTERIES, CONF_DETAIL, CONF_PAGE)
 
 # THE SECTIONS a device is guessed into, in page order: [id, name]
 SECTIONS = (("hvac", "Heating & Cooling"), ("rooms", "Rooms"), ("appliances", "Appliances"),
@@ -25,3 +26,10 @@ SECTIONS = (("hvac", "Heating & Cooling"), ("rooms", "Rooms"), ("appliances", "A
 COLORS = ("white", "yellow", "orange", "red", "pink", "purple", "blue", "teal", "mint", "green", "cyan")
 USAGES_MAX = 9
 TOP_MAX = 4
+
+# THE PAGE (CONF_PAGE): the tab it opens on, the rings in its summary (in
+# order, each only where the house has its source), how many days before
+# today make a usual day, and the highlights beside the summary
+PERIODS = ("now", "day", "week", "month")
+RINGS = ("energy", "cost", "solar", "water", "gas")
+TYPICAL = (7, 14, 30)

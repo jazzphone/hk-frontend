@@ -98,14 +98,14 @@
     // its own. (hk_metric below is the opposite case.)
     '.heading .name{grid-area:n;justify-self:start;align-self:center;',
     '  font-size:19.7px;font-weight:700;line-height:1;letter-spacing:-0.45px;',
-    '  color:rgba(255,255,255,0.94);overflow:visible;',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:visible;',
     // nowrap + ellipsis: without them a long heading WRAPS TO FOUR LINES
     // instead of truncating -- an 80px name box against 20.7px.
     '  white-space:nowrap;text-overflow:ellipsis;',
     // content-box so the 1px of padding does not grow the measured box, the
     // same trap as the favourite label in hk-tile.js.
     '  box-sizing:content-box;padding-left:1px;padding-top:1px;',
-    '  text-shadow:0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22)}',
+    '  text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22))}',
     // The link variant adds a chevron chip beside the name.
     '.heading.link .grid{grid-template-areas:"n c";',
     '  grid-template-columns:max-content max-content;column-gap:6px}',
@@ -119,9 +119,9 @@
     // up with a 19.7px heading rather than its box centre.
     '.heading .extra{grid-area:c;align-self:center;display:inline-flex;',
     '  align-items:center;gap:3px;padding:3px 9px 3px 10px;border-radius:11px;',
-    '  background:rgba(255,255,255,0.11);font-size:11.5px;font-weight:600;',
+    '  background:var(--hk-key,rgba(255,255,255,0.11));font-size:11.5px;font-weight:600;',
     '  letter-spacing:0.2px;line-height:1.25;white-space:nowrap;margin-top:2px;',
-    '  color:rgba(255,255,255,0.62)}',
+    '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
     // The chevron is its OWN span -- lighter and bolder than
     // the words beside it. Rendering the whole string as one run makes it a
     // weight-600 glyph at full opacity, which reads as part of the label.
@@ -136,8 +136,20 @@
     '  -webkit-tap-highlight-color:transparent}',
     '.heading.room .grid::after{content:"";position:absolute;inset:-12px -14px -12px -8px}',
     '.heading .rchev{grid-area:c;align-self:center;display:flex;margin-top:1px;',
-    '  filter:drop-shadow(0 1px 2px rgba(0,0,0,0.30))}',
+    '  filter:var(--hk-glow,drop-shadow(0 1px 2px rgba(0,0,0,0.30)))}',
     '.heading.room .grid:active{opacity:0.6}',
+    // AN ENERGY SECTION'S HEADING (`energy_section`): the section's dot and
+    // its total on the Energy page's tab -- "1.63 kW now", "9.0 kWh today" --
+    // after the name (and its link chip), on the name's line. The dot is the
+    // section's part of Where it went.
+    '.heading.esec .grid{grid-template-areas:"n c e";grid-template-columns:max-content max-content max-content;column-gap:10px}',
+    '.heading.esec:not(.link) .grid{grid-template-areas:"n e";grid-template-columns:max-content max-content}',
+    '.heading .esub{grid-area:e;align-self:center;display:inline-flex;align-items:center;gap:7px;margin-top:2px;',
+    '  font-size:15px;font-weight:500;line-height:1;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;',
+    '  font-variant-numeric:tabular-nums;text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22))}',
+    '.heading .esub:empty{display:none}',
+    '.heading .esub i{width:9px;height:9px;border-radius:50%;flex:none}',
+    'ha-card.heading{transition:opacity .2s}',
 
     // ---- metric ----------------------------------------------------------
     // filter:drop-shadow, NOT text-shadow, and the reason is specific: this
@@ -151,7 +163,7 @@
     '  height:78px;margin:0px;padding:0px 4px 0px 3px;overflow:visible;',
     '  display:flex;align-items:center;justify-content:center;',
     '  font-size:1.2em;text-align:center;cursor:pointer;',
-    '  filter:drop-shadow(0 1px 3px rgba(0,0,0,0.30)) drop-shadow(0 2px 8px rgba(0,0,0,0.22));',
+    '  filter:var(--hk-glow,drop-shadow(0 1px 3px rgba(0,0,0,0.30)) drop-shadow(0 2px 8px rgba(0,0,0,0.22)));',
     '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
     '.metric .grid{display:grid;width:100%;overflow:visible;',
     '  grid-template-areas:"i n" "i s";grid-template-columns:40px minmax(0,1fr);',
@@ -168,11 +180,11 @@
     // in this library and is correct: small uppercase needs opening up.
     '.metric .name{grid-area:n;justify-self:start;align-self:end;',
     '  font-size:12px;font-weight:600;letter-spacing:0.9px;text-transform:uppercase;',
-    '  color:rgba(255,255,255,0.5);text-align:left;width:100%;',
+    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-align:left;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.metric .state{grid-area:s;justify-self:start;align-self:start;',
     '  font-size:25px;font-weight:700;line-height:1.05;letter-spacing:-0.4px;',
-    '  color:rgba(255,255,255,0.94);text-align:left;width:100%;',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));text-align:left;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
 
     // ---- hero / pct / rank pill -----------------------------------------
@@ -183,11 +195,13 @@
     '  padding:12.8px 12.8px;margin:0px;',
     '  border:' + window.hkCards.M.border + ';',
     '  ' + window.hkCards.M.glass + ';',
-    '  box-shadow:var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12));',
+    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
     '  display:flex;align-items:center;justify-content:center;',
     '  overflow:hidden;text-align:center;font-size:1.2em;cursor:pointer;',
     '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0;',
     '  transition:background-color .25s ease,transform .12s ease}',
+    // in a section: fills its cell, like the tiles (hk-tile.js)
+    ':host([data-hk-cell]) ha-card.rank{width:100%;min-width:0;max-width:none}',
     'ha-card.rank:active{transform:scale(0.97);filter:brightness(0.93)}',
     'ha-card.rank[data-on="1"]{background:white}',
     // The reading sits top-left and the well top-RIGHT -- the mirror of a
@@ -198,7 +212,7 @@
     '  grid-template-rows:46px 1fr min-content min-content;',
     '  row-gap:0px;column-gap:8px;align-content:stretch}',
     '.rank .well{grid-area:i;width:42px;height:42px;border-radius:50%;',
-    '  background:rgba(0,0,0,0.14);align-self:start;justify-self:end;',
+    '  background:var(--hk-look-well, var(--hk-well-bg, rgba(0,0,0,0.14)));align-self:start;justify-self:end;',
     '  display:flex;align-items:center;justify-content:center;overflow:hidden}',
     '.rank .icon{width:23px;height:23px;--mdc-icon-size:100%;display:flex;align-items:center;justify-content:center;line-height:0;}',
     '.rank .hero{grid-area:hero;justify-self:start;align-self:start;',
@@ -209,14 +223,45 @@
     '.rank .unit.pct{font-size:0.42em;margin-left:2px}',
     '.rank .name{grid-area:n;justify-self:stretch;align-self:center;',
     '  font-size:14px;font-weight:600;line-height:1.1;letter-spacing:-0.15px;',
-    '  color:rgba(255,255,255,0.92);text-align:left;min-width:0;width:100%;',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));text-align:left;min-width:0;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     'ha-card.rank[data-on="1"] .name{color:black}',
     '.rank .label{grid-area:l;justify-self:stretch;align-self:start;',
     '  font-size:14px;font-weight:400;line-height:1.1;letter-spacing:-0.15px;',
-    '  color:rgba(220,220,220,0.70);text-align:left;min-width:0;width:100%;',
+    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-align:left;min-width:0;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     'ha-card.rank[data-on="1"] .label{color:rgba(0,0,0,0.65)}',
+    // ON THE ENERGY PAGE (`energy: true`) the empty middle row carries the
+    // tile's line: the last three hours of its watts on Now, its last two
+    // weeks of kWh on the other tabs; a battery's level as a bar. The tile
+    // keeps its size and its every other row.
+    '.rank.en .grid{grid-template-areas:"hero i" "s s" "n n" "l l"}',
+    '.rank .spark{grid-area:s;align-self:end;width:100%;height:30px;margin-bottom:9px;overflow:visible;display:none}',
+    '.rank.en .spark{display:block}',
+    '.rank .lvl{grid-area:s;align-self:end;height:8px;margin-bottom:12px;border-radius:4px;overflow:hidden;display:none;',
+    '  background:var(--hk-key,rgba(255,255,255,0.12))}',
+    '.rank.en .lvl.on{display:block}',
+    '.rank.en .lvl.on ~ .spark{display:none}',
+    '.rank .lvl i{display:block;height:100%;border-radius:4px}',
+    '.rank .label b{font-weight:600}',
+    '.rank .label b.up{color:#ffb340}.rank .label b.down{color:#4cd964}',
+    // THE POWER BUTTON, bottom right: 34 px, a 44 px target; the name and
+    // label keep clear of it. Off, the tile steps back.
+    'ha-card.rank{position:relative}',
+    '.rank .pwr{position:absolute;right:12.8px;bottom:12.8px;width:34px;height:34px;border-radius:50%;border:0;padding:0;',
+    '  display:grid;place-items:center;cursor:pointer;color:#fff;background:#30d158;',
+    '  box-shadow:0 2px 6px rgba(0,0,0,0.25);transition:background-color .2s ease,color .2s ease,transform .12s ease;',
+    '  -webkit-tap-highlight-color:transparent}',
+    '.rank .pwr::after{content:"";position:absolute;inset:-5px}',
+    '.rank .pwr:active{transform:scale(0.9)}',
+    '.rank .pwr[data-on="0"]{background:var(--hk-key,rgba(255,255,255,0.14));color:var(--hk-ink-2,rgba(255,255,255,0.68));box-shadow:none}',
+    'ha-card.rank.haspwr .name,ha-card.rank.haspwr .label{padding-right:42px;box-sizing:border-box}',
+    'ha-card.rank.pwroff .hero,ha-card.rank.pwroff .well,ha-card.rank.pwroff .spark{opacity:0.45}',
+    // on a new Energy tab its line draws in, left to right (a clip: no layout)
+    '@keyframes hkWipe{from{clip-path:inset(0 100% 0 0)}}',
+    '.rank .spark.wipe{animation:hkWipe .7s cubic-bezier(0.22,0.8,0.25,1) backwards}',
+    '@media (prefers-reduced-motion: reduce){.rank .spark.wipe{animation:none}}',
+    'ha-card.rank{transition:background-color .25s ease,transform .12s ease,opacity .2s}',
     // ================================================ PHONE: FILL THE TRACK
     // Below 640px the room grids switch to `repeat(auto-fill, minmax(168px,
     // 1fr))` (see frontend/css/hk-responsive.css), so the track is no longer
@@ -249,6 +294,28 @@
     '}',
   ].join('');
 
+  // THE ENERGY PAGE (hk-energy.js), when it is loaded: the tab, the lit
+  // section and a tile's figures. A card here can draw before hk-energy.js has
+  // run (they are separate resources, fetched in parallel), so it asks again
+  // when that file says it is ready.
+  function energyPage(card) {
+    var EP = window.hkEnergyPage;
+    if (EP && EP.tile) { EP.join(card); return EP; }
+    if (!card._hkWaitEnergy) {
+      card._hkWaitEnergy = true;
+      window.addEventListener('hk-energy-ready', function () { card._hkWaitEnergy = false; if (card.isConnected) card.redraw(); }, { once: true });
+    }
+    return null;
+  }
+  // what an energy card's drawing depends on beyond its entities: the tab,
+  // the lit section, the page's data, and -- on Now -- a five-second clock
+  function energySig(pin) {
+    var EP = window.hkEnergyPage;
+    if (!EP || !EP.tile) return 'energy:none';
+    var p = pin || EP.getPeriod();
+    return 'energy:' + p + '|' + EP.pick + '|' + EP.ver + (p === 'now' ? '|' + Math.floor(Date.now() / 5e3) : '');
+  }
+
   class HkStatBase extends HkBase {
     static get CSS() { return CSS; }
     getCardSize() { return 1; }
@@ -270,6 +337,7 @@
       // re-render on a state change. Returning a constant means the base class
       // gates it out of every hass push. A ROOM heading also
       // depends on where its room page is (and whether headings link at all).
+      if (this._config && this._config.energy_section) return energySig(this._config.energy_period);
       return this._config && this._config.area ? 'room=' + this._roomPath() : 'static';
     }
     // `area:` -- this dashboard's room page for it (hk-base.js menu.roomPath).
@@ -285,17 +353,19 @@
       if (!this._built) {
         this._roomWas = room;
         this._root.innerHTML =
-          '<ha-card class="heading' + (isLink ? ' link' : '') + (room ? ' room' : '') + '" data-hk-role="card">' +
+          '<ha-card class="heading' + (isLink ? ' link' : '') + (room ? ' room' : '') + (cfg.energy_section ? ' esec' : '') + '" data-hk-role="card">' +
           '<div class="grid"' + (room ? ' role="link" tabindex="0"' : '') + '>\n<div class="name" data-hk-role="name"></div>\n' +
           (cfg.chevron ? '<div class="extra" data-hk-role="extra"></div>\n' : '') +
+          (cfg.energy_section ? '<div class="esub" data-hk-role="esub"></div>\n' : '') +
           (room ? '<div class="rchev" aria-hidden="true"><svg viewBox="0 0 8 13" width="8" height="13" fill="none"' +
-                  ' stroke="rgba(255,255,255,0.55)" stroke-width="2.2" stroke-linecap="round"' +
+                  ' style="stroke:var(--hk-mark,rgba(255,255,255,0.55))" stroke-width="2.2" stroke-linecap="round"' +
                   ' stroke-linejoin="round"><path d="M1.6 1.6 L6.4 6.5 L1.6 11.4"/></svg></div>\n' : '') +
           '</div></ha-card>';
         this._e = {
           card: this._root.querySelector('.heading'),
           name: this._root.querySelector('.name'),
-          extra: this._root.querySelector('.extra')
+          extra: this._root.querySelector('.extra'),
+          esub: this._root.querySelector('.esub')
         };
         if (isLink) this._e.card.addEventListener('click', this._go.bind(this));
         if (room) {
@@ -323,6 +393,7 @@
       }
       if (cfg.padding) this._e.card.style.padding = cfg.padding;
       if (this._e.name.textContent !== cfg.name) this._e.name.textContent = cfg.name;
+      if (this._e.esub) this._energySub();
       // A TRAILING CHEVRON IS ITS OWN RUN. `chevron: "See all\u203a"`
       // is one string in the config because that reads well in YAML; it
       // draws as two spans, so it is split apart here.
@@ -341,6 +412,15 @@
           this._e.extra.appendChild(cv);
         }
       }
+    }
+    // THE SECTION'S TOTAL ON THE TAB, and the section dimmed while another
+    // is lit on the page (hk-energy.js window.hkEnergyPage)
+    _energySub() {
+      var EP = energyPage(this), id = this._config.energy_section, pin = this._config.energy_period;
+      var x = EP ? EP.section(this._hass, this, id, pin) : null;
+      var html = x && x.text ? '<i style="background:' + x.color + '"></i>' + x.text : '';
+      if (this._e.esub._h !== html) { this._e.esub.innerHTML = html; this._e.esub._h = html; }
+      this._e.card.style.opacity = !pin && EP && EP.pick && EP.pick !== id ? '0.28' : '';
     }
     // The same navigate every tile uses (HkBase._act): "./x" is relative to
     // the CURRENT dashboard, and `navigation_path_map` names the one
@@ -425,6 +505,19 @@
     //
     // Returns null when no mode applies, so the ordinary formatted state
     // still wins and nothing about the other cards changes.
+    // THE TEMPERATURE'S UNIT when no value_suffix says: the sensor's own
+    // (a degree unit read from the state, not from an attribute -- a
+    // thermostat's current_temperature carries none), else the house's
+    // (Settings -> System -> General), else °F as before.
+    _tempUnit(st) {
+      var cfg = this._config || {};
+      var u = !cfg.value_attribute && st && st.attributes && st.attributes.unit_of_measurement;
+      if (!u || String(u).charAt(0) !== '\u00b0') {
+        u = ((((this._hass || {}).config || {}).unit_system || {}).temperature) || '\u00b0F';
+      }
+      return String(u);
+    }
+
     _modeValue(st) {
       var cfg = this._config, m = cfg.value_mode;
       if (!m) return null;
@@ -435,7 +528,7 @@
           ? (st && st.attributes && st.attributes[cfg.value_attribute])
           : (st && st.state);
         var tv = n(t);
-        return tv === null ? '--' : (Math.round(tv) + (cfg.value_suffix || '\u00b0F'));
+        return tv === null ? '--' : (Math.round(tv) + (cfg.value_suffix || this._tempUnit(st)));
       }
 
       if (m === 'runtime') {
@@ -548,6 +641,8 @@
       if (!config || !config.entity) throw new Error('hk-rank: `entity` is required');
       super.setConfig(config);
     }
+    // a 152 px pill: three of Lovelace's ~50 px rows, not the base's one
+    getCardSize() { return 3; }
 
     // A SWITCH THAT IS ON INVERTS THE PILL TO WHITE, so the reading has to
     // invert with it. Only switches -- a sensor is never "on" in this sense.
@@ -610,6 +705,8 @@
           '<div class="well" data-hk-role="well"><ha-state-icon class="icon" data-hk-role="icon"></ha-state-icon></div>\n' +
           '<div class="name" data-hk-role="name"></div>\n' +
           '<div class="label" data-hk-role="label"></div>\n' +
+          '<div class="lvl" aria-hidden="true"><i></i></div>' +
+          '<svg class="spark" viewBox="0 0 156 30" preserveAspectRatio="none" aria-hidden="true"></svg>' +
           // LAST in the DOM, after the name and the label. grid-area places
           // it top-left either way; DOM order only shows in the card's text
           // order.
@@ -618,14 +715,40 @@
         this._e = {
           card: this._root.querySelector('.rank'), hero: this._root.querySelector('.hero'),
           icon: this._root.querySelector('.icon'), name: this._root.querySelector('.name'),
-          label: this._root.querySelector('.label'), well: this._root.querySelector('.well')
+          label: this._root.querySelector('.label'), well: this._root.querySelector('.well'),
+          spark: this._root.querySelector('.spark'), lvl: this._root.querySelector('.lvl')
         };
         this._bind(this._e.card, 'tap_action', null);
+        // THE CIRCUIT'S POWER BUTTON (`control`, the Energy page's Switched
+        // By): only on a tile that has something to switch, so a tile without
+        // one never looks like it does. On is one tap; off cuts a room's
+        // power, so it asks first.
+        if (cfg.control) {
+          var selfC = this, pb = document.createElement('button');
+          pb.className = 'pwr';
+          pb.setAttribute('role', 'switch');
+          pb.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3.5v8" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>' +
+            '<path d="M7.2 6.6a7.5 7.5 0 1 0 9.6 0" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>';
+          this._e.card.appendChild(pb);
+          this._e.pwr = pb;
+          this._e.card.classList.add('haspwr');
+          pb.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            var cs = selfC._st(selfC._config.control), on = cs && cs.state === 'on';
+            var nm2 = selfC._config.name || selfC._config.control;
+            if (!on) { selfC._call('homeassistant', 'turn_on', { entity_id: selfC._config.control }); return; }
+            window.hkCards.confirmSheet('Turn off ' + nm2 + '?', function () {
+              selfC._call('homeassistant', 'turn_off', { entity_id: selfC._config.control });
+            }, { yes: 'Turn Off', destructive: true, detail: 'Everything on this circuit loses power.' });
+          });
+        }
         this._built = true;
       }
 
       var e = this._e;
       e.card.setAttribute('data-on', lit ? '1' : '0');
+      var EP = cfg.energy ? energyPage(this) : null;
+      e.card.classList.toggle('en', !!EP);
       // LIT = THE TILES' ON STATE: a coloured well with a WHITE glyph, the same
       // wellColour/iconColour rule every hk tile uses. Keeping the OFF well --
       // the 0.14 grey disc with the colour on the glyph -- on the white plate
@@ -634,6 +757,14 @@
       var col = this._colour(st);
       e.well.style.background = lit ? col : '';
       e.icon.style.color = lit ? 'white' : col;
+      // the power button: green while the circuit is on, gray while off
+      var ctl = cfg.control ? this._st(cfg.control) : null, ctlOn = !!(ctl && ctl.state === 'on');
+      if (e.pwr) {
+        e.pwr.setAttribute('data-on', ctlOn ? '1' : '0');
+        e.pwr.setAttribute('aria-checked', ctlOn ? 'true' : 'false');
+        e.pwr.setAttribute('aria-label', 'Power, ' + (cfg.name || '') + (ctlOn ? ', on' : ', off'));
+        e.card.classList.toggle('pwroff', !!ctl && !ctlOn);
+      }
       if (this._hass) { e.icon.hass = this._hass; e.icon.stateObj = st; }
       if (cfg.icon) e.icon.icon = cfg.icon;
 
@@ -666,7 +797,7 @@
       window.hkCards.morph(e.hero, html);
       e.hero.style.color = lit
         ? (idle ? 'rgba(0, 0, 0, 0.30)' : 'rgba(0, 0, 0, 0.92)')
-        : (idle ? 'rgba(255, 255, 255, 0.32)' : 'rgba(255, 255, 255, 0.94)');
+        : (idle ? 'var(--hk-ink-3, rgba(255, 255, 255, 0.40))' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))');
 
       var nm = cfg.name || (st && st.attributes && st.attributes.friendly_name) || cfg.entity;
       if (e.name.textContent !== nm) e.name.textContent = nm;
@@ -689,18 +820,76 @@
       if (mode === 'energy' && !cfg.label && !cfg.label_entity) {
         lb = this._today() !== null ? 'Today' : '';
       } else if (!cfg.label && !cfg.label_entity && cfg.stat && window.hkStats && this._hass) {
-        var all = window.hkStats.daily(this._hass, cfg.peers || [cfg.stat], 14, this);
-        var a = all && all[cfg.stat];
-        var t = (a && a.length) ? a[a.length - 1].v : null;
+        var t = this._today();
         lb = Number.isFinite(t) ? (t.toFixed(1) + ' kWh today') : '';
       }
-      if (e.label.textContent !== lb) e.label.textContent = lb;
+      // on the Energy page's Today, This Week and This Month the label is the
+      // tab's (_energy below), not today's kWh
+      if (!(EP && cfg.energy !== 'now' && EP.getPeriod() !== 'now' && mode !== 'pct') && e.label.textContent !== lb) {
+        e.label.textContent = lb;
+        e.label._h = null;
+      }
+      if (EP) this._energy(EP, mode, st);
+    }
+
+    // ON THE ENERGY PAGE'S TABS. Now: the reading above (live watts, kWh
+    // today) with the last three hours as its line. Today, This Week, This
+    // Month: the tab's kWh, two weeks as its line, and how that compares with
+    // its usual -- energy from the meter, never integrated watts. A battery
+    // shows its level as a bar on every tab. While another section is lit on
+    // the page, the tile steps back.
+    _energy(EP, mode, st) {
+      // `energy: now` pins the tile to Now (the EcoFlow page: live watts,
+      // whichever tab the Energy page was left on), and the page's lit
+      // section does not dim it
+      var cfg = this._config, e = this._e, pinned = cfg.energy === 'now', p = pinned ? 'now' : EP.getPeriod();
+      var color = cfg.line_color || EP.sectionColor(cfg.section) || '#ff9f0a';
+      e.card.style.opacity = !pinned && EP.pick && cfg.section && EP.pick !== cfg.section ? '0.28' : '';
+      if (mode === 'pct') {
+        var lv = Number(st && st.state);
+        e.lvl.classList.add('on');
+        var bar = e.lvl.firstChild;
+        bar.style.width = (isFinite(lv) ? Math.max(0, Math.min(100, lv)) : 0) + '%';
+        bar.style.background = isFinite(lv) && lv < 20 ? '#ff453a' : '#30d158';
+        return;
+      }
+      e.lvl.classList.remove('on');
+      var x = EP.tile(this._hass, this, { stat: cfg.stat, power: cfg.power || (mode === 'rank' ? cfg.entity : null), period: p });
+      var line = x && x.line;
+      if (p !== 'now' && x && typeof x.v === 'number') {
+        var idle = x.v < 0.05;
+        window.hkCards.morph(e.hero, (x.v >= 100 ? Math.round(x.v).toLocaleString('en-US') : x.v.toFixed(1)) + '<span class="unit">kWh</span>');
+        e.hero.style.color = idle ? 'var(--hk-ink-3, rgba(255, 255, 255, 0.40))' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))';
+        if (e.label._h !== x.cmp) { e.label.innerHTML = x.cmp; e.label._h = x.cmp; }
+      } else if (p !== 'now' && cfg.stat) {
+        if (e.label._h !== '') { e.label.textContent = ''; e.label._h = ''; }
+      } else if (p === 'now' && x && x.ran) {
+        // Now: today's kWh and the hours it has run
+        var td = this._today(), txt = (td != null ? td.toFixed(1) + ' kWh \u00b7 ' : '') + x.ran;
+        if (e.label.textContent !== txt) e.label.textContent = txt;
+        e.label._h = null;
+      } else {
+        e.label._h = null;
+      }
+      var flat = !line || !line.some(function (z) { return typeof z === 'number' && z > (p === 'now' ? 5 : 0.05); });
+      var svg = flat
+        ? '<path d="M0 28H156" stroke="var(--hk-line,rgba(255,255,255,0.18))" stroke-width="2" vector-effect="non-scaling-stroke"/>'
+        : EP.lineSvg(line, 156, 30, color, { min: p === 'now' ? 20 : 0.05 });
+      if (e.spark._h !== svg) { e.spark.innerHTML = svg; e.spark._h = svg; }
+      if (this._sparkTab !== p && !flat) {
+        this._sparkTab = p;
+        EP.restartAnim(e.spark, 'wipe');      // batched with the page's cards: one layout
+      }
     }
 
     // TODAY'S kWh from the meter's statistics (with its section's peers, in
     // one request); null until they arrive
     _today() {
       var cfg = this._config, id = cfg.stat || cfg.entity;
+      // ON THE ENERGY PAGE, from the page's own statistics (one request for
+      // every tile), not a fortnight of its section's of its own
+      var EP = cfg.energy && window.hkEnergyPage;
+      if (EP && EP.todayOf && cfg.stat) return EP.todayOf(this._hass, this, cfg.stat);
       if (!window.hkStats || !this._hass || !id) return null;
       var all = window.hkStats.daily(this._hass, cfg.peers || [id], 14, this);
       var a = all && all[id], t = (a && a.length) ? a[a.length - 1].v : null;
@@ -713,8 +902,8 @@
     _sigOf() {
       var h = this._hass, c = this._config;
       if (!h || !c) return null;
-      var ids = [c.entity, c.power, c.label_entity].filter(Boolean);
-      var out = '';
+      var ids = [c.entity, c.power, c.label_entity, c.control].filter(Boolean);
+      var out = c.energy ? energySig(c.energy === 'now' ? 'now' : null) + ';' : '';
       for (var i = 0; i < ids.length; i++) {
         var s = h.states[ids[i]];
         out += ids[i] + '=' + (s ? s.last_updated : 'x') + ';';
@@ -769,13 +958,21 @@
                { name: 'value', selector: { text: {} } },
                { type: 'grid', name: '', schema: [
                  { name: 'value_attribute', selector: { text: {} } },
-                 { name: 'value_suffix', selector: { text: {} } },
+                 { name: 'value_suffix', selector: { text: {} },
+                   helper: 'Temperature format: default is the sensor\'s own unit, else this home\'s.' },
                  { name: 'idle_text', selector: { text: {} } },
                  { name: 'value_peer', selector: { entity: { filter: { domain: 'sensor' } } } },
                  { name: 'charge', selector: { entity: { filter: { domain: 'sensor' } } } },
                  { name: 'discharge', selector: { entity: { filter: { domain: 'sensor' } } } },
                  { name: 'stat', selector: { entity: { filter: { domain: 'sensor' } } } },
-                 { name: 'cost_stat', selector: { entity: { filter: { domain: 'sensor' } } } }
+                 { name: 'cost_stat', selector: { entity: { filter: { domain: 'sensor' } } } },
+                 { name: 'power', selector: { entity: { filter: { domain: 'sensor' } } },
+                   helper: 'Power format: the live reading. Defaults to the entity.' },
+                 // a fixed number stays YAML (price: 0.15): a text field
+                 // would hand the card a string, read as an entity id
+                 { name: 'price', label: 'Price Per kWh',
+                   helper: 'Cost today format, with no cost statistic: today\'s kWh times this.',
+                   selector: { entity: { filter: [{ domain: 'sensor' }, { domain: 'input_number' }] } } }
                ] }
              ], 'mdi:tune'),
              C2.section('Interactions', [
@@ -796,7 +993,15 @@
              C2.section('Power use', [
                { name: 'power', selector: { entity: { filter: { domain: 'sensor' } } } },
                { name: 'stat', selector: { entity: { filter: { domain: 'sensor' } } } },
-               { name: 'peers', selector: { entity: { multiple: true, filter: { domain: 'sensor' } } } }
+               { name: 'peers', selector: { entity: { multiple: true, filter: { domain: 'sensor' } } } },
+               { name: 'energy', label: 'Follow the Energy tabs', selector: { boolean: {} },
+                 helper: 'With HK\'s Energy cards on the page: Now shows its watts and last three hours; Today, This Week and This Month its kWh against its usual.' },
+               { type: 'grid', name: '', schema: [
+                 { name: 'section', selector: { text: {} }, helper: 'Its Energy section, for Where it went\'s lit section.' },
+                 { name: 'line_color', selector: { text: {} }, helper: 'Its line\'s color, e.g. #5ac8fa.' }
+               ] },
+               { name: 'control', label: 'Switched By', selector: { entity: { filter: [{ domain: 'switch' }, { domain: 'input_boolean' }] } },
+                 helper: 'Gives the tile a power button: on with one tap, off after asking.' }
              ], 'mdi:flash'),
              C2.section('Appearance', [
                { type: 'grid', name: '', schema: [

@@ -39,7 +39,17 @@
   // Long-term statistics are written once an hour, so anything under an hour
   // of TTL is re-fetching data that cannot have changed. Daily buckets also
   // get invalidated at local midnight (see cacheKey) regardless of TTL.
-  var TTL = { day: 15 * 60 * 1000, hour: 5 * 60 * 1000 };
+  // THE KEY ALREADY ROLLS AT EVERY NEW BUCKET (cacheKey), so a TTL only
+  // re-asks INSIDE a bucket -- for data that changes when the recorder
+  // compiles it, not more often. Five-minute statistics close every five
+  // minutes: asking twice a bucket catches one compiled late. Hourly ones are
+  // compiled once an hour: fifteen minutes catches an hour compiled after its
+  // key rolled, without asking eleven times for an hour that cannot change.
+  // Measured on the Energy page left open (2026-10-12): 60 s / 5 min here
+  // was ~7 MB an hour of statistics over the websocket.
+  var TTL = { day: 15 * 60 * 1000, hour: 15 * 60 * 1000, '5minute': 150 * 1000 };
+  // The bucket each period is cut into.
+  var SIZE = { day: 864e5, hour: 36e5, '5minute': 3e5 };
 
   // How long to sit on incoming requests before firing one combined call.
   // A render pass completes well inside this, and it is short enough that the
@@ -187,6 +197,9 @@
   // again. Two passes is enough for every real zone -- transitions are at most
   // an hour and never adjacent.
   function floorTZ(at, size) {
+    // FIVE MINUTES NEED NO ZONE: every real offset is a whole number of
+    // quarter hours, so a five-minute edge in UTC is one in every zone.
+    if (size < 36e5) return Math.floor(at / size) * size;
     var tz = HA_TZ;
     if (!tz) {                       // browser-local: no zone known
       var d = new Date(at);
@@ -232,9 +245,7 @@
   // evicts every entry for the same shape at an OLDER edge -- the rollover
   // itself is the expiry pass.
   function cacheKey(period, count, type) {
-    var edge = period === 'day'
-      ? startOfDay(new Date()).getTime()
-      : startOfHour(new Date()).getTime();
+    var edge = floorTZ(Date.now(), SIZE[period] || 36e5);
     var prefix = period + '|' + count + '|' + type + '|';
     var key = prefix + edge;
     // Evict every entry of this period and type whose edge is OLDER -- at
@@ -264,11 +275,11 @@
   // flooring from there gives that day's true midnight in HA's zone.
   function axis(period, count) {
     var out = [];
-    var size = period === 'day' ? 864e5 : 36e5;
+    var size = SIZE[period] || 36e5;
     var t = floorTZ(Date.now(), size);
     out.push(new Date(t));
     for (var i = 1; i < count; i++) {
-      t = period === 'day' ? floorTZ(t - 12 * 36e5, 864e5) : t - 36e5;
+      t = period === 'day' ? floorTZ(t - 12 * 36e5, 864e5) : t - size;
       out.unshift(new Date(t));
     }
     return out;
@@ -575,6 +586,69 @@
   var peakMemo = new WeakMap();
   function axisEdgeDay() { return floorTZ(Date.now(), 864e5); }
 
+  // ---------------------------------------------------------- the calendar
+  // Calendar fields of an instant AS HOME ASSISTANT SEES THEM. getDay() and
+  // getHours() on a Date are the browser's answer; these are HA's.
+  var FIELDS_FMT = {};
+  function fields(at) {
+    var ms = +new Date(at);
+    var tz = HA_TZ;
+    if (!tz) {
+      var d = new Date(ms);
+      return { hour: d.getHours(), weekday: d.getDay(), day: d.getDate(), month: d.getMonth() + 1, year: d.getFullYear() };
+    }
+    var f = FIELDS_FMT[tz] || (FIELDS_FMT[tz] = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour12: false, hour: '2-digit', weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric'
+    }));
+    var p = {};
+    f.formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
+    return {
+      hour: +p.hour % 24,
+      weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday),
+      day: +p.day, month: +p.month, year: +p.year
+    };
+  }
+  // DAYS STEP BY RE-FLOORING, as the axis does: back 12 hours from a
+  // midnight is inside the day before, ahead 36 is inside the day after,
+  // whatever DST did to either day's length
+  function addDays(at, k) {
+    var t = floorTZ(+new Date(at), 864e5);
+    for (var i = 0; i < Math.abs(k); i++) t = floorTZ(k < 0 ? t - 12 * 36e5 : t + 36 * 36e5, 864e5);
+    return t;
+  }
+  var WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  // the languages whose week starts on a Sunday, where a browser cannot say
+  // (Intl.Locale's week info is newer than some wall tablets' WebViews)
+  var SUNDAY_FIRST = /^(en(-(us|ca|au|nz|ph|za|in))?|ja|ko|he|zh-(tw|hk)|pt-br|es-(mx|us)|ar|hi|th)$/i;
+  function weekStart(hass) {
+    var L = (hass && hass.locale) || {}, w = String(L.first_weekday || 'language').toLowerCase();
+    var i = WEEKDAYS.indexOf(w);
+    if (i >= 0) return i;
+    var lang = L.language || (hass && hass.language) || (typeof navigator !== 'undefined' && navigator.language) || 'en';
+    try {
+      var loc = new Intl.Locale(lang), info = loc.getWeekInfo ? loc.getWeekInfo() : loc.weekInfo;
+      if (info && info.firstDay) return info.firstDay % 7;
+    } catch (e) { /* an old engine: the list below */ }
+    return SUNDAY_FIRST.test(lang) ? 0 : 1;
+  }
+  function period(per, back, now, ws) {
+    var t0 = floorTZ(+new Date(now || Date.now()), 864e5), f = fields(t0), start, len;
+    back = Math.max(0, back || 0);
+    if (per === 'week') {
+      start = addDays(t0, -(((f.weekday - (ws || 0)) % 7 + 7) % 7) - 7 * back);
+      len = 7;
+    } else {
+      start = addDays(t0, 1 - f.day);
+      for (var b = 0; b < back; b++) {
+        var last = addDays(start, -1);
+        start = addDays(last, 1 - fields(last).day);
+      }
+      var g = fields(start);
+      len = new Date(Date.UTC(g.year, g.month, 0)).getUTCDate();
+    }
+    return { start: start, len: len };
+  }
+
   // -------------------------------------------------------------------------
   // history(hass, entityId, hours, card) -- RAW recorded states, not statistics.
   //
@@ -750,6 +824,14 @@
     hourly: function (hass, ids, hours, card, opts) {
       return get(hass, ids, hours, card, Object.assign({ period: 'hour' }, opts || {}));
     },
+    // THE RECORDER'S SHORT-TERM STATISTICS: five-minute buckets, kept ten
+    // days. What a live line of the last few hours is drawn from -- one
+    // batched call for a whole page of circuits, where history/period would
+    // be one request per sensor. The newest bucket is still open, so it is
+    // null until the recorder closes it.
+    fiveMinute: function (hass, ids, count, card, opts) {
+      return get(hass, ids, count, card, Object.assign({ period: '5minute', type: 'mean' }, opts || {}));
+    },
     // THE ZONE EVERY BUCKET IS EXPRESSED IN, for whoever has to LABEL them.
     // A bucket that starts at HA's midnight must not be captioned with the
     // browser's date, or a remote client gets correct bars under the wrong
@@ -761,21 +843,17 @@
     // result straight into toLocaleDateString without a branch.
     tz: function () { return HA_TZ || undefined; },
 
-    // Calendar fields of an instant AS HOME ASSISTANT SEES THEM. getDay() and
-    // getHours() on a Date are the browser's answer; these are HA's.
-    fields: function (at) {
-      var ms = +new Date(at);
-      var tz = HA_TZ;
-      if (!tz) { var d = new Date(ms); return { hour: d.getHours(), weekday: d.getDay() }; }
-      var p = {};
-      new Intl.DateTimeFormat('en-US', {
-        timeZone: tz, hour12: false, hour: '2-digit', weekday: 'short'
-      }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
-      return {
-        hour: +p.hour % 24,
-        weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday)
-      };
-    },
+    // calendar fields of an instant in HA's zone: hour, weekday, day, month, year
+    fields: fields,
+    // HA-local midnight `k` days from the midnight of `at` (k < 0: back)
+    addDays: addDays,
+    // THE FIRST DAY OF THE WEEK, 0 (Sunday) to 6, as the signed-in user set
+    // it in their Home Assistant profile (hass.locale.first_weekday);
+    // "language" is the language's own (Sunday for English)
+    weekStart: weekStart,
+    // A CALENDAR PERIOD: { start (HA-local midnight), len (days) } of the
+    // week or month `back` periods before the one `now` is in
+    period: period,
 
     // Escape hatch for debugging from the console: hkStats.dump()
     dump: function () { return { cache: cache, pending: pending, inFlight: inFlight }; },

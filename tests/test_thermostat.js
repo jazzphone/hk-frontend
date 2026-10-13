@@ -61,5 +61,27 @@ check('an entity that lists none gets the classic four', none.join() === 'off,he
         c.style['--hk-accent'] === 'rgba(64, 200, 224, 0.96)', c.style['--hk-accent']);
 })();
 
+// THE EDITORS offer what the card draws: every control branch, and `bare`
+// (applied to every domain) on the thermostat and the slider too.
+(function () {
+  function fields(tag) {
+    var C = customElements.get(tag), probe = C.getConfigElement();
+    var EC = customElements.get(String(probe.tagName || '').toLowerCase());
+    var ed = EC ? new EC() : probe;
+    if (!ed.appendChild) ed.appendChild = function () {};
+    ed.hass = { states: {} }; ed.setConfig({ type: 'custom:' + tag });
+    var out = [];
+    (function walk(list) { (list || []).forEach(function (f) { if (f.schema) walk(f.schema); else out.push(f); }); })(ed._form.schema);
+    return out;
+  }
+  var control = fields('hk-control-card').filter(function (f) { return f.name === 'control'; })[0];
+  var offered = control.selector.select.options.map(function (o) { return o.value; }).sort().join(',');
+  check('control: every domain the card draws', offered ===
+        'climate,media_player,number,select,switch,valve,water_heater', offered);
+  ['hk-thermostat-card', 'hk-slider-card', 'hk-media-control-card'].forEach(function (tag) {
+    check(tag + ' offers bare', fields(tag).some(function (f) { return f.name === 'bare'; }));
+  });
+})();
+
 print(fail ? 'FAIL ' + fail + ' THERMOSTAT TESTS' : 'ALL ' + pass + ' THERMOSTAT TESTS PASS');
 if (fail) throw new Error('thermostat tests failed');

@@ -150,6 +150,27 @@ at('2026-09-12T10:00:00Z', function () {
         iso(got[1].t) === '2026-09-11T18:30:00.000Z');
 });
 
+// --- FIVE-MINUTE BUCKETS (the Energy page's live lines) --------------------
+// Steps of exactly 300 000 ms ending in the bucket we are inside, and rows
+// placed by range: a row at 18:25Z lands in the 18:25 slot, the open 18:30
+// bucket stays null until the recorder closes it.
+adopt('America/New_York');
+at('2026-09-12T18:31:40Z', function () {
+  var got = S.__align([{ start: '2026-09-12T18:25:00.000Z', mean: 412 },
+                       { start: '2026-09-12T18:20:00.000Z', mean: 380 }], '5minute', 4, 'mean');
+  check('a five-minute axis ends in the bucket we are inside', iso(got[3].t) === '2026-09-12T18:30:00.000Z');
+  check('five-minute buckets step 300 000 ms', got[3].t - got[2].t === 3e5 && got[1].t - got[0].t === 3e5);
+  check('five-minute rows land in their slots', got[2].v === 412 && got[1].v === 380 && got[0].v === null);
+  check('the open five-minute bucket is null', got[3].v === null);
+});
+// A half-hour zone still has five-minute edges on the UTC grid.
+adopt('Asia/Kolkata');
+at('2026-09-12T10:07:00Z', function () {
+  var got = S.__align([], '5minute', 2, 'mean');
+  check('five-minute edges hold in a half-hour zone', iso(got[1].t) === '2026-09-12T10:05:00.000Z');
+});
+adopt('America/New_York');
+
 // --- THE FALLBACK: AN Intl THAT CANNOT DO ZONES ---------------------------
 // Documented and tested rather than silently returning browser-local buckets.
 (function () {

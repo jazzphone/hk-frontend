@@ -27,7 +27,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
-from . import files, resources
+from . import files, lovelace_boards, resources
 from . import settings as dash_settings
 from .const import DOMAIN
 
@@ -247,12 +247,7 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
 async def _saver_users_line(hass: HomeAssistant, boards: dict[str, dict[str, Any]]) -> Line:
     """Each screen with the photo screensaver: its Tablet User chosen, and a
     user of that name signed up in Home Assistant."""
-    try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        dashes = hass.data[LOVELACE_DATA].dashboards
-        title = lambda p: (getattr(dashes.get(p), "config", None) or {}).get("title") or p  # noqa: E731
-    except (ImportError, KeyError, AttributeError):
-        title = lambda p: p  # noqa: E731
+    title = lambda p: lovelace_boards.title(hass, p)  # noqa: E731 -- the Overview as "Overview"
     names = {u.name for u in await hass.auth.async_get_users() if not u.system_generated and u.is_active}
     savers = {p: b for p, b in boards.items() if b.get("screensaver")}
     none = [title(p) for p, b in savers.items() if not b.get("tablet_user")]
@@ -329,8 +324,7 @@ def _menu_line(hass: HomeAssistant, chosen: list[str]) -> Line:
     if not chosen:
         return Line(None, "Menu & Room Pages", "Off on every dashboard.")
     try:
-        from homeassistant.components.lovelace.const import LOVELACE_DATA
-        known = {k for k in hass.data[LOVELACE_DATA].dashboards if k}
+        known = set(lovelace_boards.all_boards(hass))      # the Overview as "lovelace"
     except (ImportError, KeyError, AttributeError):
         known = set(chosen)
     gone = [d for d in chosen if d not in known]

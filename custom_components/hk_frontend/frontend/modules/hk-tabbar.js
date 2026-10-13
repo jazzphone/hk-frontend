@@ -258,9 +258,16 @@
     return v === 'button' ? 'button' : 'more';
   }
 
-  // The bar's material for a setting and the screen's look.
+  // The bar's material for a setting and the screen's look. Tinted is stored
+  // `tinted` since entry 1.12 (settings.py tab_bar_glass); `clear` is its
+  // name from before, which a cached copy may still hold. Only `clear` was
+  // known here, so a bar set to Tinted fell through to the screen's look.
   function material(setting, look) {
-    if (setting === 'clear' || setting === 'frosted' || setting === 'blur') return setting;
+    if (setting === 'tinted' || setting === 'clear') return 'tinted';
+    if (setting === 'frosted' || setting === 'blur') return setting;
+    // Same as Screen: the screen's Tinted is this bar's Tinted -- no blur on
+    // a bar that is always up (and no picture to pin behind it)
+    if (look === 'tinted') return 'tinted';
     return look === 'frosted' ? 'frosted' : 'blur';
   }
 
@@ -305,7 +312,7 @@
       ':host([data-wide]){--bh:' + BAR_H_WIDE + 'px}',
       '.root{position:fixed;left:0;top:0;width:0;height:0;z-index:6;',
       '  font-family:var(--paper-font-body1_-_font-family,"SF Pro",-apple-system,Roboto,sans-serif);',
-      '  -webkit-font-smoothing:antialiased;color:#fff;-webkit-tap-highlight-color:transparent}',
+      '  -webkit-font-smoothing:antialiased;color:var(--hk-ink,rgba(255,255,255,0.94));-webkit-tap-highlight-color:transparent}',
       // THE ROW: the pill and the Rooms button, over the dashboard (past Home
       // Assistant's sidebar), clear of an iPhone's home indicator
       '.row{position:fixed;left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:' + GUTTER + 'px;',
@@ -320,7 +327,7 @@
       '.blur .g{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(28,30,40,0.46);',
       '  -webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6)}',
       '.frosted .g{background:rgba(62,64,74,0.95)}',
-      '.clear .g{background:rgba(24,24,28,0.93)}',
+      '.tinted .g{background:rgba(24,24,28,0.93)}',
       // THE PILL
       // TAB_GAP between tabs: two highlights side by side (the page you are
       // on, the one under the pointer) never touch
@@ -407,18 +414,18 @@
       // a sheet over the tiles wants more body than the bar
       '.blur .sheet.g{background:linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.03)),rgba(26,28,38,0.66);',
       '  -webkit-backdrop-filter:blur(30px) saturate(1.7);backdrop-filter:blur(30px) saturate(1.7)}',
-      '.sheet h2{flex:none;margin:0 6px 12px;font-size:17px;font-weight:700;letter-spacing:-0.41px;color:#fff}',
+      '.sheet h2{flex:none;margin:0 6px 12px;font-size:17px;font-weight:700;letter-spacing:-0.41px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
       // THE BIG GRID (2026-10-06): cells at least 84 px -- three across on a
       // phone, six on a computer -- big icons, and names on up to two lines
       // instead of cut off
       '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;align-content:start}',
       // the Rooms section in More, headed as the menu heads its sections
-      '.sheet h3{margin:22px 6px 12px;font-size:15px;font-weight:600;letter-spacing:-0.24px;color:rgba(235,235,245,0.6)}',
+      '.sheet h3{margin:22px 6px 12px;font-size:15px;font-weight:600;letter-spacing:-0.24px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.sheet h3[hidden],.grid[hidden]{display:none}',
       // MORE: the icon and its name, no plate (the Home Screen's look)
       '.it{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-width:0;min-height:104px;',
       '  box-sizing:border-box;padding:12px 4px 10px;border:0;margin:0;border-radius:22px;background:none;',
-      '  color:rgba(255,255,255,0.95);font:inherit;font-size:12px;font-weight:600;letter-spacing:-0.08px;',
+      '  color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:12px;font-weight:600;letter-spacing:-0.08px;',
       '  text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
       '.it ha-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:var(--hk-accent,#ff9f0a)}',
       '.it span{max-width:100%;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;',

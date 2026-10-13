@@ -31,7 +31,7 @@ from homeassistant.core import HomeAssistant, callback
 from .. import ENERGY, Feature, async_update, entries
 from . import plan
 from .const import (COLORS, CONF_BATTERIES, CONF_COST, CONF_DETAIL, CONF_DEVICES, CONF_EXTRA, CONF_FOLLOW,
-                    CONF_SECTIONS, CONF_TITLE, CONF_TOP, CONF_TOTAL, CONF_USAGES, OPTION_KEYS, SECTIONS, TOP_MAX,
+                    CONF_PAGE, PERIODS, RINGS, TYPICAL, CONF_SECTIONS, CONF_TITLE, CONF_TOP, CONF_TOTAL, CONF_USAGES, OPTION_KEYS, SECTIONS, TOP_MAX,
                     USAGES_MAX)
 
 ENTITY = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
@@ -39,7 +39,7 @@ ICON = re.compile(r"^(hk|mdi):[a-z0-9-]+$")
 SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 PATH = re.compile(r"^[A-Za-z0-9_./#?=&-]{1,120}$")
 NAME_MAX = 40
-DEVICE_FIELDS = ("name", "icon", "color", "power", "control", "hidden")
+DEVICE_FIELDS = ("name", "icon", "color", "power", "control", "hidden", "runtime")
 
 MSG = {
     "unknown": "That setting doesn’t exist.",
@@ -53,6 +53,7 @@ MSG = {
     "section": "Each section needs an id and a name.",
     "device": "That device couldn’t be read.",
     "link": "A link is a page address.",
+    "page": "That page setting couldn’t be read.",
 }
 
 
@@ -87,7 +88,7 @@ def page(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
         "options": {k: opts.get(k) for k in OPTION_KEYS},
         "plan": pl,
         "devices": [{k: d[k] for k in ("key", "name", "raw", "stat", "power", "found", "section", "icon", "color",
-                                        "control", "hidden", "extra", "parent", "children")}
+                                        "control", "hidden", "extra", "parent", "children", "runtime")}
                     | {"parent_name": names.get(d["parent"] or "")} for d in devs],
         "batteries": bats,
         "sections": secs,
@@ -128,7 +129,7 @@ def check_device(v: Any) -> dict[str, Any] | None:
             return None
         if k == "color" and x not in COLORS:
             return None
-        if k in ("power", "control") and not _ent(x):
+        if k in ("power", "control", "runtime") and not _ent(x):
             return None
         if k == "hidden" and not isinstance(x, bool):
             return None
@@ -167,6 +168,37 @@ def _section(v: Any) -> dict[str, Any] | None:
         if not isinstance(link, dict) or not isinstance(link.get("path"), str) or not PATH.match(link["path"]):
             return None
         out["link"] = {"path": link["path"], "text": str(link.get("text") or "")[:NAME_MAX]}
+    # its color: its part of Where it went and its tiles' lines
+    if v.get("color") not in (None, ""):
+        if v["color"] not in COLORS:
+            return None
+        out["color"] = v["color"]
+    return out
+
+
+def _page(v: Any) -> dict[str, Any] | None:
+    """The page's own settings, checked; None when they cannot be read. Each
+    field may be missing (Automatic)."""
+    if not isinstance(v, dict) or any(k not in ("opens_on", "rings", "typical", "highlights") for k in v):
+        return None
+    out: dict[str, Any] = {}
+    if v.get("opens_on") is not None:
+        if v["opens_on"] not in PERIODS:
+            return None
+        out["opens_on"] = v["opens_on"]
+    if v.get("rings") is not None:
+        r = v["rings"]
+        if not isinstance(r, list) or not r or len(r) > 4 or any(x not in RINGS for x in r):
+            return None
+        out["rings"] = list(dict.fromkeys(r))
+    if v.get("typical") is not None:
+        if v["typical"] not in TYPICAL or isinstance(v["typical"], bool):
+            return None
+        out["typical"] = v["typical"]
+    if v.get("highlights") is not None:
+        if not isinstance(v["highlights"], bool):
+            return None
+        out["highlights"] = v["highlights"]
     return out
 
 
@@ -228,7 +260,7 @@ def apply(options: dict[str, Any], changes: dict[str, Any]) -> tuple[dict[str, A
         if k not in OPTION_KEYS:
             errors[k] = MSG["unknown"]
             continue
-        if v is None and k in (CONF_TOP, CONF_USAGES, CONF_SECTIONS, CONF_BATTERIES, CONF_TOTAL, CONF_TITLE):
+        if v is None and k in (CONF_TOP, CONF_USAGES, CONF_SECTIONS, CONF_BATTERIES, CONF_TOTAL, CONF_TITLE, CONF_PAGE):
             out.pop(k, None)
             continue
         if k in (CONF_FOLLOW, CONF_COST, CONF_DETAIL):
@@ -301,6 +333,19 @@ def apply(options: dict[str, Any], changes: dict[str, Any]) -> tuple[dict[str, A
                 errors[k] = MSG[err]
             else:
                 out[k] = got
+        elif k == CONF_PAGE:
+            # merged into what is stored, so one field can change alone
+            pg = _page(v)
+            if pg is None:
+                errors[k] = MSG["page"]
+            else:
+                merged = {**(options.get(CONF_PAGE) or {}), **pg}
+                for f in [f for f in v if v[f] is None]:
+                    merged.pop(f, None)
+                if merged:
+                    out[k] = merged
+                else:
+                    out.pop(k, None)
     return out, errors
 
 

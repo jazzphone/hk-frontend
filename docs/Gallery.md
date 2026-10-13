@@ -8,6 +8,10 @@ camera pictures are blurred on purpose.
 
 ![The Home screen on a wall tablet](images/tablet-home.png)
 
+![The Home screen on a wall tablet in the Tinted look](images/tablet-home-tinted.png)
+
+Home in the [Tinted](Appearance.md#tinted) look: the Home app’s flat dark plates, nothing blurred.
+
 | | |
 |---|---|
 | ![A room page](images/tablet-room.png) | ![The Lights page](images/tablet-lights.png) |
@@ -24,12 +28,14 @@ camera pictures are blurred on purpose.
 | A room’s [cameras](Cameras.md#on-a-rooms-page) | A screen’s Cameras settings |
 | ![The Music page](images/tablet-music.png) | ![Home with the Now Playing bar and the Timer Bar](images/tablet-home-media-bar.png) |
 | [Music](Music.md) | The [Now Playing bar](Music.md#the-now-playing-bar) and Timer Bar |
-| ![The Live TV guide](images/tablet-live-tv.png) | ![The Energy page](images/tablet-energy.png) |
-| Live TV ([Live TV](Live-TV.md)) | [Energy](Energy.md) |
+| ![The Live TV guide](images/tablet-live-tv.png) | ![The Energy page on Now](images/tablet-energy.png) |
+| Live TV ([Live TV](Live-TV.md)) | [Energy](Energy.md): Now |
 | ![The Calendar page: the month](images/tablet-calendar.png) | ![The Calendar page: the week](images/tablet-calendar-week.png) |
 | [Calendar](Calendar.md): the month | The week |
 | ![The Calendar page: the day](images/tablet-calendar-day.png) | ![A new event](images/tablet-calendar-new-event.png) |
 | The day | A new event |
+| ![The Energy page on This Month, with Your Month as a calendar](images/tablet-energy-month.png) | |
+| [Energy](Energy.md): This Month | |
 
 ![The photo screensaver, with the clock, weather and Home Status over the photo](images/tablet-screensaver.png)
 
@@ -73,7 +79,7 @@ These Climate screenshots use fictional rooms, devices and readings.
 | | |
 |---|---|
 | ![Temperature sources in a Climate sheet](images/sheet-climate-temperature.jpg) | <img src="images/phone-climate-temperature.jpg" width="260" alt="The Temperature list on a phone"> |
-| Room-labelled sources | The same list on a phone |
+| Room-labeled sources | The same list on a phone |
 
 Source selection and exclusions: [Climate](Climate.md).
 
@@ -112,6 +118,8 @@ scrolled, the bar folds into one small button.
 | Alarm keypad | Doorbell |
 | ![Arrange in a tile’s settings](images/sheet-arrange.png) | ![Search all icons in a tile’s settings](images/sheet-icon-search.png) |
 | Arrange | Search all icons |
+| ![A sheet’s graph with a finger on it, its value at the top](images/sheet-graph-hover.png) | |
+| [A graph’s value](Detail-Sheets-and-Popups.md) under your finger | |
 
 ## The sky
 
@@ -154,8 +162,8 @@ More: [Live Sky](Live-Sky.md).
 | The preview at phone size | Accessories |
 | ![Custom chips](images/settings-custom-chips.png) | ![Pop-ups](images/settings-popups.png) |
 | Custom chips | Pop-ups |
-| ![Custom pages](images/settings-pages.png) | ![Status & Chips](images/settings-counts.png) |
-| Custom pages | Status & Chips |
+| ![Custom pages](images/settings-pages.png) | ![What Counts](images/settings-counts.png) |
+| Custom pages | What Counts |
 | ![Weather](images/settings-weather.png) | ![Sky](images/settings-sky.png) |
 | Weather | Sky |
 | ![A decoration with its preview](images/settings-sky-theme.png) | ![Appearance](images/settings-appearance.png) |
@@ -182,7 +190,9 @@ More: [Live Sky](Live-Sky.md).
 | [Cameras](Cameras.md), for all screens | The menu by device |
 | ![Notifications](images/settings-notifications.png) | ![A notification category](images/settings-notifications-categories.png) |
 | [Notifications](Notifications.md) | A category |
-| ![Glass Style with Blur Mode](images/settings-glass-style.png) | ![A screen’s Behavior](images/settings-screen-behavior.png) |
-| [Glass Style](Appearance.md#blur-mode) | A screen’s [Behavior](Screens.md#behavior) |
+| ![Glass Style: Glass, Frosted, Tinted and Blur, with Blur Mode](images/settings-glass-style.png) | ![A screen’s Behavior](images/settings-screen-behavior.png) |
+| [Glass Style](Appearance.md#every-screen) | A screen’s [Behavior](Screens.md#behavior) |
+| ![The Calendars notification category](images/settings-notifications-calendars.png) | |
+| [Calendars](Notifications.md#calendars) notifications | |
 
 More: [HK Settings](HK-Settings.md).

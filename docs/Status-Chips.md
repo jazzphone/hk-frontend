@@ -18,12 +18,16 @@ Each chip summarizes one kind of thing and opens its page:
 | Vacuums | How many vacuums are running | Vacuums |
 | Speakers | How many speakers are playing | Music |
 | Water | Whether a leak sensor is wet | Water |
-| Energy | Power use, in kW | A [custom page](Pages.md#custom-pages) with the address `energy`, if the screen has one |
+| Energy | Power use, in kW | The [Energy](Energy.md) page, or a [custom page](Pages.md#custom-pages) with the address `energy` |
 
-What each chip counts is the same on every screen, and is set in
-[Status & Chips](#status--chips). The alarm is in
+What each chip counts is the same on every screen. Each kind finds its own
+accessories, and you change that on the accessory: hide it from a chip in
+[Hidden Accessories](Accessories.md#hidden-accessories), or count it where it
+isn’t found with its [Also Count As](Accessories.md#also-count-as).
+[What Counts](#what-counts) shows the result. The alarm is in
 [General](HK-Settings.md#general), the indoor temperature and power sensor
-under [Status & Chips → Readings](#status--chips); the alerts sensor is in
+on the Climate and Energy chips’ own pages
+([below](#status-chips-settings)); the alerts sensor is in
 [Weather](Weather.md). A kind your home has nothing of never shows a
 chip.
 
@@ -31,7 +35,9 @@ chip.
 alarm, the Smoke & CO chip leads every screen’s chip row, before the chips the
 screen chooses, and appears only while an alarm is going off. A screen can’t
 remove or move it; turn the whole row off (**Show Status Chips**) and it goes
-with it. Which alarms set it off is set in [Status & Chips](#status--chips).
+with it. [What Counts → Smoke & CO](#what-counts) lists the alarms that set it
+off: hide a camera that only hears the alarm from **Smoke & CO**, or count a
+gas detector with its **Also Count As**.
 
 ![A screen’s Status Chips page in HK Settings](images/settings-chips.png)
 
@@ -87,33 +93,40 @@ Each kind’s page:
 | Setting | Default | What it does |
 |---|---|---|
 | Show | When Active for Weather Alerts, Doors & Windows, Blinds and Water; Always for the rest | **When Active**: the chip appears only while something is on, open, running or wet. **Always**: it is always there. |
-| What It Counts | — | Links to the [Status & Chips](#status--chips) kinds, and to the single settings the chip reads (Alarm Panel, Indoor Temperature, Power Use, Weather Alerts). The same on every screen. |
+| What It Counts | — | The kinds the chip counts, each with how many and opening it in [What Counts](#what-counts), and a link to the single setting it reads elsewhere (Alarm Panel, Weather Alerts). The same on every screen. |
+| Indoor Temperature | First Thermostat’s | *Climate chip.* A temperature sensor for the chip’s reading (an average, say). The house’s: the same on every screen. |
+| Power Use | None | *Energy chip.* A power sensor for the chip, which needs it. W or kW; shown in kW. The same on every screen. |
 
 ## The pages’ status rows
 
 The [Climate](Climate.md), Lights, Doors & Windows, Water and Security pages
 have a room-style status row under their titles: *3 Lights · 2 On*, *Motion ·
-Emma’s Room*, *Valve · Running*. Each counts what Status & Chips finds; tap
-an item for its room-labelled accessory list. Choose what each row shows, its
+Emma’s Room*, *Valve · Running*. Each counts what [What Counts](#what-counts) shows; tap
+an item for its room-labeled accessory list. Choose what each row shows, its
 order and the rooms it leaves out in **All Screens → Status Rows** ([Status
 rows](Status-Rows.md)).
 
-## Status & Chips
+## What Counts
 
-**All Screens → Status & Chips.** What each status chip, the header’s security
-line and the generated pages count. Every kind finds its own entities; you only
-adjust. The Lights chip and the Lights page count the same lights, so they can’t
-disagree. The page lists every kind under **Status Chips**, and the kinds that
-feed only the pages’ status rows — temperature, humidity, motion, occupancy and
-valves — under **For Status Rows**; the number is what is counted now, and
-*Adjusted* means you have left some out or added some. Between them,
-**Readings** has the two sensors the chips read (below).
+**Library → Accessories → What Counts**, also reached from a screen’s chip
+page (**What It Counts**) and a status row’s **Sources**. What each status
+chip, the header’s security line and the generated pages count, on every
+screen. It only shows: every kind finds its own entities, and what you change,
+you change on the accessory — hide it from a kind in
+[Hidden Accessories](Accessories.md#hidden-accessories), or count it where it
+isn’t found with its [Also Count As](Accessories.md#also-count-as). The Lights
+chip and the Lights page count the same lights, so they can’t disagree. The
+page lists every kind under **Status Chips**, and the kinds that feed only the
+pages’ status rows — temperature, humidity, motion, occupancy and valves —
+under **For Status Rows**; the number is what is counted now, and *Adjusted*
+means some are hidden from it or added to it. (It was called Status & Chips,
+and had its own place in the sidebar.)
 
-![Status & Chips in HK Settings: each kind and how many it counts](images/settings-counts.png)
+![What Counts in HK Settings: each kind and how many it counts](images/settings-counts.png)
 
 | Kind | Found automatically | The chip counts |
 |---|---|---|
-| Smoke & CO | Binary sensors of class smoke or carbon monoxide | Going off (the Smoke & CO chip appears). Add a gas detector with **Also Count**; leave out a camera that only hears the alarm. |
+| Smoke & CO | Binary sensors of class smoke or carbon monoxide | Going off (the Smoke & CO chip appears). Count a gas detector with its **Also Count As**; hide a camera that only hears the alarm from **Smoke & CO**. |
 | Temperature | An area’s designated temperature sensor, else its thermostat’s current temperature | Range on the Climate page |
 | Humidity | An area’s designated humidity sensor, else its thermostat’s current humidity | Range on the Climate page |
 | Lights | Every light | On (Lights chip) |
@@ -131,31 +144,33 @@ valves — under **For Status Rows**; the number is what is counted now, and
 
 Never found: hidden or disabled entities, configuration and diagnostic
 entities, groups of other entities (a light group would count its lights
-twice), and anything [Hidden from Screens](Accessories.md#accessories-settings). An accessory with
-**Include in Status** off, or shown as something else (a switch **Shown as** a
-light), is counted as its [accessory settings](Accessories.md)
+twice), and anything hidden everywhere in
+[Hidden Accessories](Accessories.md#hidden-accessories). An accessory hidden
+from a kind there isn’t counted in it. One shown as something else (a switch
+**Shown as** a light) is counted as its [accessory settings](Accessories.md)
 say.
 
-Each kind’s page:
+In **Hide From** and on an accessory’s **Where it shows**, a kind goes by the
+page it is on: thermostats are **Climate**, locks **Security**, leak sensors
+**Water** and garage doors **Garage**; the rest keep their names.
 
-| Setting | What it does |
+Each kind’s page only shows; nothing is changed there:
+
+| Row | What it shows |
 |---|---|
 | Found Automatically | How many the kind finds by itself. |
 | Counted | Everything it counts now, with each one’s room. |
-| Left Out · Leave Out… | Found, but not wanted: a car’s windows, a second copy of a blind. |
-| Also Counted · Also Count… | Not found, but wanted: an outlet you think of as a light, a switch that runs a fan. |
-| Reset to Automatic… | Clears both lists. |
+| Left Out | Found, but hidden from this kind in Hidden Accessories: a car’s windows, a second copy of a blind. Tap one to change where it is hidden; **Hidden Accessories** opens the whole list. |
+| Also Counted | Not found, but counted because its **Also Count As** is on: an outlet you think of as a light, a switch that runs a fan. Tap one to open its settings. |
+| Show All Again… | *When something is left out.* Opens this kind in Hidden Accessories, where **Show All Again** shows everything it finds again. What was added stays. |
 
-**Readings**, the two sensors the chips read:
-
-| Setting | Default | What it does |
-|---|---|---|
-| Indoor Temperature | First Thermostat’s | A temperature sensor for the Climate chip. |
-| Power Use | None | A power sensor for the Energy chip, which needs it. W or kW; shown in kW. |
+The chips’ two readings, **Indoor Temperature** and **Power Use**, are chosen
+on the Climate and Energy chips’ own pages
+([Status Chips settings](#status-chips-settings)).
 
 A kind you never touch stays automatic, so a light you add tomorrow is counted
 tomorrow. The category pages of a generated screen (Lights, Doors & Windows, …)
-list what Status & Chips counts.
+list what their kinds count.
 
 ## Custom Chips
 

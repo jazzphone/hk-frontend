@@ -9,6 +9,10 @@
 //                        down the right of the screen
 // window.hkCalendar      the events of the calendars (Home Assistant's own
 //                        calendar API) and the sheet that shows and edits one
+// hk-detail-event        THE EVENT SHEET (hk-detail.js kind `event`): an HK
+//                        sheet like every other -- the event, and its day
+//                        beside it -- opened by the Calendar page, a
+//                        calendar's tile and a calendar's notification
 //
 // WHICH CALENDARS, AND THEIR COLOURS: All Screens -> Calendar
 // (hkSettings.calendarIds / calendarColor), read live -- a change there
@@ -51,7 +55,13 @@
     return new Date(t.getFullYear(), t.getMonth(), Math.min(d.getDate(), last));
   }
   function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
-  function weekStart(d) { var x = day0(d); return addDays(x, -x.getDay()); }
+  // THE WEEK STARTS ON THE USER'S FIRST DAY (their Home Assistant profile;
+  // "language" is the language's own, Sunday for English): the week view,
+  // the month's rows and the little month alike, as the Energy page's weeks
+  var WS = 0;
+  function setWeekStart(h) { if (window.hkStats && window.hkStats.weekStart) WS = window.hkStats.weekStart(h); }
+  function weekStart(d) { var x = day0(d); return addDays(x, -((x.getDay() - WS + 7) % 7)); }
+  function dows(list) { return list.slice(WS).concat(list.slice(0, WS)); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
   function hm(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -290,13 +300,13 @@
     '.back{position:absolute;inset:0;background:rgba(4,10,24,0.5)}',
     '.box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 24px));',
     '  max-height:calc(var(--hk-vh,100vh) - 24px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;',
-    '  border-radius:28px;border:1px solid rgba(255,255,255,0.14);background:rgba(28,36,54,0.96);color:#fff;',
+    '  border-radius:28px;border:1px solid rgba(255,255,255,0.14);background:rgba(28,36,54,0.96);color:var(--hk-ink,rgba(255,255,255,0.94));',
     '  box-shadow:0 30px 80px rgba(0,0,0,0.45);padding:0 20px 22px}',
     '.hd{display:flex;align-items:center;height:64px;position:sticky;top:0;background:rgba(28,36,54,0.98);z-index:1;margin:0 -20px;padding:0 20px}',
     // the title riding on the form once it has scrolled (hk-base.js shade)
     C.shadeCss('.hd'),
     '.hd .t{flex:1;text-align:center;font-size:17px;font-weight:700}',
-    'button{appearance:none;font:inherit;cursor:pointer;color:#fff}',
+    'button{appearance:none;font:inherit;cursor:pointer;color:var(--hk-ink,rgba(255,255,255,0.94))}',
     '.tb{height:40px;padding:0 14px;border:0;border-radius:20px;background:transparent;font-size:17px;font-weight:500;min-width:72px}',
     '.go{background:#fff;color:#1c1c1e;font-weight:700;padding:0 20px}',
     // a text button's words on the form's edge (the pill keeps its own)
@@ -307,8 +317,8 @@
     '.row{display:flex;align-items:center;min-height:52px;padding:0 16px;gap:10px}',
     '.row + .row{border-top:1px solid rgba(255,255,255,0.1)}',
     '.row .l{font-size:17px;flex:1}',
-    'input,textarea,select{font:inherit;color:#fff;background:transparent;border:0;outline:none}',
-    'input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.55)}',
+    'input,textarea,select{font:inherit;color:var(--hk-ink,rgba(255,255,255,0.94));background:transparent;border:0;outline:none}',
+    'input::placeholder,textarea::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
     '.title{flex:1;font-size:19px;font-weight:600;height:52px}',
     '.loc{flex:1;font-size:17px;height:52px}',
     'textarea{width:100%;font-size:17px;resize:none;padding:14px 16px;min-height:76px;display:block;overflow-wrap:anywhere}',
@@ -329,19 +339,19 @@
     '  color:#ffb3ae;font-size:17px;font-weight:600}',
     // the event, shown
     '.vw{padding:6px 0 0}',
-    '.vw .cal{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:rgba(255,255,255,0.8)}',
+    '.vw .cal{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
     '.vw h2{margin:8px 0 0;font-size:26px;font-weight:700;letter-spacing:-0.3px;line-height:1.2;overflow-wrap:anywhere}',
     '.vw .ln{display:flex;align-items:flex-start;gap:10px;margin-top:12px;font-size:16px;line-height:1.35}',
     '.vw .ln svg{flex:none;margin-top:2px;opacity:0.85}',
     // A LONG WORD OR LINK (a FaceTime or Zoom link in the notes) breaks
     // where it must, rather than widening the sheet into a sideways scroll
     '.vw .ln span{min-width:0;overflow-wrap:anywhere}',
-    '.vw .note{white-space:pre-wrap;color:rgba(255,255,255,0.88)}',
+    '.vw .note{white-space:pre-wrap;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
     '.acts{display:flex;gap:10px;margin-top:20px}',
     '.acts button{flex:1;height:48px;border-radius:24px;font-size:17px;font-weight:600}',
     '.acts .ed{border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.12)}',
     '.acts .rm{border:1px solid rgba(255,105,97,0.45);background:rgba(255,69,58,0.16);color:#ffb3ae}',
-    '.ro{margin-top:16px;font-size:14px;color:rgba(255,255,255,0.7)}',
+    '.ro{margin-top:16px;font-size:14px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
     '.pk{display:flex;gap:8px;margin-left:auto}',
     // a phone: the label over its date and time
     '@media (max-width:460px){.box{padding:0 14px 18px}.hd{margin:0 -14px;padding:0 14px}.dt{flex-wrap:wrap;padding:10px 16px;gap:8px}',
@@ -383,6 +393,9 @@
   // AN EVENT, SHOWN: when, where, the notes, and Edit / Delete where the
   // calendar allows them.
   function show(hass, ev) {
+    // AN HK SHEET, the size of every other (hk-detail.js): this one stays
+    // for the editor and for a screen without hk-detail
+    if (window.hkDetail && customElements.get('hk-detail-event') && window.hkDetail.open(ev.cal, null, { event: ev })) return;
     var s = openSheet(ev.title, true), rgb = rgbOf(ev.cal, hass);
     var day = ev.allDay ? '' : (sameDay(ev.start, new Date()) ? 'Today, ' : DOW_LONG[ev.start.getDay()] + ', ' +
               MON3[ev.start.getMonth()] + ' ' + ev.start.getDate() + ', ');
@@ -576,32 +589,20 @@
   // the view switch's slide: a touch past and back, as a UIKit spring (the tab bar's)
   var SPRING = 'cubic-bezier(.34,1.24,.42,1)';
   // where a view button sits in its switch (left and width)
-  function segBox(b) {
-    var sg = b.parentNode && b.parentNode.getBoundingClientRect ? b.parentNode.getBoundingClientRect() : null;
-    var r = b.getBoundingClientRect ? b.getBoundingClientRect() : null;
-    return sg && r && r.width ? { x: r.left - sg.left, w: r.width } : null;
-  }
-  function slideSeg(b, from) {
-    var to = segBox(b);
-    if (!from || !to || Math.abs(from.x - to.x) < 1) return;
-    b.classList.add('slide-from');
-    b.style.setProperty('--hx', (from.x - to.x) + 'px');
-    b.style.setProperty('--sx', String(from.w / to.w));
-    void b.offsetWidth;                         // that start, drawn
-    b.classList.remove('slide-from');
-    b.style.removeProperty('--hx');
-    b.style.removeProperty('--sx');
-  }
+  // THE VIEW SWITCH IS HK'S SEGMENTED CONTROL (hk-base.js segCss, segBox,
+  // slideSeg), the same as the Energy tabs'
+  function segBox(b) { return window.hkCards.segBox(b); }
+  function slideSeg(b, from) { return window.hkCards.slideSeg(b, from); }
   var GLASS = function () {
     return M.glass + ';border:' + M.border + ';border-radius:' + M.radius +
-      ';box-shadow:inset 0 1px 0 rgba(255,255,255,0.2),var(--hk-glass-shadow-lg,0 10px 28px rgba(0,0,0,0.12))';
+      ';box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.2),var(--hk-glass-shadow-lg,0 10px 28px rgba(0,0,0,0.12)))';
   };
   var PAGE_CSS = function () {
     return [
-      ':host{display:block;color:#fff;-webkit-tap-highlight-color:transparent}',
+      ':host{display:block;color:var(--hk-ink,rgba(255,255,255,0.94));-webkit-tap-highlight-color:transparent}',
       // the bar's and the rest's holders (_render): no box of their own
       '.hold{display:contents}',
-      'button{appearance:none;font:inherit;color:#fff;cursor:pointer;margin:0}',
+      'button{appearance:none;font:inherit;color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;margin:0}',
       '.bar{display:flex;align-items:center;gap:14px;min-height:52px;margin:6px 0 16px;flex-wrap:wrap}',
       '.ttl{font-size:34px;font-weight:700;letter-spacing:-0.6px;white-space:nowrap}',
       '.ttl span{font-weight:300;opacity:0.8}',
@@ -616,88 +617,81 @@
       // starting where that column does (RCOL, the day panel and the day
       // view's column alike)
       '.rgt{width:' + RCOL + 'px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px}',
-      '.seg{height:44px;padding:3px;border-radius:22px;border:' + M.border + ';' + M.glass + ';display:flex;gap:2px;position:relative}',
-      '.seg button{width:74px;height:36px;border-radius:18px;border:0;background:transparent;font-size:15px;font-weight:600;',
-      '  position:relative;isolation:isolate;transition:color .22s ease}',
-      // THE CHOICE SLIDES TO THE NEW VIEW (2026-10-10), as the menu's and the
-      // tab bar's highlights do: a layer behind the button, started over the
-      // one you were on (--hx, --sx, slideSeg) and sprung home
-      '.seg button[aria-selected="true"]{color:#1c1c1e}',
-      '.seg button[aria-selected="true"]::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:#fff;',
-      '  transform-origin:0 0;transform:translate(var(--hx,0px),0) scale(var(--sx,1),1);transition:transform .42s ' + SPRING + '}',
-      '.seg button.slide-from::before{transition:none}',
-      '@media (prefers-reduced-motion:reduce){.seg button[aria-selected="true"]::before,.seg button{transition:none}}',
+      // HK's segmented control (the choice slides to the new view), its
+      // choices a fixed 74 px here
+      C.segCss('.seg'),
+      '.seg button{width:74px;padding:0}',
       '.new{height:44px;padding:0 18px 0 14px;border-radius:22px;border:0;background:#fff;color:#1c1c1e;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}',
       '.panel{' + GLASS() + ';position:relative;overflow:hidden}',
       C.shadeCss('.panel'),
       '.body{display:flex;gap:20px;align-items:stretch}',
       '.wide .body{height:var(--cal-h,620px)}',
       '.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.warn{margin:0 0 12px;font-size:14px;font-weight:600;color:#ffd60a}',
-      '.empty{padding:18px 0;font-size:15px;color:rgba(255,255,255,0.75)}',
+      '.warn{margin:0 0 12px;font-size:14px;font-weight:600;color:var(--hk-warn,#ffd60a)}',
+      '.empty{padding:18px 0;font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       // ---- month
       '.mgrid{flex:1;min-width:0;padding:10px 12px 12px;display:flex;flex-direction:column}',
       '.dows{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));height:30px;align-items:center;flex:none}',
-      '.dows div{padding-left:8px;font-size:12px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.75)}',
+      '.dows div{padding-left:8px;font-size:12px;font-weight:600;letter-spacing:0.8px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.weeks{flex:1;display:flex;flex-direction:column;min-height:0}',
-      '.wk{position:relative;flex:1;min-height:0;border-top:1px solid rgba(255,255,255,0.12);display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}',
+      '.wk{position:relative;flex:1;min-height:0;border-top:1px solid var(--hk-line,rgba(255,255,255,0.12));display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}',
       '.cell{position:relative;min-width:0;overflow:hidden;border:0;background:transparent;text-align:left;padding:0;display:block}',
-      '.cell + .cell{border-left:1px solid rgba(255,255,255,0.08)}',
+      '.cell + .cell{border-left:1px solid var(--hk-line,rgba(255,255,255,0.08))}',
       '.cell.out{opacity:0.45}',
-      '.cell.sel{background:rgba(255,255,255,0.08)}',
+      '.cell.sel{background:var(--hk-key,rgba(255,255,255,0.08))}',
       '.num{position:absolute;left:9px;top:8px;font-size:15px;font-weight:600;line-height:20px}',
       '.cell.today .num{left:5px;top:5px;width:26px;height:26px;line-height:26px;border-radius:13px;background:#fff;color:#1c1c1e;font-weight:700;text-align:center}',
       '.chips{position:absolute;left:9px;right:6px;display:flex;flex-direction:column;gap:2px}',
       '.chip{height:17px;line-height:17px;font-size:12px;font-weight:500;display:flex;align-items:center;gap:5px;min-width:0}',
       '.chip i{flex:none;width:7px;height:7px;border-radius:4px}',
       '.chip b{font-weight:700}',
-      '.more{height:17px;line-height:17px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.75)}',
+      '.more{height:17px;line-height:17px;font-size:12px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.bar1{position:absolute;height:18px;line-height:18px;border-radius:6px;font-size:11px;font-weight:700;padding:0 6px;box-sizing:border-box;',
-      '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;text-align:left;color:#fff}',
+      '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;text-align:left;color:var(--hk-ink,rgba(255,255,255,0.94))}',
       '.dots{position:absolute;left:0;right:0;bottom:6px;display:flex;justify-content:center;gap:3px}',
       '.dots i{width:6px;height:6px;border-radius:3px}',
       // ---- the day's list (month) and the agenda rows
       '.side{width:' + RCOL + 'px;flex:none;padding:22px 22px 18px;display:flex;flex-direction:column}',
       '.dname{font-size:28px;font-weight:700;letter-spacing:-0.4px}',
-      '.dsub{font-size:15px;font-weight:500;color:rgba(255,255,255,0.8);margin-top:2px}',
+      '.dsub{font-size:15px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px}',
       // (its 10 px under the day's name as padding: the list scrolls right up
       // under the name, the shadow at its foot -- shadeCss)
       '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:10px}',
-      '.ad{width:100%;height:30px;margin-top:6px;border-radius:9px;border:0;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:14px;font-weight:600;text-align:left}',
+      '.ad{width:100%;height:30px;margin-top:6px;border-radius:9px;border:0;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:14px;font-weight:600;text-align:left;color:var(--hk-ink,rgba(255,255,255,0.94))}',
       '.ad i{flex:none;width:8px;height:8px;border-radius:4px}',
-      '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap}',
-      '.ev{width:100%;display:flex;align-items:flex-start;padding:12px 0;border:0;border-bottom:1px solid rgba(255,255,255,0.1);background:transparent;text-align:left;gap:0}',
+      '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
+      '.ev{width:100%;display:flex;align-items:flex-start;padding:12px 0;border:0;border-bottom:1px solid var(--hk-line,rgba(255,255,255,0.1));background:transparent;text-align:left;gap:0}',
       '.ev:last-child{border-bottom:0}',
       '.ev.past{opacity:0.5}',
       '.ev .tm{width:76px;flex:none;font-size:14px;font-weight:600;padding-top:2px}',
       '.ev i{flex:none;width:9px;height:9px;border-radius:5px;margin:7px 10px 0 0}',
       '.ev .tx{min-width:0;flex:1}',
       '.ev .t1{font-size:17px;font-weight:600}',
-      '.ev .t2{font-size:14px;color:rgba(255,255,255,0.8);margin-top:2px}',
+      '.ev .t2{font-size:14px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px}',
       '.soon{flex:none;height:24px;padding:0 10px;border-radius:12px;background:#fff;color:#1c1c1e;font-size:12px;font-weight:700;display:flex;align-items:center;margin-left:8px}',
-      '.addday{height:44px;border-radius:22px;border:1px dashed rgba(255,255,255,0.35);background:transparent;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;flex:none}',
+      '.addday{height:44px;border-radius:22px;border:1px dashed var(--hk-line,rgba(255,255,255,0.35));background:transparent;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;flex:none}',
       // ---- week and day: the time grid
       '.tg{flex:1;min-width:0;padding:8px 12px 12px;display:flex;flex-direction:column}',
       '.cols{display:grid;flex:none}',
       '.dh{display:flex;align-items:center;justify-content:center;gap:7px;height:46px;border:0;background:transparent;padding:0}',
-      '.dh span{font-size:13px;font-weight:600;letter-spacing:0.6px;color:rgba(255,255,255,0.78)}',
+      '.dh span{font-size:13px;font-weight:600;letter-spacing:0.6px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.dh b{font-size:17px;font-weight:600}',
       '.dh.today b{width:28px;height:28px;line-height:28px;border-radius:14px;background:#fff;color:#1c1c1e;font-weight:700;text-align:center;font-size:15px}',
-      '.alld{position:relative;border-top:1px solid rgba(255,255,255,0.12);flex:none}',
-      '.alld .lab{position:absolute;left:0;top:50%;transform:translateY(-50%);width:50px;text-align:right;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7)}',
-      '.tl{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid rgba(255,255,255,0.12)}',
+      '.alld{position:relative;border-top:1px solid var(--hk-line,rgba(255,255,255,0.12));flex:none}',
+      '.alld .lab{position:absolute;left:0;top:50%;transform:translateY(-50%);width:50px;text-align:right;font-size:11px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.tl{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid var(--hk-line,rgba(255,255,255,0.12))}',
       '.hrs{position:relative}',
-      '.hr{position:absolute;left:56px;right:0;height:0;border-top:1px solid rgba(255,255,255,0.08)}',
-      '.hr span{position:absolute;left:-56px;top:-8px;width:50px;text-align:right;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7)}',
+      '.hr{position:absolute;left:56px;right:0;height:0;border-top:1px solid var(--hk-line,rgba(255,255,255,0.08))}',
+      '.hr span{position:absolute;left:-56px;top:-8px;width:50px;text-align:right;font-size:11px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.days{position:absolute;top:0;bottom:0;right:0;display:grid}',
-      '.dcol{position:relative;border-left:1px solid rgba(255,255,255,0.08)}',
-      '.dcol.today{background:rgba(255,255,255,0.06)}',
+      '.dcol{position:relative;border-left:1px solid var(--hk-line,rgba(255,255,255,0.08))}',
+      '.dcol.today{background:var(--hk-key,rgba(255,255,255,0.06))}',
       '.slot{position:absolute;left:0;right:0;border:0;background:transparent;padding:0}',
-      '.blk{position:absolute;box-sizing:border-box;overflow:hidden;border-radius:8px;padding:4px 8px;border:0;text-align:left;color:#fff;line-height:1.25}',
+      '.blk{position:absolute;box-sizing:border-box;overflow:hidden;border-radius:8px;padding:4px 8px;border:0;text-align:left;color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1.25}',
       '.blk .t1{font-size:13px;font-weight:700}',
-      '.blk .t2{font-size:12px;font-weight:500;color:rgba(255,255,255,0.88);margin-top:1px}',
+      '.blk .t2{font-size:12px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:1px}',
       '.blk.past{opacity:0.7}',
-      '.blk.sel{box-shadow:0 0 0 2px #fff}',
+      '.blk.sel{box-shadow:0 0 0 2px var(--hk-ink,rgba(255,255,255,0.94))}',
       '.dayv .blk{border-radius:10px;padding:4px 12px;line-height:1.25}',
       '.dayv .blk .t1{font-size:15px}',
       '.dayv .blk .t2{font-size:13px;margin-top:2px}',
@@ -711,26 +705,26 @@
       '.mini .mh b{font-size:17px;font-weight:700;flex:1}',
       '.mini .mh button{width:36px;height:36px;border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:center}',
       '.mgr{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-top:6px;row-gap:2px}',
-      '.mgr .w{text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);height:22px;line-height:22px}',
+      '.mgr .w{text-align:center;font-size:11px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));height:22px;line-height:22px}',
       '.md{height:38px;border:0;background:transparent;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}',
       '.md b{height:26px;min-width:26px;line-height:26px;font-size:14px;font-weight:600;border-radius:13px;text-align:center}',
       '.md.out b{opacity:0.4}',
       '.md.today b{background:#fff;color:#1c1c1e;font-weight:700}',
-      '.md.sel:not(.today) b{background:rgba(255,255,255,0.22)}',
+      '.md.sel:not(.today) b{background:var(--hk-key,rgba(255,255,255,0.22))}',
       '.md i{width:5px;height:5px;border-radius:3px}',
       '.det{padding:18px 20px;flex:none}',
-      '.det .c{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:rgba(255,255,255,0.8)}',
+      '.det .c{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.det .c i{width:10px;height:10px;border-radius:5px}',
       '.det h3{font-size:22px;font-weight:700;margin:8px 0 0;letter-spacing:-0.3px;overflow-wrap:anywhere}',
       '.det .ln{display:flex;align-items:flex-start;gap:10px;margin-top:9px;font-size:15px}',
       '.det .ln svg{flex:none;margin-top:2px}',
       '.det .ln span{min-width:0;overflow-wrap:anywhere}',
-      '.det .note{color:rgba(255,255,255,0.85);white-space:pre-wrap;max-height:84px;overflow:hidden}',
+      '.det .note{color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:pre-wrap;max-height:84px;overflow:hidden}',
       '.det .acts{display:flex;gap:10px;margin-top:16px}',
       '.det .acts button{flex:1;height:44px;border-radius:22px;font-size:15px;font-weight:600}',
-      '.det .ed{border:' + M.border + ';background:rgba(255,255,255,0.12)}',
+      '.det .ed{border:' + M.border + ';background:var(--hk-key,rgba(255,255,255,0.12))}',
       '.det .rm{border:1px solid rgba(255,105,97,0.45);background:rgba(255,69,58,0.18);color:#ffb3ae}',
-      '.det .none{font-size:15px;color:rgba(255,255,255,0.75)}',
+      '.det .none{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       // ---- narrow (a phone): stacked
       '.narrow .ttl{font-size:26px}',
       '.narrow .bar{gap:10px}',
@@ -751,8 +745,8 @@
       '.narrow .tg{height:min(620px,calc(var(--hk-vh,100vh) - 220px));flex:none}',
       '.narrow .rcol{width:auto}',
       '.narrow .wl{padding:4px 18px 10px}',
-      '.wl .dayh{font-size:13px;font-weight:700;letter-spacing:1.2px;color:rgba(255,255,255,0.7);margin-top:16px}',
-      '.wl .dayh.today{color:#fff}'
+      '.wl .dayh{font-size:13px;font-weight:700;letter-spacing:1.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:16px}',
+      '.wl .dayh.today{color:var(--hk-ink,rgba(255,255,255,0.94))}'
     ].join('\n');
   };
 
@@ -782,9 +776,24 @@
       super.setConfig(c);
     }
     getCardSize() { return 12; }
+    // OPENED AT A DAY: ?day=2026-10-12 on the page's address (a calendar
+    // notification's Go To). Read when the page shows, each new day once.
+    _dayFromUrl() {
+      var m = /[?&]day=(\d{4}-\d{2}-\d{2})/.exec(location.search || ''), d = m ? parseYmd(m[1]) : null;
+      if (!d || m[1] === this._urlDay) return;
+      this._urlDay = m[1];
+      this._view = 'day';
+      this._day = day0(d);
+      this._sel = null;
+      this._have = '';
+      if (this._hass) { this._fetch(); this.redraw(); }
+    }
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
       var self = this;
+      this._dayFromUrl();
+      if (!this._onLoc) { this._onLoc = function () { self._dayFromUrl(); }; }
+      window.addEventListener('location-changed', this._onLoc);
       window.addEventListener('hk-calendar-changed', this._onChanged);
       window.addEventListener('resize', this._onResize);
       if (typeof ResizeObserver === 'function' && !this._ro) {
@@ -804,6 +813,7 @@
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
       window.removeEventListener('hk-calendar-changed', this._onChanged);
+      window.removeEventListener('location-changed', this._onLoc);
       window.removeEventListener('resize', this._onResize);
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       if (this._tick) { clearInterval(this._tick); this._tick = null; }
@@ -920,6 +930,7 @@
     _render() {
       var h = this._hass;
       if (!h || !this._config) return;
+      setWeekStart(h);
       this._fetch();
       var wide = this._wide();
       // KEEP WHERE THE HOURS WERE SCROLLED (the page is redrawn whole)
@@ -1036,7 +1047,7 @@
         }).join('');
         weeks += '<div class="wk">' + cells + barsHtml + '</div>';
       }
-      var grid = '<div class="panel mgrid"><div class="dows">' + DOW.map(function (x) { return '<div>' + (wide ? x : x.charAt(0)) + '</div>'; }).join('') +
+      var grid = '<div class="panel mgrid"><div class="dows">' + dows(DOW).map(function (x) { return '<div>' + (wide ? x : x.charAt(0)) + '</div>'; }).join('') +
         '</div><div class="weeks">' + weeks + '</div></div>';
       return '<div class="body">' + grid + this._dayList(h, wide) + '</div>';
     }
@@ -1150,7 +1161,7 @@
     // are events
     _mini(h) {
       var d = this._day, from = weekStart(new Date(d.getFullYear(), d.getMonth(), 1)), now = new Date(), evs = this._evs;
-      var cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (x) { return '<div class="w">' + x + '</div>'; }).join('');
+      var cells = dows(['S', 'M', 'T', 'W', 'T', 'F', 'S']).map(function (x) { return '<div class="w">' + x + '</div>'; }).join('');
       var last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
       var n = Math.ceil((Math.round((day0(last) - from) / DAY_MS) + 1) / 7) * 7;
       for (var i = 0; i < n; i++) {
@@ -1186,7 +1197,7 @@
         '<div class="ln">' + IC.clock + '<span>' + esc(when) + '</span></div>' +
         (ev.rrule ? '<div class="ln">' + IC.repeat + '<span>' + esc(repeatLabel(ev.rrule)) + '</span></div>' : '') +
         (ev.loc ? '<div class="ln">' + IC.pin + '<span>' + esc(ev.loc) + '</span></div>' : '') +
-        (ev.desc ? '<div class="ln" style="color:rgba(255,255,255,0.85)">' + IC.notes + '<span class="note">' + esc(ev.desc) + '</span></div>' : '') +
+        (ev.desc ? '<div class="ln" style="color:var(--hk-ink-2,rgba(255,255,255,0.68))">' + IC.notes + '<span class="note">' + esc(ev.desc) + '</span></div>' : '') +
         (ed || rm ? '<div class="acts">' + (ed ? '<button class="ed" data-a="edit">Edit</button>' : '') + (rm ? '<button class="rm" data-a="del">Delete</button>' : '') + '</div>' : '') +
         '</div>';
     }
@@ -1198,23 +1209,23 @@
   // big enough to read across a room. Past events today are dimmed; the
   // next one says how soon.
   var PANE_CSS = [
-    ':host{display:block;color:#fff}',
+    ':host{display:block;color:var(--hk-ink,rgba(255,255,255,0.94))}',
     '.day{padding-top:22px}',
-    '.lbl{font-size:13px;font-weight:700;letter-spacing:1.4px;color:rgba(255,255,255,0.72)}',
+    '.lbl{font-size:13px;font-weight:700;letter-spacing:1.4px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
     '.date{font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-top:2px}',
-    '.ad{margin-top:12px;min-height:32px;border-radius:10px;display:flex;align-items:center;padding:4px 12px;gap:8px;font-size:15px;font-weight:600}',
+    '.ad{margin-top:12px;min-height:32px;border-radius:10px;display:flex;align-items:center;padding:4px 12px;gap:8px;font-size:15px;font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94))}',
     '.ad i{flex:none;width:8px;height:8px;border-radius:4px}',
-    '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:rgba(255,255,255,0.85);white-space:nowrap}',
-    '.ev{display:flex;align-items:flex-start;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.1)}',
+    '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
+    '.ev{display:flex;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--hk-line,rgba(255,255,255,0.1))}',
     '.ev:last-child{border-bottom:0}',
     '.ev.past{opacity:0.45}',
     '.tm{width:82px;flex:none;font-size:16px;font-weight:600;padding-top:3px}',
     '.ev i{flex:none;width:10px;height:10px;border-radius:5px;margin:9px 12px 0 0}',
     '.tx{min-width:0;flex:1}',
     '.t1{font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.t2{font-size:15px;color:rgba(255,255,255,0.8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.t2{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.soon{flex:none;margin:2px 0 0 8px;height:24px;padding:0 10px;border-radius:12px;background:#fff;color:#1c1c1e;font-size:12px;font-weight:700;display:flex;align-items:center}',
-    '.none{font-size:17px;color:rgba(255,255,255,0.7);padding:12px 0 4px}',
+    '.none{font-size:17px;color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:12px 0 4px}',
     '.foot{height:60px}'
   ].join('\n');
   class HkCalendarPaneCard extends HkBase {
@@ -1300,13 +1311,228 @@
     C && [{ name: 'days', selector: { number: { min: 1, max: 7, mode: 'box' } } }],
     function () { return { days: 2 }; });
 
+  // ============================================================ EVENT SHEET
+  // hk-detail.js kind `event`: two columns on a tablet (the WIDE sheet), one
+  // on a phone; HK's sizes and spacing (hk-detail.js SP).
+  //   the event  its calendar, the time big, the day and how long; where,
+  //              how it repeats, notes; Edit / Delete where the calendar
+  //              allows them (this file's editor and delete, unchanged)
+  //   its day    every event of that day, this one marked -- a tap shows
+  //              another in its place
+  // THE EVENT comes as the Calendar page's (norm), a notification's (the
+  // house's: its name, start and end as text), or -- from a calendar's tile --
+  // the calendar's own (the one going on or next). The day's events are then
+  // asked for, and the event found among them for its uid (Edit, Delete).
+  function fromAny(hass, cal, e) {
+    if (!e && cal) {
+      var st = hass && hass.states && hass.states[cal], a = (st && st.attributes) || {};
+      if (!a.start_time) return null;
+      e = { summary: a.message, start: a.start_time, end: a.end_time, location: a.location, description: a.description, all_day: a.all_day };
+    }
+    if (!e) return null;
+    if (e.start instanceof Date) return e;                         // already norm()'s
+    var timed = function (v) { return /[T ]\d/.test(String(v || '')); };
+    var parse = function (v) {
+      var t = String(v || '');
+      if (!timed(t)) return parseYmd(t);
+      var x = new Date(t.replace(' ', 'T'));
+      return isNaN(x) ? null : x;
+    };
+    var start = parse(e.start), allDay = !!e.all_day || !timed(e.start);
+    if (!start) return null;
+    var end = parse(e.end) || (allDay ? addDays(start, 1) : new Date(+start + 3600000));
+    return { cal: e.cal || cal, uid: e.uid || null, rid: e.recurrence_id || null, rrule: e.rrule || null,
+             title: String(e.summary || e.title || 'Untitled'), desc: String(e.description || ''), loc: String(e.location || ''),
+             allDay: allDay, start: start, end: end, key: (e.cal || cal) + '||' + (+start) };
+  }
+  function longDay(d) {
+    var w = DOW_LONG[d.getDay()] + ', ' + MON[d.getMonth()] + ' ' + d.getDate();
+    return sameDay(d, new Date()) ? 'Today · ' + w : sameDay(d, addDays(day0(new Date()), 1)) ? 'Tomorrow · ' + w : w;
+  }
+  function howLong(ev) {
+    if (ev.allDay) return '';
+    var m = Math.round((ev.end - ev.start) / 60000), h = Math.floor(m / 60);
+    return h ? h + ' hr' + (m % 60 ? ' ' + (m % 60) + ' min' : '') : m + ' min';
+  }
+  function bigTime(ev) {
+    if (ev.allDay) return 'All Day';
+    var a = time(ev.start), b = time(ev.end);
+    // "12:15 – 1:45 PM": one AM / PM when both share it, on one day
+    if (sameDay(ev.start, ev.end) && a.slice(-2) === b.slice(-2)) a = a.slice(0, -3);
+    return a + ' – ' + b;
+  }
+  function whenDetail(fn) {
+    if (window.hkDetail && window.hkDetail._) return fn(window.hkDetail);
+    window.addEventListener('hk-detail-ready', function () { if (window.hkDetail) fn(window.hkDetail); }, { once: true });
+  }
+  whenDetail(function (X) {
+    if (customElements.get('hk-detail-event')) return;
+    var U = X._, SP = U.SP;
+    var CSS = [
+      ':host{display:block;color:#fff}',
+      '.ee{display:flex;gap:' + SP.region + 'px;min-height:100%;box-sizing:border-box}',
+      '.col{display:flex;flex-direction:column;gap:' + SP.block + 'px;min-width:0}',
+      '.c1{width:340px;flex:none}.c2{flex:1}',
+      '.ee.one{flex-direction:column;gap:' + SP.block + 'px}.ee.one .c1,.ee.one .c2{width:auto;display:contents}',
+      '.ee .hkn-card{margin-bottom:' + (SP.region - SP.block) + 'px}',
+      '.card{border-radius:' + SP.cardR + 'px;background:rgba(255,255,255,0.08);padding:' + SP.cardPad + ';flex:none}',
+      '.card.rows{padding:' + SP.rowsPad + '}',
+      '.lab{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;line-height:16px;font-weight:600;',
+      '  letter-spacing:.2px;color:rgba(235,235,245,0.55);text-transform:uppercase}',
+      '.lab .n{text-transform:none;font-size:15px;font-weight:400;letter-spacing:0;color:rgba(235,235,245,0.8)}',
+      '.when{padding:0 ' + SP.inset + 'px;flex:none}',
+      '.calc{display:flex;align-items:center;gap:8px;font-size:14px;line-height:18px;font-weight:600;color:rgba(255,255,255,0.9)}',
+      '.calc i{width:10px;height:10px;border-radius:50%;flex:none}',
+      '.t{margin-top:' + SP.line + 'px;font-size:36px;font-weight:700;letter-spacing:-1px;line-height:40px}',
+      '.d{margin-top:' + SP.line + 'px;font-size:15px;line-height:20px;color:rgba(235,235,245,0.62)}',
+      '.row{display:flex;align-items:flex-start;gap:12px;font-size:16px;line-height:20px}',
+      '.row + .row{margin-top:' + SP.block + 'px}',
+      '.row svg{flex:none;width:20px;height:20px;opacity:.7}',
+      '.row span{min-width:0;overflow-wrap:anywhere}',
+      '.row .note{white-space:pre-wrap;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.acts{display:flex;gap:' + SP.block + 'px;margin-top:auto;flex:none}',
+      '.ee.one .acts{margin-top:0}',
+      '.acts button{flex:1;height:50px;border-radius:25px;border:0;background:rgba(255,255,255,0.14);color:#fff;font:inherit;',
+      '  font-size:16px;font-weight:600;cursor:pointer}',
+      '.acts button:active{background:rgba(255,255,255,0.24)}',
+      '.acts .rm{color:#ff6961}',
+      '.ro{margin-top:auto;padding:0 ' + SP.inset + 'px;font-size:14px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.ee.one .ro{margin-top:0}',
+      '.day{display:flex;flex-direction:column}',
+      '.c2 > .day{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none}',
+      '.c2 > .day::-webkit-scrollbar{display:none}',
+      '.day .lab{margin-bottom:6px}',
+      '.ev{display:flex;align-items:stretch;gap:12px;padding:10px;margin:0 -10px;border-radius:12px;position:relative;cursor:pointer;',
+      '  border:0;background:none;color:#fff;font:inherit;text-align:left;width:calc(100% + 20px);box-sizing:border-box;',
+      '  -webkit-tap-highlight-color:transparent}',
+      '.ev + .ev:before{content:"";position:absolute;left:10px;right:10px;top:0;border-top:1px solid rgba(255,255,255,0.10)}',
+      '.ev.on{background:rgba(255,255,255,0.10)}',
+      '.ev.on:before,.ev.on + .ev:before{display:none}',
+      '.ev .bar{width:4px;border-radius:2px;flex:none}',
+      '.ev .tm{width:70px;flex:none;font-size:13px;line-height:20px;color:rgba(235,235,245,0.6)}',
+      '.ev .nm{min-width:0;font-size:15px;font-weight:600;line-height:20px;overflow-wrap:anywhere}',
+      '.ev .nm small{display:block;font-size:13px;line-height:18px;font-weight:500;color:rgba(235,235,245,0.55)}',
+      '.empty{font-size:15px;line-height:20px;color:rgba(235,235,245,0.55);padding:10px 0}'
+    ].join('');
+    class EventPanel extends U.Panel {
+      // (the notification's card lives in here: its CSS too)
+      static get CSS() { return U.PANEL_CSS + U.NOTE_CSS + CSS; }
+      constructor() {
+        super();
+        var self = this;
+        this._onChanged = function () { self._day = null; self._load(); };
+      }
+      hkWidthKind() { return 'event'; }
+      hkNoGear() { return true; }
+      hkFill() { return !matchMedia('(max-width:600px)').matches; }
+      // the notification's card, at the top of the left column
+      hkNote(card) { this._note = card; if (this._c1) this._c1.insertBefore(card, this._c1.firstChild); }
+      // the header: the calendar's glyph in its color, the event's name
+      hkHead(h, d) {
+        var rgb = rgbOf(this._id, h);
+        d.well.style.background = 'rgba(255,255,255,0.12)';
+        d.icon.icon = 'mdi:calendar';
+        d.icon.style.color = rgba(rgb, 1);
+        d.tt.textContent = this._ev ? this._ev.title : calName(h, this._id);
+        return true;
+      }
+      connectedCallback() {
+        if (super.connectedCallback) super.connectedCallback();
+        window.addEventListener('hk-calendar-changed', this._onChanged);
+      }
+      disconnectedCallback() {
+        if (super.disconnectedCallback) super.disconnectedCallback();
+        window.removeEventListener('hk-calendar-changed', this._onChanged);
+      }
+      _sigOf() { return this._built ? 'built' : 'new'; }
+      _render() {
+        var h = this._hass;
+        if (!h || !this._config) return;
+        if (!this._ev) this._ev = fromAny(h, this._id, this._config.event);
+        var one = matchMedia('(max-width:600px)').matches;
+        if (!this._built || this._one !== one) {
+          this._built = true; this._one = one;
+          this._root.innerHTML = '<div class="ee' + (one ? ' one' : '') + '"><div class="col c1"></div><div class="col c2"></div></div>';
+          this._c1 = this._root.querySelector('.c1'); this._c2 = this._root.querySelector('.c2');
+          this._root.querySelector('.ee').addEventListener('click', this._click.bind(this));
+          this._load();
+          this._paint();
+        }
+      }
+      _load() {
+        var h = this._hass, ev = this._ev, self = this;
+        if (!h || !ev) return;
+        var a = day0(ev.start), ids = calIds(h);
+        if (ids.indexOf(ev.cal) < 0) ids = ids.concat([ev.cal]);
+        load(h, ids, a, addDays(a, 1)).then(function (r) {
+          self._day = onDay(r.evs, a);
+          // the event itself, found again: its uid and repeat (Edit, Delete)
+          var same = function (e) { return e.cal === ev.cal && e.title === ev.title; };
+          var hit = self._day.filter(function (e) { return same(e) && +e.start === +ev.start; })[0] || self._day.filter(same)[0];
+          if (hit) self._ev = hit;
+          self._paint();
+        });
+      }
+      _paint() {
+        var h = this._hass, ev = this._ev;
+        if (!this._c1 || !h) return;
+        var note = this._note;
+        if (!ev) {
+          this._c1.innerHTML = '<div class="when"><div class="t">No Events</div><div class="d">' + esc(calName(h, this._id)) + '</div></div>';
+          this._c2.innerHTML = '';
+          if (note) this._c1.insertBefore(note, this._c1.firstChild);
+          return;
+        }
+        var rgb = rgbOf(ev.cal, h), one = this._one;
+        var edit = can(h, ev.cal, 'update') && ev.uid, del = can(h, ev.cal, 'delete') && ev.uid;
+        var rows = (ev.loc ? '<div class="row">' + IC.pin + '<span>' + esc(ev.loc) + '</span></div>' : '') +
+                   (ev.rrule ? '<div class="row">' + IC.repeat + '<span>' + esc(repeatLabel(ev.rrule)) + '</span></div>' : '') +
+                   (ev.desc ? '<div class="row">' + IC.notes + '<span class="note">' + esc(ev.desc) + '</span></div>' : '');
+        var when = '<div class="when"><div class="calc"><i style="background:' + rgba(rgb, 1) + '"></i>' + esc(calName(h, ev.cal)) + '</div>' +
+          '<div class="t">' + esc(bigTime(ev)) + '</div><div class="d">' + esc([longDay(ev.start), howLong(ev)].filter(Boolean).join(' · ')) + '</div></div>';
+        var acts = edit || del ? '<div class="acts">' + (edit ? '<button data-a="edit">Edit</button>' : '') +
+          (del ? '<button class="rm" data-a="del">Delete</button>' : '') + '</div>'
+          : (this._day ? '<div class="ro">This calendar can only be read here.</div>' : '');
+        var list = this._day;
+        var day = '<div class="card day"><div class="lab"><span>' + esc(DOW_LONG[ev.start.getDay()] + ', ' + MON[ev.start.getMonth()] + ' ' + ev.start.getDate()) +
+          '</span>' + (list ? '<span class="n">' + list.length + (list.length === 1 ? ' event' : ' events') + '</span>' : '') + '</div>' +
+          (list ? (list.length ? list.map(function (e) {
+            var on = e.cal === ev.cal && +e.start === +ev.start && e.title === ev.title;
+            return '<button class="ev' + (on ? ' on' : '') + '" data-k="' + esc(e.key) + '"><span class="bar" style="background:' + rgba(rgbOf(e.cal, h), 1) + '"></span>' +
+              '<span class="tm">' + (e.allDay ? 'All Day' : esc(time(e.start))) + '</span><span class="nm">' + esc(e.title) +
+              '<small>' + esc([calName(h, e.cal), e.loc].filter(Boolean).join(' · ')) + '</small></span></button>';
+          }).join('') : '<div class="empty">Nothing else that day</div>') : '<div class="empty">Loading…</div>') + '</div>';
+        this._c1.innerHTML = when + (rows ? '<div class="card rows">' + rows + '</div>' : '') + (one ? day : '') + acts;
+        this._c2.innerHTML = one ? '' : day;
+        if (note) this._c1.insertBefore(note, this._c1.firstChild);
+        // the header names the event shown
+        var st = X._.state();
+        if (st && st.panel === this && st.tt) st.tt.textContent = ev.title;
+      }
+      _click(e) {
+        var b = e.target.closest ? e.target.closest('[data-a], [data-k]') : null;
+        if (!b) return;
+        var h = this._hass, ev = this._ev;
+        if (b.hasAttribute('data-k')) {
+          var k = b.getAttribute('data-k'), hit = (this._day || []).filter(function (x) { return x.key === k; })[0];
+          if (hit) { this._ev = hit; this._paint(); }
+          return;
+        }
+        var a = b.getAttribute('data-a');
+        if (a === 'edit') edit_(h, ev);
+        else if (a === 'del') askDelete(h, ev, function () { X.close(); });
+      }
+    }
+    customElements.define('hk-detail-event', EventPanel);
+  });
+
   window.hkCalendar = {
     version: '1.0.0',
     ids: calIds, load: load, create: create, update: update, remove: remove, changed: changed,
-    show: show, edit: edit_, newAt: newAt, close: closeSheet,
+    show: show, edit: edit_, newAt: newAt, close: closeSheet, askDelete: askDelete, fromAny: fromAny,
     // tests
-    _: { norm: norm, onDay: onDay, ownDay: ownDay, lanes: lanes, bars: bars, payload: payload, isoLocal: isoLocal, ymd: ymd,
-         weekStart: weekStart, addMonths: addMonths, span: span, soon: soon, tshort: tshort, store: store }
+    _: { bigTime: bigTime, longDay: longDay, norm: norm, onDay: onDay, ownDay: ownDay, lanes: lanes, bars: bars, payload: payload, isoLocal: isoLocal, ymd: ymd,
+         weekStart: weekStart, setWeekStart: setWeekStart, dows: dows, addMonths: addMonths, span: span, soon: soon, tshort: tshort, store: store }
   };
   });
 })();

@@ -1407,7 +1407,7 @@
       plate.style.height = H + 'px';
       plate.style.borderRadius = (this._config.radius || C.M.radius);
       plate.style.background = (this._config.seam_color || '#0b0d12');
-      plate.style.boxShadow = (this._config.shadow || '0 8px 22px rgba(0,0,0,0.12)');
+      plate.style.boxShadow = (this._config.shadow || 'var(--hk-look-shadow, 0 8px 22px rgba(0,0,0,0.12))');
 
       if (plan.live && plan.still) {
         // slot 1 as a snapshot (Live First Camera off): the same box, no stream
@@ -1527,8 +1527,12 @@
     static getConfigElement() {
       return document.createElement('hk-camera-mosaic-editor');
     }
-    static getStubConfig() {
-      return { selector: '', cameras: [] };
+    // THE HOUSE'S FIRST THREE CAMERAS, so the picker's card shows something:
+    // an empty list draws nothing at all. No selector: the first is live.
+    static getStubConfig(hass) {
+      var ids = hass && hass.states ? Object.keys(hass.states) : [];
+      var cams = ids.filter(function (id) { return id.indexOf('camera.') === 0; }).slice(0, 3);
+      return { cameras: cams.map(function (id) { return { entity: id }; }) };
     }
   }
   // ---- editor -----------------------------------------------------------
@@ -1591,9 +1595,15 @@
 
       // scalars, via the shared schema editor
       this._form = document.createElement(hkEditor('hk-camera-mosaic-card', [
-        { name: 'selector', required: true, selector: { entity: { filter: { domain: 'input_select' } } },
-          helper: 'The input_select that picks which camera is shown live.' },
+        // NOT required: with none the first camera is the live one. Either
+        // kind of list picks it (_selector reads its state and options).
+        { name: 'selector', label: 'Live Camera Follows',
+          selector: { entity: { filter: { domain: ['input_select', 'select'] } } },
+          helper: 'A list whose choice is the camera shown live. Empty: the first camera.' },
         { type: 'grid', name: '', schema: [
+          { name: 'own_cameras', label: 'Use These Cameras', selector: { boolean: {} },
+            helper: 'On: this card\'s cameras, not the screen\'s camera list in HK Settings.' },
+          { name: 'stills_only', label: 'Snapshots Only', selector: { boolean: {} } },
           { name: 'height', selector: { number: { min: 80, max: 400, step: 0.5, mode: 'box' } },
             helper: 'Strip height in px.' },
           { name: 'refresh', selector: { number: { min: 0, max: 120, step: 1, mode: 'box' } } },
@@ -1707,6 +1717,8 @@
   }
 
   if (!customElements.get('hk-camera-mosaic-card')) {
+    // its size in HA's Sections view (hk-base.js GRID)
+    if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-camera-mosaic-card', HkCameraMosaicCard);
     customElements.define('hk-camera-mosaic-card', HkCameraMosaicCard);
   }
 
@@ -2855,9 +2867,12 @@
       { name: 'speaker', label: 'Talk through', selector: { entity: { domain: 'media_player' } },
         helper: 'The doorbell speaker you talk through. Leave empty for no talk button. Talking needs the page on https.' },
       { type: 'grid', name: '', schema: [
-        { name: 'live', label: 'Talk live', selector: { boolean: {} },
+        // `default: true`: ha-form shows a selector's default as its
+        // placeholder while the key is absent, so the switch reads on, as
+        // the card treats it (on unless `false`). The stub writes both too.
+        { name: 'live', label: 'Talk live', selector: { boolean: {} }, default: true,
           helper: 'Stream as you speak (UniFi Protect doorbells). Off: a recorded message, played when you let go.' },
-        { name: 'sound', label: 'Play the doorbell sound', selector: { boolean: {} } },
+        { name: 'sound', label: 'Play the doorbell sound', selector: { boolean: {} }, default: true },
         { name: 'aspect_ratio', label: 'Shape', selector: { text: {} },
           helper: 'Width by height, e.g. 4x3.' },
         { name: 'fill', label: 'Fill the space', selector: { boolean: {} },
@@ -2869,7 +2884,7 @@
     function (hass) {
       var ids = hass ? Object.keys(hass.states) : [];
       var cam = ids.filter(function (id) { return id.indexOf('camera.') === 0; })[0];
-      return { entity: cam || '', sound: true };
+      return { entity: cam || '', live: true, sound: true };
     });
 
   // ======================================================================
@@ -2933,17 +2948,17 @@
         '  border-radius:9px;background:rgba(255,255,255,.88);display:flex;align-items:center}',
         '.tv-logo img{position:static;height:100%;width:auto;object-fit:contain}',
         '.tv-txt{padding:12px 14px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}',
-        '.tv-chan{font-size:13px;color:var(--hk-text-secondary,rgba(255,255,255,.7))}',
-        '.tv-chan b{color:var(--primary-text-color,#fff);font-size:15px;margin-right:6px}',
+        '.tv-chan{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '.tv-chan b{color:var(--hk-ink,rgba(255,255,255,0.94));font-size:15px;margin-right:6px}',
         '.tv-title{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '.tv-sub{font-size:14px;color:var(--hk-text-secondary,rgba(255,255,255,.72));',
+        '.tv-sub{font-size:14px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
         '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.2em}',
-        '.tv-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin:8px 0 4px;overflow:hidden}',
-        '.tv-bar i{display:block;height:100%;background:#fff;border-radius:2px}',
-        '.tv-times,.tv-next{font-size:12.5px;color:var(--hk-text-secondary,rgba(255,255,255,.65));',
+        '.tv-bar{height:4px;border-radius:2px;background:var(--hk-line,rgba(255,255,255,.2));margin:8px 0 4px;overflow:hidden}',
+        '.tv-bar i{display:block;height:100%;background:var(--hk-ink,rgba(255,255,255,0.94));border-radius:2px}',
+        '.tv-times,.tv-next{font-size:12.5px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
         '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.tv-empty{padding:24px;border-radius:' + M.radius + ';' + M.glass + ';text-align:center;',
-        '  color:var(--hk-text-secondary,rgba(255,255,255,.75))}'
+        '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}'
       ].join('');
     }
 

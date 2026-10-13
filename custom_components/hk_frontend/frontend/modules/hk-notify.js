@@ -19,8 +19,12 @@
 // surface (the tab bar's look); the newest on top, the others stacked under
 // it with "N more" and Clear All; N more fans them out. Each keeps its own
 // time (stay seconds; 0 = until dismissed) and a finger on it holds it.
-// Swiped up or sideways it goes; a tap opens it in place: the snapshot big,
-// the accessory's buttons. A tap on the picture does its Tap Opens.
+// Swiped up or sideways it goes. A TAP OPENS ITS SHEET (Tap Opens): the
+// accessory's own HK sheet -- for what a camera sees, the camera's, live --
+// with the notification on it (hk-detail.js `note`: what, when, the
+// snapshot, the page it lives on, Mute 1 Hour). Or a page, the live camera,
+// or nothing, as the notification says. No sheet of HK's for it: Home
+// Assistant's own dialog.
 //
 // Gestures: touch events for a finger, pointer events for a mouse only --
 // pointer capture under a finger wedged the iPhone app (hk-menu.js).
@@ -154,7 +158,7 @@
     // page's blue selection over it (2026-10-12)
     '.layer,.layer *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
     '.layer{position:fixed;left:0;right:0;top:0;height:0;z-index:' + Z + ';pointer-events:none;',
-    '  font-family:-apple-system,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;color:#fff;',
+    '  font-family:-apple-system,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;color:var(--hk-ink,rgba(255,255,255,0.94));',
     '  --top:max(18px, calc(env(safe-area-inset-top, 0px) + 8px));--w:min(600px, calc(100vw - 32px));--r:30px;--pad:16px 18px 16px 16px;--gap:16px;--ic:50px;--f1:20px;--f2:18px;--th:70px;--cw:min(680px, calc(100vw - 32px))}',
     // UNDER THE DYNAMIC ISLAND / A CAMERA CUTOUT: Home Assistant's page is
     // viewport-fit=cover, so the Companion app (iPhone) and Android report
@@ -165,10 +169,10 @@
     '  padding:var(--pad);border-radius:var(--r);pointer-events:auto;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none;',
     '  border:1px solid rgba(255,255,255,0.16);box-shadow:0 12px 40px rgba(0,0,0,0.32),inset 0 1px 0 rgba(255,255,255,0.18);',
     '  transition:transform .55s cubic-bezier(.2,1.12,.35,1),opacity .35s ease,background .3s;will-change:transform}',
-    '.glass .nb,.glass .nxc{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(30,32,40,0.46);',
+    '.glass .nb{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(30,32,40,0.46);',
     '  -webkit-backdrop-filter:blur(26px) saturate(1.7);backdrop-filter:blur(26px) saturate(1.7)}',
-    '.frosted .nb,.frosted .nxc{background:rgba(62,64,74,0.95)}',
-    '.clear .nb,.clear .nxc{background:rgba(24,24,28,0.93)}',
+    '.frosted .nb{background:rgba(62,64,74,0.95)}',
+    '.clear .nb{background:rgba(24,24,28,0.93)}',
     '.nb.imp{border-color:rgba(255,105,97,0.55)}',
     '.nb.enter{transform:translate(-50%,calc(-100% - var(--top) - 24px)) scale(.96);opacity:.6}',
     '.nb.leave{transform:translate(-50%,calc(-100% - var(--top) - 24px)) scale(.96)!important;opacity:0;transition:transform .38s cubic-bezier(.4,0,.8,.4),opacity .38s}',
@@ -179,40 +183,22 @@
     '.nb.behind > *{opacity:0}',
     '.ic{flex:none;width:var(--ic);height:var(--ic);border-radius:calc(var(--ic) * .26);display:grid;place-items:center;position:relative;overflow:hidden}',
     '.ic ha-icon{--mdc-icon-size:calc(var(--ic) * .6);color:#fff;display:block}',
-    '.ic.av{border-radius:50%;background:linear-gradient(180deg,#a3a9b5,#7b8190);font-weight:600;font-size:calc(var(--ic) * .4);letter-spacing:.3px}',
+    '.ic.av{border-radius:50%;background:linear-gradient(180deg,#a3a9b5,#7b8190);color:#fff;font-weight:600;font-size:calc(var(--ic) * .4);letter-spacing:.3px}',
     '.ic img{width:100%;height:100%;object-fit:cover;display:block}',
     '.tx{flex:1;min-width:0}',
     '.imp-tag{font-size:calc(var(--f2) * .72);font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#ff8a80;margin-bottom:2px}',
     '.imp-tag.test{color:#8ec5ff}',
     '.t1{font-weight:650;font-size:var(--f1);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.t2{font-size:var(--f2);line-height:1.25;opacity:.92;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+    '.t2{font-size:var(--f2);line-height:1.25;color:var(--hk-ink,rgba(255,255,255,0.94));display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
     '.rt{flex:none;align-self:stretch;display:flex;flex-direction:column;align-items:flex-end;gap:6px}',
-    '.when{font-size:calc(var(--f2) * .86);opacity:.55;line-height:1.1}',
+    '.when{font-size:calc(var(--f2) * .86);color:var(--hk-ink-2,rgba(255,255,255,0.68));line-height:1.1}',
     '.th{width:var(--th);height:var(--th);border-radius:calc(var(--th) * .16);object-fit:cover;display:block;background:rgba(255,255,255,0.08);box-shadow:0 0 0 .5px rgba(255,255,255,.2)}',
     '.ctl{position:absolute;left:50%;transform:translate(-50%,6px);display:flex;gap:8px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s,top .35s cubic-bezier(.2,1.1,.35,1)}',
     '.ctl.on{opacity:1;pointer-events:auto;transform:translate(-50%,0)}',
-    '.ctl button{border:1px solid rgba(255,255,255,0.16);font:inherit;font-size:calc(var(--f2) * .9);font-weight:600;color:#fff;padding:8px 16px;border-radius:999px;cursor:pointer;',
+    '.ctl button{border:1px solid rgba(255,255,255,0.16);font:inherit;font-size:calc(var(--f2) * .9);font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94));padding:8px 16px;border-radius:999px;cursor:pointer;',
     '  background:rgba(50,52,60,0.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);box-shadow:0 6px 20px rgba(0,0,0,.25)}',
     '.frosted .ctl button{background:rgba(62,64,74,0.95)}.clear .ctl button{background:rgba(24,24,28,0.93)}',
-    '.nx{position:fixed;inset:0;z-index:' + (Z + 1) + ';display:flex;justify-content:center;align-items:flex-start;padding-top:var(--top);pointer-events:auto;',
-    '  background:rgba(0,0,0,0.28);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);opacity:0;transition:opacity .3s}',
-    '.nx.on{opacity:1}',
-    '.nxc{width:var(--cw);box-sizing:border-box;border-radius:var(--r);overflow:hidden;border:1px solid rgba(255,255,255,0.16);',
-    '  box-shadow:0 24px 70px rgba(0,0,0,0.45);transform:translateY(-14px) scale(.94);transition:transform .45s cubic-bezier(.2,1.1,.35,1)}',
-    '.nx.on .nxc{transform:none}',
-    '.nxh{display:flex;align-items:center;gap:var(--gap);padding:var(--pad)}',
-    '.x{flex:none;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.14);display:grid;place-items:center;cursor:pointer;font-size:18px;border:0;color:#fff}',
-    '.pic{position:relative;margin:0 12px;border-radius:calc(var(--r) - 12px);overflow:hidden;aspect-ratio:16/9;background:#111;cursor:pointer}',
-    '.pic img{width:100%;height:100%;object-fit:cover;display:block}',
-    '.pic .lbl{position:absolute;left:12px;bottom:12px;font-size:14px;font-weight:600;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,0.45)}',
-    '.pic .go{position:absolute;right:12px;bottom:12px;font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;background:rgba(0,0,0,0.45)}',
-    '.acts{display:flex;gap:10px;padding:14px 12px 12px}',
-    '.acts button{flex:1;border:0;font:inherit;font-size:calc(var(--f2) * .95);font-weight:600;color:#fff;padding:14px 10px;border-radius:calc(var(--r) - 14px);',
-    '  background:rgba(255,255,255,0.13);cursor:pointer;display:flex;gap:8px;align-items:center;justify-content:center}',
-    '.acts button ha-icon{--mdc-icon-size:22px}',
-    '.acts button.pri{background:rgba(255,255,255,0.9);color:#111}',
-    '.acts button.red{background:rgba(255,69,58,0.85)}',
-    '@media (prefers-reduced-motion: reduce){.nb,.nx,.nxc,.ctl{transition:opacity .2s!important}.nb.enter{transform:translateX(-50%)}}'
+    '@media (prefers-reduced-motion: reduce){.nb,.ctl{transition:opacity .2s!important}.nb.enter{transform:translateX(-50%)}}'
   ].join('\n');
 
   var host = null, root = null, layer = null, ctl = null;
@@ -244,7 +230,6 @@
   // ------------------------------------------------------------ the stack
   var stack = [];          // newest first: {n, el, t, until, shownAt}
   var fan = false;
-  var open = null;
 
   function iconHtml(n) {
     if (n.kind === 'people' && n.picture) return '<div class="ic av"><img src="' + esc(n.picture) + '" alt=""></div>';
@@ -285,7 +270,6 @@
     ensure();
     restyle();
     n._at = n._at || Date.now();
-    if (open) closeOpen(false);
     var el = document.createElement('div');
     el.className = 'nb enter' + (n.important ? ' imp' : '');
     el.innerHTML = bannerHtml(n);
@@ -423,78 +407,43 @@
   }
 
   // ------------------------------------------------------------- opened
-  function actionsOf(n) {
-    var out = (n.buttons || []).map(function (b, i) { return { id: b.id, label: b.label, icon: b.icon, pri: i === 0 }; });
-    if (!out.length) out.push({ id: 'dismiss', label: n.important ? 'Dismiss' : 'OK', icon: 'hk:check-bold', red: !!n.important });
-    return out;
-  }
-  function openIt(it) {
-    var n = it.n;
-    // nothing more to show: its Tap Opens straight away
-    if (!n.snap && !(n.buttons && n.buttons.length)) {
-      if (n.tap !== 'none') { dismiss(it); tapOpens(n); } else arm(it);
-      return;
-    }
-    hold(it);
-    var nx = document.createElement('div');
-    nx.className = 'nx';
-    nx.innerHTML = '<div class="nxc"><div class="nxh">' + iconHtml(n) + '<div class="tx">' +
-      (n.important ? '<div class="imp-tag">Important</div>' : '') + '<div class="t1">' + esc(n.title) + '</div><div class="t2">' +
-      esc(n.message) + '</div></div><button class="x" data-x aria-label="Close">✕</button></div>' +
-      (n.snap ? '<div class="pic" data-pic><img alt=""><div class="lbl">' + esc(timeOf(n)) + '</div>' +
-        (n.tap === 'camera' ? '<div class="go">▶ Live</div>' : '') + '</div>' : '') +
-      '<div class="acts">' + actionsOf(n).map(function (a) {
-        return '<button class="' + (a.pri ? 'pri' : a.red ? 'red' : '') + '" data-a="' + esc(a.id) + '"><ha-icon icon="' + esc(a.icon || 'hk:check-bold') + '"></ha-icon>' + esc(a.label) + '</button>';
-      }).join('') + '</div></div>';
-    layer.appendChild(nx);
-    fillSnap(nx, n);
-    it.el.style.opacity = '0';
-    open = { it: it, nx: nx };
-    requestAnimationFrame(function () { requestAnimationFrame(function () { nx.classList.add('on'); }); });
-    nx.addEventListener('click', function (e) {
-      saverTouch();
-      var a = e.target.closest && e.target.closest('[data-a]');
-      if (a) { act(n, a.dataset.a); closeOpen(true); return; }
-      if (e.target.closest && e.target.closest('[data-pic]')) { closeOpen(true); tapOpens(n); return; }
-      if ((e.target.closest && e.target.closest('[data-x]')) || !(e.target.closest && e.target.closest('.nxc'))) closeOpen(true);
-    });
-  }
-  function timeOf(n) {
-    // the house's time (ts), else when this screen got it -- never "Invalid Date"
-    var t = n.ts ? n.ts * 1000 : n._at;
-    if (!t || isNaN(t)) return '';
-    try { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
-  }
-  function closeOpen(gone) {
-    var o = open;
-    if (!o) return;
-    open = null;
-    o.nx.classList.remove('on');
-    setTimeout(function () { if (o.nx.parentNode) o.nx.parentNode.removeChild(o.nx); }, 300);
-    if (gone) dismiss(o.it);
-    else { o.it.el.style.opacity = ''; arm(o.it); }
-  }
   function wakeSaver() {
     if (saverOn() && window.hkSaver && typeof window.hkSaver.wake === 'function') window.hkSaver.wake();
   }
-  function sheet(id) {
-    if (!id) return;
+  // WHAT A TAP OPENS: { sheet: id } -- that accessory's sheet with the
+  // notification on it; { page: path }; or null (nothing)
+  function target(n) {
+    var tap = n.tap || 'sheet';
+    if (tap === 'none') return null;
+    if (tap === 'page' && n.page) return { page: n.page };
+    if (tap === 'camera' && n.camera) return { sheet: n.camera };
+    var id = n.sheet || n.entity;
+    return id ? { sheet: id } : null;
+  }
+  function openIt(it) {
+    var n = it.n, t = target(n);
+    if (!t) { arm(it); return; }
+    dismiss(it);
     wakeSaver();
-    if (window.hkDetail && typeof window.hkDetail.open === 'function') { try { window.hkDetail.open(id); return; } catch (e) { /* below */ } }
+    if (t.page) { toPage(t.page); return; }
+    snapUrl(n).then(function (url) { sheet(t.sheet, n, url); });
+  }
+  function toPage(path) {
+    var url = '/' + seg() + '/' + String(path).replace(/^\/+/, '');
+    var D = window.hkDetail;
+    if (D && typeof D.navigateFrom === 'function') { D.navigateFrom(url); return; }
+    history.pushState(null, '', url);
+    window.dispatchEvent(new CustomEvent('location-changed'));
+  }
+  function sheet(id, n, snap) {
+    var D = window.hkDetail, done = false;
+    if (D && typeof D.open === 'function') {
+      try { done = D.open(id, null, { note: { n: n, snap: snap }, event: n.event || null }) !== false; } catch (e) { done = false; }
+    }
+    if (done) return;
+    // not one of HK's sheets: Home Assistant's own dialog
     var h = haEl();
     if (h) h.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true }));
-  }
-  function tapOpens(n) {
-    if (n.tap === 'camera' && n.camera) sheet(n.camera);
-    else if (n.tap === 'sheet') sheet(n.entity);
-  }
-  function act(n, id) {
-    var h = hass();
-    if (id === 'camera') { sheet(n.camera); return; }
-    if (!h || !h.callService) return;
-    if (id === 'close') h.callService('cover', 'close_cover', { entity_id: n.entity });
-    else if (id === 'open') h.callService('cover', 'open_cover', { entity_id: n.entity });
-    else if (id === 'lock') h.callService('lock', 'lock', { entity_id: n.entity });
   }
 
   // --------------------------------------------------------------- chime
@@ -580,13 +529,13 @@
     owns: function (e) {
       if (!host) return false;
       var p = e && typeof e.composedPath === 'function' ? e.composedPath() : [];
-      return p.indexOf(host) >= 0 && (stack.length > 0 || !!open);
+      return p.indexOf(host) >= 0 && stack.length > 0;
     },
     show: function (n) { return show(n); },
     shown: function () { return stack.map(function (it) { return it.n; }); },
     clear: clearAll,
-    _: { decide: decide, chimes: chimes, dndOn: dndOn, inWindow: inWindow, ago: ago, actionsOf: actionsOf, route: route,
-         state: function () { return { stack: stack, fan: fan, open: open, black: black }; } }
+    _: { decide: decide, chimes: chimes, dndOn: dndOn, inWindow: inWindow, ago: ago, target: target, route: route,
+         state: function () { return { stack: stack, fan: fan, black: black }; } }
   };
   try { window.dispatchEvent(new CustomEvent('hk-module-ready', { detail: { module: 'notify' } })); } catch (e) { /* none */ }
 })();

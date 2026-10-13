@@ -67,7 +67,8 @@ speaker:
     through its sync group. **Volume** has a slider for each room, and
     **Queue** shows what is up next in Music Assistant (tap one to jump to
     it).
-  - **With nothing playing**, the top reads **Ready on** the screen’s room,
+  - **With nothing playing**, the top reads **Ready on** your room: the
+    signed-in user’s **Home Room** (below), or the room their music last played in,
     and Speakers picks where the next music plays: tick rooms, then pick a
     playlist, an album or a song and it starts there. If other rooms are
     playing something else, it asks whether to stop them.

@@ -105,7 +105,7 @@
   // with the screen. Nothing here animates for long: the eq bars only while
   // the Speakers list is up.
   var CSS = [
-    '.mpanel{position:absolute;z-index:6;display:none;color:#fff;overflow:hidden;touch-action:pan-y;',
+    '.mpanel{position:absolute;z-index:6;display:none;color:var(--hk-ink,rgba(255,255,255,0.94));overflow:hidden;touch-action:pan-y;',
     '  -webkit-user-select:none;user-select:none;cursor:default;backface-visibility:hidden;-webkit-backface-visibility:hidden}',
     '.mpanel.up{display:block}',
     // the slide's: a card where the art was; the pane's: the whole pane
@@ -115,15 +115,21 @@
     '.mpin{position:absolute;left:0;top:0;display:flex;flex-direction:column;text-shadow:0 1px 10px rgba(0,0,0,.18)}',
     '.mphd{flex:none;padding:20px 22px 10px}',
     '.mprow{display:flex;align-items:center;gap:10px}',
-    // THE TABS ARE THE DASHBOARD'S SWITCH (the Calendar page's Day / Week /
-    // Month): a glass capsule, the choice a white pill that slides to the
-    // new tab (slideTab) -- and the close button as tall as it, beside it
+    // THE TABS ARE HK'S SEGMENTED CONTROL (hk-base.js segCss: the calendar's,
+    // the Energy tabs', every card's choices): its sizes and spring, written
+    // out here because this module can load before the cards -- held to
+    // segCss's by tests/test_segments.js -- and its own plate (below). The
+    // choice a white pill that slides to the new tab -- and the close button
+    // as tall as it, beside it
     // (it takes what the row leaves beside the close button -- the button
     // keeps the panel's own margin on the right, as the switch does on the left)
     '.mptabs{flex:1 1 auto;min-width:0;height:44px;padding:3px;border-radius:22px;display:flex;gap:2px;position:relative;box-sizing:border-box;',
-    '  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}',
+    // no blur of its own: what is behind it is the panel's blurred cover, an
+    // opaque sheet, or the Music page's blurred cover -- nothing a blur
+    // would change, and it was paid for on every frame (2026-10-12)
+    '  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16)}',
     '.mptabs div{flex:1 1 auto;min-width:0;justify-content:center;height:36px;padding:0 12px;border-radius:18px;display:flex;align-items:center;font-size:15px;font-weight:600;cursor:pointer;',
-    '  white-space:nowrap;position:relative;isolation:isolate;transition:color .22s ease;color:#fff;box-sizing:border-box}',
+    '  white-space:nowrap;position:relative;isolation:isolate;transition:color .22s ease;color:var(--hk-ink,rgba(255,255,255,0.94));box-sizing:border-box}',
     '.mptabs div.on{color:#1c1c1e;text-shadow:none}',
     '.mptabs div.on::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:#fff;',
     '  transform-origin:0 0;transform:translate(var(--hx,0px),0) scale(var(--sx,1),1);transition:transform .42s cubic-bezier(.34,1.24,.42,1)}',
@@ -294,7 +300,10 @@
       if (tab) S.tab = tab;
       Array.prototype.forEach.call(E.tabs.children, function (t) { t.classList.toggle('on', t.getAttribute('data-tab') === S.tab); });
       var now = E.tabs.querySelector('.on'), to = now ? box(now) : null;
-      if (now && now !== was && from && to && Math.abs(from.x - to.x) >= 1) {
+      // HK's segmented control's slide (hk-base.js) once the cards are in;
+      // this module can load before them, so its own until then
+      if (now && now !== was && window.hkCards && window.hkCards.slideSeg) window.hkCards.slideSeg(now, from);
+      else if (now && now !== was && from && to && Math.abs(from.x - to.x) >= 1) {
         now.classList.add('slide-from');
         now.style.setProperty('--hx', (from.x - to.x) + 'px');
         now.style.setProperty('--sx', String(from.w / to.w));

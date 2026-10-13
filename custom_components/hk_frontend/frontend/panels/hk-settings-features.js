@@ -165,18 +165,27 @@
                      ['Vacuums', 'features/clean', 'clean by area robots take part'],
                      ['Rooms', 'features/clean/rooms', 'clean by area picker which areas shown']],
     hk_energy: [['Energy', 'features/energy', 'energy power electricity kwh watts page cost'],
-                ['Energy Sections', 'features/energy/sections', 'energy rooms appliances outlets circuits groups'],
+                ['Energy Rings', 'features/energy/rings', 'energy rings summary cost water solar gas usual'],
+                ['Energy Sections', 'features/energy/sections', 'energy rooms appliances outlets circuits groups colors'],
                 ['Energy Devices', 'features/energy/devices', 'energy circuit plug power sensor name glyph'],
                 ['Energy Readings', 'features/energy/top', 'energy cost thermostat outside top row'],
-                ['Energy Daily Bars', 'features/energy/usages', 'energy usage fortnight chart history'],
-                ['Energy Batteries', 'features/energy/batteries', 'energy car battery range house battery charging']],
+                ['Energy Tracking', 'features/energy/usages', 'energy tracking daily bars usage runtime chart history'],
+                ['Energy Batteries', 'features/energy/batteries', 'energy car battery range house battery charging'],
+                ['Opens On', 'features/energy', 'energy page first tab now today week month start default'],
+                ['A Usual Day', 'features/energy', 'energy typical usual average days before 30 14 7 rings compare'],
+                ['Highlights', 'features/energy', 'energy highlights stood out summary insights'],
+                ['Daily Runtime', 'features/energy/devices', 'energy runtime hours ac hvac run time duration device']],
     hk_notify: [['Notifications', 'features/notify', 'notifications banner alert motion doorbell arrived camera snapshot'],
                 ['Add Notification', 'features/notify/new', 'notifications new accessory banner'],
                 ['Notification Screens', 'features/notify/screens', 'notifications screens allow which'],
                 ['Do Not Disturb', 'features/notify/dnd', 'notifications quiet hours dnd schedule silence input boolean timer'],
                 ['Notifications on the Screensaver', 'features/notify', 'notifications screensaver photos important'],
                 ['Stays On Screen', 'features/notify', 'notifications seconds time banner dismiss'],
-                ['Notification Chime', 'features/notify', 'notifications sound chime']]
+                ['Notification Chime', 'features/notify', 'notifications sound chime'],
+                ['Wakes the Screen', 'features/notify', 'notifications wake sleep screen screensaver turn on display'],
+                ['Calendars', 'features/notify/c/calendars', 'notifications calendar events reminder before starts'],
+                ['All-Day Events', 'features/notify/c/calendars', 'notifications calendar all day events morning time'],
+                ['Page', 'features/notify', 'notifications tap opens a page go to dashboard view']]
   };
   function search(features) {
     var out = [];
@@ -648,7 +657,7 @@
   function sectionsAfter(d, key, to) {
     var out = (d.sections || []).map(function (s) {
       return { id: s.id, name: s.name, items: s.items.filter(function (k) { return k !== key; }),
-               link: s.link || undefined };
+               link: s.link || undefined, color: s.color || undefined };
     });
     if (to) {
       var s = out.filter(function (x) { return x.id === to; })[0];
@@ -660,7 +669,12 @@
       }
       s.items.push(key);
     }
-    return out.map(function (x) { var y = { id: x.id, name: x.name, items: x.items }; if (x.link) y.link = x.link; return y; });
+    return out.map(function (x) {
+      var y = { id: x.id, name: x.name, items: x.items };
+      if (x.link) y.link = x.link;
+      if (x.color) y.color = x.color;
+      return y;
+    });
   }
   function energySet(P, changes) { return P.featSet(EN, changes); }
   // an entity's name; one with none of its own (Home Assistant's own cost
@@ -690,20 +704,35 @@
                  sk: 'f:' + EN + ':follow', onChange: function (on) { energySet(P, { follow: on }); } }),
       K.nav({ label: 'Energy Settings', sub: 'In Home Assistant', href: en.url || '/config/energy', icon: 'mdi:open-in-new',
               fk: 'energy:ha' })]));
-    c.appendChild(K.group({ header: 'The Page' }, [
+    var pg = o.page || {};
+    var pageSet = function (ch) { return energySet(P, { page: ch }); };
+    var ringNames = { energy: 'Energy', cost: 'Cost', solar: 'Solar', water: 'Water', gas: 'Gas' };
+    c.appendChild(K.group({ header: 'The Page', footer: 'Now is live power; Today, This Week and This Month are energy from Home Assistant\u2019s statistics.' }, [
       K.text({ label: 'Title', sk: 'f:' + EN + ':title', value: o.title || '', placeholder: 'Energy', maxlength: 40,
                error: P.err('f:' + EN + ':title'), onCommit: function (v) { energySet(P, { title: v.trim() || null }); } }),
-      K.nav({ label: 'Readings', sub: 'Today’s cost, thermostats, outside', value: String((pl.top || []).length),
+      K.select({ label: 'Opens On', sk: 'f:' + EN + ':page:opens_on', value: pg.opens_on || '',
+                 options: [['', 'Automatic (Now)'], ['now', 'Now'], ['day', 'Today'], ['week', 'This Week'], ['month', 'This Month']],
+                 onChange: function (v) { pageSet({ opens_on: v || null }); } }),
+      K.nav({ label: 'Rings', sub: 'Each fills toward a usual day', value: Array.isArray(pg.rings) && pg.rings.length
+                ? pg.rings.map(function (k) { return ringNames[k]; }).join(', ') : 'Automatic',
+              href: '#/features/energy/rings', fk: 'energy:rings' }),
+      K.select({ label: 'A Usual Day', sk: 'f:' + EN + ':page:typical', value: pg.typical ? String(pg.typical) : '',
+                 options: [['', 'The 30 Days Before'], ['14', 'The 14 Days Before'], ['7', 'The 7 Days Before']],
+                 onChange: function (v) { pageSet({ typical: v ? Number(v) : null }); } }),
+      K.toggle({ label: 'Highlights', sub: 'What stood out, beside the summary', on: pg.highlights !== false,
+                 sk: 'f:' + EN + ':page:highlights', onChange: function (on) { pageSet({ highlights: on ? null : false }); } }),
+      K.nav({ label: 'Readings', sub: 'Today\u2019s cost, thermostats, outside \u00b7 on Now', value: String((pl.top || []).length),
               href: '#/features/energy/top', fk: 'energy:top' }),
-      K.nav({ label: 'Daily Bars', sub: 'A fortnight of each day’s use', value: String((pl.usages || []).length),
+      K.nav({ label: 'Tracking', sub: pl.usages_auto === false ? 'A row each on the page, following the tabs' : 'None: each device\u2019s sheet has its bars',
+              value: pl.usages_auto === false ? String((pl.usages || []).length) : 'Automatic',
               href: '#/features/energy/usages', fk: 'energy:usages' }),
       K.nav({ label: 'Sections', value: String((pl.sections || []).length), href: '#/features/energy/sections', fk: 'energy:sections' }),
       K.nav({ label: 'Devices', value: String((d.devices || []).length), href: '#/features/energy/devices', fk: 'energy:devices' }),
       K.nav({ label: 'Batteries', value: String((d.batteries || []).length), href: '#/features/energy/batteries', fk: 'energy:batteries' }),
-      K.toggle({ label: 'Home Assistant’s Charts', sub: 'The day’s sources and each device, at the end', on: o.detail !== false,
+      K.toggle({ label: 'Home Assistant’s Charts', sub: 'Its own four energy cards, at the end', on: o.detail === true,
                  sk: 'f:' + EN + ':detail', onChange: function (on) { energySet(P, { detail: on }); } })]));
     var tot = o.total || {};
-    c.appendChild(K.group({ header: 'Whole Home', footer: 'Automatic: the grid meter in Home Assistant’s Energy settings, its cost, and the power sensor behind it (or Status & Chips → Power Use).' }, [
+    c.appendChild(K.group({ header: 'Whole Home', footer: 'Automatic: the grid meter in Home Assistant’s Energy settings, its cost, and the power sensor behind it (or the Energy chip’s Power Use).' }, [
       P.entityRow({ label: 'Power', sk: 'f:' + EN + ':total:power', value: tot.power || null,
                     none: 'Automatic' + (T.power && !tot.power ? ' (' + enName(P, T.power) + ')' : ''),
                     filter: { domains: ['sensor'], dc: 'power' },
@@ -736,6 +765,30 @@
     openIn(c, 'Energy', EN);
   }
 
+  // THE RINGS: in this order, each only where the house has its source (four
+  // at most); Automatic is every one it has
+  function energyRings(P, c, d) {
+    var o = d.options || {}, pg = o.page || {}, pl = d.plan || {}, src = pl.sources || {};
+    var have = { energy: true, cost: src.cost !== false, solar: !!src.solar, water: !!src.water, gas: !!src.gas };
+    var ORDER = [['energy', 'Energy', 'What the house used'], ['cost', 'Cost', 'What it cost'], ['solar', 'Solar', 'What the sun made'],
+                 ['water', 'Water', 'From Home Assistant\u2019s Energy settings'], ['gas', 'Gas', 'From Home Assistant\u2019s Energy settings']];
+    var auto = !Array.isArray(pg.rings) || !pg.rings.length;
+    var on = auto ? ORDER.map(function (r) { return r[0]; }).filter(function (k) { return have[k]; }).slice(0, 4) : pg.rings;
+    c.appendChild(K.group({ footer: 'Automatic: every one the house has, up to four.' }, [
+      K.toggle({ label: 'Automatic', on: auto, sk: 'f:' + EN + ':rings:auto',
+                 onChange: function (v) { energySet(P, { page: { rings: v ? null : on } }); } })]));
+    if (auto) return;
+    c.appendChild(K.group({ header: 'Rings', footer: 'Each fills toward a usual day, from the outside in. One the house has no source for is left out.' },
+      ORDER.map(function (r) {
+        var lit = on.indexOf(r[0]) >= 0;
+        return K.check({ label: r[1], sub: have[r[0]] ? r[2] : 'Not in this house', multi: true, on: lit, sk: 'f:' + EN + ':rings:' + r[0],
+          onClick: function (want) {
+            var next = ORDER.map(function (x) { return x[0]; }).filter(function (k) { return k === r[0] ? want : on.indexOf(k) >= 0; });
+            if (!next.length || next.length > 4) return;
+            energySet(P, { page: { rings: next } });
+          } });
+      })));
+  }
   function energyTop(P, c, d) {
     var o = d.options || {}, pl = d.plan || {};
     var auto = !Array.isArray(o.top);
@@ -743,7 +796,7 @@
     c.appendChild(K.group({}, [K.toggle({ label: 'Today’s Cost', sub: 'First, from the whole home’s meter', on: o.cost !== false,
       sk: 'f:' + EN + ':cost', onChange: function (on) { energySet(P, { cost: on }); } })]));
     c.appendChild(K.listEditor({ fk: 'entop', auto: auto, minRows: 0, announce: P.announce.bind(P),
-      autoFooter: 'Automatic: the first two thermostats (Status & Chips) and the outside temperature (Weather).',
+      autoFooter: 'Automatic: the first two thermostats (What Counts) and the outside temperature (Weather).',
       shownFooter: 'Up to four readings, today’s cost among them.',
       rows: ids.map(function (id) { return { value: id, label: P.name(id), sub: id }; }),
       onAuto: function (on) { energySet(P, { top: on ? null : ids }); },
@@ -774,16 +827,16 @@
       }) });
     };
     c.appendChild(K.listEditor({ fk: 'enuse', auto: auto, minRows: 0, announce: P.announce.bind(P),
-      autoFooter: 'Automatic: the whole home, then the five devices whose meters read the most.',
-      shownFooter: 'Each is a fortnight of daily use against the week before. A runtime sensor (hours) shows its daily runtime.',
+      autoFooter: 'Automatic: no Tracking card; each device\u2019s sheet has its own bars. Turn this off to follow meters and runtimes of your own.',
+      shownFooter: 'A row each on the page\u2019s Tracking card: its figure and bars for the tab, against its usual. A runtime sensor (hours) shows its hours.',
       rows: rows.map(function (u, i) {
         return { value: String(i), label: u.name, sub: u.entity, href: auto ? null : '#/features/energy/usages/' + i };
       }),
       onAuto: function (on) { if (on) energySet(P, { usages: null }); else save(rows); },
       onChange: function (v) { save(v.map(function (i) { return rows[Number(i)]; })); },
-      addLabel: rows.length < 9 ? 'Add Bar' : null,
+      addLabel: rows.length < 9 ? 'Add to Tracking' : null,
       onAddOther: function () {
-        P.go(P.picker('energy-usage', { title: 'Add Bar', value: null, items: function () {
+        P.go(P.picker('energy-usage', { title: 'Add to Tracking', value: null, items: function () {
           return P.entityIds({ domains: ['sensor'], shown: true }).filter(function (id) {
             var a = (P._hass.states[id] || {}).attributes || {};
             return ['power', 'energy', 'duration'].indexOf(a.device_class) >= 0;
@@ -825,7 +878,12 @@
     (d.devices || []).forEach(function (x) { names[x.key] = x.name; });
     (d.batteries || []).forEach(function (x) { names[x.key] = x.name; });
     var asStored = function (list) {
-      return list.map(function (s) { var y = { id: s.id, name: s.name, items: s.items }; if (s.link) y.link = s.link; return y; });
+      return list.map(function (s) {
+        var y = { id: s.id, name: s.name, items: s.items };
+        if (s.link) y.link = s.link;
+        if (s.color) y.color = s.color;
+        return y;
+      });
     };
     c.appendChild(K.listEditor({ fk: 'ensec', auto: auto, minRows: 1, announce: P.announce.bind(P),
       autoFooter: 'Automatic: each device in the section its name suggests — Heating & Cooling, Rooms, Appliances, Outlets, Charging.',
@@ -854,7 +912,12 @@
     (d.devices || []).forEach(function (x) { names[x.key] = x.name; subs[x.key] = x.hidden ? 'Hidden' : null; });
     (d.batteries || []).forEach(function (x) { names[x.key] = x.name; subs[x.key] = 'Battery'; });
     var asStored = function (list) {
-      return list.map(function (x) { var y = { id: x.id, name: x.name, items: x.items }; if (x.link) y.link = x.link; return y; });
+      return list.map(function (x) {
+        var y = { id: x.id, name: x.name, items: x.items };
+        if (x.link) y.link = x.link;
+        if (x.color) y.color = x.color;
+        return y;
+      });
     };
     var put = function (ch) {
       energySet(P, { sections: asStored(secs.map(function (x) { return x.id === id ? Object.assign({}, x, ch) : x; })) });
@@ -863,7 +926,13 @@
     c.appendChild(K.group({}, [
       K.text({ label: 'Name', sk: 'f:' + EN + ':section:name', value: s.name, maxlength: 40, error: P.err('f:' + EN + ':sections'),
                onCommit: function (v) { if (v.trim()) put({ name: v.trim() }); } })]));
-    c.appendChild(K.group({ header: 'Link', footer: 'Optional: its heading opens another page — a panel’s own dashboard, say (“/ecoflow-panel/ecoflow”).' }, [
+    // ITS COLOR: its part of Where it went and its tiles' lines
+    var autoCol = { hvac: 'Light Blue', rooms: 'Purple', appliances: 'Pink', outlets: 'Yellow', charging: 'Green' }[s.id] || 'One of HK\u2019s';
+    c.appendChild(K.group({ footer: 'Its part of Where it went, and its tiles\u2019 lines.' }, [
+      K.select({ label: 'Color', sk: 'f:' + EN + ':section:color', value: s.color || '',
+                 options: [['', 'Automatic (' + autoCol + ')']].concat(EN_COLORS.slice(1)),
+                 onChange: function (v) { put({ color: v || null }); } })]));
+    c.appendChild(K.group({ header: 'Link', footer: 'Optional: its heading opens another page — a panel’s own dashboard, say (“/dashboard-home/my-page”).' }, [
       K.text({ label: 'Page', sk: 'f:' + EN + ':section:link', value: link.path || '', placeholder: 'None', maxlength: 120,
                onCommit: function (v) { put({ link: v.trim() ? { path: v.trim(), text: link.text || '' } : null }); } }),
       K.text({ label: 'Link Text', sk: 'f:' + EN + ':section:linktext', value: link.text || '', placeholder: 'More', maxlength: 40,
@@ -936,13 +1005,22 @@
                      return !(d.sections || []).some(function (s) { return s.id === k[0]; });
                    }).map(function (k) { return [k[0], k[1] + ' (new)']; })),
                  onChange: function (v) { if (v) energySet(P, { sections: sectionsAfter(d, key, v) }); } })]));
-    c.appendChild(K.group({ header: 'Readings', footer: energyFound(x) + '.' }, [
+    // POWER AND ENERGY, KEPT APART: what each tab of the page reads
+    c.appendChild(K.group({ header: 'Now \u00b7 Live Power', footer: energyFound(x) + '. Watts as they happen; without one, Now shows today\u2019s kWh on this tile.' }, [
       P.entityRow({ label: 'Power Sensor', sk: 'f:' + EN + ':power', value: own.power || null,
                     none: 'Automatic' + (x.power && !own.power ? ' (' + P.name(x.power) + ')' : ''),
                     filter: { domains: ['sensor'], dc: 'power' },
-                    onPick: function (v) { energyDev(P, key, { power: v || null }); } }),
-      x.stat ? K.info({ label: 'Energy Meter', sub: x.stat, value: P.name(x.stat) }) : null,
-      P.entityRow({ label: 'Switched By', sub: 'Its sheet shows the switch', sk: 'f:' + EN + ':control', value: own.control || null,
+                    onPick: function (v) { energyDev(P, key, { power: v || null }); } })]));
+    c.appendChild(K.group({ header: 'Today, This Week, This Month \u00b7 Energy',
+        footer: x.stat ? 'kWh from Home Assistant\u2019s statistics: the same numbers as its Energy dashboard.'
+                       : 'No energy meter: this tile shows only Now. Add one in Home Assistant\u2019s Energy settings to give it history.' }, [
+      x.stat ? K.info({ label: 'Energy Meter', sub: x.stat, value: P.name(x.stat) }) : K.info({ label: 'Energy Meter', value: 'None' }),
+      P.entityRow({ label: 'Daily Runtime', sub: 'An AC\u2019s hours, beside its kWh', sk: 'f:' + EN + ':runtime', value: own.runtime || null,
+                    none: 'Automatic' + (x.runtime && !own.runtime ? ' (' + P.name(x.runtime) + ')' : ''),
+                    filter: { domains: ['sensor'], dc: 'duration' },
+                    onPick: function (v) { energyDev(P, key, { runtime: v || null }); } })]));
+    c.appendChild(K.group({}, [
+      P.entityRow({ label: 'Switched By', sub: 'A power button on its tile; its sheet shows the switch', sk: 'f:' + EN + ':control', value: own.control || null,
                     none: 'Automatic' + (x.control && !own.control ? ' (' + P.name(x.control) + ')' : ''),
                     filter: { domains: ['switch'] },
                     onPick: function (v) { energyDev(P, key, { control: v || null }); } })]));
@@ -1061,10 +1139,11 @@
     var back = ['Energy', '#/features/energy'];
     var d0 = P.feat(domain).data || {};
     if (sub[0] === 'top') return mk('Readings', withData(function (c, d) { energyTop(P, c, d); }), back);
+    if (sub[0] === 'rings') return mk('Rings', withData(function (c, d) { energyRings(P, c, d); }), back);
     if (sub[0] === 'usages' && sub[1] !== undefined) {
-      return mk('Daily Bar', withData(function (c, d) { energyUsage(P, c, d, Number(sub[1])); }), ['Daily Bars', '#/features/energy/usages']);
+      return mk('Tracked', withData(function (c, d) { energyUsage(P, c, d, Number(sub[1])); }), ['Tracking', '#/features/energy/usages']);
     }
-    if (sub[0] === 'usages') return mk('Daily Bars', withData(function (c, d) { energyUsages(P, c, d); }), back);
+    if (sub[0] === 'usages') return mk('Tracking', withData(function (c, d) { energyUsages(P, c, d); }), back);
     if (sub[0] === 'sections' && sub[1]) {
       var sid = decodeURIComponent(sub[1]);
       var ss = (d0.sections || []).filter(function (x) { return x.id === sid; })[0];
@@ -1219,6 +1298,21 @@
           });
         } })]));
   }
+  // THE PAGES a notification can open or go to: the generated dashboards'
+  // own -- the category pages and a page per room (hk-strategy.js) -- by
+  // path, the same on every screen that has them
+  var NOTIFY_PAGES = [['security', 'Security'], ['doors-windows', 'Doors & Windows'], ['lights', 'Lights'], ['climate', 'Climate'],
+                      ['water', 'Water'], ['cameras', 'Cameras'], ['calendar', 'Calendar'], ['vacuums', 'Vacuums'], ['timers', 'Timers']];
+  function notifyPages(P) {
+    var areas = (P._hass && P._hass.areas) || {};
+    var slug = function (v) { return String(v || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); };
+    var rooms = Object.keys(areas).map(function (k) { return ['room-' + slug(k), areas[k].name || k]; })
+      .sort(function (a, b) { return a[1].localeCompare(b[1]); });
+    return NOTIFY_PAGES.concat(rooms);
+  }
+  function notifyClock(ts) {
+    try { return new Date(ts * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
+  }
   function notifyItem(P, c, d, id) {
     var it = notifyItemOf(d, id);
     if (!it) { c.appendChild(K.group({}, [K.info({ label: 'That notification isn’t there any more.' })])); return; }
@@ -1302,10 +1396,40 @@
     }
     if (!cal) c.appendChild(K.group({ header: 'Snapshot', footer: it.snap ? 'Every screen shows the same picture: the moment it went off.'
       : 'Any notification can carry a snapshot — someone arriving can show the driveway.' }, snapRows));
-    var taps = [['camera', 'Live Camera'], ['sheet', 'Accessory Sheet'], ['none', 'Nothing']].filter(function (x) { return x[0] !== 'camera' || it.snap; });
-    if (!cal) c.appendChild(K.group({ header: 'Opened', footer: 'A tap opens the banner: the snapshot big, and buttons for what the accessory can do now (Close a garage door, Lock a lock, Open Camera). Tap Opens is what a tap on the picture does.' }, [
-      K.select({ label: 'Tap Opens', value: it.tap === 'camera' && !it.snap ? 'sheet' : (it.tap || 'sheet'), sk: sk('tap'), options: taps,
-                 onChange: function (v) { save({ tap: v }); } })]));
+    // OPENED: what a tap on the banner opens -- its sheet (the notification
+    // at its top, the page it lives on, Mute 1 Hour), a page, the live
+    // camera, nothing -- and where its sheet's Go To goes
+    var pages = notifyPages(P);
+    var pageOpts = function (cur) {
+      var o2 = pages.slice();
+      if (cur && !o2.some(function (x) { return x[0] === cur; })) o2.push([cur, cur]);
+      return o2;
+    };
+    var tap = it.tap === 'camera' && !it.snap ? 'sheet' : (it.tap || 'sheet');
+    var taps = [['sheet', cal ? 'The Event' : 'Its Sheet'], ['page', 'A Page'], ['camera', 'Live Camera'], ['none', 'Nothing']]
+      .filter(function (x) { return x[0] !== 'camera' || it.snap; });
+    var opened = [K.select({ label: 'Tap Opens', value: tap, sk: sk('tap'), options: taps,
+      onChange: function (v) { save(v === 'page' ? { tap: 'page', page: it.page || pages[0][0] } : { tap: v }); } })];
+    if (tap === 'page') {
+      opened.push(K.select({ label: 'Page', value: it.page || '', sk: sk('page'), options: pageOpts(it.page),
+        onChange: function (v) { save({ page: v }); } }));
+    } else if (tap !== 'none') {
+      opened.push(K.select({ label: 'Go To', sub: it.go ? null : (cal ? 'The Calendar, at that day' : 'The page it’s on, else its room'),
+        value: it.go || '', sk: sk('go'),
+        options: [['', 'Automatic'], ['none', 'None']].concat(pageOpts(it.go && it.go !== 'none' ? it.go : null)),
+        onChange: function (v) { save({ go: v || null }); } }));
+    }
+    // MUTED from a sheet (Mute 1 Hour): until when, and Unmute
+    (it.muted || []).forEach(function (m) {
+      opened.push(K.button({ label: 'Muted until ' + notifyClock(m.until) + (it.category && m.name ? ' · ' + m.name : ''),
+        sub: 'Unmute', fk: 'notify:unmute:' + m.key, onClick: function () {
+          P.ws({ type: 'hk_notify/mute', key: m.key, minutes: 0 }).then(function (ok) { if (ok) P.featLoad(NT, true); });
+        } }));
+    });
+    c.appendChild(K.group({ header: 'Opened', footer: tap === 'page' ? 'A tap on the banner opens that page of the screen’s own dashboard.'
+      : tap === 'none' ? 'A tap does nothing; the banner just goes when its time is up, or with a swipe.'
+      : 'A tap opens ' + (cal ? 'the event' : tap === 'camera' ? 'the camera, live,' : 'its sheet') + ' with the notification on it: when it went off, ' +
+        'the snapshot, its page, and Mute 1 Hour (that accessory quiet on every screen for an hour).' }, opened));
     if (it.category) {
       c.appendChild(K.group({ footer: it.kind === 'calendar' ? 'Send Test shows the next event of its calendars (within a week) now, on every screen that allows notifications.'
         : 'Send Test shows it now — for one of its accessories — on every screen that allows notifications, as if it went off.' }, [

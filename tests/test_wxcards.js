@@ -23,6 +23,16 @@ load(HK_ROOT + '/tests/sample_settings.js');
 load(HK_ROOT + '/frontend/modules/hk-header.js');
 load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-weather.js');
+function editorFields(tag) {
+  var C = customElements.get(tag), probe = C.getConfigElement();
+  var EC = customElements.get(String(probe.tagName || '').toLowerCase());
+  var ed = EC ? new EC() : probe;
+  if (!ed.appendChild) ed.appendChild = function () {};
+  ed.hass = { states: {} }; ed.setConfig({ type: 'custom:' + tag });
+  var out = {};
+  (function walk(list) { (list || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+  return out;
+}
 
 var ALERTS = 'sensor.nws_alerts_alerts';
 function hourly(n, t0) {
@@ -137,6 +147,24 @@ H.run('WEATHER CARDS', [
     H.ok('the new alert is drawn', /^Tornado Warning\./.test(text(H.part(R, '.body'))));
     H.eq('...counted', text(H.part(R, '.count')), 'Extreme  ·  2 alerts');
     H.eq('...and an extreme one is red', H.part(R, '.icon').style.color, 'rgba(255, 69, 58, 0.98)');
+
+    // ONLY WHILE ONE IS LIVE: none, and it hides itself the way a conditional
+    // card does (no wrapper needed on a dashboard of one's own); the card
+    // editor's preview still draws it, saying when it shows.
+    var quiet = wxHouse(), q = H.make('hk-alert-card'), told = [];
+    q.dispatchEvent = function (e) { told.push(e.type + ':' + e.detail.value); return true; };
+    q.setConfig({ entity: ALERTS });
+    q.hass = quiet.set(ALERTS, '0', { Alerts: [] });
+    H.ok('no alert: hidden', q.hidden === true && q._alertShown === false);
+    H.eq('...and takes no room', q.getCardSize(), 0);
+    q.preview = true;
+    H.ok('in the editor preview: drawn, as a sample', q.hidden === false &&
+         /only while an alert is active/.test(text(H.part(q._root, '.body'))), text(H.part(q._root, '.body')));
+    H.eq('...counting none', text(H.part(q._root, '.count')), 'No alerts now');
+    q.preview = false;
+    H.ok('out of the preview: hidden again', q.hidden === true);
+    q.hass = quiet.set(ALERTS, '1', { Alerts: [{ Event: 'Frost Advisory', Severity: 'Minor' }] });
+    H.ok('an alert comes: shown', q.hidden === false && /^Frost Advisory\./.test(text(H.part(q._root, '.body'))));
     return H.lifecycle('alert', card, house, function (c) { c.hass = house.hass(); });
   },
 
@@ -158,6 +186,12 @@ H.run('WEATHER CARDS', [
     H.ok('the time is the Time sensor, 12-hour', />7:05<\/span>/.test(m) && />AM<\/span>/.test(m));
     H.ok('the screensaver date format', /September, 26th/.test(m));
     H.ok('its own sizes, not the header\'s', /font-size:150px/.test(m) && !/font-size:72px/.test(m));
+    H.ok('its own colors win over the light-page tokens',
+         /color:rgba\(255,255,255,0\.85\)/.test(m) && !/--hk-ink/.test(m));
+    var hh = window.hkHeader, hs = house.hass().states;
+    H.ok('the header\'s defaults follow a light page (the text scale the fallback)',
+         /color:var\(--hk-ink, rgba\(255,255,255,0\.94\)\)/.test(hh.row(hs, {})) &&
+         /filter:var\(--hk-glow, drop-shadow\(0px 1px 3px/.test(hh.row(hs, {})));
 
     H.gate('clock', card, house,
       function () { return house.set('sensor.time', '13:06'); },
@@ -182,7 +216,7 @@ H.run('WEATHER CARDS', [
     });
     var tm = H.morphed(tesla._root);
     H.ok('car topbar: height, padding and the drop-shadow filter reach the plate',
-         /height:108px;padding:10px 0px;filter:drop-shadow/.test(tm), tm.slice(0, 120));
+         /height:108px;padding:10px 0px;filter:var\(--hk-glow, drop-shadow/.test(tm), tm.slice(0, 120));
     H.ok('car topbar: the header date format', /Sunday, September 27th/.test(tm));
     return H.lifecycle('clock', card, house, function (c) { c.hass = house.hass(); });
   },
@@ -359,6 +393,14 @@ H.run('WEATHER CARDS', [
     H.eq('...but sun.sun\'s attributes moving does not', card.__renders - r0, 0);
     H.eq('re-rendering never adds a second tap listener', (card._root._listeners.click || []).length, 1);
 
+    // ITS OWN `entity`: a strip that names a weather entity draws that one,
+    // not the one HK Settings chose
+    var two = wxHouse(), own = H.make('hk-weather-strip-card');
+    own.setConfig({ entity: 'weather.cabin' });
+    own.hass = two.set('weather.cabin', 'rainy', { temperature: 51, friendly_name: 'Cabin' });
+    H.ok('its own entity is drawn', /51°/.test(own._root.__html) && !/72°/.test(own._root.__html),
+         own._root.__html.slice(0, 200));
+
     var saver = H.make('hk-weather-strip-card');
     H.noThrow('the screensaver config renders', function () {
       saver.setConfig({ type: 'custom:hk-weather-strip-card', variant: 'inline', unit: 'F',
@@ -404,5 +446,14 @@ H.run('WEATHER CARDS', [
     card.hass = house.hass();
     H.ok('the menu folds: the header is back', !!card._lastL && /7:05/.test(card._lastL));
     M.hasTime = was;
+  },
+
+  // THE EDITORS say what the cards do.
+  function () {
+    H.section('editors');
+    var strip = editorFields('hk-weather-strip-card'), alert = editorFields('hk-alert-card');
+    H.ok('strip: shadow is a CSS filter (it goes into filter:)', /CSS filter/.test(strip.shadow.helper) && !/text-shadow/.test(strip.shadow.helper));
+    H.eq('alert: only the NWS Alerts integration\'s sensors', alert.entity.selector.entity.filter,
+         { integration: 'nws_alerts', domain: 'sensor' });
   }
 ]);

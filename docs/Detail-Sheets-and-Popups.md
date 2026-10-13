@@ -27,6 +27,54 @@ Vacation, Custom) and Off; the mode it is in is filled.
 | ![A thermostat’s detail sheet](images/sheet-thermostat.png) | ![A lock’s detail sheet](images/sheet-lock.png) | ![A garage door’s detail sheet](images/sheet-garage.png) |
 | Thermostat | Lock | Garage door |
 
+**A person’s sheet.** Tapping a person opens where they are: their picture,
+**Home**, **Away** or the zone they’re in and since when, the last 24 hours
+as a home / away bar, and their phone’s battery; beside it a map of where
+they are (OpenStreetMap), and **Other Members** — tap one for theirs, **‹**
+back. Two columns on a wall tablet, one on a phone.
+
+**An event’s sheet.** A calendar event — from the [Calendar](Calendar.md)
+page, a calendar’s tile, or its [notification](Notifications.md) — opens as a
+sheet like the rest: the event (its calendar, when, where, notes, **Edit** and
+**Delete** where the calendar allows) and, beside it, the rest of that day.
+
+**One size.** Every sheet is one of two sizes on a wall tablet — a column, or
+two columns for the ones that need it (the thermostat, a sensor’s graph, a
+person, an event) — and one size on a phone, so the name and **✕** are always
+in the same place. A sheet opened from a [notification](Notifications.md)
+takes the two-column size, the notification on its left. The spacing is one
+scale throughout: 20 between regions, 20 (a phone 16) between a sheet’s big
+pieces, 12 between blocks and between buttons, 6 under a title.
+
+**Reading a graph.** Hover a graph with the mouse, or put a finger on it, and
+a line marks the nearest point with its value and time in a label at the top
+(“212 W · 3:40 AM”, “2.61 kWh · Sat, Oct 10”); a bar graph lights the bar
+under it. Slide sideways to move along the graph; lift your finger or move the
+mouse away and it goes. A vertical swipe still scrolls the sheet. It works on
+every graph in a sheet: a sensor’s, an energy device’s bars, and the
+thermostat’s and water heater’s 24 hours.
+
+![A circuit's detail sheet: a finger on its graph, a line at that point and its watts and time above it](images/sheet-graph-hover.png)
+*A finger on a sheet's graph: the line, the dot and the value at the top.*
+
+**The dial.** A thermostat's or water heater's dial follows your finger or the
+mouse as you drag its dot, and keeps the dot where you let go while the
+device catches up ([Climate](Climate.md#the-dial)).
+
+**Choices.** Every set of choices on a sheet or a card (a shade's or an
+alarm's modes, a thermostat's modes and fan, the calendar's Month, Week and
+Day, the Energy tabs) is the same control: a capsule of one height, the chosen
+one white, sliding over to the one you pick.
+
+**Week and Month are calendar periods**: this week from the first day of the
+week in your Home Assistant profile (Sunday for English), this month from the
+1st, with every day of it in place and each day labeled under itself. A line
+runs from the period's start to now; a meter's days still to come show last
+week's or last month's same day in gray. **‹ ›** over the ranges step back
+through the weeks (half a year) or months (a year); the row beside them says
+which ("Last Week · Oct 4 – 10"). Hour and Day stay the last hour and the last
+24 hours. Choosing a range opens it on the period you are in.
+
 **Energy devices.** A device on the [Energy](Energy.md) page has more on its
 sheet: today’s kWh, its cost and the usual day; Week and Month as daily bars
 from its meter; the circuit it is part of and the ones inside it; and the
@@ -34,7 +82,7 @@ switch it is plugged into. Its gear adds **On the Energy page** (its name and
 section there, and whether it shows).
 
 **Climate lists.** The [Climate page](Climate.md) has temperature, humidity,
-blind and fan summaries. Tapping one opens its room-labelled accessory pills.
+blind and fan summaries. Tapping one opens its room-labeled accessory pills.
 Tap a pill for its details; the Back button, closing the accessory sheet or
 browser Back returns to the category list. The list and its summary follow
 live readings and membership changes.

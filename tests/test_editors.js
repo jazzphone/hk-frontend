@@ -36,11 +36,15 @@ function flatten(schema, out) {
 var RAW = /_/;                       // a label or option still showing a config key
 var JARGON = /`|hk-|button-card|swipe|\bTHE\b|\bpx\b/;
 
+var NOT_IN_PICKER = { 'hk-screensaver-status-card': 1, 'hk-screensaver-now-card': 1 };
 var cards = Object.keys(defined).filter(function (n) { return /^hk-.*-card$/.test(n); }).sort();
 print('=== ' + cards.length + ' cards ===');
 cards.forEach(function (tag) {
   var C = defined[tag];
   var entry = window.customCards.filter(function (c) { return c.type === tag; })[0];
+  // the screensaver's own cards are defined but NOT offered in "Add card"
+  // (pinned to a corner at no height, they float over a dashboard's page)
+  if (NOT_IN_PICKER[tag]) { ok(tag + ' is left out of the card picker', !entry); return; }
   ok(tag + ' is in the card picker', !!entry);
   if (!entry) return;
   ok(tag + ' name is "HK …"', /^HK [A-Z]/.test(entry.name), entry.name);
@@ -50,6 +54,13 @@ cards.forEach(function (tag) {
   var stub = null;
   try { stub = C.getStubConfig && C.getStubConfig(hass); } catch (e) { stub = 'ERR ' + e; }
   ok(tag + ' starter config builds', stub && typeof stub === 'object', String(stub));
+  // The picker lays the stub OVER its own `custom:<tag>`: a `type` in it
+  // other than that one replaces it ("Unknown type: hk-row-card").
+  ok(tag + ' starter config keeps the picker\'s type', !stub || !stub.type || stub.type === 'custom:' + tag,
+     stub && stub.type);
+  // SECTIONS: every card says how big it wants to be (hk-base.js GRID)
+  var go = C.prototype && typeof C.prototype.getGridOptions === 'function' ? C.prototype.getGridOptions() : null;
+  ok(tag + ' gives Sections a size', !!go && (go.columns === 'full' || go.columns > 0) && go.rows === 'auto', JSON.stringify(go));
   ok(tag + ' has an editor', typeof C.getConfigElement === 'function');
   if (typeof C.getConfigElement !== 'function' || tag === 'hk-camera-mosaic-card') return;  // mosaic: test_editor.js
 
@@ -93,5 +104,59 @@ var vac = fieldsOf('hk-vacuum-card'), room = vac.list.filter(function (f) { retu
 ok('vacuum room is labelled as a sensor', /sensor/i.test(vac.form.computeLabel(room)));
 ok('vacuum room does not borrow the tile help text', vac.form.computeHelper(room) !== window.hkCards.HELPERS.room);
 ok('speaker picker is in the picker', window.customCards.some(function (c) { return c.type === 'hk-speaker-picker-card'; }));
+
+// ON SOMEONE ELSE'S DASHBOARD (hk-base.js place): HA's own view or card
+// editor above the card, and no HK grid view between -> data-hk-foreign
+print('\n=== where a card is ===');
+function at(chain) {          // chain: tags from the card's parent up; '#' = a shadow root
+  var card = { attrs: {}, hasAttribute: function (k) { return k in this.attrs; },
+               toggleAttribute: function (k, on) { if (on) this.attrs[k] = ''; else delete this.attrs[k]; } };
+  var n = card;
+  chain.forEach(function (t) {
+    var next = t === '#' ? { host: null } : { localName: t };
+    if (n.host === null) n.host = next; else n.parentNode = next;
+    n = next;
+  });
+  window.hkCards.place(card);
+  return 'data-hk-foreign' in card.attrs;
+}
+ok('a card in a section of a Sections view: someone else\'s dashboard',
+   at(['hui-card', 'div', '#', 'hui-grid-section', '#', 'hui-sections-view', 'hui-view']));
+ok('...in a Masonry column', at(['hui-card', 'div', '#', 'hui-masonry-view', 'hui-view']));
+ok('...in the card editor\'s preview', at(['hui-card', '#', 'hui-card-preview', 'div']));
+ok('on an HK screen (HK\'s grid view): not', !at(['hui-card', 'div', '#', 'hk-grid-view', 'hui-view']));
+ok('...nested in an HK card on an HK screen: not', !at(['div', '#', 'hk-row-card', 'hui-card', '#', 'hk-grid-view', 'hui-view']));
+ok('an overlay on the page body (screensaver, sheet, pop-up): not', !at(['div', '#', 'div', 'body']));
+// THE LIGHT LOOK (hk-base.js tone): someone else's dashboard, HA in light
+// mode, no sky -> the tokens on the card; anything else -> none of them
+function toned(foreignPage, dark, sky) {
+  var props = {};
+  var card = { attrs: {}, hasAttribute: function (k) { return k in this.attrs; },
+               toggleAttribute: function (k, on) { if (on) this.attrs[k] = ''; else delete this.attrs[k]; },
+               style: { setProperty: function (k, v) { props[k] = v; }, removeProperty: function (k) { delete props[k]; } } };
+  if (foreignPage) card.attrs['data-hk-foreign'] = '';
+  var savedSky = window.hkSky;
+  window.hkSky = sky ? { element: function () { return { isConnected: true }; } } : undefined;
+  window.hkCards.tone(card, { themes: { darkMode: dark } });
+  var out = { props: props, light: 'data-hk-light' in card.attrs, card: card };
+  window.hkSky = savedSky;
+  return out;
+}
+var lt = toned(true, false, false);
+ok('someone else\'s dashboard, light theme: the light look', lt.light && lt.props['--hk-ink'] === 'var(--primary-text-color, #1c1c1e)' &&
+   Object.keys(lt.props).length === Object.keys(window.hkCards.LIGHT).length);
+ok('...the dark theme: none of it', !toned(true, true, false).light && !Object.keys(toned(true, true, false).props).length);
+ok('...with HK\'s sky behind it: none of it', !toned(true, false, true).light);
+ok('an HK screen in a light theme: none of it', !toned(false, false, false).light);
+(function () {
+  var t = toned(true, false, false), c = t.card;
+  delete c.attrs['data-hk-foreign'];
+  window.hkCards.tone(c, { themes: { darkMode: false } });
+  ok('moved to an HK screen: the light look is taken off again', !('data-hk-light' in c.attrs) && !Object.keys(t.props).length);
+})();
+var tileGrid = window.hkCards.gridFor('hk-light-card'), hdrGrid = window.hkCards.gridFor('hk-header-card');
+ok('a tile asks for half a section', tileGrid.columns === 6 && tileGrid.rows === 'auto', JSON.stringify(tileGrid));
+ok('the header the full width', hdrGrid.columns === 'full', JSON.stringify(hdrGrid));
+ok('anything else a full column it can be narrowed from', window.hkCards.gridFor('hk-thermostat-card').columns === 12);
 
 print('\n' + (fail ? 'FAILURES: ' + fail : 'ALL ' + pass + ' EDITORS TESTS PASS'));

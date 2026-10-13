@@ -318,3 +318,43 @@
   --hk-levels-row: repeat(3, minmax(0, 1fr));
   --hk-alarm-cols: minmax(0, 430px) calc(2 * (var(--hk-pill) + 12px));
 }
+
+
+/* =========================================================================
+ * THE ENERGY PAGE'S GRID (hk-strategy.js energyView, hk-energy.js): three
+ * columns on a wall tablet and a computer -- the summary across two with the
+ * highlights beside it, Where it went across all three, Your Day across what
+ * the battery and water leave. Each card writes `var(--hk-energy-*, <its
+ * own span>)`, so these only say what changes:
+ *   the iPad band  two columns: the summary, the highlights and Your Day a
+ *                  row each, the battery and water side by side (one alone
+ *                  takes the row)
+ *   a phone        one column, everything in turn
+ * The roomy half of the band (a 1,280 px tablet with its menu open) keeps the
+ * three columns: `initial` unsets each, and var() falls back to the card's own.
+ * ========================================================================= */
+@media (min-width: 640.02px) and (max-width: 1023.98px) {
+  :root:not([data-hk-zoomed]) {
+    --hk-energy-cols: repeat(2, minmax(0, 1fr));
+    --hk-energy-hero: 1 / -1;
+    --hk-energy-hl: 1 / -1;
+    --hk-energy-day: 1 / -1;
+    --hk-energy-one: 1 / -1;
+  }
+  :root[data-hk-band="wide"]:not([data-hk-zoomed]) {
+    --hk-energy-cols: initial;
+    --hk-energy-hero: initial;
+    --hk-energy-hl: initial;
+    --hk-energy-day: initial;
+    --hk-energy-one: initial;
+  }
+}
+@media (max-width: 640px) {
+  :root:not([data-hk-zoomed]) {
+    --hk-energy-cols: minmax(0, 1fr);
+    --hk-energy-hero: auto;
+    --hk-energy-hl: auto;
+    --hk-energy-day: auto;
+    --hk-energy-one: auto;
+  }
+}

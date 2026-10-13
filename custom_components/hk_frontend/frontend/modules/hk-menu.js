@@ -416,7 +416,7 @@
       ':host{all:initial}',
       '.root{position:fixed;left:0;top:0;width:0;height:0;z-index:6;',
       '  font-family:var(--paper-font-body1_-_font-family,"SF Pro",-apple-system,Roboto,sans-serif);',
-      '  -webkit-font-smoothing:antialiased;color:#fff}',
+      '  -webkit-font-smoothing:antialiased;color:var(--hk-ink,rgba(255,255,255,0.94))}',
       '.root.open{z-index:9}',
       '.scrim{position:fixed;inset:0;background:rgba(0,0,0,0.26);opacity:0;pointer-events:none;',
       '  transition:opacity .32s ease;-webkit-tap-highlight-color:transparent}',
@@ -447,6 +447,11 @@
       '  -webkit-backdrop-filter:blur(30px) saturate(1.8);backdrop-filter:blur(30px) saturate(1.8);',
       '  border-right:1px solid rgba(255,255,255,0.10);pointer-events:none}',
       '.root.frosted .mat{background:rgba(34,38,56,0.95);-webkit-backdrop-filter:none;backdrop-filter:none}',
+      // TINTED (no blur anywhere): the tab bar's Tinted -- the panel is
+      // always up on a wall tablet, so a blur here would run every frame the
+      // sky moves; near-solid, as a see-through panel over the land is not
+      // read (the tab bar measured the same, 2026-10-05)
+      '.root.tinted .mat{background:rgba(24,24,28,0.93);-webkit-backdrop-filter:none;backdrop-filter:none}',
       // The open panel's shadow, under the tab (z -2): on .mat it would fall
       // over the tab, which sits BEHIND the material (below).
       '.panel::before{content:"";position:absolute;inset:0;z-index:-2;pointer-events:none;',
@@ -487,17 +492,17 @@
       // starts from the other edge (x = 271): paintNow() measures each line's
       // side bearing, since a "1" starts well inside its own box.
       '.now{position:relative;flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;',
-      '  column-gap:12px;row-gap:5px;align-items:end;box-sizing:border-box;color:#fff;',
+      '  column-gap:12px;row-gap:5px;align-items:end;box-sizing:border-box;color:var(--hk-ink,rgba(255,255,255,0.94));',
       '  padding:calc(30px + var(--hk-safe-top,env(safe-area-inset-top,0px))) ' + NOW_PAD + 'px 20px ' + NOW_PAD + 'px}',
       '.now[hidden],.rule[hidden]{display:none}',
       '.now .tm{display:flex;align-items:baseline;gap:4px;min-width:0;white-space:nowrap}',
       '.now .t{font-size:44px;font-weight:600;line-height:1;letter-spacing:0}',
-      '.now .ap{font-size:16px;font-weight:500;line-height:1;color:rgba(255,255,255,0.72)}',
+      '.now .ap{font-size:16px;font-weight:500;line-height:1;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.now .wx{justify-self:end;display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;',
       '  -webkit-tap-highlight-color:transparent}',
       '.now .g{display:flex;width:28px;height:28px}',
       '.now .tp{font-size:32px;font-weight:500;line-height:1;letter-spacing:0}',
-      '.now .d,.now .c{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0;color:rgba(255,255,255,0.66);',
+      '.now .d,.now .c{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
       '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
       '.now .c{justify-self:end;text-align:right;cursor:pointer;-webkit-tap-highlight-color:transparent}',
       // a border, snapped to device pixels (a filled 1 px box fell between them
@@ -506,7 +511,7 @@
       // the safe area is the time's to clear, not the list's
       '.panel.has-now .list{--safe:0px}',
       '.row{display:flex;align-items:center;gap:14px;width:100%;height:44px;box-sizing:border-box;',
-      '  padding:0 14px;border:0;border-radius:12px;background:none;color:rgba(255,255,255,0.95);',
+      '  padding:0 14px;border:0;border-radius:12px;background:none;color:var(--hk-ink,rgba(255,255,255,0.94));',
       '  font:inherit;font-size:17px;font-weight:400;letter-spacing:-0.41px;text-align:left;',
       '  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
       '.row + .row{margin-top:2px}',
@@ -531,16 +536,17 @@
       '.row .bdg[hidden]{display:none}',
       '.row.more svg{flex:none;opacity:.45;transform:rotate(-90deg);transition:transform .2s ease}',
       '.row.more[aria-expanded="true"] svg{transform:none}',
-      '.row.sub{height:40px;padding-left:50px;font-size:15px;color:rgba(255,255,255,0.85)}',
+      '.row.sub{height:40px;padding-left:50px;font-size:15px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
       '.row.sub ha-icon{--mdc-icon-size:20px;width:20px;height:20px;color:rgba(235,235,245,0.6)}',
       '@media (hover:hover){.row:not(.here):hover{background:rgba(255,255,255,0.07)}}',
       '.row:focus-visible,.sh:focus-visible,.tab:focus-visible{outline:2px solid rgba(255,255,255,0.7);outline-offset:-2px}',
       // SECTION HEADINGS: the Home app's "Categories" / "Rooms", which fold.
       '.sh{display:flex;align-items:center;justify-content:space-between;width:100%;height:36px;',
       '  box-sizing:border-box;margin:16px 0 2px;padding:0 14px;border:0;background:none;',
-      '  color:rgba(235,235,245,0.60);font:inherit;font-size:15px;font-weight:600;letter-spacing:-0.24px;',
+      '  color:var(--hk-ink-2,rgba(255,255,255,0.68));font:inherit;font-size:15px;font-weight:600;letter-spacing:-0.24px;',
       '  cursor:pointer;-webkit-tap-highlight-color:transparent}',
-      '.sh svg{transition:transform .2s ease}',
+      // the fold chevron keeps its own color (an icon, not on the text scale)
+      '.sh svg{transition:transform .2s ease;color:rgba(235,235,245,0.60)}',
       '.sh.shut svg{transform:rotate(-90deg)}',
       // THE EDGE TAB rides on the panel's right edge: closed, it is all that
       // shows, in the page's left margin; open, it becomes the close handle.
@@ -566,6 +572,9 @@
       '  transition:transform .12s ease,filter .12s ease}',
       '.root.frosted .tab{-webkit-backdrop-filter:none;backdrop-filter:none;',
       '  background:linear-gradient(145deg,rgba(255,255,255,0.18),rgba(255,255,255,0.09)),rgba(58,60,68,0.55)}',
+      // the tab and the button are plates on the page: the cards' Tinted plate
+      '.root.tinted .tab,.root.tinted .fab{-webkit-backdrop-filter:none;backdrop-filter:none;',
+      '  background:var(--hk-glass-plate);border-color:transparent;box-shadow:var(--hk-look-shadow)}',
       '.root.tabbed .tab{display:flex}',
       // the scrolled tab: always there, out past the edge until the chip is
       // scrolled away (sync / scrolled below)
@@ -828,7 +837,7 @@
       var glass = document.documentElement.getAttribute('data-hk-glass');
       var home = isHome();
       var cls = ['root'];
-      if (glass === 'frosted') cls.push('frosted');
+      if (glass === 'frosted' || glass === 'tinted') cls.push(glass);
       pinGlass(glass === 'blur_pre');
       var tabAt = typeof M.tab === 'function' ? M.tab() : (style === 'tab' ? 'always' : 'never');
       // a menu docking by itself appears where it belongs (settle)

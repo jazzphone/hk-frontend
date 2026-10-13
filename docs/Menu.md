@@ -139,7 +139,11 @@ leave it untouched for a minute, or when the page changes any other way.
 
 ## The menu on your own dashboard
 
-On a YAML dashboard, the menu is read from the dashboard itself:
+A dashboard of your own gets the menu once it is added to HK Frontend: **HK
+Settings → Screens → Add Screen → Existing Dashboards**, then turn the menu on
+in its settings. A dashboard that isn't added has no menu (nor a tab bar).
+
+Its list is read from the dashboard itself, in any view type:
 
 - The first view is **Home**.
 - A view with `area:` is a **room**, named by its title (else the area’s name)

@@ -95,9 +95,13 @@ A preset is only a starting point. Every value can be changed afterwards on
 the screen’s page in HK Settings.
 
 An existing dashboard can be a wall tablet’s screen too: in **Add Screen**,
-pick it under **Existing Dashboards** and choose **Wall Tablet**. It gets the
-same settings, hiding the header and the photo screensaver included; see
-[Your Own Dashboard](Your-Own-Dashboard.md) for what its own YAML can add.
+pick it under **Existing Dashboards** and choose **Wall Tablet**. It gets a
+wall tablet’s settings — hiding the header, the photo screensaver, Return to
+Home, the Sleep Screen, notifications, the menu — but not what only a screen HK
+Frontend builds has: Favorites, its generated pages, the Now Playing and Timer
+bars (you can add the Now Playing bar yourself; see
+[Your Own Dashboard](Your-Own-Dashboard.md), which also lists what its own YAML
+can add).
 
 ## 3. Set up the kiosk app
 

@@ -46,7 +46,7 @@ var H = house({
   'sensor.temp': ['71.4', { unit_of_measurement: '°F' }], 'sensor.mode': ['eco', {}],
   'binary_sensor.door': ['off', { device_class: 'door' }], 'vacuum.down': ['docked', {}],
   'water_heater.wh': ['eco', {}], 'alarm_control_panel.a': ['disarmed', {}],
-  'weather.home': ['sunny', {}], 'person.alex': ['home', {}],
+  'weather.home': ['sunny', {}], 'person.alex': ['home', {}], 'calendar.family': ['off', {}],
   'button.pc_wake_on_lan': ['unknown', {}], 'input_button.nap': ['2026-10-01T21:14:00+00:00', {}]
 });
 var want = {
@@ -56,7 +56,8 @@ var want = {
   'cover.frunk': 'garage', 'cover.tilt_only': null,
   'media_player.tv': 'media', 'sensor.temp': 'sensor', 'sensor.mode': 'state', 'binary_sensor.door': 'binary',
   'vacuum.down': 'vacuum', 'water_heater.wh': 'water_heater', 'alarm_control_panel.a': 'alarm',
-  'weather.home': null, 'person.alex': null, 'light.missing': null,
+  // a person: where they are (hk-person.js); a calendar: its event (hk-calendar.js)
+  'weather.home': null, 'person.alex': 'person', 'calendar.family': 'event', 'light.missing': null,
   'button.pc_wake_on_lan': 'button', 'input_button.nap': 'button'
 };
 var wrong = [];
@@ -237,7 +238,7 @@ ok('the water heater dial sweeps 270 degrees from the lower left', /A0: 135, SWE
 ok('the water heater ring is the thermostat card\'s ring', (function () {
   var ctl = readFile(HK_ROOT + '/frontend/cards/hk-control.js');
   return /viewBox="0 0 200 172"/.test(ctl) && /_arc\(0, 1, 78\)/.test(ctl) && /r="13"/.test(ctl) &&
-    /\.ring \.trk\{fill:none;stroke:rgba\(255,255,255,\.13\);stroke-width:22px/.test(ctl) &&
+    /\.ring \.trk\{fill:none;stroke:var\(--hk-line,rgba\(255,255,255,\.13\)\);stroke-width:22px/.test(ctl) &&
     /var WD = \{ W: 200, H: 172, CX: 100, CY: 100, R: 78, A0: 135, SWEEP: 270 \}/.test(src) &&
     /class="kn" r="13"/.test(src) && /\.dl \.trk\{fill:none;stroke:rgba\(255,255,255,\.13\);stroke-width:22px/.test(src) &&
     /max-width:var\(--hk-tstat-ring,300px\)/.test(src) && /water_heater: WIDE/.test(src) &&
@@ -307,6 +308,82 @@ print('\n=== the header glyph is the entity\'s Home app glyph ===');
      U.headIcon(U.lookFor(null, 'fan.other'), st('on', 'mdi:ceiling-fan')) === 'hk:ceiling-fan');
   ok('...and Home Assistant\'s own icon only when it does not', U.headIcon(U.lookFor(null, 'fan.other'), st('on', 'mdi:weather-cloudy')) === null);
   M.config = was;
+})();
+
+// ---- A NOTIFICATION, OPENED: its words and where it goes
+(function () {
+  var U = window.hkDetail._;
+  ok('the spacing scale', U.SP.region === 20 && U.SP.piece === 20 && U.SP.piecePhone === 16 && U.SP.block === 12 && U.SP.line === 6 &&
+     U.SP.cardPad === '16px 18px 14px' && U.SP.inset === 18);
+  var now = Date.now() / 1000;
+  ok('when: now', /^now · \d/.test(U.noteWhen({ ts: now })));
+  ok('when: minutes ago', /^5 min ago · \d/.test(U.noteWhen({ ts: now - 300 })));
+  ok('when: an hour on, the time alone', /^\d{1,2}:\d{2}/.test(U.noteWhen({ ts: now - 7200 })));
+  ok('Go To: None, and a person has no page', U.goFor({}, { go: 'none', entity: 'lock.front' }) === null &&
+     U.goFor({}, { kind: 'people', entity: 'person.alex' }) === null);
+  // a sheet's card: its words, its buttons (no Go To without a dashboard here).
+  // (the shim's innerHTML keeps nothing: these elements keep theirs)
+  var mk = document.createElement;
+  document.createElement = function (t) {
+    var e = mk.call(document, t), v = '';
+    Object.defineProperty(e, 'innerHTML', { get: function () { return v; }, set: function (x) { v = String(x); } });
+    return e;
+  };
+  var el = U.noteEl({}, { n: { title: 'Garage Door', message: 'Opened.', ts: now, mute: 'a:cover.garage', icon: 'hk:garage-open', tint: '#ff9f0a' } }, 'card');
+  var html = el.innerHTML;
+  ok('the card: title, message and when, Mute 1 Hour', html.indexOf('Garage Door') >= 0 && html.indexOf('Opened. · now') >= 0 &&
+     html.indexOf('Mute 1 Hour') >= 0);
+  var col = U.noteEl({}, { n: { title: 'Leak', message: 'Water detected.', important: true, ts: now } }, 'col');
+  ok('the column: Important, and no Mute for an automation’s own', col.innerHTML.indexOf('Important') >= 0 && col.innerHTML.indexOf('Mute') < 0);
+  document.createElement = mk;
+})();
+
+// THE READOUT: hover or touch a sheet's chart for the value and time under
+// it. What it reads is what the plot drew (the same points and range, so the
+// dot sits on the line); the look and the gestures are checked in a browser.
+print('\n=== the chart readout ===');
+(function () {
+  var was = window.hkChart;
+  window.hkChart = { line: function () { return '<svg></svg>'; }, bars: function () { return '<div></div>'; } };
+  var hks = function (html) {
+    var m = /data-hks="([^"]*)"/.exec(html);
+    return m && JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+  };
+  var now = Date.now(), HR = 3600000;
+  var line = _.axesChart({ pts: [{ t: now - 2 * HR, v: 180 }, { t: now - HR, v: NaN }, { t: now - HR / 2, v: 450 }, { t: now, v: 355 }],
+                           H: 200, unit: 'W', ms: 24 * HR, n: 5 });
+  var dl = hks(line);
+  ok('a line chart carries what it drew: the finite points, its value range and padding', !!dl && dl.k === 'l' && dl.u === 'W' &&
+     dl.p.length === 3 && dl.p[2][1] === 355 && dl.lo === 100 && dl.hi === 500 && dl.pad === 6 && dl.ms === 24 * HR, dl);
+  var bars = _.axesChart({ pts: [{ t: now - 2 * HR, v: 0.2 }, { t: now - HR, v: null }, { t: now, v: 0.4 }], bars: true,
+                           H: 200, unit: 'kWh', ms: 3 * HR, n: 5 });
+  var db = hks(bars);
+  ok('a bar chart keeps every column, an empty one as null, its floor at zero', !!db && db.k === 'b' && db.p.length === 3 &&
+     db.p[1][1] === null && db.lo === 0 && db.pad === 0, db);
+  // the nearest point in time, not the nearest index
+  var pl = _.scrubPick(dl, 0.8, now);
+  ok('a line picks the point nearest in time and puts the line on it', pl.i === 1 && pl.v === 450 && Math.abs(pl.f - 0.75) < 1e-9, pl);
+  ok('the live reading that closes the line is "Now"', _.scrubPick(dl, 1, now).label === 'Now');
+  ok('an earlier point is its clock time', /^\d{1,2}:\d\d\s?[AP]M$/i.test(_.scrubPick(dl, 0, now).label), _.scrubPick(dl, 0, now).label);
+  var wk = { k: 'l', u: '°F', lo: 60, hi: 80, pad: 6, ms: 168 * HR, p: [[now - 100 * HR, 70], [now - 50 * HR, 72], [now, 71]] };
+  ok('across a week the weekday comes too', /^[A-Z][a-z]{2}\s\d{1,2}:\d\d\s?[AP]M$/i.test(_.scrubPick(wk, 0, now).label), _.scrubPick(wk, 0, now).label);
+  var pb = _.scrubPick(db, 0.5, now);
+  ok('bars pick the column under the finger, its middle', pb.i === 1 && pb.v === null && Math.abs(pb.f - 0.5) < 1e-9, pb);
+  var d0 = new Date(); d0.setHours(14, 0, 0, 0);
+  var hb = { k: 'b', ms: 2 * HR, p: [[+d0 - 24 * HR, 1], [+d0, 2]] };
+  ok('an hour\'s bar is its span: "2 – 3 PM"', /^2\s–\s3\sPM$/i.test(_.scrubPick(hb, 0, +d0 + 2 * HR).label), _.scrubPick(hb, 0, +d0 + 2 * HR).label);
+  ok('the hour still going ends at Now', /^2\sPM\s–\sNow$/i.test(_.scrubPick(hb, 0.9, +d0 + HR / 2).label), _.scrubPick(hb, 0.9, +d0 + HR / 2).label);
+  var day = { k: 'b', ms: 7 * 24 * HR, p: [] };
+  for (var i = 6; i >= 0; i--) day.p.push([+d0 - i * 24 * HR, i]);
+  ok('a day\'s bar: Today, Yesterday, then the date', _.scrubPick(day, 0.99, +d0 + HR).label === 'Today' &&
+     _.scrubPick(day, 0.8, +d0 + HR).label === 'Yesterday' && /^[A-Z][a-z]{2},\s[A-Z][a-z]{2}\s\d{1,2}$/.test(_.scrubPick(day, 0, +d0 + HR).label),
+     [_.scrubPick(day, 0.99, +d0 + HR).label, _.scrubPick(day, 0, +d0 + HR).label]);
+  ok('values read as the sheet\'s own: 212 W, 0.42 kWh, 71.3°F, 45%, 1,234 W, a gap as a dash',
+     _.scrubValue(212.4, 'W') === '212 W' && _.scrubValue(0.4211, 'kWh') === '0.42 kWh' && _.scrubValue(71.34, '°F') === '71.3°F' &&
+     _.scrubValue(45, '%') === '45%' && _.scrubValue(1234, 'W') === '1,234 W' && _.scrubValue(null, 'W') === '—');
+  ok('every chart in a sheet listens, and is put back after each redraw', (src.match(/\n\s*scrub\(this\._(chart|trend)\);/g) || []).length === 5);
+  ok('a vertical swipe on the plot still scrolls the sheet (pan-y)', /'\.ap\[data-hks\]\{touch-action:pan-y;/.test(src));
+  window.hkChart = was;
 })();
 
 print('\n' + (fail ? 'FAIL ' + fail + ' DETAIL TESTS' : 'ALL ' + pass + ' DETAIL TESTS PASS'));

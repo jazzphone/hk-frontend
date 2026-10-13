@@ -79,9 +79,15 @@ ok('...but never where notifications are off', N.decide(Object.assign({}, n, { t
 
 // ---- words
 ok('now, then minutes', N.ago(1000, 1000) === 'now' && N.ago(0, 120000) === '2m ago' && N.ago(0, 7200000) === '2h ago');
-ok('buttons: the accessory’s, the first one solid', N.actionsOf({ buttons: [{ id: 'close', label: 'Close' }, { id: 'camera', label: 'Open Camera' }] })[0].pri === true);
-ok('buttons: none -> OK (Dismiss when Important)', N.actionsOf({}).map(function (a) { return a.label; })[0] === 'OK' &&
-   N.actionsOf({ important: true })[0].label === 'Dismiss');
+// ---- a tap: its sheet (the camera's for what a camera sees), a page, the camera, nothing
+ok('a tap opens its sheet', JSON.stringify(N.target({ tap: 'sheet', entity: 'binary_sensor.door', sheet: 'binary_sensor.door' })) === '{"sheet":"binary_sensor.door"}');
+ok('...the sheet the house names (the camera, for a person at the door)',
+   N.target({ tap: 'sheet', entity: 'binary_sensor.front_person', sheet: 'camera.front' }).sheet === 'camera.front');
+ok('...no sheet named: its accessory', N.target({ entity: 'lock.front' }).sheet === 'lock.front');
+ok('a page', N.target({ tap: 'page', page: 'kitchen', entity: 'lock.front' }).page === 'kitchen');
+ok('...a page not named: its sheet', N.target({ tap: 'page', entity: 'lock.front' }).sheet === 'lock.front');
+ok('the live camera', N.target({ tap: 'camera', camera: 'camera.garage', entity: 'cover.garage' }).sheet === 'camera.garage');
+ok('nothing', N.target({ tap: 'none', entity: 'lock.front' }) === null && N.target({ tap: 'sheet' }) === null);
 ok('owns nothing before a banner', window.hkNotify.owns({ composedPath: function () { return []; } }) === false);
 
 // ---- the settings page's words

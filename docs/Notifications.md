@@ -13,6 +13,11 @@ is nothing to answer; everything is on its HK Settings page,
 Accessory** (your own notifications and **Add Notification**), **Where They
 Show** and **Banner**.
 
+Banners show on the dashboards HK Frontend knows: the screens it builds, and
+any dashboard of your own added under **Screens → Add Screen → Existing
+Dashboards**. A dashboard that isn't added never shows them (nor do Home
+Assistant's own pages, such as Settings).
+
 ![Features → Notifications in HK Settings: Categories, One Accessory, Where They Show and Banner](images/settings-notifications.png)
 *Features → Notifications in HK Settings.*
 
@@ -69,7 +74,11 @@ before. Each event’s banner is its name, then when and where it is (“In 15
 minutes · 10:30 – 11:00 AM · the park”). The house looks ahead every minute
 with Home Assistant’s own calendar events, and sends each event once.
 **All-Day Events**: the morning one starts, at 6, 7, 8 (to start with), 9 or
-10 AM — “Today · All Day” — or Off.
+10 AM — “Today · All Day” — or Off. A tap on the banner opens the event’s
+sheet, with **Go To** the Calendar at that day.
+
+![The Calendars category in HK Settings: Notify, the calendars that take part, Goes Off When and All-Day Events](images/settings-notifications-calendars.png)
+*The Calendars category: tick the calendars, then choose when.*
 
 ### Cameras
 
@@ -110,7 +119,9 @@ and its camera are suggested from what the accessory is; change any of them.
 | **Wakes the Screen** | Default follows **All Notifications** (below); or **On** / **Off** for this one. Wakes every screen that allows notifications from the [Sleep Screen](Sleep-Screen.md)’s dark — quiet hours too — up to its **screensaver**, the banner over the photos; a screen already on its screensaver stays on it and shows the banner. Do Not Disturb still wins: one that isn’t Important neither shows nor wakes a screen in Do Not Disturb. |
 | **Not Where a Pop-up Shows** | A screen that opens this pop-up for it shows the pop-up alone. The doorbell’s is `#doorbell`, so the wall tablets show the doorbell pop-up and phones and computers show the banner. |
 | **Camera Snapshot**, **Camera** | A picture taken the moment it goes off. A camera’s own sensor suggests the camera on the same device; any notification can have one (someone arriving can show the driveway). For an accessory with no camera of its own (a washer), turning it on asks which camera first. |
-| **Tap Opens** | What a tap on the picture does: **Live Camera** (with a snapshot), **Accessory Sheet**, or **Nothing**. |
+| **Tap Opens** | What a tap on the banner opens: **Its Sheet** (the accessory’s, with the notification on it — below), **A Page** of the screen’s own dashboard (**Page**: Security, Kitchen…), **Live Camera** (with a snapshot), or **Nothing**. A calendar’s: **The Event**. |
+| **Go To** | The page button on its sheet. **Automatic**: the page the screen shows it on (a door: Doors & Windows; a lock, a garage door, the alarm: Security; a leak: Water; a vacuum: Vacuums; a camera: Cameras; a calendar’s event: the Calendar at that day), else its room’s page. Or **None**, or a page you pick. |
+| **Muted until …** | Shown while it is muted from its sheet (**Mute 1 Hour**, below); **Unmute** ends it. |
 
 **Send Test** shows it now on every screen that allows notifications, as if
 it went off, marked *Test*. **Delete Notification…** removes it.
@@ -124,12 +135,23 @@ it went off, marked *Test*. **Delete Notification…** removes it.
 - It shows over the dashboard, and over the photo screensaver as **On the
   Screensaver** says ([Where they show](#where-they-show)).
 - **Swipe it up or sideways** to dismiss it.
-- **Tap it** (or pull it down) to open it: the snapshot big, and buttons for
-  what the accessory can do now — **Close** a garage door, **Lock** a lock,
-  **Open Camera**.
+- **Tap it** (or pull it down) to open its sheet — the accessory’s own, the
+  one its tile opens, with the notification on it: what happened and when,
+  the snapshot, **its page** (Doors & Windows, Security…) and **Mute 1 Hour**.
+  Below that, the sheet is the accessory’s: **Hold to Close** the garage door,
+  **Disarm** with the keypad, the door’s last 24 hours. For what a camera sees
+  (someone at the door, the doorbell, a package) it is the camera’s, live.
+  A calendar’s event opens the event; a person’s, their sheet (where they
+  are). Tap Opens can make it a page, the live camera, or nothing instead.
 
-![A notification opened: the doorbell camera's snapshot big, its Live button, and OK](images/notification-open.png)
-*A banner tapped open: the snapshot big, Live for the camera, and OK.*
+![A notification opened on a wall tablet: the notification on the left, the door's own sheet on the right](images/notification-sheet.png)
+*On a wall tablet the sheet opens in its two-column size: the notification on the left, the door’s sheet as its tile opens it on the right. On a phone the notification is a card at the top of the sheet. Every sheet keeps its size.*
+
+- **Mute 1 Hour** quiets that notification for an hour on every screen — for
+  a category, just that accessory (the Kitchen Back Door, not every door).
+  Anyone can mute from a sheet, a wall tablet too; HK Settings shows
+  **Muted until 9:42 PM** on the notification, with **Unmute**. A mute is
+  kept until it runs out or Home Assistant restarts.
 
 - **Several at once** stack, the newest on top, with **N more** and
   **Clear All** under them. N more fans them out into a list; each one can be
@@ -185,9 +207,10 @@ don’t cover: the washer finishing, a reminder, a door left open too long.
 | **Wakes the Screen** | Turns a sleeping screen on, up to its screensaver, to show it. Do Not Disturb still holds it back unless it is Important. |
 | **Stays On Screen** | Seconds; 0 keeps it until dismissed. Empty: All Screens’ Stays On Screen. |
 | **Icon** | Any `hk:` or `mdi:` icon. |
-| **Accessory** | Its icon and buttons (Close a garage door, Lock a lock); a tap opens its sheet. |
-| **Camera** | A snapshot taken the moment it is sent; a tap opens the live view. |
-| **Tap Opens** | **Camera**, **Sheet** or **None**. |
+| **Accessory** | Its icon; a tap opens its sheet, with the banner on it. |
+| **Camera** | A snapshot taken the moment it is sent. |
+| **Tap Opens** | **sheet** (the accessory’s), **camera** (live), **page** (the **Page** below) or **none**. Empty: the page, else the camera, else the accessory, else nothing. |
+| **Page** | A page of the screen’s own dashboard, by its address (`kitchen`, `security`, `room-office`): a tap opens it — “Dinner’s ready” opens the Kitchen. |
 | **Dashboards** | Only these screens (their addresses, `dashboard-kitchen`). Empty: every screen. |
 | **Users** | Only screens signed in as these users (user ids). Empty: everyone. |
 

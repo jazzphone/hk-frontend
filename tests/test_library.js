@@ -1222,4 +1222,29 @@ print('\n=== a cold load that beats the music configuration recovers ===');
 globalThis.addEventListener = realAdd;
 globalThis.removeEventListener = realRemove;
 
+
+// THE EDITOR'S FIELDS, by name (sections and grids flattened)
+function editorFields(tag) {
+  var K = customElements.get(tag), p = K.getConfigElement(),
+      EC = customElements.get(String(p.tagName).toLowerCase());
+  var ed = new EC();
+  if (!ed.appendChild) ed.appendChild = function () {};
+  ed.setConfig({});
+  var out = {};
+  (function walk(s) { (s || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+  return out;
+}
+
+print('\n=== its editor ===');
+var LF = editorFields('hk-library-card');
+ok('Speaker (player) is in it, a media player', LF.player && LF.player.label + ' ' + JSON.stringify(LF.player.selector),
+   'Speaker {"entity":{"filter":{"domain":"media_player"}}}');
+var lp = card('Kitchen'); lp._config.player = 'media_player.loft_homepod_ma';
+ok('...and it is what the card plays on, over the screen\'s room', lp._player(), 'media_player.loft_homepod_ma');
+ok('Hide Categories picks several of Music Assistant\'s categories',
+   LF.hide && LF.hide.selector.select.multiple + ' ' + LF.hide.selector.select.options.map(function (o) { return o.value; }).join(','),
+   'true artists,albums,tracks,playlists,radio,podcasts,audiobooks');
+ok('Discover Rows is YAML (each row is a query)', LF.discover && JSON.stringify(LF.discover.selector), '{"object":{}}');
+ok('Fallback speaker stays', !!LF.fallback_player, true);
+
 print('\n' + (fail ? 'FAILURES: ' + fail : 'ALL ' + pass + ' LIBRARY TESTS PASS'));

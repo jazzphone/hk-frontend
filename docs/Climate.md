@@ -30,7 +30,7 @@ Tap any summary to open a sheet of accessory pills. Each pill carries its room
 and current reading or state. Even a summary with only one source opens this
 list.
 
-![Temperature sources shown as room-labelled pills](images/sheet-climate-temperature.jpg)
+![Temperature sources shown as room-labeled pills](images/sheet-climate-temperature.jpg)
 
 Tap a pill to open that accessory’s controls or sensor details. **Back to
 Temperature** (or the category you opened), closing the accessory sheet, or
@@ -39,7 +39,7 @@ Climate. Escape and the backdrop also dismiss a sheet. Left alone, an accessory
 opened from a category closes together with the category.
 
 The summary and its open list update as readings and membership change. An
-unavailable reading stays in the list, labelled **Unavailable**, and does not
+unavailable reading stays in the list, labeled **Unavailable**, and does not
 affect the range. If every reading is unavailable, the summary says so.
 
 <img src="images/phone-climate-temperature.jpg" width="300" alt="The Temperature list on a phone, using fictional readings">
@@ -53,19 +53,43 @@ reading is used instead. Target temperatures are never range readings.
 Unrelated equipment and diagnostic sensors are not pulled in just because
 they report temperature or humidity.
 
-To adjust individual sources, open **HK Settings → All Screens → Status & Chips
-→ Temperature** or **Humidity**. **Leave Out…** removes a source; **Also
-Count…** adds a compatible source. Exclusions win if a source is in both
-lists. **Reset to Automatic…** restores automatic discovery.
+To adjust individual sources, change the source itself. To drop one, hide it
+from **Temperature** or **Humidity** in **HK Settings → Library → Accessories
+→ Hidden Accessories** ([Hidden Accessories](Accessories.md#hidden-accessories)).
+To add a compatible sensor that isn’t found, turn on its **Also Count As →
+Temperature** or **Humidity** on its own settings page
+([Also Count As](Accessories.md#also-count-as)). **By Page → Temperature →
+Show All Again…** brings back everything automatic discovery finds.
+**Accessories → What Counts → Temperature** or **Humidity** lists what is
+counted now.
 
-Fans and blinds follow the existing **Status & Chips → Fans / Blinds** lists,
-including any switches explicitly counted as fans. Generated-screen
-accessory exclusions still apply.
+Fans and blinds follow what **What Counts → Fans / Blinds** count, including
+any switches counted as fans. Anything hidden everywhere stays off the page.
+
+The thermostats on the page are the ones **What Counts → Thermostats** finds.
+To keep one off the Climate page and chip but in its room (a water heater, for
+example), hide it from **Climate** alone in Hidden Accessories, or turn off
+**Climate** under its **Where it shows**.
 
 To leave an entire area out of the Climate summaries, uncheck it in
 **All Screens → Status Rows → Climate → Rooms**. This is useful for outdoor areas, an attic
 or equipment spaces. It affects the Climate summary row and its lists; it
 does not hide that area’s accessories from the rest of the dashboard.
+
+## The dial
+
+Each thermostat is a dial, as in the Home app: the current temperature, the
+target and the mode buttons under it. Drag the dot around the dial, with a
+finger or the mouse, to set the target: the dot and its colored band follow
+you as you drag, and the number changes with them. A thermostat set to heat
+and cool has two dots, one for each setpoint, and they never cross. Let go
+and the thermostat is set; the dot stays where you put it while the
+thermostat catches up, and a reading that arrives in the meantime doesn't
+snap it back. The same dial is on the thermostat's detail sheet, and on a
+water heater's.
+
+![A thermostat's detail sheet: the dial with its target, the modes, and the last 24 hours](images/sheet-thermostat.png)
+*A thermostat's sheet: drag the dot to set the target.*
 
 ## Thermostat layout
 

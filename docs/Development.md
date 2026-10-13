@@ -17,7 +17,8 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ settings_api.py      the HK Settings page's writes, checked as Configure checks them
 ├─ panel.py             the HK Settings page: registration and its read commands
 ├─ accessories.py       per-accessory settings (name, room, icon, where it shows)
-├─ kinds.py             Status & Chips: which entities each status chip counts
+├─ kinds.py             What Counts: which entities each status chip counts
+├─ hiding.py            Hidden Accessories: where each accessory is hidden, and Also Count As
 ├─ files.py             your files folder, served under /hk/ ahead of the bundle
 ├─ resources.py         adds the card files as Lovelace resources (storage mode)
 ├─ setup_check.py       Setup Check, and the Repairs issues

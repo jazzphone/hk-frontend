@@ -38,6 +38,10 @@ gets it once **Calendar** is added there.
   slides over to the new view.
 - **The arrows** go back and forward a month, a week or a day; a sideways
   swipe does the same. **Today** comes back.
+- **Weeks start** on the first day of the week in your Home Assistant
+  profile (left to the language’s default, Sunday for English), in the
+  week, the month and the small month alike, as the
+  [Energy](Energy.md) page's weeks do.
 - **New Event** (or a tap on an empty hour in Week or Day, or **Add an Event**
   under a day) opens the event sheet: Title, Location, All-day, Starts and
   Ends (with quick times around the start), Repeat (never, daily, weekly,

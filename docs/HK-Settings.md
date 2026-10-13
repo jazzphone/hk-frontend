@@ -31,9 +31,9 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **Status & Chips**, **[Status Rows](Status-Rows.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **[Cameras](Cameras.md)**, **Wall Tablets** | Every screen |
+| **All Screens** | **General**, **[Status Rows](Status-Rows.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **[Cameras](Cameras.md)**, **Wall Tablets** | Every screen |
 | **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **Energy**, **[Notifications](Notifications.md)** | Every screen |
-| **Library** | **Accessories**, **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
+| **Library** | **[Accessories](Accessories.md#accessories-settings)** (with [Hidden Accessories](Accessories.md#hidden-accessories) and [What Counts](Status-Chips.md#what-counts)), **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
 
 ![The Screens list in HK Settings](images/settings-screen.png)
@@ -80,11 +80,11 @@ sizes read **Portrait** and **Landscape**.
   - **More**: what you can add. Tap the green plus.
   - **Add…** opens a searchable list. Tap one to add it, or tap **Select** to
     tick several (they stay ticked while you change the search), or **Select
-    All** to tick everything the search matches, then **Add**. Hiding a
-    dozen sensors from your screens is one search and two taps.
+    All** to tick everything the search matches, then **Add**. Adding a
+    dozen sensors to Also Shown is one search and two taps.
 - **Removing, deleting and going back to Automatic ask first.**
 - **Back returns to the page you came from.** A page you reached from a link on
-  another page (a screen’s link to Status & Chips, say) goes back there.
+  another page (a screen’s link to What Counts, say) goes back there.
 
 ## Search
 
@@ -112,8 +112,10 @@ When the same thing can be set in more than one place, the most specific wins:
 | Alarm Panel | No Alarm | The alarm for the header’s security line, the Security chip and page, and every alarm keypad that names no panel of its own. When none is chosen, the page offers **Use (your first alarm panel)**; a generated screen’s Security page uses the first alarm panel until you choose. |
 | House Timers | None | Timer helpers people start themselves (a nap, bedtime), shown as one-tap pills on the Timers page, in order. Each starts for its own duration and is named as the timer is, less a trailing “Timer”. |
 
-The chips’ Indoor Temperature and Power Use are under
-[Status & Chips → Readings](Status-Chips.md#status--chips).
+The chips’ Indoor Temperature and Power Use are on the Climate and Energy
+chips’ own pages, under a screen’s
+[Status Chips](Status-Chips.md#status-chips-settings); they are the same on
+every screen.
 
 ## Advanced
 
@@ -156,8 +158,8 @@ optional, and each has a fallback.
 | Setting | Typically points at | Left empty |
 |---|---|---|
 | Advanced → Time Sensor, Date Sensor | `sensor.time`, `sensor.date` (Time & Date) | Each screen’s own clock |
-| Status & Chips → Indoor Temperature | Any temperature sensor (an average, say) | The first thermostat’s reading |
-| Status & Chips → Power Use | A whole-home power sensor | No Energy chip |
+| Status Chips → Climate → Indoor Temperature | Any temperature sensor (an average, say) | The first thermostat’s reading |
+| Status Chips → Energy → Power Use | A whole-home power sensor | No Energy chip |
 | Weather → Sensors → forecasts | Template sensors over `weather.get_forecasts` | Read from the weather entity |
 | Weather → Sensors → Weather Alerts | The NWS Alerts integration (HACS) | No alerts chip or card |
 | Sky → Sky Switch | An input boolean | Always on |

@@ -18,8 +18,10 @@
                every other kind does not.
     status     False: left out of the status chips (Status & Chips). None: as
                found.
-    home       False: not shown on a generated dashboard's rooms and pages.
-               None: shown.
+    home       False: not in its room's section on a generated Home. None:
+               shown.
+    room       False: not on its own room's page (2026-10-12, Hidden
+               Accessories). None: shown.
     color      its color as a scene pill, a chip or a favorite (white,
                yellow, blue ...) -- a favorite's glyph when it is on.
     on_text    WHAT ITS STATES ARE CALLED on its tiles and as a
@@ -81,7 +83,7 @@ AREA = re.compile(r"^[a-z0-9_]+$")
 PATH = re.compile(r"^[a-z0-9_-]+$")
 PAGE_ORDERS = ("vacuums", "security")
 ATTR = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_ .-]{0,59}$")
-FIELDS = ("name", "icon", "show_as", "size", "anim", "status", "home", "color", "when", "label", "attribute",
+FIELDS = ("name", "icon", "show_as", "size", "anim", "status", "home", "room", "color", "when", "label", "attribute",
           "fav_name", "fav_icon", "fav_with", "fav_room", "on_text", "off_text")
 FAV_WITH_MAX = 8
 
@@ -122,7 +124,7 @@ def clean_entity(v: Any) -> dict[str, Any]:
     # as a chip: an attribute shown in place of the state
     if isinstance(v.get("attribute"), str) and ATTR.match(v["attribute"].strip()):
         out["attribute"] = v["attribute"].strip()
-    for k in ("status", "home"):
+    for k in ("status", "home", "room"):
         if v.get(k) is False:
             out[k] = False
     fav_name = v.get("fav_name")
@@ -202,7 +204,8 @@ class Accessories:
         async_dispatcher_send(self.hass, SIGNAL_CONFIG)
 
     @callback
-    def set(self, entity_id: str, changes: dict[str, Any], screen: str | None = None) -> dict[str, Any]:
+    def set(self, entity_id: str, changes: dict[str, Any], screen: str | None = None,
+            quiet: bool = False) -> dict[str, Any]:
         """Apply `changes` to one accessory: a key set to None (or False where
         False is the default's opposite) goes back to automatic. `screen`
         with `name`: the name on that dashboard only."""
@@ -218,7 +221,7 @@ class Accessories:
             elif k in FIELDS:
                 if k == "fav_with" and isinstance(v, list):
                     v = [x for x in v if x != entity_id]          # never with itself
-                if v is None or (k in ("status", "home") and v is True):
+                if v is None or (k in ("status", "home", "room") and v is True):
                     cur.pop(k, None)
                 else:
                     cur[k] = v
@@ -227,8 +230,17 @@ class Accessories:
             self.data["entities"][entity_id] = new
         else:
             self.data["entities"].pop(entity_id, None)
-        self._changed()
+        if not quiet:
+            self._changed()
         return new
+
+    @callback
+    def set_many(self, changes: dict[str, dict[str, Any]]) -> None:
+        """Several accessories at once (Hidden Accessories): one save, one
+        nudge to the screens."""
+        for eid, ch in changes.items():
+            self.set(eid, ch, quiet=True)
+        self._changed()
 
     @callback
     def into(self, area_id: str, target: str | None) -> dict[str, str]:
@@ -299,6 +311,7 @@ def current(hass: HomeAssistant) -> dict[str, Any]:
     vol.Optional("anim"): vol.Any(None, vol.In(ANIMS)),
     vol.Optional("status"): vol.Any(None, bool),
     vol.Optional("home"): vol.Any(None, bool),
+    vol.Optional("room"): vol.Any(None, bool),
     vol.Optional("color"): vol.Any(None, vol.In(COLORS)),
     vol.Optional("when"): vol.Any(None, vol.All(str, vol.Length(max=60))),
     vol.Optional("label"): vol.Any(None, vol.All(str, vol.Length(max=40))),

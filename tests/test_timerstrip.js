@@ -17,6 +17,16 @@ load(HK_ROOT + '/tests/dom.js');
 load(HK_ROOT + '/tests/card_harness.js');
 load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-home.js');
+function editorFields(tag) {
+  var C = customElements.get(tag), probe = C.getConfigElement();
+  var EC = customElements.get(String(probe.tagName || '').toLowerCase());
+  var ed = EC ? new EC() : probe;
+  if (!ed.appendChild) ed.appendChild = function () {};
+  ed.hass = { states: {} }; ed.setConfig({ type: 'custom:' + tag });
+  var out = {};
+  (function walk(list) { (list || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+  return out;
+}
 
 var RUNNING = 'sensor.running_quick_timers';
 var PASTA = { entity_id: 'timer.quick_1', name: 'Pasta', finishes_at: '2026-09-26T12:10:00+00:00' };
@@ -116,5 +126,14 @@ H.run('TIMER STRIP', [
     return H.lifecycle('timer strip', card, house, function (c) {
       c.hass = house.set(RUNNING, '1', { running: [OVEN] });
     });
+  },
+
+  // THE EDITORS offer what the cards read: the strip's `docked`, the
+  // vacuum's tap.
+  function () {
+    H.section('editors');
+    var strip = editorFields('hk-timer-strip-card'), vac = editorFields('hk-vacuum-card');
+    H.ok('hk-timer-strip-card: Docked', !!strip.docked && !!strip.docked.selector.boolean && !!strip.docked.helper);
+    H.ok('hk-vacuum-card: tap_action', !!vac.tap_action && !!vac.tap_action.selector.ui_action);
   }
 ]);

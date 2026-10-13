@@ -159,8 +159,9 @@ var a = M.amountOf({ frost: null }, { frost: 30 }, 'frost');
 ok('amounts: null follows All Screens’', !a.own && a.value === 30);
 a = M.amountOf({ blur: 0 }, { blur: 50 }, 'blur');
 ok('amounts: 0 is a value of its own, not "follow"', a.own && a.value === 0);
-ok('amounts: only the one the glass uses is shown', eq(M.amountsFor('frosted'), { frost: true, blur: false }) &&
-   eq(M.amountsFor('blur_each'), { frost: false, blur: true }) && eq(M.amountsFor('clear'), { frost: false, blur: false }));
+ok('amounts: only the one the glass uses is shown', eq(M.amountsFor('frosted'), { frost: true, blur: false, tint: false }) &&
+   eq(M.amountsFor('blur_each'), { frost: false, blur: true, tint: false }) && eq(M.amountsFor('clear'), { frost: false, blur: false, tint: false }) &&
+   eq(M.amountsFor('tinted'), { frost: false, blur: false, tint: true }));
 
 // ------------------------------------------------------------ sky
 var BI = { halloween: { north: ['09-22', '10-31'], south: ['09-22', '10-31'] }, spring: { north: ['03-20', '06-20'], south: ['09-22', '12-20'] } };
@@ -307,6 +308,16 @@ ok('filled in from the house: the weather, the tablet user, the photos folder',
    M.yamlRefText(M.yamlRefItem('weather'), { weather: 'weather.forecast_home' }).indexOf('entity: weather.forecast_home') > 0 &&
    M.yamlRefText(M.yamlRefItem('screensaver'), { user: 'Den Tablet', photos: null }).indexOf('user: Den Tablet ') > 0 &&
    M.yamlRefText(M.yamlRefItem('screensaver'), {}).indexOf('photos: media-source://media_source/local/photos') > 0);
+ok('Music offers the whole Music page first, with a now-playing example',
+   /^- type: custom:hk-music-card/.test(M.yamlRefItem('music').yaml) && M.yamlRefItem('music').key === 'hk-music-card' &&
+   M.yamlRefItem('music').yaml.indexOf('hk-now-playing-card') > 0 && M.yamlRefItem('music').yaml.indexOf('hk-speaker-picker-card') < 0);
+var barRef = M.yamlRefItem('media_bar');
+ok('The Now Playing Bar: the docked #media pop-up generated screens use, opened by the music, holding the bar',
+   !!barRef && barRef.title === 'The Now Playing Bar' && /views it is placed in/.test(barRef.sub) &&
+   ['type: custom:hk-popup-card', "hash: '#media'", 'position: bottom', 'modal: false', 'dock: true',
+    'condition: state', 'state: playing', '- type: custom:hk-now-playing-card', 'bar: true']
+     .every(function (l) { return barRef.yaml.indexOf(l) >= 0; }) &&
+   M.YAML_REF.filter(function (g) { return g.items.indexOf(barRef) >= 0; })[0].header === 'Cards');
 ok('the kiosk summary on a screen\'s Header & Sidebar row',
    M.kioskSummary({ kiosk: true }, true) === 'Both Hidden' && M.kioskSummary({ kiosk: true, kiosk_sidebar: false }, false) === 'Header Hidden' &&
    M.kioskSummary({ kiosk: true, kiosk_engine: 'kiosk_mode' }, true) === 'Kiosk Mode Plugin' &&
@@ -447,17 +458,24 @@ ok('All Screens\' phone keys read as a screen\'s, and save back', hb.button_phon
    M.houseMenuAsBoard({}).button_phone === 'chip' && M.houseMenuAsBoard({}).tab_bar_rooms_phone === 'more' &&
    M.houseMenuAsBoard({ bar_glass: 'clear' }).tab_bar_glass === 'tinted' && !('narrow' in M.houseMenuAsBoard({})) &&
    eq(M.houseMenuSave({ button_phone: 'chip', tab_bar_rooms_phone: null }), { 'menu.button_phone': 'chip', 'menu.bar_rooms_phone': null }));
-// THE GLASS (2026-10-10): Glass, Frosted, Blur -- and Blur's three modes
-ok('glass: three styles, Blur\'s three modes, one stored value each',
-   eq(M.GLASS_STYLES.map(function (g) { return g[0]; }), ['clear', 'frosted', 'blur']) &&
+// THE GLASS (2026-10-10): Glass, Frosted, Tinted (2026-10-12), Blur -- and Blur's three modes
+ok('glass: four styles, Blur\'s three modes, one stored value each',
+   eq(M.GLASS_STYLES.map(function (g) { return g[0]; }), ['clear', 'frosted', 'tinted', 'blur']) &&
    eq(M.BLUR_MODES.map(function (g) { return g[0]; }), ['blur', 'blur_pre', 'blur_each']) &&
-   eq(M.GLASS.map(function (g) { return g[0]; }), ['clear', 'frosted', 'blur', 'blur_pre', 'blur_each']));
+   eq(M.GLASS.map(function (g) { return g[0]; }), ['clear', 'frosted', 'tinted', 'blur', 'blur_pre', 'blur_each']));
+ok('...Tinted is a style of its own, named, with its Darkness and Icon Circles',
+   M.glassStyle('tinted') === 'tinted' && M.glassLabel('tinted') === 'Tinted' && !M.isBlur('tinted') &&
+   /Darkness/.test(M.glassFooter('tinted')) && /Icon Circles/.test(M.glassFooter('tinted')) &&
+   eq(M.TINT_WELLS.map(function (w) { return w[0]; }), ['dark', 'light']));
+ok('...a screen copies its darkness and circles with its glass',
+   M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf('tint') >= 0 &&
+   M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf('well') >= 0);
 ok('...named as you would say them', M.glassLabel('clear') === 'Glass' && M.glassLabel('frosted') === 'Frosted' &&
    M.glassLabel('blur') === 'Blur · Shared Layer' && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.glassLabel('blur_each') === 'Blur · Each Card');
 ok('...each value\'s style', M.glassStyle('blur_pre') === 'blur' && M.glassStyle('blur_each') === 'blur' && M.glassStyle('blur') === 'blur' &&
    M.glassStyle('frosted') === 'frosted' && M.glassStyle('clear') === 'clear' && M.glassStyle(undefined) === 'clear' &&
    M.isBlur('blur_pre') && !M.isBlur('frosted'));
-ok('...Pre-rendered has the Blur amount, and says so', eq(M.amountsFor('blur_pre'), { frost: false, blur: true }) && /Blur: how strong/.test(M.glassFooter('blur_pre')));
+ok('...Pre-rendered has the Blur amount, and says so', eq(M.amountsFor('blur_pre'), { frost: false, blur: true, tint: false }) && /Blur: how strong/.test(M.glassFooter('blur_pre')));
 ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return m[2].length > 60; }) &&
    /lightest/i.test(M.BLUR_MODES[1][2]) && /heaviest/i.test(M.BLUR_MODES[2][2]) &&
    /every frame/.test(M.BLUR_MODES[0][2]) && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.isBlur('blur_pre') && !M.isBlur('blur_baked'));

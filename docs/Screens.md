@@ -55,7 +55,7 @@ strategy:
   rooms: false                         # no room pages
 ```
 
-The lists add to **HK Settings → Accessories → Hidden from Screens** and
+The lists add to **HK Settings → Accessories → Hidden Accessories** and
 **Also Shown**, which apply to every generated screen. Then give the dashboard
 its settings as described next.
 

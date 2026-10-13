@@ -43,6 +43,29 @@
   if (window.hkMusicPage) return;
   var HkBase = C.HkBase, M = C.M, register = C.register, esc = C.esc;
 
+  // MUSIC NOT ADDED (2026-10-12): one line saying so, instead of a page of empty rooms.
+  // ONLY ON THE INTEGRATION'S OWN ANSWERS -- hkMusic.configured() is false
+  // until hk_music/subscribe answers, and the settings feed's `added` is a
+  // stored copy until it is live -- so a house WITH Music never sees it while
+  // a page loads. (The same rule as hk-media.js's.)
+  var NO_MUSIC = 'Add the Music feature to play music here (Settings → Devices & services → HK Frontend → Add feature).';
+  function musicMissing() {
+    var Mu = window.hkMusic, HS = window.hkSettings;
+    if (!Mu || !Mu.configured || Mu.configured()) return false;
+    return !!(HS && HS.live && !(C.added && C.added('music')));
+  }
+  function drawNoMusic(card) {
+    card._root.innerHTML = '';
+    var el = document.createElement('ha-card');
+    el.setAttribute('data-hk-role', 'no-music');
+    el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
+      M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
+      'color:var(--hk-ink-2,rgba(255,255,255,0.68))';
+    el.textContent = NO_MUSIC;
+    card._root.appendChild(el);
+    card._built = false;
+  }
+
   var ICON = {
     prev: 'M6 6h2v12H6zm3.5 6 8.5 6V6z', next: 'M6 18l8.5-6L6 6v12zM16 6v12h2V6z',
     play: 'M8 5.14v13.72a1 1 0 0 0 1.52.85l10.6-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z',
@@ -116,7 +139,7 @@
     // ...the desk's rooms column: Speakers alone, always open
     '.rooms .mpanel{display:block;position:absolute;inset:0}',
     '.rooms .mptabs div:not(.on),.rooms .mpx{display:none}',
-    '.rooms .mptabs{background:none;border:0;padding:0;-webkit-backdrop-filter:none;backdrop-filter:none}',
+    '.rooms .mptabs{background:none;border:0;padding:0}',
     '.rooms .mptabs div.on{color:#fff;font-size:17px;padding:0 2px}',
     '.rooms .mptabs div.on::before{display:none}',
     '.rooms.hl .mpanel{animation:muhl .9s ease}',
@@ -160,7 +183,7 @@
     // (its one row exactly the page's height below the title: an auto row
     // grew to everything Browse holds, so Browse never scrolled in itself --
     // a finger on it moved nothing; a wheel moved the whole page)
-    '.mu{position:relative;display:grid;column-gap:36px;height:var(--mu-h,auto);color:#fff}',
+    '.mu{position:relative;display:grid;column-gap:36px;height:var(--mu-h,auto);color:var(--hk-ink,rgba(255,255,255,0.94))}',
     '.mu:not([cols="1"]){grid-template-rows:minmax(0,1fr)}',
     '.mu[cols="2"]{grid-template-columns:352px minmax(0,1fr)}',
     '.mu[cols="3"]{grid-template-columns:400px minmax(0,1fr) 380px;column-gap:48px}',
@@ -176,11 +199,11 @@
     '.mu[cols="3"] .rooms{display:block}',
     // (a plate of its own, not the shared blur -- see _turn; the page behind
     // it is the blurred cover already)
-    '.glass{background:' + M.bg + ';border:' + M.border + ';box-shadow:0 6px 18px rgba(0,0,0,0.10)}',
+    '.glass{background:' + M.bg + ';border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10))}',
     // PLAYING ON: as tall as the search beside it and level with it; Change
     // a button inside it, inset 7 px and concentric with it (18 - 7 = 11)
     '.pon{flex:none;display:flex;align-items:center;gap:10px;height:50px;padding:0 7px 0 14px;border-radius:18px;margin-bottom:14px;box-sizing:border-box}',
-    '.pon ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:#fff;flex:none;display:flex}',
+    '.pon ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);flex:none;display:flex}',
     '.pon .tx{flex:1;min-width:0;line-height:1.2}',
     '.pon .tx small{display:block;font-size:11px;font-weight:700;letter-spacing:.8px;opacity:.6;text-transform:uppercase}',
     '.pon .tx b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -192,17 +215,17 @@
     '.house:empty{display:none}',
     '.house .hl{font-size:11px;font-weight:700;letter-spacing:.8px;opacity:.6;text-transform:uppercase;margin:0 2px 2px}',
     '.cx{display:flex;align-items:center;gap:10px;height:52px;padding:0 10px 0 6px;border-radius:14px;cursor:pointer;box-sizing:border-box;',
-    '  background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.10)}',
-    '.cx.on{background:rgba(255,255,255,.18);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55);cursor:default}',
-    '.cx .th{width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.10);flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+    '  background:var(--hk-key,rgba(255,255,255,.06));box-shadow:inset 0 0 0 1px var(--hk-line,rgba(255,255,255,.10))}',
+    '.cx.on{background:var(--hk-key,rgba(255,255,255,.18));box-shadow:inset 0 0 0 1.5px var(--hk-mark,rgba(255,255,255,.55));cursor:default}',
+    '.cx .th{width:40px;height:40px;border-radius:8px;background:var(--hk-key,rgba(255,255,255,.10));flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
     '.cx .th img{width:100%;height:100%;object-fit:cover;display:block}',
-    '.cx .th ha-icon,.cx .th svg{--mdc-icon-size:20px;width:20px;height:20px;fill:rgba(255,255,255,.5);color:rgba(255,255,255,.5)}',
+    '.cx .th ha-icon,.cx .th svg{--mdc-icon-size:20px;width:20px;height:20px;fill:var(--hk-glyph,rgba(255,255,255,.5));color:var(--hk-glyph,rgba(255,255,255,.5))}',
     '.cx .t{flex:1;min-width:0;line-height:1.2}',
     '.cx .t b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.cx .t small{display:block;font-size:12px;opacity:.7;white-space:nowrap;overflow:hidden}',
     '.cx .sw{font-size:12px;font-weight:600;opacity:.75;flex:none}',
     '.cx .eq{display:flex;gap:2px;align-items:flex-end;height:12px;flex:none}',
-    '.cx .eq i{width:3px;height:12px;background:#fff;border-radius:1px;transform-origin:50% 100%;animation:mueq 1s ease-in-out infinite}',
+    '.cx .eq i{width:3px;height:12px;background:var(--hk-glyph,#fff);border-radius:1px;transform-origin:50% 100%;animation:mueq 1s ease-in-out infinite}',
     '.cx .eq i:nth-child(2){animation-delay:-.3s}.cx .eq i:nth-child(3){animation-delay:-.6s}',
     '.cx.paused .eq i{animation:none;transform:scaleY(.3)}',
     '@keyframes mueq{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}',
@@ -218,42 +241,42 @@
     // the spare room at the column's foot -- not centered in it, which left a
     // band of empty above and below the art on a desk
     '.mu:not([cols="1"]) .artbox{flex:0 1 auto;aspect-ratio:1 / 1;min-height:120px}',
-    '.art{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:22px;overflow:hidden;background:rgba(255,255,255,.08);',
+    '.art{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:22px;overflow:hidden;background:var(--hk-key,rgba(255,255,255,.08));',
     '  box-shadow:0 18px 44px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}',
     '.art img{width:100%;height:100%;object-fit:cover;display:block}',
-    '.art ha-icon{--mdc-icon-size:72px;width:72px;height:72px;color:rgba(255,255,255,.4)}',
+    '.art ha-icon{--mdc-icon-size:72px;width:72px;height:72px;color:var(--hk-glyph,rgba(255,255,255,.4))}',
     '.tt{font-size:26px;font-weight:700;letter-spacing:-.3px;margin-top:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}',
     '.st{font-size:17px;opacity:.75;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}',
     '.prog{margin-top:16px;flex:none}',
-    '.prog .b{height:5px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden}',
+    '.prog .b{height:5px;border-radius:3px;background:var(--hk-line,rgba(255,255,255,.22));overflow:hidden}',
     '.prog .b i{display:block;height:100%;background:rgba(255,255,255,.92);transform-origin:0 50%;transform:scaleX(0)}',
     '.prog .t{display:flex;justify-content:space-between;font-size:12px;opacity:.6;margin-top:6px;font-variant-numeric:tabular-nums}',
     // the transport across the column, room round each button
     '.tr{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:0 2px;flex:none}',
     '.tr .p{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s}',
-    '.tr .p:active{background:rgba(255,255,255,.14)}',
-    '.tr .p svg{width:30px;height:30px;fill:#fff}',
+    '.tr .p:active{background:var(--hk-key,rgba(255,255,255,.14))}',
+    '.tr .p svg{width:30px;height:30px;fill:var(--hk-glyph,#fff)}',
     '.tr .p.big svg{width:42px;height:42px}',
     '.tr .x{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;',
-    '  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.30);background:rgba(255,255,255,.06)}',
-    '.tr .x svg{width:21px;height:21px;fill:#fff}',
-    '.tr .x ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:#fff;display:flex}',
+    '  box-shadow:inset 0 0 0 1.5px var(--hk-line,rgba(255,255,255,.30));background:var(--hk-key,rgba(255,255,255,.06))}',
+    '.tr .x svg{width:21px;height:21px;fill:var(--hk-glyph,#fff)}',
+    '.tr .x ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
     '.tr .x.on{background:#fff;box-shadow:none}',
     '.tr .x.on svg{fill:#1d1426}.tr .x.on ha-icon{color:#1d1426}',
     '.tr .x.gone{visibility:hidden}',
     '.idle .tr .p:not(.big){opacity:.35;pointer-events:none}',
     '.vol{display:flex;align-items:center;gap:12px;margin-top:20px;flex:none;touch-action:none}',
-    '.vol svg{width:18px;height:18px;fill:rgba(255,255,255,.7);flex:none}',
+    '.vol svg{width:18px;height:18px;fill:var(--hk-glyph,rgba(255,255,255,.7));flex:none}',
     '.vol .tk{position:relative;flex:1;height:30px;cursor:pointer}',
-    '.vol .tk::before{content:"";position:absolute;left:0;right:0;top:12px;height:6px;border-radius:3px;background:rgba(255,255,255,.22)}',
+    '.vol .tk::before{content:"";position:absolute;left:0;right:0;top:12px;height:6px;border-radius:3px;background:var(--hk-line,rgba(255,255,255,.22))}',
     '.vol .tk i{position:absolute;left:0;top:12px;height:6px;width:calc(var(--v,0) * 100%);border-radius:3px;background:#c26df0}',
     '.vol .tk b{position:absolute;top:3px;left:calc(var(--v,0) * 100%);width:24px;height:24px;margin-left:-12px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3)}',
     '.idle .vol,[novol] .vol{visibility:hidden}',
     '.nx{display:flex;align-items:center;gap:12px;margin-top:16px;min-width:0;flex:none}',
     '.nx[hidden]{display:none}',
-    '.nx .th{width:40px;height:40px;border-radius:7px;background:rgba(255,255,255,.10);flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+    '.nx .th{width:40px;height:40px;border-radius:7px;background:var(--hk-key,rgba(255,255,255,.10));flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
     '.nx .th img{width:100%;height:100%;object-fit:cover;display:block}',
-    '.nx .th svg{width:50%;height:50%;fill:rgba(255,255,255,.45)}',
+    '.nx .th svg{width:50%;height:50%;fill:var(--hk-glyph,rgba(255,255,255,.45))}',
     '.nx small{display:block;font-size:11px;font-weight:700;letter-spacing:.8px;opacity:.55}',
     '.nx .t{min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     // A PHONE (one column): Browse is the page; what plays is a sheet over
@@ -265,25 +288,31 @@
     '  transition:transform .42s cubic-bezier(.32,.72,0,1),visibility 0s linear .42s;',
     '  background:rgba(20,13,30,.80);-webkit-backdrop-filter:blur(40px) saturate(1.5);backdrop-filter:blur(40px) saturate(1.5)}',
     '.mu[cols="1"] .left.sheetup{transform:none;visibility:visible;transition:transform .42s cubic-bezier(.32,.72,0,1)}',
+    // ...A SHEET OF ITS OWN, dark whatever the page: on a light page (hk-base.js
+    // tone()) it stays exactly as it is anywhere else -- every tone property
+    // back to nothing inside it (`initial` is no value, so each var() takes
+    // today's literal) and its own white to inherit. Light pages only: HK's
+    // own screens set some of the glass ones themselves (Frosted, Blur).
+    ':host([data-hk-light]) .mu[cols="1"] .left{color:#fff;' + Object.keys(C.LIGHT || {}).map(function (k) { return k + ':initial'; }).join(';') + '}',
     '.mu[cols="1"] .grab{display:block;flex:none;width:100%;height:26px;margin:-4px 0 6px;cursor:pointer;touch-action:none;position:relative}',
     '.mu[cols="1"] .grab::before{content:"";position:absolute;left:50%;top:8px;width:42px;height:5px;margin-left:-21px;border-radius:3px;background:rgba(255,255,255,.5)}',
     '.mu[cols="1"] .front{flex:none}',
     // ...its own, when the dashboard's bar is not up (none on this screen,
     // or dismissed): a row in the page under the search -- never over the
     // tab bar or anything else (a floating one covered a floating tab bar)
-    '.mini{display:none;margin:0 0 14px;height:64px;border-radius:18px;align-items:center;gap:12px;padding:0 6px 0 7px;box-sizing:border-box;color:#fff;',
-    '  background:' + M.bg + ';border:' + M.border + ';box-shadow:0 6px 18px rgba(0,0,0,.10)}',
+    '.mini{display:none;margin:0 0 14px;height:64px;border-radius:18px;align-items:center;gap:12px;padding:0 6px 0 7px;box-sizing:border-box;color:var(--hk-ink,rgba(255,255,255,0.94));',
+    '  background:' + M.bg + ';border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,.10))}',
     '.mini.on{display:flex}',
-    '.mini .th{width:50px;height:50px;border-radius:10px;overflow:hidden;flex:none;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer}',
+    '.mini .th{width:50px;height:50px;border-radius:10px;overflow:hidden;flex:none;background:var(--hk-key,rgba(255,255,255,.1));display:flex;align-items:center;justify-content:center;cursor:pointer}',
     '.mini .th img{width:100%;height:100%;object-fit:cover;display:block}',
-    '.mini .th svg{width:50%;height:50%;fill:rgba(255,255,255,.45)}',
+    '.mini .th svg{width:50%;height:50%;fill:var(--hk-glyph,rgba(255,255,255,.45))}',
     '.mini .t{flex:1;min-width:0;cursor:pointer}',
     '.mini .t b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.mini .t small{display:block;font-size:13px;opacity:.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.mini .pp{width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
-    '.mini .pp svg{width:26px;height:26px;fill:#fff}',
-    '.mini .rb{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
-    '.mini .rb ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:#fff;display:flex}',
+    '.mini .pp svg{width:26px;height:26px;fill:var(--hk-glyph,#fff)}',
+    '.mini .rb{width:44px;height:44px;border-radius:50%;background:var(--hk-key,rgba(255,255,255,.12));display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
+    '.mini .rb ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
 
     '.toast{position:absolute;left:50%;bottom:20px;transform:translate(-50%,10px);background:rgba(255,255,255,.96);color:#111;font-weight:600;',
     '  font-size:14px;padding:10px 18px;border-radius:99px;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;z-index:30;',
@@ -437,12 +466,26 @@
       var r = Mu.resolve(h), st = r.player && h.states[r.player];
       return [r.player, r.reason, st ? st.last_updated : '',
               Mu.contexts(h).map(function (c) { return c.key + c.state + c.title + c.members.join(','); }).join(';'),
-              (this._target || []).join(','), (this._nextRooms || []).join(','), this._cols].join('|');
+              (this._target || []).join(','), (this._nextRooms || []).join(','), this._cols,
+              musicMissing() ? 'no-music' : ''].join('|');
     }
 
     // ------------------------------------------------------------ build
     _render() {
       if (!this._config) return;
+      // NO MUSIC FEATURE: the line, not a page of empty rooms (built again
+      // from scratch once it is added)
+      if (musicMissing()) {
+        if (this._built) {
+          this._closePanel(false); this._sheet(false); this._closePick();
+          if (this._roomsPnl) { this._roomsPnl.destroy(); this._roomsPnl = null; }
+          this._miniFlag(false);
+        }
+        this._e = null; this._lib = null; this._cols = null; this._pos = null;
+        this._tickOn();
+        drawNoMusic(this);
+        return;
+      }
       if (!this._built) this._build();
       this._draw();
     }
@@ -1139,6 +1182,7 @@
     // column showing
     _openPanel(tab) {
       var P = window.hkSaverPanel, self = this;
+      if (!this._e) return;                 // not built (the Music feature is not added)
       if (this._cols === 3 && tab === 'speakers') {
         var r = this._e.rooms; r.classList.remove('hl'); void r.offsetWidth; r.classList.add('hl');
         return;

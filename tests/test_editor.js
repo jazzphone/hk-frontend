@@ -108,4 +108,27 @@ ok('stub config is valid for the card', (function(){
    var s=C.getStubConfig(); var cc=new C(); cc.setConfig(s);
    cc.hass={states:{}}; return cc._plan()===null; })());
 
+
+print('\n=== from the card picker, on a dashboard of your own ===');
+var st=C.getStubConfig({states:{'camera.a':{},'light.x':{},'camera.b':{},'camera.c':{},'camera.d':{}}});
+ok('the stub lists the house\'s first three cameras (an empty list draws nothing)',
+   JSON.stringify(st)==='{"cameras":[{"entity":"camera.a"},{"entity":"camera.b"},{"entity":"camera.c"}]}', JSON.stringify(st));
+ok('...and the card plans from it: the first live, no selector needed', (function(){
+   var cc=new C(); cc.setConfig(st); cc.hass={states:{'camera.a':{},'camera.b':{},'camera.c':{}}};
+   var p=cc._plan(); return p && p.live.entity==='camera.a'; })());
+// the scalar form's schema (hkEditor holds it under the card's own editor tag)
+var form=null;
+(function(){
+  var me=Object.create(E.prototype); me._config={cameras:[]}; me._hass={states:{}};
+  me.textContent=''; me.appendChild=function(){};
+  me._build();
+  form=me._form;
+})();
+var F={};
+(function walk(s){(s||[]).forEach(function(f){ if(f.schema) walk(f.schema); else F[f.name]=f; });})(form && form._form ? form._form.schema : []);
+ok('Live Camera Follows is not required (none: the first camera is live)', F.selector && !F.selector.required, JSON.stringify(F.selector));
+ok('...an input_select or a select', F.selector && JSON.stringify(F.selector.selector.entity.filter.domain)==='["input_select","select"]');
+ok('Use These Cameras', F.own_cameras && F.own_cameras.label==='Use These Cameras' && !!F.own_cameras.selector.boolean);
+ok('Snapshots Only', F.stills_only && F.stills_only.label==='Snapshots Only' && !!F.stills_only.selector.boolean);
+
 print('\n' + (fail? 'FAILURES: '+fail : 'ALL '+pass+' EDITOR TESTS PASS'));

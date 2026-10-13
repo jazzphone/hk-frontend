@@ -497,13 +497,16 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # same layers holding a picture of the sky blurred once (hk-glass.js
     # PRE-RENDERED, 2026-10-10: no live blur); blur_each -- every
     # surface blurs itself (phones, iPads, computers: too heavy for a wall
-    # tablet). frost: how milky Frosted is; blur: how strong both blurs are
-    # -- each 0-100 %, 50 (the middle) as designed: 20 px of blur.
+    # tablet); tinted -- the Home app's flat dark plate with no blur
+    # anywhere on the page (2026-10-12). frost: how milky Frosted is; blur:
+    # how strong both blurs are; tint: how dark Tinted is (50 is 75 %)
+    # -- each 0-100 %, 50 (the middle) as designed: 20 px of blur. well:
+    # Tinted's icon circles, dark (Apple's) or light.
     # frost_tint: Frosted takes the color behind each card (the page's sky
     # at its height, the scenery's ground below) in place of one gray
     # (hk-frosttint.js), held at one darkness so white text reads the same.
     # docs/ (each setting on its topic's page).
-    "look": {"glass": "clear", "frost": 50, "blur": 50, "frost_tint": False,
+    "look": {"glass": "clear", "frost": 50, "blur": 50, "tint": 50, "well": "dark", "frost_tint": False,
              # The detail sheets (hk-detail.js), after the Home app's, in
              # place of HA's more-info dialog on the dashboards, and the view
              # a speaker's sheet opens with "Browse Music" (a view path on the
@@ -528,13 +531,15 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "browse": {"hide": [], "discover": ["recently_played", "favourite_playlists", "most_played",
                                         "recently_added", "favourite_radio"]},
 }
-GLASS = ("clear", "frosted", "blur", "blur_pre", "blur_each")
+GLASS = ("clear", "frosted", "tinted", "blur", "blur_pre", "blur_each")
+# Tinted's icon circles (look.well, a screen's well): Apple's dark, or light
+WELLS = ("dark", "light")
 # Looks that were tried and taken out, read as the one that replaced them:
 # Baked (blur_baked, each surface its own slice of the picture) cost more
 # than it saved and went on 2026-10-10 -- Pre-rendered is the same picture.
 RETIRED_GLASS = {"blur_baked": "blur_pre"}
 BLACK_SCREENS = ("kiosk", "hk")    # a screen's Black Screen (BOARD_DEFAULTS)
-AMOUNT = (0, 100)                  # look.frost and look.blur, in %; 50 is the default
+AMOUNT = (0, 100)                  # look.frost, look.blur and look.tint, in %; 50 is the default
 
 # Music Assistant's own categories on Browse Music's first page, by the id
 # browse_media gives each (media_content_id), in MA's order.
@@ -596,6 +601,8 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     out["look"]["saver"] = saver_options(out["look"].get("saver")) or dict(SAVER_DEFAULTS)
     g = RETIRED_GLASS.get(out["look"].get("glass"), out["look"].get("glass"))
     out["look"]["glass"] = g if g in GLASS else DEFAULTS["look"]["glass"]
+    if out["look"].get("well") not in WELLS:
+        out["look"]["well"] = DEFAULTS["look"]["well"]
     return out
 
 
@@ -837,7 +844,7 @@ PAGE_KINDS = ("weather", "calendar", "cameras", "live_tv", "security", "doors_wi
 PAGE_BROWSE = "browse"
 PAGE_ORDER = (PAGE_KINDS[:PAGE_KINDS.index("music") + 1] + (PAGE_BROWSE,)
               + PAGE_KINDS[PAGE_KINDS.index("music") + 1:])
-BOARD_GLASS = ("house", "clear", "frosted", "blur", "blur_pre", "blur_each")   # house: the shared look
+BOARD_GLASS = ("house", "clear", "frosted", "tinted", "blur", "blur_pre", "blur_each")   # house: the shared look
 # ON NARROW SCREENS: the button under 1,024 px and while an
 # always-open menu is folded -- the chip, the chip then the edge tab once
 # scrolled past, the edge tab, or none (the swipe alone; the chip without
@@ -877,9 +884,9 @@ TAB_BAR_SCROLLS = ("shrink", "hide", "stay")
 # More alike: right under Home (More: first), above Categories (More: between
 # the top pages and the rest), above Rooms, or after them
 HA_PLACES = ("top", "categories", "rooms", "bottom")
-# house: the screen's glass (its own or All Screens'); clear: a near-solid
+# house: the screen's glass (its own or All Screens'); tinted: a near-solid
 # tint -- a see-through bar cannot be read over the tiles (measured
-# 2026-10-05)
+# 2026-10-05); stored as "clear" before entry 1.12 (tab_bar_glass)
 TAB_BAR_GLASS = ("house", "tinted", "frosted", "blur")
 # the rooms: a section of More (under its pages), a round button of their own
 # beside the tabs, or not in the bar at all
@@ -980,10 +987,11 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "favorites": [],
     # Pages (generated dashboards): empty = every page the house has.
     "pages": [],
-    # Screen: frost, blur: this screen's own amounts (0-100 %) -- None
+    # Screen: frost, blur, tint: this screen's own amounts (0-100 %) -- None
     # follows the shared look (HK Settings -> Appearance); frost_tint: its own
-    # Tint from Background, None follows All Screens.
-    "glass": "house", "frost": None, "blur": None, "frost_tint": None, "sky": True, "idle_return": False, "idle_room": "", "car": False,
+    # Tint from Background, well: its own Tinted icon circles, None follows
+    # All Screens.
+    "glass": "house", "frost": None, "blur": None, "tint": None, "well": None, "frost_tint": None, "sky": True, "idle_return": False, "idle_room": "", "car": False,
     # Black Screen (a wall tablet asleep): kiosk -- Kiosk Satellite's Black
     # screensaver; hk -- HK Frontend's own black and backlight
     # (switch.<screen>_black_screen, hk-saver.js). docs/Screensaver.md.
@@ -1163,8 +1171,9 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_size"] = pick("tab_size", BOARD_TAB_SIZES)
     out["tab_size_phone"] = pick("tab_size_phone", BOARD_TAB_SIZES)
     out["glass"] = RETIRED_GLASS.get(d.get("glass")) or pick("glass", BOARD_GLASS)
-    for k in ("frost", "blur"):
+    for k in ("frost", "blur", "tint"):
         out[k] = amount_or_none(d.get(k))
+    out["well"] = d.get("well") if d.get("well") in WELLS else None
     out["frost_tint"] = d.get("frost_tint") if isinstance(d.get("frost_tint"), bool) else None
     # The screen's own Sky / Background: each flag stored as anything but a
     # boolean is not set (follow All Screens), as a backdrop id not in

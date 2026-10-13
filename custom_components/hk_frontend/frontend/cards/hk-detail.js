@@ -34,6 +34,16 @@
     if (window.hkDetail) return;
     var C = window.hkCards;
     var esc = C.esc;
+    // A SHEET'S CHOICES ARE HK'S SEGMENTED CONTROL (hk-base.js segCss), the
+    // dashboard's own: the chosen one marked `.sel`, its white sliding over
+    // from the one before
+    function segPick(root, sel, attr, value) {
+      if (!root) return;
+      var was = root.querySelector('button.sel'), from = was && C.segBox ? C.segBox(was) : null;
+      root.querySelectorAll(sel).forEach(function (b) { b.classList.toggle('sel', b.getAttribute(attr) === value); });
+      var now = root.querySelector('button.sel');
+      if (was && now && now !== was && C.slideSeg) C.slideSeg(now, from);
+    }
     var PAL = C.PALETTE.icon;
     var DOORS = C.DOOR_COVERS || { garage: 1, gate: 1, door: 1 };
 
@@ -111,6 +121,11 @@
         case 'alarm_control_panel': return 'alarm';
         case 'camera': return 'camera';
         case 'button': case 'input_button': return 'button';
+        // a person: where they are (hk-person.js); a calendar: its event --
+        // the one going on or next, or the one a notification or the
+        // Calendar page hands over (hk-calendar.js)
+        case 'person': return 'person';
+        case 'calendar': return 'event';
         default: return null;
       }
     }
@@ -222,21 +237,47 @@
         return '<span style="left:' + (k.f * 100).toFixed(2) + '%">' + esc(k.t) + '</span>';
       }).join('') + '</div>';
     }
+    // A CALENDAR PERIOD'S TIME ROW: each day labeled under itself -- a
+    // week's day names (letters on a phone), a month's 1st, 8th, 15th, 22nd
+    // and 29th -- today in orange, the days still to come quieter.
+    // cal: { dates (each day's midnight), todayK (-1: a past period), short }
+    function calRow(cal) {
+      var S = window.hkStats, n = cal.dates.length, out = '';
+      cal.dates.forEach(function (t, k) {
+        var f = S.fields(t), lab;
+        if (n <= 7) lab = cal.short ? 'SMTWTFS'[f.weekday] : new Date(t).toLocaleDateString([], { weekday: 'short', timeZone: S.tz() });
+        else if (f.day === 1) lab = new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: S.tz() });
+        else if ((f.day - 1) % 7 === 0) lab = String(f.day);
+        else return;
+        var cls = k === cal.todayK ? 'today' : cal.todayK >= 0 && k > cal.todayK ? 'fut' : '';
+        out += '<span class="' + cls + '" style="left:' + ((k + 0.5) / n * 100).toFixed(2) + '%">' + esc(lab) + '</span>';
+      });
+      return '<div class="axx cal">' + out + '</div>';
+    }
     // o: { pts, bars (bool), H, unit, ms (the span), n (time labels), colour,
-    //      fluid } -- a FLUID chart fills whatever height its box has (the
-    //      thermostat's trend, stretched to the dial's height): no padding,
-    //      every rule and label placed by percentage, so it stays true at any
-    //      height (the box's CSS must stretch .axc and the svg)
+    //      fluid, span: [t0, t1] (a line over a calendar period, empty past
+    //      now), cal (calRow's: the days labeled under themselves), floor (the
+    //      scale's least top: a usual day, so a first day is not the whole
+    //      chart), gw (a day to come's gray, in words: "last week") } -- a
+    //      FLUID chart fills whatever height its box has (the thermostat's
+    //      trend, stretched to the dial's height): no padding, every rule and
+    //      label placed by percentage, so it stays true at any height (the
+    //      box's CSS must stretch .axc and the svg)
     function axesChart(o) {
       var vals = (o.pts || []).filter(function (p) { return p && p.v != null && isFinite(p.v); })
                               .map(function (p) { return p.v; });
       if (!vals.length || !window.hkChart) return '';
       var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), H = o.H;
+      if (o.bars) {
+        (o.pts || []).forEach(function (p) { if (p && isFinite(p.ghost) && p.ghost > hi) hi = p.ghost; });
+        if (isFinite(o.floor) && o.floor > hi) hi = o.floor;
+      }
       var ticks = o.bars ? niceTicks(0, Math.max(hi, 1e-9), 4) : niceTicks(lo, hi, 4);
       var tLo = ticks[0], tHi = ticks[ticks.length - 1], pad = o.fluid ? 0 : AX_PAD;
       var plot = o.bars
         ? window.hkChart.bars(o.pts, { height: H, split: 0, labels: false, avg: false, scale: false, max: tHi })
-        : window.hkChart.line(o.pts, { height: H, colour: o.colour || 'orange', lo: tLo, hi: tHi, pad: pad, grid: false });
+        : window.hkChart.line(o.pts, { height: H, colour: o.colour || 'orange', lo: tLo, hi: tHi, pad: pad, grid: false,
+                                       t0: o.span && o.span[0], t1: o.span && o.span[1] });
       var y = function (v) {
         if (o.fluid) return ((tHi - v) / (tHi - tLo) * 100).toFixed(2) + '%';
         return (o.bars ? H - (v - tLo) / (tHi - tLo) * H : pad + (tHi - v) / (tHi - tLo) * (H - 2 * pad)).toFixed(1) + 'px';
@@ -250,9 +291,196 @@
       var hs = o.fluid ? '' : ' style="height:' + H + 'px"';
       var widest = ticks.map(function (v) { return tickText(v, o.unit); })
                         .reduce(function (a, b) { return b.length > a.length ? b : a; }, '');
+      // what the plot DREW, for the readout (scrub): the same points, the
+      // same value range and padding, so its dot lands on the line
+      var drawn = o.bars
+        ? (o.pts || []).map(function (p) {
+            var q = [+p.t, p && p.v != null && isFinite(p.v) ? p.v : null];
+            if (p && isFinite(p.ghost)) q.push(p.ghost);
+            return q;
+          })
+        : (o.pts || []).filter(function (p) { return p && p.v != null && isFinite(p.v); }).map(function (p) { return [+p.t, p.v]; });
+      var hks = { k: o.bars ? 'b' : 'l', u: o.unit || '', lo: tLo, hi: tHi, pad: o.bars ? 0 : pad, ms: o.ms, p: drawn };
+      if (o.span) { hks.t0 = o.span[0]; hks.t1 = o.span[1]; }
+      if (o.gw) hks.gw = o.gw;
       return '<div class="axc' + (o.fluid ? ' fl' : '') + '"><div class="ay"' + hs + '><b class="sz">' + esc(widest) + '</b>' + labs + '</div>' +
-             '<div class="ap"' + hs + '>' + grid + plot + '</div>' +
-             timeRow(o.ms, o.n || 5) + '</div>';
+             '<div class="ap"' + hs + ' data-hks="' + esc(JSON.stringify(hks)) + '">' + grid + plot + '</div>' +
+             (o.cal ? calRow(o.cal) : timeRow(o.ms, o.n || 5)) + '</div>';
+    }
+
+    // ------------------------------------------------------------ the readout
+    // HOVER OR TOUCH A CHART AND IT SAYS WHAT IS THERE: a vertical line at the
+    // nearest point, a dot on the line (a bar chart lights its bar instead),
+    // and a label at the TOP of the line -- above the plot, where a finger
+    // never covers it -- with the value and its time. A mouse shows it while
+    // over the plot; a finger while it is down (pan-y: a vertical swipe still
+    // scrolls the sheet, and the browser's pointercancel takes it away).
+    //
+    // scrub(box) is called with the chart's STABLE container after every
+    // paint: the first call listens, every call puts the readout back on the
+    // new plot. A power sensor's chart is redrawn on each state push, every
+    // few seconds, and a finger held still must not lose its readout to it.
+    function scrubValue(v, unit) {
+      if (v == null) return '—';
+      var a = Math.abs(v), d = a >= 100 ? 0 : a >= 10 ? 1 : 2;
+      if (/°|%/.test(unit)) d = a >= 100 ? 0 : 1;
+      var t = Number(v).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: 0 });
+      return !unit ? t : /^(°|%)/.test(unit) ? t + unit : t + ' ' + unit;
+    }
+    function dayWord(t, now) {
+      var d = new Date(t), n = new Date(now), y = new Date(now - 86400000);
+      var same = function (a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); };
+      return same(d, n) ? 'Today' : same(d, y) ? 'Yesterday' : null;
+    }
+    // A POINT'S TIME, as precise as its chart: a clock time across a day
+    // (Now for the live reading that closes the line), the weekday too
+    // across a week, the date across a month.
+    function scrubTimeLine(t, ms, now) {
+      if (now - t < 60000) return 'Now';
+      var d = new Date(t), clock = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      if (ms <= 36 * 3600000) return clock;
+      if (ms <= 8 * 86400000) return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + clock;
+      return dayWord(t, now) || d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+    // A BAR'S TIME is its whole span: "2 – 3 PM" (the hour still going is
+    // "2 PM – Now"), a day is "Today", "Yesterday" or "Tue, Oct 7".
+    function scrubTimeBar(t, step, now) {
+      if (step < 20 * 3600000) {
+        var h = function (x) { return new Date(x).toLocaleTimeString([], { hour: 'numeric' }); };
+        var a = h(t), b = t + step > now ? 'Now' : h(t + step);
+        var sa = a.match(/\s?([AP]M)$/i), sb = b.match(/\s?([AP]M)$/i);
+        if (sa && sb && sa[1] === sb[1]) a = a.replace(sa[0], '');
+        return a + ' – ' + b;
+      }
+      return dayWord(t, now) || new Date(t).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    // the point at a fraction across the plot: the nearest in time for a
+    // line (drawn by time, first row to last, as hkChart.line does), the
+    // column under it for bars. {i, f (its own fraction), v, label}
+    function scrubPick(d, f, now) {
+      var p = d.p, n = p.length;
+      if (!n) return null;
+      if (d.k === 'b') {
+        var i = clamp(Math.floor(f * n), 0, n - 1), lab = scrubTimeBar(p[i][0], d.ms / n, now);
+        // a day still to come: last period's same day (its gray), or nothing yet
+        if (p[i][1] == null && p[i][0] > now) {
+          return p[i].length > 2 ? { i: i, f: (i + 0.5) / n, v: p[i][2], label: lab + ' \u00b7 ' + (d.gw || 'last period') }
+                                 : { i: i, f: (i + 0.5) / n, v: null, text: lab, label: 'to come' };
+        }
+        return { i: i, f: (i + 0.5) / n, v: p[i][1], label: lab };
+      }
+      // a line over a calendar period spans it, not its first row to its last
+      var t0 = d.t1 > d.t0 ? d.t0 : p[0][0], t1 = d.t1 > d.t0 ? d.t1 : p[n - 1][0], timed = t1 > t0;
+      var want = timed ? t0 + f * (t1 - t0) : f * (n - 1), at = function (k) { return timed ? p[k][0] : k; };
+      var lo = 0, hi = n - 1;
+      while (hi - lo > 1) { var m = (lo + hi) >> 1; if (at(m) <= want) lo = m; else hi = m; }
+      var j = Math.abs(at(hi) - want) < Math.abs(at(lo) - want) ? hi : lo;
+      return { i: j, f: timed ? (p[j][0] - t0) / (t1 - t0) : (n > 1 ? j / (n - 1) : 0), v: p[j][1],
+               label: scrubTimeLine(p[j][0], d.ms, now) };
+    }
+    function scrubShow(box, ap, clientX) {
+      var d = ap._hks;
+      if (d === undefined) { try { d = JSON.parse(ap.getAttribute('data-hks') || 'null'); } catch (e) { d = null; } ap._hks = d; }
+      if (!d || !d.p || !d.p.length) return;
+      var r = ap.getBoundingClientRect();
+      if (r.width < 2) return;
+      var pick = scrubPick(d, clamp((clientX - r.left) / r.width, 0, 1), Date.now());
+      if (!pick) return;
+      var L = ap._hksL;
+      if (!L) {
+        L = ap._hksL = document.createElement('div');
+        L.className = 'hks';
+        L.setAttribute('aria-hidden', 'true');
+        L.innerHTML = '<i class="hkl"></i>' + (d.k === 'l' ? '<b class="hkd"></b>' : '') +
+                      '<div class="hkp"><span class="v"></span><span class="t"></span></div>';
+        ap.appendChild(L);
+        if (d.k === 'l') {
+          // the dot is the line's own color
+          var stroke = ap.querySelector('svg path[stroke]');
+          if (stroke) L.querySelector('.hkd').style.borderColor = stroke.getAttribute('stroke');
+        } else {
+          ap._hksBars = ap.querySelector('[style*="grid-template-columns"]');
+          if (ap._hksBars) ap._hksBars.classList.add('hksg');
+        }
+      }
+      // on a device pixel, as every rule is (a half-pixel line is a blur)
+      var dpr = window.devicePixelRatio || 1, x = Math.round(pick.f * r.width * dpr) / dpr;
+      L.firstChild.style.transform = 'translateX(' + x + 'px)';
+      if (d.k === 'l') {
+        var span = (d.hi - d.lo) || 1, y = d.pad + (d.hi - pick.v) / span * (r.height - 2 * d.pad);
+        L.querySelector('.hkd').style.transform = 'translate(' + x + 'px,' + y.toFixed(1) + 'px)';
+      } else if (ap._hksBars && ap._hksOn !== pick.i) {
+        var cells = ap._hksBars.children;
+        if (cells[ap._hksOn]) cells[ap._hksOn].classList.remove('hkon');
+        if (cells[pick.i]) cells[pick.i].classList.add('hkon');
+        ap._hksOn = pick.i;
+      }
+      var pill = L.lastChild;
+      if (ap._hksTxt !== pick.label + '|' + pick.v + '|' + pick.text) {
+        ap._hksTxt = pick.label + '|' + pick.v + '|' + pick.text;
+        pill.firstChild.textContent = pick.text != null ? pick.text : scrubValue(pick.v, d.u);
+        pill.lastChild.textContent = pick.label;
+        ap._hksW = pill.offsetWidth;
+      }
+      // the label centered on the line, kept inside the chart: it may run
+      // over the values' column on the left, never past the plot's right
+      var axc = ap.parentNode, left = axc ? axc.getBoundingClientRect().left - r.left : 0;
+      var w = ap._hksW || 0, pl = clamp(x - w / 2, left, Math.max(left, r.width - w));
+      pill.style.transform = 'translateX(' + Math.round(pl * dpr) / dpr + 'px)';
+      L.classList.add('on');
+      if (d.k === 'b' && ap._hksBars) ap._hksBars.classList.add('on');
+    }
+    function scrubHide(box) {
+      box._hksX = null;
+      box.querySelectorAll('.ap .hks.on, .ap .hksg.on').forEach(function (e) { e.classList.remove('on'); });
+    }
+    function scrub(box) {
+      if (!box) return;
+      if (!box._hksBound) {
+        box._hksBound = true;
+        box._hksX = null;
+        var plotOf = function (e) {
+          var path = e.composedPath ? e.composedPath() : [];
+          for (var i = 0; i < path.length && path[i] !== box; i++) {
+            if (path[i].classList && path[i].classList.contains('ap')) return path[i];
+          }
+          return null;
+        };
+        var to = function (ap, x) { box._hksX = x; scrubShow(box, ap, x); };
+        box.addEventListener('pointerdown', function (e) {
+          if (e.pointerType === 'mouse') return;
+          var ap = plotOf(e);
+          if (!ap) return;
+          box._hksId = e.pointerId;
+          try { box.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
+          to(ap, e.clientX);
+        });
+        box.addEventListener('pointermove', function (e) {
+          if (e.pointerType === 'mouse') {
+            var ap = plotOf(e);
+            if (ap) to(ap, e.clientX); else if (box._hksX != null) scrubHide(box);
+            return;
+          }
+          if (e.pointerId !== box._hksId || box._hksX == null) return;
+          var cur = box.querySelector('.ap');
+          if (cur) to(cur, e.clientX);
+        });
+        var end = function (e) {
+          if (e.pointerType === 'mouse' && e.type !== 'pointerleave') return;
+          if (e.pointerType !== 'mouse' && e.pointerId !== box._hksId) return;
+          box._hksId = null;
+          scrubHide(box);
+        };
+        box.addEventListener('pointerup', end);
+        box.addEventListener('pointercancel', end);
+        box.addEventListener('pointerleave', end);
+        return;
+      }
+      // a redraw: the readout back where it was, on the new plot
+      if (box._hksX != null) {
+        var ap2 = box.querySelector('.ap');
+        if (ap2) scrubShow(box, ap2, box._hksX);
+      }
     }
 
     // Colour temperature -> an sRGB swatch (Tanner Helland's fit).
@@ -349,6 +577,16 @@
     // name land in the same place whatever opens. The keys stay per kind so a
     // kind can move.
     var STD = 460, WIDE = 820, SHEET_H = 680;
+    // ONE SPACING SCALE for every sheet (2026-10-12: gaps intentional, things
+    // aligned). 20 between regions -- the header and the body, two columns,
+    // a notification and the sheet under it; 20 (a phone 16) between a
+    // control sheet's big pieces -- the control, the state, what's under
+    // it; 12 between blocks in a column and between buttons side by side;
+    // 6 from a title to its line. Cards: radius 20, padding 16 18 14 (a
+    // card of rows alone 14 18); text outside a card on the card text's
+    // edge, 18 in.
+    var SP = { region: 20, piece: 20, piecePhone: 16, block: 12, line: 6, cardR: 20,
+               cardPad: '16px 18px 14px', rowsPad: '14px 18px', inset: 18 };
     // ONE PHONE HEIGHT TOO, the speaker's, so every sheet is the same size.
     // The whole screen less 80 -- which only the stacked thermostat needs --
     // would leave every other phone sheet in 200-350 px of empty space.
@@ -366,6 +604,9 @@
       // the water heater is the thermostat's sheet: its ring, its size, its
       // two columns -- the two are the same, and the same size
       number: STD, select: STD, humidifier: STD, water_heater: WIDE, alarm: STD,
+      // a person (them | where they are) and an event (it | its day): two
+      // columns on a tablet, one on a phone
+      person: WIDE, event: WIDE,
       // a room's "3 Windows": two 192 px tiles a row, the sheet's own width
       group: STD,
       // a custom pop-up's own cards: narrow or wide, as it asks
@@ -378,12 +619,15 @@
 
     var SHEET_CSS = [
       '.hkd{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;',
-      '  pointer-events:none;-webkit-tap-highlight-color:transparent;color:#fff;',
+      '  pointer-events:none;-webkit-tap-highlight-color:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));',
       // CENTRED ON THE DASHBOARD, past Home Assistant's sidebar (hk-menu.js
       // publishes where the dashboard starts) -- a docked menu is part of the
       // dashboard, so the sheet centres over it too. The backdrop, inset 0,
       // still covers everything.
       '  box-sizing:border-box;padding-left:var(--hk-content-left,0px)}',
+      // A CARD IN THE SHEET wears the look's plate for a sheet (M.bg), when
+      // the look has one: Tinted's dark plate on this dark sheet is a hole
+      '.hkd{--hk-plate-here:var(--hk-glass-plate-sheet)}',
       '.hkd .bd{position:absolute;inset:0;background:rgba(17,17,17,0.34);opacity:0;',
       '  transition:opacity .3s ease;pointer-events:auto}',
       '.hkd.open .bd{opacity:1}',
@@ -475,6 +719,65 @@
       '  .hkd .tt{font-size:20px;line-height:22px}',
       '}',
       '@media (prefers-reduced-motion:reduce){.hkd .bd,.hkd .sheet{transition:none}}'
+    ].join('');
+
+    // A NOTIFICATION, OPENED (hk-notify.js -> open(id, null, { note })): it
+    // rides on the sheet a tile opens, and the sheet keeps its size.
+    //   tablet, a one-column sheet: the sheet is WIDE and the notification
+    //     is its left column (340 -- the sheet's own 410 stays on the right)
+    //   a two-column sheet (a person, an event, the thermostat): the card
+    //     at the top of its left column (the panel places it: hkNote), else
+    //     at the top of the body
+    //   phone: the card first in the sheet's own scroll
+    //   the camera (a bare sheet): over the picture's top on a tablet,
+    //     under the picture on a phone
+    var NOTE_CSS = [
+      '.hkd .body.n2{flex-direction:row;gap:' + SP.region + 'px;align-items:stretch}',
+      '.hkd .body.n2 > *{margin-block:0}',
+      '.hkd .body.n2 > :not(.hkn-col){flex:1;min-width:0;align-self:center}',
+      '.hkd .body.n2 > .fill{align-self:stretch}',
+      '.hkn-col{width:340px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;',
+      '  text-align:center;border-radius:' + SP.cardR + 'px;background:rgba(255,255,255,0.08);padding:24px ' + SP.inset + 'px;box-sizing:border-box}',
+      '.hkn-col .hero{width:96px;height:96px;border-radius:48px;display:flex;align-items:center;justify-content:center;flex:none}',
+      '.hkn-col .hero ha-icon{--mdc-icon-size:48px;color:#fff;display:flex}',
+      '.hkn-col .pic{width:100%;aspect-ratio:16/9;border-radius:12px;object-fit:cover;flex:none;background:rgba(255,255,255,0.06);cursor:pointer}',
+      '.hkn-col .imp{margin-top:20px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#ff453a}',
+      '.hkn-col .what{margin-top:20px;font-size:22px;font-weight:700;letter-spacing:-.3px;line-height:26px;overflow-wrap:anywhere}',
+      '.hkn-col .imp + .what{margin-top:' + SP.line + 'px}',
+      '.hkn-col .msg,.hkn-col .when{margin-top:' + SP.line + 'px;font-size:15px;line-height:20px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.hkn-col .msg{color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      '.hkn-col .acts{align-self:stretch;display:flex;flex-direction:column;gap:' + SP.block + 'px;margin-top:24px}',
+      '.hkn-b{height:50px;border-radius:25px;border:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 18px;',
+      '  white-space:nowrap;background:rgba(255,255,255,0.14);color:#fff;font:inherit;font-size:16px;font-weight:600;cursor:pointer;',
+      '  -webkit-tap-highlight-color:transparent;min-width:0}',
+      '.hkn-b:active{background:rgba(255,255,255,0.24)}',
+      '.hkn-b ha-icon{--mdc-icon-size:20px;display:flex;flex:none}',
+      '.hkn-b span{overflow:hidden;text-overflow:ellipsis}',
+      '.hkn-b .chev{opacity:.5;font-size:19px;margin-left:-2px;flex:none}',
+      '.hkn-b.on{background:rgba(255,255,255,0.92);color:rgba(0,0,0,0.85)}',
+      // the card: 14 all round, the glyph and the buttons on one left edge
+      '.hkn-card{display:flex;flex-direction:column;gap:' + SP.block + 'px;padding:14px;border-radius:' + SP.cardR + 'px;',
+      '  background:rgba(255,255,255,0.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);flex-shrink:0;color:var(--hk-ink,rgba(255,255,255,0.94));box-sizing:border-box;text-align:left}',
+      '.hkd .body > .hkn-card{margin:0 0 ' + SP.region + 'px}',
+      '.hkn-card .r1{display:flex;align-items:center;gap:12px}',
+      '.hkn-card .r2{display:flex;gap:' + SP.block + 'px}',
+      '.hkn-card .r2 .hkn-b{flex:1;height:40px;border-radius:20px;font-size:14px;padding:0 12px;gap:6px}',
+      '.hkn-card .r2 .hkn-b ha-icon{--mdc-icon-size:18px}',
+      '.hkn-card .ni{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none}',
+      '.hkn-card .ni ha-icon{--mdc-icon-size:19px;color:#fff;display:flex}',
+      '.hkn-card .nt{flex:1;min-width:0}',
+      '.hkn-card .n1{font-size:15px;font-weight:650;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.hkn-card .n2{font-size:13px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.hkn-card .imp{color:#ff453a;font-weight:700}',
+      '.hkn-card img{width:58px;height:40px;border-radius:8px;object-fit:cover;flex:none;cursor:pointer;background:rgba(255,255,255,0.06)}',
+      // over the camera's picture (a tablet), its top left -- the foot has
+      // the camera's own controls: dark, not a second blur (one blur layer
+      // per sheet, the sheet's own)
+      '.hkn-card.over{position:absolute;left:' + SP.region + 'px;top:' + SP.region + 'px;width:420px;max-width:calc(100% - 40px);z-index:3;',
+      '  background:rgba(28,28,32,0.86)}',
+      '.hkn-card.under{margin:' + SP.block + 'px}',
+      // a phone: the words alone, a little smaller ("Doors & Windows ›" fits)
+      '@media (max-width:600px){.hkn-card .r2 .hkn-b ha-icon{display:none}.hkn-card .r2 .hkn-b{font-size:13px;padding:0 10px}}'
     ].join('');
 
     var D = { el: null };
@@ -571,6 +874,7 @@
 
     function paintHeader(h) {
       var d = D, s = stOf(h, d.id);
+      if (d.panel && d.panel.hkHead && d.panel.hkHead(h, d)) return;
       var on = isOn(s);
       d.well.style.background = on ? d.colour : 'rgba(255,255,255,0.12)';
       d.icon.style.color = on ? (nearWhite(d.colour) ? 'rgba(0,0,0,0.78)' : '#fff') : d.colour;
@@ -621,6 +925,148 @@
       } catch (e) { return null; }
     }
 
+    // ============================================================ NOTIFICATION
+    // GO TO: the page the screen itself shows the accessory on -- the same
+    // lists the generated pages are built from (hkStrategy.pageMembers) --
+    // else its room's page, else nothing; a page this dashboard does not
+    // have is skipped. A notification's own (its Go To: a page, or "none")
+    // wins. A calendar's event: the Calendar page at that day.
+    function viewOf(path) {
+      try {
+        var ha = document.querySelector('home-assistant');
+        var main = ha.shadowRoot.querySelector('home-assistant-main');
+        var panel = main.shadowRoot.querySelector('ha-panel-lovelace');
+        var views = panel.lovelace.config.views;
+        for (var i = 0; i < views.length; i++) if (views[i].path === path) return views[i];
+      } catch (e) { /* no dashboard */ }
+      return null;
+    }
+    function areaOf(h, id) {
+      var e = h && h.entities && h.entities[id];
+      if (!e) return null;
+      return e.area_id || (e.device_id && h.devices && h.devices[e.device_id] ? h.devices[e.device_id].area_id : null);
+    }
+    var GO_PAGES = [['doors-windows', ['doors', 'windows']], ['security', ['security', 'locks', 'garage']],
+                    ['water', ['leaks', 'valves']], ['lights', ['lights', 'outlets']]];
+    var GO_DOMAINS = { vacuum: 'vacuums', camera: 'cameras', calendar: 'calendar', timer: 'timers' };
+    function ymdOf(d) {
+      return d.getFullYear() + '-' + (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate();
+    }
+    function goFor(h, n) {
+      if (!n || n.go === 'none' || n.kind === 'people') return null;
+      var dash = '/' + (String(location.pathname).split('/')[1] || '') + '/';
+      var at_ = function (path, q) {
+        var v = viewOf(path);
+        return v ? { path: dash + path + (q || ''), title: v.title || path, icon: v.icon || 'mdi:arrow-right' } : null;
+      };
+      if (n.go) return at_(n.go);
+      var id = n.entity || n.sheet;
+      if (n.kind === 'calendar' || domainOf(id) === 'calendar') {
+        var st = n.event && n.event.start ? new Date(String(n.event.start).length <= 10 ? n.event.start + 'T00:00:00' : n.event.start) : null;
+        return at_('calendar', st && !isNaN(st) ? '?day=' + ymdOf(st) : '');
+      }
+      var S = window.hkStrategy, got = null;
+      if (S && S.pageMembers && id) {
+        GO_PAGES.some(function (g) {
+          var m = null;
+          try { m = S.pageMembers(h, g[0]); } catch (e) { m = null; }
+          if (m && g[1].some(function (k) { return (m[k] || []).indexOf(id) >= 0; })) got = at_(g[0]);
+          return !!got;
+        });
+      }
+      if (!got && GO_DOMAINS[domainOf(id)]) got = at_(GO_DOMAINS[domainOf(id)]);
+      if (!got && n.sheet && domainOf(n.sheet) === 'camera') got = at_('cameras');
+      if (!got) {
+        var M = window.hkCards && window.hkCards.menu, area = areaOf(h, id);
+        var rp = M && area && M.roomPath ? M.roomPath(area) : null;
+        var seg = rp ? rp.split('/').pop() : null;
+        var v = seg ? viewOf(seg) : null;
+        if (rp && v) got = { path: rp, title: v.title || (h.areas && h.areas[area] && h.areas[area].name) || seg, icon: v.icon || 'mdi:sofa' };
+      }
+      return got;
+    }
+    function noteClock(t) {
+      try { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
+    }
+    // "now · 8:42 PM", "5 min ago · 8:37 PM"
+    function noteWhen(n) {
+      var t = n.ts ? n.ts * 1000 : n._at;
+      if (!t || isNaN(t)) return '';
+      var m = Math.floor((Date.now() - t) / 60000);
+      var rel = m < 1 ? 'now' : m < 60 ? m + ' min ago' : '';
+      return (rel ? rel + ' · ' : '') + noteClock(t);
+    }
+    function muteLabel(until) { return until ? 'Muted until ' + noteClock(until * 1000) : 'Mute 1 Hour'; }
+    // note: { n: the notification, snap: its picture's signed URL or null }
+    // mode: col | card | over | under
+    function noteEl(h, note, mode) {
+      var n = note.n || {}, go = goFor(h, n), el = document.createElement('div');
+      var icon = '<ha-icon icon="' + esc(n.icon || 'hk:bell') + '"></ha-icon>';
+      var b = function (cls, ic, text, chev) {
+        return '<button class="hkn-b ' + cls + '">' + (ic ? '<ha-icon icon="' + esc(ic) + '"></ha-icon>' : '') +
+          '<span>' + esc(text) + '</span>' + (chev ? '<span class="chev">›</span>' : '') + '</button>';
+      };
+      var acts = (go ? b('go', go.icon, go.title, true) : '') +
+                 (n.mute ? b('mute' + (note.until ? ' on' : ''), 'mdi:bell-off-outline', muteLabel(note.until)) : '');
+      var when = noteWhen(n);
+      if (mode === 'col') {
+        el.className = 'hkn-col';
+        el.innerHTML = (note.snap ? '<img class="pic" alt="" src="' + esc(note.snap) + '">'
+                                  : '<div class="hero" style="background:' + esc(n.tint || '#8e8e93') + '">' + icon + '</div>') +
+          (n.important ? '<div class="imp">Important</div>' : '') +
+          '<div class="what">' + esc(n.title || '') + '</div>' +
+          (n.message ? '<div class="msg">' + esc(n.message) + '</div>' : '') +
+          (when ? '<div class="when">' + esc(when) + '</div>' : '') +
+          (acts ? '<div class="acts">' + acts + '</div>' : '');
+      } else {
+        el.className = 'hkn-card' + (mode === 'over' ? ' over' : mode === 'under' ? ' under' : '');
+        el.innerHTML = '<div class="r1"><div class="ni" style="background:' + esc(n.tint || '#8e8e93') + '">' + icon + '</div>' +
+          '<div class="nt"><div class="n1">' + esc(n.title || '') + '</div><div class="n2">' +
+          (n.important ? '<span class="imp">Important · </span>' : '') + esc([n.message, when].filter(Boolean).join(' · ')) + '</div></div>' +
+          (note.snap && mode !== 'over' ? '<img alt="" src="' + esc(note.snap) + '">' : '') + '</div>' +
+          (acts ? '<div class="r2">' + acts + '</div>' : '');
+      }
+      el.addEventListener('click', function (e) {
+        var t = e.target.closest ? e.target.closest('button, img') : null;
+        if (!t) return;
+        e.stopPropagation();
+        if (t.classList.contains('go')) { navigateFrom(go.path); return; }
+        if (t.classList.contains('mute')) {
+          var hh = C.hass() || h;
+          if (!hh || !hh.callWS || t.disabled) return;
+          t.disabled = true;
+          hh.callWS({ type: 'hk_notify/mute', key: n.mute, minutes: note.until ? 0 : 60 }).then(function (r) {
+            note.until = r && r.until ? r.until : null;
+            t.classList.toggle('on', !!note.until);
+            t.querySelector('span').textContent = muteLabel(note.until);
+          }, function () { /* not muted: the button says so */ }).then(function () { t.disabled = false; });
+          return;
+        }
+        // the picture: the camera, live -- and back
+        if (t.tagName === 'IMG' && n.camera && n.camera !== D.id) open(n.camera, null, { note: note, back: D.back0 });
+      });
+      return el;
+    }
+    // where the notification goes in an open sheet (see NOTE_CSS)
+    function placeNote(h, el, sheet, panel, note, width) {
+      var body = sheet.querySelector('.body');
+      var phone = matchMedia('(max-width:600px)').matches;
+      if (panel.hkBare && panel.hkBare()) {
+        if (phone) sheet.appendChild(noteEl(h, note, 'under'));
+        else sheet.appendChild(noteEl(h, note, 'over'));
+        return;
+      }
+      if (phone || width >= WIDE) {
+        var card = noteEl(h, note, 'card');
+        if (!phone && panel.hkNote) panel.hkNote(card);
+        else { body.insertBefore(card, body.firstChild); body.style.justifyContent = 'flex-start'; }
+        return;
+      }
+      sheet.style.setProperty('--hkd-w', WIDE + 'px');
+      body.classList.add('n2');
+      body.insertBefore(noteEl(h, note, 'col'), body.firstChild);
+    }
+
     // OUR HISTORY ENTRY CARRIES A TOKEN, and only an entry with THIS sheet's
     // token is ours to go back from. "Any hkDetail state" is not enough: a
     // pop-up that opens while the sheet is up (the #media bar when Play is
@@ -646,8 +1092,10 @@
     //   Size        its tile regular or tall, over its kind's own
     //   Spinning    a fan's tile glyph turning while it is on, or still
     //   Icon        the glyph
-    //   Include in Status   counted by the chips (Status & Chips)
-    //   Show on Home        on a generated Home; its room's page lists it anyway
+    //   Where It Shows      Show in HK Frontend, then each place it can be
+    //                       hidden from -- Home, its room's page, the pages
+    //                       and chips of its kinds (hiding.py; the same
+    //                       switches as HK Settings -> Hidden Accessories)
     //   Favorite on this dashboard
     var ACC_CSS = [
       '.hkd .gear{width:44px;height:44px;border-radius:22px;border:0;padding:0;flex-shrink:0;',
@@ -658,10 +1106,10 @@
       '@media (max-width:600px){.hkd .gear{width:40px;height:40px;border-radius:20px}}',
       '.hkd .gear[hidden]{display:none}',
       '.hkd .body > .acc{margin-block:0}',
-      '.acc{display:flex;flex-direction:column;gap:18px;padding-bottom:6px;font-size:16px}',
+      '.acc{display:flex;flex-direction:column;gap:20px;padding-bottom:6px;font-size:16px}',
       // colours are variables with the sheet's (dark) values as defaults, so
       // the settings page can draw the same pane in its own light or dark
-      '.acc .cap{font-size:13px;font-weight:600;letter-spacing:.3px;color:var(--acc-label2,rgba(255,255,255,0.55));',
+      '.acc .cap{font-size:13px;font-weight:600;letter-spacing:.3px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));',
       '  text-transform:uppercase;padding:0 6px 6px}',
       '.acc .grp{background:var(--acc-cell,rgba(255,255,255,0.08));border-radius:14px;overflow:hidden}',
       '.acc .row{display:flex;align-items:center;justify-content:space-between;gap:14px;',
@@ -669,13 +1117,20 @@
       // the line between two rows starts at their text, as iOS draws it
       '.acc .row + .row{background:linear-gradient(var(--acc-sep,rgba(255,255,255,0.09)),var(--acc-sep,rgba(255,255,255,0.09)))',
       '  16px 0/calc(100% - 16px) 1px no-repeat}',
-      '.acc .row .k{flex-shrink:0;color:var(--acc-label,rgba(255,255,255,0.92))}',
-      '.acc input.nm{flex:1;min-width:0;background:transparent;border:0;color:var(--acc-text,#fff);font:inherit;',
+      '.acc .row .k{flex-shrink:0;color:var(--acc-label,var(--hk-ink,rgba(255,255,255,0.94)))}',
+      // a place's line under its name (Where it shows): what that place covers
+      '.acc .row .k small{display:block;font-size:13px;line-height:17px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));margin-top:1px}',
+      '.acc .row .k small[hidden]{display:none}',
+      '.acc .row.place .k,.acc .row.wall .k{flex-shrink:1;min-width:0;padding:9px 0}',
+      '.acc .row.dim .k{opacity:.45}',
+      '.acc .tg:disabled{opacity:.45;cursor:default}',
+      '.acc .note a{color:var(--acc-focus,#0a84ff);text-decoration:none}',
+      '.acc input.nm{flex:1;min-width:0;background:transparent;border:0;color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));font:inherit;',
       '  text-align:right;outline:none;padding:0;text-overflow:ellipsis}',
       // the whole row's height is the field's target, not its 21 px of text
       '.acc .row input.nm,.acc .row select{align-self:stretch;min-height:44px}',
-      '.acc input.nm::placeholder{color:var(--acc-label3,rgba(255,255,255,0.4))}',
-      '.acc select{min-width:0;max-width:60%;background:transparent;color:var(--acc-value,rgba(255,255,255,0.75));border:0;',
+      '.acc input.nm::placeholder{color:var(--acc-label3,var(--hk-ink-3,rgba(255,255,255,0.40)))}',
+      '.acc select{min-width:0;max-width:60%;background:transparent;color:var(--acc-value,var(--hk-ink-2,rgba(255,255,255,0.68)));border:0;',
       '  font:inherit;text-align:right;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer}',
       '.acc select option{color:#000}',
       '.acc .tg{-webkit-appearance:none;appearance:none;width:51px;height:31px;border-radius:16px;margin:0;',
@@ -688,16 +1143,16 @@
       // each choice as wide as its word, the rest shared out: equal fifths
       // left "Automatic" (bold when chosen) spilling into "Light" on a phone
       '.acc .seg button{flex:1 1 auto;min-width:0;padding:0 6px;height:32px;border:0;border-radius:8px;background:transparent;',
-      '  color:var(--acc-text,#fff);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}',
+      '  color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}',
       '.acc .seg button.on{background:var(--acc-seg-on,rgba(255,255,255,0.24));font-weight:600}',
-      '.acc .glyphs{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px;padding:12px}',
+      '.acc .glyphs{display:grid;grid-template-columns:repeat(auto-fill,46px);justify-content:center;gap:8px;padding:12px}',
       '.acc .glyphs button{width:46px;height:46px;border-radius:23px;border:0;cursor:pointer;justify-self:center;',
       '  background:var(--acc-glyph,rgba(255,255,255,0.10));color:var(--acc-text,#fff);--mdc-icon-size:23px;display:flex;',
       '  align-items:center;justify-content:center;font:inherit;font-size:11px}',
       '.acc .glyphs button.on{background:var(--acc-glyph-on-bg,rgba(255,255,255,0.92));color:var(--acc-glyph-on-fg,#000)}',
       '.acc .swatches{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}',
       '.acc .swatches button{width:32px;height:32px;border-radius:16px;border:2px solid transparent;cursor:pointer;',
-      '  font:inherit;font-size:10px;color:var(--acc-text,#fff);background:var(--acc-glyph,rgba(255,255,255,0.12))}',
+      '  font:inherit;font-size:10px;color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));background:var(--acc-glyph,rgba(255,255,255,0.12))}',
       '.acc .swatches button.on{border-color:var(--acc-text,#fff);box-shadow:0 0 0 2px rgba(0,0,0,0.4) inset}',
       '.acc .swatches button:first-child{width:auto;padding:0 10px}',
       '.acc .glyphs.fvg{border-top:1px solid var(--acc-sep,rgba(255,255,255,0.09))}',
@@ -726,27 +1181,27 @@
       // SEARCH EVERY ICON: the Apple glyphs, then Home Assistant's Material ones
       '.acc .gsearch{display:block;padding:12px 12px 0}',
       '.acc .gsearch input{width:100%;box-sizing:border-box;height:36px;border:0;border-radius:10px;padding:0 12px;',
-      '  background:var(--acc-glyph,rgba(255,255,255,0.10));color:var(--acc-text,#fff);font:inherit;font-size:15px;outline:none}',
-      '.acc .gsearch input::placeholder{color:var(--acc-label3,rgba(255,255,255,0.4))}',
+      '  background:var(--acc-glyph,rgba(255,255,255,0.10));color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));font:inherit;font-size:15px;outline:none}',
+      '.acc .gsearch input::placeholder{color:var(--acc-label3,var(--hk-ink-3,rgba(255,255,255,0.40)))}',
       '.acc .gsearch.fvs{border-top:1px solid var(--acc-sep,rgba(255,255,255,0.09))}',
       '.acc .glyphs .gh{grid-column:1/-1;font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;',
-      '  color:var(--acc-label2,rgba(255,255,255,0.55));padding:4px 2px 0}',
-      '.acc .glyphs .gn{grid-column:1/-1;font-size:13px;color:var(--acc-label2,rgba(255,255,255,0.55));padding:0 2px}',
+      '  color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:4px 2px 0}',
+      '.acc .glyphs .gn{grid-column:1/-1;font-size:13px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:0 2px}',
       '.acc .with{display:flex;flex-wrap:wrap;gap:8px;padding:0 14px 12px}',
       '.acc .with[hidden]{display:none}',
-      '.acc .with button{height:32px;border-radius:16px;border:0;background:var(--acc-glyph,rgba(255,255,255,0.14));color:var(--acc-text,#fff);',
+      '.acc .with button{height:32px;border-radius:16px;border:0;background:var(--acc-glyph,rgba(255,255,255,0.14));color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));',
       '  font:inherit;font-size:14px;padding:0 12px;cursor:pointer}',
       '.acc .reset{height:50px;border:0;border-radius:14px;background:var(--acc-cell,rgba(255,255,255,0.08));',
       '  color:var(--acc-red,#ff453a);font:inherit;cursor:pointer;width:100%}',
       // Reset asks first, in place (an alert over a sheet would stack two sheets)
       '.acc .sure{display:flex;flex-direction:column;gap:8px}',
       '.acc .sure[hidden]{display:none}',
-      '.acc .sure .q{font-size:13px;line-height:18px;color:var(--acc-label2,rgba(255,255,255,0.55));padding:0 6px;text-align:center}',
+      '.acc .sure .q{font-size:13px;line-height:18px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:0 6px;text-align:center}',
       '.acc .sure .b{display:flex;gap:8px}',
       '.acc .sure button{flex:1;height:44px;border:0;border-radius:12px;font:inherit;cursor:pointer;',
-      '  background:var(--acc-cell,rgba(255,255,255,0.08));color:var(--acc-text,#fff)}',
+      '  background:var(--acc-cell,rgba(255,255,255,0.08));color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)))}',
       '.acc .sure button.go{color:var(--acc-red,#ff453a);font-weight:600}',
-      '.acc .note{font-size:13px;line-height:18px;color:var(--acc-label2,rgba(255,255,255,0.5));padding:0 6px}',
+      '.acc .note{font-size:13px;line-height:18px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:0 6px}',
       // a footer under its group, a little apart from it, as iOS sets one
       '.acc .grp + .note{margin-top:6px}',
       '.acc .err{color:var(--acc-orange,#ff9f0a)}',
@@ -959,6 +1414,87 @@
 
     // opts.panel: drawn on the settings page, which is no dashboard -- no
     // "Only on this dashboard", no "Favorite on this dashboard".
+    // WHERE IT SHOWS, filled in when the server answers: Show in HK Frontend
+    // (off: hidden everywhere), then each place this accessory can be hidden
+    // from. Hidden with its whole device or room, the switch says so and
+    // waits for that to change (Hidden Accessories).
+    function wherePane(h, el, id, area, opts, fail) {
+      var grp = el.querySelector('.sec.where .grp'), wall = el.querySelector('.row.wall');
+      var shown = wall.querySelector('.tg.shown'), why = wall.querySelector('.wwhy');
+      var rows = [];
+      var paint = function (snap) {
+        rows.forEach(function (r) { r.remove(); });
+        rows = [];
+        var e = (h.entities || {})[id] || {};
+        var dev = e.device_id && (snap.devices || []).indexOf(e.device_id) >= 0 ? (h.devices || {})[e.device_id] : null;
+        var room = area && (snap.areas || []).indexOf(area) >= 0 ? area : null;
+        var every = (snap.everywhere || []).indexOf(id) >= 0;
+        var off = (snap.off || {})[id] || [], can = (snap.can || {})[id] || [];
+        var locked = !!(dev || room);
+        shown.disabled = locked;
+        shown.checked = !every && !locked;
+        why.hidden = !locked;
+        why.textContent = dev ? 'Hidden with its device, ' + (dev.name_by_user || dev.name || 'this device')
+          : room ? 'Hidden with its room, ' + (((h.areas || {})[room] || {}).name || room) : '';
+        var after = wall;
+        can.forEach(function (k) {
+          var p = (snap.places || {})[k] || [k, ''];
+          var name = k === 'room' ? ((((h.areas || {})[area] || {}).name || 'Its') + ' Room Page') : p[0];
+          var r = document.createElement('div');
+          r.className = 'row place' + (every || locked ? ' dim' : '');
+          r.innerHTML = '<span class="k">' + esc(name) + '<small>' + esc(p[1]) + '</small></span>' +
+            '<input class="tg" type="checkbox" role="switch">';
+          var tg = r.querySelector('.tg');
+          tg.setAttribute('aria-label', 'Show on ' + name);
+          tg.dataset.k = k;
+          tg.checked = off.indexOf(k) < 0;
+          tg.disabled = every || locked;
+          tg.addEventListener('change', function () { send(false); });
+          after.insertAdjacentElement('afterend', r);
+          after = r;
+          rows.push(r);
+        });
+        // ALSO COUNT AS: on = counted there (added); what it could be added to, off
+        var also = el.querySelector('.sec.also'), ag = also && also.querySelector('.grp');
+        if (!ag) return;
+        var added = (snap.added || {})[id] || [];
+        var ks = (snap.order || []).filter(function (k) { return added.indexOf(k) >= 0 || ((snap.also || {})[id] || []).indexOf(k) >= 0; });
+        also.hidden = !ks.length;
+        ag.innerHTML = '';
+        ks.forEach(function (k) {
+          var p = (snap.places || {})[k] || [k, ''];
+          var r = document.createElement('div');
+          r.className = 'row place';
+          r.innerHTML = '<span class="k">' + esc(p[0]) + '<small>' + esc(p[1]) + '</small></span><input class="tg" type="checkbox" role="switch">';
+          var tg = r.querySelector('.tg');
+          tg.setAttribute('aria-label', 'Also count as ' + p[0]);
+          tg.checked = added.indexOf(k) >= 0;
+          tg.addEventListener('change', function () {
+            var kinds = {};
+            kinds[k] = tg.checked;
+            if (!opts.panel && window.hkStrategy && window.hkStrategy.ownChange) window.hkStrategy.ownChange();
+            h.callWS({ type: 'hk_frontend/hidden/also', entity_ids: [id], kinds: kinds })
+              .then(function (s2) { paint(s2); if (opts.onSave) opts.onSave(true); },
+                    function (err) { fail(err); if (opts.onSave) opts.onSave(false); });
+          });
+          ag.appendChild(r);
+        });
+      };
+      var send = function (everywhere) {
+        var places = {};
+        rows.forEach(function (r) { var tg = r.querySelector('.tg'); if (!tg.checked) places[tg.dataset.k] = true; });
+        if (!opts.panel && window.hkStrategy && window.hkStrategy.ownChange) window.hkStrategy.ownChange();
+        return h.callWS({ type: 'hk_frontend/hidden/set', entity_ids: [id], everywhere: everywhere, places: everywhere ? {} : places })
+          .then(function (snap) { paint(snap); if (opts.onSave) opts.onSave(true); },
+                function (err) { fail(err); if (opts.onSave) opts.onSave(false); });
+      };
+      shown.addEventListener('change', function () { send(!shown.checked); });
+      h.callWS({ type: 'hk_frontend/hidden/get', entity_ids: [id] }).then(paint, function () {
+        why.hidden = false;
+        why.textContent = 'Couldn’t read where it shows.';
+      });
+    }
+
     function accessoryPane(h, id, onName, opts) {
       opts = opts || {};
       var el = document.createElement('div');
@@ -1059,11 +1595,21 @@
           '(HK Settings → Sky / Background, for All Screens or each screen).' +
           (animOff ? ' They’re off on this screen, so it stays still.' : '') + '</div></div>';
       }
-      html += '<div><div class="cap">Where it shows</div><div class="grp">' +
-        '<div class="row"><span class="k">Include in Status</span><input class="tg status" type="checkbox" role="switch" aria-label="Include in Status"></div>' +
-        '<div class="row"><span class="k">Show on Home</span><input class="tg home" type="checkbox" role="switch" aria-label="Show on Home"></div>' +
+      // WHERE IT SHOWS (Hidden Accessories, hiding.py): Show in HK Frontend,
+      // then a switch for each place it can be hidden from -- asked of the
+      // server, which knows its kinds -- and, on a dashboard, Favorite
+      html += '<div class="sec where"><div class="cap">Where it shows</div><div class="grp">' +
+        '<div class="row wall"><span class="k">Show in HK Frontend<small class="wwhy" hidden></small></span>' +
+        '<input class="tg shown" type="checkbox" role="switch" aria-label="Show in HK Frontend" disabled></div>' +
         (board ? '<div class="row"><span class="k">Favorite on this dashboard</span><input class="tg fav" type="checkbox" role="switch" aria-label="Favorite on this dashboard"></div>' : '') +
-        '</div></div>';
+        '</div><div class="note">' + (opts.panel
+          ? 'Anything off here is listed in <a href="#/accessories/hidden">Hidden Accessories</a>, with where.'
+          : 'Anything off here is listed in HK Settings → Accessories → Hidden Accessories.') + '</div></div>' +
+        // ALSO COUNT AS (Status & Chips' Also count, moved here 2026-10-12):
+        // the kinds it isn't found in by itself but could be counted in
+        '<div class="sec also" hidden><div class="cap">Also count as</div><div class="grp"></div>' +
+        '<div class="note">Counted there too, though it isn’t found there by itself — an outlet you think of as a light, ' +
+        'a camera that hears the smoke alarm.</div></div>';
       // ON THE ENERGY PAGE (the Energy feature): a device's own settings
       // there -- its name, its section, shown or not -- and the way to the
       // rest (its power sensor, its switch) on HK Settings
@@ -1328,12 +1874,10 @@
         save({ icon: b.dataset.v || null });
       });
 
-      // WHERE IT SHOWS
-      var st = el.querySelector('.status'), hm = el.querySelector('.home'), fav = el.querySelector('.fav');
-      st.checked = cur.status !== false;
-      hm.checked = cur.home !== false;
-      st.addEventListener('change', function () { save({ status: st.checked ? null : false }); });
-      hm.addEventListener('change', function () { save({ home: hm.checked ? null : false }); });
+      // WHERE IT SHOWS: what hides it, from the server (hiding.py); a
+      // change sets every place at once, as Hidden Accessories does
+      var fav = el.querySelector('.fav');
+      wherePane(h, el, id, area, opts, fail);
       if (fav && board) {
         fav.checked = (board.favorites || []).indexOf(id) >= 0;
         fav.addEventListener('change', function () {
@@ -1519,7 +2063,7 @@
       var tok = ++TOK;
       var el = document.createElement('div');
       el.className = 'hkd';
-      el.innerHTML = '<style>' + SHEET_CSS + ACC_CSS + '</style><div class="bd"></div>' +
+      el.innerHTML = '<style>' + SHEET_CSS + ACC_CSS + NOTE_CSS + '</style><div class="bd"></div>' +
         '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="hkd-t' + tok + '">' +
           '<div class="hd"><div class="well"><ha-state-icon></ha-state-icon></div>' +
           '<div class="tx"><div class="tt" id="hkd-t' + tok + '"></div></div>' +
@@ -1531,7 +2075,7 @@
       // glass: false -- the sheet is its own blur; a panel in hk-glass's
       // member set would only make it re-measure the page on every open and
       // close.
-      panel.setConfig(Object.assign({ entity: id, kind: kind, src: src || {}, glass: false },
+      panel.setConfig(Object.assign({ entity: id, kind: kind, src: src || {}, glass: false, event: opts.event || null },
         opts.group ? { entities: opts.group.ids, room: opts.group.room, groupKind: opts.group.kind,
                        row: opts.group.row, resolve: opts.group.resolve } :
         opts.cards ? { cards: opts.cards.cards, width: opts.cards.width } : {}));
@@ -1550,7 +2094,13 @@
       };
       D.group = opts.group || null;
       D.returnGroup = !opts.group && !opts.cards ? returnGroup : null;
-      sheet.style.setProperty('--hkd-w', (WIDTH[panel.hkWidthKind ? panel.hkWidthKind(h, s) : kind] || 440) + 'px');
+      // BACK TO THE SHEET IT CAME FROM (a person's Other Members, a
+      // notification's picture): { id, src, opts }; back0 is this one, for
+      // a sheet opened from it
+      D.back = opts.back || null;
+      D.back0 = { id: id, src: src || null, opts: opts };
+      var wpx = WIDTH[panel.hkWidthKind ? panel.hkWidthKind(h, s) : kind] || 440;
+      sheet.style.setProperty('--hkd-w', wpx + 'px');
       if (panel.hkFill && panel.hkFill()) panel.classList.add('fill');
       // A sheet as tall as its content (the camera's picture) instead of the
       // one height every control sheet shares; a bare one (the camera) is the
@@ -1558,10 +2108,18 @@
       if (panel.hkAutoHeight && panel.hkAutoHeight()) sheet.style.height = 'auto';
       if (panel.hkBare && panel.hkBare()) { sheet.classList.add('bare'); el.classList.add('bare'); }
       sheet.querySelector('.body').appendChild(panel);
+      if (opts.note) placeNote(h, el, sheet, panel, opts.note, wpx);
       C.shade(sheet.querySelector('.body'), sheet);
       el.querySelector('.bd').addEventListener('click', function () { close(); });
       el.querySelector('.x').addEventListener('click', function (e) { e.stopPropagation(); close(); });
-      if (D.returnGroup) {
+      if (D.back) {
+        var bk = document.createElement('button');
+        bk.className = 'x';
+        bk.setAttribute('aria-label', 'Back');
+        bk.innerHTML = '<ha-icon icon="mdi:chevron-left"></ha-icon>';
+        bk.addEventListener('click', function (e) { e.stopPropagation(); close(); });
+        el.querySelector('.hd').insertBefore(bk, el.querySelector('.well'));
+      } else if (D.returnGroup) {
         var back = document.createElement('button');
         back.className = 'x';
         back.setAttribute('aria-label', 'Back to ' + D.returnGroup.title);
@@ -1572,7 +2130,7 @@
       // THE GEAR: this accessory's settings in place of its controls, and
       // back (admins only; not on a picture sheet or a group of several).
       var gear = el.querySelector('.gear');
-      if (canEdit(h) && !opts.group && !opts.cards && !(panel.hkBare && panel.hkBare())) {
+      if (canEdit(h) && !opts.group && !opts.cards && !(panel.hkBare && panel.hkBare()) && !(panel.hkNoGear && panel.hkNoGear())) {
         gear.hidden = false;
         gear.addEventListener('click', function (e) {
           e.stopPropagation();
@@ -1671,6 +2229,10 @@
         restoreGroup(d.returnGroup);
         return;
       }
+      if (!silent && !all && d.back && ours(d) && location.pathname === d.path && location.hash === d.hash) {
+        open(d.back.id, d.back.src, d.back.opts);
+        return;
+      }
       d.closing = true;
       if (d.covers) { d.covers = false; covering(-1); }
       clearTimeout(d.auto);
@@ -1688,6 +2250,7 @@
     window.addEventListener('popstate', function () {
       if (D.el && !ours(D)) {
         if (D.returnGroup && location.pathname === D.path && location.hash === D.hash) restoreGroup(D.returnGroup);
+        else if (D.back && location.pathname === D.path && location.hash === D.hash) open(D.back.id, D.back.src, D.back.opts);
         else close(true);
       }
     });
@@ -1792,7 +2355,7 @@
 
     // ------------------------------------------------------------ panels
     var PANEL_CSS = [
-      ':host{display:block;color:#fff;font-family:inherit}',
+      ':host{display:block;color:var(--hk-ink,rgba(255,255,255,0.94));font-family:inherit}',
       // a display rule beats the hidden attribute; this puts it back
       '[hidden]{display:none!important}',
       // 3 px above and below, the same: a centred panel is centred to the pixel
@@ -1800,7 +2363,7 @@
       '.big{font-size:44px;font-weight:600;letter-spacing:-1.5px;line-height:1;',
       '  font-variant-numeric:tabular-nums;min-height:44px;text-align:center}',
       '.lab{align-self:stretch;font-size:13px;font-weight:600;letter-spacing:.2px;',
-      '  color:rgba(235,235,245,0.55);text-transform:uppercase;margin-bottom:-10px}',
+      '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase;margin-bottom:-10px}',
       // the vertical slider (brightness, speed, shade)
       // ONE SLIDER SIZE on every sheet (150 x 440; a phone 128 x 360)
       '.vs{position:relative;width:150px;height:440px;border-radius:44px;flex-shrink:0;',
@@ -1835,7 +2398,11 @@
       '.menu .cur{display:inline-flex;align-items:center;gap:4px;color:rgba(235,235,245,0.62);',
       '  font-weight:500;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
       '.menu .cur svg{flex-shrink:0}',
-      '.muted{font-size:15px;color:rgba(235,235,245,0.62);text-align:center}',
+      '.muted{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));text-align:center}',
+      // A STATE AND ITS LINE ARE ONE PIECE ("Closed" / "Hold to open",
+      // "Closed" / "Since 8:20 AM"): SP.line under it, whatever the gap
+      // between the sheet's pieces (20, a phone 16)
+      '.pn > .big + .muted,.pn > .big + .since{margin-top:-14px}',
       // the axes (axesChart): values up the left, each centred on its rule
       // ONE GRID: the values' column, as wide as its WIDEST label (a hidden
       // copy of it sizes the column), then the plot; the times sit under the
@@ -1847,19 +2414,42 @@
       '.ay .sz{visibility:hidden;display:block;height:0;overflow:hidden;font-size:12px;line-height:14px;',
       '  font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.ay span{position:absolute;right:0;transform:translateY(-50%);font-size:12px;line-height:14px;',
-      '  color:rgba(235,235,245,0.5);font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '  color:var(--hk-ink-3,rgba(255,255,255,0.40));font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.ap{position:relative;min-width:0}',
       '.axc > .axx{grid-column:2;margin:8px 0 0}',
       '.ap .gr{position:absolute;left:0;right:0;height:1px;margin-top:-0.5px;background:rgba(255,255,255,0.07);pointer-events:none}',
       '.ap .gr.b{background:rgba(255,255,255,0.16)}',
       '.axc.fl{align-items:stretch;grid-template-rows:minmax(0,1fr) auto}',
       '.axc.fl .ap > svg{height:100% !important;overflow:visible}',
-      '.axx{position:relative;height:14px;margin:8px 0 0 48px;font-size:12px;line-height:14px;color:rgba(235,235,245,0.5)}',
+      '.axx{position:relative;height:14px;margin:8px 0 0 48px;font-size:12px;line-height:14px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
       '.axx span{position:absolute;top:0;white-space:nowrap;transform:translateX(-50%)}',
       '.axx span:first-child{transform:none}',
       '.axx span:last-child{transform:translateX(-100%)}',
+      // a calendar period's labels sit centered under their days, the ends too
+      '.axx.cal span,.axx.cal span:first-child,.axx.cal span:last-child{transform:translateX(-50%)}',
+      '.axx.cal span.today{color:#f4b562;font-weight:700}',
+      '.axx.cal span.fut{opacity:.65}',
+      // the readout (scrub): a vertical swipe on the plot still scrolls the
+      // sheet; a held finger selects nothing and opens no callout
+      '.ap[data-hks]{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;',
+      '  -webkit-tap-highlight-color:transparent}',
+      '.hks{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .12s ease;z-index:2}',
+      '.hks.on{opacity:1}',
+      // the line runs from the label down to the plot's floor
+      '.hks .hkl{position:absolute;left:0;top:-3px;bottom:0;width:0;border-left:1px solid rgba(255,255,255,0.55)}',
+      '.hks .hkd{position:absolute;left:-6px;top:-6px;width:12px;height:12px;box-sizing:border-box;border-radius:50%;',
+      '  background:#fff;border:3px solid #ff9f0a;box-shadow:0 1px 4px rgba(0,0,0,0.45)}',
+      '.hks .hkp{position:absolute;left:0;bottom:calc(100% + 3px);display:flex;align-items:baseline;gap:7px;',
+      '  padding:4px 10px;border-radius:13px;white-space:nowrap;background:rgba(24,24,28,0.93);',
+      '  box-shadow:0 0 0 0.5px rgba(255,255,255,0.14),0 4px 14px rgba(0,0,0,0.35)}',
+      '.hks .hkp .v{font-size:15px;line-height:18px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums}',
+      '.hks .hkp .t{font-size:13px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums}',
+      // a bar chart lights the bar under the line: the others step back
+      '.hksg > div{transition:opacity .12s ease}',
+      '.hksg.on > div:not(.hkon){opacity:.4}',
       '@media (max-width:600px){',
       '  .pn{gap:16px}',
+      '  .pn > .big + .muted,.pn > .big + .since{margin-top:-10px}',
       '  .big{font-size:38px;min-height:38px}',
       '  .vs{width:128px;height:360px;border-radius:38px}',
       '  .vs.short{height:280px}',
@@ -2028,10 +2618,7 @@
           '.bk button{width:40px;height:40px;border-radius:20px;border:0;padding:0;display:flex;',
           '  align-items:center;justify-content:center;background:rgba(255,255,255,0.13);color:#fff;cursor:pointer}',
           '.bk .t{font-size:20px;font-weight:700;letter-spacing:-.3px}',
-          '.seg{display:flex;gap:4px;padding:4px;border-radius:16px;background:rgba(255,255,255,0.09)}',
-          '.seg button{flex:1;height:40px;border:0;border-radius:12px;background:transparent;',
-          '  color:rgba(255,255,255,0.86);font:inherit;font-size:15px;font-weight:600;cursor:pointer}',
-          '.seg button.sel{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.88)}',
+          C.segCss('.seg', { on: '.sel', fill: true }),
           '.wheel{position:relative;width:300px;height:300px;border-radius:50%;align-self:center;',
           '  touch-action:none;cursor:crosshair;',
           '  background:radial-gradient(circle closest-side,#fff,rgba(255,255,255,0)),',
@@ -2047,16 +2634,16 @@
           '.list::-webkit-scrollbar{display:none}',
           '.list button{display:flex;align-items:center;justify-content:space-between;width:100%;',
           '  min-height:52px;padding:0 18px;border:0;border-bottom:1px solid rgba(255,255,255,0.07);',
-          '  background:transparent;color:#fff;font:inherit;font-size:17px;text-align:left;cursor:pointer}',
+          '  background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:17px;text-align:left;cursor:pointer}',
           '.list button:last-child{border-bottom:0}',
           '.list .hd2{padding:16px 18px 6px;font-size:13px;font-weight:600;letter-spacing:.2px;',
-          '  color:rgba(235,235,245,0.55);text-transform:uppercase}',
+          '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase}',
           '.list button:active{background:rgba(255,255,255,0.08)}',
           '.search{display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:14px;',
           '  background:rgba(255,255,255,0.10)}',
-          '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:#fff;font:inherit;',
+          '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;',
           '  font-size:17px;outline:none}',
-          '.search input::placeholder{color:rgba(235,235,245,0.5)}',
+          '.search input::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
           '@media (max-width:600px){',
           '  .sw{gap:8px}',
           '  .grp{min-width:0}',
@@ -2204,10 +2791,18 @@
           seg.className = 'seg';
           seg.innerHTML = '<button data-t="colour">Color</button><button data-t="white">White</button>';
           seg.querySelectorAll('button').forEach(function (b) {
-            b.addEventListener('click', function () { self._tab = b.getAttribute('data-t'); self._go('wheel'); });
+            b.addEventListener('click', function () {
+              var was = seg.querySelector('button.sel');
+              self._segFrom = was && C.segBox ? C.segBox(was) : null;
+              self._tab = b.getAttribute('data-t');
+              self._go('wheel');
+            });
             b.classList.toggle('sel', b.getAttribute('data-t') === self._tab);
           });
           sub.appendChild(seg);
+          // the panel is drawn anew: the white slides from where it was
+          if (this._segFrom && C.slideSeg) C.slideSeg(seg.querySelector('button.sel'), this._segFrom);
+          this._segFrom = null;
         }
         if (this._tab === 'colour') {
           var w = document.createElement('div');
@@ -2346,7 +2941,7 @@
           '  transition:top .28s cubic-bezier(.2,.8,.2,1),color .25s}',
           '.tg.on .kn{top:12px;color:#30d158}',
           '.tg[disabled]{opacity:.45;cursor:default}',
-          '.since{font-size:16px;color:rgba(235,235,245,0.62);min-height:20px}',
+          '.since{font-size:16px;color:var(--hk-ink-2,rgba(255,255,255,0.68));min-height:20px}',
           '@media (max-width:600px){.tg{width:128px;height:280px;border-radius:64px}',
           '  .tg .kn{height:108px;border-radius:54px;top:calc(100% - 12px - 108px)}.tg.on .kn{top:12px}}'
         ].join('');
@@ -2387,21 +2982,22 @@
     class FanPanel extends Panel {
       static get CSS() {
         return PANEL_CSS + [
-          // 16, not 20: the word, its percentage, the 420 slider and a guard
-          // chip all fit the one sheet height
+          // 16, not 20 (the phone's SP.piecePhone, 2026-10-12: measured): the
+          // word, its percentage, the 420 slider and a guard chip only fit
+          // the one sheet height at 16
           '.pn{gap:16px}',
           '.rd{text-align:center}',
-          '.pct{font-size:16px;color:rgba(235,235,245,0.62);margin-top:6px;min-height:20px;font-variant-numeric:tabular-nums}',
+          '.pct{font-size:16px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:6px;min-height:20px;font-variant-numeric:tabular-nums}',
           '.vs{height:420px}',
           '.wrap{position:relative}',
           '.names{position:absolute;left:calc(100% + 16px);top:0;bottom:0;width:max-content;pointer-events:none}',
           '.names span{position:absolute;left:0;transform:translateY(50%);font-size:15px;',
-          '  color:rgba(235,235,245,0.5);white-space:nowrap;transition:color .15s}',
-          '.names span.cur{color:#fff;font-weight:600}',
+          '  color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;transition:color .15s}',
+          '.names span.cur{color:var(--hk-ink,rgba(255,255,255,0.94));font-weight:600}',
           '.guard{display:flex;align-items:center;gap:10px;height:40px;padding:0 5px 0 14px;',
           '  border-radius:20px;background:rgba(255,179,64,0.16);color:#FFB340;font-size:15px;font-weight:600}',
           '.guard button{height:30px;padding:0 13px;border:0;border-radius:15px;font:inherit;font-size:13px;',
-          '  font-weight:600;color:#fff;background:rgba(255,255,255,0.16);cursor:pointer}',
+          '  font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94));background:rgba(255,255,255,0.16);cursor:pointer}',
           '@media (max-width:600px){.names{left:calc(100% + 12px)}.names span{font-size:14px}.vs{height:340px}}'
         ].join('');
       }
@@ -2850,8 +3446,8 @@
     class ClimatePanel extends Panel {
       static get CSS() {
         return PANEL_CSS + [
-          // 14 not 18: the run-time row had to fit an 800 px tablet with margin
-          '.pn{gap:14px}',
+          // 12 (SP.block): the run-time row has to fit an 800 px tablet with margin
+          '.pn{gap:12px}',
           // narrow (a phone): one column -- .side dissolves into it
           '.side{display:contents}',
           '.dial{align-self:stretch;display:flex;justify-content:center}',
@@ -2862,14 +3458,14 @@
           '.now{align-self:stretch;display:flex;flex-direction:column;gap:12px;',
           '  padding:12px 18px;border-radius:20px;background:rgba(255,255,255,0.08);text-align:center}',
           '.now .rd{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}',
-          '.now .k{font-size:13px;color:rgba(235,235,245,0.6)}',
+          '.now .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.now .v{font-size:19px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
           // RUN TIME, today and yesterday: the second row of the same card,
           // two halves under a hairline
           '.now .run{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;',
           '  padding-top:12px;border-top:1px solid rgba(255,255,255,0.10)}',
           '.trend{align-self:stretch;padding:12px 16px 8px;border-radius:20px;background:rgba(255,255,255,0.08)}',
-          '.trend .t{font-size:13px;font-weight:600;letter-spacing:.2px;color:rgba(235,235,245,0.55);',
+          '.trend .t{font-size:13px;font-weight:600;letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
           '  text-transform:uppercase;margin-bottom:6px}',
           '@media (max-width:600px){.now{padding:12px 14px;gap:10px}.now .rd,.now .run{gap:8px}',
           '  .now .run{padding-top:10px}.now .v{font-size:17px}}',
@@ -2882,7 +3478,7 @@
           // below): a 400 px column, the ring filling it, bigger digits and
           // rows, more air between them -- the card's --hk-tstat-* sizes
           ':host([wide]) .dial{' + TSTAT_WIDE + '}',
-          ':host([wide]) .side{display:flex;flex-direction:column;gap:14px;flex:1;min-width:0}',
+          ':host([wide]) .side{display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}',
           ':host([wide]) .now{background:none;padding:0;gap:14px}',
           ':host([wide]) .now .rd,:host([wide]) .now .run{padding:14px 18px;border-radius:20px;background:rgba(255,255,255,0.08)}',
           ':host([wide]) .now .run{border-top:0}',
@@ -2941,6 +3537,7 @@
         this._trend.innerHTML = '<div class="t">Inside, last 24 hours</div>' +
           axesChart({ pts: downsample(pts, 240), H: wide ? 120 : 96, unit: '°', ms: 24 * 3600000, n: wide ? 5 : 3,
                       colour: 'orange', fluid: wide });
+        scrub(this._trend);
         this._alignTop();
       }
       // THE RIGHT COLUMN STARTS WHERE THE DIAL IS SEEN TO START. The dial
@@ -3043,11 +3640,11 @@
           '.art img{width:100%;height:100%;object-fit:cover;display:block}',
           '.art.tv{width:100%;height:auto;aspect-ratio:16/9}',
           '.ti{font-size:22px;font-weight:700;letter-spacing:-.4px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-          '.ar{font-size:15px;color:rgba(235,235,245,0.62);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-          '.on{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:rgba(235,235,245,0.5)}',
+          '.ar{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+          '.on{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
           '.pg{height:4px;border-radius:2px;background:rgba(255,255,255,0.22);overflow:hidden}',
           '.pg i{display:block;height:100%;width:0;background:#fff;border-radius:2px}',
-          '.tm{display:flex;justify-content:space-between;font-size:12px;color:rgba(235,235,245,0.5);',
+          '.tm{display:flex;justify-content:space-between;font-size:12px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
           '  margin-top:6px;font-variant-numeric:tabular-nums}',
           '.tp{display:flex;justify-content:center;align-items:center;gap:44px}',
           '.tp button{width:52px;height:52px;border:0;border-radius:26px;background:transparent;color:#fff;',
@@ -3076,8 +3673,8 @@
           '.vst button{width:44px;height:44px;border-radius:22px;border:0;padding:0;display:flex;align-items:center;',
           '  justify-content:center;background:rgba(255,255,255,0.13);color:#fff;cursor:pointer}',
           '.vst button:active{background:rgba(255,255,255,0.24)}',
-          '.vst span{font-size:15px;font-weight:600;color:rgba(235,235,245,0.62);min-width:64px;text-align:center}',
-          '.acts{display:flex;gap:10px}',
+          '.vst span{font-size:15px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));min-width:64px;text-align:center}',
+          '.acts{display:flex;gap:12px}',
           '.acts .btn{flex:1}',
           '.acts .pw{flex:0 0 52px;padding:0}',
           '.acts .pw.lit{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.85)}',
@@ -3091,7 +3688,7 @@
           '.list::-webkit-scrollbar{display:none}',
           '.list button{display:flex;align-items:center;justify-content:space-between;width:100%;',
           '  min-height:52px;padding:0 18px;border:0;border-bottom:1px solid rgba(255,255,255,0.07);',
-          '  background:transparent;color:#fff;font:inherit;font-size:17px;text-align:left;cursor:pointer}',
+          '  background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:17px;text-align:left;cursor:pointer}',
           '.list button:last-child{border-bottom:0}',
           '@media (max-width:600px){',
           '  .pl{margin:0 8px}',
@@ -3307,6 +3904,38 @@
     // total instead.
     var RANGES = [['hour', 'Hour'], ['day', 'Day'], ['week', 'Week'], ['month', 'Month']];
     var RANGE_H = { hour: 1, day: 24, week: 168, month: 720 };
+    // WEEK AND MONTH ARE CALENDAR PERIODS (the user, 2026-10-12), stepped
+    // back with ‹ › as the Energy page's are: half a year of weeks, a year
+    // of months. Hour and Day stay the last hour and the last 24 hours.
+    var MAX_BACK = { week: 26, month: 12 };
+    var CHEV_L = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>';
+    var CHEV_R = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>';
+    function calTz() { return window.hkStats && window.hkStats.tz ? window.hkStats.tz() : undefined; }
+    function monthName(t) {
+      var o = { month: 'long', timeZone: calTz() };
+      if (new Date(t).getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+      return new Date(t).toLocaleDateString([], o);
+    }
+    function shortDate(t) { return new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: calTz() }); }
+    // "This Week", "Last Week", "Week of Sep 27"; "This Month", "Last Month", "August"
+    function periodName(r, back, start) {
+      var wk = r === 'week';
+      if (!back) return wk ? 'This Week' : 'This Month';
+      if (back === 1) return wk ? 'Last Week' : 'Last Month';
+      return wk ? 'Week of ' + shortDate(start) : monthName(start);
+    }
+    // "Oct 11 – 17", "Sep 27 – Oct 3", "Oct 1 – 31"
+    function periodRange(a, b) {
+      var F = window.hkStats.fields, fa = F(a), fb = F(b);
+      return shortDate(a) + ' \u2013 ' + (fa.month === fb.month ? fb.day : shortDate(b));
+    }
+    // the figures under a meter's week or month (the row over the ranges
+    // already names the period, so these stay short enough for a phone)
+    function calNames(cal) {
+      var wk = cal.r === 'week';
+      return [cal.cur ? 'So Far' : 'Total', 'Daily Average',
+              cal.cur ? (wk ? 'Last Week by Now' : 'Last Month by Now') : (wk ? 'Week Before' : monthName(cal.P1.start))];
+    }
     function isEnergy(s) {
       var a = s.attributes || {};
       return a.state_class === 'total_increasing' || a.state_class === 'total' || a.device_class === 'energy';
@@ -3348,17 +3977,24 @@
     var EN_CSS = [
       '.en{display:flex;flex-direction:column;gap:12px}',
       '.en[hidden]{display:none}',
-      '.stats.ens .sub{font-size:12px;color:rgba(235,235,245,0.5);margin-top:2px;min-height:15px}',
+      '.stats .sub{font-size:12px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px;min-height:15px}',
+      // ONE HEIGHT IN EVERY RANGE (the user: the sheet bounced between Day
+      // and Week): label, value and line in three rows lined up across the
+      // columns, and on a phone room kept for a label or a line on two lines
+      '.stats.ens{grid-template-rows:auto auto auto;grid-auto-flow:column;row-gap:0;align-content:center}',
+      '.stats.ens > div{display:contents}',
+      '@media (max-width:600px){.stats.ens{min-height:var(--hk-ens-h,112px)}}',
+      '.stats .sub.up{color:#ff9f0a}.stats .sub.down{color:#30d158}',
       '.en .rows{border-radius:20px;background:rgba(255,255,255,0.08);overflow:hidden}',
       '.en .row{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px 0 18px;border:0;width:100%;',
       '  background:transparent;color:inherit;font:inherit;font-size:16px;text-align:left;cursor:pointer;box-sizing:border-box}',
       '.en .row + .row{border-top:1px solid rgba(255,255,255,0.08)}',
-      '.en .row .k{color:rgba(235,235,245,0.6);font-size:14px;min-width:84px}',
+      '.en .row .k{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-size:14px;min-width:84px}',
       '.en .row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}',
-      '.en .row .v{color:rgba(235,235,245,0.72);font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.en .row .v{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.en .row svg{flex-shrink:0;color:rgba(235,235,245,0.35)}',
       '.en .sw{flex-shrink:0;height:34px;min-width:64px;padding:0 14px;border-radius:17px;border:0;font:inherit;font-size:15px;',
-      '  font-weight:600;cursor:pointer;background:rgba(255,255,255,0.14);color:#fff}',
+      '  font-weight:600;cursor:pointer;background:rgba(255,255,255,0.14);color:var(--hk-ink,rgba(255,255,255,0.94))}',
       '.en .sw.on{background:#30d158;color:#fff}'
     ].join('');
     function wattsText(h, id) {
@@ -3376,34 +4012,44 @@
           // with both axes. By the sheet's own width (:host([wide]), see
           // _wideAt), so a narrow sheet (a phone, a small window) stacks them
           // whatever the screen is.
-          '.pn{align-items:stretch;gap:18px}',
-          '.top{display:flex;flex-direction:column;gap:18px}',
+          '.pn{align-items:stretch;gap:20px}',
+          '.top{display:flex;flex-direction:column;gap:12px}',
           ':host([wide]) .top{flex-direction:row;justify-content:space-between;align-items:flex-end}',
-          ':host([wide]) .top .seg{width:380px;flex-shrink:0}',
+          ':host([wide]) .top .rc{width:380px;flex-shrink:0}',
+          // THE PERIOD AND ‹ › over the ranges: what the chart shows ("This
+          // Week · Oct 11 – 17"), stepping through the weeks or months
+          '.rc{display:flex;flex-direction:column;gap:10px}',
+          '.chd{display:flex;align-items:center;gap:10px;height:36px}',
+          '.chd .pl{flex:1;min-width:0;font-size:15px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+          '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+          ':host([wide]) .chd .pl{text-align:right}',
+          '.chd .nv{display:flex;gap:8px;flex-shrink:0}',
+          '.chd .nv[hidden]{display:none}',
+          '.chd .nv button{width:36px;height:36px;border-radius:18px;border:0;padding:0;margin:0;display:flex;align-items:center;justify-content:center;',
+          '  background:rgba(255,255,255,0.14);color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;-webkit-tap-highlight-color:transparent}',
+          '.chd .nv button:active{background:rgba(255,255,255,0.26)}',
+          '.chd .nv button:disabled{opacity:0.35;cursor:default;background:rgba(255,255,255,0.14)}',
           '.rd{align-self:stretch}',
           '.val{display:flex;align-items:baseline;gap:8px}',
-          '.upd{margin-top:6px;font-size:14px;line-height:18px;min-height:18px;color:rgba(235,235,245,0.55)}',
+          '.upd{margin-top:6px;font-size:14px;line-height:18px;min-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.val .n{font-size:72px;font-weight:600;letter-spacing:-2.5px;line-height:1;font-variant-numeric:tabular-nums}',
-          '.val .u{font-size:26px;font-weight:600;color:rgba(235,235,245,0.62)}',
-          '.seg{display:flex;gap:4px;padding:4px;border-radius:16px;background:rgba(255,255,255,0.09)}',
-          '.seg button{flex:1;height:40px;border:0;border-radius:12px;background:transparent;',
-          '  color:rgba(255,255,255,0.86);font:inherit;font-size:15px;font-weight:600;cursor:pointer}',
-          '.seg button.sel{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.88)}',
-          '.chart{padding:18px 18px 14px;border-radius:20px;background:rgba(255,255,255,0.08);',
+          '.val .u{font-size:26px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          C.segCss('.seg', { on: '.sel', fill: true }),
+          '.chart{padding:16px 18px 14px;border-radius:20px;background:rgba(255,255,255,0.08);',
           '  box-sizing:border-box;position:relative}',
           // the placeholder is the chart's own height (plot + time row), so
           // the sheet does not jump when the data lands
           '.chart .ph{display:flex;align-items:center;justify-content:center;',
-          '  color:rgba(235,235,245,0.45);font-size:15px}',
+          '  color:var(--hk-ink-3,rgba(255,255,255,0.40));font-size:15px}',
           '.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px 18px;',
           '  border-radius:20px;background:rgba(255,255,255,0.08);text-align:center}',
-          '.stats .k{font-size:13px;color:rgba(235,235,245,0.6)}',
+          '.stats .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           // the last range's chart and figures, dimmed while the next one loads
           '.chart .axc,.stats{transition:opacity .2s ease}',
           '.chart.stale .axc,.stats.stale{opacity:.35}',
           '.stats .v{font-size:19px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
           '@media (max-width:600px){.val .n{font-size:60px}.val .u{font-size:22px}',
-          '  .chart{padding:14px 14px 12px}.stats{padding:12px 14px;gap:8px}.stats .v{font-size:17px}}'
+          '  .pn{gap:16px}.stats .v{font-size:17px}.stats .k{font-size:12px}.stats{gap:8px;padding:14px 12px}}'
         ].join('') + EN_CSS;
       }
       hkWidthKind() { return 'sensor'; }
@@ -3430,11 +4076,22 @@
           var ranges = energy ? RANGES.slice(1) : RANGES;
           this._root.innerHTML = '<div class="pn"><div class="top"><div class="rd"><div class="val"><span class="n"></span><span class="u"></span></div>' +
             '<div class="upd"></div></div>' +
-            '<div class="seg">' + ranges.map(function (r) { return '<button data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div></div>' +
+            '<div class="rc"><div class="chd"><span class="pl"></span><span class="nv" hidden>' +
+              '<button data-n="1">' + CHEV_L + '</button><button data-n="-1">' + CHEV_R + '</button></span></div>' +
+            '<div class="seg">' + ranges.map(function (r) { return '<button data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div></div></div>' +
             '<div class="chart"></div><div class="stats"></div><div class="en" hidden></div></div>';
+          // a range opens on the period we are in
           this._root.querySelectorAll('.seg button').forEach(function (b) {
-            b.addEventListener('click', function () { self._range = b.getAttribute('data-r'); self._paintSeg(); self.redraw(); });
+            b.addEventListener('click', function () { self._range = b.getAttribute('data-r'); self._back = 0; self._paintSeg(); self.redraw(); });
           });
+          this._root.querySelectorAll('.nv button').forEach(function (b) {
+            b.addEventListener('click', function () {
+              if (b.disabled) return;
+              self._back = Math.max(0, Math.min(MAX_BACK[self._range] || 0, (self._back || 0) + Number(b.getAttribute('data-n'))));
+              self.redraw();
+            });
+          });
+          this._head = this._root.querySelector('.chd');
           this._n = this._root.querySelector('.n');
           this._u = this._root.querySelector('.u');
           this._chart = this._root.querySelector('.chart');
@@ -3449,8 +4106,44 @@
         this._u.textContent = at(s, 'unit_of_measurement') || '';
         this._paintUpd(s);
         this._rec = energyRec(this._id);
+        this._paintHead();
         this._paintChart(s, energy);
         this._paintEnergy(s, energy);
+      }
+      // A CALENDAR WEEK OR MONTH (the user's first day of the week), `back`
+      // periods before this one, and the one before it: each day's midnight
+      // in Home Assistant's zone. Null on Hour and Day (the last hour, the
+      // last 24 hours) and where hk-stats cannot say.
+      _cal() {
+        var r = this._range, S = window.hkStats;
+        if ((r !== 'week' && r !== 'month') || !S || !S.period || !S.weekStart) return null;
+        var ws = S.weekStart(this._hass), now = Date.now(), back = this._back || 0, today0 = S.addDays(now, 0);
+        var key = [r, back, ws, today0].join('|');
+        if (this._calK === key) return this._calV;
+        var days = function (P) {
+          var out = [], t = P.start;
+          for (var k = 0; k < P.len; k++) { out.push(t); t = S.addDays(t, 1); }
+          return { list: out, end: t };
+        };
+        var P0 = S.period(r, back, now, ws), P1 = S.period(r, back + 1, now, ws), a = days(P0);
+        this._calK = key;
+        this._calV = { r: r, back: back, cur: back === 0, P0: P0, P1: P1, dates: a.list, end: a.end, pdates: days(P1).list,
+                       today0: today0, todayK: a.list.indexOf(today0) };
+        return this._calV;
+      }
+      _paintHead() {
+        if (!this._head) return;
+        var cal = this._cal(), wk = this._range === 'week', nv = this._head.querySelector('.nv');
+        var label = !cal ? (this._range === 'hour' ? 'The last hour' : 'The last 24 hours')
+          : periodName(cal.r, cal.back, cal.P0.start) + ' \u00b7 ' + periodRange(cal.P0.start, cal.dates[cal.dates.length - 1]);
+        this._head.querySelector('.pl').textContent = label;
+        nv.hidden = !cal;
+        if (cal) {
+          nv.children[0].disabled = cal.back >= MAX_BACK[cal.r];
+          nv.children[1].disabled = cal.back === 0;
+          nv.children[0].setAttribute('aria-label', 'Previous ' + (wk ? 'week' : 'month'));
+          nv.children[1].setAttribute('aria-label', 'Next ' + (wk ? 'week' : 'month'));
+        }
       }
       // AN ENERGY DEVICE: today, its cost, the usual day; where it sits; its switch
       _paintEnergy(s, energy) {
@@ -3466,6 +4159,7 @@
         };
         var kwh = rec.stat ? today(rec.stat) : null;
         var price = priceOf(h, P, all ? today : null);
+        this._price = price;
         var usual = null;
         if (all && all[rec.stat]) {
           var prev = all[rec.stat].slice(0, -1).map(function (p) { return p && p.v; }).filter(function (v) { return Number.isFinite(v); });
@@ -3504,8 +4198,6 @@
           this._stats.classList.add('ens');
           this._stats.classList.remove('stale');
           if (this._stats._en !== sh || this._stats.innerHTML.indexOf('Usual Day') < 0) { this._stats.innerHTML = sh; this._stats._en = sh; }
-        } else {
-          this._stats.classList.remove('ens');
         }
         var html = (rows.length || sw ? '<div class="rows">' + rows.map(function (r, i) {
             return '<button class="row" data-i="' + i + '"><span class="k">' + esc(r.k) + '</span><span class="t">' + esc(r.t) + '</span>' +
@@ -3525,6 +4217,59 @@
         var btn = el.querySelector('.sw');
         if (btn) btn.addEventListener('click', function () { self._call('switch', 'toggle', { entity_id: rec.control }); });
       }
+      // A METER'S CALENDAR WEEK OR MONTH: a bar for every day of it, each
+      // labeled under itself; a day still to come is last period's same day
+      // in gray (the user, 2026-10-12); never scaled below a usual day, so a
+      // Sunday morning's one bar is not the whole chart. Its figures: so far
+      // (or the total), the daily average with its peak, and the period
+      // before at the same point (or whole, for a past one).
+      _paintCalBars(s, pts, cal, H, unit, phone, empty) {
+        var byT = {}, h = this._hass, wk = cal.r === 'week', u = esc(unit), S = window.hkStats;
+        pts.forEach(function (p) { if (p && p.v != null && isFinite(p.v)) byT[+p.t] = p.v; });
+        var data = cal.dates.map(function (t, k) {
+          var fut = cal.cur && k > cal.todayK, pt = { t: new Date(t), v: fut || byT[t] == null ? null : byT[t] };
+          if (fut && k < cal.pdates.length && byT[cal.pdates[k]] != null) pt.ghost = byT[cal.pdates[k]];
+          return pt;
+        });
+        var have = [];
+        data.forEach(function (p, k) { if (p.v != null) have.push(k); });
+        if (!have.length) { empty(this); return; }
+        // a usual day: the whole days before today in hand, a week of them
+        var before = [];
+        for (var q = 1; q <= 7; q++) { var bv = byT[S.addDays(cal.today0, -q)]; if (bv != null) before.push(bv); }
+        var usual = before.length ? before.reduce(function (a, b) { return a + b; }, 0) / before.length : null;
+        this._chart.innerHTML = axesChart({ pts: data, bars: true, H: H, unit: unit, ms: cal.P0.len * 864e5,
+          cal: { dates: cal.dates, todayK: cal.cur ? cal.todayK : -1, short: phone }, floor: cal.cur ? usual : null,
+          gw: wk ? 'last week\u2019s' : 'last month\u2019s' });
+        scrub(this._chart);
+        var val = function (k) { return data[k].v; }, add = function (a, k) { return a + val(k); };
+        var tot = have.reduce(add, 0), whole = have.filter(function (k) { return k !== cal.todayK; });
+        var avg = whole.length ? whole.reduce(add, 0) / whole.length : null;
+        var pk = have.reduce(function (a, k) { return a < 0 || val(k) > val(a) ? k : a; }, -1);
+        // the period before, as far into it as this one has gone (today by the clock)
+        var gone = cal.cur ? cal.todayK : cal.pdates.length, frac = Math.max(0, Math.min(1, (Date.now() - cal.today0) / 864e5));
+        var prev = 0, pany = false;
+        cal.pdates.forEach(function (t, k) {
+          var v = byT[t];
+          if (v == null) return;
+          pany = true;
+          prev += !cal.cur || gone >= cal.pdates.length || k < gone ? v : k === gone ? v * frac : 0;
+        });
+        var pct = pany && prev > 0 ? Math.round(100 * (tot - prev) / prev) : null;
+        var cmp = pct == null ? '' : Math.abs(pct) < 5 ? 'About the same' : Math.abs(pct) + '% ' + (pct > 0 ? 'more' : 'less');
+        var price = this._price != null ? this._price : priceOf(h, energyPlan(), null);
+        var day = function (k) { return wk ? new Date(cal.dates[k]).toLocaleDateString([], { weekday: 'short', timeZone: calTz() }) : shortDate(cal.dates[k]); };
+        var names = calNames(cal), fig = function (v) { return v == null ? '\u2014' : fmtNum(v, s) + ' ' + u; };
+        this._stats.hidden = false;
+        this._stats.classList.add('ens');
+        this._stats.innerHTML =
+          '<div><div class="k">' + esc(names[0]) + '</div><div class="v">' + fig(tot) + '</div><div class="sub">' +
+            (price != null ? money(h, tot * price, 2) : esc(periodRange(cal.P0.start, cal.dates[have[have.length - 1]]))) + '</div></div>' +
+          '<div><div class="k">' + esc(names[1]) + '</div><div class="v">' + fig(avg) + '</div><div class="sub">' +
+            (pk >= 0 ? 'Peak ' + esc(day(pk)) + ' \u00b7 ' + fmtNum(val(pk), s) : '') + '</div></div>' +
+          '<div><div class="k">' + esc(names[2]) + '</div><div class="v">' + fig(pany ? prev : null) + '</div><div class="sub' +
+            (pct != null && Math.abs(pct) >= 5 ? (pct > 0 ? ' up' : ' down') : '') + '">' + esc(cmp) + '</div></div>';
+      }
       // when the reading last changed ("Updated just now", "Updated 5 min ago")
       _paintUpd(s) {
         if (!this._upd || !s) return;
@@ -3536,7 +4281,7 @@
       }
       _paintSeg() {
         var r = this._range;
-        this._root.querySelectorAll('.seg button').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-r') === r); });
+        segPick(this._root.querySelector('.seg'), 'button', 'data-r', r);
       }
       // The series for the range, or null while it loads.
       _series(s, energy, meter) {
@@ -3545,14 +4290,27 @@
         var self = this, key = r + (energy ? 'e' : '') + (meter ? 'm' : '');
         var viaStats = function (fn, n, opts) {
           var d = S[fn](h, id, n, self, opts);
-          if (d && d.some(function (p) { return p && p.v != null; })) return d;
-          // NO LONG-TERM STATISTICS for this sensor: after a moment, fall back
-          // to its recorded history (14 days here) rather than wait forever.
+          if (d && d.some(function (p) { return p && p.v != null; })) { self._asked[key] = 0; return d; }
+          // STILL ON ITS WAY (a new week or month asked for): the last chart
+          // stays, dimmed -- never a moment of "No history" while it loads
+          if (!d) return null;
+          // NO LONG-TERM STATISTICS for this sensor (they came back empty):
+          // after a moment, fall back to its recorded history rather than wait
           if (!self._asked[key]) { self._asked[key] = Date.now(); setTimeout(function () { self.redraw(); }, 2600); }
           if (Date.now() - self._asked[key] > 2500) return undefined;
           return null;
         };
-        var out;
+        var out, cal = this._cal();
+        // A CALENDAR WEEK OR MONTH: from its own start (and, for a meter's
+        // bars, the period before it, which it is read against) to today
+        if (cal) {
+          var dayN = function (from) { return Math.round((cal.today0 - from) / 864e5) + 1; };
+          var hrs = Math.ceil((Date.now() - cal.P0.start) / 36e5) + 1;
+          if (energy) { out = viaStats('daily', dayN(cal.P1.start), {}); return out === undefined ? [] : out; }
+          out = r === 'week' ? viaStats('hourly', hrs, { type: 'mean' }) : viaStats('daily', dayN(cal.P0.start), { type: 'mean' });
+          // no long-term statistics: this week's or month's recorded history (two weeks at most)
+          return out === undefined ? (cal.cur ? S.history(h, id, Math.min(hrs, 336), this) : []) : out;
+        }
         if (energy) {
           if (r === 'day') out = viaStats('hourly', 24, {});
           else if (r === 'week') out = viaStats('daily', 7, {});
@@ -3579,19 +4337,22 @@
         // shorter one with three times on a phone
         var phone = matchMedia('(max-width:600px)').matches;
         // an energy device's sheet keeps room under the chart for its rows
-        var H = phone ? 180 : (this._rec ? 200 : 250), NT = phone ? 3 : 5, MS = RANGE_H[r] * 3600000;
+        var cal = this._cal(), wk = r === 'week';
+        var H = phone ? 180 : (this._rec ? 200 : 250), NT = phone ? 3 : 5, MS = cal ? cal.P0.len * 864e5 : RANGE_H[r] * 3600000;
         // NOTHING CHANGES HEIGHT ON A RANGE SWITCH, so the card does not bounce.
         // The stats row is never taken out -- dashes when there is nothing to
         // say -- and a chart already drawn stays, dimmed, until the new range
         // lands; the placeholder is only for the first open, at the chart's
         // own height. Taking the row out would re-centre the whole sheet twice.
-        var ks = energy ? [{ day: '24-hour total', week: '7-day total', month: '30-day total' }[r],
-                           { day: 'Hourly average', week: 'Daily average', month: 'Daily average' }[r],
-                           { day: 'Peak hour', week: 'Peak day', month: 'Peak day' }[r]] : ['Low', 'Average', 'High'];
+        var ks = energy && cal ? calNames(cal) : energy ? ['24-hour total', 'Hourly average', 'Peak hour'] : ['Low', 'Average', 'High'];
+        // a meter's or an energy device's figures carry a line under each
+        // value, in every range and while they load, so the row never changes height
+        var ens = energy || !!this._rec;
         var dash = function (self) {
           self._stats.hidden = false;
           self._stats.classList.remove('stale');
-          self._stats.innerHTML = ks.map(function (k) { return '<div><div class="k">' + k + '</div><div class="v">—</div></div>'; }).join('');
+          self._stats.classList.toggle('ens', ens);
+          self._stats.innerHTML = ks.map(function (k) { return '<div><div class="k">' + k + '</div><div class="v">—</div>' + (ens ? '<div class="sub"></div>' : '') + '</div>'; }).join('');
         };
         var ph = function (self, text) {
           self._chart.classList.remove('stale');
@@ -3610,43 +4371,53 @@
         var c = this._ser;
         if (energy) {
           // bars move only with their series: drawn again when it changes
-          if (c && c.src === pts && c.r === r) return;
-          this._ser = { src: pts, r: r };
+          if (c && c.src === pts && c.r === r && c.cal === cal) return;
+          this._ser = { src: pts, r: r, cal: cal };
+          if (cal) { this._paintCalBars(s, pts, cal, H, unit, phone, empty); return; }
           var nums = pts.filter(function (p) { return p && p.v != null && isFinite(p.v); }).map(function (p) { return p.v; });
           // none at all is "no history", not a "0 kWh" total
           if (!nums.length) { empty(this); return; }
           this._chart.innerHTML = axesChart({ pts: pts, bars: true, H: H, unit: unit, ms: MS, n: NT });
+          scrub(this._chart);
           this._stats.hidden = false;
           var tot = nums.reduce(function (a, b) { return a + b; }, 0);
           // the headline is the meter (today so far); these are the chart's span
           var per = { day: 'Hourly average', week: 'Daily average', month: 'Daily average' }[r];
           var span = { day: '24-hour total', week: '7-day total', month: '30-day total' }[r];
           var peak = { day: 'Peak hour', week: 'Peak day', month: 'Peak day' }[r];
-          this._stats.innerHTML = '<div><div class="k">' + span + '</div><div class="v">' + fmtNum(tot, s) + ' ' + u + '</div></div>' +
-            '<div><div class="k">' + per + '</div><div class="v">' + fmtNum(tot / nums.length, s) + ' ' + u + '</div></div>' +
-            '<div><div class="k">' + peak + '</div><div class="v">' + fmtNum(Math.max.apply(null, nums.concat([0])), s) + ' ' + u + '</div></div>';
+          this._stats.classList.add('ens');
+          this._stats.innerHTML = '<div><div class="k">' + span + '</div><div class="v">' + fmtNum(tot, s) + ' ' + u + '</div><div class="sub"></div></div>' +
+            '<div><div class="k">' + per + '</div><div class="v">' + fmtNum(tot / nums.length, s) + ' ' + u + '</div><div class="sub"></div></div>' +
+            '<div><div class="k">' + peak + '</div><div class="v">' + fmtNum(Math.max.apply(null, nums.concat([0])), s) + ' ' + u + '</div><div class="sub"></div></div>';
           return;
         }
         // THE LINE. The heavy part -- a day of a power sensor is ~11,000 rows
         // -- is filtered, downsampled and summed ONCE per series; a state
         // push only pins the ends (the range start, the live reading) rather
         // than redoing all of it every few seconds.
-        if (!c || c.src !== pts || c.r !== r) {
-          var full = pts.filter(function (p) { return p && p.v != null && isFinite(p.v); });
+        if (!c || c.src !== pts || c.r !== r || c.cal !== cal) {
+          var full = pts.filter(function (p) { return p && p.v != null && isFinite(p.v) && (!cal || (+p.t >= cal.P0.start && +p.t < cal.end)); });
           var lo = Infinity, hi = -Infinity, sum = 0;
           full.forEach(function (p) { if (p.v < lo) lo = p.v; if (p.v > hi) hi = p.v; sum += p.v; });
-          c = this._ser = { src: pts, r: r, ds: downsample(full, 300), lo: lo, hi: hi, sum: sum, n: full.length };
+          c = this._ser = { src: pts, r: r, cal: cal, ds: downsample(full, 300), lo: lo, hi: hi, sum: sum, n: full.length };
         }
         var now = Date.now(), live = num(s.state);
-        var line = spanTo(c.ds, now - RANGE_H[r] * 3600000, now, live);
+        // a calendar period's line runs from its start to now (a past one to
+        // its end), across the whole period: the days to come are empty
+        if (cal && !cal.cur) live = null;
+        var line = cal ? spanTo(c.ds, cal.P0.start, cal.cur ? now : cal.end - 1, live) : spanTo(c.ds, now - RANGE_H[r] * 3600000, now, live);
         if (line.length < 2) { empty(this); return; }
-        this._chart.innerHTML = axesChart({ pts: line, H: H, unit: unit, ms: MS, n: NT, colour: 'orange' });
+        this._chart.innerHTML = axesChart({ pts: line, H: H, unit: unit, ms: MS, n: NT, colour: 'orange',
+          span: cal ? [cal.P0.start, cal.end] : null, cal: cal ? { dates: cal.dates, todayK: cal.cur ? cal.todayK : -1, short: phone } : null });
+        scrub(this._chart);
         var low = live != null ? Math.min(c.lo, live) : c.lo, high = live != null ? Math.max(c.hi, live) : c.hi;
+        this._stats.classList.toggle('ens', ens);
         var avg = c.n ? c.sum / c.n : live;
         this._stats.hidden = false;
-        this._stats.innerHTML = '<div><div class="k">Low</div><div class="v">' + fmtNum(low, s) + ' ' + u + '</div></div>' +
-          '<div><div class="k">Average</div><div class="v">' + fmtNum(avg, s) + ' ' + u + '</div></div>' +
-          '<div><div class="k">High</div><div class="v">' + fmtNum(high, s) + ' ' + u + '</div></div>';
+        var sb = ens ? '<div class="sub"></div>' : '';
+        this._stats.innerHTML = '<div><div class="k">Low</div><div class="v">' + fmtNum(low, s) + ' ' + u + '</div>' + sb + '</div>' +
+          '<div><div class="k">Average</div><div class="v">' + fmtNum(avg, s) + ' ' + u + '</div>' + sb + '</div>' +
+          '<div><div class="k">High</div><div class="v">' + fmtNum(high, s) + ' ' + u + '</div>' + (ens ? '<div class="sub"></div>' : '') + '</div>';
       }
     }
 
@@ -3670,28 +4441,28 @@
     // word, "Since", and a card for the last 24 hours with its times along
     // the bottom. Shared by the door-style and the text sensors.
     var SENSE_CSS = [
-      '.pn{gap:12px}',
+      '.pn{gap:20px}',
       '.gw{width:180px;height:180px;border-radius:90px;display:flex;align-items:center;justify-content:center;',
-      '  background:rgba(255,255,255,0.07);margin-bottom:6px;transition:background .25s}',
+      '  background:rgba(255,255,255,0.07);transition:background .25s}',
       '.gw .gc{width:120px;height:120px;border-radius:60px;display:flex;align-items:center;justify-content:center;',
       '  background:rgba(255,255,255,0.14);color:rgba(255,255,255,0.85);transition:background .25s,color .25s}',
       '.gw ha-state-icon{--mdc-icon-size:56px;display:flex}',
       '.gw.on{background:color-mix(in srgb,var(--hkd-accent,#56bde4) 22%,transparent)}',
       '.gw.on .gc{background:var(--hkd-accent,#56bde4);color:#fff}',
       '.big.w{font-size:52px}',
-      '.since{font-size:16px;color:rgba(235,235,245,0.62);min-height:20px}',
-      '.tl{align-self:stretch;margin-top:12px;padding:16px 18px 14px;border-radius:20px;background:rgba(255,255,255,0.08)}',
+      '.since{font-size:16px;color:var(--hk-ink-2,rgba(255,255,255,0.68));min-height:20px}',
+      '.tl{align-self:stretch;padding:16px 18px 14px;border-radius:20px;background:rgba(255,255,255,0.08)}',
       '.tl .th{display:flex;justify-content:space-between;align-items:baseline;gap:12px}',
-      '.tl .t{font-size:13px;font-weight:600;letter-spacing:.2px;color:rgba(235,235,245,0.55);text-transform:uppercase}',
-      '.tl .n{font-size:15px;color:rgba(235,235,245,0.8);white-space:nowrap}',
+      '.tl .t{font-size:13px;font-weight:600;letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase}',
+      '.tl .n{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
       '.tl .bar{position:relative;height:64px;margin-top:12px;border-radius:10px;background:rgba(255,255,255,0.10);overflow:hidden}',
       '.tl .bar i{position:absolute;top:0;bottom:0;min-width:2px}',
       '.tl .bar .q{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.08)}',
       '.tl .axx{margin-left:0}',
-      '.tl .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:13px;color:rgba(235,235,245,0.75)}',
+      '.tl .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
       '.tl .lg span{display:inline-flex;align-items:center;gap:6px}',
       '.tl .lg b{width:10px;height:10px;border-radius:3px;display:inline-block}',
-      '@media (max-width:600px){.gw{width:150px;height:150px;border-radius:75px}',
+      '@media (max-width:600px){.pn{gap:16px}.gw{width:150px;height:150px;border-radius:75px}',
       '  .gw .gc{width:100px;height:100px;border-radius:50px}.gw ha-state-icon{--mdc-icon-size:48px}',
       '  .big.w{font-size:44px}.tl .bar{height:52px}}'
     ].join('');
@@ -3830,16 +4601,16 @@
       '.list::-webkit-scrollbar{display:none}',
       '.list button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;',
       '  min-height:52px;padding:0 18px;border:0;border-bottom:1px solid rgba(255,255,255,0.07);',
-      '  background:transparent;color:#fff;font:inherit;font-size:17px;text-align:left;cursor:pointer}',
+      '  background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:17px;text-align:left;cursor:pointer}',
       '.list button span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
       '.list button svg{flex-shrink:0}',
       '.list button:last-child{border-bottom:0}',
       '.list button:active{background:rgba(255,255,255,0.08)}',
       '.search{align-self:stretch;display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:14px;',
       '  background:rgba(255,255,255,0.10)}',
-      '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:#fff;font:inherit;',
+      '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;',
       '  font-size:17px;outline:none}',
-      '.search input::placeholder{color:rgba(235,235,245,0.5)}',
+      '.search input::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
       '.sub{align-self:stretch;display:flex;flex-direction:column;gap:16px}',
       '.bk{display:flex;align-items:center;gap:10px}',
       '.bk button{width:40px;height:40px;border-radius:20px;border:0;padding:0;display:flex;',
@@ -3906,20 +4677,20 @@
     class VacuumPanel extends Panel {
       static get CSS() {
         return PANEL_CSS + [
-          '.pn{gap:16px;padding:3px 0}',
+          '.pn{gap:20px;padding:3px 0}',
           // the robot 200 and its commands 72: sized for the one sheet height
           '.bot{width:200px;height:200px;border-radius:100px;display:flex;align-items:center;justify-content:center;',
           '  background:rgba(255,255,255,0.10);color:rgba(255,255,255,0.85);transition:background .25s,color .25s}',
           '.bot.live{background:rgba(48,209,88,0.20);color:#30d158}',
           '.bot.bad{background:rgba(255,69,58,0.18);color:#ff453a}',
-          '.big.w{font-size:40px;margin-top:4px}',
+          '.big.w{font-size:40px}',
           '.chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;min-height:30px}',
           '.chips span{height:30px;padding:0 12px;border-radius:15px;display:inline-flex;align-items:center;',
-          '  font-size:14px;font-weight:600;background:rgba(255,255,255,0.10);color:rgba(235,235,245,0.8);',
+          '  font-size:14px;font-weight:600;background:rgba(255,255,255,0.10);color:var(--hk-ink-2,rgba(255,255,255,0.68));',
           '  font-variant-numeric:tabular-nums}',
           '.chips .good{color:#30d158}.chips .warn{color:#ffd60a}.chips .low{color:#ff453a}',
           '.chips .err{background:rgba(255,69,58,0.18);color:#ff6961}',
-          '.cmds{align-self:stretch;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}',
+          '.cmds{align-self:stretch;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}',
           '.cmds button{display:flex;flex-direction:column;align-items:center;gap:8px;border:0;background:none;',
           '  color:#fff;font:inherit;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}',
           '.cmds .ci{width:72px;height:72px;border-radius:36px;display:flex;align-items:center;justify-content:center;',
@@ -3927,8 +4698,8 @@
           '.cmds button:active .ci{background:rgba(255,255,255,0.24)}',
           '.cmds button.sel .ci{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.85)}',
           '.cmds button[disabled]{opacity:.35;cursor:default}',
-          '.cmds .cl{font-size:14px;font-weight:600;color:rgba(235,235,245,0.75)}',
-          '.pn > .menu{margin-top:10px}',
+          '.cmds .cl{font-size:14px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.pn > .menu{margin-top:0}',
           // CLEAN AREAS: the rooms this robot has on its map, two to a row,
           // a pick toggles; the green button sends only this robot.
           '.sub{align-self:stretch;display:flex;flex-direction:column;gap:16px}',
@@ -4146,7 +4917,7 @@
     // ------------------------------------------------------------ numbers
     // A number is the brightness slider with the value above it.
     class NumberPanel extends Panel {
-      static get CSS() { return PANEL_CSS + '.big .u{font-size:22px;font-weight:600;color:rgba(235,235,245,0.62);margin-left:4px;letter-spacing:0}'; }
+      static get CSS() { return PANEL_CSS + '.big .u{font-size:22px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-left:4px;letter-spacing:0}'; }
       hkWidthKind() { return 'number'; }
       _range(s) {
         var lo = num(at(s, 'min')), hi = num(at(s, 'max')), step = num(at(s, 'step')) || 1;
@@ -4238,9 +5009,9 @@
           '.pn{gap:20px}',
           // Target and Now, side by side
           '.rds{align-self:stretch;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));text-align:center}',
-          '.rds .k{font-size:13px;color:rgba(235,235,245,0.6)}',
+          '.rds .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.rds .v{font-size:40px;font-weight:600;letter-spacing:-1px;line-height:1.15;font-variant-numeric:tabular-nums}',
-          '.rds .v.nw{color:rgba(235,235,245,0.62)}',
+          '.rds .v.nw{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           // the slider between an empty column and the "Now" marker's, so it
           // stays centred on the sheet
           '.sl{display:grid;grid-template-columns:96px 150px 96px;column-gap:14px;align-items:center}',
@@ -4253,19 +5024,16 @@
           '.mk span{position:absolute;left:0;transform:translateY(50%);display:flex;align-items:center;gap:6px;',
           '  font-size:13px;font-weight:600;color:rgba(235,235,245,0.8);white-space:nowrap;transition:bottom .2s}',
           '.mk span::before{content:"";width:14px;height:2px;border-radius:1px;background:currentColor}',
-          '.acts{align-self:stretch;display:flex;gap:10px;align-items:center}',
+          '.acts{align-self:stretch;display:flex;gap:12px;align-items:center}',
           '.acts .menu{flex:1}',
-          '.seg{flex:1;display:flex;gap:4px;padding:4px;border-radius:16px;background:rgba(255,255,255,0.09);min-width:0}',
-          '.seg button{flex:1;min-width:0;height:44px;border:0;border-radius:12px;background:transparent;',
-          '  color:rgba(255,255,255,0.86);font:inherit;font-size:15px;font-weight:600;cursor:pointer;',
-          '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}',
-          '.seg button.sel{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.88)}',
-          '.acts .pw{width:52px;height:52px;padding:0;flex-shrink:0}',
+          C.segCss('.seg', { on: '.sel', fill: true }),
+          '.seg{flex:1;min-width:0}',
+          '.acts .pw{width:44px;height:44px;padding:0;flex-shrink:0}',
           '.acts .pw.lit{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.85)}',
           '.acts .wide{flex:1}',
           '@media (max-width:600px){.sl{grid-template-columns:72px 128px 72px;column-gap:10px}',
-          '  .vs{height:330px}.mk{height:330px}.rds .v{font-size:34px}.acts .pw{width:48px;height:48px}',
-          '  .seg button{height:48px;font-size:13px;line-height:15px;white-space:normal;text-overflow:clip}}'
+          '  .vs{height:330px}.mk{height:330px}.rds .v{font-size:34px}',
+          '  .seg button{font-size:13px;line-height:15px;white-space:normal;text-overflow:clip}}'
         ].join('');
       }
       hkWidthKind() { return 'humidifier'; }
@@ -4352,7 +5120,7 @@
           this._mk.style.bottom = (clamp((cur - lo) / (hi - lo), 0, 1) * 100).toFixed(1) + '%';
           this._mk.textContent = 'Now ' + Math.round(cur) + '%';
         }
-        if (this._seg) this._seg.querySelectorAll('button').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-m') === a.mode); });
+        if (this._seg) segPick(this._seg, 'button', 'data-m', a.mode);
         if (this._mode) this._mode.querySelector('.cur').innerHTML = esc(pretty(a.mode || '')) + CHEV;
         this._pw.classList.toggle('lit', on && this._pw.classList.contains('pw'));
         this._pw.classList.toggle('sel', on && !this._pw.classList.contains('pw'));
@@ -4391,7 +5159,7 @@
     class WaterHeaterPanel extends Panel {
       static get CSS() {
         return PANEL_CSS + LIST_CSS + [
-          '.pn{gap:14px}',
+          '.pn{gap:12px}',
           // narrow (a phone): one column -- .side dissolves into it
           '.side{display:contents}',
           '.dial{align-self:stretch;display:flex;flex-direction:column;align-items:center}',
@@ -4406,11 +5174,11 @@
           '.dl .kn{fill:#fff;stroke:rgba(0,0,0,.18);stroke-width:1px}',
           '.dl .cur{fill:rgba(255,255,255,.92)}',
           '.dl .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}',
-          '.dl .l{font-size:11px;font-weight:730;letter-spacing:1.1px;text-transform:uppercase;color:rgba(255,255,255,.52)}',
+          '.dl .l{font-size:11px;font-weight:730;letter-spacing:1.1px;text-transform:uppercase;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.dl .t{font-size:var(--hk-tstat-val,46px);font-weight:600;letter-spacing:-2px;line-height:1.04;',
           '  font-variant-numeric:tabular-nums;margin-top:2px}',
           '.dl .r{font-size:13px;font-weight:680;margin-top:4px;color:#ff9f0a}',
-          '.dl.off .r{color:rgba(255,255,255,.55)}',
+          '.dl.off .r{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           // the modes: the thermostat's mode row (hk-control .tstat-modes
           // .segment). A label may take two lines -- "High demand" in a
           // quarter of the row -- rather than lose its end.
@@ -4422,6 +5190,8 @@
           '  padding:0 4px;cursor:pointer;white-space:normal;overflow:hidden;display:flex;align-items:center;justify-content:center;',
           '  gap:6px;-webkit-tap-highlight-color:transparent}',
           '.acts button.sel,.pwr button.sel{background:rgba(255,255,255,.96);color:rgba(0,0,0,.88)}',
+          C.segCss('.acts.mseg', { on: '.sel', fill: true }),
+          '.acts.mseg{display:flex}',
           '.acts .menu{justify-content:space-between;padding:0 14px}',
           // THE POWER, ITS OWN ROW, AS WIDE AS THE MODES: where the
           // thermostat has its fan row, and sized as that row
@@ -4430,19 +5200,19 @@
           // the tank now and its day's low and high (the thermostat's reading card)
           '.now{align-self:stretch;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;',
           '  padding:12px 18px;border-radius:20px;background:rgba(255,255,255,0.08);text-align:center}',
-          '.now .k{font-size:13px;color:rgba(235,235,245,0.6)}',
+          '.now .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
           '.now .v{font-size:19px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
           '.away{align-self:stretch;justify-content:space-between;padding:0 12px 0 20px}',
           '.sw{width:51px;height:31px;border-radius:16px;background:rgba(255,255,255,0.22);position:relative;flex-shrink:0;transition:background .2s}',
           '.sw i{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:left .2s}',
           '.sw.on{background:#30d158}.sw.on i{left:22px}',
           '.trend{align-self:stretch;padding:12px 16px 8px;border-radius:20px;background:rgba(255,255,255,0.08)}',
-          '.trend .tt2{font-size:13px;font-weight:600;letter-spacing:.2px;color:rgba(235,235,245,0.55);text-transform:uppercase;margin-bottom:6px}',
+          '.trend .tt2{font-size:13px;font-weight:600;letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase;margin-bottom:6px}',
           '@media (max-width:600px){.now{padding:12px 14px;gap:8px}.now .v{font-size:17px}}',
           // WIDE: the thermostat's two columns -- see ClimatePanel
           ':host([wide]) .pn{flex-direction:row;align-items:stretch;gap:28px}',
           ':host([wide]) .dial{' + TSTAT_WIDE + '}',
-          ':host([wide]) .side{display:flex;flex-direction:column;gap:14px;flex:1;min-width:0}',
+          ':host([wide]) .side{display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}',
           ':host([wide]) .now{padding:14px 18px}',
           ':host([wide]) .trend{flex:1;display:flex;flex-direction:column;padding:16px 18px 14px;min-height:0}',
           ':host([wide]) .trend .axc{flex:1;min-height:72px;margin-top:8px}',
@@ -4493,7 +5263,7 @@
               '<path class="trk" d="' + arcPath(1) + '"/><path class="bnd" stroke="url(#whg)" d=""/>' +
               '<circle class="cur" r="4" cx="0" cy="0"/><circle class="kn" r="13" cx="0" cy="0"/></svg>' +
               '<div class="c"><div class="l">Heat to</div><div class="t"></div><div class="r"></div></div></div>' +
-              (segMode ? '<div class="acts" style="--n:' + modes.length + '">' +
+              (segMode ? '<div class="acts mseg" style="--n:' + modes.length + '">' +
                 modes.map(function (m) { return '<button class="seg-m" data-m="' + esc(m) + '">' + esc(whWord(m)) + '</button>'; }).join('') + '</div>' : '') +
               (menuMode ? '<div class="acts" style="--n:1"><button class="menu mode"><span>Mode</span><span class="cur"></span></button></div>' : '') +
               (power ? '<div class="pwr" style="--n:1"><button class="pw" aria-label="Power">' + glyph('mdi:power', 18) + '<span class="pwl"></span></button></div>' : '') +
@@ -4537,7 +5307,7 @@
         // the face's third line is the thermostat's "Cooling": what it is doing
         this._root.querySelector('.r').textContent = na ? 'Unavailable' : off ? 'Off' : whWord(om || 'on');
         this._root.querySelector('.tn').textContent = na || cur == null ? '—' : Math.round(cur) + '°';
-        if (this._seg) this._seg.querySelectorAll('[data-m]').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-m') === om); });
+        if (this._seg) segPick(this._seg, '[data-m]', 'data-m', om);
         if (this._pw) {
           this._pw.classList.toggle('sel', !off);
           this._pw.setAttribute('aria-pressed', off ? 'false' : 'true');
@@ -4684,6 +5454,7 @@
         this._trend.innerHTML = '<div class="tt2">Tank, last 24 hours</div>' +
           axesChart({ pts: downsample(pts, 240), H: wide ? 120 : 70, unit: '°', ms: 24 * 3600000, n: phone ? 3 : 5,
                       colour: 'orange', fluid: wide });
+        scrub(this._trend);
       }
     }
 
@@ -4714,7 +5485,7 @@
           // word and the capsule land where a shade's do (the sheet centres)
           '.vpsp{height:52px}',
           '.vs.vp{height:400px;display:flex;flex-direction:column;padding:6px;box-sizing:border-box;cursor:default;touch-action:manipulation}',
-          '.vp button{position:relative;flex:1 1 0;min-height:0;border:0;border-radius:38px;background:transparent;color:#fff;',
+          '.vp button{position:relative;flex:1 1 0;min-height:0;border:0;border-radius:38px;background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));',
           '  font:inherit;font-size:19px;font-weight:600;letter-spacing:-.2px;cursor:pointer;',
           '  -webkit-tap-highlight-color:transparent;transition:background .2s ease,color .2s ease}',
           '.vp button.on{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.88)}',
@@ -4725,7 +5496,7 @@
           '.vp button:not(.on):active{background:rgba(255,255,255,0.10)}',
           '.vp button:focus-visible{outline:2px solid rgba(100,181,255,0.8);outline-offset:-2px}',
           ':host([na]) .vp button{opacity:.4;pointer-events:none}',
-          '@media (max-width:600px){.big.al{font-size:34px}.pn.tapn{gap:16px}.vs.vp{height:330px}.vp button{font-size:17px}.vpsp{height:48px}}'
+          '@media (max-width:600px){.big.al{font-size:34px}.pn{gap:16px}.vs.vp{height:330px}.vp button{font-size:17px}.vpsp{height:48px}}'
         ].join('');
       }
       hkWidthKind() { return 'alarm'; }
@@ -4955,7 +5726,11 @@
       alarm: 'hk-detail-alarm',
       camera: 'hk-detail-camera',
       group: 'hk-detail-group',
-      cards: 'hk-detail-cards'
+      cards: 'hk-detail-cards',
+      // defined by hk-person.js and hk-calendar.js (each loads on its own;
+      // open() says no until the element exists)
+      person: 'hk-detail-person',
+      event: 'hk-detail-event'
     };
     function def(tag, Ctor) { if (!customElements.get(tag)) customElements.define(tag, Ctor); }
     def('hk-detail-light', LightPanel);
@@ -5030,7 +5805,7 @@
         // has none, so each pill would run 8 px into the gap and the right
         // column would be cut off at the sheet's edge on a phone.
         return ':host{display:block;--hk-pill:192px;--hk-cell-bleed:0px}' +
-          '.summary{color:rgba(235,235,245,.66);font-size:16px;padding:0 0 18px;text-align:center}' +
+          '.summary{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-size:16px;padding:0 0 18px;text-align:center}' +
           '.grp{display:grid;grid-template-columns:repeat(2,192px);grid-auto-rows:70px;gap:12px;' +
           '  justify-content:center;align-content:start;padding:2px 0 8px}' +
           '@media (max-width:600px){.grp{grid-template-columns:repeat(2,minmax(0,1fr))}}';
@@ -5125,7 +5900,7 @@
       static get CSS() {
         return ':host{display:block}' +
           '.cards{display:flex;flex-direction:column;gap:12px;padding:2px 0 8px}' +
-          '.none{color:rgba(235,235,245,.6);font-size:15px;text-align:center;padding:40px 12px}';
+          '.none{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-size:15px;text-align:center;padding:40px 12px}';
       }
       hkWidthKind() { return (this._config || {}).width === 'wide' ? 'cards_wide' : 'cards'; }
       hkFill() { return true; }
@@ -5336,8 +6111,10 @@
       answers: answers,
       // the pieces later phases and the tests build on
       _: {
-        runTimes: runTimes, dur: dur, niceTicks: niceTicks, tickText: tickText, timeTicks: timeTicks, arcPath: arcPath,
-        STD: STD, WIDE: WIDE, SHEET_H: SHEET_H, PHONE_H: PHONE_H,
+        runTimes: runTimes, dur: dur, niceTicks: niceTicks, axesChart: axesChart, scrub: scrub, scrubPick: scrubPick, scrubValue: scrubValue, tickText: tickText, timeTicks: timeTicks, arcPath: arcPath,
+        STD: STD, WIDE: WIDE, SHEET_H: SHEET_H, PHONE_H: PHONE_H, SP: SP,
+        dayRows: dayRows, spansOf: spansOf, sinceText: sinceText, timeRow: timeRow, SENSE_CSS: SENSE_CSS, DAY: DAY,
+        goFor: goFor, noteEl: noteEl, noteWhen: noteWhen, areaOf: areaOf, roomOf: roomOf, NOTE_CSS: NOTE_CSS,
         Panel: Panel, PANELS: PANELS, PANEL_CSS: PANEL_CSS, WIDTH: WIDTH, def: def, stOf: stOf, at: at,
         num: num, clamp: clamp, isOn: isOn, unavailable: unavailable, throttle: throttle, glyph: glyph,
         lookOf: lookOf, lookFor: lookFor, headIcon: headIcon,
@@ -5350,5 +6127,6 @@
         state: function () { return D; }
       }
     };
+    try { window.dispatchEvent(new Event('hk-detail-ready')); } catch (e) { /* no window events (a test) */ }
   });
 })();

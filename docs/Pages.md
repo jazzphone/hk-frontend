@@ -20,14 +20,14 @@ the menu open them; a back button returns to Home.
 | Security | An alarm panel (the one in General, else the first) | The alarm keypad, with the locks and garage doors beside it |
 | Doors & Windows | Door or window contacts | The doors, then the windows, each with its room above its name |
 | [Climate](Climate.md) | Thermostats, fans, blinds or temperature/humidity sources | Temperature and humidity ranges, fan and blind summaries with accessory lists, fans/humidifiers/blinds by room, and responsive thermostat dials |
-| Lights | Lights | The lights by room (titled *Lights & Outlets* when Status & Chips counts an outlet as a light) |
+| Lights | Lights | The lights by room (titled *Lights & Outlets* when an outlet is counted as a light) |
 | Timers | Timers | The running timers. With the optional quick-timer helpers (`helpers/quick_timers.yaml`), also presets, a New Timer keypad and your [House Timers](HK-Settings.md#general) |
 | Vacuums | Vacuums | Each vacuum with its controls; with the Clean Areas feature, a picker to clean chosen rooms |
 | Music | The Music feature, with speakers | What plays and where (speakers, volume, queue), and the music library to browse and search |
 | Water | Leak sensors | The leak sensors by room, and a count of any that haven’t reported since Home Assistant started |
-| [Energy](Energy.md) | The Energy feature | Today’s cost, the whole home live, daily bars, and a live tile for every circuit, room, appliance and outlet |
+| [Energy](Energy.md) | The Energy feature | Now, Today, This Week and This Month: the whole home live, its use against a usual day, where it went, and a tile for every circuit, room, appliance and outlet |
 
-A page lists what [Status & Chips](Status-Chips.md#status--chips) counts, so the Lights
+A page lists what its kinds count ([What Counts](Status-Chips.md#what-counts)), so the Lights
 chip and the Lights page always agree. The Vacuums and Security pages list
 things A to Z unless you give them an order: **Accessories → Page Order**.
 The Doors & Windows page has the doors and windows only; the locks and garage
@@ -58,7 +58,7 @@ and Security pages have status rows of their own.
 ## Custom pages
 
 A custom page is a page you write in YAML, once, that any generated screen can
-show: an EcoFlow panel’s page, say. It belongs to HK Frontend, not to any one dashboard. (For an Energy page, the [Energy](Energy.md) feature builds one for you.)
+show: a home battery’s page, say. It belongs to HK Frontend, not to any one dashboard. (For an Energy page, the [Energy](Energy.md) feature builds one for you.)
 
 1. Open **HK Settings → Library → Custom Pages → Add Page**.
 2. Give it a **Name** and an **Icon**. Its **Address** is made from the name;

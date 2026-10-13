@@ -162,8 +162,8 @@ A page too short to scroll keeps the bar.
   and a tablet or computer the icons.
 - **Glass:**
   - **Same as Screen** follows the screen's
-    [Glass Style](Appearance.md). Frosted stays frosted; any other style is
-    one blur.
+    [Glass Style](Appearance.md). Frosted stays frosted and Tinted stays
+    Tinted; any other style is one blur.
   - **Blur:** one blur behind the bar.
   - **Frosted:** a milky plate with no blur.
   - **Tinted:** a near-solid bar with no blur, the lightest choice for a

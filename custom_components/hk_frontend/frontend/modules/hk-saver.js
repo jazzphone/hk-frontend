@@ -582,7 +582,7 @@
     '.info{position:absolute;z-index:4;left:0;top:0;width:var(--hk-saver-card-width,' + DEFAULT_CARD_WIDTH + 'px);',
     '  padding:31px 0 0 30px;box-sizing:content-box;text-align:left;display:flex;flex-direction:column;gap:9px;',
     '  --ha-card-background:none;--ha-card-box-shadow:none;--ha-card-border-width:0px;',
-    '  --primary-text-color:#ffffff;--secondary-text-color:#dddddd;color:#fff;',
+    '  --primary-text-color:#ffffff;--secondary-text-color:#dddddd;color:var(--hk-ink,rgba(255,255,255,0.94));',
     '  text-shadow:0px 2px 8px rgba(0,0,0,0.30),0px 6px 28px rgba(0,0,0,0.26),0px 12px 68px rgba(0,0,0,0.34);',
     '  --font-weight:bold;font-weight:bold;font-size:15px;letter-spacing:-0.23px;pointer-events:none}',
     '.info > *{display:block;flex:none}',
@@ -644,7 +644,7 @@
     // little above it; drawn with the pane, it fades with it)
     '  border-left:1px solid rgba(255,255,255,0.10);background:linear-gradient(to bottom,rgba(8,12,22,0.30),rgba(8,12,22,0.60));',
     '  box-shadow:-18px 0 44px rgba(0,0,0,.42),-3px 0 12px rgba(0,0,0,.26);',
-    '  color:#fff;cursor:default}',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));cursor:default}',
     // (there whenever a pane is asked for [panecfg]; up [pane] or not --
     // the music alone comes and goes with the music -- faded with a photo)
     ':host([panecfg]) .pane{display:block}',
@@ -685,7 +685,7 @@
     '.mbg{position:absolute;left:-8%;top:-8%;width:116%;height:116%;object-fit:cover;display:block}',
     '.mshade{position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,.36),rgba(0,0,0,.06) 62%,rgba(0,0,0,.10))}',
     '.pm .mshade{background:rgba(0,0,0,.28)}',
-    '.mbody{position:absolute;inset:0;color:#fff;text-align:left;text-shadow:0 1px 14px rgba(0,0,0,.22)}',
+    '.mbody{position:absolute;inset:0;color:var(--hk-ink,rgba(255,255,255,0.94));text-align:left;text-shadow:0 1px 14px rgba(0,0,0,.22)}',
     '.msq{position:relative;width:100%;height:100%;border-radius:calc(14px * var(--z));background:rgba(255,255,255,.10);',
     '  box-shadow:0 calc(22px * var(--z)) calc(60px * var(--z)) rgba(0,0,0,.42)}',
     '.mph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}',

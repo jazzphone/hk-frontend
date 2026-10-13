@@ -113,4 +113,22 @@ check('the new layout is applied', card._e.style['grid-template-columns'] === '1
         View.sectionArea({ type: 'custom:hk-header-card' }) === null);
   M.board = was;
 })();
+function editorFields(tag) {
+  var C = customElements.get(tag), probe = C.getConfigElement();
+  var EC = customElements.get(String(probe.tagName || '').toLowerCase());
+  var ed = EC ? new EC() : probe;
+  if (!ed.appendChild) ed.appendChild = function () {};
+  ed.hass = { states: {} }; ed.setConfig({ type: 'custom:' + tag });
+  var out = {};
+  (function walk(list) { (list || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+  return out;
+}
+// THE EDITORS offer what the cards read.
+(function () {
+  var g = editorFields('hk-grid-card'), f = editorFields('hk-frame-card'), i = editorFields('hk-info-card');
+  check('hk-grid-card: its cards, as a YAML list', !!g.cards && !!g.cards.selector.object && /view_layout/.test(g.cards.helper));
+  check('hk-frame-card: vars', !!f.vars && !!f.vars.selector.object);
+  check('hk-info-card: cool_below and warm_above, as numbers',
+        !!i.cool_below && !!i.cool_below.selector.number && !!i.warm_above && !!i.warm_above.selector.number);
+})();
 print(fail ? 'FAIL ' + fail + ' LAYOUT TESTS' : 'ALL ' + pass + ' LAYOUT TESTS PASS');

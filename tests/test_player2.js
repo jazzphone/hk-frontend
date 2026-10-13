@@ -185,4 +185,33 @@ ok('  ...labelled Pause', renderedIcon('playing').label, 'Pause');
 ok('a full render of a paused room shows play', renderedIcon('paused').icon, 'mdi:play');
 ok('a full render of an idle room shows play', renderedIcon('idle').icon, 'mdi:play');
 
+
+// THE EDITOR'S FIELDS, by name (sections and grids flattened)
+function editorFields(tag) {
+  var K = customElements.get(tag), p = K.getConfigElement(),
+      EC = customElements.get(String(p.tagName).toLowerCase());
+  var ed = new EC();
+  if (!ed.appendChild) ed.appendChild = function () {};
+  ed.setConfig({});
+  var out = {};
+  (function walk(s) { (s || []).forEach(function (f) { if (f.schema) walk(f.schema); else out[f.name] = f; }); })(ed._form.schema);
+  return out;
+}
+
+print('\n=== from the card picker, on a dashboard of your own ===');
+var npStub = NP.getStubConfig();
+ok('the player\'s stub has controls: HK Media Controls following the screen\'s music',
+   JSON.stringify(npStub.meta_card),
+   '{"type":"custom:hk-media-control-card","color":"purple","bare":true,"parts":["progress","volume"],"entity_from":{"music":true}}');
+ok('...in the wide layout\'s one slot, not sub_card (the tall layout\'s)', npStub.sub_card, undefined);
+ok('...and no music: true (never read)', npStub.music, undefined);
+var npF = editorFields('hk-now-playing-card');
+ok('Hide When Idle is in its editor', npF.hide_idle && npF.hide_idle.label + ' / ' + JSON.stringify(npF.hide_idle.selector),
+   'Hide When Idle / {"boolean":{}}');
+ok('...Tall layout stays', !!npF.tall, true);
+ok('the controls cards say what goes there', !!(npF.meta_card.helper && npF.sub_card.helper), true);
+var SP = customElements.get('hk-speaker-picker-card');
+ok('the speaker picker\'s stub has no Browse page (only HK\'s own screens have one)', JSON.stringify(SP.getStubConfig()), '{}');
+ok('...the option stays in its editor', !!editorFields('hk-speaker-picker-card').browse_url, true);
+
 print('\n'+(fail?'FAILURES: '+fail:'ALL '+pass+' TESTS PASS'));

@@ -308,7 +308,7 @@
 
       var num = 'font-size:' + (o.size || 30) + 'px;font-weight:' +
         (o.weight || 300) + ';letter-spacing:' + (o.tracking || '-0.8') +
-        'px;line-height:1;color:' + (o.color || 'rgba(255,255,255,0.96)') +
+        'px;line-height:1;color:' + (o.color || 'var(--hk-ink,rgba(255,255,255,0.94))') +
         ';display:block;';
 
       // The wrapper is load-bearing, not cosmetic: paint() writes --hk-left to
@@ -334,9 +334,9 @@
         // value; defaulting to 0 would flash an empty bar on every render, and
         // a card re-renders on every state change.
         var fill = running ? (o.fill || 'rgba(255,159,10,0.95)')
-                           : 'rgba(255,255,255,0.45)';
+                           : 'var(--hk-ink-3,rgba(255,255,255,0.40))';
         out += '<div style="margin-top:10px;height:4px;border-radius:2px;' +
-               'background:rgba(255,255,255,0.14);overflow:hidden;">' +
+               'background:var(--hk-line,rgba(255,255,255,0.14));overflow:hidden;">' +
                '<div style="height:100%;border-radius:2px;background:' + fill +
                ';width:calc(var(--hk-left, 1) * 100%);"></div></div>';
       }
@@ -516,11 +516,11 @@
                  (o.plated ? 'flex:1 1 auto;' : '') + '">' +
                    '<div style="font-size:' + px(14) + ';font-weight:600;' +
                    'letter-spacing:-0.2px;line-height:1.15;' +
-                   'color:rgba(255,255,255,0.62);white-space:nowrap;' +
+                   'color:' + (o.plated ? 'rgba(255,255,255,0.62)' : 'var(--hk-ink-2,rgba(255,255,255,0.68))') + ';white-space:nowrap;' +
                    'overflow:hidden;text-overflow:ellipsis;">' + name + '</div>' +
                    '<hk-countdown deadline="' + end + '" style="font-size:' +
                    px(20) + ';font-weight:400;letter-spacing:-0.4px;line-height:1.1;' +
-                   'color:rgba(255,255,255,0.97);"></hk-countdown>' +
+                   'color:' + (o.plated ? 'rgba(255,255,255,0.97)' : 'var(--hk-ink,rgba(255,255,255,0.94))') + ';"></hk-countdown>' +
                  '</div>' + controls(r.entity_id) + '</div>';
       }).join('');
 

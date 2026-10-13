@@ -141,9 +141,14 @@
     // scroller (hk-row-card) that clips on every edge,
     // so an outer shadow is clipped. The margin above is what makes even the
     // 3px outer stop possible -- remove it and the clipped remnant comes back.
-    '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),',
+    '  box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),',
     '             inset 0 -1px 0 rgba(0,0,0,0.14),',
-    '             0 3px 8px rgba(0,0,0,0.22)}',
+    '             0 3px 8px rgba(0,0,0,0.22))}',
+    // ON A LIGHT PAGE (hk-base.js tone): the house glass, as every other
+    // plate there -- not this white plate and a blur that darkens the page
+    // behind it (the tone sets --hk-glass-plate and --hk-glass-shadow-chip).
+    ':host([data-hk-light]) ha-card.chip.status{background:var(--hk-glass-plate);',
+    '  backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:var(--hk-glass-shadow-chip)}',
     '.status .grid{grid-template-areas:"i n" "i l";grid-template-columns:22px max-content;',
     '  grid-template-rows:min-content min-content;row-gap:1.5px;column-gap:5px;align-content:center}',
     // NO fixed height. `grid-area:i` spans both text rows, so the cell
@@ -161,11 +166,11 @@
     '  display:flex;align-items:center;justify-content:center;line-height:0}',
     '.status .name{grid-area:n;justify-self:start;align-self:center;',
     '  font-size:13.3px;font-weight:600;line-height:1.1;letter-spacing:-0.1px;',
-    '  color:rgba(255,255,255,1);white-space:nowrap;',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap;',
     '  overflow:hidden;text-overflow:ellipsis}',
     '.status .label{grid-area:l;justify-self:start;align-self:start;',
     '  font-size:12.6px;font-weight:400;line-height:1.1;letter-spacing:-0.04px;',
-    '  color:rgba(235,235,235,0.75);white-space:nowrap;',
+    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;',
     '  overflow:hidden;text-overflow:ellipsis}',
 
     // ---- toggle / segment ------------------------------------------------
@@ -173,12 +178,12 @@
     // selection TEST differs, which is why they share every rule here.
     'ha-card.chip.toggle{height:40px;border-radius:20px;padding:0px 14px;',
     '  ' + window.hkCards.M.glass + ';',
-    '  box-shadow:var(--hk-glass-shadow-chip,inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10))}',
+    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-chip,inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10)))}',
     'ha-card.chip.toggle[data-on="1"]{background:rgba(255,255,255,0.96);--hk-glass-backdrop:none}',
     '.toggle .grid{grid-template-areas:"n";grid-template-columns:minmax(0,1fr);align-content:center}',
     '.toggle .name{grid-area:n;justify-self:center;',
     '  font-size:13.5px;font-weight:600;letter-spacing:-0.1px;',
-    '  color:rgba(255,255,255,0.86);',
+    '  color:var(--hk-ink,rgba(255,255,255,0.94));',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     'ha-card.chip.toggle[data-on="1"] .name{color:rgba(0,0,0,0.88)}',
 
@@ -1017,7 +1022,10 @@
   // section gaps paid back by the margin) and the menu chip as its lead.
   // The row's config: this card's own lists, else the dashboard's, else
   // every kind the house has; the house's extra chips placed; the geometry.
-  function rowPlan(cfg, b, hass) {
+  // `away`: on someone else's dashboard (HkBase place(): data-hk-foreign).
+  // The rows' sideways bleed (-22 px each side, paid back in padding) is for
+  // HK's own page padding; in a section it runs past the section's edge.
+  function rowPlan(cfg, b, hass, away) {
     b = b || {};
     // The dashboard's Home -> Chips -> "Show the status chips": no row.
     if (b.chips_row === false) return null;
@@ -1078,8 +1086,10 @@
     var row = { type: 'custom:hk-row-card', card_width: 'fit-content', gap: 10, pad_top: 14,
                 pad_bottom: 30, pad_left: 22, pad_right: 22, margin: '-15px -22px -32px -22px',
                 cards: cards };
+    if (away) { row.margin = '-15px 0px -32px 0px'; row.pad_left = 0; row.pad_right = 0; }
     ROW_KEYS.forEach(function (k) { if (cfg[k] !== undefined) row[k] = cfg[k]; });
-    if (cfg.lead !== false) row.lead = cfg.lead || { type: 'custom:hk-menu-button-card' };
+    // `lead: true` (the editor's Menu Button switch, on) is the default too
+    if (cfg.lead !== false) row.lead = (cfg.lead && cfg.lead !== true) ? cfg.lead : { type: 'custom:hk-menu-button-card' };
     return row;
   }
   var ROW_KEYS = ['card_width', 'gap', 'pad_top', 'pad_bottom', 'pad_left', 'pad_right', 'margin',
@@ -1099,6 +1109,7 @@
     }
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
+      if (C0().place) C0().place(this);
       this.style.display = 'block';
       window.addEventListener('hk-module-ready', this._wake);
       this._plan();
@@ -1113,6 +1124,7 @@
     set hass(h) {
       var first = !this._hass;
       this._hass = h;
+      if (C0().tone) C0().tone(this, h);
       if (first || !kindsLive()) this._plan();
       if (this._row) this._row.hass = h;
     }
@@ -1125,7 +1137,7 @@
     _plan() {
       var cfg = this._cfgIn;
       if (!cfg) return;
-      var row = rowPlan(cfg, this._board(), this._hass);
+      var row = rowPlan(cfg, this._board(), this._hass, this.hasAttribute('data-hk-foreign'));
       var key = JSON.stringify(row);
       if (key === this._key) return;
       var on = !!row;
@@ -1179,14 +1191,7 @@
   // the wrapper's margin, two pills across on a phone.
   var SCENE_ICON = { scene: 'mdi:palette', script: 'mdi:script-text-play', button: 'mdi:gesture-tap-button',
                      input_button: 'mdi:gesture-tap-button', automation: 'mdi:robot' };
-  function sceneTap(id) {
-    var d = id.split('.')[0];
-    var svc = d === 'scene' ? 'scene.turn_on' : d === 'script' ? 'script.turn_on'
-            : (d === 'button' || d === 'input_button') ? d + '.press'
-            : d === 'automation' ? 'automation.trigger' : null;
-    return svc ? { action: 'perform-action', perform_action: svc, target: { entity_id: id } }
-               : { action: 'more-info' };
-  }
+  function sceneTap(id) { return window.hkCards.sceneTap(id); }
   function scenePill(hass, id, look) {
     var st = hass && hass.states[id], ent = hass && hass.entities && hass.entities[id];
     var a = (st && st.attributes) || {};
@@ -1238,7 +1243,7 @@
              icon_color: lk.color || p[2],
              tap_action: { action: 'navigate', navigation_path: './' + path } };
   }
-  function scenesPlan(cfg, b, hass) {
+  function scenesPlan(cfg, b, hass, away) {
     b = b || {};
     // A ROOM'S ROW (`room: true`, a room page's): exactly the scenes it was
     // given -- never the screen's Home row, its switch or its page pills
@@ -1287,9 +1292,10 @@
       { type: 'custom:hk-heading-card', name: cfg.name || 'Scenes' },
       { type: 'custom:hk-grid-card',
         layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': '114px', 'grid-auto-flow': 'row',
-                  'grid-column-gap': '12px', 'grid-row-gap': '12px', margin: '-14px -22px -7px -22px', padding: '0px' },
+                  'grid-column-gap': '12px', 'grid-row-gap': '12px',
+                  margin: away ? '-14px 0px -7px 0px' : '-14px -22px -7px -22px', padding: '0px' },
         cards: [{ type: 'custom:hk-row-card', card_width: 'var(--hk-pill, 192px)', gap: 12,
-                  pad_top: 14, pad_bottom: 30, pad_left: 22, pad_right: 22,
+                  pad_top: 14, pad_bottom: 30, pad_left: away ? 0 : 22, pad_right: away ? 0 : 22,
                   phone_card_width: 'calc((100% - 12px) / 2 + 4px)', phone_gap: '12px', cards: pills }] }] } };
   }
   class HkScenesCard extends HTMLElement {
@@ -1302,6 +1308,7 @@
     setConfig(config) { this._cfgIn = Object.assign({}, config || {}); this._key = null; this._plan(); }
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
+      if (C0().place) C0().place(this);
       window.addEventListener('hk-module-ready', this._wake);
       this._plan();
     }
@@ -1318,6 +1325,7 @@
       var first = !this._hass;
       var n = (first || this._auto) && h && h.states ? Object.keys(h.states).length : this._n;
       this._hass = h;
+      if (C0().tone) C0().tone(this, h);
       if (first || (this._auto && n !== this._n)) { this._n = n; this._plan(); }
       if (this._el) this._el.hass = h;
     }
@@ -1326,7 +1334,8 @@
     _plan() {
       if (!this._cfgIn) return;
       var M = C0().menu;
-      var p = scenesPlan(this._cfgIn, (M && M.board ? M.board() : null) || {}, this._hass);
+      var p = scenesPlan(this._cfgIn, (M && M.board ? M.board() : null) || {}, this._hass,
+                         this.hasAttribute('data-hk-foreign'));
       this._auto = p.auto;
       var key = JSON.stringify(p.config);
       if (key === this._key) return;
@@ -1356,12 +1365,15 @@
   var C = window.hkCards, register = C.register, firstOf = C.firstOf;
 
   var KIND_OPTIONS = KIND_ORDER.map(function (k) { return { value: k, label: KIND_NAMES[k] }; });
+  // A single chip may be Smoke & CO too; the row's lists may not -- it leads
+  // every row on its own (rowPlan), so choosing it there would do nothing.
+  var CHIP_KIND_OPTIONS = [{ value: 'smoke', label: KIND_NAMES.smoke }].concat(KIND_OPTIONS);
   register('hk-status-chip-card', HkStatusChipCard, 'HK Status Chip',
            'A small header chip with an icon, a title and a one-line summary.',
            [
              // A kind fills in everything else from Status & Chips; set one, or
              // an entity for a chip of your own.
-             { name: 'kind', selector: { select: { mode: 'dropdown', options: KIND_OPTIONS } } },
+             { name: 'kind', selector: { select: { mode: 'dropdown', options: CHIP_KIND_OPTIONS } } },
              { name: 'quiet', selector: { boolean: {} } },
              { name: 'entity', selector: { entity: {} } },
              { type: 'grid', name: '', schema: [
@@ -1373,11 +1385,27 @@
                  { name: 'icon', selector: { icon: {} } },
                  { name: 'icon_color', selector: C.selColour() },
                  { name: 'icon_size', selector: { text: {} } },
-                 { name: 'bare_icon', selector: { boolean: {} } },
                  { name: 'animation', selector: C.selOptions(['spin', 'none']) }
                ] },
                { name: 'icon_states', selector: { object: {} } }
              ], 'mdi:palette'),
+             // A CHIP OF YOUR OWN (no kind): what it reads and how the
+             // number reads. valueOf / fmt above.
+             C.section('Your Own Chip', [
+               { name: 'source', label: 'Read From',
+                 helper: 'Another entity to read instead of the chip\'s own. More in YAML: count, parts, label_rules, active.',
+                 selector: { entity: {} } },
+               { type: 'grid', name: '', schema: [
+                 { name: 'attribute', label: 'Read Attribute',
+                   helper: 'Read this attribute instead of the state.', selector: { text: {} } },
+                 { name: 'format', label: 'Format',
+                   helper: '{v} is the value, e.g. {v} On.', selector: { text: {} } },
+                 { name: 'zero', label: 'When Zero',
+                   helper: 'Shown instead when the value is 0, e.g. All Off.', selector: { text: {} } },
+                 { name: 'one', label: 'When One',
+                   helper: 'Shown instead when the value is 1, e.g. 1 Light.', selector: { text: {} } }
+               ] }
+             ], 'mdi:tune'),
              C.section('Interactions', [
                { name: 'tap_action', selector: { ui_action: {} } }
              ], 'mdi:gesture-tap')
@@ -1389,7 +1417,23 @@
            [
              { name: 'chips', selector: { select: { multiple: true, reorder: true, custom_value: true,
                                                     mode: 'dropdown', options: KIND_OPTIONS } } },
-             { name: 'quiet', selector: { select: { multiple: true, mode: 'dropdown', options: KIND_OPTIONS } } }
+             { name: 'quiet', selector: { select: { multiple: true, mode: 'dropdown', options: KIND_OPTIONS } } },
+             // `lead` (rowPlan): unset or true is the menu button, false none.
+             // A card of your own there stays YAML (lead: {type: ...}).
+             { name: 'lead', label: 'Menu Button', default: true,
+               helper: 'Off: the row starts with the first chip, no menu button.',
+               selector: { boolean: {} } },
+             // the hk-row-card geometry rowPlan passes on (ROW_KEYS)
+             C.section('Row Layout', [
+               { type: 'grid', name: '', schema: [
+                 { name: 'card_width', label: 'Chip Width',
+                   helper: 'CSS width of each chip. Default: fit-content.', selector: { text: {} } },
+                 { name: 'gap', label: 'Gap',
+                   helper: 'Pixels between chips. Default: 10.', selector: { number: { min: 0, max: 48, mode: 'box' } } },
+                 { name: 'margin', label: 'Margin',
+                   helper: 'CSS margin around the row, e.g. 0px 0px 12px 0px.', selector: { text: {} } }
+               ] }
+             ], 'mdi:ruler')
            ],
            function () { return {}; });
 
@@ -1398,6 +1442,11 @@
            [
              { name: 'scenes', selector: { entity: { multiple: true, reorder: true } } },
              { name: 'name', selector: { text: {} } },
+             // scenesPlan: exactly these scenes -- never the dashboard's own
+             // Scenes choice, its switch or its page pills; none, no row
+             { name: 'room', label: 'Just These Scenes',
+               helper: 'On: shows only the scenes above, never this dashboard\'s own Scenes choice or its page pills.',
+               selector: { boolean: {} } },
              { name: 'looks', selector: { object: {} } }
            ],
            function () { return {}; });
@@ -1417,7 +1466,24 @@
                { name: 'tap_action', selector: { ui_action: {} } }
              ], 'mdi:gesture-tap')
            ],
-           function (hass) { return { entity: firstOf(hass, 'input_select'), name: 'Everywhere' }; });
+           // THE STUB MUST WORK AS PICKED: a toggle that lights while on and
+           // switches on a tap -- an input_boolean, else a switch. Only a house
+           // with neither gets the segment form: an input_select lit on its
+           // current option, a tap choosing it.
+           function (hass) {
+             var ids = hass && hass.states ? Object.keys(hass.states) : [];
+             var first = function (d) {
+               for (var i = 0; i < ids.length; i++) if (ids[i].indexOf(d + '.') === 0) return ids[i];
+               return null;
+             };
+             var tog = first('input_boolean') || first('switch');
+             if (tog) return { entity: tog, tap_action: { action: 'toggle' } };
+             var sel = firstOf(hass, 'input_select'), st = hass && hass.states && hass.states[sel];
+             var opt = st ? st.state : 'Everywhere';
+             return { entity: sel, name: opt, option: opt,
+                      tap_action: { action: 'perform-action', perform_action: 'input_select.select_option',
+                                    target: { entity_id: sel }, data: { option: opt } } };
+           });
 
 
   window.hkChip.HkChipBase = HkChipBase;

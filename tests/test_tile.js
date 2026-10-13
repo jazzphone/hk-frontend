@@ -239,6 +239,24 @@ ok('parent says lit -> lit even when off', (function () {
   return !!c._isOn(st('script.x', 'off'));
 })(), true);
 
+// A TAP RUNS IT. A scene pill placed by hand (the card picker's, no
+// tap_action) runs its scene, script or automation, as the generated rows'
+// pills do; a tap_action of its own wins; no entity, nothing is invented.
+function sceneTapOf(cfg) {
+  var c = Object.create(Scene.prototype), got = null;
+  var parent = Object.getPrototypeOf(Scene.prototype);
+  var realSet = parent.setConfig;
+  parent.setConfig = function (x) { got = x; };
+  try { Scene.prototype.setConfig.call(c, cfg); } finally { parent.setConfig = realSet; }
+  return got && got.tap_action;
+}
+ok('a hand-placed scene runs the scene', JSON.stringify(sceneTapOf({ entity: 'scene.movie' })),
+   JSON.stringify({ action: 'perform-action', perform_action: 'scene.turn_on', target: { entity_id: 'scene.movie' } }));
+ok('...a script runs the script', sceneTapOf({ entity: 'script.x' }).perform_action, 'script.turn_on');
+ok('...an automation triggers', sceneTapOf({ entity: 'automation.y' }).perform_action, 'automation.trigger');
+ok('...its own tap_action wins', sceneTapOf({ entity: 'scene.movie', tap_action: { action: 'none' } }).action, 'none');
+ok('...no entity, no tap invented', sceneTapOf({ tap_action: undefined }), undefined);
+
 // A SCENE PILL IN ITS CHOSEN COLOUR (an accessory's Color, a page pill's):
 // off, the glyph wears it; lit, it fills the circle behind a white glyph.
 // White, or none, is the Home app's own white glyph and near-black when lit.
@@ -250,7 +268,7 @@ ok('...lit: a yellow circle behind a white glyph', (function () {
 })(), true);
 ok('a white scene stays the Home app\'s: white glyph, near-black lit, no well', (function () {
   var c = card(Scene, { entity: 'script.x', icon_color: 'white' }, {}), cfg = { icon_color: 'white' }, s = st('script.x', 'on');
-  return c._iconColour(cfg, s, false) === 'rgba(255, 255, 255, 0.94)' && c._iconColour(cfg, s, true) === 'rgba(0, 0, 0, 0.95)' &&
+  return c._iconColour(cfg, s, false) === 'var(--hk-ink, rgba(255, 255, 255, 0.94))' && c._iconColour(cfg, s, true) === 'rgba(0, 0, 0, 0.95)' &&
     c._wellBackground(cfg, s, true) === null && c._wellBackground({}, s, true) === null;
 })(), true);
 

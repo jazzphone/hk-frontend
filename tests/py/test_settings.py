@@ -1130,3 +1130,19 @@ def test_a_screen_can_choose_pre_rendered_blur():
     assert S.merged({"dashboard": {"look": {"glass": "blur_baked"}}})["look"]["glass"] == "blur_pre"
     assert S.merged({"dashboard": {"look": {"glass": "no_such_look"}}})["look"]["glass"] == "clear"
     assert S.board({"glass": "blur_prerendered"})["glass"] == "house"
+
+
+def test_tinted_is_a_glass_with_its_darkness_and_icon_circles():
+    """Tinted (2026-10-12): the Home app's dark plate, no blur -- for All Screens and a screen,
+    with a darkness (`tint`, 0-100, 50 the middle) and its icon circles (`well`, dark or light)."""
+    from custom_components.hk_frontend import settings as S
+    assert "tinted" in S.GLASS and "tinted" in S.BOARD_GLASS
+    look = S.merged({})["look"]
+    assert (look["tint"], look["well"]) == (50, "dark")
+    assert S.merged({"dashboard": {"look": {"glass": "tinted", "tint": 80, "well": "light"}}})["look"] == \
+        {**look, "glass": "tinted", "tint": 80, "well": "light"}
+    assert S.merged({"dashboard": {"look": {"well": "neon"}}})["look"]["well"] == "dark"
+    b = S.board({"glass": "tinted", "tint": 30, "well": "light"})
+    assert (b["glass"], b["tint"], b["well"]) == ("tinted", 30, "light")
+    b = S.board({"tint": 140, "well": "neon"})
+    assert (b["tint"], b["well"]) == (100, None), "an amount is held to 0-100 (as Frost and Blur); an unknown circle follows All Screens"

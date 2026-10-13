@@ -117,7 +117,7 @@ H.run('STAT CARDS', [
     var R = card._root;
     H.eq('the live watts, as kW above 1000 W', H.morphed(H.part(R, '.hero')),
          '1.20<span class="unit">kW</span>');
-    H.eq('drawing power: full contrast', H.part(R, '.hero').style.color, 'rgba(255, 255, 255, 0.94)');
+    H.eq('drawing power: full contrast', H.part(R, '.hero').style.color, 'var(--hk-ink, rgba(255, 255, 255, 0.94))');
     H.eq('no label until today\'s kWh arrives', H.part(R, '.label').textContent, '');
     H.eq('a sensor is never "on": the plate is not lit', H.part(R, '.rank').getAttribute('data-on'), '0');
 
@@ -125,7 +125,7 @@ H.run('STAT CARDS', [
       function () { return house.set('sensor.downstairs_ac_live', '0.001'); },
       function () { return house.set('sensor.upstairs_ac_live', '0.8'); });  // a PEER's live sensor
     H.eq('an idle circuit reads whole watts', H.morphed(H.part(R, '.hero')), '1<span class="unit">W</span>');
-    H.eq('...and recedes', H.part(R, '.hero').style.color, 'rgba(255, 255, 255, 0.32)');
+    H.eq('...and recedes', H.part(R, '.hero').style.color, 'var(--hk-ink-3, rgba(255, 255, 255, 0.40))');
     var r0 = card.__renders;
     card.hass = house.set('sensor.downstairs_ac_utility', '4.9');
     H.eq('the statistic\'s own sensor is not an input (statistics wake it)', card.__renders - r0, 0);
@@ -140,6 +140,36 @@ H.run('STAT CARDS', [
       H.detach(card);
       return H.lifecycle('rank', card, house, function (c) { c.hass = house.hass(); });
     });
+  },
+
+  // a circuit with something to switch gets a power button; one without, none
+  function () {
+    H.section('hk-rank-card: the power button (`control`)');
+    var house = statHouse();
+    house.set('switch.office_circuit', 'on');
+    var plain = H.make('hk-rank-card');
+    plain.setConfig({ type: 'custom:hk-rank-card', entity: 'sensor.downstairs_ac_live', name: 'Downstairs AC' });
+    plain.hass = house.hass();
+    H.eq('no switch: no power button, nothing that looks like one', !!plain._e.pwr, false);
+    var card = H.make('hk-rank-card');
+    card.setConfig({ type: 'custom:hk-rank-card', entity: 'sensor.downstairs_ac_live', name: 'Office', control: 'switch.office_circuit' });
+    card.hass = house.hass();
+    var pb = card._e.pwr;
+    H.eq('a switch: a power button', !!pb, true);
+    H.eq('...green while on', pb.getAttribute('data-on'), '1');
+    var asked = null, real = window.hkCards.confirmSheet;
+    window.hkCards.confirmSheet = function (text, ok, opts) { asked = { text: text, ok: ok, opts: opts }; };
+    pb._listeners.click.forEach(function (f) { f({ stopPropagation: function () {} }); });
+    H.eq('off asks first, in red', asked && asked.text === 'Turn off Office?' && asked.opts.destructive === true, true);
+    H.eq('...and nothing is switched until it is confirmed', house.calls.length, 0);
+    asked.ok();
+    H.eq('confirmed: turned off', house.calls.slice(-1)[0], { domain: 'homeassistant', service: 'turn_off', data: { entity_id: 'switch.office_circuit' } });
+    card.hass = house.set('switch.office_circuit', 'off');
+    H.eq('off: gray, the tile steps back', pb.getAttribute('data-on') === '0' && card._e.card.classList.contains('pwroff'), true);
+    asked = null;
+    pb._listeners.click.forEach(function (f) { f({ stopPropagation: function () {} }); });
+    H.eq('on is one tap, no question', asked === null && house.calls.slice(-1)[0].service === 'turn_on', true);
+    window.hkCards.confirmSheet = real;
   },
 
   function () {
