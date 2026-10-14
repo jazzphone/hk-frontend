@@ -514,6 +514,12 @@
         "user": "Add wall tablet"
       },
       "entry_type": "Wall tablet",
+      "step": {
+        "user": {
+          "title": "Add a wall tablet",
+          "description": "Wall tablets are set up on the HK Settings page, under All Screens → Wall Tablets."
+        }
+      },
       "abort": {
         "use_panel": "Wall tablets are set up on the HK Settings page: **[open {tablet}]({url})**."
       }

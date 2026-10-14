@@ -42,3 +42,11 @@ def test_every_integration_used_is_in_the_manifest():
 
 def test_the_check_sees_the_energy_import():
     assert "energy" in _used()
+
+
+def test_every_subentry_has_its_step_strings():
+    # hassfest refuses a config subentry without `step` (1.8.0: the wall
+    # tablet's, whose flow only leads to HK Settings, had none)
+    t = json.load(open(os.path.join(COMPONENT, "translations", "en.json"), encoding="utf-8"))
+    missing = [k for k, v in t.get("config_subentries", {}).items() if not (v.get("step") or {}).get("user")]
+    assert not missing, f"translations/en.json config_subentries without step.user: {missing}"
