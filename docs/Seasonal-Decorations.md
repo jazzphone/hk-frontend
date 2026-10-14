@@ -197,7 +197,7 @@ choice, and **Show Me Now** sends the next crossing across at once.
 
 ## Sky settings
 
-![The Sky / Background page in HK Settings, starting with the Background: Live Sky, Color or Photo](images/settings-sky.png)
+![The Sky / Background page in HK Settings, starting with the Background: Live Sky, Color, Photo or Landscapes](images/settings-sky.png)
 
 Beside the Sky / Background page, a live preview shows your Home screen’s sky right now.
 Open a decoration and the preview shows it on your Home screen -- whatever
@@ -209,7 +209,7 @@ changes; your screens keep today’s sky.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Background | Live Sky | **Live Sky**, **Color** or **Photo** ([The Background](Live-Sky.md#the-background)). Decorations show only on the Live Sky; Color and Photo are still. Each screen can choose its own. |
+| Background | Live Sky | **Live Sky**, **Color**, **Photo** or **Landscapes** ([The Background](Live-Sky.md#the-background)). Decorations show only on the Live Sky; Color, Photo and Landscapes are still. Each screen can choose its own. |
 | Clouds | Classic | **Realistic** draws photographic clouds instead of the drifting haze ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
 | Daytime Sky | Natural | How bright the midday blue runs: **Natural**, **Balanced** or **Deep** ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
 | Seasonal Decorations | On | Pauses every decoration. The same switch as **Seasonal decorations** on the HK Frontend device. |

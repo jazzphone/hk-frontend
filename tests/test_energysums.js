@@ -174,4 +174,59 @@ ok('...and a section\'s color once there is one', EP.sectionColor('rooms') === '
 EP.cache = null;
 ok('the tab starts on the plan\'s Opens On, else Now', EP.getPeriod() === 'now');
 
+// ---------------------------------------------------------------- the screensaver's Home Energy
+// (hk-saver-energy.js reads window.hkEnergy.summary): the page's own sums,
+// plus the hour Home Assistant has not closed yet, from five-minute changes
+(function () {
+  var H = window.hkEnergy;
+  if (!H || !H.summary) { ok('the summary is exported for the screensaver', false); return; }
+  var S = window.hkStats, saved = { hourly: S.hourly, daily: S.daily, fiveMinute: S.fiveMinute, weekStart: S.weekStart };
+  var savedHS = window.hkSettings;
+  window.hkSettings = { get: function (k, dflt) { return k === 'energy' ? F.plan : dflt; } };
+  EP.prefs = F.prefs; EP.info = F.info; EP.prefsAt = Date.now(); EP.cache = null;
+  // the open hour: 14:00 has no hourly bucket yet (the fixture's last is
+  // null); ten closed five-minute buckets from 14:00, each 0.1 kWh drawn,
+  // 2 cents, 1 gallon; the eleventh still open
+  var t14 = F.hAxis[F.hAxis.length - 1], five = {};
+  M.ids.forEach(function (id) {
+    five[id] = [];
+    for (var k = 0; k < 12; k++) {
+      var val = k >= 10 ? null : id === 'sensor.main_power_utility' ? 0.1 : id === 'sensor.main_power_utility_cost' ? 0.02 :
+                id === 'sensor.droplet_water_integrated' ? 1 : 0;
+      five[id].push({ t: new Date(t14 + k * 3e5), v: val });
+    }
+  });
+  var asked = null;
+  S.hourly = function (h, ids) { asked = ids; return D.h; };
+  S.daily = function () { return D.d; };
+  S.fiveMinute = function (h, ids, n, card, o) { return o && o.type === 'change' ? five : null; };
+  S.weekStart = function () { return 0; };
+  var hass = { states: {}, callWS: function () { return new Promise(function () {}); } };
+  var waker = { isConnected: true, requestUpdate: function () {}, redraw: function () {} };
+  var s1 = H.summary(hass, waker, F.now);
+  var R1 = EP.__calc(M, D, 'day', F.now);
+  ok('Home Energy: today is the page\'s Today and the open hour on top (30.77 + 1.00 kWh)', s1 && near(s1.today.energy, R1.home + 1.0, 0.001), s1 && s1.today);
+  ok('...its cost and water too', s1 && near(s1.today.cost, R1.cost + 0.2, 0.001) && near(s1.today.water, R1.water + 10, 0.001));
+  ok('...up to the last closed five minutes (14:50)', s1 && s1.asOf === t14 + 50 * 6e4, s1 && new Date(s1.asOf));
+  ok('...only the house\'s own meters are asked for, never a device\'s', asked && asked.indexOf('sensor.main_power_utility') >= 0 &&
+     asked.length < M.ids.length, asked && asked.length);
+  var Mo = EP.__calc(M, D, 'month', F.now, null, { back: 0, ws: 0 });
+  ok('...the month so far: the page\'s This Month and the open hour', s1 && near(s1.month.energy, Mo.home + 1.0, 0.001), s1 && s1.month);
+  ok('...where the month\'s cost is heading: so far, and a usual day for each day left',
+     s1 && s1.projCost > s1.month.cost && s1.projCost < s1.month.cost + 31 * R1.typ.cost, s1 && [s1.month.cost, s1.projCost]);
+  ok('...the rings: energy, cost, water, each against a usual day, each with its own dot', s1 &&
+     s1.rings.map(function (r) { return r.key; }).join() === 'energy,cost,water' &&
+     s1.rings.every(function (r) { return r.typ > 0 && r.tick > 0 && r.tick < 1; }), s1 && s1.rings);
+  ok('...yesterday by now is less than all of yesterday', s1 && s1.yday > 0 && s1.yday < R1.typ.home * 3, s1 && s1.yday);
+  ok('...nothing from five-minute statistics yet: today as the page has it, up to the last closed hour', (function () {
+    S.fiveMinute = function () { return null; };
+    var s2 = H.summary(hass, waker, F.now);
+    return s2 && near(s2.today.energy, R1.home, 0.001) && s2.asOf === t14;
+  })());
+  var svg = H.ringSvg([{ key: 'energy', c: '#ff9f0a', f: 0.3, tick: 0.4 }, { key: 'cost', c: '#30d158', f: 0.5, tick: null }], null, 0);
+  ok('the rings: a dot only on a ring with a usual by now', (svg.match(/class="tick"/g) || []).length === 1, svg);
+  S.hourly = saved.hourly; S.daily = saved.daily; S.fiveMinute = saved.fiveMinute; S.weekStart = saved.weekStart;
+  window.hkSettings = savedHS; EP.cache = null; EP.prefs = null;
+})();
+
 print(fail ? 'FAIL ' + fail + ' ENERGY SUMS TESTS' : 'ALL ' + pass + ' ENERGY SUMS TESTS PASS');

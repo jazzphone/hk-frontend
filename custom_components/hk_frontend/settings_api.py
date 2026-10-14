@@ -246,6 +246,19 @@ def _sky_photo(none: bool = True) -> Callable[[Any], Any]:
     return check
 
 
+def _landscape(none: bool) -> Callable[[Any], Any]:
+    """Which landscape (settings.sky_landscape); for a screen, None follows
+    All Screens'."""
+    def check(v: Any) -> Any:
+        if v in (None, "") and none:
+            return None
+        got = S.sky_landscape(v)
+        if got is None:
+            raise Invalid("choice")
+        return got
+    return check
+
+
 def _photo_look(none: bool) -> Callable[[Any], Any]:
     """A background photo's look (settings.photo_look); for a screen, None
     follows All Screens'."""
@@ -456,6 +469,8 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "sky.photo": _sky_photo(),
     "sky.page_photos": _sky_page_photos,
     "sky.photo_look": _photo_look(False),
+    "sky.landscape": _landscape(False),
+    "sky.landscape_look": _photo_look(False),
     "sky.page_looks": _page_looks,
     "sky.themes": _subset(S.THEMES),
     "sky.hemisphere": _choice(("north", "south")),
@@ -501,6 +516,15 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any]
         try:
             if path in TOP:
                 top[path] = TOP[path](value)
+                continue
+            # SKY / BACKGROUND'S RESET TO DEFAULTS: its settings (S.SKY_RESET)
+            # leave the store, so each is its default again; the Pages stay
+            if path == "sky.reset":
+                if value is not True:
+                    raise Invalid("choice")
+                cur = dash.get("sky") if isinstance(dash.get("sky"), dict) else {}
+                dash["sky"] = S.house_stored("sky", {k: v for k, v in cur.items()
+                                                     if k in now["sky"] and k not in S.SKY_RESET})
                 continue
             m = SKY_DATE.match(path)
             if m:
@@ -749,6 +773,8 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_photo": _sky_photo(),
     "sky_page_photos": _sky_page_photos,
     "sky_photo_look": _photo_look(True),
+    "sky_landscape": _landscape(True),
+    "sky_landscape_look": _photo_look(True),
     "sky_page_looks": _page_looks,
     "sky_liveliness": _choice(S.LIVELY_PRESETS, none=True),
     "sky_liveliness_occ": _parsed(S.lively, empty={}),

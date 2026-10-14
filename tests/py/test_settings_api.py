@@ -918,3 +918,68 @@ def test_the_clocks_photos_and_the_mosaics_lines_are_checked():
     for bad in ({"clock_photo_dim": 90}, {"mosaic_line": 25}, {"mosaic_color": "pink"}, {"mosaic_every": 0},
                 {"clock_text_outline": 101}, {"mosaic_random": "yes"}):
         assert S.saver_options(bad) is None, bad
+
+
+def test_home_energy_and_the_additional_screens_are_checked():
+    """2026-10-14: Home Energy (a slide among the photos, or an additional
+    screen), the music and the forecast as additional screens, their timer,
+    and what Home Energy leaves out."""
+    from custom_components.hk_frontend import settings as S
+    d = S.saver_options({})
+    assert (d["energy_slide"], d["extra_music"], d["extra_forecast"], d["extra_every"], d["extra_for"], d["energy_hide"]) == \
+        (False, False, False, 5, 30, []), "all off by default: every 5 minutes, for 30 seconds"
+    o = S.saver_options({"energy_slide": True, "extra_music": True, "extra_forecast": True, "extra_every": 15, "extra_for": 120,
+                         "energy_hide": ["yday", "cost", "pace"]})
+    assert o and (o["energy_slide"], o["extra_every"], o["extra_for"]) == (True, 15, 120)
+    assert o["energy_hide"] == ["cost", "yday", "pace"], "kept in the parts' own order"
+    for bad in ({"energy_slide": "yes"}, {"extra_every": 0}, {"extra_every": 61}, {"extra_for": 5}, {"extra_for": 301},
+                {"energy_hide": "cost"}, {"energy_hide": ["cost", "nope"]}, {"extra_music": 1}):
+        assert S.saver_options(bad) is None, bad
+
+
+def test_landscapes_background_and_reset_to_defaults():
+    """Sky / Background -> Landscapes (2026-10-14): which one and when it
+    changes, its own look; and Reset to Defaults, which leaves the Pages."""
+    import re
+    from pathlib import Path
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house, apply_board
+    sky = S.merged({})["sky"]
+    assert sky["landscape"] == "every:1440" and sky["landscape_look"] == S.PHOTO_LOOK_DEFAULTS
+    new, err = apply_house({}, {"sky.background": "landscapes", "sky.landscape": "wake", "sky.landscape_look": {"dim": 20},
+                                "sky.pages": {"lights": "landscapes"}})
+    sky = S.merged(new)["sky"]
+    assert err == {} and (sky["background"], sky["landscape"], sky["landscape_look"]["dim"]) == ("landscapes", "wake", 20)
+    assert sky["pages"] == {"lights": "landscapes"}
+    for good in ("wake", "every:15", "every:1440", "12.webp", "my-lake_2.jpg"):
+        assert apply_house({}, {"sky.landscape": good})[1] == {}, good
+    for bad in ("daily", "every:7", "every:", "../01.webp", "a/b.webp", "01.gif", "", None, 3):
+        assert apply_house({}, {"sky.landscape": bad})[1] == {"sky.landscape": "choice"}, bad
+    board, err = apply_board({}, {"sky_background": "landscapes", "sky_landscape": "every:60", "sky_landscape_look": {"blur": 10}})
+    b = S.board(board)
+    assert err == {} and (b["sky_background"], b["sky_landscape"], b["sky_landscape_look"]["blur"]) == ("landscapes", "every:60", 10)
+    board, err = apply_board(board, {"sky_landscape": None, "sky_landscape_look": None})
+    assert err == {} and S.board(board)["sky_landscape"] is None and S.board(board)["sky_landscape_look"] is None
+    assert S.board({"sky_landscape": "../x.webp"})["sky_landscape"] is None, "stored by hand: what can't be shown follows"
+    # RESET TO DEFAULTS: every setting on the page back, the Pages, the photo
+    # and Advanced's hemisphere kept
+    full, err = apply_house({}, {"sky.background": "photo", "sky.photo": "/local/hk/porch.jpg", "sky.animations": False,
+                                 "sky.landscape": "wake", "sky.pages": {"lights": "landscapes"}, "sky.liveliness_all": "festive",
+                                 "sky.page_looks": {"lights": {"blur": 5}}, "sky.hemisphere": "south"})
+    assert err == {}
+    reset, err = apply_house(full, {"sky.reset": True})
+    sky = S.merged(reset)["sky"]
+    assert err == {} and sky["background"] == "live" and sky["animations"] is True and sky["landscape"] == "every:1440"
+    assert sky["liveliness_all"] == S.merged({})["sky"]["liveliness_all"]
+    assert sky["pages"] == {"lights": "landscapes"} and sky["page_looks"]["lights"]["blur"] == 5
+    assert sky["photo"] == "/local/hk/porch.jpg" and sky["hemisphere"] == "south"
+    assert apply_house(full, {"sky.reset": False})[1] == {"sky.reset": "choice"}
+    assert set(S.SKY_RESET) <= set(S.merged({})["sky"]) and set(S.SKY_RESET_BOARD) <= set(S.board(None))
+    # a screen's reset (HK Settings, hk-settings.js skyResetGroup) clears the
+    # same keys the house's does, Same as All Screens -- and never its pages
+    src = (Path(S.__file__).parent / "frontend/panels/hk-settings.js").read_text()
+    block = src[src.index("skyResetGroup(c, x, b) {"):]
+    block = block[:block.index("\n    }\n")]
+    cleared = set(re.findall(r"'(sky_[a-z_]+)'", block)) | set(re.findall(r"(sky_[a-z_]+):", block))
+    assert set(S.SKY_RESET_BOARD) <= cleared, set(S.SKY_RESET_BOARD) - cleared
+    assert not {"sky_pages", "sky_page_photos", "sky_page_looks"} & cleared

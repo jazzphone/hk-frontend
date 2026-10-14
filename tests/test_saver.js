@@ -156,6 +156,38 @@ ok('...both: they take turns', U.slideOf({ show: 'both', music_slide: true }, tr
    U.slideOf({ show: 'both', music_slide: true }, true, 'music') === 'forecast' &&
    U.slideOf({ show: 'both', music_slide: true }, false, 'forecast') === 'forecast');
 ok('...none asked for, none', U.slideOf({ show: 'photos' }, true, '') === null);
+// HOME ENERGY (2026-10-14): a slide among the photos, taking its turn
+ok('Home Energy: off by default; its keys checked', d.energy_slide === false && d.extra_music === false && d.extra_forecast === false &&
+   d.extra_every === 5 && d.extra_for === 30 && d.energy_hide.length === 0 &&
+   U.readCfg({ energy_slide: true }).energy_slide === true && U.readCfg({ energy_slide: 'yes' }).energy_slide === false &&
+   U.readCfg({ extra_every: 0 }).extra_every === 5 && U.readCfg({ extra_every: 15 }).extra_every === 15 &&
+   U.readCfg({ extra_for: 5 }).extra_for === 30 && U.readCfg({ extra_for: 120 }).extra_for === 120 &&
+   JSON.stringify(U.readCfg({ energy_hide: ['cost', 3, 'yday'] }).energy_hide) === '["cost","yday"]' &&
+   U.readCfg({ energy_hide: 'cost' }).energy_hide.length === 0);
+var E3 = { show: 'both', music_slide: true, energy_slide: true };
+ok('...the music, the forecast and Home Energy take turns, in that order', U.slideOf(E3, true, '', true) === 'music' &&
+   U.slideOf(E3, true, 'music', true) === 'forecast' && U.slideOf(E3, true, 'forecast', true) === 'energy' &&
+   U.slideOf(E3, true, 'energy', true) === 'music');
+ok('...nothing playing: the forecast and Home Energy', U.slideOf(E3, false, 'forecast', true) === 'energy' &&
+   U.slideOf(E3, false, 'energy', true) === 'forecast');
+ok('...Home Energy without its numbers yet: skipped, not waited for', U.slideOf(E3, false, 'forecast', false) === 'forecast' &&
+   U.slideOf({ show: 'photos', energy_slide: true }, false, '', false) === null);
+ok('...Home Energy alone among the photos', U.slideOf({ show: 'photos', energy_slide: true }, false, 'energy', true) === 'energy');
+// THE ADDITIONAL SCREENS over the forecast or the clock
+ok('additional screens: only over the forecast or the clock', U.extrasOf({ show: 'photos', energy_slide: true, extra_music: true }).length === 0 &&
+   U.extrasOf({ show: 'both', energy_slide: true }).length === 0 &&
+   JSON.stringify(U.extrasOf({ show: 'forecast', energy_slide: true, extra_music: true, extra_forecast: true })) === '["music","energy"]');
+ok('...the forecast only on Show: Clock, and not over the forecast\'s own sky', 
+   JSON.stringify(U.extrasOf({ show: 'clock', clock_bg: 'gradient', extra_forecast: true, extra_music: true, energy_slide: true })) === '["forecast","music","energy"]' &&
+   U.extrasOf({ show: 'clock', clock_bg: 'forecast', extra_forecast: true }).length === 0 &&
+   U.extrasOf({ show: 'clock', clock_bg: 'skyonly', extra_forecast: true }).length === 0);
+ok('...the music not when it takes the screen anyway (Music First, the older music over the forecast)',
+   U.extrasOf({ show: 'forecast', extra_music: true, music_first: true }).length === 0 &&
+   U.extrasOf({ show: 'forecast', extra_music: true, music_slide: true }).length === 0);
+ok('...they take turns, round and round', U.turnOf(['forecast', 'music', 'energy'], ['forecast', 'energy'], '') === 'forecast' &&
+   U.turnOf(['forecast', 'music', 'energy'], ['forecast', 'energy'], 'forecast') === 'energy' &&
+   U.turnOf(['forecast', 'music', 'energy'], ['forecast', 'energy'], 'energy') === 'forecast' &&
+   U.turnOf(['forecast', 'music', 'energy'], [], 'energy') === null);
 ok('Music First: off by default, on only when asked', d.music_first === false && U.readCfg({ music_first: true }).music_first === true &&
    U.readCfg({ music_first: 1 }).music_first === false);
 ok('song times read as m:ss', U.mmss(0) === '0:00' && U.mmss(65.7) === '1:05' && U.mmss(3725) === '1:02:05' && U.mmss(-3) === '0:00');

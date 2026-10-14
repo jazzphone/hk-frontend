@@ -124,13 +124,48 @@
     ['landscapes', 'Landscapes', false, 'Photographs']];
   // THE BACKGROUND (Sky / Background's first choice, 2026-10-13; settings.py
   // SKY_BACKGROUNDS): what it is, in a line under the tabs
-  var SKY_BACKGROUNDS = [['live', 'Live Sky'], ['color', 'Color'], ['photo', 'Photo']];
-  var BG_LABELS = { live: 'Live Sky', color: 'Color', photo: 'Photo' };
+  var SKY_BACKGROUNDS = [['live', 'Live Sky'], ['color', 'Color'], ['photo', 'Photo'], ['landscapes', 'Landscapes']];
+  var BG_LABELS = { live: 'Live Sky', color: 'Color', photo: 'Photo', landscapes: 'Landscapes' };
   var BG_SAYS = {
     live: 'The real sun, moon and weather behind the cards, dressed for the seasons. What it shows is below.',
     color: 'A still color, a little different by day and by night. No sun, moon, stars, weather or decorations.',
-    photo: 'A photo of your own, still and sharp. No sun, moon, stars, weather or decorations. A bright photo is dimmed a little so the cards stay readable.'
+    photo: 'A photo of your own, still and sharp. No sun, moon, stars, weather or decorations. A bright photo is dimmed a little so the cards stay readable.',
+    // (2026-10-14) HK Frontend's own photos, the screensaver clock's
+    landscapes: 'Fifty landscape photos that come with HK Frontend — mountains, lakes, coasts, forests, the northern lights — a new one each time the screen wakes, on a schedule, or the same one. No sun, moon, stars, weather or decorations.'
   };
+  // WHICH LANDSCAPE, AND WHEN IT CHANGES (settings.py sky_landscape):
+  // 'wake', 'every:<minutes>' (LANDSCAPE_EVERY) or a file name -- Stay the Same
+  var LANDSCAPE_EVERY = [['every:15', 'Every 15 Minutes'], ['every:30', 'Every 30 Minutes'], ['every:60', 'Every Hour'],
+                         ['every:180', 'Every 3 Hours'], ['every:360', 'Every 6 Hours'], ['every:720', 'Every 12 Hours'],
+                         ['every:1440', 'Every Day']];
+  // which one shows now (hk-settings.js landscapeFile, the screens' own:
+  // tests/test_settingsmodel.js keeps the two the same). Each wake: `wakes`
+  // stands in for the screen's count of them.
+  function landscapeFile(choice, list, now, wakes) {
+    if (!list || !list.length) return null;
+    var every = /^every:(\d+)$/.exec(choice || ''), n;
+    if (choice === 'wake') n = wakes == null ? Math.floor(Date.now() / 60000) : wakes;
+    else {
+      if (!every) {
+        var hit = list.filter(function (p) { return p.file === choice; })[0];
+        if (hit) return hit.file;
+      }
+      var mins = every ? Math.max(1, +every[1]) : 1440;
+      var d = now || new Date(), local = d.getTime() - d.getTimezoneOffset() * 60000;
+      n = Math.floor(local / (mins * 60000));
+    }
+    var step = list.length % 17 ? 17 : 1;
+    return list[((n * step) % list.length + list.length) % list.length].file;
+  }
+  // in words: Each Time the Screen Wakes, Every Day, or the picked one's title
+  function landscapeLabel(v, list) {
+    v = v || 'every:1440';
+    if (v === 'wake') return 'Each Time the Screen Wakes';
+    var t = LANDSCAPE_EVERY.filter(function (x) { return x[0] === v; })[0];
+    if (t) return t[1];
+    var p = (list || []).filter(function (x) { return x.file === v; })[0];
+    return p && p.title ? p.title : 'One Landscape';
+  }
   // ACCESSORY TYPES (HK Settings -> Accessories, 2026-10-13): the page is laid
   // out by type, then by room, as the owner asked ("What Counts" confused).
   // A type that is a kind (kinds.py, COUNT_KINDS: same id) lists what that
@@ -855,6 +890,7 @@
   function skyModeLabel(mode, backdrops) {
     if (mode === 'own') return 'Page Color';
     if (mode === 'photo') return 'Photo';
+    if (mode === 'landscapes') return 'Landscapes';
     var b = (backdrops || []).filter(function (x) { return x.id === mode; })[0];
     return b ? b.label : mode === 'live' ? 'Live Sky' : mode;
   }
@@ -1329,6 +1365,7 @@
     ['Live First Camera', 'house/cameras', 'cameras.live', 'camera strip live video snapshot first tile performance'],
     ['Page Backgrounds', 'house/sky', 'sky.pages', 'page color background backdrop energy climate lights still live sky'],
     ['Background', 'house/sky', 'sky.background', 'background live sky color solid gradient photo picture wallpaper image upload still no stars plain black'],
+    ['Landscapes', 'house/sky', 'sky.background', 'landscapes landscape photos mountains lakes coasts forests nature scenery background scenic wake interval change'],
     ['Background Photo', 'house/sky', 'sky.photo', 'photo picture wallpaper image upload background blur dim darken saturation tint color cast'],
     ['Sky Colors', 'house/sky/backdrop', 'sky.gradient', 'backdrop palette gradient live sky colors tint dusk midnight fjord dune graphite plum ember mist black custom'],
     ['Seasonal Decorations', 'house/sky', 'sky.decorations', 'holiday halloween christmas old new woodland style'],
@@ -1490,7 +1527,9 @@
                          // the clocks (settings.py)
                          clock_over: 'corner', clock_style: 'classic', clock_bg: 'gradient', clock_motion: 'slow', clock_24: false, clock_colors: {}, clock_speed: 35, clock_depth: 50, clock_night: 'off', clock_night_from: '22:00', clock_night_to: '07:00',
                      photo_layout: 'single', mosaic_count: 3, mosaic_gap: 'thin', mosaic_change: 'one', mosaic_line: 0, mosaic_color: 'black', mosaic_random: false, mosaic_every: 10,
-                     clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0 };
+                     clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0,
+                     // Home Energy and the additional screens (settings.py, 2026-10-14)
+                     energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 5, extra_for: 30, energy_hide: [] };
   function saverOptions(o) {
     var out = {};
     Object.keys(SAVER_DEFAULTS).forEach(function (k) {
@@ -1522,7 +1561,8 @@
     ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'tint', 'well', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
                             'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
                             'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty',
-                            'sky_background', 'sky_color', 'sky_photo', 'sky_page_photos', 'sky_photo_look', 'sky_page_looks'], true],
+                            'sky_background', 'sky_color', 'sky_photo', 'sky_page_photos', 'sky_photo_look', 'sky_page_looks',
+                            'sky_landscape', 'sky_landscape_look'], true],
     ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages'], true],
     ['idle', 'When Idle', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
     ['device', 'This Device', ['car'], false]
@@ -1560,15 +1600,32 @@
     // what shows, and the slides among it: Photos + Forecast & Music
     // (Music First: the music before them, while it plays)
     var first = o.music_first || (o.show === 'forecast' && o.music_slide);
-    var extra = (o.show === 'both' ? ['Forecast'] : []).concat(o.music_slide && !first ? ['Music'] : []);
+    // (over the forecast or the clock: its Additional Screens, 2026-10-14)
+    var over = o.show === 'forecast' || o.show === 'clock';
+    var extra = over
+      ? (o.show === 'clock' && o.extra_forecast && o.clock_bg !== 'forecast' && o.clock_bg !== 'skyonly' ? ['Forecast'] : [])
+          .concat(o.extra_music && !first && !o.music_slide ? ['Music'] : [])
+      : (o.show === 'both' ? ['Forecast'] : []).concat(o.music_slide && !first ? ['Music'] : []);
+    if (o.energy_slide) extra.push('Home Energy');
     var show = (first ? 'Music, Then ' : '') + (o.show === 'forecast' ? 'Forecast' : o.show === 'clock' ? 'Clock' : 'Photos') + (extra.length ? ' + ' + extra.join(' & ') : '');
     var n = o.starts_after, m = n % 60 ? Math.round(n / 6) / 10 : n / 60;
     var t = n < 60 ? n + ' Seconds' : m + (m === 1 ? ' Minute' : ' Minutes');
     return show + ' · ' + t;
   }
+  // HOME ENERGY'S PARTS (settings.py SAVER_ENERGY_PARTS), in their order,
+  // and its rings as Home Energy Options' row says them: "Energy, Cost, Water"
+  var ENERGY_PARTS = ['cost', 'water', 'solar', 'gas', 'power', 'battery', 'yday', 'month', 'pace'];
+  function energyShown(o) {
+    var hide = (o && Array.isArray(o.energy_hide)) ? o.energy_hide : [];
+    return ['Energy'].concat([['cost', 'Cost'], ['water', 'Water']].filter(function (r) { return hide.indexOf(r[0]) < 0; })
+      .map(function (r) { return r[1]; })).join(', ');
+  }
+  // "a", "a and b", "a, b and c"
+  function listText(a) { return a.length < 2 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   function saverCustom(o) {
     var cur = saverOptions(o);
-    return Object.keys(SAVER_DEFAULTS).some(function (k) { return cur[k] !== SAVER_DEFAULTS[k]; });
+    // (by value: clock_colors and energy_hide are a mapping and a list)
+    return Object.keys(SAVER_DEFAULTS).some(function (k) { return JSON.stringify(cur[k]) !== JSON.stringify(SAVER_DEFAULTS[k]); });
   }
   var PREVIEW_SIZES = [
     { key: 'phone', label: 'Phone', w: 390, h: 844, icon: 'hk:cellphone' },
@@ -1636,13 +1693,13 @@
   // stops. A true flag is still an override, even when it matches the house.
   function skySummary(b) {
     var keys = ['sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause', 'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom',
-                'sky_background', 'sky_color', 'sky_photo', 'sky_photo_look'];
+                'sky_background', 'sky_color', 'sky_photo', 'sky_photo_look', 'sky_landscape', 'sky_landscape_look'];
     var pages = Object.keys(b.sky_pages || {}).length;
     if (keys.every(function (k) { return b[k] == null; }) && !pages) return 'Same as All Screens';
     var parts = [];
     // the Background first: a still Color or Photo is the whole look
     if (b.sky_background) parts.push(BG_LABELS[b.sky_background] || b.sky_background);
-    if (b.sky_background === 'color' || b.sky_background === 'photo') return parts.concat(pages ? [pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds'] : []).join(', ');
+    if (b.sky_background === 'color' || b.sky_background === 'photo' || b.sky_background === 'landscapes') return parts.concat(pages ? [pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds'] : []).join(', ');
     if (b.sky_animations === false) parts.push('No Animation');
     if (b.sky_weather === false) parts.push('No Weather');
     if (b.sky_precipitation === false) parts.push('No Rain & Snow');
@@ -1767,11 +1824,11 @@
     skySummary: skySummary, backdropFollow: backdropFollow,
     YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
-    SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
+    SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, ENERGY_PARTS: ENERGY_PARTS, energyShown: energyShown, listText: listText, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
     COPY_GROUPS: COPY_GROUPS, COPY_NEVER: COPY_NEVER, copyDefaults: copyDefaults, copyChanges: copyChanges,
     skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',
-    CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS, ACC_TYPES: ACC_TYPES, accType: accType, SKY_BACKGROUNDS: SKY_BACKGROUNDS, BG_LABELS: BG_LABELS, BG_SAYS: BG_SAYS, CLOCK_STYLES: CLOCK_STYLES, CLOCK_BGS: CLOCK_BGS, CLOCK_COLORS: CLOCK_COLORS, clockRecommend: clockRecommend,
+    CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS, ACC_TYPES: ACC_TYPES, accType: accType, SKY_BACKGROUNDS: SKY_BACKGROUNDS, BG_LABELS: BG_LABELS, BG_SAYS: BG_SAYS, LANDSCAPE_EVERY: LANDSCAPE_EVERY, landscapeLabel: landscapeLabel, landscapeFile: landscapeFile, CLOCK_STYLES: CLOCK_STYLES, CLOCK_BGS: CLOCK_BGS, CLOCK_COLORS: CLOCK_COLORS, clockRecommend: clockRecommend,
     MENU_STYLES: MENU_STYLES, phoneStyleLabel: phoneStyleLabel,
     PHONE_MENUS: PHONE_MENUS, DEVICES: DEVICES, TAB_SIZES: TAB_SIZES, BUTTON_PHONE: BUTTON_PHONE, phoneMenu: phoneMenu, phoneButton: phoneButton,
     tabletSummary: tabletSummary, phoneSummary: phoneSummary, tabletTab: tabletTab, phoneTab: phoneTab, tabletTabBar: tabletTabBar,

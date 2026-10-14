@@ -38,8 +38,8 @@ Home in the [Tinted](Appearance.md#tinted) look: the Home app’s flat dark plat
 | The day | A new event |
 | ![The Energy page on This Month, with Your Month as a calendar](images/tablet-energy-month.png) | ![The Power page: the grid, the house and the battery right now](images/tablet-power.png) |
 | [Energy](Energy.md): This Month | The [Power page](Energy.md#the-power-page) |
-| ![Home over a photo of your own](images/tablet-background-photo.png) | |
-| A [Photo background](Live-Sky.md) | |
+| ![Home over a photo of your own](images/tablet-background-photo.png) | ![Home over one of HK Frontend's Landscapes](images/tablet-background-landscapes.png) |
+| A [Photo background](Live-Sky.md) | [Landscapes](Live-Sky.md#landscapes) as the background |
 
 ![The photo screensaver, with the clock, weather and Home Status over the photo](images/tablet-screensaver.png)
 
@@ -53,6 +53,8 @@ The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (on
 |---|---|
 | ![Night Mode: the clock a dim red on black](images/saver-clock-night.png) | ![A mosaic of four photos](images/saver-mosaic.png) |
 | Night Mode | A mosaic (public-domain photos standing in for yours) |
+| ![Home Energy on the screensaver](images/saver-home-energy.png) | ![Additional Screens over the clock](images/settings-saver-additional.png) |
+| [Home Energy](Screensaver-and-Idle.md#home-energy-and-additional-screens) | Additional Screens |
 
 | | |
 |---|---|

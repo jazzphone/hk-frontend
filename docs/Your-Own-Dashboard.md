@@ -36,7 +36,7 @@ the top, beside `views:`.
 |---|---|---|
 | Hide Home Assistant’s header and sidebar | Home Assistant Header & Sidebar | [`hk_kiosk:`](#hide-home-assistants-header-and-sidebar) |
 | Photo screensaver (and the forecast) | Photo Screensaver, its options, and its switch and In Use sensor | [`hk_screensaver:`](#photo-screensaver) |
-| Live sky | Sky / Background: its Background (Live Sky, Color or Photo) shows wherever the YAML puts the sky | [`sky:`](#live-sky) |
+| Live sky | Sky / Background: its Background (Live Sky, Color, Photo or Landscapes) shows wherever the YAML puts the sky | [`sky:`](#live-sky) |
 | The menu | The menu’s settings | [Views](#a-page-in-the-menu) say what it lists |
 | Status chips, scenes, cameras | The lists the cards read | [The cards](#clock-weather-and-chips) |
 | Room order on Home | Rooms | With the `custom:hk-grid-view` view type, each room’s section headed by an `hk-heading-card` with `area:` |

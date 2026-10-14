@@ -130,16 +130,28 @@ SKY_BACKDROP_IDS = tuple(p["id"] for p in SKY_BACKDROPS)
 # backdrops but Live); or a Photo of your own, still. Color and Photo draw
 # no sun, moon, stars, weather or decorations -- before this, a Backdrop
 # color only recolored the live sky, and its stars still showed through.
-SKY_BACKGROUNDS = ("live", "color", "photo")
+# LANDSCAPES (2026-10-14): HK Frontend's own photos (frontend/landscapes, the
+# screensaver clock's), still, as a Photo is -- a new one each day or hour,
+# or one picked (SKY_LANDSCAPE).
+SKY_BACKGROUNDS = ("live", "color", "photo", "landscapes")
 SKY_COLOR_IDS = tuple(i for i in SKY_BACKDROP_IDS if i != "live")
 # A PAGE'S BACKGROUND (Sky / Background -> Pages): its own color, any
-# backdrop -- "live" among them, the live sky -- or "photo" (its own photo,
-# sky.page_photos, else the screen's)
-SKY_PAGE_MODES = ("own",) + SKY_BACKDROP_IDS + ("photo",)
+# backdrop -- "live" among them, the live sky -- "photo" (its own photo,
+# sky.page_photos, else the screen's) or "landscapes" (the screen's
+# Landscape)
+SKY_PAGE_MODES = ("own",) + SKY_BACKDROP_IDS + ("photo", "landscapes")
 # A PHOTO'S ADDRESS: one uploaded to Home Assistant (image_upload, served
 # without sign-in from this origin, so the sky can measure it), or a file in
 # www (/local/...) or HK's own files folder (/hk/...)
 SKY_PHOTO = re.compile(r"^/(api/image/serve/[0-9a-f]{32}/original|(local|hk)/[^\s\"'<>()\\]{1,200})$")
+# WHICH LANDSCAPE, AND WHEN IT CHANGES (the owner's three): "wake" -- a new
+# one each time the screen wakes (the screensaver or the black starts, or
+# the page is hidden for a minute: it changes while nobody is looking);
+# "every:<minutes>" -- on a schedule (SKY_LANDSCAPE_EVERY); or a file name
+# in the landscapes folder's index.json -- Stay the Same, on that one (no
+# folders: a name, never a path)
+SKY_LANDSCAPE_EVERY = (15, 30, 60, 180, 360, 720, 1440)
+SKY_LANDSCAPE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.(webp|jpe?g|png)$")
 _MMDD = re.compile(r"^\s*(\d{1,2})-(\d{1,2})\s*$")
 
 
@@ -182,6 +194,32 @@ def sky_photo(v: Any) -> str | None:
     """A background photo's address as stored, or None (none, or one this
     can't show)."""
     return v if isinstance(v, str) and SKY_PHOTO.match(v) else None
+
+
+# SKY / BACKGROUND'S RESET TO DEFAULTS (2026-10-14): every setting on the
+# page goes back -- but not the Pages (pages, page_photos, page_looks), the
+# photo and custom colors you made (photo, gradient_custom: kept for next
+# time), or Advanced's dates, hemisphere and sources. A screen's reset is
+# SKY_RESET_BOARD to None: Same as All Screens.
+SKY_RESET = ("background", "color", "landscape", "photo_look", "landscape_look",
+             "animations", "focus_pause", "moving", "weather", "precipitation",
+             "cloud_style", "daytime", "gradient", "decorations", "decoration_style",
+             "woodland", "themes", "liveliness_all", "liveliness", "liveliness_custom")
+SKY_RESET_BOARD = ("sky_background", "sky_color", "sky_landscape", "sky_photo_look", "sky_landscape_look",
+                   "sky_animations", "sky_focus_pause", "sky_moving", "sky_weather", "sky_precipitation",
+                   "sky_cloud_style", "sky_daytime", "sky_gradient", "sky_decorations", "sky_decoration_style",
+                   "sky_liveliness", "sky_liveliness_occ", "sky_liveliness_custom", "sky_calm_empty")
+
+
+def sky_landscape(v: Any) -> str | None:
+    """Which landscape, as stored: "wake", "every:<minutes>" or a file
+    name; None when it isn't one."""
+    if not isinstance(v, str):
+        return None
+    if v == "wake" or SKY_LANDSCAPE_FILE.match(v):
+        return v
+    m = re.match(r"^every:(\d{1,4})$", v)
+    return v if m and int(m.group(1)) in SKY_LANDSCAPE_EVERY else None
 
 
 def sky_page_photos(v: Any) -> dict[str, str] | None:
@@ -486,6 +524,11 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # the photo's look (PHOTO_LOOK_DEFAULTS: blur, dim, saturation,
             # a tint); a screen's sky_photo_look is its own
             "photo_look": dict(PHOTO_LOOK_DEFAULTS),
+            # LANDSCAPES (2026-10-14): which one and when it changes ("wake",
+            # "every:<minutes>" or a file name: sky_landscape) and its own
+            # look, as a photo's; a screen's sky_landscape /
+            # sky_landscape_look are its own
+            "landscape": "every:1440", "landscape_look": dict(PHOTO_LOOK_DEFAULTS),
             # EACH PAGE'S BACKGROUND (sky_pages below): page kind or custom
             # page address -> "own" (its own color), "live" (the live sky,
             # with this look), a backdrop id (a still color) or "photo"
@@ -717,6 +760,8 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     if out["look"].get("well") not in WELLS:
         out["look"]["well"] = DEFAULTS["look"]["well"]
     out["sky"]["photo_look"] = photo_look(out["sky"].get("photo_look")) or dict(PHOTO_LOOK_DEFAULTS)
+    out["sky"]["landscape_look"] = photo_look(out["sky"].get("landscape_look")) or dict(PHOTO_LOOK_DEFAULTS)
+    out["sky"]["landscape"] = sky_landscape(out["sky"].get("landscape")) or DEFAULTS["sky"]["landscape"]
     return out
 
 
@@ -823,6 +868,18 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # blurred, dimmed copies as before. And the clock's text over them: its
     # shadow and outline, 0-100
     "clock_photo_soft": False, "clock_photo_dim": 35, "clock_text_shadow": 40, "clock_text_outline": 0,
+    # HOME ENERGY (2026-10-14; hk-saver-energy.js): today so far against a
+    # usual day, the Energy page's own sums -- a slide among the photos (taking
+    # turns with the forecast and the music, every `forecast_every` photos),
+    # or one of the ADDITIONAL SCREENS over the forecast or the clock
+    "energy_slide": False,
+    # ...the other additional screens: the music (only while something
+    # plays; Music First covers it) and, on Show: Clock, the forecast. One
+    # every `extra_every` minutes, for `extra_for` seconds, taking turns
+    "extra_music": False, "extra_forecast": False, "extra_every": 5, "extra_for": 30,
+    # what Home Energy leaves out (SAVER_ENERGY_PARTS): its rings, the
+    # readings along the bottom, the month and where its cost is heading
+    "energy_hide": [],
 }
 MOSAIC_COLORS = ("black", "white", "gray", "charcoal", "cream", "navy")
 SAVER_CLOCK_STYLES = ("today", "classic", "serif", "neon", "lcd", "flip", "analog", "words", "arc", "nixie", "poster",
@@ -835,6 +892,7 @@ SAVER_CHOICES = {"clock_over": ("corner", "large"), "clock_style": SAVER_CLOCK_S
                  "mosaic_change": ("one", "all"), "clock_night": ("off", "night", "always"),
                  "mosaic_color": MOSAIC_COLORS}
 SAVER_MOSAIC = (2, 5)
+SAVER_ENERGY_PARTS = ("cost", "water", "solar", "gas", "power", "battery", "yday", "month", "pace")
 SAVER_RANGES = {"blur": (0, 100), "dim": (0, 80), "zoom": (100, 200)}
 SAVER_FOCUS = {"x": ("left", "center", "right"), "y": ("top", "center", "bottom")}
 SAVER_ORDERS = ("random", "sorted")
@@ -857,7 +915,8 @@ SAVER_EACH = (5, 600)
 SAVER_INTS = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_every": SAVER_FC_EVERY,
               "calendar_days": SAVER_CAL_DAYS, "fade_back": SAVER_FADE_BACK, "mosaic_count": SAVER_MOSAIC,
               "clock_speed": (0, 100), "clock_depth": (0, 100), "mosaic_line": (0, 24), "mosaic_every": (1, 120),
-              "clock_photo_dim": (0, 80), "clock_text_shadow": (0, 100), "clock_text_outline": (0, 100)}
+              "clock_photo_dim": (0, 80), "clock_text_shadow": (0, 100), "clock_text_outline": (0, 100),
+              "extra_every": (1, 60), "extra_for": (10, 300)}
 
 
 def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
@@ -908,6 +967,10 @@ def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
                                                 for s, c in val.items()):
                 return None
             out[k] = dict(val)
+        elif k == "energy_hide":
+            if not isinstance(val, list) or any(x not in SAVER_ENERGY_PARTS for x in val):
+                return None
+            out[k] = [x for x in SAVER_ENERGY_PARTS if x in val]
         elif k in SAVER_CHOICES:
             if val not in SAVER_CHOICES[k]:
                 return None
@@ -1210,6 +1273,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # the screen's own Background (SKY_BACKGROUNDS; None: Same as All
     # Screens), its own Color and Photo (None: All Screens')
     "sky_background": None, "sky_color": None, "sky_photo": None, "sky_photo_look": None,
+    # ...and its own Landscape and its look (None: All Screens')
+    "sky_landscape": None, "sky_landscape_look": None,
     # Liveliness, this screen's own, as All Screens' is: one preset for every
     # occasion or "custom" (None: Same as All Screens), then each occasion's
     # preset and Custom knobs; calm_empty -- Calm When Nobody's Around (the
@@ -1396,6 +1461,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_color"] = d.get("sky_color") if d.get("sky_color") in SKY_COLOR_IDS else None
     out["sky_photo"] = sky_photo(d.get("sky_photo"))
     out["sky_photo_look"] = photo_look(d.get("sky_photo_look")) if d.get("sky_photo_look") is not None else None
+    out["sky_landscape"] = sky_landscape(d.get("sky_landscape"))
+    out["sky_landscape_look"] = photo_look(d.get("sky_landscape_look")) if d.get("sky_landscape_look") is not None else None
     out["sky_page_photos"] = sky_page_photos(d.get("sky_page_photos")) or {}
     out["sky_page_looks"] = page_looks(d.get("sky_page_looks")) or {}
     out["sky_liveliness"] = d.get("sky_liveliness") if d.get("sky_liveliness") in LIVELY_PRESETS else None

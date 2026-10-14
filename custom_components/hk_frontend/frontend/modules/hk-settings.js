@@ -89,6 +89,10 @@
            background: 'live', color: 'midnight', photo: null,
            // the photo's look (settings.py PHOTO_LOOK_DEFAULTS)
            photo_look: { blur: 0, dim: 0, saturation: 100, tint: '', tint_amount: 35 },
+           // LANDSCAPES (2026-10-14): which one and when it changes --
+           // 'wake', 'every:<minutes>' or a file name (Stay the Same) --
+           // and its own look (settings.py sky.landscape)
+           landscape: 'every:1440', landscape_look: { blur: 0, dim: 0, saturation: 100, tint: '', tint_amount: 35 },
            // each page's background: {page: 'own' | 'live' | backdrop id |
            // 'photo'} -- a page missing is Automatic (settings.py sky.pages);
            // a page's own photo, for 'photo': page_photos
@@ -151,7 +155,8 @@
                      landscape_blur: 50, landscape_dim: 20, landscape_zoom: 100, landscape_x: 'center', landscape_y: 'center',
                      clock_over: 'corner', clock_style: 'classic', clock_bg: 'gradient', clock_motion: 'slow', clock_24: false, clock_colors: {}, clock_speed: 35, clock_depth: 50, clock_night: 'off', clock_night_from: '22:00', clock_night_to: '07:00',
                      photo_layout: 'single', mosaic_count: 3, mosaic_gap: 'thin', mosaic_change: 'one', mosaic_line: 0, mosaic_color: 'black', mosaic_random: false, mosaic_every: 10,
-                     clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0 } },
+                     clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0,
+                     energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 5, extra_for: 30, energy_hide: [] } },
     // The Calendar page and the screensaver's calendar pane (All Screens ->
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)
@@ -523,6 +528,12 @@
   var BLACK = { day: ['#05070e', '#05070e', '#05070e', '#05070e'], night: ['#05070e', '#05070e', '#05070e', '#05070e'] };
   function background(b) {
     var mode = (b && b.sky_background) || get('sky.background', 'live') || 'live';
+    // LANDSCAPES: a photo like any other, HK's own -- Black until the list
+    // has come (landscapeList), never the live sky
+    if (mode === 'landscapes') {
+      var lf = landscapeFile(landscapeChoice(b), landscapeList());
+      return { mode: 'photo', landscapes: true, stops: BLACK, photo: lf ? LANDSCAPES + lf : null, look: landscapeLook(b) };
+    }
     if (mode !== 'color' && mode !== 'photo') return { mode: 'live', stops: null, photo: null };
     var color = (b && b.sky_color) || get('sky.color', 'midnight') || 'midnight';
     var custom = b && b.sky_custom ? b.sky_custom : get('sky.gradient_custom', null);
@@ -543,6 +554,88 @@
     return { blur: Math.round(Math.max(0, Math.min(100, +L.blur || 0)) * 0.4), dim: Math.max(0, Math.min(0.8, (+L.dim || 0) / 100)),
              saturate: Math.max(0, Math.min(2, (L.saturation == null ? 100 : +L.saturation) / 100)),
              tint: tint, amount: tint ? Math.max(0, Math.min(0.8, (+L.tint_amount || 0) / 100)) : 0 };
+  }
+  // LANDSCAPES AS A BACKGROUND (2026-10-14): HK Frontend's own photos
+  // (frontend/landscapes, the screensaver clock's). The list is the folder's
+  // index.json -- a home's own files folder can answer with its own --
+  // fetched once, the first time a screen needs it; every listener hears
+  // when it has come. Until then a Landscapes background is Black.
+  var LANDSCAPES = '/hk/landscapes/', LAND_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.(webp|jpe?g|png)$/i;
+  var landList = null, landAsked = false;
+  function landscapeList() {
+    if (landList || landAsked || typeof fetch !== 'function') return landList;
+    landAsked = true;
+    fetch(LANDSCAPES + 'index.json').then(function (r) { return r.json(); }).then(function (j) {
+      landList = ((j && j.photos) || []).filter(function (p) { return p && typeof p.file === 'string' && LAND_FILE.test(p.file); });
+      listeners.slice().forEach(function (fn) {
+        try { fn(cur); } catch (e) { console.error('[hk-settings] listener', e); }
+      });
+    }).catch(function () { setTimeout(function () { landAsked = false; }, 60000); });
+    return landList;
+  }
+  // which one, and when it changes: this screen's choice, else All Screens'
+  // -- 'wake', 'every:<minutes>' or a file name (Stay the Same)
+  function landscapeChoice(b) {
+    if (b === undefined) b = boardHere();
+    return (b && b.sky_landscape) || get('sky.landscape', 'every:1440') || 'every:1440';
+  }
+  // EACH TIME THE SCREEN WAKES: counted as it goes to sleep -- the
+  // screensaver or HK's black starting, or the page hidden (a tablet's
+  // screen off) -- so the next one is drawn while nobody is looking and the
+  // wake shows it, never a swap in front of someone. At most one a minute
+  // (a screensaver straight into the black is one sleep). The count starts
+  // from the minute the page loaded, so a reload is a new one too.
+  var landWake = Math.floor(Date.now() / 60000), landSlept = 0;
+  function landscapeSleep() {
+    var now = Date.now();
+    if (now - landSlept < 60000) return;
+    landSlept = now;
+    landWake++;
+    if (landscapeChoice() !== 'wake') return;
+    listeners.slice().forEach(function (fn) {
+      try { fn(cur); } catch (e) { console.error('[hk-settings] listener', e); }
+    });
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('hk-saver', function (e) { if (e && e.detail && e.detail.on) landscapeSleep(); });
+    window.addEventListener('hk-black', function (e) { if (e && e.detail && e.detail.on) landscapeSleep(); });
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', function () { if (document.hidden) landscapeSleep(); });
+  }
+  // WHICH ONE NOW: Stay the Same -- the file picked; on a schedule -- the
+  // local time's number of intervals (every:1440 changes at midnight); each
+  // wake -- the wakes counted. Stepped 17 along the list each time, so the
+  // next one is never its neighbor (the list runs mountains, then lakes ...)
+  // and every one comes round. A file no longer in the list: a new one each
+  // day. (hk-settings-model.js has the same, for HK Settings' preview.)
+  function landscapeFile(choice, list, now, wakes) {
+    if (!list || !list.length) return null;
+    var every = /^every:(\d+)$/.exec(choice || ''), n;
+    if (choice === 'wake') n = wakes == null ? landWake : wakes;
+    else {
+      if (!every) {
+        var hit = list.filter(function (p) { return p.file === choice; })[0];
+        if (hit) return hit.file;
+      }
+      var mins = every ? Math.max(1, +every[1]) : 1440;
+      var d = now || new Date(), local = d.getTime() - d.getTimezoneOffset() * 60000;
+      n = Math.floor(local / (mins * 60000));
+    }
+    var step = list.length % 17 ? 17 : 1;
+    return list[((n * step) % list.length + list.length) % list.length].file;
+  }
+  // a landscape's look: this screen's own, else All Screens' (photoLook's shape)
+  function landscapeLook(b) {
+    if (b === undefined) b = boardHere();
+    return photoLook(b, (b && b.sky_landscape_look) || get('sky.landscape_look', null) || {});
+  }
+  // a page set to Landscapes: the screen's landscape, with the page's own
+  // look (the room's, then Room Pages'), else the screen's landscape look
+  function pageLandscape(key) {
+    var b = boardHere(), lf = landscapeFile(landscapeChoice(b), landscapeList());
+    var own = pageFind(keysOf(key), 'sky_page_looks', 'sky.page_looks');
+    return { photo: lf ? LANDSCAPES + lf : null, look: own ? photoLook(b, own) : landscapeLook(b) };
   }
   // a page's own photo (for a page set to Photo): this screen's for it, else
   // All Screens', else the screen's Background photo
@@ -1022,6 +1115,9 @@
     pagePhoto: pagePhoto,
     photoLook: photoLook,
     pageLook: pageLook,
+    pageLandscape: pageLandscape,
+    landscapeList: landscapeList,
+    landscapeFile: landscapeFile,
     BLACK: BLACK,
     skyPalettes: function () { return SKY_BACKDROPS; },
     previewGlass: function (mode) {

@@ -2502,6 +2502,9 @@
       photo_layout: o.photo_layout, mosaic_count: o.mosaic_count, mosaic_gap: o.mosaic_gap, mosaic_change: o.mosaic_change,
       mosaic_line: o.mosaic_line, mosaic_color: o.mosaic_color, mosaic_random: o.mosaic_random, mosaic_every: o.mosaic_every,
       clock_photo_soft: o.clock_photo_soft, clock_photo_dim: o.clock_photo_dim, clock_text_shadow: o.clock_text_shadow, clock_text_outline: o.clock_text_outline,
+      // Home Energy and the additional screens (hk-saver.js readCfg checks them)
+      energy_slide: o.energy_slide === true, extra_music: o.extra_music === true, extra_forecast: o.extra_forecast === true,
+      extra_every: o.extra_every, extra_for: o.extra_for, energy_hide: Array.isArray(o.energy_hide) ? o.energy_hide.slice() : [],
       forecast_every: o.forecast_every || 5,
       band: o.band !== false, band_photos: o.band_photos === true,
       calendar: o.calendar === true, calendar_days: o.calendar_days || 2,
@@ -2677,7 +2680,7 @@
                     sky_animations: 1, sky_weather: 1, sky_precipitation: 1, sky_focus_pause: 1, sky_decorations: 1, sky_decoration_style: 1, sky_moving: 1,
                     sky_cloud_style: 1, sky_daytime: 1, sky_gradient: 1, sky_custom: 1, sky_pages: 1,
                     sky_liveliness: 1, sky_liveliness_occ: 1, sky_liveliness_custom: 1, sky_calm_empty: 1,
-                    sky_background: 1, sky_color: 1, sky_photo: 1, sky_page_photos: 1, sky_photo_look: 1, sky_page_looks: 1 };
+                    sky_background: 1, sky_color: 1, sky_photo: 1, sky_page_photos: 1, sky_photo_look: 1, sky_page_looks: 1, sky_landscape: 1, sky_landscape_look: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };

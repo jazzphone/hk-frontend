@@ -239,6 +239,64 @@ HS._apply({ sky: { pages: { rooms: 'photo', 'room-kitchen': 'live' } }, boards: 
 ok('a room\u2019s own choice beats Room Pages, even a screen\u2019s', HS.pageSky(['room-kitchen', 'rooms']) === 'live' && HS.pageSky(['room-office', 'rooms']) === 'plum');
 ok('a plain key still works', HS.pageSky('rooms') === 'plum');
 ok('Black is a color to choose', !!HS.skyPalettes().filter(function (p) { return p.id === 'black'; })[0]);
+print('=== Landscapes as the Background (2026-10-14) ===');
+var landFetched = [];
+var fetchBefore = globalThis.fetch;
+globalThis.fetch = function (u) { landFetched.push(u); return Promise.resolve({ json: function () {
+  return Promise.resolve({ photos: [{ file: '01.webp' }, { file: '02.webp' }, { file: '../evil.js' }, { file: '03.webp' }] }); } }); };
+HS._apply({ sky: { background: 'landscapes', landscape: '02.webp' }, boards: { 'dashboard-sky': {} } });
+var lb = HS.skyLook().background;
+ok('Landscapes before its list has come: a photo not there yet (Black), never the live sky', lb.mode === 'photo' && lb.landscapes === true && lb.photo === null);
+var landHeard = 0, landOff = HS.onChange(function () { landHeard++; });
+drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
+ok('...its list from /hk/landscapes/index.json, once, and every screen hears it came', landFetched.length === 1 && landFetched[0] === '/hk/landscapes/index.json' && landHeard >= 1, landFetched);
+ok('Stay the Same: the one picked', HS.skyLook().background.photo === '/hk/landscapes/02.webp');
+var L3 = [{ file: '01.webp' }, { file: '02.webp' }, { file: '03.webp' }];
+ok('...a name that is not a plain image file is not in the list', HS.landscapeFile('evil.js', L3) !== 'evil.js');
+ok('On a Schedule, every hour: the same within the hour', HS.landscapeFile('every:60', L3, new Date(2026, 9, 14, 10, 1)) === HS.landscapeFile('every:60', L3, new Date(2026, 9, 14, 10, 59)));
+ok('...and the next hour another', HS.landscapeFile('every:60', L3, new Date(2026, 9, 14, 10, 59)) !== HS.landscapeFile('every:60', L3, new Date(2026, 9, 14, 11, 0)));
+ok('...every day: changes at local midnight, not before', HS.landscapeFile('every:1440', L3, new Date(2026, 9, 14, 0, 1)) === HS.landscapeFile('every:1440', L3, new Date(2026, 9, 14, 23, 59)) &&
+   HS.landscapeFile('every:1440', L3, new Date(2026, 9, 14, 23, 59)) !== HS.landscapeFile('every:1440', L3, new Date(2026, 9, 15, 0, 1)));
+var L50 = [], seen50 = {};
+for (var li = 1; li <= 50; li++) L50.push({ file: (li < 10 ? '0' : '') + li + '.webp' });
+for (var wn = 0; wn < 50; wn++) seen50[HS.landscapeFile('wake', L50, null, wn)] = 1;
+ok('every one of fifty comes round in fifty changes, the next never its neighbor in the list', Object.keys(seen50).length === 50 &&
+   Math.abs(parseInt(HS.landscapeFile('wake', L50, null, 1), 10) - parseInt(HS.landscapeFile('wake', L50, null, 0), 10)) > 1);
+ok('a picked file no longer in the list: a new one each day instead', /^0[123]\.webp$/.test(HS.landscapeFile('gone.webp', L3)));
+HS._apply({ sky: { background: 'landscapes', landscape: 'wake' } });
+var w0 = HS.skyLook().background.photo;
+landHeard = 0;
+dispatchEvent({ type: 'hk-saver', detail: { on: true } });
+var w1 = HS.skyLook().background.photo;
+ok('Each Time the Screen Wakes: a new one as the screensaver STARTS (drawn while nobody looks)', w1 && w1 !== w0 && landHeard === 1, [w0, w1]);
+dispatchEvent({ type: 'hk-black', detail: { on: true } });
+ok('...the black straight after it is the same sleep', HS.skyLook().background.photo === w1);
+dispatchEvent({ type: 'hk-saver', detail: { on: false } });
+ok('...and the wake itself changes nothing', HS.skyLook().background.photo === w1);
+landOff();
+HS._apply({ sky: { background: 'live', landscape: '03.webp', landscape_look: { dim: 20 }, pages: { lights: 'landscapes' }, page_looks: { lights: { blur: 50 } } } });
+var pl = HS.pageLandscape('lights'), pc = HS.pageLandscape('climate');
+ok('a page set to Landscapes: the screen’s landscape, with the page’s own look', pl.photo === '/hk/landscapes/03.webp' && pl.look.blur === 20);
+ok('...a page without a look of its own: the landscape look', pc.photo === '/hk/landscapes/03.webp' && Math.abs(pc.look.dim - 0.2) < 1e-9);
+HS._apply({ sky: { background: 'photo', photo: photoA, landscape: '01.webp', landscape_look: { dim: 10 } },
+            boards: { 'dashboard-sky': { sky_background: 'landscapes', sky_landscape: '03.webp', sky_landscape_look: { dim: 40 } } } });
+var sb = HS.skyLook().background;
+ok('a screen’s own Landscapes, landscape and look over All Screens’ Photo', sb.photo === '/hk/landscapes/03.webp' && Math.abs(sb.look.dim - 0.4) < 1e-9);
+HS._apply({ sky: { background: 'landscapes', landscape: '01.webp', landscape_look: { dim: 10 } }, boards: { 'dashboard-sky': { sky_background: null } } });
+ok('...following All Screens: theirs', HS.skyLook().background.photo === '/hk/landscapes/01.webp' && Math.abs(HS.skyLook().background.look.dim - 0.1) < 1e-9);
+// HK SETTINGS' PREVIEW picks the same one the screens do (hk-settings-model.js)
+load(HK_ROOT + '/frontend/panels/hk-settings-model.js');
+var MM = window.hkSettingsModel, sameAll = true;
+['every:15', 'every:60', 'every:1440', '02.webp', 'gone.webp'].forEach(function (ch) {
+  [new Date(2026, 9, 14, 3, 7), new Date(2026, 11, 31, 23, 59), new Date(2027, 0, 1, 0, 0)].forEach(function (d) {
+    if (MM.landscapeFile(ch, L50, d) !== HS.landscapeFile(ch, L50, d)) sameAll = false;
+  });
+});
+for (wn = 0; wn < 60; wn++) if (MM.landscapeFile('wake', L50, null, wn) !== HS.landscapeFile('wake', L50, null, wn)) sameAll = false;
+ok('HK Settings’ preview and the screens pick the same landscape', sameAll);
+ok('...and say it in words', MM.landscapeLabel('wake') === 'Each Time the Screen Wakes' && MM.landscapeLabel('every:60') === 'Every Hour' &&
+   MM.landscapeLabel(null) === 'Every Day' && MM.landscapeLabel('02.webp', [{ file: '02.webp', title: 'A lake' }]) === 'A lake');
+globalThis.fetch = fetchBefore;
 HS._apply({ configured: true });
 location.pathname = '/';
 

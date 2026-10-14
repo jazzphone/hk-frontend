@@ -63,7 +63,7 @@ Tap a light, thermostat, lock, garage door, speaker or vacuum and a sheet opens 
 
 ## A live sky
 
-Behind every page, a sky that follows the weather and the time of day: clear and starry, golden at sunset, gray and flashing in a thunderstorm, with rain or snow when it falls. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Or set the Background to a still **Color** or a **Photo** of your own, softened with its own blur, dim and tint — for every screen, one screen, a page or a room. **Liveliness** sets how much moves in it — the bats, leaves and fireflies, and how often something crosses the moon — for each occasion and each screen, calming down when nobody is around.
+Behind every page, a sky that follows the weather and the time of day: clear and starry, golden at sunset, gray and flashing in a thunderstorm, with rain or snow when it falls. Choose **[Realistic clouds](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#choose-its-look)** — photographic clouds picked from the weather and lit by the sun — and **[New Decorations](https://github.com/jazzphone/hk-frontend/wiki/Seasonal-Decorations)**, woodland scenery that comes alive for autumn, Halloween, Christmas, birthdays and the rest of the year. Or set the Background to a still **Color**, a **Photo** of your own, or **[Landscapes](https://github.com/jazzphone/hk-frontend/wiki/Live-Sky#landscapes)** — fifty photos that come with it, a new one each time the screen wakes or on a schedule — softened with its own blur, dim and tint, for every screen, one screen, a page or a room. **Liveliness** sets how much moves in it — the bats, leaves and fireflies, and how often something crosses the moon — for each occasion and each screen, calming down when nobody is around.
 
 <p align="center">
 <img src="docs/images/sky-new-halloween.jpg" width="49%" alt="New Decorations: Halloween night, jack-o'-lanterns in the trees under a full moon">
@@ -71,14 +71,15 @@ Behind every page, a sky that follows the weather and the time of day: clear and
 </p>
 
 <p align="center">
-<img src="docs/images/tablet-background-photo.png" width="70%" alt="Home on a wall tablet over a photo of an autumn lake">
+<img src="docs/images/tablet-background-photo.png" width="49%" alt="Home on a wall tablet over a photo of an autumn lake">
+<img src="docs/images/tablet-background-landscapes.png" width="49%" alt="Home on a wall tablet over one of HK Frontend's Landscapes">
 </p>
 
 ## Made for the wall
 
 Put a screen on a wall tablet and it looks after itself. It returns to Home when left alone, and fills the screen with no Home Assistant header or sidebar. Each tablet has its own page in HK Settings: whether it is awake, on the screensaver or dark, and why, its battery, what it does when left alone, and its Sleep Screen. ([Wall Tablets](https://github.com/jazzphone/hk-frontend/wiki/Wall-Tablets))
 
-When nobody is using it, it shows your photos (one at a time, or a mosaic of up to five), a full-screen **clock** in fifteen styles over a moving background or fifty landscape photos that come with it (with a dim red Night Mode), or the forecast over a living landscape: the sky, the clouds and the light of the moment. The landscape dresses up for Halloween, Christmas, the Fourth of July and birthdays, like the dashboards. Over the top go the clock, the weather, what's playing, the timers and whether the house is secure, with your coming events beside them if you like. ([Screensaver and idle](https://github.com/jazzphone/hk-frontend/wiki/Screensaver-and-Idle))
+When nobody is using it, it shows your photos (one at a time, or a mosaic of up to five), a full-screen **clock** in fifteen styles over a moving background or fifty landscape photos that come with it (with a dim red Night Mode), or the forecast over a living landscape: the sky, the clouds and the light of the moment. Now and then **Home Energy** comes in: today's energy, cost and water against a usual day, in the Energy page's rings. The landscape dresses up for Halloween, Christmas, the Fourth of July and birthdays, like the dashboards. Over the top go the clock, the weather, what's playing, the timers and whether the house is secure, with your coming events beside them if you like. ([Screensaver and idle](https://github.com/jazzphone/hk-frontend/wiki/Screensaver-and-Idle))
 
 **[Sleep Screen](https://github.com/jazzphone/hk-frontend/wiki/Sleep-Screen)** keeps each tablet dark when nobody needs it and awake the moment somebody does. HK Frontend decides from the room’s presence sensors, quiet hours, the doorbell, smoke and away mode, sets the brightness for day and night, and fades in from black without a flicker — or your own automations decide, with one action.
 
@@ -89,6 +90,10 @@ When nobody is using it, it shows your photos (one at a time, or a mosaic of up 
 
 <p align="center">
 <img src="docs/images/saver-clock-faces.png" width="100%" alt="Six of the screensaver's fifteen clock styles">
+</p>
+
+<p align="center">
+<img src="docs/images/saver-home-energy.png" width="70%" alt="Home Energy on the screensaver: today's energy, cost and water against a usual day">
 </p>
 
 <p align="center">

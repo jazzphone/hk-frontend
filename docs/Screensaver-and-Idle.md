@@ -341,6 +341,54 @@ While it’s open the slide stays put and the music’s other buttons still work
 On a tablet whose Sleep Screen is HK Frontend’s, using it keeps the photos
 up ([Sleep Screen](Sleep-Screen.md)).
 
+### Home Energy and additional screens
+
+**Home Energy** is today so far against a usual day, in the Energy page’s own
+rings: energy, cost and water (solar and gas too where Home Assistant’s
+Energy settings have them), each ring today against a usual *whole* day, with
+a white dot where a usual day would be by this time. Beside them, each figure
+and what a usual day comes to, a leader line drawing out to it as the rings
+sweep in. Along the bottom: **Right Now** (what the house draws, the house
+battery, yesterday by now) and **the month so far**, with where its cost is
+heading (what it has cost so far, plus a usual day for each day left: the
+Energy page’s own estimate, firmer as the month goes on).
+
+![Home Energy on the screensaver: today's energy, cost and water rings against a usual day, Right Now and October so far](images/saver-home-energy.png)
+
+- **The numbers are the Energy page’s** Today and This Month, from the same
+  meters and sums, so the two never disagree. Home Assistant closes an
+  hour’s statistics only once it is over, so the five-minute statistics since
+  the last closed hour are added on top: it is current to the last five
+  minutes.
+- **It tells the time itself**, top left: the time, the date and the
+  weather, smaller than the screensaver’s corner clock, which fades while
+  it shows. Home Status stays top right.
+- **Behind it:** over the photos, a blurred, darkened copy of the photo;
+  over the forecast, the sky held still and darkened; over a clock’s own
+  background, a dark gradient of its own. It fades in over what’s there.
+- **A tap on it opens the Energy page.**
+- **Home Energy Options** (its row, once it’s on): which rings show (Energy
+  always), Right Now’s three, the month and where its cost is heading. The
+  preview holds Home Energy while you change them.
+- It skips its turn until it has the day’s numbers (a missing number is a
+  dash, never a zero).
+
+**With Show: Photos** it is one of the slides **Between the Photos**: the
+music, the forecast and Home Energy take turns, every **A Slide** photos.
+
+**With Show: Forecast or Clock**, **Additional Screens** bring other screens
+in now and then: **Forecast** (on Show: Clock, unless the forecast is already
+behind the clock), **Music** (only while something plays; Music First covers
+it, so it isn’t listed then) and **Home Energy**. **Every** few minutes one
+fades in, for **Show For**, then the forecast or the clock comes back; with
+more than one on, they take turns. None come while music plays first, in the
+clock’s Night Mode, or while the screen is dark. More screens may join this
+list later.
+
+![All Screens → Screensaver: Additional Screens over the clock, with Home Energy on](images/settings-saver-additional.png)
+
+![Home Energy Options, with the preview holding Home Energy](images/settings-home-energy-options.png)
+
 ### The side pane: calendar and music
 
 ![The photo screensaver with the calendar pane: Home Status at its top, the events, and what plays and the timers at its foot](images/tablet-screensaver-calendar.png)

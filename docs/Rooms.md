@@ -44,7 +44,7 @@ Screens’ Room Order or in a screen’s own list, and Back returns you there.
 | Scenes | Automatic | A row of scene pills on the room’s page, under its status row (and its cameras), scrolling sideways like Home’s. **Automatic**: the Home Assistant scenes in the room, A to Z — no row when there are none. Turn Automatic off to choose the room’s own scenes, scripts and buttons, in your order; remove them all for a room with no scenes row. |
 | Tile Order | Automatic | The order of the room’s tiles, on Home and on its room page. |
 | Accessories | — | The room’s accessories, each with its own settings: name, icon, [tile size](Accessories.md#tile-size) and more. |
-| Background | Same as Room Pages | What is behind the room’s page on every screen: the **Live Sky**, a **Color** or a **Photo** (a photo of the room itself, say, with its own Look). The same page as **Sky / Background → Room Pages → Each Room**; a screen can choose its own ([Page backgrounds](Live-Sky.md#page-backgrounds)). |
+| Background | Same as Room Pages | What is behind the room’s page on every screen: the **Live Sky**, a **Color**, a **Photo** or the **Landscapes** (a photo of the room itself, say, with its own Look). The same page as **Sky / Background → Room Pages → Each Room**; a screen can choose its own ([Page backgrounds](Live-Sky.md#page-backgrounds)). |
 
 **Add Scene or Shortcut…** opens a searchable list, by room; tick several at
 once and select **Add**.

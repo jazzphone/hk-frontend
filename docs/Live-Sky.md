@@ -4,8 +4,9 @@ Behind HK Frontend’s screens is a sky that follows the real one: the sun’s
 height and direction, the moon at its actual phase, the clouds you have, and
 rain or snow when it is falling. On some days it also dresses up for a season,
 a holiday or a birthday: [Seasonal Decorations](Seasonal-Decorations.md).
-If you’d rather have something still, choose a **Color** or a **Photo** of
-your own as the [Background](#the-background) instead.
+If you’d rather have something still, choose a **Color**, a **Photo** of
+your own or HK Frontend’s own **Landscapes** as the
+[Background](#the-background) instead.
 
 ![The live sky on a clear day, behind the Home page](images/sky-clear-day.png)
 
@@ -20,8 +21,9 @@ without a color of its own show behind the cards.
 | **Live Sky** | The default. The real sun, moon and weather behind the cards, dressed for the seasons. Its settings are below it: [Choose its look](#choose-its-look). |
 | **Color** | A still color, a little different by day and by night: **Dusk**, **Midnight** (the default), **Fjord**, **Dune**, **Graphite**, **Plum**, **Ember**, **Mist**, **Black** or **Custom** (four Day colors and four Night colors, top to bottom). No sun, moon, stars, weather or decorations. |
 | **Photo** | A photo of your own, sharp and still, edge to edge. No sun, moon, stars, weather or decorations. A bright photo is dimmed a little so the cards stay readable. |
+| **Landscapes** | Fifty landscape photos that come with HK Frontend, the same ones the screensaver’s clock can show: a new one each time the screen wakes, on a schedule, or the same one. Still, like a Photo. [Landscapes](#landscapes), below. |
 
-![All Screens → Sky / Background in HK Settings: the Background, Live Sky, Color or Photo](images/settings-sky.png)
+![All Screens → Sky / Background in HK Settings: the Background, Live Sky, Color, Photo or Landscapes](images/settings-sky.png)
 *All Screens → Sky / Background starts with the Background.*
 
 Before, the closest thing to a plain color was a Backdrop, which only
@@ -52,6 +54,44 @@ Default** puts any Look back to the photo as taken. A page set to Photo has a
 Look of its own too; until you change it, it is the screen’s (a room’s page:
 Room Pages’), and **Reset to the Screen’s Look** (or **Room Pages’ Look**)
 follows it again.
+
+### Landscapes
+
+**Landscapes** shows one of the fifty photos that come with HK Frontend
+(mountains, lakes, coasts, canyons, forests, the northern lights; every one
+public domain or CC0, from Wikimedia Commons). There is nothing to upload, and
+nothing of your home on the screen. Under **Landscape**, the one showing now,
+and when it changes:
+
+| Landscape | What it does |
+|---|---|
+| **Each Time the Screen Wakes** | A new one each time the screen goes to sleep (the screensaver or the black starts, or the tablet’s screen turns off), so it is already there when the screen wakes, never swapped in front of you. |
+| **On a Schedule** | A new one **Every 15 Minutes**, **30 Minutes**, **Hour**, **3**, **6** or **12 Hours**, or **Every Day** (the default; at midnight). |
+| **Stay the Same** | The one showing now stays. **Choose a Landscape** shows all fifty, small, to pick another; the one you pick stays. |
+
+Each change goes far along the list, so the next one is never the one next
+to it, and all fifty come round. Landscapes has its own **Look** (Blur, Dim,
+Saturation and a Color Tint, as a Photo has), kept apart from your Photo’s.
+A screen can choose its own landscape and Look, and a page can be set to
+**Landscapes** too (with a Look of its own). A set of your own: put an
+`index.json` and your pictures in a `landscapes` folder of
+[your files](Your-Files.md), as for the
+[screensaver’s clock](Screensaver-and-Idle.md#landscapes).
+
+![Home on a wall tablet with Landscapes as its Background](images/tablet-background-landscapes.png)
+
+![Sky / Background on Landscapes: the one showing now, and when it changes](images/settings-sky-landscapes.png)
+
+![Choose a Landscape: all fifty, the one in use ticked](images/settings-landscape-pick.png)
+
+### Reset to Defaults
+
+At the foot of **Sky / Background**, **Reset to Defaults…** puts every setting
+on the page back: on All Screens, to HK Frontend’s defaults (the Live Sky, with
+its weather, decorations and liveliness); on a screen, to **Same as All
+Screens**. The **Pages** keep their own backgrounds (each page’s choice, its
+photo and its Look), a photo or custom colors you made are kept for next
+time, and Advanced (hemisphere, dates, sources) is left as it is.
 
 **Each room** can have its own background: **Sky / Background → Room Pages →
 Each Room**, or the **Background** row in the room’s own settings (**Rooms →
@@ -265,6 +305,7 @@ page, that page’s background is the screen’s.
 | **Live Sky** | The live sky, following the sun, with the screen's weather, clouds and decorations. |
 | **Color** | A still color (Dusk, Midnight … Black, Custom), like Page Color: no clouds, weather, sun or moon glow, stars or decorations. Its day colors show while the sun is up, its night colors after. It starts with the screen’s Background color. |
 | **Photo** | A photo, still: the page’s own (**Choose Photo…** under **Its Photo**), else the screen’s Background photo. With neither, Black. Under it, the page’s own **Look**. |
+| **Landscapes** | The screen’s landscape (which one, and when it changes, is the Background’s choice), still. Under it, the page’s own **Look**; until you change it, the screen’s Landscapes Look. |
 
 A color picked for a page is only that color. **Sky Colors** is different: it
 recolors the live sky, and the weather and decorations still show over it.

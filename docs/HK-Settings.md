@@ -178,8 +178,10 @@ optional, and each has a fallback.
 ## Sky / Background
 
 **All Screens → Sky / Background** starts with the **Background**: **Live
-Sky** (the moving sky), **Color** (a still color, by day and by night) or
-**Photo** (a photo of your own). Below it are only that choice’s settings.
+Sky** (the moving sky), **Color** (a still color, by day and by night),
+**Photo** (a photo of your own) or **Landscapes** (HK Frontend’s own photos:
+a new one each time the screen wakes, on a schedule, or the same one, with
+**Choose a Landscape**). Below it are only that choice’s settings.
 For the live sky: whether it animates (and, while it does, whether it holds
 still when the window isn’t in focus, **Pause When Not in Focus**, and whether
 its **Moving Things** pass behind the cards or in front of them), shows weather
@@ -191,15 +193,18 @@ decorations, **Liveliness** -- how many little moving things, and how often
 the crossers come -- one choice for every decoration, woodland season and the
 night sky, or Custom for each its own
 ([Seasonal Decorations](Seasonal-Decorations.md#liveliness)) -- and the **Sky
-Switch**. For a photo, its **Look** (Blur, Dim, Saturation and a Color
-Tint) and **Reset to Default**. **Pages** sets each page’s background, and
+Switch**. For a photo or the Landscapes, its **Look** (Blur, Dim, Saturation
+and a Color Tint) and **Reset to Default**. At the foot, **Reset to
+Defaults…** puts the whole page back, leaving the Pages’ own backgrounds
+([Reset to Defaults](Live-Sky.md#reset-to-defaults)). **Pages** sets each page’s background, and
 **Room Pages** each room’s own, with its own Look
 ([The live sky](Live-Sky.md)).
 
 A screen has the same choice under **Appearance → Sky / Background**:
 **Background** reads **Same as All Screens** until you choose one, then **Just
 This Screen**, and **Reset to All Screens** follows All Screens again. A
-Color or a Photo can be its own, too. With the Live Sky, it has the same
+Color, a Photo or a Landscape can be its own, too, and **Reset to
+Defaults…** puts the whole page back to Same as All Screens. With the Live Sky, it has the same
 controls, plus its own **Liveliness** (Same as All Screens, a preset for every
 occasion, or Custom for each) and **Calm When Nobody’s Around**. Its Clouds,
 Daytime Sky, Decoration Style and Moving Things are the same tabs as All

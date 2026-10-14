@@ -1109,6 +1109,92 @@
     EP.memo = { key: key, M: M, d: D.d[a0], h: D.h[a0], rt: RT && M.runtimes[0] ? RT[M.runtimes[0]] : null, R: R };
     return R;
   }
+  // THE SCREENSAVER'S HOME ENERGY (2026-10-14, hk-saver-energy.js): today so
+  // far and the month so far, from this page's own model and sums -- so the
+  // two never disagree -- plus THE HOUR STILL OPEN. Home Assistant closes an
+  // hour's statistics only once it is over (measured: at 13:20 the hourly
+  // and daily buckets end at 13:00, the five-minute ones at 13:20), so the
+  // five-minute changes since the last closed hour are added to today and
+  // the month. Only the house's own meters are asked for, not every device.
+  // null until it all has arrived; `waker` (requestUpdate / redraw, as a
+  // card has them) is woken as each part lands.
+  var OPEN_FIVES = 14;
+  function houseIds(M) {
+    var s = M.src;
+    return [].concat(s.imp, s.exp, s.cost, s.comp, s.solar, s.into, s.out, s.water.ids, s.water.cost, s.gas.ids, s.gas.cost)
+      .filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+  }
+  function hasV(ser, ids, i) {
+    return ids.some(function (id) { var q = ser[id] && ser[id][i]; return q && typeof q.v === 'number'; });
+  }
+  // the five-minute changes after the last closed hour, to the last closed
+  // five minutes: what each adds, and when that is up to
+  function openHour(M, D, F, T) {
+    var ax = T.ax, meters = M.src.imp.concat(M.src.solar), z = { home: 0, cost: 0, water: 0, gas: 0, solar: 0, upTo: 0 };
+    var covered = T.today0;
+    for (var i = ax.h.length - 1; i >= 0; i--) {
+      if (+ax.h[i].t >= T.today0 && hasV(D.h, meters, i)) { covered = +ax.h[i].t + HOUR; break; }
+    }
+    z.upTo = covered;
+    var fa = F && meters.map(function (id) { return F[id]; }).filter(Boolean)[0];
+    if (!fa) return z;
+    for (var j = 0; j < fa.length; j++) {
+      var t = +fa[j].t;
+      if (t < covered || !hasV(F, meters, j)) continue;
+      z.home += homeAt(M, F, j); z.cost += costAt(M, F, j);
+      z.water += vs(F, M.src.water.ids, j); z.gas += vs(F, M.src.gas.ids, j); z.solar += vs(F, M.src.solar, j);
+      z.upTo = Math.max(z.upTo, t + 3e5);
+    }
+    return z;
+  }
+  // HOW MUCH OF A USUAL DAY HAS GONE BY at `off` past midnight, by
+  // yesterday's own shape (calc's share, for any meter): [share, yesterday by then]
+  function byNow(D, T, off, fn) {
+    var all = 0, gone = 0, yday0 = T.today0 - DAY;
+    T.hYday.forEach(function (i) {
+      var x = fn(D.h, i), into = off - (+T.ax.h[i].t - yday0);
+      all += x;
+      if (into >= HOUR) gone += x; else if (into > 0) gone += x * into / HOUR;
+    });
+    return [all > 0.05 ? Math.max(0.02, gone / all) : Math.max(0.02, Math.min(1, off / DAY)), all > 0.05 ? gone : null];
+  }
+  var RING_NAME = { energy: 'Energy', cost: 'Cost', solar: 'Solar', water: 'Water', gas: 'Gas' };
+  function summary(hass, waker, now) {
+    var S = window.hkStats, M = model(hass, waker);
+    if (!S || !M || !hass) return null;
+    var ids = houseIds(M);
+    if (!ids.length) return null;
+    var h = S.hourly(hass, ids, HOURS, waker), d = S.daily(hass, ids, DAYS, waker);
+    var F = S.fiveMinute(hass, ids, OPEN_FIVES, waker, { type: 'change' });
+    if (!h || !d) return null;
+    var D = { h: h, d: d };
+    now = now || Date.now();
+    var T = calc(M, D, 'day', now), Mo = calc(M, D, 'month', now, null, { back: 0, ws: S.weekStart(hass) });
+    if (!T || !Mo) return null;
+    var o = openHour(M, D, F, T), off = o.upTo - T.today0;
+    var eBy = byNow(D, T, off, function (ser, i) { return homeAt(M, ser, i); });
+    var today = { energy: T.home + o.home, cost: T.cost + o.cost, water: T.water + o.water, gas: T.gas + o.gas, solar: T.solar + o.solar };
+    var share = { energy: eBy[0], cost: eBy[0], solar: byNow(D, T, off, function (ser, i) { return vs(ser, M.src.solar, i); })[0],
+                  water: byNow(D, T, off, function (ser, i) { return vs(ser, M.src.water.ids, i); })[0],
+                  gas: byNow(D, T, off, function (ser, i) { return vs(ser, M.src.gas.ids, i); })[0] };
+    var typ = { energy: T.typ.home, cost: T.typ.cost, water: T.typ.water, gas: T.typ.gas, solar: T.typ.solar };
+    var all = { energy: true, cost: M.hasCost, solar: M.src.solar.length > 0, water: M.src.water.ids.length > 0, gas: M.src.gas.ids.length > 0 };
+    var want = Array.isArray(M.rings) && M.rings.length ? M.rings : ['energy', 'cost', 'solar', 'water', 'gas'];
+    var unit = function (k) { return k === 'cost' ? '' : k === 'water' || k === 'gas' ? unitOf(hass, M.src[k].ids[0]) : 'kWh'; };
+    var rings = want.filter(function (k) { return all[k]; }).slice(0, 4).map(function (k) {
+      return { key: k, name: RING_NAME[k], c: RING[k], v: today[k], typ: typ[k], tick: share[k], unit: unit(k) };
+    });
+    var mo = { energy: Mo.home + o.home, cost: Mo.cost + o.cost, water: Mo.water + o.water, gas: Mo.gas + o.gas, solar: Mo.solar + o.solar };
+    var bat = M.house && hass.states[M.house.entity], bl = bat ? Number(bat.state) : NaN;
+    return {
+      asOf: o.upTo, today0: T.today0, rings: rings, typ: typ, today: today, usualByNow: typ.energy * eBy[0],
+      yday: eBy[1], month: mo, monthName: MONTHS[S.fields(Mo.start).month - 1],
+      // where the month's cost is heading: so far, and a usual day for each day left
+      projCost: M.hasCost && Mo.cur ? mo.cost + T.typ.cost * Math.max(0, Mo.n - Mo.whole - eBy[0]) : null,
+      hasCost: M.hasCost, power: wattsNow(hass, M.total.power), battery: isFinite(bl) ? bl : null,
+      money: function (v, dd) { var C = window.hkCards; return C && C.money ? C.money(hass, v, dd) : '$' + fx(v, dd); }
+    };
+  }
   // RESTART A BUILD ANIMATION WITHOUT A LAYOUT PER CARD: every card and tile
   // drawn in this turn is collected, then one reflow restarts them all
   var animQ = [];
@@ -1526,9 +1612,11 @@
         '" cx="110" cy="110" r="' + r + '" fill="none" stroke="' + x.c + '" stroke-width="' + w +
         '" stroke-linecap="round" stroke-dasharray="' + (c * over).toFixed(1) + ' ' + c.toFixed(1) +
         '" transform="rotate(-90 110 110)" style="filter:drop-shadow(0 0 4px rgba(0,0,0,.6))"' + (over > 0.001 ? '' : ' stroke-opacity="0"') + '/>';
-      // a white dot on the ring itself (a line across all of them reads as a clock's hand)
-      if (tick > 0 && tick < 1) {
-        var a = (tick * 360 - 90) * Math.PI / 180;
+      // a white dot on the ring itself (a line across all of them reads as a
+      // clock's hand); each ring its own (x.tick) where its usual day differs
+      var tk = x.tick != null ? x.tick : tick;
+      if (tk > 0 && tk < 1) {
+        var a = (tk * 360 - 90) * Math.PI / 180;
         ticks += '<circle class="tick" cx="' + (110 + r * Math.cos(a)).toFixed(1) + '" cy="' + (110 + r * Math.sin(a)).toFixed(1) + '" r="' + (w * 0.2).toFixed(1) + '"/>';
       }
     });
@@ -1754,23 +1842,30 @@
     // an update while the tab is open, from where each was. Reduce Motion:
     // the finished rings.
     _animateRings(p) {
-      var arcs = this._card.querySelectorAll('circle.arc'), was = this._ringWas || {}, fresh = this._ringTab !== p;
-      var still = !arcs.length || !arcs[0].animate ||
-        (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      var next = {}, SWEEP = 850, EASE = 'cubic-bezier(.22,.8,.25,1)';
-      for (var i = 0; i < arcs.length; i++) {
-        var a = arcs[i], k = a.getAttribute('data-k'), c = Number(a.getAttribute('data-c')), to = Number(a.getAttribute('data-len'));
-        var lap = a.classList.contains('lap'), from = fresh ? 0 : (was[k] != null ? was[k] : to);
-        next[k] = to;
-        if (still || Math.abs(to - from) < 0.5) continue;
-        // a lap starts when its ring has come round once; on an update, at once
-        var delay = lap && fresh ? SWEEP * 0.85 : 0, dur = lap && fresh ? Math.max(250, SWEEP * 0.6 * to / c + 200) : (fresh ? SWEEP : 500);
-        a.animate([{ strokeDasharray: from + ' ' + c, strokeOpacity: 1 }, { strokeDasharray: to + ' ' + c, strokeOpacity: 1 }],
-                  { duration: dur, delay: delay, easing: EASE, fill: 'backwards' });
-      }
-      this._ringWas = next;
+      this._ringWas = sweepRings(this._card, this._ringWas, this._ringTab !== p);
       this._ringTab = p;
     }
+  }
+  // (the hero's rings and the screensaver's: `was` each arc's length last
+  // time, `fresh` from nothing; returns the lengths for next time)
+  function sweepRings(root, was, fresh) {
+    var arcs = root.querySelectorAll('circle.arc');
+    was = was || {};
+    var still = !arcs.length || !arcs[0].animate ||
+      (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var D = window.hkCards && window.hkCards.DUR, E = window.hkCards && window.hkCards.EASE;
+    var next = {}, SWEEP = (D && parseFloat(D.ring) * 1000) || 850, EASE = (E && E.build) || 'cubic-bezier(.22,.8,.25,1)';
+    for (var i = 0; i < arcs.length; i++) {
+      var a = arcs[i], k = a.getAttribute('data-k'), c = Number(a.getAttribute('data-c')), to = Number(a.getAttribute('data-len'));
+      var lap = a.classList.contains('lap'), from = fresh ? 0 : (was[k] != null ? was[k] : to);
+      next[k] = to;
+      if (still || Math.abs(to - from) < 0.5) continue;
+      // a lap starts when its ring has come round once; on an update, at once
+      var delay = lap && fresh ? SWEEP * 0.85 : 0, dur = lap && fresh ? Math.max(250, SWEEP * 0.6 * to / c + 200) : (fresh ? SWEEP : 500);
+      a.animate([{ strokeDasharray: from + ' ' + c, strokeOpacity: 1 }, { strokeDasharray: to + ' ' + c, strokeOpacity: 1 }],
+                { duration: dur, delay: delay, easing: EASE, fill: 'backwards' });
+    }
+    return next;
   }
   function unitOf(hass, id) {
     var s = id && hass && hass.states[id];
@@ -3575,7 +3670,10 @@
     C && [{ name: 'source', selector: C.selOptions ? C.selOptions(['water', 'gas']) : { text: {} } }].concat(ROW),
     function () { return { source: 'water' }; });
 
-  window.hkEnergy = { version: '1.0.0' };
+  // THE SCREENSAVER'S HOME ENERGY reads the page's sums and draws its rings
+  // (hk-saver-energy.js)
+  window.hkEnergy = { version: '1.0.0', summary: summary, ringSvg: ringSvg, sweepRings: sweepRings,
+                      fx: fx, kwh: kwh, watts: watts, esc: esc };
   // the tiles and headings (hk-stat.js) that drew before this file ran
   try { window.dispatchEvent(new CustomEvent('hk-energy-ready')); } catch (e) {}
   });

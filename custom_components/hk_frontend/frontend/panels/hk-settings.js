@@ -147,6 +147,14 @@
     '.cell.photoprev{flex-direction:column;align-items:stretch;gap:6px;padding-top:12px;padding-bottom:12px}',
     '.photoprev img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:10px;background:#05070e}',
     '.photoprev small{color:var(--hk-label2);font-size:13px}',
+    // LANDSCAPES (2026-10-14): the picker's grid of HK's own photos, the one
+    // in use ringed and ticked
+    '.cell.landcell{display:block;padding:12px}',
+    '.landgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}',
+    '.landgrid button{position:relative;display:block;border:0;padding:0;border-radius:10px;overflow:hidden;cursor:pointer;background:#05070e;aspect-ratio:16/10}',
+    '.landgrid img{display:block;width:100%;height:100%;object-fit:cover}',
+    '.landgrid button.on{box-shadow:0 0 0 3px var(--hk-tint)}',
+    '.landgrid button.on::after{content:"\\2713";position:absolute;right:6px;top:6px;width:22px;height:22px;border-radius:50%;background:var(--hk-tint);color:#fff;font-size:14px;font-weight:700;line-height:22px;text-align:center}',
     '.pickbar .pcount{flex:1;color:var(--hk-label2);font-size:15px;padding-left:4px;white-space:nowrap}',
     '.pickbar button{border:0;background:none;color:var(--hk-tint);font:inherit;font-size:15px;padding:7px 9px;border-radius:9px;cursor:pointer;white-space:nowrap}',
     '.pickbar button.add{background:var(--hk-tint);color:#fff;font-weight:600;padding:7px 14px}',
@@ -320,6 +328,8 @@
   var TICK = '<svg viewBox="0 0 13 13" aria-hidden="true"><path d="M2 7l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   // Apple's system colors for the sidebar's tiles
+  // a landscape's file name (settings.py SKY_LANDSCAPE_FILE): a name, never a path
+  var LAND_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.(webp|jpe?g|png)$/i;
   var C = { blue: '#007aff', green: '#34c759', indigo: '#5856d6', orange: '#ff9500', pink: '#ff2d55', purple: '#af52de',
             red: '#ff3b30', teal: '#30b0c7', yellow: '#ffcc00', gray: '#8e8e93', cyan: '#32ade6', brown: '#a2845e' };
   var HOUSE = [
@@ -1008,6 +1018,7 @@
       this.pageEl.classList.toggle('nohead', !!(pg.preview && first && first.classList &&
         first.classList.contains('grp') && !(first.firstElementChild && first.firstElementChild.classList.contains('gh'))));
       this.skyPreview(pg.preview ? pg.sky : null);
+      this._saverEnergy = !!pg.saverEnergy;
       this.saverPreview(!!(pg.preview && pg.saverPreview), !!pg.saverHouse);
     }
 
@@ -1029,7 +1040,7 @@
       var n = 0;
       // WHICH PHOTO (2026-10-13): Any, or a Portrait or Landscape one -- held
       // while its settings change, so a crop or a blur can be judged
-      var shape = this._saverShape || '';
+      var shape = this._saverEnergy ? 'energy' : this._saverShape || '';
       var go = function () {
         var S = null;
         try { S = fr.contentWindow && fr.contentWindow.hkSaver; } catch (e) { /* not ours */ }
@@ -1037,7 +1048,10 @@
         return false;
       };
       if (!go()) self._saverWait = setInterval(function () { if (go() || ++n > 80) clearInterval(self._saverWait); }, 250);
-      if (on) {
+      if (on && this._saverEnergy) {
+        box.parentNode.insertBefore(h('div', { class: 'pvsaver' }, [h('p', { class: 'gf',
+          text: 'Home Energy as this screen shows it, held while you change these. Only this preview changes.' })]), box.nextSibling);
+      } else if (on) {
         var seg = h('div', { class: 'seg pvmoment', role: 'radiogroup', 'aria-label': 'Preview a photo' });
         [['', 'Any Photo'], ['portrait', 'Portrait'], ['landscape', 'Landscape']].forEach(function (o) {
           var b = h('button', { type: 'button', role: 'radio', 'aria-checked': o[0] === shape ? 'true' : 'false', tabindex: o[0] === shape ? '0' : '-1',
@@ -1604,6 +1618,12 @@
       if (s === 'rooms') return mk('Rooms', function (c) { self.s_rooms(c, x, b); });
       if (s === 'pages') return mk('Pages', function (c) { self.s_pages(c, x, b); });
       if (s === 'sky' && sub[1] === 'backdrop') return mk('Sky Colors', function (c) { self.s_backdrop(c, x, b); }, ['Sky / Background', base + '/sky']);
+      if (s === 'sky' && sub[1] === 'landscape') {
+        return mk('Choose a Landscape', function (c) {
+          self.landscapePick(c, { value: b.sky_landscape || null, house: self.data.settings.sky.landscape || 'every:1440', fk: 'blandpick',
+                                  onSet: function (v) { self.setB(x.path, { sky_landscape: v, sky: true }); } });
+        }, ['Sky / Background', base + '/sky']);
+      }
       if (s === 'sky' && sub[1] === 'pages') return mk('Sky / Background', function (c) { self.s_sky(c, x, b); });
       if (s === 'sky' && sub[1] === 'lively' && sub[2]) {
         var locc = decodeURIComponent(sub[2]);
@@ -1641,6 +1661,12 @@
                      ['Screensaver Options', base + '/screensaver']);
         cpg.saverPreview = true;
         return cpg;
+      }
+      if (s === 'screensaver' && sub[1] === 'energy') {
+        var epg = mk('Home Energy', function (c) { self.saverEnergy(c, M.saverOptions(b.screensaver_options), self.saverPutB(path)); },
+                     ['Screensaver Options', base + '/screensaver']);
+        epg.saverPreview = true; epg.saverEnergy = true;
+        return epg;
       }
       if (s === 'screensaver') {
         var spg = mk('Screensaver Options', function (c) { self.saverPage(c, x, b, path); });
@@ -3241,21 +3267,28 @@
       // it is the same): while music plays it fills the screen
       var mfKnown = self.saverKnown('music_first'), mf = (mfKnown && !!cur.music_first) || (fc && mu);
       // THE SLIDES between the photos (the music's only when it isn't first)
+      // HOME ENERGY (2026-10-14): a slide among the photos too
+      var enKnown = self.saverKnown('energy_slide'), en = enKnown && !!cur.energy_slide;
+      var energyHref = String(styleHref || '').replace(/clock-style$/, 'energy');
       if (!fc) {
         var muSlide = mu && !mf;
-        c.appendChild(K.group({ header: 'Between the Photos', footer: (both || muSlide)
+        var turns = [both && 'the forecast', muSlide && 'the music', en && 'Home Energy'].filter(Boolean);
+        c.appendChild(K.group({ header: 'Between the Photos', footer: turns.length
             ? 'After every few photos a slide fades in for as long as a photo shows, then the photos go on.' +
-              (both && muSlide ? ' The forecast and the music take turns.' : '') +
-              (muSlide ? ' The music only while something plays; its buttons skip or pause without closing the screensaver, and a tap on its album art opens Music.' : '')
-            : 'Slides among the photos: the forecast' + (mf ? '.' : ', and what’s playing.') }, [
+              (turns.length > 1 ? ' ' + M.listText(turns).replace(/^t/, 'T') + ' take turns.' : '') +
+              (muSlide ? ' The music only while something plays; its buttons skip or pause without closing the screensaver, and a tap on its album art opens Music.' : '') +
+              (en ? ' Home Energy skips its turn until it has the day’s numbers; a tap on it opens Energy.' : '')
+            : 'Slides among the photos: the forecast' + (mf ? '' : ', what’s playing') + (enKnown ? ', and Home Energy.' : '.') }, [
           K.toggle({ label: 'Forecast', sub: 'The forecast over the live sky, as one of the photos. Its sky only moves while it is on screen.',
                      on: both, sk: 'saver:slide_forecast', onChange: function (on) { put('show', on ? 'both' : 'photos'); } })
         ].concat(muKnown && !mf ? [tog('Music', 'music_slide', 'What’s playing, full screen: the album art, the song and what’s up next, with buttons for the previous or next song.')] : [],
-                 (both || muSlide) ? [K.select({ label: 'A Slide', sk: 'saver:forecast_every', value: String(cur.forecast_every),
+                 enKnown ? this.energyRows(cur, tog, energyHref) : [],
+                 turns.length ? [K.select({ label: 'A Slide', sk: 'saver:forecast_every', value: String(cur.forecast_every),
                                     options: [3, 5, 10, 20].concat([3, 5, 10, 20].indexOf(cur.forecast_every) < 0 ? [cur.forecast_every] : [])
                                       .map(function (n) { return [String(n), every(n)]; }),
                                     onChange: function (v) { put('forecast_every', Number(v)); } })] : [])));
       }
+      if (fc && enKnown) this.saverExtras(c, cur, put, tog, 'forecast', mf, energyHref);
       if (mfKnown || (fc && muKnown)) {
         c.appendChild(K.group({ header: 'While Music Plays', footer: mf
             ? 'While music plays anywhere in the house, the album art fills the screen in place of the ' + (fc ? 'forecast' : 'photos') +
@@ -3315,6 +3348,85 @@
           value: String(cur.calendar_days), options: [1, 2, 3, 4, 5, 6, 7].map(function (n) { return [String(n), days(n)]; }),
           onChange: function (v) { put('calendar_days', Number(v)); } })] : [],
           pmKnown ? [tog('Music', 'music_pane')] : [])));
+    }
+    // HOME ENERGY'S ROWS (2026-10-14): its switch, and its options once on
+    energyRows(cur, tog, href) {
+      var rows = [tog('Home Energy', 'energy_slide', 'Today so far: energy, cost and water against a usual day.')];
+      if (cur.energy_slide) rows.push(K.nav({ label: 'Home Energy Options', value: M.energyShown(cur), href: href, sk: 'saver:energy_options' }));
+      return rows;
+    }
+    // ADDITIONAL SCREENS (2026-10-14): over the forecast or the clock, now
+    // and then -- the forecast (on Show: Clock), the music and Home Energy,
+    // taking turns on one timer. `mf`: Music First, which covers the music
+    saverExtras(c, cur, put, tog, base, mf, href) {
+      var rows = [], bgSky = cur.clock_bg === 'forecast' || cur.clock_bg === 'skyonly';
+      if (base === 'clock' && !bgSky) rows.push(tog('Forecast', 'extra_forecast', 'Today, the next hours and the coming days, over the live sky.'));
+      if (!mf) rows.push(tog('Music', 'extra_music', 'What’s playing, full screen. Only while something plays; otherwise it skips its turn.'));
+      rows = rows.concat(this.energyRows(cur, tog, href));
+      var on = [base === 'clock' && !bgSky && cur.extra_forecast && 'the forecast', !mf && cur.extra_music && 'the music',
+                cur.energy_slide && 'Home Energy'].filter(Boolean);
+      var mins = function (n) { return n === 1 ? '1 Minute' : n + ' Minutes'; };
+      var secs = function (n) { return n < 60 ? n + ' Seconds' : n === 60 ? '1 Minute' : (n % 60 ? Math.round(n / 6) / 10 : n / 60) + ' Minutes'; };
+      if (on.length) {
+        var EV = [1, 2, 5, 10, 15, 30], FOR = [15, 30, 60, 120];
+        rows.push(K.select({ label: 'Every', sk: 'saver:extra_every', value: String(cur.extra_every),
+          options: EV.concat(EV.indexOf(cur.extra_every) < 0 ? [cur.extra_every] : []).map(function (n) { return [String(n), mins(n)]; }),
+          onChange: function (v) { put('extra_every', Number(v)); } }));
+        rows.push(K.select({ label: 'Show For', sk: 'saver:extra_for', value: String(cur.extra_for),
+          options: FOR.concat(FOR.indexOf(cur.extra_for) < 0 ? [cur.extra_for] : []).map(function (n) { return [String(n), secs(n)]; }),
+          onChange: function (v) { put('extra_for', Number(v)); } }));
+      }
+      c.appendChild(K.group({ header: 'Additional Screens', footer: on.length
+          ? 'Every ' + mins(cur.extra_every).toLowerCase() + ', ' + (on.length > 1 ? 'one of these' : on[0]) + ' fades in over the ' + base +
+            ' for ' + secs(cur.extra_for).toLowerCase() + ', then the ' + base + ' comes back.' +
+            (on.length > 1 ? ' ' + M.listText(on).replace(/^t/, 'T') + ' take turns, so each comes around every ' + mins(cur.extra_every * on.length).toLowerCase() + '.' : '') +
+            ' They wait while music plays first' + (base === 'clock' ? ' and during Night Mode.' : '.') +
+            (mf ? ' Music First covers the music, so it isn’t listed here.' : '')
+          : 'Other screens, now and then, over the ' + base + '.' + (mf ? ' Music First covers the music.' : '') }, rows));
+    }
+    // HOME ENERGY'S OPTIONS (2026-10-14; hk-saver-energy.js): which rings,
+    // what is along the bottom, the month. The preview holds the screen.
+    saverEnergy(c, cur, put) {
+      var self = this, hide = Array.isArray(cur.energy_hide) ? cur.energy_hide : [];
+      var src = this.energySources();
+      var part = function (k, label, sub) {
+        return K.toggle({ label: label, sub: sub, on: hide.indexOf(k) < 0, sk: 'saver:energy_hide:' + k,
+          onChange: function (on) {
+            var next = hide.filter(function (x) { return x !== k; });
+            if (!on) next.push(k);
+            put('energy_hide', M.ENERGY_PARTS.filter(function (x) { return next.indexOf(x) >= 0; }));
+          } });
+      };
+      var rings = [part('cost', 'Cost', null), part('water', 'Water', null)];
+      if (src && src.solar) rings.push(part('solar', 'Solar', null));
+      if (src && src.gas) rings.push(part('gas', 'Gas', null));
+      c.appendChild(K.group({ header: 'Rings', footer: 'Energy always shows. Each ring is today so far against a usual whole day; the white dot is where a usual day is by this time. A ring shows only where Home Assistant’s Energy settings have it.' }, rings));
+      c.appendChild(K.group({ header: 'Right Now', footer: 'Along the bottom, left. Each shows only where there is one: House Battery needs a house battery on the Energy page.' }, [
+        part('power', 'Power Now', 'What the house draws right now.'),
+        part('battery', 'House Battery', 'Its charge.'),
+        part('yday', 'Yesterday by Now', 'Yesterday’s use up to this time.')]));
+      var mo = hide.indexOf('month') < 0, cost = hide.indexOf('cost') < 0;
+      var also = ' The numbers are the Energy page’s Today and This Month, up to the last five minutes. A tap on Home Energy opens the Energy page.';
+      c.appendChild(K.group({ header: 'This Month', footer: (!mo ? 'Off: today only.'
+          : 'Along the bottom, right: the month since the 1st, for each ring that shows.' + (cost && hide.indexOf('pace') < 0
+            ? ' Heading for is the Energy page’s own estimate: what the month has cost so far, plus a usual day for each day left. It firms up as the month goes on.' : '')) + also },
+        [part('month', 'Month So Far', 'Energy, cost and water since the 1st.')].concat(mo && cost ? [part('pace', 'Where the Cost Is Heading', 'The month’s cost so far, plus a usual day’s for each day left.')] : [])));
+    }
+    // WHICH SOURCES THE HOUSE HAS (Home Assistant's Energy settings), for
+    // Home Energy's rings: asked once, the page drawn again when they land
+    energySources() {
+      var self = this;
+      if (this._enSrc !== undefined) return this._enSrc;
+      this._enSrc = null;
+      if (this.hass && this.hass.callWS) {
+        this.hass.callWS({ type: 'energy/get_prefs' }).then(function (pr) {
+          var t = {};
+          ((pr && pr.energy_sources) || []).forEach(function (x) { t[x.type] = true; });
+          self._enSrc = t;
+          self.render();
+        }).catch(function () { /* the rings it always has */ });
+      }
+      return null;
     }
     // THE CLOCK'S COLOR (2026-10-13): the chosen style's own colors; each
     // face keeps its own (clock_colors), so trying another style loses none
@@ -3468,6 +3580,7 @@
                   tog('Home Status', 'status', 'Top right: Home Secured, or what’s open or unlocked.')];
       if (bg === 'forecast' || bg === 'skyonly') over.push(tog('Forecast Details', 'band', 'Today, the next hours and the coming days, along the bottom.'));
       else over.push(tog('Forecast Along the Bottom', 'band_photos', 'Today, the next hours and the coming days, along the bottom.'));
+      if (self.saverKnown('energy_slide')) self.saverExtras(c, cur, put, tog, 'clock', !!cur.music_first, String(styleHref || '').replace(/clock-style$/, 'energy'));
       c.appendChild(K.group({ header: 'Over the Clock', footer: 'Each is your choice: turn them all off for the clock alone.' }, over));
       // the side pane: the clock moves over beside it, as the photos do
       c.appendChild(K.group({ header: 'Side Pane', footer: 'Down the right of the screen: the coming events, what’s playing, or both. The clock moves over beside it.' },
@@ -4037,6 +4150,10 @@
       if (page === 'sky') {
         if (sub[0] === 'advanced') return mk('Advanced', function (c) { self.h_skyAdvanced(c); });
         if (sub[0] === 'backdrop') return mk('Sky Colors', function (c) { self.h_backdrop(c); });
+        if (sub[0] === 'landscape') return mk('Choose a Landscape', function (c) {
+          self.landscapePick(c, { value: self.data.settings.sky.landscape || 'every:1440', fk: 'hlandpick',
+                                  onSet: function (v) { self.setH({ 'sky.landscape': v }); } });
+        });
         if (sub[0] === 'pages') return mk('Sky / Background', function (c) { self.h_sky(c); });
         if (sub[0] === 'lively') return mk('Each Occasion', function (c) { self.livelyList(c, null); });
         if (sub[0] === 'page' && sub[1]) {
@@ -4106,6 +4223,13 @@
           var hpg = mk('Clock Style', function (c) { self.saverStyle(c, hcur, self.saverPutH()); });
           if (pv) { hpg.preview = pv; hpg.saverPreview = true; hpg.saverHouse = true; }
           return hpg;
+        }
+        if (sub[0] === 'energy') {
+          var ecur = M.saverOptions(this.hs('look.saver'));
+          var hepg = mk('Home Energy', function (c) { self.saverEnergy(c, ecur, self.saverPutH()); });
+          if (pv) { hepg.preview = pv; hepg.saverPreview = true; hepg.saverHouse = true; }
+          hepg.saverEnergy = true;
+          return hepg;
         }
         var spg = { title: title, top: true, body: function (c) { self.h_saver(c); },
                     scope: 'What every screen’s screensaver shows, unless it has its own. When a tablet goes dark is its own Sleep Screen’s (Wall Tablets).' };
@@ -4444,6 +4568,7 @@
           },
           onCustom: function (v) { self.setH({ 'sky.gradient_custom': v }); }, scope: 'sky.gradient_custom' });
         this.skyPagesGroup(c, null, null);
+        this.skyResetGroup(c, null, null);
         return;
       }
       if (mode === 'photo') {
@@ -4452,6 +4577,18 @@
           onSet: function (url) { var was = sky.photo; self.setH({ 'sky.photo': url }).then(function (ok) { if (ok) self.photoForget(was); }); } });
         this.photoLookGroup(c, { look: sky.photo_look, sk: 'sky.photo_look', onSet: function (v) { self.setH({ 'sky.photo_look': v }); } });
         this.skyPagesGroup(c, null, null);
+        this.skyResetGroup(c, null, null);
+        return;
+      }
+      // LANDSCAPES (2026-10-14): HK Frontend's own photos -- which one, and
+      // its own Look (a photo's, kept apart from your Photo's)
+      if (mode === 'landscapes') {
+        this.landscapeGroup(c, { value: sky.landscape || 'every:1440', fk: 'hland', sk: 'sky.landscape', href: '#/house/sky/landscape',
+          footer: 'Shown on Home, the room pages, and every page without a color of its own. Each screen can choose its own.',
+          onSet: function (v) { self.setH({ 'sky.landscape': v }); } });
+        this.photoLookGroup(c, { look: sky.landscape_look, sk: 'sky.landscape_look', onSet: function (v) { self.setH({ 'sky.landscape_look': v }); } });
+        this.skyPagesGroup(c, null, null);
+        this.skyResetGroup(c, null, null);
         return;
       }
       // RAIN & SNOW only while there is weather to fall; PAUSE WHEN NOT IN
@@ -4517,6 +4654,99 @@
         this.entityRow({ label: 'Sky Switch', sk: 'look.sky_switch', value: look.sky_switch, none: 'None (Always On)',
                          filter: { domains: ['input_boolean', 'switch'] }, onPick: function (v) { self.setH({ 'look.sky_switch': v }); } })]));
       c.appendChild(K.group({}, [K.nav({ label: 'Advanced', sub: 'Hemisphere, sources, what decorations need', href: '#/house/sky/advanced' })]));
+      this.skyResetGroup(c, null, null);
+    }
+    // RESET TO DEFAULTS (2026-10-14, the owner's ask): every setting on this
+    // Sky / Background page goes back -- All Screens' to HK's defaults
+    // (settings.py SKY_RESET, server side), a screen's to Same as All
+    // Screens -- but never the Pages (each page's own background, photo and
+    // look). A photo or custom colors you made are kept for next time.
+    skyResetGroup(c, x, b) {
+      var self = this;
+      c.appendChild(K.group({ footer: b ? 'Every setting on this page goes back to Same as All Screens. The Pages keep their own backgrounds.'
+                                        : 'Every setting on this page goes back to its default. The Pages keep their own backgrounds, and a photo or custom colors you made are kept for next time.' }, [
+        K.button({ label: 'Reset to Defaults…', destructive: true, fk: b ? 'sky:screen-reset' : 'sky:house-reset', onClick: function () {
+          K.confirm(self.shadowRoot, { title: b ? 'Use the Sky / Background for All Screens?' : 'Use the default Sky / Background?',
+            message: b ? 'Every setting on this page goes back to Same as All Screens. Each page’s own background stays.'
+                       : 'Every setting on this page goes back to its default: the Live Sky, with its weather, decorations and liveliness. Each page’s own background stays.',
+            ok: 'Use Defaults', destructive: true }).then(function (yes) {
+            if (!yes) return;
+            if (!b) { self.setH({ 'sky.reset': true }); return; }
+            var ch = { sky: true, sky_liveliness_occ: {}, sky_liveliness_custom: {}, sky_calm_empty: false };
+            ['sky_background', 'sky_color', 'sky_landscape', 'sky_photo_look', 'sky_landscape_look', 'sky_animations', 'sky_focus_pause',
+             'sky_moving', 'sky_weather', 'sky_precipitation', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_decorations',
+             'sky_decoration_style', 'sky_liveliness'].forEach(function (k) { ch[k] = null; });
+            self.setB(x.path, ch);
+          });
+        } })]));
+    }
+    // HK FRONTEND'S OWN LANDSCAPES (2026-10-14), as the screensaver's clock
+    // has them: the list from the folder's index.json (a home's own files
+    // folder can answer with its own), fetched once; null until it comes.
+    landscapes() {
+      if (this._land) return this._land;
+      if (!this._landAsk && typeof fetch === 'function') {
+        var self = this;
+        this._landAsk = true;
+        fetch('/hk/landscapes/index.json').then(function (r) { return r.json(); }).then(function (j) {
+          self._land = ((j && j.photos) || []).filter(function (p) { return p && typeof p.file === 'string' && LAND_FILE.test(p.file); });
+          self.render(true);
+        }).catch(function () { self._landAsk = false; });
+      }
+      return null;
+    }
+    // a landscape's picture: its small copy (`thumb`) for the grid, else the photo
+    landSrc(p, big) {
+      return '/hk/landscapes/' + (!big && typeof p.thumb === 'string' && /^thumbs\/[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.(webp|jpe?g|png)$/i.test(p.thumb) ? p.thumb : p.file);
+    }
+    // WHICH LANDSCAPE, AND WHEN IT CHANGES (the owner's three): Each Time
+    // the Screen Wakes, On a Schedule (with how often), or Stay the Same --
+    // on the one showing now, or one picked (Choose a Landscape...). The one
+    // showing now above them.
+    //   o = { value (own; null following), house (All Screens', on a
+    //         screen), onSet(v | null), href, fk, sk, footer }
+    landscapeGroup(c, o) {
+      var list = this.landscapes() || [], eff = o.value || o.house || 'every:1440', rows = [];
+      var own = o.house === undefined ? eff : o.value;
+      var kind = function (v) { return !v ? null : v === 'wake' ? 'wake' : /^every:/.test(v) ? 'every' : 'stay'; };
+      var file = M.landscapeFile(eff, list), p = list.filter(function (x) { return x.file === file; })[0];
+      if (p) {
+        rows.push(h('div', { class: 'cell photoprev' }, [h('img', { src: this.landSrc(p, true), alt: p.title || 'The landscape', 'data-fk': o.fk + ':img' }),
+          h('small', { text: (kind(eff) === 'wake' ? 'For now: ' : kind(eff) === 'every' ? 'Now: ' : '') + (p.title || '') })]));
+      }
+      if (o.house !== undefined) {
+        rows.push(K.check({ label: 'Same as All Screens', sub: 'Now ' + M.landscapeLabel(o.house, list), on: !o.value, fk: o.fk + ':follow',
+                            onClick: function () { o.onSet(null); } }));
+      }
+      rows.push(K.check({ label: 'Each Time the Screen Wakes', sub: 'A new one while the screensaver or the black is up, so it is there when the screen wakes',
+                          on: kind(own) === 'wake', fk: o.fk + ':wake', onClick: function () { o.onSet('wake'); } }));
+      rows.push(K.check({ label: 'On a Schedule', sub: kind(own) === 'every' ? M.landscapeLabel(own) : 'Every day, every hour …',
+                          on: kind(own) === 'every', fk: o.fk + ':every', onClick: function () { if (kind(own) !== 'every') o.onSet('every:1440'); } }));
+      if (kind(own) === 'every') {
+        rows.push(K.select({ label: 'Change', sk: o.sk + ':every', value: own, options: M.LANDSCAPE_EVERY, onChange: function (v) { o.onSet(v); } }));
+      }
+      // Stay the Same: on the one showing now, until another is picked
+      rows.push(K.check({ label: 'Stay the Same', sub: kind(own) === 'stay' ? M.landscapeLabel(own, list) : 'The one showing now, or one you choose',
+                          on: kind(own) === 'stay', fk: o.fk + ':stay', onClick: function () { if (kind(own) !== 'stay' && file) o.onSet(file); } }));
+      rows.push(K.nav({ label: 'Choose a Landscape', href: o.href, sk: o.sk }));
+      c.appendChild(this.withError(K.group({ header: 'Landscape', footer: (o.footer ? o.footer + ' ' : '') +
+        'Fifty photos that come with HK Frontend, all public domain or CC0, from Wikimedia Commons.' }, rows), o.sk));
+    }
+    // CHOOSE A LANDSCAPE: every one, small, the one it stays on ticked; a
+    // tap picks it, and it stays (Stay the Same).
+    landscapePick(c, o) {
+      var self = this, list = this.landscapes();
+      if (!list) { c.appendChild(K.group({}, [K.info({ label: 'Loading…', value: '' })])); return; }
+      var grid = h('div', { class: 'landgrid' }, list.map(function (p) {
+        var on = o.value === p.file;
+        var bt = h('button', { class: on ? 'on' : '', type: 'button', title: p.title || p.file, 'aria-label': p.title || p.file,
+                               'aria-pressed': on ? 'true' : 'false', 'data-fk': o.fk + ':' + p.file },
+                   [h('img', { src: self.landSrc(p), alt: '', loading: 'lazy' })]);
+        bt.addEventListener('click', function () { o.onSet(p.file); });
+        return bt;
+      }));
+      c.appendChild(K.group({ header: 'Landscapes', footer: 'The one you choose stays (Stay the Same). To change it each time the screen wakes, or on a schedule, go back to Sky / Background.' },
+                            [h('div', { class: 'cell landcell' }, [grid])]));
     }
     dusk() {
       var d = ((this.data.choices || {}).sky_backdrops || []).filter(function (p) { return p.id === 'dusk'; })[0];
@@ -4895,6 +5125,7 @@
             },
             onCustom: function (v) { self.setB(x.path, { sky_custom: v }); } });
           this.skyPagesGroup(c, x, b);
+          this.skyResetGroup(c, x, b);
           return;
         }
         if (mode === 'photo') {
@@ -4904,6 +5135,17 @@
           this.photoLookGroup(c, { look: b.sky_photo_look || sky.photo_look, own: !!b.sky_photo_look, sk: 'b:sky_photo_look', follow: 'All Screens',
             onSet: function (v) { self.setB(x.path, { sky_photo_look: v }); } });
           this.skyPagesGroup(c, x, b);
+          this.skyResetGroup(c, x, b);
+          return;
+        }
+        if (mode === 'landscapes') {
+          this.landscapeGroup(c, { value: b.sky_landscape || null, house: sky.landscape || 'every:1440', fk: 'bland', sk: 'b:sky_landscape',
+            href: base + '/sky/landscape', footer: 'Shown on Home, the room pages, and every page without a color of its own.',
+            onSet: function (v) { self.setB(x.path, { sky_landscape: v, sky: true }); } });
+          this.photoLookGroup(c, { look: b.sky_landscape_look || sky.landscape_look, own: !!b.sky_landscape_look, sk: 'b:sky_landscape_look', follow: 'All Screens',
+            onSet: function (v) { self.setB(x.path, { sky_landscape_look: v }); } });
+          this.skyPagesGroup(c, x, b);
+          this.skyResetGroup(c, x, b);
           return;
         }
       }
@@ -4919,7 +5161,7 @@
                            href: base + '/sky/page/' + encodeURIComponent(o.r.key), sk: 'b:sky_pages:' + o.r.key });
           })));
         // nothing here shows the live sky: none of its settings to show
-        if (!liveOnes.length) return;
+        if (!liveOnes.length) { this.skyResetGroup(c, x, b); return; }
       }
       // Pause When Not in Focus only while anything moves here, Rain & Snow
       // only while there is weather (2026-10-10), as on All Screens' page
@@ -5033,6 +5275,7 @@
     pageBackdrops(c, x, b, pk) {
       var self = this;
       pk.rows.forEach(function (r) { self.pagePicker(c, x, b, r, pk.rows.length === 1); });
+      this.skyResetGroup(c, x, b);
     }
     // ONE PAGE'S BACKGROUND (2026-10-13: the Background's choices, page by
     // page): Automatic (All Screens) or Same as All Screens (a screen), its
@@ -5047,7 +5290,7 @@
       var photos = b ? (b.sky_page_photos || {}) : (sky.page_photos || {});
       var custom = b ? (b.sky_custom || sky.gradient_custom) : sky.gradient_custom;
       var cur = mine[r.key] || '';
-      var isColor = cur && cur !== 'own' && cur !== 'live' && cur !== 'photo';
+      var isColor = cur && cur !== 'own' && cur !== 'live' && cur !== 'photo' && cur !== 'landscapes';
       var put = function (ch) {
         if (b) { ch.sky = true; return self.setB(x.path, ch); }
         var hc = {};
@@ -5078,8 +5321,10 @@
                           tile: ['mdi:palette', C.purple], onClick: function () { if (!isColor) pick(startColor); } }));
       rows.push(K.check({ label: 'Photo', sub: photos[r.key] ? 'Its own photo' : 'A photo, still', on: cur === 'photo', fk: 'pbd:' + r.key + ':photo',
                           tile: ['mdi:image', C.orange], onClick: function () { pick('photo'); } }));
+      rows.push(K.check({ label: 'Landscapes', sub: 'HK Frontend’s own photos, as ' + (b ? 'the screen' : 'All Screens') + ' has them', on: cur === 'landscapes',
+                          fk: 'pbd:' + r.key + ':landscapes', tile: ['mdi:image-filter-hdr', C.teal], onClick: function () { pick('landscapes'); } }));
       c.appendChild(K.group({ header: alone === false ? r.label : null, footer: (alone ? r.label + ' is this screen’s only page, so its background is the screen’s. ' : '') +
-        'Page Color, Color and Photo are still: no sun, moon, stars, weather or decorations.' }, rows));
+        'Page Color, Color, Photo and Landscapes are still: no sun, moon, stars, weather or decorations.' }, rows));
       if (isColor) {
         this.colorGroup(c, { id: cur, custom: custom, fk: 'pbd:' + r.key + ':',
           onPick: function (id) { pick(id); },
@@ -5105,6 +5350,21 @@
           follow: r.room && looks.rooms ? 'Room Pages’ Look' : b ? 'the Screen’s Look' : 'All Screens’ Look',
           onSet: function (v) {
             var next = Object.assign({}, looks);
+            if (v) next[r.key] = v; else delete next[r.key];
+            put({ sky_page_looks: next });
+          } });
+      }
+      // LANDSCAPES on a page: the screen's landscape (which one is the
+      // Background's choice), with a Look of its own -- else the screen's
+      // landscape look
+      if (cur === 'landscapes') {
+        var llooks = b ? (b.sky_page_looks || {}) : (sky.page_looks || {});
+        var landLook = b ? (b.sky_landscape_look || sky.landscape_look) : sky.landscape_look;
+        this.photoLookGroup(c, { look: llooks[r.key] || (r.room && llooks.rooms) || landLook, own: !!llooks[r.key],
+          sk: (b ? 'b:sky_page_looks:' : 'sky.page_looks:') + r.key,
+          follow: r.room && llooks.rooms ? 'Room Pages’ Look' : b ? 'the Screen’s Look' : 'All Screens’ Look',
+          onSet: function (v) {
+            var next = Object.assign({}, llooks);
             if (v) next[r.key] = v; else delete next[r.key];
             put({ sky_page_looks: next });
           } });

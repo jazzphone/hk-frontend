@@ -6354,6 +6354,12 @@
         if (!photo) still = black;
         else if (typeof HS.pageLook === 'function') look = HS.pageLook(pkeys);
       }
+      // 'landscapes' (2026-10-14): the screen's landscape, as a photo
+      else if (mode === 'landscapes') {
+        var land = typeof HS.pageLandscape === 'function' ? HS.pageLandscape(pkeys) : null;
+        photo = land && land.photo;
+        if (!photo) still = black; else look = land.look;
+      }
       else still = typeof HS.pageBackdrop === 'function' ? HS.pageBackdrop(mode) : null;
     } else if (!variant && HS && typeof HS.skyLook === 'function') {
       // THE BACKGROUND (2026-10-13): a page that shows the live sky by
