@@ -1529,7 +1529,8 @@
                      photo_layout: 'single', mosaic_count: 3, mosaic_gap: 'thin', mosaic_change: 'one', mosaic_line: 0, mosaic_color: 'black', mosaic_random: false, mosaic_every: 10,
                      clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0,
                      // Home Energy and the additional screens (settings.py, 2026-10-14)
-                     energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 5, extra_for: 30, energy_hide: [] };
+                     energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 5, extra_for: 30, energy_hide: [],
+                     weather_slide: false, weather_hide: [] };
   function saverOptions(o) {
     var out = {};
     Object.keys(SAVER_DEFAULTS).forEach(function (k) {
@@ -1604,8 +1605,8 @@
     var over = o.show === 'forecast' || o.show === 'clock';
     var extra = over
       ? (o.show === 'clock' && o.extra_forecast && o.clock_bg !== 'forecast' && o.clock_bg !== 'skyonly' ? ['Forecast'] : [])
-          .concat(o.extra_music && !first && !o.music_slide ? ['Music'] : [])
-      : (o.show === 'both' ? ['Forecast'] : []).concat(o.music_slide && !first ? ['Music'] : []);
+          .concat(o.extra_music && !first && !o.music_slide ? ['Music'] : [], o.show === 'clock' && o.weather_slide ? ['Weather'] : [])
+      : (o.show === 'both' ? ['Forecast'] : []).concat(o.music_slide && !first ? ['Music'] : [], o.weather_slide ? ['Weather'] : []);
     if (o.energy_slide) extra.push('Home Energy');
     var show = (first ? 'Music, Then ' : '') + (o.show === 'forecast' ? 'Forecast' : o.show === 'clock' ? 'Clock' : 'Photos') + (extra.length ? ' + ' + extra.join(' & ') : '');
     var n = o.starts_after, m = n % 60 ? Math.round(n / 6) / 10 : n / 60;
@@ -1618,6 +1619,14 @@
   function energyShown(o) {
     var hide = (o && Array.isArray(o.energy_hide)) ? o.energy_hide : [];
     return ['Energy'].concat([['cost', 'Cost'], ['water', 'Water']].filter(function (r) { return hide.indexOf(r[0]) < 0; })
+      .map(function (r) { return r[1]; })).join(', ');
+  }
+  // WEATHER'S PARTS (settings.py SAVER_WEATHER_PARTS), and its readings as
+  // Weather Options' row says them: "Temperature, Rain, Wind"
+  var WEATHER_PARTS = ['rain', 'wind', 'hours', 'days'];
+  function weatherShown(o) {
+    var hide = (o && Array.isArray(o.weather_hide)) ? o.weather_hide : [];
+    return ['Temperature'].concat([['rain', 'Rain'], ['wind', 'Wind']].filter(function (r) { return hide.indexOf(r[0]) < 0; })
       .map(function (r) { return r[1]; })).join(', ');
   }
   // "a", "a and b", "a, b and c"
@@ -1824,7 +1833,7 @@
     skySummary: skySummary, backdropFollow: backdropFollow,
     YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
-    SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, ENERGY_PARTS: ENERGY_PARTS, energyShown: energyShown, listText: listText, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
+    SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, ENERGY_PARTS: ENERGY_PARTS, energyShown: energyShown, WEATHER_PARTS: WEATHER_PARTS, weatherShown: weatherShown, listText: listText, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
     COPY_GROUPS: COPY_GROUPS, COPY_NEVER: COPY_NEVER, copyDefaults: copyDefaults, copyChanges: copyChanges,
     skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',

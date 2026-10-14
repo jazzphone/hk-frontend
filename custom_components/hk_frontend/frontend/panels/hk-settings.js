@@ -1019,6 +1019,7 @@
         first.classList.contains('grp') && !(first.firstElementChild && first.firstElementChild.classList.contains('gh'))));
       this.skyPreview(pg.preview ? pg.sky : null);
       this._saverEnergy = !!pg.saverEnergy;
+      this._saverWx = !!pg.saverWeather;
       this.saverPreview(!!(pg.preview && pg.saverPreview), !!pg.saverHouse);
     }
 
@@ -1040,7 +1041,7 @@
       var n = 0;
       // WHICH PHOTO (2026-10-13): Any, or a Portrait or Landscape one -- held
       // while its settings change, so a crop or a blur can be judged
-      var shape = this._saverEnergy ? 'energy' : this._saverShape || '';
+      var shape = this._saverEnergy ? 'energy' : this._saverWx ? 'weather' : this._saverShape || '';
       var go = function () {
         var S = null;
         try { S = fr.contentWindow && fr.contentWindow.hkSaver; } catch (e) { /* not ours */ }
@@ -1048,9 +1049,9 @@
         return false;
       };
       if (!go()) self._saverWait = setInterval(function () { if (go() || ++n > 80) clearInterval(self._saverWait); }, 250);
-      if (on && this._saverEnergy) {
+      if (on && (this._saverEnergy || this._saverWx)) {
         box.parentNode.insertBefore(h('div', { class: 'pvsaver' }, [h('p', { class: 'gf',
-          text: 'Home Energy as this screen shows it, held while you change these. Only this preview changes.' })]), box.nextSibling);
+          text: (this._saverWx ? 'The weather' : 'Home Energy') + ' as this screen shows it, held while you change these. Only this preview changes.' })]), box.nextSibling);
       } else if (on) {
         var seg = h('div', { class: 'seg pvmoment', role: 'radiogroup', 'aria-label': 'Preview a photo' });
         [['', 'Any Photo'], ['portrait', 'Portrait'], ['landscape', 'Landscape']].forEach(function (o) {
@@ -1661,6 +1662,12 @@
                      ['Screensaver Options', base + '/screensaver']);
         cpg.saverPreview = true;
         return cpg;
+      }
+      if (s === 'screensaver' && sub[1] === 'weather') {
+        var wpg = mk('Weather', function (c) { self.saverWeather(c, M.saverOptions(b.screensaver_options), self.saverPutB(path)); },
+                     ['Screensaver Options', base + '/screensaver']);
+        wpg.saverPreview = true; wpg.saverWeather = true;
+        return wpg;
       }
       if (s === 'screensaver' && sub[1] === 'energy') {
         var epg = mk('Home Energy', function (c) { self.saverEnergy(c, M.saverOptions(b.screensaver_options), self.saverPutB(path)); },
@@ -3270,18 +3277,21 @@
       // HOME ENERGY (2026-10-14): a slide among the photos too
       var enKnown = self.saverKnown('energy_slide'), en = enKnown && !!cur.energy_slide;
       var energyHref = String(styleHref || '').replace(/clock-style$/, 'energy');
+      var weatherHref = String(styleHref || '').replace(/clock-style$/, 'weather');
       if (!fc) {
         var muSlide = mu && !mf;
-        var turns = [both && 'the forecast', muSlide && 'the music', en && 'Home Energy'].filter(Boolean);
+        var wxKnown = self.saverKnown('weather_slide'), wx = wxKnown && !!cur.weather_slide;
+        var turns = [muSlide && 'the music', both && 'the forecast', wx && 'the weather', en && 'Home Energy'].filter(Boolean);
         c.appendChild(K.group({ header: 'Between the Photos', footer: turns.length
             ? 'After every few photos a slide fades in for as long as a photo shows, then the photos go on.' +
               (turns.length > 1 ? ' ' + M.listText(turns).replace(/^t/, 'T') + ' take turns.' : '') +
               (muSlide ? ' The music only while something plays; its buttons skip or pause without closing the screensaver, and a tap on its album art opens Music.' : '') +
               (en ? ' Home Energy skips its turn until it has the day’s numbers; a tap on it opens Energy.' : '')
-            : 'Slides among the photos: the forecast' + (mf ? '' : ', what’s playing') + (enKnown ? ', and Home Energy.' : '.') }, [
+            : 'Slides among the photos: the forecast' + (mf ? '' : ', what’s playing') + (wxKnown ? ', the weather' : '') + (enKnown ? ', and Home Energy.' : '.') }, [
           K.toggle({ label: 'Forecast', sub: 'The forecast over the live sky, as one of the photos. Its sky only moves while it is on screen.',
                      on: both, sk: 'saver:slide_forecast', onChange: function (on) { put('show', on ? 'both' : 'photos'); } })
         ].concat(muKnown && !mf ? [tog('Music', 'music_slide', 'What’s playing, full screen: the album art, the song and what’s up next, with buttons for the previous or next song.')] : [],
+                 wxKnown ? this.weatherRows(cur, tog, weatherHref) : [],
                  enKnown ? this.energyRows(cur, tog, energyHref) : [],
                  turns.length ? [K.select({ label: 'A Slide', sk: 'saver:forecast_every', value: String(cur.forecast_every),
                                     options: [3, 5, 10, 20].concat([3, 5, 10, 20].indexOf(cur.forecast_every) < 0 ? [cur.forecast_every] : [])
@@ -3355,6 +3365,30 @@
       if (cur.energy_slide) rows.push(K.nav({ label: 'Home Energy Options', value: M.energyShown(cur), href: href, sk: 'saver:energy_options' }));
       return rows;
     }
+    // WEATHER'S ROWS (2026-10-14): its switch, and its options once on
+    weatherRows(cur, tog, href) {
+      var rows = [tog('Weather', 'weather_slide', 'Today’s weather at a glance, over the live sky.')];
+      if (cur.weather_slide) rows.push(K.nav({ label: 'Weather Options', value: M.weatherShown(cur), href: href, sk: 'saver:weather_options' }));
+      return rows;
+    }
+    // WEATHER'S OPTIONS (2026-10-14; hk-saver-weather.js): the readings, and
+    // what is along the bottom. The preview holds the screen.
+    saverWeather(c, cur, put) {
+      var hide = Array.isArray(cur.weather_hide) ? cur.weather_hide : [];
+      var part = function (k, label, sub) {
+        return K.toggle({ label: label, sub: sub, on: hide.indexOf(k) < 0, sk: 'saver:weather_hide:' + k,
+          onChange: function (on) {
+            var next = hide.filter(function (x) { return x !== k; });
+            if (!on) next.push(k);
+            put('weather_hide', M.WEATHER_PARTS.filter(function (x) { return next.indexOf(x) >= 0; }));
+          } });
+      };
+      c.appendChild(K.group({ header: 'Readings', footer: 'Temperature always shows: now, with today’s high and low. Each reading has its leader line and a line in words underneath. Rain reads Snow when it snows.' }, [
+        part('rain', 'Rain', 'The chance today, and when.'),
+        part('wind', 'Wind', 'Its speed, direction and gusts.')]));
+      c.appendChild(K.group({ header: 'Along the Bottom', footer: 'From the weather in Weather, as the forecast’s details have them. Behind it all, the live sky as it is outside (Sky Only). A tap on the screen opens the Weather page.' }, [
+        part('hours', 'Next Hours'), part('days', 'Coming Days')]));
+    }
     // ADDITIONAL SCREENS (2026-10-14): over the forecast or the clock, now
     // and then -- the forecast (on Show: Clock), the music and Home Energy,
     // taking turns on one timer. `mf`: Music First, which covers the music
@@ -3362,9 +3396,12 @@
       var rows = [], bgSky = cur.clock_bg === 'forecast' || cur.clock_bg === 'skyonly';
       if (base === 'clock' && !bgSky) rows.push(tog('Forecast', 'extra_forecast', 'Today, the next hours and the coming days, over the live sky.'));
       if (!mf) rows.push(tog('Music', 'extra_music', 'What’s playing, full screen. Only while something plays; otherwise it skips its turn.'));
+      // (Weather over the clock; over the forecast it is the weather already)
+      var wxOn = base === 'clock' && this.saverKnown('weather_slide');
+      if (wxOn) rows = rows.concat(this.weatherRows(cur, tog, String(href).replace(/energy$/, 'weather')));
       rows = rows.concat(this.energyRows(cur, tog, href));
       var on = [base === 'clock' && !bgSky && cur.extra_forecast && 'the forecast', !mf && cur.extra_music && 'the music',
-                cur.energy_slide && 'Home Energy'].filter(Boolean);
+                wxOn && cur.weather_slide && 'the weather', cur.energy_slide && 'Home Energy'].filter(Boolean);
       var mins = function (n) { return n === 1 ? '1 Minute' : n + ' Minutes'; };
       var secs = function (n) { return n < 60 ? n + ' Seconds' : n === 60 ? '1 Minute' : (n % 60 ? Math.round(n / 6) / 10 : n / 60) + ' Minutes'; };
       if (on.length) {
@@ -4223,6 +4260,13 @@
           var hpg = mk('Clock Style', function (c) { self.saverStyle(c, hcur, self.saverPutH()); });
           if (pv) { hpg.preview = pv; hpg.saverPreview = true; hpg.saverHouse = true; }
           return hpg;
+        }
+        if (sub[0] === 'weather') {
+          var wcur = M.saverOptions(this.hs('look.saver'));
+          var hwpg = mk('Weather', function (c) { self.saverWeather(c, wcur, self.saverPutH()); });
+          if (pv) { hwpg.preview = pv; hwpg.saverPreview = true; hwpg.saverHouse = true; }
+          hwpg.saverWeather = true;
+          return hwpg;
         }
         if (sub[0] === 'energy') {
           var ecur = M.saverOptions(this.hs('look.saver'));

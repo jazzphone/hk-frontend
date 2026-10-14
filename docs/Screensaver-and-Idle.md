@@ -379,15 +379,54 @@ music, the forecast and Home Energy take turns, every **A Slide** photos.
 **With Show: Forecast or Clock**, **Additional Screens** bring other screens
 in now and then: **Forecast** (on Show: Clock, unless the forecast is already
 behind the clock), **Music** (only while something plays; Music First covers
-it, so it isn’t listed then) and **Home Energy**. **Every** few minutes one
+it, so it isn’t listed then), **Weather** (on Show: Clock) and **Home Energy**. **Every** few minutes one
 fades in, for **Show For**, then the forecast or the clock comes back; with
 more than one on, they take turns. None come while music plays first, in the
 clock’s Night Mode, or while the screen is dark. More screens may join this
 list later.
 
-![All Screens → Screensaver: Additional Screens over the clock, with Home Energy on](images/settings-saver-additional.png)
+![All Screens → Screensaver: Additional Screens over the clock (Forecast, Music, Weather and Home Energy)](images/settings-saver-additional.png)
 
 ![Home Energy Options, with the preview holding Home Energy](images/settings-home-energy-options.png)
+
+### Weather
+
+**Weather** is today’s weather at a glance, laid out as Home Energy is, over
+the Live Sky as it is outside in its **Sky Only** form: its clouds, rain,
+snow, stars and moon, with no land and no decorations.
+
+![The Weather screen on the screensaver: the temperature in front of the sun, the day in words, Temperature, Rain and Wind, the next hours and the coming days](images/saver-weather.png)
+
+- **The temperature, large, in front of the weather’s own symbol**, huge,
+  to its left and low as a backdrop (a white cloud or moon eased back so the
+  digits read in front; a sun or moon glows a little into the sky). Under
+  it, the condition, today’s high and low, and a bar from low to high with
+  now on it. There is as much room left of the symbol as right of the number
+  before the readings, measured on what is drawn, whatever the number or the
+  symbol.
+- **The symbol moves** as its weather does: a sun’s rays slowly turn and
+  it breathes, clouds drift, rain and snow fall, a thunderstorm’s bolt
+  flickers, the stars twinkle, fog and wind slide by. It holds still with
+  Reduce Motion or the sky’s **Animations** off, and whenever the screen
+  isn’t showing. (Without HK Frontend’s SF symbols, the stand-in floats
+  gently.)
+- **A headline and a line in words**: the condition, and the day in brief
+  (*A high of 87° around 4 PM. Tonight, 58°.*, *Rain until about 9 PM, then
+  drying out.*, *Rain likely around 6 PM.*).
+- **Temperature, Rain and Wind**, with Home Energy’s leader lines (Rain
+  reads Snow when it snows): today’s high and low, the chance and when, the
+  speed, direction and gusts.
+- **Along the bottom**: the next five hours and the coming three days.
+- It tells the time itself, top left; Home Status stays top right. A tap on
+  it opens the Weather page.
+- **Weather Options**: Rain, Wind, Next Hours and Coming Days, each on or
+  off. The preview holds the weather while you change them.
+
+It is one of the slides **Between the Photos** (with Show: Photos), taking
+its turn with the music, the forecast and Home Energy; and one of the
+**Additional Screens** over the clock (Show: Clock). Over Show: Forecast it
+isn’t offered: the forecast is the weather already. The forecast comes from
+the weather in Weather (its forecast sensors, if you set them there).
 
 ### The side pane: calendar and music
 

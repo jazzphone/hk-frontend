@@ -146,6 +146,8 @@
   // has no such race.
   //   o.night   the night glyph where Apple has one
   //   o.style   extra inline CSS on the <svg> (margins, filter)
+  //   o.sym     name the symbol on it (data-sym), so a caller's CSS can move
+  //             its layers (the screensaver's Weather, 2026-10-14)
   function wxSvg(state, px, o) {
     o = o || {};
     var name = wxSymbol(state, o.night);
@@ -153,7 +155,7 @@
     var size = typeof px === 'number' ? px + 'px' : String(px);
     if (!sym) {
       var m = WX_MDI[name] || WX_MDI['cloud.sun.fill'];
-      return '<ha-icon class="hk-wx" icon="mdi:' + m[0] + '" role="img" aria-label="' +
+      return '<ha-icon class="hk-wx"' + (o.sym ? ' data-sym="mdi"' : '') + ' icon="mdi:' + m[0] + '" role="img" aria-label="' +
         esc(conditionName(state)) + '" style="display:inline-flex; flex:0 0 auto;' +
         ' align-items:center; justify-content:center; vertical-align:middle; width:' + size +
         '; height:' + size + '; --mdc-icon-size:' + size + '; color:' + WX_COLOUR[m[1]] + ';' +
@@ -168,7 +170,7 @@
       // innerHTML; this keeps any caller that does honest.
       return '<path fill="' + (WX_COLOUR[l[0]] || WX_COLOUR.w) + '" d="' + l[1] + '"></path>';
     }).join('');
-    return '<svg class="hk-wx" viewBox="' + sym[0] + '" role="img" aria-label="' +
+    return '<svg class="hk-wx"' + (o.sym ? ' data-sym="' + esc(name) + '"' : '') + ' viewBox="' + sym[0] + '" role="img" aria-label="' +
       esc(conditionName(state)) + '" style="display:inline-block; flex:0 0 auto;' +
       ' vertical-align:middle; overflow:visible; width:' + size + '; height:' + size + ';' +
       (o.style || '') + '">' + paths + '</svg>';

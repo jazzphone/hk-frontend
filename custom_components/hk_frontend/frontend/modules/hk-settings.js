@@ -156,7 +156,8 @@
                      clock_over: 'corner', clock_style: 'classic', clock_bg: 'gradient', clock_motion: 'slow', clock_24: false, clock_colors: {}, clock_speed: 35, clock_depth: 50, clock_night: 'off', clock_night_from: '22:00', clock_night_to: '07:00',
                      photo_layout: 'single', mosaic_count: 3, mosaic_gap: 'thin', mosaic_change: 'one', mosaic_line: 0, mosaic_color: 'black', mosaic_random: false, mosaic_every: 10,
                      clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0,
-                     energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 5, extra_for: 30, energy_hide: [] } },
+                     energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 5, extra_for: 30, energy_hide: [],
+                     weather_slide: false, weather_hide: [] } },
     // The Calendar page and the screensaver's calendar pane (All Screens ->
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)

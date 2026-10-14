@@ -147,6 +147,13 @@ ok('sunny is the yellow sun', /icon="mdi:weather-sunny"[^>]*color:#FFD60A/.test(
 ok('partly cloudy at night is the night cloud', /mdi:weather-night-partly-cloudy/.test(H.wxSvg('partlycloudy', 26, { night: true })), true);
 ok('unknown condition falls back, not blank', /mdi:weather-partly-cloudy/.test(H.wxSvg('nonsense', 26)), true);
 ok('stand-in size is applied', /width:30px; height:30px; --mdc-icon-size:30px;/.test(H.wxSvg('cloudy', 30)), true);
+// THE SCREENSAVER'S WEATHER moves its symbol by name (o.sym, 2026-10-14);
+// every other caller's markup is as it was
+ok('sym: the symbol names itself for a caller\'s CSS', /data-sym="mdi"/.test(H.wxSvg('rainy', 30, { sym: true })) && !/data-sym/.test(H.wxSvg('rainy', 30)), true);
+var glyphsWas = window.hkGlyphs;
+window.hkGlyphs = { weather: { 'cloud.rain.fill': ['0 0 120 120', [['c', 'M0 0h1v1z'], ['w', 'M2 2h1v1z']]] } };
+ok('...an SF symbol too, by its own name', /<svg class="hk-wx" data-sym="cloud.rain.fill"/.test(H.wxSvg('rainy', 30, { sym: true })) && !/data-sym/.test(H.wxSvg('rainy', 30)), true);
+window.hkGlyphs = glyphsWas;
 ok('stand-in carries o.style', /margin-right:12px;"><\/ha-icon>$/.test(H.wxSvg('cloudy', 30, { style: ' margin-right:12px;' })), true);
 
 print('=== glyphs: the home\'s file -> multicolor inline SVG ===');

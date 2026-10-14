@@ -880,6 +880,11 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # what Home Energy leaves out (SAVER_ENERGY_PARTS): its rings, the
     # readings along the bottom, the month and where its cost is heading
     "energy_hide": [],
+    # WEATHER (2026-10-14; hk-saver-weather.js): today's weather at a glance
+    # over the Live Sky (Sky Only), laid out as Home Energy -- a slide among
+    # the photos, or an additional screen over the clock (over the forecast
+    # it is the weather already); and what it leaves out (SAVER_WEATHER_PARTS)
+    "weather_slide": False, "weather_hide": [],
 }
 MOSAIC_COLORS = ("black", "white", "gray", "charcoal", "cream", "navy")
 SAVER_CLOCK_STYLES = ("today", "classic", "serif", "neon", "lcd", "flip", "analog", "words", "arc", "nixie", "poster",
@@ -892,6 +897,7 @@ SAVER_CHOICES = {"clock_over": ("corner", "large"), "clock_style": SAVER_CLOCK_S
                  "mosaic_change": ("one", "all"), "clock_night": ("off", "night", "always"),
                  "mosaic_color": MOSAIC_COLORS}
 SAVER_MOSAIC = (2, 5)
+SAVER_WEATHER_PARTS = ("rain", "wind", "hours", "days")
 SAVER_ENERGY_PARTS = ("cost", "water", "solar", "gas", "power", "battery", "yday", "month", "pace")
 SAVER_RANGES = {"blur": (0, 100), "dim": (0, 80), "zoom": (100, 200)}
 SAVER_FOCUS = {"x": ("left", "center", "right"), "y": ("top", "center", "bottom")}
@@ -967,10 +973,11 @@ def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
                                                 for s, c in val.items()):
                 return None
             out[k] = dict(val)
-        elif k == "energy_hide":
-            if not isinstance(val, list) or any(x not in SAVER_ENERGY_PARTS for x in val):
+        elif k in ("energy_hide", "weather_hide"):
+            parts = SAVER_ENERGY_PARTS if k == "energy_hide" else SAVER_WEATHER_PARTS
+            if not isinstance(val, list) or any(x not in parts for x in val):
                 return None
-            out[k] = [x for x in SAVER_ENERGY_PARTS if x in val]
+            out[k] = [x for x in parts if x in val]
         elif k in SAVER_CHOICES:
             if val not in SAVER_CHOICES[k]:
                 return None

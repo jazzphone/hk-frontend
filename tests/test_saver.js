@@ -184,6 +184,19 @@ ok('...the forecast only on Show: Clock, and not over the forecast\'s own sky',
 ok('...the music not when it takes the screen anyway (Music First, the older music over the forecast)',
    U.extrasOf({ show: 'forecast', extra_music: true, music_first: true }).length === 0 &&
    U.extrasOf({ show: 'forecast', extra_music: true, music_slide: true }).length === 0);
+// WEATHER (2026-10-14): among the photos, and over the clock -- not over the forecast
+var W4 = { show: 'both', music_slide: true, weather_slide: true, energy_slide: true };
+ok('Weather: off by default; checked', d.weather_slide === false && d.weather_hide.length === 0 &&
+   U.readCfg({ weather_slide: true }).weather_slide === true && U.readCfg({ weather_slide: 1 }).weather_slide === false &&
+   JSON.stringify(U.readCfg({ weather_hide: ['wind', 7] }).weather_hide) === '["wind"]');
+ok('...the music, the forecast, the weather and Home Energy take turns, in that order',
+   U.slideOf(W4, true, '', true, true) === 'music' && U.slideOf(W4, true, 'music', true, true) === 'forecast' &&
+   U.slideOf(W4, true, 'forecast', true, true) === 'weather' && U.slideOf(W4, true, 'weather', true, true) === 'energy' &&
+   U.slideOf(W4, true, 'energy', true, true) === 'music');
+ok('...the weather without a reading yet: skipped', U.slideOf(W4, false, 'forecast', true, false) === 'energy');
+ok('...an additional screen over the clock, not over the forecast',
+   JSON.stringify(U.extrasOf({ show: 'clock', clock_bg: 'gradient', extra_forecast: true, weather_slide: true, energy_slide: true })) === '["forecast","weather","energy"]' &&
+   JSON.stringify(U.extrasOf({ show: 'forecast', weather_slide: true, energy_slide: true })) === '["energy"]');
 ok('...they take turns, round and round', U.turnOf(['forecast', 'music', 'energy'], ['forecast', 'energy'], '') === 'forecast' &&
    U.turnOf(['forecast', 'music', 'energy'], ['forecast', 'energy'], 'forecast') === 'energy' &&
    U.turnOf(['forecast', 'music', 'energy'], ['forecast', 'energy'], 'energy') === 'forecast' &&

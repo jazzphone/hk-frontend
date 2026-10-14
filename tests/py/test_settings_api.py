@@ -937,6 +937,18 @@ def test_home_energy_and_the_additional_screens_are_checked():
         assert S.saver_options(bad) is None, bad
 
 
+def test_the_weather_screen_is_checked():
+    """2026-10-14: Weather -- a slide among the photos or an additional
+    screen over the clock -- and what it leaves out."""
+    from custom_components.hk_frontend import settings as S
+    d = S.saver_options({})
+    assert (d["weather_slide"], d["weather_hide"]) == (False, [])
+    o = S.saver_options({"weather_slide": True, "weather_hide": ["days", "rain"]})
+    assert o and o["weather_slide"] is True and o["weather_hide"] == ["rain", "days"], "kept in the parts' own order"
+    for bad in ({"weather_slide": "yes"}, {"weather_hide": "rain"}, {"weather_hide": ["cost"]}):
+        assert S.saver_options(bad) is None, bad
+
+
 def test_landscapes_background_and_reset_to_defaults():
     """Sky / Background -> Landscapes (2026-10-14): which one and when it
     changes, its own look; and Reset to Defaults, which leaves the Pages."""

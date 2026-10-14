@@ -55,6 +55,8 @@ The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (on
 | Night Mode | A mosaic (public-domain photos standing in for yours) |
 | ![Home Energy on the screensaver](images/saver-home-energy.png) | ![Additional Screens over the clock](images/settings-saver-additional.png) |
 | [Home Energy](Screensaver-and-Idle.md#home-energy-and-additional-screens) | Additional Screens |
+| ![The Weather screen on the screensaver](images/saver-weather.png) | |
+| [Weather](Screensaver-and-Idle.md#weather) on the screensaver | |
 
 | | |
 |---|---|
