@@ -28,6 +28,8 @@ Home in the [Tinted](Appearance.md#tinted) look: the Home app’s flat dark plat
 | A room’s [cameras](Cameras.md#on-a-rooms-page) | A screen’s Cameras settings |
 | ![The Music page](images/tablet-music.png) | ![Home with the Now Playing bar and the Timer Bar](images/tablet-home-media-bar.png) |
 | [Music](Music.md) | The [Now Playing bar](Music.md#the-now-playing-bar) and Timer Bar |
+| ![Plays on: the Speakers panel under it, rooms ticked for the next pick](images/tablet-music-plays-on.png) | ![The Music page on a wide desk screen with its Speakers column](images/desk-music.png) |
+| [Plays on](Music.md#what-you-see): what's ticked is where it plays | The Speakers column on a wide desk |
 | ![The Live TV guide](images/tablet-live-tv.png) | ![The Energy page on Now](images/tablet-energy.png) |
 | Live TV ([Live TV](Live-TV.md)) | [Energy](Energy.md): Now |
 | ![The Calendar page: the month](images/tablet-calendar.png) | ![The Calendar page: the week](images/tablet-calendar-week.png) |
@@ -41,16 +43,16 @@ Home in the [Tinted](Appearance.md#tinted) look: the Home app’s flat dark plat
 
 ![The photo screensaver, with the clock, weather and Home Status over the photo](images/tablet-screensaver.png)
 
-The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (HK Frontend’s own fall sky standing in for a photo).
+The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (one of HK Frontend’s own [Landscapes](Screensaver-and-Idle.md#landscapes) standing in for a photo).
 
-![Six of the screensaver's clock styles: Classic, Flip, Analog, Nixie Tubes, Dot Matrix and Big Serif over the photos](images/saver-clock-faces.png)
+![Six of the screensaver's clock styles: Classic, Flip, Analog, Nixie Tubes, Dot Matrix and Big Serif over the Landscapes](images/saver-clock-faces.png)
 
 [A clock](Screensaver-and-Idle.md#a-clock) in place of the photos: six of its fifteen styles.
 
 | | |
 |---|---|
 | ![Night Mode: the clock a dim red on black](images/saver-clock-night.png) | ![A mosaic of four photos](images/saver-mosaic.png) |
-| Night Mode | A mosaic (HK’s own sky standing in for photos) |
+| Night Mode | A mosaic (public-domain photos standing in for yours) |
 
 | | |
 |---|---|

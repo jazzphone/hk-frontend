@@ -14,6 +14,7 @@ presets and playlists are items of the house's entry (ITEM_TYPES).
     hk_music/subscribe            each screen's music configuration (websocket)
     hk_music/queue                a player's queue: what is playing and what comes next
     hk_music/queue_play           jump to one song in that queue
+    hk_music/used                 a screen's Music page is in use (warm.py waits)
 
 Every action ANSWERS: call it with return_response and read {ok, leader} or
 {ok: false, message}. The actions and the feed are registered at start, not
@@ -45,10 +46,11 @@ from .const import (
     ATTR_COMMAND, ATTR_LEVEL, ATTR_PLAYER, ATTR_PLAYLIST, ATTR_ROOMS, ATTR_SOURCE, COMMANDS,
     CONF_GROUP, CONF_HOMES, CONF_MEMBERS, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME, SERVICE_PLAY,
     SERVICE_PLAY_MEDIA, SERVICE_STOP, SERVICE_TRANSFER, SERVICE_TRANSPORT, SIGNAL_CONFIG,
-    SUB_PLAYLIST, SUB_PRESET,
+    SUB_PLAYLIST, SUB_PRESET, WARM_SOON,
 )
 from .flows import PlaylistFlow, PresetFlow, name_of, speakers_errors, speakers_schema
 from .music import CALLER, MusicConfig, MusicManager
+from .warm import PlaylistWarmer, mass_client as _mass
 
 PLATFORMS: list = []
 RELOAD = False          # the engine reads the feature on every request
@@ -83,10 +85,18 @@ def _answer(call: ServiceCall, res: dict[str, Any]) -> ServiceResponse:
     raise HomeAssistantError(res.get("message") or "The request failed.")
 
 
+def _used(hass: HomeAssistant) -> None:
+    """Someone is playing or browsing: keeping playlists ready waits."""
+    mgr = _music(hass)
+    if mgr is not None and getattr(mgr, "warmer", None) is not None:
+        mgr.warmer.used()
+
+
 def _as_caller(handler):
     """A music action served in its caller's context (music.CALLER), and only
     for as long as it is served."""
     async def run(call: ServiceCall) -> ServiceResponse:
+        _used(call.hass)
         token = CALLER.set(call.context)
         try:
             return await handler(call)
@@ -143,6 +153,7 @@ async def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_music_subscribe)
     websocket_api.async_register_command(hass, ws_music_queue)
     websocket_api.async_register_command(hass, ws_music_queue_play)
+    websocket_api.async_register_command(hass, ws_music_used)
     # the HK Settings page (settings_ws.py)
     settings_ws.async_register(hass)
 
@@ -174,7 +185,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
     """The engine, and a nudge to every screen whenever the configuration or
     the areas and floors it draws its names from change. No restart is needed
     for any of it: the engine reads the feature on every request."""
-    entry.runtime_data = MusicManager(hass, entry)
+    mgr = entry.runtime_data = MusicManager(hass, entry)
+    # Keep Playlists Ready (warm.py): runs only while its switch is on
+    mgr.warmer = PlaylistWarmer(
+        hass, entry, lambda: [u for p in mgr.config.playlists for u in p.items])
+    mgr.warmer.follow()
+    entry.async_on_unload(mgr.warmer.stop)
 
     @callback
     def changed(*_args: Any) -> None:
@@ -189,8 +205,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
 
 
 async def async_changed(hass: HomeAssistant, entry: Feature) -> None:
-    """Its speakers, volume, rooms, presets or playlists changed."""
+    """Its speakers, volume, rooms, presets or playlists changed -- or Keep
+    Playlists Ready was turned on or off."""
     async_dispatcher_send(hass, SIGNAL_CONFIG)
+    mgr = _music(hass)
+    if mgr is not None and getattr(mgr, "warmer", None) is not None:
+        mgr.warmer.follow(WARM_SOON)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Feature) -> bool:
@@ -209,9 +229,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: Feature) -> None:
 async def async_diagnostics(hass: HomeAssistant, entry: Feature) -> dict[str, Any]:
     """The speakers, presets and playlists as stored, and what a screen is
     handed."""
+    warmer = getattr(getattr(entry, "runtime_data", None), "warmer", None)
     return {"kind": MUSIC, "options": dict(entry.options),
             "subentries": [s.as_dict() for s in entry.subentries.values()],
-            "resolved": MusicConfig.from_entry(hass, entry).as_client(None)}
+            "resolved": MusicConfig.from_entry(hass, entry).as_client(None),
+            "keep_ready": warmer.status() if warmer else None}
 
 
 class AddSteps:
@@ -302,14 +324,6 @@ class ReconfigureSteps:
 QUEUE_MAX = 100
 
 
-def _mass(hass: HomeAssistant) -> Any:
-    for e in hass.config_entries.async_entries("music_assistant"):
-        mass = getattr(getattr(e, "runtime_data", None), "mass", None)
-        if mass is not None:
-            return mass
-    return None
-
-
 async def _queue_id(hass: HomeAssistant, entity_id: str) -> tuple[str | None, Any]:
     res = await hass.services.async_call("music_assistant", "get_queue", {"entity_id": entity_id},
                                          blocking=True, return_response=True)
@@ -375,3 +389,15 @@ async def ws_music_queue_play(hass: HomeAssistant, connection: websocket_api.Act
         connection.send_result(msg["id"], {"ok": True})
     except Exception as err:  # noqa: BLE001
         connection.send_result(msg["id"], {"ok": False, "message": str(err) or "That song could not be played."})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hk_music/used"})
+@callback
+def ws_music_used(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                  msg: dict[str, Any]) -> None:
+    """A screen's Music page opened a level, searched or played: Keep
+    Playlists Ready starts nothing new for a while (warm.py), so this person's
+    request is not queued behind one of its own at Apple Music. Any signed-in
+    user, as every tablet is; it answers at once and changes nothing else."""
+    _used(hass)
+    connection.send_result(msg["id"])

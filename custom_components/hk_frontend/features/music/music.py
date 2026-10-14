@@ -386,6 +386,24 @@ class MusicManager:
                 out.append(r)
         return out
 
+    def _split(self, cfg: MusicConfig, way: list[str],
+               want: set[str]) -> list[tuple[str, list[str], list[str]]]:
+        """The groups among `way` that are PLAYING and hold rooms not in
+        `want`: (their leader, the rooms that should keep the music, the
+        whole group). A group wholly wanted, or not playing, is simply
+        released."""
+        out, seen = [], set()
+        for r in way:
+            gm = self._members(r)
+            if len(gm) < 2 or gm[0] in seen:
+                continue
+            seen.add(gm[0])
+            leader = gm[0]
+            rest = [m for m in gm if m not in want and m in cfg.room_ids]
+            if rest and leader in cfg.room_ids and self._state(leader) == "playing":
+                out.append((leader, rest, list(gm)))
+        return out
+
     def _existing(self, rooms: list[str]) -> list[str] | None:
         """The live group whose members are exactly `rooms`, leader first."""
         want = sorted(rooms)
@@ -496,6 +514,26 @@ class MusicManager:
                 target = existing[0] if existing else rooms[0]
             keep = set(preset.members) if preset else None
             way = [] if existing else self._in_the_way(cfg, members, keep)
+            # A GROUP THAT PLAYS ON IN ROOMS NOT PICKED keeps its music there:
+            # only the picked rooms are let go (_move -- the music moves off
+            # them first when its leader is one), and the rest of the group
+            # is never paused (2026-10-14: a new playlist on Master Bedroom,
+            # Guest and Office stopped the Living Room it was grouped with)
+            split = self._split(cfg, way, set(members))
+            for leader, rest, _gm in split:
+                moved = await self._move(cfg, rest, leader, cfg.preset_for_rooms(rest))
+                if not moved.get("ok"):
+                    note = NOTE_PRESET if preset else NOTE_GROUP
+                    self._note(note, "Speakers did not release",
+                               f"The music in {', '.join(cfg.name_of(r) for r in rest)} could not "
+                               "keep playing without the requested speakers. No new music was "
+                               "started. Try again.")
+                    return {"ok": False, "message": "The speakers did not release."}
+            if split:
+                done = {m for _l, _r, gm in split for m in gm}
+                way = [r for r in way if r not in done]
+                if not way and preset is not None:
+                    await asyncio.sleep(self.settle)       # (the settle below)
             if way:
                 if not await self._release(way):
                     note = NOTE_PRESET if preset else NOTE_GROUP
@@ -589,7 +627,13 @@ class MusicManager:
         preset = cfg.preset_for_rooms(rooms)
         if preset is not None and source == preset.group:
             return done({"ok": False, "message": f"The music is already on {preset.name}."})
-        if preset is None and source in rooms and len(rooms) == 1:
+        # ALREADY THERE only when the source plays alone: the source by
+        # itself, while it leads a group, is "let the others go" -- what the
+        # Music page asks to free rooms for a new pick, and what Update asks
+        # when rooms are unticked (2026-10-14: it was refused here, "Could
+        # not free Master Bedroom +2: The music is already there.")
+        alone = not [m for m in self._members(source) if m != source and m in cfg.room_ids]
+        if preset is None and source in rooms and len(rooms) == 1 and alone:
             return done({"ok": False, "message": "The music is already there."})
 
         was = [m for m in self._members(source) if m in cfg.room_ids]
@@ -608,66 +652,73 @@ class MusicManager:
         async with self._hold(stamps):
             if self._superseded(stamps):
                 return dict(SUPERSEDED)
-            # THE HOUSE IS READ NOW, holding the rooms: a request that waited
-            # for the lock (a double tap) finds the first one's work done.
-            if preset is not None:
-                leader, others, adding = preset.group, [], False
+            return await self._move(cfg, rooms, source, preset)
+
+    async def _move(self, cfg: MusicConfig, rooms: list[str], source: str,
+                    preset: Preset | None) -> dict[str, Any]:
+        """The music on `source` onto exactly `rooms` -- the caller holds the
+        rooms. Transfer's work, and play's when it frees picked rooms from a
+        group that plays on in the rooms not picked."""
+        # THE HOUSE IS READ NOW, holding the rooms: a request that waited
+        # for the lock (a double tap) finds the first one's work done.
+        if preset is not None:
+            leader, others, adding = preset.group, [], False
+        else:
+            adding = source in rooms
+            existing = self._existing(rooms)
+            leader = source if adding else (existing[0] if existing else rooms[0])
+            others = [r for r in rooms if r != leader]
+        if self._state(source) not in ACTIVE:
+            if self._state(leader) in ACTIVE and all(
+                    r in self._members(leader) for r in others):
+                return {"ok": True, "leader": leader}      # already done
+            return {"ok": False, "message": f"{cfg.name_of(source)} is not playing."}
+        if not adding:
+            moving = self._attr(source, "media_content_id")
+            await self._call("music_assistant", "transfer_queue",
+                             {"entity_id": leader, "source_player": source,
+                              "auto_play": True})
+            # THE LEADER HOLDING THE QUEUE WE MOVED, not merely playing: a
+            # room already playing something would pass the weaker test.
+            arrived = await self._wait(
+                [leader], lambda: self._state(leader) in ACTIVE and (
+                    moving is None or self._attr(leader, "media_content_id") == moving),
+                TRANSFER_TIMEOUT)
+            if not arrived:
+                self._note(NOTE_TRANSFER, "Music did not move",
+                           f"The queue from {cfg.name_of(source)} could not be confirmed "
+                           f"on {cfg.name_of(leader)}. Nothing else was changed.")
+                return {"ok": False, "message": "The music did not move."}
+        self._clear(NOTE_TRANSFER)
+        message = None
+        if others:
+            await self._call("media_player", "join",
+                             {"entity_id": leader, "group_members": others})
+            await self._wait(rooms, lambda: all(r in self._members(leader) for r in others),
+                             JOIN_TIMEOUT)
+            missing = [r for r in others if r not in self._members(leader)]
+            if missing:
+                # NOT an unjoin-and-give-up: the music is ALREADY on the
+                # leader, and tearing that down would be the worse outcome.
+                names = ", ".join(cfg.name_of(r) for r in missing)
+                message = f"{names} did not join."
+                self._note(NOTE_PARTIAL, "Some speakers did not join",
+                           f"{names} did not join {cfg.name_of(leader)}. The music moved "
+                           "and is playing there; try adding the others again.")
             else:
-                adding = source in rooms
-                existing = self._existing(rooms)
-                leader = source if adding else (existing[0] if existing else rooms[0])
-                others = [r for r in rooms if r != leader]
-            if self._state(source) not in ACTIVE:
-                if self._state(leader) in ACTIVE and all(
-                        r in self._members(leader) for r in others):
-                    return {"ok": True, "leader": leader}      # already done
-                return {"ok": False, "message": f"{cfg.name_of(source)} is not playing."}
-            if not adding:
-                moving = self._attr(source, "media_content_id")
-                await self._call("music_assistant", "transfer_queue",
-                                 {"entity_id": leader, "source_player": source,
-                                  "auto_play": True})
-                # THE LEADER HOLDING THE QUEUE WE MOVED, not merely playing: a
-                # room already playing something would pass the weaker test.
-                arrived = await self._wait(
-                    [leader], lambda: self._state(leader) in ACTIVE and (
-                        moving is None or self._attr(leader, "media_content_id") == moving),
-                    TRANSFER_TIMEOUT)
-                if not arrived:
-                    self._note(NOTE_TRANSFER, "Music did not move",
-                               f"The queue from {cfg.name_of(source)} could not be confirmed "
-                               f"on {cfg.name_of(leader)}. Nothing else was changed.")
-                    return {"ok": False, "message": "The music did not move."}
-            self._clear(NOTE_TRANSFER)
-            message = None
-            if others:
-                await self._call("media_player", "join",
-                                 {"entity_id": leader, "group_members": others})
-                await self._wait(rooms, lambda: all(r in self._members(leader) for r in others),
-                                 JOIN_TIMEOUT)
-                missing = [r for r in others if r not in self._members(leader)]
-                if missing:
-                    # NOT an unjoin-and-give-up: the music is ALREADY on the
-                    # leader, and tearing that down would be the worse outcome.
-                    names = ", ".join(cfg.name_of(r) for r in missing)
-                    message = f"{names} did not join."
-                    self._note(NOTE_PARTIAL, "Some speakers did not join",
-                               f"{names} did not join {cfg.name_of(leader)}. The music moved "
-                               "and is playing there; try adding the others again.")
-                else:
-                    self._clear(NOTE_PARTIAL)
-            # RELEASE WHAT WAS LEFT BEHIND -- last, once the music is safe on the
-            # leader, and only for a ROOM destination: a preset's rooms belong
-            # to its sync group.
-            if leader in cfg.room_ids:
-                stale = [r for r in cfg.room_ids if r not in rooms and len(self._members(r)) > 1
-                         and (source in self._members(r)
-                              or set(self._members(r)) & set(rooms))]
-                if stale:
-                    await self._call("media_player", "unjoin", {"entity_id": stale})
-                    await self._wait(stale, lambda: all(len(self._members(r)) <= 1 for r in stale),
-                                     RELEASE_TIMEOUT)
-                    await self._call("media_player", "media_pause", {"entity_id": stale})
+                self._clear(NOTE_PARTIAL)
+        # RELEASE WHAT WAS LEFT BEHIND -- last, once the music is safe on the
+        # leader, and only for a ROOM destination: a preset's rooms belong
+        # to its sync group.
+        if leader in cfg.room_ids:
+            stale = [r for r in cfg.room_ids if r not in rooms and len(self._members(r)) > 1
+                     and (source in self._members(r)
+                          or set(self._members(r)) & set(rooms))]
+            if stale:
+                await self._call("media_player", "unjoin", {"entity_id": stale})
+                await self._wait(stale, lambda: all(len(self._members(r)) <= 1 for r in stale),
+                                 RELEASE_TIMEOUT)
+                await self._call("media_player", "media_pause", {"entity_id": stale})
         res: dict[str, Any] = {"ok": True, "leader": leader}
         if message:
             res["message"] = message

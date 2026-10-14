@@ -50,41 +50,55 @@ speaker:
 
 - **Music**: one page for playing and browsing. (Play Music and Browse
   Music, two pages before 1.7, are this one page now.)
-  - **Left: what is playing.** At the top, **Playing on** names the rooms
-    (as many as fit, then “and 2 more”), with **Change**. Under it, when more
+  - **Left: what is playing.** At the top, while something plays, **Playing
+    on** names the rooms (as many as fit, then “and 2 more”), with
+    **Change**. Under it, when more
     than one thing is playing in the house, **Playing in the House** lists
     each one; the one this page controls is lit, and **Switch** on another
     hands the page to it. Then the artwork, the song, progress, and the
     controls: **Speakers** (the HomePod), previous, play or pause, next,
     **Queue**, the volume and Up Next.
   - **Speakers** (or **Change**) turns what is playing over to the speakers
-    panel, the same one the screensaver has. Tick rooms, then **Add** (they
-    join this music), **Transfer** (it moves to just them; the rest stop) or
-    **Stop**. The line above the buttons says what each will do, including a
-    room that has to stop something else first. Tapping a room that is
-    playing marks it to leave (Add becomes **Update**). **Everywhere** and
-    your other presets fill in the picks; the exact rooms of a preset play
+    panel, the same one the screensaver has. **What’s ticked is where it
+    plays**: the ticks start on the rooms playing, and a tap ticks or
+    unticks a room (**Everywhere** and your other presets tick theirs).
+    Then either:
+    - **pick something in Browse**: it plays on the ticked rooms, and rooms
+      you didn’t tick keep what they play, so ticking only the Guest Room
+      starts new music there while the rest of the house plays on; or
+    - **Update**: what is playing moves to exactly the ticked rooms (rooms
+      join, rooms stop, or it moves altogether).
+
+    **Reset** puts the ticks back on where it plays, and **Stop** stops it.
+    The line above the buttons says what each will do, including a room
+    that has to stop something else first. The exact rooms of a preset play
     through its sync group. **Volume** has a slider for each room, and
     **Queue** shows what is up next in Music Assistant (tap one to jump to
     it).
-  - **With nothing playing**, the top reads **Ready on** your room: the
-    signed-in user’s **Home Room** (below), or the room their music last played in,
-    and Speakers picks where the next music plays: tick rooms, then pick a
-    playlist, an album or a song and it starts there. If other rooms are
-    playing something else, it asks whether to stop them.
+  - **With nothing playing**, Speakers picks where the next music plays: your
+    room to start with (the signed-in user’s **Home Room**, below, or the
+    room their music last played in); tick rooms, then pick a playlist, an
+    album or a song and it starts there. If other rooms are playing
+    something else, it asks whether to stop them.
   - **Right: Browse.** Search at the top. Under it **Your Playlists** (the
     playlist pills; a Chooser pill like Decades opens its choices in place),
     then your Discover rows, then the **Library** categories.
   - **Where the next pick plays: “Plays on …”** beside the search box,
     pinned at the top on every level (search results and albums too). It
-    starts on the rooms playing now. Tap it for **Play Next On**: tick rooms
-    (or a preset) and **Done**, then pick a playlist, album or song and it
-    starts there. What is playing keeps playing on its other rooms; the line
-    under the search says where. While it differs from what is playing the
-    button is white (“Next plays on Kitchen + Office”); its ✕ puts it back.
-    The left side (Change, Speakers) is always the music that is playing.
+    starts on the rooms playing now. Tap it and the Speakers panel drops
+    down under it (Speakers and Volume, as tall as the screen allows; on a
+    phone, the Speakers sheet): tick rooms (or a preset), then pick a
+    playlist, album or song and it starts there, or **Update** to move what
+    is playing. What is playing keeps playing on the rooms you didn’t tick;
+    the line under the search says where. While it differs from what is
+    playing the button is white (“Next plays on Kitchen + Office”); its ✕
+    puts it back. It, Change and Speakers are all the same panel and the
+    same ticks.
   - On a wide desk screen the speakers have a column of their own on the
-    right.
+    right, always up, with **Speakers** and **Volume** tabs, and it does
+    Plays on’s job: there is no Plays on button, and the search box has the
+    row. **Queue** (under the artwork) turns the left side over to the queue
+    alone.
   - **On a phone** the page is Browse. What is playing is the mini player
     at the foot: the screen’s now-playing bar, which comes onto the Music
     page on a phone even when it isn’t on every page. There it has no
@@ -108,6 +122,12 @@ speaker:
 ![The Music page on a phone: Browse, with what is playing in the bar at the foot](images/phone-music.png)
 *On a phone the Music page is Browse; what is playing is the bar at the foot, and a tap on it opens Now Playing.*
 
+![The Music page on a wall tablet with Plays on open: the Speakers panel dropped down under it, a third room ticked for the next pick, with Reset and Update](images/tablet-music-plays-on.png)
+*Plays on: what's ticked is where the next pick plays, and Update moves what is playing there. The line above the buttons says what each will do.*
+
+![The Music page on a wide desk screen: what is playing, Browse, and the Speakers column with its Speakers and Volume tabs](images/desk-music.png)
+*On a wide desk screen the Speakers column is always up, so there is no Plays on button.*
+
 ## Settings
 
 | Setting | Default | What it does |
@@ -117,6 +137,7 @@ speaker:
 | House Volume | 35% | The volume every room is set to when a playlist starts. |
 | Presets & Playlists → Presets | None | A Music Assistant sync group and the rooms it plays in (**Name**, **Sync Group**, **Rooms**). Choosing exactly those rooms on a screen plays through the group, in step. |
 | Presets & Playlists → Playlists | None | The pills under Your Playlists on the Music page, in order (**Name**, **Icon**, **Chooser**, and the library playlists it **Plays**, as one queue). Pills with the same Chooser become one pill that asks which. |
+| Keep Playlists Ready | Off | Refreshes Music Assistant’s copy of your playlists’ songs in the background, so they open and start at once: the playlists your pills play, plus the ones played in the last week (not Music Assistant’s own). Every 2½ hours, one playlist at a time, never while someone is using Music, and later when the streaming service is refusing requests. Under the switch: when it last ran and how many are ready. |
 | Browse → Categories | All shown | Music Assistant’s categories under **Library** on the Music page’s Browse side: Artists, Albums, Songs, Playlists, Radio, Podcasts, Audiobooks. Untick the ones nobody opens. |
 | Browse → Discover Rows | Recently played, Favorite playlists, Most played, Recently added, Favorite radio | The rows under the categories, in order. None: no Discover section. A row with nothing in it yet isn’t shown. |
 | Advanced → Browse Page | `music-browse` | The page a speaker’s sheet opens with **Browse**, on screens written in YAML (a path on the same dashboard). Generated screens always use their own Music page. Empty: no Browse button. |
@@ -162,7 +183,7 @@ shape it:
 
 - **Speakers** (the HomePod) and **Browse** sit either side of play and skip,
   as on the screensaver. Speakers opens the screensaver’s panel above the
-  button: **Speakers** to add, move (**Transfer**) or **Stop** rooms,
+  button: **Speakers** to tick the rooms it plays on and **Update**, or **Stop**,
   **Volume** for each room, and the **Queue**. It closes itself once a
   request has gone through. On a phone it opens as a sheet from the bottom.
   Browse opens the Music page with the search box ready. In a narrow window
@@ -175,7 +196,7 @@ shape it:
   music the screen is following keeps it there.
 
 ![The Now Playing bar's Speakers panel open above its button: Speakers, Volume and Queue](images/media-bar-speakers.png)
-*The bar’s Speakers panel: tick rooms, then Add, Transfer or Stop.*
+*The bar’s Speakers panel: tick rooms, then Update or Stop.*
 
 **Putting it away.** The bar has no close button: **swipe it down**. Only a
 swipe that starts on the bar (not on its sliders) and goes down far enough,
@@ -245,7 +266,9 @@ than played (Music Assistant would otherwise play a search result).
 ### `hk_frontend.music_transfer`
 
 Moves what is playing to a set of rooms, or adds rooms to it, keeping the
-queue and the position in the track.
+queue and the position in the track. Rooms left out of `rooms` stop: with
+`rooms` the source alone, the rest of its group lets go and the source plays
+on (refused only when the source already plays alone).
 
 | Field | Required | Description |
 |---|---|---|
@@ -320,6 +343,15 @@ data:
   not arrive, a Stop All that left something playing) also appear as a
   notification in Home Assistant, so a screen that did not make the request
   still hears about it.
+- **A streaming playlist can take a while to open the first time.** Music
+  Assistant does not keep a streaming playlist’s songs in its library; it
+  asks the service each time and keeps the answer for a few hours (3 for
+  Apple Music), so the first open waits on the service, and longer when the service
+  is rate-limiting Music Assistant. The playlist’s cover and name appear at
+  once with **Loading songs…** under them, and the songs fill in when they
+  arrive. Opening it again within those hours is instant. Starting one waits
+  the same way before the music begins; **Keep Playlists Ready** (Settings)
+  keeps your playlists fetched ahead so neither waits.
 - **Presets are not checked against Music Assistant.** If you change a sync
   group’s rooms in Music Assistant, edit the preset too.
 - **Every request is logged** in one line: who, what, where and how long. To

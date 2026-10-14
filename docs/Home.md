@@ -50,7 +50,8 @@ The sidebar has every page.
   Home when idle, a full-screen kiosk look, and a screensaver of your photos
   (one at a time or a mosaic), the forecast over a landscape that dresses up
   for the holidays, or a full-screen [clock](Screensaver-and-Idle.md#a-clock)
-  in fifteen styles, with the time, what's playing, the timers, Home Status
+  in fifteen styles over a moving background or fifty
+  [landscape photos](Screensaver-and-Idle.md#landscapes) that come with it, with the time, what's playing, the timers, Home Status
   and your coming events.
   ([Wall Tablets](Wall-Tablets.md), [Screensaver and Idle](Screensaver-and-Idle.md))
 - **Sleep Screen:** each wall tablet dark when nobody needs it and awake the

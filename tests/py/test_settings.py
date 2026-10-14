@@ -1173,6 +1173,8 @@ def test_screensaver_clocks():
     assert (d["clock_over"], d["clock_style"], d["clock_bg"], d["clock_motion"], d["clock_24"]) == ("corner", "classic", "gradient", "slow", False)
     got = S.saver_options({"show": "clock", "clock_style": "nixie", "clock_bg": "forecast", "clock_motion": "still", "clock_24": True, "clock_over": "large"})
     assert got["show"] == "clock" and got["clock_style"] == "nixie" and got["clock_bg"] == "forecast" and got["clock_24"] is True
+    # (1.8.0) HK's own photos behind the clock
+    assert S.saver_options({"show": "clock", "clock_bg": "landscapes"})["clock_bg"] == "landscapes"
     for bad in ({"clock_style": "sundial"}, {"clock_bg": "lava"}, {"clock_over": "huge"}, {"clock_motion": "fast"}, {"clock_24": "yes"}, {"show": "slides"}):
         assert S.saver_options(bad) is None, bad
     # the styles are hk-saverclock.js's, in order

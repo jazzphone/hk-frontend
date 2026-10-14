@@ -157,7 +157,8 @@
                ['Home Rooms', 'features/music/homes', 'music tablet user room home'],
                ['House Volume', 'features/music', 'music playlist volume'],
                ['Presets', 'features/music/presets', 'music sync group everywhere downstairs'],
-               ['Playlists', 'features/music/playlists', 'music pills playlist chooser decades']],
+               ['Playlists', 'features/music/playlists', 'music pills playlist chooser decades'],
+               ['Keep Playlists Ready', 'features/music', 'music playlist slow loading cache warm apple refresh']],
     hk_alarm_pin: [['Alarm PIN', 'features/alarm', 'pin code keypad alarm security passcode'],
                    ['Change PIN', 'features/alarm', 'alarm pin code new passcode'],
                    ['PIN to Arm', 'features/alarm', 'alarm arm require code']],
@@ -475,6 +476,22 @@
     c.appendChild(K.group({ header: 'Presets & Playlists' }, [
       K.nav({ label: 'Presets', value: String((d.presets || []).length), href: '#/features/music/presets', fk: 'music:presets' }),
       K.nav({ label: 'Playlists', value: String((d.playlists || []).length), href: '#/features/music/playlists', fk: 'music:playlists' })]));
+    // KEEP PLAYLISTS READY (features/music/warm.py): Music Assistant keeps a
+    // streaming playlist's songs for 3 hours, then asks Apple Music again
+    // when it is opened or played -- 7-45 s, measured.
+    c.appendChild(K.group({ footer: (P.err('f:hk_music:keep_ready') ? P.err('f:hk_music:keep_ready') + ' ' : '') + keepReadyNote(d) }, [
+      K.toggle({ label: 'Keep Playlists Ready', sub: 'Their songs fetched ahead, so they open and start at once', on: !!d.keep_ready,
+                 sk: 'f:hk_music:keep_ready', fk: 'music:keep_ready',
+                 onChange: function (on) { P.featSet('hk_music', { keep_ready: on }); } })]));
+  }
+  function keepReadyNote(d) {
+    var what = 'Your playlists and the ones played this week, refreshed every 2½ hours: one at a time, ' +
+               'paused while someone is using Music, and later when Apple Music is busy.';
+    if (!d.keep_ready) return what;
+    var l = d.keep_ready_last;
+    if (!l) return what + ' The first refresh runs shortly.';
+    var at = new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return what + ' Last refresh ' + at + ': ' + l.ready + ' of ' + l.wanted + ' ready.' + (l.note ? ' ' + l.note : '');
   }
   function musicSpeakers(P, c, d) {
     var L = speakerLists(d), err = P.err('f:hk_music:speakers');

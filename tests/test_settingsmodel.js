@@ -121,6 +121,12 @@ ok('a stale path (Browse Music, a page no longer here) is dropped',
    eq(M.placeSet({ categories: ['security', 'music-browse', 'vacuums'] }, IT, 'lights', 'list'), { menu_top: [], categories: ['security', 'lights'] }));
 ok('the last page cannot leave Categories (empty means every page)',
    M.placeSet({ categories: ['security'] }, IT, 'security', 'off') === null);
+var PW = M.menuItems(['security', 'energy', 'power', 'rooms'], {});
+ok('the Power page can be placed like the others (its row had no pop-up)',
+   PW.map(function (x) { return x.path; }).join() === 'security,energy,power' &&
+   M.placeOf({}, PW[2], PW) === 'list' &&
+   eq(M.placeSet({}, PW, 'power', 'off'), { menu_top: [], categories: ['security', 'energy'] }) &&
+   eq(M.placeSet({}, PW, 'power', 'top'), { menu_top: ['power'], categories: [] }));
 ok('Phones\' button style labels', M.phoneStyleLabel('chip_scroll') === 'Chip, Then Tab' && M.phoneStyleLabel(undefined) === 'Chip');
 
 // ------------------------------------------------------------ rooms

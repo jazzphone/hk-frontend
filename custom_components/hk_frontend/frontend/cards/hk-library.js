@@ -326,6 +326,11 @@
         '  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.hd .h3{margin-top:7px;font-size:13.5px;font-weight:500;',
         '  color:' + window.hkCards.v('ink-3') + '}',
+        // "Loading songs…" breathes while Music Assistant fetches, so a wait
+        // of half a minute still reads as working rather than stuck
+        '.hd .h3.wait{animation:hk-lib-wait 1.6s ease-in-out infinite}',
+        '@keyframes hk-lib-wait{0%,100%{opacity:1}50%{opacity:.5}}',
+        '@media (prefers-reduced-motion:reduce){.hd .h3.wait{animation:none}}',
 
         '.list{' + M.glass + ';border:' + M.border + ';',
         '  border-radius:' + M.radius + ';overflow:hidden;',
@@ -414,13 +419,20 @@
         // (14 px of room each side for the tiles' shadows -- a scroller clips
         // them at its edge -- given back by the margin, so nothing moves)
         ':host([music]) [data-hk-role="body"]{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;',
-        '  -webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 14px 24px 14px;margin:0 -14px}',
+        // (--hk-lib-foot: the Music page's tab bar room, hk-music.js -- the
+        // last row scrolls clear of the bar it scrolls behind)
+        '  -webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 14px calc(24px + var(--hk-lib-foot, 0px)) 14px;margin:0 -14px}',
         ':host([music]) [data-hk-role="body"]::-webkit-scrollbar{display:none}',
         // ...no more room than the page's own gutter: a phone's is 12 px, and
         // 14 ran the list 2 px past each side of the screen (the page could
         // be nudged sideways)
         '@media (max-width:' + window.hkCards.BP.phone + 'px){:host([music]) [data-hk-role="body"]{padding-left:12px;padding-right:12px;margin:0 -12px}}',
         C.shadeCss(':host([music]) ha-card'),
+        // ...parked at the card's top until Browse first scrolls (C.shade
+        // sets the real edge then): at its default, 100%, the unseen shade
+        // hung 16 px below the card -- below the window, where the Music page
+        // runs under a tab bar, so the whole page could be scrolled by it
+        ':host([music]) ha-card{--hk-shade-top:0px}',
         // ...its Your Playlists (the page's rootExtra): the categories' tile
         '.yp{margin:0 0 22px 0}',
         // the heading, and on its right where they play: one pill, like a
@@ -676,13 +688,14 @@
     }
 
     // ------------------------------------------------------------ data
-    _ws(msg) {
+    // `wait`: how long before giving up, 20 s unless the caller knows better
+    _ws(msg, wait) {
       if (!this._hass || !this._hass.callWS) return Promise.reject(new Error('no hass'));
       var self = this;
       return new Promise(function (resolve, reject) {
         var timer = setTimeout(function () {
           reject(new Error('Music Assistant did not respond. Try again.'));
-        }, 20000);
+        }, wait || 20000);
         try {
           Promise.resolve(self._hass.callWS(msg)).then(function (res) {
             clearTimeout(timer); resolve(res);
@@ -735,6 +748,21 @@
     }
     _stale(token) { return token !== this._req; }
 
+    // THE PAGE IS IN USE. Keep Playlists Ready (features/music/warm.py) then
+    // starts nothing new for a couple of minutes, so this person's request is
+    // not queued behind one of its own at Apple Music. At most every 30 s,
+    // after the request it is about; a backend without the command says no.
+    _inUse() {
+      var now = Date.now();
+      if (this._usedAt && now - this._usedAt < 30000) return;
+      this._usedAt = now;
+      try {
+        if (this._hass && this._hass.callWS) {
+          Promise.resolve(this._hass.callWS({ type: 'hk_music/used' })).catch(function () {});
+        }
+      } catch (e) { /* nothing to report: it is a hint */ }
+    }
+
     _load(node) {
       var self = this, player = this._player();
       if (!player) { this._err = 'No speaker selected.'; this._paint(); return; }
@@ -743,6 +771,7 @@
       // browse_media -- truncated, but working.
       var mt = node && !this._stack.slice(0, -1).length &&
                CATEGORY_TYPE[node.id];
+      this._pend = null;
       if (mt && this._entry()) {
         this._loadCategory(node, mt, 0);
         return;
@@ -767,8 +796,31 @@
         msg.media_content_type = node.type;
         msg.media_content_id = node.id;
       }
-      this._ws(msg).then(function (res) {
+      // THE EXCEPTION TO "NO _paint() HERE": a playlist or an album is drawn
+      // at once -- its header, with the cover from the tile you tapped, the
+      // title and "Loading songs…" -- and the tracks follow. Music Assistant does not keep a playlist's
+      // tracks in its database; it asks Apple Music, caches the answer for
+      // only 3 hours, and backs off when Apple rate-limits it, so opening a
+      // playlist measured 7-45 s (2026-10-14; 0.05 s once cached). That long
+      // with the Playlists grid still on screen reads as a tap that did not
+      // register. The header is the level itself, not a placeholder for it,
+      // so a fast album does not flash: the same header stays and the rows
+      // fill in under it.
+      //
+      // `_pend` is separate from `_ctx` on purpose: `_items` and `_ctx` still
+      // describe the level you left, which is the one back returns to.
+      var kind = node && node.node && this._kind(node.node);
+      if (kind === 'playlist' || kind === 'album') {
+        this._pend = node;
+        this._paint();
+      }
+      // ...AND IT IS GIVEN THE TIME IT NEEDS. Rock Classics took 45 s cold, so
+      // the usual 20 s turned a playlist that was coming into "did not
+      // respond". MA retries Apple for up to ~2 minutes; the header shows the
+      // wait, so waiting that long is honest.
+      this._ws(msg, this._pend ? 120000 : 0).then(function (res) {
         if (self._stale(tok)) return;
+        self._pend = null;
         self._loading = false;
         self._items = self._filter(res && res.children);
         // THE CONTEXT IS CAPTURED WITH THE ITEMS, never re-derived from the
@@ -779,10 +831,12 @@
         self._paint();
       }).catch(function (e) {
         if (self._stale(tok)) return;
+        self._pend = null;
         self._loading = false;
         self._err = 'Could not open that: ' + (e && e.message ? e.message : e);
         self._paint();
       });
+      if (node) this._inUse();
     }
 
     // ONE PAGE OF A CATEGORY. offset 0 replaces, anything else appends.
@@ -792,6 +846,7 @@
     // cannot say "1126 albums" without asking for all of them first.
     _loadCategory(node, mediaType, offset) {
       var self = this, cfg = this._config;
+      this._pend = null;
       this._loading = true; this._err = null;
       var tok = this._seq();
       this._ws({ type: 'call_service', domain: 'music_assistant',
@@ -998,7 +1053,7 @@
       // from inside something keeps it: back out of that search returns you
       // to where you were standing, which is still the album you opened.
       if (!this._stack.length) this._saved = null;
-      this._pageMore = false; this._paged = null;
+      this._pageMore = false; this._paged = null; this._pend = null;
       this._loading = true; this._err = null;
       var tok = this._seq();
       this._ws({ type: 'media_player/search_media', entity_id: player,
@@ -1017,6 +1072,7 @@
         self._err = 'Search failed: ' + (e && e.message ? e.message : e);
         self._paint();
       });
+      this._inUse();
     }
 
     _play(node) {
@@ -1123,7 +1179,7 @@
       // back while a level is loading and that load must not land on top of
       // the results we just restored from memory.
       this._seq();
-      this._loading = false;
+      this._loading = false; this._pend = null;
       this._mode = 'search';
       this._query = s.query;
       if (this._e && this._e.search) this._e.search.value = s.query;
@@ -1301,6 +1357,10 @@
 
       e.body.innerHTML = '';
       if (this._err) { this._empty(this._err); return; }
+      if (this._loading && this._pend) {
+        e.body.appendChild(this._head(this._pend, [], { cover: '' }, 'Loading songs…'));
+        return;
+      }
       if (this._loading && !this._items) { e.body.innerHTML = '<div class="msg">Loading…</div>'; return; }
       var items = this._items || [];
       if (!items.length) {
@@ -1491,7 +1551,8 @@
     // keeps the node that was opened, which carries the artwork whether it
     // came from a grid tile or a Discover shelf, and the tracks' own shared
     // artwork is the fallback for a level opened any other way.
-    _head(top, items, info) {
+    // `wait` replaces the song count while the tracks are still coming.
+    _head(top, items, info, wait) {
       var hd = document.createElement('div');
       hd.className = 'hd';
       var art = (top.node && top.node.thumbnail) || info.cover || '';
@@ -1535,8 +1596,8 @@
         txt.appendChild(h2);
       }
       var h3 = document.createElement('div');
-      h3.className = 'h3';
-      h3.textContent = items.length + (items.length === 1 ? ' song' : ' songs');
+      h3.className = wait ? 'h3 wait' : 'h3';
+      h3.textContent = wait || (items.length + (items.length === 1 ? ' song' : ' songs'));
       txt.appendChild(h3);
       hd.appendChild(txt);
       return hd;

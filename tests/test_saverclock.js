@@ -33,7 +33,7 @@ print('=== the styles ===');
 ok('fifteen styles (Today, the flagship, first)', C.STYLES.length === 15 && C.STYLES[0][0] === 'today', true);
 ok('...the same as HK Settings lists, in order', C.STYLES.map(function (s) { return s[0]; }).join(), M.CLOCK_STYLES.map(function (s) { return s[0]; }).join());
 ok('the generated backgrounds are HK Settings’ less Forecast and Photos',
-   C.BGS.map(function (b) { return b[0]; }).join(), M.CLOCK_BGS.filter(function (b) { return b[0] !== 'forecast' && b[0] !== 'skyonly' && b[0] !== 'photos'; }).map(function (b) { return b[0]; }).join());
+   C.BGS.map(function (b) { return b[0]; }).join(), M.CLOCK_BGS.filter(function (b) { return b[0] !== 'forecast' && b[0] !== 'skyonly' && b[0] !== 'photos' && b[0] !== 'landscapes'; }).map(function (b) { return b[0]; }).join());
 
 print('=== the colors ===');
 ok('every style has its colors', C.STYLES.every(function (st) { return (C.COLORS[st[0]] || []).length >= 4; }), true);

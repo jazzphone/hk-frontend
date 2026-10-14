@@ -5,15 +5,23 @@
 // turn the album art (the slide) or the whole pane over, and this is what is
 // on the back:
 //
-//   Speakers  every room, the ones in the music marked, the others picked by
-//             a tap. ADD puts the picked rooms in with the music (and lets go
-//             of any marked to leave: then it reads Update); TRANSFER moves
-//             the music to just the picked rooms. Both are the Play Music
-//             page's own request, hk_frontend.music_transfer -- the rooms
-//             that should end up playing, and where the music is now -- so a
-//             preset's set of rooms still plays on Music Assistant's sync
-//             group, and the engine (features/music/music.py) does the
-//             joining, the moving and the letting go.
+//   Speakers  every room, TICKED WHERE IT PLAYS (2026-10-14, the user's
+//             design): the ticks start on the rooms in the music, a tap
+//             ticks or unticks one, a preset ticks its rooms. UPDATE plays
+//             the music on exactly the rooms ticked -- rooms join, rooms let
+//             go, or the music moves -- and RESET puts the ticks back on
+//             where it plays. Update is the Play Music page's own request,
+//             hk_frontend.music_transfer -- the rooms that should end up
+//             playing, and where the music is now -- so a preset's set of
+//             rooms still plays on Music Assistant's sync group, and the
+//             engine (features/music/music.py) does the joining, the moving
+//             and the letting go. (It replaced Add and Transfer: one rule,
+//             "what's ticked is where it plays".)
+//             THE TICKS ARE ALSO WHERE THE NEXT PICK PLAYS wherever there
+//             is something to pick: the Music page (o.next / o.setNext, the
+//             page's Plays on) and this panel's own Browse tab (the
+//             screensaver's). Tick other rooms and pick something, and it
+//             plays there -- the rooms left unticked keep what they play.
 //   Volume    each room in the music, a slider of its own (the front's
 //             slider is the whole group's).
 //   Browse    the house's playlists (Play Music's tiles, played on the rooms
@@ -27,8 +35,8 @@
 //   Queue     what plays and what comes next, from Music Assistant's queue
 //             (the integration's hk_music/queue); a tap plays that song.
 //   ...and with nothing playing, Speakers picks WHERE THE NEXT MUSIC PLAYS
-//   (o.target / o.setTarget): rooms ticked, no Add or Transfer.
-//   Stop (o.stop) beside Add and Transfer.
+//   (o.target / o.setTarget): rooms ticked, no Update or Reset.
+//   Stop (o.stop) beside Reset and Update.
 //
 // hk-saver.js owns everything around it: where it sits, the turn-over, the
 // taps that reach it (the screensaver otherwise swallows every tap), closing
@@ -49,6 +57,7 @@
     check: 'M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z',
     plus: 'M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z',
     move: 'M4 11h11.2l-4.6-4.6L12 5l7 7-7 7-1.4-1.4 4.6-4.6H4z',
+    undo: 'M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z',
     note: 'M12 3v10.55A4 4 0 1 0 14 17V7h4V3z',
     vlo: 'M7 9v6h4l5 5V4l-5 5H7z',
     vhi: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.47 4.47 0 0 0 2.5-4zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06A9 9 0 0 0 14 3.23z',
@@ -69,35 +78,42 @@
   }
 
   // ------------------------------------------------------------ pure (tests)
-  // WHAT A PRESS ASKS FOR. `members`: the rooms in the music now; `sel`: rooms
-  // picked; `drop`: rooms in it marked to leave. Add/Update: the rooms that
-  // stay plus the picked ones; Transfer: the picked ones alone. null: nothing
-  // to do (the button is dimmed).
-  function plan(members, sel, drop) {
-    var stay = members.filter(function (r) { return drop.indexOf(r) < 0; });
-    var add = stay.concat(sel.filter(function (r) { return stay.indexOf(r) < 0; }));
-    return {
-      add: add.length && !same(add, members) ? add : null,
-      transfer: sel.length ? sel.slice() : null,
-      // "Add" while it adds; "Update" when it only lets rooms go
-      addLabel: sel.length || !drop.length ? 'Add' : 'Update'
-    };
+  // WHAT UPDATE ASKS FOR. `members`: the rooms in the music now; `ticks`: the
+  // rooms ticked. Update plays it on exactly the ticks (null: they are where
+  // it plays already -- the button is dimmed); `added` join, `dropped` let
+  // go, and `moves` when none of it stays (the music moves to the ticks).
+  function ticksPlan(members, ticks) {
+    var added = ticks.filter(function (r) { return members.indexOf(r) < 0; });
+    var dropped = members.filter(function (r) { return ticks.indexOf(r) < 0; });
+    return { update: ticks.length && !same(ticks, members) ? ticks.slice() : null, added: added, dropped: dropped,
+             moves: ticks.length > 0 && dropped.length === members.length };
   }
-  // A PRESET'S CHIP fills in the picks: its rooms that are not playing, and
-  // the playing rooms that are not in it marked to leave
-  function presetPicks(members, rooms) {
-    return { sel: rooms.filter(function (r) { return members.indexOf(r) < 0; }),
-             drop: members.filter(function (r) { return rooms.indexOf(r) < 0; }) };
+  // A PICK ON THESE ROOMS: one player first -- a preset's sync group when
+  // they are exactly its rooms, else the first room -- and the rest brought
+  // in after (hk-music.js has the same rule for its own picks)
+  function playTarget(rooms, presets) {
+    for (var i = 0; i < presets.length; i++) if (presets[i].entity && same(rooms, presets[i].members)) return { player: presets[i].entity, then: null };
+    return { player: rooms[0] || null, then: rooms.length > 1 ? rooms.slice() : null };
   }
-  // the line over the buttons: what each would do, before it is pressed
-  function caption(members, sel, drop, label, nameOf) {
-    var n = function (a) { return list(a.map(nameOf)); };
-    if (!sel.length && !drop.length) return 'Tap rooms to <b>Add</b> them to this music, or to <b>Transfer</b> it there.';
-    if (!sel.length) return '<b>Update</b>: ' + esc(n(drop)) + (drop.length === 1 ? ' stops' : ' stop') + ', the rest play on.';
-    var keep = members.filter(function (r) { return drop.indexOf(r) < 0; });
-    return '<b>Add</b>: ' + esc(n(sel)) + (sel.length === 1 ? ' joins ' : ' join ') + esc(keep.length ? label : 'the music') +
-           (drop.length ? ', ' + esc(n(drop)) + (drop.length === 1 ? ' stops' : ' stop') : '') + '.<br>' +
-           '<b>Transfer</b>: only ' + esc(n(sel)) + (sel.length === 1 ? ' plays' : ' play') + ', the rest stop.';
+  // the line over the buttons: what the ticks do, before anything is pressed.
+  // `music`: what plays ("Piano Man"); `next`: the ticks are also where the
+  // next pick plays (the Music page); `name(rooms)`: rooms as plain words.
+  function ticksCaption(members, ticks, music, next, name) {
+    var pl = ticksPlan(members, ticks), m = '<b>' + esc(music) + '</b>';
+    var verb = function (a, one, many) { return esc(name(a)) + (a.length === 1 ? one : many); };
+    if (!pl.update) {
+      return next ? 'Tap rooms for your next pick, or to <b>Update</b> where ' + m + ' plays.'
+                  : 'Tap rooms, then <b>Update</b>: ' + m + ' plays on the rooms ticked.';
+    }
+    var up = pl.moves ? m + ' moves to ' + esc(name(ticks)) + '.'
+      : pl.added.length && pl.dropped.length ? verb(pl.added, ' joins', ' join') + ', ' + verb(pl.dropped, ' stops.', ' stop.')
+      : pl.added.length ? verb(pl.added, ' joins ', ' join ') + m + '.'
+      : verb(pl.dropped, ' stops', ' stop') + '; the rest play on.';
+    if (!next) return '<b>Update</b>: ' + up;
+    var keep = members.filter(function (r) { return ticks.indexOf(r) < 0; });
+    return 'Your next pick plays on <b>' + esc(name(ticks)) + '</b>' +
+           (keep.length ? '; ' + m + ' keeps playing on ' + esc(name(keep)) + '.' : ', in place of ' + m + '.') +
+           '<br><b>Update</b>: ' + up;
   }
 
   // ------------------------------------------------------------ the look
@@ -170,16 +186,15 @@
     '.mproom .rn{flex:1;min-width:0}',
     '.mproom .rn b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.mproom .rn small{display:flex;align-items:center;gap:6px;font-size:12.5px;opacity:.72;margin-top:1px;white-space:nowrap;overflow:hidden}',
-    '.mproom .ck{flex:none;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}',
-    '.mproom .ck svg{width:16px;height:16px;fill:#111;opacity:0}',
-    '.mproom.mem .ck{background:rgba(255,255,255,.35);box-shadow:none}',
-    '.mproom.mem .ck svg{opacity:1;fill:#fff}',
+    // (mpck, not ck: the screensaver's clock face is .ck in the same shadow
+    // root, and its rules hid every tick there -- the panel's names all mp*)
+    '.mproom .mpck{flex:none;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center}',
+    '.mproom .mpck svg{width:16px;height:16px;fill:#111;opacity:0}',
+    // (one mark: ticked is where it plays -- the rooms in the music say so in
+    // their line, Playing here)
     '.mproom.sel{background:rgba(255,255,255,.18)}',
-    '.mproom.sel .ck{background:#fff;box-shadow:none}',
-    '.mproom.sel .ck svg{opacity:1;fill:#111}',
-    '.mproom.drop{opacity:.55}',
-    '.mproom.drop .ck{background:transparent;box-shadow:inset 0 0 0 2px rgba(255,255,255,.4)}',
-    '.mproom.drop .ck svg{opacity:0}',
+    '.mproom.sel .mpck{background:#fff;box-shadow:none}',
+    '.mproom.sel .mpck svg{opacity:1;fill:#111}',
     '.mproom.off{opacity:.38;cursor:default}',
     '.mpeq{display:inline-flex;gap:2px;align-items:flex-end;height:10px}',
     '.mpeq i{width:2.5px;height:10px;background:#fff;border-radius:1px;transform-origin:50% 100%;animation:mpeq 1s ease-in-out infinite}',
@@ -188,14 +203,15 @@
     '@keyframes mpeq{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}',
     '.mpcap{font-size:13px;opacity:.78;min-height:36px;margin-bottom:12px;line-height:1.38}',
     '.mpcap.err{color:#ffb340;opacity:1}',
-    // ADD AND TRANSFER AS EQUAL HALVES, Stop a square at the end (the user's
-    // pick, 2026-10-11: the buttons sized to their words looked off)
+    // RESET AND UPDATE AS EQUAL HALVES, Stop a square at the end (the user's
+    // pick, 2026-10-11, for Add and Transfer: buttons sized to their words
+    // looked off)
     '.mpacts{display:flex;gap:8px}',
     '.mpact{flex:1 1 0;min-width:0;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;',
     '  cursor:pointer;transition:opacity .2s;text-shadow:none}',
     '.mpact svg{width:19px;height:19px;fill:currentColor}',
-    '.mpact.add{background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}',
-    '.mpact.xfer{background:#fff;color:#111}',
+    '.mpact.rst{background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}',
+    '.mpact.upd{background:#fff;color:#111}',
     '.mpact.dis{opacity:.32;cursor:default}',
     '.mpspin{width:16px;height:16px;border-radius:50%;border:2.4px solid currentColor;border-right-color:transparent;animation:mpspin .7s linear infinite;box-sizing:border-box}',
     '@keyframes mpspin{to{transform:rotate(360deg)}}',
@@ -280,9 +296,11 @@
     var E = { bg: q('.mpbg'), inner: q('.mpin'), tabs: q('.mptabs'), sub: q('.mpsub'), foot: q('.mpfoot'), toast: q('.mptoast'), mini: q('.mpmini'),
               chips: q('.mpchips'), rooms: q('.mprooms'), vol: q('[data-p="volume"]'), pl: q('.mppl'), pls: q('.mppls'),
               lib: q('.mplib'), pages: el.querySelectorAll('.mpt'), queue: q('[data-p="queue"]') };
-    var S = { tab: 'speakers', sel: [], drop: [], busy: '', err: '', key: null, members: [], open: null, art: null,
+    var S = { tab: 'speakers', ticks: null, busy: '', err: '', key: null, members: [], open: null, art: null,
               vols: {}, drag: null, lib: null, libFor: null, libRoot: true, closing: false, q: null, qFor: '', qBusy: null };
     var M = function () { return window.hkMusic; };
+    // a pick to make here: the Music page's Browse (o.next) or this panel's own
+    var nextHere = !!o.next || (o.tabs || ['speakers', 'volume', 'browse']).indexOf('browse') >= 0;
 
     function nameOf(e) { var m = M(); return m && m.nameOf ? m.nameOf(e) : e; }
     function states() { var h = o.hass(); return (h && h.states) || {}; }
@@ -322,9 +340,9 @@
     function update(now) {
       var c = ctx();
       if (c && c.key !== S.key) {
-        // the music moved (Transfer, a new leader): the picks were for the
+        // the music moved (Update, a new leader): the ticks were for the
         // old rooms
-        if (S.key) { S.sel = []; S.drop = []; }
+        if (S.key) S.ticks = null;
         S.key = c.key;
       }
       S.members = c ? c.members.slice() : [];
@@ -372,9 +390,30 @@
     // ---- SPEAKERS
     // nothing playing, on the page: the rooms the next music plays on
     function picking(c) { return !c && !!o.target; }
+    // PLAYING: the rooms ticked -- the page's (where its next pick plays,
+    // o.next) or this panel's own -- and where the music plays until a tap
+    // changes them
+    function ticksNow() {
+      if (o.next) return o.next().slice();
+      return S.ticks ? S.ticks.slice() : S.members.slice();
+    }
+    function setTicks(t) {
+      var back = !t || same(t, S.members);
+      if (o.setNext) o.setNext(back ? null : t.slice());
+      else S.ticks = back ? null : t.slice();
+    }
+    // rooms in a few words: a preset's own name, up to three by name, else
+    // the first two and how many more
+    function roomsName(rs) {
+      var m = M(), pre = m && m.presets ? m.presets().filter(function (p) { return same(p.members, rs); })[0] : null;
+      if (pre) return pre.name;
+      var n = rs.map(nameOf);
+      return n.length > 3 ? n.slice(0, 2).join(', ') + ' and ' + (n.length - 2) + ' more' : list(n);
+    }
     function drawSpeakers(c) {
       var m = M(), h = states();
-      if (picking(c)) { S.members = o.target().slice(); S.sel = []; S.drop = []; }
+      var ticks = picking(c) ? o.target().slice() : ticksNow();
+      if (picking(c)) S.members = ticks.slice();
       sub(ICON.vhi, c ? [c.title, c.artist].filter(Boolean).join(' · ') || label(c) : picking(c) ? 'Where the next music plays' : '');
       var rooms = m && m.rooms ? m.rooms() : [];
       var others = {};
@@ -382,74 +421,54 @@
         if (c && x.key === c.key) return;
         x.members.forEach(function (r) { others[r] = x.title || label(x); });
       });
-      // a pick that has started playing here, or gone away, is no pick
-      S.sel = S.sel.filter(function (r) { return S.members.indexOf(r) < 0; });
-      S.drop = S.drop.filter(function (r) { return S.members.indexOf(r) >= 0; });
-      var final = S.members.filter(function (r) { return S.drop.indexOf(r) < 0; }).concat(S.sel);
       var chips = (m && m.presets ? m.presets() : []).map(function (p) {
-        var on = (picking(c) || S.sel.length || S.drop.length) && same(final, p.members);
-        return '<div class="mpchip' + (on ? ' on' : '') + '" data-preset="' + esc(p.entity) + '">' + esc(p.name) + '</div>';
+        return '<div class="mpchip' + (same(ticks, p.members) ? ' on' : '') + '" data-preset="' + esc(p.entity) + '">' + esc(p.name) + '</div>';
       }).join('');
       if (E.chips.__t !== chips) { E.chips.innerHTML = chips; E.chips.__t = chips; }
       var html = rooms.map(function (r) {
-        var k = r.entity, st = h[k], mem = S.members.indexOf(k) >= 0, sel = S.sel.indexOf(k) >= 0, drop = S.drop.indexOf(k) >= 0;
+        var k = r.entity, st = h[k], on = ticks.indexOf(k) >= 0, mem = !picking(c) && S.members.indexOf(k) >= 0;
         var off = !st || st.state === 'unavailable' || st.state === 'unknown';
-        var stops = others[k] && (sel || (picking(c) && mem)) ? ' \u2014 stops first' : '';
-        var line = picking(c) ? (off ? 'Unavailable' : others[k] ? 'Playing ' + esc(others[k]) + stops : '')
-                 : mem ? (drop ? 'Leaves the music' : '<span class="mpeq"><i></i><i></i><i></i></span>' + (c && c.playing ? 'Playing here' : 'Paused here'))
+        var stops = others[k] && on ? ' \u2014 stops first' : '';
+        var line = mem ? '<span class="mpeq"><i></i><i></i><i></i></span>' + (c && c.playing ? 'Playing here' : 'Paused here')
                  : off ? 'Unavailable' : others[k] ? 'Playing ' + esc(others[k]) + stops : '';
-        var cls = picking(c) ? (mem ? ' sel' : '') : (mem ? ' mem' : '') + (sel ? ' sel' : '') + (drop ? ' drop' : '');
-        return '<div class="mproom' + cls + (off && !mem ? ' off' : '') +
+        return '<div class="mproom' + (on ? ' sel' : '') + (off && !on && !mem ? ' off' : '') +
                '" data-room="' + esc(k) + '"><div class="ri"><ha-icon icon="hk:homepod"></ha-icon></div><div class="rn"><b>' + esc(r.name) + '</b>' +
-               (line ? '<small>' + line + '</small>' : '') + '</div><div class="ck">' + svg(ICON.check) + '</div></div>';
+               (line ? '<small>' + line + '</small>' : '') + '</div><div class="mpck">' + svg(ICON.check) + '</div></div>';
       }).join('');
       if (E.rooms.__t !== html) { E.rooms.innerHTML = html; E.rooms.__t = html; }
-      var gone = (picking(c) ? S.members : S.sel).filter(function (r) { return others[r]; });
+      var gone = ticks.filter(function (r) { return others[r] && (picking(c) || S.members.indexOf(r) < 0); });
       var also = gone.length ? ' ' + esc(list(gone.map(nameOf))) + (gone.length === 1 ? ' stops ' : ' stop ') + esc(others[gone[0]]) + ' first.' : '';
       if (picking(c)) {
-        var pf = '<div class="mpcap">The next playlist, album or song you pick plays on <b>' + esc(list(S.members.map(nameOf))) + '</b>.' + also + '</div>';
+        var pf = '<div class="mpcap">The next playlist, album or song you pick plays on <b>' + esc(list(ticks.map(nameOf))) + '</b>.' + also + '</div>';
         if (E.foot.__t !== pf) { E.foot.innerHTML = pf; E.foot.__t = pf; }
         return;
       }
-      var pl = plan(S.members, S.sel, S.drop);
-      var cap = S.err ? '<span>' + esc(S.err) + '</span>' : S.busy ? esc(S.busy) : caption(S.members, S.sel, S.drop, label(c), nameOf) + also;
-      var addL = S.busy && S.busy.indexOf('Adding') === 0 ? '<span class="mpspin"></span>' + (pl.addLabel === 'Update' ? 'Updating' : 'Adding')
-               : svg(ICON.plus) + pl.addLabel;
-      var xL = S.busy && S.busy.indexOf('Moving') === 0 ? '<span class="mpspin"></span>Moving' : svg(ICON.move) + 'Transfer';
+      var pl = ticksPlan(S.members, ticks);
+      var cap = S.err ? '<span>' + esc(S.err) + '</span>' : S.busy ? esc(S.busy)
+              : ticksCaption(S.members, ticks, (c && (c.title || label(c))) || 'the music', nextHere, roomsName) + also;
+      var upL = S.busy ? '<span class="mpspin"></span>' + (pl.moves ? 'Moving' : 'Updating') : svg(ICON.check) + 'Update';
       var foot = '<div class="mpcap' + (S.err ? ' err' : '') + '">' + cap + '</div><div class="mpacts">' +
-                 '<div class="mpact add' + (!pl.add || S.busy || !c ? ' dis' : '') + '" data-k="add">' + addL + '</div>' +
-                 '<div class="mpact xfer' + (!pl.transfer || S.busy || !c ? ' dis' : '') + '" data-k="xfer">' + xL + '</div>' +
+                 '<div class="mpact rst' + (!pl.update || S.busy || !c ? ' dis' : '') + '" data-k="reset">' + svg(ICON.undo) + 'Reset</div>' +
+                 '<div class="mpact upd' + (!pl.update || S.busy || !c ? ' dis' : '') + '" data-k="update">' + upL + '</div>' +
                  (o.stop ? '<div class="mpact stop' + (S.busy || !c ? ' dis' : '') + '" data-k="stop" role="button" aria-label="Stop">' + svg(ICON.stop) + '</div>' : '') + '</div>';
       if (E.foot.__t !== foot) { E.foot.innerHTML = foot; E.foot.__t = foot; }
     }
+    // A TAP: that room ticked or not (one stays ticked -- none is Stop)
     function tapRoom(k) {
       if (S.busy) return;
-      var st = states()[k];
+      var st = states()[k], free = st && st.state !== 'unavailable' && st.state !== 'unknown';
       S.err = '';
-      if (picking(ctx())) {
-        var tg = o.target().slice(), ti = tg.indexOf(k);
-        if (ti >= 0) { if (tg.length > 1) tg.splice(ti, 1); }
-        else if (st && st.state !== 'unavailable' && st.state !== 'unknown') tg.push(k);
-        o.setTarget(tg); update(true); return;
-      }
-      if (S.members.indexOf(k) >= 0) {
-        var i = S.drop.indexOf(k);
-        if (i >= 0) S.drop.splice(i, 1);
-        // the last room playing cannot leave (that is Stop, not Update)
-        else if (S.members.length - S.drop.length > 1) S.drop.push(k);
-      } else {
-        if (!st || st.state === 'unavailable' || st.state === 'unknown') return;
-        var j = S.sel.indexOf(k);
-        if (j >= 0) S.sel.splice(j, 1); else S.sel.push(k);
-      }
+      var c = ctx(), t = picking(c) ? o.target().slice() : ticksNow(), i = t.indexOf(k);
+      if (i >= 0) { if (t.length > 1) t.splice(i, 1); }
+      else if (free) t.push(k);
+      if (picking(c)) o.setTarget(t); else setTicks(t);
       update(true);
     }
     function tapPreset(entity) {
       var p = (M().presets() || []).filter(function (x) { return x.entity === entity; })[0];
       if (!p || S.busy) return;
-      if (picking(ctx())) { o.setTarget(p.members.slice()); update(true); return; }
-      var pk = presetPicks(S.members, p.members);
-      S.sel = pk.sel; S.drop = pk.drop; S.err = '';
+      S.err = '';
+      if (picking(ctx())) o.setTarget(p.members.slice()); else setTicks(p.members.slice());
       update(true);
     }
     // ONE REQUEST, ONE ANSWER, as the Play Music page asks it (hk-media.js
@@ -469,7 +488,7 @@
         var lead = r.leader || target;
         if (m && lead && m.known(lead)) m.setFocus(lead, { hold: true });
         if (o.follow) o.follow(lead);
-        S.busy = ''; S.sel = []; S.drop = [];
+        S.busy = ''; setTicks(null);
         toast(r.message ? 'Playing, but ' + String(r.message).replace(/\.$/, '') : ok);
         update(true);
         o.done(DONE_MS);
@@ -480,25 +499,21 @@
         update(true);
       });
     }
-    function add() {
-      var c = ctx(), pl = plan(S.members, S.sel, S.drop);
-      if (!c || !pl.add || S.busy) return;
-      var sel = S.sel.slice(), drop = S.drop.slice();
-      request('transfer', { rooms: pl.add, source: c.key }, pl.add.indexOf(c.key) >= 0 ? c.key : pl.add[0],
-              sel.length ? 'Adding ' + list(sel.map(nameOf)) + '…' : 'Adding…',
-              sel.length ? list(sel.map(nameOf)) + ' joined' : list(drop.map(nameOf)) + ' stopped');
+    // UPDATE: the music on exactly the rooms ticked (it stays on its own
+    // player when that is still in them)
+    function updateRooms() {
+      var c = ctx(), t = ticksNow(), pl = ticksPlan(S.members, t);
+      if (!c || !pl.update || S.busy) return;
+      var to = pl.update, n = roomsName;
+      request('transfer', { rooms: to, source: c.key }, to.indexOf(c.key) >= 0 ? c.key : to[0],
+              pl.moves ? 'Moving the music to ' + n(to) + '…' : pl.added.length && !pl.dropped.length ? 'Adding ' + n(pl.added) + '…' : 'Updating…',
+              pl.moves || (pl.added.length && pl.dropped.length) ? 'Now playing on ' + n(to)
+                : pl.added.length ? n(pl.added) + ' joined' : n(pl.dropped) + ' stopped');
     }
     function stop() {
       var c = ctx();
       if (!c || S.busy) return;
       request('stop', { rooms: c.members.slice() }, null, 'Stopping\u2026', 'Stopped');
-    }
-    function transfer() {
-      var c = ctx(), pl = plan(S.members, S.sel, S.drop);
-      if (!c || !pl.transfer || S.busy) return;
-      var to = pl.transfer;
-      request('transfer', { rooms: to, source: c.key }, to[0], 'Moving the music to ' + list(to.map(nameOf)) + '…',
-              'Now playing on ' + list(to.map(nameOf)));
     }
 
     // ---- VOLUME: each room in the music
@@ -617,8 +632,11 @@
     }
 
     // ---- BROWSE
+    // BROWSE PLAYS ON THE TICKS while they differ from where the music plays
+    // (else on the music's own speakers, as before)
+    function ticksDiffer() { var c = ctx(); return !!(c && !o.next && S.ticks && !same(S.ticks, c.members)); }
     function drawBrowse(c) {
-      sub('', '');
+      sub(ICON.vhi, ticksDiffer() ? 'Plays on ' + roomsName(S.ticks) : '');
       E.foot.innerHTML = ''; E.foot.__t = '';
       var m = M(), pls = m && m.playlists ? m.playlists() : [];
       E.pl.hidden = !pls.length || !S.libRoot;
@@ -637,6 +655,51 @@
         try { S.lib.setConfig({ type: 'custom:hk-library-card', player: c.key }); } catch (e) { /* as it was */ }
       }
       if (S.lib) { var h = o.hass(); if (h && S.lib.hass !== h) S.lib.hass = h; }
+      if (S.lib) {
+        if (ticksDiffer()) { S.lib.playVia = playNode; S.lib.playerNameFor = function () { return roomsName(ticksNow()); }; }
+        else { delete S.lib.playVia; delete S.lib.playerNameFor; }
+      }
+    }
+    // A LIBRARY ITEM ON THE TICKS (the Music page's _playNode, in short): what
+    // plays first lets go of the ticked rooms it is on, then the item plays
+    // on one player and the other ticked rooms are brought in
+    function playNode(node) {
+      var c = ctx(), m = M(), h = o.hass();
+      if (!c || !h || !m || S.busy) return;
+      var rooms = ticksNow(), keep = c.members.filter(function (r) { return rooms.indexOf(r) < 0; }), t, free = null;
+      if (!keep.length) t = { player: c.key, then: rooms.length > c.members.length ? rooms.slice() : null };
+      else {
+        t = playTarget(rooms, m.presets ? m.presets() : []);
+        if (c.members.some(function (r) { return rooms.indexOf(r) >= 0; })) free = { rooms: keep, source: c.key };
+      }
+      if (!t.player) return;
+      var call = function (sv, data) {
+        var q; try { q = h.callService('hk_frontend', sv, data, undefined, false, true); } catch (e) { q = Promise.reject(e); }
+        return Promise.resolve(q).then(function (res) {
+          var r = (res && res.response) || {};
+          if (r.ok === false) throw new Error(r.message || 'That did not work.');
+          return r;
+        });
+      };
+      var name = roomsName(rooms), lead = t.player;
+      S.busy = 'node';
+      toast('Playing ' + node.title + ' on ' + name);
+      (free ? call('music_transfer', free) : Promise.resolve()).then(function () {
+        return call('music_play_media', { player: t.player, media_content_id: node.media_content_id, media_content_type: node.media_content_type });
+      }).then(function () {
+        return t.then ? call('music_transfer', { rooms: t.then, source: t.player }).then(function (r2) { if (r2.leader) lead = r2.leader; }) : null;
+      }).then(function () {
+        S.busy = '';
+        if (m.known(lead)) m.setFocus(lead, { hold: true });
+        if (o.follow) o.follow(lead);
+        setTicks(null);
+        update(true);
+        o.done(DONE_MS);
+      }).catch(function (e) {
+        S.busy = '';
+        toast('Could not play ' + node.title + (e && e.message ? ': ' + String(e.message).replace(/\.$/, '') : ''));
+        update(true);
+      });
     }
     function ensureLib() {
       if (S.lib || S.libWait) return;
@@ -687,7 +750,7 @@
       if (!p || !c || S.busy) return;
       if (p.options && p.options.length && j == null) { S.open = S.open === i ? null : i; drawBrowse(c); return; }
       var key = j != null ? p.options[j].key : p.key, name = j != null ? p.options[j].name : p.name;
-      var rooms = c.members.filter(function (r) { return m.known(r) && !m.isGroup(r); });
+      var rooms = (ticksDiffer() ? S.ticks : c.members).filter(function (r) { return m.known(r) && !m.isGroup(r); });
       if (!rooms.length) return;
       S.busy = 'pl' + i;
       toast('Starting ' + name + '…');
@@ -700,7 +763,8 @@
         if (r.ok === false) throw new Error(r.message || 'That did not work.');
         if (r.leader && m.known(r.leader)) { m.setFocus(r.leader, { hold: true }); if (o.follow) o.follow(r.leader); }
         S.busy = ''; S.open = null;
-        toast('Playing ' + name + ' on ' + label(c));
+        toast('Playing ' + name + ' on ' + (ticksDiffer() ? roomsName(S.ticks) : label(c)));
+        setTicks(null);
         drawBrowse(ctx());
         o.done(DONE_MS);
       }).catch(function (e) {
@@ -725,8 +789,8 @@
       if (t.hasAttribute('data-tab')) { show(t.getAttribute('data-tab')); return; }
       var k = t.getAttribute('data-k');
       if (k === 'close') { o.done(0); return; }
-      if (k === 'add') { add(); return; }
-      if (k === 'xfer') { transfer(); return; }
+      if (k === 'update') { updateRooms(); return; }
+      if (k === 'reset') { if (!S.busy) { S.err = ''; setTicks(null); update(true); } return; }
       if (k === 'stop') { stop(); return; }
       if (t.hasAttribute('data-qid')) { playQueue(t.getAttribute('data-qid')); return; }
       if (k === 'pp' || k === 'next') { if (o.transport) o.transport(k); update(true); return; }
@@ -773,6 +837,6 @@
     };
   }
 
-  window.hkSaverPanel = { create: create, CSS: CSS, _: { plan: plan, presetPicks: presetPicks, caption: caption } };
+  window.hkSaverPanel = { create: create, CSS: CSS, _: { ticksPlan: ticksPlan, ticksCaption: ticksCaption, playTarget: playTarget } };
   try { window.dispatchEvent(new Event('hk-saver-panel')); } catch (e) { /* ignore */ }
 })();

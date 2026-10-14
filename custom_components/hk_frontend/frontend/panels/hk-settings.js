@@ -1008,7 +1008,7 @@
       this.pageEl.classList.toggle('nohead', !!(pg.preview && first && first.classList &&
         first.classList.contains('grp') && !(first.firstElementChild && first.firstElementChild.classList.contains('gh'))));
       this.skyPreview(pg.preview ? pg.sky : null);
-      this.saverPreview(!!(pg.preview && pg.saverPreview));
+      this.saverPreview(!!(pg.preview && pg.saverPreview), !!pg.saverHouse);
     }
 
     // THE SCREENSAVER'S PREVIEW: on Screensaver Options the frame shows the
@@ -1016,7 +1016,8 @@
     // follows every change made here; any other page takes it away again.
     // Only the frame: the screen's tablet, its switch and its photos' order
     // are not touched.
-    saverPreview(on) {
+    saverPreview(on, house) {
+      if (house === undefined) house = this._saverHouse; else this._saverHouse = house;
       var self = this, col = this.pageEl.querySelector('.pvcol');
       var old = col && col.querySelector('.pvsaver');
       if (old) old.remove();
@@ -1032,7 +1033,7 @@
       var go = function () {
         var S = null;
         try { S = fr.contentWindow && fr.contentWindow.hkSaver; } catch (e) { /* not ours */ }
-        if (S && typeof S.preview === 'function') { S.preview(on, shape || null); return true; }
+        if (S && typeof S.preview === 'function') { S.preview(on, shape || null, !!house); return true; }
         return false;
       };
       if (!go()) self._saverWait = setInterval(function () { if (go() || ++n > 80) clearInterval(self._saverWait); }, 250);
@@ -1045,7 +1046,9 @@
           seg.appendChild(b);
         });
         box.parentNode.insertBefore(h('div', { class: 'pvsaver' }, [seg, h('p', { class: 'gf',
-          text: 'The screensaver as this screen shows it, with the changes you make here. Portrait or Landscape keeps one photo of that shape while you change its settings. Only this preview changes.' })]), box.nextSibling);
+          text: (house ? 'The screensaver with these settings, shown on ' + ((self.dash(self._pv ? self._pv.path : '') || {}).title || 'a screen') + '.'
+                       : 'The screensaver as this screen shows it, with the changes you make here.') +
+                ' Portrait or Landscape keeps one photo of that shape while you change its settings. Only this preview changes.' })]), box.nextSibling);
       }
     }
 
@@ -3442,18 +3445,19 @@
                     skyonly: 'The live sky alone, as it is outside: clouds, stars, the moon, rain and snow — no land, trees or decorations.',
                     photos: cur.clock_photo_soft ? 'Your photos, blurred and darkened behind it, changing every ' + MIN(cur.each_photo).toLowerCase() + '.'
                       : 'Your photos behind it, laid out as Photos (below) says, darkened so the clock reads.',
+                    landscapes: 'Fifty photos of mountains, lakes, coasts, deserts and forests, one after another behind the clock' + (cur.clock_photo_soft ? ', blurred and darkened.' : ', darkened so the clock reads.'),
                     sky: 'The live sky’s colors as they are now, with no stars or weather.' }[bg] ||
                   (bgRow[2] ? 'Drawn on the tablet itself and moved smoothly: a new frame about once a second, blended into the last (Constellation draws every frame). Speed 0 holds it still.' : 'Plain black: nothing moves.');
       // PHOTOS BEHIND IT (2026-10-13): sharp, as the Photo Screensaver shows
       // them, or Soft (the blurred copies); darkened by their own amount
-      if (bg === 'photos' && self.saverKnown('clock_photo_dim')) {
+      if ((bg === 'photos' || bg === 'landscapes') && self.saverKnown('clock_photo_dim')) {
         brows.push(K.seg({ label: 'Photos', sk: 'saver:clock_photo_soft', value: cur.clock_photo_soft ? 'soft' : 'sharp', stack: !wide,
                            options: [['sharp', 'Sharp'], ['soft', 'Soft']], onChange: function (v) { put('clock_photo_soft', v === 'soft'); } }));
         brows.push(K.slider({ label: 'Darken', sk: 'saver:clock_photo_dim', value: cur.clock_photo_dim != null ? cur.clock_photo_dim : 35,
                               min: 0, max: 80, step: 5, unit: '%', onChange: function (v) { put('clock_photo_dim', v); } }));
       }
       c.appendChild(K.group({ header: 'Behind the Clock', footer: bfoot }, brows));
-      if (bg === 'photos') {
+      if (bg === 'photos' || bg === 'landscapes') {
         var ctr = self.clockTextRows(cur, put);
         if (ctr.length) c.appendChild(K.group({ header: 'Clock Text', footer: 'How much the clock stands out from the photos: a soft shadow under it, and a dark outline around it.' }, ctr));
         self.saverPhotoGroups(c, cur, put, tog, true);
@@ -3469,7 +3473,7 @@
       c.appendChild(K.group({ header: 'Side Pane', footer: 'Down the right of the screen: the coming events, what’s playing, or both. The clock moves over beside it.' },
         [tog('Calendar', 'calendar')].concat(self.saverKnown('music_pane') ? [tog('Music', 'music_pane')] : [])));
       if (self.saverKnown('music_first')) c.appendChild(K.group({ header: 'While Music Plays', footer: cur.music_first
-          ? 'While music plays anywhere in the house, the album art fills the screen in place of the clock, with the song and its buttons. The clock comes back 20 seconds after the music stops.'
+          ? 'While music plays anywhere in the house, the album art fills the screen in place of the clock, with the song and its buttons, and the time small above it. The clock comes back 20 seconds after the music stops.'
           : 'Off: the clock stays while music plays.' }, [
         K.toggle({ label: 'Music First', sub: 'The music fills the screen while it plays.', on: !!cur.music_first, sk: 'saver:music_first',
                    onChange: function (on) { put({ music_first: on }); } })]));
@@ -4092,18 +4096,20 @@
       // as All Screens is on
       if (page === 'screensaver') {
         var bd = this.data.boards || {};
-        var pv = Object.keys(bd).filter(function (p) {
-          return bd[p].screensaver && M.saverFollows(bd[p]) && bd[p].screensaver_engine !== 'wallpanel';
-        })[0];
+        // the preview: a screen that follows these, else any screen with the
+        // screensaver, shown with these settings (1.8.0: every screen with
+        // its own settings left the page with no preview at all)
+        var withSaver = Object.keys(bd).filter(function (p) { return bd[p].screensaver && bd[p].screensaver_engine !== 'wallpanel'; });
+        var pv = withSaver.filter(function (p) { return M.saverFollows(bd[p]); })[0] || withSaver[0];
         if (sub[0] === 'clock-style') {
           var hcur = M.saverOptions(this.hs('look.saver'));
           var hpg = mk('Clock Style', function (c) { self.saverStyle(c, hcur, self.saverPutH()); });
-          if (pv) { hpg.preview = pv; hpg.saverPreview = true; }
+          if (pv) { hpg.preview = pv; hpg.saverPreview = true; hpg.saverHouse = true; }
           return hpg;
         }
         var spg = { title: title, top: true, body: function (c) { self.h_saver(c); },
                     scope: 'What every screen’s screensaver shows, unless it has its own. When a tablet goes dark is its own Sleep Screen’s (Wall Tablets).' };
-        if (pv) { spg.preview = pv; spg.saverPreview = true; }
+        if (pv) { spg.preview = pv; spg.saverPreview = true; spg.saverHouse = true; }
         return spg;
       }
       if (page === 'cameras') return { title: title, top: true, scope: 'Applies to every screen whose Cameras are Same as All Screens.',

@@ -96,7 +96,12 @@
   // (exported on hkSaver._ for tests/test_saver.js)
   // the mosaic's lines (settings.py MOSAIC_COLORS)
   var MOSAIC_COLORS = { black: '#000000', white: '#f5f5f2', gray: '#8e8e93', charcoal: '#2c2c2e', cream: '#efe6d2', navy: '#1c2a44' };
-  var CLOCK_BGS = ['black', 'grain', 'gradient', 'aurora', 'ink', 'sky', 'lowpoly', 'topo', 'constellation', 'forecast', 'skyonly', 'photos'];
+  var CLOCK_BGS = ['black', 'grain', 'gradient', 'aurora', 'ink', 'sky', 'lowpoly', 'topo', 'constellation', 'forecast', 'skyonly', 'photos', 'landscapes'];
+  // LANDSCAPES (1.8.1): HK Frontend's own photos behind the clock, from
+  // /hk/landscapes/ (index.json lists them; a home's own files folder can
+  // answer with its own list), shown the way Photos shows yours
+  var LANDSCAPES = '/hk/landscapes/';
+  function landscapes() { return !!(cfg && cfg.show === 'clock' && cfg.clock_bg === 'landscapes'); }
   var FOCUS_X = { left: '0%', center: '50%', right: '100%' }, FOCUS_Y = { top: '0%', center: '50%', bottom: '100%' };
   function shapeCfg(raw, side, fill) {
     var n = function (v, lo, hi, d) { v = Number(v); return isFinite(v) && v >= lo && v <= hi ? v : d; };
@@ -396,6 +401,19 @@
   // whoever is signed in, deaf to the real tablet's switch, never writing it,
   // and rebuilt whenever the options change
   var previewOn = false;
+  // ALL SCREENS' PREVIEW (1.8.1): HK Settings' All Screens -> Screensaver
+  // shows its own settings on a screen of the house, whether or not that
+  // screen follows them (before, the page had no preview once every screen
+  // had settings of its own)
+  var previewHouse = false;
+  function houseBlock() {
+    var HS = window.hkSettings, S = window.hkStrategy;
+    var all = HS && HS.get ? HS.get('boards', null) : null;
+    var b = all && all[String(location.pathname).split('/')[1] || ''];
+    var o = HS && HS.get ? HS.get('look.saver', null) : null;
+    if (!b || !o || !S || !S.saverBlock) return null;
+    return S.saverBlock(hassNow(), Object.assign({}, b, { screensaver: true, screensaver_options: o }));
+  }
   var FC_TICK_MS = 5000;
   var unsubHass = null, cards = [];
   var shown = 0, failed = 0, lastPhoto = null;
@@ -593,8 +611,11 @@
         if (wpage) { stop('touch'); go(wpage); return; }
         // the edges of the PHOTOS: beside the calendar pane, its left edge
         var z = zoneOf(x, (window.innerWidth || 0) - (paneUp ? paneW : 0));
-        // (on the forecast or the music a tap anywhere else wakes: there is no photo to step)
-        if (z && mode === 'photos' && !muShowing) { pressStop = false; saverTouched(); if (z === 'next') nextPhoto(); else previousPhoto(); }
+        // (on the forecast or the music a tap anywhere else wakes: there is no photo to step;
+        // nor on Show: Clock, photos or Landscapes behind it included -- the
+        // clock is what it shows, and an edge tap that only changed the
+        // photo read as a tap that did not wake it, 1.8.1)
+        if (z && mode === 'photos' && !muShowing && !ckPhotos()) { pressStop = false; saverTouched(); if (z === 'next') nextPhoto(); else previousPhoto(); }
         else stop('touch');
         return;
       }
@@ -1431,9 +1452,10 @@
   }
   // Every image under the folder (sub-folders to LIST_DEPTH), at most LIST_MAX.
   function listPhotos() {
-    var key = cfg.photos + '|' + cfg.order;
+    var land = landscapes();
+    var key = (land ? LANDSCAPES : cfg.photos) + '|' + cfg.order;
     if (deck && listKey === key && Date.now() - listAt < LIST_TTL_MS && deck.items.length) return Promise.resolve(deck);
-    if (listing) return listing;
+    if (listing && listing.key === key) return listing;
     var out = [];
     function walk(id, depth) {
       if (out.length >= LIST_MAX) return Promise.resolve();
@@ -1448,21 +1470,30 @@
         return sub.reduce(function (p, s) { return p.then(function () { return walk(s, depth + 1); }); }, Promise.resolve());
       });
     }
-    listing = walk(cfg.photos, 0).then(function () {
+    var source = land
+      ? fetch(LANDSCAPES + 'index.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (j) {
+          ((j && j.photos) || []).forEach(function (p) {
+            if (p && typeof p.file === 'string' && /^[\w.-]+\.(webp|jpe?g|png)$/i.test(p.file)) out.push({ id: 'hk-landscape/' + p.file, title: p.title || '', url: LANDSCAPES + p.file });
+          });
+        })
+      : walk(cfg.photos, 0);
+    listing = source.then(function () {
       if (!deck || deck.order !== cfg.order) deck = new Deck(cfg.order);
       deck.set(out);
       listAt = Date.now(); listKey = key;
       return deck;
     }).catch(function (e) {
-      console.warn('[hk-saver] photos', cfg.photos, e && e.message);
+      console.warn('[hk-saver] photos', land ? LANDSCAPES : cfg.photos, e && e.message);
       if (!deck) deck = new Deck(cfg.order);
       listAt = Date.now() - LIST_TTL_MS + 60000;   // try again in a minute
       return deck;
     }).then(function (d) { listing = null; return d; });
+    listing.key = key;
     return listing;
   }
   function load(item) {
-    return callWS({ type: 'media_source/resolve_media', media_content_id: item.id }).then(function (r) {
+    // (a landscape is a plain address; a photo of yours is resolved first)
+    return (item.url ? Promise.resolve({ url: item.url }) : callWS({ type: 'media_source/resolve_media', media_content_id: item.id })).then(function (r) {
       var url = r && r.url;
       if (!url) throw new Error('no url');
       return new Promise(function (ok, fail) {
@@ -1907,7 +1938,7 @@
     var bgk = cfg.clock_bg;
     host.setAttribute('ckmode', '');
     if (bgk === 'forecast' || bgk === 'skyonly') { enterForecast(); mountClock('none'); return; }
-    if (bgk === 'photos') {
+    if (bgk === 'photos' || bgk === 'landscapes') {
       host.setAttribute('ckphotos', '');
       setAttr(host, 'cksoft', !!cfg.clock_photo_soft);
       host.style.setProperty('--hk-ckdim', String((cfg.clock_photo_dim || 0) / 100));
@@ -2509,7 +2540,7 @@
   // ------------------------------------------------------------ the music's panel
   // SPEAKERS AND BROWSE (hk-saver-panel.js draws them; 2026-10-11). The
   // slide's art, or the whole pane, turns over and the panel is on its back:
-  // Speakers (Add / Transfer), Volume (each room), Browse (the house's
+  // Speakers (ticks and Update), Volume (each room), Browse (the house's
   // playlists and the Browse Music page, on this music's speakers). While it
   // is open the screensaver holds its slide, taps on it reach it (every other
   // tap is swallowed here), a tap anywhere else closes it -- never a wake --
@@ -2536,7 +2567,7 @@
       hass: hassNow,
       ctx: function () { return musicNow(hassNow()); },
       art: function () { return v.bg[v.flip] || null; },
-      // the music moved (Transfer, a new leader): the screensaver follows it
+      // the music moved (Update, a new leader): the screensaver follows it
       follow: function (key) { if (key) { mus.key = key; mus.lostAt = 0; renderMusic(); } },
       done: function (ms) {
         if (pnl !== me) return;
@@ -3498,6 +3529,7 @@
     var conf = p && p.lovelace && p.lovelace.config;
     var raw = conf && conf.hk_screensaver;
     if (conf && raw === undefined) raw = fromSettings(conf);
+    if (previewOn && previewHouse) raw = houseBlock() || raw;
     var HS = window.hkSettings;
     if (HS && HS.lovelacePanel && HS.lovelacePanel() === false) raw = null;
     var key = raw ? JSON.stringify(raw) : '';
@@ -3585,8 +3617,10 @@
     // HK Settings' preview frame: show it now and keep it up; false takes it away
     // `shape`: 'portrait' or 'landscape' -- a photo of that shape (the
     // Portrait / Landscape Photos settings), held while they change
-    preview: function (v, shape) {
+    // `house`: with All Screens' settings, not this screen's own
+    preview: function (v, shape, house) {
       var sh = shape === 'portrait' || shape === 'landscape' ? shape : null;
+      previewHouse = !!(v && house);
       if (sh !== previewShape) {
         previewShape = sh;
         if (lastPh && sh && shapeOfPh(lastPh) !== sh) lastPh = null;

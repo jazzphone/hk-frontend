@@ -63,8 +63,36 @@ async def test_a_joined_single_room_is_released_first(music, house):
     house.set(K, "playing"), house.set(LR, "playing"), house.set(OFF, "playing")
     res = await music.play([OFF], key(music, "Country"))
     assert res["ok"] and res["leader"] == OFF
-    assert house.called("media_pause"), "a streaming group must be paused to release"
+    assert house.called("media_pause"), "a streaming room must be paused to release"
     assert house.members(OFF) == []
+    # ...and only it: the group plays on in the rooms not picked
+    assert house.members(K) == [K, LR] and house.state(K) == "playing"
+    assert all(K not in str(d["entity_id"]) and LR not in str(d["entity_id"]) for d in house.called("media_pause"))
+
+
+async def test_new_music_on_some_of_a_group_leaves_the_rest_playing(music, house):
+    # the user's case: Living Room + Master Bedroom playing; a playlist on
+    # Master Bedroom and two quiet rooms -- Living Room must keep its music
+    house.group(LR, [K])
+    house.set(LR, "playing", media_content_id="q1"), house.set(K, "playing", media_content_id="q1")
+    res = await music.play([K, OFF, LOFT], key(music, "Country"))
+    assert res["ok"] and res["leader"] == K
+    assert house.state(LR) == "playing" and house.members(LR) in ([], [LR])
+    assert sorted(house.members(K)) == sorted([K, OFF, LOFT])
+    assert not [d for d in house.called("media_pause") if LR in str(d["entity_id"])]
+
+
+async def test_new_music_on_a_groups_leader_moves_its_music_to_the_rest(music, house):
+    # the leader picked: what it plays moves to the room left behind first
+    house.group(LR, [K])
+    house.set(LR, "playing", media_content_id="q1"), house.set(K, "playing", media_content_id="q1")
+    res = await music.play([LR, OFF], key(music, "Country"))
+    assert res["ok"] and res["leader"] == LR
+    tq = house.called("transfer_queue")
+    assert tq and tq[0]["entity_id"] == K and tq[0]["source_player"] == LR
+    assert house.state(K) == "playing"
+    assert house.hass.states.get(K).attributes.get("media_content_id") == "q1"
+    assert sorted(house.members(LR)) == sorted([LR, OFF])
 
 
 async def test_an_unrelated_group_is_left_alone(music, house):
@@ -202,6 +230,18 @@ async def test_transfer_refusals(music, house):
     assert "not playing" in (await music.transfer([LOFT], OFF))["message"]
     house.set(OFF, "playing")
     assert "already" in (await music.transfer([OFF], OFF))["message"]
+
+
+async def test_the_leader_alone_lets_the_rest_of_its_group_go(music, house):
+    # the Music page freeing Master Bedroom for a new pick: Living Room keeps
+    # the music, the room it was joined with is let go (and paused)
+    house.group(LR, [K])
+    house.set(LR, "playing", media_content_id="q1"), house.set(K, "playing")
+    res = await music.transfer([LR], LR)
+    assert res == {"ok": True, "leader": LR}
+    assert house.members(K) in ([], [K])
+    assert house.state(LR) == "playing"
+    assert house.called("unjoin") and not house.called("transfer_queue")
 
 
 async def test_a_partial_add_keeps_the_music_and_says_so(music, house, hass):

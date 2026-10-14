@@ -11,9 +11,10 @@
 //            then the art, the song, the progress, Speakers / previous /
 //            play-pause / next / Queue, the volume and Up Next.
 //   BACK     Speakers (and Change) turns what plays over to the panel the
-//            screensaver has (modules/hk-saver-panel.js): Speakers with Add,
-//            Transfer and Stop, each room's Volume, and the Queue. With
-//            nothing playing, Speakers picks where the next music plays.
+//            screensaver has (modules/hk-saver-panel.js): Speakers -- what's
+//            ticked is where it plays: the next pick, and Update moves what
+//            plays there; Reset, Stop -- each room's Volume, and the Queue.
+//            With nothing playing, Speakers picks where the next music plays.
 //   RIGHT    Browse Music (hk-library-card, `layout: music`): search, Your
 //            Playlists (the Play Music tiles, here), Discover, the Library --
 //            everything it plays goes where the left side says.
@@ -81,6 +82,8 @@
     var h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
     return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (x < 10 ? '0' : '') + x;
   }
+  // the page's 16 px foot while a tab bar along the bottom shows, else 0
+  var BAR_GAP = 'min(16px, var(--hk-tabbar-h, 0px))';
   var COLS3 = 1500, COLS2 = 760;          // the card's width for three / two columns
   var MIN_COL = 296;                       // the left column never narrower (its five buttons)
   var TICK = 1000, VOL_EVERY = 250, VOL_HOLD = 4000, TURN_MS = 620;
@@ -132,16 +135,19 @@
     // (its inside fills it, within its border: sized from the column, it ran
     // 2 px past it and the close button sat 1 px nearer the edge)
     '.mpanel.pg .mpin{width:100%!important;height:100%!important;zoom:1!important}',
-    // (Add and Transfer a little smaller in the column; Stop's square as the panel's)
+    // (Reset and Update a little smaller in the column; Stop's square as the panel's)
     '.mpanel.pg .mpact,.mpanel.sheet .mpact{font-size:15px;gap:6px}',
     '.mpanel.pg .mpact svg,.mpanel.sheet .mpact svg{width:16px;height:16px}',
     '.mpanel.pg .mpact.stop svg,.mpanel.sheet .mpact.stop svg{width:18px;height:18px}',
-    // ...the desk's rooms column: Speakers alone, always open
+    // ...the desk's rooms column: always open, Speakers and Volume as the
+    // pop-up's tabs (the user's ask, 2026-10-14) -- no close button
     '.rooms .mpanel{display:block;position:absolute;inset:0}',
-    '.rooms .mptabs div:not(.on),.rooms .mpx{display:none}',
-    '.rooms .mptabs{background:none;border:0;padding:0}',
-    '.rooms .mptabs div.on{color:#fff;font-size:17px;padding:0 2px}',
-    '.rooms .mptabs div.on::before{display:none}',
+    '.rooms .mpx{display:none}',
+    // ...and a panel of one tab (the desk's Queue, its Volume in the
+    // column): that tab as its title
+    '.mpanel.one .mptabs{background:none;border:0;padding:0}',
+    '.mpanel.one .mptabs div.on{color:#fff;font-size:17px;padding:0 2px;justify-content:flex-start}',
+    '.mpanel.one .mptabs div.on::before{display:none}',
     '.rooms.hl .mpanel{animation:muhl .9s ease}',
     '@keyframes muhl{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}40%{box-shadow:0 0 0 3px rgba(255,255,255,.7)}}',
     // ...and on a phone a sheet from the foot
@@ -154,26 +160,15 @@
     ''
   ].join('');
 
+  // PLAYS ON'S DROP-DOWN (2026-10-14): the Speakers panel (Speakers and
+  // Volume, as the desk's column has them) under the button -- an opaque
+  // plate of its own, the panel inside it as on the page (.pg)
   var PICK_CSS = [
     '.pkscrim{position:fixed;inset:0;z-index:24}',
-    '.pk{position:absolute;z-index:25;width:360px;max-height:560px;border-radius:24px;display:flex;flex-direction:column;overflow:hidden;color:#fff;',
-    '  background:rgba(36,24,52,.97);box-shadow:0 24px 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.14);',
+    '.pk{position:absolute;z-index:25;width:380px;border-radius:26px;overflow:hidden;color:#fff;',
+    '  background:rgba(36,24,52,.97);box-shadow:0 24px 60px rgba(0,0,0,.5);',
     '  transform-origin:top right;animation:pkin .22s cubic-bezier(.32,.72,0,1)}',
     '@keyframes pkin{from{opacity:0;transform:scale(.94) translateY(-6px)}to{opacity:1;transform:none}}',
-    '.pk.sheetpk{position:fixed;left:0;right:0;bottom:0;top:auto!important;width:auto;max-height:80vh;border-radius:28px 28px 0 0;animation:none;',
-    '  transform:translateY(100%);transition:transform .38s cubic-bezier(.32,.72,0,1)}',
-    '.pk.sheetpk.in{transform:none}',
-    '.pkscrim.on{background:rgba(0,0,0,.4)}',
-    '.pkh{flex:none;padding:18px 18px 8px}',
-    '.pkh b{display:flex;align-items:center;gap:8px;font-size:18px}',
-    '.pkh ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
-    '.pkh p{margin:6px 0 0;font-size:13px;opacity:.72;line-height:1.35}',
-    '.pkb{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px 18px;scrollbar-width:none}',
-    '.pkb::-webkit-scrollbar{display:none}',
-    '.pkb .mpchips{flex-wrap:wrap;overflow:visible;margin:0 0 10px;padding:0}',
-    '.pkf{flex:none;display:flex;align-items:center;gap:8px;padding:12px 18px 16px;border-top:1px solid rgba(255,255,255,.12)}',
-    '.pklnk{font-size:14px;font-weight:600;opacity:.8;cursor:pointer;margin-right:auto}',
-    '.pkdone{height:40px;padding:0 20px;border-radius:12px;border:0;background:#fff;color:#111;font:inherit;font-weight:700;cursor:pointer}',
     '@media (prefers-reduced-motion:reduce){.pk{animation:none}}'
   ].join('');
 
@@ -185,6 +180,16 @@
     // a finger on it moved nothing; a wheel moved the whole page)
     '.mu{position:relative;display:grid;column-gap:36px;height:var(--mu-h,auto);color:' + window.hkCards.v('ink') + '}',
     '.mu:not([cols="1"]){grid-template-rows:minmax(0,1fr)}',
+    // A TAB BAR ALONG THE BOTTOM (2026-10-14; _layout): the frame runs on
+    // under it by the page's 16 px foot (BAR_GAP: 16 px with a bar, 0
+    // without); Browse gets the bar's room at the end of its own scroll
+    // (hk-library.js --hk-lib-foot) and scrolls behind it; Now Playing and
+    // the Speakers column end above it, the 16 px foot clear of it; and the
+    // card gives back what the view already pads for the bar, or the whole
+    // page could be scrolled up by it
+    '.mu:not([cols="1"]){margin-bottom:calc(0px - var(--hk-tabbar-h, 0px) - ' + BAR_GAP + ')}',
+    '.mu:not([cols="1"]) .right{--hk-lib-foot:var(--hk-tabbar-h, 0px)}',
+    '.mu:not([cols="1"]) .left,.mu[cols="3"] .rooms{margin-bottom:calc(var(--hk-tabbar-h, 0px) + ' + BAR_GAP + ')}',
     '.mu[cols="2"]{grid-template-columns:352px minmax(0,1fr)}',
     '.mu[cols="3"]{grid-template-columns:400px minmax(0,1fr) 380px;column-gap:48px}',
     '.mu[cols="1"]{grid-template-columns:minmax(0,1fr);row-gap:22px}',
@@ -210,6 +215,9 @@
     '.pon .chg{flex:none;height:36px;padding:0 15px;border-radius:11px;background:#fff;color:#1d1426;font-size:14px;font-weight:700;',
     '  display:flex;align-items:center;cursor:pointer;border:0;font-family:inherit}',
     '.pon .chg:active{filter:brightness(.9)}',
+    // ...ONLY WHILE SOMETHING PLAYS (2026-10-14): nothing playing, "Ready on"
+    // said what Plays on (or the Speakers column) already says
+    '.mu.idle .pon{display:none}',
     // THE HOUSE: a card for each thing playing
     '.house{flex:none;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}',
     '.house:empty{display:none}',
@@ -431,8 +439,8 @@
     }
     // WHERE THE NEXT PICK PLAYS (Play Next On, 2026-10-11): the rooms picked
     // for it, while music plays elsewhere; else what plays; else where the
-    // page is ready. The left side never changes it: that is the music
-    // playing; this is the music to come.
+    // page is ready. Plays on and the Speakers panel's ticks set it
+    // (_setNext); Update in the panel moves what plays to it.
     _rooms() {
       var c = this._ctx();
       if (c && this._nextRooms && this._nextRooms.length) return this._nextRooms.slice();
@@ -585,6 +593,8 @@
         self._e.right.appendChild(lib);
         self._lib = lib;
         lib.toggleAttribute('flow', self._cols === 1);
+        // (three columns already: no Plays on beside the search -- _layout)
+        if (self._cols === 3) { lib.routeEl.style.display = 'none'; lib.noteEl.style.display = 'none'; }
         if (self._config.focus_search) setTimeout(function () {
           var s = lib.shadowRoot && lib.shadowRoot.querySelector('.search');
           if (s) try { s.focus(); } catch (e) { /* not focusable yet */ }
@@ -622,11 +632,20 @@
       this._flagSaid = true;
       this._wanted();
       // TWO OR THREE COLUMNS FILL THE WINDOW BELOW THE TITLE: what plays
-      // stays, Browse scrolls in its own column
+      // stays, Browse scrolls in its own column. With a tab bar along the
+      // bottom (hk-tabbar.js --hk-tabbar-h) the frame runs to the window's
+      // foot and Browse scrolls BEHIND the bar, with the bar's room at its
+      // end, as every page does (CSS, BAR_GAP); the columns that do not
+      // scroll end above it.
       var vh = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hk-vh')) || window.innerHeight;
       var top = this.getBoundingClientRect().top + (document.scrollingElement ? 0 : 0);
-      if (cols >= 2) this.style.setProperty('--mu-h', Math.max(420, Math.round(vh - Math.max(0, top) - 16)) + 'px');
+      if (cols >= 2) this.style.setProperty('--mu-h', 'max(420px, calc(' + Math.round(vh - Math.max(0, top) - 16) + 'px + ' + BAR_GAP + '))');
       else { this.style.removeProperty('--mu-h'); this.style.setProperty('--mu-rh', Math.round(vh - 90) + 'px'); }
+      // THREE COLUMNS: the Speakers column ticks where the next pick plays
+      // (and moves what plays), so Plays on and its line go and the search
+      // takes the row (the user's design, 2026-10-14)
+      if (this._routeBtn) this._routeBtn.style.display = cols === 3 ? 'none' : '';
+      if (this._noteEl) this._noteEl.style.display = cols === 3 ? 'none' : '';
       if (this._lib) {
         this._lib.toggleAttribute('flow', cols === 1);
         // (a phone's field says less: the button beside it takes the room)
@@ -651,7 +670,7 @@
       var P = window.hkSaverPanel;
       if (this._roomsPnl) { this._roomsPnl.destroy(); this._roomsPnl = null; }
       if (!on || !P || !this._panelCss()) return;
-      this._roomsPnl = P.create(this._panelOpts(['speakers'], true));
+      this._roomsPnl = P.create(this._panelOpts(['speakers', 'volume'], true));
       this._roomsPnl.el.classList.add('pg');
       this._e.rooms.appendChild(this._roomsPnl.el);
       this._roomsPnl.size(this._e.rooms.clientWidth || 380, this._e.rooms.clientHeight || 700, 1);
@@ -667,6 +686,10 @@
         stop: true,
         target: function () { return self._targetRooms(); },
         setTarget: function (rooms) { self._target = rooms.slice(); self._hkSig = null; if (self._hass) self.hass = self._hass; },
+        // PLAYING, ITS TICKS ARE WHERE THE NEXT PICK PLAYS (2026-10-14): the
+        // same rooms as Plays on's (null: back to what plays)
+        next: function () { return self._rooms(); },
+        setNext: function (rooms) { self._setNext(rooms); },
         follow: function (key) { var Mu = self._M(); if (key && Mu && Mu.known(key)) Mu.setFocus(key); },
         done: function (ms) {
           if (fixed) return;
@@ -697,6 +720,19 @@
       // WHAT PLAYS
       var pic = c ? (a.entity_picture_local || a.entity_picture || '') : '';
       if (pic && pic.charAt(0) === '/') pic = location.origin + pic;
+      // THE PAGE'S BLURRED BACKGROUND IS THIS COVER (hk-sky.js, playmusic,
+      // listens for hk-now-art). Only the now-playing bar said it, and on a
+      // tablet the bar is not on this page -- so the background followed
+      // the music only when some bar happened to redraw (the user,
+      // 2026-10-14: "sometimes, not always"). Said here too, in the bar's
+      // exact form (hk-media.js _art), so the two never disagree on a phone,
+      // where both are up; nothing playing clears it.
+      var pub = c ? (a.entity_picture_local || a.entity_picture || a.media_image_url || a.thumbnail || '') : '';
+      if (pub && pub.charAt(0) === '/') pub = location.origin + pub;
+      if (window.hkNowArt !== (pub || null)) {
+        window.hkNowArt = pub || null;
+        window.dispatchEvent(new CustomEvent('hk-now-art', { detail: { url: pub || null } }));
+      }
       if (pic !== this._artUrl) {
         this._artUrl = pic;
         e.art.innerHTML = '<ha-icon icon="mdi:music"></ha-icon>';
@@ -1103,101 +1139,74 @@
       return el;
     }
 
-    // ------------------------------------------------------------ Play Next On
-    // A DROP-DOWN FROM "Plays on" (a sheet from the foot on a phone): where
-    // the next playlist, album or song plays -- rooms ticked, presets fill
-    // them in, Done. Never the turned-over Speakers panel: that is the music
-    // playing, this the music to come. Nothing playing, it is the same
-    // choice as Speakers' (the rooms the page is ready on).
+    // ------------------------------------------------------------ Plays on
+    // A TAP ON "Plays on" OPENS THE SPEAKERS PANEL (2026-10-14, the user's
+    // ask: the same one as the desk's column) -- dropped down under the
+    // button on two columns, the page's own Speakers sheet on a phone. Its
+    // ticks are where the next pick plays (_setNext), and Update moves what
+    // plays there. On three columns the column is always up instead.
     _openPick(anchor) {
-      var self = this, e = this._e;
-      if (!e || !this._panelCss()) return;
+      var self = this, e = this._e, P = window.hkSaverPanel;
+      if (!e || !P || !this._panelCss()) return;
+      if (this._cols === 1) { if (!(this._pnl && this._pnl.p.tab() === 'speakers')) this._openPanel('speakers'); return; }
+      if (this._cols === 3) { this._openPanel('speakers'); return; }
       this._closePick();
       this._closePanel(false);
       var card = this._root.querySelector('ha-card');
       var scrim = document.createElement('div'); scrim.className = 'pkscrim';
-      var pk = document.createElement('div'); pk.className = 'pk' + (this._cols === 1 ? ' sheetpk' : '');
-      pk.innerHTML = '<div class="pkh"><b><ha-icon icon="hk:homepod"></ha-icon>Play Next On</b><p></p></div>' +
-                     '<div class="pkb"><div class="mpchips"></div><div class="mprooms"></div></div>' +
-                     '<div class="pkf"><span class="pklnk" role="button"></span><button class="pkdone">Done</button></div>';
-      card.appendChild(scrim); card.appendChild(pk);
-      if (this._cols !== 1 && anchor) {
-        var cr = card.getBoundingClientRect(), ar = anchor.getBoundingClientRect();
-        pk.style.right = Math.max(0, Math.round(cr.right - ar.right)) + 'px';
-        pk.style.top = Math.round(ar.bottom - cr.top + 8) + 'px';
-        var room = (window.innerHeight || 800) - ar.bottom - 24;
-        pk.style.maxHeight = Math.max(280, Math.round(room)) + 'px';
-      }
-      this._pk = { el: pk, scrim: scrim };
-      var done = function () { self._closePick(); };
-      scrim.addEventListener('click', done);
-      pk.querySelector('.pkdone').addEventListener('click', done);
-      pk.querySelector('.pklnk').addEventListener('click', function () {
-        if (self._ctx()) self._nextRooms = null; else self._target = null;
-        self._drawPick(); self._refreshPlaylists(true);
-      });
-      pk.addEventListener('click', function (ev) {
-        var r = ev.target.closest && ev.target.closest('[data-room],[data-preset]');
-        if (!r) return;
-        var Mu = self._M(), cur = self._rooms().slice();
-        if (r.hasAttribute('data-preset')) {
-          var p = Mu.presets().filter(function (x) { return x.entity === r.getAttribute('data-preset'); })[0];
-          if (p) cur = p.members.slice();
-        } else {
-          var k = r.getAttribute('data-room'), i = cur.indexOf(k), st = self._hass.states[k];
-          if (i >= 0) { if (cur.length > 1) cur.splice(i, 1); }
-          else if (st && st.state !== 'unavailable' && st.state !== 'unknown') cur.push(k);
-        }
-        self._setNext(cur);
-      });
-      this._drawPick();
-      if (this._cols === 1) requestAnimationFrame(function () { requestAnimationFrame(function () { pk.classList.add('in'); scrim.classList.add('on'); }); });
+      var box = document.createElement('div'); box.className = 'pk';
+      var cr = card.getBoundingClientRect(), ar = (anchor || card).getBoundingClientRect();
+      // AS TALL AS THE SCREEN ALLOWS: down to where the player's column ends
+      // -- the window's foot, or above a tab bar along the bottom -- so its
+      // foot lines up with Now Playing's
+      var foot = e.left.getBoundingClientRect().bottom || (window.innerHeight || 800) - 16;
+      var w = Math.min(380, Math.round(cr.width - 16)), h = Math.round(Math.max(320, foot - ar.bottom - 8));
+      box.style.right = Math.max(0, Math.round(cr.right - ar.right)) + 'px';
+      box.style.top = Math.round(ar.bottom - cr.top + 8) + 'px';
+      box.style.width = w + 'px'; box.style.height = h + 'px';
+      card.appendChild(scrim); card.appendChild(box);
+      var o = this._panelOpts(['speakers', 'volume'], true);
+      // (its X, and a moment after Update has landed, close it)
+      o.done = function (ms) { clearTimeout(self._pickT); self._pickT = setTimeout(function () { self._closePick(); }, ms || 0); };
+      var p = P.create(o);
+      p.el.classList.add('pg', 'up');
+      box.appendChild(p.el);
+      p.size(w, h, 1);
+      p.show('speakers');
+      this._pk = { el: box, scrim: scrim, p: p };
+      scrim.addEventListener('click', function () { self._closePick(); });
     }
-    // the rooms picked: back to "what plays" when they are just that
+    // the rooms picked: back to "what plays" when they are just that (null:
+    // back to it). Plays on's panel, the Speakers panel and the desk's
+    // column all set them, and each shows what the others picked.
     _setNext(rooms) {
       var c = this._ctx(), same = function (a, b) { return a.length === b.length && a.every(function (r) { return b.indexOf(r) >= 0; }); };
-      if (c) this._nextRooms = same(rooms, c.members) ? null : rooms;
-      else { this._target = rooms; this._hkSig = null; }
+      if (c) this._nextRooms = !rooms || same(rooms, c.members) ? null : rooms.slice();
+      else if (rooms) { this._target = rooms.slice(); this._hkSig = null; }
       this._drawPick();
       this._refreshPlaylists(true);
+      if (this._roomsPnl) this._roomsPnl.update();
+      if (this._pnl) this._pnl.p.update();
       if (!c && this._hass) this.hass = this._hass;
     }
-    _drawPick() {
-      var pk = this._pk && this._pk.el, Mu = this._M(), h = this._hass;
-      if (!pk || !Mu || !h) return;
-      var c = this._ctx(), g = this._rooms(), self = this, others = {};
-      Mu.contexts(h).forEach(function (x) { x.members.forEach(function (r) { others[r] = x; }); });
-      pk.querySelector('.pkh p').textContent = 'Pick where the next playlist, album or song plays.' +
-        (c ? ' ' + (c.title || Mu.label(c)) + ' keeps playing where it is, unless you pick its rooms.' : '');
-      var same = function (a, b) { return a.length === b.length && a.every(function (r) { return b.indexOf(r) >= 0; }); };
-      pk.querySelector('.mpchips').innerHTML = Mu.presets().map(function (p) {
-        return '<div class="mpchip' + (same(g, p.members) ? ' on' : '') + '" data-preset="' + esc(p.entity) + '">' + esc(p.name) + '</div>';
-      }).join('');
-      pk.querySelector('.mprooms').innerHTML = Mu.rooms().map(function (r) {
-        var k = r.entity, on = g.indexOf(k) >= 0, st = h.states[k], off = !st || st.state === 'unavailable' || st.state === 'unknown';
-        var x = others[k], line = off ? 'Unavailable' : x ? 'Playing ' + (x.title || Mu.label(x)) + (on && (!c || x.key !== c.key || self._nextSet()) ? ' \u2014 will switch' : '') : '';
-        return '<div class="mproom' + (on ? ' sel' : '') + (off && !on ? ' off' : '') + '" data-room="' + esc(k) + '"><div class="ri"><ha-icon icon="hk:homepod"></ha-icon></div>' +
-               '<div class="rn"><b>' + esc(r.name) + '</b>' + (line ? '<small>' + esc(line) + '</small>' : '') + '</div><div class="ck"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></div></div>';
-      }).join('');
-      var lnk = pk.querySelector('.pklnk');
-      lnk.textContent = c ? 'Same as what\u2019s playing' : 'This room';
-      lnk.style.visibility = (c ? this._nextSet() : !!this._target) ? '' : 'hidden';
-    }
+    _drawPick() { if (this._pk) this._pk.p.update(); }
     _closePick() {
       var p = this._pk;
       if (!p) return;
       this._pk = null;
-      p.el.remove(); p.scrim.remove();
+      clearTimeout(this._pickT);
+      p.p.destroy(); p.el.remove(); p.scrim.remove();
     }
 
     // ------------------------------------------------------------ the panel
     // Turned over in place of the left column (a sheet on a phone); its tabs
-    // Speakers, Volume, Queue -- Volume and Queue alone with the desk's rooms
-    // column showing
+    // Speakers, Volume, Queue -- Queue alone with the desk's rooms column
+    // showing (Speakers and Volume are its tabs)
     _openPanel(tab) {
       var P = window.hkSaverPanel, self = this;
       if (!this._e) return;                 // not built (the Music feature is not added)
-      if (this._cols === 3 && tab === 'speakers') {
+      if (this._cols === 3 && (tab === 'speakers' || tab === 'volume')) {
+        if (this._roomsPnl && this._roomsPnl.tab() !== tab) this._roomsPnl.show(tab);
         var r = this._e.rooms; r.classList.remove('hl'); void r.offsetWidth; r.classList.add('hl');
         return;
       }
@@ -1206,8 +1215,9 @@
         if (this._pnl.p.tab() === tab) this._closePanel(true); else { this._pnl.p.show(tab); this._buttons(); }
         return;
       }
-      var tabs = this._cols === 3 ? ['volume', 'queue'] : ['speakers', 'volume', 'queue'];
+      var tabs = this._cols === 3 ? ['queue'] : ['speakers', 'volume', 'queue'];
       var p = P.create(this._panelOpts(tabs, false));
+      if (tabs.length === 1) p.el.classList.add('one');
       var sheet = this._cols === 1;
       p.el.classList.add(sheet ? 'sheet' : 'pg');
       p.el.classList.add('up');

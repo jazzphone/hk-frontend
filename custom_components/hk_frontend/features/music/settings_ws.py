@@ -5,7 +5,8 @@ at a time:
 
     hk_music/settings/get                      -> the page
     hk_music/settings/set {changes}            -> speakers (in order), volume (0..1),
-                                                  homes ({user id: speaker or null})
+                                                  homes ({user id: speaker or null}),
+                                                  keep_ready (true/false)
     hk_music/settings/library                  -> the library's playlists [{uri, name}]
     hk_music/preset/save {item?, name, group, members}   (item: the preset's id; none adds one)
     hk_music/playlist/save {item?, name, icon, items, chooser, order}
@@ -38,8 +39,8 @@ from homeassistant.helpers import entity_registry as er
 
 from .. import MUSIC, Feature, async_update, entries
 from .const import (
-    CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_MEMBERS, CONF_NAME,
-    CONF_ORDER, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME, SUB_PLAYLIST, SUB_PRESET,
+    CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_KEEP_READY, CONF_MEMBERS,
+    CONF_NAME, CONF_ORDER, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME, SUB_PLAYLIST, SUB_PRESET,
 )
 from .flows import library, playlist_errors, preset_errors, speakers_errors
 from .music import MusicConfig
@@ -55,6 +56,7 @@ MSG = {
     "not_in_library": "That playlist isn’t in the Music Assistant library.",
     "volume": "Choose 0 to 100 %.",
     "homes": "A home room must be one of the speakers.",
+    "on_off": "Choose on or off.",
     "not_a_player": "That isn’t a Music Assistant player.",
     "list": "That list couldn’t be read.",
     "unknown": "That setting doesn’t exist.",
@@ -118,7 +120,15 @@ async def page(hass: HomeAssistant) -> dict[str, Any]:
                        "chooser": p.chooser, "order": p.order} for p in cfg.playlists],
         "players": [{"entity": e, "name": _name(hass, e)} for e in _players(hass, entry)],
         "library_ready": cfg.library_entry is not None,
+        "keep_ready": bool(entry.options.get(CONF_KEEP_READY)),
+        # the last round, or None: {at, ready, wanted, note}
+        "keep_ready_last": _warmer_status(entry),
     }
+
+
+def _warmer_status(entry: Feature) -> dict[str, Any] | None:
+    warmer = getattr(getattr(entry, "runtime_data", None), "warmer", None)
+    return warmer.status() if warmer is not None else None
 
 
 def _refused(connection, msg_id: int, errors: dict[str, str]) -> None:
@@ -137,7 +147,7 @@ def apply(hass: HomeAssistant, entry: Feature, changes: dict[str, Any]
     opts, errors = dict(entry.options), {}
     players = set(_players(hass, entry))
     for k in changes:
-        if k not in (CONF_SPEAKERS, CONF_VOLUME, CONF_HOMES):
+        if k not in (CONF_SPEAKERS, CONF_VOLUME, CONF_HOMES, CONF_KEEP_READY):
             errors[k] = MSG["unknown"]
     if CONF_SPEAKERS in changes:
         sp = changes[CONF_SPEAKERS]
@@ -157,6 +167,11 @@ def apply(hass: HomeAssistant, entry: Feature, changes: dict[str, Any]
             errors[CONF_VOLUME] = MSG["volume"]
         else:
             opts[CONF_VOLUME] = round(float(v), 2)
+    if CONF_KEEP_READY in changes:
+        if not isinstance(changes[CONF_KEEP_READY], bool):
+            errors[CONF_KEEP_READY] = MSG["on_off"]
+        else:
+            opts[CONF_KEEP_READY] = changes[CONF_KEEP_READY]
     if CONF_HOMES in changes:
         h = changes[CONF_HOMES]
         rooms = opts.get(CONF_SPEAKERS) or []

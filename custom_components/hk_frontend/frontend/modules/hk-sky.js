@@ -5646,6 +5646,29 @@
     });
   }
 
+  // ONE COVER TO THE NEXT, CROSSFADED (2026-10-14: switching between two
+  // groups playing snapped the whole page from one color to the other in a
+  // frame -- the user's recording). The cover going out stays on top as a
+  // copy of the layer and fades away over the new one, which is already
+  // loaded (measureArt). Two blurred layers for ART_FADE ms only, then one.
+  var ART_FADE = 900;
+  function artFade(el, art, next) {
+    var was = art && art.style.backgroundImage;
+    var on = parseFloat(el.style.getPropertyValue('--artO')) > 0;
+    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var gone = el.querySelector('.art.was');
+    if (gone) gone.remove();
+    if (!was || was === next || !on || still) return;
+    var old = art.cloneNode(false);
+    old.classList.add('was');
+    old.style.backgroundImage = was;
+    old.style.opacity = getComputedStyle(art).opacity;
+    old.style.transition = 'opacity ' + ART_FADE + 'ms ease';
+    art.parentNode.insertBefore(old, art.nextSibling);
+    void old.offsetWidth;
+    old.style.opacity = '0';
+    setTimeout(function () { if (old.parentNode) old.remove(); }, ART_FADE + 120);
+  }
   function paintAlbum(el, url, gradL) {
     if (!url) {
       el.style.setProperty('--artO', '0');
@@ -5656,8 +5679,10 @@
     }
     measureArt(url, function (L) {
       if (!el.isConnected) return;
-      el.style.setProperty('--art', 'url("' + url + '")');
-      el.querySelector('.art').style.backgroundImage = 'url("' + url + '")';
+      var art = el.querySelector('.art'), next = 'url("' + url + '")';
+      artFade(el, art, next);
+      el.style.setProperty('--art', next);
+      art.style.backgroundImage = next;
       // The composite the cap has to judge: the cover over the palette at
       // ART_O. A cover we could not measure is assumed BRIGHT, because the
       // failure that matters is unreadable pills, not a dull background.

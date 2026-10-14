@@ -12,8 +12,8 @@ opening the same screen never gets it.
 
 ![The photo screensaver on a wall tablet: the clock, date and weather top left, Home Status top right](images/tablet-screensaver.png)
 
-*(The picture behind the clock is HK Frontend’s own fall sky, standing in for
-one of your photos.)*
+*(The photo is one of HK Frontend’s own [Landscapes](#landscapes), standing
+in for one of yours.)*
 
 1. Put some photos in a folder of Home Assistant’s media, and tell HK
    Frontend where: **HK Settings → All Screens → Screensaver → Screensaver
@@ -91,7 +91,9 @@ tablet runs it.
   and everything is shut and locked; otherwise what is open or unlocked;
   nothing when there is nothing to say). Each can be turned off under **Over
   the Photos**.
-- **Tap the left or right edge** for the previous or next photo. **A tap
+- **Tap the left or right edge** for the previous or next photo (on
+  **Show: Clock** there is no stepping, even with photos or the Landscapes
+  behind the clock: a tap anywhere closes it). **A tap
   anywhere else closes it**, and that tap never presses anything on the
   screen behind; taps are ignored for 3 seconds after, so a second tap cannot
   either.
@@ -176,9 +178,10 @@ With Show: Clock:
   (contour bands flowing slowly) or **Constellation** (drifting points joined
   by fine lines); **Forecast** (the forecast's sky and the season's land);
   **Sky Only** (the same live sky -- its clouds, stars, sun, moon, rain and
-  snow -- with no land, trees or decorations under it); or **Photos** (your
-  photos, below). Every one but Black moves. Forecast and Sky Only move as
-  the live sky does, and Photos as the photos change. The rest (Grain Wash
+  snow -- with no land, trees or decorations under it); **Photos** (your
+  photos, below); or **Landscapes** (HK Frontend's own photos, below).
+  Every one but Black moves. Forecast and Sky Only move as the live sky
+  does, and Photos and Landscapes as the photos change. The rest (Grain Wash
   through Constellation) have **Speed**, how fast (0 holds it still,
   changing once a minute, for a tablet that runs warm), and **Depth**, how
   strong (the colors, the glow, the relief, how many contours or points).
@@ -203,6 +206,23 @@ With Show: Clock:
 (0–80%, 35% to begin with) dims them so the clock reads. **Photos: Sharp**
 shows them as they are; **Soft** is the older look, blurred, dimmed copies
 one at a time.
+
+### Landscapes
+
+**Behind the Clock → Landscapes** shows fifty photos that come with HK
+Frontend in place of your own: mountains, lakes, coasts, deserts, canyons,
+forests, waterfalls, snow, the Milky Way and the northern lights. Nothing to
+set up, and nothing of your home on the screen. They change and lay out the
+way your photos do (**Each Photo For**, **Order**, **Layout**, **Darken**,
+**Sharp** or **Soft**).
+
+![The Big Serif clock over one of the Landscapes](images/saver-clock-landscapes.png)
+
+They are 1920 pixels wide, about 300 KB each, and every one is public domain
+or CC0, from Wikimedia Commons; `frontend/landscapes/index.json` lists each
+photo's source. To show a set of your own instead, put an `index.json` and
+your pictures in a `landscapes` folder of [your files](Your-Files.md): it is
+read in place of the bundled one.
 
 **Clock Text**, over photos, sets how much the clock stands out from them:
 **Shadow** (a soft shadow under it, 40% to begin with) and **Outline** (a dark
@@ -294,25 +314,27 @@ the left and **Browse** on the right, in the slide and in the side pane. A tap
 turns the album art over (in the side pane, the whole pane) and the panel is
 on its back, with three tabs:
 
-- **Speakers**: every room. The ones in the music are ticked and say *Playing
-  here*; a room playing something else says what. Tap rooms to pick them,
-  then **Add** puts them in with the music, or **Transfer** moves the music
-  to just those rooms (the others stop). Tapping a room that’s playing marks
-  it to leave, and Add becomes **Update**. The line above the buttons says
-  what each will do before you press it. **Everywhere**, **Downstairs** (your
-  presets) fill in the picks, and play on Music Assistant’s own sync group,
-  as on the Music page.
+- **Speakers**: every room; what’s ticked is where it plays. The rooms in
+  the music start ticked and say *Playing here*; a room playing something
+  else says what. Tap rooms to tick or untick them, then **Update**: the
+  music plays on exactly the ticked rooms (rooms join, rooms stop, or it
+  moves to them). **Reset** puts the ticks back. The line above the buttons
+  says what Update will do before you press it. **Everywhere**,
+  **Downstairs** (your presets) tick their rooms, and play on Music
+  Assistant’s own sync group, as on the Music page.
 - **Volume**: a slider for each room in the music (the slider on the front
   sets them all).
 - **Browse**: your playlists, then the Music page’s Browse itself (search,
-  your Discover rows, Artists, Albums and the rest), all playing on the
-  speakers this music is on, as the line at its top says. Search uses the
+  your Discover rows, Artists, Albums and the rest), all playing on the rooms
+  ticked under Speakers: the music’s own speakers, unless you ticked others
+  (then the line at its top says **Plays on** them, and the rooms you
+  didn’t tick keep playing what they play). Search uses the
   tablet’s keyboard; the screensaver stays up while you type.
 
-It closes by itself a moment after Add, Transfer or a play has gone through,
+It closes by itself a moment after Update or a play has gone through,
 after 30 seconds untouched, and when the music stops; or tap ✕, the same
 button again, or anywhere outside it (that tap never wakes the dashboard).
-![The screensaver's Speakers panel: rooms to tick, with Add, Transfer and Stop](images/tablet-screensaver-music-speakers.png)
+![The screensaver's Speakers panel: rooms to tick, with Reset, Update and Stop](images/tablet-screensaver-music-speakers.png)
 *The Speakers panel on the back of the album art.*
 
 While it’s open the slide stays put and the music’s other buttons still work.
@@ -680,8 +702,10 @@ its own (both in [Wall Tablets](Wall-Tablets.md#wall-tablets-settings)).
 | Setting | Default | What it does |
 |---|---|---|
 | Photos → Screensaver Photos | `media-source://media_source/local/photos` | The media folder every screen’s photo screensaver shows. |
-| The options | Photos · 3 Minutes | The same options as a screen’s [Screensaver Options](Screens.md#screensaver-options), for every screen whose **Same as All Screens** is on, with a preview of the first screen that uses them. |
+| The options | Photos · 3 Minutes | The same options as a screen’s [Screensaver Options](Screens.md#screensaver-options), for every screen whose **Same as All Screens** is on, with a live preview: a screen that uses them, else any screen with the screensaver, shown with All Screens' settings either way (the line under it names the screen). Clock Style's preview is the same. |
 | Screens | — | Each screen with the Photo Screensaver on, with **Same as All Screens** or **Just This Screen**. |
+
+![All Screens → Screensaver in HK Settings: Show set to Clock over the Landscapes, with the live preview beside it](images/settings-house-screensaver.png)
 
 Its address is `#/house/screensaver` in HK Settings; the old
 `#/house/tablets/screensaver` (Wall Tablets → Screensaver, before Screensaver

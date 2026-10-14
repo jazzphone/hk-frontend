@@ -827,7 +827,8 @@ SAVER_DEFAULTS: dict[str, Any] = {
 MOSAIC_COLORS = ("black", "white", "gray", "charcoal", "cream", "navy")
 SAVER_CLOCK_STYLES = ("today", "classic", "serif", "neon", "lcd", "flip", "analog", "words", "arc", "nixie", "poster",
                       "dots", "ring", "glass", "type")
-SAVER_CLOCK_BGS = ("black", "grain", "gradient", "aurora", "ink", "sky", "lowpoly", "topo", "constellation", "forecast", "skyonly", "photos")
+SAVER_CLOCK_BGS = ("black", "grain", "gradient", "aurora", "ink", "sky", "lowpoly", "topo", "constellation", "forecast", "skyonly", "photos",
+                   "landscapes")
 SAVER_CHOICES = {"clock_over": ("corner", "large"), "clock_style": SAVER_CLOCK_STYLES,
                  "clock_bg": SAVER_CLOCK_BGS, "clock_motion": ("slow", "still"),
                  "photo_layout": ("single", "mosaic"), "mosaic_gap": ("none", "thin", "rounded"),

@@ -120,7 +120,8 @@
     ['grain', 'Grain Wash', true, 'Moving'], ['gradient', 'Drifting Gradient', true, 'Moving'], ['aurora', 'Aurora', true, 'Moving'],
     ['ink', 'Ink Swirl', true, 'Moving'], ['sky', 'Follow the Sky', true, 'Moving'],
     ['lowpoly', 'Low Poly', true, 'Patterns'], ['topo', 'Topography', true, 'Patterns'], ['constellation', 'Constellation', true, 'Patterns'],
-    ['forecast', 'Forecast', false, 'From Your Screens'], ['skyonly', 'Sky Only', false, 'From Your Screens'], ['photos', 'Photos', false, 'From Your Screens']];
+    ['forecast', 'Forecast', false, 'From Your Screens'], ['skyonly', 'Sky Only', false, 'From Your Screens'], ['photos', 'Photos', false, 'From Your Screens'],
+    ['landscapes', 'Landscapes', false, 'Photographs']];
   // THE BACKGROUND (Sky / Background's first choice, 2026-10-13; settings.py
   // SKY_BACKGROUNDS): what it is, in a line under the tabs
   var SKY_BACKGROUNDS = [['live', 'Live Sky'], ['color', 'Color'], ['photo', 'Photo']];
@@ -906,7 +907,10 @@
   //   [{path, top: its own default, auto: listed when automatic}]
   var MENU_PATHS = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', live_tv: 'live-tv', security: 'security',
                      doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
-                     vacuums: 'vacuums', music: 'playmusic', water: 'water', energy: 'energy' };
+                     vacuums: 'vacuums', music: 'playmusic', water: 'water', energy: 'energy',
+                     // (the Power page, 2026-10-14: missing here, its row had no
+                     // place in the menu to pick -- hk-menu.js PAGE_PATHS has it)
+                     power: 'power' };
   var MENU_TOPS = { weather: 1, cameras: 1, live_tv: 1 };
   var MENU_FIXED = { rooms: 'Under Rooms' };
   var MENU_PLACES = [['top', 'Top of Menu'], ['list', 'Categories'], ['off', 'Not in Menu']];

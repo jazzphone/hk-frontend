@@ -919,6 +919,118 @@ a.res({ children: [{ title: 'from albums', media_content_type: 'music' }] });
 drain();
 ok('the newer browse wins', (c._items || [])[0].title, 'from artists');
 
+print('\n=== a playlist answers the tap before its tracks do ===');
+// Music Assistant fetches a playlist's tracks from Apple Music on the way in
+// (7-45 s measured cold, 2026-10-14). The header -- the tapped tile's cover
+// and title, "Loading songs…" -- is drawn at once, so the tap is answered.
+// What the body would show is read at each paint: the pending level, or the
+// list the card still holds.
+function shots(c) {
+  c._shots = [];
+  c._paint = function () {
+    this._shots.push(this._loading && this._pend ? 'head:' + this._pend.title
+                     : 'items:' + (this._items || []).map(function (n) { return n.title; }).join(','));
+  };
+}
+var PL = { title: 'Rock Classics', type: 'music', id: 'library://playlist/142',
+           node: { title: 'Rock Classics', media_content_id: 'library://playlist/142',
+                   thumbnail: 'http://art/rc.jpg' } };
+c = card('Kitchen'); shots(c);
+a = pending(); c._ws = function () { return a.promise; };
+c._items = [{ title: 'Playlists grid' }];
+c._stack = [{ title: 'Playlists', id: 'playlists' }, PL];
+c._load(PL);
+ok('opening a playlist draws its header at once', c._shots.join('|'), 'head:Rock Classics');
+ok('  ...and keeps the level it left, for back', c._items[0].title, 'Playlists grid');
+a.res({ children: [{ title: 'AC/DC - Thunderstruck', media_content_id: 'x://track/1',
+                     media_content_type: 'music' }] });
+drain();
+ok('  ...then the tracks replace it', c._shots[c._shots.length - 1], 'items:AC/DC - Thunderstruck');
+ok('  ...and nothing is pending', String(c._pend), 'null');
+// The header itself: same cover and title as the loaded one, the count
+// replaced by the wait, which breathes.
+h = c._head(PL, [], { cover: '' }, 'Loading songs…');
+ok('the waiting header names the playlist', h.children[1].children.map(function (x) {
+  return x.className + ':' + x.textContent; }).join('|'), 'h1:Rock Classics|h3 wait:Loading songs…');
+ok('  ...with the tile\'s cover', h.children[0].children[0].src, 'http://art/rc.jpg');
+
+// An ALBUM too: MA usually answers from its database in ~10 ms, but one
+// measured 50 s. The header stays put when the rows land, so no flash.
+c = card('Kitchen'); shots(c);
+a = pending(); c._ws = function () { return a.promise; };
+var AL = { title: 'Done With Mirrors', type: 'music', id: 'library://album/2038',
+           node: { media_content_id: 'library://album/2038' } };
+c._stack = [{ title: 'Albums', id: 'albums' }, AL];
+c._load(AL);
+ok('an album is drawn at once too', c._shots.join('|'), 'head:Done With Mirrors');
+
+// An ARTIST is not: its albums come from MA's database and the level is a
+// grid, not a header over tracks, so the old level stays until it lands.
+c = card('Kitchen'); shots(c);
+a = pending(); c._ws = function () { return a.promise; };
+var AR = { title: 'Roxette', type: 'music', id: 'library://artist/754',
+           node: { media_content_id: 'library://artist/754' } };
+c._stack = [{ title: 'Artists', id: 'artists' }, AR];
+c._load(AR);
+ok('an artist is not drawn early', c._shots.length, 0);
+
+// BACK while a playlist is still loading: the newer load owns the screen,
+// and the late tracks are dropped.
+c = card('Kitchen'); shots(c);
+a = pending(); b = pending(); nth = 0;
+c._ws = function () { nth++; return nth === 1 ? a.promise : b.promise; };
+c._stack = [{ title: 'Search', id: 'x' }, PL];
+c._load(PL);
+c._stack.pop();
+c._load(c._stack[0]);
+ok('leaving a pending playlist clears it', String(c._pend), 'null');
+b.res({ children: [{ title: 'the level you went back to', media_content_type: 'music' }] });
+a.res({ children: [{ title: 'late tracks', media_content_type: 'music' }] });
+drain();
+ok('  ...and its late tracks do not land', c._items[0].title, 'the level you went back to');
+
+// A FAILURE says so, rather than "Loading songs…" forever.
+c = card('Kitchen'); shots(c);
+a = pending(); c._ws = function () { return a.promise; };
+c._stack = [{ title: 'Playlists', id: 'playlists' }, PL];
+c._load(PL);
+a.rej(new Error('Apple Music Rate Limiter'));
+drain();
+ok('a failed playlist clears the wait', String(c._pend), 'null');
+ok('  ...and says why', /Rate Limiter/.test(c._err), true);
+
+// THE TIME IT NEEDS: Rock Classics took 45 s cold, past the usual 20 s, so a
+// playlist that was coming said "did not respond". MA retries Apple for up
+// to ~2 minutes; a playlist or album waits that long, anything else does not.
+c = card('Kitchen'); shots(c);
+var waits = [];
+c._ws = function (m, w) { waits.push(w || 20000); return pending().promise; };
+c._stack = [{ title: 'Playlists', id: 'playlists' }, PL];
+c._load(PL);
+c._stack = [{ title: 'Artists', id: 'artists' }, AR];
+c._load(AR);
+ok('a playlist may take two minutes; an artist the usual 20 s', waits.join(','), '120000,20000');
+
+// THE PAGE SAYS IT IS IN USE, so Keep Playlists Ready (warm.py) does not
+// put a request of its own ahead of this person's at Apple Music. After the
+// request it is about, and at most every 30 s.
+c = card('Kitchen'); c._paint = function () {};
+var said = [];
+c._hass.callWS = function (m) { said.push(m.type); return Promise.resolve(); };
+c._ws = function (m) { said.push(m.type); return pending().promise; };
+c._stack = [{ title: 'Playlists', id: 'playlists' }, PL];
+c._load(PL);
+c._load(PL);
+c._search('zep');
+drain();
+ok('opening and searching say the page is in use, once',
+   said.join(','), 'media_player/browse_media,hk_music/used,media_player/browse_media,media_player/search_media');
+c = card('Kitchen'); c._paint = function () {};
+c._hass.callWS = function () { throw new Error('unknown command'); };
+c._ws = function () { return pending().promise; };
+c._load(PL);
+ok('  ...and a backend without the command changes nothing', String(c._err), 'null');
+
 // Pressing back onto saved results must beat a load that was already out.
 c = card('Kitchen');
 c._paint = function () {};

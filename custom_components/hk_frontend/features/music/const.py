@@ -8,6 +8,7 @@ options; presets and playlists are its items (subentries).
 CONF_SPEAKERS = "speakers"      # room players, in pill order
 CONF_VOLUME = "volume"          # the house playlist volume, 0..1
 CONF_HOMES = "homes"            # {user_id: room player} -- each tablet's own room
+CONF_KEEP_READY = "keep_ready"  # keep the playlists' songs fetched (warm.py); off by default
 
 # ---- item (subentry) types: stored with every preset and playlist, so they
 # keep these names
@@ -64,6 +65,27 @@ START_TIMEOUT = 15        # after play_media returns, `playing` must show
 TRANSFER_TIMEOUT = 15     # the destination holding the moved queue
 STOP_TIMEOUT = 10
 VOLUME_STEP = 0.05        # a UI decision; MA's own step is 0.02 (measured)
+
+# ---- keeping playlists ready (warm.py). Music Assistant caches a streaming
+# playlist's songs for 3 hours, 100 a page (its Apple Music provider).
+WARM_CACHE = 3 * 3600     # MA's cache of a playlist's songs (not ours to set)
+WARM_EVERY = 2.5 * 3600   # inside those 3 hours, so a round is never late
+WARM_FRESH = 3600         # refreshed this recently: a retry round skips it
+WARM_FIRST = 300          # after a start: Home Assistant and MA settle first
+WARM_SOON = 60            # after the switch is turned on
+WARM_GAP = 15             # between playlists: one at a time, never a burst
+WARM_QUIET = 120          # someone used the Music page this recently: wait
+WARM_SLOW_PAGE = 20       # a page this slow was refused 4+ times in a row
+                          # (MA waits 1, 2, 4, 8 s between tries): Apple is
+                          # busy. 1-3 refusals are routine even when the house
+                          # is quiet (a clean page is 1-2 s; 3 refusals ~9 s,
+                          # measured 2026-10-14); MA's own sync runs to 8 and
+                          # 17 s waits.
+WARM_RETRY = 1800         # ...and the rest of the round waits this long
+WARM_TIMEOUT = 120        # one playlist, at most (MA's retries span ~2 min)
+WARM_PAGE = 100           # songs per page, Music Assistant's
+WARM_RECENT = 10          # recently played playlists kept ready too...
+WARM_RECENT_DAYS = 7      # ...played within this many days
 
 # the configuration changed: every screen's feed re-sends
 SIGNAL_CONFIG = "hk_music_config"
