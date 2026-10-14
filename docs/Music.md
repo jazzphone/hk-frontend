@@ -55,7 +55,11 @@ speaker:
     **Change**. Under it, when more
     than one thing is playing in the house, **Playing in the House** lists
     each one; the one this page controls is lit, and **Switch** on another
-    hands the page to it. Then the artwork, the song, progress, and the
+    hands the page to it. Rooms playing the same song on their own (an
+    iPhone AirPlaying to several HomePods at once) are one card, “Kitchen,
+    Living Room and 7 more”; the page’s buttons still act on the one room
+    **Playing on** names. A long list scrolls within itself, so the player
+    under it always stays on screen. Then the artwork, the song, progress, and the
     controls: **Speakers** (the HomePod), previous, play or pause, next,
     **Queue**, the volume and Up Next.
   - **Speakers** (or **Change**) turns what is playing over to the speakers

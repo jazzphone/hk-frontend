@@ -87,6 +87,11 @@
   var COLS3 = 1500, COLS2 = 760;          // the card's width for three / two columns
   var MIN_COL = 296;                       // the left column never narrower (its five buttons)
   var TICK = 1000, VOL_EVERY = 250, VOL_HOLD = 4000, TURN_MS = 620;
+  // the cover's least size beside a long house list (.artbox's min-height:
+  // more, and two cards no longer fit the Kitchen tablet); a capped list's
+  // card pitch (.cx 52 + the gap 6) and how much of the next card it shows,
+  // so it plainly scrolls -- a sliver of one read as a glitch
+  var ART_MIN = 120, CX_PITCH = 58, CX_PEEK = 24;
 
   // ------------------------------------------------------------ pure (tests)
   // "Kitchen", "Kitchen and Loft", "Kitchen, Loft and Office"
@@ -219,7 +224,10 @@
     // said what Plays on (or the Speakers column) already says
     '.mu.idle .pon{display:none}',
     // THE HOUSE: a card for each thing playing
-    '.house{flex:none;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}',
+    // (capped on two or three columns, scrolling within itself: _houseFit)
+    '.house{flex:none;display:flex;flex-direction:column;gap:6px;margin-bottom:12px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}',
+    '.house::-webkit-scrollbar{display:none}',
+    '.house > *{flex:none}',
     '.house:empty{display:none}',
     '.house .hl{font-size:11px;font-weight:600;letter-spacing:0.4px;opacity:.6;text-transform:uppercase;margin:0 2px 2px}',
     '.cx{display:flex;align-items:center;gap:10px;height:52px;padding:0 10px 0 6px;border-radius:12px;cursor:pointer;box-sizing:border-box;',
@@ -655,6 +663,7 @@
       if (changed || (cols === 3 && !this._roomsPnl)) this._roomsColumn(cols === 3);
       if (this._roomsPnl) this._roomsPnl.size(this._e.rooms.clientWidth, this._e.rooms.clientHeight, 1);
       if (this._pnl && !this._pnl.sheet) this._pnl.p.size(this._e.left.clientWidth, this._e.left.clientHeight, 1);
+      this._houseFit(true);
       this._artWidth();
       this._fitLines();
     }
@@ -764,33 +773,76 @@
     }
     _drawHouse(c) {
       var Mu = this._M(), h = this._hass, self = this;
-      var cs = Mu.contexts(h), mine = c ? c.key : null;
-      var show = cs.length > 1 || (cs.length === 1 && !c);
-      var sig = show ? cs.map(function (x) { return x.key + '|' + x.state + '|' + x.title + '|' + x.image + '|' + x.members.join(','); }).join(';') + '#' + mine + '#' + this._targetRooms().join(',') : '';
+      // ONE CARD PER THING PLAYING, not per player (hkMusic.streams): nine
+      // HomePods AirPlayed to from one iPhone are one "Dynamite" card, its
+      // line "Kitchen, Living Room and 7 more"
+      var ss = Mu.streams(Mu.contexts(h)), mine = c ? c.key : null;
+      var isMine = function (x) { return !!mine && x.ctxs.some(function (y) { return y.key === mine; }); };
+      // ...shown when there is more than this page's -- other music, or this
+      // page's song in rooms its buttons do not reach -- or when what plays
+      // is not this page's
+      var show = ss.length > 1 || (ss.length === 1 && (!c || ss[0].ctxs.length > 1));
+      var sig = show ? ss.map(function (x) { return x.ctxs.map(function (y) { return y.key; }).join('+') + '|' + x.state + '|' + x.title + '|' + x.image + '|' + x.members.join(','); }).join(';') + '#' + mine + '#' + this._targetRooms().join(',') : '';
       if (sig === this._houseSig) return;
+      var el = this._e.house, top = el.scrollTop, was = (this._houseSig || '').split('#')[1];
       this._houseSig = sig;
-      var el = this._e.house;
       el.innerHTML = '';
-      if (!show) return;
+      if (!show) { this._houseFit(); return; }
       var hl = document.createElement('div'); hl.className = 'hl'; hl.textContent = 'Playing in the house'; el.appendChild(hl);
+      var home = Mu.home(), lit = null;
       var card = function (x, on, idle) {
         var d = document.createElement('div');
         d.className = 'cx' + (on ? ' on' : '') + (x && !x.playing ? ' paused' : '');
-        if (!on && x) d.setAttribute('data-ctx', x.key);
+        // A TAP HANDS THE PAGE ONE PLAYER of the stream: this tablet's own
+        // room when it is one of them, else the first -- its buttons then act
+        // on that player, as "Playing on" says
+        if (!on && x) d.setAttribute('data-ctx', (x.ctxs.filter(function (y) { return home && y.members.indexOf(home) >= 0; })[0] || x.ctxs[0]).key);
         var th = document.createElement('div'); th.className = 'th';
         if (x && x.image) self._artImage(x.image.charAt(0) === '/' ? location.origin + x.image : x.image, th, svg(ICON.note), 80);
         else th.innerHTML = svg(ICON.note);
         d.appendChild(th);
         var t = document.createElement('div'); t.className = 't';
-        var b = document.createElement('b'); b.textContent = idle ? 'Nothing Playing' : (x.title || Mu.label(x));
+        var b = document.createElement('b'); b.textContent = idle ? 'Nothing Playing' : (x.title || Mu.label(x.ctxs[0]));
         var s = document.createElement('small'); s.setAttribute('data-fit', (idle ? self._targetRooms() : x.members).join(','));
         t.appendChild(b); t.appendChild(s); d.appendChild(t);
         if (on && !idle) d.insertAdjacentHTML('beforeend', '<span class="eq"><i></i><i></i><i></i></span>');
         if (!on) d.insertAdjacentHTML('beforeend', '<span class="sw">Switch</span>');
         el.appendChild(d);
+        if (on) lit = d;
       };
       if (!c) card(null, true, true);
-      cs.forEach(function (x) { card(x, x.key === mine, false); });
+      ss.forEach(function (x) { card(x, isMine(x), false); });
+      this._houseFit();
+      // (a redraw keeps where the list was scrolled; a new choice brings its card into view)
+      el.scrollTop = top;
+      if (lit && String(mine) !== was) {
+        if (lit.offsetTop < el.scrollTop) el.scrollTop = lit.offsetTop;
+        else if (lit.offsetTop + lit.offsetHeight > el.scrollTop + el.clientHeight) el.scrollTop = lit.offsetTop + lit.offsetHeight - el.clientHeight;
+      }
+    }
+    // THE PLAYER IS ALWAYS THERE (2026-10-14): on two or three columns the
+    // house list gets what the column has left once the song, its controls
+    // and an ART_MIN cover are in, and scrolls within that -- a long list ran
+    // the controls off the column's foot and under the tab bar. Measured
+    // only when what it depends on changes (the column, the list, Up Next).
+    _houseFit(force) {
+      var e = this._e;
+      if (!e) return;
+      var el = e.house, n = el.children.length;
+      var key = this._cols + '|' + n + '|' + e.nx.hidden + '|' + e.mu.classList.contains('idle');
+      if (!force && key === this._houseKey) return;
+      this._houseKey = key;
+      if (this._cols === 1 || !n) { el.style.maxHeight = ''; return; }
+      var ab = e.art.parentNode;
+      var need = e.front.scrollHeight - ab.offsetHeight + ART_MIN;
+      var pon = e.mu.classList.contains('idle') ? 0 : e.pon.offsetHeight + 14;
+      var room = Math.floor(e.left.clientHeight - pon - 12 - need);
+      el.style.maxHeight = '';
+      if (el.scrollHeight <= room) { el.style.maxHeight = room + 'px'; return; }
+      // too long: whole cards, then part of the next (at least one card)
+      var head = el.children[1].offsetTop - el.offsetTop;
+      var k = Math.max(1, Math.floor((room - head - CX_PEEK) / CX_PITCH));
+      el.style.maxHeight = (head + k * CX_PITCH + CX_PEEK) + 'px';
     }
     // NOW PLAYING ON A PHONE: what plays, as a sheet over Browse
     // THE BAR'S TAP FROM ANOTHER PAGE (hk-media.js: window.hkMusicWant):
@@ -886,6 +938,7 @@
       // as in the mockup, on two columns)
       var room = !(this._cols === 2 && this._e.house.children.length);
       e.nx.hidden = !(n && n.title && room);
+      this._houseFit();
       if (!n) return;
       e.nxT.textContent = n.title + (n.artist ? ' — ' + n.artist : '');
       var img = typeof n.image === 'string' && /^https?:|^\//.test(n.image) ? n.image : '';

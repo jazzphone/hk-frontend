@@ -2658,7 +2658,11 @@
           playing: !!st && st.state === 'playing', state: st ? st.state : 'unknown',
           title: a.media_title || '', artist: a.media_artist || '',
           image: a.entity_picture_local || a.entity_picture || null,
-          since: Date.parse(st && st.last_changed) || 0
+          since: Date.parse(st && st.last_changed) || 0,
+          // (what streams() compares: where the music comes from, and how far in)
+          app: a.app_id || a.source || '',
+          pos: typeof a.media_position === 'number' ? a.media_position : null,
+          posAt: Date.parse(a.media_position_updated_at) || 0
         };
       }
       presets().forEach(function (g) {
@@ -2680,6 +2684,41 @@
         var lead = members[0];
         out.push(ctx(lead, members.length > 1 ? 'group' : 'room', members,
                      states[lead] || st));
+      });
+      return out;
+    }
+
+    // THE SAME MUSIC IN SEVERAL ROOMS THAT ARE NOT JOINED (2026-10-14). An
+    // iPhone AirPlaying Apple Music to every HomePod at once is nine players
+    // to Music Assistant -- no group_members, no sync group -- so contexts()
+    // is nine rooms, each "Dynamite", and the Music page's house list ran the
+    // song and its controls off the foot of the Kitchen tablet. A LIST OF
+    // WHAT PLAYS shows them as one: contexts with the same song, artist and
+    // source, in the same play state and within SAME_POS seconds of each
+    // other where both say how far in. {key, ctxs, members, title, artist,
+    // image, playing, state}; `key` is its first context's.
+    //
+    // FOR DRAWING ONLY. Each context is still its own player: a stream is
+    // never a COMMAND target -- a card hands the screen one of its contexts,
+    // and the buttons act on that one player, as drawn.
+    var SAME_POS = 10;
+    function streams(ctxs, now) {
+      now = now || Date.now();
+      function at(c) {
+        if (c.pos === null || c.pos === undefined) return null;
+        return c.pos + (c.playing && c.posAt ? Math.max(0, now - c.posAt) / 1000 : 0);
+      }
+      function same(a, b) {
+        if (!a.title || a.title !== b.title || a.artist !== b.artist || a.app !== b.app || a.playing !== b.playing) return false;
+        var pa = at(a), pb = at(b);
+        return pa === null || pb === null || Math.abs(pa - pb) <= SAME_POS;
+      }
+      var out = [];
+      (ctxs || []).forEach(function (c) {
+        var s = out.filter(function (x) { return same(x.ctxs[0], c); })[0];
+        if (s) { s.ctxs.push(c); s.members = s.members.concat(c.members); return; }
+        out.push({ key: c.key, ctxs: [c], members: c.members.slice(), title: c.title, artist: c.artist,
+                   image: c.image, playing: c.playing, state: c.state });
       });
       return out;
     }
@@ -2853,7 +2892,7 @@
     return {
       speakers: function () { return MUSIC.speakers.slice(); },
       rooms: rooms, presets: presets, known: known, isGroup: isGroup,
-      nameOf: nameOf, home: home, contexts: contexts, resolve: resolve,
+      nameOf: nameOf, home: home, contexts: contexts, streams: streams, resolve: resolve,
       player: function (hass) { return resolve(hass).player; },
       label: label, setFocus: setFocus, release: release, attach: attach,
       onChange: onChange, focus: function () { return focus.key; },

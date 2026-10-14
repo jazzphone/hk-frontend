@@ -489,14 +489,17 @@ ok('a restart within the stop\'s fade reuses the host, and only the new photo is
 S.stop(); woke();
 // LANDSCAPES (1.8.1): Behind the Clock: Landscapes -- HK's own photos from
 // /hk/landscapes/index.json, never the house's folder; a file that isn't a
-// plain image name is skipped
+// plain image name is skipped. (Few full timer runs here: every
+// __runTimers() runs each kept timer again and about doubles them, and
+// this block's three took the harness from ~8.6 to ~277 million, which
+// GitHub's runner did not survive -- 1.8.1's first CI.)
 var fetched = [];
 var fetchWas = globalThis.fetch;
 globalThis.fetch = function (u) { fetched.push(u); return Promise.resolve({ json: function () {
   return Promise.resolve({ photos: [{ file: '01.webp', title: 'A lake' }, { file: '../evil.js' }] }); } }); };
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'clock', clock_bg: 'landscapes' });
 lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
-push(hf); dispatchEvent({ type: 'location-changed' }); __runTimers(); scenes = []; ws = [];
+push(hf); dispatchEvent({ type: 'location-changed' }); __runTimersUnder(1000); scenes = []; ws = [];
 ok('Landscapes is read', S.config().clock_bg === 'landscapes', S.config());
 S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks();
 ok('...its list from /hk/landscapes/index.json, not the photo folder', fetched[0] === '/hk/landscapes/index.json' &&
@@ -506,11 +509,9 @@ ok('...one landscape (the bad name skipped), shown behind the clock', S.stats().
 __runTimersUnder(3200);
 dispatchEvent({ type: 'pointerdown', clientX: 1250, clientY: 400, pointerType: 'touch' });
 ok('an edge tap on the clock over the Landscapes wakes it (no step to the next photo)', !S.running());
-woke();
 globalThis.fetch = fetchWas;
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'photos', clock_bg: 'gradient' });
 lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
-push(hf); dispatchEvent({ type: 'location-changed' }); __runTimers();
 // Photos & Forecast: the forecast as a slide every few photos
 LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'both', forecast_every: 3, fallback: true });
 lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
