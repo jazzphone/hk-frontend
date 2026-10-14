@@ -31,6 +31,9 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+# the house picture that ships (frontend/power-house, served at /hk/)
+BUILT_IN_ART = "/hk/power-house/"
+
 CONF_POWER = "power"
 BACKS_UP = ("some", "all", "none")
 GROUPS = ("type", "backup")
@@ -185,10 +188,12 @@ def build(ctx: Mapping[str, Any], options: Mapping[str, Any], energy: Mapping[st
     return {
         "title": str(o.get("title") or "Power")[:40],
         "path": str(o.get("path") or "power"),
-        # the house picture only with a picture folder of one's own (art.json
-        # and its layers, in your files): without one, the flow chart
-        "art": str(o.get("art") or ""),
-        "picture": bool(o.get("art")) and o.get("picture") != "chart",
+        # THE HOUSE PICTURE (2026-10-14: one ships, frontend/power-house -- a
+        # made-up house, the owner's call): a picture folder of one's own
+        # (art.json and its layers, in your files) takes its place; "chart"
+        # is the flow chart instead
+        "art": str(o.get("art") or BUILT_IN_ART),
+        "picture": o.get("picture") != "chart",
         "home": home,
         "grid": _s(o.get("grid")) or grid.get("rate") or home,
         "grid_export": _s(o.get("grid_export")),

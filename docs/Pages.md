@@ -26,7 +26,7 @@ the menu open them; a back button returns to Home.
 | Music | The Music feature, with speakers | What plays and where (speakers, volume, queue), and the music library to browse and search |
 | Water | Leak sensors | The leak sensors by room, and a count of any that haven’t reported since Home Assistant started |
 | [Energy](Energy.md) | The Energy feature | Now, Today, This Week and This Month: the whole home live, its use against a usual day, where it went, and a tile for every circuit, room, appliance and outlet |
-| [Power](Energy.md#the-power-page) | The Energy feature, with its Power Page on | Right now: the grid, the house and the battery as a flow chart, the status, what the battery backs up, the sun, the battery's controls, and every device marked when the battery backs it up |
+| [Power](Energy.md#the-power-page) | The Energy feature, with its Power Page on | Right now: the grid, the house and the battery over a picture of the house (or a flow chart), the status, what the battery backs up, the sun, the battery's controls, and every device marked when the battery backs it up |
 
 A page lists what its kinds count (each type’s page in
 [Accessories](Accessories.md#types)), so the Lights chip and the Lights page

@@ -1189,11 +1189,11 @@
     c.appendChild(K.group({ header: 'The Page' }, [
       K.text({ label: 'Title', sk: 'f:' + EN + ':power:title', value: o.title || '', placeholder: 'Power', maxlength: 40,
                onCommit: function (v) { powerSet(P, d, { title: v.trim() || null }); } }),
-      K.text({ label: 'Picture Folder', sk: 'f:' + EN + ':power:art', value: o.art || '', placeholder: 'None: the flow chart',
-               sub: 'A folder of your files with art.json and its layers, e.g. /hk/art/my-house/', error: P.err('f:' + EN + ':power:art'),
+      K.text({ label: 'Picture Folder', sk: 'f:' + EN + ':power:art', value: o.art || '', placeholder: 'Built In',
+               sub: 'Your own house: a folder of your files with art.json and its layers, e.g. /hk/art/my-house/. Empty: the house that comes with HK Frontend', error: P.err('f:' + EN + ':power:art'),
                onCommit: function (v) { v = v.trim(); if (v && v.charAt(0) !== '/') v = '/' + v; if (v && v.slice(-1) !== '/') v += '/'; powerSet(P, d, { art: v || null }); } })]
-      .concat(o.art ? [K.select({ label: 'Picture', sk: 'f:' + EN + ':power:picture', value: o.picture || 'house',
-                 options: [['house', 'The House'], ['chart', 'A Flow Chart']], onChange: function (v) { powerSet(P, d, { picture: v === 'house' ? null : v }); } })] : [])
+      .concat([K.select({ label: 'Picture', sk: 'f:' + EN + ':power:picture', value: o.picture || 'house',
+                 options: [['house', 'The House'], ['chart', 'A Flow Chart']], onChange: function (v) { powerSet(P, d, { picture: v === 'house' ? null : v }); } })])
       .concat([
       K.select({ label: 'Devices', sk: 'f:' + EN + ':power:groups', value: o.groups || 'type',
                  options: [['type', 'By Type'], ['backup', 'Backed Up First']], onChange: function (v) { powerSet(P, d, { groups: v === 'type' ? null : v }); } }),

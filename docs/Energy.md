@@ -146,10 +146,14 @@ its own beside it (turn it on in **HK Settings → Energy → Power Page**). It
 reads the same devices, and sits beside Energy in a screen's pages and menu,
 on a backdrop of its own.
 
-- **The house**, full width: a flow chart from the grid to the house and
-  the battery, with light running along each line while power flows.
-  Without a house battery it is the grid and the house alone. Tap a figure
-  for its sheet.
+- **The house**, full width: a picture of a house, with the grid coming in
+  down the pole's cable, the panels lit by the sun, the battery's level on
+  its cabinet and a car in the driveway glowing while it charges, each
+  figure floating over its part of the house. Only what the house has is
+  drawn: no panels without solar, no cabinet without a battery, no car
+  unless one is home. Tap a figure for its sheet. Prefer lines? **Picture →
+  A Flow Chart** shows the grid, the house and the battery as a flow chart
+  instead.
 - **The status** in sentences beside **the house battery**, then **The
   House** (the whole house: what the battery backs up, what it does not, a
   car charging, and the three drawing the most) beside **Where the Sun Goes**
@@ -164,18 +168,15 @@ on a backdrop of its own.
   a switch has its power button. A car's tile has a button that starts or
   stops charging (it asks before stopping).
 
-![The Power page on a wall tablet: the flow chart, the status beside the house battery, The House and the devices](images/tablet-power.png)
+![The Power page on a wall tablet: the house, with the grid, the battery and the cars over it](images/tablet-power.png)
 *The Power page: right now, and the battery's controls.*
 
-**A picture of your own house.** With a **Picture Folder** (a folder in
-[your files](Your-Files.md) holding `art.json` and the picture's layers), the
-flow chart becomes the house itself: the grid comes in down the pole's cable,
-the panels light up with the sun, the battery's level sits on its cabinet,
-and a car in the driveway glows while it charges, each figure floating over
-its part of the house. Only what the house has is drawn. The **Cars** figure
-has a row for each car: its name, and its charging power, its level at home,
-or Away; tap a row for that car. No picture ships with HK Frontend; without
-a folder the page shows the flow chart.
+**The house** comes with HK Frontend: a made-up house, drawn in layers so
+that only what your house has shows. The **Cars** figure has a row for each
+car: its name, and its charging power, its level at home, or Away; tap a row
+for that car. **A picture of your own house** takes its place with a
+**Picture Folder** (a folder in [your files](Your-Files.md) holding
+`art.json` and the picture's layers, laid out as `frontend/power-house/` is).
 
 **What is backed up** is worked out from Home Assistant's own device
 registry: a device whose power sensor or switch is on the battery's own
@@ -203,7 +204,8 @@ lists a custom page at that address shows the Power page in its place.
 |---|---|---|
 | Show the Power Page | Off | The page, on every screen whose pages are Automatic (or that lists it). |
 | Title | Power | Its name, in the menu and at the top of the page. |
-| Picture Folder | None | A folder of your files with `art.json` and its layers. None: the flow chart. With one, **Picture** chooses **The House** or **A Flow Chart**. |
+| Picture Folder | Built In | A folder of your files with `art.json` and its layers: your own house in its place. Empty: the house that comes with HK Frontend. |
+| Picture | The House | **The House**, or **A Flow Chart** of the grid, the house and the battery. |
 | Devices | By Type | Or **Backed Up First**: two sections, Backed Up and Not Backed Up. |
 | Readings | Automatic | **Whole House** (the Energy page's Whole Home), **The Grid** (Home Assistant's grid power sensor), **To the Grid** and **Grid Up** (only with sensors of their own), **The Sun** (the solar sources' power sensors) and **Battery Panel Output** (what the battery's circuits draw). Each says what Automatic found. |
 | House Battery | None | Its **Level**, **Charging**, **Giving**, **Reserve**, **Charge Limit**, **Stored Energy**, **Backup Time**, **Charging Speed**, **EPS**, **Storm Mode** and **Fault**, and **Backs Up**. Without a level the page has no battery. |
@@ -302,5 +304,5 @@ first), **HK House Battery** (the battery drawn as one, with its reserve,
 limit and packs), **HK Segmented Choice** (a select, such as its operating
 mode, as a segmented control), **HK Power House Load** (The House) and **HK
 Where the Sun Goes** (its Today half needs the Energy feature). **HK Power
-House** draws a layered picture of your own (`art`); none ships. They are in
+House** draws the layered house (`art`: a folder of your own; without it, the one that ships). They are in
 the [Card Library](Card-Library.md#energy) too.

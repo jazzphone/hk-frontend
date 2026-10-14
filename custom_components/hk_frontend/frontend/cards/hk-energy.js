@@ -3194,10 +3194,9 @@
       this._shell('phouse');
       var c = this._config || {}, h = this._hass, self = this;
       if (!h) return;
-      // no picture folder (none ships: it is a house's own art): say so;
-      // the generated Power page draws the flow chart instead
-      if (!c.art) { this._paint('<div style="padding:24px;opacity:.7">No picture folder: set <b>art</b> to a folder of your files with art.json, or use the flow chart (hk-power-flow-card).</div>'); return; }
-      var base = c.art;
+      // THE PICTURE FOLDER: your own (art.json and its layers, in your
+      // files), else the house that ships (frontend/power-house, 2026-10-14)
+      var base = c.art || '/hk/power-house/';
       if (base.slice(-1) !== '/') base += '/';
       if (this._art === undefined && !(this._artFail && Date.now() - this._artFail < ART_RETRY_MS)) {
         this._art = null;
@@ -3502,7 +3501,7 @@
       ] },
       { name: 'cars', selector: { object: {} }, helper: 'Each car: {name, level, power, home, plugged, charge}.' },
       { name: 'chargers', selector: { object: {} }, helper: 'Optional: the wall chargers\' power sensors -- live, where a car\'s own reading lags.' },
-      { name: 'art', label: 'Picture folder', selector: { text: {} }, helper: 'A folder of your files with art.json and its layers, e.g. /hk/art/my-house/.' }
+      { name: 'art', label: 'Picture folder', selector: { text: {} }, helper: 'A folder of your files with art.json and its layers, e.g. /hk/art/my-house/. Empty: the house that comes with HK Frontend.' }
     ],
     function (hass) { return { home: sensorWhere(hass, function (a) { return a.device_class === 'power'; }) }; });
   register('hk-power-flow-card', HkPowerFlowCard, 'HK Power Flow',

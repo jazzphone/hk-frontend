@@ -81,10 +81,22 @@ def test_automatic_readings_the_whole_house_the_grid_the_sun():
     assert p["backs_up"] == "some"
 
 
-def test_the_flow_chart_unless_a_picture_folder_is_set():
-    # (1.8.0: the house picture is your own art; none ships)
+def test_the_house_that_ships_unless_a_picture_folder_is_set():
+    # (2026-10-14: HK Frontend's own house ships, frontend/power-house; a folder
+    # of your own takes its place, and "chart" is the flow chart)
+    from custom_components.hk_frontend.features.energy.power import BUILT_IN_ART
     p = page()
-    assert p["picture"] is False and p["art"] == ""
+    assert p["picture"] is True and p["art"] == BUILT_IN_ART == "/hk/power-house/"
+    assert page(picture="chart")["picture"] is False
+    # ...and it is all there: each layer art.json names, beside it
+    import json
+    from pathlib import Path
+    from custom_components.hk_frontend import settings as S   # (the component, wherever the tests sit)
+    folder = Path(S.__file__).parent / "frontend" / "power-house"
+    art = json.loads((folder / "art.json").read_text())
+    assert {"house", "pole", "battery", "solar", "car", "charger", "cable"} <= set(art["layers"])
+    for name, layer in art["layers"].items():
+        assert (folder / layer[0]).is_file(), name
     p = page(art="/hk/art/my-house/")
     assert p["picture"] is True and p["art"] == "/hk/art/my-house/"
     assert page(art="/hk/art/my-house/", picture="chart")["picture"] is False
