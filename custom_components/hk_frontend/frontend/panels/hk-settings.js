@@ -1903,10 +1903,35 @@
       trows.push(addT);
       c.appendChild(K.group({ header: 'Wall Tablets', footer: 'The tablets that run this screen. Each one’s user, room, idle time and Sleep Screen are its own, in Wall Tablets.' }, trows));
 
-      // THIS DEVICE: a car's browser
-      c.appendChild(K.group({ header: 'This Device' }, [
-        K.toggle({ label: 'Car Browser', sub: 'Fit a car’s narrow browser to a desktop layout.', sk: 'b:car', on: b.car,
-                   onChange: function (on) { set({ car: on }); } })]));
+      // THIS DEVICE: a car's browser -- and, in one, which Home the screen
+      // generates (M.CAR_LAYOUTS) and how much layout its window holds
+      // (M.CAR_WIDTHS: tesla-viewport.js zooms to it; Custom, any width)
+      var carRows = [K.toggle({ label: 'Car Browser', sub: 'Fit a car’s narrow browser to a desktop layout.', sk: 'b:car', on: b.car,
+                                onChange: function (on) { set({ car: on }); } })];
+      var carFoot = null;
+      if (b.car) {
+        var cl = b.car_layout === 'car' ? 'car' : 'home';
+        carRows.push(K.select({ label: 'Car Layout', sk: 'b:car_layout', value: cl,
+          options: M.CAR_LAYOUTS.map(function (o) { return [o[0], o[1]]; }),
+          onChange: function (v) { set({ car_layout: v }); } }));
+        this._carCustom = this._carCustom || {};
+        var cw = M.carWidthChoice(b.car_width, this._carCustom[path]);
+        carRows.push(K.select({ label: 'Scale', sk: 'b:car_width', value: cw, options: M.CAR_WIDTHS,
+          onChange: function (v) {
+            self._carCustom[path] = v === 'custom';
+            if (v === 'custom') { self.render(); return; }
+            set({ car_width: v ? Number(v) : null });
+          } }));
+        if (cw === 'custom') {
+          carRows.push(K.text({ label: 'Layout Width', sk: 'b:car_width:n', value: b.car_width || M.CAR_WIDTH, unit: 'px', inputmode: 'numeric',
+            error: this.err('b:car_width'),
+            onCommit: function (t) { set({ car_width: Number(String(t).replace(/[^\d.]/g, '')) || null }); } }));
+        }
+        carFoot = M.CAR_LAYOUTS.filter(function (o) { return o[0] === cl; })[0][2] +
+          ' Scale: how much of a desktop layout the car’s window holds — Larger shows less of it, bigger; ' +
+          'Custom takes a width of your own (Standard is ' + M.CAR_WIDTH.toLocaleString('en-US') + ' px).';
+      }
+      c.appendChild(K.group({ header: 'This Device', footer: carFoot }, carRows));
 
       c.appendChild(K.group({ footer: 'Another screen’s menu, Home page, appearance and more, onto this one — you choose which.' }, [
         K.nav({ label: 'Copy Settings From…', href: base + '/copy', sk: 'b:copy' })]));

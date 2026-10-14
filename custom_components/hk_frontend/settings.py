@@ -568,7 +568,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
                 "alert_offline": True, "alert_restart": True, "alert_charging": True,
                 "restart": False, "restart_times": ["00:02", "15:00"], "dismissed": []},
     # Dashboards opened in a car browser: the viewport is pinned (tesla-viewport.js).
-    "car": {"dashboards": []},
+    "car": {"dashboards": [], "widths": {}},
     # The generated dashboards (custom:hk-dashboard): what to leave out (also
     # out of Status & Chips, everywhere) and what to add. A dashboard's own YAML
     # options add to these. (Which parts a screen shows -- chips, pages, sky,
@@ -1267,6 +1267,11 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Tint from Background, well: its own Tinted icon circles, None follows
     # All Screens.
     "glass": "house", "frost": None, "blur": None, "tint": None, "well": None, "frost_tint": None, "sky": True, "car": False,
+    # ...and in a car's browser (car on): car_layout, which Home the screen
+    # generates there -- "home" the whole Home every screen has, "car" the
+    # car's own (CAR_LAYOUTS); car_width, the layout width the car's window
+    # is zoomed to hold (tesla-viewport.js), None its default (CAR_WIDTH).
+    "car_layout": "home", "car_width": None,
     # (Return to Home When Idle, the Tablet Room, Black Screen and Sleep
     # Screen were a screen's until entry 1.14: they are each tablet's own now,
     # TABLET_DEFAULTS)
@@ -1337,6 +1342,28 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # the house's custom pages -- a car's own first page over the generated
     # category pages
     "home_view": ""}
+# A CAR'S BROWSER (a screen's car_layout / car_width): which Home it
+# generates there -- the whole one, or the car's own (the weather and the
+# house's status in a line, the chips, Scenes, Security and Favorites: no clock, the car
+# has one, and no rooms) -- and the layout width the car's window is zoomed
+# to hold: the presets the settings offer, any width between the bounds.
+CAR_LAYOUTS = ("home", "car")
+CAR_WIDTH = 1200
+CAR_WIDTHS = (1000, 1200, 1400)
+CAR_WIDTH_MIN, CAR_WIDTH_MAX = 600, 2400
+
+
+def car_width(v: Any) -> int | None:
+    """A car's layout width in px, or None (CAR_WIDTH)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        return None
+    try:
+        n = int(round(float(v)))
+    except ValueError:
+        return None
+    return n if CAR_WIDTH_MIN <= n <= CAR_WIDTH_MAX else None
+
+
 # The pages a scene pill can open (Home -> Scenes -> Pills that open a page).
 SCENE_PAGES = tuple(k for k in PAGE_KINDS if k != "rooms")
 SCENE_PAGE = "page:"                   # such a pill's place in the scenes order
@@ -1356,7 +1383,7 @@ SCREEN_PRESETS: dict[str, dict[str, Any]] = {
     # a desk or a laptop: the menu open beside the page
     "computer": {"menu": "open", "time_weather": "page"},
     # a car's browser: no menu, the car's viewport, no chrome
-    "car": {"menu": "off", "car": True, "kiosk": True},
+    "car": {"menu": "off", "car": True, "car_layout": "car", "kiosk": True},
     # an energy display: only the Energy page (the Energy feature's), no
     # menu, no Home Assistant chrome -- a screen beside the electrical panel
     "energy": {"menu": "off", "home_page": False, "only_pages": ["energy"], "kiosk": True},
@@ -1439,6 +1466,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
                      (k.startswith(SCENE_PAGE) and k[len(SCENE_PAGE):] in SCENE_PAGES)]
     out["scenes_pages"] = [k for k in (strs(d.get("scenes_pages")) or []) if k in PAGE_KINDS and k != "rooms"]
     out["custom_pages"] = [k for k in (strs(d.get("custom_pages")) or []) if PAGE_PATH.match(k)]
+    out["car_layout"] = d.get("car_layout") if d.get("car_layout") in CAR_LAYOUTS else BOARD_DEFAULTS["car_layout"]
+    out["car_width"] = car_width(d.get("car_width"))
     hv = str(d.get("home_view") or "").strip()
     out["home_view"] = hv if PAGE_PATH.match(hv) else ""
     out["menu_top"] = list(dict.fromkeys(k for k in (strs(d.get("menu_top")) or []) if VIEW_PATH.match(k)))
@@ -2133,7 +2162,8 @@ def legacy_screens(items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
     """The car viewport's list, read off the items. NOT a shim:
     tesla-viewport.js reads only `car.dashboards`. (The idle return's lists
     were read off the items too until the tablets had their own, 1.14.)"""
-    return {"car": {"dashboards": [p for p, b in items.items() if b["car"]]}}
+    return {"car": {"dashboards": [p for p, b in items.items() if b["car"]],
+                    "widths": {p: b["car_width"] for p, b in items.items() if b["car"] and b.get("car_width")}}}
 
 
 # ------------------------------------------------------------ wall tablets

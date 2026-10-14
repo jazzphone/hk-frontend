@@ -546,6 +546,10 @@
           if (!left) return;
           var was = left.getAttribute('data-hdr-fit');
           left.removeAttribute('data-hdr-fit');
+          // `clock: false` (a car's Home: the car shows the time) -- the
+          // weather has the whole left half from the start
+          var noClock = !!(self._config && self._config.clock === false);
+          if (noClock) left.setAttribute('data-hdr-fit', 'noclock');
           // stacked (see the CSS): set before fitting, which then has the
           // whole width for each line and never drops the clock
           var w = self.getBoundingClientRect ? self.getBoundingClientRect().width : 0;
@@ -557,7 +561,7 @@
             if (self.requestUpdate) setTimeout(function () { if (self.isConnected) self.requestUpdate(); }, 0);
           }
           H.fitWeather(left);
-          if (!stack && left.getAttribute('data-wx-fit') === 'glyph') {
+          if (!noClock && !stack && left.getAttribute('data-wx-fit') === 'glyph') {
             left.setAttribute('data-hdr-fit', 'noclock');
             H.fitWeather(left);
           }

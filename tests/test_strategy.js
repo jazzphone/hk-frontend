@@ -685,6 +685,30 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('...a Home page that is gone leaves the generated Home', g.views[0].path === 'home', g.views.map(function (v) { return v.path; }));
   delete WB.home_view;
   delete WB.pages;
+  window.__fullHome = g.views[0].cards.length;
+  // CAR HOME (Car Browser -> Car Layout): no clock, no rooms
+  WB.car = true; WB.car_layout = 'car';
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  var home = g.views[0], hdr = home.cards[0].cards[0];
+  ok('Car Home: the header without its clock (the car shows the time)', hdr.type === 'custom:hk-header-card' && hdr.clock === false, hdr);
+  ok('...and no rooms: fewer sections than the full Home', home.path === 'home' && home.cards.length < window.__fullHome,
+     [home.cards.length, window.__fullHome]);
+  ok('...the scenes still there', home.cards.some(function (c) { return c.type === 'custom:hk-scenes-card'; }));
+  var sec = home.cards.filter(function (c) { return c.cards && c.cards[0] && c.cards[0].name === 'Security'; })[0];
+  var hasLock = Object.keys(hass.states).some(function (k) { return k.indexOf('lock.') === 0; });
+  ok('...and Security: the locks as the tall tiles a room draws', !hasLock || (sec && sec.cards[1].cards.some(function (t) {
+    return t.type === 'custom:hk-tall-card' && t.entity.indexOf('lock.') === 0; })), sec);
+  WB.car_layout = 'home';
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  ok('Full Home in a car: the clock and the rooms as on any screen', g.views[0].cards.length === window.__fullHome &&
+     g.views[0].cards[0].cards[0].clock === undefined, g.views[0].cards.length);
+  WB.car_layout = 'car'; WB.car = false;
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  ok('...and Car Home only where Car Browser is on', g.views[0].cards.length === window.__fullHome);
+  delete WB.car; delete WB.car_layout;
   CP = null;
   delete window.hkSettings;
   delete S['input_boolean.wallpanel_screensaver_kitchen'];

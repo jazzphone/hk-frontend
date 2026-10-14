@@ -670,6 +670,16 @@ def _home_view(v: Any) -> str:
     return v
 
 
+def _car_width(v: Any) -> int | None:
+    """A car's layout width (settings.car_width); None: the default."""
+    if v in (None, ""):
+        return None
+    got = S.car_width(v)
+    if got is None:
+        raise Invalid("car_width")
+    return got
+
+
 def _custom_pages(v: Any) -> list[str]:
     if not isinstance(v, list) or not all(isinstance(x, str) and S.PAGE_PATH.match(x) for x in v):
         raise Invalid("list")
@@ -781,6 +791,8 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_liveliness_custom": _parsed(S.lively_custom, empty={}),
     "sky_calm_empty": _bool,
     "car": _bool,
+    "car_layout": _choice(S.CAR_LAYOUTS),
+    "car_width": _car_width,
     "kiosk": _bool,
     "kiosk_header": _bool,
     "kiosk_sidebar": _bool,

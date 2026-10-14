@@ -118,7 +118,7 @@
     idle: { dashboards: [], rooms: {}, 'default': null },
     tablets: { idle_return: true, idle_time: 50, alert_offline: true, alert_restart: true, alert_charging: true,
                restart: false, restart_times: ['00:02', '15:00'], dismissed: [] },
-    car: { dashboards: [] },
+    car: { dashboards: [], widths: {} },
     generated: { exclude_areas: [], exclude_devices: [], exclude_entities: [], include_entities: [] },
     features: { vacuum_script: null, alarm_bad_code: null, thermostats: [], temperature: null, power: null,
                 house_timers: [] },

@@ -284,6 +284,20 @@
     energy: ['Energy Display', 'Only the Energy page, no menu, no Home Assistant header. Needs the Energy feature.'],
     custom: ['Something Else', 'Starts from the defaults.']
   };
+  // A CAR'S BROWSER (settings.py CAR_LAYOUTS / CAR_WIDTHS): which Home the
+  // screen generates there, and the layout width its window is zoomed to
+  // hold -- a wider layout is smaller content. '' is the default width;
+  // 'custom' a width of the person's own (600 to 2,400 px).
+  var CAR_LAYOUTS = [['home', 'Full Home', 'The Home every screen has: the clock, cameras and every room.'],
+                     ['car', 'Car Home', 'The weather and the house’s status along the top — the car shows the time — then the chips, Scenes, Security (the garage, alarm and locks as tall tiles) and Favorites — and the camera strip, if it’s on. No rooms.']];
+  var CAR_WIDTHS = [['1000', 'Larger'], ['', 'Standard'], ['1400', 'Smaller'], ['custom', 'Custom']];
+  var CAR_WIDTH = 1200;
+  function carWidthChoice(w, custom) {
+    if (custom) return 'custom';
+    if (!w) return '';
+    var hit = CAR_WIDTHS.some(function (o) { return o[0] === String(w); });
+    return hit ? String(w) : 'custom';
+  }
   var STATUS_LABELS = {
     temperature: 'Temperature', humidity: 'Humidity', security: 'Security System', tvs: 'TVs', lights: 'Lights',
     outlets: 'Outlets', blinds: 'Blinds', fans: 'Fans', windows: 'Windows', doors: 'Doors', locks: 'Locks',
@@ -461,7 +475,7 @@
     photo: 'That photo couldn’t be used. Choose it again.',
     tab_position: 'Enter a number: pixels from the top, or a percentage of the screen’s height.',
     accent: 'Choose a color, or a color of your own as #rrggbb.',
-    dock_min: 'Enter 700 to 3,000 px.', bad_room: 'Use lower-case letters, digits and underscores, like living_room.',
+    dock_min: 'Enter 700 to 3,000 px.', car_width: 'Enter 600 to 2,400 px.', bad_room: 'Use lower-case letters, digits and underscores, like living_room.',
     user: 'That isn’t a user name.', unknown: 'That setting doesn’t exist.',
     icon: 'Use an icon name such as mdi:music or hk:apple.',
     chip_card: 'The chip must be YAML with a type, such as type: custom:hk-status-chip-card.',
@@ -1463,6 +1477,8 @@
   SEARCH.push(
     ['Wall Tablets on This Screen', 'screen', 'b:tablets', 'wall tablet user room this device kiosk which tablets', true],
     ['Car Browser', 'screen', 'car', 'car tesla browser this device', true],
+    ['Car Layout', 'screen', 'car_layout', 'car tesla home layout full compact rooms', true],
+    ['Car Scale', 'screen', 'car_width', 'car tesla scale zoom size width bigger smaller custom', true],
     ['Header on Phones', 'screen', 'phone_header', 'phone weather strip clock header', true],
     ['Decorations Also Need', 'house/sky/advanced', 'sky.seasonal', 'decorations need season sensor holidays also needs'],
     ['Fade Back (Screensaver)', 'screen/screensaver', 'saver:fade_back', 'screensaver fade back dashboard touch switch', true],
@@ -1566,7 +1582,7 @@
                             'sky_landscape', 'sky_landscape_look'], true],
     ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages'], true],
     ['idle', 'When Idle', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
-    ['device', 'This Device', ['car'], false]
+    ['device', 'This Device', ['car', 'car_layout', 'car_width'], false]
   ];
   // never copied (1.14: a tablet's own -- its user, room, idle, Sleep Screen
   // and Black Screen -- are the tablet's, not the screen's)
@@ -1849,6 +1865,7 @@
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
     WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, SKY_MOVING: SKY_MOVING, DAYTIME_SKIES: DAYTIME_SKIES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
+    CAR_LAYOUTS: CAR_LAYOUTS, CAR_WIDTHS: CAR_WIDTHS, CAR_WIDTH: CAR_WIDTH, carWidthChoice: carWidthChoice,
     PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
     CHIP_TOKEN: CHIP_TOKEN, chipsAddCustom: chipsAddCustom, chipsRemoveCustom: chipsRemoveCustom,
     LIVELY: LIVELY, LIVELY_STEPS: LIVELY_STEPS, LIVELY_OFTEN: LIVELY_OFTEN, LIVELY_PRESETS: LIVELY_PRESETS,

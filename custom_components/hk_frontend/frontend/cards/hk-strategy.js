@@ -1480,7 +1480,14 @@
                 alarm_path: alarm ? './security' : undefined };
     // ON PHONES (its Home Page's setting): the clock and weather
     // header, or under 640 px the one-line weather strip in its place
-    var tops = b.phone_header === 'strip'
+    // IN A CAR'S BROWSER, ITS OWN HOME (the screen's Car Layout: Car Home):
+    // the weather and the house's status in one line -- no clock, the car
+    // shows the time -- then the chips, the camera strip where it is on,
+    // Scenes, Security and Favorites, and no rooms: what the car needs in
+    // one screen.
+    var carHome = !!(b.car && b.car_layout === 'car');
+    if (carHome) hdr.clock = false;
+    var tops = b.phone_header === 'strip' && !carHome
       ? [{ type: 'conditional', conditions: [{ condition: 'screen', media_query: '(min-width: 640px)' }], card: hdr },
          { type: 'conditional', conditions: [{ condition: 'screen', media_query: '(max-width: 639.98px)' }],
            card: Object.assign({ type: 'custom:hk-weather-strip-card', margin: '30px 0px 23px 0px' },
@@ -1494,12 +1501,33 @@
     var strip = cameraStrip(hass, opts, b, hasCams);
     if (strip) home.push(strip);
     home.push({ type: 'custom:hk-scenes-card', view_layout: COL2 });
+    // CAR HOME'S SECURITY: the house's garage doors, its alarm and its locks
+    // (Status & Chips' lists, the Security page's own order), as a room draws
+    // them -- tall tiles -- so arriving and leaving are one look and a tap
+    if (carHome) {
+      var gates = inv.garage.filter(function (id) { return id.indexOf('cover.') === 0; });
+      var guardIds = ownOrder('security', gates).concat(alarmId ? [alarmId] : [], ownOrder('security', inv.locks));
+      guardIds = guardIds.filter(function (id) { return hass.states[id]; });
+      // the names the Security page gives them ("Front Door", not "Front Door
+      // Lock"), but the house's alarm without a room in front of it, and a
+      // lock that would read like another tile keeping its "Lock" (Garage
+      // Door Lock beside the Garage Door)
+      var full = guardIds.map(function (id) {
+        return id.indexOf('alarm_control_panel.') === 0 ? (accName(id) || nameOf(hass, id, (hass.entities || {})[id])) : fullName(hass, id);
+      });
+      var short = full.map(function (n, i) { return guardIds[i].indexOf('lock.') === 0 ? n.replace(/ Lock$/, '') : n; });
+      var guardTiles = guardIds.map(function (id, i) {
+        var clash = short.some(function (n, j) { return j !== i && fold(n) === fold(short[i]); });
+        return tileFor(hass, id, clash ? full[i] : short[i]);
+      }).filter(Boolean);
+      if (guardTiles.length) home.push(section('Security', guardTiles));
+    }
     var fav = favorites(hass, opts, b);
     if (fav) home.push(fav);
     // Play Music is reached from the Speakers chip, the menu and a scene pill
     // (Home -> Scenes -> Pills that open a page) -- not a heading of its own
     // between Favorites and the rooms.
-    rooms(hass, opts).forEach(function (r) {
+    if (!carHome) rooms(hass, opts).forEach(function (r) {
       var sec = guarded('the ' + r.name + ' section of Home', function () { return roomSection(hass, r); });
       if (sec) home.push(sec);
     });
@@ -2646,12 +2674,13 @@
   // rebuilds, so a new one is safe by default.
   // (`popups` is NOT live -- it decides this build's own #alarm
   // card, so it rebuilds, and so does the house's pop-up list; the look's
-  // amounts, the car viewport and the idle return are applied by their
-  // modules, so they do not rebuild -- a rebuild reconnects every camera.)
+  // amounts, the car viewport's width and the idle return are applied by
+  // their modules, so they do not rebuild -- a rebuild reconnects every
+  // camera. Car Browser itself rebuilds: with Car Home it is another Home.)
   var LIVE_KEYS = { chips: 1, chips_quiet: 1, chips_extra: 1, scenes: 1, scenes_pages: 1, scenes_row: 1,
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
                     tab_position: 1, home_rooms: 1, glass: 1, frost: 1, frost_tint: 1, blur: 1, tint: 1, well: 1, black_screen: 1, camera_live: 1, camera_live_video: 1,
-                    car: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1, chips_custom_show: 1,
+                    car_width: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1, chips_custom_show: 1,
                     // notifications: hk-notify.js reads them as each one comes
                     notify: 1, notify_saver: 1, notify_dnd: 1,
                     // THE MENU'S OWN LOOK (2026-10-04: All Screens' unless the

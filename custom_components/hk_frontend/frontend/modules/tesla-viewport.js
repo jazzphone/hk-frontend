@@ -34,21 +34,32 @@
 // 406 px of grid for 2 x 196 + 10.)
 //
 // NO CONSOLE IN THE CAR, so everything is driven from the URL:
-//   ?vw=1000   set the target layout width (bigger number = smaller content)
+//   ?vw=1000   set the target layout width (bigger number = smaller content);
+//              HK Settings -> the screen -> Car Browser -> Scale is the usual way
 //   ?vw=off    disable and forget
 //   ?vw=test   change nothing, just show the measurement badge
 (function () {
   if (window.teslaViewport) return;          // loaded twice: the first one runs
-  function onCarDashboard() {
+  // The car dashboard this page is on (its url path), or null.
+  function carDashboard() {
     var HS = window.hkSettings;
     var paths = (HS && HS.get("car.dashboards", [])) || [];
     for (var i = 0; i < paths.length; i++) {
       // The dashboard's own path SEGMENT: /dashboard-tesla and
       // /dashboard-tesla/0, never /dashboard-tesla2.
       var p = "/" + String(paths[i]).replace(/^\/+|\/+$/g, "");
-      if (location.pathname === p || location.pathname.indexOf(p + "/") === 0) return true;
+      if (location.pathname === p || location.pathname.indexOf(p + "/") === 0) return paths[i];
     }
-    return false;
+    return null;
+  }
+  function onCarDashboard() { return carDashboard() !== null; }
+  // ITS SCALE (the screen's gear -> Car Browser -> Scale, settings.py
+  // car_width): the layout width chosen in HK Settings, or none.
+  function chosen() {
+    var HS = window.hkSettings, d = carDashboard();
+    var all = (HS && HS.get("car.widths", {})) || {};
+    var n = d === null ? 0 : Number(all[d]);
+    return n > 0 ? n : 0;
   }
   var DEFAULT_WIDTH = 1200;
   var KEY = "teslaViewportWidth";
@@ -89,10 +100,16 @@
     ];
   }
 
+  // THE WIDTH: the URL's, then the Scale picked in HK Settings, then one a
+  // URL left in this browser before there was a setting, then 1200. A
+  // setting wins over a stored ?vw= -- or a car that was once tested with
+  // one would never follow HK Settings.
   function target() {
     var q = param();
     if (q === "off") { store(null); return 0; }
     if (q && Number(q) > 0) { store(q); return Number(q); }
+    var c = chosen();
+    if (c) return c;
     var s = stored();
     return s && Number(s) > 0 ? Number(s) : DEFAULT_WIDTH;
   }

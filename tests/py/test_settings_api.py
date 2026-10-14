@@ -40,7 +40,7 @@ def test_every_house_setting_a_person_can_change_can_be_written():
     switches (generated.chips ... -- each screen's own setting)."""
     from custom_components.hk_frontend import settings as S, settings_api as A
     legacy = {"security.garage", "security.locks", "security.doors", "security.windows",
-              "features.thermostats", "idle.dashboards", "idle.rooms", "idle.default", "car.dashboards",
+              "features.thermostats", "idle.dashboards", "idle.rooms", "idle.default", "car.dashboards", "car.widths",
               *(f"menu.{k}" for k in S.DEFAULTS["menu"] if k not in ("glyph", "clock")),
               *(f"generated.{k}" for k in ("chips", "pages", "sky", "music", "rooms"))}
     dates = {f"sky.{k}" for k in S.SKY_DATES}
@@ -560,6 +560,39 @@ async def test_a_screen_home_can_be_a_custom_page(hass, frontend):
     ws_board_set(hass, conn, {"id": 3, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
                               "changes": {"home_view": ""}})
     assert S.as_client(entry(hass))["boards"]["dashboard-car"]["home_view"] == ""
+
+
+async def test_a_car_screen_has_its_layout_and_scale(hass, frontend):
+    """Car Browser's Car Layout (the whole Home or the car's own) and Scale
+    (the layout width tesla-viewport.js zooms to: a preset or any width in
+    bounds), sent to every screen as car.widths."""
+    import json
+    from homeassistant.config_entries import ConfigSubentry
+    from conftest import entry
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.panel import ws_board_set
+    conn = await _admin(hass)
+    hass.config_entries.async_add_subentry(entry(hass), ConfigSubentry(
+        data={}, subentry_type="dashboard", title="Car", unique_id="dashboard-car"))
+    b = S.as_client(entry(hass))["boards"]["dashboard-car"]
+    assert b["car_layout"] == "home" and b["car_width"] is None, "the whole Home and the default width by default"
+    ws_board_set(hass, conn, {"id": 1, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
+                              "changes": {"car": True, "car_layout": "car", "car_width": 1350}})
+    assert conn.sent[-1]["success"], conn.sent[-1]
+    c = S.as_client(entry(hass))
+    assert c["boards"]["dashboard-car"]["car_layout"] == "car" and c["boards"]["dashboard-car"]["car_width"] == 1350
+    assert c["car"]["dashboards"] == ["dashboard-car"] and c["car"]["widths"] == {"dashboard-car": 1350}
+    for bad, code in ((99999, "car_width"), ("wide", "car_width"), ):
+        ws_board_set(hass, conn, {"id": 2, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
+                                  "changes": {"car_width": bad}})
+        assert json.loads(conn.sent[-1]["message"]) == {"car_width": code}, conn.sent[-1]
+    ws_board_set(hass, conn, {"id": 3, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
+                              "changes": {"car_layout": "sideways"}})
+    assert json.loads(conn.sent[-1]["message"]) == {"car_layout": "choice"}
+    ws_board_set(hass, conn, {"id": 4, "type": "hk_frontend/board/set", "dashboard": "dashboard-car",
+                              "changes": {"car_width": None, "car": False}})
+    c = S.as_client(entry(hass))
+    assert c["boards"]["dashboard-car"]["car_width"] is None and c["car"]["widths"] == {}
 
 
 def test_copy_settings_covers_every_screen_setting_and_round_trips():
