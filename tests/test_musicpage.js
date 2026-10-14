@@ -44,5 +44,18 @@ var vp = U.volumeCalls(cp, presets, 0.5);
 ok('a preset: the group, then its rooms', vp.length === 2 && vp[0].entity_id === 'media_player.down' && JSON.stringify(vp[1].entity_id) === '["k","lr"]', vp);
 ok('nothing playing: no calls', U.volumeCalls(null, presets, 0.5).length === 0);
 
+// THE FIRST LAYOUT IS NOT ANIMATED (2026-10-13): built with no column count
+// (drawn unseen until _layout measures it), and a change of columns laid
+// with transitions off -- on a phone Now Playing slid off the foot on every
+// first visit, a sheet popping up and away
+(function () {
+  var src = readFile(HK_ROOT + '/frontend/cards/hk-music.js');
+  ok('the page is built with no column count, unseen until it has one',
+     src.indexOf('<div class="mu">') >= 0 && src.indexOf('<div class="mu" cols=') < 0 && src.indexOf("'.mu:not([cols]){visibility:hidden}'") >= 0);
+  ok('...and a new column count is laid with its transitions off',
+     /mu\.classList\.add\('relay'\);\s*mu\.setAttribute\('cols', String\(cols\)\);/.test(src) && src.indexOf("'.mu.relay,.mu.relay *{transition:none!important}'") >= 0 &&
+     /requestAnimationFrame\(function \(\) \{ mu\.classList\.remove\('relay'\); \}\)/.test(src));
+})();
+
 print('\n' + (fail ? fail + ' FAILED, ' : 'ALL ') + pass + ' MUSIC PAGE TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

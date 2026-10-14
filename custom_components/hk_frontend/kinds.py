@@ -127,6 +127,12 @@ class Candidate:
     area_id: str | None
     readings: tuple[str, ...] = ()            # the reading kinds it can be counted for
     automatic_readings: tuple[str, ...] = ()  # ...and those it is counted for by itself
+    # A GROUP never counts by itself (its members would count twice), but it
+    # can be added by hand -- Also Count As: a "Motion - Kitchen" helper
+    # counted as the kitchen's motion (2026-10-13). `listed`: not hidden,
+    # disabled, or a config/diagnostic entity in Home Assistant.
+    group: bool = False
+    listed: bool = True
 
 
 def matches(kind: Kind, cand: Candidate) -> bool:
@@ -168,10 +174,11 @@ def candidates(hass: HomeAssistant) -> list[Candidate]:
         # a group of other entities counts its members twice: a helper's
         # (entity_id) or, since Home Assistant 2026, any integration's -- a
         # Hue room, a Zigbee group (group_entities)
-        shown = not any(isinstance(st.attributes.get(k), list) for k in ("entity_id", "group_entities"))
+        group = any(isinstance(st.attributes.get(k), list) for k in ("entity_id", "group_entities"))
+        listed = True
         device_id = area_id = None
         if entry is not None:
-            shown = shown and not (entry.hidden_by or entry.disabled_by or entry.entity_category)
+            listed = not (entry.hidden_by or entry.disabled_by or entry.entity_category)
             device_id = entry.device_id
             area_id = entry.area_id
             if area_id is None and device_id:
@@ -189,8 +196,8 @@ def candidates(hass: HomeAssistant) -> list[Candidate]:
         auto = tuple(k for k in readings if st.entity_id in nominated[k]
                      or (domain == "climate" and area is not None
                          and not getattr(area, k + "_entity_id", None)))
-        out.append(Candidate(st.entity_id, st.attributes.get("device_class"), shown,
-                             device_id, area_id, readings, auto))
+        out.append(Candidate(st.entity_id, st.attributes.get("device_class"), listed and not group,
+                             device_id, area_id, readings, auto, group, listed))
     return out
 
 

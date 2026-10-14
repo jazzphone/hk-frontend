@@ -110,12 +110,31 @@
     return p;
   }
 
+  // THIS PAGE'S TABLET (1.14, hkSettings.tablet()): the idle return is a
+  // tablet's, never a desk's, a phone's or a car's -- a page someone is
+  // sitting at is in use, and yanking one mid-read is worse than leaving it.
+  // A server from before 1.14 sends no tablets: the screens' lists above.
+  function tabletHere() {
+    var HS = window.hkSettings;
+    var t = HS && typeof HS.tablet === 'function' ? HS.tablet() : null;
+    return t && !t.legacy ? t : null;
+  }
+  function legacyFeed() {
+    var HS = window.hkSettings;
+    return !HS || HS.get('tablet_items', null) === null;
+  }
   function onSubview() {
     var q = parts();
-    if ((idleSetting('dashboards', []) || []).indexOf(q.dash) === -1) return false;
+    if (legacyFeed()) {
+      if ((idleSetting('dashboards', []) || []).indexOf(q.dash) === -1) return false;
+    } else {
+      var t = tabletHere();
+      if (!t || !t.idle_return) return false;
+    }
     if (!q.view || q.view === '0') return false;
     return q.view !== firstViewFor(q.dash);
   }
+
 
   // IS SOMEBODY ACTUALLY USING THIS TABLET? binary_sensor.<room>_tablet_in_use
   // answers, when the house defines one -- for example Fully Kiosk's
@@ -132,6 +151,7 @@
   // alone. A tablet we cannot ask about is not one to start second-guessing
   // the timer on.
   function inUse() {
+    if (!legacyFeed()) return null;      // 1.14: touches reset the timer themselves
     var room = roomFor(parts().dash);
     if (!room) return null;
     try {
@@ -182,6 +202,12 @@
 
   function preferenceMs() {
     if (IDLE_OVERRIDE_MS !== null) return IDLE_OVERRIDE_MS;
+    // 1.14: the tablet's own Idle Time (else All Tablets'), in seconds; 0 never
+    if (!legacyFeed()) {
+      var t = tabletHere();
+      var s = t && typeof t.idle_time === 'number' ? t.idle_time : DEFAULT_IDLE_MS / 1000;
+      return s > 0 ? s * 1000 : 0;
+    }
     var room = roomFor(parts().dash);
     if (!room) return DEFAULT_IDLE_MS;
     try {

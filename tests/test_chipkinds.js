@@ -244,6 +244,22 @@ ok('...nor one the library no longer has', kindsOf(plan).indexOf('gone') < 0 && 
 var c1 = K.rowPlan({}, { chips_custom: ['house-battery'] }, { states: {} });
 c1.cards[c1.cards.length - 1].type = 'changed';
 ok('...each row gets its own copy of the card', SET.custom_chips[1].card.type === 'x-battery');
+// EACH CUSTOM CHIP'S SHOW on a screen (2026-10-13): Always or When Active
+SET.custom_chips = [{ key: 'mail', name: 'Mail', after: 'end', card: { type: 'conditional', conditions: [{ condition: 'state', entity: 'sensor.mailbox', state: 'Delivered' }],
+                                                                          card: { type: 'custom:hk-status-chip-card', entity: 'sensor.mailbox' } } },
+                    { key: 'house-battery', name: 'House Battery', after: 'end', card: { type: 'custom:hk-status-chip-card', entity: 'sensor.battery' } },
+                    { key: 'own-rules', name: 'Own', after: 'end', card: { type: 'custom:hk-status-chip-card', entity: 'sensor.x', active: [{ entity: 'sensor.x', state: 'on' }] } }];
+var last = function (p, n) { return p.cards[p.cards.length - (n || 1)]; };
+plan = K.rowPlan({}, { chips: ['chip:mail', 'chip:house-battery'], chips_custom: ['mail', 'house-battery'] }, { states: {} });
+ok('as written: Mail in its condition, the battery always', plan.cards[0].type === 'conditional' && !plan.cards[1].quiet);
+plan = K.rowPlan({}, { chips: ['chip:mail', 'chip:house-battery'], chips_custom: ['mail', 'house-battery'],
+                       chips_custom_show: { mail: 'always', 'house-battery': 'active' } }, { states: {} });
+ok('Always takes Mail out of its condition', plan.cards[0].type === 'custom:hk-status-chip-card' && plan.cards[0].entity === 'sensor.mailbox');
+ok('When Active makes the battery quiet, while its entity is on', plan.cards[1].quiet === true &&
+   plan.cards[1].active[0].entity === 'sensor.battery' && plan.cards[1].active[0].state_not.indexOf('off') >= 0);
+plan = K.rowPlan({}, { chips: ['chip:own-rules'], chips_custom: ['own-rules'], chips_custom_show: { 'own-rules': 'active' } }, { states: {} });
+ok('...a chip with its own active: rules keeps them', plan.cards[0].quiet === true && plan.cards[0].active[0].state === 'on' && plan.cards[0].active.length === 1);
+ok('...and the library\u2019s card is untouched', !SET.custom_chips[1].card.quiet && SET.custom_chips[0].card.type === 'conditional');
 delete SET.custom_chips;
 
 print('\n=== the scenes row ===');
@@ -263,7 +279,8 @@ ok('the dashboard\'s scenes win, in its order', pills.map(function (p) { return 
 ok('a button is pressed; its look is the one `looks` gives it', pills[0].tap_action.perform_action === 'input_button.press' &&
    pills[0].icon === 'hk:sun' && pills[0].icon_color === 'yellow');
 ok('the scenes row\'s geometry', sp.config.cards[1].layout.margin === '-14px -22px -7px -22px' &&
-   sp.config.cards[1].cards[0].card_width === 'var(--hk-pill, 192px)');
+   sp.config.cards[1].cards[0].card_width === 'var(--hk-pill, ' + HC.TILE.w + 'px)' &&
+   sp.config.cards[1].cards[0].gap === HC.TILE.gridGap);
 ok('turned off on the dashboard: nothing', SC.plan({}, { scenes_row: false }, sh).config === null);
 // A ROOM'S ROW (room: true, a room page's): exactly the scenes it is given
 sp = SC.plan({ room: true, scenes: ['input_button.gm'] }, { scenes: ['scene.bed'], scenes_row: false, scenes_pages: ['music'] }, sh);

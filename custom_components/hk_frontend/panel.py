@@ -14,6 +14,7 @@ page. Its first run is the Setup Assistant.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,8 @@ from . import accessories, hiding, kinds, lovelace_boards, settings_api
 from . import settings as S
 from . import sleep_rules as SR
 from .const import CONF_FILES_FOLDER, DEFAULT_FILES_FOLDER, DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 URL_PATH = "hk-settings"
 ELEMENT = "hk-settings-panel"
@@ -94,6 +97,37 @@ def _screensavers(hass: HomeAssistant) -> dict[str, dict[str, str | None]]:
     return mgr.entity_ids() if mgr else {}
 
 
+def _tablets(hass: HomeAssistant, entry: Any) -> dict[str, dict[str, Any]]:
+    from . import tablets
+    items = {s.unique_id: s.subentry_id for s in entry.subentries.values()
+             if s.subentry_type == S.SUBENTRY_TABLET and s.unique_id}
+    out = {}
+    for tid, t in S.tablets(entry).items():
+        try:
+            p = tablets.parts(hass, t["app"], t["device"])
+        except Exception:                               # noqa: BLE001 -- a registry mid-change
+            p = {}
+        out[tid] = {**t, "item": items.get(tid), "parts": p}
+    return out
+
+
+def _kiosk_devices(hass: HomeAssistant) -> list[dict[str, str]]:
+    from . import tablets
+    try:
+        return tablets.devices(hass)
+    except Exception:                                   # noqa: BLE001
+        return []
+
+
+def _suggest(hass: HomeAssistant, entry: Any) -> list[dict[str, Any]]:
+    from . import tablets
+    try:
+        return tablets.suggestions(hass, entry)
+    except Exception:                                   # noqa: BLE001
+        _LOGGER.debug("tablet suggestions", exc_info=True)
+        return []
+
+
 async def _dashboards(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Every dashboard: its url path, title, whether it is generated, and
     whether it has an item (and which)."""
@@ -157,8 +191,14 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
         "entry_id": entry.entry_id,
         "settings": S.merged(entry.options),
         "boards": S.boards(entry),
-        # each screen's photo screensaver switch + in-use sensor (screensaver.py)
+        # each tablet's own entities (screensaver.py), by tablet id
         "screensavers": _screensavers(hass),
+        # THE WALL TABLETS (1.14): each tablet as stored, with All Tablets'
+        # idle filled in, its kiosk app's entities by role (tablets.parts),
+        # the kiosk apps' devices, and what may be a tablet that isn't one
+        "tablets": _tablets(hass, entry),
+        "kiosk_devices": _kiosk_devices(hass),
+        "tablet_suggest": _suggest(hass, entry),
         "dashboards": dashboards,
         "popups": popups,
         "custom_pages": pages,
@@ -294,7 +334,7 @@ async def _menu_layout(hass: HomeAssistant, path: str,
         item = {"path": key, "title": str(title), "top": v.get("menu") == "top",
                 "auto": not off and (not chips or key in chips)}
         # its menu name is not its page name (a "House Battery" entry that
-        # opens the EcoFlow page)
+        # opens a custom page)
         if v.get("title") and str(v["title"]) != item["title"]:
             item["page"] = str(v["title"])
         out.append(item)
@@ -417,10 +457,152 @@ def ws_board_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     if errors:
         _refused(connection, msg["id"], errors)
         return
-    hass.config_entries.async_update_subentry(entry, sub, data=data)
+    hass.config_entries.async_update_subentry(entry, sub, data=S.board_stored(data))
     # as READ (resolved): a screen following All Screens' rooms or screensaver
     # is handed back with them, as the settings feed sends it
     connection.send_result(msg["id"], {"board": S.resolved(S.board(data), entry.options)})
+
+
+# ------------------------------------------------------------ wall tablets
+def _tablet_sub(entry: Any, tid: str) -> Any:
+    return next((s for s in (entry.subentries.values() if entry else ())
+                 if s.subentry_type == S.SUBENTRY_TABLET and s.unique_id == tid), None)
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/tablet/set",
+    vol.Required("tablet"): str,
+    vol.Required("changes"): dict,
+})
+@websocket_api.require_admin
+@callback
+def ws_tablet_set(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """One tablet's settings, only the ones that changed (settings_api.TABLET).
+    Its name is its item's title, and its device's name (screensaver.py)."""
+    entry = _entry(hass)
+    sub = _tablet_sub(entry, msg["tablet"])
+    if sub is None:
+        connection.send_error(msg["id"], "no_tablet", "There is no such tablet")
+        return
+    data, errors = settings_api.apply_tablet(sub.data, msg["changes"], msg["tablet"])
+    if errors:
+        _refused(connection, msg["id"], errors)
+        return
+    hass.config_entries.async_update_subentry(entry, sub, data=S.tablet_stored(data, msg["tablet"]), title=data["name"])
+    connection.send_result(msg["id"], {"tablet": S.tablets(entry).get(msg["tablet"])})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/tablet/add",
+    vol.Required("tablet"): dict,
+})
+@websocket_api.require_admin
+@callback
+def ws_tablet_add(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """A new tablet (Add Tablet): its name, screen, room, user, kiosk app and
+    device, checked as any change; its id from its name."""
+    from types import MappingProxyType
+    from homeassistant.config_entries import ConfigSubentry
+    entry = _entry(hass)
+    if entry is None:
+        connection.send_error(msg["id"], "not_set_up", "HK Frontend is not set up")
+        return
+    taken = {s.unique_id for s in entry.subentries.values() if s.subentry_type == S.SUBENTRY_TABLET}
+    tid = S.tablet_id(str(msg["tablet"].get("name") or ""), taken)
+    data, errors = settings_api.apply_tablet({}, {"name": "", **msg["tablet"]}, tid)
+    if errors:
+        _refused(connection, msg["id"], errors)
+        return
+    data["uid"] = f"tablet_{tid}"
+    hass.config_entries.async_add_subentry(entry, ConfigSubentry(
+        data=MappingProxyType(S.tablet_stored(data, tid)), subentry_type=S.SUBENTRY_TABLET, title=data["name"], unique_id=tid))
+    connection.send_result(msg["id"], {"id": tid, "tablet": S.tablets(entry).get(tid)})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/tablet/remove",
+    vol.Required("tablet"): str,
+})
+@websocket_api.require_admin
+@callback
+def ws_tablet_remove(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """A tablet gone: its item and its entities (the screen and the kiosk
+    app stay)."""
+    entry = _entry(hass)
+    sub = _tablet_sub(entry, msg["tablet"])
+    if sub is None:
+        connection.send_error(msg["id"], "no_tablet", "There is no such tablet")
+        return
+    hass.config_entries.async_remove_subentry(entry, sub.subentry_id)
+    connection.send_result(msg["id"], {"removed": msg["tablet"]})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/tablet/act",
+    vol.Required("tablet"): str,
+    vol.Required("act"): vol.In(("wake", "sleep", "restart_all", "kiosk_saver")),
+})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_tablet_act(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                        msg: dict[str, Any]) -> None:
+    """Wake Now (as a touch: the dashboard for its in-use window), Sleep Now
+    (Sleep Screen's own sleep, once -- the rules decide again after), Fix
+    for the kiosk's screensaver (Black, after a day), and the scheduled
+    restart run now (`tablet` "*")."""
+    from . import screensaver, tablets
+    act, tid = msg["act"], msg["tablet"]
+    if act == "restart_all":
+        w = tablets.watch(hass)
+        done = await w.restart_all() if w else []
+        connection.send_result(msg["id"], {"restarted": done})
+        return
+    entry = _entry(hass)
+    t = S.tablets(entry).get(tid) if entry else None
+    if t is None:
+        connection.send_error(msg["id"], "no_tablet", "There is no such tablet")
+        return
+    if act == "kiosk_saver":
+        p = tablets.parts(hass, t["app"], t["device"])
+        if p.get("saver_mode"):
+            await hass.services.async_call("select", "select_option",
+                                           {"entity_id": p["saver_mode"], "option": "Black"}, blocking=True)
+        if p.get("saver_timeout"):
+            await hass.services.async_call("number", "set_value",
+                                           {"entity_id": p["saver_timeout"], "value": tablets.SAVER_TIMEOUT},
+                                           blocking=True)
+        connection.send_result(msg["id"], {"ok": True})
+        return
+    mgr = screensaver.manager(hass)
+    eng = mgr.engines.get(tid) if mgr else None
+    if eng is None or not eng.acting:
+        connection.send_error(msg["id"], "not_deciding", "HK Frontend doesn't decide when this tablet sleeps")
+        return
+    if act == "wake":
+        mgr.touched(tid)
+        eng.evaluate()
+    else:
+        await eng.sleep(eng.power_off_wanted())
+    connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/tablet/seen",
+    vol.Required("screen"): vol.All(str, vol.Match(r"^[a-z0-9_-]{0,80}$")),
+    vol.Required("app"): str,
+    vol.Optional("tablet"): vol.Any(None, str),
+})
+@callback
+def ws_tablet_seen(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """A page that looks like a wall tablet's (hk-settings.js: a kiosk app's
+    browser) and isn't one of the tablets: a suggestion on Wall Tablets."""
+    from . import tablets
+    user = connection.user
+    if user is None or not user.name:
+        connection.send_result(msg["id"], {})
+        return
+    tablets.saw(hass, user.name, msg["screen"], msg["app"], msg.get("tablet"))
+    connection.send_result(msg["id"], {})
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hk_frontend/setup/check"})
@@ -542,6 +724,8 @@ def ws_dashboard_titled(hass: HomeAssistant, connection: websocket_api.ActiveCon
 
 
 def register_commands(hass: HomeAssistant) -> None:
+    for cmd in (ws_tablet_set, ws_tablet_add, ws_tablet_remove, ws_tablet_act, ws_tablet_seen):
+        websocket_api.async_register_command(hass, cmd)
     for cmd in (ws_panel_get, ws_setup_done, ws_settings_set, ws_board_set, ws_setup_check,
                 ws_chip_save, ws_chip_remove, ws_dashboard_titled):
         websocket_api.async_register_command(hass, cmd)

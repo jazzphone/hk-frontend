@@ -24,7 +24,7 @@ What each chip counts is the same on every screen. Each kind finds its own
 accessories, and you change that on the accessory: hide it from a chip in
 [Hidden Accessories](Accessories.md#hidden-accessories), or count it where it
 isn’t found with its [Also Count As](Accessories.md#also-count-as).
-[What Counts](#what-counts) shows the result. The alarm is in
+Each type’s page in [Accessories](Accessories.md#types) shows the result. The alarm is in
 [General](HK-Settings.md#general), the indoor temperature and power sensor
 on the Climate and Energy chips’ own pages
 ([below](#status-chips-settings)); the alerts sensor is in
@@ -35,20 +35,23 @@ chip.
 alarm, the Smoke & CO chip leads every screen’s chip row, before the chips the
 screen chooses, and appears only while an alarm is going off. A screen can’t
 remove or move it; turn the whole row off (**Show Status Chips**) and it goes
-with it. [What Counts → Smoke & CO](#what-counts) lists the alarms that set it
-off: hide a camera that only hears the alarm from **Smoke & CO**, or count a
-gas detector with its **Also Count As**.
+with it. **Accessories → Smoke & CO** ([Types](Accessories.md#types)) lists
+the alarms that set it off: hide a camera that only hears the alarm from
+**Smoke & CO**, or count a gas detector with its **Also Count As**.
 
 ![A screen’s Status Chips page in HK Settings](images/settings-chips.png)
 
 **Only when there’s something to report.** Some chips are *quiet*: they appear
 only while something is on, open, running or wet, so the row carries news
 rather than a permanent “All Closed”. Weather Alerts, Doors & Windows, Blinds
-and Water start quiet. To change one:
+and Water start quiet. To change one on every screen at once:
 
-1. Open **HK Settings → Screens → (the screen) → Status Chips**.
-2. Tap the chip’s row.
-3. Set **Show** to **When Active** (quiet) or **Always**.
+1. Open **HK Settings → All Screens → Status Chips**.
+2. Tap the chip under **Chips** (or your own under **Custom Chips**).
+3. Set each screen to **When Active** (quiet) or **Always**.
+
+One screen alone: **Screens → (the screen) → Status Chips**, tap the chip’s
+row, and set **Show**.
 
 **Choose and order the chips.** On the same page, turn **Automatic** off. Drag
 the chips into order, remove the ones you don’t want, and add others back from
@@ -71,7 +74,8 @@ add it to any screen:
    `conditional` card. There is an example on the page.
 4. Select **Add Chip**.
 5. On each screen that should show it, open **Status Chips** and add it from
-   **More**.
+   **More**. **All Screens → Status Chips** then sets it Always or When Active,
+   screen by screen.
 
 ![The Custom Chips page in HK Settings](images/settings-custom-chips.png)
 
@@ -79,6 +83,39 @@ A custom chip’s minus on a screen takes it off that screen only. **Delete
 Chip** in the Library removes it everywhere.
 
 ## Status Chips settings
+
+Each screen's chip row is its own: **HK Settings → the screen → Home Page →
+Status Chips**. To see them all side by side, use **All Screens → Status
+Chips**:
+
+- **Screens** lists every screen's chip row (Off, Automatic, or its own
+  chips), each a tap from that screen's page.
+- **Chips** lists each chip with where it shows ("Always on 6 · When Active
+  on 1"). A chip's page sets **Always** or **When Active** for every screen
+  at once, lists the screens that don't show it, and what it counts.
+
+![All Screens → Status Chips: each screen’s chip row, then each chip with where it shows](images/settings-status-chips.png)
+*All Screens → Status Chips: every screen’s chips side by side.*
+
+**Custom Chips** are listed there too, set the same way for each screen.
+A chip left alone shows as written: one inside a `conditional` card only when
+its condition is met (When Active), any other always. **Always** takes a
+conditional chip out of its condition. **When Active** shows a status chip
+only while its entity is on, open or running, or as its own `active:` rules
+say, so a reading that is never off (a battery's percent) needs `active:`
+rules for When Active to mean anything. A custom chip written as another kind
+of card shows as written. Each custom chip's own page (**Library → Custom
+Chips**) links to its screens.
+
+Each type's page under [Accessories](Accessories.md#types) also has a
+**Chips** group: the chips that count that type, each opening that chip's
+page.
+
+**What the Chips Count** ends All Screens' and each screen's Status Chips
+page: **Accessories**, to add to a chip or hide from it type by type, and
+**Custom Chips**. A chip's page says the same under **What It Counts**: tap a
+type, then **Add…** to count something more, or open an accessory to hide it
+from the chip. A chip that reads one setting (Weather Alerts, Energy) says so.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -93,36 +130,33 @@ Each kind’s page:
 | Setting | Default | What it does |
 |---|---|---|
 | Show | When Active for Weather Alerts, Doors & Windows, Blinds and Water; Always for the rest | **When Active**: the chip appears only while something is on, open, running or wet. **Always**: it is always there. |
-| What It Counts | — | The kinds the chip counts, each with how many and opening it in [What Counts](#what-counts), and a link to the single setting it reads elsewhere (Alarm Panel, Weather Alerts). The same on every screen. |
-| Indoor Temperature | First Thermostat’s | *Climate chip.* A temperature sensor for the chip’s reading (an average, say). The house’s: the same on every screen. |
-| Power Use | None | *Energy chip.* A power sensor for the chip, which needs it. W or kW; shown in kW. The same on every screen. |
+| What It Counts | — | The kinds the chip counts, each with how many and opening its type’s page in [Accessories](Accessories.md#types), and a link to the single setting it reads elsewhere (Alarm Panel, Weather Alerts). The same on every screen. |
+| Indoor Temperature | First Thermostat’s | *Climate chip, on a screen’s page for it.* A temperature sensor for the chip’s reading (an average, say). The house’s: the same on every screen. |
+| Power Use | None | *Energy chip, on a screen’s page for it.* A power sensor for the chip, which needs it. W or kW; shown in kW. The same on every screen. |
 
 ## The pages’ status rows
 
 The [Climate](Climate.md), Lights, Doors & Windows, Water and Security pages
 have a room-style status row under their titles: *3 Lights · 2 On*, *Motion ·
-Emma’s Room*, *Valve · Running*. Each counts what [What Counts](#what-counts) shows; tap
+Emma’s Room*, *Valve · Running*. Each counts what its type’s page in
+[Accessories](Accessories.md#types) lists; tap
 an item for its room-labeled accessory list. Choose what each row shows, its
 order and the rooms it leaves out in **All Screens → Status Rows** ([Status
 rows](Status-Rows.md)).
 
 ## What Counts
 
-**Library → Accessories → What Counts**, also reached from a screen’s chip
-page (**What It Counts**) and a status row’s **Sources**. What each status
-chip, the header’s security line and the generated pages count, on every
-screen. It only shows: every kind finds its own entities, and what you change,
-you change on the accessory — hide it from a kind in
+What each status chip, the header’s security line and the generated pages
+count, on every screen, is each type’s page under **Library → Accessories**
+([Types](Accessories.md#types)): Lights, Locks, Doors, Temperature and the
+rest. A screen’s chip page (**What It Counts**) and a status row’s **Sources**
+open them. Every kind finds its own entities, and what you change, you change
+on the accessory — hide it from a kind in
 [Hidden Accessories](Accessories.md#hidden-accessories), or count it where it
-isn’t found with its [Also Count As](Accessories.md#also-count-as). The Lights
-chip and the Lights page count the same lights, so they can’t disagree. The
-page lists every kind under **Status Chips**, and the kinds that feed only the
-pages’ status rows — temperature, humidity, motion, occupancy and valves —
-under **For Status Rows**; the number is what is counted now, and *Adjusted*
-means some are hidden from it or added to it. (It was called Status & Chips,
-and had its own place in the sidebar.)
-
-![What Counts in HK Settings: each kind and how many it counts](images/settings-counts.png)
+isn’t found with its [Also Count As](Accessories.md#also-count-as) (or **Add…**
+on the type’s page). The Lights chip and the Lights page count the same
+lights, so they can’t disagree. (What Counts was a page of its own, and before
+that Status & Chips; its old links open the type’s page.)
 
 | Kind | Found automatically | The chip counts |
 |---|---|---|
@@ -135,7 +169,7 @@ and had its own place in the sidebar.)
 | Windows | Binary sensors of class window | Open (Doors & Windows chip) |
 | Garage Doors | Covers of class garage or gate, binary sensors of class garage door | Open (Doors & Windows chip); the Security page lists the covers |
 | Locks | Every lock | Unlocked (Security chip) |
-| Blinds | Covers of class awning, blind, curtain, shade, shutter or window, or with no class | Open (Blinds chip) |
+| Blinds & Shades | Covers of class awning, blind, curtain, shade, shutter or window, or with no class | Open (Blinds chip) |
 | Leak Sensors | Binary sensors of class moisture | Wet (the Water chip appears) |
 | Thermostats | Every climate entity | Heating or cooling (the Climate chip’s glyph) |
 | Timers | Every timer helper | Running (Timers chip) |
@@ -144,7 +178,8 @@ and had its own place in the sidebar.)
 
 Never found: hidden or disabled entities, configuration and diagnostic
 entities, groups of other entities (a light group would count its lights
-twice), and anything hidden everywhere in
+twice; add one with **Add…** on its type’s page if you want it), and anything
+hidden everywhere in
 [Hidden Accessories](Accessories.md#hidden-accessories). An accessory hidden
 from a kind there isn’t counted in it. One shown as something else (a switch
 **Shown as** a light) is counted as its [accessory settings](Accessories.md)
@@ -154,19 +189,18 @@ In **Hide From** and on an accessory’s **Where it shows**, a kind goes by the
 page it is on: thermostats are **Climate**, locks **Security**, leak sensors
 **Water** and garage doors **Garage**; the rest keep their names.
 
-Each kind’s page only shows; nothing is changed there:
-
-| Row | What it shows |
-|---|---|
-| Found Automatically | How many the kind finds by itself. |
-| Counted | Everything it counts now, with each one’s room. |
-| Left Out | Found, but hidden from this kind in Hidden Accessories: a car’s windows, a second copy of a blind. Tap one to change where it is hidden; **Hidden Accessories** opens the whole list. |
-| Also Counted | Not found, but counted because its **Also Count As** is on: an outlet you think of as a light, a switch that runs a fan. Tap one to open its settings. |
-| Show All Again… | *When something is left out.* Opens this kind in Hidden Accessories, where **Show All Again** shows everything it finds again. What was added stays. |
+A type’s page lists what it counts room by room. **Hidden** marks one hidden
+from this kind in Hidden Accessories (a car’s windows, a second copy of a
+blind); **Added** marks one counted because its **Also Count As** is on (an
+outlet you think of as a light, a switch that runs a fan). **Show All on (the
+page) Again…** opens the kind in Hidden Accessories, where **Show All Again**
+shows everything it finds again; what was added stays. See
+[Types](Accessories.md#types).
 
 The chips’ two readings, **Indoor Temperature** and **Power Use**, are chosen
-on the Climate and Energy chips’ own pages
-([Status Chips settings](#status-chips-settings)).
+on the Climate and Energy chips’ pages under any screen’s Status Chips
+([Status Chips settings](#status-chips-settings)); either one is the
+house’s, the same on every screen.
 
 A kind you never touch stays automatic, so a light you add tomorrow is counted
 tomorrow. The category pages of a generated screen (Lights, Doors & Windows, …)

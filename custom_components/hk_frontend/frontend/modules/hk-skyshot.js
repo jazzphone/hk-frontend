@@ -452,7 +452,15 @@
   // THE PAINT TREE: what each shown piece is, where (its matrix to the
   // screen, `m`), how (opacity, filter, mask, blend), read now -- a computed
   // style is live -- with its children in paint order (z-index).
-  function collect(sky, vp, moves, check, ahead) {
+  // UNDER CSS `zoom` (a car dashboard: tesla-viewport.js zooms the whole
+  // document, 0.67 in a Tesla) a piece's offsets and sizes are in the page's
+  // own units while the screen is Z times smaller: the tree starts at a
+  // scale of Z, and whatever is read off getBoundingClientRect (in screen
+  // pixels) is taken back into the page's units. Without it the picture drew
+  // the sky 1.5x too big and no pictured pill lined up (2026-10-13; 37 of 38
+  // pieces "mismatched", 1200 vs 804).
+  function collect(sky, vp, moves, check, ahead, Z) {
+    Z = Z || 1;
     var urls = {}, ends = ahead ? settling(sky, ahead, check) : null;
     function want(list) { list.forEach(function (l) { if (l.indexOf('url(') === 0) urls[urlOf(l)] = 1; }); }
     function offsetIn(el, parent) {
@@ -460,7 +468,7 @@
       if (parent && el.offsetParent && el.offsetParent === parent.offsetParent) return [el.offsetLeft - parent.offsetLeft, el.offsetTop - parent.offsetTop];
       var a = el.getBoundingClientRect(), b = parent.getBoundingClientRect();
       check.offsets++;
-      return [a.left - b.left, a.top - b.top];
+      return [(a.left - b.left) / Z, (a.top - b.top) / Z];
     }
     function node(el, parent, parentM) {
       var cs = getComputedStyle(el), end = ends && ends.get(el);
@@ -471,8 +479,8 @@
       if (moves && el !== sky && moves(cs)) return null;
       var svg = el.namespaceURI === 'http://www.w3.org/2000/svg';
       var w, h, off;
-      if (svg) { var r = el.getBoundingClientRect(); w = r.width; h = r.height; off = parent ? offsetIn(el, parent.el) : [r.left, r.top]; }
-      else { w = el.offsetWidth; h = el.offsetHeight; off = parent ? offsetIn(el, parent.el) : (function () { var rr = el.getBoundingClientRect(); return [rr.left, rr.top]; })(); }
+      if (svg) { var r = el.getBoundingClientRect(); w = r.width / Z; h = r.height / Z; off = parent ? offsetIn(el, parent.el) : [r.left / Z, r.top / Z]; }
+      else { w = el.offsetWidth; h = el.offsetHeight; off = parent ? offsetIn(el, parent.el) : (function () { var rr = el.getBoundingClientRect(); return [rr.left / Z, rr.top / Z]; })(); }
       // the piece's own matrix, about its transform-origin, after its offset
       var local = new DOMMatrix().translate(off[0], off[1]);
       if (cs.transform && cs.transform !== 'none') {
@@ -538,7 +546,7 @@
       }
       return n;
     }
-    var tree = node(sky, null, new DOMMatrix());
+    var tree = node(sky, null, new DOMMatrix().scale(Z, Z));
     return { tree: tree, urls: Object.keys(urls) };
   }
   function bbox(m, x, y, w, h) {
@@ -877,26 +885,32 @@
     var check = { pieces: 0, mismatched: 0, offsets: 0, planes: 0, groups: 0, reused: 0, where: [], unsupported: {}, ms: {},
                   unsettled: 0, ahead: 0 };
     var t0 = performance.now();
-    var got = collect(sky, VP, opts.moves || null, check, opts.settle || 0);
+    // the page's zoom (collect): a CSS pixel is Z screen pixels, so what is
+    // sized in CSS pixels -- shadows, the pieces' own filters, the look's
+    // blur -- is drawn at k * Z
+    var Z = sky.currentCSSZoom || 1, kz = k * Z;
+    var got = collect(sky, VP, opts.moves || null, check, opts.settle || 0, Z);
     check.ms.collect = Math.round(performance.now() - t0);
     if (!got.tree) return Promise.resolve(null);
     return Promise.all(got.urls.map(loadImg)).then(function (loaded) {
       var imgs = {};
       got.urls.forEach(function (u, i) { imgs[u] = loaded[i]; });
       var c = newCanvas(VP.W * k, VP.H * k), x = ctxOf(c);
-      var screen = new DOMMatrix().scale(c.width / VP.W, c.height / VP.H);
+      // (the paint walks each piece's own `local` from here: the page's zoom
+      // goes on at the root, as collect's matrices have it)
+      var screen = new DOMMatrix().scale(c.width / VP.W, c.height / VP.H).scale(Z, Z);
       prepare(got.tree);
       groupCache.forEach(function (v, el) { if (!el.isConnected) groupCache.delete(el); });
       var t1 = performance.now();
-      return paint(x, got.tree, screen, imgs, check, k).then(function () {
+      return paint(x, got.tree, screen, imgs, check, kz).then(function () {
         check.ms.paint = Math.round(performance.now() - t1);
         // THEN THE LOOK'S OWN FILTER over the whole picture (opts.filter:
         // the --hk-blur-filter it wears), its edges held
         var fl = filtersOf(opts.filter || '');
         if (!fl.length) return c;
         var reach = 0;
-        fl.forEach(function (f) { if (f.f === 'blur') reach += 3 * (parseFloat(f.v) || 0) * k; });
-        return nativeFilter(c, svgPrims(fl, k, check), reach + 2);
+        fl.forEach(function (f) { if (f.f === 'blur') reach += 3 * (parseFloat(f.v) || 0) * kz; });
+        return nativeFilter(c, svgPrims(fl, kz, check), reach + 2);
       }).then(function (out) {
         check.ms.total = Math.round(performance.now() - t0);
         return { canvas: out, check: check };

@@ -160,11 +160,22 @@
   // the picture waiting for this page, on now
   function wearNext() {
     var n = pre.next;
-    if (!n || n.path !== viewUp) return;
+    if (!n || n.path !== skyAt()) return;
     pre.next = null;
     if (n.url) wearAll(n.url, n.path, false, false); else preNone();
   }
   function here() { try { return location.pathname; } catch (e) { return ''; } }
+  // THE PAGE THE SKY SHOWS NOW -- which is not yet the page whose view is up:
+  // the view goes on a frame or two before its sky cuts to it (hk-sky.js
+  // path()). A page's picture goes on with its SKY (hk-sky-change, said in
+  // the same task), not with its view: worn with the view, Home's moon was
+  // on the pills for those frames over the last page's backdrop -- the moon
+  // flashing behind the chips at each return to Home (2026-10-13). No sky
+  // (a page without one): the view's page.
+  function skyAt() {
+    var S = window.hkSky, p = S && typeof S.path === 'function' ? S.path() : null;
+    return p || viewUp;
+  }
   function fresh() { return !!pre.url; }
   // A PINNED SURFACE'S NEW PICTURE fades in over FADE_MS, a frame at a time
   // -- a straight swap read as a flash -- at an even pace (easing left the
@@ -402,8 +413,29 @@
   // A VIEW ON THE PAGE: one kept by Home Assistant, back, at once; a new one
   // once it has been drawn (two frames). Said by the view being put in its
   // container (watchViews) or by a card joining it, whichever is first.
+  // A KEPT VIEW'S GLASS IS THERE IN ITS FIRST FRAME (2026-10-13): its
+  // layers left with it and were built again only on the next animation
+  // frame -- a gap of one frame on a desk, ~170 ms at 6x slower (traced), in
+  // which the sky had already cut to the page's scene and every pill on it
+  // was bare: the moon flashing behind Home's chips on a wall tablet, at each
+  // return to Home (the user's video). The view is put back synchronously
+  // and its cards with it, and this runs before that frame is drawn (a
+  // MutationObserver), so the layers are laid -- in their picture -- now.
+  // ONCE, when every card has come back with it: each card's reconnect says
+  // the view too (changed()), and a pass for each was 225 passes on the
+  // Living Room's Home -- so it waits for the end of this task, still before
+  // the frame (a microtask).
+  var keptPass = false;
   function onPage(v) {
-    if (v.__hkShown) { viewShown(); return; }
+    if (v.__hkShown) {
+      viewShown();
+      if (active && v.isConnected && !keptPass) {
+        keptPass = true;
+        var run = function () { keptPass = false; if (active) update(); };
+        if (typeof queueMicrotask === 'function') queueMicrotask(run); else Promise.resolve().then(run);
+      }
+      return;
+    }
     v.__hkShown = true;
     requestAnimationFrame(function () { requestAnimationFrame(function () {
       if (v.isConnected) viewShown();
@@ -498,7 +530,10 @@
   function preImg(url) {
     var cv = document.createElement('canvas');
     cv.setAttribute('aria-hidden', 'true'); cv.setAttribute('data-hk-pre', ''); cv.setAttribute('data-src', url);
-    cv.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;max-width:none;max-height:none;' +
+    // the window in the page's own units: under a car dashboard's zoom
+    // (tesla-viewport.js publishes --hk-vw / --hk-vh) 100vw is only Z of the
+    // screen -- the picture covered two thirds of it and lined up with nothing
+    cv.style.cssText = 'position:fixed;left:0;top:0;width:var(--hk-vw,100vw);height:var(--hk-vh,100vh);max-width:none;max-height:none;' +
       'margin:0;padding:0;border:0;pointer-events:none;transition:opacity ' + PRE_FADE + 'ms linear';
     var draw = function (im) {
       if (!im || !cv.getContext) return;
@@ -517,7 +552,7 @@
   // was the wrong blur on every pill until the new one was painted -- 0.2-
   // 0.5 s on a tablet (2026-10-10). Meanwhile they blur live, which is
   // right by definition; the pinned glass keeps its fade.
-  function ownPicture() { return fresh() && pre.path === viewUp; }
+  function ownPicture() { return fresh() && pre.path === skyAt(); }
   function preDress(L) {
     if (!PRE || !ownPicture() || L._hkOverlay) { preUndress(L); return; }
     // the live blur off FIRST: a backdrop-filter makes its own element the
@@ -548,9 +583,14 @@
   }
   function eachLayer(fn) { layers.forEach(function (rec) { rec.layers.forEach(function (L) { if (L.isConnected) fn(L); }); }); }
   // ---- PINNED: each its own slice of the picture ----
-  function sliceOf(url, x, y, W, H) {
-    return 'url("' + url + '") ' + (-x).toFixed(1) + 'px ' + (-y).toFixed(1) + 'px / ' + W + 'px ' + H + 'px no-repeat';
+  // (in the surface's own CSS pixels: under a car dashboard's zoom `z` a
+  // screen pixel is 1/z of one)
+  function sliceOf(url, x, y, W, H, z) {
+    z = z || 1;
+    if (z === 1) return 'url("' + url + '") ' + (-x).toFixed(1) + 'px ' + (-y).toFixed(1) + 'px / ' + W + 'px ' + H + 'px no-repeat';
+    return 'url("' + url + '") ' + (-x / z).toFixed(1) + 'px ' + (-y / z).toFixed(1) + 'px / ' + (W / z).toFixed(1) + 'px ' + (H / z).toFixed(1) + 'px no-repeat';
   }
+  function zoomOf(el) { return (el && el.currentCSSZoom) || 1; }
   // WHERE A SLICE IS CUT: where the surface sits on the screen, kept inside
   // the picture
   function placeOf(r, W, H) {
@@ -593,9 +633,9 @@
       if (inFade(el)) return;
       var r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      var at = placeOf(r, W, H), bg = tint + ', ' + sliceOf(pre.url, at[0], at[1], W, H);
+      var z = zoomOf(el), at = placeOf(r, W, H), bg = tint + ', ' + sliceOf(pre.url, at[0], at[1], W, H, z);
       if (el._hkPin === bg) return;
-      var from = el._hkPin && el._hkPinUrl ? sliceOf(el._hkPinUrl, el._hkPinPos[0], el._hkPinPos[1], W, H) : '';
+      var from = el._hkPin && el._hkPinUrl ? sliceOf(el._hkPinUrl, el._hkPinPos[0], el._hkPinPos[1], W, H, z) : '';
       // ANOTHER PAGE'S PICTURE FADES ACROSS (2026-10-10): the menu's panel
       // belongs to no page, and a swap a few frames off the page's own
       // showed; over FADE_MS it reads as the page arriving.
@@ -650,8 +690,11 @@
         moves.forEach(function (m) {
           if (!m.el.isConnected) return;
           if (k >= 100) wearPin(m.el, m.bg);
-          else if (k > 0) wearPin(m.el, m.pin + ', -webkit-cross-fade(url("' + m.fromUrl + '"), url("' + url + '"), ' + k + '%) ' +
-                                 (-m.at[0]).toFixed(1) + 'px ' + (-m.at[1]).toFixed(1) + 'px / ' + W + 'px ' + H + 'px no-repeat');
+          else if (k > 0) {
+            var z = zoomOf(m.el), sz = z === 1 ? W + 'px ' + H + 'px' : (W / z).toFixed(1) + 'px ' + (H / z).toFixed(1) + 'px';
+            wearPin(m.el, m.pin + ', -webkit-cross-fade(url("' + m.fromUrl + '"), url("' + url + '"), ' + k + '%) ' +
+                    (-m.at[0] / z).toFixed(1) + 'px ' + (-m.at[1] / z).toFixed(1) + 'px / ' + sz + ' no-repeat');
+          }
         });
       }
       if (t < 1) later();
@@ -690,6 +733,8 @@
   // sky that says only that)
   function onSkyChange() {
     if (!PRE || !active) return;
+    // the sky has cut to a page whose picture is waiting: on now, with it
+    wearNext();
     // the same page: preTick weighs it (big -- at once; the light -- at most
     // every PRE_DRIFT)
     if (pre.drawn !== here() && pre.url) { clearTimeout(navT); navT = null; }
@@ -810,7 +855,7 @@
       }
       pre.pending = null;
       remember(path, url);
-      if (path !== viewUp) { var was = pre.next; pre.next = { url: url, path: path }; if (was && was.url !== url) freePic(was.url); return; }
+      if (path !== skyAt()) { var was = pre.next; pre.next = { url: url, path: path }; if (was && was.url !== url) freePic(was.url); return; }
       wearAll(url, path, same, same, ms, drift);
     };
     if (typeof Image === 'undefined') { go(); return; }          // nothing to decode with (a test harness)
@@ -911,7 +956,7 @@
       // light or the clouds drifting, slowly
       var ms = big ? Math.max(PRE_SWAP, Math.min(PRE_AHEAD, check.ahead || 0)) : Math.min(PRE_FADE, maxAge());
       if (url) preShow(url, path, ms, !big && ms <= PRE_TRACK);
-      else if (path !== viewUp) pre.next = { url: null, path: path };
+      else if (path !== skyAt()) pre.next = { url: null, path: path };
       else preNone();
       // the page moved on, or the sky changed, while this was painted: paint
       // it again

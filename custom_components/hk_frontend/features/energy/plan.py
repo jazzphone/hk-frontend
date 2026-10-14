@@ -494,7 +494,7 @@ def build(ctx: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> d
         for k in (d["power"], d["stat"]):
             if k and k not in lookup:
                 lookup[k] = rec
-    return {
+    out = {
         "title": str(options.get(CONF_TITLE) or "Energy")[:40],
         "total": total, "top": top, "usages": usages, "sections": out_secs,
         "detail": bool(options.get(CONF_DETAIL, False)) and bool(prefs.get("energy_sources") or
@@ -507,6 +507,10 @@ def build(ctx: Mapping[str, Any], options: Mapping[str, Any] | None = None) -> d
         "devices": lookup,
         "names": {d["key"]: d["name"] for d in devs},
     }
+    # THE POWER PAGE: the same devices, right now (power.py)
+    from . import power as _power
+    out["power"] = _power.build(ctx, options, out)
+    return out
 
 
 # ----------------------------------------------------------------- collect
@@ -579,6 +583,14 @@ def collect(hass: Any, prefs: Mapping[str, Any] | None, options: Mapping[str, An
             stats += [x[k] for k in ("entity", "label") if isinstance(x.get(k), str)]
     tot = options.get(CONF_TOTAL) or {}
     stats += [v for v in tot.values() if isinstance(v, str) and v]
+    # THE POWER PAGE'S OWN READINGS, and each car's parts on its device
+    pwr = options.get("power") if isinstance(options.get("power"), dict) else {}
+    for k in ("home", "grid", "grid_export", "grid_status", "solar", "backed_power"):
+        if isinstance(pwr.get(k), str):
+            stats.append(pwr[k])
+    for k, x in (pwr.get("battery") or {}).items():
+        if isinstance(x, str):
+            stats.append(x)
     stats += [v for v in (options.get(CONF_TOP) or []) if isinstance(v, str)]
     stats += list(house.get("thermostats") or []) + [house.get("outside"), house.get("power")]
     for s in stats:
@@ -614,6 +626,23 @@ def collect(hass: Any, prefs: Mapping[str, Any] | None, options: Mapping[str, An
             vehicles.append(st.entity_id)
             info(st.entity_id)["range"] = sorted(rng, key=len)[0]
             info(sorted(rng, key=len)[0])
+    # THE POWER PAGE: a car's parts sit on its own device; a switch group's
+    # members tell whether a device's switch is the battery's own circuits
+    if pwr:
+        for lvl in vehicles + [c.get("level") for c in pwr.get("cars") or [] if isinstance(c, dict)]:
+            e = info(lvl)
+            if e and e.get("device"):
+                for x in er.async_entries_for_device(ereg, e["device"]):
+                    if x.entity_id.split(".")[0] in ("sensor", "switch", "binary_sensor", "device_tracker", "number") \
+                            and not x.disabled_by:
+                        info(x.entity_id)
+        for eid in [e for e in list(entities) if e.startswith("switch.")]:
+            st = hass.states.get(eid)
+            mem = st.attributes.get("entity_id") if st else None
+            if isinstance(mem, (list, tuple)) and mem:
+                entities[eid]["members"] = [m for m in mem if isinstance(m, str)]
+                for m in entities[eid]["members"]:
+                    info(m)
     # a house battery's stored energy, beside its level
     soc = battery_of(prefs).get("soc")
     if soc and info(soc) and info(soc).get("device"):

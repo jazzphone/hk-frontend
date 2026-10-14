@@ -14,10 +14,11 @@
  *
  * That is the whole safety design: every grid says
  *
- *     repeat(auto-fill, var(--hk-track, 192px))
+ *     repeat(auto-fill, var(--hk-track, 196px))
  *
- * and with the variable undefined the computed value is literally
- * `repeat(auto-fill, 192px)`. The
+ * (the 196 is hk-base.js's TILE.w, written in by the card or page that builds
+ * the grid) and with the variable undefined the computed value is literally
+ * `repeat(auto-fill, 196px)`. The
  * fallback is not a nicety, it IS the tablet layout.
  * ===========================================================================
  *
@@ -37,15 +38,35 @@
  * dashboard to one column. (A Tesla dashboard need not include any of these
  * grids, so it is unaffected either way; the margin is deliberate anyway.)
  *
- * Measured results, browser at each width (content = viewport - 2% - 8px):
+ * Measured results, browser at each width (pill_geometry.py, 2026-10-13;
+ * content = page - 2 x --hk-side - 8px):
  *
- *     1280 -> 6 cols @ 192.00px   <- wall tablets
- *      440 -> 2 cols @ 205.20px
- *      402 -> 2 cols @ 186.96px   <- iPhone 17 Pro
- *      375 -> 2 cols @ 174.00px
+ *     1280 -> 6 cols @ 196.00px   <- wall tablets (1.5 % sides: 1233.6 of grid)
+ *      440 -> 2 cols @ 202.20px
+ *      402 -> 2 cols @ 183.96px   <- iPhone 17 Pro
+ *      375 -> 2 cols @ 171.00px
  *
- * The gap stays 12.00px at every one of those widths.
+ * The gap is the table's (TILE.gridGap, 10px) at every one of those widths.
  */
+
+/* THE GAP BETWEEN PILLS, for what this file derives from it (the rails, the
+ * Security locks' column). The pills' own grids read it from hk-base.js
+ * (hkCards.TILE.gridGap) -- KEEP THE TWO EQUAL: tests/test_pillsize.js
+ * compares them. Not in a media query: every width has one gap. */
+:root { --hk-gap: 10px; }
+
+/* THE PAGE'S SIDE MARGINS, as a fraction of the page's width: the view's
+ * side columns (hk-strategy.js VIEW_LAYOUT) and the gutter a scroll row may
+ * bleed into (hk-row.js, hk-layout.js, --hk-gutter below) all read it.
+ * 2 % on a phone -- its two-across tracks are drawn for it -- and 1.5 % from
+ * 641 px up: at 1,280 px the pills start 27.2 px from the edge (19.2 + the
+ * 4 px a grid child gets, twice) instead of 33.6, and the grid is 1,233.6
+ * wide: six of the Home app's 196 px pills and their gaps fit. The car's
+ * zoomed document keeps its 2 %. */
+:root { --hk-side: 0.02; }
+@media (min-width: 640.02px) {
+  :root:not([data-hk-zoomed]) { --hk-side: 0.015; }
+}
 
 /* ===========================================================================
  * LOCK THE PAGE HORIZONTALLY (phone only), so scrolling up and down never
@@ -120,11 +141,11 @@
 
     /* THE GUTTER: how far a scroll row may bleed sideways for its shadow
        room before it would pass the screen edge and make the page scroll
-       sideways. The view's `2% 96% 2%` columns plus the 4px every grid
+       sideways. The view's --hk-side columns plus the 4px every grid
        child gets. hk-row-card and hk-grid-card clamp their bleed to it
        (they carry this same value as a fallback); a house with a different
        gutter states its own here. */
-    --hk-gutter: calc(2vw + 4px);
+    --hk-gutter: calc(100vw * var(--hk-side) + 4px);
 
     /* ------------------------------------------------------------------
      * PAGE LAYOUTS. Same contract as --hk-track: every consumer writes
@@ -148,10 +169,6 @@
        card columns. */
     --hk-col-fill: minmax(0, 1fr);
 
-    /* Fixed-count metric rows halve rather than collapse -- these are small
-       stat tiles (Today's Cost, the thermostats, Grid In / Home Load), and
-       one per row would make the page enormous. */
-    --hk-cols-4: repeat(2, minmax(0, 1fr));
     /* The Weather page's five tiles are 172px-tall graphics (wind compass,
        moon disc, UV, sunrise, the temperature chart). Three-up they are
        ~120px each and unreadable. */
@@ -162,15 +179,6 @@
        inside. */
     --hk-cols-5: minmax(0, 1fr);
     --hk-wtile-justify: center;
-
-    /* The Energy page's Usages row is CHARTS. Two-up they are unreadable, so
-       they take a full row each. This variable is only that
-       row; the other stat rows still halve via --hk-cols-4. */
-    --hk-usages-row: minmax(0, 1fr);
-
-    /* A battery's Levels row is sliders, not stat tiles. Two-up truncates their
-       captions to "C..." / "B...", so it gets a full row of its own. */
-    --hk-levels-row: minmax(0, 1fr);
 
     /* THE NOW-PLAYING PLAYER'S PHONE LAYOUT IS NOT HERE: it is
        cards/hk-media.js's tall(), for two reasons:
@@ -191,9 +199,6 @@
     /* The Cameras page: one feed per row on a phone,
        full width, rather than three thumbnails. */
     --hk-cameras: minmax(0, 1fr);
-    /* A room page's camera row (it scrolls sideways): one and a bit showing,
-       so the next camera peeks in and says there is more. */
-    --hk-cam-row: 1.15;
   }
 }
 
@@ -204,50 +209,47 @@
  * window -- one Home dashboard serves them all. Measured page by page at
  * 744 px, the desktop layouts squeeze what was drawn for more room: five
  * weather tiles at 124 px, six timer presets in a 262 px column, "TODAY'S
- * CO..." on Energy, a 716 px keypad. Tiles keep their 192 px. Same contract
+ * CO..." on Energy, a 716 px keypad. Same contract
  * as the phone block: every
  * consumer writes `var(--name, <literal>)`, so outside this band nothing
  * changes -- and a 1280 px wall tablet is outside it by design, so its
- * measured 192 px geometry is untouched.
+ * measured 196 px geometry is untouched.
  * ========================================================================= */
 @media (min-width: 640.02px) and (max-width: 1023.98px) {
   :root:not([data-hk-zoomed]) {
-    /* THE iPAD PILL: 165 px, FIXED -- a little smaller for this width, and
+    /* THE iPAD PILL: 170 px, FIXED -- a little smaller for this width, and
        not stretched: a stretched pill stops lining up
        with the scenes row above it, which sizes its own. A fixed size both
        can read does line up: the tiles (hk-base .tile, hk-tile, hk-stat's
        rank), the grids' tracks and the scenes row's `card_width` all say
-       var(--hk-pill, 192px), so they move together.
-       Why 165: four across an iPad mini held upright ON EVERY PAGE -- 4 x 165
-       + 3 x 12 = 696. Home and the room pages give a grid 706.2 px, but the
-       category pages (Lights, Doors, Water, Energy) nest theirs one
-       hk-grid-card deeper, and its 4 px side margins leave 698.2: 166 misses
-       four there by 1.8 px and stays three (measured). 192 fits three and
-       leaves 106 px ragged; and
+       var(--hk-pill, 196px), so they move together.
+       Why 170: the largest that keeps four across an iPad mini held upright
+       ON EVERY PAGE with 2 px to spare. Every page gives a grid 713.7 px
+       (1.5 % sides): 4 x 170 + 3 x 10 = 710 (measured 2026-10-13, the
+       custom pages included since their layout follows the generated
+       pages'; while they kept their own 2 % sides and 12 px gap they gave
+       698.2 and held this at 165). 196 fits three and leaves ~100 px ragged; and
        every page with a rail of pills beside something else (Security,
        Climate, Vacuums, Play Music) gets that rail two across instead of one.
        Unset outside this band, so a phone and a 1280 px wall tablet are
        unchanged. */
-    --hk-pill: 165px;
+    --hk-pill: 170px;
     --hk-track: var(--hk-pill);
-    /* TWO PILLS OF RAIL: two 165 px tracks, their 12 px gap, and the 4 px of
+    /* TWO PILLS OF RAIL: two 170 px tracks, the gap between them, and the 4 px of
        side margin layout-card gives a grid child, charged at each of the two
-       levels of nesting a rail sits in, plus 4 px of slack -- 362. Vacuums'
+       levels of nesting a rail sits in, plus 4 px of slack -- 370. Vacuums'
        area picker and Play Music's speakers read it as their column's
        minimum; Climate's rooms get it by
        giving the dials whatever is left (below). */
-    --hk-rail: calc(2 * var(--hk-pill) + 12px + 16px + 4px);
+    --hk-rail: calc(2 * var(--hk-pill) + var(--hk-gap) + 16px + 4px);
     /* The vacuum cards' 460 px column fills what the rail leaves. */
     --hk-col-fill: minmax(0, 1fr);
     /* Climate: the dials take what the rooms' two-pill rail leaves, between
        300 (a 260 px dial and its buttons still fit) and 356. At 744 that is
-       ~316 px of dials and two pills of rooms. 356, not the tablet's 364: a
+       ~315 px of dials and two pills of rooms. 356, not the tablet's 364: a
        tablet with the menu docked gives this page 924.8 px, and 364 leaves the
        rooms' grid 516.8 -- 2.2 px short of three pills (measured). */
     --hk-climate-dials: clamp(300px, calc(100% - 28px - var(--hk-rail)), 356px);
-    /* Energy's metric rows (Today's cost, the thermostats) two by two, as on
-       a phone: four across truncates the cost. */
-    --hk-cols-4: repeat(2, minmax(0, 1fr));
     /* The Weather page's five tiles as rows of three and two, each drawn for
        about 230 px: six narrow columns, the first three tiles spanning two
        and the last two spanning three, so both rows end at
@@ -255,19 +257,15 @@
     --hk-cols-5: repeat(6, minmax(0, 1fr));
     --hk-wtile-a: span 2;
     --hk-wtile-b: span 3;
-    /* The Cameras page two across: bigger feeds than three -- and a
-       room page's camera row two showing. */
+    /* The Cameras page two across: bigger feeds than three. */
     --hk-cameras: repeat(2, minmax(0, 1fr));
-    --hk-cam-row: 2;
-    /* A battery's Levels sliders one per row, as on a phone: three across,
-       each 226 px, cuts their names to "Charg...". */
-    --hk-levels-row: minmax(0, 1fr);
     /* Security keeps the tablet's arrangement -- the keypad beside the status
        and locks -- instead of the stacked one a phone gets (the 1024 px rule
        above), where the keypad would run 716 px wide. The locks are two columns of
-       the iPad pill, as the tablet's are of 192 (408 = 2 x (192 + the grid
-       child's 12 px of margin)); the keypad takes the rest. */
-    --hk-alarm-cols: minmax(0, 1fr) calc(2 * (var(--hk-pill) + 12px));
+       the iPad pill, as the tablet's are of 196: two pills, the gap between
+       them, and the 12 px the column's nesting takes in margins (414 at 196;
+       hk-strategy.js says the same); the keypad takes the rest. */
+    --hk-alarm-cols: minmax(0, 1fr) calc(2 * var(--hk-pill) + var(--hk-gap) + 12px);
     --hk-alarm-areas: "alarm locks";
     --hk-alarm-locks: repeat(2, var(--hk-pill));
   }
@@ -276,26 +274,23 @@
 /* THE SAME BAND, BY THE PAGE'S WIDTH. The media query above only
  * knows the WINDOW. With the menu docked beside the page, a 1,280 px wall
  * tablet has a 980 px page -- an iPad's -- and should look like one: the
- * 165 px pill (five across), the two-pill rails, the iPad page layouts.
+ * 170 px pill (five across), the two-pill rails, the iPad page layouts.
  * modules/hk-menu.js sets `data-hk-band` on the root whenever the page (the
  * window less Home Assistant's sidebar and a docked menu) is 641-1023 px.
  * A media query cannot be OR'd with an attribute, so the declarations are
  * repeated: KEEP THE TWO BLOCKS IDENTICAL -- tests/test_pillsize.js compares
  * them, declaration by declaration. The reasons are in the block above. */
 :root[data-hk-band]:not([data-hk-zoomed]) {
-  --hk-pill: 165px;
+  --hk-pill: 170px;
   --hk-track: var(--hk-pill);
-  --hk-rail: calc(2 * var(--hk-pill) + 12px + 16px + 4px);
+  --hk-rail: calc(2 * var(--hk-pill) + var(--hk-gap) + 16px + 4px);
   --hk-col-fill: minmax(0, 1fr);
   --hk-climate-dials: clamp(300px, calc(100% - 28px - var(--hk-rail)), 356px);
-  --hk-cols-4: repeat(2, minmax(0, 1fr));
   --hk-cols-5: repeat(6, minmax(0, 1fr));
   --hk-wtile-a: span 2;
   --hk-wtile-b: span 3;
   --hk-cameras: repeat(2, minmax(0, 1fr));
-  --hk-cam-row: 2;
-  --hk-levels-row: minmax(0, 1fr);
-  --hk-alarm-cols: minmax(0, 1fr) calc(2 * (var(--hk-pill) + 12px));
+  --hk-alarm-cols: minmax(0, 1fr) calc(2 * var(--hk-pill) + var(--hk-gap) + 12px);
   --hk-alarm-areas: "alarm locks";
   --hk-alarm-locks: repeat(2, var(--hk-pill));
 }
@@ -303,20 +298,14 @@
 
 /* THE ROOMY HALF OF THE BAND. A 1,280 px tablet with the menu
  * open has a 932 px page to lay out -- a third wider than an iPad mini's 706
- * -- and the iPad's squeezes look wrong there: a battery page's four
- * readouts and four modes two by two, its three sliders one per row ~900 px
- * long, a 545 px keypad. From 860 px of page (`data-hk-band="wide"`,
- * hk-menu.js) those go back to the wall tablet's own arrangement; the pill,
+ * -- and the iPad's squeezes look wrong there: a 545 px keypad. From 860 px
+ * of page (`data-hk-band="wide"`, hk-menu.js) it goes back to the wall
+ * tablet's own arrangement; the pill,
  * the rails, the stacked Timers page and the two-up cameras stay as they are.
  * The keypad is capped at the tablet's 430, the block on the page's left edge
  * like every page's content (the panel's `place-content: stretch start`). */
 :root[data-hk-band="wide"]:not([data-hk-zoomed]) {
-  --hk-cols-4: repeat(4, minmax(0, 1fr));
-  /* ...but Energy's top row stays two by two: four across cuts Today's cost
-     ("$3.62 · 26 k...") 17 px short at 932 px. */
-  --hk-energy-top: repeat(2, minmax(0, 1fr));
-  --hk-levels-row: repeat(3, minmax(0, 1fr));
-  --hk-alarm-cols: minmax(0, 430px) calc(2 * (var(--hk-pill) + 12px));
+  --hk-alarm-cols: minmax(0, 430px) calc(2 * var(--hk-pill) + var(--hk-gap) + 12px);
 }
 
 

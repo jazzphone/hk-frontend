@@ -2,6 +2,8 @@
 // settings feed's `energy`, features/energy/plan.py), on a whole screen and
 // on a screen that is only that page.
 load(HK_ROOT + '/tests/dom.js');
+// the pill's table (hkCards.TILE): a page's grids are built from it
+load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-strategy.js');
 var pass = 0, fail = 0;
 function ok(n, c, d) { if (c) { pass++; print('  PASS  ' + n); } else { fail++; print('  FAIL  ' + n + (d !== undefined ? '   got ' + JSON.stringify(d) : '')); } }
@@ -81,12 +83,22 @@ window.hkStrategy.generate({ music: false }, hass).then(function (cfg) {
   ok('a device tile: live watts, kWh today, against its section; it follows the tabs', office.type === 'custom:hk-rank-card' &&
      office.entity === 'sensor.office_power' && office.stat === 'sensor.office_utility' && office.energy === true && office.section === 'rooms' &&
      JSON.stringify(office.peers) === '["sensor.office_utility","sensor.den_utility"]' && office.icon_color === 'purple', office);
+  ok('no Power page: no backed-up badges', !office.backed);
   var den = cs.filter(function (c) { return c.name === 'Den'; })[0];
   ok('...with no power sensor: today\'s kWh is its reading', den.entity === 'sensor.den_utility' && den.mode === 'energy', den);
   var car = cs.filter(function (c) { return c.name === 'Roadster'; })[0];
   ok('a battery: its level, colored by it, with its range', car.mode === 'pct' && car.label_entity === 'sensor.car_range' &&
      car.label_suffix === ' mi range' && car.icon_color_steps.length === 3, car);
   ok('Home Assistant\'s own charts at the end', cs.some(function (c) { return c.card && c.card.type === 'energy-devices-graph'; }));
+  ENERGY = Object.assign({}, PLAN, { power: { backs_up: 'some', sections: [{ id: 'rooms', items: [{ key: 'sensor.office_utility', backed: true }, { key: 'sensor.den_utility', backed: false }] }] } });
+  return window.hkStrategy.generate({ music: false }, hass).then(function (c2) {
+    var cs2 = flat(byPath(c2, 'energy'));
+    var o2 = cs2.filter(function (c) { return c.name === 'Office'; })[0], d2 = cs2.filter(function (c) { return c.name === 'Den'; })[0];
+    ok('with the Power page: a backed-up device carries the badge here too, one that is not does not', o2.backed === true && !d2.backed, [o2, d2]);
+    ENERGY = PLAN;
+    return cfg;
+  });
+}).then(function (cfg) {
   // THE THIRD ROW FOLLOWS WHAT THE HOUSE HAS
   ENERGY = Object.assign({}, PLAN, { sources: { battery: true, water: true, gas: true },
                                      usages_auto: false });
@@ -196,7 +208,8 @@ window.hkStrategy.generate({ music: false }, hass).then(function (cfg) {
 }).then(function (cfg) {
   var paths = cfg.views.map(function (v) { return v.path; });
   ok('each page says which it is, for its background', cfg.views[0].sky_page === 'lights' &&
-     cfg.views.filter(function (v) { return v.path === 'room-kitchen'; })[0].sky_page === 'rooms', cfg.views.map(function (v) { return v.sky_page; }));
+     cfg.views.filter(function (v) { return v.path === 'room-kitchen'; })[0].sky_page === 'rooms' &&
+     cfg.views.filter(function (v) { return v.path === 'room-kitchen'; })[0].sky_room === 'room-kitchen', cfg.views.map(function (v) { return v.sky_page; }));
   ok('Room Pages listed: every room\'s page after the others', paths[0] === 'lights' && paths.indexOf('room-kitchen') > 0 && paths.indexOf('home') < 0, paths);
 }).then(function () {
   print(fail ? 'FAIL ' + fail + ' ENERGY PAGE TESTS' : 'ALL ' + pass + ' ENERGY PAGE TESTS PASS');

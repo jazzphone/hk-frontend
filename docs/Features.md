@@ -10,7 +10,7 @@ there.
 | [Live TV](Live-TV.md) | An HDHomeRun tuner’s channels, live with sound on your screens, with a guide | An HDHomeRun, ffmpeg on the Home Assistant host |
 | [Clean Areas](Clean-Areas.md) | “Clean these rooms,” sent to whichever vacuums reach them | Vacuums, with room maps for those that clean by area |
 | [Alarm PIN](Alarm-PIN.md) | A PIN in front of an alarm panel that takes no code of its own | An alarm panel |
-| [Energy](Energy.md) | An Energy page with four tabs, Now, Today, This Week and This Month: whole-home power, cost and use against a usual day, and a tile per circuit | Home Assistant’s Energy settings (or power sensors you pick) |
+| [Energy](Energy.md) | An Energy page with four tabs, Now, Today, This Week and This Month: whole-home power, cost and use against a usual day, and a tile per circuit. And a Power page beside it: right now, what the house battery backs up, its controls and the cars charging | Home Assistant’s Energy settings (or power sensors you pick) |
 | [Notifications](Notifications.md) | A banner at the top of the screens when an accessory does something, with a camera’s snapshot | Nothing |
 
 ## Adding a feature

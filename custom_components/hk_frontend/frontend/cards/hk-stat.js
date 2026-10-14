@@ -98,14 +98,14 @@
     // its own. (hk_metric below is the opposite case.)
     '.heading .name{grid-area:n;justify-self:start;align-self:center;',
     '  font-size:19.7px;font-weight:700;line-height:1;letter-spacing:-0.45px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:visible;',
+    '  color:' + window.hkCards.v('ink') + ';overflow:visible;',
     // nowrap + ellipsis: without them a long heading WRAPS TO FOUR LINES
     // instead of truncating -- an 80px name box against 20.7px.
     '  white-space:nowrap;text-overflow:ellipsis;',
     // content-box so the 1px of padding does not grow the measured box, the
     // same trap as the favourite label in hk-tile.js.
     '  box-sizing:content-box;padding-left:1px;padding-top:1px;',
-    '  text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22))}',
+    '  text-shadow:' + window.hkCards.v('glow') + '}',
     // The link variant adds a chevron chip beside the name.
     '.heading.link .grid{grid-template-areas:"n c";',
     '  grid-template-columns:max-content max-content;column-gap:6px}',
@@ -119,9 +119,9 @@
     // up with a 19.7px heading rather than its box centre.
     '.heading .extra{grid-area:c;align-self:center;display:inline-flex;',
     '  align-items:center;gap:3px;padding:3px 9px 3px 10px;border-radius:11px;',
-    '  background:var(--hk-key,rgba(255,255,255,0.11));font-size:11.5px;font-weight:600;',
+    '  background:' + window.hkCards.v('key') + ';font-size:11.5px;font-weight:600;',
     '  letter-spacing:0.2px;line-height:1.25;white-space:nowrap;margin-top:2px;',
-    '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+    '  color:' + window.hkCards.v('ink-2') + '}',
     // The chevron is its OWN span -- lighter and bolder than
     // the words beside it. Rendering the whole string as one run makes it a
     // weight-600 glyph at full opacity, which reads as part of the label.
@@ -145,10 +145,21 @@
     '.heading.esec .grid{grid-template-areas:"n c e";grid-template-columns:max-content max-content max-content;column-gap:10px}',
     '.heading.esec:not(.link) .grid{grid-template-areas:"n e";grid-template-columns:max-content max-content}',
     '.heading .esub{grid-area:e;align-self:center;display:inline-flex;align-items:center;gap:7px;margin-top:2px;',
-    '  font-size:15px;font-weight:500;line-height:1;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;',
-    '  font-variant-numeric:tabular-nums;text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22))}',
+    '  font-size:15px;font-weight:500;line-height:1;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;',
+    '  font-variant-numeric:tabular-nums;text-shadow:' + window.hkCards.v('glow') + '}',
     '.heading .esub:empty{display:none}',
     '.heading .esub i{width:9px;height:9px;border-radius:50%;flex:none}',
+    // ON A PHONE THE TOTAL TAKES ITS OWN LINE under the name: a long section
+    // name, its link chip and "550 W now" are wider than a phone's column
+    // ("Outlets & Infrastructure" ran 43 px off a 375 px page). Every section
+    // the same way, not only the ones too long for the line. The card grows
+    // with it: an energy section heading's `height` is its minimum (_render).
+    '@media (max-width:' + window.hkCards.BP.phone + 'px){',
+    '  .heading.esec .grid{grid-template-areas:"n c" "e e";grid-template-columns:max-content max-content;',
+    '    grid-template-rows:21px auto;row-gap:6px}',
+    '  .heading.esec:not(.link) .grid{grid-template-areas:"n" "e";grid-template-columns:max-content}',
+    '  .heading.esec .esub{justify-self:start;margin-top:0}',
+    '}',
     'ha-card.heading{transition:opacity .2s}',
 
     // ---- metric ----------------------------------------------------------
@@ -175,27 +186,28 @@
     '  background:rgba(0,0,0,0.14);align-self:center;justify-self:center;',
     '  display:flex;align-items:center;justify-content:center;overflow:hidden}',
     '.metric .icon{width:23px;height:23px;--mdc-icon-size:100%;display:flex;align-items:center;justify-content:center;line-height:0;}',
-    // The label is uppercase, wide-tracked and half-opacity -- a caption, not
-    // a name. 0.9px of POSITIVE tracking, which is the opposite of every tile
-    // in this library and is correct: small uppercase needs opening up.
+    // The label is the one label (hkCards.TYPE label: 13 / 600 / 0.3px,
+    // uppercase, secondary ink) -- a caption, not a name. Positive tracking,
+    // the opposite of every tile: small uppercase needs opening up.
     '.metric .name{grid-area:n;justify-self:start;align-self:end;',
-    '  font-size:12px;font-weight:600;letter-spacing:0.9px;text-transform:uppercase;',
-    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-align:left;width:100%;',
+    '  font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;',
+    '  color:' + window.hkCards.v('ink-2') + ';text-align:left;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.metric .state{grid-area:s;justify-self:start;align-self:start;',
     '  font-size:25px;font-weight:700;line-height:1.05;letter-spacing:-0.4px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));text-align:left;width:100%;',
+    '  color:' + window.hkCards.v('ink') + ';text-align:left;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
 
     // ---- hero / pct / rank pill -----------------------------------------
     // One card, three modes: the hero, percent and rank pills share every
     // style exactly and differ only in what their `hero` cell renders.
-    'ha-card.rank{box-sizing:border-box;height:152px;width:var(--hk-pill,192px);',
-    '  min-width:var(--hk-pill,192px);max-width:var(--hk-pill,192px);border-radius:' + window.hkCards.M.radius + ';',
-    '  padding:12.8px 12.8px;margin:0px;',
+    'ha-card.rank{box-sizing:border-box;height:' + window.hkCards.TILE.tall + 'px;width:' + window.hkCards.TILE.css + ';',
+    '  min-width:' + window.hkCards.TILE.css + ';max-width:' + window.hkCards.TILE.css + ';border-radius:' + window.hkCards.M.radius + ';',
+    // the well starts at the pills' inset (hk-tile.js): left 10.3, as a tall tile
+    '  padding:12.8px 12.8px 12.8px 10.3px;margin:0px;',
     '  border:' + window.hkCards.M.border + ';',
     '  ' + window.hkCards.M.glass + ';',
-    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
+    '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-tall') + ');',
     '  display:flex;align-items:center;justify-content:center;',
     '  overflow:hidden;text-align:center;font-size:1.2em;cursor:pointer;',
     '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0;',
@@ -212,7 +224,7 @@
     '  grid-template-rows:46px 1fr min-content min-content;',
     '  row-gap:0px;column-gap:8px;align-content:stretch}',
     '.rank .well{grid-area:i;width:42px;height:42px;border-radius:50%;',
-    '  background:var(--hk-look-well, var(--hk-well-bg, rgba(0,0,0,0.14)));align-self:start;justify-self:end;',
+    '  background:var(--hk-look-well, ' + window.hkCards.v('well-bg') + ');align-self:start;justify-self:end;',
     '  display:flex;align-items:center;justify-content:center;overflow:hidden}',
     '.rank .icon{width:23px;height:23px;--mdc-icon-size:100%;display:flex;align-items:center;justify-content:center;line-height:0;}',
     '.rank .hero{grid-area:hero;justify-self:start;align-self:start;',
@@ -223,12 +235,12 @@
     '.rank .unit.pct{font-size:0.42em;margin-left:2px}',
     '.rank .name{grid-area:n;justify-self:stretch;align-self:center;',
     '  font-size:14px;font-weight:600;line-height:1.1;letter-spacing:-0.15px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));text-align:left;min-width:0;width:100%;',
+    '  color:' + window.hkCards.v('ink') + ';text-align:left;min-width:0;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     'ha-card.rank[data-on="1"] .name{color:black}',
     '.rank .label{grid-area:l;justify-self:stretch;align-self:start;',
     '  font-size:14px;font-weight:400;line-height:1.1;letter-spacing:-0.15px;',
-    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-align:left;min-width:0;width:100%;',
+    '  color:' + window.hkCards.v('ink-2') + ';text-align:left;min-width:0;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     'ha-card.rank[data-on="1"] .label{color:rgba(0,0,0,0.65)}',
     // ON THE ENERGY PAGE (`energy: true`) the empty middle row carries the
@@ -239,7 +251,7 @@
     '.rank .spark{grid-area:s;align-self:end;width:100%;height:30px;margin-bottom:9px;overflow:visible;display:none}',
     '.rank.en .spark{display:block}',
     '.rank .lvl{grid-area:s;align-self:end;height:8px;margin-bottom:12px;border-radius:4px;overflow:hidden;display:none;',
-    '  background:var(--hk-key,rgba(255,255,255,0.12))}',
+    '  background:' + window.hkCards.v('key') + '}',
     '.rank.en .lvl.on{display:block}',
     '.rank.en .lvl.on ~ .spark{display:none}',
     '.rank .lvl i{display:block;height:100%;border-radius:4px}',
@@ -254,41 +266,54 @@
     '  -webkit-tap-highlight-color:transparent}',
     '.rank .pwr::after{content:"";position:absolute;inset:-5px}',
     '.rank .pwr:active{transform:scale(0.9)}',
-    '.rank .pwr[data-on="0"]{background:var(--hk-key,rgba(255,255,255,0.14));color:var(--hk-ink-2,rgba(255,255,255,0.68));box-shadow:none}',
+    '.rank .pwr[data-on="0"]{background:' + window.hkCards.v('key-strong') + ';color:' + window.hkCards.v('ink-2') + ';box-shadow:none}',
     'ha-card.rank.haspwr .name,ha-card.rank.haspwr .label{padding-right:42px;box-sizing:border-box}',
+    // BACKED UP BY THE HOUSE BATTERY (`backed`, the Power page and the
+    // Energy page): a small green battery at the start of the kWh line -- a
+    // picture anyone reads, nothing on the glyph, no name cut short. A
+    // pseudo-element, so the line's text can change under it. On a tile too
+    // narrow for the battery and "12.4 kWh today" (under 164 px inside its
+    // padding: the desk with its sidebar, the iPads, the car, a phone) the
+    // word "today" steps aside rather than the line ending in "to...".
+    'ha-card.rank.bkd{container-type:inline-size}',
+    '.rank.bkd .label::before{content:"";display:inline-block;width:15px;height:10px;margin-right:5px;vertical-align:-0.5px;',
+    '  background:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 10%27%3E%3Crect x=%27.75%27 y=%27.75%27 width=%2712.5%27 height=%278.5%27 rx=%272.2%27 fill=%27none%27 stroke=%27%2330d158%27 stroke-width=%271.5%27/%3E%3Crect x=%2714%27 y=%273.3%27 width=%271.6%27 height=%273.4%27 rx=%27.6%27 fill=%27%2330d158%27/%3E%3Crect x=%272.6%27 y=%272.6%27 width=%276.4%27 height=%274.8%27 rx=%271%27 fill=%27%2330d158%27/%3E%3C/svg%3E") no-repeat center/contain}',
+    '@container (max-width:163px){.rank.bkd .label .td{display:none}}',
+    '.rank .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}',
     'ha-card.rank.pwroff .hero,ha-card.rank.pwroff .well,ha-card.rank.pwroff .spark{opacity:0.45}',
     // on a new Energy tab its line draws in, left to right (a clip: no layout)
     '@keyframes hkWipe{from{clip-path:inset(0 100% 0 0)}}',
-    '.rank .spark.wipe{animation:hkWipe .7s cubic-bezier(0.22,0.8,0.25,1) backwards}',
+    '.rank .spark.wipe{animation:hkWipe .7s cubic-bezier(.22,.8,.25,1) backwards}',
     '@media (prefers-reduced-motion: reduce){.rank .spark.wipe{animation:none}}',
     'ha-card.rank{transition:background-color .25s ease,transform .12s ease,opacity .2s}',
     // ================================================ PHONE: FILL THE TRACK
     // Below 640px the room grids switch to `repeat(auto-fill, minmax(168px,
     // 1fr))` (see frontend/css/hk-responsive.css), so the track is no longer
-    // 192px and a pill pinned to 192px would overflow it. Here the pill fills
-    // whatever track it is given instead.
+    // the pill's width (196, the table's) and a pill pinned to it would overflow.
+    // Here the pill fills whatever track it is given instead.
     //
     // WHY `calc(100% + 8px)` AND NOT `100%`: layout-card gives every grid child
     // 4px side margins, so the cell is always 8px narrower than the track
-    // (layout-card's card_margin cannot change it). At 1280 the pill is 192px in a 184px
+    // (layout-card's card_margin cannot change it). At 1280 the pill is 196px in a 188px
     // cell -- it already overflows by exactly 8px, and that is what makes the
-    // visible gap come out at the intended 12px. Plain `100%` would shrink
-    // every pill to the cell and change the gap.
+    // visible gap come out at the grid's own (TILE.gridGap, 10). Plain `100%`
+    // would shrink every pill to the cell and change the gap.
     //
     // `--hk-cell-bleed` exists because that 8px is NOT universal: inside
     // hk-row-card the child is sized directly with no layout-card margin, so
     // that card sets the bleed to 0 for its own children. Default 8px = the
     // grid case.
     //
-    // No max-width: capping at 192px makes the track wider than the pill on a
-    // large phone and the gap jumps 12px -> 25px. Verified 375/402/440/1280.
-    '@media (max-width: 640px){',
+    // No max-width: capping at the pill's width makes the track wider than the
+    // pill on a large phone and the gap jumps (12px -> 25px, measured at 192).
+    // Verified 375/402/440/1280.
+    '@media (max-width:' + window.hkCards.BP.phone + 'px){',
     // NO `:host{width:100%}` HERE. These hosts are already `display:block`, so
     // an auto width fills the grid area MINUS the 4px side margins layout-card
-    // gives every child -- which is exactly the 184px cell the 192px pill is
-    // built to overflow by 8. Forcing width:100% resolves against the full
-    // grid AREA instead and every tile comes out 8px too wide (190.95 measured
-    // against a 182.95 track), eating the 12px gap down to 4px.
+    // gives every child -- which is exactly the cell (8 px under the track)
+    // the pill is built to overflow by 8. Forcing width:100% resolves against
+    // the full grid AREA instead and every tile comes out 8px too wide (190.95
+    // measured against a 182.95 track), eating the gap (then 12px) to 4px.
     '  :host{max-width:none !important}',
     '  ha-card.rank{width:calc(100% + var(--hk-cell-bleed, 8px));min-width:0;max-width:none}',
     '}',
@@ -387,7 +412,12 @@
       // defaulting the row to the card height re-centres the text and pushes
       // the heading 2.5px up. The row moves only when the call site sets
       // `grid_rows` itself.
-      if (cfg.height) this._e.card.style.height = cfg.height;
+      // An energy section's heading can take a second line (on a phone), so
+      // its `height` is a minimum and the card grows to fit.
+      if (cfg.height && cfg.energy_section) {
+        this._e.card.style.minHeight = cfg.height;
+        this._e.card.style.height = 'auto';
+      } else if (cfg.height) this._e.card.style.height = cfg.height;
       if (cfg.grid_rows) {
         this._e.card.querySelector('.grid').style.gridTemplateRows = cfg.grid_rows;
       }
@@ -641,7 +671,7 @@
       if (!config || !config.entity) throw new Error('hk-rank: `entity` is required');
       super.setConfig(config);
     }
-    // a 152 px pill: three of Lovelace's ~50 px rows, not the base's one
+    // a tall tile (150 px): three of Lovelace's ~50 px rows, not the base's one
     getCardSize() { return 3; }
 
     // A SWITCH THAT IS ON INVERTS THE PILL TO WHITE, so the reading has to
@@ -719,6 +749,13 @@
           spark: this._root.querySelector('.spark'), lvl: this._root.querySelector('.lvl')
         };
         this._bind(this._e.card, 'tap_action', null);
+        if (cfg.backed) {
+          var bk = document.createElement('span');
+          bk.className = 'sr';
+          bk.textContent = 'Backed up by the house battery';
+          this._e.card.appendChild(bk);
+          this._e.card.classList.add('bkd');
+        }
         // THE CIRCUIT'S POWER BUTTON (`control`, the Energy page's Switched
         // By): only on a tile that has something to switch, so a tile without
         // one never looks like it does. On is one tap; off cuts a room's
@@ -739,7 +776,7 @@
             if (!on) { selfC._call('homeassistant', 'turn_on', { entity_id: selfC._config.control }); return; }
             window.hkCards.confirmSheet('Turn off ' + nm2 + '?', function () {
               selfC._call('homeassistant', 'turn_off', { entity_id: selfC._config.control });
-            }, { yes: 'Turn Off', destructive: true, detail: 'Everything on this circuit loses power.' });
+            }, { yes: selfC._config.control_yes || 'Turn Off', destructive: true, detail: selfC._config.control_detail || 'Everything on this circuit loses power.' });
           });
         }
         this._built = true;
@@ -797,13 +834,13 @@
       window.hkCards.morph(e.hero, html);
       e.hero.style.color = lit
         ? (idle ? 'rgba(0, 0, 0, 0.30)' : 'rgba(0, 0, 0, 0.92)')
-        : (idle ? 'var(--hk-ink-3, rgba(255, 255, 255, 0.40))' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))');
+        : (idle ? '' + window.hkCards.v('ink-3') + '' : '' + window.hkCards.v('ink') + '');
 
       var nm = cfg.name || (st && st.attributes && st.attributes.friendly_name) || cfg.entity;
       if (e.name.textContent !== nm) e.name.textContent = nm;
 
       // ---- the label: kWh so far today, fetched asynchronously
-      var lb = cfg.label != null ? cfg.label : '';
+      var lb = cfg.label != null ? cfg.label : '', lbHtml = null;
       // label_entity + label_suffix: "the range sensor, rounded, with
       // ' mi range' after it".
       if (!cfg.label && cfg.label_entity) {
@@ -822,11 +859,13 @@
       } else if (!cfg.label && !cfg.label_entity && cfg.stat && window.hkStats && this._hass) {
         var t = this._today();
         lb = Number.isFinite(t) ? (t.toFixed(1) + ' kWh today') : '';
+        // "today" its own span: a narrow backed-up tile sets it aside
+        if (lb && cfg.backed) lbHtml = t.toFixed(1) + ' kWh<span class="td"> today</span>';
       }
       // on the Energy page's Today, This Week and This Month the label is the
       // tab's (_energy below), not today's kWh
       if (!(EP && cfg.energy !== 'now' && EP.getPeriod() !== 'now' && mode !== 'pct') && e.label.textContent !== lb) {
-        e.label.textContent = lb;
+        if (lbHtml) e.label.innerHTML = lbHtml; else e.label.textContent = lb;
         e.label._h = null;
       }
       if (EP) this._energy(EP, mode, st);
@@ -859,7 +898,7 @@
       if (p !== 'now' && x && typeof x.v === 'number') {
         var idle = x.v < 0.05;
         window.hkCards.morph(e.hero, (x.v >= 100 ? Math.round(x.v).toLocaleString('en-US') : x.v.toFixed(1)) + '<span class="unit">kWh</span>');
-        e.hero.style.color = idle ? 'var(--hk-ink-3, rgba(255, 255, 255, 0.40))' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))';
+        e.hero.style.color = idle ? '' + window.hkCards.v('ink-3') + '' : '' + window.hkCards.v('ink') + '';
         if (e.label._h !== x.cmp) { e.label.innerHTML = x.cmp; e.label._h = x.cmp; }
       } else if (p !== 'now' && cfg.stat) {
         if (e.label._h !== '') { e.label.textContent = ''; e.label._h = ''; }
@@ -873,7 +912,7 @@
       }
       var flat = !line || !line.some(function (z) { return typeof z === 'number' && z > (p === 'now' ? 5 : 0.05); });
       var svg = flat
-        ? '<path d="M0 28H156" stroke="var(--hk-line,rgba(255,255,255,0.18))" stroke-width="2" vector-effect="non-scaling-stroke"/>'
+        ? '<path d="M0 28H156" stroke="' + window.hkCards.v('line-strong') + '" stroke-width="2" vector-effect="non-scaling-stroke"/>'
         : EP.lineSvg(line, 156, 30, color, { min: p === 'now' ? 20 : 0.05 });
       if (e.spark._h !== svg) { e.spark.innerHTML = svg; e.spark._h = svg; }
       if (this._sparkTab !== p && !flat) {

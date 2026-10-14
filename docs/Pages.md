@@ -26,10 +26,13 @@ the menu open them; a back button returns to Home.
 | Music | The Music feature, with speakers | What plays and where (speakers, volume, queue), and the music library to browse and search |
 | Water | Leak sensors | The leak sensors by room, and a count of any that haven’t reported since Home Assistant started |
 | [Energy](Energy.md) | The Energy feature | Now, Today, This Week and This Month: the whole home live, its use against a usual day, where it went, and a tile for every circuit, room, appliance and outlet |
+| [Power](Energy.md#the-power-page) | The Energy feature, with its Power Page on | Right now: the grid, the house and the battery as a flow chart, the status, what the battery backs up, the sun, the battery's controls, and every device marked when the battery backs it up |
 
-A page lists what its kinds count ([What Counts](Status-Chips.md#what-counts)), so the Lights
-chip and the Lights page always agree. The Vacuums and Security pages list
-things A to Z unless you give them an order: **Accessories → Page Order**.
+A page lists what its kinds count (each type’s page in
+[Accessories](Accessories.md#types)), so the Lights chip and the Lights page
+always agree. The Vacuums and Security pages list things A to Z unless you
+give them an order: **Accessories → Vacuums** (or **Locks**, **Garage Doors**)
+**→ Tile Order** ([Tile Order](Accessories.md#tile-order-for-locks-garage-doors-and-vacuums)).
 The Doors & Windows page has the doors and windows only; the locks and garage
 doors are on Security.
 
@@ -58,7 +61,7 @@ and Security pages have status rows of their own.
 ## Custom pages
 
 A custom page is a page you write in YAML, once, that any generated screen can
-show: a home battery’s page, say. It belongs to HK Frontend, not to any one dashboard. (For an Energy page, the [Energy](Energy.md) feature builds one for you.)
+show: a page for your garden, say. It belongs to HK Frontend, not to any one dashboard. (For an Energy page, or a Power page for a home battery, the [Energy](Energy.md) feature builds one for you.)
 
 1. Open **HK Settings → Library → Custom Pages → Add Page**.
 2. Give it a **Name** and an **Icon**. Its **Address** is made from the name;
@@ -121,7 +124,7 @@ sits in the menu.
 | Setting | Default | What it does |
 |---|---|---|
 | Home Page | On | Off: a page screen (above). It shows only the pages listed under **This Screen Shows Only**, in order, and opens on the first. Any page or custom page can be listed. With none listed, it still shows everything. HK Settings asks before switching either way. |
-| Automatic | On | Every page your home has something for, in the usual order: Weather, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Music, Water, Energy, Room Pages. Custom pages you add go before Room Pages. |
+| Automatic | On | Every page your home has something for, in the usual order: Weather, Calendar, Cameras, Live TV, Security, Doors & Windows, Climate, Lights, Timers, Vacuums, Music, Water, Energy, Power, Room Pages. Custom pages you add go before Room Pages. |
 | Shown / More | — | The pages, in order. The order here is the menu’s order too. Custom pages are marked *Custom page*. |
 | (each page) in the menu | Weather, Cameras and Live TV: Top of Menu. The rest: Categories | **Top of Menu** (right under Home), **Categories**, or **Not in Menu** (still one tap away on its chip or pill). Room Pages are always under Rooms. Categories keeps at least one page. |
 | Reset to Automatic Menu | — | Shown once you have moved a page. Puts every page back where it was. |
@@ -137,7 +140,7 @@ that any generated screen can show. How to add one to a screen:
 | Setting | Default | What it does |
 |---|---|---|
 | Name | — | Its title and its name in the menu. |
-| Address | Made from the name | The last part of its address (`energy` in `/hk-kitchen/energy`). Lowercase letters, digits and dashes. Not an address a screen uses itself (`home`, `weather`, `cameras`, `live-tv`, `security`, `doors-windows`, `climate`, `lights`, `timers`, `vacuums`, `playmusic`, `music-browse`, `water`) or a room page’s (`room-…`). Can’t be changed once made. |
+| Address | Made from the name | The last part of its address (`energy` in `/hk-kitchen/energy`). Lowercase letters, digits and dashes. Not an address a screen uses itself (`home`, `weather`, `cameras`, `live-tv`, `security`, `doors-windows`, `climate`, `lights`, `timers`, `vacuums`, `playmusic`, `music-browse`, `water`) or a room page’s (`room-…`). `energy` and `power` are allowed, but the Energy feature’s pages take those addresses while they are on. Can’t be changed once made. |
 | Icon | None | Its icon in the menu. |
 | Start From | A Blank Page | Or a page of any dashboard: its cards are copied, and the page is yours from then on. |
 

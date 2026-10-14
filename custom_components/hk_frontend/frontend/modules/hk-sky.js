@@ -390,7 +390,10 @@
     var wid = HS ? HS.weatherId(hass.states) : null;
     var w = wid ? hass.states[wid] : null;
     var a = (w && w.attributes) || {};
-    var cond = (w && w.state) || 'sunny';
+    // An entity with no reading (unknown or unavailable -- a weather outage,
+    // a restart) is no weather, as no entity is: not the 40 % of cloud a
+    // condition the table doesn't know would get.
+    var cond = w && w.state && w.state !== 'unknown' && w.state !== 'unavailable' ? w.state : 'sunny';
 
     // cloud_coverage is an ATTRIBUTE on the weather entity, and the attribute
     // is where it is read from -- not from a sensor. OpenWeatherMap's weather
@@ -726,6 +729,8 @@
     '#hk-sky .art{position:absolute;inset:-120px;background-size:cover;',
     '  background-position:center;filter:blur(72px) saturate(1.5);',
     '  opacity:var(--artO,0);transition:opacity 1.2s linear,background-image 0s}',
+    // a photo of your own (paintPhoto): the whole picture, sharp, to the edges
+    '#hk-sky.photo .art{inset:var(--phI,0px);filter:var(--phF,none)}',
 
     // The scrim is what keeps the glass plates readable -- see CAP.
     '#hk-sky .scrim{background:linear-gradient(to bottom,',
@@ -3303,7 +3308,7 @@
     // wire, one after another. (Christmas's own bulbs twinkle as patches.)
     var bulbs = (NEAR_LAMPS[theme] || []).map(function (xy, i) {
       var bulb = glows.appendChild(document.createElement('i'));
-      bulb.className = 'scenery-bulb wave slow';
+      bulb.className = 'scenery-bulb wave';
       bulb.style.setProperty('--phase', (-i * 0.7).toFixed(2) + 's');
       return { node: bulb, xy: xy };
     });
@@ -3837,6 +3842,7 @@
   //   var sc = hkSky.scene(container);  sc.update(hass);  sc.pause(true);  sc.destroy();
   var OWN_CSS = [
     '#hk-sky.own{z-index:0}',
+    '#hk-sky.own.skyonly .land,#hk-sky.own.skyonly .lbox,#hk-sky.own.skyonly .season,#hk-sky.own.skyonly .near-scenery{display:none}',
     '#hk-sky .land>i{position:absolute;inset:0;background-repeat:no-repeat;',
     '  background-position:center bottom;background-size:cover;opacity:0;',
     '  transition:opacity 4s ease;filter:brightness(var(--landB,1));will-change:opacity}',
@@ -4287,10 +4293,14 @@
     return { show: show, shown: function () { return shown; } };
   }
 
-  function scene(host) {
+  // opts.skyOnly (2026-10-13, the screensaver clock's Sky Only): the sky
+  // alone -- clouds, stars, the moon, rain and snow -- with no land, no
+  // holiday lights, no decorations
+  function scene(host, opts) {
+    var skyOnly = !!(opts && opts.skyOnly);
     var el = document.createElement('div');
     el.id = 'hk-sky';
-    el.className = 'own';
+    el.className = 'own' + (skyOnly ? ' skyonly' : '');
     el.innerHTML = layersHtml(true);
     host.appendChild(el);
     // its OWN sheet: attachStyles() keeps one module-level handle, the page
@@ -4371,6 +4381,7 @@
         if (fw) fireworks(life, rnd, L);
       });
 
+      if (skyOnly) return;
       // the holiday's land, then -- once that land is the one showing -- its lights
       var hol = holidayLand(h, light);
       // (a holiday land the art does not have -- Halloween by day before v6 --
@@ -4407,6 +4418,7 @@
       update: function (hass) {
         if (!hass || !hass.states) return null;
         var s = read(hass);
+        if (skyOnly) s.season = '';            // no decorations either
         paint(el, s);
         // an overcast or wet day darkens the land with the sky
         var dim = 1 - 0.3 * clamp((s.cover - 0.4) / 0.6, 0, 1) - (s.wet && s.wet.rate > 0 ? 0.08 : 0);
@@ -5443,6 +5455,9 @@
   var STATIC = {
     energy:  ['#171d12', '#3a4020', '#7a5a24', '#b07f38'],   // olive -> amber
     ecoflow: ['#121634', '#183456', '#1e6e7c', '#5aa3ae'],   // indigo -> teal
+    // the Power page: the EcoFlow page's own (its house picture was drawn
+    // against it), not the Energy page's olive -- the two pages side by side
+    power:   ['#121634', '#183456', '#1e6e7c', '#5aa3ae'],   // indigo -> teal
     cameras: ['#080a0e', '#0f1219', '#171b23', '#222833'],   // near-black
     // The category pages. Each takes the hue its own chip already uses on the
     // dashboard, so arriving on the page is a continuation of the tile you
@@ -5574,6 +5589,63 @@
     img.src = url;
   }
 
+  // ---------------------------------------------------- a photo of your own
+  // THE BACKGROUND'S PHOTO (2026-10-13; Sky / Background -> Photo, for All
+  // Screens, a screen or a page): the whole picture, sharp and still, on the
+  // .art layer the album uses -- unblurred and edge to edge (.photo). Under
+  // it the views' own near-black, for the moment before it loads. Measured
+  // like a cover, so the cap darkens only a bright photo (applyScrim): the
+  // glass and its text stay readable on any picture. No grain: it is a
+  // picture, not a surface.
+  var PHOTO_UNDER = ['#05070e', '#05070e', '#05070e', '#05070e'];
+  // ITS LOOK (Sky / Background -> Photo -> Look, hkSettings.photoLook):
+  // blurred, dimmed and saturated by the layer's own filter -- the glass's
+  // Pre-rendered picture redraws the same filter (hk-skyshot) -- and a
+  // tint: the backdrop under it (render) showing through at `amount`, the
+  // photo's share 1 - amount. A blurred layer overhangs the screen by more
+  // than its blur, or its edges would fade to the dark under it.
+  function photoVars(el, look) {
+    var lk = look || {}, st = el.style, f = [];
+    // only what the look asks for: a photo as taken has no filter at all
+    if (lk.blur) f.push('blur(' + lk.blur + 'px)');
+    if (lk.saturate != null && lk.saturate !== 1) f.push('saturate(' + lk.saturate + ')');
+    if (lk.dim) f.push('brightness(' + (1 - lk.dim) + ')');
+    st.setProperty('--phF', f.join(' ') || 'none');
+    st.setProperty('--phI', (lk.blur ? -Math.ceil(lk.blur * 2.5) : 0) + 'px');
+    return 1 - (lk.amount || 0);
+  }
+  // the composite the cap judges: the photo, dimmed, over its tint
+  function photoScrim(el, L, look, gradL) {
+    var lum = (L === null ? 200 : L) * (1 - ((look || {}).dim || 0)), o = 1 - ((look || {}).amount || 0);
+    applyScrim(el, o * lum + (1 - o) * (gradL || 0));
+  }
+  function paintPhoto(el, url, look, gradL) {
+    el.style.setProperty('--grainO', '0');
+    var share = photoVars(el, look);
+    if (el._hkPhoto === url && el._hkPhotoL !== undefined) {
+      // the album may have used the layer since (Play Music)
+      var a0 = el.querySelector('.art');
+      el.style.setProperty('--art', 'url("' + url + '")');
+      if (a0) a0.style.backgroundImage = 'url("' + url + '")';
+      el.style.setProperty('--artO', String(share));
+      photoScrim(el, el._hkPhotoL, look, gradL);
+      return;
+    }
+    el._hkPhoto = url;
+    el._hkPhotoL = undefined;
+    measureArt(url, function (L) {
+      if (!el.isConnected || el._hkPhoto !== url) return;
+      var art = el.querySelector('.art');
+      el.style.setProperty('--art', 'url("' + url + '")');
+      if (art) art.style.backgroundImage = 'url("' + url + '")';
+      el.style.setProperty('--artO', String(share));
+      // one we could not measure is assumed bright, as a cover is
+      el._hkPhotoL = L === null ? null : Math.round(L);
+      photoScrim(el, el._hkPhotoL, look, gradL);
+      if (el === mounted) announce();
+    });
+  }
+
   function paintAlbum(el, url, gradL) {
     if (!url) {
       el.style.setProperty('--artO', '0');
@@ -5620,6 +5692,10 @@
 
   function teardown() {
     if (!mounted) return;
+    // the front layer (Moving Things: In Front) is the sky's sibling and is
+    // styled by the sky's sheet: it goes first, or it is left in the page
+    // unstyled, and a sky mounted again builds a second one beside it
+    frontSync(mounted, false);
     if (mounted._hkNear) mounted._hkNear.dispose();
     detachStyles(mounted);
     mounted.remove();
@@ -5772,12 +5848,24 @@
   // picture does: hk-sky-paint is said then, and a pre-rendered blur
   // (hk-glass.js) paints from it instead of looking every few seconds.
   var SKY_STATES = /(^|\s)(hidden|held|hk-snap|noanim)(?=\s|$)/g;
+  // the season's field as built: the old decorations' key, or the new
+  // decorations' theme (paintSeason) -- each changes only on a rebuild. A
+  // key with no season and no surprise ('||...') is an empty field: its
+  // wind and night parts change nothing that shows.
+  function seasonSig(el) {
+    var k = el._hkSeasonKey || '';
+    if (k.indexOf('||') === 0) k = '';
+    return k + '|' + (el._hkNear ? el._hkNearTheme + '|' + el._hkNearLv : '');
+  }
   function skySig(el) {
     if (!el) return { big: 'none', small: '' };
     // (the Play Music page's album art is what is IN it: a new song's cover
     // is a new picture, not a change of light)
+    // (and the season's field, which paintSeason builds inside .season with no
+    // class on the sky to say so: Decorations off emptied it and the pills
+    // kept the decorated picture until their next timed repaint, 2026-10-13)
     return { big: String(el.className).replace(SKY_STATES, ' ').replace(/\s+/g, ' ').trim() + '|' + cloudsSig(el) +
-                  '|' + (el.style.getPropertyValue('--art') || ''),
+                  '|' + (el.style.getPropertyValue('--art') || '') + '|' + seasonSig(el),
              small: el.getAttribute('style') || '' };
   }
   // THE SKY CHANGED (skySig, or the page): said once per change, not on
@@ -5909,6 +5997,10 @@
     // the mounted sky element, or null (hk-glass.js paints its pre-rendered
     // frost from it)
     element: function () { return mounted; },
+    // the page whose sky this is now -- set as that page's view takes the sky
+    // over (render), a frame or two after the view itself is on the page
+    // (hk-glass.js wears a page's picture from then, 2026-10-13)
+    path: function () { return mounted && mounted.isConnected ? mountedPath : null; },
     // for a pre-rendered blur (hk-glass.js): what the sky shows (skySig),
     // and whether more of it is on its way (the realistic clouds)
     // what the sky SHOWS: the last change said (announce, hk-sky-change) --
@@ -5992,25 +6084,32 @@
 
         // a page's still backdrop: its day stops while the sun is up, its
         // night ones after
-        var stops = opts.still
-          ? ((hass.states['sun.sun'] && Number((hass.states['sun.sun'].attributes || {}).elevation) > 0) ? opts.still.day : opts.still.night)
+        var up = hass.states['sun.sun'] && Number((hass.states['sun.sun'].attributes || {}).elevation) > 0;
+        // a photo's tint is a backdrop under it, showing through (paintPhoto)
+        var tint = opts.photo && opts.look && opts.look.tint;
+        var stops = opts.photo ? (tint ? (up ? tint.day : tint.night) : PHOTO_UNDER) : opts.still
+          ? (up ? opts.still.day : opts.still.night)
           : opts.variant && STATIC[opts.variant];
         if (stops) {
           mounted.classList.add('static');
+          mounted.classList.toggle('photo', !!opts.photo);
           paintStatic(mounted, stops);
-          mountedVariant = opts.variant || 'still';
+          mountedVariant = opts.variant || (opts.photo ? 'photo' : 'still');
           // _hkRaw is the PALETTE's own luma, before any scrim. Keep it: the
           // album composite is measured against the gradient underneath it,
           // and paintStatic will not run again on a track change.
           mounted._hkGradL = mounted._hkRaw;
           // playmusic is the one static page whose backdrop is not fixed.
-          if (opts.variant === 'playmusic') {
+          if (opts.photo) {
+            paintPhoto(mounted, opts.photo, opts.look, mounted._hkGradL);
+          } else if (opts.variant === 'playmusic') {
             paintAlbum(mounted, artUrl, mounted._hkGradL);
           } else {
             mounted.style.setProperty('--artO', '0');
           }
         } else {
           mounted.classList.remove('static');
+          mounted.classList.remove('photo');
           mountedVariant = null;
           mounted.style.setProperty('--artO', '0');
           var rs = read(hass);
@@ -6209,21 +6308,39 @@
     // change shows within seconds and needs no rebuild. Not chosen: the
     // view's own sky_variant / sky, as written.
     var HS = window.hkSettings;
-    var mode = v.sky_page && HS && typeof HS.pageSky === 'function' ? HS.pageSky(v.sky_page) : null;
+    // a room's page: the room's own (sky_room, its address), else Room Pages'
+    var pkeys = v.sky_room ? [v.sky_room, v.sky_page] : v.sky_page;
+    var mode = v.sky_page && HS && typeof HS.pageSky === 'function' ? HS.pageSky(pkeys) : null;
     var wants = v.sky === true || typeof v.sky_variant === 'string' || (!!mode && mode !== 'own');
     if (!wants) return false;
     var variant = (typeof v.sky_variant === 'string') ? v.sky_variant : null, backdrop = null;
-    var still = null;
+    var still = null, photo = null, look = null;
+    var black = (HS && HS.BLACK) || null;
     if (mode && mode !== 'own') {
       variant = null;
       // 'live': the live ramp itself, whatever the screen's Backdrop (false).
-      // Any other id: that backdrop as a STILL color, the way a page's own
-      // color is -- no clouds, weather, animation or decorations. A color
-      // picked for a page is a color; the moving sky is Live sky.
+      // 'photo': the page's photo (else the screen's), still. Any other id:
+      // that backdrop as a STILL color, the way a page's own color is -- no
+      // clouds, weather, animation or decorations. A color picked for a page
+      // is a color; the moving sky is Live sky.
       if (mode === 'live') backdrop = false;
+      else if (mode === 'photo') {
+        photo = typeof HS.pagePhoto === 'function' ? HS.pagePhoto(pkeys) : null;
+        if (!photo) still = black;
+        else if (typeof HS.pageLook === 'function') look = HS.pageLook(pkeys);
+      }
       else still = typeof HS.pageBackdrop === 'function' ? HS.pageBackdrop(mode) : null;
+    } else if (!variant && HS && typeof HS.skyLook === 'function') {
+      // THE BACKGROUND (2026-10-13): a page that shows the live sky by
+      // itself (Home, the room pages, Weather ...) shows the screen's
+      // Background instead when that is a Color or a Photo -- a still, with
+      // no sun, moon, stars, weather or decorations. (A Backdrop only
+      // recolors the live sky; its stars still showed through.)
+      var bg = HS.skyLook().background;
+      if (bg && bg.mode === 'color') still = bg.stops || black;
+      else if (bg && bg.mode === 'photo') { photo = bg.photo || null; look = bg.look || null; if (!photo) still = bg.stops || black; }
     }
-    return { variant: variant, backdrop: backdrop, still: still,
+    return { variant: variant, backdrop: backdrop, still: still, photo: photo, look: look,
              enable: cfg.sky.enable || null,
              sleep: cfg.sky.sleep || null };
   }

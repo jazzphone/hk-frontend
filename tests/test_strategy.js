@@ -1,5 +1,7 @@
 // hk-strategy.js: a whole dashboard from a house's registries.
 load(HK_ROOT + '/tests/dom.js');
+// the pill's table (hkCards.TILE): a page's grids are built from it
+load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-strategy.js');
 var pass = 0, fail = 0;
 function ok(n, c, d) { if (c) { pass++; print('  PASS  ' + n); } else { fail++; print('  FAIL  ' + n + (d !== undefined ? '   got ' + JSON.stringify(d) : '')); } }
@@ -303,13 +305,14 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     (function walk(n) {
       if (!n || typeof n !== 'object') return;
       if (n.layout && /hk-climate-dials/.test(n.layout['grid-template-columns'] || '')) body2 = body2 || n;
-      if (n.layout && n.layout['grid-template-columns'] === 'repeat(auto-fill, var(--hk-track, 192px))' &&
+      if (n.layout && n.layout['grid-template-columns'] === 'repeat(auto-fill, var(--hk-track, ' + window.hkCards.TILE.w + 'px))' &&
           !(n.cards || []).some(function (c) { return c.type === 'custom:hk-thermostat-card'; })) widest = Math.max(widest, n.cards.length);
       Object.keys(n).forEach(function (k) { walk(n[k]); });
     })(clim2);
     var at = /minmax\(0, (\d+)px\)/.exec(body2 && body2.layout['grid-template-columns']);
     ok('the rooms are as wide as their widest room needs (' + widest + ' tiles at most; two to four pills)',
-       widest > 0 && !!at && +at[1] === 204 * Math.max(2, Math.min(4, widest)) + 8,
+       // n pills and n - 1 gaps (hk-base.js TILE), and the nested grids' 20 px
+       widest > 0 && !!at && +at[1] === (window.hkCards.TILE.w + window.hkCards.TILE.gridGap) * Math.max(2, Math.min(4, widest)) - window.hkCards.TILE.gridGap + 20,
        body2 && body2.layout['grid-template-columns']);
     // STATUS & CHIPS answers first: the integration's kinds decide the pages.
     window.hkSettings.get = function (p, f) {
@@ -415,7 +418,8 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     // Security: the keypad with the locks on a rail, under the doors sky
     var sec = g.views.filter(function (v) { return v.path === 'security'; })[0];
     var panel = sec.cards[2].cards[0];
-    ok('Security: keypad and a Locks rail', panel.layout['grid-template-columns'] === 'var(--hk-alarm-cols, 430px 408px)' &&
+    ok('Security: keypad and a Locks rail', panel.layout['grid-template-columns'] === 'var(--hk-alarm-cols, 430px ' +
+       (2 * window.hkCards.TILE.w + window.hkCards.TILE.gridGap + 12) + 'px)' &&
        cards(panel).indexOf('"name":"Locks"') > 0 && cards(panel).indexOf('lock.front') > 0 && sec.sky_variant === 'doors',
        JSON.stringify(panel).slice(0, 200));
     // Timers and Vacuums, with the quick timers and Clean Areas present
@@ -519,7 +523,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('...its switch, the house\'s photos and the five cards',
      hs && hs.entity === 'input_boolean.wallpanel_screensaver_kitchen' && hs.photos === 'media-source://media_source/local/photos' &&
      hs.cards.length === 5 && hs.cards[0].type === 'custom:hk-clock-card' && hs.cards[3].type === 'custom:hk-timer-strip-card' &&
-     hs.cards[4].type === 'custom:hk-screensaver-status-card', hs);
+     hs.cards[4].type === 'custom:hk-screensaver-status-card' && !hs.cards[0].music_only, hs);
   ok('...the defaults: 180 s, 30 s a photo, random, filled, no zoom',
      hs && hs.starts_after === 180 && hs.each_photo === 30 && hs.order === 'random' && hs.fill === true && hs.zoom === false, hs);
   ok('the sky pauses behind it and follows the house\'s switch',
@@ -533,6 +537,20 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
      hs && hs.starts_after === 300 && hs.each_photo === 45 && hs.order === 'sorted' && hs.fill === false && hs.zoom === true &&
      hs.cards.length === 3 && hs.cards[0].type === 'custom:hk-weather-strip-card' && hs.cards[1].type === 'custom:hk-timer-strip-card' &&
      hs.cards[2].type === 'custom:hk-screensaver-status-card', hs);
+  WB.screensaver_options = { show: 'clock', music_first: true };
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  // SHOW: CLOCK WITH MUSIC FIRST (1.8.0): the slide covers the big clock,
+  // so the corner clock is kept, marked to show only under the music
+  var hs = g.hk_screensaver;
+  ok('Show: Clock keeps the corner clock for the music slide only',
+     hs && hs.cards.length === 5 && hs.cards[0].type === 'custom:hk-clock-card' && hs.cards[0].music_only === true, hs && hs.cards[0]);
+  WB.screensaver_options = { clock_over: 'large' };
+  return window.hkStrategy.generate({}, hass);
+}).then(function (g) {
+  var hs = g.hk_screensaver;
+  ok('...as does a Large clock',
+     hs && hs.cards[0].type === 'custom:hk-clock-card' && hs.cards[0].music_only === true, hs && hs.cards[0]);
   delete WB.screensaver_options;
   WB.screensaver_engine = 'wallpanel';
   return window.hkStrategy.generate({}, hass);

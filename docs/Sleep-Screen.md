@@ -5,8 +5,11 @@ somebody does**: lit when you walk into the kitchen, dark again after you
 leave, black all night in the bedroom, and up at once for the doorbell or a
 smoke alarm. **Sleep Screen** is how HK Frontend does that.
 
-You set it per screen: **HK Settings → Screens → (a screen) → When Idle →
-Sleep Screen**. It answers two questions:
+You set it per wall tablet: **HK Settings → All Screens → Wall Tablets → (a
+tablet) → Sleep Screen** (`#/house/tablets/<id>/sleep` in HK Settings; a
+screen’s old Sleep Screen address, from before tablets were their own items,
+opens its first tablet’s). Two tablets running the same screen can sleep
+differently. It answers two questions:
 
 1. **How does the tablet go dark?** Kiosk Satellite’s own black screensaver,
    or HK Frontend’s black drawn on the page, with the backlight at its lowest
@@ -36,11 +39,11 @@ Sleep Screen**. It answers two questions:
 
 ## What you need
 
-- **A screen with a Tablet User and the Photo Screensaver** (When Idle →
-  Photo Screensaver). The tablet signs in to Home Assistant as its own user,
-  which tells HK Frontend which browser is the wall tablet. A computer opening
-  the same screen never sleeps, never wakes and never counts as a touch. See
-  [Wall Tablets](Wall-Tablets.md).
+- **A wall tablet** (All Screens → Wall Tablets), running a screen with the
+  Photo Screensaver on (When Idle → Photo Screensaver). Its start URL (or its
+  own Home Assistant user) tells HK Frontend which browser is the wall
+  tablet. A computer opening the same screen never sleeps, never wakes and
+  never counts as a touch. See [Wall Tablets](Wall-Tablets.md).
 - **For HK Frontend’s own black and for HK Frontend deciding: Kiosk
   Satellite** on the tablet, with its Home Assistant integration
   ([Wall Tablets → Or Kiosk Satellite](Wall-Tablets.md#or-kiosk-satellite)). That is how HK Frontend turns the backlight down,
@@ -99,7 +102,7 @@ The top of the page: **Going Dark**.
 ## Decided By: An Automation
 
 The default. **Nothing in HK Frontend makes the tablet sleep on its own.**
-Your automations turn the screen’s black screen switch on to sleep and off
+Your automations turn the tablet’s black screen switch on to sleep and off
 to wake. Use the **Set black screen** action
 (`hk_frontend.set_black_screen`), which also carries the brightness to come
 back to:
@@ -145,7 +148,7 @@ actions:
       black: "{{ trigger.id == 'out' }}"
 ```
 
-…but never while somebody is using it (the screen’s **In Use** sensor):
+…but never while somebody is using it (the tablet’s **In Use** sensor):
 
 ```yaml
 conditions:
@@ -259,15 +262,16 @@ closes the screensaver itself, as always.
 
 #### Kiosk
 
-**Kiosk Satellite**: the tablet’s Kiosk Satellite device. HK Frontend
-uses it to:
+**Kiosk Satellite**: the tablet’s Kiosk Satellite device, the one chosen on
+the tablet’s page (**Setup → Kiosk App: Kiosk Satellite**, and its
+**Device**). HK Frontend uses it to:
 
 - switch the display off and on;
 - set the brightness;
 - bring the dashboard back in front when it wakes;
 - see another app in front, and then leave the tablet alone.
 
-Choose it for everything below to work fully.
+Choose it there for everything below to work fully.
 
 #### When It Goes Dark
 
@@ -345,7 +349,7 @@ In this order, all before who is in the room:
   3. **Day and Night by the Clock**: on, each starts at its own **Starts At**
      time. Off, it is day unless something in Night While is on.
 
-HK Frontend sets it on the screen when it changes, and **checks it again at
+HK Frontend sets it on the tablet when it changes, and **checks it again at
 every sleep and wake**, so a tablet that was offline at the change is put
 right the next time it wakes. A black screen wakes straight to it. Under HK
 Frontend’s black the backlight stays at its lowest until the wake.
@@ -366,7 +370,7 @@ Turn the tablet’s own adaptive brightness **off**, or the two will fight.
 - **It never loops.** At most six actions a minute. More than that is a
   configuration fighting itself (an automation of yours undoing it), and it
   waits.
-- **It tells you why.** `sensor.<screen>_sleep_screen` says what it decided,
+- **It tells you why.** `sensor.<tablet>_sleep_screen` says what it decided,
   and why, in words (see [The entities](#the-entities)).
 - **The power button and a tap always work.** A tap wakes it at once, even
   in quiet hours. A display lit by hand counts as a touch.
@@ -510,12 +514,18 @@ HK Frontend deciding doesn’t mean your automations stop. They work best by
   the lists instead.
 
 Moving over from your own automations: set Decided By to HK Frontend on one
-screen, turn off that screen’s old sleep/wake automations, and watch
-`sensor.<screen>_sleep_screen` for a day. Its `reason` explains every move.
+tablet, turn off that tablet’s old sleep/wake automations, and watch
+`sensor.<tablet>_sleep_screen` for a day. Its `reason` explains every move.
+
+**Copy Sleep Screen To…**, on the tablet’s page, puts one tablet’s rules and
+brightness onto others (each keeps its own kiosk). The tablet’s page also has
+**Wake Now** and **Sleep Now** while HK Frontend decides: one move, and its
+rules decide again after.
 
 ## The entities
 
-For a screen called Kitchen:
+For a tablet called Kitchen (each tablet has its own; their attributes
+include `tablet` and the screen it runs, `dashboard`):
 
 | Entity | |
 |---|---|
@@ -541,7 +551,7 @@ For a screen called Kitchen:
 
 ## Troubleshooting
 
-**It goes dark with somebody in the room.** Look at `sensor.<screen>_sleep_screen`:
+**It goes dark with somebody in the room.** Look at `sensor.<tablet>_sleep_screen`:
 - `present` false: your presence sensor cleared. Add another sensor, or raise
   **Linger**.
 - `reason` "the room’s lights are off": that is **Only While Lit**.
@@ -565,9 +575,10 @@ dashboard during screensaver** off ([Wall Tablets](Wall-Tablets.md)).
 **"holding – an input is unavailable".** A presence sensor or the tablet’s own
 entities are unavailable. It waits rather than guessing. Check the sensor.
 
-**Nothing happens at all.** Check that Decided By is HK Frontend, that a
-**Kiosk Satellite** is chosen, and that the screen has a **Tablet User** and
-the Photo Screensaver on. `sensor.<screen>_sleep_screen` says `automation`
+**Nothing happens at all.** Check that Decided By is HK Frontend, that the
+tablet’s Kiosk App is **Kiosk Satellite** with its **Device** chosen, and that
+its screen has the Photo Screensaver on. The tablet’s **Setup Check** (on its
+page) says what is missing. `sensor.<tablet>_sleep_screen` says `automation`
 when HK Frontend isn’t deciding.
 
 See also: [Screensaver & Idle](Screensaver-and-Idle.md) ·

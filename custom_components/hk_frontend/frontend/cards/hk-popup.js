@@ -61,7 +61,11 @@
     // in a pop-up inherits it: every keypad key would flash the WebView
     // default -- a square blue box that ignores the key's radius. The property
     // inherits, so setting it here covers every card inside.
-    '.hkp{-webkit-tap-highlight-color:transparent}',
+    '.hkp{-webkit-tap-highlight-color:transparent;',
+    // the dashboard's font, and the theme's variable for the cards in it: a
+    // pop-up is mounted outside the view (hk-base.js puts --hk-font-body on
+    // the root; this sheet is built before hk-base may have loaded)
+    '  --ha-font-family-body:var(--hk-font-body);font-family:var(--hk-font-body)}',
     '.hkp{position:fixed;inset:0;z-index:7;display:flex;justify-content:center;',
     '  align-items:center;pointer-events:none;box-sizing:border-box}',
     // A MODAL SHEET CENTRES ON THE DASHBOARD, not the window: past Home
@@ -120,7 +124,7 @@
     '.hkp .sheet{position:relative;box-sizing:border-box;pointer-events:auto;',
     '  max-height:calc(var(--hk-vh, 100dvh) - 36px);overflow-y:auto;overscroll-behavior:contain;',
     '  -webkit-overflow-scrolling:touch;opacity:0;transform:translateY(24px) scale(.98);',
-    '  transition:opacity .25s ease,transform .3s cubic-bezier(.2,.8,.2,1)}',
+    '  transition:opacity .25s ease,transform .3s cubic-bezier(.32,.72,0,1)}',
     '.hkp.bottom .sheet{transform:translateY(100%)}',
     '.hkp.open .sheet{opacity:1;transform:none}',
     '.hkp.instant .sheet{transition:none}',
@@ -425,7 +429,7 @@
     '.hk-stash{position:fixed;z-index:5;--s:48px;',
     '  right:max(16px, calc(env(safe-area-inset-right, 0px) + 8px));',
     '  bottom:max(var(--hk-tabbar-top, 0px), 16px, calc(env(safe-area-inset-bottom, 0px) + 10px));',
-    '  transition:bottom .42s ' + STASH_EASE + ',opacity .22s ease,transform .3s cubic-bezier(.2,.8,.2,1)}',
+    '  transition:bottom .42s ' + STASH_EASE + ',opacity .22s ease,transform .3s cubic-bezier(.32,.72,0,1)}',
     'html[hk-tabbar-fold=start] .hk-stash,html[hk-tabbar-fold=end] .hk-stash{--s:calc(var(--hk-tabbar-bh, 54px) - 6px);',
     '  bottom:var(--hk-tabbar-row, 14px)}',
     // (the bar's own gutter, 21 px: the two buttons mirror each other)
@@ -436,7 +440,7 @@
     // or jump: it pops up where it now goes -- a new animation name
     // restarts the pop; up and down the same side, `bottom` eases instead
     '@keyframes hkStashL{from{opacity:0;transform:scale(.6)}}@keyframes hkStashR{from{opacity:0;transform:scale(.6)}}',
-    '.hk-stash.in{animation:hkStashR .3s cubic-bezier(.2,.8,.2,1)}',
+    '.hk-stash.in{animation:hkStashR .3s cubic-bezier(.32,.72,0,1)}',
     'html[hk-tabbar-fold=end] .hk-stash.in{animation-name:hkStashL}'
   ].join('');
   // the stash's button: the dashboard's round glass, a glyph in it. NO
@@ -445,7 +449,7 @@
   // up -- .94 with none looks the same and costs nothing
   var STASH_CSS = [
     '.b{box-sizing:border-box;width:var(--s,48px);height:var(--s,48px);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;',
-    '  background:rgba(32,30,38,.94);',
+    '  background:rgba(24,24,28,0.93);',
     '  border:1px solid rgba(255,255,255,.14);box-shadow:0 8px 24px rgba(0,0,0,.38);color:#fff;',
     '  -webkit-tap-highlight-color:transparent;transition:transform .12s ease}',
     '.b:active{transform:scale(.94)}',

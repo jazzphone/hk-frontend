@@ -209,8 +209,13 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
     # The photo screensaver's tablets: it runs only for a screen's Tablet
     # User, and that user must exist -- the one thing a new house can't see
     # going wrong (the screensaver just never shows)
-    if savers:
-        lines.append(await _saver_users_line(hass, boards or {}))
+    # The wall tablets (1.14): each one's user, screen and kiosk app, and the
+    # kiosk app's own settings (tablets.check_lines)
+    from . import features as F, tablets
+    entry = F.frontend_entry(hass)
+    if entry is not None:
+        names = {u.name for u in await hass.auth.async_get_users() if not u.system_generated and u.is_active}
+        lines.extend(tablets.check_lines(hass, entry, names))
 
     # The photo screensaver's photos, when a screen shows photos (a screen set
     # to Forecast never looks for any)
@@ -244,32 +249,6 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
     return lines
 
 
-async def _saver_users_line(hass: HomeAssistant, boards: dict[str, dict[str, Any]]) -> Line:
-    """Each screen with the photo screensaver: its Tablet User chosen, and a
-    user of that name signed up in Home Assistant."""
-    title = lambda p: lovelace_boards.title(hass, p)  # noqa: E731 -- the Overview as "Overview"
-    names = {u.name for u in await hass.auth.async_get_users() if not u.system_generated and u.is_active}
-    savers = {p: b for p, b in boards.items() if b.get("screensaver")}
-    none = [title(p) for p, b in savers.items() if not b.get("tablet_user")]
-    gone = [f"{title(p)}: “{b['tablet_user']}”" for p, b in savers.items()
-            if b.get("tablet_user") and b["tablet_user"] not in names]
-    if none or gone:
-        why = []
-        if none:
-            why.append(f"no Tablet User on {_names(none)}, so the screensaver never shows there")
-        if gone:
-            why.append(f"no Home Assistant user by that name for {_names(gone)}")
-        return Line(False, "Screensaver Tablets",
-                    "Photo Screensaver is on, but " + "; and ".join(why) + ". Choose the Tablet User "
-                    "under the screen’s Behavior in HK Settings: the user the wall tablet signs in as.")
-    from . import screensaver
-    mgr = screensaver.manager(hass)
-    ids = mgr.switch_ids() if mgr else {}
-    hk = [p for p, b in savers.items() if b.get("screensaver_engine") != "wallpanel"]
-    what = (f", each with its switch ({_names([ids[p] for p in hk if p in ids])})" if any(p in ids for p in hk) else "")
-    return Line(True, "Screensaver Tablets", f"{_n(len(savers), 'screen')} with a Tablet User{what}.")
-
-
 async def _photos_line(hass: HomeAssistant, folder: str, dark: bool = False) -> Line:
     """How many photos the screensaver finds in its folder (the top level;
     it also looks two folders down)."""
@@ -281,7 +260,7 @@ async def _photos_line(hass: HomeAssistant, folder: str, dark: bool = False) -> 
                     f"The screensaver can’t read its photos folder ({folder}): {err}. "
                     + ("A screen with Forecast When There Are No Photos off stays dark. " if dark else
                        "It shows the forecast instead. ")
-                    + "To show photos, check Wall Tablets → Screensaver Photos in HK Settings.")
+                    + "To show photos, check Screensaver → Screensaver Photos in HK Settings.")
     kids = list(item.children or [])
     photos = sum(1 for c in kids if not c.can_expand and (
         c.media_class == "image" or str(c.media_content_type or "").startswith("image/")))

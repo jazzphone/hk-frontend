@@ -105,7 +105,9 @@ setTimeout(function () {
               h3.reject(0, new Error('boom'));
               tick(6).then(function () {
                 check('a failed request releases its flight', S.dump().inFlight.size === 0);
-                print(fail ? 'FAIL ' + fail + ' STATS TESTS' : 'ALL ' + pass + ' STATS TESTS PASS');
+                rollTest(function () {
+                  print(fail ? 'FAIL ' + fail + ' STATS TESTS' : 'ALL ' + pass + ' STATS TESTS PASS');
+                });
               });
             }, 40);
           }, 40);
@@ -114,3 +116,36 @@ setTimeout(function () {
     }, 40);
   }, 40);
 }, 40);
+
+// A NEW BUCKET DOES NOT BLANK THE CHART. The key carries the bucket edge, so
+// at every hour (and every 5 minutes for the live lines) a card's answer is
+// under a new key. Until that answer lands, the same shape's answer from the
+// bucket before stands in -- the Energy page used to flash "Loading..." once
+// an hour and drop its live lines every five minutes.
+function rollTest(done) {
+  var realNow = Date.now, T = Date.UTC(2026, 9, 13, 15, 30, 0);
+  Date.now = function () { return T; };
+  var h = makeHass();
+  check('roll: the first ask waits for its answer', S.hourly(h, ['sensor.r'], 24, null) === null);
+  setTimeout(function () {
+    h.settle(0, { 'sensor.r': [] });
+    tick(6).then(function () {
+      check('roll: answered', S.hourly(h, ['sensor.r'], 24, null) !== null);
+      T += 3600000;
+      check('roll: the next hour draws the last hour\'s answer while it asks', S.hourly(h, ['sensor.r'], 24, null) !== null);
+      check('roll: a different shape gets no stand-in', S.hourly(h, ['sensor.r'], 12, null) === null);
+      setTimeout(function () {
+        check('roll: the new hour was asked for', h.calls.length >= 2 && h.calls[1].period === 'hour');
+        h.settle(1, { 'sensor.r': [] });
+        if (h.calls[2]) h.settle(2, { 'sensor.r': [] });
+        tick(6).then(function () {
+          S.hourly(h, ['sensor.r'], 24, null);
+          var keys = []; S.dump().cache.forEach(function (_v, k) { if (/^hour\|24\|/.test(k)) keys.push(k); });
+          check('roll: once the new answer is in, the old hour is evicted', keys.length === 1);
+          Date.now = realNow;
+          done();
+        });
+      }, 40);
+    });
+  }, 40);
+}

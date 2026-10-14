@@ -6,13 +6,14 @@
 // WHAT SEPARATES A CHIP FROM A TILE
 // Geometry, measured, not what the card does:
 //
-//   tile  192px wide, 23.5px radius, a 42px icon slot
-//   chip  40-44px tall, radius = HALF the height (fully rounded), width from
+//   tile  196px wide (hk-base.js TILE.w), 23.5px radius, a 42px icon slot
+//   chip  40-43px tall, radius = HALF the height (fully rounded), width from
 //         its content or from its grid cell, and NO icon well
 //
 // Two chips, and they are NOT variants of each other:
 //
-//   status chip     44px, radius 22, fit-content, an 18px glyph plus two text
+//   status chip     43px (hk-base.js CHIP.h; the Home app's 42.9), radius
+//                   half, fit-content, an 18px glyph plus two text
 //                   rows, and THE ONLY CARD that blurs itself (Clear look only)
 //   toggle          40px, radius 20, text only, centred, on/off selection
 //   segment         40px, radius 20, identical to the toggle EXCEPT that
@@ -131,8 +132,8 @@
     //
     // brightness(0.82) is not optional either: blur alone measured LIGHTER
     // than bright cloud, because the plate is purely additive white.
-    'ha-card.chip.status{height:44px;width:fit-content;min-width:0px;max-width:none;',
-    '  border-radius:22px;padding:5px 22px 5px 7.7px;margin:5px 0px 11px 0px;',
+    'ha-card.chip.status{height:' + window.hkCards.CHIP.h + 'px;width:fit-content;min-width:0px;max-width:none;',
+    '  border-radius:' + window.hkCards.CHIP.h / 2 + 'px;padding:5px 22px 5px 7.7px;margin:5px 0px 11px 0px;',
     '  background:var(--hk-chip-plate,linear-gradient(145deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07)));',
     '  backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
     '  -webkit-backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
@@ -166,11 +167,11 @@
     '  display:flex;align-items:center;justify-content:center;line-height:0}',
     '.status .name{grid-area:n;justify-self:start;align-self:center;',
     '  font-size:13.3px;font-weight:600;line-height:1.1;letter-spacing:-0.1px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap;',
+    '  color:' + window.hkCards.v('ink') + ';white-space:nowrap;',
     '  overflow:hidden;text-overflow:ellipsis}',
     '.status .label{grid-area:l;justify-self:start;align-self:start;',
     '  font-size:12.6px;font-weight:400;line-height:1.1;letter-spacing:-0.04px;',
-    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;',
+    '  color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;',
     '  overflow:hidden;text-overflow:ellipsis}',
 
     // ---- toggle / segment ------------------------------------------------
@@ -178,12 +179,12 @@
     // selection TEST differs, which is why they share every rule here.
     'ha-card.chip.toggle{height:40px;border-radius:20px;padding:0px 14px;',
     '  ' + window.hkCards.M.glass + ';',
-    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-chip,inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10)))}',
+    '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-chip') + ')}',
     'ha-card.chip.toggle[data-on="1"]{background:rgba(255,255,255,0.96);--hk-glass-backdrop:none}',
     '.toggle .grid{grid-template-areas:"n";grid-template-columns:minmax(0,1fr);align-content:center}',
     '.toggle .name{grid-area:n;justify-self:center;',
     '  font-size:13.5px;font-weight:600;letter-spacing:-0.1px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));',
+    '  color:' + window.hkCards.v('ink') + ';',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     'ha-card.chip.toggle[data-on="1"] .name{color:rgba(0,0,0,0.88)}',
 
@@ -1055,7 +1056,23 @@
     tokens = tokens.filter(function (t) {
       return typeof t !== 'string' || t.indexOf(TOK) !== 0 || mine.indexOf(t.slice(TOK.length)) >= 0;
     });
-    var copy = function (card) { return JSON.parse(JSON.stringify(card)); };
+    // EACH CUSTOM CHIP'S SHOW on this screen (2026-10-13, chips_custom_show):
+    // Always or When Active, like the kinds; missing, as written. Always
+    // takes a conditional chip out of its condition; When Active makes a
+    // status chip quiet -- its own `active:` rules, or for one entity, while
+    // it isn't off, closed, idle or unavailable (as an accessory chip).
+    var cshow = (b.chips_custom_show && typeof b.chips_custom_show === 'object') ? b.chips_custom_show : {};
+    var copyAs = function (key, card) {
+      var c = JSON.parse(JSON.stringify(card)), m = cshow[key];
+      if (m === 'always' && c.type === 'conditional' && c.card) return c.card;
+      if (m === 'active' && c.type === 'custom:hk-status-chip-card') {
+        c.quiet = true;
+        if (!Array.isArray(c.active) || !c.active.length) {
+          if (c.entity) c.active = [{ entity: c.entity, state_not: ['off', 'unavailable', 'unknown', 'idle', 'closed', 'locked', ''] }];
+        }
+      }
+      return c;
+    };
     var quiet = Array.isArray(b.chips_quiet) ? b.chips_quiet
               : Array.isArray(cfg.quiet) ? cfg.quiet : QUIET_DEFAULT;
     // SMOKE & CO is no screen's choice: it leads every row of a house that
@@ -1065,7 +1082,7 @@
     tokens.forEach(function (t) {
       if (t && typeof t === 'object') { keys.push(null); cards.push(t); return; }
       t = String(t);
-      if (t.indexOf(TOK) === 0) { keys.push(t); cards.push(copy(lib[t.slice(TOK.length)].card)); return; }
+      if (t.indexOf(TOK) === 0) { keys.push(t); cards.push(copyAs(t.slice(TOK.length), lib[t.slice(TOK.length)].card)); return; }
       keys.push(t);
       cards.push(t.indexOf('.') > 0 ? entityChip(t, quiet.indexOf(t) >= 0)
                                     : { type: 'custom:hk-status-chip-card', kind: t, quiet: quiet.indexOf(t) >= 0 });
@@ -1074,7 +1091,7 @@
     // row does not show puts the chip at the end.
     var placed = keys.filter(function (k) { return k && k.indexOf(TOK) === 0; });
     var extras = (Array.isArray(cfg.extra) ? cfg.extra : []).concat(mine.filter(function (k) {
-      return placed.indexOf(TOK + k) < 0; }).map(function (k) { return { after: lib[k].after, card: copy(lib[k].card) }; }));
+      return placed.indexOf(TOK + k) < 0; }).map(function (k) { return { after: lib[k].after, card: copyAs(k, lib[k].card) }; }));
     extras.forEach(function (x) {
       if (!x || !x.card) return;
       var at = x.after === 'start' ? 0 : keys.indexOf(x.after) + 1;
@@ -1245,6 +1262,7 @@
   }
   function scenesPlan(cfg, b, hass, away) {
     b = b || {};
+    var T = C0().TILE;
     // A ROOM'S ROW (`room: true`, a room page's): exactly the scenes it was
     // given -- never the screen's Home row, its switch or its page pills
     if (cfg.room) b = { scenes: [], scenes_pages: [] };
@@ -1294,9 +1312,13 @@
         layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': '114px', 'grid-auto-flow': 'row',
                   'grid-column-gap': '12px', 'grid-row-gap': '12px',
                   margin: away ? '-14px 0px -7px 0px' : '-14px -22px -7px -22px', padding: '0px' },
-        cards: [{ type: 'custom:hk-row-card', card_width: 'var(--hk-pill, 192px)', gap: 12,
+        // the pills' own width and gap (hk-base.js TILE), so the scenes line
+        // up with the grids below; on a phone, half the row each (a grid's
+        // 2-up track: half its width less half the gap, plus the 4 px of
+        // grid-child margin the row has instead of a cell)
+        cards: [{ type: 'custom:hk-row-card', card_width: 'var(--hk-pill, ' + T.w + 'px)', gap: T.gridGap,
                   pad_top: 14, pad_bottom: 30, pad_left: away ? 0 : 22, pad_right: away ? 0 : 22,
-                  phone_card_width: 'calc((100% - 12px) / 2 + 4px)', phone_gap: '12px', cards: pills }] }] } };
+                  phone_card_width: 'calc((100% - ' + T.gridGap + 'px) / 2 + 4px)', phone_gap: T.gridGap + 'px', cards: pills }] }] } };
   }
   class HkScenesCard extends HTMLElement {
     constructor() {

@@ -25,6 +25,9 @@ var seen = 0;
 FILES.forEach(function (f) {
   var src = read(HK_ROOT + '/' + f), lines = src.split('\n');
   lines.forEach(function (line, i) {
+    // hkCards.v('ink-2') writes T's value: a use of the scale, right by
+    // construction (design consolidation 5.1)
+    seen += (line.match(/\bv\('(ink-3|ink-2|ink)'\)/g) || []).length;
     var re = /var\(--hk-(ink-3|ink-2|ink)\s*,\s*([^)]*\)?)\)/g, m;
     while ((m = re.exec(line))) {
       seen++;

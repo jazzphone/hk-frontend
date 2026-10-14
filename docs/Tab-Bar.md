@@ -108,7 +108,10 @@ room Adjust Content makes.
 
 ## Adjust Content
 
-**Adjust Content** (on by default) moves the page clear of the open bar:
+A bar along the **bottom** always leaves room at the very end of the page,
+so the last row scrolls clear of it, whatever this switch says (a bar along
+the top, the same at the page's start). **Adjust Content** (on by default,
+shown for a top bar or a rail) moves the page clear of the open bar:
 
 - **Top**, with Shrink or Hide: at the top of the page the page slides down
   below the bar, and back up as the bar folds or hides. Further down the page
@@ -116,10 +119,10 @@ room Adjust Content makes.
   until you open the bar.
 - **Left / Right**, with Shrink or Hide: the dashboard eases slightly
   smaller, away from the open rail, and back to full width as it folds.
-- **Bottom**: room at the very end of the page, so the last row scrolls clear.
-- **Stay**, any position: a fixed strip of room on the bar's side.
+- **Stay**: a fixed strip of room on the bar's side.
 
-Turned off, the bar floats over the page everywhere.
+Turned off, the bar floats over the page as it scrolls; only the page's
+end (or start) keeps its room, and a rail floats over the page's side.
 
 ## While scrolling
 

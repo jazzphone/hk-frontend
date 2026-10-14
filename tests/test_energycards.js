@@ -74,9 +74,10 @@ H.run('ENERGY CARDS', [
     H.eq('state of charge', H.part(R, '.soc').textContent, '80%');
     H.eq('stored energy', H.part(R, '.kwh').textContent, '21.7 kWh');
     H.eq('the margin reaches the plate', H.part(R, '.strip2').style.margin, '4px 3px 0px 3px');
-    H.ok('the capsule is filled to the charge', /width:80\.00%/.test(body), body.slice(0, 200));
-    H.ok('...with the reserve foot and the limit notch', /width:20\.00%/.test(body) && /left:90\.00%/.test(body));
-    H.ok('...green while the house is not drawing on it', body.indexOf(window.hkChart.colours.good) >= 0);
+    // the House Battery's battery, small (design consolidation 4.1)
+    H.ok('the battery is filled to the charge', /class="bat"/.test(body) && /class="fill" style="width:80%"/.test(body), body.slice(0, 200));
+    H.ok('...with the reserve and the limit ticked on it', /\* 0\.2\);border-color:#ff9f0a/.test(body) && /\* 0\.9\);border-color:/.test(body));
+    H.ok('...still while the house is not drawing on it', body.indexOf('hshim') < 0);
 
     H.gate('battery strip', card, house,
       function () { return house.set('sensor.ecoflow_panel_smart_home_panel_battery_level', '79'); },
@@ -84,10 +85,10 @@ H.run('ENERGY CARDS', [
     H.eq('the new charge is drawn', H.part(R, '.soc').textContent, '79%');
     var r0 = card.__renders;
     card.hass = house.set('sensor.battery_output_power', '0.5');
-    H.eq('discharge is an input (the bar turns amber)', card.__renders - r0, 1);
-    H.ok('...amber at 500 W out', H.morphed(H.part(R, '.body')).indexOf(window.hkChart.colours.curLo) >= 0);
+    H.eq('discharge is an input (light runs back through it)', card.__renders - r0, 1);
+    H.ok('...at 500 W out', H.morphed(H.part(R, '.body')).indexOf('hshim') >= 0);
     card.hass = house.set('number.ecoflow_panel_charge_limit', '85');
-    H.ok('the limit is an input', card.__renders - r0 === 2 && /left:85\.00%/.test(H.morphed(H.part(R, '.body'))));
+    H.ok('the limit is an input', card.__renders - r0 === 2 && /\* 0\.85\);border-color:/.test(H.morphed(H.part(R, '.body'))));
     // Its signature is STATES, not stamps: an attribute moving on the charge
     // sensor draws nothing new, so it must not redraw.
     r0 = card.__renders;

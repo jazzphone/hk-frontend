@@ -38,6 +38,13 @@ Add Alarm PIN again to protect another alarm, with its own PIN.
 means anything that calls it directly still arms and disarms it with no PIN.
 Keep it off your dashboards and out of what you expose to voice assistants.
 
+**Notifications open the keypad.** A tap on a [notification](Notifications.md)
+about the protected alarm opens the PIN panel’s keypad, whatever the
+notification watches (the alarm, the PIN panel, or the Alarm category), and so
+does `hk_frontend.notify` with the alarm as its accessory. In the **Alarm**
+category the two are listed side by side, each saying what it is, and with
+both ticked you are notified once ([Alarm](Notifications.md#alarm)).
+
 ## Settings
 
 The **gear** on an Alarm PIN item (“Front Door Alarm PIN”):

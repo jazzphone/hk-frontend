@@ -4,8 +4,75 @@ Behind HK Frontend’s screens is a sky that follows the real one: the sun’s
 height and direction, the moon at its actual phase, the clouds you have, and
 rain or snow when it is falling. On some days it also dresses up for a season,
 a holiday or a birthday: [Seasonal Decorations](Seasonal-Decorations.md).
+If you’d rather have something still, choose a **Color** or a **Photo** of
+your own as the [Background](#the-background) instead.
 
 ![The live sky on a clear day, behind the Home page](images/sky-clear-day.png)
+
+## The Background
+
+**HK Settings → All Screens → Sky / Background** starts with one choice, the
+**Background**: what Home, the room pages, Weather, Calendar and every page
+without a color of its own show behind the cards.
+
+| Background | What it shows |
+|---|---|
+| **Live Sky** | The default. The real sun, moon and weather behind the cards, dressed for the seasons. Its settings are below it: [Choose its look](#choose-its-look). |
+| **Color** | A still color, a little different by day and by night: **Dusk**, **Midnight** (the default), **Fjord**, **Dune**, **Graphite**, **Plum**, **Ember**, **Mist**, **Black** or **Custom** (four Day colors and four Night colors, top to bottom). No sun, moon, stars, weather or decorations. |
+| **Photo** | A photo of your own, sharp and still, edge to edge. No sun, moon, stars, weather or decorations. A bright photo is dimmed a little so the cards stay readable. |
+
+![All Screens → Sky / Background in HK Settings: the Background, Live Sky, Color or Photo](images/settings-sky.png)
+*All Screens → Sky / Background starts with the Background.*
+
+Before, the closest thing to a plain color was a Backdrop, which only
+recolored the live sky, so the stars still showed through. Color and Photo
+draw no sky at all.
+
+**Choose Photo…** uploads a photo to Home Assistant’s own image store, the
+way a person’s picture is. It is made no bigger than 2560 pixels and saved as
+a JPEG first, so a wall tablet isn’t drawing a phone’s full-size original, and
+the photo’s location and camera data aren’t kept. **Choose Another Photo…**
+replaces it and **Remove Photo** takes it away. With no photo chosen, Photo
+shows Black. A photo no longer used anywhere (All Screens, a screen or a
+page) is removed from the image store.
+
+Home Assistant serves the images in its image store to anyone who has the
+photo’s address, without signing in, as it does a person’s picture. The
+address is long and random, so it can’t be guessed, but anyone it reaches can
+open it: choose a photo you wouldn’t mind a visitor seeing.
+
+![Home on a wall tablet with a Photo as its Background](images/tablet-background-photo.png)
+
+Under the photo, **Look** softens or colors it: **Blur** (0–100%), **Dim**
+(0–80%), **Saturation** (100% as taken, 0% black and white, up to 200%) and
+**Color Tint**, one of the Colors washed over the photo at **Tint Strength**
+(its day colors while the sun is up, its night ones after). A screen can have
+its own Look, with **Reset to All Screens** to follow again, and **Reset to
+Default** puts any Look back to the photo as taken. A page set to Photo has a
+Look of its own too; until you change it, it is the screen’s (a room’s page:
+Room Pages’), and **Reset to the Screen’s Look** (or **Room Pages’ Look**)
+follows it again.
+
+**Each room** can have its own background: **Sky / Background → Room Pages →
+Each Room**, or the **Background** row in the room’s own settings (**Rooms →
+the room**). A room left alone is the same as Room Pages; one set to Photo can
+have a photo of the room itself, with its own Look.
+
+**Each screen** chooses its own under **HK Settings → the screen →
+Appearance → Sky / Background**. Its **Background** reads **Same as All
+Screens** until you change it, then **Just This Screen**, and **Reset to All
+Screens** follows All Screens again. Its Color can be **Same as All Screens**
+or one of its own. With Photo, a screen without a photo of its own shows All
+Screens’ photo; one with its own can go back with **Use All Screens’ photo**.
+A YAML screen shows the Background wherever its YAML puts the sky.
+
+A screen whose **Live Sky** switch was turned off (there is no such switch
+now) reads as **Color: Black**, which is what it showed, and its Sky /
+Background row says **Black**. Choosing anything there turns its background
+back on.
+
+**Each page** can have its own background, too: a Color, a Photo, the Live Sky
+or its own color ([Page backgrounds](#page-backgrounds)).
 
 ## What it shows
 
@@ -35,7 +102,8 @@ It reads:
 
 ### Where it appears
 
-On a generated screen, the live sky is behind **Home**, **Weather**,
+On a generated screen, the live sky (or the Color or Photo chosen as the
+[Background](#the-background)) is behind **Home**, **Weather**,
 **Calendar** and the room pages. The category pages (Lights, Climate, Doors &
 Windows, Security, Timers, Vacuums, Water, Cameras, Live TV, Music, and Energy) each have a still wash of their own color instead,
 matching the chip that opens them. A custom page shows the live sky when its
@@ -55,14 +123,14 @@ night has fireflies, and on the holidays the landscape itself is decorated
 ## Turn it on or off
 
 **Every generated screen at once:** pick an input boolean or switch as the
-**Sky Switch** under **HK Settings → All Screens → Sky / Background → Live Sky**. While it
-is off, no generated screen shows the live sky. With none chosen, the sky is
-always on.
+**Sky Switch**, in its own group near the end of **HK Settings → All Screens →
+Sky / Background**. While it is off, no generated screen shows the live sky.
+With none chosen, the sky is always on.
 
 **One screen:** HK Settings → the screen → **Appearance → Sky / Background**,
-whose first row is the screen’s **Live Sky** switch (the row reads **Off**
-while it is off). A generated screen’s sky also follows the Sky Switch; a YAML
-screen’s sky comes from its YAML, and this switch can only turn it off.
+and choose a **Color** (**Black**, say) or a **Photo** as its **Background**
+([The Background](#the-background)). A generated screen’s live sky also follows
+the Sky Switch; a YAML screen’s sky comes from its YAML.
 
 **A dashboard you write in YAML:** the dashboard opts in with a `sky:` block,
 and each view that wants the sky says `sky: true`:
@@ -101,9 +169,9 @@ moving everywhere else, check those settings and restart the tablet. More in
 
 ## Choose its look
 
-**HK Settings → All Screens → Sky / Background** sets the defaults. Each
-screen can choose its own under **Appearance → Sky / Background**, below its
-**Live Sky** switch:
+While the [Background](#the-background) is **Live Sky**, its settings are
+below it. **HK Settings → All Screens → Sky / Background** sets the defaults.
+Each screen can choose its own under **Appearance → Sky / Background**:
 
 | Setting | What it changes |
 |---|---|
@@ -115,33 +183,39 @@ screen can choose its own under **Appearance → Sky / Background**, below its
 | **Seasonal Decorations** | Off removes seasonal and surprise scenes. On uses the shared dates, themes and optional extra gate. |
 | **Clouds** | **Classic** is the drifting haze the sky has always had. **Realistic** draws photographic clouds instead — fair-weather cumulus, broken sheets, high wisps, a storm tower on the horizon, an overcast lid with darker masses drifting under it — chosen from the weather's cloud cover and condition, lit by the sun (gold at sunset, pink at dusk, moonlit at night), across the whole sky down to the horizon, behind New Decorations' trees. They sit in perspective: near clouds big and high, far ones small, many and softer toward the horizon, with long cirrus streaks above and, as it clouds over, the overcast's ceiling receding behind them. Each cloud crosses once and comes back as another, so nothing repeats. They are there from the first moment a page loads (they no longer fade in over a few seconds); a change of sky still cross-fades. A fair or partly cloudy day keeps the sky as bright and blue as Classic's; the overcast's faint ceiling only comes in as the sky clouds over. A screen can choose its own. |
 | **Daytime Sky** | How bright the midday blue runs. **Natural** (the default) is a real midday sky. **Deep** is the darker, dusky blue the sky had before; **Balanced** is in between. The shade behind the cards rises with it, so all three stay readable. Sunrise, sunset, dusk and night look the same in all three. A screen can choose its own. |
-| **Backdrop** | Live Sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
+| **Sky Colors** | The live sky’s own colors, with its weather and decorations over them (it was called Backdrop). Live Sky follows the sun's colors. Dusk, Midnight, Fjord, Dune, Graphite, Plum, Ember and Mist use curated day/night gradients, and Black is plain black. Custom provides two sets of four colors, top to horizon. Day applies above the horizon, Night at or below it. |
 
 ![Sky / Background in HK Settings: Animations, Pause When Not in Focus, Moving Things with Behind the Cards and In Front of the Cards, Weather and Rain & Snow](images/settings-moving-things.png)
 *All Screens → Sky / Background: Moving Things, Behind the Cards or In Front of the Cards.*
+
+After these come **Seasonal Decorations** and **Liveliness**
+([Seasonal Decorations](Seasonal-Decorations.md#liveliness)), the **Sky
+Switch** in a group of its own ([Turn it on or off](#turn-it-on-or-off)), and
+**Advanced**.
 
 **To try a look before choosing it,** open **Sky Lab** (`/hk/pages/skylab.html`):
 set the time of day, the weather, the clouds and the daytime brightness by hand,
 over the sky alone or over one of your own dashboards (preview only — nothing
 in your home switches). See [Tools → Sky Lab](Tools.md#sky-lab).
 
-A fixed backdrop changes the gradient; the other switches still apply. For a
-quiet gradient, turn Animations, Weather and Seasonal Decorations off. The usual
-luminance scrim keeps glass and text readable over custom colors.
+Sky Colors only changes the live sky’s gradient: the sun’s glow, the moon,
+the stars, the weather and the decorations still show over it. For a plain,
+still background, choose **Color** as the [Background](#the-background)
+instead. The usual luminance scrim keeps glass and text readable over custom
+colors.
 
 Per-screen flags follow All Screens until you change them: each reads **Same
 as All Screens**, then **Just This Screen**, and **Reset to All Screens (On)**
 follows All Screens again. A screen’s Decoration Style, Moving Things, Clouds and Daytime Sky
-are the same tabs as All Screens’, showing All Screens’ choice, until changed. **Same as All Screens** in the Backdrop picker follows the
-global palette and its custom colors; an explicit **Live Sky** overrides a
-fixed global backdrop. Selecting Custom starts with Dusk (or, for a screen,
+are the same tabs as All Screens’, showing All Screens’ choice, until changed. **Same as All Screens** in the Sky Colors picker follows the
+global palette and its custom colors; an explicit **Live Sky** overrides All
+Screens’ Sky Colors. Selecting Custom starts with Dusk (or, for a screen,
 the global custom colors if available). An own Custom palette keeps its colors
 when you change the global palette.
 
 These settings apply wherever the live sky is shown, including the forecast
-screensaver and any page set to Live Sky or a backdrop (below). A page that
-keeps its own color shows none of them. The Live Sky switch continues to
-control whether the background is present.
+screensaver and any page set to Live Sky (below). A page with a still
+background (its own color, a Color or a Photo) shows none of them.
 
 ### Realistic clouds in every weather
 
@@ -174,31 +248,32 @@ On a dashboard:
 ### Page backgrounds
 
 **Sky / Background → Pages** lists every page with its background ("Energy:
-Page Color", "Weather: Backdrop"). Tap a page to choose its background. It is
-set under All Screens, and each screen's Sky / Background can choose its own
-for any page.
+Page Color", "Weather: Background"). Tap a page to choose its background. It
+is set under All Screens, and each screen's Sky / Background can choose its
+own for any page; a page a screen leaves alone follows All Screens.
 
 On a [page screen](Pages.md#whole-screens-and-page-screens) the list is its
 own pages, at the top of its Sky / Background (for example **Energy
-Backdrop**). Its **Backdrop** page is those pages' backgrounds, since it has
-no Home or room page for the sky's own backdrop.
+Background**). A page screen has no Home or room page, so it has no
+Background of its own: each page’s background is chosen there. With a single
+page, that page’s background is the screen’s.
 
 | Choice | The page shows |
 |---|---|
-| **Automatic** | A page with a color of its own (Energy, Climate, Lights …) keeps it. Weather, Calendar and the room pages use the Backdrop. A custom page is as its YAML says. |
+| **Automatic** | A page with a color of its own (Energy, Climate, Lights, Security …) keeps it. Weather, Calendar and the room pages show the [Background](#the-background). A custom page is as its YAML says. On a screen, this is **Same as All Screens** when All Screens has chosen one. |
 | **Page Color** | The page's own still wash. Music's is the album art. |
 | **Live Sky** | The live sky, following the sun, with the screen's weather, clouds and decorations. |
-| **Dusk, Midnight, Fjord … Custom** | That color as a still wash, like Page Color: no clouds, weather, sun or moon glow, or decorations. Its day colors show while the sun is up, its night colors after. |
+| **Color** | A still color (Dusk, Midnight … Black, Custom), like Page Color: no clouds, weather, sun or moon glow, stars or decorations. Its day colors show while the sun is up, its night colors after. It starts with the screen’s Background color. |
+| **Photo** | A photo, still: the page’s own (**Choose Photo…** under **Its Photo**), else the screen’s Background photo. With neither, Black. Under it, the page’s own **Look**. |
 
-A color picked for a page is only that color. The **Sky** backdrop (Home, the
-room pages, Weather and Calendar) is different: it recolors the live sky, and
-the weather and decorations still show over it.
+A color picked for a page is only that color. **Sky Colors** is different: it
+recolors the live sky, and the weather and decorations still show over it.
 
-All Screens' **Backdrop** page sets the defaults, and each screen can choose
-its own. A change shows on the screens within a few seconds, with no reload.
+All Screens' **Pages** set the defaults, and each screen can choose its own. A
+change shows on the screens within a few seconds, with no reload.
 
 On a page screen, **Sky / Background** starts with **This Screen's Pages**,
-with each page's backdrop. When none of them uses the live sky, it says so,
+with each page's background. When none of them uses the live sky, it says so,
 because then the animations, weather and decorations settings below it don't
 show anywhere. The screen's **Appearance → Sky / Background**
 row shows what its pages use, for example **Page Color**.

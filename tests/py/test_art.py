@@ -9,6 +9,20 @@ from custom_components.hk_frontend import art
 
 MZ = "https://is1-ssl.mzstatic.com/image/thumb/f-ye8/1000x1000bb.jpg"
 
+# where each test host "is" (no DNS in the tests): the CDN and x.test on the
+# internet, the others on the home network or worse
+WHERE = {"is1-ssl.mzstatic.com": "17.253.1.1", "x.test": "93.184.216.34", "192.0.2.53": "192.0.2.53",
+         "router.lan": "192.0.2.1", "metadata": "169.254.169.254", "localhost": "127.0.0.1"}
+
+
+@pytest.fixture(autouse=True)
+def addresses(monkeypatch):
+    async def fake(hass, host, port):
+        if host not in WHERE:
+            raise OSError("no such host")
+        return {WHERE[host]}
+    monkeypatch.setattr(art, "_addresses", fake)
+
 
 def test_sizes_snap_up_to_the_next_allowed_one():
     assert art.snap(0) == 0 and art.snap(None) == 0
@@ -206,3 +220,30 @@ async def test_the_view_serves_only_pixels_and_says_so(hass, hass_client, aiocli
     assert r.status == 200 and r.content_type == "image/jpeg"
     assert r.headers["X-Content-Type-Options"] == "nosniff"
     assert r.headers["Content-Security-Policy"] == "default-src 'none'; sandbox"
+
+
+async def test_only_artwork_destinations_are_fetched(hass):
+    """Any signed-in user can ask, so the proxy goes only where covers are:
+    the internet, or Music Assistant's own image proxy on the home network."""
+    ok = lambda u: art.allowed(hass, u)
+    assert await ok(MZ)
+    assert await ok("http://192.0.2.53:8095/imageproxy/8f48?size=512&fmt=jpg"), "MA's imageproxy"
+    assert not await ok("http://router.lan/cgi-bin/reboot"), "the home network outside MA's proxy"
+    assert not await ok("http://localhost:8123/api/states")
+    assert not await ok("http://metadata/latest/meta-data/imageproxy/x"), "link-local, whatever the path"
+    assert not await ok("http://nowhere.invalid/a.jpg"), "a name that does not resolve"
+    assert not await ok("ftp://x.test/a.jpg")
+
+
+async def test_a_redirect_is_checked_like_the_first_address(hass, aioclient_mock):
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+    pytest.importorskip("PIL.Image")
+    aioclient_mock.get("https://x.test/r", status=302, headers={"Location": "http://router.lan/admin.png"})
+    aioclient_mock.get("http://router.lan/admin.png", content=_jpeg(10, 10), headers={"Content-Type": "image/jpeg"})
+    aioclient_mock.get("https://x.test/r2", status=302, headers={"Location": MZ})
+    aioclient_mock.get(MZ, content=_jpeg(100, 100), headers={"Content-Type": "image/jpeg"})
+    s = async_get_clientsession(hass)
+    assert await art.async_fetch(hass, "https://x.test/r", 300, art.Cache(), session=s) is None
+    assert not any("router.lan" in str(c[1]) for c in aioclient_mock.mock_calls), "never asked the router"
+    got = await art.async_fetch(hass, "https://x.test/r2", 300, art.Cache(), session=s)
+    assert got and got[1] == "image/jpeg", "a redirect to the CDN is followed"

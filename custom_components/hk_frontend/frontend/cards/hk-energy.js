@@ -1,4 +1,6 @@
 // hk-energy.js -- the energy charts: daily usage tiles, the live trace, the battery strip
+// (since the design consolidation, 2026-10-12, drawn with the Energy page's own
+// barChart / lineSvg and the House Battery's battery)
 //
 // hk-usage-card, hk-trace-card, hk-battery-strip-card, and the Energy page's own
 // cards (hk-energy-*-card, from THE ENERGY PAGE down). Data and drawing come
@@ -49,10 +51,10 @@
   // this compares with the usual, and a fortnight of bars under it. Used on
   // the energy and weather pages.
   //
-  // hk-charts.js does ALL of the work -- hkChart.usage(hass, stat, card, opts)
-  // returns {val, sub, chart} and wakes the card through requestUpdate when
-  // its statistics arrive. This card is the plate, the type scale and the
-  // grid around those three fields.
+  // hk-charts.js reads the data -- hkChart.usage(hass, stat, card, opts)
+  // returns {val, sub, data, split, mPrev} and wakes the card through
+  // requestUpdate when its statistics arrive. This card is the plate, the
+  // type scale, the grid and HK's bars (barChart, the Energy page's).
   //
   // `opts` is passed through UNTOUCHED. Every one of its keys belongs to
   // hk-charts.js (colour, source, format, noun, unit, delta, baseline,
@@ -63,11 +65,8 @@
       return [
         // The glass plate, its padding, and the caption/value type scale --
         // the same material hk_glass_tile gives every pop-up tile.
-        'ha-card.usage{box-sizing:border-box;display:block;border-radius:' + window.hkCards.M.radius + ';',
-        '  height:var(--hk-usage-height,214px);padding:15px 16px 13px 16px;margin:0;',
-        '  ' + window.hkCards.M.glass + ';',
-        '  border:' + window.hkCards.M.border + ';',
-        '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
+        'ha-card.usage{box-sizing:border-box;display:block;',
+        '  height:var(--hk-usage-height,214px);padding:15px 16px 13px 16px;margin:0;' + window.hkCards.plate('card') + ';',
         '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
         // Four stacked text rows plus the plot. Fixed height rather than auto
         // so a row of these stays flush when one device's comparison sentence
@@ -85,19 +84,22 @@
         // beside pills, and an uppercase tracked caption here would read as a
         // heading for the section rather than a label on the tile.
         '.usage .nm{grid-area:nm;text-align:left;font-size:14px;font-weight:600;',
-        '  letter-spacing:-0.15px;line-height:1.15;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '  letter-spacing:-0.15px;line-height:1.15;color:' + window.hkCards.v('ink-2') + ';',
         '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}',
         // 22px, not hk_popup_tile's 25px: that scale assumes two rows of text,
         // and at 25 the headline crowds the sentence under it.
         '.usage .val{grid-area:val;font-size:22px;font-weight:700;',
-        '  letter-spacing:-0.45px;line-height:1.25;color:var(--hk-ink,rgba(255,255,255,0.94));',
+        '  letter-spacing:-0.45px;line-height:1.25;color:' + window.hkCards.v('ink') + ';',
         '  white-space:nowrap}',
         '.usage .sub:empty{display:none}',
         '.usage .sub{grid-area:sub;text-align:left;font-size:12.6px;',
         '  font-weight:400;letter-spacing:-0.05px;line-height:1.25;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));width:100%;white-space:normal}',
+        '  color:' + window.hkCards.v('ink-2') + ';width:100%;white-space:normal}',
         '.usage .chart{grid-area:chart;justify-self:stretch;align-self:end;',
         '  width:100%;margin-top:10px}',
+        // HK's bar chart (barChart, the Energy page's): centered, labels
+        // under their own bars
+        BARS_CSS,
         // ---- `align: center`, opt-in
         //
         // The default above is LEFT on purpose and stays that way: on the
@@ -129,7 +131,8 @@
         // adopts it rather than the other way round. Copied from
         // cards/hk-weather.js -- CHANGE ONE, CHANGE BOTH.
         //
-        //     12px / 600 / +0.9px tracking / white 0.50 / UPPERCASE
+        //     13px / 600 / +0.3px tracking / secondary ink / UPPERCASE
+        //     (the one label, hkCards.TYPE label)
         //
         // text-transform, NOT an uppercase string: the text is a `name:` from
         // YAML, and shouting belongs in the presentation rather than in the
@@ -148,9 +151,9 @@
         // heading's ink sits exactly 1px below the four beside it (measured
         // on the page).
         '.usage.mid{padding-top:14px}',
-        '.usage.mid .nm{justify-self:start;text-align:left;font-size:12px;',
-        '  font-weight:600;letter-spacing:0.9px;line-height:inherit;',
-        '  text-transform:uppercase;color:var(--hk-ink-2,rgba(255,255,255,0.68))}'
+        '.usage.mid .nm{justify-self:start;text-align:left;font-size:13px;',
+        '  font-weight:600;letter-spacing:0.3px;line-height:inherit;',
+        '  text-transform:uppercase;color:' + window.hkCards.v('ink-2') + '}'
       ].join('');
     }
     setConfig(config) {
@@ -229,11 +232,36 @@
       // Empty, not absent: the row is min-content so it collapses to nothing,
       // and `.sub:empty{display:none}` stops an empty box carrying its own
       // line-height into the stack.
-      var val = u.val || '--', chart = u.chart || '';
+      var val = u.val || '--';
       var sub = cfg.compare === false ? '' : (u.sub || '--');
       if (e.val.textContent !== val) e.val.textContent = val;
       if (e.sub.textContent !== sub) e.sub.textContent = sub;
-      window.hkCards.morph(e.chart, chart);
+      window.hkCards.morph(e.chart, this._bars(u));
+    }
+    // THE FORTNIGHT AS HK'S BARS (barChart): the last period dimmed, this one
+    // in the tile's color, today the label in ink; the last period's average
+    // is the usual, dotted. `opts.colour` (or `color`) is a color by name
+    // (hkCards.PALETTE) or a hex; baseline: 'min' floats a temperature's
+    // bars above their smallest
+    _bars(u) {
+      if (!u || !u.data || !u.data.length) return '';
+      var o = this._config.opts || {}, d = u.data, last = d.length - 1;
+      var col = colorOf(o.colour || o.color, NAMED.orange);
+      var w = this._e.chart.clientWidth;
+      if (!w) laterOf(this);
+      var vs = d.map(function (r) { return typeof r.v === 'number' && isFinite(r.v) ? r.v : null; });
+      var floor = 0;
+      if (o.baseline === 'min') {
+        var have = vs.filter(function (x) { return x !== null; });
+        var mn = Math.min.apply(null, have), mxv = Math.max.apply(null, have);
+        if (have.length) floor = mxv - mn > 1e-6 ? mn - (mxv - mn) * 0.35 : mn - 1;
+      }
+      var bars = d.map(function (r, i) {
+        var f = window.hkStats && window.hkStats.fields ? window.hkStats.fields(r.t) : null;
+        return { segs: [{ v: vs[i] === null ? 0 : vs[i], c: col }], dim: i < u.split, now: i === last,
+                 label: o.dayLabels === false || !f ? '' : 'SMTWTFS'[f.weekday] };
+      });
+      return barChart({ bars: bars, avail: w || 280, H: o.height || 78, usual: u.mPrev || 0, floor: floor, id: 'u' });
     }
   }
 
@@ -248,11 +276,8 @@
   class HkTraceCard extends HkBase {
     static get CSS() {
       return [
-        'ha-card.trace{box-sizing:border-box;display:block;border-radius:' + window.hkCards.M.radius + ';',
-        '  padding:18px 22px 16px 22px;margin:0;',
-        '  ' + window.hkCards.M.glass + ';',
-        '  border:' + window.hkCards.M.border + ';',
-        '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
+        'ha-card.trace{box-sizing:border-box;display:block;',
+        '  padding:18px 22px 16px 22px;margin:0;' + window.hkCards.plate('card') + ';',
         '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
         '.trace .grid{display:grid;',
         '  grid-template-areas:"ttl val" "sub val" "body body";',
@@ -261,20 +286,23 @@
         '  align-items:start;row-gap:0}',
         '.trace .ttl{grid-area:ttl;justify-self:start;font-size:16px;',
         '  font-weight:700;letter-spacing:-0.2px;line-height:1.25;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap}',
+        '  color:' + window.hkCards.v('ink') + ';white-space:nowrap}',
         '.trace .sub{grid-area:sub;justify-self:start;font-size:12px;',
         '  font-weight:400;line-height:1.3;margin-top:2px;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
-        // 300 weight at 38px. The reference card's headline is light, not
+        '  color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
+        // 300 weight at 36px (figure-l's size). The reference card's headline is light, not
         // bold -- the trace under it is what carries the emphasis.
         '.trace .val{grid-area:val;grid-row:1 / 3;justify-self:end;',
-        '  align-self:center;font-size:38px;font-weight:300;letter-spacing:-1.2px;',
-        '  line-height:1;color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap}',
+        '  align-self:center;font-size:36px;font-weight:300;letter-spacing:-1px;',
+        '  line-height:1;color:' + window.hkCards.v('ink') + ';white-space:nowrap}',
         // The unit set smaller and dimmer beside the numeral, as the reference
         // card does -- one string, two sizes.
         '.trace .val .u{font-size:0.4em;font-weight:500;letter-spacing:0;',
         '  opacity:0.55;margin-left:5px}',
-        '.trace .body{grid-area:body;justify-self:stretch;width:100%;margin-top:10px}'
+        '.trace .body{grid-area:body;justify-self:stretch;width:100%;margin-top:10px}',
+        // the Energy page's line (lineSvg) and its time labels
+        '.trace .ln{display:block;width:100%}',
+        TLAB_CSS
       ].join('');
     }
     setConfig(config) {
@@ -323,10 +351,51 @@
         ? (parts[0] + '<span class="u">' + parts.slice(1).join(' ') + '</span>')
         : raw;
       window.hkCards.morph(e.val, html);
-      var body = r.chart || '';
+      var body = '';
+      if (r.pts) {
+        var t = cfg.trace || {}, hours = t.hours || 3, H = t.height || 138;
+        var col = colorOf(t.colour || t.color, NAMED.orange);
+        body = '<svg class="ln" style="height:' + H + 'px" viewBox="0 0 1000 ' + H + '" preserveAspectRatio="none">' +
+          lineSvg(evenly(r.pts, hours, 120), 1000, H, col, { fill: 0.22, sw: 2.5 }) + '</svg>' +
+          timeLabels(Date.now(), hours, window.hkStats && window.hkStats.tz ? window.hkStats.tz() : undefined);
+      }
       window.hkCards.morph(e.body, body);
     }
   }
+  // A LINE'S VALUES AT EVEN STEPS over the last `hours` (lineSvg spaces its
+  // points evenly): each step the last reading at or before it, nothing
+  // before the first
+  function evenly(pts, hours, n) {
+    var t1 = Date.now(), t0 = t1 - hours * HOUR, out = [], j = 0, last = null;
+    var p = pts.map(function (x) { return { t: +new Date(x.t), v: Number(x.v) }; })
+      .filter(function (x) { return isFinite(x.t) && isFinite(x.v); })
+      .sort(function (a, b) { return a.t - b.t; });
+    for (var i = 0; i <= n; i++) {
+      var at = t0 + (t1 - t0) * i / n;
+      while (j < p.length && p[j].t <= at) last = p[j++].v;
+      out.push(last);
+    }
+    return out;
+  }
+  // A CARD THAT HAD NO WIDTH YET (not laid out) draws again once it has one
+  function laterOf(card) {
+    if (card._hkLater || typeof requestAnimationFrame !== 'function') return;
+    card._hkLater = true;
+    requestAnimationFrame(function () {
+      card._hkLater = false;
+      if (card.isConnected) { card._hkSig = null; card._render(); }
+    });
+  }
+  // the bar chart's and the time labels' CSS, for the cards outside the
+  // Energy page that draw them (the page's own cards have theirs below)
+  var BARS_CSS = '.bc{display:flex;flex-direction:column;align-items:center}' +
+    '.bl{position:relative;height:12px;margin-top:6px}' +
+    '.bl span{position:absolute;top:0;transform:translateX(-50%);font-size:11px;font-weight:600;line-height:1;white-space:nowrap;' +
+    'color:' + window.hkCards.v('ink-3') + '}' +
+    '.bl span.now{color:' + window.hkCards.v('ink') + '}' +
+    '.bc svg{display:block}';
+  var TLAB_CSS = '.tlab{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;font-weight:600;line-height:1;' +
+    'color:' + window.hkCards.v('ink-3') + ';font-variant-numeric:tabular-nums}';
 
   // ------------------------------------------------- hk-battery-strip
   //
@@ -341,11 +410,8 @@
   class HkBatteryStripCard extends HkBase {
     static get CSS() {
       return [
-        'ha-card.strip2{box-sizing:border-box;display:block;border-radius:' + window.hkCards.M.radius + ';',
-        '  padding:15px 18px 13px 18px;margin:0;',
-        '  ' + window.hkCards.M.glass + ';',
-        '  border:' + window.hkCards.M.border + ';',
-        '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
+        'ha-card.strip2{box-sizing:border-box;display:block;',
+        '  padding:15px 18px 13px 18px;margin:0;' + window.hkCards.plate('card') + ';',
         '  cursor:pointer;',
         '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
         // ONE HEADER ROW, NOT A STACK. A title with a sentence under it --
@@ -357,14 +423,30 @@
         '.strip2 .head{display:flex;align-items:baseline;justify-content:space-between;',
         '  gap:12px;min-width:0}',
         '.strip2 .ttl{font-size:15px;font-weight:700;letter-spacing:-0.2px;',
-        '  line-height:1.2;color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap;',
+        '  line-height:1.2;color:' + window.hkCards.v('ink') + ';white-space:nowrap;',
         '  overflow:hidden;text-overflow:ellipsis;min-width:0}',
         '.strip2 .read{display:flex;align-items:baseline;gap:8px;flex:0 0 auto}',
         '.strip2 .kwh{font-size:13px;font-weight:500;letter-spacing:-0.05px;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
+        '  color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
         '.strip2 .soc{font-size:22px;font-weight:700;letter-spacing:-0.5px;',
-        '  line-height:1;color:var(--hk-ink,rgba(255,255,255,0.94));font-variant-numeric:tabular-nums}',
-        '.strip2 .body{margin-top:11px;width:100%}'
+        '  line-height:1;color:' + window.hkCards.v('ink') + ';font-variant-numeric:tabular-nums}',
+        '.strip2 .body{margin-top:11px;width:100%}',
+        // THE HOUSE BATTERY'S BATTERY (hk-house-battery-card), small: an
+        // outline with its nub, filled to the level (red at or under the
+        // reserve), light running back through it while the house draws on
+        // it, the reserve and the limit as ticks through the outline; the
+        // outline is a mark, so a light page of your own draws it gray
+        '.bat{position:relative;height:30px;border-radius:10px;border:3px solid ' + window.hkCards.v('mark') + ';padding:3px;margin-right:9px;box-sizing:border-box}',
+        '.bat:after{content:"";position:absolute;right:-9px;top:6px;width:5px;height:12px;border-radius:0 3px 3px 0;background:' + window.hkCards.v('mark') + '}',
+        '.bat .fill{position:relative;overflow:hidden;height:100%;border-radius:5px;background:' + window.hkCards.v('battery-fill') + ';transition:width .6s ease}',
+        '.bat .fill.low{background:' + window.hkCards.v('battery-fill-low') + '}',
+        '.bat .hshim{position:absolute;top:0;bottom:0;width:35%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);',
+        '  animation:hRun 1.8s linear infinite reverse}',
+        '@keyframes hRun{from{left:-35%}to{left:100%}}',
+        '@media (prefers-reduced-motion: reduce){.bat .hshim{display:none}}',
+        '.bat .mk{position:absolute;top:-8px;bottom:-8px;width:0;border-left:2px dashed;',
+        '  -webkit-mask-image:linear-gradient(to bottom,#000 8px,transparent 8px,transparent calc(100% - 8px),#000 calc(100% - 8px));',
+        '  mask-image:linear-gradient(to bottom,#000 8px,transparent 8px,transparent calc(100% - 8px),#000 calc(100% - 8px))}'
       ].join('');
     }
     setConfig(config) {
@@ -425,13 +507,17 @@
       }
 
       var body = '';
-      if (C && soc !== null) {
-        // Green while charging or idle; the chart amber while the house is
-        // actually pulling from the pack -- the one state where the number is
-        // falling and you want to notice.
-        var colour = (dis !== null && dis >= 5) ? C.colours.curLo : C.colours.good;
-        body = C.capsule(soc, { reserve: this._num(cfg.reserve),
-                                limit: this._num(cfg.limit), colour: colour });
+      if (soc !== null) {
+        var lvl = Math.max(0, Math.min(100, soc)), res = this._num(cfg.reserve), lim = this._num(cfg.limit);
+        var mark = function (v, col) {
+          if (v === null || v <= 0 || v >= 100) return '';
+          return '<div class="mk" style="left:calc(3px + (100% - 6px) * ' + (v / 100) + ');border-color:' + col + '"></div>';
+        };
+        // light runs back through it while the house is drawing on the pack
+        // -- the one state where the number is falling
+        body = '<div class="bat"><div class="fill' + (res !== null && lvl <= res ? ' low' : '') + '" style="width:' + lvl + '%">' +
+          (dis !== null && dis >= 5 ? '<div class="hshim"></div>' : '') + '</div>' +
+          mark(res, '#ff9f0a') + mark(lim, 'rgba(255,255,255,.85)') + '</div>';
       }
       window.hkCards.morph(e.body, body);
     }
@@ -1170,31 +1256,27 @@
 
   // ====================================================== THE CARDS' PLATE
   var EP_CSS = [
+    // the page card's plate and padding (hk-base.js: plate('card'), CARD)
     'ha-card.ep{box-sizing:border-box;display:flex;flex-direction:column;height:var(--hk-ep-h,320px);',
-    '  padding:20px 22px;margin:0;border-radius:' + window.hkCards.M.radius + ';overflow:hidden;',
-    '  ' + window.hkCards.M.glass + ';border:' + window.hkCards.M.border + ';',
-    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));container-type:inline-size;',
+    '  padding:' + window.hkCards.CARD.pad + ';margin:0;' + window.hkCards.plate('card') + ';overflow:hidden;',
+    '  color:' + window.hkCards.v('ink') + ';container-type:inline-size;',
     '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
     // in a Sections view: the cell's own height
     ':host([data-hk-cell]) ha-card.ep{height:100%}',
     // ONE TITLE ROW for every card: the name left, the detail right, one baseline
-    '.ttl{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-height:20px;line-height:20px;flex:none}',
-    '.ttl b{font-size:15px;font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.ttl span{font-size:13px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
-    '.wait{margin:auto;font-size:14px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+    window.hkCards.titleRow('.ttl'),
+    '.wait{margin:auto;font-size:14px;color:' + window.hkCards.v('ink-3') + '}',
     '.num{font-variant-numeric:tabular-nums}',
-    '.big{font-size:30px;font-weight:700;line-height:1.05;letter-spacing:-0.6px;white-space:nowrap}',
-    '.big u{text-decoration:none;font-size:15px;font-weight:600;letter-spacing:0;margin-left:3px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-    '.cap{font-size:14px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-    '.k{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;',
-    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
+    '.big{' + window.hkCards.figureCss('figure') + ';white-space:nowrap}',
+    '.big u{text-decoration:none;font-size:15px;font-weight:600;letter-spacing:0;margin-left:3px;color:' + window.hkCards.v('ink-2') + '}',
+    '.cap{font-size:14px;line-height:18px;color:' + window.hkCards.v('ink-2') + '}',
+    '.k{display:flex;align-items:center;gap:7px;' + window.hkCards.labelCss('label') + ';white-space:nowrap}',
     '.k i{width:10px;height:10px;border-radius:50%;flex:none}',
     '.tlab{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;font-weight:600;line-height:1;',
-    '  color:var(--hk-ink-3,rgba(255,255,255,0.40));font-variant-numeric:tabular-nums}',
+    '  color:' + window.hkCards.v('ink-3') + ';font-variant-numeric:tabular-nums}',
     '.dim{opacity:0.28}',
     // A DAY STILL TO COME: its label quieter (its bar is last period's, in gray)
-    '.bl span.fut,.bl span.fut b{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+    '.bl span.fut,.bl span.fut b{color:' + window.hkCards.v('ink-3') + '}',
     // A TAP ON ANYTHING ABOUT ONE THING opens its sheet (data-more)
     '[data-more]{cursor:pointer;-webkit-tap-highlight-color:transparent}',
     '[data-more]:active{opacity:0.7}',
@@ -1209,14 +1291,14 @@
     // the bar GROWS from the left: its leading edge rounded like its end,
     // over a second, steadily rather than all at once
     '@keyframes hkGrowBar{from{clip-path:inset(0 100% 0 0 round 8px)}to{clip-path:inset(0 0 0 0 round 8px)}}',
-    '.anim .bar.gwipe{animation:hkGrowBar 1.1s cubic-bezier(0.3,0.5,0.25,1) backwards}',
-    '.anim .gw{animation:hkGrow .55s cubic-bezier(0.22,0.8,0.25,1) backwards;animation-delay:calc(var(--i,0) * 14ms);',
+    '.anim .bar.gwipe{animation:hkGrowBar 1.1s cubic-bezier(.22,.8,.25,1) backwards}',
+    '.anim .gw{animation:hkGrow .55s cubic-bezier(.22,.8,.25,1) backwards;animation-delay:calc(var(--i,0) * 14ms);',
     '  transform-box:view-box;transform-origin:150px 150px}',
-    '.anim .gr2{animation:hkRise .6s cubic-bezier(0.22,0.8,0.25,1) backwards;animation-delay:calc(var(--i,0) * 45ms);',
+    '.anim .gr2{animation:hkRise .6s cubic-bezier(.22,.8,.25,1) backwards;animation-delay:calc(var(--i,0) * 45ms);',
     '  transform-box:fill-box;transform-origin:50% 100%}',
-    '.anim .gp{animation:hkPop .4s cubic-bezier(0.22,0.8,0.25,1) backwards;animation-delay:calc(var(--i,0) * 16ms)}',
-    '.anim .gwipe{animation:hkWipe .7s cubic-bezier(0.22,0.8,0.25,1) backwards}',
-    '.anim .dots i{animation:hkRise .5s cubic-bezier(0.22,0.8,0.25,1) backwards;animation-delay:calc(var(--i,0) * 18ms);transform-origin:50% 100%}',
+    '.anim .gp{animation:hkPop .4s cubic-bezier(.22,.8,.25,1) backwards;animation-delay:calc(var(--i,0) * 16ms)}',
+    '.anim .gwipe{animation:hkWipe .7s cubic-bezier(.22,.8,.25,1) backwards}',
+    '.anim .dots i{animation:hkRise .5s cubic-bezier(.22,.8,.25,1) backwards;animation-delay:calc(var(--i,0) * 18ms);transform-origin:50% 100%}',
     '@media (prefers-reduced-motion: reduce){.anim *{animation:none !important}}'
   ].join('');
 
@@ -1309,31 +1391,34 @@
         // THE TABS FLOAT: they stay at the top while the page scrolls under
         // them, and once they do, a frosted strip keeps them readable over
         // the cards (no strip while they sit in their place)
-        ':host{position:sticky;top:var(--hk-energy-sticky-top,10px);z-index:4;display:block}',
+        // ...clear of an iPhone's status bar and Dynamic Island (2026-10-13:
+        // floating, they sat under the clock and could not be tapped), as the
+        // tab bar at the top does (hk-tabbar.js TOP_CSS)
+        ':host{position:sticky;top:max(var(--hk-energy-sticky-top,10px), calc(env(safe-area-inset-top, 0px) + 4px));z-index:4;display:block}',
         'ha-card.ep.period{height:auto;background:none;border:1px solid transparent;box-shadow:none;padding:0 4px;',
         '  flex-direction:row;align-items:center;gap:12px;min-height:36px;overflow:visible;flex-wrap:wrap;',
         '  border-radius:24px;transition:background-color .25s ease,padding .25s ease,box-shadow .25s ease,border-color .25s ease}',
         // the look's floating plate where it has one (Tinted: no blur, the
         // menu's and tab bar's near-opaque plate), else a frosted strip
-        ':host([data-stuck]) ha-card.ep.period{padding:6px 6px 6px 16px;background:var(--hk-float-plate,rgba(28,28,30,0.62));',
+        ':host([data-stuck]) ha-card.ep.period{padding:6px 6px 6px 16px;background:' + window.hkCards.v('float-plate') + ';',
         '  -webkit-backdrop-filter:var(--hk-float-backdrop,blur(24px) saturate(1.6));backdrop-filter:var(--hk-float-backdrop,blur(24px) saturate(1.6));',
         '  border-color:rgba(255,255,255,0.12);box-shadow:0 8px 24px rgba(0,0,0,0.28)}',
         ':host([data-stuck]) .pt{text-shadow:none}',
-        '.pt{font-size:22px;font-weight:700;letter-spacing:-0.4px;line-height:1.1;white-space:nowrap;',
-        '  text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22))}',
-        '.ps{font-size:15px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}',
+        '.pt{font-size:22px;font-weight:700;letter-spacing:-0.35px;line-height:1.1;white-space:nowrap;',
+        '  text-shadow:' + window.hkCards.v('glow') + '}',
+        '.ps{font-size:15px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}',
         // ‹ › THROUGH THE WEEKS OR MONTHS: the calendar's own round glass
         // buttons (hk-calendar.js .rb); the tab itself brings you back
         '.nav{display:flex;gap:8px}',
         '.nav[hidden]{display:none}',
         '.nav button{appearance:none;width:44px;height:44px;border-radius:22px;border:' + window.hkCards.M.border + ';' + window.hkCards.M.glass + ';',
-        '  display:flex;align-items:center;justify-content:center;padding:0;margin:0;color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;',
+        '  display:flex;align-items:center;justify-content:center;padding:0;margin:0;color:' + window.hkCards.v('ink') + ';cursor:pointer;',
         '  -webkit-tap-highlight-color:transparent;transition:opacity .2s ease}',
         '.nav button:disabled{opacity:0.35;cursor:default}',
         // HK's segmented control: the calendar's own (hk-base.js segCss)
         window.hkCards.segCss('.seg'),
         '.seg .live{width:7px;height:7px;border-radius:50%;background:#30d158;box-shadow:0 0 0 3px rgba(48,209,88,0.25)}',
-        '@media (max-width:640px){.seg{width:100%}.seg button{flex:1;min-width:0;padding:0 6px}.seg .pfx{display:none}.ps{flex:1 1 auto}',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){.seg{width:100%}.seg button{flex:1;min-width:0;padding:0 6px}.seg .pfx{display:none}.ps{flex:1 1 auto}',
         // floating on a phone: just the tabs, so the strip takes one row
         '  :host([data-stuck]) .pt,:host([data-stuck]) .ps,:host([data-stuck]) .nav{display:none}:host([data-stuck]) ha-card.ep.period{padding:5px}}'
       ].join('');
@@ -1461,7 +1546,7 @@
       if (typeof x !== 'number' || !isFinite(x)) return;
       pts.push([i * w / n, h - 2 - (h - 4) * Math.max(0, x) / mx]);
     });
-    if (pts.length < 2) return '<path d="M0 ' + (h - 2) + 'H' + w + '" stroke="var(--hk-line,rgba(255,255,255,0.18))" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+    if (pts.length < 2) return '<path d="M0 ' + (h - 2) + 'H' + w + '" stroke="' + window.hkCards.v('line-strong') + '" stroke-width="2" vector-effect="non-scaling-stroke"/>';
     var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
     var last = pts[pts.length - 1];
     return '<path d="' + d + ' L' + last[0].toFixed(1) + ' ' + h + ' L' + pts[0][0].toFixed(1) + ' ' + h + ' Z" fill="' + rgba(color, o.fill || 0.2) + '"/>' +
@@ -1507,30 +1592,30 @@
         '.lede em{font-style:normal;color:' + RING.energy + '}',
         '.stats{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:16px;margin-top:18px}',
         '.stat .big{margin-top:7px}',
-        '.of{font-size:14px;line-height:18px;margin-top:3px;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '.of{font-size:14px;line-height:18px;margin-top:3px;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.nowv{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:10px;flex:none}',
-        '.nowv .big{font-size:46px;letter-spacing:-1px;line-height:1}',
+        '.nowv .big{font-size:44px;font-weight:600;letter-spacing:-1.5px;line-height:1}',  // hkCards.TYPE hero
         '.nowv .big u{font-size:20px;margin-left:4px}',
         '.nowv .cap{text-align:right;padding-bottom:2px}',
         '.trace{width:100%;flex:1;min-height:60px;margin-top:14px}',
         '.reads{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:16px;padding-top:16px;',
-        '  border-top:1px solid var(--hk-line,rgba(255,255,255,0.10));flex:none}',
+        '  border-top:1px solid ' + window.hkCards.v('line') + ';flex:none}',
         '.reads .big{font-size:24px;margin-top:7px}',
         // THE WHOLE ROW WIDE (no highlights beside it): a third of it more --
         // what is drawing most on Now, the period before on the others
         '.hw{display:flex;gap:26px;height:100%;min-height:0}',
         '.hw>.hm{flex:1;display:flex;flex-direction:column;min-width:0}',
         '.wide{display:none;width:300px;flex:none;flex-direction:column;justify-content:center;gap:12px;',
-        '  border-left:1px solid var(--hk-line,rgba(255,255,255,0.10));padding-left:24px}',
-        '@container (min-width:860px){.wide{display:flex}}',
-        '.wide .mh{font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '  border-left:1px solid ' + window.hkCards.v('line') + ';padding-left:24px}',
+        '@container (min-width:' + window.hkCards.BP.cardHero + 'px){.wide{display:flex}}',
+        '.wide .mh{font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:' + window.hkCards.v('ink-2') + '}',
         '.mr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:5px;align-items:baseline}',
         '.mr b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '.mr span{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums;white-space:nowrap}',
-        '.mr i{grid-column:1/-1;display:block;height:6px;border-radius:3px;background:var(--hk-key,rgba(255,255,255,0.10));overflow:hidden}',
+        '.mr span{font-size:13px;color:' + window.hkCards.v('ink-2') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
+        '.mr i{grid-column:1/-1;display:block;height:6px;border-radius:3px;background:' + window.hkCards.v('key') + ';overflow:hidden}',
         '.mr i em{display:block;height:100%;border-radius:3px}',
         '.cmp .big{font-size:22px;margin-top:5px}',
-        '@media (max-width:640px){ha-card.ep.hero{--hk-ep-h:450px}.rh{grid-template-columns:1fr;justify-items:center;gap:20px}',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.ep.hero{--hk-ep-h:450px}.rh{grid-template-columns:1fr;justify-items:center;gap:20px}',
         '  .rh>div{width:100%}.rings{width:180px;height:180px}.stats{gap:10px}.stat .big{font-size:24px}.of{white-space:normal}',
         '  .reads{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:14px}.nowv .big{font-size:40px}}'
       ].join('');
@@ -1672,7 +1757,7 @@
       var arcs = this._card.querySelectorAll('circle.arc'), was = this._ringWas || {}, fresh = this._ringTab !== p;
       var still = !arcs.length || !arcs[0].animate ||
         (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-      var next = {}, SWEEP = 850, EASE = 'cubic-bezier(0.22, 0.8, 0.25, 1)';
+      var next = {}, SWEEP = 850, EASE = 'cubic-bezier(.22,.8,.25,1)';
       for (var i = 0; i < arcs.length; i++) {
         var a = arcs[i], k = a.getAttribute('data-k'), c = Number(a.getAttribute('data-c')), to = Number(a.getAttribute('data-len'));
         var lap = a.classList.contains('lap'), from = fresh ? 0 : (was[k] != null ? was[k] : to);
@@ -1697,15 +1782,17 @@
     static get PART_CSS() {
       return [
         'ha-card.ep.hl{--hk-ep-h:320px;padding:6px 22px;display:grid;grid-template-rows:repeat(4,minmax(0,1fr))}',
-        '.hli{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;align-content:center;align-items:start;',
-        '  border-top:1px solid var(--hk-line,rgba(255,255,255,0.10))}',
+        // THE TEXT CENTERED ON ITS ICON, however many lines (2026-10-13, the
+        // user's call: centered on the first line, two lines read as pushed down)
+        '.hli{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;align-content:center;align-items:center;',
+        '  border-top:1px solid ' + window.hkCards.v('line') + '}',
         '.hli:first-child{border-top:0}',
         '.hli .ic{width:32px;height:32px;border-radius:50%;display:grid;place-items:center}',
         '.hli .ic svg{width:18px;height:18px}',
-        '.hli .tx{font-size:15px;font-weight:500;line-height:20px;margin-top:6px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '.hli .tx{font-size:15px;font-weight:500;line-height:20px;color:' + window.hkCards.v('ink-2') + ';',
         '  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}',
-        '.hli .tx b{color:var(--hk-ink,rgba(255,255,255,0.94));font-weight:600}',
-        '@media (max-width:640px){ha-card.ep.hl{--hk-ep-h:380px}}'
+        '.hli .tx b{color:' + window.hkCards.v('ink') + ';font-weight:600}',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.ep.hl{--hk-ep-h:380px}}'
       ].join('');
     }
     _render() {
@@ -1733,8 +1820,8 @@
       return [
         // ITS HEIGHT FOLLOWS ITS KEY, which is the same on every tab (the
         // sections never change with it), so it still never shifts
-        'ha-card.ep.where{height:auto;min-height:152px}',
-        '.bar{display:flex;height:24px;border-radius:8px;overflow:hidden;margin:14px 0 16px;gap:2px;background:var(--hk-key,rgba(255,255,255,0.10));flex:none}',
+        'ha-card.ep.where{height:auto;min-height:' + window.hkCards.TILE.tall + 'px}',
+        '.bar{display:flex;height:24px;border-radius:8px;overflow:hidden;margin:14px 0 16px;gap:2px;background:' + window.hkCards.v('key') + ';flex:none}',
         '.bar i{display:block;height:100%;min-width:2px;cursor:pointer;transition:opacity .2s}',
         '.chips{display:flex;justify-content:space-between;gap:10px 18px;flex-wrap:wrap}',
         '.chip{display:grid;grid-template-columns:10px minmax(0,1fr);column-gap:8px;align-items:center;font-size:14px;font-weight:600;',
@@ -1742,7 +1829,7 @@
         '  -webkit-tap-highlight-color:transparent;transition:opacity .2s}',
         '.chip i{width:10px;height:10px;border-radius:3px}',
         '.chip em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '.chip span{grid-column:2;font-size:13px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums;white-space:nowrap}',
+        '.chip span{grid-column:2;font-size:13px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
         '@container (max-width:1060px){.chips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}}',
         '@container (max-width:520px){.chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ttl span{display:none}}'
       ].join('');
@@ -1808,76 +1895,71 @@
         // the devices that used the most take what is left
         '.body{flex:1;display:flex;gap:24px;min-height:0;align-items:stretch}',
         '.main{flex:1;display:flex;flex-direction:column;min-width:0}',
-        '@container (min-width:700px){.main{flex:0 0 var(--mw,260px)}}',
+        '@container (min-width:' + window.hkCards.BP.cardList + 'px){.main{flex:0 0 var(--mw,260px)}}',
         // WIDER THAN A COLUMN IT SAYS MORE (the battery and water absent):
         // from two columns the period's figures beside the chart, from three
         // the devices that used the most as well
         '.side{display:none;width:190px;flex:none;flex-direction:column;justify-content:center;gap:14px;',
-        '  border-left:1px solid var(--hk-line,rgba(255,255,255,0.10));padding-left:22px}',
-        '@container (min-width:560px){.side{display:flex}}',
+        '  border-left:1px solid ' + window.hkCards.v('line') + ';padding-left:22px}',
+        '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.side{display:flex}}',
         // ONE COLUMN: the period's three figures under the chart, as the
         // battery and water cards have theirs (the side panel says them wider)
         '.mt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px;padding-top:12px;flex:none;',
-        '  border-top:1px solid var(--hk-line,rgba(255,255,255,0.10))}',
+        '  border-top:1px solid ' + window.hkCards.v('line') + '}',
         '.mt .k{font-size:11px;letter-spacing:0.4px;overflow:hidden;text-overflow:ellipsis}',
         '.mt .v{font-size:17px;font-weight:700;letter-spacing:-0.3px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}',
-        '.mt .v u{text-decoration:none;font-size:12px;font-weight:600;margin-left:2px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-        '@container (min-width:560px){.mt{display:none}}',
+        '.mt .v u{text-decoration:none;font-size:12px;font-weight:600;margin-left:2px;color:' + window.hkCards.v('ink-2') + '}',
+        '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.mt{display:none}}',
         '.clock.small{max-width:200px;padding-top:4px}',
-        '@container (min-width:560px){.clock.small{max-width:240px;padding-top:10px}}',
+        '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.clock.small{max-width:240px;padding-top:10px}}',
         '.wk.small{padding-top:12px}',
         '.cal.small{margin-top:12px}.cal.small .c{height:26px}',
-        '@container (min-width:560px){.wk.small{padding-top:22px}.cal.small .c{height:30px}}',
+        '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.wk.small{padding-top:22px}.cal.small .c{height:30px}}',
         '.side .big{font-size:22px;margin-top:5px}',
         '.most{display:none;flex:1;min-width:0;flex-direction:column;gap:12px;',
-        '  border-left:1px solid var(--hk-line,rgba(255,255,255,0.10));padding-left:22px}',
-        '@container (min-width:700px){.most{display:flex}}',
+        '  border-left:1px solid ' + window.hkCards.v('line') + ';padding-left:22px}',
+        '@container (min-width:' + window.hkCards.BP.cardList + 'px){.most{display:flex}}',
         // EVERY DEVICE, MOST FIRST, scrolling inside the card; the last row
         // fades so it reads as more below. Two columns across a whole row.
         '.ml{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:12px;',
         '  padding:2px 6px 18px 0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.25) transparent;',
         '  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)}',
         '.ml.fits{-webkit-mask-image:none;mask-image:none}',
-        '@container (min-width:1000px){.ml{display:grid;grid-template-columns:1fr 1fr;column-gap:28px;row-gap:12px;align-content:start}}',
-        '.most .mh{font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '@container (min-width:' + window.hkCards.BP.cardTwo + 'px){.ml{display:grid;grid-template-columns:1fr 1fr;column-gap:28px;row-gap:12px;align-content:start}}',
+        '.most .mh{font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:' + window.hkCards.v('ink-2') + '}',
         '.mr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:5px;align-items:baseline}',
         '.mr b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '.mr span{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums;white-space:nowrap}',
-        '.mr i{grid-column:1/-1;display:block;height:6px;border-radius:3px;background:var(--hk-key,rgba(255,255,255,0.10));overflow:hidden}',
+        '.mr span{font-size:13px;color:' + window.hkCards.v('ink-2') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
+        '.mr i{grid-column:1/-1;display:block;height:6px;border-radius:3px;background:' + window.hkCards.v('key') + ';overflow:hidden}',
         '.mr i em{display:block;height:100%;border-radius:3px}',
         '.clock{width:100%;max-width:240px;height:auto;margin:auto;padding-top:10px}',
         '.wk{margin:auto;padding-top:22px;display:flex;flex-direction:column;align-items:center}',
         '.wk .bc{display:flex;flex-direction:column;align-items:center}',
         '.wk .bl{position:relative;height:30px;margin-top:8px}',
         '.wk .bl span{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;',
-        '  font-size:12px;font-weight:600;line-height:1;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums;white-space:nowrap}',
-        '.wk .bl span b{font-weight:600;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-        '.wk .bl span.now,.wk .bl span.now b{color:var(--hk-ink,rgba(255,255,255,0.94))}',
-        '.wkl{position:relative;height:34px;margin-top:8px}',
-        '.wkl span{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;',
-        '  font-size:12px;font-weight:600;line-height:1;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums;white-space:nowrap}',
-        '.wkl span b{font-weight:600;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-        '.wkl span.now,.wkl span.now b{color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '  font-size:12px;font-weight:600;line-height:1;color:' + window.hkCards.v('ink-2') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
+        '.wk .bl span b{font-weight:600;color:' + window.hkCards.v('ink-3') + '}',
+        '.wk .bl span.now,.wk .bl span.now b{color:' + window.hkCards.v('ink') + '}',
         '.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin:auto 0;width:100%;max-width:300px;align-self:center}',
-        '.cal .dh{font-size:11px;font-weight:600;line-height:1;color:var(--hk-ink-3,rgba(255,255,255,0.40));text-align:center;padding-bottom:3px}',
+        '.cal .dh{font-size:11px;font-weight:600;line-height:1;color:' + window.hkCards.v('ink-3') + ';text-align:center;padding-bottom:3px}',
         '.cal .c{height:30px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:600;line-height:1;color:#fff;',
         '  text-shadow:0 1px 1px rgba(0,0,0,0.25);font-variant-numeric:tabular-nums}',
         '.cal .c.out{background:none}',
         // a day still to come: outlined, quiet, nothing to tap yet
-        '.cal .c.fut{background:none;box-shadow:inset 0 0 0 1px var(--hk-line,rgba(255,255,255,0.12));color:var(--hk-ink-3,rgba(255,255,255,0.40));text-shadow:none}',
+        '.cal .c.fut{background:none;box-shadow:inset 0 0 0 1px ' + window.hkCards.v('line') + ';color:' + window.hkCards.v('ink-3') + ';text-shadow:none}',
         '.cal .c.today{box-shadow:inset 0 0 0 1.5px #fff}',
         'button.c{border:0;padding:0;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s ease}',
         'button.c:active{transform:scale(0.92)}',
         '.cal .c.sel{box-shadow:0 0 0 2px #fff,0 4px 12px rgba(0,0,0,0.35);transform:scale(1.08);position:relative;z-index:1}',
-        '.leg.dayl{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-size:13px}',
-        '.leg.dayl b{color:var(--hk-ink,rgba(255,255,255,0.94));font-weight:600}',
-        '.leg{display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:8px;margin-top:14px;font-size:12px;line-height:1;color:var(--hk-ink-3,rgba(255,255,255,0.40));flex:none;',
+        '.leg.dayl{color:' + window.hkCards.v('ink-2') + ';font-size:13px}',
+        '.leg.dayl b{color:' + window.hkCards.v('ink') + ';font-weight:600}',
+        '.leg{display:flex;align-items:center;flex-wrap:wrap;gap:6px;row-gap:8px;margin-top:14px;font-size:12px;line-height:1;color:' + window.hkCards.v('ink-3') + ';flex:none;',
         '  width:100%;max-width:300px;align-self:center}',
         '.leg i{width:16px;height:10px;border-radius:3px}',
         '.leg i.dash{width:18px;height:0;border-radius:0;border-top:1.5px dashed rgba(255,255,255,0.6)}',
         '.leg .li{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;margin-right:8px}',
         '.leg .gr{flex:1}',
-        '@media (max-width:640px){ha-card.ep.shape{--hk-ep-h:330px}}'
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.ep.shape{--hk-ep-h:330px}}'
       ].join('');
     }
     _render() {
@@ -1896,7 +1978,7 @@
         var wedge = function (a0, a1, rr) { return 'M' + pt(a0, r0) + ' L' + pt(a0, rr) + ' A' + rr + ' ' + rr + ' 0 0 1 ' + pt(a1, rr) + ' L' + pt(a1, r0) + ' A' + r0 + ' ' + r0 + ' 0 0 0 ' + pt(a0, r0) + 'Z'; };
         for (var hh = 0; hh < 24; hh++) {
           var a0 = (hh / 24) * 2 * Math.PI - Math.PI / 2 + 0.02, a1 = ((hh + 1) / 24) * 2 * Math.PI - Math.PI / 2 - 0.02;
-          svg += '<path d="' + wedge(a0, a1, r1) + '" fill="var(--hk-key,rgba(255,255,255,0.06))"/>';
+          svg += '<path d="' + wedge(a0, a1, r1) + '" fill="' + window.hkCards.v('key') + '"/>';
           if (hh < vals.length) {
             svg += '<path class="gw" style="--i:' + hh + '" d="' + wedge(a0, a1, r0 + (r1 - r0) * Math.max(0.04, vals[hh] / mx)) + '" fill="' + pc + '" fill-opacity="' + (hh === vals.length - 1 ? 1 : 0.82) + '"/>';
           }
@@ -2055,9 +2137,17 @@
   // when there are more than its width holds, never wider ones). Each bar is
   // a stack of parts; `ghost` is how much of a usual slot is still to come;
   // `usual` draws a dotted line; labels sit centered under their bars.
+  // `floor` (a temperature, never energy): bars rise from it, not from zero.
   function barChart(o) {
     var bars = o.bars, n = bars.length, H = o.H || 96, avail = Math.max(60, o.avail || 280);
     var bw = Math.max(3, Math.min(20, avail / (n + (n - 1) * 0.42))), gap = bw * 0.42, W = n * bw + (n - 1) * gap;
+    var fl = o.floor || 0;
+    if (fl) {
+      bars = bars.map(function (b) {
+        return Object.assign({}, b, { segs: b.segs.map(function (g) { return { v: Math.max(0, g.v - fl), c: g.c }; }) });
+      });
+      o = Object.assign({}, o, { usual: o.usual ? Math.max(0, o.usual - fl) : 0 });
+    }
     var mx = o.max || 0;
     bars.forEach(function (b) {
       var t = sum(b.segs.map(function (g) { return g.v; }));
@@ -2075,7 +2165,7 @@
       }
       var tot = sum(b.segs.map(function (g) { return g.v; }));
       if (tot <= 0) {
-        svg += '<rect x="' + x0.toFixed(1) + '" y="' + (H - 3) + '" width="' + bw.toFixed(1) + '" height="3" rx="1.5" fill="var(--hk-key,rgba(255,255,255,0.12))"/>';
+        svg += '<rect x="' + x0.toFixed(1) + '" y="' + (H - 3) + '" width="' + bw.toFixed(1) + '" height="3" rx="1.5" fill="' + window.hkCards.v('key') + '"/>';
       } else {
         // the stack, drawn as one rounded bar: each part clipped from it
         var g0 = '<g class="gr2" style="--i:' + i + '">', hTot = Math.max(3, H * tot / mx), top = H - hTot;
@@ -2140,29 +2230,29 @@
     '.flow .cap{margin-top:5px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}',
     // three small figures in a row, under the big one
     '.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px;padding-top:12px;flex:none;',
-    '  border-top:1px solid var(--hk-line,rgba(255,255,255,0.10))}',
+    '  border-top:1px solid ' + window.hkCards.v('line') + '}',
     '.trio .k{font-size:11px;letter-spacing:0.4px;gap:5px;overflow:hidden;text-overflow:ellipsis}',
     '.trio .k i{width:8px;height:8px}',
     '.trio .v{font-size:17px;font-weight:700;letter-spacing:-0.3px;margin-top:4px;white-space:nowrap;font-variant-numeric:tabular-nums}',
-    '.trio .v u{text-decoration:none;font-size:12px;font-weight:600;margin-left:2px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+    '.trio .v u{text-decoration:none;font-size:12px;font-weight:600;margin-left:2px;color:' + window.hkCards.v('ink-2') + '}',
     // the chart in the room between the figure and the three figures, which
     // sit at the foot on the same line as Your Day's
     '.foot{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-top:12px}',
     '.bc{display:flex;flex-direction:column;align-items:center}',
     '.bl{position:relative;height:12px;margin-top:6px}',
     '.bl span{position:absolute;top:0;transform:translateX(-50%);font-size:11px;font-weight:600;line-height:1;white-space:nowrap;',
-    '  color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-    '.bl span.now{color:var(--hk-ink,rgba(255,255,255,0.94))}',
+    '  color:' + window.hkCards.v('ink-3') + '}',
+    '.bl span.now{color:' + window.hkCards.v('ink') + '}',
     // WIDE (the same width Your Day's side panel appears at): the headline
     // and the chart on the left, the three figures stacked on the right
     // behind the same divider, so the row's three cards change together
     '.mb{flex:1;display:flex;gap:24px;min-height:0}',
     '.mm{flex:1;display:flex;flex-direction:column;min-width:0}',
     '.ms{display:none;width:190px;flex:none;flex-direction:column;justify-content:center;gap:14px;',
-    '  border-left:1px solid var(--hk-line,rgba(255,255,255,0.10));padding-left:22px}',
+    '  border-left:1px solid ' + window.hkCards.v('line') + ';padding-left:22px}',
     '.ms .big{font-size:22px;margin-top:5px}',
-    '@container (min-width:560px){.ms{display:flex}.trio{display:none}}',
-    '@media (max-width:640px){ha-card.ep.mini{--hk-ep-h:330px}}'
+    '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.ms{display:flex}.trio{display:none}}',
+    '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.ep.mini{--hk-ep-h:330px}}'
   ].join('');
   // the side panel's three figures: [label, value, note]
   function sidePanel(items) {
@@ -2186,8 +2276,10 @@
       var stored = hb && hb.label && h.states[hb.label] ? Number(h.states[hb.label].state) : NaN;
       var fill, big, cap;
       if (hb && hb.entity) this._card.setAttribute('data-more', hb.entity); else this._card.removeAttribute('data-more');
-      if (p === 'now' && isFinite(lvl)) {
-        fill = lvl / 100; big = Math.round(lvl) + '<u>%</u>';
+      // a level sensor that blips unknown keeps the card on its level ("—"),
+      // not flipping to the period's kWh for a second
+      if (p === 'now' && (isFinite(lvl) || (hb && hb.entity && h.states[hb.entity]))) {
+        fill = isFinite(lvl) ? lvl / 100 : 0; big = (isFinite(lvl) ? Math.round(lvl) : '—') + '<u>%</u>';
         cap = isFinite(stored) ? fx(stored, 1) + ' kWh stored' : 'Its level now';
       } else {
         fill = isFinite(lvl) ? lvl / 100 : 0.5;
@@ -2276,19 +2368,19 @@
         'ha-card.ep.track{height:auto;padding:6px 22px}',
         // TWO COLUMNS OF ROWS on a wide screen: half the height
         '.tl{display:grid;grid-template-columns:minmax(0,1fr);column-gap:40px}',
-        '@container (min-width:1100px){.tl{grid-template-columns:repeat(2,minmax(0,1fr))}.tl .tr:nth-child(2){border-top:0}}',
+        '@container (min-width:' + window.hkCards.BP.cardRows + 'px){.tl{grid-template-columns:repeat(2,minmax(0,1fr))}.tl .tr:nth-child(2){border-top:0}}',
         '.tr{display:grid;grid-template-columns:minmax(140px,210px) 110px minmax(0,1fr);column-gap:20px;align-items:center;',
-        '  padding:12px 0;border-top:1px solid var(--hk-line,rgba(255,255,255,0.10))}',
+        '  padding:12px 0;border-top:1px solid ' + window.hkCards.v('line') + '}',
         '.tr:first-child{border-top:0}',
         '.tn b{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.tn b i{width:10px;height:10px;border-radius:50%;flex:none}',
-        '.tn span{display:block;margin-top:4px;padding-left:18px;font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
+        '.tn span{display:block;margin-top:4px;padding-left:18px;font-size:13px;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
         '.tn span b.up{display:inline;color:#ffb340}.tn span b.down{display:inline;color:#4cd964}',
         '.tv{font-size:24px;font-weight:700;letter-spacing:-0.5px;white-space:nowrap;font-variant-numeric:tabular-nums}',
-        '.tv u{text-decoration:none;font-size:13px;font-weight:600;margin-left:3px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '.tv u{text-decoration:none;font-size:13px;font-weight:600;margin-left:3px;color:' + window.hkCards.v('ink-2') + '}',
         '.tc{min-width:0;display:flex;justify-content:flex-start}',
         '.tc .bc{align-items:flex-start}',
-        '@media (max-width:640px){.tr{grid-template-columns:minmax(0,1fr) auto;row-gap:10px}.tc{grid-column:1/-1}}',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){.tr{grid-template-columns:minmax(0,1fr) auto;row-gap:10px}.tc{grid-column:1/-1}}',
         // compact: no bars, two columns of rows
         '.compact .tr{grid-template-columns:minmax(0,1fr) auto}.compact .tc{display:none}'
       ].join('');
@@ -2390,6 +2482,17 @@
     return s && s.state !== '' && isFinite(n) ? n : null;
   }
   function isOn(hass, id) { var s = id && hass && hass.states[id]; return !!s && s.state === 'on'; }
+  // NO READING IS NOT AN ANSWER: a missing, unknown or unavailable state is
+  // null here, never 'off' or 'away'. The panel's grid status reads unknown
+  // for a few seconds ~20 times a day, and a car's location goes unavailable
+  // whenever its maker's cloud does -- neither means the grid is down or the
+  // car has left.
+  function reading(hass, id) {
+    var s = id && hass && hass.states[id];
+    return s && s.state !== '' && s.state !== 'unknown' && s.state !== 'unavailable' ? s.state : null;
+  }
+  function gridDown(hass, c) { return !!c.grid_status && reading(hass, c.grid_status) === 'off'; }
+  function carHome(hass, k) { var r = k.home ? reading(hass, k.home) : null; return r == null || r === 'home'; }
   // a runtime sensor in hours (or minutes) -> hours
   function hoursOf(hass, id) {
     var v = numOf(hass, id);
@@ -2404,7 +2507,49 @@
     var c = pw(hass, cfg.charge) || 0, d = pw(hass, cfg.discharge) || 0;
     return c > 5 ? c : d > 5 ? -d : 0;
   }
-  var POWER_ANIM = '@media (prefers-reduced-motion: reduce){.run,.gw,.shim,.wfill,.cell .fill,.hshim{animation:none !important}}';
+  // WHO IS CHARGING, AND AT WHAT (the Power page's cards): with wall chargers
+  // (`chargers`, their power sensors) the watts are theirs -- on the house's
+  // own network, live -- and a car's own reading (its maker's cloud, minutes
+  // behind and stale once the car sleeps) only says WHICH car: the ones
+  // whose own reading or state says charging, else the ones plugged in at
+  // home. Without chargers, each car's own reading. -> [{car, w}]
+  // A CAR WITH ITS OWN (`charger`, its settings: a Wall Connector, a
+  // monitored circuit, or its own reading) is charging when that reads; the
+  // rest share what is left, as above.
+  function carsCharging(hass, c) {
+    var all = (c.cars || []).filter(Boolean), atHome = function (k) { return carHome(hass, k); };
+    var own = function (k) { return Math.max(0, pw(hass, k.power) || 0); };
+    var fixed = all.filter(function (k) { return k.charger; }), taken = fixed.map(function (k) { return k.charger; });
+    // (away, a Wall Connector's watts are someone else's car; the car's own
+    // reading is a charger somewhere else, not the house's)
+    var out = fixed.filter(function (k) { return atHome(k) || k.charger !== k.power; })
+      .map(function (k) { return { car: atHome(k) ? k : null, w: Math.max(0, pw(hass, k.charger) || 0) }; })
+      .filter(function (x) { return x.w > 5; });
+    var cars = all.filter(function (k) { return !k.charger; });
+    var chargers = (c.chargers || []).filter(function (id) { return id && taken.indexOf(id) < 0; });
+    return out.concat(guess(cars, chargers));
+    function guess(cars, chargers) {
+      if (!chargers.length) return cars.filter(function (k) { return atHome(k) && own(k) > 5; }).map(function (k) { return { car: k, w: own(k) }; });
+      var live = chargers.map(function (id) { return Math.max(0, pw(hass, id) || 0); }).filter(function (w) { return w > 5; })
+        .sort(function (a, b) { return b - a; });
+      if (!live.length) return [];
+      var home = cars.filter(atHome);
+      var saysCharging = function (k) {
+        var st = k.state && hass.states[k.state];
+        return own(k) > 5 || (st && /^charging$/i.test(st.state));
+      };
+      var cands = home.filter(saysCharging).sort(function (a, b) { return own(b) - own(a); });
+      if (!cands.length) cands = home.filter(function (k) { return k.plugged && isOn(hass, k.plugged); });
+      if (!cands.length) cands = home;
+      return live.map(function (w, i) { return { car: cands[i] || (cands.length === 1 ? null : cands[0]) || null, w: w }; });
+    }
+  }
+  var POWER_ANIM = '@media (prefers-reduced-motion: reduce){.run,.gw,.shim,.wfill,.cell .fill,.hshim{animation:none !important}}' +
+    // a card that fills its row (`fill`): as tall as the row, at least its own height
+    // (stretched, not a percentage: the grid stretches the host to the row,
+    // and the card grows in it)
+    ':host([data-fill]){display:flex;flex-direction:column}' +
+    'ha-card.ep.fill{flex:1 1 auto;height:auto !important;min-height:var(--hk-ep-h,0px)}';
 
   // THE SHELL: HK's plate, gated on the entities its config names
   class HkPowerBase extends HkBase {
@@ -2417,6 +2562,8 @@
         if (typeof v === 'string' && /^[a-z_]+\.[a-z0-9_]+$/.test(v)) out.push(v);
       });
       (c.packs || []).forEach(function (p) { if (p) { if (p.level) out.push(p.level); if (p.temperature) out.push(p.temperature); } });
+      (c.cars || []).forEach(function (k) { if (k) ['level', 'power', 'home', 'plugged', 'charge', 'state', 'charger'].forEach(function (f) { if (k[f]) out.push(k[f]); }); });
+      (c.chargers || []).forEach(function (id) { if (id) out.push(id); });
       return out;
     }
     _sigOf() {
@@ -2430,6 +2577,18 @@
       this._card = this._root.querySelector('ha-card');
       var hgt = this._config && this._config.height;
       if (hgt) this._card.style.setProperty('--hk-ep-h', String(hgt));
+      // FILL THE ROW (`fill`: the Power page's pairs): every card in a row as
+      // tall as the tallest, each at least its own height
+      if (this._config && this._config.fill) {
+        this._card.classList.add('fill');
+        this.setAttribute('data-fill', '');
+        // the shadow root's own wrapper stretches with them
+        if (this._root && this._root !== this.shadowRoot && this._root.style) {
+          this._root.style.display = 'flex';
+          this._root.style.flexDirection = 'column';
+          this._root.style.flex = '1 1 auto';
+        }
+      }
       bindMore(this, this._card);
       this._built = true;
     }
@@ -2471,7 +2630,7 @@
         '.hart:not(.none) + .fwrap{display:none}',
         '.fwrap{flex:1;min-height:0;display:flex;align-items:center}',
         '.fchart{width:100%;height:100%;max-height:220px}',
-        '@media (max-width:640px){ha-card.ep.flow{--hk-ep-h:280px}.hf .big{font-size:18px}.hf .k{font-size:10px}}'
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.ep.flow{--hk-ep-h:280px}.hf .big{font-size:18px}.hf .k{font-size:10px}}'
       ].join('');
     }
     _render() {
@@ -2479,7 +2638,7 @@
       var c = this._config || {}, h = this._hass;
       if (!h) return;
       var gridW = pw(h, c.grid), home = pw(h, c.home), lvl = numOf(h, c.level), bw = batFlow(h, c);
-      var gOn = gridW != null && gridW > 5, onGrid = c.grid_status ? isOn(h, c.grid_status) : gOn || bw >= 0;
+      var gOn = gridW != null && gridW > 5, gs = reading(h, c.grid_status), onGrid = gs === 'on' ? true : gs === 'off' ? false : gOn || bw >= 0;
       var bLabel = bw === 0 ? 'Standing by' : bw > 0 ? 'Charging ' + wtxt(bw) : 'Powering the house';
       var speed = function (w) { return Math.max(0.5, 3 - Math.abs(w) / 900).toFixed(2) + 's'; };
       var glow = (0.18 + 0.42 * Math.min(1, (home || 0) / 4000)).toFixed(2);
@@ -2521,11 +2680,16 @@
           '<text x="' + x + '" y="158" text-anchor="middle" font-size="22" font-weight="700" fill="currentColor">' + val + '</text>' +
           (sub ? '<text x="' + x + '" y="178" text-anchor="middle" font-size="13" fill="currentColor" opacity=".6">' + esc(sub) + '</text>' : '') + '</g>';
       };
+      // (no house battery named: the grid and the house alone)
+      var hasBat = !!(c.level || c.charge || c.discharge);
       var chart = '<svg class="fchart" viewBox="0 0 600 190" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Power flow">' +
-        line(110, 270, gOn, '#ff9f0a') + line(330, 490, bw !== 0, '#30d158') +
-        node(80, 'transmission-tower', '#ff9f0a', 'FROM THE GRID', gOn ? wtxt(gridW) : 'None', null, c.grid) +
-        node(300, 'home-lightning-bolt', '#ffffff', 'THE HOUSE', home != null ? wtxt(home) : '—', null, c.home) +
-        node(520, 'home-battery-outline', '#30d158', 'BATTERY', lvl != null ? Math.round(level) + '%' : '—', bLabel, c.level) + '</svg>';
+        (hasBat ? line(110, 270, gOn, '#ff9f0a') + line(330, 490, bw !== 0, '#30d158') +
+          node(80, 'transmission-tower', '#ff9f0a', 'FROM THE GRID', gOn ? wtxt(gridW) : 'None', null, c.grid) +
+          node(300, 'home-lightning-bolt', '#ffffff', 'THE HOUSE', home != null ? wtxt(home) : '—', null, c.home) +
+          node(520, 'home-battery-outline', '#30d158', 'BATTERY', lvl != null ? Math.round(level) + '%' : '—', bLabel, c.level)
+        : line(220, 380, gOn, '#ff9f0a') +
+          node(190, 'transmission-tower', '#ff9f0a', 'FROM THE GRID', gOn ? wtxt(gridW) : 'None', null, c.grid) +
+          node(410, 'home-lightning-bolt', '#ffffff', 'THE HOUSE', home != null ? wtxt(home) : '—', null, c.home)) + '</svg>';
       this._paint('<div class="ttl"><b>' + esc(c.title || 'Right Now') + '</b><span>' + (onGrid ? 'on the grid' : 'on the battery') + '</span></div>' +
         art + '<div class="fwrap">' + chart + '</div>');
       // the art missing: the chart, for good (no request on every redraw)
@@ -2551,15 +2715,16 @@
     static get PART_CSS() {
       return [
         'ha-card.ep.pst{--hk-ep-h:320px;padding:6px 22px;display:grid;grid-template-rows:repeat(4,minmax(0,1fr))}',
-        '.hli{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;align-content:center;align-items:start;border-top:1px solid var(--hk-line,rgba(255,255,255,0.10))}',
+        // the text centered on its icon, as the Energy page's highlights
+        '.hli{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;align-content:center;align-items:center;border-top:1px solid ' + window.hkCards.v('line') + '}',
         '.hli:first-child{border-top:0}',
         '.hli .ic{width:32px;height:32px;border-radius:50%;display:grid;place-items:center}',
         '.hli .ic svg{width:18px;height:18px}',
-        '.hli .tx{font-size:15px;font-weight:500;line-height:20px;margin-top:6px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '.hli .tx{font-size:15px;font-weight:500;line-height:20px;color:' + window.hkCards.v('ink-2') + ';',
         '  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}',
-        '.hli .tx b{color:var(--hk-ink,rgba(255,255,255,0.94));font-weight:600}',
+        '.hli .tx b{color:' + window.hkCards.v('ink') + ';font-weight:600}',
         '.hli.alert .tx b{color:#ff6961}',
-        '@media (max-width:640px){ha-card.ep.pst{--hk-ep-h:380px}}'
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.ep.pst{--hk-ep-h:380px}}'
       ].join('');
     }
     _render() {
@@ -2567,13 +2732,30 @@
       var c = this._config || {}, h = this._hass;
       if (!h) return;
       var rows = [], lvl = numOf(h, c.level), home = pw(h, c.home), bh = hoursOf(h, c.backup), bw = batFlow(h, c);
-      var gridUp = c.grid_status ? isOn(h, c.grid_status) : true;
+      var gridUp = !gridDown(h, c);
       if (!gridUp) rows.push({ more: c.grid_status, ic: STAT_GLY.tower, c: '#ff453a', alert: true, t: '<b>The grid is down.</b> The house is running on the battery' + (lvl != null ? ', at ' + Math.round(lvl) + '%' : '') + '.' });
       if (c.problem && isOn(h, c.problem)) rows.push({ more: c.problem, ic: STAT_GLY.alert, c: '#ff453a', alert: true, t: '<b>The panel reports a fault.</b> Check it in its own app.' });
+      // THE SUN, WHAT THE HOUSE RUNS ON, A CAR CHARGING (from the whole
+      // house's readings when the page gives them; the panel's otherwise)
+      var sun = c.solar ? Math.max(0, pw(h, c.solar) || 0) : 0, g = pw(h, c.grid);
+      var Sx = powerSplit({ solar: sun, imp: g == null ? 0 : Math.max(0, g), exp: g != null && g < 0 ? -g : 0, bc: bw > 0 ? bw : 0, bd: bw < 0 ? -bw : 0, home: home });
+      if (gridUp && sun > 20) rows.push({ more: c.solar, ic: GLY.sun, c: FLOW.sun, t: '<b>The sun</b> is covering ' + Math.min(100, Math.round(Sx.s2h / Math.max(1, Sx.home) * 100)) +
+        '% of the house' + (Sx.s2g > 5 ? ' and selling ' + wtxt(Sx.s2g) + ' back.' : Sx.s2b > 5 ? ' and charging the battery.' : '.') });
       if (gridUp) {
-        rows.push({ more: c.grid_status, ic: STAT_GLY.tower, c: '#ff9f0a', t: '<b>Running on the grid</b>; the battery is ' +
-          (bw > 0 ? 'charging at ' + wtxt(bw) : bw < 0 ? 'helping with ' + wtxt(-bw) : 'standing by') + (lvl != null ? ' at ' + Math.round(lvl) + '%' : '') + '.' });
+        var on = ({ sun: 'Running mostly on the sun', batt: 'Running on the battery', grid: 'Running on the grid' })[Sx.main || 'grid'];
+        // (no house battery named: what the house runs on, alone)
+        var hasBat = !!(c.level || c.charge || c.discharge);
+        rows.push({ more: c.grid_status, ic: STAT_GLY.tower, c: '#ff9f0a', t: '<b>' + on + '</b>' + (hasBat ? '; the battery is ' +
+          (bw > 0 ? 'charging at ' + wtxt(bw) : bw < 0 ? 'helping with ' + wtxt(-bw) : 'standing by') + (lvl != null ? ' at ' + Math.round(lvl) + '%' : '') : '') + '.' });
       }
+      var chg = carsCharging(h, c);
+      chg.forEach(function (x) {
+        rows.push({ more: x.car ? x.car.level : null, ic: GLY.car, c: FLOW.car, t: '<b>' + esc(x.car ? x.car.name || 'A car' : 'A car') + '</b> is charging at ' + wtxt(x.w) + ', ' +
+          ({ sun: 'mostly from the sun', batt: 'mostly from the battery', grid: 'mostly from the grid' })[Sx.main || 'grid'] + '.' });
+      });
+      if (!chg.length && !gridUp) (c.cars || []).forEach(function (k) {
+        if (k.plugged && isOn(h, k.plugged)) rows.push({ more: k.level, ic: GLY.car, c: FLOW.car, t: '<b>' + esc(k.name || 'A car') + '</b> is plugged in; charging waits for the grid.' });
+      });
       if (bh != null) rows.push({ more: c.backup, ic: STAT_GLY.batt, c: '#30d158', t: '<b>' + (gridUp ? 'A full backup would last ' : 'The battery will last ') + hm(bh) + '</b> at this load' + (home != null ? ' (' + wtxt(home) + ')' : '') + '.' });
       if (c.eps) rows.push({ more: c.eps, ic: STAT_GLY.bolt, c: '#5ac8fa', t: '<b>EPS is ' + (isOn(h, c.eps) ? 'on' : 'off') + '</b>' + (isOn(h, c.eps) ? ': the backed-up circuits switch over in under 20 ms.' : ': backed-up circuits may blink in an outage.') });
       if (c.storm) rows.push({ more: c.storm, ic: STAT_GLY.storm, c: '#bf5af2', t: '<b>Storm Mode is ' + (isOn(h, c.storm) ? 'on' : 'off') + '</b>' + (isOn(h, c.storm) ? ': charging to full ahead of the weather.' : '.') });
@@ -2596,18 +2778,20 @@
         '@container (max-width:720px){.bt2{grid-template-columns:1fr;gap:20px;margin-top:30px}}',
         '.cell{position:relative;height:118px;border-radius:24px;border:6px solid rgba(255,255,255,.42);padding:6px;margin-right:16px;box-sizing:border-box}',
         '.cell:after{content:"";position:absolute;right:-16px;top:32px;width:10px;height:42px;border-radius:0 7px 7px 0;background:rgba(255,255,255,.42)}',
-        '.cell .fill{position:relative;overflow:hidden;height:100%;border-radius:13px;background:linear-gradient(90deg,#28c050,#30d158);',
+        '.cell .fill{position:relative;overflow:hidden;height:100%;border-radius:13px;background:' + window.hkCards.v('battery-fill') + ';box-shadow:inset 0 1px 0 rgba(255,255,255,0.35);',
         '  animation:growX 1.2s cubic-bezier(.22,.8,.25,1) backwards;transform-origin:0 50%;transition:width .6s ease}',
-        '.cell .fill.low{background:linear-gradient(90deg,#e0352b,#ff453a)}',
+        '.cell .fill.low{background:' + window.hkCards.v('battery-fill-low') + '}',
         '@keyframes growX{from{transform:scaleX(0)}}',
         '.hshim{position:absolute;top:0;bottom:0;width:35%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);animation:hRun 1.8s linear infinite}',
         '.hshim.bw{animation-direction:reverse}',
         '@keyframes hRun{from{left:-35%}to{left:100%}}',
         '.cell .txt{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding-left:26px}',
-        '.cell .txt b{font-size:40px;font-weight:700;letter-spacing:-1px;line-height:1;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.25)}',
+        '.cell .txt b{font-size:44px;font-weight:600;letter-spacing:-1.5px;line-height:1;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.25)}',
         '.cell .txt b u{text-decoration:none;font-size:18px;margin-left:2px;opacity:.8}',
-        '.cell .txt span{font-size:14px;line-height:18px;font-weight:600;color:rgba(255,255,255,.9);margin-top:6px;text-shadow:0 1px 2px rgba(0,0,0,.25);padding-right:12px;',
-        '  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}',
+        // ONE line under the level: the stored kWh and the backup time. Two
+        // lines left the figures a few px off the fill's edges.
+        '.cell .txt span{font-size:14px;line-height:18px;font-weight:600;color:rgba(255,255,255,.9);margin-top:8px;text-shadow:0 1px 2px rgba(0,0,0,.25);padding-right:12px;',
+        '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         // a mark is a tick through the battery's outline, top and bottom --
         // never a line through the figures inside it
         '.mk{position:absolute;top:-10px;bottom:-10px;width:0;border-left:2px dashed;',
@@ -2618,10 +2802,10 @@
         '.pk2{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:14px;align-items:center;padding-right:6px}',
         '.mini{position:relative;height:26px;border-radius:8px;border:3px solid rgba(255,255,255,.42);padding:2px;box-sizing:border-box}',
         '.mini:after{content:"";position:absolute;right:-7px;top:6px;width:4px;height:8px;border-radius:0 2px 2px 0;background:rgba(255,255,255,.42)}',
-        '.mini i{display:block;height:100%;border-radius:4px;background:#30d158}',
-        '.pk2 b{font-size:15px;font-weight:600}.pk2 span{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '.mini i{display:block;height:100%;border-radius:4px;background:' + window.hkCards.v('battery-fill') + '}',
+        '.pk2 b{font-size:15px;font-weight:600}.pk2 span{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
         '.pk2 .pv{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}',
-        '.facts{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:14px;border-top:1px solid var(--hk-line,rgba(255,255,255,0.10))}',
+        '.facts{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:14px;border-top:1px solid ' + window.hkCards.v('line') + '}',
         '.facts .big{font-size:20px;margin-top:5px}'
       ].join('');
     }
@@ -2637,7 +2821,8 @@
         var at = 'left:calc(6px + (100% - 12px) * ' + (Math.max(0, Math.min(100, v)) / 100) + ')';
         return '<div class="mk" style="' + at + ';border-color:' + col + '"></div><em class="mkl" style="' + at + ';color:' + col + '">' + name + ' ' + Math.round(v) + '%</em>';
       };
-      var sub = [stored != null ? fx(stored, 1) + ' kWh' : null, bh != null ? hm(bh) + ' of backup at this load' : null].filter(Boolean).join(' · ');
+      // "at this load" is the status card's to say: here, one short line
+      var sub = [stored != null ? fx(stored, 1) + ' kWh' : null, bh != null ? hm(bh) + ' of backup' : null].filter(Boolean).join(' · ');
       var packs = (c.packs || []).map(function (p, i) {
         var pl = numOf(h, p.level), pt = numOf(h, p.temperature), tu = p.temperature && h.states[p.temperature] ? ((h.states[p.temperature].attributes || {}).unit_of_measurement || '') : '';
         return '<div class="pk2"' + moreAttr(p.level) + '><div class="mini"><i style="width:' + (pl == null ? 0 : Math.max(0, Math.min(100, pl))) + '%"></i></div><div><b>' + esc(p.name || 'Pack ' + (i + 1)) + '</b><br><span>' +
@@ -2650,7 +2835,7 @@
         '<div class="bt2"><div><div class="cell"' + moreAttr(c.level) + '><div class="fill' + (res != null && level <= res ? ' low' : '') + '" style="width:' + level + '%">' +
           (bw !== 0 ? '<div class="hshim' + (bw < 0 ? ' bw' : '') + '"></div>' : '') + '</div>' +
           mark(res, '#ff9f0a', 'Reserve') + mark(lim, 'rgba(255,255,255,.85)', 'Limit') +
-          '<div class="txt"><b>' + (lvl == null ? '—' : Math.round(level) + '<u>%</u>') + '</b><span>' + esc(sub) + '</span></div></div></div>' +
+          '<div class="txt"><b>' + (lvl == null ? '—' : Math.round(level) + '<u>%</u>') + '</b><span>' + sub + '</span></div></div></div>' +
         '<div class="side2">' + packs + (facts.length ? '<div class="facts">' + facts.join('') + '</div>' : '') + '</div></div>');
     }
   }
@@ -2666,10 +2851,10 @@
         // HK's segmented control (the calendar's), its choices sharing the width
         window.hkCards.segCss('.seg'),
         '.seg button{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:0 8px}',
-        '.mdesc{font-size:14px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin:12px 4px 0;min-height:18px}',
+        '.mdesc{font-size:14px;line-height:18px;color:' + window.hkCards.v('ink-2') + ';margin:12px 4px 0;min-height:18px}',
         // a phone: names wrap to two lines rather than lose their ends
         // a phone: names wrap to two lines rather than lose their ends
-        '@media (max-width:640px){.seg{height:auto;min-height:44px}.seg button{font-size:13px;padding:4px;height:auto;min-height:36px;white-space:normal;line-height:1.15}}'
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){.seg{height:auto;min-height:44px}.seg button{font-size:13px;padding:4px;height:auto;min-height:36px;white-space:normal;line-height:1.15}}'
       ].join('');
     }
     _opts() {
@@ -2714,7 +2899,517 @@
     }
   }
 
+  // ------------------------------------------------------------ the split
+  // Where the power comes from and goes, Home Assistant's own order (its
+  // Energy dashboard's): the sun first to what is sold (only the sun or the
+  // battery can be), then to the battery, then the house; the grid makes up
+  // what the battery took beyond the sun; the battery gives the rest. Watts in,
+  // each >= 0: solar, imp (grid in), exp (grid out), bc (battery in), bd
+  // (battery out), and home (the whole house, measured; worked out when null).
+  function powerSplit(r) {
+    var solar = Math.max(0, r.solar || 0), imp = Math.max(0, r.imp || 0), exp = Math.max(0, r.exp || 0);
+    var bc = Math.max(0, r.bc || 0), bd = Math.max(0, r.bd || 0);
+    var home = r.home != null ? Math.max(0, r.home) : Math.max(0, imp - exp + solar + bd - bc);
+    var s2g = Math.min(solar, exp), s2b = Math.min(solar - s2g, bc), s2h = Math.max(0, solar - s2g - s2b);
+    var g2b = Math.max(0, bc - s2b), g2h = Math.max(0, imp - g2b), b2h = Math.max(0, bd - Math.max(0, exp - s2g));
+    var all = s2h + g2h + b2h, mix = all > 0 ? { sun: s2h / all, grid: g2h / all, batt: b2h / all } : { sun: 0, grid: 0, batt: 0 };
+    var main = 'grid';
+    ['sun', 'batt'].forEach(function (k) { if (mix[k] > mix[main]) main = k; });
+    return { home: home, s2g: s2g, s2b: s2b, s2h: s2h, g2b: g2b, g2h: g2h, b2h: b2h, mix: mix, main: all > 0 ? main : null };
+  }
+  var FLOW = { sun: '#ffd60a', grid: '#ff9f0a', batt: '#30d158', car: '#64d2ff', home: '#ffffff', red: '#ff453a' };
+
+  // --------------------------------------------------------- the picture
+  // THE HOUSE, full width and plateless: a layered picture (`art`, a folder
+  // with art.json, in a house's own files) where each layer
+  // shows only when the house has it (panels with solar, the battery with
+  // one, the car while one is home), the figures as floating chips over the
+  // part of the house each is about, and light running along the real cables
+  // (the pole's while buying or selling, the car's while it charges) at a
+  // pace that follows the watts. The battery's level is a slim bar on the
+  // cabinet's front, drawn in the face's own plane; a light rises through it
+  // while it charges. Every clip sits on a still group (328d073b).
+  // A FAILED LOAD IS NOT KEPT: its waiters hear null and the entry goes, so
+  // the next card (or the same one after a 60 s back-off, as hk-stats backs
+  // off after an error) asks again -- one bad fetch on a tablet waking on weak Wi-Fi no longer
+  // leaves every Power page blank until a full reload.
+  var ART = {};          // art.json by folder, loaded once
+  var ART_RETRY_MS = 60000;
+  function artOf(base, done) {
+    if (ART[base]) { if (ART[base].json) done(ART[base].json); else ART[base].wait.push(done); return; }
+    ART[base] = { wait: [done] };
+    fetch(base + 'art.json', { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (j) {
+      var w = ART[base].wait; ART[base].json = j; w.forEach(function (f) { f(j); });
+    }).catch(function () {
+      var w = ART[base].wait; delete ART[base]; w.forEach(function (f) { f(null); });
+    });
+  }
+  // THE CABLE AS A CURVE: the art's points joined by a Catmull-Rom spline
+  // (straight segments between them bent at every point -- the pole's drop
+  // looked kinked). -> [[p0, c1, c2, p1], ...] in the picture's own units
+  function curveOf(pts) {
+    var out = [];
+    for (var i = 0; i < pts.length - 1; i++) {
+      var a = pts[i - 1] || pts[i], b = pts[i], c = pts[i + 1], d = pts[i + 2] || c;
+      out.push([b, [b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6], [c[0] - (d[0] - b[0]) / 6, c[1] - (d[1] - b[1]) / 6], c]);
+    }
+    return out;
+  }
+  function curvePath(segs) {
+    var f = function (q) { return (+q[0]).toFixed(1) + ' ' + (+q[1]).toFixed(1); };
+    return segs.length ? 'M' + f(segs[0][0]) + segs.map(function (g) { return ' C' + f(g[1]) + ' ' + f(g[2]) + ' ' + f(g[3]); }).join('') : '';
+  }
+  // n + 1 points evenly spaced ALONG the curve (by length, not by segment),
+  // and the curve's length
+  function curveWalk(segs, n) {
+    var poly = [], at = function (g, t) {
+      var u = 1 - t;
+      return [u * u * u * g[0][0] + 3 * u * u * t * g[1][0] + 3 * u * t * t * g[2][0] + t * t * t * g[3][0],
+              u * u * u * g[0][1] + 3 * u * u * t * g[1][1] + 3 * u * t * t * g[2][1] + t * t * t * g[3][1]];
+    };
+    segs.forEach(function (g, i) { for (var k = i ? 1 : 0; k <= 24; k++) poly.push(at(g, k / 24)); });
+    var len = [0];
+    for (var i = 1; i < poly.length; i++) len.push(len[i - 1] + Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1]));
+    var total = len[len.length - 1], out = [], j = 1;
+    for (var s = 0; s <= n; s++) {
+      var want = total * s / n;
+      while (j < len.length - 1 && len[j] < want) j++;
+      var span = len[j] - len[j - 1] || 1, t = Math.max(0, Math.min(1, (want - len[j - 1]) / span));
+      out.push([poly[j - 1][0] + (poly[j][0] - poly[j - 1][0]) * t, poly[j - 1][1] + (poly[j][1] - poly[j - 1][1]) * t]);
+    }
+    return { pts: out, length: total };
+  }
+  // A CABLE CARRYING POWER (the user's pick, 2026-10-14: "Option A"): the
+  // cable drawn as a smooth line, and one soft glow travelling along it at
+  // an even pace -- in from the pole, out to it when selling. The glow is an
+  // HTML dot moved by `transform` keyframes, so it runs on the compositor:
+  // the old three-stripe light (stroke-dashoffset inside the picture's SVG)
+  // restyled and repainted the picture every frame -- the page's main thread
+  // 11.9 % against 5.9 % without it (headless, a 1280 tablet at 4x); this way
+  // ~0 (a lab page: 60 restyles/s -> 0). -> {svg, dot: html, css}
+  var FLOW_PX_S = 90;              // the glow's pace, picture px a second
+  function flowLine(pts, col, back, crop) {
+    var segs = curveOf(pts), walk = curveWalk(segs, 40);
+    var dur = Math.max(3.5, Math.min(6, walk.length / FLOW_PX_S));
+    var key = 'hkf' + (function (str) { var h = 0; for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); })(JSON.stringify(pts) + crop);
+    var n = walk.pts.length - 1;
+    var kf = walk.pts.map(function (q, i) {
+      var op = i === 0 || i === n ? 0 : i < 3 || i > n - 3 ? 0.55 : 1;
+      return (i / n * 100).toFixed(2) + '%{transform:translate(' + q[0].toFixed(1) + 'px,' + (q[1] - crop).toFixed(1) + 'px);opacity:' + op + '}';
+    }).join('');
+    return {
+      svg: '<path d="' + curvePath(segs) + '" fill="none" stroke="' + col + '" stroke-opacity=".5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>',
+      css: '@keyframes ' + key + '{' + kf + '}',
+      dot: '<i class="flowdot" style="animation:' + key + ' ' + dur.toFixed(2) + 's linear infinite' + (back ? ' reverse' : '') +
+           ';background:radial-gradient(circle,rgba(255,255,255,.95) 0,' + rgba(col, 0.85) + ' 18%,' + rgba(col, 0.35) + ' 42%,' + rgba(col, 0) + ' 70%)"></i>'
+    };
+  }
+  class HkPowerHouseCard extends HkPowerBase {
+    static get PART_CSS() {
+      var v = window.hkCards.v, B = window.hkCards.BLUR;
+      return [
+        ':host{display:block}',
+        'ha-card.ep.phouse{height:auto;background:none;border:0;box-shadow:none;padding:0;overflow:visible}',
+        '.hart{position:relative;width:100%;margin:58px auto 0}',
+        '.hart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}',
+        '.pic{position:absolute;inset:0}',
+        // the moving light (flowLine): a zero-size stage scaled to the picture
+        '.stage{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0;transform:scale(var(--fs,1));pointer-events:none}',
+        '.pic:not([data-fs]) .stage{visibility:hidden}',
+        '.flowdot,.portdot{position:absolute;left:0;top:0;border-radius:50%;will-change:transform,opacity}',
+        '.flowdot{width:56px;height:56px;margin:-28px 0 0 -28px;opacity:0}',
+        '.portdot{width:30px;height:30px;margin:-15px 0 0 -15px;background:radial-gradient(circle,#30d158 0,#30d158 45%,rgba(48,209,88,.45) 60%,rgba(48,209,88,0) 72%);animation:port 1.4s ease-in-out infinite}',
+        '.chips{position:absolute;inset:0;pointer-events:none}',
+        // a chip: the floating strip's material (Tinted: its near-solid plate)
+        '.chip{position:absolute;transform:translate(-50%,calc(-100% - 18px));padding:8px 13px 9px;border-radius:' + window.hkCards.R.inner + 'px;white-space:nowrap;pointer-events:auto;cursor:pointer;',
+        '  background:' + v('float-plate') + ';-webkit-backdrop-filter:var(--hk-float-backdrop,' + B.medium + ');backdrop-filter:var(--hk-float-backdrop,' + B.medium + ');',
+        '  border:1px solid rgba(255,255,255,0.12);box-shadow:0 8px 24px rgba(0,0,0,0.28);-webkit-tap-highlight-color:transparent}',
+        '.chip:after{content:"";position:absolute;left:50%;top:100%;width:1.5px;height:18px;background:rgba(255,255,255,0.5);transform:translateX(-50%)}',
+        '.chip.l{transform:translate(calc(-100% + 16px),calc(-100% - 18px))}.chip.l:after{left:auto;right:16px;transform:none}',
+        '.chip.r{transform:translate(-16px,calc(-100% - 18px))}.chip.r:after{left:16px;transform:none}',
+        '.chip .k{font-size:11px;letter-spacing:0.4px;gap:6px}.chip .k i{width:8px;height:8px;border-radius:50%;display:inline-block}',
+        '.chip .big{font-size:22px;margin-top:3px}',
+        // the cars' chip: a row a car, the names left, the readings right
+        '.crows{display:grid;grid-template-columns:auto auto;column-gap:18px;row-gap:5px;margin-top:6px;align-items:baseline}',
+        '.crow{display:contents}.crow b{font-size:15px;font-weight:600;white-space:nowrap}',
+        '.crow span{font-size:17px;font-weight:700;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}',
+        '.crow span u{text-decoration:none;font-size:11px;font-weight:600;margin-left:1px;opacity:.75}',
+        '.crow span.away{font-size:15px;font-weight:600;color:' + v('ink-2') + '}',
+        '.crow .blt{display:inline-block;width:9px;height:12px;margin-right:5px;vertical-align:-1px;background:currentColor;',
+        '  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 14%27%3E%3Cpath d=%27M6 0L0 8h4l-1 6 6-8H5z%27/%3E%3C/svg%3E") center/contain no-repeat;',
+        '  mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 14%27%3E%3Cpath d=%27M6 0L0 8h4l-1 6 6-8H5z%27/%3E%3C/svg%3E") center/contain no-repeat}',
+        '@keyframes glint{from{transform:translateX(-420px)}to{transform:translateX(620px)}}',
+        '.glint{animation:glint 3.2s ' + window.hkCards.EASE.standard + ' infinite}',
+        '@keyframes lvRun{from{transform:translateY(250%)}to{transform:translateY(-100%)}}',
+        '.lvrun{transform-box:fill-box;animation:lvRun 2.2s ' + window.hkCards.EASE.build + ' infinite}.lvrun.down{animation-direction:reverse}',
+        '@keyframes lvTop{50%{opacity:.35}}',
+        '.lvtop{animation:lvTop 1.6s ease-in-out infinite;filter:drop-shadow(0 0 3px rgba(108,240,143,.9))}',
+        '@keyframes port{50%{opacity:.25}}',
+        '@media (prefers-reduced-motion:reduce){.glint,.lvrun,.lvtop,.portdot{animation:none}.flowdot{display:none}}',
+        // a phone: the chips in a grid above the house, no stems
+        '@container (max-width:' + window.hkCards.BP.cardSide + 'px){.hart{margin-top:0;display:flex;flex-direction:column-reverse;aspect-ratio:auto !important;max-width:none !important}',
+        '  .pic{position:relative}.hart svg{position:static;height:auto}.chips{position:static;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:8px}',
+        '  .chip,.chip.l,.chip.r{position:static;transform:none;white-space:normal}.chip:after{display:none}.chip .lg{display:none}.dot{display:none}',
+        '  .chip.cars{grid-column:1/-1}.chip.cars .crows{grid-template-columns:minmax(0,1fr) auto}.chip.cars .crow b{overflow:hidden;text-overflow:ellipsis}}'
+      ].join('');
+    }
+    // NO PLATE: the house sits on the page
+    setConfig(config) { super.setConfig(Object.assign({ glass: false }, config || {})); }
+    // THE STAGE FOLLOWS THE PICTURE'S WIDTH: its scale is set when the
+    // picture is laid out at a new size -- the ResizeObserver's own moment,
+    // never a read in the render
+    connectedCallback() {
+      if (super.connectedCallback) super.connectedCallback();
+      if (this._pic && this._fitRO) this._fitRO.observe(this._pic);
+    }
+    disconnectedCallback() {
+      if (super.disconnectedCallback) super.disconnectedCallback();
+      if (this._fitRO) this._fitRO.disconnect();
+    }
+    _fit() {
+      var pic = this._card && this._card.querySelector('.pic');
+      if (!pic || pic === this._pic || typeof ResizeObserver !== 'function') return;
+      if (!this._fitRO) {
+        var self = this;
+        this._fitRO = new ResizeObserver(function (entries) {
+          entries.forEach(function (e) {
+            var W = self._artW, w = e.contentRect.width;
+            if (!W || !w) return;
+            self._fs = (w / W).toFixed(5);
+            e.target.style.setProperty('--fs', self._fs);
+            e.target.setAttribute('data-fs', '');
+          });
+        });
+      }
+      if (this._pic) this._fitRO.unobserve(this._pic);
+      this._pic = pic;
+      this._fitRO.observe(pic);
+    }
+    getCardSize() { return 8; }
+    _ids() {
+      var c = this._config || {}, out = super._ids();
+      (c.cars || []).forEach(function (k) { ['level', 'power', 'home', 'plugged', 'charge', 'state', 'charger'].forEach(function (f) { if (k && k[f]) out.push(k[f]); }); });
+      (c.chargers || []).forEach(function (id) { if (id) out.push(id); });
+      return out;
+    }
+    _render() {
+      this._shell('phouse');
+      var c = this._config || {}, h = this._hass, self = this;
+      if (!h) return;
+      // no picture folder (none ships: it is a house's own art): say so;
+      // the generated Power page draws the flow chart instead
+      if (!c.art) { this._paint('<div style="padding:24px;opacity:.7">No picture folder: set <b>art</b> to a folder of your files with art.json, or use the flow chart (hk-power-flow-card).</div>'); return; }
+      var base = c.art;
+      if (base.slice(-1) !== '/') base += '/';
+      if (this._art === undefined && !(this._artFail && Date.now() - this._artFail < ART_RETRY_MS)) {
+        this._art = null;
+        artOf(base, function (j) {
+          if (j) { self._art = j; self._artFail = 0; self.redraw(); } else { self._art = undefined; self._artFail = Date.now(); }
+        });
+      }
+      var A = this._art;
+      if (!A) return;
+      var L = A.layers || {}, W = A.canvas[0], H = A.canvas[1];
+      // THE READINGS (watts): the grid signed or in two sensors, the sun, the
+      // battery, the whole house; each car: home, plugged in, charging
+      var g = pw(h, c.grid), gx = pw(h, c.grid_export);
+      var imp = g == null ? 0 : Math.max(0, g), exp = gx != null ? Math.max(0, gx) : g != null && g < 0 ? -g : 0;
+      var solar = c.solar ? Math.max(0, pw(h, c.solar) || 0) : 0, hasSolar = !!c.solar;
+      var bat = !!c.level, lvl = numOf(h, c.level), level = lvl == null ? 0 : Math.max(0, Math.min(100, lvl)), bw = batFlow(h, c);
+      var gridUp = !gridDown(h, c);
+      var cars = (c.cars || []).map(function (k) {
+        var home = carHome(h, k);
+        return { cfg: k, home: home, plugged: k.plugged ? isOn(h, k.plugged) : home };
+      });
+      var chg = carsCharging(h, c);
+      var carsOn = cars.length > 0, carsHome = cars.filter(function (k) { return k.home; }), carW = chg.reduce(function (a, x) { return a + x.w; }, 0);
+      var S = powerSplit({ solar: solar, imp: imp, exp: exp, bc: bw > 0 ? bw : 0, bd: bw < 0 ? -bw : 0, home: pw(h, c.home) });
+      var crop = A.crop != null ? A.crop : Math.max(0, Math.min.apply(null, Object.keys(L).map(function (k) { return L[k][2]; })) - 50);
+      var vh = H - crop, maxh = c.max_height || A.max_height || 560;
+      // the layers, each at its trimmed place
+      var img = function (k) { var l = L[k]; return l ? '<image href="' + base + l[0] + '" x="' + l[1] + '" y="' + l[2] + '" width="' + l[3] + '" height="' + l[4] + '"/>' : ''; };
+      var fade = A.fade || { right: [0.86, 0.985], bottom: [0.9, 1] };
+      var svg = '<svg viewBox="0 ' + crop + ' ' + W + ' ' + vh + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><defs>' +
+        '<linearGradient id="hfx" x1="0" x2="1" y1="0" y2="0"><stop offset="' + fade.right[0] + '" stop-color="#fff"/><stop offset="' + fade.right[1] + '" stop-color="#000"/></linearGradient>' +
+        '<linearGradient id="hfy" x1="0" x2="0" y1="0" y2="1"><stop offset="' + fade.bottom[0] + '" stop-color="#fff"/><stop offset="' + fade.bottom[1] + '" stop-color="#000"/></linearGradient>' +
+        '<mask id="hfm" maskContentUnits="userSpaceOnUse"><rect width="' + W + '" height="' + H + '" fill="url(#hfx)"/></mask>' +
+        '<mask id="hfm2" maskContentUnits="userSpaceOnUse"><rect width="' + W + '" height="' + H + '" fill="url(#hfy)"/></mask>' +
+        '<linearGradient id="gl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff8d0" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+        (hasSolar && L.solar ? '<mask id="pvm" style="mask-type:alpha">' + img('solar') + '</mask>' : '') + '</defs>' +
+        '<g mask="url(#hfm)"><g mask="url(#hfm2)">' + img('house') + '</g></g>';
+      if (hasSolar) {
+        svg += img('solar');
+        if (solar > 20 && L.solar) svg += '<g mask="url(#pvm)" opacity="' + (0.35 + 0.65 * Math.min(1, solar / 5000)).toFixed(2) + '"><rect class="glint" x="' + (L.solar[1] - 100) + '" y="' + L.solar[2] + '" width="260" height="' + L.solar[4] + '" fill="url(#gl)" transform="skewX(-20)"/></g>';
+      }
+      if (bat) svg += img('battery') + (lvl == null ? '' : this._level(A, level, bw, lvl != null && c.reserve && numOf(h, c.reserve) != null && level <= numOf(h, c.reserve)));
+      svg += img('pole');
+      var flows = [], dots = '';
+      if (A.paths && A.paths.grid) {
+        if (imp > 5 && gridUp) flows.push(flowLine(A.paths.grid, FLOW.grid, false, crop));
+        else if (exp > 5 && gridUp) flows.push(flowLine(A.paths.grid, FLOW.sun, true, crop));
+      }
+      flows.forEach(function (f) { svg += f.svg; });
+      var charging = carW > 5;
+      if (carsOn) {
+        svg += img('charger');
+        if (carsHome.length) svg += img('car') + img('cable');
+        var car = A.cars && A.cars.a;
+        if (charging && car && car.cable) {
+          var col = FLOW[S.main] || FLOW.grid;
+          var cf = flowLine(car.cable, col, false, crop);
+          flows.push(cf);
+          svg += cf.svg;
+          // the charge port breathing: an HTML dot too (opacity, compositor)
+          dots += '<i class="portdot" style="transform:translate(' + car.port[0] + 'px,' + (car.port[1] - crop) + 'px)"></i>';
+        }
+      }
+      // THE CHIPS, each over its anchor, with a stem to a dot
+      var AN = A.anchors || {}, side = A.chip_side || {}, chips = [];
+      var chip = function (key, more, col, label, val) {
+        var a = AN[key];
+        if (!a) return;
+        label = label.replace(/^(From the |To the |The )/, '<span class="lg">$1</span>');
+        chips.push({ key: key, a: a, more: more, h: '<div class="k"><i style="background:' + col + '"></i>' + label + '</div><div class="big num">' + val + '</div>' });
+      };
+      if (!gridUp) chip('grid', c.grid_status, FLOW.red, 'The Grid', 'Down');
+      else if (exp > 5) chip('grid', c.grid_export || c.grid, FLOW.sun, 'To the Grid', whtml(exp));
+      else chip('grid', c.grid, FLOW.grid, 'From the Grid', imp > 5 ? whtml(imp) : 'None');
+      chip('house', c.home, FLOW.home, 'The House', S.home > 0 ? whtml(S.home) : 'Off');
+      if (hasSolar) chip('solar', c.solar, FLOW.sun, 'The Sun', solar > 20 ? whtml(solar) : 'None');
+      if (bat) chip('battery', c.level, FLOW.batt, 'Battery', lvl == null ? '—' : Math.round(level) + '<u>%</u>');
+      // THE CARS: one chip, a row each -- its name, and its charging watts,
+      // its level at home, or Away; a row opens its car. Watts no car can
+      // claim are "A car".
+      if (carsOn && AN.cars) {
+        var crow = function (more, name, v) { return '<div class="crow"' + moreAttr(more) + '><b>' + esc(name) + '</b>' + v + '</div>'; };
+        var chgv = function (w) { return '<span class="chg" style="color:' + FLOW.car + '"><i class="blt"></i>' + whtml(w) + '</span>'; };
+        var crows = cars.map(function (k) {
+          var x = chg.filter(function (y) { return y.car === k.cfg; })[0], lv = numOf(h, k.cfg.level);
+          return crow(k.cfg.level, k.cfg.name || 'Car', x ? chgv(x.w) : !k.home ? '<span class="away">Away</span>' :
+            '<span>' + (lv == null ? '—' : Math.round(lv) + '<u>%</u>') + '</span>');
+        }).concat(chg.filter(function (y) { return !y.car; }).map(function (y) { return crow(null, 'A car', chgv(y.w)); }));
+        chips.push({ key: 'cars', a: AN.cars, cls: 'cars', h: '<div class="k"><i style="background:' + FLOW.car + '"></i>' + (cars.length > 1 ? 'Cars' : 'Car') + '</div>' +
+          '<div class="crows">' + crows.join('') + '</div>' });
+      }
+      svg += chips.map(function (f) { return '<circle class="dot" cx="' + f.a[0] + '" cy="' + f.a[1] + '" r="8" fill="#fff" fill-opacity=".9" style="filter:drop-shadow(0 0 4px rgba(0,0,0,.5))"/>'; }).join('');
+      svg += '</svg>';
+      var mw = Math.round(maxh * W / vh);
+      // the moving light over the picture, in the picture's own units: the
+      // stage is scaled to the picture's width (_fit, a ResizeObserver)
+      this._artW = W;
+      var stage = flows.length || dots ? '<div class="stage"><style>' + flows.map(function (f) { return f.css; }).join('') + '</style>' +
+        flows.map(function (f) { return f.dot; }).join('') + dots + '</div>' : '';
+      // (the scale last measured goes in the markup: a redraw's morph keeps
+      // only what the markup says)
+      var fs = this._fs ? ' style="--fs:' + this._fs + '" data-fs' : '';
+      this._paint('<div class="hart" style="aspect-ratio:' + W + '/' + vh + ';max-width:' + mw + 'px"><div class="pic"' + fs + '>' + svg + stage + '</div><div class="chips">' + chips.map(function (f) {
+        // NEAR AN EDGE A CHIP OPENS INWARD (it ran off an iPad's page): in the
+        // picture's outer fifths it sits on the inner side of its line
+        var fx0 = f.a[0] / W, sd = fx0 > 0.8 ? 'l' : fx0 < 0.2 ? 'r' : side[f.key];
+        return '<div class="chip' + (f.cls ? ' ' + f.cls : '') + (sd ? ' ' + sd : '') + '"' + moreAttr(f.more) + ' style="left:' + (f.a[0] / W * 100).toFixed(2) + '%;top:' + ((f.a[1] - crop) / vh * 100).toFixed(2) + '%">' + f.h + '</div>';
+      }).join('') + '</div></div>');
+      this._fit();
+    }
+    // the slim level bar on the cabinet's front, skewed into the face's plane
+    _level(A, level, bw, low) {
+      var q = A.battery_window;
+      if (!q) return '';
+      var fw = q[1][0] - q[0][0], fh = q[3][1] - q[0][1], sk = (q[1][1] - q[0][1]) / fw;
+      var cx = A.bar_cx != null ? A.bar_cx - q[0][0] : fw / 2;
+      var bwid = Math.max(10, fw * 0.34), bx = cx - bwid / 2, by = fh * 0.17, bh = fh * 0.72, fill = bh * level / 100;
+      return '<g transform="matrix(1 ' + sk.toFixed(4) + ' 0 1 ' + q[0][0] + ' ' + q[0][1] + ')">' +
+        '<defs><linearGradient id="lvg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="' + (low ? '#c42a22' : '#1f9e43') + '"/><stop offset="1" stop-color="' + (low ? '#ff6b61' : '#6cf08f') + '"/></linearGradient>' +
+        '<linearGradient id="lvs" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".3" stop-color="#fff" stop-opacity=".35"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+        '<linearGradient id="lvl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#eafff0" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+        '<clipPath id="lvc"><rect x="' + bx.toFixed(2) + '" y="' + (by + bh - fill).toFixed(1) + '" width="' + bwid.toFixed(2) + '" height="' + fill.toFixed(1) + '" rx="' + (bwid / 2).toFixed(2) + '"/></clipPath></defs>' +
+        '<rect class="lvtrack" x="' + (bx - 2).toFixed(2) + '" y="' + (by - 2).toFixed(1) + '" width="' + (bwid + 4).toFixed(2) + '" height="' + (bh + 4).toFixed(1) + '" rx="' + (bwid / 2 + 2).toFixed(2) + '" fill="rgba(0,0,0,.55)" stroke="rgba(255,255,255,.22)" stroke-width="1"/>' +
+        '<g clip-path="url(#lvc)"><rect x="' + bx.toFixed(2) + '" y="' + by.toFixed(1) + '" width="' + bwid.toFixed(2) + '" height="' + bh.toFixed(1) + '" fill="url(#lvg)"/>' +
+        '<rect x="' + bx.toFixed(2) + '" y="' + by.toFixed(1) + '" width="' + bwid.toFixed(2) + '" height="' + bh.toFixed(1) + '" fill="url(#lvs)"/>' +
+        (bw ? '<rect class="lvrun' + (bw < 0 ? ' down' : '') + '" x="' + bx.toFixed(2) + '" y="' + by.toFixed(1) + '" width="' + bwid.toFixed(2) + '" height="' + (bh * 0.4).toFixed(1) + '" fill="url(#lvl)"/>' : '') + '</g>' +
+        (bw > 0 ? '<rect class="lvtop" x="' + bx.toFixed(2) + '" y="' + (by + bh - fill - 1.5).toFixed(1) + '" width="' + bwid.toFixed(2) + '" height="3" rx="1.5" fill="#d8ffe3"/>' : '') + '</g>';
+    }
+  }
+
+  // ------------------------------------------------------------ the house
+  // THE WHOLE HOUSE, NOT JUST THE BATTERY'S PANEL: one bar split into what
+  // the battery backs up, what it does not and a car charging; the three
+  // drawing the most, each marked backed up or not; how much of the house the
+  // battery covers now. `devices` [{name, power, backed}] come from the
+  // Energy feature's plan; `backed_power` (the battery panel's output) is the
+  // backed-up share where there is one, else the backed-up devices' sum.
+  var NOT_BACKED = 'rgba(255,255,255,0.55)';
+  class HkPowerLoadCard extends HkPowerBase {
+    static get PART_CSS() {
+      var v = window.hkCards.v;
+      return [
+        'ha-card.ep.pload{--hk-ep-h:270px}',
+        '.lbar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:' + v('key') + ';margin-top:14px;gap:2px;flex:none}',
+        '.lbar i{display:block;height:100%}',
+        '.lg2{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:13px;color:' + v('ink-2') + '}',
+        '.lg2 span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.lg2 span i{width:8px;height:8px;border-radius:50%}',
+        '.lg2 b{color:' + v('ink') + ';font-weight:600;font-variant-numeric:tabular-nums}',
+        '.rows{display:flex;flex-direction:column;margin-top:8px}',
+        '.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;min-height:29px;border-top:1px solid ' + v('line') + ';font-size:15px;cursor:pointer}',
+        '.row:first-child{border-top:0}',
+        '.row b{font-weight:600;color:' + v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '.row em{font-style:normal;font-size:13px;color:' + v('ink-2') + ';margin-left:6px}',
+        '.row span{font-weight:600;font-variant-numeric:tabular-nums}',
+        '.say{font-size:15px;line-height:20px;color:' + v('ink-2') + ';margin-top:auto;padding-top:8px}.say b{color:' + v('ink') + '}',
+        '.ttl a{color:#64d2ff;text-decoration:none;font-weight:600}'
+      ].join('');
+    }
+    _ids() {
+      var out = super._ids();
+      (this._config.devices || []).forEach(function (d) { if (d && d.power) out.push(d.power); });
+      (this._config.cars || []).forEach(function (k) { if (k) ['power', 'home', 'plugged', 'state', 'charger'].forEach(function (f) { if (k[f]) out.push(k[f]); }); });
+      (this._config.chargers || []).forEach(function (id) { if (id) out.push(id); });
+      return out;
+    }
+    _render() {
+      this._shell('pload');
+      var c = this._config || {}, h = this._hass;
+      if (!h) return;
+      var hw = pw(h, c.home), home = Math.max(0, hw || 0), outage = gridDown(h, c);
+      var devs = (c.devices || []).map(function (d) { return { name: d.name, more: d.power, w: Math.max(0, pw(h, d.power) || 0), up: !!d.backed, parent: !!d.parent }; });
+      var carW = carsCharging(h, c).reduce(function (a, x) { return a + x.w; }, 0);
+      // the backed-up split only with readings to split: no house total or
+      // no backed-up reading is "no split", not 0 %
+      var bpw = c.backed_power ? pw(h, c.backed_power) : null;
+      var anyUp = devs.some(function (d) { return d.up; }) && hw != null && (!c.backed_power || bpw != null);
+      var backed = c.backed_power ? Math.max(0, bpw || 0)
+        : devs.reduce(function (a, d) { return a + (d.up && !d.parent ? d.w : 0); }, 0);
+      backed = Math.min(backed, home);
+      var other = Math.max(0, home - backed - carW);
+      var parts = anyUp ? [['Backed Up', backed, FLOW.batt], ['Not Backed Up', other, NOT_BACKED], ['Charging', carW, FLOW.car]]
+        : [['The House', Math.max(0, home - carW), NOT_BACKED], ['Charging', carW, FLOW.car]];
+      parts = parts.filter(function (p) { return p[1] > 1; });
+      var tot = parts.reduce(function (a, p) { return a + p[1]; }, 0) || 1;
+      var top = devs.filter(function (d) { return !d.parent && d.w > 5; }).sort(function (a, b) { return b.w - a.w; }).slice(0, 3);
+      var link = c.link ? '<a href="' + esc(c.link) + '" data-nav="' + esc(c.link) + '">Every device ›</a>' : '';
+      this._paint('<div class="ttl"><b>' + esc(c.title || 'The House') + '</b><span>' + (link || (home > 0 ? wtxt(home) + ' now' : '')) + '</span></div>' +
+        '<div class="lbar">' + parts.map(function (p) { return '<i style="width:' + (p[1] / tot * 100).toFixed(2) + '%;background:' + p[2] + '"></i>'; }).join('') + '</div>' +
+        '<div class="lg2">' + parts.map(function (p) { return '<span><i style="background:' + p[2] + '"></i>' + p[0] + ' <b>' + wtxt(p[1]) + '</b></span>'; }).join('') + '</div>' +
+        '<div class="rows">' + top.map(function (d) {
+          return '<div class="row"' + moreAttr(d.more) + '><b>' + esc(d.name) + (anyUp ? '<em>' + (d.up ? 'backed up' : 'not backed up') + '</em>' : '') + '</b><span>' + wtxt(d.w) + '</span></div>';
+        }).join('') + '</div>' +
+        '<div class="say">' + (outage && anyUp ? 'In the outage only the backed-up circuits are on.'
+          : anyUp ? 'The battery covers <b>' + Math.round(backed / Math.max(1, home) * 100) + '%</b> of the house now.' : 'Drawing the most right now.') + '</div>');
+      var a = this._card.querySelector('.ttl a'), self = this;
+      if (a && !a._hkBound) {
+        a._hkBound = true;
+        a.addEventListener('click', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          history.pushState(null, '', a.getAttribute('data-nav'));
+          self.dispatchEvent(new CustomEvent('location-changed', { bubbles: true, composed: true }));
+        });
+      }
+    }
+  }
+
+  // ------------------------------------------------- where the sun goes
+  // RIGHT NOW in watts (the split of the live readings) and TODAY in kWh
+  // (the same split, hour by hour, over the Energy page's statistics: what
+  // Home Assistant's Energy dashboard does), and how much of today's sun the
+  // house used itself.
+  function sunToday(hass, card) {
+    var M = model(hass, card), D = M && series(hass, card, M);
+    if (!M || !D || !M.src.solar.length) return null;
+    var ax = axisOf(D, M);
+    if (!ax) return null;
+    var today0 = +ax.d[ax.d.length - 1].t, T = { s2h: 0, s2b: 0, s2g: 0, sun: 0 };
+    ax.h.forEach(function (p, i) {
+      if (+p.t < today0) return;
+      var s = M.src, r = powerSplit({ solar: vs(D.h, s.solar, i), imp: vs(D.h, s.imp, i), exp: vs(D.h, s.exp, i), bc: vs(D.h, s.into, i), bd: vs(D.h, s.out, i), home: null });
+      T.s2h += r.s2h; T.s2b += r.s2b; T.s2g += r.s2g; T.sun += vs(D.h, s.solar, i);
+    });
+    return T;
+  }
+  class HkPowerSunCard extends HkPowerBase {
+    static get PART_CSS() {
+      var v = window.hkCards.v;
+      return [
+        'ha-card.ep.psun{--hk-ep-h:270px}',
+        '.sg{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px}',
+        '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.sg{grid-template-columns:1fr 1fr;gap:36px}}',
+        '.sbar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:' + v('key') + ';margin-top:8px;gap:2px}',
+        '.sbar i{display:block;height:100%}',
+        '.lg2{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:13px;color:' + v('ink-2') + '}',
+        '.lg2 span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.lg2 span i{width:8px;height:8px;border-radius:50%}',
+        '.lg2 b{color:' + v('ink') + ';font-weight:600;font-variant-numeric:tabular-nums}',
+        '.say{font-size:15px;line-height:20px;color:' + v('ink-2') + ';margin-top:auto;padding-top:8px}.say b{color:' + v('ink') + '}'
+      ].join('');
+    }
+    _render() {
+      this._shell('psun');
+      var c = this._config || {}, h = this._hass;
+      if (!h) return;
+      var g = pw(h, c.grid), gx = pw(h, c.grid_export), bw = batFlow(h, c);
+      var r = powerSplit({ solar: pw(h, c.solar), imp: g == null ? 0 : Math.max(0, g), exp: gx != null ? gx : g != null && g < 0 ? -g : 0,
+        bc: bw > 0 ? bw : 0, bd: bw < 0 ? -bw : 0, home: pw(h, c.home) });
+      var T = sunToday(h, this), bat = !!(c.charge || c.discharge);
+      var bar = function (a, kwh) {
+        var parts = [['The House', a[0], FLOW.sun], ['Battery', a[1], FLOW.batt], ['The Grid', a[2], FLOW.grid]]
+          .filter(function (p) { return p[1] > 0.001 && (p[0] !== 'Battery' || bat); });
+        var tot = parts.reduce(function (x, p) { return x + p[1]; }, 0);
+        if (tot <= 0.001) return '<div class="sbar"></div><div class="lg2"><span>None</span></div>';
+        return '<div class="sbar">' + parts.map(function (p) { return '<i style="width:' + (p[1] / tot * 100).toFixed(2) + '%;background:' + p[2] + '"></i>'; }).join('') + '</div>' +
+          '<div class="lg2">' + parts.map(function (p) { return '<span><i style="background:' + p[2] + '"></i>' + p[0] + ' <b>' + (kwh ? fx(p[1], 1) + ' kWh' : wtxt(p[1])) + '</b></span>'; }).join('') + '</div>';
+      };
+      this._paint('<div class="ttl"><b>' + esc(c.title || 'Where the Sun Goes') + '</b><span>' + (T ? fx(T.sun, 1) + ' kWh today' : '') + '</span></div>' +
+        '<div class="sg"><div' + moreAttr(c.solar) + '><div class="k">Right Now</div>' + bar([r.s2h, r.s2b, r.s2g]) + '</div>' +
+        (T ? '<div><div class="k">Today</div>' + bar([T.s2h, T.s2b, T.s2g], true) + '</div>' : '') + '</div>' +
+        (T && T.sun > 0.05 ? '<div class="say">You used <b>' + Math.round((T.s2h + T.s2b) / T.sun * 100) + '%</b> of today’s sun yourself.</div>' : ''));
+    }
+  }
+
   var PWR_SEL = { entity: { filter: { domain: 'sensor' } } };
+  register('hk-power-load-card', HkPowerLoadCard, 'HK Power House Load',
+    'The whole house now: what the battery backs up, what it does not and a car charging; the three drawing the most.',
+    C && [
+      { type: 'grid', name: '', schema: [
+        { name: 'home', label: 'The whole house (power)', required: true, selector: PWR_SEL },
+        { name: 'backed_power', label: 'The battery panel\'s output (power)', selector: PWR_SEL },
+        { name: 'grid_status', label: 'Grid up', selector: { entity: { filter: { domain: 'binary_sensor' } } } }
+      ] },
+      { name: 'devices', selector: { object: {} }, helper: 'Each: {name, power, backed}.' },
+      { name: 'link', selector: { text: {} }, helper: 'Optional: where Every device opens, e.g. ./energy.' }
+    ],
+    function (hass) { return { home: sensorWhere(hass, function (a) { return a.device_class === 'power'; }) }; });
+  register('hk-power-sun-card', HkPowerSunCard, 'HK Where the Sun Goes',
+    'The sun now and today: to the house, the battery and the grid, in Home Assistant\'s own order.',
+    C && [
+      { type: 'grid', name: '', schema: [
+        { name: 'solar', label: 'The sun (power)', required: true, selector: PWR_SEL },
+        { name: 'grid', label: 'The grid (power)', selector: PWR_SEL },
+        { name: 'grid_export', label: 'To the grid (power)', selector: PWR_SEL },
+        { name: 'home', label: 'The whole house (power)', selector: PWR_SEL },
+        { name: 'charge', label: 'Battery charging (power)', selector: PWR_SEL },
+        { name: 'discharge', label: 'Battery giving (power)', selector: PWR_SEL }
+      ] }
+    ],
+    function (hass) { return { solar: sensorWhere(hass, function (a) { return a.device_class === 'power'; }) }; });
+  register('hk-power-house-card', HkPowerHouseCard, 'HK Power House',
+    'The house full width: a layered picture where each part shows only when the house has it, the figures as chips over it, light along the real cables.',
+    C && [
+      { type: 'grid', name: '', schema: [
+        { name: 'home', label: 'The whole house (power)', selector: PWR_SEL },
+        { name: 'grid', label: 'The grid (power, in; negative is out)', selector: PWR_SEL },
+        { name: 'grid_export', label: 'To the grid (power)', selector: PWR_SEL },
+        { name: 'grid_status', label: 'Grid up', selector: { entity: { filter: { domain: 'binary_sensor' } } } },
+        { name: 'solar', label: 'The sun (power)', selector: PWR_SEL },
+        { name: 'level', label: 'Battery level', selector: PWR_SEL },
+        { name: 'charge', label: 'Battery charging (power)', selector: PWR_SEL },
+        { name: 'discharge', label: 'Battery giving (power)', selector: PWR_SEL },
+        { name: 'reserve', selector: { entity: { filter: [{ domain: 'number' }, { domain: 'input_number' }, { domain: 'sensor' }] } } }
+      ] },
+      { name: 'cars', selector: { object: {} }, helper: 'Each car: {name, level, power, home, plugged, charge}.' },
+      { name: 'chargers', selector: { object: {} }, helper: 'Optional: the wall chargers\' power sensors -- live, where a car\'s own reading lags.' },
+      { name: 'art', label: 'Picture folder', selector: { text: {} }, helper: 'A folder of your files with art.json and its layers, e.g. /hk/art/my-house/.' }
+    ],
+    function (hass) { return { home: sensorWhere(hass, function (a) { return a.device_class === 'power'; }) }; });
   register('hk-power-flow-card', HkPowerFlowCard, 'HK Power Flow',
     'Right now: from the grid, the house and the battery, over a picture of the house (or as a flow chart).',
     C && [
@@ -2742,8 +3437,11 @@
         { name: 'charge', label: 'Battery charging (power)', selector: PWR_SEL },
         { name: 'discharge', label: 'Battery giving (power)', selector: PWR_SEL },
         { name: 'eps', label: 'EPS', selector: { entity: { filter: [{ domain: 'switch' }, { domain: 'binary_sensor' }] } } },
-        { name: 'storm', label: 'Storm Mode', selector: { entity: { filter: [{ domain: 'switch' }, { domain: 'binary_sensor' }] } } }
-      ] }
+        { name: 'storm', label: 'Storm Mode', selector: { entity: { filter: [{ domain: 'switch' }, { domain: 'binary_sensor' }] } } },
+        { name: 'solar', label: 'The sun (power)', selector: PWR_SEL },
+        { name: 'grid', label: 'The grid (power)', selector: PWR_SEL }
+      ] },
+      { name: 'cars', selector: { object: {} }, helper: 'Each car: {name, level, power, plugged}.' }
     ],
     function (hass) { return { level: sensorWhere(hass, function (a) { return a.device_class === 'battery'; }) }; });
   register('hk-house-battery-card', HkHouseBatteryCard, 'HK House Battery',
@@ -2774,6 +3472,9 @@
 
   // THE PAGE'S API FOR THE TILES AND HEADINGS (hk-stat.js): the tab, the lit
   // section, and a device's figures for the tab -- one shared request.
+  EP.__powerSplit = function (r) { return powerSplit(r); };
+  // the tests hand the picture its art.json (no fetch there)
+  EP.__art = function (base, json) { ART[base] = { json: json, wait: [] }; };
   Object.assign(EP, {
     period: EP.period, plan: plan, getPeriod: period, setPeriod: setPeriod, setPick: setPick, setBack: setBack,
     join: function (card) { EP.cards.add(card); },

@@ -28,6 +28,8 @@ document.querySelector = function (s) {
   if (s === 'home-assistant') { refreshes++; return null; }
   return qs ? qs.call(document, s) : null;
 };
+// the pill's table (hkCards.TILE): a page's grids are built from it
+load(HK_ROOT + '/frontend/cards/hk-base.js');
 load(HK_ROOT + '/frontend/cards/hk-strategy.js');
 
 var musicCb = null;
@@ -129,6 +131,12 @@ quiet('...nor Swipe from Left Edge, the button\'s glyph, the clock, or the tab s
   pushBoard('swipe', true); pushBoard('glyph', 'lines'); pushBoard('clock', false);
   pushBoard('tab_size', 'small'); pushBoard('tab_size_phone', 'large');
   pushBoard('menu_custom', true); pushBoard('menu_house', false);
+});
+// THE SCREEN'S OWN LOOK: hk-settings.js amount('tint') / tintWell() and the
+// glass read them live, and no build reads one
+quiet('...nor the screen\'s own glass look: style, Frosted, Blur, Tinted amount and well', function () {
+  pushBoard('glass', 'tinted'); pushBoard('frost', 60); pushBoard('frost_tint', true); pushBoard('blur', 40);
+  pushBoard('tint', 70); pushBoard('well', 'light');
 });
 quiet('a motion, occupancy or smoke sensor found rebuilds nothing', function () {
   pushTop('kinds', { motion: ['binary_sensor.m'], occupancy: ['binary_sensor.o'], smoke: ['binary_sensor.s'] });

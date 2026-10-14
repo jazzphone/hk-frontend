@@ -175,8 +175,9 @@ occasion, or **Custom** -- its own **Each Occasion** list, each with a preset
 or its own sliders, just for that screen. A slow tablet can be Subtle
 everywhere, or a bedroom screen calm only on Halloween.
 
-**Calm When Nobody’s Around** (a screen whose **Tablet Room**, under This Device, names its room, when
-that room has an occupancy, motion or presence sensor): half as much moves
+**Calm When Nobody’s Around** (a screen run by a [wall tablet](Wall-Tablets.md)
+whose **Room** is set, when that room has an occupancy, motion or presence
+sensor): half as much moves
 while the room has been empty for five minutes, and all of it again as soon as
 someone is there. Nothing is rebuilt either way.
 
@@ -196,7 +197,7 @@ choice, and **Show Me Now** sends the next crossing across at once.
 
 ## Sky settings
 
-![The Sky / Background page in HK Settings](images/settings-sky.png)
+![The Sky / Background page in HK Settings, starting with the Background: Live Sky, Color or Photo](images/settings-sky.png)
 
 Beside the Sky / Background page, a live preview shows your Home screen’s sky right now.
 Open a decoration and the preview shows it on your Home screen -- whatever
@@ -208,7 +209,7 @@ changes; your screens keep today’s sky.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Sky Switch | None (Always On) | An input boolean or switch. While it is off, no generated screen shows the live sky. A YAML screen names its own. Each screen can also turn its sky off. |
+| Background | Live Sky | **Live Sky**, **Color** or **Photo** ([The Background](Live-Sky.md#the-background)). Decorations show only on the Live Sky; Color and Photo are still. Each screen can choose its own. |
 | Clouds | Classic | **Realistic** draws photographic clouds instead of the drifting haze ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
 | Daytime Sky | Natural | How bright the midday blue runs: **Natural**, **Balanced** or **Deep** ([Live Sky](Live-Sky.md#choose-its-look)). Each screen can choose its own. |
 | Seasonal Decorations | On | Pauses every decoration. The same switch as **Seasonal decorations** on the HK Frontend device. |
@@ -218,6 +219,7 @@ changes; your screens keep today’s sky.
 | Each Occasion | — | *With Liveliness Custom.* Every decoration, woodland season and the Night Sky (the forecast screensaver’s twinkling and shooting stars), each with its own Liveliness. |
 | Woodland Between Occasions | All Seasons | With New Decorations, which seasons' woodland — Spring, Summer, Autumn, Winter — shows on days with no holiday or birthday, each season on its own page with its **Show** and [Liveliness](#liveliness). Separate from each holiday's **Show**. |
 | (each decoration) | On | Opens its page (below). |
+| Sky Switch | None (Always On) | An input boolean or switch. While it is off, no generated screen shows the live sky. A YAML screen names its own. Each screen can choose a still Color or a Photo instead ([The Background](Live-Sky.md#the-background)). |
 | Advanced | — | Opens the Advanced page (below): the hemisphere, sources, and what decorations need. |
 
 Each decoration’s page:

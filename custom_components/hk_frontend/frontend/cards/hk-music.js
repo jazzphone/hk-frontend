@@ -60,7 +60,7 @@
     el.setAttribute('data-hk-role', 'no-music');
     el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
       M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
-      'color:var(--hk-ink-2,rgba(255,255,255,0.68))';
+      'color:' + window.hkCards.v('ink-2') + '';
     el.textContent = NO_MUSIC;
     card._root.appendChild(el);
     card._built = false;
@@ -158,7 +158,7 @@
     '.pkscrim{position:fixed;inset:0;z-index:24}',
     '.pk{position:absolute;z-index:25;width:360px;max-height:560px;border-radius:24px;display:flex;flex-direction:column;overflow:hidden;color:#fff;',
     '  background:rgba(36,24,52,.97);box-shadow:0 24px 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.14);',
-    '  transform-origin:top right;animation:pkin .22s cubic-bezier(.2,.8,.2,1)}',
+    '  transform-origin:top right;animation:pkin .22s cubic-bezier(.32,.72,0,1)}',
     '@keyframes pkin{from{opacity:0;transform:scale(.94) translateY(-6px)}to{opacity:1;transform:none}}',
     '.pk.sheetpk{position:fixed;left:0;right:0;bottom:0;top:auto!important;width:auto;max-height:80vh;border-radius:28px 28px 0 0;animation:none;',
     '  transform:translateY(100%);transition:transform .38s cubic-bezier(.32,.72,0,1)}',
@@ -183,7 +183,7 @@
     // (its one row exactly the page's height below the title: an auto row
     // grew to everything Browse holds, so Browse never scrolled in itself --
     // a finger on it moved nothing; a wheel moved the whole page)
-    '.mu{position:relative;display:grid;column-gap:36px;height:var(--mu-h,auto);color:var(--hk-ink,rgba(255,255,255,0.94))}',
+    '.mu{position:relative;display:grid;column-gap:36px;height:var(--mu-h,auto);color:' + window.hkCards.v('ink') + '}',
     '.mu:not([cols="1"]){grid-template-rows:minmax(0,1fr)}',
     '.mu[cols="2"]{grid-template-columns:352px minmax(0,1fr)}',
     '.mu[cols="3"]{grid-template-columns:400px minmax(0,1fr) 380px;column-gap:48px}',
@@ -205,7 +205,7 @@
     '.pon{flex:none;display:flex;align-items:center;gap:10px;height:50px;padding:0 7px 0 14px;border-radius:18px;margin-bottom:14px;box-sizing:border-box}',
     '.pon ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);flex:none;display:flex}',
     '.pon .tx{flex:1;min-width:0;line-height:1.2}',
-    '.pon .tx small{display:block;font-size:11px;font-weight:700;letter-spacing:.8px;opacity:.6;text-transform:uppercase}',
+    '.pon .tx small{display:block;font-size:11px;font-weight:600;letter-spacing:0.4px;opacity:.6;text-transform:uppercase}',
     '.pon .tx b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.pon .chg{flex:none;height:36px;padding:0 15px;border-radius:11px;background:#fff;color:#1d1426;font-size:14px;font-weight:700;',
     '  display:flex;align-items:center;cursor:pointer;border:0;font-family:inherit}',
@@ -213,11 +213,11 @@
     // THE HOUSE: a card for each thing playing
     '.house{flex:none;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}',
     '.house:empty{display:none}',
-    '.house .hl{font-size:11px;font-weight:700;letter-spacing:.8px;opacity:.6;text-transform:uppercase;margin:0 2px 2px}',
-    '.cx{display:flex;align-items:center;gap:10px;height:52px;padding:0 10px 0 6px;border-radius:14px;cursor:pointer;box-sizing:border-box;',
-    '  background:var(--hk-key,rgba(255,255,255,.06));box-shadow:inset 0 0 0 1px var(--hk-line,rgba(255,255,255,.10))}',
-    '.cx.on{background:var(--hk-key,rgba(255,255,255,.18));box-shadow:inset 0 0 0 1.5px var(--hk-mark,rgba(255,255,255,.55));cursor:default}',
-    '.cx .th{width:40px;height:40px;border-radius:8px;background:var(--hk-key,rgba(255,255,255,.10));flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+    '.house .hl{font-size:11px;font-weight:600;letter-spacing:0.4px;opacity:.6;text-transform:uppercase;margin:0 2px 2px}',
+    '.cx{display:flex;align-items:center;gap:10px;height:52px;padding:0 10px 0 6px;border-radius:12px;cursor:pointer;box-sizing:border-box;',
+    '  background:' + window.hkCards.v('key') + ';box-shadow:inset 0 0 0 1px ' + window.hkCards.v('line') + '}',
+    '.cx.on{background:' + window.hkCards.v('key-strong') + ';box-shadow:inset 0 0 0 1.5px var(--hk-mark,rgba(255,255,255,.55));cursor:default}',
+    '.cx .th{width:40px;height:40px;border-radius:8px;background:' + window.hkCards.v('key') + ';flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
     '.cx .th img{width:100%;height:100%;object-fit:cover;display:block}',
     '.cx .th ha-icon,.cx .th svg{--mdc-icon-size:20px;width:20px;height:20px;fill:var(--hk-glyph,rgba(255,255,255,.5));color:var(--hk-glyph,rgba(255,255,255,.5))}',
     '.cx .t{flex:1;min-width:0;line-height:1.2}',
@@ -241,24 +241,24 @@
     // the spare room at the column's foot -- not centered in it, which left a
     // band of empty above and below the art on a desk
     '.mu:not([cols="1"]) .artbox{flex:0 1 auto;aspect-ratio:1 / 1;min-height:120px}',
-    '.art{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:22px;overflow:hidden;background:var(--hk-key,rgba(255,255,255,.08));',
+    '.art{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:22px;overflow:hidden;background:' + window.hkCards.v('key') + ';',
     '  box-shadow:0 18px 44px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}',
     '.art img{width:100%;height:100%;object-fit:cover;display:block}',
     '.art ha-icon{--mdc-icon-size:72px;width:72px;height:72px;color:var(--hk-glyph,rgba(255,255,255,.4))}',
     '.tt{font-size:26px;font-weight:700;letter-spacing:-.3px;margin-top:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}',
     '.st{font-size:17px;opacity:.75;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}',
     '.prog{margin-top:16px;flex:none}',
-    '.prog .b{height:5px;border-radius:3px;background:var(--hk-line,rgba(255,255,255,.22));overflow:hidden}',
+    '.prog .b{height:5px;border-radius:3px;background:' + window.hkCards.v('line-strong') + ';overflow:hidden}',
     '.prog .b i{display:block;height:100%;background:rgba(255,255,255,.92);transform-origin:0 50%;transform:scaleX(0)}',
     '.prog .t{display:flex;justify-content:space-between;font-size:12px;opacity:.6;margin-top:6px;font-variant-numeric:tabular-nums}',
     // the transport across the column, room round each button
     '.tr{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:0 2px;flex:none}',
     '.tr .p{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background-color .15s}',
-    '.tr .p:active{background:var(--hk-key,rgba(255,255,255,.14))}',
+    '.tr .p:active{background:' + window.hkCards.v('key-strong') + '}',
     '.tr .p svg{width:30px;height:30px;fill:var(--hk-glyph,#fff)}',
     '.tr .p.big svg{width:42px;height:42px}',
     '.tr .x{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;',
-    '  box-shadow:inset 0 0 0 1.5px var(--hk-line,rgba(255,255,255,.30));background:var(--hk-key,rgba(255,255,255,.06))}',
+    '  box-shadow:inset 0 0 0 1.5px ' + window.hkCards.v('mark') + ';background:' + window.hkCards.v('key') + '}',
     '.tr .x svg{width:21px;height:21px;fill:var(--hk-glyph,#fff)}',
     '.tr .x ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
     '.tr .x.on{background:#fff;box-shadow:none}',
@@ -268,21 +268,25 @@
     '.vol{display:flex;align-items:center;gap:12px;margin-top:20px;flex:none;touch-action:none}',
     '.vol svg{width:18px;height:18px;fill:var(--hk-glyph,rgba(255,255,255,.7));flex:none}',
     '.vol .tk{position:relative;flex:1;height:30px;cursor:pointer}',
-    '.vol .tk::before{content:"";position:absolute;left:0;right:0;top:12px;height:6px;border-radius:3px;background:var(--hk-line,rgba(255,255,255,.22))}',
+    '.vol .tk::before{content:"";position:absolute;left:0;right:0;top:12px;height:6px;border-radius:3px;background:' + window.hkCards.v('line-strong') + '}',
     '.vol .tk i{position:absolute;left:0;top:12px;height:6px;width:calc(var(--v,0) * 100%);border-radius:3px;background:#c26df0}',
     '.vol .tk b{position:absolute;top:3px;left:calc(var(--v,0) * 100%);width:24px;height:24px;margin-left:-12px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3)}',
     '.idle .vol,[novol] .vol{visibility:hidden}',
     '.nx{display:flex;align-items:center;gap:12px;margin-top:16px;min-width:0;flex:none}',
     '.nx[hidden]{display:none}',
-    '.nx .th{width:40px;height:40px;border-radius:7px;background:var(--hk-key,rgba(255,255,255,.10));flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
+    '.nx .th{width:40px;height:40px;border-radius:7px;background:' + window.hkCards.v('key') + ';flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
     '.nx .th img{width:100%;height:100%;object-fit:cover;display:block}',
     '.nx .th svg{width:50%;height:50%;fill:var(--hk-glyph,rgba(255,255,255,.45))}',
-    '.nx small{display:block;font-size:11px;font-weight:700;letter-spacing:.8px;opacity:.55}',
+    '.nx small{display:block;font-size:11px;font-weight:600;letter-spacing:0.4px;opacity:.55}',
     '.nx .t{min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     // A PHONE (one column): Browse is the page; what plays is a sheet over
     // it (Now Playing), opened from the mini player at the foot -- the
     // dashboard's own docked bar, or this page's when there is none
     '.grab{display:none}',
+    '.mu.relay,.mu.relay *{transition:none!important}',
+    // ...and nothing is drawn before the page knows its columns: built as two,
+    // its first frame on a phone was the two-column page (_layout sets cols)
+    '.mu:not([cols]){visibility:hidden}',
     '.mu[cols="1"] .left{position:fixed;left:0;right:0;top:0;bottom:0;z-index:19;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;',
     '  padding:max(10px,env(safe-area-inset-top,0px)) 20px max(24px,env(safe-area-inset-bottom,0px));transform:translateY(100%);visibility:hidden;',
     '  transition:transform .42s cubic-bezier(.32,.72,0,1),visibility 0s linear .42s;',
@@ -300,10 +304,10 @@
     // ...its own, when the dashboard's bar is not up (none on this screen,
     // or dismissed): a row in the page under the search -- never over the
     // tab bar or anything else (a floating one covered a floating tab bar)
-    '.mini{display:none;margin:0 0 14px;height:64px;border-radius:18px;align-items:center;gap:12px;padding:0 6px 0 7px;box-sizing:border-box;color:var(--hk-ink,rgba(255,255,255,0.94));',
+    '.mini{display:none;margin:0 0 14px;height:64px;border-radius:18px;align-items:center;gap:12px;padding:0 6px 0 7px;box-sizing:border-box;color:' + window.hkCards.v('ink') + ';',
     '  background:' + M.bg + ';border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,.10))}',
     '.mini.on{display:flex}',
-    '.mini .th{width:50px;height:50px;border-radius:10px;overflow:hidden;flex:none;background:var(--hk-key,rgba(255,255,255,.1));display:flex;align-items:center;justify-content:center;cursor:pointer}',
+    '.mini .th{width:50px;height:50px;border-radius:10px;overflow:hidden;flex:none;background:' + window.hkCards.v('key') + ';display:flex;align-items:center;justify-content:center;cursor:pointer}',
     '.mini .th img{width:100%;height:100%;object-fit:cover;display:block}',
     '.mini .th svg{width:50%;height:50%;fill:var(--hk-glyph,rgba(255,255,255,.45))}',
     '.mini .t{flex:1;min-width:0;cursor:pointer}',
@@ -311,7 +315,7 @@
     '.mini .t small{display:block;font-size:13px;opacity:.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.mini .pp{width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
     '.mini .pp svg{width:26px;height:26px;fill:var(--hk-glyph,#fff)}',
-    '.mini .rb{width:44px;height:44px;border-radius:50%;background:var(--hk-key,rgba(255,255,255,.12));display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
+    '.mini .rb{width:44px;height:44px;border-radius:50%;background:' + window.hkCards.v('key') + ';display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
     '.mini .rb ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
 
     '.toast{position:absolute;left:50%;bottom:20px;transform:translate(-50%,10px);background:rgba(255,255,255,.96);color:#111;font-weight:600;',
@@ -492,7 +496,7 @@
     _build() {
       var self = this;
       this._root.innerHTML =
-        '<ha-card><div class="mu" cols="2">' +
+        '<ha-card><div class="mu">' +
           '<section class="left">' +
             '<div class="grab" role="button" aria-label="Close Now Playing"></div>' +
             '<div class="pon glass"><ha-icon icon="hk:homepod"></ha-icon><div class="tx"><small></small><b></b></div>' +
@@ -598,7 +602,17 @@
       var cols = w >= COLS3 ? 3 : w >= COLS2 ? 2 : 1, changed = cols !== this._cols;
       if (changed) {
         this._cols = cols;
-        this._e.mu.setAttribute('cols', String(cols));
+        // A NEW COLUMN COUNT IS LAID, NOT ANIMATED (2026-10-13): the page is
+        // built as two columns, and on a phone turning to one slid Now
+        // Playing off the foot over .42 s -- a sheet popping up and away on
+        // every first visit to Music (the user's screen recording). Its
+        // transitions are off while the new layout's styles are applied
+        // (one style read), and back on for what is pressed after.
+        var mu = this._e.mu;
+        mu.classList.add('relay');
+        mu.setAttribute('cols', String(cols));
+        if (this._e.left) void getComputedStyle(this._e.left).transform;
+        requestAnimationFrame(function () { mu.classList.remove('relay'); });
         this._closePanel(false);
         this._closePick();
         if (this._e.left) this._e.left.classList.remove('sheetup');

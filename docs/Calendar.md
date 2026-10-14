@@ -49,6 +49,12 @@ gets it once **Calendar** is added there.
 - Tap an event to see it, then **Edit** or **Delete**. A repeating event asks
   whether to change or delete **This Event Only** or **This and Future
   Events**.
+- **The event’s sheet** (from the page, a calendar’s tile or its
+  [notification](Notifications.md#calendars)): on a wall tablet, the event in
+  cards on the left (its calendar, when, where, notes, Edit and Delete) over a
+  little month, and its day as hours on the right, scrolled to the event. Tap
+  a day in the little month to see that day; tap another event in the hours to
+  open it. On a phone it is one column.
 
 | | |
 |---|---|

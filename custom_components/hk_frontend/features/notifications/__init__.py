@@ -54,7 +54,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_state_change_event
 
 from ...const import DOMAIN, SIGNAL_POPUP
-from .. import NOTIFICATIONS, TITLES, Feature, entries, item_data, loaded, unique_id
+from .. import ALARM_PIN, NOTIFICATIONS, TITLES, Feature, entries, item_data, loaded, unique_id
+from ..alarm_pin.const import CONF_ALARM
 from . import rules, settings_ws, snaps as S
 from .const import (CONF_CHIME, CONF_DND, CONF_ITEMS, CONF_SAVER, CONF_STAY, CONF_WAKE, DATA, DEFAULTS, MESSAGE_MAX,
                     MUTE_S, PAGE_RE, TAPS, TITLE_MAX, WAKE_MAX_S, WAKE_MIN_S)
@@ -238,10 +239,38 @@ def _kind(hass: HomeAssistant, entity_id: str, reg_entry: Any = None) -> str:
     return rules.kind_of(domain, dc, oid)
 
 
+def pin_panels(hass: HomeAssistant) -> dict[str, str]:
+    """Alarm PIN's panels, each with the alarm it stands in front of."""
+    reg = er.async_get(hass)
+    out = {}
+    for f in entries(hass, ALARM_PIN):
+        panel = reg.async_get_entity_id("alarm_control_panel", DOMAIN, f.entry_id)
+        alarm = f.data.get(CONF_ALARM)
+        if panel and alarm:
+            out[panel] = alarm
+    return out
+
+
+def keypad_for(hass: HomeAssistant, eid: str | None) -> str | None:
+    """THE SHEET A TAP OPENS for an alarm with an Alarm PIN panel in front of
+    it: the panel's, which asks for the PIN -- not the alarm's own, which
+    arms and disarms for anyone (2026-10-13: a tap on the Lyric alarm's
+    notification opened its plain Arm / Disarm sheet, not the keypad)."""
+    if not eid or not eid.startswith("alarm_control_panel."):
+        return eid
+    for panel, alarm in pin_panels(hass).items():
+        if alarm == eid:
+            return panel
+    return eid
+
+
 def candidates(hass: HomeAssistant, key: str) -> list[str]:
     """A category's accessories, found: every entity of its kinds that Home
     Assistant shows (not hidden, disabled or a device's diagnostic), not HK
-    Frontend's own (Alarm PIN's alarm stands in front of the real one)."""
+    Frontend's own -- except an Alarm PIN panel, listed BESIDE the alarm it
+    protects (2026-10-13, the user's call: both, the panel saying what it is
+    -- settings_ws _named). It mirrors that alarm, so with both ticked only
+    one is watched (members); a tap on either opens the keypad (keypad_for)."""
     cat = rules.category(key)
     if cat is None:
         return []
@@ -249,9 +278,10 @@ def candidates(hass: HomeAssistant, key: str) -> list[str]:
         return camera_list(hass)
     kinds = cat[2]
     reg = er.async_get(hass)
+    pins = pin_panels(hass) if "alarm_panel" in kinds else {}
     out = []
     for e in reg.entities.values():
-        if e.disabled_by or e.hidden_by or e.entity_category or e.platform == DOMAIN:
+        if e.disabled_by or e.hidden_by or e.entity_category or (e.platform == DOMAIN and e.entity_id not in pins):
             continue
         if _kind(hass, e.entity_id, e) in kinds:
             out.append(e.entity_id)
@@ -269,7 +299,13 @@ def members(hass: HomeAssistant, item: dict[str, Any]) -> list[str]:
         return [p["trigger"] for p in camera_pairs(hass, item) if p["on"]]
     if item.get("category"):
         ex = set(item.get("exclude") or [])
-        return [e for e in candidates(hass, item["category"]) if e not in ex]
+        got = [e for e in candidates(hass, item["category"]) if e not in ex]
+        # AN ALARM AND ITS PIN PANEL ARE ONE ALARM: both ticked, the alarm is
+        # watched and the panel not -- one notification, opening the keypad
+        if any(e.startswith("alarm_control_panel.") for e in got):
+            pins = pin_panels(hass)
+            got = [e for e in got if not (e in pins and pins[e] in got)]
+        return got
     return [item["entity"]] if item.get("entity") else []
 
 
@@ -365,7 +401,7 @@ def build(hass: HomeAssistant, opts: dict[str, Any], item: dict[str, Any], new: 
         # ITS SHEET: the accessory's own -- for what a camera sees, the
         # camera's live (its view, else the snapshot's camera)
         "sheet": (view or (camera_for(hass, eid) if kind in rules.CAMERA_KINDS else None)
-                  or (camera if kind in rules.CAMERA_KINDS else None) or eid),
+                  or (camera if kind in rules.CAMERA_KINDS else None) or keypad_for(hass, eid)),
         # Go To on its sheet: None automatic (the screen works it out), "none", or a page
         "go": item.get("go") or None,
         "mute": mute_key(item, eid), "event": None,
@@ -434,7 +470,7 @@ def build_action(hass: HomeAssistant, opts: dict[str, Any], data: dict[str, Any]
         "important": important, "wake": wake,
         "stay": int(opts[CONF_STAY] if stay is None else stay),
         "saver": opts[CONF_SAVER], "chime": bool(opts[CONF_CHIME]), "dnd": opts[CONF_DND],
-        "pop": None, "camera": camera, "snap": None, "tap": tap, "sheet": eid,
+        "pop": None, "camera": camera, "snap": None, "tap": tap, "sheet": keypad_for(hass, eid),
         # a page named: its Go To too; an automation's own has no Mute
         "page": page if tap == "page" else None, "go": page or None, "mute": None, "event": None,
         "buttons": rules.buttons(kind, s, camera) if eid else rules.buttons("event", None, camera),
@@ -690,8 +726,17 @@ class Watcher:
                 self._later.async_schedule_call()
         self._listen.append(self.hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, registry))
         if not self.hass.is_running:
-            self._listen.append(self.hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STARTED, lambda _e: self.start()))
+            # A @callback, so it runs in the event loop: a bare lambda is an
+            # executor job, and start() would register its trackers from a
+            # worker thread. Once it has fired, its remover is spent -- calling
+            # it at stop() logs "Unable to remove unknown job listener".
+            @callback
+            def started(_event: Event) -> None:
+                if unsub in self._listen:
+                    self._listen.remove(unsub)
+                self.start()
+            unsub = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, started)
+            self._listen.append(unsub)
 
     def start(self) -> None:
         if self._unsub:

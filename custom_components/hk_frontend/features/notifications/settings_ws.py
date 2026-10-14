@@ -46,8 +46,10 @@ def _entry(hass: HomeAssistant) -> Feature | None:
 
 
 def _named(hass: HomeAssistant, ids: list[str]) -> list[dict[str, str]]:
-    from . import name_of
+    from . import name_of, pin_panels
     reg = er.async_get(hass)
+    pins = pin_panels(hass) if any(e.startswith("alarm_control_panel.") for e in ids) else {}
+    guarded = {alarm: panel for panel, alarm in pins.items()}
     out = []
     for e in ids:
         ent = reg.async_get(e)
@@ -56,7 +58,15 @@ def _named(hass: HomeAssistant, ids: list[str]) -> list[dict[str, str]]:
             dev = dr.async_get(hass).async_get(ent.device_id)
             area = dev.area_id if dev else None
         a = ar.async_get(hass).async_get_area(area) if area else None
-        out.append({"entity": e, "name": name_of(hass, e), "area": a.name if a else ""})
+        row = {"entity": e, "name": name_of(hass, e), "area": a.name if a else ""}
+        # WHAT AN ALARM PIN PANEL IS, said where it is picked (2026-10-13): a
+        # copy of an alarm with a PIN, made by HK -- and of that alarm, that
+        # a tap on its notification opens the keypad
+        if e in pins:
+            row["note"] = name_of(hass, pins[e]) + " with a PIN · made by HK’s Alarm PIN"
+        elif e in guarded:
+            row["note"] = "Opens " + name_of(hass, guarded[e]) + " to disarm"
+        out.append(row)
     return sorted(out, key=lambda x: (x["area"], x["name"]))
 
 

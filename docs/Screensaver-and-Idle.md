@@ -7,7 +7,8 @@ keeps a tablet awake.
 
 The screensaver shows your photos with the time, the weather, what is playing,
 any running timers and the home’s status over them. It is part of HK Frontend
-(nothing to install), and it runs only for the tablet’s user.
+(nothing to install), and it runs only on a wall tablet: a computer or a phone
+opening the same screen never gets it.
 
 ![The photo screensaver on a wall tablet: the clock, date and weather top left, Home Status top right](images/tablet-screensaver.png)
 
@@ -15,15 +16,17 @@ any running timers and the home’s status over them. It is part of HK Frontend
 one of your photos.)*
 
 1. Put some photos in a folder of Home Assistant’s media, and tell HK
-   Frontend where: **HK Settings → Wall Tablets → Screensaver for All Screens
-   → Screensaver Photos**. The
+   Frontend where: **HK Settings → All Screens → Screensaver → Screensaver
+   Photos**. The
    default, `media-source://media_source/local/photos`, is a `photos` folder in
    your local media. Folders inside it are shown too.
 2. Open the screen in HK Settings. Under **When Idle**, turn on **Photo
-   Screensaver**; under **This Device**, choose the **Tablet User**.
+   Screensaver**. Under **Wall Tablets**, the tablets that run it are listed;
+   add one with **Add a Tablet to This Screen…** if there is none yet
+   ([Wall Tablets](Wall-Tablets.md#3-add-the-tablet)).
 3. Optional: **Screensaver Options** (see [the settings](Screens.md#screensaver-options)). A
-   screen uses the settings for All Screens (**Wall Tablets → Screensaver for
-   All Screens**) unless you turn off **Same as All Screens** and give it its
+   screen uses the settings for All Screens (**All Screens → Screensaver**)
+   unless you turn off **Same as All Screens** and give it its
    own; the row then reads **Just This Screen**.
 
 ![Screensaver Options in HK Settings: timing, photos and what shows over them, with the screensaver itself in the preview](images/settings-screensaver.png)
@@ -33,7 +36,8 @@ that screen shows it, and changes as you change the options. Only the preview
 changes: the tablet, its switch and its photos are left alone.
 
 **Setup Check** counts the photos it finds, and says so when the folder is
-empty or can’t be read.
+empty or can’t be read, or when a screen has the Photo Screensaver on but no
+tablet runs it.
 
 ### How it behaves
 
@@ -42,8 +46,46 @@ empty or can’t be read.
   playing.
 - The photos cross-fade every **Each Photo For** (30 seconds). In **Random**
   order every photo is shown once before any is repeated.
-- A portrait photo is shown whole, over a blurred copy of itself; a landscape
-  photo fills the screen (**Fill the Screen**).
+- **Portrait Photos** and **Landscape Photos** each have their own settings.
+  By default a portrait photo is shown whole, over a blurred copy of itself,
+  and a landscape photo fills the screen. For each:
+  - **Show As**: **Whole** (over a blurred copy, with its **Background Blur**
+    and **Background Dim**) or **Fill the Screen** (cropped to the screen).
+  - **Zoom** (100–200%) closes in on the focus.
+  - **Focus** (**Top / Center / Bottom** and **Left / Center / Right**): the
+    part that stays when the photo is cropped. **Top** keeps the faces in most
+    portraits. For a whole photo it is its **Position**, where it sits when
+    there is room around it.
+  - **Reset to Default** puts them back.
+
+- **Layout: Mosaic** shows 2 to 5 photos at once (**Photos per Mosaic**), in a
+  layout picked at random each time, never the same twice running: a big one
+  beside two, three columns, a grid of four and more. Portraits go in the tall
+  cells and landscapes in the wide ones, and each is cropped by its shape's
+  **Focus** and **Zoom** below. **Spacing**: **None**, **Thin** or **Rounded**
+  (gaps and rounded corners, like the Home Screen's widgets), with the lines
+  between the photos as you like them: **Line Thickness** (1–24 px; Spacing’s
+  own to begin with, 3 for Thin and 12 for Rounded) and **Line Color**
+  (**Black**, **White**, **Gray**, **Charcoal**, **Cream** or **Navy**).
+  **Changes**:
+  **One Photo at a Time** swaps one cell every Each Photo For and, after a
+  while, the whole mosaic; **All at Once** brings a new mosaic each time. A
+  tap on an edge always brings a new one. Each photo is drawn at its cell's
+  own size, so five photos cost a tablet about what one full-screen photo
+  does. Every photo fills its cell, so with Mosaic on, Portrait Photos and
+  Landscape Photos show only **Zoom** and **Focus**.
+
+  ![The photo screensaver as a mosaic: several photos at once, with lines between them](images/saver-mosaic.png)
+
+  **Up To** brings a different number of photos now and then: from one (a
+  single photo, full screen) up to Photos per Mosaic, a new number every
+  **A New Number Every** (1, 5, 10, 15, 30 or 60 minutes; 10 to begin with).
+
+  Above the preview, **Portrait** or **Landscape** shows a photo of that shape
+  and keeps it while you change its settings, laid out again in place (**Any
+  Photo** lets the photos change again). The
+  layout is the browser's, once per photo: it adds nothing to what the tablet
+  draws between photos.
 - Over the photos: the clock and date, the weather, what is playing, running
   timers, and **Home Status** top right (“Home Secured” when the alarm is set
   and everything is shut and locked; otherwise what is open or unlocked;
@@ -60,6 +102,115 @@ empty or can’t be read.
   away over **Fade Back** (half a second; **Instant**, 1 or 2 seconds).
 - Behind the photos the live sky, every animation and the live camera tile
   hold still, so the tablet does very little while it shows.
+
+### A clock
+
+**Show: Clock** (beside Photos and Forecast) makes a clock the screensaver,
+full screen. Over the photos or the forecast, the **Clock** row is
+**Corner** (the small clock and date, top left), **Large** (the same clock
+as Show: Clock, centered, in place of the small one) or **Off**.
+
+![Show: Clock on a wall tablet: one clock face, full screen, over a moving background](images/saver-clock.png)
+
+One **Clock Style** serves Show: Clock and a Large clock; its page lists the
+fifteen, with the preview showing the one you pick:
+
+| Style | Look |
+|---|---|
+| Today | The date, the time, the weather and what's playing, set as one block; its color follows the day (dawn orange, day blue, evening pink, night indigo) unless you pick one |
+| Classic | Huge thin digits, like the lock screen |
+| Big Serif | An editorial italic, like a magazine cover |
+| Neon | Glowing tubes; the colon hums now and then |
+| Retro LCD | Seven segments on a backlit panel |
+| Flip | Split-flap cards that flip as the minute turns |
+| Analog | A watch face with a sweeping second hand |
+| Words | “It is quarter past seven”, lit in a grid of letters |
+| Minimal Arc | The hour, big; the minutes a ring filling round it |
+| Nixie Tubes | Orange glow in glass tubes |
+| Poster | Swiss-poster bold, hours over minutes |
+| Dot Matrix | An amber LED departure board |
+| Day Ring | Today as a ring: daylight, night, where the sun is, and the next sunrise or sunset |
+| Glass | The time on a frosted pane |
+| Typewriter | A sentence, typed out, the cursor blinking |
+
+![Six of the clock styles side by side](images/saver-clock-faces.png)
+
+**Color**, under the style and at the top of its page, offers that
+style's own colors (Classic: White, Warm, Ice Blue, Mint or Rose; Today: By
+Time of Day, or one color). Each style keeps its own, so trying another
+style loses none.
+
+![The Clock Style page in HK Settings: the Color at its top, then the fifteen styles](images/settings-clock-style.png)
+
+Every style shows the date, and **24-Hour Time** switches them all. On a
+screen left on all night the clock drifts a few percent every five minutes,
+so nothing burns in. The digits are set the way Apple sets a big clock:
+proportional, so a “1” doesn’t leave a gap, with the colon raised to the
+middle of the digits.
+
+Today carries its own weather and music, so it stands in for the **Weather**
+and **Now Playing** corners while it shows (Home Status and Timers stay).
+
+A screen's page offers a **Recommended for** its room when its clock isn't
+already the one suggested there, one tap to take it: a bedroom Minimal Arc on
+Black with Night Mode, a bathroom Classic on Black with Night Mode, a kitchen
+Today on Sky Only, a living room Classic on Sky Only, an office Flip on a
+Drifting Gradient, an entry or garage Today on Black, and anywhere else Today
+on Sky Only.
+
+**Night Mode** (with Show: Clock, or a Large clock): **Off**, **At Night**
+(**From** and **Until**, 22:00 to 07:00 to begin with, across midnight) or
+**Always**. Like StandBy on an iPhone, the clock and everything over it turn a
+dim red on black and nothing behind the clock is drawn, so a bedroom stays
+dark. It comes and goes on its own, checked every half minute.
+
+![Night Mode: the clock a dim red on black](images/saver-clock-night.png)
+
+With Show: Clock:
+
+- **Behind the Clock → Background**: **Black**; **Grain Wash** (two
+  colors drifting under fine grain), **Drifting Gradient**, **Aurora**, **Ink
+  Swirl** or **Follow the Sky** (the live sky's colors as they are now, a
+  soft light drifting across, no stars or weather); **Low Poly** (a light
+  sweeping across facets in the part of the day's colors), **Topography**
+  (contour bands flowing slowly) or **Constellation** (drifting points joined
+  by fine lines); **Forecast** (the forecast's sky and the season's land);
+  **Sky Only** (the same live sky -- its clouds, stars, sun, moon, rain and
+  snow -- with no land, trees or decorations under it); or **Photos** (your
+  photos, below). Every one but Black moves. Forecast and Sky Only move as
+  the live sky does, and Photos as the photos change. The rest (Grain Wash
+  through Constellation) have **Speed**, how fast (0 holds it still,
+  changing once a minute, for a tablet that runs warm), and **Depth**, how
+  strong (the colors, the glow, the relief, how many contours or points).
+  They're drawn on the tablet itself and moved smoothly by the browser: a
+  new frame about once a second, blended continuously into the last (Low
+  Poly's facets are drawn once and its light slides across them;
+  Constellation draws up to 30 frames a second), so they cost little.
+- **Over the Clock**: **Weather** (top left), **Now Playing** (bottom left),
+  **Timers** (bottom right), **Home Status** (top right) and the forecast
+  along the bottom, each its own switch: turn them all off for the clock
+  alone. **Music First** and the **Side Pane** work as they do over the
+  photos; the clock moves over beside the pane. While the music fills the
+  screen, the small clock and date tell the time above it, top left (with a
+  Large clock over the photos too).
+- Glass draws its frosted pane from the background itself, the way
+  Pre-rendered glass does, never as a live blur.
+
+**Photos behind the clock** are the photos themselves, laid out by the same
+**Photos** settings as the Photo Screensaver: **Layout** (**One at a Time** or
+**Mosaic**, with all of the mosaic’s settings), **Order**, **Each Photo For**,
+**Slow Zoom**, and **Portrait Photos** and **Landscape Photos**. **Darken**
+(0–80%, 35% to begin with) dims them so the clock reads. **Photos: Sharp**
+shows them as they are; **Soft** is the older look, blurred, dimmed copies
+one at a time.
+
+**Clock Text**, over photos, sets how much the clock stands out from them:
+**Shadow** (a soft shadow under it, 40% to begin with) and **Outline** (a dark
+outline around it, 0 to begin with). The same two sliders are there for a
+**Large** clock over the photos.
+
+In HK Settings' preview, choosing a style redraws the clock where it is, so
+you can compare them one after another.
 
 ### No photos? The forecast
 
@@ -128,7 +279,9 @@ two take turns. It only comes while music plays anywhere in the house.
   stays, and the photos (or the forecast) come back 20 seconds after it
   stops (a pause from its own button keeps it there meanwhile). The
   screensaver starts straight into the music when something is already
-  playing.
+  playing. With **Show: Clock** or a **Large** clock, the music covers the
+  big clock, so the small clock and date show above the music while it
+  plays.
 - The music is the one this screen follows, as the dashboard’s music pages
   do: the one you chose there, or what started playing (this tablet’s room
   first). Up Next and the album’s year come from Music Assistant; other
@@ -210,33 +363,34 @@ pause, next).
 
 ### Its switch and In Use sensor
 
-You create nothing. As soon as a screen has **Photo Screensaver** on and a
-**Tablet User**, HK Frontend adds these entities for it, named after the screen
-(a screen called Kitchen gets these):
+You create nothing. Each [wall tablet](Wall-Tablets.md) gets these entities,
+named after the tablet (a tablet called Kitchen gets these):
 
 | Entity | What it is |
 |---|---|
 | `switch.kitchen_photo_screensaver` | **On while the photos show.** The screensaver turns it on when it starts and off when someone taps it. Turn it **on** to start the photos now (bedtime, say); turn it **off** to close them (a doorbell automation bringing the dashboard back). It keeps its state across restarts. |
-| `binary_sensor.kitchen_screen_in_use` | **On while someone is using the screen**: on at each touch, off once the screen has been left alone for its window (below). Only a real touch on the page counts. Nothing sent to the tablet from outside (a brightness change, a kiosk browser command) can turn it on. |
-| `switch.kitchen_black_screen` | **On while the screen is HK Frontend’s own black**, for a screen whose **Sleep Screen** is drawn by *HK Frontend* ([Sleep Screen](Sleep-Screen.md)). Its `black_screen` attribute says which the screen uses (`kiosk` or `hk`), `brightness` the backlight to come back to, and `confirmed` that the page went black. |
+| `binary_sensor.kitchen_screen_in_use` | **On while someone is using the tablet**: on at each touch, off once it has been left alone for its window (below). Only a real touch on the page counts. Nothing sent to the tablet from outside (a brightness change, a kiosk browser command) can turn it on. |
+| `switch.kitchen_black_screen` | **On while the tablet is HK Frontend’s own black**, for a tablet whose **Sleep Screen** is drawn by *HK Frontend* ([Sleep Screen](Sleep-Screen.md)). Its `black_screen` attribute says which the screen uses (`kiosk` or `hk`), `brightness` the backlight to come back to, and `confirmed` that the page went black. |
 | `sensor.kitchen_sleep_screen` | **What Sleep Screen decides** (`dark`, `photos`, `dashboard`, `hold`) and why, while HK Frontend decides; `automation` otherwise ([Sleep Screen](Sleep-Screen.md)). |
 
-Both carry the same attributes: `dashboard`, `starts_after` and
-`in_use_window` (seconds), and `last_touch` (when the screen was last touched).
-Each screen’s pair is a device of its own, under the screen’s item in
-**Settings → Devices & services → HK Frontend**. Renaming the screen renames
-the device and the entities’ names; their entity ids stay as they are, so
-automations keep working. The screen’s **Screensaver Options** page lists both under **For
-Automations**. Tap one there to open it.
+They carry the same attributes: `tablet` (its id), `dashboard` (the screen
+it runs), `starts_after` and `in_use_window` (seconds), and `last_touch`
+(when the tablet was last touched). Each tablet’s entities are a device of
+their own, under the tablet’s item in **Settings → Devices & services → HK
+Frontend**. Renaming the tablet renames the device and the entities’ names;
+their entity ids stay as they are, so automations keep working. The screen’s
+**Screensaver Options** page lists each of its tablets’ switch and In Use
+sensor under **For Automations**. Tap one there to open it.
 
-Only the tablet’s own user ever changes them: a computer opening the same
+Only the tablet itself ever changes them: a computer opening the same
 screen never gets a screensaver, never writes the switch, and never counts as
 a touch.
 
 ### Sleep Screen
 
-Dark when nobody needs the tablet, awake the moment somebody does: **When Idle
-→ Sleep Screen** sets how it goes dark (Kiosk Satellite’s black, or HK
+Dark when nobody needs the tablet, awake the moment somebody does: the
+tablet’s **Sleep Screen** (**Wall Tablets → the tablet → Sleep Screen**) sets
+how it goes dark (Kiosk Satellite’s black, or HK
 Frontend’s own with the backlight at its lowest or the display off) and who
 decides when: **your automations**, with the `hk_frontend.set_black_screen`
 action, or **HK Frontend itself**, from presence sensors, quiet hours, the
@@ -263,7 +417,7 @@ in step.
 
 ### Automations
 
-Two examples, for a screen called Kitchen.
+Two examples, for a tablet called Kitchen.
 
 Photos at bedtime, whether or not anyone touched the tablet:
 
@@ -314,11 +468,11 @@ actions:
 ### Coming from 1.2 (the old helper)
 
 Before 1.3 the switch was a Toggle helper you created,
-`input_boolean.wallpanel_screensaver_<room>`, named by the screen’s **Tablet
-Room**. If you have one, nothing breaks: while it exists HK Frontend keeps it
-and the new switch in step both ways, so your automations keep working. Move
-them to `switch.<screen>_photo_screensaver` when it suits you, then delete the
-helper. The Tablet Room is no longer needed for the screensaver.
+`input_boolean.wallpanel_screensaver_<room>`, named by the screen’s Tablet
+Room (now the tablet’s **Room**). If you have one, nothing breaks: while it
+exists HK Frontend keeps it and the new switch in step both ways, so your
+automations keep working. Move them to `switch.<tablet>_photo_screensaver`
+when it suits you, then delete the helper.
 
 ### HK Frontend’s screensaver or WallPanel?
 
@@ -331,10 +485,10 @@ work, and you can choose per screen.
 | | HK Frontend’s screensaver | WallPanel |
 |---|---|---|
 | Install | Part of HK Frontend | From HACS, then YAML in each dashboard |
-| Set up | HK Settings: Photo Screensaver, Tablet User, Screensaver Options | `wallpanel:` in the dashboard’s raw configuration |
-| Who gets it | Only the screen’s Tablet User | Everyone who opens the dashboard, unless a profile turns it off (per user, or per browser with Browser Mod) |
-| Its switch | `switch.<screen>_photo_screensaver`, made for you | An `input_boolean` you create (`screensaver_entity`) |
-| “Someone is using it” | `binary_sensor.<screen>_screen_in_use`, made for you, with its window set by Starts After | No sensor for touches (a camera motion sensor, below) |
+| Set up | HK Settings: Photo Screensaver, Screensaver Options, and the wall tablet that runs the screen | `wallpanel:` in the dashboard’s raw configuration |
+| Who gets it | Only the screen’s wall tablets | Everyone who opens the dashboard, unless a profile turns it off (per user, or per browser with Browser Mod) |
+| Its switch | `switch.<tablet>_photo_screensaver`, made for you | An `input_boolean` you create (`screensaver_entity`) |
+| “Someone is using it” | `binary_sensor.<tablet>_screen_in_use`, made for you, with its window set by Starts After | No sensor for touches (a camera motion sensor, below) |
 | Photos | Images from a Home Assistant media folder | Images and videos from a media folder, Immich, Unsplash, entity pictures, or whole websites |
 | Without photos | The forecast, over the live sky and a landscape of the season (or a dark screen, if you prefer) | Nothing to show until a media source has images |
 | The forecast among the photos | Between the Photos → Forecast: the full forecast every few photos | A weather card over the photos, or a weather web page among them |
@@ -343,7 +497,7 @@ work, and you can choose per screen.
 | While it shows | The live sky, card animations and the live camera tile hold still | Its own slideshow |
 | Won’t start over | An open detail sheet, Live TV | An Assist dialog; optionally a Browser Mod pop-up |
 | Beyond the screensaver | Home Assistant Header & Sidebar, in the screen’s Header group | Hides the header and sidebar, full screen, keeps the screen on, wakes on motion seen by the tablet’s camera |
-| Checked by | Setup Check (photos found, Tablet User) | — |
+| Checked by | Setup Check (photos found, the screen’s wall tablets) | — |
 
 **Choose HK Frontend’s screensaver** for a screen on a wall tablet
 when you want it working with two settings, a switch and an In Use sensor that
@@ -352,7 +506,7 @@ least work for the tablet behind the photos.
 
 **Choose WallPanel** if you want videos, Immich or Unsplash, a website as the
 screensaver, your own cards over the photos, the tablet’s camera to wake it,
-or a screensaver that isn’t tied to one tablet user.
+or a screensaver that isn’t tied to a wall tablet.
 
 ### WallPanel instead
 
@@ -362,13 +516,13 @@ WallPanel Instead** hands this screen’s
 screensaver to it, with WallPanel’s own options. A screen using WallPanel gets
 no switch or In Use sensor from HK Frontend: WallPanel reports through
 `input_boolean.wallpanel_screensaver_<room>`, which you create, named by the
-screen’s **Tablet Room**.
+**Room** of the tablet that runs the screen (its area’s id).
 
 ### On a dashboard of your own
 
 An existing dashboard gets the photo screensaver like any screen: give it HK
-settings (**Screens → Add Screen → Existing Dashboards**), then turn on
-**Photo Screensaver** and choose its **Tablet User**. Its options, the
+settings (**Screens → Add Screen → Existing Dashboards**), turn on **Photo
+Screensaver**, and add the wall tablet that runs it. Its options, the
 forecast, and its switch and In Use sensor are all as above, with nothing
 written in its YAML.
 
@@ -380,14 +534,22 @@ screensaver then keeps in step the same way.
 ```yaml
 hk_screensaver:
   user: Kitchen Tablet   # the tablet’s Home Assistant user
+  tablet: kitchen        # optional, instead of user: the wall tablet’s id
   entity: input_boolean.kitchen_photos   # optional: yours, kept in step
   photos: media-source://media_source/local/photos
   starts_after: 180
   each_photo: 30
   order: random        # or sorted
-  fill: true
-  zoom: false
-  show: photos         # photos, both (the forecast slide on) or forecast
+  zoom: false          # Slow Zoom
+  photo_layout: single # or mosaic (mosaic_count: 2 to 5)
+  fill: true           # landscape photos fill the screen
+  portrait_fill: false # portrait photos whole, over a blurred copy
+  portrait_y: top      # the part kept when cropped: top, center, bottom (and portrait_x)
+  show: photos         # photos, both (the forecast slide on), forecast or clock
+  clock_over: corner   # over the photos: corner or large (clock: false for none)
+  clock_style: classic # for show: clock and a large clock
+  clock_bg: gradient   # behind show: clock
+  clock_night: "off"   # "night" (clock_night_from to clock_night_to) or "always"
   forecast_every: 5    # a slide (the forecast, the music) after this many photos
   music_slide: false   # what plays, full screen: a slide among the photos
   music_first: false   # ...or the music fills the screen while it plays
@@ -410,6 +572,34 @@ hk_screensaver:
     - type: custom:hk-screensaver-status-card
 ```
 
+The block takes the other options too, with the same names the settings
+keep:
+
+- **Photos**: `portrait_fill`, `portrait_blur` (0–100) and `portrait_dim`
+  (0–80) for the blurred copy, `portrait_zoom` (100–200), `portrait_x`
+  (`left`, `center`, `right`) and `portrait_y` (`top`, `center`, `bottom`);
+  the same with `landscape_`, except that a landscape photo’s Fill the Screen
+  is `fill`.
+- **Mosaic**: `photo_layout: mosaic`, `mosaic_count` (2–5), `mosaic_gap`
+  (`none`, `thin`, `rounded`), `mosaic_line` (1–24 px; 0 is Spacing’s own),
+  `mosaic_color` (`black`, `white`, `gray`, `charcoal`, `cream`, `navy`),
+  `mosaic_change` (`one`, `all`), `mosaic_random` (Up To) and `mosaic_every`
+  (minutes).
+- **Clock**: `clock_style` (`today`, `classic`, `serif`, `neon`, `lcd`,
+  `flip`, `analog`, `words`, `arc`, `nixie`, `poster`, `dots`, `ring`,
+  `glass`, `type`), `clock_colors` (each style’s color, by style:
+  `{classic: warm}`), `clock_24`, `clock_bg` (`black`, `grain`, `gradient`,
+  `aurora`, `ink`, `sky`, `lowpoly`, `topo`, `constellation`, `forecast`,
+  `skyonly`, `photos`), `clock_speed` and `clock_depth` (0–100), and
+  `clock_night_from` and `clock_night_to` in quotes (`"22:00"`). For photos
+  behind a clock, `clock_photo_soft`, `clock_photo_dim` (Darken, 0–80),
+  `clock_text_shadow` and `clock_text_outline` (0–100).
+
+With `show: clock` or `clock_over: large` the big clock tells the time, so
+in `cards` leave out `hk-clock-card`, or give it `music_only: true`: it then
+shows only while the music covers the big clock, as on a screen set up in
+HK Settings.
+
 Everything a dashboard of your own can use is on
 [Your Own Dashboard](Your-Own-Dashboard.md).
 
@@ -418,34 +608,34 @@ page (a tablet you are working on, say).
 
 ## 6. Return to Home when idle
 
-With **Return to Home When Idle** on (the screen’s **When Idle**), a page that
-nobody has touched goes back to the screen’s first view: open Lights, walk
-away, and the tablet is back on Home 50 seconds later. Scrolling or tapping
-starts the count again.
+With **Return to Home When Idle** on, a page that nobody has touched goes back
+to the screen’s first view: open Lights, walk away, and the tablet is back on
+Home 50 seconds later. Scrolling or tapping starts the count again.
+
+It is a wall tablet’s, and on for every tablet to begin with: **HK Settings →
+All Screens → Wall Tablets → All Tablets** sets **Return to Home When Idle**
+and **Idle Time** (**30 Seconds**, **50 Seconds**, **1 Minute**, **2
+Minutes**, **5 Minutes** or **Never**; 50 seconds to begin with) for every
+tablet, and each tablet’s own page can set its own (each reads **Same as All
+Tablets** until you do). A desk, a phone or a car never returns to Home: only
+a page HK Frontend knows is a wall tablet does ([Which tablet a browser
+is](Wall-Tablets.md#which-tablet-a-browser-is)).
 
 It waits while:
 
 - a detail sheet is open;
-- a Live TV channel is playing;
-- the tablet’s optional `binary_sensor.<room>_tablet_in_use` is on (below).
+- a Live TV channel is playing.
 
-Turn it on for wall tablets only. On a desk, a phone or a car, a page someone
-is reading should stay put.
+Keep the Idle Time shorter than the screen’s **Starts After**, so the tablet
+is Home before the screensaver comes up. The tablet’s page shows the order
+under **When It’s Left Alone**, and says when Home would come after the
+screensaver.
 
-**Finer control, per tablet (optional).** Set the screen’s **Tablet Room**
-(under **This Device**; lower-case letters, digits and underscores, like `living_room`), then create
-any of these helpers for that room:
-
-| Helper | What it does |
-|---|---|
-| `input_select.<room>_tablet_idle_return` | How long to wait. Its options must be exactly: `Quick 30s`, `Normal 50s`, `Relaxed 2 min (may return behind screensaver)`, `Never`, `Auto (10s before Room Idle)`. |
-| `input_number.<room>_tablet_room_idle` | Seconds, for `Auto`: the page returns 10 seconds before this (never sooner than 10 seconds). |
-| `binary_sensor.<room>_tablet_in_use` | While it is on, someone is using the tablet: the page stays, and is asked about again every 15 seconds. You build this one, from whatever tells you the tablet is being read. |
-
-Without a room, or without the helpers, the wait is 50 seconds. **HK Settings
-→ Wall Tablets → Default Idle Time** picks an `input_number` (or `number`)
-for `Auto` to use when a room has no `_tablet_room_idle` of its own; with
-none, `Auto` counts from 60 seconds.
+**Coming from screens that were tablets.** The per-room helpers
+(`input_select.<room>_tablet_idle_return`,
+`input_number.<room>_tablet_room_idle`, `binary_sensor.<room>_tablet_in_use`)
+and the Default Idle Time entity are no longer read: nothing to create. See
+[Wall Tablets → Screens that were tablets](Wall-Tablets.md#screens-that-were-tablets).
 
 ## What keeps a tablet awake
 
@@ -456,9 +646,9 @@ tablets something to read:
 | Entity | Use it to |
 |---|---|
 | `sensor.tv_viewers` (Live TV) | Keep a tablet on while it is showing a channel. The state is how many screens are watching; `users` names their signed-in users. |
-| `switch.<screen>_photo_screensaver` | Know when the photo screensaver is showing, and start or stop it (made for you; see step 5). |
-| `binary_sensor.<screen>_screen_in_use` | Know someone is using the screen: a real touch within its window (made for you; see step 5). |
-| `binary_sensor.<room>_tablet_in_use` | Return to Home’s own optional signal (you create it; see step 6). |
+| `switch.<tablet>_photo_screensaver` | Know when the photo screensaver is showing, and start or stop it (made for you; see step 5). |
+| `binary_sensor.<tablet>_screen_in_use` | Know someone is using the tablet: a real touch within its window (made for you; see step 5). |
+| `sensor.<tablet>_sleep_screen` | What the tablet’s [Sleep Screen](Sleep-Screen.md) decided, and why. |
 
 For example, in the automation that turns the kitchen tablet’s screen off, a
 condition that holds off while that tablet plays TV:
@@ -473,31 +663,26 @@ conditions:
 Everything HK Frontend serves is sent with `no-cache`, so a tablet picks up a
 new version on its next load. The first load after an update can still come
 from the browser’s own copy, so **reload twice** before deciding something
-did not change. **Load start URL** on the tablet’s Fully Kiosk device reloads
-it from Home Assistant. Settings you change in HK Settings reach open screens
-by themselves, with no reload.
+did not change. A tablet’s page in **Wall Tablets** has **Clear Cache &
+Reload** (and Wall Tablets has **Clear Cache & Reload All**): after updating HK
+Frontend, use it, since a plain reload keeps the old HK files. Settings you
+change in HK Settings reach open screens by themselves, with no reload.
 
 More help: [Troubleshooting](Troubleshooting.md).
 
-## Wall Tablets settings
+## Screensaver settings
 
-**All Screens → Wall Tablets.** Settings for every wall tablet. Each tablet’s
-own settings are on its screen: Return to Home and Photo Screensaver under
-[When Idle](Screens.md#when-idle), its Tablet User and Tablet Room under
-[This Device](Screens.md#this-device). More about wall tablets: [Wall tablets](Wall-Tablets.md).
+**All Screens → Screensaver** (right after Sky / Background). What every
+screen’s screensaver shows, unless the screen has its own. When a tablet goes
+dark is its own [Sleep Screen](Sleep-Screen.md)’s, and when it returns to Home
+its own (both in [Wall Tablets](Wall-Tablets.md#wall-tablets-settings)).
 
 | Setting | Default | What it does |
 |---|---|---|
-| Idle → Default Idle Time | 60 Seconds | An input number or number entity: the room idle time for a tablet whose room has no `input_number.<room>_tablet_room_idle` of its own. Used only when the tablet’s return is set to `Auto` (below). |
-| Screensaver → Screensaver for All Screens | Photos · 3 Minutes | Its page starts with **Photos → Screensaver Photos**, the media folder every screen’s photo screensaver shows (default `media-source://media_source/local/photos`). Then the screensaver options every screen uses unless it has its own (a screen’s **Screensaver Options → Same as All Screens**): the same options as a screen’s page, with a preview of the first screen that uses them, and **Screens**, each with **Same as All Screens** or **Just This Screen**. |
-| Wall Tablets | — | Every screen with Return to Home or Photo Screensaver on, with its room. |
+| Photos → Screensaver Photos | `media-source://media_source/local/photos` | The media folder every screen’s photo screensaver shows. |
+| The options | Photos · 3 Minutes | The same options as a screen’s [Screensaver Options](Screens.md#screensaver-options), for every screen whose **Same as All Screens** is on, with a preview of the first screen that uses them. |
+| Screens | — | Each screen with the Photo Screensaver on, with **Same as All Screens** or **Just This Screen**. |
 
-**How long Return to Home waits.** Without a Tablet Room, or without the
-helpers below, a page goes back to Home after 50 seconds untouched. With a
-Tablet Room, these optional helpers of yours are read when they exist:
-
-| Helper | What it does |
-|---|---|
-| `input_select.<room>_tablet_idle_return` | Options `Quick 30s`, `Normal 50s`, `Relaxed 2 min (may return behind screensaver)`, `Never`, and `Auto (10s before Room Idle)`. |
-| `input_number.<room>_tablet_room_idle` | Seconds, for `Auto`: the page returns 10 seconds before this (at least 10 seconds). Without it, Default Idle Time is used. |
-| `binary_sensor.<room>_tablet_in_use` | While it is on, someone is reading the page: don’t return yet. |
+Its address is `#/house/screensaver` in HK Settings; the old
+`#/house/tablets/screensaver` (Wall Tablets → Screensaver, before Screensaver
+had its own entry) still opens it.

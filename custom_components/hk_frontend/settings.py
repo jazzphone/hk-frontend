@@ -117,12 +117,29 @@ SKY_BACKDROPS = (
     {"id": "mist", "label": "Mist",
      "day": ["#0d1a1c", "#173437", "#22646a", "#56a0a0"],
      "night": ["#080f10", "#0d1e21", "#12373d", "#325556"]},
+    # Black (2026-10-13): what a screen with its Live Sky turned off showed
+    # -- the views' own near-black -- as a color to choose
+    {"id": "black", "label": "Black",
+     "day": ["#05070e", "#05070e", "#05070e", "#05070e"],
+     "night": ["#05070e", "#05070e", "#05070e", "#05070e"]},
     {"id": "custom", "label": "Custom"},
 )
 SKY_BACKDROP_IDS = tuple(p["id"] for p in SKY_BACKDROPS)
-# A PAGE'S BACKGROUND (Sky / Background -> Pages): its own color, or any
-# backdrop -- "live" among them, the live sky
-SKY_PAGE_MODES = ("own",) + SKY_BACKDROP_IDS
+# THE BACKGROUND (2026-10-13, Sky / Background's first choice, for All
+# Screens, a screen and a page): the live sky; a still Color (one of the
+# backdrops but Live); or a Photo of your own, still. Color and Photo draw
+# no sun, moon, stars, weather or decorations -- before this, a Backdrop
+# color only recolored the live sky, and its stars still showed through.
+SKY_BACKGROUNDS = ("live", "color", "photo")
+SKY_COLOR_IDS = tuple(i for i in SKY_BACKDROP_IDS if i != "live")
+# A PAGE'S BACKGROUND (Sky / Background -> Pages): its own color, any
+# backdrop -- "live" among them, the live sky -- or "photo" (its own photo,
+# sky.page_photos, else the screen's)
+SKY_PAGE_MODES = ("own",) + SKY_BACKDROP_IDS + ("photo",)
+# A PHOTO'S ADDRESS: one uploaded to Home Assistant (image_upload, served
+# without sign-in from this origin, so the sky can measure it), or a file in
+# www (/local/...) or HK's own files folder (/hk/...)
+SKY_PHOTO = re.compile(r"^/(api/image/serve/[0-9a-f]{32}/original|(local|hk)/[^\s\"'<>()\\]{1,200})$")
 _MMDD = re.compile(r"^\s*(\d{1,2})-(\d{1,2})\s*$")
 
 
@@ -146,6 +163,78 @@ def sky_pages(v: Any) -> dict[str, str] | None:
         return None
     return {str(k): m for k, m in v.items()
             if isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k) and m in SKY_PAGE_MODES}
+
+
+CHIP_SHOWS = ("always", "active")
+
+
+def chips_custom_show(v: Any) -> dict[str, str] | None:
+    """Each custom chip's Show on a screen ({key: always | active}); None when
+    it can't be read. A key or value that isn't one is left out."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    return {k: m for k, m in v.items() if isinstance(k, str) and CHIP_KEY.match(k) and m in CHIP_SHOWS}
+
+
+def sky_photo(v: Any) -> str | None:
+    """A background photo's address as stored, or None (none, or one this
+    can't show)."""
+    return v if isinstance(v, str) and SKY_PHOTO.match(v) else None
+
+
+def sky_page_photos(v: Any) -> dict[str, str] | None:
+    """Each page's own photo: {page: address}; None when it cannot be read.
+    A page or address that isn't one is left out."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    return {str(k): u for k, u in v.items()
+            if isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k) and sky_photo(u)}
+
+
+# A BACKGROUND PHOTO'S LOOK (2026-10-13, Sky / Background -> Photo -> Look):
+# blur (0-100 %, up to 40 px), dim (0-80 %), saturation (0-200 %, 100 as
+# taken), and a color tint -- one of the Color backdrops washed over it at
+# tint_amount (0-80 %); "" no tint. A page's photo has its screen's look.
+PHOTO_LOOK_DEFAULTS = {"blur": 0, "dim": 0, "saturation": 100, "tint": "", "tint_amount": 35}
+PHOTO_LOOK_RANGES = {"blur": (0, 100), "dim": (0, 80), "saturation": (0, 200), "tint_amount": (0, 80)}
+
+
+def photo_look(v: Any) -> dict[str, Any] | None:
+    """A photo's look as stored -- every key, each in range -- or None when it
+    can't be read. A key missing is its default."""
+    if not isinstance(v, Mapping) or set(v) - set(PHOTO_LOOK_DEFAULTS):
+        return None
+    out = dict(PHOTO_LOOK_DEFAULTS)
+    for k, (lo, hi) in PHOTO_LOOK_RANGES.items():
+        if k in v:
+            n = v[k]
+            if isinstance(n, bool) or not isinstance(n, (int, float)) or not lo <= n <= hi:
+                return None
+            out[k] = int(round(n))
+    if "tint" in v:
+        if v["tint"] not in ("", None) and v["tint"] not in SKY_COLOR_IDS:
+            return None
+        out["tint"] = v["tint"] or ""
+    return out
+
+
+def page_looks(v: Any) -> dict[str, dict[str, Any]] | None:
+    """Each page's own photo look: {page: photo_look}; None when it cannot be
+    read. A page or look that isn't one is left out."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    out = {}
+    for k, look in v.items():
+        got = photo_look(look) if isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k) else None
+        if got is not None:
+            out[k] = got
+    return out
 
 
 def sky_stops(v: Any) -> dict[str, list[str]] | None:
@@ -388,11 +477,26 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # sky_animations ... sky_custom keys, None = follow these).
             "animations": True, "weather": True, "precipitation": True, "focus_pause": True,
             "gradient": "live", "gradient_custom": None,
+            # THE BACKGROUND (SKY_BACKGROUNDS): "live", "color" (a still
+            # SKY_COLOR_IDS color: color; "custom" is gradient_custom's
+            # stops) or "photo" (photo, an address SKY_PHOTO takes). It is
+            # what Home, the room pages and every page without a color of its
+            # own show; gradient above is the Live Sky's own colors.
+            "background": "live", "color": "midnight", "photo": None,
+            # the photo's look (PHOTO_LOOK_DEFAULTS: blur, dim, saturation,
+            # a tint); a screen's sky_photo_look is its own
+            "photo_look": dict(PHOTO_LOOK_DEFAULTS),
             # EACH PAGE'S BACKGROUND (sky_pages below): page kind or custom
             # page address -> "own" (its own color), "live" (the live sky,
-            # with this look) or a backdrop id. Missing: Automatic -- a page
-            # with a color of its own keeps it, the rest show the live sky.
-            "pages": {},
+            # with this look), a backdrop id (a still color) or "photo"
+            # (page_photos' for it, else the screen's photo). Missing:
+            # Automatic -- a page with a color of its own keeps it, the rest
+            # show the background.
+            "pages": {}, "page_photos": {},
+            # a page's own photo look (page_looks: {page: photo_look}); a
+            # page missing has its screen's. A room page's key is its
+            # address (room-kitchen), and one not set follows "rooms".
+            "page_looks": {},
             # LIVELINESS: one preset for every occasion (LIVELY_PRESETS), or
             # "custom" -- then each occasion's preset (missing = classic) and
             # a Custom one's knobs ({occasion: {knob: 0-4}})
@@ -411,6 +515,15 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # that tablet's own entities (binary_sensor.<room>_tablet_in_use,
     # input_select.<room>_tablet_idle_return, input_number.<room>_tablet_room_idle).
     "idle": {"dashboards": [], "rooms": {}, "default": None},
+    # ALL TABLETS (Wall Tablets, entry 1.14): what a tablet does unless its
+    # own page says otherwise -- back to Home when left alone, after
+    # idle_time s (0: never) -- the alerts sent through Notifications, the
+    # scheduled restart (Kiosk Satellite: clear the cache, then restart the
+    # device, at each of restart_times), and the suggestions dismissed
+    # (tablets.py). The tablets themselves are items (SUBENTRY_TABLET).
+    "tablets": {"idle_return": True, "idle_time": 50,
+                "alert_offline": True, "alert_restart": True, "alert_charging": True,
+                "restart": False, "restart_times": ["00:02", "15:00"], "dismissed": []},
     # Dashboards opened in a car browser: the viewport is pinned (tesla-viewport.js).
     "car": {"dashboards": []},
     # The generated dashboards (custom:hk-dashboard): what to leave out (also
@@ -603,6 +716,7 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     out["look"]["glass"] = g if g in GLASS else DEFAULTS["look"]["glass"]
     if out["look"].get("well") not in WELLS:
         out["look"]["well"] = DEFAULTS["look"]["well"]
+    out["sky"]["photo_look"] = photo_look(out["sky"].get("photo_look")) or dict(PHOTO_LOOK_DEFAULTS)
     return out
 
 
@@ -666,10 +780,65 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # BACK TO THE DASHBOARD: how long the screensaver takes to fade away, ms
     # (0: at once), after the dashboard has been drawn underneath it
     "fade_back": 500,
+    # PORTRAIT AND LANDSCAPE PHOTOS, each their own (2026-10-13): shown whole
+    # or filling the screen (a landscape one's is `fill` above); the blurred
+    # copy behind a whole one -- its blur and dim, 0-100 / 0-80 % (50 / 20
+    # are how it always looked); a zoom, 100-200 %; and the focus: which part
+    # stays when it is cropped, or where a whole one sits -- left / center /
+    # right and top / center / bottom
+    "portrait_fill": False, "portrait_blur": 50, "portrait_dim": 20, "portrait_zoom": 100,
+    "portrait_x": "center", "portrait_y": "center",
+    "landscape_blur": 50, "landscape_dim": 20, "landscape_zoom": 100,
+    "landscape_x": "center", "landscape_y": "center",
+    # THE CLOCKS (2026-10-13; hk-saverclock.js): show "clock" is a full-screen
+    # clock; over the photos or the forecast the clock is the corner one (as
+    # always) or a "large" one -- `clock` above still turns it off. One style
+    # for both (SAVER_CLOCK_STYLES); behind Show: Clock, a background
+    # (SAVER_CLOCK_BGS) that moves slowly or changes once a minute (still)
+    "clock_over": "corner", "clock_style": "classic", "clock_bg": "gradient", "clock_motion": "slow",
+    "clock_24": False,
+    # each face's color (hk-saverclock.js COLORS): {style: color id}; a face
+    # missing is its own first color
+    "clock_colors": {},
+    # how fast the background behind the clock moves (0: still; 35 as
+    # designed) and how strong its effect is (clock_motion "still" was
+    # Speed 0 before 2026-10-13, and is still read)
+    "clock_speed": 35, "clock_depth": 50,
+    # NIGHT MODE (2026-10-13): a dim red clock on black -- off, "night"
+    # (from .. to, across midnight) or "always" -- as StandBy has it
+    "clock_night": "off", "clock_night_from": "22:00", "clock_night_to": "07:00",
+    # THE MOSAIC (2026-10-13): Layout "mosaic" shows mosaic_count photos at
+    # once (2-5) in a layout chosen at random -- portraits in the tall cells,
+    # each cropped as its shape's Focus and Zoom say; Spacing none / thin /
+    # rounded; Changes one cell at a time, or the whole mosaic
+    "photo_layout": "single", "mosaic_count": 3, "mosaic_gap": "thin", "mosaic_change": "one",
+    # ...its lines (2026-10-13): their thickness in px (0: Spacing's own --
+    # Thin 3, Rounded 12) and color (MOSAIC_COLORS); Up To: a new number of
+    # photos (1 to mosaic_count) every mosaic_every minutes
+    "mosaic_line": 0, "mosaic_color": "black", "mosaic_random": False, "mosaic_every": 10,
+    # PHOTOS BEHIND THE CLOCK (2026-10-13, the user: as the Photo
+    # Screensaver has them, not blurred): the photos themselves, laid out by
+    # the Photos settings above (one at a time or a mosaic, portraits and
+    # landscapes), darkened by clock_photo_dim %; clock_photo_soft: the
+    # blurred, dimmed copies as before. And the clock's text over them: its
+    # shadow and outline, 0-100
+    "clock_photo_soft": False, "clock_photo_dim": 35, "clock_text_shadow": 40, "clock_text_outline": 0,
 }
+MOSAIC_COLORS = ("black", "white", "gray", "charcoal", "cream", "navy")
+SAVER_CLOCK_STYLES = ("today", "classic", "serif", "neon", "lcd", "flip", "analog", "words", "arc", "nixie", "poster",
+                      "dots", "ring", "glass", "type")
+SAVER_CLOCK_BGS = ("black", "grain", "gradient", "aurora", "ink", "sky", "lowpoly", "topo", "constellation", "forecast", "skyonly", "photos")
+SAVER_CHOICES = {"clock_over": ("corner", "large"), "clock_style": SAVER_CLOCK_STYLES,
+                 "clock_bg": SAVER_CLOCK_BGS, "clock_motion": ("slow", "still"),
+                 "photo_layout": ("single", "mosaic"), "mosaic_gap": ("none", "thin", "rounded"),
+                 "mosaic_change": ("one", "all"), "clock_night": ("off", "night", "always"),
+                 "mosaic_color": MOSAIC_COLORS}
+SAVER_MOSAIC = (2, 5)
+SAVER_RANGES = {"blur": (0, 100), "dim": (0, 80), "zoom": (100, 200)}
+SAVER_FOCUS = {"x": ("left", "center", "right"), "y": ("top", "center", "bottom")}
 SAVER_ORDERS = ("random", "sorted")
-SAVER_SHOWS = ("photos", "both", "forecast")
-# ALL SCREENS' screensaver options (Wall Tablets -> Screensaver): a screen
+SAVER_SHOWS = ("photos", "both", "forecast", "clock")
+# ALL SCREENS' screensaver options (All Screens -> Screensaver): a screen
 # whose own `screensaver_options` is null uses these (resolved()).
 DEFAULTS["look"]["saver"] = dict(SAVER_DEFAULTS)
 SAVER_FC_EVERY = (2, 100)
@@ -682,6 +851,12 @@ SAVER_ENGINES = ("hk", "wallpanel")
 KIOSK_ENGINES = ("hk", "kiosk_mode")
 SAVER_STARTS = (15, 3600)
 SAVER_EACH = (5, 600)
+
+
+SAVER_INTS = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_every": SAVER_FC_EVERY,
+              "calendar_days": SAVER_CAL_DAYS, "fade_back": SAVER_FADE_BACK, "mosaic_count": SAVER_MOSAIC,
+              "clock_speed": (0, 100), "clock_depth": (0, 100), "mosaic_line": (0, 24), "mosaic_every": (1, 120),
+              "clock_photo_dim": (0, 80), "clock_text_shadow": (0, 100), "clock_text_outline": (0, 100)}
 
 
 def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
@@ -713,14 +888,36 @@ def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
     for k, val in v.items():
         if k not in SAVER_DEFAULTS:
             return None
-        if k in ("starts_after", "each_photo", "forecast_every", "calendar_days", "fade_back"):
-            lo, hi = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_every": SAVER_FC_EVERY,
-                      "calendar_days": SAVER_CAL_DAYS, "fade_back": SAVER_FADE_BACK}[k]
+        if k in SAVER_INTS:
+            lo, hi = SAVER_INTS[k]
             if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= val <= hi:
                 return None
             out[k] = int(val)
         elif k in ("order", "show"):
             if val not in (SAVER_ORDERS if k == "order" else SAVER_SHOWS):
+                return None
+            out[k] = val
+        elif k in ("clock_night_from", "clock_night_to"):
+            m = re.match(r"^([01]\d|2[0-3]):([0-5]\d)$", val) if isinstance(val, str) else None
+            if not m:
+                return None
+            out[k] = val
+        elif k == "clock_colors":
+            if not isinstance(val, dict) or any(s not in SAVER_CLOCK_STYLES or not isinstance(c, str) or not re.match(r"^[a-z]{1,16}$", c)
+                                                for s, c in val.items()):
+                return None
+            out[k] = dict(val)
+        elif k in SAVER_CHOICES:
+            if val not in SAVER_CHOICES[k]:
+                return None
+            out[k] = val
+        elif k.split("_", 1)[-1] in SAVER_RANGES and k.startswith(("portrait_", "landscape_")):
+            lo, hi = SAVER_RANGES[k.split("_", 1)[1]]
+            if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= val <= hi:
+                return None
+            out[k] = int(val)
+        elif k.split("_", 1)[-1] in SAVER_FOCUS and k.startswith(("portrait_", "landscape_")):
+            if val not in SAVER_FOCUS[k.split("_", 1)[1]]:
                 return None
             out[k] = val
         else:
@@ -777,13 +974,16 @@ def as_client(entry: ConfigEntry | None,
     out = {"configured": entry is not None, **merged(entry.options if entry else None)}
     del out["counts"]
     items = boards(entry)
-    # each screen's photo screensaver switch, by its current entity id
-    # (screensaver.py) -- a rename in the UI keeps working
-    for path, b in items.items():
-        b["screensaver_switch"] = (switches or {}).get(path)
-        # ...and its black screen switch, for Black Screen: HK Frontend
-        b["black_switch"] = (blacks or {}).get(path)
     out["boards"] = items
+    # THE TABLETS (1.14): what a page needs to know it is one (hk-settings.js
+    # tablet()) and to act as one -- its screen, user, idle, Black Screen, and
+    # its own entities by their current ids (screensaver.py; a rename in the
+    # UI keeps working). `switches` and `blacks` are keyed by tablet id.
+    out["tablet_items"] = {tid: {
+        "name": t["name"], "screen": t["screen"], "room": t["room"], "user": t["user"], "app": t["app"],
+        "idle_return": t["idle_return"], "idle_time": t["idle_time"], "black_screen": t["black_screen"],
+        "screensaver_switch": (switches or {}).get(tid), "black_switch": (blacks or {}).get(tid),
+    } for tid, t in tablets(entry).items()}
     if items:
         for section, values in legacy_screens(items).items():
             out[section].update(values)
@@ -836,7 +1036,7 @@ CHIPS_QUIET = ["weather_alert", "doors_windows", "blinds", "water"]
 # THE PAGES a generated dashboard can have (hk-strategy.js), in menu order.
 # Energy: the Energy feature's page (features/energy), while it is added.
 PAGE_KINDS = ("weather", "calendar", "cameras", "live_tv", "security", "doors_windows", "climate", "lights",
-              "timers", "vacuums", "music", "water", "energy", "rooms")
+              "timers", "vacuums", "music", "water", "energy", "power", "rooms")
 # A DASHBOARD'S PAGE ORDER: the kinds above, plus Browse Music as a place of
 # its own (it comes with Play Music -- never on its own -- and follows it
 # unless placed), plus the house's custom pages by address, so every page in
@@ -973,6 +1173,10 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # menu_top: the view paths at the top of the menu, right under Home --
     # empty is the views' own `menu: top`
     "menu_top": [], "phone_header": "header", "chips_custom": [],
+    # each custom chip's Show on this screen (2026-10-13): {key: "always" |
+    # "active"}; a chip missing shows as written (a conditional one While
+    # Active, the rest Always)
+    "chips_custom_show": {},
     # Home: the chips -- empty = every kind the house has; quiet = only when
     # there is something to report; extra = entities as chips of their own
     # -- then the camera strip, the scenes row and the favorites.
@@ -991,14 +1195,10 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # follows the shared look (HK Settings -> Appearance); frost_tint: its own
     # Tint from Background, well: its own Tinted icon circles, None follows
     # All Screens.
-    "glass": "house", "frost": None, "blur": None, "tint": None, "well": None, "frost_tint": None, "sky": True, "idle_return": False, "idle_room": "", "car": False,
-    # Black Screen (a wall tablet asleep): kiosk -- Kiosk Satellite's Black
-    # screensaver; hk -- HK Frontend's own black and backlight
-    # (switch.<screen>_black_screen, hk-saver.js). docs/Screensaver.md.
-    "black_screen": "kiosk",
-    # Sleep Screen: WHEN the tablet sleeps and wakes (sleep_rules.py
-    # SLEEP_DEFAULTS; None: the defaults -- an automation decides)
-    "sleep": None,
+    "glass": "house", "frost": None, "blur": None, "tint": None, "well": None, "frost_tint": None, "sky": True, "car": False,
+    # (Return to Home When Idle, the Tablet Room, Black Screen and Sleep
+    # Screen were a screen's until entry 1.14: they are each tablet's own now,
+    # TABLET_DEFAULTS)
     # Sky / Background, this screen's own: None for each follows All
     # Screens (the house's sky animations / weather / decorations, and the
     # house's backdrop -- sky_gradient: a SKY_BACKDROPS id, sky_custom: its
@@ -1006,14 +1206,19 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "sky_animations": None, "sky_weather": None, "sky_precipitation": None, "sky_focus_pause": None,
     "sky_decorations": None, "sky_decoration_style": None, "sky_moving": None,
     "sky_cloud_style": None, "sky_daytime": None, "sky_gradient": None, "sky_custom": None,
+    # the screen's own Background (SKY_BACKGROUNDS; None: Same as All
+    # Screens), its own Color and Photo (None: All Screens')
+    "sky_background": None, "sky_color": None, "sky_photo": None, "sky_photo_look": None,
     # Liveliness, this screen's own, as All Screens' is: one preset for every
     # occasion or "custom" (None: Same as All Screens), then each occasion's
     # preset and Custom knobs; calm_empty -- Calm When Nobody's Around (the
     # screen's idle room empty: hk-sky.js roomQuiet)
     "sky_liveliness": None, "sky_liveliness_occ": {}, "sky_liveliness_custom": {}, "sky_calm_empty": False,
     # each page's background, this screen's own: {page: mode}; a page
-    # missing follows All Screens' (sky.pages)
-    "sky_pages": {},
+    # missing follows All Screens' (sky.pages). A page's own photo, for
+    # "photo": sky_page_photos (missing: All Screens' for it, else the
+    # screen's photo)
+    "sky_pages": {}, "sky_page_photos": {}, "sky_page_looks": {},
     # kiosk: the screen hides Home Assistant's header and sidebar -- HK
     # Frontend itself (hk-kiosk.js), any screen, generated or not. Which of
     # the two (kiosk_header, kiosk_sidebar), and whether for admins too
@@ -1036,7 +1241,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # the docked bar's two parts: the player (Now Playing Bar) and the running
     # quick timers (Timer Bar; unset, a screen saved before it -- it follows
     # its Now Playing Bar, which had the timers in it)
-    "now_playing": False, "timer_bar": False, "screensaver": False, "tablet_user": "",
+    "now_playing": False, "timer_bar": False, "screensaver": False,
     # ...on every page, not Home alone (the bar is carried from page to page)
     "bar_all_pages": False,
     # null: the settings for All Screens (resolved() fills them in)
@@ -1072,7 +1277,7 @@ ENTITY_ID = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 SCREEN_PRESETS: dict[str, dict[str, Any]] = {
     # on a wall: the menu always open with the time and weather in it, back to
     # Home when left alone, no Home Assistant chrome
-    "wall_tablet": {"menu": "open", "time_weather": "menu", "idle_return": True, "kiosk": True},
+    "wall_tablet": {"menu": "open", "time_weather": "menu", "kiosk": True},
     # phones and iPads: the menu behind a button, the time in the header
     "personal": {"menu": "auto", "time_weather": "page"},
     # a desk or a laptop: the menu open beside the page
@@ -1112,9 +1317,6 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["home_rooms"] = pick("home_rooms", BOARD_HOME_ROOMS)
     out["page_rooms"] = pick("page_rooms", BOARD_PAGE_ROOMS)
     out["phone_header"] = pick("phone_header", BOARD_PHONE)
-    out["black_screen"] = pick("black_screen", BLACK_SCREENS)
-    from . import sleep_rules as SR
-    out["sleep"] = SR.sleep_options(d.get("sleep")) or SR.sleep_options(None)
     try:
         out["dock_min"] = int(min(max(float(d.get("dock_min") or 1000), DOCK_MIN[0]), DOCK_MIN[1]))
     except (TypeError, ValueError):
@@ -1152,6 +1354,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["chips"] = [k for k in (strs(d.get("chips")) or []) if k in CHIP_KINDS or ENTITY_ID.match(k)
                     or (k.startswith(CHIP_TOKEN) and CHIP_KEY.match(k[len(CHIP_TOKEN):]))]
     out["chips_custom"] = [k for k in (strs(d.get("chips_custom")) or []) if CHIP_KEY.match(k)]
+    out["chips_custom_show"] = chips_custom_show(d.get("chips_custom_show")) or {}
     quiet = strs(d.get("chips_quiet"))
     out["chips_quiet"] = list(CHIPS_QUIET) if quiet is None else [k for k in quiet if k in CHIP_KINDS]
     out["pages"] = page_order(strs(d.get("pages")) or [])
@@ -1188,6 +1391,12 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_gradient"] = d.get("sky_gradient") if d.get("sky_gradient") in SKY_BACKDROP_IDS else None
     out["sky_custom"] = sky_stops(d.get("sky_custom"))
     out["sky_pages"] = sky_pages(d.get("sky_pages")) or {}
+    out["sky_background"] = d.get("sky_background") if d.get("sky_background") in SKY_BACKGROUNDS else None
+    out["sky_color"] = d.get("sky_color") if d.get("sky_color") in SKY_COLOR_IDS else None
+    out["sky_photo"] = sky_photo(d.get("sky_photo"))
+    out["sky_photo_look"] = photo_look(d.get("sky_photo_look")) if d.get("sky_photo_look") is not None else None
+    out["sky_page_photos"] = sky_page_photos(d.get("sky_page_photos")) or {}
+    out["sky_page_looks"] = page_looks(d.get("sky_page_looks")) or {}
     out["sky_liveliness"] = d.get("sky_liveliness") if d.get("sky_liveliness") in LIVELY_PRESETS else None
     out["sky_liveliness_occ"] = lively(d.get("sky_liveliness_occ")) or {}
     # (before 2026-10-09 a screen's Custom was by kind -- {flying: 2, ...}:
@@ -1196,12 +1405,10 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_calm_empty"] = d.get("sky_calm_empty") is True
     out["notify_saver"] = d.get("notify_saver") if d.get("notify_saver") in NOTIFY_SAVERS else None
     out["notify_dnd"] = notify_dnd(d.get("notify_dnd"))
-    for k in ("chips_row", "camera_strip", "scenes_row", "sky", "idle_return", "car", "kiosk", "popups", "notify",
+    for k in ("chips_row", "camera_strip", "scenes_row", "sky", "car", "kiosk", "popups", "notify",
               "now_playing", "bar_all_pages", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
         out[k] = bool(d.get(k, BOARD_DEFAULTS[k]))
     out["timer_bar"] = bool(d.get("timer_bar", out["now_playing"]))
-    user = str(d.get("tablet_user") or "").strip()
-    out["tablet_user"] = user if re.fullmatch(r"[A-Za-z0-9_.@ -]{1,64}", user) else ""
     for k in ("wallpanel_options", "kiosk_options"):
         out[k] = card_options(d.get(k)) or {}
     # A SCREEN'S SCREENSAVER OPTIONS, AS STORED: its own (a mapping), or null
@@ -1222,8 +1429,6 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["kiosk_engine"] = d.get("kiosk_engine") if d.get("kiosk_engine") in KIOSK_ENGINES else "hk"
     live = str(d.get("camera_live") or "").strip()
     out["camera_live"] = live if re.fullmatch(r"(input_select|select)\.[a-z0-9_]+", live) else ""
-    room = str(d.get("idle_room") or "").strip()
-    out["idle_room"] = room if re.fullmatch(r"[a-z0-9_]*", room) else ""
     return out
 
 
@@ -1831,25 +2036,220 @@ def cameras_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mappin
 
 
 def boards(entry: ConfigEntry | None) -> dict[str, dict[str, Any]]:
-    """Every dashboard item's settings, by url path (as read: resolved())."""
+    """Every dashboard item's settings, by url path (as read: resolved()),
+    with the tablets that run it (`tablets`, their ids) and the first one's
+    room (`idle_room`: where the screen's Calm When Nobody's Around looks, and
+    a WallPanel screen's helper)."""
     out: dict[str, dict[str, Any]] = {}
     m = merged(entry.options if entry is not None else None)
     house, rooms, menu, cams = m["look"]["saver"], m["rooms"], m["menu"], m["cameras"]["order"]
     for sub in (entry.subentries.values() if entry is not None else ()):
         if sub.subentry_type == SUBENTRY_DASHBOARD and sub.unique_id:
             out[sub.unique_id] = resolved(board(sub.data), None, house, rooms, menu, cams)
+    on = tablets(entry)
+    for path, b in out.items():
+        mine = [tid for tid, t in on.items() if t["screen"] == path]
+        b["tablets"] = mine
+        b["idle_room"] = next((on[tid]["room"] for tid in mine if on[tid]["room"]), "")
     return out
 
 
 def legacy_screens(items: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
-    """The idle return's and the car viewport's lists, read off the items.
-    NOT a shim: hk-idle.js and tesla-viewport.js read only these
-    (`idle.dashboards/rooms`, `car.dashboards`), so they must keep being
-    sent."""
-    idle = [p for p, b in items.items() if b["idle_return"]]
-    return {"idle": {"dashboards": idle,
-                     "rooms": {p: items[p]["idle_room"] for p in idle if items[p]["idle_room"]}},
-            "car": {"dashboards": [p for p, b in items.items() if b["car"]]}}
+    """The car viewport's list, read off the items. NOT a shim:
+    tesla-viewport.js reads only `car.dashboards`. (The idle return's lists
+    were read off the items too until the tablets had their own, 1.14.)"""
+    return {"car": {"dashboards": [p for p, b in items.items() if b["car"]]}}
+
+
+# ------------------------------------------------------------ wall tablets
+# A TABLET (entry 1.14, Wall Tablets): an item of its own -- a subentry of
+# type "tablet", keyed by its id (a slug, "living_room") -- apart from the
+# screens: a tablet RUNS a screen, and a screen may run on several or none.
+# Its own: its name (its device's, so its entities'), the screen, its room
+# (an area), the user it signs in as, its kiosk app and that app's device,
+# Return to Home When Idle and Idle Time (None: All Tablets'), and how it
+# sleeps -- Black Screen and Sleep Screen (sleep_rules.py; `sleep.kiosk` is
+# always `device`). `uid` is the base of its entities' unique ids: a tablet
+# lifted off a screen keeps that screen's path, so its entities keep their
+# ids and history. docs/Wall-Tablets.md.
+SUBENTRY_TABLET = "tablet"
+# kiosk_satellite and fully: a device in Home Assistant (status, actions,
+# Sleep Screen with Kiosk Satellite); wallpanel: WallPanel in the browser;
+# browser: Just a Browser -- any browser the house says is a tablet
+TABLET_APPS = ("kiosk_satellite", "fully", "wallpanel", "browser")
+IDLE_TIMES = (30, 50, 60, 120, 300, 0)          # s; 0: never
+DEVICE_ID = re.compile(r"^[0-9a-f]{32}$")
+USER_NAME = re.compile(r"^[A-Za-z0-9_.@ -]{1,64}$")
+RESTART_TIMES_MAX = 4
+TABLET_DEFAULTS: dict[str, Any] = {
+    "name": "", "screen": "", "room": "", "user": "", "app": "browser", "device": "",
+    "idle_return": None, "idle_time": None,
+    # Black Screen (asleep): kiosk -- Kiosk Satellite's Black screensaver;
+    # hk -- HK Frontend's own black and backlight (switch.<tablet>_black_screen)
+    "black_screen": "kiosk",
+    # Sleep Screen: WHEN it sleeps and wakes (sleep_rules.py SLEEP_DEFAULTS)
+    "sleep": None,
+    "uid": "",
+}
+
+
+def tablet(data: Mapping[str, Any] | None, tid: str = "") -> dict[str, Any]:
+    """One tablet's settings over the defaults, each value checked."""
+    from . import sleep_rules as SR
+    out = copy.deepcopy(TABLET_DEFAULTS)
+    d = dict(data or {})
+    name = str(d.get("name") or "").strip()[:40]
+    out["name"] = name or tid.replace("_", " ").title()
+    screen = str(d.get("screen") or "").strip()
+    out["screen"] = screen if re.fullmatch(r"[a-z0-9_-]{1,80}", screen) else ""
+    room = str(d.get("room") or "").strip()
+    out["room"] = room if AREA_ID.match(room) else ""
+    user = str(d.get("user") or "").strip()
+    out["user"] = user if USER_NAME.match(user) else ""
+    out["app"] = d["app"] if d.get("app") in TABLET_APPS else TABLET_DEFAULTS["app"]
+    dev = str(d.get("device") or "").strip()
+    out["device"] = dev if DEVICE_ID.match(dev) else ""
+    out["idle_return"] = d["idle_return"] if isinstance(d.get("idle_return"), bool) else None
+    it = d.get("idle_time")
+    out["idle_time"] = it if isinstance(it, int) and not isinstance(it, bool) and it in IDLE_TIMES else None
+    out["black_screen"] = d["black_screen"] if d.get("black_screen") in BLACK_SCREENS else "kiosk"
+    out["sleep"] = SR.sleep_options(d.get("sleep")) or SR.sleep_options(None)
+    out["sleep"]["kiosk"] = out["device"] if out["app"] == "kiosk_satellite" else ""
+    uid = str(d.get("uid") or "").strip()
+    out["uid"] = uid if re.fullmatch(r"[a-z0-9_-]{1,80}", uid) else (f"tablet_{tid}" if tid else "")
+    return out
+
+
+def tablets(entry: ConfigEntry | None) -> dict[str, dict[str, Any]]:
+    """Every tablet, by id, with All Tablets' Idle settings filled in where
+    its own are None (`idle_return_own`, `idle_time_own`: what it says
+    itself)."""
+    out: dict[str, dict[str, Any]] = {}
+    house = merged(entry.options if entry is not None else None)["tablets"]
+    for sub in (entry.subentries.values() if entry is not None else ()):
+        if sub.subentry_type == SUBENTRY_TABLET and sub.unique_id:
+            t = tablet(sub.data, sub.unique_id)
+            t["idle_return_own"], t["idle_time_own"] = t["idle_return"], t["idle_time"]
+            if t["idle_return"] is None:
+                t["idle_return"] = bool(house.get("idle_return", True))
+            if t["idle_time"] is None:
+                t["idle_time"] = house_idle_time(house)
+            out[sub.unique_id] = t
+    return out
+
+
+def house_idle_time(house: Mapping[str, Any]) -> int:
+    v = house.get("idle_time")
+    return v if isinstance(v, int) and not isinstance(v, bool) and v in IDLE_TIMES else 50
+
+
+def tablet_id(name: str, taken: set[str]) -> str:
+    """A new tablet's id from its name: "Living Room" -> living_room, with
+    _2, _3 ... when taken."""
+    base = re.sub(r"[^a-z0-9]+", "_", (name or "").lower()).strip("_")[:36] or "tablet"
+    if not base[0].isalnum():
+        base = "t" + base
+    tid, n = base, 2
+    while tid in taken:
+        tid, n = f"{base}_{n}", n + 1
+    return tid
+
+
+def tablets_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]],
+                   titles: Mapping[str, str], areas: set[str] | None = None
+                   ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Entry 1.13 -> 1.14: each screen that was a wall tablet -- a Tablet
+    User, or HK's screensaver with a Tablet Room -- becomes a tablet of its
+    own, and the screen keeps only what it shows. Returns (new options or
+    None, every screen's data, {tablet id: its data}).
+
+    A tablet: the screen's title for its name, its Tablet Room for its id and
+    (if that area exists) its room, its Tablet User, Kiosk Satellite when its
+    Sleep Screen named a kiosk (that device), the screen's Return to Home When
+    Idle, Black Screen and Sleep Screen, and the screen's path as its
+    entities' base (their ids and history stay). All Tablets' Idle Time is
+    50 s: the house's helpers said Auto, 10 s before the room's idle time --
+    60 s by default."""
+    from . import sleep_rules as SR
+    out_items: dict[str, dict[str, Any]] = {}
+    made: dict[str, dict[str, Any]] = {}
+    for path, d in items.items():
+        d = dict(d)
+        user = str(d.get("tablet_user") or "").strip()
+        room = str(d.get("idle_room") or "").strip()
+        if user or (d.get("screensaver") and room):
+            sl = SR.sleep_options(d.get("sleep")) or SR.sleep_options(None)
+            dev = sl.get("kiosk") or ""
+            tid = tablet_id(room or titles.get(path) or path, set(made))
+            made[tid] = tablet({
+                "name": titles.get(path) or path, "screen": path,
+                "room": room if (areas is None or room in areas) else "",
+                "user": user, "app": "kiosk_satellite" if dev else "browser", "device": dev,
+                "idle_return": None if d.get("idle_return") else False, "idle_time": None,
+                "black_screen": d.get("black_screen"), "sleep": sl, "uid": path}, tid)
+        for k in ("tablet_user", "idle_room", "idle_return", "sleep", "black_screen"):
+            d.pop(k, None)
+        out_items[path] = d
+    new_options = None
+    if made:
+        stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+        tabs = {**(stored.get("tablets") or {}), "idle_time": 50}
+        new_options = {**(options or {}), CONF_DASHBOARD: {**stored, "tablets": tabs}}
+    return new_options, out_items, made
+
+
+# ------------------------------------------------------------ what is stored
+# ONLY WHAT WAS SET (2026-10-14, the user's choice): a setting is stored when
+# it differs from its default, and every read fills the rest in (merged(),
+# board(), tablet()). Saving one setting used to store its whole section --
+# every default with it, frozen at that day's value -- so a default changed
+# in a later version never reached a screen that had ever been saved. Now it
+# does, for anything left at its default. Entry 1.15 (settings_trimmed)
+# tidies what was stored before.
+def only_set(values: Mapping[str, Any], defaults: Mapping[str, Any],
+             keep: tuple[str, ...] = ()) -> dict[str, Any]:
+    """`values` less those equal to their default (`keep`: always stored)."""
+    return {k: v for k, v in values.items() if k in keep or k not in defaults or v != defaults[k]}
+
+
+def house_stored(section: str, values: Mapping[str, Any]) -> dict[str, Any]:
+    """A house section as stored: what differs from its default."""
+    return only_set(values, merged(None).get(section) or {})
+
+
+def board_stored(data: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A screen's item as stored: its settings, checked, less the defaults."""
+    return only_set(board(data), board(None))
+
+
+# a tablet's name and id are its identity (its item's title, its entities'
+# ids): stored even when they read as the defaults would
+TABLET_KEEP = ("name", "uid")
+
+
+def tablet_stored(data: Mapping[str, Any] | None, tid: str = "") -> dict[str, Any]:
+    """A tablet's item as stored: its settings, checked, less the defaults."""
+    return only_set(tablet(data, tid), tablet(None, tid), TABLET_KEEP)
+
+
+def settings_trimmed(options: Mapping[str, Any] | None, boards_: Mapping[str, Mapping[str, Any]],
+                     tablets_: Mapping[str, Mapping[str, Any]]
+                     ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Entry 1.15: everything stored before 1.15, less what equals today's
+    defaults. -> (options or None when unchanged, boards, tablets) -- each
+    item as it should be stored now."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    now = merged(options)
+    dash = {}
+    for section, values in stored.items():
+        if isinstance(values, Mapping) and section in now:
+            # (a key the settings no longer have goes too, as on every save)
+            dash[section] = house_stored(section, {k: now[section][k] for k in values if k in now[section]})
+        else:
+            dash[section] = values
+    opts = None if dash == stored else {**dict(options or {}), CONF_DASHBOARD: dash}
+    return (opts, {p: board_stored(d) for p, d in boards_.items()},
+            {t: tablet_stored(d, t) for t, d in tablets_.items()})
 
 
 # ------------------------------------------------------------ text fields

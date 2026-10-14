@@ -231,8 +231,13 @@ print('\n=== a page is shown as soon as it is built (2026-10-11) ===');
 ok('nothing holds a view back: no hidden view, no faint, no backstop',
    !/visibility = 'hidden'/.test(gsrc) && !/function hold\(/.test(gsrc) && !/faintAgain/.test(gsrc) && !/HOLD_MS/.test(gsrc));
 ok('...a view put on the page, or a card joining it, is the page on screen for the picture (viewShown)',
-   /if \(v\.__hkShown\) \{ viewShown\(\); return; \}/.test(gsrc) && /VIEWS\.indexOf\(n\.tagName\) >= 0\) onPage\(n\)/.test(gsrc) &&
+   /if \(v\.__hkShown\) \{\s*viewShown\(\);/.test(gsrc) && /VIEWS\.indexOf\(n\.tagName\) >= 0\) onPage\(n\)/.test(gsrc) &&
    /if \(on\) \{ var v = viewOf\(card\); if \(v\) onPage\(v\); \}/.test(gsrc));
+ok('...and a view Home Assistant kept is laid with its glass before its first frame: one pass, a microtask, for all its cards (2026-10-13)',
+   /keptPass = true;/.test(gsrc) && /queueMicrotask\(run\)/.test(gsrc) && /var run = function \(\) \{ keptPass = false; if \(active\) update\(\); \}/.test(gsrc));
+ok('a page\'s picture goes on with its sky, not its view: ownPicture, the waiting picture and a new paint all ask the sky\'s page (hkSky.path)',
+   /function ownPicture\(\) \{ return fresh\(\) && pre\.path === skyAt\(\); \}/.test(gsrc) && /if \(!n \|\| n\.path !== skyAt\(\)\) return;/.test(gsrc) &&
+   /if \(path !== skyAt\(\)\) \{ var was = pre\.next;/.test(gsrc) && /function onSkyChange\(\) \{\s*if \(!PRE \|\| !active\) return;\s*\/\/[^\n]*\n\s*wearNext\(\);/.test(gsrc));
 ok('HkBase passes the card and direction to changed()', /hkGlass\.changed\(card, join\)/.test(readFile(HK_ROOT + '/frontend/cards/hk-base.js')));
 
 // The press loop, the row promotions, the hold of a view already painted and

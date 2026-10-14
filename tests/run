@@ -40,6 +40,9 @@ printf 'var HK_ROOT = "%s";\n' "$ROOT" > "$PRELUDE"
 # HK_FILES: a home's files folder (files.py), for the suites that can also
 # check the home's own Apple assets. Unset, they use tests/fixtures instead.
 printf 'var HK_FILES = "%s";\n' "${HK_FILES:-}" >> "$PRELUDE"
+# HK_UPDATE_SNAPSHOT=1: test_csssnapshot rewrites its fixture instead of
+# comparing (a step that changes a design value on purpose)
+printf 'var HK_UPDATE_SNAPSHOT = "%s";\n' "${HK_UPDATE_SNAPSHOT:-}" >> "$PRELUDE"
 
 fail=0
 ran=0

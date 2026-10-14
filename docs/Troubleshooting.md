@@ -24,8 +24,8 @@ Open it from **HK Settings** → **Overview** → **Setup Check** (also under **
 | **Areas with no icon** | — | A **note**: the menu draws a plain room glyph for them. Pick an icon in the area’s settings. |
 | **Areas with no temperature or humidity sensor** | — | A **note**: a room page’s status line leaves those readings out. Set them in the area’s *Related sensors*. |
 | **Menu & Room Pages** | The menu is on for one or more screens, all of which exist | **Needs Doing** when the menu is on for a dashboard that has since been deleted: remove that dashboard’s item under **Settings** → **Devices & services** → **HK Frontend** (its list of dashboards). A **note** when the menu is off on every screen. |
-| **Screensaver Tablets** | Each screen with the photo screensaver has a Tablet User, and Home Assistant has a user of that name (shown when a screen has the photo screensaver) | **Needs Doing** when one has none, or names a user that doesn’t exist: the screensaver never shows there. Choose it under the screen’s **This Device**. |
-| **Screensaver Photos** | The photos folder has photos (shown when a screen shows photos) | A **note** when the folder is empty or can’t be read: the screensaver shows the forecast instead. To show photos, check **HK Settings → Wall Tablets → Screensaver for All Screens → Screensaver Photos**. |
+| **Wall Tablets** | Each wall tablet’s user and screen exist, its kiosk device is chosen (Kiosk Satellite or Fully Kiosk), and its kiosk app passes its checks: adaptive brightness off, Kiosk Satellite’s own screensaver Black after a day, kiosk mode on, the app up to date, battery care ([Wall Tablets → Setup Check](Wall-Tablets.md#setup-check)) | **Needs Doing**, naming the tablet and what is wrong; each tablet’s page has the details, with **Fix** where HK Frontend can set it. Also when a screen has the Photo Screensaver on but no wall tablet runs it: the screensaver never shows. Add the tablet: **Wall Tablets → Add Tablet**. |
+| **Screensaver Photos** | The photos folder has photos (shown when a screen shows photos) | A **note** when the folder is empty or can’t be read: the screensaver shows the forecast instead. To show photos, check **HK Settings → All Screens → Screensaver → Screensaver Photos**. |
 | **Weather Radar Card** (and **WallPanel** or **Kiosk Mode**, for a screen that uses one instead of HK Frontend’s own) | Installed from HACS, and — for WallPanel and Kiosk Mode — loaded as a dashboard resource | A **note**. Not installed: no radar map on the Weather page, no WallPanel screensaver, or Home Assistant’s header and sidebar showing on a screen set to use the Kiosk Mode plugin. *Installed but not loaded*: the line names the URL to add under **Settings** → **Dashboards** → **⋮** → **Resources** (type *JavaScript module*). |
 | **Music**, **Alarm PIN**, **Clean Areas**, **Live TV**, **Energy**, **Notifications** | Added | A **note**: each is optional. Add it from **Settings** → **Devices & services** → **HK Frontend** → **Add feature**. |
 
@@ -48,7 +48,7 @@ The font and glyph entries name the tools by their path in the HK Frontend repos
 
 **An update of HK Frontend.** After HACS updates HK Frontend, restart Home Assistant, then reload each screen — twice. Everything HK Frontend serves under `/hk/` is sent with `Cache-Control: no-cache`, so a browser checks for a newer copy every time it loads a screen. But the first load after an update can still be answered from Home Assistant’s service worker with the previous copy; the second load gets the new one. Judge a change only after the second reload.
 
-To reload a wall tablet from Home Assistant, use the **Load start URL** button of the [Fully Kiosk Browser integration](https://www.home-assistant.io/integrations/fully_kiosk/).
+To get the new files onto your wall tablets, use **HK Settings → All Screens → Wall Tablets → All at Once → Clear Cache & Reload All** (or **Clear Cache & Reload** on one tablet’s page): a plain reload keeps the old HK files. Without a Kiosk Satellite or Fully Kiosk device chosen for the tablet, reload it from its kiosk app.
 
 **A dashboard kept in YAML.** Home Assistant caches a YAML-mode dashboard. After editing its file, or a file it includes, use **⋮** → **Refresh** on the dashboard, or restart.
 
@@ -133,8 +133,8 @@ its kiosk’s cache cleared to get new HK Frontend code
 
 ### No screensaver on a wall tablet
 
-- The screensaver runs only for the screen’s **Tablet User** (its **This Device** group): check that the tablet signs in as exactly that user. A computer opening the same screen never gets it. **Setup Check → Screensaver Tablets** says when a screen has none, or names a user Home Assistant doesn’t have.
-- The forecast instead of your photos? The photos folder is empty or can’t be read; **Setup Check** says which. Check **HK Settings → Wall Tablets → Screensaver for All Screens → Screensaver Photos**, and that **Show** is **Photos**.
+- The screensaver runs only on a [wall tablet](Wall-Tablets.md) that runs the screen. Check that the tablet is in **All Screens → Wall Tablets** with that **Screen**, and that the page knows it is that tablet: its kiosk app’s start URL has `?hk_tablet=<id>` (copy it from the tablet’s page), or it signs in as exactly the tablet’s **Tablet User**. A computer opening the same screen never gets it. **Setup Check → Wall Tablets** says when a screen has the Photo Screensaver on but no tablet runs it, or a tablet names a user Home Assistant doesn’t have.
+- The forecast instead of your photos? The photos folder is empty or can’t be read; **Setup Check** says which. Check **HK Settings → All Screens → Screensaver → Screensaver Photos**, and that **Show** is **Photos**.
 - It waits while a detail sheet is open or Live TV is playing, and starts **Starts After** (3 minutes) after the last touch.
 - `?hk_saver=off` in the page’s address turns it off for that page.
 - In a browser’s console on the tablet, `hkSaver.stats()` says whether it is allowed there, how many photos it found and when it will start.
@@ -142,6 +142,6 @@ its kiosk’s cache cleared to get new HK Frontend code
 ### Home Assistant’s header still shows on a wall tablet
 
 - Check the screen’s **Header → Home Assistant Header & Sidebar**: **Hide Header & Sidebar**, and **For Admins Too** if the tablet signs in as an admin.
-- `?hk_kiosk=off` on the address shows them until the page is reloaded: reload it (Fully Kiosk Browser’s **Load Start URL**).
+- `?hk_kiosk=off` on the address shows them until the page is reloaded: reload it (**Reload** on the tablet’s page in Wall Tablets, or Fully Kiosk Browser’s **Load Start URL**).
 - A dashboard whose own YAML has `kiosk_mode:`, or a screen set to **Use the Kiosk Mode Plugin Instead**, is left to that plugin: Setup Check says whether it is installed and loaded.
 - In a browser’s console on the screen, `hkKiosk.state()` says what is hidden and why (`settings`, `config` or `url`), or `null`.

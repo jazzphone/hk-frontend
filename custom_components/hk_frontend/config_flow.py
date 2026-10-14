@@ -141,7 +141,11 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
     # (menu_phone, button_phone) -- settings.phones_lifted.
     # 12 (2026-10-09): Phones' settings each their own, the narrow choice
     # and the pre-1.9 menu lists gone -- settings.settings_tidied.
-    MINOR_VERSION = 13
+    # 13 (2026-10-12): the screens' camera lists are All Screens' --
+    # settings.cameras_lifted.
+    # 14 (2026-10-13): each wall tablet an item of its own (type "tablet"),
+    # apart from the screen it runs -- settings.tablets_lifted.
+    MINOR_VERSION = 15
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:
@@ -169,7 +173,8 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
             return {}                    # a pre-release feature entry, folded at start
         return {F.SUBENTRY_FEATURE: FeatureFlow, S.SUBENTRY_DASHBOARD: DashboardSubentryFlow,
                 S.SUBENTRY_POPUP: PopupSubentryFlow, S.SUBENTRY_PAGE: PageSubentryFlow,
-                S.SUBENTRY_CHIP: ChipSubentryFlow, SUB_PRESET: PresetFlow, SUB_PLAYLIST: PlaylistFlow}
+                S.SUBENTRY_CHIP: ChipSubentryFlow, S.SUBENTRY_TABLET: TabletSubentryFlow,
+                SUB_PRESET: PresetFlow, SUB_PLAYLIST: PlaylistFlow}
 
 
 class FeatureFlow(music.AddSteps, music.ReconfigureSteps, live_tv.AddSteps, live_tv.ReconfigureSteps,
@@ -272,6 +277,23 @@ class DashboardSubentryFlow(ConfigSubentryFlow):
         return self.async_abort(reason="use_panel", description_placeholders={
             "dashboard": await _dashboard_title(self.hass, path),
             "url": f"/hk-settings#/screens/{path}"})
+
+
+class TabletSubentryFlow(ConfigSubentryFlow):
+    """A WALL TABLET (settings.SUBENTRY_TABLET): its own item, the tablet
+    that runs a screen. Adding one and all of its settings are on the HK
+    Settings page (Wall Tablets), so both lead there."""
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None
+                              ) -> SubentryFlowResult:
+        return self.async_abort(reason="use_panel", description_placeholders={
+            "tablet": "a new tablet", "url": "/hk-settings#/house/tablets/add"})
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None
+                                     ) -> SubentryFlowResult:
+        sub = self._get_reconfigure_subentry()
+        return self.async_abort(reason="use_panel", description_placeholders={
+            "tablet": sub.title or sub.unique_id or "", "url": f"/hk-settings#/house/tablets/{sub.unique_id}"})
 
 
 class PageSubentryFlow(ConfigSubentryFlow):

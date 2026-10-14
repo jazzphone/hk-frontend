@@ -218,7 +218,6 @@
   // API's {t: Date}, hk-charts) speaks Date, and the contract that `t` is a
   // Date is documented at the top of this file.
   function startOfDay(d) { return new Date(floorTZ(+new Date(d), 864e5)); }
-  function startOfHour(d) { return new Date(floorTZ(+new Date(d), 36e5)); }
 
   // "Is this instant inside the first hour of its own day, in HA's zone?"
   // Expressed as the two floors agreeing rather than as `getHours() === 0`,
@@ -248,16 +247,33 @@
     var edge = floorTZ(Date.now(), SIZE[period] || 36e5);
     var prefix = period + '|' + count + '|' + type + '|';
     var key = prefix + edge;
+    var now = cache.get(key), ready = !!(now && now.data);
     // Evict every entry of this period and type whose edge is OLDER -- at
     // any count. dailyPeak asks for a count that grows by one every hour, so
     // an eviction keyed on the count would never match the previous hour's
     // entry and the cache would grow by one dead row an hour. Two live shapes
     // at the same edge but different counts keep each other.
+    // EXCEPT THE STAND-IN: until the new edge's answer has landed, the older
+    // entry of the SAME shape stays -- get() draws it meanwhile (standIn), so
+    // a roll does not blank every chart for the round trip. It goes on the
+    // first call after the new answer is in.
     cache.forEach(function (_v, k) {
       var p = k.split('|');
-      if (k !== key && p[0] === period && p[2] === type && Number(p[3]) < edge) cache.delete(k);
+      if (k !== key && p[0] === period && p[2] === type && Number(p[3]) < edge &&
+          (ready || Number(p[1]) !== count)) cache.delete(k);
     });
     return key;
+  }
+  // the newest older entry of this shape holding every id: what was on screen
+  // a moment ago, one bucket behind
+  function standIn(key, list) {
+    var p = key.split('|'), best = null, bestEdge = -Infinity;
+    cache.forEach(function (v, k) {
+      var q = k.split('|');
+      if (k === key || q[0] !== p[0] || q[1] !== p[1] || q[2] !== p[2] || !v.data) return;
+      if (Number(q[3]) > bestEdge && list.every(function (id) { return v.data[id]; })) { best = v; bestEdge = Number(q[3]); }
+    });
+    return best;
   }
 
   // Build the fixed, gap-filled axis the caller was promised: exactly `count`
@@ -500,6 +516,15 @@
     if (missing.length) {
       var backedOff = hit && hit.error && (Date.now() - hit.error) < ERROR_BACKOFF_MS;
       if (!backedOff) request(hass, key, period, count, type, missing, card);
+      // A NEW BUCKET: the same shape's answer from the bucket before, whole,
+      // while this one is asked for (cacheKey keeps it until then).
+      var prev = !hit || !hit.data ? standIn(key, list) : null;
+      if (prev) {
+        if (!many) return prev.data[list[0]];
+        var was = {};
+        list.forEach(function (id) { was[id] = prev.data[id]; });
+        return was;
+      }
       // Partial answers are not returned: a chart drawn from half its series
       // rescales the moment the rest arrives, which reads as a glitch. Wait.
       return null;

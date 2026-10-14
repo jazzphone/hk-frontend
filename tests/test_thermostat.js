@@ -36,6 +36,29 @@ check('modes beyond the four follow them', extra.join() === 'off,heat,cool,auto,
 var none = modes(null);
 check('an entity that lists none gets the classic four', none.join() === 'off,heat,cool,heat_cool', none);
 
+// A WATER HEATER ON THE CLIMATE PAGE (hk-thermostat-card, 2026-10-13): its own
+// controls, as its sheet has them -- not a thermostat's Off/Heat/Cool/Auto.
+(function () {
+  var C = customElements.get('hk-thermostat-card'), c = new C(), calls = [];
+  c.setConfig({ type: 'custom:hk-thermostat-card', entity: 'water_heater.tank' });
+  var html = '';
+  Object.defineProperty(c.shadowRoot, 'innerHTML', { get: function () { return html; }, set: function (v) { html = String(v); } });
+  var a = { operation_list: ['off', 'eco', 'electric', 'high_demand', 'heat_pump'], operation_mode: 'eco', away_mode: 'off',
+            current_temperature: 114.8, temperature: 120, min_temp: 110, max_temp: 140, supported_features: 15 };
+  c.hass = { states: { 'water_heater.tank': { state: 'eco', attributes: a } }, callService: function (d, sv, data) { calls.push([d, sv, data]); return Promise.resolve(); } };
+  var got = [], re = /data-wh="([^"]+)"/g, m;
+  while ((m = re.exec(html))) got.push(m[1]);
+  check('a water heater: its own modes, off first', got.join() === 'off,eco,electric,high_demand,heat_pump', got);
+  check('...no thermostat modes', html.indexOf('data-mode=') === -1);
+  check('...Heat to its setpoint, its mode under it', /Heat to/.test(html) && /120°/.test(html) && />Eco</.test(html), html.slice(0, 200));
+  check('...the one it is in is on', /class="segment active" data-wh="eco"/.test(html));
+  check('...Away (it has away mode), Home on', /data-wh-away="on"/.test(html) && /class="segment active" data-wh-away="off"/.test(html));
+  check('...the high-demand mode in the sheet\'s word', />Demand</.test(html));
+  a.supported_features = 3;
+  c.hass = { states: { 'water_heater.tank': { state: 'eco', attributes: a } }, callService: function () { return Promise.resolve(); } };
+  check('no away mode: no Home / Away', html.indexOf('data-wh-away') === -1);
+})();
+
 // hk-control.js is its own Lovelace resource and can run before hk-base.js,
 // whose material, palette and escaper it draws with. It must not draw until
 // that has run -- a frame from stand-ins would be held by the render gate --

@@ -220,6 +220,75 @@ def _sky_pages(v: Any) -> dict[str, str]:
     return got
 
 
+def _chips_custom_show(v: Any) -> dict[str, str]:
+    """Each custom chip's Show on a screen ({key: always | active}); "" or
+    None: as written (left out)."""
+    if v is None:
+        return {}
+    if not isinstance(v, dict):
+        raise Invalid("choice")
+    clean = {k: m for k, m in v.items() if m not in (None, "")}
+    got = S.chips_custom_show(clean)
+    if got is None or len(got) != len(clean):
+        raise Invalid("choice")
+    return got
+
+
+def _sky_photo(none: bool = True) -> Callable[[Any], Any]:
+    """A background photo's address (settings.SKY_PHOTO), or None / "": none."""
+    def check(v: Any) -> Any:
+        if v in (None, ""):
+            return None
+        got = S.sky_photo(v)
+        if got is None:
+            raise Invalid("photo")
+        return got
+    return check
+
+
+def _photo_look(none: bool) -> Callable[[Any], Any]:
+    """A background photo's look (settings.photo_look); for a screen, None
+    follows All Screens'."""
+    def check(v: Any) -> Any:
+        if v is None:
+            if none:
+                return None
+            return dict(S.PHOTO_LOOK_DEFAULTS)
+        got = S.photo_look(v)
+        if got is None:
+            raise Invalid("choice")
+        return got
+    return check
+
+
+def _page_looks(v: Any) -> dict[str, dict[str, Any]]:
+    """Each page's own photo look ({page: look}); a page set to "" or None
+    has its screen's (left out)."""
+    if v is None:
+        return {}
+    if not isinstance(v, dict):
+        raise Invalid("choice")
+    clean = {k: u for k, u in v.items() if u not in (None, "")}
+    got = S.page_looks(clean)
+    if got is None or len(got) != len(clean):
+        raise Invalid("choice")
+    return got
+
+
+def _sky_page_photos(v: Any) -> dict[str, str]:
+    """Each page's own photo ({page: address}); a page set to "" or None
+    has none (left out)."""
+    if v is None:
+        return {}
+    if not isinstance(v, dict):
+        raise Invalid("photo")
+    clean = {k: u for k, u in v.items() if u not in (None, "")}
+    got = S.sky_page_photos(clean)
+    if got is None or len(got) != len(clean):
+        raise Invalid("photo")
+    return got
+
+
 def _parsed(parse: Callable[[Any], Any], empty: Any) -> Callable[[Any], Any]:
     """A value settings.py parses whole (Liveliness): None or {} is `empty`,
     anything it cannot parse refused."""
@@ -304,7 +373,6 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "features.alarm_bad_code": _entity("input_boolean", "binary_sensor"),
     "clock.time": SENSOR,
     "clock.date": SENSOR,
-    "idle.default": _entity("input_number", "number"),
     "weather.entity": _entity("weather"),
     "weather.place": _text(60),
     **{f"weather.{k}": SENSOR for k in ("feels_like", "humidity", "wind", "gust", "uv", "forecast_daily",
@@ -383,6 +451,12 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "sky.gradient": _choice(S.SKY_BACKDROP_IDS),
     "sky.pages": _sky_pages,
     "sky.gradient_custom": _sky_stops,
+    "sky.background": _choice(S.SKY_BACKGROUNDS),
+    "sky.color": _choice(S.SKY_COLOR_IDS),
+    "sky.photo": _sky_photo(),
+    "sky.page_photos": _sky_page_photos,
+    "sky.photo_look": _photo_look(False),
+    "sky.page_looks": _page_looks,
     "sky.themes": _subset(S.THEMES),
     "sky.hemisphere": _choice(("north", "south")),
     "sky.moon": SENSOR,
@@ -395,6 +469,17 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     **{f"sky.{k}": _choice(v, none=True) for k, v in S.SKY_OFTEN.items()},
     **{f"counts.{k}": _count for k in K.KINDS},
 }
+HOUSE.update({
+    # ALL TABLETS (settings DEFAULTS["tablets"])
+    "tablets.idle_return": _bool,
+    "tablets.idle_time": lambda v: _idle_time(v, none=False),
+    "tablets.alert_offline": _bool,
+    "tablets.alert_restart": _bool,
+    "tablets.alert_charging": _bool,
+    "tablets.restart": _bool,
+    "tablets.restart_times": lambda v: _restart_times(v),
+    "tablets.dismissed": lambda v: _keys(v),
+})
 SKY_DATE = re.compile(r"^sky\.(" + "|".join(S.SKY_BUILT_IN) + r")_(from|to)$")
 # Options of the integration itself, beside `dashboard`.
 TOP = {"sidebar": _bool}
@@ -432,8 +517,9 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any]
         section, key = path.split(".", 1)
         # the section as merged (so every key is there), then this key; a
         # stored key the settings no longer have (from an older version) goes
+        # (only what differs from its default is stored: settings.only_set)
         cur = dash.get(section) if isinstance(dash.get(section), dict) else {}
-        dash[section] = {**now[section], **{k: v for k, v in cur.items() if k in now[section]}, key: got}
+        dash[section] = S.house_stored(section, {**{k: v for k, v in cur.items() if k in now[section]}, key: got})
         if section == "counts":
             # A kind saved now is no longer read from its older list
             # (kinds.LEGACY): keeping it would be a second answer nobody
@@ -441,7 +527,7 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any]
             where = K.LEGACY.get(key)
             if where and got is not None:
                 old = dash.get(where[0]) if isinstance(dash.get(where[0]), dict) else {}
-                dash[where[0]] = {**now[where[0]], **old, where[1]: []}
+                dash[where[0]] = S.house_stored(where[0], {**{k: v for k, v in old.items() if k in now[where[0]]}, where[1]: []})
     if errors:
         return dict(options), errors
     return {**options, **top, S.CONF_DASHBOARD: dash}, {}
@@ -584,6 +670,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "menu": _choice(S.BOARD_MENUS),
     "phone_header": _choice(S.BOARD_PHONE),
     "chips_custom": _chip_keys,
+    "chips_custom_show": _chips_custom_show,
     "menu_top": _views,
     "dock_min": _dock_min,
     "time_weather": _choice(S.BOARD_TIME),
@@ -639,8 +726,6 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "glass": _choice(S.BOARD_GLASS),
     "frost": _amount_or_none,
     "frost_tint": _bool_or_none,
-    "black_screen": _choice(S.BLACK_SCREENS),
-    "sleep": _sleep,
     "blur": _amount_or_none,
     "tint": _amount_or_none,
     "well": _choice(S.WELLS, none=True),
@@ -659,12 +744,16 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_gradient": _choice(S.SKY_BACKDROP_IDS, none=True),
     "sky_pages": _sky_pages,
     "sky_custom": _sky_stops,
+    "sky_background": _choice(S.SKY_BACKGROUNDS, none=True),
+    "sky_color": _choice(S.SKY_COLOR_IDS, none=True),
+    "sky_photo": _sky_photo(),
+    "sky_page_photos": _sky_page_photos,
+    "sky_photo_look": _photo_look(True),
+    "sky_page_looks": _page_looks,
     "sky_liveliness": _choice(S.LIVELY_PRESETS, none=True),
     "sky_liveliness_occ": _parsed(S.lively, empty={}),
     "sky_liveliness_custom": _parsed(S.lively_custom, empty={}),
     "sky_calm_empty": _bool,
-    "idle_return": _bool,
-    "idle_room": _room,
     "car": _bool,
     "kiosk": _bool,
     "kiosk_header": _bool,
@@ -679,13 +768,98 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "timer_bar": _bool,
     "bar_all_pages": _bool,
     "screensaver": _bool,
-    "tablet_user": _user,
     "wallpanel_options": _card_options,
     "kiosk_options": _card_options,
     # null: follow the settings for All Screens
     "screensaver_options": lambda v: None if v is None else _saver_options(v),
     "screensaver_engine": _saver_engine,
 }
+
+
+# ------------------------------------------------------------ a wall tablet
+def _idle_time(v: Any, none: bool = True) -> int | None:
+    if v is None and none:
+        return None
+    if isinstance(v, bool) or not isinstance(v, int) or v not in S.IDLE_TIMES:
+        raise Invalid("choice")
+    return v
+
+
+def _restart_times(v: Any) -> list[str]:
+    if not isinstance(v, list) or not 1 <= len(v) <= S.RESTART_TIMES_MAX:
+        raise Invalid("list")
+    out = []
+    for t in v:
+        hm = S.hhmm(t)
+        if hm is None:
+            raise Invalid("time")
+        out.append(hm)
+    return sorted(dict.fromkeys(out))
+
+
+def _keys(v: Any) -> list[str]:
+    if not isinstance(v, list) or len(v) > 200 or not all(isinstance(k, str) and 0 < len(k) <= 200 for k in v):
+        raise Invalid("list")
+    return list(dict.fromkeys(v))
+
+
+def _tablet_name(v: Any) -> str:
+    t = str(v or "").strip()
+    if not t or len(t) > 40:
+        raise Invalid("name_needed")
+    return t
+
+
+def _screen(v: Any) -> str:
+    t = str(v or "").strip()
+    if t and not re.fullmatch(r"[a-z0-9_-]{1,80}", t):
+        raise Invalid("choice")
+    return t
+
+
+def _device(v: Any) -> str:
+    t = str(v or "").strip()
+    if t and not S.DEVICE_ID.match(t):
+        raise Invalid("device")
+    return t
+
+
+def _bool_none(v: Any) -> bool | None:
+    if v is None:
+        return None
+    return _bool(v)
+
+
+TABLET: dict[str, Callable[[Any], Any]] = {
+    "name": _tablet_name,
+    "screen": _screen,
+    "room": _room,
+    "user": _user,
+    "app": _choice(S.TABLET_APPS),
+    "device": _device,
+    "idle_return": _bool_none,
+    "idle_time": _idle_time,
+    "black_screen": _choice(S.BLACK_SCREENS),
+    "sleep": _sleep,
+}
+
+
+def apply_tablet(data: Mapping[str, Any], changes: Mapping[str, Any], tid: str
+                 ) -> tuple[dict[str, Any], dict[str, str]]:
+    """One tablet's settings with `changes` made (then settings.tablet()),
+    and any refusals."""
+    errors: dict[str, str] = {}
+    clean: dict[str, Any] = {}
+    for key, value in changes.items():
+        try:
+            if key not in TABLET:
+                raise Invalid("unknown")
+            clean[key] = TABLET[key](value)
+        except Invalid as err:
+            errors[key] = err.code
+    if errors:
+        return S.tablet(data, tid), errors
+    return S.tablet({**dict(data), **clean}, tid), {}
 
 
 def apply_board(data: Mapping[str, Any], changes: Mapping[str, Any]

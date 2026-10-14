@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from conftest import DOMAIN, add_feature, entry
 
-ITEM_TYPES = ["feature", "dashboard", "popup", "page", "chip", "preset", "playlist"]
+ITEM_TYPES = ["feature", "dashboard", "popup", "page", "chip", "tablet", "preset", "playlist"]
 
 
 async def test_only_one_house(hass, frontend):
@@ -23,7 +23,7 @@ async def test_setup_starts_empty_and_assumes_no_house(hass, base):
     assert r["type"] == "create_entry"
     e = entry(hass)
     assert e.options == {} and not e.subentries
-    assert e.minor_version == 13, "a new entry is already the latest version"
+    assert e.minor_version == 15, "a new entry is already the latest version"
 
 
 async def test_its_items_in_the_order_its_page_lists_them(hass, frontend):

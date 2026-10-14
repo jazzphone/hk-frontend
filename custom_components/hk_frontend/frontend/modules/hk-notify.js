@@ -153,12 +153,21 @@
 
   // ------------------------------------------------------------- the host
   var CSS = [
-    ':host{all:initial;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
+    ':host{all:initial;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}',
     // NOTHING HERE IS TEXT TO SELECT: a mouse dragging a banner away drew the
-    // page's blue selection over it (2026-10-12)
-    '.layer,.layer *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
+    // page's blue selection over it (2026-10-12). NOR A TAP TO HIGHLIGHT
+    // (2026-10-13): `all:initial` above drops the transparent tap highlight
+    // HA's page and every HK card set (hk-base.js BASE_CSS, hk-popup.js), so a
+    // finger swiping a banner up drew the WebView's default -- a square blue
+    // box over the whole banner, ignoring its corners.
+    '.layer,.layer *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}',
+    '.layer :focus:not(:focus-visible){outline:none}',
     '.layer{position:fixed;left:0;right:0;top:0;height:0;z-index:' + Z + ';pointer-events:none;',
-    '  font-family:-apple-system,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;color:var(--hk-ink,rgba(255,255,255,0.94));',
+    // the dashboard's font, as every HK surface outside the view has it
+    // (hk-base.js puts --hk-font-body on the root; this sheet is built before
+    // hk-base may have loaded). It named -apple-system first, which an
+    // Android tablet doesn't have: Roboto there.
+    '  --ha-font-family-body:var(--hk-font-body);font-family:var(--hk-font-body);color:var(--hk-ink,rgba(255,255,255,0.94));',
     '  --top:max(18px, calc(env(safe-area-inset-top, 0px) + 8px));--w:min(600px, calc(100vw - 32px));--r:30px;--pad:16px 18px 16px 16px;--gap:16px;--ic:50px;--f1:20px;--f2:18px;--th:70px;--cw:min(680px, calc(100vw - 32px))}',
     // UNDER THE DYNAMIC ISLAND / A CAMERA CUTOUT: Home Assistant's page is
     // viewport-fit=cover, so the Companion app (iPhone) and Android report
@@ -168,9 +177,9 @@
     '.nb{position:absolute;left:50%;top:var(--top);width:var(--w);transform:translateX(-50%);box-sizing:border-box;display:flex;align-items:center;gap:var(--gap);',
     '  padding:var(--pad);border-radius:var(--r);pointer-events:auto;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:none;',
     '  border:1px solid rgba(255,255,255,0.16);box-shadow:0 12px 40px rgba(0,0,0,0.32),inset 0 1px 0 rgba(255,255,255,0.18);',
-    '  transition:transform .55s cubic-bezier(.2,1.12,.35,1),opacity .35s ease,background .3s;will-change:transform}',
-    '.glass .nb{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(30,32,40,0.46);',
-    '  -webkit-backdrop-filter:blur(26px) saturate(1.7);backdrop-filter:blur(26px) saturate(1.7)}',
+    '  transition:transform .55s cubic-bezier(.34,1.24,.42,1),opacity .35s ease,background .3s;will-change:transform}',
+    '.glass .nb{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(28,28,32,0.52);',
+    '  -webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6)}',  // hkCards.BLUR.medium
     '.frosted .nb{background:rgba(62,64,74,0.95)}',
     '.clear .nb{background:rgba(24,24,28,0.93)}',
     '.nb.imp{border-color:rgba(255,105,97,0.55)}',
@@ -193,7 +202,7 @@
     '.rt{flex:none;align-self:stretch;display:flex;flex-direction:column;align-items:flex-end;gap:6px}',
     '.when{font-size:calc(var(--f2) * .86);color:var(--hk-ink-2,rgba(255,255,255,0.68));line-height:1.1}',
     '.th{width:var(--th);height:var(--th);border-radius:calc(var(--th) * .16);object-fit:cover;display:block;background:rgba(255,255,255,0.08);box-shadow:0 0 0 .5px rgba(255,255,255,.2)}',
-    '.ctl{position:absolute;left:50%;transform:translate(-50%,6px);display:flex;gap:8px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s,top .35s cubic-bezier(.2,1.1,.35,1)}',
+    '.ctl{position:absolute;left:50%;transform:translate(-50%,6px);display:flex;gap:8px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s,top .35s cubic-bezier(.34,1.24,.42,1)}',
     '.ctl.on{opacity:1;pointer-events:auto;transform:translate(-50%,0)}',
     '.ctl button{border:1px solid rgba(255,255,255,0.16);font:inherit;font-size:calc(var(--f2) * .9);font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94));padding:8px 16px;border-radius:999px;cursor:pointer;',
     '  background:rgba(50,52,60,0.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);box-shadow:0 6px 20px rgba(0,0,0,.25)}',
@@ -534,7 +543,7 @@
     show: function (n) { return show(n); },
     shown: function () { return stack.map(function (it) { return it.n; }); },
     clear: clearAll,
-    _: { decide: decide, chimes: chimes, dndOn: dndOn, inWindow: inWindow, ago: ago, target: target, route: route,
+    _: { CSS: CSS, decide: decide, chimes: chimes, dndOn: dndOn, inWindow: inWindow, ago: ago, target: target, route: route,
          state: function () { return { stack: stack, fan: fan, black: black }; } }
   };
   try { window.dispatchEvent(new CustomEvent('hk-module-ready', { detail: { module: 'notify' } })); } catch (e) { /* none */ }

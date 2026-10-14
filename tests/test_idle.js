@@ -144,4 +144,38 @@ ok('another view returns home, keeping the query string',
 location.search = '';
 document.querySelectorAll = savedQSA;
 
+print('\n=== 1.14: the tablet\'s own Idle (its item, not the screen\'s helpers) ===');
+var HS = window.hkSettings;
+var feed = JSON.parse(JSON.stringify(HK_SAMPLE_SETTINGS));
+feed.tablet_items = {
+  kitchen: { name: 'Kitchen', screen: 'dashboard-kitchen', room: 'kitchen', user: 'kitchen', app: 'kiosk_satellite',
+             idle_return: true, idle_time: 30, black_screen: 'hk', screensaver_switch: null, black_switch: null },
+  hall: { name: 'Hall', screen: 'dashboard-home', room: 'hall', user: '', app: 'browser',
+          idle_return: false, idle_time: 50, black_screen: 'kiosk', screensaver_switch: null, black_switch: null }
+};
+HS._apply(feed);
+function asUser(name, states) {
+  haRoot = { hass: { states: states || {}, user: { name: name } } };
+  window.hkIdle.set(null);
+  return window.hkIdle.status();
+}
+location.pathname = '/dashboard-kitchen/lights';
+var st14 = asUser('kitchen', { 'input_select.kitchen_tablet_idle_return': state('Never') });
+ok('signed in as the kitchen tablet: its own 30 s, the old helper ignored', st14.idleMs === 30000 && st14.armed,
+   JSON.stringify(st14));
+st14 = asUser('Mark');
+ok('a desk on the same screen: no tablet, nothing armed', !st14.armed && !st14.onSubview, JSON.stringify(st14));
+feed.tablet_items.kitchen.idle_time = 0; HS._apply(feed);
+st14 = asUser('kitchen');
+ok('Idle Time Never: nothing armed', st14.idleMs === 0 && !st14.armed, JSON.stringify(st14));
+feed.tablet_items.kitchen.idle_time = 120; feed.tablet_items.kitchen.idle_return = false; HS._apply(feed);
+st14 = asUser('kitchen');
+ok('Return to Home off: not armed', !st14.armed && !st14.onSubview, JSON.stringify(st14));
+localStorage.setItem('hk-tablet', 'hall');
+feed.tablet_items.hall.idle_return = true; HS._apply(feed);
+st14 = asUser('Mark');
+ok('known by its address (hk-tablet remembered): the hall tablet, whoever is signed in', st14.armed && st14.idleMs === 50000,
+   JSON.stringify(st14));
+localStorage.removeItem('hk-tablet');
+
 print('\n' + (fail ? 'FAILURES: ' + fail : 'ALL ' + pass + ' IDLE TESTS PASS'));

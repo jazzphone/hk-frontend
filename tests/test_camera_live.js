@@ -104,4 +104,28 @@ ok('leaving with the video playing: its frame is kept (forced)', puts.some(funct
 ok('the layers: live card underneath, the still above it, the kept frame on top',
    playingOne._liveEl === null && K1._still.style.zIndex === '1');
 [K0, K1, K2].forEach(function (c) { c.isConnected = false; c.disconnectedCallback(); });
+
+// NOBODY CAN SEE THE PAGE: a tablet put to sleep on the Cameras page let go
+// of nothing -- every tile kept decoding under the photos or the black.
+__resetTimers();
+var R = [tile(10), tile(11)];
+__runTimers();
+ok('rest: both tiles live to start with', R.every(function (c) { return !!c._liveEl; }));
+var rv = R.map(function (c) { play(c); var v = c._liveEl.children[c._liveEl.children.length - 1]; v.srcObject = { s: 1 }; v.pause = function () { this.paused = true; }; return v; });
+window.dispatchEvent(new CustomEvent('hk-saver-covered'));
+ok('rest: the photos cover the page -- every live tile lets go of its stream, back on its still',
+   R.every(function (c) { return !c._liveEl && c._still.style.visibility !== 'hidden'; }) && rv.every(function (v) { return v.paused && v.srcObject === null; }));
+window.dispatchEvent(new CustomEvent('hk-saver', { detail: { on: false } }));
+__runTimers();
+ok('rest: the photos gone -- they take turns going live again', R.every(function (c) { return !!c._liveEl; }));
+window.dispatchEvent(new CustomEvent('hk-black', { detail: { on: true } }));
+ok('rest: under a black screen too', R.every(function (c) { return !c._liveEl; }));
+window.dispatchEvent(new CustomEvent('hk-black', { detail: { on: false } }));
+__runTimersUnder(1000);
+ok('rest: ...and not straight back as the black lifts (the wake draws the page first)', R.every(function (c) { return !c._liveEl; }));
+__runTimers(); __runTimers();
+ok('rest: ...but a moment after', R.every(function (c) { return !!c._liveEl; }));
+R.forEach(function (c) { c.isConnected = false; c.disconnectedCallback(); });
+window.dispatchEvent(new CustomEvent('hk-saver-covered'));
+ok('rest: a tile taken off the page no longer listens', R.every(function (c) { return !c._liveEl && !c._restOff; }));
 print(fail ? 'FAIL ' + fail + ' CAMERA LIVE TESTS' : 'ALL ' + pass + ' CAMERA LIVE TESTS PASS');

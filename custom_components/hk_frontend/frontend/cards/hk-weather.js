@@ -32,7 +32,7 @@
     var Base = C.HkBase;
 
     // 0.12, NOT 0.10 -- measured, not eyeballed.
-    var RULE = 'var(--hk-line, rgba(255, 255, 255, 0.12))';
+    var RULE = '' + window.hkCards.v('line') + '';
 
     function num(v) { var n = Number(v); return Number.isFinite(n) ? n : null; }
     // Text going into markup: the place label is typed by a person, the
@@ -97,11 +97,9 @@
     class HkWeatherTileCard extends Base {
       static get CSS() {
         return [
+          // a page card's plate (hkCards.plate)
           'ha-card.wtile{box-sizing:border-box;display:block;height:172px;',
-          '  border-radius:' + window.hkCards.M.radius + ';padding:14px 16px;margin:0;',
-          '  ' + window.hkCards.M.glass + ';',
-          '  border:' + window.hkCards.M.border + ';',
-          '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
+          '  padding:14px 16px;margin:0;' + window.hkCards.plate('card') + ';',
           '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
           // `start` on a tablet, where five tiles share a row at ~230px each and
           // the compass and moon disc read as a left-aligned column of graphics.
@@ -130,8 +128,8 @@
           // justify-self:start pins it LEFT while the body stays centred --
           // the shape of the whole row: heading left, drawing centred.
           '.wtile .cap{grid-area:cap;justify-self:start;text-align:left;',
-          '  font-size:12px;font-weight:600;letter-spacing:0.9px;',
-          '  color:var(--hk-ink-2,rgba(255,255,255,0.68));width:100%;',
+          '  font-size:13px;font-weight:600;letter-spacing:0.3px;',
+          '  color:' + window.hkCards.v('ink-2') + ';width:100%;',
           '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
           // NO align-self. The grid is `align-content: start`, so the rows pack to
     // the top and the body simply starts under the caption. `center` is wrong
@@ -162,13 +160,13 @@
     '  flex-direction:column;justify-content:safe center;align-items:center;',
     '  text-align:center}',
           // ---- shared type inside the drawings
-          '.wtile .big{font-size:31px;font-weight:600;letter-spacing:-0.7px;',
-          '  color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1}',
-          '.wtile .uvbig{font-size:40px;font-weight:600;letter-spacing:-1px;',
-          '  color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1}',
-          '.wtile .small{font-size:14px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.wtile .big{font-size:30px;font-weight:700;letter-spacing:-0.6px;',
+          '  color:' + window.hkCards.v('ink') + ';line-height:1}',
+          '.wtile .uvbig{font-size:36px;font-weight:700;letter-spacing:-1px;',
+          '  color:' + window.hkCards.v('ink') + ';line-height:1}',
+          '.wtile .small{font-size:14px;font-weight:500;color:' + window.hkCards.v('ink-2') + '}',
           '.wtile .side{font-size:16px;font-weight:500;line-height:1.4;',
-          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '  color:' + window.hkCards.v('ink-2') + '}',
           // flex:0 1 auto, NOT 1 1 auto. Growing makes the text box eat
           // every pixel the disc does not, so the pair always spans the full
           // row and `justify-content:center` has nothing to centre -- the
@@ -177,9 +175,9 @@
           // `1 0 auto` would be the same bug; the shrink half (1) is what keeps
           // a long phase name wrapping instead of clipping.
           '.wtile .moonside{font-size:15px;font-weight:500;line-height:1.35;',
-          '  flex:0 1 auto;min-width:0;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '  flex:0 1 auto;min-width:0;color:' + window.hkCards.v('ink-2') + '}',
           '.wtile .band{font-size:18px;font-weight:500;margin-top:4px;',
-          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '  color:' + window.hkCards.v('ink-2') + '}',
           '.wtile .uvtrack{position:relative;height:8px;border-radius:4px;margin-top:16px;',
           '  background:linear-gradient(to right,#4cd964,#ffd60a,#ff9f0a,#ff453a,#bf5af2)}',
           '.wtile .uvdot{position:absolute;top:-3px;width:14px;height:14px;',
@@ -252,10 +250,10 @@
           var inner = (i % 9 === 0) ? 26 : 29;
           ticks += '<line x1="' + (cx + inner * Math.sin(t)) + '" y1="' + (cy - inner * Math.cos(t)) +
                    '" x2="' + (cx + 32 * Math.sin(t)) + '" y2="' + (cy - 32 * Math.cos(t)) +
-                   '" style="stroke:var(--hk-line,rgba(255,255,255,0.28))" stroke-width="1"/>';
+                   '" style="stroke:' + window.hkCards.v('mark') + '" stroke-width="1"/>';
         }
         var lab = function (x, y, s) {
-          return '<text x="' + x + '" y="' + y + '" style="fill:var(--hk-ink-2,rgba(255,255,255,0.68))"' +
+          return '<text x="' + x + '" y="' + y + '" style="fill:' + window.hkCards.v('ink-2') + '"' +
                  ' font-size="8" text-anchor="middle">' + s + '</text>';
         };
         var dir = brg === null ? '' : DIRS[Math.round((brg % 360) / 45) % 8];
@@ -275,12 +273,12 @@
           '<svg viewBox="0 0 68 68" style="width:108px;height:108px;flex:0 0 auto">' +
           ticks + lab(34, 9, 'N') + lab(34, 64, 'S') + lab(61, 37, 'E') + lab(7, 37, 'W') +
           '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 +
-          '" style="stroke:var(--hk-glyph,rgba(255,255,255,0.92))" stroke-width="2" stroke-linecap="round"/>' +
-          '<circle cx="' + x2 + '" cy="' + y2 + '" r="3.2" style="fill:var(--hk-glyph,rgba(255,255,255,0.95))"/>' +
+          '" style="stroke:' + window.hkCards.v('glyph') + '" stroke-width="2" stroke-linecap="round"/>' +
+          '<circle cx="' + x2 + '" cy="' + y2 + '" r="3.2" style="fill:' + window.hkCards.v('glyph') + '"/>' +
           '<circle cx="34" cy="34" r="15" style="fill:var(--hk-key,rgba(0,0,0,0.28))"/>' +
-          '<text x="34" y="33" style="fill:var(--hk-ink,rgba(255,255,255,0.94))" font-size="15" font-weight="600"' +
+          '<text x="34" y="33" style="fill:' + window.hkCards.v('ink') + '" font-size="15" font-weight="600"' +
           ' text-anchor="middle">' + (spd === null ? '--' : Math.round(spd)) + '</text>' +
-          '<text x="34" y="43" style="fill:var(--hk-ink-2,rgba(255,255,255,0.68))" font-size="8"' +
+          '<text x="34" y="43" style="fill:' + window.hkCards.v('ink-2') + '" font-size="8"' +
           ' text-anchor="middle">' + unit + '</text></svg>' +
           side + '</div>';
       }
@@ -309,8 +307,8 @@
         return '<div style="width:100%">' +
           '<div class="big">' + main + '</div>' +
           '<svg viewBox="0 0 136 44" style="width:100%;height:50px;margin-top:8px">' +
-          '<path d="M8,36 Q68,-6 128,36" fill="none" style="stroke:var(--hk-line,rgba(255,255,255,0.3))" stroke-width="1.5"/>' +
-          '<line x1="0" y1="38" x2="136" y2="38" style="stroke:var(--hk-line,rgba(255,255,255,0.18))" stroke-width="1"/>' +
+          '<path d="M8,36 Q68,-6 128,36" fill="none" style="stroke:' + window.hkCards.v('mark') + '" stroke-width="1.5"/>' +
+          '<line x1="0" y1="38" x2="136" y2="38" style="stroke:' + window.hkCards.v('line-strong') + '" stroke-width="1"/>' +
           '<circle cx="' + x + '" cy="' + y + '" r="4.5" fill="rgba(255,214,10,0.98)"/></svg>' +
           '<div class="small">' + other + '</div></div>';
       }
@@ -326,7 +324,7 @@
       }
       _moon() {
         var p = this._phase();
-        if (p === null) return '<div style="color:var(--hk-ink-2,rgba(255,255,255,0.68))">--</div>';
+        if (p === null) return '<div style="color:' + window.hkCards.v('ink-2') + '">--</div>';
         var illum = (1 - Math.cos(2 * Math.PI * p)) / 2;
         var waxing = p < 0.5;
         var name = p < 0.03 ? 'New Moon'
@@ -372,7 +370,7 @@
         // than be clipped, which is the SUNSET overlap trap in reverse.
         return '<div class="row" style="gap:12px;min-height:100%">' +
           '<svg viewBox="0 0 60 60" style="width:72px;height:72px;flex:0 0 auto">' +
-          '<circle cx="30" cy="30" r="26" style="fill:var(--hk-key,rgba(255,255,255,0.10))"/>' +
+          '<circle cx="30" cy="30" r="26" style="fill:' + window.hkCards.v('key') + '"/>' +
           '<path d="' + d + '" style="fill:var(--hk-glyph,rgba(226,232,240,0.95))"/></svg>' +
           '<div class="moonside">' + String(name).replace(' ', '<br>') +
           '<br>' + Math.round(illum * 100) + '% lit</div></div>';
@@ -697,14 +695,14 @@
         var date = left && left.querySelector('[data-hk-clock="date"]');
         // NO CLOCK on a narrow screen (_fitWx): no date line to sit on. The tab
         // goes LOWER, level with the chip row under the header -- its centre
-        // is the header's bottom + 43 px (the header's 9 px margin, the chip's
-        // 5, half its 44 -- measured at 744 px: header 142, chips 163-207) --
+        // is the header's bottom + 21 px + half the chip (measured at 744 px
+        // with the 44 px chip: header 142, chips 163-207) --
         // so it reads as that row's lead, 62 px clear of the weather and
         // 92 px clear of a sub-page's back button. Following the weather's
         // first line up instead would put it right beside both.
         if (date && !date.getClientRects().length) {
           var hb = this.getBoundingClientRect();
-          var yc = hb.bottom + 43 - (M.viewTop() - (window.scrollY || 0));
+          var yc = hb.bottom + 21 + window.hkCards.CHIP.h / 2 - (M.viewTop() - (window.scrollY || 0));
           if (yc > 0 && yc < 600 && M.publishDate) M.publishDate(yc);
           return;
         }
@@ -797,11 +795,8 @@
           // shared tokens. This card ONLY RENDERS WHEN AN ALERT IS LIVE, so
           // drift here would be invisible until it matters, which is the
           // argument for it not being hand-rolled.
-          'ha-card.alert{box-sizing:border-box;display:block;border-radius:' + window.hkCards.M.radius + ';',
-          '  padding:16px 20px 14px 20px;margin:0px 0px 12px 0px;',
-          '  ' + window.hkCards.M.glass + ';',
-          '  border:' + window.hkCards.M.border + ';',
-          '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
+          'ha-card.alert{box-sizing:border-box;display:block;',
+          '  padding:16px 20px 14px 20px;margin:0px 0px 12px 0px;' + window.hkCards.plate('card') + ';',
           '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
           '.alert .grid{display:grid;',
           '  grid-template-areas:"i title" "i src" "body body" "count count";',
@@ -811,14 +806,14 @@
           '.alert .icon{grid-area:i;width:26px;height:26px;--mdc-icon-size:26px;',
           '  align-self:center}',
           '.alert .title{grid-area:title;font-size:19px;font-weight:700;',
-          '  letter-spacing:-0.45px;align-self:end;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+          '  letter-spacing:-0.45px;align-self:end;color:' + window.hkCards.v('ink') + '}',
           '.alert .src{grid-area:src;font-size:14px;font-weight:500;',
-          '  letter-spacing:-0.2px;align-self:start;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '  letter-spacing:-0.2px;align-self:start;color:' + window.hkCards.v('ink-2') + '}',
           '.alert .body{grid-area:body;font-size:15px;font-weight:500;',
           '  letter-spacing:-0.2px;line-height:1.35;text-align:left;margin-top:12px;',
-          '  color:var(--hk-ink,rgba(255,255,255,0.94))}',
+          '  color:' + window.hkCards.v('ink') + '}',
           '.alert .count{grid-area:count;font-size:13px;font-weight:500;',
-          '  margin-top:10px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}'
+          '  margin-top:10px;color:' + window.hkCards.v('ink-3') + '}'
         ].join('');
       }
       setConfig(config) {
@@ -937,13 +932,10 @@
     class HkWeatherBandCard extends Base {
       static get CSS() {
         return [
-          // The plate. Same tokens hk_glass_tile reads, so the two cannot
-          // disagree; the 20/24 padding and the 12px bottom margin are the
-          // band's own.
-          'ha-card.band{' + M.glass + ';border:' + M.border + ';',
-          '  box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),',
-          '    var(--hk-glass-shadow-lg, 0 10px 28px rgba(0,0,0,0.12)));',
-          '  border-radius:' + M.radius + ';padding:20px 24px;margin:0 0 12px 0;',
+          // The plate: a page card's (hkCards.plate, CARD's 20 / 22 padding),
+          // and the band's own 12px bottom margin.
+          'ha-card.band{' + window.hkCards.plate('card') + ';',
+          '  padding:' + window.hkCards.CARD.pad + ';margin:0 0 12px 0;',
           '  display:block;overflow:hidden}',
           // A GRID WITH A FIXED 300px LEFT TRACK AND A 24px COLUMN GAP. A
           // flex row with a content-sized left block and no gap looks fine,
@@ -959,14 +951,14 @@
           // fonts/sf-pro.css declares the variable font across `1 1000`.
           '.now{display:flex;flex-direction:column;justify-content:center;',
           '  align-items:center;text-align:center;padding:0 8px;height:100%}',
-          '.place{font-size:12px;font-weight:600;letter-spacing:1.6px;',
-          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.place{font-size:13px;font-weight:600;letter-spacing:0.3px;',
+          '  color:' + window.hkCards.v('ink-2') + '}',
           '.temp{font-size:76px;font-weight:200;letter-spacing:-2px;',
-          '  line-height:1.04;margin-top:6px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+          '  line-height:1.04;margin-top:6px;color:' + window.hkCards.v('ink') + '}',
           '.cond{font-size:21px;font-weight:600;letter-spacing:-0.3px;',
-          '  margin-top:2px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+          '  margin-top:2px;color:' + window.hkCards.v('ink') + '}',
           '.sub{font-size:14px;font-weight:500;margin-top:8px;',
-          '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '  color:' + window.hkCards.v('ink-2') + '}',
           '.sub.wind{margin-top:2px}',
           '.rule{background:' + RULE + ';width:1px}',
           // NARROW (a phone): when no forecast column fits beside
@@ -987,15 +979,15 @@
           '.hrule{height:0;border-top:1px solid ' + RULE + ';width:100%}',     // a border: snapped to device pixels
           '.cell{display:flex;flex-direction:column;align-items:center;',
           '  gap:5px;min-width:0}',
-          '.lbl{font-size:13px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+          '.lbl{font-size:13px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';',
           '  white-space:nowrap}',
-          '.lbl.now{font-weight:700;color:var(--hk-ink,rgba(255,255,255,0.94));padding:0;',
+          '.lbl.now{font-weight:700;color:' + window.hkCards.v('ink') + ';padding:0;',
           '  display:block}',
           '.hi{font-size:17px;font-weight:700;letter-spacing:-0.3px;',
-          '  color:var(--hk-ink,rgba(255,255,255,0.94))}',
-          '.lo{font-size:13px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-          '.pop{font-size:12px;font-weight:500;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-          '.pop.wet{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '  color:' + window.hkCards.v('ink') + '}',
+          '.lo{font-size:13px;font-weight:500;color:' + window.hkCards.v('ink-2') + '}',
+          '.pop{font-size:12px;font-weight:500;color:' + window.hkCards.v('ink-3') + '}',
+          '.pop.wet{color:' + window.hkCards.v('ink-2') + '}',
           // PLAIN (`plain: true`, the screensaver's): no plate -- the band
           // drawn straight on what is behind it, every line white, with a
           // soft shadow for the contrast the plate gave. The 24px sides stay,

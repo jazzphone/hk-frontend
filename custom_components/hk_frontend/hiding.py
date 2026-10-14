@@ -168,10 +168,11 @@ def _also(cands: list[kinds.Candidate], auto: Mapping[str, list[str]], want: set
     """The kinds each of `want` could ALSO be counted in: its domain is one
     the kind's Also count offers, it isn't found there by itself -- and for
     a reading (temperature, humidity), it reports that reading. Hidden or
-    disabled in Home Assistant, and groups, are offered nothing."""
+    disabled in Home Assistant are offered nothing; a group is offered what
+    its domain could be (never found by itself, so only ever added by hand)."""
     out: dict[str, list[str]] = {}
     for c in cands:
-        if c.entity_id not in want or not c.shown:
+        if c.entity_id not in want or not (c.shown or (c.group and c.listed)):
             continue
         domain = c.entity_id.split(".", 1)[0]
         ks = [k for k, kind in kinds.KINDS.items()

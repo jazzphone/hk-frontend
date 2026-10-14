@@ -135,7 +135,7 @@
     }
 
     var CSS = [
-      ':host{display:block;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      ':host{display:block;color:' + window.hkCards.v('ink') + '}',
       '.pp{display:flex;gap:' + SP.region + 'px;min-height:100%;box-sizing:border-box}',
       '.col{display:flex;flex-direction:column;gap:' + SP.block + 'px;min-width:0}',
       '.c1{width:340px;flex:none}.c2{flex:1}',
@@ -144,29 +144,29 @@
       '.card{border-radius:' + SP.cardR + 'px;background:rgba(255,255,255,0.08);padding:' + SP.cardPad + ';flex:none}',
       '.card.rows{padding:' + SP.rowsPad + '}',
       '.lab{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;line-height:16px;font-weight:600;',
-      '  letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase}',
+      '  letter-spacing:0.3px;color:' + window.hkCards.v('ink-2') + ';text-transform:uppercase}',
       // the day in words beside the label, or under it where it can't fit
       '.lab{flex-wrap:wrap;row-gap:4px}',
       '.lab > span:first-child{white-space:nowrap}',
-      '.lab .n{text-transform:none;font-size:15px;font-weight:400;letter-spacing:0;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;margin-left:auto}',
+      '.lab .n{text-transform:none;font-size:15px;font-weight:400;letter-spacing:0;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;margin-left:auto}',
       '.row{display:flex;align-items:center;gap:12px;font-size:16px;line-height:20px}',
       '.row ha-icon{--mdc-icon-size:20px;opacity:.7;flex:none;display:flex}',
-      '.row .v{margin-left:auto;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.row .v{margin-left:auto;color:' + window.hkCards.v('ink-2') + '}',
       '.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:650;overflow:hidden;flex:none;',
       '  background:linear-gradient(180deg,#a3a9b5,#7b8190);color:#fff}',
       '.av img{width:100%;height:100%;object-fit:cover}',
       '.me{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-height:0;text-align:center}',
       '.me .av{width:116px;height:116px;font-size:42px;box-shadow:0 0 0 5px var(--ring)}',
-      '.big{font-size:40px;font-weight:700;letter-spacing:-1.2px;line-height:44px}',
+      '.big{font-size:36px;font-weight:700;letter-spacing:-1px;line-height:40px}',  // hkCards.TYPE figure-l
       '.me .big{margin-top:' + SP.region + 'px}',
-      '.sub{font-size:15px;line-height:20px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:' + SP.line + 'px}',
+      '.sub{font-size:15px;line-height:20px;color:' + window.hkCards.v('ink-2') + ';margin-top:' + SP.line + 'px}',
       '.meh{display:flex;align-items:center;gap:18px;padding:4px ' + SP.inset + 'px 4px ' + (SP.inset + 4) + 'px;flex:none}',
       '.meh .av{width:64px;height:64px;font-size:24px;box-shadow:0 0 0 4px var(--ring)}',
       '.meh .big{font-size:32px;line-height:36px}',
       '.bar{position:relative;height:28px;border-radius:9px;background:rgba(255,255,255,0.10);margin-top:' + SP.block + 'px;overflow:hidden}',
       '.bar i{position:absolute;top:0;bottom:0;min-width:2px}',
       '.bar .q{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.08)}',
-      '.axx{position:relative;height:14px;margin-top:8px;font-size:12px;line-height:14px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+      '.axx{position:relative;height:14px;margin-top:8px;font-size:12px;line-height:14px;color:' + window.hkCards.v('ink-3') + '}',
       '.axx span{position:absolute;top:0;white-space:nowrap;transform:translateX(-50%)}',
       '.axx span:first-child{transform:none}.axx span:last-child{transform:translateX(-100%)}',
       '.map{position:relative;flex:1;min-height:0;border-radius:' + SP.cardR + 'px;overflow:hidden;background:#1b1d22}',
@@ -181,17 +181,17 @@
       '.map .where{position:absolute;left:10px;right:10px;bottom:10px;border-radius:12px;padding:10px 12px;',
       '  background:rgba(30,30,34,0.62);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5)}',
       '.map .where b{display:block;font-size:17px;line-height:22px}',
-      '.map .where span{display:block;font-size:13px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-      '.map .cr{position:absolute;right:10px;top:8px;font-size:10px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-      '.map .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.map .where span{display:block;font-size:13px;line-height:18px;color:' + window.hkCards.v('ink-2') + '}',
+      '.map .cr{position:absolute;right:10px;top:8px;font-size:10px;color:' + window.hkCards.v('ink-3') + '}',
+      '.map .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;color:' + window.hkCards.v('ink-2') + '}',
       '.who{display:flex;gap:' + SP.block + 'px;margin-top:' + SP.block + 'px;flex-wrap:wrap}',
       '.who button{flex:1 1 140px;min-width:0;display:flex;align-items:center;gap:10px;height:52px;padding:0 12px 0 9px;',
-      '  border-radius:26px;border:0;background:rgba(255,255,255,0.09);color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:14px;line-height:18px;',
+      '  border-radius:26px;border:0;background:rgba(255,255,255,0.09);color:' + window.hkCards.v('ink') + ';font:inherit;font-size:14px;line-height:18px;',
       '  font-weight:600;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}',
       '.who button:active{background:rgba(255,255,255,0.18)}',
       '.who .av{width:34px;height:34px;font-size:12px;box-shadow:0 0 0 2px var(--c)}',
       '.who .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.who small{display:block;font-size:12px;line-height:16px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.who small{display:block;font-size:12px;line-height:16px;font-weight:500;color:' + window.hkCards.v('ink-2') + '}',
       '.who .chev{margin-left:auto;opacity:.45;font-size:18px;flex:none}'
     ].join('');
 
@@ -200,7 +200,7 @@
       static get CSS() { return U.PANEL_CSS + U.NOTE_CSS + CSS; }
       hkWidthKind() { return 'person'; }
       hkNoGear() { return true; }
-      hkFill() { return !matchMedia('(max-width:600px)').matches; }
+      hkFill() { return !matchMedia('(max-width:' + C.BP.phone + 'px)').matches; }
       // the notification's card, at the top of the left column
       hkNote(card) { this._note = card; if (this._c1) this._c1.insertBefore(card, this._c1.firstChild); }
       // the header's well is their picture, its name theirs
@@ -216,17 +216,36 @@
         d.tt.textContent = (d.src && d.src.name) || nameOf(s) || d.id;
         return true;
       }
+      // WHAT IT DEPENDS ON IS LOOKED UP ONCE PER REGISTRY, not on every
+      // update while the sheet is open: the people in the house and this
+      // person's phone battery sensor -- each was a walk over every state and
+      // every registry entry, 30-odd times a second on a wall tablet
+      _deps(h, s) {
+        var trk = ((s && s.attributes && s.attributes.device_trackers) || []).join(',');
+        var D = this._depsMemo;
+        if (D && D.ents === h.entities && D.trk === trk) return D;
+        var people = Object.keys(h.states).filter(function (k) { return k.indexOf('person.') === 0; });
+        var bat = null, E = h.entities || {};
+        ((s && s.attributes && s.attributes.device_trackers) || []).some(function (t) {
+          var dev = E[t] && E[t].device_id;
+          if (!dev) return false;
+          bat = Object.keys(E).filter(function (k) { return E[k].device_id === dev && k.indexOf('sensor.') === 0; })
+            .filter(function (k) { var st = h.states[k]; return st && st.attributes.device_class === 'battery' && st.attributes.unit_of_measurement === '%'; })[0] || null;
+          return true;
+        });
+        return (this._depsMemo = { ents: h.entities, trk: trk, people: people, bat: bat });
+      }
       _sigOf() {
         var h = this._hass, s = stOf(h, this._id);
         if (!s) return 'x';
-        var others = Object.keys(h.states).filter(function (k) { return k.indexOf('person.') === 0; })
-          .map(function (k) { return h.states[k].state; }).join(',');
-        return [s.last_updated, others, (phoneOf(h, s) || {}).battery].join('|');
+        var D = this._deps(h, s);
+        var others = D.people.map(function (k) { return h.states[k] ? h.states[k].state : ''; }).join(',');
+        return [s.last_updated, others, D.bat && h.states[D.bat] ? h.states[D.bat].state : ''].join('|');
       }
       _render() {
         var h = this._hass, s = this._stateObj;
         if (!h || !s) return;
-        var one = matchMedia('(max-width:600px)').matches;
+        var one = matchMedia('(max-width:' + C.BP.phone + 'px)').matches;
         var home = s.state === 'home';
         if (!this._built || this._one !== one) {
           this._built = true; this._one = one;

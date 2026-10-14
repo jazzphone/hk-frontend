@@ -30,8 +30,9 @@ from homeassistant.core import HomeAssistant, callback
 
 from .. import ENERGY, Feature, async_update, entries
 from . import plan
+from .power import check as _power_check
 from .const import (COLORS, CONF_BATTERIES, CONF_COST, CONF_DETAIL, CONF_DEVICES, CONF_EXTRA, CONF_FOLLOW,
-                    CONF_PAGE, PERIODS, RINGS, TYPICAL, CONF_SECTIONS, CONF_TITLE, CONF_TOP, CONF_TOTAL, CONF_USAGES, OPTION_KEYS, SECTIONS, TOP_MAX,
+                    CONF_PAGE, CONF_POWER, PERIODS, RINGS, TYPICAL, CONF_SECTIONS, CONF_TITLE, CONF_TOP, CONF_TOTAL, CONF_USAGES, OPTION_KEYS, SECTIONS, TOP_MAX,
                     USAGES_MAX)
 
 ENTITY = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
@@ -43,6 +44,7 @@ DEVICE_FIELDS = ("name", "icon", "color", "power", "control", "hidden", "runtime
 
 MSG = {
     "unknown": "That setting doesn’t exist.",
+    "power": "That Power page setting isn’t one HK can use.",
     "bool": "Choose on or off.",
     "name": "Up to 40 characters.",
     "entity": "That isn’t an entity id.",
@@ -331,6 +333,17 @@ def apply(options: dict[str, Any], changes: dict[str, Any]) -> tuple[dict[str, A
             got, err = _list_of(v, _battery, 12)
             if err:
                 errors[k] = MSG[err]
+            else:
+                out[k] = got
+        elif k == CONF_POWER:
+            # THE POWER PAGE: replaced whole (the settings page sends the
+            # whole object); null turns it off
+            if v is None:
+                out.pop(k, None)
+                continue
+            got = _power_check(v)
+            if got is None:
+                errors[k] = MSG["power"]
             else:
                 out[k] = got
         elif k == CONF_PAGE:

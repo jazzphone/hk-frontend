@@ -799,12 +799,6 @@
         snapCachePut(s.cam.entity, im, true, s.at);
       }
     }
-    // The live card out of sight until its video has a picture (.wait), and
-    // back -- fading in over the copied frame -- once it has.
-    _liveWait(on) {
-      var el = this._liveSlot && this._liveSlot.el;
-      if (el && el.classList) el.classList.toggle('wait', !!on && VIDEO_OUTSIDE);
-    }
     _liveShown() {
       // a navigation that did not leave after all (the path is back)
       if (this._leaving && location.pathname === this._navPath) this._leaving = false;
@@ -1826,6 +1820,46 @@
       for (var i = 0; i < k.length; i++) stack.push(k[i]);
     }
   }
+  // WHEN NOBODY CAN SEE THE PAGE: behind HK's photo screensaver once it
+  // covers the dashboard, under any black (HK's own or the kiosk's), or with
+  // the page hidden -- the same signals the Home strip rests on above. rest()
+  // when one starts; wake() when the last one ends (AFTER_BLACK after a
+  // black, as the strip does). -> off()
+  function restWatch(rest, wake) {
+    var black = false, covered = false, wakeT = null, seq = 0;
+    var later = function (ms) {
+      clearTimeout(wakeT);
+      var my = ++seq;
+      wakeT = setTimeout(function () {
+        if (my !== seq) return;
+        wakeT = null;
+        if (black || covered || document.hidden) return;
+        if (window.hkSaver && window.hkSaver.running && window.hkSaver.running()) return;
+        wake();
+      }, ms);
+    };
+    var stop = function () { seq++; clearTimeout(wakeT); wakeT = null; };
+    var on = {
+      'hk-saver-covered': function () { covered = true; stop(); rest(); },
+      'hk-saver': function (e) { if (!(e && e.detail && e.detail.on)) { covered = false; later(0); } },
+      'hk-black': function (e) {
+        black = !!(e && e.detail && e.detail.on);
+        if (black) { stop(); rest(); } else later(AFTER_BLACK);
+      },
+      'kiosksatellite:screensaverstart': function () { black = true; stop(); rest(); },
+      'kiosksatellite:screenoff': function () { black = true; stop(); rest(); },
+      'kiosksatellite:screensaverstop': function () { black = false; later(AFTER_BLACK); },
+      'kiosksatellite:screenon': function () { black = false; later(AFTER_BLACK); }
+    };
+    var vis = function () { if (document.hidden) { stop(); rest(); } else later(0); };
+    Object.keys(on).forEach(function (t) { window.addEventListener(t, on[t]); });
+    document.addEventListener('visibilitychange', vis);
+    return function () {
+      stop();
+      Object.keys(on).forEach(function (t) { window.removeEventListener(t, on[t]); });
+      document.removeEventListener('visibilitychange', vis);
+    };
+  }
   class HkCameraLiveCard extends HTMLElement {
     setConfig(c) {
       if (!c || !c.entity) throw new Error('hk-camera-live-card: entity is required');
@@ -1851,15 +1885,40 @@
       if (this._config && this._hass && !this._still) this._reset();
       else if (this._still && !this._live && !this._frame) this._saved();
       this._tries = 0;
-      if (liveQueue.indexOf(this) < 0) liveQueue.push(this);
       var self = this;
+      // RESTING WHILE NOBODY CAN SEE IT (2026-10-13): a tablet put to sleep on
+      // the Cameras page kept every tile's stream decoding under the photos
+      // or the black until the page changed
+      if (!this._restOff) this._restOff = restWatch(function () { self._rest(); }, function () { self._wake(); });
+      this._resting = document.hidden || !!(window.hkSaver && window.hkSaver.running && window.hkSaver.running());
+      if (this._resting) return;
+      if (liveQueue.indexOf(this) < 0) liveQueue.push(this);
       // after this task, so every tile attached together queues before the first goes
       setTimeout(liveNext, 0);
+    }
+    _rest() {
+      if (this._resting) return;
+      this._resting = true;
+      this._stop();
+      liveQueue = liveQueue.filter(function (s) { return s !== this; }, this);
+      if (this._liveEl) { releaseMedia(this._liveEl); this._liveEl.remove(); this._liveEl = null; }
+      this._live = false;
+      if (this._still) this._still.style.visibility = '';
+      liveDone(this);
+    }
+    _wake() {
+      if (!this._resting || !this.isConnected) return;
+      this._resting = false;
+      this._tries = 0;
+      if (liveQueue.indexOf(this) < 0) liveQueue.push(this);
+      liveNext();
     }
     // LEFT (Home Assistant keeps the page): back to the still, so a return
     // takes turns again instead of opening all nine at once
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
+      if (this._restOff) { this._restOff(); this._restOff = null; }
+      this._resting = false;
       this._stop();
       liveQueue = liveQueue.filter(function (s) { return s !== this; }, this);
       // the frame it is leaving, for a return (and the strip) to open on
@@ -1938,7 +1997,7 @@
       if (this._frame) { this._frame.remove(); this._frame = null; }
     }
     _goLive() {
-      if (!this.isConnected) { liveDone(this); return; }
+      if (!this.isConnected || this._resting) { liveDone(this); return; }
       this._live = true;
       var el = this._liveEl = this._card(true);
       el.style.cssText = 'position:absolute;inset:0;z-index:0';
@@ -2220,7 +2279,7 @@
         // row -- would cover two thirds of it. A phone has volume buttons, so
         // the slider goes, and the bar tightens so the talk button stays on the
         // speaker's row.
-        '@media (max-width:600px){.vol{display:none}.bar{gap:10px;padding:18px 12px 12px}',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){.vol{display:none}.bar{gap:10px;padding:18px 12px 12px}',
         '  .talk{min-width:0;padding:0 18px 0 14px}}',
         // A still that failed (no artwork yet) must not leave a broken-image glyph.
         '.db>img.dead{visibility:hidden}',
@@ -2926,7 +2985,7 @@
   }
 
   class HkTvGuideCard extends HkBase {
-    // EVERY CLASS IS tv-: BASE_CSS already styles .tile as the 192x70 pill,
+    // EVERY CLASS IS tv-: BASE_CSS already styles .tile as the 70 px pill,
     // and a tv card would inherit it.
     static get CSS() {
       var M = C.M;
@@ -2948,17 +3007,17 @@
         '  border-radius:9px;background:rgba(255,255,255,.88);display:flex;align-items:center}',
         '.tv-logo img{position:static;height:100%;width:auto;object-fit:contain}',
         '.tv-txt{padding:12px 14px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}',
-        '.tv-chan{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-        '.tv-chan b{color:var(--hk-ink,rgba(255,255,255,0.94));font-size:15px;margin-right:6px}',
+        '.tv-chan{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
+        '.tv-chan b{color:' + window.hkCards.v('ink') + ';font-size:15px;margin-right:6px}',
         '.tv-title{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '.tv-sub{font-size:14px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '.tv-sub{font-size:14px;color:' + window.hkCards.v('ink-2') + ';',
         '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.2em}',
-        '.tv-bar{height:4px;border-radius:2px;background:var(--hk-line,rgba(255,255,255,.2));margin:8px 0 4px;overflow:hidden}',
-        '.tv-bar i{display:block;height:100%;background:var(--hk-ink,rgba(255,255,255,0.94));border-radius:2px}',
-        '.tv-times,.tv-next{font-size:12.5px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '.tv-bar{height:4px;border-radius:2px;background:' + window.hkCards.v('line-strong') + ';margin:8px 0 4px;overflow:hidden}',
+        '.tv-bar i{display:block;height:100%;background:' + window.hkCards.v('ink') + ';border-radius:2px}',
+        '.tv-times,.tv-next{font-size:12.5px;color:' + window.hkCards.v('ink-2') + ';',
         '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.tv-empty{padding:24px;border-radius:' + M.radius + ';' + M.glass + ';text-align:center;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}'
+        '  color:' + window.hkCards.v('ink-2') + '}'
       ].join('');
     }
 

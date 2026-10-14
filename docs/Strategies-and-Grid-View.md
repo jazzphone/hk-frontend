@@ -11,10 +11,21 @@ card by its `view_layout`. Use it for your own views, with the live sky:
 | Key | What it does |
 |---|---|
 | `type: custom:hk-grid-view` | The view type. |
-| `layout` | As for `hk-grid-card`. HK Frontend’s pages use a three-column grid, `2% 96% 2%`, with every card in the middle column (`view_layout: {grid-column: "2"}`). |
+| `layout` | As for `hk-grid-card`. HK Frontend’s pages use a three-column grid with every card in the middle column (`view_layout: {grid-column: "2"}`). The side columns are `--hk-side` of the page’s width: 1.5% from 641 px up, 2% on a phone and in the car (below). |
 | `sky: true` | The live sky behind this view (the dashboard also needs a `sky:` block; see [The live sky](Live-Sky.md)). |
-| `sky_variant` | A still color wash instead: `lights`, `climate`, `doors`, `timers`, `vacuums`, `water`, `cameras`, `playmusic`, `energy` or `ecoflow`. |
+| `sky_variant` | A still color wash instead: `lights`, `climate`, `doors`, `timers`, `vacuums`, `water`, `cameras`, `playmusic`, `energy` or `power`. |
 | `theme: HK Kiosk` | HK Frontend’s theme, for this view. |
+
+The side margins, as generated pages write them:
+
+```yaml
+layout:
+  grid-template-columns: calc(var(--hk-side, 0.02) * 100%) calc(100% - 2 * var(--hk-side, 0.02) * 100%) calc(var(--hk-side, 0.02) * 100%)
+```
+
+`--hk-side` comes from `hk-responsive.css`, a resource HK Frontend adds for
+you. With a fixed `2% 96% 2%` the grid is narrower: a 1280 px wall tablet
+fits five 196 px pills across instead of six.
 
 The menu reads a few more view keys (`area`, `menu`, `menu_title`,
 `menu_icon`); see [The menu on your own dashboard](Menu.md#the-menu-on-your-own-dashboard).
@@ -33,7 +44,7 @@ strategy:
 ```
 
 Its settings come from HK Settings (the screen’s own, and **Accessories →
-Hidden Accessories** and **Also Shown**). A few options can also be written
+Hidden Accessories** and **Added Accessories**). A few options can also be written
 here; lists add to HK Settings’ lists:
 
 | Option | What it does |

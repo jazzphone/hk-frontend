@@ -110,6 +110,13 @@ class Engine:
         self._unsubs: list[Callable[[], None]] = []
         self._timer: Callable[[], None] | None = None
         self._task: asyncio.Task | None = None
+        # the small calls made beside an action (brightness, the display off):
+        # kept so an unload can cancel them too
+        self._side: set[asyncio.Task] = set()
+        # UNLOADED IS FINAL: an engine handed back (Sleep Screen to the house's
+        # automation, the entry reloaded, the tablet removed) never acts again,
+        # whatever is still on its way (a cancelled action's finally, a timer)
+        self._closed = False
         self._recent: list[float] = []
         self._root = Context()
         # presence memory: raw (any sensor on), when it last cleared, when
@@ -152,9 +159,18 @@ class Engine:
             self._timer = None
 
     def unload(self) -> None:
+        self._closed = True
         self.stop()
         if self._task and not self._task.done():
             self._task.cancel()
+        for t in list(self._side):
+            t.cancel()
+        self._side.clear()
+
+    def _spawn(self, coro: Any) -> None:
+        task = self.hass.async_create_task(coro, "hk_frontend sleep %s" % self.path)
+        self._side.add(task)
+        task.add_done_callback(self._side.discard)
 
     @property
     def acting(self) -> bool:
@@ -381,6 +397,8 @@ class Engine:
     # -------------------------------------------------------------- decide
     @callback
     def evaluate(self) -> None:
+        if self._closed:
+            return
         now = dt_util.utcnow()
         f = self.facts(now)
         self.facts_now = f
@@ -424,6 +442,8 @@ class Engine:
     # ---------------------------------------------------------------- act
     @callback
     def reconcile(self) -> None:
+        if self._closed:
+            return
         if self._task and not self._task.done():
             return                     # read again when it ends (_run)
         what = R.action(self.want, self.actual)
@@ -463,7 +483,8 @@ class Engine:
             _LOG.exception("Sleep Screen %s: %s failed", self.path, what)
         finally:
             self._task = None
-            self.evaluate()
+            if not self._closed:
+                self.evaluate()
 
     def _ctx(self) -> Context:
         return Context(parent_id=self._root.id)
@@ -587,12 +608,12 @@ class Engine:
         blk = self._black()
         if blk is not None and blk.is_on and self.board.get("black_screen") == "hk":
             if changed or self._attr(blk.entity_id, "brightness") != t:
-                self.hass.async_create_task(blk.async_set_black_screen(brightness=t))
+                self._spawn(blk.async_set_black_screen(brightness=t))
             return
         # only when the TARGET changes (a person may set it by hand meanwhile)
         scr = self._st(self.kiosk.get("screen"))
         if changed and self.actual != "dark" and scr is not None and scr.state == "on" and scr.attributes.get("brightness") != t:
-            self.hass.async_create_task(self._call("light", "turn_on", {"entity_id": scr.entity_id, "brightness": t}))
+            self._spawn(self._call("light", "turn_on", {"entity_id": scr.entity_id, "brightness": t}))
 
     @callback
     def _quiet_display(self, now: datetime) -> None:
@@ -610,7 +631,7 @@ class Engine:
         lit = self._display_on_at
         if lit is not None and (now - lit).total_seconds() < HAND_LIT_S:
             return
-        self.hass.async_create_task(self._call("light", "turn_off", {"entity_id": scr.entity_id}))
+        self._spawn(self._call("light", "turn_off", {"entity_id": scr.entity_id}))
 
     # --------------------------------------------------------------- report
     def attributes(self) -> dict[str, Any]:

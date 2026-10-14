@@ -173,11 +173,12 @@ async def test_the_screensaver_lines(hass, frontend, monkeypatch):
     assert line.ok is None and "forecast" in line.detail, "Photos & Forecast: no photos is the forecast, never dark"
 
 
-async def test_a_screensaver_screen_needs_its_tablet_user(hass, frontend, monkeypatch):
-    """The screensaver runs only for the screen's Tablet User: none chosen, or
-    one Home Assistant doesn't have, is a thing to fix -- otherwise it just
-    never shows and nothing says why."""
-    from custom_components.hk_frontend import setup_check
+async def test_wall_tablets_need_their_user_screen_and_kiosk(hass, frontend, monkeypatch):
+    """A screen's screensaver runs only on a wall tablet: none, or a tablet
+    whose user Home Assistant doesn't have, is a thing to fix -- otherwise it
+    just never shows and nothing says why. (1.14: the tablets' own items.)"""
+    from homeassistant.config_entries import ConfigSubentry
+    from custom_components.hk_frontend import settings as S, setup_check
     from homeassistant.components import media_source
     from homeassistant.components.lovelace.const import LOVELACE_DATA
     hass.data[LOVELACE_DATA] = SimpleNamespace(
@@ -188,16 +189,25 @@ async def test_a_screensaver_screen_needs_its_tablet_user(hass, frontend, monkey
         return SimpleNamespace(children=[])
     monkeypatch.setattr(media_source, "async_browse_media", browse)
     await hass.auth.async_create_user("Kitchen Tablet")
+    ent = entry(hass)
 
-    async def saver(board):
-        return {x.title: x for x in await setup_check.async_run(hass, {}, {"dashboard-k": board})}.get("Screensaver Tablets")
-    assert await saver({"menu": "open"}) is None, "no screensaver, no line"
-    got = await saver({"screensaver": True})
-    assert got.ok is False and "no Tablet User on Kitchen" in got.detail
-    got = await saver({"screensaver": True, "tablet_user": "Kitchen Tablett"})
-    assert got.ok is False and "no Home Assistant user by that name for Kitchen: “Kitchen Tablett”" in got.detail
-    got = await saver({"screensaver": True, "tablet_user": "Kitchen Tablet"})
-    assert got.ok is True and got.detail.startswith("1 screen with a Tablet User")
+    async def line():
+        return {x.title: x for x in await setup_check.async_run(hass, {}, S.boards(ent))}.get("Wall Tablets")
+    assert await line() is None, "no screensaver and no tablet: no line"
+    screen = ConfigSubentry(data={"screensaver": True}, subentry_type="dashboard", title="Kitchen",
+                            unique_id="dashboard-k")
+    hass.config_entries.async_add_subentry(ent, screen)
+    got = await line()
+    assert got.ok is False and "no wall tablet runs" in got.detail
+    tab = ConfigSubentry(data={"name": "Kitchen", "screen": "dashboard-k", "user": "Kitchen Tablett",
+                               "app": "kiosk_satellite"}, subentry_type="tablet", title="Kitchen", unique_id="kitchen")
+    hass.config_entries.async_add_subentry(ent, tab)
+    got = await line()
+    assert got.ok is False and "no Home Assistant user “Kitchen Tablett”" in got.detail
+    assert "its kiosk app’s device isn’t chosen" in got.detail
+    hass.config_entries.async_update_subentry(ent, tab, data={**tab.data, "user": "Kitchen Tablet", "app": "browser"})
+    got = await line()
+    assert got.ok is True and got.detail == "1 tablet, each set up right."
 
 
 def test_a_name_from_an_integration_is_text_never_markdown():

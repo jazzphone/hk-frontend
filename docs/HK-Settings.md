@@ -31,9 +31,9 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **[Status Rows](Status-Rows.md)**, **Weather**, **Calendar**, **Appearance**, **Sky / Background**, **Menu**, **[Rooms](Rooms.md)**, **[Cameras](Cameras.md)**, **Wall Tablets** | Every screen |
-| **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **Energy**, **[Notifications](Notifications.md)** | Every screen |
-| **Library** | **[Accessories](Accessories.md#accessories-settings)** (with [Hidden Accessories](Accessories.md#hidden-accessories) and [What Counts](Status-Chips.md#what-counts)), **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
+| **All Screens** | **General**, **Weather**, **Calendar**, **Appearance**, **[Sky / Background](Live-Sky.md)**, **[Screensaver](Screensaver-and-Idle.md#screensaver-settings)**, **Menu**, **[Rooms](Rooms.md)**, **[Cameras](Cameras.md)**, **[Status Chips](Status-Chips.md)**, **[Status Rows](Status-Rows.md)**, **[Wall Tablets](Wall-Tablets.md#wall-tablets-settings)** (each tablet its own page, then **Add Tablet…**) | Every screen |
+| **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **[Energy](Energy.md)** (with its **[Power Page](Energy.md#the-power-page)**), **[Notifications](Notifications.md)** | Every screen |
+| **Library** | **[Accessories](Accessories.md#accessories-settings)** (by [type](Accessories.md#types), then by room, with [Hidden Accessories](Accessories.md#hidden-accessories) and [Added Accessories](Accessories.md#added-accessories)), **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
 
 ![The Screens list in HK Settings](images/settings-screen.png)
@@ -78,13 +78,18 @@ sizes read **Portrait** and **Landscape**.
     move it, or focus the handle and press the up and down arrow keys. Tap
     the red minus to remove a row.
   - **More**: what you can add. Tap the green plus.
-  - **Add…** opens a searchable list. Tap one to add it, or tap **Select** to
-    tick several (they stay ticked while you change the search), or **Select
-    All** to tick everything the search matches, then **Add**. Adding a
-    dozen sensors to Also Shown is one search and two taps.
+  - **Add…** opens a searchable list. **Every picker works the same way**,
+    as Hide Accessories’ does: the search matches a name, an entity ID or a
+    room, and the choices are listed under their rooms, each with its glyph
+    and entity ID. Where you can pick one, tap it. Where you can pick several,
+    each has a check box from the start: tick them (they stay ticked while you
+    change the search), and a bar says **N Selected**, with **Clear** and
+    **Add**. While a search matches several, **Select All** ticks them all.
+    Adding a dozen sensors to Added Accessories is one search and two taps.
 - **Removing, deleting and going back to Automatic ask first.**
 - **Back returns to the page you came from.** A page you reached from a link on
-  another page (a screen’s link to What Counts, say) goes back there.
+  another page (a status chip’s link to its type in Accessories, say) goes back
+there.
 
 ## Search
 
@@ -165,8 +170,6 @@ optional, and each has a fallback.
 | Sky → Sky Switch | An input boolean | Always on |
 | Sky → Advanced → Holiday Season, Moon Phase | Template sensors | Worked out from the date |
 | Sky → Advanced → Also Needs | An input boolean | Only the Seasonal decorations switch decides |
-| Wall Tablets → Default Idle Time | An input number | 60 seconds |
-| A screen’s Tablet Room → its helpers | `input_select`, `input_number`, `binary_sensor` per room | 50-second return |
 | A screen’s Cameras → Live Camera Follows | An input select set by your automation | The first camera is live |
 | Advanced → Clean-Areas Script | A script that takes `areas` | The Clean Areas feature sends the vacuums |
 | Advanced → Wrong-Code Indicator | An input boolean your alarm automation flashes | Refused codes are shown automatically |
@@ -174,27 +177,36 @@ optional, and each has a fallback.
 
 ## Sky / Background
 
-Under **All Screens → Sky / Background**, choose whether the sky animates
-(and, while it does, whether it holds still when the window isn’t in focus,
-**Pause When Not in Focus**, and whether its **Moving Things** pass behind the
-cards or in front of them), shows weather (and its falling **Rain & Snow**),
-or adds seasonal decorations, how its clouds look (**Clouds**:
-Classic or Realistic) and how bright its midday blue runs (**Daytime Sky**:
-Natural, Balanced or Deep). **Liveliness** -- how many little moving things,
-and how often the crossers come -- is one choice for every decoration, woodland
-season and the night sky, or Custom for each its own
-([Seasonal Decorations](Seasonal-Decorations.md#liveliness)).
-**Backdrop** offers Live Sky,
-eight curated palettes, and Custom with four Day colors and four Night colors.
+**All Screens → Sky / Background** starts with the **Background**: **Live
+Sky** (the moving sky), **Color** (a still color, by day and by night) or
+**Photo** (a photo of your own). Below it are only that choice’s settings.
+For the live sky: whether it animates (and, while it does, whether it holds
+still when the window isn’t in focus, **Pause When Not in Focus**, and whether
+its **Moving Things** pass behind the cards or in front of them), shows weather
+(and its falling **Rain & Snow**), how its clouds look (**Clouds**: Classic or
+Realistic), how bright its midday blue runs (**Daytime Sky**: Natural,
+Balanced or Deep) and its **Sky Colors** (Live Sky, eight curated palettes,
+Black, and Custom with four Day colors and four Night colors). Then seasonal
+decorations, **Liveliness** -- how many little moving things, and how often
+the crossers come -- one choice for every decoration, woodland season and the
+night sky, or Custom for each its own
+([Seasonal Decorations](Seasonal-Decorations.md#liveliness)) -- and the **Sky
+Switch**. For a photo, its **Look** (Blur, Dim, Saturation and a Color
+Tint) and **Reset to Default**. **Pages** sets each page’s background, and
+**Room Pages** each room’s own, with its own Look
+([The live sky](Live-Sky.md)).
 
-A screen has the same controls under **Appearance → Sky / Background**, below
-its own **Live Sky** switch, plus its own **Liveliness** (Same as All Screens,
-a preset for every occasion, or Custom for each) and **Calm When Nobody’s
-Around**. Its Clouds, Daytime Sky, Decoration Style and Moving Things are the same tabs as All
-Screens’, saying **Same as All Screens** until changed; **Reset to All Screens**
-follows them again.
-Each flag reads **Same as All Screens** until changed, then **Just This
-Screen**; **Reset to All Screens (On)** follows All Screens again. Its
-Backdrop picker offers **Same as All Screens** or a backdrop just for that
-screen. Copy Settings includes these appearance settings.
-See [Live Sky](Live-Sky.md#choose-its-look) for what each switch changes.
+A screen has the same choice under **Appearance → Sky / Background**:
+**Background** reads **Same as All Screens** until you choose one, then **Just
+This Screen**, and **Reset to All Screens** follows All Screens again. A
+Color or a Photo can be its own, too. With the Live Sky, it has the same
+controls, plus its own **Liveliness** (Same as All Screens, a preset for every
+occasion, or Custom for each) and **Calm When Nobody’s Around**. Its Clouds,
+Daytime Sky, Decoration Style and Moving Things are the same tabs as All
+Screens’, saying **Same as All Screens** until changed; **Reset to All
+Screens** follows them again. Each flag reads **Same as All Screens** until
+changed, then **Just This Screen**; **Reset to All Screens (On)** follows All
+Screens again. Its **Sky Colors** offers **Same as All Screens** or colors just
+for that screen. Copy Settings includes these appearance settings.
+See [Live Sky](Live-Sky.md#the-background) for the three Backgrounds and
+[Choose its look](Live-Sky.md#choose-its-look) for what each switch changes.

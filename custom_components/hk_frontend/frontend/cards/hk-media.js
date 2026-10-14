@@ -48,7 +48,7 @@
     el.setAttribute('data-hk-role', 'no-music');
     el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
       M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
-      'color:var(--hk-ink-2,rgba(255,255,255,0.68))';
+      'color:' + window.hkCards.v('ink-2') + '';
     el.textContent = NO_MUSIC;
     card._root.appendChild(el);
     card._built = false;
@@ -218,11 +218,11 @@
       // and the transport glyphs take the theme's ink instead of white. Each
       // fallback is the base rule's own value, so with the tone unset (HK's
       // screens, where the sky paints the cover) nothing here changes.
-      sel + ' .title{color:var(--hk-ink,rgba(255,255,255,0.94))}',
-      sel + ' .artist{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-      sel + ' .player{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-      sel + ' .art .none{background:var(--hk-key,rgba(255,255,255,.07))}',
-      sel + ' .tb ha-icon{color:var(--hk-glyph,rgba(255,255,255,.95));',
+      sel + ' .title{color:' + window.hkCards.v('ink') + '}',
+      sel + ' .artist{color:' + window.hkCards.v('ink-2') + '}',
+      sel + ' .player{color:' + window.hkCards.v('ink-3') + '}',
+      sel + ' .art .none{background:' + window.hkCards.v('key') + '}',
+      sel + ' .tb ha-icon{color:' + window.hkCards.v('glyph') + ';',
       '  filter:var(--hk-glow,drop-shadow(0 2px 5px rgba(0,0,0,.55)))}',
       sel + ' .tb:active ha-icon{filter:var(--hk-glow,drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9))}',
       // A LIGHTER SHADOW THAN THE PLATED PLAYER'S, so the album art's shadow
@@ -623,7 +623,7 @@
         '  --hk-np-areas:"art title . spk prev play next stop . meta"',
         '                "art artist . spk prev play next stop . meta"',
         '                "art sub . spk prev play next stop . meta"}',
-        '@media (max-width:1176px){ha-card.np.bar{',
+        '@media (max-width:' + window.hkCards.BP.desk + 'px){ha-card.np.bar{',
         '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px 64px 52px;',
         '  --hk-np-areas:"art title spk prev play next stop brw"',
         '                "art artist spk prev play next stop brw"',
@@ -639,7 +639,7 @@
         // by the same sum without the volume track: 912 - 380 + gaps + padding.
         // Browse goes with it: the art and the title open the Music page
         // anyway, and with it the title kept 65px at 641.
-        '@media (max-width:860px){ha-card.np.bar,ha-card.np.bar.onmusic{',
+        '@media (max-width:' + window.hkCards.BP.tabletUpright + 'px){ha-card.np.bar,ha-card.np.bar.onmusic{',
         '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px;',
         '  --hk-np-areas:"art title spk prev play next"',
         '                "art artist spk prev play next"',
@@ -673,7 +673,7 @@
         //
         // SPEAKERS IN, CLOSE OUT (2026-10-11): the title keeps ~160px of a
         // 402px phone.
-        '@media (max-width:640px){ha-card.np.bar,ha-card.np.bar.onmusic{',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.np.bar,ha-card.np.bar.onmusic{',
         '  --hk-np-cols:56px minmax(0,1fr) 44px 44px;',
         '  --hk-np-areas:"art title spk play"',
         '                "art artist spk play"',
@@ -739,13 +739,13 @@
         // more specific `ha-card.np.bar`, so those stay right and only the
         // variables tall() alone defines leak -- which is why it looks like
         // a centring bug rather than the wrong layout.
-      '@media (max-width:640px){' + tall('ha-card.np:not(.bar)') + '}',
+      '@media (max-width:' + window.hkCards.BP.phone + 'px){' + tall('ha-card.np:not(.bar)') + '}',
       // ITS OWN DARK PLATE (wide and the docked bar): on a light page the
       // controls on it -- hk-media-control-card's progress and volume --
       // keep today's white. The tall layout has no plate and takes the light
       // look (tall() above).
       ':host([data-hk-light]) ha-card.np.bar{' + window.hkCards.LIGHT_OFF + '}',
-      '@media (min-width:641px){:host([data-hk-light]) ha-card.np:not(.tall){' + window.hkCards.LIGHT_OFF + '}}',
+      '@media (min-width:' + (window.hkCards.BP.phone + 1) + 'px){:host([data-hk-light]) ha-card.np:not(.tall){' + window.hkCards.LIGHT_OFF + '}}',
         '@media (prefers-reduced-motion:reduce){',
         '  .np .tb,.np .tb:active{transition:none;transform:none}}'
       ].join('');
@@ -781,11 +781,20 @@
       var hc = this._root && this._root.querySelector('ha-card.bar');
       if (!hc) return;
       hc.classList.toggle('onmusic', onMusicPage());
-      if (!this._onLoc) {
+      this._locListen(true);
+    }
+    // the page change it follows, heard only while connected: a bar left
+    // behind by a rebuilt dashboard must not stay reachable from window
+    _locListen(on) {
+      if (on && !this._onLoc) {
         var self = this;
         this._onLoc = function () { setTimeout(function () { self._closeGlyph(); }, 0); self._closeSpk(); };
         window.addEventListener('location-changed', this._onLoc);
         window.addEventListener('popstate', this._onLoc);
+      } else if (!on && this._onLoc) {
+        window.removeEventListener('location-changed', this._onLoc);
+        window.removeEventListener('popstate', this._onLoc);
+        this._onLoc = null;
       }
     }
 
@@ -806,7 +815,8 @@
       var W = phone ? window.innerWidth : 430, H = phone ? Math.round(Math.min(640, window.innerHeight * 0.86)) : Math.round(Math.min(560, top - 28));
       var left = phone ? 0 : Math.round(Math.min(window.innerWidth - W - 16, Math.max(16, b.left + b.width / 2 - W / 2)));
       var host = document.createElement('div');
-      host.style.cssText = 'position:fixed;inset:0;z-index:12;';
+      // the dashboard's font: the panel is mounted under <body> (hk-base.js)
+      host.style.cssText = 'position:fixed;inset:0;z-index:12;' + (window.hkCards.FONT_ROOT || '');
       var sr = host.attachShadow({ mode: 'open' }), HC = window.hkCards;
       var st = document.createElement('style');
       st.textContent = P.CSS + (HC && HC.shadeCss ? HC.shadeCss('.mpanel') : '') + SPK_CSS;
@@ -939,7 +949,7 @@
           // place is the same translateY(100%), so nothing jumps
           setTimeout(function () { self._putAway(); sh.style.transition = ''; sh.style.transform = ''; }, 200);
         } else {
-          sh.style.transition = 'transform .28s cubic-bezier(.2,.8,.2,1)';
+          sh.style.transition = 'transform .28s cubic-bezier(.32,.72,0,1)';
           sh.style.transform = '';
           setTimeout(function () { if (!sh.style.transform) sh.style.transition = ''; }, 300);
         }
@@ -970,10 +980,13 @@
           if (self._hass && self._config) self.redraw();
         });
       }
+      // back on the page with a bar already drawn: follow page changes again
+      if (this._root && this._root.querySelector('ha-card.bar')) this._closeGlyph();
     }
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
       if (this._musicOff) { this._musicOff(); this._musicOff = null; }
+      this._locListen(false);
       this._closeSpk();
     }
 
@@ -1406,7 +1419,7 @@
         '  transition:bottom 1.2s ease;',
         '  will-change:transform;',
         '  align-items:center;gap:var(--hk-ss-np-gap,18px);max-width:var(--hk-ss-now-max,46vw);pointer-events:none}',
-        '.sscorner img,.sscorner .ph{width:var(--hk-ss-np-art,104px);height:var(--hk-ss-np-art,104px);border-radius:14px;',
+        '.sscorner img,.sscorner .ph{width:var(--hk-ss-np-art,104px);height:var(--hk-ss-np-art,104px);border-radius:12px;',
         '  flex:0 0 var(--hk-ss-np-art,104px)}',
         '.sscorner img{object-fit:cover;box-shadow:0 10px 30px rgba(0,0,0,.45)}',
         '.sscorner .ph{background:rgba(255,255,255,.14);align-items:center;',
@@ -1575,7 +1588,7 @@
       return [
         // --hk-track, NOT the vacuum picker's literal 228px.
         //
-        // Two reasons. (1) This page's playlist tiles are 192px, so a 228px
+        // Two reasons. (1) This page's playlist tiles are the pill's width, so a 228px
         // pill grid puts the two grids on different right edges -- visible as
         // a ragged column down the middle of the page. (2) THE PHONE LAYOUT
         // INCLUDES THIS PAGE, and below 640px hk-responsive.css redefines
@@ -1585,10 +1598,10 @@
         // never wrap.
         // The literal in the fallback keeps that file's contract: above 640px
         // the computed value is unchanged.
-        '.grid{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,192px));',
-        '  grid-auto-rows:40px;gap:12px;margin:0 0 14px 0}',
-        '.presets{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,192px));',
-        '  grid-auto-rows:40px;gap:12px;margin:0 0 14px 0}',
+        '.grid{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,' + window.hkCards.TILE.w + 'px));',
+        '  grid-auto-rows:40px;gap:' + window.hkCards.TILE.gridGap + 'px;margin:0 0 14px 0}',
+        '.presets{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,' + window.hkCards.TILE.w + 'px));',
+        '  grid-auto-rows:40px;gap:' + window.hkCards.TILE.gridGap + 'px;margin:0 0 14px 0}',
         // --hk-cell-bleed:0. Below 640px BASE_CSS sizes a .tile
         // `calc(100% + var(--hk-cell-bleed, 8px))`, and that 8px exists to pay
         // back the 4px side margins LAYOUT-CARD gives its grid children. These
@@ -1596,8 +1609,8 @@
         // margin, so the default bleed just makes them 8px too wide -- measured
         // on a 402px phone, 187px tiles in a 179px column, eating the gap.
         // hk-row.js sets the same 0 on its own children for the same reason.
-        '.tiles{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,192px));',
-        '  grid-auto-rows:70px;gap:12px;margin:4px 0 16px 0}',
+        '.tiles{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,' + window.hkCards.TILE.w + 'px));',
+        '  grid-auto-rows:' + window.hkCards.TILE.h + 'px;gap:' + window.hkCards.TILE.gridGap + 'px;margin:4px 0 16px 0}',
         // THE SAME LIFT THE PILLS HAVE, so the playlist buttons have a shadow
         // too. Measured: every pill in this card carries
         // `0 6px 18px rgba(0,0,0,.1)` from BASE_CSS, and a tile with only an
@@ -1606,7 +1619,7 @@
         //
         // On the HOST, not the tile's own ha-card: that card lives in another
         // shadow root this file cannot reach. The host is display:block and
-        // the card fills it exactly (measured 192x70 for both), so a shadow
+        // the card fills it exactly (measured, pill-sized for both), so a shadow
         // here traces the same box -- as long as it also carries the same
         // radius, hence the shared token rather than the 23.5px literal.
         '.tiles > *{--hk-cell-bleed:0px;border-radius:' + window.hkCards.M.radius + ';',
@@ -1624,14 +1637,14 @@
         // IT IS ONLY TRUE FOR THIS STACK. Add a speaker, a floor or a
         // playlist row and it drifts -- re-measure rather than trusting it.
         '.sub{font-size:15px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:37px 4px 8px 4px}',
-        '.notice{font-size:14px;color:var(--hk-warn,#FFB340);',
+        '  color:' + window.hkCards.v('ink-2') + ';padding:37px 4px 8px 4px}',
+        '.notice{font-size:14px;color:' + window.hkCards.v('warn') + ';',
         '  padding:0 4px 8px 4px}',
         '.notice.note{cursor:pointer}',
         // Same rule as the vacuum picker: it separates things that only change
         // a selection from things that act on the home.
         '.rule{height:1px;margin:6px 4px 16px 4px;padding:0;border:none;',
-        '  border-radius:0;box-shadow:none;background:var(--hk-line,rgba(255,255,255,0.14))}',
+        '  border-radius:0;box-shadow:none;background:' + window.hkCards.v('line') + '}',
         // A preset is a shortcut, not a twelfth speaker. The dashed border says
         // "this fills the boxes below" without inventing a new material.
         // (Tinted draws no edge: --hk-look-dash gives the shortcut its own)
@@ -1668,7 +1681,7 @@
         // The margin cancels the padding exactly, so the cards do not move
         // and the row still lines up with the pill grids below it.
         '.ctx{display:grid;grid-auto-flow:column;',
-        '  grid-auto-columns:var(--hk-track,192px);gap:12px;',
+        '  grid-auto-columns:var(--hk-track,' + window.hkCards.TILE.w + 'px);gap:' + window.hkCards.TILE.gridGap + 'px;',
         '  overflow-x:auto;overflow-y:hidden;',
         '  margin:-8px -12px 8px -12px;',
         '  padding:8px 12px 14px 12px;scrollbar-width:none;',
@@ -1684,7 +1697,7 @@
         '  transition:background-color .22s ease, transform .12s ease}',
         '.cx:active{transform:scale(0.97)}',
         '.cx .sw{width:38px;height:38px;border-radius:9px;overflow:hidden;',
-        '  background:var(--hk-key,rgba(255,255,255,0.10));display:flex;',
+        '  background:' + window.hkCards.v('key') + ';display:flex;',
         '  align-items:center;justify-content:center}',
         '.cx .sw img{width:100%;height:100%;object-fit:cover;display:block}',
         '.cx .sw ha-icon{--mdc-icon-size:20px;width:20px;height:20px;',
@@ -1702,9 +1715,9 @@
         '.cx .nm,.cx .tr{white-space:nowrap;overflow:hidden;',
         '  text-overflow:ellipsis}',
         '.cx .nm{font-size:13px;font-weight:700;letter-spacing:-0.2px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '  color:' + window.hkCards.v('ink') + '}',
         '.cx .tr{margin-top:1px;font-size:11.5px;font-weight:500;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '  color:' + window.hkCards.v('ink-2') + '}',
         // The travelling element loses its ellipsis -- the two together read
         // as a bug, a line that slides AND is cut off at the same edge.
         '.cx .go{text-overflow:clip}',
@@ -1756,7 +1769,7 @@
         // selected white plate.
         '.pill .pi{position:absolute;right:10px;top:0;bottom:0;',
         '  display:flex;align-items:center;pointer-events:none;',
-        '  color:var(--hk-glyph,rgba(255,255,255,0.88))}',
+        '  color:' + window.hkCards.v('glyph') + '}',
         '.pill .pi svg{width:16px;height:16px;display:block;fill:currentColor}',
         // AMBER ONLY FOR THE EXCEPTION. "Playing what you are looking at" is
         // the ordinary case and takes the ordinary colour; "playing something
@@ -1764,7 +1777,7 @@
         // register for it -- not an error, but worth a look. That is the
         // information hierarchy the colour is allowed to carry, on top of a
         // glyph that already works without it.
-        '.pill.elsewhere .pi{color:var(--hk-warn, #FFB340)}',
+        '.pill.elsewhere .pi{color:' + window.hkCards.v('warn') + '}',
         // The selected plate is near-white, so a white glyph would vanish
         // into it. Amber still reads on white, so only `here` needs this.
         '.pill[aria-pressed="true"] .pi{color:rgba(0,0,0,0.68)}',
@@ -1799,8 +1812,8 @@
         // an enabled Clear with that label looks greyer than an unselected room
         // next to it. Its position under the grid, and the fact that it never
         // lights, are what mark it as different.
-        '.clearrow{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,192px));',
-        '  grid-auto-rows:40px;gap:12px;margin:0 0 14px 0}',
+        '.clearrow{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,' + window.hkCards.TILE.w + 'px));',
+        '  grid-auto-rows:40px;gap:' + window.hkCards.TILE.gridGap + 'px;margin:0 0 14px 0}',
         // THE LAST COLUMN, whatever the auto-fill count turns out to be.
         // -2/-1 is the final track of the explicit grid, which is what
         // auto-fill builds -- so this follows the room pills above it to
@@ -1809,13 +1822,13 @@
         // Below 640px the pill grid is two across, and pinning Browse to the
         // last column there would put it under Transfer with a hole beside
         // it. Let it flow instead.
-        '@media (max-width:640px){.clearrow .browse{grid-column:auto}}',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){.clearrow .browse{grid-column:auto}}',
         // Transcribed from hk-area-select-card's `.floor` (cards/hk-home.js),
         // because the Vacuums page and this one use the same device: a plain
         // floor label over a grid of things you can tick. Two pages that look
         // the same should BE the same rule, not two near-copies.
         '.floor{font-size:15px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:0px 4px 8px 4px}'
+        '  color:' + window.hkCards.v('ink-2') + ';padding:0px 4px 8px 4px}'
       ].join('');
     }
 
@@ -3142,7 +3155,7 @@
         this._root.innerHTML =
           '<style>.hkb{display:flex;align-items:center;justify-content:center;' +
           'height:' + (cfg.height || '70vh') + ';padding:0 32px;text-align:center}' +
-          '.hkb .in{max-width:520px;color:var(--hk-text,var(--hk-ink,rgba(255,255,255,0.94)));font:400 16px/1.5 system-ui}' +
+          '.hkb .in{max-width:520px;color:var(--hk-text,' + window.hkCards.v('ink') + ');font:400 16px/1.5 system-ui}' +
           '.hkb h3{font:600 20px/1.3 system-ui;margin:0 0 10px}' +
           '.hkb a{color:var(--hk-accent,#2f95dc)}</style>' +
           '<div class="hkb"><div class="in"><h3>Music Assistant is on your local network</h3>' +

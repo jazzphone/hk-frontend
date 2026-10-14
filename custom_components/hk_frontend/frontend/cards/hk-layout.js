@@ -109,7 +109,7 @@
         // (energy-sources-table is 459px wide at 402 and has no responsive
         // mode of its own) is dropped from the layout there instead of
         // overflowing the page. Same 640px line as hk-responsive.css.
-        '@media (max-width: 640px){:host(.hide-phone){display:none}}'
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){:host(.hide-phone){display:none}}'
       ].join('');
     }
     static get MATERIALS() {
@@ -289,9 +289,9 @@
     '  ' + M.glass + ';border:' + M.border + ';',
     '  backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
     '  -webkit-backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
-    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-chip,inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10)));',
+    '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-chip') + ');',
     '  display:flex;align-items:center;justify-content:center;line-height:0;',
-    '  cursor:pointer;color:var(--hk-glyph,rgba(255,255,255,0.92));',
+    '  cursor:pointer;color:' + window.hkCards.v('glyph') + ';',
     '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0;',
     '  transition:transform .12s ease}',
     'ha-card.back:active{transform:scale(0.97);filter:brightness(0.93)}',
@@ -349,7 +349,7 @@
       var back =
         '<ha-card class="back" data-hk-role="card" role="button" aria-label="Back">' +
         '<svg viewBox="0 0 24 24" width="20" height="20" fill="none"' +
-        ' style="stroke:var(--hk-glyph, rgba(255, 255, 255, 0.92))" stroke-width="2.6"' +
+        ' style="stroke:' + window.hkCards.v('glyph') + '" stroke-width="2.6"' +
         ' stroke-linecap="round" stroke-linejoin="round">' +
         '<path d="M15 4.5 L7.5 12 L15 19.5"/></svg></ha-card>';
       this._root.innerHTML = withMenu ? '<div class="pair">' + roundMenu() + back + '</div>' : back;
@@ -453,8 +453,8 @@
         'ha-card.key:active{transform:scale(0.97);filter:brightness(0.93)}',
         // ---- flat: the controls inside a vacuum card
         'ha-card.key.flat{height:52px;border-radius:18px;padding:0;border:none;',
-        '  box-shadow:none;background:var(--hk-key,rgba(255,255,255,0.10))}',
-        'ha-card.key.flat .icon{width:23px;height:23px;color:var(--hk-glyph,rgba(255,255,255,0.90))}',
+        '  box-shadow:none;background:' + window.hkCards.v('key') + '}',
+        'ha-card.key.flat .icon{width:23px;height:23px;color:' + window.hkCards.v('glyph') + '}',
         // ---- glass: the free-standing duration chips
         // 116x56 and a 20px radius: wider and flatter than the 52px controls
         // above, because a row of NINE 52px squares reads as a keypad, which
@@ -467,13 +467,13 @@
         '  border:none;box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),',
         '  0 6px 18px rgba(0,0,0,0.10))}',
         '.key .name{font-size:17px;font-weight:600;letter-spacing:-0.4px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap}',
+        '  color:' + window.hkCards.v('ink') + ';white-space:nowrap}',
         'ha-card.key.filled .name{color:rgba(0,0,0,0.88);font-weight:700}',
         // PHONE: FILL THE TRACK. The Timers row auto-fills ~118px columns
         // below 640px and a 184px "+ New Timer" would overflow its column,
         // printing on top of the "5 min" chip beside it. Same shape as the
         // pills: calc(100% + 8px) restores layout-card's 4px side margins.
-        '@media (max-width:640px){',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){',
         '  :host{max-width:none !important}',
         '  ha-card.key.glass,ha-card.key.filled{',
         '    width:calc(100% + var(--hk-cell-bleed,8px)) !important;',
@@ -548,14 +548,14 @@
         '  grid-template-rows:min-content min-content;',
         '  column-gap:12px;align-content:start;justify-items:start}',
         '.info .icon{grid-area:i;width:34px;height:34px;--mdc-icon-size:34px;',
-        '  color:var(--hk-glyph,rgba(255,255,255,0.92));align-self:start;justify-self:center;',
+        '  color:' + window.hkCards.v('glyph') + ';align-self:start;justify-self:center;',
         '  margin-top:2px}',
         '.info .name{grid-area:n;justify-self:start;align-self:end;text-align:left;',
         '  font-weight:600;font-size:26px;letter-spacing:0.3px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1.02;width:100%}',
+        '  color:' + window.hkCards.v('ink') + ';line-height:1.02;width:100%}',
         '.info .label{grid-area:l;justify-self:start;align-self:start;text-align:left;',
         '  font-weight:600;font-size:14px;letter-spacing:-0.34px;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));line-height:1.1;width:100%}',
+        '  color:' + window.hkCards.v('ink-2') + ';line-height:1.1;width:100%}',
         // Two lines, each clipped on its own. A single wrapping block would
         // let one long alarm string push the other line out of the card.
         '.info .label span{display:block;white-space:nowrap;overflow:hidden;',
@@ -579,9 +579,9 @@
         '.info.state .icon{width:38px;height:38px;--mdc-icon-size:38px;',
         '  align-self:center;justify-self:center;margin-top:0}',
         '.info.state .name{font-size:25px;font-weight:700;letter-spacing:0.14px;',
-        '  align-self:center;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '  align-self:center;color:' + window.hkCards.v('ink') + '}',
         '.info.state .label{font-size:14px;font-weight:400;letter-spacing:-0.15px;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));padding-top:4px}'
+        '  color:' + window.hkCards.v('ink-2') + ';padding-top:4px}'
       ].join('');
     }
     setConfig(config) {
@@ -997,8 +997,8 @@
                        // gutter is 18.9 px); where the gutter is wider the
                        // clamp is the bleed and nothing moves.
                        '#root.hk-bleed{' +
-                       '--hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * 0.02 + 4px)));' +
-                       '--hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * 0.02 + 4px)));' +
+                       '--hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));' +
+                       '--hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));' +
                        'margin-left:calc(-1 * var(--hk-bleed-lc)) !important;' +
                        'margin-right:calc(-1 * var(--hk-bleed-rc)) !important}';
       this._root.appendChild(st);

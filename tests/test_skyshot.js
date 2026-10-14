@@ -111,5 +111,19 @@ ok('a style at its end: the value faded to, the others as they are, methods stil
 ok('no getAnimations (an older browser): nothing read ahead', _.settling({}, 5000, { unsettled: 0, ahead: 0 }).size === 0);
 delete globalThis.CSSTransition;
 
+// UNDER A CAR DASHBOARD'S ZOOM (2026-10-13): the tree starts at the page's
+// zoom, what is read off getBoundingClientRect is taken back into the page's
+// units, the paint starts from the zoomed screen, and what is sized in CSS
+// pixels (the look's blur) is drawn at k * Z -- or the picture was 1/Z too big
+(function () {
+  var g = readFile(HK_ROOT + '/frontend/modules/hk-skyshot.js');
+  ok('zoom: the tree at Z, rect reads / Z, the paint from screen x Z, blur at k x Z',
+     /var tree = node\(sky, null, new DOMMatrix\(\)\.scale\(Z, Z\)\)/.test(g) && /var Z = sky\.currentCSSZoom \|\| 1, kz = k \* Z;/.test(g) &&
+     /\(a\.left - b\.left\) \/ Z/.test(g) && /\.scale\(c\.width \/ VP\.W, c\.height \/ VP\.H\)\.scale\(Z, Z\)/.test(g) && /svgPrims\(fl, kz, check\)/.test(g));
+  var h = readFile(HK_ROOT + '/frontend/modules/hk-glass.js');
+  ok('...and the glass: the picture as wide as the window in the page\'s units, pinned slices / zoom',
+     /width:var\(--hk-vw,100vw\);height:var\(--hk-vh,100vh\)/.test(h) && /function sliceOf\(url, x, y, W, H, z\)/.test(h));
+})();
+
 print(fail ? '  ' + fail + ' SKYSHOT TESTS FAILED' : '  ALL ' + pass + ' SKYSHOT TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

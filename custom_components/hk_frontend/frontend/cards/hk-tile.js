@@ -8,7 +8,7 @@
 //
 // WHAT A TILE IS, AND WHY THESE ARE SUBCLASSES
 // Measured, not assumed: the pill, the scene, the action tile, the favorite
-// and the tall tile all render a 192px-wide box
+// and the tall tile all render a box the pill's width (hk-base.js TILE.w)
 // with a 23.5px radius and a 42px icon slot. THAT is what makes them one
 // family; grouping them by what they DO (a scene triggers a scene) rather
 // than by the measured box gives the wrong card set.
@@ -153,7 +153,7 @@
   // transparent`.
   // (the look's well first -- Tinted's Dark or Light, hk-settings.js --
   // then the page's: a light page's gray, the theme's; the literal last)
-  var OFF_WELL = 'var(--hk-look-well, var(--hk-well-bg, rgba(0, 0, 0, 0.14)))';
+  var OFF_WELL = 'var(--hk-look-well, ' + window.hkCards.v('well-bg') + ')';
   function wellColour(cfg, stateObj, on) {
     if (!on) return OFF_WELL;
     if (cfg.bare_icon) return 'transparent';
@@ -181,20 +181,21 @@
   // styling (font-size 16.8px, overflow, text-align), so those come from
   // HA instead of being hardcoded here and
   // drifting the next time HA changes them.
+  var TILE = window.hkCards.TILE;
   var CSS = [
     ':host{display:block}',
     'ha-card.card{',
     '  box-sizing:border-box;',
-    // --hk-pill: 192 everywhere but an iPad held upright (css/hk-responsive.css).
-    '  height:70px;width:var(--hk-pill,192px);min-width:var(--hk-pill,192px);max-width:var(--hk-pill,192px);',
+    // --hk-pill: the pill everywhere but an iPad held upright (css/hk-responsive.css).
+    '  height:' + TILE.h + 'px;width:' + TILE.css + ';min-width:' + TILE.css + ';max-width:' + TILE.css + ';',
     '  border-radius:' + window.hkCards.M.radius + ';',
     // 10.7 / 12.8 / 10.7 / 10.3 -- asymmetric on purpose, measured.
-    '  padding:10.7px 12.8px 10.7px 10.3px;',
+    '  padding:' + TILE.pad + ';',
     '  margin:0px;',
     // The lit top rim is the glass material -- NOT the gradient. Two surfaces
     // with byte-identical backgrounds and borders read as different materials
     // when only one has this line.
-    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-pill,inset 0 1px 0 rgba(255,255,255,0.20),0 8px 22px rgba(0,0,0,0.12)));',
+    '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-pill') + ');',
     '  border:' + window.hkCards.M.border + ';',
     '  ' + window.hkCards.M.glass + ';',
     '  display:flex;align-items:center;justify-content:center;',
@@ -217,8 +218,11 @@
 
     '.grid{display:grid;width:100%;',
     '  grid-template-columns:42px minmax(0,1fr);',
-    '  grid-template-rows:min-content min-content;',
-    '  row-gap:2.2px;column-gap:10px;align-content:center}',
+    // TEXT ROWS OF A LINE EACH, not min-content: the 42 px circle spans
+    // both rows, and min-content rows grew to share its height -- the name
+    // and state stood 20.4 px apart, the Home app's 18.6 (2026-10-13)
+    '  grid-template-rows:' + TILE.lineH + 'px ' + TILE.lineH + 'px;',
+    '  row-gap:' + TILE.rowGap + 'px;column-gap:' + TILE.wellGap + 'px;align-content:center}',
 
     '.well{grid-area:i;width:42px;height:42px;border-radius:50%;',
     '  background:' + OFF_WELL + ';align-self:center;justify-self:center;',
@@ -236,54 +240,56 @@
     // 23.7px, slightly small and slightly high. The inner ha-icon lives
     // inside ha-state-icon's shadow root, so a style check of the card alone
     // misses it. Flex centring makes the shadow child fill and centre.
-    '.icon{width:23px;height:23px;--mdc-icon-size:100%;' +
+    '.icon{width:' + TILE.glyph + 'px;height:' + TILE.glyph + 'px;--mdc-icon-size:100%;' +
     '  display:flex;align-items:center;justify-content:center;line-height:0;',
-    '  color:var(--hk-glyph,rgba(255,255,255,0.92));transition:color .25s ease}',
+    '  color:' + window.hkCards.v('glyph') + ';transition:color .25s ease}',
 
     '.name{grid-area:n;justify-self:stretch;text-align:left;align-self:center;',
-    '  font-weight:600;font-size:15px;line-height:1.1;letter-spacing:-0.23px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));',
+    '  font-weight:600;font-size:15px;line-height:' + TILE.lineH + 'px;letter-spacing:-0.23px;',
+    '  color:' + window.hkCards.v('ink') + ';',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
     '  min-width:0;width:100%}',
     'ha-card.card[data-on="1"] .name{color:black}',
 
     '.label{grid-area:l;justify-self:stretch;text-align:left;align-self:start;',
-    '  font-weight:400;font-size:15px;letter-spacing:-0.23px;line-height:1.1;',
-    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+    '  font-weight:400;font-size:15px;letter-spacing:-0.23px;line-height:' + TILE.lineH + 'px;',
+    '  color:' + window.hkCards.v('ink-2') + ';',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     // IN A SECTION (HA's Sections view, not HK's grid): the tile fills its
-    // cell, two to a section by default, instead of sitting 192 px wide in it.
+    // cell, two to a section by default, instead of sitting pill-wide in it.
     ':host([data-hk-cell]) ha-card.card{width:100%;min-width:0;max-width:none}',
-    'ha-card.card[data-on="1"] .label{color:rgba(0,0,0,0.65)}',
+    'ha-card.card[data-on="1"] .label{color:' + window.hkCards.v('ink-on-state') + '}',
 
     // ---- scene variant -------------------------------------------------
     // A scene is NOT a pill with a different grid. Diffing every resolved
     // property of the two gives 33 differences; the
-    // outer box (192x70, r23.5, 42px slot) is identical, which is what makes
+    // outer box (the pill: 196 x 70, r23.5, 42px slot) is identical, which is what makes
     // them one family, but everything inside it differs. Each rule below is one
     // of those measured differences -- do not fold them back into the base.
     //
     // No outer shadow by default -- only the inset rim, which is what
     // carries the glass read here; `elevated` adds the pill shadow (the
     // scenes row opens room for it inside its clip, see hk-row-card).
-    'ha-card.card.scene{box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-scene,inset 0 1px 0 rgba(255,255,255,0.20)))}',
+    'ha-card.card.scene{box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-scene') + ')}',
     // `elevated` -- the action tile -- is a scene with the outer shadow PUT
     // BACK.
     'ha-card.card.scene.elevated{box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),' +
     '  0 8px 22px rgba(0,0,0,0.12))}',
-    '.card.scene .grid{grid-template-rows:1fr;row-gap:normal;align-items:center}',
+    '.card.scene .grid{grid-template-rows:1fr;row-gap:normal;align-items:center;column-gap:' + TILE.sceneWellGap + 'px}',
+    // a scene's glyph and name stay where they were: its text already sits
+    // where the Home app's does (the accessory pill's moved 0.5 / 0.9 left)
+    'ha-card.card.scene{padding-left:' + TILE.scenePadL + 'px}',
     // THE WELL IS NOT PAINTED. A scene centres a bare glyph in the same 42px
     // slot -- no circle, no fill. This is the single easiest difference to miss
     // by eye and the reason one card with four layouts cannot work.
     '.card.scene .well{background:none;border-radius:0}',
-    // 30px, MEASURED off an iPhone Home app screenshot:
-    //
-    //     iOS   25.3 pt glyph on a 60.0 pt scene plate = 0.428 of plate height
-    //
-    // 70 x 0.428 = 30. The accessory glyph is NOT the comparison to use here:
+    // TILE.sceneGlyph: 28 px, measured off the Home app's iPad layout (the
+    // HomeKit match, 2026-10-13): its scene glyph runs ~2 px smaller than the
+    // 30 an iPhone screenshot gave (25.3 pt on a 60 pt plate = 0.428 x 70).
+    // The accessory glyph is NOT the comparison to use here:
     // a scene has no well, so its glyph carries the whole icon slot and runs
     // bigger than the 25px welled glyphs it sits beside.
-    '.card.scene .icon{width:30px;height:30px}',
+    '.card.scene .icon{width:' + TILE.sceneGlyph + 'px;height:' + TILE.sceneGlyph + 'px}',
     // 700 and a 2-LINE CLAMP, not 600 and an ellipsis: a scene name is a
     // phrase ("Good Morning"), not a device label, and is allowed to wrap.
     '.card.scene .name{font-weight:700;white-space:normal;',
@@ -374,23 +380,28 @@
     // easy to miss because a static screenshot of a spinning icon looks
     // correct.
     // ---- favourite variant ---------------------------------------------
-    // Six measured differences from the plain pill: a third text row above the name,
-    // padding 9.7 not 10.7 (the extra row has to come from somewhere), no
-    // row-gap, and a label that centres with 2px of lead instead of starting.
-    '.card.favourite{padding:9.7px 12.8px 9.7px 10.3px}',
-    '.card.favourite .grid{grid-template-rows:min-content min-content min-content;row-gap:0px}',
-    // content-box, deliberately. BASE_CSS sets `*{box-sizing:border-box}` for
-    // the whole file, which changes how the 2px of lead below counts toward
-    // the label's height (18.5px against 16.5px) -- and the 2px then pushes
-    // every row above it.
-    '.card.favourite .label{align-self:center;padding-top:2px;box-sizing:content-box}',
+    // Differences from the plain pill: a third text row above the name,
+    // padding 9.7 not 10.7 (the extra row has to come from somewhere), and
+    // the three rows EVENLY SPACED, 1px apart (lines 17.5px apart: 9.3 /
+    // 26.8 / 44.3 from the plate's top), as the Home app spaces them
+    // (2026-10-13, the user's side-by-side). It was row-gap 0 with 2px of
+    // lead on the label only: 0 between room and name, 2 between name and
+    // state. The block's height (51.5px) and so its centring are unchanged.
+    // THREE LINES (`three-line`: the favourite and climate layouts, whatever
+    // card draws them) -- the Home app's favorite is taller than its pill
+    // (76.6 against 70, iPad points), and sits on a taller row (hk-strategy.js
+    // pillGrid: TILE.favRow).
+    'ha-card.card.three-line{height:' + TILE.fav + 'px}',
+    '.card.three-line{padding:' + TILE.favPadY + 'px 12.8px ' + TILE.favPadY + 'px ' + TILE.padL + 'px}',
+    '.card.three-line .grid{grid-template-rows:' + TILE.lineH + 'px ' + TILE.lineH + 'px ' + TILE.lineH + 'px;row-gap:' + TILE.favRowGap + 'px}',
+    '.card.three-line .label{align-self:center}',
     // The room line: 15px/400, the same as the label, NOT a smaller caption
     // -- 12px/600 here shifts the rows by 3.5px.
     '.room{grid-area:room;justify-self:stretch;text-align:left;align-self:center;',
-    '  font-size:15px;font-weight:400;line-height:1.1;letter-spacing:-0.23px;',
-    '  color:var(--hk-ink-2,rgba(255,255,255,0.68));min-width:0;width:100%;',
+    '  font-size:15px;font-weight:400;line-height:' + TILE.lineH + 'px;letter-spacing:-0.23px;',
+    '  color:' + window.hkCards.v('ink-2') + ';min-width:0;width:100%;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    'ha-card.card[data-on="1"] .room{color:rgba(0,0,0,0.55)}',
+    'ha-card.card[data-on="1"] .room{color:' + window.hkCards.v('ink-on-room') + '}',
 
     // ---- tall variant ----------------------------------------------------
     // 17 differences from the pill, and the type is the one that surprises: a tall tile sets
@@ -404,18 +415,18 @@
     // inset 13.8px against the pills' 11.3px), which the eye catches at once
     // in a column of pills and tall tiles.
     // Top/bottom/right keep the tall tile's own 12.8.
-    'ha-card.card.tall{height:152px;padding:12.8px 12.8px 12.8px 10.3px;',
-    '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)))}',
+    'ha-card.card.tall{height:' + TILE.tall + 'px;padding:12.8px 12.8px 12.8px ' + TILE.padL + 'px;',
+    '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-tall') + ')}',
     // align-self:stretch is load-bearing. ha-card is flex with
-    // align-items:center, so without it the grid is CENTRED inside the 152px
+    // align-items:center, so without it the grid is CENTRED inside the tall
     // card rather than filling it -- every row lands ~25px low, which no
     // colour or size check would notice.
     '.card.tall .grid{align-self:stretch;grid-template-columns:minmax(0,1fr);',
-    '  grid-template-rows:44px 1fr min-content min-content;',
-    '  row-gap:0px;column-gap:0px;align-content:stretch}',
+    '  grid-template-rows:44px 1fr ' + TILE.lineH + 'px ' + TILE.lineH + 'px;',
+    '  row-gap:' + TILE.tallRowGap + 'px;column-gap:0px;align-content:stretch}',
     '.card.tall .well{align-self:start;justify-self:start}',
-    '.card.tall .name{font-size:14px;letter-spacing:-0.15px}',
-    '.card.tall .label{font-size:14px;letter-spacing:-0.15px;min-width:0;width:100%}',
+    '.card.tall .name{font-size:' + TILE.tallText + 'px;letter-spacing:-0.15px}',
+    '.card.tall .label{font-size:' + TILE.tallText + 'px;letter-spacing:-0.15px;min-width:0;width:100%}',
 
     // ---- climate variant -------------------------------------------------
     // The temperature IS the icon. `temp` takes the glyph's grid area and the
@@ -427,7 +438,7 @@
     // the same x. min-content sizes the column to the numeral, so "76" would
     // pull the text ~4px left of every neighbour.
     '.card.climate .well,.card.climate_tall .well{display:none}',
-    '.card.climate .grid{grid-template-columns:42px minmax(0,1fr);column-gap:10px}',
+    '.card.climate .grid{grid-template-columns:42px minmax(0,1fr);column-gap:' + TILE.wellGap + 'px}',
     '.card.climate .temp{grid-area:temp;justify-self:center;align-self:center;',
     '  font-size:22px;letter-spacing:-0.26px;font-weight:700;line-height:1}',
     // 35.3px on the tall tile -- the hero scale, the same one the reading
@@ -448,30 +459,31 @@
     // ================================================ PHONE: FILL THE TRACK
     // Below 640px the room grids switch to `repeat(auto-fill, minmax(168px,
     // 1fr))` (see frontend/css/hk-responsive.css), so the track is no longer
-    // 192px and a pill pinned to 192px would overflow it. Here the pill fills
-    // whatever track it is given instead.
+    // the pill's width (196, the table's) and a pill pinned to it would overflow.
+    // Here the pill fills whatever track it is given instead.
     //
     // WHY `calc(100% + 8px)` AND NOT `100%`: layout-card gives every grid child
     // 4px side margins, so the cell is always 8px narrower than the track
-    // (layout-card's card_margin cannot change it). At 1280 the pill is 192px in a 184px
+    // (layout-card's card_margin cannot change it). At 1280 the pill is 196px in a 188px
     // cell -- it already overflows by exactly 8px, and that is what makes the
-    // visible gap come out at the intended 12px. Plain `100%` would shrink
-    // every pill to the cell and change the gap.
+    // visible gap come out at the grid's own (TILE.gridGap, 10). Plain `100%`
+    // would shrink every pill to the cell and change the gap.
     //
     // `--hk-cell-bleed` exists because that 8px is NOT universal: inside
     // hk-row-card the child is sized directly with no layout-card margin, so
     // that card sets the bleed to 0 for its own children. Default 8px = the
     // grid case.
     //
-    // No max-width: capping at 192px makes the track wider than the pill on a
-    // large phone and the gap jumps 12px -> 25px. Verified 375/402/440/1280.
-    '@media (max-width: 640px){',
+    // No max-width: capping at the pill's width makes the track wider than the
+    // pill on a large phone and the gap jumps (12px -> 25px, measured at 192).
+    // Verified 375/402/440/1280.
+    '@media (max-width:' + window.hkCards.BP.phone + 'px){',
     // NO `:host{width:100%}` HERE. These hosts are already `display:block`, so
     // an auto width fills the grid area MINUS the 4px side margins layout-card
-    // gives every child -- which is exactly the 184px cell the 192px pill is
-    // built to overflow by 8. Forcing width:100% resolves against the full
-    // grid AREA instead and every tile comes out 8px too wide (190.95 measured
-    // against a 182.95 track), eating the 12px gap down to 4px.
+    // gives every child -- which is exactly the cell (8 px under the track)
+    // the pill is built to overflow by 8. Forcing width:100% resolves against
+    // the full grid AREA instead and every tile comes out 8px too wide (190.95
+    // measured against a 182.95 track), eating the gap (then 12px) to 4px.
     '  :host{max-width:none !important}',
     '  ha-card.card{width:calc(100% + var(--hk-cell-bleed, 8px));min-width:0;max-width:none}',
     '}',
@@ -685,6 +697,11 @@
       if (layout === 'climate_pill' && cls.indexOf('climate') < 0) cls.push('climate');
       cls.forEach(function (c) { e.card.classList.add(c); });
       e.card.classList.toggle('tall', layout === 'tall' || layout === 'climate_tall');
+      // THREE LINES (a room line over the name and state): the favourite and
+      // the climate favourite's layouts, whatever card draws them -- the
+      // group sheet's favourite-layout pills carry no `favourite` variant.
+      // Its height and row are the table's fav / favRow (hk-base.js TILE).
+      e.card.classList.toggle('three-line', layout === 'favourite' || layout === 'climate');
       if (layout !== 'climate_tall') e.card.classList.remove('climate_tall');
       if (e.label) e.label.style.display = (layout === 'action') ? 'none' : '';
 
@@ -781,7 +798,7 @@
     // The inherited colour map would tint every media glyph cyan.
     _iconColour(cfg, st, on) {
       if (!on) {
-        return (cfg.bare_icon && cfg.icon_color) ? cfg.icon_color : 'var(--hk-glyph, rgba(255, 255, 255, 0.92))';
+        return (cfg.bare_icon && cfg.icon_color) ? cfg.icon_color : '' + window.hkCards.v('glyph') + '';
       }
       return super._iconColour(cfg, st, on);
     }
@@ -1028,7 +1045,7 @@
     var action = st && st.attributes && st.attributes.hvac_action;
     if (action === 'cooling') return 'rgba(86, 189, 228, 0.98)';
     if (action === 'heating') return 'rgba(255, 69, 58, 0.98)';
-    return on ? 'rgba(0, 0, 0, 0.92)' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))';
+    return on ? 'rgba(0, 0, 0, 0.92)' : '' + window.hkCards.v('ink') + '';
   }
 
   var sentence = C.sentenceCase;
@@ -1306,7 +1323,7 @@
     _iconColour(cfg, st, on) {
       var t = this._tint(cfg);
       if (t) return on ? 'white' : t;
-      return on ? 'rgba(0, 0, 0, 0.95)' : 'var(--hk-ink, rgba(255, 255, 255, 0.94))';
+      return on ? 'rgba(0, 0, 0, 0.95)' : '' + window.hkCards.v('ink') + '';
     }
     _render() {
       super._render();

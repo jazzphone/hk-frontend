@@ -138,7 +138,7 @@ s.wet={kind:'none',rate:0};hkSky._paint(sky,s);check('...a rainbow when the sun 
 s.cover=.95;hkSky._paint(sky,s);check('...but not under a heavy sky',!sp.classes['rainbow-on']);s.cover=.1;
 hkSky._surpriseForce('fourth-of-july');s.elev=-2;hkSky._paint(sky,s);var j4=sky._hkNear.root;
 check('the Fourth: fireflies coming out at dusk, the cafe lights breathing',j4.querySelectorAll('.firefly').length===14&&
-  Number(j4.values['--near-dusk'])>0.8&&j4.querySelectorAll('.slow').length===6);
+  Number(j4.values['--near-dusk'])>0.8&&j4.querySelectorAll('.scenery-bulb').filter(function(b){return b.className.split(' ').indexOf('wave')>=0;}).length===6);
 check('never shown, nothing to fade: a field built at dusk has the night\'s bats and owl out at once, not after 21 s',
   j4.classes['out-dark']===true&&j4.classes['out-dusk']!==true);
 window.hkSettings={get:function(p,f){return p==='sky.birthdays'?[{name:'Emma',month:6,day:12}]:f;},themeOn:function(){return true;}};

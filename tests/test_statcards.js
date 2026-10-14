@@ -117,7 +117,7 @@ H.run('STAT CARDS', [
     var R = card._root;
     H.eq('the live watts, as kW above 1000 W', H.morphed(H.part(R, '.hero')),
          '1.20<span class="unit">kW</span>');
-    H.eq('drawing power: full contrast', H.part(R, '.hero').style.color, 'var(--hk-ink, rgba(255, 255, 255, 0.94))');
+    H.eq('drawing power: full contrast', H.part(R, '.hero').style.color, window.hkCards.v('ink'));
     H.eq('no label until today\'s kWh arrives', H.part(R, '.label').textContent, '');
     H.eq('a sensor is never "on": the plate is not lit', H.part(R, '.rank').getAttribute('data-on'), '0');
 
@@ -125,7 +125,7 @@ H.run('STAT CARDS', [
       function () { return house.set('sensor.downstairs_ac_live', '0.001'); },
       function () { return house.set('sensor.upstairs_ac_live', '0.8'); });  // a PEER's live sensor
     H.eq('an idle circuit reads whole watts', H.morphed(H.part(R, '.hero')), '1<span class="unit">W</span>');
-    H.eq('...and recedes', H.part(R, '.hero').style.color, 'var(--hk-ink-3, rgba(255, 255, 255, 0.40))');
+    H.eq('...and recedes', H.part(R, '.hero').style.color, window.hkCards.v('ink-3'));
     var r0 = card.__renders;
     card.hass = house.set('sensor.downstairs_ac_utility', '4.9');
     H.eq('the statistic\'s own sensor is not an input (statistics wake it)', card.__renders - r0, 0);

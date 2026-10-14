@@ -65,7 +65,7 @@
         '  border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10));',
         '  display:flex;align-items:center;justify-content:center;cursor:pointer;',
         '  user-select:none;font-size:19.7px;letter-spacing:-0.45px;font-weight:700;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));transition:transform .12s ease}',
+        '  color:' + window.hkCards.v('ink') + ';transition:transform .12s ease}',
         '.k:active{transform:scale(0.96)}',
         '.acts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}',
         // THE ICON AND THE LABEL ARE CENTRED AS A PAIR, not laid out in a
@@ -80,7 +80,7 @@
         '  cursor:pointer;user-select:none;transition:transform .12s ease}',
         '.a:active{transform:scale(0.96)}',
         '.a ha-icon{--mdc-icon-size:20px;width:20px;height:20px;flex:0 0 auto;',
-        '  color:var(--hk-glyph,rgba(255,255,255,0.92))}',
+        '  color:' + window.hkCards.v('glyph') + '}',
         // THE THREE MODES ARE COLOURED, so each is easy to pick out.
         // The same meaning the Security chip already uses -- armed green,
         // disarmed red -- with Home in blue so the two ways of arming are not
@@ -102,12 +102,12 @@
         // The 0 is the one that widens, so the middle column stays a digit.
         '.k2{grid-column:span 2}',
         '.a span{font-size:14px;letter-spacing:-0.15px;font-weight:600;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '  color:' + window.hkCards.v('ink') + '}',
         // The readout, and the only place the keypad talks back.
         '.read{height:58px;border-radius:20px;padding:8px 16px;margin:0 0 14px 0;',
         '  ' + M.glass + ';border:' + M.border + ';box-shadow:none;',
         '  display:flex;align-items:center;justify-content:center}',
-        '.read .code{font-weight:700;color:var(--hk-ink,rgba(255,255,255,0.94));',
+        '.read .code{font-weight:700;color:' + window.hkCards.v('ink') + ';',
         '  font-size:30px;letter-spacing:8px}',
         '.read[data-bad="1"]{border:1px solid rgba(255,69,58,0.55)}',
         '.read[data-bad="1"] .code{font-size:19px;letter-spacing:0.2px;',
@@ -119,7 +119,7 @@
         '.read[data-mode="status"] .code{display:none}',
         '.read .st ha-icon{--mdc-icon-size:26px;width:26px;height:26px;flex:none;display:flex}',
         '.read .st span{font-size:20px;font-weight:700;letter-spacing:-0.3px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '  color:' + window.hkCards.v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '@media (prefers-reduced-motion: reduce){',
         '  .k,.k:active,.a,.a:active{transition:none;transform:none}}'
       ].join('');

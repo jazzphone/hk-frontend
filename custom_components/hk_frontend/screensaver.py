@@ -63,7 +63,6 @@ BLACK_KEY = "black_screen"
 INUSE_KEY = "screen_in_use"
 MARGIN = 60                    # s: the window is Starts After less this
 MIN_WINDOW = 15
-TOUCH_EVERY = 10               # s: the page reports a touch at most this often
 
 
 def window_of(starts_after: int) -> int:
@@ -74,35 +73,54 @@ def window_of(starts_after: int) -> int:
 
 
 def wanted(entry: ConfigEntry) -> dict[str, dict[str, Any]]:
-    """The screens that get the entities: HK's own photo screensaver on, with a
-    tablet user. `{path: {"sub": subentry, "board": board}}`."""
+    """The tablets, each with what its entities and Sleep Screen read (1.14:
+    a tablet's own, no longer a screen's). `{tablet id: {"sub": its item,
+    "tablet": tablet(), "board": as_board()}}`."""
     out: dict[str, dict[str, Any]] = {}
+    tabs = S.tablets(entry)
+    screens = {s.unique_id: s for s in entry.subentries.values()
+               if s.subentry_type == S.SUBENTRY_DASHBOARD and s.unique_id}
     for sub in entry.subentries.values():
-        if sub.subentry_type != S.SUBENTRY_DASHBOARD or not sub.unique_id:
+        if sub.subentry_type != S.SUBENTRY_TABLET or sub.unique_id not in tabs:
             continue
-        b = S.resolved(S.board(sub.data), entry.options)
-        if b["screensaver"] and b["tablet_user"] and b["screensaver_engine"] == "hk":
-            out[sub.unique_id] = {"sub": sub, "board": b}
+        t = tabs[sub.unique_id]
+        scr = screens.get(t["screen"])
+        b = S.resolved(S.board(scr.data if scr else None), entry.options)
+        out[sub.unique_id] = {"sub": sub, "tablet": t, "board": as_board(t, b)}
     return out
 
 
+def as_board(t: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """What Sleep Screen and the entities read, in the shape they always
+    read it: the tablet's Sleep Screen and Black Screen, its screen's
+    screensaver options (Starts After), the screen's path and the tablet's
+    user and room."""
+    return {"sleep": t["sleep"], "black_screen": t["black_screen"],
+            "screensaver_options": b["screensaver_options"], "screensaver": b["screensaver"],
+            "dashboard": t["screen"], "tablet_user": t["user"], "idle_room": t["room"],
+            "notify": b.get("notify", True), "notify_dnd": b.get("notify_dnd")}
+
+
 class Manager:
-    """Adds and removes the per-screen entities as screens change, and holds
-    each screen's last touch."""
+    """Adds and removes each tablet's entities as tablets change, and holds
+    each tablet's last touch. Everything here is keyed by tablet id (1.14;
+    by the screen's path before)."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass, self.entry = hass, entry
         self.adders: dict[str, Any] = {}              # platform -> async_add_entities
-        # path -> {"switch": photos, "black": black screen, "binary_sensor": in use}
+        # tablet -> {"switch": photos, "black": black screen, "binary_sensor": in use, "sleep": Sleep Screen}
         self.entities: dict[str, dict[str, Any]] = {}
         self.touch: dict[str, datetime] = {}
-        # path -> the last touch on the screensaver's own controls (ws_touch
+        # tablet -> the last touch on the screensaver's own controls (ws_touch
         # saver: true) -- not a touch of the page, never "in use"
         self.saver_touch: dict[str, datetime] = {}
-        # Sleep Screen: path -> its engine (sleep_engine.py), while its screen
+        # Sleep Screen: tablet -> its engine (sleep_engine.py), while it
         # is Decided By HK Frontend or in shadow; and what it was built from
         self.engines: dict[str, Any] = {}
         self._engine_keys: dict[str, str] = {}
+        # tablet id -> the base of its entities' unique ids (its device's too)
+        self._uids: dict[str, str] = {}
 
     def attach(self, platform: str, add: Any) -> None:
         self.adders[platform] = add
@@ -110,37 +128,43 @@ class Manager:
 
     @callback
     def sync(self) -> None:
-        """Make the entities match the screens: new screens get theirs, a screen
-        that no longer has HK's screensaver loses them."""
+        """Make the entities match the tablets: a new tablet gets its own, a
+        tablet removed loses them."""
         want = wanted(self.entry)
         reg = er.async_get(self.hass)
         devs = dr.async_get(self.hass)
-        for path in list(self.entities):
-            if path not in want:
-                for ent in self.entities.pop(path).values():
+        for tid in list(self.entities):
+            if tid not in want:
+                for ent in self.entities.pop(tid).values():
                     eid = ent.entity_id
                     self.hass.async_create_task(ent.async_remove(force_remove=True))
                     if eid and reg.async_get(eid):
                         reg.async_remove(eid)
-                dev = devs.async_get_device_by_identifier((DOMAIN, f"{self.entry.entry_id}_{path}"), self.entry.entry_id)
+                uid = self._uids.pop(tid, None)
+                dev = uid and devs.async_get_device_by_identifier((DOMAIN, f"{self.entry.entry_id}_{uid}"),
+                                                                  self.entry.entry_id)
                 if dev:
                     devs.async_remove_device(dev.id)
         from .binary_sensor import ScreenInUse
         from .sensor import SleepScreenSensor
         from .switch import BlackScreen, PhotoScreensaver
-        for path, w in want.items():
-            have = self.entities.setdefault(path, {})
-            # a renamed screen renames its device (unless the house named it)
-            dev = devs.async_get_device_by_identifier((DOMAIN, f"{self.entry.entry_id}_{path}"), self.entry.entry_id)
-            title = w["sub"].title or path
-            if dev and dev.name != title:
-                devs.async_update_device(dev.id, name=title)
+        for tid, w in want.items():
+            have = self.entities.setdefault(tid, {})
+            uid, name = w["tablet"]["uid"], w["tablet"]["name"]
+            self._uids[tid] = uid
+            # a renamed tablet renames its device (unless the house named it)
+            dev = devs.async_get_device_by_identifier((DOMAIN, f"{self.entry.entry_id}_{uid}"), self.entry.entry_id)
+            if dev and dev.name != name:
+                devs.async_update_device(dev.id, name=name)
+            # a tablet lifted off its screen (1.14): its device moves to the
+            # tablet's item BEFORE its entities are added there
+            self._adopt(dev, w["sub"].subentry_id)
             for kind, platform, cls in (("switch", "switch", PhotoScreensaver), ("black", "switch", BlackScreen),
                                         ("binary_sensor", "binary_sensor", ScreenInUse),
                                         ("sleep", "sensor", SleepScreenSensor)):
                 if kind in have or platform not in self.adders:
                     continue
-                ent = cls(self, path, w["sub"].title or path)
+                ent = cls(self, tid, name, uid)
                 have[kind] = ent
                 self.adders[platform]([ent], config_subentry_id=w["sub"].subentry_id)
         self._sync_engines(want)
@@ -148,6 +172,26 @@ class Manager:
             for ent in have.values():
                 if ent.hass is not None:
                     ent.async_write_ha_state()
+
+    @callback
+    def _adopt(self, dev: Any, subentry_id: str) -> None:
+        """A tablet lifted off a screen (1.14): its device was the screen's
+        item's. A device belongs to one subentry (Home Assistant 2026.10), so
+        it is moved to the tablet's item -- before the entities are added
+        there, which then move with it. An older Home Assistant, where a
+        device may have several: the tablet's added, the screen's dropped."""
+        if dev is None:
+            return
+        devs = dr.async_get(self.hass)
+        if hasattr(dev, "config_subentry_id"):
+            if dev.config_subentry_id != subentry_id:
+                devs.async_update_device(dev.id, new_config_subentry_id=subentry_id)
+            return
+        have = dev.config_entries_subentries.get(self.entry.entry_id) or set()
+        if subentry_id not in have:
+            devs.async_update_device(dev.id, add_config_entry_id=self.entry.entry_id, add_config_subentry_id=subentry_id)
+        for sid in [s for s in have if s not in (subentry_id, None)]:
+            devs.async_update_device(dev.id, remove_config_entry_id=self.entry.entry_id, remove_config_subentry_id=sid)
 
     @callback
     def _sync_engines(self, want: dict[str, Any]) -> None:
@@ -181,9 +225,18 @@ class Manager:
         self.engines.clear()
         self._engine_keys.clear()
 
-    def board(self, path: str) -> dict[str, Any]:
-        w = wanted(self.entry).get(path)
-        return w["board"] if w else S.resolved(S.board(None), self.entry.options)
+    def board(self, tid: str) -> dict[str, Any]:
+        """What tablet `tid` reads (as_board), or the defaults."""
+        w = wanted(self.entry).get(tid)
+        return w["board"] if w else as_board(S.tablet(None, tid), S.resolved(S.board(None), self.entry.options))
+
+    def tablets_on(self, path: str, user: Any = None) -> list[str]:
+        """The tablets running screen `path` -- those signed in as `user`
+        (a Home Assistant user) first, when given."""
+        mine = [tid for tid, w in wanted(self.entry).items() if w["tablet"]["screen"] == path]
+        if user is not None:
+            mine.sort(key=lambda tid: self.board(tid)["tablet_user"] != getattr(user, "name", None))
+        return mine
 
     def switch_ids(self) -> dict[str, str]:
         """{path: entity id} of each screen's switch, for the settings feed."""
@@ -235,11 +288,15 @@ class SaverEntity:
     _attr_should_poll = False
     _attr_has_entity_name = True
 
-    def __init__(self, mgr: Manager, path: str, title: str, key: str) -> None:
-        self._mgr, self._path = mgr, path
-        self._attr_unique_id = f"{mgr.entry.entry_id}_{path}_{key}"
+    def __init__(self, mgr: Manager, tid: str, title: str, key: str, uid: str | None = None) -> None:
+        # _path: the tablet's id (the engine and the manager key by it); the
+        # unique id and the device go by its uid -- for a tablet lifted off a
+        # screen, that screen's path, so nothing in the registry changes
+        self._mgr, self._path = mgr, tid
+        uid = uid or tid
+        self._attr_unique_id = f"{mgr.entry.entry_id}_{uid}_{key}"
         self._attr_translation_key = key          # translations/en.json entity.*
-        self._attr_device_info = device_info(mgr.entry, path, title)
+        self._attr_device_info = device_info(mgr.entry, uid, title)
 
     def _starts_after(self) -> int:
         return int(self._mgr.board(self._path)["screensaver_options"]["starts_after"])
@@ -248,17 +305,18 @@ class SaverEntity:
     def extra_state_attributes(self) -> dict[str, Any]:
         t = self._mgr.touch.get(self._path)
         sa = self._starts_after()
-        return {"dashboard": self._path, "starts_after": sa, "in_use_window": window_of(sa),
+        return {"tablet": self._path, "dashboard": self._mgr.board(self._path).get("dashboard") or None,
+                "starts_after": sa, "in_use_window": window_of(sa),
                 "last_touch": t.isoformat() if t else None}
 
     def touched(self) -> None:
         self.async_write_ha_state()
 
 
-def device_info(entry: ConfigEntry, path: str, title: str) -> Any:
+def device_info(entry: ConfigEntry, uid: str, title: str) -> Any:
     from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-    return DeviceInfo(identifiers={(DOMAIN, f"{entry.entry_id}_{path}")}, name=title,
-                      manufacturer="HK Frontend", model="Screen", entry_type=DeviceEntryType.SERVICE)
+    return DeviceInfo(identifiers={(DOMAIN, f"{entry.entry_id}_{uid}")}, name=title,
+                      manufacturer="HK Frontend", model="Wall Tablet", entry_type=DeviceEntryType.SERVICE)
 
 
 async def async_setup_platform(hass: HomeAssistant, entry: ConfigEntry, platform: str, add: Any) -> None:
@@ -282,60 +340,80 @@ def manager(hass: HomeAssistant) -> Manager | None:
 
 
 # ------------------------------------------------------------ the page's touches
+def _which(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+           ) -> tuple[Manager | None, str | None]:
+    """The tablet a page speaks for: `tablet` (1.14, hkSettings.tablet()), or
+    -- a page still running the files from before -- the tablet on
+    `dashboard` signed in as this user. Only that tablet's own user, an admin,
+    or anyone for a tablet with no user (Just a Browser, known by its URL)."""
+    mgr = manager(hass)
+    if mgr is None:
+        return None, None
+    user = connection.user
+    tid = msg.get("tablet")
+    if not tid and msg.get("dashboard"):
+        on = mgr.tablets_on(msg["dashboard"], user)
+        tid = on[0] if on else None
+    if not tid or tid not in mgr.entities:
+        return mgr, None
+    owner = mgr.board(tid)["tablet_user"]
+    if not (user and (user.is_admin or not owner or user.name == owner)):
+        return mgr, ""
+    return mgr, tid
+
+
 @websocket_api.websocket_command({
     vol.Required("type"): "hk_frontend/screensaver/touch",
-    vol.Required("dashboard"): str,
+    vol.Optional("tablet"): str,
+    vol.Optional("dashboard"): str,
     # a touch on the screensaver's own controls, the photos still up
     vol.Optional("saver", default=False): bool,
 })
 @callback
 def ws_touch(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
-    """hk-saver.js: somebody touched this screen. Only its tablet's own user
-    (or an admin) may say so -- a desk opening the same screen is not the
+    """hk-saver.js: somebody touched this tablet. Only the tablet itself (its
+    user) or an admin may say so -- a desk opening the same screen is not the
     tablet."""
-    mgr = manager(hass)
-    path = msg["dashboard"]
-    if mgr is None or path not in mgr.entities:
-        connection.send_error(msg["id"], "not_found", "No HK screensaver on that screen")
+    mgr, tid = _which(hass, connection, msg)
+    if tid is None:
+        connection.send_error(msg["id"], "not_found", "No such wall tablet")
         return
-    user = connection.user
-    if not (user and (user.is_admin or user.name == mgr.board(path)["tablet_user"])):
-        connection.send_error(msg["id"], "unauthorized", "Only the screen's tablet user")
+    if tid == "":
+        connection.send_error(msg["id"], "unauthorized", "Only the tablet's own user")
         return
     if msg.get("saver"):
-        mgr.saver_touched(path)
+        mgr.saver_touched(tid)
     else:
-        mgr.touched(path)
-    connection.send_result(msg["id"], {"window": window_of(mgr.board(path)["screensaver_options"]["starts_after"])})
+        mgr.touched(tid)
+    connection.send_result(msg["id"], {"window": window_of(mgr.board(tid)["screensaver_options"]["starts_after"])})
 
 
 @websocket_api.websocket_command({
     vol.Required("type"): "hk_frontend/screensaver/black",
-    vol.Required("dashboard"): str,
+    vol.Optional("tablet"): str,
+    vol.Optional("dashboard"): str,
     vol.Required("black"): bool,
 })
 @callback
 def ws_black(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """hk-saver.js, Black Screen: HK Frontend -- black: true once the page is
-    black (its curtain drawn, the backlight down): the house's sleep waits for
-    it, and falls back to Kiosk Satellite's black without it. black: false when
-    a tap woke it on the tablet: the switch follows. The tablet's own user (or
-    an admin) only, as for a touch."""
-    mgr = manager(hass)
-    path = msg["dashboard"]
-    blk = mgr.entities.get(path, {}).get("black") if mgr else None
-    if blk is None:
-        connection.send_error(msg["id"], "not_found", "No black screen on that screen")
+    black (its curtain drawn, the backlight down): the sleep waits for it, and
+    falls back to Kiosk Satellite's black without it. black: false when a tap
+    woke it on the tablet: the switch follows. The tablet itself (its user) or
+    an admin only, as for a touch."""
+    mgr, tid = _which(hass, connection, msg)
+    blk = mgr.entities.get(tid, {}).get("black") if (mgr and tid) else None
+    if tid == "":
+        connection.send_error(msg["id"], "unauthorized", "Only the tablet's own user")
         return
-    user = connection.user
-    if not (user and (user.is_admin or user.name == mgr.board(path)["tablet_user"])):
-        connection.send_error(msg["id"], "unauthorized", "Only the screen's tablet user")
+    if blk is None:
+        connection.send_error(msg["id"], "not_found", "No black screen on that tablet")
         return
     # A TAP WOKE IT: in use first, then not black, in this one callback -- so
-    # the house's want sensor never sees the black gone without the touch
-    # (it would read "nobody here" and send the tablet back to sleep)
+    # the want never sees the black gone without the touch (it would read
+    # "nobody here" and send the tablet back to sleep)
     if not msg["black"] and blk.is_on:
-        mgr.touched(path)
+        mgr.touched(tid)
     blk.page_says(msg["black"])
     connection.send_result(msg["id"], {"on": blk.is_on})
 

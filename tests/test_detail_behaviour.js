@@ -155,6 +155,18 @@ r = press('hk-detail-garage', 'cover.garage', 'open', GARAGE, null, 0);
 ok('garage: a tap on an open door closes it', r.join() === 'cover.close_cover', r);
 r = press('hk-detail-valve', 'valve.main', 'open', { supported_features: 3 }, null, 1000);
 ok('valve: hold to close', r.join() === 'valve.close_valve', r);
+// NOT REPORTED YET (a Z-Wave or Zigbee device after a restart): `unknown`
+// takes commands, as in HA's own dialog -- the safe one
+r = press('hk-detail-lock', 'lock.front', 'unknown', LOCK, null, 0);
+ok('lock: unknown -- a tap locks it', r.join() === 'lock.lock', r);
+r = press('hk-detail-lock', 'lock.front', 'unknown', LOCK, null, 1000);
+ok('lock: unknown -- a hold never unlocks', r.indexOf('lock.unlock') === -1, r);
+r = press('hk-detail-garage', 'cover.garage', 'unknown', GARAGE, null, 0);
+ok('garage: unknown -- a tap closes it', r.join() === 'cover.close_cover', r);
+r = press('hk-detail-valve', 'valve.main', 'unknown', { supported_features: 3 }, null, 1000);
+ok('valve: unknown -- hold to close (the water off), never to open', r.join() === 'valve.close_valve', r);
+r = press('hk-detail-lock', 'lock.front', 'unavailable', LOCK, null, 0);
+ok('lock: unavailable -- nothing to send to', r.length === 0, r);
 (function () {
   // someone else shut it during the hold: the press was for "close", and
   // the ring must not now OPEN the water
@@ -497,7 +509,7 @@ print('\n=== the sensor chart ===');
   var E = house({ 'sensor.kwh': ['12', { unit_of_measurement: 'kWh', state_class: 'total_increasing', device_class: 'energy' }] });
   window.hkStats.hourly = function () { return []; };
   var e = panel('hk-detail-sensor', 'sensor.kwh', E);
-  e._asked.daye = Date.now() - 5000; e.requestUpdate();
+  e.requestUpdate();                     // empty statistics: the history at once (no 2.6 s wait)
   // the stats row stays (dashes), so the sheet does not jump when a range
   // switch finds nothing -- and never a false "0 kWh"
   ok('an energy sensor with no statistics says so (never "0 kWh")', /No history/.test(e._chart.innerHTML) && !e._stats.hidden &&
@@ -988,6 +1000,28 @@ print('\n=== the Energy page, from an accessory\'s gear and its sheet ===');
   var eur = _.money({ config: { currency: 'EUR' } }, 1.239, 2);
   ok('the house\'s own currency, not a dollar sign', eur.indexOf('$') < 0 && /1[.,]24/.test(eur) && /€|EUR/.test(eur), eur);
   ok('a currency the browser cannot name is its code', /XYZ|¤/.test(_.money({ config: { currency: 'XYZ' } }, 2, 2)));
+})();
+
+// =====================================================================
+print('\n=== the person sheet ===');
+(function () {
+  load(HK_ROOT + '/frontend/cards/hk-person.js');
+  var h = house({ 'person.alex': ['home', { device_trackers: ['device_tracker.alex_phone'] }], 'person.sam': ['not_home', {}],
+                  'device_tracker.alex_phone': ['home', {}], 'sensor.alex_phone_battery': ['80', { device_class: 'battery', unit_of_measurement: '%' }],
+                  'sensor.noise': ['1', {}] });
+  h.entities = { 'device_tracker.alex_phone': { device_id: 'd1' }, 'sensor.alex_phone_battery': { device_id: 'd1' } };
+  var p = panel('hk-detail-person', 'person.alex', h);
+  var sig = p._sigOf(), memo = p._depsMemo;
+  ok('person: the people and the phone battery found once', memo && memo.people.length === 2 && memo.bat === 'sensor.alex_phone_battery', memo);
+  var h2 = Object.assign({}, h, { states: Object.assign({}, h.states, { 'sensor.noise': { entity_id: 'sensor.noise', state: '2', attributes: {} } }) });
+  p.hass = h2;
+  ok('person: an unrelated update -- the same lookup (no walk over every state), the same signature', p._depsMemo === memo && p._sigOf() === sig);
+  var h3 = Object.assign({}, h2, { states: Object.assign({}, h2.states, { 'sensor.alex_phone_battery': { entity_id: 'sensor.alex_phone_battery', state: '79', attributes: { device_class: 'battery', unit_of_measurement: '%' } } }) });
+  p.hass = h3;
+  ok('person: the phone battery moving still redraws', p._sigOf() !== sig);
+  var h4 = Object.assign({}, h3, { states: Object.assign({}, h3.states, { 'person.sam': { entity_id: 'person.sam', state: 'home', attributes: {} } }) });
+  p.hass = h4;
+  ok('person: another person coming home too', p._sigOf().indexOf('home,home') >= 0);
 })();
 
 print('\n' + (fail ? 'FAIL ' + fail + ' DETAIL BEHAVIOUR TESTS' : 'ALL ' + pass + ' DETAIL BEHAVIOUR TESTS PASS'));

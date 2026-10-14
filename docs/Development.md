@@ -17,7 +17,7 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ settings_api.py      the HK Settings page's writes, checked as Configure checks them
 ├─ panel.py             the HK Settings page: registration and its read commands
 ├─ accessories.py       per-accessory settings (name, room, icon, where it shows)
-├─ kinds.py             What Counts: which entities each status chip counts
+├─ kinds.py             which entities each status chip counts (each type's page in Accessories)
 ├─ hiding.py            Hidden Accessories: where each accessory is hidden, and Also Count As
 ├─ files.py             your files folder, served under /hk/ ahead of the bundle
 ├─ resources.py         adds the card files as Lovelace resources (storage mode)
@@ -33,7 +33,7 @@ custom_components/hk_frontend/     the integration HACS installs
 │                       the features' entity platforms (the running features add to them)
 ├─ features/            the optional features, one package each; __init__.py
 │  │                    starts and follows them (Feature, async_sync, async_fold)
-│  └─ music/  live_tv/  clean_areas/  alarm_pin/
+│  └─ music/  live_tv/  clean_areas/  alarm_pin/  energy/  notifications/
 ├─ frontend/            everything reachable over HTTP, at /hk/
 │  ├─ cards/            the Lovelace cards, one family per file; hk-strategy.js
 │  │                    is the generated dashboard and the room page
@@ -49,7 +49,7 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ translations/        en.json
 └─ brand/               the integration's icon
 tests/                  run (JavaScript suites) and py/run (Python)
-tools/                  sky/, sf_symbols/, font/, merge_translations.py, publish/
+tools/                  sky/, sf_symbols/, font/, gen_theme.py, merge_translations.py, publish/
 docs/                   these pages, one file per Wiki page, and _Sidebar.md
 ```
 
@@ -161,6 +161,67 @@ repository. The Wiki is scanned for private data like everything else, and
 nothing is written if a page fails. It changes on every release, never between
 them, so the Wiki always describes the latest release.
 
+## Design values
+
+Every design value lives once, by name, in `hkCards.T` in
+`frontend/cards/hk-base.js`: the text and surface colors, the glass and its
+shadows, the overlays, the font. The keys are the `--hk-*` names without the
+prefix, and the values are the dark ones HK Frontend's own screens use
+(`LIGHT` holds a light page's). A card writes one with `v(name)`:
+
+```js
+var v = window.hkCards.v;
+v('ink-2')   // 'var(--hk-ink-2,rgba(255,255,255,0.68))'
+```
+
+so a theme, a look or a light page can replace it, and everywhere else gets
+the table's value. A name the table doesn't have throws.
+
+Beside the table, each family has a small named scale on `window.hkCards`:
+
+| Scale | What it holds |
+|---|---|
+| `SP` | Spacing for page cards and the cards in sheets. |
+| `TILE` | The pill: 196 × 70, 10 apart, favorites 76, its padding, circle and lines. `TILE.css` is its width as CSS, which follows `--hk-pill` (170 in the iPad band). |
+| `CHIP` | The status chip's height, 43. |
+| `CARD` | A page card's padding. |
+| `BP` | Breakpoints: screens (phone 640 and up) and card widths for container queries. |
+| `EASE`, `DUR` | Four motion curves and six durations. |
+| `BLUR` | Three backdrop blurs: light, medium and heavy. |
+| `R` | Corners: the plate's 23.5, inner, small, sheets, and `R.capsule(height)`. |
+| `OVER` | The three overlay surfaces. |
+| `TYPE` | Type roles: size, weight and tracking. |
+
+A plate (its corner, the look's material, edge and shadow) is one call:
+`hkCards.plate('tile')`, `'card'` or `'panel'`. A file that builds its CSS
+before `hk-base.js` is ready (`hk-row.js`, and modules such as `hk-header.js`,
+`hk-notify.js` and `hk-charts.js`) can't read the table: it writes the
+literal, and the tests hold it to the table's value.
+
+A new value gets a name in `T` (and in `LIGHT` if a light page should
+change it), never a literal in a card. The pill's numbers were measured off
+the Home app; they are not for tidying.
+
+**The guards.** Each family has a suite that fails on a value off its
+scale. An exception is named in the suite, with why.
+
+| Suite | Holds |
+|---|---|
+| `test_textscale`, `test_surfaces` | Text to the three inks; every other white to the six surfaces. |
+| `test_overlays`, `test_blur`, `test_motion` | Dark washes to `OVER`, blurs to `BLUR`, curves to `EASE`. |
+| `test_breakpoints` | Every media or container query width to `BP`. |
+| `test_radii`, `test_type` | Corners to `R`, font sizes to `TYPE`. Ratchets: the older values off the scale are recorded by file (`tests/fixtures/radii_allow.json`, `type_allow.json`), and a file may lose one, never gain one. |
+| `test_pillgeom`, `test_pillsize` | No pill number outside `TILE` and `--hk-pill`; `hk-responsive.css` and `TILE` agree. |
+| `test_csssnapshot` | Every CSS string the cards and modules hand the page, against `tests/fixtures/css_snapshot.json`. |
+| `tests/py/test_theme_values.py` | The HK Kiosk theme's glass keys equal `T`. |
+
+For a change you mean, `HK_UPDATE_SNAPSHOT=1 tests/run csssnapshot` rewrites
+the snapshot (and `HK_UPDATE_SNAPSHOT=1 tests/run radii` or `type` tightens a
+ratchet's list); the fixture's diff is the change to review. After changing
+a glass value in `T`, `python3 tools/gen_theme.py` rewrites the theme's
+`hk-*` keys from the table, and `python3 tools/gen_theme.py --check` only
+compares them. The theme reaches the screens after Home Assistant restarts.
+
 ## Adding a card
 
 1. **Pick its family file** in `frontend/cards/`, by what the card looks like
@@ -174,10 +235,12 @@ them, so the Wiki always describes the latest release.
    every entity `_render()` reads (the default covers `entity`, `entities` and
    `group`). A card that reads no entity returns `'static'`; the default
    `null` means “always render,” on every state change in the house.
-4. **Glass.** Write a glass surface with `M.glass` (never a background of your
-   own), and never put `backdrop-filter` on a card: Blur’s Shared Layer and
-   Pre-rendered modes are one shared layer (`hk-glass.js`), and a blur per
-   card is what slows a tablet down. `glass: false` in a card’s config keeps it out of the shared layer.
+4. **Glass.** Write a plate with `hkCards.plate()` and any other glass
+   surface with `M.glass` (never a background of your own), and every color
+   with `v()` ([Design values](#design-values)). Never put
+   `backdrop-filter` on a card: Blur’s Shared Layer and Pre-rendered modes
+   are one shared layer (`hk-glass.js`), and a blur per card is what slows a
+   tablet down. `glass: false` in a card’s config keeps it out of the shared layer.
 5. **Register it**:
 
    ```js

@@ -1,7 +1,8 @@
 # Energy
 
 An Energy page for your screens, built from Home Assistant’s own Energy
-settings.
+settings, and a [Power page](#the-power-page) beside it for right now and the
+house battery's controls.
 
 The page has four tabs, **Now**, **Today**, **This Week** and **This Month**,
 which float at the top as you scroll, and every card keeps its size and place
@@ -138,15 +139,90 @@ every guess can be changed:
 Cars are found by themselves: a battery level on a device that also reports
 a range. They go into Charging, with their range under the level.
 
+## The Power page
+
+Energy is over time; **Power** is right now and the controls, on a page of
+its own beside it (turn it on in **HK Settings → Energy → Power Page**). It
+reads the same devices, and sits beside Energy in a screen's pages and menu,
+on a backdrop of its own.
+
+- **The house**, full width: a flow chart from the grid to the house and
+  the battery, with light running along each line while power flows.
+  Without a house battery it is the grid and the house alone. Tap a figure
+  for its sheet.
+- **The status** in sentences beside **the house battery**, then **The
+  House** (the whole house: what the battery backs up, what it does not, a
+  car charging, and the three drawing the most) beside **Where the Sun Goes**
+  (with solar). Without a battery, the status sits beside The House and says
+  nothing of a battery.
+- **The battery's own controls**: its **Mode**, a choice with a line saying
+  what each one does, and its **Levels**, a slider each (its backup reserve
+  or charge limit, say).
+- **Every device**, by type or backed up first. A tile the battery backs up
+  shows a small green battery before its kWh line, here and on the Energy
+  page (on a narrow tile the word "today" steps aside for it); one with
+  a switch has its power button. A car's tile has a button that starts or
+  stops charging (it asks before stopping).
+
+![The Power page on a wall tablet: the flow chart, the status beside the house battery, The House and the devices](images/tablet-power.png)
+*The Power page: right now, and the battery's controls.*
+
+**A picture of your own house.** With a **Picture Folder** (a folder in
+[your files](Your-Files.md) holding `art.json` and the picture's layers), the
+flow chart becomes the house itself: the grid comes in down the pole's cable,
+the panels light up with the sun, the battery's level sits on its cabinet,
+and a car in the driveway glows while it charges, each figure floating over
+its part of the house. Only what the house has is drawn. The **Cars** figure
+has a row for each car: its name, and its charging power, its level at home,
+or Away; tap a row for that car. No picture ships with HK Frontend; without
+a folder the page shows the flow chart.
+
+**What is backed up** is worked out from Home Assistant's own device
+registry: a device whose power sensor or switch is on the battery's own
+device, whose switch is a group of the battery's circuits, or which sits
+inside a backed-up circuit. Each device's settings page has **Backed Up**
+(Automatic, Yes or No) for what Home Assistant cannot see, and the battery's
+**Backs Up** says Some Circuits, The Whole House or Nothing.
+
+**A car's charging power** comes from the wall chargers by default: they are
+on the house's network and read live, where a car's own reading comes from
+its maker's cloud and runs minutes behind. The chargers are found among the
+Energy page's Charging devices, and the car's own reading only says which
+car is charging. With two cars charging at once that can guess wrong; give
+each car its own **Charging Power** (its charger, or the circuit it charges
+on) to know.
+
+**Its address** is `/power`, or the address it takes over: a screen that
+lists a custom page at that address shows the Power page in its place.
+
+### Power Page settings
+
+**HK Settings → Energy → Power Page**:
+
+| Setting | Default | What it does |
+|---|---|---|
+| Show the Power Page | Off | The page, on every screen whose pages are Automatic (or that lists it). |
+| Title | Power | Its name, in the menu and at the top of the page. |
+| Picture Folder | None | A folder of your files with `art.json` and its layers. None: the flow chart. With one, **Picture** chooses **The House** or **A Flow Chart**. |
+| Devices | By Type | Or **Backed Up First**: two sections, Backed Up and Not Backed Up. |
+| Readings | Automatic | **Whole House** (the Energy page's Whole Home), **The Grid** (Home Assistant's grid power sensor), **To the Grid** and **Grid Up** (only with sensors of their own), **The Sun** (the solar sources' power sensors) and **Battery Panel Output** (what the battery's circuits draw). Each says what Automatic found. |
+| House Battery | None | Its **Level**, **Charging**, **Giving**, **Reserve**, **Charge Limit**, **Stored Energy**, **Backup Time**, **Charging Speed**, **EPS**, **Storm Mode** and **Fault**, and **Backs Up**. Without a level the page has no battery. |
+| Battery Controls | None | **Mode**: a select, shown as a choice on the page. |
+| Battery Levels | None | **Add…** a number the battery takes; each is a slider on the page. Tap one to remove it. |
+| (each car) | Automatic | **Name** (blank: its integration's) and **Charging Power**: Automatic (the wall chargers), any power reading (a wall charger, or the circuit a charger without a network is on), or **The Car's Own Reading**. Cars are the ones the Energy page finds, with their parts found on each car's own device. |
+
+![HK Settings → Energy → Power Page](images/settings-power.png)
+
 ## Set it up
 
 1. In Home Assistant, set up **Settings → Dashboards → Energy**: the grid and
    your devices. The more it lists, the less there is to do here.
 2. Go to **Settings → Devices & services → HK Frontend → Add feature → Energy**.
 3. Give a screen the page:
-   - **Any generated screen.** With Automatic pages, Energy is included. With
-     pages of its own, add **Energy** from **More** on its **Pages**. The
-     Energy chip opens the page.
+   - **Any generated screen.** With Automatic pages, Energy is included (and
+     Power, once it is on). With pages of its own, add **Energy** (or
+     **Power**) from **More** on its **Pages**. The Energy chip opens the
+     Energy page.
    - **A screen that is only the Energy page** (a page screen, see
      [Whole screens and page screens](Pages.md#whole-screens-and-page-screens)).
      In **HK Settings → Add Screen**, pick **Shown On → Energy Display**, or
@@ -166,7 +242,7 @@ a range. They go into Charging, with their range under the level.
 | Rings | Automatic | Energy, Cost, Solar, Water and Gas, in that order, up to four. Automatic: every one the house has. |
 | A Usual Day | The 30 Days Before | What the rings, the tiles and the calendar compare with: the 30, 14 or 7 days before today. |
 | Highlights | On | The four sentences beside the summary. Off: the summary takes the whole row. |
-| Readings | Automatic | On Now: Today’s Cost (on or off), then up to three readings. Automatic: the first two thermostats from [What Counts](Status-Chips.md#what-counts), then the outside temperature from [Weather](Weather.md). A thermostat opens the screen’s Climate page. |
+| Readings | Automatic | On Now: Today’s Cost (on or off), then up to three readings. Automatic: the first two thermostats from **Accessories → Thermostats** ([Types](Accessories.md#types)), then the outside temperature from [Weather](Weather.md). A thermostat opens the screen’s Climate page. |
 | Tracking | Automatic | Automatic: no Tracking card; each device’s sheet has its own bars. Your own (**Add to Tracking**, up to nine: a power, energy or runtime sensor, each with a **Name**, **Color** and **Daily Use From**) are a row each on the page’s **Tracking** card, following the tabs: in two columns on a wide screen, and on This Week the week before dimmed beside it. A runtime sensor (hours) shows its hours, and its device’s tile shows them too (an *HVAC Run Time* or *AC Runtime* sensor is matched to its AC by name; or pick it as the device’s **Daily Runtime**). |
 | Sections | Automatic | The sections in order. Rename one, give it a **Color** (its part of Where it went and its tiles’ lines), give its heading a **Link** to another page, drag tiles into order, or **Move Here** from another section. **Add Section** adds one. Turning Automatic off keeps the sections as they are now. A device you place in no section goes to the one its name suggests, or *Other*. |
 | Devices | — | Each device’s **Name**, **Glyph** and **Color**, **Show on the Energy Page**, its **Section**, its **Power Sensor** (for Now), its **Energy Meter** (for the other tabs), its **Daily Runtime** (an AC’s hours; Automatic: a runtime sensor named after it), and **Switched By**: the switch the circuit or plug is on, which gives its tile a power button and its sheet the switch. The page says how its power sensor was found. **Add Device** adds one the Energy settings don’t list. |
@@ -218,11 +294,13 @@ Tabs** first, then any of the others; they all follow its tab. A tile
 its **Switched By** gives it the power button. See the
 [Card Library](Card-Library.md#energy).
 
-For a page about a home battery system, four more cards read the entities
-you give them rather than the Energy settings, in the same look: **HK Power
-Flow** (a flow chart of the grid, the house and the battery right now), **HK
-Power Status** (the system in sentences, a grid outage or a fault first),
-**HK House Battery** (the battery drawn as one, with its reserve, limit and
-packs) and **HK Segmented Choice** (a select, such as its operating mode, as
-a segmented control). They are in the [Card Library](Card-Library.md#energy)
-too.
+For a page about a home battery system, the Power page's cards read the
+entities you give them rather than the Energy settings, in the same look:
+**HK Power Flow** (a flow chart of the grid, the house and the battery right
+now), **HK Power Status** (the system in sentences, a grid outage or a fault
+first), **HK House Battery** (the battery drawn as one, with its reserve,
+limit and packs), **HK Segmented Choice** (a select, such as its operating
+mode, as a segmented control), **HK Power House Load** (The House) and **HK
+Where the Sun Goes** (its Today half needs the Energy feature). **HK Power
+House** draws a layered picture of your own (`art`); none ships. They are in
+the [Card Library](Card-Library.md#energy) too.

@@ -34,12 +34,23 @@ Home in the [Tinted](Appearance.md#tinted) look: the Home app’s flat dark plat
 | [Calendar](Calendar.md): the month | The week |
 | ![The Calendar page: the day](images/tablet-calendar-day.png) | ![A new event](images/tablet-calendar-new-event.png) |
 | The day | A new event |
-| ![The Energy page on This Month, with Your Month as a calendar](images/tablet-energy-month.png) | |
-| [Energy](Energy.md): This Month | |
+| ![The Energy page on This Month, with Your Month as a calendar](images/tablet-energy-month.png) | ![The Power page: the grid, the house and the battery right now](images/tablet-power.png) |
+| [Energy](Energy.md): This Month | The [Power page](Energy.md#the-power-page) |
+| ![Home over a photo of your own](images/tablet-background-photo.png) | |
+| A [Photo background](Live-Sky.md) | |
 
 ![The photo screensaver, with the clock, weather and Home Status over the photo](images/tablet-screensaver.png)
 
 The [photo screensaver](Screensaver-and-Idle.md#5-add-the-photo-screensaver) (HK Frontend’s own fall sky standing in for a photo).
+
+![Six of the screensaver's clock styles: Classic, Flip, Analog, Nixie Tubes, Dot Matrix and Big Serif over the photos](images/saver-clock-faces.png)
+
+[A clock](Screensaver-and-Idle.md#a-clock) in place of the photos: six of its fifteen styles.
+
+| | |
+|---|---|
+| ![Night Mode: the clock a dim red on black](images/saver-clock-night.png) | ![A mosaic of four photos](images/saver-mosaic.png) |
+| Night Mode | A mosaic (HK’s own sky standing in for photos) |
 
 | | |
 |---|---|
@@ -95,8 +106,8 @@ Source selection and exclusions: [Climate](Climate.md).
 |---|---|---|
 | ![The Home screen on a phone, with the tab bar along the bottom](images/phone-home.png) | ![A room page on a phone](images/phone-room.png) | ![A light’s detail sheet on a phone](images/phone-sheet-light.png) |
 | Home | A room | A detail sheet |
-| ![The Music page on a phone](images/phone-music.png) | | |
-| [Music](Music.md) | | |
+| ![The Music page on a phone](images/phone-music.png) | ![The Power page on a phone](images/phone-power.png) | |
+| [Music](Music.md) | [Power](Energy.md#the-power-page) | |
 
 The [tab bar](Tab-Bar.md): More holds the pages that don't fit and every room;
 scrolled, the bar folds into one small button.
@@ -162,8 +173,8 @@ More: [Live Sky](Live-Sky.md).
 | The preview at phone size | Accessories |
 | ![Custom chips](images/settings-custom-chips.png) | ![Pop-ups](images/settings-popups.png) |
 | Custom chips | Pop-ups |
-| ![Custom pages](images/settings-pages.png) | ![What Counts](images/settings-counts.png) |
-| Custom pages | What Counts |
+| ![Custom pages](images/settings-pages.png) | ![Accessories: a type's page](images/settings-accessories-type.png) |
+| Custom pages | [A type’s page](Accessories.md#types) |
 | ![Weather](images/settings-weather.png) | ![Sky](images/settings-sky.png) |
 | Weather | Sky |
 | ![A decoration with its preview](images/settings-sky-theme.png) | ![Appearance](images/settings-appearance.png) |
@@ -192,7 +203,13 @@ More: [Live Sky](Live-Sky.md).
 | [Notifications](Notifications.md) | A category |
 | ![Glass Style: Glass, Frosted, Tinted and Blur, with Blur Mode](images/settings-glass-style.png) | ![A screen’s Behavior](images/settings-screen-behavior.png) |
 | [Glass Style](Appearance.md#every-screen) | A screen’s [Behavior](Screens.md#behavior) |
-| ![The Calendars notification category](images/settings-notifications-calendars.png) | |
-| [Calendars](Notifications.md#calendars) notifications | |
+| ![The Calendars notification category](images/settings-notifications-calendars.png) | ![The Alarm notification category](images/settings-notifications-alarms.png) |
+| [Calendars](Notifications.md#calendars) notifications | [Alarm](Notifications.md#alarm) notifications |
+| ![Status Chips, for all screens](images/settings-status-chips.png) | ![The Power Page's settings](images/settings-power.png) |
+| [Status Chips](Status-Chips.md) | [Power Page](Energy.md#power-page-settings) |
+| ![Wall Tablets](images/settings-wall-tablets.png) | ![One wall tablet's page](images/settings-tablet.png) |
+| [Wall Tablets](Wall-Tablets.md) | A tablet’s page |
+| ![The screensaver's Clock Style](images/settings-clock-style.png) | |
+| [Clock Style](Screensaver-and-Idle.md#a-clock) | |
 
 More: [HK Settings](HK-Settings.md).

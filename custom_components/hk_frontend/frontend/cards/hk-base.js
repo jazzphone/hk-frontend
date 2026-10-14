@@ -54,6 +54,230 @@
   if (window.hkCards) return;          // hk-loader may import this twice
   window.hkCards = { version: '1.1.0' };
 
+  // ---------------------------------------------------------- the design table
+  // EVERY DESIGN VALUE BY NAME, in one place (design consolidation,
+  // hk_house/docs/DESIGN.md). The keys are the code's --hk-* names without the
+  // prefix; the values are the DARK ones HK's own screens use. Write a value
+  // into a CSS string with v(name):
+  //
+  //   v('ink-2')  ->  'var(--hk-ink-2,rgba(255,255,255,0.68))'
+  //
+  // -- the token wherever a theme, a look or a light page sets it (LIGHT
+  // below), this table's value everywhere else. A new design value gets a
+  // name here (and a design-system entry), never a literal in a card.
+  var T = {
+    // text: the three-step scale (test_textscale)
+    'ink': 'rgba(255,255,255,0.94)',
+    'ink-2': 'rgba(255,255,255,0.68)',
+    'ink-3': 'rgba(255,255,255,0.40)',
+    // not text, six surfaces (test_surfaces): a hairline / divider / grid
+    // line, a track (slider, progress, a bar's empty), a key or chip on a
+    // plate, a selected or pressed key, an off glyph with no color of its
+    // own, a mark (chevron, tick, notch, dashed edge); and a progress fill
+    'line': 'rgba(255,255,255,0.10)',
+    'line-strong': 'rgba(255,255,255,0.18)',
+    'key': 'rgba(255,255,255,0.10)',
+    'key-strong': 'rgba(255,255,255,0.18)',
+    'glyph': 'rgba(255,255,255,0.92)',
+    'mark': 'rgba(255,255,255,0.32)',
+    'track-fill': 'rgba(255,255,255,.92)',
+    // the glass: plate, edge, shadows by size, corner, well (the HK Kiosk
+    // theme publishes the same; M above reads them)
+    'glass-bg': 'linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.056))',
+    'glass-border': '1px solid rgba(255,255,255,0.13)',
+    'glass-shadow-sm': '0 8px 22px rgba(0,0,0,0.12)',
+    'glass-shadow-lg': '0 10px 28px rgba(0,0,0,0.12)',
+    'glass-shadow-pill': 'inset 0 1px 0 rgba(255,255,255,0.20), 0 8px 22px rgba(0,0,0,0.12)',
+    'glass-shadow-tall': 'inset 0 1px 0 rgba(255,255,255,0.20), 0 10px 28px rgba(0,0,0,0.12)',
+    'glass-shadow-scene': 'inset 0 1px 0 rgba(255,255,255,0.20)',
+    'glass-shadow-chip': 'inset 0 1px 0 rgba(255,255,255,0.20), 0 6px 18px rgba(0,0,0,0.10)',
+    'glass-radius': '23.5px',
+    'well-bg': 'rgba(0,0,0,0.14)',
+    // status as text, and the accent (where you are; the logo's orange)
+    'warn': '#FFB340',
+    'fail': '#FF6961',
+    'accent': '#ff9f0a',
+    // overlay surfaces (OVER): translucent over its own blur (sheets, banners,
+    // the menu, the tab bar and its More sheet in the Blur look), near-solid
+    // with no blur (Tinted's menu and bar, the readout pill, the stash button,
+    // the calendar's event editor), and the floating strip outside Tinted
+    'overlay': 'rgba(28,28,32,0.52)',
+    'overlay-solid': 'rgba(24,24,28,0.93)',
+    'float-plate': 'rgba(28,28,30,0.62)',
+    // A BATTERY'S FILL (the user's soft sheen, 2026-10-13): top-lit, through
+    // HK's green at the middle, on every battery -- the House Battery, its
+    // packs, the battery strip and the Power page's level bar -- and red at or
+    // under the reserve. Not on a car's level bar (flat there: the user).
+    'battery-fill': 'linear-gradient(180deg, #5ee283 0%, #30d158 48%, #26b449 100%)',
+    'battery-fill-low': 'linear-gradient(180deg, #ff7a70 0%, #ff453a 48%, #d9362c 100%)',
+    // what text carries over the sky or a photo
+    'glow': '0 1px 3px rgba(0,0,0,0.30), 0 2px 8px rgba(0,0,0,0.22)',
+    // ON A LIT (WHITE) PILL: the room line and the state, the Home app's
+    // grays (measured 2026-10-13: room #464649, state #79797b). The state is
+    // #767678, 3/255 darker, so it keeps 4.5:1 on white (#79797b is 4.34).
+    // A lit pill is white on a light page too: no LIGHT entry.
+    'ink-on-room': '#464649',
+    'ink-on-state': '#767678',
+    // THE FONT: the HK Kiosk theme's stack (theme/hk_kiosk_theme.yaml) --
+    // SF Pro where the house has it (/hk/fonts), else the system's own on an
+    // Apple device (the same SF), Roboto elsewhere
+    'font-body': "'SF Pro', -apple-system, BlinkMacSystemFont, Roboto, Noto, sans-serif"
+  };
+  function v(name) {
+    if (!Object.prototype.hasOwnProperty.call(T, name)) throw new Error('hkCards.v: no design value ' + name);
+    return 'var(--hk-' + name + ',' + T[name] + ')';
+  }
+  // THE FONT ON A SURFACE MOUNTED OUTSIDE THE VIEW -- a sheet, a pop-up, the
+  // menu, the tab bar, the banners: it hangs under <body> or Home Assistant's
+  // shadow root, not under the view the HK Kiosk theme is put on, so it says
+  // the font itself, and sets the theme's variable for the cards in it.
+  var FONT_ROOT = '--ha-font-family-body:' + v('font-body') + ';font-family:' + v('font-body');
+  // ...and the document's root carries the table's font as --hk-font-body,
+  // for a surface whose stylesheet is built before this file has loaded
+  // (hk-notify, hk-popup, hk-saver: they read var(--hk-font-body)). A theme
+  // that sets the variable wins (Home Assistant puts themes on as inline
+  // styles).
+  try {
+    if (document.head && !document.getElementById('hk-font-body')) {
+      var fontSheet = document.createElement('style');
+      fontSheet.id = 'hk-font-body';
+      fontSheet.textContent = ':root{--hk-font-body:' + T['font-body'] + '}';
+      document.head.appendChild(fontSheet);
+    }
+  } catch (e) { /* no document (a test harness) */ }
+
+  // ------------------------------------------------------------- the scales
+  // A SMALL NAMED SCALE FOR EACH FAMILY (DESIGN.md has the tables and why).
+  //
+  // Spacing, three tiers on purpose: tiles (measured off the Home app, see
+  // hk-tile.js), page cards (the Energy plate), cards in sheets (SP: every
+  // gap in a detail sheet is one of these -- hk-detail.js reads it here).
+  var SP = { region: 20, piece: 20, piecePhone: 16, block: 12, line: 6, cardR: 20,
+             cardPad: '16px 18px 14px', rowsPad: '14px 18px', inset: 18 };
+  // THE PILL, ONE SOURCE (plan 2026-10-13, the HomeKit match): every pill
+  // dimension a card, a generated page or a sheet draws is read from here
+  // (or from --hk-pill / --hk-gap in css/hk-responsive.css, which can't read
+  // JS) -- tests/test_pillgeom.js holds the literals out.
+  //   w, h        the pill (Home app: 196 x 70 in iPad points)
+  //   gridGap     between pills, both directions -- a grid's column gap, and
+  //               the row's share of `row`
+  //   fav         a three-line pill (favourite / climate layouts)
+  //   favPadY     its top and bottom padding (the text block is centered)
+  //   padL        the pill's left padding: where the circle starts (Home: the
+  //               circle 10.3 from the plate's edge, the name's first letter 62.9)
+  //   wellGap     circle -> text
+  //   scenePadL / sceneWellGap  a scene's: its text already matches Home's
+  //   glyph       the default glyph in the circle (a measured glyph names its
+  //               own size: hk-strategy.js PX)
+  //   lineH       a text line's height (15 px type at 1.1); the text rows are
+  //               this tall, so the 42 px circle beside them no longer
+  //               stretches them (it made the name -> state pitch 20.4)
+  //   rowGap      name -> state on a pill: pitch lineH + rowGap = 18.6, the
+  //               Home app's; favRowGap a favorite's three lines (18.3)
+  //   tallText    a tall tile's type (Home: 15); tallRowGap its name -> state
+  //               (pitch 19.2, measured off the Home app's tall tile)
+  //   sceneGlyph  a scene's bare glyph
+  // Derived, not second numbers: row (a grid row: pill + gap), favRow (a
+  // three-line pill's row), tall (two rows: 2 x h + gridGap), pad.
+  var TILE = { w: 196, h: 70, gridGap: 10, fav: 76, favPadY: 12.25, padL: 9.8, wellGap: 9.6, glyph: 23,
+               scenePadL: 10.3, sceneWellGap: 10,
+               lineH: 16.5, rowGap: 2.1, favRowGap: 1.8, tallText: 15, tallRowGap: 2.7, sceneGlyph: 28 };
+  TILE.row = TILE.h + TILE.gridGap;
+  TILE.favRow = TILE.fav + TILE.gridGap;
+  TILE.tall = 2 * TILE.h + TILE.gridGap;
+  TILE.pad = '10.7px 12.8px 10.7px ' + TILE.padL + 'px';
+  // A pill's width as CSS: --hk-pill (the iPad band's, css/hk-responsive.css)
+  // or the table's.
+  var PILL_W = 'var(--hk-pill,' + TILE.w + 'px)';
+  TILE.css = PILL_W;
+  // The status chip (hk-chip.js): its height; the corner and margins follow.
+  var CHIP = { h: 43 };
+  var CARD = { pad: '20px 22px', y: 20, x: 22 };
+  // Breakpoints (px): screens for page structure, card widths for container
+  // queries inside a card. A media query can't read a CSS variable, but every
+  // card's CSS is a JS string, so these interpolate.
+  var BP = { phone: 640, tabletUpright: 860, wide: 900, desk: 1176,
+             cardSide: 560, cardList: 700, cardHero: 860, cardTwo: 1000, cardRows: 1100 };
+  // Motion: four curves, six durations. `ease` / `linear` stay where they are
+  // (presses, spins, shimmers).
+  var EASE = { standard: 'cubic-bezier(.32,.72,0,1)',      // sheets, menu, tab bar
+               spring: 'cubic-bezier(.34,1.24,.42,1)',     // a highlight that moves, a banner in
+               build: 'cubic-bezier(.22,.8,.25,1)',        // graphs building
+               exit: 'cubic-bezier(.4,0,.8,.4)' };         // a banner out
+  var DUR = { press: '.12s', fade: '.2s', standard: '.34s', spring: '.42s', build: '.6s', ring: '.85s' };
+  // Blur, three tiers: light (chips; the Blur look's glass at its 50%
+  // default), medium (tab bar, floating strip, banners), heavy (sheets,
+  // pop-ups, the menu, the More sheet). HA's dialogs and HK Settings' nav bar
+  // keep their own.
+  var BLUR = { light: 'blur(20px) saturate(1.4) brightness(0.82)',
+               medium: 'blur(24px) saturate(1.6)',
+               heavy: 'blur(34px) saturate(1.9)' };
+  // Corners (px): the plate is THE corner; a capsule is half its height
+  // (R.capsule('52px') -> 'calc(52px / 2)'). Settings (10 / 7) and the
+  // iOS switch keep theirs.
+  var R = { plate: 23.5, inner: 12, small: 8, sheet: 38, sheetPhone: 30, banner: 30, bannerPhone: 26,
+            sheetSmall: 28, cardInSheet: 20, bigArt: 22,
+            capsule: function (h) { return 'calc(' + h + ' / 2)'; } };
+  // Overlay surfaces: translucent over its own blur, near-solid with none,
+  // and the floating strip outside the Tinted look.
+  var OVER = { overlay: 'rgba(28,28,32,0.52)', solid: 'rgba(24,24,28,0.93)', float: 'rgba(28,28,30,0.62)' };
+  // Type roles: size (px) / weight / tracking. Home-app-measured sizes (tile
+  // text, chip text, the section heading) and HK Settings are not roles.
+  var TYPE = {
+    hero: { size: 44, weight: 600, track: '-1.5px' },
+    'figure-l': { size: 36, weight: 700, track: '-1px' },
+    figure: { size: 30, weight: 700, track: '-0.6px' },
+    title: { size: 22, weight: 700, track: '-0.35px' },
+    'page-title': { size: 34, weight: 700, track: '-0.6px' },
+    headline: { size: 17, weight: 600 },
+    body: { size: 15, weight: 500 },
+    caption: { size: 13, weight: 500 },
+    label: { size: 13, weight: 600, track: '0.3px', upper: true },
+    'label-small': { size: 11, weight: 600, track: '0.4px', upper: true },
+    micro: { size: 11, weight: 600 }
+  };
+
+  // ----------------------------------------------------------- the builders
+  // A PLATE as one declaration: corner, the material (M.glass: the look's
+  // plate first, the shared-blur marker, the Blur-each backdrop), the edge,
+  // and the shadow by size -- the look's (--hk-look-shadow, Tinted's contact
+  // shadow) first, as every plate has read it. A tile casts the pill's
+  // shadow; a page card and a panel the tall one. Clipping is the card's call.
+  var PLATE_SHADOW = { tile: 'glass-shadow-pill', card: 'glass-shadow-tall', panel: 'glass-shadow-tall' };
+  function plate(kind) {
+    var sh = PLATE_SHADOW[kind];
+    if (!sh) throw new Error('hkCards.plate: no plate ' + kind);
+    return 'border-radius:' + M.radius + ';' + M.glass + ';border:' + M.border +
+      ';box-shadow:var(--hk-look-shadow, ' + v(sh) + ')';
+  }
+  // ONE TITLE ROW (the Energy page's): the name left, the detail right, one
+  // baseline, 20 px tall. `sel` is the row (default .ttl); its <b> is the
+  // name, its <span> the detail.
+  function titleRow(sel) {
+    sel = sel || '.ttl';
+    return sel + '{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-height:20px;line-height:20px;flex:none}' +
+      sel + ' b{font-size:15px;font-weight:600;color:' + v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      sel + ' span{font-size:13px;font-weight:500;color:' + v('ink-2') + ';white-space:nowrap}';
+  }
+  function typeOf(role, fallback) {
+    var t = TYPE[role || fallback];
+    if (!t) throw new Error('hkCards: no type role ' + role);
+    return t;
+  }
+  // A LABEL (13 / 600 / 0.3 uppercase, secondary ink; `label-small` 11 /
+  // 0.4): declarations, no braces.
+  function labelCss(role) {
+    var t = typeOf(role, 'label');
+    return 'font-size:' + t.size + 'px;font-weight:' + t.weight + (t.track ? ';letter-spacing:' + t.track : '') +
+      (t.upper ? ';text-transform:uppercase' : '') + ';color:' + v('ink-2');
+  }
+  // A FIGURE (30 / 700 / -0.6, a tight line): declarations, no braces.
+  function figureCss(role) {
+    var t = typeOf(role, 'figure');
+    return 'font-size:' + t.size + 'px;font-weight:' + t.weight + ';line-height:1.05' +
+      (t.track ? ';letter-spacing:' + t.track : '');
+  }
+
   // -------------------------------------------------------------- material
   // One string, shared by every card below. var() with a literal fallback:
   // the theme supplies these on any HK Kiosk view, and the fallback keeps
@@ -65,10 +289,10 @@
     // sheet (--hk-glass-plate-sheet: Tinted's dark plate on a dark sheet is a
     // hole); unset in every other look, so it falls through to today's.
     bg:      'var(--hk-plate-here, var(--hk-glass-plate, var(--hk-glass-bg, linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.056)))))',
-    border:  'var(--hk-look-edge, var(--hk-glass-border, 1px solid rgba(255,255,255,0.13)))',
-    shSm:    'var(--hk-look-shadow, var(--hk-glass-shadow-sm, 0 8px 22px rgba(0,0,0,0.12)))',
-    radius:  'var(--hk-glass-radius, 23.5px)',
-    well:    'var(--hk-look-well, var(--hk-well-bg, rgba(0,0,0,0.14)))'
+    border:  'var(--hk-look-edge, ' + v('glass-border') + ')',
+    shSm:    'var(--hk-look-shadow, ' + v('glass-shadow-sm') + ')',
+    radius:  '' + v('glass-radius') + '',
+    well:    'var(--hk-look-well, ' + v('well-bg') + ')'
   };
   // A GLASS SURFACE: the material, plus the marker hk-glass.js looks for to
   // cut the shared blur layer to this shape (look.glass = blur). Use it as a
@@ -83,6 +307,64 @@
   // sheet's panels, which sit on the sheet's own blur, never add another.
   M.glass = 'background:' + M.bg + ';--hk-glass-surface:1;' +
     'backdrop-filter:var(--hk-glass-backdrop,none);-webkit-backdrop-filter:var(--hk-glass-backdrop,none)';
+
+  // ------------------------------------------------------ ON A LIGHT PAGE
+  // Someone else's dashboard (place() below), Home Assistant in light mode,
+  // and no HK sky behind the cards: the Home app's light look -- gray glass,
+  // the theme's own text colors, white when on. Set as custom properties ON
+  // THE CARD, so they reach every shadow root under it (an HK card nested in
+  // another gets them too) and every literal they replace stays the fallback:
+  //   var(--hk-ink, rgba(255,255,255,0.94))
+  // is today's white wherever the tone is not set -- HK's own screens, a dark
+  // theme, the sky, an overlay. Checked on every hass by tone() (a theme
+  // switched to dark arrives as one): a property read, and nothing written
+  // unless it changed. T above is the dark side of the same names.
+  var LIGHT = {
+    '--hk-glass-plate': 'rgba(118, 118, 128, 0.12)',
+    '--hk-glass-bg': 'rgba(118, 118, 128, 0.12)',
+    '--hk-glass-border': '1px solid rgba(0, 0, 0, 0.04)',
+    '--hk-glass-shadow-sm': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-lg': '0 1px 2px rgba(0, 0, 0, 0.04)',
+    '--hk-glass-shadow-pill': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-tall': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-scene': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-shadow-chip': '0 1px 1px rgba(0, 0, 0, 0.03)',
+    '--hk-glass-backdrop': 'none',
+    '--hk-well-bg': 'rgba(118, 118, 128, 0.16)',
+    // text: the theme's own, so a custom light theme is followed too
+    '--hk-ink': 'var(--primary-text-color, #1c1c1e)',
+    '--hk-ink-2': 'var(--secondary-text-color, rgba(60, 60, 67, 0.62))',
+    '--hk-ink-3': 'rgba(60, 60, 67, 0.42)',
+    // a glyph with no color of its own, off
+    '--hk-glyph': 'rgba(60, 60, 67, 0.78)',
+    // a key or chip ON a plate (a tint, not a plate of its own), and selected
+    '--hk-key': 'rgba(118, 118, 128, 0.14)',
+    '--hk-key-strong': 'rgba(118, 118, 128, 0.24)',
+    // a hairline, and a track
+    '--hk-line': 'rgba(60, 60, 67, 0.16)',
+    '--hk-line-strong': 'rgba(60, 60, 67, 0.24)',
+    // NOT TEXT, so not on the text scale: a mark (a dial's off band, a chart
+    // notch, a selection ring, a chevron) and a progress fill with no accent.
+    // Each keeps its own dark value; on a light page, these.
+    '--hk-mark': 'rgba(60, 60, 67, 0.5)',
+    '--hk-track-fill': 'var(--secondary-text-color, rgba(60, 60, 67, 0.62))',
+    // the drop shadows text carries over a photo or the sky
+    '--hk-glow': 'none',
+    // a warning and a failure, as text: the light-mode system orange and red
+    // (the dark ones are too pale on a light page)
+    '--hk-warn': '#c93400',
+    '--hk-fail': '#d70015',
+    // what is on: the white plate lifts off the page
+    '--hk-on-shadow': '0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 18px rgba(0, 0, 0, 0.09)',
+    // the look's own (Tinted, hk-settings.js), set on <html>: not here --
+    // the light page's border, shadows and well above stand instead
+    '--hk-look-edge': 'initial',
+    '--hk-look-edge-color': 'initial',
+    '--hk-look-shadow': 'initial',
+    '--hk-look-well': 'initial',
+    '--hk-look-dash': 'initial'
+  };
+  var LIGHT_KEYS = Object.keys(LIGHT);
 
   // A length option as CSS: numbers are px (`pad_left: 22`), strings pass
   // through (`pad_left: 22px`); null for nothing.
@@ -389,7 +671,7 @@
         '<style>' +
         '#hk-choose{position:fixed;inset:0;z-index:9999;display:none;' +
         '  align-items:center;justify-content:center;' +
-        '  background:rgba(0,0,0,0.45);font-family:var(--ha-font-family-body,inherit)}' +
+        '  background:rgba(0,0,0,0.45);' + FONT_ROOT + '}' +
         '#hk-choose[data-open]{display:flex}' +
         // --hk-vh: the car's real window height, set only on the zoomed
         // Tesla dashboard (tesla-viewport.js), where 78vh is zoomed too and
@@ -397,10 +679,10 @@
         '#hk-choose .box{position:relative;width:340px;max-height:calc(var(--hk-vh, 100vh) * .78);border-radius:16px;' +
         // no blur: at .94 over a dimmed page it could not be seen
         '  overflow:hidden;background:rgba(42,42,44,0.94);' +
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));text-align:center;display:flex;flex-direction:column;' +
+        '  color:' + v('ink') + ';text-align:center;display:flex;flex-direction:column;' +
         '  box-shadow:0 24px 64px rgba(0,0,0,0.55),0 2px 10px rgba(0,0,0,0.35)}' +
         '#hk-choose .txt{padding:22px 24px 16px;font-size:15px;font-weight:600;' +
-        '  line-height:1.35;color:var(--hk-ink,rgba(255,255,255,0.94))}' +
+        '  line-height:1.35;color:' + v('ink') + '}' +
         // The list scrolls if it ever outgrows the sheet; six fit without it.
         '#hk-choose .list{overflow-y:auto;-webkit-overflow-scrolling:touch}' +
         '#hk-choose .opt{appearance:none;border:0;background:none;width:100%;' +
@@ -500,7 +782,7 @@
         '<style>' +
         '#hk-confirm{position:fixed;inset:0;z-index:9999;display:none;' +
         '  align-items:center;justify-content:center;' +
-        '  background:rgba(0,0,0,0.45);font-family:var(--ha-font-family-body,inherit)}' +
+        '  background:rgba(0,0,0,0.45);' + FONT_ROOT + '}' +
         '#hk-confirm[data-open]{display:flex}' +
         // A LIFT, like everything else on these pages: every card, pill and
         // tile carries a shadow, so without one this sheet would read as
@@ -511,16 +793,16 @@
         // which on a wall reads as text that only just fits rather than a
         // deliberate button.
         '#hk-confirm .box{width:340px;border-radius:16px;overflow:hidden;' +
-        '  background:rgba(42,42,44,0.94);color:var(--hk-ink,rgba(255,255,255,0.94));text-align:center;' +
+        '  background:rgba(42,42,44,0.94);color:' + v('ink') + ';text-align:center;' +
         '  box-shadow:0 24px 64px rgba(0,0,0,0.55),' +
         '             0 2px 10px rgba(0,0,0,0.35)}' +
         '#hk-confirm .txt{padding:22px 24px 18px;font-size:15px;font-weight:600;' +
-        '  line-height:1.35;color:var(--hk-ink,rgba(255,255,255,0.94))}' +
+        '  line-height:1.35;color:' + v('ink') + '}' +
         // A second line for WHAT the question is about -- the rooms and what
         // they are playing. Collapsed to nothing when unused, so a sheet
         // without one is unchanged to the pixel.
         '#hk-confirm .det{display:none;padding:0 24px 20px;font-size:13px;' +
-        '  font-weight:500;line-height:1.4;color:var(--hk-ink-2,rgba(255,255,255,0.68))}' +
+        '  font-weight:500;line-height:1.4;color:' + v('ink-2') + '}' +
         '#hk-confirm .det[data-on]{display:block}' +
         // The title owns the gap when it is alone; when a detail line follows
         // it, the detail owns the bottom and the title gives some back, or
@@ -726,8 +1008,14 @@
     // Every hk card clears the WebView tap highlight itself too, rather than
     // relying on an ancestor HA happens to style (see hk-popup.js).
     ':host{display:block;-webkit-tap-highlight-color:transparent}',
-    // Font is inherited from the theme's --ha-font-family-body, which crosses
-    // shadow boundaries -- which is how every card gets SF Pro for free.
+    // THE FONT IS THE THEME'S: --ha-font-family-body, read here, at the card.
+    // Inherited it was not: the theme is put on the VIEW, but Home Assistant
+    // resolves font-family at <body> from its own default (Roboto) and every
+    // element below inherits that resolved value -- so a card showed SF Pro
+    // only when the user's own profile theme was HK Kiosk (measured
+    // 2026-10-13). A card in a sheet or a pop-up (mounted outside the view)
+    // reads the variable that surface sets on its root (FONT_ROOT, below).
+    ':host{font-family:var(--ha-font-family-body,' + v('font-body') + ')}',
     '*{box-sizing:border-box;font-family:inherit}',
     // BEHIND THE PHOTO SCREENSAVER every animation in a card holds still: a
     // fan's spinning glyph, a pulse, a scrolling label. Nothing can be seen or
@@ -750,16 +1038,16 @@
     '.pill:active{transform:scale(0.96)}',
     '.pill > span{justify-self:center;font-size:13.5px;font-weight:600;',
     '  letter-spacing:-0.1px;white-space:nowrap;overflow:hidden;',
-    '  text-overflow:ellipsis;color:var(--hk-ink,rgba(255,255,255,0.94));transition:color .22s ease}',
+    '  text-overflow:ellipsis;color:' + v('ink') + ';transition:color .22s ease}',
     '.pill[aria-pressed="true"]{background:' + SELECTED_BG + '}',
     '.pill[aria-pressed="true"] > span{color:' + SELECTED_TEXT + '}',
 
     // ---- the 70px action tile --------------------------------------------
-    // --hk-pill: 192 everywhere but an iPad held upright (css/hk-responsive.css).
-    '.tile{height:70px;width:var(--hk-pill,192px);min-width:var(--hk-pill,192px);max-width:var(--hk-pill,192px);',
-    '  border-radius:' + M.radius + ';padding:10.7px 12.8px 10.7px 10.3px;margin:0;',
+    // --hk-pill: the pill everywhere but an iPad held upright (css/hk-responsive.css).
+    '.tile{height:' + TILE.h + 'px;width:' + PILL_W + ';min-width:' + PILL_W + ';max-width:' + PILL_W + ';',
+    '  border-radius:' + M.radius + ';padding:' + TILE.pad + ';margin:0;',
     '  ' + M.glass + ';border:' + M.border + ';box-shadow:' + M.shSm + ';',
-    '  display:grid;grid-template-columns:42px minmax(0,1fr);column-gap:10px;',
+    '  display:grid;grid-template-columns:42px minmax(0,1fr);column-gap:' + TILE.wellGap + 'px;',
     '  align-items:center;align-content:center;cursor:pointer;user-select:none;',
     '  transition:transform .12s ease}',
     '.tile:active{transform:scale(0.97)}',
@@ -792,11 +1080,11 @@
     // WHITE, as the label is, unless a tile colors its own glyph (a scene's,
     // inline). Inherited, it took the page's text color -- black under a
     // light Home Assistant theme: the Browse Music categories (2026-10-10).
-    '.tile .well ha-icon{--mdc-icon-size:23px;width:23px;height:23px;color:var(--hk-glyph,rgba(255,255,255,0.92));',
+    '.tile .well ha-icon{--mdc-icon-size:' + TILE.glyph + 'px;width:' + TILE.glyph + 'px;height:' + TILE.glyph + 'px;color:' + v('glyph') + ';',
     '  display:flex;align-items:center;justify-content:center}',
     '.tile .txt{justify-self:stretch;text-align:left;align-self:center;',
     '  font-weight:600;font-size:15px;line-height:1.1;letter-spacing:-0.23px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '  color:' + v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
 
     // ---- action status line (see _setStatus, below) ----------------------
     //
@@ -812,45 +1100,46 @@
     '  font-weight:600;letter-spacing:-0.1px;line-height:20px;',
     '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;',
     '  color:transparent;transition:color .18s ease}',
-    '.hk-status[data-kind="pending"]{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-    '.hk-status[data-kind="sent"]{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-    '.hk-status[data-kind="warn"]{color:var(--hk-warn, #FFB340)}',
-    '.hk-status[data-kind="failed"]{color:var(--hk-fail, #FF6961)}',
+    '.hk-status[data-kind="pending"]{color:' + v('ink-3') + '}',
+    '.hk-status[data-kind="sent"]{color:' + v('ink-2') + '}',
+    '.hk-status[data-kind="warn"]{color:' + v('warn') + '}',
+    '.hk-status[data-kind="failed"]{color:' + v('fail') + '}',
     '@media (prefers-reduced-motion: reduce){.hk-status{transition:none}}',
 
     // ---- section heading (transcribed from hk_section_heading) -----------
     '.head{font-size:22px;font-weight:700;letter-spacing:-0.4px;',
-    '  color:var(--hk-ink,rgba(255,255,255,0.94));padding:0 4px 10px 4px}',
+    '  color:' + v('ink') + ';padding:0 4px 10px 4px}',
 
     '@media (prefers-reduced-motion: reduce){',
     '  .pill,.pill:active,.pill > span,.tile,.tile:active{transition:none;transform:none}}',
     // ================================================ PHONE: FILL THE TRACK
     // Below 640px the room grids switch to `repeat(auto-fill, minmax(168px,
     // 1fr))` (see frontend/css/hk-responsive.css), so the track is no longer
-    // 192px and a pill pinned to 192px would overflow it. Here the pill fills
-    // whatever track it is given instead.
+    // the pill's width (196, the table's) and a pill pinned to it would overflow.
+    // Here the pill fills whatever track it is given instead.
     //
     // WHY `calc(100% + 8px)` AND NOT `100%`: layout-card gives every grid child
     // 4px side margins, so the cell is always 8px narrower than the track
-    // (layout-card's card_margin cannot change it). At 1280 the pill is 192px in a 184px
+    // (layout-card's card_margin cannot change it). At 1280 the pill is 196px in a 188px
     // cell -- it already overflows by exactly 8px, and that is what makes the
-    // visible gap come out at the intended 12px. Plain `100%` would shrink
-    // every pill to the cell and change the gap.
+    // visible gap come out at the grid's own (TILE.gridGap, 10). Plain `100%`
+    // would shrink every pill to the cell and change the gap.
     //
     // `--hk-cell-bleed` exists because that 8px is NOT universal: inside
     // hk-row-card the child is sized directly with no layout-card margin, so
     // that card sets the bleed to 0 for its own children. Default 8px = the
     // grid case.
     //
-    // No max-width: capping at 192px makes the track wider than the pill on a
-    // large phone and the gap jumps 12px -> 25px. Verified 375/402/440/1280.
-    '@media (max-width: 640px){',
+    // No max-width: capping at the pill's width makes the track wider than the
+    // pill on a large phone and the gap jumps (12px -> 25px, measured at 192).
+    // Verified 375/402/440/1280.
+    '@media (max-width:' + BP.phone + 'px){',
     // NO `:host{width:100%}` HERE. These hosts are already `display:block`, so
     // an auto width fills the grid area MINUS the 4px side margins layout-card
-    // gives every child -- which is exactly the 184px cell the 192px pill is
-    // built to overflow by 8. Forcing width:100% resolves against the full
-    // grid AREA instead and every tile comes out 8px too wide (190.95 measured
-    // against a 182.95 track), eating the 12px gap down to 4px.
+    // gives every child -- which is exactly the cell (8 px under the track)
+    // the pill is built to overflow by 8. Forcing width:100% resolves against
+    // the full grid AREA instead and every tile comes out 8px too wide (190.95
+    // measured against a 182.95 track), eating the gap (then 12px) to 4px.
     '  :host{max-width:none !important}',
     '  .tile{width:calc(100% + var(--hk-cell-bleed, 8px));min-width:0;max-width:none}',
     '}',
@@ -1542,7 +1831,7 @@
     // A CARD THAT OVERRIDES THIS MUST CHAIN, like disconnectedCallback.
     // IN A SECTION. Home Assistant's Sections view sets `layout = "grid"` on
     // every card it holds (Masonry and HK's own grid view set nothing), so a
-    // tile can fill its cell there and keep its measured 192 px everywhere
+    // tile can fill its cell there and keep its measured width everywhere
     // else (hk-tile.js, hk-stat.js: :host([data-hk-cell])).
     get layout() { return this._hkLayout; }
     set layout(v) {
@@ -1673,7 +1962,7 @@
 
   // One line under the field, only where the label cannot carry the meaning.
   var HK_HELPERS = {
-    kind: 'Counts what HK finds for it (HK Settings → Accessories → What Counts). Leave empty for a chip of your own (an entity).',
+    kind: 'Counts what HK finds for it (HK Settings → Accessories, that type’s page). Leave empty for a chip of your own (an entity).',
     chips: 'The row when this dashboard\'s settings (under Dashboards) name none. Empty: every kind the house has.',
     scenes: 'The row when this dashboard\'s settings name none. Empty: every scene, A to Z.',
     looks: 'YAML: entity: {name, icon, icon_color, tap_action}.',
@@ -1947,7 +2236,7 @@
         // sharing the width, a long name wraps to two lines rather than lose its end
         (o.fill ? 'flex:1 1 0;padding:0 6px;overflow:hidden;text-align:center;line-height:1.1;' : 'padding:0 16px;white-space:nowrap;') +
         'border-radius:calc(' + ih + ' / 2);border:0;background:transparent;box-shadow:none;',
-      '  font-size:' + (o.font || '15px') + ';font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;margin:0;',
+      '  font-size:' + (o.font || '15px') + ';font-weight:600;color:' + v('ink') + ';cursor:pointer;margin:0;',
       '  display:inline-flex;align-items:center;justify-content:center;gap:6px;',
       '  position:relative;isolation:isolate;transition:color .22s ease;-webkit-tap-highlight-color:transparent}',
       on + '{color:#1c1c1e;background:transparent;box-shadow:none}',
@@ -2033,6 +2322,15 @@
   };
   window.hkCards._artRemote = artRemote;       // tests
   window.hkCards._artSign = artSign;
+  // ARTWORK FOR A SURFACE THAT IS NO CARD (the screensaver's music): a remote
+  // URL through the same signed proxy as _artImage, so the offline wall
+  // tablets get it from their own origin; anything else as it is. `fresh`
+  // forgets a kept signature first (an <img> that errored on it). cb(src)
+  window.hkCards.artUrl = function (url, size, cb, fresh) {
+    if (!artRemote(url)) { cb(url); return; }
+    if (fresh) artForget(url, size);
+    artSign(window.hkCards.hass(), url, size, cb);
+  };
   window.hkCards.button = button;
   window.hkCards.sentenceCase = sentenceCase;
   window.hkCards.HkBase = HkBase;
@@ -2089,60 +2387,8 @@
     return f;
   }
 
-  // ------------------------------------------------------ ON A LIGHT PAGE
-  // Someone else's dashboard (place() above), Home Assistant in light mode,
-  // and no HK sky behind the cards: the Home app's light look -- gray glass,
-  // the theme's own text colors, white when on. Set as custom properties ON
-  // THE CARD, so they reach every shadow root under it (an HK card nested in
-  // another gets them too) and every literal they replace stays the fallback:
-  //   var(--hk-ink, rgba(255,255,255,0.94))
-  // is today's white wherever the tone is not set -- HK's own screens, a dark
-  // theme, the sky, an overlay. Checked on every hass (a theme switched to
-  // dark arrives as one): a property read, and nothing written unless it
-  // changed.
-  var LIGHT = {
-    '--hk-glass-plate': 'rgba(118, 118, 128, 0.12)',
-    '--hk-glass-bg': 'rgba(118, 118, 128, 0.12)',
-    '--hk-glass-border': '1px solid rgba(0, 0, 0, 0.04)',
-    '--hk-glass-shadow-sm': '0 1px 1px rgba(0, 0, 0, 0.03)',
-    '--hk-glass-shadow-lg': '0 1px 2px rgba(0, 0, 0, 0.04)',
-    '--hk-glass-shadow-pill': '0 1px 1px rgba(0, 0, 0, 0.03)',
-    '--hk-glass-shadow-tall': '0 1px 1px rgba(0, 0, 0, 0.03)',
-    '--hk-glass-shadow-scene': '0 1px 1px rgba(0, 0, 0, 0.03)',
-    '--hk-glass-shadow-chip': '0 1px 1px rgba(0, 0, 0, 0.03)',
-    '--hk-glass-backdrop': 'none',
-    '--hk-well-bg': 'rgba(118, 118, 128, 0.16)',
-    // text: the theme's own, so a custom light theme is followed too
-    '--hk-ink': 'var(--primary-text-color, #1c1c1e)',
-    '--hk-ink-2': 'var(--secondary-text-color, rgba(60, 60, 67, 0.62))',
-    '--hk-ink-3': 'rgba(60, 60, 67, 0.42)',
-    // a glyph with no color of its own, off
-    '--hk-glyph': 'rgba(60, 60, 67, 0.78)',
-    // a key or chip ON a plate (a tint, not a plate of its own)
-    '--hk-key': 'rgba(118, 118, 128, 0.14)',
-    '--hk-line': 'rgba(60, 60, 67, 0.16)',
-    // NOT TEXT, so not on the text scale: a mark (a dial's off band, a chart
-    // notch, a selection ring, a chevron) and a progress fill with no accent.
-    // Each keeps its own dark value; on a light page, these.
-    '--hk-mark': 'rgba(60, 60, 67, 0.5)',
-    '--hk-track-fill': 'var(--secondary-text-color, rgba(60, 60, 67, 0.62))',
-    // the drop shadows text carries over a photo or the sky
-    '--hk-glow': 'none',
-    // a warning and a failure, as text: the light-mode system orange and red
-    // (the dark ones are too pale on a light page)
-    '--hk-warn': '#c93400',
-    '--hk-fail': '#d70015',
-    // what is on: the white plate lifts off the page
-    '--hk-on-shadow': '0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 18px rgba(0, 0, 0, 0.09)',
-    // the look's own (Tinted, hk-settings.js), set on <html>: not here --
-    // the light page's border, shadows and well above stand instead
-    '--hk-look-edge': 'initial',
-    '--hk-look-edge-color': 'initial',
-    '--hk-look-shadow': 'initial',
-    '--hk-look-well': 'initial',
-    '--hk-look-dash': 'initial'
-  };
-  var LIGHT_KEYS = Object.keys(LIGHT);
+  // ON A LIGHT PAGE: LIGHT and LIGHT_KEYS live beside the design table (T,
+  // top of this file); tone() puts them on the outermost foreign card.
   function skyShown() {
     var S = window.hkSky, m = S && S.element ? S.element() : null;
     return !!(m && m.isConnected);
@@ -3136,6 +3382,24 @@
   window.hkCards.place = place;            // a card that is not an HkBase calls it on connect
   window.hkCards.tone = tone;              // ...and this on every hass
   window.hkCards.LIGHT = LIGHT;            // tests
+  window.hkCards.T = T;                    // the design table (DESIGN.md)
+  window.hkCards.v = v;
+  window.hkCards.FONT_ROOT = FONT_ROOT;
+  window.hkCards.SP = SP;
+  window.hkCards.TILE = TILE;
+  window.hkCards.CHIP = CHIP;
+  window.hkCards.CARD = CARD;
+  window.hkCards.BP = BP;
+  window.hkCards.EASE = EASE;
+  window.hkCards.DUR = DUR;
+  window.hkCards.BLUR = BLUR;
+  window.hkCards.R = R;
+  window.hkCards.OVER = OVER;
+  window.hkCards.TYPE = TYPE;
+  window.hkCards.plate = plate;
+  window.hkCards.titleRow = titleRow;
+  window.hkCards.labelCss = labelCss;
+  window.hkCards.figureCss = figureCss;
   // `initial` for every token: a dark plate inside a card puts this in its
   // CSS so what is on it keeps today's white even on a light page
   window.hkCards.LIGHT_OFF = LIGHT_KEYS.map(function (k) { return k + ':initial'; }).join(';');

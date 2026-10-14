@@ -206,9 +206,14 @@
   //           the rail is full
   //   'shift' the top, shrinking or hiding: the page slides down clear of the
   //           full bar at the top of the page, and back up as it folds
-  //   'none'  Adjust Content off: the bar floats over the page
+  //   'none'  Adjust Content off, a rail: the bar floats over the page
+  // A BAR ALONG THE BOTTOM OR THE TOP ALWAYS LEAVES ROOM AT THE PAGE'S END
+  // (2026-10-13): with Adjust Content off it still floats over the page as
+  // it scrolls -- nothing moves -- but the last row (the first, at the top)
+  // can always be scrolled clear of it, as on iOS. Off, it once had no room
+  // at all, and the last tiles on Home stayed under the bar.
   function room(pos, scroll, adjust) {
-    if (adjust === false) return 'none';
+    if (adjust === false) return pos === 'left' || pos === 'right' ? 'none' : 'pad';
     if (scroll !== 'shrink' && scroll !== 'hide') return 'pad';
     if (pos === 'left' || pos === 'right') return 'scale';
     return pos === 'top' ? 'shift' : 'pad';
@@ -311,8 +316,9 @@
       ':host([data-size="large"]:not([data-wide])){--tf:10.5px}',
       ':host([data-wide]){--bh:' + BAR_H_WIDE + 'px}',
       '.root{position:fixed;left:0;top:0;width:0;height:0;z-index:6;',
-      '  font-family:var(--paper-font-body1_-_font-family,"SF Pro",-apple-system,Roboto,sans-serif);',
-      '  -webkit-font-smoothing:antialiased;color:var(--hk-ink,rgba(255,255,255,0.94));-webkit-tap-highlight-color:transparent}',
+      // the dashboard's font (hk-base.js FONT_ROOT), as the menu's
+      '  ' + window.hkCards.FONT_ROOT + ';',
+      '  -webkit-font-smoothing:antialiased;color:' + window.hkCards.v('ink') + ';-webkit-tap-highlight-color:transparent}',
       // THE ROW: the pill and the Rooms button, over the dashboard (past Home
       // Assistant's sidebar), clear of an iPhone's home indicator
       '.row{position:fixed;left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:' + GUTTER + 'px;',
@@ -324,7 +330,7 @@
       // THE MATERIAL (material()): one blur, a milky plate, or a near-solid tint
       '.g{pointer-events:auto;box-sizing:border-box;border:1px solid rgba(255,255,255,0.14);',
       '  box-shadow:0 8px 28px rgba(0,0,0,0.30),inset 0 1px 0 rgba(255,255,255,0.10)}',
-      '.blur .g{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(28,30,40,0.46);',
+      '.blur .g{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(28,28,32,0.52);',
       '  -webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6)}',
       '.frosted .g{background:rgba(62,64,74,0.95)}',
       '.tinted .g{background:rgba(24,24,28,0.93)}',
@@ -345,7 +351,7 @@
       // side, into the gaps, as Apple Music's does -- nothing else ever
       // lights up beside it (no hover), so it has the room. The end tabs
       // reach inward only, staying inside the bar.
-      '.tab.here{color:var(--hk-accent,#ff9f0a)}',
+      '.tab.here{color:' + window.hkCards.v('accent') + '}',
       '.tab.here::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:calc(var(--g) * -1.25);right:calc(var(--g) * -1.25);',
       '  border-radius:inherit;background:rgba(255,255,255,0.16);',
       // IT SLIDES TO THE NEW PAGE (2026-10-09, as iOS's does): slide() starts
@@ -360,7 +366,7 @@
       '.tab:focus-visible,.roomsbtn:focus-visible,.cur:focus-visible,.it:focus-visible{outline:2px solid rgba(255,255,255,0.7);outline-offset:-2px}',
       // FOLDED (shrink): one round button with the current page's icon
       '.cur{display:none;flex:1;align-items:center;justify-content:center;border:0;padding:0;margin:0;background:none;',
-      '  color:var(--hk-accent,#ff9f0a);cursor:pointer;border-radius:50%}',
+      '  color:' + window.hkCards.v('accent') + ';cursor:pointer;border-radius:50%}',
       '.cur ha-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
       '.root.small .pill{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px);border-radius:50%}',
       '.root.small .tab{display:none}',
@@ -371,7 +377,7 @@
       '  transition:width .34s ' + EASE + ',height .34s ' + EASE + '}',
       '.root.hasrooms .roomsbtn{display:flex}',
       '.roomsbtn ha-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
-      '.roomsbtn.here,.roomsbtn[aria-expanded="true"]{color:var(--hk-accent,#ff9f0a)}',
+      '.roomsbtn.here,.roomsbtn[aria-expanded="true"]{color:' + window.hkCards.v('accent') + '}',
       '.root.small .roomsbtn{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px)}',
       '.tab:active,.roomsbtn:active,.cur:active{filter:brightness(1.25)}',
       // THE SHEETS (More, Rooms): above the bar, the page still showing
@@ -411,34 +417,34 @@
       '  box-shadow:0 12px 24px -8px rgba(0,0,0,0.30)}',
       '.root.joined .pill{transition:width .42s ' + EASE + ',border-radius .3s ' + EASE + '}',
       '.root.joined.sheeted .pill{width:var(--pill-open-w,var(--pill-w,auto))}',
-      // a sheet over the tiles wants more body than the bar
-      '.blur .sheet.g{background:linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.03)),rgba(26,28,38,0.66);',
-      '  -webkit-backdrop-filter:blur(30px) saturate(1.7);backdrop-filter:blur(30px) saturate(1.7)}',
-      '.sheet h2{flex:none;margin:0 6px 12px;font-size:17px;font-weight:700;letter-spacing:-0.41px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      // the More sheet: the overlay surface (hkCards.OVER), under a heavier blur than the bar
+      '.blur .sheet.g{background:linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.03)),rgba(28,28,32,0.52);',
+      '  -webkit-backdrop-filter:blur(34px) saturate(1.9);backdrop-filter:blur(34px) saturate(1.9)}',  // hkCards.BLUR.heavy
+      '.sheet h2{flex:none;margin:0 6px 12px;font-size:17px;font-weight:700;letter-spacing:-0.41px;color:' + window.hkCards.v('ink') + '}',
       // THE BIG GRID (2026-10-06): cells at least 84 px -- three across on a
       // phone, six on a computer -- big icons, and names on up to two lines
       // instead of cut off
       '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;align-content:start}',
       // the Rooms section in More, headed as the menu heads its sections
-      '.sheet h3{margin:22px 6px 12px;font-size:15px;font-weight:600;letter-spacing:-0.24px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.sheet h3{margin:22px 6px 12px;font-size:15px;font-weight:600;letter-spacing:-0.24px;color:' + window.hkCards.v('ink-2') + '}',
       '.sheet h3[hidden],.grid[hidden]{display:none}',
       // MORE: the icon and its name, no plate (the Home Screen's look)
       '.it{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-width:0;min-height:104px;',
       '  box-sizing:border-box;padding:12px 4px 10px;border:0;margin:0;border-radius:22px;background:none;',
-      '  color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:12px;font-weight:600;letter-spacing:-0.08px;',
+      '  color:' + window.hkCards.v('ink') + ';font:inherit;font-size:12px;font-weight:600;letter-spacing:-0.08px;',
       '  text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
-      '.it ha-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:var(--hk-accent,#ff9f0a)}',
+      '.it ha-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:' + window.hkCards.v('accent') + '}',
       '.it span{max-width:100%;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;',
       '  overflow-wrap:anywhere}',
       // THE PAGE YOU ARE ON keeps a plate round its icon and name, as the
       // tab bar's capsule does; nothing lights up under the pointer
       '.it.here{background:rgba(255,255,255,0.16)}',
-      '.it.here span{color:var(--hk-accent,#ff9f0a)}',
+      '.it.here span{color:' + window.hkCards.v('accent') + '}',
       // ROOMS ON THEIR OWN SHEET (the Rooms button): each icon in a soft round
       // plate (Control Center's look). In More they look like its pages.
       '[data-sheet="rooms"] .roomgrid .it ha-icon{--mdc-icon-size:28px;width:58px;height:58px;border-radius:50%;',
       '  align-items:center;justify-content:center;background:rgba(255,255,255,0.12);transition:background-color .15s ease}',
-      '[data-sheet="rooms"] .roomgrid .it.here ha-icon{background:var(--hk-accent,#ff9f0a);color:var(--hk-on-accent,#fff)}',
+      '[data-sheet="rooms"] .roomgrid .it.here ha-icon{background:' + window.hkCards.v('accent') + ';color:var(--hk-on-accent,#fff)}',
       // THE LIST (More Style: List): rows like the side menu's -- the icon
       // beside the whole name, the page you are on in the highlight colour --
       // and about a phone's width on every screen
@@ -447,7 +453,7 @@
       '  font-size:17px;font-weight:400;letter-spacing:-0.41px;text-align:left}',
       '.sheet.list .it ha-icon{--mdc-icon-size:22px;width:22px;height:22px}',
       '.sheet.list .it span{display:block;flex:1;min-width:0;white-space:nowrap;text-overflow:ellipsis}',
-      '.sheet.list .it.here{background:var(--hk-accent,#ff9f0a);color:var(--hk-on-accent,#fff)}',
+      '.sheet.list .it.here{background:' + window.hkCards.v('accent') + ';color:var(--hk-on-accent,#fff)}',
       '.sheet.list .it.here span,.sheet.list .it.here ha-icon{color:var(--hk-on-accent,#fff)}',
       '.sheet.list .roomgrid .it ha-icon{width:22px;height:22px;background:none;--mdc-icon-size:22px}',
       '.it:active{filter:brightness(1.25)}',
@@ -526,6 +532,7 @@
       ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{transition:transform .34s ' + EASE + '}',
       '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet,.tab.here::before{transition:none}}'
     ].join('\n');
+    window.hkTabBar._.CSS = CSS;             // tests (test_csssnapshot)
 
     var MORE_ICON = 'mdi:dots-horizontal', ROOMS_ICON = 'mdi:view-grid';
 
@@ -584,8 +591,8 @@
     // WITH A PICTURE OF THE SKY (Blur Mode Pre-rendered, hk-glass.js
     // PINNED) a blurred bar, its rooms button and its sheets wear their slice
     // of it under their own tints instead of blurring the moving sky live
-    var BAR_TINT = 'linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),linear-gradient(rgba(28,30,40,0.46),rgba(28,30,40,0.46))';
-    var SHEET_TINT = 'linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.03)),linear-gradient(rgba(26,28,38,0.66),rgba(26,28,38,0.66))';
+    var BAR_TINT = 'linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),linear-gradient(rgba(28,28,32,0.52),rgba(28,28,32,0.52))';
+    var SHEET_TINT = 'linear-gradient(145deg,rgba(255,255,255,0.10),rgba(255,255,255,0.03)),linear-gradient(rgba(28,28,32,0.52),rgba(28,28,32,0.52))';
     function pinGlass(on) {
       var G = window.hkGlass;
       if (!G || !G.pin) return;
@@ -1119,17 +1126,23 @@
       var b = M.board() || {};
       return scrollOf(b) === 'shrink' && b.tab_bar_start === 'small' ? 'small' : 'full';
     }
+    // THE REST AT THE START OF THE NEXT FRAME, as the menu does: the address
+    // changes before Home Assistant builds the page, and sync measures
+    // (computed style, the panel's box) -- read here, mid-change, it laid the
+    // half-built page out once more than the frame does. The new view says
+    // when it is in (hk-view-ready, hk-layout.js) -- not a timer.
+    var navFrame = 0;
     function onNav() {
       closeSheet(true);
       S.scrollY = 0;
       setMode(rest());
       S.last = new WeakMap();
-      sync();
-      // a new view element arrives a moment after the navigation
-      setTimeout(sync, 300);
+      if (navFrame) return;
+      navFrame = requestAnimationFrame(function () { navFrame = 0; sync(); });
     }
     window.addEventListener('location-changed', onNav);
     window.addEventListener('popstate', onNav);
+    window.addEventListener('hk-view-ready', function () { sync(); });
     window.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && S.sheet) { e.stopPropagation(); closeSheet(); }
     });

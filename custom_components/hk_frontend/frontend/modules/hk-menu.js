@@ -234,7 +234,7 @@
   // page addresses) as view paths. Empty: none set, the chips rule.
   var PAGE_PATHS = { weather: 'weather', calendar: 'calendar', cameras: 'cameras', live_tv: 'live-tv', security: 'security',
                      doors_windows: 'doors-windows', climate: 'climate', lights: 'lights', timers: 'timers',
-                     vacuums: 'vacuums', music: 'playmusic', browse: 'music-browse', water: 'water' };
+                     vacuums: 'vacuums', music: 'playmusic', browse: 'music-browse', water: 'water', energy: 'energy', power: 'power' };
   function pagePaths(pages, custom) {
     if (!Array.isArray(pages) || !pages.length) return [];
     var out = [];
@@ -415,8 +415,10 @@
     var CSS = [
       ':host{all:initial}',
       '.root{position:fixed;left:0;top:0;width:0;height:0;z-index:6;',
-      '  font-family:var(--paper-font-body1_-_font-family,"SF Pro",-apple-system,Roboto,sans-serif);',
-      '  -webkit-font-smoothing:antialiased;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      // the dashboard's font (hk-base.js FONT_ROOT): the menu hangs under
+      // <body>, outside the view its theme is on
+      '  ' + window.hkCards.FONT_ROOT + ';',
+      '  -webkit-font-smoothing:antialiased;color:' + window.hkCards.v('ink') + '}',
       '.root.open{z-index:9}',
       '.scrim{position:fixed;inset:0;background:rgba(0,0,0,0.26);opacity:0;pointer-events:none;',
       '  transition:opacity .32s ease;-webkit-tap-highlight-color:transparent}',
@@ -443,8 +445,8 @@
       // -- and not drawn until the dashboard's left edge holds still (settle)
       '.root.still .panel{transition:none}',
       '.root.settling .panel{visibility:hidden}',
-      '.mat{position:absolute;inset:0;background:rgba(22,26,42,0.56);',
-      '  -webkit-backdrop-filter:blur(30px) saturate(1.8);backdrop-filter:blur(30px) saturate(1.8);',
+      '.mat{position:absolute;inset:0;background:rgba(28,28,32,0.52);',
+      '  -webkit-backdrop-filter:blur(34px) saturate(1.9);backdrop-filter:blur(34px) saturate(1.9);',  // hkCards.BLUR.heavy
       '  border-right:1px solid rgba(255,255,255,0.10);pointer-events:none}',
       '.root.frosted .mat{background:rgba(34,38,56,0.95);-webkit-backdrop-filter:none;backdrop-filter:none}',
       // TINTED (no blur anywhere): the tab bar's Tinted -- the panel is
@@ -492,17 +494,17 @@
       // starts from the other edge (x = 271): paintNow() measures each line's
       // side bearing, since a "1" starts well inside its own box.
       '.now{position:relative;flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;',
-      '  column-gap:12px;row-gap:5px;align-items:end;box-sizing:border-box;color:var(--hk-ink,rgba(255,255,255,0.94));',
+      '  column-gap:12px;row-gap:5px;align-items:end;box-sizing:border-box;color:' + window.hkCards.v('ink') + ';',
       '  padding:calc(30px + var(--hk-safe-top,env(safe-area-inset-top,0px))) ' + NOW_PAD + 'px 20px ' + NOW_PAD + 'px}',
       '.now[hidden],.rule[hidden]{display:none}',
       '.now .tm{display:flex;align-items:baseline;gap:4px;min-width:0;white-space:nowrap}',
       '.now .t{font-size:44px;font-weight:600;line-height:1;letter-spacing:0}',
-      '.now .ap{font-size:16px;font-weight:500;line-height:1;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.now .ap{font-size:16px;font-weight:500;line-height:1;color:' + window.hkCards.v('ink-2') + '}',
       '.now .wx{justify-self:end;display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;',
       '  -webkit-tap-highlight-color:transparent}',
       '.now .g{display:flex;width:28px;height:28px}',
       '.now .tp{font-size:32px;font-weight:500;line-height:1;letter-spacing:0}',
-      '.now .d,.now .c{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+      '.now .d,.now .c{font-size:14px;font-weight:600;line-height:1.2;letter-spacing:0;color:' + window.hkCards.v('ink-2') + ';',
       '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
       '.now .c{justify-self:end;text-align:right;cursor:pointer;-webkit-tap-highlight-color:transparent}',
       // a border, snapped to device pixels (a filled 1 px box fell between them
@@ -511,12 +513,12 @@
       // the safe area is the time's to clear, not the list's
       '.panel.has-now .list{--safe:0px}',
       '.row{display:flex;align-items:center;gap:14px;width:100%;height:44px;box-sizing:border-box;',
-      '  padding:0 14px;border:0;border-radius:12px;background:none;color:var(--hk-ink,rgba(255,255,255,0.94));',
+      '  padding:0 14px;border:0;border-radius:12px;background:none;color:' + window.hkCards.v('ink') + ';',
       '  font:inherit;font-size:17px;font-weight:400;letter-spacing:-0.41px;text-align:left;',
       '  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
       '.row + .row{margin-top:2px}',
       // the highlight: the screen's Highlight Colour (paintIcons), Apple's orange by default
-      '.row ha-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex;color:var(--hk-accent,#ff9f0a)}',
+      '.row ha-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex;color:' + window.hkCards.v('accent') + '}',
       '.row span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       // THE HIGHLIGHT SLIDES TO THE NEW ROW (2026-10-10), as the tab bar's
       // does: it is a layer behind the row (::before), started over the row
@@ -525,7 +527,7 @@
       '.row{position:relative;isolation:isolate}',
       '.row.here{color:var(--hk-on-accent,#fff)}',
       '.row.here::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;',
-      '  background:var(--hk-accent,#ff9f0a);transform-origin:0 0;',
+      '  background:' + window.hkCards.v('accent') + ';transform-origin:0 0;',
       '  transform:translate(var(--hx,0px),var(--hy,0px)) scale(var(--sx,1),var(--sy,1));',
       '  transition:transform .42s ' + SPRING + '}',
       '.row.here.slide-from::before{transition:none}',
@@ -536,14 +538,14 @@
       '.row .bdg[hidden]{display:none}',
       '.row.more svg{flex:none;opacity:.45;transform:rotate(-90deg);transition:transform .2s ease}',
       '.row.more[aria-expanded="true"] svg{transform:none}',
-      '.row.sub{height:40px;padding-left:50px;font-size:15px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      '.row.sub{height:40px;padding-left:50px;font-size:15px;color:' + window.hkCards.v('ink') + '}',
       '.row.sub ha-icon{--mdc-icon-size:20px;width:20px;height:20px;color:rgba(235,235,245,0.6)}',
       '@media (hover:hover){.row:not(.here):hover{background:rgba(255,255,255,0.07)}}',
       '.row:focus-visible,.sh:focus-visible,.tab:focus-visible{outline:2px solid rgba(255,255,255,0.7);outline-offset:-2px}',
       // SECTION HEADINGS: the Home app's "Categories" / "Rooms", which fold.
       '.sh{display:flex;align-items:center;justify-content:space-between;width:100%;height:36px;',
       '  box-sizing:border-box;margin:16px 0 2px;padding:0 14px;border:0;background:none;',
-      '  color:var(--hk-ink-2,rgba(255,255,255,0.68));font:inherit;font-size:15px;font-weight:600;letter-spacing:-0.24px;',
+      '  color:' + window.hkCards.v('ink-2') + ';font:inherit;font-size:15px;font-weight:600;letter-spacing:-0.24px;',
       '  cursor:pointer;-webkit-tap-highlight-color:transparent}',
       // the fold chevron keeps its own color (an icon, not on the text scale)
       '.sh svg{transition:transform .2s ease;color:rgba(235,235,245,0.60)}',
@@ -617,6 +619,7 @@
       '.root.dragging .panel,.root.dragging .scrim{transition:none}',
       '@media (prefers-reduced-motion:reduce){.panel,.scrim,.sh svg,.row.more svg,.root.tabscroll .tab,.row.here::before{transition:none}}'
     ].join('\n');
+    window.hkMenu._.CSS = CSS;               // tests (test_csssnapshot)
 
     var CHEV_L = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"' +
       ' stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -922,7 +925,7 @@
     // PINNED): the panel, the edge tab and the button wear their slice of it
     // under their own tints instead of blurring the moving sky live -- the
     // panel is a full-height blur of it on every page
-    var PIN_TINTS = [['mat', 'linear-gradient(rgba(22,26,42,0.56),rgba(22,26,42,0.56))'],
+    var PIN_TINTS = [['mat', 'linear-gradient(rgba(28,28,32,0.52),rgba(28,28,32,0.52))'],
                      ['tab', 'linear-gradient(145deg,rgba(255,255,255,0.17),rgba(255,255,255,0.07)),linear-gradient(rgba(26,30,46,0.24),rgba(26,30,46,0.24))'],
                      ['fab', 'linear-gradient(145deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))']];
     function pinGlass(on) {

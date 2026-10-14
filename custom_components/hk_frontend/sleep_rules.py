@@ -32,7 +32,6 @@ from __future__ import annotations
 from datetime import datetime, time, timedelta
 from typing import Any, Iterable, Mapping
 
-WANTS = ("dark", "photos", "dashboard", "hold")
 DECIDERS = ("automation", "hk", "shadow")     # shadow: decides, never acts
 DARK_DISPLAYS = ("lowest", "off", "off_quiet")
 AFTER_SAVER = (0, 5, 15, 30, 60, 120, 240)    # minutes of photos; 0 = never

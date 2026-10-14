@@ -150,8 +150,8 @@ state instead).
 
 **A chip of a kind.** `kind` is one of `smoke`, `weather_alert`, `security`,
 `doors_windows`, `climate`, `lights`, `blinds`, `timers`, `vacuums`,
-`speakers`, `water` and `energy`. The chip then counts what **HK Settings →
-What Counts** shows for that kind ([What Counts](Status-Chips.md#what-counts)), and fills in its own icon, name and text.
+`speakers`, `water` and `energy`. The chip then counts what that kind’s page under **HK Settings →
+Accessories** lists ([What Counts](Status-Chips.md#what-counts)), and fills in its own icon, name and text.
 `quiet: true` shows it only while there is something to report.
 
 **A chip of your own.** Point it at one entity, or build its text:
@@ -179,9 +179,9 @@ optionally on an `attribute`).
 |---|---|---|
 | `hk-heading-card` | A section title. With `area`, it links to that area’s room page when the dashboard has one. | `name` (required), `area`, `navigation_path`, `chevron` (text after the title), `height`, `padding`, `grid_rows`, `energy_section` (the Energy section’s dot and total on the tab), `energy_period` (`now` pins it to Now) |
 | `hk-stat-card` | An icon, a caption and a large reading, with no background. | `entity` (required), `name`, `value_mode` (`temperature` — in the sensor’s own unit —, `power`, `runtime`, `cost`, `cost_today`, `flow`), `icon`, `icon_color`, `value` (fixed text), `value_suffix` (instead of the unit), `power`, `price` (an entity: price per kWh) |
-| `hk-rank-card` | A tile with a large reading: a value, a percentage, or a device’s power use ranked against others. | `entity` (required), `name`, `mode` (`hero`, `pct`, `rank`, `energy`), `power`, `stat`, `peers`, `energy` (follow the Energy tabs; `now` pins it to Now), `section`, `line_color`, `control` (Switched By: a power button that turns it on, and off after asking), `icon_color_steps`, `label_entity`, `label_suffix`, `label_decimals` |
-| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Status Rows → Climate and What Counts. | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
-| `hk-page-status-card` | A category page’s status row — Lights, Doors & Windows, Water, Security (or Climate) — with accessory-list sheets on tap. Follows All Screens → Status Rows and What Counts. | `page` (required: `lights`, `doors_windows`, `water`, `security`, `climate`), `items`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-rank-card` | A tile with a large reading: a value, a percentage, or a device’s power use ranked against others. | `entity` (required), `name`, `mode` (`hero`, `pct`, `rank`, `energy`), `power`, `stat`, `peers`, `energy` (follow the Energy tabs; `now` pins it to Now), `section`, `line_color`, `control` (Switched By: a power button that turns it on, and off after asking), `control_yes` and `control_detail` (that question's button and line; default Turn Off, “Everything on this circuit loses power.”), `backed` (a small green battery before the kWh line: backed up by the house battery), `icon_color_steps`, `label_entity`, `label_suffix`, `label_decimals` |
+| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Status Rows → Climate and what each type counts ([What Counts](Status-Chips.md#what-counts)). | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-page-status-card` | A category page’s status row — Lights, Doors & Windows, Water, Security (or Climate) — with accessory-list sheets on tap. Follows All Screens → Status Rows and what each type counts ([What Counts](Status-Chips.md#what-counts)). | `page` (required: `lights`, `doors_windows`, `water`, `security`, `climate`), `items`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
 | `hk-room-status-card` | A room’s status line: temperature and humidity, then what is on, open or detected, read from its area. | `area` (required; one or a list), `items`, `temperature`, `humidity`, `entities`, `exclude`, `include`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
 
 `icon_color_steps` is a list whose first match wins, for example
@@ -201,7 +201,7 @@ Temperature and humidity come from the area’s own related sensors
 | Card | What it is |
 |---|---|
 | `hk-thermostat-card` | A thermostat dial with the current temperature, target and mode buttons. |
-| `hk-slider-card` | A slider for a `number` entity, such as a battery’s charge limit. `layout: tile` makes it 152 px tall on the Energy page’s insets, to sit in a row with its cards. |
+| `hk-slider-card` | A slider for a `number` entity, such as a battery’s charge limit. `layout: tile` makes it as tall as a tall tile (150 px) on the Energy page’s insets, to sit in a row with its cards. |
 | `hk-media-control-card` | A media player’s progress bar and volume slider. `parts: [progress]` or `[volume]` draws one; `members_map` tells it a sync group’s speakers so the volume can level them. |
 | `hk-control-card` | Picks one of the above from the entity (`control` forces one). Prefer the named cards. |
 
@@ -255,15 +255,21 @@ child gets a `4px 4px 8px` margin. A grid of tiles uses:
 
 ```yaml
 layout:
-  grid-template-columns: repeat(auto-fill, var(--hk-track, 192px))
-  grid-auto-rows: 82px
+  grid-template-columns: repeat(auto-fill, var(--hk-track, 196px))
+  grid-auto-rows: 80px
   grid-auto-flow: dense
-  grid-column-gap: 12px
+  grid-column-gap: 10px
 ```
 
-Write the columns exactly like that and the grid follows HK Frontend’s screen
-sizes: two columns on a phone, smaller tiles on an iPad held upright. A
-sideways row of tiles does the same with `card_width: var(--hk-pill, 192px)`.
+That is the Home app’s grid: 196 × 70 tiles, 10 px apart (a row is the tile
+and the gap; favorites, three lines and 76 px tall, want `grid-auto-rows: 86px`). Write
+the columns exactly like that and the grid follows HK Frontend’s screen
+sizes: two columns on a phone, and 170 px pills (`--hk-pill`) from 641 to
+1023 px wide (an iPad, or a wall tablet with the menu docked beside the page).
+A sideways row of tiles does the same with
+`card_width: var(--hk-pill, 196px)` and `gap: 10`. (Earlier versions drew
+tiles 192 wide, 12 apart, on 82 px rows; a grid written with those numbers
+still works, its tiles a little closer together.)
 
 ## Security, vacuums and timers
 
@@ -328,22 +334,27 @@ Browse**.
 | `hk-energy-battery-card` | The house battery: its level now, what it took in and gave back, and the tab’s own bars. | `height` |
 | `hk-energy-water-card` | Water or gas against a usual amount, with the tab’s own bars. | `source` (`water`, `gas`), `height` |
 | `hk-energy-tracking-card` | The meters and runtimes you follow (the Energy feature’s **Tracking**), a row each: how it compares with its usual, its figure and bars for the tab. | `compact` (Without Bars: each row’s name, figure and comparison only) |
-| `hk-power-flow-card` | Right now: from the grid, the house and the battery, as a flow chart with light running along each line while power flows (on the grid, or on the battery). | `grid`, `home`, `charge`, `discharge` (power sensors), `level`, `grid_status`, `title` |
-| `hk-power-status-card` | A home battery system in sentences: a grid outage or a fault first, in red, then the source, the backup time, EPS and Storm Mode. | `grid_status`, `problem`, `level`, `backup`, `home`, `charge`, `discharge`, `eps`, `storm` |
+| `hk-power-flow-card` | Right now: from the grid, the house and the battery, as a flow chart with light running along each line while power flows (on the grid, or on the battery). With no battery named, the grid and the house alone. | `grid`, `home`, `charge`, `discharge` (power sensors), `level`, `grid_status`, `title` |
+| `hk-power-status-card` | A home battery system in sentences: a grid outage or a fault first, in red, then the sun, what the house runs on, a car charging, the backup time, EPS and Storm Mode. With no battery named, it says nothing of one. | `grid_status`, `problem`, `level`, `backup`, `home`, `charge`, `discharge`, `eps`, `storm`, `solar`, `grid`, `cars`, `chargers` |
 | `hk-house-battery-card` | A home battery drawn as a battery: its level, the reserve and limit marked on it, the backup time, its packs and their temperatures, EPS and the charging speed. Light runs through it while it charges or powers the house. | `level` (required), `stored`, `backup`, `reserve`, `limit`, `speed`, `charge`, `discharge`, `eps`, `packs` (`[{name, level, temperature}]`), `title` |
 | `hk-segment-card` | A select’s options as HK Frontend’s segmented control (the calendar’s and the Energy tabs’), with a line saying what the chosen one does (an operating mode). On a phone the names wrap rather than cut off. | `entity` (required), `options` (`[{value, name, description}]`; empty: the select’s own) |
-| `hk-usage-card` | Today’s energy use or runtime against the last two weeks, with a bar chart. | `stat` (required: a sensor with long-term statistics), `name`, `compare`, `align` (`left`, `center`), `opts` (chart options, for example `{colour: orange}`), `height`, `entity` (opened by a tap; empty: `stat`), `tap_action` |
-| `hk-trace-card` | A line graph of a sensor’s last few hours, with its current value. | `entity` (required), `trace` (`{hours, colour, title}`; the key is spelled `colour`), `margin`, `tap_action` |
-| `hk-battery-strip-card` | A home battery’s charge against its reserve and charge limit. | `entity` (required, percent), `name`, `stored`, `discharge`, `reserve`, `limit`, `margin`, `tap_action` |
+| `hk-power-house-card` | The house full width with no card around it: a layered picture where each part shows only when the house has it (panels with solar, the battery with one, the car while one is home), the figures as small floating chips over their part of the house, light running along the real cables (the pole's while buying or selling, the car's while it charges), and the battery's level as a slim bar on the cabinet. The Cars chip has a row for each car. On a phone the chips line up above the house. The picture is your own: none ships, and without one the card is empty (the Power page shows the flow chart instead). | `art` (a folder of your files with `art.json` and its layers), `home`, `grid` (negative is selling), `grid_export`, `grid_status`, `solar`, `level`, `charge`, `discharge`, `reserve`, `cars` (`[{name, level, power, home, plugged, charge, charger}]`; `charger`: what reads that car's charging), `chargers` (the wall chargers' power sensors: live, where a car's own reading lags), `max_height` (default 560) |
+| `hk-power-load-card` | The whole house right now: one bar of what the house battery backs up, what it does not and a car charging; the three drawing the most, each marked; how much of the house the battery covers. | `home` (required), `backed_power` (the battery panel's output), `grid_status`, `devices` (`[{name, power, backed}]`), `cars`, `chargers`, `link` |
+| `hk-power-sun-card` | Where the sun goes, now and today: to the house, the battery and the grid, in Home Assistant's own order, and how much of today's sun the house used itself. | `solar` (required), `grid`, `grid_export`, `home`, `charge`, `discharge` |
+| `hk-usage-card` | Today’s energy use or runtime against the last two weeks, with the Energy page’s bar chart: this week in the tile’s color, last week dimmed, last week’s average dotted. | `stat` (required: a sensor with long-term statistics), `name`, `compare`, `align` (`left`, `center`), `opts` (chart options, for example `{colour: orange}`), `height`, `entity` (opened by a tap; empty: `stat`), `tap_action` |
+| `hk-trace-card` | A line graph of a sensor’s last few hours, drawn like the Energy page’s Now tab, with its current value. | `entity` (required), `trace` (`{hours, colour, title}`; the key is spelled `colour`), `margin`, `tap_action` |
+| `hk-battery-strip-card` | A home battery’s charge drawn as a small battery, like the House Battery card: the reserve and the charge limit ticked on it, light running through it while the house draws on it. | `entity` (required, percent), `name`, `stored`, `discharge`, `reserve`, `limit`, `margin`, `tap_action` |
 
 The `hk-energy-…` cards read the [Energy](Energy.md) feature and Home
 Assistant’s Energy settings, and need no entities of their own; add **HK
-Energy Tabs** first and the others follow its tab. The four home battery
-cards (`hk-power-flow-card`, `hk-power-status-card`, `hk-house-battery-card`
-and `hk-segment-card`) don’t need the feature: each reads the entities you
-give it, so they suit any home battery system, and reads power in W or kW as
-the sensor reports it. On all of them, a tap on a figure, a row or a sentence
-opens that entity’s sheet.
+Energy Tabs** first and the others follow its tab. The home battery cards
+(`hk-power-flow-card`, `hk-power-status-card`, `hk-house-battery-card`,
+`hk-segment-card`, and the Power page's `hk-power-house-card`,
+`hk-power-load-card` and `hk-power-sun-card`) don’t need the feature: each
+reads the entities you give it, so they suit any home battery system, and
+reads power in W or kW as the sensor reports it. Only Where the Sun Goes's
+**Today** half reads the feature. On all of them, a tap on a figure, a row or
+a sentence opens that entity’s sheet.
 
 ## Pop-ups
 

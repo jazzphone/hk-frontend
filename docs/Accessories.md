@@ -11,7 +11,8 @@ There are two ways in, to the same settings:
   beside the close button. Tap it again (a check mark) when you are done. The
   gear is there for administrators only, and not on a camera sheet or a sheet
   of several accessories.
-- **In HK Settings**: **Library → Accessories**, then its room (or search).
+- **In HK Settings**: **Library → Accessories**, then its type or its room
+  (or search).
 
 Everything saves as you change it and reaches every screen; a generated screen
 redraws within about ten seconds. Each setting and its default:
@@ -126,8 +127,12 @@ alarm as **Smoke & CO**, a temperature sensor as **Temperature** (a reading,
 only for what reports one). On, it is counted there too — by that kind’s chip,
 its page and its status row — on every screen. Turning it off is how it
 leaves a kind it was only added to. Shown only when there is a kind it could
-join. [What Counts](Status-Chips.md#what-counts) lists these under each
-kind’s **Also Counted**.
+join. Its type’s page in [Accessories](#types) lists it in its room, marked
+**Added**.
+
+A group helper (“Motion - Kitchen”) is never counted by itself, since what is
+in it would count twice, but it can be added: its Also Count As offers the
+kinds it could join, and so does **Add…** on the type’s page.
 
 ## As a favorite
 
@@ -162,18 +167,88 @@ instead).
 Clears every setting of the accessory and this screen’s name for it. The room,
 other screens’ names and favorites stay.
 
-## Page order for Vacuums and Security
-
-Pages that mix rooms list things A to Z. Two pages can have an order of your
-own, in **HK Settings → Library → Accessories → Page Order**:
-
-- **Vacuums**: the order of the vacuums.
-- **Security**: the order of the locks and garage doors (automatic: the locks
-  A to Z, then the garage doors), so you can list them the way you think of
-  them: Front Door, Garage Door, Back Door.
-
 A YAML dashboard’s tiles keep the names and glyphs written in its YAML; its
 detail sheets use these settings.
+
+## Types
+
+**HK Settings → Library → Accessories** starts with your accessories by
+type:
+
+- **Types**: **Lights**, **Switches & Outlets**, **Fans**, **Thermostats**,
+  **Humidifiers**, **Water Heaters**, **Blinds & Shades**, **Garage Doors**,
+  **Locks**, **Security Systems**, **Speakers**, **TVs & Receivers**,
+  **Vacuums**, **Valves**, **Timers**, **Cameras** and **Circuits & Meters**.
+- **Sensors**: **Doors**, **Windows**, **Smoke & CO**, **Leak Sensors**,
+  **Motion**, **Occupancy**, **Temperature** and **Humidity**.
+
+Only the types your home has are listed, each with how many. Then come
+**Rooms**, and **Hidden & Added**: [Hidden Accessories](#hidden-accessories)
+and [Added Accessories](#added-accessories).
+
+A type’s page lists its accessories room by room. Tap one for its settings.
+For a type a chip or a page counts (Lights, Locks, Doors, Temperature…), the
+list is what that chip and page count, the same on every screen — what used to
+be a page of its own, **What Counts** ([what each one finds](Status-Chips.md#what-counts));
+its old links open the type’s page:
+
+- **Hidden** beside one: it is hidden from this type’s page and chip. Tap it to
+  change [where it shows](#where-it-shows).
+- **Added** beside one: counted though it isn’t found by itself, with its
+  [Also Count As](#also-count-as).
+- **Added → Add…**: count something more as this type — an outlet with a
+  lamp, a group helper. It joins its room above, marked **Added**.
+- **Hidden → Hidden Everywhere**: how many of this type are on no screen at
+  all. It opens [Hidden Accessories](#hidden-accessories).
+- **Hidden → Show All on (the page) Again…** (*Show All on Climate Again…* for
+  Thermostats): opens what is hidden from that page, where **Show All
+  Again…** shows everything it finds again. What was added stays.
+- **Order → Tile Order**: *Locks, Garage Doors and Vacuums*
+  ([below](#tile-order-for-locks-garage-doors-and-vacuums)).
+- **Chips**: the [status chips](Status-Chips.md) that count this type (Lights
+  for lights, Doors & Windows for doors, windows and garage doors…), each with
+  where it shows (“Always on 6 · When Active on 1”). Tap one for that chip’s
+  page under **All Screens → Status Chips**, which sets it for every screen at
+  once ([Status Chips settings](Status-Chips.md#status-chips-settings)). Smoke
+  & CO says it leads every screen’s row when an alarm goes off.
+
+![A type’s page in Accessories: the lights room by room, then Added, Chips and Hidden](images/settings-accessories-type.png)
+*Accessories → Lights: what the Lights page and chip count, room by room.*
+
+**Add…** (and **Hide Accessories…**) use the picker every page shares: search
+by name, entity ID or room, the choices under their rooms, tick several at
+once ([HK Settings](HK-Settings.md#how-the-controls-behave)).
+
+A few types point elsewhere for their settings: **Security Systems** to
+General’s **Alarm Panel** (which alarm the Security page and chip follow),
+**Cameras** to **Cameras Settings** ([Cameras](Cameras.md)), and **Circuits &
+Meters** — the [Energy](Energy.md) page’s circuits, plugs and meters, listed by
+section — to **Energy Devices** and **Energy Page**.
+
+A room’s page in Accessories is the other way round: its accessories grouped
+by type.
+
+## Tile Order for Locks, Garage Doors and Vacuums
+
+Pages that mix rooms list things A to Z. Two pages can have an order of your
+own, under **Order → Tile Order** on the type’s page in
+**HK Settings → Library → Accessories** (it was called Page Order):
+
+- **Vacuums**: the order of the vacuums on the Vacuums page.
+- **Locks** and **Garage Doors**: the order of the locks and garage doors on
+  the Security page — one order, from either type (automatic: the locks A to
+  Z, then the garage doors), so you can list them the way you think of them:
+  Front Door, Garage Door, Back Door.
+
+## Added Accessories
+
+**HK Settings → Library → Accessories → Added Accessories** (it was called
+Also Shown). Tiles for things HK Frontend doesn’t show by itself: a script, a
+scene, a sensor. Each one gets a tile in its room on Home and on its room’s
+page, or in a section called **More** at the end of Home when it has no room.
+**Add…** offers only what isn’t an accessory already; remove one to take its
+tile away. It stays in Home Assistant. [Hidden Accessories](#hidden-accessories)
+is the other way.
 
 ## Hidden Accessories
 
@@ -250,21 +325,31 @@ Also Count As off instead.
 name, room, icon and where it appears. Home Assistant’s own names and icons
 are untouched.
 
-![The Accessories page in HK Settings](images/settings-accessories.png)
+![Accessories in HK Settings: Types, Sensors, Rooms, then Hidden & Added](images/settings-accessories.png)
 
 | Setting | Default | What it does |
 |---|---|---|
 | Search Accessories | — | Find an accessory by name, entity ID or room; each result shows its entity ID beside its room. It also finds the sensors a chip could count, so their pages (with [Also Count As](#also-count-as)) can be opened. |
-| Tapping an Accessory → HK Detail Sheets | On | Tapping an accessory’s name opens a Home app–style [detail sheet](Detail-Sheets-and-Popups.md) (a slider, the thermostat, the player, a graph), on every screen. Off: Home Assistant’s own more-info dialog. Either way, locks, the alarm, garage doors and thermostats never change from a single tap. A card keeps Home Assistant’s dialog with `detail: false` in its YAML. |
-| Hidden Accessories | None | Every hidden accessory and where it is hidden: everywhere, or just from some places (Home, its room’s page, the Climate page…). See [Hidden Accessories](#hidden-accessories). |
-| Also Shown | None | Things a generated screen wouldn’t show by itself: scenes, scripts, sensors. Each appears in its room, or in a section called **More** at the end of Home if it has no room. |
-| What Counts | — | What each status chip and category page counts, kind by kind. Read-only; see [What Counts](Status-Chips.md#what-counts). |
-| Page Order → Vacuums | A to Z | The order of the Vacuums page. |
-| Page Order → Security | Locks A to Z, then garage doors | The order of the locks and garage doors on the Security page. |
+| Types | — | Each type your home has, with how many: its accessories room by room, what its page and chip count, and what is hidden from it or added to it. See [Types](#types). |
+| Sensors | — | Doors, Windows, Smoke & CO, Leak Sensors, Motion, Occupancy, Temperature and Humidity: what the chips and status rows count. |
 | Rooms | — | Every room with accessories, then Timers and No Room. |
+| Hidden & Added → Hidden Accessories | None | Every hidden accessory and where it is hidden: everywhere, or just from some places (Home, its room’s page, the Climate page…). See [Hidden Accessories](#hidden-accessories). |
+| Hidden & Added → Added Accessories | None | Tiles for things a generated screen wouldn’t show by itself: scripts, scenes, sensors. Each appears in its room, or in a section called **More** at the end of Home if it has no room. See [Added Accessories](#added-accessories). |
+| Tapping an Accessory → HK Detail Sheets | On | Tapping an accessory’s name opens a Home app–style [detail sheet](Detail-Sheets-and-Popups.md) (a slider, the thermostat, the player, a graph), on every screen. Off: Home Assistant’s own more-info dialog. Either way, locks, the alarm, garage doors and thermostats never change from a single tap. A card keeps Home Assistant’s dialog with `detail: false` in its YAML. |
 
-A room’s page lists its accessories, with **Room Settings** to open that
-room’s own settings in [Rooms](Rooms.md#a-rooms-settings): its scenes, tile
+A type’s page:
+
+| Setting | Default | What it does |
+|---|---|---|
+| Its accessories, by room | — | Each one in its room. **Hidden**: hidden from this type’s page and chip. **Added**: counted though it isn’t found by itself. Tap one for its settings. |
+| Added → Add… | — | *Types a chip or page counts.* Count something more as this type (an outlet with a lamp, a group helper), with its [Also Count As](#also-count-as). |
+| Chips | — | *Types a chip counts.* Each chip that counts it, with where it shows; opens that chip’s page in **All Screens → Status Chips** (Always or When Active, for every screen). |
+| Hidden → Hidden Everywhere | — | *Shown when some are hidden everywhere.* How many; opens [Hidden Accessories](#hidden-accessories). |
+| Hidden → Show All on (the page) Again… | — | *Shown when some are hidden from its page.* Opens what is hidden from it, with **Show All Again…**. |
+| Order → Tile Order | Automatic | *Locks, Garage Doors and Vacuums.* The order of the Security or Vacuums page’s tiles, on every screen. See [Tile Order](#tile-order-for-locks-garage-doors-and-vacuums). |
+
+A room’s page lists its accessories grouped by type, with **Room Settings** to
+open that room’s own settings in [Rooms](Rooms.md#a-rooms-settings): its scenes, tile
 order, whether it shows and what it’s part of.
 
 An accessory’s page holds the same settings as the gear on its

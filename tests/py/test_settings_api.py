@@ -9,6 +9,7 @@ import json
 from pytest_homeassistant_custom_component.common import MockUser  # noqa: F401  (harness import order)
 
 from conftest import entry
+from custom_components.hk_frontend import settings as S
 from test_accessories import Conn as _Conn
 
 DOMAIN = "hk_frontend"
@@ -39,7 +40,7 @@ def test_every_house_setting_a_person_can_change_can_be_written():
     switches (generated.chips ... -- each screen's own setting)."""
     from custom_components.hk_frontend import settings as S, settings_api as A
     legacy = {"security.garage", "security.locks", "security.doors", "security.windows",
-              "features.thermostats", "idle.dashboards", "idle.rooms", "car.dashboards",
+              "features.thermostats", "idle.dashboards", "idle.rooms", "idle.default", "car.dashboards",
               *(f"menu.{k}" for k in S.DEFAULTS["menu"] if k not in ("glyph", "clock")),
               *(f"generated.{k}" for k in ("chips", "pages", "sky", "music", "rooms"))}
     dates = {f"sky.{k}" for k in S.SKY_DATES}
@@ -161,11 +162,12 @@ def test_screen_changes_are_checked_not_defaulted():
     assert err == {} and data["frost_tint"] is None
     _, err = apply_board(data, {"frost_tint": "yes"})
     assert "frost_tint" in err, "only a boolean or None"
-    same, err = apply_board(data, {"tab_position": "somewhere", "idle_room": "Living Room!",
+    same, err = apply_board(data, {"tab_position": "somewhere", "idle_room": "living_room",
                                    "menu": "sideways", "chips": ["spaceships"], "wallpanel_options": [1],
                                    "whatever": 1})
-    assert err == {"tab_position": "tab_position", "idle_room": "bad_room", "menu": "choice",
-                   "chips": "choice", "wallpanel_options": "card_options", "whatever": "unknown"}
+    assert err == {"tab_position": "tab_position", "idle_room": "unknown", "menu": "choice",
+                   "chips": "choice", "wallpanel_options": "card_options", "whatever": "unknown"}, \
+        "a tablet's room is the tablet's own since 1.14"
     assert same == data
 
 
@@ -220,11 +222,10 @@ async def test_the_commands_write_what_configure_reads(hass, frontend):
     hass.config_entries.async_add_subentry(entry(hass), ConfigSubentry(
         data={}, subentry_type="dashboard", title="Hall", unique_id="dashboard-hall"))
     ws_board_set(hass, conn, {"id": 4, "type": "hk_frontend/board/set", "dashboard": "dashboard-hall",
-                              "changes": {"idle_return": True, "idle_room": "hall", "glass": "blur"}})
+                              "changes": {"glass": "blur"}})
     assert conn.sent[-1]["success"], conn.sent[-1]
     client = S.as_client(entry(hass))
     assert client["boards"]["dashboard-hall"]["glass"] == "blur"
-    assert client["idle"]["dashboards"] == ["dashboard-hall"] and client["idle"]["rooms"] == {"dashboard-hall": "hall"}
 
 
 async def test_only_admins_write(hass, frontend):
@@ -315,7 +316,7 @@ async def test_what_counts_offers_the_old_list_then_saving_a_kind_keeps_the_rest
     assert doors["exclude"] == ["binary_sensor.garage_entry"] and doors["saved"] is False, "the old list, as a difference"
     assert doors["found"] == ["binary_sensor.front_door"]
     await _set(hass, {"counts.doors": {"exclude": doors["exclude"], "include": []}})
-    d = entry(hass).options["dashboard"]
+    d = S.merged(entry(hass).options)
     assert d["security"]["doors"] == [] and d["security"]["alarm"] == "alarm_control_panel.home"
     assert d["features"]["temperature"] == "sensor.house"
 
@@ -350,13 +351,15 @@ async def test_the_sky_how_often_and_the_themes(hass, frontend):
     assert S.merged(entry(hass).options)["sky"]["halloween_often"] is None, "back to built in"
 
 
-async def test_advanced_the_clock_the_idle_default_and_the_escape_hatches(hass, frontend):
-    await _set(hass, {"clock.time": "sensor.time", "clock.date": None, "idle.default": "input_number.idle",
+async def test_advanced_the_clock_and_the_escape_hatches(hass, frontend):
+    await _set(hass, {"clock.time": "sensor.time", "clock.date": None,
                       "features.vacuum_script": "script.clean"})
-    d = entry(hass).options["dashboard"]
+    d = S.merged(entry(hass).options)
     assert d["clock"] == {"time": "sensor.time", "date": None}, "empty: the screen's own clock"
-    assert d["idle"]["default"] == "input_number.idle" and d["features"]["vacuum_script"] == "script.clean"
-    assert d["features"]["alarm_bad_code"] is None and "look" not in d
+    assert entry(hass).options["dashboard"]["clock"] == {"date": None}, \
+        "stored: only what differs from the default (sensor.time is the default)"
+    assert d["features"]["vacuum_script"] == "script.clean"
+    assert d["features"]["alarm_bad_code"] is None and "look" not in entry(hass).options["dashboard"]
 
 
 async def test_the_glass_and_its_amounts_reach_every_screen(hass, frontend):
@@ -364,8 +367,9 @@ async def test_the_glass_and_its_amounts_reach_every_screen(hass, frontend):
     look = screen.sent[-1]["event"]["look"]
     assert (look["glass"], look["frost"], look["blur"]) == ("clear", 50, 50)
     await _set(hass, {"look.glass": "blur_each", "look.blur": 80})
-    look = entry(hass).options["dashboard"]["look"]
+    look = S.merged(entry(hass).options)["look"]
     assert (look["glass"], look["blur"], look["frost"]) == ("blur_each", 80, 50)
+    assert "frost" not in entry(hass).options["dashboard"]["look"], "a default is not stored: a later default reaches it"
     assert screen.sent[-1]["event"]["look"]["blur"] == 80, "screens were told"
     r = await _set(hass, {"look.glass": "sparkly"})
     assert r["success"] is False and entry(hass).options["dashboard"]["look"]["glass"] == "blur_each"
@@ -412,8 +416,8 @@ async def test_hidden_from_screens_and_the_retired_parts(hass, frontend):
     await _set(hass, {"generated.exclude_areas": ["garage"], "generated.exclude_devices": ["dev1"],
                       "generated.include_entities": ["scene.movie"]})
     g = entry(hass).options["dashboard"]["generated"]
-    assert g == {"exclude_areas": ["garage"], "exclude_devices": ["dev1"], "exclude_entities": [],
-                 "include_entities": ["scene.movie"]}
+    assert g == {"exclude_areas": ["garage"], "exclude_devices": ["dev1"], "include_entities": ["scene.movie"]}, \
+        "stored: what was set, not the defaults beside it"
 
 
 async def test_menu_and_rooms(hass, frontend):
@@ -578,15 +582,14 @@ def test_copy_settings_covers_every_screen_setting_and_round_trips():
     # a busy screen's settings, copied onto a fresh one, are all accepted
     busy = S.board({"menu": "open", "menu_custom": True, "tab_size": "xl", "chips": ["lights"], "cameras": ["camera.front"],
                     "scenes": ["scene.movie"], "favorites": ["light.lamp"], "glass": "frosted", "frost": 70,
-                    "screensaver": True, "screensaver_options": {"show": "both"}, "idle_return": True,
-                    "tablet_user": "kitchen", "idle_room": "kitchen"})
+                    "screensaver": True, "screensaver_options": {"show": "both"}})
     read = S.resolved(busy, None)
-    copy = {k: read[k] for k in S.BOARD_DEFAULTS if k not in ("tablet_user", "idle_room")}
+    copy = {k: read[k] for k in S.BOARD_DEFAULTS}
     copy["screensaver_options"] = None if read["screensaver_house"] else read["screensaver_options"]
     got, err = apply_board(S.board({}), copy)
     assert err == {}, err
     assert got["screensaver_options"]["show"] == "both" and got["frost"] == 70 and got["tab_size"] == "xl"
-    assert got["tablet_user"] == "" and got["idle_room"] == "", "the tablet's own are never copied"
+    assert "tablet_user" not in got, "a tablet's own are the tablet's (1.14): nothing of them on a screen to copy"
 
 
 def test_the_calendars_and_their_colours_are_checked():
@@ -637,6 +640,74 @@ def test_sky_background_house_and_screen_writes():
                                     "sky_gradient": "bad", "sky_custom": {"day": stops["day"]}})
     assert same == board and err == {"sky_animations": "bool", "sky_weather": "bool", "sky_decorations": "bool",
                                      "sky_gradient": "choice", "sky_custom": "stops"}
+
+
+def test_the_background_live_color_or_photo():
+    """Sky / Background's first choice (2026-10-13): Live Sky, a still Color
+    or a Photo, for All Screens, a screen and a page."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house, apply_board
+    photo = "/api/image/serve/" + "a" * 32 + "/original"
+    sky = S.merged({})["sky"]
+    assert (sky["background"], sky["color"], sky["photo"], sky["page_photos"]) == ("live", "midnight", None, {})
+    new, err = apply_house({}, {"sky.background": "photo", "sky.photo": photo, "sky.color": "black",
+                                "sky.pages": {"lights": "photo", "climate": "ember"},
+                                "sky.page_photos": {"lights": "/local/hk/porch.jpg"}})
+    assert err == {}
+    sky = S.merged(new)["sky"]
+    assert sky["background"] == "photo" and sky["photo"] == photo and sky["color"] == "black"
+    assert sky["pages"] == {"lights": "photo", "climate": "ember"} and sky["page_photos"] == {"lights": "/local/hk/porch.jpg"}
+    # Live is a background, not a color; a photo must be one the sky can show
+    same, err = apply_house(new, {"sky.background": "gradient", "sky.color": "live", "sky.photo": "https://example.com/a.jpg",
+                                  "sky.page_photos": {"lights": "javascript:alert(1)"}})
+    assert same == new and err == {"sky.background": "choice", "sky.color": "choice", "sky.photo": "photo", "sky.page_photos": "photo"}
+    for bad in ("/api/image/serve/xyz/original", "/local/a b.jpg", '/hk/a".jpg', "/local/", "//evil/x.jpg"):
+        assert S.sky_photo(bad) is None, bad
+    # "" or None: no photo
+    cleared, err = apply_house(new, {"sky.photo": "", "sky.page_photos": {"lights": None}})
+    assert err == {} and S.merged(cleared)["sky"]["photo"] is None and S.merged(cleared)["sky"]["page_photos"] == {}
+    # a screen's own: None follows All Screens
+    board, err = apply_board({}, {"sky_background": "color", "sky_color": "plum", "sky_photo": photo,
+                                  "sky_page_photos": {"energy": photo}, "sky_pages": {"energy": "photo"}})
+    assert err == {}
+    b = S.board(board)
+    assert (b["sky_background"], b["sky_color"], b["sky_photo"]) == ("color", "plum", photo)
+    assert b["sky_page_photos"] == {"energy": photo} and b["sky_pages"] == {"energy": "photo"}
+    board, err = apply_board(board, {"sky_background": None, "sky_color": None, "sky_photo": None, "sky_page_photos": None})
+    b = S.board(board)
+    assert err == {} and b["sky_background"] is None and b["sky_color"] is None and b["sky_photo"] is None and b["sky_page_photos"] == {}
+    same, err = apply_board(board, {"sky_background": "off", "sky_color": "live"})
+    assert same == board and err == {"sky_background": "choice", "sky_color": "choice"}
+    # stored by hand: what can't be shown reads as nothing
+    assert S.board({"sky_background": 3, "sky_photo": "http://x/y.jpg", "sky_page_photos": {"lights": "nope"}})["sky_page_photos"] == {}
+
+
+def test_a_photos_look():
+    """Blur, Dim, Saturation and a Color Tint on the Background's photo (2026-10-13)."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_house, apply_board
+    assert S.merged({})["sky"]["photo_look"] == S.PHOTO_LOOK_DEFAULTS
+    new, err = apply_house({}, {"sky.photo_look": {"blur": 40, "dim": 25, "saturation": 150, "tint": "plum", "tint_amount": 30}})
+    assert err == {} and S.merged(new)["sky"]["photo_look"] == {"blur": 40, "dim": 25, "saturation": 150, "tint": "plum", "tint_amount": 30}
+    part, err = apply_house({}, {"sky.photo_look": {"blur": 10}})
+    assert err == {} and S.merged(part)["sky"]["photo_look"] == {**S.PHOTO_LOOK_DEFAULTS, "blur": 10}
+    for bad in ({"blur": 101}, {"dim": 90}, {"saturation": -1}, {"tint": "live"}, {"tint_amount": 81}, {"glow": 1}, {"blur": True}, "soft"):
+        assert apply_house(new, {"sky.photo_look": bad})[1] == {"sky.photo_look": "choice"}, bad
+    board, err = apply_board({}, {"sky_photo_look": {"dim": 50}})
+    assert err == {} and S.board(board)["sky_photo_look"]["dim"] == 50
+    board, err = apply_board(board, {"sky_photo_look": None})
+    assert err == {} and S.board(board)["sky_photo_look"] is None
+    # each page's own look; "" or None: its screen's
+    new, err = apply_house({}, {"sky.page_looks": {"room-kitchen": {"blur": 20}, "lights": {"tint": "ember"}}})
+    looks = S.merged(new)["sky"]["page_looks"]
+    assert err == {} and looks["room-kitchen"]["blur"] == 20 and looks["lights"]["tint"] == "ember"
+    new, err = apply_house(new, {"sky.page_looks": {"room-kitchen": None, "lights": {"tint": "ember"}}})
+    assert err == {} and list(S.merged(new)["sky"]["page_looks"]) == ["lights"]
+    assert apply_house(new, {"sky.page_looks": {"lights": {"dim": 99}}})[1] == {"sky.page_looks": "choice"}
+    board, err = apply_board({}, {"sky_page_looks": {"room-office": {"saturation": 0}}})
+    assert err == {} and S.board(board)["sky_page_looks"]["room-office"]["saturation"] == 0
+    # stored by hand as nonsense: All Screens' defaults
+    assert S.merged({"dashboard": {"sky": {"photo_look": {"blur": "x"}}}})["sky"]["photo_look"] == S.PHOTO_LOOK_DEFAULTS
 
 
 async def test_sky_background_screen_websocket_round_trip(hass, frontend):
@@ -766,3 +837,84 @@ def test_every_liveliness_occasion_is_a_theme_a_woodland_season_or_the_night():
     for occ, knobs in S.LIVELY_OCCASIONS.items():
         assert all(k in S.LIVELY_KNOBS and style in ("new", "old", "both") for k, style in knobs), occ
     assert {k for v in S.LIVELY_OCCASIONS.values() for k, _s in v} == set(S.LIVELY_KNOBS), "every knob drawn somewhere"
+
+
+def test_a_custom_chips_show_on_a_screen():
+    """Always or When Active for each custom chip, a screen's own (2026-10-13)."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board
+    board, err = apply_board({}, {"chips_custom_show": {"mail": "always", "house-battery": "active"}})
+    assert err == {} and S.board(board)["chips_custom_show"] == {"mail": "always", "house-battery": "active"}
+    board, err = apply_board(board, {"chips_custom_show": {"mail": None, "house-battery": "active"}})
+    assert err == {} and S.board(board)["chips_custom_show"] == {"house-battery": "active"}
+    assert apply_board(board, {"chips_custom_show": {"mail": "sometimes"}})[1] == {"chips_custom_show": "choice"}
+    assert apply_board(board, {"chips_custom_show": {"Bad Key": "always"}})[1] == {"chips_custom_show": "choice"}
+    assert S.board({})["chips_custom_show"] == {}
+
+
+# ------------------------------------------------------------ the wall tablets (1.14)
+async def test_a_tablet_is_added_changed_and_removed(hass, frontend):
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.panel import ws_tablet_add, ws_tablet_remove, ws_tablet_set
+    conn = await _admin(hass)
+    ws_tablet_add(hass, conn, {"id": 1, "type": "hk_frontend/tablet/add", "tablet": {"name": ""}})
+    assert json.loads(conn.sent[-1]["message"]) == {"name": "name_needed"}
+    ws_tablet_add(hass, conn, {"id": 2, "type": "hk_frontend/tablet/add", "tablet": {
+        "name": "Garage", "screen": "dashboard-home", "room": "garage", "app": "fully", "device": "d" * 32}})
+    r = conn.sent[-1]
+    assert r["success"] and r["result"]["id"] == "garage", r
+    await hass.async_block_till_done(wait_background_tasks=True)
+    t = S.tablets(entry(hass))["garage"]
+    assert (t["app"], t["device"], t["uid"], t["idle_return"], t["idle_time"]) == ("fully", "d" * 32, "tablet_garage", True, 50)
+    ws_tablet_set(hass, conn, {"id": 3, "type": "hk_frontend/tablet/set", "tablet": "garage",
+                               "changes": {"idle_time": 120, "idle_return": False, "user": "garage"}})
+    assert conn.sent[-1]["success"], conn.sent[-1]
+    t = S.tablets(entry(hass))["garage"]
+    assert (t["idle_time"], t["idle_return"], t["user"], t["idle_time_own"]) == (120, False, "garage", 120)
+    ws_tablet_set(hass, conn, {"id": 4, "type": "hk_frontend/tablet/set", "tablet": "garage",
+                               "changes": {"idle_time": 45, "app": "ipad", "colour": 1}})
+    assert json.loads(conn.sent[-1]["message"]) == {"idle_time": "choice", "app": "choice", "colour": "unknown"}
+    ws_tablet_set(hass, conn, {"id": 5, "type": "hk_frontend/tablet/set", "tablet": "garage",
+                               "changes": {"idle_time": None}})
+    assert S.tablets(entry(hass))["garage"]["idle_time"] == 50, "None: All Tablets' again"
+    await _set(hass, {"tablets.idle_time": 30})
+    assert S.tablets(entry(hass))["garage"]["idle_time"] == 30
+    assert (await _set(hass, {"tablets.idle_time": 31}))["success"] is False
+    assert (await _set(hass, {"tablets.restart_times": ["24:00"]}))["success"] is False
+    await _set(hass, {"tablets.restart_times": ["15:00", "0:02"], "tablets.restart": True})
+    assert S.merged(entry(hass).options)["tablets"]["restart_times"] == ["00:02", "15:00"]
+    ws_tablet_remove(hass, conn, {"id": 6, "type": "hk_frontend/tablet/remove", "tablet": "garage"})
+    assert conn.sent[-1]["success"] and S.tablets(entry(hass)) == {}
+
+
+async def test_only_admins_change_tablets_but_any_page_says_it_was_seen(hass, frontend):
+    import pytest
+    from homeassistant.exceptions import Unauthorized
+    from custom_components.hk_frontend import tablets
+    from custom_components.hk_frontend.panel import ws_tablet_seen, ws_tablet_set
+    await hass.auth.async_create_user("Owner")
+    kiosk = Conn(await hass.auth.async_create_user("garage"))
+    with pytest.raises(Unauthorized):
+        ws_tablet_set(hass, kiosk, {"id": 1, "type": "hk_frontend/tablet/set", "tablet": "x", "changes": {}})
+    ws_tablet_seen(hass, kiosk, {"id": 2, "type": "hk_frontend/tablet/seen", "screen": "dashboard-home", "app": "fully"})
+    assert kiosk.sent[-1]["success"]
+    got = tablets.suggestions(hass, entry(hass))
+    assert [(s["key"], s["app"], s["user"], s["screen"]) for s in got] == \
+        [("seen:garage:dashboard-home", "fully", "garage", "dashboard-home")]
+    await _set(hass, {"tablets.dismissed": ["seen:garage:dashboard-home"]})
+    assert tablets.suggestions(hass, entry(hass)) == [], "Not a Tablet: not suggested again"
+
+
+def test_the_clocks_photos_and_the_mosaics_lines_are_checked():
+    """2026-10-13: the photos behind the clock (sharp or soft, darkened), the
+    clock's text shadow and outline, the mosaic's lines and Up To."""
+    from custom_components.hk_frontend import settings as S
+    o = S.saver_options({"clock_photo_soft": True, "clock_photo_dim": 50, "clock_text_shadow": 70, "clock_text_outline": 30,
+                         "mosaic_line": 8, "mosaic_color": "cream", "mosaic_random": True, "mosaic_every": 15})
+    assert o and (o["clock_photo_dim"], o["mosaic_line"], o["mosaic_color"], o["mosaic_every"]) == (50, 8, "cream", 15)
+    d = S.saver_options({})
+    assert (d["clock_photo_soft"], d["clock_photo_dim"], d["clock_text_shadow"], d["mosaic_line"], d["mosaic_random"]) == \
+        (False, 35, 40, 0, False), "sharp photos by default (the user: not blurred)"
+    for bad in ({"clock_photo_dim": 90}, {"mosaic_line": 25}, {"mosaic_color": "pink"}, {"mosaic_every": 0},
+                {"clock_text_outline": 101}, {"mosaic_random": "yes"}):
+        assert S.saver_options(bad) is None, bad

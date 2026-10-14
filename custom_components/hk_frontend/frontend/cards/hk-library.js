@@ -78,7 +78,7 @@
     el.setAttribute('data-hk-role', 'no-music');
     el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
       M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
-      'color:var(--hk-ink-2,rgba(255,255,255,0.68))';
+      'color:' + window.hkCards.v('ink-2') + '';
     el.textContent = NO_MUSIC;
     card._root.appendChild(el);
     card._built = false;
@@ -182,10 +182,10 @@
         '.bar{display:grid;grid-template-columns:minmax(0,1fr);',
         '  gap:14px;margin:0 0 18px 0}',
         '.search{height:52px;border-radius:26px;padding:0 22px;width:100%;',
-        '  box-sizing:border-box;background:var(--hk-key,rgba(255,255,255,0.14));',
-        '  border:' + M.border + ';color:var(--hk-ink,rgba(255,255,255,0.94));font-size:17px;',
+        '  box-sizing:border-box;background:' + window.hkCards.v('key-strong') + ';',
+        '  border:' + M.border + ';color:' + window.hkCards.v('ink') + ';font-size:17px;',
         '  font-family:inherit;outline:none}',
-        '.search::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+        '.search::placeholder{color:' + window.hkCards.v('ink-3') + '}',
 
         // ---- ONE BACK CONTROL ON THE PAGE, not two.
         //
@@ -198,11 +198,11 @@
         // "the way back" -- the page chevron stays the only one of those.
         '.crumb{display:flex;align-items:center;gap:8px;min-width:0;',
         '  font-size:19px;font-weight:600;letter-spacing:-0.3px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));flex-wrap:wrap}',
-        '.crumb .dim{color:var(--hk-ink-3,rgba(255,255,255,0.40));font-weight:500}',
-        '.crumb .up{cursor:pointer;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-weight:500}',
-        '.crumb .up:hover{color:var(--hk-ink,rgba(255,255,255,0.94))}',
-        '.crumb .sep{color:var(--hk-ink-3,rgba(255,255,255,0.40));font-weight:400}',
+        '  color:' + window.hkCards.v('ink') + ';flex-wrap:wrap}',
+        '.crumb .dim{color:' + window.hkCards.v('ink-3') + ';font-weight:500}',
+        '.crumb .up{cursor:pointer;color:' + window.hkCards.v('ink-2') + ';font-weight:500}',
+        '.crumb .up:hover{color:' + window.hkCards.v('ink') + '}',
+        '.crumb .sep{color:' + window.hkCards.v('ink-3') + ';font-weight:400}',
         '.crumb .here{min-width:0;overflow:hidden;text-overflow:ellipsis;',
         '  white-space:nowrap}',
 
@@ -240,8 +240,8 @@
         '.grid.cats{',
         '  grid-template-columns:repeat(auto-fit,minmax(var(--hk-lib-track,168px),1fr))}',
         '.it{cursor:pointer;user-select:none;min-width:0}',
-        '.it .art{width:100%;aspect-ratio:1;border-radius:14px;overflow:hidden;',
-        '  background:var(--hk-key,rgba(255,255,255,0.10));box-shadow:0 6px 18px rgba(0,0,0,0.28);',
+        '.it .art{width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden;',
+        '  background:' + window.hkCards.v('key') + ';box-shadow:0 6px 18px rgba(0,0,0,0.28);',
         '  display:flex;align-items:center;justify-content:center}',
         '.it .art img{width:100%;height:100%;object-fit:cover;display:block}',
         '.it .art ha-icon{--mdc-icon-size:34px;width:34px;height:34px;',
@@ -250,9 +250,9 @@
         // shorthand every music app uses, and it saves a subtitle.
         '.it.artist .art{border-radius:50%}',
         '.it .nm{margin-top:9px;font-size:14px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:hidden;text-overflow:ellipsis;',
+        '  color:' + window.hkCards.v('ink') + ';overflow:hidden;text-overflow:ellipsis;',
         '  white-space:nowrap}',
-        '.it .sub{font-size:12px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '.it .sub{font-size:12px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';',
         '  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         // THE ROOT CATEGORIES ARE NOT ARTWORK and should not pretend to be.
         // Drawn as artwork they are seven big empty squares with a generic
@@ -270,7 +270,7 @@
         // label beside it), it is what the playlist buttons one page back
         // are made of, and it costs this file no material of its own.
         //
-        // The only override is the WIDTH. `.tile` is pinned to 192px because
+        // The only override is the WIDTH. `.tile` is pinned to the pill's width because
         // its usual home is a fixed-track grid; here the track is what sizes
         // it, and the six of them share the row.
         '.it.cat{width:100%;min-width:0;max-width:none}',
@@ -279,9 +279,9 @@
 
         // "Play all" and "Show more" are tiles in the same grid so the row
         // rhythm never breaks.
-        '.it.act .art{background:var(--hk-key,rgba(255,255,255,0.16));}',
+        '.it.act .art{background:' + window.hkCards.v('key-strong') + ';}',
 
-        '.msg{font-size:15px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '.msg{font-size:15px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';',
         '  padding:22px 4px}',
 
         // ---- DISCOVER: horizontal shelves, below the categories.
@@ -310,8 +310,8 @@
         // those same two columns.
         '.hd{display:grid;grid-template-columns:132px minmax(0,1fr);',
         '  column-gap:20px;align-items:center;margin:0 0 18px 2px}',
-        '.hd .cover{width:132px;height:132px;border-radius:14px;overflow:hidden;',
-        '  background:var(--hk-key,rgba(255,255,255,0.10));display:flex;',
+        '.hd .cover{width:132px;height:132px;border-radius:12px;overflow:hidden;',
+        '  background:' + window.hkCards.v('key') + ';display:flex;',
         '  align-items:center;justify-content:center;',
         '  box-shadow:0 10px 26px rgba(0,0,0,0.34)}',
         '.hd .cover img{width:100%;height:100%;object-fit:cover;display:block}',
@@ -319,13 +319,13 @@
         '  color:var(--hk-glyph,rgba(255,255,255,0.7))}',
         '.hd .meta{min-width:0}',
         '.hd .h1{font-size:26px;font-weight:700;letter-spacing:-0.5px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:hidden;',
+        '  color:' + window.hkCards.v('ink') + ';overflow:hidden;',
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.hd .h2{margin-top:3px;font-size:16px;font-weight:600;',
-        '  letter-spacing:-0.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+        '  letter-spacing:-0.2px;color:' + window.hkCards.v('ink-2') + ';',
         '  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.hd .h3{margin-top:7px;font-size:13.5px;font-weight:500;',
-        '  color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+        '  color:' + window.hkCards.v('ink-3') + '}',
 
         '.list{' + M.glass + ';border:' + M.border + ';',
         '  border-radius:' + M.radius + ';overflow:hidden;',
@@ -335,23 +335,23 @@
         '  cursor:pointer;user-select:none}',
         // inset, not border-top: a border would add a pixel to the row and
         // make every row a different height from the first.
-        '.rw + .rw{box-shadow:inset 0 1px 0 var(--hk-line,rgba(255,255,255,0.075))}',
-        '.rw:active{background:var(--hk-key,rgba(255,255,255,0.06))}',
+        '.rw + .rw{box-shadow:inset 0 1px 0 ' + window.hkCards.v('line') + '}',
+        '.rw:active{background:' + window.hkCards.v('key') + '}',
         '.rw .thumb{width:44px;height:44px;border-radius:8px;overflow:hidden;',
-        '  background:var(--hk-key,rgba(255,255,255,0.10));display:flex;',
+        '  background:' + window.hkCards.v('key') + ';display:flex;',
         '  align-items:center;justify-content:center}',
         '.rw .thumb img{width:100%;height:100%;object-fit:cover;display:block}',
         '.rw .thumb ha-icon{--mdc-icon-size:22px;width:22px;height:22px;',
         '  color:var(--hk-glyph,rgba(255,255,255,0.8))}',
         // tabular-nums so 9 and 10 do not shuffle the titles sideways.
         '.rw .num{font-size:15px;font-weight:600;text-align:center;',
-        '  font-variant-numeric:tabular-nums;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+        '  font-variant-numeric:tabular-nums;color:' + window.hkCards.v('ink-3') + '}',
         '.rw .txt{min-width:0}',
         '.rw .t1{font-size:15px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));overflow:hidden;',
+        '  color:' + window.hkCards.v('ink') + ';overflow:hidden;',
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.rw .t2{margin-top:1px;font-size:13px;font-weight:500;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));overflow:hidden;',
+        '  color:' + window.hkCards.v('ink-2') + ';overflow:hidden;',
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.shelf{margin:0 0 20px 0}',
         // THE MUSIC PAGE (`layout: music`): the card is the page's right
@@ -393,7 +393,14 @@
         ':host([music][flow]) .srow .route .full > span{font-size:12.5px}',
         ':host([music][flow]) .srow .route ha-icon{--mdc-icon-size:18px;width:18px;height:18px}',
         ':host([music][flow]) .srow .search{padding:0 18px}',
-        '.route .num{display:none;min-width:22px;height:22px;border-radius:11px;background:var(--hk-key,rgba(255,255,255,0.18));font-size:13px;font-weight:700;',
+        // ...ON THE PLAYLISTS' COLUMNS (2026-10-13): the search and Plays on
+        // each take a column of the two-up pills under them, the same 14 px
+        // apart, so their edges line up at any phone's width (they were each
+        // their own width). Searching, the field takes the row again (below).
+        ':host([music][flow]) .srow:not(.open){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px}',
+        ':host([music][flow]) .srow:not(.open) .route{max-width:none;min-width:0}',
+        ':host([music][flow]) .srow:not(.open) .route .full{flex:1 1 auto}',
+        '.route .num{display:none;min-width:22px;height:22px;border-radius:11px;background:' + window.hkCards.v('key-strong') + ';font-size:13px;font-weight:700;',
         '  align-items:center;justify-content:center;padding:0 6px;box-sizing:border-box}',
         '.route.set .num{background:rgba(29,20,38,0.12)}',
         // ...on a phone, searching: the glyph and the count, the field the rest
@@ -401,7 +408,7 @@
         ':host([music][flow]) .srow.open .route .num{display:flex}',
         ':host([music][flow]) .srow.open .route{padding:0 14px 0 12px;gap:6px}',
         ':host([music][flow]) .srow.open .route > svg{display:none}',
-        ':host([music]) .bar .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px;font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        ':host([music]) .bar .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px;font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
         ':host([music]) .bar .nextnote:empty{display:none}',
         ':host([music]) .bar .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
         // (14 px of room each side for the tiles' shadows -- a scroller clips
@@ -412,7 +419,7 @@
         // ...no more room than the page's own gutter: a phone's is 12 px, and
         // 14 ran the list 2 px past each side of the screen (the page could
         // be nudged sideways)
-        '@media (max-width:640px){:host([music]) [data-hk-role="body"]{padding-left:12px;padding-right:12px;margin:0 -12px}}',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){:host([music]) [data-hk-role="body"]{padding-left:12px;padding-right:12px;margin:0 -12px}}',
         C.shadeCss(':host([music]) ha-card'),
         // ...its Your Playlists (the page's rootExtra): the categories' tile
         '.yp{margin:0 0 22px 0}',
@@ -423,10 +430,10 @@
         '.yp .yph{display:flex;align-items:center;gap:12px;margin:0 0 14px 2px}',
         '.yp .yph h3{margin:0;flex:none}',
         '.route{margin-left:auto;min-width:0;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border-radius:17px;',
-        '  background:var(--hk-key,rgba(255,255,255,0.10));border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:var(--hk-ink,rgba(255,255,255,0.94))}',
-        '.route:active{background:var(--hk-key,rgba(255,255,255,0.18))}',
+        '  background:' + window.hkCards.v('key') + ';border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:' + window.hkCards.v('ink') + '}',
+        '.route:active{background:' + window.hkCards.v('key-strong') + '}',
         '.route ha-icon{--mdc-icon-size:18px;width:18px;height:18px;flex:none;display:flex}',
-        '.route span{font-size:13px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));flex:none}',
+        '.route span{font-size:13px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';flex:none}',
         '.route b{font-size:14px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.route svg{width:12px;height:12px;flex:none;fill:none;stroke:var(--hk-glyph,rgba(255,255,255,0.6));stroke-width:3;stroke-linecap:round;stroke-linejoin:round}',
         // PICKED ROOMS FOR THE NEXT MUSIC: the pill white, its X back to what plays
@@ -435,17 +442,17 @@
         '.route .rx{width:22px;height:22px;border-radius:50%;background:rgba(29,20,38,0.12);display:flex;align-items:center;justify-content:center;margin-right:-5px;flex:none}',
         '.route .rx svg{width:10px;height:10px;stroke:#1d1426}',
         '.yp .yph{flex-wrap:wrap;row-gap:8px}',
-        '.yp .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px 14px;font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '.yp .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px 14px;font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
         '.yp .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
         '.yp .it.cat.on{background:#fff;color:#1c1c1e}',
         '.yp .it.cat.on ha-icon,.yp .it.cat.on .txt{color:#1c1c1e}',
         '.yp .it.cat.busy{opacity:.55}',
         '.yp .opts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px}',
         '.yp .opt{height:36px;padding:0 16px;border-radius:18px;display:flex;align-items:center;font-size:14px;font-weight:600;cursor:pointer;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));border:1.5px solid var(--hk-line,rgba(255,255,255,0.35));box-sizing:border-box}',
-        '.libh{margin:4px 0 10px 2px;font-size:16px;font-weight:600;letter-spacing:-0.2px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '  color:' + window.hkCards.v('ink') + ';border:1.5px solid ' + window.hkCards.v('mark') + ';box-sizing:border-box}',
+        '.libh{margin:4px 0 10px 2px;font-size:16px;font-weight:600;letter-spacing:-0.2px;color:' + window.hkCards.v('ink') + '}',
         '.shelf h3,.sec h3{margin:0 0 10px 2px;font-size:16px;font-weight:600;',
-        '  letter-spacing:-0.2px;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '  letter-spacing:-0.2px;color:' + window.hkCards.v('ink') + '}',
         // A SCROLLER, not a wrapping grid: a shelf is a glance, and a row
         // that wrapped to three lines would push the categories off the page.
         // THE SCROLLER CLIPS ITS CHILDREN'S SHADOWS, and the padding below is
@@ -492,7 +499,7 @@
         //
         // The search drops to its own full-width row instead. Two rows of bar
         // cost 50px on the one page where the thing you came to do is type.
-        '@media (max-width:640px){',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){',
         '  .bar{row-gap:10px}',
         // TWO COLUMNS, SPELLED OUT. Feeding a flexible track into the
         // variable does NOT work: `repeat(auto-fill, minmax(0,1fr))` is not

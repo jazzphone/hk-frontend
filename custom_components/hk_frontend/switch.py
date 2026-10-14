@@ -57,7 +57,7 @@ class SeasonalDecorations(HkEntity, SwitchEntity):
     def _set(self, on: bool) -> None:
         opts = dict(self._entry.options)
         dash = dict(opts.get(S.CONF_DASHBOARD) or {})
-        dash["sky"] = {**S.merged(opts)["sky"], "decorations": on}
+        dash["sky"] = S.house_stored("sky", {**(dash.get("sky") if isinstance(dash.get("sky"), dict) else {}), "decorations": on})
         # The update listener re-sends the settings to every screen; the
         # entity writes its state when the options change (HkEntity).
         self.hass.config_entries.async_update_entry(
@@ -76,8 +76,8 @@ class PhotoScreensaver(SaverEntity, SwitchEntity, RestoreEntity):
 
     _attr_icon = "mdi:image-multiple"
 
-    def __init__(self, mgr: Any, path: str, title: str) -> None:
-        SaverEntity.__init__(self, mgr, path, title, SWITCH_KEY)
+    def __init__(self, mgr: Any, path: str, title: str, uid: str | None = None) -> None:
+        SaverEntity.__init__(self, mgr, path, title, SWITCH_KEY, uid)
         self._on = False
         self._unlegacy = None
         self._legacy_id: str | None = None
@@ -158,8 +158,8 @@ class BlackScreen(SaverEntity, SwitchEntity, RestoreEntity):
 
     _attr_icon = "mdi:monitor-off"
 
-    def __init__(self, mgr: Any, path: str, title: str) -> None:
-        SaverEntity.__init__(self, mgr, path, title, BLACK_KEY)
+    def __init__(self, mgr: Any, path: str, title: str, uid: str | None = None) -> None:
+        SaverEntity.__init__(self, mgr, path, title, BLACK_KEY, uid)
         self._on = False
         self._brightness: int | None = None
         self._confirmed = False

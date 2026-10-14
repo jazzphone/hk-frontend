@@ -120,11 +120,11 @@ ok('a position slider sends set_cover_position; buttons only for the features th
 // the gesture itself is exercised in test_detail_behaviour.js
 ok('unlocking is a one-second hold; locking (and a jammed retry) is a tap',
    /var HOLD_MS = 1000;/.test(src) && /hold: locked \? \['lock', 'unlock'\] : null/.test(src) &&
-   /tap: open \|\| jammed \? \['lock', 'lock'\] : null/.test(src));
+   /tap: open \|\| jammed \|\| unsure \? \['lock', 'lock'\] : null/.test(src));
 ok('the garage is the lock\'s ring: hold to open, tap to close, tap to stop while it moves',
    !!customElements.get('hk-detail-garage') && /class GaragePanel extends RingPanel/.test(src) &&
    /hold: st === 'closed' && \(f & 1\) \? \['cover', 'open_cover'\] : null/.test(src) &&
-   /tap: st === 'open' && \(f & 2\) \? \['cover', 'close_cover'\] : stop/.test(src));
+   /tap: \(st === 'open' \|\| unsure\) && \(f & 2\) \? \['cover', 'close_cover'\] : stop/.test(src));
 ok('the keyboard cannot unlock or open without a confirmation', /if \(sp\.hold\) C\.confirmSheet\(sp\.ask/.test(src) &&
    /ask: 'Unlock '/.test(src) && /ask: 'Open '/.test(src));
 ok('the thermostat is hk-thermostat-card, bare, with the readings centered in their thirds',
@@ -166,8 +166,11 @@ ok('the vacuum reads the vacuum page\'s sensors, else finds them on its own devi
 ok('a docked vacuum shows no room or progress (those are last run\'s)', /if \(live\) \{\s*var room/.test(src));
 ok('the four commands only where the vacuum supports them', /\(f & c\[3\] \? '' : ' disabled'\)/.test(src));
 ok('a valve is the lock\'s ring, held BOTH ways, never tapped',
-   /class ValvePanel extends RingPanel/.test(src) && /\['valve', 'open_valve'\] : st === 'open' && \(f & 2\) \? \['valve', 'close_valve'\]/.test(src) &&
+   /class ValvePanel extends RingPanel/.test(src) && /\['valve', 'open_valve'\] : \(st === 'open' \|\| unsure\) && \(f & 2\) \? \['valve', 'close_valve'\]/.test(src) &&
    /tap: null,\s*hint: st === 'closed' \? 'Hold to open'/.test(src));
+ok('unknown is no reading, not no control: a switch, lock, garage or valve that has not reported still takes the safe command',
+   /function gone\(s\) \{ return !s \|\| s\.state === 'unavailable'; \}/.test(src) && /this\._tg\.disabled = gone\(s\);/.test(src) &&
+   /bad = jammed \|\| gone\(s\), unsure = st === 'unknown'/.test(src));
 ok('the valve is water blue when it runs, gray when shut', /\.lk\.water \.core\{background:#56bde4\}/.test(src) &&
    /\.lk\.water\.shut \.core\{background:rgba\(255,255,255,0\.22\)\}/.test(src));
 ok('a select is its list (the orange tick on the current row, search past 12)', /function pickList\(/.test(src) &&
@@ -238,9 +241,9 @@ ok('the water heater dial sweeps 270 degrees from the lower left', /A0: 135, SWE
 ok('the water heater ring is the thermostat card\'s ring', (function () {
   var ctl = readFile(HK_ROOT + '/frontend/cards/hk-control.js');
   return /viewBox="0 0 200 172"/.test(ctl) && /_arc\(0, 1, 78\)/.test(ctl) && /r="13"/.test(ctl) &&
-    /\.ring \.trk\{fill:none;stroke:var\(--hk-line,rgba\(255,255,255,\.13\)\);stroke-width:22px/.test(ctl) &&
+    /\.ring \.trk\{fill:none;stroke:\$\{window\.hkCards\.v\('line-strong'\)\};stroke-width:22px/.test(ctl) &&
     /var WD = \{ W: 200, H: 172, CX: 100, CY: 100, R: 78, A0: 135, SWEEP: 270 \}/.test(src) &&
-    /class="kn" r="13"/.test(src) && /\.dl \.trk\{fill:none;stroke:rgba\(255,255,255,\.13\);stroke-width:22px/.test(src) &&
+    /class="kn" r="13"/.test(src) && /\.dl \.trk\{fill:none;stroke:' \+ window\.hkCards\.v\('line-strong'\) \+ ';stroke-width:22px/.test(src) &&
     /max-width:var\(--hk-tstat-ring,300px\)/.test(src) && /water_heater: WIDE/.test(src) &&
     (src.match(/':host\(\[wide\]\) \.dial\{' \+ TSTAT_WIDE \+ '\}'/g) || []).length === 2;
 })());

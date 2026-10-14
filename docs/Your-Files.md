@@ -10,7 +10,7 @@ step: [Making Your Files](Making-Your-Files.md).
 
 ## What you get without them
 
-- **Text** uses Home Assistant’s own font, Roboto. Sizes and spacing were measured against SF Pro, so text sits a little differently, but nothing is cut off or missing.
+- **Text** on an iPhone, iPad or Mac is still SF, the system’s own font. Elsewhere it is Home Assistant’s own font, Roboto: sizes and spacing were measured against SF Pro, so text sits a little differently, but little is cut off and nothing is missing.
 - **Icons** are drawn as the [Material Design Icons](https://pictogrammers.com/library/mdi/) of the same name, read from Home Assistant’s own icon set. The few glyph names that Material Design doesn’t have use a close stand-in (a HomePod is drawn as a speaker, for example).
 - **Weather** shows Material Design’s weather icons, in white (the sun in yellow), instead of the multicolor SF Symbols the Weather app uses.
 - **Settings** → **Repairs** shows *SF Pro font not installed* and *SF Symbols glyphs not installed*, and Setup Check shows a note. Neither is an error.

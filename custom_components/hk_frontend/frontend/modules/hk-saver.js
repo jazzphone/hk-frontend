@@ -94,11 +94,23 @@
 
   // ------------------------------------------------------------ pure helpers
   // (exported on hkSaver._ for tests/test_saver.js)
+  // the mosaic's lines (settings.py MOSAIC_COLORS)
+  var MOSAIC_COLORS = { black: '#000000', white: '#f5f5f2', gray: '#8e8e93', charcoal: '#2c2c2e', cream: '#efe6d2', navy: '#1c2a44' };
+  var CLOCK_BGS = ['black', 'grain', 'gradient', 'aurora', 'ink', 'sky', 'lowpoly', 'topo', 'constellation', 'forecast', 'skyonly', 'photos'];
+  var FOCUS_X = { left: '0%', center: '50%', right: '100%' }, FOCUS_Y = { top: '0%', center: '50%', bottom: '100%' };
+  function shapeCfg(raw, side, fill) {
+    var n = function (v, lo, hi, d) { v = Number(v); return isFinite(v) && v >= lo && v <= hi ? v : d; };
+    return { fill: fill, blur: n(raw[side + '_blur'], 0, 100, 50), dim: n(raw[side + '_dim'], 0, 80, 20),
+             zoom: n(raw[side + '_zoom'], 100, 200, 100),
+             x: FOCUS_X[raw[side + '_x']] ? raw[side + '_x'] : 'center', y: FOCUS_Y[raw[side + '_y']] ? raw[side + '_y'] : 'center' };
+  }
   function readCfg(raw) {
     if (!raw || typeof raw !== 'object') return null;
     var n = function (v, lo, hi, d) { v = Number(v); return isFinite(v) && v >= lo && v <= hi ? v : d; };
     return {
       user: typeof raw.user === 'string' ? raw.user : '',
+      // 1.14: the wall tablet it runs on (hkSettings.tablet()); '' -- by user
+      tablet: typeof raw.tablet === 'string' && /^[a-z0-9_]{0,40}$/.test(raw.tablet) ? raw.tablet : '',
       entity: typeof raw.entity === 'string' && /^(input_boolean|switch)\.[a-z0-9_]+$/.test(raw.entity) ? raw.entity : null,
       photos: typeof raw.photos === 'string' && raw.photos ? raw.photos : 'media-source://media_source/local/photos',
       // 0: only the switch starts it
@@ -107,8 +119,50 @@
       order: raw.order === 'sorted' ? 'sorted' : 'random',
       fill: raw.fill !== false,
       zoom: raw.zoom === true,
-      // photos (the forecast when there are none) or forecast
-      show: raw.show === 'forecast' || raw.show === 'both' ? raw.show : 'photos',
+      // PORTRAIT AND LANDSCAPE PHOTOS, each their own (2026-10-13; settings.py
+      // SAVER_DEFAULTS): whole or filling the screen, the blurred copy's blur
+      // and dim, a zoom and the focus (shapeOf)
+      portrait: shapeCfg(raw, 'portrait', raw.portrait_fill === true),
+      landscape: shapeCfg(raw, 'landscape', raw.fill !== false),
+      // photos (the forecast when there are none), forecast, or clock
+      show: raw.show === 'forecast' || raw.show === 'both' || raw.show === 'clock' ? raw.show : 'photos',
+      // THE CLOCKS (2026-10-13, hk-saverclock.js): Large over the photos or
+      // the forecast (the corner one is a card), one style for both, and
+      // what is behind Show: Clock
+      clock_large: raw.clock !== false && raw.clock_over === 'large',
+      clock_style: typeof raw.clock_style === 'string' ? raw.clock_style : 'classic',
+      clock_bg: CLOCK_BGS.indexOf(raw.clock_bg) >= 0 ? raw.clock_bg : 'gradient',
+      clock_motion: raw.clock_motion === 'still' ? 'still' : 'slow',
+      // the background's Speed (0 still) and Depth (2026-10-13); an older
+      // Motion: Still is Speed 0
+      clock_speed: n(raw.clock_speed, 0, 100, raw.clock_motion === 'still' ? 0 : 35),
+      clock_depth: n(raw.clock_depth, 0, 100, 50),
+      // Night Mode: off, at night (from .. to) or always
+      clock_night: raw.clock_night === 'night' || raw.clock_night === 'always' ? raw.clock_night : 'off',
+      clock_night_from: /^\d\d:\d\d$/.test(raw.clock_night_from || '') ? raw.clock_night_from : '22:00',
+      clock_night_to: /^\d\d:\d\d$/.test(raw.clock_night_to || '') ? raw.clock_night_to : '07:00',
+      clock_24: raw.clock_24 === true,
+      // each face's color: the style's own (hk-saverclock.js checks the id)
+      clock_color: raw.clock_colors && typeof raw.clock_colors === 'object' && typeof raw.clock_colors[raw.clock_style] === 'string'
+        ? raw.clock_colors[raw.clock_style] : '',
+      // THE MOSAIC (2026-10-13): photos in a layout of 2-5 cells (mosaicPlan)
+      mosaic: raw.photo_layout === 'mosaic',
+      mosaic_count: n(raw.mosaic_count, 2, 5, 3),
+      mosaic_gap: raw.mosaic_gap === 'none' || raw.mosaic_gap === 'rounded' ? raw.mosaic_gap : 'thin',
+      mosaic_change: raw.mosaic_change === 'all' ? 'all' : 'one',
+      // its lines: px (0: Spacing's own) and color; Up To: a new number of
+      // photos, 1 to mosaic_count, every mosaic_every minutes
+      mosaic_line: n(raw.mosaic_line, 0, 24, 0),
+      mosaic_color: MOSAIC_COLORS[raw.mosaic_color] ? raw.mosaic_color : 'black',
+      mosaic_random: raw.mosaic_random === true,
+      mosaic_every: n(raw.mosaic_every, 1, 120, 10),
+      // PHOTOS BEHIND THE CLOCK (2026-10-13): the photos as the Photos
+      // settings lay them out, darkened (0-80 %); soft: the blurred copies,
+      // as before. The clock's text over photos: its shadow and outline
+      clock_photo_soft: raw.clock_photo_soft === true,
+      clock_photo_dim: n(raw.clock_photo_dim, 0, 80, 35),
+      clock_text_shadow: n(raw.clock_text_shadow, 0, 100, 40),
+      clock_text_outline: n(raw.clock_text_outline, 0, 100, 0),
       // Photos & Forecast: the forecast after this many photos
       forecast_every: n(raw.forecast_every, 2, 100, 5),
       // the forecast details (the band): on the forecast, and over the photos
@@ -137,11 +191,14 @@
   // and it is signed in as the tablet's user. ?hk_saver=off (and WallPanel's
   // old ?wp_enabled=false, which the house's tools use) turns it off for one
   // page; ?hk_saver=force ignores the user (testing).
-  function gate(cfg, user, search) {
+  function gate(cfg, user, search, tablet) {
     if (!cfg) return false;
     var q = String(search || '');
     if (/[?&]hk_saver=off\b/.test(q) || /[?&]wp_enabled=false\b/.test(q)) return false;
     if (/[?&]hk_saver=force\b/.test(q)) return true;
+    // 1.14: the block names its tablet; this page must be that tablet
+    // (hkSettings.tablet(): its ?hk_tablet=, else its user)
+    if (cfg.tablet) return !!(tablet && tablet === cfg.tablet);
     return !!(cfg.user && user && user === cfg.user);
   }
   // THE PANE down the right: the calendar, the music, or both
@@ -168,10 +225,69 @@
   // How one photo sits on a screen: a portrait photo whole, over a blurred
   // copy of itself; a landscape one filling the screen, or whole (over the
   // copy) when Fill the Screen is off.
-  function fitOf(w, h, fill) {
+  // (`fill`: the landscape choice, as before; `pfill`: the portrait one --
+  // whole unless it is asked for)
+  function fitOf(w, h, fill, pfill) {
     var portrait = h > w;
-    var fit = portrait || !fill ? 'contain' : 'cover';
+    var fit = (portrait ? pfill : fill) ? 'cover' : 'contain';
     return { portrait: portrait, fit: fit, backdrop: fit === 'contain' };
+  }
+  // HOW ONE SHAPE IS LAID OUT (its settings, cfg.portrait / cfg.landscape):
+  // the photo's object-position -- what stays when it is cropped, where it
+  // sits when whole -- doubles as the zoom's origin, so a zoom closes in on
+  // the focus; the zoom is the `scale` property, which composes with Slow
+  // Zoom's transform. All the browser's, once per photo.
+  function layoutOf(sc) {
+    sc = sc || {};
+    var pos = (FOCUS_X[sc.x] || '50%') + ' ' + (FOCUS_Y[sc.y] || '50%');
+    return { pos: pos, zoom: String((sc.zoom || 100) / 100), dim: String(1 - (sc.dim == null ? 20 : sc.dim) / 100),
+             small: backdropSmall(sc.blur == null ? 50 : sc.blur) };
+  }
+  // THE MOSAIC'S LAYOUTS (2026-10-13): for each count, a few tidy ones --
+  // cells as [x, y, w, h] fractions of the screen -- one picked at random
+  // each time (never the same twice running). No cell is very wide or very
+  // tall on a 16:10 tablet: a photo crops sensibly into every one.
+  var MOSAICS = {
+    2: [[[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]], [[0, 0, 0.62, 1], [0.62, 0, 0.38, 1]], [[0, 0, 0.38, 1], [0.38, 0, 0.62, 1]]],
+    3: [[[0, 0, 0.6, 1], [0.6, 0, 0.4, 0.5], [0.6, 0.5, 0.4, 0.5]], [[0, 0, 0.4, 0.5], [0, 0.5, 0.4, 0.5], [0.4, 0, 0.6, 1]],
+        [[0, 0, 1 / 3, 1], [1 / 3, 0, 1 / 3, 1], [2 / 3, 0, 1 / 3, 1]], [[0, 0, 1, 0.56], [0, 0.56, 0.5, 0.44], [0.5, 0.56, 0.5, 0.44]]],
+    4: [[[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5], [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]],
+        [[0, 0, 0.58, 1], [0.58, 0, 0.42, 1 / 3], [0.58, 1 / 3, 0.42, 1 / 3], [0.58, 2 / 3, 0.42, 1 / 3]],
+        [[0, 0, 0.32, 0.5], [0, 0.5, 0.32, 0.5], [0.32, 0, 0.68, 0.6], [0.32, 0.6, 0.68, 0.4]],
+        [[0, 0, 0.3, 1], [0.3, 0, 0.45, 1], [0.75, 0, 0.25, 0.5], [0.75, 0.5, 0.25, 0.5]]],
+    5: [[[0, 0, 0.3, 0.5], [0, 0.5, 0.3, 0.5], [0.3, 0, 0.4, 1], [0.7, 0, 0.3, 0.5], [0.7, 0.5, 0.3, 0.5]],
+        [[0, 0, 0.5, 1], [0.5, 0, 0.25, 0.5], [0.75, 0, 0.25, 0.5], [0.5, 0.5, 0.25, 0.5], [0.75, 0.5, 0.25, 0.5]],
+        [[0, 0, 1 / 3, 0.55], [1 / 3, 0, 1 / 3, 0.55], [2 / 3, 0, 1 / 3, 0.55], [0, 0.55, 0.5, 0.45], [0.5, 0.55, 0.5, 0.45]]]
+  };
+  // a layout for `n` photos on a W x H screen: its cells, each tall or not
+  function mosaicPlan(n, W, H, rnd, last) {
+    var set = MOSAICS[Math.max(2, Math.min(5, n))], i = Math.floor((rnd || Math.random)() * set.length);
+    if (set.length > 1 && i === last) i = (i + 1) % set.length;
+    return { idx: i, cells: set[i].map(function (c) { return { x: c[0], y: c[1], w: c[2], h: c[3], tall: c[3] * H > c[2] * W }; }) };
+  }
+  // which photo goes in which cell: the portraits in the tall cells first
+  // (the tallest first), the landscapes in the wide ones -> photo index per cell
+  function mosaicAssign(cells, portrait, W, H) {
+    var cellOrder = cells.map(function (c, i) { return i; })
+      .sort(function (a, b) { return (cells[b].h * H) / (cells[b].w * W) - (cells[a].h * H) / (cells[a].w * W); });
+    var ports = [], lands = [];
+    portrait.forEach(function (p, i) { (p ? ports : lands).push(i); });
+    var out = [];
+    cellOrder.forEach(function (ci) { out[ci] = cells[ci].tall ? (ports.length ? ports.shift() : lands.shift()) : (lands.length ? lands.shift() : ports.shift()); });
+    // (the cells sorted tallest first: what is left over takes what is left)
+    return out;
+  }
+  // the part of an iw x ih photo that covers a cw x ch cell: its focus (fx,
+  // fy 0..1) kept, `zoom` closer in -> the source rectangle
+  function coverRect(iw, ih, cw, ch, fx, fy, zoom) {
+    var k = Math.max(cw / iw, ch / ih) * (zoom || 1), sw = cw / k, sh = ch / k;
+    return { sx: Math.max(0, Math.min(iw - sw, (iw - sw) * fx)), sy: Math.max(0, Math.min(ih - sh, (ih - sh) * fy)), sw: Math.min(iw, sw), sh: Math.min(ih, sh) };
+  }
+  var FOCUS_F = { left: 0, top: 0, center: 0.5, right: 1, bottom: 1 };
+  // the blurred copy's blur is its size: drawn this many pixels wide and
+  // scaled up -- 50 % is the 24 px it always was; 0 % the 96 px copy itself
+  function backdropSmall(blur) {
+    return Math.max(4, Math.round(96 * Math.pow(2, -Math.max(0, Math.min(100, blur)) / 25)));
   }
   function shuffle(list, rnd) {
     var a = list.slice();
@@ -286,6 +402,32 @@
   var force = false;           // hkSaver.force(true): ignore the user (tests)
 
   function user() { var h = hassNow(); return h && h.user && h.user.name; }
+  // this page's wall tablet (1.14, hkSettings.tablet()), its id or ''
+  function tabletNow() {
+    var HS = window.hkSettings;
+    if (HS && typeof HS.tablet === 'function') return HS.tablet(hassNow()) || null;
+    // a settings module from before 1.14: the screen's own, as it was
+    var all = HS && HS.get ? HS.get('boards', null) : null;
+    var b = all && all[String(location.pathname).split('/')[1] || ''];
+    if (!b) return null;
+    var out = { legacy: true };
+    Object.keys(b).forEach(function (k) { out[k] = b[k]; });
+    return out;
+  }
+  function tabletId() { var t = tabletNow(); return t && !t.legacy ? t.id : ''; }
+  // THIS PAGE IS THE BLOCK'S OWN TABLET: the one it names (1.14), else
+  // signed in as its user -- the rule for every write and report
+  function mine() {
+    if (!cfg) return false;
+    if (cfg.tablet) return tabletId() === cfg.tablet;
+    return !!cfg.user && user() === cfg.user;
+  }
+  // which tablet a report is about: its id, else (before 1.14) the screen
+  function whoMsg(msg) {
+    var id = (cfg && cfg.tablet) || '';
+    if (id) msg.tablet = id; else msg.dashboard = String(location.pathname).split('/')[1] || '';
+    return msg;
+  }
   // IN A FRAME (HK Settings' preview) it never runs on its own -- no idle
   // start, no switch, no touches -- only as the preview: the frame's query
   // (?wp_enabled=false) does not survive the dashboard's own navigation, and
@@ -293,7 +435,7 @@
   var framed = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
   function allowed() {
     if (framed && !previewOn) return false;
-    return !!cfg && (force || gate(cfg, user(), location.search));
+    return !!cfg && (force || gate(cfg, user(), location.search, tabletId()));
   }
   function held() {
     // hk-idle is held while a detail sheet is open or Live TV plays: the
@@ -312,7 +454,7 @@
     if (!cfg || !cfg.entity) return;
     // ONLY THE TABLET'S OWN USER WRITES IT -- never a forced test page
     // (?hk_saver=force, hkSaver.force()), whatever the gate lets it show
-    if (!cfg.user || user() !== cfg.user || /[?&]hk_saver=force\b/.test(location.search) || force) return;
+    if (!mine() || /[?&]hk_saver=force\b/.test(location.search) || force) return;
     var h = hassNow();
     if (!h || switchState() === want) return;
     pendingSwitch = { want: want, until: Date.now() + ECHO_MS };
@@ -326,12 +468,11 @@
   var touchSent = 0;
   function reportTouch() {
     if (!cfg || !cfg.entity || !/^switch\./.test(cfg.entity)) return;
-    if (!cfg.user || user() !== cfg.user || force || /[?&]hk_saver=force\b/.test(location.search)) return;
+    if (!mine() || force || /[?&]hk_saver=force\b/.test(location.search)) return;
     var now = Date.now();
     if (now - touchSent < 10000) return;
     touchSent = now;
-    var dash = String(location.pathname).split('/')[1] || '';
-    callWS({ type: 'hk_frontend/screensaver/touch', dashboard: dash }).catch(function () { /* older integration */ });
+    callWS(whoMsg({ type: 'hk_frontend/screensaver/touch' })).catch(function () { /* older integration */ });
   }
 
   // Every new hass: the switch decides, unless it is still echoing our own
@@ -453,7 +594,7 @@
         // the edges of the PHOTOS: beside the calendar pane, its left edge
         var z = zoneOf(x, (window.innerWidth || 0) - (paneUp ? paneW : 0));
         // (on the forecast or the music a tap anywhere else wakes: there is no photo to step)
-        if (z && mode !== 'forecast' && !muShowing) { pressStop = false; saverTouched(); if (z === 'next') nextPhoto(); else previousPhoto(); }
+        if (z && mode === 'photos' && !muShowing) { pressStop = false; saverTouched(); if (z === 'next') nextPhoto(); else previousPhoto(); }
         else stop('touch');
         return;
       }
@@ -509,8 +650,10 @@
     // <body>, outside the view its theme is put on, so it does not inherit
     // it: it fell back to Roboto, whose weight-200 forecast numeral looks
     // squeezed beside the Weather page's. build() copies the view's font
-    // onto --hk-saver-font; the theme's root variable is the fallback.
-    '  font-family:var(--hk-saver-font,var(--ha-font-family-body,Roboto,Noto,sans-serif))}',
+    // onto --hk-saver-font; the house's (hk-base.js --hk-font-body) is the
+    // fallback -- and the cards in it read it too.
+    '  --ha-font-family-body:var(--hk-saver-font,var(--hk-font-body));',
+    '  font-family:var(--hk-saver-font,var(--hk-font-body))}',
     ':host([on]){opacity:1}',
     // GETTING READY (2026-10-09): barely there -- too faint to see, but drawn,
     // so the first photo's layer is rastered before the fade shows it. From
@@ -554,9 +697,17 @@
     // THE BLURRED COPY BEHIND A PORTRAIT PHOTO: drawn once into a small canvas
     // (drawBackdrop) and scaled up -- the look of the old 40 px blur of the
     // whole photo, at a sliver of the cost to raster (2026-10-09)
-    '.ph canvas.bg{position:absolute;left:-7.5%;top:-7.5%;width:115%;height:115%;display:block;filter:brightness(80%)}',
+    '.ph canvas.bg{position:absolute;left:-7.5%;top:-7.5%;width:115%;height:115%;display:block;filter:brightness(var(--bgdim,.8))}',
     '.ph canvas.bg[hidden]{display:none}',
-    '.ph img.fg{object-fit:var(--fit,cover)}',
+    // the mosaic's cells (paintMosaic): canvases at the cells' own size
+    '.ph.mo img.fg,.ph.mo canvas.bg{display:none}',
+    '.ph .mowrap{position:absolute;inset:0;box-sizing:border-box}',
+    '.ph[pw] .mowrap{right:var(--hk-pane-w,0px)}',
+    '.ph .mocell{position:absolute;overflow:hidden;background:#0b0b0d}',
+    '.ph .mowrap.round .mocell{border-radius:16px}',
+    '.ph .mocell canvas{position:absolute;inset:0;width:100%;height:100%;display:block;transition:opacity ' + CROSSFADE_MS + 'ms ease}',
+    '.ph.mo.zoom .mocell canvas{animation:hk-saver-zoom var(--zd,33s) linear forwards}',
+    '.ph img.fg{object-fit:var(--fit,cover);object-position:var(--pos,50% 50%);transform-origin:var(--pos,50% 50%);scale:var(--zm,1)}',
     '.ph.zoom img.fg{animation:hk-saver-zoom var(--zd,33s) linear forwards}',
     // THE PHOTOS' SCRIM, under the forecast details over them (band_photos):
     // black, toward the bottom, chosen on the tablet 2026-10-04. Painted into
@@ -579,6 +730,30 @@
     // with a deep shadow, everything aligned to the left edge. The now-playing
     // and timer cards pin themselves to their corners (position:fixed);
     // nothing here may transform or filter, or "fixed" would mean "in here".
+    // THE CLOCK (Show: Clock, or Large): under the corner cards; clear of
+    // the forecast's details and the side pane; gone under the music
+    '.ck{position:absolute;inset:0;z-index:3;pointer-events:none;transition:opacity ' + CROSSFADE_MS + 'ms ease}',
+    ':host([band]) .ck{bottom:var(--hk-ss-corner-bottom,0px)}',
+    ':host([pane]) .ck{right:var(--hk-pane-w,' + PANE_W + 'px)}',
+    ':host([muslide]) .ck{opacity:0}',
+    // ...and the corner clock tells the time in its place (Show: Clock or a
+    // Large clock with Music First: the slide covered every clock there)
+    '.info > [muonly]{display:none}',
+    ':host([muslide]) .info > [muonly]{display:block;animation:hk-saver-muonly ' + CROSSFADE_MS + 'ms ease both}',
+    '@keyframes hk-saver-muonly{from{opacity:0}to{opacity:1}}',
+    ':host([ckgen]) .ph,:host([ckgen]) .fc{display:none}',
+    // PHOTOS BEHIND THE CLOCK: the photos themselves (or, Soft, their
+    // blurred copies), under a dark wash of their own Darken amount
+    ':host([ckphotos][cksoft]) .ph img.fg{opacity:0}',
+    ':host([ckphotos]) .ph::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:rgba(0,0,0,var(--hk-ckdim,.35))}',
+    // Today's own weather and music: the corners' step aside
+    ':host([ckown]) .info hk-weather-strip-card,:host([ckown]) .info hk-screensaver-now-card{display:none}',
+    // NIGHT MODE: nothing behind the clock; everything one dim red -- a
+    // multiply wash over all of it (white becomes the red, black stays)
+    ':host([cknight]) .ph,:host([cknight]) .fc,:host([cknight]) .fcb,:host([cknight]) .ck .ckbg,:host([cknight]) .ck .ckscrim,',
+    ':host([cknight]) .ck .ckgrain,:host([cknight]) .ck .cklight{visibility:hidden}',
+    '.nightwash{position:absolute;inset:0;z-index:8;pointer-events:none;background:#b3261e;mix-blend-mode:multiply;display:none}',
+    ':host([cknight]) .nightwash{display:block}',
     '.info{position:absolute;z-index:4;left:0;top:0;width:var(--hk-saver-card-width,' + DEFAULT_CARD_WIDTH + 'px);',
     '  padding:31px 0 0 30px;box-sizing:content-box;text-align:left;display:flex;flex-direction:column;gap:9px;',
     '  --ha-card-background:none;--ha-card-box-shadow:none;--ha-card-border-width:0px;',
@@ -858,6 +1033,7 @@
     if (HC && HC.shade) HC.shade(sc, pane);
     paneEl = pane; paneSc = sc; paneCard = null;
     var info = document.createElement('div'); info.className = 'info'; root.appendChild(info);
+    var nw = document.createElement('div'); nw.className = 'nightwash'; root.appendChild(nw);
     var blk = document.createElement('div'); blk.className = 'blk'; root.appendChild(blk);
     // taps on the screensaver itself: the window listener above has already
     // decided (edge zone or stop); here they are only kept from reaching
@@ -891,6 +1067,7 @@
     displayLayer = null;
     leaveForecast();
     leaveMusic();
+    leaveClock();
     if (unsubHass) { unsubHass(); unsubHass = null; }
     cards = [];
     if (host) {
@@ -916,6 +1093,8 @@
         try {
           var el = document.createElement(tag);
           el.__hkSaverConf = c;
+          // (the corner clock under a big one: there only under the music)
+          if (c.music_only) el.setAttribute('muonly', '');
           el.setConfig(cardConf(c, tag));
           if (h) el.hass = h;
           // IN THE ORDER WRITTEN, whenever each one is defined: a page
@@ -945,7 +1124,10 @@
     if (paneUp && tag === 'hk-timer-strip-card') conf.scale = Math.round(1.15 * scaleOf() * 100) / 100;
     return conf;
   }
-  function onHassCards(h) { cards.forEach(function (c) { try { c.hass = h; } catch (e) { /* ignore */ } }); }
+  function onHassCards(h) {
+    cards.forEach(function (c) { try { c.hass = h; } catch (e) { /* ignore */ } });
+    if (ckCtl) ckCtl.setHass(h);
+  }
 
   // ------------------------------------------------------------ start / stop
   function start(reason) {
@@ -1017,10 +1199,14 @@
     if (reason !== 'switch') writeSwitch('on');
     resetForecast();            // an element still fading out is reused
     setupPane();
-    if (cfg.show === 'forecast') enterForecast();
+    leaveClock();
+    if (cfg.show === 'clock') enterClock();
+    else if (cfg.show === 'forecast') enterForecast();
     // MUSIC FIRST, music playing: straight into it
     else if (cfg.music_first && musicPlaying()) { updateBand(); if (!showMusicSlide(true)) showNext(true); }
     else { updateBand(); showNext(true); }
+    // A LARGE CLOCK over the photos or the forecast (the corner one is a card)
+    if (cfg.show !== 'clock' && cfg.clock_large) mountClock('none');
     return true;
   }
   function stop(reason) {
@@ -1292,17 +1478,26 @@
     });
   }
   var busy = false, queued = null;
+  // HK SETTINGS' PREVIEW of Portrait or Landscape Photos (2026-10-13): a
+  // photo of that shape (previewShape), and the same one again while the
+  // settings change -- each change restarts the preview (restartPreview),
+  // and a new photo every time would make a crop impossible to judge. Each
+  // photo's shape is remembered once loaded, so the next pick skips the
+  // others without loading them. Only the preview: a tablet keeps no photo.
+  var lastPh = null, previewShape = null, shapes = {};
+  function shapeOfPh(ph) { return ph.h > ph.w ? 'portrait' : 'landscape'; }
   function showNext(first) { advance(function () { return deck && deck.next(); }, first); }
-  function nextPhoto() { advance(function () { return deck && deck.next(); }); }
-  function previousPhoto() { advance(function () { return deck && deck.previous(); }); }
+  function nextPhoto() { moTap = true; advance(function () { return deck && deck.next(); }); }
+  function previousPhoto() { moTap = true; advance(function () { return deck && deck.previous(); }); }
   function advance(pick, first) {
-    if (!on || mode === 'forecast') return;
+    if (!on || mode !== 'photos') return;
     if (busy) { queued = pick; return; }
     busy = true;
     var run = photoRun, saverRoot = root;
     function active() { return on && run === photoRun && root === saverRoot; }
     if (slideT) { clearTimeout(slideT); slideT = null; }
-    var tries = 0;
+    var tries = 0, looks = 0;
+    var want = previewOn && previewShape ? previewShape : null;
     function attempt() {
       return listPhotos().then(function (d) {
         if (!active()) return null;
@@ -1311,9 +1506,17 @@
           if (on && (cfg.fallback || cfg.show === 'both')) enterForecast();
           return null;
         }
+        // the preview, restarted by a change: the same photo again
+        if (first && previewOn && lastPh && (!want || shapeOfPh(lastPh) === want)) return lastPh;
         var item = pick();
+        // the preview's shape: skip the photos known to be the other one
+        for (var k = 0; want && item && shapes[item.id] && shapes[item.id] !== want && k < d.items.length; k++) item = d.next();
         if (!item) return null;
-        return load(item).catch(function (e) {
+        return load(item).then(function (ph) {
+          shapes[item.id] = shapeOfPh(ph);
+          if (want && shapes[item.id] !== want && ++looks < 12 && active()) { pick = function () { return d.next(); }; return attempt(); }
+          return ph;
+        }, function (e) {
           if (!active()) return null;
           failed++;
           if (++tries < 3) { pick = function () { return d.next(); }; return attempt(); }
@@ -1321,15 +1524,44 @@
         });
       });
     }
-    attempt().then(function (ph) {
-      if (ph && active()) { paint(ph, first); return true; }
+    // THE MOSAIC: its photos, all of them for a new layout -- or one, for a
+    // cell of the one on screen (Changes: One at a Time; a tap on an edge
+    // always brings a whole new mosaic)
+    function attemptMosaic() {
+      return listPhotos().then(function (d) {
+        if (!active()) return null;
+        if (!d || !d.items || !d.items.length) {
+          if (on && (cfg.fallback || cfg.show === 'both')) enterForecast();
+          return null;
+        }
+        var n = Math.min(moCount(), d.items.length);
+        if (n < 2) return attempt();
+        var one = !first && !moTap && cfg.mosaic_change === 'one' && moState && moState.n === n && moState.left > 0 && moState.layer === displayLayer;
+        moTap = false;
+        var want = one ? 1 : n, got = [], misses = 0;
+        var step = function () {
+          if (got.length >= want || !active()) return got;
+          var item = got.length ? d.next() : pick();
+          if (!item) return got;
+          return load(item).then(function (ph) { shapes[item.id] = shapeOfPh(ph); got.push(ph); return step(); },
+                                 function () { failed++; return ++misses < 4 ? step() : got; });
+        };
+        return Promise.resolve(step()).then(function (phs) {
+          if (!active() || !phs.length) return null;
+          if (one) return { mosaicOne: phs[0] };
+          return phs.length >= 2 ? { mosaic: phs } : phs[0];
+        });
+      });
+    }
+    (mosaicOn() ? attemptMosaic() : attempt()).then(function (ph) {
+      if (ph && active()) { if (ph.mosaic || ph.mosaicOne) paintMosaic(ph, first); else paint(ph, first); return true; }
       return false;
     }).catch(function () { return false; }).then(function (painted) {
       if (!active()) return;
-      if (painted && mode !== 'forecast') { hideForecastSlide(); hideMusicSlide(); }
+      if (painted && mode === 'photos') { hideForecastSlide(); hideMusicSlide(); }
       busy = false;
       if (!on) return;
-      if (mode === 'forecast') { queued = null; return; }
+      if (mode !== 'photos') { queued = null; return; }
       if (queued) { var q = queued; queued = null; advance(q); return; }
       schedule();
     });
@@ -1402,7 +1634,7 @@
   // one: on a Mac or an iPad the copy was the photo at 96 px, enlarged --
   // pixelated behind the pane (HK Settings' preview, 2026-10-10).
   var BACKDROP_W = 96, BACKDROP_SMALL = 24;
-  function drawBackdrop(c, img) {
+  function drawBackdrop(c, img, small) {
     if (!c || !img) return;
     var W = Math.max(1, window.innerWidth || 1280), H = Math.max(1, window.innerHeight || 800);
     c.width = BACKDROP_W; c.height = Math.max(1, Math.round(BACKDROP_W * H / W));
@@ -1410,8 +1642,8 @@
     if (!ctx) return;
     var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
     if (!iw || !ih) return;
-    var t = document.createElement('canvas');
-    t.width = BACKDROP_SMALL; t.height = Math.max(1, Math.round(BACKDROP_SMALL * H / W));
+    var t = document.createElement('canvas'), sw = small || BACKDROP_SMALL;
+    t.width = sw; t.height = Math.max(1, Math.round(sw * H / W));
     var tc = t.getContext && t.getContext('2d');
     if (!tc) return;
     var k = Math.max(t.width / iw, t.height / ih), dw = iw * k, dh = ih * k;
@@ -1426,10 +1658,15 @@
     if (fadeDone) fadeDone();
     var layers = root.querySelectorAll('.ph');
     var next = layers[1 - layer];
-    var fit = fitOf(ph.w, ph.h, cfg.fill);
     var bg = next.querySelector('canvas.bg'), fg = next.querySelector('img.fg');
     next.classList.remove('zoom');
-    next.style.setProperty('--fit', fit.fit);
+    // (a mosaic's cells, from before: gone)
+    next.classList.remove('mo');
+    next.querySelectorAll('.mowrap').forEach(function (w) { w.querySelectorAll('canvas').forEach(clearCanvas); w.remove(); });
+    moState = null;
+    var L = layOut(next, ph), fit = L.fit, lay = L.lay;
+    // (the preview keeps it, to show again as its settings change)
+    lastPh = previewOn ? ph : null;
     fg.src = ph.url;
     // (with the calendar pane the blurred copy is always there: it is the
     // pane's background)
@@ -1438,7 +1675,7 @@
     // ([pw]), so the one fading out never moves
     if (mus.paneNext !== null) { var pn = mus.paneNext; mus.paneNext = null; setPane(pn); }
     setAttr(next, 'pw', paneUp);
-    if (fit.backdrop || paneUp) { drawBackdrop(bg, ph.img); bg.hidden = false; } else { bg.hidden = true; clearCanvas(bg); }
+    if (fit.backdrop || paneUp || ckPhotos()) { drawBackdrop(bg, ph.img, lay.small); bg.hidden = false; } else { bg.hidden = true; clearCanvas(bg); }
     if (cfg.zoom) {
       next.style.setProperty('--zd', (cfg.each_photo * 1000 + CROSSFADE_MS) + 'ms');
       void next.offsetWidth;               // restart the zoom from 1
@@ -1451,6 +1688,136 @@
     shown++; sinceFc++; lastPhoto = ph.item.title || ph.item.id;
   }
 
+  // ------------------------------------------------------------ the mosaic
+  // A MOSAIC ON A LAYER (2026-10-13): each photo drawn into its own cell's
+  // canvas, at the cell's size -- the full photo is dropped once it is drawn,
+  // so five photos cost about what one full-screen photo does -- cropped by
+  // its shape's Focus and Zoom. The two layers cross-fade as photos do.
+  // Changes: One at a Time swaps one cell at a time in place (moState).
+  var moState = null, moTap = false;
+  function mosaicOn() { return !!(cfg && cfg.mosaic && mode === 'photos' && !(ckPhotos() && cfg.clock_photo_soft)); }
+  function moGap() {
+    if (cfg.mosaic_gap === 'none') return 0;
+    return cfg.mosaic_line > 0 ? cfg.mosaic_line : cfg.mosaic_gap === 'rounded' ? 12 : 3;
+  }
+  // UP TO (2026-10-13): how many photos the mosaic shows now -- its own
+  // number, or with Up To one picked from 1 to it, kept for mosaic_every
+  // minutes (another each time); 1 is one photo, full screen
+  var moRand = null;
+  function moCount() {
+    if (!cfg.mosaic_random) { moRand = null; return cfg.mosaic_count; }
+    var now = clock.now();
+    if (!moRand || now >= moRand.until || moRand.max !== cfg.mosaic_count) {
+      var max = cfg.mosaic_count, prev = moRand ? moRand.n : 0, k = prev, tries = 0;
+      while (k === prev && tries++ < 8) k = 1 + Math.floor(Math.random() * max);
+      moRand = { n: k, max: max, until: now + cfg.mosaic_every * 60000 };
+    }
+    return moRand.n;
+  }
+  function moDraw(cell, ph) {
+    var r = cell.getBoundingClientRect ? cell.getBoundingClientRect() : { width: 0, height: 0 };
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var cw = Math.max(1, Math.round((r.width || 200) * dpr)), ch = Math.max(1, Math.round((r.height || 200) * dpr));
+    var cv = document.createElement('canvas');
+    cv.width = cw; cv.height = ch;
+    var sc = shapeOfPh(ph) === 'portrait' ? cfg.portrait : cfg.landscape, x = cv.getContext && cv.getContext('2d');
+    if (x) {
+      var R = coverRect(ph.w, ph.h, cw, ch, FOCUS_F[(sc || {}).x] != null ? FOCUS_F[sc.x] : 0.5, FOCUS_F[(sc || {}).y] != null ? FOCUS_F[sc.y] : 0.5, ((sc || {}).zoom || 100) / 100);
+      x.imageSmoothingQuality = 'high';
+      try { x.drawImage(ph.img, R.sx, R.sy, R.sw, R.sh, 0, 0, cw, ch); } catch (e) { /* not drawable */ }
+    }
+    return cv;
+  }
+  function paintMosaic(m, first) {
+    if (!root) return;
+    if (fadeDone) fadeDone();
+    // ONE CELL, in place: the new photo fades in over the old one
+    if (m.mosaicOne && moState && moState.layer === displayLayer) {
+      var cells = moState.layer.querySelectorAll('.mocell');
+      var choices = [];
+      for (var i = 0; i < cells.length; i++) if (i !== moState.lastCell) choices.push(i);
+      var ci = choices[Math.floor(Math.random() * choices.length)], cell = cells[ci];
+      var old = cell.querySelector('canvas'), cv = moDraw(cell, m.mosaicOne);
+      cv.style.opacity = '0';
+      cell.appendChild(cv);
+      void cv.offsetWidth;
+      cv.style.opacity = '1';
+      setTimeout(function () { if (old && old.parentNode) { clearCanvas(old); old.parentNode.removeChild(old); } }, CROSSFADE_MS + 100);
+      moState.lastCell = ci; moState.left--;
+      shown++; sinceFc++;
+      return;
+    }
+    // a one-cell change whose mosaic is no longer on screen (the music slide
+    // took the screen while its photo loaded): that photo on its own
+    if (m.mosaicOne) { paint(m.mosaicOne, first); return; }
+    var layers = root.querySelectorAll('.ph'), next = layers[1 - layer];
+    next.querySelectorAll('.mowrap').forEach(function (w) { w.querySelectorAll('canvas').forEach(clearCanvas); w.remove(); });
+    next.classList.remove('zoom');
+    next.classList.add('mo');
+    var fg = next.querySelector('img.fg'), bgc = next.querySelector('canvas.bg');
+    if (fg) fg.removeAttribute('src');
+    if (bgc) { bgc.hidden = true; clearCanvas(bgc); }
+    if (mus.paneNext !== null) { var pn = mus.paneNext; mus.paneNext = null; setPane(pn); }
+    setAttr(next, 'pw', paneUp);
+    var W = Math.max(1, (window.innerWidth || 1280) - (paneUp ? paneW || 0 : 0)), H = Math.max(1, window.innerHeight || 800);
+    var plan = mosaicPlan(m.mosaic.length, W, H, Math.random, moState ? moState.idx : -1);
+    var pick = mosaicAssign(plan.cells, m.mosaic.map(function (ph) { return shapeOfPh(ph) === 'portrait'; }), W, H);
+    var g = moGap(), wrap = document.createElement('div');
+    wrap.className = 'mowrap' + (cfg.mosaic_gap === 'rounded' ? ' round' : '');
+    wrap.style.padding = (g / 2) + 'px';
+    wrap.style.background = MOSAIC_COLORS[cfg.mosaic_color] || '#000';
+    next.insertBefore(wrap, next.querySelector('.phscrim'));
+    plan.cells.forEach(function (c, i) {
+      var cell = document.createElement('div');
+      cell.className = 'mocell';
+      cell.style.left = 'calc(' + (c.x * 100) + '% + ' + (g / 2) + 'px)';
+      cell.style.top = 'calc(' + (c.y * 100) + '% + ' + (g / 2) + 'px)';
+      cell.style.width = 'calc(' + (c.w * 100) + '% - ' + g + 'px)';
+      cell.style.height = 'calc(' + (c.h * 100) + '% - ' + g + 'px)';
+      wrap.appendChild(cell);
+      var ph = m.mosaic[pick[i]];
+      if (ph) cell.appendChild(moDraw(cell, ph));
+    });
+    if (cfg.zoom) {
+      next.style.setProperty('--zd', (cfg.each_photo * 1000 + CROSSFADE_MS) + 'ms');
+      void next.offsetWidth;
+      next.classList.add('zoom');
+    }
+    lastPh = null;
+    reveal(next, first);
+    layer = 1 - layer;
+    // a whole new mosaic now and then: after each cell has changed about twice
+    moState = { n: m.mosaic.length, idx: plan.idx, layer: next, left: m.mosaic.length * 2, lastCell: -1 };
+    if (first && entrance) entrance();
+    shown++; sinceFc++; lastPhoto = (m.mosaic[0].item && (m.mosaic[0].item.title || m.mosaic[0].item.id)) || lastPhoto;
+  }
+  // ONE PHOTO'S LAYOUT on its layer: whole or filled, the focus, the zoom,
+  // the copy's dim (paint; and relayout, the preview's in-place change)
+  function layOut(el, ph) {
+    var fit = fitOf(ph.w, ph.h, cfg.fill, cfg.portrait && cfg.portrait.fill);
+    var lay = layoutOf(fit.portrait ? cfg.portrait : cfg.landscape);
+    el.style.setProperty('--fit', fit.fit);
+    el.style.setProperty('--pos', lay.pos);
+    el.style.setProperty('--zm', lay.zoom);
+    el.style.setProperty('--bgdim', lay.dim);
+    return { fit: fit, lay: lay };
+  }
+  // THE PREVIEW, ONLY ITS PHOTO'S SETTINGS CHANGED (Portrait or Landscape
+  // Photos): the photo on screen laid out again where it is -- no fade out
+  // and in, so a crop or a blur can be judged as it changes
+  function relayout() {
+    var top = root && root.querySelectorAll('.ph')[layer];
+    if (!top || !lastPh || mode !== 'photos') return false;
+    var L = layOut(top, lastPh), bg = top.querySelector('canvas.bg');
+    if (L.fit.backdrop || paneUp || ckPhotos()) { drawBackdrop(bg, lastPh.img, L.lay.small); bg.hidden = false; } else { bg.hidden = true; clearCanvas(bg); }
+    return true;
+  }
+  // the options but the photos' own layout (shapeCfg's, and `fill`)
+  function sansShapes(c) {
+    var o = {};
+    Object.keys(c || {}).forEach(function (k) { if (k !== 'portrait' && k !== 'landscape' && k !== 'fill') o[k] = c[k]; });
+    return JSON.stringify(o);
+  }
   function restartPreview() {
     if (!previewOn || !on) return;
     on = false;
@@ -1464,14 +1831,24 @@
   // as long as the screensaver shows (Photos & Forecast brings it back every
   // few photos); its sky holds still whenever it is not on screen.
   function buildForecast() {
-    if (!root || root.querySelector('.fc')) return;
+    if (!root) return;
+    // (Behind the Clock: Sky Only -- the forecast's sky without its land and
+    // decorations; a kept layer drawn the other way is drawn again)
+    var skyOnly = !!(cfg && cfg.show === 'clock' && cfg.clock_bg === 'skyonly');
+    var had = root.querySelector('.fc');
+    if (had) {
+      var k = had.querySelector('#hk-sky');
+      if (!k || k.classList.contains('skyonly') === skyOnly) return;
+      if (fscene) { try { fscene.destroy(); } catch (e) { /* gone with the element */ } fscene = null; }
+      had.remove();
+    }
     var fc = document.createElement('div');
     fc.className = 'fc';
     root.insertBefore(fc, root.querySelector('.info'));
     var sky = document.createElement('div');
     sky.className = 'fsky';
     fc.appendChild(sky);
-    try { fscene = window.hkSky && window.hkSky.scene ? window.hkSky.scene(sky) : null; } catch (e) { fscene = null; }
+    try { fscene = window.hkSky && window.hkSky.scene ? window.hkSky.scene(sky, { skyOnly: skyOnly }) : null; } catch (e) { fscene = null; }
     startTick();
   }
   // the details' layer, built the first time they are wanted
@@ -1507,6 +1884,129 @@
   }
   // (the music slide over it hides it)
   function fcVisible() { return (mode === 'forecast' || fcShowing) && !muShowing; }
+  // ------------------------------------------------------------ the clocks
+  // SHOW: CLOCK (2026-10-13): a full-screen clock (hk-saverclock.js, loaded
+  // only now) over a background of its own -- or over the forecast (its sky
+  // and land, the details along the bottom as set), or over the photos
+  // turned into their blurred, dimmed copies ([ckphotos]: the cheap copy,
+  // never a blur on the full photo). The corner cards stay: weather, what's
+  // playing, the timers and Home Status, each as Over the Clock says.
+  var ckCtl = null, ckLoad = null, ckRun = 0, ckArgs = null;
+  function ckPhotos() { return !!(host && host.hasAttribute('ckphotos')); }
+  function clockModule() {
+    if (window.hkSaverClock) return Promise.resolve(window.hkSaverClock);
+    if (!ckLoad) {
+      // (/hk/ revalidates: a changed file is fetched afresh, as the
+      // loader's modules are)
+      ckLoad = import('/hk/modules/hk-saverclock.js').then(function () { return window.hkSaverClock; })
+        .catch(function (e) { ckLoad = null; console.warn('[hk-saver] clock', e && e.message); return null; });
+    }
+    return ckLoad;
+  }
+  function enterClock() {
+    var bgk = cfg.clock_bg;
+    host.setAttribute('ckmode', '');
+    if (bgk === 'forecast' || bgk === 'skyonly') { enterForecast(); mountClock('none'); return; }
+    if (bgk === 'photos') {
+      host.setAttribute('ckphotos', '');
+      setAttr(host, 'cksoft', !!cfg.clock_photo_soft);
+      host.style.setProperty('--hk-ckdim', String((cfg.clock_photo_dim || 0) / 100));
+      updateBand(); showNext(true); mountClock('none', true); return;
+    }
+    mode = 'clock';
+    host.setAttribute('ckgen', '');
+    updateBand();
+    mountClock(bgk);
+  }
+  // the clock's layer, under the corner cards; `dimmed`: over the photos'
+  // blurred copies, which need no scrim of their own
+  function mountClock(bg, dimmed) {
+    if (!root) return;
+    ckArgs = [bg, dimmed];
+    var run = ++ckRun, layer = document.createElement('div');
+    layer.className = 'ck';
+    // OVER PHOTOS, the clock's text stands out by its own Shadow and Outline
+    if (ckPhotos() || cfg.show === 'photos' || cfg.show === 'both') {
+      var fx = ckFx(cfg);
+      if (fx !== 'none') layer.style.filter = fx;
+    }
+    root.insertBefore(layer, root.querySelector('.info'));
+    clockModule().then(function (C) {
+      if (run !== ckRun || !on || !layer.isConnected) return;
+      if (!C) { layer.remove(); if (mode === 'clock') { mode = 'photos'; host.removeAttribute('ckgen'); enterForecast(); } return; }
+      ckCtl = C.mount(layer, { style: cfg.clock_style, h24: cfg.clock_24, color: cfg.clock_color, bg: bg, motion: cfg.clock_motion,
+                               speed: cfg.clock_speed, depth: cfg.clock_depth, weather: weatherEntity(),
+                               hass: hassNow(), scrim: !dimmed });
+      // TODAY carries its own weather and music: the corners' step aside
+      if (host) setAttr(host, 'ckown', cfg.clock_style === 'today');
+      nightCheck();
+      if (!nightT) nightT = setInterval(nightCheck, 30000);
+      // Show: Clock on a background of its own: there is something to show
+      if (mode === 'clock' && entrance) entrance();
+    });
+  }
+  // THE CLOCK'S TEXT OVER PHOTOS (2026-10-13): Outline, four hard shadows a
+  // stroke's width out (any face: text, canvas or SVG), then Shadow, one soft
+  // one below -- as a filter on the clock's layer, drawn once per change
+  function ckFx(c) {
+    var o = (c.clock_text_outline || 0) / 100, s = (c.clock_text_shadow || 0) / 100, out = [];
+    if (o > 0) {
+      var w = +(0.5 + o * 2.5).toFixed(2), a = (0.55 + o * 0.4).toFixed(2);
+      [[w, 0], [-w, 0], [0, w], [0, -w]].forEach(function (d) { out.push('drop-shadow(' + d[0] + 'px ' + d[1] + 'px 0 rgba(0,0,0,' + a + '))'); });
+    }
+    if (s > 0) out.push('drop-shadow(0 ' + (1 + s * 3).toFixed(1) + 'px ' + (2 + s * 22).toFixed(1) + 'px rgba(0,0,0,' + (0.25 + s * 0.6).toFixed(2) + '))');
+    return out.join(' ') || 'none';
+  }
+  // the options but the clock's face (its style, 24-hour)
+  function sansClock(c) {
+    var o = {};
+    Object.keys(c || {}).forEach(function (k) { if (['clock_style', 'clock_24', 'clock_color', 'clock_speed', 'clock_depth', 'clock_night', 'clock_night_from', 'clock_night_to', 'clock_text_shadow', 'clock_text_outline'].indexOf(k) < 0) o[k] = c[k]; });
+    return JSON.stringify(o);
+  }
+  function remountClock() {
+    if (!ckArgs || !root || !root.querySelector('.ck')) return false;
+    var a = ckArgs;
+    ckRun++;
+    if (ckCtl) { try { ckCtl.destroy(); } catch (e) { /* gone */ } ckCtl = null; }
+    root.querySelectorAll('.ck').forEach(function (n) { n.remove(); });
+    mountClock(a[0], a[1]);
+    return true;
+  }
+  // NIGHT MODE (2026-10-13): StandBy's -- in the dark, the clock and its
+  // corners a dim red on black. Always, or At Night (from .. to, across
+  // midnight). Nothing behind the clock is drawn meanwhile (the photos, the
+  // forecast and its background hidden; ckCtl.night holds the painter).
+  var nightT = null;
+  function minsOf(hhmm) { var p = String(hhmm || '').split(':'); return (+p[0] || 0) * 60 + (+p[1] || 0); }
+  function nightNow(d, c) {
+    c = c || cfg;
+    if (!c || c.clock_night === 'off') return false;
+    if (c.clock_night === 'always') return true;
+    d = d || new Date();
+    var m = d.getHours() * 60 + d.getMinutes(), a = minsOf(c.clock_night_from), b = minsOf(c.clock_night_to);
+    return a <= b ? m >= a && m < b : m >= a || m < b;
+  }
+  function nightCheck() {
+    if (!host) return;
+    var dark = !!(ckCtl && on) && nightNow();
+    setAttr(host, 'cknight', dark);
+    if (ckCtl && ckCtl.night) ckCtl.night(dark);
+  }
+  // the screen's weather service (Weather), for Today
+  function weatherEntity() {
+    var HS = window.hkSettings;
+    return (HS && HS.get && HS.get('weather.entity', null)) || null;
+  }
+  function leaveClock() {
+    ckArgs = null;
+    if (nightT) { clearInterval(nightT); nightT = null; }
+    if (host) { host.removeAttribute('cknight'); host.removeAttribute('ckown'); }
+    ckRun++;
+    if (ckCtl) { try { ckCtl.destroy(); } catch (e) { /* gone */ } ckCtl = null; }
+    if (root) root.querySelectorAll('.ck').forEach(function (n) { n.remove(); });
+    if (host) { host.removeAttribute('ckmode'); host.removeAttribute('ckgen'); host.removeAttribute('ckphotos'); host.removeAttribute('cksoft'); }
+    if (mode === 'clock') mode = 'photos';
+  }
   // the whole screensaver: no photos, or Show: Forecast
   function enterForecast() {
     if (mode === 'forecast' || !root) return;
@@ -1654,7 +2154,16 @@
               bar: q('.mbar i'), t0: q('.mtimes span:first-child'), t1: q('.mtimes span:last-child'),
               pp: q('.mpp path'), nextImg: q('.mnext img'), nextT: q('.mnt'), vt: q('.mvt') };
     v.bg.forEach(function (c) { c.width = MU_BG; c.height = MU_BG; });
-    v.nextImg.onerror = function () { v.nextImg.style.visibility = 'hidden'; };
+    v.nextImg.onerror = function () {
+      v.nextImg.style.visibility = 'hidden';
+      // a signed path that errors gets one fresh signature (an HA restart
+      // kills them all), as hkCards' own artwork does
+      var want = v.nextWant, C = window.hkCards;
+      if (want && !v.nextRetried && C && C.artUrl && v.nextImg.getAttribute('src') !== want) {
+        v.nextRetried = true;
+        C.artUrl(want, NEXT_ART, function (p) { if (v.nextWant === want) v.nextImg.src = p; }, true);
+      }
+    };
     v.nextImg.onload = function () { v.nextImg.style.visibility = ''; };
     mus.views.push(v);
     return v;
@@ -1770,13 +2279,22 @@
     setAttr(v.el, 'nonext', !nx && !wait);
     if (nx) {
       setText(v.nextT, nx.title + (nx.artist ? ' — ' + nx.artist : ''));
-      if ((v.nextImg.getAttribute('src') || '') !== nx.image) {
-        if (nx.image) { v.nextImg.style.visibility = 'hidden'; v.nextImg.src = nx.image; } else { v.nextImg.removeAttribute('src'); v.nextImg.style.visibility = 'hidden'; }
+      // THROUGH THE ART PROXY (hkCards.artUrl): Music Assistant names a CDN
+      // the wall tablets cannot reach -- loaded directly, the cover never
+      // came and the request held a socket till the WebView gave up
+      if (v.nextWant !== (nx.image || '')) {
+        var want = v.nextWant = nx.image || '', C = window.hkCards;
+        v.nextRetried = false;
+        v.nextImg.style.visibility = 'hidden';
+        if (!want) v.nextImg.removeAttribute('src');
+        else if (C && C.artUrl) C.artUrl(want, NEXT_ART, function (p) { if (v.nextWant === want) v.nextImg.src = p; });
+        else v.nextImg.src = want;
       }
     }
     progress(v);
   }
   var DUR_GRACE = 4000;
+  var NEXT_ART = 160;          // Up Next's cover, the pixels HA scales it to (art.py)
   function progress(v) {
     var d = v.d, has = !!(d && !d.idle && d.dur);
     // A SONG'S DURATION CAN BE A MOMENT BEHIND IT: the bar keeps its place,
@@ -1953,7 +2471,7 @@
     mus.key = hit.view.d && hit.view.d.key; mus.lostAt = 0;
     setAttr(hit.view.el, 'dragging', true);
     volFrom(x);
-    if (muShowing && mode !== 'forecast') schedule();
+    if (muShowing && mode === 'photos') schedule();
   }
   function volEnd() {
     var dr = mus.drag;
@@ -1985,7 +2503,7 @@
       musicTick();
     }
     // a slide among the photos stays its full turn after a touch
-    if (muShowing && mode !== 'forecast') schedule();
+    if (muShowing && mode === 'photos') schedule();
   }
 
   // ------------------------------------------------------------ the music's panel
@@ -2143,7 +2661,7 @@
     if (animated && on && me.src && me.src.isConnected && me.view.el.isConnected) turnPanel(false, finish, me);
     else { if (me.anim) { try { me.anim.cancel(); } catch (e) { /* done */ } } finish(); }
     // the slide's turn among the photos starts again now
-    if (on && muShowing && mode !== 'forecast') schedule();
+    if (on && muShowing && mode === 'photos') schedule();
   }
   // a touch on it: not closed for PANEL_IDLE more, and the house told
   function panelTouched() {
@@ -2181,12 +2699,11 @@
   var saverSent = 0;
   function saverTouched() {
     if (!cfg || !cfg.entity || !/^switch\./.test(cfg.entity)) return;
-    if (!cfg.user || user() !== cfg.user || force || /[?&]hk_saver=force\b/.test(location.search)) return;
+    if (!mine() || force || /[?&]hk_saver=force\b/.test(location.search)) return;
     var now = Date.now();
     if (now - saverSent < 3000) return;
     saverSent = now;
-    var dash = String(location.pathname).split('/')[1] || '';
-    callWS({ type: 'hk_frontend/screensaver/touch', dashboard: dash, saver: true }).catch(function () { /* older integration */ });
+    callWS(whoMsg({ type: 'hk_frontend/screensaver/touch', saver: true })).catch(function () { /* older integration */ });
   }
 
   // THE SLIDE: built the first time, then kept like the forecast's layer
@@ -2259,7 +2776,7 @@
   // At most once a second (a hass comes many times a second).
   // THE MUSIC TAKES THE SCREEN while it plays: Music First, or (as before
   // Music First) the music over the forecast
-  function takeover() { return !!cfg && (cfg.music_first || (cfg.music_slide && mode === 'forecast')); }
+  function takeover() { return !!cfg && (cfg.music_first || (cfg.music_slide && mode !== 'photos')); }
   function musicWatch() {
     if (!on || !cfg || !root || !(cfg.music_slide || cfg.music_pane || cfg.music_first)) return;
     var now = clock.now();
@@ -2279,7 +2796,7 @@
     else if (now - mus.lostAt > MU_GRACE) {
       // back to the forecast, or to the photos (the next one takes the music away)
       mus.lostAt = 0;
-      if (mode === 'forecast') hideMusicSlide(); else showNext(false);
+      if (mode !== 'photos') hideMusicSlide(); else showNext(false);
     }
   }
   // the pane's music, there or not
@@ -2357,7 +2874,7 @@
     setAttr(host, 'pm', want);
     musicTick();
     if (cfg.calendar) { paneStack(); return; }
-    var photo = displayLayer && displayLayer.classList.contains('ph') && mode !== 'forecast' && !muShowing && !fcShowing;
+    var photo = displayLayer && displayLayer.classList.contains('ph') && mode === 'photos' && !muShowing && !fcShowing;
     if (photo) mus.paneNext = want;
     else { mus.paneNext = null; setPane(want); }
   }
@@ -2693,10 +3210,10 @@
   var hkRun = 0, hkAcked = false, hkDown = false, hkAckTry = 0, hkWokeAt = 0, HK_WOKE_HOLD = 6000, hkFirst = true;
   var BLACK_KEY = 'hk-black', BRIGHT_KEY = 'hk-black-bright';
   function dashSeg() { return String(location.pathname).split('/')[1] || ''; }
-  function hkBoard() {
-    var HS = window.hkSettings, all = HS && HS.get ? HS.get('boards', {}) : null;
-    return (all && all[dashSeg()]) || null;
-  }
+  function rememberedTabletId() { try { return localStorage.getItem('hk-tablet') || ''; } catch (e) { return ''; } }
+  // WHAT THE BLACK READS: this page's tablet's Black Screen and switch
+  // (1.14; before, the screen's -- hkSettings.tablet() reads those then)
+  function hkBoard() { return tabletNow(); }
   // BLACK OR NOT -- OR NOT KNOWN YET (null): a page loading has its settings,
   // its screensaver's config, its user and the switch arrive one by one, and
   // "not known" is not "not black". Read as no, a page reloaded under its
@@ -2704,15 +3221,19 @@
   // the dashboard, then went black again a moment later (the Loft,
   // 2026-10-09). Until it can tell, nothing changes: the cover stays.
   function hkWanted(h) {
-    var HS = window.hkSettings, b = hkBoard(), live = !!(HS && HS.live);
+    var HS = window.hkSettings, live = !!(HS && HS.live);
+    // the tablet is known by its user (or its address): until the user is
+    // there, not known -- a cover over a reload stays
+    if (!user() && !(HS && HS.tablet && rememberedTabletId())) return null;
+    var b = hkBoard();
     if (!b) return live ? false : null;
     if (b.black_screen !== 'hk') return false;
     // only on the screen's own tablet, as for the photos
     if (framed || previewOn || force) return false;
     if (/[?&](hk_saver|wp_enabled)=(force|off|false)\b/.test(location.search)) return false;
     if (!b.black_switch) return live ? false : null;
-    if (!cfg || !user()) return null;
-    if (!cfg.user || user() !== cfg.user) return false;
+    if (!cfg) return null;
+    if (!mine()) return false;
     // woken by a tap a moment ago: the switch is on its way off
     if (clock.now() - hkWokeAt < HK_WOKE_HOLD) return false;
     var st = h && h.states && h.states[b.black_switch];
@@ -2752,7 +3273,9 @@
     return isFinite(saved) && saved > 0 ? saved : null;
   }
   function hkAck(on) {
-    callWS({ type: 'hk_frontend/screensaver/black', dashboard: dashSeg(), black: on })
+    var t = hkBoard();
+    callWS(t && !t.legacy ? { type: 'hk_frontend/screensaver/black', tablet: t.id, black: on }
+                          : { type: 'hk_frontend/screensaver/black', dashboard: dashSeg(), black: on })
       .then(function () { if (on) hkAcked = true; }, function () { /* older integration: the sleep falls back */ });
   }
   // black: once the curtain is drawn, the backlight down, then say so
@@ -2980,9 +3503,17 @@
     var key = raw ? JSON.stringify(raw) : '';
     if (key !== lastRaw) {
       lastRaw = key;
+      var was = cfg;
       cfg = readCfg(raw);
       // the preview follows the settings page: rebuilt with the new options
-      if (previewOn && on && cfg) setTimeout(restartPreview, 0);
+      // -- or, when only the photos' layout changed, laid out again in place
+      if (previewOn && on && cfg) {
+        // ...or only the clock's face changed (its style, 24-hour): drawn again
+        // where it is, no fade out and in -- a style can be judged as chosen
+        if (was && sansShapes(was) === sansShapes(cfg) && relayout()) { /* laid out again */ }
+        else if (was && sansClock(was) === sansClock(cfg) && remountClock()) { /* the clock again */ }
+        else setTimeout(restartPreview, 0);
+      }
       // ...and a preview asked for before there was a config (the frame's
       // dashboard, or its settings, still arriving) starts once there is one
       if (previewOn && !on && cfg) setTimeout(function () { if (previewOn && !on && cfg) start('preview'); }, 0);
@@ -3052,8 +3583,17 @@
     // the forecast is what is showing (not photos)
     forecast: function () { return on && mode === 'forecast'; },
     // HK Settings' preview frame: show it now and keep it up; false takes it away
-    preview: function (v) {
+    // `shape`: 'portrait' or 'landscape' -- a photo of that shape (the
+    // Portrait / Landscape Photos settings), held while they change
+    preview: function (v, shape) {
+      var sh = shape === 'portrait' || shape === 'landscape' ? shape : null;
+      if (sh !== previewShape) {
+        previewShape = sh;
+        if (lastPh && sh && shapeOfPh(lastPh) !== sh) lastPh = null;
+        if (previewOn && on && v) setTimeout(restartPreview, 0);
+      }
       previewOn = !!v;
+      if (!previewOn) lastPh = null;
       force = previewOn;
       refresh();
       if (previewOn && !on) start('preview');
@@ -3081,8 +3621,9 @@
                idleIn: cfg && !on && cfg.starts_after ? Math.max(0, Math.round((lastInput + cfg.starts_after * 1000 - Date.now()) / 1000)) : null,
                blocking: !!(press && host), switch: switchState(),
                waking: !!(host && host.hasAttribute('waking')), fadeBack: cfg ? cfg.fade_back : null,
-               mode: on ? mode : null, land: fscene && fscene.landShown ? fscene.landShown() || null : null,
-               forecastSlide: on && fcShowing, sinceForecast: sinceFc, preview: previewOn,
+               mode: on ? mode : null, clock: ckCtl ? ckCtl.style : null, clockColor: ckCtl ? ckCtl.color : null, night: !!(host && host.hasAttribute('cknight')), mosaic: moState && displayLayer === moState.layer ? { n: moState.n, idx: moState.idx, left: moState.left } : null, clockOver: !!(host && host.hasAttribute('ckphotos')) ? 'photos' : null, land: fscene && fscene.landShown ? fscene.landShown() || null : null,
+               forecastSlide: on && fcShowing, sinceForecast: sinceFc, preview: previewOn, previewShape: previewShape,
+               shown_shape: lastPh ? shapeOfPh(lastPh) : null, shown_url: lastPh ? lastPh.url : null,
                band: !!(host && host.hasAttribute('band')),
                calendar: !!(host && host.hasAttribute('pcal')), pane: !!(host && host.hasAttribute('pane')), paneW: paneW, musicIn: mus.paneIn, paneNext: mus.paneNext, musicFirst: takeover(), paneCard: !!paneCard,
                musicSlide: on && muShowing, musicPane: !!musicPaneView(), music: mus.key, upNext: mus.next ? mus.next.title : null,
@@ -3091,7 +3632,9 @@
     _: { darkUnderBlack: function (v) { DARK_UNDER_BLACK = !!v; }, clock: clock, beat: beat, justResumed: function () { return justResumed(); },
          // tests: as a page just loaded, for HK's black (its first decision)
          hkFresh: function () { hkFirst = true; },
-         readCfg: readCfg, gate: gate, wake: WAKE, zoneOf: zoneOf, fitOf: fitOf, shuffle: shuffle, Deck: Deck, isImage: isImage,
+         readCfg: readCfg, gate: gate, wake: WAKE, zoneOf: zoneOf, fitOf: fitOf, layoutOf: layoutOf, backdropSmall: backdropSmall, nightNow: nightNow,
+         ckFx: ckFx, MOSAIC_COLORS: MOSAIC_COLORS,
+         mosaicPlan: mosaicPlan, mosaicAssign: mosaicAssign, coverRect: coverRect, MOSAICS: MOSAICS, shuffle: shuffle, Deck: Deck, isImage: isImage,
          // tests: the slide without real photos to count
          slide: { show: showForecastSlide, hide: hideForecastSlide, since: function (n) { sinceFc = n; }, schedule: function () { schedule(); } },
          paneOf: paneOf, slideOf: slideOf, mmss: mmss,

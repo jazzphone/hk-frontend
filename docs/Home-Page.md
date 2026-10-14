@@ -18,7 +18,7 @@ A generated screen’s Home page shows, from the top:
 4. **Scenes**: a row of scene pills, and pills that open a page.
 5. **Favorites**, when you have picked some.
 6. **Rooms**: a section for each room, with a tile for each accessory.
-7. **More**: things you added under Also Shown that have no room.
+7. **More**: things you added under Added Accessories that have no room.
 
 Along the bottom, a screen can dock the **Now Playing bar** (what is playing
 on its room) and the **Timer Bar** (running quick timers), on Home or on
@@ -117,7 +117,8 @@ A favorite’s name, room line and icon as a favorite are in its
 A generated screen has a section on Home for every area with something in it,
 floor by floor (in your floors’ order), then A to Z. Only things that are in an
 area get a tile; to show something with no area, add it to
-**Accessories → Also Shown** and it appears under **More**.
+**Accessories → Added Accessories** ([Added Accessories](Accessories.md#added-accessories))
+and it appears under **More**.
 
 A room heading with a › opens the room’s own page (see [Room pages](Pages.md#room-pages)).
 

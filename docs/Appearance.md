@@ -97,7 +97,7 @@ accessory opens an HK detail sheet is **HK Detail Sheets**, under
 | Icon Circles | Same as All Screens | Shown when this screen uses Tinted. Choosing one gives this screen its own; **Reset to All Screens** goes back to following All Screens. |
 | Reset to All Screens (50%) | — | Shown once the screen has its own amount, with All Screens’ amount. Goes back to following All Screens. |
 | Tint from Background | Same as All Screens | Shown when this screen uses Frosted. Turning it on or off gives this screen its own; **Reset to All Screens** goes back to following All Screens. |
-| Sky / Background | On | The screen’s [Sky / Background](Live-Sky.md#choose-its-look) page, which starts with its **Live Sky** switch. Reads **Off** when the live sky is off: a plain background instead of the animated sky. Its own **Moving Things**, **Pause When Not in Focus**, **Rain & Snow**, Clouds and the rest are there too, each Same as All Screens until changed. A YAML screen’s sky comes from its YAML; Live Sky can only turn it off. |
+| Sky / Background | Same as All Screens | The screen’s [Sky / Background](Live-Sky.md#the-background) page, which starts with its **Background**: **Live Sky**, **Color** or **Photo**, Same as All Screens until changed. With the Live Sky, its own **Moving Things**, **Pause When Not in Focus**, **Rain & Snow**, Clouds and the rest are there too, each Same as All Screens until changed. Reads **Black** for a screen whose Live Sky was turned off before (it shows Black; any choice there turns it back on). A YAML screen shows the Background wherever its YAML puts the sky. |
 
 ## Home Assistant header & sidebar
 

@@ -174,7 +174,12 @@
                 ['Opens On', 'features/energy', 'energy page first tab now today week month start default'],
                 ['A Usual Day', 'features/energy', 'energy typical usual average days before 30 14 7 rings compare'],
                 ['Highlights', 'features/energy', 'energy highlights stood out summary insights'],
-                ['Daily Runtime', 'features/energy/devices', 'energy runtime hours ac hvac run time duration device']],
+                ['Daily Runtime', 'features/energy/devices', 'energy runtime hours ac hvac run time duration device'],
+                ['Power Page', 'features/energy/power', 'power page right now house battery grid solar sun flow chart picture'],
+                ['Backed Up', 'features/energy/power', 'power backed up backup battery circuits panel whole house'],
+                ['House Battery', 'features/energy/power', 'power house battery level reserve charge limit eps storm mode'],
+                ['Battery Levels', 'features/energy/power', 'power battery levels sliders reserve charge limit'],
+                ['Car Charging Power', 'features/energy/power', 'power car name charging wall connector charger watts']],
     hk_notify: [['Notifications', 'features/notify', 'notifications banner alert motion doorbell arrived camera snapshot'],
                 ['Add Notification', 'features/notify/new', 'notifications new accessory banner'],
                 ['Notification Screens', 'features/notify/screens', 'notifications screens allow which'],
@@ -731,6 +736,9 @@
       K.nav({ label: 'Batteries', value: String((d.batteries || []).length), href: '#/features/energy/batteries', fk: 'energy:batteries' }),
       K.toggle({ label: 'Home Assistant’s Charts', sub: 'Its own four energy cards, at the end', on: o.detail === true,
                  sk: 'f:' + EN + ':detail', onChange: function (on) { energySet(P, { detail: on }); } })]));
+    var pwo = o.power && typeof o.power === 'object' ? o.power : null;
+    c.appendChild(K.group({ footer: 'Right now and the controls, beside this page: the house, the battery, the cars, and what the battery backs up.' }, [
+      K.nav({ label: 'Power Page', value: pwo && pwo.on !== false ? 'On' : 'Off', href: '#/features/energy/power', fk: 'energy:power' })]));
     var tot = o.total || {};
     c.appendChild(K.group({ header: 'Whole Home', footer: 'Automatic: the grid meter in Home Assistant’s Energy settings, its cost, and the power sensor behind it (or the Energy chip’s Power Use).' }, [
       P.entityRow({ label: 'Power', sk: 'f:' + EN + ':total:power', value: tot.power || null,
@@ -796,7 +804,7 @@
     c.appendChild(K.group({}, [K.toggle({ label: 'Today’s Cost', sub: 'First, from the whole home’s meter', on: o.cost !== false,
       sk: 'f:' + EN + ':cost', onChange: function (on) { energySet(P, { cost: on }); } })]));
     c.appendChild(K.listEditor({ fk: 'entop', auto: auto, minRows: 0, announce: P.announce.bind(P),
-      autoFooter: 'Automatic: the first two thermostats (What Counts) and the outside temperature (Weather).',
+      autoFooter: 'Automatic: the first two thermostats (Accessories → Thermostats) and the outside temperature (Weather).',
       shownFooter: 'Up to four readings, today’s cost among them.',
       rows: ids.map(function (id) { return { value: id, label: P.name(id), sub: id }; }),
       onAuto: function (on) { energySet(P, { top: on ? null : ids }); },
@@ -1024,6 +1032,7 @@
                     none: 'Automatic' + (x.control && !own.control ? ' (' + P.name(x.control) + ')' : ''),
                     filter: { domains: ['switch'] },
                     onPick: function (v) { energyDev(P, key, { control: v || null }); } })]));
+    energyBacked(P, c, d, key);
     var rel = [];
     if (x.parent_name) rel.push(K.info({ label: 'Part Of', value: x.parent_name }));
     (x.children || []).forEach(function (k) {
@@ -1135,11 +1144,149 @@
                  } })]));
   }
 
+  // ---- THE POWER PAGE (features/energy/power.py): the Energy feature's
+  // second page, right now and the controls. Every reading Automatic until
+  // chosen; the battery's own controls as named. Stored whole as the
+  // feature's `power` option.
+  function powerOf(d) { var o = (d.options || {}).power; return o && typeof o === 'object' ? o : null; }
+  function powerSet(P, d, changes) {
+    var cur = powerOf(d) || {}, next = Object.assign({}, cur);
+    Object.keys(changes).forEach(function (k) {
+      var v = changes[k];
+      if (v === null || v === '' || v === undefined) delete next[k]; else next[k] = v;
+    });
+    return energySet(P, { power: next });
+  }
+  function energyPower(P, c, d) {
+    var o = powerOf(d), pl = (d.plan || {}).power || null;
+    var on = !!o && o.on !== false;
+    c.appendChild(K.group({ footer: 'Right now and the controls: the whole house, the grid, the sun, the house battery and its own controls, the cars, ' +
+        'and every device marked when the battery backs it up. The Energy page is the same devices over time.' }, [
+      K.toggle({ label: 'Show the Power Page', on: on, sk: 'f:' + EN + ':power:on',
+                 onChange: function (v) { powerSet(P, d, { on: v ? null : false }); } })]));
+    if (!on) return;
+    var B = o.battery || {};
+    var bat = function (k, v) { var b = Object.assign({}, B); if (v) b[k] = v; else delete b[k]; return powerSet(P, d, { battery: Object.keys(b).length ? b : null }); };
+    var auto = function (cur) { return 'Automatic' + (cur ? ' (' + enName(P, cur) + ')' : ''); };
+    var PWR = { domains: ['sensor'], dc: 'power' };
+    c.appendChild(K.group({ header: 'The Page' }, [
+      K.text({ label: 'Title', sk: 'f:' + EN + ':power:title', value: o.title || '', placeholder: 'Power', maxlength: 40,
+               onCommit: function (v) { powerSet(P, d, { title: v.trim() || null }); } }),
+      K.text({ label: 'Picture Folder', sk: 'f:' + EN + ':power:art', value: o.art || '', placeholder: 'None: the flow chart',
+               sub: 'A folder of your files with art.json and its layers, e.g. /hk/art/my-house/', error: P.err('f:' + EN + ':power:art'),
+               onCommit: function (v) { v = v.trim(); if (v && v.charAt(0) !== '/') v = '/' + v; if (v && v.slice(-1) !== '/') v += '/'; powerSet(P, d, { art: v || null }); } })]
+      .concat(o.art ? [K.select({ label: 'Picture', sk: 'f:' + EN + ':power:picture', value: o.picture || 'house',
+                 options: [['house', 'The House'], ['chart', 'A Flow Chart']], onChange: function (v) { powerSet(P, d, { picture: v === 'house' ? null : v }); } })] : [])
+      .concat([
+      K.select({ label: 'Devices', sk: 'f:' + EN + ':power:groups', value: o.groups || 'type',
+                 options: [['type', 'By Type'], ['backup', 'Backed Up First']], onChange: function (v) { powerSet(P, d, { groups: v === 'type' ? null : v }); } }),
+      K.info({ label: 'Address', sub: 'Screens show it where they list it', value: '/' + ((pl && pl.path) || 'power') })])));
+    var row = function (label, sub, key, filter, cur) {
+      return P.entityRow({ label: label, sub: sub, sk: 'f:' + EN + ':power:' + key, value: o[key] || null, none: auto(cur), filter: filter,
+                           onPick: function (v) { var ch = {}; ch[key] = v || null; powerSet(P, d, ch); } });
+    };
+    c.appendChild(K.group({ header: 'Readings', footer: 'Whole House is everything the house uses: the main meter, never a battery panel’s own output.' }, [
+      row('Whole House', 'Power', 'home', PWR, pl && pl.home),
+      row('The Grid', 'Power in; negative is out', 'grid', PWR, pl && pl.grid),
+      row('To the Grid', 'Only with a sensor of its own', 'grid_export', PWR, null),
+      row('Grid Up', 'On while the grid is up', 'grid_status', { domains: ['binary_sensor'] }, null),
+      row('The Sun', 'Power', 'solar', PWR, pl && pl.solar),
+      row('Battery Panel Output', 'What the battery’s circuits draw', 'backed_power', PWR, null)]));
+    var brow = function (label, k, filter) {
+      return P.entityRow({ label: label, sk: 'f:' + EN + ':power:battery:' + k, value: B[k] || null, none: 'None', filter: filter,
+                           onPick: function (v) { bat(k, v || null); } });
+    };
+    var NUM = { domains: ['number', 'input_number', 'sensor'] }, SW = { domains: ['switch', 'binary_sensor'] };
+    c.appendChild(K.group({ header: 'House Battery', footer: 'Its level, its power in and out, and what it says about itself. Without a level the page has no battery.' }, [
+      brow('Level', 'level', { domains: ['sensor'], dc: 'battery' }), brow('Charging', 'charge', PWR), brow('Giving', 'discharge', PWR),
+      brow('Reserve', 'reserve', NUM), brow('Charge Limit', 'limit', NUM), brow('Stored Energy', 'stored', { domains: ['sensor'] }),
+      brow('Backup Time', 'backup', { domains: ['sensor'] }), brow('Charging Speed', 'speed', NUM), brow('EPS', 'eps', SW),
+      brow('Storm Mode', 'storm', SW), brow('Fault', 'problem', { domains: ['binary_sensor'] }),
+      K.select({ label: 'Backs Up', sk: 'f:' + EN + ':power:backs_up', value: o.backs_up || '',
+                 options: [['', 'Automatic' + (pl ? ' (' + ({ some: 'Some Circuits', all: 'The Whole House', none: 'Nothing' })[pl.backs_up] + ')' : '')],
+                           ['some', 'Some Circuits'], ['all', 'The Whole House'], ['none', 'Nothing']],
+                 onChange: function (v) { powerSet(P, d, { backs_up: v || null }); } })]));
+    var mode = o.mode || null;
+    c.appendChild(K.group({ header: 'Battery Controls', footer: 'Its mode as the page’s choice, with what each one does; its levels as sliders. Each device’s own page says whether the battery backs it up.' }, [
+      P.entityRow({ label: 'Mode', sk: 'f:' + EN + ':power:mode', value: mode ? mode.entity : null, none: 'None', filter: { domains: ['select', 'input_select'] },
+                    onPick: function (v) { powerSet(P, d, { mode: v ? Object.assign({}, mode && mode.entity === v ? mode : {}, { entity: v }) : null }); } }),
+      K.info({ label: 'Its Choices', value: mode && mode.options ? String(mode.options.length) : 'The select’s own' })]));
+    // ITS LEVELS: a slider each (a number the battery takes: its reserve for
+    // backup, a charge limit, a discharge floor), in the order added
+    var lv = o.levels || [], lsk = 'f:' + EN + ':power:levels';
+    var lvRows = lv.map(function (x) {
+      return K.check({ label: x.name || P.name(x.entity), sub: x.entity + ' · tap to remove', multi: true, on: true, fk: lsk + ':' + x.entity,
+                       onClick: function () { var left = lv.filter(function (y) { return y.entity !== x.entity; }); powerSet(P, d, { levels: left.length ? left : null }); } });
+    });
+    lvRows.push(K.nav({ label: 'Add…', icon: 'mdi:plus-circle-outline', fk: lsk + ':add',
+      href: P.picker('power-levels', { title: 'Battery Levels', value: null, multi: true,
+        items: function () {
+          var have = lv.map(function (x) { return x.entity; });
+          return P.entityIds({ domains: ['number', 'input_number'], shown: true }).filter(function (id) { return have.indexOf(id) < 0; })
+            .map(function (id) { return { value: id, label: P.name(id), sub: id }; });
+        },
+        onPick: function (v) {
+          var have = lv.map(function (x) { return x.entity; });
+          var add = [].concat(v || []).filter(function (id) { return have.indexOf(id) < 0; }).map(function (id) { return { entity: id }; });
+          if (add.length) powerSet(P, d, { levels: lv.concat(add) });
+        } }) }));
+    c.appendChild(K.group({ header: 'Battery Levels', footer: 'Sliders on the page for the numbers the battery takes, such as its backup reserve or charge limit.' }, lvRows));
+    // EACH CAR: its name (blank: its integration's) and what reads its
+    // charging -- Automatic, a Wall Connector or a monitored circuit, or the
+    // car's own reading
+    var cars = (pl && pl.cars) || [], CO = o.car_opts || {};
+    var carSet = function (lvl, k, v) {
+      var all = Object.assign({}, CO), one = Object.assign({}, all[lvl] || {});
+      if (v) one[k] = v; else delete one[k];
+      if (Object.keys(one).length) all[lvl] = one; else delete all[lvl];
+      return powerSet(P, d, { car_opts: Object.keys(all).length ? all : null });
+    };
+    if (!cars.length) c.appendChild(K.group({ header: 'Cars' }, [K.info({ label: 'No cars found' })]));
+    cars.forEach(function (k, i) {
+      var co = CO[k.level] || {}, found = k.found_name || k.name || P.name(k.level), cur = co.charger || null;
+      var sk = 'f:' + EN + ':power:car:' + i;
+      var href = P.picker(sk + ':charger', { title: 'Charging Power', value: cur, none: 'Automatic',
+        items: function () {
+          return (k.power ? [{ value: 'car', label: 'The Car’s Own Reading', sub: P.name(k.power) }] : [])
+            .concat(P.entityIds(PWR).map(function (id) { return { value: id, label: P.name(id), sub: id }; }));
+        },
+        onPick: function (v) { carSet(k.level, 'charger', v || null); } });
+      var val = cur === 'car' ? 'The Car’s Own Reading' : cur ? (P._hass.states[cur] ? P.name(cur) : cur + ' (missing)') : 'Automatic';
+      var where = k.home && P._hass && P._hass.states[k.home] ? (P._hass.states[k.home].state === 'home' ? 'Home' : 'Away') : '';
+      c.appendChild(K.group({ header: co.name || found, footer: i < cars.length - 1 ? null :
+          'Name: blank is the name its integration gives it. Charging Power: what reads its charging. Automatic shares the chargers’ watts among the cars that say they are ' +
+          'charging, so with two cars charging it can guess wrong; choose its charger, the circuit it charges on, or its own reading (minutes behind) to know.' }, [
+        K.text({ label: 'Name', sk: sk + ':name', value: co.name || '', placeholder: found, maxlength: 40,
+                 onCommit: function (v) { carSet(k.level, 'name', v.trim() || null); } }),
+        P.withError(K.nav({ label: 'Charging Power', value: val, href: href, sk: sk + ':charger' }), sk + ':charger'),
+        K.info({ label: 'Found', sub: [k.home ? 'location' : null, k.plugged ? 'cable' : null, k.charge ? 'charge switch' : null, k.power ? 'its own charging power' : null].filter(Boolean).join(', ') || 'its level',
+                 value: where })]));
+    });
+  }
+  // a device's Backed Up row (its own page): Automatic says why
+  function energyBacked(P, c, d, key) {
+    var o = powerOf(d), pl = (d.plan || {}).power;
+    if (!o || o.on === false || !pl || pl.backs_up !== 'some') return;
+    var it = null;
+    (pl.sections || []).forEach(function (s) { (s.items || []).forEach(function (i) { if (i.key === key) it = i; }); });
+    var own = (o.backed || {})[key];
+    var autoText = it && it.why !== 'chosen' ? (it.backed ? 'Yes: ' + it.why : 'No') : 'Automatic';
+    c.appendChild(K.group({ header: 'On the Power Page', footer: 'Automatic is Yes when its power sensor or switch is on the battery’s device, its switch is a group of the battery’s circuits, or it sits inside a backed-up circuit. Choose Yes or No where Home Assistant can’t tell (a plug on a backed-up circuit).' }, [
+      K.select({ label: 'Backed Up', sk: 'f:' + EN + ':power:backed', value: own === true ? 'yes' : own === false ? 'no' : '',
+                 options: [['', own === undefined ? autoText : 'Automatic'], ['yes', 'Yes'], ['no', 'No']],
+                 onChange: function (v) {
+                   var b = Object.assign({}, o.backed || {});
+                   if (v === 'yes') b[key] = true; else if (v === 'no') b[key] = false; else delete b[key];
+                   powerSet(P, d, { backed: Object.keys(b).length ? b : null });
+                 } })]));
+  }
+
   function energyPage(P, sub, mk, withData, name, domain) {
     var back = ['Energy', '#/features/energy'];
     var d0 = P.feat(domain).data || {};
     if (sub[0] === 'top') return mk('Readings', withData(function (c, d) { energyTop(P, c, d); }), back);
     if (sub[0] === 'rings') return mk('Rings', withData(function (c, d) { energyRings(P, c, d); }), back);
+    if (sub[0] === 'power') return mk('Power Page', withData(function (c, d) { energyPower(P, c, d); }), back);
     if (sub[0] === 'usages' && sub[1] !== undefined) {
       return mk('Tracked', withData(function (c, d) { energyUsage(P, c, d, Number(sub[1])); }), ['Tracking', '#/features/energy/usages']);
     }
@@ -1237,7 +1384,10 @@
           return P.entityIds({ domains: DND_DOMAINS, shown: true }).filter(function (id) { return w.indexOf(id) < 0; })
             .map(function (id) { return { value: id, label: P.name(id), sub: id }; });
         },
-        onPick: function (id) { if (id && w.indexOf(id) < 0) { w = w.concat([id]); put({ 'while': w }); } } }) }));
+        onPick: function (v) {
+          var add = [].concat(v || []).filter(function (id) { return w.indexOf(id) < 0; });
+          if (add.length) { w = w.concat(add); put({ 'while': w }); }
+        } }) }));
     return { rows: rows, whileRows: whileRows };
   }
   function notifySet(P, changes) { return P.featSet(NT, changes); }
@@ -1486,7 +1636,7 @@
     Object.keys(byArea).sort().forEach(function (area) {
       c.appendChild(K.group({ header: area }, byArea[area].map(function (a) {
         var on = ex.indexOf(a.entity) < 0;
-        return K.check({ label: a.name, sub: a.entity, multi: true, on: on, disabled: !it, fk: 'notify:cat:' + key + ':' + a.entity,
+        return K.check({ label: a.name, sub: a.note || a.entity, multi: true, on: on, disabled: !it, fk: 'notify:cat:' + key + ':' + a.entity,
           onClick: function () {
             if (!it) { P.announce('Turn the category on first.'); return; }
             var next = on ? ex.concat([a.entity]) : ex.filter(function (x) { return x !== a.entity; });
@@ -1494,8 +1644,10 @@
           } });
       })));
     });
-    c.appendChild(K.group({ footer: it ? 'Ticked ones notify. An accessory of this kind added later is ticked until you untick it.'
-      : 'Turn the category on to choose.' }, []));
+    // an alarm and its PIN panel: one alarm (features/notifications members)
+    var pinned = ct.accessories.filter(function (a) { return a.note && / with a PIN · /.test(a.note); });
+    c.appendChild(K.group({ footer: (it ? 'Ticked ones notify. An accessory of this kind added later is ticked until you untick it.'
+      : 'Turn the category on to choose.') + (pinned.length ? ' An alarm and its PIN keypad are the same alarm: with both ticked you’re notified once, and a tap opens the keypad.' : '') }, []));
   }
   // CAMERAS: every camera, what sets it off and its live view
   function camCat(d) { return (d.categories || []).filter(function (x) { return x.key === 'cameras'; })[0]; }

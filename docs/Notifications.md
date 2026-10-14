@@ -98,6 +98,18 @@ camera with nothing on its device to suggest says **No trigger — choose
 one** in the list and stays quiet until you do. A suggestion follows the
 house: a camera you haven’t changed picks up a new sensor by itself.
 
+### Alarm
+
+**Alarm** lists every alarm panel. An alarm with an [Alarm PIN](Alarm-PIN.md)
+in front of it is listed beside its PIN keypad, and each says what it is: the
+keypad *(the alarm) with a PIN · made by HK’s Alarm PIN*, the alarm *Opens
+(the keypad) to disarm*. They are one alarm: with both ticked you are notified
+once, and a tap on the banner opens the PIN keypad, not the alarm’s own Arm /
+Disarm, which needs no PIN.
+
+![The Alarm category in HK Settings: an alarm beside its PIN keypad, each saying what it is](images/settings-notifications-alarms.png)
+*The Alarm category: the alarm and its PIN keypad, one alarm.*
+
 ## A notification
 
 For one accessory of its own (**One Accessory → Add Notification**), or
@@ -139,7 +151,8 @@ it went off, marked *Test*. **Delete Notification…** removes it.
   one its tile opens, with the notification on it: what happened and when,
   the snapshot, **its page** (Doors & Windows, Security…) and **Mute 1 Hour**.
   Below that, the sheet is the accessory’s: **Hold to Close** the garage door,
-  **Disarm** with the keypad, the door’s last 24 hours. For what a camera sees
+  **Disarm** with the keypad, the door’s last 24 hours. An alarm with an
+  [Alarm PIN](Alarm-PIN.md) opens its PIN keypad. For what a camera sees
   (someone at the door, the doorbell, a package) it is the camera’s, live.
   A calendar’s event opens the event; a person’s, their sheet (where they
   are). Tap Opens can make it a page, the live camera, or nothing instead.
@@ -207,7 +220,7 @@ don’t cover: the washer finishing, a reminder, a door left open too long.
 | **Wakes the Screen** | Turns a sleeping screen on, up to its screensaver, to show it. Do Not Disturb still holds it back unless it is Important. |
 | **Stays On Screen** | Seconds; 0 keeps it until dismissed. Empty: All Screens’ Stays On Screen. |
 | **Icon** | Any `hk:` or `mdi:` icon. |
-| **Accessory** | Its icon; a tap opens its sheet, with the banner on it. |
+| **Accessory** | Its icon; a tap opens its sheet, with the banner on it (an alarm with an Alarm PIN: its PIN keypad). |
 | **Camera** | A snapshot taken the moment it is sent. |
 | **Tap Opens** | **sheet** (the accessory’s), **camera** (live), **page** (the **Page** below) or **none**. Empty: the page, else the camera, else the accessory, else nothing. |
 | **Page** | A page of the screen’s own dashboard, by its address (`kitchen`, `security`, `room-office`): a tap opens it — “Dinner’s ready” opens the Kitchen. |

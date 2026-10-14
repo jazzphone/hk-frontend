@@ -162,8 +162,10 @@ var rr = T.room;
 ok('Adjust Content: a rail that shrinks or hides eases the page aside; the top slides it; the bottom and Stay keep room',
    rr('left', 'shrink', true) === 'scale' && rr('right', 'hide', true) === 'scale' && rr('top', 'shrink', true) === 'shift' &&
    rr('bottom', 'hide', true) === 'pad' && rr('right', 'stay', true) === 'pad' && rr('top', 'stay', true) === 'pad');
-ok('...off, the bar floats over the page everywhere', ['left', 'right', 'top', 'bottom'].every(function (p) {
+ok('...off, a rail floats over the page', ['left', 'right'].every(function (p) {
    return rr(p, 'shrink', false) === 'none' && rr(p, 'stay', false) === 'none'; }));
+ok('...but a bar along the bottom or the top still leaves room at the page\'s end, so the last row scrolls clear of it',
+   ['top', 'bottom'].every(function (p) { return rr(p, 'shrink', false) === 'pad' && rr(p, 'hide', false) === 'pad' && rr(p, 'stay', false) === 'pad'; }));
 
 var so = T.scrollOf;
 ok('While Scrolling on Phones: Phones\' own under 640 px (Shrink unless chosen), never the tablets\'',

@@ -22,8 +22,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
 class ScreenInUse(SaverEntity, BinarySensorEntity):
     _attr_icon = "mdi:gesture-tap"
 
-    def __init__(self, mgr: Any, path: str, title: str) -> None:
-        SaverEntity.__init__(self, mgr, path, title, INUSE_KEY)
+    def __init__(self, mgr: Any, path: str, title: str, uid: str | None = None) -> None:
+        SaverEntity.__init__(self, mgr, path, title, INUSE_KEY, uid)
         self._off_later = None
 
     @property

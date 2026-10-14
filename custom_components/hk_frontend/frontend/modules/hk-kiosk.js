@@ -158,7 +158,11 @@
   function keepConnected(ha, h) {
     if (keptOn || !ha || !h || !h.user) return;
     var HS = window.hkSettings;
-    if (!tabletUser(HS && HS.get ? HS.get('boards', null) : null, h.user.name)) return;
+    // a wall tablet (1.14: hkSettings.tablet() -- its address or its user;
+    // before, some screen's Tablet User)
+    var isTablet = HS && typeof HS.tablet === 'function' && HS.get('tablet_items', null) !== null
+      ? !!HS.tablet(h) : tabletUser(HS && HS.get ? HS.get('boards', null) : null, h.user.name);
+    if (!isTablet) return;
     keptOn = true;
     if (h.suspendWhenHidden === false) return;
     try { ha.dispatchEvent(new CustomEvent('hass-suspend-when-hidden', { detail: { suspend: false } })); }

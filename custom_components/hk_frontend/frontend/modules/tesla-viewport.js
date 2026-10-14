@@ -28,8 +28,10 @@
 //     zoom can help. `data-hk-zoomed` on <html> carries the
 //     layout width bought, for any responsive rule that wants it.
 //
-// 1200 is chosen so the security column (34%) lands at ~408px, i.e. two ~192px
-// tiles - the width the whole tile system was calibrated around.
+// 1200 is chosen so the security column lands at ~408px, i.e. two pill-wide
+// tiles - the width the whole tile system was calibrated around. (The Tesla
+// Home custom page gives it 34.5% since the pill went to 196, 2026-10-13:
+// 406 px of grid for 2 x 196 + 10.)
 //
 // NO CONSOLE IN THE CAR, so everything is driven from the URL:
 //   ?vw=1000   set the target layout width (bigger number = smaller content)

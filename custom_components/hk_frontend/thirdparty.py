@@ -54,6 +54,3 @@ def note(key: str, state: str) -> str:
     return (f"{name} is not installed. It is optional, from HACS (Frontend): without it there is no {what}, "
             f"and its options below do nothing.")
 
-
-def notes(status: dict[str, Any], keys: tuple[str, ...]) -> str:
-    return " ".join(note(k, status.get(k, "missing")) for k in keys)

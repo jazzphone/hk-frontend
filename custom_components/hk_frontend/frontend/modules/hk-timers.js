@@ -273,6 +273,7 @@
   }
 
   window.hkTimers = {
+    DOCK_CSS: DOCK_CSS,                      // tests (test_csssnapshot)
     // THE DOCKED STRIP'S DOTS follow its swipe
     dots: function (sc) {
       var d = sc && sc.nextElementSibling;
@@ -336,7 +337,7 @@
         var fill = running ? (o.fill || 'rgba(255,159,10,0.95)')
                            : 'var(--hk-ink-3,rgba(255,255,255,0.40))';
         out += '<div style="margin-top:10px;height:4px;border-radius:2px;' +
-               'background:var(--hk-line,rgba(255,255,255,0.14));overflow:hidden;">' +
+               'background:var(--hk-line-strong,rgba(255,255,255,0.18));overflow:hidden;">' +
                '<div style="height:100%;border-radius:2px;background:' + fill +
                ';width:calc(var(--hk-left, 1) * 100%);"></div></div>';
       }

@@ -179,6 +179,56 @@ var l = U.fitOf(2816, 1878, true);
 ok('a landscape photo fills the screen, no copy needed', !l.portrait && l.fit === 'cover' && !l.backdrop);
 var lw = U.fitOf(2816, 1878, false);
 ok('Fill the Screen off: landscape whole too, over the copy', lw.fit === 'contain' && lw.backdrop);
+
+// PORTRAIT AND LANDSCAPE PHOTOS, each their own (2026-10-13)
+var pf = U.fitOf(1878, 2816, true, true);
+ok('a portrait photo can fill the screen too, when asked', pf.portrait && pf.fit === 'cover' && !pf.backdrop);
+ok('...and is whole otherwise, as always', U.fitOf(1878, 2816, true).fit === 'contain' && U.fitOf(1878, 2816, true, false).backdrop);
+var c0 = U.readCfg({});
+ok('defaults: a portrait whole, a landscape filling, both centered at 100%', !c0.portrait.fill && c0.landscape.fill &&
+   c0.portrait.zoom === 100 && c0.portrait.x === 'center' && c0.landscape.y === 'center');
+var cp = U.readCfg({ portrait_fill: true, portrait_zoom: 150, portrait_x: 'left', portrait_y: 'top', portrait_blur: 100, portrait_dim: 0, fill: false, landscape_y: 'nowhere', landscape_zoom: 900 });
+ok('a portrait\u2019s own: fill, zoom, focus', cp.portrait.fill && cp.portrait.zoom === 150 && cp.portrait.x === 'left' && cp.portrait.y === 'top');
+ok('...the landscape\u2019s Fill is the old fill; nonsense reads as the default', !cp.landscape.fill && cp.landscape.y === 'center' && cp.landscape.zoom === 100);
+var lay = U.layoutOf(cp.portrait);
+ok('the layout: focus Top Left, zoom 1.5 about it', lay.pos === '0% 0%' && lay.zoom === '1.5');
+ok('...no dim, the heaviest blur', lay.dim === '1' && lay.small === 6);
+ok('the blurred copy\u2019s size is its blur: 50% is the 24 px it always was', U.backdropSmall(50) === 24 && U.backdropSmall(0) === 96);
+ok('...and the default dim is the 80% brightness it always had', U.layoutOf(c0.landscape).dim === '0.8');
+
+// NIGHT MODE (2026-10-13)
+var NC = U.readCfg({ clock_night: 'night', clock_night_from: '22:00', clock_night_to: '07:00' });
+var at = function (h, m) { return new Date(2026, 9, 13, h, m); };
+ok('Night Mode: at night, across midnight', U.nightNow(at(23, 30), NC) && U.nightNow(at(3, 0), NC) && U.nightNow(at(22, 0), NC));
+ok('...and not by day, nor at its end', !U.nightNow(at(7, 0), NC) && !U.nightNow(at(15, 0), NC) && !U.nightNow(at(21, 59), NC));
+ok('...a window inside one day', U.nightNow(at(14, 0), U.readCfg({ clock_night: 'night', clock_night_from: '13:00', clock_night_to: '15:00' })) &&
+   !U.nightNow(at(16, 0), U.readCfg({ clock_night: 'night', clock_night_from: '13:00', clock_night_to: '15:00' })));
+ok('...Always and Off', U.nightNow(at(12, 0), U.readCfg({ clock_night: 'always' })) && !U.nightNow(at(23, 0), U.readCfg({})));
+// THE MOSAIC (2026-10-13)
+[2, 3, 4, 5].forEach(function (n) {
+  U.MOSAICS[n].forEach(function (L, li) {
+    var area = L.reduce(function (a, c) { return a + c[2] * c[3]; }, 0);
+    ok('mosaic ' + n + '.' + li + ': ' + n + ' cells filling the screen', L.length === n && Math.abs(area - 1) < 1e-9, [L.length, area]);
+    ok('...none of them wider than 3.3:1 or taller than 1:2.4 on a 16:10 screen', L.every(function (c) { var r = (c[2] * 1600) / (c[3] * 1000); return r <= 3.3 && r >= 1 / 2.4; }));
+  });
+});
+var seq = [0.1, 0.1], ri = 0, rnd = function () { return seq[ri++ % seq.length]; };
+var a1 = U.mosaicPlan(3, 1600, 1000, rnd, -1), a2 = U.mosaicPlan(3, 1600, 1000, rnd, a1.idx);
+ok('never the same layout twice running', a1.idx !== a2.idx, [a1.idx, a2.idx]);
+var plan = { cells: [{ x: 0, y: 0, w: 0.6, h: 1, tall: false }, { x: 0.6, y: 0, w: 0.4, h: 0.5, tall: false }, { x: 0.6, y: 0.5, w: 0.4, h: 0.5, tall: false }] };
+var tall3 = U.mosaicPlan(3, 1600, 1000, function () { return 0.6; }, -1);   // three columns: every cell tall
+ok('three columns are tall cells', tall3.cells.every(function (c) { return c.tall; }));
+var big = { cells: [{ x: 0, y: 0, w: 0.25, h: 1, tall: true }, { x: 0.25, y: 0, w: 0.75, h: 1, tall: false }] };
+var as = U.mosaicAssign(big.cells, [false, true], 1600, 1000);
+ok('the portrait goes in the tall cell, the landscape in the wide one', as[0] === 1 && as[1] === 0, as);
+var as2 = U.mosaicAssign(tall3.cells, [false, false, false], 1600, 1000);
+ok('...with no portraits, every cell still gets a photo, each once', as2.slice().sort().join() === '0,1,2', as2);
+var cr = U.coverRect(4000, 3000, 400, 800, 0.5, 0, 1);
+ok('a crop covers the cell: a landscape photo in a tall cell keeps its full height', Math.abs(cr.sh - 3000) < 1e-6 && Math.abs(cr.sw - 1500) < 1e-6 && Math.abs(cr.sx - 1250) < 1e-6, cr);
+var cz = U.coverRect(3000, 4000, 800, 400, 0.5, 0, 2);
+ok('...Focus Top, Zoom 200%: from the very top, half as much', cz.sy === 0 && Math.abs(cz.sw - 1500) < 1e-6, cz);
+var c0 = U.readCfg({ photo_layout: 'mosaic', mosaic_count: 9, mosaic_gap: 'wide' });
+ok('mosaic options read defensively', c0.mosaic && c0.mosaic_count === 3 && c0.mosaic_gap === 'thin' && c0.mosaic_change === 'one');
 ok('images only', U.isImage({ media_class: 'image' }) && U.isImage({ media_content_type: 'image/jpeg' }) &&
    !U.isImage({ media_class: 'video', media_content_type: 'video/mp4' }) && !U.isImage(null));
 
@@ -913,5 +963,17 @@ S.preview(false); __runTimers();
 ok('...and stops with the preview', !S.running());
 delete window.hkSettings; delete window.hkStrategy;
 
+
+// 2026-10-13: the clock's text over photos, and the mosaic's line colors
+(function () {
+  var I = window.hkSaver && window.hkSaver._ || null;
+  if (!I || !I.ckFx) { ok('the clock text effects are exposed for tests', false); return; }
+  ok('no shadow, no outline: no filter', I.ckFx({ clock_text_shadow: 0, clock_text_outline: 0 }) === 'none');
+  var f = I.ckFx({ clock_text_shadow: 40, clock_text_outline: 0 });
+  ok('Shadow alone: one soft drop shadow', (f.match(/drop-shadow/g) || []).length === 1 && /rgba\(0,0,0,/.test(f));
+  f = I.ckFx({ clock_text_shadow: 0, clock_text_outline: 100 });
+  ok('Outline: four hard shadows, 3 px out', (f.match(/drop-shadow/g) || []).length === 4 && /3px 0px 0 /.test(f) && /-3px/.test(f));
+  ok('the line colors', I.MOSAIC_COLORS.black === '#000000' && !!I.MOSAIC_COLORS.cream && Object.keys(I.MOSAIC_COLORS).length === 6);
+})();
 print('\n' + (fail ? fail + ' FAILED, ' : 'ALL ') + pass + ' SAVER TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

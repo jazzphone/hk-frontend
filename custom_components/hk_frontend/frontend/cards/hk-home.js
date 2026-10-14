@@ -63,7 +63,7 @@
         '  border-radius:' + window.hkCards.M.radius + ';padding:16px 18px;overflow:hidden;cursor:pointer;',
         '  ' + window.hkCards.M.glass + ';',
         '  border:' + window.hkCards.M.border + ';',
-        '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-tall,inset 0 1px 0 rgba(255,255,255,0.20),0 10px 28px rgba(0,0,0,0.12)));',
+        '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-tall') + ');',
         '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
         '.vac .grid{display:grid;min-height:156px;',
         '  grid-template-areas:"ico label label label" "meta meta meta meta" "start pause locate home";',
@@ -72,7 +72,7 @@
         '  column-gap:14px;row-gap:10px;align-items:center}',
         '.vac .ico{grid-area:ico;justify-self:start;width:52px;height:52px;',
         '  border-radius:26px;display:flex;align-items:center;justify-content:center;',
-        '  background:var(--hk-key,rgba(255,255,255,0.14));transition:background-color .25s ease}',
+        '  background:' + window.hkCards.v('key-strong') + ';transition:background-color .25s ease}',
         // LIVE is green with dark ink -- the same "it is doing something right
         // now" signal the progress chip uses.
         '.vac .ico[data-live="1"]{background:rgba(48,209,88,0.95)}',
@@ -81,25 +81,25 @@
         '.vac .ico[data-live="1"] ha-icon{color:rgba(0,0,0,0.82)}',
         '.vac .label{grid-area:label;justify-self:start;align-self:center;',
         '  min-width:0;overflow:hidden;font-size:18px;font-weight:600;',
-        '  letter-spacing:-0.45px;color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1.25;',
+        '  letter-spacing:-0.45px;color:' + window.hkCards.v('ink') + ';line-height:1.25;',
         '  text-align:left;white-space:nowrap;text-overflow:ellipsis;width:100%}',
         '.vac .meta{grid-area:meta;justify-self:start;align-self:center;',
         '  min-width:0;display:flex;flex-wrap:wrap;gap:7px}',
         '.vac .chip{display:inline-flex;align-items:center;gap:5px;',
         '  padding:4px 10px;border-radius:11px;font-size:12px;font-weight:600;',
         '  letter-spacing:0.1px;line-height:1.25;white-space:nowrap;',
-        '  background:var(--hk-key,rgba(255,255,255,0.13));color:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '  background:' + window.hkCards.v('key') + ';color:' + window.hkCards.v('ink') + '}',
         '.vac .chip.warn{background:rgba(255,159,10,0.92);color:rgba(0,0,0,0.85)}',
         '.vac .chip.bad{background:rgba(255,69,58,0.92);color:rgba(0,0,0,0.85)}',
         '.vac .chip.err{background:rgba(255,69,58,0.95);color:rgba(255,255,255,0.97)}',
         '.vac .chip.good{background:rgba(48,209,88,0.92);color:rgba(0,0,0,0.85)}',
         '.vac .cmd{justify-self:stretch;height:52px;border-radius:18px;padding:0;',
-        '  border:none;box-shadow:none;background:var(--hk-key,rgba(255,255,255,0.10));',
+        '  border:none;box-shadow:none;background:' + window.hkCards.v('key') + ';',
         '  display:flex;align-items:center;justify-content:center;cursor:pointer;',
         '  transition:background-color .25s ease,transform .12s ease}',
         '.vac .cmd:active{transform:scale(0.97);filter:brightness(0.93)}',
         '.vac .cmd ha-icon{width:23px;height:23px;--mdc-icon-size:23px;',
-        '  color:var(--hk-glyph,rgba(255,255,255,0.90))}',
+        '  color:' + window.hkCards.v('glyph') + '}',
         '@media (prefers-reduced-motion:reduce){',
         '  .vac .cmd,.vac .cmd:active,.vac .ico{transition:none;transform:none}}'
       ].join('');
@@ -243,15 +243,15 @@
     static get CSS() {
       return [
         // THE SAME TRACK AS THE ROOM PILLS on the Play Music page: the same
-        // markup, the same `pill` class, and the 192 every other pill grid
-        // uses.
+        // markup, the same `pill` class, and the track every other pill grid
+        // uses (hk-base.js TILE).
         //
         // A fixed width would also opt this card out of the responsive track:
         // --hk-track is what css/hk-responsive.css redefines below 640px to
         // reflow a grid to two columns, and a literal width cannot hear it.
         // On a phone this would be the one pill grid that does not reflow.
-        '.grid{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,192px));',
-        '  grid-auto-rows:40px;gap:12px;margin:0 0 14px 0}',
+        '.grid{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,' + window.hkCards.TILE.w + 'px));',
+        '  grid-auto-rows:40px;gap:' + window.hkCards.TILE.gridGap + 'px;margin:0 0 14px 0}',
         // 40px PILLS, not 70px tiles: the action row matches the area pills
         // above it. Icon-well tiles here would stack two materials on one
         // grid. Play Music's equivalent row -- Clear, Transfer, Browse Music
@@ -260,16 +260,16 @@
         //
         // The rule below separates them, which is what carries the
         // "these act on the house" meaning that the shape does not.
-        '.actions{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,192px));',
-        '  grid-auto-rows:40px;gap:12px;margin:0 0 14px 0}',
+        '.actions{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,' + window.hkCards.TILE.w + 'px));',
+        '  grid-auto-rows:40px;gap:' + window.hkCards.TILE.gridGap + 'px;margin:0 0 14px 0}',
         '.floor{font-size:15px;font-weight:600;letter-spacing:-0.2px;',
-        '  color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:6px 4px 8px 4px}',
+        '  color:' + window.hkCards.v('ink-2') + ';padding:6px 4px 8px 4px}',
         // THE RULE separates two DIFFERENT kinds of thing: the pills above
         // only change a selection, the pills below act on the house. Without
         // it the action row reads as more pills that happen to look odd.
         '.rule{height:1px;margin:6px 4px 16px 4px;padding:0;border:none;',
-        '  border-radius:0;box-shadow:none;background:var(--hk-line,rgba(255,255,255,0.14))}',
-        '.empty{font-size:15px;line-height:1.35;color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:4px 4px 16px 4px}'
+        '  border-radius:0;box-shadow:none;background:' + window.hkCards.v('line') + '}',
+        '.empty{font-size:15px;line-height:1.35;color:' + window.hkCards.v('ink-2') + ';padding:4px 4px 16px 4px}'
       ].join('');
     }
     // AUTOMATIC ROOMS: a card whose YAML names
@@ -585,7 +585,7 @@
         // (buttons) + two 12px gaps + 32 of padding.
         '.tc{height:196px;padding:16px 18px;border-radius:' + M.radius + ';',
         '  ' + M.glass + ';border:' + M.border + ';',
-        '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-lg, 0 10px 28px rgba(0,0,0,0.12)));',
+        '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-lg') + ');',
         '  display:grid;column-gap:12px;row-gap:12px;align-items:center;',
         '  grid-template-columns:repeat(4,minmax(0,1fr));',
         '  grid-template-rows:52px minmax(0,1fr) 52px;',
@@ -597,22 +597,22 @@
         // explicit 21px icon row -- an <ha-icon> has no intrinsic height, so a
         // min-content row collapses it to nothing and the buttons render as
         // bare captions. The caption row CAN be min-content; text sizes itself.
-        '.tb{height:52px;border-radius:18px;background:var(--hk-key,rgba(255,255,255,0.10));',
+        '.tb{height:52px;border-radius:18px;background:' + window.hkCards.v('key') + ';',
         '  border:none;box-shadow:none;padding:0;justify-self:stretch;',
         '  display:grid;grid-template-columns:minmax(0,1fr);',
         '  grid-template-rows:21px min-content;align-content:center;',
         '  justify-items:center;row-gap:3px;cursor:pointer;user-select:none}',
         '.tb ha-icon{--mdc-icon-size:19px;width:19px;height:19px;',
-        '  color:var(--hk-glyph,rgba(255,255,255,0.90))}',
+        '  color:' + window.hkCards.v('glyph') + '}',
         '.tb > span{font-size:11px;font-weight:600;letter-spacing:0.1px;',
-        '  line-height:1;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '  line-height:1;color:' + window.hkCards.v('ink-2') + '}',
         // The empty state is a LINE OF TEXT, not a card. A full-width glass
         // plate with one grey sentence in it looks out of place: a plate is
         // this frontend's shape for a THING YOU CAN TOUCH, and there is nothing
         // here to touch. Sitting the sentence directly under the heading says
         // "this section is empty" without pretending to be a control.
         '.empty{padding:2px 4px 14px 4px;font-size:15px;font-weight:500;',
-        '  letter-spacing:-0.2px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+        '  letter-spacing:-0.2px;color:' + window.hkCards.v('ink-3') + '}',
         // PHONE. The 388px track above is a TABLET number -- it is the page
         // width divided by three, and `auto-fill` with a fixed track cannot
         // shrink below it, so at 402px it would lay one 388px card into ~354px
@@ -620,7 +620,7 @@
         // instead; the card's own four control tracks are already
         // `minmax(0,1fr)` and divide whatever they are given (~70px each at
         // 402px, against 52px tall buttons, which is fine).
-        '@media (max-width: 640px){',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){',
         '  .grid{grid-template-columns:minmax(0,1fr)}',
         '}',
         // ------------------------------------------------ FIT (the Timers page)
@@ -665,12 +665,12 @@
         '.dots{display:flex;justify-content:flex-end;gap:2px;height:24px;margin-top:5px}',
         '.dots button{all:unset;width:24px;height:24px;display:flex;align-items:center;',
         '  justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
-        '.dots i{width:8px;height:8px;border-radius:4px;background:var(--hk-ink-3,rgba(255,255,255,0.40));',
+        '.dots i{width:8px;height:8px;border-radius:4px;background:' + window.hkCards.v('ink-3') + ';',
         '  transition:background-color .2s ease}',
-        '.dots button[aria-current="true"] i{background:var(--hk-ink,rgba(255,255,255,0.94))}',
+        '.dots button[aria-current="true"] i{background:' + window.hkCards.v('ink') + '}',
         // PHONE: one column and no sideways pages -- the page itself scrolls,
         // so every running timer is simply the next card down.
-        '@media (max-width: 640px){',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){',
         '  .grid.fit{grid-template-columns:minmax(0,1fr)}',
         '  .pages{display:block;overflow:visible;padding:0;margin:0}',
         '  .pw{display:block}',
@@ -791,7 +791,7 @@
       // the vacuum card. Colour means "this is happening now", and
       // a paused timer is deliberately not shouting.
       var liveNow = s === 'active';
-      var bg = liveNow ? tint : 'var(--hk-key,rgba(255,255,255,0.14))';
+      var bg = liveNow ? tint : '' + window.hkCards.v('key-strong') + '';
       var fg = liveNow ? 'rgba(0,0,0,0.82)' : 'var(--hk-glyph,rgba(255,255,255,0.80))';
       var px = t.glyph_px || '28px';
       // the compact card's 40 px well: the glyph scales with it
@@ -825,10 +825,10 @@
             '</ha-icon></div>' +
           '<div style="min-width:0;text-align:left;">' +
             '<div style="font-size:17px;font-weight:600;letter-spacing:-0.45px;' +
-              'color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1.25;overflow:hidden;' +
+              'color:' + window.hkCards.v('ink') + ';line-height:1.25;overflow:hidden;' +
               'text-overflow:ellipsis;white-space:nowrap;">' + esc(n) + '</div>' +
             '<div style="font-size:13px;font-weight:500;letter-spacing:-0.1px;' +
-              'color:var(--hk-ink-2,rgba(255,255,255,0.68));line-height:1.3;">' + esc(sub) + '</div>' +
+              'color:' + window.hkCards.v('ink-2') + ';line-height:1.3;">' + esc(sub) + '</div>' +
           '</div></div>';
       return d;
     }
@@ -848,7 +848,7 @@
       // timer finishes. A card that changes height reflows every card after it.
       var blank = '<div style="text-align:left;"><div style="font-size:30px;' +
         'font-weight:300;letter-spacing:-0.8px;line-height:1;' +
-        'color:var(--hk-ink-3,rgba(255,255,255,0.40));">&mdash;</div>' +
+        'color:' + window.hkCards.v('ink-3') + ';">&mdash;</div>' +
         '<div style="margin-top:10px;height:4px;"></div></div>';
       count.innerHTML = (T && T.html(st.attributes, { fill: this._tint() })) || blank;
       c.appendChild(count);
@@ -1091,7 +1091,7 @@
         // and full width. The keys derive from the column (repeat(3,1fr)), so
         // they follow automatically -- that is the whole point of sizing them
         // FROM the column rather than pinning them.
-        '@media (max-width: 640px){',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){',
         '  .wrap{grid-template-columns:minmax(0,1fr);gap:18px}',
         '}',
         // ...AND BY ITS OWN WIDTH on someone else's dashboard: a section or a
@@ -1099,21 +1099,21 @@
         // the name, chips and Start ran out of it. Stacked as on a phone. HK's
         // own pages keep the screen-width rule above (no container there).
         ':host([data-hk-foreign]){container-type:inline-size}',
-        '@container (max-width: 640px){',
+        '@container (max-width:' + window.hkCards.BP.phone + 'px){',
         '  .wrap:not(.panel){grid-template-columns:minmax(0,1fr);gap:18px}',
         '}',
         '.readout{height:104px;border-radius:' + M.radius + ';padding:0 24px;margin:0 0 14px 0;',
         '  ' + M.glass + ';border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 10px 28px rgba(0,0,0,0.12));',
         '  display:flex;align-items:center}',
         '.big{font-size:44px;font-weight:300;letter-spacing:-1.2px;line-height:1}',
-        '.sub{font-size:14px;font-weight:500;margin-top:8px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+        '.sub{font-size:14px;font-weight:500;margin-top:8px;color:' + window.hkCards.v('ink-2') + '}',
         '.pad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));',
         '  grid-auto-rows:62px;gap:12px}',
         '.key{height:62px;border-radius:22px;padding:0;' + M.glass + ';',
         '  border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10));',
         '  display:flex;align-items:center;justify-content:center;cursor:pointer;',
         '  user-select:none;font-size:19.7px;letter-spacing:-0.45px;font-weight:700;',
-        '  color:var(--hk-ink,rgba(255,255,255,0.94));transition:transform .12s ease}',
+        '  color:' + window.hkCards.v('ink') + ';transition:transform .12s ease}',
         '.key:active{transform:scale(0.96)}',
         // SIX ACROSS, ONE ROW. A grid with no template-columns is a single
         // column, and the six name chips would stack one per row down the
@@ -1125,7 +1125,7 @@
         '.chip2{height:48px;border-radius:17px;padding:0 10px;min-width:0;border:' + M.border + ';',
         '  box-shadow:none;' + M.glass + ';display:flex;align-items:center;',
         '  justify-content:center;cursor:pointer;user-select:none;font-size:16px;',
-        '  font-weight:600;letter-spacing:-0.3px;color:var(--hk-ink,rgba(255,255,255,0.94));',
+        '  font-weight:600;letter-spacing:-0.3px;color:' + window.hkCards.v('ink') + ';',
         '  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
         '  transition:background-color .22s ease,transform .12s ease}',
         '.chip2:active{transform:scale(0.96)}',
@@ -1135,8 +1135,8 @@
         '.namebox{height:58px;border-radius:20px;padding:8px 16px;margin:0 0 14px 0;',
         '  ' + M.glass + ';border:' + M.border + ';display:flex;align-items:center}',
         '.namebox input{all:unset;width:100%;font-size:19px;font-weight:600;',
-        '  letter-spacing:-0.3px;color:var(--hk-ink,rgba(255,255,255,0.94));font-family:inherit}',
-        '.namebox input::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+        '  letter-spacing:-0.3px;color:' + window.hkCards.v('ink') + ';font-family:inherit}',
+        '.namebox input::placeholder{color:' + window.hkCards.v('ink-3') + '}',
         '.start{height:70px;border-radius:' + M.radius + ';' + M.glass + ';border:' + M.border + ';',
         '  box-shadow:' + M.shSm + ';display:flex;align-items:center;justify-content:center;',
         '  font-size:17px;font-weight:600;letter-spacing:-0.3px;cursor:pointer;',
@@ -1154,10 +1154,10 @@
         // glass surface; the keys and chips on it are tints, not plates.
         '.wrap.panel{display:flex;flex-direction:column;gap:12px;padding:20px;box-sizing:border-box;height:100%;',
         '  border-radius:' + M.radius + ';' + M.glass + ';border:' + M.border + ';',
-        '  box-shadow:var(--hk-look-shadow, var(--hk-glass-shadow-lg, 0 10px 28px rgba(0,0,0,0.12)))}',
+        '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-lg') + ')}',
         '.panel .ro{display:flex;align-items:baseline;justify-content:space-between;gap:12px;height:60px}',
         '.panel .big{font-size:56px;font-weight:300;letter-spacing:-2px;line-height:60px;white-space:nowrap}',
-        '.panel .ends{font-size:14px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
+        '.panel .ends{font-size:14px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
         // the hint and the status share one cell, right-aligned on the
         // duration's baseline; a message hides the hint while it shows
         '.panel .side{display:grid;justify-items:end;min-width:0}',
@@ -1165,7 +1165,7 @@
         '.panel .side .hk-status{margin:0;min-height:0;line-height:1.3;font-size:14px;text-align:right}',
         '.panel .side:has(.hk-status[data-kind]) .ends{visibility:hidden}',
         '.panel .pad{grid-auto-rows:56px;gap:10px}',
-        '.panel .key,.panel .chip2,.panel .namebox{background:var(--hk-key,rgba(255,255,255,0.10));box-shadow:none}',
+        '.panel .key,.panel .chip2,.panel .namebox{background:' + window.hkCards.v('key') + ';box-shadow:none}',
         '.panel .key{height:56px;border-radius:18px;font-size:21px;font-weight:600}',
         '.panel .namebox{height:48px;border-radius:16px;margin:0}',
         '.panel .namebox input{font-size:17px}',
@@ -1177,7 +1177,7 @@
         '.panel .start{height:56px;border-radius:18px;margin-top:auto;font-size:18px;font-weight:700}',
         '.panel .start[aria-disabled="false"]{background:var(--hk-timer-tint,rgba(255,159,10,0.95));border-color:transparent;',
         '  color:rgba(0,0,0,0.85)}',
-        '.panel .start[aria-disabled="true"]{opacity:1;color:var(--hk-ink-3,rgba(255,255,255,0.40));background:var(--hk-key,rgba(255,255,255,0.08))}',
+        '.panel .start[aria-disabled="true"]{opacity:1;color:' + window.hkCards.v('ink-3') + ';background:' + window.hkCards.v('key') + '}',
         // WIDE (`data-wide`, set by hk-timers-page-card when the page stacks:
         // an iPad held upright, a tablet with the menu docked): this panel
         // runs the full width under the page, so its one column would be a
@@ -1339,7 +1339,7 @@
       big.textContent = t.total
         ? (t.h ? t.h + ':' + (t.m < 10 ? '0' + t.m : t.m) : t.m + ' min')
         : '0 min';
-      big.style.color = t.total ? 'var(--hk-ink,rgba(255,255,255,0.94))' : 'var(--hk-ink-3,rgba(255,255,255,0.40))';
+      big.style.color = t.total ? '' + window.hkCards.v('ink') + '' : '' + window.hkCards.v('ink-3') + '';
       var nm = this._name.trim();
       if (sub) sub.textContent = t.total ? (nm || 'Unnamed') : 'Type a duration';
       this._paintEnds();
@@ -1521,12 +1521,12 @@
         '.qs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}',
         '.qk{height:56px;border-radius:18px;' + M.glass + ';border:' + M.border + ';box-shadow:' + M.shSm + ';',
         '  display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:650;',
-        '  letter-spacing:-0.3px;color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;user-select:none;',
+        '  letter-spacing:-0.3px;color:' + window.hkCards.v('ink') + ';cursor:pointer;user-select:none;',
         '  -webkit-tap-highlight-color:transparent;transition:transform .12s ease}',
         '.qk:active{transform:scale(0.96)}',
         '.qk[aria-disabled="true"]{opacity:0.45;pointer-events:none}',
-        // the house's own pill size (192), as on every room page
-        '.hgrid{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,192px));gap:12px}',
+        // the house's own pill and gap (hk-base.js TILE), as on every room page
+        '.hgrid{display:grid;grid-template-columns:repeat(auto-fill,var(--hk-track,' + window.hkCards.TILE.w + 'px));gap:' + window.hkCards.TILE.gridGap + 'px}',
         // STACKED (`data-stack`, below STACK_W of the card's OWN width, not
         // the window's -- an iPad held upright, and a wall tablet with the
         // menu docked, whose page is an iPad's): ONE COLUMN, the tablet's
@@ -1538,7 +1538,7 @@
         ':host([data-stack]) .pg{grid-template-columns:minmax(0,1fr)}',
         ':host([data-stack]) .s-house{margin-top:0}',
         ':host([data-stack]) .side{margin-top:22px}',
-        '@media (max-width: 640px){',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){',
         '  .pg{display:flex;flex-direction:column;gap:18px}',
         '  .main{display:contents}',
         '  .s-run{order:1;margin:0}.s-qs{order:2}.side{order:3}.s-house{order:4;margin:0;padding:0}',

@@ -33,11 +33,15 @@
 * [Clean Areas](Clean-Areas.md)
 * [Alarm PIN](Alarm-PIN.md)
 * [Energy](Energy.md)
+* [The Power page](Energy.md#the-power-page)
 * [Notifications](Notifications.md)
 
 **Wall tablets**
 * [Setting up a tablet](Wall-Tablets.md)
+* [A tablet’s page](Wall-Tablets.md#a-tablets-page)
 * [Screensaver & idle](Screensaver-and-Idle.md)
+* [Screensaver settings](Screensaver-and-Idle.md#screensaver-settings)
+* [A clock](Screensaver-and-Idle.md#a-clock)
 * [Sleep Screen](Sleep-Screen.md)
 
 **Build your own**

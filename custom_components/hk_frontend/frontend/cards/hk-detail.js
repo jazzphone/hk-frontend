@@ -68,6 +68,12 @@
     function domainOf(id) { return String(id || '').split('.')[0]; }
     function isOn(s) { return !!s && ON_STATES.indexOf(s.state) !== -1; }
     function unavailable(s) { return !s || s.state === 'unavailable' || s.state === 'unknown'; }
+    // NO READING IS NOT NO CONTROL: `unavailable` (or no state) is a device
+    // that cannot be reached; `unknown` (a Z-Wave or Zigbee device after a
+    // restart, before it reports) still takes commands, as in Home
+    // Assistant's own dialog -- which a sheet replaces, so a dead sheet left
+    // no way to command it at all. unavailable() above stays for readings.
+    function gone(s) { return !s || s.state === 'unavailable'; }
 
     function colourName(src, id) {
       var c = src && src.icon_color ? String(src.icon_color).toLowerCase().trim() : '';
@@ -585,8 +591,8 @@
     // 6 from a title to its line. Cards: radius 20, padding 16 18 14 (a
     // card of rows alone 14 18); text outside a card on the card text's
     // edge, 18 in.
-    var SP = { region: 20, piece: 20, piecePhone: 16, block: 12, line: 6, cardR: 20,
-               cardPad: '16px 18px 14px', rowsPad: '14px 18px', inset: 18 };
+    // (hkCards.SP, hk-base.js: one of the three spacing tiers)
+    var SP = C.SP;
     // ONE PHONE HEIGHT TOO, the speaker's, so every sheet is the same size.
     // The whole screen less 80 -- which only the stacked thermostat needs --
     // would leave every other phone sheet in 200-350 px of empty space.
@@ -607,7 +613,7 @@
       // a person (them | where they are) and an event (it | its day): two
       // columns on a tablet, one on a phone
       person: WIDE, event: WIDE,
-      // a room's "3 Windows": two 192 px tiles a row, the sheet's own width
+      // a room's "3 Windows": two full pills a row (2 x 196 + 10 of its ~410)
       group: STD,
       // a custom pop-up's own cards: narrow or wide, as it asks
       cards: STD, cards_wide: WIDE,
@@ -619,7 +625,9 @@
 
     var SHEET_CSS = [
       '.hkd{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;',
-      '  pointer-events:none;-webkit-tap-highlight-color:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));',
+      '  pointer-events:none;-webkit-tap-highlight-color:transparent;color:' + window.hkCards.v('ink') + ';',
+      // the dashboard's font: the sheet is mounted outside the view
+      '  ' + window.hkCards.FONT_ROOT + ';',
       // CENTRED ON THE DASHBOARD, past Home Assistant's sidebar (hk-menu.js
       // publishes where the dashboard starts) -- a docked menu is part of the
       // dashboard, so the sheet centres over it too. The backdrop, inset 0,
@@ -646,11 +654,11 @@
       // THE COLOUR COMES THROUGH: a light tint over a saturated blur, so the
       // sky and the pills behind tint the sheet the way the Home app's cards
       // are tinted.
-      '  background:rgba(30,30,34,0.46);-webkit-backdrop-filter:blur(34px) saturate(1.9);',
+      '  background:rgba(28,28,32,0.52);-webkit-backdrop-filter:blur(34px) saturate(1.9);',
       '  backdrop-filter:blur(34px) saturate(1.9);border:1px solid rgba(255,255,255,0.12);',
       '  box-shadow:0 26px 64px rgba(0,0,0,0.55);overflow:hidden;',
       '  opacity:0;transform:translateY(24px) scale(.98);',
-      '  transition:opacity .25s ease,transform .3s cubic-bezier(.2,.8,.2,1)}',
+      '  transition:opacity .25s ease,transform .3s cubic-bezier(.32,.72,0,1)}',
       '.hkd.open .sheet{opacity:1;transform:none}',
       // THE HEADER RIDES ON THE BODY: a soft shadow along the body's top once
       // it has scrolled under the name (hk-base.js shade)
@@ -710,7 +718,7 @@
       // ...and the pop-ups' dim (hk-popup.js, rgba(17,17,17,.8)): a control
       // sheet's lighter one lets the sky tint its glass; a picture has none.
       '.hkd.bare .bd{background:rgba(17,17,17,0.8)}',
-      '@media (max-width:600px){',
+      '@media (max-width:' + C.BP.phone + 'px){',
       '  .hkd .sheet{width:calc(var(--hk-vw, 100vw) - 32px);padding:18px;gap:16px;border-radius:30px;',
       '    height:min(' + PHONE_H + 'px, calc(var(--hk-vh, 100dvh) - 80px))}',
       '  .hkd .well,.hkd .x{width:40px;height:40px;border-radius:20px}',
@@ -742,10 +750,10 @@
       '.hkn-col .hero ha-icon{--mdc-icon-size:48px;color:#fff;display:flex}',
       '.hkn-col .pic{width:100%;aspect-ratio:16/9;border-radius:12px;object-fit:cover;flex:none;background:rgba(255,255,255,0.06);cursor:pointer}',
       '.hkn-col .imp{margin-top:20px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#ff453a}',
-      '.hkn-col .what{margin-top:20px;font-size:22px;font-weight:700;letter-spacing:-.3px;line-height:26px;overflow-wrap:anywhere}',
+      '.hkn-col .what{margin-top:20px;font-size:22px;font-weight:700;letter-spacing:-0.35px;line-height:26px;overflow-wrap:anywhere}',
       '.hkn-col .imp + .what{margin-top:' + SP.line + 'px}',
-      '.hkn-col .msg,.hkn-col .when{margin-top:' + SP.line + 'px;font-size:15px;line-height:20px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-      '.hkn-col .msg{color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      '.hkn-col .msg,.hkn-col .when{margin-top:' + SP.line + 'px;font-size:15px;line-height:20px;color:' + window.hkCards.v('ink-2') + '}',
+      '.hkn-col .msg{color:' + window.hkCards.v('ink') + '}',
       '.hkn-col .acts{align-self:stretch;display:flex;flex-direction:column;gap:' + SP.block + 'px;margin-top:24px}',
       '.hkn-b{height:50px;border-radius:25px;border:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 18px;',
       '  white-space:nowrap;background:rgba(255,255,255,0.14);color:#fff;font:inherit;font-size:16px;font-weight:600;cursor:pointer;',
@@ -757,7 +765,7 @@
       '.hkn-b.on{background:rgba(255,255,255,0.92);color:rgba(0,0,0,0.85)}',
       // the card: 14 all round, the glyph and the buttons on one left edge
       '.hkn-card{display:flex;flex-direction:column;gap:' + SP.block + 'px;padding:14px;border-radius:' + SP.cardR + 'px;',
-      '  background:rgba(255,255,255,0.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);flex-shrink:0;color:var(--hk-ink,rgba(255,255,255,0.94));box-sizing:border-box;text-align:left}',
+      '  background:rgba(255,255,255,0.10);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);flex-shrink:0;color:' + window.hkCards.v('ink') + ';box-sizing:border-box;text-align:left}',
       '.hkd .body > .hkn-card{margin:0 0 ' + SP.region + 'px}',
       '.hkn-card .r1{display:flex;align-items:center;gap:12px}',
       '.hkn-card .r2{display:flex;gap:' + SP.block + 'px}',
@@ -767,17 +775,17 @@
       '.hkn-card .ni ha-icon{--mdc-icon-size:19px;color:#fff;display:flex}',
       '.hkn-card .nt{flex:1;min-width:0}',
       '.hkn-card .n1{font-size:15px;font-weight:650;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.hkn-card .n2{font-size:13px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.hkn-card .n2{font-size:13px;line-height:18px;color:' + window.hkCards.v('ink-2') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.hkn-card .imp{color:#ff453a;font-weight:700}',
       '.hkn-card img{width:58px;height:40px;border-radius:8px;object-fit:cover;flex:none;cursor:pointer;background:rgba(255,255,255,0.06)}',
       // over the camera's picture (a tablet), its top left -- the foot has
       // the camera's own controls: dark, not a second blur (one blur layer
       // per sheet, the sheet's own)
       '.hkn-card.over{position:absolute;left:' + SP.region + 'px;top:' + SP.region + 'px;width:420px;max-width:calc(100% - 40px);z-index:3;',
-      '  background:rgba(28,28,32,0.86)}',
+      '  background:rgba(24,24,28,0.93)}',
       '.hkn-card.under{margin:' + SP.block + 'px}',
       // a phone: the words alone, a little smaller ("Doors & Windows ›" fits)
-      '@media (max-width:600px){.hkn-card .r2 .hkn-b ha-icon{display:none}.hkn-card .r2 .hkn-b{font-size:13px;padding:0 10px}}'
+      '@media (max-width:' + C.BP.phone + 'px){.hkn-card .r2 .hkn-b ha-icon{display:none}.hkn-card .r2 .hkn-b{font-size:13px;padding:0 10px}}'
     ].join('');
 
     var D = { el: null };
@@ -1050,7 +1058,7 @@
     // where the notification goes in an open sheet (see NOTE_CSS)
     function placeNote(h, el, sheet, panel, note, width) {
       var body = sheet.querySelector('.body');
-      var phone = matchMedia('(max-width:600px)').matches;
+      var phone = matchMedia('(max-width:' + C.BP.phone + 'px)').matches;
       if (panel.hkBare && panel.hkBare()) {
         if (phone) sheet.appendChild(noteEl(h, note, 'under'));
         else sheet.appendChild(noteEl(h, note, 'over'));
@@ -1103,13 +1111,13 @@
       '  background:rgba(255,255,255,0.14);color:rgba(255,255,255,0.92);--mdc-icon-size:20px}',
       '.hkd .gear:active{background:rgba(255,255,255,0.26)}',
       // a phone's header row is 40 px, as are its well and X (SHEET_CSS)
-      '@media (max-width:600px){.hkd .gear{width:40px;height:40px;border-radius:20px}}',
+      '@media (max-width:' + C.BP.phone + 'px){.hkd .gear{width:40px;height:40px;border-radius:20px}}',
       '.hkd .gear[hidden]{display:none}',
       '.hkd .body > .acc{margin-block:0}',
       '.acc{display:flex;flex-direction:column;gap:20px;padding-bottom:6px;font-size:16px}',
       // colours are variables with the sheet's (dark) values as defaults, so
       // the settings page can draw the same pane in its own light or dark
-      '.acc .cap{font-size:13px;font-weight:600;letter-spacing:.3px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));',
+      '.acc .cap{font-size:13px;font-weight:600;letter-spacing:.3px;color:var(--acc-label2,' + window.hkCards.v('ink-2') + ');',
       '  text-transform:uppercase;padding:0 6px 6px}',
       '.acc .grp{background:var(--acc-cell,rgba(255,255,255,0.08));border-radius:14px;overflow:hidden}',
       '.acc .row{display:flex;align-items:center;justify-content:space-between;gap:14px;',
@@ -1117,20 +1125,20 @@
       // the line between two rows starts at their text, as iOS draws it
       '.acc .row + .row{background:linear-gradient(var(--acc-sep,rgba(255,255,255,0.09)),var(--acc-sep,rgba(255,255,255,0.09)))',
       '  16px 0/calc(100% - 16px) 1px no-repeat}',
-      '.acc .row .k{flex-shrink:0;color:var(--acc-label,var(--hk-ink,rgba(255,255,255,0.94)))}',
+      '.acc .row .k{flex-shrink:0;color:var(--acc-label,' + window.hkCards.v('ink') + ')}',
       // a place's line under its name (Where it shows): what that place covers
-      '.acc .row .k small{display:block;font-size:13px;line-height:17px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));margin-top:1px}',
+      '.acc .row .k small{display:block;font-size:13px;line-height:17px;color:var(--acc-label2,' + window.hkCards.v('ink-2') + ');margin-top:1px}',
       '.acc .row .k small[hidden]{display:none}',
       '.acc .row.place .k,.acc .row.wall .k{flex-shrink:1;min-width:0;padding:9px 0}',
       '.acc .row.dim .k{opacity:.45}',
       '.acc .tg:disabled{opacity:.45;cursor:default}',
       '.acc .note a{color:var(--acc-focus,#0a84ff);text-decoration:none}',
-      '.acc input.nm{flex:1;min-width:0;background:transparent;border:0;color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));font:inherit;',
+      '.acc input.nm{flex:1;min-width:0;background:transparent;border:0;color:var(--acc-text,' + window.hkCards.v('ink') + ');font:inherit;',
       '  text-align:right;outline:none;padding:0;text-overflow:ellipsis}',
       // the whole row's height is the field's target, not its 21 px of text
       '.acc .row input.nm,.acc .row select{align-self:stretch;min-height:44px}',
-      '.acc input.nm::placeholder{color:var(--acc-label3,var(--hk-ink-3,rgba(255,255,255,0.40)))}',
-      '.acc select{min-width:0;max-width:60%;background:transparent;color:var(--acc-value,var(--hk-ink-2,rgba(255,255,255,0.68)));border:0;',
+      '.acc input.nm::placeholder{color:var(--acc-label3,' + window.hkCards.v('ink-3') + ')}',
+      '.acc select{min-width:0;max-width:60%;background:transparent;color:var(--acc-value,' + window.hkCards.v('ink-2') + ');border:0;',
       '  font:inherit;text-align:right;outline:none;-webkit-appearance:none;appearance:none;cursor:pointer}',
       '.acc select option{color:#000}',
       '.acc .tg{-webkit-appearance:none;appearance:none;width:51px;height:31px;border-radius:16px;margin:0;',
@@ -1143,7 +1151,7 @@
       // each choice as wide as its word, the rest shared out: equal fifths
       // left "Automatic" (bold when chosen) spilling into "Light" on a phone
       '.acc .seg button{flex:1 1 auto;min-width:0;padding:0 6px;height:32px;border:0;border-radius:8px;background:transparent;',
-      '  color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}',
+      '  color:var(--acc-text,' + window.hkCards.v('ink') + ');font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}',
       '.acc .seg button.on{background:var(--acc-seg-on,rgba(255,255,255,0.24));font-weight:600}',
       '.acc .glyphs{display:grid;grid-template-columns:repeat(auto-fill,46px);justify-content:center;gap:8px;padding:12px}',
       '.acc .glyphs button{width:46px;height:46px;border-radius:23px;border:0;cursor:pointer;justify-self:center;',
@@ -1152,7 +1160,7 @@
       '.acc .glyphs button.on{background:var(--acc-glyph-on-bg,rgba(255,255,255,0.92));color:var(--acc-glyph-on-fg,#000)}',
       '.acc .swatches{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}',
       '.acc .swatches button{width:32px;height:32px;border-radius:16px;border:2px solid transparent;cursor:pointer;',
-      '  font:inherit;font-size:10px;color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));background:var(--acc-glyph,rgba(255,255,255,0.12))}',
+      '  font:inherit;font-size:10px;color:var(--acc-text,' + window.hkCards.v('ink') + ');background:var(--acc-glyph,rgba(255,255,255,0.12))}',
       '.acc .swatches button.on{border-color:var(--acc-text,#fff);box-shadow:0 0 0 2px rgba(0,0,0,0.4) inset}',
       '.acc .swatches button:first-child{width:auto;padding:0 10px}',
       '.acc .glyphs.fvg{border-top:1px solid var(--acc-sep,rgba(255,255,255,0.09))}',
@@ -1181,27 +1189,27 @@
       // SEARCH EVERY ICON: the Apple glyphs, then Home Assistant's Material ones
       '.acc .gsearch{display:block;padding:12px 12px 0}',
       '.acc .gsearch input{width:100%;box-sizing:border-box;height:36px;border:0;border-radius:10px;padding:0 12px;',
-      '  background:var(--acc-glyph,rgba(255,255,255,0.10));color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));font:inherit;font-size:15px;outline:none}',
-      '.acc .gsearch input::placeholder{color:var(--acc-label3,var(--hk-ink-3,rgba(255,255,255,0.40)))}',
+      '  background:var(--acc-glyph,rgba(255,255,255,0.10));color:var(--acc-text,' + window.hkCards.v('ink') + ');font:inherit;font-size:15px;outline:none}',
+      '.acc .gsearch input::placeholder{color:var(--acc-label3,' + window.hkCards.v('ink-3') + ')}',
       '.acc .gsearch.fvs{border-top:1px solid var(--acc-sep,rgba(255,255,255,0.09))}',
       '.acc .glyphs .gh{grid-column:1/-1;font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;',
-      '  color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:4px 2px 0}',
-      '.acc .glyphs .gn{grid-column:1/-1;font-size:13px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:0 2px}',
+      '  color:var(--acc-label2,' + window.hkCards.v('ink-2') + ');padding:4px 2px 0}',
+      '.acc .glyphs .gn{grid-column:1/-1;font-size:13px;color:var(--acc-label2,' + window.hkCards.v('ink-2') + ');padding:0 2px}',
       '.acc .with{display:flex;flex-wrap:wrap;gap:8px;padding:0 14px 12px}',
       '.acc .with[hidden]{display:none}',
-      '.acc .with button{height:32px;border-radius:16px;border:0;background:var(--acc-glyph,rgba(255,255,255,0.14));color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)));',
+      '.acc .with button{height:32px;border-radius:16px;border:0;background:var(--acc-glyph,rgba(255,255,255,0.14));color:var(--acc-text,' + window.hkCards.v('ink') + ');',
       '  font:inherit;font-size:14px;padding:0 12px;cursor:pointer}',
       '.acc .reset{height:50px;border:0;border-radius:14px;background:var(--acc-cell,rgba(255,255,255,0.08));',
       '  color:var(--acc-red,#ff453a);font:inherit;cursor:pointer;width:100%}',
       // Reset asks first, in place (an alert over a sheet would stack two sheets)
       '.acc .sure{display:flex;flex-direction:column;gap:8px}',
       '.acc .sure[hidden]{display:none}',
-      '.acc .sure .q{font-size:13px;line-height:18px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:0 6px;text-align:center}',
+      '.acc .sure .q{font-size:13px;line-height:18px;color:var(--acc-label2,' + window.hkCards.v('ink-2') + ');padding:0 6px;text-align:center}',
       '.acc .sure .b{display:flex;gap:8px}',
       '.acc .sure button{flex:1;height:44px;border:0;border-radius:12px;font:inherit;cursor:pointer;',
-      '  background:var(--acc-cell,rgba(255,255,255,0.08));color:var(--acc-text,var(--hk-ink,rgba(255,255,255,0.94)))}',
+      '  background:var(--acc-cell,rgba(255,255,255,0.08));color:var(--acc-text,' + window.hkCards.v('ink') + ')}',
       '.acc .sure button.go{color:var(--acc-red,#ff453a);font-weight:600}',
-      '.acc .note{font-size:13px;line-height:18px;color:var(--acc-label2,var(--hk-ink-2,rgba(255,255,255,0.68)));padding:0 6px}',
+      '.acc .note{font-size:13px;line-height:18px;color:var(--acc-label2,' + window.hkCards.v('ink-2') + ');padding:0 6px}',
       // a footer under its group, a little apart from it, as iOS sets one
       '.acc .grp + .note{margin-top:6px}',
       '.acc .err{color:var(--acc-orange,#ff9f0a)}',
@@ -2355,15 +2363,15 @@
 
     // ------------------------------------------------------------ panels
     var PANEL_CSS = [
-      ':host{display:block;color:var(--hk-ink,rgba(255,255,255,0.94));font-family:inherit}',
+      ':host{display:block;color:' + window.hkCards.v('ink') + ';font-family:inherit}',
       // a display rule beats the hidden attribute; this puts it back
       '[hidden]{display:none!important}',
       // 3 px above and below, the same: a centred panel is centred to the pixel
       '.pn{display:flex;flex-direction:column;align-items:center;gap:20px;padding:3px 0}',
       '.big{font-size:44px;font-weight:600;letter-spacing:-1.5px;line-height:1;',
       '  font-variant-numeric:tabular-nums;min-height:44px;text-align:center}',
-      '.lab{align-self:stretch;font-size:13px;font-weight:600;letter-spacing:.2px;',
-      '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase;margin-bottom:-10px}',
+      '.lab{align-self:stretch;font-size:13px;font-weight:600;letter-spacing:0.3px;',
+      '  color:' + window.hkCards.v('ink-2') + ';text-transform:uppercase;margin-bottom:-10px}',
       // the vertical slider (brightness, speed, shade)
       // ONE SLIDER SIZE on every sheet (150 x 440; a phone 128 x 360)
       '.vs{position:relative;width:150px;height:440px;border-radius:44px;flex-shrink:0;',
@@ -2398,7 +2406,7 @@
       '.menu .cur{display:inline-flex;align-items:center;gap:4px;color:rgba(235,235,245,0.62);',
       '  font-weight:500;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
       '.menu .cur svg{flex-shrink:0}',
-      '.muted{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));text-align:center}',
+      '.muted{font-size:15px;color:' + window.hkCards.v('ink-2') + ';text-align:center}',
       // A STATE AND ITS LINE ARE ONE PIECE ("Closed" / "Hold to open",
       // "Closed" / "Since 8:20 AM"): SP.line under it, whatever the gap
       // between the sheet's pieces (20, a phone 16)
@@ -2414,14 +2422,14 @@
       '.ay .sz{visibility:hidden;display:block;height:0;overflow:hidden;font-size:12px;line-height:14px;',
       '  font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.ay span{position:absolute;right:0;transform:translateY(-50%);font-size:12px;line-height:14px;',
-      '  color:var(--hk-ink-3,rgba(255,255,255,0.40));font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '  color:' + window.hkCards.v('ink-3') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.ap{position:relative;min-width:0}',
       '.axc > .axx{grid-column:2;margin:8px 0 0}',
       '.ap .gr{position:absolute;left:0;right:0;height:1px;margin-top:-0.5px;background:rgba(255,255,255,0.07);pointer-events:none}',
       '.ap .gr.b{background:rgba(255,255,255,0.16)}',
       '.axc.fl{align-items:stretch;grid-template-rows:minmax(0,1fr) auto}',
       '.axc.fl .ap > svg{height:100% !important;overflow:visible}',
-      '.axx{position:relative;height:14px;margin:8px 0 0 48px;font-size:12px;line-height:14px;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+      '.axx{position:relative;height:14px;margin:8px 0 0 48px;font-size:12px;line-height:14px;color:' + window.hkCards.v('ink-3') + '}',
       '.axx span{position:absolute;top:0;white-space:nowrap;transform:translateX(-50%)}',
       '.axx span:first-child{transform:none}',
       '.axx span:last-child{transform:translateX(-100%)}',
@@ -2443,11 +2451,11 @@
       '  padding:4px 10px;border-radius:13px;white-space:nowrap;background:rgba(24,24,28,0.93);',
       '  box-shadow:0 0 0 0.5px rgba(255,255,255,0.14),0 4px 14px rgba(0,0,0,0.35)}',
       '.hks .hkp .v{font-size:15px;line-height:18px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums}',
-      '.hks .hkp .t{font-size:13px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums}',
+      '.hks .hkp .t{font-size:13px;line-height:18px;color:' + window.hkCards.v('ink-2') + ';font-variant-numeric:tabular-nums}',
       // a bar chart lights the bar under the line: the others step back
       '.hksg > div{transition:opacity .12s ease}',
       '.hksg.on > div:not(.hkon){opacity:.4}',
-      '@media (max-width:600px){',
+      '@media (max-width:' + C.BP.phone + 'px){',
       '  .pn{gap:16px}',
       '  .pn > .big + .muted,.pn > .big + .since{margin-top:-10px}',
       '  .big{font-size:38px;min-height:38px}',
@@ -2634,17 +2642,17 @@
           '.list::-webkit-scrollbar{display:none}',
           '.list button{display:flex;align-items:center;justify-content:space-between;width:100%;',
           '  min-height:52px;padding:0 18px;border:0;border-bottom:1px solid rgba(255,255,255,0.07);',
-          '  background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:17px;text-align:left;cursor:pointer}',
+          '  background:transparent;color:' + window.hkCards.v('ink') + ';font:inherit;font-size:17px;text-align:left;cursor:pointer}',
           '.list button:last-child{border-bottom:0}',
-          '.list .hd2{padding:16px 18px 6px;font-size:13px;font-weight:600;letter-spacing:.2px;',
-          '  color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase}',
+          '.list .hd2{padding:16px 18px 6px;font-size:13px;font-weight:600;letter-spacing:0.3px;',
+          '  color:' + window.hkCards.v('ink-2') + ';text-transform:uppercase}',
           '.list button:active{background:rgba(255,255,255,0.08)}',
           '.search{display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:14px;',
           '  background:rgba(255,255,255,0.10)}',
-          '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;',
+          '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:' + window.hkCards.v('ink') + ';font:inherit;',
           '  font-size:17px;outline:none}',
-          '.search input::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
-          '@media (max-width:600px){',
+          '.search input::placeholder{color:' + window.hkCards.v('ink-3') + '}',
+          '@media (max-width:' + C.BP.phone + 'px){',
           '  .sw{gap:8px}',
           '  .grp{min-width:0}',
           '  .sw button{width:38px;height:38px;border-radius:19px}',
@@ -2938,11 +2946,11 @@
           '.tg .kn{position:absolute;left:12px;right:12px;top:calc(100% - 12px - 126px);height:126px;',
           '  border-radius:63px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,0.25);display:flex;',
           '  align-items:center;justify-content:center;color:rgba(0,0,0,0.35);',
-          '  transition:top .28s cubic-bezier(.2,.8,.2,1),color .25s}',
+          '  transition:top .28s cubic-bezier(.32,.72,0,1),color .25s}',
           '.tg.on .kn{top:12px;color:#30d158}',
           '.tg[disabled]{opacity:.45;cursor:default}',
-          '.since{font-size:16px;color:var(--hk-ink-2,rgba(255,255,255,0.68));min-height:20px}',
-          '@media (max-width:600px){.tg{width:128px;height:280px;border-radius:64px}',
+          '.since{font-size:16px;color:' + window.hkCards.v('ink-2') + ';min-height:20px}',
+          '@media (max-width:' + C.BP.phone + 'px){.tg{width:128px;height:280px;border-radius:64px}',
           '  .tg .kn{height:108px;border-radius:54px;top:calc(100% - 12px - 108px)}.tg.on .kn{top:12px}}'
         ].join('');
       }
@@ -2965,8 +2973,8 @@
         this._tg.classList.toggle('on', on);
         this._tg.setAttribute('aria-checked', on ? 'true' : 'false');
         this._tg.setAttribute('aria-label', (this._src.name || at(s, 'friendly_name') || '') + (on ? ' on' : ' off'));
-        this._tg.disabled = unavailable(s);
-        this._big.textContent = unavailable(s) ? 'Unavailable' : on ? 'On' : 'Off';
+        this._tg.disabled = gone(s);
+        this._big.textContent = gone(s) ? 'Unavailable' : s.state === 'unknown' ? 'Unknown' : on ? 'On' : 'Off';
         this._since.textContent = unavailable(s) ? '' : sinceText(s.last_changed);
       }
       _toggle() {
@@ -2987,18 +2995,18 @@
           // the one sheet height at 16
           '.pn{gap:16px}',
           '.rd{text-align:center}',
-          '.pct{font-size:16px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:6px;min-height:20px;font-variant-numeric:tabular-nums}',
+          '.pct{font-size:16px;color:' + window.hkCards.v('ink-2') + ';margin-top:6px;min-height:20px;font-variant-numeric:tabular-nums}',
           '.vs{height:420px}',
           '.wrap{position:relative}',
           '.names{position:absolute;left:calc(100% + 16px);top:0;bottom:0;width:max-content;pointer-events:none}',
           '.names span{position:absolute;left:0;transform:translateY(50%);font-size:15px;',
-          '  color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap;transition:color .15s}',
-          '.names span.cur{color:var(--hk-ink,rgba(255,255,255,0.94));font-weight:600}',
+          '  color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;transition:color .15s}',
+          '.names span.cur{color:' + window.hkCards.v('ink') + ';font-weight:600}',
           '.guard{display:flex;align-items:center;gap:10px;height:40px;padding:0 5px 0 14px;',
           '  border-radius:20px;background:rgba(255,179,64,0.16);color:#FFB340;font-size:15px;font-weight:600}',
           '.guard button{height:30px;padding:0 13px;border:0;border-radius:15px;font:inherit;font-size:13px;',
-          '  font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94));background:rgba(255,255,255,0.16);cursor:pointer}',
-          '@media (max-width:600px){.names{left:calc(100% + 12px)}.names span{font-size:14px}.vs{height:340px}}'
+          '  font-weight:600;color:' + window.hkCards.v('ink') + ';background:rgba(255,255,255,0.16);cursor:pointer}',
+          '@media (max-width:' + C.BP.phone + 'px){.names{left:calc(100% + 12px)}.names span{font-size:14px}.vs{height:340px}}'
         ].join('');
       }
       hkWidthKind() { return 'fan'; }
@@ -3108,7 +3116,7 @@
           '.state{width:220px;height:220px;border-radius:110px;display:flex;align-items:center;',
           '  justify-content:center;background:rgba(255,255,255,0.10);color:rgba(255,255,255,0.85)}',
           '.state.open{background:rgba(86,189,228,0.22);color:#56bde4}',
-          '@media (max-width:600px){.state{width:180px;height:180px;border-radius:90px}.vs.shade{height:330px}',
+          '@media (max-width:' + C.BP.phone + 'px){.state{width:180px;height:180px;border-radius:90px}.vs.shade{height:330px}',
           '  .btns .btn{width:68px}}'
         ].join('');
       }
@@ -3205,7 +3213,7 @@
           '@keyframes hkd-pulse{0%,100%{opacity:1}50%{opacity:.55}}',
           '.big.lkt{font-size:38px}',
           '.hint{font-size:16px}',
-          '@media (max-width:600px){.lk{width:228px;height:228px;border-radius:114px}',
+          '@media (max-width:' + C.BP.phone + 'px){.lk{width:228px;height:228px;border-radius:114px}',
           '  .lk .core{width:166px;height:166px;border-radius:83px}.big.lkt{font-size:32px}}',
           '@media (prefers-reduced-motion:reduce){.lk.busy .core{animation:none}}'
         ].join('');
@@ -3300,17 +3308,18 @@
       spec(s) {
         var st = s.state;
         var locked = st === 'locked', open = st === 'unlocked' || st === 'open';
-        var jammed = st === 'jammed', bad = jammed || unavailable(s);
+        var jammed = st === 'jammed', bad = jammed || gone(s), unsure = st === 'unknown';
         return {
-          word: bad ? (jammed ? 'Jammed' : 'Unavailable') :
+          word: bad ? (jammed ? 'Jammed' : 'Unavailable') : unsure ? 'Unknown' :
             ({ locked: 'Locked', unlocked: 'Unlocked', locking: 'Locking…', unlocking: 'Unlocking…', open: 'Open', opening: 'Opening…' })[st] || st,
           glyph: open || st === 'unlocking' ? 'hk:lock-open-variant' : 'hk:lock',
           open: open || st === 'unlocking', busy: st === 'locking' || st === 'unlocking' || st === 'opening', bad: bad,
           hold: locked ? ['lock', 'unlock'] : null,
           // JAMMED: try locking again, the safe direction -- HA's dialog is
           // not reachable from here, so this is the only retry there is
-          tap: open || jammed ? ['lock', 'lock'] : null,
-          hint: locked ? 'Hold to unlock' : open || jammed ? 'Tap to lock' : '',
+          // (not knowing either: locking is the safe way to find out)
+          tap: open || jammed || unsure ? ['lock', 'lock'] : null,
+          hint: locked ? 'Hold to unlock' : open || jammed || unsure ? 'Tap to lock' : '',
           label: locked ? 'Hold to unlock' : 'Lock',
           ask: 'Unlock ' + this._who(s, 'the door') + '?'
         };
@@ -3326,16 +3335,18 @@
         var st = s.state, f = num(at(s, 'supported_features')) || 0;
         var moving = st === 'opening' || st === 'closing';
         var stop = moving && (f & 8) ? ['cover', 'stop_cover'] : null;
-        var bad = unavailable(s), door = at(s, 'device_class') === 'door';
+        var bad = gone(s), door = at(s, 'device_class') === 'door', unsure = st === 'unknown';
         var shut = st === 'closed' || st === 'closing';
         return {
-          word: bad ? 'Unavailable' : ({ open: 'Open', closed: 'Closed', opening: 'Opening…', closing: 'Closing…' })[st] || st,
+          word: bad ? 'Unavailable' : unsure ? 'Unknown' : ({ open: 'Open', closed: 'Closed', opening: 'Opening…', closing: 'Closing…' })[st] || st,
           glyph: door ? (shut ? 'hk:door-closed' : 'hk:door-open') : shut ? 'hk:garage-variant' : 'hk:garage-open-variant',
           open: st === 'open' || st === 'opening', busy: moving, bad: bad,
+          // (not knowing: a tap closes, the safe way -- a ring with a hold
+          // takes no tap, so not both)
           hold: st === 'closed' && (f & 1) ? ['cover', 'open_cover'] : null,
-          tap: st === 'open' && (f & 2) ? ['cover', 'close_cover'] : stop,
-          hint: st === 'closed' ? 'Hold to open' : st === 'open' ? 'Tap to close' : stop ? 'Tap to stop' : '',
-          label: st === 'closed' ? 'Hold to open' : st === 'open' ? 'Close' : stop ? 'Stop' : '',
+          tap: (st === 'open' || unsure) && (f & 2) ? ['cover', 'close_cover'] : stop,
+          hint: st === 'closed' ? 'Hold to open' : st === 'open' || (unsure && (f & 2)) ? 'Tap to close' : stop ? 'Tap to stop' : '',
+          label: st === 'closed' ? 'Hold to open' : st === 'open' || (unsure && (f & 2)) ? 'Close' : stop ? 'Stop' : '',
           ask: 'Open ' + this._who(s, door ? 'the door' : 'the garage') + '?'
         };
       }
@@ -3458,16 +3469,16 @@
           '.now{align-self:stretch;display:flex;flex-direction:column;gap:12px;',
           '  padding:12px 18px;border-radius:20px;background:rgba(255,255,255,0.08);text-align:center}',
           '.now .rd{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}',
-          '.now .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.now .k{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
           '.now .v{font-size:19px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
           // RUN TIME, today and yesterday: the second row of the same card,
           // two halves under a hairline
           '.now .run{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;',
           '  padding-top:12px;border-top:1px solid rgba(255,255,255,0.10)}',
           '.trend{align-self:stretch;padding:12px 16px 8px;border-radius:20px;background:rgba(255,255,255,0.08)}',
-          '.trend .t{font-size:13px;font-weight:600;letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+          '.trend .t{font-size:13px;font-weight:600;letter-spacing:0.3px;color:' + window.hkCards.v('ink-2') + ';',
           '  text-transform:uppercase;margin-bottom:6px}',
-          '@media (max-width:600px){.now{padding:12px 14px;gap:10px}.now .rd,.now .run{gap:8px}',
+          '@media (max-width:' + C.BP.phone + 'px){.now{padding:12px 14px;gap:10px}.now .rd,.now .run{gap:8px}',
           '  .now .run{padding-top:10px}.now .v{font-size:17px}}',
           // WIDE: the dial, modes and fan on the left; the readings,
           // run time and trend on the right, as tall as the left -- the right
@@ -3480,9 +3491,9 @@
           ':host([wide]) .dial{' + TSTAT_WIDE + '}',
           ':host([wide]) .side{display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}',
           ':host([wide]) .now{background:none;padding:0;gap:14px}',
-          ':host([wide]) .now .rd,:host([wide]) .now .run{padding:14px 18px;border-radius:20px;background:rgba(255,255,255,0.08)}',
+          ':host([wide]) .now .rd,:host([wide]) .now .run{padding:' + SP.rowsPad + ';border-radius:20px;background:rgba(255,255,255,0.08)}',
           ':host([wide]) .now .run{border-top:0}',
-          ':host([wide]) .trend{flex:1;display:flex;flex-direction:column;padding:16px 18px 14px;min-height:0}',
+          ':host([wide]) .trend{flex:1;display:flex;flex-direction:column;padding:' + SP.cardPad + ';min-height:0}',
           // the chart takes whatever height is left, so the right column is
           // exactly as tall as the dial column: tops AND bottoms line up
           ':host([wide]) .trend .axc{flex:1;min-height:72px;margin-top:8px}',
@@ -3639,12 +3650,12 @@
           '.art .ab{width:100%;height:100%;display:flex;align-items:center;justify-content:center}',
           '.art img{width:100%;height:100%;object-fit:cover;display:block}',
           '.art.tv{width:100%;height:auto;aspect-ratio:16/9}',
-          '.ti{font-size:22px;font-weight:700;letter-spacing:-.4px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-          '.ar{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-          '.on{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+          '.ti{font-size:22px;font-weight:700;letter-spacing:-0.35px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+          '.ar{font-size:15px;color:' + window.hkCards.v('ink-2') + ';margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+          '.on{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:' + window.hkCards.v('ink-3') + '}',
           '.pg{height:4px;border-radius:2px;background:rgba(255,255,255,0.22);overflow:hidden}',
           '.pg i{display:block;height:100%;width:0;background:#fff;border-radius:2px}',
-          '.tm{display:flex;justify-content:space-between;font-size:12px;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+          '.tm{display:flex;justify-content:space-between;font-size:12px;color:' + window.hkCards.v('ink-2') + ';',
           '  margin-top:6px;font-variant-numeric:tabular-nums}',
           '.tp{display:flex;justify-content:center;align-items:center;gap:44px}',
           '.tp button{width:52px;height:52px;border:0;border-radius:26px;background:transparent;color:#fff;',
@@ -3673,7 +3684,7 @@
           '.vst button{width:44px;height:44px;border-radius:22px;border:0;padding:0;display:flex;align-items:center;',
           '  justify-content:center;background:rgba(255,255,255,0.13);color:#fff;cursor:pointer}',
           '.vst button:active{background:rgba(255,255,255,0.24)}',
-          '.vst span{font-size:15px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));min-width:64px;text-align:center}',
+          '.vst span{font-size:15px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';min-width:64px;text-align:center}',
           '.acts{display:flex;gap:12px}',
           '.acts .btn{flex:1}',
           '.acts .pw{flex:0 0 52px;padding:0}',
@@ -3688,9 +3699,9 @@
           '.list::-webkit-scrollbar{display:none}',
           '.list button{display:flex;align-items:center;justify-content:space-between;width:100%;',
           '  min-height:52px;padding:0 18px;border:0;border-bottom:1px solid rgba(255,255,255,0.07);',
-          '  background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:17px;text-align:left;cursor:pointer}',
+          '  background:transparent;color:' + window.hkCards.v('ink') + ';font:inherit;font-size:17px;text-align:left;cursor:pointer}',
           '.list button:last-child{border-bottom:0}',
-          '@media (max-width:600px){',
+          '@media (max-width:' + C.BP.phone + 'px){',
           '  .pl{margin:0 8px}',
           '  .art{width:250px;height:250px}.art.tv{width:100%;height:auto}',
           '  .ti{font-size:20px}.tp{gap:30px}.list{max-height:340px}',
@@ -3977,24 +3988,24 @@
     var EN_CSS = [
       '.en{display:flex;flex-direction:column;gap:12px}',
       '.en[hidden]{display:none}',
-      '.stats .sub{font-size:12px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px;min-height:15px}',
+      '.stats .sub{font-size:12px;color:' + window.hkCards.v('ink-2') + ';margin-top:2px;min-height:15px}',
       // ONE HEIGHT IN EVERY RANGE (the user: the sheet bounced between Day
       // and Week): label, value and line in three rows lined up across the
       // columns, and on a phone room kept for a label or a line on two lines
       '.stats.ens{grid-template-rows:auto auto auto;grid-auto-flow:column;row-gap:0;align-content:center}',
       '.stats.ens > div{display:contents}',
-      '@media (max-width:600px){.stats.ens{min-height:var(--hk-ens-h,112px)}}',
+      '@media (max-width:' + C.BP.phone + 'px){.stats.ens{min-height:var(--hk-ens-h,112px)}}',
       '.stats .sub.up{color:#ff9f0a}.stats .sub.down{color:#30d158}',
       '.en .rows{border-radius:20px;background:rgba(255,255,255,0.08);overflow:hidden}',
       '.en .row{display:flex;align-items:center;gap:12px;min-height:52px;padding:0 16px 0 18px;border:0;width:100%;',
       '  background:transparent;color:inherit;font:inherit;font-size:16px;text-align:left;cursor:pointer;box-sizing:border-box}',
       '.en .row + .row{border-top:1px solid rgba(255,255,255,0.08)}',
-      '.en .row .k{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-size:14px;min-width:84px}',
+      '.en .row .k{color:' + window.hkCards.v('ink-2') + ';font-size:14px;min-width:84px}',
       '.en .row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}',
-      '.en .row .v{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.en .row .v{color:' + window.hkCards.v('ink-2') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.en .row svg{flex-shrink:0;color:rgba(235,235,245,0.35)}',
       '.en .sw{flex-shrink:0;height:34px;min-width:64px;padding:0 14px;border-radius:17px;border:0;font:inherit;font-size:15px;',
-      '  font-weight:600;cursor:pointer;background:rgba(255,255,255,0.14);color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      '  font-weight:600;cursor:pointer;background:rgba(255,255,255,0.14);color:' + window.hkCards.v('ink') + '}',
       '.en .sw.on{background:#30d158;color:#fff}'
     ].join('');
     function wattsText(h, id) {
@@ -4020,35 +4031,35 @@
           // Week · Oct 11 – 17"), stepping through the weeks or months
           '.rc{display:flex;flex-direction:column;gap:10px}',
           '.chd{display:flex;align-items:center;gap:10px;height:36px}',
-          '.chd .pl{flex:1;min-width:0;font-size:15px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+          '.chd .pl{flex:1;min-width:0;font-size:15px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';',
           '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
           ':host([wide]) .chd .pl{text-align:right}',
           '.chd .nv{display:flex;gap:8px;flex-shrink:0}',
           '.chd .nv[hidden]{display:none}',
           '.chd .nv button{width:36px;height:36px;border-radius:18px;border:0;padding:0;margin:0;display:flex;align-items:center;justify-content:center;',
-          '  background:rgba(255,255,255,0.14);color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;-webkit-tap-highlight-color:transparent}',
+          '  background:rgba(255,255,255,0.14);color:' + window.hkCards.v('ink') + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
           '.chd .nv button:active{background:rgba(255,255,255,0.26)}',
           '.chd .nv button:disabled{opacity:0.35;cursor:default;background:rgba(255,255,255,0.14)}',
           '.rd{align-self:stretch}',
           '.val{display:flex;align-items:baseline;gap:8px}',
-          '.upd{margin-top:6px;font-size:14px;line-height:18px;min-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.upd{margin-top:6px;font-size:14px;line-height:18px;min-height:18px;color:' + window.hkCards.v('ink-2') + '}',
           '.val .n{font-size:72px;font-weight:600;letter-spacing:-2.5px;line-height:1;font-variant-numeric:tabular-nums}',
-          '.val .u{font-size:26px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.val .u{font-size:26px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
           C.segCss('.seg', { on: '.sel', fill: true }),
-          '.chart{padding:16px 18px 14px;border-radius:20px;background:rgba(255,255,255,0.08);',
+          '.chart{padding:' + SP.cardPad + ';border-radius:20px;background:rgba(255,255,255,0.08);',
           '  box-sizing:border-box;position:relative}',
           // the placeholder is the chart's own height (plot + time row), so
           // the sheet does not jump when the data lands
           '.chart .ph{display:flex;align-items:center;justify-content:center;',
-          '  color:var(--hk-ink-3,rgba(255,255,255,0.40));font-size:15px}',
-          '.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px 18px;',
+          '  color:' + window.hkCards.v('ink-3') + ';font-size:15px}',
+          '.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:' + SP.rowsPad + ';',
           '  border-radius:20px;background:rgba(255,255,255,0.08);text-align:center}',
-          '.stats .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.stats .k{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
           // the last range's chart and figures, dimmed while the next one loads
           '.chart .axc,.stats{transition:opacity .2s ease}',
           '.chart.stale .axc,.stats.stale{opacity:.35}',
           '.stats .v{font-size:19px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
-          '@media (max-width:600px){.val .n{font-size:60px}.val .u{font-size:22px}',
+          '@media (max-width:' + C.BP.phone + 'px){.val .n{font-size:60px}.val .u{font-size:22px}',
           '  .pn{gap:16px}.stats .v{font-size:17px}.stats .k{font-size:12px}.stats{gap:8px;padding:14px 12px}}'
         ].join('') + EN_CSS;
       }
@@ -4072,7 +4083,6 @@
         if (!this._built) {
           this._built = true;
           this._range = this._range || 'day';
-          this._asked = {};
           var ranges = energy ? RANGES.slice(1) : RANGES;
           this._root.innerHTML = '<div class="pn"><div class="top"><div class="rd"><div class="val"><span class="n"></span><span class="u"></span></div>' +
             '<div class="upd"></div></div>' +
@@ -4287,18 +4297,17 @@
       _series(s, energy, meter) {
         var h = this._hass, id = meter || this._id, r = this._range, S = window.hkStats;
         if (!S) return null;
-        var self = this, key = r + (energy ? 'e' : '') + (meter ? 'm' : '');
+        var self = this;
         var viaStats = function (fn, n, opts) {
           var d = S[fn](h, id, n, self, opts);
-          if (d && d.some(function (p) { return p && p.v != null; })) { self._asked[key] = 0; return d; }
+          if (d && d.some(function (p) { return p && p.v != null; })) return d;
           // STILL ON ITS WAY (a new week or month asked for): the last chart
           // stays, dimmed -- never a moment of "No history" while it loads
           if (!d) return null;
-          // NO LONG-TERM STATISTICS for this sensor (they came back empty):
-          // after a moment, fall back to its recorded history rather than wait
-          if (!self._asked[key]) { self._asked[key] = Date.now(); setTimeout(function () { self.redraw(); }, 2600); }
-          if (Date.now() - self._asked[key] > 2500) return undefined;
-          return null;
+          // NO LONG-TERM STATISTICS for this sensor: hk-stats has answered, and
+          // the answer is empty -- its recorded history, at once (it waited
+          // 2.6 s on a timer for nothing)
+          return undefined;
         };
         var out, cal = this._cal();
         // A CALENDAR WEEK OR MONTH: from its own start (and, for a meter's
@@ -4335,7 +4344,7 @@
         var unit = at(s, 'unit_of_measurement') || '', u = esc(unit);
         // plot height and time labels: a tall chart in the wide sheet, a
         // shorter one with three times on a phone
-        var phone = matchMedia('(max-width:600px)').matches;
+        var phone = matchMedia('(max-width:' + C.BP.phone + 'px)').matches;
         // an energy device's sheet keeps room under the chart for its rows
         var cal = this._cal(), wk = r === 'week';
         var H = phone ? 180 : (this._rec ? 200 : 250), NT = phone ? 3 : 5, MS = cal ? cal.P0.len * 864e5 : RANGE_H[r] * 3600000;
@@ -4450,19 +4459,19 @@
       '.gw.on{background:color-mix(in srgb,var(--hkd-accent,#56bde4) 22%,transparent)}',
       '.gw.on .gc{background:var(--hkd-accent,#56bde4);color:#fff}',
       '.big.w{font-size:52px}',
-      '.since{font-size:16px;color:var(--hk-ink-2,rgba(255,255,255,0.68));min-height:20px}',
-      '.tl{align-self:stretch;padding:16px 18px 14px;border-radius:20px;background:rgba(255,255,255,0.08)}',
+      '.since{font-size:16px;color:' + window.hkCards.v('ink-2') + ';min-height:20px}',
+      '.tl{align-self:stretch;padding:' + SP.cardPad + ';border-radius:20px;background:rgba(255,255,255,0.08)}',
       '.tl .th{display:flex;justify-content:space-between;align-items:baseline;gap:12px}',
-      '.tl .t{font-size:13px;font-weight:600;letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase}',
-      '.tl .n{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
+      '.tl .t{font-size:13px;font-weight:600;letter-spacing:0.3px;color:' + window.hkCards.v('ink-2') + ';text-transform:uppercase}',
+      '.tl .n{font-size:15px;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
       '.tl .bar{position:relative;height:64px;margin-top:12px;border-radius:10px;background:rgba(255,255,255,0.10);overflow:hidden}',
       '.tl .bar i{position:absolute;top:0;bottom:0;min-width:2px}',
       '.tl .bar .q{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.08)}',
       '.tl .axx{margin-left:0}',
-      '.tl .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.tl .lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
       '.tl .lg span{display:inline-flex;align-items:center;gap:6px}',
       '.tl .lg b{width:10px;height:10px;border-radius:3px;display:inline-block}',
-      '@media (max-width:600px){.pn{gap:16px}.gw{width:150px;height:150px;border-radius:75px}',
+      '@media (max-width:' + C.BP.phone + 'px){.pn{gap:16px}.gw{width:150px;height:150px;border-radius:75px}',
       '  .gw .gc{width:100px;height:100px;border-radius:50px}.gw ha-state-icon{--mdc-icon-size:48px}',
       '  .big.w{font-size:44px}.tl .bar{height:52px}}'
     ].join('');
@@ -4527,7 +4536,9 @@
         }
         var w = BIN_WORDS[at(s, 'device_class')] || ['Off', 'On'];
         this._glyph(s, s.state === 'on');
-        this._big.textContent = unavailable(s) ? 'Unavailable' : (s.state === 'on' ? w[1] : w[0]);
+        // `unknown`: a sleepy sensor that has not reported since a restart --
+        // "No Report", as its tile and room row say
+        this._big.textContent = gone(s) ? 'Unavailable' : s.state === 'unknown' ? 'No Report' : (s.state === 'on' ? w[1] : w[0]);
         this._since.textContent = sinceText(s.last_changed);
         if (this._lastSeen !== s.last_changed) { this._lastSeen = s.last_changed; if (this._rows) this._fetch(); }
       }
@@ -4601,22 +4612,22 @@
       '.list::-webkit-scrollbar{display:none}',
       '.list button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;',
       '  min-height:52px;padding:0 18px;border:0;border-bottom:1px solid rgba(255,255,255,0.07);',
-      '  background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;font-size:17px;text-align:left;cursor:pointer}',
+      '  background:transparent;color:' + window.hkCards.v('ink') + ';font:inherit;font-size:17px;text-align:left;cursor:pointer}',
       '.list button span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
       '.list button svg{flex-shrink:0}',
       '.list button:last-child{border-bottom:0}',
       '.list button:active{background:rgba(255,255,255,0.08)}',
       '.search{align-self:stretch;display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;border-radius:14px;',
       '  background:rgba(255,255,255,0.10)}',
-      '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;',
+      '.search input{flex-grow:1;min-width:0;border:0;background:transparent;color:' + window.hkCards.v('ink') + ';font:inherit;',
       '  font-size:17px;outline:none}',
-      '.search input::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+      '.search input::placeholder{color:' + window.hkCards.v('ink-3') + '}',
       '.sub{align-self:stretch;display:flex;flex-direction:column;gap:16px}',
       '.bk{display:flex;align-items:center;gap:10px}',
       '.bk button{width:40px;height:40px;border-radius:20px;border:0;padding:0;display:flex;',
       '  align-items:center;justify-content:center;background:rgba(255,255,255,0.13);color:#fff;cursor:pointer}',
       '.bk .t{font-size:20px;font-weight:700;letter-spacing:-.3px}',
-      '@media (max-width:600px){.list{max-height:340px}}'
+      '@media (max-width:' + C.BP.phone + 'px){.list{max-height:340px}}'
     ].join('');
     function pretty(v) {
       var t = String(v == null ? '' : v).replace(/_/g, ' ');
@@ -4686,7 +4697,7 @@
           '.big.w{font-size:40px}',
           '.chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;min-height:30px}',
           '.chips span{height:30px;padding:0 12px;border-radius:15px;display:inline-flex;align-items:center;',
-          '  font-size:14px;font-weight:600;background:rgba(255,255,255,0.10);color:var(--hk-ink-2,rgba(255,255,255,0.68));',
+          '  font-size:14px;font-weight:600;background:rgba(255,255,255,0.10);color:' + window.hkCards.v('ink-2') + ';',
           '  font-variant-numeric:tabular-nums}',
           '.chips .good{color:#30d158}.chips .warn{color:#ffd60a}.chips .low{color:#ff453a}',
           '.chips .err{background:rgba(255,69,58,0.18);color:#ff6961}',
@@ -4698,7 +4709,7 @@
           '.cmds button:active .ci{background:rgba(255,255,255,0.24)}',
           '.cmds button.sel .ci{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.85)}',
           '.cmds button[disabled]{opacity:.35;cursor:default}',
-          '.cmds .cl{font-size:14px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.cmds .cl{font-size:14px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
           '.pn > .menu{margin-top:0}',
           // CLEAN AREAS: the rooms this robot has on its map, two to a row,
           // a pick toggles; the green button sends only this robot.
@@ -4717,7 +4728,7 @@
           '.go:active{background:#28b84c}',
           '.go[disabled]{background:rgba(255,255,255,0.13);opacity:.5}',
           '.why{font-size:14px;color:#ff6961;text-align:center;min-height:18px;margin-top:-6px}',
-          '@media (max-width:600px){.bot{width:170px;height:170px;border-radius:85px}',
+          '@media (max-width:' + C.BP.phone + 'px){.bot{width:170px;height:170px;border-radius:85px}',
           '  .cmds .ci{width:60px;height:60px;border-radius:30px}.big.w{font-size:34px}',
           '  .ag{max-height:320px}.ag .btn{height:44px;border-radius:22px;padding:0 10px}}'
         ].join('');
@@ -4898,18 +4909,19 @@
       hkWidthKind() { return 'lock'; }
       spec(s) {
         var st = s.state, f = num(at(s, 'supported_features')) || 0;
-        var bad = unavailable(s);
+        var bad = gone(s), unsure = st === 'unknown';
         var what = ({ water: 'the water', gas: 'the gas' })[at(s, 'device_class')] || this._who(s, 'the valve');
         var shut = st === 'closed' || st === 'closing';
         return {
-          word: bad ? 'Unavailable' : ({ open: 'Open', closed: 'Closed', opening: 'Opening…', closing: 'Closing…' })[st] || pretty(st),
+          word: bad ? 'Unavailable' : unsure ? 'Unknown' : ({ open: 'Open', closed: 'Closed', opening: 'Opening…', closing: 'Closing…' })[st] || pretty(st),
           glyph: at(s, 'device_class') === 'gas' ? 'mdi:fire' : shut ? 'hk:water-alert' : 'hk:water',
           tone: 'water', shut: shut, busy: st === 'opening' || st === 'closing', bad: bad,
-          hold: st === 'closed' && (f & 1) ? ['valve', 'open_valve'] : st === 'open' && (f & 2) ? ['valve', 'close_valve'] : null,
+          // (not knowing: closing is the safe way -- the water off)
+          hold: st === 'closed' && (f & 1) ? ['valve', 'open_valve'] : (st === 'open' || unsure) && (f & 2) ? ['valve', 'close_valve'] : null,
           tap: null,
-          hint: st === 'closed' ? 'Hold to open' : st === 'open' ? 'Hold to close' : '',
-          label: st === 'closed' ? 'Hold to open' : st === 'open' ? 'Hold to close' : '',
-          ask: (st === 'open' ? 'Turn off ' : 'Turn on ') + what + '?'
+          hint: st === 'closed' ? 'Hold to open' : st === 'open' || unsure ? 'Hold to close' : '',
+          label: st === 'closed' ? 'Hold to open' : st === 'open' || unsure ? 'Hold to close' : '',
+          ask: (st === 'open' || unsure ? 'Turn off ' : 'Turn on ') + what + '?'
         };
       }
     }
@@ -4917,7 +4929,7 @@
     // ------------------------------------------------------------ numbers
     // A number is the brightness slider with the value above it.
     class NumberPanel extends Panel {
-      static get CSS() { return PANEL_CSS + '.big .u{font-size:22px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-left:4px;letter-spacing:0}'; }
+      static get CSS() { return PANEL_CSS + '.big .u{font-size:22px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';margin-left:4px;letter-spacing:0}'; }
       hkWidthKind() { return 'number'; }
       _range(s) {
         var lo = num(at(s, 'min')), hi = num(at(s, 'max')), step = num(at(s, 'step')) || 1;
@@ -4976,7 +4988,7 @@
           // return behind screensaver)" lost its point on a phone). Two
           // lines still fit ROW_MAX.
           '.list button span{white-space:normal;overflow-wrap:anywhere;line-height:22px;padding:12px 0}',
-          '@media (max-width:600px){.list{max-height:none}}'
+          '@media (max-width:' + C.BP.phone + 'px){.list{max-height:none}}'
         ].join('');
       }
       hkWidthKind() { return 'select'; }
@@ -5009,9 +5021,9 @@
           '.pn{gap:20px}',
           // Target and Now, side by side
           '.rds{align-self:stretch;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));text-align:center}',
-          '.rds .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.rds .k{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
           '.rds .v{font-size:40px;font-weight:600;letter-spacing:-1px;line-height:1.15;font-variant-numeric:tabular-nums}',
-          '.rds .v.nw{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.rds .v.nw{color:' + window.hkCards.v('ink-2') + '}',
           // the slider between an empty column and the "Now" marker's, so it
           // stays centred on the sheet
           '.sl{display:grid;grid-template-columns:96px 150px 96px;column-gap:14px;align-items:center}',
@@ -5031,7 +5043,7 @@
           '.acts .pw{width:44px;height:44px;padding:0;flex-shrink:0}',
           '.acts .pw.lit{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.85)}',
           '.acts .wide{flex:1}',
-          '@media (max-width:600px){.sl{grid-template-columns:72px 128px 72px;column-gap:10px}',
+          '@media (max-width:' + C.BP.phone + 'px){.sl{grid-template-columns:72px 128px 72px;column-gap:10px}',
           '  .vs{height:330px}.mk{height:330px}.rds .v{font-size:34px}',
           '  .seg button{font-size:13px;line-height:15px;white-space:normal;text-overflow:clip}}'
         ].join('');
@@ -5169,16 +5181,16 @@
           '  outline:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}',
           '.dl:focus-visible{border-radius:20px;box-shadow:0 0 0 3px rgba(100,181,255,0.8)}',
           '.dl svg{display:block;width:100%;height:auto;overflow:visible}',
-          '.dl .trk{fill:none;stroke:rgba(255,255,255,.13);stroke-width:22px;stroke-linecap:round}',
+          '.dl .trk{fill:none;stroke:' + window.hkCards.v('line-strong') + ';stroke-width:22px;stroke-linecap:round}',
           '.dl .bnd{fill:none;stroke-width:22px;stroke-linecap:round}',
           '.dl .kn{fill:#fff;stroke:rgba(0,0,0,.18);stroke-width:1px}',
           '.dl .cur{fill:rgba(255,255,255,.92)}',
           '.dl .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}',
-          '.dl .l{font-size:11px;font-weight:730;letter-spacing:1.1px;text-transform:uppercase;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.dl .l{font-size:11px;font-weight:730;letter-spacing:1.1px;text-transform:uppercase;color:' + window.hkCards.v('ink-2') + '}',
           '.dl .t{font-size:var(--hk-tstat-val,46px);font-weight:600;letter-spacing:-2px;line-height:1.04;',
           '  font-variant-numeric:tabular-nums;margin-top:2px}',
           '.dl .r{font-size:13px;font-weight:680;margin-top:4px;color:#ff9f0a}',
-          '.dl.off .r{color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.dl.off .r{color:' + window.hkCards.v('ink-2') + '}',
           // the modes: the thermostat's mode row (hk-control .tstat-modes
           // .segment). A label may take two lines -- "High demand" in a
           // quarter of the row -- rather than lose its end.
@@ -5200,21 +5212,21 @@
           // the tank now and its day's low and high (the thermostat's reading card)
           '.now{align-self:stretch;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;',
           '  padding:12px 18px;border-radius:20px;background:rgba(255,255,255,0.08);text-align:center}',
-          '.now .k{font-size:13px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+          '.now .k{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
           '.now .v{font-size:19px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}',
           '.away{align-self:stretch;justify-content:space-between;padding:0 12px 0 20px}',
           '.sw{width:51px;height:31px;border-radius:16px;background:rgba(255,255,255,0.22);position:relative;flex-shrink:0;transition:background .2s}',
           '.sw i{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:left .2s}',
           '.sw.on{background:#30d158}.sw.on i{left:22px}',
           '.trend{align-self:stretch;padding:12px 16px 8px;border-radius:20px;background:rgba(255,255,255,0.08)}',
-          '.trend .tt2{font-size:13px;font-weight:600;letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));text-transform:uppercase;margin-bottom:6px}',
-          '@media (max-width:600px){.now{padding:12px 14px;gap:8px}.now .v{font-size:17px}}',
+          '.trend .tt2{font-size:13px;font-weight:600;letter-spacing:0.3px;color:' + window.hkCards.v('ink-2') + ';text-transform:uppercase;margin-bottom:6px}',
+          '@media (max-width:' + C.BP.phone + 'px){.now{padding:12px 14px;gap:8px}.now .v{font-size:17px}}',
           // WIDE: the thermostat's two columns -- see ClimatePanel
           ':host([wide]) .pn{flex-direction:row;align-items:stretch;gap:28px}',
           ':host([wide]) .dial{' + TSTAT_WIDE + '}',
           ':host([wide]) .side{display:flex;flex-direction:column;gap:12px;flex:1;min-width:0}',
           ':host([wide]) .now{padding:14px 18px}',
-          ':host([wide]) .trend{flex:1;display:flex;flex-direction:column;padding:16px 18px 14px;min-height:0}',
+          ':host([wide]) .trend{flex:1;display:flex;flex-direction:column;padding:' + SP.cardPad + ';min-height:0}',
           ':host([wide]) .trend .axc{flex:1;min-height:72px;margin-top:8px}',
           ':host([wide]) .trend .tt2{margin-bottom:0}'
         ].join('');
@@ -5449,7 +5461,7 @@
         var key = this._rows.length + '|' + at(this._stateObj, 'current_temperature');
         if (key === this._tankKey) return;
         this._tankKey = key;
-        var wide = this.hasAttribute('wide'), phone = matchMedia('(max-width:600px)').matches;
+        var wide = this.hasAttribute('wide'), phone = matchMedia('(max-width:' + C.BP.phone + 'px)').matches;
         this._trend.hidden = false;
         this._trend.innerHTML = '<div class="tt2">Tank, last 24 hours</div>' +
           axesChart({ pts: downsample(pts, 240), H: wide ? 120 : 70, unit: '°', ms: 24 * 3600000, n: phone ? 3 : 5,
@@ -5485,7 +5497,7 @@
           // word and the capsule land where a shade's do (the sheet centres)
           '.vpsp{height:52px}',
           '.vs.vp{height:400px;display:flex;flex-direction:column;padding:6px;box-sizing:border-box;cursor:default;touch-action:manipulation}',
-          '.vp button{position:relative;flex:1 1 0;min-height:0;border:0;border-radius:38px;background:transparent;color:var(--hk-ink,rgba(255,255,255,0.94));',
+          '.vp button{position:relative;flex:1 1 0;min-height:0;border:0;border-radius:38px;background:transparent;color:' + window.hkCards.v('ink') + ';',
           '  font:inherit;font-size:19px;font-weight:600;letter-spacing:-.2px;cursor:pointer;',
           '  -webkit-tap-highlight-color:transparent;transition:background .2s ease,color .2s ease}',
           '.vp button.on{background:rgba(255,255,255,0.95);color:rgba(0,0,0,0.88)}',
@@ -5496,7 +5508,7 @@
           '.vp button:not(.on):active{background:rgba(255,255,255,0.10)}',
           '.vp button:focus-visible{outline:2px solid rgba(100,181,255,0.8);outline-offset:-2px}',
           ':host([na]) .vp button{opacity:.4;pointer-events:none}',
-          '@media (max-width:600px){.big.al{font-size:34px}.pn{gap:16px}.vs.vp{height:330px}.vp button{font-size:17px}.vpsp{height:48px}}'
+          '@media (max-width:' + C.BP.phone + 'px){.big.al{font-size:34px}.pn{gap:16px}.vs.vp{height:330px}.vp button{font-size:17px}.vpsp{height:48px}}'
         ].join('');
       }
       hkWidthKind() { return 'alarm'; }
@@ -5529,10 +5541,15 @@
             b.type = 'button'; b.textContent = p.label; b.setAttribute('role', 'radio');
             b.dataset.state = p.state;
             b.addEventListener('click', function () {
-              // the pill moves at once; the panel's answer settles it
-              self._want = { state: p.state, until: Date.now() + 10000 };
+              // the pill moves at once; the panel's answer settles it -- a
+              // refusal puts it straight back, and it never outlives its 10 s
+              var want = self._want = { state: p.state, until: Date.now() + 10000 };
               self._paintPicks();
-              self._svc('alarm_control_panel', p.service, {});
+              clearTimeout(self._wantT);
+              self._wantT = setTimeout(function () { if (self._want === want && self._vp) self._paintPicks(); }, 10050);
+              self._svc('alarm_control_panel', p.service, {}).then(function (ok) {
+                if (!ok && self._want === want) { self._want = null; if (self._vp) self._paintPicks(); }
+              });
             });
             self._vp.appendChild(b);
           });
@@ -5636,6 +5653,13 @@
       }
       _gone(h) { var st = h && h.states[this._streamOf(h)]; return !st || st.state === 'unavailable'; }
       _sigOf() { return this._hass ? 'camera|' + this._gone(this._hass) : null; }
+      // ...while the stream card inside hears every update (its poster's
+      // signed picture, its own state), not only the ones that rebuild this
+      set hass(h) {
+        if (this._card && this._card.hkSetHass) this._card.hkSetHass(h);
+        super.hass = h;
+      }
+      get hass() { return super.hass; }
       // THE SHEET TAKES THE CAMERA'S SHAPE: the pop-ups' sizes, a picture
       // about 750 tall at most 1200 wide -- the doorbell (4:3) 1000 x 750, a
       // 16:9 camera 1200 x 675. A camera with a speaker is the doorbell, so
@@ -5799,16 +5823,17 @@
     class GroupPanel extends HkBase {
       static get CSS() {
         // A sheet is the same 460 px on an iPad as on a desk, so its two
-        // columns keep the full pill (--hk-pill is 165 there on the page).
+        // columns keep the full pill (--hk-pill is the iPad's, 170, on the page).
         // No cell bleed: a phone tile is its cell PLUS 8 px, for the 4 px
         // margins layout-card gives a page's cells (hk-tile.js) -- this grid
         // has none, so each pill would run 8 px into the gap and the right
         // column would be cut off at the sheet's edge on a phone.
-        return ':host{display:block;--hk-pill:192px;--hk-cell-bleed:0px}' +
-          '.summary{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-size:16px;padding:0 0 18px;text-align:center}' +
-          '.grp{display:grid;grid-template-columns:repeat(2,192px);grid-auto-rows:70px;gap:12px;' +
+        var T = C.TILE;
+        return ':host{display:block;--hk-pill:' + T.w + 'px;--hk-cell-bleed:0px}' +
+          '.summary{color:' + window.hkCards.v('ink-2') + ';font-size:16px;padding:0 0 18px;text-align:center}' +
+          '.grp{display:grid;grid-template-columns:repeat(2,' + T.w + 'px);grid-auto-rows:auto;gap:' + T.gridGap + 'px;' +
           '  justify-content:center;align-content:start;padding:2px 0 8px}' +
-          '@media (max-width:600px){.grp{grid-template-columns:repeat(2,minmax(0,1fr))}}';
+          '@media (max-width:' + C.BP.phone + 'px){.grp{grid-template-columns:repeat(2,minmax(0,1fr))}}';
       }
       hkWidthKind() { return 'group'; }
       hkFill() { return true; }
@@ -5900,7 +5925,7 @@
       static get CSS() {
         return ':host{display:block}' +
           '.cards{display:flex;flex-direction:column;gap:12px;padding:2px 0 8px}' +
-          '.none{color:var(--hk-ink-2,rgba(255,255,255,0.68));font-size:15px;text-align:center;padding:40px 12px}';
+          '.none{color:' + window.hkCards.v('ink-2') + ';font-size:15px;text-align:center;padding:40px 12px}';
       }
       hkWidthKind() { return (this._config || {}).width === 'wide' ? 'cards_wide' : 'cards'; }
       hkFill() { return true; }
@@ -6123,7 +6148,7 @@
         favMatches: favMatches, fromDashboard: fromDashboard, sourceOf: sourceOf, colourName: colourName,
         nearWhite: nearWhite, spanTo: spanTo, trendOf: trendOf, reportsAction: reportsAction,
         accessoryPane: accessoryPane, accName: accName, accIcon: accIcon, canEdit: canEdit, glyphsFor: glyphsFor, glyphSearch: glyphSearch, arrangeOf: arrangeOf, arrangeMove: arrangeMove, money: money, ACC_CSS: ACC_CSS,
-        popupFor: popupFor, openPopup: openPopup, route: route, asked: asked, onDashboard: onDashboard,
+        popupFor: popupFor, openPopup: openPopup, route: route, asked: asked, onDashboard: onDashboard, SHEET_CSS: SHEET_CSS,
         state: function () { return D; }
       }
     };

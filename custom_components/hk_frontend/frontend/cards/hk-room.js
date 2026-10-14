@@ -44,7 +44,6 @@
   // playing. The house may order them its own way (settings rooms.status).
   var KINDS = ['temperature', 'humidity', 'security', 'tvs', 'lights', 'outlets', 'blinds', 'fans',
                'windows', 'doors', 'locks', 'garage', 'valves', 'motion', 'occupancy', 'leaks', 'speakers'];
-  var DOOR_COVERS = { garage: 1, gate: 1, door: 1 };
   // The kinds that are accessories -- tiles on the page -- rather than sensors.
   var ACCESSORY = { security: 1, tvs: 1, lights: 1, outlets: 1, blinds: 1, fans: 1, locks: 1, garage: 1,
                     valves: 1, speakers: 1 };
@@ -77,7 +76,8 @@
     }
     if (d === 'fan') return 'fans';
     if (d === 'lock') return 'locks';
-    if (d === 'cover') return DOOR_COVERS[dc] ? 'garage' : 'blinds';
+    // the one list of door covers (hk-base), read when asked: this file may load first
+    if (d === 'cover') return window.hkCards && window.hkCards.DOOR_COVERS && window.hkCards.DOOR_COVERS[dc] ? 'garage' : 'blinds';
     if (d === 'valve') return 'valves';
     // THE security system: a house's alarm is often two panels -- its own
     // integration's and a keypad's -- and the Home app has one. With
@@ -445,11 +445,11 @@
       '  padding:6px 12px 8px 16px;margin:0 -12px}',
       '.row::-webkit-scrollbar{display:none}',
       '.it{display:flex;align-items:center;gap:10px;flex:none;margin:0;padding:0;border:0;',
-      '  background:none;color:var(--hk-ink,rgba(255,255,255,0.94));font:inherit;text-align:left;cursor:pointer;',
+      '  background:none;color:' + window.hkCards.v('ink') + ';font:inherit;text-align:left;cursor:pointer;',
       '  -webkit-tap-highlight-color:transparent;transition:opacity .15s ease}',
       '.it.pressed{opacity:0.55}',
       '.g{width:32px;height:32px;flex:none;position:relative;display:flex;align-items:center;',
-      '  justify-content:center;color:var(--hk-glyph,rgba(255,255,255,0.96));',
+      '  justify-content:center;color:' + window.hkCards.v('glyph') + ';',
       '  filter:var(--hk-glow,drop-shadow(0 1px 2px rgba(0,0,0,0.28)) drop-shadow(0 2px 6px rgba(0,0,0,0.16)))}',
       '.g ha-icon{--mdc-icon-size:27px;width:27px;height:27px;display:flex}',
       '.g svg{position:absolute;inset:0}',
@@ -457,11 +457,11 @@
       '.it.dim .g{opacity:0.5}',
       '.tx{display:flex;flex-direction:column;min-width:0}',
       '.t,.v{font-size:15px;line-height:19px;letter-spacing:-0.24px;white-space:nowrap;',
-      '  text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.30),0 2px 8px rgba(0,0,0,0.22))}',
-      '.t{font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94))}',
-      '.v{font-weight:400;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '  text-shadow:' + window.hkCards.v('glow') + '}',
+      '.t{font-weight:600;color:' + window.hkCards.v('ink') + '}',
+      '.v{font-weight:400;color:' + window.hkCards.v('ink-2') + '}',
       '.it.alert .v{color:#ff9f0a}',
-      '.it:focus-visible{outline:2px solid var(--hk-ink-2,rgba(255,255,255,0.68));outline-offset:4px;border-radius:6px}'
+      '.it:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:4px;border-radius:6px}'
     ].join('');
 
     class HkRoomStatusCard extends HkBase {

@@ -419,7 +419,7 @@ def test_a_stored_item_is_read_defensively():
                "tab_position": "near the top", "home_rooms": "shuffled", "chips": ["lights", "confetti"],
                "chips_quiet": "all", "pages": ["weather", "casino", "Not A Page!", "weather", "room-kitchen",
                                                "music-browse", "browse"], "glass": "stained",
-               "idle_room": "Kitchen Tablet", "sky": 0})
+               "sky": 0})
     assert (b["menu"], b["dock_min"], b["time_weather"], b["categories"], b["tab_position"], b["home_rooms"]) == (
         "auto", 1000, "page", [], "", "as_is")
     # a page list holds kinds, Browse Music and custom page addresses (casino
@@ -427,7 +427,7 @@ def test_a_stored_item_is_read_defensively():
     assert b["chips"] == ["lights"] and b["pages"] == ["weather", "casino", "browse"] and b["glass"] == "house"
     assert b["chips_quiet"] == ["weather_alert", "doors_windows", "blinds", "water"], "unreadable: the default"
     assert board({"chips_quiet": []})["chips_quiet"] == [], "none quiet is a choice"
-    assert b["idle_room"] == "" and b["sky"] is False
+    assert "idle_room" not in b and b["sky"] is False, "a tablet's room is the tablet's own (1.14)"
     assert b["page_rooms"] == "floor" and board({"page_rooms": "shuffled"})["page_rooms"] == "floor"
     assert board({"dock_min": 50})["dock_min"] == 700 and board({"dock_min": 99999})["dock_min"] == 3000
 
@@ -657,7 +657,7 @@ async def test_an_entry_from_1_12_moves_its_cameras(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 13
+    assert old.minor_version == 15
     assert S.merged(old.options)["cameras"]["order"] == cams
     got = S.boards(old)
     assert got["dashboard-a"]["cameras_house"] and got["dashboard-b"]["cameras_house"]
@@ -675,7 +675,7 @@ async def test_an_entry_from_1_7_moves_its_rooms(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 13
+    assert old.minor_version == 15
     assert S.merged(old.options)["rooms"]["order"] == ORDER
     got = S.boards(old)
     assert all(got[p]["rooms_house"] and got[p]["room_order"] == ORDER and got[p]["menu_rooms"] == "order"
@@ -776,7 +776,7 @@ async def test_an_entry_from_1_8_moves_its_menu(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 13
+    assert old.minor_version == 15
     assert (S.merged(old.options)["menu"]["style"], S.merged(old.options)["menu"]["tab_size"]) == ("tab", "xl")
     got = S.boards(old)
     assert got["dashboard-a"]["menu_house"] and got["dashboard-c"]["menu_house"]
@@ -850,7 +850,7 @@ async def test_an_entry_from_1_10_writes_down_its_phones(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 13
+    assert old.minor_version == 15
     got = S.boards(old)
     assert got["dashboard-a"]["menu_phone"] == "tabbar" and got["dashboard-a"]["button_phone"] == "chip"
     assert got["dashboard-b"]["menu_phone"] == "button" and got["dashboard-b"]["button_phone"] == "tab"
@@ -908,7 +908,7 @@ async def test_an_entry_from_1_11_tidies_its_menu(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 13
+    assert old.minor_version == 15
     assert "narrow" not in old.options["dashboard"]["menu"] and "dashboards" not in old.options["dashboard"]["menu"]
     got = S.boards(old)["dashboard-a"]
     assert (got["menu_phone"], got["button_phone"], got["tab_bar_scroll_phone"]) == ("tabbar", "chip_scroll", "hide")
@@ -938,8 +938,9 @@ def test_sky_palette_mirror_and_readability():
     else:
         raise AssertionError("a JavaScript engine is required for palette parity")
     assert json.loads(out.stdout) == list(S.SKY_BACKDROPS)
-    assert len(set(S.SKY_BACKDROP_IDS)) == 10
-    assert len([p for p in S.SKY_BACKDROPS if "day" in p]) == 8
+    # 2026-10-13: Black, what a screen with its Live Sky off showed
+    assert len(set(S.SKY_BACKDROP_IDS)) == 11
+    assert len([p for p in S.SKY_BACKDROPS if "day" in p]) == 9
     def luma(color):
         return sum(int(color[i:i + 2], 16) * w for i, w in zip((1, 3, 5), (.2126, .7152, .0722)))
     pos = (0, .42, .72, 1)
@@ -1146,3 +1147,146 @@ def test_tinted_is_a_glass_with_its_darkness_and_icon_circles():
     assert (b["glass"], b["tint"], b["well"]) == ("tinted", 30, "light")
     b = S.board({"tint": 140, "well": "neon"})
     assert (b["tint"], b["well"]) == (100, None), "an amount is held to 0-100 (as Frost and Blur); an unknown circle follows All Screens"
+
+
+def test_screensaver_portrait_and_landscape_photos():
+    """Portrait and Landscape Photos, each their own (2026-10-13)."""
+    from custom_components.hk_frontend import settings as S
+    d = S.saver_options({})
+    assert (d["portrait_fill"], d["portrait_zoom"], d["portrait_x"], d["portrait_y"], d["portrait_blur"], d["portrait_dim"]) == \
+        (False, 100, "center", "center", 50, 20)
+    got = S.saver_options({"portrait_fill": True, "portrait_zoom": 150, "portrait_y": "top", "landscape_x": "right",
+                           "landscape_blur": 0, "landscape_dim": 80})
+    assert got["portrait_fill"] and got["portrait_zoom"] == 150 and got["portrait_y"] == "top"
+    assert got["landscape_x"] == "right" and got["landscape_blur"] == 0 and got["landscape_dim"] == 80
+    for bad in ({"portrait_zoom": 99}, {"portrait_zoom": 201}, {"landscape_dim": 81}, {"portrait_blur": True},
+                {"portrait_x": "top"}, {"landscape_y": "left"}, {"portrait_fill": "yes"}, {"square_zoom": 120}):
+        assert S.saver_options(bad) is None, bad
+
+
+def test_screensaver_clocks():
+    """Show: Clock, a Large clock over the photos, one Clock Style for both (2026-10-13)."""
+    import re as _re
+    from pathlib import Path
+    from custom_components.hk_frontend import settings as S
+    d = S.saver_options({})
+    assert (d["clock_over"], d["clock_style"], d["clock_bg"], d["clock_motion"], d["clock_24"]) == ("corner", "classic", "gradient", "slow", False)
+    got = S.saver_options({"show": "clock", "clock_style": "nixie", "clock_bg": "forecast", "clock_motion": "still", "clock_24": True, "clock_over": "large"})
+    assert got["show"] == "clock" and got["clock_style"] == "nixie" and got["clock_bg"] == "forecast" and got["clock_24"] is True
+    for bad in ({"clock_style": "sundial"}, {"clock_bg": "lava"}, {"clock_over": "huge"}, {"clock_motion": "fast"}, {"clock_24": "yes"}, {"show": "slides"}):
+        assert S.saver_options(bad) is None, bad
+    # the styles are hk-saverclock.js's, in order
+    src = (Path(S.__file__).parent / "frontend" / "modules" / "hk-saverclock.js").read_text()
+    block = src[src.index("var STYLES = ["):src.index("];", src.index("var STYLES = ["))]
+    assert tuple(_re.findall(r"\['([a-z]+)', '", block)) == S.SAVER_CLOCK_STYLES
+
+
+def test_screensaver_mosaic():
+    """Layout: Mosaic -- 2-5 photos at once (2026-10-13)."""
+    from custom_components.hk_frontend import settings as S
+    d = S.saver_options({})
+    assert (d["photo_layout"], d["mosaic_count"], d["mosaic_gap"], d["mosaic_change"]) == ("single", 3, "thin", "one")
+    got = S.saver_options({"photo_layout": "mosaic", "mosaic_count": 5, "mosaic_gap": "rounded", "mosaic_change": "all"})
+    assert (got["photo_layout"], got["mosaic_count"], got["mosaic_gap"], got["mosaic_change"]) == ("mosaic", 5, "rounded", "all")
+    for bad in ({"photo_layout": "grid"}, {"mosaic_count": 1}, {"mosaic_count": 6}, {"mosaic_count": True}, {"mosaic_gap": "wide"}, {"mosaic_change": "some"}):
+        assert S.saver_options(bad) is None, bad
+
+
+def test_screensaver_clock_colors():
+    """Each face's own color, kept per face (2026-10-13)."""
+    from custom_components.hk_frontend import settings as S
+    assert S.saver_options({})["clock_colors"] == {}
+    got = S.saver_options({"clock_colors": {"neon": "blue", "lcd": "amber"}})
+    assert got["clock_colors"] == {"neon": "blue", "lcd": "amber"}
+    for bad in ({"clock_colors": {"sundial": "blue"}}, {"clock_colors": {"neon": "Blue!"}}, {"clock_colors": ["neon"]}, {"clock_colors": {"neon": 3}}):
+        assert S.saver_options(bad) is None, bad
+
+
+def test_screensaver_clock_speed_and_depth():
+    """Every clock background moves but Black: its Speed and Depth (2026-10-13)."""
+    from custom_components.hk_frontend import settings as S
+    d = S.saver_options({})
+    assert (d["clock_speed"], d["clock_depth"]) == (35, 50)
+    got = S.saver_options({"clock_speed": 0, "clock_depth": 100})
+    assert (got["clock_speed"], got["clock_depth"]) == (0, 100)
+    for bad in ({"clock_speed": 101}, {"clock_depth": -1}, {"clock_speed": True}):
+        assert S.saver_options(bad) is None, bad
+
+
+def test_screensaver_night_mode():
+    """Night Mode: a dim red clock on black, at night or always (2026-10-13)."""
+    from custom_components.hk_frontend import settings as S
+    d = S.saver_options({})
+    assert (d["clock_night"], d["clock_night_from"], d["clock_night_to"]) == ("off", "22:00", "07:00")
+    got = S.saver_options({"clock_night": "night", "clock_night_from": "21:30", "clock_night_to": "06:45", "clock_style": "today", "clock_bg": "skyonly"})
+    assert (got["clock_night"], got["clock_night_from"], got["clock_night_to"], got["clock_style"], got["clock_bg"]) == ("night", "21:30", "06:45", "today", "skyonly")
+    for bad in ({"clock_night": "dusk"}, {"clock_night_from": "24:00"}, {"clock_night_to": "7:00"}, {"clock_night_from": 2200}):
+        assert S.saver_options(bad) is None, bad
+
+
+# ------------------------------------------------ the wall tablets (1.14)
+def test_tablets_lifted_makes_each_tablet_screen_a_tablet():
+    from custom_components.hk_frontend import settings as S
+    items = {
+        "dashboard-kitchen": {"screensaver": True, "tablet_user": "kitchen", "idle_room": "kitchen",
+                              "idle_return": True, "black_screen": "hk",
+                              "sleep": {"decided_by": "hk", "kiosk": "a" * 32, "presence": ["binary_sensor.k"]}},
+        "dashboard-hall": {"screensaver": True, "idle_room": "hall", "idle_return": False},
+        "dashboard-home": {"menu": "open", "idle_return": True},
+        "dashboard-den": {"tablet_user": "den", "idle_room": "gone_room"},
+    }
+    titles = {"dashboard-kitchen": "Kitchen", "dashboard-hall": "Hall", "dashboard-home": "Home",
+              "dashboard-den": "Den"}
+    options, out, made = S.tablets_lifted({"dashboard": {"look": {"glass": "blur"}}}, items, titles,
+                                          {"kitchen", "hall"})
+    assert set(made) == {"kitchen", "hall", "gone_room"}, "the desk's Return to Home alone made no tablet"
+    k = made["kitchen"]
+    assert (k["name"], k["screen"], k["user"], k["room"], k["app"], k["device"], k["uid"]) == \
+        ("Kitchen", "dashboard-kitchen", "kitchen", "kitchen", "kiosk_satellite", "a" * 32, "dashboard-kitchen")
+    assert k["idle_return"] is None, "it was on: All Tablets' (on) from now"
+    assert k["black_screen"] == "hk" and k["sleep"]["decided_by"] == "hk" and k["sleep"]["kiosk"] == "a" * 32
+    assert made["hall"]["idle_return"] is False and made["hall"]["app"] == "browser" and made["hall"]["user"] == ""
+    assert made["gone_room"]["room"] == "" and made["gone_room"]["name"] == "Den", \
+        "an area the house doesn't have is left out (its id stays what its helpers were named)"
+    assert all(not ({"tablet_user", "idle_room", "idle_return", "sleep", "black_screen"} & set(d)) for d in out.values())
+    assert out["dashboard-home"] == {"menu": "open"}
+    assert options["dashboard"]["tablets"]["idle_time"] == 50 and options["dashboard"]["look"] == {"glass": "blur"}
+    assert S.tablets_lifted({}, {"dashboard-home": {"menu": "open"}}, {}, set())[0] is None, "no tablet, no change"
+
+
+def test_a_tablet_is_read_defensively():
+    from custom_components.hk_frontend.settings import tablet
+    t = tablet({"name": "", "screen": "Not A Path!", "room": "Living Room", "user": "<script>", "app": "ipad",
+                "device": "nope", "idle_return": "yes", "idle_time": 45, "black_screen": "dim",
+                "sleep": {"decided_by": "hk", "kiosk": "b" * 32}, "uid": "../x"}, "living_room")
+    assert t["name"] == "Living Room", "no name: its id, readable"
+    assert (t["screen"], t["room"], t["user"], t["app"], t["device"]) == ("", "", "", "browser", "")
+    assert (t["idle_return"], t["idle_time"], t["black_screen"]) == (None, None, "kiosk")
+    assert t["sleep"]["kiosk"] == "", "Sleep Screen's kiosk is always the tablet's own Kiosk Satellite"
+    assert t["uid"] == "tablet_living_room"
+    assert tablet({"app": "kiosk_satellite", "device": "c" * 32})["sleep"]["kiosk"] == "c" * 32
+
+
+def test_a_new_tablets_id_comes_from_its_name():
+    from custom_components.hk_frontend.settings import tablet_id
+    assert tablet_id("Living Room", set()) == "living_room"
+    assert tablet_id("Living Room", {"living_room", "living_room_2"}) == "living_room_3"
+    assert tablet_id("  ", set()) == "tablet" and tablet_id("Ünïcode!", set()) == "n_code"
+
+
+def test_only_what_was_set_is_stored():
+    """Entry 1.15 (the user, 2026-10-14): a setting is stored when it differs
+    from its default, so a later default reaches anything left at it."""
+    from custom_components.hk_frontend import settings as S
+    full = S.board({"menu": "open", "glass": "tinted"})
+    stored = S.board_stored(full)
+    assert stored == {"menu": "open", "glass": "tinted"}, stored
+    assert S.board(stored) == full, "read back, the same screen"
+    t = S.tablet_stored({"name": "Kitchen", "screen": "dashboard-kitchen", "app": "browser"}, "kitchen")
+    assert t["name"] == "Kitchen" and t["uid"] == "tablet_kitchen" and t["screen"] == "dashboard-kitchen" and "app" not in t, t
+    assert S.tablet(t, "kitchen") == S.tablet({"name": "Kitchen", "screen": "dashboard-kitchen"}, "kitchen")
+    opts = {"dashboard": {"look": dict(S.merged(None)["look"], glass="tinted"), "sky": {"retired_key": 1}}}
+    new, boards, tabs = S.settings_trimmed(opts, {"dashboard-x": full}, {"kitchen": {"name": "Kitchen"}})
+    assert new["dashboard"]["look"] == {"glass": "tinted"} and new["dashboard"]["sky"] == {}, new["dashboard"]
+    assert S.merged(new) == S.merged(opts), "every read the same"
+    assert boards["dashboard-x"] == stored and tabs["kitchen"] == {"name": "Kitchen", "uid": "tablet_kitchen"}

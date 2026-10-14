@@ -165,6 +165,9 @@ class HkControlCard extends HTMLElement {
     if (!c) return null;
     return window.hkCards.PALETTE.accent[String(c).toLowerCase().trim()] || c;
   }
+  // A tall tile's height (hk-base.js TILE.tall). This card does not need
+  // hk-base to draw, so before it loads: the height it has always had.
+  _tallPx(){ var C=window.hkCards; return (C && C.TILE ? C.TILE.tall : 152) + "px"; }
   _baseCss(){
     // THE SAME GLASS AS EVERY OTHER PLATE. A card that paints its own
     // gradient, rim and per-card backdrop-filter ignores the Glass look and,
@@ -179,7 +182,7 @@ class HkControlCard extends HTMLElement {
       :host([data-tilel]){width:auto}
       :host{display:block;width:100%;box-sizing:border-box;font-family:var(--paper-font-body1_-_font-family,-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif)}
       *{box-sizing:border-box}
-      .surface{width:100%;color:var(--hk-ink,rgba(255,255,255,0.94));${M.glass};border:${M.border};border-radius:${M.radius};box-shadow:var(--hk-look-shadow, 0 10px 28px rgba(0,0,0,.12));overflow:hidden}
+      .surface{width:100%;color:${window.hkCards.v('ink')};${window.hkCards.plate('panel')};overflow:hidden}
       .media-bare.off,.surface.off{opacity:.35;pointer-events:none}
       .surface.bare{background:none;border:0;box-shadow:none;border-radius:0;padding-left:0;padding-right:0;overflow:visible}
       .surface.bare .head,.surface.bare .tstat-name,.surface.bare .tstat-sub{display:none}
@@ -192,10 +195,10 @@ class HkControlCard extends HTMLElement {
       .glyph ha-icon{width:23px;height:23px;--mdc-icon-size:23px;color:white}
       .titles{min-width:0;flex:1}
       .name{font-size:17px;line-height:1.12;font-weight:720;letter-spacing:-.25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .sub{font-size:12.5px;line-height:1.2;font-weight:540;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      button{font:inherit;color:var(--hk-ink,rgba(255,255,255,0.94));border:0;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+      .sub{font-size:12.5px;line-height:1.2;font-weight:540;color:${window.hkCards.v('ink-2')};margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      button{font:inherit;color:${window.hkCards.v('ink')};border:0;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
       button:active{transform:scale(.96);filter:brightness(.92)}
-      .segment{height:46px;border-radius:14px;background:var(--hk-key,rgba(255,255,255,.09));font-size:13px;font-weight:680;padding:0 12px;transition:.15s ease}
+      .segment{height:46px;border-radius:14px;background:${window.hkCards.v('key')};font-size:13px;font-weight:680;padding:0 12px;transition:.15s ease}
       .segment.active{background:var(--hk-accent,rgba(255,159,10,.96));color:#fff;box-shadow:0 5px 14px rgba(255,130,0,.23)}
       .segments{display:grid;gap:8px}
     `;
@@ -211,7 +214,7 @@ class HkControlCard extends HTMLElement {
     // a wrapping grid of them, the chosen one white as in the capsule
     return C.segCss(".option-row:not(.many)",{on:".active",fill:true,font:"13px"}) +
       ".option-row.many{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}" +
-      ".option-row.many .segment{height:40px;border-radius:20px;background:var(--hk-key,rgba(255,255,255,.09));font-size:13px;font-weight:600;padding:0 10px;" +
+      ".option-row.many .segment{height:40px;border-radius:20px;background:" + window.hkCards.v('key') + ";font-size:13px;font-weight:600;padding:0 10px;" +
       "white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
       ".option-row.many .segment.active{background:#fff;color:#1c1c1e;box-shadow:none}" +
       // EVERY ONE 44 px (the user: one height everywhere), the thermostat's
@@ -313,13 +316,13 @@ class HkControlCard extends HTMLElement {
       .tstat{padding:20px 20px 16px;display:flex;flex-direction:column;align-items:center;gap:2px}
       .tstat-name{font-size:19px;font-weight:730;letter-spacing:-.4px;text-align:center;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-      .tstat-sub{font-size:13.5px;font-weight:560;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px}
+      .tstat-sub{font-size:13.5px;font-weight:560;color:${window.hkCards.v('ink-2')};margin-top:2px}
       .ring{width:100%;max-width:var(--hk-tstat-ring,300px);touch-action:pan-y;user-select:none;cursor:pointer;display:block;margin:2px 0 0}
       .ring .hit{fill:none;stroke:transparent;stroke-width:54px;stroke-linecap:round}
-      .ring .trk{fill:none;stroke:var(--hk-line,rgba(255,255,255,.13));stroke-width:22px;stroke-linecap:round}
+      .ring .trk{fill:none;stroke:${window.hkCards.v('line-strong')};stroke-width:22px;stroke-linecap:round}
       .ring .bnd{fill:none;stroke-width:22px;stroke-linecap:round}
       .ring .kn{fill:#fff;stroke:rgba(0,0,0,.18);stroke-width:1px}
-      .ring .cur{fill:var(--hk-ink,rgba(255,255,255,0.94))}
+      .ring .cur{fill:${window.hkCards.v('ink')}}
       /* The centre block is HTML over the SVG rather than <text>: it needs the
          same font stack and tabular figures as the rest of the dashboard, and
          SVG text does not inherit either reliably inside a shadow root. */
@@ -330,7 +333,7 @@ class HkControlCard extends HTMLElement {
          detail sheet's wide thermostat fills a 400 px column); unset, every
          value is what it always was. */
       .tstat-cap{font-size:11px;font-weight:730;letter-spacing:1.1px;text-transform:uppercase;
-        color:var(--hk-ink-2,rgba(255,255,255,0.68))}
+        color:${window.hkCards.v('ink-2')}}
       .tstat-val{font-size:var(--hk-tstat-val,46px);font-weight:600;letter-spacing:-2px;line-height:1.04;
         font-variant-numeric:tabular-nums;margin-top:2px}
       .tstat-act{font-size:13px;font-weight:680;margin-top:4px}
@@ -345,14 +348,15 @@ class HkControlCard extends HTMLElement {
          two enormous pills under four smaller ones. */
       .tstat-fan{margin-top:var(--hk-tstat-fan-gap,6px);width:100%}
       .compact{padding:17px 18px;min-height:118px}
-      /* layout: tile -- the Energy page's plate: the tiles' 152 px, its 20/22
-         insets, the slider resting 24 px above the bottom (the EcoFlow page) */
-      .compact.tilel{box-sizing:border-box;height:152px;padding:20px 22px 24px;display:flex;flex-direction:column}
+      /* layout: tile -- the Energy page's plate: a tall tile's height
+         (hk-base.js TILE.tall), its 20/22 insets, the slider resting 24 px
+         above the bottom (the EcoFlow page) */
+      .compact.tilel{box-sizing:border-box;height:${this._tallPx()};padding:20px 22px 24px;display:flex;flex-direction:column}
       .compact.tilel .range-wrap{margin-top:auto;padding:0 2px}
       .compact .glyph{width:38px;height:38px;flex-basis:38px}.compact .glyph ha-icon{width:21px;height:21px;--mdc-icon-size:21px}
       .value{font-size:21px;font-weight:720;letter-spacing:-.35px;margin-left:auto;white-space:nowrap}
       .range-wrap{display:grid;grid-template-columns:minmax(0,1fr);align-items:center;margin-top:14px;touch-action:pan-y;cursor:pointer;-webkit-tap-highlight-color:transparent}
-      .prog-track{height:6px;border-radius:4px;background:var(--hk-line,rgba(255,255,255,.16));overflow:hidden;margin:2px 0 7px}
+      .prog-track{height:6px;border-radius:4px;background:${window.hkCards.v('line-strong')};overflow:hidden;margin:2px 0 7px}
       /* THE FILL SLIDES IN, IT DOES NOT GROW: full width, moved by a transform
          (the track's overflow clips it; its rounded right end is its own).
          Animating width laid the page out again every frame -- 60 style
@@ -361,9 +365,9 @@ class HkControlCard extends HTMLElement {
          second each: the edge moves by about a pixel per step, so it reads
          as smooth, and the compositor draws a frame only when a step changes
          -- 4 a second, where a linear transform still drew 60. */
-      .prog-fill{width:100%;height:100%;border-radius:4px;background:var(--hk-accent,var(--hk-track-fill,rgba(255,255,255,.92)))}
+      .prog-fill{width:100%;height:100%;border-radius:4px;background:var(--hk-accent,${window.hkCards.v('track-fill')})}
       .prog-times{display:flex;justify-content:space-between;font-size:12px;font-weight:600;
-        letter-spacing:.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-bottom:4px;font-variant-numeric:tabular-nums}
+        letter-spacing:.2px;color:${window.hkCards.v('ink-2')};margin-bottom:4px;font-variant-numeric:tabular-nums}
       /* appearance:none ON THE INPUT, not just on the thumb.
          Without it the engine still draws its NATIVE slider (that is what
          accent-color paints) and then paints our ::-webkit-slider-runnable-track
@@ -399,18 +403,18 @@ class HkControlCard extends HTMLElement {
          hk-thermostat and hk-media-control all stop being defined, and a row
          of sliders renders NOTHING. A new Function(src) check catches it. */
       input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;margin:0;padding:0;background:transparent;border:0;outline:none;touch-action:pan-y;pointer-events:none}
-      input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:5px;border:0;background:var(--hk-line,rgba(255,255,255,.18))}
+      input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:5px;border:0;background:${window.hkCards.v('line-strong')}}
       input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;margin-top:-9px;border-radius:50%;border:0;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.25)}
-      input[type=range]::-moz-range-track{height:8px;border-radius:5px;border:0;background:var(--hk-line,rgba(255,255,255,.18))}
+      input[type=range]::-moz-range-track{height:8px;border-radius:5px;border:0;background:${window.hkCards.v('line-strong')}}
       input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;border:0;background:#fff;box-shadow:0 3px 10px rgba(0,0,0,.25)}
       /* The filled part. The native slider drew this for free; with appearance
          off it has to be explicit. --hk-fill is set per render from the value. */
       input[type=range].filled::-webkit-slider-runnable-track{
-        background:linear-gradient(to right,var(--hk-accent,#ff9f0a) 0 var(--hk-fill,0%),var(--hk-line,rgba(255,255,255,.18)) var(--hk-fill,0%) 100%)}
+        background:linear-gradient(to right,${window.hkCards.v('accent')} 0 var(--hk-fill,0%),${window.hkCards.v('line-strong')} var(--hk-fill,0%) 100%)}
       input[type=range].filled::-moz-range-track{
-        background:linear-gradient(to right,var(--hk-accent,#ff9f0a) 0 var(--hk-fill,0%),var(--hk-line,rgba(255,255,255,.18)) var(--hk-fill,0%) 100%)}
+        background:linear-gradient(to right,${window.hkCards.v('accent')} 0 var(--hk-fill,0%),${window.hkCards.v('line-strong')} var(--hk-fill,0%) 100%)}
       .option-row{margin-top:14px}
-      .toggle{height:46px;min-width:116px;border-radius:23px;padding:0 18px;background:var(--hk-key,rgba(255,255,255,.10));font-size:14px;font-weight:720}
+      .toggle{height:46px;min-width:116px;border-radius:23px;padding:0 18px;background:${window.hkCards.v('key')};font-size:14px;font-weight:720}
       .toggle.on{background:rgba(48,209,88,.96);color:#fff}
       .water-modes{--count:3}
       /* bare: no plate, no padding. For the Play Music page, where this control
@@ -425,7 +429,7 @@ class HkControlCard extends HTMLElement {
       .media-bare.only-prog .prog-track{margin-top:0}
       /* phone_times: false -- no times on a phone, the bar's progress a
          plain line under the song (as a phone's mini player) */
-      @media (max-width:640px){
+      @media (max-width:${window.hkCards.BP.phone}px){
         .media-bare.no-phone-times .prog-times{display:none}
         .media-bare.no-phone-times .prog-track{margin:0;height:4px}
       }
@@ -443,7 +447,15 @@ class HkControlCard extends HTMLElement {
     var large = (f1 - f0) * 270 > 180 ? 1 : 0;
     return `M${a[0].toFixed(2)} ${a[1].toFixed(2)} A${r} ${r} 0 ${large} 1 ${b[0].toFixed(2)} ${b[1].toFixed(2)}`;
   }
+  // A WATER HEATER ON THE CLIMATE PAGE (2026-10-13): the thermostat's dial,
+  // with the heater's own controls -- as its detail sheet has them
+  // (hk-detail.js WaterHeaterPanel): "Heat to" its setpoint, its operation
+  // modes (off first, where it can be turned off), and Away when it has it.
+  // It once fell through to the climate dial and showed a thermostat's
+  // Off / Heat / Cool / Auto, none of them its own.
+  _heater() { return String(this._entityId() || "").indexOf("water_heater.") === 0; }
   _climate(s) {
+    if (this._heater()) return this._waterDial(s);
     const a = s?.attributes || {}, mode = s?.state || "off";
     const action = a.hvac_action || mode;
     const cur = Number(a.current_temperature), hum = Number(a.current_humidity);
@@ -474,8 +486,8 @@ class HkControlCard extends HTMLElement {
     // what the Home app draws. Not the heat/cool MODE colours -- those would put
     // orange at the bottom of the band and blue at the top, which reads
     // backwards on a dial whose whole job is left-cold-right-hot.
-    const c0 = off ? "var(--hk-mark,rgba(255,255,255,.30))" : "#32ade6";
-    const c1 = off ? "var(--hk-mark,rgba(255,255,255,.30))" : "#ff9f0a";
+    const c0 = off ? "" + window.hkCards.v('mark') + "" : "#32ade6";
+    const c1 = off ? "" + window.hkCards.v('mark') + "" : "#ff9f0a";
     const g0 = this._pt(f0, 78), g1 = this._pt(f1, 78);
 
     const val = off ? "Off"
@@ -483,7 +495,7 @@ class HkControlCard extends HTMLElement {
       : (Number.isFinite(single) ? Math.round(single) + "°" : "—");
     const cap = off ? "Thermostat" : (range ? "Keep between" : "Set to");
     const actC = action === "cooling" ? "#32ade6" : action === "heating" ? "#ff9f0a"
-      : "var(--hk-ink-2,rgba(255,255,255,0.68))";
+      : "" + window.hkCards.v('ink-2') + "";
 
     const sub = [Number.isFinite(cur) ? "Current " + Math.round(cur) + "°" : null,
                  Number.isFinite(hum) ? "Humidity " + Math.round(hum) + "%" : null]
@@ -538,6 +550,62 @@ class HkControlCard extends HTMLElement {
       ${fanModes.length ? `<div class="tstat-fan" style="--count:${fanModes.length}">${
         fanModes.map(m => `<button class="segment ${a.fan_mode === m ? "active" : ""}" data-fan="${this._esc(m)}">${this._esc(this._pretty(m))}</button>`).join("")
       }</div>` : ""}
+    </div>`;
+  }
+
+  _waterDial(s) {
+    const a = s?.attributes || {}, mode = s?.state || "off", off = mode === "off";
+    const f = Number(a.supported_features) || 0;          // 1 target, 2 mode, 4 away, 8 on/off
+    const cur = Number(a.current_temperature);
+    const min = Number(a.min_temp) || 90, max = Number(a.max_temp) || 150;
+    let single = Number(a.temperature);
+    const hold = this._hold;
+    if (hold && Date.now() < hold.until) {
+      if (single === hold.single) this._hold = null; else single = hold.single;
+    } else this._hold = null;
+    const frac = t => Math.max(0, Math.min(1, (t - min) / (max - min)));
+    const f1 = Number.isFinite(single) ? frac(single) : 0;
+    const c0 = off ? window.hkCards.v('mark') : "#32ade6", c1 = off ? window.hkCards.v('mark') : "#ff9f0a";
+    const g0 = this._pt(0, 78), g1 = this._pt(f1, 78);
+    const word = m => ({ high_demand: "Demand", heat_pump: "Heat Pump" })[m] || this._pretty(m);
+    const away = a.away_mode === "on";
+    const om = a.operation_mode || mode;
+    const val = off ? "Off" : (Number.isFinite(single) ? Math.round(single) + "°" : "—");
+    const sub = [Number.isFinite(cur) ? "Current " + Math.round(cur) + "°" : null, away ? "Away" : null].filter(Boolean).join(" \u00b7 ");
+    const dot = Number.isFinite(cur)
+      ? (p => `<circle class="cur" cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="4"/>`)(this._pt(frac(cur), 78)) : "";
+    const kp = this._pt(f1, 78);
+    const knob = off || !(f & 1) || !Number.isFinite(single) ? ""
+      : `<circle class="kn" data-knob="single" cx="${kp[0].toFixed(2)}" cy="${kp[1].toFixed(2)}" r="13"/>`;
+    // off first where it can be turned off (its own off, or "off" as a mode)
+    const list = (a.operation_list || []).filter(m => m !== "off");
+    const power = !!(f & 8) || (a.operation_list || []).includes("off");
+    const modes = (f & 2) ? (power ? ["off"] : []).concat(list) : (power ? ["off", "on"] : []);
+    const isOn = m => m === "off" ? off : m === "on" ? !off : (!off && om === m);
+    return `<div class="surface tstat">
+      <div class="tstat-name">${this._esc(this._name())}</div>
+      <div class="tstat-sub">${this._esc(sub)}</div>
+      <div class="tstat-wrap">
+        <svg class="ring" viewBox="0 0 200 172" data-ring>
+          <defs><linearGradient id="bandg" gradientUnits="userSpaceOnUse"
+            x1="${g0[0].toFixed(2)}" y1="${g0[1].toFixed(2)}" x2="${g1[0].toFixed(2)}" y2="${g1[1].toFixed(2)}">
+            <stop offset="0" style="stop-color:${c0}"/><stop offset="1" style="stop-color:${c1}"/>
+          </linearGradient></defs>
+          <path class="trk" d="${this._arc(0, 1, 78)}"/>
+          ${f1 > 0 ? `<path class="bnd" stroke="url(#bandg)" d="${this._arc(0, f1, 78)}"/>` : ""}
+          ${dot}${knob}
+          <path class="hit" d="${this._arc(0, 1, 78)}"/>
+        </svg>
+        <div class="tstat-face">
+          <div class="tstat-cap">${off ? "Water Heater" : "Heat to"}</div>
+          <div class="tstat-val" data-face>${val}</div>
+          <div class="tstat-act" style="color:${off ? window.hkCards.v('ink-2') : "#ff9f0a"}">${this._esc(off ? "Off" : word(om))}</div>
+        </div>
+      </div>
+      ${modes.length ? `<div class="tstat-modes segments" style="--count:${modes.length}">${modes
+        .map(m => `<button class="segment ${isOn(m) ? "active" : ""}" data-wh="${this._esc(m)}">${this._esc(word(m))}</button>`)
+        .join("")}</div>` : ""}
+      ${(f & 4) ? `<div class="tstat-fan" style="--count:2"><button class="segment ${away ? "" : "active"}" data-wh-away="off">Home</button><button class="segment ${away ? "active" : ""}" data-wh-away="on">Away</button></div>` : ""}
     </div>`;
   }
 
@@ -774,6 +842,10 @@ class HkControlCard extends HTMLElement {
 
       ring.onpointerdown=e=>{
         if(mode==="off") return;
+        // NO SETPOINT TO MOVE (fan only, dry, or a range mode without both
+        // ends): the dial takes no touch -- it would draw "0°"/"NaN°" and send
+        // a setpoint the mode does not use
+        if(!range && (aa.temperature==null || !Number.isFinite(Number(aa.temperature)))) return;
         ring.setPointerCapture(e.pointerId);
         startX=e.clientX; startY=e.clientY;
         const t=tempAt(e);
@@ -810,7 +882,7 @@ class HkControlCard extends HTMLElement {
         paint(which,t);
         if(which==="single"){
           this._hold={which:which,single:t,until:Date.now()+8000};
-          call("climate","set_temperature",{temperature:t});
+          call(this._heater()?"water_heater":"climate","set_temperature",{temperature:t});
           done();
           return;
         }
@@ -829,6 +901,17 @@ class HkControlCard extends HTMLElement {
     root.querySelectorAll("[data-option]").forEach(b=>b.onclick=()=>call("select","select_option",{option:b.dataset.option}));
     root.querySelectorAll("[data-toggle]").forEach(b=>b.onclick=()=>call("switch","toggle"));
     root.querySelectorAll("[data-valve]").forEach(b=>b.onclick=()=>call("valve",b.dataset.valve==="open"?"open_valve":"close_valve"));
+    // the water heater's dial (_waterDial): off through its own turn_off
+    // where it has one, else "off" as a mode; a mode turns it on in that mode
+    root.querySelectorAll("[data-wh]").forEach(b=>b.onclick=()=>{
+      const m=b.dataset.wh, st=this._state(), ff=Number(st?.attributes?.supported_features)||0;
+      const ops=st?.attributes?.operation_list||[];
+      if(m==="off") return (ff&8) ? call("water_heater","turn_off") : call("water_heater","set_operation_mode",{operation_mode:"off"});
+      if(m==="on") return call("water_heater","turn_on");
+      if(st?.state==="off" && (ff&8) && !ops.includes("off")) call("water_heater","turn_on");
+      call("water_heater","set_operation_mode",{operation_mode:m});
+    });
+    root.querySelectorAll("[data-wh-away]").forEach(b=>b.onclick=()=>call("water_heater","set_away_mode",{away_mode:b.dataset.whAway==="on"}));
     root.querySelectorAll("[data-water-mode]").forEach(b=>b.onclick=()=>call("water_heater","set_operation_mode",{operation_mode:b.dataset.waterMode}));
     // No +/- steppers on either slider. With appearance:none the
     // fill is ours to draw, so it has to be repainted as the thumb moves --
@@ -895,10 +978,17 @@ class HkControlCard extends HTMLElement {
         return Math.max(b.min,Math.min(b.max,v));
       };
       const show=(v)=>{ el.value=String(v); el.dispatchEvent(new Event("input")); };
+      // UNDER A FINGER, as the dial: a redraw while dragging (another room's
+      // volume, a position update) rebuilds the slider and the thumb stops
+      // following the finger -- `set hass` waits for the lift (_deferred)
+      const held=(on)=>{
+        this._dragging=on;
+        if(!on && this._deferred){ this._deferred=false; this._render(); }
+      };
       let g=null;
       wrap.addEventListener("pointerdown",(e)=>{
         g={x:e.clientX,y:e.clientY,live:e.pointerType==="mouse",v:null};
-        if(g.live){ try{wrap.setPointerCapture(e.pointerId);}catch(_){} g.v=valueAt(e.clientX); show(g.v); }
+        if(g.live){ try{wrap.setPointerCapture(e.pointerId);}catch(_){} held(true); g.v=valueAt(e.clientX); show(g.v); }
       });
       wrap.addEventListener("pointermove",(e)=>{
         if(!g) return;
@@ -906,20 +996,25 @@ class HkControlCard extends HTMLElement {
           const dx=Math.abs(e.clientX-g.x), dy=Math.abs(e.clientY-g.y);
           if(dx<SLIDER_SLOP&&dy<SLIDER_SLOP) return;   // still ambiguous
           if(dx<=dy){ g=null; return; }             // vertical: the page's, let go
-          g.live=true; try{wrap.setPointerCapture(e.pointerId);}catch(_){}
+          g.live=true; held(true); try{wrap.setPointerCapture(e.pointerId);}catch(_){}
         }
         g.v=valueAt(e.clientX); show(g.v);
         e.preventDefault();
       },{passive:false});
       wrap.addEventListener("pointerup",(e)=>{
         if(!g) return;
-        const v=g.v; g=null;
+        const v=g.v, live=g.live; g=null;
         try{wrap.releasePointerCapture(e.pointerId);}catch(_){}
         if(v!==null) commit(v);
+        if(live) held(false);
       });
       // The browser took the gesture for a page scroll. Nothing was sent; put
       // the thumb back where the state says it is.
-      wrap.addEventListener("pointercancel",()=>{ if(g&&g.v!==null) this._render(); g=null; });
+      wrap.addEventListener("pointercancel",()=>{
+        const was=g; g=null;
+        if(was&&was.live){ this._deferred=false; this._dragging=false; }
+        if(was&&(was.live||was.v!==null)) this._render();
+      });
     };
 
     const vol=root.querySelector("[data-vol]");
@@ -1124,7 +1219,7 @@ if(!window.customCards.some(c=>c.type==="hk-control-card")) window.customCards.p
   variant("hk-slider-card", "number", "HK Slider",
     "A slider for a number entity, such as a battery charge limit or reserve.",
     [BARE, { name: "layout", selector: { select: { mode: "dropdown", options: [
-      { value: "compact", label: "Compact" }, { value: "tile", label: "Tile (152 px, as the Energy page's cards)" }] } } }], "number");
+      { value: "compact", label: "Compact" }, { value: "tile", label: "Tile (as tall as the Energy page's cards)" }] } } }], "number");
 
   variant("hk-media-control-card", "media_player", "HK Media Controls",
     "Progress bar and volume slider for a media player.",

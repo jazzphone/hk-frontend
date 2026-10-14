@@ -268,7 +268,7 @@ ok('...lit: a yellow circle behind a white glyph', (function () {
 })(), true);
 ok('a white scene stays the Home app\'s: white glyph, near-black lit, no well', (function () {
   var c = card(Scene, { entity: 'script.x', icon_color: 'white' }, {}), cfg = { icon_color: 'white' }, s = st('script.x', 'on');
-  return c._iconColour(cfg, s, false) === 'var(--hk-ink, rgba(255, 255, 255, 0.94))' && c._iconColour(cfg, s, true) === 'rgba(0, 0, 0, 0.95)' &&
+  return c._iconColour(cfg, s, false) === window.hkCards.v('ink') && c._iconColour(cfg, s, true) === 'rgba(0, 0, 0, 0.95)' &&
     c._wellBackground(cfg, s, true) === null && c._wellBackground({}, s, true) === null;
 })(), true);
 

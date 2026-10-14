@@ -16,7 +16,7 @@ views:
     theme: HK Kiosk
     sky: true
     layout:
-      grid-template-columns: 2% 96% 2%
+      grid-template-columns: calc(var(--hk-side, 0.02) * 100%) calc(100% - 2 * var(--hk-side, 0.02) * 100%) calc(var(--hk-side, 0.02) * 100%)
       margin: 0px
       padding: 0px
     cards:
@@ -37,10 +37,10 @@ views:
         view_layout:
           grid-column: "2"
         layout:
-          grid-template-columns: repeat(auto-fill, var(--hk-track, 192px))
-          grid-auto-rows: 82px
+          grid-template-columns: repeat(auto-fill, var(--hk-track, 196px))
+          grid-auto-rows: 80px
           grid-auto-flow: dense
-          grid-column-gap: 12px
+          grid-column-gap: 10px
         cards:
           - type: custom:hk-light-card
             entity: light.kitchen_lights

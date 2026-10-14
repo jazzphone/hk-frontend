@@ -1,5 +1,11 @@
 // hk-charts.js - the drawing half of the pop-up charts.
 //
+// SINCE THE DESIGN CONSOLIDATION (2026-10-12) the cards outside the sheets --
+// hk-usage-card, hk-trace-card, hk-battery-strip-card -- draw with the Energy
+// page's own charts (hk-energy.js barChart / lineSvg) and only read their
+// data here (usage(), recent(), power()). bars() and line() stay for the
+// detail sheets' graphs; capsule() and usage()'s own bars were retired.
+//
 // Pure geometry: hand it numbers, get back a markup string. It never touches
 // hass and never fetches anything -- hk-stats.js owns the data, this owns the
 // picture, and a card wires the two together in three lines instead of pasting
@@ -9,7 +15,7 @@
 // SVG with preserveAspectRatio="none" would let a chart fill whatever width
 // its card happens to be, but it stretches the ENTIRE coordinate system --
 // including the glyphs -- so every date and time label comes out
-// horizontally smeared, and the battery capsule with it.
+// horizontally smeared.
 // The fix is not a different aspect-ratio value: uniform scaling would make
 // the chart's height follow its width, which is just as wrong in a fixed-height
 // tile.
@@ -112,7 +118,7 @@
   // Label type, shared by every chart so the pop-ups agree. Kept here rather
   // than in the cards because these labels live inside a generated markup
   // blob.
-  var LABEL = 'font-size:10.5px; font-weight:600; letter-spacing:0.1px; ' +
+  var LABEL = 'font-size:11px; font-weight:600; letter-spacing:0.1px; ' +
               'line-height:1; white-space:nowrap;';
 
   // -------------------------------------------------------------------------
@@ -435,7 +441,7 @@
     var grid = opts.grid === false ? '' :
       '<path d="M0 ' + (H * 0.33).toFixed(0) + 'H' + W +
       'M0 ' + (H * 0.66).toFixed(0) + 'H' + W +
-      '" style="stroke:var(--hk-line,rgba(255,255,255,0.08))" stroke-width="1" fill="none"/>';
+      '" style="stroke:var(--hk-line,rgba(255,255,255,0.10))" stroke-width="1" fill="none"/>';
 
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"' +
            ' style="width:100%; height:' + H + 'px; display:block;">' +
@@ -449,46 +455,6 @@
              ' stroke-width="3" stroke-linecap="round" stroke-linejoin="round"' +
              ' vector-effect="non-scaling-stroke"/>' +
            '</svg>';
-  }
-
-  // -------------------------------------------------------------------------
-  // capsule(pct, opts) -- a battery as one horizontal bar.
-  //
-  // opts : { reserve } % below which the panel stops discharging, drawn as a
-  //                    darker foot so the usable band is obvious
-  //        { limit }   % charging stops at, drawn as a notch
-  //        { colour }  fill color, default the Home app green
-  //        { height }  px, default 26
-  // -------------------------------------------------------------------------
-  function capsule(pct, opts) {
-    opts = opts || {};
-    var H = opts.height == null ? 26 : opts.height;
-    var p = finite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
-    var col = opts.colour || C.good;
-
-    var inner = '<div style="position:absolute; left:0; top:0; bottom:0;' +
-                ' width:' + p.toFixed(2) + '%; background:' + col + ';"></div>';
-
-    if (finite(opts.reserve) && opts.reserve > 0) {
-      // Drawn OVER the fill, so a charge above the reserve shows it as a
-      // slightly darker foot rather than a separate block.
-      inner += '<div style="position:absolute; left:0; top:0; bottom:0;' +
-               ' width:' + Math.min(100, opts.reserve).toFixed(2) + '%;' +
-               ' background:rgba(0,0,0,0.28);"></div>';
-    }
-
-    var notch = '';
-    if (finite(opts.limit) && opts.limit > 0 && opts.limit < 100) {
-      notch = '<div style="position:absolute; left:' + opts.limit.toFixed(2) + '%;' +
-              ' top:-2px; height:' + (H + 4) + 'px; width:2px; margin-left:-1px;' +
-              ' border-radius:1px; background:var(--hk-mark,rgba(255,255,255,0.55));"></div>';
-    }
-
-    return '<div style="position:relative; width:100%; height:' + H + 'px;">' +
-             '<div style="position:absolute; inset:0; border-radius:' + (H / 2) + 'px;' +
-             ' background:var(--hk-line,' + C.track + '); overflow:hidden;">' + inner + '</div>' +
-             notch +
-           '</div>';
   }
 
   // -------------------------------------------------------------------------
@@ -512,13 +478,9 @@
     var val = power(hass && hass.states ? hass.states : {}, entityId);
     var pts = window.hkStats.history(hass, entityId, hours, card);
     if (!pts) return { ready: false, ttl: ttl, sub: sub, val: val, chart: '' };
-    return {
-      ready: true,
-      ttl: ttl,
-      sub: sub,
-      val: val,
-      chart: line(pts, { colour: opts.colour, height: opts.height })
-    };
+    // pts: the history itself, for a card that draws HK's own line
+    // (hk-trace-card, with the Energy page's lineSvg)
+    return { ready: true, ttl: ttl, sub: sub, val: val, pts: pts };
   }
 
   // -------------------------------------------------------------------------
@@ -606,40 +568,9 @@
                  (pct > 0 ? 'higher' : 'lower') + ' than ' + range;
     }
 
-    // The y gutter has to speak the tile's own units. bars() cannot know them,
-    // so the formatter is built here where `unit` is in scope.
-    var yUnit = opts.unitSpace === false ? unit : ' ' + unit;
-    var fmtValue = opts.fmtValue || (hm ? fmtHM : function (v) {
-      var x = v * k;
-      var big = Math.abs(x) >= 10;
-      return (big ? Math.round(x) : x.toFixed(1)) + yUnit;
-    });
-
-    return {
-      ready: true,
-      val: val,
-      sub: sub,
-      chart: bars(d, {
-        split: split,
-        height: opts.height || 78,
-        baseline: opts.baseline,
-        ramp: ramp(opts.colour),
-        // scale:false drops the y gutter. Worth it on a small tile: four marks
-        // cannot fit a short plot without colliding, and the headline already
-        // states the average while the sentence states the comparison.
-        scale: opts.scale,
-        // Weekday letters by default on these daily cards; pass
-        // dayLabels:false to fall back to the two-dates-plus-Today row.
-        dayLabels: opts.dayLabels !== false,
-        fmtValue: fmtValue,
-        // Same numbers as the headline, at the headline's precision, and
-        // without the unit -- the axis top already carries that.
-        meanValues: [mPrev, mCur],
-        fmtMean: hm ? fmtHM : function (v) { return (v * k).toFixed(digits); },
-        // "12h 56m" needs more room than "156 kWh".
-        gutter: opts.gutter || (hm ? 56 : undefined)
-      })
-    };
+    // data / split / mPrev: the fortnight itself; the card draws it with
+    // HK's own bars (hk-usage-card, the Energy page's barChart)
+    return { ready: true, val: val, sub: sub, data: d, split: split, mPrev: mPrev };
   }
 
   // ------------------------------------------------ LABELS FOLLOW THE BUCKETS
@@ -715,7 +646,6 @@
     line: line,
     recent: recent,
     bars: bars,
-    capsule: capsule,
     usage: usage,
     colours: C
   };

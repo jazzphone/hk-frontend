@@ -95,6 +95,7 @@ with Add feature (features/); the entry starts them and follows them. The
 cards find them by their actions and feeds only. See docs/Features.md.
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -327,6 +328,13 @@ def ws_events_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveCon
 
     @callback
     def send(event: dict[str, Any]) -> None:
+        # a notification for some people only (its `users`, user ids) goes to
+        # their browsers only: the screens' own check (hk-notify.js) decides
+        # what to show, but nobody else's socket should carry it -- title,
+        # message and snapshot
+        users = event.get("users") if isinstance(event, dict) else None
+        if users and getattr(connection.user, "id", None) not in users:
+            return
         connection.send_message(websocket_api.event_message(msg["id"], event))
 
     connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_POPUP, send)
@@ -395,7 +403,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data.setdefault(DOMAIN, {})["extras"] = await hass.async_add_executor_job(
             dash_settings.find_extras, hass.config.config_dir)
 
+    pass_state = {"running": False, "again": False}
+
     async def updated(_hass: HomeAssistant, _entry: ConfigEntry) -> None:
+        # ONE PASS PER CHANGE, NOT PER WRITE. Home Assistant runs this once for
+        # every write, each started at its write: removing a chip writes its
+        # subentry and each screen that listed it (up to ten), a playlist
+        # reorder each playlist -- and every run sent every open page the
+        # whole feed again. So a run already going takes the others' changes
+        # with it: they only mark it, and it goes round once more if one came
+        # while it worked. Its first step yields once, so the writes the same
+        # handler makes right after (synchronously) are in before it reads.
+        if pass_state["running"]:
+            pass_state["again"] = True
+            return
+        pass_state["running"] = True
+        try:
+            await asyncio.sleep(0)
+            while True:
+                pass_state["again"] = False
+                await one_pass()
+                if not pass_state["again"]:
+                    break
+        finally:
+            pass_state["running"] = False
+
+    async def one_pass() -> None:
         # a feature added, removed or changed, or one of its items
         await F.async_sync(hass, entry)
         await check_files()
@@ -459,6 +492,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # features' entities as it is set up (features/async_setup_platform)
     await F.async_start(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # THE WALL TABLETS' alerts and scheduled restart (tablets.py)
+    from . import tablets
+    tablets.async_setup_watch(hass, entry)
     # the screens learn which features run (the settings feed's `added`)
     async_dispatcher_send(hass, SIGNAL_CONFIG)
     return True
@@ -493,7 +529,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Every entry is version 1.13; one from a later major version is refused
+    """Every entry is version 1.15; one from a later major version is refused
     rather than guessed at. An older minor version is marked 7 (the versions
     that made such entries already moved their data), then 7 -> 8 moves the
     screens' room settings to All Screens (settings.rooms_lifted), 8 -> 9
@@ -502,7 +538,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     screen's menu on a phone (settings.phones_lifted), 11 -> 12 gives
     Phones one set of settings of their own (settings.settings_tidied), and
     12 -> 13 moves the screens' camera lists to All Screens
-    (settings.cameras_lifted)."""
+    (settings.cameras_lifted), 13 -> 14 makes each wall tablet an item of
+    its own (settings.tablets_lifted), and 14 -> 15 keeps stored only what
+    differs from the defaults (settings.settings_trimmed)."""
     if entry.version > 1:
         return False
     if entry.minor_version < 7:
@@ -576,6 +614,48 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if options is not None:
                 hass.config_entries.async_update_entry(entry, options=options)
         hass.config_entries.async_update_entry(entry, minor_version=13)
+    if entry.minor_version < 14:
+        # the wall tablets become items of their own (settings.tablets_lifted)
+        if F.kind_of(entry) == F.FRONTEND:
+            from types import MappingProxyType
+            from homeassistant.config_entries import ConfigSubentry
+            from homeassistant.helpers import area_registry as ar
+            subs = {s.unique_id: s for s in entry.subentries.values()
+                    if s.subentry_type == dash_settings.SUBENTRY_DASHBOARD and s.unique_id}
+            have = {s.unique_id for s in entry.subentries.values()
+                    if s.subentry_type == dash_settings.SUBENTRY_TABLET}
+            options, items, made = dash_settings.tablets_lifted(
+                entry.options, {p: dict(s.data) for p, s in subs.items()},
+                {p: s.title for p, s in subs.items()}, {a.id for a in ar.async_get(hass).async_list_areas()})
+            for tid, data in made.items():
+                if tid not in have:
+                    hass.config_entries.async_add_subentry(entry, ConfigSubentry(
+                        data=MappingProxyType(data), subentry_type=dash_settings.SUBENTRY_TABLET,
+                        title=data["name"], unique_id=tid))
+            for p, data in items.items():
+                if data != dict(subs[p].data):
+                    hass.config_entries.async_update_subentry(entry, subs[p], data=data)
+            if options is not None:
+                hass.config_entries.async_update_entry(entry, options=options)
+        hass.config_entries.async_update_entry(entry, minor_version=14)
+    if entry.minor_version < 15:
+        # only what differs from the defaults stays stored (settings.only_set)
+        if F.kind_of(entry) == F.FRONTEND:
+            boards_ = {s.unique_id: s for s in entry.subentries.values()
+                       if s.subentry_type == dash_settings.SUBENTRY_DASHBOARD and s.unique_id}
+            tabs = {s.unique_id: s for s in entry.subentries.values()
+                    if s.subentry_type == dash_settings.SUBENTRY_TABLET and s.unique_id}
+            options, bdata, tdata = dash_settings.settings_trimmed(
+                entry.options, {p: dict(s.data) for p, s in boards_.items()}, {t: dict(s.data) for t, s in tabs.items()})
+            for p, data in bdata.items():
+                if data != dict(boards_[p].data):
+                    hass.config_entries.async_update_subentry(entry, boards_[p], data=data)
+            for t, data in tdata.items():
+                if data != dict(tabs[t].data):
+                    hass.config_entries.async_update_subentry(entry, tabs[t], data=data)
+            if options is not None:
+                hass.config_entries.async_update_entry(entry, options=options)
+        hass.config_entries.async_update_entry(entry, minor_version=15)
     return True
 
 

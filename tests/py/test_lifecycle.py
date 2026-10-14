@@ -116,3 +116,26 @@ async def test_pre_release_feature_entries_fold_into_the_house_at_start(hass, ba
     assert {f.entry_id for f in F.loaded(hass)} == {o.entry_id for o in olds}, "every one is running"
     assert "doorbell" in {s.unique_id for s in house.subentries.values()}, "the house's own items stay"
     assert house.options == {"files_folder": "hk_local"}
+
+
+async def test_many_writes_at_once_send_the_feed_once(hass, frontend):
+    """Removing a chip writes its subentry and every screen that listed it;
+    Home Assistant runs the update listener once per write, after them all.
+    Each run used to send every open page the whole feed again -- identical
+    copies. One change, one send."""
+    from types import MappingProxyType
+    from homeassistant.config_entries import ConfigSubentry
+    from homeassistant.helpers.dispatcher import async_dispatcher_connect
+    from custom_components.hk_frontend.const import SIGNAL_CONFIG
+    e = frontend
+    sent = []
+    async_dispatcher_connect(hass, SIGNAL_CONFIG, lambda *a: sent.append(1))
+    for n in range(4):
+        hass.config_entries.async_add_subentry(e, ConfigSubentry(
+            data=MappingProxyType({"name": "C%d" % n, "after": "end", "card": {"type": "custom:hk-status-chip-card"}}),
+            subentry_type="chip", title="C%d" % n, unique_id="c%d" % n))
+    await hass.async_block_till_done()
+    assert len(sent) == 1, sent
+    hass.config_entries.async_update_entry(e, options={**e.options, "setup_done": True})
+    await hass.async_block_till_done()
+    assert len(sent) == 2, "a later change still sends"

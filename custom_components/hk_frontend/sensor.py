@@ -33,8 +33,8 @@ class SleepScreenSensor(SaverEntity, SensorEntity):
 
     _attr_icon = "mdi:tablet-dashboard"
 
-    def __init__(self, mgr: Any, path: str, title: str) -> None:
-        SaverEntity.__init__(self, mgr, path, title, SLEEP_KEY)
+    def __init__(self, mgr: Any, path: str, title: str, uid: str | None = None) -> None:
+        SaverEntity.__init__(self, mgr, path, title, SLEEP_KEY, uid)
 
     def _engine(self) -> Any:
         return self._mgr.engines.get(self._path)
@@ -46,6 +46,6 @@ class SleepScreenSensor(SaverEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        base = {k: v for k, v in super().extra_state_attributes.items() if k == "dashboard"}
+        base = {k: v for k, v in super().extra_state_attributes.items() if k in ("tablet", "dashboard")}
         eng = self._engine()
         return {**base, **(eng.attributes() if eng is not None else {"decided_by": "automation"})}

@@ -67,7 +67,7 @@ async def test_adding_a_dashboard_is_which_and_what_it_is_shown_on(hass, fronten
     r = await _add(hass, "dashboard-kitchen", kind="wall_tablet")
     assert r["type"] == "create_entry" and r["unique_id"] == "dashboard-kitchen"
     b = as_client(entry(hass))["boards"]["dashboard-kitchen"]
-    assert (b["menu"], b["time_weather"], b["idle_return"], b["kiosk"], b["car"]) == ("open", "menu", True, True, False)
+    assert (b["menu"], b["time_weather"], b["kiosk"], b["car"]) == ("open", "menu", True, False)
     assert "kind" not in dict(next(iter(entry(hass).subentries.values())).data), "nothing remembers the preset"
     # a hand-written dashboard with no preset menu starts with it OFF
     r = await _add(hass, "dashboard-hall")

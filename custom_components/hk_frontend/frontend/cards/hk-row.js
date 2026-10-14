@@ -104,7 +104,7 @@
     // child. A row child has no such margin -- it is sized directly by
     // `card_width` -- so without this it would render 8px too wide and be
     // clipped by the scroller. These rows scroll, so their tiles keep their
-    // full 192px on a phone rather than shrinking; only the grids reflow.
+    // full width on a phone rather than shrinking; only the grids reflow.
     '.row > *{flex:0 0 auto;--hk-cell-bleed:0px}',
     // THE LEAD: one card PINNED at the start of the row, outside
     // the scroller -- the menu chip at the head of the status chips. The
@@ -156,14 +156,15 @@
     // --hk-bleed-l/-r and the clamped value as --hk-bleed-lc/-rc; a row that
     // bleeds on its own host does the same for itself (.hk-bleed). Either
     // way the padding below reads them by inheritance.
-    // THE GUTTER IS THE PAGE'S, not the window's: 2% of the
+    // THE GUTTER IS THE PAGE'S, not the window's: --hk-side (2 %, 1.5 % from
+    // 641 px up: css/hk-responsive.css) of the
     // width RIGHT OF the docked menu and Home Assistant's sidebar
     // (--hk-page-left, published by hk-menu.js), plus the 4 px grid-child
     // margin. 2vw is the window's, and with the menu docked at 1,010 px the
     // chips would bleed 4 px past the screen edge and the page scroll sideways.
     '  :host(.hk-bleed){',
-    '    --hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * 0.02 + 4px)));',
-    '    --hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * 0.02 + 4px)));',
+    '    --hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));',
+    '    --hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));',
     '    margin-left:calc(-1 * var(--hk-bleed-lc)) !important;',
     '    margin-right:calc(-1 * var(--hk-bleed-rc)) !important}',
     '  .row{',
@@ -532,8 +533,8 @@
           helper: 'One card pinned at the start of the row, which does not scroll -- e.g. the menu button.' },
         C.section('Layout', [
           { type: 'grid', name: '', schema: [
-            { name: 'card_width', selector: { text: {} }, helper: 'Width of each card, e.g. 192px.' },
-            { name: 'gap', selector: { text: {} }, helper: 'Space between cards, e.g. 12.' },
+            { name: 'card_width', selector: { text: {} }, helper: 'Width of each card, e.g. ' + C.TILE.w + 'px.' },
+            { name: 'gap', selector: { text: {} }, helper: 'Space between cards, e.g. ' + C.TILE.gridGap + '.' },
             { name: 'phone_card_width', selector: { text: {} } },
             { name: 'phone_gap', selector: { text: {} } },
             { name: 'pad_top', selector: { text: {} } },
@@ -551,7 +552,10 @@
         // NO `type` here: the card picker lays this over its own
         // `custom:hk-row-card`, and a bare `hk-row-card` is a type Home
         // Assistant does not know ("Unknown type").
-        return { card_width: '192px', gap: 12, cards: [] };
+        // the pill's width and gap (hk-base.js TILE): asked only by the card
+        // picker, after hk-base has loaded
+        var T = window.hkCards.TILE;
+        return { card_width: T.w + 'px', gap: T.gridGap, cards: [] };
       };
     }
     window.customCards = window.customCards || [];

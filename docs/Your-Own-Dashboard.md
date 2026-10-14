@@ -36,11 +36,12 @@ the top, beside `views:`.
 |---|---|---|
 | Hide Home Assistant’s header and sidebar | Home Assistant Header & Sidebar | [`hk_kiosk:`](#hide-home-assistants-header-and-sidebar) |
 | Photo screensaver (and the forecast) | Photo Screensaver, its options, and its switch and In Use sensor | [`hk_screensaver:`](#photo-screensaver) |
-| Live sky | Live Sky can turn it off | [`sky:`](#live-sky) |
+| Live sky | Sky / Background: its Background (Live Sky, Color or Photo) shows wherever the YAML puts the sky | [`sky:`](#live-sky) |
 | The menu | The menu’s settings | [Views](#a-page-in-the-menu) say what it lists |
 | Status chips, scenes, cameras | The lists the cards read | [The cards](#clock-weather-and-chips) |
 | Room order on Home | Rooms | With the `custom:hk-grid-view` view type, each room’s section headed by an `hk-heading-card` with `area:` |
-| Return to Home, Tablet Room, car browser, glass | Yes | — |
+| Car browser, glass | Yes | — |
+| Return to Home, Sleep Screen | A [wall tablet](Wall-Tablets.md)’s own: set on the tablet that runs it, as for any screen | — |
 | [Notifications](Notifications.md) (banners, Do Not Disturb, waking the screen) | Yes: added under Existing Dashboards, or never | — |
 | Detail sheets, pop-ups (Library and `hk_frontend.show_popup`) | Nothing to do: they work on any dashboard | — |
 | Live TV, Clean Areas, Music, Timers, the forecast | — | [Their cards](#live-tv) |
@@ -76,14 +77,22 @@ Leaving the dashboard (for Settings, say) always brings them back.
 ```yaml
 hk_screensaver:
   user: Kitchen Tablet   # the tablet’s Home Assistant user
+  tablet: kitchen        # optional, instead of user: the wall tablet’s id
   entity: input_boolean.kitchen_photos   # optional: yours, kept in step
   photos: media-source://media_source/local/photos
   starts_after: 180
   each_photo: 30
   order: random        # or sorted
-  fill: true
-  zoom: false
-  show: photos         # photos, both (the forecast slide on) or forecast
+  zoom: false          # Slow Zoom
+  photo_layout: single # or mosaic (mosaic_count: 2 to 5)
+  fill: true           # landscape photos fill the screen
+  portrait_fill: false # portrait photos whole, over a blurred copy
+  portrait_y: top      # the part kept when cropped: top, center, bottom (and portrait_x)
+  show: photos         # photos, both (the forecast slide on), forecast or clock
+  clock_over: corner   # over the photos: corner or large (clock: false for none)
+  clock_style: classic # for show: clock and a large clock
+  clock_bg: gradient   # behind show: clock
+  clock_night: "off"   # "night" (clock_night_from to clock_night_to) or "always"
   forecast_every: 5    # a slide (the forecast, the music) after this many photos
   music_slide: false   # what plays, full screen: a slide among the photos
   music_first: false   # ...or the music fills the screen while it plays
@@ -106,17 +115,22 @@ hk_screensaver:
     - type: custom:hk-screensaver-status-card
 ```
 
-Only `user` is needed: the screensaver runs only in a browser signed in as
-that user, so a desk opening the same dashboard never gets it. `entity` is
+Only `user` (or `tablet`) is needed: the screensaver runs only in a browser
+signed in as that user, or, with `tablet`, only on that
+[wall tablet](Wall-Tablets.md#which-tablet-a-browser-is), so a desk opening
+the same dashboard never gets it. `entity` is
 optional: an `input_boolean` or `switch` of yours, turned on while the photos
 show and off when someone taps them; turning it on starts them. `cards` are
 what shows over the photos — HK cards only (`custom:hk-…`); any other card in
-the list is left out. Everything else is as on
-[Screensaver & idle](Screensaver-and-Idle.md).
+the list is left out; under a big clock (`show: clock` or `clock_over:
+large`), leave out `hk-clock-card` or give it `music_only: true`, so it shows
+only while the music covers the big clock. Everything else, the photo,
+mosaic and clock options too, is as on
+[Screensaver & idle](Screensaver-and-Idle.md#on-a-dashboard-of-your-own).
 
 With Photo Screensaver on in the dashboard’s HK settings instead, there is
-nothing to write, and HK Frontend makes its switch and In Use sensor for your
-automations, as for any screen.
+nothing to write: add the wall tablet that runs it, and HK Frontend makes the
+tablet’s switch and In Use sensor for your automations, as for any screen.
 
 ### Live sky
 
@@ -349,8 +363,8 @@ target:
   entity_id: switch.kitchen_photo_screensaver
 ```
 
-The switch HK Frontend makes for a screen whose Photo Screensaver is set in HK
-Settings: on starts the photos (bedtime, say), off closes them (the
+The switch HK Frontend makes for each wall tablet, named after the tablet
+(here, Kitchen): on starts the photos (bedtime, say), off closes them (the
 doorbell). Its In Use sensor is beside it. With an `hk_screensaver:` block of
 your own, turn your own `entity` on and off instead.
 
@@ -365,5 +379,5 @@ your own, turn your own `entity` on and off instead.
 
 Either lasts until the page is reloaded, so a tablet you are working on keeps
 Home Assistant’s header and sidebar while you move around it, and a reload
-(Fully Kiosk Browser’s **Load Start URL**, say) is the screen as set again.
+(**Reload** on the tablet’s page in Wall Tablets, say) is the screen as set again.
 `?hk_kiosk=on` does the opposite: both hidden, whatever the screen says.

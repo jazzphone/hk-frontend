@@ -293,20 +293,20 @@
   var REPEATS = [['', 'Never'], ['FREQ=DAILY', 'Every Day'], ['FREQ=WEEKLY', 'Every Week'],
                  ['FREQ=MONTHLY', 'Every Month'], ['FREQ=YEARLY', 'Every Year']];
   var SHEET_CSS = [
-    ':host{position:fixed;inset:0;z-index:9000;display:none;font-family:var(--ha-font-family-body,-apple-system,system-ui,sans-serif);',
+    ':host{position:fixed;inset:0;z-index:9000;display:none;' + C.FONT_ROOT + ';',
     '  -webkit-tap-highlight-color:transparent}',
     ':host([open]){display:block}',
     '*{box-sizing:border-box;font-family:inherit}',
     '.back{position:absolute;inset:0;background:rgba(4,10,24,0.5)}',
     '.box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 24px));',
     '  max-height:calc(var(--hk-vh,100vh) - 24px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;',
-    '  border-radius:28px;border:1px solid rgba(255,255,255,0.14);background:rgba(28,36,54,0.96);color:var(--hk-ink,rgba(255,255,255,0.94));',
+    '  border-radius:28px;border:1px solid rgba(255,255,255,0.14);background:rgba(24,24,28,0.93);color:' + window.hkCards.v('ink') + ';',
     '  box-shadow:0 30px 80px rgba(0,0,0,0.45);padding:0 20px 22px}',
-    '.hd{display:flex;align-items:center;height:64px;position:sticky;top:0;background:rgba(28,36,54,0.98);z-index:1;margin:0 -20px;padding:0 20px}',
+    '.hd{display:flex;align-items:center;height:64px;position:sticky;top:0;background:linear-gradient(rgba(24,24,28,0.93),rgba(24,24,28,0.93)),rgba(24,24,28,0.93);z-index:1;margin:0 -20px;padding:0 20px}',
     // the title riding on the form once it has scrolled (hk-base.js shade)
     C.shadeCss('.hd'),
     '.hd .t{flex:1;text-align:center;font-size:17px;font-weight:700}',
-    'button{appearance:none;font:inherit;cursor:pointer;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+    'button{appearance:none;font:inherit;cursor:pointer;color:' + window.hkCards.v('ink') + '}',
     '.tb{height:40px;padding:0 14px;border:0;border-radius:20px;background:transparent;font-size:17px;font-weight:500;min-width:72px}',
     '.go{background:#fff;color:#1c1c1e;font-weight:700;padding:0 20px}',
     // a text button's words on the form's edge (the pill keeps its own)
@@ -317,8 +317,8 @@
     '.row{display:flex;align-items:center;min-height:52px;padding:0 16px;gap:10px}',
     '.row + .row{border-top:1px solid rgba(255,255,255,0.1)}',
     '.row .l{font-size:17px;flex:1}',
-    'input,textarea,select{font:inherit;color:var(--hk-ink,rgba(255,255,255,0.94));background:transparent;border:0;outline:none}',
-    'input::placeholder,textarea::placeholder{color:var(--hk-ink-3,rgba(255,255,255,0.40))}',
+    'input,textarea,select{font:inherit;color:' + window.hkCards.v('ink') + ';background:transparent;border:0;outline:none}',
+    'input::placeholder,textarea::placeholder{color:' + window.hkCards.v('ink-3') + '}',
     '.title{flex:1;font-size:19px;font-weight:600;height:52px}',
     '.loc{flex:1;font-size:17px;height:52px}',
     'textarea{width:100%;font-size:17px;resize:none;padding:14px 16px;min-height:76px;display:block;overflow-wrap:anywhere}',
@@ -339,19 +339,19 @@
     '  color:#ffb3ae;font-size:17px;font-weight:600}',
     // the event, shown
     '.vw{padding:6px 0 0}',
-    '.vw .cal{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+    '.vw .cal{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
     '.vw h2{margin:8px 0 0;font-size:26px;font-weight:700;letter-spacing:-0.3px;line-height:1.2;overflow-wrap:anywhere}',
     '.vw .ln{display:flex;align-items:flex-start;gap:10px;margin-top:12px;font-size:16px;line-height:1.35}',
     '.vw .ln svg{flex:none;margin-top:2px;opacity:0.85}',
     // A LONG WORD OR LINK (a FaceTime or Zoom link in the notes) breaks
     // where it must, rather than widening the sheet into a sideways scroll
     '.vw .ln span{min-width:0;overflow-wrap:anywhere}',
-    '.vw .note{white-space:pre-wrap;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+    '.vw .note{white-space:pre-wrap;color:' + window.hkCards.v('ink-2') + '}',
     '.acts{display:flex;gap:10px;margin-top:20px}',
     '.acts button{flex:1;height:48px;border-radius:24px;font-size:17px;font-weight:600}',
     '.acts .ed{border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.12)}',
     '.acts .rm{border:1px solid rgba(255,105,97,0.45);background:rgba(255,69,58,0.16);color:#ffb3ae}',
-    '.ro{margin-top:16px;font-size:14px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+    '.ro{margin-top:16px;font-size:14px;color:' + window.hkCards.v('ink-2') + '}',
     '.pk{display:flex;gap:8px;margin-left:auto}',
     // a phone: the label over its date and time
     '@media (max-width:460px){.box{padding:0 14px 18px}.hd{margin:0 -14px;padding:0 14px}.dt{flex-wrap:wrap;padding:10px 16px;gap:8px}',
@@ -593,16 +593,14 @@
   // slideSeg), the same as the Energy tabs'
   function segBox(b) { return window.hkCards.segBox(b); }
   function slideSeg(b, from) { return window.hkCards.slideSeg(b, from); }
-  var GLASS = function () {
-    return M.glass + ';border:' + M.border + ';border-radius:' + M.radius +
-      ';box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.2),var(--hk-glass-shadow-lg,0 10px 28px rgba(0,0,0,0.12)))';
-  };
+  // a panel's plate (hkCards.plate): the tall shadow, as every page card
+  var GLASS = function () { return window.hkCards.plate('panel'); };
   var PAGE_CSS = function () {
     return [
-      ':host{display:block;color:var(--hk-ink,rgba(255,255,255,0.94));-webkit-tap-highlight-color:transparent}',
+      ':host{display:block;color:' + window.hkCards.v('ink') + ';-webkit-tap-highlight-color:transparent}',
       // the bar's and the rest's holders (_render): no box of their own
       '.hold{display:contents}',
-      'button{appearance:none;font:inherit;color:var(--hk-ink,rgba(255,255,255,0.94));cursor:pointer;margin:0}',
+      'button{appearance:none;font:inherit;color:' + window.hkCards.v('ink') + ';cursor:pointer;margin:0}',
       '.bar{display:flex;align-items:center;gap:14px;min-height:52px;margin:6px 0 16px;flex-wrap:wrap}',
       '.ttl{font-size:34px;font-weight:700;letter-spacing:-0.6px;white-space:nowrap}',
       '.ttl span{font-weight:300;opacity:0.8}',
@@ -628,71 +626,71 @@
       '.wide .body{height:var(--cal-h,620px)}',
       '.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.warn{margin:0 0 12px;font-size:14px;font-weight:600;color:var(--hk-warn,#ffd60a)}',
-      '.empty{padding:18px 0;font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.empty{padding:18px 0;font-size:15px;color:' + window.hkCards.v('ink-2') + '}',
       // ---- month
       '.mgrid{flex:1;min-width:0;padding:10px 12px 12px;display:flex;flex-direction:column}',
       '.dows{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));height:30px;align-items:center;flex:none}',
-      '.dows div{padding-left:8px;font-size:12px;font-weight:600;letter-spacing:0.8px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.dows div{padding-left:8px;font-size:11px;font-weight:600;letter-spacing:0.4px;color:' + window.hkCards.v('ink-2') + '}',
       '.weeks{flex:1;display:flex;flex-direction:column;min-height:0}',
-      '.wk{position:relative;flex:1;min-height:0;border-top:1px solid var(--hk-line,rgba(255,255,255,0.12));display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}',
+      '.wk{position:relative;flex:1;min-height:0;border-top:1px solid ' + window.hkCards.v('line') + ';display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}',
       '.cell{position:relative;min-width:0;overflow:hidden;border:0;background:transparent;text-align:left;padding:0;display:block}',
-      '.cell + .cell{border-left:1px solid var(--hk-line,rgba(255,255,255,0.08))}',
+      '.cell + .cell{border-left:1px solid ' + window.hkCards.v('line') + '}',
       '.cell.out{opacity:0.45}',
-      '.cell.sel{background:var(--hk-key,rgba(255,255,255,0.08))}',
+      '.cell.sel{background:' + window.hkCards.v('key') + '}',
       '.num{position:absolute;left:9px;top:8px;font-size:15px;font-weight:600;line-height:20px}',
       '.cell.today .num{left:5px;top:5px;width:26px;height:26px;line-height:26px;border-radius:13px;background:#fff;color:#1c1c1e;font-weight:700;text-align:center}',
       '.chips{position:absolute;left:9px;right:6px;display:flex;flex-direction:column;gap:2px}',
       '.chip{height:17px;line-height:17px;font-size:12px;font-weight:500;display:flex;align-items:center;gap:5px;min-width:0}',
       '.chip i{flex:none;width:7px;height:7px;border-radius:4px}',
       '.chip b{font-weight:700}',
-      '.more{height:17px;line-height:17px;font-size:12px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-      '.bar1{position:absolute;height:18px;line-height:18px;border-radius:6px;font-size:11px;font-weight:700;padding:0 6px;box-sizing:border-box;',
-      '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;text-align:left;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      '.more{height:17px;line-height:17px;font-size:12px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
+      '.bar1{position:absolute;height:18px;line-height:18px;border-radius:8px;font-size:11px;font-weight:700;padding:0 6px;box-sizing:border-box;',
+      '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;text-align:left;color:' + window.hkCards.v('ink') + '}',
       '.dots{position:absolute;left:0;right:0;bottom:6px;display:flex;justify-content:center;gap:3px}',
       '.dots i{width:6px;height:6px;border-radius:3px}',
       // ---- the day's list (month) and the agenda rows
-      '.side{width:' + RCOL + 'px;flex:none;padding:22px 22px 18px;display:flex;flex-direction:column}',
+      '.side{width:' + RCOL + 'px;flex:none;padding:' + window.hkCards.CARD.pad + ';display:flex;flex-direction:column}',
       '.dname{font-size:28px;font-weight:700;letter-spacing:-0.4px}',
-      '.dsub{font-size:15px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px}',
+      '.dsub{font-size:15px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';margin-top:2px}',
       // (its 10 px under the day's name as padding: the list scrolls right up
       // under the name, the shadow at its foot -- shadeCss)
       '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:10px}',
-      '.ad{width:100%;height:30px;margin-top:6px;border-radius:9px;border:0;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:14px;font-weight:600;text-align:left;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+      '.ad{width:100%;height:30px;margin-top:6px;border-radius:8px;border:0;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:14px;font-weight:600;text-align:left;color:' + window.hkCards.v('ink') + '}',
       '.ad i{flex:none;width:8px;height:8px;border-radius:4px}',
-      '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
-      '.ev{width:100%;display:flex;align-items:flex-start;padding:12px 0;border:0;border-bottom:1px solid var(--hk-line,rgba(255,255,255,0.1));background:transparent;text-align:left;gap:0}',
+      '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
+      '.ev{width:100%;display:flex;align-items:flex-start;padding:12px 0;border:0;border-bottom:1px solid ' + window.hkCards.v('line') + ';background:transparent;text-align:left;gap:0}',
       '.ev:last-child{border-bottom:0}',
       '.ev.past{opacity:0.5}',
       '.ev .tm{width:76px;flex:none;font-size:14px;font-weight:600;padding-top:2px}',
       '.ev i{flex:none;width:9px;height:9px;border-radius:5px;margin:7px 10px 0 0}',
       '.ev .tx{min-width:0;flex:1}',
       '.ev .t1{font-size:17px;font-weight:600}',
-      '.ev .t2{font-size:14px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px}',
+      '.ev .t2{font-size:14px;color:' + window.hkCards.v('ink-2') + ';margin-top:2px}',
       '.soon{flex:none;height:24px;padding:0 10px;border-radius:12px;background:#fff;color:#1c1c1e;font-size:12px;font-weight:700;display:flex;align-items:center;margin-left:8px}',
-      '.addday{height:44px;border-radius:22px;border:1px dashed var(--hk-line,rgba(255,255,255,0.35));background:transparent;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;flex:none}',
+      '.addday{height:44px;border-radius:22px;border:1px dashed ' + window.hkCards.v('mark') + ';background:transparent;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;flex:none}',
       // ---- week and day: the time grid
       '.tg{flex:1;min-width:0;padding:8px 12px 12px;display:flex;flex-direction:column}',
       '.cols{display:grid;flex:none}',
       '.dh{display:flex;align-items:center;justify-content:center;gap:7px;height:46px;border:0;background:transparent;padding:0}',
-      '.dh span{font-size:13px;font-weight:600;letter-spacing:0.6px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.dh span{font-size:13px;font-weight:600;letter-spacing:0.6px;color:' + window.hkCards.v('ink-2') + '}',
       '.dh b{font-size:17px;font-weight:600}',
       '.dh.today b{width:28px;height:28px;line-height:28px;border-radius:14px;background:#fff;color:#1c1c1e;font-weight:700;text-align:center;font-size:15px}',
-      '.alld{position:relative;border-top:1px solid var(--hk-line,rgba(255,255,255,0.12));flex:none}',
-      '.alld .lab{position:absolute;left:0;top:50%;transform:translateY(-50%);width:50px;text-align:right;font-size:11px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
-      '.tl{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid var(--hk-line,rgba(255,255,255,0.12))}',
+      '.alld{position:relative;border-top:1px solid ' + window.hkCards.v('line') + ';flex:none}',
+      '.alld .lab{position:absolute;left:0;top:50%;transform:translateY(-50%);width:50px;text-align:right;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
+      '.tl{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid ' + window.hkCards.v('line') + '}',
       '.hrs{position:relative}',
-      '.hr{position:absolute;left:56px;right:0;height:0;border-top:1px solid var(--hk-line,rgba(255,255,255,0.08))}',
-      '.hr span{position:absolute;left:-56px;top:-8px;width:50px;text-align:right;font-size:11px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.hr{position:absolute;left:56px;right:0;height:0;border-top:1px solid ' + window.hkCards.v('line') + '}',
+      '.hr span{position:absolute;left:-56px;top:-8px;width:50px;text-align:right;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
       '.days{position:absolute;top:0;bottom:0;right:0;display:grid}',
-      '.dcol{position:relative;border-left:1px solid var(--hk-line,rgba(255,255,255,0.08))}',
-      '.dcol.today{background:var(--hk-key,rgba(255,255,255,0.06))}',
+      '.dcol{position:relative;border-left:1px solid ' + window.hkCards.v('line') + '}',
+      '.dcol.today{background:' + window.hkCards.v('key') + '}',
       '.slot{position:absolute;left:0;right:0;border:0;background:transparent;padding:0}',
-      '.blk{position:absolute;box-sizing:border-box;overflow:hidden;border-radius:8px;padding:4px 8px;border:0;text-align:left;color:var(--hk-ink,rgba(255,255,255,0.94));line-height:1.25}',
+      '.blk{position:absolute;box-sizing:border-box;overflow:hidden;border-radius:8px;padding:4px 8px;border:0;text-align:left;color:' + window.hkCards.v('ink') + ';line-height:1.25}',
       '.blk .t1{font-size:13px;font-weight:700}',
-      '.blk .t2{font-size:12px;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:1px}',
+      '.blk .t2{font-size:12px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';margin-top:1px}',
       '.blk.past{opacity:0.7}',
-      '.blk.sel{box-shadow:0 0 0 2px var(--hk-ink,rgba(255,255,255,0.94))}',
-      '.dayv .blk{border-radius:10px;padding:4px 12px;line-height:1.25}',
+      '.blk.sel{box-shadow:0 0 0 2px ' + window.hkCards.v('ink') + '}',
+      '.dayv .blk{border-radius:8px;padding:4px 12px;line-height:1.25}',
       '.dayv .blk .t1{font-size:15px}',
       '.dayv .blk .t2{font-size:13px;margin-top:2px}',
       '.now{position:absolute;height:2px;background:#ff453a;pointer-events:none}',
@@ -705,26 +703,26 @@
       '.mini .mh b{font-size:17px;font-weight:700;flex:1}',
       '.mini .mh button{width:36px;height:36px;border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:center}',
       '.mgr{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-top:6px;row-gap:2px}',
-      '.mgr .w{text-align:center;font-size:11px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68));height:22px;line-height:22px}',
+      '.mgr .w{text-align:center;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';height:22px;line-height:22px}',
       '.md{height:38px;border:0;background:transparent;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}',
       '.md b{height:26px;min-width:26px;line-height:26px;font-size:14px;font-weight:600;border-radius:13px;text-align:center}',
       '.md.out b{opacity:0.4}',
       '.md.today b{background:#fff;color:#1c1c1e;font-weight:700}',
-      '.md.sel:not(.today) b{background:var(--hk-key,rgba(255,255,255,0.22))}',
+      '.md.sel:not(.today) b{background:' + window.hkCards.v('key-strong') + '}',
       '.md i{width:5px;height:5px;border-radius:3px}',
       '.det{padding:18px 20px;flex:none}',
-      '.det .c{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.det .c{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
       '.det .c i{width:10px;height:10px;border-radius:5px}',
-      '.det h3{font-size:22px;font-weight:700;margin:8px 0 0;letter-spacing:-0.3px;overflow-wrap:anywhere}',
+      '.det h3{font-size:22px;font-weight:700;margin:8px 0 0;letter-spacing:-0.35px;overflow-wrap:anywhere}',
       '.det .ln{display:flex;align-items:flex-start;gap:10px;margin-top:9px;font-size:15px}',
       '.det .ln svg{flex:none;margin-top:2px}',
       '.det .ln span{min-width:0;overflow-wrap:anywhere}',
-      '.det .note{color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:pre-wrap;max-height:84px;overflow:hidden}',
+      '.det .note{color:' + window.hkCards.v('ink-2') + ';white-space:pre-wrap;max-height:84px;overflow:hidden}',
       '.det .acts{display:flex;gap:10px;margin-top:16px}',
       '.det .acts button{flex:1;height:44px;border-radius:22px;font-size:15px;font-weight:600}',
-      '.det .ed{border:' + M.border + ';background:var(--hk-key,rgba(255,255,255,0.12))}',
+      '.det .ed{border:' + M.border + ';background:' + window.hkCards.v('key') + '}',
       '.det .rm{border:1px solid rgba(255,105,97,0.45);background:rgba(255,69,58,0.18);color:#ffb3ae}',
-      '.det .none{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.det .none{font-size:15px;color:' + window.hkCards.v('ink-2') + '}',
       // ---- narrow (a phone): stacked
       '.narrow .ttl{font-size:26px}',
       '.narrow .bar{gap:10px}',
@@ -745,8 +743,8 @@
       '.narrow .tg{height:min(620px,calc(var(--hk-vh,100vh) - 220px));flex:none}',
       '.narrow .rcol{width:auto}',
       '.narrow .wl{padding:4px 18px 10px}',
-      '.wl .dayh{font-size:13px;font-weight:700;letter-spacing:1.2px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:16px}',
-      '.wl .dayh.today{color:var(--hk-ink,rgba(255,255,255,0.94))}'
+      '.wl .dayh{font-size:13px;font-weight:700;letter-spacing:1.2px;color:' + window.hkCards.v('ink-2') + ';margin-top:16px}',
+      '.wl .dayh.today{color:' + window.hkCards.v('ink') + '}'
     ].join('\n');
   };
 
@@ -1197,7 +1195,7 @@
         '<div class="ln">' + IC.clock + '<span>' + esc(when) + '</span></div>' +
         (ev.rrule ? '<div class="ln">' + IC.repeat + '<span>' + esc(repeatLabel(ev.rrule)) + '</span></div>' : '') +
         (ev.loc ? '<div class="ln">' + IC.pin + '<span>' + esc(ev.loc) + '</span></div>' : '') +
-        (ev.desc ? '<div class="ln" style="color:var(--hk-ink-2,rgba(255,255,255,0.68))">' + IC.notes + '<span class="note">' + esc(ev.desc) + '</span></div>' : '') +
+        (ev.desc ? '<div class="ln" style="color:' + window.hkCards.v('ink-2') + '">' + IC.notes + '<span class="note">' + esc(ev.desc) + '</span></div>' : '') +
         (ed || rm ? '<div class="acts">' + (ed ? '<button class="ed" data-a="edit">Edit</button>' : '') + (rm ? '<button class="rm" data-a="del">Delete</button>' : '') + '</div>' : '') +
         '</div>';
     }
@@ -1209,23 +1207,23 @@
   // big enough to read across a room. Past events today are dimmed; the
   // next one says how soon.
   var PANE_CSS = [
-    ':host{display:block;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+    ':host{display:block;color:' + window.hkCards.v('ink') + '}',
     '.day{padding-top:22px}',
-    '.lbl{font-size:13px;font-weight:700;letter-spacing:1.4px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+    '.lbl{font-size:13px;font-weight:700;letter-spacing:1.4px;color:' + window.hkCards.v('ink-2') + '}',
     '.date{font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-top:2px}',
-    '.ad{margin-top:12px;min-height:32px;border-radius:10px;display:flex;align-items:center;padding:4px 12px;gap:8px;font-size:15px;font-weight:600;color:var(--hk-ink,rgba(255,255,255,0.94))}',
+    '.ad{margin-top:12px;min-height:32px;border-radius:8px;display:flex;align-items:center;padding:4px 12px;gap:8px;font-size:15px;font-weight:600;color:' + window.hkCards.v('ink') + '}',
     '.ad i{flex:none;width:8px;height:8px;border-radius:4px}',
-    '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:var(--hk-ink-2,rgba(255,255,255,0.68));white-space:nowrap}',
-    '.ev{display:flex;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--hk-line,rgba(255,255,255,0.1))}',
+    '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
+    '.ev{display:flex;align-items:flex-start;padding:12px 0;border-bottom:1px solid ' + window.hkCards.v('line') + '}',
     '.ev:last-child{border-bottom:0}',
     '.ev.past{opacity:0.45}',
     '.tm{width:82px;flex:none;font-size:16px;font-weight:600;padding-top:3px}',
     '.ev i{flex:none;width:10px;height:10px;border-radius:5px;margin:9px 12px 0 0}',
     '.tx{min-width:0;flex:1}',
     '.t1{font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.t2{font-size:15px;color:var(--hk-ink-2,rgba(255,255,255,0.68));margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.t2{font-size:15px;color:' + window.hkCards.v('ink-2') + ';margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.soon{flex:none;margin:2px 0 0 8px;height:24px;padding:0 10px;border-radius:12px;background:#fff;color:#1c1c1e;font-size:12px;font-weight:700;display:flex;align-items:center}',
-    '.none{font-size:17px;color:var(--hk-ink-2,rgba(255,255,255,0.68));padding:12px 0 4px}',
+    '.none{font-size:17px;color:' + window.hkCards.v('ink-2') + ';padding:12px 0 4px}',
     '.foot{height:60px}'
   ].join('\n');
   class HkCalendarPaneCard extends HkBase {
@@ -1378,7 +1376,7 @@
       '.card{border-radius:' + SP.cardR + 'px;background:rgba(255,255,255,0.08);padding:' + SP.cardPad + ';flex:none}',
       '.card.rows{padding:' + SP.rowsPad + '}',
       '.lab{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px;line-height:16px;font-weight:600;',
-      '  letter-spacing:.2px;color:rgba(235,235,245,0.55);text-transform:uppercase}',
+      '  letter-spacing:0.3px;color:rgba(235,235,245,0.55);text-transform:uppercase}',
       '.lab .n{text-transform:none;font-size:15px;font-weight:400;letter-spacing:0;color:rgba(235,235,245,0.8)}',
       '.when{padding:0 ' + SP.inset + 'px;flex:none}',
       '.calc{display:flex;align-items:center;gap:8px;font-size:14px;line-height:18px;font-weight:600;color:rgba(255,255,255,0.9)}',
@@ -1389,14 +1387,14 @@
       '.row + .row{margin-top:' + SP.block + 'px}',
       '.row svg{flex:none;width:20px;height:20px;opacity:.7}',
       '.row span{min-width:0;overflow-wrap:anywhere}',
-      '.row .note{white-space:pre-wrap;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.row .note{white-space:pre-wrap;color:' + window.hkCards.v('ink-2') + '}',
       '.acts{display:flex;gap:' + SP.block + 'px;margin-top:auto;flex:none}',
       '.ee.one .acts{margin-top:0}',
       '.acts button{flex:1;height:50px;border-radius:25px;border:0;background:rgba(255,255,255,0.14);color:#fff;font:inherit;',
       '  font-size:16px;font-weight:600;cursor:pointer}',
       '.acts button:active{background:rgba(255,255,255,0.24)}',
       '.acts .rm{color:#ff6961}',
-      '.ro{margin-top:auto;padding:0 ' + SP.inset + 'px;font-size:14px;line-height:18px;color:var(--hk-ink-2,rgba(255,255,255,0.68))}',
+      '.ro{margin-top:auto;padding:0 ' + SP.inset + 'px;font-size:14px;line-height:18px;color:' + window.hkCards.v('ink-2') + '}',
       '.ee.one .ro{margin-top:0}',
       '.day{display:flex;flex-direction:column}',
       '.c2 > .day{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none}',
@@ -1412,8 +1410,53 @@
       '.ev .tm{width:70px;flex:none;font-size:13px;line-height:20px;color:rgba(235,235,245,0.6)}',
       '.ev .nm{min-width:0;font-size:15px;font-weight:600;line-height:20px;overflow-wrap:anywhere}',
       '.ev .nm small{display:block;font-size:13px;line-height:18px;font-weight:500;color:rgba(235,235,245,0.55)}',
-      '.empty{font-size:15px;line-height:20px;color:rgba(235,235,245,0.55);padding:10px 0}'
+      '.empty{font-size:15px;line-height:20px;color:rgba(235,235,245,0.55);padding:10px 0}',
+      // ---- A TABLET (2026-10-13): the event in cards on the left, its day
+      // as hours on the right -- iPad Calendar's event and its day -- filling
+      // the sheet, where a short list once floated in an empty one
+      // the sheet's height and no more: the hours scroll inside their card
+      '.ee:not(.one){flex:1;height:100%;min-height:0}.ee:not(.one) .col{min-height:0}',
+      // (a long note, a notification on top: the left column scrolls, the month shrinks first)
+      '.ee:not(.one) .c1{overflow-y:auto;scrollbar-width:none}.ee:not(.one) .c1::-webkit-scrollbar{display:none}',
+      '.ee:not(.one) .when{border-radius:' + SP.cardR + 'px;background:rgba(255,255,255,0.08);padding:' + SP.cardPad + '}',
+      '.calc .soon{margin-left:auto;height:24px;padding:0 10px;border-radius:12px;background:#fff;color:#1c1c1e;font-size:11px;font-weight:700;',
+      '  display:flex;align-items:center;flex:none}',
+      '.c2 > .tlc{flex:1;min-height:0;display:flex;flex-direction:column;padding:16px 0 0;overflow:hidden}',
+      '.tlc > .lab{padding:0 18px;margin-bottom:10px}',
+      '.tlad{display:flex;flex-direction:column;gap:4px;padding:0 12px 10px 64px;flex:none}',
+      '.tlad button{height:26px;border-radius:8px;border:0;padding:0 10px;font:inherit;font-size:13px;font-weight:600;color:#fff;text-align:left;',
+      '  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent}',
+      '.tlad button.on{box-shadow:0 0 0 2px #fff inset}',
+      '.tlw{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;',
+      '  border-top:1px solid ' + window.hkCards.v('line') + '}',
+      '.tlw::-webkit-scrollbar{display:none}',
+      '.tlh{position:relative}',
+      '.tlr{position:absolute;left:64px;right:12px;height:0;border-top:1px solid ' + window.hkCards.v('line') + '}',
+      '.tlr span{position:absolute;left:-60px;top:-8px;width:50px;text-align:right;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
+      '.tlx{position:absolute;top:0;bottom:0;left:64px;right:12px}',
+      '.tlb{position:absolute;box-sizing:border-box;overflow:hidden;border-radius:8px;padding:4px 10px;border:0;text-align:left;color:#fff;',
+      '  font:inherit;line-height:1.25;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+      '.tlb .t1{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tlb .t2{font-size:11px;font-weight:500;color:rgba(255,255,255,0.75);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tlb.past{opacity:0.7}',
+      '.tlb.on{box-shadow:0 0 0 2px #fff inset}',
+      // the little month under the event: a dot where there are events, the
+      // day shown filled; a tap shows that day (its hours, its first event)
+      '.mm{flex:1;min-height:0;display:flex;flex-direction:column}',
+      '.mm .lab{margin-bottom:8px}',
+      '.mmg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));row-gap:2px;flex:1;min-height:0}',
+      '.mmg .w{text-align:center;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';padding-bottom:4px}',
+      '.mmg button{min-height:36px;border:0;background:none;padding:0;color:#fff;font:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;',
+      '  cursor:pointer;-webkit-tap-highlight-color:transparent}',
+      '.mmg button b{width:28px;height:28px;line-height:28px;border-radius:14px;text-align:center;font-size:13px;font-weight:600}',
+      '.mmg button i{width:4px;height:4px;border-radius:2px}',
+      '.mmg button.out{opacity:.35}',
+      '.mmg button.today b{color:#ff6961}',
+      '.mmg button.sel b{background:#fff;color:#1c1c1e}',
+      '.tln{position:absolute;left:64px;right:12px;height:2px;background:#ff453a;pointer-events:none}',
+      '.tln::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:5px;background:#ff453a}'
     ].join('');
+    var TL_PX = 48;
     class EventPanel extends U.Panel {
       // (the notification's card lives in here: its CSS too)
       static get CSS() { return U.PANEL_CSS + U.NOTE_CSS + CSS; }
@@ -1424,7 +1467,7 @@
       }
       hkWidthKind() { return 'event'; }
       hkNoGear() { return true; }
-      hkFill() { return !matchMedia('(max-width:600px)').matches; }
+      hkFill() { return !matchMedia('(max-width:' + window.hkCards.BP.phone + 'px)').matches; }
       // the notification's card, at the top of the left column
       hkNote(card) { this._note = card; if (this._c1) this._c1.insertBefore(card, this._c1.firstChild); }
       // the header: the calendar's glyph in its color, the event's name
@@ -1449,9 +1492,12 @@
         var h = this._hass;
         if (!h || !this._config) return;
         if (!this._ev) this._ev = fromAny(h, this._id, this._config.event);
-        var one = matchMedia('(max-width:600px)').matches;
+        var one = matchMedia('(max-width:' + window.hkCards.BP.phone + 'px)').matches;
         if (!this._built || this._one !== one) {
           this._built = true; this._one = one;
+          // a tablet's two columns are the sheet's height (the hours scroll
+          // inside theirs): the panel's own box passes the height down
+          this._root.style.cssText = one ? '' : 'flex:1;min-height:0;display:flex;flex-direction:column';
           this._root.innerHTML = '<div class="ee' + (one ? ' one' : '') + '"><div class="col c1"></div><div class="col c2"></div></div>';
           this._c1 = this._root.querySelector('.c1'); this._c2 = this._root.querySelector('.c2');
           this._root.querySelector('.ee').addEventListener('click', this._click.bind(this));
@@ -1461,22 +1507,77 @@
       }
       _load() {
         var h = this._hass, ev = this._ev, self = this;
-        if (!h || !ev) return;
-        var a = day0(ev.start), ids = calIds(h);
-        if (ids.indexOf(ev.cal) < 0) ids = ids.concat([ev.cal]);
+        if (!h || (!ev && !this._at)) return;
+        var a = this._at || day0(ev.start), ids = calIds(h);
+        this._at = a;
+        if (ev && ids.indexOf(ev.cal) < 0) ids = ids.concat([ev.cal]);
         load(h, ids, a, addDays(a, 1)).then(function (r) {
+          if (+self._at !== +a) return;                 // another day was picked meanwhile
           self._day = onDay(r.evs, a);
           // the event itself, found again: its uid and repeat (Edit, Delete)
-          var same = function (e) { return e.cal === ev.cal && e.title === ev.title; };
-          var hit = self._day.filter(function (e) { return same(e) && +e.start === +ev.start; })[0] || self._day.filter(same)[0];
-          if (hit) self._ev = hit;
+          var ev2 = self._ev;
+          if (ev2) {
+            var same = function (e) { return e.cal === ev2.cal && e.title === ev2.title; };
+            var hit = self._day.filter(function (e) { return same(e) && +e.start === +ev2.start; })[0] || self._day.filter(same)[0];
+            if (hit) self._ev = hit;
+          }
           self._paint();
         });
+        // the little month's dots (a tablet): its weeks' events, once a month
+        var m0 = weekStart(new Date(a.getFullYear(), a.getMonth(), 1)), mk = +m0 + '|' + store.ver;
+        if (!this._one && this._monKey !== mk) {
+          this._monKey = mk;
+          load(h, ids, m0, addDays(m0, 42)).then(function (r) { if (self._monKey === mk) { self._mon = r.evs; self._paint(); } });
+        }
+      }
+      // ANOTHER DAY, from the little month: its hours, and its first event
+      // (the next one still to come, if it is today) -- or none
+      _pickDay(d) {
+        if (+d === +this._at) return;
+        this._at = d; this._day = null; this._ev = null; this._tlMoved = false;
+        var self = this;
+        var h = this._hass, ids = calIds(h);
+        this._paint();
+        load(h, ids, d, addDays(d, 1)).then(function (r) {
+          if (+self._at !== +d) return;
+          var list = onDay(r.evs, d), now = new Date();
+          self._day = list;
+          self._ev = list.filter(function (e) { return !e.allDay && e.end > now; })[0] || list.filter(function (e) { return !e.allDay; })[0] || list[0] || null;
+          self._paint();
+          if (+self._at !== +day0(d)) return;
+          // a new month: its dots
+          self._load();
+        });
+      }
+      _month(h) {
+        var a = this._at, from = weekStart(new Date(a.getFullYear(), a.getMonth(), 1)), now = new Date(), evs = this._mon || [];
+        var cells = dows(['S', 'M', 'T', 'W', 'T', 'F', 'S']).map(function (x) { return '<div class="w">' + x + '</div>'; }).join('');
+        var last = new Date(a.getFullYear(), a.getMonth() + 1, 0);
+        var n = Math.ceil((Math.round((day0(last) - from) / DAY_MS) + 1) / 7) * 7;
+        for (var i = 0; i < n; i++) {
+          var x = addDays(from, i), mine = ownDay(evs, x);
+          cells += '<button class="' + (x.getMonth() !== a.getMonth() ? 'out ' : '') + (sameDay(x, now) ? 'today ' : '') + (sameDay(x, a) ? 'sel' : '') +
+            '" data-d="' + ymd(x) + '" aria-label="' + MON[x.getMonth()] + ' ' + x.getDate() + '"><b>' + x.getDate() + '</b><i style="background:' +
+            (mine.length ? rgba(rgbOf(mine[0].cal, h), 1) : 'transparent') + '"></i></button>';
+        }
+        return '<div class="card mm"><div class="lab"><span>' + MON[a.getMonth()] + ' ' + a.getFullYear() + '</span></div><div class="mmg" style="grid-template-rows:auto repeat(' + (n / 7) + ',minmax(36px,1fr))">' + cells + '</div></div>';
       }
       _paint() {
         var h = this._hass, ev = this._ev;
         if (!this._c1 || !h) return;
         var note = this._note;
+        if (!ev && this._at && !this._one) {
+          // a day picked from the little month with nothing on it
+          var dd = this._at, tw0 = this._c2.querySelector('.tlw'), was0 = tw0 ? tw0.scrollTop : null;
+          this._c1.innerHTML = '<div class="when"><div class="t">' + (this._day ? 'Nothing Planned' : 'Loading…') + '</div><div class="d">' + esc(longDay(dd)) + '</div></div>' + this._month(h);
+          this._c2.innerHTML = this._hours(h, null);
+          var tw1 = this._c2.querySelector('.tlw');
+          if (tw1) tw1.scrollTop = was0 != null && this._tlMoved ? was0 : 7 * TL_PX;
+          var st0 = X._.state();
+          if (st0 && st0.panel === this && st0.tt) st0.tt.textContent = longDay(dd).replace(/^(Today|Tomorrow) · /, '');
+          if (note) this._c1.insertBefore(note, this._c1.firstChild);
+          return;
+        }
         if (!ev) {
           this._c1.innerHTML = '<div class="when"><div class="t">No Events</div><div class="d">' + esc(calName(h, this._id)) + '</div></div>';
           this._c2.innerHTML = '';
@@ -1488,7 +1589,9 @@
         var rows = (ev.loc ? '<div class="row">' + IC.pin + '<span>' + esc(ev.loc) + '</span></div>' : '') +
                    (ev.rrule ? '<div class="row">' + IC.repeat + '<span>' + esc(repeatLabel(ev.rrule)) + '</span></div>' : '') +
                    (ev.desc ? '<div class="row">' + IC.notes + '<span class="note">' + esc(ev.desc) + '</span></div>' : '');
-        var when = '<div class="when"><div class="calc"><i style="background:' + rgba(rgb, 1) + '"></i>' + esc(calName(h, ev.cal)) + '</div>' +
+        var sl = soon(ev, new Date());
+        var when = '<div class="when"><div class="calc"><i style="background:' + rgba(rgb, 1) + '"></i>' + esc(calName(h, ev.cal)) +
+          (sl && !one ? '<span class="soon">' + esc(sl) + '</span>' : '') + '</div>' +
           '<div class="t">' + esc(bigTime(ev)) + '</div><div class="d">' + esc([longDay(ev.start), howLong(ev)].filter(Boolean).join(' · ')) + '</div></div>';
         var acts = edit || del ? '<div class="acts">' + (edit ? '<button data-a="edit">Edit</button>' : '') +
           (del ? '<button class="rm" data-a="del">Delete</button>' : '') + '</div>'
@@ -1502,17 +1605,59 @@
               '<span class="tm">' + (e.allDay ? 'All Day' : esc(time(e.start))) + '</span><span class="nm">' + esc(e.title) +
               '<small>' + esc([calName(h, e.cal), e.loc].filter(Boolean).join(' · ')) + '</small></span></button>';
           }).join('') : '<div class="empty">Nothing else that day</div>') : '<div class="empty">Loading…</div>') + '</div>';
-        this._c1.innerHTML = when + (rows ? '<div class="card rows">' + rows + '</div>' : '') + (one ? day : '') + acts;
-        this._c2.innerHTML = one ? '' : day;
+        this._c1.innerHTML = when + (rows ? '<div class="card rows">' + rows + '</div>' : '') + (one ? day : this._month(h)) + acts;
+        var tw = this._c2.querySelector('.tlw'), was = tw ? tw.scrollTop : null;
+        this._c2.innerHTML = one ? '' : this._hours(h, ev);
+        // the hours: where they were (another of the day's events tapped), or
+        // first at the hour before this event (7 AM for an all-day one)
+        tw = this._c2.querySelector('.tlw');
+        if (tw) {
+          var at = ev.allDay ? 7 : Math.max(0, ev.start.getHours() + ev.start.getMinutes() / 60 - 1);
+          var self = this, top = this._tlMoved && was != null ? was : at * TL_PX;
+          // (again once laid out: a sheet still opening has no height yet)
+          tw.scrollTop = top;
+          requestAnimationFrame(function () { if (!self._tlMoved) tw.scrollTop = top; });
+          tw.addEventListener('scroll', function () { if (Math.abs(tw.scrollTop - top) > 2) self._tlMoved = true; }, { passive: true });
+        }
         if (note) this._c1.insertBefore(note, this._c1.firstChild);
         // the header names the event shown
         var st = X._.state();
         if (st && st.panel === this && st.tt) st.tt.textContent = ev.title;
       }
+      // THE DAY AS HOURS (a tablet): its all-day events across the top, the
+      // rest as blocks in their hours, side by side where they overlap
+      // (lanes(), the Calendar page's day), this one outlined, now a red line
+      _hours(h, ev) {
+        var list = this._day, a = this._at || day0(ev.start), b = addDays(a, 1), now = new Date(), PX = TL_PX;
+        var isOn = function (e) { return !!ev && e.cal === ev.cal && +e.start === +ev.start && e.title === ev.title; };
+        var lab = '<div class="lab"><span>' + esc(DOW_LONG[a.getDay()] + ', ' + MON[a.getMonth()] + ' ' + a.getDate()) + '</span>' +
+          (list ? '<span class="n">' + list.length + (list.length === 1 ? ' event' : ' events') + '</span>' : '') + '</div>';
+        if (!list) return '<div class="card tlc">' + lab + '<div class="empty" style="padding:0 18px">Loading…</div></div>';
+        var long = function (e) { return e.allDay || (e.end - e.start) >= DAY_MS; };
+        var alld = list.filter(long).map(function (e) {
+          var rgb = rgbOf(e.cal, h);
+          return '<button class="' + (isOn(e) ? 'on' : '') + '" data-k="' + esc(e.key) + '" style="background:' + rgba(rgb, 0.42) + '">' + esc(e.title) + '</button>';
+        }).join('');
+        var hrs = '';
+        for (var hr = 1; hr < 24; hr++) hrs += '<div class="tlr" style="top:' + (hr * PX) + 'px"><span>' + hourLabel(hr) + '</span></div>';
+        var items = list.filter(function (e) { return !long(e); })
+          .map(function (e) { return { ev: e, s: e.start < a ? a : e.start, e: e.end > b ? b : e.end }; });
+        var blocks = lanes(items).map(function (it) {
+          var top = (it.s - a) / 3600000 * PX, ht = Math.max(22, (it.e - it.s) / 3600000 * PX - 3), w = 100 / it.cols;
+          var rgb = rgbOf(it.ev.cal, h), past = it.ev.end <= now;
+          return '<button class="tlb' + (past ? ' past' : '') + (isOn(it.ev) ? ' on' : '') + '" data-k="' + esc(it.ev.key) + '" style="top:' + (top + 1) +
+            'px;height:' + ht + 'px;left:calc(' + (it.col * w) + '% + 2px);width:calc(' + w + '% - 4px);background:' + rgba(rgb, past ? 0.3 : 0.5) + '">' +
+            '<div class="t1">' + esc(it.ev.title) + '</div>' + (ht > 36 ? '<div class="t2">' + esc(span(it.ev) + (it.ev.loc ? ' · ' + it.ev.loc : '')) + '</div>' : '') + '</button>';
+        }).join('');
+        var nowLine = sameDay(a, now) ? '<div class="tln" style="top:' + ((now - a) / 3600000 * PX) + 'px"></div>' : '';
+        return '<div class="card tlc">' + lab + (alld ? '<div class="tlad">' + alld + '</div>' : '') +
+          '<div class="tlw"><div class="tlh" style="height:' + (24 * PX) + 'px">' + hrs + '<div class="tlx">' + blocks + '</div>' + nowLine + '</div></div></div>';
+      }
       _click(e) {
-        var b = e.target.closest ? e.target.closest('[data-a], [data-k]') : null;
+        var b = e.target.closest ? e.target.closest('[data-a], [data-k], [data-d]') : null;
         if (!b) return;
         var h = this._hass, ev = this._ev;
+        if (b.hasAttribute('data-d')) { this._pickDay(parseYmd(b.getAttribute('data-d'))); return; }
         if (b.hasAttribute('data-k')) {
           var k = b.getAttribute('data-k'), hit = (this._day || []).filter(function (x) { return x.key === k; })[0];
           if (hit) { this._ev = hit; this._paint(); }

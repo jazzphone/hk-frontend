@@ -372,7 +372,8 @@ ok('sky summary: absent and null settings follow All Screens', M.skySummary({}) 
 ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: false, sky_weather: false, sky_decorations: false, sky_gradient: 'live' }) === 'No Animation, No Weather, No Decorations, Own Backdrop');
 ok('sky summary: true is an own setting too', M.skySummary({ sky_animations: true }) === 'Own Settings');
 ok('sky summary: stored own colors count', M.skySummary({ sky_custom: {} }) === 'Own Settings');
-ok('search includes the backdrop picker', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.label === 'Backdrop' && r.route === 'house/sky/backdrop'; }));
+ok('search includes the backdrop picker (Sky Colors, 2026-10-13)', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.label === 'Sky Colors' && r.route === 'house/sky/backdrop'; }));
+ok('search finds the Background\u2019s photo', M.search('photo', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.route === 'house/sky'; }));
 
 // No Button: offered only with the swipe on (or when it is the choice), and
 // turning the swipe off takes it back to the default
@@ -411,7 +412,7 @@ ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.
   var rows = M3.skyPageRows(['energy', 'weather', 'music', 'browse', 'rooms', 'ecoflow'], { ecoflow: 'EcoFlow' });
   ok('page backgrounds: each page once, Browse part of Music', rows.map(function (r) { return r.key; }).join(',') === 'energy,weather,music,rooms,ecoflow');
   ok('...Automatic in words: a page with its own color keeps it, the rest the live sky, a custom page as written',
-     M3.skyAutoLabel(rows[0]) === 'Page Color' && M3.skyAutoLabel(rows[1]) === 'Backdrop' && M3.skyAutoLabel(rows[4]) === 'As Written');
+     M3.skyAutoLabel(rows[0]) === 'Page Color' && M3.skyAutoLabel(rows[1]) === 'Background' && M3.skyAutoLabel(rows[4]) === 'As Written');
   var bds = [{ id: 'live', label: 'Live Sky' }, { id: 'dusk', label: 'Dusk' }];
   var ops = M3.skyModeOptions(rows[0], bds, 'Automatic').map(function (o) { return o[0]; }).join(',');
   ok('...the choices: Automatic, Page Color where it has one, then every backdrop (Live Sky first)', ops === ',own,live,dusk', ops);
@@ -479,5 +480,47 @@ ok('...Pre-rendered has the Blur amount, and says so', eq(M.amountsFor('blur_pre
 ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return m[2].length > 60; }) &&
    /lightest/i.test(M.BLUR_MODES[1][2]) && /heaviest/i.test(M.BLUR_MODES[2][2]) &&
    /every frame/.test(M.BLUR_MODES[0][2]) && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.isBlur('blur_pre') && !M.isBlur('blur_baked'));
+// WALL TABLETS (1.14): what a tablet is doing, its checks, its idle timeline
+(function () {
+  var KS = { battery: 'sensor.l_battery', charging: 'binary_sensor.l_charging', online: 'binary_sensor.l_conn',
+             adaptive: 'switch.l_adaptive', saver_mode: 'select.l_mode', saver_timeout: 'number.l_timeout',
+             kiosk_mode: 'switch.l_kiosk', update: 'update.l_update' };
+  var t = { app: 'kiosk_satellite', parts: KS };
+  var S = function (v, at) { return { state: v, attributes: {}, last_changed: at || '2026-10-13T20:16:00Z' }; };
+  var st = { 'sensor.l_battery': S('92'), 'binary_sensor.l_charging': S('on'), 'binary_sensor.l_conn': S('on'),
+             'switch.l_adaptive': S('off'), 'select.l_mode': S('Black'), 'number.l_timeout': S('86400'),
+             'switch.l_kiosk': S('on'), 'update.l_update': S('off'), 'switch.l_black': S('on'),
+             'switch.l_photos': S('off'), 'sensor.l_sleep': { state: 'dark', attributes: { reason: 'nobody here' } } };
+  var ids = { black: 'switch.l_black', 'switch': 'switch.l_photos', sleep: 'sensor.l_sleep' };
+  var s = M.tabletStatus(t, st, ids);
+  ok('a tablet under its black is Dark, with why and since', s.st === 'dark' && s.word === 'Dark' && s.why === 'nobody here' &&
+     s.since === '2026-10-13T20:16:00Z' && s.batt === 92 && s.charging === true);
+  st['switch.l_black'] = S('off'); st['switch.l_photos'] = S('on');
+  ok('...its photos up: Screensaver', M.tabletStatus(t, st, ids).st === 'photos');
+  st['binary_sensor.l_conn'] = S('off');
+  ok('...its kiosk not heard from: Offline, whatever else', M.tabletStatus(t, st, ids).st === 'off' && M.tabletStatus(t, st, ids).why === '');
+  st['binary_sensor.l_conn'] = S('on');
+  var c = {}; M.tabletChecks(t, st).forEach(function (x) { c[x.key] = x; });
+  ok('the checks: all right but the battery at 92% while charging', c.adaptive.ok && c.saver.ok && c.kiosk_mode.ok && c.update.ok &&
+     !c.battery.ok && /Protect Battery/.test(c.battery.detail) && !c.online);
+  st['switch.l_adaptive'] = S('on'); st['select.l_mode'] = S('Clock');
+  c = {}; M.tabletChecks(t, st).forEach(function (x) { c[x.key] = x; });
+  ok('...adaptive brightness on: Fix turns it off', !c.adaptive.ok && c.adaptive.fix[0] === 'switch' && c.adaptive.fix[1] === 'turn_off');
+  ok('...the kiosk\'s own screensaver not Black: Fix sets it', !c.saver.ok && c.saver.fix[1] === 'kiosk_saver');
+  ok('Just a Browser has nothing to check', M.tabletChecks({ app: 'browser', parts: {} }, st).length === 0);
+  var tl = M.idleTimeline({ idle: 50, saver: 60, hk: true, after: 0 });
+  ok('the timeline: Touched, Home at 50 s, the screensaver at 1 min, dark', tl.segs.map(function (x) { return x.cls; }).join() === 'use,home,saver,dark' &&
+     tl.segs[1].at === '50 s' && tl.segs[2].at === '1 min' && !tl.warn);
+  tl = M.idleTimeline({ idle: 120, saver: 60, hk: false });
+  ok('...Home after the screensaver: Home behind it, and a warning', tl.segs.map(function (x) { return x.cls; }).join() === 'use,saver,home,dark' &&
+     tl.warn && tl.segs[3].says === 'an automation decides');
+  ok('...no Return to Home, no screensaver: dark alone', M.idleTimeline({ idle: null, saver: null, hk: true, after: 5 }).segs.length === 2 &&
+     M.idleTimeline({ idle: null, saver: null, hk: true, after: 5 }).segs[1].says === 'after 5 min of photos');
+  ok('the start URL names the tablet', M.tabletUrl('http://ha:8123/', 'dashboard-loft', 'loft') === 'http://ha:8123/dashboard-loft?hk_tablet=loft');
+  ok('Idle Time labels', M.idleLabel(50) === '50 Seconds' && M.idleLabel(0) === 'Never' && M.idleLabel(120) === '2 Minutes');
+  // (1.8.0) Show: Clock says Clock, not Photos
+  ok('the screensaver summary on Show: Clock', /^Music, Then Clock · /.test(M.saverSummary({ show: 'clock', music_first: true })) &&
+     /^Clock · /.test(M.saverSummary({ show: 'clock' })), M.saverSummary({ show: 'clock' }));
+})();
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

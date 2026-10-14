@@ -92,6 +92,22 @@ async def test_close_popup_reaches_the_screens(hass, frontend):
     assert ev == {"type": "popup_close", "popup": "alarm", "dashboards": ["dashboard-loft"], "users": []}
 
 
+async def test_a_popup_for_some_people_reaches_only_their_browsers(hass, frontend):
+    from types import SimpleNamespace
+    from custom_components.hk_frontend import ws_events_subscribe
+    await _add(hass, "Doorbell", "camera", {"entity": "camera.fd"}, hash_="doorbell")
+    mine, theirs = FakeConnection(SimpleNamespace(id="u1")), FakeConnection(SimpleNamespace(id="u2"))
+    ws_events_subscribe(hass, mine, {"id": 9})
+    ws_events_subscribe(hass, theirs, {"id": 9})
+    await hass.services.async_call(DOMAIN, "show_popup", {"popup": "#doorbell", "users": ["u1"]}, blocking=True)
+    await hass.async_block_till_done()
+    assert mine.sent[-1]["event"]["users"] == ["u1"]
+    assert not any("event" in m for m in theirs.sent), "another user's socket carried it"
+    await hass.services.async_call(DOMAIN, "show_popup", {"popup": "#doorbell"}, blocking=True)
+    await hass.async_block_till_done()
+    assert theirs.sent[-1]["event"]["popup"] == "doorbell", "one for everyone still reaches everyone"
+
+
 def test_popup_normaliser():
     from custom_components.hk_frontend.settings import popup, slug
     assert slug("Emma’s Room!") == "emmas-room"

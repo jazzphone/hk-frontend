@@ -190,6 +190,55 @@ HS._apply({ sky: { gradient: 'custom', gradient_custom: null } });
 ok('unset custom stops fall back to live', HS.skyLook().backdrop === null);
 HS._apply({ sky: { gradient: 'bad' } });
 ok('unknown persisted palette falls back to live', HS.skyLook().backdrop === null);
+print('=== the Background: Live Sky, Color or Photo (2026-10-13) ===');
+location.pathname = '/dashboard-sky/home';
+var photoA = '/api/image/serve/' + 'a'.repeat(32) + '/original', photoB = '/local/porch.jpg';
+var mid = HS.skyPalettes().filter(function (p) { return p.id === 'midnight'; })[0];
+HS._apply({ sky: {} });
+ok('the live sky by default', HS.skyLook().background.mode === 'live' && HS.skyLook().background.stops === null);
+HS._apply({ sky: { background: 'color' } });
+var bgc = HS.skyLook().background;
+ok('Color is a still: Midnight unless chosen', bgc.mode === 'color' && JSON.stringify(bgc.stops.day) === JSON.stringify(mid.day));
+HS._apply({ sky: { background: 'color', color: 'custom', gradient_custom: houseStops } });
+ok('...Custom: the house\u2019s own stops', JSON.stringify(HS.skyLook().background.stops) === JSON.stringify(houseStops));
+HS._apply({ sky: { background: 'color', color: 'custom', gradient_custom: null } });
+ok('...Custom with no stops is Black, never the live sky', JSON.stringify(HS.skyLook().background.stops) === JSON.stringify(HS.BLACK));
+HS._apply({ sky: { background: 'photo', photo: photoA } });
+ok('Photo: All Screens\u2019 photo', HS.skyLook().background.mode === 'photo' && HS.skyLook().background.photo === photoA);
+HS._apply({ sky: { background: 'photo', photo: null } });
+ok('...none chosen: no photo (the sky paints Black)', HS.skyLook().background.photo === null);
+HS._apply({ sky: { background: 'live', photo: photoA, color: 'plum' }, boards: { 'dashboard-sky': { sky_background: 'photo', sky_photo: photoB } } });
+ok('a screen\u2019s own Photo, over All Screens\u2019 Live Sky', HS.skyLook().background.mode === 'photo' && HS.skyLook().background.photo === photoB);
+HS._apply({ sky: { background: 'photo', photo: photoA }, boards: { 'dashboard-sky': { sky_background: null, sky_photo: null } } });
+ok('...following All Screens: its photo', HS.skyLook().background.photo === photoA);
+HS._apply({ sky: { background: 'color', color: 'plum' }, boards: { 'dashboard-sky': { sky_background: null, sky_color: 'ember' } } });
+ok('a screen\u2019s own color, under All Screens\u2019 Color', JSON.stringify(HS.skyLook().background.stops) ===
+   JSON.stringify(HS.skyPalettes().filter(function (p) { return p.id === 'ember'; })[0] && { day: HS.skyPalettes().filter(function (p) { return p.id === 'ember'; })[0].day, night: HS.skyPalettes().filter(function (p) { return p.id === 'ember'; })[0].night }));
+HS._apply({ sky: { background: 'live', photo: photoA, page_photos: { lights: photoB } }, boards: { 'dashboard-sky': { sky_pages: { lights: 'photo' } } } });
+ok('a page\u2019s own photo', HS.pagePhoto('lights') === photoB);
+ok('...a page without one: the screen\u2019s photo', HS.pagePhoto('climate') === photoA);
+HS._apply({ sky: { page_photos: { lights: photoB } }, boards: { 'dashboard-sky': { sky_page_photos: { lights: photoA } } } });
+ok('...this screen\u2019s for the page first', HS.pagePhoto('lights') === photoA);
+HS._apply({ sky: { background: 'photo', photo: photoA } });
+var lk = HS.photoLook();
+ok('a photo as taken by default: no blur, dim, tint', lk.blur === 0 && lk.dim === 0 && lk.saturate === 1 && lk.tint === null && lk.amount === 0);
+HS._apply({ sky: { background: 'photo', photo: photoA, photo_look: { blur: 50, dim: 40, saturation: 150, tint: 'plum', tint_amount: 30 } } });
+lk = HS.skyLook().background.look;
+ok('the look: blur 50% is 20 px, dim 40%, saturation 150%', lk.blur === 20 && Math.abs(lk.dim - 0.4) < 1e-9 && lk.saturate === 1.5);
+ok('...and a Plum tint at 30%', lk.tint && lk.tint.day[0] === '#150e1f' && Math.abs(lk.amount - 0.3) < 1e-9);
+HS._apply({ sky: { background: 'photo', photo: photoA, photo_look: { blur: 50 } }, boards: { 'dashboard-sky': { sky_photo_look: { blur: 0, dim: 10 } } } });
+ok('a screen\u2019s own look over All Screens\u2019', HS.photoLook().blur === 0 && Math.abs(HS.photoLook().dim - 0.1) < 1e-9);
+print('=== a room\u2019s own background and a page\u2019s own look ===');
+HS._apply({ sky: { pages: { rooms: 'photo' }, photo: photoA, page_photos: { 'room-kitchen': photoB }, page_looks: { 'room-kitchen': { blur: 25 } },
+                   photo_look: { dim: 30 } }, boards: { 'dashboard-sky': {} } });
+ok('a room\u2019s page follows Room Pages', HS.pageSky(['room-office', 'rooms']) === 'photo');
+ok('...its own photo first', HS.pagePhoto(['room-kitchen', 'rooms']) === photoB && HS.pagePhoto(['room-office', 'rooms']) === photoA);
+ok('...its own look', HS.pageLook(['room-kitchen', 'rooms']).blur === 10 && HS.pageLook(['room-kitchen', 'rooms']).dim === 0);
+ok('...else the screen\u2019s', Math.abs(HS.pageLook(['room-office', 'rooms']).dim - 0.3) < 1e-9);
+HS._apply({ sky: { pages: { rooms: 'photo', 'room-kitchen': 'live' } }, boards: { 'dashboard-sky': { sky_pages: { rooms: 'plum' } } } });
+ok('a room\u2019s own choice beats Room Pages, even a screen\u2019s', HS.pageSky(['room-kitchen', 'rooms']) === 'live' && HS.pageSky(['room-office', 'rooms']) === 'plum');
+ok('a plain key still works', HS.pageSky('rooms') === 'plum');
+ok('Black is a color to choose', !!HS.skyPalettes().filter(function (p) { return p.id === 'black'; })[0]);
 HS._apply({ configured: true });
 location.pathname = '/';
 
@@ -231,6 +280,37 @@ settle().then(function () {
   return HS.whenLive(10);
 }).then(function (live) {
   ok('whenLive: the answer is in', live === true && HS.configured === true);
+
+  print('\n=== which wall tablet this page is (1.14) ===');
+  var hass = function (name) { return { user: { name: name } }; };
+  location.pathname = '/dashboard-b/0';
+  HS._apply({ configured: true, boards: { 'dashboard-a': { tablet_user: 'a' }, 'dashboard-b': {} } });
+  ok('a server before 1.14 (no tablets): the screen\'s own Tablet User', HS.tablet(hass('a')) === null);
+  location.pathname = '/dashboard-a/0';
+  ok('...on its own screen, signed in as it', HS.tablet(hass('a')).id === 'dashboard-a' && HS.tablet(hass('a')).legacy);
+  var items = { one: { name: 'One', screen: 'dashboard-a', user: 'wall', idle_time: 50 },
+                two: { name: 'Two', screen: 'dashboard-b', user: 'wall', idle_time: 30 },
+                hall: { name: 'Hall', screen: 'dashboard-b', user: '', idle_time: 120 } };
+  HS._apply({ configured: true, boards: {}, tablet_items: items });
+  location.pathname = '/dashboard-b/lights';
+  ok('by its user: the one on this screen first', HS.tablet(hass('wall')).id === 'two');
+  location.pathname = '/dashboard-c/0';
+  ok('...else its user\'s first', HS.tablet(hass('wall')).id === 'one');
+  ok('a user no tablet has: none', HS.tablet(hass('Mark')) === null && HS.tablet(null) === null);
+  location.search = '?hk_tablet=hall';
+  load(HK_ROOT + '/frontend/modules/hk-settings.js');           // a fresh page load (it returns at once: already set up)
+  delete window.hkSettings; load(HK_ROOT + '/frontend/modules/hk-settings.js');
+  var HS2 = window.hkSettings;
+  HS2._apply({ configured: true, boards: {}, tablet_items: items });
+  location.search = '';
+  ok('?hk_tablet= is remembered: the hall tablet, whoever is signed in', HS2.tablet(hass('wall')).id === 'hall' &&
+     localStorage.getItem('hk-tablet') === 'hall');
+  location.search = '?hk_tablet=none';
+  delete window.hkSettings; load(HK_ROOT + '/frontend/modules/hk-settings.js');
+  window.hkSettings._apply({ configured: true, boards: {}, tablet_items: items });
+  location.search = '';
+  ok('?hk_tablet=none forgets it', !localStorage.getItem('hk-tablet') && window.hkSettings.tablet(hass('Mark')) === null);
+  window.hkSettings = HS;
   print(fail ? 'FAIL ' + fail + ' SETTINGS TESTS' : 'ALL ' + pass + ' SETTINGS TESTS PASS');
   if (fail) throw new Error('settings tests failed');
 });

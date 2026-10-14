@@ -203,3 +203,32 @@ async def test_a_reading_is_offered_only_to_what_reports_it(hass, frontend):
     ws_hidden_get(hass, conn, {"id": 1, "type": "hk_frontend/hidden/get", "entity_ids": ["sensor.cpu_t", "sensor.grid_w"]})
     also = conn.sent[-1]["result"]["also"]
     assert also.get("sensor.cpu_t") == ["temperature"] and "sensor.grid_w" not in also
+
+
+async def test_a_group_helper_is_never_found_but_can_be_added(hass, frontend):
+    """"Motion - Kitchen", a group helper over the kitchen's motion sensors
+    (2026-10-13): never counted by itself (its members would count twice),
+    but offered to Also Count As -- the only way in -- and counted once added.
+    A hidden one is still offered nothing."""
+    from custom_components.hk_frontend import kinds
+    from custom_components.hk_frontend.hiding import ws_hidden_also, ws_hidden_get
+    ents = er.async_get(hass)
+    for uid in ("motion_kitchen", "motion_attic"):
+        ents.async_get_or_create("binary_sensor", "group", uid, suggested_object_id=uid)
+        hass.states.async_set("binary_sensor." + uid, "off",
+                              {"device_class": "motion", "entity_id": ["binary_sensor.a", "binary_sensor.b"]})
+    ents.async_update_entity("binary_sensor.motion_attic", hidden_by=er.RegistryEntryHider.USER)
+    await hass.async_block_till_done()
+    assert "binary_sensor.motion_kitchen" not in kinds.current(hass)["motion"]
+    conn = await _admin(hass)
+    ws_hidden_get(hass, conn, {"id": 1, "type": "hk_frontend/hidden/get",
+                               "entity_ids": ["binary_sensor.motion_kitchen", "binary_sensor.motion_attic"]})
+    also = conn.sent[-1]["result"]["also"]
+    assert "motion" in also["binary_sensor.motion_kitchen"]
+    assert "binary_sensor.motion_attic" not in also
+    ws_hidden_also(hass, conn, {"id": 2, "type": "hk_frontend/hidden/also",
+                                "entity_ids": ["binary_sensor.motion_kitchen", "binary_sensor.motion_attic"],
+                                "kinds": {"motion": True}})
+    await hass.async_block_till_done()
+    assert conn.sent[-1]["result"]["added"] == {"binary_sensor.motion_kitchen": ["motion"]}
+    assert "binary_sensor.motion_kitchen" in kinds.current(hass)["motion"]

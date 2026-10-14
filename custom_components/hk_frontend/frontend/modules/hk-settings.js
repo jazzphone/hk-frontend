@@ -83,9 +83,16 @@
            // Pause When Not in Focus (2026-10-10).
            animations: true, weather: true, precipitation: true, focus_pause: true,
            gradient: 'live', gradient_custom: null,
-           // each page's background: {page: 'own' | 'live' | backdrop id}
-           // -- a page missing is Automatic (settings.py sky.pages)
-           pages: {},
+           // THE BACKGROUND (2026-10-13): 'live', 'color' (a still color:
+           // color, a SKY_BACKDROPS id) or 'photo' (photo, its address) --
+           // Color and Photo draw no sky at all (settings.py SKY_BACKGROUNDS)
+           background: 'live', color: 'midnight', photo: null,
+           // the photo's look (settings.py PHOTO_LOOK_DEFAULTS)
+           photo_look: { blur: 0, dim: 0, saturation: 100, tint: '', tint_amount: 35 },
+           // each page's background: {page: 'own' | 'live' | backdrop id |
+           // 'photo'} -- a page missing is Automatic (settings.py sky.pages);
+           // a page's own photo, for 'photo': page_photos
+           pages: {}, page_photos: {}, page_looks: {},
            themes: ['halloween', 'thanksgiving', 'christmas', 'birthday', 'fourth-of-july',
                     'valentines-day', 'spring-garden', 'winter-wonderland', 'storybook-magic',
                     'space-night'],
@@ -105,6 +112,8 @@
            // sky_liveliness_custom (and sky_calm_empty).
            liveliness_all: 'classic', liveliness: {}, liveliness_custom: {} },
     idle: { dashboards: [], rooms: {}, 'default': null },
+    tablets: { idle_return: true, idle_time: 50, alert_offline: true, alert_restart: true, alert_charging: true,
+               restart: false, restart_times: ['00:02', '15:00'], dismissed: [] },
     car: { dashboards: [] },
     generated: { exclude_areas: [], exclude_devices: [], exclude_entities: [], include_entities: [] },
     features: { vacuum_script: null, alarm_bad_code: null, thermostats: [], temperature: null, power: null,
@@ -137,7 +146,12 @@
             saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
                      weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true,
                      forecast_every: 5, band: true, band_photos: false, calendar: false, calendar_days: 2,
-                     music_slide: false, music_pane: false, music_first: false, fade_back: 500 } },
+                     music_slide: false, music_pane: false, music_first: false, fade_back: 500,
+                     portrait_fill: false, portrait_blur: 50, portrait_dim: 20, portrait_zoom: 100, portrait_x: 'center', portrait_y: 'center',
+                     landscape_blur: 50, landscape_dim: 20, landscape_zoom: 100, landscape_x: 'center', landscape_y: 'center',
+                     clock_over: 'corner', clock_style: 'classic', clock_bg: 'gradient', clock_motion: 'slow', clock_24: false, clock_colors: {}, clock_speed: 35, clock_depth: 50, clock_night: 'off', clock_night_from: '22:00', clock_night_to: '07:00',
+                     photo_layout: 'single', mosaic_count: 3, mosaic_gap: 'thin', mosaic_change: 'one', mosaic_line: 0, mosaic_color: 'black', mosaic_random: false, mosaic_every: 10,
+                     clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0 } },
     // The Calendar page and the screensaver's calendar pane (All Screens ->
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)
@@ -183,6 +197,8 @@
       night: ['#100708', '#1e0d10', '#3d191c', '#5d3231'] },
     { id: 'mist', label: 'Mist', day: ['#0d1a1c', '#173437', '#22646a', '#56a0a0'],
       night: ['#080f10', '#0d1e21', '#12373d', '#325556'] },
+    { id: 'black', label: 'Black', day: ['#05070e', '#05070e', '#05070e', '#05070e'],
+      night: ['#05070e', '#05070e', '#05070e', '#05070e'] },
     { id: 'custom', label: 'Custom' }
   ];
   function backdropStops(id, custom) {
@@ -255,6 +271,11 @@
     // THE POP-UPS (settings.py `popups`): a list, taken whole.
     var pp = over && over.popups;
     out.popups = Array.isArray(pp) ? JSON.parse(JSON.stringify(pp)) : [];
+    // THE WALL TABLETS (1.14, settings.py `tablet_items`): by id, taken
+    // whole. null from a server before 1.14 -- tablet() then reads the
+    // screens' own Tablet User, as before.
+    var ti = over && over.tablet_items;
+    out.tablet_items = (ti && typeof ti === 'object' && !Array.isArray(ti)) ? JSON.parse(JSON.stringify(ti)) : null;
     return out;
   }
   function load() {
@@ -452,6 +473,10 @@
         ? DAYTIME[own('sky_daytime', 'sky.daytime', 'natural')] : 1,
       backdrop: backdropStops(own('sky_gradient', 'sky.gradient', 'live'),
                               b && b.sky_gradient != null ? own('sky_custom', 'sky.gradient_custom', null) : get('sky.gradient_custom', null)),
+      // THE BACKGROUND (2026-10-13): what Home, the room pages and every page
+      // without a color of its own show -- the live sky, or a still color
+      // ({day, night} stops) or photo, with no sky drawn at all
+      background: background(b),
       // Liveliness: this screen's own when it has one (sky_liveliness),
       // else All Screens' -- the same shape (hk-sky.js lvOf). `room` is
       // where Calm When Nobody's Around looks for someone (the screen's idle
@@ -472,12 +497,64 @@
   // for the page, else All Screens', else null (Automatic: a page with a
   // color of its own keeps it, the rest show the live sky). `key`: a page
   // kind (energy, climate, rooms ...) or a custom page's address.
+  //
+  // `key` may be a list, the most particular first: a room's page is
+  // ['room-kitchen', 'rooms'] (2026-10-13) -- the room's own choice (this
+  // screen's, else All Screens'), else Room Pages'.
+  function keysOf(key) { return (Array.isArray(key) ? key : [key]).filter(Boolean); }
+  // the first of `keys` set in this screen's map, else All Screens'
+  function pageFind(keys, bk, hk) {
+    var b = boardHere(), all = get(hk, {}) || {};
+    for (var i = 0; i < keys.length; i++) {
+      var mine = b && b[bk] && b[bk][keys[i]];
+      if (mine) return mine;
+      if (all[keys[i]]) return all[keys[i]];
+    }
+    return null;
+  }
   function pageSky(key) {
-    if (!key) return null;
-    var b = boardHere(), mine = b && b.sky_pages && b.sky_pages[key];
-    if (mine) return mine;
-    var all = get('sky.pages', {}) || {};
-    return all[key] || null;
+    return pageFind(keysOf(key), 'sky_pages', 'sky.pages');
+  }
+  // THE BACKGROUND as this screen has it: {mode: 'live' | 'color' | 'photo',
+  // stops (a color's {day, night}), photo (its address)}. The screen's own
+  // mode, color and photo, each else All Screens'. A color that can't be
+  // drawn (Custom with no stops) is Black; a Photo with none chosen is
+  // Black too -- never the live sky, which is what was turned away from.
+  var BLACK = { day: ['#05070e', '#05070e', '#05070e', '#05070e'], night: ['#05070e', '#05070e', '#05070e', '#05070e'] };
+  function background(b) {
+    var mode = (b && b.sky_background) || get('sky.background', 'live') || 'live';
+    if (mode !== 'color' && mode !== 'photo') return { mode: 'live', stops: null, photo: null };
+    var color = (b && b.sky_color) || get('sky.color', 'midnight') || 'midnight';
+    var custom = b && b.sky_custom ? b.sky_custom : get('sky.gradient_custom', null);
+    var photo = (b && b.sky_photo) || get('sky.photo', null) || null;
+    if (mode === 'photo') return { mode: 'photo', stops: BLACK, photo: photo, look: photoLook(b) };
+    return { mode: 'color', stops: backdropStops(color, custom) || BLACK, photo: null };
+  }
+  // A PHOTO'S LOOK (2026-10-13): this screen's own, else All Screens' --
+  // {blur px, dim 0..1 (brightness = 1 - dim), saturate 0..2, tint: {day,
+  // night} stops washed over it at `amount` 0..1, or null}. A page's photo
+  // has its screen's.
+  function photoLook(b, own) {
+    if (b === undefined) b = boardHere();
+    var L = Object.assign({ blur: 0, dim: 0, saturation: 100, tint: '', tint_amount: 35 },
+                          own || (b && b.sky_photo_look) || get('sky.photo_look', {}) || {});
+    var custom = b && b.sky_custom ? b.sky_custom : get('sky.gradient_custom', null);
+    var tint = L.tint ? backdropStops(L.tint, custom) : null;
+    return { blur: Math.round(Math.max(0, Math.min(100, +L.blur || 0)) * 0.4), dim: Math.max(0, Math.min(0.8, (+L.dim || 0) / 100)),
+             saturate: Math.max(0, Math.min(2, (L.saturation == null ? 100 : +L.saturation) / 100)),
+             tint: tint, amount: tint ? Math.max(0, Math.min(0.8, (+L.tint_amount || 0) / 100)) : 0 };
+  }
+  // a page's own photo (for a page set to Photo): this screen's for it, else
+  // All Screens', else the screen's Background photo
+  function pagePhoto(key) {
+    var b = boardHere();
+    return pageFind(keysOf(key), 'sky_page_photos', 'sky.page_photos') || (b && b.sky_photo) || get('sky.photo', null) || null;
+  }
+  // a page's photo look: its own (the room's, then Room Pages'), else the
+  // screen's (photoLook)
+  function pageLook(key) {
+    var own = pageFind(keysOf(key), 'sky_page_looks', 'sky.page_looks');
+    return own ? photoLook(boardHere(), own) : photoLook();
   }
   // a backdrop's stops by id, {day, night} -- "custom" this screen's own
   // colors (else All Screens'); null for the live sky or an unknown id
@@ -598,7 +675,10 @@
     var conn = ha && ha.hass && ha.hass.connection;
     if (!conn || typeof conn.subscribeMessage !== 'function') return false;
     attached = true;
-    subscribe(conn, { type: 'hk_frontend/settings/subscribe' }, apply, 'hk-settings');
+    subscribe(conn, { type: 'hk_frontend/settings/subscribe' }, function (payload) {
+      apply(payload);
+      try { reportSeen(ha.hass); } catch (e) { /* the seen report is a nicety */ }
+    }, 'hk-settings');
     // WHAT THE HOUSE ASKS THIS SCREEN TO DO (hk_frontend.show_popup): handed
     // on as a window event; the detail sheet (hk-detail.js) decides whether
     // this screen is one of those asked, and opens the pop-up.
@@ -831,8 +911,84 @@
     return !!(p && p.component_name === 'lovelace');
   }
 
+  // WHICH WALL TABLET THIS IS (1.14, docs/Wall-Tablets.md). A tablet is
+  // its own item, apart from the screen it runs, so the page needs to know
+  // which one it is:
+  //   1. ?hk_tablet=<id> in its address (the kiosk app's start URL),
+  //      remembered here once seen -- Home Assistant's navigation drops the
+  //      query, and a kiosk's reload may be of another page. ?hk_tablet=none
+  //      forgets it: this browser is no tablet.
+  //   2. Else the tablet signed in as this user (the one on this screen
+  //      first).
+  //   3. Else none: a desk, a phone -- no screensaver, no idle return.
+  // A server from before 1.14 sends no tablets: the screen's Tablet User,
+  // as it was. The answer: {id, name, screen, room, user, app, idle_return,
+  // idle_time, black_screen, screensaver_switch, black_switch} or null.
+  var TABLET_KEY = 'hk-tablet';
+  function rememberTablet() {
+    try {
+      var m = /[?&]hk_tablet=([a-z0-9_]+)/.exec(String(location.search || ''));
+      if (!m) return;
+      if (m[1] === 'none') localStorage.removeItem(TABLET_KEY);
+      else localStorage.setItem(TABLET_KEY, m[1]);
+    } catch (e) { /* no storage (a private window, a test harness) */ }
+  }
+  rememberTablet();
+  function rememberedTablet() {
+    try { return localStorage.getItem(TABLET_KEY) || ''; } catch (e) { return ''; }
+  }
+  function userName(hass) {
+    try {
+      var h = hass || (document.querySelector('home-assistant') || {}).hass;
+      return (h && h.user && h.user.name) || '';
+    } catch (e) { return ''; }
+  }
+  function tabletOf(id, t) {
+    var out = { id: id };
+    Object.keys(t).forEach(function (k) { out[k] = t[k]; });
+    return out;
+  }
+  function tablet(hass) {
+    var items = cur.tablet_items, seg = '';
+    try { seg = String(location.pathname).split('/')[1] || ''; } catch (e) { /* a test harness */ }
+    var name = userName(hass);
+    if (!items) {
+      // a server from before 1.14: this screen's own Tablet User
+      var b = cur.boards && cur.boards[seg];
+      if (!b || !b.tablet_user || b.tablet_user !== name) return null;
+      return { id: seg, name: seg, screen: seg, room: b.idle_room || '', user: b.tablet_user, app: '',
+               idle_return: !!b.idle_return, idle_time: null, black_screen: b.black_screen || 'kiosk',
+               screensaver_switch: b.screensaver_switch || null, black_switch: b.black_switch || null, legacy: true };
+    }
+    var id = rememberedTablet();
+    if (id && items[id]) return tabletOf(id, items[id]);
+    if (!name) return null;
+    var mine = Object.keys(items).filter(function (k) { return items[k] && items[k].user === name; });
+    mine.sort(function (a, b2) { return (items[a].screen === seg ? 0 : 1) - (items[b2].screen === seg ? 0 : 1); });
+    return mine.length ? tabletOf(mine[0], items[mine[0]]) : null;
+  }
+  // A PAGE THAT LOOKS LIKE A WALL TABLET'S and isn't one: told to the
+  // integration once a load, so Wall Tablets can suggest it. Only Fully
+  // Kiosk's browser says what it is (its JavaScript interface, `fully`).
+  var seenSent = false;
+  function reportSeen(hass) {
+    if (seenSent || !state.live || !cur.tablet_items) return;
+    var app = '';
+    try { app = (typeof window.fully === 'object' && window.fully) ? 'fully' : ''; } catch (e) { app = ''; }
+    if (!app || tablet(hass)) { seenSent = !!app; return; }
+    seenSent = true;
+    try {
+      var seg = String(location.pathname).split('/')[1] || '';
+      hass.callWS({ type: 'hk_frontend/tablet/seen', screen: /^[a-z0-9_-]{0,80}$/.test(seg) ? seg : '', app: app })
+        .catch(function () { /* an older server */ });
+    } catch (e) { /* no connection yet */ }
+  }
+
   window.hkSettings = {
     get: get,
+    // which wall tablet this page is (null: none) -- see tablet() above
+    tablet: tablet,
+    reportSeen: reportSeen,
     lovelacePanel: lovelacePanel,
     get version() { return state.version; },
     get live() { return state.live; },
@@ -863,6 +1019,10 @@
     skyLook: skyLook,
     pageSky: pageSky,
     pageBackdrop: pageBackdrop,
+    pagePhoto: pagePhoto,
+    photoLook: photoLook,
+    pageLook: pageLook,
+    BLACK: BLACK,
     skyPalettes: function () { return SKY_BACKDROPS; },
     previewGlass: function (mode) {
       glassPreview = LOOKS[mode] ? mode : null;

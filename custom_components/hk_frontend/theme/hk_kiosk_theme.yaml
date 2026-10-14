@@ -8,17 +8,17 @@ HK Kiosk:
     # --ha-font-family-body only; --primary-font-family and the paper-font-*
     # set no longer exist in the bundle. font-family inherits, so this crosses
     # into every card's shadow DOM without any per-card styling.
-    ha-font-family-body: "'SF Pro', Roboto, Noto, sans-serif"
-    ha-font-family-heading: "'SF Pro', Roboto, Noto, sans-serif"
-    ha-font-family-longform: "'SF Pro', Roboto, Noto, sans-serif"
+    ha-font-family-body: "'SF Pro', -apple-system, BlinkMacSystemFont, Roboto, Noto, sans-serif"
+    ha-font-family-heading: "'SF Pro', -apple-system, BlinkMacSystemFont, Roboto, Noto, sans-serif"
+    ha-font-family-longform: "'SF Pro', -apple-system, BlinkMacSystemFont, Roboto, Noto, sans-serif"
 
     # THE GLASS MATERIAL, as CSS custom properties.
     #
-    # These variables are the SINGLE source of the material: the theme
-    # publishes it and every hk card (frontend/cards/hk-base.js) inherits it
-    # through var(--hk-glass-*). The literals in those cards' var() fallbacks
-    # are only for a card placed on some other theme -- to change the
-    # material, change it here.
+    # The material's values live in ONE place, hkCards.T in
+    # frontend/cards/hk-base.js; tools/gen_theme.py writes the hk-* keys below
+    # from it (tests/py/test_theme_values.py holds the two equal). The theme
+    # publishes them and every hk card inherits them through var(--hk-glass-*)
+    # -- to change the material, change T and run gen_theme.py.
     #
     # Theme keys become CSS custom properties, and a theme applies to the whole
     # view, so every card on a HK Kiosk view can read these. The cards use
@@ -29,10 +29,10 @@ HK Kiosk:
     # untidy -- see the material note in cards/hk-base.js:
     #   sm  56-70px tiles (pills, chips, keypad keys, scene tiles)
     #   lg  larger blocks (glass tiles, vacuum cards, the tall pill)
-    hk-glass-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.056))
-    hk-glass-border: 1px solid rgba(255, 255, 255, 0.13)
-    hk-glass-shadow-sm: 0 8px 22px rgba(0, 0, 0, 0.12)
-    hk-glass-shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.12)
+    hk-glass-bg: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.056))
+    hk-glass-border: 1px solid rgba(255,255,255,0.13)
+    hk-glass-shadow-sm: 0 8px 22px rgba(0,0,0,0.12)
+    hk-glass-shadow-lg: 0 10px 28px rgba(0,0,0,0.12)
     hk-glass-radius: 23.5px
     # The per-shape shadows the cards read (hk-tile.js, hk-stat.js,
     # hk-chip.js) and the two status colors (hk-base.js, hk-media.js), with
@@ -45,7 +45,7 @@ HK Kiosk:
     hk-warn: "#FFB340"
     hk-fail: "#FF6961"
     # The icon well inside a pill -- a dark disc the glyph sits on.
-    hk-well-bg: rgba(0, 0, 0, 0.14)
+    hk-well-bg: rgba(0,0,0,0.14)
     # No card shadow, in both modes. It lives HERE, at the root, so the Camera
     # theme below can give its modes a shadow without redefining a key it also
     # merges from the mode anchors -- Home Assistant's YAML loader warns about

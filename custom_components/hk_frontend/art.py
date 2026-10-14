@@ -39,7 +39,10 @@ from collections import OrderedDict
 import base64
 from datetime import timedelta
 import io
+import ipaddress
 import logging
+import socket
+from urllib.parse import urljoin, urlsplit
 
 from aiohttp import web
 import voluptuous as vol
@@ -106,6 +109,41 @@ async def read_limited(stream, limit: int) -> bytes | None:
 def is_remote(url) -> bool:
     return isinstance(url, str) and url.lower().startswith(("http://", "https://")) \
         and len(url) < 2048
+
+
+# WHERE IT MAY GO: the artwork Music Assistant names, nothing else. A cover
+# is on the internet (the CDNs) or on Music Assistant's own image proxy, which
+# is on the home network (http://<host>:8095/imageproxy/<id>). Any signed-in
+# user -- a wall tablet's own -- can ask, so "fetch any URL" would let one
+# reach the router's or a camera's pages, or the host itself. So: any address
+# on the internet; on the home network only an /imageproxy/ path; never
+# link-local (cloud metadata), multicast or unspecified. Checked again at
+# every redirect, which is followed by hand.
+MA_PROXY_PATH = "/imageproxy/"
+MAX_HOPS = 3
+
+
+async def _addresses(hass: HomeAssistant, host: str, port: int) -> set[str]:
+    infos = await hass.loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    return {i[4][0] for i in infos}
+
+
+async def allowed(hass: HomeAssistant, url: str) -> bool:
+    p = urlsplit(url)
+    if p.scheme not in ("http", "https") or not p.hostname:
+        return False
+    try:
+        port = p.port or (443 if p.scheme == "https" else 80)
+        ips = [ipaddress.ip_address(a.split("%")[0]) for a in await _addresses(hass, p.hostname, port)]
+    except (OSError, ValueError):
+        return False
+    if not ips:
+        return False
+    if all(ip.is_global for ip in ips):
+        return True
+    if any(ip.is_link_local or ip.is_multicast or ip.is_unspecified for ip in ips):
+        return False
+    return p.path.startswith(MA_PROXY_PATH)
 
 
 # THE ADDRESS TRAVELS ENCODED, NOT AS A URL. A reverse proxy in front of
@@ -219,15 +257,25 @@ async def async_fetch(hass: HomeAssistant, url: str, size: int, cache: Cache,
     if session is None:
         from homeassistant.helpers.aiohttp_client import async_get_clientsession
         session = async_get_clientsession(hass)
+    at, data, ctype = url, None, ""
     try:
-        async with session.get(url, timeout=TIMEOUT_S, allow_redirects=True) as r:
-            ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-            if r.status != 200 or not ctype.startswith("image/"):
-                _LOGGER.debug("art: %s answered %s %s", url, r.status, ctype)
+        for _hop in range(MAX_HOPS + 1):
+            if not await allowed(hass, at):
+                _LOGGER.debug("art: %s is not artwork's to fetch", at)
                 return None
-            data = await read_limited(r.content, MAX_BYTES)
-            if data is None:
-                return None
+            async with session.get(at, timeout=TIMEOUT_S, allow_redirects=False) as r:
+                loc = r.headers.get("Location")
+                if r.status in (301, 302, 303, 307, 308) and loc:
+                    at = urljoin(at, loc)
+                    continue
+                ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+                if r.status != 200 or not ctype.startswith("image/"):
+                    _LOGGER.debug("art: %s answered %s %s", at, r.status, ctype)
+                    return None
+                data = await read_limited(r.content, MAX_BYTES)
+                break
+        if data is None:
+            return None
     except Exception as err:  # noqa: BLE001 - a missing tile is not an error
         _LOGGER.debug("art: %s failed: %s", url, err)
         return None

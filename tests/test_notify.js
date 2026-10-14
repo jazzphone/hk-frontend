@@ -108,5 +108,13 @@ ok('a trigger in its own words', F._.trigWord({ name: function () { return 'Fron
    && F._.trigWord({ name: function () { return 'Porch Motion'; } }, 'binary_sensor.y', 'Front Door Camera') === 'Porch Motion');
 ok('a search for quiet hours finds it', F.search({ hk_notify: { installed: true } }).some(function (e) { return e.label === 'Do Not Disturb'; }));
 
+// NO BLUE BOX UNDER A FINGER (2026-10-13): the layer's `all:initial` drops
+// the transparent tap highlight every HK surface sets, so it sets its own
+(function () {
+  var src = readFile(HK_ROOT + '/frontend/modules/hk-notify.js');
+  ok('a banner swiped away draws no tap highlight', /':host\{all:initial;[^']*-webkit-tap-highlight-color:transparent\}'/.test(src) &&
+     /'\.layer,\.layer \*\{[^']*-webkit-tap-highlight-color:transparent\}'/.test(src));
+})();
+
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed' : 'ALL ' + pass + ' NOTIFICATION TESTS PASS'));
 if (fail) throw new Error(fail + ' failed');

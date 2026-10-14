@@ -58,15 +58,16 @@ from **Temperature** or **Humidity** in **HK Settings → Library → Accessorie
 → Hidden Accessories** ([Hidden Accessories](Accessories.md#hidden-accessories)).
 To add a compatible sensor that isn’t found, turn on its **Also Count As →
 Temperature** or **Humidity** on its own settings page
-([Also Count As](Accessories.md#also-count-as)). **By Page → Temperature →
-Show All Again…** brings back everything automatic discovery finds.
-**Accessories → What Counts → Temperature** or **Humidity** lists what is
-counted now.
+([Also Count As](Accessories.md#also-count-as)), or tap **Add…** on its type’s
+page. **By Page → Temperature → Show All Again…** brings back everything
+automatic discovery finds. **Accessories → Temperature** or **Humidity** (under
+Sensors) lists what is counted now, room by room ([Types](Accessories.md#types)).
 
-Fans and blinds follow what **What Counts → Fans / Blinds** count, including
-any switches counted as fans. Anything hidden everywhere stays off the page.
+Fans and blinds follow what **Accessories → Fans / Blinds & Shades** count,
+including any switches counted as fans. Anything hidden everywhere stays off
+the page.
 
-The thermostats on the page are the ones **What Counts → Thermostats** finds.
+The thermostats on the page are the ones **Accessories → Thermostats** lists.
 To keep one off the Climate page and chip but in its room (a water heater, for
 example), hide it from **Climate** alone in Hidden Accessories, or turn off
 **Climate** under its **Where it shows**.
@@ -90,6 +91,12 @@ water heater's.
 
 ![A thermostat's detail sheet: the dial with its target, the modes, and the last 24 hours](images/sheet-thermostat.png)
 *A thermostat's sheet: drag the dot to set the target.*
+
+A water heater on the page has the same dial with its own controls, as on its
+sheet: **Heat to** its setpoint, its own operation modes (Eco, Electric, Heat
+Pump…) with **Off** first where it can be turned off, and **Home** / **Away**
+when it has an away mode. It no longer shows a thermostat’s Off, Heat, Cool
+and Auto.
 
 ## Thermostat layout
 

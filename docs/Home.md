@@ -19,12 +19,15 @@ The sidebar has every page.
   something to show. ([Pages](Pages.md))
 - **One screen for every device.** The same screen works on a wall tablet, a
   computer, an iPad and a phone; tiles and the weather reflow below 640 px.
+  Tiles are the Home app’s own size and spacing (196 px, 10 apart; 170 on an
+  iPad), in SF Pro wherever Apple’s font is there.
 - **Status rows** under every room’s name and the Climate, Lights, Doors &
   Windows, Water and Security pages’ titles, as the Home app has them.
   ([Status Rows](Status-Rows.md))
 - **A live sky** behind every page that follows the weather and the time of
   day, with seasonal decorations, optional realistic clouds and woodland
-  [New Decorations](Seasonal-Decorations.md). ([Live Sky](Live-Sky.md))
+  [New Decorations](Seasonal-Decorations.md) -- or a still color, or a photo
+  of your own, for the house, a screen, a page or a room. ([Live Sky](Live-Sky.md))
 - **Glass tiles and detail sheets.** Tap a light, thermostat, lock, garage
   door, speaker or vacuum and a sheet opens with the controls it needs.
   ([Detail Sheets and Pop-ups](Detail-Sheets-and-Popups.md))
@@ -38,13 +41,17 @@ The sidebar has every page.
   ([HK Settings](HK-Settings.md))
 - **Optional features:** whole-home [Music](Music.md), [Live TV](Live-TV.md),
   [Clean Areas](Clean-Areas.md), an [Alarm PIN](Alarm-PIN.md), an
-  [Energy](Energy.md) page built from Home Assistant’s Energy settings, and
+  [Energy](Energy.md) page built from Home Assistant’s Energy settings with a
+  [Power](Energy.md#the-power-page) page beside it for right now (the grid,
+  the sun, a house battery and the cars), and
   [Notifications](Notifications.md): a banner at the top of the screens when
   something happens at home, with a camera’s snapshot.
-- **Wall tablet support:** return to Home when idle, a full-screen kiosk look,
-  and a screensaver of your photos or the forecast over a landscape that
-  dresses up for the holidays, with the clock, what's playing, the timers,
-  Home Status and your coming events.
+- **Wall tablet support:** each tablet its own page in HK Settings, return to
+  Home when idle, a full-screen kiosk look, and a screensaver of your photos
+  (one at a time or a mosaic), the forecast over a landscape that dresses up
+  for the holidays, or a full-screen [clock](Screensaver-and-Idle.md#a-clock)
+  in fifteen styles, with the time, what's playing, the timers, Home Status
+  and your coming events.
   ([Wall Tablets](Wall-Tablets.md), [Screensaver and Idle](Screensaver-and-Idle.md))
 - **Sleep Screen:** each wall tablet dark when nobody needs it and awake the
   moment somebody does: from presence sensors, quiet hours, the doorbell and

@@ -36,7 +36,9 @@ back. Two columns on a wall tablet, one on a phone.
 **An event’s sheet.** A calendar event — from the [Calendar](Calendar.md)
 page, a calendar’s tile, or its [notification](Notifications.md) — opens as a
 sheet like the rest: the event (its calendar, when, where, notes, **Edit** and
-**Delete** where the calendar allows) and, beside it, the rest of that day.
+**Delete** where the calendar allows) and its day. On a wall tablet the event
+is in cards over a little month (tap a day to see it), and the day is beside
+it as hours, scrolled to the event.
 
 **One size.** Every sheet is one of two sizes on a wall tablet — a column, or
 two columns for the ones that need it (the thermostat, a sensor’s graph, a

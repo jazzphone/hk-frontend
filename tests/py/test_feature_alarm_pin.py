@@ -313,3 +313,44 @@ async def test_a_pre_release_alarm_pin_entry_is_folded_into_the_house(hass, base
     await hass.async_block_till_done()
     assert len(pins(hass)) == 1 and ereg.async_get(panel).config_subentry_id == old.entry_id
     assert not [x for x in hass.states.async_entity_ids() if x.endswith("_2")]
+
+
+async def test_its_panel_is_listed_beside_the_alarm_in_the_alarm_notifications(hass, alarms, frontend):
+    """The Alarm category of Notifications (2026-10-13): the PIN panel is
+    listed beside the alarm it protects, saying what it is; the two are one
+    alarm, so with both ticked only the alarm is watched."""
+    from custom_components.hk_frontend.features.notifications import candidates
+    assert candidates(hass, "alarms") == [OTHER, ALARM]
+    await add(hass, ALARM)
+    await hass.async_block_till_done()
+    panel = panel_of(hass, pins(hass)[0])
+    assert panel and panel != ALARM
+    # listed beside the alarm it protects, each saying what it is
+    assert candidates(hass, "alarms") == sorted([OTHER, ALARM, panel])
+    from custom_components.hk_frontend.features.notifications import members
+    from custom_components.hk_frontend.features.notifications.settings_ws import _named
+    rows = {r["entity"]: r for r in _named(hass, [OTHER, ALARM, panel])}
+    assert rows[panel]["note"].endswith("with a PIN · made by HK’s Alarm PIN")
+    assert rows[ALARM]["note"].startswith("Opens ") and "note" not in rows[OTHER]
+    # one alarm: both ticked, only the alarm is watched; the panel alone, the panel
+    assert sorted(members(hass, {"category": "alarms"})) == sorted([OTHER, ALARM])
+    assert sorted(members(hass, {"category": "alarms", "exclude": [ALARM]})) == sorted([OTHER, panel])
+
+
+async def test_a_notification_about_the_alarm_opens_the_keypad(hass, alarms, frontend):
+    """A tap on a notification about an alarm with a PIN panel in front of it
+    opens the PIN panel's sheet -- the keypad -- not the alarm's own Arm /
+    Disarm sheet, whatever the notification watches (2026-10-13). Another
+    alarm, with no PIN panel, still opens its own."""
+    from custom_components.hk_frontend.features import notifications as N
+    await add(hass, ALARM)
+    await hass.async_block_till_done()
+    panel = panel_of(hass, pins(hass)[0])
+    from custom_components.hk_frontend.features.notifications.const import DEFAULTS
+    opts = {**DEFAULTS}
+    p = N.build(hass, opts, {"id": "a", "entity": ALARM, "when": "triggered"}, hass.states.get(ALARM), test=True)
+    assert p["entity"] == ALARM and p["sheet"] == panel
+    q = N.build(hass, opts, {"id": "b", "entity": OTHER, "when": "triggered"}, hass.states.get(OTHER), test=True)
+    assert q["sheet"] == OTHER
+    r = N.build_action(hass, opts, {"title": "Alarm!", "entity": ALARM})
+    assert r["sheet"] == panel

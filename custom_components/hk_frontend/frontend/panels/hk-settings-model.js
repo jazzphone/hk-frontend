@@ -36,7 +36,7 @@
   var PAGE_LABELS = {
     weather: 'Weather', calendar: 'Calendar', cameras: 'Cameras', live_tv: 'Live TV', security: 'Security',
     doors_windows: 'Doors & Windows', climate: 'Climate', lights: 'Lights', timers: 'Timers',
-    vacuums: 'Vacuums', music: 'Music', browse: 'Browse Music', water: 'Water', energy: 'Energy', rooms: 'Room Pages'
+    vacuums: 'Vacuums', music: 'Music', browse: 'Browse Music', water: 'Water', energy: 'Energy', power: 'Power', rooms: 'Room Pages'
   };
   // Each kind: key, name, the detail page’s description, and the list page’s
   // sub-line -- what the kind feeds, in the chips’ and pages’ own words.
@@ -60,6 +60,120 @@
     ['occupancy', 'Occupancy', 'Occupancy and presence sensors. The status rows say which rooms are occupied.', 'Doors & Windows’ and Security’s status rows.'],
     ['valves', 'Valves', 'Water valves: a sprinkler, the house’s main water. Not gas valves. The Water page lists them and its status row says which are running.', 'The Water page and its status row.']
   ];
+  // THE SCREENSAVER'S CLOCKS (2026-10-13; hk-saverclock.js STYLES / BGS,
+  // settings.py SAVER_CLOCK_STYLES / SAVER_CLOCK_BGS): [id, name, what it is]
+  var CLOCK_STYLES = [
+    ['today', 'Today', 'The time, the date, the weather and what\u2019s playing, as one'],
+    ['classic', 'Classic', 'Huge thin digits, like the lock screen'],
+    ['serif', 'Big Serif', 'An editorial italic, like a magazine cover'],
+    ['neon', 'Neon', 'Glowing tubes; the colon hums now and then'],
+    ['lcd', 'Retro LCD', 'Seven segments on a backlit panel'],
+    ['flip', 'Flip', 'Split-flap cards that flip as the minute turns'],
+    ['analog', 'Analog', 'A watch face with a sweeping second hand'],
+    ['words', 'Words', '“It is quarter past seven”, in a grid of letters'],
+    ['arc', 'Minimal Arc', 'The hour, big; the minutes a ring filling round it'],
+    ['nixie', 'Nixie Tubes', 'Orange glow in glass tubes'],
+    ['poster', 'Poster', 'Swiss-poster bold, hours over minutes'],
+    ['dots', 'Dot Matrix', 'An amber LED departure board'],
+    ['ring', 'Day Ring', 'Today as a ring: daylight, night and the sun now'],
+    ['glass', 'Glass', 'The time on a frosted pane'],
+    ['type', 'Typewriter', 'A sentence, typed out, the cursor blinking']];
+  // each face's colors, [id, name] (hk-saverclock.js COLORS: the first is the face's own)
+  var CLOCK_COLORS = {
+    today: [['auto', 'By Time of Day'], ['blue', 'Blue'], ['orange', 'Orange'], ['pink', 'Pink'], ['green', 'Green'], ['white', 'White']],
+    classic: [['white', 'White'], ['warm', 'Warm'], ['ice', 'Ice Blue'], ['mint', 'Mint'], ['rose', 'Rose']],
+    serif: [['cream', 'Cream'], ['white', 'White'], ['gold', 'Gold'], ['rose', 'Rose'], ['sky', 'Sky']],
+    neon: [['pink', 'Pink'], ['blue', 'Blue'], ['green', 'Green'], ['orange', 'Orange'], ['purple', 'Purple']],
+    lcd: [['green', 'Green'], ['amber', 'Amber'], ['blue', 'Blue'], ['white', 'White'], ['night', 'Night']],
+    flip: [['dark', 'Dark'], ['white', 'White'], ['red', 'Red'], ['navy', 'Navy']],
+    analog: [['orange', 'Orange'], ['red', 'Red'], ['blue', 'Blue'], ['green', 'Green'], ['gold', 'Gold']],
+    words: [['white', 'White'], ['warm', 'Warm'], ['blue', 'Blue'], ['green', 'Green'], ['pink', 'Pink']],
+    arc: [['white', 'White'], ['orange', 'Orange'], ['blue', 'Blue'], ['green', 'Green'], ['pink', 'Pink']],
+    nixie: [['orange', 'Orange'], ['ice', 'Ice Blue'], ['green', 'Green'], ['violet', 'Violet']],
+    poster: [['red', 'Red'], ['blue', 'Blue'], ['green', 'Green'], ['black', 'Black & Yellow'], ['orange', 'Orange & Navy']],
+    dots: [['amber', 'Amber'], ['red', 'Red'], ['green', 'Green'], ['white', 'White'], ['blue', 'Blue']],
+    ring: [['sunset', 'Sunset'], ['ocean', 'Ocean'], ['forest', 'Forest'], ['mono', 'Mono']],
+    glass: [['clear', 'Clear'], ['warm', 'Warm'], ['blue', 'Blue'], ['dark', 'Dark']],
+    type: [['paper', 'Paper'], ['white', 'White'], ['green', 'Terminal Green'], ['amber', 'Terminal Amber']]
+  };
+  // A CLOCK FOR THE ROOM (2026-10-13): what a screen's clock could be,
+  // judged from its room's (or its own) name -- the bedroom calm and red at
+  // night, the kitchen the time with the weather and the music. Offered,
+  // never applied by itself.
+  var CLOCK_RECS = [
+    // (bath before bed: a Master Bathroom is a bathroom)
+    [/bath/, { clock_style: 'classic', clock_bg: 'black', clock_night: 'night' }, 'Plain and readable, a dim red at night'],
+    [/bed|master|nursery|kid|guest|baby/, { clock_style: 'arc', clock_bg: 'black', clock_night: 'night' }, 'Calm, and a dim red at night'],
+    [/kitchen|dining|breakfast/, { clock_style: 'today', clock_bg: 'skyonly', clock_night: 'off' }, 'The time with the weather and what\u2019s playing, over the sky'],
+    [/living|family|den|great|lounge/, { clock_style: 'classic', clock_bg: 'skyonly', clock_night: 'off' }, 'A big quiet clock over the live sky'],
+    [/office|study|work|desk/, { clock_style: 'flip', clock_bg: 'gradient', clock_night: 'off' }, 'A flip clock on a slow gradient'],
+    [/garage|entry|hall|foyer|mud|door/, { clock_style: 'today', clock_bg: 'black', clock_night: 'off' }, 'The time and the weather on the way out']
+  ];
+  function clockRecommend(name) {
+    var n = String(name || '').toLowerCase();
+    for (var i = 0; i < CLOCK_RECS.length; i++) if (CLOCK_RECS[i][0].test(n)) return { set: CLOCK_RECS[i][1], says: CLOCK_RECS[i][2] };
+    return { set: { clock_style: 'today', clock_bg: 'skyonly', clock_night: 'off' }, says: 'The time with the weather and what\u2019s playing, over the sky' };
+  }
+  // [id, name, moving, group]
+  var CLOCK_BGS = [
+    ['black', 'Black', false, 'Still'],
+    ['grain', 'Grain Wash', true, 'Moving'], ['gradient', 'Drifting Gradient', true, 'Moving'], ['aurora', 'Aurora', true, 'Moving'],
+    ['ink', 'Ink Swirl', true, 'Moving'], ['sky', 'Follow the Sky', true, 'Moving'],
+    ['lowpoly', 'Low Poly', true, 'Patterns'], ['topo', 'Topography', true, 'Patterns'], ['constellation', 'Constellation', true, 'Patterns'],
+    ['forecast', 'Forecast', false, 'From Your Screens'], ['skyonly', 'Sky Only', false, 'From Your Screens'], ['photos', 'Photos', false, 'From Your Screens']];
+  // THE BACKGROUND (Sky / Background's first choice, 2026-10-13; settings.py
+  // SKY_BACKGROUNDS): what it is, in a line under the tabs
+  var SKY_BACKGROUNDS = [['live', 'Live Sky'], ['color', 'Color'], ['photo', 'Photo']];
+  var BG_LABELS = { live: 'Live Sky', color: 'Color', photo: 'Photo' };
+  var BG_SAYS = {
+    live: 'The real sun, moon and weather behind the cards, dressed for the seasons. What it shows is below.',
+    color: 'A still color, a little different by day and by night. No sun, moon, stars, weather or decorations.',
+    photo: 'A photo of your own, still and sharp. No sun, moon, stars, weather or decorations. A bright photo is dimmed a little so the cards stay readable.'
+  };
+  // ACCESSORY TYPES (HK Settings -> Accessories, 2026-10-13): the page is laid
+  // out by type, then by room, as the owner asked ("What Counts" confused).
+  // A type that is a kind (kinds.py, COUNT_KINDS: same id) lists what that
+  // kind finds -- what its page and chip count -- and is where it is added
+  // to, hidden from and ordered; the others list their domains. Cameras and
+  // the Energy page's circuits are accessories too: their types point to
+  // where they are set up.
+  //   [id, title, glyph, color, { kind | domains (+ dc / notDc) | energy,
+  //    order: page (accessories.pages), link: [label, route, footer] }, says, sensor]
+  var ACC_TYPES = [
+    ['lights', 'Lights', 'mdi:lightbulb', '#ffcc00', { kind: 'lights' }],
+    ['switches', 'Switches & Outlets', 'mdi:power-socket-us', '#ff9500', { domains: ['switch', 'input_boolean'] },
+     'Their tiles on Home and their rooms’ pages. One that powers a lamp can count as a light: open it and turn on Also Count As.'],
+    ['fans', 'Fans', 'mdi:fan', '#32ade6', { kind: 'fans' }],
+    ['thermostats', 'Thermostats', 'mdi:thermostat', '#ff9500', { kind: 'thermostats' }],
+    ['humidifiers', 'Humidifiers', 'mdi:air-humidifier', '#30b0c7', { domains: ['humidifier'] }, 'Their tiles on Home, their rooms’ pages and the Climate page.'],
+    ['water_heaters', 'Water Heaters', 'mdi:water-boiler', '#ff3b30', { domains: ['water_heater'] },
+     'Their tiles on Home and their rooms’ pages. To put one on the Climate page, open it and turn on Also Count As → Thermostats.'],
+    ['blinds', 'Blinds & Shades', 'mdi:blinds', '#5856d6', { kind: 'blinds' }],
+    ['garage', 'Garage Doors', 'mdi:garage', '#34c759', { kind: 'garage', order: 'security' }],
+    ['locks', 'Locks', 'mdi:lock', '#34c759', { kind: 'locks', order: 'security' }],
+    ['alarm', 'Security Systems', 'mdi:shield-home', '#ff3b30', { domains: ['alarm_control_panel'], link: ['Alarm Panel', 'house/general', 'Which one the Security page and chip follow is chosen in General.'] },
+     'The alarm keypad on its room’s page and the Security page.'],
+    ['speakers', 'Speakers', 'mdi:speaker', '#af52de', { kind: 'speakers' }],
+    ['tvs', 'TVs & Receivers', 'mdi:television', '#8e8e93', { domains: ['media_player'], dc: ['tv', 'receiver'] },
+     'Their tiles on Home and their rooms’ pages. The Speakers chip leaves them out.'],
+    ['vacuums', 'Vacuums', 'mdi:robot-vacuum', '#30b0c7', { kind: 'vacuums', order: 'vacuums' }],
+    ['valves', 'Valves', 'mdi:valve', '#007aff', { kind: 'valves' }],
+    ['timers', 'Timers', 'mdi:timer-outline', '#ff9500', { kind: 'timers' }],
+    ['cameras', 'Cameras', 'mdi:cctv', '#ff2d55', { domains: ['camera'], link: ['Cameras Settings', 'house/cameras', 'Which cameras each screen shows, in what order, and which one plays live.'] },
+     'Their tiles on Home and their rooms’ pages, the camera row and the Cameras page.'],
+    ['energy', 'Circuits & Meters', 'mdi:lightning-bolt', '#34c759', { energy: true },
+     'The Energy page’s live tiles: each circuit, plug and meter Home Assistant’s Energy settings list, or one added in Energy.'],
+    ['doors', 'Doors', 'mdi:door', '#007aff', { kind: 'doors' }, null, true],
+    ['windows', 'Windows', 'mdi:window-closed-variant', '#32ade6', { kind: 'windows' }, null, true],
+    ['smoke', 'Smoke & CO', 'mdi:smoke-detector-variant', '#ff3b30', { kind: 'smoke' }, null, true],
+    ['leaks', 'Leak Sensors', 'mdi:water-alert', '#007aff', { kind: 'leaks' }, null, true],
+    ['motion', 'Motion', 'mdi:motion-sensor', '#8e8e93', { kind: 'motion' }, null, true],
+    ['occupancy', 'Occupancy', 'mdi:account', '#8e8e93', { kind: 'occupancy' }, null, true],
+    ['temperature', 'Temperature', 'mdi:thermometer', '#ff9500', { kind: 'temperature' }, null, true],
+    ['humidity', 'Humidity', 'mdi:water-percent', '#32ade6', { kind: 'humidity' }, null, true]
+  ];
+  // the type a kind's links open (#/house/counts/<kind> was What Counts')
+  function accType(id) { return ACC_TYPES.filter(function (t) { return t[0] === id; })[0] || null; }
   // A TABLET'S BUTTON STYLE (menu, a button). The tab bar is a Menu of its
   // own, never a button style (settings.py MENU_STYLES refuses it).
   var MENU_STYLES = [
@@ -308,6 +422,7 @@
     birthday: 'Each birthday needs a name and a date.', path: 'Use letters, digits and dashes only.',
     count: 'That list couldn’t be read.', date: 'That isn’t a date.', time: 'That isn’t a time of day.',
     stops: 'Choose four colors for Day and four for Night.',
+    photo: 'That photo couldn’t be used. Choose it again.',
     tab_position: 'Enter a number: pixels from the top, or a percentage of the screen’s height.',
     accent: 'Choose a color, or a color of your own as #rrggbb.',
     dock_min: 'Enter 700 to 3,000 px.', bad_room: 'Use lower-case letters, digits and underscores, like living_room.',
@@ -330,7 +445,7 @@
     doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white'], climate: ['Climate', 'hk:thermostat', 'white'],
     lights: ['Lights', 'hk:lightbulb', 'white'], timers: ['Timers', 'hk:timer-sand', 'white'],
     vacuums: ['Vacuums', 'hk:robot-vacuum', 'white'], music: ['Music', 'hk:music', 'white'], water: ['Water', 'hk:water', 'white'],
-    energy: ['Energy', 'mdi:lightning-bolt', 'white']
+    energy: ['Energy', 'mdi:lightning-bolt', 'white'], power: ['Power', 'mdi:home-lightning-bolt', 'white']
   };
   var PILL_COLORS = ['white', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'teal', 'mint', 'green'];
   // A CALENDAR'S AUTOMATIC COLOUR: the next of these by its place in the list
@@ -733,11 +848,12 @@
   }
   // what Automatic means for a page, in words
   function skyAutoLabel(row) {
-    return row.custom ? 'As Written' : row.own ? 'Page Color' : 'Backdrop';
+    return row.custom ? 'As Written' : row.own ? 'Page Color' : 'Background';
   }
-  // a mode in words: 'own', 'live' or a backdrop id (backdrops: [{id, label}])
+  // a mode in words: 'own', 'live', 'photo' or a backdrop id (backdrops: [{id, label}])
   function skyModeLabel(mode, backdrops) {
     if (mode === 'own') return 'Page Color';
+    if (mode === 'photo') return 'Photo';
     var b = (backdrops || []).filter(function (x) { return x.id === mode; })[0];
     return b ? b.label : mode === 'live' ? 'Live Sky' : mode;
   }
@@ -1012,9 +1128,19 @@
         { id: 'screensaver', title: 'Photo Screensaver', key: 'hk_screensaver', anchor: 'photo-screensaver',
           sub: 'Or turn on Photo Screensaver in the screen’s HK settings, with nothing written, and get its switch and In Use sensor too.',
           yaml: 'hk_screensaver:\n  user: {user}   # the tablet’s Home Assistant user\n' +
+                '  tablet: kitchen        # optional, instead of user: the wall tablet’s id\n' +
                 '  entity: input_boolean.kitchen_photos   # optional: yours, kept in step\n' +
-                '  photos: {photos}\n  starts_after: 180\n  each_photo: 30\n  order: random        # or sorted\n  fill: true\n  zoom: false\n' +
-                '  show: photos         # photos, both (the forecast slide on) or forecast\n' +
+                '  photos: {photos}\n  starts_after: 180\n  each_photo: 30\n  order: random        # or sorted\n' +
+                '  zoom: false          # Slow Zoom\n' +
+                '  photo_layout: single # or mosaic (mosaic_count: 2 to 5)\n' +
+                '  fill: true           # landscape photos fill the screen\n' +
+                '  portrait_fill: false # portrait photos whole, over a blurred copy\n' +
+                '  portrait_y: top      # the part kept when cropped: top, center, bottom (and portrait_x)\n' +
+                '  show: photos         # photos, both (the forecast slide on), forecast or clock\n' +
+                '  clock_over: corner   # over the photos: corner or large (clock: false for none)\n' +
+                '  clock_style: classic # for show: clock and a large clock\n' +
+                '  clock_bg: gradient   # behind show: clock\n' +
+                '  clock_night: "off"   # "night" (clock_night_from to clock_night_to) or "always"\n' +
                 '  forecast_every: 5    # a slide (the forecast, the music) after this many photos\n' +
                 '  music_slide: false   # what plays, full screen: a slide among the photos\n' +
                 '  music_first: false   # ...or the music fills the screen while it plays\n' +
@@ -1123,6 +1249,7 @@
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
     ['Rooms in Menu', 'screen/rooms', 'menu_rooms', 'a to z order', true],
     ['Status Chips', 'screen/chips', 'chips', 'chip row only when active quiet', true],
+    ['Status Chips (All Screens)', 'house/chips', 'chips:all', 'chips chip row every screen always when active quiet conditional'],
     ['Cameras', 'screen/cameras', 'cameras', 'camera strip live camera same as all screens order', true],
     ['Live Camera Follows', 'screen/cameras/live', 'camera_live', 'live camera follows motion person detection dropdown input select automation', true],
     ['Live First Camera', 'screen/cameras', 'camera_live_video', 'camera strip live video snapshot first tile performance', true],
@@ -1136,8 +1263,6 @@
     ['Liveliness', 'screen/sky', 'sky_liveliness', 'liveliness subtle classic festive party custom busy calm moving bats leaves each occasion', true],
     ['Calm When Nobody\u2019s Around', 'screen/sky', 'sky_calm_empty', 'empty room nobody occupancy motion presence calm quiet', true],
     ['Home Assistant Header & Sidebar', 'screen', 'kiosk', 'kiosk mode hide', true],
-    ['Return to Home When Idle', 'screen', 'idle_return', 'idle timeout wall tablet', true],
-    ['Tablet Room', 'screen', 'idle_room', 'wall tablet room helpers', true],
     ['Allow Pop-ups', 'screen', 'popups', 'answer doorbell alarm popup', true],
     ['Allow Notifications', 'screen', 'notify', 'notifications banner alerts', true],
     ['Notifications on the Screensaver', 'screen', 'notify_saver', 'notifications screensaver photos important', true],
@@ -1149,7 +1274,7 @@
     ['On Every Page', 'screen', 'bar_all_pages', 'now playing timer bar every page all pages everywhere', true],
     ['Photo Screensaver', 'screen', 'screensaver', 'photos wall tablet slideshow', true],
     ['Screensaver Options', 'screen/screensaver', 'screensaver_options', 'photo timing starts after each photo order random slideshow', true],
-    ['Screensaver for All Screens', 'house/tablets', 'look.saver', 'screensaver all screens global default every tablet'],
+    ['Screensaver for All Screens', 'house/screensaver', 'look.saver', 'screensaver all screens global default every tablet'],
     ['Same as All Screens (Screensaver)', 'screen/screensaver', 'saver:house', 'screensaver all screens own global', true],
     ['Screensaver Shows', 'screen/screensaver', 'saver:show', 'screensaver forecast weather photos no photos landscape', true],
     ['Forecast When There Are No Photos', 'screen/screensaver', 'saver:fallback', 'screensaver forecast fallback empty folder dark', true],
@@ -1177,7 +1302,7 @@
     ['Indoor Temperature', 'screen/chips/climate', 'features.temperature', 'climate chip reading', true],
     ['Power Use', 'screen/chips/energy', 'features.power', 'energy chip watts reading', true],
     ['House Timers', 'house/general/timers', 'features.house_timers', 'nap bedtime timers page'],
-    ['What Counts', 'house/counts', 'counts', 'status & chips status and chips what counts smoke carbon monoxide co alarm lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
+    ['Accessory Types', 'accessories', 'counts', 'what counts status & chips status and chips types kinds smoke carbon monoxide co alarm lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
     ['Weather Service', 'house/weather', 'weather.entity', 'forecast'],
     ['Place', 'house/weather', 'weather.place', 'location label'],
     ['Weather Sensors', 'house/weather/sensors', 'weather.sensors', 'feels like humidity wind gust uv forecast alerts outside temperature'],
@@ -1199,7 +1324,9 @@
     ['Pause When Not in Focus', 'house/sky', 'sky.focus_pause', 'pause idle focus background window computer animations performance cpu'],
     ['Live First Camera', 'house/cameras', 'cameras.live', 'camera strip live video snapshot first tile performance'],
     ['Page Backgrounds', 'house/sky', 'sky.pages', 'page color background backdrop energy climate lights still live sky'],
-    ['Backdrop', 'house/sky/backdrop', 'sky.gradient', 'backdrop palette gradient fixed sky color dusk midnight fjord dune graphite plum ember mist custom'],
+    ['Background', 'house/sky', 'sky.background', 'background live sky color solid gradient photo picture wallpaper image upload still no stars plain black'],
+    ['Background Photo', 'house/sky', 'sky.photo', 'photo picture wallpaper image upload background blur dim darken saturation tint color cast'],
+    ['Sky Colors', 'house/sky/backdrop', 'sky.gradient', 'backdrop palette gradient live sky colors tint dusk midnight fjord dune graphite plum ember mist black custom'],
     ['Seasonal Decorations', 'house/sky', 'sky.decorations', 'holiday halloween christmas old new woodland style'],
     ['Decoration Style', 'house/sky', 'sky.decoration_style', 'old new seasons holidays birthdays woodland'],
     ['Moving Things', 'house/sky', 'sky.moving', 'front behind over cards rain snow leaves bats birds flyby confetti sky layer'],
@@ -1257,16 +1384,23 @@
     ['Music Browse Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
     ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
     ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
-    ['Default Idle Time', 'house/tablets', 'idle.default', 'wall tablet idle seconds'],
-    ['Screensaver Photos', 'house/tablets/screensaver', 'look.photos', 'media folder wallpanel photos'],
+    ['Idle Time (All Tablets)', 'house/tablets', 'tablets.idle_time', 'wall tablet idle seconds return to home when idle timeout'],
+    ['Return to Home When Idle', 'house/tablets', 'tablets.idle_return', 'wall tablet idle return home timeout'],
+    ['Add Tablet', 'house/tablets/add', 'tablet:add', 'wall tablet add new kiosk satellite fully kiosk wallpanel browser'],
+    ['Tablet Alerts', 'house/tablets', 'tablets.alert_offline', 'wall tablet offline alert notification charging restart came back'],
+    ['Scheduled Restart', 'house/tablets', 'tablets.restart', 'wall tablet restart reboot nightly clear cache maintenance'],
+    ['Reload All Tablets', 'house/tablets', 'tablets:reload', 'wall tablet reload clear cache all at once update'],
+    ['Screensaver Photos', 'house/screensaver', 'look.photos', 'media folder wallpanel photos'],
     ['Hidden Accessories', 'accessories/hidden', 'generated.exclude', 'hidden from screens leave out left out hide rooms devices remove show on home include in status'],
-    ['Also Shown', 'accessories/also', 'generated.include_entities', 'add entities more'],
+    ['Added Accessories', 'accessories/added', 'generated.include_entities', 'also shown add entities more extra tiles script scene sensor'],
     ['Also Count As', 'accessories', 'counts', 'what counts chips status rows count include sensor smoke temperature accessory'],
     ['Existing Dashboards', 'add-screen', 'add-screen', 'overview dashboard you already have own hk settings add screen use lovelace default'],
-    ['Vacuums Page Order', 'accessories/page/vacuums', 'accessories.pages.vacuums', 'vacuum order'],
-    ['Security Page Order', 'accessories/page/security', 'accessories.pages.security', 'locks garage door order'],
+    ['Vacuums Tile Order', 'accessories/type/vacuums/order', 'accessories.pages.vacuums', 'vacuum page order'],
+    ['Security Tile Order', 'accessories/type/locks/order', 'accessories.pages.security', 'locks garage door page order'],
+    ['Circuits & Meters', 'accessories/type/energy', 'acctype:energy', 'energy circuits meters plugs power devices'],
+    ['Camera Accessories', 'accessories/type/cameras', 'acctype:cameras', 'cameras accessories'],
     ['Pop-ups', 'popups', 'popups', 'doorbell alarm hash'],
-    ['Custom Pages', 'pages', 'custom_pages', 'energy ecoflow yaml page'],
+    ['Custom Pages', 'pages', 'custom_pages', 'yaml page custom'],
     ['Clock Sensors', 'advanced', 'clock.time', 'time date'],
     ['Clean-Areas Script', 'advanced', 'features.vacuum_script', 'vacuum'],
     ['Wrong-Code Indicator', 'advanced', 'features.alarm_bad_code', 'alarm keypad'],
@@ -1286,12 +1420,13 @@
                  'woodland season new decorations liveliness ' + w[1].toLowerCase() + (w[0] === 'fall' ? ' fall' : '')]);
   });
   SEARCH.push(
-    ['Tablet User', 'screen', 'tablet_user', 'wall tablet user person signed in screensaver this device', true],
+    ['Wall Tablets on This Screen', 'screen', 'b:tablets', 'wall tablet user room this device kiosk which tablets', true],
     ['Car Browser', 'screen', 'car', 'car tesla browser this device', true],
     ['Header on Phones', 'screen', 'phone_header', 'phone weather strip clock header', true],
     ['Decorations Also Need', 'house/sky/advanced', 'sky.seasonal', 'decorations need season sensor holidays also needs'],
     ['Fade Back (Screensaver)', 'screen/screensaver', 'saver:fade_back', 'screensaver fade back dashboard touch switch', true],
-    ['Fill the Screen (Screensaver)', 'screen/screensaver', 'saver:fill', 'screensaver photos crop fill whole photo', true],
+    ['Fill the Screen (Screensaver)', 'screen/screensaver', 'saver:fill', 'screensaver photos crop fill whole photo landscape', true],
+    ['Portrait Photos (Screensaver)', 'screen/screensaver', 'saver:portrait_fill', 'screensaver portrait landscape photos zoom focus crop top center bottom blur dim whole fill', true],
     ['Clock & Date (Screensaver)', 'screen/screensaver', 'saver:clock', 'screensaver clock date time', true],
     ['UV Index Sensor', 'house/weather/sensors', 'weather.uv', 'weather uv index sensor'],
     ['Wind Sensor', 'house/weather/sensors', 'weather.wind', 'weather wind speed sensor'],
@@ -1300,7 +1435,11 @@
     ['Menu on Tablets & Computers', 'screen/menu/tablets', 'menu', 'menu tablet ipad computer off button always open tab bar', true],
     ['Menu on Phones', 'screen/menu/phones', 'menu_phone', 'menu phone iphone android off button tab bar folded upright ipad', true],
     ['Highlight Color', 'screen/menu', 'accent', 'menu color colour accent highlight', true],
-    ['Keep Open Down To', 'screen/menu/tablets', 'dock_min', 'menu fold width docked always open', true]
+    ['Keep Open Down To', 'screen/menu/tablets', 'dock_min', 'menu fold width docked always open', true],
+    ['Mosaic Lines (Screensaver)', 'house/screensaver', 'saver:mosaic_line', 'screensaver mosaic line thickness color spacing divider border'],
+    ['Up To (Mosaic)', 'house/screensaver', 'saver:mosaic_random', 'screensaver mosaic random number photos up to change'],
+    ['Clock Text Shadow and Outline', 'house/screensaver', 'saver:clock_text_shadow', 'screensaver clock photos shadow outline stand out text readable'],
+    ['Photos Behind the Clock', 'house/screensaver', 'saver:clock_photo_dim', 'screensaver clock photos background sharp soft blur darken dim']
   );
   // matches for `q`: [{label, route, key, where}] -- a screen setting once
   // per screen (`screens`: [{path, title}])
@@ -1340,7 +1479,14 @@
   var SAVER_DEFAULTS = { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false,
                          clock: true, weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true, forecast_every: 5,
                          band: true, band_photos: false, calendar: false, calendar_days: 2, music_slide: false, music_pane: false, music_first: false,
-                         fade_back: 500 };
+                         fade_back: 500,
+                         // portrait and landscape photos, each their own (settings.py)
+                         portrait_fill: false, portrait_blur: 50, portrait_dim: 20, portrait_zoom: 100, portrait_x: 'center', portrait_y: 'center',
+                         landscape_blur: 50, landscape_dim: 20, landscape_zoom: 100, landscape_x: 'center', landscape_y: 'center',
+                         // the clocks (settings.py)
+                         clock_over: 'corner', clock_style: 'classic', clock_bg: 'gradient', clock_motion: 'slow', clock_24: false, clock_colors: {}, clock_speed: 35, clock_depth: 50, clock_night: 'off', clock_night_from: '22:00', clock_night_to: '07:00',
+                     photo_layout: 'single', mosaic_count: 3, mosaic_gap: 'thin', mosaic_change: 'one', mosaic_line: 0, mosaic_color: 'black', mosaic_random: false, mosaic_every: 10,
+                     clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0 };
   function saverOptions(o) {
     var out = {};
     Object.keys(SAVER_DEFAULTS).forEach(function (k) {
@@ -1359,7 +1505,7 @@
                       'tab_size_phone', 'accent', 'glyph', 'clock', 'swipe',
                       'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust', 'tab_bar_scroll_phone', 'tab_bar_tabs',
                       'tab_bar_tabs_rail', 'tab_bar_size', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone'], true],
-    ['home', 'Home Page', ['chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom'], true],
+    ['home', 'Home Page', ['chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom', 'chips_custom_show'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
     // a screen's cameras: All Screens' or its own (cameras_custom)
@@ -1371,14 +1517,15 @@
     ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories'], true],
     ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'tint', 'well', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
                             'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
-                            'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty'], true],
+                            'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty',
+                            'sky_background', 'sky_color', 'sky_photo', 'sky_page_photos', 'sky_photo_look', 'sky_page_looks'], true],
     ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages'], true],
-    ['idle', 'When Idle', ['idle_return', 'screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
-    ['device', 'This Device', ['car', 'black_screen'], false]
+    ['idle', 'When Idle', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
+    ['device', 'This Device', ['car'], false]
   ];
-  // a screen's own tablet: never copied
-  // (sleep: Sleep Screen names THIS tablet's kiosk and its room's sensors)
-  var COPY_NEVER = ['tablet_user', 'idle_room', 'sleep'];
+  // never copied (1.14: a tablet's own -- its user, room, idle, Sleep Screen
+  // and Black Screen -- are the tablet's, not the screen's)
+  var COPY_NEVER = [];
   function copyDefaults() { return COPY_GROUPS.filter(function (g) { return g[3]; }).map(function (g) { return g[0]; }); }
   // the changes that copy `groups` of the screen `src` (its settings as read)
   function copyChanges(src, groups) {
@@ -1410,7 +1557,7 @@
     // (Music First: the music before them, while it plays)
     var first = o.music_first || (o.show === 'forecast' && o.music_slide);
     var extra = (o.show === 'both' ? ['Forecast'] : []).concat(o.music_slide && !first ? ['Music'] : []);
-    var show = (first ? 'Music, Then ' : '') + (o.show === 'forecast' ? 'Forecast' : 'Photos') + (extra.length ? ' + ' + extra.join(' & ') : '');
+    var show = (first ? 'Music, Then ' : '') + (o.show === 'forecast' ? 'Forecast' : o.show === 'clock' ? 'Clock' : 'Photos') + (extra.length ? ' + ' + extra.join(' & ') : '');
     var n = o.starts_after, m = n % 60 ? Math.round(n / 6) / 10 : n / 60;
     var t = n < 60 ? n + ' Seconds' : m + (m === 1 ? ' Minute' : ' Minutes');
     return show + ' · ' + t;
@@ -1484,10 +1631,14 @@
   // Null is a continuing relationship to All Screens, including custom
   // stops. A true flag is still an override, even when it matches the house.
   function skySummary(b) {
-    var keys = ['sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause', 'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom'];
+    var keys = ['sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause', 'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom',
+                'sky_background', 'sky_color', 'sky_photo', 'sky_photo_look'];
     var pages = Object.keys(b.sky_pages || {}).length;
     if (keys.every(function (k) { return b[k] == null; }) && !pages) return 'Same as All Screens';
     var parts = [];
+    // the Background first: a still Color or Photo is the whole look
+    if (b.sky_background) parts.push(BG_LABELS[b.sky_background] || b.sky_background);
+    if (b.sky_background === 'color' || b.sky_background === 'photo') return parts.concat(pages ? [pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds'] : []).join(', ');
     if (b.sky_animations === false) parts.push('No Animation');
     if (b.sky_weather === false) parts.push('No Weather');
     if (b.sky_precipitation === false) parts.push('No Rain & Snow');
@@ -1502,6 +1653,112 @@
     return parts.join(', ') || 'Own Settings';
   }
 
+  // ------------------------------------------------------------ wall tablets (1.14)
+  // A TABLET'S KIOSK APP: [id, name, what HK can do with it]
+  var TABLET_APPS = [
+    ['kiosk_satellite', 'Kiosk Satellite', 'Status, brightness, wake, sleep, restart.'],
+    ['fully', 'Fully Kiosk', 'Status, brightness, reload, restart.'],
+    ['wallpanel', 'WallPanel', 'HK’s idle and screensaver in the browser; no status.'],
+    ['browser', 'Just a Browser', 'Any browser you say is a tablet: HK’s idle and screensaver.']
+  ];
+  function tabletApp(id) { return TABLET_APPS.filter(function (a) { return a[0] === id; })[0] || TABLET_APPS[3]; }
+  // Idle Time (settings.IDLE_TIMES), seconds; 0 never
+  var IDLE_TIMES = [[30, '30 Seconds'], [50, '50 Seconds'], [60, '1 Minute'], [120, '2 Minutes'], [300, '5 Minutes'], [0, 'Never']];
+  function idleLabel(sec) {
+    var hit = IDLE_TIMES.filter(function (o) { return o[0] === sec; })[0];
+    return hit ? hit[1] : sec + ' s';
+  }
+  function secsLabel(sec) { return sec < 60 ? sec + ' s' : (sec % 60 ? Math.round(sec / 6) / 10 : sec / 60) + ' min'; }
+  // WHAT A TABLET IS DOING NOW, from its kiosk app (t.parts, tablets.py) and
+  // its own entities (`ids`: the panel's screensavers[tid]): Offline, Dark,
+  // Screensaver or Awake, why (Sleep Screen's reason), since when, and its
+  // battery
+  var TABLET_WORDS = { off: 'Offline', dark: 'Dark', photos: 'Screensaver', awake: 'Awake' };
+  function tabletStatus(t, states, ids) {
+    var p = (t && t.parts) || {}, s = function (id) { return (id && states && states[id]) || null; };
+    ids = ids || {};
+    var on = s(p.online), bat = s(p.battery), chg = s(p.charging), scr = s(p.screen);
+    var black = s(ids.black), photos = s(ids['switch']), sleep = s(ids.sleep);
+    var st = 'awake', since = null;
+    if ((on && on.state === 'off') || (p.battery && (!bat || bat.state === 'unavailable'))) {
+      st = 'off'; since = (on && on.state === 'off' ? on : bat || {}).last_changed || null;
+    } else if (black && black.state === 'on') { st = 'dark'; since = black.last_changed; }
+    else if (photos && photos.state === 'on') { st = 'photos'; since = photos.last_changed; }
+    else if (scr && scr.state === 'off') { st = 'dark'; since = scr.last_changed; }
+    var b = bat ? Number(bat.state) : NaN;
+    return { st: st, word: TABLET_WORDS[st], since: since || null,
+             why: (st !== 'off' && sleep && sleep.attributes && sleep.attributes.reason) || '',
+             batt: isFinite(b) ? Math.round(b) : null, charging: chg ? chg.state === 'on' : null,
+             known: !!(p.battery || ids.black || ids['switch']) };
+  }
+  // THE TABLET'S KIOSK APP AGAINST WHAT HK NEEDS -- the same rules as
+  // tablets.py checks() (Setup Check): [{key, ok, title, detail, fix}];
+  // fix: [domain, service, data] (or ['hk', 'kiosk_saver'])
+  var SAVER_TIMEOUT = 86400, BATTERY_CARE = 85;
+  function tabletChecks(t, states) {
+    var p = (t && t.parts) || {}, out = [];
+    var val = function (id) { var x = id && states && states[id]; return x ? x.state : null; };
+    if (!Object.keys(p).length) return out;
+    if (val(p.online) === 'off' || (p.battery && (val(p.battery) === null || val(p.battery) === 'unavailable'))) {
+      out.push({ key: 'online', ok: false, title: 'Kiosk App Not Heard From',
+                 detail: 'It may be off the Wi-Fi, or behind the lock screen after a restart.' });
+    }
+    if (p.adaptive) {
+      var on = val(p.adaptive) === 'on';
+      out.push({ key: 'adaptive', ok: !on, title: 'Adaptive Brightness Off',
+                 detail: on ? 'On: Android changes the brightness, and fights Sleep Screen’s.' : 'Sleep Screen sets the brightness.',
+                 fix: ['switch', 'turn_off', { entity_id: p.adaptive }] });
+    }
+    if (t.app === 'kiosk_satellite' && p.saver_mode) {
+      var mode = val(p.saver_mode), tmo = Number(val(p.saver_timeout));
+      var good = mode === 'Black' && (!p.saver_timeout || !isFinite(tmo) || tmo >= SAVER_TIMEOUT);
+      out.push({ key: 'saver', ok: good, title: 'Kiosk Screensaver: Black, after 1 day',
+                 detail: good ? 'HK’s screensaver and black do the work.'
+                   : 'It is ' + (mode || 'unknown') + ', after ' + (isFinite(tmo) ? tmo : 0) + ' s: it can come up over HK’s.',
+                 fix: ['hk', 'kiosk_saver'] });
+    }
+    if (p.kiosk_mode) {
+      var km = val(p.kiosk_mode) === 'on';
+      out.push({ key: 'kiosk_mode', ok: km, title: 'Kiosk Mode On',
+                 detail: km ? 'Nobody can leave the dashboard by accident.' : 'Off: anybody can leave the dashboard.',
+                 fix: p.kiosk_mode.indexOf('switch.') === 0 ? ['switch', 'turn_on', { entity_id: p.kiosk_mode }] : null });
+    }
+    if (p.update) {
+      var up = val(p.update) === 'on';
+      out.push({ key: 'update', ok: !up, title: 'App Up to Date', detail: up ? 'An update is waiting.' : '', fix: null });
+    }
+    var bat = Number(val(p.battery)), chg = val(p.charging);
+    if (p.battery && p.charging && isFinite(bat) && chg !== null) {
+      var hot = chg === 'on' && bat > BATTERY_CARE;
+      out.push({ key: 'battery', ok: !hot, title: 'Battery Care', fix: null,
+                 detail: hot ? Math.round(bat) + '% and charging all day. Turn on Protect Battery on the tablet.'
+                   : Math.round(bat) + '% ' + (chg === 'on' ? 'while plugged in.' : 'and not charging.') });
+    }
+    return out;
+  }
+  // WHEN IT'S LEFT ALONE, in order: Home after Idle Time (null: Return to
+  // Home is off), the screensaver at its Starts After (null: no
+  // screensaver), dark by Sleep Screen. {segs: [{cls, label, flex, at, says}],
+  // warn: Home comes only after the screensaver is up}
+  function idleTimeline(o) {
+    var idle = o.idle, saver = o.saver, segs = [{ cls: 'use', label: 'Touched', flex: 2 }];
+    var dark = o.hk ? (o.after ? 'after ' + o.after + ' min of photos' : (o.quiet ? 'nobody here, or quiet hours' : 'once nobody’s here'))
+                    : 'an automation decides';
+    if (idle && saver && idle > saver) {
+      segs.push({ cls: 'saver', label: 'Screensaver', flex: 1.6, at: secsLabel(saver), says: 'screensaver' });
+      segs.push({ cls: 'home', label: 'Home, behind it', flex: 1.4, at: secsLabel(idle), says: 'Home' });
+    } else {
+      if (idle) segs.push({ cls: 'home', label: 'Home', flex: 1.4, at: secsLabel(idle), says: saver === idle ? 'Home + screensaver' : 'Home' });
+      if (saver && saver !== idle) segs.push({ cls: 'saver', label: 'Screensaver', flex: 3, at: secsLabel(saver), says: 'screensaver' });
+    }
+    segs.push({ cls: 'dark', label: 'Dark', flex: 3, at: 'Sleep Screen', says: dark });
+    return { segs: segs, warn: !!(idle && saver && idle > saver) };
+  }
+  // THE TABLET'S START URL: its screen with ?hk_tablet=<id>
+  function tabletUrl(origin, screen, id) {
+    return String(origin || '').replace(/\/+$/, '') + '/' + (screen || 'lovelace') + '?hk_tablet=' + id;
+  }
+
   root.hkSettingsModel = {
     skySummary: skySummary, backdropFollow: backdropFollow,
     YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
@@ -1510,7 +1767,7 @@
     COPY_GROUPS: COPY_GROUPS, COPY_NEVER: COPY_NEVER, copyDefaults: copyDefaults, copyChanges: copyChanges,
     skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',
-    CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS,
+    CHIP_LABELS: CHIP_LABELS, CHIP_SOURCES: CHIP_SOURCES, PAGE_LABELS: PAGE_LABELS, COUNT_KINDS: COUNT_KINDS, ACC_TYPES: ACC_TYPES, accType: accType, SKY_BACKGROUNDS: SKY_BACKGROUNDS, BG_LABELS: BG_LABELS, BG_SAYS: BG_SAYS, CLOCK_STYLES: CLOCK_STYLES, CLOCK_BGS: CLOCK_BGS, CLOCK_COLORS: CLOCK_COLORS, clockRecommend: clockRecommend,
     MENU_STYLES: MENU_STYLES, phoneStyleLabel: phoneStyleLabel,
     PHONE_MENUS: PHONE_MENUS, DEVICES: DEVICES, TAB_SIZES: TAB_SIZES, BUTTON_PHONE: BUTTON_PHONE, phoneMenu: phoneMenu, phoneButton: phoneButton,
     tabletSummary: tabletSummary, phoneSummary: phoneSummary, tabletTab: tabletTab, phoneTab: phoneTab, tabletTabBar: tabletTabBar,
@@ -1529,6 +1786,8 @@
     livelyPresetLabel: livelyPresetLabel, livelyFrom: livelyFrom, roomSensors: roomSensors,
     SKY_THEMES: SKY_THEMES, OFTEN_LABELS: OFTEN_LABELS, OFTEN_DEFAULT: OFTEN_DEFAULT, PAGE_TOKEN: PAGE_TOKEN,
     SEARCH: SEARCH,
+    TABLET_APPS: TABLET_APPS, tabletApp: tabletApp, IDLE_TIMES: IDLE_TIMES, idleLabel: idleLabel, tabletStatus: tabletStatus,
+    tabletChecks: tabletChecks, idleTimeline: idleTimeline, tabletUrl: tabletUrl,
     errorText: errorText, refusals: refusals,
     menuMode: menuMode, menuFor: menuFor, menuStyleLabel: menuStyleLabel, showsTab: showsTab,
     stylesFor: stylesFor, swipeChanges: swipeChanges,
