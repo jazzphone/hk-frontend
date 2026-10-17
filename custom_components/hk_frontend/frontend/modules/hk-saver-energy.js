@@ -12,7 +12,7 @@
 //   - nothing moves while it is up: the rings and their leader lines draw
 //     once as it arrives (DUR.ring, EASE.build), and then sit still
 //   - its numbers are the page's statistics (hk-stats batching and cache),
-//     only the house's own meters -- never a device's -- and redrawn at most
+//     house meters and measured top-level circuits, and redrawn at most
 //     every REDRAW_MS while it shows
 //   - behind it: the photo's blurred copy (the saver's own 96 px canvas),
 //     a dark wash over the stilled sky, or a gradient -- no backdrop-filter
@@ -73,12 +73,16 @@
     '.en .eneye{font-size:calc(15px * var(--z));font-weight:600;letter-spacing:.5px;text-transform:uppercase;opacity:.7}',
     '.en .enh{font-size:calc(52px * var(--z));font-weight:700;letter-spacing:-1.2px;line-height:1.05;margin:calc(6px * var(--z)) 0 calc(4px * var(--z))}',
     '.en .enlede{font-size:calc(21px * var(--z));font-weight:500;line-height:1.35;opacity:.88;margin-bottom:calc(26px * var(--z))}',
+    '.en .encompare{display:block;color:#ffb340;font-weight:600}',
+    '.en .encompare[data-trend=down]{color:#75dda0}',
+    '.en .encompare[data-trend=same]{color:inherit}',
+    '.en .encause{display:block;font-size:.82em;margin-top:5px;opacity:.8}',
+    '.en .enfresh{position:absolute;top:100%;left:0;margin-top:calc(5px * var(--z));font-size:calc(12px * var(--z));opacity:.62;white-space:nowrap}',
     '.en .enlede em{font-style:normal;font-weight:600;color:#ff9f0a}',
-    // ONE GRID FOR EVERY READING (subgrid): the numbers share a column,
-    // as wide as the widest, against the right edge; the leader line takes
-    // what is left between the name and its number
-    '.en .enstats{display:grid;grid-template-columns:calc(12px * var(--z)) auto 1fr auto;row-gap:calc(20px * var(--z));column-gap:calc(12px * var(--z))}',
-    '.en .st{display:grid;grid-column:1/-1;grid-template-columns:subgrid;align-items:center}',
+    // Each reading has its own tracks: values stay right-aligned, while
+    // leaders use the space between each label and its actual value.
+    '.en .enstats{display:grid;grid-template-columns:1fr;row-gap:calc(20px * var(--z));column-gap:calc(12px * var(--z))}',
+    '.en .st{display:grid;grid-column:1/-1;grid-template-columns:calc(12px * var(--z)) auto minmax(24px,1fr) auto;column-gap:calc(12px * var(--z));align-items:center}',
     '.en .st i{width:calc(12px * var(--z));height:calc(12px * var(--z));border-radius:50%}',
     '.en .st .k{font-size:calc(15px * var(--z));font-weight:600;letter-spacing:.4px;text-transform:uppercase;opacity:.75}',
     '.en .st .ln{grid-column:3;height:2px;border-radius:1px;margin:0 calc(8px * var(--z));min-width:24px;transform-origin:left center}',
@@ -86,8 +90,8 @@
     '  font-variant-numeric:tabular-nums;white-space:nowrap}',
     '.en .st .v u,.en .enfoot .v u{text-decoration:none;font-weight:600;opacity:.75;letter-spacing:0}',
     '.en .st .v u{font-size:calc(20px * var(--z));margin-left:calc(6px * var(--z))}',
-    '.en .st .of{grid-column:4;font-size:calc(15px * var(--z));opacity:.65;margin-top:calc(5px * var(--z));white-space:nowrap}',
-    '.en .st i,.en .st .k,.en .st .ln{grid-row:1/3}',
+    '.en .st .of{grid-column:1/-1;grid-row:2;text-align:right;font-size:calc(15px * var(--z));opacity:.65;margin-top:calc(5px * var(--z));white-space:nowrap}',
+    '.en .st i,.en .st .k,.en .st .ln{grid-row:1}',
     // ALONG THE BOTTOM: Right Now, and the month so far
     '.en .enfoot{position:absolute;left:calc(44px * var(--z));right:calc(44px * var(--z));bottom:calc(26px * var(--z));display:flex;',
     '  justify-content:space-between;gap:calc(40px * var(--z));align-items:flex-start;',
@@ -106,6 +110,30 @@
     '  border-radius:5px;position:relative;margin-right:calc(8px * var(--z));vertical-align:2px;box-sizing:border-box}',
     '.en .batt::after{content:"";position:absolute;right:-5px;top:25%;width:3px;height:50%;background:rgba(255,255,255,.75);border-radius:0 2px 2px 0}',
     '.en .batt b{position:absolute;left:2px;top:2px;bottom:2px;border-radius:2px}',
+    // NARROW LANDSCAPE: the 880 x 800 area beside a tablet's pane. Keep
+    // the full six-reading footer, in two aligned rows, and fit by height too.
+    '.en[narrow] .enbody{flex-direction:column;gap:calc(10px * var(--z))}',
+    '.en[narrow] svg.rings{width:calc(250px * var(--z));height:calc(250px * var(--z))}',
+    '.en[narrow] .ennote{display:none}',
+    '.en[narrow] .enread{width:calc(624px * var(--z))}',
+    '.en[narrow] .eneye,.en[narrow] .enh,.en[narrow] .enlede{text-align:center}',
+    '.en[narrow] .eneye{font-size:calc(12px * var(--z));letter-spacing:1px}',
+    '.en[narrow] .enh{font-size:calc(30px * var(--z));letter-spacing:-.8px}',
+    '.en[narrow] .enlede{font-size:calc(17px * var(--z));margin-bottom:calc(10px * var(--z))}',
+    '.en[narrow] .enstats{row-gap:calc(4px * var(--z))}',
+    '.en[narrow] .st .k{font-size:calc(14px * var(--z))}',
+    '.en[narrow] .st .v{font-size:calc(30px * var(--z))}',
+    '.en[narrow] .st .v u{font-size:calc(18px * var(--z))}',
+    '.en[narrow] .st .of{font-size:calc(12px * var(--z));white-space:normal;margin-top:calc(3px * var(--z))}',
+    '.en[narrow] .enfoot{flex-direction:column;gap:calc(12px * var(--z));padding-top:calc(13px * var(--z))}',
+    '.en[narrow] .fg{display:grid;width:100%;grid-template-columns:calc(120px * var(--z)) minmax(0,1fr);gap:calc(16px * var(--z));align-items:center}',
+    '.en[narrow] .fg .gh{margin:0;line-height:1.5;font-size:calc(12px * var(--z))}',
+    '.en[narrow] .fg .its{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:calc(12px * var(--z))}',
+    '.en[narrow] .fg.mo{margin:0;padding:calc(12px * var(--z)) 0 0;border-left:0;border-top:1px solid rgba(255,255,255,.14)}',
+    '.en[narrow] .fg.mo:first-child{padding-top:0;border-top:0}',
+    '.en[narrow] .enfoot .k{font-size:calc(11px * var(--z));white-space:normal}',
+    '.en[narrow] .enfoot .v{font-size:calc(26px * var(--z))}',
+    '.en[narrow] .enfoot .pace{display:block;margin:calc(2px * var(--z)) 0 0;font-size:calc(12px * var(--z));white-space:normal}',
     // TALL (a portrait screen, the phone preview): the rings above the readings
     '.en[tall] .enbody{flex-direction:column;gap:calc(48px * var(--z))}',
     '.en[tall] .ennote{display:none}',
@@ -116,7 +144,7 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function E() { return window.hkEnergy; }
-  function reduced() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function reduced() { return !!(((window.hkSettings && window.hkSettings.rendering && !window.hkSettings.rendering().motion) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches))); }
 
   // THE PAGE'S CODE (hk-energy.js, a Lovelace resource) loads with the
   // cards: wait for it, never poll
@@ -149,12 +177,13 @@
         '<span class="of">' + (r.typ > 0 ? 'of a usual day’s ' + typ : 'Learning your usual') + '</span></div>';
     }).join('');
     // the lede: today so far against a usual day by now
-    var e = s.today.energy, us = s.usualByNow, lede = 'Used <em>' + kwh(e) + ' kWh</em> since midnight';
+    var e = s.today.energy, us = s.usualByNow, lede = 'Used <em>' + kwh(e) + ' kWh</em> since midnight.';
     if (us > 0.05) {
       var pct = Math.round(100 * (e - us) / us);
-      lede += Math.abs(pct) < 5 ? ', about the same as a usual day by now.'
-        : ', ' + Math.abs(pct) + '% ' + (pct > 0 ? 'more' : 'less') + ' than a usual day by now.';
-    } else lede += '.';
+      lede = '<span class="encompare" data-trend="' + (Math.abs(pct) < 5 ? 'same' : pct > 0 ? 'up' : 'down') + '">' +
+        (Math.abs(pct) < 5 ? '→ About the same as usual by this time' : (pct > 0 ? '↗ ' : '↘ ') + Math.abs(pct) + '% ' + (pct > 0 ? 'above' : 'below') + ' usual by this time') + '</span>';
+      if (pct >= 5 && s.contributor) lede += '<span class="encause">Mostly from ' + esc(s.contributor.name) + ' today.</span>';
+    }
     var now = [];
     if (!off.power && s.power != null) {
       var w = H.watts(s.power);
@@ -184,7 +213,8 @@
   // until the rings and readings fit between `top` and the row along the
   // bottom, `left` to the right edge; returns the scale it came to
   function fitIn(el, w, h, tall, left, top, minTop) {
-    var z = tall ? Math.min(w / 800, h / 1280) : Math.min(w / W0, h / H0);
+    var narrow = el.hasAttribute('narrow');
+    var z = narrow ? Math.min(w / 880, h / H0) : tall ? Math.min(w / 800, h / 1280) : Math.min(w / W0, h / H0);
     z = Math.max(0.42, Math.min(z, 2.5));
     var rw = el.querySelector('.enrw'), rd = el.querySelector('.enread'), ft = el.querySelector('.enfoot');
     for (var i = 0; i < 3; i++) {
@@ -196,9 +226,9 @@
       var bot = Math.round(fh + (26 + 24) * z);
       el.style.setProperty('--bot', bot + 'px');
       var a = rw.getBoundingClientRect(), b = rd.getBoundingClientRect(), note = 34 * z;
-      var need = tall ? a.height + b.height + 48 * z : Math.max(a.height + note, b.height);
+      var need = narrow ? a.height + b.height + 10 * z : tall ? a.height + b.height + 48 * z : Math.max(a.height + note, b.height);
       // and across: the rings and the readings side by side, with their gap
-      var needW = tall ? Math.max(a.width, b.width) : a.width + b.width + 64 * z;
+      var needW = tall || narrow ? Math.max(a.width, b.width) : a.width + b.width + 64 * z;
       var k = Math.min((h - t - bot) / Math.max(1, need), (w - left - 60 * z) / Math.max(1, needW));
       if (!a.height || k >= 0.995) break;
       z = Math.max(0.42, z * k * 0.98);
@@ -239,10 +269,11 @@
     el.className = 'en';
     el.setAttribute('aria-hidden', 'true');
     el.innerHTML = '<style>' + CSS + '</style><canvas class="enbg"></canvas><div class="enwash"></div>' +
-      '<div class="encorner"><div class="ent"></div><div class="end"></div><div class="enw"></div></div>' +
+      '<div class="encorner"><div class="ent"></div><div class="end"></div><div class="enw"></div><div class="enfresh"></div></div>' +
       '<div class="enbody"><div class="enrw"><div class="enrs"></div><div class="ennote">The white dots: a usual day by now</div></div>' +
       '<div class="enread"><div class="eneye">Home Energy</div><div class="enh">Today So Far</div><div class="enlede"></div>' +
       '<div class="enstats"></div></div></div><div class="enfoot"></div>';
+    var layoutW = 0, layoutH = 0;
     var alive = true, showing = false, hass = null, last = null, sig = '', drawnAt = 0, redrawT = null, was = null, clockT = null;
     var h24 = !!opts.h24;
     function tick() {
@@ -255,7 +286,14 @@
       if (dEl.textContent !== d) dEl.textContent = d;
       var w = weatherLine(hass);
       if (wEl.__hkW !== w) { wEl.__hkW = w; wEl.innerHTML = w; }
+      freshness();
       align();
+    }
+    function freshness() {
+      var at = last && last.receivedAt, now = Date.now(), cutoff = last && last.asOf;
+      var stale = at && now - at > 20 * 6e4 || cutoff && now - cutoff > (last.hasFives ? 20 : 75) * 6e4;
+      var stamp = stale && Math.min(at || Infinity, cutoff || Infinity);
+      el.querySelector('.enfresh').textContent = stamp ? '◷ Energy · updated ' + Math.max(1, Math.floor((now - stamp) / 6e4)) + ' min ago' : '';
     }
     // the time's and the date's first ink on one line (inkLeft); the
     // weather's glyph starts at its own edge
@@ -289,6 +327,7 @@
       var s = summary();
       if (!s) return false;
       last = s;
+      freshness();
       drawnAt = Date.now();
       var v = view(s, hide), H = E();
       var list = v.rings.map(function (r) { return { key: r.key, c: r.c, f: r.typ > 0 ? r.v / r.typ : 0, tick: r.typ > 0 ? r.tick : null }; });
@@ -300,6 +339,7 @@
       el.querySelector('.enlede').innerHTML = v.lede;
       el.querySelector('.enstats').innerHTML = v.stats;
       el.querySelector('.enfoot').innerHTML = v.foot;
+      if (layoutW && layoutH) layout(layoutW, layoutH);
       if (fresh) {
         // drawn finished, then put back to nothing until it has arrived
         was = H.sweepRings(box, null, false);
@@ -315,6 +355,15 @@
         if (on) a.style.strokeDasharray = '0 ' + a.getAttribute('data-c'); else a.style.removeProperty('stroke-dasharray');
       });
       el.querySelectorAll('.st .ln').forEach(function (l) { if (on) l.style.transform = 'scaleX(0)'; else l.style.removeProperty('transform'); });
+    }
+    function layout(w, h) {
+      if (!w || !h) return;
+      layoutW = w; layoutH = h;
+      var tall = h > w * 1.05, narrow = !tall && w < 1000;
+      if (tall) el.setAttribute('tall', ''); else el.removeAttribute('tall');
+      if (narrow) el.setAttribute('narrow', ''); else el.removeAttribute('narrow');
+      fit(w, h, tall, 0, 0, narrow ? 102 : tall ? 170 : 150);
+      if (showing) align();
     }
     function fit(w, h, tall, left, top, minTop) { return fitIn(el, w, h, tall, left, top, minTop); }
     function arrived() {
@@ -357,13 +406,7 @@
       // THE MOCKUP'S SIZES: a 1280 x 800 screen at 1 (rings 380 px, figures
       // 40 px), scaled with the room it has -- down only if they don't fit
       // below its own corner and above the row along the bottom
-      layout: function (w, h) {
-        if (!w || !h) return;
-        var tall = h > w * 1.05;
-        if (tall) el.setAttribute('tall', ''); else el.removeAttribute('tall');
-        fit(w, h, tall, 0, 0, tall ? 170 : 150);
-        if (showing) align();
-      },
+      layout: layout,
       leave: function () {
         showing = false;
         if (clockT) { clearInterval(clockT); clockT = null; }

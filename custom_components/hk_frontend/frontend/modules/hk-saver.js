@@ -415,6 +415,7 @@
   }
 
   // ------------------------------------------------------------ state
+  function isFlat() { var S = window.hkSettings; return !!(S && S.rendering && S.rendering().flat); }
   var cfg = null;              // the config in force (null: none here)
   var on = false;              // showing (or fading in)
   var startedBy = '';
@@ -581,7 +582,7 @@
     if (paneResetT) clearTimeout(paneResetT);
     paneResetT = setTimeout(function () {
       paneResetT = null;
-      if (paneSc) { try { paneSc.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { paneSc.scrollTop = 0; } }
+      if (paneSc) { try { paneSc.scrollTo({ top: 0, behavior: isFlat() ? 'instant' : 'smooth' }); } catch (e) { paneSc.scrollTop = 0; } }
     }, PANE_RESET_MS);
   }
   function onInput(e) {
@@ -649,6 +650,15 @@
         // THE MUSIC'S BUTTONS act and leave it up
         var mh = musicHit(x, y);
         if (mh) { pressStop = !!mh.art; musicAct(mh, x); return; }
+        // The alert banner opens the NWS wording, rather than the raw
+        // count sensor or an unrelated Weather-page navigation.
+        if (wxShowing && wxCtl && wxCtl.hitAlert && wxCtl.hitAlert(x, y)) {
+          pressStop = true;
+          var alertCtl = wxCtl;
+          stop('touch');
+          alertCtl.openAlerts();
+          return;
+        }
         var wpage = weatherAt(x, y) && weatherPage();
         pressStop = true;
         if (wpage) { stop('touch'); go(wpage); return; }
@@ -1019,7 +1029,9 @@
     // buttons by its height and back -- a jump at every song change
     '.mnext{transition:opacity .3s ease}',
     '[nextwait] .mnext{opacity:0}',
-    '[idle] .martist,[idle] .malbum,[idle] .mprog,[idle] .mnext,[idle] .mbtn:not(.mpp){display:none}',
+    // (Speakers and Browse stay: with nothing playing they are the way to
+    // start something -- where it plays, and what)
+    '[idle] .martist,[idle] .malbum,[idle] .mprog,[idle] .mnext,[idle] .mbtn:not(.mpp):not(.mx){display:none}',
     '.pm[none]{display:none}',
     // THE SLIDE: the art on the right, the song below the clock, the date
     // and the weather on the left (what does not fit there goes: layoutMusic)
@@ -1104,17 +1116,24 @@
     // (the calendar pane's list rides under Home Status: hk-base.js shade --
     // the cards are loaded by the time a screensaver starts)
     var HC = window.hkCards;
-    var st = document.createElement('style'); st.textContent = CSS + (HC && HC.shadeCss ? '\n' + HC.shadeCss('.pane') : ''); root.appendChild(st);
+    if (HC && HC.flatSurface) HC.flatSurface(host, 'screensaver');
+    var st = document.createElement('style'); st.textContent = CSS + (HC && HC.flatCss ? HC.flatCss() : '') +
+      ':host([hk-flat]){background:var(--hk-flat-ground)}' +
+      ':host([hk-flat]) .pane,:host([hk-flat]) .mu,:host([hk-flat]) .pm{' + (HC && HC.flatVars ? HC.flatVars('dark') : '') + ';background:#24252A}' +
+      ':host([hk-flat]) .mbgf,:host([hk-flat]) .mshade{display:none}' +
+      ':host([hk-flat]) .sc,:host([hk-flat]) .pane{color:var(--hk-ink)}'  + (HC && HC.edgeCss ? '\n' + HC.edgeCss() : ''); root.appendChild(st);
     for (var i = 0; i < 2; i++) {
       var ph = document.createElement('div'); ph.className = 'ph';
-      var bg = document.createElement('canvas'); bg.className = 'bg'; bg.hidden = true;
+      var bg = document.createElement(isFlat() ? 'div' : 'canvas'); bg.className = 'bg'; bg.hidden = true;
       var fg = document.createElement('img'); fg.className = 'fg'; fg.alt = '';
       var scrim = document.createElement('div'); scrim.className = 'phscrim';
       ph.appendChild(bg); ph.appendChild(fg); ph.appendChild(scrim); root.appendChild(ph);
     }
     var pane = document.createElement('div'); pane.className = 'pane';
     var sc = document.createElement('div'); sc.className = 'sc'; pane.appendChild(sc); root.appendChild(pane);
-    if (HC && HC.shade) HC.shade(sc, pane);
+    // (its ends fade as it scrolls, as every list's do: hk-base.js SCROLL EDGES)
+    sc.classList.add('hk-fades');
+    if (HC && HC.edges) HC.edges(sc);
     paneEl = pane; paneSc = sc; paneCard = null;
     var info = document.createElement('div'); info.className = 'info'; root.appendChild(info);
     var nw = document.createElement('div'); nw.className = 'nightwash'; root.appendChild(nw);
@@ -1324,7 +1343,7 @@
     if (!keep) coverDashboard(false);
     if (slideT) { clearTimeout(slideT); slideT = null; }
     if (exT) { clearTimeout(exT); exT = null; }
-    var ms = cfg ? cfg.fade_back : FADE_BACK_MS;
+    var ms = isFlat() ? 0 : cfg ? cfg.fade_back : FADE_BACK_MS;
     if (reason === 'touch') { writeSwitch('off'); press = { up: pressStop ? null : clock.now(), at: clock.now() }; }
     pressStop = false;
     // the dashboard, its sky and its cameras wake now, under the screensaver
@@ -1413,6 +1432,7 @@
   // length, should it never (no transition at 0 ms, or none drawn).
   var FADE_LATE = 1500;
   function afterFade(h, ms, fn) {
+    if (isFlat()) { fn(); return; }
     var done = false;
     var end = function (e) { if (!e || (e.target === h && e.propertyName === 'opacity')) go(); };
     var go = function () {
@@ -1732,7 +1752,7 @@
       next.style.zIndex = '1';
       fadeDone = null;
     };
-    timer = setTimeout(done, first || !old ? 0 : CROSSFADE_MS + 100);
+    if (isFlat()) done(); else timer = setTimeout(done, first || !old ? 0 : CROSSFADE_MS + 100);
   }
   // THE BACKDROP: the photo drawn small and blurred (a 96 px wide copy at the
   // screen's shape, cover-cropped), which the canvas's CSS scales to the
@@ -1743,6 +1763,7 @@
   // pixelated behind the pane (HK Settings' preview, 2026-10-10).
   var BACKDROP_W = 96, BACKDROP_SMALL = 24;
   function drawBackdrop(c, img, small) {
+    if (isFlat()) { clearCanvas(c); return; }
     if (!c || !img) return;
     var W = Math.max(1, window.innerWidth || 1280), H = Math.max(1, window.innerHeight || 800);
     c.width = BACKDROP_W; c.height = Math.max(1, Math.round(BACKDROP_W * H / W));
@@ -1956,7 +1977,7 @@
     var sky = document.createElement('div');
     sky.className = 'fsky';
     fc.appendChild(sky);
-    try { fscene = window.hkSky && window.hkSky.scene ? window.hkSky.scene(sky, { skyOnly: skyOnly }) : null; } catch (e) { fscene = null; }
+    try { fscene = !isFlat() && window.hkSky && window.hkSky.scene ? window.hkSky.scene(sky, { skyOnly: skyOnly }) : null; } catch (e) { fscene = null; }
     startTick();
   }
   // the details' layer, built the first time they are wanted
@@ -2453,7 +2474,17 @@
   // right, under the calendar when both are on. One state, drawn into each
   // view that is up: what this screen follows (hkMusic -- its focus, else
   // what started playing, its own room first), held while it is on screen.
-  var MU_GRACE = 20000;        // over the forecast: back to it once the music has stopped this long
+  var MU_GRACE = 30000;        // (the default of) how long the music stays once paused or stopped
+  // HIDE AFTER A PAUSE (All Screens -> Now Playing, 2026-10-15): the music
+  // paused or stopped stays this long -- the pane's and the slide's alike,
+  // as the dashboard's bar and pane -- and a whole one again after its
+  // last use (a touch on it, its panel open: somebody picking a song)
+  function muGrace() {
+    var Mn = window.hkCards && window.hkCards.menu;
+    return (Mn && Mn.npGrace ? Mn.npGrace() : MU_GRACE / 1000) * 1000;
+  }
+  // somebody using the screensaver's music (a touch on it, its panel open)
+  function musicUsed() { mus.lastActive = clock.now(); mus.lostAt = 0; }
   var MU_BG = 32;              // the blurred copy, drawn this small (the CSS scales it up)
   var MU_SLOP = 14;            // a finger's slop around a button
   var mus = { key: null, views: [], tick: null, next: null, nextFor: '', year: '', lostAt: 0, watchAt: 0, watchT: null, drag: null, vol: null,
@@ -2479,6 +2510,10 @@
     var r = M.resolve ? M.resolve(h) : null;
     if (r && r.context && r.context.playing) return r.context;
     for (i = 0; i < cs.length; i++) if (cs[i].playing) return cs[i];
+    // ...else this screen's own music, PAUSED (its focus): a page loaded
+    // while it is paused shows it, as it was shown before the reload -- the
+    // dashboard's pane drew "Not Playing" and gave way to the bar (2026-10-15)
+    if (r && r.context && r.reason === 'focus') return r.context;
     return null;
   }
   function musicPlaying() { var c = musicNow(hassNow()); return !!(c && c.playing); }
@@ -2514,7 +2549,7 @@
     el.className = kind === 'slide' ? 'mu' : 'pm';
     el.setAttribute('idle', '');
     el.innerHTML =
-      '<div class="mbgf"><canvas class="mbg"></canvas></div><div class="mbgf"><canvas class="mbg"></canvas></div><div class="mshade"></div>' +
+      (isFlat() ? '<div class="mbgf"></div><div class="mbgf"></div>' : '<div class="mbgf"><canvas class="mbg"></canvas></div><div class="mbgf"><canvas class="mbg"></canvas></div>') + '<div class="mshade"></div>' +
       '<div class="mbody"><div class="mart"><div class="msq"><div class="mph">' + svg(ICON.note) + '</div>' +
       '<div class="mfr"><img alt=""></div><div class="mfr"><img alt=""></div></div></div>' +
       '<div class="mcol"><div class="mroom"></div><div class="mtitle"></div><div class="martist"></div><div class="malbum"></div>' +
@@ -2527,7 +2562,7 @@
       '<div class="mnext"><div class="mnth">' + svg(ICON.note) + '<img alt=""></div><div class="mnx"><div class="mnl">Up Next</div><div class="mnt"></div></div></div></div></div>';
     if (!window.hkSaverPanel) el.setAttribute('nomx', '');
     var q = function (s) { return el.querySelector(s); };
-    var v = { kind: kind, el: el, flip: 0, pic: null, d: null, ready: Promise.resolve(),
+    var v = { kind: kind, el: el, flat: isFlat(), flip: 0, pic: null, d: null, ready: Promise.resolve(),
               bgf: el.querySelectorAll('.mbgf'), bg: el.querySelectorAll('canvas.mbg'), fr: el.querySelectorAll('.mfr'),
               room: q('.mroom'), title: q('.mtitle'), artist: q('.martist'), album: q('.malbum'),
               bar: q('.mbar i'), t0: q('.mtimes span:first-child'), t1: q('.mtimes span:last-child'),
@@ -2584,6 +2619,7 @@
   // pane's stays as it was: its list needs the darker ground.
   var BLUR_LOOK = { slide: { sat: 1.35, dark: 0.24 }, pane: { sat: 1, dark: 0.38 } };
   function drawBlur(c, img, kind) {
+    if (isFlat()) { clearCanvas(c); return; }
     var look = BLUR_LOOK[kind] || BLUR_LOOK.pane;
     var ctx = c && c.getContext && c.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
@@ -2619,9 +2655,15 @@
       var n = 1 - v.flip, fr = v.fr[n], img = fr.querySelector('img');
       var done = function () {
         if (v.pic !== url) return;
-        drawBlur(v.bg[n], im, v.kind);
+        if (!isFlat()) drawBlur(v.bg[n], im, v.kind);
         setAttr(v.el, 'noart', !im);
+        // THE DASHBOARD PANE'S FIRST ART is there as it comes in, not faded
+        // in over the placeholder: the pane slides in once it is ready
+        // (hk-popup.js), and a fade on top of the slide read as a fade-in
+        var first = v.kind === 'dash' && !v.fr[v.flip].classList.contains('on');
+        if (first) { fr.style.transition = 'none'; v.bgf[n].style.transition = 'none'; }
         fr.classList.add('on'); v.bgf[n].classList.add('on');
+        if (first) { void fr.offsetWidth; setTimeout(function () { fr.style.transition = ''; v.bgf[n].style.transition = ''; }, 60); }
         v.fr[v.flip].classList.remove('on'); v.bgf[v.flip].classList.remove('on');
         v.flip = n;
       };
@@ -2700,6 +2742,7 @@
   // ONCE A SECOND, only while a view on screen shows music playing
   function musicTick() {
     var any = !document.hidden && mus.views.some(function (v) {
+      if (v.kind === 'dash') return v.live && v.el.isConnected && v.d && !v.d.idle && v.d.playing;
       return on && v.el.isConnected && (v.kind === 'pane' ? mus.paneIn : muShowing) && v.d && !v.d.idle && v.d.playing;
     });
     if (any && !mus.tick) mus.tick = setInterval(function () { mus.views.forEach(progress); musicTick(); }, 1000);
@@ -2708,16 +2751,30 @@
   // Everything again from the house: what plays, into each view
   function renderMusic() {
     var h = hassNow();
-    if (!on || !h) return null;
-    var ctx = musicNow(h);
-    mus.key = ctx ? ctx.key : null;
-    var d = musicOf(ctx, h), sig = sigOf(d);
+    if ((!on && !dashLive()) || !h) return null;
+    var ctx = musicNow(h), now = clock.now();
+    var d = musicOf(ctx, h);
+    // A PAUSE THAT READS AS "IDLE" (2026-10-15): Music Assistant's AirPlay
+    // speakers -- the house's HomePods -- report a pause as idle, so the
+    // music on screen seemed to end on a pause, and the player went to
+    // "Not Playing" with a lone play button. The song shown is kept, paused,
+    // for Hide After a Pause from when it was last there (its play button
+    // resumes it); after that it goes, as stopped music does.
+    if (d && !d.idle) mus.held = { d: d, at: now, frozen: null };
+    else if (mus.held && now - mus.held.at < muGrace()) {
+      var hd = mus.held;
+      if (!hd.frozen) hd.frozen = Object.assign({}, hd.d, { playing: false, pos: elapsed(hd.d), posAt: 0 });
+      d = hd.frozen;
+    } else mus.held = null;
+    mus.key = ctx ? ctx.key : (d && !d.idle ? d.key : null);
+    var sig = sigOf(d);
     // the volume a finger is setting, not the house's last word on it
     if (d && !d.idle && mus.vol && mus.vol.key === d.key && (mus.drag || clock.now() < mus.vol.until)) d.vol = mus.vol.val;
     if (sig && sig !== mus.nextFor && mus.views.length) upNext(d, sig);
     mus.views.forEach(function (v) { drawMusic(v, d); });
     musicTick();
-    if (pnl) { if (!ctx) closePanel(true); else pnl.p.update(); }
+    // (its panel stays while the paused song is held: somebody picking music)
+    if (pnl) { if (!ctx && !(d && !d.idle)) closePanel(true); else pnl.p.update(); }
     return ctx;
   }
   // UP NEXT (and the album's year): Music Assistant's queue, asked once a
@@ -2790,7 +2847,8 @@
     if (x == null || y == null) return null;
     for (var i = 0; i < mus.views.length; i++) {
       var v = mus.views[i];
-      if (!v.el.isConnected || (v.kind === 'slide' && !muShowing)) continue;
+      // (the dashboard's pane takes its own taps -- and lies under this)
+      if (v.kind === 'dash' || !v.el.isConnected || (v.kind === 'slide' && !muShowing)) continue;
       if (!v.el.hasAttribute('novol')) {
         var tr = v.vt.getBoundingClientRect();
         if (tr.width && x >= tr.left - MU_SLOP && x <= tr.right + MU_SLOP && y >= tr.top - 2 * MU_SLOP && y <= tr.bottom + 2 * MU_SLOP) return { vol: true, view: v };
@@ -2818,6 +2876,8 @@
   function openMusic(hit) {
     var d = hit.view.d, M = window.hkMusic, page = musicPage();
     if (d && d.key && M && M.setFocus) { try { M.setFocus(d.key); } catch (e) { /* the page follows what plays */ } }
+    // (the dashboard's pane: there is no screensaver to close)
+    if (hit.view.kind === 'dash') { if (page) go(page); return; }
     pressStop = true;
     stop('touch');
     if (page) go(page);
@@ -2862,7 +2922,7 @@
     if (mus.vol) mus.vol.until = clock.now() + 4000;   // the house catching up
   }
   function musicAct(hit, x) {
-    saverTouched();
+    if (!hit || hit.view.kind !== 'dash') { saverTouched(); musicUsed(); }
     if (hit && hit.art) { openMusic(hit); return; }
     if (hit && hit.vol) { volStart(hit, x); return; }
     var h = hassNow(), d = hit && hit.view.d, act = hit && hit.btn.getAttribute('data-act');
@@ -2897,20 +2957,20 @@
   var PANEL_IDLE = 30000, PANEL_TURN = [300, 420];
   var pnl = null;               // { p: the panel, view, idleT, doneT, src, anim }
   function panelFor(v, tab) {
-    var P = window.hkSaverPanel;
-    if (!P || !root || !v || !v.el.isConnected) return;
+    var P = window.hkSaverPanel, proot = rootOf(v);
+    if (!P || !proot || !v || !v.el.isConnected) return;
     if (pnl && pnl.view === v) {
       if (pnl.p.tab() === tab) closePanel(true); else { pnl.p.show(tab); panelButtons(); panelTouched(); }
       return;
     }
     if (pnl) closePanel(false);
-    if (!root.querySelector('style.mpcss')) {
+    if (!proot.querySelector('style.mpcss')) {
       var HC = window.hkCards;
       var st = document.createElement('style'); st.className = 'mpcss';
-      st.textContent = P.CSS + (HC && HC.shadeCss ? '\n' + HC.shadeCss('.mpanel') : ''); root.appendChild(st);
+      st.textContent = P.CSS + (HC && HC.shadeCss ? '\n' + HC.shadeCss('.mpanel') : ''); proot.appendChild(st);
     }
     var me = { view: v, idleT: null, doneT: null, anim: null,
-               src: v.kind === 'pane' ? paneEl : v.el.querySelector('.msq') };
+               src: v.kind === 'pane' ? paneEl : v.kind === 'dash' ? v.box : v.el.querySelector('.msq') };
     me.p = P.create({
       hass: hassNow,
       ctx: function () { return musicNow(hassNow()); },
@@ -2924,7 +2984,7 @@
       },
       wide: function () { return !!me.wide; },
       // the pane's back: what plays, and play / pause and next, at its foot
-      mini: function () { return v.kind === 'pane'; },
+      mini: function () { return v.kind === 'pane' || v.kind === 'dash'; },
       now: function () { return v.d; },
       transport: function (k) {
         var b = v.el.querySelector('.mbtn[data-act="' + (k === 'pp' ? 'pp' : 'next') + '"]');
@@ -2933,7 +2993,8 @@
     });
     pnl = me;
     if (v.kind !== 'slide') me.p.el.classList.remove('card'); else me.p.el.classList.add('card');
-    root.appendChild(me.p.el);
+    proot.appendChild(me.p.el);
+    if (v.kind === 'dash') dashOutside(true);
     placePanel();
     me.p.show(tab);
     panelButtons();
@@ -2944,11 +3005,13 @@
   // (a little bigger than it) between the song's column and the screen's
   // edge -- again whenever the screen changes size (a tablet's keyboard)
   function placePanel() {
-    if (!pnl || !host) return;
-    var v = pnl.view, el = pnl.p.el, z = scaleOf(), b;
-    if (v.kind === 'pane') {
-      var r = paneEl.getBoundingClientRect();
+    if (!pnl || !hostOf(pnl.view)) return;
+    var v = pnl.view, el = pnl.p.el, z = v.kind === 'dash' ? v.z || 1 : scaleOf(), b, off = { x: 0, y: 0 };
+    if (v.kind === 'pane' || v.kind === 'dash') {
+      var r = (v.kind === 'dash' ? v.box : paneEl).getBoundingClientRect();
       b = { x: r.left, y: r.top, w: r.width, h: r.height };
+      // (the dashboard's card is the panel's box: placed in it, not the screen)
+      if (v.kind === 'dash') { var hr = v.host.getBoundingClientRect(); off = { x: hr.left, y: hr.top }; }
     } else {
       var area = v.el.querySelector('.mbody').getBoundingClientRect(), col = v.el.querySelector('.mcol').getBoundingClientRect();
       var art = v.el.querySelector('.mart').getBoundingClientRect(), H0 = window.innerHeight || area.height;
@@ -2967,10 +3030,10 @@
     // alone over the art -- the song's column and the clock would only be
     // squeezed under it -- and the field kept in sight
     var kb = (window.innerHeight || 800) < 560 * z;
-    setAttr(host, 'mpkb', kb);
+    setAttr(hostOf(v), 'mpkb', kb);
     if (kb || pnl.kb) pnl.p.reveal();
     pnl.kb = kb;
-    el.style.left = Math.round(b.x) + 'px'; el.style.top = Math.round(b.y) + 'px';
+    el.style.left = Math.round(b.x - off.x) + 'px'; el.style.top = Math.round(b.y - off.y) + 'px';
     el.style.width = Math.round(b.w) + 'px'; el.style.height = Math.round(b.h) + 'px';
     pnl.p.size(b.w, b.h, z);
   }
@@ -2979,25 +3042,25 @@
   function turnPanel(opening, done, rec) {
     var me = rec || pnl, el = me.p.el, src = me.src, B = me.box;
     if (!src || !B) { if (done) done(); return; }
-    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var reduce = ((window.hkSettings && window.hkSettings.rendering && !window.hkSettings.rendering().motion) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
     var r = src.getBoundingClientRect(), R = { x: r.left, y: r.top, w: r.width, h: r.height };
     if (!opening && me.hidRect) R = me.hidRect;
     var Mid = { x: (R.x + B.x) / 2, y: (R.y + B.y) / 2, w: (R.w + B.w) / 2, h: (R.h + B.h) / 2 };
-    var per = Math.round(1500 * scaleOf());
+    var per = Math.round(1500 * (me.view.kind === 'dash' ? me.view.z || 1 : scaleOf()));
     var xf = function (from, to, deg) {
       return 'perspective(' + per + 'px) translate(' + ((from.x + from.w / 2) - (to.x + to.w / 2)) + 'px,' +
              ((from.y + from.h / 2) - (to.y + to.h / 2)) + 'px) rotateY(' + deg + 'deg) scale(' + (from.w / to.w) + ',' + (from.h / to.h) + ')';
     };
     var hide = function (on) {
       src.style.visibility = on ? 'hidden' : '';
-      if (me.view.kind === 'pane') setAttr(host, 'mpp', on);
+      if (me.view.kind !== 'slide') setAttr(hostOf(me.view), 'mpp', on);
     };
     var can = !reduce && typeof el.animate === 'function' && typeof src.animate === 'function';
     if (me.anim) { try { me.anim.cancel(); } catch (e) { /* done */ } me.anim = null; }
     if (opening) {
       me.hidRect = R;
       el.classList.add('up');
-      if (me.view.kind === 'pane') setAttr(host, 'mpp', true);
+      if (me.view.kind !== 'slide') setAttr(hostOf(me.view), 'mpp', true);
       if (!can) { hide(true); if (done) done(); return; }
       el.style.visibility = 'hidden';
       var a = me.anim = src.animate([{ transform: 'none' }, { transform: xf(Mid, R, 90) }], { duration: PANEL_TURN[0], easing: 'cubic-bezier(.45,0,.9,.5)', fill: 'forwards' });
@@ -3025,7 +3088,11 @@
     var me = pnl;
     if (!me) return;
     pnl = null;
-    if (host) setAttr(host, 'mpkb', false);
+    // (its closing is its last use: the music stays a whole grace after it,
+    // however it closed -- a tap, a request landed, idle)
+    if (me.view.kind === 'dash') { if (me.view.host) me.view.host._usedAt = Date.now(); } else musicUsed();
+    if (hostOf(me.view)) setAttr(hostOf(me.view), 'mpkb', false);
+    if (me.view.kind === 'dash') dashOutside(false);
     if (me.idleT) clearTimeout(me.idleT);
     if (me.doneT) clearTimeout(me.doneT);
     // (a field focused on a tablet: its keyboard goes with it)
@@ -3035,9 +3102,9 @@
     var finish = function () {
       me.p.destroy();
       if (me.src) { me.src.style.visibility = ''; }
-      if (me.view.kind === 'pane' && host) setAttr(host, 'mpp', false);
+      if (me.view.kind !== 'slide' && hostOf(me.view)) setAttr(hostOf(me.view), 'mpp', false);
     };
-    if (animated && on && me.src && me.src.isConnected && me.view.el.isConnected) turnPanel(false, finish, me);
+    if (animated && (on || me.view.kind === 'dash') && me.src && me.src.isConnected && me.view.el.isConnected) turnPanel(false, finish, me);
     else { if (me.anim) { try { me.anim.cancel(); } catch (e) { /* done */ } } finish(); }
     // the slide's turn among the photos starts again now
     if (on && muShowing && mode === 'photos') schedule();
@@ -3046,7 +3113,7 @@
   function panelTouched() {
     var me = pnl;
     if (!me) return;
-    saverTouched();
+    if (me.view.kind !== 'dash') { saverTouched(); musicUsed(); }
     if (me.idleT) clearTimeout(me.idleT);
     var check = function () {
       me.idleT = null;
@@ -3168,14 +3235,21 @@
     }
     mus.watchAt = now;
     var ctx = mus.views.length ? renderMusic() : musicNow(hassNow());
-    // the pane's music: while something plays or is paused, and a while after
-    if (ctx) mus.lastActive = now;
-    if (cfg.music_pane) musicIn(!!ctx || now - mus.lastActive < MU_GRACE);
+    // the pane's music: while something plays, or its panel is open, and the
+    // grace after (paused music goes too, once the grace is up)
+    var g = muGrace(), inUse = !!pnl && pnl.view.kind !== 'dash';
+    if ((ctx && ctx.playing) || inUse) mus.lastActive = now;
+    if (cfg.music_pane) musicIn(now - mus.lastActive < g);
+    // (looked at again as the grace runs out: a paused house sends nothing)
+    if (mus.lastActive && now - mus.lastActive < g) {
+      clearTimeout(mus.graceT);
+      mus.graceT = setTimeout(function () { mus.watchAt = 0; musicWatch(); }, g - (now - mus.lastActive) + 100);
+    }
     if (!takeover()) return;
     if (!muShowing) { if (ctx && ctx.playing) showMusicSlide(); return; }
-    if (ctx && ctx.playing) mus.lostAt = 0;
-    else if (!mus.lostAt) mus.lostAt = now;
-    else if (now - mus.lostAt > MU_GRACE) {
+    if ((ctx && ctx.playing) || inUse) mus.lostAt = 0;
+    else if (!mus.lostAt) mus.lostAt = Math.max(now, mus.lastActive);
+    else if (now - Math.max(mus.lostAt, mus.lastActive) > g) {
       // back to the forecast, or to the photos (the next one takes the music away)
       mus.lostAt = 0;
       if (mode !== 'photos') hideMusicSlide(); else showNext(false);
@@ -3197,12 +3271,268 @@
     closePanel(false);
     if (mus.tick) { clearInterval(mus.tick); mus.tick = null; }
     if (mus.watchT) { clearTimeout(mus.watchT); mus.watchT = null; }
-    mus.views.slice().forEach(dropView);
+    mus.views.filter(function (v) { return v.kind !== 'dash'; }).forEach(dropView);
     if (mus.drag && mus.drag.t) clearTimeout(mus.drag.t);
     mus.key = null; mus.next = null; mus.nextFor = ''; mus.year = ''; mus.lostAt = 0; mus.drag = null; mus.vol = null;
     mus.paneIn = false; mus.paneNext = null;
     muShowing = false; lastSlide = '';
     if (host) host.removeAttribute('muslide');
+  }
+
+  // ------------------------------------------------------- THE DASHBOARD'S PANE
+  // NOW PLAYING AS A PANE ON THE DASHBOARD (2026-10-15; the screen's Now
+  // Playing -> Side Pane, hk-popup.js placeFor). The screensaver's own music
+  // pane, the same view (kind 'dash') in a card of its own
+  // (hk-music-pane-card) that the docked #media pop-up stands up down one
+  // side of the screen: the same art, song, buttons, volume, Up Next and
+  // Speakers / Browse panel, drawn from the same state -- so it is the music
+  // the screensaver shows, and the screensaver coming up over it shows the
+  // same. Unlike the screensaver's it takes taps the ordinary way (the page
+  // is not covered), and touching it is somebody at the dashboard, not at
+  // the screensaver (no saverTouched).
+  function hostOf(v) { return v && v.kind === 'dash' ? v.host : host; }
+  function rootOf(v) { return v && v.kind === 'dash' ? v.root : root; }
+  function dashViews() { return mus.views.filter(function (v) { return v.kind === 'dash'; }); }
+  function dashLive() { return mus.views.some(function (v) { return v.kind === 'dash' && v.live && v.el.isConnected; }); }
+  // what plays for a pane: hkMusic's answer for this screen (hk-popup.js asks)
+  function musicHas(h) { return !!musicNow(h || hassNow()); }
+  // the dashboard's pane drawn again from the house, at most once a second
+  // (the screensaver's own watch draws every view while it is up)
+  var dashAt = 0, dashT = null;
+  function dashWatch() {
+    if (on || !dashLive()) return;
+    var now = Date.now();
+    if (now - dashAt < 1000) {
+      if (!dashT) dashT = setTimeout(function () { dashT = null; dashWatch(); }, 1000 - (now - dashAt));
+      return;
+    }
+    dashAt = now;
+    renderMusic();
+  }
+  // ITS PANEL closes with a tap anywhere else on the dashboard, and a touch
+  // on it keeps it open (the screensaver routes both itself)
+  var dashOut = null;
+  function dashOutside(want) {
+    if (!want) {
+      if (dashOut) { document.removeEventListener('pointerdown', dashOut, true); dashOut = null; }
+      return;
+    }
+    if (dashOut) return;
+    dashOut = function (e) {
+      if (!pnl || pnl.view.kind !== 'dash') return;
+      var path = e.composedPath ? e.composedPath() : [];
+      if (path.indexOf(pnl.p.el) >= 0) { panelTouched(); return; }
+      // (its own buttons: Speakers / Browse switch or close it themselves)
+      var mx = pnl.view.el.querySelectorAll('.mbtn.mx');
+      for (var i = 0; i < mx.length; i++) if (path.indexOf(mx[i]) >= 0) return;
+      closePanel(true);
+    };
+    document.addEventListener('pointerdown', dashOut, true);
+  }
+  var DASH_CSS = [
+    // the card fills what the pop-up gives it: the pane, the card's whole box
+    // (not clipped: the pane's shadow falls off its edge onto the page, as
+    // onto the photos -- the pane itself clips its art)
+    ':host{display:block;position:relative;height:100%;min-height:0;overflow:visible;color:var(--hk-ink,rgba(255,255,255,0.94));',
+    // (a finger across it is its swipe away, never the page's pan: without
+    // this a touch drag sideways was the browser's, and cancelled)
+    '  -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;--hk-ink:rgba(255,255,255,0.94);touch-action:pan-y}',
+    '.pane{left:0;width:auto}',
+    // (a left pane's edge and shadow on its right, toward the page)
+    ':host([side="left"]) .pane{border-left:0;border-right:1px solid rgba(255,255,255,0.10);',
+    '  box-shadow:18px 0 44px rgba(0,0,0,.42),3px 0 12px rgba(0,0,0,.26)}',
+    // ITS PANEL (Speakers / Volume / Browse) stands where the pane was, so
+    // it wears the pane's edge: the hairline and the shadow onto the page
+    // (the pane itself is hidden under it)
+    ':host .mpanel:not(.card){box-shadow:inset 1px 0 0 rgba(255,255,255,0.10),-18px 0 44px rgba(0,0,0,.42),-3px 0 12px rgba(0,0,0,.26)}',
+    ':host([side="left"]) .mpanel:not(.card){box-shadow:inset -1px 0 0 rgba(255,255,255,0.10),18px 0 44px rgba(0,0,0,.42),3px 0 12px rgba(0,0,0,.26)}',
+    // its controls take taps (the screensaver's find them by place)
+    '.pm .mbtn,.pm .mvt,.pm .msq{pointer-events:auto;cursor:pointer}',
+    '.pm .mvt{touch-action:none}',
+    '.pm .mvt::before{content:"";position:absolute;left:-14px;right:-14px;top:-18px;bottom:-18px}',
+    '@media (hover:hover){.pm .mbtn:hover{background:rgba(255,255,255,.22)}.pm .mbtn.mpp:hover{background:#fff}}'
+  ].join('\n');
+  var DASH_SWIPE = 10;
+  // ONE VIEW FOR EVERY PAGE'S PANE (2026-10-15): each page of a dashboard
+  // holds its own #media pop-up, so a page change builds a new card -- and a
+  // new view started with no art, the placeholder showing until the cover had
+  // loaded and faded in again (seen in Safari, every page change). The view
+  // is made once and handed to whichever card is showing: its art, blur and
+  // song move with it, drawn already.
+  var dashV = null;
+  if (!customElements.get('hk-music-pane-card')) {
+    customElements.define('hk-music-pane-card', class extends HTMLElement {
+      constructor() {
+        super();
+        this._root = this.attachShadow({ mode: 'open' });
+      }
+      setConfig(c) { this._config = c || {}; }
+      getCardSize() { return 0; }
+      set hass(h) { this._hass = h; if (this._v && this._v.live) dashWatch(); }
+      get hass() { return this._hass; }
+      connectedCallback() {
+        if (!this._root.querySelector('.pane')) this._make();
+        this._adopt();
+        this._size();
+        if (this._want) this.active(true);
+      }
+      disconnectedCallback() {
+        var v = this._v;
+        // (only the card holding the view lets it rest: one a new page's
+        // card has taken it from keeps drawing there)
+        if (!v || v.host !== this) return;
+        if (pnl && pnl.view === v) closePanel(false);
+        v.live = false;
+        musicTick();
+      }
+      // the shared view, into this card's pane
+      _adopt() {
+        var v = this._v = dashV, box = this._root.querySelector('.pane');
+        if (v.host === this && v.el.parentNode === box) return;
+        if (pnl && pnl.view === v && v.host !== this) closePanel(false);
+        v.host = this; v.root = this._root; v.box = box; v.z = null;
+        box.appendChild(v.el);
+      }
+      // shown (the pop-up a pane) or not (the bar): drawn and ticking only shown
+      active(want) {
+        this._want = !!want;
+        var v = this._v;
+        if (!v) return;
+        if (want && this.isConnected) this._adopt();
+        else if (v.host !== this) return;
+        var was = v.live;
+        v.live = this._want && this.isConnected;
+        if (v.live) { this._size(); if (!was) { dashAt = 0; renderMusic(); } }
+        else if (pnl && pnl.view === v) closePanel(false);
+        musicTick();
+      }
+      // WHEN IT WAS LAST IN USE (hk-popup.js holds the sheet a grace after):
+      // its panel open is now; else the last touch on it
+      hkLastUse() {
+        var v = this._v;
+        if (v && v.host === this && pnl && pnl.view === v) return Date.now();
+        return this._usedAt || 0;
+      }
+      // ready to be seen: its music drawn and its art in (or none to wait for)
+      whenReady() {
+        var v = this._v;
+        if (!v) return Promise.resolve();
+        if (!v.live) this.active(true);
+        return Promise.resolve(v.ready).then(function () { return v.ready; });
+      }
+      // its scale: the screensaver's pane is 400 px at z 1
+      _size() {
+        var v = this._v, w = this.getBoundingClientRect().width || parseFloat(getComputedStyle(this).getPropertyValue('--hk-pane-w')) || 400;
+        var z = Math.max(0.85, Math.min(1.3, w / PANE_W));
+        if (v.z === z) return;
+        v.z = z;
+        var px = function (n) { return Math.round(n * z) + 'px'; };
+        this.style.setProperty('--hk-mu-z', String(z));
+        this.style.setProperty('--hk-pane-pad', px(28));
+        this.style.setProperty('--hk-pane-top', px(30));
+        this.style.setProperty('--hk-pm-foot', px(26));
+      }
+      _make() {
+        var r = this._root, self = this;
+        var css = CSS.slice(CSS.indexOf('.pane{position:absolute'));
+        window.hkCards.flatSurface(this, 'music');
+        r.innerHTML = '<style>' + css + '\n' + DASH_CSS + window.hkCards.flatCss() +
+          ':host([hk-flat]) .pm{background:#24252A!important;color:#F5F4F0;--hk-ink:#F5F4F0;--hk-ink-2:#C3C3C6;--hk-ink-3:#A3A4A9;--hk-glyph:#F5F4F0;--hk-key:#3A3B40;--hk-line:#48494F;--hk-line-strong:#62636A}' +
+          ':host([hk-flat]) .mbgf,:host([hk-flat]) .mshade{display:none}' +
+          ':host([hk-flat]) .pane,:host([hk-flat]) .mpanel{box-shadow:var(--hk-flat-elevated-shadow)!important;background:#24252A}' + '</style><div class="pane"></div>';
+        this.addEventListener('pointerdown', function () { self._usedAt = Date.now(); }, true);
+        // the screensaver's pane, as its host's attributes draw it
+        ['panecfg', 'pane', 'pm'].forEach(function (a) { self.setAttribute(a, ''); });
+        this._swipe();
+        if (dashV) return;
+        // THE VIEW, made once (dashV): its taps are wired on it, so they
+        // work in whichever card holds it
+        var v = dashV = musicView('dash');
+        v.live = false;
+        if (!window.hkSaverPanel) v.el.setAttribute('nomx', '');
+        // ITS BUTTONS, the art (Play Music) and the volume (dragged), as a
+        // tap on the screensaver's does -- by the element, not the place
+        v.el.addEventListener('click', function (e) {
+          var sw = v.host && v.host._swallow;
+          if (sw && Date.now() - sw < 400) return;
+          var b = e.target.closest ? e.target.closest('.mbtn') : null;
+          if (b) { musicAct({ btn: b, view: v }); return; }
+          if (e.target.closest && e.target.closest('.msq')) musicAct({ art: true, view: v });
+        });
+        var vt = v.vt;
+        vt.addEventListener('pointerdown', function (e) {
+          if (v.el.hasAttribute('novol')) return;
+          e.preventDefault(); e.stopPropagation();
+          try { vt.setPointerCapture(e.pointerId); } catch (x) { /* gone */ }
+          musicAct({ vol: true, view: v }, e.clientX);
+        });
+        vt.addEventListener('pointermove', function (e) { if (mus.drag && mus.drag.view === v) volFrom(e.clientX); });
+        var up = function () { if (mus.drag && mus.drag.view === v) volEnd(); };
+        vt.addEventListener('pointerup', up);
+        vt.addEventListener('pointercancel', up);
+      }
+      // SWIPED TOWARD ITS EDGE, PUT AWAY: the bar's swipe down, sideways --
+      // the docked sheet follows the finger and goes past 35% of its width or
+      // on a flick, else springs back; then hk-popup's own close (the hash
+      // cleared), which with `dismissable` leaves the stash button
+      _swipe() {
+        var self = this, d = null;
+        var sheetOf = function () {
+          var n = self.parentNode;
+          while (n && !(n.classList && n.classList.contains('sheet'))) n = n.parentNode;
+          return n;
+        };
+        this.addEventListener('pointerdown', function (ev) {
+          if (d || !self._v || (pnl && pnl.view === self._v) || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+          var path = ev.composedPath ? ev.composedPath() : [];
+          if (path.indexOf(self._v.vt) >= 0) return;
+          var sh = sheetOf();
+          if (!sh) return;
+          d = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, sh: sh, w: sh.offsetWidth || 400, on: false,
+                dir: self.getAttribute('side') === 'left' ? -1 : 1, last: [ev.timeStamp, ev.clientX], prev: null };
+        });
+        this.addEventListener('pointermove', function (ev) {
+          if (!d || ev.pointerId !== d.id) return;
+          var dx = (ev.clientX - d.x) * d.dir, dy = ev.clientY - d.y;
+          if (!d.on) {
+            if (Math.abs(dy) > DASH_SWIPE && Math.abs(dy) > Math.abs(dx)) { d = null; return; }
+            if (dx < -DASH_SWIPE) { d = null; return; }
+            if (!(dx > DASH_SWIPE && dx > Math.abs(dy) * 1.4)) return;
+            d.on = true;
+            try { self.setPointerCapture(d.id); } catch (x) { /* gone */ }
+            d.sh.style.transition = 'none';
+          }
+          d.sh.style.transform = 'translateX(' + (d.dir * Math.max(0, dx - DASH_SWIPE)) + 'px)';
+          d.prev = d.last; d.last = [ev.timeStamp, ev.clientX];
+        });
+        var end = function (ev) {
+          if (!d || ev.pointerId !== d.id) return;
+          var g = d, sh = g.sh;
+          d = null;
+          if (!g.on) return;
+          self._swallow = Date.now();
+          var x = (ev.clientX - g.x) * g.dir - DASH_SWIPE;
+          var vel = g.prev ? (g.last[1] - g.prev[1]) * g.dir / Math.max(1, g.last[0] - g.prev[0]) : 0;
+          if (ev.type === 'pointerup' && (x > g.w * 0.35 || (vel > 0.5 && x > 20))) {
+            sh.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)';
+            sh.style.transform = 'translateX(' + (g.dir * 104) + '%)';
+            setTimeout(function () {
+              if (location.hash) {
+                history.replaceState(null, '', location.pathname + location.search);
+                window.dispatchEvent(new HashChangeEvent('hashchange'));
+              }
+              sh.style.transition = ''; sh.style.transform = '';
+            }, 200);
+          } else {
+            sh.style.transition = 'transform .28s cubic-bezier(.32,.72,0,1)';
+            sh.style.transform = '';
+            setTimeout(function () { if (!sh.style.transform) sh.style.transition = ''; }, 300);
+          }
+        };
+        this.addEventListener('pointerup', end);
+        this.addEventListener('pointercancel', end);
+      }
+    });
   }
 
   // ------------------------------------------------------------ the pane
@@ -3279,7 +3609,9 @@
     // THE CALENDAR ([pcal]) and THE MUSIC ([pm], while it plays) share it:
     // either fills it, both put the calendar above the music
     setAttr(host, 'pcal', cfg.calendar);
-    var playing = cfg.music_pane && !!musicNow(hassNow());
+    // (playing, not paused: a song left paused does not bring the pane back
+    // each time the screensaver starts)
+    var c0 = cfg.music_pane ? musicNow(hassNow()) : null, playing = !!(c0 && c0.playing);
     mus.paneIn = playing; mus.lastActive = playing ? clock.now() : 0;
     setAttr(host, 'pm', playing);
     musicPane(cfg.music_pane);
@@ -3885,11 +4217,20 @@
     if (previewOn && previewHouse) raw = houseBlock() || raw;
     var HS = window.hkSettings;
     if (HS && HS.lovelacePanel && HS.lovelacePanel() === false) raw = null;
-    var key = raw ? JSON.stringify(raw) : '';
+    // Derive effective options without changing any saved screensaver choice.
+    if (raw && isFlat()) raw = Object.assign({}, raw, {
+      zoom: false, photo_layout: 'single', portrait_blur: 0, landscape_blur: 0,
+      portrait_dim: 0, landscape_dim: 0, portrait_zoom: 100, landscape_zoom: 100,
+      clock_style: 'classic', clock_bg: ['photos','landscapes','black'].indexOf(raw.clock_bg) >= 0 ? raw.clock_bg : 'black',
+      clock_motion: 'still', clock_speed: 0, clock_depth: 0, clock_photo_soft: false,
+      clock_text_shadow: 0, clock_text_outline: 0
+    });
+    var key = raw ? JSON.stringify(raw) + '|' + isFlat() : '';
     if (key !== lastRaw) {
       lastRaw = key;
       var was = cfg;
       cfg = readCfg(raw);
+      if (was && on && !previewOn && cfg) { var reason = startedBy; stop('appearance'); teardown(); start(reason); }
       // the preview follows the settings page: rebuilt with the new options
       // -- or, when only the photos' layout changed, laid out again in place
       if (previewOn && on && cfg) {
@@ -3918,6 +4259,16 @@
     refreshedAt = now;
     refresh();
   }
+  window.addEventListener('hk-module-ready', function (e) {
+    if (e.detail && e.detail.module === 'hk-settings') { refresh(); mus.views.forEach(function (v) {
+      var flat = isFlat();
+      if (v.flat === flat) return;
+      v.flat = flat;
+      if (flat) v.bg.forEach(function (c) { clearCanvas(c); c.remove(); });
+      else v.bgf.forEach(function (f) { var c = document.createElement('canvas'); c.className = 'mbg'; c.width = MU_BG; c.height = MU_BG; f.appendChild(c); });
+      v.bg = v.el.querySelectorAll('canvas.mbg'); v.pic = null;
+    }); renderMusic(); }
+  });
   window.addEventListener('location-changed', function () { setTimeout(refresh, 0); });
   window.addEventListener('popstate', function () { setTimeout(refresh, 0); });
   window.addEventListener('resize', function () { if (on) { layoutPane(); layoutMusic(); placePanel(); } });
@@ -3951,6 +4302,9 @@
   function hookHass() {
     if (hubOff || !(window.hkCards && window.hkCards.onHass)) return false;
     hubOff = window.hkCards.onHass(function (h) { refreshSoon(); onHass(h); if (on) musicWatch(); });
+    if (window.hkMusic && window.hkMusic.onChange) window.hkMusic.onChange(function () {
+      if (on) { mus.watchAt = 0; musicWatch(); }
+    });
     return true;
   }
   // hk-base (the cards) loads after this module; until it does, poll lightly
@@ -4003,6 +4357,9 @@
     previous: previousPhoto,
     force: function (v) { force = !!v; refresh(); return force; },
     config: function () { return cfg; },
+    // what plays for the dashboard's Now Playing pane (hk-popup.js): there
+    // (playing or paused), and playing
+    music: { has: musicHas, playing: function (h) { var c = musicNow(h || hassNow()); return !!(c && c.playing); } },
     stats: function () {
       return { on: on, startedBy: startedBy, allowed: allowed(), photos: deck ? deck.items.length : null,
                shown: shown, failed: failed, last: lastPhoto, cards: cards.length,
@@ -4035,6 +4392,7 @@
          extras: { next: exNext, hide: exHide, arm: exArm, kind: function () { return exKind; }, last: function () { return exLast; } },
          // tests: the music without real speakers
          music: { show: showMusicSlide, hide: hideMusicSlide, render: renderMusic, watch: function () { mus.watchAt = 0; musicWatch(); },
+                  dash: dashViews,
                   hit: musicHit, act: musicAct, now: musicNow, layout: layoutMusic, grace: MU_GRACE,
                   // the panel: open on the slide or the pane, close
                   panel: function (kind, tab) {

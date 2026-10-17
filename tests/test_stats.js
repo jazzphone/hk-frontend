@@ -131,8 +131,12 @@ function rollTest(done) {
     h.settle(0, { 'sensor.r': [] });
     tick(6).then(function () {
       check('roll: answered', S.hourly(h, ['sensor.r'], 24, null) !== null);
+      var firstReceipt = S.freshness(S.hourly(h, ['sensor.r'], 24, null));
+      check('freshness: actual successful receipt time', firstReceipt === T);
+      check('freshness: unknown arrays have no invented receipt', S.freshness({unknown:[]}) === null);
       T += 3600000;
       check('roll: the next hour draws the last hour\'s answer while it asks', S.hourly(h, ['sensor.r'], 24, null) !== null);
+      check('freshness: bucket stand-in retains original receipt', S.freshness(S.hourly(h, ['sensor.r'], 24, null)) === firstReceipt);
       check('roll: a different shape gets no stand-in', S.hourly(h, ['sensor.r'], 12, null) === null);
       setTimeout(function () {
         check('roll: the new hour was asked for', h.calls.length >= 2 && h.calls[1].period === 'hour');
@@ -142,6 +146,7 @@ function rollTest(done) {
           S.hourly(h, ['sensor.r'], 24, null);
           var keys = []; S.dump().cache.forEach(function (_v, k) { if (/^hour\|24\|/.test(k)) keys.push(k); });
           check('roll: once the new answer is in, the old hour is evicted', keys.length === 1);
+          check('freshness: newly fetched series advances receipt', S.freshness(S.hourly(h, ['sensor.r'], 24, null)) === T);
           Date.now = realNow;
           done();
         });

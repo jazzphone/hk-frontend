@@ -1,5 +1,5 @@
 {
- "about": "HK Frontend's own house for the Power page (hk-power-house-card): a made-up house, drawn in layers that show only what a house has -- solar on its roof, the battery cabinet, the car while one is home. A Picture Folder of your own (art.json and its layers, in your files) takes its place.",
+ "about": "HK Frontend's own house for the Power page (hk-power-house-card): a made-up house, drawn in layers that show only what a house has -- solar on its roof, the battery cabinet, the car while one is home. A Picture Folder of your own (art.json and its layers, in your files) takes its place. Its `doors` place the Security page's ways in: `at`, the spot on the picture; `tag`, where the label sits clear of the house (canvas pixels).",
  "canvas": [
   1536,
   1024
@@ -307,5 +307,37 @@
    0.9,
    1
   ]
+ },
+ "doors": {
+  "front_door": {
+   "at": [
+    526,
+    797
+   ],
+   "tag": [
+    192,
+    987
+   ]
+  },
+  "back_door": {
+   "at": [
+    1012,
+    347
+   ],
+   "tag": [
+    1322,
+    237
+   ]
+  },
+  "garage": {
+   "at": [
+    1110,
+    837
+   ],
+   "tag": [
+    1342,
+    997
+   ]
+  }
  }
 }

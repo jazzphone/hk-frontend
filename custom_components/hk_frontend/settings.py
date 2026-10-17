@@ -117,6 +117,26 @@ SKY_BACKDROPS = (
     {"id": "mist", "label": "Mist",
      "day": ["#0d1a1c", "#173437", "#22646a", "#56a0a0"],
      "night": ["#080f10", "#0d1e21", "#12373d", "#325556"]},
+    # THE CALM ONES (2026-10-16): the Calendar previews the user liked --
+    # quiet, low-contrast moods (Sage Mist is the Calendar page's own)
+    {"id": "lagoon", "label": "Lagoon",
+     "day": ["#0c1d2b", "#14324a", "#1f5068", "#3f7f90"],
+     "night": ["#070f18", "#0c1d2b", "#123346", "#244e5c"]},
+    {"id": "lavender", "label": "Lavender Dusk",
+     "day": ["#15142b", "#25244a", "#3b3a6a", "#68679a"],
+     "night": ["#0b0a18", "#15142b", "#232245", "#3a3962"]},
+    {"id": "sage", "label": "Sage Mist",
+     "day": ["#0e1a18", "#18302b", "#284a42", "#4f7a6c"],
+     "night": ["#08100e", "#0f1d1a", "#1a302b", "#2f4a42"]},
+    {"id": "harbor", "label": "Harbor Slate",
+     "day": ["#111a26", "#1c2b3e", "#2d4159", "#566e8a"],
+     "night": ["#090e16", "#111a26", "#1b2a3c", "#2f4359"]},
+    {"id": "rosewater", "label": "Rosewater",
+     "day": ["#1c1418", "#33232b", "#523844", "#86626f"],
+     "night": ["#100b0e", "#1c1418", "#2e1f26", "#4a343e"]},
+    {"id": "driftwood", "label": "Driftwood",
+     "day": ["#1a1712", "#2f2a21", "#4b4333", "#7c6f57"],
+     "night": ["#0e0c09", "#1a1712", "#2a251c", "#443c2e"]},
     # Black (2026-10-13): what a screen with its Live Sky turned off showed
     # -- the views' own near-black -- as a color to choose
     {"id": "black", "label": "Black",
@@ -165,6 +185,14 @@ def parse_mmdd(text: str | None) -> str | bool | None:
     return f"{int(m.group(1)):02d}-{int(m.group(2)):02d}"
 
 
+def board_headers(v: Any) -> dict[str, bool]:
+    """A screen's own page headers: {page: False} for each header it turns
+    off (a page with a header, HEADERS); anything else is dropped."""
+    if not isinstance(v, Mapping):
+        return {}
+    return {k: False for k, on in v.items() if k in HEADERS and on is False}
+
+
 def sky_pages(v: Any) -> dict[str, str] | None:
     """Each page's background as stored: {page kind or custom page address:
     a SKY_PAGE_MODES value}; None when it cannot be read. An unknown page or
@@ -175,6 +203,203 @@ def sky_pages(v: Any) -> dict[str, str] | None:
         return None
     return {str(k): m for k, m in v.items()
             if isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k) and m in SKY_PAGE_MODES}
+
+
+# FLAT'S BACKGROUNDS (2026-10-16). Flat (look.flat) draws no live sky, so it
+# keeps backgrounds of its own and the Glass looks' Sky / Background stays as
+# it was for when Flat is left: a Color, a Photo or Landscapes (the same photo
+# and landscape choices the Glass looks use), a Fade over a photo, and each
+# page's own. A color is "auto" (the page's own ground -- Climate's sage,
+# Lights' beige ... -- else the theme's), one of FLAT_COLORS, which has a
+# Light and a Dark tone each, or "#rrggbb", the same in both themes.
+# hk-base.js FLAT_COLORS mirrors this table (tests/py/test_flat.py).
+FLAT_BACKGROUNDS = ("color", "photo", "landscapes")
+FLAT_COLORS = (
+    {"id": "stone", "label": "Stone", "light": "#EEECE6", "dark": "#17181A"},
+    {"id": "paper", "label": "Paper", "light": "#F7F6F2", "dark": "#232427"},
+    {"id": "sand", "label": "Sand", "light": "#F1ECE3", "dark": "#1D1A16"},
+    {"id": "sage", "label": "Sage", "light": "#EAF0ED", "dark": "#151C1B"},
+    {"id": "mist", "label": "Mist", "light": "#E9EDF0", "dark": "#171B20"},
+    {"id": "sky", "label": "Sky", "light": "#E6EEF5", "dark": "#141C26"},
+    {"id": "lavender", "label": "Lavender", "light": "#EEEBF1", "dark": "#1C1821"},
+    {"id": "blush", "label": "Blush", "light": "#F4EAE7", "dark": "#211718"},
+    # (in Light, the deepest stone: "Black" there would be a gray)
+    {"id": "black", "label": "Black", "light_label": "Pebble", "light": "#E2E1DC", "dark": "#000000"},
+)
+FLAT_COLOR_IDS = ("auto",) + tuple(c["id"] for c in FLAT_COLORS)
+FLAT_FADE = 50
+FLAT_TINT_AMOUNT = 60      # a photo's Tint: how far the photo is turned to its color
+
+
+def flat_color(v: Any) -> str | None:
+    """A Flat color as stored ("auto", a FLAT_COLORS id or "#rrggbb"), or None."""
+    if not isinstance(v, str):
+        return None
+    if v in FLAT_COLOR_IDS:
+        return v
+    return v.upper() if ACCENT_HEX.fullmatch(v) else None
+
+
+def flat_pages(v: Any) -> dict[str, str] | None:
+    """Each page's Flat background ({page: a Flat color, "photo" or
+    "landscapes"}); None when it can't be read. An unknown page or value is
+    left out."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    out = {}
+    for k, m in v.items():
+        if not (isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k)):
+            continue
+        m = m if m in ("photo", "landscapes") else flat_color(m)
+        if m:
+            out[k] = m
+    return out
+
+
+# FLAT COLORS (2026-10-17, hk_house/docs/PLAN-2026-10-17-flat-appearance-colors.md):
+# Flat's own palette, two fields resolved each on its own --
+#   accent    "auto" | an ACCENTS name | "#rrggbb": the seed that colors an
+#             Automatic background, the current page's highlight and a
+#             Match Accent tint
+#   off_tint  "auto" | "accent" | an ACCENTS name | "#rrggbb": the wash on
+#             pills that are off ("accent" a binding to the final accent,
+#             never a copy of it)
+#   pages     "accent" | "own" (2026-10-17, the user): whether the pages
+#             that have a color of their own (Climate blue, Lights
+#             yellow...) take an accent chosen for the whole screen, or keep
+#             theirs as Automatic does -- Home and the rooms take it either
+#             way. All Screens and a screen only: a page's own accent is
+#             always its own.
+# at four levels: All Screens (look.flat_colors, both fields always there),
+# All Screens' pages (look.flat_page_colors), a screen (flat_colors) and a
+# screen's pages (flat_page_colors). A field missing below All Screens is
+# Same as / inherited; "auto" stops there. Pages are keyed as Flat's
+# backgrounds are (home, a page kind, rooms, room-<slug>, a custom page's
+# address). hk-settings.js resolveFlatColors reads them.
+FLAT_COLOR_FIELDS = ("accent", "off_tint", "pages")
+FLAT_PAGE_FIELDS = ("accent", "off_tint")
+FLAT_PAGES_MODES = ("accent", "own")
+FLAT_COLORS_DEFAULT = {"accent": "auto", "off_tint": "auto", "pages": "accent"}
+FLAT_PAGE_KEY = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
+FLAT_PAGES_MAX = 200
+
+
+def flat_field(field: str, v: Any) -> str | None:
+    """One Flat Colors field as stored, or None when it isn't one."""
+    if field == "pages":
+        return v if v in FLAT_PAGES_MODES else None
+    a = accent(v)
+    if field == "off_tint" and str(v or "").strip().lower() == "accent":
+        return "accent"
+    return a
+
+
+def flat_colors(v: Any, strict: bool = False, fields: tuple = FLAT_COLOR_FIELDS) -> dict[str, str] | None:
+    """A sparse Flat Colors object ({accent?, off_tint?}) as stored. Read
+    (strict False): what can't be read is left out. Strict: None for an
+    unknown key or a bad value -- nothing is half saved."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    out = {}
+    for k, x in v.items():
+        if k not in fields:
+            if strict:
+                return None
+            continue
+        if x is None:
+            continue
+        got = flat_field(k, x)
+        if got is None:
+            if strict:
+                return None
+            continue
+        out[k] = got
+    return out
+
+
+def flat_page_colors(v: Any, strict: bool = False) -> dict[str, dict[str, str]] | None:
+    """Each page's Flat Colors ({page: FlatColors}); an empty page is left
+    out. Strict as flat_colors()."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping) or (strict and len(v) > FLAT_PAGES_MAX):
+        return None
+    out = {}
+    for k, x in v.items():
+        ok = isinstance(k, str) and FLAT_PAGE_KEY.match(k)
+        got = flat_colors(x, strict, FLAT_PAGE_FIELDS) if ok else None
+        if got is None:
+            if strict:
+                return None
+            continue
+        if got:
+            out[k] = got
+    return dict(list(out.items())[:FLAT_PAGES_MAX])
+
+
+def flat_tint(v: Any) -> str | None:
+    """A Flat photo's or landscape's Tint (2026-10-17): "none", "accent"
+    (the page's accent) or "#rrggbb" -- the photo turned to that color, its
+    own light and dark kept; None for anything else."""
+    t = str(v or "").strip().lower()
+    return t if t in ("none", "accent") or ACCENT_HEX.fullmatch(t) else None
+
+
+# Sparse v2 photo treatment. No stored mode means legacy rendering: old
+# strength/brightness numbers never silently acquire new meanings.
+FLAT_IMAGE_DEFAULTS = {"mode": "legacy", "color": "accent", "strength": 80,
+                       "depth": 40, "brightness": 0, "fade": 35}
+
+
+def flat_image_look(v: Any, strict: bool = False) -> dict[str, Any] | None:
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    out = {}
+    for k, x in v.items():
+        if k not in FLAT_IMAGE_DEFAULTS:
+            if strict:
+                return None
+            continue
+        if x is None:
+            continue
+        if k == "mode":
+            good = isinstance(x, str) and x in ("legacy", "original", "tinted")
+        elif k == "color":
+            x = x.strip().lower() if isinstance(x, str) else x
+            good = isinstance(x, str) and (x == "accent" or bool(ACCENT_HEX.fullmatch(x)))
+        else:
+            good = (isinstance(x, (int, float)) and not isinstance(x, bool)
+                    and (-50 if k == "brightness" else 0) <= x <= (50 if k == "brightness" else 100)
+                    and int(x) == x)
+        if not good:
+            if strict:
+                return None
+            continue
+        out[k] = x if k in ("mode", "color") else int(x)
+    return out
+
+
+def flat_page_image_looks(v: Any, strict: bool = False) -> dict[str, Any] | None:
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping) or (strict and len(v) > FLAT_PAGES_MAX):
+        return None
+    out = {}
+    for k, x in v.items():
+        got = flat_image_look(x, strict) if isinstance(k, str) and FLAT_PAGE_KEY.fullmatch(k) else None
+        if got is None:
+            if strict:
+                return None
+            continue
+        if got:
+            out[k] = got
+    return dict(list(out.items())[:FLAT_PAGES_MAX])
 
 
 CHIP_SHOWS = ("always", "active")
@@ -201,11 +426,12 @@ def sky_photo(v: Any) -> str | None:
 # photo and custom colors you made (photo, gradient_custom: kept for next
 # time), or Advanced's dates, hemisphere and sources. A screen's reset is
 # SKY_RESET_BOARD to None: Same as All Screens.
-SKY_RESET = ("background", "color", "landscape", "photo_look", "landscape_look",
+SKY_RESET = ("background", "color", "landscape", "photo_look", "landscape_look", "flat_background", "flat_color", "flat_image_look", "flat_fade", "flat_tint", "flat_tint_amount", "flat_tint_light",
              "animations", "focus_pause", "moving", "weather", "precipitation",
              "cloud_style", "daytime", "gradient", "decorations", "decoration_style",
              "woodland", "themes", "liveliness_all", "liveliness", "liveliness_custom")
 SKY_RESET_BOARD = ("sky_background", "sky_color", "sky_landscape", "sky_photo_look", "sky_landscape_look",
+                   "sky_flat_background", "sky_flat_color", "sky_flat_image_look", "sky_flat_fade", "sky_flat_tint", "sky_flat_tint_amount", "sky_flat_tint_light",
                    "sky_animations", "sky_focus_pause", "sky_moving", "sky_weather", "sky_precipitation",
                    "sky_cloud_style", "sky_daytime", "sky_gradient", "sky_decorations", "sky_decoration_style",
                    "sky_liveliness", "sky_liveliness_occ", "sky_liveliness_custom", "sky_calm_empty")
@@ -343,7 +569,56 @@ STATUS_ROWS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "water": (("leaks", "valves"), ("leaks", "valves")),
     "security": (("security", "locks", "garage", "doors", "windows", "leaks", "motion", "occupancy"),
                  ("security", "locks", "garage", "doors", "windows", "leaks")),
+    # (2026-10-16, Pages): the utility pages' rows, as hk-room.js PAGE_ROWS
+    "vacuums": (("vacuums", "vacuum_battery"), ("vacuums", "vacuum_battery")),
+    "timers": (("timers",), ("timers",)),
 }
+
+# THE PAGE HEADERS' settings, per page (settings.headers.<page>): show the
+# header, and the few things a page's cards cannot always guess.
+#   climate.thermostats: the thermostats counted (None: every one that reports
+#     heating and cooling)
+#   lights.rooms: how many rooms Lighting Through the Day lists (2-5)
+#   lights.left_on / lights.tonight: the right-hand card's two halves
+#   lights.exclude_areas: rooms Left On never names (None: outdoor-sounding
+#     areas and those the page's status row leaves out)
+#   lights.after_min: how long a room is empty before its light is "left on"
+#   lights.automations: the automations Tonight lists (None: every one that
+#     switches the page's lights at a time or the sun)
+#   lights.sky_follow: the page's amber backdrop takes the color temperature
+#     of the light outside now (hk-sky.js sunKelvin)
+#   lights.sky_source: the Adaptive Lighting switch it reads (None: the
+#     first one found; none at all: the sun's elevation)
+#   security.callouts: the labels on the house picture
+#   security.front_door / back_door / garage: the lock, contact or garage
+#     door each label reads (None: found by name)
+#   security.low_battery: Device Care's low battery, percent
+#   water.meter: the water meter the day's usage reads (None: the Energy
+#     settings' water source, else the first water meter)
+#   water.supply: the main supply valve the header controls (None: the valve
+#     named main/supply/shut-off, else the house's only non-irrigation valve)
+#   timers.presets: Quick Start's durations, minutes (1-6 of them)
+#   timers.names: Quick Start's name chips (up to 6)
+#   vacuums.counters: the mission counters the header reads (None: each
+#     vacuum's own successful/failed/canceled sensors, found by name)
+HEADERS: dict[str, dict[str, Any]] = {
+    "climate": {"show": True, "thermostats": None},
+    "lights": {"show": True, "rooms": 3, "left_on": True, "tonight": True, "exclude_areas": None,
+               "after_min": 10, "automations": None, "sky_follow": True, "sky_source": None},
+    "security": {"show": True, "callouts": True, "front_door": None, "back_door": None, "garage": None,
+                 "low_battery": 20},
+    "water": {"show": True, "meter": None, "supply": None},
+    "timers": {"show": True, "presets": [5, 10, 15, 20, 30, 60],
+               "names": ["Pasta", "Oven", "Laundry", "Tea", "Kids", "Break"]},
+    "vacuums": {"show": True, "counters": None},
+}
+HEADER_ROOMS = (2, 5)
+HEADER_PRESETS = (1, 6)          # how many quick durations
+HEADER_PRESET_MIN = (1, 720)     # each, in minutes
+HEADER_NAMES = 6                 # how many name chips
+HEADER_NAME_LEN = 16
+HEADER_AFTER = (5, 120)
+HEADER_BATTERY = (5, 50)
 
 # The clouds' looks (sky.cloud_style, a screen's sky_cloud_style)
 CLOUD_STYLES = ("classic", "realistic")
@@ -352,6 +627,17 @@ SKY_MOVING = ("behind", "front")
 # Notifications on a screen's screensaver: every one, only the Important ones,
 # none (a notification set to Wakes the Screen wakes it whatever this says)
 NOTIFY_SAVERS = ("all", "important", "off")
+# NOW PLAYING (2026-10-15): where the music playing shows -- a side pane
+# beside the page (the screensaver's own music pane) or the bar along the
+# bottom or the top. Tablets & computers choose; a phone always has the bar,
+# and so does a screen where the pane does not fit.
+NP_STYLES = ("pane", "bar")
+NP_SIDES = ("right", "left")
+NP_BARS = ("bottom", "top")
+# ...and how long it stays once the music is paused or stopped (seconds),
+# the bar, the pane and the screensaver's music alike -- longer while it is
+# being used (Speakers / Browse open, a touch on it)
+NP_GRACES = (10, 20, 30, 60, 120)
 
 # The daytime sky (sky.daytime, a screen's sky_daytime): how bright the midday
 # blue runs -- natural (a real midday sky), balanced, or deep (the dusky blue
@@ -464,10 +750,168 @@ def lively_custom(v: Any) -> dict[str, dict[str, int]] | None:
 
 
 
+# THE WEATHER PAGE (2026-10-16, hk_house/docs/PLAN-2026-10-16-weather-page.md):
+# what the page shows, in `weather.page`, and its own radar map, in
+# `weather.radar_native` -- two typed objects of the weather section, each
+# read over its own defaults (weather_page / radar_native below), so a
+# partly stored one is still whole. The weather service and its sensors stay
+# the section's other keys, shared with the header, Climate and the
+# screensaver; these two are the Weather page's alone.
+WEATHER_DETAILS = ("wind", "sun", "uv", "humidity", "moon", "pressure")
+WEATHER_HOURS = (6, 12, 24)
+WEATHER_DAYS = (5, 8, 10)
+WEATHER_METRICS = ("temperature", "rain", "wind")
+WEATHER_PAGE_DEFAULTS: dict[str, Any] = {
+    "show_current": True, "show_hourly": True, "show_daily": True, "show_alerts": True,
+    "hours": 12, "days": 8, "hourly_metric": "temperature",
+    "details": list(WEATHER_DETAILS), "load_animation": True,
+}
+# THE NATIVE RADAR (hk-radar.js): off on a new house; a house that showed the
+# Weather Radar Card is moved over once (radar_lifted, entry 1.16).
+RADAR_PROVIDERS = ("auto", "noaa", "rainviewer")
+RADAR_BASEMAPS = ("osm",)
+RADAR_CENTERS = ("home", "zone")
+RADAR_ZOOM = (4, 10)
+RADAR_HISTORY = (30, 60, 120)
+RADAR_SPEEDS = ("slow", "normal", "fast")
+RADAR_OPACITY = (20, 100)
+RADAR_DEFAULTS: dict[str, Any] = {
+    "version": 1, "enabled": False, "provider": "auto", "basemap": "osm", "center": "home", "zone": None,
+    "zoom": 5, "marker": True, "history_minutes": 60, "playback_speed": "normal", "autoplay": True,
+    "interactive": True, "playback_controls": True, "opacity": 75,
+}
+ZONE_ID = re.compile(r"^zone\.[a-z0-9_]+$")
+
+
+def _whole(v: Any, lo: int, hi: int) -> int | None:
+    """A whole number lo..hi (an integral float too), never a boolean."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or v in (float("inf"), float("-inf")):
+        return None
+    if int(v) != v or not lo <= v <= hi:
+        return None
+    return int(v)
+
+
+def _one_of(v: Any, options: tuple[Any, ...]) -> Any:
+    if isinstance(v, bool) or v not in options:
+        return None
+    return v
+
+
+def _flag(v: Any) -> bool | None:
+    return v if isinstance(v, bool) else None
+
+
+WEATHER_PAGE_CHECKS: dict[str, Any] = {
+    "show_current": _flag, "show_hourly": _flag, "show_daily": _flag, "show_alerts": _flag,
+    "load_animation": _flag,
+    "hours": lambda v: _one_of(v, WEATHER_HOURS), "days": lambda v: _one_of(v, WEATHER_DAYS),
+    "hourly_metric": lambda v: _one_of(v, WEATHER_METRICS),
+    "details": lambda v: list(v) if isinstance(v, list) and len(set(v)) == len(v)
+    and all(isinstance(x, str) and x in WEATHER_DETAILS for x in v) else None,
+}
+RADAR_CHECKS: dict[str, Any] = {
+    "version": lambda v: 1 if v == 1 and not isinstance(v, bool) else None,
+    "enabled": _flag, "marker": _flag, "autoplay": _flag, "interactive": _flag, "playback_controls": _flag,
+    "provider": lambda v: _one_of(v, RADAR_PROVIDERS), "basemap": lambda v: _one_of(v, RADAR_BASEMAPS),
+    "center": lambda v: _one_of(v, RADAR_CENTERS),
+    "zoom": lambda v: _whole(v, *RADAR_ZOOM), "opacity": lambda v: _whole(v, *RADAR_OPACITY),
+    "history_minutes": lambda v: _one_of(v, RADAR_HISTORY),
+    "playback_speed": lambda v: _one_of(v, RADAR_SPEEDS),
+}
+
+
+def _typed(v: Any, defaults: Mapping[str, Any], checks: Mapping[str, Any], strict: bool) -> dict[str, Any] | None:
+    """`v` over `defaults`, each key through its check. strict (a save): any
+    unknown key or bad value refuses the whole object (None). Not strict
+    (what is stored, read back): a bad key keeps its default."""
+    out = copy.deepcopy(dict(defaults))
+    if v is None:
+        return out
+    if not isinstance(v, Mapping):
+        return None if strict else out
+    for k, x in v.items():
+        if k not in checks:
+            if strict:
+                return None
+            continue
+        if k == "zone":
+            got: Any = x if x is None or (isinstance(x, str) and ZONE_ID.match(x)) else False
+            if got is False:
+                if strict:
+                    return None
+                continue
+            out[k] = got
+            continue
+        got = checks[k](x)
+        if got is None:
+            if strict:
+                return None
+            continue
+        out[k] = got
+    return out
+
+
+def weather_page(v: Any, strict: bool = True) -> dict[str, Any] | None:
+    """The Weather page's composition (weather.page) over its defaults."""
+    return _typed(v, WEATHER_PAGE_DEFAULTS, WEATHER_PAGE_CHECKS, strict)
+
+
+def radar_native(v: Any, strict: bool = True) -> dict[str, Any] | None:
+    """The native radar's settings (weather.radar_native) over its defaults."""
+    return _typed(v, RADAR_DEFAULTS, {**RADAR_CHECKS, "zone": None}, strict)
+
+
+# The Weather Radar Card's options the native radar takes over (radar_lifted);
+# anything else in weather.radar has no native meaning and is kept, unused.
+RADAR_LEGACY_MAPPED = ("data_source", "zoom_level", "static_map", "show_playback", "markers")
+
+
+def radar_from_legacy(legacy: Mapping[str, Any] | None, enabled: bool) -> dict[str, Any]:
+    """The native radar for a house that showed the Weather Radar Card: its
+    stored options (weather.radar) where they have a native meaning, the
+    native defaults for the rest."""
+    out = copy.deepcopy(RADAR_DEFAULTS)
+    out["enabled"] = bool(enabled)
+    lg = legacy if isinstance(legacy, Mapping) else {}
+    src = str(lg.get("data_source") or "").lower()
+    if src in ("noaa", "rainviewer"):
+        out["provider"] = src
+    z = lg.get("zoom_level")
+    if isinstance(z, (int, float)) and not isinstance(z, bool) and z == z:
+        out["zoom"] = int(min(RADAR_ZOOM[1], max(RADAR_ZOOM[0], round(z))))
+    if isinstance(lg.get("static_map"), bool):
+        out["interactive"] = not lg["static_map"]
+    if isinstance(lg.get("show_playback"), bool):
+        out["playback_controls"] = lg["show_playback"]
+    return out
+
+
+def radar_lifted(options: Mapping[str, Any] | None, installed: bool) -> dict[str, Any] | None:
+    """Entry 1.16: the Weather page's radar becomes HK's own. A house with no
+    radar_native yet that showed the Weather Radar Card (installed: the card's
+    file is there, which is what drew it) gets the native radar on, with its
+    old options where they map (radar_from_legacy); weather.radar itself is
+    kept untouched. None when nothing changes -- already moved, or no card
+    (a new house's radar stays off, its default)."""
+    opts = dict(options or {})
+    dash = opts.get(CONF_DASHBOARD) if isinstance(opts.get(CONF_DASHBOARD), Mapping) else {}
+    w = dash.get("weather") if isinstance(dash.get("weather"), Mapping) else {}
+    if "radar_native" in w or not installed:
+        return None
+    native = radar_from_legacy(w.get("radar"), True)
+    return {**opts, CONF_DASHBOARD: {**dash, "weather": {**w, "radar_native": native}}}
+
+
 DEFAULTS: dict[str, dict[str, Any]] = {
     # the pages' status rows: what each shows, in its order, and the rooms it
     # leaves out (an outdoor area's temperature, a shed's leak sensor)
     "status_rows": {p: {"status": list(d), "exclude_areas": []} for p, (_k, d) in STATUS_ROWS.items()},
+    # THE PAGE HEADERS (2026-10-15, hk-headers.js): the cards between a
+    # category page's status row and its accessories. Each works itself out
+    # from the house; these are only where a guess can be wrong. None:
+    # Automatic (the card's own guess).
+    "headers": copy.deepcopy(HEADERS),
     # The header's right-hand line: "Disarmed · 2 Doors Open" / "Home Secured".
     "security": {"alarm": None, "garage": [], "locks": [], "doors": [], "windows": []},
     # The header clock. Home Assistant's Time & Date integration; the page
@@ -478,8 +922,13 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "weather": {"entity": None, "feels_like": None, "humidity": None, "wind": None, "gust": None,
                 "uv": None, "forecast_daily": None, "forecast_hourly": None,
                 "alerts": None, "place": None, "outside": None,
-                # the Weather Radar Card's own options (YAML) over the tuned map
-                "radar": {}},
+                # the Weather Radar Card's own options (YAML), kept as they
+                # were: the generated Weather page draws HK's own radar since
+                # 1.16 (radar_native), which took over what maps
+                "radar": {},
+                # the Weather page's composition and its radar (above)
+                "page": copy.deepcopy(WEATHER_PAGE_DEFAULTS),
+                "radar_native": copy.deepcopy(RADAR_DEFAULTS)},
     # The live sky. moon: a 0..1 phase-fraction sensor (else computed);
     # holidays: a sensor whose state is Halloween / Thanksgiving / Christmas
     # during each season (else computed); seasonal: an on/off gate.
@@ -536,6 +985,16 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # Automatic -- a page with a color of its own keeps it, the rest
             # show the background.
             "pages": {}, "page_photos": {},
+            # FLAT'S OWN (FLAT_BACKGROUNDS above): its background, color, how
+            # far the theme's ground fades a photo (0-100) and its pages
+            "flat_background": "color", "flat_color": "auto", "flat_fade": FLAT_FADE, "flat_pages": {},
+            # the Fade's color over a photo (2026-10-17, flat_tint()): "none"
+            # the theme's own ground, "accent" the page's accent, "#rrggbb"
+            "flat_tint": "none",
+            # ...how strong it is (0-100 %: the photo turned to the color,
+            # its own light and dark kept) and how bright (50 as the photo is)
+            "flat_tint_amount": FLAT_TINT_AMOUNT, "flat_tint_light": 50,
+            "flat_image_look": {}, "flat_page_image_looks": {},
             # a page's own photo look (page_looks: {page: photo_look}); a
             # page missing has its screen's. A room page's key is its
             # address (room-kitchen), and one not set follows "rooms".
@@ -621,7 +1080,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              "bar_more_phone": "list", "bar_pos": "bottom", "bar_fold": "start", "bar_start": "full",
              # Adjust Content: the page makes room for the bar (on), or the
              # bar floats over it everywhere (off)
-             "bar_adjust": True,
+             "bar_adjust": True, "page_header": "current",
              # PHONES' OWN (2026-10-08; each its own value since entry 1.12):
              # While Scrolling, a menu button's style (BOARD_BUTTON_PHONE) and
              # More's rooms -- on a phone and wherever a tablet's own menu
@@ -662,7 +1121,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # at its height, the scenery's ground below) in place of one gray
     # (hk-frosttint.js), held at one darkness so white text reads the same.
     # docs/ (each setting on its topic's page).
-    "look": {"glass": "clear", "frost": 50, "blur": 50, "tint": 50, "well": "dark", "frost_tint": False,
+    "look": {"flat": False, "flat_theme": "dark", "glass": "clear", "frost": 50, "blur": 50, "tint": 50, "well": "dark", "frost_tint": False,
              # The detail sheets (hk-detail.js), after the Home app's, in
              # place of HA's more-info dialog on the dashboards, and the view
              # a speaker's sheet opens with "Browse Music" (a view path on the
@@ -674,16 +1133,34 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # A PAGE PILL'S LOOK: the scenes row's pills that open a page,
              # kind -> {name, icon, color}; empty is each pill's own
              # ("Play Music" can read "Apple Music")
-             "page_pills": {}},
+             "page_pills": {},
+             # EACH PAGE'S HIGHLIGHT (2026-10-17): page kind -> an accent
+             # (ACCENTS or "#rrggbb"), the current page's color when a
+             # screen's Highlight Color is Automatic; missing: hk-base.js
+             # PAGE_ACCENTS' default for it
+             "page_accents": {},
+             # FLAT COLORS (2026-10-17, flat_colors() above): All Screens'
+             # two fields, and each page's own
+             "flat_colors": dict(FLAT_COLORS_DEFAULT), "flat_page_colors": {}},
     # THE CALENDAR (the Calendar page, hk-calendar.js, and the screensaver's
     # calendar pane): the calendar entities shown, in order (empty: every
     # calendar the house has), and each one's colour -- entity -> a page pill
     # colour (settings_api.PILL_COLORS); one left out takes the next of the
     # palette by its place in the list.
-    "calendar": {"entities": [], "colors": {}},
+    # keywords: [{word, color}] -- an event whose title has the word takes
+    # its color (the first that matches); event_colors: an event's own color
+    # picked on its sheet (hk_frontend/calendar/color, open to every user:
+    # a family member colors an event as they would edit it), by its series
+    # ("uid:<uid>") or, with no uid, its title ("title:<lowercase title>").
+    "calendar": {"entities": [], "colors": {}, "keywords": [], "event_colors": {}},
     # Browse Music: the categories its first page leaves out, and its
     # Discover rows in the order shown. Every
     # hk-library-card without its own `hide:` / `discover:` reads these.
+    # NOW PLAYING's place on every screen that doesn't choose its own (the
+    # board's np_* keys, None = these): style (NP_STYLES) and its side for
+    # tablets & computers, the bar's place where the bar shows (and where the
+    # pane doesn't fit), the bar's place on phones
+    "now_playing": {"style": "bar", "side": "right", "bar": "bottom", "bar_phone": "bottom", "grace": 30},
     "browse": {"hide": [], "discover": ["recently_played", "favourite_playlists", "most_played",
                                         "recently_added", "favourite_radio"]},
 }
@@ -755,13 +1232,43 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
         if section in out and isinstance(values, dict):
             out[section].update({k: v for k, v in values.items() if k in out[section]})
     out["look"]["saver"] = saver_options(out["look"].get("saver")) or dict(SAVER_DEFAULTS)
+    np = out["now_playing"]
+    for k, allowed in (("style", NP_STYLES), ("side", NP_SIDES), ("bar", NP_BARS), ("bar_phone", NP_BARS),
+                       ("grace", NP_GRACES)):
+        if isinstance(np.get(k), bool) or np.get(k) not in allowed:
+            np[k] = DEFAULTS["now_playing"][k]
     g = RETIRED_GLASS.get(out["look"].get("glass"), out["look"].get("glass"))
     out["look"]["glass"] = g if g in GLASS else DEFAULTS["look"]["glass"]
+    out["look"]["flat"] = out["look"].get("flat") is True
+    if out["look"].get("flat_theme") not in ("light", "dark"):
+        out["look"]["flat_theme"] = "dark"
     if out["look"].get("well") not in WELLS:
         out["look"]["well"] = DEFAULTS["look"]["well"]
     out["sky"]["photo_look"] = photo_look(out["sky"].get("photo_look")) or dict(PHOTO_LOOK_DEFAULTS)
     out["sky"]["landscape_look"] = photo_look(out["sky"].get("landscape_look")) or dict(PHOTO_LOOK_DEFAULTS)
     out["sky"]["landscape"] = sky_landscape(out["sky"].get("landscape")) or DEFAULTS["sky"]["landscape"]
+    out["look"]["page_accents"] = page_accents(out["look"].get("page_accents")) or {}
+    out["look"]["flat_colors"] = {**FLAT_COLORS_DEFAULT, **(flat_colors(out["look"].get("flat_colors")) or {})}
+    out["look"]["flat_page_colors"] = flat_page_colors(out["look"].get("flat_page_colors")) or {}
+    sk = out["sky"]
+    if sk.get("flat_background") not in FLAT_BACKGROUNDS:
+        sk["flat_background"] = "color"
+    sk["flat_color"] = flat_color(sk.get("flat_color")) or "auto"
+    fade = sk.get("flat_fade")
+    sk["flat_fade"] = int(fade) if isinstance(fade, (int, float)) and not isinstance(fade, bool) and 0 <= fade <= 100 else FLAT_FADE
+    sk["flat_tint"] = flat_tint(sk.get("flat_tint")) or "none"
+    ta = sk.get("flat_tint_amount")
+    sk["flat_tint_amount"] = int(ta) if isinstance(ta, (int, float)) and not isinstance(ta, bool) and 0 <= ta <= 100 else FLAT_TINT_AMOUNT
+    tl = sk.get("flat_tint_light")
+    sk["flat_tint_light"] = int(tl) if isinstance(tl, (int, float)) and not isinstance(tl, bool) and 0 <= tl <= 100 else 50
+    sk["flat_pages"] = flat_pages(sk.get("flat_pages")) or {}
+    sk["flat_image_look"] = flat_image_look(sk.get("flat_image_look")) or {}
+    sk["flat_page_image_looks"] = flat_page_image_looks(sk.get("flat_page_image_looks")) or {}
+    # each over its own defaults: a partly stored object is still whole, and
+    # a stored false stays false
+    wx = out["weather"]
+    wx["page"] = weather_page(wx.get("page"), strict=False)
+    wx["radar_native"] = radar_native(wx.get("radar_native"), strict=False)
     return out
 
 
@@ -1225,7 +1732,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # menu_custom: the menu settings in MENU_KEYS are this screen's own; off,
     # they are All Screens' (settings `menu`, filled in by resolved()) -- all
     # but `menu` itself, whose button style alone follows
-    "menu_custom": False, "accent": "orange", "glyph": "sidebar", "clock": True,
+    "menu_custom": False, "page_header": "current", "accent": "orange", "glyph": "sidebar", "clock": True,
     # swipe: a drag right from the left edge opens the menu, at every width,
     # beside whatever button there is (hk-menu.js wireEdge)
     "swipe": False,
@@ -1266,6 +1773,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # follows the shared look (HK Settings -> Appearance); frost_tint: its own
     # Tint from Background, well: its own Tinted icon circles, None follows
     # All Screens.
+    "flat": None, "flat_theme": None,
     "glass": "house", "frost": None, "blur": None, "tint": None, "well": None, "frost_tint": None, "sky": True, "car": False,
     # ...and in a car's browser (car on): car_layout, which Home the screen
     # generates there -- "home" the whole Home every screen has, "car" the
@@ -1297,6 +1805,15 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # "photo": sky_page_photos (missing: All Screens' for it, else the
     # screen's photo)
     "sky_pages": {}, "sky_page_photos": {}, "sky_page_looks": {},
+    # FLAT'S OWN (sky.flat_*): None / {} follow All Screens
+    "sky_flat_background": None, "sky_flat_color": None, "sky_flat_fade": None, "sky_flat_pages": {}, "sky_flat_tint": None, "sky_flat_tint_amount": None, "sky_flat_tint_light": None,
+    "sky_flat_image_look": {}, "sky_flat_page_image_looks": {},
+    # FLAT COLORS, this screen's own (settings.flat_colors): a field missing
+    # follows All Screens; each page's own over them (flat_page_colors)
+    "flat_colors": {}, "flat_page_colors": {},
+    # headers (2026-10-16, Pages): the page headers this screen turns off,
+    # {page: False}; a page missing is Same as All Screens (headers.<page>.show)
+    "headers": {},
     # kiosk: the screen hides Home Assistant's header and sidebar -- HK
     # Frontend itself (hk-kiosk.js), any screen, generated or not. Which of
     # the two (kiosk_header, kiosk_sidebar), and whether for admins too
@@ -1322,6 +1839,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "now_playing": False, "timer_bar": False, "screensaver": False,
     # ...on every page, not Home alone (the bar is carried from page to page)
     "bar_all_pages": False,
+    # ...and where it shows (None: Same as All Screens, settings now_playing)
+    "np_style": None, "np_side": None, "np_bar": None, "np_bar_phone": None,
     # null: the settings for All Screens (resolved() fills them in)
     "screensaver_options": None, "screensaver_engine": "hk",
     # a GENERATED dashboard's third-party cards' own options (YAML), over the
@@ -1426,6 +1945,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["rooms_custom"] = bool(d.get("rooms_custom", False))
     out["cameras_custom"] = bool(d.get("cameras_custom", False))
     out["menu_custom"] = bool(d.get("menu_custom", False))
+    out["page_header"] = pick("page_header", PAGE_HEADERS)
     out["accent"] = accent(d.get("accent")) or out["accent"]
     out["glyph"] = pick("glyph", MENU_GLYPHS)
     out["clock"] = bool(d.get("clock", True))
@@ -1476,6 +1996,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_size"] = pick("tab_size", BOARD_TAB_SIZES)
     out["tab_size_phone"] = pick("tab_size_phone", BOARD_TAB_SIZES)
     out["glass"] = RETIRED_GLASS.get(d.get("glass")) or pick("glass", BOARD_GLASS)
+    out["flat"] = d.get("flat") if isinstance(d.get("flat"), bool) else None
+    out["flat_theme"] = d.get("flat_theme") if d.get("flat_theme") in ("light", "dark") else None
     for k in ("frost", "blur", "tint"):
         out[k] = amount_or_none(d.get(k))
     out["well"] = d.get("well") if d.get("well") in WELLS else None
@@ -1493,6 +2015,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_gradient"] = d.get("sky_gradient") if d.get("sky_gradient") in SKY_BACKDROP_IDS else None
     out["sky_custom"] = sky_stops(d.get("sky_custom"))
     out["sky_pages"] = sky_pages(d.get("sky_pages")) or {}
+    out["headers"] = board_headers(d.get("headers"))
     out["sky_background"] = d.get("sky_background") if d.get("sky_background") in SKY_BACKGROUNDS else None
     out["sky_color"] = d.get("sky_color") if d.get("sky_color") in SKY_COLOR_IDS else None
     out["sky_photo"] = sky_photo(d.get("sky_photo"))
@@ -1501,6 +2024,17 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_landscape_look"] = photo_look(d.get("sky_landscape_look")) if d.get("sky_landscape_look") is not None else None
     out["sky_page_photos"] = sky_page_photos(d.get("sky_page_photos")) or {}
     out["sky_page_looks"] = page_looks(d.get("sky_page_looks")) or {}
+    out["sky_flat_background"] = d.get("sky_flat_background") if d.get("sky_flat_background") in FLAT_BACKGROUNDS else None
+    out["sky_flat_color"] = flat_color(d.get("sky_flat_color"))
+    out["sky_flat_fade"] = amount_or_none(d.get("sky_flat_fade"))
+    out["sky_flat_tint"] = flat_tint(d.get("sky_flat_tint"))
+    out["sky_flat_tint_amount"] = amount_or_none(d.get("sky_flat_tint_amount"))
+    out["sky_flat_tint_light"] = amount_or_none(d.get("sky_flat_tint_light"))
+    out["sky_flat_pages"] = flat_pages(d.get("sky_flat_pages")) or {}
+    out["sky_flat_image_look"] = flat_image_look(d.get("sky_flat_image_look")) or {}
+    out["sky_flat_page_image_looks"] = flat_page_image_looks(d.get("sky_flat_page_image_looks")) or {}
+    out["flat_colors"] = flat_colors(d.get("flat_colors")) or {}
+    out["flat_page_colors"] = flat_page_colors(d.get("flat_page_colors")) or {}
     out["sky_liveliness"] = d.get("sky_liveliness") if d.get("sky_liveliness") in LIVELY_PRESETS else None
     out["sky_liveliness_occ"] = lively(d.get("sky_liveliness_occ")) or {}
     # (before 2026-10-09 a screen's Custom was by kind -- {flying: 2, ...}:
@@ -1509,6 +2043,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_calm_empty"] = d.get("sky_calm_empty") is True
     out["notify_saver"] = d.get("notify_saver") if d.get("notify_saver") in NOTIFY_SAVERS else None
     out["notify_dnd"] = notify_dnd(d.get("notify_dnd"))
+    for k, allowed in (("np_style", NP_STYLES), ("np_side", NP_SIDES), ("np_bar", NP_BARS), ("np_bar_phone", NP_BARS)):
+        out[k] = d.get(k) if d.get(k) in allowed else None
     for k in ("chips_row", "camera_strip", "scenes_row", "sky", "car", "kiosk", "popups", "notify",
               "now_playing", "bar_all_pages", "screensaver", "home_page", "kiosk_header", "kiosk_sidebar", "kiosk_admins"):
         out[k] = bool(d.get(k, BOARD_DEFAULTS[k]))
@@ -1767,7 +2303,9 @@ ROOM_KEYS = {"room_order": "order", "home_rooms": "home", "menu_rooms": "menu", 
 # A SCREEN'S MENU KEYS and All Screens' (settings `menu`) they follow. `menu`
 # is special: off and always open are the screen's own, and only a button's
 # style follows (MENU_STYLES).
-MENU_KEYS = {"menu": "style", "tab_position": "tab_at", "tab_size": "tab_size",
+PAGE_HEADERS = ("current", "smart", "none")
+
+MENU_KEYS = {"page_header": "page_header", "menu": "style", "tab_position": "tab_at", "tab_size": "tab_size",
              "tab_size_phone": "tab_size_phone", "dock_min": "open_min", "time_weather": "time_weather_at",
              "ha_row": "ha_row", "ha_place": "ha_at", "accent": "accent", "glyph": "glyph", "clock": "clock", "swipe": "swipe",
              "tab_bar_scroll": "bar_scroll", "tab_bar_rooms": "bar_rooms", "tab_bar_glass": "bar_glass",
@@ -1780,11 +2318,27 @@ MENU_KEYS = {"menu": "style", "tab_position": "tab_at", "tab_size": "tab_size",
 MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open", "tabbar"))
 
 
+def page_accents(v: Any) -> dict[str, str] | None:
+    """Each page's highlight as stored ({page kind: accent}); None when it
+    can't be read. A key or color that isn't one is left out."""
+    if v is None:
+        return {}
+    if not isinstance(v, Mapping):
+        return None
+    out = {}
+    for k, c in v.items():
+        a = accent(c)
+        if isinstance(k, str) and re.match(r"^[a-z][a-z_]{1,29}$", k) and a and a != "auto":
+            out[k] = a
+    return out
+
+
 def accent(v: Any) -> str | None:
-    """A menu highlight as stored: a name in ACCENTS or "#rrggbb" (lower
+    """A menu highlight as stored: a name in ACCENTS, "auto" (each page its
+    own color, hk-base.js PAGE_ACCENTS -- 2026-10-16) or "#rrggbb" (lower
     case); None for anything else."""
     t = str(v or "").strip().lower()
-    return t if t in ACCENTS or ACCENT_HEX.match(t) else None
+    return t if t in ACCENTS or t == "auto" or ACCENT_HEX.match(t) else None
 
 
 def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -1798,7 +2352,8 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
         dock = int(min(max(float(m.get("open_min") or 1000), DOCK_MIN[0]), DOCK_MIN[1]))
     except (TypeError, ValueError):
         dock = d["dock_min"]
-    return {"menu": pick("style", MENU_STYLES, "auto"),
+    return {"page_header": pick("page_header", PAGE_HEADERS, "current"),
+            "menu": pick("style", MENU_STYLES, "auto"),
             "tab_position": t if t is not None else "",
             "tab_size": pick("tab_size", BOARD_TAB_SIZES, d["tab_size"]),
             "tab_size_phone": pick("tab_size_phone", BOARD_TAB_SIZES, d["tab_size_phone"]),

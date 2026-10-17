@@ -393,6 +393,14 @@
     }
   }
 
+  // Per-series receipt times survive cache merges, errors and bucket stand-ins.
+  var received = new WeakMap();
+  function freshness(series) {
+    var list = Array.isArray(series) ? [series] : Object.keys(series || {}).map(function (id) { return series[id]; });
+    var times = list.map(function (rows) { return received.get(rows) || 0; });
+    return times.length && times.every(Boolean) ? Math.min.apply(null, times) : null;
+  }
+
   function flush(key) {
     var job = pending.get(key);
     if (!job) return;
@@ -422,6 +430,7 @@
       var data = {};
       ids.forEach(function (id) {
         data[id] = align(res && res[id], job.period, job.count, job.type);
+        received.set(data[id], Date.now());
       });
       var prev = cache.get(key);
       // Merge rather than replace: a second card may have asked for a
@@ -843,6 +852,7 @@
     // the mechanism, and the pruning above is the backstop.
     release: release,
     dailyPeak: dailyPeak,
+    freshness: freshness,
     daily: function (hass, ids, days, card, opts) {
       return get(hass, ids, days, card, Object.assign({ period: 'day' }, opts || {}));
     },

@@ -174,7 +174,7 @@ if (typeof HK_FILES === 'string' && HK_FILES) {
 window.hkGlyphs = HOME || { icons: {}, twotone: {}, weather: FAKE };
 ok('ready with the file', H.wxReady(), true);
 ok('all 15 conditions x day/night draw inline SVG', everyCondition(function (g) {
-  return /^<svg class="hk-wx" viewBox="[-\d. ]+"/.test(g) && /<path fill="#[0-9A-F]{6}" d="M/.test(g);
+  return /^<svg class="hk-wx" viewBox="[-\d. ]+"/.test(g) && /<path style="fill:(#[0-9A-F]{6}|var\(--hk-wx-[wc],#[0-9A-F]{6}\))" d="M/.test(g);
 }), '');
 ok('sunny by day is the sun', H.wxSymbol('sunny', false), 'sun.max.fill');
 ok('sunny at night is the moon', H.wxSymbol('sunny', true), 'moon.stars.fill');

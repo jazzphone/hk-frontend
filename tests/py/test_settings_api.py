@@ -1028,3 +1028,50 @@ def test_landscapes_background_and_reset_to_defaults():
     cleared = set(re.findall(r"'(sky_[a-z_]+)'", block)) | set(re.findall(r"(sky_[a-z_]+):", block))
     assert set(S.SKY_RESET_BOARD) <= cleared, set(S.SKY_RESET_BOARD) - cleared
     assert not {"sky_pages", "sky_page_photos", "sky_page_looks"} & cleared
+
+
+def test_page_header_inherits_and_can_be_overridden():
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+    assert S.house_menu({})["page_header"] == "current"
+    options, errors = apply_house({}, {"menu.page_header": "smart"})
+    assert errors == {}
+    inherited = S.resolved(S.board({"menu": "open"}), options)
+    assert inherited["page_header"] == "smart"
+    own, errors = apply_board({}, {"menu_custom": True, "page_header": "none"})
+    assert errors == {}
+    assert S.resolved(own, options)["page_header"] == "none"
+    own, errors = apply_board(own, {"menu_custom": False})
+    assert not errors and S.resolved(own, options)["page_header"] == "smart"
+    assert apply_house({}, {"menu.page_header": "bogus"})[1] == {"menu.page_header": "choice"}
+    assert apply_board({}, {"page_header": "bogus"})[1] == {"page_header": "choice"}
+
+
+def test_now_playing_place_is_checked():
+    """Now Playing's place (2026-10-15): All Screens' style, side and bar
+    positions are each one of their choices, else the default; a screen's
+    np_* is its own choice or None (Same as All Screens)."""
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import HOUSE, Invalid, apply_board
+    assert S.DEFAULTS["now_playing"] == {"style": "bar", "side": "right", "bar": "bottom", "bar_phone": "bottom", "grace": 30}
+    assert HOUSE["now_playing.grace"](60) == 60
+    for bad in (45, True, "30"):
+        try:
+            HOUSE["now_playing.grace"](bad)
+        except Invalid:
+            continue
+        raise AssertionError(bad)
+    assert HOUSE["now_playing.style"]("pane") == "pane" and HOUSE["now_playing.bar_phone"]("top") == "top"
+    for k, bad in (("now_playing.style", "drawer"), ("now_playing.side", "middle"), ("now_playing.bar", "left")):
+        try:
+            HOUSE[k](bad)
+        except Invalid:
+            continue
+        raise AssertionError((k, bad))
+    stored = {S.CONF_DASHBOARD: {"now_playing": {"style": "pane", "side": "sideways"}}}
+    m = S.merged(stored)["now_playing"]
+    assert m["style"] == "pane" and m["side"] == "right", m
+    b = S.board({"np_style": "pane", "np_side": "left", "np_bar": "middle"})
+    assert (b["np_style"], b["np_side"], b["np_bar"], b["np_bar_phone"]) == ("pane", "left", None, None)
+    got, err = apply_board(S.board({}), {"np_style": "bar", "np_bar": "top", "np_bar_phone": None})
+    assert err == {} and got["np_style"] == "bar" and got["np_bar"] == "top" and got["np_bar_phone"] is None, (got, err)

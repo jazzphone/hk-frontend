@@ -256,7 +256,7 @@
   var KIND_ORDER = ['weather_alert', 'security', 'doors_windows', 'climate', 'lights', 'blinds',
                     'timers', 'vacuums', 'speakers', 'water', 'energy'];
   var KIND_PAGES = { weather_alert: ['weather'], security: ['security', 'alarm'],
-                     doors_windows: ['doors-windows', 'doors'], climate: ['climate'], lights: ['lights'],
+                     doors_windows: ['doors-windows', 'doors', 'security'], climate: ['climate'], lights: ['lights'],
                      blinds: ['blinds', 'shades', 'climate'], timers: ['timers'], vacuums: ['vacuums'],
                      speakers: ['playmusic', 'speakers'], water: ['water', 'leaks'], energy: ['energy'] };
   function chipPaths(v0, dash, o) {
@@ -466,14 +466,13 @@
       // time and the Dynamic Island). The Home Assistant app draws
       // the page edge to edge, so the list starts below the device's safe
       // area -- env(), zero where there is none -- and scrolls away under a
-      // fade that ends there too. --hk-safe-top overrides it, for testing.
+      // fade that ends there too (the list's own fades, in the menu's <style>).
+      // --hk-safe-top overrides it, for testing.
       '.list{position:relative;flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;',
       '  -webkit-overflow-scrolling:touch;scrollbar-width:none;box-sizing:border-box;',
       '  --safe:var(--hk-safe-top,env(safe-area-inset-top,0px));',
       '  padding:calc(22px + var(--safe)) 14px calc(28px + env(safe-area-inset-bottom,0px))',
-      '    calc(14px + env(safe-area-inset-left,0px));',
-      '  -webkit-mask-image:linear-gradient(transparent 0,transparent var(--safe),#000 calc(var(--safe) + 14px));',
-      '  mask-image:linear-gradient(transparent 0,transparent var(--safe),#000 calc(var(--safe) + 14px))}',
+      '    calc(14px + env(safe-area-inset-left,0px))}',
       '.list::-webkit-scrollbar{display:none}',
       // THE NOW-PLAYING BAR LIES OVER A DOCKED MENU'S FOOT (it runs the
       // dashboard's full width, hk-popup.js), and says how much of the
@@ -495,7 +494,9 @@
       // side bearing, since a "1" starts well inside its own box.
       '.now{position:relative;flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;',
       '  column-gap:12px;row-gap:5px;align-items:end;box-sizing:border-box;color:' + window.hkCards.v('ink') + ';',
-      '  padding:calc(30px + var(--hk-safe-top,env(safe-area-inset-top,0px))) ' + NOW_PAD + 'px 20px ' + NOW_PAD + 'px}',
+      // Match the page inset, then lift the block 6px for the 44px clock's
+      // extra space above its visible digits compared with the status labels.
+      '  padding:calc((100vw - var(--hk-page-left,0px) - var(--hk-page-right,0px)) * var(--hk-side,0.02) - 2px + var(--hk-safe-top,env(safe-area-inset-top,0px))) ' + NOW_PAD + 'px 20px ' + NOW_PAD + 'px}',
       '.now[hidden],.rule[hidden]{display:none}',
       '.now .tm{display:flex;align-items:baseline;gap:4px;min-width:0;white-space:nowrap}',
       '.now .t{font-size:44px;font-weight:600;line-height:1;letter-spacing:0}',
@@ -527,7 +528,7 @@
       '.row{position:relative;isolation:isolate}',
       '.row.here{color:var(--hk-on-accent,#fff)}',
       '.row.here::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;',
-      '  background:' + window.hkCards.v('accent') + ';transform-origin:0 0;',
+      '  background:var(--hk-here,' + window.hkCards.v('accent') + ');transform-origin:0 0;',
       '  transform:translate(var(--hx,0px),var(--hy,0px)) scale(var(--sx,1),var(--sy,1));',
       '  transition:transform .42s ' + SPRING + '}',
       '.row.here.slide-from::before{transition:none}',
@@ -647,7 +648,20 @@
       S.host = document.createElement('div');
       S.host.id = 'hk-menu';
       var sr = S.host.attachShadow({ mode: 'open' });
-      sr.innerHTML = '<style>' + CSS + '</style>' +
+      window.hkCards.flatSurface(S.host, 'menu');
+      // (and the list's edges, the sheet's shadows: hk-base.js edgeCss)
+      sr.innerHTML = '<style>' + CSS + window.hkCards.flatCss() + (window.hkCards.edgeCss ? window.hkCards.edgeCss() : '') +
+        ':host([hk-flat]) .mat{background:var(--hk-flat-menu)!important;border-color:var(--hk-line)}' +
+        ':host([hk-flat]) .panel::before{box-shadow:var(--hk-flat-elevated-shadow)!important}' +
+        ':host([hk-flat]) .tab,:host([hk-flat]) .fab{background:var(--hk-flat-elevated)!important;color:var(--hk-ink)}' +
+        // the page you're on: the highlight's solid fill, its text and icon
+        // white -- as the other looks (the user, 2026-10-17: the tint with an
+        // accent name and a white icon read as two tones)
+        ':host([hk-flat]) .row.here::before{transform:none}' +
+        // the list clipped under the device's safe area, in every look
+        '.hk-edge>.list{-webkit-mask-image:linear-gradient(transparent 0,transparent var(--safe),#000 var(--safe));' +
+        'mask-image:linear-gradient(transparent 0,transparent var(--safe),#000 var(--safe))}' +
+        '</style>' +
         '<div class="root" part="root">' +
           '<div class="scrim"></div><div class="edge" aria-hidden="true"></div>' +
           '<div class="clip"><nav class="panel" aria-label="Menu" aria-hidden="true">' +
@@ -655,7 +669,7 @@
             '<div class="now" hidden><div class="tm"><span class="t"></span><span class="ap"></span></div>' +
               '<div class="wx" role="link" aria-label="Weather"><span class="g"></span><span class="tp"></span></div>' +
               '<div class="d"></div><div class="c" role="link" aria-label="Weather"></div></div>' +
-            '<div class="rule" hidden></div><div class="list"></div>' +
+            '<div class="rule" hidden></div><div class="hk-edge"><div class="list"></div></div>' +
             '<button class="tab" aria-label="Menu" aria-expanded="false"><ha-icon></ha-icon>' + CHEV_L + '</button>' +
           '</nav></div>' +
           '<button class="fab" aria-label="Menu"><ha-icon></ha-icon></button>' +
@@ -663,8 +677,19 @@
       S.root = sr.querySelector('.root');
       S.panel = sr.querySelector('.panel');
       S.list = sr.querySelector('.list');
+      if (window.hkCards.edges) window.hkCards.edges(sr.querySelector('.hk-edge'));
       S.scrim = sr.querySelector('.scrim');
       S.now = sr.querySelector('.now');
+      // fitted again whenever its width changes: a fit made while the menu
+      // was hidden or still docking left "Feels" in and cut the date off
+      // (the user, 2026-10-17)
+      if (typeof ResizeObserver !== 'undefined') {
+        var nowW = 0;
+        new ResizeObserver(function (es) {
+          var w = Math.round(es[0].contentRect.width);
+          if (w && w !== nowW) { nowW = w; if (S.nowLines && nowOn()) fitNow(); }
+        }).observe(S.now);
+      }
       S.rule = sr.querySelector('.rule');
       [sr.querySelector('.now .wx'), sr.querySelector('.now .c')].forEach(function (el) {
         el.addEventListener('click', function () { goWeather(); });
@@ -749,8 +774,12 @@
       var left = Math.max(0, r ? r.left : 0);
       var de = document.documentElement;
       if (!de || !de.style) return;
-      var pageLeft = left + (S.root && docked() ? W : 0);
-      [['--hk-content-left', left], ['--hk-page-left', pageLeft]].forEach(function (kv) {
+      // (--hk-menu-right: where the page would start with no pane -- the
+      // pop-up asks it whether a pane fits; --hk-page-right: the pane's
+      // width on the right, where the page ends)
+      var menuRight = left + (S.root && M.on() && docked() ? W : 0), ps = paneSides();
+      var pageLeft = menuRight + ps.l;
+      [['--hk-content-left', left], ['--hk-page-left', pageLeft], ['--hk-menu-right', menuRight], ['--hk-page-right', ps.r]].forEach(function (kv) {
         var v = Math.round(kv[1] * 10) / 10 + 'px';
         if (de.style.getPropertyValue(kv[0]) !== v) de.style.setProperty(kv[0], v);
       });
@@ -762,7 +791,7 @@
       // "wide" from 860 px of page: a tablet with the menu open (980), an
       // iPad held sideways -- room for the tablet's own arrangement where the
       // iPad's was a squeeze (hk-responsive.css, [data-hk-band="wide"]).
-      var pw = (window.innerWidth || 0) - pageLeft;
+      var pw = (window.innerWidth || 0) - pageLeft - ps.r;
       var band = pw > M.NARROW && pw < M.TAB_MIN ? (pw >= BAND_WIDE ? 'wide' : 'narrow') : null;
       if (band !== de.getAttribute('data-hk-band')) {
         if (band) de.setAttribute('data-hk-band', band); else de.removeAttribute('data-hk-band');
@@ -784,7 +813,10 @@
       // (an hk-base.js from before 1.5 has no accent: the orange stays)
       var a = typeof M.accent === 'function' ? M.accent() : null;
       if (a && S.host) {
-        S.host.style.setProperty('--hk-accent', a.color);
+        // the icons the highlight (base); the page you're on its own color
+        // (Highlight Color Automatic: only that row changes)
+        S.host.style.setProperty('--hk-accent', a.base || a.color);
+        S.host.style.setProperty('--hk-here', a.color);
         S.host.style.setProperty('--hk-on-accent', a.on);
       }
       [S.tab, S.fab].forEach(function (b) {
@@ -831,11 +863,12 @@
         if (S.open) close(true);
         undock();
         if (S.root) S.root.className = 'root';
+        publishHeader();
         paintNow();
         publishLeft();
         return;
       }
-      if (!mount()) { publishLeft(); return; }
+      if (!mount()) { undock(); publishLeft(); return; }
       var style = M.style(), dock = docked();
       var glass = document.documentElement.getAttribute('data-hk-glass');
       var home = isHome();
@@ -872,6 +905,7 @@
       else undock();
       paintNow();
       publishLeft();
+      publishHeader();
     }
 
     // ------------------------------------------------ the scrolled tab
@@ -939,14 +973,14 @@
       S.panel.classList.toggle('has-now', on);
       S.now.hidden = !on;
       S.rule.hidden = !on;
-      if (!on) { S.nowKey = ''; return; }
       var H = window.hkHeader, h = C.hass();
+      if (!on) { S.nowKey = ''; if (H && H.nowDone) H.nowDone(); return; }
       if (!H || typeof H.now !== 'function' || !h || !h.states) return;
-      var v = H.now(h.states);
+      var v = H.now(h.states, h.connection);
       // wxReady: the home's weather glyphs arriving swaps the Material stand-in
       // for the real one, with no weather change to say so.
       var ready = H.wxReady ? H.wxReady() : '';
-      var key = [v.time, v.ampm, v.date, v.state, v.night, v.temp, v.condition, v.feels, ready].join('|');
+      var key = [v.time, v.ampm, v.date, v.state, v.night, v.temp, v.condition, v.feels, v.high, v.low, ready].join('|');
       if (key === S.nowKey) return;
       var glyph = v.state + '|' + v.night + '|' + ready;
       S.nowKey = key;
@@ -957,11 +991,30 @@
       q('.d').textContent = v.date;
       if (S.nowGlyph !== glyph) { S.nowGlyph = glyph; q('.g').innerHTML = H.wxSvg(v.state, 28, { night: v.night }); }
       S.nowCond = v.condition;
-      S.nowFeels = v.feels;
+      S.nowLines = nowLines(v);
       fitNow();
     }
-    // "Sunny · Feels 75°" beside the date, or "Sunny" alone when both will
-    // not fit on the line -- the date is never the one squeezed. Then each
+    // WHAT GOES BESIDE THE DATE, fullest first; fitNow takes the first that
+    // leaves the date whole (the user, 2026-10-17): today's high and low, as
+    // iOS's Weather widget has them -- "Sunny · H:71° L:52°", then the high
+    // alone, then the condition alone. "Feels" only when it says something
+    // the big temperature doesn't (3° or more off it), in the high's place.
+    // No forecast: "Sunny · Feels 60°", then "Sunny", as before.
+    var FEELS_APART = 3;
+    function nowLines(v) {
+      var c = v.condition || '', dot = function (x) { return c ? c + ' \u00b7 ' + x : x; };
+      var hi = v.high != null ? 'H:' + v.high + '\u00b0' : '', lo = v.low != null ? 'L:' + v.low + '\u00b0' : '';
+      var odd = v.feels && v.feelsN != null && v.tempN != null && Math.abs(v.feelsN - v.tempN) >= FEELS_APART;
+      var out = [];
+      if (hi) {
+        if (lo) out.push(dot(hi + ' ' + lo));
+        out.push(dot(odd ? v.feels : hi));
+      } else if (v.feels) out.push(dot(v.feels));
+      out.push(c || (out.length ? out[out.length - 1] : ''));
+      return out.filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+    }
+    // The fullest of nowLines() that fits beside the date -- the date is
+    // never the one squeezed. Then each
     // line's ink is put on the column (see the CSS note).
     //
     // SF PRO'S SIDE BEARINGS, MEASURED, in em, off a 4x render of the font
@@ -976,11 +1029,22 @@
     var RB_TEMP = .0496;                                                                                   // "°" 500 32px
     var RB_LINE = { '\u00b0': .0519, a: .0592, d: .0681, e: .0379, g: .0619, h: .0642, k: .0285, l: .0670,
                     n: .0592, r: .0246, s: .0525, t: .0391, w: .0374, y: .0257 };                           // 600 14px
+    // whether `el`'s one line of text is wider than its box: the text's own
+    // width (a Range), not scrollWidth -- Safari reports an ellipsized
+    // line's scrollWidth as its box's, so the date was cut with "Feels"
+    // still beside it (the user, 2026-10-17)
+    function clipped(el) {
+      var box = el.getBoundingClientRect().width;
+      if (!box || !document.createRange) return false;
+      var r = document.createRange();
+      r.selectNodeContents(el);
+      return r.getBoundingClientRect().width > box + 0.5;
+    }
     function fitNow() {
       var q = function (sel) { return S.now.querySelector(sel); };
       var c = q('.c'), d = q('.d');
-      c.textContent = S.nowCond + (S.nowCond && S.nowFeels ? ' \u00b7 ' : '') + (S.nowFeels || '');
-      if (S.nowFeels && d.scrollWidth > d.clientWidth + 1) c.textContent = S.nowCond || S.nowFeels;
+      var lines = S.nowLines && S.nowLines.length ? S.nowLines : [S.nowCond || ''];
+      c.textContent = lines[0];
       var first = function (t) { return String(t || '').charAt(0); };
       var last = function (t) { t = String(t || ''); return t.charAt(t.length - 1); };
       var em = function (table, ch, px, dflt) { return (table[ch] !== undefined ? table[ch] : dflt) * px; };
@@ -988,9 +1052,17 @@
       d.style.marginLeft = (INK - em(LB_DATE, first(d.textContent), 14, .05)).toFixed(2) + 'px';
       q('.wx').style.marginRight = (INK - RB_TEMP * 32).toFixed(2) + 'px';
       c.style.marginRight = (INK - em(RB_LINE, last(c.textContent).toLowerCase(), 14, .05)).toFixed(2) + 'px';
+      // (asked with the margins in place: they move the line's ends)
+      for (var i = 1; i < lines.length && clipped(d); i++) {
+        c.textContent = lines[i];
+        c.style.marginRight = (INK - em(RB_LINE, last(c.textContent).toLowerCase(), 14, .05)).toFixed(2) + 'px';
+      }
       if (!S.nowFonts && document.fonts && document.fonts.ready) {
         S.nowFonts = true;
         document.fonts.ready.then(function () { if (nowOn()) fitNow(); });
+        // (and each font that arrives later: SF Pro landing after the fit
+        // widened the date past its room)
+        if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function () { if (nowOn()) fitNow(); });
       }
     }
     // The weather opens the Weather page, as it does in the header -- the
@@ -1085,6 +1157,7 @@
       var keep = S.list.scrollTop;
       S.list.innerHTML = html;
       S.list.scrollTop = keep;
+      if (window.hkCards.edges) window.hkCards.edges(S.list.parentNode);
       S.built = listKey();
       paintBadges();
     }
@@ -1171,6 +1244,7 @@
         if (here) { rows[i].setAttribute('aria-current', 'page'); hereRow = rows[i]; } else rows[i].removeAttribute('aria-current');
       }
       slideHere(hereRow);
+      publishHeader();
     }
     // THE HIGHLIGHT GLIDES from the row you were on to the one you are on:
     // the new row's highlight starts over the old row's box (in the list's
@@ -1183,6 +1257,7 @@
       return { x: r.left - l.left, y: r.top - l.top + S.list.scrollTop, w: r.width, h: r.height };
     }
     function slideHere(el) {
+      if (window.hkSettings && window.hkSettings.rendering && !window.hkSettings.rendering().motion) { S.hereBox = null; return; }
       var to = el ? boxOf(el) : null, from = S.hereBox;
       S.hereBox = to;
       if (!from || !to || (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1)) return;
@@ -1655,18 +1730,35 @@
                  'Companion App → Gestures → Swipe Right to None.', duration: 12000 } }));
     }
 
+    // the Now Playing pane's widths, as hk-popup.js wrote them on <html>
+    // (its own style: read there, never through getComputedStyle)
+    function paneSides() {
+      var st = document.documentElement && document.documentElement.style;
+      var g = function (k) { var n = st ? parseFloat(st.getPropertyValue(k)) : 0; return n > 0 ? n : 0; };
+      return { l: g('--hk-pane-l'), r: g('--hk-pane-r') };
+    }
     // DOCKED (Menu: "Always open beside the page"): the panel stays beside
     // the page and the view is pushed right by its width.
     function viewEl() {
       var p = M.panel(), root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
       return (root && root.shadowRoot && root.shadowRoot.querySelector('#view')) || null;
     }
-    function dockTo() {
-      var v = viewEl();
-      if (v && v.style.marginLeft !== W + 'px') { v.style.marginLeft = W + 'px'; S.docked = v; }
-    }
-    function undock() {
-      if (S.docked) { S.docked.style.marginLeft = ''; S.docked = null; }
+    // ...AND BESIDE THE NOW PLAYING PANE (hk-popup.js publishes its width
+    // on <html> as --hk-pane-l / --hk-pane-r while it is up): the view is
+    // narrowed by it on its side, so the page lays itself out in what is
+    // left -- the iPad band and all (publishLeft). A left pane sits right of
+    // a docked menu. The one writer of the view's side margins.
+    function dockTo() { room(true); }
+    function undock() { room(false); }
+    function room(dock) {
+      var v = viewEl(), p = paneSides();
+      var ml = (dock ? W : 0) + p.l, mr = p.r;
+      if (S.docked && S.docked !== v) { S.docked.style.marginLeft = ''; S.docked.style.marginRight = ''; S.docked = null; }
+      if (!v) return;
+      var l = ml ? ml + 'px' : '', r = mr ? mr + 'px' : '';
+      if (v.style.marginLeft !== l) v.style.marginLeft = l;
+      if (v.style.marginRight !== r) v.style.marginRight = r;
+      S.docked = (l || r) ? v : null;
     }
 
     // ------------------------------------------------------------ wiring
@@ -1694,6 +1786,8 @@
     document.addEventListener('visibilitychange', function () { if (document.hidden && S.open) close(true); });
     window.addEventListener('resize', function () { sync(); });
     window.addEventListener('hk-module-ready', function () { S.built = ''; sync(); });
+    // the Now Playing pane coming, going or changing sides (hk-popup.js)
+    window.addEventListener('hk-pane', function () { sync(); });
     window.addEventListener('hk-menu-date', function () { place(); });
     // Captured at the document: the window's scroll, and any other scroller's
     // (a phone's <body> scrolls where overflow-x is `hidden`; scroll events
@@ -1715,6 +1809,18 @@
     sync();
     setTimeout(sync, 1500);    // the panel element and config can land after us on a cold load
 
+    window.hkMenu.headerContext = function () {
+      var available = !!S.root && M.on() && docked();
+      return { available: available, exact: available && (S.items || []).some(function (it) { return isHere(it, location.pathname); }) };
+    };
+    var headerKey = '';
+    function publishHeader() {
+      if (!window.hkMenu.headerContext) return;
+      var key = JSON.stringify(window.hkMenu.headerContext()) + location.pathname;
+      if (key === headerKey) return;
+      headerKey = key;
+      window.dispatchEvent(new CustomEvent('hk-page-navigation'));
+    }
     window.hkMenu.open = open;
     window.hkMenu.close = close;
     window.hkMenu.toggle = toggle;

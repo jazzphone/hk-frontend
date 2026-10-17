@@ -31,8 +31,8 @@ bookmarks work.
 |---|---|---|
 | **Overview** | Where settings live, the Setup Check status, and counts of your screens, customized accessories, pop-ups and custom pages | — |
 | **Screens** | One page per screen, then **Add Screen** | That screen only |
-| **All Screens** | **General**, **Weather**, **Calendar**, **Appearance**, **[Sky / Background](Live-Sky.md)**, **[Screensaver](Screensaver-and-Idle.md#screensaver-settings)**, **Menu**, **[Rooms](Rooms.md)**, **[Cameras](Cameras.md)**, **[Status Chips](Status-Chips.md)**, **[Status Rows](Status-Rows.md)**, **[Wall Tablets](Wall-Tablets.md#wall-tablets-settings)** (each tablet its own page, then **Add Tablet…**) | Every screen |
-| **Features** | **Music**, **Live TV**, **Alarm PIN**, **Clean Areas**, **[Energy](Energy.md)** (with its **[Power Page](Energy.md#the-power-page)**), **[Notifications](Notifications.md)** | Every screen |
+| **Pages** | One page per page the house has, in the menu’s order: **Climate**, **Lights**, **Security**, **Water**, **[Energy](Energy.md)**, **[Power](Energy.md#the-power-page)**, **Timers**, **Vacuums**, **Music**, **[Cameras](Cameras.md)**, **Calendar**, **Weather**, **Live TV** (**Doors & Windows** too, in a home with no alarm). See [Pages](#pages). | Every screen that shows the page |
+| **All Screens** | **Appearance**, **[Sky / Background](Live-Sky.md)**, **[Screensaver](Screensaver-and-Idle.md#screensaver-settings)**, **Now Playing**, **[Notifications](Notifications.md)**, **Menu**, **[Rooms](Rooms.md)** (with the room pages’ [status row](Status-Rows.md)), **[Status Chips](Status-Chips.md)**, **[Wall Tablets](Wall-Tablets.md#wall-tablets-settings)** (each tablet its own page, then **Add Tablet…**) | Every screen |
 | **Library** | **[Accessories](Accessories.md#accessories-settings)** (by [type](Accessories.md#types), then by room, with [Hidden Accessories](Accessories.md#hidden-accessories) and [Added Accessories](Accessories.md#added-accessories)), **Pop-ups**, **Custom Pages**, **Custom Chips** | Every screen that uses them |
 | **System** | **Advanced**, **Setup Check** | — |
 
@@ -108,14 +108,37 @@ When the same thing can be set in more than one place, the most specific wins:
 3. The All Screens setting.
 4. The default.
 
-## General
+## Pages
 
-**All Screens → General.** What your home has, for every screen.
+**Pages → the page.** Everything about one page, on one page — the same
+groups in the same order on each, the empty ones left out:
 
-| Setting | Default | What it does |
+| Group | What it holds |
+|---|---|
+| Header | **Show Header**, then that header’s own settings, each saying what Automatic is. A screen that turns the header off for itself is listed under it. |
+| Status Row | The row under the page’s name: what it shows, in order, and the rooms it leaves out ([Status Rows](Status-Rows.md)). |
+| The page’s own | Security: **Alarm Panel**, [Alarm PIN](Alarm-PIN.md) and the **Wrong-Code Indicator**. Timers: **House Timers**. Vacuums: [Clean Areas](Clean-Areas.md) and the **Clean-Areas Script**. Energy, Music and Live TV open on their feature’s settings; Weather, Calendar and Cameras on theirs. |
+| What’s on It | The page’s [accessory types](Accessories.md#types), its **Tile Order** where it has one (Security, Vacuums), and Hidden Accessories. |
+| Look | The page’s **Background** and **Its Pill on Home**. |
+| On Screens | Every screen, and whether it shows the page. Tap one to open that screen’s **Pages on This Screen** with the page’s row lit. |
+
+| Header setting | Default | What it does |
 |---|---|---|
-| Alarm Panel | No Alarm | The alarm for the header’s security line, the Security chip and page, and every alarm keypad that names no panel of its own. When none is chosen, the page offers **Use (your first alarm panel)**; a generated screen’s Security page uses the first alarm panel until you choose. |
-| House Timers | None | Timer helpers people start themselves (a nap, bedtime), shown as one-tap pills on the Timers page, in order. Each starts for its own duration and is named as the timer is, less a trailing “Timer”. |
+| Water → Water Meter | Automatic | The meter Water Through the Day reads. Automatic: the water meter in Home Assistant’s Energy settings. |
+| Water → Main Supply Valve | Automatic | The valve the header opens and closes. Automatic: a valve named main, supply or shut-off, else the home’s only valve that isn’t a sprinkler’s. |
+| Timers → Quick Durations | 5, 10, 15, 20, 30, 60 min | Quick Start’s buttons, in order, up to six. |
+| Timers → Quick Names | Pasta, Oven, Laundry, Tea, Kids, Break | The names Create a Timer offers, up to six. |
+| Vacuums → Mission Counters | Automatic | The counters that say how a run ended. Automatic: each vacuum’s own successful, failed and canceled sensors. |
+| House Timers | None | Timer helpers people start themselves (a nap, bedtime), shown as one-tap tiles on the Timers page, in order. |
+
+**A screen’s own page headers.** Screens → the screen → **Page Headers**
+turns a page’s header off on that screen alone. What the header held comes
+back to the page: the Water page’s main valve as a tile, the Timers page’s
+Quick Start beside what’s running.
+
+**Old addresses still work.** A bookmark to All Screens → General, Weather,
+Calendar, Cameras or Status Rows, or to Features → Energy, Music, Live TV,
+Alarm PIN or Clean Areas, opens the page it moved to.
 
 The chips’ Indoor Temperature and Power Use are on the Climate and Energy
 chips’ own pages, under a screen’s
@@ -131,8 +154,6 @@ left empty.
 |---|---|---|
 | Time Sensor | `sensor.time` | Home Assistant’s Time & Date sensor, which keeps every screen’s clock in step. Without it, each screen uses its own clock. |
 | Date Sensor | `sensor.date` | The same, for the date. |
-| Clean-Areas Script | None (the Clean Areas feature) | Only for a home whose own script should receive `areas: [area ids]` instead of the Clean Areas feature sending the vacuums. |
-| Wrong-Code Indicator | Automatic | Only for an alarm panel that fails silently on a wrong code (a template panel that checks the code itself): an input boolean or binary sensor your automation turns on briefly. Most panels refuse a wrong code, and the keypad shows “Wrong Code” by itself. For an alarm that takes no code at all, use [Alarm PIN](Alarm-PIN.md#settings). |
 | Show in Sidebar | On | Off: HK Settings leaves the sidebar for everyone. It is still reachable from Configure (below). Each person can also hide it from their own sidebar in their profile. |
 | Your Files → Folder | `hk_local` | A folder under `/config` for the files that can’t ship with HK Frontend: Apple’s SF Pro font (`fonts/SF-Pro.woff2`) and the SF Symbols glyphs (`iconset/hk-glyphs.js`). **SF Pro Font** and **SF Symbols Glyphs** say whether each is found. See [Your files](Your-Files.md). |
 | Your Own Dashboards → YAML Reference | — | What a dashboard you write yourself can use, each ready to copy and filled in from your home: hiding Home Assistant’s header, the photo screensaver, the live sky, views in the menu, HK cards for Live TV, Clean Areas and Music, and HK Frontend’s actions. The same as [Your Own Dashboard](Your-Own-Dashboard.md). A dashboard of your own links to it from the bottom of its page. |
@@ -215,3 +236,22 @@ Screens again. Its **Sky Colors** offers **Same as All Screens** or colors just
 for that screen. Copy Settings includes these appearance settings.
 See [Live Sky](Live-Sky.md#the-background) for the three Backgrounds and
 [Choose its look](Live-Sky.md#choose-its-look) for what each switch changes.
+
+### Music → Now Playing
+
+**Ignore Announcements** is on by default and applies to every screen. Recognized
+TTS and announcements stay out of the music bar, music activity count and
+screensaver music view; playback and speaker controls are unchanged.
+
+HK recognizes explicit TTS media URLs and observes Home Assistant `tts.speak`,
+legacy TTS `*_say`, `media_player.play_media` with `announce: true`, and Music
+Assistant `play_announcement` calls with explicit player entity targets. Native
+Apple TV/HomePod players are matched to their Music Assistant AirPlay counterpart
+by device identity. The bathroom reminder needs no automation changes.
+
+Call-based recognition ends after the called player finishes, with a two-second
+margin for its mirrored state. A call that never starts expires after 20 seconds;
+all markers expire after two minutes. Announcements started outside Home Assistant,
+area/device-only targets, or audio without recognizable metadata may still appear.
+Short duration or missing song metadata alone never hides music. Turning the toggle
+off restores the usual player-state display behavior immediately.

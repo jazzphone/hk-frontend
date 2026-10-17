@@ -216,10 +216,10 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   ok('...the question is asked once and closed', asked === 1 && unsubbed === 1);
   var pm = m.views.filter(function (v) { return v.path === 'playmusic'; })[0];
   ok('Music: the album-art sky, one page (hk-music-card) under its title', pm.sky_variant === 'playmusic' && pm.title === 'Music' &&
-     pm.cards.length === 2 && pm.cards[1].type === 'custom:hk-music-card' && !pm.cards[1].focus_search);
+     pm.cards.length === 2 && pm.cards[1].cards[0].type === 'custom:hk-music-card' && !pm.cards[1].cards[0].focus_search);
   var mb = m.views.filter(function (v) { return v.path === 'music-browse'; })[0];
-  ok('...Browse Music\'s address opens the same page in its search box, out of the menu', mb.cards[1].type === 'custom:hk-music-card' &&
-     mb.cards[1].focus_search === true && mb.menu === false && mb.sky_variant === 'playmusic');
+  ok('...Browse Music\'s address opens the same page in its search box, out of the menu', mb.cards[1].cards[0].type === 'custom:hk-music-card' &&
+     mb.cards[1].cards[0].focus_search === true && mb.menu === false && mb.sky_variant === 'playmusic');
   ok('...reached from the Speakers chip and the menu, not a heading on Home', JSON.stringify(m.views[0]).indexOf('./playmusic') < 0);
   return window.hkStrategy.generate({ music: false }, hass);
 }).then(function (m) {
@@ -247,7 +247,23 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   var rail = JSON.stringify(secv);
   ok('Security in its own order: the garage door, then the lock', rail.indexOf('"entity":"cover.garage"') > 0 &&
      rail.indexOf('"entity":"cover.garage"') < rail.indexOf('"entity":"lock.front"'), rail.slice(0, 200));
+  // ONE PAGE WITH SECURITY (2026-10-16): beside an alarm's page, no Doors &
+  // Windows page -- the chips and a door's Go To open Security instead
+  ok('with a Security page, no Doors & Windows page', !m.views.some(function (v) { return v.path === 'doors-windows'; }),
+     m.views.map(function (v) { return v.path; }).join());
+  window.__secv = secv;
+  // a screen without the Security page (its Pages) keeps Doors & Windows
+  var get0 = window.hkSettings.get;
+  window.__get0 = get0;
+  window.hkSettings.get = function (p, f) {
+    return p === 'boards' ? new Proxy({}, { get: function () { return { pages: ['doors_windows', 'climate', 'rooms'] }; } }) : get0(p, f);
+  };
+  return window.hkStrategy.generate({ music: false }, hass);
+}).then(function (m) {
+  window.hkSettings.get = window.__get0;
+  var secv = window.__secv;
   var dw = m.views.filter(function (v) { return v.path === 'doors-windows'; })[0];
+  ok('...a screen without Security keeps it', !!dw && !m.views.some(function (v) { return v.path === 'security'; }));
   ok('Doors & Windows and Security each have a status row under the title, as Climate does',
      dw.cards[1].type === 'custom:hk-page-status-card' && dw.cards[1].page === 'doors_windows' &&
      secv.cards[1].type === 'custom:hk-page-status-card' && secv.cards[1].page === 'security', dw.cards[1]);
@@ -280,18 +296,19 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
       if (n.cards && n.cards.some(function (c) { return c.type === 'custom:hk-thermostat-card'; })) dialGrid = n;
       Object.keys(n).forEach(function (k) { walk(n[k]); });
     })(clim);
-    ok('thermostat dials share the heading left edge while retaining responsive columns',
+    ok('the thermostats at their own size, left aligned, the pills\' gap apart',
        dialGrid && dialGrid.layout['place-content'] === 'start start' &&
-       dialGrid.layout['grid-template-columns'] === 'repeat(auto-fit, minmax(min(100%, 340px), 364px))');
-    var climBody;
-    (function walk(n) {
-      if (!n || typeof n !== 'object' || climBody) return;
-      if (n.layout && /hk-climate-dials/.test(n.layout['grid-template-columns'] || '')) { climBody = n; return; }
-      Object.keys(n).forEach(function (k) { walk(n[k]); });
-    })(clim);
-    ok('the thermostats sit right beside the rooms: the rooms as wide as they need, the rail the rest (one dial at least)',
-       climBody && /^var\(--hk-page-split, minmax\(0, \d+px\) minmax\(min\(var\(--hk-climate-dials, 364px\), 364px\), 1fr\)\)$/
-         .test(climBody.layout['grid-template-columns']), climBody && climBody.layout);
+       dialGrid.layout['grid-template-columns'] === 'repeat(auto-fill, minmax(min(100%, var(--hk-dial-min, 340px)), auto))' &&
+       dialGrid.cards[0].dial_width === 'var(--hk-dial, 364px)' &&
+       dialGrid.layout['grid-column-gap'] === window.hkCards.TILE.gridGap + 'px', dialGrid && dialGrid.layout);
+    // THE HEADER (hk-headers.js): the day's heating and cooling beside the
+    // weather, on Energy's three columns, before the thermostats
+    var hdr = JSON.stringify(clim.cards);
+    ok('Climate: the header -- the runtime card on the page\'s thermostats, Energy\'s columns',
+       hdr.indexOf('"type":"custom:hk-climate-runtime-card"') > 0 && hdr.indexOf('var(--hk-energy-cols') > 0 &&
+       hdr.indexOf('"thermostats":["climate.den"') > 0 && hdr.indexOf('"height":"240px"') > 0,
+       hdr.slice(0, 300));
+    ok('...before the thermostats', hdr.indexOf('hk-climate-runtime-card') < hdr.indexOf('"name":"Thermostats"'));
     var garage = tilesOf(m2.views[0], 'Garage').filter(function (t) { return t.entity === 'climate.car'; })[0];
     ok('a tile is named by its FULL name, not the registry short name', garage && garage.name === 'Family Car Climate', garage && garage.name);
     // TWO THERMOSTATS: the rooms keep the pills their widest room needs (two
@@ -301,19 +318,10 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     };
     return window.hkStrategy.generate({ music: false }, hass);
   }).then(function (m2b) {
-    var clim2 = m2b.views.filter(function (v) { return v.path === 'climate'; })[0], body2 = null, widest = 0;
-    (function walk(n) {
-      if (!n || typeof n !== 'object') return;
-      if (n.layout && /hk-climate-dials/.test(n.layout['grid-template-columns'] || '')) body2 = body2 || n;
-      if (n.layout && n.layout['grid-template-columns'] === 'repeat(auto-fill, var(--hk-track, ' + window.hkCards.TILE.w + 'px))' &&
-          !(n.cards || []).some(function (c) { return c.type === 'custom:hk-thermostat-card'; })) widest = Math.max(widest, n.cards.length);
-      Object.keys(n).forEach(function (k) { walk(n[k]); });
-    })(clim2);
-    var at = /minmax\(0, (\d+)px\)/.exec(body2 && body2.layout['grid-template-columns']);
-    ok('the rooms are as wide as their widest room needs (' + widest + ' tiles at most; two to four pills)',
-       // n pills and n - 1 gaps (hk-base.js TILE), and the nested grids' 20 px
-       widest > 0 && !!at && +at[1] === (window.hkCards.TILE.w + window.hkCards.TILE.gridGap) * Math.max(2, Math.min(4, widest)) - window.hkCards.TILE.gridGap + 20,
-       body2 && body2.layout['grid-template-columns']);
+    var clim2 = m2b.views.filter(function (v) { return v.path === 'climate'; })[0];
+    // the rooms on the left, the thermostats beside them (the user, 2026-10-16)
+    ok('Climate: the rooms with the thermostats beside them', JSON.stringify(clim2).indexOf('var(--hk-page-split, minmax(0, ') > 0 &&
+       JSON.stringify(clim2).indexOf('"thermostats":["climate.den","climate.car"]') > 0);
     // STATUS & CHIPS answers first: the integration's kinds decide the pages.
     window.hkSettings.get = function (p, f) {
       if (p === 'kinds') return { thermostats: ['climate.car'], lights: ['light.kitchen_table_light'] };
@@ -418,10 +426,12 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     // Security: the keypad with the locks on a rail, under the doors sky
     var sec = g.views.filter(function (v) { return v.path === 'security'; })[0];
     var panel = sec.cards[2].cards[0];
-    ok('Security: keypad and a Locks rail', panel.layout['grid-template-columns'] === 'var(--hk-alarm-cols, 430px ' +
-       (2 * window.hkCards.TILE.w + window.hkCards.TILE.gridGap + 12) + 'px)' &&
-       cards(panel).indexOf('"name":"Locks"') > 0 && cards(panel).indexOf('lock.front') > 0 && sec.sky_variant === 'doors',
-       JSON.stringify(panel).slice(0, 200));
+    ok('Security: the keypad boxed beside the header (Your Home), at the keypad\'s 360',
+       panel.layout['grid-template-columns'] === 'var(--hk-sec-cols, 368px minmax(0, 1fr))' &&
+       panel.cards[0].type === 'custom:hk-alarm-keypad-card' && panel.cards[0].boxed === true &&
+       panel.cards[1].type === 'custom:hk-security-overview-card' && sec.sky_variant === 'security',
+       JSON.stringify(panel).slice(0, 300));
+    ok('...then the locks, full width', cards(sec.cards[3]).indexOf('"name":"Locks"') > 0 && cards(sec.cards[3]).indexOf('lock.front') > 0);
     // Timers and Vacuums, with the quick timers and Clean Areas present
     S['timer.quick_1'] = st('timer.quick_1', 'idle', {}); S['timer.nap'] = st('timer.nap', 'idle', { friendly_name: 'Nap - Timer' });
     S['script.quick_timer_start'] = st('script.quick_timer_start', 'off', {});
@@ -441,21 +451,37 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     return window.hkStrategy.generate({ music: false }, hass);
   }).then(function (g) {
     var tv = g.views.filter(function (v) { return v.path === 'timers'; })[0];
-    var tc = tv && tv.cards[1].cards[0];
-    ok('Timers: the whole page when the quick timers are installed', tc && tc.type === 'custom:hk-timers-page-card' &&
-       tc.timers[0].entity === 'timer.quick_1' && tc.timers[0].label_entity === 'input_text.quick_timer_1_name' &&
+    // every card of a type, anywhere in a view
+    var allOf = function (o, type, out) {
+      out = out || [];
+      if (o && typeof o === 'object') {
+        if (o.type === type) out.push(o);
+        Object.keys(o).forEach(function (k) { allOf(o[k], type, out); });
+      }
+      return out;
+    };
+    var tc = allOf(tv, 'custom:hk-timers-order-card')[0];
+    ok('Timers (2026-10-16): the status row, then Finishing Order in the header', tc && tv.cards[1].type === 'custom:hk-page-status-card' &&
+       tv.cards[1].page === 'timers' && tc.timers[0].entity === 'timer.quick_1' && tc.timers[0].label_entity === 'input_text.quick_timer_1_name' &&
        tc.timers.some(function (t) { return t.entity === 'timer.nap'; }), JSON.stringify(tc));
-    ok('...a house timer is named without its "- Timer"', tc.house[0].name === 'Nap', tc.house[0].name);
+    ok('...its earlier half the timers people start: the quick timers and the house timers', tc && JSON.stringify(tc.past) === '["timer.quick_1","timer.nap"]', tc && tc.past);
     var napRun = tc.timers.filter(function (t) { return t.entity === 'timer.nap'; })[0];
-    ok('...and named the same in the running list (one name per timer on the page)', napRun && napRun.label === 'Nap', napRun);
-    ok('...with the house timers from Configure -> Features', tc.house.length === 1 &&
-       tc.house[0].entity === 'timer.nap', JSON.stringify(tc.house));
+    ok('...a house timer named without its "- Timer", the same in the running list', napRun && napRun.label === 'Nap', napRun);
+    var tstart = allOf(tv, 'custom:hk-timers-start-card')[0];
+    ok('...Start a Timer beside it: six durations and the six quick names', tstart && tstart.presets.length === 6 && tstart.name_chips.length === 6,
+       JSON.stringify(tstart));
+    ok('...Running: the running cards, 388 px each', allOf(tv, 'custom:hk-timers-card').length === 1);
+    var houseT = allOf(tv, 'custom:hk-tile-card').filter(function (t) { return t.entity === 'timer.nap'; });
+    ok('...House Timers: Nap, one tap to start, from Configure -> Features (a timer that is gone left out)', houseT.length === 1 && houseT[0].name === 'Nap' &&
+       houseT[0].tap_action.perform_action === 'timer.start' && JSON.stringify(tv).indexOf('timer.gone') < 0, JSON.stringify(houseT));
     var vv = g.views.filter(function (v) { return v.path === 'vacuums'; })[0];
     var vj = cards(vv);
     ok('Vacuums: the vacuum with its own readings', vj.indexOf('"room":"sensor.robo_current_room"') > 0 &&
        vj.indexOf('"error":"sensor.robo_operational_error"') > 0);
-    ok('Vacuums: Clean by Area on the rail, its rooms Clean Areas\' own (asked live, none listed)',
-       vj.indexOf('{"type":"custom:hk-area-select-card"}') > 0 && vj.indexOf('"floors"') < 0, vj.slice(vj.indexOf('area-select') - 40, vj.indexOf('area-select') + 80));
+    ok('Vacuums: the header reads the vacuum and its error sensor', allOf(vv, 'custom:hk-vacuum-week-card').length === 1 &&
+       JSON.stringify(allOf(vv, 'custom:hk-vacuum-last-card')[0].vacuums) === '[{"entity":"vacuum.robo","error":"sensor.robo_operational_error"}]');
+    ok('Vacuums: Clean by Area beside them on its plate, its rooms Clean Areas\' own (asked live, none listed)',
+       vj.indexOf('{"type":"custom:hk-area-select-card","layout":"panel"}') > 0 && vj.indexOf('"floors"') < 0, vj.slice(vj.indexOf('area-select') - 40, vj.indexOf('area-select') + 80));
     delete hass.services;
     // Rooms on pages: floor by floor (Main, then Upstairs), or in room order
     var litRooms = function (gv) {
@@ -464,8 +490,29 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     };
     S['light.den_lamp'] = st('light.den_lamp', 'off', { friendly_name: 'Den Lamp' });
     hass.entities['light.den_lamp'] = { area_id: 'den' };
-    BOARD = { pages: ['lights'] };
-    return window.hkStrategy.generate({ music: false }, hass).then(function (g1) {
+    // PAGES (2026-10-16): Quick Start's durations and names are HK Settings'
+    // (headers.timers), and a screen that turns the header off gets Quick
+    // Start back on the page
+    var getT = window.hkSettings.get;
+    window.hkSettings.get = function (p, f) {
+      return p === 'headers' ? { timers: { show: true, presets: [3, 45], names: ['Eggs'] } } : getT(p, f);
+    };
+    var timersOf = function (gv) { return gv.views.filter(function (v) { return v.path === 'timers'; })[0]; };
+    return window.hkStrategy.generate({ music: false }, hass).then(function (gt) {
+      var st1 = allOf(timersOf(gt), 'custom:hk-timers-start-card')[0];
+      ok('Timers: Quick Start\'s durations and names from Pages -> Timers', st1 && JSON.stringify(st1.presets) === '[3,45]' &&
+         JSON.stringify(st1.name_chips) === '["Eggs"]', JSON.stringify(st1));
+      BOARD = { pages: ['timers', 'vacuums', 'music'], headers: { timers: false } };
+      return window.hkStrategy.generate({ music: false }, hass);
+    }).then(function (gt2) {
+      var tv2 = timersOf(gt2), pc = allOf(tv2, 'custom:hk-timers-page-card')[0];
+      ok('...a screen with the header off: no header, Quick Start on the page again (the one-page layout, its presets)',
+         allOf(tv2, 'custom:hk-timers-order-card').length === 0 && allOf(tv2, 'custom:hk-timers-start-card').length === 0 &&
+         pc && JSON.stringify(pc.presets) === '[3,45]' && pc.house.length === 1 && tv2.cards[1].page === 'timers', JSON.stringify(tv2.cards).slice(0, 300));
+      window.hkSettings.get = getT;
+      BOARD = { pages: ['lights'] };
+      return window.hkStrategy.generate({ music: false }, hass);
+    }).then(function (g1) {
       var floorOrder = litRooms(g1);
       ok('Lights: rooms floor by floor by default', floorOrder.indexOf('Kitchen') < floorOrder.indexOf('Den'), JSON.stringify(floorOrder));
       BOARD = { pages: ['lights'], page_rooms: 'order', room_order: ['den', 'kitchen'] };
@@ -591,14 +638,19 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   WB.now_playing = true; WB.timer_bar = false;
   return window.hkStrategy.generate({}, hass).then(function (g2) {
     var m2 = media(g2);
-    ok('the Now Playing Bar alone: the player and no timers', kinds(m2) === 'custom:hk-now-playing-card' &&
+    ok('the Now Playing Bar alone: the player and no timers', kinds(m2) === 'custom:hk-now-playing-card,custom:hk-music-pane-card' &&
        JSON.stringify(m2.trigger).indexOf('running_quick_timers') < 0, kinds(m2));
+    // NOW PLAYING'S PLACE (2026-10-15): the same sheet can stand up as the
+    // screensaver's music pane (hk-popup.js placeFor), or go along the top
+    ok('...with the pane after the player, and the bar\'s place at the top', m2.pane === true &&
+       /safe-area-inset-top/.test((m2.top_vars || {})['hk-np-pad'] || ''), JSON.stringify({ pane: m2.pane, top: m2.top_vars }));
+    ok('the Timer Bar alone has no pane', m.pane === false, m.pane);
     delete WB.timer_bar;
     return window.hkStrategy.generate({}, hass);
   }).then(function (g3) {
     var m3 = media(g3);
     ok('...a screen saved before the Timer Bar keeps its timers with its Now Playing Bar',
-       kinds(m3) === 'custom:hk-timer-strip-card,custom:hk-now-playing-card', kinds(m3));
+       kinds(m3) === 'custom:hk-timer-strip-card,custom:hk-now-playing-card,custom:hk-music-pane-card', kinds(m3));
     var onPages = function (gg) { return gg.views.filter(function (v) { return JSON.stringify(v).indexOf('"#media"') > 0; }).map(function (v) { return v.path; }); };
     ok('the bar on Home, and the Music page, by default', JSON.stringify(onPages(g3)) === '["home","playmusic","music-browse"]', onPages(g3));
     // THE MUSIC PAGE'S: a phone's only -- while the page says it is one
@@ -926,13 +978,23 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
       if (n.type === 'custom:hk-vacuum-card') vac.push(n.entity); Object.keys(n).forEach(function (k) { walk(n[k]); }); })(by.vacuums);
     ok('the Vacuums page in its own order, the rest after', vac.join() === 'vacuum.down,vacuum.up,vacuum.office', vac);
     var wx = JSON.stringify(by.weather);
-    ok('the radar map when the card is installed: its URL, NOAA in the US',
-       wx.indexOf('"module":"/hacsfiles/weather-radar-card/weather-radar-card.js?v=1"') > 0 && wx.indexOf('"data_source":"NOAA"') > 0);
-    QS.extras = { radar: null };
+    ok('the Weather page (2026-10-16): the conditions, the hours, the days and the details, in that order',
+       wx.indexOf('"section":"hero"') > 0 && wx.indexOf('"section":"hero"') < wx.indexOf('"section":"hourly"') &&
+       wx.indexOf('"section":"hourly"') < wx.indexOf('"section":"daily"') && wx.indexOf('hk-weather-details-card') > wx.indexOf('"section":"daily"'), wx.slice(0, 600));
+    ok('...no radar while it is off, and never the HACS card, installed or not',
+       wx.indexOf('hk-radar-card') < 0 && wx.indexOf('weather-radar-card') < 0);
+    window.hkSettings.radarNative = function () { return { enabled: true }; };
+    window.hkSettings.weatherPage = function () {
+      return { show_current: false, show_hourly: true, show_daily: true, show_alerts: true, details: [] };
+    };
     return window.hkStrategy.generate({ music: false }, qh);
   }).then(function (g2) {
     var wx = JSON.stringify(g2.views.filter(function (v) { return v.path === 'weather'; })[0]);
-    ok('...and none when it is not', wx.indexOf('weather-radar-card') < 0);
+    ok('the radar on: HK’s own beside the days, still not the HACS card',
+       wx.indexOf('"type":"custom:hk-radar-card"') > 0 && wx.indexOf('weather-radar-card') < 0 && wx.indexOf('--hk-wx-pair') > 0, wx.slice(0, 900));
+    ok('...what the page leaves out is not there (no conditions, no details)',
+       wx.indexOf('"section":"hero"') < 0 && wx.indexOf('hk-weather-details-card') < 0);
+    ok('...10 px between the cards, exactly (card-margin 0)', wx.indexOf('"card-margin":"0px"') > 0 && wx.indexOf('"grid-row-gap":"10px"') > 0);
     delete window.hkSettings;
   });
 }).then(function () {
@@ -985,9 +1047,8 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
        g.wallpanel.style['wallpanel-screensaver-info-box']['--wp-card-width'] === '600px' &&
        g.wallpanel.profiles['user.kitchen'].enabled === true, g.wallpanel && { idle: g.wallpanel.idle_time, en: g.wallpanel.enabled });
     var wx = JSON.stringify(g.views.filter(function (v) { return v.path === 'weather'; })[0]);
-    ok('the radar: its options over the tuned map (RainViewer outside the US); its type is not an option',
-       wx.indexOf('"zoom_level":8') > 0 && wx.indexOf('"data_source":"RainViewer"') > 0 &&
-       wx.indexOf('"type":"custom:weather-radar-card"') > 0 && wx.indexOf('not-a-radar') < 0, wx.slice(wx.indexOf('radar') - 20, wx.indexOf('radar') + 200));
+    ok('the Weather Radar Card’s old options draw nothing on the generated page (HK’s radar took over)',
+       wx.indexOf('weather-radar-card') < 0 && wx.indexOf('zoom_level') < 0 && wx.indexOf('not-a-radar') < 0, wx.slice(0, 300));
     delete window.hkSettings;
   });
 }).then(function () {
@@ -1067,12 +1128,13 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
        [byP.lights.title, byP.lights.menu_title]);
     ok('Lights and Water have their status rows', byP.lights.cards[1].page === 'lights' &&
        byP.water.cards[1].type === 'custom:hk-page-status-card' && byP.water.cards[1].page === 'water');
-    var cover = byP.water && byP.water.cards[2];
-    ok('Water: Sensor Coverage while a leak sensor has not reported (neither on nor off)',
-       cover && cover.type === 'conditional' && cover.conditions[0].condition === 'or' &&
-       JSON.stringify(cover.conditions[0].conditions[0].state_not) === '["on","off"]' &&
-       cards(cover).indexOf('"label_mode":"unreported"') > 0 && cards(cover).indexOf('binary_sensor.sink_leak') > 0,
-       JSON.stringify(cover).slice(0, 300));
+    var whead = byP.water && byP.water.cards[2];
+    ok('Water (2026-10-16): the header -- the day\'s water -- and no Sensor Coverage: a quiet sensor\'s No Report is its tile\'s',
+       whead && JSON.stringify(whead).indexOf('custom:hk-water-day-card') > 0 && JSON.stringify(byP.water).indexOf('unreported') < 0,
+       JSON.stringify(whead).slice(0, 300));
+    var leakT = JSON.stringify(byP.water);
+    ok('...leak tiles a calm drop while dry or unreported, red with its alert glyph on a leak',
+       leakT.indexOf('"icon":"hk:water","icon_states":{"on":"hk:water-alert"},"icon_color":"red","off_icon_color":"blue","label_mode":"leak"') > 0);
     B2.phone_header = 'header';
     return window.hkStrategy.generate({ music: false }, hass);
   }).then(function (g2) {
@@ -1081,7 +1143,7 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
     // house with valves and no leak sensors still has the page
     S['valve.sprinkler'] = st('valve.sprinkler', 'open', { friendly_name: 'Front Sprinkler', device_class: 'water' });
     hass.entities['valve.sprinkler'] = { area_id: 'kitchen' };
-    var kinds0 = window.hkSettings.get;
+    var kinds0 = window.__kinds0 = window.hkSettings.get;
     window.hkSettings.get = function (p, f) {
       return p === 'kinds' ? { lights: ['light.kitchen_table_light'], leaks: [], valves: ['valve.sprinkler'] } : kinds0(p, f);
     };
@@ -1089,9 +1151,46 @@ window.hkStrategy.generate({}, hass).then(function (cfg) {
   }).then(function (g3) {
     var w = g3.views.filter(function (v) { return v.path === 'water'; })[0];
     var valves = w && w.cards.filter(function (c) { return c.cards && c.cards[0] && c.cards[0].name === 'Valves'; })[0];
-    ok('Water with valves and no leak sensors: the page, its row, a Valves section -- no Sensor Coverage',
+    ok('Water with valves and no leak sensors: the page, its row, a Valves section -- a sprinkler is not the main supply',
        !!w && w.cards[1].page === 'water' && !!valves && cards(valves).indexOf('valve.sprinkler') > 0 &&
-       !w.cards.some(function (c) { return c.type === 'conditional'; }), w && JSON.stringify(w.cards).slice(0, 300));
+       JSON.stringify(w).indexOf('hk-water-supply-card') < 0, w && JSON.stringify(w.cards).slice(0, 300));
+    S['valve.main_shutoff'] = st('valve.main_shutoff', 'open', { friendly_name: 'Main Shutoff', device_class: 'water' });
+    hass.entities['valve.main_shutoff'] = { area_id: 'kitchen' };
+    window.hkSettings.get = function (p, f) {
+      return p === 'kinds' ? { lights: ['light.kitchen_table_light'], leaks: [], valves: ['valve.sprinkler', 'valve.main_shutoff'] } : window.__kinds0(p, f);
+    };
+    return window.hkStrategy.generate({ music: false }, hass).then(function (g4) {
+      var w4 = g4.views.filter(function (v) { return v.path === 'water'; })[0], j4 = JSON.stringify(w4);
+      var vs4 = w4.cards.filter(function (c) { return c.cards && c.cards[0] && c.cards[0].name === 'Valves'; })[0];
+      ok('...the valve named for the main supply is the header\'s supply card; the sprinkler keeps its Valves tile',
+         j4.indexOf('"type":"custom:hk-water-supply-card","entity":"valve.main_shutoff"') > 0 && !!vs4 &&
+         cards(vs4).indexOf('valve.sprinkler') > 0 && cards(vs4).indexOf('valve.main_shutoff') < 0, j4.slice(0, 400));
+      // A SCREEN WITHOUT THE HEADER (Pages, 2026-10-16): the main valve is a
+      // Valves tile again
+      var k5 = window.hkSettings.get;
+      window.hkSettings.get = function (p, f) {
+        if (p === 'boards') { var b0 = (k5(p, f) || {})[''] || {}; return { '': Object.assign({}, b0, { headers: { water: false } }) }; }
+        return k5(p, f);
+      };
+      return window.hkStrategy.generate({ music: false }, hass).then(function (g5) {
+        var w5 = g5.views.filter(function (v) { return v.path === 'water'; })[0], j5 = JSON.stringify(w5);
+        var vs5 = w5.cards.filter(function (c) { return c.cards && c.cards[0] && c.cards[0].name === 'Valves'; })[0];
+        ok('...a screen with the Water header off: no header, the main valve a Valves tile again',
+           j5.indexOf('hk-water-supply-card') < 0 && j5.indexOf('hk-water-day-card') < 0 && !!vs5 && cards(vs5).indexOf('valve.main_shutoff') > 0, j5.slice(0, 300));
+        // ...and the supply and meter chosen on Pages -> Water win over the guess
+        window.hkSettings.get = function (p, f) {
+          return p === 'headers' ? { water: { show: true, supply: 'valve.sprinkler', meter: 'sensor.water_meter' } } : k5(p, f);
+        };
+        return window.hkStrategy.generate({ music: false }, hass);
+      }).then(function (g6) {
+        var j6 = JSON.stringify(g6.views.filter(function (v) { return v.path === 'water'; })[0]);
+        ok('...the supply and meter chosen on Pages -> Water win over the guess',
+           j6.indexOf('"type":"custom:hk-water-supply-card","entity":"valve.sprinkler"') > 0 && j6.indexOf('"meter":"sensor.water_meter"') > 0, j6.slice(0, 400));
+        window.hkSettings.get = k5;
+        delete S['valve.main_shutoff']; delete hass.entities['valve.main_shutoff'];
+      });
+    });
+  }).then(function () {
     delete S['valve.sprinkler']; delete hass.entities['valve.sprinkler'];
     delete window.hkSettings;
   });

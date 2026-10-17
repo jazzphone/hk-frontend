@@ -148,33 +148,33 @@
 
   // SEARCH: each installed feature's settings, [label, route, words]
   var SEARCH = {
-    hk_tv: [['Live TV', 'features/tv', 'television tv hdhomerun tuner'],
+    hk_tv: [['Live TV', 'page/live_tv', 'television tv hdhomerun tuner'],
             ['Channels', 'features/tv/channels', 'live tv channel lineup rename'],
-            ['Picture Quality', 'features/tv', 'live tv 720p 1080p resolution'],
-            ['Tuner Address', 'features/tv', 'live tv hdhomerun ip host'],
-            ['Guide Address', 'features/tv', 'live tv xmltv schedule epg']],
+            ['Picture Quality', 'page/live_tv', 'live tv 720p 1080p resolution'],
+            ['Tuner Address', 'page/live_tv', 'live tv hdhomerun ip host'],
+            ['Guide Address', 'page/live_tv', 'live tv xmltv schedule epg']],
     hk_music: [['Speakers', 'features/music/speakers', 'music rooms hk music speaker order'],
                ['Home Rooms', 'features/music/homes', 'music tablet user room home'],
-               ['House Volume', 'features/music', 'music playlist volume'],
+               ['House Volume', 'page/music', 'music playlist volume'],
                ['Presets', 'features/music/presets', 'music sync group everywhere downstairs'],
                ['Playlists', 'features/music/playlists', 'music pills playlist chooser decades'],
-               ['Keep Playlists Ready', 'features/music', 'music playlist slow loading cache warm apple refresh']],
-    hk_alarm_pin: [['Alarm PIN', 'features/alarm', 'pin code keypad alarm security passcode'],
-                   ['Change PIN', 'features/alarm', 'alarm pin code new passcode'],
-                   ['PIN to Arm', 'features/alarm', 'alarm arm require code']],
-    hk_clean_areas: [['Clean Areas', 'features/clean', 'vacuum robot clean by area rooms'],
-                     ['Vacuums', 'features/clean', 'clean by area robots take part'],
+               ['Keep Playlists Ready', 'page/music', 'music playlist slow loading cache warm apple refresh']],
+    hk_alarm_pin: [['Alarm PIN', 'page/security', 'pin code keypad alarm security passcode'],
+                   ['Change PIN', 'page/security', 'alarm pin code new passcode'],
+                   ['PIN to Arm', 'page/security', 'alarm arm require code']],
+    hk_clean_areas: [['Clean Areas', 'page/vacuums', 'vacuum robot clean by area rooms'],
+                     ['Vacuums', 'page/vacuums', 'clean by area robots take part'],
                      ['Rooms', 'features/clean/rooms', 'clean by area picker which areas shown']],
-    hk_energy: [['Energy', 'features/energy', 'energy power electricity kwh watts page cost'],
+    hk_energy: [['Energy', 'page/energy', 'energy power electricity kwh watts page cost'],
                 ['Energy Rings', 'features/energy/rings', 'energy rings summary cost water solar gas usual'],
                 ['Energy Sections', 'features/energy/sections', 'energy rooms appliances outlets circuits groups colors'],
                 ['Energy Devices', 'features/energy/devices', 'energy circuit plug power sensor name glyph'],
                 ['Energy Readings', 'features/energy/top', 'energy cost thermostat outside top row'],
                 ['Energy Tracking', 'features/energy/usages', 'energy tracking daily bars usage runtime chart history'],
                 ['Energy Batteries', 'features/energy/batteries', 'energy car battery range house battery charging'],
-                ['Opens On', 'features/energy', 'energy page first tab now today week month start default'],
-                ['A Usual Day', 'features/energy', 'energy typical usual average days before 30 14 7 rings compare'],
-                ['Highlights', 'features/energy', 'energy highlights stood out summary insights'],
+                ['Opens On', 'page/energy', 'energy page first tab now today week month start default'],
+                ['A Usual Day', 'page/energy', 'energy typical usual average days before 30 14 7 rings compare'],
+                ['Highlights', 'page/energy', 'energy highlights stood out summary insights'],
                 ['Daily Runtime', 'features/energy/devices', 'energy runtime hours ac hvac run time duration device'],
                 ['Power Page', 'features/energy/power', 'power page right now house battery grid solar sun flow chart picture'],
                 ['Backed Up', 'features/energy/power', 'power backed up backup battery circuits panel whole house'],
@@ -415,7 +415,7 @@
           if (!done) return;
           delete st.forms[id];
           P.announce('PIN changed');
-          P.back('#/features/alarm');
+          P.back('#/page/security');
         });
     } })]));
   }
@@ -429,7 +429,7 @@
         return K.check({ label: x.name, sub: x.entity_id, on: x.entity_id === a.alarm, fk: 'alarm:pick:' + x.entity_id, onClick: function () {
           if (x.entity_id === a.alarm) return;
           P.featCall('hk_alarm_pin', { type: 'hk_alarm_pin/settings/set', entry_id: id, changes: { alarm: x.entity_id } }, ['alarm'])
-            .then(function (done) { if (done) P.back('#/features/alarm'); });
+            .then(function (done) { if (done) P.back('#/page/security'); });
         } });
       })));
   }
@@ -452,7 +452,7 @@
           if (!done) return;
           delete st.forms.add;
           P.announce('PIN added');
-          P.back('#/features/alarm');
+          P.back('#/page/security');
         });
     } })]));
   }
@@ -473,6 +473,11 @@
       K.slider({ label: 'House Volume', sub: 'Where a playlist starts, in every room it plays in.', sk: 'f:hk_music:volume',
                  value: Math.round((d.volume || 0) * 100), min: 0, max: 100, step: 5, unit: '%', fk: 'music:volume',
                  onChange: function (v) { P.featSet('hk_music', { volume: v / 100 }); } })]));
+    c.appendChild(K.group({ header: 'Now Playing', footer: P.err('f:hk_music:ignore_announcements') ||
+      'Applies to every screen. Recognized announcements stay out of Now Playing and the screensaver music view.' }, [
+      K.toggle({ label: 'Ignore Announcements', sub: 'Keep spoken reminders out of the music displays',
+        on: d.ignore_announcements !== false, sk: 'f:hk_music:ignore_announcements', fk: 'music:ignore_announcements',
+        onChange: function (on) { P.featSet('hk_music', { ignore_announcements: on }); } })]));
     c.appendChild(K.group({ header: 'Presets & Playlists' }, [
       K.nav({ label: 'Presets', value: String((d.presets || []).length), href: '#/features/music/presets', fk: 'music:presets' }),
       K.nav({ label: 'Playlists', value: String((d.playlists || []).length), href: '#/features/music/playlists', fk: 'music:playlists' })]));
@@ -1299,7 +1304,7 @@
   }
 
   function energyPage(P, sub, mk, withData, name, domain) {
-    var back = ['Energy', '#/features/energy'];
+    var back = ['Energy', '#/page/energy'];
     var d0 = P.feat(domain).data || {};
     if (sub[0] === 'top') return mk('Readings', withData(function (c, d) { energyTop(P, c, d); }), back);
     if (sub[0] === 'rings') return mk('Rings', withData(function (c, d) { energyRings(P, c, d); }), back);

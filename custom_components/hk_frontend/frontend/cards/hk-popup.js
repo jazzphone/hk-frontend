@@ -107,6 +107,35 @@
     // touched, so it goes (it was a full-window box of its own).
     '.hkp.bottom.plain.dock{top:auto}',
     '.hkp.dock .bd{display:none}',
+    // NOW PLAYING AS A PANE (2026-10-15; the screen's Show As: Side Pane,
+    // placeFor below): the docked bar's sheet stood up as a column down one
+    // side of the screen, the whole height, the screensaver's music pane in
+    // it (hk-music-pane-card, hk-saver.js) -- the page beside it is narrowed
+    // by its width (hk-menu.js, --hk-pane-l / -r). The player bar in the
+    // same sheet steps aside; the timers stay at the pane's top.
+    '.hkp.side{top:0;bottom:0;left:auto;right:0;width:var(--hk-pane-w,400px);padding:0!important;',
+    '  align-items:stretch;justify-content:stretch;z-index:5}',
+    // (a left pane beside a docked menu, past Home Assistant's sidebar)
+    '.hkp.side.sl{right:auto;left:var(--hk-menu-right,0px)}',
+    '.hkp.side .sheet{width:100%!important;max-width:none!important;height:100%;max-height:none;display:flex;flex-direction:column;',
+    // (overflow visible: the pane's own shadow falls onto the page)
+    '  overflow:visible;border-top:0;box-shadow:none;transform:translateX(104%)}',
+    '.hkp.side.sl .sheet{transform:translateX(-104%)}',
+    '.hkp.side.open .sheet{transform:none}',
+    // (it SLIDES in from its edge, solid all the way -- no fade on top of
+    // the slide: a pane comes in, it doesn't appear)
+    '.hkp.side .sheet{opacity:1;transition:transform .34s cubic-bezier(.32,.72,0,1)}',
+    '.hkp.side .sheet>hk-now-playing-card{display:none}',
+    '.hkp:not(.side) .sheet>hk-music-pane-card{display:none}',
+    '.hkp.side .sheet>hk-music-pane-card{flex:1 1 auto;min-height:0}',
+    // THE BAR ALONG THE TOP (Bar Position: Top): the docked bar's mirror --
+    // the screen's top edge, its hairline and shadow down onto the page,
+    // which starts below it (dockRoom)
+    '.hkp.dock.top{top:0;bottom:auto;align-items:flex-start;padding:0;z-index:5}',
+    '.hkp.dock.top .sheet{transform:translateY(-100%);border-top:0;border-bottom:1px solid rgba(255,255,255,0.10);',
+    '  box-shadow:0 14px 36px rgba(0,0,0,.40),0 2px 10px rgba(0,0,0,.24)}',
+    '.hkp.dock.top.open .sheet{transform:none}',
+    '.hkp.dock.top.empty .sheet{border-bottom-color:transparent;box-shadow:none}',
     // ...and beside a tab bar RAIL (left or right, --hk-tabbar-l / -r while
     // it shows): it keeps the rail's column, so it never lies over the
     // rail's foot -- its More tab, or its small button (the bar is 100% wide,
@@ -160,12 +189,14 @@
     '  z-index:3;width:34px;',
     '  height:34px;border-radius:17px;display:flex;align-items:center;',
     '  justify-content:center;cursor:pointer;pointer-events:auto;',
-    // --hk-popup-x-bg: a sheet over live video (the camera pop-ups) sets a
-    // dark plate through `vars`, because the default white wash vanishes
-    // against a bright sky. The now-playing bar keeps the default.
+    // --hk-popup-x-bg: a sheet's own plate for it, through `vars`
     '  background:var(--hk-popup-x-bg,rgba(255,255,255,.16));color:rgba(255,255,255,.92);',
     '  --mdc-icon-size:19px}',
     '.hkp .x:active{background:rgba(255,255,255,.30)}',
+    // OVER LIVE VIDEO (a sheet with a camera, .video) the white wash
+    // vanished against a bright lawn or sky (the user, 2026-10-17): the X
+    // sits on the dark plate the camera's name does, in every look
+    '.hkp.video .x{background:rgba(28,28,30,.66);color:#fff}',
     // PREPARED UNSEEN: a sheet with a live camera opens at 1% until the
     // camera's first frame has been drawn -- see _show.
     '.hkp{transition:opacity .2s ease}',
@@ -227,12 +258,18 @@
         }
         var hit = v !== undefined && [].concat(c.state).map(String).indexOf(String(v)) !== -1;
         if (!c.grace) return hit;
-        var key = id + '|' + [].concat(c.state).join(',');
+        // (`grace: now_playing`: the house's Hide After a Pause, read live)
+        var gsec = c.grace === 'now_playing' ? npGraceSec() : Number(c.grace);
+        // (THIS SCREEN'S MUSIC is one window whichever player it resolves
+        // to: a pause that reads as idle -- Music Assistant's AirPlay
+        // speakers -- can move the answer to another player, and a window kept
+        // per player closed the bar at once instead of after its grace)
+        var key = (c.entity_from && c.entity_from.music ? 'music' : id) + '|' + [].concat(c.state).join(',');
         var g = GRACE[key] || (GRACE[key] = { was: false, left: 0 });
         if (hit) { g.was = true; g.left = 0; return true; }
         if (g.was) { g.was = false; g.left = ctx.now; }
         if (!g.left) return false;
-        var until = g.left + Number(c.grace) * 1000;
+        var until = g.left + gsec * 1000;
         if (ctx.now >= until) { g.left = 0; return false; }
         ctx.next = Math.min(ctx.next, until);
         return true;
@@ -384,12 +421,19 @@
     var de = document.documentElement;
     if (!de || !de.style) return;
     if (!el || !sheet || !sheet.isConnected) { de.style.removeProperty('--hk-bar-h'); dockRoom(0); return; }
+    // A PANE takes no room at the bottom: its width is the page's to give
+    // (publishPane); a bar along the TOP has its own (dockRoom's top)
+    if (el.classList.contains('side')) { de.style.removeProperty('--hk-bar-h'); dockRoom(0); return; }
+    var top = el.classList.contains('top');
     // (a docked bar's box ends at its top edge -- see .hkp.dock in CSS -- so
     // its height IS the bar's, and an empty one is 0, not "the window")
     var dock = el.classList.contains('dock');
     var h = Math.max(0, Math.round((dock ? (el.offsetHeight || 0) : (el.clientHeight || window.innerHeight || 0)) - (sheet.offsetTop || 0)));
     var v = h + 'px';
-    if (de.style.getPropertyValue('--hk-bar-h') !== v) de.style.setProperty('--hk-bar-h', v);
+    // (--hk-bar-h is the bottom's: the docked menu's list and the stash
+    // stand on it -- a bar at the top covers none of the bottom)
+    if (top) de.style.removeProperty('--hk-bar-h');
+    else if (de.style.getPropertyValue('--hk-bar-h') !== v) de.style.setProperty('--hk-bar-h', v);
     if (dock) {
       // NOTHING IN IT (the music stopped, no timers, the bar still up for its
       // grace): its hairline and shadow go too, and the page's room
@@ -401,7 +445,7 @@
       if (!built) return;
       var none = (sheet.offsetHeight || 0) <= 2;
       el.classList.toggle('empty', none);
-      dockRoom(none ? 0 : sheet.offsetHeight);
+      dockRoom(none ? 0 : sheet.offsetHeight, top);
     }
   }
   // A DOCKED BAR (`dock: true`, the now-playing bar since 2026-10-10) is the
@@ -411,7 +455,7 @@
   // the two add up, and the bar sits above the tab bar.) Every view given
   // room is remembered: Home Assistant keeps views it has shown, and one
   // shown again after the bar has gone must not keep it.
-  var dockH = 0, docked = new Set();
+  var dockH = 0, dockTop = false, docked = new Set();
   // ONE DOCKED BAR FROM PAGE TO PAGE (On Every Page): each page holds its own
   // pop-up, so changing pages takes one down and puts the next up. By hash:
   // how many are open, and when the last went because its page did. A bar
@@ -436,6 +480,12 @@
     'html[hk-tabbar-fold=start] .hk-stash{right:max(21px, calc(env(safe-area-inset-right, 0px) + 8px))}',
     'html[hk-tabbar-fold=end] .hk-stash{right:auto;left:max(21px, calc(env(safe-area-inset-left, 0px) + 8px))}',
     'html[hk-tabbar-fold=gone] .hk-stash{bottom:max(16px, calc(env(safe-area-inset-bottom, 0px) + 10px))}',
+    // ...and BESIDE A FULL BAR that leaves the corner free (a tablet's,
+    // centered; hk-tabbar.js `hk-tabbar-room`): in its row, its size, as
+    // beside the folded bar -- not floating above it over the page
+    // (the bar's own height: a round button the size of its Rooms button)
+    'html[hk-tabbar-room]:not([hk-tabbar-fold]) .hk-stash{--s:var(--hk-tabbar-bh, 60px);',
+    '  bottom:var(--hk-tabbar-row, 14px);right:max(21px, calc(env(safe-area-inset-right, 0px) + 8px))}',
     // ACROSS THE SCREEN (folded to the right, and back) it does not slide
     // or jump: it pops up where it now goes -- a new animation name
     // restarts the pop; up and down the same side, `bottom` eases instead
@@ -552,23 +602,30 @@
       return (v && (v.querySelector(':scope > hui-view') || v.lastElementChild)) || null;
     } catch (e) { return null; }
   }
-  function dockRoom(h) {
+  function dockRoom(h, top) {
+    if (top === undefined) top = dockTop;
     dockH = h > 0 ? h : 0;
-    // ...and the tab bar rides above it (hk-tabbar.js lifts itself by this)
-    var de = document.documentElement, dv = dockH ? dockH + 'px' : '';
-    if (de && de.style && de.style.getPropertyValue('--hk-dock-h') !== dv) {
+    dockTop = !!top && !!dockH;
+    // ...and the tab bar rides above it (hk-tabbar.js lifts itself by this);
+    // a bar along the top: --hk-dock-top, what a tab bar at the top and the
+    // page's top stand on
+    var de = document.documentElement, dv = dockH && !dockTop ? dockH + 'px' : '', tv = dockTop ? dockH + 'px' : '';
+    if (de && de.style && (de.style.getPropertyValue('--hk-dock-h') !== dv || de.style.getPropertyValue('--hk-dock-top') !== tv)) {
       if (dv) de.style.setProperty('--hk-dock-h', dv); else de.style.removeProperty('--hk-dock-h');
+      if (tv) de.style.setProperty('--hk-dock-top', tv); else de.style.removeProperty('--hk-dock-top');
       try { window.dispatchEvent(new Event('hk-dock')); } catch (e) { /* no listeners */ }
     }
     // (a tab bar along the bottom gives the page the room for both: its
     // lift takes the bar's height in)
     // (hk-tabbar's, on <html>'s own style -- as insetLeft)
     var tabbed = de && de.style.getPropertyValue('--hk-tabbar-h').trim();
-    var view = dockH && !tabbed ? viewNow() : null;
-    docked.forEach(function (v) { if (v !== view) { v.style.removeProperty('margin-bottom'); docked.delete(v); } });
+    var view = dockH && (dockTop || !tabbed) ? viewNow() : null;
+    docked.forEach(function (v) { if (v !== view) { v.style.removeProperty('margin-bottom'); v.style.removeProperty('margin-top'); docked.delete(v); } });
     if (!view) return;
     var m = dockH + 'px';
-    if (view.style.marginBottom !== m) view.style.marginBottom = m;
+    // (at the top: the page starts below it -- its header, clock and all)
+    if (dockTop) { if (view.style.marginTop !== m) view.style.marginTop = m; view.style.removeProperty('margin-bottom'); }
+    else { if (view.style.marginBottom !== m) view.style.marginBottom = m; view.style.removeProperty('margin-top'); }
     docked.add(view);
   }
   // ...and the next page, as it comes: the view is swapped some frames after
@@ -587,6 +644,65 @@
     if (dockWait) { clearTimeout(dockWait); dockWait = null; }
     if (dockH) dockRoom(dockH);
   });
+
+  // ------------------------------------------------------- NOW PLAYING'S PLACE
+  // THE DOCKED BAR, A PANE OR A BAR ALONG THE TOP (2026-10-15). A docked
+  // sheet with `pane` (the generated #media) asks the screen where Now
+  // Playing goes (hkCards.menu.nowPlaying: All Screens' choice, or the
+  // screen's own; a phone always the bar). A PANE only while music is up
+  // (the timers alone are a bar) and only where it FITS: the page beside it
+  // keeps PANE_PAGE_MIN, a docked menu and Home Assistant's sidebar taken
+  // (--hk-menu-right, hk-menu.js), on a screen wider than tall. Otherwise the
+  // bar, at the screen's Bar Position. Its width: the screensaver's pane,
+  // 400 at a 1280 tablet, scaled with the screen's width.
+  var PANE_W = 400, PANE_PAGE_MIN = 680;
+  // the music gone, the pane stays as long as the bar would (its trigger's
+  // grace), then the sheet closes -- or, with timers still running, is the bar
+  var PANE_ARRIVE_MS = 1500;
+  function npGraceSec() {
+    var Mn = window.hkCards && window.hkCards.menu;
+    return Mn && Mn.npGrace ? Mn.npGrace() : 30;
+  }
+  function paneWidth() {
+    var W = window.innerWidth || 1280;
+    return Math.round(PANE_W * Math.max(0.9, Math.min(1.25, W / 1280)));
+  }
+  function menuRight() {
+    var n = 0;
+    try { n = parseFloat(document.documentElement.style.getPropertyValue('--hk-menu-right')) || 0; } catch (e) { n = 0; }
+    return Math.max(n, insetLeft());
+  }
+  function paneFits(w) {
+    var W = window.innerWidth || 0, H = window.innerHeight || 0;
+    return W > H && H >= 480 && W - menuRight() - w >= PANE_PAGE_MIN;
+  }
+  function placeFor(cfg, music) {
+    var Mn = window.hkCards && window.hkCards.menu, np = Mn && Mn.nowPlaying ? Mn.nowPlaying() : null;
+    if (!np || !cfg || !cfg.dock) return { kind: 'bar', bar: 'bottom' };
+    if (cfg.pane && music && np.style === 'pane') {
+      var w = paneWidth();
+      if (paneFits(w)) return { kind: 'pane', side: np.side, w: w };
+    }
+    return { kind: 'bar', bar: np.bar };
+  }
+  // is there music for a pane (hk-saver.js: what plays, or is paused, that
+  // this screen follows -- what the pane would show)
+  function paneMusic(h) {
+    var S = window.hkSaver;
+    try { return !!(h && S && S.music && S.music.has && S.music.has(h)); } catch (e) { return false; }
+  }
+  // the pane's width on its side of <html> (hk-menu.js narrows the page,
+  // hk-tabbar.js keeps clear of it), and the word that it changed
+  function publishPane(side, w) {
+    var de = document.documentElement;
+    if (!de || !de.style) return;
+    var l = side === 'left' && w ? w + 'px' : '', r = side === 'right' && w ? w + 'px' : '';
+    if (de.style.getPropertyValue('--hk-pane-l') === l && de.style.getPropertyValue('--hk-pane-r') === r) return;
+    if (l) de.style.setProperty('--hk-pane-l', l); else de.style.removeProperty('--hk-pane-l');
+    if (r) de.style.setProperty('--hk-pane-r', r); else de.style.removeProperty('--hk-pane-r');
+    if (l || r) de.setAttribute('hk-pane', l ? 'left' : 'right'); else de.removeAttribute('hk-pane');
+    try { window.dispatchEvent(new Event('hk-pane')); } catch (e) { /* no listeners */ }
+  }
 
   var memStore = {};
   function dget(h) {
@@ -749,6 +865,7 @@
         if (this._open && this._kids) {
           this._kids.forEach(function (k) { k.hass = h; });
         }
+        if (this._open && this._config && this._config.pane) this._place();
         // NO TRIGGER AT ALL -> nothing to evaluate, ever. #alarm and #doorbell
         // are opened by their hash (an automation navigates the tablet to it),
         // so two of the three sheets on a view fall out here and never enter
@@ -1041,10 +1158,16 @@
           // the ordinary close runs. A hash the URL genuinely meant survives
           // the page settling; one left over from a trigger that has since
           // gone false does not.
+          var used = this._lastUse(), hold = used ? used + npGraceSec() * 1000 - ctx.now : 0;
           if (first) {
             clearTimeout(this._firstTimer);
             this._firstTimer = setTimeout(function () { self._evalTrigger(); },
                                           FIRST_CLOSE_MS);
+          } else if (hold > 0) {
+            // IN USE (Speakers / Browse open, a touch on it): not closed till
+            // a whole grace after the last of it -- looked at again then
+            clearTimeout(this._useTimer);
+            this._useTimer = setTimeout(function () { self._evalTrigger(); }, Math.min(hold, 2000) + 50);
           } else {
             this._triggerClosing = true;
             setHash('');
@@ -1074,6 +1197,7 @@
       _show() {
         var cfg = this._config, self = this;
         this._open = true;
+        this._openAt = Date.now();
         // The PAGE the sheet opened on -- see _sync. Leaving that page is not
         // a dismissal.
         this._openPath = location.pathname;
@@ -1084,8 +1208,9 @@
         if (cfg.modal === false && !this._onInset) {
           this._onInset = function () {
             if (!self._el) return;
-            self._el.style.left = insetLeft() + 'px';
-            if (self._open) publishBar(self._el, self._sheet);
+            self._place();
+            self._el.style.left = self._el.classList.contains('side') ? '' : insetLeft() + 'px';
+            if (self._open) self._publish();
           };
           window.addEventListener('resize', this._onInset);
           // a menu docking or undocking moves the content edge without a resize
@@ -1098,7 +1223,10 @@
           el.className = 'hkp' + (cfg.position === 'bottom' ? ' bottom' : '') +
                          (cfg.modal === false ? ' plain' : '') +
                          (cfg.dock && cfg.position === 'bottom' && cfg.modal === false ? ' dock' : '');
-          el.innerHTML = '<style>' + CSS + '</style><div class="bd"></div><div class="sheet"></div>';
+          window.hkCards.flatSurface(el, 'popup');
+          el.innerHTML = '<style>' + CSS + window.hkCards.flatCss('.hkp[hk-flat]') +
+            '.hkp[hk-flat] .sheet{background:var(--hk-flat-elevated)!important;color:var(--hk-ink);box-shadow:var(--hk-flat-elevated-shadow)!important}' +
+            '.hkp[hk-flat].plain .sheet{background:transparent!important;box-shadow:none!important}' + '</style><div class="bd"></div><div class="sheet"></div>';
           var sheet = el.querySelector('.sheet');
           var bottom = cfg.position === 'bottom';
           var r = cfg.radius || '42px';
@@ -1185,6 +1313,7 @@
           this._el = el;
           this._sheet = sheet;
         }
+        if (cfg.dock) { this._placeSig = null; this._place(); }
         var kidsReady = this._kids ? Promise.resolve() : this._build();
         if (this._kids) {
           this._kids.forEach(function (k) {
@@ -1212,6 +1341,7 @@
         });
         var el = this._el, gen = this._prepGen = (this._prepGen || 0) + 1;
         el.classList.toggle('prep', prep);
+        el.classList.toggle('video', prep);
         // the bar already up on the page before: this one is it, in place
         var carry = false;
         if (cfg.dock && cfg.carry) {
@@ -1221,6 +1351,8 @@
           this._carried = true;
         }
         this._mount.appendChild(el);
+        // (a pane narrows the page now, as it starts to slide in over the room)
+        if (cfg.dock && this._placeNow && this._placeNow.kind === 'pane') publishPane(this._placeNow.side, this._placeNow.w);
         // AFTER the mount: a detached element measures nothing, and so would
         // the sidebar read taken before it. In the coming frame, before it is
         // drawn: a sheet opening with its page is mounted in the middle of
@@ -1233,7 +1365,7 @@
         // The bar's height follows its content (a timer strip above the
         // player grows it): re-published whenever the sheet changes size.
         if (cfg.modal === false && this._sheet && typeof ResizeObserver === 'function') {
-          if (!this._barRO) this._barRO = new ResizeObserver(function () { if (self._open) publishBar(self._el, self._sheet); });
+          if (!this._barRO) this._barRO = new ResizeObserver(function () { if (self._open) self._publish(); });
           this._barRO.observe(this._sheet);
         }
         // Two frames: the first paints the closed state, so the transition runs.
@@ -1249,7 +1381,25 @@
         // every return to Home: up, gone a frame, up. The slide is for a bar
         // that comes up while the page is already there (music starting).
         var arriving = !this._settled && cfg.modal === false;
-        if (carry || arriving) {
+        // A PANE ARRIVING WITH ITS PAGE (a reload with the music on) slides
+        // in once its art is in -- placed at once it showed the placeholder,
+        // then the art faded in over it (2026-10-15). At most PANE_ARRIVE_MS.
+        var paneArrive = arriving && !carry && this._placeNow && this._placeNow.kind === 'pane';
+        if (el.hasAttribute('hk-flat')) {
+          el.classList.add('instant', 'open');
+          if (carry) dropGhost(CARRY[this._hash]);
+        } else if (paneArrive) {
+          var went = false, goPane = function () {
+            if (went) return;
+            went = true;
+            requestAnimationFrame(function () { requestAnimationFrame(function () { if (self._open && self._el === el) el.classList.add('open'); }); });
+          };
+          setTimeout(goPane, PANE_ARRIVE_MS);
+          kidsReady.then(function () {
+            var pc = (self._kids || []).filter(function (k) { return k.localName === 'hk-music-pane-card'; })[0];
+            return pc && pc.whenReady ? pc.whenReady() : null;
+          }).then(goPane, goPane);
+        } else if (carry || arriving) {
           el.classList.add('instant', 'open');
           // ...and the last page's, kept up till now, goes once this is drawn
           var hash0 = this._hash;
@@ -1273,6 +1423,75 @@
         }
         this._armAuto();
         kidsReady.catch(function (e) { console.error('[hk-popup] could not build', cfg.cards, e); });
+        // (the cards built: each told its place -- the player's top, the pane's side)
+        if (cfg.dock) kidsReady.then(function () { if (self._el === el) { self._placeSig = null; self._place(); } });
+      }
+
+      // WHERE IT GOES NOW (placeFor): the classes on the sheet's box, the
+      // pane's width, the player's own top or bottom; published while open.
+      // Cheap and idempotent: on every hass while open, a resize, a
+      // settings change, the music in the pane coming or going.
+      _place() {
+        var cfg = this._config, el = this._el;
+        if (!el || !cfg || !cfg.dock) return;
+        var has = !!cfg.pane && paneMusic(this._hass), self = this, now = Date.now(), playing = this._musicPlaying();
+        if (has && playing) this._musicAt = now;
+        // PAUSED OR GONE, the pane up: it stays the grace (Hide After a
+        // Pause) from the last of the music playing, the sheet opening and its
+        // use -- as the bar does -- then gives way (to the timers' bar, or the
+        // sheet closes)
+        if (!playing && this._open && this._placeNow && this._placeNow.kind === 'pane') {
+          var since = Math.max(this._musicAt || 0, this._openAt || 0, this._lastUse()), gms = npGraceSec() * 1000;
+          has = now - since < gms;
+          clearTimeout(this._graceT);
+          if (has) this._graceT = setTimeout(function () { self._place(); }, gms - (now - since) + 50);
+        }
+        var p = placeFor(cfg, has);
+        var sig = p.kind + ':' + (p.side || p.bar) + ':' + (p.w || 0);
+        if (sig === this._placeSig) return;
+        this._placeSig = sig;
+        this._placeNow = p;
+        var pane = p.kind === 'pane', top = !pane && p.bar === 'top';
+        el.classList.toggle('side', pane);
+        el.classList.toggle('sl', pane && p.side === 'left');
+        el.classList.toggle('top', top);
+        el.classList.toggle('bottom', !top && !pane && cfg.position === 'bottom');
+        if (pane) { el.style.setProperty('--hk-pane-w', p.w + 'px'); el.style.left = ''; }
+        else el.style.removeProperty('--hk-pane-w');
+        // the player along the top: its own inset and swipe (hk-media.js)
+        var sh = this._sheet, tv = cfg.top_vars || {};
+        Object.keys(tv).forEach(function (k) {
+          var name = k.slice(0, 2) === '--' ? k : '--' + k, own = (cfg.vars || {})[k];
+          if (top) sh.style.setProperty(name, String(tv[k]));
+          else if (own != null) sh.style.setProperty(name, String(own));
+          else sh.style.removeProperty(name);
+        });
+        (this._kids || []).forEach(function (k) {
+          if (k.localName === 'hk-now-playing-card') { if (top) k.setAttribute('np-top', ''); else k.removeAttribute('np-top'); }
+          if (k.localName === 'hk-music-pane-card') {
+            if (pane) k.setAttribute('side', p.side); else k.removeAttribute('side');
+            if (typeof k.active === 'function') k.active(pane);
+          }
+        });
+        if (this._open) this._publish();
+      }
+      // is this screen's music playing (not paused, not gone)
+      _musicPlaying() {
+        var S = window.hkSaver, h = this._hass;
+        try { return !!(h && S && S.music && S.music.playing && S.music.playing(h)); } catch (e) { return false; }
+      }
+      // WHEN ITS CARDS WERE LAST IN USE (hkLastUse: a panel open is now, a
+      // touch is its moment): the sheet stays up a whole grace after it, the
+      // music paused or stopped -- a search on Browse is not cut off
+      _lastUse() {
+        var t = 0;
+        (this._kids || []).forEach(function (k) { if (typeof k.hkLastUse === 'function') t = Math.max(t, k.hkLastUse() || 0); });
+        return t;
+      }
+      _publish() {
+        var p = this._placeNow;
+        if (p && p.kind === 'pane') publishPane(p.side, p.w); else publishPane(null);
+        publishBar(this._el, this._sheet);
       }
 
       // auto_close counts from the LAST TOUCH, not from the open. Counted
@@ -1304,8 +1523,8 @@
           if (this._barRO) this._barRO.disconnect();
           // (leaving with its page: the next page's bar takes the room over;
           // let it go only if none has)
-          if (!leaving) publishBar(null);
-          else setTimeout(function () { var c2 = CARRY[self._hash]; if (!(c2 && c2.open > 0)) publishBar(null); }, CARRY_MS);
+          if (!leaving) { publishBar(null); publishPane(null); }
+          else setTimeout(function () { var c2 = CARRY[self._hash]; if (!(c2 && c2.open > 0)) { publishBar(null); publishPane(null); } }, CARRY_MS);
         }
         clearTimeout(this._auto);
         var el = this._el, kids = this._kids || [];
@@ -1328,7 +1547,7 @@
             if (self._open) return;
             kids.forEach(function (k) { if (k.parentNode) k.parentNode.removeChild(k); });
             if (el.parentNode) el.parentNode.removeChild(el);
-          }, 320);
+          }, el.hasAttribute('hk-flat') ? 0 : 320);
         }
         // A close by hand while the trigger still holds is a DISMISSAL. Not a
         // trigger close (the session ended), not a switch to another sheet,

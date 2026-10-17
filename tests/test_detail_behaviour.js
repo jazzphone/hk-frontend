@@ -301,6 +301,28 @@ ok('a sheet opened from a sheet reuses the entry (no dead Back press left behind
    history.state.hkDetail === 'sensor.t' && history.state.hkTok === d2.tok, { n: HIST.stack.length, st: history.state });
 D.close(); flushPops();
 ok('X goes back off our own entry, once', HIST.i === 0 && !_.state().el, HIST.i);
+// Footer state follows both scroll and dynamic content, and is disposed
+// with the sheet rather than leaving observers attached to old panes.
+(function () {
+  var RO0=globalThis.ResizeObserver,MO0=globalThis.MutationObserver,resize,mutation,rd=0,md=0;
+  globalThis.ResizeObserver=function(cb){resize=cb;this.observe=function(){};this.disconnect=function(){rd++;};};
+  globalThis.MutationObserver=function(cb){mutation=cb;this.observe=function(){};this.disconnect=function(){md++;};};
+  try {
+    D.open('sensor.t',{});
+    var d=_.state(),body=d.sheet.querySelector('.body');
+    body.scrollHeight=1000;body.clientHeight=500;body.scrollTop=0;resize();
+    ok('footer: visible while more content remains below',d.sheet.hasAttribute('hk-scroll-more'));
+    body.scrollTop=500;(body._listeners.scroll||[]).slice().forEach(function(f){f();});
+    ok('footer: hidden at the bottom',!d.sheet.hasAttribute('hk-scroll-more'));
+    body.scrollHeight=1200;mutation();
+    ok('footer: new content below is noticed without scrolling',d.sheet.hasAttribute('hk-scroll-more'));
+    body.scrollHeight=500;body.scrollTop=0;resize();
+    ok('footer: hidden when a resize makes everything fit',!d.sheet.hasAttribute('hk-scroll-more'));
+    var prior=rd;D.close();flushPops();
+    ok('footer: closing removes listeners and disconnects both observers',rd===prior+1&&md===1&&(body._listeners.scroll||[]).length===0);
+  } finally {globalThis.ResizeObserver=RO0;globalThis.MutationObserver=MO0;}
+})();
+
 // a pop-up opens over the sheet (hk-popup's setHash: pushState + location-changed)
 resetHistory(); __resetTimers();
 D.open('light.a', {});
@@ -1022,6 +1044,37 @@ print('\n=== the person sheet ===');
   var h4 = Object.assign({}, h3, { states: Object.assign({}, h3.states, { 'person.sam': { entity_id: 'person.sam', state: 'home', attributes: {} } }) });
   p.hass = h4;
   ok('person: another person coming home too', p._sigOf().indexOf('home,home') >= 0);
+})();
+
+// =====================================================================
+print('\n=== the automation sheet ===');
+(function () {
+  load(HK_ROOT + '/frontend/cards/hk-headers.js');
+  var morph0 = window.hkCards.morph;
+  window.hkCards.morph = function (el, html) { el.innerHTML = html; };    // (the shim's elements have no child nodes)
+  CALLS = [];
+  var WS = [], SUBS = [];
+  var h = house({ 'automation.porch': ['on', { friendly_name: 'Lighting - Front Yard - Porch Lights', last_triggered: new Date().toISOString() }] });
+  h.callWS = function (m) { WS.push(m); return Promise.resolve([]); };
+  h.connection = { subscribeMessage: function (cb, m) { SUBS.push({ cb: cb, m: m }); return Promise.resolve(function () {}); } };
+  var p = panel('hk-detail-automation', 'automation.porch', h);
+  ok('automation: its own sheet for the kind', window.hkDetail.kindOf(h, 'automation.porch') === 'automation');
+  ok('automation: the last week asked of the logbook, once', WS.length === 1 && WS[0].type === 'logbook/get_events' && WS[0].entity_ids[0] === 'automation.porch', WS);
+  ok('automation: what is paused, subscribed', SUBS.some(function (x) { return x.m.type === 'hk_frontend/snooze/subscribe'; }));
+  var run = p._root.querySelector('.run');
+  run._listeners.click.forEach(function (f) { f({}); });
+  ok('automation: Run Now triggers it', CALLS.indexOf('automation.trigger') >= 0, CALLS);
+  var seg = p._root.querySelector('.seg');
+  function pick(m) { CALLS = []; seg._listeners.click.forEach(function (f) { f({ target: { closest: function () { return { getAttribute: function () { return m; } }; } } }); }); return CALLS.slice(); }
+  ok('automation: Off Today pauses it until midnight', pick('today')[0] === 'hk_frontend.pause_automation');
+  ok('automation: Off turns it off', pick('off')[0] === 'automation.turn_off');
+  ok('automation: On turns it on', pick('on')[0] === 'automation.turn_on');
+  SUBS.filter(function (x) { return x.m.type === 'hk_frontend/snooze/subscribe'; })[0].cb({ until: { 'automation.porch': new Date(Date.now() + 3600e3).toISOString() } });
+  ok('automation: On while paused resumes it (the pause forgotten)', pick('on')[0] === 'hk_frontend.resume_automation');
+  ok('automation: on, its line is its area and group', p._root.querySelector('.note').textContent === 'Front Yard · Lighting');
+  setState(p, 'automation.porch', 'off', { friendly_name: 'Lighting - Front Yard - Porch Lights' }, 't3');
+  ok('automation: paused, the line says when it comes back', /Back on at midnight/.test(p._root.querySelector('.note').textContent || ''), p._root.querySelector('.note').textContent);
+  window.hkCards.morph = morph0;
 })();
 
 print('\n' + (fail ? 'FAIL ' + fail + ' DETAIL BEHAVIOUR TESTS' : 'ALL ' + pass + ' DETAIL BEHAVIOUR TESTS PASS'));

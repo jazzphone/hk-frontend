@@ -157,15 +157,22 @@
   function wellColour(cfg, stateObj, on) {
     if (!on) return OFF_WELL;
     if (cfg.bare_icon) return 'transparent';
-    return colourFor(cfg, stateObj);
+    return window.hkCards.flatColor(colourFor(cfg, stateObj), 'well');
   }
 
   // OFF uses the same map as the well. ON is white unless the glyph is bare,
   // in which case bare_icon_color wins -- that is the only place it applies.
+  // `off_icon_color`: the glyph's own color while off, where the lit color
+  // would alarm (a quiet leak sensor's drop is calm blue; its leak is red)
   function iconColour(cfg, stateObj, on) {
-    if (!on) return colourFor(cfg, stateObj);
+    if (!on && cfg.off_icon_color) {
+      var o = String(cfg.off_icon_color).toLowerCase().trim();
+      return window.hkCards.flatColor(NAME_MAP[o] || cfg.off_icon_color, 'glyph');
+    }
+    if (!on) return window.hkCards.flatColor(colourFor(cfg, stateObj), 'glyph');
     if (!cfg.bare_icon) return 'white';
-    return cfg.bare_icon_color || colourFor(cfg, stateObj);
+    // (lit and bare: Flat's Light takes the bright color, hk-base flatColor)
+    return window.hkCards.flatColor(cfg.bare_icon_color || colourFor(cfg, stateObj), 'on');
   }
 
   // TWO LEVELS, not one:
@@ -198,6 +205,9 @@
     '  box-shadow:var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-pill') + ');',
     '  border:' + window.hkCards.M.border + ';',
     '  ' + window.hkCards.M.glass + ';',
+    // OFF, a tone of its own in Flat's Light (--hk-tile-off, 2026-10-17):
+    // the ivory plate beside the lit white read the same, on or off
+    '  background:var(--hk-tile-off,' + window.hkCards.M.bg + ');',
     '  display:flex;align-items:center;justify-content:center;',
     // These are inherited values, so they reach every descendant: text-align
     // and font-size in particular are what a child element silently inherits.
@@ -625,6 +635,23 @@
     // shared stylesheet and cost nothing per instance.
     _variant() { return ''; }
     _wellBackground(cfg, st, on) { return cfg.well_background || wellColour(cfg, st, on); }
+    // AN OFF PILL'S OWN COLOR, for Flat Colors' Automatic tint: a calm off
+    // color where it has one (a leak sensor's drop), else its color -- the
+    // same for every kind, media too. Unavailable has none of its own.
+    _idleSource(cfg, st) {
+      if (st && (st.state === 'unavailable' || st.state === 'unknown')) return null;
+      if (cfg.off_icon_color) {
+        var o = String(cfg.off_icon_color).toLowerCase().trim();
+        return NAME_MAP[o] || cfg.off_icon_color;
+      }
+      return colourFor(cfg, st);
+    }
+    // A GLYPH WITH NO CIRCLE, by what the card says rather than how a
+    // browser writes it back (Safari's `none` for transparent): a bare icon,
+    // a well asked to be clear, or none drawn (null: the stylesheet's)
+    _bareWell(cfg, wb) {
+      return !!cfg.bare_icon || wb === null || /^\s*(transparent|none)\s*$/i.test(String(wb));
+    }
     // A variant with no label row does not RENDER the element at all, rather
     // than leaving a display:none div behind.
     _hasLabel() { return true; }
@@ -712,8 +739,27 @@
       // that paints no well (scene) returns null and CSS decides. This is the
       // whole reason _wellBackground exists rather than a direct assignment.
       var wb = this._wellBackground(cfg, st, on);
+      var ic = this._iconColour(cfg, st, on);
+      // FLAT COLORS (2026-10-17; hk-base flatPalette / flatIdle): OFF, the
+      // pill takes a wash of its source -- its own color, or the one tint
+      // chosen -- its circle a deeper one and its glyph that color at 3:1.
+      // A glyph with no circle (a scene, Apple TV, HomePod, the alarm)
+      // stays bare. Lit pills are white, their wells their own colors.
+      var C = window.hkCards, pal = !on && C.flatPalette ? C.flatPalette() : null;
+      var idle = pal && pal.tinted ? C.flatIdle(this._idleSource(cfg, st), this._bareWell(cfg, wb), pal) : null;
+      if (idle) {
+        if (idle.well) wb = idle.well;
+        ic = idle.glyph;
+        e.card.setAttribute('data-hk-idle', '');
+        e.card.style.setProperty('--hk-idle-pill', idle.pill);
+        e.card.style.setProperty('--hk-idle-glyph', idle.glyph);
+      } else if (e.card.hasAttribute('data-hk-idle')) {
+        e.card.removeAttribute('data-hk-idle');
+        e.card.style.removeProperty('--hk-idle-pill');
+        e.card.style.removeProperty('--hk-idle-glyph');
+      }
       if (wb !== null) e.well.style.background = wb;
-      e.icon.style.color = this._iconColour(cfg, st, on);
+      e.icon.style.color = ic;
       if (cfg.icon_size) {
         e.icon.style.width = cfg.icon_size;
         e.icon.style.height = cfg.icon_size;
@@ -798,7 +844,9 @@
     // The inherited colour map would tint every media glyph cyan.
     _iconColour(cfg, st, on) {
       if (!on) {
-        return (cfg.bare_icon && cfg.icon_color) ? cfg.icon_color : '' + window.hkCards.v('glyph') + '';
+        // (through flatColor: Flat's Light darkens the white glyph made for
+        // the dark glass, or it vanished on the ivory tile -- Apple TV, HomePod)
+        return (cfg.bare_icon && cfg.icon_color) ? window.hkCards.flatColor(cfg.icon_color, 'glyph') : '' + window.hkCards.v('glyph') + '';
       }
       return super._iconColour(cfg, st, on);
     }
@@ -1325,6 +1373,8 @@
       if (t) return on ? 'white' : t;
       return on ? 'rgba(0, 0, 0, 0.95)' : '' + window.hkCards.v('ink') + '';
     }
+    // (Flat Colors: its chosen color, else neutral -- never the domain's)
+    _idleSource(cfg) { return this._tint(cfg); }
     _render() {
       super._render();
       var e = this._els, t = this._tint(this._config || {});

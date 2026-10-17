@@ -118,6 +118,40 @@
     var hue = (C.PALETTE && C.PALETTE.chart) || {};
     return key === 'white' ? WHITE : (hue[key] && hue[key].length === 3 ? hue[key] : [255, 159, 10]);
   }
+  // an event's color: its own, a keyword's, else its calendar's (hkSettings.eventColor)
+  function evRgb(ev, hass) {
+    var HS = window.hkSettings;
+    if (!ev || !HS || !HS.eventColor) return rgbOf(ev && ev.cal, hass);
+    var key = HS.eventColor(ev.cal, ev.title, ev.uid, (hass && hass.states) || {});
+    var hue = (C.PALETTE && C.PALETTE.chart) || {};
+    return key === 'white' ? WHITE : (hue[key] && hue[key].length === 3 ? hue[key] : evRgb(ev, hass));
+  }
+  // the keywords and the events' own colors, for a card's signature
+  function colorSig() {
+    var HS = window.hkSettings;
+    return HS && HS.get ? '|' + JSON.stringify([HS.get('calendar.keywords', []), HS.get('calendar.event_colors', {})]) : '';
+  }
+  // AN EVENT'S BLOCK (2026-10-16, the user: the blocks were dim and hard to
+  // read): its color as a tint over an opaque dark base, so the photo or the
+  // sky behind the glass no longer shows through the words, and -- for a
+  // block in the hours -- a solid edge of the color itself
+  // (the base is the design's solid overlay, hkCards.OVER.solid)
+  function fill(rgb, a) { return 'linear-gradient(' + rgba(rgb, a) + ',' + rgba(rgb, a) + '),' + ((C.OVER && C.OVER.solid) || 'rgba(24,24,28,0.93)'); }
+  // Calendar colors are content, including event/keyword overrides. Flat
+  // uses the full assigned color; the Glass looks keep the opaque tint.
+  // Keep both in CSS so changing appearance updates an already-open sheet.
+  function eventStyle(rgb, a) {
+    var c = rgb.map(function (n) { var s = n / 255; return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); });
+    var luminance = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    var ink = (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? '#000' : '#fff';
+    return 'background:var(--hk-cal-event-fill,' + fill(rgb, a) + ');--hk-cal-event-color:' + rgba(rgb, 1) + ';--hk-cal-event-ink:' + ink;
+  }
+  var FLAT_EVENT_CSS = [
+    ':host([hk-flat]) :is(.bar1,.ad,.blk,.tlad button,.tlb){--hk-cal-event-fill:var(--hk-cal-event-color);color:var(--hk-cal-event-ink);opacity:1}',
+    ':host([hk-flat]) :is(.ad em,.blk .t2,.tlb .t2){color:var(--hk-cal-event-ink)}',
+    ':host([hk-flat]) .ev.past{opacity:1}'
+  ].join('');
+  function edge(rgb) { return ';--e:' + rgba(rgb, 1); }
   function rgba(rgb, a) { return 'rgba(' + rgb.join(',') + ',' + a + ')'; }
   function features(hass, id) {
     var st = hass && hass.states && hass.states[id];
@@ -396,7 +430,7 @@
     // AN HK SHEET, the size of every other (hk-detail.js): this one stays
     // for the editor and for a screen without hk-detail
     if (window.hkDetail && customElements.get('hk-detail-event') && window.hkDetail.open(ev.cal, null, { event: ev })) return;
-    var s = openSheet(ev.title, true), rgb = rgbOf(ev.cal, hass);
+    var s = openSheet(ev.title, true), rgb = evRgb(ev, hass);
     var day = ev.allDay ? '' : (sameDay(ev.start, new Date()) ? 'Today, ' : DOW_LONG[ev.start.getDay()] + ', ' +
               MON3[ev.start.getMonth()] + ' ' + ev.start.getDate() + ', ');
     var allDayWhen = ev.allDay ? DOW_LONG[ev.start.getDay()] + ', ' + MON[ev.start.getMonth()] + ' ' + ev.start.getDate() + ' · ' + span(ev) : '';
@@ -412,7 +446,7 @@
       (ev.desc ? '<div class="ln">' + IC.notes + '<span class="note">' + esc(ev.desc) + '</span></div>' : '') +
       (edit || del ? '<div class="acts">' + (edit ? '<button class="ed" data-a="edit">Edit</button>' : '') +
                      (del ? '<button class="rm" data-a="del">Delete</button>' : '') + '</div>'
-                   : '<div class="ro">This calendar can only be read here.</div>') +
+                   : '<div class="ro">Home Assistant can’t edit this calendar, so its events can’t be changed or deleted here.</div>') +
       '</div>';
     s.box.onclick = function (e) {
       var b = e.target.closest && e.target.closest('[data-a]');
@@ -601,7 +635,9 @@
       // the bar's and the rest's holders (_render): no box of their own
       '.hold{display:contents}',
       'button{appearance:none;font:inherit;color:' + window.hkCards.v('ink') + ';cursor:pointer;margin:0}',
-      '.bar{display:flex;align-items:center;gap:14px;min-height:52px;margin:6px 0 16px;flex-wrap:wrap}',
+      // (its controls level with Energy's tabs, one page edge from the top:
+      // the 54 px row centers its 44 px controls 5 px in -- DESIGN.md "Page edges")
+      '.bar{display:flex;align-items:center;gap:14px;min-height:52px;margin:-4px 0 16px;flex-wrap:wrap}',
       '.ttl{font-size:34px;font-weight:700;letter-spacing:-0.6px;white-space:nowrap}',
       '.ttl span{font-weight:300;opacity:0.8}',
       '.arrows{display:flex;gap:8px}',
@@ -617,11 +653,10 @@
       '.rgt{width:' + RCOL + 'px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px}',
       // HK's segmented control (the choice slides to the new view), its
       // choices a fixed 74 px here
-      C.segCss('.seg'),
+      C.segCss('.seg', { raised: true }),
       '.seg button{width:74px;padding:0}',
       '.new{height:44px;padding:0 18px 0 14px;border-radius:22px;border:0;background:#fff;color:#1c1c1e;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}',
       '.panel{' + GLASS() + ';position:relative;overflow:hidden}',
-      C.shadeCss('.panel'),
       '.body{display:flex;gap:20px;align-items:stretch}',
       '.wide .body{height:var(--cal-h,620px)}',
       '.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -653,7 +688,7 @@
       '.dname{font-size:28px;font-weight:700;letter-spacing:-0.4px}',
       '.dsub{font-size:15px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';margin-top:2px}',
       // (its 10 px under the day's name as padding: the list scrolls right up
-      // under the name, the shadow at its foot -- shadeCss)
+      // under the name, in a frame with the sheet's shadows -- BASE_CSS .hk-edge)
       '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:10px}',
       '.ad{width:100%;height:30px;margin-top:6px;border-radius:8px;border:0;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:14px;font-weight:600;text-align:left;color:' + window.hkCards.v('ink') + '}',
       '.ad i{flex:none;width:8px;height:8px;border-radius:4px}',
@@ -685,11 +720,12 @@
       '.dcol{position:relative;border-left:1px solid ' + window.hkCards.v('line') + '}',
       '.dcol.today{background:' + window.hkCards.v('key') + '}',
       '.slot{position:absolute;left:0;right:0;border:0;background:transparent;padding:0}',
-      '.blk{position:absolute;box-sizing:border-box;overflow:hidden;border-radius:8px;padding:4px 8px;border:0;text-align:left;color:' + window.hkCards.v('ink') + ';line-height:1.25}',
+      '.blk{position:absolute;box-sizing:border-box;overflow:hidden;border-radius:8px;padding:4px 8px 4px 10px;border:0;text-align:left;color:' + window.hkCards.v('ink') + ';line-height:1.25}',
       '.blk .t1{font-size:13px;font-weight:700}',
-      '.blk .t2{font-size:12px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';margin-top:1px}',
-      '.blk.past{opacity:0.7}',
-      '.blk.sel{box-shadow:0 0 0 2px ' + window.hkCards.v('ink') + '}',
+      '.blk .t2{font-size:12px;font-weight:500;color:rgba(255,255,255,0.8);margin-top:1px}',
+      '.blk.past{opacity:0.85}',
+      '.blk{box-shadow:inset 3px 0 0 var(--e,transparent)}',
+      '.blk.sel{box-shadow:inset 3px 0 0 var(--e,transparent),0 0 0 2px ' + window.hkCards.v('ink') + '}',
       '.dayv .blk{border-radius:8px;padding:4px 12px;line-height:1.25}',
       '.dayv .blk .t1{font-size:15px}',
       '.dayv .blk .t2{font-size:13px;margin-top:2px}',
@@ -743,13 +779,17 @@
       '.narrow .tg{height:min(620px,calc(var(--hk-vh,100vh) - 220px));flex:none}',
       '.narrow .rcol{width:auto}',
       '.narrow .wl{padding:4px 18px 10px}',
+      '.fit .body{height:var(--cal-h,620px)}',
+      // (the week's list scrolls in a frame: the sheet's shadows, BASE_CSS .hk-edge)
+      '.fit .wlp{flex:1;min-height:0;display:flex;flex-direction:column}',
+      '.fit .wl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}',
       '.wl .dayh{font-size:13px;font-weight:700;letter-spacing:1.2px;color:' + window.hkCards.v('ink-2') + ';margin-top:16px}',
       '.wl .dayh.today{color:' + window.hkCards.v('ink') + '}'
     ].join('\n');
   };
 
   class HkCalendarCard extends HkBase {
-    static get CSS() { return PAGE_CSS(); }
+    static get CSS() { return PAGE_CSS() + FLAT_EVENT_CSS; }
     constructor() {
       super();
       this._view = 'month';
@@ -794,6 +834,9 @@
       window.addEventListener('location-changed', this._onLoc);
       window.addEventListener('hk-calendar-changed', this._onChanged);
       window.addEventListener('resize', this._onResize);
+      // (a docked bar or the Now Playing pane coming or going changes the room)
+      window.addEventListener('hk-dock', this._onResize);
+      window.addEventListener('hk-pane', this._onResize);
       if (typeof ResizeObserver === 'function' && !this._ro) {
         this._ro = new ResizeObserver(function (en) {
           var w = en && en[0] && en[0].contentRect ? en[0].contentRect.width : self.clientWidth;
@@ -806,13 +849,16 @@
       }
       // every five minutes the events again (a calendar changed elsewhere)
       this._tick = setInterval(function () { self._have = ''; self._fetch(); }, 300000);
-      this._m0 = setTimeout(function () { self._m0 = null; self._measure(); }, 0);
+      // (again once the panels are drawn: measured from the body itself)
+      this._m0 = setTimeout(function () { self._m0 = null; self._measure(); setTimeout(function () { if (self.isConnected) self._measure(); }, 400); }, 0);
     }
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
       window.removeEventListener('hk-calendar-changed', this._onChanged);
       window.removeEventListener('location-changed', this._onLoc);
       window.removeEventListener('resize', this._onResize);
+      window.removeEventListener('hk-dock', this._onResize);
+      window.removeEventListener('hk-pane', this._onResize);
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       if (this._tick) { clearInterval(this._tick); this._tick = null; }
       if (this._m0) { clearTimeout(this._m0); this._m0 = null; }
@@ -821,11 +867,51 @@
     _wide() { return (this._w || this.clientWidth || 1200) >= 900; }
     // THE PAGE'S HEIGHT, on a wide screen: the panels reach the bottom of
     // the window, whatever is above them
+    // MEASURED, NOT GUESSED (2026-10-15): it took a 74 px Home Assistant
+    // toolbar that a kiosk screen doesn't have and none of the tab bar's
+    // room, and the page ran ~190 px past the window -- the page scrolled,
+    // not the week. The panels end where what follows them begins: the
+    // view's room for a tab bar or a docked bar, the cards' margins (the
+    // view's own end, hui-view, and its bottom padding), so the page fits
+    // the window exactly and the week's hours scroll in their own panel.
     _measure() {
       if (!this.isConnected || !this.getBoundingClientRect) return;
-      var r = this.getBoundingClientRect(), H = window.innerHeight || 800;
-      var top = r.top + (window.scrollY || 0) + 74;      // the toolbar
-      var h = Math.max(460, Math.round(H - top - 24));
+      var H = window.innerHeight || 800, se = document.scrollingElement, sy = se ? se.scrollTop : (window.scrollY || 0);
+      var body = this._root && this._root.querySelector('.wide .body, .fit .body');
+      if (!body) {
+        var r = this.getBoundingClientRect(), h0 = Math.max(460, Math.round(H - (r.top + sy) - 24));
+        if (h0 !== this._h) { this._h = h0; this.style.setProperty('--cal-h', h0 + 'px'); }
+        return;
+      }
+      // (to the end of the VIEW'S CONTENT -- the layout inside hui-view --
+      // not hui-view's own: that one is stretched to the window, so measuring
+      // to it only ever confirmed the height the panels already had, and a
+      // desk opened at the 620 px default stayed there until a resize; 2026-10-16)
+      var hv = null, inner = null, n = this, prev = null;
+      for (var i = 0; i < 40 && n; i++) {
+        if (n.localName === 'hui-view') { hv = n; inner = prev; break; }
+        if (n.nodeType === 1) prev = n;
+        n = n.parentNode || n.host;
+      }
+      var br = body.getBoundingClientRect(), after = 24;
+      // THE PAGE'S EDGE BELOW (2026-10-17, DESIGN.md "Page edges"): the
+      // panels end one page gutter above the window -- the gutter the view
+      // keeps under every page (hk-layout.js gutter), so the view has nothing
+      // to correct and the panels never move after they are drawn -- plus
+      // whatever room is kept below the page (a tab bar's)
+      var G = window.hkLayout && window.hkLayout.gutter ? window.hkLayout.gutter(this) : null;
+      if (hv) {
+        var vc = hv.parentNode && hv.parentNode.nodeType === 1 ? hv.parentNode : null;
+        var pad = vc ? parseFloat(getComputedStyle(vc).paddingBottom) || 0 : 0;
+        if (G != null) {
+          after = G + pad + (parseFloat(getComputedStyle(hv).paddingBottom) || 0) +
+            (inner ? parseFloat(getComputedStyle(inner).paddingBottom) || 0 : 0) + (parseFloat(hv.style.marginBottom) || 0);
+        } else {
+          var end = (inner || hv).getBoundingClientRect().bottom + (inner ? parseFloat(getComputedStyle(hv).paddingBottom) || 0 : 0);
+          after = Math.max(0, end - br.bottom) + pad + (parseFloat(hv.style.marginBottom) || 0);
+        }
+      }
+      var h = Math.max(460, Math.floor(H - (br.top + sy) - after));
       if (h !== this._h) { this._h = h; this.style.setProperty('--cal-h', h + 'px'); }
     }
     // THE DAYS SHOWN: the month's weeks, the week, or the day
@@ -863,7 +949,7 @@
       if (!h || !this._config) return null;
       var ids = calIds(h), HS = window.hkSettings;
       var out = ids.map(function (id) { var s = h.states[id]; return id + '=' + (s ? s.last_updated : 'x'); }).join(';');
-      var cols = ids.map(function (id) { return HS && HS.calendarColor ? HS.calendarColor(id, h.states) : ''; }).join(',');
+      var cols = ids.map(function (id) { return HS && HS.calendarColor ? HS.calendarColor(id, h.states) : ''; }).join(',') + colorSig();
       return out + '|' + cols + '|' + this._n + '|' + this._view + '|' + (+this._day) + '|' + (this._sel || '') +
         '|' + (this._wide() ? 'W' : 'N') + '|' + Math.floor(Date.now() / 60000);
     }
@@ -920,8 +1006,11 @@
       } else if (a === 'ev') {
         var ev = this._find(v);
         if (!ev) return;
+        // ONE GESTURE, ONE MEANING (2026-10-16, the user): a tap on an event
+        // opens its sheet in every view. The wide day view also marks it in
+        // its side list, so the list is on it when the sheet closes.
         if (this._view === 'day' && this._wide()) { this._sel = v; this.redraw(); }
-        else show(h, ev);
+        show(h, ev);
       } else if (a === 'edit') { var e1 = this._find(this._sel); if (e1) edit_(h, e1); }
       else if (a === 'del') { var e2 = this._find(this._sel), self = this; if (e2) askDelete(h, e2, function () { self._sel = null; }); }
     }
@@ -947,8 +1036,15 @@
       // short: the new button, mid-way, jumped home. So the bar and the rest
       // have holders of their own (display:contents: the layout as before),
       // and the bar's is left alone while its markup is the same.
-      var cls = wide ? 'wide' : 'narrow', wrap = this._wrap;
+      // NARROW ON A TABLET (beside the Now Playing pane, an iPad), THE WEEK
+      // fits the window too ('fit'): its list scrolls in its panel, under a
+      // page that stays put -- a phone's page scrolls as a phone's does
+      var fit = !wide && this._view === 'week' && (window.innerWidth || 0) >= 640 && (window.innerHeight || 0) >= 500;
+      var cls = (wide ? 'wide' : 'narrow') + (fit ? ' fit' : ''), wrap = this._wrap;
       if (!wrap || wrap.parentNode !== this._root || wrap.className !== cls) {
+        // (a new layout: its panels measured again once drawn)
+        var selfM = this;
+        requestAnimationFrame(function () { if (selfM.isConnected) selfM._measure(); });
         this._root.innerHTML = '<div class="' + cls + '"><div class="hold"></div><div class="hold"></div></div>';
         wrap = this._wrap = this._root.children && this._root.children[0];
         if (wrap && wrap.children && wrap.children.length === 2) wrap.__bar = null;
@@ -975,10 +1071,9 @@
       }
       var l2 = this._root.querySelector && this._root.querySelector('.list');
       if (l2 && keepL) l2.scrollTop = keepL;
-      // THE DAY'S HEAD RIDES ON THE LIST, the hours' on the time grid, once
-      // either has scrolled (hk-base.js shade; both drawn anew each time)
-      if (tl2 && tl2.parentNode && C.shade) C.shade(tl2, tl2.parentNode);
-      if (l2 && l2.parentNode && C.shade) C.shade(l2, l2.parentNode);
+      // THE LISTS' EDGES: the sheet's shadows, top once scrolled, foot while
+      // more lies below (hk-base.js edges; all drawn anew each time)
+      if (C.edges) C.edges(this._root);
     }
     _bar(h, wide) {
       var d = this._day, v = this._view, ttl;
@@ -1026,22 +1121,22 @@
             var top = 31 + shownLanes * 20 + 2, room = Math.max(0, Math.floor((rowH - top - 2) / 19));
             var showN = own.length > room ? Math.max(0, room - 1) : own.length;
             inner += '<span class="chips" style="top:' + top + 'px">' + own.slice(0, showN).map(function (e) {
-              var rgb = rgbOf(e.cal, h);
+              var rgb = evRgb(e, h);
               return '<span class="chip"><i style="background:' + rgba(rgb, 1) + '"></i><span class="ell">' +
                 (e.allDay ? '' : '<b>' + tshort(e.start < day0(day) ? day0(day) : e.start) + '</b> ') + esc(e.title) + '</span></span>';
             }).join('') + (own.length > showN ? '<span class="more">+' + (own.length - showN) + ' more</span>' : '') + '</span>';
           } else if (ownDay(evs, day).length) {
             var cs = [];
-            ownDay(evs, day).forEach(function (e) { var k = rgba(rgbOf(e.cal, h), 1); if (cs.indexOf(k) < 0) cs.push(k); });
+            ownDay(evs, day).forEach(function (e) { var k = rgba(evRgb(e, h), 1); if (cs.indexOf(k) < 0) cs.push(k); });
             inner += '<span class="dots">' + cs.slice(0, 3).map(function (k) { return '<i style="background:' + k + '"></i>'; }).join('') + '</span>';
           }
           cells += '<button class="' + cls + '" data-a="day" data-v="' + ymd(day) + '" aria-label="' + DOW_LONG[day.getDay()] + ', ' +
             MON[day.getMonth()] + ' ' + day.getDate() + (mine.length ? ', ' + mine.length + (mine.length === 1 ? ' event' : ' events') : '') + '">' + inner + '</button>';
         }
         var barsHtml = bs.list.filter(function (b) { return b.lane < shownLanes; }).map(function (b) {
-          var rgb = rgbOf(b.ev.cal, h);
+          var rgb = evRgb(b.ev, h);
           return '<button class="bar1" data-a="ev" data-v="' + esc(b.ev.key) + '" style="top:' + (31 + b.lane * 20) + 'px;left:calc(' + b.a +
-            ' * 100% / 7 + 3px);width:calc(' + (b.b - b.a + 1) + ' * 100% / 7 - 6px);background:' + rgba(rgb, 0.38) + '">' + esc(b.ev.title) + '</button>';
+            ' * 100% / 7 + 3px);width:calc(' + (b.b - b.a + 1) + ' * 100% / 7 - 6px);' + eventStyle(rgb, 0.55) + '">' + esc(b.ev.title) + '</button>';
         }).join('');
         weeks += '<div class="wk">' + cells + barsHtml + '</div>';
       }
@@ -1058,7 +1153,7 @@
       if (today) timed.forEach(function (e) { if (!next && soon(e, now)) next = e; });
       var sub = MON[d.getMonth()] + ' ' + d.getDate() + (today ? ' · Today' : sameDay(d, addDays(day0(now), 1)) ? ' · Tomorrow' : '');
       var rows = timed.map(function (e) {
-        var rgb = rgbOf(e.cal, h), past = e.end <= now;
+        var rgb = evRgb(e, h), past = e.end <= now;
         var sl = e === next ? soon(e, now) : '';
         return '<button class="ev' + (past ? ' past' : '') + '" data-a="ev" data-v="' + esc(e.key) + '">' +
           '<span class="tm">' + (e.start < day0(d) ? 'Until' : time(e.start)) + '</span><i style="background:' + rgba(rgb, 1) + '"></i>' +
@@ -1067,12 +1162,12 @@
           (sl ? '<span class="soon">' + sl + '</span>' : '') + '</button>';
       }).join('');
       var alls = all.map(function (e) {
-        var rgb = rgbOf(e.cal, h);
-        return '<button class="ad" data-a="ev" data-v="' + esc(e.key) + '" style="background:' + rgba(rgb, 0.32) + '"><i style="background:' +
+        var rgb = evRgb(e, h);
+        return '<button class="ad" data-a="ev" data-v="' + esc(e.key) + '" style="' + eventStyle(rgb, 0.4) + '"><i style="background:' +
           rgba(rgb, 1) + '"></i><span class="ell">' + esc(e.title) + '</span><em>' + esc(span(e)) + '</em></button>';
       }).join('');
       return '<div class="panel side"><div class="dname">' + DOW_LONG[d.getDay()] + '</div><div class="dsub">' + sub + '</div>' +
-        '<div class="list">' + alls + (rows || (alls ? '' : '<div class="empty">Nothing on this day.</div>')) + '</div>' +
+        '<div class="hk-edge"><div class="list">' + alls + (rows || (alls ? '' : '<div class="empty">Nothing on this day.</div>')) + '</div></div>' +
         (writable(h).length ? '<button class="addday" data-a="addday">' + IC.plus + ' Add an Event on ' + DOW_LONG[d.getDay()] + '</button>' : '') +
         '</div>';
     }
@@ -1090,10 +1185,10 @@
             '</span><b>' + d.getDate() + '</b></button>';
         }).join('') + '</div>';
       var alld = '<div class="alld" style="height:' + allH + 'px"><span class="lab">all-day</span>' + bs.list.map(function (b) {
-        var rgb = rgbOf(b.ev.cal, h);
+        var rgb = evRgb(b.ev, h);
         return '<button class="bar1" data-a="ev" data-v="' + esc(b.ev.key) + '" style="top:' + (4 + b.lane * 26) + 'px;height:22px;line-height:22px;font-size:12px;left:calc(' +
           gutter + 'px + ' + b.a + ' * (100% - ' + gutter + 'px) / ' + n + ' + 3px);width:calc(' + (b.b - b.a + 1) + ' * (100% - ' + gutter + 'px) / ' + n +
-          ' - 6px);background:' + rgba(rgb, 0.38) + '">' + esc(b.ev.title) + (isDay && b.ev.allDay ? '<span style="font-weight:500;margin-left:8px;opacity:0.85">' + esc(span(b.ev).replace('All day · ', '').replace('All day', '')) + '</span>' : '') + '</button>';
+          ' - 6px);' + eventStyle(rgb, 0.55) + '">' + esc(b.ev.title) + (isDay && b.ev.allDay ? '<span style="font-weight:500;margin-left:8px;opacity:0.85">' + esc(span(b.ev).replace('All day · ', '').replace('All day', '')) + '</span>' : '') + '</button>';
       }).join('') + '</div>';
       // (the hour's label gives way to the time now, where they would meet)
       var nowAt = days.some(function (d) { return sameDay(d, now); }) ? (now - day0(now)) / 3600000 * PX : -99;
@@ -1111,9 +1206,9 @@
         var blocks = lanes(items).map(function (it) {
           var top = (it.s - a) / 3600000 * PX, ht = Math.max(18, (it.e - it.s) / 3600000 * PX - 3);
           first = Math.min(first, (it.s - a) / 3600000);
-          var rgb = rgbOf(it.ev.cal, h), past = it.ev.end <= now, w = 100 / it.cols;
+          var rgb = evRgb(it.ev, h), past = it.ev.end <= now, w = 100 / it.cols;
           return '<button class="blk' + (past ? ' past' : '') + (self._sel === it.ev.key ? ' sel' : '') + '" data-a="ev" data-v="' + esc(it.ev.key) + '" style="top:' + (top + 1) +
-            'px;height:' + ht + 'px;left:calc(' + (it.col * w) + '% + 3px);width:calc(' + w + '% - 6px);background:' + rgba(rgb, past ? 0.22 : 0.42) + '">' +
+            'px;height:' + ht + 'px;left:calc(' + (it.col * w) + '% + 3px);width:calc(' + w + '% - 6px);' + eventStyle(rgb, past ? 0.28 : 0.5) + edge(rgb) + '">' +
             '<div class="t1 ell">' + esc(it.ev.title) + '</div>' + (ht > 30 ? '<div class="t2 ell">' + esc(span(it.ev) + (isDay && it.ev.loc ? ' · ' + it.ev.loc : '')) + '</div>' : '') + '</button>';
         }).join('');
         return '<div class="dcol' + (today && !isDay ? ' today' : '') + '">' + slots + blocks + '</div>';
@@ -1125,6 +1220,8 @@
         ');width:calc((100% - ' + gutter + 'px) / ' + n + ')"></div><div class="nowl" style="top:' + (nowTop - 8) + 'px">' + time(now).replace(' AM', '').replace(' PM', '') + '</div>';
       // first look: the hour before now (today shown) or before the first event, else 7 AM
       this._scrollTo = Math.max(0, Math.floor(nowIdx >= 0 ? (now - day0(now)) / 3600000 - 2 : first < 24 ? first - 1 : 7));
+      // (the hours are a grid under their heading's rule, as iPad Calendar's:
+      // no fades at its ends -- the user, 2026-10-17)
       return heads + alld + '<div class="tl"><div class="hrs" style="height:' + (24 * PX) + 'px">' + hrs +
         '<div class="days" style="left:' + gutter + 'px;grid-template-columns:repeat(' + n + ',minmax(0,1fr))">' + cols + '</div>' + nowLine + '</div></div>';
     }
@@ -1141,13 +1238,13 @@
         var evs = onDay(self._evs, d);
         return '<div class="dayh' + (sameDay(d, now) ? ' today' : '') + '">' + DOW_LONG[d.getDay()].toUpperCase() + ' · ' + MON3[d.getMonth()].toUpperCase() + ' ' + d.getDate() + '</div>' +
           (evs.length ? evs.map(function (e) {
-            var rgb = rgbOf(e.cal, h);
+            var rgb = evRgb(e, h);
             return '<button class="ev' + (e.end <= now ? ' past' : '') + '" data-a="ev" data-v="' + esc(e.key) + '"><span class="tm">' +
               (e.allDay ? 'All day' : time(e.start < day0(d) ? day0(d) : e.start)) + '</span><i style="background:' + rgba(rgb, 1) + '"></i><span class="tx">' +
               '<span class="t1 ell" style="display:block">' + esc(e.title) + '</span>' + (e.loc ? '<span class="t2 ell" style="display:block">' + esc(e.loc) + '</span>' : '') + '</span></button>';
           }).join('') : '<div class="empty" style="padding:8px 0">Nothing.</div>');
       }).join('');
-      return '<div class="panel wl">' + out + '</div>';
+      return '<div class="panel wlp"><div class="hk-edge"><div class="wl">' + out + '</div></div></div>';
     }
     _dayView(h, wide) {
       var d = this._day;
@@ -1164,7 +1261,7 @@
       var n = Math.ceil((Math.round((day0(last) - from) / DAY_MS) + 1) / 7) * 7;
       for (var i = 0; i < n; i++) {
         var x = addDays(from, i), mine = ownDay(evs, x);
-        var dot = mine.length ? rgba(rgbOf(mine[0].cal, h), 1) : 'transparent';
+        var dot = mine.length ? rgba(evRgb(mine[0], h), 1) : 'transparent';
         cells += '<button class="md' + (x.getMonth() !== d.getMonth() ? ' out' : '') + (sameDay(x, now) ? ' today' : '') + (sameDay(x, d) ? ' sel' : '') +
           '" data-a="mini" data-v="' + ymd(x) + '" aria-label="' + MON[x.getMonth()] + ' ' + x.getDate() + '"><b>' + x.getDate() + '</b><i style="background:' + dot + '"></i></button>';
       }
@@ -1186,7 +1283,7 @@
         return '<div class="panel det"><div class="none">' + (anyAll ? 'Only all-day events on this day.' : 'Nothing on this day.') +
           (writable(h).length ? ' Tap an hour to add an event.' : '') + '</div></div>';
       }
-      var rgb = rgbOf(ev.cal, h), sl = soon(ev, now);
+      var rgb = evRgb(ev, h), sl = soon(ev, now);
       var when = (sameDay(ev.start, now) ? 'Today, ' : DOW_LONG[ev.start.getDay()] + ', ') + span(ev);
       var ed = can(h, ev.cal, 'update') && ev.uid, rm = can(h, ev.cal, 'delete') && ev.uid;
       return '<div class="panel det"><div class="c"><i style="background:' + rgba(rgb, 1) + '"></i>' + esc(calName(h, ev.cal)) +
@@ -1227,7 +1324,7 @@
     '.foot{height:60px}'
   ].join('\n');
   class HkCalendarPaneCard extends HkBase {
-    static get CSS() { return PANE_CSS; }
+    static get CSS() { return PANE_CSS + FLAT_EVENT_CSS; }
     constructor() {
       super();
       this._evs = []; this._have = ''; this._n = 0;
@@ -1267,7 +1364,7 @@
       if (!h || !this._config) return null;
       var ids = calIds(h), HS = window.hkSettings;
       return ids.map(function (id) { var s = h.states[id]; return id + '=' + (s ? s.last_updated : 'x') + '/' +
-        (HS && HS.calendarColor ? HS.calendarColor(id, h.states) : ''); }).join(';') + '|' + this._n + '|' + Math.floor(Date.now() / 60000);
+        (HS && HS.calendarColor ? HS.calendarColor(id, h.states) : ''); }).join(';') + colorSig() + '|' + this._n + '|' + Math.floor(Date.now() / 60000);
     }
     _render() {
       var h = this._hass;
@@ -1283,11 +1380,11 @@
         var date = i < 2 ? DOW_LONG[d.getDay()] + ', ' + MON[d.getMonth()] + ' ' + d.getDate() : MON[d.getMonth()] + ' ' + d.getDate();
         html += '<div class="day"><div class="lbl">' + lbl + '</div><div class="date">' + date + '</div>' +
           all.map(function (e) {
-            var rgb = rgbOf(e.cal, h);
-            return '<div class="ad" style="background:' + rgba(rgb, 0.32) + '"><i style="background:' + rgba(rgb, 1) + '"></i>' + esc(e.title) + '<em>All day</em></div>';
+            var rgb = evRgb(e, h);
+            return '<div class="ad" style="' + eventStyle(rgb, 0.4) + '"><i style="background:' + rgba(rgb, 1) + '"></i>' + esc(e.title) + '<em>All day</em></div>';
           }).join('') +
           '<div>' + timed.map(function (e) {
-            var rgb = rgbOf(e.cal, h), sl = e === next ? soon(e, now) : '';
+            var rgb = evRgb(e, h), sl = e === next ? soon(e, now) : '';
             var sub = e.loc || (e.end - e.start > 3600000 ? time(e.start) + ' – ' + time(e.end) : calName(h, e.cal));
             return '<div class="ev' + (e.end <= now ? ' past' : '') + '"><div class="tm">' + (e.start < d ? 'Until' : time(e.start)) +
               '</div><i style="background:' + rgba(rgb, 1) + '"></i><div class="tx"><div class="t1">' + esc(e.title) + '</div><div class="t2">' +
@@ -1384,6 +1481,15 @@
       '.t{margin-top:' + SP.line + 'px;font-size:36px;font-weight:700;letter-spacing:-1px;line-height:40px}',
       '.d{margin-top:' + SP.line + 'px;font-size:15px;line-height:20px;color:rgba(235,235,245,0.62)}',
       '.row{display:flex;align-items:flex-start;gap:12px;font-size:16px;line-height:20px}',
+      // ITS COLOR (2026-10-16): the ten, the one it wears ringed; a tap on
+      // its own again (or Automatic) gives it back to its keyword or calendar
+      // (the sheets' .lab pulls what follows up 10 px: not here)
+      '.colc .lab{margin-bottom:0}',
+      '.cols{display:flex;justify-content:space-between;margin-top:14px}',
+      '.cols button{width:24px;height:24px;border-radius:50%;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;',
+      '  box-shadow:0 0 0 0 transparent;transition:box-shadow .15s}',
+      '.cols button.on{box-shadow:0 0 0 2px rgba(30,30,32,1),0 0 0 4px #fff}',
+      '.lab .auto{border:0;background:none;padding:0;font:inherit;font-size:15px;font-weight:400;letter-spacing:0;text-transform:none;color:#64d2ff;cursor:pointer}',
       '.row + .row{margin-top:' + SP.block + 'px}',
       '.row svg{flex:none;width:20px;height:20px;opacity:.7}',
       '.row span{min-width:0;overflow-wrap:anywhere}',
@@ -1438,11 +1544,15 @@
       '  font:inherit;line-height:1.25;cursor:pointer;-webkit-tap-highlight-color:transparent}',
       '.tlb .t1{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.tlb .t2{font-size:11px;font-weight:500;color:rgba(255,255,255,0.75);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.tlb.past{opacity:0.7}',
-      '.tlb.on{box-shadow:0 0 0 2px #fff inset}',
+      '.tlb.past{opacity:0.85}',
+      '.tlb{box-shadow:inset 3px 0 0 var(--e,transparent)}',
+      '.tlb.on{box-shadow:inset 3px 0 0 var(--e,transparent),0 0 0 2px #fff inset}',
       // the little month under the event: a dot where there are events, the
       // day shown filled; a tap shows that day (its hours, its first event)
-      '.mm{flex:1;min-height:0;display:flex;flex-direction:column}',
+      // (its own height, not what the details above leave: a day with notes
+      // and one without put the month in the same place)
+      '.mm{flex:none;display:flex;flex-direction:column}',
+      '.ee{transition:opacity .15s}.ee.wait{opacity:.55}',
       '.mm .lab{margin-bottom:8px}',
       '.mmg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));row-gap:2px;flex:1;min-height:0}',
       '.mmg .w{text-align:center;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';padding-bottom:4px}',
@@ -1456,10 +1566,28 @@
       '.tln{position:absolute;left:64px;right:12px;height:2px;background:#ff453a;pointer-events:none}',
       '.tln::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:5px;background:#ff453a}'
     ].join('');
+    // This sheet predates the light appearance. Its Glass text and wells
+    // stay as drawn; Flat reads the same ink/key roles as the other sheets.
+    var FLAT_DETAIL_CSS = [
+      ':host([hk-flat]){color:' + C.v('ink') + '}',
+      ':host([hk-flat]) .card,:host([hk-flat]) .when{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .when{border-radius:' + SP.cardR + 'px;padding:' + SP.cardPad + '}',
+      ':host([hk-flat]) :is(.lab,.lab .n,.calc,.d,.ev .tm,.ev .nm small,.empty){color:' + C.v('ink-2') + '}',
+      ':host([hk-flat]) :is(.ev,.mmg button){color:' + C.v('ink') + '}',
+      ':host([hk-flat]) .ev + .ev:before{border-color:' + C.v('line') + '}',
+      ':host([hk-flat]) .ev.on{background:' + C.v('key-strong') + '}',
+      ':host([hk-flat]) :is(.ev.on .tm,.ev.on .nm small){color:' + C.v('ink') + '}',
+      ':host([hk-flat]) .acts button{background:' + C.v('key') + ';color:' + C.v('ink') + '}',
+      ':host([hk-flat]) .acts button:active{background:' + C.v('key-strong') + '}',
+      ':host([hk-flat]) :is(.acts .rm,.mmg button.today b){color:' + C.v('fail') + '}',
+      ':host([hk-flat]) .lab .auto{color:' + C.v('ink') + ';text-decoration:underline}',
+      ':host([hk-flat]) .cols button{box-shadow:inset 0 0 0 1px ' + C.v('line') + '}',
+      ':host([hk-flat]) .cols button.on{box-shadow:0 0 0 2px ' + C.v('key') + ',0 0 0 4px ' + C.v('ink') + '}'
+    ].join('');
     var TL_PX = 48;
     class EventPanel extends U.Panel {
       // (the notification's card lives in here: its CSS too)
-      static get CSS() { return U.PANEL_CSS + U.NOTE_CSS + CSS; }
+      static get CSS() { return U.PANEL_CSS + U.NOTE_CSS + CSS + FLAT_EVENT_CSS + FLAT_DETAIL_CSS; }
       constructor() {
         super();
         var self = this;
@@ -1472,7 +1600,7 @@
       hkNote(card) { this._note = card; if (this._c1) this._c1.insertBefore(card, this._c1.firstChild); }
       // the header: the calendar's glyph in its color, the event's name
       hkHead(h, d) {
-        var rgb = rgbOf(this._id, h);
+        var rgb = this._ev ? evRgb(this._ev, h) : rgbOf(this._id, h);
         d.well.style.background = 'rgba(255,255,255,0.12)';
         d.icon.icon = 'mdi:calendar';
         d.icon.style.color = rgba(rgb, 1);
@@ -1532,15 +1660,23 @@
       }
       // ANOTHER DAY, from the little month: its hours, and its first event
       // (the next one still to come, if it is today) -- or none
+      // WHAT IS SHOWN STAYS until the day is in (2026-10-16, the user: the
+      // sheet jumped about from day to day): the little month marks the day
+      // at once, the rest dims a moment and is then replaced in one paint --
+      // never a "Loading…" swapped in and out
       _pickDay(d) {
         if (+d === +this._at) return;
-        this._at = d; this._day = null; this._ev = null; this._tlMoved = false;
+        this._at = d; this._tlMoved = false;
         var self = this;
         var h = this._hass, ids = calIds(h);
-        this._paint();
+        var ee = this._root.querySelector('.ee');
+        if (ee) ee.classList.add('wait');
+        this._root.querySelectorAll('.mmg button[data-d]').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-d') === ymd(d)); });
         load(h, ids, d, addDays(d, 1)).then(function (r) {
           if (+self._at !== +d) return;
           var list = onDay(r.evs, d), now = new Date();
+          var ee2 = self._root.querySelector('.ee');
+          if (ee2) ee2.classList.remove('wait');
           self._day = list;
           self._ev = list.filter(function (e) { return !e.allDay && e.end > now; })[0] || list.filter(function (e) { return !e.allDay; })[0] || list[0] || null;
           self._paint();
@@ -1558,9 +1694,9 @@
           var x = addDays(from, i), mine = ownDay(evs, x);
           cells += '<button class="' + (x.getMonth() !== a.getMonth() ? 'out ' : '') + (sameDay(x, now) ? 'today ' : '') + (sameDay(x, a) ? 'sel' : '') +
             '" data-d="' + ymd(x) + '" aria-label="' + MON[x.getMonth()] + ' ' + x.getDate() + '"><b>' + x.getDate() + '</b><i style="background:' +
-            (mine.length ? rgba(rgbOf(mine[0].cal, h), 1) : 'transparent') + '"></i></button>';
+            (mine.length ? rgba(evRgb(mine[0], h), 1) : 'transparent') + '"></i></button>';
         }
-        return '<div class="card mm"><div class="lab"><span>' + MON[a.getMonth()] + ' ' + a.getFullYear() + '</span></div><div class="mmg" style="grid-template-rows:auto repeat(' + (n / 7) + ',minmax(36px,1fr))">' + cells + '</div></div>';
+        return '<div class="card mm"><div class="lab"><span>' + MON[a.getMonth()] + ' ' + a.getFullYear() + '</span></div><div class="mmg" style="grid-template-rows:auto repeat(' + (n / 7) + ',36px)">' + cells + '</div></div>';
       }
       _paint() {
         var h = this._hass, ev = this._ev;
@@ -1584,7 +1720,7 @@
           if (note) this._c1.insertBefore(note, this._c1.firstChild);
           return;
         }
-        var rgb = rgbOf(ev.cal, h), one = this._one;
+        var rgb = evRgb(ev, h), one = this._one;
         var edit = can(h, ev.cal, 'update') && ev.uid, del = can(h, ev.cal, 'delete') && ev.uid;
         var rows = (ev.loc ? '<div class="row">' + IC.pin + '<span>' + esc(ev.loc) + '</span></div>' : '') +
                    (ev.rrule ? '<div class="row">' + IC.repeat + '<span>' + esc(repeatLabel(ev.rrule)) + '</span></div>' : '') +
@@ -1593,19 +1729,23 @@
         var when = '<div class="when"><div class="calc"><i style="background:' + rgba(rgb, 1) + '"></i>' + esc(calName(h, ev.cal)) +
           (sl && !one ? '<span class="soon">' + esc(sl) + '</span>' : '') + '</div>' +
           '<div class="t">' + esc(bigTime(ev)) + '</div><div class="d">' + esc([longDay(ev.start), howLong(ev)].filter(Boolean).join(' · ')) + '</div></div>';
+        var colors = this._colors(h, ev);
         var acts = edit || del ? '<div class="acts">' + (edit ? '<button data-a="edit">Edit</button>' : '') +
           (del ? '<button class="rm" data-a="del">Delete</button>' : '') + '</div>'
-          : (this._day ? '<div class="ro">This calendar can only be read here.</div>' : '');
+          : (this._day ? '<div class="ro">Home Assistant can’t edit this calendar, so its events can’t be changed or deleted here.</div>' : '');
         var list = this._day;
         var day = '<div class="card day"><div class="lab"><span>' + esc(DOW_LONG[ev.start.getDay()] + ', ' + MON[ev.start.getMonth()] + ' ' + ev.start.getDate()) +
           '</span>' + (list ? '<span class="n">' + list.length + (list.length === 1 ? ' event' : ' events') + '</span>' : '') + '</div>' +
           (list ? (list.length ? list.map(function (e) {
             var on = e.cal === ev.cal && +e.start === +ev.start && e.title === ev.title;
-            return '<button class="ev' + (on ? ' on' : '') + '" data-k="' + esc(e.key) + '"><span class="bar" style="background:' + rgba(rgbOf(e.cal, h), 1) + '"></span>' +
+            return '<button class="ev' + (on ? ' on' : '') + '" data-k="' + esc(e.key) + '"><span class="bar" style="background:' + rgba(evRgb(e, h), 1) + '"></span>' +
               '<span class="tm">' + (e.allDay ? 'All Day' : esc(time(e.start))) + '</span><span class="nm">' + esc(e.title) +
               '<small>' + esc([calName(h, e.cal), e.loc].filter(Boolean).join(' · ')) + '</small></span></button>';
           }).join('') : '<div class="empty">Nothing else that day</div>') : '<div class="empty">Loading…</div>') + '</div>';
-        this._c1.innerHTML = when + (rows ? '<div class="card rows">' + rows + '</div>' : '') + (one ? day : this._month(h)) + acts;
+        // a tablet: the month right under the time, where it stays from event
+        // to event; the details (as long as they are) under it, then the buttons
+        this._c1.innerHTML = one ? when + (rows ? '<div class="card rows">' + rows + '</div>' : '') + colors + day + acts
+          : when + this._month(h) + (rows ? '<div class="card rows">' + rows + '</div>' : '') + colors + acts;
         var tw = this._c2.querySelector('.tlw'), was = tw ? tw.scrollTop : null;
         this._c2.innerHTML = one ? '' : this._hours(h, ev);
         // the hours: where they were (another of the day's events tapped), or
@@ -1624,6 +1764,33 @@
         var st = X._.state();
         if (st && st.panel === this && st.tt) st.tt.textContent = ev.title;
       }
+      // ITS COLOR: its own (picked here, for the series), else the first
+      // keyword in its title, else its calendar's
+      _colors(h, ev) {
+        var HS = window.hkSettings;
+        if (!HS || !HS.eventKey) return '';
+        var key = HS.eventKey(ev.title, ev.uid), own = this._own && this._own.k === key ? this._own.c : (HS.get('calendar.event_colors', {}) || {})[key];
+        var kw = HS.keywordColor(ev.title), hue = (C.PALETTE && C.PALETTE.chart) || {};
+        var cur = own || kw || HS.calendarColor(ev.cal, h.states);
+        var why = own ? '<button class="auto" data-a="col" data-v="">Automatic</button>' : '<span class="n">' + esc(kw ? 'Matches a Keyword' : 'Same as ' + calName(h, ev.cal)) + '</span>';
+        return '<div class="card colc"><div class="lab"><span>Color</span>' + why + '</div><div class="cols">' +
+          ['red', 'orange', 'yellow', 'green', 'mint', 'teal', 'blue', 'purple', 'pink', 'white'].map(function (k) {
+            var rgb = k === 'white' ? WHITE : hue[k] || [255, 159, 10];
+            return '<button data-a="col" data-v="' + k + '" class="' + (k === cur ? 'on' : '') + '" aria-label="' + k + '" style="background:' + rgba(rgb, 1) + '"></button>';
+          }).join('') + '</div></div>';
+      }
+      _setColor(color) {
+        var h = this._hass, ev = this._ev, HS = window.hkSettings, self = this;
+        if (!h || !ev || !HS || !HS.eventKey) return;
+        var key = HS.eventKey(ev.title, ev.uid), own = (HS.get('calendar.event_colors', {}) || {})[key];
+        if (color && color === own) color = '';            // its own again: back to automatic
+        this._own = { k: key, c: color || null };
+        this._paint();
+        h.callWS({ type: 'hk_frontend/calendar/color', key: key, color: color || null }).catch(function (e) {
+          console.warn('[hk-calendar] the color', e);
+          self._own = null; self._paint();
+        });
+      }
       // THE DAY AS HOURS (a tablet): its all-day events across the top, the
       // rest as blocks in their hours, side by side where they overlap
       // (lanes(), the Calendar page's day), this one outlined, now a red line
@@ -1635,8 +1802,8 @@
         if (!list) return '<div class="card tlc">' + lab + '<div class="empty" style="padding:0 18px">Loading…</div></div>';
         var long = function (e) { return e.allDay || (e.end - e.start) >= DAY_MS; };
         var alld = list.filter(long).map(function (e) {
-          var rgb = rgbOf(e.cal, h);
-          return '<button class="' + (isOn(e) ? 'on' : '') + '" data-k="' + esc(e.key) + '" style="background:' + rgba(rgb, 0.42) + '">' + esc(e.title) + '</button>';
+          var rgb = evRgb(e, h);
+          return '<button class="' + (isOn(e) ? 'on' : '') + '" data-k="' + esc(e.key) + '" style="' + eventStyle(rgb, 0.55) + '">' + esc(e.title) + '</button>';
         }).join('');
         var hrs = '';
         for (var hr = 1; hr < 24; hr++) hrs += '<div class="tlr" style="top:' + (hr * PX) + 'px"><span>' + hourLabel(hr) + '</span></div>';
@@ -1644,9 +1811,9 @@
           .map(function (e) { return { ev: e, s: e.start < a ? a : e.start, e: e.end > b ? b : e.end }; });
         var blocks = lanes(items).map(function (it) {
           var top = (it.s - a) / 3600000 * PX, ht = Math.max(22, (it.e - it.s) / 3600000 * PX - 3), w = 100 / it.cols;
-          var rgb = rgbOf(it.ev.cal, h), past = it.ev.end <= now;
+          var rgb = evRgb(it.ev, h), past = it.ev.end <= now;
           return '<button class="tlb' + (past ? ' past' : '') + (isOn(it.ev) ? ' on' : '') + '" data-k="' + esc(it.ev.key) + '" style="top:' + (top + 1) +
-            'px;height:' + ht + 'px;left:calc(' + (it.col * w) + '% + 2px);width:calc(' + w + '% - 4px);background:' + rgba(rgb, past ? 0.3 : 0.5) + '">' +
+            'px;height:' + ht + 'px;left:calc(' + (it.col * w) + '% + 2px);width:calc(' + w + '% - 4px);' + eventStyle(rgb, past ? 0.28 : 0.5) + edge(rgb) + '">' +
             '<div class="t1">' + esc(it.ev.title) + '</div>' + (ht > 36 ? '<div class="t2">' + esc(span(it.ev) + (it.ev.loc ? ' · ' + it.ev.loc : '')) + '</div>' : '') + '</button>';
         }).join('');
         var nowLine = sameDay(a, now) ? '<div class="tln" style="top:' + ((now - a) / 3600000 * PX) + 'px"></div>' : '';
@@ -1664,6 +1831,7 @@
           return;
         }
         var a = b.getAttribute('data-a');
+        if (a === 'col') { this._setColor(b.getAttribute('data-v')); return; }
         if (a === 'edit') edit_(h, ev);
         else if (a === 'del') askDelete(h, ev, function () { X.close(); });
       }

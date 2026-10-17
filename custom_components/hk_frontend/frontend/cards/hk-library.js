@@ -182,7 +182,9 @@
         '.bar{display:grid;grid-template-columns:minmax(0,1fr);',
         '  gap:14px;margin:0 0 18px 0}',
         '.search{height:52px;border-radius:26px;padding:0 22px;width:100%;',
-        '  box-sizing:border-box;background:' + window.hkCards.v('key-strong') + ';',
+        // (Flat: the cards' own surface, --hk-field-bg, so the search and
+        // Plays on match the pills under them; the look's key elsewhere)
+        '  box-sizing:border-box;background:var(--hk-field-bg,' + window.hkCards.v('key-strong') + ');box-shadow:var(--hk-field-shadow,none);',
         '  border:' + M.border + ';color:' + window.hkCards.v('ink') + ';font-size:17px;',
         '  font-family:inherit;outline:none}',
         '.search::placeholder{color:' + window.hkCards.v('ink-3') + '}',
@@ -241,7 +243,9 @@
         '  grid-template-columns:repeat(auto-fit,minmax(var(--hk-lib-track,168px),1fr))}',
         '.it{cursor:pointer;user-select:none;min-width:0}',
         '.it .art{width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden;',
-        '  background:' + window.hkCards.v('key') + ';box-shadow:0 6px 18px rgba(0,0,0,0.28);',
+        // (the look's own shadow, as every card's: Flat's contact shadow,
+        // Tinted's, the glass cards' -- the user, 2026-10-17)
+        '  background:' + window.hkCards.v('key') + ';box-shadow:var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-sm') + ');',
         '  display:flex;align-items:center;justify-content:center}',
         '.it .art img{width:100%;height:100%;object-fit:cover;display:block}',
         '.it .art ha-icon{--mdc-icon-size:34px;width:34px;height:34px;',
@@ -313,7 +317,7 @@
         '.hd .cover{width:132px;height:132px;border-radius:12px;overflow:hidden;',
         '  background:' + window.hkCards.v('key') + ';display:flex;',
         '  align-items:center;justify-content:center;',
-        '  box-shadow:0 10px 26px rgba(0,0,0,0.34)}',
+        '  box-shadow:var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-lg') + ')}',
         '.hd .cover img{width:100%;height:100%;object-fit:cover;display:block}',
         '.hd .cover ha-icon{--mdc-icon-size:44px;width:44px;height:44px;',
         '  color:var(--hk-glyph,rgba(255,255,255,0.7))}',
@@ -360,8 +364,8 @@
         '  text-overflow:ellipsis;white-space:nowrap}',
         '.shelf{margin:0 0 20px 0}',
         // THE MUSIC PAGE (`layout: music`): the card is the page's right
-        // column -- the search stays, the rest scrolls under it (with the
-        // shadow every header riding on a list has, shadeCss)
+        // column -- the search stays, the rest scrolls under it (its ends
+        // fading as every list's do: hk-base.js SCROLL EDGES)
         ':host([music]){display:block;height:100%}',
         // (HkBase's own wrapper between the host and the card is as tall as
         // the host too: left at auto, 100% below it meant nothing, and the
@@ -427,12 +431,6 @@
         // 14 ran the list 2 px past each side of the screen (the page could
         // be nudged sideways)
         '@media (max-width:' + window.hkCards.BP.phone + 'px){:host([music]) [data-hk-role="body"]{padding-left:12px;padding-right:12px;margin:0 -12px}}',
-        C.shadeCss(':host([music]) ha-card'),
-        // ...parked at the card's top until Browse first scrolls (C.shade
-        // sets the real edge then): at its default, 100%, the unseen shade
-        // hung 16 px below the card -- below the window, where the Music page
-        // runs under a tab bar, so the whole page could be scrolled by it
-        ':host([music]) ha-card{--hk-shade-top:0px}',
         // ...its Your Playlists (the page's rootExtra): the categories' tile
         '.yp{margin:0 0 22px 0}',
         // the heading, and on its right where they play: one pill, like a
@@ -442,7 +440,7 @@
         '.yp .yph{display:flex;align-items:center;gap:12px;margin:0 0 14px 2px}',
         '.yp .yph h3{margin:0;flex:none}',
         '.route{margin-left:auto;min-width:0;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border-radius:17px;',
-        '  background:' + window.hkCards.v('key') + ';border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:' + window.hkCards.v('ink') + '}',
+        '  background:var(--hk-field-bg,' + window.hkCards.v('key') + ');box-shadow:var(--hk-field-shadow,none);border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:' + window.hkCards.v('ink') + '}',
         '.route:active{background:' + window.hkCards.v('key-strong') + '}',
         '.route ha-icon{--mdc-icon-size:18px;width:18px;height:18px;flex:none;display:flex}',
         '.route span{font-size:13px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';flex:none}',
@@ -1266,7 +1264,9 @@
         }
         if (this._config.layout === 'music') {
           this.setAttribute('music', '');
-          if (C.shade) C.shade(q('[data-hk-role="body"]'), q('ha-card'));
+          // (the list's ends fade as it scrolls: hk-base.js SCROLL EDGES)
+          q('[data-hk-role="body"]').classList.add('hk-fades');
+          if (C.edges) C.edges(q('[data-hk-role="body"]'));
         }
         this._e = { crumb: q('.crumb'), search: q('.search'),
                     body: q('[data-hk-role="body"]') };

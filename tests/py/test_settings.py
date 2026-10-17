@@ -544,7 +544,7 @@ def test_the_calendar_pane_and_its_days():
     for bad in ({"calendar": "yes"}, {"calendar_days": 0}, {"calendar_days": 8}, {"calendar_days": True},
                 {"calendar_days": "3"}):
         assert saver_options(bad) is None, bad
-    assert DEFAULTS["calendar"] == {"entities": [], "colors": {}}, "every calendar, coloured in turn, until chosen"
+    assert DEFAULTS["calendar"] == {"entities": [], "colors": {}, "keywords": [], "event_colors": {}}, "every calendar, coloured in turn, until chosen"
 
 
 def test_the_calendar_is_a_page_a_screen_can_have():
@@ -657,7 +657,7 @@ async def test_an_entry_from_1_12_moves_its_cameras(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 15
+    assert old.minor_version == 16
     assert S.merged(old.options)["cameras"]["order"] == cams
     got = S.boards(old)
     assert got["dashboard-a"]["cameras_house"] and got["dashboard-b"]["cameras_house"]
@@ -675,7 +675,7 @@ async def test_an_entry_from_1_7_moves_its_rooms(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 15
+    assert old.minor_version == 16
     assert S.merged(old.options)["rooms"]["order"] == ORDER
     got = S.boards(old)
     assert all(got[p]["rooms_house"] and got[p]["room_order"] == ORDER and got[p]["menu_rooms"] == "order"
@@ -776,7 +776,7 @@ async def test_an_entry_from_1_8_moves_its_menu(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 15
+    assert old.minor_version == 16
     assert (S.merged(old.options)["menu"]["style"], S.merged(old.options)["menu"]["tab_size"]) == ("tab", "xl")
     got = S.boards(old)
     assert got["dashboard-a"]["menu_house"] and got["dashboard-c"]["menu_house"]
@@ -850,7 +850,7 @@ async def test_an_entry_from_1_10_writes_down_its_phones(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 15
+    assert old.minor_version == 16
     got = S.boards(old)
     assert got["dashboard-a"]["menu_phone"] == "tabbar" and got["dashboard-a"]["button_phone"] == "chip"
     assert got["dashboard-b"]["menu_phone"] == "button" and got["dashboard-b"]["button_phone"] == "tab"
@@ -908,7 +908,7 @@ async def test_an_entry_from_1_11_tidies_its_menu(hass, base):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 15
+    assert old.minor_version == 16
     assert "narrow" not in old.options["dashboard"]["menu"] and "dashboards" not in old.options["dashboard"]["menu"]
     got = S.boards(old)["dashboard-a"]
     assert (got["menu_phone"], got["button_phone"], got["tab_bar_scroll_phone"]) == ("tabbar", "chip_scroll", "hide")
@@ -939,8 +939,8 @@ def test_sky_palette_mirror_and_readability():
         raise AssertionError("a JavaScript engine is required for palette parity")
     assert json.loads(out.stdout) == list(S.SKY_BACKDROPS)
     # 2026-10-13: Black, what a screen with its Live Sky off showed
-    assert len(set(S.SKY_BACKDROP_IDS)) == 11
-    assert len([p for p in S.SKY_BACKDROPS if "day" in p]) == 9
+    assert len(set(S.SKY_BACKDROP_IDS)) == 17
+    assert len([p for p in S.SKY_BACKDROPS if "day" in p]) == 15
     def luma(color):
         return sum(int(color[i:i + 2], 16) * w for i, w in zip((1, 3, 5), (.2126, .7152, .0722)))
     pos = (0, .42, .72, 1)

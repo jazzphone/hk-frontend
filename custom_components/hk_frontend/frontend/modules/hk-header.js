@@ -58,7 +58,10 @@
   //
   // COLORS are Apple's DARK-appearance system colors, because every surface
   // these draw on is dark glass: systemYellow #FFD60A, systemCyan #64D2FF.
-  var WX_COLOUR = { w: '#FFFFFF', y: '#FFD60A', c: '#64D2FF' };
+  // (Flat's Light theme, 2026-10-16, is the one pale surface: there the white
+  // layers -- clouds, the moon -- and the cyan read too faint, so they are
+  // CSS variables its palette sets, white and cyan everywhere else.)
+  var WX_COLOUR = { w: 'var(--hk-wx-w,#FFFFFF)', y: '#FFD60A', c: 'var(--hk-wx-c,#64D2FF)' };
   function wxData(name) {
     var g = window.hkGlyphs, w = g && g.weather;
     return (w && w[name]) || null;
@@ -168,12 +171,55 @@
       // `/>`, never match -- and rebuild itself on every hass update, ~10
       // times a second, flickering. The header card does not compare against
       // innerHTML; this keeps any caller that does honest.
-      return '<path fill="' + (WX_COLOUR[l[0]] || WX_COLOUR.w) + '" d="' + l[1] + '"></path>';
+      // (a style, not the fill attribute: an attribute can't hold var())
+      return '<path style="fill:' + (WX_COLOUR[l[0]] || WX_COLOUR.w) + '" d="' + l[1] + '"></path>';
     }).join('');
     return '<svg class="hk-wx"' + (o.sym ? ' data-sym="' + esc(name) + '"' : '') + ' viewBox="' + sym[0] + '" role="img" aria-label="' +
       esc(conditionName(state)) + '" style="display:inline-block; flex:0 0 auto;' +
       ' vertical-align:middle; overflow:visible; width:' + size + '; height:' + size + ';' +
       (o.style || '') + '">' + paths + '</svg>';
+  }
+
+  // Shared layer motion for the screensaver and dashboard's large backdrop.
+  // Callers own placement and pause/still state; the condition paths move alike.
+  function wxMotionCss(selector) {
+    return [
+    '.wx .bd svg path{transform-box:fill-box;transform-origin:50% 50%}',
+    '.wx .bd svg[data-sym="sun.max.fill"] path:first-child{animation:wxspin 70s linear infinite}',
+    // (the moon behind a cloud breathes as the sun does: before 2026-10-17 a
+    // partly cloudy night only drifted, a few pixels on the Weather page)
+    '.wx .bd svg[data-sym="sun.max.fill"] path:last-child,.wx .bd svg[data-sym="cloud.sun.fill"] path:first-child,' +
+    '.wx .bd svg[data-sym="cloud.moon.fill"] path:first-child{animation:wxbreathe 5s ease-in-out infinite alternate}',
+    '.wx .bd svg[data-sym^="cloud."]{animation:wxdrift 11s ease-in-out infinite alternate}',
+    '.wx .bd svg[data-sym="cloud.rain.fill"] path:not(:last-child),.wx .bd svg[data-sym="cloud.heavyrain.fill"] path:not(:last-child),' +
+    '.wx .bd svg[data-sym="cloud.moon.rain.fill"] path:nth-child(-n+4),.wx .bd svg[data-sym="cloud.hail.fill"] path:not(:last-child),' +
+    '.wx .bd svg[data-sym="cloud.sleet.fill"] path:not(:last-child),.wx .bd svg[data-sym="cloud.bolt.rain.fill"] path:not(:last-child):not(:nth-child(3))' +
+    '{animation:wxfall 1.5s linear infinite}',
+    '.wx .bd svg[data-sym="cloud.snow.fill"] path:not(:last-child){animation:wxsnow 3.6s linear infinite}',
+    '.wx .bd svg path:nth-child(2){animation-delay:-.45s}.wx .bd svg path:nth-child(3){animation-delay:-.9s}',
+    '.wx .bd svg path:nth-child(4){animation-delay:-.2s}.wx .bd svg path:nth-child(5){animation-delay:-1.1s}.wx .bd svg path:nth-child(6){animation-delay:-.65s}',
+    '.wx .bd svg[data-sym="cloud.snow.fill"] path:nth-child(2){animation-delay:-1.4s}.wx .bd svg[data-sym="cloud.snow.fill"] path:nth-child(3){animation-delay:-2.7s}',
+    '.wx .bd svg[data-sym="cloud.snow.fill"] path:nth-child(4){animation-delay:-.7s}.wx .bd svg[data-sym="cloud.snow.fill"] path:nth-child(5){animation-delay:-3.1s}',
+    '.wx .bd svg[data-sym="cloud.snow.fill"] path:nth-child(6){animation-delay:-2s}',
+    '.wx .bd svg[data-sym="cloud.bolt.fill"] path:first-child,.wx .bd svg[data-sym="cloud.bolt.rain.fill"] path:nth-child(3){animation:wxflash 5s linear infinite}',
+    // (moon.stars.fill draws its stars first, the moon last)
+    '.wx .bd svg[data-sym="moon.stars.fill"] path:first-child{animation:wxtwinkle 3.2s ease-in-out infinite alternate}',
+    '.wx .bd svg[data-sym="moon.stars.fill"] path:last-child{animation:wxbreathe 6s ease-in-out infinite alternate}',
+    '.wx .bd svg[data-sym="cloud.fog.fill"] path:not(:last-child),.wx .bd svg[data-sym="wind"] path{animation:wxslide 4s ease-in-out infinite alternate}',
+    '.wx .bd svg[data-sym="cloud.fog.fill"] path:nth-child(2),.wx .bd svg[data-sym="wind"] path:nth-child(2){animation-delay:-2s}',
+    '.wx .bd svg[data-sym="wind"] path:nth-child(3){animation-delay:-1s}',
+    '.wx .bd [data-sym="mdi"]{animation:wxfloat 6s ease-in-out infinite alternate}',
+    '@keyframes wxspin{to{transform:rotate(360deg)}}',
+    '@keyframes wxbreathe{from{transform:scale(1)}to{transform:scale(1.045)}}',
+    '@keyframes wxdrift{from{transform:translateX(-2.2%)}to{transform:translateX(2.2%)}}',
+    '@keyframes wxfall{0%{transform:translateY(-7px);opacity:0}20%{opacity:1}75%{opacity:1}100%{transform:translateY(9px);opacity:0}}',
+    '@keyframes wxsnow{0%{transform:translate(0,-6px);opacity:0}20%{opacity:1}50%{transform:translate(2px,1px)}80%{opacity:1}100%{transform:translate(-1px,8px);opacity:0}}',
+    '@keyframes wxflash{0%,84%,89%,93%,100%{opacity:1}86%{opacity:.2}91%{opacity:.4}}',
+    '@keyframes wxtwinkle{from{opacity:.35}to{opacity:1}}',
+    '@keyframes wxslide{from{transform:translateX(-5px)}to{transform:translateX(5px)}}',
+    '@keyframes wxfloat{from{transform:translateY(-1.5%)}to{transform:translateY(1.5%)}}'
+    ].join('\n').split('.wx .bd').join(selector) +
+      '@media (prefers-reduced-motion: reduce){' + selector + ' *,' + selector + ' svg{animation:none!important}}';
   }
 
   // Night for the CURRENT condition. sun.sun is the only honest source; a
@@ -813,13 +859,43 @@
   // "Sunday, Sep 27" beside "Sunny · Feels 75°" -- so this hands over VALUES
   // from the same sources as clock() and weather(), and the menu lays them
   // out. Everything is plain text; the caller escapes it.
-  function now(states) {
+  // TODAY'S HIGH AND LOW (the menu, 2026-10-17): the daily forecast's entry
+  // for today -- Configure -> Weather's forecast sensor, else the weather
+  // entity's own daily forecast through the one shared subscription
+  // (hk-weather.js hkWxForecast, held while the menu shows the weather).
+  // {high, low} rounded, either null when there is none.
+  var dayW = null;
+  function today(states, conn, wid, day) {
+    var sid = S() ? S().get('weather.forecast_daily', null) : null, fc = null;
+    if (sid) {
+      fc = ((states[sid] || {}).attributes || {}).forecast;
+    } else if (wid && conn && window.hkWxForecast) {
+      if (dayW && (dayW.conn !== conn || dayW.wid !== wid)) { dayW.release(); dayW = null; }
+      if (!dayW) { dayW = window.hkWxForecast.watch(conn, 'daily', wid, function () {}); dayW.wid = wid; }
+      else dayW.ensure();
+      fc = dayW.data();
+    }
+    if (!Array.isArray(fc) || !fc.length) return { high: null, low: null };
+    var t = day || new Date(), key = t.getFullYear() + '-' + t.getMonth() + '-' + t.getDate();
+    var e = fc.filter(function (x) {
+      var d = x && x.datetime ? new Date(x.datetime) : null;
+      return d && !isNaN(d) && d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() === key;
+    })[0] || fc[0] || {};
+    var hi = num(e.temperature), lo = num(e.templow);
+    return { high: hi !== null ? Math.round(hi) : null, low: lo !== null ? Math.round(lo) : null };
+  }
+  // the menu stopped showing the weather: the subscription goes
+  function nowDone() { if (dayW) { dayW.release(); dayW = null; } }
+  function now(states, conn) {
     states = states || {};
     var ck = clockParts(states), d = ck.day;
     var wid = S() ? S().weatherId(states) : null;
     var w = (wid && states[wid]) || {}, a = w.attributes || {};
     var temp = num(a.temperature), feels = num(a.apparent_temperature);
+    var hl = today(states, conn, wid, d);
     return {
+      high: hl.high, low: hl.low,
+      tempN: temp !== null ? Math.round(temp) : null, feelsN: feels !== null ? Math.round(feels) : null,
       time: ck.time, ampm: ck.ampm,
       date: d ? d.toLocaleString('en-US', { weekday: 'long' }) + ', ' +
                 d.toLocaleString('en-US', { month: 'short' }) + ' ' + d.getDate() : '',
@@ -834,9 +910,9 @@
     fitWeather: fitWeather, FIT_CSS: FIT_CSS,
     clockShift: clockShift,
     titleCase: titleCase,
-    wxSvg: wxSvg, wxSymbol: wxSymbol, wxReady: wxReady, conditionName: conditionName, isNight: isNight,
+    wxSvg: wxSvg, wxMotionCss: wxMotionCss, wxSymbol: wxSymbol, wxReady: wxReady, conditionName: conditionName, isNight: isNight,
     nightAt: nightAt,
-    clock: clock, weather: weather, security: security, status: status, row: row, now: now,
+    clock: clock, weather: weather, security: security, status: status, row: row, now: now, nowDone: nowDone,
     lists: lists           // the entity lists `status` reads, for a card's signature
   };
   // Tell already-drawn cards this module exists -- see MODULE WAKE in hk-base.js.

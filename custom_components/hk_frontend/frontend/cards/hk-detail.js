@@ -132,6 +132,12 @@
         // Calendar page hands over (hk-calendar.js)
         case 'person': return 'person';
         case 'calendar': return 'event';
+        // the weather: HK's own sheet (hk-weather.js), not Home Assistant's
+        case 'weather': return 'weather';
+        // an automation: run it, pause it, when it ran (hk-headers.js)
+        case 'automation': return 'automation';
+        // a timer: its countdown, its controls, its week (hk-headers.js)
+        case 'timer': return 'timer';
         default: return null;
       }
     }
@@ -217,9 +223,14 @@
       if (out.length < 2) out.push(+(a + step).toFixed(6));
       return out;
     }
-    function tickText(v, unit) {
+    function tickText(v, unit, step) {
       var a = Math.abs(v);
-      var t = a >= 1000 ? (Math.round(v / 100) / 10) + 'k' : String(+v.toFixed(a >= 10 || v === Math.round(v) ? 0 : 1));
+      var scale = a >= 1000 ? 1000 : 1;
+      // Match the axis step: a 0.005 kW grid must not say "0" on every
+      // line. Keep the existing shorthand when used outside an axis.
+      var digits = step > 0 ? Math.max(0, Math.min(6, Math.ceil(-Math.log(step / scale) / Math.LN10 - 1e-9)))
+        : scale === 1000 ? 1 : a >= 10 || v === Math.round(v) ? 0 : 1;
+      var t = String(+(v / scale).toFixed(digits)) + (scale === 1000 ? 'k' : '');
       return /°/.test(unit || '') ? t + '°' : /%/.test(unit || '') ? t + '%' : t;
     }
     // n labels across a span of `ms` ending now: clock times for an hour or
@@ -289,13 +300,14 @@
         return (o.bars ? H - (v - tLo) / (tHi - tLo) * H : pad + (tHi - v) / (tHi - tLo) * (H - 2 * pad)).toFixed(1) + 'px';
       };
       var grid = '', labs = '';
+      var tickStep = ticks[1] - ticks[0];
       ticks.forEach(function (v, i) {
         var top = y(v);
         grid += '<i class="gr' + (i === 0 ? ' b' : '') + '" style="top:' + top + '"></i>';
-        labs += '<span style="top:' + top + '">' + esc(tickText(v, o.unit)) + '</span>';
+        labs += '<span style="top:' + top + '">' + esc(tickText(v, o.unit, tickStep)) + '</span>';
       });
       var hs = o.fluid ? '' : ' style="height:' + H + 'px"';
-      var widest = ticks.map(function (v) { return tickText(v, o.unit); })
+      var widest = ticks.map(function (v) { return tickText(v, o.unit, tickStep); })
                         .reduce(function (a, b) { return b.length > a.length ? b : a; }, '');
       // what the plot DREW, for the readout (scrub): the same points, the
       // same value range and padding, so its dot lands on the line
@@ -503,6 +515,13 @@
     // red is still readable as a slider.
     function lightFill(s) {
       var rgb = at(s, 'rgb_color');
+      var look = window.hkSettings && window.hkSettings.rendering ? window.hkSettings.rendering() : {};
+      if (look.flat && look.theme === 'light') {
+        // White light belongs to the sheet's neutral control palette. A
+        // white fill on its white sheet made the active level disappear.
+        if (!rgb || rgb.length !== 3 || Math.max.apply(null, rgb) - Math.min.apply(null, rgb) < 32) return C.v('track-fill');
+        return css(rgb); // colored light keeps its color, without a white wash
+      }
       if (!rgb || rgb.length !== 3) return 'rgba(255,255,255,0.95)';
       return css(rgb.map(function (c) { return Math.round(c + (255 - c) * 0.3); }));
     }
@@ -593,6 +612,9 @@
     // edge, 18 in.
     // (hkCards.SP, hk-base.js: one of the three spacing tiers)
     var SP = C.SP;
+    // Full-height light and shade controls share a silhouette. Color lights
+    // keep the shorter slider that leaves room for swatches and effects.
+    var SLIDER_H = { full: 400, phone: 330 };
     // ONE PHONE HEIGHT TOO, the speaker's, so every sheet is the same size.
     // The whole screen less 80 -- which only the stacked thermostat needs --
     // would leave every other phone sheet in 200-350 px of empty space.
@@ -612,7 +634,7 @@
       number: STD, select: STD, humidifier: STD, water_heater: WIDE, alarm: STD,
       // a person (them | where they are) and an event (it | its day): two
       // columns on a tablet, one on a phone
-      person: WIDE, event: WIDE,
+      person: WIDE, event: WIDE, weather: WIDE, automation: STD, timer: STD,
       // a room's "3 Windows": two full pills a row (2 x 196 + 10 of its ~410)
       group: STD,
       // a custom pop-up's own cards: narrow or wide, as it asks
@@ -624,6 +646,8 @@
     var AUTO_CLOSE_MS = 60000;
 
     var SHEET_CSS = [
+      // it takes focus on opening (the keyboard's place to start), with no ring
+      '.sheet:focus{outline:none}',
       '.hkd{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;',
       '  pointer-events:none;-webkit-tap-highlight-color:transparent;color:' + window.hkCards.v('ink') + ';',
       // the dashboard's font: the sheet is mounted outside the view
@@ -660,9 +684,11 @@
       '  opacity:0;transform:translateY(24px) scale(.98);',
       '  transition:opacity .25s ease,transform .3s cubic-bezier(.32,.72,0,1)}',
       '.hkd.open .sheet{opacity:1;transform:none}',
-      // THE HEADER RIDES ON THE BODY: a soft shadow along the body's top once
-      // it has scrolled under the name (hk-base.js shade)
-      C.shadeCss('.hkd .sheet'),
+      // One clip edge for the scroller AND its shadow. A sticky pseudo inside
+      // the padded body sat 8 px below that edge, letting content show above
+      // it. The frame needs no measured top and stays aligned at Safari zoom.
+      '.hkd .body-frame{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}',
+      // no shadows at its ends: a list is cut clean (hk-base.js SCROLL EDGES)
       // THE HEADER IS EXACTLY AS TALL AS THE X (44, a phone 40), so the X --
       // centred on the row -- sits the sheet's padding from the top AND from
       // the right. It is the glyph and the NAME, centred together: room, state
@@ -690,7 +716,8 @@
       // nothing moves. (A bare sheet's header floats: it has no gap to take.)
       // ...but not right against the glyph and the X (2026-10-12: the line
       // touched them): 12 px of the gap stay clear above where it scrolls
-      '.hkd .sheet:not(.bare) .body{margin-top:-8px;padding-top:8px}',
+      '.hkd .sheet:not(.bare) .body-frame{margin-top:-8px}',
+      '.hkd .sheet:not(.bare) .body{padding-top:8px}',
       // THE CONTROL SITS IN THE MIDDLE of what the header leaves. Auto
       // margins, not justify-content:center: when a short window makes the
       // content taller than the body, auto margins fall to zero and the body
@@ -713,7 +740,9 @@
       '  width:min(var(--hkd-w,1200px), calc((var(--hk-vh, 100dvh) - 32px) * var(--hkd-ar, 1.7778)))}',
       '.hkd .sheet.bare .hd{position:absolute;top:16px;right:18px;z-index:3;height:auto}',
       '.hkd .sheet.bare .well,.hkd .sheet.bare .tx{display:none}',
-      '.hkd .sheet.bare .x{background:rgba(28,28,30,0.62)}',
+      // (white on it in every look: Flat's ink glyph vanished on the dark
+      // plate, the user 2026-10-17)
+      '.hkd .sheet.bare .x{background:rgba(28,28,30,0.62);color:#fff}',
       '.hkd .sheet.bare .body{overflow:hidden}',
       // ...and the pop-ups' dim (hk-popup.js, rgba(17,17,17,.8)): a control
       // sheet's lighter one lets the sky tint its glass; a picture has none.
@@ -723,11 +752,39 @@
       '    height:min(' + PHONE_H + 'px, calc(var(--hk-vh, 100dvh) - 80px))}',
       '  .hkd .well,.hkd .x{width:40px;height:40px;border-radius:20px}',
       '  .hkd .hd{height:40px;gap:12px}',
-      '  .hkd .sheet:not(.bare) .body{margin-top:-6px;padding-top:6px}',
+      '  .hkd .sheet:not(.bare) .body-frame{margin-top:-6px}',
+      '  .hkd .sheet:not(.bare) .body{padding-top:6px}',
       '  .hkd .tt{font-size:20px;line-height:22px}',
       '}',
-      '@media (prefers-reduced-motion:reduce){.hkd .bd,.hkd .sheet{transition:none}}'
+      '@media (prefers-reduced-motion:reduce){.hkd .bd,.hkd .sheet,.hkd .body-frame::before,.hkd .body-frame::after{transition:none}}'
     ].join('');
+
+    // Recalculate the footer when content or the viewport changes as well
+    // as on scroll. The settings pane and forecasts can grow after opening.
+    // No per-frame work; observers/listeners belong to this sheet's lifetime.
+    function sheetEdges(body, sheet) {
+      var offTop = C.shade(body, sheet), ro, mo;
+      function check() {
+        var more = body.scrollHeight - body.clientHeight - body.scrollTop > 2;
+        if (more === sheet.hasAttribute('hk-scroll-more')) return;
+        if (more) sheet.setAttribute('hk-scroll-more', ''); else sheet.removeAttribute('hk-scroll-more');
+      }
+      function observe() {
+        if (ro) {
+          ro.disconnect(); ro.observe(body);
+          Array.prototype.forEach.call(body.children, function (child) {
+            ro.observe(child);
+            if (child._root && child._root.nodeType === 1) ro.observe(child._root);
+          });
+        }
+        check();
+      }
+      body.addEventListener('scroll', check, { passive: true });
+      if (typeof ResizeObserver !== 'undefined') ro = new ResizeObserver(check);
+      if (typeof MutationObserver !== 'undefined') { mo = new MutationObserver(observe); mo.observe(body, { childList: true }); }
+      observe();
+      return function () { offTop(); body.removeEventListener('scroll', check); if (ro) ro.disconnect(); if (mo) mo.disconnect(); };
+    }
 
     // A NOTIFICATION, OPENED (hk-notify.js -> open(id, null, { note })): it
     // rides on the sheet a tile opens, and the sheet keeps its size.
@@ -954,7 +1011,9 @@
       if (!e) return null;
       return e.area_id || (e.device_id && h.devices && h.devices[e.device_id] ? h.devices[e.device_id].area_id : null);
     }
-    var GO_PAGES = [['doors-windows', ['doors', 'windows']], ['security', ['security', 'locks', 'garage']],
+    // (a door or window goes to Security where there is no Doors & Windows
+    // page: the two are one page in a house with an alarm, 2026-10-16)
+    var GO_PAGES = [['doors-windows', ['doors', 'windows']], ['security', ['security', 'locks', 'garage', 'doors', 'windows']],
                     ['water', ['leaks', 'valves']], ['lights', ['lights', 'outlets']]];
     var GO_DOMAINS = { vacuum: 'vacuums', camera: 'cameras', calendar: 'calendar', timer: 'timers' };
     function ymdOf(d) {
@@ -2071,13 +2130,17 @@
       var tok = ++TOK;
       var el = document.createElement('div');
       el.className = 'hkd';
-      el.innerHTML = '<style>' + SHEET_CSS + ACC_CSS + NOTE_CSS + '</style><div class="bd"></div>' +
+      C.flatSurface(el, 'detail');
+      el.innerHTML = '<style>' + SHEET_CSS + ACC_CSS + NOTE_CSS + C.flatCss('.hkd[hk-flat]') +
+        '.hkd[hk-flat] .sheet{background:var(--hk-flat-elevated);color:var(--hk-ink);box-shadow:var(--hk-flat-elevated-shadow);border-color:var(--hk-line)}' +
+        '.hkd[hk-flat] .x,.hkd[hk-flat] .gear{background:var(--hk-key);color:var(--hk-ink)}' +
+        '.hkd[hk-flat] .well{background:var(--hk-key)}' + '</style><div class="bd"></div>' +
         '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="hkd-t' + tok + '">' +
           '<div class="hd"><div class="well"><ha-state-icon></ha-state-icon></div>' +
           '<div class="tx"><div class="tt" id="hkd-t' + tok + '"></div></div>' +
           '<button class="gear" aria-label="Accessory settings" hidden><ha-icon icon="mdi:cog"></ha-icon></button>' +
           '<button class="x" aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button></div>' +
-          '<div class="body"></div></div>';
+          '<div class="body-frame"><div class="body"></div></div></div>';
       var sheet = el.querySelector('.sheet');
       var panel = document.createElement(tag);
       // glass: false -- the sheet is its own blur; a panel in hk-glass's
@@ -2117,7 +2180,7 @@
       if (panel.hkBare && panel.hkBare()) { sheet.classList.add('bare'); el.classList.add('bare'); }
       sheet.querySelector('.body').appendChild(panel);
       if (opts.note) placeNote(h, el, sheet, panel, opts.note, wpx);
-      C.shade(sheet.querySelector('.body'), sheet);
+      D.offEdges = sheetEdges(sheet.querySelector('.body'), sheet);
       el.querySelector('.bd').addEventListener('click', function () { close(); });
       el.querySelector('.x').addEventListener('click', function (e) { e.stopPropagation(); close(); });
       if (D.back) {
@@ -2165,6 +2228,20 @@
       }
       sheet.addEventListener('pointerdown', armAuto, true);
       panel.hkSheet = { close: close, sheet: sheet };
+      // THE KEYBOARD STAYS IN THE SHEET (2026-10-16): Tab and Shift-Tab go
+      // round what the sheet holds, shadow roots and all; the sheet itself
+      // takes focus on opening (not a field: a tablet's keyboard would rise),
+      // and closing hands focus back to what opened it.
+      var prevFocus = deepActive();
+      sheet.setAttribute('tabindex', '-1');
+      el.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab') return;
+        var list = focusables(sheet);
+        if (!list.length) { e.preventDefault(); return; }
+        var cur = deepActive(), i = list.indexOf(cur);
+        if (e.shiftKey && (i <= 0)) { e.preventDefault(); list[list.length - 1].focus(); }
+        else if (!e.shiftKey && (i === -1 || i === list.length - 1)) { e.preventDefault(); list[0].focus(); }
+      });
 
       haRoot().appendChild(el);
       var d = D;
@@ -2208,14 +2285,37 @@
         else history.pushState(entry, '', location.href);
         d.pushed = true;
       } catch (e) { d.pushed = false; }
-      requestAnimationFrame(function () {
+      if (el.hasAttribute('hk-flat')) el.classList.add('open');
+      else requestAnimationFrame(function () {
         requestAnimationFrame(function () { if (D.el === el) el.classList.add('open'); });
       });
       armAuto();
       d.covers = true;
+      d.prevFocus = prevFocus;
+      try { sheet.focus({ preventScroll: true }); } catch (e) { /* ok */ }
       covering(1);
       if (window.hkIdle && window.hkIdle.hold) window.hkIdle.hold('hk-detail', true);
       return true;
+    }
+
+    // the element with focus, inside any shadow roots
+    function deepActive() {
+      var a = document.activeElement;
+      while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement;
+      return a;
+    }
+    // what Tab can reach in `root`, in order, through shadow roots
+    var FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])';
+    function focusables(root) {
+      var out = [];
+      (function walk(n) {
+        var kids = n.shadowRoot ? n.shadowRoot.children : n.children;
+        if (n.nodeType === 1 && n !== root && n.matches && n.matches(FOCUSABLE) && n.getClientRects().length &&
+            n.getAttribute('aria-disabled') !== 'true') out.push(n);
+        Array.prototype.forEach.call(kids || [], walk);
+        if (n.shadowRoot) Array.prototype.forEach.call(n.children || [], function (c) { if (c.assignedSlot) walk(c); });
+      })(root);
+      return out;
     }
 
     // silent: no history.back() -- the entry is already gone (popstate), or a
@@ -2242,13 +2342,18 @@
         return;
       }
       d.closing = true;
+      if (d.prevFocus && d.prevFocus.isConnected && d.prevFocus.focus) {
+        try { d.prevFocus.focus({ preventScroll: true }); } catch (e) { /* ok */ }
+      }
       if (d.covers) { d.covers = false; covering(-1); }
       clearTimeout(d.auto);
       if (d.off) d.off();
+      if (d.offEdges) d.offEdges();
       if (d.raf) clearTimeout(d.raf);
       d.el.classList.remove('open');
       var el = d.el;
-      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 320);
+      var remove = function () { if (el.parentNode) el.parentNode.removeChild(el); };
+      if (el.hasAttribute('hk-flat')) remove(); else setTimeout(remove, 320);
       D = { el: null };
       if (window.hkIdle && window.hkIdle.hold) window.hkIdle.hold('hk-detail', false);
       if (!silent && d.pushed && ours(d)) history.back();
@@ -2362,7 +2467,65 @@
     }, true);
 
     // ------------------------------------------------------------ panels
-    var PANEL_CSS = [
+    // Recessed controls on Flat's elevated sheet. Keep the glass CSS below
+    // intact: translucent white is its material, but disappears on Light.
+    // Scope by role and state so artwork, color swatches and live colors stay
+    // their own, and an inactive control never inherits a selected fill.
+    var FLAT_PANEL_CSS = [
+      ':host([hk-flat]) .tg:not(.on){background:' + C.v('key') + '}',
+      ':host([hk-flat]) .tg .kn{box-shadow:none;border:1px solid ' + C.v('line') + ';box-sizing:border-box}',
+      ':host([hk-flat]) .tg:not(.on) .kn{color:' + C.v('glyph') + '}',
+      ':host([hk-flat]) .vs::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 1px ' + C.v('line') + '}',
+      ':host(hk-detail-fan[hk-flat="light"]) .vs .fill,:host(hk-detail-number[hk-flat="light"]) .vs .fill{background:' + C.v('track-fill') + '}',
+      ':host(hk-detail-fan[hk-flat="light"]) .vs .gl.dark{color:var(--hk-seg-on,' + C.SELECTED_BG + ')}',
+      ':host([hk-flat="light"]) .vs.neutral-fill .gl.dark{color:var(--hk-seg-on,' + C.SELECTED_BG + ')}',
+      ':host([hk-flat]) .vs .tick{background:' + C.v('mark') + '}',
+      ':host([hk-flat]) .vs .tick.in{background:' + C.v('line') + '}',
+      ':host([hk-flat]) .btn.sel,:host([hk-flat]) .acts .pw.lit{background:var(--hk-seg-on,' + C.SELECTED_BG + ');color:' + C.SELECTED_TEXT + ';box-shadow:inset 0 0 0 1px ' + C.v('line') + '}',
+      ':host([hk-flat]) .bot:not(.live):not(.bad),:host([hk-flat]) .state:not(.open){background:' + C.v('key') + ';color:' + C.v('glyph') + '}',
+      ':host([hk-flat]) .cmds button{color:' + C.v('glyph') + '}',
+      ':host([hk-flat]) .cmds .ci{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .cmds button.sel .ci{background:var(--hk-seg-on,' + C.SELECTED_BG + ');color:' + C.SELECTED_TEXT + ';box-shadow:inset 0 0 0 1px ' + C.v('line') + '}',
+      ':host([hk-flat]) .chips span:not(.err),:host([hk-flat]) .guard button{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .chart,:host([hk-flat]) .stats,:host([hk-flat]) .trend,:host([hk-flat]) .tl,:host([hk-flat]) .en .rows{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .now{background:' + C.v('key') + '}',
+      // The wide thermostat splits its readings and run time into two cards.
+      ':host([hk-flat][wide]) .now{background:transparent}',
+      ':host([hk-flat][wide]) .now .rd,:host([hk-flat][wide]) .now .run{background:' + C.v('key') + '}',
+      // Water heaters keep their single reading card at either width.
+      ':host(hk-detail-water-heater[hk-flat][wide]) .now{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .now .run,:host([hk-flat]) .en .row + .row{border-color:' + C.v('line') + '}',
+      ':host([hk-flat]) .ap .gr{background:' + C.v('line') + '}',
+      ':host([hk-flat]) .ap .gr.b{background:' + C.v('line-strong') + '}',
+      ':host([hk-flat]) .hks .hkl{border-color:' + C.v('mark') + '}',
+      ':host([hk-flat]) .hks .hkp{background:' + C.v('overlay-solid') + '}',
+      ':host([hk-flat]) .hks .hkp .v{color:' + C.v('ink') + '}',
+      ':host([hk-flat]) .list,:host([hk-flat]) .search{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .list button{border-color:' + C.v('line') + '}',
+      ':host([hk-flat]) .search > svg{stroke:' + C.v('ink-2') + '}',
+      ':host([hk-flat]) .list button:active,:host([hk-flat]) .vp button:not(.on):active{background:' + C.v('key-strong') + '}',
+      ':host([hk-flat]) .chd .nv button,:host([hk-flat]) .vst button{background:' + C.v('key') + ';color:' + C.v('ink') + '}',
+      ':host([hk-flat]) .tp button{color:' + C.v('ink') + '}',
+      ':host([hk-flat]) .pg,:host([hk-flat]) .vol .t{background:' + C.v('line-strong') + '}',
+      ':host([hk-flat]) .pg i{background:' + C.v('track-fill') + '}',
+      ':host([hk-flat]) .gw:not(.on){background:' + C.v('key') + '}',
+      ':host([hk-flat]) .gw:not(.on) .gc{background:' + C.v('key-strong') + ';color:' + C.v('glyph') + '}',
+      ':host([hk-flat]) .tl .bar{background:' + C.v('line-strong') + '}',
+      ':host([hk-flat]) .tl .bar .q{background:' + C.v('line') + '}',
+      ':host([hk-flat]) .lk .trk{stroke:' + C.v('line-strong') + '}',
+      ':host([hk-flat="light"]) .lk .trk,:host([hk-flat="light"]) .dl .trk{stroke:' + C.v('key') + '}',
+      ':host([hk-flat]) .lk.water.shut{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .lk.water.shut .core{background:' + C.v('key-strong') + ';color:' + C.v('glyph') + '}',
+      ':host([hk-flat]) .dl .cur{fill:' + C.v('ink') + '}',
+      ':host(hk-detail-water-heater[hk-flat]) .acts:not(.mseg) button,:host([hk-flat]) .pwr button{background:' + C.v('key') + ';color:' + C.v('ink') + '}',
+      ':host(hk-detail-water-heater[hk-flat]) .acts:not(.mseg) button.sel,:host([hk-flat]) .pwr button.sel{background:var(--hk-seg-on,' + C.SELECTED_BG + ');color:' + C.SELECTED_TEXT + '}',
+      ':host(hk-detail-water-heater[hk-flat]) .sw:not(.on){background:' + C.v('key-strong') + '}',
+      ':host([hk-flat]) .vs.off .fill{background:' + C.v('key-strong') + '}',
+      ':host([hk-flat]) .mk span{color:' + C.v('ink-2') + '}',
+      ':host([hk-flat]) .vp button.on{background:var(--hk-seg-on,' + C.SELECTED_BG + ');color:' + C.SELECTED_TEXT + '}',
+      ':host([hk-flat]) .vp button:not(:first-child)::before{background:' + C.v('line') + '}'
+    ].join('');
+    var PANEL_CSS = FLAT_PANEL_CSS + [
       ':host{display:block;color:' + window.hkCards.v('ink') + ';font-family:inherit}',
       // a display rule beats the hidden attribute; this puts it back
       '[hidden]{display:none!important}',
@@ -2602,6 +2765,7 @@
     class LightPanel extends Panel {
       static get CSS() {
         return PANEL_CSS + [
+          '.vs:not(.short){height:' + SLIDER_H.full + 'px}',
           // THE COLOUR GROUP: label, circles and Effects share one left edge and
           // one width (the row of circles), centred under the slider.
           '.grp{display:flex;flex-direction:column;gap:12px;align-self:center;max-width:100%;min-width:300px}',
@@ -2637,6 +2801,7 @@
           '.ct{position:relative;height:56px;border-radius:28px;touch-action:none;cursor:pointer}',
           '.ct .knob{top:50%}',
           '.ctv{font-size:34px;font-weight:600;letter-spacing:-1px;text-align:center;font-variant-numeric:tabular-nums}',
+          '.lf{flex:0 0 auto}',
           '.list{border-radius:18px;background:rgba(255,255,255,0.06);max-height:420px;overflow-y:auto;',
           '  overscroll-behavior:contain;scrollbar-width:none}',
           '.list::-webkit-scrollbar{display:none}',
@@ -2653,6 +2818,7 @@
           '  font-size:17px;outline:none}',
           '.search input::placeholder{color:' + window.hkCards.v('ink-3') + '}',
           '@media (max-width:' + C.BP.phone + 'px){',
+          '  .vs:not(.short){height:' + SLIDER_H.phone + 'px}',
           '  .sw{gap:8px}',
           '  .grp{min-width:0}',
           '  .sw button{width:38px;height:38px;border-radius:19px}',
@@ -2735,7 +2901,9 @@
           this._slider.set(v);
           this._big.textContent = s.state === 'unavailable' ? 'Unavailable' : on ? Math.round(v * 100) + '%' : 'Off';
         }
-        this._slider.fill(lightFill(s));
+        var fill = lightFill(s);
+        this._slider.fill(fill);
+        this._slider.el.classList.toggle('neutral-fill', fill === C.v('track-fill'));
         if (this._sw) this._paintFavs(s);
         if (this._fx) {
           // "off" is HA's no-effect; some lights say "none" or "None" instead
@@ -2784,9 +2952,10 @@
               self._paintEffects(self._stateObj, true);
             });
           }
-          var box = document.createElement('div');
-          box.className = 'list';
-          sub.appendChild(box);
+          var box = document.createElement('div'), lf = document.createElement('div');
+          box.className = 'list'; lf.className = 'hk-edge lf';
+          lf.appendChild(box); sub.appendChild(lf);
+          C.edges(lf);
           this._list = box;
           this._q = '';
           this._fxSig = null;
@@ -3108,7 +3277,7 @@
           '.vs.shade .fill::before{content:"";position:absolute;left:50%;top:-3px;width:52px;height:6px;',
           '  margin-left:-26px;border-radius:3px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,0.4)}',
           '.vs.shade .gl{display:none}',
-          '.vs.shade{height:400px}',
+          '.vs.shade{height:' + SLIDER_H.full + 'px}',
           '.btns{display:flex;gap:12px;justify-content:center}',
           '.btns .btn{width:76px;padding:0}',
           '.btns.wide{align-self:stretch}',
@@ -3116,7 +3285,7 @@
           '.state{width:220px;height:220px;border-radius:110px;display:flex;align-items:center;',
           '  justify-content:center;background:rgba(255,255,255,0.10);color:rgba(255,255,255,0.85)}',
           '.state.open{background:rgba(86,189,228,0.22);color:#56bde4}',
-          '@media (max-width:' + C.BP.phone + 'px){.state{width:180px;height:180px;border-radius:90px}.vs.shade{height:330px}',
+          '@media (max-width:' + C.BP.phone + 'px){.state{width:180px;height:180px;border-radius:90px}.vs.shade{height:' + SLIDER_H.phone + 'px}',
           '  .btns .btn{width:68px}}'
         ].join('');
       }
@@ -3694,6 +3863,7 @@
           '.bk button{width:40px;height:40px;border-radius:20px;border:0;padding:0;display:flex;',
           '  align-items:center;justify-content:center;background:rgba(255,255,255,0.13);color:#fff;cursor:pointer}',
           '.bk .t{font-size:20px;font-weight:700;letter-spacing:-.3px}',
+          '.lf{flex:0 0 auto}',
           '.list{border-radius:18px;background:rgba(255,255,255,0.06);max-height:420px;overflow-y:auto;',
           '  overscroll-behavior:contain;scrollbar-width:none}',
           '.list::-webkit-scrollbar{display:none}',
@@ -3722,9 +3892,10 @@
         var self = this;
         this._tv = isTv(s);
         if (this._view === 'inputs') {
-          this._root.innerHTML = '<div class="pn"><div class="sub"><div class="bk"><button aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' + BACK + '"/></svg></button><div class="t">Input</div></div><div class="list"></div></div></div>';
+          this._root.innerHTML = '<div class="pn"><div class="sub"><div class="bk"><button aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' + BACK + '"/></svg></button><div class="t">Input</div></div><div class="hk-edge lf"><div class="list"></div></div></div></div>';
           this._root.querySelector('.bk button').addEventListener('click', function () { self._go('main'); });
           this._list = this._root.querySelector('.list');
+          C.edges(this._root);
           this._inSig = null;
           return;
         }
@@ -4607,6 +4778,8 @@
     // humidifier's modes. The current row carries the orange tick the light's
     // effects use; past 12 rows there is a search.
     var LIST_CSS = [
+      // (each list in a frame with the sheet's shadows: BASE_CSS .hk-edge)
+      '.lf{flex:0 0 auto;align-self:stretch}',
       '.list{align-self:stretch;border-radius:18px;background:rgba(255,255,255,0.06);max-height:420px;overflow-y:auto;',
       '  overscroll-behavior:contain;scrollbar-width:none}',
       '.list::-webkit-scrollbar{display:none}',
@@ -4646,7 +4819,10 @@
         host.appendChild(se);
         se.querySelector('input').addEventListener('input', function (ev) { q = ev.target.value.toLowerCase(); paint(last, true); });
       }
-      host.appendChild(box);
+      var lf = document.createElement('div');
+      lf.className = 'hk-edge lf';
+      lf.appendChild(box); host.appendChild(lf);
+      C.edges(lf);
       var last = null;
       function paint(cur, force) {
         last = cur;
@@ -4718,6 +4894,7 @@
           '.bk button{width:40px;height:40px;border-radius:20px;border:0;padding:0;display:flex;',
           '  align-items:center;justify-content:center;background:rgba(255,255,255,0.13);color:#fff;cursor:pointer}',
           '.bk .t{font-size:20px;font-weight:700;letter-spacing:-.3px}',
+          '.agf{flex:0 0 auto}',
           '.ag{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-height:360px;overflow-y:auto;',
           '  overscroll-behavior:contain;scrollbar-width:none}',
           '.ag::-webkit-scrollbar{display:none}',
@@ -4860,10 +5037,11 @@
       if (!this._built) {
         this._built = true;
         this._root.innerHTML = '<div class="pn"><div class="sub"><div class="bk"><button aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' + BACK + '"/></svg></button><div class="t">Clean Areas</div></div>' +
-          '<div class="ag">' + (this._reach || []).map(function (a) {
+          '<div class="hk-edge agf"><div class="ag">' + (this._reach || []).map(function (a) {
             return '<button class="btn" data-a="' + esc(a.id) + '" aria-pressed="false"><span>' + esc(a.name) + '</span></button>';
-          }).join('') + '</div><button class="btn go" disabled></button><div class="why"></div></div></div>';
+          }).join('') + '</div></div><button class="btn go" disabled></button><div class="why"></div></div></div>';
         this._root.querySelector('.bk button').addEventListener('click', function () { self._view = 'main'; self._built = false; self._render(); });
+        C.edges(this._root);
         this._root.querySelectorAll('.ag .btn').forEach(function (b) {
           b.addEventListener('click', function () {
             var a = b.getAttribute('data-a');
@@ -5486,7 +5664,8 @@
           '.big.al.trg{color:#ff453a}',
           // the shield the Security page's keypad shows at rest, in its colour
           '.big.al ha-icon{--mdc-icon-size:36px;width:36px;height:36px;display:flex;flex:none}',
-          'hk-alarm-keypad-card{display:block}',
+          // the Security page's keypad, unboxed, its keys a size up for the sheet
+          'hk-alarm-keypad-card{display:block;--hk-kp-key:56px}',
           // AN ALARM WITH NO CODE, AS A SHADE'S SHEET: the state's word, and
           // under it the slider's own capsule (.vs: its size, its glass) with
           // the modes spread down it -- the one it is in filled as the
@@ -5751,10 +5930,13 @@
       camera: 'hk-detail-camera',
       group: 'hk-detail-group',
       cards: 'hk-detail-cards',
-      // defined by hk-person.js and hk-calendar.js (each loads on its own;
+      // defined by hk-person.js, hk-calendar.js, hk-weather.js and hk-headers.js (each loads on its own;
       // open() says no until the element exists)
       person: 'hk-detail-person',
-      event: 'hk-detail-event'
+      event: 'hk-detail-event',
+      weather: 'hk-detail-weather',
+      automation: 'hk-detail-automation',
+      timer: 'hk-detail-timer'
     };
     function def(tag, Ctor) { if (!customElements.get(tag)) customElements.define(tag, Ctor); }
     def('hk-detail-light', LightPanel);
@@ -6144,7 +6326,7 @@
         num: num, clamp: clamp, isOn: isOn, unavailable: unavailable, throttle: throttle, glyph: glyph,
         lookOf: lookOf, lookFor: lookFor, headIcon: headIcon,
         esc: esc, CHEV: CHEV, BACK: BACK, fanSteps: fanSteps, fanLabel: fanLabel, fanGuard: fanGuard,
-        downsample: downsample, kelvinRgb: kelvinRgb, lightCaps: lightCaps, defaultFavourites: defaultFavourites,
+        downsample: downsample, kelvinRgb: kelvinRgb, lightFill: lightFill, lightCaps: lightCaps, defaultFavourites: defaultFavourites,
         favMatches: favMatches, fromDashboard: fromDashboard, sourceOf: sourceOf, colourName: colourName,
         nearWhite: nearWhite, spanTo: spanTo, trendOf: trendOf, reportsAction: reportsAction,
         accessoryPane: accessoryPane, accName: accName, accIcon: accIcon, canEdit: canEdit, glyphsFor: glyphsFor, glyphSearch: glyphSearch, arrangeOf: arrangeOf, arrangeMove: arrangeMove, money: money, ACC_CSS: ACC_CSS,

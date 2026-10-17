@@ -58,70 +58,66 @@
   // card shows as "Wrong code" for 3s (a `bad_code_entity` flag is also read
   // for a panel that fails silently).
   class HkAlarmKeypadCard extends HkBase {
+    // THE KEYPAD (2026-10-15, the page headers' Security System box): the
+    // code in a recessed field that says "Enter code", the digits in a 3 x 4
+    // grid with Clear and delete beside the 0, and the ways to arm as
+    // capsules under it -- the same on the Security page (`boxed`: in its own
+    // plate, the title and the alarm's state as a badge, and whether the
+    // entry points are closed) and in the alarm's sheet, so the two look
+    // alike and send the same thing. Keys are a key on a plate (`key`), the
+    // field a well (`well-bg`); no blur of their own (a blur surface per key
+    // is the tablets' cost).
     static get CSS() {
+      var v = window.hkCards.v, R = C.R, P = C.PALETTE.icon;
+      var key = 'background:' + v('key') + ';border:1px solid ' + v('line') + ';box-sizing:border-box;' +
+        'display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-user-select:none;' +
+        '-webkit-tap-highlight-color:transparent;color:' + v('ink') + ';transition:transform .12s ease,background .12s ease';
       return [
-        '.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:0 0 14px 0}',
-        '.k{height:62px;border-radius:22px;padding:0;' + M.glass + ';',
-        '  border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10));',
-        '  display:flex;align-items:center;justify-content:center;cursor:pointer;',
-        '  user-select:none;font-size:19.7px;letter-spacing:-0.45px;font-weight:700;',
-        '  color:' + window.hkCards.v('ink') + ';transition:transform .12s ease}',
-        '.k:active{transform:scale(0.96)}',
-        '.acts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}',
-        // THE ICON AND THE LABEL ARE CENTRED AS A PAIR, not laid out in a
-        // fixed icon column. A `grid-template-columns: 34px 1fr` with the label
-        // at justify-self:start parks the glyph hard against the left rim and
-        // leaves a third of the button empty on the right -- beside a keypad of
-        // perfectly centred digits it reads as broken rather than deliberate.
-        // One flex row, centred, is what the Home app does with a labelled control.
-        '.a{height:64px;border-radius:22px;padding:0 10px;' + M.glass + ';',
-        '  border:' + M.border + ';box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10));',
-        '  display:flex;align-items:center;justify-content:center;gap:10px;',
-        '  cursor:pointer;user-select:none;transition:transform .12s ease}',
-        '.a:active{transform:scale(0.96)}',
-        '.a ha-icon{--mdc-icon-size:20px;width:20px;height:20px;flex:0 0 auto;',
-        '  color:' + window.hkCards.v('glyph') + '}',
-        // THE THREE MODES ARE COLOURED, so each is easy to pick out.
-        // The same meaning the Security chip already uses -- armed green,
-        // disarmed red -- with Home in blue so the two ways of arming are not
-        // the same green side by side. The icon palette (hkCards.PALETTE.icon).
-        // The glyph only: the label stays white, so the key still reads as glass.
-        '.a.home ha-icon{color:' + C.PALETTE.icon.blue + '}',
-        '.a.away ha-icon{color:' + C.PALETTE.icon.green + '}',
-        '.a.off ha-icon{color:' + C.PALETTE.icon.red + '}',
-        // Clear sits IN the keypad grid, so it takes the keypad's own 62px row
-        // height rather than the 64px of the action row below; 64 would leave a
-        // 2px step against the 0 beside it.
-        '.k62{height:62px}',
-        '.k62 ha-icon{--mdc-icon-size:24px;width:24px;height:24px}',
-        // The 0 spans two columns because THERE IS NO ENTER: it would call
-        // alarm_disarm with the typed code -- byte for byte what the Disarm
-        // button one row below does -- so the keypad would offer the same action
-        // twice under two names, one of which does not say what it does.
-        // Widening a key keeps the row full; the alternative leaves a hole.
-        // The 0 is the one that widens, so the middle column stays a digit.
-        '.k2{grid-column:span 2}',
-        '.a span{font-size:14px;letter-spacing:-0.15px;font-weight:600;',
-        '  color:' + window.hkCards.v('ink') + '}',
-        // The readout, and the only place the keypad talks back.
-        '.read{height:58px;border-radius:20px;padding:8px 16px;margin:0 0 14px 0;',
-        '  ' + M.glass + ';border:' + M.border + ';box-shadow:none;',
-        '  display:flex;align-items:center;justify-content:center}',
-        '.read .code{font-weight:700;color:' + window.hkCards.v('ink') + ';',
-        '  font-size:30px;letter-spacing:8px}',
-        '.read[data-bad="1"]{border:1px solid rgba(255,69,58,0.55)}',
-        '.read[data-bad="1"] .code{font-size:19px;letter-spacing:0.2px;',
-        '  color:rgba(255,69,58,0.95)}',
-        // THE STATUS, AT REST: what the alarm is doing, in place of the
-        // dash -- see _status. Typing or a wrong code puts the code line back.
+        ':host{display:block}',
+        // boxed: the page card's plate, padding and corner
+        'ha-card.kp{box-sizing:border-box;display:flex;flex-direction:column;height:100%;padding:' + C.CARD.pad + ';margin:0;' +
+          C.plate('card') + ';color:' + v('ink') + '}',
+        '.hd{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:28px;margin-bottom:12px}',
+        // the title follows the box's width -- 17 in the tablet's 360 box,
+        // about 15 in an iPad's narrower one -- so it and the badge both fit
+        'ha-card.kp{container-type:inline-size}',
+        '.hd b{font-size:min(17px,5.5cqw);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '.badge{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;box-sizing:border-box;border-radius:' + R.capsule('28px') + ';',
+        '  background:' + v('key') + ';border:1px solid ' + v('line') + ';font-size:13px;font-weight:500;color:' + v('ink-2') + ';white-space:nowrap;cursor:pointer}',
+        '.badge ha-icon{--mdc-icon-size:15px;width:15px;height:15px;display:flex}',
+        // the field: recessed, "Enter code" until typed, dots while typing
+        '.read{height:var(--hk-kp-key,48px);border-radius:' + R.inner + 'px;margin:0 0 10px;box-sizing:border-box;',
+        '  background:' + v('well-bg') + ';border:1px solid ' + v('line') + ';display:flex;align-items:center;justify-content:center}',
+        '.read .code{font-size:22px;font-weight:700;letter-spacing:8px;color:' + v('ink') + '}',
+        '.read .code.ph{font-size:15px;font-weight:500;letter-spacing:0;color:' + v('ink-3') + '}',
+        '.read[data-bad="1"]{border-color:rgba(255,69,58,0.55)}',
+        '.read[data-bad="1"] .code{font-size:15px;letter-spacing:0;font-weight:600;color:' + v('fail') + '}',
+        // the status in the field, unboxed and at rest (a keypad on its own:
+        // nothing else says what the alarm is doing)
         '.read .st{display:none;align-items:center;gap:10px;min-width:0}',
         '.read[data-mode="status"] .st{display:flex}',
         '.read[data-mode="status"] .code{display:none}',
-        '.read .st ha-icon{--mdc-icon-size:26px;width:26px;height:26px;flex:none;display:flex}',
-        '.read .st span{font-size:20px;font-weight:700;letter-spacing:-0.3px;',
-        '  color:' + window.hkCards.v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-        '@media (prefers-reduced-motion: reduce){',
-        '  .k,.k:active,.a,.a:active{transition:none;transform:none}}'
+        '.read .st ha-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex}',
+        '.read .st span{font-size:17px;font-weight:600;color:' + v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '.pad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}',
+        '.k{height:var(--hk-kp-key,48px);border-radius:' + R.inner + 'px;font-size:19.7px;font-weight:700;letter-spacing:-0.45px;' + key + '}',
+        '.k.sm{font-size:15px;font-weight:500;letter-spacing:0;color:' + v('ink-2') + '}',
+        '.k ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex;color:' + v('ink-2') + '}',
+        '.k:active,.a:active{transform:scale(0.97);background:' + v('key-strong') + '}',
+        '.acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}',
+        '.a{height:44px;border-radius:' + R.capsule('44px') + ';padding:0 6px;gap:6px;font-size:13px;font-weight:600;' + key + '}',
+        '.a ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex;color:' + v('ink-2') + '}',
+        '.a span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        // the mode the alarm is in: its button lit in the mode's own color
+        '.a.cur{background:color-mix(in srgb,var(--c) 20%,transparent);border-color:color-mix(in srgb,var(--c) 50%,transparent)}',
+        '.a.cur ha-icon{color:var(--c)}',
+        '.a.home{--c:' + P.blue + '}.a.away{--c:' + P.green + '}.a.off{--c:' + P.red + '}',
+        // a panel with no code: taller buttons, the only thing to press
+        '.tap .a{height:var(--hk-kp-key,48px);border-radius:' + R.capsule('48px') + ';font-size:15px}',
+        '.foot{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:auto;padding-top:12px;font-size:11px;font-weight:600;color:' + v('ink-2') + '}',
+        '.foot ha-icon{--mdc-icon-size:13px;width:13px;height:13px;display:flex;color:' + P.green + '}',
+        '.foot.open ha-icon{color:' + v('warn') + '}',
+        '@media (prefers-reduced-motion: reduce){.k,.k:active,.a,.a:active{transition:none;transform:none}}'
       ].join('');
     }
     _onConfig() { this._code = ''; this._msg = ''; this._built = false; }
@@ -224,8 +220,10 @@
     _sigOf() {
       var h = this._hass, c = this._config;
       if (!h || !c) return null;
-      // the panel as _panel() finds it: the status in the readout reads it
-      var ids = [c.entity || setting('security.alarm'), c.bad_code_entity || setting('features.alarm_bad_code')];
+      // the panel as _panel() finds it: the status in the readout reads it;
+      // boxed, the entry points its footer counts too
+      var ids = [c.entity || setting('security.alarm'), c.bad_code_entity || setting('features.alarm_bad_code')]
+        .concat(c.boxed && Array.isArray(c.entries) ? c.entries : []);
       return ids.map(function (id) {
         var s = id && h.states[id];
         return id + '=' + (s ? s.last_updated : 'x');
@@ -234,25 +232,28 @@
 
     _paint() {
       var read = this._root.querySelector('.read');
-      if (!read) { return; }
       // the panel became one with a code, or without one: drawn again
       if (this._built && this._config && this._hass) {
         var ps = this._st(this._panel());
         var shape = (HkAlarmKeypadCard.codeless(ps) ? 'tap:' : 'pad:') + HkAlarmKeypadCard.modes(ps).join(',');
         if (this._shape && shape !== this._shape) { this._built = false; this._render(); return; }
       }
+      this._paintBox();
+      if (!read) { return; }
       var bad = this._st(this._badCode());
       var isBad = !!this._msg || (bad && bad.state === 'on');
       read.setAttribute('data-bad', isBad ? '1' : '0');
-      var rest = !isBad && !this._code && this._config.status !== false;
+      // at rest, a keypad on its own says what the alarm is doing; boxed,
+      // the badge says it, and the field asks for the code
+      var rest = !isBad && !this._code && this._config.status !== false && !this._config.boxed;
       read.setAttribute('data-mode', rest ? 'status' : 'code');
-      // no code and no status to say (the alarm sheet says it above): the
-      // readout only for "Alarm not responding"
+      // no code and no status to say: the field only for "Alarm not responding"
       if (read.style) read.style.display = this._codeless && !rest && !isBad ? 'none' : '';
       var span = read.querySelector('.code');
+      var ph = !isBad && !this._code;
       span.textContent = isBad ? (this._msg || 'Wrong code')
-                       : (this._code ? new Array(this._code.length + 1).join('\u2022')
-                                     : '\u2014');
+                       : (this._code ? new Array(this._code.length + 1).join('•') : 'Enter code');
+      if (span.classList) span.classList.toggle('ph', ph);
       if (!rest) return;
       var s = HkAlarmKeypadCard.status(this._st(this._panel()));
       var icon = read.querySelector('.st ha-icon'), word = read.querySelector('.st span');
@@ -262,14 +263,48 @@
       read.setAttribute('aria-label', 'Alarm: ' + s.word);
     }
 
+    // BOXED: the state badge, the lit mode and the entry points' line
+    _paintBox() {
+      if (!this._root.querySelectorAll) return;
+      var ps = this._st(this._panel()), st = ps && ps.state;
+      var cur = { armed_home: 'home', armed_night: 'home', armed_away: 'away', armed_vacation: 'away',
+                  armed_custom_bypass: 'away', disarmed: 'off' }[st];
+      this._root.querySelectorAll('.a').forEach(function (a) {
+        a.classList.toggle('cur', !!cur && a.classList.contains(cur) && !a.classList.contains('k62'));
+      });
+      var badge = this._root.querySelector('.badge');
+      if (badge) {
+        var s = HkAlarmKeypadCard.status(ps);
+        var bi = badge.querySelector('ha-icon');
+        if (bi.getAttribute('icon') !== s.icon) bi.setAttribute('icon', s.icon);
+        bi.style.color = s.color;
+        badge.querySelector('span').textContent = s.word;
+      }
+      var foot = this._root.querySelector('.foot');
+      if (foot) {
+        var h = this._hass, open = (this._config.entries || []).filter(function (id) {
+          var x = h && h.states[id];
+          return x && /^(on|open|opening)$/.test(x.state);
+        });
+        foot.classList.toggle('open', open.length > 0);
+        var fi = foot.querySelector('ha-icon');
+        fi.setAttribute('icon', open.length ? 'hk:alert-circle' : 'hk:check-bold');
+        var name = function (id) { var x = h.states[id]; return (x && x.attributes.friendly_name) || id; };
+        foot.querySelector('span').textContent = !open.length ? 'All entry points closed'
+          : open.slice(0, 2).map(name).join(', ') + (open.length > 2 ? ' and ' + (open.length - 2) + ' more' : '') +
+            (open.length === 1 ? ' is open' : ' are open');
+      }
+    }
+
     _key(cls, label, fn, icon) {
       var d = document.createElement('div');
       d.className = cls;
       C.button(d, fn);
       if (icon) {
         var i = document.createElement('ha-icon'); i.setAttribute('icon', icon);
-        var s = document.createElement('span'); s.textContent = label;
-        d.appendChild(i); d.appendChild(s);
+        d.appendChild(i);
+        if (label) { var s = document.createElement('span'); s.textContent = label; d.appendChild(s); }
+        else d.setAttribute('aria-label', 'Delete');
       } else {
         d.textContent = label;
       }
@@ -286,8 +321,24 @@
       if (this._built && this._shape === shape) { this._paint(); return; }
       this._shape = shape;
       this._codeless = codeless;
-      var self = this;
+      var self = this, c = this._config;
       this._root.innerHTML = '';
+      // BOXED: in its own plate, with its title and the state's badge
+      var host = this._root;
+      if (c.boxed) {
+        host = document.createElement('ha-card');
+        host.className = 'kp';
+        host.setAttribute('data-hk-role', 'card');
+        var hd = document.createElement('div');
+        hd.className = 'hd';
+        hd.innerHTML = '<b></b><span class="badge" role="button" tabindex="0"><ha-icon></ha-icon><span></span></span>';
+        hd.querySelector('b').textContent = c.title || 'Security System';
+        hd.querySelector('.badge').addEventListener('click', function () {
+          self.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: self._panel() } }));
+        });
+        host.appendChild(hd);
+        this._root.appendChild(host);
+      }
 
       var read = document.createElement('div');
       read.className = 'read';
@@ -297,52 +348,58 @@
       st.appendChild(document.createElement('ha-icon'));
       st.appendChild(document.createElement('span'));
       read.appendChild(code); read.appendChild(st);
-      this._root.appendChild(read);
+      host.appendChild(read);
 
       var WORDS = { home: ['Home', 'hk:shield-home', 'home'], away: ['Away', 'hk:shield-lock', 'away'],
                     night: ['Night', 'hk:weather-night', 'home'], vacation: ['Vacation', 'hk:bag-suitcase', 'away'],
                     custom_bypass: ['Custom', 'hk:shield-lock', 'away'] };
+      var foot = function () {
+        if (!c.boxed || !Array.isArray(c.entries) || !c.entries.length) return;
+        var f = document.createElement('div');
+        f.className = 'foot';
+        f.innerHTML = '<ha-icon></ha-icon><span></span>';
+        host.appendChild(f);
+      };
       if (codeless) {
         // NO CODE: a button for each mode it can be armed in, and Disarm --
         // three to a row, like the keypad's own row of actions
-        var tap = document.createElement('div'); tap.className = 'acts';
+        var tap = document.createElement('div'); tap.className = 'acts tap';
         // an even grid: two or four in pairs, three or five three to a row
         var n = modes.length + 1;
-        tap.style.gridTemplateColumns = 'repeat(' + (n === 2 || n === 4 ? 2 : Math.min(3, n)) + ',1fr)';
+        tap.style.gridTemplateColumns = 'repeat(' + (n === 2 || n === 4 ? 2 : Math.min(3, n)) + ',minmax(0,1fr))';
         modes.forEach(function (m) {
           var w = WORDS[m];
           tap.appendChild(self._key('a ' + w[2], w[0], function () { self._alarm('alarm_arm_' + m); }, w[1]));
         });
         tap.appendChild(self._key('a off', 'Disarm', function () { self._alarm('alarm_disarm'); }, 'hk:shield-off'));
-        this._root.appendChild(tap);
+        host.appendChild(tap);
+        foot();
         this._built = true;
         this._paint();
         return;
       }
 
+      // 1-9, then Clear, 0 and delete: the 0 in the middle column, where a
+      // hand goes for it without looking; Clear (all) and delete (one) at
+      // its sides. THERE IS NO ENTER: it would be the Disarm button below.
       var pad = document.createElement('div'); pad.className = 'pad';
       ['1','2','3','4','5','6','7','8','9'].forEach(function (d) {
         pad.appendChild(self._key('k', d, function () { self._press(d); }));
       });
-      // 0 FIRST AND SPANNING, Clear on the right. The 0 takes two columns, so
-      // the middle column -- where a hand goes for it without looking -- is
-      // still 0. A wide Clear on the left would put a destructive key under the
-      // spot muscle memory reaches for a digit, which is the wrong way round:
-      // it is the one key here you cannot take back by pressing it again.
-      //
-      // Clear stays icon+label rather than a bare digit: it does a different
-      // KIND of thing from the numbers above it, and the label says so.
-      pad.appendChild(self._key('k k2', '0', function () { self._press('0'); }));
-      pad.appendChild(self._key('a k62', 'Clear', function () { self._clear(); },
+      pad.appendChild(self._key('k sm', 'Clear', function () { self._clear(); }));
+      pad.appendChild(self._key('k', '0', function () { self._press('0'); }));
+      pad.appendChild(self._key('k sm', '', function () { self._code = self._code.slice(0, -1); self._paint(); },
                                 'hk:backspace-outline'));
-      this._root.appendChild(pad);
+      host.appendChild(pad);
 
       var acts = document.createElement('div'); acts.className = 'acts';
       // (Home and Away, those it can do: a panel with no Home has no Home key)
       if (modes.indexOf('home') >= 0) acts.appendChild(self._key('a home', 'Home', function () { self._alarm('alarm_arm_home'); }, 'hk:shield-home'));
       if (modes.indexOf('away') >= 0) acts.appendChild(self._key('a away', 'Away', function () { self._alarm('alarm_arm_away'); }, 'hk:shield-lock'));
       acts.appendChild(self._key('a off', 'Disarm', function () { self._alarm('alarm_disarm'); }, 'hk:shield-off'));
-      this._root.appendChild(acts);
+      acts.style.gridTemplateColumns = 'repeat(' + acts.children.length + ',minmax(0,1fr))';
+      host.appendChild(acts);
+      foot();
 
       this._built = true;
       this._paint();
@@ -368,7 +425,9 @@
       selector: { entity: { filter: { domain: 'alarm_control_panel' } } } },
     // Set by the automation that rejects a code, so the keypad can shake.
     { name: 'bad_code_entity',
-      selector: { entity: { filter: { domain: 'input_boolean' } } } }
+      selector: { entity: { filter: { domain: 'input_boolean' } } } },
+    // In its own plate, with a title and the alarm's state (the Security page)
+    { name: 'boxed', selector: { boolean: {} } }
   ], function (hass) {
     return setting('security.alarm') ? {} : { entity: firstOfDomain(hass, 'alarm_control_panel') };
   });

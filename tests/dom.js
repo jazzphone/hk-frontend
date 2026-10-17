@@ -40,6 +40,7 @@ El.prototype.append = function () {
 El.prototype.setAttribute = function (k, v) { this.attrs[k] = String(v); };
 El.prototype.getAttribute = function (k) { return this.attrs[k]; };
 El.prototype.addEventListener = function (t, f) { (this._listeners[t] = this._listeners[t] || []).push(f); };
+El.prototype.removeEventListener = function (t, f) { this._listeners[t] = (this._listeners[t] || []).filter(function (listener) { return listener !== f; }); };
 El.prototype.click = function () { (this._listeners.click || []).forEach(function (f) { f({}); }); };
 Object.defineProperty(El.prototype, 'textContent', {
   get: function () { return this._text; }, set: function (v) { this._text = String(v); }
@@ -110,6 +111,7 @@ HTMLElement.prototype.toggleAttribute = function (k, force) {
   return on;
 };
 HTMLElement.prototype.addEventListener = El.prototype.addEventListener;
+HTMLElement.prototype.removeEventListener = El.prototype.removeEventListener;
 // getAttribute returns NULL here, not undefined, and that difference is the
 // whole reason this is spelled out instead of borrowed from El: browsers
 // return null for a missing attribute, and a shim that returns undefined lets

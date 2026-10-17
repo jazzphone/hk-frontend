@@ -163,8 +163,8 @@
     // margin. 2vw is the window's, and with the menu docked at 1,010 px the
     // chips would bleed 4 px past the screen edge and the page scroll sideways.
     '  :host(.hk-bleed){',
-    '    --hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));',
-    '    --hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));',
+    '    --hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px) - var(--hk-page-right,0px)) * var(--hk-side,0.02) + 4px)));',
+    '    --hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px) - var(--hk-page-right,0px)) * var(--hk-side,0.02) + 4px)));',
     '    margin-left:calc(-1 * var(--hk-bleed-lc)) !important;',
     '    margin-right:calc(-1 * var(--hk-bleed-rc)) !important}',
     '  .row{',
@@ -249,6 +249,10 @@
       // the light look (hk-base.js place / tone)
       if (window.hkCards && window.hkCards.place) window.hkCards.place(this);
       if (window.hkCards && window.hkCards.tone) window.hkCards.tone(this, this._hass);
+      if (window.hkCards && window.hkCards.flatSurface) {
+        window.hkCards.flatSurface(this, 'row');
+        if (!this._flatStyle) { this._flatStyle = document.createElement('style'); this._flatStyle.textContent = window.hkCards.flatCss(); this._root.appendChild(this._flatStyle); }
+      }
       this._wireDrag();
     }
 

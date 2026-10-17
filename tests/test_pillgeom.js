@@ -44,8 +44,8 @@ FILES.forEach(function (f) {
 // ...and the CSS file: its pill and gap are variables (comments aside)
 var css = code(readFile(root + '/frontend/css/hk-responsive.css')).join('\n');
 check('hk-responsive.css: no 192 / 82 literal', !/\b192px\b|\b82px\b/.test(css));
-check('hk-responsive.css: the rails and the locks\' column read --hk-gap',
-      (css.match(/var\(--hk-gap\)/g) || []).length >= 5);
+check('hk-responsive.css: the rails read --hk-gap',
+      (css.match(/var\(--hk-gap\)/g) || []).length >= 2);
 
 // the table itself
 var base = readFile(root + '/frontend/cards/hk-base.js');

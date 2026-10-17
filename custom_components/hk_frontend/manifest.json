@@ -2,6 +2,7 @@
   "domain": "hk_frontend",
   "name": "HK Frontend",
   "after_dependencies": [
+    "automation",
     "camera",
     "energy",
     "go2rtc",

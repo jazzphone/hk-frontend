@@ -197,3 +197,20 @@ notify:
       selector:
         text:
           multiple: true
+pause_automation:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: automation
+    until:
+      selector:
+        datetime:
+resume_automation:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          domain: automation

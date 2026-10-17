@@ -342,6 +342,10 @@
   }
 
   class HkStatBase extends HkBase {
+
+    // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+
+    static get FLAT_MOTION() { return true; }
     static get CSS() { return CSS; }
     getCardSize() { return 1; }
   }

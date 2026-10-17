@@ -44,7 +44,7 @@ The **gear** on the Clean Areas item:
 | Vacuums | every vacuum | Which vacuums take part. |
 | Areas | automatic | Which areas the picker offers. Empty: every area a vacuum that takes part can reach (by its room map, or its own area for one that only starts). |
 
-**HK Settings → Features → Clean Areas** has the same two settings, with more
+**HK Settings → Pages → Vacuums** has the same two settings, with more
 detail:
 
 - **Vacuums**: each one, with what it does with a chosen room (“Cleans 4

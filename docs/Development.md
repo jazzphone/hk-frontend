@@ -23,7 +23,7 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ resources.py         adds the card files as Lovelace resources (storage mode)
 ├─ setup_check.py       Setup Check, and the Repairs issues
 ├─ themes.py            adds the HK Kiosk themes to the frontend's, and again after a reload
-├─ thirdparty.py        whether the radar card, and (for a screen that chooses one) WallPanel or Kiosk Mode, are ready
+├─ thirdparty.py        whether optional third-party cards, WallPanel or Kiosk Mode are ready (Weather uses native radar)
 ├─ art.py               album artwork fetched and served by Home Assistant
 ├─ talk.py, talk_live.py  hold-to-talk on a camera sheet
 ├─ switch.py, entity.py the Seasonal decorations switch

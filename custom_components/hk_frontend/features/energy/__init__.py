@@ -202,4 +202,4 @@ class ReconfigureSteps:
         return self.async_show_form(
             step_id="energy_options", data_schema=self.add_suggested_values_to_schema(
                 _schema(), {CONF_FOLLOW: opts.get(CONF_FOLLOW, True)}),
-            description_placeholders={"url": "/hk-settings#/features/energy"})
+            description_placeholders={"url": "/hk-settings#/page/energy"})

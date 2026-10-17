@@ -308,7 +308,7 @@
       var mn = 0;
       for (var r = 0; r < rooms.length; r++) {
         var rs = card._st(rooms[r].entity);
-        if (rs && mw.indexOf(rs.state) >= 0) mn++;
+        if (rs && mw.indexOf(rs.state) >= 0 && !window.hkMusic.ignored(rs)) mn++;
       }
       return mn;
     }
@@ -589,7 +589,7 @@
   // The page each opens: the first of these the dashboard has. None of them:
   // the chip reports and opens nothing.
   var KIND_PAGES = { weather_alert: ['weather'], security: ['security', 'alarm'],
-                     doors_windows: ['doors-windows', 'doors'], climate: ['climate'], lights: ['lights'],
+                     doors_windows: ['doors-windows', 'doors', 'security'], climate: ['climate'], lights: ['lights'],
                      blinds: ['blinds', 'shades', 'climate'], timers: ['timers'], vacuums: ['vacuums'],
                      speakers: ['playmusic', 'speakers'], water: ['water', 'leaks'], energy: ['energy'] };
   var ARMED = ['armed_away', 'armed_home', 'armed_night', 'armed_vacation', 'armed_custom_bypass'];
@@ -957,6 +957,9 @@
       e.icon.style.color = ruleCol
         ? colourFor({ icon_color: ruleCol }, st, val)
         : colourFor(cfg, st, val);
+      // Flat's Light: a chip's glyph keeps its own bright color (the
+      // user, 2026-10-17 -- a chip says how things are, on or off)
+      if (window.hkCards.flatColor) e.icon.style.color = window.hkCards.flatColor(e.icon.style.color, 'on');
       e.icon.classList.toggle('spin', cfg.animation === 'spin');
       if (this._hass) { e.icon.hass = this._hass; e.icon.stateObj = st; }
       // SAME FIRST-MATCH BRANCH AS THE LABEL, because Security's icon is a
@@ -1230,7 +1233,7 @@
     cameras: ['Cameras', 'hk:camera', 'white', ['cameras']],
     live_tv: ['Live TV', 'hk:television', 'white', ['live-tv']],
     security: ['Security', 'hk:shield-lock', 'white', ['security', 'alarm']],
-    doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white', ['doors-windows', 'doors']],
+    doors_windows: ['Doors & Windows', 'hk:door-closed-lock', 'white', ['doors-windows', 'doors', 'security']],
     climate: ['Climate', 'hk:thermostat', 'white', ['climate']],
     lights: ['Lights', 'hk:lightbulb', 'white', ['lights']],
     timers: ['Timers', 'hk:timer-sand', 'white', ['timers']],

@@ -221,3 +221,15 @@ def test_a_name_from_an_integration_is_text_never_markdown():
     links = re.findall(r"(?<!\\)\[([^\]]+)\]\(([^)\s]+)\)", line)
     assert links == [("Assign them", "/config/devices/dashboard")], links
     assert S._plain("Emma’s *Lamp* (2)") == r"Emma’s \*Lamp\* \(2\)"
+
+
+async def test_the_adaptive_lighting_line(hass):
+    """Optional: found, not installed, or the Lights page told not to follow."""
+    from custom_components.hk_frontend import setup_check as SC
+    line = SC.adaptive_lighting_line(hass, {})
+    assert line.ok is None and "Not installed" in line.detail
+    hass.states.async_set("switch.adaptive_lighting_default", "on", {"color_temp_kelvin": 3000})
+    assert SC.adaptive_lighting_line(hass, {}).ok is True
+    from custom_components.hk_frontend.settings import CONF_DASHBOARD
+    off = SC.adaptive_lighting_line(hass, {CONF_DASHBOARD: {"headers": {"lights": {"sky_follow": False}}}})
+    assert off.ok is None and "doesn’t follow" in off.detail

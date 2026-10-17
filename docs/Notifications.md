@@ -9,7 +9,7 @@ person. A camera’s snapshot, taken the moment it happened, can come with it.
 
 Add it with **Add feature → Notifications** ([Features](Features.md)). There
 is nothing to answer; everything is on its HK Settings page,
-**Features → Notifications**: **Categories** at the top, then **One
+**All Screens → Notifications**: **Categories** at the top, then **One
 Accessory** (your own notifications and **Add Notification**), **Where They
 Show** and **Banner**.
 
@@ -18,8 +18,8 @@ any dashboard of your own added under **Screens → Add Screen → Existing
 Dashboards**. A dashboard that isn't added never shows them (nor do Home
 Assistant's own pages, such as Settings).
 
-![Features → Notifications in HK Settings: Categories, One Accessory, Where They Show and Banner](images/settings-notifications.png)
-*Features → Notifications in HK Settings.*
+![All Screens → Notifications in HK Settings: Categories, One Accessory, Where They Show and Banner](images/settings-notifications.png)
+*All Screens → Notifications in HK Settings.*
 
 ## Categories
 
@@ -180,7 +180,7 @@ dashboard is open.
 
 ## Where they show
 
-On **Features → Notifications → Where They Show**:
+On **All Screens → Notifications → Where They Show**:
 
 | Setting | Default | What it does |
 |---|---|---|

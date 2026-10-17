@@ -23,7 +23,7 @@ Optional, for the features that use them:
 | [Live TV](Live-TV.md) | An HDHomeRun tuner, and ffmpeg on the Home Assistant host (Home Assistant OS and Container already include it) |
 | [Clean Areas](Clean-Areas.md) | Vacuums with room maps in Home Assistant |
 | [Wall tablets](Wall-Tablets.md) | [Fully Kiosk Browser](https://www.fully-kiosk.com) on the tablets (the photo screensaver and hiding Home Assistant’s header are built in) |
-| A radar map on the Weather page | [Weather Radar Card](https://github.com/Makin-Things/weather-radar-card) from HACS |
+| A radar map on the Weather page | Internet access; enable HK’s built-in radar in **HK Settings → Pages → Weather → Radar Map** (no HACS radar card or API key needed) |
 
 ## Install with HACS
 

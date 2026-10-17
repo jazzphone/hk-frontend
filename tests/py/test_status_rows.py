@@ -9,7 +9,8 @@ import pytest
 def test_each_page_shows_its_defaults_in_order():
     from custom_components.hk_frontend import settings as S
     rows = S.merged({})["status_rows"]
-    assert set(rows) == {"climate", "lights", "doors_windows", "water", "security"}
+    assert set(rows) == {"climate", "lights", "doors_windows", "water", "security", "vacuums", "timers"}
+    assert rows["vacuums"]["status"] == ["vacuums", "vacuum_battery"] and rows["timers"]["status"] == ["timers"]
     assert rows["security"] == {"status": ["security", "locks", "garage", "doors", "windows", "leaks"],
                                 "exclude_areas": []}
     assert rows["lights"]["status"] == ["lights", "outlets"]
@@ -17,7 +18,11 @@ def test_each_page_shows_its_defaults_in_order():
     for kinds, default in S.STATUS_ROWS.values():
         assert set(default) <= set(kinds)
     # and a room's row may show everything a page's can, in the Home app's order
-    assert {k for kinds, _ in S.STATUS_ROWS.values() for k in kinds} <= set(S.STATUS_KINDS)
+    # -- but the Vacuums and Timers pages' own (a room's row never counts its
+    # vacuum or the house's timers)
+    utility = {"vacuums", "vacuum_battery", "timers"}
+    assert {k for kinds, _ in S.STATUS_ROWS.values() for k in kinds} - utility <= set(S.STATUS_KINDS)
+    assert not utility & set(S.STATUS_KINDS)
     assert S.merged({})["rooms"]["status"] == list(S.STATUS_KINDS)
 
 
@@ -82,6 +87,6 @@ async def test_an_entry_from_1_9_gets_its_status_rows(hass, base, saved):
     old.add_to_hass(hass)
     assert await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
-    assert old.minor_version == 15
+    assert old.minor_version == 16
     rows = S.merged(old.options)["status_rows"]
     assert rows["climate"]["status"] == (["humidity"] if saved else ["temperature", "humidity", "blinds", "fans"])

@@ -26,6 +26,17 @@ ok('window.hkDetail exists with open/close/kindOf', !!D && typeof D.open === 'fu
 ok('the light, toggle and fan panels are defined', !!customElements.get('hk-detail-light') && !!customElements.get('hk-detail-toggle') &&
    !!customElements.get('hk-detail-fan'));
 
+(function () {
+  var settings0=window.hkSettings;
+  try {
+    window.hkSettings={rendering:function(){return {flat:true,theme:'light'}}};
+    ok('Flat Light brightness uses a contrasting neutral fill',_.lightFill({attributes:{}})===window.hkCards.v('track-fill')&&_.lightFill({attributes:{rgb_color:[255,255,255]}})===window.hkCards.v('track-fill'));
+    ok('colored light keeps its hue in Flat',_.lightFill({attributes:{rgb_color:[255,0,0]}})==='rgb(255,0,0)');
+    window.hkSettings={rendering:function(){return {flat:false,theme:'dark'}}};
+    ok('glass retains its existing white fill',_.lightFill({attributes:{}})==='rgba(255,255,255,0.95)');
+  } finally {window.hkSettings=settings0;}
+})();
+
 print('\n=== which sheet ===');
 var H = house({
   'light.dim': ['on', { supported_color_modes: ['brightness'], brightness: 128 }],
@@ -46,7 +57,7 @@ var H = house({
   'sensor.temp': ['71.4', { unit_of_measurement: '°F' }], 'sensor.mode': ['eco', {}],
   'binary_sensor.door': ['off', { device_class: 'door' }], 'vacuum.down': ['docked', {}],
   'water_heater.wh': ['eco', {}], 'alarm_control_panel.a': ['disarmed', {}],
-  'weather.home': ['sunny', {}], 'person.alex': ['home', {}], 'calendar.family': ['off', {}],
+  'weather.home': ['sunny', {}], 'person.alex': ['home', {}], 'calendar.family': ['off', {}], 'automation.porch': ['on', {}],
   'button.pc_wake_on_lan': ['unknown', {}], 'input_button.nap': ['2026-10-01T21:14:00+00:00', {}]
 });
 var want = {
@@ -57,7 +68,8 @@ var want = {
   'media_player.tv': 'media', 'sensor.temp': 'sensor', 'sensor.mode': 'state', 'binary_sensor.door': 'binary',
   'vacuum.down': 'vacuum', 'water_heater.wh': 'water_heater', 'alarm_control_panel.a': 'alarm',
   // a person: where they are (hk-person.js); a calendar: its event (hk-calendar.js)
-  'weather.home': null, 'person.alex': 'person', 'calendar.family': 'event', 'light.missing': null,
+  // the weather: HK's own sheet (hk-weather.js)
+  'weather.home': 'weather', 'automation.porch': 'automation', 'person.alex': 'person', 'calendar.family': 'event', 'light.missing': null,
   'button.pc_wake_on_lan': 'button', 'input_button.nap': 'button'
 };
 var wrong = [];
@@ -221,6 +233,9 @@ ok('ticks are round steps of 1, 2, 5 or 10 -- never 2.5', JSON.stringify(_.niceT
    JSON.stringify(_.niceTicks(0, 4.02, 4)) === '[0,2,4,6]' && JSON.stringify(_.niceTicks(1, 1, 4)) === '[0,1,2]');
 ok('tick labels carry the unit\'s mark and shorten thousands', _.tickText(75, '°F') === '75°' && _.tickText(45, '%') === '45%' &&
    _.tickText(1500, 'W') === '1.5k' && _.tickText(2.5, 'kWh') === '2.5');
+ok('small-power and fine-temperature ticks stay distinct',
+   _.tickText(0.015, 'kW', 0.005) === '0.015' && _.tickText(0.02, 'kW', 0.005) === '0.02' &&
+   _.tickText(72.2, '°F', 0.2) === '72.2°' && _.tickText(1050, 'W', 50) === '1.05k');
 ok('times along a day end at Now, along a week at Today', (function () {
   var d = _.timeTicks(86400000, 5), w = _.timeTicks(7 * 86400000, 5);
   return d.length === 5 && d[4].t === 'Now' && d[0].f === 0 && d[4].f === 1 && w[4].t === 'Today';
@@ -353,6 +368,11 @@ print('\n=== the chart readout ===');
     return m && JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
   };
   var now = Date.now(), HR = 3600000;
+  var smallPower = _.axesChart({ pts: [{ t: now - HR, v: 0.012 }, { t: now, v: 0.023 }], H: 200, unit: 'kW', ms: HR });
+  var smallLabels = [], tickRe = /<span style="top:[^"]*">([^<]*)<\/span>/g, tick;
+  while ((tick = tickRe.exec(smallPower))) smallLabels.push(tick[1]);
+  ok('a small-kW chart labels each gridline correctly and sizes its label column',
+    JSON.stringify(smallLabels) === '["0.01","0.015","0.02","0.025"]' && /class="sz">0\.015<\/b>/.test(smallPower), smallLabels);
   var line = _.axesChart({ pts: [{ t: now - 2 * HR, v: 180 }, { t: now - HR, v: NaN }, { t: now - HR / 2, v: 450 }, { t: now, v: 355 }],
                            H: 200, unit: 'W', ms: 24 * HR, n: 5 });
   var dl = hks(line);

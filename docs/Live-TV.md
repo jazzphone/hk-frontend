@@ -60,7 +60,7 @@ The **gear** on the Live TV item adds or removes channels, changes the
 picture quality, and sets or clears the guide address. The tuner must be
 reachable to open it.
 
-**HK Settings → Features → Live TV** has the same settings, plus two that
+**HK Settings → Pages → Live TV** has the same settings, plus two that
 the gear does not:
 
 | Setting | Default | What it does |

@@ -895,7 +895,110 @@
   // away there, and every alignment in this frontend is achieved by matching
   // nesting depth against it. It is reproduced verbatim; do not "clean it
   // up".
+  // Full navigation stays available when a menu folds away. A nested music
+  // browser owns Back within its library, so it retains that control.
+  function pageHeaderMode(choice, nav, internal) {
+    if (internal || choice === 'current' || !nav || !nav.available) return 'current';
+    if (choice === 'none') return 'none';
+    return choice === 'smart' ? (nav.exact ? 'none' : 'context') : 'current';
+  }
+  var HEADER_EVENTS = ['hk-page-navigation', 'hk-module-ready', 'location-changed', 'popstate', 'resize'];
   class HkGridCard extends HkBase {
+    _isPageHeader() {
+      var c = this._config || {}, kids = c.cards || [];
+      return c.page_header === true || (kids.length === 2 && kids[0].type === 'custom:hk-back-card' && kids[1].type === 'custom:hk-heading-card');
+    }
+    _headerState() {
+      var m = menu(), b = m.board ? m.board() : {}, ctx = { available: false, exact: false };
+      var nav = m.tabBar && m.tabBar() ? window.hkTabBar : window.hkMenu;
+      if (nav && nav.headerContext) ctx = nav.headerContext();
+      var path = String(location.pathname || '').split('/')[2] || '';
+      return pageHeaderMode(b.page_header || 'current', ctx, path === 'music-browse');
+    }
+    // THE VIEW THIS HEADER IS ON, by its path (or index), from the hk-grid-view
+    // it sits in; null while it is not in one yet
+    _viewPath() {
+      var node = this;
+      while (node) {
+        if (node.localName === 'hk-grid-view') {
+          var c = node._config || {}, list = (menu().config && menu().config() || {}).views || [];
+          return c.path != null ? String(c.path) : String(list.indexOf(c));
+        }
+        node = node.parentNode || node.host;
+      }
+      return null;
+    }
+    _updatePageHeader() {
+      if (!this._isPageHeader() || !this._e) return;
+      // ONLY ON ITS OWN PAGE. A tap on another page changes the address a few
+      // frames before Home Assistant takes this view away; read then, the next
+      // page's context (Home: no header) would fold this one and the page would
+      // jump up 45 px on its way out (2026-10-16). Kept as it is until it is
+      // the page again.
+      var own = this._viewPath(), here = String(location.pathname || '').split('/')[2] || '';
+      if (!here) { var v0 = ((menu().config && menu().config() || {}).views || [])[0]; here = v0 && v0.path != null ? String(v0.path) : '0'; }
+      if (own !== null && own !== here && this.hasAttribute('data-page-header')) return;
+      var mode = this._headerState();
+      if (this.getAttribute('data-page-header') !== mode) this.setAttribute('data-page-header', mode);
+      // HA wraps each view card in hui-card's shadow root. Mark the direct
+      // view child too, so the view can retain its responsive top gutter.
+      var node = this;
+      while (node) {
+        var parent = node.parentNode;
+        if (parent && parent.id === 'root' && parent.getRootNode().host && parent.getRootNode().host.localName === 'hk-grid-view') {
+          node.setAttribute('data-hk-page-header', mode); break;
+        }
+        node = parent || node.host;
+      }
+      if (!this._contextLabel) {
+        var label = document.createElement('div');
+        label.className = 'page-context'; label.setAttribute('role', 'heading'); label.setAttribute('aria-level', '2');
+        this._root.appendChild(label); this._contextLabel = label;
+      }
+      var hd = (this._config.cards || []).filter(function (c) { return c.type === 'custom:hk-heading-card'; })[0];
+      var m = menu(), cfg = m.config && m.config(), path = String(location.pathname || '').split('/')[2];
+      var v = cfg && cfg.views && cfg.views.filter(function (v, i) { return String(v.path || i) === path; })[0];
+      var room = v && (v.area || v.strategy && v.strategy.area);
+      var text = (room ? 'Rooms › ' : '') + (hd && hd.name || v && v.title || '');
+      if (this._contextLabel.textContent !== text) this._contextLabel.textContent = text;
+    }
+    _bindHeader() {
+      if (!this._isPageHeader() || this._onHeader) return;
+      var self = this;
+      this._onHeader = function () { self._updatePageHeader(); };
+      HEADER_EVENTS.forEach(function (ev) { window.addEventListener(ev, self._onHeader); });
+      this._updatePageHeader();
+    }
+    // A GRID OF POP-UPS ONLY (the generated #alarm / #media holder; the Music
+    // page's phone bar) takes no room, so it takes no margins either: the
+    // view gives every card 4 px above and 8 px below, and these 12 px after
+    // the Music page's last card made a page sized to the window 4 px too tall
+    // -- it scrolled (2026-10-15). Its view child says so (data-hk-zero).
+    _markZero() {
+      var kids = (this._config && this._config.cards) || [];
+      var zero = kids.length > 0 && kids.every(function (c) { return c && /^custom:hk-popup(-group)?-card$/.test(c.type); });
+      if (!zero) return;
+      var node = this;
+      while (node) {
+        var parent = node.parentNode;
+        if (parent && parent.id === 'root' && parent.getRootNode().host && parent.getRootNode().host.localName === 'hk-grid-view') {
+          if (!node.hasAttribute('data-hk-zero')) node.setAttribute('data-hk-zero', '');
+          return true;
+        }
+        node = parent || node.host;
+      }
+      return false;
+    }
+    connectedCallback() {
+      super.connectedCallback(); this._bindHeader();
+      var self = this;
+      if (this._markZero() === false) requestAnimationFrame(function () { if (self.isConnected) self._markZero(); });
+    }
+    disconnectedCallback() {
+      if (this._onHeader) { var cb = this._onHeader; HEADER_EVENTS.forEach(function (ev) { window.removeEventListener(ev, cb); }); this._onHeader = null; }
+      super.disconnectedCallback();
+    }
+
     setConfig(config) {
       var cfg = Object.assign({}, config || {});
       cfg.layout = Object.assign({}, cfg.layout || {});
@@ -907,10 +1010,13 @@
       this._root.innerHTML = '';
       this._kids = [];
       this._e = null;
+      this._contextLabel = null;
+      this.removeAttribute('data-page-header');
       super.setConfig(cfg);
+      if (this.isConnected) this._bindHeader();
     }
     // The children gate their own renders; this frame has no state.
-    _sigOf() { return 'static'; }
+    _sigOf() { return this._isPageHeader() ? this._headerState() : 'static'; }
     getCardSize() { return 6; }
 
     set hass(h) {
@@ -938,6 +1044,7 @@
       root.style.setProperty('--hk-bleed-l', b ? b.l + 'px' : '0px');
       root.style.setProperty('--hk-bleed-r', b ? b.r + 'px' : '0px');
       if (L.padding != null) root.style.padding = L.padding;
+      root.style.setProperty('--hk-card-margin', L['card-margin'] != null ? L['card-margin'] : 'initial');
       Object.keys(L).forEach(function (k) {
         if (k.indexOf('grid') === 0 || k === 'place-items' || k === 'place-content') {
           root.style.setProperty(k, L[k]);
@@ -946,7 +1053,7 @@
     }
 
     _render() {
-      if (this._built) return;
+      if (this._built) { this._updatePageHeader(); return; }
       this._built = true;
       var self = this, cfg = this._config;
 
@@ -989,16 +1096,27 @@
       //
       // Reproduce the MECHANISM, not just the value.
       var st = document.createElement('style');
-      st.textContent = ':host(:not(:first-child)){margin-top:0 !important}' +
+      st.textContent = ':host([data-page-header=none]){display:none!important}' +
+                       ':host([data-page-header=context]) #root{display:none!important}' +
+                       '.page-context{display:none;font:600 14px/20px -apple-system,system-ui,sans-serif;color:var(--primary-text-color,#fff);padding:4px 4px 9px}' +
+                       // Flat's Light: the page's name in its ink, not HA's white
+                       ':host([hk-flat]) .page-context{color:var(--hk-ink)}' +
+                       ':host([data-page-header=context]) .page-context{display:block}' +
+                       ':host(:not(:first-child)){margin-top:0 !important}' +
                        ':host(:not(:last-child)){margin-bottom:0 !important}' +
-                       '#root>*{margin:4px 4px 8px}' +
+                       // `card-margin` (HK's own key, 2026-10-16): a grid whose
+                       // cards sit the house gap apart exactly (the thermostats)
+                       // says 0px and sets its gaps; every other grid keeps
+                       // layout-card's 4 / 4 / 8. Set on #root as `initial`
+                       // when absent, so a grid inside never inherits a parent's.
+                       '#root>*{margin:var(--hk-card-margin,4px 4px 8px)}' +
                        // The sideways bleed may not pass the screen edge -- at
                        // every width (an upright iPad mini's
                        // gutter is 18.9 px); where the gutter is wider the
                        // clamp is the bleed and nothing moves.
                        '#root.hk-bleed{' +
-                       '--hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));' +
-                       '--hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px)) * var(--hk-side,0.02) + 4px)));' +
+                       '--hk-bleed-lc:min(var(--hk-bleed-l,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px) - var(--hk-page-right,0px)) * var(--hk-side,0.02) + 4px)));' +
+                       '--hk-bleed-rc:min(var(--hk-bleed-r,0px),var(--hk-gutter,calc((100vw - var(--hk-page-left,0px) - var(--hk-page-right,0px)) * var(--hk-side,0.02) + 4px)));' +
                        'margin-left:calc(-1 * var(--hk-bleed-lc)) !important;' +
                        'margin-right:calc(-1 * var(--hk-bleed-rc)) !important}';
       this._root.appendChild(st);
@@ -1009,6 +1127,7 @@
       this._root.appendChild(root);
       this._e = root;
       this._kids = [];
+      this._updatePageHeader();
 
       if (!window.loadCardHelpers) {
         console.error('[hk-grid] loadCardHelpers is unavailable');
@@ -1105,7 +1224,15 @@
       // margin must still win, which only holds if this is CSS rather than an
       // inline style.
       var st = document.createElement('style');
-      st.textContent = '#root>*{margin:4px 4px 8px}';
+      // Percentage padding uses this view's width, matching the side columns
+      // even with a docked menu or a narrower device. Keep the normal header unchanged.
+      // (clipped below, never across: the page's end, _pageEnd)
+      st.textContent = ':host{display:block;overflow-y:clip}#root>*{margin:4px 4px 8px}' +
+        // (a grid of pop-ups alone: no room, no margins -- hk-grid-card _markZero)
+        '#root>[data-hk-zero]{margin:0!important}' +
+        '#root>[data-hk-page-header=none]{display:none!important}' +
+        '#root:has(>[data-hk-page-header=none]),#root:has(>[data-hk-page-header=context]){' +
+        'padding-top:calc(100% * var(--hk-side,0.02))!important}';
       this._sr.appendChild(st);
       var root = document.createElement('div');
       root.id = 'root';
@@ -1120,12 +1247,20 @@
       root.style.cssText = '';
       root.style.display = 'grid';
       root.style.margin = L.margin != null ? L.margin : '0px 4px 0px 4px';
+      // (the page's end, kept: the margin above wiped it, and nothing
+      // resizes to say so -- a page re-placed by a settings change or a
+      // return to it ended a margin off, the user's Climate, 2026-10-17)
+      if (this._endM != null) root.style.marginBottom = this._endM + 'px';
       if (L.padding != null) root.style.padding = L.padding;
       Object.keys(L).forEach(function (k) {
         if (k.indexOf('grid') === 0 || k === 'place-items' || k === 'place-content') {
           root.style.setProperty(k, L[k]);
         }
       });
+      // ...and looked at again once the cards are placed (a re-place that
+      // moves no edge resizes nothing)
+      var me = this;
+      if (this.isConnected && !this._endRaf) this._endRaf = requestAnimationFrame(function () { me._endRaf = 0; me._pageEnd(); });
     }
 
     _place() {
@@ -1180,8 +1315,75 @@
     // Waits for the cards, not just for connection: HA can attach the view
     // before handing it `cards`, and an empty page is not the page. A view
     // configured with no cards at all announces on attach.
+    // THE PAGE'S END (2026-10-17, the user: "the same distance from the
+    // bottom as it is on the left edge"; DESIGN.md "Page edges"): every page
+    // ends its side gutter below its lowest plate -- the page's edge to its
+    // plates (--hk-side of the page and the 8 px of margins) --
+    // whatever its cards' nesting adds on the way (layout-card's
+    // 8 px a level, a payback's -10). The view owns it: it finds the lowest
+    // plate (descending only into the children that reach the bottom, so a
+    // whole page is never walked) and moves its root's bottom margin by the
+    // difference; the view clips vertically at its own edge, so a margin
+    // taken back takes the empty space under the last plate with it -- never
+    // a plate or its shadow (the gutter is wider than any shadow). Run when
+    // the page's size changes (a ResizeObserver: cards arriving, a resize),
+    // never on a timer. The tab bar's room below a page is padding on the
+    // view and adds to it as before.
+    _pageEnd() {
+      var root = this._root;
+      if (!root || !this.isConnected) return;
+      var hr = this.getBoundingClientRect();
+      if (!hr.height || !hr.width) return;
+      // (a page still building in -- its contents rising into place by a
+      // transform -- is measured once they are in place: when the finite
+      // animations running now ON THIS PAGE have finished; a spinning fan
+      // never does and is not waited for. Only this page's: the
+      // background's slow ones, or a page left behind's, kept a page that
+      // came back waiting -- Safari, Climate unmeasured until a reload,
+      // the user 2026-10-17.)
+      var me = this, anims = document.getAnimations ? document.getAnimations().filter(function (a) {
+        var t = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
+        return a.playState === 'running' && t && isFinite(t.endTime) && me._holds(a.effect.target);
+      }) : [];
+      if (anims.length) {
+        if (this._endWait) return;
+        var wait = this._endWait = {};
+        Promise.all(anims.map(function (a) { return a.finished.catch(function () {}); }))
+          .then(function () {
+            if (me._endWait !== wait) return;
+            me._endWait = null;
+            requestAnimationFrame(function () { me._pageEnd(); });
+          });
+        return;
+      }
+      var low = HkGridView.plateEdge(root, 'bottom');
+      if (low == null) return;
+      var cs = getComputedStyle(this), gutter = HkGridView.gutter(this);
+      var tail = hr.bottom - (parseFloat(cs.paddingBottom) || 0) - low;
+      // (from the margin as it is, never as last set: whatever has reset it
+      // since, the page still ends at its gutter)
+      var m = parseFloat(getComputedStyle(root).marginBottom) || 0, next = Math.round((m + gutter - tail) * 10) / 10;
+      if (Math.abs(next - m) < 0.5) return;
+      this._endM = next;
+      root.style.marginBottom = next + 'px';
+    }
+    // `el` on this page (through shadow roots)
+    _holds(el) {
+      for (var i = 0; el && i < 80; i++) { if (el === this) return true; el = el.parentNode || el.host; }
+      return false;
+    }
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
+      // a wait begun before the page was taken away is not this visit's
+      this._endWait = null;
+      if (!this._endRo && typeof ResizeObserver !== 'undefined' && this._root) {
+        var me = this;
+        this._endRo = new ResizeObserver(function () {
+          if (me._endRaf) return;
+          me._endRaf = requestAnimationFrame(function () { me._endRaf = 0; me._pageEnd(); });
+        });
+      }
+      if (this._endRo && this._root) this._endRo.observe(this._root);
       // A settings change (the room order) re-places the cards -- in place,
       // as ever: only the room sections that move are moved.
       var self = this;
@@ -1194,6 +1396,7 @@
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
       if (this._onReady) { window.removeEventListener('hk-module-ready', this._onReady); this._onReady = null; }
+      if (this._endRo) this._endRo.disconnect();
       this._announced = false;
     }
     _announce() {
@@ -1208,6 +1411,72 @@
       }
     }
   }
+
+  // the edge of the outermost plate under `node` (a card's ha-card, a camera
+  // tile) on one side -- 'bottom' its lowest bottom, 'left' its leftmost left
+  // -- in viewport px, or null: only the children whose boxes reach within
+  // REACH of that side are searched, through shadow roots, so a page is
+  // never walked whole
+  var REACH = 60, PAGE_EDGE = 8;
+  // THE PAGE'S GUTTER: its edge to its plates, as the page lays it out --
+  // --hk-side of the view's width, the view's 4 px margin and its column
+  // card's 4 (27.2 px at 1,280: DESIGN.md "Page edges"). `el`: the view, or
+  // anything on it (a card that fits itself to the window: the calendar)
+  HkGridView.gutter = function (el) {
+    var v = el;
+    for (var i = 0; v && i < 60 && v.localName !== 'hk-grid-view'; i++) v = v.parentNode || v.host;
+    if (!v || !v.getBoundingClientRect) return null;
+    var side = parseFloat(getComputedStyle(v).getPropertyValue('--hk-side')) || 0.02;
+    return PAGE_EDGE + v.getBoundingClientRect().width * side;
+  };
+  // A PLATE: what draws a surface -- a card's ha-card with a background or a
+  // shadow (not a heading's or a row's clear one), or any rounded box that
+  // does (a vacuum card's, a calendar panel, a TV tile, a camera tile).
+  // Never a fixed layer (a sticky bar's strip, a sheet).
+  function plateLike(el) {
+    var cs = getComputedStyle(el);
+    if (cs.position === 'fixed') return false;
+    var drawn = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none';
+    return drawn && (el.localName === 'ha-card' || parseFloat(cs.borderTopLeftRadius) >= 8);
+  }
+  HkGridView.plateEdge = function (node, side) {
+    var best = null, n0 = 0, low = side === 'bottom';
+    // (a box inside a scroller counts only as far as the scroller shows it:
+    // the calendar's hours run 1,500 px down inside their panel)
+    (function look(n, clip) {
+      if (++n0 > 4000) return;
+      if (n !== node && n.nodeType === 1) {
+        var ov = getComputedStyle(n).overflowY;
+        if (ov !== 'visible' && ov !== 'clip') clip = Math.min(clip, n.getBoundingClientRect().bottom);
+      }
+      var kids = Array.prototype.slice.call((n.shadowRoot || n).children || []);
+      if (n.shadowRoot && n.children) kids = kids.concat(Array.prototype.slice.call(n.children));
+      // (a `display: contents` wrapper has no box: its children stand in
+      // for it -- the calendar's)
+      for (var i = 0; i < kids.length && i < 400; i++) {
+        if (kids[i].nodeType === 1 && getComputedStyle(kids[i]).display === 'contents') {
+          Array.prototype.splice.apply(kids, [i, 1].concat(Array.prototype.slice.call(kids[i].children || [])));
+          i--;
+        }
+      }
+      var boxes = kids.map(function (k) { return [k, k.getBoundingClientRect ? k.getBoundingClientRect() : null]; })
+        .filter(function (x) { return x[1] && x[1].height > 0 && x[1].width > 0 && x[1].top < clip; });
+      if (!boxes.length) return;
+      var at = function (r) { return low ? Math.min(r.bottom, clip) : -r.left; };
+      var max = Math.max.apply(null, boxes.map(function (x) { return at(x[1]); }));
+      boxes.forEach(function (x) {
+        if (at(x[1]) < max - REACH) return;
+        var k = x[0];
+        if (k.localName === 'hk-camera-live-card' || plateLike(k)) {
+          if (best === null || at(x[1]) > best) best = at(x[1]);
+          return;
+        }
+        if (k.localName === 'style' || k.localName === 'script') return;
+        look(k, clip);
+      });
+    })(node, Infinity);
+    return best === null ? null : low ? best : -best;
+  };
 
   // ROOMS ON HOME IN THE ROOM ORDER (the dashboard item's "Rooms on Home":
   // in room order). A ROOM SECTION is a card whose first card is
@@ -1255,6 +1524,7 @@
     customElements.define('hk-grid-view', HkGridView);
   }
 
-  window.hkLayout = { version: '1.0.0' };
+  window.hkLayout = { version: '1.0.0', pageHeaderMode: pageHeaderMode,
+                      gutter: function (el) { return HkGridView.gutter(el); } };
   });
 })();

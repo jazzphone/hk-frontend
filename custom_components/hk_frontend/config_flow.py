@@ -145,7 +145,7 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
     # settings.cameras_lifted.
     # 14 (2026-10-13): each wall tablet an item of its own (type "tablet"),
     # apart from the screen it runs -- settings.tablets_lifted.
-    MINOR_VERSION = 15
+    MINOR_VERSION = 16
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:

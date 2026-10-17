@@ -474,6 +474,13 @@
     // down and rebuilt every three seconds. That thrash is invisible in a
     // screenshot and shows up as a halved 5th-percentile frame rate, which
     // reads as "the decoration is expensive" when it is nothing of the kind.
+    // THE WEATHER PAGE (2026-10-16): its sky and the conditions, no
+    // decorations -- the weather is plenty there (the user's ask)
+    if (skyPage === 'weather') {
+      out.decorations = false;
+      out.season = '';
+      out.seasonalOn = false;
+    }
     if (PIN) for (var k in PIN) if (PIN.hasOwnProperty(k)) out[k] = PIN[k];
     return out;
   }
@@ -5469,9 +5476,74 @@
     water:     ['#0c1526', '#132a4c', '#1c5a86', '#4f9dc4'],  // deep blue
     timers:    ['#1e1408', '#402713', '#864a1e', '#c07f3c'],  // ember orange
     doors:     ['#1c0e10', '#3c1a1e', '#7a2f34', '#b0605f'],  // muted crimson
+    // SECURITY (2026-10-15, the page headers): navy into a muted mauve,
+    // the user's pick from the concept -- calmer than the doors' crimson
+    // behind the keypad, and its own from Doors & Windows
+    security:  ['#161823', '#202836', '#33405a', '#6a5068'],
     vacuums:   ['#170f14', '#341e28', '#6d3a44', '#a86a63'],  // Home app coral
-    playmusic: ['#150e1f', '#2e1b42', '#5c2f76', '#9a6bb0']   // music purple
+    playmusic: ['#150e1f', '#2e1b42', '#5c2f76', '#9a6bb0'],  // music purple
+    // CALENDAR (2026-10-16): Sage Mist, the calm green the user picked from
+    // four previews (settings.py SKY_BACKDROPS sage, its day set)
+    calendar:  ['#0e1a18', '#18302b', '#284a42', '#4f7a6c']
   };
+
+  // THE LIGHTS PAGE FOLLOWS THE SUN (2026-10-16; Pages -> Lights ->
+  // Background -> Follow the Sun): its amber takes the color temperature of
+  // the light outside now -- deep orange at dusk, a pale warm white at
+  // midday. The kelvin is Adaptive Lighting's when the house has it (its
+  // switches carry color_temp_kelvin, worked out from the sun already --
+  // the setting's own switch, else the first, "default" first), otherwise
+  // the sun's elevation on Adaptive Lighting's own range: 2000 K at and
+  // under the horizon to 5500 K from 30 degrees up.
+  //
+  // EACH STOP KEEPS ITS LUMA, only its hue changes, so the horizon still
+  // sits at the live sky's 146 the plates were tuned against (see STATIC)
+  // and no scrim runs. The hue is three-quarters of the kelvin's chroma: a
+  // 2000 K at full chroma is a traffic-cone orange behind the glass.
+  var KELVIN = { id: null, miss: 0 };
+  function kelvinRgb(k) {
+    var t = Math.max(1000, Math.min(40000, k)) / 100, r, g, b;
+    r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
+    g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);
+    b = t >= 66 ? 255 : (t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307);
+    return [r, g, b].map(function (c) { return Math.max(0, Math.min(255, c)); });
+  }
+  function sunKelvin(hass, cfg) {
+    var st = hass.states;
+    var pick = cfg && Array.isArray(cfg.sky_source) && cfg.sky_source[0];
+    var id = pick && st[pick] ? pick : null;
+    if (!id) {
+      // found once, not walked on every update (thousands of states)
+      if (KELVIN.id && st[KELVIN.id]) id = KELVIN.id;
+      else if (Date.now() - KELVIN.miss > 600e3) {
+        var al = Object.keys(st).filter(function (k) {
+          return k.indexOf('switch.') === 0 && k.indexOf('adaptive_lighting') >= 0 &&
+            (st[k].attributes || {}).color_temp_kelvin != null;
+        }).sort(function (a, b) { return (/default/.test(b) - /default/.test(a)) || (a < b ? -1 : 1); });
+        KELVIN.id = id = al[0] || null;
+        if (!id) KELVIN.miss = Date.now();
+      }
+    }
+    var k = id && Number((st[id].attributes || {}).color_temp_kelvin);
+    if (k > 0) return { k: k, from: id };
+    var sun = st['sun.sun'], e = sun ? Number((sun.attributes || {}).elevation) : NaN;
+    if (!isFinite(e)) return null;
+    var f = Math.max(0, Math.min(1, e / 30));
+    return { k: Math.round(2000 + 3500 * Math.sin(f * Math.PI / 2)), from: 'sun.sun' };
+  }
+  function tintStops(stops, k) {
+    var c = kelvinRgb(k), Lk = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    return stops.map(function (s) {
+      var L = luma(s), sc = L / Lk;
+      var px = c.map(function (x) { return L + (x * sc - L) * 0.75; });
+      // over 255 a channel clips and the stop goes dimmer than it should:
+      // the others make up the luma it lost
+      var over = px.map(function (x) { return Math.max(0, x - 255); });
+      var lost = 0.2126 * over[0] + 0.7152 * over[1] + 0.0722 * over[2];
+      if (lost > 0) px = px.map(function (x) { return Math.min(255, x) + lost; });
+      return '#' + px.map(function (x) { var h = Math.round(Math.max(0, Math.min(255, x))).toString(16); return h.length < 2 ? '0' + h : h; }).join('');
+    });
+  }
 
   function paintStatic(el, stops) {
     var st = el.style;
@@ -5711,6 +5783,9 @@
   // it must not be re-derived from the URL -- a track change arrives with no
   // navigation, so there is nothing to re-resolve from.
   var mountedVariant = null;
+  // the page the sky is behind now (resolve: the view's sky_page), for
+  // read()'s per-page rules
+  var skyPage = null;
   // Set when the next paint must be instant rather than eased -- see the
   // .hk-snap rule in SHEET.
   var snapNext = false, paintSig = '';
@@ -6035,6 +6110,7 @@
     // the last change SETTLED, as a picture then caught a fade half-way and
     // kept it: the Play Music pills, a page loaded straight onto it.)
     sig: function () {
+      if (window.hkSettings && window.hkSettings.rendering && window.hkSettings.rendering().flat) return;
       var el = mounted && mounted.isConnected ? mounted : null;
       if (!el) return skySig(null);
       if (changedSig && changedFor === el) return changedSig;
@@ -6070,6 +6146,9 @@
       try {
         if (!hass || !card) return '';
         opts = opts || {};
+        var P = window.hkSettings, policy = P && P.rendering ? P.rendering() : { flat: false };
+        if (mounted && !!mounted._hkFlat !== policy.flat) teardown();
+        if (policy.flat) { renderFlat(hass, card, opts, policy); return ''; }
 
         // Kill switch first: an explicit `off` tears down a mounted sky rather
         // than just declining to mount one, so flipping it is immediate.
@@ -6077,6 +6156,7 @@
         if (en && en.state === 'off') { teardown(); return ''; }
 
         if (opts.sleep) sleepEntity = opts.sleep;
+        skyPage = opts.page || null;
         var sl = sleepEntity && hass.states[sleepEntity];
         if (sl) asleep = sl.state === 'on';
 
@@ -6115,6 +6195,13 @@
         var stops = opts.photo ? (tint ? (up ? tint.day : tint.night) : PHOTO_UNDER) : opts.still
           ? (up ? opts.still.day : opts.still.night)
           : opts.variant && STATIC[opts.variant];
+        if (stops && opts.variant === 'lights' && !opts.photo && !opts.still) {
+          var HS = window.hkSettings, lc = HS && HS.get ? HS.get('headers.lights', null) : null;
+          if (!lc || lc.sky_follow !== false) {
+            var kv = sunKelvin(hass, lc);
+            if (kv) stops = tintStops(stops, kv.k);
+          }
+        }
         if (stops) {
           mounted.classList.add('static');
           mounted.classList.toggle('photo', !!opts.photo);
@@ -6168,6 +6255,7 @@
     },
 
     _paint: paint,
+    _sunKelvin: sunKelvin, _tintStops: tintStops,
     _nearFlat: nearFlat,
     _auroraDraw: auroraDraw,
     _schedule: schedule,
@@ -6320,13 +6408,31 @@
   // object-> mount with these options
   function resolve() {
     var cfg = lovelaceCfg();
-    if (!cfg || !cfg.sky) return null;
+    if (!cfg) return null;
+    var flat = !!(window.hkSettings && window.hkSettings.rendering && window.hkSettings.rendering().flat);
+    if (!cfg.sky && !flat) return null;
     // A dashboard whose item turns its Live sky off: opted in by its
     // YAML, but no sky on any of its views.
     var M = window.hkCards && window.hkCards.menu;
-    if (M && typeof M.board === 'function' && M.board().sky === false) return false;
+    if (!flat && M && typeof M.board === 'function' && M.board().sky === false) return false;
     var v = currentView(cfg);
     if (!v) return false;
+    // FLAT (2026-10-16): its own backgrounds (hk-settings.js flatBackground)
+    // -- a color or one still photo, never the live sky
+    if (flat) {
+      var FS = window.hkSettings, FC = window.hkCards, fpage = v.sky_page || 'home';
+      var fkeys = v.sky_room ? [v.sky_room, v.sky_page] : v.sky_page;
+      // a page with a palette of its own in the other looks (sky_variant:
+      // Power, Calendar ...) keeps a tone of its own here too
+      var fown = typeof v.sky_variant === 'string' || !!(FC && FC.flatOwnGround && FC.flatOwnGround(fpage));
+      // FLAT COLORS (2026-10-17): a chosen Accent Color is the seed of an
+      // Automatic ground -- only Automatic: a color, photo or landscape
+      // chosen stays as chosen
+      var fpal = FC && FC.flatPalette ? FC.flatPalette() : null;
+      return { flat: FS && FS.flatBackground ? FS.flatBackground(fkeys, fown) : { color: 'auto' }, page: fpage,
+               seed: fpal && fpal.ground || null,
+               enable: cfg.sky && cfg.sky.enable || null, sleep: cfg.sky && cfg.sky.sleep || null };
+    }
     // A PAGE'S OWN BACKGROUND (Sky / Background -> Pages; the view's
     // `sky_page`, set by the generated screen): its own color ('own'), the
     // live sky ('live'), or a fixed backdrop -- read on every tick, so a
@@ -6336,7 +6442,7 @@
     // a room's page: the room's own (sky_room, its address), else Room Pages'
     var pkeys = v.sky_room ? [v.sky_room, v.sky_page] : v.sky_page;
     var mode = v.sky_page && HS && typeof HS.pageSky === 'function' ? HS.pageSky(pkeys) : null;
-    var wants = v.sky === true || typeof v.sky_variant === 'string' || (!!mode && mode !== 'own');
+    var wants = flat || v.sky === true || typeof v.sky_variant === 'string' || (!!mode && mode !== 'own');
     if (!wants) return false;
     var variant = (typeof v.sky_variant === 'string') ? v.sky_variant : null, backdrop = null;
     var still = null, photo = null, look = null;
@@ -6371,9 +6477,127 @@
       if (bg && bg.mode === 'color') still = bg.stops || black;
       else if (bg && bg.mode === 'photo') { photo = bg.photo || null; look = bg.look || null; if (!photo) still = bg.stops || black; }
     }
-    return { variant: variant, backdrop: backdrop, still: still, photo: photo, look: look,
-             enable: cfg.sky.enable || null,
-             sleep: cfg.sky.sleep || null };
+    return { variant: variant, backdrop: backdrop, still: still, photo: photo, look: look, page: v.sky_page || null,
+             enable: cfg.sky && cfg.sky.enable || null,
+             sleep: cfg.sky && cfg.sky.sleep || null };
+  }
+
+  // FLAT: one solid color or one still photo under a fixed fade -- no sky
+  // layers, canvas, grain, sampling, seasonal scene or blur. `opts.flat` is
+  // the page's (resolve: hk-settings.js flatBackground).
+  // One bounded bitmap per mounted wallpaper; no work on repeated hass pushes.
+  // The request is replaced on navigation/settings changes, so a late image
+  // load can only paint the latest request. Canvas shares the image's cover fit.
+  function renderFlatImage(layer, pic, look, color) {
+    var key = (pic.getAttribute('src') || '') + '|' + [look.mode, look.strength, look.depth, look.brightness, color].join('|');
+    if (!layer._hkImageCanvas) {
+      var canvas = document.createElement('canvas'); canvas.setAttribute('aria-hidden', 'true');
+      canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none';
+      layer.insertBefore(canvas, layer.lastChild); layer._hkImageCanvas = canvas;
+    }
+    if (layer._hkImageRequest && layer._hkImageRequest.key === key) return;
+    layer._hkImageRequest = { key: key, look: look, color: color };
+    layer._hkImageCanvas.style.display = 'none'; pic.style.display = 'none';
+    var draw = function () {
+      var request = layer._hkImageRequest;
+      if (!request || request.painted || !pic.getAttribute('src') || !layer.isConnected) return;
+      try {
+        if (window.hkFlatImage.paint(layer._hkImageCanvas, pic, request.look, request.color)) {
+          layer._hkImageCanvas.style.display = 'block';
+          request.painted = true;
+          layer._hkImagePaints = (layer._hkImagePaints || 0) + 1;
+        }
+      } catch (e) { console.warn('[hk-flat-image] Photo could not be processed', e); }
+    };
+    pic.onload = draw;
+    if (pic.complete && pic.naturalWidth) draw();
+  }
+
+  function renderFlat(hass, card, opts, policy) {
+    var en = opts.enable && hass.states[opts.enable];
+    var bg = (en && en.state === 'off') ? { color: 'auto' } : (opts.flat || { color: 'auto' });
+    if (!mounted || !mounted.isConnected) {
+      var host = container(card); if (!host) return;
+      // position:fixed, like the SHEET: the element covers the VIEWPORT.
+      // (An absolute element in the scrollable view container sized to the
+      // whole content -- 6 000+ px on a tablet -- and the landscape covered
+      // under it scaled up with it: the "large blown up version" with no
+      // fade. z-index -1 is the wallpaper's place, under the views; contain
+      // clips its children to the viewport; overflow:hidden for the same.)
+      mounted = document.createElement('div'); mounted.id = 'hk-sky'; mounted._hkFlat = true;
+      mounted.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;contain:strict;isolation:isolate';
+      var img = document.createElement('img'); img.alt = '';
+      img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none';
+      // a photo that can't be had: the theme's ground at once, not a blank
+      img.onerror = function () {
+        img.style.display = 'none'; img.removeAttribute('src');
+        var layer = img.parentNode;
+        if (layer) { layer.lastChild.style.background = 'transparent'; if (layer._hkImageCanvas) layer._hkImageCanvas.style.display = 'none'; }
+      };
+      var scrim = document.createElement('div');
+      scrim.style.cssText = 'position:absolute;inset:0;pointer-events:none';
+      // THE TINT (2026-10-17, the user: "convert the picture to grayscale and
+      // then apply the tint"): a layer in the tint's color blended as
+      // `color` -- the photo keeps its light and dark and takes the tint's
+      // hue and saturation, a duotone; its opacity the Tint Strength. Then
+      // the Tint Brightness: white or black over it. Still layers, drawn
+      // once: no filter, nothing that runs.
+      var tintL = document.createElement('div'), lightL = document.createElement('div');
+      tintL.style.cssText = 'position:absolute;inset:0;pointer-events:none;mix-blend-mode:color;display:none';
+      lightL.style.cssText = 'position:absolute;inset:0;pointer-events:none;display:none';
+      mounted.appendChild(img); mounted.appendChild(tintL); mounted.appendChild(lightL); mounted.appendChild(scrim);
+      var vb = host.querySelector('hui-view-background');
+      if (vb && vb.nextSibling) host.insertBefore(mounted, vb.nextSibling); else host.insertBefore(mounted, host.firstChild);
+      watch();
+    }
+    mountedPath = location.pathname;
+    var C = window.hkCards, page = opts.page || 'home';
+    var ground = C && C.flatColorHex ? C.flatColorHex(bg.color || 'auto', policy.theme, page)
+               : policy.theme === 'light' ? '#EEECE6' : '#17181A';
+    // (a seed's ground in place of Automatic's -- a photo still waiting, or
+    // gone, falls back to it too, its choice kept)
+    if ((bg.color || 'auto') === 'auto' && opts.seed) ground = opts.seed;
+    if (bg.photo) ground = opts.seed || (C && C.flatGround ? C.flatGround('home', policy.theme) : ground);
+    mounted.style.background = ground;
+    var pic = mounted.firstChild, src = bg.photo || '';
+    if (mounted._hkPhoto !== src) {
+      mounted._hkPhoto = src;
+      if (src) { pic.style.display = 'block'; pic.src = src; }
+      else { pic.removeAttribute('src'); pic.style.display = 'none'; }
+    }
+    // THE FADE: the theme's own ground washed over the photo (Sky /
+    // Background -> Fade, 0-100): Light's limestone, Dark's near-black. A
+    // fixed flat layer -- no sampled color, no brightness filter.
+    mounted.lastChild.style.background = src && pic.getAttribute('src') ? (C && C.flatFade ? C.flatFade(bg.fade, policy.theme) : 'transparent') : 'transparent';
+    // THE TINT over the photo (the page's accent, or the user's own: Sky /
+    // Background -> Tint), its strength and brightness
+    var tint = bg.tint === 'accent' ? (C && C.flatAccentHex ? C.flatAccentHex() : null) : /^#[0-9a-f]{6}$/i.test(bg.tint || '') ? bg.tint : null;
+    var tl = mounted.children[1], ll = mounted.children[2];
+    if (tl && ll && tl !== mounted.lastChild) {
+      var on = !!(tint && src && pic.getAttribute('src'));
+      var k = Math.max(0, Math.min(100, bg.tintAmount == null ? 60 : +bg.tintAmount || 0)) / 100;
+      var lb = Math.max(-1, Math.min(1, ((bg.tintLight == null ? 50 : +bg.tintLight) - 50) / 50));
+      tl.style.display = on && k ? 'block' : 'none';
+      if (on) { tl.style.background = tint; tl.style.opacity = String(k); }
+      ll.style.display = on && lb ? 'block' : 'none';
+      if (on && lb) ll.style.background = lb > 0 ? 'rgba(255,255,255,' + (lb * 0.6).toFixed(3) + ')' : 'rgba(0,0,0,' + (-lb * 0.6).toFixed(3) + ')';
+    }
+    var imageLook = bg.imageLook;
+    if (imageLook && imageLook.mode !== 'legacy' && src && pic.getAttribute('src')) {
+      tl.style.display = 'none'; ll.style.display = 'none';
+      mounted.lastChild.style.background = window.hkFlatImage ? window.hkFlatImage.fade(imageLook.fade, policy.theme) : 'transparent';
+      if (window.hkFlatImage) renderFlatImage(mounted, pic, imageLook, imageLook.color === 'accent' ? (C && C.flatAccentHex ? C.flatAccentHex() : '#64798e') : imageLook.color);
+    } else {
+      mounted._hkImageRequest = null; pic.onload = null;
+      if (mounted._hkImageCanvas) mounted._hkImageCanvas.style.display = 'none';
+      if (src && pic.getAttribute('src')) pic.style.display = 'block';
+    }
+    if (opts.sleep) sleepEntity = opts.sleep;
+    var sl = sleepEntity && hass.states[sleepEntity]; if (sl) asleep = sl.state === 'on';
+    // never hidden while the tab is: a still picture costs nothing there, and
+    // an inline hide stayed until the next tick -- the view's navy, then the
+    // photo, each time the tab came back (2026-10-16)
+    applyHidden();
   }
 
   // Not a dashboard at all (Settings, Logs, the Map): nothing to resolve, so

@@ -22,6 +22,125 @@
 // The ICON MAP is deliberately hk-header.js's -- one weather glyph map for the
 // whole frontend. A `weather` entity has NO `attributes.icon` (reading one
 // draws the fallback forever), and the map is the correct pattern.
+
+// ============================================================ THE FORECAST
+// ONE SUBSCRIPTION PER WEATHER ENTITY AND KIND, for every card and sheet
+// that wants it (2026-10-16, the Weather page): the band, the page's hourly
+// and daily cards and the weather sheet each WATCH it, and the first to watch
+// asks Home Assistant (weather/subscribe_forecast) while the last to let go
+// drops it. Per connection, so a page that reconnected starts afresh.
+//
+//   var w = hkWxForecast.watch(conn, 'hourly', 'weather.home', onNew);
+//   w.data()      the forecast so far ([] until it arrives)
+//   w.ensure()    ask again if a refusal's wait is over (each render)
+//   w.release()   this watcher is done; the last one unsubscribes
+//
+// A REFUSED SUBSCRIPTION BACKS OFF. Home Assistant refuses
+// weather/subscribe_forecast for an entity that does not offer that kind of
+// forecast, or does not exist yet. Forgetting the refusal would ask again on
+// the very next render -- every weather update, every module arriving -- with
+// nothing logged. So: one console warning per entity and kind per page, and
+// the next attempt waits RETRY, doubling to RETRY_MAX. Any forecast arriving
+// clears the back-off. Keyed 'kind|entity', shared by every watcher.
+//
+// A RECONNECT (Home Assistant restarted) is ours to follow: the library's own
+// resubscribe, refused because the weather entity is not back yet, is dropped
+// for good and the cards kept yesterday's forecast. So `resubscribe: false`,
+// and on 'ready' -- the server has forgotten every subscription -- each
+// watcher is told, and its next render asks again (ensure), through the
+// same back-off.
+(function () {
+  'use strict';
+  if (window.hkWxForecast) return;
+  var RETRY = 60 * 1000, RETRY_MAX = 60 * 60 * 1000;
+  var refused = {}, warned = {};
+  var conns = [];                  // [{ conn, entries: { key: entry }, ready }]
+  function slot(conn) {
+    for (var i = 0; i < conns.length; i++) if (conns[i].conn === conn) return conns[i];
+    var s = { conn: conn, entries: {}, ready: null };
+    conns.push(s);
+    if (typeof conn.addEventListener === 'function') {
+      s.ready = function () {
+        Object.keys(s.entries).forEach(function (k) {
+          var e = s.entries[k];
+          e.sub = null;
+          e.cbs.slice().forEach(function (cb) { try { cb(); } catch (x) { /* the card's */ } });
+        });
+      };
+      conn.addEventListener('ready', s.ready);
+    }
+    return s;
+  }
+  function drop(s) {
+    if (Object.keys(s.entries).length) return;
+    if (s.ready && typeof s.conn.removeEventListener === 'function') s.conn.removeEventListener('ready', s.ready);
+    conns.splice(conns.indexOf(s), 1);
+  }
+  function ensure(s, e) {
+    if (e.sub || !e.cbs.length) return;
+    var r = refused[e.key];
+    if (r && Date.now() < r.until) return;
+    var sub = null;
+    var p = s.conn.subscribeMessage(function (ev) {
+      delete refused[e.key];
+      e.fc = (ev && ev.forecast) || [];
+      e.n++;
+      e.cbs.slice().forEach(function (cb) { try { cb(); } catch (x) { /* the card's */ } });
+    }, { type: 'weather/subscribe_forecast', forecast_type: e.kind, entity_id: e.wid }, { resubscribe: false });
+    sub = e.sub = Promise.resolve(p).catch(function (err) {
+      if (e.sub === sub) e.sub = null;
+      var rf = refused[e.key] = refused[e.key] || { n: 0 };
+      rf.until = Date.now() + Math.min(RETRY_MAX, RETRY * Math.pow(2, rf.n));
+      rf.n++;
+      if (!warned[e.key]) {
+        warned[e.key] = true;
+        console.warn('[hk-weather] Home Assistant refused the ' + e.kind + ' forecast for ' + e.wid + ' (' +
+                     ((err && (err.message || err.code)) || String(err)) + '); retrying with back-off. ' +
+                     'A forecast sensor in Configure -> Weather avoids the subscription.');
+      }
+      return null;
+    });
+  }
+  function watch(conn, kind, wid, cb) {
+    var s = slot(conn), key = kind + '|' + wid;
+    var e = s.entries[key] || (s.entries[key] = { kind: kind, wid: wid, key: key, fc: null, sub: null, cbs: [], n: 0 });
+    e.cbs.push(cb);
+    ensure(s, e);
+    var gone = false;
+    return {
+      conn: conn,
+      data: function () { return e.fc || []; },
+      has: function () { return e.fc !== null; },
+      ensure: function () { if (!gone) ensure(s, e); },
+      release: function () {
+        if (gone) return;
+        gone = true;
+        var i = e.cbs.indexOf(cb);
+        if (i >= 0) e.cbs.splice(i, 1);
+        if (e.cbs.length) return;
+        var sub = e.sub;
+        e.sub = null;
+        delete s.entries[key];
+        drop(s);
+        if (sub) {
+          sub.then(function (unsub) {
+            if (typeof unsub !== 'function') return;
+            var r = unsub();
+            if (r && typeof r.catch === 'function') r.catch(function () { /* connection gone */ });
+          });
+        }
+      }
+    };
+  }
+  // how many are asked for right now (tests, the render audit)
+  function active() {
+    var n = 0;
+    conns.forEach(function (s) { Object.keys(s.entries).forEach(function (k) { if (s.entries[k].sub) n++; }); });
+    return n;
+  }
+  window.hkWxForecast = { watch: watch, active: active };
+})();
+
 (function () {
   'use strict';
 
@@ -38,18 +157,6 @@
     // Text going into markup: the place label is typed by a person, the
     // condition comes from the weather provider.
     var esc = C.esc;
-
-    // A REFUSED FORECAST SUBSCRIPTION BACKS OFF. Home Assistant refuses
-    // weather/subscribe_forecast for an entity that does not offer that kind
-    // of forecast, or does not exist yet. Forgetting the refusal would ask
-    // again on the very next render -- every weather update, every module
-    // arriving, every resize across a column -- with nothing logged, so a
-    // band with no forecast would never say why. So: one console warning per
-    // entity and kind per page, and the next attempt waits FC_RETRY, doubling
-    // to FC_RETRY_MAX. Any forecast arriving clears the back-off.
-    // Keyed 'kind|entity', shared by every band on the page.
-    var FC_RETRY = 60 * 1000, FC_RETRY_MAX = 60 * 60 * 1000;
-    var fcRefused = {}, fcWarned = {};
 
     // hk-header.js owns the glyphs (the home's multicolor SF Symbols as inline
     // SVG, or Material stand-ins) and the condition names. If it has not loaded, draw an empty box of the
@@ -95,6 +202,8 @@
     //
     // `variant` picks the drawing; every entity it reads is named in the config.
     class HkWeatherTileCard extends Base {
+      // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+      static get FLAT_MOTION() { return true; }
       static get CSS() {
         return [
           // a page card's plate (hkCards.plate)
@@ -183,13 +292,13 @@
           '.wtile .uvdot{position:absolute;top:-3px;width:14px;height:14px;',
           '  border-radius:50%;background:#fff;border:2px solid rgba(0,0,0,0.35)}',
           '.wtile .row{display:flex;align-items:center;justify-content:center;width:100%}'
-        ].join('');
+        ].join('') + TILE_PAGE_CSS;
       }
 
       setConfig(config) {
         var v = config && config.variant;
-        if (['wind', 'sun', 'moon', 'uv'].indexOf(v) < 0) {
-          throw new Error('hk-weather-tile: `variant` must be wind, sun, moon or uv');
+        if (['wind', 'sun', 'moon', 'uv', 'humidity', 'pressure'].indexOf(v) < 0) {
+          throw new Error('hk-weather-tile: `variant` must be wind, sun, moon, uv, humidity or pressure');
         }
         // only what the drawing reads: the wind tile's weather and sensors,
         // the UV tile's sensor
@@ -208,6 +317,13 @@
         if (!h || !c) return null;
         var ids = [c.entity, c.speed, c.gust, c.sun, c.phase, c.uv].filter(Boolean);
         var out = c.variant + '|';
+        if (this._isPage()) {
+          // the weather service it falls back to, the humidity sensor, the
+          // hour (a moon, a sunrise arc and the lines ahead move with it)
+          var HS = window.hkSettings;
+          ids = ids.concat([HS && HS.weatherId ? HS.weatherId(h.states) : null, HS ? HS.get('weather.humidity', null) : null]).filter(Boolean);
+          out += 'pg' + Math.floor(Date.now() / 600e3) + ';';
+        }
         // A moon with no sensor follows the built-in phase, which moves with
         // the clock, not with any entity: it is part of the signature.
         if (c.variant === 'moon' && !c.phase) out += 'm=' + this._phase().toFixed(3) + ';';
@@ -405,8 +521,12 @@
         return { wind: 'WIND', moon: 'MOON', uv: 'UV INDEX' }[cfg.variant] || '';
       }
 
+      // the Weather page's look (TILE_PAGE, below); Humidity and Pressure
+      // come only in it
+      _isPage() { var c = this._config || {}; return c.look === 'page' || c.variant === 'humidity' || c.variant === 'pressure'; }
       _render() {
         var cfg = this._config;
+        if (this._isPage()) { if (this._hass) this._renderPage(); return; }
         if (!this._built) {
           this._root.innerHTML =
             '<ha-card class="wtile" data-hk-role="card"><div class="grid">' +
@@ -858,10 +978,33 @@
         }
       }
 
+      // AN ALERT THAT HAS ENDED IS NOT SHOWN, though the sensor may keep it
+      // until its next poll (Ends, else Expires, in the past): no stale
+      // warning, and no all-clear of our own either -- the card just goes.
       _first() {
         var st = this._st(this._config.entity);
         var list = (st && st.attributes && st.attributes.Alerts) || [];
-        return { st: st, a: list[0] || {}, n: Number((st && st.state) || 0) || 0 };
+        var now = Date.now();
+        var live = list.filter(function (a) {
+          var end = Date.parse((a && (a.Ends || a.Expires)) || '');
+          return !isFinite(end) || end > now;
+        });
+        var n = Number((st && st.state) || 0) || 0;
+        if (list.length) n = live.length;
+        return { st: st, a: live[0] || {}, n: n, all: live };
+      }
+      // THE DETAILS (the Weather page's, `details: true`): the alert's own
+      // words -- headline, description and what to do -- in a sheet
+      _details() {
+        var f = this._first(), X = window.hkDetail;
+        if (!f.n || !X || !X.open) return;
+        var md = f.all.map(function (a) {
+          return ['## ' + (a.Event || 'Weather Alert'), a.Headline ? '**' + a.Headline + '**' : '',
+                  a.Severity ? 'Severity: ' + a.Severity + (a.Certainty ? ' · ' + a.Certainty : '') : '',
+                  a.Description ? String(a.Description) : '', a.Instruction ? '**What to do:** ' + a.Instruction : '',
+                  a.URL ? '[From the National Weather Service](' + a.URL + ')' : ''].filter(Boolean).join('\n\n');
+        }).join('\n\n---\n\n');
+        X.open(this._config.entity, null, { cards: { cards: [{ type: 'markdown', content: md }] } });
       }
 
       _render() {
@@ -879,6 +1022,13 @@
           var q = this._root.querySelector.bind(this._root);
           this._e = { icon: q('.icon'), title: q('.title'), src: q('.src'),
                       body: q('.body'), count: q('.count') };
+          if (cfg.details) {
+            var self = this, card = q('ha-card');
+            card.setAttribute('role', 'button'); card.setAttribute('tabindex', '0');
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', function () { self._details(); });
+            card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); self._details(); } });
+          }
           this._built = true;
         }
         var e = this._e, f = this._first(), a = f.a;
@@ -928,12 +1078,515 @@
         var areas = String(a.AreasAffected || '').split(';')
                       .filter(function (x) { return x.trim(); }).length;
         if (areas > 1) parts.push(areas + ' areas');
+        if (cfg.details && !sample) parts.push('Details ›');
         var count = parts.join('  ·  ');
         if (e.count.textContent !== count) e.count.textContent = count;
       }
     }
 
+    // ================================================== THE WEATHER PAGE
+    // (2026-10-16, hk_house/docs/PLAN-2026-10-16-weather-page.md): the band
+    // in separable parts, each its own card on the page --
+    //   section: 'hero'     the place, the temperature, the condition, today's
+    //                       high and low and a line of what is coming, over
+    //                       the sky with no plate
+    //   section: 'hourly'   the hours, Temperature / Rain / Wind, a tap on an
+    //                       hour reading it out
+    //   section: 'daily'    the days, each low-to-high on one shared scale
+    // -- and the band itself unchanged with no `section` (the Tesla, the
+    // screensaver, a dashboard of the house's own). What each shows, how many
+    // hours and days, the hourly view it opens on: weather.page
+    // (hkSettings.weatherPage), read live. The forecast is the band's
+    // (_forecast: the sensor, else the shared subscription).
+    var SECTIONS = ['hero', 'hourly', 'daily'];
+    var WX_METRIC_ORDER = ['temperature', 'rain', 'wind'];
+    function wxPage() {
+      var HS = window.hkSettings;
+      return HS && HS.weatherPage ? HS.weatherPage()
+        : { show_current: true, show_hourly: true, show_daily: true, show_alerts: true, hours: 12, days: 8,
+            hourly_metric: 'temperature', details: ['wind', 'sun', 'uv', 'humidity', 'moon', 'pressure'], load_animation: true };
+    }
+    function hourLabel(t) { var d = new Date(t), hh = d.getHours(); return (hh % 12 === 0 ? 12 : hh % 12) + ' ' + (hh < 12 ? 'AM' : 'PM'); }
+    function titled(s) { return String(s || '').replace(/\b(\w)(\w*)/g, function (m, a, b) { return a + b.toLowerCase(); }); }
+    function nightOf(states, f) {
+      return f.is_daytime != null ? f.is_daytime === false
+        : !!(window.hkHeader && window.hkHeader.nightAt && window.hkHeader.nightAt(states, f.datetime));
+    }
+    // a daily entry that is already over (a sensor kept yesterday's first)
+    function upcomingDays(list) {
+      var d0 = new Date(Date.now()); d0.setHours(0, 0, 0, 0);
+      return (list || []).filter(function (d) {
+        var t = Date.parse(d.datetime);
+        if (!isFinite(t)) return true;
+        var dd = new Date(t); dd.setHours(0, 0, 0, 0);
+        return dd.getTime() >= d0.getTime();
+      });
+    }
+    // THE PAGE'S ENTRANCE (plan §8): once per arrival on the page -- not on
+    // a forecast, a settings save, a sheet or a rebuild -- the hero fading in
+    // over 200 ms, then each card rising 6 px into place on the standard
+    // curve, 35 ms apart, the whole at most ~550 ms. Opacity and transform
+    // only, on the card's own host; nothing waits for it, and content is
+    // there whether or not it runs. Page entry is allowed in Flat too;
+    // Reduce Motion, Animate Page Loading off, hidden and asleep still win.
+    var ENTRY = { path: null, at: 0 };
+    function markEntry() {
+      var p = location.pathname;
+      if (p !== ENTRY.path) { ENTRY.path = p; ENTRY.at = (window.performance && performance.now()) || Date.now(); ENTRY.first = null; }
+    }
+    window.addEventListener('location-changed', markEntry);
+    window.addEventListener('popstate', markEntry);
+    function motionOk() {
+      if (!wxPage().load_animation) return false;
+      if (window.__hkAsleep) return false;
+      if (typeof document !== 'undefined' && document.hidden) return false;
+      try { if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return false; } catch (e) { /* old */ }
+      return true;
+    }
+    function wxEnter(card) {
+      var c = card._config || {};
+      if (c.enter == null || typeof card.animate !== 'function') return;
+      markEntry();
+      if (card._enterAt === ENTRY.at) return;
+      card._enterAt = ENTRY.at;
+      // AN ARRIVAL is the page's cards appearing together, however long the
+      // dashboard took to build (a cold start is several seconds): timed from
+      // the first card of this entry, not from the address changing. A card
+      // that appears later on the same entry -- a rebuild after a settings
+      // save -- is not one.
+      var now = (window.performance && performance.now()) || Date.now();
+      if (ENTRY.first == null) ENTRY.first = now;
+      if (now - ENTRY.first > 1500 || !motionOk()) return;
+      card._buildDue = Date.now();
+      // (the cards themselves stay where they are -- the user, 2026-10-17:
+      // the page rising from the bottom read as a scroll; their insides build)
+    }
+    function wxLeave(card) {
+      if (card._buildIO) { card._buildIO.disconnect(); card._buildIO = null; }
+      if (card._enterAnim) { try { card._enterAnim.cancel(); } catch (e) { /* gone */ } card._enterAnim = null; }
+    }
+    // NEW CONTENT AFTER A WAIT fades in over 180 ms (never a shimmer)
+    function arrive(el) {
+      if (!el || !motionOk() || typeof el.animate !== 'function') return;
+      try { el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' }); } catch (e) { /* ok */ }
+    }
+
+    // THE BUILD (2026-10-17, the user: "like the Energy page"): on arriving
+    // at the page each card's pieces draw themselves in -- the hours rise
+    // one after another, each day's range wipes out from its low, the tiles'
+    // needle turns, arc draws, bars fill and marks pop -- under a class held
+    // for the length of it (`anim`, hk-energy.js's pattern). Transform,
+    // opacity and clip only; never on a live update, a settings save or a
+    // forecast push; not with Reduce Motion or Animate Page Loading off.
+    var BUILD = C.EASE.build;
+    var BUILD_CSS = [
+      '@keyframes wxUp{from{opacity:0;transform:translateY(10px)}}',
+      '@keyframes wxPop{from{opacity:0;transform:scale(.55)}}',
+      '@keyframes wxWipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}',
+      '@keyframes wxGrowX{from{transform:scaleX(0)}}',
+      '@keyframes wxTurn{from{transform:rotate(var(--from,0deg))}}',
+      '@keyframes wxDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}',
+      '@media (prefers-reduced-motion: reduce){.anim *{animation:none!important}}'
+    ].join('');
+    // ...when the card is first on screen: a card below the fold builds as
+    // it is scrolled to, not unseen (at most a minute after arriving)
+    function build(card, el, wait) {
+      if (!el || !motionOk()) return;
+      if (typeof IntersectionObserver === 'function' && !card._buildSeen) {
+        if (card._buildIO) card._buildIO.disconnect();
+        var t0 = Date.now();
+        card._buildIO = new IntersectionObserver(function (en) {
+          if (!en.some(function (x) { return x.isIntersecting; })) return;
+          card._buildIO.disconnect(); card._buildIO = null;
+          if (Date.now() - t0 > 60000 || !card.isConnected) return;
+          card._buildSeen = true;
+          build(card, el, wait);
+          card._buildSeen = false;
+        });
+        card._buildIO.observe(card);
+        return;
+      }
+      el.classList.remove('anim');
+      void el.offsetWidth;                       // a class put back restarts its animations
+      el.classList.add('anim');
+      clearTimeout(card._buildT);
+      card._buildT = setTimeout(function () { el.classList.remove('anim'); }, wait || 1800);
+    }
+    // an arrival marks the card; the build runs at its first draw with data
+    function buildDue(card) {
+      if (!card._buildDue) return false;
+      if (Date.now() - card._buildDue > 4000) { card._buildDue = 0; return false; }
+      card._buildDue = 0;
+      return true;
+    }
+
+    var PAGE_CSS = [
+      // ---- the hero: no plate, the page's own text over the sky
+      '.hero{text-align:center;padding:28px 12px 27px;color:' + C.v('ink') + ';text-shadow:' + C.v('glow') + '}',
+      '.hero .pl{font-size:20px;font-weight:500;letter-spacing:-0.3px;display:flex;align-items:center;justify-content:center;gap:8px}',
+      // THE TEMPERATURE IN FRONT OF ITS WEATHER, as the screensaver's weather
+      // screen draws it (hk-saver-weather.js, 210 px digits over a 300 px
+      // symbol): the symbol 1.43 times the digits' size, up and to the left,
+      // the digits over its lower right; a sun or a moon glowing into the sky
+      // behind; a white symbol eased back to 70 %. In em of the digits, so the
+      // phone's smaller number keeps the same pair. (The saver's offsets are
+      // to a .8 line box; this one is 1.06, .13 em taller above.)
+      '.hero .now{position:relative;display:table;margin:3px auto 0}',
+      // room above the digits for the symbol that rises over them (the saver
+      // has the sky there; the page has the place's name)
+      '.hero .tp{position:relative;isolation:isolate;margin-top:.62em}',
+      // (the symbol's own em is 1.4286 of the digits': .38 / .5023 of it
+      // are the saver's .5429 / .7176 of theirs)
+      '.hero .bd{position:absolute;z-index:-1;pointer-events:none;line-height:0;font-size:1.4286em;letter-spacing:0;',
+      '  left:calc(18px - .38em);top:-.5023em;filter:drop-shadow(0 4px 16px rgba(0,10,30,.25))}',
+      '.hero .bd svg{display:block}',
+      '.hero .pale .bd{opacity:.7}',
+      '.hero .glow{position:absolute;z-index:-2;pointer-events:none;width:2.476em;height:2.476em;border-radius:50%;',
+      '  left:calc(18px - .5429em - .5236em);top:calc(-.7176em - .5236em);background:radial-gradient(circle,rgba(255,214,10,.28),rgba(255,214,10,0) 62%)}',
+      '.hero .night .glow{background:radial-gradient(circle,rgba(220,230,255,.16),rgba(220,230,255,0) 62%)}',
+      '.hero .bd.calm *,.hero .bd.calm svg{animation:none!important}',
+      '.hero .n{display:inline-block}',
+      '.hero.anim .bd{animation:wxPop .7s ' + BUILD + ' backwards;animation-delay:60ms}',
+      '.hero.anim .n{animation:wxUp .6s ' + BUILD + ' backwards;animation-delay:160ms}',
+      '.hero.anim .cd{animation:wxUp .5s ' + BUILD + ' backwards;animation-delay:260ms}',
+      '.hero.anim .hl{animation:wxUp .5s ' + BUILD + ' backwards;animation-delay:330ms}',
+      '.hero.anim .ol{animation:wxUp .5s ' + BUILD + ' backwards;animation-delay:400ms}',
+      '.hero .pl,.hero .cd,.hero .hl,.hero .ol{position:relative;z-index:1}',
+      '.hero .tp{font-size:84px;font-weight:200;letter-spacing:-5px;line-height:1.06;padding-left:18px;font-variant-numeric:tabular-nums}',
+      (window.hkHeader && window.hkHeader.wxMotionCss ? window.hkHeader.wxMotionCss('.hero .bd') : ''),
+      ':host([data-wx-paused]) .hero .bd *,:host([data-wx-paused]) .hero .bd svg{animation-play-state:paused!important}',
+      ':host([hk-still]) .hero .bd *,:host([hk-still]) .hero .bd svg{animation:none!important}',
+      '.hero .cd{font-size:18px;font-weight:500;margin-top:2px}',
+      '.hero .hl{font-size:15px;font-weight:500;margin-top:5px}',
+      '.hero .hl span{margin-left:8px;color:' + C.v('ink-2') + '}',
+      '.hero .ol{font-size:13px;font-weight:500;line-height:1.5;margin:13px auto 0;max-width:520px;color:' + C.v('ink-2') + '}',
+      '@media (max-width:' + C.BP.phone + 'px){.hero{padding:27px 12px 22px}.hero .tp{font-size:76px}.hero .ol{max-width:290px}}',
+      // ---- the page's plates: hourly and daily (hkCards.plate, CARD's 20 / 22)
+      'ha-card.wxp{box-sizing:border-box;display:flex;flex-direction:column;padding:' + C.CARD.pad + ';margin:0;' + C.plate('card') + ';overflow:hidden;',
+      '  color:' + C.v('ink') + ';--ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
+      '.wxp .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:34px}',
+      '.wxp .tt{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:' + C.v('ink-2') + ';white-space:nowrap}',
+      '.wxp .tt ha-icon{--mdc-icon-size:17px;width:17px;height:17px;flex:none;display:flex;align-items:center;justify-content:center;line-height:0}',
+      '.wxp .wait{margin:auto;padding:24px 0;font-size:14px;color:' + C.v('ink-3') + ';text-align:center}',
+      C.segCss('.wxp .seg'),
+      '.wxp .seg button:disabled{opacity:.4;cursor:default}',
+      // the hours: a sideways scroller of their own (never the page's)
+      '.wxp .hs{overflow-x:auto;overflow-y:hidden;margin:17px -6px 0;padding:0 6px;scrollbar-width:thin;',
+      '  scrollbar-color:' + C.v('line-strong') + ' transparent;touch-action:pan-x pan-y;overscroll-behavior-x:contain}',
+      '.wxp .hrs{display:grid;gap:5px}',
+      '.wxp .hr{position:relative;display:flex;flex-direction:column;align-items:center;gap:9px;border:0;background:none;',
+      '  font:inherit;color:inherit;padding:8px 4px 10px;min-height:103px;border-radius:12px;cursor:pointer;margin:0;-webkit-tap-highlight-color:transparent}',
+      '.wxp .hr[aria-pressed="true"]{background:' + C.v('key') + '}',
+      '.wxp .hr:focus-visible,.wxp .dy:focus-visible{outline:2px solid ' + C.v('ink-2') + ';outline-offset:-2px}',
+      '.wxp .hr .t{font-size:12px;font-weight:600;color:' + C.v('ink-2') + ';white-space:nowrap}',
+      '.wxp .hr .t.now{color:' + C.v('ink') + '}',
+      '.wxp .hr b{font-size:18px;font-weight:600;letter-spacing:-0.3px;font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.wxp .hr b small{font-size:10px;font-weight:500;color:' + C.v('ink-2') + ';margin-left:2px}',
+      // Reserve the full percentage line even when Rain/Wind leave it empty.
+      '.wxp .hr .p{font-size:10px;font-weight:600;min-height:16px;line-height:16px;color:var(--hk-wx-c,#64D2FF)}',
+      BUILD_CSS,
+      '.anim .hr{animation:wxUp .55s ' + BUILD + ' backwards;animation-delay:calc(var(--i,0) * 40ms + 120ms)}',
+      '.anim .hr svg{animation:wxPop .5s ' + BUILD + ' backwards;animation-delay:calc(var(--i,0) * 40ms + 220ms)}',
+      '.anim .dy{animation:wxUp .5s ' + BUILD + ' backwards;animation-delay:calc(var(--i,0) * 50ms + 120ms)}',
+      '.anim .rg i{animation:wxWipe .9s ' + BUILD + ' backwards;animation-delay:calc(var(--i,0) * 50ms + 260ms)}',
+      '.anim .rg b{animation:wxPop .45s ' + BUILD + ' backwards;animation-delay:1s}',
+      '.wxp .rd{display:flex;justify-content:space-between;gap:10px;border-top:1px solid ' + C.v('line') + ';padding-top:10px;margin-top:10px;',
+      '  font-size:12px;font-weight:500;color:' + C.v('ink-2') + ';min-height:16px}',
+      '.wxp .rd span{color:' + C.v('ink-3') + ';white-space:nowrap}',
+      '@media (max-width:' + C.BP.phone + 'px){.wxp.hrly .hd{flex-direction:column;align-items:stretch;gap:12px}',
+      '  .wxp.hrly .seg button{flex:1 1 0}.wxp .rd{flex-direction:column;gap:5px}.wxp .hs{margin-top:10px}}',
+      // the days: on one shared scale, low to high
+      'ha-card.wxp.dly{height:var(--hk-wx-pair-h,455px)}',
+      ':host([data-hk-cell]) ha-card.wxp.dly{height:100%}',
+      '.wxp.dly .hd{margin-bottom:6px}',
+      '.wxp .dys{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}',
+      '.wxp .dy{flex:1 1 0;display:grid;grid-template-columns:50px 35px 34px minmax(25px,1fr) 34px;align-items:center;gap:10px;',
+      '  min-height:32px;padding:0;border:0;border-bottom:1px solid ' + C.v('line') + ';background:none;font:inherit;color:inherit;',
+      '  text-align:left;width:100%;cursor:pointer;margin:0;-webkit-tap-highlight-color:transparent}',
+      '.wxp .dy:last-child{border-bottom:0}',
+      '.wxp .dy .dn{font-size:14px;font-weight:600}',
+      '.wxp .dy .di{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}',
+      '.wxp .dy .di small{font-size:9px;font-weight:600;color:var(--hk-wx-c,#64D2FF)}',
+      '.wxp .dy .lo,.wxp .dy .hi{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}',
+      '.wxp .dy .lo{color:' + C.v('ink-2') + ';text-align:right}',
+      '.wxp .dy .hi{text-align:right}',
+      '.wxp .rg{position:relative;height:4px;border-radius:' + C.R.capsule('4px') + ';background:' + C.v('line-strong') + '}',
+      '.wxp .rg i{position:absolute;top:0;bottom:0;border-radius:inherit;background:linear-gradient(90deg,#64d2ff,#ffd60a,#ff9f0a)}',
+      '.wxp .rg b{position:absolute;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.35)}',
+      '.wxp .ft{border-top:1px solid ' + C.v('line') + ';padding-top:10px;font-size:12px;font-weight:500;color:' + C.v('ink-2') + '}',
+      '@media (max-width:' + C.BP.phone + 'px){.wxp .dy{grid-template-columns:52px 40px 32px minmax(25px,1fr) 32px;gap:8px}}'
+    ].join('');
+
+    var PAGE_METHODS = {
+      _section() { var s = (this._config || {}).section; return SECTIONS.indexOf(s) >= 0 ? s : null; },
+      // how the forecast stands: 'ok' (has entries), 'wait' (asked, not yet
+      // answered), 'none' (the service gave none)
+      _fcState(kind, list) {
+        if (list.length) return 'ok';
+        var src = this._sources()[kind];
+        if (src) return 'none';
+        var w = (this._fcW || {})[kind + '|' + this._config.entity];
+        return w && !w.has() ? 'wait' : 'none';
+      },
+      _hours(n) {
+        var now = Date.now();
+        return this._forecast('hourly', this._sources().hourly).filter(function (h) {
+          return !(Date.parse(h.datetime) + 3600e3 <= now);
+        }).slice(0, n);
+      },
+      _days(n) { return upcomingDays(this._forecast('daily', this._sources().daily)).slice(0, n); },
+      _service() {
+        var st = this._st(this._config.entity), a = (st && st.attributes) || {};
+        return a.friendly_name || '';
+      },
+      _units() {
+        var st = this._st(this._config.entity), a = (st && st.attributes) || {};
+        var HS = window.hkSettings;
+        return { wind: HS && HS.unit ? HS.unit(st, 'wind_speed_unit', 'mph') : (a.wind_speed_unit || 'mph') };
+      },
+      _renderSection() {
+        if (!this._config || !this._hass) return;
+        var s = this._section();
+        if (s === 'hero') this._renderHero();
+        else if (s === 'hourly') this._renderHourly();
+        else this._renderDaily();
+      },
+
+      // ---- THE HERO
+      // THE TEMPERATURE NOW, as the weather sheet and Climate's Outside &
+      // Ahead read it: the house's outside sensor when Settings names one,
+      // else the weather service's -- one number for "now" on the page
+      _nowTemp() {
+        var src = this._sources(), st = this._st(this._config.entity), o = src.outside && this._st(src.outside);
+        var v = o ? num(o.state) : null;
+        return v !== null ? v : num(((st && st.attributes) || {}).temperature);
+      },
+      _renderHero() {
+        var cfg = this._config, states = this._hass.states, st = states[cfg.entity] || {}, a = st.attributes || {};
+        var src = this._sources();
+        var t = this._nowTemp();
+        var feels = src.feels ? num((states[src.feels] || {}).state) : num(a.apparent_temperature);
+        var cond = window.hkHeader && window.hkHeader.conditionName ? window.hkHeader.conditionName(st.state) : String(st.state || '');
+        var hrs = this._hours(12), days = this._days(1), today = days[0] || {};
+        var hi = num(today.temperature), lo = num(today.templow);
+        var place = titled(cfg.place || this._place());
+        var night = !!(window.hkHeader && window.hkHeader.isNight && window.hkHeader.isNight(states));
+        var hasSym = !!(window.hkHeader && window.hkHeader.wxSvg) && !/^(unknown|unavailable)$/.test(st.state || 'unknown');
+        var html = '<div class="hero" role="group" aria-label="Current weather">' +
+          '<div class="pl">' + esc(place) + '</div>' +
+          '<div class="now' + (st.state === 'sunny' ? '' : ' pale') + (night ? ' night' : '') + '"><div class="tp">' +
+          (/^(sunny|clear-night|partlycloudy)$/.test(st.state) ? '<div class="glow" aria-hidden="true"></div>' : '') +
+          '<div class="bd" aria-hidden="true">' + (hasSym ? window.hkHeader.wxSvg(st.state, '1em', { night: night, sym: true }) : '') + '</div>' +
+          '<span class="n">' + (t !== null ? Math.round(t) + '°' : '--') + '</span></div></div>' +
+          '<div class="cd">' + esc(cond || '--') + '</div>' +
+          (hi !== null || lo !== null ? '<div class="hl">' + (hi !== null ? 'H:' + Math.round(hi) + '°' : '') +
+            (lo !== null ? '<span>L:' + Math.round(lo) + '°</span>' : '') + '</div>' : '') +
+          '<p class="ol">' + esc(this._outlook(t, feels, hrs)) + '</p></div>';
+        C.morph(this._root, html);
+        this._balanceHero();
+        if (buildDue(this)) build(this, this._root.querySelector('.hero'));
+      },
+      // THE PAIR CENTERED ON ITS INK, as the screensaver balances it: what is
+      // drawn -- the symbol's paths (at rest: a turning ray or a drifting
+      // cloud would move the edge) and the number's ink, a 1 narrow, a cloud
+      // with a sun wide -- not the boxes. Only when what is drawn changed.
+      _balanceHero() {
+        var now = this._root.querySelector && this._root.querySelector('.hero .now');
+        var tp = now && now.querySelector('.tp'), bd = now && now.querySelector('.bd');
+        if (!tp || !bd || typeof tp.getBoundingClientRect !== 'function' || !this.isConnected) return;
+        var nEl = tp.querySelector('.n'), text = String(nEl ? nEl.textContent : tp.textContent).trim();
+        var key = text + '|' + bd.innerHTML.length;
+        if (key === this._heroKey) return;
+        now.style.transform = '';
+        bd.classList.add('calm');
+        var L = 1e9, R = -1e9;
+        bd.querySelectorAll('svg path').forEach(function (p) {
+          var b = p.getBoundingClientRect();
+          if (b.width) { L = Math.min(L, b.left); R = Math.max(R, b.right); }
+        });
+        bd.classList.remove('calm');
+        var tb = tp.getBoundingClientRect(), cs = getComputedStyle(tp);
+        if (!tb.width) return;
+        try {
+          var cv = (PAGE_METHODS._cv = PAGE_METHODS._cv || document.createElement('canvas')).getContext('2d');
+          cv.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+          if ('letterSpacing' in cv) cv.letterSpacing = cs.letterSpacing;
+          var m = cv.measureText(text), x0 = tb.left + (parseFloat(cs.paddingLeft) || 0);
+          L = Math.min(L, x0 - (m.actualBoundingBoxLeft || 0));
+          R = Math.max(R, x0 + m.actualBoundingBoxRight);
+        } catch (e) { L = Math.min(L, tb.left); R = Math.max(R, tb.right); }
+        var hero = this._root.querySelector('.hero').getBoundingClientRect();
+        if (!hero.width || L > R) return;
+        now.style.transform = 'translateX(' + ((hero.left + hero.width / 2) - (L + R) / 2).toFixed(1) + 'px)';
+        this._heroKey = key;
+      },
+      // ONE LINE OF WHAT IS COMING, from the forecast alone: rain when it is
+      // likely, else where the temperature goes, and how it feels when that
+      // differs. Nothing it doesn't have -- no forecast, no line about it.
+      _outlook(t, feels, hrs) {
+        var out = [];
+        var wet = null;
+        for (var i = 0; i < hrs.length; i++) {
+          var p = num(hrs[i].precipitation_probability);
+          if (p !== null && p >= 40) { wet = { h: hrs[i], p: p }; break; }
+        }
+        if (wet) out.push((wet.p >= 60 ? 'Rain likely' : 'A chance of rain') + ' around ' + hourLabel(wet.h.datetime) + '.');
+        else {
+          var ts = hrs.map(function (h) { return { t: num(h.temperature), at: h.datetime }; }).filter(function (x) { return x.t !== null; });
+          if (ts.length > 2 && t !== null) {
+            var lo = ts.reduce(function (m, x) { return x.t < m.t ? x : m; }), hi = ts.reduce(function (m, x) { return x.t > m.t ? x : m; });
+            if (lo.t <= t - 3) out.push('Cooling to ' + Math.round(lo.t) + '° by ' + hourLabel(lo.at) + '.');
+            else if (hi.t >= t + 3) out.push('Warming to ' + Math.round(hi.t) + '° by ' + hourLabel(hi.at) + '.');
+            else out.push('Steady near ' + Math.round(t) + '° for the next ' + ts.length + ' hours.');
+          }
+        }
+        if (feels !== null && t !== null && Math.abs(feels - t) >= 3) out.push('Feels like ' + Math.round(feels) + '°.');
+        return out.join(' ');
+      },
+
+      // ---- THE HOURS
+      _renderHourly() {
+        var self = this, cfg = this._config, states = this._hass.states;
+        var pg = wxPage(), hrs = this._hours(pg.hours), state = this._fcState('hourly', hrs);
+        var has = {
+          temperature: hrs.some(function (h) { return num(h.temperature) !== null; }),
+          rain: hrs.some(function (h) { return num(h.precipitation_probability) !== null; }),
+          wind: hrs.some(function (h) { return num(h.wind_speed) !== null; })
+        };
+        // the saved view, else the first the forecast has (the saved one stays saved)
+        var metric = this._metric || pg.hourly_metric;
+        if (!has[metric]) metric = WX_METRIC_ORDER.filter(function (m) { return has[m]; })[0] || 'temperature';
+        this._metricShown = metric;
+        if (this._sel != null && this._sel >= hrs.length) this._sel = null;
+        if (!this._built) {
+          this._root.innerHTML = '<ha-card class="wxp hrly"><div class="hd">' +
+            '<div class="tt"><ha-icon icon="hk:clock"></ha-icon>Hourly Forecast</div>' +
+            '<div class="seg" role="radiogroup" aria-label="Hourly forecast shows"></div></div>' +
+            '<div class="hs"><div class="hrs"></div></div><div class="rd" aria-live="polite"></div></ha-card>';
+          var q = this._root.querySelector.bind(this._root);
+          this._e = { seg: q('.seg'), hs: q('.hs'), hrs: q('.hrs'), rd: q('.rd') };
+          this._e.seg.addEventListener('click', function (e) {
+            var b = e.target.closest && e.target.closest('button[data-m]');
+            if (!b || b.disabled) return;
+            var from = C.segBox(self._e.seg.querySelector('[aria-selected="true"]'));
+            self._metric = b.getAttribute('data-m');
+            self.redraw();
+            C.slideSeg(self._e.seg.querySelector('[aria-selected="true"]'), from);
+          });
+          this._e.hrs.addEventListener('click', function (e) {
+            var b = e.target.closest && e.target.closest('button[data-i]');
+            if (!b) return;
+            var i = Number(b.getAttribute('data-i'));
+            self._sel = self._sel === i ? null : i;
+            self.redraw();
+          });
+          this._built = true;
+        }
+        var e = this._e;
+        C.morph(e.seg, WX_METRIC_ORDER.map(function (m) {
+          var on = m === metric;
+          return '<button type="button" role="radio" data-m="' + m + '" aria-selected="' + on + '" aria-checked="' + on + '"' +
+            (has[m] ? '' : ' disabled aria-disabled="true" title="Not in this forecast"') + '>' + { temperature: 'Temperature', rain: 'Rain', wind: 'Wind' }[m] + '</button>';
+        }).join(''));
+        var wu = this._units().wind;
+        var now0 = this._nowTemp();
+        var say = function (h, i) {
+          var tt = i === 0 && now0 !== null ? now0 : num(h.temperature), p = num(h.precipitation_probability), w = num(h.wind_speed);
+          var bits = [i === 0 ? 'Now' : hourLabel(h.datetime)];
+          if (tt !== null) bits.push(Math.round(tt) + '°');
+          if (h.condition && window.hkHeader && window.hkHeader.conditionName) bits.push(window.hkHeader.conditionName(h.condition));
+          if (p !== null) bits.push(Math.round(p) + '% chance of rain');
+          if (w !== null) bits.push(Math.round(w) + ' ' + wu + ' wind');
+          var f = num(h.apparent_temperature);
+          if (f !== null && tt !== null && Math.abs(f - tt) >= 2) bits.push('feels ' + Math.round(f) + '°');
+          return bits.join(' · ');
+        };
+        var cells = hrs.map(function (h, i) {
+          // Now is the reading now (the hero's), the rest the forecast
+          var tt = i === 0 && now0 !== null ? now0 : num(h.temperature), p = num(h.precipitation_probability), w = num(h.wind_speed), nt = nightOf(states, h);
+          var val = metric === 'rain' ? (p !== null ? Math.round(p) + '%' : '--')
+            : metric === 'wind' ? (w !== null ? Math.round(w) + '<small>' + esc(wu) + '</small>' : '--')
+            : (tt !== null ? Math.round(tt) + '°' : '--');
+          return '<button type="button" class="hr" style="--i:' + i + '" data-i="' + i + '" aria-pressed="' + (self._sel === i) + '" aria-label="' + esc(say(h, i)) + '">' +
+            '<span class="t' + (i === 0 ? ' now' : '') + '">' + (i === 0 ? 'Now' : hourLabel(h.datetime)) + '</span>' +
+            glyph(h.condition === 'clear-night' && !nt ? 'sunny' : h.condition, 25, nt) +
+            '<b>' + val + '</b><span class="p">' + (metric === 'temperature' && p !== null && p >= 20 ? Math.round(p) + '%' : '') + '</span></button>';
+        }).join('');
+        var was = e.hrs.getAttribute('data-state');
+        e.hrs.style.gridTemplateColumns = hrs.length ? 'repeat(' + hrs.length + ',minmax(64px,1fr))' : '1fr';
+        e.hrs.style.minWidth = hrs.length ? (hrs.length * 64 + (hrs.length - 1) * 5) + 'px' : '';
+        C.morph(e.hrs, hrs.length ? cells : '<div class="wait">' + (state === 'wait' ? 'Loading the forecast…' : 'No hourly forecast from ' + esc(this._service() || 'the weather service') + '.') + '</div>');
+        e.hrs.setAttribute('data-state', state);
+        if (hrs.length && buildDue(this)) build(this, this._root.querySelector('ha-card.wxp'));
+        else if (was === 'wait' && state === 'ok') arrive(e.hrs);
+        var rd = this._sel != null && hrs[this._sel] ? esc(say(hrs[this._sel], this._sel)) : (hrs.length ? 'Tap an hour for its details' : '');
+        C.morph(e.rd, rd + (this._service() ? '<span>' + esc(this._service()) + '</span>' : ''));
+      },
+
+      // ---- THE DAYS
+      _renderDaily() {
+        var self = this, cfg = this._config, st = this._st(cfg.entity) || {}, a = st.attributes || {};
+        var pg = wxPage(), days = this._days(pg.days), state = this._fcState('daily', days);
+        var t = num(a.temperature);
+        if (!this._built) {
+          this._root.innerHTML = '<ha-card class="wxp dly"><div class="hd"><div class="tt"><ha-icon icon="mdi:calendar-month"></ha-icon><span class="nm"></span></div></div>' +
+            '<div class="dys" role="list"></div><div class="ft"></div></ha-card>';
+          var q = this._root.querySelector.bind(this._root);
+          this._e = { nm: q('.nm'), dys: q('.dys'), ft: q('.ft') };
+          this._e.dys.addEventListener('click', function (ev) {
+            var b = ev.target.closest && ev.target.closest('button[data-d]');
+            if (!b || !window.hkDetail || !window.hkDetail.open) return;
+            window.hkDetail.open(self._config.entity, { focus: 'day', day: Number(b.getAttribute('data-d')) });
+          });
+          this._built = true;
+        }
+        var e = this._e;
+        var name = days.length ? days.length + '-Day Forecast' : 'Daily Forecast';
+        if (e.nm.textContent !== name) e.nm.textContent = name;
+        var vals = [];
+        days.forEach(function (d) { [num(d.templow), num(d.temperature)].forEach(function (x) { if (x !== null) vals.push(x); }); });
+        var mn = vals.length ? Math.min.apply(null, vals) : 0, mx = vals.length ? Math.max.apply(null, vals) : 1, span = Math.max(1, mx - mn);
+        var pct = function (x) { return ((x - mn) / span * 100).toFixed(1); };
+        var rows = days.map(function (d, i) {
+          var hi = num(d.temperature), lo = num(d.templow), p = num(d.precipitation_probability);
+          var nm = i === 0 ? 'Today' : new Date(d.datetime).toLocaleDateString('en-US', { weekday: 'short' });
+          var long = i === 0 ? 'Today' : new Date(d.datetime).toLocaleDateString('en-US', { weekday: 'long' });
+          var cn = window.hkHeader && window.hkHeader.conditionName ? window.hkHeader.conditionName(d.condition === 'clear-night' ? 'sunny' : d.condition) : '';
+          var dot = i === 0 && t !== null && lo !== null && hi !== null ? '<b style="left:' + pct(Math.max(mn, Math.min(mx, t))) + '%"></b>' : '';
+          var label = long + ': ' + (cn ? cn + ', ' : '') + (lo !== null ? 'low ' + Math.round(lo) + '°, ' : '') + (hi !== null ? 'high ' + Math.round(hi) + '°' : '') +
+            (p !== null ? ', ' + Math.round(p) + '% chance of rain' : '');
+          return '<button type="button" class="dy" role="listitem" style="--i:' + i + '" data-d="' + i + '" aria-label="' + esc(label) + '">' +
+            '<span class="dn">' + nm + '</span><span class="di">' + glyph(d.condition === 'clear-night' ? 'sunny' : d.condition, 22, false) +
+            (p !== null && p >= 20 ? '<small>' + Math.round(p) + '%</small>' : '') + '</span>' +
+            '<span class="lo">' + (lo !== null ? Math.round(lo) + '°' : '') + '</span>' +
+            '<span class="rg">' + (lo !== null && hi !== null ? '<i style="left:' + pct(lo) + '%;right:' + (100 - pct(hi)) + '%"></i>' + dot : '') + '</span>' +
+            '<span class="hi">' + (hi !== null ? Math.round(hi) + '°' : '') + '</span></button>';
+        }).join('');
+        var was = e.dys.getAttribute('data-state');
+        C.morph(e.dys, days.length ? rows : '<div class="wait">' + (state === 'wait' ? 'Loading the forecast…' : 'No daily forecast from ' + esc(this._service() || 'the weather service') + '.') + '</div>');
+        e.dys.setAttribute('data-state', state);
+        if (days.length && buildDue(this)) build(this, this._root.querySelector('ha-card.wxp'));
+        else if (was === 'wait' && state === 'ok') arrive(e.dys);
+        // the week in a line: its warmest and coolest days
+        var ft = '';
+        if (days.length > 2) {
+          var his = days.map(function (d, i) { return { v: num(d.temperature), i: i }; }).filter(function (x) { return x.v !== null; });
+          if (his.length > 2) {
+            var w = his.reduce(function (m, x) { return x.v > m.v ? x : m; }), c = his.reduce(function (m, x) { return x.v < m.v ? x : m; });
+            var dn = function (i) { return i === 0 ? 'today' : new Date(days[i].datetime).toLocaleDateString('en-US', { weekday: 'long' }); };
+            ft = 'Warmest ' + dn(w.i) + ' at ' + Math.round(w.v) + '°, coolest ' + dn(c.i) + ' at ' + Math.round(c.v) + '°.';
+          }
+        }
+        e.ft.style.display = ft ? '' : 'none';
+        if (e.ft.textContent !== ft) e.ft.textContent = ft;
+      }
+    };
+
     class HkWeatherBandCard extends Base {
+
+      // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+
+      static get FLAT_MOTION() { return true; }
       static get CSS() {
         return [
           // The plate: a page card's (hkCards.plate, CARD's 20 / 22 padding),
@@ -1004,12 +1657,15 @@
           '.plain .place,.plain .sub,.plain .lbl,.plain .lo,.plain .pop.wet{color:var(--hk-ink-2,#fff)}',
           '.plain .pop{color:var(--hk-ink-3,#fff)}',
           '.plain .temp,.plain .cond,.plain .lbl.now,.plain .hi{color:var(--hk-ink,#fff)}'
-        ].join('');
+        ].join('') + PAGE_CSS;
       }
 
       get hass() { return super.hass; }
       set hass(h) { houseWeather(this, h, BAND_KEYS); super.hass = h; }
       setConfig(config) {
+        if (config && config.section != null && SECTIONS.indexOf(config.section) < 0) {
+          throw new Error('hk-weather-band: `section` must be hero, hourly or daily');
+        }
         this._hkOwn = ownKeys(config, BAND_KEYS);
         // DEFAULTS TO NONE, and that is deliberate. HkBase._bind passes
         // `tapKey === 'tap_action'` as its defaultMoreInfo flag, so an unset
@@ -1082,6 +1738,32 @@
 
       connectedCallback() {
         if (super.connectedCallback) { super.connectedCallback(); }
+        wxEnter(this);
+        if (this._section() === 'hero') {
+          // measured again once SF Pro is in (the first draw can be in a fallback face)
+          var self0 = this;
+          this._heroKey = null;
+          if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { self0._heroKey = null; self0._balanceHero(); });
+          else this._balanceHero();
+        }
+        if (this._section() === 'hero' && !this._heroVisibility) {
+          var hero = this;
+          this._heroVisible = true;
+          this._heroVisibility = function () {
+            if (document.hidden || !hero._heroVisible) hero.setAttribute('data-wx-paused', '');
+            else hero.removeAttribute('data-wx-paused');
+          };
+          document.addEventListener('visibilitychange', this._heroVisibility);
+          if (typeof IntersectionObserver === 'function') {
+            this._heroObserver = new IntersectionObserver(function (entries) {
+              hero._heroVisible = entries.some(function (e) { return e.isIntersecting; });
+              hero._heroVisibility();
+            });
+            this._heroObserver.observe(this);
+          }
+          this._heroVisibility();
+        }
+        if (this._section()) { return; }
         if (this._ro || typeof ResizeObserver !== 'function') { return; }
         var self = this;
         this._ro = new ResizeObserver(function (entries) {
@@ -1100,21 +1782,15 @@
 
       disconnectedCallback() {
         if (super.disconnectedCallback) super.disconnectedCallback();
+        wxLeave(this);
+        if (this._heroObserver) { this._heroObserver.disconnect(); this._heroObserver = null; }
+        if (this._heroVisibility) {
+          document.removeEventListener('visibilitychange', this._heroVisibility);
+          this._heroVisibility = null;
+        }
         if (this._ro) { this._ro.disconnect(); this._ro = null; }
         this._w = null;
-        var subs = this._fcSubs || {};
-        Object.keys(subs).forEach(function (k) {
-          Promise.resolve(subs[k]).then(function (unsub) {
-            if (typeof unsub !== 'function') return;
-            var r = unsub();
-            if (r && typeof r.catch === 'function') r.catch(function () { /* connection gone */ });
-          });
-        });
-        this._fcSubs = {};
-        if (this._fcReady && this._fcConn && this._fcConn.removeEventListener) {
-          this._fcConn.removeEventListener('ready', this._fcReady);
-        }
-        this._fcReady = null; this._fcConn = null;
+        this._fcRelease();
         // A RE-ATTACHED BAND MUST ASK AGAIN. The subscriptions are gone, but
         // the render gate would still hold the old signature, so the next
         // hass push would find nothing to do and the cached forecast would
@@ -1141,7 +1817,7 @@
         var h = this._hass, c = this._config;
         if (!h || !c) return null;
         var src = this._sources();
-        var ids = [c.entity, src.hourly, src.daily, src.feels, src.humidity, src.wind];
+        var ids = [c.entity, src.hourly, src.daily, src.feels, src.humidity, src.wind, src.outside];
         var out = 'fc=' + (this._fcN || 0) + ';';
         for (var i = 0; i < ids.length; i++) {
           var st = h.states[ids[i]];
@@ -1153,6 +1829,11 @@
         var n = this._counts();
         // The hour is in it too: the first hourly slot leaves the band when
         // its hour ends, whether or not the sensor has been refreshed yet.
+        if (this._section()) {
+          // the page's: its settings (read live), the sun (night glyphs) and the hour
+          var sun = h.states['sun.sun'];
+          return out + 'p=' + JSON.stringify(wxPage()) + ';s=' + (sun ? sun.state : '') + ';h=' + Math.floor(Date.now() / 3600e3);
+        }
         return out + 'n=' + n.hours + '/' + n.days + (this._narrow() ? 'N' : '') +
           ';h=' + Math.floor(Date.now() / 3600e3);
       }
@@ -1165,70 +1846,44 @@
         var HS = window.hkSettings;
         var g = function (k) { return HS ? HS.get('weather.' + k, null) : null; };
         return { feels: g('feels_like'), humidity: g('humidity'), wind: g('wind'),
-                 hourly: g('forecast_hourly'), daily: g('forecast_daily') };
+                 hourly: g('forecast_hourly'), daily: g('forecast_daily'), outside: g('outside') };
       }
 
       // A FORECAST SENSOR IS OPTIONAL. Since Home Assistant 2024.4 a weather
       // entity carries no forecast attribute, so the usual answer is a
       // trigger template sensor fed by weather.get_forecasts. A home without
-      // one gets the forecast the way Home
-      // Assistant's own weather card does: weather/subscribe_forecast, one
-      // subscription per kind, dropped when the card leaves the page. A
-      // refusal backs off (fcRefused, above) and the band draws no forecast.
+      // one gets the forecast the way Home Assistant's own weather card does:
+      // weather/subscribe_forecast, shared with every other card and sheet
+      // that wants it (hkWxForecast, above), let go when the card leaves the
+      // page. A refusal backs off there and the card draws no forecast.
       _forecast(kind, sensorId) {
         if (sensorId) {
           return ((this._hass.states[sensorId] || {}).attributes || {}).forecast || [];
         }
-        var wid = this._config.entity;
-        this._fc = this._fc || {};
-        this._fcSubs = this._fcSubs || {};
+        var wid = this._config.entity, conn = this._hass && this._hass.connection;
         var key = kind + '|' + wid;
-        var conn = this._hass && this._hass.connection;
-        var refused = fcRefused[key];
-        if (wid && conn && !this._fcSubs[key] && this.isConnected &&
-            !(refused && Date.now() < refused.until)) {
+        this._fcW = this._fcW || {};
+        var w = this._fcW[key];
+        // a new connection object (a page that reconnected) is watched afresh
+        if (w && w.conn !== conn) { w.release(); w = this._fcW[key] = null; }
+        if (!w && wid && conn && this.isConnected && window.hkWxForecast) {
           var self = this;
-          // A RECONNECT (Home Assistant restarted) is ours to follow: the
-          // library's own resubscribe, refused because the weather entity is
-          // not back yet, is dropped for good and the band kept yesterday's
-          // forecast. So `resubscribe: false`, and on 'ready' -- the server
-          // has forgotten every subscription -- this asks again on the next
-          // render, through the same refusal back-off.
-          if (!this._fcReady && typeof conn.addEventListener === 'function') {
-            this._fcConn = conn;
-            this._fcReady = function () {
-              self._fcSubs = {};
-              self.requestUpdate();
-            };
-            conn.addEventListener('ready', this._fcReady);
-          }
-          this._fcSubs[key] = conn.subscribeMessage(function (ev) {
-            delete fcRefused[key];
-            self._fc[key] = (ev && ev.forecast) || [];
+          w = this._fcW[key] = window.hkWxForecast.watch(conn, kind, wid, function () {
             self._fcN = (self._fcN || 0) + 1;
             self.requestUpdate();
-          }, { type: 'weather/subscribe_forecast', forecast_type: kind, entity_id: wid }, { resubscribe: false })
-            .catch(function (err) {
-              delete self._fcSubs[key];
-              var r = fcRefused[key] = fcRefused[key] || { n: 0 };
-              r.until = Date.now() + Math.min(FC_RETRY_MAX, FC_RETRY * Math.pow(2, r.n));
-              r.n++;
-              if (!fcWarned[key]) {
-                fcWarned[key] = true;
-                console.warn('[hk-weather] Home Assistant refused the ' + kind +
-                             ' forecast for ' + wid + ' (' +
-                             ((err && (err.message || err.code)) || String(err)) +
-                             '); retrying with back-off. A forecast sensor in ' +
-                             'Configure -> Weather avoids the subscription.');
-              }
-              return null;
-            });
-        }
-        return this._fc[key] || [];
+          });
+        } else if (w) w.ensure();
+        return w ? w.data() : [];
+      }
+      _fcRelease() {
+        var ws = this._fcW || {};
+        Object.keys(ws).forEach(function (k) { if (ws[k]) ws[k].release(); });
+        this._fcW = {};
       }
 
       _render() {
         if (!this._config || !this._hass) { return; }
+        if (this._section()) { this._renderSection(); return; }
         var cfg = this._config, states = this._hass.states;
         var st = states[cfg.entity] || {};
         var a = st.attributes || {};
@@ -1282,9 +1937,13 @@
             '<div class="lbl' + (i === 0 ? ' now' : '') + '">' + label + '</div>' +
             // Moon after dark. Providers that send is_daytime are believed;
             // OpenWeatherMap does not, so sun.sun's times decide (nightAt).
-            glyph(h.condition, 26, h.is_daytime != null ? h.is_daytime === false
-              : !!(window.hkHeader && window.hkHeader.nightAt &&
-                   window.hkHeader.nightAt(states, h.datetime))) +
+            (function () {
+              var nt = h.is_daytime != null ? h.is_daytime === false
+                : !!(window.hkHeader && window.hkHeader.nightAt && window.hkHeader.nightAt(states, h.datetime));
+              // OpenWeatherMap calls every clear hour "clear-night" once it is
+              // dark when it was asked: a clear hour in daylight is the sun
+              return glyph(h.condition === 'clear-night' && !nt ? 'sunny' : h.condition, 26, nt);
+            })() +
             '<div class="hi">' + (tt !== null ? Math.round(tt) : '--') + '°</div>' +
             '<div class="pop' + (pop >= 20 ? ' wet' : '') + '">' +
               (pop !== null ? Math.round(pop) : 0) + '%</div>' +
@@ -1344,6 +2003,380 @@
 
       getCardSize() { return 4; }
     }
+    Object.keys(PAGE_METHODS).forEach(function (k) { HkWeatherBandCard.prototype[k] = PAGE_METHODS[k]; });
+    // ------------------------------------------- the Weather page's details
+    // THE TILES IN THE PAGE'S LOOK (`look: 'page'`, 2026-10-16): a title
+    // with its glyph, the reading, a small drawing and a line about it --
+    // Wind, Sunrise & Sunset, UV Index, Humidity, Moon and Pressure. The
+    // older look (no `look`) stays the tile it was on other dashboards.
+    // Fed by hk-weather-details-card, which hands each the forecast it holds
+    // (`_wx`: { hourly, daily }) for the lines that look ahead. A reading the
+    // weather service does not give is said to be missing, never invented.
+    var TILE_ICONS = { wind: 'mdi:weather-windy', sun: 'hk:weather-sunset-up', uv: 'hk:white-balance-sunny',
+                       humidity: 'hk:water-percent', moon: 'mdi:moon-waning-crescent', pressure: 'mdi:gauge' };
+    var TILE_NAMES = { wind: 'Wind', sun: 'Sunrise', uv: 'UV Index', humidity: 'Humidity', moon: 'Moon', pressure: 'Pressure' };
+    var TILE_PAGE_CSS = [
+      'ha-card.wtile.pg{display:flex;flex-direction:column;height:var(--hk-wx-tile-h,190px);padding:' + C.CARD.pad + ';cursor:pointer;color:' + C.v('ink') + '}',
+      ':host([data-hk-cell]) ha-card.wtile.pg{height:100%}',
+      '.pg .pt{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:' + C.v('ink-2') + ';white-space:nowrap;overflow:hidden}',
+      '.pg .pt ha-icon{--mdc-icon-size:15px;width:15px;height:15px;flex:none;display:flex;align-items:center;justify-content:center;line-height:0}',
+      '.pg .pb{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:center}',
+      '.pg .nb{font-size:30px;font-weight:700;letter-spacing:-0.6px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.pg .nb small{font-size:13px;font-weight:600;letter-spacing:0;color:' + C.v('ink-2') + ';margin-left:3px}',
+      '.pg .sb{font-size:13px;font-weight:600;margin-top:3px;color:' + C.v('ink-2') + '}',
+      '.pg .pn{margin:0;font-size:12px;font-weight:500;line-height:1.4;color:' + C.v('ink-2') + ';display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+      '.pg .na{font-size:15px;font-weight:600;color:' + C.v('ink-3') + '}',
+      '.pg .scale{position:relative;height:4px;border-radius:' + C.R.capsule('4px') + ';margin-top:12px}',
+      '.pg .scale b{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.4)}',
+      '.pg .uvs{background:linear-gradient(90deg,#4cd964,#ffd60a,#ff9f0a,#ff453a,#bf5af2)}',
+      '.pg .hum{background:' + C.v('line-strong') + '}',
+      '.pg .hum i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:var(--hk-wx-c,#64D2FF)}',
+      '.pg .wb{display:flex;align-items:center;gap:12px}',
+      '.pg .wb svg{flex:none;width:62px;height:62px}',
+      '.pg .wb .nb{font-size:26px}',
+      '.pg .md{display:flex;align-items:center;gap:12px}',
+      '.pg .md svg{flex:none;width:52px;height:52px}',
+      '.pg .md span{font-size:13px;font-weight:500;line-height:1.45;color:' + C.v('ink-2') + '}',
+      '.pg .arc{width:100%;height:40px;display:block;margin-top:6px;overflow:visible}',
+      '.pg .ticks{height:24px;margin-top:10px;position:relative;',
+      '  background:repeating-linear-gradient(90deg,' + C.v('mark') + ' 0 1px,transparent 1px 9px)}',
+      '.pg .ticks b{position:absolute;top:-2px;bottom:-2px;width:3px;margin-left:-1.5px;background:' + C.v('ink') + '}',
+      BUILD_CSS,
+      '.anim .nb{animation:wxUp .55s ' + BUILD + ' backwards;animation-delay:calc(var(--d,0ms) + 100ms)}',
+      '.anim .sb,.anim .pn{animation:wxUp .5s ' + BUILD + ' backwards;animation-delay:calc(var(--d,0ms) + 260ms)}',
+      '.anim .uvs,.anim .ticks{animation:wxWipe .8s ' + BUILD + ' backwards;animation-delay:calc(var(--d,0ms) + 180ms)}',
+      '.anim .scale b,.anim .ticks b{animation:wxPop .45s ' + BUILD + ' backwards;animation-delay:calc(var(--d,0ms) + 950ms)}',
+      '.anim .hum i{animation:wxGrowX .9s ' + BUILD + ' backwards;transform-origin:0 50%;animation-delay:calc(var(--d,0ms) + 180ms)}',
+      '.anim .nd{animation:wxTurn 1.2s ' + BUILD + ' backwards;transform-box:view-box;transform-origin:31px 31px;animation-delay:calc(var(--d,0ms) + 150ms)}',
+      '.anim .arc .a{animation:wxDraw 1s ' + BUILD + ' backwards;animation-delay:calc(var(--d,0ms) + 150ms)}',
+      '.anim .arc circle{animation:wxPop .45s ' + BUILD + ' backwards;transform-box:fill-box;transform-origin:50% 50%;animation-delay:calc(var(--d,0ms) + 950ms)}',
+      '.anim .md svg{animation:wxPop .6s ' + BUILD + ' backwards;animation-delay:calc(var(--d,0ms) + 150ms)}',
+      '@media (max-width:' + C.BP.phone + 'px){.pg .nb{font-size:28px}.pg .wb .nb{font-size:24px}.pg .wb svg{width:52px;height:52px}}'
+    ].join('');
+    var DIRS16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    function dir16(b) { return b === null ? '' : DIRS16[Math.round(((b % 360) + 360) % 360 / 22.5) % 16]; }
+    function fmtTime(iso) {
+      var d = new Date(iso);
+      return isNaN(d) ? null : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
+    function nextHours(list, n) {
+      var now = Date.now();
+      return (list || []).filter(function (h) { return !(Date.parse(h.datetime) + 3600e3 <= now); }).slice(0, n);
+    }
+    var TILE_PAGE = {
+      _pgService() {
+        var st = this._st(this._config.entity) || this._st(window.hkSettings && window.hkSettings.weatherId
+          ? window.hkSettings.weatherId(this._hass.states) : '');
+        return ((st && st.attributes) || {}).friendly_name || 'the weather service';
+      },
+      _pgWeather() {
+        var HS = window.hkSettings, id = this._config.entity || (HS && HS.weatherId ? HS.weatherId(this._hass.states) : null);
+        var st = id && this._st(id);
+        return { st: st, a: (st && st.attributes) || {} };
+      },
+      _pgMissing(what) {
+        return { body: '<div class="na">Not available</div>', note: esc(this._pgService()) + ' doesn’t give ' + what + '.' };
+      },
+      _pg_wind() {
+        var w = this._pgWeather(), a = w.a;
+        var spd = this._config.speed ? this._n(this._config.speed) : num(a.wind_speed);
+        if (spd === null) return this._pgMissing('the wind');
+        var brg = num(a.wind_bearing);
+        var HS = window.hkSettings, unit = HS && HS.unit ? HS.unit(this._st(this._config.speed || this._config.entity) || w.st,
+          this._config.speed ? null : 'wind_speed_unit', 'mph') : 'mph';
+        var gust = this._config.gust ? this._n(this._config.gust) : null;
+        if (gust === null) {
+          var h0 = nextHours((this._wx || {}).hourly, 1)[0];
+          gust = h0 ? num(h0.wind_gust_speed) : null;
+        }
+        var r = brg === null ? 0 : brg * Math.PI / 180;
+        // the needle points the way the wind GOES (it comes FROM the bearing)
+        var x1 = 31 + 22 * Math.sin(r), y1 = 31 - 22 * Math.cos(r), x2 = 31 - 22 * Math.sin(r), y2 = 31 + 22 * Math.cos(r);
+        var svg = '<svg viewBox="0 0 62 62" aria-hidden="true"><circle cx="31" cy="31" r="29" fill="none" style="stroke:' + C.v('mark') + '" stroke-dasharray="2 3"/>' +
+          '<text x="31" y="10" text-anchor="middle" font-size="7" style="fill:' + C.v('ink-3') + '">N</text>' +
+          (brg === null ? '' : '<g class="nd" style="--from:' + (brg <= 180 ? -brg : 360 - brg).toFixed(0) + 'deg"><line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) +
+            '" style="stroke:' + C.v('glyph') + '" stroke-width="2" stroke-linecap="round"/><circle cx="' + x2.toFixed(1) + '" cy="' + y2.toFixed(1) +
+            '" r="3" style="fill:' + C.v('glyph') + '"/></g>') + '</svg>';
+        return { body: '<div class="wb">' + svg + '<div><div class="nb">' + Math.round(spd) + '<small>' + esc(unit) + '</small></div>' +
+                       (brg !== null ? '<div class="sb">From the ' + dir16(brg) + '</div>' : '') + '</div></div>',
+                 note: gust !== null && gust > spd ? 'Gusts up to ' + Math.round(gust) + ' ' + esc(unit) + '.' : (spd < 1 ? 'Calm.' : '') };
+      },
+      _pg_sun() {
+        var s = this._st(this._config.sun || 'sun.sun'), a = (s && s.attributes) || {};
+        if (!s) return { body: '<div class="na">Not available</div>', note: 'Needs Home Assistant’s Sun.' };
+        var up = s.state === 'above_horizon';
+        var main = fmtTime(up ? a.next_setting : a.next_rising), other = fmtTime(up ? a.next_rising : a.next_setting);
+        var parts = main ? /^(.*?)\s?(AM|PM)$/.exec(main) : null;
+        var elev = Number(a.elevation) || 0, f = Math.max(0, Math.min(1, elev / 70));
+        var x = up ? (a.rising === true ? 10 + 70 * f : 150 - 70 * f) : (a.rising === true ? 6 : 154);
+        var y = up ? 36 - 30 * f : 37;
+        return { body: '<div class="nb">' + (parts ? esc(parts[1]) + '<small>' + parts[2] + '</small>' : esc(main || '--')) + '</div>' +
+                       '<svg class="arc" viewBox="0 0 160 42" preserveAspectRatio="none" aria-hidden="true"><path class="a" pathLength="1" stroke-dasharray="1" d="M2 39Q80-22 158 39" fill="none" style="stroke:' + C.v('mark') + '" stroke-width="1.5"/>' +
+                       '<path d="M0 37H160" style="stroke:' + C.v('line-strong') + '"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="4.5" fill="#ffd60a"' + (up ? '' : ' opacity=".55"') + '/></svg>',
+                 note: other ? (up ? 'Sunrise ' : 'Sunset ') + other + '.' : '' };
+      },
+      _pgUvNow() {
+        if (this._config.uv) return this._n(this._config.uv);
+        var a = this._pgWeather().a;
+        if (num(a.uv_index) !== null) return num(a.uv_index);
+        var h0 = nextHours((this._wx || {}).hourly, 1)[0];
+        return h0 ? num(h0.uv_index) : null;
+      },
+      _pg_uv() {
+        var v = this._pgUvNow();
+        if (v === null) return this._pgMissing('a UV index');
+        var n = Math.round(v), word = n <= 2 ? 'Low' : n <= 5 ? 'Moderate' : n <= 7 ? 'High' : n <= 10 ? 'Very High' : 'Extreme';
+        var hrs = nextHours((this._wx || {}).hourly, 12).filter(function (h) { return num(h.uv_index) !== null; });
+        var note = '';
+        if (hrs.length) {
+          var pk = hrs.reduce(function (m, h) { return num(h.uv_index) > num(m.uv_index) ? h : m; });
+          var pv = Math.round(num(pk.uv_index));
+          note = pv <= 2 && n <= 2 ? 'Low for the rest of the day.' : pv > n ? 'Peaks at ' + pv + ' around ' + hourLabel(pk.datetime) + '.' : 'Falling from here.';
+        }
+        return { body: '<div class="nb">' + n + '</div><div class="sb">' + word + '</div>' +
+                       '<div class="scale uvs"><b style="left:' + (Math.max(0, Math.min(1, n / 11)) * 100).toFixed(1) + '%"></b></div>', note: note };
+      },
+      _pg_humidity() {
+        var w = this._pgWeather(), a = w.a, HS = window.hkSettings;
+        var hid = HS ? HS.get('weather.humidity', null) : null;
+        var v = hid ? this._n(hid) : num(a.humidity);
+        if (v === null) return this._pgMissing('the humidity');
+        var dew = num(a.dew_point);
+        return { body: '<div class="nb">' + Math.round(v) + '<small>%</small></div>' +
+                       '<div class="scale hum"><i style="width:' + Math.max(0, Math.min(100, v)).toFixed(0) + '%"></i></div>',
+                 note: dew !== null ? 'The dew point is ' + Math.round(dew) + '° right now.' : '' };
+      },
+      _pg_moon() {
+        var p = this._phase();
+        if (p === null) return { body: '<div class="na">Not available</div>', note: '' };
+        var illum = (1 - Math.cos(2 * Math.PI * p)) / 2, waxing = p < 0.5;
+        var name = p < 0.03 ? 'New Moon' : p < 0.22 ? 'Waxing Crescent' : p < 0.28 ? 'First Quarter' : p < 0.47 ? 'Waxing Gibbous'
+          : p < 0.53 ? 'Full Moon' : p < 0.72 ? 'Waning Gibbous' : p < 0.78 ? 'Last Quarter' : p < 0.97 ? 'Waning Crescent' : 'New Moon';
+        // the same two-arc terminator as the older tile (_moon) and the sky
+        var r = 26, cx = 30, cy = 30, rx = r * Math.abs(Math.cos(2 * Math.PI * p));
+        var a1 = waxing ? 1 : 0, a2 = illum > 0.5 ? a1 : 1 - a1;
+        var d = 'M ' + cx + ' ' + (cy - r) + ' A ' + r + ' ' + r + ' 0 0 ' + a1 + ' ' + cx + ' ' + (cy + r) +
+                ' A ' + rx + ' ' + r + ' 0 0 ' + a2 + ' ' + cx + ' ' + (cy - r) + ' Z';
+        var toFull = ((0.5 - p) % 1 + 1) % 1 * 29.53, toNew = ((1 - p) % 1 + 1) % 1 * 29.53;
+        var when = function (dd) { var n = Math.round(dd); return n <= 0 ? 'tonight' : n === 1 ? 'tomorrow' : 'in ' + n + ' days'; };
+        var note = toFull < toNew ? (toFull < 0.75 ? 'Full moon tonight.' : 'Full moon ' + when(toFull) + '.') : (toNew < 0.75 ? 'New moon tonight.' : 'New moon ' + when(toNew) + '.');
+        return { body: '<div class="md"><svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="26" style="fill:' + C.v('key-strong') + '"/>' +
+                       '<path d="' + d + '" style="fill:var(--hk-glyph,rgba(226,232,240,0.95))"/></svg><span>' + name + '<br>' + Math.round(illum * 100) + '% lit</span></div>',
+                 note: note };
+      },
+      _pg_pressure() {
+        var a = this._pgWeather().a, v = num(a.pressure);
+        if (v === null) return this._pgMissing('the pressure');
+        var unit = a.pressure_unit || '', inhg = /inhg/i.test(unit);
+        // the gauge: 28.5-31 inHg (965-1050 hPa), where nearly every reading lands
+        var lo = inhg ? 28.5 : 965, hi = inhg ? 31 : 1050, f = Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+        var hrs = nextHours((this._wx || {}).hourly, 7).filter(function (h) { return num(h.pressure) !== null; });
+        var note = '';
+        if (hrs.length > 3) {
+          var dv = num(hrs[hrs.length - 1].pressure) - num(hrs[0].pressure), step = inhg ? 0.03 : 1;
+          note = dv >= step ? 'Forecast to rise over the next ' + (hrs.length - 1) + ' hours.'
+            : dv <= -step ? 'Forecast to fall over the next ' + (hrs.length - 1) + ' hours.' : 'Forecast to hold steady.';
+        }
+        return { body: '<div class="nb">' + (inhg ? v.toFixed(2) : Math.round(v)) + '<small>' + esc(unit) + '</small></div>' +
+                       '<div class="ticks"><b style="left:' + (f * 100).toFixed(1) + '%"></b></div>', note: note };
+      },
+      _pgTitle() {
+        var v = this._config.variant;
+        if (v === 'sun') { var s = this._st(this._config.sun || 'sun.sun'); return s && s.state === 'above_horizon' ? 'Sunset' : 'Sunrise'; }
+        return TILE_NAMES[v];
+      },
+      _renderPage() {
+        var self = this, v = this._config.variant;
+        if (!this._built) {
+          this._root.innerHTML = '<ha-card class="wtile pg" role="button" tabindex="0"><div class="pt"><ha-icon></ha-icon><span></span></div>' +
+            '<div class="pb"></div><p class="pn"></p></ha-card>';
+          var q = this._root.querySelector.bind(this._root);
+          this._e = { card: q('ha-card'), ic: q('.pt ha-icon'), tt: q('.pt span'), pb: q('.pb'), pn: q('.pn') };
+          var open = function () {
+            if (!window.hkDetail || !window.hkDetail.open) return;
+            var HS = window.hkSettings, id = self._config.entity || (HS && HS.weatherId ? HS.weatherId(self._hass.states) : null);
+            if (id) window.hkDetail.open(id, { focus: self._config.variant });
+          };
+          this._e.card.addEventListener('click', open);
+          this._e.card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+          this._built = true;
+        }
+        var e = this._e, got = this['_pg_' + v](), tt = this._pgTitle();
+        e.ic.setAttribute('icon', TILE_ICONS[v]);
+        if (e.tt.textContent !== tt) e.tt.textContent = tt;
+        e.card.setAttribute('aria-label', tt + ' details');
+        C.morph(e.pb, got.body);
+        C.morph(e.pn, got.note || '');
+      }
+    };
+
+    // ------------------------------------------- hk-weather-details-card
+    // THE PAGE'S DETAILS: the tiles weather.page.details names, in its order
+    // (read live), six across on a wide screen, three on an upright tablet,
+    // two on a phone -- by this card's own width. One forecast watch for all
+    // of them (the band's _forecast, shared with the page's other cards).
+    class HkWeatherDetailsCard extends Base {
+      static get CSS() {
+        return ':host{display:block}' +
+          '.dg{display:grid;grid-template-columns:repeat(var(--n,6),minmax(0,1fr));gap:var(--hk-gap,10px)}';
+      }
+      setConfig(config) {
+        this._hkOwn = ownKeys(config, BAND_KEYS);
+        super.setConfig(Object.assign({}, config || {}));
+        houseWeather(this, this._hass, BAND_KEYS);
+      }
+      get hass() { return super.hass; }
+      set hass(h) { houseWeather(this, h, BAND_KEYS); super.hass = h; }
+      _sigOf() {
+        var h = this._hass;
+        if (!h) return null;
+        var src = this._sources(), HS = window.hkSettings, ids = [this._config.entity, src.hourly, src.daily, 'sun.sun',
+          HS ? HS.get('weather.wind', null) : null, HS ? HS.get('weather.gust', null) : null, HS ? HS.get('weather.uv', null) : null,
+          HS ? HS.get('weather.humidity', null) : null, HS ? HS.get('sky.moon', null) : null];
+        return 'fc=' + (this._fcN || 0) + ';d=' + wxPage().details.join(',') + ';' + ids.map(function (id) {
+          var st = id && h.states[id]; return (id || '') + '=' + (st ? st.last_updated : 'x');
+        }).join(';') + ';h=' + Math.floor(Date.now() / 3600e3) + ';m=' + Math.floor(Date.now() / 600e3);
+      }
+      connectedCallback() {
+        if (super.connectedCallback) super.connectedCallback();
+        wxEnter(this);
+        var self = this;
+        if (!this._ro && typeof ResizeObserver === 'function') {
+          this._ro = new ResizeObserver(function (en) {
+            var w = en[0] && en[0].contentRect ? en[0].contentRect.width : 0;
+            var n = w > 1000 ? 6 : w > 560 ? 3 : 2;
+            if (n !== self._cols) { self._cols = n; if (self._grid) self._grid.style.setProperty('--n', n); }
+          });
+          this._ro.observe(this);
+        }
+      }
+      disconnectedCallback() {
+        if (super.disconnectedCallback) super.disconnectedCallback();
+        wxLeave(this);
+        var tiles = this._tiles || {};
+        Object.keys(tiles).forEach(function (k) { wxLeave(tiles[k]); });
+        if (this._ro) { this._ro.disconnect(); this._ro = null; }
+        this._fcRelease();
+        this._hkSig = null;
+      }
+      _render() {
+        if (!this._config || !this._hass) return;
+        if (!this._grid) {
+          this._root.innerHTML = '<div class="dg" role="list" aria-label="Weather details"></div>';
+          this._grid = this._root.querySelector('.dg');
+          if (this._cols) this._grid.style.setProperty('--n', this._cols);
+          this._tiles = {};
+        }
+        var self = this, HS = window.hkSettings, want = wxPage().details;
+        var wx = { hourly: this._forecast('hourly', this._sources().hourly), daily: this._forecast('daily', this._sources().daily) };
+        var order = want.join(',');
+        if (order !== this._order) {
+          this._order = order;
+          Object.keys(this._tiles).forEach(function (k) { if (want.indexOf(k) < 0) { self._tiles[k].remove(); delete self._tiles[k]; } });
+          want.forEach(function (k) {
+            var t = self._tiles[k];
+            if (!t) {
+              t = self._tiles[k] = document.createElement('hk-weather-tile-card');
+              t.setAttribute('role', 'listitem');
+              var cfg = { type: 'custom:hk-weather-tile-card', variant: k, look: 'page', glass: self._config.glass };
+              if (k === 'sun') cfg.sun = 'sun.sun';
+              if (k === 'moon' && HS && HS.get('sky.moon', null)) cfg.phase = HS.get('sky.moon', null);
+              t.setConfig(cfg);
+            }
+            self._grid.appendChild(t);      // in order (appending moves it)
+          });
+        }
+        want.forEach(function (k) {
+          var t = self._tiles[k];
+          t._wx = wx;
+          t._hkSig = null;
+          t.hass = self._hass;
+        });
+        // the tiles build one after another, 70 ms apart
+        if (want.length && buildDue(this)) {
+          want.forEach(function (k, i) {
+            var t = self._tiles[k];
+            t.style.setProperty('--d', (i * 70) + 'ms');
+            build(t, t._e && t._e.card);
+          });
+        }
+      }
+      getCardSize() { return 4; }
+    }
+    Object.keys(TILE_PAGE).forEach(function (k) { HkWeatherTileCard.prototype[k] = TILE_PAGE[k]; });
+    // the band's forecast plumbing, shared (one watch per card, released on leaving)
+    ['_forecast', '_fcRelease', '_sources'].forEach(function (k) { HkWeatherDetailsCard.prototype[k] = HkWeatherBandCard.prototype[k]; });
+
+    // -------------------------------------------------- hk-radar-card
+    // THE WEATHER PAGE'S RADAR (2026-10-16): a shell that holds the card's
+    // place and imports modules/hk-radar.js -- the map, the providers and
+    // the playback -- only when the radar is on (weather.radar_native) and
+    // the card is on a page. Off, or never shown, nothing is loaded and
+    // nothing is asked of any map or radar service.
+    var RADAR_URL = '/hk/modules/hk-radar.js';
+    var radarLoad = null;
+    function radarModule() {
+      if (window.hkRadar) return Promise.resolve(window.hkRadar);
+      if (!radarLoad) {
+        radarLoad = import(RADAR_URL).then(function () { return window.hkRadar; }, function (e) {
+          radarLoad = null;
+          throw e;
+        });
+      }
+      return radarLoad;
+    }
+    class HkRadarCard extends Base {
+      static get CSS() {
+        return ':host{display:block}' +
+          '.ph{box-sizing:border-box;height:var(--hk-wx-radar-h,455px);' + C.plate('card') + ';background:#1b2b33;' +
+          'display:grid;place-content:center;font-size:14px;font-weight:500;color:rgba(255,255,255,.7)}' +
+          '@media (max-width:' + C.BP.phone + 'px){.ph{height:var(--hk-wx-radar-h-phone,430px)}}' +
+          ':host([data-hk-cell]) .ph{height:100%}';
+      }
+      _sigOf() {
+        var h = this._hass, HS = window.hkSettings;
+        if (!h || !HS || !HS.radarNative) return null;
+        var r = HS.radarNative(), z = r.zone && h.states[r.zone], rd = HS.rendering ? HS.rendering() : {};
+        return JSON.stringify([r, z ? z.last_updated : null, h.config && h.config.latitude, h.config && h.config.longitude,
+                               h.config && h.config.country, rd.flat, rd.theme]);
+      }
+      _render() {
+        var HS = window.hkSettings;
+        if (!this._hass || !HS || !HS.radarNative) return;
+        var on = HS.radarNative().enabled;
+        this.style.display = on ? '' : 'none';
+        if (!on) { this._detach(); this._root.innerHTML = ''; return; }
+        if (this._ctl) { this._ctl.update(this._hass); return; }
+        if (!this._root.firstChild) this._root.innerHTML = '<div class="ph" role="status">Loading the radar…</div>';
+        if (!this.isConnected || this._loading) return;
+        var self = this;
+        this._loading = true;
+        radarModule().then(function (M) {
+          self._loading = false;
+          if (!self.isConnected || self._ctl || !HS.radarNative().enabled) return;
+          self._ctl = M.attach(self, self._root);
+          self._ctl.update(self._hass);
+        }, function (e) {
+          self._loading = false;
+          console.warn('[hk-weather] the radar could not load', e);
+          self._root.innerHTML = '<div class="ph" role="status">The radar couldn’t load. Reload the page to try again.</div>';
+        });
+      }
+      _detach() { if (this._ctl) { this._ctl.detach(); this._ctl = null; } }
+      connectedCallback() {
+        if (super.connectedCallback) super.connectedCallback();
+        wxEnter(this);
+        if (this._hass) this.redraw();
+      }
+      disconnectedCallback() {
+        if (super.disconnectedCallback) super.disconnectedCallback();
+        wxLeave(this);
+        this._detach();
+        this._root.innerHTML = '';
+        this._hkSig = null;
+      }
+      getCardSize() { return 9; }
+    }
 
     // ------------------------------------------------------------------
     // THE HEADER'S TWO HALVES AS CARDS.
@@ -1373,6 +2406,10 @@
     var MISSING = '<div style="padding:8px 0;opacity:.6">Header module unavailable</div>';
 
     class HkWeatherStripCard extends Base {
+
+      // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+
+      static get FLAT_MOTION() { return true; }
       static get CSS() {
         // Same reason as the clock: on the screensaver the shadow is a
         // text-shadow inherited from WallPanel's info box, and ha-card clips
@@ -1748,6 +2785,37 @@
       preview: true
     });
 
+    if (!customElements.get('hk-radar-card')) {
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-radar-card', HkRadarCard);
+      customElements.define('hk-radar-card', HkRadarCard);
+    }
+    HkRadarCard.getStubConfig = function () { return {}; };
+    if (C.editor) {
+      var rtag = C.editor('hk-radar-card', [
+        { name: 'note', selector: { constant: { label: 'Set up under HK Settings → Weather → Radar Map', value: '' } } }
+      ]);
+      HkRadarCard.getConfigElement = function () { return document.createElement(rtag); };
+    }
+    window.customCards.push({
+      type: 'hk-radar-card', name: 'HK Radar',
+      description: 'The precipitation radar map, as on the Weather page (HK Settings → Weather → Radar Map).', preview: false
+    });
+    if (!customElements.get('hk-weather-details-card')) {
+      if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-weather-details-card', HkWeatherDetailsCard);
+      customElements.define('hk-weather-details-card', HkWeatherDetailsCard);
+    }
+    HkWeatherDetailsCard.getStubConfig = function (hass) { return { entity: C.firstOf(hass, 'weather') }; };
+    if (C.editor) {
+      var dtag = C.editor('hk-weather-details-card', [
+        { name: 'entity', label: 'Weather entity', selector: { entity: { filter: { domain: 'weather' } } },
+          helper: 'Default: the weather service chosen in HK Settings → Weather. Which tiles, and their order: Forecast & Details there.' }
+      ]);
+      HkWeatherDetailsCard.getConfigElement = function () { return document.createElement(dtag); };
+    }
+    window.customCards.push({
+      type: 'hk-weather-details-card', name: 'HK Weather Details',
+      description: 'The Weather page’s detail tiles: wind, sunrise, UV, humidity, moon and pressure.', preview: true
+    });
     if (!customElements.get('hk-weather-tile-card')) {
       if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-weather-tile-card', HkWeatherTileCard);
       customElements.define('hk-weather-tile-card', HkWeatherTileCard);
@@ -1755,7 +2823,8 @@
     if (C.editor) {
       var wtag = C.editor('hk-weather-tile-card', [
         { name: 'variant', required: true, label: 'Shows',
-          selector: C.selOptions(['wind', 'sun', 'moon', 'uv']) },
+          selector: C.selOptions(['wind', 'sun', 'moon', 'uv', 'humidity', 'pressure']) },
+        { name: 'look', selector: C.selOptions(['tile', 'page']), helper: 'page: the Weather page’s detail tile.' },
         { name: 'caption', selector: { text: {} }, helper: 'Replaces the heading, e.g. WIND.' },
         C.section('Sensors', [
           { type: 'grid', name: '', schema: [
@@ -1788,6 +2857,7 @@
     window.hkWeather = { version: '1.4.0', HkWeatherBandCard: HkWeatherBandCard,
       HkWeatherStripCard: HkWeatherStripCard, HkClockCard: HkClockCard,
       HkWeatherTileCard: HkWeatherTileCard, HkHeaderCard: HkHeaderCard, HkAlertCard: HkAlertCard,
+      HkWeatherDetailsCard: HkWeatherDetailsCard, HkRadarCard: HkRadarCard, wxEnter: wxEnter, wxLeave: wxLeave,
       HkScreensaverStatusCard: HkScreensaverStatusCard };
     return true;
   }
@@ -1796,4 +2866,357 @@
   // resource, so wait for its READY EVENT rather than polling. rAF never fires
   // in a hidden tab, which is where a wall tablet spends most of its life.
   if (!boot()) window.addEventListener('hk-cards-ready', boot, { once: true });
+})();
+
+// =============================================================== THE SHEET
+// THE WEATHER SHEET (hk-detail.js kind `weather`, 2026-10-16): what a tap on
+// the weather opens -- the Climate page's Outside & Ahead, a chip, a tile --
+// in place of Home Assistant's dialog. HK's sizes and spacing (hk-detail.js
+// SP, DESIGN.md), the Weather page's glyphs and numbers.
+//
+// Two columns on a tablet (the WIDE sheet), one on a phone:
+//   now      the selected day's summary (Today uses the house's outside
+//            sensor when Configure -> Weather names one, as the band reads
+//            it), the condition, feels-like and today's high and low; then
+//            the conditions: humidity, wind and its direction, UV, pressure,
+//            visibility, dew point, sunrise and sunset
+//   ahead    the coming days, each a selectable row on one temperature scale.
+// The hourly chart and conditions follow the selected day; neither entry
+// point prepends a second overview. Metric tiles replace the hourly section.
+// The forecast is the house's forecast sensors when Configure -> Weather has
+// them, else weather/subscribe_forecast, dropped when the sheet closes.
+(function () {
+  'use strict';
+  function whenDetail(fn) {
+    if (window.hkDetail && window.hkDetail._) return fn(window.hkDetail);
+    window.addEventListener('hk-detail-ready', function () { if (window.hkDetail) fn(window.hkDetail); }, { once: true });
+  }
+  whenDetail(function (X) {
+    if (customElements.get('hk-detail-weather')) return;
+    var U = X._, C = window.hkCards, esc = C.esc, SP = U.SP, v = C.v, P = C.PALETTE.icon;
+    function num(x) { if (x === null || x === undefined || x === '') return null; var n = Number(x); return isFinite(n) ? n : null; }
+    function H() { return window.hkHeader || {}; }
+    function glyph(cond, px, night) {
+      var h = H();
+      return h.wxSvg ? h.wxSvg(cond, px, { night: night }) : '<span style="display:inline-block;width:' + px + 'px;height:' + px + 'px"></span>';
+    }
+    function hs(k) { var S = window.hkSettings; return S ? S.get('weather.' + k, null) : null; }
+    function hr(t) { var d = new Date(t), h = d.getHours(); return (h % 12 || 12) + ' ' + (h < 12 ? 'AM' : 'PM'); }
+    function hm(t) { try { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } }
+    var COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    function compass(deg) { return deg == null ? '' : COMPASS[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16]; }
+    function uvWord(u) { return u < 3 ? 'Low' : u < 6 ? 'Moderate' : u < 8 ? 'High' : u < 11 ? 'Very High' : 'Extreme'; }
+    var SHEET_PLOT_H = 80;
+    // the days from today on (a sensor can still lead with yesterday)
+    function upcoming(list) {
+      var d0 = new Date(Date.now()); d0.setHours(0, 0, 0, 0);
+      return (list || []).filter(function (d) { var t = Date.parse(d.datetime); if (!isFinite(t)) return true; var x = new Date(t); x.setHours(0, 0, 0, 0); return x >= d0; });
+    }
+
+    var CSS = [
+      ':host{display:block;color:' + v('ink') + '}',
+      '.wp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:' + SP.region + 'px;align-items:start}',
+      '.col{display:flex;flex-direction:column;gap:' + SP.block + 'px;min-width:0}',
+      '.wp.one{grid-template-columns:minmax(0,1fr)}',
+      '.wx-section{' + C.plate('card') + ';border-radius:' + SP.cardR + 'px;padding:' + SP.cardPad + ';background:' + v('key') + ';box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;min-width:0}',
+      '.lab{display:flex;justify-content:space-between;align-items:baseline;gap:' + SP.block + 'px;' + C.labelCss('label') + ';line-height:16px;margin:0}',
+      '.lab .n{text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;text-align:right}',
+      '.reading{display:flex;align-items:center;gap:' + SP.block + 'px;margin-top:' + SP.block + 'px}',
+      '.reading>svg{flex:none}.reading .t{' + C.figureCss('hero') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
+      '.reading .w{min-width:0}.reading .w b{display:block;font-size:17px;font-weight:600;line-height:22px}',
+      '.reading .w span{display:block;font-size:13px;line-height:20px;color:' + v('ink-2') + '}',
+      '.gr,.kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:' + SP.block + 'px 16px;margin-top:' + SP.block + 'px}',
+      '.gr{row-gap:' + SP.line + 'px}',
+      '.gr .k,.kv .k{' + C.labelCss('label-small') + '}',
+      '.gr .x,.kv .x{font-size:17px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}',
+      '.gr .x small{font-size:13px;font-weight:500;color:' + v('ink-2') + ';margin-left:4px}',
+      '.dys{margin-top:' + SP.block + 'px}',
+      '.dy{display:grid;grid-template-columns:48px 26px 30px 30px minmax(0,1fr) 30px;align-items:center;gap:8px;width:100%;min-height:48px;',
+      '  box-sizing:border-box;padding:8px ' + SP.block + 'px;border:0;border-top:1px solid ' + v('line') + ';background:transparent;color:' + v('ink') + ';font:inherit;cursor:pointer;text-align:left;border-radius:0}',
+      '.dy:first-child{border-top-color:transparent}.dy>svg{display:block}',
+      '.dy[aria-pressed="true"]{background:' + v('key-strong') + ';border-radius:' + C.R.inner + 'px;border-top-color:transparent}',
+      '.dy[aria-pressed="true"]+ .dy{border-top-color:transparent}',
+      '.dy .d,.dy .lo,.dy .hi{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}',
+      '.dy .lo,.dy .hi{text-align:right}.dy .lo{color:' + v('ink-2') + '}',
+      '.dy .p{font-size:11px;font-weight:600;color:var(--hk-wx-c,#64D2FF);font-variant-numeric:tabular-nums}',
+      '.rg{position:relative;height:6px;border-radius:3px;background:' + v('line-strong') + '}',
+      '.rg i{position:absolute;top:0;bottom:0;border-radius:inherit;background:linear-gradient(90deg,#64d2ff,#ffd60a,#ff9f0a)}',
+      '.rg b{position:absolute;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:' + v('ink') + ';box-shadow:0 0 0 2px ' + v('key') + '}',
+      '.none{font-size:13px;line-height:20px;color:' + v('ink-2') + ';padding:' + SP.block + 'px 0}',
+      '.fc .fx{display:flex;align-items:baseline;gap:8px;margin-top:' + SP.block + 'px}',
+      '.fc .fx b{' + C.figureCss('figure-l') + ';font-variant-numeric:tabular-nums}',
+      '.fc .fx span{font-size:15px;font-weight:600;color:' + v('ink-2') + '}',
+      '.fc .ch{position:relative;margin-top:' + SP.block + 'px;outline:none;touch-action:pan-y}',
+      '.fc .ch svg{display:block;width:100%;height:' + SHEET_PLOT_H + 'px}',
+      '.fc .ch line[data-i]{opacity:0}.fc .ch line[data-i].hit{opacity:1}',
+      '.fc .ch:focus-visible{outline:2px solid ' + v('ink-2') + ';outline-offset:4px;border-radius:' + C.R.small + 'px}',
+      '.fc .ax{display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:' + v('ink-3') + ';margin-top:4px}',
+      '.fc .rd{font-size:13px;font-weight:500;color:' + v('ink-2') + ';margin-top:8px;min-height:18px}',
+      '.fc .tx{font-size:14px;line-height:1.45;color:' + v('ink-2') + ';margin:' + SP.block + 'px 0 0}',
+      '@media(max-width:' + C.BP.phone + 'px){.wp{gap:' + SP.block + 'px}.reading .t{font-size:36px}.dy{grid-template-columns:44px 24px 28px 28px minmax(0,1fr) 28px;gap:6px}}'
+    ].join('');
+
+    class WeatherPanel extends U.Panel {
+      static get CSS() { return U.PANEL_CSS + CSS; }
+      hkWidthKind() { return 'weather'; }
+      hkNoGear() { return true; }
+      hkFill() { return true; }
+      // the header: the condition's own glyph on a plain well, "Weather" and the place
+      hkHead(h, d) {
+        var s = h.states[d.id];
+        if (!s) return false;
+        d.well.style.background = 'rgba(255,255,255,0.12)';
+        var night = !!(H().isNight && H().isNight(h.states));
+        var sig = s.state + '|' + night;
+        if (d.wellSig !== sig) { d.wellSig = sig; d.well.innerHTML = glyph(s.state, 28, night); }
+        // the place's last part ("HOME · SPRINGFIELD" -> "Springfield"), else Weather
+        var place = String(hs('place') || '').split('·').pop().trim();
+        d.tt.textContent = place ? place.replace(/\b(\w)(\w*)/g, function (m, a, b) { return a + b.toLowerCase(); }) + ' Weather' : 'Weather';
+        return true;
+      }
+      _ids() {
+        return [this._id, 'sun.sun', hs('outside'), hs('feels_like'), hs('humidity'), hs('wind'), hs('uv'), hs('forecast_hourly'), hs('forecast_daily')]
+          .filter(Boolean);
+      }
+      _sigOf() {
+        var h = this._hass;
+        if (!h) return null;
+        return (this._fcN || 0) + '|' + Math.floor(Date.now() / 60e3) + '|' + this._ids().map(function (id) {
+          var s = h.states[id]; return s ? s.last_updated : '-';
+        }).join(',');
+      }
+      // the forecast: the house's sensor, else the shared subscription
+      // (hkWxForecast) while open -- the Weather page's own, when the sheet
+      // opens over it
+      _fc(kind) {
+        var sid = hs('forecast_' + kind), h = this._hass;
+        if (sid && h.states[sid]) return (h.states[sid].attributes || {}).forecast || [];
+        this._ws = this._ws || {};
+        var w = this._ws[kind];
+        if (w && w.conn !== h.connection) { w.release(); w = this._ws[kind] = null; }
+        if (!w && h.connection && this.isConnected && window.hkWxForecast) {
+          var self = this;
+          w = this._ws[kind] = window.hkWxForecast.watch(h.connection, kind, this._id, function () {
+            self._fcN = (self._fcN || 0) + 1;
+            self._hkSig = null; if (self._hass) self.hass = self._hass;
+          });
+        } else if (w) w.ensure();
+        return w ? w.data() : [];
+      }
+      disconnectedCallback() {
+        if (super.disconnectedCallback) super.disconnectedCallback();
+        var ws = this._ws || {};
+        Object.keys(ws).forEach(function (k) { if (ws[k]) ws[k].release(); });
+        this._ws = {};
+      }
+      _read(sensorKey, attr) {
+        var h = this._hass, id = hs(sensorKey), s = this._stateObj, a = (s && s.attributes) || {};
+        var x = id && h.states[id] ? num(h.states[id].state) : null;
+        return x != null ? x : num(a[attr]);
+      }
+      _render() {
+        var h = this._hass, s = this._stateObj;
+        if (!h || !s) return;
+        var self = this, a = s.attributes || {}, now = Date.now(), states = h.states;
+        var one = matchMedia('(max-width:' + C.BP.phone + 'px)').matches;
+        var src = this._src, days = upcoming(this._fc('daily')).slice(0, 10);
+        var todayKey = new Date(now).toDateString();
+        if (this._dayKey == null) {
+          var initial = src.focus === 'day' && days[Number(src.day) || 0];
+          this._dayKey = initial ? new Date(initial.datetime).toDateString() : todayKey;
+          this._metric = src.focus && src.focus !== 'day' ? src.focus : '';
+        }
+        var selected = days.filter(function (d) { return new Date(d.datetime).toDateString() === self._dayKey; })[0];
+        if (!selected && this._dayKey !== todayKey) this._dayKey = todayKey;
+        var current = this._dayKey === todayKey;
+        var dayName = current ? 'Today' : new Date(selected.datetime).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        var allHours = this._fc('hourly').filter(function (f) { return Date.parse(f.datetime) + 3600e3 > now; });
+        var hrs = current ? allHours.slice(0,24) : allHours.filter(function (f) { return new Date(f.datetime).toDateString() === self._dayKey; });
+        var t = this._read('outside', 'temperature'), feels = this._read('feels_like', 'apparent_temperature');
+        var hi = selected && num(selected.temperature), lo = selected && num(selected.templow);
+        var condition = current ? s.state : selected.condition;
+        if (!current && condition === 'clear-night') condition = 'sunny';
+        var cond = H().conditionName ? H().conditionName(condition) : condition;
+        var night = current && !!(H().isNight && H().isNight(states));
+        var range = (hi != null ? 'High ' + Math.round(hi) + '°' : '') + (hi != null && lo != null ? ' · ' : '') + (lo != null ? 'Low ' + Math.round(lo) + '°' : '');
+        var summary = '<section class="wx-section wx-summary"><div class="lab">' + esc(dayName) + '</div><div class="reading">' + glyph(condition,48,night) +
+          '<div class="t">' + (num(current ? t : hi) != null ? Math.round(current ? t : hi) + '°' : '—') + '</div><div class="w"><b>' + esc(cond || 'Forecast') + '</b>' +
+          (current && feels != null ? '<span>Feels like ' + Math.round(feels) + '°</span>' : '') + (range ? '<span>' + esc(range) + '</span>' : '') + '</div></div></section>';
+        var ws = a.wind_speed_unit || 'mph', ps = a.pressure_unit || '', vs = a.visibility_unit || '';
+        var hum = current ? this._read('humidity','humidity') : num(selected.humidity);
+        var wind = current ? this._read('wind','wind_speed') : num(selected.wind_speed);
+        var bearing = current ? num(a.wind_bearing) : num(selected.wind_bearing);
+        var uv = current ? this._read('uv','uv_index') : num(selected.uv_index);
+        var cells = [
+          ['Humidity', hum != null ? Math.round(hum) + '%' : null],
+          ['Wind', wind != null ? Math.round(wind) + '<small>' + esc(ws) + (bearing != null ? ' ' + compass(bearing) : '') + '</small>' : null],
+          ['UV Index', uv != null ? Math.round(uv) + '<small>' + uvWord(uv) + '</small>' : null],
+          ['Chance of Rain', !current && num(selected.precipitation_probability) != null ? Math.round(num(selected.precipitation_probability)) + '%' : null]
+        ];
+        if (current) {
+          var sun = states['sun.sun'], sa = sun && sun.attributes || {}, set = Date.parse(sa.next_setting), rise = Date.parse(sa.next_rising);
+          cells = cells.concat([
+            ['Dew Point', num(a.dew_point) != null ? Math.round(num(a.dew_point)) + '°' : null],
+            ['Pressure', num(a.pressure) != null ? num(a.pressure) + '<small>' + esc(ps) + '</small>' : null],
+            ['Visibility', num(a.visibility) != null ? num(a.visibility) + '<small>' + esc(vs) + '</small>' : null],
+            ['Sunset', isFinite(set) ? hm(set) : null], ['Sunrise', isFinite(rise) ? hm(rise) : null]
+          ]);
+        }
+        cells = cells.filter(function (c) { return c[1] != null; });
+        var conditions = cells.length ? '<section class="wx-section"><div class="lab">' + (current ? 'Current Conditions' : 'Daytime Conditions') + '</div><div class="gr">' + cells.map(function(c) {
+          return '<div><div class="k">' + c[0] + '</div><div class="x">' + c[1] + '</div></div>';
+        }).join('') + '</div></section>' : '';
+        var pts = hrs.map(function (f) { return {t:f.datetime,v:num(f.temperature)}; }).filter(function(p) {return p.v != null;});
+        var focus = this._metric ? this._focus(h,s,allHours,days) : {
+          series: pts.length>1 ? pts : null, say: function(i) {return hr(Date.parse(pts[i].t)) + ' · ' + Math.round(pts[i].v) + '°';},
+          rest: 'Touch or hover to read an hour'
+        };
+        var hours = this._metric ? focus.html : '<section class="wx-section fc"><div class="lab"><span>' + (current ? 'Next 24 Hours' : 'Hourly Forecast') + '</span><span class="n">' +
+          (hrs.length ? esc(this._hoursWords(hrs)) : '') + '</span></div>' + (pts.length>1 ? this._chart(pts) : '<div class="none">' +
+          (current ? 'Hourly forecast is not available yet.' : 'Hourly forecast is not available for this day.') + '</div>') + '</section>';
+        var lows = days.map(function(d) {return num(d.templow);}), highs = days.map(function(d) {return num(d.temperature);});
+        var values = lows.concat(highs).filter(function(x) {return x != null;});
+        var mn = Math.min.apply(null,values), mx = Math.max.apply(null,values), span = Math.max(1,mx-mn);
+        var pct = function(x) {return ((x-mn)/span*100).toFixed(1);};
+        var forecast = '<section class="wx-section wx-days"><div class="lab">' + (days.length ? days.length + '-Day Forecast' : 'Forecast') + '</div><div class="dys">' +
+          (days.length ? days.map(function(d,i) {
+            var dh=num(d.temperature),dl=num(d.templow),pop=num(d.precipitation_probability),key=new Date(d.datetime).toDateString();
+            var name=key===todayKey ? 'Today' : new Date(d.datetime).toLocaleDateString('en-US',{weekday:'short'});
+            var dot=key===todayKey&&t!=null&&dl!=null&&dh!=null ? '<b style="left:'+pct(Math.max(mn,Math.min(mx,t)))+'%"></b>' : '';
+            return '<button class="dy" type="button" data-day="'+i+'" aria-pressed="'+(key===self._dayKey)+'" aria-label="'+esc(new Date(d.datetime).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}))+'">'+
+              '<span class="d">'+name+'</span>'+glyph(d.condition==='clear-night'?'sunny':d.condition,24,false)+'<span class="p">'+(pop>=20?Math.round(pop)+'%':'')+'</span>'+
+              '<span class="lo">'+(dl!=null?Math.round(dl)+'°':'—')+'</span><span class="rg">'+(dl!=null&&dh!=null?'<i style="left:'+pct(dl)+'%;right:'+(100-pct(dh))+'%"></i>'+dot:'')+'</span>'+
+              '<span class="hi">'+(dh!=null?Math.round(dh)+'°':'—')+'</span></button>';
+          }).join('') : '<div class="none">Daily forecast is not available yet.</div>') + '</div></section>';
+        this._root.innerHTML = '<div class="wp' + (one?' one':'') + '"><div class="col c1">'+summary+hours+conditions+'</div><div class="col c2">'+forecast+'</div></div>';
+        this._daysShown = days;
+        if (!this._dayBound) {
+          this._dayBound = true;
+          this._root.addEventListener('click',function(e) {
+            var row=e.target.closest && e.target.closest('[data-day]');
+            if (!row) return;
+            var day=self._daysShown[Number(row.getAttribute('data-day'))];
+            if (!day) return;
+            var focused=self.shadowRoot && self.shadowRoot.activeElement===row;
+            self._dayKey=new Date(day.datetime).toDateString();self._metric='';self._render();
+            var next=self._root.querySelector('[data-day="'+row.getAttribute('data-day')+'"]');
+            if (focused && next) next.focus({preventScroll:true});
+          });
+        }
+        if (focus.series) this._scrubFocus(focus);
+      }
+      _chart(pts) {
+        if (pts.length < 2) return '';
+        var vs = pts.map(function (p) { return p.v; }), lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs), sp = (hi - lo) || 1;
+        var X = function (i) { return (i / (pts.length - 1) * 600).toFixed(1); }, Y = function (val) { return (100 - (val - lo) / sp * 86).toFixed(1); };
+        var path = pts.map(function (p, i) { return (i ? 'L' : 'M') + X(i) + ' ' + Y(p.v); }).join(' ');
+        return '<div class="ch"><svg viewBox="0 0 600 110" preserveAspectRatio="none" aria-hidden="true">' +
+          '<path d="M0 14H600M0 57H600M0 100H600" style="stroke:' + v('line') + '" fill="none" vector-effect="non-scaling-stroke"/>' +
+          '<path d="' + path + '" fill="none" style="stroke:var(--hk-wx-c,#64D2FF)" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>' +
+          pts.map(function (p, i) { return '<line data-i="' + i + '" x1="' + X(i) + '" x2="' + X(i) + '" y1="0" y2="110" style="stroke:' + v('ink-2') + '" vector-effect="non-scaling-stroke"/>'; }).join('') +
+          '</svg><div class="ax"><span>' + (pts[0] ? hr(Date.parse(pts[0].t)) : '') + '</span><span>' + hr(Date.parse(pts[Math.floor(pts.length / 2)].t)) +
+          '</span><span>' + hr(Date.parse(pts[pts.length - 1].t)) + '</span></div><div class="rd"></div></div>';
+      }
+
+      // THE FOCUS: a metric tile (wind, sun, uv, humidity, moon or pressure) -- that
+      // reading's figure, its next hours from the forecast as a line, and a
+      // line about it. { html, series, say, rest } ('' when there is none).
+      _focus(h, s, hrs, days) {
+        var src = (this._config && this._config.src) || {}, f = this._metric != null ? this._metric : src.focus, a = s.attributes || {};
+        if (!f) return { html: '' };
+        var self = this, wsU = a.wind_speed_unit || 'mph', pU = a.pressure_unit || '';
+        var card = function (title, sub, fig, unit, chart, text, extra) {
+          return '<section class="wx-section fc"><div class="lab"><span>' + esc(title) + '</span>' + (sub ? '<span class="n">' + esc(sub) + '</span>' : '') + '</div>' +
+            '<div class="fx"><b>' + fig + '</b>' + (unit ? '<span>' + esc(unit) + '</span>' : '') + '</div>' + (chart || '') + (extra || '') +
+            (text ? '<p class="tx">' + esc(text) + '</p>' : '') + '</section>';
+        };
+        var series = function (key, list) {
+          return (list || hrs.slice(0, 24)).map(function (x) { return { t: x.datetime, v: num(x[key]) }; }).filter(function (p) { return p.v != null; });
+        };
+        var chart = function (pts) { return self._chart(pts); };
+        var out = { html: '' };
+        var make = function (title, fig, unit, key, fmt, text, sub) {
+          var pts = series(key);
+          out.html = card(title, sub || (pts.length > 1 ? 'Next ' + pts.length + ' Hours' : ''), fig, unit, chart(pts), text);
+          if (pts.length > 1) {
+            out.series = pts;
+            out.say = function (i) { return hr(Date.parse(pts[i].t)) + ' · ' + fmt(pts[i].v); };
+            out.rest = 'Touch or hover the line to read an hour';
+          }
+          return out;
+        };
+        if (f === 'wind') {
+          var w = this._read('wind', 'wind_speed'), gusts = series('wind_gust_speed'), gx = gusts.length ? gusts.reduce(function (m, p) { return p.v > m.v ? p : m; }) : null;
+          return make('Wind', w != null ? String(Math.round(w)) : '—', wsU + (a.wind_bearing != null ? ' · from the ' + compass(num(a.wind_bearing)) : ''), 'wind_speed',
+            function (x) { return Math.round(x) + ' ' + wsU; }, gx ? 'Gusts up to ' + Math.round(gx.v) + ' ' + wsU + ' around ' + hr(Date.parse(gx.t)) + '.' : '');
+        }
+        if (f === 'uv') {
+          var u = this._read('uv', 'uv_index');
+          if (u == null) { var u0 = series('uv_index')[0]; u = u0 ? u0.v : null; }
+          var pk = series('uv_index').slice(0, 14);
+          var top = pk.length ? pk.reduce(function (m, p) { return p.v > m.v ? p : m; }) : null;
+          return make('UV Index', u != null ? String(Math.round(u)) : '—', u != null ? uvWord(u) : '', 'uv_index', function (x) { return Math.round(x) + ' ' + uvWord(x); },
+            top && top.v >= 3 ? 'Highest around ' + hr(Date.parse(top.t)) + ' at ' + Math.round(top.v) + '. Shade and sunscreen from 3.' : 'Low for the hours ahead.');
+        }
+        if (f === 'humidity') {
+          var hu = this._read('humidity', 'humidity');
+          return make('Humidity', hu != null ? Math.round(hu) + '%' : '—', '', 'humidity', function (x) { return Math.round(x) + '%'; },
+            num(a.dew_point) != null ? 'The dew point is ' + Math.round(num(a.dew_point)) + '° right now: the higher it is, the muggier it feels.' : '');
+        }
+        if (f === 'pressure') {
+          var pr = num(a.pressure), inhg = /inhg/i.test(pU);
+          return make('Pressure', pr != null ? (inhg ? pr.toFixed(2) : String(Math.round(pr))) : '—', pU, 'pressure',
+            function (x) { return (inhg ? x.toFixed(2) : Math.round(x)) + ' ' + pU; },
+            'Falling pressure often brings clouds and rain; rising pressure, clearer skies. The line is the forecast.');
+        }
+        if (f === 'sun') {
+          var sun = h.states['sun.sun'], sa = (sun && sun.attributes) || {};
+          var rise = Date.parse(sa.next_rising), set = Date.parse(sa.next_setting), up = sun && sun.state === 'above_horizon';
+          out.html = card(up ? 'Sunset' : 'Sunrise', '', isFinite(up ? set : rise) ? hm(up ? set : rise) : '—', '', '',
+            sun ? 'The sun is ' + Math.abs(Math.round(num(sa.elevation) || 0)) + '° ' + (num(sa.elevation) >= 0 ? 'above' : 'below') + ' the horizon.' : 'Needs Home Assistant’s Sun.',
+            '<div class="kv"><div><div class="k">Next Sunrise</div><div class="x">' + (isFinite(rise) ? hm(rise) : '—') + '</div></div>' +
+            '<div><div class="k">Next Sunset</div><div class="x">' + (isFinite(set) ? hm(set) : '—') + '</div></div>' +
+            (sa.next_dawn ? '<div><div class="k">Dawn</div><div class="x">' + hm(sa.next_dawn) + '</div></div>' : '') +
+            (sa.next_dusk ? '<div><div class="k">Dusk</div><div class="x">' + hm(sa.next_dusk) + '</div></div>' : '') + '</div>');
+          return out;
+        }
+        if (f === 'moon') {
+          var HS = window.hkSettings, ph = HS && HS.moon ? HS.moon(h.states) : null;
+          if (ph == null) return out;
+          var il = Math.round((1 - Math.cos(2 * Math.PI * ph)) / 2 * 100);
+          var full = new Date(Date.now() + ((0.5 - ph) % 1 + 1) % 1 * 29.53 * 864e5), nw = new Date(Date.now() + ((1 - ph) % 1 + 1) % 1 * 29.53 * 864e5);
+          var dd = function (d) { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
+          out.html = card('Moon', '', il + '%', 'lit', '', 'The same moon the sky draws.',
+            '<div class="kv"><div><div class="k">Next Full Moon</div><div class="x">' + dd(full) + '</div></div>' +
+            '<div><div class="k">Next New Moon</div><div class="x">' + dd(nw) + '</div></div></div>');
+          return out;
+        }
+        void self;
+        return out;
+      }
+      _scrubFocus(foc) {
+        var box = this._root.querySelector('.fc .ch');
+        if (!box || !C.scrub) return;
+        var rd = box.querySelector('.rd'), n = foc.series.length;
+        C.scrub(this, box, {
+          name: 'Forecast', count: n, say: foc.say, rest: foc.rest || '',
+          readout: function () { return rd; },
+          index: function (x) {
+            var r = box.querySelector('svg').getBoundingClientRect();
+            return r.width ? Math.max(0, Math.min(n - 1, Math.round((x - r.left) / r.width * (n - 1)))) : -1;
+          }
+        });
+        if (rd && !rd.textContent) rd.textContent = foc.rest || '';
+      }
+      // the hours in words: rain coming, or the warmest and coolest ahead
+      _hoursWords(hrs) {
+        var wet = hrs.filter(function (f) { return num(f.precipitation_probability) >= 40; })[0];
+        if (wet) return 'Rain likely around ' + hr(Date.parse(wet.datetime));
+        var ts = hrs.map(function (f) { return num(f.temperature); }).filter(function (x) { return x != null; });
+        if (!ts.length) return '';
+        return 'Low ' + Math.round(Math.min.apply(null, ts)) + '° · High ' + Math.round(Math.max.apply(null, ts)) + '°';
+      }
+    }
+    customElements.define('hk-detail-weather', WeatherPanel);
+  });
 })();

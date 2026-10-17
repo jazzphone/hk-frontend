@@ -20,7 +20,7 @@ The row uses the same summaries as a room page, across the included rooms:
 | Fans | How many fans participate, and whether they are on, off or a mixture. |
 
 A kind with no sources does not show. Choose the summaries and their order
-in **HK Settings → All Screens → Status Rows → Climate**. Turning all four off
+in **HK Settings → Pages → Climate → Status Row**. Turning all four off
 hides the row. The Lights, Doors & Windows, Water and Security pages have rows
 of their own ([Status rows](Status-Rows.md)).
 
@@ -73,7 +73,7 @@ example), hide it from **Climate** alone in Hidden Accessories, or turn off
 **Climate** under its **Where it shows**.
 
 To leave an entire area out of the Climate summaries, uncheck it in
-**All Screens → Status Rows → Climate → Rooms**. This is useful for outdoor areas, an attic
+**Pages → Climate → Status Row → Rooms**. This is useful for outdoor areas, an attic
 or equipment spaces. It affects the Climate summary row and its lists; it
 does not hide that area’s accessories from the rest of the dashboard.
 

@@ -269,7 +269,31 @@
         // it the action row reads as more pills that happen to look odd.
         '.rule{height:1px;margin:6px 4px 16px 4px;padding:0;border:none;',
         '  border-radius:0;box-shadow:none;background:' + window.hkCards.v('line') + '}',
-        '.empty{font-size:15px;line-height:1.35;color:' + window.hkCards.v('ink-2') + ';padding:4px 4px 16px 4px}'
+        '.empty{font-size:15px;line-height:1.35;color:' + window.hkCards.v('ink-2') + ';padding:4px 4px 16px 4px}',
+        // ------------------------------------------------------ THE PANEL
+        // `layout: panel` (the Vacuums page, 2026-10-16): the floors on a page
+        // card's plate, and what acts on them at its top -- how many are
+        // chosen, Clear, Start Cleaning -- so the buttons never scroll away
+        // from the count. Start waits for a room.
+        '.plate{' + window.hkCards.plate('card') + ';padding:' + window.hkCards.CARD.pad + ';box-sizing:border-box;container-type:inline-size}',
+        '.bar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid ' + window.hkCards.v('line') + '}',
+        '.bar .n{min-width:0;font-size:13px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '.bar .pill{min-width:96px}',
+        '.bar .go[aria-pressed="true"] > span{color:' + SELECTED_TEXT + '}',
+        '.bar .go[aria-disabled="true"]{opacity:0.45;pointer-events:none}',
+        '.plate .floor{padding:0 0 10px 0;font-size:15px}',
+        '.plate .grid{margin:0 0 16px 0}',
+        '.plate .grid:last-child{margin-bottom:0}',
+        '.plate .hk-status{margin:-6px 0 12px 0}',
+        '.plate .hk-status:empty{display:none}',
+        // narrow (an upright iPad's rail, a phone): the count on a line of
+        // its own over the two buttons, and the rooms two across, sharing the width
+        '@container (max-width:' + window.hkCards.BP.cardSide + 'px){.bar{grid-template-columns:repeat(2,minmax(0,1fr))}.bar .n{grid-column:1 / -1}',
+        '  .plate .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}',
+        // a phone: stacked under the vacuum cards, which sit one grid deeper,
+        // the plate steps in 4 px a side to share their edges
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){.plate{padding:16px;margin:0 4px}}',
+        '.pill:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:2px}'
       ].join('');
     }
     // AUTOMATIC ROOMS: a card whose YAML names
@@ -455,6 +479,7 @@
         this._sel.forEach(function (id) { if (!here[id]) self._sel.delete(id); });
       }
       var n = this._sel ? this._sel.size : 0;
+      if (this._config.layout === 'panel') return this._renderPanel(floors, n);
       this._root.innerHTML = '';
 
       var wrap = document.createElement('div');
@@ -513,6 +538,63 @@
       this._root.appendChild(this._statusNode());
     }
 
+
+    // THE PANEL: the action bar, then each floor's rooms. Focus stays on
+    // the room just pressed across the redraw (the selection is the only
+    // thing that changes, so the pills are rebuilt in place).
+    _renderPanel(floors, n) {
+      var self = this;
+      var had = this._root.activeElement && this._root.activeElement.getAttribute('data-area');
+      var hadGo = this._root.activeElement && this._root.activeElement.classList.contains('go');
+      this._root.innerHTML = '';
+      var plate = document.createElement('div'); plate.className = 'plate';
+      var bar = document.createElement('div'); bar.className = 'bar';
+      var cnt = document.createElement('div'); cnt.className = 'n';
+      cnt.textContent = n === 0 ? 'Choose rooms, then start' : n === 1 ? '1 room selected' : n + ' rooms selected';
+      cnt.setAttribute('aria-live', 'polite');
+      bar.appendChild(cnt);
+      var clr = this._pill('Clear', function () { self._clear(); });
+      if (!n) { clr.setAttribute('aria-disabled', 'true'); clr.style.opacity = '0.45'; clr.style.pointerEvents = 'none'; clr.setAttribute('tabindex', '-1'); }
+      bar.appendChild(clr);
+      var go = this._pill(this._busy ? 'Sending…' : 'Start Cleaning', function () { self._start(); });
+      go.classList.add('go');
+      // THE ONE THAT ACTS, in the selected material once there is something to send
+      go.setAttribute('aria-pressed', n && !this._busy ? 'true' : 'false');
+      if (!n || this._busy) { go.setAttribute('aria-disabled', 'true'); go.setAttribute('tabindex', '-1'); }
+      go.setAttribute('aria-label', n ? 'Start cleaning ' + n + (n === 1 ? ' room' : ' rooms') : 'Start Cleaning: choose rooms first');
+      bar.appendChild(go);
+      plate.appendChild(bar);
+      plate.appendChild(this._statusNode());
+      if (floors && !floors.length) {
+        var o = this._offer || {};
+        var e = document.createElement('div'); e.className = 'empty';
+        e.textContent = (o.missing || o.configured === false) && !this._script()
+          ? 'Add HK Clean Areas to clean by area.'
+          : 'No room can be cleaned by area yet. Map each vacuum’s rooms in its settings in Home Assistant.';
+        plate.appendChild(e);
+      }
+      (floors || []).forEach(function (f) {
+        var hd = document.createElement('div');
+        hd.className = 'floor'; hd.textContent = f.name;
+        plate.appendChild(hd);
+        var g = document.createElement('div'); g.className = 'grid';
+        g.setAttribute('role', 'group'); g.setAttribute('aria-label', f.name);
+        (f.areas || []).forEach(function (a) {
+          var b = document.createElement('div');
+          b.className = 'pill';
+          button(b, function () { self._toggle(a.id); });
+          b.setAttribute('aria-pressed', self._sel.has(a.id) ? 'true' : 'false');
+          b.setAttribute('data-area', a.id);
+          var sp = document.createElement('span'); sp.textContent = a.name;
+          b.appendChild(sp);
+          g.appendChild(b);
+        });
+        plate.appendChild(g);
+      });
+      this._root.appendChild(plate);
+      var back = had ? this._root.querySelector('[data-area="' + had.replace(/"/g, '') + '"]') : hadGo && n ? go : null;
+      if (back && back.focus) back.focus();
+    }
 
     // The same markup as hk-speaker-picker-card's `_pill`, down to the
     // aria-pressed="false" -- these never light, they act. Same markup means
@@ -578,8 +660,9 @@
         // that no config removes, so three 400px cards need 1248 of a 1280
         // tablet page's 1229 and only two fit (measured). The number is about
         // the page width, not about nesting.
+        // 10 apart, as every card on the page (hk-base TILE.gridGap)
         '.grid{display:grid;grid-template-columns:repeat(auto-fill,388px);',
-        '  grid-auto-rows:196px;column-gap:12px;row-gap:12px;margin:0 0 14px 0}',
+        '  grid-auto-rows:196px;column-gap:' + window.hkCards.TILE.gridGap + 'px;row-gap:' + window.hkCards.TILE.gridGap + 'px;margin:0 0 14px 0}',
         // 196 exactly: 52 (head) + 48 (countdown and its bar, which
         // hkTimers.html emits as ONE wrapper and so occupies one row) + 52
         // (buttons) + two 12px gaps + 32 of padding.
@@ -685,7 +768,9 @@
     _onConfig() { this._sig = null; this._page = 0; }
 
     _list() { return this._config.timers || []; }
-    _tint() { return this._config.tint || 'rgba(255, 159, 10, 0.95)'; }
+    // (Flat Light's lit color, Apple's light orange, as every lit well's:
+    // hk-base flatColor; unchanged in the other looks)
+    _tint() { return window.hkCards.flatColor(this._config.tint || 'rgba(255, 159, 10, 0.95)', 'well'); }
 
     // Only the timers that are counting, in configured order. `paused` is
     // included: a paused timer is still something you are steering.
@@ -792,7 +877,10 @@
       // a paused timer is deliberately not shouting.
       var liveNow = s === 'active';
       var bg = liveNow ? tint : '' + window.hkCards.v('key-strong') + '';
-      var fg = liveNow ? 'rgba(0,0,0,0.82)' : 'var(--hk-glyph,rgba(255,255,255,0.80))';
+      // (Flat: a white glyph in a colored lit well, as on every tile --
+      // DESIGN.md; the other looks keep the vacuum card's dark one)
+      var S = window.hkSettings, flat = !!(S && S.rendering && S.rendering().flat);
+      var fg = liveNow ? (flat ? '#fff' : 'rgba(0,0,0,0.82)') : 'var(--hk-glyph,rgba(255,255,255,0.80))';
       var px = t.glyph_px || '28px';
       // the compact card's 40 px well: the glyph scales with it
       var well = compact ? 40 : 52;
@@ -838,7 +926,15 @@
       var e = t.entity;
       var c = document.createElement('div');
       c.className = compact ? 'tc cp' : 'tc';
-      c.appendChild(this._head(t, st, compact));
+      // ITS NAME OPENS ITS SHEET (the timer sheet, hk-headers.js): the four
+      // controls below keep their own taps
+      var hd = this._head(t, st, compact);
+      hd.style.cursor = 'pointer';
+      button(hd, function () {
+        self.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: e } }));
+      });
+      hd.setAttribute('aria-label', 'Open ' + (hd.textContent || 'timer'));
+      c.appendChild(hd);
 
       var count = document.createElement('div');
       count.className = 'count';
@@ -1023,7 +1119,7 @@
       if (!this._pages) return;
       this._page = i;
       var left = this._pageLeft(i);
-      if (smooth && this._pages.scrollTo) this._pages.scrollTo({ left: left, behavior: 'smooth' });
+      if (smooth && !(window.hkSettings && window.hkSettings.rendering && !window.hkSettings.rendering().motion) && this._pages.scrollTo) this._pages.scrollTo({ left: left, behavior: 'smooth' });
       else this._pages.scrollLeft = left;
       this._paintDots();
     }
@@ -1174,6 +1270,9 @@
         // the same width, 44 px tall, a long name ellipsized in its own cell.
         '.panel .chips{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:44px;gap:8px;margin:0}',
         '.panel .chip2{height:44px;border-radius:14px;font-size:15px}',
+        // the chosen name in the selected material (the plate's key color
+        // above would otherwise win: same specificity, later)
+        '.panel .chip2[aria-pressed="true"]{background:' + SELECTED_BG + ';color:' + SELECTED_TEXT + '}',
         '.panel .start{height:56px;border-radius:18px;margin-top:auto;font-size:18px;font-weight:700}',
         '.panel .start[aria-disabled="false"]{background:var(--hk-timer-tint,rgba(255,159,10,0.95));border-color:transparent;',
         '  color:rgba(0,0,0,0.85)}',
@@ -1196,11 +1295,29 @@
         ':host([data-wide]) .panel .namebox{grid-area:name;height:56px;margin:0}',
         ':host([data-wide]) .panel .chips{grid-area:chips;grid-auto-rows:56px;gap:10px;margin:0}',
         ':host([data-wide]) .panel .chip2{height:56px}',
-        ':host([data-wide]) .panel .start{grid-area:start;margin:0}'
+        ':host([data-wide]) .panel .start{grid-area:start;margin:0}',
+        // ------------------------------------------------------ THE SHEET
+        // `layout: sheet` -- the panel's one column inside a detail sheet
+        // (the Timers page's Create a Timer, 2026-10-16): the sheet is the
+        // plate, so no plate of its own; the quick names are the selectable
+        // pills' 40 px capsules, three by two, all one width.
+        '.wrap.panel.sheetl{background:none;border:0;box-shadow:none;padding:0;height:auto;min-height:100%;gap:12px}',
+        '.sheetl .chips{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:40px;gap:10px}',
+        '.sheetl .chip2{height:40px;border-radius:' + C.R.capsule('40px') + ';' + C.PILL_LABEL + ';padding:0 8px}',
+        '.sheetl .lab{font-size:13px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';margin:2px 2px -4px}',
+        '.sheetl .start{margin-top:4px;height:52px}',
+        // ALL OF IT ON ONE SCREEN of a wall tablet's sheet: the keys and the
+        // duration a little shorter than the panel's
+        '.sheetl .ro{height:52px}',
+        '.sheetl .big{font-size:' + C.TYPE.hero.size + 'px;line-height:52px}',
+        '.sheetl .pad{grid-auto-rows:50px}',
+        '.sheetl .key{height:50px}',
+        '.sheetl .namebox{height:46px}',
+        '.sheetl .key:focus-visible,.sheetl .chip2:focus-visible,.sheetl .start:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:2px}'
       ].join('');
     }
     _onConfig() { this._digits = ''; this._name = ''; this._built = false; }
-    _panel() { return this._config && this._config.layout === 'panel'; }
+    _panel() { return this._config && (this._config.layout === 'panel' || this._config.layout === 'sheet'); }
     // "Ends 10:52 PM" moves with the clock, so the panel refreshes it while
     // it is on the page -- only that line, never the keypad or the input.
     connectedCallback() {
@@ -1309,6 +1426,10 @@
         if (res.started) {
           self._clearForm();
           self._setStatus('sent', 'Timer started.', 4000);
+          // in a sheet: started is done -- the sheet goes, the page shows it
+          if (self._config.close_on_start && window.hkDetail && window.hkDetail.close) {
+            setTimeout(function () { window.hkDetail.close(); }, 700);
+          }
         } else if (res.reason === 'no_free_slot') {
           // THE ENTRY IS KEPT. All four slots are busy; cancel one on the
           // Timers page and this same tap works. Wiping the duration would
@@ -1419,8 +1540,18 @@
       // THE PLATE FILLS THE HOST, so the page can stretch the panel to the
       // left column's height (Start is pinned to the bottom of it).
       this._root.style.height = '100%';
-      var wrap = document.createElement('div'); wrap.className = 'wrap panel';
-      if (this._config.tint) wrap.style.setProperty('--hk-timer-tint', this._config.tint);
+      var sheet = this._config.layout === 'sheet';
+      var wrap = document.createElement('div'); wrap.className = 'wrap panel' + (sheet ? ' sheetl' : '');
+      if (this._config.tint) wrap.style.setProperty('--hk-timer-tint', window.hkCards.flatColor(this._config.tint, 'well'));
+      // A KEYBOARD TYPES THE DURATION too: digits, Backspace, Enter to start
+      // -- except in the name field, which keeps its own keys
+      wrap.addEventListener('keydown', function (e) {
+        var t = e.composedPath ? e.composedPath()[0] : e.target;
+        if (t && t.tagName === 'INPUT') { if (e.key === 'Enter') { e.preventDefault(); self._start(); } return; }
+        if (/^[0-9]$/.test(e.key)) { e.preventDefault(); self._press(e.key); }
+        else if (e.key === 'Backspace') { e.preventDefault(); self._press('back'); }
+        else if (e.key === 'Enter' && !(t && t.getAttribute && t.getAttribute('role') === 'button')) { e.preventDefault(); self._start(); }
+      });
 
       // NO "NEW TIMER" CAPTION: the panel explains itself. The status line
       // takes the hint's place beside the duration ("Type a duration" /
@@ -1451,6 +1582,14 @@
       nb.appendChild(inp); wrap.appendChild(nb);
 
       var chips = document.createElement('div'); chips.className = 'chips';
+      // QUICK NAMES: a shortcut into the name field, never a duration. The
+      // pressed one is whichever the field now says, so typing over it
+      // clears it.
+      if (sheet && (this._config.name_chips || []).length) {
+        var lab = document.createElement('div'); lab.className = 'lab'; lab.textContent = 'Quick names';
+        wrap.appendChild(lab);
+        chips.setAttribute('role', 'group'); chips.setAttribute('aria-label', 'Quick names');
+      }
       (this._config.name_chips || []).slice(0, 6).forEach(function (n) {
         var c = self._btn('chip2', n, function () {
           self._name = (self._name.trim() === n) ? '' : n;
@@ -1465,6 +1604,13 @@
       this._root.appendChild(wrap);
       this._built = true;
       this._paint();
+      // IN A SHEET THE KEYPAD HAS THE KEYBOARD: focus moves onto it (not the
+      // name field -- a tablet's keyboard would rise), so typed digits land
+      if (sheet) {
+        wrap.setAttribute('tabindex', '-1');
+        wrap.style.outline = 'none';
+        requestAnimationFrame(function () { try { wrap.focus({ preventScroll: true }); } catch (e) { /* ok */ } });
+      }
     }
     getCardSize() { return 8; }
   }
@@ -1549,7 +1695,9 @@
       ].join('');
     }
     _onConfig() { this._built = false; this._tiles = {}; }
-    _tint() { return this._config.tint || 'rgba(255, 159, 10, 0.95)'; }
+    // (Flat Light's lit color, Apple's light orange, as every lit well's:
+    // hk-base flatColor; unchanged in the other looks)
+    _tint() { return window.hkCards.flatColor(this._config.tint || 'rgba(255, 159, 10, 0.95)', 'well'); }
     _presets() { return this._config.presets || [5, 10, 15, 20, 30, 60]; }
     // THE HOUSE TIMERS: the card's own `house:` list, else Configure -> Your
     // home -> House timers -- each named as its accessory is, else its friendly name less

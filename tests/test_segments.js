@@ -12,7 +12,8 @@ var pass = 0, fail = 0;
 function ok(n, c, d) { if (c) { pass++; print('  PASS  ' + n); } else { fail++; print('  FAIL  ' + n + (d !== undefined ? '   got ' + JSON.stringify(d) : '')); } }
 var C = window.hkCards;
 var css = C.segCss('.seg');
-ok('the capsule: 44 px, padded 3, round', /\.seg\{[^}]*height:44px;padding:3px;border-radius:calc\(44px \/ 2\)/.test(css), css.slice(0, 200));
+// (padded 3 inside a 1 px edge; Flat: no edge, padded 4 -- --hk-seg-bw)
+ok('the capsule: 44 px, padded 3, round', /\.seg\{[^}]*height:44px;padding:calc\(4px - var\(--hk-seg-bw, 1px\)\);border-radius:calc\(44px \/ 2\)/.test(css), css.slice(0, 200));
 ok('its choices: 36 px, 15 px, 600', /height:calc\(44px - 8px\)/.test(css) && /font-size:15px;font-weight:600/.test(css));
 ok('the chosen one: white, dark text, sliding on a spring', /\{color:#1c1c1e/.test(css) && css.indexOf('transition:transform .42s cubic-bezier(.34,1.24,.42,1)') > 0);
 ok('Reduce Motion: no slide', css.indexOf('prefers-reduced-motion:reduce') > 0);
@@ -26,12 +27,12 @@ ok('Play Music: its choices 36 px, 15 px, 600, radius 18', /height:36px/.test(it
 ok('Play Music: the same spring', src.indexOf('transition:transform .42s cubic-bezier(.34,1.24,.42,1)') > 0);
 ok('Play Music: the shared slide once the cards are in', src.indexOf('window.hkCards.slideSeg(now, from)') > 0);
 // every other user of a segmented control asks segCss for it
-['cards/hk-calendar.js', 'cards/hk-energy.js', 'cards/hk-control.js', 'cards/hk-detail.js'].forEach(function (f) {
+['cards/hk-calendar.js', 'cards/hk-energy.js', 'cards/hk-control.js', 'cards/hk-detail.js', 'cards/hk-weather.js'].forEach(function (f) {
   var s = read(HK_ROOT + '/frontend/' + f);
   ok(f + ' draws its segmented controls with segCss', /segCss\(/.test(s));
 });
 // ONE HEIGHT: nobody asks segCss for another (the user: they differed)
-['cards/hk-calendar.js', 'cards/hk-energy.js', 'cards/hk-control.js', 'cards/hk-detail.js'].forEach(function (f) {
+['cards/hk-calendar.js', 'cards/hk-energy.js', 'cards/hk-control.js', 'cards/hk-detail.js', 'cards/hk-weather.js'].forEach(function (f) {
   var s2 = read(HK_ROOT + '/frontend/' + f);
   ok(f + ': every segmented control 44 px (no h of its own)', !/segCss\([^)]*\bh\s*:/.test(s2));
 });

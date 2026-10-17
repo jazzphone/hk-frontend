@@ -73,7 +73,11 @@ ok('at rest the readout is the status', r5.read.attrs['data-mode'] === 'status' 
 k5._code = '12'; K.prototype._paint.call(k5);
 ok('typing puts the code line back', r5.read.attrs['data-mode'] === 'code' && r5.parts['.code'].textContent === '\u2022\u2022');
 k5._code = ''; k5._config.status = false; K.prototype._paint.call(k5);
-ok('status: false (the alarm sheet) keeps the dash', r5.read.attrs['data-mode'] === 'code' && r5.parts['.code'].textContent === '\u2014');
+ok('status: false (the alarm sheet) asks for the code', r5.read.attrs['data-mode'] === 'code' && r5.parts['.code'].textContent === 'Enter code');
+k5._config.status = undefined; k5._config.boxed = true; K.prototype._paint.call(k5);
+ok('boxed (the Security page): the badge says the state, the field asks for the code',
+   r5.read.attrs['data-mode'] === 'code' && r5.parts['.code'].textContent === 'Enter code');
+k5._config.boxed = false;
 
 // AN ALARM WITH NO CODE: no digits, its own modes, nothing sent as a code
 var noCode = function (f) { return { state: 'disarmed', attributes: { code_format: null, supported_features: f } }; };

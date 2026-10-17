@@ -180,8 +180,8 @@ optionally on an `attribute`).
 | `hk-heading-card` | A section title. With `area`, it links to that area’s room page when the dashboard has one. | `name` (required), `area`, `navigation_path`, `chevron` (text after the title), `height`, `padding`, `grid_rows`, `energy_section` (the Energy section’s dot and total on the tab), `energy_period` (`now` pins it to Now) |
 | `hk-stat-card` | An icon, a caption and a large reading, with no background. | `entity` (required), `name`, `value_mode` (`temperature` — in the sensor’s own unit —, `power`, `runtime`, `cost`, `cost_today`, `flow`), `icon`, `icon_color`, `value` (fixed text), `value_suffix` (instead of the unit), `power`, `price` (an entity: price per kWh) |
 | `hk-rank-card` | A tile with a large reading: a value, a percentage, or a device’s power use ranked against others. | `entity` (required), `name`, `mode` (`hero`, `pct`, `rank`, `energy`), `power`, `stat`, `peers`, `energy` (follow the Energy tabs; `now` pins it to Now), `section`, `line_color`, `control` (Switched By: a power button that turns it on, and off after asking), `control_yes` and `control_detail` (that question's button and line; default Turn Off, “Everything on this circuit loses power.”), `backed` (a small green battery before the kWh line: backed up by the house battery), `icon_color_steps`, `label_entity`, `label_suffix`, `label_decimals` |
-| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows All Screens → Status Rows → Climate and what each type counts ([What Counts](Status-Chips.md#what-counts)). | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
-| `hk-page-status-card` | A category page’s status row — Lights, Doors & Windows, Water, Security (or Climate) — with accessory-list sheets on tap. Follows All Screens → Status Rows and what each type counts ([What Counts](Status-Chips.md#what-counts)). | `page` (required: `lights`, `doors_windows`, `water`, `security`, `climate`), `items`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-climate-status-card` | Climate summaries across the included areas, with accessory-list sheets on tap. Follows Pages → Climate → Status Row and what each type counts ([What Counts](Status-Chips.md#what-counts)). | `items` (`temperature`, `humidity`, `blinds`, `fans`), `exclude_entities`, `exclude_devices`, `exclude_areas` |
+| `hk-page-status-card` | A category page’s status row — Lights, Doors & Windows, Water, Security (or Climate) — with accessory-list sheets on tap. Follows Pages → the page → Status Row and what each type counts ([What Counts](Status-Chips.md#what-counts)). | `page` (required: `lights`, `doors_windows`, `water`, `security`, `climate`), `items`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
 | `hk-room-status-card` | A room’s status line: temperature and humidity, then what is on, open or detected, read from its area. | `area` (required; one or a list), `items`, `temperature`, `humidity`, `entities`, `exclude`, `include`, `exclude_entities`, `exclude_devices`, `exclude_areas` |
 
 `icon_color_steps` is a list whose first match wins, for example
@@ -190,8 +190,8 @@ optionally on an `attribute`).
 `items` on the room status card chooses from `temperature`, `humidity`,
 `security`, `tvs`, `lights`, `outlets`, `blinds`, `fans`, `windows`, `doors`,
 `locks`, `garage`, `valves`, `motion`, `occupancy`, `leaks` and `speakers`, shown
-in the order you list them. Empty follows **HK Settings → Status Rows → Room
-Pages**. On the page status card, `items` chooses from what that page can show
+in the order you list them. Empty follows **HK Settings → Rooms → Status
+Row**. On the page status card, `items` chooses from what that page can show
 ([Status rows](Status-Rows.md#a-category-pages-row)).
 Temperature and humidity come from the area’s own related sensors
 (**Settings → Areas**) unless you name them.
@@ -217,14 +217,17 @@ on, instead of a fixed `entity`.
 | `hk-header-card` | The wall header: clock, date and weather, beside the security summary. Tap the weather for the Weather page, the security summary for the alarm; on a screen with a menu, tap the clock to open the menu. | `weather_path` (default `./weather`), `alarm_path` (default `./alarm`) |
 | `hk-clock-card` | The time and date on their own. | `date_format` (`weekday`, `monthday`), `time_size`, `ampm_size`, `date_size`, `color`, `date_color`, `shadow`, `height`, `padding`, `margin`, `gap` |
 | `hk-weather-strip-card` | The current temperature and conditions on one line. | `entity`, `main_size`, `detail_size`, `glyph_size`, `color`, `dim_color`, `shadow`, `margin`, `tap_action` |
-| `hk-weather-band-card` | Current conditions with an hourly and a daily forecast. | `entity` (required), `hours` (12), `days` (8), `place`, `min_hour_col` (40), `min_day_col` (55), `plain` (no plate, white text), `narrow` (stood up, as on a phone), `now_width` (today’s column, 120 to 400 px; 300), `tap_action` |
-| `hk-weather-tile-card` | A small tile for the wind, sunrise and sunset, the moon, or the UV index. | `variant` (required: `wind`, `sun`, `moon`, `uv`), `caption`, `entity`, `speed`, `gust`, `sun`, `phase`, `uv` |
+| `hk-weather-band-card` | Current conditions with an hourly and a daily forecast. | `section` (`hero`, `hourly`, `daily`; omit for the original combined band), `entity` (required), `hours` (12), `days` (8), `place`, `min_hour_col` (40), `min_day_col` (55), `plain` (no plate, white text), `narrow` (stood up, as on a phone), `now_width` (today’s column, 120 to 400 px; 300), `tap_action` |
+| `hk-weather-tile-card` | A small tile for the wind, sunrise and sunset, the moon, or the UV index. | `variant` (required: `wind`, `sun`, `moon`, `uv`, `humidity`, `pressure`), `look: page` for the Weather page’s detail style, `caption`, `entity`, `speed`, `gust`, `sun`, `phase`, `uv` |
+| `hk-weather-details-card` | The Weather page’s ordered detail tiles, using Forecast & Details settings. | `entity`, `glass` |
+| `hk-radar-card` | Native precipitation radar, lazy-loaded only when enabled. | Radar Map settings in HK Settings |
 | `hk-alert-card` | Severe-weather alerts from the NWS Alerts integration; shows only while one is active. | `entity` (required), `title`, `source`, `icon` |
 
 The weather cards use the weather entity from **HK Settings → All Screens →
 Weather** unless you name one. Columns that do not fit are dropped rather than
 squeezed: `min_hour_col` and `min_day_col` are the narrowest they may be, in
-pixels.
+pixels. The Weather page’s `section: hourly` instead scrolls its configured hours,
+and `section: daily` uses a shared temperature scale and opens days in the weather sheet.
 
 ## Calendar
 
@@ -233,7 +236,7 @@ pixels.
 | `hk-calendar-card` | The Calendar page: the month, the week or the day, with events to add, change and delete. | `view` (`month`, `week`, `day`) |
 | `hk-calendar-pane-card` | Today’s events and the coming days’, as the screensaver’s calendar pane shows them. | `days` (2; 1 to 7) |
 
-Both show the calendars in **HK Settings → All Screens → Calendar**, in their
+Both show the calendars in **HK Settings → Pages → Calendar**, in their
 colors ([Calendar](Calendar.md)).
 
 ## Layout
@@ -275,7 +278,7 @@ still works, its tiles a little closer together.)
 
 | Card | What it is | Main options |
 |---|---|---|
-| `hk-alarm-keypad-card` | A keypad to arm and disarm an alarm panel with a code. The code is checked by the alarm, never on the screen. | `entity` (default: **HK Settings → General → Alarm Panel**), `bad_code_entity` (only for a panel that fails silently on a wrong code) |
+| `hk-alarm-keypad-card` | A keypad to arm and disarm an alarm panel with a code. The code is checked by the alarm, never on the screen. | `entity` (default: **HK Settings → Pages → Security → Alarm Panel**), `bad_code_entity` (only for a panel that fails silently on a wrong code) |
 | `hk-vacuum-card` | A robot vacuum with its status, battery and four commands. | `entity` (required), `name`, `battery`, `room`, `progress`, `error`, `dock_error` |
 | `hk-area-select-card` | Pick rooms by floor, then clean just those. | `floors` (empty: the rooms [Clean Areas](Clean-Areas.md) offers, kept up to date), `order`, `start_script` (a script of your own that receives `areas`, instead of Clean Areas) |
 | `hk-timers-page-card` | The whole Timers page: quick start, running timers, house timers and the New Timer keypad. | `timers`, `house`, `presets` (up to six, in minutes; default `[5, 10, 15, 20, 30, 60]`), `name_chips`, `quick_script`, `create_script`, `empty_text`, `tint` |
@@ -319,7 +322,7 @@ room the screen is showing, so they name no speaker themselves.
 | `hk-screensaver-now-card` | What is playing, for a screensaver’s `cards:` (not in the card picker). | `music: true`, or `players` (in priority order, groups first) |
 | `hk-browse-card` | Music Assistant’s own web player, framed in a page. | `port` (default 8095), `path` (default `/#/home`), `host`, `height` |
 
-`hide` and `discover` default to **HK Settings → Features → Music →
+`hide` and `discover` default to **HK Settings → Pages → Music →
 Browse**.
 
 ## Energy

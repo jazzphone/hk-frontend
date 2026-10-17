@@ -357,4 +357,23 @@ print('\n=== no music card reads a speaker selector ===');
      /input_select\.media_player_selection/.test(code), false);
 });
 
+print('\n=== announcements are display-only and opt-out ===');
+M._configure(Object.assign({}, HK_HOUSE, { ignore_announcements: true, announcements: [e('office')] }));
+var ah = house({ [e('office')]: { title: 'com.apple.tvairplayd' }, [e('loft')]: { title: 'Real song' } });
+ok('announcement excluded while other room stays visible', M.contexts(ah).map(function (c) { return c.key; }).join(','), e('loft'));
+ok('fallback player cannot expose the announcement', M.ignored(ah.states[e('office')]), true);
+M._configure(Object.assign({}, HK_HOUSE, { ignore_announcements: true }));
+ah.states[e('office')].attributes.media_duration = 2;
+ok('short AirPlay music with generic metadata is not guessed away', M.contexts(ah).length, 2);
+ah.states[e('office')].attributes.media_content_id = 'media-source://tts/tts.piper?message=hello';
+ok('explicit TTS content is recognized', M.contexts(ah).length, 1);
+ah.states[e('office')].attributes.media_content_id = 'http://ha:8123/api/tts_proxy/abc.wav';
+ok('resolved HA TTS URL is recognized', M.ignored(ah.states[e('office')]), true);
+M._configure(Object.assign({}, HK_HOUSE, { ignore_announcements: false, announcements: [e('office')] }));
+ok('toggle off restores original display behavior', M.contexts(ah).length, 2);
+M._configure(Object.assign({}, HK_HOUSE, { ignore_announcements: true, announcements: [e('office')] }));
+var gh = house(group([e('office'), e('loft')], { title: 'Music' }));
+ok('suppressed group leader is not reintroduced via member', M.contexts(gh)[0].key, e('loft'));
+M._configure(HK_HOUSE);
+
 print('\n' + (fail ? 'FAILURES: ' + fail : 'ALL ' + pass + ' MUSIC MODEL TESTS PASS'));

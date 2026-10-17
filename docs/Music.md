@@ -155,7 +155,7 @@ radio, Favorite podcasts, Most played, Most played songs, Most played playlists,
 Most played artists, Recently added, Recently added playlists, Recently added
 songs, Newest albums, Albums at random.
 
-**HK Settings → Features → Music** holds these; the gear on the Music item
+**HK Settings → Pages → Music** holds these; the gear on the Music item
 under **Settings → Devices & services → HK Frontend** has the first three, and
 **Add music preset** and **Add music playlist** at the top of that page add
 the others. Deleting a preset leaves the group in Music Assistant; deleting a

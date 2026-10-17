@@ -61,6 +61,8 @@
   // statOpts, height, scale...), and re-declaring them here would be a second
   // place to keep them in step. See that file for what they mean.
   class HkUsageCard extends HkBase {
+    // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+    static get FLAT_MOTION() { return true; }
     static get CSS() {
       return [
         // The glass plate, its padding, and the caption/value type scale --
@@ -274,6 +276,8 @@
   // card on the page does. Statistics are hourly at best and would flatten the
   // steps this exists to show, so hkChart.recent() reads raw recorder history.
   class HkTraceCard extends HkBase {
+    // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+    static get FLAT_MOTION() { return true; }
     static get CSS() {
       return [
         'ha-card.trace{box-sizing:border-box;display:block;',
@@ -408,6 +412,8 @@
   // entity's own unit; {watts: true} returns a comparable number and the plain
   // call returns a formatted string.
   class HkBatteryStripCard extends HkBase {
+    // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+    static get FLAT_MOTION() { return true; }
     static get CSS() {
       return [
         'ha-card.strip2{box-sizing:border-box;display:block;',
@@ -517,7 +523,7 @@
         // -- the one state where the number is falling
         body = '<div class="bat"><div class="fill' + (res !== null && lvl <= res ? ' low' : '') + '" style="width:' + lvl + '%">' +
           (dis !== null && dis >= 5 ? '<div class="hshim"></div>' : '') + '</div>' +
-          mark(res, '#ff9f0a') + mark(lim, 'rgba(255,255,255,.85)') + '</div>';
+          mark(res, '#ff9f0a') + mark(lim, 'var(--hk-battery-mark,rgba(255,255,255,.85))') + '</div>';
       }
       window.hkCards.morph(e.body, body);
     }
@@ -1115,7 +1121,8 @@
   // hour's statistics only once it is over (measured: at 13:20 the hourly
   // and daily buckets end at 13:00, the five-minute ones at 13:20), so the
   // five-minute changes since the last closed hour are added to today and
-  // the month. Only the house's own meters are asked for, not every device.
+  // the month. House meters load first; measured top-level circuits load separately
+  // for the optional explanation, through the same batched statistics cache.
   // null until it all has arrived; `waker` (requestUpdate / redraw, as a
   // card has them) is woken as each part lands.
   var OPEN_FIVES = 14;
@@ -1158,6 +1165,37 @@
     });
     return [all > 0.05 ? Math.max(0.02, gone / all) : Math.max(0.02, Math.min(1, off / DAY)), all > 0.05 ? gone : null];
   }
+  // Attribution uses measured top-level circuits, at the SAME cutoff as the
+  // house total. Missing buckets/history suppress it; child circuits never
+  // count twice. Usual by now follows each circuit's own yesterday shape,
+  // just as the house comparison does, against its preceding-days mean.
+  function contributor(M, D, F, T, cutoff, extra) {
+    if (!(extra > 0.5) || !F) return null;
+    var groups = {}, complete = function (ser, id, ix, axis) {
+      return ix.length && ix.every(function (i) { var q = ser[id] && ser[id][i]; return q && typeof q.v === 'number' && +q.t === +axis[i].t; });
+    };
+    M.devs.filter(function (d) { return d.counted && d.stat; }).forEach(function (d) {
+      var ix = T.hToday.filter(function (i) { return +T.ax.h[i].t + HOUR <= cutoff; });
+      // Only closed hourly buckets; the current open hour comes from fives.
+      if (ix.some(function (i) { return !hasV(D.h, M.src.imp.concat(M.src.solar), i); })) return;
+      if (!complete(D.h, d.stat, ix, T.ax.h) || !complete(D.h, d.stat, T.hYday, T.ax.h) || !complete(D.d, d.stat, T.tw, T.ax.d)) return;
+      var rows = F[d.stat], start = ix.length ? +T.ax.h[ix[ix.length - 1]].t + HOUR : T.today0;
+      if (!rows) return;
+      var tail = rows.filter(function (q) { return +q.t >= start && +q.t < cutoff; });
+      if (cutoff > start && (tail.length !== Math.round((cutoff - start) / 3e5) || tail.some(function (q) { return typeof q.v !== 'number'; }))) return;
+      var shape = byNow(D, T, cutoff - T.today0, function (ser, i) { return v(ser, d.stat, i); });
+      if (shape[1] == null) return;
+      var usual = sum(T.tw.map(function (i) { return v(D.d, d.stat, i); })) / T.tw.length * shape[0];
+      var used = sum(ix.map(function (i) { return v(D.h, d.stat, i); })) + sum(tail.map(function (q) { return q.v; }));
+      var cooling = /\b(cooling|ac|a\/c|air condition(?:er|ing))\b/i.test(d.name), key = cooling ? 'cooling' : d.stat;
+      var g = groups[key] || (groups[key] = { name: cooling ? 'extra cooling' : d.name + ' using more', extra: 0 });
+      g.extra += used - usual;
+    });
+    var ranked = Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a,b) { return b.extra - a.extra; });
+    var best = ranked[0];
+    // "Mostly" needs a majority of the net increase and a clear lead.
+    return best && best.extra >= extra * 0.6 && best.extra >= 0.5 && (!ranked[1] || best.extra >= ranked[1].extra * 1.5) ? best : null;
+  }
   var RING_NAME = { energy: 'Energy', cost: 'Cost', solar: 'Solar', water: 'Water', gas: 'Gas' };
   function summary(hass, waker, now) {
     var S = window.hkStats, M = model(hass, waker);
@@ -1184,10 +1222,16 @@
     var rings = want.filter(function (k) { return all[k]; }).slice(0, 4).map(function (k) {
       return { key: k, name: RING_NAME[k], c: RING[k], v: today[k], typ: typ[k], tick: share[k], unit: unit(k) };
     });
+    var devIds = M.devs.filter(function (d) { return d.counted && d.stat; }).map(function (d) { return d.stat; });
+    var dh = S.hourly(hass, devIds, HOURS, waker), dd = S.daily(hass, devIds, DAYS, waker);
+    var df = S.fiveMinute(hass, devIds, OPEN_FIVES, waker, { type: 'change' });
+    var cause = dh && dd ? contributor(M, { h: Object.assign({}, h, dh), d: Object.assign({}, d, dd) }, df, T, o.upTo, today.energy - typ.energy * eBy[0]) : null;
+    var receiptTimes = S.freshness ? [S.freshness(h), S.freshness(d), F && S.freshness(F)].filter(Boolean) : [];
+    var receivedAt = receiptTimes.length ? Math.min.apply(null, receiptTimes) : null;
     var mo = { energy: Mo.home + o.home, cost: Mo.cost + o.cost, water: Mo.water + o.water, gas: Mo.gas + o.gas, solar: Mo.solar + o.solar };
     var bat = M.house && hass.states[M.house.entity], bl = bat ? Number(bat.state) : NaN;
     return {
-      asOf: o.upTo, today0: T.today0, rings: rings, typ: typ, today: today, usualByNow: typ.energy * eBy[0],
+      asOf: o.upTo, receivedAt: receivedAt, hasFives: !!F, contributor: cause, today0: T.today0, rings: rings, typ: typ, today: today, usualByNow: typ.energy * eBy[0],
       yday: eBy[1], month: mo, monthName: MONTHS[S.fields(Mo.start).month - 1],
       // where the month's cost is heading: so far, and a usual day for each day left
       projCost: M.hasCost && Mo.cur ? mo.cost + T.typ.cost * Math.max(0, Mo.n - Mo.whole - eBy[0]) : null,
@@ -1342,22 +1386,10 @@
 
   // ====================================================== THE CARDS' PLATE
   var EP_CSS = [
-    // the page card's plate and padding (hk-base.js: plate('card'), CARD)
-    'ha-card.ep{box-sizing:border-box;display:flex;flex-direction:column;height:var(--hk-ep-h,320px);',
-    '  padding:' + window.hkCards.CARD.pad + ';margin:0;' + window.hkCards.plate('card') + ';overflow:hidden;',
-    '  color:' + window.hkCards.v('ink') + ';container-type:inline-size;',
-    '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
-    // in a Sections view: the cell's own height
-    ':host([data-hk-cell]) ha-card.ep{height:100%}',
-    // ONE TITLE ROW for every card: the name left, the detail right, one baseline
-    window.hkCards.titleRow('.ttl'),
-    '.wait{margin:auto;font-size:14px;color:' + window.hkCards.v('ink-3') + '}',
-    '.num{font-variant-numeric:tabular-nums}',
-    '.big{' + window.hkCards.figureCss('figure') + ';white-space:nowrap}',
-    '.big u{text-decoration:none;font-size:15px;font-weight:600;letter-spacing:0;margin-left:3px;color:' + window.hkCards.v('ink-2') + '}',
-    '.cap{font-size:14px;line-height:18px;color:' + window.hkCards.v('ink-2') + '}',
-    '.k{display:flex;align-items:center;gap:7px;' + window.hkCards.labelCss('label') + ';white-space:nowrap}',
-    '.k i{width:10px;height:10px;border-radius:50%;flex:none}',
+    // THE PAGE CARD (hk-base.js pageCardCss): the plate and padding, the one
+    // title row, the figure, the label -- shared with the page headers
+    // (hk-headers.js), so the two pages' cards cannot drift apart
+    window.hkCards.pageCardCss('ep'),
     '.tlab{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;font-weight:600;line-height:1;',
     '  color:' + window.hkCards.v('ink-3') + ';font-variant-numeric:tabular-nums}',
     '.dim{opacity:0.28}',
@@ -1385,8 +1417,28 @@
     '.anim .gp{animation:hkPop .4s cubic-bezier(.22,.8,.25,1) backwards;animation-delay:calc(var(--i,0) * 16ms)}',
     '.anim .gwipe{animation:hkWipe .7s cubic-bezier(.22,.8,.25,1) backwards}',
     '.anim .dots i{animation:hkRise .5s cubic-bezier(.22,.8,.25,1) backwards;animation-delay:calc(var(--i,0) * 18ms);transform-origin:50% 100%}',
-    '@media (prefers-reduced-motion: reduce){.anim *{animation:none !important}}'
+    '@media (prefers-reduced-motion: reduce){.anim *{animation:none !important}}',
+    // HOVER, TOUCH OR KEYS ON A GRAPH (hkCards.scrub, 2026-10-16): the bar
+    // under the pointer or finger lit, the rest back, its figure said in the
+    // card's title row; the chart takes focus and the arrow keys step it
+    '.bc,.clock,.trace{touch-action:pan-y;-webkit-user-select:none;user-select:none}',
+    '.bc [data-i],.clock [data-i]{transition:opacity ' + window.hkCards.DUR.press + ' ease}',
+    '.on [data-i]:not(.hit){opacity:.35}',
+    '.bc:focus-visible,.clock:focus-visible,.trace:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:4px;border-radius:' + window.hkCards.R.small + 'px}',
+    '.trace .cur{stroke:' + window.hkCards.v('ink') + ';stroke-width:1.5;opacity:0}',
+    '.trace.on .cur{opacity:.8}',
+    '@media (prefers-reduced-motion: reduce){.bc [data-i],.clock [data-i]{transition:none}}'
   ].join('');
+
+  // WHAT A SLOT IS, for a graph's readout: "9 AM" on the day's hours,
+  // "Tue, Oct 14" on a week's or month's days (bar k of the tab)
+  function slotName(p, R, k, tz) {
+    if (p === 'now' || p === 'day') {
+      var t0 = R.hToday.length ? +R.ax.h[R.hToday[0]].t : 0;
+      return hourName(t0 + k * 36e5, tz);
+    }
+    return R.dates[k] != null ? new Date(R.dates[k]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz }) : '';
+  }
 
   // A TAP ON ANYTHING MARKED data-more="<entity>" opens that entity's sheet
   // (hass-more-info, which HK's detail sheets answer): one listener per card
@@ -1405,6 +1457,8 @@
   // THE SHARED SHELL: joins the page, gates renders on what it draws from,
   // and hands each card the model, the statistics and the sums
   class HkEnergyBase extends HkBase {
+    // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+    static get FLAT_MOTION() { return true; }
     static get CSS() { return EP_CSS + (this.PART_CSS || ''); }
     getCardSize() { return 6; }
     connectedCallback() {
@@ -1449,6 +1503,17 @@
       var R = calcFor(M, D, period(), runtimes(this._hass, this, M));
       return R ? { M: M, D: D, R: R } : { M: M, wait: true };
     }
+    // A GRAPH THAT READS OUT (hkCards.scrub): `tips[i]` is what bar i says;
+    // the line it says it in is the title row's right-hand text unless
+    // `o.readout` names another, and that text comes back after
+    _scrubs(box, tips, o) {
+      if (!box) return;
+      o = o || {};
+      var self = this, rd = o.readout || function () { return self._card && self._card.querySelector('.ttl span'); };
+      var rest = o.rest != null ? o.rest : (rd() ? rd().innerHTML : '');
+      window.hkCards.scrub(this, box, { count: tips.length, nowI: o.nowI, rest: rest, name: o.name || 'Graph', readout: rd, index: o.index,
+        onPick: o.onPick, say: function (i) { return tips[i] || ''; } });
+    }
     // draw again once the card has a width (the bars are sized to it)
     _later() {
       var self = this;
@@ -1481,6 +1546,10 @@
         // floating, they sat under the clock and could not be tapped), as the
         // tab bar at the top does (hk-tabbar.js TOP_CSS)
         ':host{position:sticky;top:max(var(--hk-energy-sticky-top,10px), calc(env(safe-area-inset-top, 0px) + 4px));z-index:4;display:block}',
+        // ON THE PAGE'S EDGES, as the cards under it (they are in a grid that
+        // gives each 4 px a side; this sits in the page's column, where a grid
+        // would end its sticking): DESIGN.md "Page edges"
+        'ha-card.ep{margin-left:4px;margin-right:4px;width:auto}',
         'ha-card.ep.period{height:auto;background:none;border:1px solid transparent;box-shadow:none;padding:0 4px;',
         '  flex-direction:row;align-items:center;gap:12px;min-height:36px;overflow:visible;flex-wrap:wrap;',
         '  border-radius:24px;transition:background-color .25s ease,padding .25s ease,box-shadow .25s ease,border-color .25s ease}',
@@ -1502,7 +1571,7 @@
         '  -webkit-tap-highlight-color:transparent;transition:opacity .2s ease}',
         '.nav button:disabled{opacity:0.35;cursor:default}',
         // HK's segmented control: the calendar's own (hk-base.js segCss)
-        window.hkCards.segCss('.seg'),
+        window.hkCards.segCss('.seg', { raised: true }),
         '.seg .live{width:7px;height:7px;border-radius:50%;background:#30d158;box-shadow:0 0 0 3px rgba(48,209,88,0.25)}',
         '@media (max-width:' + window.hkCards.BP.phone + 'px){.seg{width:100%}.seg button{flex:1;min-width:0;padding:0 6px}.seg .pfx{display:none}.ps{flex:1 1 auto}',
         // floating on a phone: just the tabs, so the strip takes one row
@@ -1679,7 +1748,15 @@
         '.lede{font-size:21px;font-weight:600;line-height:1.3;letter-spacing:-0.3px}',
         '.lede em{font-style:normal;color:' + RING.energy + '}',
         '.stats{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:16px;margin-top:18px}',
-        '.stat .big{margin-top:7px}',
+        // EACH FIGURE FITS ITS THIRD (2026-10-16, the user: "1,112$161.49068"
+        // at 1100 px): the column is its own container and the figure at most
+        // 22 % of it -- 30 px from a 136 px column, smaller below; and a
+        // card under 700 px draws the rings at 150, giving the figures the room
+        '.stat{min-width:0;container-type:inline-size}',
+        '.stat .big{margin-top:7px;font-size:min(30px,22cqw);white-space:nowrap}',
+        // (its unit half the figure: 15 px at 30, as everywhere, and with it as it shrinks)
+        '.stat .big u{font-size:0.5em}',
+        '@container (max-width:' + window.hkCards.BP.cardList + 'px){.rh{grid-template-columns:150px minmax(0,1fr);gap:20px}.rings{width:150px;height:150px}.stats{gap:12px}}',
         '.of{font-size:14px;line-height:18px;margin-top:3px;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.nowv{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:10px;flex:none}',
         '.nowv .big{font-size:44px;font-weight:600;letter-spacing:-1.5px;line-height:1}',  // hkCards.TYPE hero
@@ -1726,13 +1803,15 @@
         }).join('') + '</div>' : '';
         if (w != null) {
           var tr = five && five[T.power] ? five[T.power].map(function (p2) { return p2.v; }) : [];
+          var trT = five && five[T.power] ? five[T.power].map(function (p2) { return +p2.t; }) : [];
           var got = tr.filter(function (z) { return typeof z === 'number'; }), avg = got.length ? sum(got) / got.length : null;
           var wv = watts(w);
           html = '<div class="ttl"><b>Using Now</b><span>' + esc(T.name || 'Whole Home') + ' · the last 3 hours</span></div>' +
             '<div class="nowv"' + moreAttr(T.power) + '><div class="big num">' + wv[0] + '<u>' + wv[1] + '</u></div><div class="cap">' +
             (avg != null ? (w > avg * 1.3 ? 'Above' : w < avg * 0.7 ? 'Below' : 'About') + ' its last-3-hour average of ' + watts(avg).join(' ') + '<br>' : '') +
             kwh(R.home) + ' kWh so far today</div></div>' +
-            '<svg class="trace gwipe"' + moreAttr(T.power) + ' viewBox="0 0 1000 150" preserveAspectRatio="none">' + lineSvg(tr, 1000, 150, RING.energy, { fill: 0.22, sw: 2.5 }) + '</svg>' +
+            '<svg class="trace gwipe"' + moreAttr(T.power) + ' viewBox="0 0 1000 150" preserveAspectRatio="none">' + lineSvg(tr, 1000, 150, RING.energy, { fill: 0.22, sw: 2.5 }) +
+            '<line class="cur" x1="0" x2="0" y1="0" y2="150" vector-effect="non-scaling-stroke"/></svg>' +
             timeLabels(Date.now(), 3, tz) + readsHtml;
         } else {
           // NO WHOLE-HOME POWER SENSOR: today so far, by hour
@@ -1752,6 +1831,17 @@
         }).join('') + '</div>' : '';
         this._paint('<div class="hw"><div class="hm">' + html + '</div>' + wide + '</div>');
         this._bindReads(M);
+        // THE LAST THREE HOURS READ OUT: each five minutes' watts, a line at it
+        var trace = this._card.querySelector('svg.trace');
+        if (trace && w != null && tr.length) {
+          var cur = trace.querySelector('.cur'), n5 = tr.length;
+          this._scrubs(trace, tr.map(function (z, i) {
+            return new Date(trT[i] || Date.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz }) + ' \u00b7 ' +
+              (typeof z === 'number' && isFinite(z) ? watts(z).join(' ') : 'no reading yet');
+          }), { nowI: n5 - 1, name: 'The last three hours',
+            index: function (x, y, box) { var r = box.getBoundingClientRect(); return r.width ? Math.max(0, Math.min(n5 - 1, Math.round((x - r.left) / r.width * (n5 - 1)))) : -1; },
+            onPick: function (i) { if (cur && i != null) { var X = (1000 * i / Math.max(1, n5 - 1)).toFixed(1); cur.setAttribute('x1', X); cur.setAttribute('x2', X); } } });
+        }
         return;
       }
       var rings = ringsOf(M, R), when = whenOf(p, R), wk = p === 'week' ? 'week' : 'month';
@@ -1955,20 +2045,69 @@
       var secs = M.sections.map(function (s) {
         return { s: s, v: sum(parts.filter(function (q) { return q.s === s; }).map(function (q) { return q.v; })) };
       }).filter(function (q) { return q.s.items.some(function (it) { return it.counted; }); });
-      var lit = function (s) { return !EP.pick || EP.pick === s.id; };
+      // A SECTION LOOKED AT (2026-10-16, the user: a tap re-drew the whole
+      // page and, with a listener added on every paint, toggled itself back
+      // off -- "not at all on month"): hover, focus or a tap lights it in
+      // THIS card and says it in the title row; a second tap, or a tap
+      // elsewhere on the card, lets it go. Nothing else on the page redraws.
+      // (A section a highlight lit for the page, EP.pick, still shows.)
+      var look = this._look && secs.some(function (q) { return q.s.id === self._look; }) ? this._look : null;
+      var lit = function (s) { return look ? look === s.id : !EP.pick || EP.pick === s.id; };
       var head = p === 'now' ? 'Where it’s going now' : 'Where it went';
-      this._paint('<div class="ttl"><b>' + head + '</b><span class="num">' + fmt(total) + (p === 'now' ? '' : ' ' + whenOf(p)) + '</span></div>' +
+      var sumText = fmt(total) + (p === 'now' ? '' : ' ' + whenOf(p));
+      // what a looked-at section says: its share, and what in it used the most
+      this._say = function (id) {
+        var q = secs.filter(function (z) { return z.s.id === id; })[0];
+        if (!q) return sumText;
+        var top = parts.filter(function (z) { return z.s === q.s; })[0];
+        return q.s.name + ' · ' + fmt(q.v) + ' · ' + fx(100 * q.v / all, 0) + '%' + (top && top.n ? ' · most: ' + top.n : '');
+      };
+      this._paint('<div class="ttl"><b>' + head + '</b><span class="num rdw" aria-live="polite">' + esc(look ? this._say(look) : sumText) + '</span></div>' +
         '<div class="bar gwipe">' + parts.map(function (q) {
-          return '<i data-sec="' + esc(q.s.id) + '" title="' + esc(q.n) + ': ' + fmt(q.v) + '" style="flex:' + q.v + ' 1 0;background:' + q.s.color +
+          return '<i data-sec="' + esc(q.s.id) + '" data-a="' + q.a + '" title="' + esc(q.n) + ': ' + fmt(q.v) + '" style="flex:' + q.v + ' 1 0;background:' + q.s.color +
             ';opacity:' + (lit(q.s) ? q.a : 0.28) + '"></i>';
-        }).join('') + (rest > 0 ? '<i title="Not on a device" style="flex:' + rest + ' 1 0;background:' + REST + '"></i>' : '') + '</div>' +
+        }).join('') + (rest > 0 ? '<i data-a="1" title="Not on a device" style="flex:' + rest + ' 1 0;background:' + REST + ';opacity:' + (look ? 0.28 : 1) + '"></i>' : '') + '</div>' +
         '<div class="chips">' + secs.map(function (q) {
-          return '<button class="chip' + (lit(q.s) ? '' : ' dim') + '" data-sec="' + esc(q.s.id) + '"><i style="background:' + q.s.color + '"></i><em>' +
+          return '<button class="chip' + (lit(q.s) ? '' : ' dim') + '" data-sec="' + esc(q.s.id) + '" aria-pressed="' + (look === q.s.id) + '"><i style="background:' + q.s.color + '"></i><em>' +
             esc(q.s.name) + '</em><span>' + fmt(q.v) + ' · ' + fx(100 * q.v / all, 0) + '%</span></button>';
-        }).join('') + (rest > 0 || p !== 'now' ? '<span class="chip"><i style="background:' + REST + '"></i><em>Not on a device</em><span>' +
+        }).join('') + (rest > 0 || p !== 'now' ? '<span class="chip' + (look ? ' dim' : '') + '"><i style="background:' + REST + '"></i><em>Not on a device</em><span>' +
           fmt(rest) + ' · ' + fx(100 * rest / all, 0) + '%</span></span>' : '') + '</div>');
-      this._card.querySelectorAll('[data-sec]').forEach(function (el) {
-        el.addEventListener('click', function (e) { e.stopPropagation(); setPick(el.getAttribute('data-sec')); self.redraw(); });
+      this._sumText = sumText;
+      if (this._wired) return;
+      // ONE SET OF LISTENERS, on the card, for every paint to come
+      this._wired = true;
+      var card = this._card, hov = null;
+      var secOf = function (e) { var t = e.target && e.target.closest ? e.target.closest('[data-sec]') : null; return t ? t.getAttribute('data-sec') : null; };
+      // light one section in place: the bar's parts and the chips, and the line
+      var show = function (id) {
+        card.querySelectorAll('.bar i').forEach(function (el) {
+          el.style.opacity = !id || el.getAttribute('data-sec') === id ? el.getAttribute('data-a') : '0.28';
+        });
+        card.querySelectorAll('.chip').forEach(function (el) { el.classList.toggle('dim', !!id && el.getAttribute('data-sec') !== id); });
+        var sp = card.querySelector('.rdw');
+        if (sp) sp.textContent = id ? self._say(id) : self._sumText || '';
+      };
+      var settle = function () { show(hov || self._look); if (!hov && !self._look) self.redraw(); };
+      card.addEventListener('pointerover', function (e) {
+        if (e.pointerType !== 'mouse') return;
+        var id = secOf(e);
+        if (id && id !== hov) { hov = id; show(id); }
+      });
+      card.addEventListener('pointerout', function (e) {
+        if (e.pointerType !== 'mouse' || !hov) return;
+        var to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-sec]') : null;
+        if (!to) { hov = null; settle(); }
+      });
+      card.addEventListener('focusin', function (e) { var id = secOf(e); if (id) show(id); });
+      card.addEventListener('focusout', function () { settle(); });
+      card.addEventListener('click', function (e) {
+        var id = secOf(e);
+        e.stopPropagation();
+        // a section lit for the page by a highlight: a tap here lets it go
+        if (EP.pick) { setPick(EP.pick); return; }
+        self._look = id && self._look !== id ? id : null;
+        hov = null;
+        self.redraw();
       });
     }
   }
@@ -2008,18 +2147,17 @@
         '.clock.small{max-width:200px;padding-top:4px}',
         '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.clock.small{max-width:240px;padding-top:10px}}',
         '.wk.small{padding-top:12px}',
-        '.cal.small{margin-top:12px}.cal.small .c{height:26px}',
-        '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.wk.small{padding-top:22px}.cal.small .c{height:30px}}',
+        '.cal.small{margin-top:12px;grid-auto-rows:minmax(16px,26px)}',
+        '@container (min-width:' + window.hkCards.BP.cardSide + 'px){.wk.small{padding-top:22px}.cal.small{grid-auto-rows:minmax(16px,30px)}}',
         '.side .big{font-size:22px;margin-top:5px}',
         '.most{display:none;flex:1;min-width:0;flex-direction:column;gap:12px;',
         '  border-left:1px solid ' + window.hkCards.v('line') + ';padding-left:22px}',
         '@container (min-width:' + window.hkCards.BP.cardList + 'px){.most{display:flex}}',
         // EVERY DEVICE, MOST FIRST, scrolling inside the card; the last row
         // fades so it reads as more below. Two columns across a whole row.
+        // (its edges: the sheet's shadows, BASE_CSS .hk-edge -- was a fade)
         '.ml{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:12px;',
-        '  padding:2px 6px 18px 0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.25) transparent;',
-        '  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)}',
-        '.ml.fits{-webkit-mask-image:none;mask-image:none}',
+        '  padding:2px 6px 18px 0;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.25) transparent}',
         '@container (min-width:' + window.hkCards.BP.cardTwo + 'px){.ml{display:grid;grid-template-columns:1fr 1fr;column-gap:28px;row-gap:12px;align-content:start}}',
         '.most .mh{font-size:13px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase;color:' + window.hkCards.v('ink-2') + '}',
         '.mr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:5px;align-items:baseline}',
@@ -2035,9 +2173,16 @@
         '  font-size:12px;font-weight:600;line-height:1;color:' + window.hkCards.v('ink-2') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
         '.wk .bl span b{font-weight:600;color:' + window.hkCards.v('ink-3') + '}',
         '.wk .bl span.now,.wk .bl span.now b{color:' + window.hkCards.v('ink') + '}',
-        '.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin:auto 0;width:100%;max-width:300px;align-self:center}',
+        // THE MONTH FITS ITS CARD (2026-10-16, the user: a day tapped pushed
+        // the figures out of the card): its weeks are at most 30 px and give
+        // way when the card is short -- six weeks, the day's line on two
+        // lines -- rather than the figures under them
+        '.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:auto;grid-auto-rows:minmax(16px,30px);gap:5px;',
+        '  margin:auto 0;width:100%;max-width:300px;align-self:center;flex:0 1 auto;min-height:0}',
+        // (the card's name whole; the line beside it gives way first)
+        '.ttl b{flex:none}.ttl span{min-width:0;overflow:hidden;text-overflow:ellipsis}',
         '.cal .dh{font-size:11px;font-weight:600;line-height:1;color:' + window.hkCards.v('ink-3') + ';text-align:center;padding-bottom:3px}',
-        '.cal .c{height:30px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:600;line-height:1;color:#fff;',
+        '.cal .c{min-height:0;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:600;line-height:1;color:#fff;',
         '  text-shadow:0 1px 1px rgba(0,0,0,0.25);font-variant-numeric:tabular-nums}',
         '.cal .c.out{background:none}',
         // a day still to come: outlined, quiet, nothing to tap yet
@@ -2065,6 +2210,7 @@
       var sec = EP.pick ? M.sections.filter(function (s) { return s.id === EP.pick; })[0] : null;
       var pc = sec ? sec.color : RING.energy, name = sec ? sec.name : null, us = usualOfSec(R, sec);
       var main = '', ttlR = '', side = [];
+      this._scrubT = null;
       if (p === 'now' || p === 'day') {
         // 24 hours around a dial, midnight at the top, this hour brightest
         var dayIdx = R.hToday, vals = dayIdx.map(function (i) { return slotOf(M, R, D.h, i, sec); });
@@ -2075,7 +2221,7 @@
           var a0 = (hh / 24) * 2 * Math.PI - Math.PI / 2 + 0.02, a1 = ((hh + 1) / 24) * 2 * Math.PI - Math.PI / 2 - 0.02;
           svg += '<path d="' + wedge(a0, a1, r1) + '" fill="' + window.hkCards.v('key') + '"/>';
           if (hh < vals.length) {
-            svg += '<path class="gw" style="--i:' + hh + '" d="' + wedge(a0, a1, r0 + (r1 - r0) * Math.max(0.04, vals[hh] / mx)) + '" fill="' + pc + '" fill-opacity="' + (hh === vals.length - 1 ? 1 : 0.82) + '"/>';
+            svg += '<path class="gw" data-i="' + hh + '" style="--i:' + hh + '" d="' + wedge(a0, a1, r0 + (r1 - r0) * Math.max(0.04, vals[hh] / mx)) + '" fill="' + pc + '" fill-opacity="' + (hh === vals.length - 1 ? 1 : 0.82) + '"/>';
           }
         }
         [['12 AM', 0], ['6 AM', 6], ['12 PM', 12], ['6 PM', 18]].forEach(function (l) {
@@ -2086,7 +2232,19 @@
         var so = sum(vals);
         svg += '<text x="150" y="146" text-anchor="middle" font-size="26" font-weight="700" fill="currentColor">' + kwh(so) + '</text>' +
           '<text x="150" y="166" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor" opacity="0.68">kWh so far</text>';
-        main = '<svg class="clock small" viewBox="-14 -14 328 328" role="img" aria-label="Today by hour">' + svg + '</svg>';
+        main = '<svg class="clock small" viewBox="-14 -14 328 328" aria-label="Today by hour">' + svg + '</svg>';
+        // the dial reads out by the hour under the pointer: its angle
+        this._scrubT = { sel: '.clock', nowI: vals.length - 1, name: 'Today by hour',
+          tips: Array.apply(null, Array(24)).map(function (_, k) {
+            var nm = slotName(p, R, k, tz);
+            return k < vals.length ? nm + ' \u00b7 ' + kwh(vals[k]) + ' kWh' + (k === vals.length - 1 ? ' so far' : '') : nm + ' \u00b7 not yet';
+          }),
+          index: function (x, y, box) {
+            var r = box.getBoundingClientRect(), cx = r.left + r.width * (164 / 328), cy = r.top + r.height * (164 / 328);
+            var a = Math.atan2(y - cy, x - cx) + Math.PI / 2;
+            if (a < 0) a += 2 * Math.PI;
+            return Math.floor(a / (2 * Math.PI) * 24) % 24;
+          } };
         ttlR = p === 'now' ? 'so far, by hour' : 'hour by hour';
         var bi = vals.indexOf(Math.max.apply(null, vals)), qi = -1, qv = Infinity;
         vals.forEach(function (z, i) { if (i < vals.length - 1 && z < qv) { qv = z; qi = i; } });
@@ -2118,6 +2276,13 @@
           return { segs: segs, now: today, ghost: today ? us : 0, ghostColor: pc, label: '<b>' + letter + '</b>' + fx(wv[k], 0) };
         });
         var oneCol = (this._card.clientWidth || 360) < 560;
+        this._scrubT = { sel: '.wk .bc', nowI: R.todayK, name: 'This week by day', tips: wsl.map(function (i, k) {
+          var nm = slotName(p, R, k, tz), g2 = R.ghosts[k];
+          if (i == null) return nm + ' \u00b7 not yet' + (g2 != null ? ' \u00b7 last week ' + fx(slotOf(M, R, D.d, g2, sec), 0) + ' kWh' : '');
+          var pct = us > 0 ? Math.round(100 * (wv[k] / (us * (k === R.todayK ? R.share : 1)) - 1)) : 0;
+          return nm + ' \u00b7 ' + fx(wv[k], 0) + ' kWh' + (k === R.todayK ? ' so far' : '') +
+            (us > 0 ? ' \u00b7 ' + (Math.abs(pct) < 7 ? 'about usual' : Math.abs(pct) + '% ' + (pct > 0 ? 'above' : 'below') + ' usual') : '');
+        }) };
         main = '<div class="wk small">' + barChart({ bars: wbars, avail: avW, H: oneCol ? 108 : 150, usual: us, id: 'wk' }) + '</div>' +
           '<div class="leg"><span class="li"><i class="dash"></i>A usual day: ' + fx(us, 0) + ' kWh</span>' +
           (R.cur ? '<span class="li"><i style="background:' + rgba(pc, 0.16) + '"></i>Today, still to come</span>' : '') +
@@ -2151,7 +2316,8 @@
           var z = slotOf(M, R, D.d, i, sec), today = k === R.todayK, exp = us * (today ? R.share : 1);
           var st2 = stepOf(exp > 0 ? z / exp : 1);
           if (!today) { gone.push(i); if (st2[2].indexOf('above') >= 0) hi++; else if (st2[2].indexOf('elow') >= 0) lo++; }
-          cells += '<button class="c gp' + (today ? ' today' : '') + (EP.dayPick === i ? ' sel' : '') + '" data-day="' + i + '" title="' + fx(z, 0) + ' kWh · ' + st2[2] + (today ? ' so far' : '') +
+          var dlab = new Date(R.dates[k]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz }) + ' \u00b7 ' + fx(z, 0) + ' kWh' + (today ? ' so far' : '') + ' \u00b7 ' + st2[2].toLowerCase() + ' usual';
+          cells += '<button class="c gp' + (today ? ' today' : '') + (EP.dayPick === i ? ' sel' : '') + '" data-day="' + i + '" aria-label="' + esc(dlab) + '" title="' + fx(z, 0) + ' kWh · ' + st2[2] + (today ? ' so far' : '') +
             '" style="--i:' + k + ';background:' + st2[1] + '">' + dn + '</button>';
         });
         // A DAY TAPPED: its own line in place of the legend, its figures, its devices
@@ -2200,19 +2366,34 @@
       var Wk = p === 'week' ? 'Week' : 'Month';
       var most = '<div class="mh">Most Used ' + (dayOnly ? 'That Day' : p === 'now' || p === 'day' ? 'Today' : R.cur ? 'This ' + Wk :
         R.back === 1 ? 'Last ' + Wk : p === 'week' ? 'That Week' : 'in ' + esc(monthOf(R.start))) +
-        ' \u00b7 ' + top.length + '</div><div class="ml">' +
+        ' \u00b7 ' + top.length + '</div><div class="hk-edge"><div class="ml">' +
         top.map(function (r) {
           return '<div class="mr"' + moreAttr(r.d.power || r.d.stat) + '><b>' + esc(r.d.name) + '</b><span>' + kwh(r.v) + ' kWh</span><i><em style="width:' +
             (100 * r.v / tmax).toFixed(1) + '%;background:' + r.d.sec.color + '"></em></i></div>';
-        }).join('') + '</div>';
+        }).join('') + '</div></div>';
       var mw = p === 'month' ? 300 : 260;
       this._paint('<div class="ttl"><b>' + esc(name || defName) + '</b><span>' + ttlR + '</span></div><div class="body" style="--mw:' + mw + 'px"><div class="main">' + main +
         '</div><div class="side">' + side.map(function (s3) {
           return '<div><div class="k">' + esc(s3[0]) + '</div><div class="big num">' + s3[1] + '</div><div class="cap">' + esc(s3[2]) + '</div></div>';
         }).join('') + '</div>' + (top.length ? '<div class="most">' + most + '</div>' : '') + '</div>');
-      var ml = this._card.querySelector('.ml');
-      if (ml) ml.classList.toggle('fits', ml.scrollHeight <= ml.clientHeight + 1);
-      var self = this;
+      var self = this, sc = this._scrubT;
+      if (sc) this._scrubs(this._card.querySelector(sc.sel), sc.tips, { nowI: sc.nowI, name: sc.name, index: sc.index });
+      // THE MONTH: a day's cell reads out on hover or focus; a tap still picks it
+      if (p === 'month' && !this._calRead) {
+        this._calRead = true;
+        var cardEl = this._card;
+        var say = function (b) {
+          var sp = cardEl.querySelector('.ttl span');
+          if (!sp) return;
+          if (!b) { if (sp._rest != null) { sp.textContent = sp._rest; sp._rest = null; } return; }
+          if (sp._rest == null) sp._rest = sp.textContent;
+          sp.textContent = b.getAttribute('aria-label') || b.getAttribute('title') || '';
+        };
+        cardEl.addEventListener('pointerover', function (e) { if (e.pointerType === 'mouse') say(e.target.closest && e.target.closest('.cal .c[data-day]')); });
+        cardEl.addEventListener('pointerout', function (e) { if (e.pointerType === 'mouse' && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.cal .c[data-day]'))) say(null); });
+        cardEl.addEventListener('focusin', function (e) { say(e.target.closest && e.target.closest('.cal .c[data-day]')); });
+        cardEl.addEventListener('focusout', function () { say(null); });
+      }
       this._card.querySelectorAll('.cal .c[data-day]').forEach(function (b) {
         if (b._hkBound) return;
         b._hkBound = true;
@@ -2256,14 +2437,14 @@
       var x0 = i * (bw + gap), y = H;
       if (b.ghost) {
         var gh = H * b.ghost / mx;
-        svg += '<rect x="' + x0.toFixed(1) + '" y="' + (H - gh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + gh.toFixed(1) + '" rx="' + rx.toFixed(1) + '" fill="' + rgba(b.ghostColor || '#ffffff', 0.16) + '"/>';
+        svg += '<rect data-i="' + i + '" x="' + x0.toFixed(1) + '" y="' + (H - gh).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + gh.toFixed(1) + '" rx="' + rx.toFixed(1) + '" fill="' + rgba(b.ghostColor || '#ffffff', 0.16) + '"/>';
       }
       var tot = sum(b.segs.map(function (g) { return g.v; }));
       if (tot <= 0) {
-        svg += '<rect x="' + x0.toFixed(1) + '" y="' + (H - 3) + '" width="' + bw.toFixed(1) + '" height="3" rx="1.5" fill="' + window.hkCards.v('key') + '"/>';
+        svg += '<rect data-i="' + i + '" x="' + x0.toFixed(1) + '" y="' + (H - 3) + '" width="' + bw.toFixed(1) + '" height="3" rx="1.5" fill="' + window.hkCards.v('key') + '"/>';
       } else {
         // the stack, drawn as one rounded bar: each part clipped from it
-        var g0 = '<g class="gr2" style="--i:' + i + '">', hTot = Math.max(3, H * tot / mx), top = H - hTot;
+        var g0 = '<g class="gr2" data-i="' + i + '" style="--i:' + i + '">', hTot = Math.max(3, H * tot / mx), top = H - hTot;
         var cid = 'c' + (o.id || 'b') + i;
         g0 += '<clipPath id="' + cid + '"><rect x="' + x0.toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + hTot.toFixed(1) + '" rx="' + rx.toFixed(1) + '"/></clipPath>';
         b.segs.forEach(function (g) {
@@ -2385,9 +2566,12 @@
         '<div><div class="k"><i style="background:#30d158"></i>In</div><div class="v">' + kwh(R.into) + '<u>kWh</u></div></div>' +
         '<div><div class="k"><i style="background:#ff9f0a"></i>Out</div><div class="v">' + kwh(R.out) + '<u>kWh</u></div></div>' +
         '<div><div class="k">Usual In</div><div class="v">' + kwh(R.typ.into) + '<u>a day</u></div></div></div>';
-      var sl = slotsOf(R, D), bars = [];
+      var sl = slotsOf(R, D), bars = [], tips = [], tzb = window.hkStats && window.hkStats.tz();
       for (var k = 0; k < sl.count; k++) {
         var i = sl.idx[k], g = sl.ghosts[k];
+        var nm = slotName(p, R, k, tzb);
+        tips.push(i == null ? nm + ' \u00b7 not yet' + (g != null ? ' \u00b7 last time ' + kwh(vs(D.d, M.src.into, g)) + ' kWh in' : '')
+          : nm + ' \u00b7 ' + kwh(vs(sl.ser, M.src.into, i)) + ' kWh in \u00b7 ' + kwh(vs(sl.ser, M.src.out, i)) + ' out');
         bars.push({ segs: i == null ? [] : [{ v: vs(sl.ser, M.src.into, i), c: '#30d158' }, { v: vs(sl.ser, M.src.out, i), c: '#ff9f0a' }],
                     ghost: i == null && g != null ? vs(D.d, M.src.into, g) + vs(D.d, M.src.out, g) : 0, ghostColor: '#ffffff', fut: i == null,
                     label: slotLabel(p, R, i, k, sl.count), now: k === sl.nowK });
@@ -2400,6 +2584,7 @@
         sidePanel([['<i style="background:#30d158"></i>In', kwh(R.into) + '<u>kWh</u>', p === 'now' || p === 'day' ? 'Charged today' : 'Charged ' + whenOf(p, R)],
                    ['<i style="background:#ff9f0a"></i>Out', kwh(R.out) + '<u>kWh</u>', 'Used by the house'],
                    ['Usual In', kwh(R.typ.into) + '<u>kWh</u>', 'A usual day\u2019s charge']]) + '</div>');
+      this._scrubs(this._card.querySelector('.foot .bc'), tips, { nowI: sl.nowK, name: 'The battery by ' + (sl.count === 24 ? 'hour' : 'day') });
     }
   }
 
@@ -2427,6 +2612,9 @@
         bars.push({ segs: i != null ? [{ v: z, c: last ? color : rgba(color, 0.5) }] : [], now: last,
                     ghost: i == null && g != null ? vs(D.d, ids, g) : 0, ghostColor: '#ffffff', fut: i == null,
                     label: slotLabel(p, R, i, k, sl.count) });
+        var nmw = slotName(p, R, k, tz);
+        (this._tips = k ? this._tips : []).push(i == null ? nmw + ' \u00b7 not yet' + (g != null ? ' \u00b7 last time ' + fx(vs(D.d, ids, g), 0) + ' ' + unit : '')
+          : nmw + ' \u00b7 ' + fx(z, z >= 10 ? 0 : 1) + ' ' + unit);
       }
       // the biggest slot, and its name
       var bi = -1;
@@ -2447,6 +2635,7 @@
         sidePanel([['Usual', fx(R.typ[kind], 0) + '<u>' + esc(unit) + '</u>', 'A usual day'],
                    [day ? 'Busiest Hour' : 'Biggest Day', bigName, day ? 'Today' : when.charAt(0).toUpperCase() + when.slice(1)],
                    [day ? 'That Hour' : 'That Day', (bi >= 0 ? fx(vals[bi] || 0, 0) : '\u2014') + '<u>' + esc(unit) + '</u>', 'Used then']]) + '</div>');
+      this._scrubs(this._card.querySelector('.foot .bc'), this._tips || [], { nowI: sl.nowK, name: (kind === 'water' ? 'Water' : 'Gas') + ' by ' + (day ? 'hour' : 'day') });
     }
   }
 
@@ -2460,7 +2649,8 @@
   class HkEnergyTrackingCard extends HkEnergyBase {
     static get PART_CSS() {
       return MINI_CSS + [
-        'ha-card.ep.track{height:auto;padding:6px 22px}',
+        // (4 px in, on the page's edges as the cards beside it: DESIGN.md "Page edges")
+        'ha-card.ep.track{height:auto;padding:6px 22px;margin-left:4px;margin-right:4px;width:auto}',
         // TWO COLUMNS OF ROWS on a wide screen: half the height
         '.tl{display:grid;grid-template-columns:minmax(0,1fr);column-gap:40px}',
         '@container (min-width:' + window.hkCards.BP.cardRows + 'px){.tl{grid-template-columns:repeat(2,minmax(0,1fr))}.tl .tr:nth-child(2){border-top:0}}',
@@ -2500,6 +2690,7 @@
       var avail = narrow ? cw : Math.max(140, colW - 210 - 110 - 40);
       if (!this._card.clientWidth) this._later();
       var val = function (a, i) { var q = a && a[i]; return q && typeof q.v === 'number' && isFinite(q.v) ? q.v : 0; };
+      var rowTips = [];
       var rows = list.map(function (u, ui) {
         var id = u.stat || u.entity, isRt = !!u.runtime, color = colorOf(u.color, SEC_CYCLE[ui % SEC_CYCLE.length]);
         var dser = isRt ? rd[id] : ed[id], hser = isRt ? rh[id] : eh[id];
@@ -2527,6 +2718,10 @@
         var cmp = usualDay < 0.01 ? 'Learning its usual' : Math.abs(pct) < 12 ? 'About usual' :
           '<b class="' + (pct > 0 ? 'up' : 'down') + '">' + (pct > 0 ? '↑ ' : '↓ ') + Math.abs(pct) + '%</b> vs usual';
         var shown = isRt ? hm(v) : kwh(v) + '<u>kWh</u>';
+        var tz2 = S.tz(), fmtV = function (z) { return isRt ? hm(z) : kwh(z) + ' kWh'; };
+        var tips = before.map(function (q) {
+          return new Date(R.ax.d[q.i].t).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz2 }) + ' \u00b7 ' + fmtV(q.z) + ' \u00b7 last week';
+        });
         var bars = before.map(function (q) {
           return { segs: [{ v: q.z, c: rgba(color, 0.28) }], label: slotLabel('week', R, q.i, 0, 7, +R.ax.d[q.i].t) };
         });
@@ -2539,13 +2734,21 @@
           bars.push({ segs: has ? [{ v: slots[b], c: last ? color : rgba(color, 0.6) }] : [], now: last, fut: !has && !day,
                       ghost: gi != null ? val(dser, gi) : 0, ghostColor: '#ffffff',
                       label: slotLabel(p, R, day ? 0 : R.slots[b], b, cnt) });
+          tips.push(slotName(p, R, b, tz2) + ' \u00b7 ' + (has ? fmtV(slots[b]) : 'not yet'));
         }
+        rowTips.push({ tips: tips, nowI: before.length + (day ? slots.length - 1 : R.todayK), name: (u.name || id) + ' by ' + (day ? 'hour' : 'day') });
         return '<div class="tr"' + moreAttr(id) + '><div class="tn"><b><i style="background:' + color + '"></i>' + esc(u.name || id) + '</b><span>' + cmp + '</span></div>' +
           '<div class="tv">' + shown + '</div><div class="tc">' +
           barChart({ bars: bars, avail: avail, H: 44, id: 'tk' + ui, usual: day || isRt ? 0 : usualDay }) + '</div></div>';
       });
       this._card.classList.toggle('compact', !!(this._config && this._config.compact));
       this._paint('<div class="tl">' + rows.join('') + '</div>');
+      // each row reads out in its own comparison line
+      var self = this;
+      this._card.querySelectorAll('.tr').forEach(function (row, ri) {
+        var t = rowTips[ri], line = row.querySelector('.tn span');
+        if (t) self._scrubs(row.querySelector('.tc .bc'), t.tips, { nowI: t.nowI, name: t.name, readout: function () { return line; }, rest: line ? line.innerHTML : '' });
+      });
     }
   }
   register('hk-energy-tracking-card', HkEnergyTrackingCard, 'HK Energy Tracking',
@@ -2644,10 +2847,19 @@
     // (stretched, not a percentage: the grid stretches the host to the row,
     // and the card grows in it)
     ':host([data-fill]){display:flex;flex-direction:column}' +
-    'ha-card.ep.fill{flex:1 1 auto;height:auto !important;min-height:var(--hk-ep-h,0px)}';
+    'ha-card.ep.fill{flex:1 1 auto;height:auto !important;min-height:var(--hk-ep-h,0px)}' +
+    // THE CARD BUILDS IN the first time it has something to show, as the
+    // page headers do (hk-headers.js BASE_CSS): its parts rise into place one
+    // after another; the graphs build by EP_CSS's .anim. Never on an update.
+    '@keyframes hkPwIn{from{opacity:0;transform:translateY(8px)}}' +
+    '.anim > *{animation:hkPwIn ' + window.hkCards.DUR.build + ' ' + window.hkCards.EASE.build + ' backwards}' +
+    '.anim > :nth-child(2){animation-delay:60ms}.anim > :nth-child(3){animation-delay:120ms}.anim > :nth-child(n+4){animation-delay:180ms}' +
+    '@media (prefers-reduced-motion: reduce){.anim > *{animation:none}}';
 
   // THE SHELL: HK's plate, gated on the entities its config names
   class HkPowerBase extends HkBase {
+    // Flat keeps its motion: the drawing in IS the chart (hk-base flatCss)
+    static get FLAT_MOTION() { return true; }
     static get CSS() { return EP_CSS + (this.PART_CSS || '') + POWER_ANIM; }
     getCardSize() { return 6; }
     _ids() {
@@ -2687,7 +2899,15 @@
       bindMore(this, this._card);
       this._built = true;
     }
-    _paint(html) { window.hkCards.morph(this._card, html); }
+    _paint(html) {
+      window.hkCards.morph(this._card, html);
+      if (!this._built1 && html && !/class="wait"/.test(html)) {
+        this._built1 = true;
+        var card = this._card;
+        card.classList.add('anim');
+        setTimeout(function () { card.classList.remove('anim'); }, 1600);
+      }
+    }
   }
 
   // ------------------------------------------------------------ right now
@@ -2871,8 +3091,8 @@
         'ha-card.ep.hb{height:auto;min-height:256px}',
         '.bt2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(220px,1fr);gap:36px;flex:1;min-height:0;margin-top:26px;align-items:center}',
         '@container (max-width:720px){.bt2{grid-template-columns:1fr;gap:20px;margin-top:30px}}',
-        '.cell{position:relative;height:118px;border-radius:24px;border:6px solid rgba(255,255,255,.42);padding:6px;margin-right:16px;box-sizing:border-box}',
-        '.cell:after{content:"";position:absolute;right:-16px;top:32px;width:10px;height:42px;border-radius:0 7px 7px 0;background:rgba(255,255,255,.42)}',
+        '.cell{position:relative;height:118px;border-radius:24px;border:6px solid var(--hk-battery-shell,rgba(255,255,255,.42));padding:6px;margin-right:16px;box-sizing:border-box}',
+        '.cell:after{content:"";position:absolute;right:-16px;top:32px;width:10px;height:42px;border-radius:0 7px 7px 0;background:var(--hk-battery-shell,rgba(255,255,255,.42))}',
         '.cell .fill{position:relative;overflow:hidden;height:100%;border-radius:13px;background:' + window.hkCards.v('battery-fill') + ';box-shadow:inset 0 1px 0 rgba(255,255,255,0.35);',
         '  animation:growX 1.2s cubic-bezier(.22,.8,.25,1) backwards;transform-origin:0 50%;transition:width .6s ease}',
         '.cell .fill.low{background:' + window.hkCards.v('battery-fill-low') + '}',
@@ -2895,8 +3115,8 @@
         '.mkl{position:absolute;bottom:calc(100% + 14px);transform:translateX(-50%);font-style:normal;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}',
         '.side2{display:flex;flex-direction:column;gap:14px;min-width:0}',
         '.pk2{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:14px;align-items:center;padding-right:6px}',
-        '.mini{position:relative;height:26px;border-radius:8px;border:3px solid rgba(255,255,255,.42);padding:2px;box-sizing:border-box}',
-        '.mini:after{content:"";position:absolute;right:-7px;top:6px;width:4px;height:8px;border-radius:0 2px 2px 0;background:rgba(255,255,255,.42)}',
+        '.mini{position:relative;height:26px;border-radius:8px;border:3px solid var(--hk-battery-shell,rgba(255,255,255,.42));padding:2px;box-sizing:border-box}',
+        '.mini:after{content:"";position:absolute;right:-7px;top:6px;width:4px;height:8px;border-radius:0 2px 2px 0;background:var(--hk-battery-shell,rgba(255,255,255,.42))}',
         '.mini i{display:block;height:100%;border-radius:4px;background:' + window.hkCards.v('battery-fill') + '}',
         '.pk2 b{font-size:15px;font-weight:600}.pk2 span{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
         '.pk2 .pv{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}',
@@ -2929,7 +3149,7 @@
       this._paint('<div class="ttl"><b>' + esc(c.title || 'House Battery') + '</b><span>' + (bw > 0 ? 'charging' : bw < 0 ? 'powering the house' : 'standing by') + '</span></div>' +
         '<div class="bt2"><div><div class="cell"' + moreAttr(c.level) + '><div class="fill' + (res != null && level <= res ? ' low' : '') + '" style="width:' + level + '%">' +
           (bw !== 0 ? '<div class="hshim' + (bw < 0 ? ' bw' : '') + '"></div>' : '') + '</div>' +
-          mark(res, '#ff9f0a', 'Reserve') + mark(lim, 'rgba(255,255,255,.85)', 'Limit') +
+          mark(res, '#ff9f0a', 'Reserve') + mark(lim, 'var(--hk-battery-mark,rgba(255,255,255,.85))', 'Limit') +
           '<div class="txt"><b>' + (lvl == null ? '—' : Math.round(level) + '<u>%</u>') + '</b><span>' + sub + '</span></div></div></div>' +
         '<div class="side2">' + packs + (facts.length ? '<div class="facts">' + facts.join('') + '</div>' : '') + '</div></div>');
     }
@@ -3030,16 +3250,13 @@
   // leaves every Power page blank until a full reload.
   var ART = {};          // art.json by folder, loaded once
   var ART_RETRY_MS = 60000;
+  // through hkCards.artJson: the browser's last copy at once, the file
+  // asked again behind it (a picture changed is drawn again)
   function artOf(base, done) {
-    if (ART[base]) { if (ART[base].json) done(ART[base].json); else ART[base].wait.push(done); return; }
-    ART[base] = { wait: [done] };
-    fetch(base + 'art.json', { cache: 'no-cache' }).then(function (r) {
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
-    }).then(function (j) {
-      var w = ART[base].wait; ART[base].json = j; w.forEach(function (f) { f(j); });
-    }).catch(function () {
-      var w = ART[base].wait; delete ART[base]; w.forEach(function (f) { f(null); });
+    if (ART[base] && ART[base].json) return done(ART[base].json);
+    window.hkCards.artJson(base, function (j) {
+      if (j) ART[base] = { json: j, wait: [] };
+      done(j);
     });
   }
   // THE CABLE AS A CURVE: the art's points joined by a Catmull-Rom spline
@@ -3334,7 +3551,8 @@
   // battery covers now. `devices` [{name, power, backed}] come from the
   // Energy feature's plan; `backed_power` (the battery panel's output) is the
   // backed-up share where there is one, else the backed-up devices' sum.
-  var NOT_BACKED = 'rgba(255,255,255,0.55)';
+  // (a variable: Flat's Light turns it gray -- white on its ivory plate vanished)
+  var NOT_BACKED = 'var(--hk-not-backed,rgba(255,255,255,0.55))';
   class HkPowerLoadCard extends HkPowerBase {
     static get PART_CSS() {
       var v = window.hkCards.v;
@@ -3641,7 +3859,7 @@
       return s ? s.color : null;
     },
     // TEST SEAMS
-    __calc: calc, __buildModel: buildModel, __hm: hm, __sources: sourcesOf, __highlights: highlights
+    __calc: calc, __buildModel: buildModel, __contributor: contributor, __hm: hm, __sources: sourcesOf, __highlights: highlights
   });
 
   var ROW = [

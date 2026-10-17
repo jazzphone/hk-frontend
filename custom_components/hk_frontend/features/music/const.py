@@ -8,6 +8,7 @@ options; presets and playlists are its items (subentries).
 CONF_SPEAKERS = "speakers"      # room players, in pill order
 CONF_VOLUME = "volume"          # the house playlist volume, 0..1
 CONF_HOMES = "homes"            # {user_id: room player} -- each tablet's own room
+CONF_IGNORE_ANNOUNCEMENTS = "ignore_announcements"
 CONF_KEEP_READY = "keep_ready"  # keep the playlists' songs fetched (warm.py); off by default
 
 # ---- item (subentry) types: stored with every preset and playlist, so they

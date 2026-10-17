@@ -177,6 +177,59 @@
     '@media (prefers-reduced-motion:reduce){.pk{animation:none}}'
   ].join('');
 
+  // FLAT (2026-10-16): the Speakers panel -- the column, Plays on's drop-down
+  // and the phone's sheet -- on the theme's own opaque surface, not the
+  // screensaver's plum glass (it read as a purple slab on Light). Dark keeps
+  // the panel's white-on-dark rules over raised gray; Light turns them over:
+  // ink on the plate, the stone keys, a dark tick and a dark chosen chip.
+  var FLAT_PANEL_CSS = (function () {
+    var F = ':host([hk-flat]) ', L = ':host([hk-flat="light"]) ';
+    return [
+      F + '.pk,' + F + '.mpanel.pg,' + F + '.mpanel.sheet{background:var(--hk-flat-elevated);border:0;box-shadow:var(--hk-flat-elevated-shadow);animation:none}',
+      F + '.mpin{text-shadow:none}',
+      F + '.mpanel.one .mptabs div.on{color:var(--hk-ink)}',
+      L + '.pk{color:var(--hk-ink)}',
+      L + '.mptabs{background:var(--hk-key);border-color:transparent}',
+      // (a panel of one tab -- the Queue -- has its tab as a title, no strip)
+      L + '.mpanel.one .mptabs{background:none}',
+      L + '.mptabs div{color:var(--hk-ink-2)}',
+      L + '.mptabs div.on{color:var(--hk-ink)}',
+      L + '.mptabs div.on::before{box-shadow:0 1px 3px rgba(28,26,22,.16)}',
+      L + '.mpx{background:var(--hk-key);border-color:transparent}',
+      L + '.mpx svg,' + L + '.mpsub svg{fill:var(--hk-ink-2)}',
+      L + '.mpfoot,' + L + '.mpmini{border-top-color:var(--hk-line)}',
+      L + '.mpchip{border-color:var(--hk-line-strong)}',
+      L + '.mpchip.on{background:var(--hk-ink);color:var(--hk-flat-elevated)}',
+      L + '.mpchip.clr{background:var(--hk-key)}',
+      L + '.mproom{background:var(--hk-glass-plate)}',
+      L + '.mproom.sel{background:var(--hk-key)}',
+      L + '.mproom .ri{background:var(--hk-key-strong)}',
+      L + '.mproom .ri ha-icon,' + L + '.mppill ha-icon{color:var(--hk-glyph)}',
+      L + '.mproom .mpck{box-shadow:inset 0 0 0 2px var(--hk-line-strong)}',
+      L + '.mproom.sel .mpck{background:var(--hk-ink)}',
+      L + '.mproom.sel .mpck svg{fill:var(--hk-flat-elevated)}',
+      L + '.mpeq i{background:var(--hk-ink)}',
+      L + '.mpcap.err{color:var(--hk-warn)}',
+      L + '.mpact.rst{background:var(--hk-key);box-shadow:none}',
+      L + '.mpact.upd{background:var(--hk-ink);color:var(--hk-flat-elevated)}',
+      L + '.mpact.stop{background:rgba(196,35,35,.12);color:var(--hk-fail)}',
+      L + '.mpvrow{border-bottom-color:var(--hk-line)}',
+      L + '.mpvs .tr{background:var(--hk-key-strong)}',
+      L + '.mpvs .tr i{background:var(--hk-ink-2)}',
+      L + '.mpvs .tr b{box-shadow:0 1px 4px rgba(28,26,22,.3)}',
+      L + '.mppill{background:var(--hk-key)}',
+      L + '.mppill.on{background:var(--hk-ink);color:var(--hk-flat-elevated)}',
+      L + '.mppill.on ha-icon{color:var(--hk-flat-elevated)}',
+      L + '.mpmini .ia,' + L + '.mpq .th{background-color:var(--hk-key)}',
+      L + '.mpmini .b{background:var(--hk-key)}',
+      L + '.mpmini .b svg{fill:var(--hk-ink)}',
+      L + '.mpmini .b.pp{background:var(--hk-ink)}',
+      L + '.mpmini .b.pp svg{fill:var(--hk-flat-elevated)}',
+      L + '.mpq.now{background:var(--hk-key)}',
+      L + '.mpq .th svg{fill:var(--hk-ink-3)}'
+    ].join('');
+  })();
+
   var CSS = [
     ':host{display:block}',
     'ha-card{background:none;box-shadow:none;border:none;padding:0;position:relative}',
@@ -258,7 +311,9 @@
     // band of empty above and below the art on a desk
     '.mu:not([cols="1"]) .artbox{flex:0 1 auto;aspect-ratio:1 / 1;min-height:120px}',
     '.art{width:min(100cqw,100cqh);height:min(100cqw,100cqh);border-radius:22px;overflow:hidden;background:' + window.hkCards.v('key') + ';',
-    '  box-shadow:0 18px 44px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center}',
+    // (the look's own shadow, as every card's: Flat's contact shadow,
+    // Tinted's, the glass cards' -- the user, 2026-10-17)
+    '  box-shadow:var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-lg') + ');display:flex;align-items:center;justify-content:center}',
     '.art img{width:100%;height:100%;object-fit:cover;display:block}',
     '.art ha-icon{--mdc-icon-size:72px;width:72px;height:72px;color:var(--hk-glyph,rgba(255,255,255,.4))}',
     '.tt{font-size:26px;font-weight:700;letter-spacing:-.3px;margin-top:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}',
@@ -280,6 +335,14 @@
     '.tr .x.on{background:#fff;box-shadow:none}',
     '.tr .x.on svg{fill:#1d1426}.tr .x.on ha-icon{color:#1d1426}',
     '.tr .x.gone{visibility:hidden}',
+    // FLAT: the empty art and the Speakers and Queue buttons sit on the page
+    // itself, so they are raised as the playlist pills beside them are -- the
+    // cards' surface and their one contact shadow, no ring (DESIGN.md
+    // "Raised or set in"; the user, 2026-10-17: the stone and its ring read
+    // as another gray). Lit, a button stays white.
+    ':host([hk-flat]) .art{background:' + window.hkCards.M.bg + '}',
+    ':host([hk-flat]) .tr .x:not(.on){background:' + window.hkCards.M.bg + ';box-shadow:var(--hk-look-shadow)}',
+    ':host([hk-flat]) .tr .x.on{box-shadow:var(--hk-look-shadow)}',
     '.idle .tr .p:not(.big){opacity:.35;pointer-events:none}',
     '.vol{display:flex;align-items:center;gap:12px;margin-top:20px;flex:none;touch-action:none}',
     '.vol svg{width:18px;height:18px;fill:var(--hk-glyph,rgba(255,255,255,.7));flex:none}',
@@ -349,7 +412,7 @@
       var P = window.hkSaverPanel;
       if (!P || this._pcss) return !!P;
       var st = document.createElement('style');
-      st.textContent = P.CSS + (C.shadeCss ? C.shadeCss('.mpanel') : '') + PANEL_PAGE_CSS + PICK_CSS;
+      st.textContent = P.CSS + (C.shadeCss ? C.shadeCss('.mpanel') : '') + PANEL_PAGE_CSS + PICK_CSS + FLAT_PANEL_CSS;
       this.shadowRoot.appendChild(st);
       this._pcss = true;
       return true;
@@ -647,7 +710,10 @@
       // scroll end above it.
       var vh = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hk-vh')) || window.innerHeight;
       var top = this.getBoundingClientRect().top + (document.scrollingElement ? 0 : 0);
-      if (cols >= 2) this.style.setProperty('--mu-h', 'max(420px, calc(' + Math.round(vh - Math.max(0, top) - 16) + 'px + ' + BAR_GAP + '))');
+      // (rounded DOWN: the card's top is fractional -- 23.19 on a 1280 x 800
+      // tablet -- and rounded to nearest it ended 0.19 px past the window,
+      // which a finger could scroll, 2026-10-15)
+      if (cols >= 2) this.style.setProperty('--mu-h', 'max(420px, calc(' + Math.floor(vh - Math.max(0, top) - 16) + 'px + ' + BAR_GAP + '))');
       else { this.style.removeProperty('--mu-h'); this.style.setProperty('--mu-rh', Math.round(vh - 90) + 'px'); }
       // THREE COLUMNS: the Speakers column ticks where the next pick plays
       // (and moves what plays), so Plays on and its line go and the search
@@ -1314,7 +1380,7 @@
     // the recording, 2026-10-11.)
     _turn(opening, me, done) {
       var e = this._e, el = me.p.el, left = e.left, parts = [e.pon, e.house, e.front], self = this;
-      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var reduce = ((window.hkSettings && window.hkSettings.rendering && !window.hkSettings.rendering().motion) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
       var show = function (front) { parts.forEach(function (x) { x.style.visibility = front ? '' : 'hidden'; }); el.style.visibility = front ? 'hidden' : ''; };
       if (reduce || typeof left.animate !== 'function') { show(!opening); if (done) done(); return; }
       if (this._turnAnim) { try { this._turnAnim.cancel(); } catch (x) { /* done */ } }

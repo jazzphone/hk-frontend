@@ -22,6 +22,30 @@ card.setConfig({ layout: { 'grid-template-columns': '1fr 1fr' }, cards: [] });
 check('second config replaces rather than duplicates the grid', card._root.children.length === 2);
 check('the new layout is applied', card._e.style['grid-template-columns'] === '1fr 1fr');
 
+// Navigation-aware headers: preserve the grid and its children in place.
+(function () {
+  var mode = window.hkLayout.pageHeaderMode;
+  check('smart hides a repeated title in persistent navigation', mode('smart', {available:true,exact:true}, false) === 'none');
+  check('smart keeps context for More or a room under Rooms', mode('smart', {available:true,exact:false}, false) === 'context');
+  check('a folded menu restores Back and title', mode('smart', {available:false,exact:false}, false) === 'current');
+  check('No Header also keeps navigation when the menu folds', mode('none', {available:false}, false) === 'current');
+  check('explicit No Header hides even unmatched titles', mode('none', {available:true,exact:false}, false) === 'none');
+  check('Music browsing retains its internal Back control', mode('smart', {available:true,exact:true}, true) === 'current');
+  var oldMenu = window.hkCards.menu, oldNav = window.hkMenu;
+  var exact = true, available = true, setting = 'smart';
+  window.hkCards.menu = { sig:function(){return '';}, board:function(){return {page_header:setting};} };
+  window.hkMenu = {headerContext:function(){return {available:available,exact:exact};}};
+  var h = new Grid();
+  h.setConfig({page_header:true,cards:[{type:'custom:hk-back-card'},{type:'custom:hk-heading-card',name:'Climate'}]});
+  var root = h._e;
+  check('header hides its own grid host', h.getAttribute('data-page-header') === 'none');
+  exact=false;h._updatePageHeader();
+  check('unmatched page gets a compact accessible heading', h.getAttribute('data-page-header') === 'context' && h._contextLabel.textContent === 'Climate' && h._contextLabel.getAttribute('role') === 'heading');
+  available=false;h._updatePageHeader();
+  check('responsive changes restore the same header children', h.getAttribute('data-page-header') === 'current' && h._e === root);
+  window.hkCards.menu=oldMenu;window.hkMenu=oldNav;
+})();
+
 // --- hk-grid-view: reconcile, never empty-and-refill ----------------------
 // HA sets `cards` and `badges` separately and repeatedly while a view builds
 // (five _place() calls measured on one first visit). Emptying the root each

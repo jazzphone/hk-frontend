@@ -99,6 +99,15 @@ H.run('CONTROL CARDS', [
          /Current 71° · Humidity 48%/.test(html));
     H.ok('a range thermostat shows both setpoints, with two knobs',
          /data-face>68 – 74</.test(html) && /data-knob="low"/.test(html) && /data-knob="high"/.test(html));
+    var settings0 = window.hkSettings;
+    try {
+      window.hkSettings = { rendering: function () { return { flat: true, theme: 'light' }; } };
+      var flatDial = card._climate(house.hass().states[DOWN]);
+      H.ok('Flat keeps one continuous cool-to-warm band, with both setpoint knobs',
+        (flatDial.match(/class="bnd"/g) || []).length === 1 && /stroke="url\(#bandg\)"/.test(flatDial) &&
+        /stop-color:#32ade6/.test(flatDial) && /stop-color:#ff9f0a/.test(flatDial) &&
+        /data-knob="low"/.test(flatDial) && /data-knob="high"/.test(flatDial));
+    } finally { window.hkSettings = settings0; }
     var modes = [], re = /data-mode="([^"]+)"/g, m;
     while ((m = re.exec(html))) modes.push(m[1]);
     H.eq('the thermostat\'s own modes, in the familiar order', modes, ['off', 'heat', 'cool', 'heat_cool']);

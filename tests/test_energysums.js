@@ -196,8 +196,8 @@ ok('the tab starts on the plan\'s Opens On, else Now', EP.getPeriod() === 'now')
       five[id].push({ t: new Date(t14 + k * 3e5), v: val });
     }
   });
-  var asked = null;
-  S.hourly = function (h, ids) { asked = ids; return D.h; };
+  var asked = [];
+  S.hourly = function (h, ids) { asked.push(ids); return D.h; };
   S.daily = function () { return D.d; };
   S.fiveMinute = function (h, ids, n, card, o) { return o && o.type === 'change' ? five : null; };
   S.weekStart = function () { return 0; };
@@ -208,8 +208,21 @@ ok('the tab starts on the plan\'s Opens On, else Now', EP.getPeriod() === 'now')
   ok('Home Energy: today is the page\'s Today and the open hour on top (30.77 + 1.00 kWh)', s1 && near(s1.today.energy, R1.home + 1.0, 0.001), s1 && s1.today);
   ok('...its cost and water too', s1 && near(s1.today.cost, R1.cost + 0.2, 0.001) && near(s1.today.water, R1.water + 10, 0.001));
   ok('...up to the last closed five minutes (14:50)', s1 && s1.asOf === t14 + 50 * 6e4, s1 && new Date(s1.asOf));
-  ok('...only the house\'s own meters are asked for, never a device\'s', asked && asked.indexOf('sensor.main_power_utility') >= 0 &&
-     asked.length < M.ids.length, asked && asked.length);
+  ok('...house totals load independently before attribution circuits', asked[0].indexOf('sensor.main_power_utility') >= 0 && asked[0].length < M.ids.length && asked[1].length === 23, asked);
+  var cause = EP.__contributor;
+  var cx = { src: M.src, devs: [{ counted: true, stat: 'fixture.cool', name: 'Upstairs AC' }, { counted: false, stat: 'fixture.child', name: 'Child' }] };
+  var ch = Object.assign({}, D.h), cd = Object.assign({}, D.d), cf = {}, cT = R1;
+  ch['fixture.cool'] = D.h[M.src.imp[0]].map(function(q,i) { return {t:q.t,v:cT.hToday.indexOf(i)>=0 && q.v!=null ? 0.8 : q.v==null ? null : 0.01}; });
+  cd['fixture.cool'] = D.d[M.src.imp[0]].map(function(q) { return {t:q.t,v:0.5}; });
+  cf['fixture.cool'] = five[M.src.imp[0]].map(function(q) { return {t:q.t,v:q.v}; });
+  var c = cause(cx, {h:ch,d:cd}, cf, cT, s1.asOf, 2);
+  ok('...measured AC increase produces a human cooling explanation', c && c.name === 'extra cooling', c);
+  ok('...no explanation when home is below usual', cause(cx,{h:ch,d:cd},cf,cT,s1.asOf,-2) === null);
+  var row = ch['fixture.cool'][cT.hToday[0]], stamp = row.t; row.t = new Date(+row.t - 36e5);
+  ok('...previous-bucket stand-ins cannot shift circuit attribution', cause(cx,{h:ch,d:cd},cf,cT,s1.asOf,2) === null);
+  row.t = stamp;
+  cf['fixture.cool'][2].v = null;
+  ok('...missing open-hour readings suppress attribution', cause(cx,{h:ch,d:cd},cf,cT,s1.asOf,2) === null);
   var Mo = EP.__calc(M, D, 'month', F.now, null, { back: 0, ws: 0 });
   ok('...the month so far: the page\'s This Month and the open hour', s1 && near(s1.month.energy, Mo.home + 1.0, 0.001), s1 && s1.month);
   ok('...where the month\'s cost is heading: so far, and a usual day for each day left',

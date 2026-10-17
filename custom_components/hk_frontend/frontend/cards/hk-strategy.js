@@ -82,7 +82,10 @@
       'grid-column-gap': T.gridGap + 'px',
       'grid-row-gap': '0px',
       margin: '0px',
-      padding: '0px 0px ' + (space - (row - h - 4)) + 'px 0px'
+      // (--hk-pill-end: a phone's pills bleed 8 px right into the next
+      // track -- hk-tile.js -- and the last one into the page's edge; the
+      // grid keeps that room so the edge matches the left: DESIGN.md "Page edges")
+      padding: '0px var(--hk-pill-end, 0px) ' + (space - (row - h - 4)) + 'px 0px'
     };
   }
   // THE PAGE'S SIDE MARGINS: --hk-side of the page's width on each side
@@ -465,7 +468,7 @@
   }
 
   function titleBar(name) {
-    return { type: 'custom:hk-grid-card', view_layout: COL2,
+    return { type: 'custom:hk-grid-card', page_header: true, view_layout: COL2,
       // 20 px between the back button (and the menu button beside it) and
       // the title -- room enough that a tap meant for one cannot land on
       // the other.
@@ -983,8 +986,39 @@
     return { lights: inv.lights.filter(isLight), outlets: inv.lights.filter(function (id) { return !isLight(id); }),
              doors: inv.doors, windows: inv.windows, garage: inv.garage, locks: inv.locks, leaks: inv.leaks,
              motion: inv.motion || [], occupancy: inv.occupancy || [], valves: inv.valves || [],
+             vacuums: inv.vacuums || [], timers: inv.timers || [],
              security: alarm ? [alarm] : [] };
   }
+  // THE PAGE HEADERS (hk-headers.js; hk_house/docs/PLAN-2026-10-15-page-headers.md):
+  // the cards between a page's status row and its accessories, on the Energy
+  // page's three columns (two in the iPad band, one on a phone -- the same
+  // --hk-energy-* spans), so the pages' cards line up with Energy's. Each
+  // card is 240 px tall. Shown unless HK Settings turns the page's off.
+  var HEADER_H = '240px';
+  // A SCREEN'S OWN SWITCH first (its item's `headers`, {page: false}:
+  // HK Settings -> the screen -> Page Headers), then the house's.
+  function headerOn(page) {
+    if ((boardOf().headers || {})[page] === false) return false;
+    var hd = (setting('headers') || {})[page];
+    return !hd || hd.show !== false;
+  }
+  // a header's own settings (settings.HEADERS), null Automatic
+  function headerOpts(page) {
+    var hd = (setting('headers') || {})[page];
+    return hd && typeof hd === 'object' ? hd : {};
+  }
+  function headerGrid(cards) {
+    var grid = { type: 'custom:hk-grid-card', layout: {
+      'grid-template-columns': 'var(--hk-energy-cols, repeat(3, minmax(0, 1fr)))',
+      'grid-column-gap': (TL().gridGap - 8) + 'px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' }, cards: cards };
+    // the column pays back its children's 4 px side margins, as Energy's
+    var col = column([grid]);
+    col.layout = Object.assign({}, col.layout, { margin: '0px -4px' });
+    return col;
+  }
+  var SPAN2 = { 'grid-column': 'var(--hk-energy-hero, span 2)' }, SPAN1 = { 'grid-column': 'var(--hk-energy-hl, auto)' },
+      SPAN_ALL = { 'grid-column': '1 / -1' };
+
   // the row under a category page's title (hk-room.js hk-page-status-card)
   function pageRow(page, opts) {
     return { type: 'custom:hk-page-status-card', page: page, view_layout: COL2,
@@ -1089,7 +1123,8 @@
     return t;
   }
 
-  function categoryPages(hass, opts, inv, view) {
+  // withSecurity: this screen has a Security page (an alarm, the page wanted)
+  function categoryPages(hass, opts, inv, view, withSecurity) {
     var out = [];
     var dom = function (list) { return function (id) { return list.indexOf(id.split('.')[0]) !== -1; }; };
     if (inv.lights.length) {
@@ -1101,25 +1136,62 @@
       // lights; "Lights" in the menu
       var outlets = inv.lights.some(function (id) { return id.split('.')[0] !== 'light'; });
       var ltitle = outlets ? 'Lights & Outlets' : 'Lights';
+      var litRooms = roomsWith(hass, opts, function (id) { return !!lit[id]; });
+      var lcards = [titleBar(ltitle), pageRow('lights', opts)];
+      // THE HEADER: the rooms lit longest today, and what is left on and
+      // coming tonight -- of the page's lights (not its outlets: a light is
+      // a light, or an accessory shown as one, as the status row counts)
+      if (headerOn('lights')) {
+        var isLit = function (id) { var as = (accOf(id) || {}).show_as; return as ? as === 'light' : id.split('.')[0] === 'light'; };
+        var hdRooms = litRooms.map(function (r) {
+          var icons = {}, ls = r.entities.filter(isLit);
+          ls.forEach(function (id) { var t = tileFor(hass, id, ''); if (t && t.icon) icons[id] = t.icon; });
+          return { name: r.name, lights: ls, icons: icons };
+        }).filter(function (r) { return r.lights.length; });
+        if (hdRooms.length) {
+          lcards.push(headerGrid([
+            { type: 'custom:hk-lights-day-card', rooms: hdRooms, height: HEADER_H, view_layout: SPAN2 },
+            { type: 'custom:hk-lights-tonight-card', rooms: hdRooms, height: HEADER_H, view_layout: SPAN1 }]));
+        }
+      }
       out.push(view({ title: ltitle, menu_title: outlets ? 'Lights' : undefined, icon: 'mdi:lightbulb', path: 'lights',
         subview: true, sky_variant: 'lights',
-        background: '#1c1608', cards: [titleBar(ltitle), pageRow('lights', opts)].concat(
-          roomsWith(hass, opts, function (id) { return !!lit[id]; }).map(function (r) {
+        background: '#1c1608', cards: lcards.concat(litRooms.map(function (r) {
             return section(r.name, roomTiles(hass, r)); })) }));
     }
     // the house's readings, not the row's (its rooms left out are the row's)
     var climateSources = climateFound(hass, opts, []);
     if (inv.climates.length || inv.fans.length || inv.blinds.length ||
         climateSources.temperature.length || climateSources.humidity.length) {
-      // THE CLIMATE PAGE: the rooms' fans, humidifiers and blinds on
-      // the left, the thermostats on a rail to the right (--hk-page-split
-      // stacks them on a narrow page), both stacks top-aligned.
       var blinds = {};
       inv.blinds.forEach(function (b) { blinds[b] = 1; });
-      var stack = function (cards) {
-        return { type: 'custom:hk-grid-card', cards: cards,
+      // THE CLIMATE PAGE (2026-10-15): the header -- the day's heating and
+      // cooling beside the weather ahead -- then, under it, the rooms' fans,
+      // humidifiers and blinds on the left and the thermostats right beside
+      // them (2026-10-16, the user: as it was before the header), both
+      // stacks top-aligned; --hk-page-split stacks them on a phone.
+      var cards = [titleBar('Climate'), { type: 'custom:hk-climate-status-card', view_layout: COL2,
+        exclude_entities: opts.exclude_entities, exclude_devices: opts.exclude_devices, exclude_areas: opts.exclude_areas }];
+      var thermos = inv.climates.filter(function (id) { return id.indexOf('climate.') === 0; });
+      var wx = (window.hkSettings && window.hkSettings.weatherId && window.hkSettings.weatherId(hass.states)) || firstOf(hass, 'weather');
+      if (wx && hidden(hass, opts, wx)) wx = null;
+      if (headerOn('climate') && (thermos.length || wx)) {
+        var hc = [];
+        if (thermos.length) hc.push({ type: 'custom:hk-climate-runtime-card', thermostats: thermos, height: HEADER_H, view_layout: wx ? SPAN2 : SPAN_ALL });
+        if (wx) hc.push({ type: 'custom:hk-climate-outside-card', weather: wx, height: HEADER_H, view_layout: thermos.length ? SPAN1 : SPAN_ALL });
+        cards.push(headerGrid(hc));
+      }
+      // NO SIDE MARGINS OF THEIR OWN (2026-10-16, the user: Climate's pills
+      // sat 12 px right of Lights'): layout-card's 4 px on each nested grid
+      // -- the split, the stack, the room's grid -- added up. The stack keeps
+      // the vertical 4 / 8 (a heading's room above its pills, as on Lights)
+      // and drops the sides, so the room grids sit where Lights' do, the
+      // tiles' own 4 px lining them up with the header cards (DESIGN.md,
+      // Exact gaps)
+      var stack = function (list) {
+        return { type: 'custom:hk-grid-card', cards: list,
           layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content',
-                    'place-content': 'start stretch', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } };
+                    'place-content': 'start stretch', 'grid-row-gap': '0px', 'card-margin': '4px 0px 8px', margin: '0px', padding: '0px' } };
       };
       var left = [], widest = 0;
       roomsWith(hass, opts, function (id) {
@@ -1134,33 +1206,35 @@
       if (inv.climates.length) {
         right.push(heading('Thermostats'));
         right.push({ type: 'custom:hk-grid-card',
-          layout: { 'grid-template-columns': 'repeat(auto-fit, minmax(min(100%, 340px), 364px))', 'grid-auto-rows': 'min-content',
-                    // The heading and dials share their left edge even when
-                    // this rail has spare width before a second dial fits.
-                    'place-content': 'start start', 'grid-column-gap': '16px', 'grid-row-gap': '16px', margin: '0px 0px 16px 0px', padding: '0px' },
+          // COUNTED BY THE NARROWEST DIAL (2026-10-16, the user: two nearly
+          // fit at 1728): an `auto` track is counted by its minimum, 340, where
+          // a 364 maximum counted one fewer; each dial asks for 364 and takes
+          // its cell where that is less (dial_width), so the tracks grow to
+          // 364 and no further, packed to the start the pills' gap apart
+          layout: { 'grid-template-columns': 'repeat(auto-fill, minmax(min(100%, var(--hk-dial-min, 340px)), auto))',
+                    'grid-auto-rows': 'min-content', 'place-content': 'start start',
+                    // THE HOUSE GAP EXACTLY (DESIGN.md: 10 px both ways): no
+                    // child margins, so the gaps are the grid's own; the
+                    // padding puts the dials where the margins had them
+                    'grid-column-gap': TL().gridGap + 'px', 'grid-row-gap': TL().gridGap + 'px', 'card-margin': '0px',
+                    margin: '0px', padding: '4px 0px 15px 4px' },
           cards: inv.climates.map(function (id) {
-            return { type: 'custom:hk-thermostat-card', entity: id, name: fullName(hass, id) };
+            return { type: 'custom:hk-thermostat-card', entity: id, name: fullName(hass, id), dial_width: 'var(--hk-dial, 364px)' };
           }) });
       }
-      // THE ROOMS, THEN THE THERMOSTATS RIGHT BESIDE THEM -- left aligned,
-      // as every page is, with what is spare at the right. The rooms are as
-      // wide as their widest room needs: two to four pills and the gaps
-      // between them, plus the nested grids' 20 px of margins (four at 192
-      // and 12 measured 824; at 196 and 10, 834); more
-      // than four wrap. The thermostats take the rest, as many dials across
-      // as fit (364 each, 16 apart). On a narrower page the rooms give way
-      // first and the rail keeps one dial: 364, or an iPad band's narrower
-      // one (--hk-climate-dials, hk-responsive.css). --hk-page-split stacks
-      // the two on a phone.
-      var roomsW = (TL().w + TL().gridGap) * Math.max(2, Math.min(4, widest)) - TL().gridGap + 20;
+      // THE ROOMS AS WIDE AS THEIR WIDEST ROOM NEEDS: two to four pills and
+      // the gaps between them (no nested margins now); more than four wrap. The thermostats take the rest, as many dials across
+      // as fit. On a narrower page the rooms give way first and the rail
+      // keeps one dial (--hk-climate-dials in the iPad band, hk-responsive.css).
+      var roomsW = (TL().w + TL().gridGap) * Math.max(2, Math.min(4, widest)) - TL().gridGap;
       var body = left.length && right.length
         ? { type: 'custom:hk-grid-card', cards: [stack(left), stack(right)],
-            layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, ' + roomsW + 'px) ' +
-                        'minmax(min(var(--hk-climate-dials, 364px), 364px), 1fr))',
-                      'grid-column-gap': '28px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } }
+            layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, ' + roomsW + 'px) minmax(min(var(--hk-climate-dials, 364px), 364px), 1fr))',
+                      // (-4 px at the side: its own margin in the page's
+                      // column, which Lights' room grids, a level up, never
+                      // pay; -8 px on top: that, and the stack's first 4 px)
+                      'grid-column-gap': '28px', 'grid-row-gap': '0px', 'card-margin': '0px', margin: '-8px 0px 0px -4px', padding: '0px' } }
         : stack(left.length ? left : right);
-      var cards = [titleBar('Climate'), { type: 'custom:hk-climate-status-card', view_layout: COL2,
-        exclude_entities: opts.exclude_entities, exclude_devices: opts.exclude_devices, exclude_areas: opts.exclude_areas }];
       if (left.length || right.length) cards.push(column([body]));
       out.push(view({ title: 'Climate', icon: 'mdi:home-thermometer', path: 'climate', subview: true, sky_variant: 'climate',
                       background: '#0d1a1c', cards: cards }));
@@ -1170,7 +1244,13 @@
     // line above its name,
     // as the favorites do, so a name stays the accessory's own ("Left
     // Window", "Entry") however many rooms the page mixes.
-    if (inv.doors.length || inv.windows.length) {
+    // ONE PAGE WITH SECURITY (2026-10-16, the user: the two covered the same
+    // thing): where the house has an alarm, Security is where the doors and
+    // windows are -- its status row counts them, its house shows them, its
+    // chips open them as a list -- and there is no page of their own. A
+    // house without an alarm (or a screen without its Security page) keeps
+    // this page.
+    if ((inv.doors.length || inv.windows.length) && !withSecurity) {
       var dw = [titleBar('Doors & Windows'), pageRow('doors_windows', opts)];
       if (inv.doors.length) dw.push(section('Doors', inv.doors.map(function (id) { return contactTile(hass, id, 'hk:door-open', 'hk:door-closed'); }), true));
       if (inv.windows.length) dw.push(section('Windows', inv.windows.map(function (id) { return contactTile(hass, id, 'hk:window-open-variant', 'hk:window-closed-variant'); }), true));
@@ -1214,21 +1294,66 @@
         var ent = (hass.entities || {})[id] || {}, at = hass.states[id].attributes || {};
         return { entity: id, name: timerName(id), icon: accIcon(id) || ent.icon || at.icon || 'mdi:timer-outline' };
       });
-      var tcard = quick
-        ? { type: 'custom:hk-timers-page-card', tint: 'rgba(255, 159, 10, 0.95)', empty_text: 'Nothing is running.',
-            presets: [5, 10, 15, 20, 30, 60], name_chips: ['Pasta', 'Oven', 'Laundry', 'Tea', 'Kids', 'Break'],
-            house: house, timers: tlist }
-        : { type: 'custom:hk-timers-card', tint: 'rgba(255, 159, 10, 0.95)', empty_text: 'Nothing is running.',
-            timers: tlist };
-      out.push(view({ title: 'Timers', icon: 'mdi:timer-sand', path: 'timers', subview: true, sky_variant: 'timers',
-        background: '#1e1408', cards: [titleBar('Timers'), column([tcard])] }));
+      // THE TIMERS PAGE (2026-10-16, PLAN-2026-10-16-utility-pages.md): the
+      // status row; the header -- what finishes when, beside the quick
+      // durations and Create a Timer (with the quick-timer helpers); then
+      // what is running, each card at its own 388 px, and the House
+      // Timers ready to start. Without the helpers, Finishing Order across.
+      var tcards = [titleBar('Timers'), pageRow('timers', opts)];
+      var TINT = 'rgba(255, 159, 10, 0.95)';
+      // Quick Start's durations and names (HK Settings -> Pages -> Timers)
+      var ht = headerOpts('timers');
+      var presets = Array.isArray(ht.presets) && ht.presets.length ? ht.presets.slice(0, 6) : [5, 10, 15, 20, 30, 60];
+      var chips = Array.isArray(ht.names) ? ht.names.slice(0, 6) : ['Pasta', 'Oven', 'Laundry', 'Tea', 'Kids', 'Break'];
+      var theader = headerOn('timers');
+      if (theader) {
+        // the line's past: the quick timers and the House Timers -- the ones
+        // people start -- not the automations' that cycle all day
+        var mineT = (quick ? slots.filter(function (id) { return hass.states[id]; }) : []).concat(houseIds);
+        var th = [{ type: 'custom:hk-timers-order-card', timers: tlist, past: mineT, tint: TINT, height: HEADER_H, view_layout: quick ? SPAN2 : SPAN_ALL }];
+        if (quick) th.push({ type: 'custom:hk-timers-start-card', tint: TINT, presets: presets,
+          name_chips: chips, height: HEADER_H, view_layout: SPAN1 });
+        tcards.push(headerGrid(th));
+      }
+      // A HIDDEN HEADER GIVES BACK WHAT IT HELD: Quick Start is the page's
+      // own again -- the one-page Timers layout, presets beside what runs,
+      // the House Timers under them
+      if (!theader && quick) {
+        tcards.push(column([{ type: 'custom:hk-timers-page-card', tint: TINT, empty_text: 'Nothing is running.',
+          presets: presets, name_chips: chips, house: house, timers: tlist }]));
+        out.push(view({ title: 'Timers', icon: 'mdi:timer-sand', path: 'timers', subview: true, sky_variant: 'timers',
+          background: '#1e1408', cards: tcards }));
+      } else {
+        // (its own grid of 388 px cards, not the pills' 196 px tracks)
+        tcards.push({ type: 'grid', columns: 1, square: false, view_layout: COL2, cards: [heading('Running'),
+          { type: 'custom:hk-grid-card', layout: { 'grid-template-columns': 'minmax(0, 1fr)', margin: '0px', padding: '0px' },
+            cards: [{ type: 'custom:hk-timers-card', tint: TINT, timers: tlist,
+              empty_text: quick ? 'Nothing is running. Start one above.' : 'Nothing is running.' }] }] });
+        // the house timers that are idle; a running one is a card in Running
+        if (house.length) {
+          var hsec = section('House Timers', house.map(function (t) {
+            return { type: 'conditional', conditions: [{ condition: 'state', entity: t.entity, state: 'idle' }],
+              card: { type: 'custom:hk-tile-card', entity: t.entity, name: t.name, icon: t.icon, icon_color: 'orange', label_mode: 'duration',
+                      tap_action: { action: 'perform-action', perform_action: 'timer.start', target: { entity_id: t.entity } } } };
+          }));
+          tcards.push({ type: 'conditional', view_layout: COL2,
+            conditions: [{ condition: 'or', conditions: house.map(function (t) { return { condition: 'state', entity: t.entity, state: 'idle' }; }) }],
+            card: hsec });
+        }
+        out.push(view({ title: 'Timers', icon: 'mdi:timer-sand', path: 'timers', subview: true, sky_variant: 'timers',
+          background: '#1e1408', cards: tcards }));
+      }
     }
     if (inv.vacuums.length) {
-      // THE VACUUMS PAGE: the vacuums in a column, each with the readings its
-      // own device has; Clean by Area on the rail when Clean Areas is set up.
+      // THE VACUUMS PAGE (2026-10-16, PLAN-2026-10-16-utility-pages.md): the
+      // status row; the header -- the week's cleaning beside each vacuum's
+      // last run; then the vacuums at their own 388 px, one under another,
+      // with Clean Areas' rooms on a plate beside them (under them on a
+      // phone). Each vacuum card carries the readings its own device has.
       // In the page's own order (the HK Settings page's drag list), the
       // rest after it.
-      var vcols = ownOrder('vacuums', inv.vacuums).map(function (id, i) {
+      var vorder = ownOrder('vacuums', inv.vacuums);
+      var vcards = vorder.map(function (id) {
         var v = { type: 'custom:hk-vacuum-card', entity: id };
         var bat = sibling(hass, id, 'battery');
         if (bat) v.battery = bat;
@@ -1241,29 +1366,77 @@
         if (room) v.room = room;
         var prog = find(/cleaning_progress/);
         if (prog) v.progress = prog;
-        return { type: 'custom:hk-grid-card', cards: [v],
-          layout: { 'grid-template-columns': 'var(--hk-col-fill, 460px)', 'grid-auto-rows': 'minmax(200px, auto)',
-                    'grid-column-gap': '16px', 'grid-row-gap': '4px', margin: (i ? '10px' : '0px') + ' 0px 4px 0px',
-                    padding: '0px' } };
+        return v;
       });
-      var vstack = { type: 'custom:hk-grid-card', cards: vcols,
-        layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content', 'grid-row-gap': '0px',
-                  margin: '0px', padding: '0px' } };
+      // what the header reads for each: the vacuum, its error sensor, and
+      // the mission counters a vacuum that keeps them has (a Roomba's), the
+      // one sure word that a run finished
+      // Counters chosen on HK Settings -> Pages -> Vacuums are read in place
+      // of those found: each goes to the vacuum on its device (to the only
+      // vacuum when there is one), and says by its name which it counts.
+      var picked = (headerOpts('vacuums').counters || []).filter(function (id) { return hass.states[id]; });
+      var devOf = function (id) { return ((hass.entities || {})[id] || {}).device_id || null; };
+      var vruns = vorder.map(function (id, i) {
+        var mine = picked.filter(function (c) { return vorder.length === 1 || (devOf(c) && devOf(c) === devOf(id)); });
+        var find = picked.length
+          ? function (re) { return mine.filter(function (c) { return re.test(c); })[0] || null; }
+          : function (re) { return siblingLike(hass, id, re); };
+        var r = { entity: id };
+        if (vcards[i].error) r.error = vcards[i].error;
+        var ok = find(/successful_(missions|cleans?)$/), bad = find(/failed_(missions|cleans?)$/), cut = find(/cancel+ed_(missions|cleans?)$/);
+        if (ok) r.success = ok;
+        if (bad) r.failed = bad;
+        if (cut) r.canceled = cut;
+        return r;
+      });
+      var vpage = [titleBar('Vacuums'), pageRow('vacuums', opts)];
+      if (headerOn('vacuums')) {
+        vpage.push(headerGrid([
+          { type: 'custom:hk-vacuum-week-card', vacuums: vruns, height: HEADER_H, view_layout: SPAN2 },
+          { type: 'custom:hk-vacuum-last-card', vacuums: vruns, height: HEADER_H, view_layout: SPAN1 }]));
+      }
+      // the vacuums' column: 388 px cards, 10 px apart, never stretched to
+      // fill a wide page -- 412 of track: the card sits three grids deep and
+      // each gives a child 4 px a side (measured 2026-10-16)
+      var VAC_W = 388 + 24;
+      // 10 APART: each in a grid of its own, whose margins collapse against
+      // its neighbors' (hk-layout.js) -- the card's own 4 px top and 8 px
+      // bottom, less 1 px each way, are the 10
+      var vstack = { type: 'custom:hk-grid-card', cards: vcards.map(function (v, i) {
+          // (the first one's top level with the plate beside it)
+          return { type: 'custom:hk-grid-card', cards: [v],
+            layout: { 'grid-template-columns': 'minmax(0, 1fr)', margin: (i ? '-1px' : '-4px') + ' -4px -1px -4px', padding: '0px' } };
+        }),
+        layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content',
+                  'grid-row-gap': '0px', margin: '0px', padding: '0px' } };
       // CLEAN BY AREA: the picker's rooms are Clean Areas': the
       // ones a vacuum's room map reaches, or those chosen on HK Settings
       // -> Clean by Area -- asked live by the card, so a change there reaches
       // an open screen, and an area no vacuum reaches is not offered.
-      var vbody = (added('clean_areas') && inv.vacuums.length)
+      var picker = added('clean_areas') || setting('features.vacuum_script');
+      // each column its heading and its body, so a phone reads them in order
+      // (the second loses the 4 px top margin a grid's first child keeps:
+      // `top` puts it back, so the two headings share a line)
+      var vst = function (list, top, left) {
+        return { type: 'custom:hk-grid-card', cards: list,
+          layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content', 'place-content': 'start stretch',
+                    'grid-row-gap': '0px', margin: left ? '0px 0px 0px var(--hk-split-pull, ' + left + 'px)' : '0px', padding: (top || 0) + 'px 0px 0px 0px' } };
+      };
+      var vbody = picker
         ? { type: 'custom:hk-grid-card',
-            layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, 460px) minmax(var(--hk-rail, 0px), 1fr))',
-                      'grid-column-gap': '28px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' },
-            cards: [vstack, { type: 'custom:hk-grid-card',
-              layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content',
-                        'grid-row-gap': '0px', margin: '0px', padding: '0px' },
-              cards: [heading('Clean Areas'), { type: 'custom:hk-area-select-card' }] }] }
-        : vstack;
+            layout: { 'grid-template-columns': 'var(--hk-page-split, minmax(0, ' + VAC_W + 'px) minmax(var(--hk-rail, 0px), 1fr))',
+                      'grid-column-gap': (TL().gridGap - 8) + 'px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' },
+            cards: [vst([heading('Vacuums'), vstack]), vst([heading('Clean Areas'), { type: 'custom:hk-area-select-card', layout: 'panel' }], 4, -12)] }
+        : { type: 'custom:hk-grid-card', cards: [vst([heading('Vacuums'), vstack])],
+            layout: { 'grid-template-columns': 'minmax(0, ' + VAC_W + 'px)', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } };
+      // the column pays back the nesting so the cards' left edge is the
+      // header's and the plate's right edge is too (the headings keep their
+      // usual 4 px inset)
+      var vcol = column([vbody]);
+      vcol.layout = Object.assign({}, vcol.layout, { margin: '0px var(--hk-split-r, -8px) 0px -12px' });
+      vpage.push(vcol);
       out.push(view({ title: 'Vacuums', icon: 'mdi:robot-vacuum', path: 'vacuums', subview: true, sky_variant: 'vacuums',
-        background: '#170f14', cards: [titleBar('Vacuums'), column([vbody])] }));
+        background: '#170f14', cards: vpage }));
     }
     return out;
   }
@@ -1578,71 +1751,46 @@
     var pages = {};
     if (opts.pages !== false) {
       guarded('the category pages', function () {
-        categoryPages(hass, opts, inv, view).forEach(function (v) { pages[v.path] = v; });
+        categoryPages(hass, opts, inv, view, !!alarm).forEach(function (v) { pages[v.path] = v; });
       });
     }
 
     if (weather) {
-      // THE WEATHER ROW: wind, sun and moon, then UV and the outside
-      // temperature's week, each pair of groups sized by --hk-wtile-a / -b.
-      var A = { 'grid-column': 'var(--hk-wtile-a, auto)' }, Bw = { 'grid-column': 'var(--hk-wtile-b, auto)' };
-      var wind = { type: 'custom:hk-weather-tile-card', variant: 'wind', entity: weather, view_layout: A };
-      if (setting('weather.wind')) wind.speed = setting('weather.wind');
-      if (setting('weather.gust')) wind.gust = setting('weather.gust');
-      var tiles = [wind];
-      if (hass.states['sun.sun']) tiles.push({ type: 'custom:hk-weather-tile-card', variant: 'sun', sun: 'sun.sun', view_layout: A });
-      // Always a moon: with no sensor chosen the tile computes the phase.
-      var moon = setting('sky.moon');
-      tiles.push(moon ? { type: 'custom:hk-weather-tile-card', variant: 'moon', phase: moon, view_layout: A }
-                      : { type: 'custom:hk-weather-tile-card', variant: 'moon', view_layout: A });
-      var uv = setting('weather.uv');
-      if (uv) tiles.push({ type: 'custom:hk-weather-tile-card', variant: 'uv', uv: uv, view_layout: Bw });
-      var outside = setting('weather.outside');
-      if (outside && hass.states[outside]) {
-        var unit = (hass.states[outside].attributes || {}).unit_of_measurement || '\u00b0';
-        tiles.push({ type: 'custom:hk-usage-card', entity: outside, name: 'Outside Temperature', height: '172px',
-          align: 'center', compare: false, stat: outside, view_layout: Bw, tap_action: { action: 'none' },
-          opts: { unit: unit, unitSpace: false, noun: 'Daily average', colour: 'teal', valSuffix: ' avg',
-                  delta: 'absolute', deltaUnit: '\u00b0', words: ['warmer', 'cooler'], baseline: 'min',
-                  statOpts: { type: 'mean' }, height: 38, days: 7 } });
-      }
+      // THE WEATHER PAGE (2026-10-16, hk_house/docs/PLAN-2026-10-16-weather-page.md):
+      // the conditions over the sky, any alert in effect, the hours, the
+      // radar beside the days, then the details -- each part as
+      // weather.page says (hkSettings.weatherPage), the radar as
+      // weather.radar_native says (HK's own, hk-radar.js; the Weather Radar
+      // Card from HACS is no longer drawn here). 10 px between the cards
+      // both ways (card-margin 0: DESIGN.md, Exact gaps). `enter`: each
+      // card's place in the page's entrance (hk-weather.js wxEnter).
+      var HSW = window.hkSettings;
+      var wpg = HSW && HSW.weatherPage ? HSW.weatherPage()
+        : { show_current: true, show_hourly: true, show_daily: true, show_alerts: true, details: ['wind', 'sun', 'uv', 'humidity', 'moon', 'pressure'] };
+      var radarOn = !!(HSW && HSW.radarNative && HSW.radarNative().enabled);
+      var gap = { 'grid-row-gap': '10px', 'grid-column-gap': '10px', 'card-margin': '0px', margin: '0px', padding: '0px' };
+      var body = [], enter = 0;
+      if (wpg.show_current) body.push({ type: 'custom:hk-weather-band-card', section: 'hero', entity: weather, enter: enter++ });
       var alerts = setting('weather.alerts');
-      var body = [{ type: 'custom:hk-weather-band-card', entity: weather, hours: 12, days: 8 }];
-      if (alerts) {
+      if (alerts && wpg.show_alerts) {
         body.push({ type: 'conditional',
           conditions: [{ condition: 'numeric_state', entity: alerts, above: 0 }],
-          card: { type: 'custom:hk-alert-card', entity: alerts, title: 'Severe Weather', icon: 'mdi:alert' } });
+          card: { type: 'custom:hk-alert-card', entity: alerts, title: 'Severe Weather', icon: 'mdi:alert', details: true } });
       }
-      // FLUSH WITH THE BAND. The band and the alert sit straight in the
-      // column; the tiles and the radar map sit in a grid of their own, whose
-      // cards take the grid's own 4 px side margin on top of the column's --
-      // they stood 4 px inside the band on each side (seen on a desk,
-      // 2026-10-12). The inner grids pay those 4 px back.
-      body.push({ type: 'custom:hk-grid-card', cards: tiles,
-        layout: { 'grid-template-columns': 'var(--hk-cols-5, repeat(5, minmax(0, 1fr)))',
-                  'grid-column-gap': '6px', 'grid-row-gap': '0px', margin: '0px -4px', padding: '0px' } });
-      // THE RADAR MAP, when the Weather Radar Card is installed from HACS
-      // (settings.find_extras hands its URL; hk-frame-card imports it the
-      // first time this page builds -- it is not a Lovelace resource, which
-      // would load 457 KB on every page). The card, as tuned:
-      // NOAA in the US (US-only; RainViewer elsewhere), OpenStreetMap under
-      // it (the only basemap with no "API key required" watermark).
-      var radar = setting('extras.radar');
-      if (radar) {
-        body.push({ type: 'custom:hk-grid-card',
-          layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content', 'grid-column-gap': '0px',
-                    'grid-row-gap': '0px', margin: '12px -4px 0px -4px', padding: '0px' },
-          cards: [{ type: 'custom:hk-frame-card', module: radar, material: 'glass', card: Object.assign(overlay({
-            data_source: (hass.config && hass.config.country) === 'US' ? 'NOAA' : 'RainViewer',
-            map_style: 'OSM', static_map: true, markers: [{ entity: 'zone.home' }], show_scale: true,
-            show_playback: true, show_zoom: false, show_range: false, show_recenter: false, square_map: false,
-            extra_labels: false, height: '620px', zoom_level: 6
-            // its own options (Configure -> Weather -> Radar map, YAML); the
-            // card's type is not one of them
-          }, setting('weather.radar')), { type: 'custom:weather-radar-card' }) }] });
+      if (wpg.show_hourly) body.push({ type: 'custom:hk-weather-band-card', section: 'hourly', entity: weather, enter: enter++ });
+      var pair = [];
+      if (radarOn) pair.push({ type: 'custom:hk-radar-card' });
+      if (wpg.show_daily) pair.push({ type: 'custom:hk-weather-band-card', section: 'daily', entity: weather });
+      if (pair.length) {
+        pair.forEach(function (c) { c.enter = enter; });
+        enter++;
+        body.push({ type: 'custom:hk-grid-card', cards: pair, layout: Object.assign({
+          'grid-template-columns': pair.length > 1 ? 'var(--hk-wx-pair, minmax(0, 2fr) minmax(310px, 1fr))' : 'minmax(0, 1fr)' }, gap) });
       }
+      if (wpg.details && wpg.details.length) body.push({ type: 'custom:hk-weather-details-card', entity: weather, enter: enter++ });
       pages.weather = view({ title: 'Weather', path: 'weather', subview: true, icon: 'mdi:weather-partly-cloudy',
-                      menu: 'top', cards: [titleBar('Weather'), column(body)] });
+                      menu: 'top', cards: [titleBar('Weather'), column([{ type: 'custom:hk-grid-card', cards: body,
+                        layout: Object.assign({ 'grid-template-columns': 'minmax(0, 1fr)' }, gap) }])] });
     }
 
     // CAMERAS: every camera live, three across -- opened one after another
@@ -1652,8 +1800,11 @@
       pages.cameras = view({ title: 'Cameras', path: 'cameras', subview: true, icon: 'mdi:camera', menu: 'top',
         sky_variant: 'cameras', background: '#080a0e', cards: [titleBar('Cameras'), column([{
           type: 'custom:hk-grid-card',
-          layout: { 'grid-template-columns': 'var(--hk-cameras, repeat(3, minmax(0, 1fr)))', 'grid-column-gap': '4px',
-                    'grid-row-gap': '0px', margin: '0px', padding: '0px' },
+          // the house's gap both ways and no margins of their own, so the
+          // tiles sit on the page's edges as every plate does (DESIGN.md
+          // "Page edges"; their default 4 px put them 4 px in)
+          layout: { 'grid-template-columns': 'var(--hk-cameras, repeat(3, minmax(0, 1fr)))', 'grid-column-gap': TL().gridGap + 'px',
+                    'grid-row-gap': TL().gridGap + 'px', 'card-margin': '0px', margin: '0px', padding: '0px' },
           cards: cams.map(function (id) {
             return { type: 'custom:hk-camera-live-card', entity: id, aspect_ratio: '16x9', fit_mode: 'cover' };
           }) }])] });
@@ -1668,7 +1819,7 @@
                 : Object.keys(hass.states).filter(function (k) { return k.indexOf('calendar.') === 0; }))
       .filter(function (id) { return !hidden(hass, opts, id); });
     if (want('calendar') && cals.length) {
-      pages.calendar = view({ title: 'Calendar', path: 'calendar', subview: true, icon: 'mdi:calendar-month',
+      pages.calendar = view({ title: 'Calendar', path: 'calendar', subview: true, icon: 'mdi:calendar-month', sky_variant: 'calendar', background: '#0e1a18',
         cards: [titleBar('Calendar'), column([{ type: 'custom:hk-calendar-card' }])] });
     }
 
@@ -1676,14 +1827,14 @@
     if (want('live_tv') && added('live_tv')) {
       pages.live_tv = view({ title: 'Live TV', path: 'live-tv', subview: true, icon: 'mdi:television', menu: 'top',
         sky_variant: 'cameras', background: '#080a0e', cards: [titleBar('Live TV'), column([
+          // (on the page's own edges, as every page: DESIGN.md "Page edges")
           { type: 'custom:hk-tv-guide-card' }], { layout: { 'grid-template-columns': 'minmax(0, 1fr)',
-            margin: '0px 4px', padding: '4px 0px 24px 0px' } })] });
+            margin: '0px', padding: '0px' } })] });
     }
 
-    // SECURITY: the keypad, and the locks and garage doors
-    // on a rail beside it (--hk-alarm-* stack it on
-    // a narrow page), under the doors sky -- from the page's left edge, under
-    // its title and status row, as every other page's content starts.
+    // SECURITY: the keypad and the page's header, then the locks and garage
+    // doors -- from the page's left edge, under its title and status row, as
+    // every other page's content starts.
     if (alarm) {
       // the locks, then the garage doors -- or the page's own order
       // (Accessories -> Locks -> Tile Order)
@@ -1698,54 +1849,71 @@
                    icon_states: { open: 'hk:garage-open-variant', opening: 'hk:garage-open-variant' },
                    icon_color: 'mint', label_mode: 'title' };
         });
-      var keypad = { type: 'custom:hk-alarm-keypad-card', entity: alarm, view_layout: { 'grid-area': 'alarm' } };
-      var panel = guards.length ? { type: 'custom:hk-grid-card',
-        // the locks' column: two pills, the gap between them, and the 12 px
-        // the column's own nesting takes (414 at 196 and 10; the iPad band's
-        // --hk-alarm-cols says the same in CSS)
-        layout: { 'grid-template-columns': 'var(--hk-alarm-cols, 430px ' + (2 * TL().w + TL().gridGap + 12) + 'px)', 'grid-column-gap': '18px',
-                  'grid-row-gap': '0px', 'place-content': 'stretch start', margin: '0px', padding: '0px',
-                  'grid-template-areas': 'var(--hk-alarm-areas, "alarm locks")' },
-        cards: [keypad, { type: 'custom:hk-grid-card', view_layout: { 'grid-area': 'locks' },
-          layout: { 'grid-template-columns': 'minmax(0, 1fr)', 'grid-auto-rows': 'min-content',
-                    'grid-row-gap': '0px', margin: '0px -4px', padding: '0px' },
-          cards: [heading('Locks'), { type: 'custom:hk-grid-card', cards: guards,
-            layout: { 'grid-template-columns': 'var(--hk-alarm-locks, repeat(2, ' + TL().w + 'px))', 'grid-column-gap': TL().gridGap + 'px',
-                      // the last row's room under its pills paid back (16 px at 82, 14 at 80)
-                      'grid-row-gap': '0px', 'grid-auto-rows': TL().row + 'px', margin: '0px 0px -' + (TL().row - TL().h + 4) + 'px 0px', padding: '0px' } }] }] }
+      // THE SECURITY PAGE (2026-10-15): the keypad in its own box (the
+      // state as its badge, whether the entry points are closed under it),
+      // beside it the header -- the house with its ways in and today's
+      // activity, and Device Care while something needs it -- at the
+      // keypad's height; then the locks and garage doors, full width. The
+      // keypad's column is 360 (the iPad band and a phone: --hk-sec-cols).
+      var entries = inv.doors.concat(inv.windows, inv.garage);
+      var keypad = { type: 'custom:hk-alarm-keypad-card', entity: alarm, boxed: true, entries: entries };
+      var top = headerOn('security')
+        ? { type: 'custom:hk-grid-card', cards: [keypad, { type: 'custom:hk-security-overview-card', alarm: alarm,
+              locks: inv.locks, doors: inv.doors, windows: inv.windows, garage: inv.garage, leaks: inv.leaks || [] }],
+            // (368: the keypad's 360 box and its 4 px side margins)
+            layout: { 'grid-template-columns': 'var(--hk-sec-cols, 368px minmax(0, 1fr))', 'grid-column-gap': (TL().gridGap - 8) + 'px',
+                      'grid-row-gap': '0px', 'place-items': 'stretch', margin: '0px', padding: '0px' } }
         : { type: 'custom:hk-grid-card', cards: [keypad],
-            layout: { 'grid-template-columns': 'minmax(0, 430px)', 'place-content': 'stretch start',
-                      'grid-template-areas': '"alarm"', margin: '0px', padding: '0px' } };
+            layout: { 'grid-template-columns': 'minmax(0, 368px)', 'grid-column-gap': '0px', 'grid-row-gap': '0px', margin: '0px', padding: '0px' } };
+      var topCol = column([top]);
+      topCol.layout = Object.assign({}, topCol.layout, { margin: '0px -4px' });
+      var scards = [titleBar('Security'), pageRow('security', opts), topCol];
+      if (guards.length) scards.push(section('Locks', guards));
       pages.security = view({ title: 'Security', path: 'security', subview: true, icon: 'mdi:lock',
-        sky_variant: 'doors', background: '#1c0e10', cards: [titleBar('Security'), pageRow('security', opts), column([panel])] });
+        sky_variant: 'security', background: '#161823', cards: scards });
     }
 
-    // WATER: the valves, then the leak sensors, room by room.
+    // WATER (2026-10-16, PLAN-2026-10-16-utility-pages.md): the status row;
+    // the header -- the day's water from the Energy settings' meter beside
+    // the main supply valve -- then any other valves, then the leak sensors
+    // room by room. A quiet sensor's "No Report" is how these sensors are
+    // between events (the user, 2026-10-16), so it is said plainly in its
+    // tile and never raised as a warning; a leak is the tile's red.
     var valves = inv.valves || [];
     if (opts.pages !== false && ((inv.leaks && inv.leaks.length) || valves.length)) {
       var wet = {};
       inv.leaks.forEach(function (id) { wet[id] = true; });
       var byRoom = roomsWith(hass, Object.assign({}, opts, { include_entities: [].concat(opts.include_entities || [], inv.leaks) }),
                              function (id) { return !!wet[id]; });
-      // SENSOR COVERAGE, while a leak sensor has said nothing since Home
-      // Assistant started -- neither wet nor dry. Sleepy battery sensors can stay
-      // silent for days after a restart, and a page of calm tiles would hide
-      // that nobody is listening. A count, not an alarm.
-      var cover = !inv.leaks.length ? null : { type: 'conditional', view_layout: COL2,
-        conditions: [{ condition: 'or', conditions: inv.leaks.map(function (id) {
-          return { condition: 'state', entity: id, state_not: ['on', 'off'] }; }) }],
-        card: section('Sensor Coverage', [{ type: 'custom:hk-tile-card', name: 'Not Reporting', icon: 'hk:water-alert',
-          icon_color: 'red', label_mode: 'unreported', group: inv.leaks.slice(), tap_action: { action: 'none' } }]) };
+      // THE MAIN SUPPLY: the water valve named for it (main, supply,
+      // shut-off), else the only one -- unless that one waters a garden
+      // (a sprinkler is never the house's supply)
+      var vname = function (id) { return fullName(hass, id) + ' ' + id; };
+      // (or the one chosen on HK Settings -> Pages -> Water)
+      var hw = headerOpts('water');
+      var supply = (hw.supply && hass.states[hw.supply] ? hw.supply : null) ||
+                   valves.filter(function (id) { return /main|supply|shut.?off/i.test(vname(id)); })[0] ||
+                   (valves.length === 1 && !/sprinkl|irrigat|garden|drip|hose|lawn|zone|pool/i.test(vname(valves[0])) ? valves[0] : null);
+      var wcards = [titleBar('Water'), pageRow('water', opts)];
+      if (headerOn('water')) {
+        // the usage card leaves itself out when no water meter is set up
+        var wday = { type: 'custom:hk-water-day-card', height: HEADER_H, view_layout: supply ? SPAN2 : SPAN_ALL };
+        if (hw.meter) wday.meter = hw.meter;
+        wcards.push(headerGrid([wday]
+          .concat(supply ? [{ type: 'custom:hk-water-supply-card', entity: supply, height: HEADER_H, view_layout: SPAN1 }] : [])));
+      }
+      var others = valves.filter(function (id) { return !headerOn('water') || id !== supply; });
+      // (a chosen supply that is a switch, not one of the valves, too)
+      if (!headerOn('water') && supply && valves.indexOf(supply) < 0) others.unshift(supply);
+      if (others.length) wcards.push(section('Valves', others.map(function (id) { return tileFor(hass, id, fullName(hass, id)); })));
+      byRoom.forEach(function (r) {
+        wcards.push(section(r.name, r.entities.map(function (id) {
+          return { type: 'custom:hk-tile-card', entity: id, name: friendly(hass, id, r.name), icon: 'hk:water',
+                   icon_states: { on: 'hk:water-alert' }, icon_color: 'red', off_icon_color: 'blue', label_mode: 'leak' };
+        })));
+      });
       pages.water = view({ title: 'Water', path: 'water', subview: true, icon: 'mdi:water', sky_variant: 'water',
-        background: '#0c1526', cards: [titleBar('Water'), pageRow('water', opts)].concat(
-          cover ? [cover] : [],
-          valves.length ? [section('Valves', valves.map(function (id) { return tileFor(hass, id, fullName(hass, id)); }))] : [],
-          byRoom.map(function (r) {
-            return section(r.name, r.entities.map(function (id) {
-              return { type: 'custom:hk-tile-card', entity: id, name: friendly(hass, id, r.name), icon: 'hk:water-alert',
-                       icon_color: 'red', label_mode: 'leak' };
-            }));
-          })) });
+        background: '#0c1526', cards: wcards });
     }
 
     // ENERGY: the Energy feature's page, from its plan (the settings feed's
@@ -1770,15 +1938,17 @@
       // The cover is still the page's background (the playmusic sky).
       out.push(view({ title: 'Music', path: 'playmusic', subview: true, sky_variant: 'playmusic',
         icon: 'mdi:speaker', menu_title: 'Music',
+        // (in the page's column, as every page's content: on its edges --
+        // DESIGN.md "Page edges")
         background: '#150e1f', cards: [titleBar('Music'),
-          { type: 'custom:hk-music-card', view_layout: COL2 }] }));
+          column([{ type: 'custom:hk-music-card' }])] }));
       // BROWSE MUSIC'S ADDRESS STAYS (links, chips and tap actions that open
       // it): the same page, starting in the search box -- out of the menu,
       // where Music is the page
       out.push(view({ title: 'Music', path: 'music-browse', subview: true, sky_variant: 'playmusic',
         menu_follows: 'playmusic', icon: 'mdi:music-box-multiple', menu: false,
         background: '#150e1f', cards: [titleBar('Music'),
-          { type: 'custom:hk-music-card', view_layout: COL2, focus_search: true }] }));
+          column([{ type: 'custom:hk-music-card', focus_search: true }])] }));
     }
     // THE PAGES IN THIS DASHBOARD'S ORDER (Order -> Pages): the
     // kinds, Browse Music where it is placed (else right after Play Music --
@@ -2173,7 +2343,7 @@
     var T = TL();
     return { 'grid-auto-flow': 'dense', 'grid-auto-rows': (T.tall + T.gridGap) + 'px', 'grid-column-gap': T.gridGap + 'px',
              'grid-row-gap': '0px', 'grid-template-columns': 'repeat(auto-fill, var(--hk-track, ' + T.w + 'px))',
-             margin: '0px 0px -' + T.gridGap + 'px 0px', padding: '0px' };
+             margin: '0px 0px -' + T.gridGap + 'px 0px', padding: '0px var(--hk-pill-end, 0px) 0px 0px' };
   }
   var BATTERY_STEPS = [{ at_least: 60, color: 'green' }, { at_least: 25, color: 'yellow' }, { color: 'red' }];
   function energyHeading(name, link) {
@@ -2650,10 +2820,19 @@
       dismiss_scope: [].concat(withMusic ? [{ music: true }] : [], withTimers ? [{ entity: 'sensor.running_quick_timers', above: 0 }] : []),
       trigger: [{ condition: 'or', conditions: [].concat(
         withTimers ? [{ condition: 'numeric_state', entity: 'sensor.running_quick_timers', above: 0 }] : [],
-        withMusic ? [{ condition: 'state', entity_from: { music: true }, state: 'playing', grace: 20 }] : []) }],
+        // (grace: the house's Hide After a Pause, read live -- hk-popup.js)
+        withMusic ? [{ condition: 'state', entity_from: { music: true }, state: 'playing', grace: 'now_playing' }] : []) }],
       trigger_close: true,
+      // NOW PLAYING'S PLACE (2026-10-15, the screen's Now Playing; hk-popup.js
+      // placeFor): a pane down one side -- the screensaver's music pane, the
+      // card after the player -- or this bar along the bottom or the top
+      // (top_vars: its inset at the top of the screen, not the bottom)
+      pane: !!withMusic,
+      top_vars: { 'hk-np-height': 'calc(104px + env(safe-area-inset-top, 0px))',
+                  'hk-np-pad': 'calc(12px + env(safe-area-inset-top, 0px)) 24px 12px' },
       // the timers on the same plate, a slim row over the player (docked)
-      cards: [].concat(withTimers ? [{ type: 'custom:hk-timer-strip-card', docked: true }] : [], withMusic ? [bar] : []) };
+      cards: [].concat(withTimers ? [{ type: 'custom:hk-timer-strip-card', docked: true }] : [],
+                       withMusic ? [bar, { type: 'custom:hk-music-pane-card' }] : []) };
   }
 
   // REBUILT WHEN ITS SETTINGS CHANGE. A strategy builds the dashboard once,
@@ -2679,7 +2858,7 @@
   // camera. Car Browser itself rebuilds: with Car Home it is another Home.)
   var LIVE_KEYS = { chips: 1, chips_quiet: 1, chips_extra: 1, scenes: 1, scenes_pages: 1, scenes_row: 1,
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
-                    tab_position: 1, home_rooms: 1, glass: 1, frost: 1, frost_tint: 1, blur: 1, tint: 1, well: 1, black_screen: 1, camera_live: 1, camera_live_video: 1,
+                    tab_position: 1, home_rooms: 1, flat: 1, flat_theme: 1, glass: 1, frost: 1, frost_tint: 1, blur: 1, tint: 1, well: 1, black_screen: 1, camera_live: 1, camera_live_video: 1,
                     car_width: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1, chips_custom_show: 1,
                     // notifications: hk-notify.js reads them as each one comes
                     notify: 1, notify_saver: 1, notify_dnd: 1,
@@ -2689,7 +2868,7 @@
                     // accent picked for the house no longer rebuilds every
                     // screen (closing its sheets, reconnecting its cameras)
                     accent: 1, swipe: 1, glyph: 1, clock: 1, tab_size: 1, tab_size_phone: 1,
-                    menu_custom: 1, menu_house: 1,
+                    menu_custom: 1, menu_house: 1, page_header: 1,
                     // ...and the tab bar's and the Home Assistant section's
                     // (hk-tabbar.js / hk-menu.js read them live). Every key
                     // of settings.py MENU_KEYS but `menu` belongs here:
@@ -2701,6 +2880,8 @@
                     tab_bar_size: 1,
                     // ...and Phones' own menu (hk-base.js phoneMenu, 2026-10-08)
                     menu_phone: 1, button_phone: 1, tab_bar_rooms_phone: 1,
+                    // ...and Now Playing's place (hk-popup.js placeFor reads it live)
+                    np_style: 1, np_side: 1, np_bar: 1, np_bar_phone: 1,
                     // ...and the screen's own sky: hk-settings.js skyLook() /
                     // skyPage() read every sky_* key live and the sky repaints
                     // on its next tick; no build reads one (`sky` itself, the
@@ -2710,7 +2891,9 @@
                     sky_animations: 1, sky_weather: 1, sky_precipitation: 1, sky_focus_pause: 1, sky_decorations: 1, sky_decoration_style: 1, sky_moving: 1,
                     sky_cloud_style: 1, sky_daytime: 1, sky_gradient: 1, sky_custom: 1, sky_pages: 1,
                     sky_liveliness: 1, sky_liveliness_occ: 1, sky_liveliness_custom: 1, sky_calm_empty: 1,
-                    sky_background: 1, sky_color: 1, sky_photo: 1, sky_page_photos: 1, sky_photo_look: 1, sky_page_looks: 1, sky_landscape: 1, sky_landscape_look: 1 };
+                    sky_background: 1, sky_color: 1, sky_photo: 1, sky_page_photos: 1, sky_photo_look: 1, sky_page_looks: 1, sky_landscape: 1, sky_landscape_look: 1,
+                    sky_flat_background: 1, sky_flat_color: 1, sky_flat_fade: 1, sky_flat_tint: 1, sky_flat_tint_amount: 1, sky_flat_tint_light: 1, sky_flat_pages: 1,
+                    sky_flat_image_look: 1, sky_flat_page_image_looks: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };
@@ -2890,6 +3073,7 @@
   window.hkStrategy = { generate: HkDashboardStrategy.generate, tile: TILE, shortName: shortName,
                         lateError: lateError, recoverLate: recoverLate, defineHere: defineHere,
                         tileFor: tileFor, roomCards: roomCards, climateMembers: climateMembers, pageMembers: pageMembers,
+                        batteryOf: function (hass, id) { return sibling(hass, id, 'battery'); },
                         groupOf: groupOf, ownChange: ownChange,
                         room: HkRoomViewStrategy.generate,
                         rooms: rooms, contactGlyphs: contactGlyphs, overlay: overlay,

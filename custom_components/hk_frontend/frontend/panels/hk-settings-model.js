@@ -25,8 +25,8 @@
   // What each chip counts, and where that is set: Status & Chips kinds, or a
   // single setting (General, Weather).
   var CHIP_SOURCES = {
-    weather_alert: { setting: ['house/weather/sensors', 'Weather Alerts Sensor'] },
-    security: { kinds: ['locks', 'garage'], setting: ['house/general', 'Alarm Panel'] },
+    weather_alert: { setting: ['page/weather/sensors', 'Weather Alerts Sensor'] },
+    security: { kinds: ['locks', 'garage'], setting: ['page/security', 'Alarm Panel'] },
     doors_windows: { kinds: ['doors', 'windows'] },
     climate: { kinds: ['thermostats', 'fans'], setting: ['here', 'Indoor Temperature'] },
     lights: { kinds: ['lights'] }, blinds: { kinds: ['blinds'] }, timers: { kinds: ['timers'] },
@@ -187,7 +187,7 @@
     ['blinds', 'Blinds & Shades', 'mdi:blinds', '#5856d6', { kind: 'blinds' }],
     ['garage', 'Garage Doors', 'mdi:garage', '#34c759', { kind: 'garage', order: 'security' }],
     ['locks', 'Locks', 'mdi:lock', '#34c759', { kind: 'locks', order: 'security' }],
-    ['alarm', 'Security Systems', 'mdi:shield-home', '#ff3b30', { domains: ['alarm_control_panel'], link: ['Alarm Panel', 'house/general', 'Which one the Security page and chip follow is chosen in General.'] },
+    ['alarm', 'Security Systems', 'mdi:shield-home', '#ff3b30', { domains: ['alarm_control_panel'], link: ['Alarm Panel', 'page/security', 'Which one the Security page and chip follow is chosen on the Security page, under Pages.'] },
      'The alarm keypad on its room’s page and the Security page.'],
     ['speakers', 'Speakers', 'mdi:speaker', '#af52de', { kind: 'speakers' }],
     ['tvs', 'TVs & Receivers', 'mdi:television', '#8e8e93', { domains: ['media_player'], dc: ['tv', 'receiver'] },
@@ -195,7 +195,7 @@
     ['vacuums', 'Vacuums', 'mdi:robot-vacuum', '#30b0c7', { kind: 'vacuums', order: 'vacuums' }],
     ['valves', 'Valves', 'mdi:valve', '#007aff', { kind: 'valves' }],
     ['timers', 'Timers', 'mdi:timer-outline', '#ff9500', { kind: 'timers' }],
-    ['cameras', 'Cameras', 'mdi:cctv', '#ff2d55', { domains: ['camera'], link: ['Cameras Settings', 'house/cameras', 'Which cameras each screen shows, in what order, and which one plays live.'] },
+    ['cameras', 'Cameras', 'mdi:cctv', '#ff2d55', { domains: ['camera'], link: ['Cameras Settings', 'page/cameras', 'Which cameras each screen shows, in what order, and which one plays live.'] },
      'Their tiles on Home and their rooms’ pages, the camera row and the Cameras page.'],
     ['energy', 'Circuits & Meters', 'mdi:lightning-bolt', '#34c759', { energy: true },
      'The Energy page’s live tiles: each circuit, plug and meter Home Assistant’s Energy settings list, or one added in Energy.'],
@@ -252,6 +252,7 @@
   // stored value each (look.glass / a screen's glass): clear, frosted, blur
   // (Shared Layer), blur_pre (Pre-rendered), blur_each (Each Card)
   var GLASS_STYLES = [
+    ['flat', 'Flat', 'A clean, opaque look designed for smoother performance. Disables blur, animations and live sky effects. Especially useful on slower tablets.'],
     ['clear', 'Glass', 'The original see-through glass. The status chips blur what’s behind them.'],
     ['frosted', 'Frosted', 'A milky material with no blur. Costs nothing per frame on any device.'],
     ['tinted', 'Tinted', 'The Home app’s dark plate, with no blur anywhere on the page. The lightest on any device; sheets and pop-ups still blur while open.'],
@@ -302,7 +303,7 @@
     temperature: 'Temperature', humidity: 'Humidity', security: 'Security System', tvs: 'TVs', lights: 'Lights',
     outlets: 'Outlets', blinds: 'Blinds', fans: 'Fans', windows: 'Windows', doors: 'Doors', locks: 'Locks',
     garage: 'Garage Doors', valves: 'Valves', motion: 'Motion', occupancy: 'Occupancy', leaks: 'Leaks',
-    speakers: 'Speakers'
+    speakers: 'Speakers', vacuums: 'Vacuums', vacuum_battery: 'Vacuum Batteries', timers: 'Timers'
   };
   // What an item says, under its name in Status Rows' lists
   var STATUS_SAYS = {
@@ -310,7 +311,8 @@
     security: 'Disarmed, Armed Home, Armed Away …', tvs: 'On or Off', lights: 'How many are on', outlets: 'How many are on',
     blinds: 'Open or Closed', fans: 'How many are on', windows: 'Open or Closed', doors: 'Open or Closed',
     locks: 'Locked or Unlocked', garage: 'Open or Closed', valves: 'Running or Off', motion: 'Where it’s detected',
-    occupancy: 'Which rooms are occupied', leaks: 'Where a leak is detected', speakers: 'Playing or not'
+    occupancy: 'Which rooms are occupied', leaks: 'Where a leak is detected', speakers: 'Playing or not',
+    vacuums: 'Cleaning, docked or stuck', vacuum_battery: 'The lowest battery', timers: 'How many are running'
   };
   // THE STATUS ROWS (HK Settings -> Status Rows): a room page's, then each
   // category page's (settings.STATUS_ROWS). [key, title, icon, what it is]
@@ -320,13 +322,126 @@
     ['lights', 'Lights', 'mdi:lightbulb', 'The lights, and the outlets counted with them.'],
     ['doors_windows', 'Doors & Windows', 'mdi:window-closed-variant', 'What’s open, and where there’s motion or someone home.'],
     ['water', 'Water', 'mdi:water', 'The leak sensors and the water valves.'],
-    ['security', 'Security', 'mdi:lock', 'The security system and everything that guards the house.']
+    ['security', 'Security', 'mdi:lock', 'The security system and everything that guards the house.'],
+    ['vacuums', 'Vacuums', 'mdi:robot-vacuum', 'What the vacuums are doing, and their batteries.'],
+    ['timers', 'Timers', 'mdi:timer-sand', 'The timers running.']
   ];
+  // THE PAGE HEADERS (settings.HEADERS; hk-headers.js): the pages that have
+  // one, what it shows, and its defaults (as settings.py's)
+  var HEADER_PAGES = {
+    climate: { what: 'Heating & cooling today, and the weather ahead', footer: 'The cards between the status row and the thermostats.',
+               defaults: { show: true, thermostats: null } },
+    lights: { what: 'The rooms lit longest today, what’s left on and tonight’s lighting', footer: 'The cards between the status row and the rooms.',
+              defaults: { show: true, rooms: 3, left_on: true, tonight: true, exclude_areas: null, after_min: 10, automations: null, sky_follow: true, sky_source: null } },
+    security: { what: 'Your home’s ways in, today’s activity and Device Care', footer: 'Beside the keypad, at its height.',
+                defaults: { show: true, callouts: true, front_door: null, back_door: null, garage: null, low_battery: 20 } },
+    water: { what: 'Today’s water use, and the main supply valve', footer: 'The cards between the status row and the valves. Off, the main valve is a tile with the others again.',
+             defaults: { show: true, meter: null, supply: null } },
+    timers: { what: 'What finishes when, and Quick Start', footer: 'The cards between the status row and the timers running.',
+              defaults: { show: true, presets: [5, 10, 15, 20, 30, 60], names: ['Pasta', 'Oven', 'Laundry', 'Tea', 'Kids', 'Break'] } },
+    vacuums: { what: 'The days’ cleaning, and each vacuum’s last run', footer: 'The cards between the status row and the vacuums.',
+               defaults: { show: true, counters: null } }
+  };
+  // THE PAGES SECTION (2026-10-16, PLAN-2026-10-16-pages-settings.md): every
+  // generated page the house has, in the menu's order, each its own
+  // settings page (#/page/<key>) -- [key, title, icon, tile color].
+  var PAGES = [
+    ['climate', 'Climate', 'mdi:home-thermometer', '#30b0c7'], ['lights', 'Lights', 'mdi:lightbulb', '#ffcc00'],
+    ['security', 'Security', 'mdi:lock', '#007aff'], ['doors_windows', 'Doors & Windows', 'mdi:window-closed-variant', '#a2845e'],
+    ['water', 'Water', 'mdi:water', '#32ade6'], ['energy', 'Energy', 'mdi:lightning-bolt', '#34c759'],
+    ['power', 'Power', 'mdi:home-lightning-bolt', '#ff9500'], ['timers', 'Timers', 'mdi:timer-sand', '#ff9500'],
+    ['vacuums', 'Vacuums', 'mdi:robot-vacuum', '#af52de'], ['music', 'Music', 'mdi:music', '#ff2d55'],
+    ['cameras', 'Cameras', 'mdi:cctv', '#ff2d55'], ['calendar', 'Calendar', 'mdi:calendar-month', '#ff3b30'],
+    ['weather', 'Weather', 'mdi:weather-partly-cloudy', '#32ade6'], ['live_tv', 'Live TV', 'mdi:television-classic', '#007aff']
+  ];
+  // EACH PAGE'S HIGHLIGHT under Automatic, unless the page has its own
+  // (look.page_accents): hk-base.js PAGE_ACCENTS, the same table
+  var PAGE_ACCENTS = { climate: 'blue', lights: 'yellow', security: 'teal', doors_windows: 'teal',
+                       calendar: 'purple', weather: 'cyan', energy: 'green', power: 'green', water: 'cyan',
+                       music: 'pink', live_tv: 'indigo', cameras: 'red', vacuums: 'mint', timers: 'orange' };
+  function pageAccentOf(key, own) {
+    var dflt = PAGE_ACCENTS[key] || 'orange', mine = own && own[key];
+    return { own: !!mine, value: mine || dflt, dflt: dflt, a: accentOf(mine || dflt), d: accentOf(dflt) };
+  }
+  function pageOf(key) { return PAGES.filter(function (p) { return p[0] === key; })[0] || null; }
+  // WHAT'S ON IT: the accessory types (Accessories -> a type) each page shows
+  var PAGE_TYPES = {
+    climate: ['thermostats', 'fans', 'blinds', 'humidifiers', 'temperature', 'humidity'], lights: ['lights', 'switches'],
+    security: ['alarm', 'locks', 'garage', 'doors', 'windows', 'leaks', 'motion'], doors_windows: ['doors', 'windows', 'motion', 'occupancy'],
+    water: ['leaks', 'valves'], timers: ['timers'], vacuums: ['vacuums'], cameras: ['cameras'], energy: ['energy'], music: ['speakers'],
+    live_tv: ['tvs']
+  };
+  // the feature a page comes from (hk-settings-features.js LIST's route):
+  // its pages live under #/features/<route>/... and its page here opens them
+  var PAGE_FEATURES = { energy: 'energy', power: 'energy', music: 'music', live_tv: 'tv', security: 'alarm', vacuums: 'clean' };
+  // A PAGE THE HOUSE HAS: `has` -- {kinds: Status & Chips' counts (kind ->
+  // found), alarm: the Alarm Panel, cameras/calendars/weather: how many}.
+  // Energy, Power, Music and Live TV are always listed (a page whose feature
+  // isn't added opens on setting it up); Doors & Windows only without an
+  // alarm (with one it is the Security page's).
+  function pagesListed(has) {
+    var k = (has && has.kinds) || {}, n = function (x) { return (k[x] || 0) > 0; };
+    var alarm = !!(has && has.alarm);
+    var want = {
+      climate: n('thermostats') || n('fans') || n('temperature'), lights: n('lights'),
+      security: alarm || n('locks') || n('garage'), doors_windows: !alarm && (n('doors') || n('windows')),
+      water: n('leaks') || n('valves'), energy: true, power: true, timers: n('timers'), vacuums: n('vacuums'), music: true,
+      cameras: !!(has && has.cameras), calendar: !!(has && has.calendars), weather: !!(has && has.weather), live_tv: true
+    };
+    return PAGES.filter(function (p) { return want[p[0]]; });
+  }
+  // the sidebar route a settings address belongs to: a page's own, or the
+  // feature pages it opens (#/features/energy/devices is Energy's)
+  function pageOfRoute(here) {
+    var m = /^page\/([a-z_]+)/.exec(here || '');
+    if (m) return m[1];
+    m = /^features\/([a-z]+)/.exec(here || '');
+    if (!m) return null;
+    if (m[1] === 'energy') return /^features\/energy\/power/.test(here) ? 'power' : 'energy';
+    return { music: 'music', tv: 'live_tv', alarm: 'security', clean: 'vacuums' }[m[1]] || null;
+  }
+  // OLD ADDRESSES FORWARD (2026-10-16, Pages): a route that moved, to where
+  // it is now ('house/weather/sensors' -> 'page/weather/sensors'); null when
+  // it did not move. Never itself: a route never forwards to itself.
+  var FEATURE_PAGES = { energy: 'energy', music: 'music', tv: 'live_tv', alarm: 'security', clean: 'vacuums' };
+  function routeForward(path) {
+    var p = String(path || '').split('/').filter(Boolean), out = null;
+    if (p[0] === 'house') {
+      if (p[1] === 'weather' || p[1] === 'calendar' || p[1] === 'cameras') out = ['page', p[1]].concat(p.slice(2)).join('/');
+      else if (p[1] === 'general') out = p[2] === 'timers' ? 'page/timers/house' : 'page/security';
+      else if (p[1] === 'climate') out = 'page/climate/status';
+      else if (p[1] === 'status') {
+        out = !p[2] ? 'page/climate' : p[2] === 'rooms' ? 'house/rooms/status' : pageOf(p[2]) ? 'page/' + p[2] + '/status' : 'page/climate';
+      }
+      else if (p[1] === 'menu' && p[2] === 'status') out = 'house/rooms/status';
+      else if (p[1] === 'appearance' && p[2] === 'pill' && pageOf(p[3])) out = 'page/' + p[3] + '/pill';
+      else if (p[1] === 'sky' && p[2] === 'page' && pageOf(p[3])) out = 'page/' + p[3] + '/background';
+    } else if (p[0] === 'features' && p.length === 2 && FEATURE_PAGES[p[1]]) {
+      out = 'page/' + FEATURE_PAGES[p[1]];
+    } else if (p[0] === 'accessories' && p[1] === 'page' && (p[2] === 'vacuums' || p[2] === 'security')) {
+      out = 'page/' + p[2] + '/order';
+    } else if (p[0] === 'accessories' && p[1] === 'type' && p[3] === 'order' && (p[2] === 'vacuums' || p[2] === 'locks' || p[2] === 'garage')) {
+      out = 'page/' + (p[2] === 'vacuums' ? 'vacuums' : 'security') + '/order';
+    }
+    return out && out !== p.join('/') ? out : null;
+  }
+  // A SCREEN SHOWS A PAGE: its Pages on This Screen ([] every page)
+  function screenShows(b, key) {
+    // a screen of only some pages (Home Page off) shows just those
+    if (b && b.home_page === false && (b.only_pages || []).length) return b.only_pages.indexOf(key) >= 0;
+    var p = (b && b.pages) || [];
+    return !p.length || p.indexOf(key) >= 0;
+  }
+  // the screens that turn a page's header off (their `headers`)
+  function headerOffOn(boards, key) {
+    return Object.keys(boards || {}).filter(function (p) { return ((boards[p] || {}).headers || {})[key] === false; });
+  }
   // the Status & Chips kind each item counts with (the security system is the
   // Alarm Panel, General's)
   var STATUS_SOURCE = { lights: 'lights', outlets: 'lights', blinds: 'blinds', fans: 'fans', windows: 'windows',
                         doors: 'doors', locks: 'locks', garage: 'garage', valves: 'valves', motion: 'motion',
-                        occupancy: 'occupancy', leaks: 'leaks', temperature: 'temperature', humidity: 'humidity' };
+                        occupancy: 'occupancy', leaks: 'leaks', temperature: 'temperature', humidity: 'humidity',
+                        vacuums: 'vacuums', vacuum_battery: 'vacuums', timers: 'timers' };
   // New Decorations' seasons between occasions (sky.woodland), in order
   var WOODLAND = [['spring', 'Spring'], ['summer', 'Summer'], ['fall', 'Autumn'], ['winter', 'Winter']];
   // the clouds' looks (sky.cloud_style), as the Clouds menus offer them
@@ -477,6 +592,7 @@
     accent: 'Choose a color, or a color of your own as #rrggbb.',
     dock_min: 'Enter 700 to 3,000 px.', car_width: 'Enter 600 to 2,400 px.', bad_room: 'Use lower-case letters, digits and underscores, like living_room.',
     user: 'That isn’t a user name.', unknown: 'That setting doesn’t exist.',
+    range: 'That number is outside what this setting allows.',
     icon: 'Use an icon name such as mdi:music or hk:apple.',
     chip_card: 'The chip must be YAML with a type, such as type: custom:hk-status-chip-card.',
     chip_gone: 'That chip isn’t there any more.',
@@ -599,8 +715,81 @@
                  ['pink', 'Pink', '#ff375f'], ['red', 'Red', '#ff453a']];
   function accentOf(v) {
     v = String(v || 'orange').toLowerCase();
+    // Automatic: each page its own color (hk-base.js PAGE_ACCENTS)
+    if (v === 'auto') return { name: 'Automatic', hex: '#ff9f0a', custom: false, auto: true };
     for (var i = 0; i < ACCENTS.length; i++) if (ACCENTS[i][0] === v) return { name: ACCENTS[i][1], hex: ACCENTS[i][2], custom: false };
     return /^#[0-9a-f]{6}$/.test(v) ? { name: 'Custom', hex: v, custom: true } : { name: 'Orange', hex: '#ff9f0a', custom: false };
+  }
+  // FLAT COLORS (2026-10-17; settings.py flat_colors, hk-settings.js
+  // resolveFlatColors): Accent Color's presets -- hk-base.js FLAT_ACCENTS,
+  // the same list (tests/test_flatcolors.js)
+  var FLAT_ACCENTS = [['amber', 'Amber', '#e09649'], ['sage', 'Sage', '#7e9b83'], ['harbor', 'Harbor', '#5c91bc'],
+                      ['lavender', 'Lavender', '#9374bc'], ['rose', 'Rose', '#c17d91'], ['slate', 'Slate', '#64798e'],
+                      ['teal', 'Teal', '#599b9c'], ['clay', 'Clay', '#ad8972']];
+  // a screen's (or All Screens') Flat Colors at `keys`, as the dashboard
+  // resolves them -- the same function, so the two can't disagree
+  function flatColorsOf(look, b, keys) {
+    var S = window.hkSettings;
+    return S && S.resolveFlatColors ? S.resolveFlatColors(look, b, keys)
+         : { accent: { value: 'auto', scope: 'default', page: null }, off_tint: { value: 'auto', scope: 'default', page: null },
+             pages: { value: 'accent', scope: 'default', page: null } };
+  }
+  // a resolved accent in a word: a page keeping its own color says so
+  function flatAccentSays(f) { return f && f.scope === 'own-page' ? 'Its Own Color' : flatColorName(f && f.value); }
+  // Flat Colors' `pages` in a word
+  function flatPagesName(v) { return v === 'own' ? 'Own Colors' : 'Follow Accent'; }
+  // a Flat Colors value in a word: a preset by its name, Apple's by theirs
+  function flatColorName(v) {
+    v = String(v || 'auto').toLowerCase();
+    if (v === 'auto') return 'Automatic';
+    if (v === 'accent') return 'Match Accent';
+    for (var i = 0; i < FLAT_ACCENTS.length; i++) if (FLAT_ACCENTS[i][2] === v) return FLAT_ACCENTS[i][1];
+    for (var j = 0; j < ACCENTS.length; j++) if (ACCENTS[j][0] === v || ACCENTS[j][2] === v) return ACCENTS[j][1];
+    return /^#[0-9a-f]{6}$/.test(v) ? 'Custom' : 'Automatic';
+  }
+  // ...and as a swatch (null: none -- Automatic, Match Accent)
+  function flatColorHex(v) {
+    v = String(v || '').toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(v)) return v;
+    for (var j = 0; j < ACCENTS.length; j++) if (ACCENTS[j][0] === v) return ACCENTS[j][2];
+    for (var i = 0; i < FLAT_ACCENTS.length; i++) if (FLAT_ACCENTS[i][0] === v) return FLAT_ACCENTS[i][2];
+    return null;
+  }
+  // WHERE A RESOLVED FIELD COMES FROM, in words: "All Screens", "This
+  // Screen", "Calendar on All Screens", "Kitchen on This Screen" ('' for the
+  // built-in Automatic). o.label(key): a page's or room's name.
+  function flatSourceLabel(f, o) {
+    o = o || {};
+    var name = function (k) {
+      var l = o.label && o.label(k);
+      if (l) return l;
+      if (k === 'rooms') return 'Room Pages';
+      if (/^room-/.test(k)) return k.slice(5).replace(/[-_]+/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+      return SKY_PAGE_LABELS[k] || PAGE_LABELS[k] || k;
+    };
+    if (!f || f.scope === 'default') return '';
+    if (f.scope === 'house') return 'All Screens';
+    if (f.scope === 'screen') return 'This Screen';
+    if (f.scope === 'house-page') return name(f.page) + ' on All Screens';
+    if (f.scope === 'screen-page') return name(f.page) + ' on This Screen';
+    if (f.scope === 'own-page') return 'Pages Keep Their Own Colors';
+    return 'Preview';
+  }
+  // a photo's Tint in a word (Sky / Background -> Tint)
+  function flatTintLabel(v) { return v === 'accent' ? 'Match Accent' : /^#/.test(v || '') ? 'Your Own' : 'None'; }
+  // "Sage · All Screens"
+  function flatFieldSays(f, o) {
+    var src = flatSourceLabel(f, o);
+    return flatColorName(f.value) + (src ? ' · ' + src : '');
+  }
+  // CHOOSING AN ACCENT is one coordinated change: where the tint in effect
+  // is Automatic, it links to the accent in the same write; a tint already
+  // matched, or a color of its own (here or inherited), is left as it is.
+  // `r`: the scope's resolved colors before the change.
+  function flatAccentChange(value, r) {
+    var out = { accent: value };
+    if (value !== 'auto' && r && r.off_tint && r.off_tint.value === 'auto') out.off_tint = 'accent';
+    return out;
   }
   // TAB POSITION as two choices: level with the date ('') or a distance from
   // the top in px or % (settings.py tab_position) -- [mode, number, unit]
@@ -618,7 +807,8 @@
   }
   // ALL SCREENS' MENU (settings `menu`) as a screen's keys, and back
   // (settings.py MENU_KEYS): the same rows serve both
-  var MENU_KEYS = { menu: 'style', tab_position: 'tab_at', tab_size: 'tab_size',
+  var PAGE_HEADERS = [['current', 'Back & Title'], ['smart', 'Context When Needed'], ['none', 'No Header']];
+  var MENU_KEYS = { page_header: 'page_header', menu: 'style', tab_position: 'tab_at', tab_size: 'tab_size',
                     tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
                     ha_row: 'ha_row', ha_place: 'ha_at', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe',
                     tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass',
@@ -627,7 +817,7 @@
                     tab_bar_adjust: 'bar_adjust', tab_bar_scroll_phone: 'bar_scroll_phone',
                     tab_bar_tabs: 'bar_tabs', tab_bar_tabs_rail: 'bar_tabs_rail', tab_bar_size: 'bar_size',
                     button_phone: 'button_phone', tab_bar_rooms_phone: 'bar_rooms_phone' };
-  var MENU_DEFAULTS = { menu: 'auto', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
+  var MENU_DEFAULTS = { page_header: 'current', menu: 'auto', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, ha_place: 'rooms', accent: 'orange', glyph: 'sidebar', clock: true,
                         swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house',
                         tab_bar_more: 'icons', tab_bar_more_phone: 'list', tab_bar_pos: 'bottom',
@@ -687,8 +877,12 @@
   // this screen's glass: its own, or All Screens'
   function glassOf(b, look) {
     var own = !!b.glass && b.glass !== 'house';
-    var house = look && look.glass || 'clear';
-    return { own: own, value: own ? b.glass : 'house', effective: own ? b.glass : house, house: house };
+    look = look || {};
+    var house = look.flat === true ? 'flat' : (look.glass || 'clear');
+    var flat = typeof b.flat === 'boolean' ? b.flat : (!own && look.flat === true);
+    own = typeof b.flat === 'boolean' || own;
+    var value = flat ? 'flat' : (b.glass && b.glass !== 'house' ? b.glass : look.glass || 'clear');
+    return { own: own, value: own ? value : 'house', effective: value, house: house };
   }
   // an amount: this screen's own (a number), else All Screens'
   function amountOf(b, look, key) {
@@ -704,6 +898,7 @@
   // and a screen's page say the same)
   function glassFooter(style) {
     var t = 'How the pills, tiles and chips look.';
+    if (style === 'flat') return 'Opaque surfaces with no blur, animations or live sky effects. Color, landscape and photo backgrounds remain available in Sky / Background. Your other appearance preferences are kept.';
     if (style === 'frosted') t += ' Frost: how milky, 50% is the middle. Tint from Background: each card takes the color of the page behind it instead of one gray.';
     if (isBlur(style)) t += ' Blur: how strong, 50% is 20 px.';
     if (style === 'tinted') t += ' Darkness: how much of the background shows through, 50% is 75% dark. Icon Circles: Dark as the Home app’s, or Light to keep their shape over dark scenery.';
@@ -886,7 +1081,7 @@
   // STATIC -- Automatic keeps it) or shows the live sky by default. `keys`:
   // the pages to list (page kinds, `rooms`, custom page addresses);
   // `custom`: address -> title.
-  var SKY_OWN = { cameras: 1, live_tv: 1, security: 1, doors_windows: 1, climate: 1, lights: 1, timers: 1,
+  var SKY_OWN = { cameras: 1, live_tv: 1, security: 1, doors_windows: 1, climate: 1, lights: 1, timers: 1, calendar: 1,
                   vacuums: 1, music: 1, water: 1, energy: 1 };
   var SKY_PAGE_LABELS = { music: 'Music', rooms: 'Room Pages', live_tv: 'Live TV' };
   function skyPageRows(keys, custom) {
@@ -897,8 +1092,10 @@
     });
   }
   // what Automatic means for a page, in words
+  // (a page left alone says Automatic: the user, 2026-10-17 -- "Page
+  // Color" there read as if Page Color had been picked)
   function skyAutoLabel(row) {
-    return row.custom ? 'As Written' : row.own ? 'Page Color' : 'Background';
+    return 'Automatic';
   }
   // a mode in words: 'own', 'live', 'photo' or a backdrop id (backdrops: [{id, label}])
   function skyModeLabel(mode, backdrops) {
@@ -1296,8 +1493,11 @@
   // `screen: true` rows are on every screen's page.
   var SEARCH = [
     ['Menu', 'screen', 'menu', 'sidebar drawer navigation off button always open docked', true],
+    ['Page Header', 'house/menu', 'menu.page_header', 'back title context navigation compact hide'],
+    ['Page Header', 'screen/menu', 'page_header', 'back title context navigation compact hide', true],
     ['Menu Settings', 'screen/menu', 'menu_custom', 'same as all screens own menu this screen', true],
     ['Pages in Menu', 'screen/menu-pages', 'categories', 'categories menu list', true],
+    ['Page Headers', 'screen/page-headers', 'headers', 'page header off this screen hide header water valve timers quick start', true],
     ['Tab Bar', 'house/menu', 'menu.bar_pos', 'tab bar bottom bar floating ios navigation dock tabs more rooms position size glass'],
     ['Home Page', 'screen/pages', 'home_page', 'only these pages standalone energy panel security cameras climate no home', true],
     ['Home', 'screen/pages', 'home_view', 'home page custom first page car generated', true],
@@ -1310,7 +1510,7 @@
     ['Scenes', 'screen/scenes', 'scenes', 'scene pills row', true],
     ['Favorites', 'screen/favorites', 'favorites', 'favourites', true],
     ['Rooms', 'screen/rooms', 'rooms_custom', 'room order home rooms on pages same as all screens', true],
-    ['Pages', 'screen/pages', 'pages', 'category pages custom pages', true],
+    ['Pages on This Screen', 'screen/pages', 'pages', 'category pages custom pages which pages', true],
     ['Glass', 'screen/glass', 'glass', 'look blur frosted clear', true],
     ['Live Sky', 'screen/sky', 'sky', 'background animated on off', true],
     ['Sky / Background', 'screen/sky', 'sky_look', 'backdrop animations weather decorations palette own look', true],
@@ -1323,7 +1523,8 @@
     ['Do Not Disturb', 'screen', 'notify_dnd', 'notifications quiet hours dnd silence schedule input boolean timer', true],
     ['Car Browser', 'screen', 'car', 'tesla viewport', true],
     ['Rename Screen', 'screen', 'rename', 'rename name title dashboard sidebar pencil', true],
-    ['Now Playing Bar', 'screen', 'now_playing', 'music media bar', true],
+    ['Now Playing', 'screen', 'now_playing', 'music media bar pane player', true],
+    ['Now Playing Placement', 'screen', 'np_style', 'music media bar pane side left right top bottom phones player', true],
     ['Timer Bar', 'screen', 'timer_bar', 'timers quick timer bar countdown docked bottom', true],
     ['On Every Page', 'screen', 'bar_all_pages', 'now playing timer bar every page all pages everywhere', true],
     ['Photo Screensaver', 'screen', 'screensaver', 'photos wall tablet slideshow', true],
@@ -1352,18 +1553,28 @@
     ['For Admins Too', 'screen/kiosk', 'kiosk_admins', 'kiosk header sidebar admin administrators', true],
     ['Use the Kiosk Mode Plugin Instead', 'screen/kiosk', 'kiosk_engine', 'kiosk mode plugin hacs', true],
     ['Kiosk Mode Options', 'screen/kiosk-mode', 'kiosk_options', 'kiosk mode plugin yaml header sidebar admins', true],
-    ['Alarm Panel', 'house/general', 'security.alarm', 'security keypad'],
+    ['Alarm Panel', 'page/security', 'security.alarm', 'security keypad'],
     ['Indoor Temperature', 'screen/chips/climate', 'features.temperature', 'climate chip reading', true],
     ['Power Use', 'screen/chips/energy', 'features.power', 'energy chip watts reading', true],
-    ['House Timers', 'house/general/timers', 'features.house_timers', 'nap bedtime timers page'],
+    ['House Timers', 'page/timers/house', 'features.house_timers', 'nap bedtime timers page'],
     ['Accessory Types', 'accessories', 'counts', 'what counts status & chips status and chips types kinds smoke carbon monoxide co alarm lights fans doors windows locks blinds leaks thermostats timers vacuums speakers count chips'],
-    ['Weather Service', 'house/weather', 'weather.entity', 'forecast'],
-    ['Place', 'house/weather', 'weather.place', 'location label'],
-    ['Weather Sensors', 'house/weather/sensors', 'weather.sensors', 'feels like humidity wind gust uv forecast alerts outside temperature'],
-    ['Radar Map', 'house/weather/radar', 'weather.radar', 'weather radar card yaml zoom noaa rainviewer'],
-    ['Calendars', 'house/calendar', 'calendar.entities', 'calendar page events agenda month week day which calendars order'],
-    ['Calendar Colors', 'house/calendar', 'calendar.colors', 'calendar colour color events dot'],
-    ['Glass Style', 'house/appearance/glass', 'look.glass', 'blur frosted tinted clear glass look apple home app solid opaque'],
+    ['Weather Service', 'page/weather', 'weather.entity', 'forecast'],
+    ['Place', 'page/weather', 'weather.place', 'location label'],
+    ['Weather Sensors', 'page/weather/sensors', 'weather.sensors', 'feels like humidity wind gust uv forecast alerts outside temperature'],
+    ['Forecast & Details', 'page/weather/forecast', 'weather.page', 'weather page hourly daily days hours wind sunrise uv humidity moon pressure details tiles current conditions alerts order'],
+    ['Default Hourly View', 'page/weather/forecast', 'weather.page.hourly_metric', 'weather hourly temperature rain wind chart'],
+    ['Animate Page Loading', 'page/weather', 'weather.page.load_animation', 'weather page entrance animation fade motion'],
+    ['Radar Map', 'page/weather/radar', 'weather.radar_native', 'weather radar map precipitation noaa rainviewer openstreetmap zone location provider'],
+    ['Show Radar', 'page/weather/radar', 'weather.radar_native.enabled', 'weather radar on off map'],
+    ['Check Radar Connection', 'page/weather/radar', 'weather.radar_native.check', 'weather radar test connection provider latest'],
+    ['Radar Advanced', 'page/weather/radar/advanced', 'weather.radar_native.advanced', 'weather radar zoom marker history playback speed play on open autoplay interaction opacity controls'],
+    ['Weather Radar Card Options', 'page/weather/radar/yaml', 'weather.radar', 'weather radar card hacs legacy yaml old options'],
+    ['Hide Now Playing After a Pause', 'house/nowplaying', 'now_playing.grace', 'music paused stopped stays seconds minute hide bar pane screensaver timeout'],
+    ['Now Playing for All Screens', 'house/nowplaying', 'now_playing.style', 'music media bar pane side left right top bottom phones player all screens'],
+    ['Calendars', 'page/calendar', 'calendar.entities', 'calendar page events agenda month week day which calendars order'],
+    ['Calendar Colors', 'page/calendar', 'calendar.colors', 'calendar colour color events dot'],
+    ['Colors by Keyword', 'page/calendar', 'calendar.keywords', 'calendar event color colour keyword word name auto'],
+    ['Appearance Style', 'house/appearance/glass', 'look.glass', 'flat light dark theme performance blur frosted tinted clear glass look apple home app solid opaque'],
     ['Blur Mode', 'house/appearance/glass', 'look.glass', 'blur shared layer pre-rendered prerendered each card performance cpu gpu'],
     ['Frost Amount', 'house/appearance', 'look.frost', 'frosted'],
     ['Blur Amount', 'house/appearance', 'look.blur', 'blur strength'],
@@ -1376,7 +1587,7 @@
     ['Weather', 'house/sky', 'sky.weather', 'sky clouds rain snow fog'],
     ['Rain & Snow', 'house/sky', 'sky.precipitation', 'sky rain snow falling precipitation weather performance'],
     ['Pause When Not in Focus', 'house/sky', 'sky.focus_pause', 'pause idle focus background window computer animations performance cpu'],
-    ['Live First Camera', 'house/cameras', 'cameras.live', 'camera strip live video snapshot first tile performance'],
+    ['Live First Camera', 'page/cameras', 'cameras.live', 'camera strip live video snapshot first tile performance'],
     ['Page Backgrounds', 'house/sky', 'sky.pages', 'page color background backdrop energy climate lights still live sky'],
     ['Background', 'house/sky', 'sky.background', 'background live sky color solid gradient photo picture wallpaper image upload still no stars plain black'],
     ['Landscapes', 'house/sky', 'sky.background', 'landscapes landscape photos mountains lakes coasts forests nature scenery background scenic wake interval change'],
@@ -1424,21 +1635,28 @@
     ['Home Assistant Section Placement', 'house/menu', 'menu.ha_at', 'home assistant section where top categories rooms bottom order position place'],
     ['Home Assistant Section', 'house/menu', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
     ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
-    ['Cameras', 'house/cameras', 'cameras.order', 'camera order which cameras strip cameras page room pages all screens'],
+    ['Cameras', 'page/cameras', 'cameras.order', 'camera order which cameras strip cameras page room pages all screens'],
     ['Room Order', 'house/rooms/order', 'rooms.order', 'rooms on home order which rooms'],
     ['Rooms in Menu', 'house/rooms', 'rooms.menu', 'a to z order menu rooms'],
     ['Rooms on Pages', 'house/rooms', 'rooms.pages', 'by floor room order lights climate'],
     ['Room Headings Open Room Pages', 'house/rooms', 'rooms.headings', 'room page link'],
-    ['Status Rows', 'house/status', 'status_rows', 'status row page header chips summary climate status order'],
-    ['Room Status Row', 'house/status/rooms', 'rooms.status', 'room page temperature humidity security tv lights speaker order'],
-    ['Climate Status Row', 'house/status/climate', 'status_rows.climate', 'temperature humidity ranges blinds fans room exclusions'],
-    ['Lights Status Row', 'house/status/lights', 'status_rows.lights', 'lights outlets on'],
-    ['Doors & Windows Status Row', 'house/status/doors_windows', 'status_rows.doors_windows', 'doors windows motion occupancy occupied'],
-    ['Water Status Row', 'house/status/water', 'status_rows.water', 'leak valve sprinkler running'],
-    ['Security Status Row', 'house/status/security', 'status_rows.security', 'alarm security system locks garage doors windows leak'],
+        ['Room Status Row', 'house/rooms/status', 'rooms.status', 'room page temperature humidity security tv lights speaker order'],
+    ['Climate Status Row', 'page/climate/status', 'status_rows.climate', 'temperature humidity ranges blinds fans room exclusions'],
+    ['Lights Status Row', 'page/lights/status', 'status_rows.lights', 'lights outlets on'],
+    ['Doors & Windows Status Row', 'page/doors_windows/status', 'status_rows.doors_windows', 'doors windows motion occupancy occupied'],
+    ['Water Status Row', 'page/water/status', 'status_rows.water', 'leak valve sprinkler running'],
+    ['Security Status Row', 'page/security/status', 'status_rows.security', 'alarm security system locks garage doors windows leak'],
+    ['Climate Header', 'page/climate', 'headers.climate', 'header heating cooling runtime weather outside forecast thermostats counted'],
+    ['Lights Header', 'page/lights', 'headers.lights', 'header lighting through the day left on empty rooms tonight automations schedule'],
+    ['Water Header', 'page/water', 'headers.water', 'header water through the day usage meter main supply valve shut off'],
+    ['Timers Header', 'page/timers', 'headers.timers', 'header finishing order quick start durations presets names create a timer'],
+    ['Vacuums Header', 'page/vacuums', 'headers.vacuums', 'header cleaning by day last runs mission counters successful failed canceled'],
+    ['Vacuums Status Row', 'page/vacuums/status', 'status_rows.vacuums', 'vacuums cleaning docked battery'],
+    ['Timers Status Row', 'page/timers/status', 'status_rows.timers', 'timers running'],
+    ['Security Header', 'page/security', 'headers.security', 'header your home house labels front door back door garage activity device care battery'],
     ['Music Browse Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
     ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
-    ['Browse Page', 'features/music', 'look.browse_view', 'music browse view'],
+    ['Browse Page', 'page/music', 'look.browse_view', 'music browse view'],
     ['Idle Time (All Tablets)', 'house/tablets', 'tablets.idle_time', 'wall tablet idle seconds return to home when idle timeout'],
     ['Return to Home When Idle', 'house/tablets', 'tablets.idle_return', 'wall tablet idle return home timeout'],
     ['Add Tablet', 'house/tablets/add', 'tablet:add', 'wall tablet add new kiosk satellite fully kiosk wallpanel browser'],
@@ -1457,8 +1675,8 @@
     ['Pop-ups', 'popups', 'popups', 'doorbell alarm hash'],
     ['Custom Pages', 'pages', 'custom_pages', 'yaml page custom'],
     ['Clock Sensors', 'advanced', 'clock.time', 'time date'],
-    ['Clean-Areas Script', 'advanced', 'features.vacuum_script', 'vacuum'],
-    ['Wrong-Code Indicator', 'advanced', 'features.alarm_bad_code', 'alarm keypad'],
+    ['Clean-Areas Script', 'page/vacuums', 'features.vacuum_script', 'vacuum'],
+    ['Wrong-Code Indicator', 'page/security', 'features.alarm_bad_code', 'alarm keypad'],
     ['Show in Sidebar', 'advanced', 'sidebar', 'hk settings panel sidebar'],
     ['Files Folder', 'advanced', 'files_folder', 'font sf pro glyphs icons'],
     ['Setup Check', 'check', 'check', 'problems diagnostics'],
@@ -1557,11 +1775,23 @@
   // COPY SETTINGS FROM ANOTHER SCREEN: every screen setting is in exactly
   // one group here or in COPY_NEVER (settings.py BOARD_DEFAULTS -- a Python
   // test holds the two together). [key, label, board keys, copied by default]
+  // NOW PLAYING'S PLACE (settings.py NP_STYLES, NP_SIDES, NP_BARS)
+  var NP_STYLES = [['pane', 'Side Pane'], ['bar', 'Bar']];
+  var NP_SIDES = [['right', 'Right'], ['left', 'Left']];
+  var NP_BARS = [['bottom', 'Bottom'], ['top', 'Top']];
+  var NP_GRACES = [[10, '10 Seconds'], [20, '20 Seconds'], [30, '30 Seconds'], [60, '1 Minute'], [120, '2 Minutes']];
+  // a screen's own Now Playing, in a few words (All Screens -> Now Playing)
+  function npSummary(b, house) {
+    var st = b.np_style || house.style;
+    var where = st === 'pane' ? 'Side Pane, ' + choiceLabel(NP_SIDES, b.np_side || house.side)
+                              : 'Bar, ' + choiceLabel(NP_BARS, b.np_bar || house.bar);
+    return where + (b.np_bar_phone ? ' · Phones ' + choiceLabel(NP_BARS, b.np_bar_phone) : '');
+  }
   var COPY_GROUPS = [
     // the groups as the screen's page has them (2026-10-09): Menu, Home
     // Page, Header, Pages, Appearance, Behavior, When Idle, This Device
     // a screen's menu: All Screens' or its own (menu_custom)
-    ['menu', 'Menu', ['menu', 'menu_custom', 'dock_min', 'time_weather', 'ha_row', 'ha_place', 'tab_position', 'tab_size',
+    ['menu', 'Menu', ['menu', 'menu_custom', 'page_header', 'dock_min', 'time_weather', 'ha_row', 'ha_place', 'tab_position', 'tab_size',
                       'tab_size_phone', 'accent', 'glyph', 'clock', 'swipe',
                       'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust', 'tab_bar_scroll_phone', 'tab_bar_tabs',
                       'tab_bar_tabs_rail', 'tab_bar_size', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone'], true],
@@ -1574,13 +1804,15 @@
     ['favorites', 'Favorites', ['favorites'], false],
     ['header', 'Header', ['phone_header', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins', 'kiosk_engine', 'kiosk_options'], true],
     // the pages, Home among them, and where each sits in the menu (set on Pages)
-    ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories'], true],
-    ['look', 'Appearance', ['glass', 'frost', 'frost_tint', 'blur', 'tint', 'well', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
+    ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories', 'headers'], true],
+    ['look', 'Appearance', ['flat', 'flat_theme', 'glass', 'frost', 'frost_tint', 'blur', 'tint', 'well', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
                             'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
                             'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty',
                             'sky_background', 'sky_color', 'sky_photo', 'sky_page_photos', 'sky_photo_look', 'sky_page_looks',
-                            'sky_landscape', 'sky_landscape_look'], true],
-    ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages'], true],
+                            'sky_landscape', 'sky_landscape_look', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light', 'sky_flat_pages', 'sky_flat_image_look', 'sky_flat_page_image_looks',
+                            'flat_colors', 'flat_page_colors'], true],
+    ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages',
+                              'np_style', 'np_side', 'np_bar', 'np_bar_phone'], true],
     ['idle', 'When Idle', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
     ['device', 'This Device', ['car', 'car_layout', 'car_width'], false]
   ];
@@ -1845,11 +2077,99 @@
     return String(origin || '').replace(/\/+$/, '') + '/' + (screen || 'lovelace') + '?hk_tablet=' + id;
   }
 
+  // ------------------------------------------------------ the Weather page
+  // (2026-10-16, hk_house/docs/PLAN-2026-10-16-weather-page.md): what the
+  // page shows (weather.page) and its own radar (weather.radar_native). The
+  // defaults are settings.py's WEATHER_PAGE_DEFAULTS / RADAR_DEFAULTS (and
+  // hk-settings.js DEFAULTS.weather -- test_settingsmodel holds them equal).
+  var WX_DETAILS = [['wind', 'Wind', 'hk:weather-windy'], ['sun', 'Sunrise & Sunset', 'hk:weather-sunset'],
+                    ['uv', 'UV Index', 'hk:white-balance-sunny'], ['humidity', 'Humidity', 'hk:water-percent'],
+                    ['moon', 'Moon', 'hk:weather-night'], ['pressure', 'Pressure', 'mdi:gauge']];
+  var WX_PAGE_DEFAULTS = { show_current: true, show_hourly: true, show_daily: true, show_alerts: true,
+                           hours: 12, days: 8, hourly_metric: 'temperature',
+                           details: ['wind', 'sun', 'uv', 'humidity', 'moon', 'pressure'], load_animation: true };
+  var WX_HOURS = [[6, '6'], [12, '12'], [24, '24']];
+  var WX_DAYS = [[5, '5'], [8, '8'], [10, '10']];
+  var WX_METRICS = [['temperature', 'Temperature'], ['rain', 'Rain'], ['wind', 'Wind']];
+  var RADAR_DEFAULTS = { version: 1, enabled: false, provider: 'auto', basemap: 'osm', center: 'home', zone: null,
+                         zoom: 5, marker: true, history_minutes: 60, playback_speed: 'normal', autoplay: true,
+                         interactive: true, playback_controls: true, opacity: 75 };
+  var RADAR_PROVIDERS = [['auto', 'Automatic'], ['noaa', 'NOAA (US)'], ['rainviewer', 'RainViewer']];
+  var RADAR_NAMES = { noaa: 'NOAA', rainviewer: 'RainViewer' };
+  var RADAR_BASEMAPS = [['osm', 'OpenStreetMap']];
+  var RADAR_CENTERS = [['home', 'Home'], ['zone', 'A Zone']];
+  var RADAR_HISTORY = [[30, '30 Minutes'], [60, '1 Hour'], [120, '2 Hours']];
+  var RADAR_SPEEDS = [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']];
+  // the Weather Radar Card's options the native radar took over (settings.py
+  // RADAR_LEGACY_MAPPED); the rest are kept, unused
+  var RADAR_LEGACY_MAPPED = ['data_source', 'zoom_level', 'static_map', 'show_playback', 'markers'];
+  function wxPage(st) {
+    var o = ((st || {}).weather || {}).page;
+    var out = JSON.parse(JSON.stringify(WX_PAGE_DEFAULTS));
+    if (o && typeof o === 'object') Object.keys(out).forEach(function (k) { if (k in o) out[k] = o[k]; });
+    return out;
+  }
+  function radarOf(st) {
+    var o = ((st || {}).weather || {}).radar_native;
+    var out = Object.assign({}, RADAR_DEFAULTS);
+    if (o && typeof o === 'object') Object.keys(out).forEach(function (k) { if (k in o) out[k] = o[k]; });
+    return out;
+  }
+  // "12 Hours · 8 Days · 6 Details": what is configured, not what the
+  // service happens to give
+  function forecastSummary(p) {
+    var bits = [];
+    if (p.show_hourly) bits.push(p.hours + ' Hours');
+    if (p.show_daily) bits.push(p.days + ' Days');
+    bits.push(p.details.length ? p.details.length + (p.details.length === 1 ? ' Detail' : ' Details') : 'No Details');
+    return bits.join(' · ');
+  }
+  // WHERE AND FROM WHOM (hk-settings.js radarPlan, the same rules): the
+  // radar's settings `r` and the house -> { provider, place, lat, lon,
+  // country, reason }. Automatic: NOAA for a home Home Assistant places in
+  // the US, RainViewer elsewhere; a zone's country is not known (nothing is
+  // looked up), so there Automatic asks (reason 'choose').
+  function radarPlanOf(r, hass) {
+    var cfg = (hass && hass.config) || {}, states = (hass && hass.states) || {};
+    var out = { enabled: !!r.enabled, provider: null, chosen: r.provider, lat: null, lon: null, place: 'Home', country: null, reason: null };
+    if (r.center === 'zone') {
+      var z = r.zone && states[r.zone], za = (z && z.attributes) || {};
+      out.place = za.friendly_name || (r.zone ? r.zone.replace(/^zone\./, '').replace(/_/g, ' ') : 'Zone');
+      if (!z || typeof za.latitude !== 'number' || typeof za.longitude !== 'number') out.reason = 'zone';
+      else { out.lat = za.latitude; out.lon = za.longitude; }
+    } else {
+      if (typeof cfg.latitude === 'number' && typeof cfg.longitude === 'number') { out.lat = cfg.latitude; out.lon = cfg.longitude; }
+      else out.reason = 'location';
+      out.country = cfg.country || null;
+    }
+    if (r.provider !== 'auto') out.provider = r.provider;
+    else if (out.country) out.provider = out.country === 'US' ? 'noaa' : 'rainviewer';
+    else if (!out.reason) out.reason = 'choose';
+    return out;
+  }
+  var RADAR_REASONS = {
+    choose: 'Choose a radar provider: Automatic can’t tell which country this place is in.',
+    zone: 'The zone chosen for the map isn’t in Home Assistant, or has no location.',
+    location: 'Home Assistant has no location for this home (Settings → System → General).'
+  };
+  // the Radar Map row's value: "Off", "NOAA · Home", or what it needs
+  function radarSummary(r, plan) {
+    if (!r.enabled) return 'Off';
+    if (plan.reason === 'choose') return 'Choose a Provider';
+    if (plan.reason === 'zone') return 'Choose a Zone';
+    if (plan.reason) return 'Needs a Location';
+    return RADAR_NAMES[plan.provider] + ' · ' + plan.place;
+  }
+  function radarAdvancedSummary(r) {
+    return 'Zoom ' + r.zoom + ' · ' + choiceLabel(RADAR_HISTORY, r.history_minutes);
+  }
+
   root.hkSettingsModel = {
     skySummary: skySummary, backdropFollow: backdropFollow,
     YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
     SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, ENERGY_PARTS: ENERGY_PARTS, energyShown: energyShown, WEATHER_PARTS: WEATHER_PARTS, weatherShown: weatherShown, listText: listText, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
+    NP_STYLES: NP_STYLES, NP_SIDES: NP_SIDES, NP_BARS: NP_BARS, NP_GRACES: NP_GRACES, npSummary: npSummary,
     COPY_GROUPS: COPY_GROUPS, COPY_NEVER: COPY_NEVER, copyDefaults: copyDefaults, copyChanges: copyChanges,
     skyPreviewScreen: skyPreviewScreen, skyMoments: skyMoments,
     version: '2.0.0',
@@ -1857,12 +2177,15 @@
     MENU_STYLES: MENU_STYLES, phoneStyleLabel: phoneStyleLabel,
     PHONE_MENUS: PHONE_MENUS, DEVICES: DEVICES, TAB_SIZES: TAB_SIZES, BUTTON_PHONE: BUTTON_PHONE, phoneMenu: phoneMenu, phoneButton: phoneButton,
     tabletSummary: tabletSummary, phoneSummary: phoneSummary, tabletTab: tabletTab, phoneTab: phoneTab, tabletTabBar: tabletTabBar,
-    ACCENTS: ACCENTS, accentOf: accentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
-    MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
+    ACCENTS: ACCENTS, accentOf: accentOf,
+    FLAT_ACCENTS: FLAT_ACCENTS, flatColorsOf: flatColorsOf, flatPagesName: flatPagesName, flatAccentSays: flatAccentSays, flatColorName: flatColorName, flatColorHex: flatColorHex,
+    flatSourceLabel: flatSourceLabel, flatTintLabel: flatTintLabel, flatFieldSays: flatFieldSays, flatAccentChange: flatAccentChange, PAGE_ACCENTS: PAGE_ACCENTS, pageAccentOf: pageAccentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
+    PAGE_HEADERS: PAGE_HEADERS, MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
     TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS,
     GLASS_STYLES: GLASS_STYLES, BLUR_MODES: BLUR_MODES, TINT_WELLS: TINT_WELLS, isBlur: isBlur, glassStyle: glassStyle, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
-    STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, statusSummary: statusSummary,
+    STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, PAGES: PAGES, pageOf: pageOf, PAGE_TYPES: PAGE_TYPES,
+    PAGE_FEATURES: PAGE_FEATURES, pagesListed: pagesListed, pageOfRoute: pageOfRoute, routeForward: routeForward, screenShows: screenShows, headerOffOn: headerOffOn, statusSummary: statusSummary, HEADER_PAGES: HEADER_PAGES,
     WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, SKY_MOVING: SKY_MOVING, DAYTIME_SKIES: DAYTIME_SKIES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
     CAR_LAYOUTS: CAR_LAYOUTS, CAR_WIDTHS: CAR_WIDTHS, CAR_WIDTH: CAR_WIDTH, carWidthChoice: carWidthChoice,
@@ -1873,6 +2196,11 @@
     livelyPresetLabel: livelyPresetLabel, livelyFrom: livelyFrom, roomSensors: roomSensors,
     SKY_THEMES: SKY_THEMES, OFTEN_LABELS: OFTEN_LABELS, OFTEN_DEFAULT: OFTEN_DEFAULT, PAGE_TOKEN: PAGE_TOKEN,
     SEARCH: SEARCH,
+    WX_DETAILS: WX_DETAILS, WX_PAGE_DEFAULTS: WX_PAGE_DEFAULTS, WX_HOURS: WX_HOURS, WX_DAYS: WX_DAYS, WX_METRICS: WX_METRICS,
+    RADAR_DEFAULTS: RADAR_DEFAULTS, RADAR_PROVIDERS: RADAR_PROVIDERS, RADAR_NAMES: RADAR_NAMES, RADAR_BASEMAPS: RADAR_BASEMAPS,
+    RADAR_CENTERS: RADAR_CENTERS, RADAR_HISTORY: RADAR_HISTORY, RADAR_SPEEDS: RADAR_SPEEDS, RADAR_LEGACY_MAPPED: RADAR_LEGACY_MAPPED,
+    RADAR_REASONS: RADAR_REASONS, wxPage: wxPage, radarOf: radarOf, forecastSummary: forecastSummary, radarPlanOf: radarPlanOf,
+    radarSummary: radarSummary, radarAdvancedSummary: radarAdvancedSummary,
     TABLET_APPS: TABLET_APPS, tabletApp: tabletApp, IDLE_TIMES: IDLE_TIMES, idleLabel: idleLabel, tabletStatus: tabletStatus,
     tabletChecks: tabletChecks, idleTimeline: idleTimeline, tabletUrl: tabletUrl,
     errorText: errorText, refusals: refusals,

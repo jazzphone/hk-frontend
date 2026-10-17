@@ -147,6 +147,12 @@
     '.cell.photoprev{flex-direction:column;align-items:stretch;gap:6px;padding-top:12px;padding-bottom:12px}',
     '.photoprev img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:10px;background:#05070e}',
     '.photoprev small{color:var(--hk-label2);font-size:13px}',
+    '.flat-image-mini{position:relative;flex:none;width:80px;height:50px;overflow:hidden;border-radius:8px;margin-right:12px;background:var(--hk-cell)}',
+    '.flat-image-thumb{display:block;width:100%;height:100%;object-fit:cover}',
+    '.flat-image-preview{position:relative;overflow:hidden;border-radius:10px;aspect-ratio:16/10;background:var(--hk-cell)}',
+    '.flat-image-preview canvas{display:block;width:100%;height:100%;object-fit:cover}',
+    '.flat-image-wash{position:absolute;inset:0;pointer-events:none}',
+    '.flat-image-adjust summary{cursor:pointer;min-height:44px;border-radius:10px;background:var(--hk-cell)}',
     // LANDSCAPES (2026-10-14): the picker's grid of HK's own photos, the one
     // in use ringed and ticked
     '.cell.landcell{display:block;padding:12px}',
@@ -328,29 +334,55 @@
   var TICK = '<svg viewBox="0 0 13 13" aria-hidden="true"><path d="M2 7l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   // Apple's system colors for the sidebar's tiles
+  // the pages that keep a tone of their own in Flat: the Glass looks'
+  // own-color pages, and Calendar and Weather (hk-base.js FLAT_OWN)
+  // Highlight Color Automatic's swatch: a few of the pages' colors
+  var AUTO_ACCENT_TILE = 'conic-gradient(#0a84ff, #ffd60a, #40c8e0, #bf5af2, #30d158, #ff375f, #0a84ff)';
+  // a page key's address (hk-strategy.js SKY_PAGE, turned around)
+  var FLAT_VIEW = { music: 'playmusic', live_tv: 'live-tv', doors_windows: 'doors-windows' };
+  var FLAT_OWN = { cameras: 1, live_tv: 1, security: 1, doors_windows: 1, climate: 1, lights: 1, timers: 1,
+                   vacuums: 1, music: 1, water: 1, energy: 1, calendar: 1, weather: 1, power: 1 };
   // a landscape's file name (settings.py SKY_LANDSCAPE_FILE): a name, never a path
   var LAND_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.(webp|jpe?g|png)$/i;
   var C = { blue: '#007aff', green: '#34c759', indigo: '#5856d6', orange: '#ff9500', pink: '#ff2d55', purple: '#af52de',
             red: '#ff3b30', teal: '#30b0c7', yellow: '#ffcc00', gray: '#8e8e93', cyan: '#32ade6', brown: '#a2845e' };
   var HOUSE = [
     // (What Counts, Status & Chips before it, is each type's page under
-    // Accessories since 2026-10-13)
-    ['general', 'General', 'mdi:home', C.gray],
-    ['weather', 'Weather', 'mdi:weather-partly-cloudy', C.cyan], ['calendar', 'Calendar', 'mdi:calendar-month', C.red],
+    // Accessories since 2026-10-13. General, Weather, Calendar, Cameras and
+    // Status Rows went to Pages on 2026-10-16: their addresses forward,
+    // M.routeForward)
     ['appearance', 'Appearance', 'mdi:palette', C.indigo],
     ['sky', 'Sky / Background', 'mdi:weather-night', C.purple],
     // SCREENSAVER (2026-10-13): its own entry -- what every screen's
     // screensaver shows; was Wall Tablets -> Screensaver (that address forwards)
     ['screensaver', 'Screensaver', 'mdi:image-multiple', C.pink],
+    // NOW PLAYING (2026-10-15): where the music playing shows -- a side pane
+    // or the bar -- on every screen that doesn't choose its own
+    ['nowplaying', 'Now Playing', 'mdi:music', C.red],
+    // NOTIFICATIONS (the feature's, 2026-10-16): about every screen, so here
+    // rather than under Pages -- its pages keep #/features/notify/...
+    ['notify', 'Notifications', 'mdi:bell-badge', C.red, null, 'features/notify'],
     ['menu', 'Menu', 'mdi:dock-left', C.orange],
-    ['rooms', 'Rooms', 'mdi:sofa', C.brown], ['cameras', 'Cameras', 'mdi:cctv', C.pink],
-    ['chips', 'Status Chips', 'mdi:label-multiple', C.green], ['status', 'Status Rows', 'mdi:view-sequential', C.teal],
+    ['rooms', 'Rooms', 'mdi:sofa', C.brown],
+    ['chips', 'Status Chips', 'mdi:label-multiple', C.green],
     ['tablets', 'Wall Tablets', 'mdi:tablet', C.blue]
   ];
   // Category pages with an order of their own (accessories.py PAGE_ORDERS):
   // [title, icon, what automatic is].
   var PAGE_ORDERS = { vacuums: ['Vacuums', 'mdi:robot-vacuum', 'A to Z'],
                       security: ['Security', 'mdi:lock', 'locks A to Z, then garage doors'] };
+  // WHAT A PAGE'S SETTINGS PAGE SAYS UNDER ITS NAME: what else uses them,
+  // where the page's settings reach beyond it (the plan's mitigation)
+  var PAGE_SCOPE = {
+    weather: 'The Weather page’s settings — also the header’s clock strip, the screensaver’s forecast and Climate’s Outside & Ahead.',
+    calendar: 'The Calendar page’s settings — also the screensaver’s calendar pane.',
+    cameras: 'The Cameras page’s settings — also every screen’s camera strip on Home that doesn’t choose its own.',
+    energy: 'The Energy page, built from Home Assistant’s Energy settings: the feature, its devices and the page.',
+    power: 'The Power page: the home’s battery, solar and circuits as one picture. Energy’s second page.',
+    music: 'Whole-home music through Music Assistant, and the Music page’s Browse side.',
+    live_tv: 'An HDHomeRun tuner’s channels, live on every screen.',
+    security: 'The Security page, the security system and its keypad.'
+  };
   var LIBRARY = [['accessories', 'Accessories', 'mdi:lightbulb-group', C.yellow], ['popups', 'Pop-ups', 'mdi:bell-ring', C.red],
                  ['pages', 'Custom Pages', 'mdi:file-document-multiple', C.teal], ['chips', 'Custom Chips', 'mdi:label-variant', C.orange]];
   var SYSTEM = [['advanced', 'Advanced', 'mdi:cog', C.gray], ['check', 'Setup Check', 'mdi:clipboard-check', C.green]];
@@ -420,23 +452,6 @@
             if (Object.keys(a).length) cur.admin_settings = a; else delete cur.admin_settings;
             return cur;
           } }] }]
-    },
-    radar: {
-      title: 'Radar Map', docs: 'https://github.com/Makin-Things/weather-radar-card',
-      footer: 'The radar map on every generated screen’s Weather page.',
-      example: 'zoom_level: 7\ndata_source: RainViewer',
-      yamlHelp: 'Everything set on the Radar Map page, and any other option of the Weather Radar Card, as YAML. Empty is the tuned map: NOAA in the US (RainViewer elsewhere), OpenStreetMap, zoom level 6, 620 px high, a marker on your home. Set a key to null to remove it.',
-      groups: [{ rows: [
-        { key: 'data_source', label: 'Radar', type: 'select',
-          options: [['', 'Automatic (NOAA in the US)'], ['NOAA', 'NOAA'], ['RainViewer', 'RainViewer']] },
-        { key: 'zoom_level', label: 'Zoom', sub: 'Higher is closer.', type: 'select', num: true, def: 6,
-          options: [4, 5, 6, 7, 8, 9, 10].map(function (n) { return [n, String(n)]; }) },
-        { key: 'height', label: 'Height', type: 'select', def: '620px',
-          options: [420, 520, 620, 720, 820].map(function (n) { return [n + 'px', n + ' px']; }) },
-        { key: 'show_playback', label: 'Playback Controls', type: 'switch', def: true },
-        { label: 'Move and Zoom the Map', sub: 'Off: a still map.', type: 'switch', fk: 'static_map',
-          get: function (cur) { return cur.static_map === false; },
-          set: function (cur, v) { if (v) cur.static_map = false; else delete cur.static_map; return cur; } }] }]
     }
   };
   function optGet(r, cur) {
@@ -553,7 +568,8 @@
       var v = stamp(this._panel);
       try {
         await Promise.all([import('/hk/panels/hk-settings-model.js?v=' + v), import('/hk/panels/hk-settings-kit.js?v=' + v),
-                           import('/hk/panels/hk-settings-features.js?v=' + v)]);
+                           import('/hk/panels/hk-settings-features.js?v=' + v), import('/hk/modules/hk-settings.js?v=' + v),
+                           import('/hk/modules/hk-flat-image.js?v=' + v)]);
       } catch (e) {
         s.innerHTML = '<div class="loading">HK settings couldn’t load: ' + String(e && e.message || e) + '</div>';
         return;
@@ -684,6 +700,9 @@
       return null;
     }
     onHash() {
+      // an old address shows the new one (Pages, 2026-10-16: M.routeForward)
+      var fw = M.routeForward(this.parts().join('/'));
+      if (fw) { try { history.replaceState(null, '', '#/' + fw.split('/').map(encodeURIComponent).join('/')); } catch (e) { /* no history */ } }
       var cur = location.hash || '#/';
       // hashchange, popstate and HA's location-changed can all say the same
       if (cur === this._seen && this.hist.length) return;
@@ -759,6 +778,8 @@
         Object.keys(changes).forEach(function (p) {
           if (p === 'sidebar' || p === 'files_folder') { d.integration[p] = changes[p]; return; }
           var i = p.indexOf('.'), sec = p.slice(0, i), key = p.slice(i + 1);
+          // (a patch -- look.flat_colors.accent -- is its caller's to show)
+          if (key.indexOf('.') >= 0) return;
           if (d.settings[sec]) d.settings[sec][key] = changes[p];
         });
       }, function (r) { if (r && r.settings) d.settings = r.settings; });
@@ -767,7 +788,9 @@
       var d = this.data;
       return this.save({ type: DOMAIN + '/board/set', dashboard: path, changes: changes },
         Object.keys(changes).map(function (k) { return 'b:' + k; }), function () {
-          d.boards[path] = Object.assign({}, d.boards[path] || {}, changes);
+          var whole = {};
+          Object.keys(changes).forEach(function (k) { if (k.indexOf('.') < 0) whole[k] = changes[k]; });
+          d.boards[path] = Object.assign({}, d.boards[path] || {}, whole);
         }, function (r) { if (r && r.board) d.boards[path] = r.board; });
     }
     // A FEATURE'S OWN SETTINGS (hk-settings-features.js): read with its
@@ -888,7 +911,16 @@
         if (h1) h1.focus({ preventScroll: true });
       }
       if (this._flash) {
-        var el = this.pageEl.querySelector('[data-sk="' + this._flash + '"]');
+        // a setting's key (search), or a list of a row's controls (a page's
+        // On Screens: its row on the screen's Pages on This Screen)
+        var pe = this.pageEl, el = null;
+        if (Array.isArray(this._flash)) {
+          this._flash.some(function (fk) {
+            var x = pe.querySelector('[data-fk="' + fk + '"]');
+            if (x) el = (x.closest && x.closest('.cell, li, [role=listitem]')) || x;
+            return !!el;
+          });
+        } else el = pe.querySelector('[data-sk="' + this._flash + '"]');
         this._flash = null;
         if (el) {
           el.scrollIntoView({ block: 'center' });
@@ -998,7 +1030,7 @@
       // beside the page (a wide window) it stays for the screen's sub-pages;
       // above it (narrower) only the screen's own page has it
       if (pg.preview && !this.hasAttribute('xwide') && !pg.previewTop) pg.preview = null;
-      var keepPv = pg.preview && this._pv && this._pv.path === pg.preview && this.pageEl.querySelector('.pvcol');
+      var keepPv = pg.preview && this._pv && this._pv.path === pg.preview && this._pv.view === (pg.previewView || '0') && this.pageEl.querySelector('.pvcol');
       if (keepPv) {
         this.pageEl.replaceChild(head, this.pageEl.querySelector('.ph'));
         this.pageEl.replaceChild(content, this.pageEl.querySelector('.pc'));
@@ -1008,7 +1040,7 @@
         this.pageEl.appendChild(head);
         this._pv = null; this._fit = null;
         if (pg.preview && (this.hasAttribute('xwide') || (pg.previewTop && wide))) {
-          this.pageEl.appendChild(this.previewCol(pg.preview));
+          this.pageEl.appendChild(this.previewCol(pg.preview, pg.previewView));
         }
         this.pageEl.appendChild(content);
       }
@@ -1180,16 +1212,19 @@
       rows.push(K.nav({ tile: ['mdi:plus', C.gray], label: 'Add Screen', href: '#/add-screen', current: wide && at('add-screen'),
                         fk: 'side:add' }));
       side.appendChild(K.group({ header: 'Screens' }, rows));
+      // PAGES (2026-10-16): every page the house has, each its own settings
+      // -- a feature's pages (#/features/energy/devices) count as its page's
+      var pageHere = M.pageOfRoute(here);
+      side.appendChild(K.group({ header: 'Pages' }, this.pagesListed().map(function (p) {
+        return K.nav({ tile: [p[2], p[3]], label: p[1], href: '#/page/' + p[0], current: wide && pageHere === p[0], fk: 'side:page:' + p[0] });
+      })));
       var list = function (header, arr, pre) {
         side.appendChild(K.group({ header: header }, arr.filter(function (p) { return p[4] !== 'unlisted'; }).map(function (p) {
-          var r = (pre || '') + p[0];
+          var r = p[5] || (pre || '') + p[0];
           return K.nav({ tile: [p[2], p[3]], label: p[1], href: '#/' + r, current: wide && at(r), fk: 'side:' + r });
         })));
       };
       list('All Screens', HOUSE, 'house/');
-      // FEATURES: Music, Live TV, Alarm PIN, Clean Areas -- each page is that
-      // feature's own settings
-      list('Features', F.listed(d.features).map(function (x) { return [x[0], x[2], x[3], x[4]]; }), 'features/');
       list('Library', LIBRARY);
       list('System', SYSTEM);
     }
@@ -1251,7 +1286,7 @@
     // "Same as General (Lyric Alarm)": the alarm panel General names
     sameAsGeneral() {
       var g = this.hs('security.alarm');
-      return 'Same as General' + (g ? ' (' + this.name(g) + ')' : '');
+      return 'Same as the Security Page' + (g ? ' (' + this.name(g) + ')' : '');
     }
     entityRow(o) {
       var self = this;
@@ -1418,8 +1453,12 @@
     resolve(parts) {
       var last = parts[parts.length - 1] || '';
       if (last[0] === '~') return this.pickerPage(parts);
+      // AN ADDRESS THAT MOVED (Pages, 2026-10-16) opens where it is now
+      var fw = M.routeForward(parts.join('/'));
+      if (fw) return this.resolve(fw.split('/'));
       var a = parts[0];
       if (a === 'overview') return this.p_overview();
+      if (a === 'page') return parts[1] ? this.p_page(parts[1], parts.slice(2)) : this.p_overview();
       // no screen named: the Overview (the list of screens is the menu) --
       // not "There's no dashboard at /undefined"
       if (a === 'screens') return parts[1] ? this.p_screen(parts[1], parts.slice(2)) : this.p_overview();
@@ -1453,6 +1492,8 @@
                    sub: 'Each screen’s own menu, Home page, pages, appearance and behavior.' }),
           K.info({ tile: ['mdi:home', C.gray], label: 'All Screens',
                    sub: 'What every screen shares. Where a screen can choose for itself, it says “Same as All Screens” until it does.' }),
+          K.info({ tile: ['mdi:file-document-multiple', C.teal], label: 'Pages',
+                   sub: 'Each page’s own settings — its header, status row, what’s on it and its background — on one page each: Climate, Security, Energy, Weather …' }),
           K.info({ tile: ['mdi:lightbulb-group', C.yellow], label: 'Accessories',
                    sub: 'Names, icons and rooms: the same on every screen.' })]));
         var check = self._check;
@@ -1476,12 +1517,13 @@
     }
 
     // ---------------------------------------------------------- a screen
-    previewCol(path) {
+    previewCol(path, view) {
+      view = view || '0';
       var self = this, x = this.dash(path);
       var col = h('aside', { class: 'pvcol', 'aria-label': 'Preview' });
       var head = h('div', { class: 'pvhead' }, [h('span', { text: 'Preview' }),
-        h('a', { href: '/' + path + '/0', target: '_blank', rel: 'noopener', text: 'Open Screen' })]);
-      head.lastChild.setAttribute('href', '/' + path + '/0');
+        h('a', { href: '/' + path + '/' + view, target: '_blank', rel: 'noopener', text: 'Open Screen' })]);
+      head.lastChild.setAttribute('href', '/' + path + '/' + view);
       col.appendChild(head);
       var pv = h('div', { class: 'pvbox' });
       var b = (this.data && this.data.boards && this.data.boards[path]) || null;
@@ -1489,7 +1531,7 @@
       // hk_kiosk=on (HK Frontend's) and kiosk (the Kiosk Mode plugin's): no
       // Home Assistant header or sidebar; wp_enabled=false: WallPanel never
       // runs in a preview (it would drive the real tablet's screensaver)
-      fr.src = '/' + path + '/0?hk_kiosk=on&kiosk&wp_enabled=false';
+      fr.src = '/' + path + '/' + view + '?hk_kiosk=on&kiosk&wp_enabled=false';
       fr.title = (x ? x.title : path) + ' preview';
       fr.setAttribute('tabindex', '-1');
       pv.appendChild(fr);
@@ -1558,7 +1600,7 @@
         'Live: changes show here within seconds. A generated screen rebuilds itself within about ten.')]));
       requestAnimationFrame(fit);
       new ResizeObserver(fit).observe(col);
-      this._pv = { path: path };
+      this._pv = { path: path, view: view };
       this._fit = fit;
       void self;
       return col;
@@ -1602,7 +1644,7 @@
         if (sub[1] === 'phones' && sub[2] === 'style') {
           return mk('Button Style', function (c) { self.phoneStyle(c, M.phoneButton(b), pickB('button_phone', pb[1]), b.swipe); }, pb);
         }
-        if (sub[1] === 'accent') return mk('Highlight Color', function (c) { self.menuAccent(c, b.accent, pickB('accent')); }, mb);
+        if (sub[1] === 'accent') return mk('Highlight Color', function (c) { self.menuAccent(c, b.accent, pickB('accent'), self.flatHere(b) ? self.flatScope('screen', x, b) : null); }, mb);
       }
       if (s === 'menu') return mk('Menu Settings', function (c) { self.s_menu(c, x, b); });
       if (s === 'menu-pages' && x.generated) s = 'pages';
@@ -1617,7 +1659,8 @@
       if (s === 'scenes') return mk('Scenes', function (c) { self.s_scenes(c, x, b); });
       if (s === 'favorites') return mk('Favorites', function (c) { self.s_favorites(c, x, b); });
       if (s === 'rooms') return mk('Rooms', function (c) { self.s_rooms(c, x, b); });
-      if (s === 'pages') return mk('Pages', function (c) { self.s_pages(c, x, b); });
+      if (s === 'pages') return mk('Pages on This Screen', function (c) { self.s_pages(c, x, b); });
+      if (s === 'page-headers') return mk('Page Headers', function (c) { self.s_pageHeaders(c, x, b); });
       if (s === 'sky' && sub[1] === 'backdrop') return mk('Sky Colors', function (c) { self.s_backdrop(c, x, b); }, ['Sky / Background', base + '/sky']);
       if (s === 'sky' && sub[1] === 'landscape') {
         return mk('Choose a Landscape', function (c) {
@@ -1636,12 +1679,13 @@
       }
       if (s === 'sky' && sub[1] === 'page' && sub[2]) {
         var skey = decodeURIComponent(sub[2]);
-        var srow = this.skyRow(skey, b);
-        return mk(srow ? srow.label : 'Page', function (c) { if (srow) self.pagePicker(c, x, b, srow); },
+        var srow = this.skyRow(skey, b), sflat = this.flatHere(b);
+        return mk(srow ? srow.label : 'Page', function (c) { if (srow) { if (sflat) self.flatPagePicker(c, x, b, srow, base + '/sky'); else self.pagePicker(c, x, b, srow); } },
                   srow && srow.room ? ['Room Pages', base + '/sky/page/rooms'] : ['Sky / Background', base + '/sky']);
       }
       if (s === 'sky') return mk('Sky / Background', function (c) { self.s_sky(c, x, b); });
-      if (s === 'glass') return mk('Glass Style', function (c) { self.s_glass(c, x, b); });
+      if (s === 'glass') return mk('Appearance Style', function (c) { self.s_glass(c, x, b); });
+      if (s === 'flat-colors') return this.p_flatColors('screen', x, b, sub.slice(1), mk, [x.title, base]);
       if (s === 'copy') return mk('Copy Settings', function (c) { self.s_copy(c, x, b); });
       // SLEEP SCREEN is each tablet's since 1.14: a screen's old address opens
       // its (first) tablet's
@@ -1756,9 +1800,13 @@
 
       // PAGES
       if (gen && !only) {
-        c.appendChild(K.group({ header: 'Pages', footer: 'The order here is the menu’s too; each page’s row says where it sits in the menu.' }, [
-          K.nav({ label: 'Pages', href: base + '/pages', sk: 'b:pages',
-                  value: b.pages.length ? b.pages.filter(function (k) { return k !== 'browse'; }).length + ' Pages' : 'Automatic' })]));
+        var hdOff = Object.keys(b.headers || {}).length;
+        c.appendChild(K.group({ header: 'Pages', footer: 'The order here is the menu’s too; each page’s row says where it sits in the menu. ' +
+            'Each page’s own settings are under Pages in the sidebar; Page Headers turns a page’s header off on this screen alone.' }, [
+          K.nav({ label: 'Pages on This Screen', href: base + '/pages', sk: 'b:pages',
+                  value: b.pages.length ? b.pages.filter(function (k) { return k !== 'browse'; }).length + ' Pages' : 'Automatic' }),
+          K.nav({ label: 'Page Headers', href: base + '/page-headers', sk: 'b:headers',
+                  value: hdOff ? hdOff + ' Off' : 'Same as All Screens' })]));
       }
 
       // THE HEADER (2026-10-09): what sits at the top of Home on a phone, and
@@ -1780,7 +1828,7 @@
       // GLASS (2026-10-09): laid out as All Screens' Appearance -- the style,
       // then its own settings (glassRows), the same footer
       var gl = M.glassOf(b, look), app = [];
-      app.push(K.nav({ label: 'Glass Style', href: base + '/glass', sk: 'b:glass',
+      app.push(K.nav({ label: 'Appearance Style', href: base + '/glass', sk: 'b:glass',
         sub: gl.own ? 'Just This Screen' : 'Same as All Screens', value: M.glassLabel(gl.own ? gl.value : gl.house) }));
       var amt = function (k) {
         var a = M.amountOf(b, look, k);
@@ -1796,28 +1844,52 @@
         tint: { on: tOwn ? b.frost_tint : tHouse, own: tOwn, house: tHouse,
                 onChange: function (on) { set({ frost_tint: on }); }, reset: function () { set({ frost_tint: null }); } }
       }, 'b:'));
-      c.appendChild(K.group({ header: 'Glass', footer: M.glassFooter(gl.effective) }, app));
+      if (gl.effective === 'flat') {
+        app = app.concat(this.flatThemeRows(b, look, x.path));
+        var fsc = this.flatScope('screen', x, b), fown = fsc.own();
+        app.push(this.flatColorsNav(fsc, { sub: fown.accent != null || fown.off_tint != null ? 'Just This Screen' : 'Same as All Screens' }));
+        app.push(K.nav({ label: 'Highlight Color', value: M.accentOf(b.accent).name, href: base + '/menu/accent', sk: 'b:accent',
+                         sub: fsc.resolved().accent.value !== 'auto' ? 'In Flat, the Accent Color' : null }));
+      }
+      c.appendChild(K.group({ header: 'Appearance', footer: M.glassFooter(gl.effective) }, app));
       var skyRows = [];
       // a page screen: what its pages actually show (one page: its background
       // by name), never a "Same as All Screens" that reaches nothing
-      var skyVal = M.skySummary(b);
+      var bflat = this.flatHere(b), skyVal = bflat ? this.flatSummary(b) : M.skySummary(b);
       if (only && only.keys.length) {
-        var spk = this.skyPageKeys(b), sbd = (this.data.choices || {}).sky_backdrops || [];
-        var modes = spk.rows.map(function (r) { var n = self.skyPageNow(r, b); return n.mode ? M.skyModeLabel(n.mode, sbd) : M.skyAutoLabel(r); });
+        var spk = this.skyPageKeys(b);
+        var modes = spk.rows.map(function (r) { return self.skyPageLabel(r, b); });
         var same = modes.every(function (m2) { return m2 === modes[0]; });
         skyVal = same ? modes[0] : 'Mixed';
       }
       // the live sky's on/off is the first thing on its page (s_sky)
       // a screen whose Live Sky was turned off (before 2026-10-13) shows Black
-      skyRows.push(K.nav({ label: 'Sky / Background', href: base + '/sky', sk: 'b:sky_look', value: b.sky ? skyVal : 'Black' }));
+      // (Flat's backgrounds are its own: that switch isn't theirs)
+      skyRows.push(K.nav({ label: 'Sky / Background', href: base + '/sky', sk: 'b:sky_look', value: b.sky || bflat ? skyVal : 'Black' }));
       c.appendChild(K.group({ header: 'Sky / Background' }, skyRows));
 
       // BEHAVIOR
       var beh = [K.toggle({ label: 'Allow Pop-ups', sk: 'b:popups', on: b.popups, onChange: function (on) { set({ popups: on }); } })];
       if (gen) {
-        beh.push(K.toggle({ label: 'Now Playing Bar', sk: 'b:now_playing', on: b.now_playing,
-                            sub: 'The music playing, docked along the bottom of the screen.',
+        beh.push(K.toggle({ label: 'Now Playing', sk: 'b:now_playing', on: b.now_playing,
+                            sub: 'The music playing, in a side pane or a bar.',
                             onChange: function (on) { set({ now_playing: on }); } }));
+        // ...AND WHERE (2026-10-15): All Screens' Now Playing, or this
+        // screen's own -- each a Same as All Screens choice
+        if (b.now_playing && b.np_style !== undefined) {
+          var hnp = this.npHouse(), lab = function (list, v) { return M.choiceLabel(list, v); };
+          var npSel = function (key, label, list, hv) {
+            var own = b[key];
+            return K.select({ label: label, sk: 'b:' + key, sub: own ? 'Just This Screen' : 'Same as All Screens', value: own || '',
+              options: [['', 'Same as All Screens (' + lab(list, hv) + ')', lab(list, hv)]].concat(list),
+              onChange: function (v) { var o = {}; o[key] = v || null; set(o); } });
+          };
+          var effStyle = b.np_style || hnp.style;
+          beh.push(npSel('np_style', 'Show As', M.NP_STYLES, hnp.style));
+          if (effStyle === 'pane') beh.push(npSel('np_side', 'Pane Side', M.NP_SIDES, hnp.side));
+          else beh.push(npSel('np_bar', 'Bar Position', M.NP_BARS, hnp.bar));
+          beh.push(npSel('np_bar_phone', 'Bar Position on Phones', M.NP_BARS, hnp.bar_phone));
+        }
         // (shown once the integration knows it: an older one would drop it)
         if (b.timer_bar !== undefined) {
           beh.push(K.toggle({ label: 'Timer Bar', sk: 'b:timer_bar', on: b.timer_bar,
@@ -2066,6 +2138,7 @@
       // what All Screens' settings are, each row All Screens' own page
       c.appendChild(this.deviceRows(b, base + '/menu', false));
       var side = mode === 'button' || mode === 'open' || M.phoneMenu(b) === 'button', rows = [
+        K.info({ label: 'Page Header', value: M.choiceLabel(M.PAGE_HEADERS, b.page_header || 'current'), sk: 'b:page_header' }),
         K.info({ label: 'Highlight Color', value: M.accentOf(b.accent).name, tile: ['', M.accentOf(b.accent).hex], sk: 'b:accent' })];
       if (side) {
         rows.push(K.info({ label: 'Button Icon', value: b.glyph === 'lines' ? 'Three Lines' : 'Sidebar', sk: 'b:glyph' }));
@@ -2099,12 +2172,15 @@
       var sk = function (k) { return o.house ? 'menu.' + M.MENU_KEYS[k] : 'b:' + k; };
       var tm = M.menuMode(v), pm = M.phoneMenu(v);
       c.appendChild(this.deviceRows(v, o.base, o.house));
+      c.appendChild(K.group({ header: 'Page Header', footer: 'With the left menu open or a tab bar, Context When Needed removes a repeated title and keeps a compact label for other pages. No Header removes both Back and title. The full header returns when navigation folds into a button; Music browsing keeps its Back control.' }, [
+        K.select({ label: 'Page Header', sk: sk('page_header'), value: v.page_header || 'current', options: M.PAGE_HEADERS,
+          onChange: function (value) { set({ page_header: value }); } })]));
       // a side menu somewhere: a button, or always open (a button folded)
       var side = o.house || tm === 'button' || tm === 'open' || pm === 'button';
       var ac = M.accentOf(v.accent);
       var look = [
         K.nav({ label: 'Highlight Color', value: ac.name, href: o.base + '/accent', sk: sk('accent'),
-                tile: ['', ac.hex] })];
+                tile: ['', ac.auto ? AUTO_ACCENT_TILE : ac.hex] })];
       if (side) look.push(K.seg({ label: 'Button Icon', sk: sk('glyph'), value: v.glyph || 'sidebar', stack: !wide,
                 options: [['sidebar', 'Sidebar'], ['lines', 'Three Lines']],
                 onChange: function (g) { set({ glyph: g }); } }));
@@ -2388,13 +2464,48 @@
           return K.check({ label: n[1], sub: n[2], on: (cur || 'chip') === n[0], fk: 'phone:' + n[0], onClick: function () { pick(n[0]); } });
         })));
     }
-    menuAccent(c, cur, pick) {
+    // A PAGE'S HIGHLIGHT (look.page_accents): its default first, then the
+    // colors and your own -- the page you're on in the menu, while a
+    // screen's Highlight Color is Automatic
+    pageAccent(c, key) {
+      var self = this, all = this.hs('look.page_accents') || {}, pa = M.pageAccentOf(key, all);
+      var put = function (v) {
+        var next = Object.assign({}, all);
+        if (v) next[key] = v; else delete next[key];
+        self.setH({ 'look.page_accents': next });
+      };
+      c.appendChild(K.group({ footer: 'The page’s own color: in the menu when you’re on it, while a screen’s Highlight Color is Automatic, and in Flat a very light or very dark shade of it is the page’s Automatic background. Choosing another Background overrides that.' }, [
+        K.check({ label: 'Default', sub: pa.d.name, tile: ['', pa.d.hex], on: !pa.own, fk: 'paccent:default', onClick: function () { put(null); } })]));
+      c.appendChild(K.group({ header: 'Colors' }, M.ACCENTS.map(function (x) {
+        return K.check({ label: x[1], tile: ['', x[2]], on: pa.own && !pa.a.custom && pa.a.hex === x[2], fk: 'paccent:' + x[0], onClick: function () { put(x[0]); } });
+      })));
+      var row = K.text({ label: 'Your Own Color', sub: pa.own && pa.a.custom ? pa.a.hex : 'Pick any color.', type: 'color', fk: 'paccent:custom',
+                         value: pa.a.hex, error: this.err('look.page_accents'),
+                         onCommit: function (t) { if (/^#[0-9a-f]{6}$/i.test(t)) put(t.toLowerCase()); } });
+      var inp = row.querySelector('input');
+      if (inp) {
+        inp.style.cssText = 'flex:none;width:44px;height:30px;padding:0;border-radius:8px;cursor:pointer';
+        inp.addEventListener('change', function () { if (/^#[0-9a-f]{6}$/i.test(inp.value)) put(inp.value.toLowerCase()); });
+      }
+      c.appendChild(K.group({ header: 'Custom' }, [row]));
+    }
+    menuAccent(c, cur, pick, fsc) {
       var a = M.accentOf(cur);
-      c.appendChild(K.group({ footer: 'Colors the menu’s icons and the page you’re on. Over a pale color the page’s name turns dark, so it stays easy to read.' },
-        M.ACCENTS.map(function (x) {
-          return K.check({ label: x[1], tile: ['', x[2]], on: !a.custom && a.hex === x[2],
+      // WHILE FLAT'S ACCENT COLOR IS CHOSEN it marks the page you're on in
+      // Flat; this one stays saved for the other looks and an Automatic Accent
+      var fr = fsc && fsc.resolved().accent;
+      if (fr && fr.value !== 'auto') {
+        c.appendChild(K.group({ footer: 'In Flat, the menu uses the Flat Accent Color, ' + M.flatColorName(fr.value) +
+            ' — its icons and the page you’re on. This Highlight Color stays saved for the other looks, and for Flat when the Accent Color is Automatic.' },
+          [K.nav({ label: 'Using Flat Accent Color', value: M.flatColorName(fr.value), tile: ['', M.flatColorHex(fr.value)], href: fsc.href })]));
+      }
+      c.appendChild(K.group({ footer: 'Colors the menu’s icons and the page you’re on. In Flat the page you’re on is always white over the color; in the other looks, over a pale color its name turns dark.' },
+        [K.check({ label: 'Automatic', sub: 'The page you’re on in its own color: Climate blue, Lights yellow, Security teal, Calendar purple, Weather cyan, Energy green, Music pink, Cameras red; Home and the rooms orange. The other icons stay orange. Each page’s color is its Accent Color, under Pages → the page.',
+                   tile: ['', AUTO_ACCENT_TILE], on: !!a.auto, fk: 'accent:auto',
+                   onClick: function () { pick('auto'); } })].concat(M.ACCENTS.map(function (x) {
+          return K.check({ label: x[1], tile: ['', x[2]], on: !a.auto && !a.custom && a.hex === x[2],
                            fk: 'accent:' + x[0], onClick: function () { pick(x[0]); } });
-        })));
+        }))));
       var row = K.text({ label: 'Your Own Color', sub: a.custom ? a.hex : 'Pick any color.', type: 'color', fk: 'accent:custom',
                          value: a.hex, error: this.err('menu.accent') || this.err('b:accent'),
                          onCommit: function (t) { if (/^#[0-9a-f]{6}$/i.test(t)) pick(t.toLowerCase()); } });
@@ -2637,7 +2748,7 @@
         } })]));
       if (follows) {
         this.fromAllScreens(c, [K.info({ label: 'Cameras', value: (b.cameras || []).length ? b.cameras.length + ' Cameras' : 'Automatic' })],
-                            'Cameras', '#/house/cameras');
+                            'Cameras', '#/page/cameras');
         this.cameraRelated(c, x);
         return;
       }
@@ -2760,7 +2871,7 @@
         emptyText: x.generated ? 'No scenes' : 'The scenes in this screen’s YAML',
         rows: mdl.rows.map(function (r) {
           return { value: r.value, label: lab(r), sub: r.page ? 'Opens the page' : null, removable: !!r.page,
-                   href: r.page ? '#/house/appearance/pill/' + r.page
+                   href: r.page ? '#/page/' + r.page + '/pill'
                                 : '#/accessories/' + encodeURIComponent(r.value) };
         }),
         more: mdl.more.map(function (r) { return { value: r.value, label: lab(r), sub: 'A pill that opens the page' }; }),
@@ -2785,6 +2896,27 @@
     }
     // A PAGE PILL'S LOOK: its name, icon and color, the same on
     // every screen (look.page_pills) -- "Play Music" can be "Apple Music"
+    // A SCREEN'S PAGE HEADERS (2026-10-16): each page's header Same as All
+    // Screens or Off on This Screen (its `headers`, {page: false}). What a
+    // header held comes back when it is off (the Water page's main valve,
+    // Timers' Quick Start).
+    s_pageHeaders(c, x, b) {
+      var self = this, S = this.data.settings || {}, own = b.headers || {};
+      var listed = this.pagesListed().filter(function (p) { return M.HEADER_PAGES[p[0]] && M.screenShows(b, p[0]); });
+      if (!listed.length) { c.appendChild(K.group({ footer: 'None of this screen’s pages has a header.' }, [])); return; }
+      c.appendChild(K.group({ footer: 'Off here, a page’s header is off on this screen alone; what it held comes back to the page — the Water page’s main valve as a tile, ' +
+          'the Timers page’s Quick Start beside what runs. A header off for All Screens is off everywhere (its page, under Pages).' },
+        listed.map(function (p) {
+          var house = ((S.headers || {})[p[0]] || {}).show !== false, mine = own[p[0]] === false;
+          return K.toggle({ label: p[1], sub: !house ? 'Off for All Screens' : mine ? 'Off on This Screen' : 'Same as All Screens',
+            on: house && !mine, disabled: !house, sk: 'b:headers', fk: 'pghd:' + p[0],
+            onChange: function (on) {
+              var next = Object.assign({}, own);
+              if (on) delete next[p[0]]; else next[p[0]] = false;
+              self.setB(x.path, { headers: next });
+            } });
+        })));
+    }
     s_pill(c, x, b, kind) {
       var self = this, all = Object.assign({}, this.hs('look.page_pills') || {}), mine = Object.assign({}, all[kind] || {});
       var put = function (k, v) {
@@ -3057,6 +3189,7 @@
           });
         });
     }
+    dwInSecurity(b) { return !!this.hs('security.alarm') && M.screenShows(b, 'security'); }
     s_pages(c, x, b) {
       var self = this, set = function (ch) { return self.setB(x.path, ch); };
       var custom = {};
@@ -3070,6 +3203,9 @@
       custom = Object.assign({}, custom);
       if (energyOn) delete custom.energy;
       var kinds = (this.data.page_kinds || []).filter(function (k) { return (k !== 'energy' || energyOn) && (k !== 'power' || powerOn); });
+      // DOORS & WINDOWS IS SECURITY'S where the house has an alarm and this
+      // screen shows Security (hk-strategy.js withSecurity): no page of its own
+      if (this.dwInSecurity(b)) kinds = kinds.filter(function (k) { return k !== 'doors_windows'; });
       var lab = function (k) { return custom[k] !== undefined ? custom[k] : (M.PAGE_LABELS[k] || k); };
       // HOME PAGE: off, the screen is only the pages it lists -- any of them
       var om = b.home_page === false ? M.onlyModel(b, kinds, custom, energyOn) : null;
@@ -3095,7 +3231,7 @@
       if (om) {
         var subOf = function (r) { return r.custom ? 'Custom page' : r.value === 'rooms' ? 'A page for every room' : null; };
         var hrefOf = function (r) {
-          return r.custom ? '#/pages/' + encodeURIComponent(r.value) : r.value === 'energy' ? '#/features/energy' : null;
+          return r.custom ? '#/pages/' + encodeURIComponent(r.value) : r.value === 'energy' ? '#/page/energy' : null;
         };
         c.appendChild(K.listEditor({ fk: 'opages', minRows: 0, announce: this.announce.bind(this), shownHeader: 'This Screen Shows Only',
           emptyText: 'No pages yet — add one from More. Until then the screen shows everything.',
@@ -3172,13 +3308,15 @@
     }
     s_glass(c, x, b) {
       var self = this, look = this.data.settings.look;
-      var pick = function (v) { self.setB(x.path, { glass: v }); };
-      var follows = !b.glass || b.glass === 'house';
+      var pick = function (v) {
+        self.setB(x.path, v === 'flat' ? { flat: true } : v === 'house' ? { flat: null, glass: 'house' } : { flat: false, glass: v });
+      };
+      var gl = M.glassOf(b, look), follows = !gl.own;
       c.appendChild(K.group({ footer: 'Same as All Screens follows All Screens → Appearance, so this screen changes with the others.' }, [
-        K.check({ label: 'Same as All Screens', sub: 'Now ' + M.glassLabel(look.glass), on: follows, fk: 'glass:house',
+        K.check({ label: 'Same as All Screens', sub: 'Now ' + M.glassLabel(gl.house), on: follows, fk: 'glass:house',
                   onClick: function () { pick('house'); } })]));
       // Blur here starts from All Screens' mode when theirs is a blur too
-      this.glassChoices(c, follows ? null : b.glass, M.isBlur(look.glass) ? look.glass : 'blur', pick, 'glass:', 'Just This Screen');
+      this.glassChoices(c, follows ? null : gl.value, M.isBlur(look.glass) ? look.glass : 'blur', pick, 'glass:', 'Just This Screen');
     }
 
     // AN OPTIONS PAGE: OPTION_PAGES' controls over the options mapping, then
@@ -3374,7 +3512,7 @@
       c.appendChild(K.group({ header: 'Side Pane', footer: cur.calendar && pm
           ? 'Down the right of the screen, Home Status at its top: the calendar’s events, and below them what’s playing while music plays. The ' + what + ' move over beside it. A swipe on the events scrolls them; the music’s buttons skip or pause; a touch anywhere else closes the screensaver.'
           : cur.calendar
-          ? 'The events of the calendars in All Screens → Calendar, down the right of the screen, with Home Status at its top; the ' +
+          ? 'The events of the calendars in Pages → Calendar, down the right of the screen, with Home Status at its top; the ' +
             what + ' move over beside it. A swipe on it scrolls it; a touch anywhere else closes the screensaver.'
           : pm ? 'While music plays, what’s playing down the right of the screen, with Home Status at its top; the ' + what +
             ' move over beside it, with the next photo. Its buttons skip or pause without closing the screensaver, and a tap on its album art opens Music. 20 seconds after the music stops, the pane goes.'
@@ -4150,11 +4288,196 @@
       if (fp) return fp;
       return { title: title, top: true, scope: 'Applies to every screen.', body: function (c) { self.h_music(c); } };
     }
+    // ================================================================ PAGES
+    // THE PAGES SECTION (2026-10-16, PLAN-2026-10-16-pages-settings.md):
+    // each generated page's settings on one page of its own, the same groups
+    // in the same order -- Header, Status Row, What's on It, the page's own,
+    // Background, Its Pill on Home, Related. A page that comes from a
+    // feature (Energy, Music, Live TV) opens on that feature's settings;
+    // those pages' own sub-pages keep their #/features/... addresses.
+    pageHas() {
+      var st = (this._hass && this._hass.states) || {}, n = function (dom) {
+        return Object.keys(st).filter(function (k) { return k.indexOf(dom + '.') === 0; }).length;
+      };
+      return { kinds: this.data.kinds || {}, alarm: this.hs('security.alarm'), cameras: n('camera'), calendars: n('calendar'), weather: n('weather') };
+    }
+    pagesListed() { return M.pagesListed(this.pageHas()); }
+    // a page's line under its name in the sidebar
+    pageSays(key) {
+      var S = this.data.settings || {}, bits = [];
+      if (M.HEADER_PAGES[key]) bits.push(((S.headers || {})[key] || {}).show === false ? 'Header Off' : 'Header On');
+      var ch = ((this.data.choices || {}).status_rows || {})[key];
+      if (ch) bits.push('Row: ' + M.statusSummary(Object.assign({ status: ch.default }, (S.status_rows || {})[key]).status));
+      var f = M.PAGE_FEATURES[key];
+      if (f && (key === 'energy' || key === 'power' || key === 'live_tv')) {
+        var t = F.LIST.filter(function (x) { return x[0] === f; })[0];
+        if (t && F.stateOf(this.data.features, t[1]) !== 'added') bits.push('Not Set Up');
+      }
+      return bits.join(' · ') || null;
+    }
+    p_page(key, sub) {
+      var self = this, t = M.pageOf(key);
+      if (!t) return this.p_overview();
+      var base = '#/page/' + key, title = t[1];
+      var mk = function (tt, body, back) { return { title: tt, back: back || [title, base], body: body }; };
+      var s0 = sub[0];
+      if (s0 === 'status' && ((this.data.choices || {}).status_rows || {})[key]) {
+        return mk('Status Row', function (c) { self.h_statusRow(c, key, true); });
+      }
+      if (s0 === 'background') {
+        var row = this.skyRow(key, null);
+        return mk('Background', function (c) {
+          if (row && self.flatHere(null)) self.flatPagePicker(c, null, null, row, '#/house/sky');
+          else if (row) self.pagePicker(c, null, null, row);
+          else c.appendChild(K.group({ footer: 'This page isn’t on any screen yet, so it has no background to choose.' }, []));
+        });
+      }
+      if (s0 === 'pill' && M.PAGE_PILL_DEFAULTS[key]) return mk('Its Pill on Home', function (c) { self.s_pill(c, null, null, key); });
+      if (s0 === 'accent') return mk('Accent Color', function (c) { self.pageAccent(c, key); });
+      if (s0 === 'order' && PAGE_ORDERS[key]) return { title: 'Tile Order', back: [title, base], scope: this.orderScope(key),
+                                                      body: function (c) { self.a_pageOrder(c, key); } };
+      if (key === 'timers' && s0 === 'house') return mk('House Timers', function (c) { self.h_timers(c); });
+      if (key === 'weather' && s0 === 'sensors') return mk('Sensors', function (c) { self.h_weatherSensors(c); });
+      if (key === 'weather' && s0 === 'forecast') return mk('Forecast & Details', function (c) { self.h_weatherForecast(c); });
+      if (key === 'weather' && s0 === 'radar') {
+        if (sub[1] === 'advanced') return mk('Advanced', function (c) { self.h_radarAdvanced(c); }, ['Radar Map', base + '/radar']);
+        if (sub[1] === 'yaml') return mk('Weather Radar Card Options', function (c) { self.h_radarLegacy(c); }, ['Radar Map', base + '/radar']);
+        return mk('Radar Map', function (c) { self.h_radar(c); });
+      }
+      if (key === 'calendar' && s0) return mk(self.name(s0), function (c) { self.h_calendarOne(c, s0); });
+      if (s0) return this.p_page(key, []);
+      return { title: title, top: true, scope: PAGE_SCOPE[key] || 'This page’s settings, on every screen that shows it.',
+               body: function (c) { self.h_page(c, key); } };
+    }
+    // a feature's own settings page, drawn here (its top page's body)
+    pageFeature(c, route) {
+      var fp = F.page(this, [route]);
+      if (fp && fp.body) fp.body(c);
+    }
+    h_page(c, key) {
+      var self = this, S = this.data.settings || {}, base = '#/page/' + key;
+      var set = function (k) { return function (v) { var o = {}; o[k] = v; self.setH(o); }; };
+      // THE PAGE'S OWN, first where the page is a feature's or one of All
+      // Screens' old pages (Weather, Calendar, Cameras): what it is about
+      if (key === 'energy') this.pageFeature(c, 'energy');
+      if (key === 'music') this.h_music(c);
+      if (key === 'live_tv') this.pageFeature(c, 'tv');
+      if (key === 'weather') this.h_weather(c);
+      if (key === 'calendar') this.h_calendar(c);
+      if (key === 'power') {
+        var pp = F.page(this, ['energy', 'power']);
+        if (pp && pp.body) pp.body(c);
+        c.appendChild(K.group({ footer: 'The circuits, meters and batteries the Power page draws are the Energy page’s devices.' }, [
+          K.nav({ label: 'Energy’s Devices', icon: 'mdi:lightning-bolt', href: '#/features/energy/devices', fk: 'page:power:devices' })]));
+      }
+      // 1. HEADER
+      if (M.HEADER_PAGES[key]) {
+        this.h_header(c, key);
+        var off = M.headerOffOn(this.data.boards, key);
+        if (off.length) {
+          c.appendChild(K.group({ footer: 'Each screen’s own Page Headers can turn this header off there.' }, off.map(function (p) {
+            var d = self.dash(p);
+            return K.nav({ label: d ? d.title : p, value: 'Off on This Screen', icon: 'mdi:monitor-dashboard',
+                           href: '#/screens/' + encodeURIComponent(p) + '/page-headers', fk: 'page:hdoff:' + p });
+          })));
+        }
+      }
+      // 2. STATUS ROW
+      var ch = ((this.data.choices || {}).status_rows || {})[key];
+      if (ch) {
+        var cur = Object.assign({ status: ch.default }, (S.status_rows || {})[key]);
+        c.appendChild(K.group({ header: 'Status Row', footer: 'Under the page’s name: what it shows, in order, and the rooms it leaves out.' }, [
+          K.nav({ label: 'Status Row', value: M.statusSummary(cur.status), href: base + '/status', sk: 'status_rows.' + key })]));
+      }
+      // 3. THE PAGE'S OWN SETTINGS
+      if (key === 'security') {
+        var sugg = !this.hs('security.alarm') && (this.data.suggest || {}).alarm;
+        c.appendChild(K.group({ header: 'Security System', footer: 'The header’s security line, the Security chip and page, and the alarm keypad.' }, [
+          this.entityRow({ label: 'Alarm Panel', sk: 'security.alarm', value: this.hs('security.alarm'), none: 'No Alarm',
+                           filter: { domains: ['alarm_control_panel'] }, onPick: set('security.alarm') }),
+          sugg ? K.button({ label: 'Use ' + this.name(sugg), fk: 'alarm:suggest', onClick: function () { set('security.alarm')(sugg); } }) : null]));
+        this.pageFeature(c, 'alarm');
+        c.appendChild(K.group({ header: 'Alarm Keypad', footer: 'Empty for most alarms: a refused code shows “Wrong Code” by itself. Only for a panel that fails silently.' }, [
+          this.entityRow({ label: 'Wrong-Code Indicator', sk: 'features.alarm_bad_code', value: this.hs('features.alarm_bad_code'), none: 'Automatic',
+                           filter: { domains: ['input_boolean', 'binary_sensor'] }, onPick: set('features.alarm_bad_code') })]));
+      }
+      if (key === 'timers') {
+        var ht = this.hs('features.house_timers') || [];
+        c.appendChild(K.group({ header: 'House Timers', footer: 'One-tap timers on the Timers page — a nap, bedtime. Their names and icons are Home Assistant’s.' }, [
+          K.nav({ label: 'House Timers', value: ht.length ? String(ht.length) : 'None', href: base + '/house', sk: 'features.house_timers' })]));
+      }
+      if (key === 'vacuums') {
+        this.pageFeature(c, 'clean');
+        c.appendChild(K.group({ header: 'Your Own Script', footer: 'Empty: cleaning by area goes through Clean Areas. Only for a house whose own script receives the areas.' }, [
+          this.entityRow({ label: 'Clean-Areas Script', sk: 'features.vacuum_script', value: this.hs('features.vacuum_script'), none: 'Clean Areas',
+                           filter: { domains: ['script'] }, onPick: set('features.vacuum_script') })]));
+      }
+      if (key === 'cameras') this.h_cameras(c, true);
+      // 4. WHAT'S ON IT: the accessory types, each its own page under
+      // Accessories, and the page's tile order where it has one
+      var types = (M.PAGE_TYPES[key] || []).map(function (k) { return M.accType(k); }).filter(Boolean);
+      if (types.length) {
+        var rows = types.map(function (T) {
+          return K.nav({ label: T[1], icon: T[2], value: String(self.typeCount(T)), href: '#/accessories/type/' + T[0], fk: 'page:type:' + T[0] });
+        });
+        if (PAGE_ORDERS[key]) {
+          var po = ((this.data.accessories || {}).pages || {})[key] || [];
+          rows.push(K.nav({ label: 'Tile Order', value: po.length ? 'Custom' : 'Automatic', href: base + '/order', sk: 'accessories.pages.' + key }));
+        }
+        rows.push(K.nav({ label: 'Hidden Accessories', icon: 'mdi:eye-off', href: '#/accessories/hidden', fk: 'page:hidden' }));
+        c.appendChild(K.group({ header: 'What’s on It', footer: 'Names, icons, rooms and what counts are each accessory’s own, the same on every page.' }, rows));
+      }
+      // 5. BACKGROUND and 6. ITS PILL ON HOME
+      var look = [], row = this.skyRow(key, null), bds = (this.data.choices || {}).sky_backdrops || [];
+      if (row && key !== 'cameras') {          // (Cameras' is in its Related)
+        look.push(K.nav({ label: 'Background', value: this.skyPageLabel(row, null),
+                          href: base + '/background', sk: (this.flatHere(null) ? 'sky.flat_pages:' : 'sky.pages:') + key }));
+      }
+      if (M.PAGE_PILL_DEFAULTS[key]) {
+        var own = (this.hs('look.page_pills') || {})[key] || {};
+        look.push(K.nav({ label: 'Its Pill on Home', value: Object.keys(own).length ? 'Customized' : 'Default', href: base + '/pill', sk: 'look.page_pills:' + key }));
+      }
+      // 7. ITS ACCENT COLOR (2026-10-17): the menu's color for it while a
+      // screen's Highlight Color is Automatic, and in Flat its Automatic
+      // background's shade
+      var pa = M.pageAccentOf(key, this.hs('look.page_accents'));
+      look.push(K.nav({ label: 'Accent Color', value: pa.own ? pa.a.name : 'Default (' + pa.d.name + ')', href: base + '/accent',
+                        tile: ['', pa.a.hex], sk: 'look.page_accents:' + key }));
+      // 8. FLAT COLORS (2026-10-17): Flat's own palette for this page, over
+      // the screens' general colors -- where any screen uses Flat
+      var lookFoot = 'Its background on every screen that doesn’t choose its own, the pill in a screen’s Scenes row that opens it, and its Accent Color: the page’s identity in every look — its color in the menu while a screen’s Highlight Color is Automatic, and in Flat the shade of its Automatic background.';
+      if (row && this.flatAnywhere()) {
+        look.push(this.flatColorsNav(this.flatScope('house-page', null, null, key), { tile: false, inherited: 'Same as All Screens' }));
+        lookFoot += ' Flat Colors: Flat’s own Accent Color and Off Pill Tint for this page; Automatic uses the Accent Color above.';
+      }
+      if (look.length) c.appendChild(K.group({ header: 'Look', footer: lookFoot }, look));
+      // 7. ON SCREENS: every generated screen, whether it shows the page --
+      // each a way to that screen's Pages on This Screen, the page's row lit
+      var dash = this.data.dashboards.filter(function (d) { return d.item && d.generated; }), bd = this.data.boards || {};
+      var offHd = M.headerOffOn(bd, key);
+      var scr = dash.map(function (d) {
+        var b = bd[d.path] || {}, shows = M.screenShows(b, key);
+        var a = K.nav({ label: d.title, icon: 'mdi:monitor-dashboard',
+                        sub: shows && offHd.indexOf(d.path) >= 0 ? 'Header off on this screen' : null,
+                        value: shows ? 'Shown' : 'Not Shown', href: '#/screens/' + encodeURIComponent(d.path) + '/pages', fk: 'page:screen:' + d.path });
+        // its row on that page, lit when it opens (render's _flash)
+        a.addEventListener('click', function () { self._flash = ['pages:grip:' + key, 'place:' + key, 'opages:grip:' + key, 'pages:' + key]; });
+        return a;
+      });
+      if (scr.length) {
+        c.appendChild(K.group({ header: 'On Screens', footer: 'Which pages a screen shows, and where each sits in its menu, is that screen’s own: tap one to change it there.' }, scr));
+      }
+      var rel = [];
+      if (key === 'music') rel.push(K.nav({ label: 'Now Playing', sub: 'The bar or side pane on every page', icon: 'mdi:music', href: '#/house/nowplaying', fk: 'page:rel:np' }));
+      if (key === 'climate' || key === 'energy') {
+        var chip = key === 'climate' ? 'climate' : 'energy';
+        rel.push(K.nav({ label: (M.CHIP_LABELS[chip] || chip) + ' Chip', sub: this.chipSays(this.chipScreens(chip)), icon: 'mdi:label-multiple',
+                         href: '#/house/chips/' + chip, fk: 'page:rel:chip' }));
+      }
+      if (key === 'weather') rel.push(K.nav({ label: 'Screensaver', sub: 'Its forecast and weather screen read these too', icon: 'mdi:image-multiple', href: '#/house/screensaver', fk: 'page:rel:saver' }));
+      if (rel.length) c.appendChild(K.group({ header: key === 'cameras' ? 'Also' : 'Related' }, rel));
+    }
     p_house(page, sub) {
-      // where the status rows were before Status Rows (1.4.6's Climate
-      // Status, the room row under Rooms and, before that, Menu)
-      if (page === 'climate') return this.p_house('status', ['climate']);
-      if ((page === 'rooms' || page === 'menu') && sub[0] === 'status') return this.p_house('status', ['rooms']);
       // WHAT COUNTS (2026-10-13) is each type's page under Accessories now: its
       // old addresses (#/house/counts/<kind>) open the type
       if (page === 'counts') return this.p_accessories(sub[0] && M.accType(sub[0]) ? ['type', sub[0]] : []);
@@ -4163,10 +4486,6 @@
       var base = '#/house/' + page, title = t[1];
       var scope = 'Applies to every screen.';
       var mk = function (tt, body, back) { return { title: tt, back: back || [title, base], body: body }; };
-      if (page === 'general') {
-        if (sub[0] === 'timers') return mk('House Timers', function (c) { self.h_timers(c); });
-        return { title: title, top: true, scope: scope, body: function (c) { self.h_general(c); } };
-      }
       // STATUS CHIPS (2026-10-13): every screen's chip row, and each chip
       // across the screens -- Always or When Active, set right there
       if (page === 'chips') {
@@ -4177,32 +4496,12 @@
         return { title: title, top: true, scope: 'Which chips each screen shows is its own. Here they are side by side, and each chip on every screen.',
                  body: function (c) { self.h_chips(c); } };
       }
-      if (page === 'status') {
-        var sr = M.STATUS_ROWS.filter(function (r) { return r[0] === sub[0]; })[0];
-        if (sr) return mk(sr[1], function (c) { self.h_statusRow(c, sr[0]); });
-        return { title: title, top: true, scope: scope, body: function (c) { self.h_statusHub(c); } };
-      }
-      if (page === 'weather') {
-        if (sub[0] === 'sensors') return mk('Sensors', function (c) { self.h_weatherSensors(c); });
-        if (sub[0] === 'radar') {
-          var spec = OPTION_PAGES.radar, tp = (self.data.thirdparty || {}).radar || {};
-          var saveRadar = function (v) { return self.setH({ 'weather.radar': v }); };
-          if (sub[1] === 'yaml') return mk('Options in YAML', function (c) {
-            self.yamlPage(c, { value: self.hs('weather.radar') || {}, note: tp.note, sk: 'weather.radar',
-                               help: spec.yamlHelp, example: spec.example, docs: spec.docs, onSave: saveRadar });
-          }, [spec.title, base + '/radar']);
-          return mk(spec.title, function (c) {
-            self.optionsPage(c, spec, self.hs('weather.radar') || {}, saveRadar, base + '/radar/yaml', tp);
-          });
-        }
-        return { title: title, top: true, scope: scope, body: function (c) { self.h_weather(c); } };
-      }
-      if (page === 'calendar') {
-        if (sub[0]) return mk(self.name(sub[0]), function (c) { self.h_calendarOne(c, sub[0]); });
-        return { title: title, top: true, scope: scope, body: function (c) { self.h_calendar(c); } };
+      if (page === 'nowplaying') {
+        return { title: title, top: true, scope: 'Applies to every screen that doesn’t choose its own.', body: function (c) { self.h_nowPlaying(c); } };
       }
       if (page === 'appearance') {
-        if (sub[0] === 'glass') return mk('Glass Style', function (c) { self.h_glass(c); });
+        if (sub[0] === 'glass') return mk('Appearance Style', function (c) { self.h_glass(c); });
+        if (sub[0] === 'flat-colors') return this.p_flatColors('house', null, null, sub.slice(1), mk, [title, base]);
         if (sub[0] === 'pills') return mk('Page Pills', function (c) { self.h_pills(c); });
         if (sub[0] === 'pill' && sub[1]) {
           return mk(M.PAGE_LABELS[sub[1]] || sub[1], function (c) { self.s_pill(c, null, null, sub[1]); }, ['Page Pills', base + '/pills']);
@@ -4218,6 +4517,16 @@
         });
         if (sub[0] === 'pages') return mk('Sky / Background', function (c) { self.h_sky(c); });
         if (sub[0] === 'lively') return mk('Each Occasion', function (c) { self.livelyList(c, null); });
+        // FLAT'S OWN: its page while All Screens wears another look, and its
+        // pages' -- and a page's while All Screens wears Flat
+        var fbase = sub[0] === 'flat' ? base + '/flat' : base;
+        var fsub = sub[0] === 'flat' ? sub.slice(1) : sub;
+        if ((sub[0] === 'flat' || this.flatHere(null)) && fsub[0] === 'page' && fsub[1]) {
+          var fkey = decodeURIComponent(fsub[1]), frow = this.skyRow(fkey, null);
+          return mk(frow ? frow.label : 'Page', function (c) { if (frow) self.flatPagePicker(c, null, null, frow, fbase); },
+                    frow && frow.room ? ['Room Pages', fbase + '/page/rooms'] : [sub[0] === 'flat' ? 'Flat Backgrounds' : 'Sky / Background', fbase]);
+        }
+        if (sub[0] === 'flat') return mk('Flat Backgrounds', function (c) { self.flatSky(c, null, null, fbase); }, ['Sky / Background', base]);
         if (sub[0] === 'page' && sub[1]) {
           var hkey = decodeURIComponent(sub[1]);
           var hrow = this.skyRow(hkey, null);
@@ -4253,11 +4562,13 @@
         }
         if (sub[0] === 'tablets') return mk('Tablets & Computers', function (c) { self.menuTablets(c, hmv, setHM, { house: true, base: tbH[1] }); });
         if (sub[0] === 'phones') return mk('Phones', function (c) { self.menuPhones(c, hmv, setHM, { house: true, base: pbH[1] }); });
-        if (sub[0] === 'accent') return mk('Highlight Color', function (c) { self.menuAccent(c, hmv.accent, pickH('accent')); });
+        if (sub[0] === 'accent') return mk('Highlight Color', function (c) { self.menuAccent(c, hmv.accent, pickH('accent'), self.flatHere(null) ? self.flatScope('house') : null); });
         return { title: title, top: true, scope: scope, body: function (c) { self.h_menu(c); } };
       }
       if (page === 'rooms') {
         if (sub[0] === 'order') return mk('Room Order', function (c) { self.h_roomOrder(c); });
+        // THE ROOM PAGES' STATUS ROW (Status Rows' until 2026-10-16)
+        if (sub[0] === 'status') return mk('Room Status Row', function (c) { self.h_statusRow(c, 'rooms'); });
         var areasH = (this._hass && this._hass.areas) || {};
         if (sub[0] && areasH[sub[0]]) {
           var aid = sub[0], rn = this.areaName(aid), rb = [rn, base + '/' + encodeURIComponent(aid)];
@@ -4305,8 +4616,6 @@
         if (pv) { spg.preview = pv; spg.saverPreview = true; spg.saverHouse = true; }
         return spg;
       }
-      if (page === 'cameras') return { title: title, top: true, scope: 'Applies to every screen whose Cameras are Same as All Screens.',
-                                       body: function (c) { self.h_cameras(c); } };
       // WALL TABLETS (1.14): the tablets themselves, each its own page
       if (page === 'tablets') {
         if (sub[0] === 'screensaver') {
@@ -4331,17 +4640,6 @@
       }
       return this.p_overview();
     }
-    h_general(c) {
-      var self = this, set = function (k) { return function (v) { var o = {}; o[k] = v; self.setH(o); }; };
-      var sugg = !this.hs('security.alarm') && (this.data.suggest || {}).alarm;
-      c.appendChild(K.group({ header: 'Security', footer: 'The header’s security line, the Security chip and page, and the alarm keypad.' }, [
-        this.entityRow({ label: 'Alarm Panel', sk: 'security.alarm', value: this.hs('security.alarm'), none: 'No Alarm',
-                         filter: { domains: ['alarm_control_panel'] }, onPick: set('security.alarm') }),
-        sugg ? K.button({ label: 'Use ' + this.name(sugg), fk: 'alarm:suggest', onClick: function () { set('security.alarm')(sugg); } }) : null]));
-      var ht = this.hs('features.house_timers') || [];
-      c.appendChild(K.group({ header: 'Timers', footer: 'One-tap timers on the Timers page — a nap, bedtime. Their names and icons are Home Assistant’s.' }, [
-        K.nav({ label: 'House Timers', value: ht.length ? String(ht.length) : 'None', href: '#/house/general/timers', sk: 'features.house_timers' })]));
-    }
     h_timers(c) {
       var self = this, cur = this.hs('features.house_timers') || [];
       var set = function (v) { self.setH({ 'features.house_timers': v }); };
@@ -4354,23 +4652,10 @@
             onPick: function (id) { if (id) set(cur.concat(id)); } }));
         } }));
     }
-    // STATUS ROWS: a room page's row, and each category page's (Climate,
-    // Lights, Doors & Windows, Water, Security) -- what each shows, in its
-    // order, and what a page's counts.
-    h_statusHub(c) {
-      var self = this, S = this.data.settings, rows = S.status_rows || {};
-      var link = function (r) {
-        var list = r[0] === 'rooms' ? (S.rooms || {}).status : (rows[r[0]] || {}).status;
-        return K.nav({ label: r[1], sub: r[3], icon: r[2], value: M.statusSummary(list),
-                       href: '#/house/status/' + r[0], sk: r[0] === 'rooms' ? 'rooms.status' : 'status_rows.' + r[0] });
-      };
-      c.appendChild(K.group({ footer: 'A room page’s row sits under the room’s name; it counts that room.' },
-        M.STATUS_ROWS.filter(function (r) { return r[0] === 'rooms'; }).map(link)));
-      c.appendChild(K.group({ header: 'Category Pages', footer: 'Each page’s row counts what the page shows — ' +
-          'what HK finds, less what’s hidden from it — and a tap opens the accessories it counts. A page’s row is on every screen with that page.' },
-        M.STATUS_ROWS.filter(function (r) { return r[0] !== 'rooms'; }).map(link)));
-    }
+    // A STATUS ROW: a room page's (Rooms), or a page's (Pages -> the page)
+    // -- what it shows, in its order, and the rooms a page's leaves out
     h_statusRow(c, page) {
+      // (a page's header is on its own page, Pages -> the page, since 2026-10-16)
       var self = this, S = this.data.settings, ch = this.data.choices || {};
       var rooms = page === 'rooms';
       var spec = rooms ? { kinds: ch.status_kinds || [], default: ch.status_kinds || [] } : (ch.status_rows || {})[page];
@@ -4404,7 +4689,7 @@
         if (k === 'security') {
           var alarm = (S.security || {}).alarm;
           sources.push(K.nav({ label: 'Security System', value: alarm ? self.name(alarm) : 'Automatic',
-                               href: '#/house/general', sk: 'security.alarm' }));
+                               href: '#/page/security', sk: 'security.alarm' }));
           return;
         }
         if (!src || seen[src]) return;
@@ -4425,6 +4710,129 @@
               save(cur.status, included ? cur.exclude_areas.concat(aid) : cur.exclude_areas.filter(function (a) { return a !== aid; }));
             } });
         })));
+    }
+    // THE PAGE'S HEADER (settings.headers.<page>, hk-headers.js): the cards
+    // between the status row and the accessories. Each works itself out from
+    // the house; these are only the guesses that can be wrong, each saying
+    // what Automatic is.
+    h_header(c, page) {
+      var self = this, S = this.data.settings || {};
+      var D = M.HEADER_PAGES[page].defaults;
+      var cur = Object.assign({}, D, (S.headers || {})[page] || {});
+      var save = function (k, v) {
+        var o = {}, next = Object.assign({}, cur);
+        next[k] = v;
+        o['headers.' + page] = next;
+        self.setH(o);
+      };
+      var listRow = function (k, label, sub, items, title, auto) {
+        var v = cur[k];
+        var href = self.picker('hd:' + page + ':' + k, { title: title, value: null, multi: true, verb: 'Use',
+          items: items, onPick: function (ids) { if (ids && ids.length) save(k, [].concat(ids)); } });
+        var rows = [K.nav({ label: label, sub: sub, value: Array.isArray(v) ? (v.length === 1 ? self.name(v[0]) || self.areaName(v[0]) : v.length + ' Chosen') : auto,
+                            href: href, sk: 'headers.' + page, fk: 'hd:' + k })];
+        if (Array.isArray(v)) rows.push(K.button({ label: 'Back to Automatic', fk: 'hd:' + k + ':auto', onClick: function () { save(k, null); } }));
+        return rows;
+      };
+      var ents = function (domains, filt) {
+        return function () {
+          return self.entityIds({ domains: domains, shown: true }).filter(filt || function () { return true; })
+            .map(function (id) { return { value: id, label: self.name(id), sub: id }; });
+        };
+      };
+      var head = M.HEADER_PAGES[page];
+      c.appendChild(K.group({ header: 'Header', footer: head.footer }, [
+        K.toggle({ label: 'Show Header', sub: head.what, on: cur.show !== false, sk: 'headers.' + page, fk: 'hd:show',
+                   onChange: function (on) { save('show', on); } })]));
+      // THE LIGHTS PAGE'S BACKDROP follows the light outside: Adaptive
+      // Lighting's color temperature when the house has it, else the sun's
+      if (page === 'lights') {
+        var al = this.entityIds({ domains: ['switch'] }).filter(function (id) {
+          var a = (self._hass.states[id] || {}).attributes || {};
+          return /adaptive_lighting/.test(id) && a.color_temp_kelvin != null;
+        });
+        c.appendChild(K.group({ header: 'Background', footer: al.length
+            ? 'The page’s amber takes the color of the light outside, warm at dusk and cooler at midday — from Adaptive Lighting. Automatic reads ' + (self.name(al.slice().sort(function (a, b) { return /default/.test(b) - /default/.test(a) || (a < b ? -1 : 1); })[0]) || 'the first one') + '.'
+            : 'The page’s amber takes the color of the light outside, warm at dusk and cooler at midday — worked out from the sun. With Adaptive Lighting installed it follows that instead.' },
+          [K.toggle({ label: 'Follow the Sun', on: cur.sky_follow !== false, sk: 'headers.lights', fk: 'hd:sky_follow', onChange: function (on) { save('sky_follow', on); } })]
+            .concat(al.length && cur.sky_follow !== false ? listRow('sky_source', 'Adaptive Lighting', null, ents(['switch'], function (id) { return al.indexOf(id) >= 0; }), 'Adaptive Lighting', 'Automatic') : [])));
+      }
+      if (cur.show === false) return;
+      if (page === 'climate') {
+        c.appendChild(K.group({ footer: 'Automatic counts every thermostat on the page that reports when it heats and cools (up to three).' },
+          listRow('thermostats', 'Thermostats Counted', 'Heating & Cooling Today', ents(['climate']), 'Thermostats Counted', 'Automatic')));
+      } else if (page === 'lights') {
+        c.appendChild(K.group({ header: 'Lighting Through the Day' }, [
+          K.seg({ label: 'Rooms Shown', options: [[2, '2'], [3, '3'], [4, '4'], [5, '5']], value: cur.rooms || 3, sk: 'headers.lights', fk: 'hd:rooms',
+                  onChange: function (v) { save('rooms', Number(v)); } })]));
+        c.appendChild(K.group({ header: 'Left On', footer: 'A light on in a room whose motion, occupancy or presence sensors have all said nobody for this long. ' +
+            'A room without such a sensor is never named. Automatic leaves out the rooms this row leaves out, and outdoor ones — a yard, a deck, the garage.' },
+          [K.toggle({ label: 'Show Left On', on: cur.left_on !== false, sk: 'headers.lights', fk: 'hd:left_on', onChange: function (on) { save('left_on', on); } }),
+           K.select({ label: 'Empty For', options: [[5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [120, '2 hours']],
+                      value: cur.after_min || 10, sk: 'headers.lights', fk: 'hd:after', onChange: function (v) { save('after_min', Number(v)); } })]
+            .concat(listRow('exclude_areas', 'Rooms Left Out', null, function () {
+              return self.areasAZ().map(function (a) { return { value: a, label: self.areaName(a) }; });
+            }, 'Rooms Left Out', 'Automatic'))));
+        c.appendChild(K.group({ header: 'Tonight', footer: 'What your automations will do to this page’s lights in the next 16 hours, from their sun and time triggers. ' +
+            'One whose conditions don’t hold right now is shown dimmed.' },
+          [K.toggle({ label: 'Show Tonight', on: cur.tonight !== false, sk: 'headers.lights', fk: 'hd:tonight', onChange: function (on) { save('tonight', on); } })]
+            .concat(listRow('automations', 'Automations', null, ents(['automation']), 'Automations', 'Automatic'))));
+      } else if (page === 'security') {
+        var way = function (k, label) {
+          return listRow(k, label, null, ents(['lock', 'binary_sensor', 'cover'], function (id) {
+            var dc = (self._hass.states[id].attributes || {}).device_class;
+            return id.indexOf('binary_sensor.') !== 0 || /^(door|garage_door|opening)$/.test(dc || '');
+          }), label, 'Automatic');
+        };
+        c.appendChild(K.group({ header: 'Your Home', footer: 'Each label on the house reads its lock and door together. ' +
+            'Automatic finds them by name — a lock or door whose name says Front, Back or Garage.' },
+          [K.toggle({ label: 'Show Labels', on: cur.callouts !== false, sk: 'headers.security', fk: 'hd:callouts', onChange: function (on) { save('callouts', on); } })]
+            .concat(way('front_door', 'Front Door'), way('back_door', 'Back Door'), way('garage', 'Garage'))));
+        c.appendChild(K.group({ header: 'Device Care', footer: 'Shown only while a lock, door, window or leak sensor needs looking after: a low battery, or one gone quiet.' },
+          [K.select({ label: 'Low Battery', options: [[10, '10%'], [15, '15%'], [20, '20%'], [25, '25%'], [30, '30%'], [40, '40%']],
+                     value: cur.low_battery || 20, sk: 'headers.security', fk: 'hd:battery', onChange: function (v) { save('low_battery', Number(v)); } })]));
+      } else if (page === 'water') {
+        // AUTOMATIC SPELLED OUT: what the header reads when nothing is chosen
+        var valves = ((this.data.counts || {}).valves || {}).found || [];
+        var vn = function (id) { return self.name(id) + ' ' + id; };
+        var autoSupply = valves.filter(function (id) { return /main|supply|shut.?off/i.test(vn(id)); })[0] ||
+          (valves.length === 1 && !/sprinkl|irrigat|garden|drip|hose|lawn|zone|pool/i.test(vn(valves[0])) ? valves[0] : null);
+        c.appendChild(K.group({ header: 'Water Through the Day', footer: 'Automatic reads the water meter in Home Assistant’s Energy settings (Settings → Dashboards → Energy → Water). ' +
+            'With none there, the card stays off.' }, [
+          this.entityRow({ label: 'Water Meter', sk: 'headers.water', value: cur.meter, none: 'Automatic',
+                           filter: { domains: ['sensor'] }, onPick: function (v) { save('meter', v || null); } })]));
+        c.appendChild(K.group({ header: 'Main Supply', footer: 'The valve the header opens and closes, after asking. Automatic: ' +
+            (autoSupply ? self.name(autoSupply) : 'a valve named main, supply or shut-off — none found') + '. A sprinkler or garden valve is never the supply.' }, [
+          this.entityRow({ label: 'Main Supply Valve', sk: 'headers.water', value: cur.supply, none: 'Automatic',
+                           filter: { domains: ['valve', 'switch'] }, onPick: function (v) { save('supply', v || null); } })]));
+      } else if (page === 'timers') {
+        var STEPS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 45, 60, 90, 120, 180, 240];
+        var mins = function (m) { return m < 60 ? m + ' min' : m % 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : (m / 60) + (m === 60 ? ' hour' : ' hours'); };
+        var pr = (cur.presets || []).slice();
+        c.appendChild(K.listEditor({ fk: 'hd:presets', shownHeader: 'Quick Durations', moreHeader: pr.length < 6 ? 'More' : null, minRows: 1,
+          announce: this.announce.bind(this),
+          shownFooter: 'The buttons that start a timer in one tap, in this order. Up to six; the Timers page’s Quick Start needs the quick-timer helpers.',
+          rows: pr.map(function (m) { return { value: m, label: mins(m) }; }),
+          more: pr.length < 6 ? STEPS.filter(function (m) { return pr.indexOf(m) < 0; }).map(function (m) { return { value: m, label: mins(m) }; }) : [],
+          onChange: function (v) { if (v.length) save('presets', v.map(Number).slice(0, 6)); } }));
+        var nm = (cur.names || []).slice();
+        var SUGGEST = ['Pasta', 'Oven', 'Laundry', 'Tea', 'Kids', 'Break', 'Eggs', 'Nap', 'Dryer', 'Bath', 'Homework', 'Pizza', 'Rice', 'Coffee'];
+        c.appendChild(K.listEditor({ fk: 'hd:names', shownHeader: 'Quick Names', moreHeader: nm.length < 6 ? 'More' : null,
+          announce: this.announce.bind(this), emptyText: 'None — a new timer is just its time',
+          shownFooter: 'Create a Timer offers these as names, in this order. Up to six.',
+          rows: nm.map(function (n) { return { value: n, label: n }; }),
+          more: nm.length < 6 ? SUGGEST.filter(function (n) { return nm.indexOf(n) < 0; }).map(function (n) { return { value: n, label: n }; }) : [],
+          onChange: function (v) { save('names', v.slice(0, 6)); } }));
+        if (nm.length < 6) {
+          c.appendChild(K.group({ footer: 'A name of your own, up to 16 letters.' }, [
+            K.text({ label: 'Add a Name', value: '', placeholder: 'Popcorn', maxlength: 16, sk: 'headers.timers', fk: 'hd:name:add',
+                     onCommit: function (v) { v = String(v || '').trim(); if (v && nm.indexOf(v) < 0) save('names', nm.concat(v).slice(0, 6)); } })]));
+        }
+      } else if (page === 'vacuums') {
+        c.appendChild(K.group({ header: 'How Runs End', footer: 'A run is Done when a vacuum’s successful-missions counter goes up, Failed or Canceled by its others. ' +
+            'Automatic finds each vacuum’s own (a Roomba’s); without them a run ends when it docks.' },
+          listRow('counters', 'Mission Counters', null, ents(['sensor'], function (id) { return /mission|clean/i.test(id); }), 'Mission Counters', 'Automatic')));
+      }
     }
     // ADD…, right on the kind's page (2026-10-13): the same Also Count As as
     // on each accessory, for several at once -- and the way in for a group
@@ -4453,20 +4861,195 @@
         } });
       return K.nav({ label: 'Add…', href: href, fk: 'inc:add' });
     }
+    // THE WEATHER PAGE'S OWN (2026-10-16): the weather service and its
+    // sensors (shared with the header, Climate and the screensaver), then what
+    // the Weather page shows and its radar (weather.page / weather.radar_native,
+    // the page's alone)
     h_weather(c) {
       var self = this, set = function (k) { return function (v) { var o = {}; o[k] = v; self.setH(o); }; };
       var place = (this._hass.config && this._hass.config.location_name) || 'Home';
-      c.appendChild(K.group({ footer: 'The name shown above the temperature. Empty: this home’s name, ' + String(place).toUpperCase() + '.' }, [
+      c.appendChild(K.group({ header: 'Weather Source', footer: 'The header, Climate and the screensaver use these too. Place: the name over the temperature; empty, this home’s name, ' + String(place).toUpperCase() + '.' }, [
         this.entityRow({ label: 'Weather Service', sk: 'weather.entity', value: this.hs('weather.entity'), none: 'First Weather Entity',
                          filter: { domains: ['weather'] }, onPick: set('weather.entity') }),
         K.text({ label: 'Place', sk: 'weather.place', value: this.hs('weather.place'), placeholder: place, maxlength: 60,
                  error: this.err('weather.place'), onCommit: function (v) { self.setH({ 'weather.place': v }); } })]));
+      var pg = M.wxPage(this.data.settings), r = M.radarOf(this.data.settings), plan = M.radarPlanOf(r, this._hass);
+      c.appendChild(K.group({ header: 'Forecast', footer: 'What the Weather page shows. Only on this page: the header and the screensaver keep their own.' }, [
+        K.nav({ label: 'Forecast & Details', value: M.forecastSummary(pg), href: '#/page/weather/forecast', sk: 'weather.page' })]));
       var keys = ['feels_like', 'humidity', 'wind', 'gust', 'uv', 'outside', 'forecast_daily', 'forecast_hourly', 'alerts'];
       var n = keys.filter(function (k) { return self.hs('weather.' + k); }).length;
-      var radar = this.hs('weather.radar') || {}, rnote = ((this.data.thirdparty || {}).radar || {}).note;
-      c.appendChild(K.group({ footer: 'Sensors are optional: the weather service gives these when none is chosen.' + (rnote ? ' ' + rnote : '') }, [
-        K.nav({ label: 'Sensors', value: n ? n + ' Chosen' : 'None', href: '#/house/weather/sensors', sk: 'weather.sensors' }),
-        K.nav({ label: 'Radar Map', value: Object.keys(radar).length ? 'Custom' : 'Default', href: '#/house/weather/radar', sk: 'weather.radar' })]));
+      c.appendChild(K.group({ header: 'Optional Readings', footer: 'Sensors are optional: without one, the weather service’s own reading is used.' }, [
+        K.nav({ label: 'Sensors', value: n ? n + ' Chosen' : 'None', href: '#/page/weather/sensors', sk: 'weather.sensors' })]));
+      c.appendChild(K.group({ header: 'Radar', footer: r.enabled && plan.reason ? M.RADAR_REASONS[plan.reason] : 'A precipitation radar map beside the daily forecast.' }, [
+        K.nav({ label: 'Radar Map', value: M.radarSummary(r, plan), href: '#/page/weather/radar', sk: 'weather.radar_native' })]));
+      c.appendChild(K.group({ header: 'Presentation', footer: 'Each card’s contents build when the page opens, as on the Energy page; the cards stay in place. Not with Reduce Motion.' }, [
+        K.toggle({ label: 'Animate Page Loading', on: pg.load_animation, sk: 'weather.page.load_animation',
+                   onChange: function (on) { self.wxPageSet({ load_animation: on }); } })]));
+    }
+    // one key of the page's composition: the whole object goes (the
+    // integration checks it whole)
+    wxPageSet(changes) {
+      return this.setH({ 'weather.page': Object.assign(M.wxPage(this.data.settings), changes) });
+    }
+    radarSet(changes) {
+      this.radarCheckStop();
+      return this.setH({ 'weather.radar_native': Object.assign(M.radarOf(this.data.settings), changes) });
+    }
+    h_weatherForecast(c) {
+      var self = this, pg = M.wxPage(this.data.settings);
+      var tog = function (k, label, sub) {
+        var o = {}; return K.toggle({ label: label, sub: sub, on: pg[k], sk: 'weather.page.' + k,
+                                      onChange: function (on) { o[k] = on; self.wxPageSet(o); } });
+      };
+      var alerts = this.hs('weather.alerts');
+      c.appendChild(K.group({ header: 'Show', footer: 'Weather Alerts appear only while an alert is in effect' +
+          (alerts ? '.' : ', from an Alerts sensor (Optional Readings → Sensors).') }, [
+        tog('show_current', 'Current Conditions'), tog('show_hourly', 'Hourly Forecast'), tog('show_daily', 'Daily Forecast'),
+        tog('show_alerts', 'Weather Alerts', alerts ? null : 'No Alerts sensor chosen')]));
+      c.appendChild(K.group({ header: 'Hourly Forecast', footer: 'Up to this many hours, as many as the weather service gives; they scroll sideways where they don’t fit. ' +
+          'The view it opens on; a reading the service doesn’t give falls back to Temperature.' }, [
+        K.seg({ label: 'Hours', sk: 'weather.page.hours', value: pg.hours, options: M.WX_HOURS,
+                onChange: function (v) { self.wxPageSet({ hours: v }); } }),
+        K.seg({ label: 'Default View', sk: 'weather.page.hourly_metric', value: pg.hourly_metric, options: M.WX_METRICS,
+                onChange: function (v) { self.wxPageSet({ hourly_metric: v }); } })]));
+      c.appendChild(K.group({ header: 'Daily Forecast', footer: 'Only the days the weather service gives — some give fewer.' }, [
+        K.seg({ label: 'Days', sk: 'weather.page.days', value: pg.days, options: M.WX_DAYS,
+                onChange: function (v) { self.wxPageSet({ days: v }); } })]));
+      var label = function (k) { var d = M.WX_DETAILS.filter(function (x) { return x[0] === k; })[0]; return d || [k, k, null]; };
+      c.appendChild(K.listEditor({ fk: 'wxdetails', announce: this.announce.bind(this),
+        rows: pg.details.map(function (k) { var d = label(k); return { value: k, label: d[1], icon: d[2] }; }),
+        more: M.WX_DETAILS.filter(function (d) { return pg.details.indexOf(d[0]) < 0; })
+          .map(function (d) { return { value: d[0], label: d[1], icon: d[2] }; }),
+        shownHeader: 'Details', moreHeader: 'More Details', emptyText: 'No details',
+        shownFooter: 'The tiles under the forecast, in this order. One the weather service doesn’t give says so rather than disappearing.',
+        onChange: function (v) { self.wxPageSet({ details: v }); } }));
+      c.appendChild(K.group({ footer: 'Puts the forecast, the details and the animation back to how they came. The weather service, sensors and radar stay.' }, [
+        K.button({ label: 'Reset Forecast & Details', fk: 'weather.page.reset', destructive: true,
+                   onClick: function () { self.setH({ 'weather.page': JSON.parse(JSON.stringify(M.WX_PAGE_DEFAULTS)) }); } })]));
+    }
+    // THE RADAR MAP (hk-radar.js): HK's own, over OpenStreetMap
+    h_radar(c) {
+      var self = this, r = M.radarOf(this.data.settings), plan = M.radarPlanOf(r, this._hass);
+      var rows = [K.toggle({ label: 'Show Radar', on: r.enabled, sk: 'weather.radar_native.enabled',
+                             onChange: function (on) { self.radarSet({ enabled: on }); } })];
+      var says = r.enabled ? (plan.reason ? M.RADAR_REASONS[plan.reason]
+        : 'Showing ' + M.RADAR_NAMES[plan.provider] + ' radar around ' + plan.place + '.' +
+          (plan.provider === 'noaa' && plan.country && plan.country !== 'US' ? ' NOAA covers the United States only.' : '')) : null;
+      if (r.enabled) {
+        var auto = plan.country ? (plan.country === 'US' ? 'NOAA' : 'RainViewer') : null;
+        rows.push(K.select({ label: 'Radar Provider', sk: 'weather.radar_native.provider', value: r.provider,
+          options: M.RADAR_PROVIDERS.map(function (p) { return p[0] === 'auto' && auto ? ['auto', 'Automatic (' + auto + ')', auto] : p; }),
+          onChange: function (v) { self.radarSet({ provider: v }); } }));
+        rows.push(K.select({ label: 'Base Map', sk: 'weather.radar_native.basemap', value: r.basemap, options: M.RADAR_BASEMAPS,
+          onChange: function (v) { self.radarSet({ basemap: v }); } }));
+        rows.push(K.seg({ label: 'Map Location', sk: 'weather.radar_native.center', value: r.center, options: M.RADAR_CENTERS,
+          onChange: function (v) { self.radarSet({ center: v }); } }));
+        if (r.center === 'zone') {
+          rows.push(this.entityRow({ label: 'Zone', sk: 'weather.radar_native.zone', value: r.zone, none: 'Choose a Zone',
+                                     filter: { domains: ['zone'] }, onPick: function (v) { self.radarSet({ zone: v || null }); } }));
+        }
+        rows.push(K.nav({ label: 'Advanced', value: M.radarAdvancedSummary(r), href: '#/page/weather/radar/advanced', sk: 'weather.radar_native.advanced' }));
+      }
+      c.appendChild(K.group({ footer: r.enabled
+        ? says + ' Loads map and radar imagery for the displayed area from the selected services. Internet access required.'
+        : 'A precipitation radar map on the Weather page, beside the daily forecast. Nothing is loaded while it’s off.' }, rows));
+      if (r.enabled) this.radarCheckGroup(c, r, plan);
+      // the providers: who they are, what they cost, where they reach
+      var link = function (href, text) { return h('a', { href: href, target: '_blank', rel: 'noopener', text: text }); };
+      var about = function (text, href, ltext) {
+        return h('p', { style: 'margin:0 0 6px' }, [h('span', { text: text + ' ' }), h('a', { href: href, target: '_blank', rel: 'noopener', text: ltext })]);
+      };
+      c.appendChild(K.group({ header: 'About the Map', footer: h('div', {}, [
+        about('NOAA (US): the National Weather Service’s MRMS radar, free, for the United States, Alaska, Hawaii and the Caribbean.',
+              'https://www.weather.gov/disclaimer', 'NOAA/NWS terms'),
+        about('RainViewer: worldwide, free for personal use, credited on the map, with no guarantee. Its radar stops at a middling zoom.',
+              'https://www.rainviewer.com/api.html', 'RainViewer terms'),
+        about('The street map is OpenStreetMap’s, whose public tiles are for light personal use, credited on the map.',
+              'https://operations.osmfoundation.org/policies/tiles/', 'Tile usage policy')]) }, []));
+      var legacy = this.hs('weather.radar') || {};
+      if (Object.keys(legacy).length) {
+        var odd = Object.keys(legacy).filter(function (k) { return M.RADAR_LEGACY_MAPPED.indexOf(k) < 0; });
+        c.appendChild(K.group({ header: 'From the Weather Radar Card', footer: odd.length
+          ? odd.length + (odd.length === 1 ? ' option has' : ' options have') + ' no equivalent here and ' + (odd.length === 1 ? 'is' : 'are') + ' kept, unused: ' + odd.join(', ') + '.'
+          : 'Its zoom, radar, map movement and playback options were carried over.' }, [
+          K.nav({ label: 'Weather Radar Card Options', value: String(Object.keys(legacy).length), href: '#/page/weather/radar/yaml', sk: 'weather.radar' })]));
+      }
+      c.appendChild(K.group({ footer: 'Turns the radar off and puts every radar setting back to its default.' }, [
+        K.button({ label: 'Reset Radar', fk: 'weather.radar_native.reset', destructive: true,
+                   onClick: function () { self.radarSet(JSON.parse(JSON.stringify(M.RADAR_DEFAULTS))); } })]));
+    }
+    h_radarAdvanced(c) {
+      var self = this, r = M.radarOf(this.data.settings);
+      var tog = function (k, label, sub) {
+        var o = {}; return K.toggle({ label: label, sub: sub, on: r[k], sk: 'weather.radar_native.' + k,
+                                      onChange: function (on) { o[k] = on; self.radarSet(o); } });
+      };
+      c.appendChild(K.group({ header: 'Map', footer: 'Higher is closer. RainViewer’s radar stops at its own closest level; closer than that the map still zooms and the radar is drawn larger, not sharper.' }, [
+        K.select({ label: 'Initial Zoom', sk: 'weather.radar_native.zoom', value: String(r.zoom),
+                   options: [4, 5, 6, 7, 8, 9, 10].map(function (n) { return [String(n), String(n)]; }),
+                   onChange: function (v) { self.radarSet({ zoom: Number(v) }); } }),
+        tog('marker', r.center === 'zone' ? 'Location Marker' : 'Home Marker'),
+        tog('interactive', 'Move and Zoom Expanded Map', 'The page stays centered on your location. Pan and zoom are available only in the expanded map.'),
+        K.slider({ label: 'Radar Opacity', sk: 'weather.radar_native.opacity', value: r.opacity, min: 20, max: 100, step: 5, unit: '%',
+                   onChange: function (v) { self.radarSet({ opacity: v }); } })]));
+      c.appendChild(K.group({ header: 'Playback', footer: 'Only the frames the provider has. Plays automatically on page entry, including in Flat. Reduce Motion waits for a tap, and waking never restarts playback by itself.' }, [
+        K.select({ label: 'History', sk: 'weather.radar_native.history_minutes', value: String(r.history_minutes),
+                   options: M.RADAR_HISTORY.map(function (x) { return [String(x[0]), x[1]]; }),
+                   onChange: function (v) { self.radarSet({ history_minutes: Number(v) }); } }),
+        K.seg({ label: 'Speed', sk: 'weather.radar_native.playback_speed', value: r.playback_speed, options: M.RADAR_SPEEDS,
+                onChange: function (v) { self.radarSet({ playback_speed: v }); } }),
+        tog('autoplay', 'Play on Open'),
+        K.info({ label: 'Playback Controls', value: 'Expanded Map Only', sub: 'The page shows a centered regional view with an expand button. Open it for playback, pan and zoom.' })]));
+    }
+    // the Weather Radar Card's own options, kept from before 1.16: read only
+    h_radarLegacy(c) {
+      var legacy = this.hs('weather.radar') || {};
+      var rows = Object.keys(legacy).map(function (k) {
+        var v = legacy[k], t = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return K.info({ label: k, sub: M.RADAR_LEGACY_MAPPED.indexOf(k) >= 0 ? 'Carried over' : 'No equivalent: unused', value: t.length > 40 ? t.slice(0, 39) + '…' : t });
+      });
+      if (!rows.length) rows.push(K.info({ label: 'Options', value: 'None' }));
+      c.appendChild(K.group({ footer: 'The Weather Radar Card’s options from before HK drew its own radar, kept as they were. They no longer change the Weather page; the card itself still works on dashboards of your own.' }, rows));
+    }
+    // CHECK RADAR CONNECTION: on a tap only -- the provider's frames and one
+    // small current image of the map's area -- never in the background.
+    // Stopped by leaving the page or changing a radar setting.
+    radarCheckStop() {
+      if (this._rcheck) { this._rcheck.ctl.abort(); this._rcheck = null; }
+    }
+    radarCheckGroup(c, r, plan) {
+      var self = this, sig = JSON.stringify([r, plan.provider, plan.lat, plan.lon]);
+      var res = this._rcheckRes && this._rcheckRes.sig === sig ? this._rcheckRes : null;
+      var rows = [K.button({ label: this._rcheck ? 'Checking…' : 'Check Radar Connection', fk: 'weather.radar_native.check',
+                             sk: 'weather.radar_native.check', disabled: !!this._rcheck || !!plan.reason,
+                             onClick: function () { self.radarCheck(sig, plan, r); } })];
+      if (res && res.ok) {
+        rows.push(K.info({ label: 'Provider', value: M.RADAR_NAMES[res.provider] }));
+        rows.push(K.info({ label: 'Latest Radar', value: res.latestText }));
+        rows.push(K.info({ label: 'History Available', value: res.framesText }));
+        rows.push(K.info({ label: 'This Area', value: res.coverageText }));
+      } else if (res) rows.push(K.info({ label: 'Couldn’t Connect', sub: res.error }));
+      c.appendChild(K.group({ header: 'Connection', footer: 'Asks the provider for its latest frames and one small image of the map’s area, once.' }, rows));
+    }
+    radarCheck(sig, plan, r) {
+      var self = this, route = location.hash;
+      this.radarCheckStop();
+      var ctl = new AbortController();
+      this._rcheck = { ctl: ctl };
+      var stop = function () { if (location.hash !== route) self.radarCheckStop(); };
+      window.addEventListener('hashchange', stop);
+      this.render();
+      import('/hk/modules/hk-radar.js').then(function () {
+        return window.hkRadar.check(plan, r, ctl.signal);
+      }).then(function (got) { return got; }, function (e) {
+        return { ok: false, error: (e && e.name === 'AbortError') ? null : String((e && e.message) || e) };
+      }).then(function (got) {
+        window.removeEventListener('hashchange', stop);
+        if (ctl.signal.aborted || !got || got.error === null) return;
+        self._rcheck = null;
+        self._rcheckRes = Object.assign({ sig: sig }, got);
+        if (location.hash === route) self.render();
+      });
     }
     // THE CALENDARS the Calendar page and the screensaver's calendar pane
     // show: every calendar, A to Z (automatic), or the ones chosen, in order;
@@ -4481,13 +5064,60 @@
       var i = shown.indexOf(id);
       return { key: M.CAL_COLORS[(i < 0 ? 0 : i) % M.CAL_COLORS.length], auto: true };
     }
+    // ALL SCREENS -> NOW PLAYING: a side pane (the screensaver's music pane)
+    // or the bar on tablets & computers, the bar on phones (hk-base.js
+    // nowPlaying, hk-popup.js placeFor). Each screen may choose its own
+    // (its Behavior rows, np_*).
+    h_nowPlaying(c) {
+      var self = this, np = this.npHouse(), wide = this.hasAttribute('wide');
+      var set = function (k, v) { var o = {}; o['now_playing.' + k] = v; self.setH(o); };
+      var rows = [K.seg({ label: 'Show As', sk: 'now_playing.style', value: np.style, options: M.NP_STYLES,
+                          onChange: function (v) { set('style', v); } })];
+      if (np.style === 'pane') {
+        rows.push(K.seg({ label: 'Pane Side', sk: 'now_playing.side', value: np.side, options: M.NP_SIDES,
+                          onChange: function (v) { set('side', v); } }));
+        rows.push(K.info({ label: 'Too Narrow for the Pane', sub: 'Held upright, or too narrow beside the page', value: 'Use the Bar',
+                           sk: 'now_playing.narrow' }));
+      } else {
+        rows.push(K.seg({ label: 'Bar Position', sk: 'now_playing.bar', value: np.bar, options: M.NP_BARS,
+                          onChange: function (v) { set('bar', v); } }));
+      }
+      var gl = M.choiceLabel(M.NP_GRACES, np.grace).toLowerCase();
+      c.appendChild(K.group({ header: 'Tablets & Computers', footer: np.style === 'pane'
+        ? 'The pane slides in when music starts and leaves ' + gl + ' after it’s paused or stops. The page fits itself into the width that’s left.'
+        : 'The bar slides in when music starts and leaves ' + gl + ' after it’s paused or stops.' }, rows));
+      c.appendChild(K.group({ header: 'Phones', footer: 'Phones always use the bar. A pane would leave no room for the page.' }, [
+        K.seg({ label: 'Bar Position', sk: 'now_playing.bar_phone', value: np.bar_phone, options: M.NP_BARS,
+                onChange: function (v) { set('bar_phone', v); } })]));
+      // HIDE AFTER A PAUSE: the bar, the pane and the screensaver's music,
+      // held longer while somebody is using it
+      c.appendChild(K.group({ header: 'Paused or Stopped', footer: 'How long Now Playing stays once the music is paused or stops — ' +
+          'the bar, the pane and the screensaver’s music alike. While someone is using it (Speakers or Browse open, a tap on it), ' +
+          'it stays, and waits this long again after.' }, [
+        K.select({ label: 'Hide After', sk: 'now_playing.grace', value: String(np.grace),
+                   options: M.NP_GRACES.map(function (g) { return [String(g[0]), g[1]]; }),
+                   onChange: function (v) { set('grace', Number(v)); } })]));
+      // the screens that choose their own, as other Same as All Screens pages list them
+      var own = [], bd = this.data.boards || {};
+      Object.keys(bd).forEach(function (pth) {
+        var b = bd[pth] || {};
+        if (b.np_style || b.np_side || b.np_bar || b.np_bar_phone) own.push(K.nav({ label: (self.dash(pth) || {}).title || pth, value: M.npSummary(b, np),
+          href: '#/screens/' + encodeURIComponent(pth), sk: 'np:screen:' + pth }));
+      });
+      if (own.length) c.appendChild(K.group({ header: 'Screens With Their Own', footer: 'These screens choose their own under Behavior.' }, own));
+      void wide;
+    }
+    npHouse() {
+      return Object.assign({ style: 'bar', side: 'right', bar: 'bottom', bar_phone: 'bottom', grace: 30 }, (this.data.settings || {}).now_playing || {});
+    }
+
     h_calendar(c) {
       var self = this, mine = this.hs('calendar.entities') || [], all = this.calIds();
       var auto = !mine.length, shown = auto ? all : mine;
       var set = function (v) { self.setH({ 'calendar.entities': v }); };
       var row = function (id) {
         var col = self.calColor(id, shown);
-        return { value: id, label: self.name(id), href: '#/house/calendar/' + id,
+        return { value: id, label: self.name(id), href: '#/page/calendar/' + id,
                  value2: col.auto ? 'Automatic (' + M.colorLabel(col.key) + ')' : M.colorLabel(col.key) };
       };
       if (!all.length) {
@@ -4507,6 +5137,34 @@
               .map(function (id) { return { value: id, label: self.name(id), sub: id }; }); },
             onPick: function (id) { if (id) set(mine.concat(id)); } }));
         } }));
+      this.h_calendarKeywords(c);
+    }
+    // COLORS BY KEYWORD (2026-10-16): an event whose title has the word
+    // ("Doctor", "Emma") takes its color, the first that matches; an
+    // event's own color, picked on its sheet, wins over them
+    h_calendarKeywords(c) {
+      var self = this, list = (this.hs('calendar.keywords') || []).slice();
+      var save = function (next) { self.setH({ 'calendar.keywords': next }); };
+      var opts = M.PILL_COLORS.map(function (k) { return [k, M.colorLabel(k)]; }).concat([['__remove', 'Remove']]);
+      var rows = list.map(function (k, i) {
+        return K.select({ label: k.word, sk: 'calendar.keywords', fk: 'kw:' + i, value: k.color, options: opts,
+          onChange: function (v) {
+            var next = list.slice();
+            if (v === '__remove') next.splice(i, 1); else next[i] = { word: k.word, color: v };
+            save(next);
+          } });
+      });
+      rows.push(K.text({ label: 'Add a Keyword', sk: 'calendar.keywords', fk: 'kw:add', value: '', placeholder: 'Doctor',
+        error: this.err('calendar.keywords'),
+        onCommit: function (t) {
+          var w = String(t || '').trim();
+          if (!w || list.some(function (k) { return k.word.toLowerCase() === w.toLowerCase(); })) return;
+          var used = list.map(function (k) { return k.color; });
+          var col = M.PILL_COLORS.filter(function (k) { return k !== 'white' && used.indexOf(k) < 0; })[0] || 'red';
+          save(list.concat([{ word: w, color: col }]));
+        } }));
+      c.appendChild(K.group({ header: 'Colors by Keyword', footer: 'An event with one of these words in its name takes its color — the first that matches, in any case. ' +
+          'Tap an event on the Calendar page to give it a color of its own.' }, rows));
     }
     h_calendarOne(c, id) {
       var self = this, mine = this.hs('calendar.entities') || [], shown = mine.length ? mine : this.calIds();
@@ -4546,12 +5204,13 @@
     }
     h_appearance(c) {
       var self = this, look = this.data.settings.look, boards = this.data.boards;
-      var own = Object.keys(boards).filter(function (p) { return boards[p].glass && boards[p].glass !== 'house'; });
+      var own = Object.keys(boards).filter(function (p) { return M.glassOf(boards[p], look).own; });
+      var style = look.flat === true ? 'flat' : look.glass;
       // THE STYLE'S OWN SETTINGS ONLY (2026-10-09): Frost and Tint from
       // Background with Frosted, Blur with the blurs -- as a screen's page
       // shows them. A screen with a style of its own sets them there.
-      var rows = [K.nav({ label: 'Glass Style', value: M.glassLabel(look.glass), href: '#/house/appearance/glass', sk: 'look.glass' })];
-      rows = rows.concat(this.glassRows(look.glass, {
+      var rows = [K.nav({ label: 'Appearance Style', value: M.glassLabel(style), href: '#/house/appearance/glass', sk: 'look.glass' })];
+      rows = rows.concat(this.glassRows(style, {
         frost: { value: look.frost, onChange: function (v) { self.setH({ 'look.frost': v }); } },
         tint: { on: !!look.frost_tint, onChange: function (on) { self.setH({ 'look.frost_tint': on }); } },
         blur: { value: look.blur, onChange: function (v) { self.setH({ 'look.blur': v }); } },
@@ -4559,14 +5218,22 @@
         well: { value: look.well || 'dark', onChange: function (v) { self.setH({ 'look.well': v }); } }
       }, 'look.'));
       var names = own.map(function (p) { var x = self.dash(p); return x ? x.title : p; });
-      c.appendChild(K.group({ header: 'Glass', footer: M.glassFooter(look.glass) +
+      if (style === 'flat') rows = rows.concat(this.flatThemeRows(null, look, null));
+      // FLAT COLORS: while All Screens wears Flat -- or any screen does, as
+      // the colors those screens inherit
+      var hsc = this.flatScope('house');
+      if (style === 'flat' || this.flatAnywhere()) rows.push(this.flatColorsNav(hsc, { sub: style === 'flat' ? null : 'For Screens Using Flat' }));
+      var hseed = style === 'flat' && hsc.resolved().accent.value !== 'auto';
+      rows.push(K.nav({ label: 'Highlight Color', value: M.accentOf((this.data.settings.menu || {}).accent).name, href: '#/house/menu/accent', sk: 'menu.accent',
+                        sub: hseed ? 'In Flat, the Accent Color' : null }));
+      rows.push(K.nav({ label: 'Sky / Background', href: '#/house/sky', sk: 'sky.background' }));
+      c.appendChild(K.group({ header: 'Appearance', footer: M.glassFooter(style) +
         (names.length ? ' ' + names.join(', ') + (names.length > 1 ? ' choose their own.' : ' chooses its own.') : '') }, rows));
       // PAGE PILLS (2026-10-09: edited inside a screen's Scenes before,
       // though every screen shares them)
       var pills = this.hs('look.page_pills') || {};
-      c.appendChild(K.group({ header: 'Page Pills', footer: 'The pills in a screen’s Scenes row that open a page. Their name, icon and color are the same on every screen.' }, [
-        K.nav({ label: 'Page Pills', value: Object.keys(pills).length ? Object.keys(pills).length + ' Customized' : 'Default',
-                href: '#/house/appearance/pills', sk: 'look.page_pills' })]));
+      // (each page's pill is on its own page, Pages -> the page -> Its Pill
+      // on Home, since 2026-10-16; Page Pills lists them all, from search)
     }
     // EVERY PAGE PILL, each a way to its look
     h_pills(c) {
@@ -4575,7 +5242,7 @@
         Object.keys(M.PAGE_PILL_DEFAULTS).map(function (k) {
           var d = M.PAGE_PILL_DEFAULTS[k], own = pills[k] || {};
           return K.nav({ label: own.name || d[0], sub: own.name ? d[0] : null, icon: own.icon || d[1],
-                         value: Object.keys(own).length ? 'Customized' : '', href: '#/house/appearance/pill/' + k, fk: 'pill:' + k });
+                         value: Object.keys(own).length ? 'Customized' : '', href: '#/page/' + k + '/pill', fk: 'pill:' + k });
         })));
     }
     // THE ROWS UNDER GLASS STYLE, the same on All Screens' Appearance and a
@@ -4613,13 +5280,35 @@
       }
       return rows;
     }
+    flatThemeRows(b, look, path) {
+      var self = this, own = b && (b.flat_theme === 'light' || b.flat_theme === 'dark');
+      var house = look.flat_theme === 'light' ? 'light' : 'dark';
+      var rows = [K.seg({ label: 'Theme', sk: b ? 'b:flat_theme' : 'look.flat_theme',
+        value: own ? b.flat_theme : house, options: [['light', 'Light'], ['dark', 'Dark']],
+        sub: b ? (own ? 'Just This Screen' : 'Same as All Screens') : null,
+        onChange: function (v) { if (b) self.setB(path, { flat_theme: v }); else self.setH({ 'look.flat_theme': v }); } })];
+      if (own) rows.push(K.button({ label: 'Reset Theme to All Screens', sk: 'b:flat_theme:reset',
+        onClick: function () { self.setB(path, { flat_theme: null }); } }));
+      return rows;
+    }
     h_glass(c) {
       var self = this, look = this.data.settings.look;
-      this.glassChoices(c, look.glass || 'clear', 'blur', function (v) { self.setH({ 'look.glass': v }); }, 'hglass:');
+      this.glassChoices(c, look.flat === true ? 'flat' : look.glass || 'clear', 'blur', function (v) {
+        self.setH(v === 'flat' ? { 'look.flat': true } : { 'look.flat': false, 'look.glass': v });
+      }, 'hglass:');
       c.appendChild(K.group({ footer: 'Each screen can choose its own under its Appearance.' }, []));
     }
     h_sky(c) {
       var self = this, sky = this.data.settings.sky, look = this.data.settings.look;
+      if (look.flat === true) { this.flatSky(c, null, null, '#/house/sky'); return; }
+      // a screen in Flat while All Screens isn't: All Screens' Flat
+      // backgrounds, which it follows, a tap away
+      var flatOnes = Object.keys(this.data.boards || {}).filter(function (p) { return self.flatHere(self.data.boards[p]); });
+      if (flatOnes.length) {
+        c.appendChild(K.group({ footer: flatOnes.map(function (p) { var d = self.dash(p); return d ? d.title : p; }).join(', ') +
+            (flatOnes.length > 1 ? ' wear' : ' wears') + ' Flat, which has backgrounds of its own.' }, [
+          K.nav({ label: 'Flat Backgrounds', value: this.flatSummary(null), href: '#/house/sky/flat', sk: 'sky.flat_background' })]));
+      }
       // THE BACKGROUND FIRST (2026-10-13): Live Sky, a still Color or a
       // Photo -- and below it only what that one needs. Before, a solid color
       // took turning off Animations, Weather, Rain & Snow and setting a
@@ -4744,7 +5433,7 @@
             var ch = { sky: true, sky_liveliness_occ: {}, sky_liveliness_custom: {}, sky_calm_empty: false };
             ['sky_background', 'sky_color', 'sky_landscape', 'sky_photo_look', 'sky_landscape_look', 'sky_animations', 'sky_focus_pause',
              'sky_moving', 'sky_weather', 'sky_precipitation', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_decorations',
-             'sky_decoration_style', 'sky_liveliness'].forEach(function (k) { ch[k] = null; });
+             'sky_decoration_style', 'sky_liveliness', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light', 'sky_flat_image_look'].forEach(function (k) { ch[k] = null; });
             self.setB(x.path, ch);
           });
         } })]));
@@ -5138,7 +5827,8 @@
       var keys;
       if (only && only.keys.length) keys = only.keys.slice();
       else {
-        keys = (d.page_kinds || []).filter(function (k) { return (k !== 'energy' || energyOn) && (k !== 'power' || powerOn); });
+        var dwOff = this.dwInSecurity(b);
+        keys = (d.page_kinds || []).filter(function (k) { return (k !== 'energy' || energyOn) && (k !== 'power' || powerOn) && (k !== 'doors_windows' || !dwOff); });
         Object.keys(custom).forEach(function (k) {
           if (!b || (b.custom_pages || []).indexOf(k) >= 0 || (b.only_pages || []).indexOf(k) >= 0) keys.push(k);
         });
@@ -5157,6 +5847,7 @@
     }
     s_sky(c, x, b) {
       var self = this, sky = this.data.settings.sky, rows = [];
+      if (this.flatHere(b)) { this.flatSky(c, x, b, '#/screens/' + encodeURIComponent(x.path) + '/sky'); return; }
       // WHAT THESE SETTINGS REACH: the live sky only -- Home, the room pages
       // and any page set to Live Sky or a backdrop. A page screen whose pages
       // keep their own color shows none of it; say so, and the way to change it.
@@ -5457,13 +6148,665 @@
       var self = this, bds = (this.data.choices || {}).sky_backdrops || [];
       var pk = this.skyPageKeys(b);
       var base = b ? '#/screens/' + encodeURIComponent(x.path) + '/sky/page/' : '#/house/sky/page/';
+      // ALL SCREENS': a page under Pages has its background there (its Look),
+      // since 2026-10-16 -- here are the rest: Room Pages, custom pages
+      var rows = b ? pk.rows : pk.rows.filter(function (r) { return !M.pageOf(r.key); });
+      if (!rows.length) return;
       c.appendChild(K.group({ header: header || 'Pages', sk: b ? 'b:sky_pages' : 'sky.pages', footer: 'Each page’s background: Automatic (its own color, or the Background above), the Live Sky, a still Color, or a Photo.' +
-          (b ? ' A page left alone follows All Screens.' : ' Each screen can choose its own.') },
-        pk.rows.map(function (r) {
+          (b ? ' A page left alone follows All Screens.' : ' Each screen can choose its own. Climate, Lights and the other pages have theirs under Pages.') },
+        rows.map(function (r) {
           var n = self.skyPageNow(r, b);
           return K.nav({ label: r.label, sub: r.custom ? 'Custom page' : null, value: n.mode ? M.skyModeLabel(n.mode, bds) : M.skyAutoLabel(r),
                          href: base + encodeURIComponent(r.key), sk: (b ? 'b:sky_pages:' : 'sky.pages:') + r.key });
         })));
+    }
+    // FLAT'S BACKGROUNDS (2026-10-16; settings.py FLAT_BACKGROUNDS). Flat
+    // draws no live sky, so while a screen wears it, Sky / Background is
+    // Flat's own page: a Color (Automatic, a tone that follows Light and
+    // Dark, or your own), a Photo or Landscapes, how far a photo fades, and
+    // each page's. The Glass looks' Sky / Background is kept for when Flat
+    // is left. b null: All Screens'.
+    flatHere(b) {
+      var look = this.data.settings.look || {};
+      return b ? M.glassOf(b, look).effective === 'flat' : look.flat === true;
+    }
+    flatTheme(b) {
+      var look = this.data.settings.look || {};
+      var t = b && (b.flat_theme === 'light' || b.flat_theme === 'dark') ? b.flat_theme : look.flat_theme;
+      return t === 'light' ? 'light' : 'dark';
+    }
+    flatColors() { return (this.data.choices || {}).flat_colors || []; }
+    // a color's name in this theme (Black is Pebble in Light)
+    flatColorLabel(id, theme) {
+      if (!id || id === 'auto') return 'Automatic';
+      if (/^#/.test(id)) return 'Your Own Color';
+      var p = this.flatColors().filter(function (x) { return x.id === id; })[0];
+      return p ? (theme === 'light' && p.light_label) || p.label : id;
+    }
+    flatModeLabel(mode, theme) {
+      return mode === 'photo' ? 'Photo' : mode === 'landscapes' ? 'Landscapes' : this.flatColorLabel(mode, theme);
+    }
+    // a page's Flat background now: {mode (its own, else All Screens'), own}
+    flatPageNow(row, b) {
+      var all = this.data.settings.sky.flat_pages || {}, mine = b ? (b.sky_flat_pages || {})[row.key] : all[row.key];
+      return { mode: mine || all[row.key] || null, own: !!mine };
+    }
+    // (a page left alone says Automatic, whatever Automatic is for it)
+    flatAutoLabel(row) { return 'Automatic'; }
+    // a page's background in a word, whichever look the screen wears
+    skyPageLabel(row, b) {
+      if (this.flatHere(b)) { var f = this.flatPageNow(row, b); return f.mode ? this.flatModeLabel(f.mode, this.flatTheme(b)) : this.flatAutoLabel(row); }
+      var n = this.skyPageNow(row, b), bds = (this.data.choices || {}).sky_backdrops || [];
+      return n.mode ? M.skyModeLabel(n.mode, bds) : M.skyAutoLabel(row);
+    }
+    // the screen's (or All Screens') Flat background in a few words
+    flatSummary(b) {
+      var sky = this.data.settings.sky;
+      var bg = (b && b.sky_flat_background) || sky.flat_background || 'color';
+      return bg === 'color' ? this.flatColorLabel((b && b.sky_flat_color) || sky.flat_color || 'auto', this.flatTheme(b)) : M.BG_LABELS[bg];
+    }
+    // the store for Flat's keys: a screen's sky_flat_* / sky_page_photos, or
+    // All Screens' sky.flat_* / sky.page_photos
+    flatPut(x, b) {
+      var self = this;
+      return function (ch) {
+        if (b) return self.setB(x.path, ch);
+        var o = {};
+        Object.keys(ch).forEach(function (k) { o['sky.' + k.replace(/^sky_/, '')] = ch[k]; });
+        return self.setH(o);
+      };
+    }
+    // THE COLORS: the theme's tone of each, then your own. o = { id (own,
+    // or null following), follow ([label, id] or null), auto (offer
+    // Automatic), theme, onPick(id | null), fk }
+    flatColorGroup(c, o) {
+      var self = this, rows = [], light = o.theme === 'light';
+      var tone = function (id) {
+        if (/^#/.test(id || '')) return id;
+        var p = self.flatColors().filter(function (x) { return x.id === id; })[0] || self.flatColors()[0];
+        return p ? p[light ? 'light' : 'dark'] : (light ? '#EEECE6' : '#17181A');
+      };
+      if (o.follow) rows.push(K.check({ label: o.follow[0], sub: 'Now ' + this.flatColorLabel(o.follow[1], o.theme), on: !o.id, fk: o.fk + 'follow',
+                                        onClick: function () { o.onPick(null); } }));
+      if (o.auto) rows.push(K.check({ label: 'Automatic', sub: 'Stone here; Climate, Lights, Security, Calendar and Weather each in a tone of their own',
+                                      on: o.id === 'auto', fk: o.fk + 'auto', tile: ['mdi:auto-fix', tone('stone')], onClick: function () { o.onPick('auto'); } }));
+      this.flatColors().forEach(function (p) {
+        rows.push(K.check({ label: (light && p.light_label) || p.label, tile: ['', p[light ? 'light' : 'dark']], on: o.id === p.id, fk: o.fk + p.id,
+                            onClick: function () { o.onPick(p.id); } }));
+      });
+      var own = /^#/.test(o.id || '');
+      var row = K.text({ label: 'Your Own Color', sub: own ? o.id : 'Pick any color. It stays the same in Light and Dark.', type: 'color', fk: o.fk + 'custom',
+                         value: own ? o.id : tone(o.id || 'stone'), onCommit: function (t) { if (/^#[0-9a-f]{6}$/i.test(t)) o.onPick(t.toUpperCase()); } });
+      var inp = row.querySelector('input');
+      if (inp) {
+        inp.style.cssText = 'flex:none;width:44px;height:30px;padding:0;border-radius:8px;cursor:pointer';
+        inp.addEventListener('change', function () { if (/^#[0-9a-f]{6}$/i.test(inp.value)) o.onPick(inp.value.toUpperCase()); });
+      }
+      if (own) row.classList.add('on');
+      rows.push(row);
+      c.appendChild(K.group({ header: o.header || 'Color', footer: 'Shown in their ' + (light ? 'Light' : 'Dark') + ' tones: each color has a Light and a Dark tone, and follows the Theme under Appearance. Solid, with nothing drawn on it.' }, rows));
+    }
+    // One editor and resolver for house, screen, page, and room image looks.
+    // Opening writes nothing; patches preserve unrelated fields in the store.
+    flatImageGroup(c, x, b, key) {
+      var self = this, I = window.hkFlatImage, sky = this.data.settings.sky || {};
+      if (!I) return 'legacy';
+      var keys = key ? (/^room-/.test(key) ? [key, 'rooms'] : [key]) : [];
+      var resolved = I.resolve(sky, b, keys), look = resolved.value;
+      var field = key ? 'sky_flat_page_image_looks.' + key : 'sky_flat_image_look';
+      var path = b ? field : 'sky.' + field.replace(/^sky_/, '');
+      var own = key ? ((b ? b.sky_flat_page_image_looks : sky.flat_page_image_looks) || {})[key] || {}
+                    : (b ? b.sky_flat_image_look : sky.flat_image_look) || {};
+      var patchPath = key ? path : path + '.patch';
+      var patch = function (value) { var ch = {}; ch[patchPath] = value; return b ? self.setB(x.path, ch) : self.setH(ch); };
+      var source = function (name) { return M.flatSourceLabel(resolved.from[name]) || 'Built-in Default'; };
+      var labels = { legacy: 'Previous Look', original: 'Original', soft: 'Soft', balanced: 'Balanced', rich: 'Rich', washed: 'Washed', custom: 'Custom' };
+      var notes = { original: 'Keep the photograph’s colors.', soft: 'Quiet color and gentle shadows.', balanced: 'Clear scenery with a moderate tint.', rich: 'Deeper shadows and richer color.', washed: 'A faint backdrop behind the cards.' };
+      var active = I.preset(look);
+      var legacyTint = (b && b.sky_flat_tint) || sky.flat_tint || 'none';
+      var choose = function (name) {
+        var v = name === 'original' || name === 'legacy' ? { mode: name } : Object.assign({}, I.presets[name]);
+        if (resolved.from.color.scope === 'default' && /^#/.test(legacyTint)) v.color = legacyTint;
+        patch(v);
+      };
+      var rows = [K.select({ label: 'Image Look', sub: labels[active] + ' · ' + source('mode'), sk: path, fk: 'fi:look', value: active,
+        options: Object.keys(labels).map(function (name) { return [name, labels[name]]; }),
+        onChange: function (name) { if (name !== 'custom') choose(name); } })];
+      if (Object.keys(own).length) rows.push(K.button({ label: key || b ? 'Use Inherited Image Settings' : 'Reset Image Settings', fk: 'fi:reset', onClick: function () { patch(null); } }));
+      c.appendChild(this.withError(K.group({ header: 'Image Look', footer: look.mode === 'legacy'
+        ? 'Your previous appearance is kept. Choose a look below to use the new tint controls.'
+        : 'Choose a starting point, then Adjust if you want. A look keeps your image and color choice. Page choices take priority over general screen settings.' }, rows), patchPath));
+
+      var palette = M.flatColorsOf(this.data.settings.look || {}, b, keys);
+      var seed = M.flatColorHex(palette.accent.value);
+      var menuAccent = b && b.menu_custom ? b.accent : (this.data.settings.menu || {}).accent;
+      var legacyAccent = menuAccent === 'auto' ? M.pageAccentOf(key || 'home', (this.data.settings.look || {}).page_accents).a.hex : M.accentOf(menuAccent).hex;
+      var color = look.color === 'accent' ? seed || legacyAccent : look.color;
+      var theme = this.flatTheme(b), list = this.landscapes() || [];
+      var landscape = M.landscapeFile((b && b.sky_landscape) || sky.landscape || 'every:1440', list);
+      var photos = b && b.sky_page_photos || {}, housePhotos = sky.page_photos || {};
+      var pageMode = null, photo = null;
+      keys.some(function (k) { pageMode = (b && b.sky_flat_pages || {})[k] || (sky.flat_pages || {})[k]; return !!pageMode; });
+      keys.some(function (k) { photo = photos[k] || housePhotos[k]; return !!photo; });
+      var mode = pageMode && pageMode !== 'auto' ? pageMode : key && FLAT_OWN[key] ? 'color' : (b && b.sky_flat_background) || sky.flat_background || 'color';
+      var src = mode === 'photo' ? photo || (b && b.sky_photo) || sky.photo : null;
+      var example = mode !== 'landscapes' && !src;
+      if (!src && landscape) src = '/hk/landscapes/' + landscape;
+      var image = new Image(), paints = [];
+      function addPreview(canvas, style, overlay) {
+        paints.push(function () {
+          if (!canvas.isConnected) return;
+          try {
+            I.paint(canvas, image, style, style.color === 'accent' ? seed || legacyAccent : style.color, canvas.className === 'flat-image-thumb' ? 180 : 640);
+            if (overlay) overlay.style.background = I.fade(style.fade, theme);
+            canvas.style.opacity = '1';
+          } catch (e) { canvas.style.opacity = '0'; }
+        });
+      }
+      var presetRows = Object.keys(notes).map(function (name) {
+        var button = K.check({ label: labels[name], sub: notes[name], on: active === name, fk: 'fi:' + name, onClick: function () { choose(name); } });
+        var box = h('span', { class: 'flat-image-mini', 'aria-hidden': 'true' });
+        var cv = h('canvas', { class: 'flat-image-thumb' }), wash = h('span', { class: 'flat-image-wash' });
+        box.appendChild(cv); box.appendChild(wash); button.insertBefore(box, button.firstChild);
+        var style = Object.assign({}, look, name === 'original' ? { mode: 'original' } : I.presets[name]);
+        addPreview(cv, style, wash); return button;
+      });
+      c.appendChild(K.group({ header: 'Starting Points' }, presetRows));
+      if (look.mode !== 'legacy') {
+        var preview = h('div', { class: 'cell photoprev' }), frame = h('div', { class: 'flat-image-preview' });
+        frame.setAttribute('data-source', src || '');
+        var canvas = h('canvas', { 'aria-label': 'Image look preview', role: 'img' }), overlay = h('span', { class: 'flat-image-wash' });
+        frame.appendChild(canvas); frame.appendChild(overlay); preview.appendChild(frame);
+        preview.appendChild(h('small', { text: src ? (example ? 'Sample landscape · choose Photo or Landscapes to use this look.' : 'Preview · ' + (key || (x && x.title) || 'All Screens')) : 'Choose a photo or landscape to preview the look.' }));
+        var previewLook = Object.assign({}, look); addPreview(canvas, previewLook, overlay);
+        var colorRows = [preview];
+        if (look.mode === 'tinted') {
+          colorRows.push(K.seg({ label: 'Color', sub: source('color'), value: look.color === 'accent' ? 'accent' : 'own', sk: path + ':color',
+            options: [['accent', 'Match Accent'], ['own', 'Your Own Color']], onChange: function (v) { patch({ color: v === 'accent' ? 'accent' : color }); } }));
+          if (look.color !== 'accent') {
+            var cr = K.text({ label: 'Tint Color', type: 'color', fk: 'fi:color', value: look.color, onCommit: function (v) { patch({ color: v }); } });
+            var input = cr.querySelector('input'); input.addEventListener('change', function () { patch({ color: input.value }); }); colorRows.push(cr);
+          }
+          if (own.color != null) colorRows.push(K.button({ label: 'Use Inherited Color', onClick: function () { patch({ color: null }); } }));
+        }
+        c.appendChild(K.group({ footer: 'Match Accent follows this page’s effective accent. Your Own Color stays independent.' }, colorRows));
+        var adjustId = path + ':' + (x && x.path || 'house');
+        this._flatImageAdjust = this._flatImageAdjust || {};
+        var details = h('details', { class: 'flat-image-adjust' }); details.open = !!this._flatImageAdjust[adjustId];
+        details.appendChild(h('summary', { class: 'cell', text: 'Adjust' }));
+        details.addEventListener('toggle', function () { self._flatImageAdjust[adjustId] = details.open; });
+        var sliders = [], fields = look.mode === 'tinted' ? ['strength', 'depth', 'brightness', 'fade'] : ['brightness', 'fade'];
+        var help = { strength: 'Grayscale to full color', depth: 'Soft shadows to richer neighboring hues', brightness: 'Lighten or darken the image’s midtones', fade: 'Soften the image behind the cards' };
+        fields.forEach(function (name) {
+          var title = name.charAt(0).toUpperCase() + name.slice(1), says;
+          if (name === 'brightness') { says = []; for (var n = -50; n <= 50; n++) says.push(n > 0 ? '+' + n : String(n)); }
+          var row = K.slider({ label: title, sub: help[name] + ' · ' + source(name), sk: path + ':' + name, value: look[name], min: name === 'brightness' ? -50 : 0,
+            max: name === 'brightness' ? 50 : 100, step: 5, labels: says, unit: name === 'brightness' ? '' : '%',
+            onChange: function (v) { self._flatImageAdjust[adjustId] = details.open; var change = {}; change[name] = v; patch(change); } });
+          if (says) { var out = row.querySelector('.val'); if (out) out.textContent = look[name] > 0 ? '+' + look[name] : String(look[name]); }
+          row.querySelector('input').addEventListener('input', function (e) {
+            previewLook[name] = +e.target.value; if (image.complete && image.naturalWidth) paints[paints.length - 1]();
+          });
+          sliders.push(row);
+          if (own[name] != null) sliders.push(K.button({ label: 'Use Inherited ' + title, onClick: function () { var v = {}; v[name] = null; patch(v); } }));
+        });
+        details.appendChild(K.group({ footer: 'Strength, Depth, Brightness, and Fade are independent. Adjusting a preset makes it Custom.' }, sliders)); c.appendChild(details);
+      }
+      image.onload = function () { paints.forEach(function (paint) { paint(); }); };
+      image.onerror = function () { if (preview) { var note = preview.querySelector('small'); if (note) note.textContent = 'The image could not be loaded. Your look is kept.'; } };
+      if (src) image.src = src;
+      return look.mode;
+    }
+    // THE FADE over a photo: the theme's ground washed over it, so the
+    // cards stay easy to read. o = { value, house (a screen's: All Screens'),
+    // own, onSet(v | null), sk }
+    flatFadeGroup(c, o) {
+      var self = this;
+      var rows = [K.slider({ label: 'Fade', sub: o.house === undefined ? null : (o.own ? 'Just This Screen' : 'Same as All Screens'), sk: o.sk,
+                             value: o.value, min: 0, max: 100, step: 5, unit: '%', onChange: function (v) { o.onSet(v); } })];
+      if (o.own) rows.push(K.button({ label: 'Reset to All Screens (' + o.house + '%)', sk: o.sk + ':reset', onClick: function () { o.onSet(null); } }));
+      // TINT (2026-10-17, the user): the color the fade leans to -- none
+      // (the theme's own), the page's accent, or one of your own
+      var t = o.tint, tv = t.value || 'none', own = /^#/.test(tv);
+      rows.push(K.seg({ label: 'Tint', sub: t.house === undefined ? null : (t.own ? 'Just This Screen' : 'Same as All Screens'), sk: t.sk,
+        value: own ? 'own' : tv, options: [['none', 'None'], ['accent', 'Match Accent'], ['own', 'Your Own']], stack: !this.hasAttribute('wide'),
+        onChange: function (v) { t.onSet(v === 'own' ? (own ? tv : '#7e9b83') : v); } }));
+      if (own) {
+        var row = K.text({ label: 'Tint Color', sub: tv.toUpperCase(), type: 'color', fk: t.sk + ':color', value: tv,
+                           onCommit: function (x) { if (/^#[0-9a-f]{6}$/i.test(x)) t.onSet(x.toLowerCase()); } });
+        var inp = row.querySelector('input');
+        if (inp) {
+          inp.style.cssText = 'flex:none;width:44px;height:30px;padding:0;border-radius:8px;cursor:pointer';
+          inp.addEventListener('change', function () { if (/^#[0-9a-f]{6}$/i.test(inp.value)) t.onSet(inp.value.toLowerCase()); });
+        }
+        rows.push(row);
+      }
+      if (t.own) rows.push(K.button({ label: 'Reset Tint to All Screens (' + M.flatTintLabel(t.house) + ')', sk: t.sk + ':reset', onClick: function () { t.onSet(null); } }));
+      // ...and how strong (2026-10-17, the user: a light one, or a strong one)
+      if (tv !== 'none') {
+        var ta = o.tintAmount;
+        rows.push(K.slider({ label: 'Tint Strength', sub: ta.house === undefined ? null : (ta.own ? 'Just This Screen' : 'Same as All Screens'), sk: ta.sk,
+                             value: ta.value, min: 0, max: 100, step: 5, unit: '%', onChange: function (v) { ta.onSet(v); } }));
+        if (ta.own) rows.push(K.button({ label: 'Reset Strength to All Screens (' + ta.house + '%)', sk: ta.sk + ':reset', onClick: function () { ta.onSet(null); } }));
+        // ...and how bright: stored 0-100, 50 the photo as it is, said -50..+50
+        var tb = o.tintLight, says = [];
+        for (var n = 0; n <= 100; n++) says.push(n === 50 ? '0' : (n > 50 ? '+' : '−') + Math.abs(n - 50));
+        rows.push(K.slider({ label: 'Tint Brightness', sub: tb.house === undefined ? null : (tb.own ? 'Just This Screen' : 'Same as All Screens'), sk: tb.sk,
+                             value: tb.value, min: 0, max: 100, step: 5, labels: says, onChange: function (v) { tb.onSet(v); } }));
+        if (tb.own) rows.push(K.button({ label: 'Reset Brightness to All Screens (' + says[tb.house] + ')', sk: tb.sk + ':reset', onClick: function () { tb.onSet(null); } }));
+      }
+      void self;
+      c.appendChild(this.withError(K.group({ footer: 'How far the background fades behind the cards: Light washes it toward limestone, Dark toward black. 0% shows the photo as taken. ' +
+        'Tint turns the photo to one color, keeping its own light and dark: the page’s accent (its Flat Accent Color, else its own Accent Color), or one of your own. Strength is how far; Brightness lightens or darkens it.' }, rows), o.sk));
+    }
+    flatSky(c, x, b, base) {
+      var self = this, sky = this.data.settings.sky, theme = this.flatTheme(b), put = this.flatPut(x, b);
+      var hMode = sky.flat_background || 'color', own = b ? b.sky_flat_background : null, mode = own || hMode;
+      var bgRows = [K.seg({ label: 'Background', sub: b ? (own ? 'Just This Screen' : 'Same as All Screens') : null, sk: b ? 'b:sky_flat_background' : 'sky.flat_background',
+        value: mode, options: [['color', 'Color'], ['photo', 'Photo'], ['landscapes', 'Landscapes']], stack: !this.hasAttribute('wide'),
+        onChange: function (v) { put({ sky_flat_background: v }); } })];
+      if (own) bgRows.push(K.button({ label: 'Reset to All Screens (' + M.BG_LABELS[hMode] + ')', sk: 'b:sky_flat_background:reset',
+                                      onClick: function () { put({ sky_flat_background: null }); } }));
+      var says = { color: 'A solid color behind the cards.', photo: 'A photo of your own, still, faded behind the cards.',
+                   landscapes: 'One of HK Frontend’s landscape photos, still, faded behind the cards.' };
+      c.appendChild(K.group({ footer: says[mode] + ' Flat shows no Live Sky: its sun, weather and decorations come back with the other looks, as you left them. ' +
+        (b ? 'Each page can choose its own below.' : 'Each screen, and each page, can choose its own.') }, bgRows));
+      if (mode === 'color') {
+        this.flatColorGroup(c, { id: b ? (b.sky_flat_color || null) : (sky.flat_color || 'auto'), follow: b ? ['Same as All Screens', sky.flat_color || 'auto'] : null,
+          auto: true, theme: theme, fk: b ? 'bflat:' : 'hflat:', onPick: function (id) { put({ sky_flat_color: id }); } });
+      }
+      if (mode === 'photo') {
+        this.photoGroup(c, b ? { url: b.sky_photo || null, from: sky.photo || null, fromLabel: 'All Screens’ photo', fk: 'bphoto', sk: 'b:sky_photo',
+                                 footer: 'The same photo the other looks use.',
+                                 onSet: function (url) { var was = b.sky_photo; self.setB(x.path, { sky_photo: url }).then(function (ok) { if (ok) self.photoForget(was); }); } }
+                             : { url: sky.photo || null, fk: 'hphoto', sk: 'sky.photo', footer: 'The same photo the other looks use.',
+                                 onSet: function (url) { var was = sky.photo; self.setH({ 'sky.photo': url }).then(function (ok) { if (ok) self.photoForget(was); }); } });
+      }
+      if (mode === 'landscapes') {
+        this.landscapeGroup(c, b ? { value: b.sky_landscape || null, house: sky.landscape || 'every:1440', fk: 'bland', sk: 'b:sky_landscape', href: base + '/landscape',
+                                     onSet: function (v) { self.setB(x.path, { sky_landscape: v }); } }
+                                 : { value: sky.landscape || 'every:1440', fk: 'hland', sk: 'sky.landscape', href: '#/house/sky/landscape',
+                                     onSet: function (v) { self.setH({ 'sky.landscape': v }); } });
+      }
+      // the fade reaches every photo here -- a page's own too -- so it shows
+      // wherever a photo can be
+      var hFade = sky.flat_fade == null ? 50 : sky.flat_fade, fOwn = !!b && b.sky_flat_fade != null;
+      var hTint = sky.flat_tint || 'none', tOwn = !!b && b.sky_flat_tint != null;
+      var hAmt = sky.flat_tint_amount == null ? 60 : sky.flat_tint_amount, aOwn = !!b && b.sky_flat_tint_amount != null;
+      var hLight = sky.flat_tint_light == null ? 50 : sky.flat_tint_light, lOwn = !!b && b.sky_flat_tint_light != null;
+      if (this.flatImageGroup(c, x, b, null) === 'legacy') this.flatFadeGroup(c, { value: fOwn ? b.sky_flat_fade : hFade, house: b ? hFade : undefined, own: fOwn, sk: b ? 'b:sky_flat_fade' : 'sky.flat_fade',
+                              onSet: function (v) { put({ sky_flat_fade: v }); },
+                              tint: { value: tOwn ? b.sky_flat_tint : hTint, house: b ? hTint : undefined, own: tOwn, sk: b ? 'b:sky_flat_tint' : 'sky.flat_tint',
+                                      onSet: function (v) { put({ sky_flat_tint: v }); } },
+                              tintAmount: { value: aOwn ? b.sky_flat_tint_amount : hAmt, house: b ? hAmt : undefined, own: aOwn,
+                                            sk: b ? 'b:sky_flat_tint_amount' : 'sky.flat_tint_amount', onSet: function (v) { put({ sky_flat_tint_amount: v }); } },
+                              tintLight: { value: lOwn ? b.sky_flat_tint_light : hLight, house: b ? hLight : undefined, own: lOwn,
+                                           sk: b ? 'b:sky_flat_tint_light' : 'sky.flat_tint_light', onSet: function (v) { put({ sky_flat_tint_light: v }); } } });
+      this.flatPagesGroup(c, x, b, base);
+      this.skyResetGroup(c, x, b);
+    }
+    // THE PAGES' Flat backgrounds, a tap away
+    flatPagesGroup(c, x, b, base) {
+      var self = this, rows = this.skyPageKeys(b).rows, theme = this.flatTheme(b);
+      if (!rows.length) return;
+      c.appendChild(K.group({ header: 'Pages', sk: b ? 'b:sky_flat_pages' : 'sky.flat_pages',
+        footer: 'Each page’s background: Automatic (its own tone, or the Background above), a Color, a Photo or Landscapes.' + (b ? ' A page left alone follows All Screens.' : '') },
+        rows.map(function (r) {
+          var n = self.flatPageNow(r, b);
+          return K.nav({ label: r.label, sub: r.custom ? 'Custom page' : null, value: n.mode ? self.flatModeLabel(n.mode, theme) : self.flatAutoLabel(r),
+                         href: base + '/page/' + encodeURIComponent(r.key), sk: (b ? 'b:sky_flat_pages:' : 'sky.flat_pages:') + r.key });
+        })));
+    }
+    // ONE PAGE'S Flat background: Same as All Screens / Room Pages, Automatic,
+    // a Color, a Photo or Landscapes
+    flatPagePicker(c, x, b, r, base) {
+      var self = this, sky = this.data.settings.sky, all = sky.flat_pages || {}, theme = this.flatTheme(b), put = this.flatPut(x, b);
+      var mine = b ? (b.sky_flat_pages || {}) : all, photos = b ? (b.sky_page_photos || {}) : (sky.page_photos || {});
+      var cur = mine[r.key] || '';
+      var isColor = !!cur && cur !== 'auto' && cur !== 'photo' && cur !== 'landscapes';
+      var pick = function (v) {
+        var next = Object.assign({}, mine);
+        if (v) next[r.key] = v; else delete next[r.key];
+        put({ sky_flat_pages: next });
+      };
+      var roomsNow = (b && (b.sky_flat_pages || {}).rooms) || all.rooms;
+      var follow = b && all[r.key] ? ['Same as All Screens', 'Now ' + this.flatModeLabel(all[r.key], theme)]
+                 : r.room ? ['Same as Room Pages', 'Now ' + (roomsNow ? this.flatModeLabel(roomsNow, theme) : 'the screen’s Background')] : null;
+      var autoSays = FLAT_OWN[r.key] ? (M.PAGE_ACCENTS[r.key] ? 'A light or dark shade of its Accent Color (' + M.pageAccentOf(r.key, this.hs('look.page_accents')).a.name + ')' : 'Its own tone, in Light and Dark')
+                                     : 'The screen’s Background (' + this.flatSummary(b) + ')';
+      var rows = [];
+      if (follow) rows.push(K.check({ label: follow[0], sub: follow[1], on: !cur, fk: 'fpbd:' + r.key + ':follow', onClick: function () { pick(''); } }));
+      rows.push(K.check({ label: 'Automatic', sub: autoSays, on: follow ? cur === 'auto' : (!cur || cur === 'auto'), fk: 'fpbd:' + r.key + ':auto',
+                          tile: ['mdi:auto-fix', C.green], onClick: function () { pick(follow ? 'auto' : ''); } }));
+      rows.push(K.check({ label: 'Color', sub: isColor ? this.flatColorLabel(cur, theme) : 'A solid color', on: isColor, fk: 'fpbd:' + r.key + ':color',
+                          tile: ['mdi:palette', C.purple], onClick: function () { if (!isColor) pick((b && b.sky_flat_color && b.sky_flat_color !== 'auto' && b.sky_flat_color) || (sky.flat_color !== 'auto' && sky.flat_color) || 'stone'); } }));
+      rows.push(K.check({ label: 'Photo', sub: photos[r.key] ? 'Its own photo' : 'A photo, still', on: cur === 'photo', fk: 'fpbd:' + r.key + ':photo',
+                          tile: ['mdi:image', C.orange], onClick: function () { pick('photo'); } }));
+      rows.push(K.check({ label: 'Landscapes', sub: 'HK Frontend’s own photos, as ' + (b ? 'the screen' : 'All Screens') + ' has them', on: cur === 'landscapes',
+                          fk: 'fpbd:' + r.key + ':landscapes', tile: ['mdi:image-filter-hdr', C.teal], onClick: function () { pick('landscapes'); } }));
+      c.appendChild(K.group({ footer: 'While Flat is on. A photo here fades as ' + (b ? 'the screen’s' : 'All Screens’') + ' Fade says.' }, rows));
+      // ITS FLAT COLORS, beside its background (the same page key)
+      var fps = this.flatScope(b ? 'screen-page' : 'house-page', x, b, r.key);
+      c.appendChild(K.group({ footer: 'Its Accent Color shades an Automatic background here.' },
+        [this.flatColorsNav(fps, { inherited: b ? 'Same as This Screen' : 'Same as All Screens' })]));
+      if (isColor) this.flatColorGroup(c, { id: cur, theme: theme, fk: 'fpbd:' + r.key + ':', onPick: function (id) { pick(id); } });
+      if (cur === 'photo') {
+        var lvl = (r.room && photos.rooms) || (b ? (b.sky_photo || sky.photo) : sky.photo);
+        this.photoGroup(c, { url: photos[r.key] || null, from: lvl || null,
+          fromLabel: r.room && photos.rooms ? 'Room Pages’ photo' : b ? 'the screen’s photo' : 'All Screens’ photo',
+          fk: 'pphoto:' + r.key, sk: b ? 'b:sky_page_photos' : 'sky.page_photos', header: 'Its Photo',
+          footer: 'The same photo the other looks use for this page.',
+          onSet: function (url) {
+            var was = photos[r.key], next = Object.assign({}, photos);
+            if (url) next[r.key] = url; else delete next[r.key];
+            put({ sky_page_photos: next }).then(function (ok) { if (ok) self.photoForget(was); });
+          } });
+      }
+      this.flatImageGroup(c, x, b, r.key);
+      if (r.key === 'rooms') {
+        var rrows = this.areasAZ().map(function (aid) {
+          var k = self.roomKey(aid);
+          if (!k) return null;
+          var n = self.flatPageNow({ key: k, room: true }, b);
+          return K.nav({ label: self.areaName(aid), icon: ((self._hass.areas || {})[aid] || {}).icon || 'mdi:texture-box',
+                         value: n.own ? self.flatModeLabel(n.mode, theme) : 'Same as Room Pages', href: base + '/page/' + encodeURIComponent(k),
+                         sk: (b ? 'b:sky_flat_pages:' : 'sky.flat_pages:') + k });
+        }).filter(Boolean);
+        if (rrows.length) c.appendChild(K.group({ header: 'Each Room', footer: 'A room left alone is the same as Room Pages.' }, rrows));
+      }
+    }
+    // FLAT COLORS (2026-10-17; hk_house/docs/PLAN-2026-10-17-flat-appearance-colors.md):
+    // Flat's Accent Color and Off Pill Tint, one editor at every scope --
+    // All Screens, a screen, and a page or room on either. A scope:
+    // {kind: 'house' | 'screen' | 'house-page' | 'screen-page', x, b, key}.
+    // Opening any of it writes nothing; a field left alone is inherited,
+    // Automatic stops there.
+    flatAnywhere() {
+      var look = this.data.settings.look || {}, boards = this.data.boards || {};
+      return look.flat === true || Object.keys(boards).some(function (p) { return M.glassOf(boards[p], look).effective === 'flat'; });
+    }
+    flatScope(kind, x, b, key) {
+      var self = this, look = this.data.settings.look || {};
+      var screen = kind === 'screen' || kind === 'screen-page', page = kind === 'house-page' || kind === 'screen-page';
+      var sb = screen ? b : null, row = page ? this.skyRow(key, sb) : null;
+      var keys = page ? (row && row.room ? [key, 'rooms'] : [key]) : [];
+      var base = screen ? '#/screens/' + encodeURIComponent(x.path) + '/flat-colors' : '#/house/appearance/flat-colors';
+      var sc = { kind: kind, x: x, b: sb, key: key || null, row: row, keys: keys, page: page, screen: screen,
+                 href: page ? base + '/page/' + encodeURIComponent(key) : base, baseHref: base,
+                 label: page ? (row ? row.label : key) : screen ? x.title : 'All Screens' };
+      sc.own = function () {
+        if (kind === 'house') return look.flat_colors || {};
+        if (kind === 'screen') return (sb && sb.flat_colors) || {};
+        if (kind === 'house-page') return (look.flat_page_colors || {})[key] || {};
+        return ((sb && sb.flat_page_colors) || {})[key] || {};
+      };
+      sc.labelOf = function (k) { var r = self.skyRow(k, sb); return r ? r.label : null; };
+      sc.resolved = function () { return M.flatColorsOf(look, sb, keys); };
+      // a field as it would be with this scope's own taken away
+      sc.parent = function (f) {
+        var L = JSON.parse(JSON.stringify(look)), B = sb ? JSON.parse(JSON.stringify(sb)) : null;
+        if (kind === 'screen') delete (B.flat_colors || {})[f];
+        else if (kind === 'house-page') delete ((L.flat_page_colors || {})[key] || {})[f];
+        else if (kind === 'screen-page') delete ((B.flat_page_colors || {})[key] || {})[f];
+        return M.flatColorsOf(L, B, keys)[f];
+      };
+      return sc;
+    }
+    // SAVE a patch ({accent?, off_tint?}: a value, or null to inherit again
+    // -- All Screens': Automatic) at the scope, shown at once; `whole`: the
+    // scope's own replaced (a reset)
+    flatColorsPut(sc, patch, whole) {
+      var d = this.data, look = d.settings.look, ch = {};
+      var made = function (o) {
+        o = whole ? {} : Object.assign({}, o || {});
+        Object.keys(patch).forEach(function (f) { if (patch[f] == null) delete o[f]; else o[f] = patch[f]; });
+        return o;
+      };
+      if (sc.kind === 'house') {
+        look.flat_colors = Object.assign({ accent: 'auto', off_tint: 'auto', pages: 'accent' }, made(look.flat_colors));
+        if (whole) ch['look.flat_colors'] = look.flat_colors;
+        else Object.keys(patch).forEach(function (f) { ch['look.flat_colors.' + f] = patch[f]; });
+        return this.setH(ch);
+      }
+      if (sc.kind === 'house-page') {
+        var hp = look.flat_page_colors = Object.assign({}, look.flat_page_colors), hv = made(hp[sc.key]);
+        if (Object.keys(hv).length) hp[sc.key] = hv; else delete hp[sc.key];
+        ch['look.flat_page_colors.' + sc.key] = whole ? (Object.keys(hv).length ? hv : null) : patch;
+        return this.setH(ch);
+      }
+      var b = d.boards[sc.x.path] = Object.assign({}, d.boards[sc.x.path]);
+      if (sc.kind === 'screen') {
+        b.flat_colors = made(b.flat_colors);
+        if (whole) ch.flat_colors = b.flat_colors;
+        else Object.keys(patch).forEach(function (f) { ch['flat_colors.' + f] = patch[f]; });
+      } else {
+        var bp = b.flat_page_colors = Object.assign({}, b.flat_page_colors), bv = made(bp[sc.key]);
+        if (Object.keys(bv).length) bp[sc.key] = bv; else delete bp[sc.key];
+        ch['flat_page_colors.' + sc.key] = whole ? (Object.keys(bv).length ? bv : null) : patch;
+      }
+      return this.setB(sc.x.path, ch);
+    }
+    // "Just This Screen", "From Calendar on All Screens" ...: whose a field is
+    flatFieldWhere(sc, name, f) {
+      var own = sc.own()[name] != null;
+      if (sc.kind === 'house') return null;
+      if (own) return sc.kind === 'screen' ? 'Just This Screen' : sc.kind === 'house-page' ? 'Just This Page' : 'Just This Page Here';
+      var src = M.flatSourceLabel(f, { label: sc.labelOf });
+      return src ? 'From ' + src : null;
+    }
+    // A ROW THAT LEADS TO A SCOPE'S FLAT COLORS, with what it comes to
+    flatColorsNav(sc, o) {
+      o = o || {};
+      var r = sc.resolved(), own = sc.own(), mine = own.accent != null || own.off_tint != null;
+      var value = sc.kind === 'house' || mine || !sc.page || r.accent.scope === 'own-page' ? M.flatAccentSays(r.accent) +
+                  (r.off_tint.value === 'accent' || r.off_tint.value === 'auto' ? '' : ' · Own Tint')
+                : (o.inherited || 'Inherited');
+      return K.nav({ label: o.label || 'Flat Colors', value: value, sub: o.sub || null, href: sc.href,
+                     tile: o.tile === false ? null : ['mdi:palette-outline', M.flatColorHex(r.accent.value) || '#8e8e93'],
+                     sk: (sc.screen ? 'b:' : 'look.') + (sc.page ? 'flat_page_colors:' + sc.key : 'flat_colors') });
+    }
+    // THE FLAT COLORS PAGE: the two fields (each its value and whose it
+    // is), what the background does with them, each page's own, the resets
+    flatColorsPage(c, sc) {
+      var self = this, r = sc.resolved(), own = sc.own(), look = this.data.settings.look || {};
+      if (sc.page && !sc.row) {
+        c.appendChild(K.group({ footer: 'This page isn’t on ' + (sc.screen ? 'this screen' : 'any screen') + ', so it has no colors to choose.' }, []));
+        return;
+      }
+      var flatOn = sc.screen ? this.flatHere(sc.b) : this.flatHere(null);
+      var accentHex = M.flatColorHex(r.accent.value);
+      var tintSays = r.off_tint.value === 'accent' ? (accentHex ? 'Match Accent' : 'Match Highlight') : M.flatColorName(r.off_tint.value);
+      var foot = {
+        house: 'In Flat, the Accent Color shades an Automatic background and colors the menu and tab bar. Off Pill Tint washes every pill that’s off; lit pills stay white. Each screen, page and room can choose its own.',
+        screen: 'This screen’s own colors, over All Screens’. Page overrides take priority over general screen colors: a page with colors of its own, here or on All Screens, keeps them.',
+        'house-page': 'This page on every screen, over the screens’ general colors. To change it on one screen only, choose it under that screen’s Flat Colors → Pages.',
+        'screen-page': 'This page on this screen only. It wins over everything else.'
+      }[sc.kind];
+      if (!flatOn) foot += sc.screen ? ' This screen isn’t using Flat now: these wait until it is.' : ' All Screens isn’t using Flat now: these are the colors for any screen that is.';
+      c.appendChild(K.group({ header: sc.page ? 'Flat Colors' : null, footer: foot }, [
+        K.nav({ label: 'Accent Color', value: M.flatAccentSays(r.accent), sub: this.flatFieldWhere(sc, 'accent', r.accent),
+                tile: accentHex ? ['', accentHex] : ['mdi:auto-fix', AUTO_ACCENT_TILE], href: sc.href + '/accent',
+                sk: (sc.screen ? 'b:' : 'look.') + 'flat_colors:accent' }),
+        K.nav({ label: 'Off Pill Tint', value: tintSays, sub: this.flatFieldWhere(sc, 'off_tint', r.off_tint),
+                tile: M.flatColorHex(r.off_tint.value) ? ['', M.flatColorHex(r.off_tint.value)]
+                    : r.off_tint.value === 'accent' ? ['mdi:link-variant', accentHex || '#8e8e93'] : ['mdi:auto-fix', AUTO_ACCENT_TILE],
+                href: sc.href + '/tint', sk: (sc.screen ? 'b:' : 'look.') + 'flat_colors:off_tint' })]
+        // WHETHER THE PAGES TAKE IT (All Screens and a screen: a page's own
+        // accent is always its own)
+        .concat(sc.page ? [] : [K.nav({ label: 'Pages', value: M.flatPagesName(r.pages.value),
+                sub: sc.kind === 'screen' && sc.own().pages != null ? 'Just This Screen' : null,
+                href: sc.href + '/pages', sk: (sc.screen ? 'b:' : 'look.') + 'flat_colors:pages' })])));
+      this.flatBackgroundGroup(c, sc, r);
+      if (!sc.page) this.flatColorsPages(c, sc);
+      else if (sc.key === 'rooms') this.flatColorsRooms(c, sc);
+      // THE RESETS: Automatic stops inheriting; inherited follows again
+      var auto = r.accent.value === 'auto' && r.off_tint.value === 'auto';
+      var mine = own.accent != null || own.off_tint != null;
+      var acts = [];
+      if (!auto) acts.push(K.button({ label: 'Restore Automatic Colors', fk: 'flatc:auto', onClick: function () {
+        self.flatColorsPut(sc, { accent: 'auto', off_tint: 'auto' }).then(function (ok) { if (ok) self.announce('Automatic colors restored'); });
+      } }));
+      if (sc.kind !== 'house' && mine) acts.push(K.button({ label: sc.kind === 'screen' ? 'Reset to All Screens' : 'Use Inherited Colors', fk: 'flatc:inherit',
+        onClick: function () { self.flatColorsPut(sc, {}, true).then(function (ok) { if (ok) self.announce('Colors inherited again'); }); } }));
+      if (acts.length) {
+        c.appendChild(K.group({ footer: sc.kind === 'house' ? 'Both back to Automatic: each page’s own Accent Color, each accessory’s own tint. The Background is its own setting.'
+            : 'Restore Automatic Colors: Automatic here, whatever ' + (sc.kind === 'screen' ? 'All Screens chooses' : 'the screens choose') + '. ' +
+              (mine ? (sc.kind === 'screen' ? 'Reset to All Screens' : 'Use Inherited Colors') + ': both fields follow ' + (sc.kind === 'screen' ? 'All Screens' : 'the screen and All Screens') + ' again. ' : '') +
+              'The Background is its own setting.' }, acts));
+      }
+      // a screen of its own in Flat under a house in Glass: All Screens'
+      // Flat Colors are still where its inherited colors come from
+      if (sc.kind === 'screen' && !this.flatHere(null)) {
+        c.appendChild(K.group({ footer: 'What this screen inherits. Editing them leaves All Screens’ own style as it is.' },
+          [this.flatColorsNav(this.flatScope('house'), { label: 'All Screens’ Flat Colors' })]));
+      }
+    }
+    // WHAT THE BACKGROUND DOES WITH THEM: an Automatic background takes the
+    // accent's shade; a color, photo or landscape chosen keeps its own --
+    // said, with a way to it and a deliberate way back to Automatic
+    flatBackgroundGroup(c, sc, r) {
+      var self = this, sky = this.data.settings.sky, b = sc.b, theme = this.flatTheme(b);
+      var houseFlat = this.flatHere(null), src = null, label = null, href;
+      var pageMode = null, pageScope = null;
+      sc.keys.forEach(function (k) {
+        if (pageMode) return;
+        var mine = b && (b.sky_flat_pages || {})[k], all = (sky.flat_pages || {})[k];
+        if (mine) { pageMode = mine; pageScope = 'screen'; } else if (all) { pageMode = all; pageScope = 'house'; }
+      });
+      if (pageMode && pageMode !== 'auto') { src = 'page'; label = this.flatModeLabel(pageMode, theme); }
+      else if (!(sc.page && FLAT_OWN[sc.key])) {
+        var bg = (b && b.sky_flat_background) || sky.flat_background || 'color';
+        var col = bg === 'color' ? ((b && b.sky_flat_color) || sky.flat_color || 'auto') : null;
+        if (bg !== 'color' || col !== 'auto') { src = b && (b.sky_flat_background || b.sky_flat_color) ? 'screen' : 'house'; label = bg === 'color' ? this.flatColorLabel(col, theme) : M.BG_LABELS[bg]; }
+      }
+      if (sc.page) href = sc.screen ? '#/screens/' + encodeURIComponent(sc.x.path) + '/sky/page/' + encodeURIComponent(sc.key)
+                                   : (houseFlat ? '#/house/sky/page/' : '#/house/sky/flat/page/') + encodeURIComponent(sc.key);
+      else href = sc.screen ? '#/screens/' + encodeURIComponent(sc.x.path) + '/sky' : houseFlat ? '#/house/sky' : '#/house/sky/flat';
+      var seed = M.flatColorHex(r.accent.value);
+      var rows = [K.nav({ label: 'Background', href: href, sk: 'flatc:background',
+                          value: src ? label + ' · Separate Choice' : seed ? 'Matches Accent Color' : 'Automatic' })];
+      if (src && seed) {
+        rows.push(K.button({ label: 'Use Automatic Background', fk: 'flatc:bg-auto', onClick: function () {
+          var done;
+          if (src === 'page') {
+            var put = pageScope === 'screen' ? self.flatPut(sc.x, b) : self.flatPut(null, null);
+            var map = Object.assign({}, pageScope === 'screen' ? b.sky_flat_pages : sky.flat_pages);
+            var pk = sc.keys.filter(function (k) { return map[k]; })[0];
+            if (pageScope === 'screen' && (sky.flat_pages || {})[pk]) map[pk] = 'auto'; else delete map[pk];
+            done = put({ sky_flat_pages: map });
+          } else done = (src === 'screen' ? self.flatPut(sc.x, b) : self.flatPut(null, null))({ sky_flat_background: 'color', sky_flat_color: 'auto' });
+          done.then(function (ok) { if (ok) self.announce('Background is Automatic'); });
+        } }));
+      }
+      var say = src ? (seed ? 'A background you chose stays as it is: the accent colors the highlight and the pills, not it. Use Automatic Background to let it match.'
+                            : 'A background you chose stays as it is.')
+                    : seed ? 'An Automatic background is a very light (or, in Dark, very deep) shade of the Accent Color.'
+                           : 'Automatic: ' + (sc.page && FLAT_OWN[sc.key] ? 'a shade of the page’s own Accent Color.' : 'the theme’s own ground.');
+      c.appendChild(K.group({ header: 'Background', footer: say + (src === 'page' ? ' (Chosen for this page.)' : src ? ' (Chosen for ' + (src === 'screen' ? 'this screen' : 'All Screens') + '.)' : '') }, rows));
+    }
+    // EACH PAGE'S OWN, a tap away, from All Screens' or a screen's
+    flatColorsPages(c, sc) {
+      var self = this, rows = this.skyPageKeys(sc.b).rows;
+      if (!rows.length) return;
+      c.appendChild(K.group({ header: 'Pages', footer: 'A page left alone takes the colors above' + (sc.screen ? ', unless All Screens gives it its own.' : '.') },
+        rows.map(function (row) {
+          var ps = self.flatScope(sc.screen ? 'screen-page' : 'house-page', sc.x, sc.b, row.key);
+          var hp = sc.screen ? self.flatScope('house-page', null, null, row.key) : null, hpo = hp ? hp.own() : {};
+          return self.flatColorsNav(ps, { label: row.label, sub: row.custom ? 'Custom page' : null, tile: false,
+            inherited: hp && (hpo.accent != null || hpo.off_tint != null) ? 'From All Screens' : sc.screen ? 'Same as This Screen' : 'Same as All Screens' });
+        })));
+    }
+    flatColorsRooms(c, sc) {
+      var self = this;
+      var rows = this.areasAZ().map(function (aid) {
+        var k = self.roomKey(aid);
+        if (!k) return null;
+        var rs = self.flatScope(sc.kind, sc.x, sc.b, k);
+        return self.flatColorsNav(rs, { label: self.areaName(aid), tile: false, inherited: 'Same as Room Pages' });
+      }).filter(Boolean);
+      if (rows.length) c.appendChild(K.group({ header: 'Each Room', footer: 'A room’s own colors win over Room Pages’.' }, rows));
+    }
+    // ONE FIELD'S CHOICES: Same as / inherited, Automatic, then its colors
+    flatColorsPick(c, sc, f) {
+      var self = this, r = sc.resolved(), own = sc.own()[f], cur = r[f].value, house = sc.kind === 'house';
+      var pick = function (v) {
+        var patch = f === 'accent' && v != null ? M.flatAccentChange(v, r) : (function () { var p = {}; p[f] = v; return p; })();
+        self.flatColorsPut(sc, patch).then(function (ok) {
+          if (ok && patch.off_tint === 'accent') self.announce('Off Pill Tint now matches the accent');
+        });
+      };
+      var rows = [];
+      if (!house) {
+        var par = sc.parent(f), src = M.flatSourceLabel(par, { label: sc.labelOf });
+        rows.push(K.check({ label: sc.kind === 'screen' ? 'Same as All Screens' : 'Use Inherited ' + (f === 'accent' ? 'Color' : 'Tint'),
+                            sub: 'Now ' + M.flatColorName(par.value) + (src ? ' · ' + src : ''), on: own == null, fk: 'flatc:' + f + ':inherit',
+                            onClick: function () { pick(null); } }));
+      }
+      var isOwn = function (v) { return (house || own != null) && cur === v; };
+      if (f === 'accent') {
+        rows.push(K.check({ label: 'Automatic', sub: 'Each page’s own Accent Color, as in the other looks; Home and the rooms orange',
+                            tile: ['mdi:auto-fix', AUTO_ACCENT_TILE], on: isOwn('auto'), fk: 'flatc:accent:auto', onClick: function () { pick('auto'); } }));
+        M.FLAT_ACCENTS.forEach(function (p) {
+          rows.push(K.check({ label: p[1], tile: ['', p[2]], on: isOwn(p[2]), fk: 'flatc:accent:' + p[0], onClick: function () { pick(p[2]); } }));
+        });
+      } else {
+        var acc = M.flatColorHex(r.accent.value);
+        rows.push(K.check({ label: 'Automatic', sub: 'Each accessory in a wash of its own color. Flat Dark keeps its plain pills.',
+                            tile: ['mdi:auto-fix', AUTO_ACCENT_TILE], on: isOwn('auto'), fk: 'flatc:tint:auto', onClick: function () { pick('auto'); } }));
+        rows.push(K.check({ label: 'Match Accent', sub: acc ? 'Now ' + M.flatColorName(r.accent.value) + ', and whatever it becomes' : 'The page’s highlight, while the Accent Color is Automatic',
+                            tile: ['mdi:link-variant', acc || '#8e8e93'], on: isOwn('accent'), fk: 'flatc:tint:accent', onClick: function () { pick('accent'); } }));
+      }
+      var named = (f === 'accent' ? M.FLAT_ACCENTS.map(function (p) { return p[2]; }) : []).concat(['auto', 'accent']);
+      var custom = (house || own != null) && named.indexOf(cur) < 0;
+      var start = M.flatColorHex(cur) || (f === 'accent' ? '#8872b4' : '#789484');
+      var row = K.text({ label: 'Your Own Color', sub: custom ? start.toUpperCase() : f === 'accent' ? 'Pick any color.' : 'One tint for every pill, whatever the accent.',
+                         type: 'color', fk: 'flatc:' + f + ':custom', value: start, error: this.err((sc.screen ? 'b:' : 'look.') + 'flat_colors.' + f),
+                         onCommit: function (t) { if (/^#[0-9a-f]{6}$/i.test(t)) pick(t.toLowerCase()); } });
+      var inp = row.querySelector('input');
+      if (inp) {
+        inp.style.cssText = 'flex:none;width:44px;height:30px;padding:0;border-radius:8px;cursor:pointer';
+        inp.addEventListener('change', function () { if (/^#[0-9a-f]{6}$/i.test(inp.value)) pick(inp.value.toLowerCase()); });
+      }
+      if (custom) row.classList.add('on');
+      rows.push(row);
+      var foot = f === 'accent'
+        ? 'Shades an Automatic background and colors the menu and tab bar: its icons and the page you’re on. Chosen while Off Pill Tint is Automatic, it sets the tint to Match Accent too; a tint of your own stays. The Highlight Color stays saved for the other looks.'
+        : 'The wash on pills that are off, and their circles. Lit pills stay white with their own colors; alerts and warnings keep theirs.';
+      c.appendChild(K.group({ header: f === 'accent' ? 'Accent Color' : 'Off Pill Tint', footer: foot }, rows));
+    }
+    // THE PAGES THAT HAVE A COLOR OF THEIR OWN: the accent, or theirs
+    flatPagesPick(c, sc) {
+      var self = this, own = sc.own().pages, cur = sc.resolved().pages.value, house = sc.kind === 'house';
+      var pick = function (v) { self.flatColorsPut(sc, { pages: v }); };
+      var on = function (v) { return (house || own != null) && cur === v; };
+      var rows = [];
+      if (!house) {
+        var par = M.flatColorsOf(this.data.settings.look || {}, null, []).pages.value;
+        rows.push(K.check({ label: 'Same as All Screens', sub: 'Now ' + M.flatPagesName(par), on: own == null, fk: 'flatc:pages:inherit',
+                            onClick: function () { pick(null); } }));
+      }
+      rows.push(K.check({ label: 'Follow Accent', sub: 'Every page in the Accent Color', on: on('accent'), fk: 'flatc:pages:accent',
+                          onClick: function () { pick('accent'); } }));
+      rows.push(K.check({ label: 'Keep Their Own Colors', sub: 'Climate blue, Lights yellow, Calendar purple…', on: on('own'), fk: 'flatc:pages:own',
+                          onClick: function () { pick('own'); } }));
+      c.appendChild(K.group({ footer: 'Pages like Climate and Lights have a color of their own (each page → Look → Highlight Color). Keep Their Own Colors leaves those pages in it, as Automatic does; Home and the rooms take the Accent Color either way. A page given Flat Colors of its own keeps them.' }, rows));
+    }
+    // the pages of a scope's routes: [] its Flat Colors, ['accent'], ['tint'],
+    // ['page', key, ...] a page's
+    p_flatColors(kind, x, b, sub, mk, backTo) {
+      var self = this, page = sub[0] === 'page' && sub[1], key = page ? decodeURIComponent(sub[1]) : null, rest = page ? sub.slice(2) : sub;
+      var sc = this.flatScope(page ? (kind === 'screen' ? 'screen-page' : 'house-page') : kind, x, b, key);
+      var top = sc.page ? (sc.row ? sc.row.label : 'Page') : 'Flat Colors';
+      var parent = sc.page ? (sc.row && sc.row.room && key !== 'rooms' ? ['Room Pages', sc.baseHref + '/page/rooms'] : ['Flat Colors', sc.baseHref]) : backTo;
+      if (rest[0] === 'pages' && !sc.page) return mk('Pages', function (c) { self.flatPagesPick(c, sc); }, [top, sc.href]);
+      if (rest[0] === 'accent' || rest[0] === 'tint') {
+        return mk(rest[0] === 'accent' ? 'Accent Color' : 'Off Pill Tint', function (c) { self.flatColorsPick(c, sc, rest[0] === 'accent' ? 'accent' : 'off_tint'); }, [top, sc.href]);
+      }
+      var out = mk(top, function (c) { self.flatColorsPage(c, sc); }, parent);
+      // A PAGE'S COLORS PREVIEW THAT PAGE (its address, as the strategy names it)
+      var view = sc.page && sc.screen ? (FLAT_VIEW[key] || (key === 'rooms' ? null : key)) : null;
+      if (view && out.preview) out.previewView = view;
+      return out;
     }
     h_theme(c, t) {
       var self = this, sky = this.data.settings.sky, themes = sky.themes || [], on = themes.indexOf(t.id) >= 0;
@@ -5661,7 +7004,7 @@
                           href: '#/popups', icon: 'mdi:doorbell-video', fk: 'cams-rel:popups' })];
       if (x) {
         rows.push(K.nav({ label: 'Cameras for All Screens', sub: 'The camera list and Live First Camera every screen starts from',
-                          href: '#/house/cameras', icon: 'mdi:cctv', fk: 'cams-rel:house' }));
+                          href: '#/page/cameras', icon: 'mdi:cctv', fk: 'cams-rel:house' }));
       } else {
         // the screens with a Home strip: not a page screen (no Home) nor one
         // whose Home is a page of its own (the car's)
@@ -5681,7 +7024,7 @@
         });
       }
       rows.push(K.nav({ label: 'Cameras Page Background', sub: 'Its own color, the live sky or a backdrop',
-                        href: (x ? '#/screens/' + encodeURIComponent(x.path) : '#/house') + '/sky/page/cameras',
+                        href: x ? '#/screens/' + encodeURIComponent(x.path) + '/sky/page/cameras' : '#/page/cameras/background',
                         icon: 'mdi:palette', fk: 'cams-rel:bg' }));
       rows.push(K.nav({ label: 'Hidden Accessories', sub: 'A camera hidden there shows on no screen', href: '#/accessories/hidden',
                         icon: 'mdi:eye-off', fk: 'cams-rel:hidden' }));
@@ -5705,7 +7048,7 @@
       c.appendChild(K.group({ header: 'Room Pages', footer: 'A room page shows its readings and what’s open or on at the top. Temperature and humidity are the area’s own sensors (Settings → Areas).' }, [
         K.toggle({ label: 'Room Headings Open Room Pages', sk: 'rooms.headings', on: rooms.headings !== false,
                    onChange: function (on) { self.setH({ 'rooms.headings': on }); } }),
-        K.nav({ label: 'Status Row', value: M.statusSummary(st), href: '#/house/status/rooms', sk: 'rooms.status' })]));
+        K.nav({ label: 'Status Row', value: M.statusSummary(st), href: '#/house/rooms/status', sk: 'rooms.status' })]));
       var areas = (this._hass && this._hass.areas) || {}, az = this.areasAZ();
       var g = this.data.settings.generated || {}, hidden = g.exclude_areas || [];
       var into = ((this.data.accessories || {}).into) || {};
@@ -5776,10 +7119,11 @@
       // same page as Sky / Background -> Room Pages -> Each Room
       var rk = this.roomKey(aid);
       if (shown && rk) {
-        var rm = this.skyPageNow({ key: rk, room: true }, null);
-        c.appendChild(K.group({ footer: 'Behind this room’s page on every screen: Same as Room Pages, the Live Sky, a Color or a Photo. A screen can choose its own.' }, [
-          K.nav({ label: 'Background', icon: 'mdi:image-outline', sk: 'sky.pages:' + rk, href: '#/house/sky/page/' + encodeURIComponent(rk),
-                  value: rm.own ? M.skyModeLabel(rm.mode, (this.data.choices || {}).sky_backdrops || []) : 'Same as Room Pages' })]));
+        var rflat = this.flatHere(null), rm = rflat ? this.flatPageNow({ key: rk, room: true }, null) : this.skyPageNow({ key: rk, room: true }, null);
+        c.appendChild(K.group({ footer: 'Behind this room’s page on every screen: Same as Room Pages, ' + (rflat ? 'Automatic' : 'the Live Sky') + ', a Color or a Photo. A screen can choose its own.' }, [
+          K.nav({ label: 'Background', icon: 'mdi:image-outline', sk: (rflat ? 'sky.flat_pages:' : 'sky.pages:') + rk, href: '#/house/sky/page/' + encodeURIComponent(rk),
+                  value: rm.own ? (rflat ? this.flatModeLabel(rm.mode, this.flatTheme(null)) : M.skyModeLabel(rm.mode, (this.data.choices || {}).sky_backdrops || [])) : 'Same as Room Pages' })]
+          .concat(this.flatAnywhere() ? [this.flatColorsNav(this.flatScope('house-page', null, null, rk), { icon: 'mdi:palette-outline', inherited: 'Same as Room Pages' })] : [])));
       }
     }
     // A ROOM PAGE'S OWN BACKGROUND KEY: its address, as the screens name it
@@ -6431,7 +7775,7 @@
         var po = ((this.data.accessories || {}).pages || {})[o.order] || [];
         c.appendChild(K.group({ header: 'Order', footer: 'The order of the ' + PAGE_ORDERS[o.order][0] + ' page’s tiles, on every screen.' }, [
           K.nav({ label: 'Tile Order', sub: 'On the ' + PAGE_ORDERS[o.order][0] + ' page', value: po.length ? 'Custom' : 'Automatic',
-                  href: '#/accessories/type/' + T[0] + '/order', sk: 'accessories.pages.' + o.order })]));
+                  href: '#/page/' + o.order + '/order', sk: 'accessories.pages.' + o.order })]));
       }
     }
     // CIRCUITS & METERS: the Energy page's devices (hk_energy's own
@@ -6440,14 +7784,14 @@
       var self = this;
       if (F.stateOf(this.data.features, 'hk_energy') !== 'added') {
         c.appendChild(K.group({ footer: 'Energy isn’t added yet. It builds an Energy page with a live tile for each circuit, from Home Assistant’s Energy settings.' }, [
-          K.nav({ label: 'Energy', icon: 'mdi:lightning-bolt', href: '#/features/energy' })]));
+          K.nav({ label: 'Energy', icon: 'mdi:lightning-bolt', href: '#/page/energy' })]));
         return;
       }
       var st = this.feat('hk_energy'), d = st.data || {};
       var devs = d.devices || [];
       c.appendChild(K.group({ footer: 'Their names, glyphs, sections and sensors are set in Energy, with the rest of the Energy page.' }, [
         K.nav({ label: 'Energy Devices', icon: 'mdi:cog-outline', value: st.data ? String(devs.length) : '', href: '#/features/energy/devices', fk: 'acctype:link' }),
-        K.nav({ label: 'Energy Page', icon: 'mdi:lightning-bolt', href: '#/features/energy' })]));
+        K.nav({ label: 'Energy Page', icon: 'mdi:lightning-bolt', href: '#/page/energy' })]));
       if (!st.data) { c.appendChild(K.group({ footer: st.error ? 'Energy’s settings couldn’t load: ' + st.error : 'Loading…' }, [])); return; }
       var byKey = {};
       devs.forEach(function (x) { byKey[x.key] = x; });
@@ -7241,12 +8585,8 @@
         c.appendChild(K.group({ header: 'Clock', footer: 'Home Assistant’s Time & Date sensors keep every screen’s clock in step with the house.' }, [
           self.entityRow({ label: 'Time Sensor', sk: 'clock.time', value: self.hs('clock.time'), none: 'Each Screen’s Own Clock', filter: { domains: ['sensor'] }, onPick: set('clock.time') }),
           self.entityRow({ label: 'Date Sensor', sk: 'clock.date', value: self.hs('clock.date'), none: 'Each Screen’s Own Clock', filter: { domains: ['sensor'] }, onPick: set('clock.date') })]));
-        c.appendChild(K.group({ header: 'Vacuums', footer: 'Empty: cleaning by area goes through Clean Areas. Only for a house whose own script receives the areas.' }, [
-          self.entityRow({ label: 'Clean-Areas Script', sk: 'features.vacuum_script', value: self.hs('features.vacuum_script'), none: 'Clean Areas',
-                           filter: { domains: ['script'] }, onPick: set('features.vacuum_script') })]));
-        c.appendChild(K.group({ header: 'Alarm Keypad', footer: 'Empty for most alarms: a refused code shows “Wrong Code” by itself. Only for a panel that fails silently.' }, [
-          self.entityRow({ label: 'Wrong-Code Indicator', sk: 'features.alarm_bad_code', value: self.hs('features.alarm_bad_code'), none: 'Automatic',
-                           filter: { domains: ['input_boolean', 'binary_sensor'] }, onPick: set('features.alarm_bad_code') })]));
+        // (the Clean-Areas Script and the Wrong-Code Indicator are the
+        // Vacuums and Security pages' since 2026-10-16)
         c.appendChild(K.group({ header: 'HK Settings', footer: 'Off: HK Settings leaves the sidebar for everyone. It’s still in Settings → Devices & Services → HK Frontend → Configure.' }, [
           K.toggle({ label: 'Show in Sidebar', sk: 'sidebar', on: I.sidebar !== false, onChange: function (on) { self.setH({ sidebar: on }); } })]));
         var fnd = function (v) { return v ? 'Found' : 'Missing'; };
@@ -7346,6 +8686,16 @@
     // THE SETUP ASSISTANT'S FEATURES STEP: the optional features, each as
     // this house has it -- added (its page) or not (Add, through HK Frontend's
     // Add feature).
+    // THE SETUP ASSISTANT'S ALARM (General's, until 2026-10-16; the
+    // Security page's under Pages now)
+    setupAlarm(c) {
+      var self = this, set = function (v) { self.setH({ 'security.alarm': v }); };
+      var sugg = !this.hs('security.alarm') && (this.data.suggest || {}).alarm;
+      c.appendChild(K.group({ footer: 'The header’s security line, the Security chip and page, and the alarm keypad. Later: Pages → Security.' }, [
+        this.entityRow({ label: 'Alarm Panel', sk: 'security.alarm', value: this.hs('security.alarm'), none: 'No Alarm',
+                         filter: { domains: ['alarm_control_panel'] }, onPick: set }),
+        sugg ? K.button({ label: 'Use ' + this.name(sugg), fk: 'alarm:suggest', onClick: function () { set(sugg); } }) : null]));
+    }
     setupFeatures(c) {
       var feats = this.data.features || {}, rows = [], missing = [];
       F.LIST.forEach(function (x) {
@@ -7360,7 +8710,7 @@
         }
         if (st === 'missing') missing.push(name);
       });
-      c.appendChild(K.group({ footer: 'Each is optional, added from HK Frontend’s Add feature. Its settings are under Features in the list.' +
+      c.appendChild(K.group({ footer: 'Each is optional, added from HK Frontend’s Add feature. Its settings are on its page under Pages (Notifications: All Screens).' +
           (missing.length ? ' Not available here: ' + missing.join(', ') + '.' : '') }, rows));
     }
     p_setup(step) {
@@ -7378,7 +8728,7 @@
             c.appendChild(K.group({}, [K.button({ label: 'Get Started', center: true, fk: 'setup:go', onClick: next })]));
             return;
           }
-          if (step === 1) self.h_general(c);
+          if (step === 1) self.setupAlarm(c);
           if (step === 2) self.h_weather(c);
           if (step === 3) self.h_appearance(c);
           if (step === 4) self.setupFeatures(c);
@@ -7407,7 +8757,7 @@
         } };
     }
   }
-  var SETUP_STEPS = ['Welcome', 'General', 'Weather', 'Appearance', 'Features', 'First Screen', 'Done'];
+  var SETUP_STEPS = ['Welcome', 'Security System', 'Weather', 'Appearance', 'Features', 'First Screen', 'Done'];
   var SETUP_FIRST = SETUP_STEPS.indexOf('First Screen');
   function hashOf(h) { h = String(h || '#/').split('?')[0]; return h.charAt(0) === '#' ? h : '#' + h; }
   var FROM_KEY = 'hk-settings-from';

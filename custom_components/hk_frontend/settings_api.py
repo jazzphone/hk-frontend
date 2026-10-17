@@ -19,6 +19,7 @@ by side.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+import copy
 import re
 from typing import Any
 
@@ -112,6 +113,88 @@ def _status_row(page: str) -> Callable[[Any], dict[str, Any]]:
     return check
 
 
+def _header(page: str) -> Callable[[Any], dict[str, Any]]:
+    """A page header's settings (settings.HEADERS): the whole page's dict,
+    each key checked; a key left out keeps its default."""
+    default = S.HEADERS[page]
+
+    def ids_or_none(v: Any, *domains: str) -> list[str] | None:
+        if v is None:
+            return None
+        if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+            raise Invalid("list")
+        if any(x.split(".", 1)[0] not in domains for x in v):
+            raise Invalid("entity")
+        return _entities(*domains)(v)
+
+    def within(v: Any, lo_hi: tuple[int, int]) -> int:
+        if isinstance(v, bool) or not isinstance(v, int) or not lo_hi[0] <= v <= lo_hi[1]:
+            raise Invalid("range")
+        return v
+
+    def one_or_none(v: Any, *domains: str) -> str | None:
+        if v is None:
+            return None
+        if not isinstance(v, str) or not S.ENTITY_ID.match(v) or v.split(".", 1)[0] not in domains:
+            raise Invalid("entity")
+        return v
+
+    def presets(v: Any) -> list[int]:
+        lo, hi = S.HEADER_PRESETS
+        if not isinstance(v, list) or not lo <= len(v) <= hi:
+            raise Invalid("list")
+        out = [within(x, S.HEADER_PRESET_MIN) for x in v]
+        if len(set(out)) != len(out):
+            raise Invalid("list")
+        return out
+
+    def names(v: Any) -> list[str]:
+        if not isinstance(v, list) or len(v) > S.HEADER_NAMES:
+            raise Invalid("list")
+        if not all(isinstance(x, str) and 0 < len(x.strip()) <= S.HEADER_NAME_LEN for x in v):
+            raise Invalid("text")
+        return [x.strip() for x in v]
+
+    def check(v: Any) -> dict[str, Any]:
+        if not isinstance(v, Mapping) or set(v) - set(default):
+            raise Invalid("choice")
+        out = copy.deepcopy(default)
+        for k, val in v.items():
+            d = default[k]
+            if k in ("show", "left_on", "tonight", "callouts", "sky_follow"):
+                out[k] = _bool(val)
+            elif k == "rooms":
+                out[k] = within(val, S.HEADER_ROOMS)
+            elif k == "after_min":
+                out[k] = within(val, S.HEADER_AFTER)
+            elif k == "low_battery":
+                out[k] = within(val, S.HEADER_BATTERY)
+            elif k == "thermostats":
+                out[k] = ids_or_none(val, "climate")
+            elif k == "automations":
+                out[k] = ids_or_none(val, "automation")
+            elif k == "sky_source":
+                out[k] = ids_or_none(val, "switch")
+            elif k == "exclude_areas":
+                out[k] = None if val is None else _ids(val)
+            elif k in ("front_door", "back_door", "garage"):
+                out[k] = ids_or_none(val, "lock", "binary_sensor", "cover")
+            elif k == "meter":
+                out[k] = one_or_none(val, "sensor")
+            elif k == "supply":
+                out[k] = one_or_none(val, "valve", "switch")
+            elif k == "counters":
+                out[k] = ids_or_none(val, "sensor")
+            elif k == "presets":
+                out[k] = presets(val)
+            elif k == "names":
+                out[k] = names(val)
+            else:  # pragma: no cover -- every key above
+                out[k] = d
+        return out
+    return check
+
+
 def _ordered(options: tuple[str, ...] | list[str]) -> Callable[[Any], list[str]]:
     """Some of `options`, each once, in the order given (the page's order)."""
     def check(v: Any) -> list[str]:
@@ -165,6 +248,23 @@ def _card_options(v: Any) -> dict[str, Any]:
     return got
 
 
+def _weather_page(v: Any) -> dict[str, Any]:
+    """The Weather page's composition (settings.weather_page), whole: any
+    unknown key, wrong type or value refuses it."""
+    got = S.weather_page(v)
+    if got is None:
+        raise Invalid("choice")
+    return got
+
+
+def _radar_native(v: Any) -> dict[str, Any]:
+    """The native radar's settings (settings.radar_native), whole, as above."""
+    got = S.radar_native(v)
+    if got is None:
+        raise Invalid("choice")
+    return got
+
+
 def _birthdays(v: Any) -> list[dict[str, Any]]:
     if not isinstance(v, list):
         raise Invalid("list")
@@ -206,6 +306,15 @@ def _count(v: Any) -> dict[str, list[str]] | None:
     return {k: _entities()(got[k]) for k in ("exclude", "include")}
 
 
+def _board_headers(v: Any) -> dict[str, bool]:
+    """A screen's own page headers (settings.board_headers): {page: False}
+    for each it turns off; a page with no header, or any other value, is
+    refused rather than dropped."""
+    if not isinstance(v, Mapping) or any(k not in S.HEADERS or x is not False for k, x in v.items()):
+        raise Invalid("choice")
+    return S.board_headers(v)
+
+
 def _sky_pages(v: Any) -> dict[str, str]:
     """Each page's background ({page: mode}); a page set to "" or None goes
     back to Automatic (left out)."""
@@ -218,6 +327,144 @@ def _sky_pages(v: Any) -> dict[str, str]:
     if got is None or len(got) != len(clean):
         raise Invalid("choice")
     return got
+
+
+def _flat_color(none: bool) -> Callable[[Any], Any]:
+    def check(v: Any) -> Any:
+        if none and v in (None, ""):
+            return None
+        got = S.flat_color(v)
+        if got is None:
+            raise Invalid("choice")
+        return got
+    return check
+
+
+def _flat_tint(v: Any, none: bool) -> str | None:
+    if none and v in (None, ""):
+        return None
+    got = S.flat_tint(v)
+    if got is None:
+        raise Invalid("choice")
+    return got
+
+
+def _flat_image_look(v: Any) -> dict[str, Any]:
+    got = S.flat_image_look(v, strict=True)
+    if got is None:
+        raise Invalid("choice")
+    return got
+
+
+def _flat_page_image_looks(v: Any) -> dict[str, Any]:
+    got = S.flat_page_image_looks(v, strict=True)
+    if got is None:
+        raise Invalid("choice")
+    return got
+
+
+def image_patch(current: Mapping[str, Any], patch: Any) -> dict[str, Any]:
+    """Patch only the edited fields over the current store, including removals."""
+    if patch is None:
+        return {}
+    got = _flat_image_look(patch)
+    out = dict(current)
+    for k, v in patch.items():
+        if v is None:
+            out.pop(k, None)
+        else:
+            out[k] = got[k]
+    return out
+
+
+def image_pages_patch(current: Mapping[str, Any], key: str, patch: Any) -> dict[str, Any]:
+    out = dict(current)
+    got = image_patch(out.get(key, {}), patch)
+    if got:
+        out[key] = got
+    else:
+        out.pop(key, None)
+    if len(out) > S.FLAT_PAGES_MAX:
+        raise Invalid("choice")
+    return out
+
+
+def _flat_pages(v: Any) -> dict[str, str]:
+    """Each page's Flat background ({page: color | photo | landscapes}); a
+    page set to "" or None follows again (left out)."""
+    if v is None:
+        return {}
+    if not isinstance(v, dict):
+        raise Invalid("choice")
+    clean = {k: m for k, m in v.items() if m not in (None, "")}
+    got = S.flat_pages(clean)
+    if got is None or len(got) != len(clean):
+        raise Invalid("choice")
+    return got
+
+
+# FLAT COLORS (settings.flat_colors): a whole object or map replaces what
+# is stored (Copy Settings, a reset); a PATCH names its place --
+#   look.flat_colors.accent / .off_tint          All Screens' one field
+#   look.flat_page_colors.<page>                 {field: value | None}
+#   flat_colors.accent, flat_page_colors.<page>  a screen's (board/set)
+# and is made over the store as it is now, so two editors' changes to
+# different pages, or to the other field, never undo each other. None
+# removes a field (All Screens': back to Automatic), a page left empty goes.
+def _flat_colors(v: Any) -> dict[str, str]:
+    got = S.flat_colors(v, strict=True)
+    if got is None:
+        raise Invalid("accent")
+    return got
+
+
+def _flat_page_colors(v: Any) -> dict[str, dict[str, str]]:
+    got = S.flat_page_colors(v, strict=True)
+    if got is None:
+        raise Invalid("accent")
+    return got
+
+
+def _flat_field(field: str, v: Any) -> str | None:
+    if v in (None, ""):
+        return None
+    got = S.flat_field(field, v)
+    if got is None:
+        raise Invalid("accent")
+    return got
+
+
+def flat_patch(colors: Mapping[str, Any], patch: Any, fields: tuple = S.FLAT_COLOR_FIELDS) -> dict[str, str]:
+    """`colors` (a sparse FlatColors) with `patch` made: each field set, or
+    gone for None. Raises Invalid for a field or value that isn't one."""
+    if not isinstance(patch, Mapping):
+        raise Invalid("accent")
+    out = dict(colors)
+    for k, v in patch.items():
+        if k not in fields:
+            raise Invalid("accent")
+        got = _flat_field(k, v)
+        if got is None:
+            out.pop(k, None)
+        else:
+            out[k] = got
+    return out
+
+
+def flat_pages_patch(pages: Mapping[str, Any], key: str, patch: Any) -> dict[str, dict[str, str]]:
+    """Each page's Flat Colors with one page's `patch` made (None: the page
+    follows again)."""
+    if not S.FLAT_PAGE_KEY.match(key):
+        raise Invalid("accent")
+    out = {k: dict(v) for k, v in pages.items()}
+    got = {} if patch is None else flat_patch(out.get(key, {}), patch, S.FLAT_PAGE_FIELDS)
+    if got:
+        out[key] = got
+    else:
+        out.pop(key, None)
+    if len(out) > S.FLAT_PAGES_MAX:
+        raise Invalid("accent")
+    return out
 
 
 def _chips_custom_show(v: Any) -> dict[str, str]:
@@ -332,6 +579,20 @@ SENSOR = _entity("sensor")
 PILL_COLORS = ("white", "yellow", "orange", "red", "pink", "purple", "blue", "teal", "mint", "green")
 
 
+def _page_accents(v: Any) -> dict[str, str]:
+    """Each page's highlight ({page: accent}); a page set to "" or None
+    goes back to its default (left out)."""
+    if v is None:
+        return {}
+    if not isinstance(v, dict):
+        raise Invalid("choice")
+    clean = {k: c for k, c in v.items() if c not in (None, "")}
+    got = S.page_accents(clean)
+    if got is None or len(got) != len(clean):
+        raise Invalid("accent")
+    return got
+
+
 def _page_pills(v: Any) -> dict[str, dict[str, str]]:
     """kind -> {name, icon, color}, each optional; an empty look is dropped."""
     if not isinstance(v, dict):
@@ -377,6 +638,41 @@ def _calendar_colors(v: Any) -> dict[str, str]:
     return out
 
 
+CAL_KEYWORDS = 30
+CAL_EVENT_COLORS = 500
+
+
+def _calendar_keywords(v: Any) -> list[dict[str, str]]:
+    """[{word, color}]: a word (1-40 characters) and a pill colour each."""
+    if not isinstance(v, list) or len(v) > CAL_KEYWORDS:
+        raise Invalid("list")
+    out: list[dict[str, str]] = []
+    for one in v:
+        if not isinstance(one, dict) or set(one) - {"word", "color"}:
+            raise Invalid("choice")
+        word, color = one.get("word"), one.get("color")
+        if not isinstance(word, str) or not 0 < len(word.strip()) <= 40:
+            raise Invalid("text")
+        if color not in PILL_COLORS:
+            raise Invalid("choice")
+        out.append({"word": word.strip(), "color": color})
+    return out
+
+
+def calendar_event_colors(v: Any) -> dict[str, str]:
+    """an event's key ("uid:..." / "title:...") -> a pill colour."""
+    if not isinstance(v, dict) or len(v) > CAL_EVENT_COLORS:
+        raise Invalid("list")
+    out: dict[str, str] = {}
+    for k, color in v.items():
+        if not isinstance(k, str) or not k.startswith(("uid:", "title:")) or len(k) > 240:
+            raise Invalid("choice")
+        if color not in PILL_COLORS:
+            raise Invalid("choice")
+        out[k] = color
+    return out
+
+
 HOUSE: dict[str, Callable[[Any], Any]] = {
     "security.alarm": _entity("alarm_control_panel"),
     "features.temperature": SENSOR,
@@ -391,9 +687,15 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     **{f"weather.{k}": SENSOR for k in ("feels_like", "humidity", "wind", "gust", "uv", "forecast_daily",
                                         "forecast_hourly", "alerts", "outside")},
     "weather.radar": _card_options,
+    "weather.page": _weather_page,
+    "weather.radar_native": _radar_native,
     "calendar.entities": _entities("calendar"),
     "calendar.colors": _calendar_colors,
+    "calendar.keywords": _calendar_keywords,
+    "calendar.event_colors": calendar_event_colors,
     "look.glass": _choice(S.GLASS),
+    "look.flat": _bool,
+    "look.flat_theme": _choice(("light", "dark")),
     "look.frost": _amount,
     "look.frost_tint": _bool,
     "look.blur": _amount,
@@ -405,10 +707,14 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "look.saver": _saver_options,
     "look.browse_view": _browse_view,
     "look.page_pills": _page_pills,
+    "look.page_accents": _page_accents,
+    "look.flat_colors": lambda v: {**S.FLAT_COLORS_DEFAULT, **_flat_colors(v)},
+    "look.flat_page_colors": _flat_page_colors,
     "menu.glyph": _choice(S.MENU_GLYPHS),
     "menu.clock": _bool,
     # All Screens' menu (settings.MENU_KEYS): every screen that doesn't set its own
     "menu.style": _choice(S.MENU_STYLES),
+    "menu.page_header": _choice(S.PAGE_HEADERS),
     "menu.tab_at": lambda v: _tab_position(v),
     "menu.tab_size": _choice(S.BOARD_TAB_SIZES),
     "menu.tab_size_phone": _choice(S.BOARD_TAB_SIZES),
@@ -438,6 +744,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "rooms.headings": _bool,
     "rooms.status": _ordered(S.STATUS_KINDS),
     **{f"status_rows.{p}": _status_row(p) for p in S.STATUS_ROWS},
+    **{f"headers.{p}": _header(p) for p in S.HEADERS},
     "rooms.order": _ids,
     # All Screens' cameras (settings.resolved): every screen that doesn't set its own
     "cameras.order": _entities("camera"),
@@ -445,6 +752,11 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "rooms.home": _choice(S.BOARD_HOME_ROOMS),
     "rooms.menu": _choice(S.BOARD_MENU_ROOMS),
     "rooms.pages": _choice(S.BOARD_PAGE_ROOMS),
+    "now_playing.style": _choice(S.NP_STYLES),
+    "now_playing.side": _choice(S.NP_SIDES),
+    "now_playing.bar": _choice(S.NP_BARS),
+    "now_playing.bar_phone": _choice(S.NP_BARS),
+    "now_playing.grace": lambda v: _choice(S.NP_GRACES)(None if isinstance(v, bool) else v),
     "browse.hide": _subset(S.BROWSE_CATEGORIES),
     "browse.discover": _ordered(list(S.SHELVES)),
     "generated.exclude_areas": _ids,
@@ -472,6 +784,15 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "sky.landscape": _landscape(False),
     "sky.landscape_look": _photo_look(False),
     "sky.page_looks": _page_looks,
+    "sky.flat_background": _choice(S.FLAT_BACKGROUNDS),
+    "sky.flat_color": _flat_color(False),
+    "sky.flat_fade": _amount,
+    "sky.flat_tint": lambda v: _flat_tint(v, False),
+    "sky.flat_tint_amount": _amount,
+    "sky.flat_tint_light": _amount,
+    "sky.flat_pages": _flat_pages,
+    "sky.flat_image_look": _flat_image_look,
+    "sky.flat_page_image_looks": _flat_page_image_looks,
     "sky.themes": _subset(S.THEMES),
     "sky.hemisphere": _choice(("north", "south")),
     "sky.moon": SENSOR,
@@ -495,6 +816,8 @@ HOUSE.update({
     "tablets.restart_times": lambda v: _restart_times(v),
     "tablets.dismissed": lambda v: _keys(v),
 })
+IMAGE_HOUSE = re.compile(r"^sky\.flat_image_look\.patch$|^sky\.flat_page_image_looks\.([a-z0-9][a-z0-9_-]{0,39})$")
+FLAT_HOUSE = re.compile(r"^look\.flat_colors\.(accent|off_tint|pages)$|^look\.flat_page_colors\.([a-z0-9][a-z0-9_-]{0,39})$")
 SKY_DATE = re.compile(r"^sky\.(" + "|".join(S.SKY_BUILT_IN) + r")_(from|to)$")
 # Options of the integration itself, beside `dashboard`.
 TOP = {"sidebar": _bool}
@@ -525,6 +848,29 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any]
                 cur = dash.get("sky") if isinstance(dash.get("sky"), dict) else {}
                 dash["sky"] = S.house_stored("sky", {k: v for k, v in cur.items()
                                                      if k in now["sky"] and k not in S.SKY_RESET})
+                continue
+            im = IMAGE_HOUSE.fullmatch(path)
+            if im:
+                # Include earlier whole-object, legacy, or reset edits in
+                # this same transaction, not just the pre-transaction view.
+                sk = dict(S.merged({**dict(options), S.CONF_DASHBOARD: dash})["sky"])
+                field = "flat_page_image_looks" if im.group(1) else "flat_image_look"
+                sk[field] = image_pages_patch(sk[field], im.group(1), value) if im.group(1) else image_patch(sk[field], value)
+                now["sky"] = sk
+                dash["sky"] = S.house_stored("sky", sk)
+                continue
+            # FLAT COLORS' PATCHES (flat_patch): made over the store as it is
+            fm = FLAT_HOUSE.match(path)
+            if fm:
+                lk = dash.get("look") if isinstance(dash.get("look"), dict) else {}
+                lk = {**now["look"], **{k: v for k, v in lk.items() if k in now["look"]}}
+                if fm.group(1):
+                    lk["flat_colors"] = {**S.FLAT_COLORS_DEFAULT,
+                                         **flat_patch(lk["flat_colors"], {fm.group(1): value})}
+                else:
+                    lk["flat_page_colors"] = flat_pages_patch(lk["flat_page_colors"], fm.group(2), value)
+                now["look"] = lk
+                dash["look"] = S.house_stored("look", lk)
                 continue
             m = SKY_DATE.match(path)
             if m:
@@ -720,6 +1066,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "rooms_custom": _bool,
     "cameras_custom": _bool,
     "menu_custom": _bool,
+    "page_header": _choice(S.PAGE_HEADERS),
     "accent": _accent,
     "glyph": _choice(S.MENU_GLYPHS),
     "clock": _bool,
@@ -758,6 +1105,8 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "home_page": _bool,
     "home_view": _home_view,
     "glass": _choice(S.BOARD_GLASS),
+    "flat": _bool_or_none,
+    "flat_theme": _choice(("light", "dark"), none=True),
     "frost": _amount_or_none,
     "frost_tint": _bool_or_none,
     "blur": _amount_or_none,
@@ -777,6 +1126,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_daytime": _choice(S.DAYTIME_SKIES, none=True),
     "sky_gradient": _choice(S.SKY_BACKDROP_IDS, none=True),
     "sky_pages": _sky_pages,
+    "headers": _board_headers,
     "sky_custom": _sky_stops,
     "sky_background": _choice(S.SKY_BACKGROUNDS, none=True),
     "sky_color": _choice(S.SKY_COLOR_IDS, none=True),
@@ -785,6 +1135,17 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_photo_look": _photo_look(True),
     "sky_landscape": _landscape(True),
     "sky_landscape_look": _photo_look(True),
+    "sky_flat_background": _choice(S.FLAT_BACKGROUNDS, none=True),
+    "sky_flat_color": _flat_color(True),
+    "sky_flat_fade": _amount_or_none,
+    "sky_flat_tint": lambda v: _flat_tint(v, True),
+    "sky_flat_tint_amount": _amount_or_none,
+    "sky_flat_tint_light": _amount_or_none,
+    "sky_flat_pages": _flat_pages,
+    "sky_flat_image_look": _flat_image_look,
+    "sky_flat_page_image_looks": _flat_page_image_looks,
+    "flat_colors": _flat_colors,
+    "flat_page_colors": _flat_page_colors,
     "sky_page_looks": _page_looks,
     "sky_liveliness": _choice(S.LIVELY_PRESETS, none=True),
     "sky_liveliness_occ": _parsed(S.lively, empty={}),
@@ -805,6 +1166,10 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "now_playing": _bool,
     "timer_bar": _bool,
     "bar_all_pages": _bool,
+    "np_style": _choice(S.NP_STYLES, none=True),
+    "np_side": _choice(S.NP_SIDES, none=True),
+    "np_bar": _choice(S.NP_BARS, none=True),
+    "np_bar_phone": _choice(S.NP_BARS, none=True),
     "screensaver": _bool,
     "wallpanel_options": _card_options,
     "kiosk_options": _card_options,
@@ -900,14 +1265,34 @@ def apply_tablet(data: Mapping[str, Any], changes: Mapping[str, Any], tid: str
     return S.tablet({**dict(data), **clean}, tid), {}
 
 
+IMAGE_BOARD = re.compile(r"^sky_flat_image_look\.patch$|^sky_flat_page_image_looks\.([a-z0-9][a-z0-9_-]{0,39})$")
+FLAT_BOARD = re.compile(r"^flat_colors\.(accent|off_tint|pages)$|^flat_page_colors\.([a-z0-9][a-z0-9_-]{0,39})$")
+
+
 def apply_board(data: Mapping[str, Any], changes: Mapping[str, Any]
                 ) -> tuple[dict[str, Any], dict[str, str]]:
     """One screen's settings with `changes` made (then settings.board(), as
     every write of an item), and any refusals."""
     errors: dict[str, str] = {}
     clean: dict[str, Any] = {}
+    now = S.board(data)
     for key, value in changes.items():
         try:
+            im = IMAGE_BOARD.fullmatch(key)
+            if im:
+                field = "sky_flat_page_image_looks" if im.group(1) else "sky_flat_image_look"
+                current = clean.get(field, now[field])
+                clean[field] = image_pages_patch(current, im.group(1), value) if im.group(1) else image_patch(current, value)
+                continue
+            fm = FLAT_BOARD.match(key)
+            if fm:
+                # a patch (flat_patch), over this call's earlier changes
+                if fm.group(1):
+                    clean["flat_colors"] = flat_patch(clean.get("flat_colors", now["flat_colors"]), {fm.group(1): value})
+                else:
+                    clean["flat_page_colors"] = flat_pages_patch(clean.get("flat_page_colors", now["flat_page_colors"]),
+                                                                 fm.group(2), value)
+                continue
             if key not in BOARD:
                 raise Invalid("unknown")
             clean[key] = BOARD[key](value)

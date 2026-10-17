@@ -1,5 +1,6 @@
 {
  "hk-base 13.5px": 2,
+ "hk-base 14px": 2,
  "hk-calendar 12px": 6,
  "hk-calendar 14px": 11,
  "hk-calendar 16px": 5,
@@ -36,7 +37,7 @@
  "hk-detail 60px": 1,
  "hk-energy 10px": 1,
  "hk-energy 12px": 8,
- "hk-energy 14px": 9,
+ "hk-energy 14px": 7,
  "hk-energy 16px": 1,
  "hk-energy 18px": 2,
  "hk-energy 20px": 3,
@@ -93,10 +94,17 @@
  "hk-tile 35.3px": 1,
  "hk-timers 12px": 1,
  "hk-timers 18px": 1,
- "hk-weather 12px": 1,
- "hk-weather 14px": 3,
+ "hk-weather 10px": 2,
+ "hk-weather 12px": 6,
+ "hk-weather 14px": 8,
  "hk-weather 16px": 1,
- "hk-weather 18px": 1,
+ "hk-weather 18px": 3,
  "hk-weather 19px": 1,
- "hk-weather 21px": 1
+ "hk-weather 20px": 1,
+ "hk-weather 21px": 1,
+ "hk-weather 24px": 1,
+ "hk-weather 26px": 1,
+ "hk-weather 28px": 1,
+ "hk-weather 84px": 1,
+ "hk-weather 9px": 1
 }

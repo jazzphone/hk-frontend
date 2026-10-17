@@ -31,7 +31,7 @@
                  // asks (hk-kiosk.js): first, so a kiosk screen shows them
                  // for as short a time as possible.
                  'hk-kiosk.js',
-                 'hk-stats.js', 'hk-charts.js', 'hk-sky.js', 'hk-idle.js',
+                 'hk-stats.js', 'hk-charts.js', 'hk-flat-image.js', 'hk-sky.js', 'hk-idle.js',
                  // The sky as a picture, for the Pre-rendered blur (it only
                  // assigns window.hkSkyShot; hk-glass.js asks it when it paints)
                  'hk-skyshot.js',

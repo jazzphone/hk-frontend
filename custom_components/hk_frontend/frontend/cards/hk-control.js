@@ -89,6 +89,7 @@ class HkControlCard extends HTMLElement {
     // not extend HkBase. Inside another HK card it inherits that card's.
     if (window.hkCards && window.hkCards.place) {
       window.hkCards.place(this);
+      if (window.hkCards.flatSurface) window.hkCards.flatSurface(this, 'control');
       if (this._hass && window.hkCards.tone) window.hkCards.tone(this, this._hass);
     }
     // A bare control draws no plate, so it has nothing for the blur to cut.
@@ -112,7 +113,7 @@ class HkControlCard extends HTMLElement {
     // The resolved id is part of the signature: switching speakers can leave
     // state and attributes looking identical (two idle HomePods), and without
     // the id in here the card would keep drawing the previous speaker.
-    const signature = JSON.stringify([id,s?.state,s?.attributes]);
+    const signature = JSON.stringify([id,s?.state,s?.attributes,window.hkSettings?.rendering?.()]);
     if (signature !== this._signature) {
       this._signature = signature;
       // NOT UNDER A FINGER: a redraw rebuilds the dial, and with it the
@@ -257,7 +258,7 @@ class HkControlCard extends HTMLElement {
     // the choice slides across the redraw (hk-base.js segBefore / segAfter)
     const HC=window.hkCards, SEGS=".option-row:not(.many),.tstat-modes,.tstat-fan", ON=".segment.active";
     const before=HC&&HC.segBefore?HC.segBefore(this.shadowRoot,SEGS,ON):null;
-    this.shadowRoot.innerHTML=`<style>${this._baseCss()}${this._extraCss()}${this._segCss()}</style>${body}`;
+    this.shadowRoot.innerHTML=`<style>${this._baseCss()}${this._extraCss()}${this._segCss()}${HC?.flatCss ? HC.flatCss() : ''}</style>${body}`;
     if(before&&HC.segAfter) HC.segAfter(this.shadowRoot,SEGS,ON,before);
     this._progRun();
     var _a=this._accent();
@@ -282,6 +283,7 @@ class HkControlCard extends HTMLElement {
     if(this._progAnim){ try{ this._progAnim.cancel(); }catch(e){} this._progAnim = null; }
     const P = this._prog, f = P && this.shadowRoot && this.shadowRoot.querySelector && this.shadowRoot.querySelector(".prog-fill");
     if(!f || typeof f.animate !== "function") return;
+    if(window.hkSettings?.rendering?.().flat) return;
     try{ if(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; }catch(e){}
     const an = f.animate([{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
       { duration: P.dur*1000, easing: `steps(${Math.max(1,Math.ceil(P.dur*4))})` });
@@ -320,6 +322,7 @@ class HkControlCard extends HTMLElement {
       .ring{width:100%;max-width:var(--hk-tstat-ring,300px);touch-action:pan-y;user-select:none;cursor:pointer;display:block;margin:2px 0 0}
       .ring .hit{fill:none;stroke:transparent;stroke-width:54px;stroke-linecap:round}
       .ring .trk{fill:none;stroke:${window.hkCards.v('line-strong')};stroke-width:22px;stroke-linecap:round}
+      :host([hk-flat="light"]) .ring .trk{stroke:${window.hkCards.v('key')}}
       .ring .bnd{fill:none;stroke-width:22px;stroke-linecap:round}
       .ring .kn{fill:#fff;stroke:rgba(0,0,0,.18);stroke-width:1px}
       .ring .cur{fill:${window.hkCards.v('ink')}}
@@ -1162,6 +1165,14 @@ if(!window.customCards.some(c=>c.type==="hk-control-card")) window.customCards.p
         // The variant IS the control; a config cannot override it, or the name
         // on the page would stop describing what is drawn.
         super.setConfig(Object.assign({}, config, { control: control }));
+        // `dial_width`: this wide, or its cell's width where that is less --
+        // the Climate page's dials (hk-strategy.js), whose `auto` tracks grow
+        // to it and no further. (Less its 4 px side margins: every grid
+        // child has them, hk-layout.js `#root>*`, and 100% leaves them out.)
+        if (this.style) {
+          this.style.width = (config && config.dial_width) || '';
+          this.style.maxWidth = config && config.dial_width ? '100%' : '';
+        }
       }
     }
     // its size in HA's Sections view (hk-base.js GRID)

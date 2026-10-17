@@ -162,7 +162,16 @@
     // box over the whole banner, ignoring its corners.
     '.layer,.layer *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}',
     '.layer :focus:not(:focus-visible){outline:none}',
-    '.layer{position:fixed;left:0;right:0;top:0;height:0;z-index:' + Z + ';pointer-events:none;',
+    // (centered as the sheets are: over THE WHOLE DASHBOARD, an Always Open
+    // menu included -- the menu is the dashboard's own -- past Home
+    // Assistant's sidebar, short of a right Now Playing pane; hk-menu.js
+    // --hk-content-left / --hk-page-right. 2026-10-16, the user: centered
+    // past the menu, the banner sat right of the window's middle)
+    // OVER THE SCREENSAVER the whole screen (2026-10-16, the user: centered
+    // over the photo, short of the saver's right-hand pane): the saver covers
+    // the sidebar and any Now Playing pane, so neither is in the way
+    '.layer.sv{left:0;right:0}',
+    '.layer{position:fixed;left:var(--hk-content-left,0px);right:var(--hk-page-right,0px);top:0;height:0;z-index:' + Z + ';pointer-events:none;',
     // the dashboard's font, as every HK surface outside the view has it
     // (hk-base.js puts --hk-font-body on the root; this sheet is built before
     // hk-base may have loaded). It named -apple-system first, which an
@@ -220,7 +229,10 @@
     host = document.createElement('div');
     host.id = 'hk-notify';
     root = host.attachShadow({ mode: 'open' });
-    root.innerHTML = '<style>' + CSS + '</style><div class="layer"><div class="ctl"></div></div>';
+    var C = window.hkCards;
+    if (C && C.flatSurface) C.flatSurface(host, 'notification');
+    root.innerHTML = '<style>' + CSS + (C && C.flatCss ? C.flatCss() : '') +
+      ':host([hk-flat]) .nb,:host([hk-flat]) .ctl button{background:var(--hk-flat-elevated)!important;color:var(--hk-ink);box-shadow:var(--hk-flat-elevated-shadow)}' + '</style><div class="layer"><div class="ctl"></div></div>';
     layer = root.querySelector('.layer');
     ctl = root.querySelector('.ctl');
     ctl.addEventListener('click', function (e) {
@@ -233,7 +245,7 @@
   }
   function restyle() {
     if (!layer) return;
-    layer.className = 'layer ' + look() + (isPhone() ? ' phone' : '');
+    layer.className = 'layer ' + look() + (isPhone() ? ' phone' : '') + (saverOn() ? ' sv' : '');
   }
 
   // ------------------------------------------------------------ the stack
@@ -353,7 +365,8 @@
     var el = it.el;
     if (dir) { el.style.transform = ''; el.classList.add(dir < 0 ? 'gone-l' : 'gone-r'); }
     else { el.style.transform = ''; el.classList.add('leave'); }
-    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 420);
+    if (host && host.hasAttribute('hk-flat')) { if (el.parentNode) el.parentNode.removeChild(el); }
+    else setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 420);
     setTimeout(layout, fan ? 120 : 0);
   }
   function clearAll() {

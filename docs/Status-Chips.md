@@ -25,7 +25,7 @@ accessories, and you change that on the accessory: hide it from a chip in
 [Hidden Accessories](Accessories.md#hidden-accessories), or count it where it
 isn’t found with its [Also Count As](Accessories.md#also-count-as).
 Each type’s page in [Accessories](Accessories.md#types) shows the result. The alarm is in
-[General](HK-Settings.md#general), the indoor temperature and power sensor
+[Pages → Security](HK-Settings.md#pages), the indoor temperature and power sensor
 on the Climate and Energy chips’ own pages
 ([below](#status-chips-settings)); the alerts sensor is in
 [Weather](Weather.md). A kind your home has nothing of never shows a
@@ -141,7 +141,7 @@ have a room-style status row under their titles: *3 Lights · 2 On*, *Motion ·
 Emma’s Room*, *Valve · Running*. Each counts what its type’s page in
 [Accessories](Accessories.md#types) lists; tap
 an item for its room-labeled accessory list. Choose what each row shows, its
-order and the rooms it leaves out in **All Screens → Status Rows** ([Status
+order and the rooms it leaves out in **Pages → the page → Status Row** ([Status
 rows](Status-Rows.md)).
 
 ## What Counts

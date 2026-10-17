@@ -177,6 +177,8 @@
     '.mpchip{flex:none;height:34px;padding:0 14px;border-radius:99px;display:flex;align-items:center;font-size:14px;font-weight:600;cursor:pointer;',
     '  border:1.5px dashed rgba(255,255,255,.35);box-sizing:border-box}',
     '.mpchip.on{border-style:solid;background:rgba(255,255,255,.9);color:#111;border-color:transparent;text-shadow:none}',
+    // (Clear All: a plain button among the presets, not one of them)
+    '.mpchip.clr{border-style:solid;border-color:transparent;background:rgba(255,255,255,.14)}',
     '.mprooms{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}',
     '.mpanel[wide] .mprooms{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}',
     '.mproom{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 10px 6px 8px;border-radius:13px;background:rgba(255,255,255,.07);',
@@ -414,6 +416,12 @@
       var m = M(), h = states();
       var ticks = picking(c) ? o.target().slice() : ticksNow();
       if (picking(c)) S.members = ticks.slice();
+      // CLEAR ALL (2026-10-15): every room shown unticked, and the next one
+      // tapped is the only one -- so a few rooms out of many are a few taps,
+      // not one per room to untick. Nothing is stored empty: until a room is
+      // tapped the rooms stay as they were (one is always ticked, none is
+      // Stop), and Update waits for it.
+      if (S.clear) ticks = [];
       sub(ICON.vhi, c ? [c.title, c.artist].filter(Boolean).join(' · ') || label(c) : picking(c) ? 'Where the next music plays' : '');
       var rooms = m && m.rooms ? m.rooms() : [];
       var others = {};
@@ -421,7 +429,8 @@
         if (c && x.key === c.key) return;
         x.members.forEach(function (r) { others[r] = x.title || label(x); });
       });
-      var chips = (m && m.presets ? m.presets() : []).map(function (p) {
+      var chips = (ticks.length && rooms.length > 1 ? '<div class="mpchip clr" data-k="clear" role="button">Clear All</div>' : '') +
+        (m && m.presets ? m.presets() : []).map(function (p) {
         return '<div class="mpchip' + (same(ticks, p.members) ? ' on' : '') + '" data-preset="' + esc(p.entity) + '">' + esc(p.name) + '</div>';
       }).join('');
       if (E.chips.__t !== chips) { E.chips.innerHTML = chips; E.chips.__t = chips; }
@@ -438,6 +447,14 @@
       if (E.rooms.__t !== html) { E.rooms.innerHTML = html; E.rooms.__t = html; }
       var gone = ticks.filter(function (r) { return others[r] && (picking(c) || S.members.indexOf(r) < 0); });
       var also = gone.length ? ' ' + esc(list(gone.map(nameOf))) + (gone.length === 1 ? ' stops ' : ' stop ') + esc(others[gone[0]]) + ' first.' : '';
+      if (S.clear) {
+        var cf = '<div class="mpcap">Tap the rooms ' + (picking(c) ? 'the next pick plays on.' : 'to play on.') + '</div>' +
+                 (picking(c) ? '' : '<div class="mpacts"><div class="mpact rst' + (S.busy ? ' dis' : '') + '" data-k="reset">' + svg(ICON.undo) + 'Reset</div>' +
+                 '<div class="mpact upd dis" data-k="update">' + svg(ICON.check) + 'Update</div>' +
+                 (o.stop ? '<div class="mpact stop' + (S.busy || !c ? ' dis' : '') + '" data-k="stop" role="button" aria-label="Stop">' + svg(ICON.stop) + '</div>' : '') + '</div>');
+        if (E.foot.__t !== cf) { E.foot.innerHTML = cf; E.foot.__t = cf; }
+        return;
+      }
       if (picking(c)) {
         var pf = '<div class="mpcap">The next playlist, album or song you pick plays on <b>' + esc(list(ticks.map(nameOf))) + '</b>.' + also + '</div>';
         if (E.foot.__t !== pf) { E.foot.innerHTML = pf; E.foot.__t = pf; }
@@ -459,7 +476,9 @@
       var st = states()[k], free = st && st.state !== 'unavailable' && st.state !== 'unknown';
       S.err = '';
       var c = ctx(), t = picking(c) ? o.target().slice() : ticksNow(), i = t.indexOf(k);
-      if (i >= 0) { if (t.length > 1) t.splice(i, 1); }
+      // (just cleared: this room alone, and taps from here add to it)
+      if (S.clear) { if (!free && S.members.indexOf(k) < 0) return; S.clear = false; t = [k]; }
+      else if (i >= 0) { if (t.length > 1) t.splice(i, 1); }
       else if (free) t.push(k);
       if (picking(c)) o.setTarget(t); else setTicks(t);
       update(true);
@@ -467,7 +486,7 @@
     function tapPreset(entity) {
       var p = (M().presets() || []).filter(function (x) { return x.entity === entity; })[0];
       if (!p || S.busy) return;
-      S.err = '';
+      S.err = ''; S.clear = false;
       if (picking(ctx())) o.setTarget(p.members.slice()); else setTicks(p.members.slice());
       update(true);
     }
@@ -789,8 +808,9 @@
       if (t.hasAttribute('data-tab')) { show(t.getAttribute('data-tab')); return; }
       var k = t.getAttribute('data-k');
       if (k === 'close') { o.done(0); return; }
-      if (k === 'update') { updateRooms(); return; }
-      if (k === 'reset') { if (!S.busy) { S.err = ''; setTicks(null); update(true); } return; }
+      if (k === 'update') { if (!S.clear) updateRooms(); return; }
+      if (k === 'reset') { if (!S.busy) { S.err = ''; S.clear = false; setTicks(null); update(true); } return; }
+      if (k === 'clear') { if (!S.busy) { S.err = ''; S.clear = true; update(true); } return; }
       if (k === 'stop') { stop(); return; }
       if (t.hasAttribute('data-qid')) { playQueue(t.getAttribute('data-qid')); return; }
       if (k === 'pp' || k === 'next') { if (o.transport) o.transport(k); update(true); return; }

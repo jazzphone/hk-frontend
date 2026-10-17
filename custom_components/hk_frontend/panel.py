@@ -238,6 +238,7 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
             "sky_built_in": {k: {"north": list(S.sky_built_in(k, "north")),
                                  "south": list(S.sky_built_in(k, "south"))} for k in S.SKY_BUILT_IN},
             "sky_backdrops": [dict(p) for p in S.SKY_BACKDROPS],
+            "flat_colors": [dict(p) for p in S.FLAT_COLORS],
             # Liveliness: every knob's kind and type, and each occasion's
             # knobs with the decoration style that draws each
             "sky_lively": {"knobs": {k: list(v) for k, v in S.LIVELY_KNOBS.items()},
@@ -255,7 +256,7 @@ async def ws_panel_get(hass: HomeAssistant, connection: websocket_api.ActiveConn
 _KIND_ORDER = ("weather_alert", "security", "doors_windows", "climate", "lights", "blinds",
                "timers", "vacuums", "speakers", "water", "energy")
 _KIND_PAGES = {"weather_alert": ("weather",), "security": ("security", "alarm"),
-               "doors_windows": ("doors-windows", "doors"), "climate": ("climate",), "lights": ("lights",),
+               "doors_windows": ("doors-windows", "doors", "security"), "climate": ("climate",), "lights": ("lights",),
                "blinds": ("blinds", "shades", "climate"), "timers": ("timers",), "vacuums": ("vacuums",),
                "speakers": ("playmusic", "speakers"), "water": ("water", "leaks"), "energy": ("energy",)}
 
@@ -435,6 +436,34 @@ async def ws_settings_set(hass: HomeAssistant, connection: websocket_api.ActiveC
         return
     hass.config_entries.async_update_entry(entry, options=options)
     connection.send_result(msg["id"], {"settings": S.merged(options)})
+
+
+@websocket_api.websocket_command({
+    vol.Required("type"): "hk_frontend/calendar/color",
+    vol.Required("key"): vol.All(str, vol.Length(min=5, max=240)),
+    vol.Optional("color"): vol.Any(None, vol.In(settings_api.PILL_COLORS)),
+})
+@websocket_api.async_response
+async def ws_calendar_color(hass: HomeAssistant, connection: websocket_api.ActiveConnection,
+                            msg: dict[str, Any]) -> None:
+    """AN EVENT'S OWN COLOR, from its sheet (hk-calendar.js): open to every
+    user, as editing the event is -- it changes calendar.event_colors and
+    nothing else. No color: back to its keyword's or its calendar's."""
+    entry = _entry(hass)
+    if entry is None:
+        connection.send_error(msg["id"], "not_set_up", "HK Frontend is not set up")
+        return
+    cur = dict((S.merged(entry.options).get("calendar") or {}).get("event_colors") or {})
+    if msg.get("color"):
+        cur[msg["key"]] = msg["color"]
+    else:
+        cur.pop(msg["key"], None)
+    options, errors = settings_api.apply_house(entry.options, {"calendar.event_colors": cur})
+    if errors:
+        _refused(connection, msg["id"], errors)
+        return
+    hass.config_entries.async_update_entry(entry, options=options)
+    connection.send_result(msg["id"], {"event_colors": cur})
 
 
 @websocket_api.websocket_command({
@@ -726,6 +755,6 @@ def ws_dashboard_titled(hass: HomeAssistant, connection: websocket_api.ActiveCon
 def register_commands(hass: HomeAssistant) -> None:
     for cmd in (ws_tablet_set, ws_tablet_add, ws_tablet_remove, ws_tablet_act, ws_tablet_seen):
         websocket_api.async_register_command(hass, cmd)
-    for cmd in (ws_panel_get, ws_setup_done, ws_settings_set, ws_board_set, ws_setup_check,
+    for cmd in (ws_panel_get, ws_setup_done, ws_settings_set, ws_calendar_color, ws_board_set, ws_setup_check,
                 ws_chip_save, ws_chip_remove, ws_dashboard_titled):
         websocket_api.async_register_command(hass, cmd)

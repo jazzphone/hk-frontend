@@ -73,8 +73,8 @@ blur); on a phone the strip is just the tabs.
 
 | | |
 |---|---|
-| <img src="images/phone-energy.jpg" width="260" alt="The Energy page on a phone"> | ![HK Settings → Features → Energy](images/settings-energy.png) |
-| On a phone | **HK Settings → Features → Energy** |
+| <img src="images/phone-energy.jpg" width="260" alt="The Energy page on a phone"> | ![HK Settings → Pages → Energy](images/settings-energy.png) |
+| On a phone | **HK Settings → Pages → Energy** |
 
 ## What it starts from
 
@@ -234,7 +234,7 @@ lists a custom page at that address shows the Power page in its place.
 
 ## Settings
 
-**HK Settings → Features → Energy**:
+**HK Settings → Pages → Energy**:
 
 | Setting | Default | What it does |
 |---|---|---|

@@ -687,6 +687,10 @@
         // 102pt in all, was 138; 80 where there is none).
         '  ha-card.np.bar{--hk-np-height:calc(68px + max(12px, env(safe-area-inset-bottom, 0px)));',
         '    --hk-np-pad:12px 24px max(12px, env(safe-area-inset-bottom, 0px))}',
+        // ALONG THE TOP (Bar Position: Top; hk-popup.js sets np-top): the
+        // same, its 12px taken from the top inset (the Dynamic Island's)
+        '  :host([np-top]) ha-card.np.bar{--hk-np-height:calc(68px + max(12px, env(safe-area-inset-top, 0px)));',
+        '    --hk-np-pad:max(12px, env(safe-area-inset-top, 0px)) 24px 12px}',
         '  .np.bar .grid{row-gap:3px}',
         // column-gap DIRECTLY, not --hk-np-gap. `.np.bar .grid` hard-codes
         // 14px (see above), which beats the variable outright -- so an
@@ -762,7 +766,10 @@
         ? window.hkMusic.resolve(this._hass)
         : { player: null, context: null, reason: 'none', name: '' };
     }
-    _player() { return this._st(this._res().player) || null; }
+    _player() {
+      var p = this._st(this._res().player) || null;
+      return window.hkMusic && window.hkMusic.ignored(p) ? null : p;
+    }
 
     set hass(h) {
       if (window.hkMusic) window.hkMusic.attach(h);
@@ -882,6 +889,9 @@
     // PUT AWAY: hk-popup's own close path (the hash cleared), the one its
     // backdrop and X use -- with `dismissable` it stays shut on this screen
     // until the music or the timers change
+    // WHEN IT WAS LAST IN USE (hk-popup.js keeps the bar up a whole grace
+    // after, the music paused or stopped): its Speakers open is now
+    hkLastUse() { return this._spk ? Date.now() : (this._usedAt || 0); }
     _putAway() {
       if (location.hash) {
         history.replaceState(null, '', location.pathname + location.search);
@@ -914,15 +924,17 @@
         if (d || self._spk || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
         var path = ev.composedPath ? ev.composedPath() : [], e = self._e || {};
         if (path.indexOf(e.meta) >= 0 || path.indexOf(e.sub) >= 0) return;
-        if (ev.clientY > window.innerHeight - self._insetBottom() - 4) return;
+        var up = self.hasAttribute('np-top');
+        if (!up && ev.clientY > window.innerHeight - self._insetBottom() - 4) return;
         var sh = sheetOf();
         if (!sh) return;
+        // (along the top it goes up: the same swipe, mirrored)
         d = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, sh: sh, h: sh.offsetHeight || 100, on: false,
-              last: [ev.timeStamp, ev.clientY], prev: null };
+              dir: up ? -1 : 1, last: [ev.timeStamp, ev.clientY], prev: null };
       });
       card.addEventListener('pointermove', function (ev) {
         if (!d || ev.pointerId !== d.id) return;
-        var dx = ev.clientX - d.x, dy = ev.clientY - d.y;
+        var dx = ev.clientX - d.x, dy = (ev.clientY - d.y) * d.dir;
         if (!d.on) {
           if (Math.abs(dx) > SLOP && Math.abs(dx) > Math.abs(dy)) { d = null; return; }
           if (dy < -SLOP) { d = null; return; }
@@ -931,7 +943,7 @@
           try { card.setPointerCapture(d.id); } catch (x) { /* gone */ }
           d.sh.style.transition = 'none';
         }
-        d.sh.style.transform = 'translateY(' + Math.max(0, dy - SLOP) + 'px)';
+        d.sh.style.transform = 'translateY(' + (d.dir * Math.max(0, dy - SLOP)) + 'px)';
         d.prev = d.last; d.last = [ev.timeStamp, ev.clientY];
       });
       var end = function (ev) {
@@ -940,11 +952,11 @@
         d = null;
         if (!g.on) return;
         self._swallow = Date.now();
-        var y = ev.clientY - g.y - SLOP;
-        var v = g.prev ? (g.last[1] - g.prev[1]) / Math.max(1, g.last[0] - g.prev[0]) : 0;
+        var y = (ev.clientY - g.y) * g.dir - SLOP;
+        var v = g.prev ? (g.last[1] - g.prev[1]) * g.dir / Math.max(1, g.last[0] - g.prev[0]) : 0;
         if (ev.type === 'pointerup' && (y > g.h * 0.4 || (v > 0.5 && y > 20))) {
           sh.style.transition = 'transform .2s cubic-bezier(.4,0,1,1)';
-          sh.style.transform = 'translateY(100%)';
+          sh.style.transform = 'translateY(' + (g.dir * 100) + '%)';
           // ...then closed where it already is: the sheet's own closed
           // place is the same translateY(100%), so nothing jumps
           setTimeout(function () { self._putAway(); sh.style.transition = ''; sh.style.transform = ''; }, 200);
@@ -1247,6 +1259,8 @@
         }
         q('.close').addEventListener('click', function () { self._putAway(); });
         if (cfg.bar) this._swipe(q('ha-card'));
+        // (a touch on the bar is it in use: hk-popup.js keeps it up a grace after)
+        if (cfg.bar) q('ha-card').addEventListener('pointerdown', function () { self._usedAt = Date.now(); }, true);
         // NO BROWSE BUTTON IN THE PLAYER: there is one on the page.
         // hk-speaker-picker-card appends a "Browse Music" tile to its row
         // whenever `browse_url` is set -- the picker's `browse_url` is the live
@@ -1485,7 +1499,7 @@
       var ids = this._players();
       for (var i = 0; i < ids.length; i++) {
         var s = this._st(ids[i]);
-        if (s && s.state === 'playing') return s;
+        if (s && s.state === 'playing' && !(window.hkMusic && window.hkMusic.ignored(s))) return s;
       }
       return null;
     }

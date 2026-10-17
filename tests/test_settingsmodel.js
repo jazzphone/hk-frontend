@@ -417,8 +417,8 @@ ok('search finds the swipe', M.search('swipe', []).some(function (r) { return r.
   var M3 = (typeof window !== 'undefined' ? window : globalThis).hkSettingsModel;
   var rows = M3.skyPageRows(['energy', 'weather', 'music', 'browse', 'rooms', 'ecoflow'], { ecoflow: 'EcoFlow' });
   ok('page backgrounds: each page once, Browse part of Music', rows.map(function (r) { return r.key; }).join(',') === 'energy,weather,music,rooms,ecoflow');
-  ok('...Automatic in words: a page with its own color keeps it, the rest the live sky, a custom page as written',
-     M3.skyAutoLabel(rows[0]) === 'Page Color' && M3.skyAutoLabel(rows[1]) === 'Background' && M3.skyAutoLabel(rows[4]) === 'As Written');
+  ok('...a page left alone says Automatic (2026-10-17)',
+     M3.skyAutoLabel(rows[0]) === 'Automatic' && M3.skyAutoLabel(rows[1]) === 'Automatic' && M3.skyAutoLabel(rows[4]) === 'Automatic');
   var bds = [{ id: 'live', label: 'Live Sky' }, { id: 'dusk', label: 'Dusk' }];
   var ops = M3.skyModeOptions(rows[0], bds, 'Automatic').map(function (o) { return o[0]; }).join(',');
   ok('...the choices: Automatic, Page Color where it has one, then every backdrop (Live Sky first)', ops === ',own,live,dusk', ops);
@@ -466,10 +466,10 @@ ok('All Screens\' phone keys read as a screen\'s, and save back', hb.button_phon
    M.houseMenuAsBoard({ bar_glass: 'clear' }).tab_bar_glass === 'tinted' && !('narrow' in M.houseMenuAsBoard({})) &&
    eq(M.houseMenuSave({ button_phone: 'chip', tab_bar_rooms_phone: null }), { 'menu.button_phone': 'chip', 'menu.bar_rooms_phone': null }));
 // THE GLASS (2026-10-10): Glass, Frosted, Tinted (2026-10-12), Blur -- and Blur's three modes
-ok('glass: four styles, Blur\'s three modes, one stored value each',
-   eq(M.GLASS_STYLES.map(function (g) { return g[0]; }), ['clear', 'frosted', 'tinted', 'blur']) &&
+ok('glass: five styles, Blur\'s three modes, one stored value each',
+   eq(M.GLASS_STYLES.map(function (g) { return g[0]; }), ['flat', 'clear', 'frosted', 'tinted', 'blur']) &&
    eq(M.BLUR_MODES.map(function (g) { return g[0]; }), ['blur', 'blur_pre', 'blur_each']) &&
-   eq(M.GLASS.map(function (g) { return g[0]; }), ['clear', 'frosted', 'tinted', 'blur', 'blur_pre', 'blur_each']));
+   eq(M.GLASS.map(function (g) { return g[0]; }), ['flat', 'clear', 'frosted', 'tinted', 'blur', 'blur_pre', 'blur_each']));
 ok('...Tinted is a style of its own, named, with its Darkness and Icon Circles',
    M.glassStyle('tinted') === 'tinted' && M.glassLabel('tinted') === 'Tinted' && !M.isBlur('tinted') &&
    /Darkness/.test(M.glassFooter('tinted')) && /Icon Circles/.test(M.glassFooter('tinted')) &&

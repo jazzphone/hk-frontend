@@ -63,14 +63,34 @@
       lights: { status: ['lights', 'outlets'], exclude_areas: [] },
       doors_windows: { status: ['doors', 'windows', 'motion', 'occupancy'], exclude_areas: [] },
       water: { status: ['leaks', 'valves'], exclude_areas: [] },
-      security: { status: ['security', 'locks', 'garage', 'doors', 'windows', 'leaks'], exclude_areas: [] }
+      security: { status: ['security', 'locks', 'garage', 'doors', 'windows', 'leaks'], exclude_areas: [] },
+      vacuums: { status: ['vacuums', 'vacuum_battery'], exclude_areas: [] },
+      timers: { status: ['timers'], exclude_areas: [] }
+    },
+    // the page headers (settings.HEADERS; hk-headers.js): null is Automatic
+    headers: {
+      climate: { show: true, thermostats: null },
+      lights: { show: true, rooms: 3, left_on: true, tonight: true, exclude_areas: null, after_min: 10, automations: null, sky_follow: true, sky_source: null },
+      security: { show: true, callouts: true, front_door: null, back_door: null, garage: null, low_battery: 20 },
+      water: { show: true, meter: null, supply: null },
+      timers: { show: true, presets: [5, 10, 15, 20, 30, 60], names: ['Pasta', 'Oven', 'Laundry', 'Tea', 'Kids', 'Break'] },
+      vacuums: { show: true, counters: null }
     },
     security: { alarm: null, garage: [], locks: [], doors: [], windows: [] },
     clock: { time: 'sensor.time', date: 'sensor.date' },
     weather: { entity: null, feels_like: null, humidity: null, wind: null, gust: null, uv: null,
                forecast_daily: null, forecast_hourly: null, alerts: null, place: null, outside: null,
-               // the Weather Radar Card's own options (YAML), over the tuned map
-               radar: {} },
+               // the Weather Radar Card's own options (YAML), kept as they
+               // were; the Weather page draws HK's own radar (radar_native)
+               radar: {},
+               // the Weather page's composition and its radar (settings.py
+               // WEATHER_PAGE_DEFAULTS / RADAR_DEFAULTS; weatherPage(), radarPlan())
+               page: { show_current: true, show_hourly: true, show_daily: true, show_alerts: true,
+                       hours: 12, days: 8, hourly_metric: 'temperature',
+                       details: ['wind', 'sun', 'uv', 'humidity', 'moon', 'pressure'], load_animation: true },
+               radar_native: { version: 1, enabled: false, provider: 'auto', basemap: 'osm', center: 'home', zone: null,
+                               zoom: 5, marker: true, history_minutes: 60, playback_speed: 'normal', autoplay: true,
+                               interactive: true, playback_controls: true, opacity: 75 } },
     sky: { moon: null, holidays: null, seasonal: null, birthdays: [], decorations: true, decoration_style: 'old', moving: 'behind', cloud_style: 'classic',
            daytime: 'natural',
            woodland: ['spring', 'summer', 'fall', 'winter'],
@@ -97,6 +117,9 @@
            // 'photo'} -- a page missing is Automatic (settings.py sky.pages);
            // a page's own photo, for 'photo': page_photos
            pages: {}, page_photos: {}, page_looks: {},
+           // FLAT'S OWN (settings.py FLAT_BACKGROUNDS): its background, color,
+           // how far a photo fades (0-100) and each page's
+           flat_background: 'color', flat_color: 'auto', flat_fade: 50, flat_pages: {}, flat_tint: 'none', flat_tint_amount: 60, flat_tint_light: 50, flat_image_look: {}, flat_page_image_looks: {},
            themes: ['halloween', 'thanksgiving', 'christmas', 'birthday', 'fourth-of-july',
                     'valentines-day', 'spring-garden', 'winter-wonderland', 'storybook-magic',
                     'space-night'],
@@ -130,7 +153,7 @@
             // the tab bar's (a device's Menu "tabbar")
             bar_scroll: 'shrink', bar_rooms: 'more', bar_glass: 'house', bar_more: 'icons',
             bar_more_phone: 'list', bar_pos: 'bottom', bar_fold: 'start', bar_start: 'full',
-            bar_adjust: true,
+            bar_adjust: true, page_header: 'current',
             bar_tabs: 6, bar_tabs_rail: 6, bar_size: 'medium',
             // Phones' own (hk-base.js phoneForm: a phone, or a tablet whose
             // own menu doesn't fit)
@@ -144,8 +167,10 @@
     // live: the Home strip's first tile plays live video (a screen's
     // camera_live_video, when set, is its own)
     cameras: { order: [], live: true },
-    look: { glass: 'clear', frost: 50, blur: 50, tint: 50, well: 'dark', frost_tint: false, details: true, browse_view: 'music-browse', sky_switch: null,
-            photos: 'media-source://media_source/local/photos', page_pills: {},
+    look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, well: 'dark', frost_tint: false, details: true, browse_view: 'music-browse', sky_switch: null,
+            photos: 'media-source://media_source/local/photos', page_pills: {}, page_accents: {},
+            // FLAT COLORS (settings.py flat_colors; resolveFlatColors)
+            flat_colors: { accent: 'auto', off_tint: 'auto', pages: 'accent' }, flat_page_colors: {},
             // All Screens' screensaver options (settings.py SAVER_DEFAULTS)
             saver: { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false, clock: true,
                      weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true,
@@ -161,7 +186,11 @@
     // The Calendar page and the screensaver's calendar pane (All Screens ->
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)
-    calendar: { entities: [], colors: {} },
+    calendar: { entities: [], colors: {}, keywords: [], event_colors: {} },
+    // NOW PLAYING's place (All Screens -> Now Playing; a screen's np_* keys
+    // over it): a side pane or the bar on tablets & computers, the bar's
+    // place there and on phones (hk-base.js nowPlaying)
+    now_playing: { style: 'bar', side: 'right', bar: 'bottom', bar_phone: 'bottom', grace: 30 },
     // Browse Music (HK Settings -> Features -> Music). The Discover rows arrive as
     // the queries themselves (settings.py discover_rows); these are its
     // default five.
@@ -203,6 +232,18 @@
       night: ['#100708', '#1e0d10', '#3d191c', '#5d3231'] },
     { id: 'mist', label: 'Mist', day: ['#0d1a1c', '#173437', '#22646a', '#56a0a0'],
       night: ['#080f10', '#0d1e21', '#12373d', '#325556'] },
+    { id: 'lagoon', label: 'Lagoon', day: ['#0c1d2b', '#14324a', '#1f5068', '#3f7f90'],
+      night: ['#070f18', '#0c1d2b', '#123346', '#244e5c'] },
+    { id: 'lavender', label: 'Lavender Dusk', day: ['#15142b', '#25244a', '#3b3a6a', '#68679a'],
+      night: ['#0b0a18', '#15142b', '#232245', '#3a3962'] },
+    { id: 'sage', label: 'Sage Mist', day: ['#0e1a18', '#18302b', '#284a42', '#4f7a6c'],
+      night: ['#08100e', '#0f1d1a', '#1a302b', '#2f4a42'] },
+    { id: 'harbor', label: 'Harbor Slate', day: ['#111a26', '#1c2b3e', '#2d4159', '#566e8a'],
+      night: ['#090e16', '#111a26', '#1b2a3c', '#2f4359'] },
+    { id: 'rosewater', label: 'Rosewater', day: ['#1c1418', '#33232b', '#523844', '#86626f'],
+      night: ['#100b0e', '#1c1418', '#2e1f26', '#4a343e'] },
+    { id: 'driftwood', label: 'Driftwood', day: ['#1a1712', '#2f2a21', '#4b4333', '#7c6f57'],
+      night: ['#0e0c09', '#1a1712', '#2a251c', '#443c2e'] },
     { id: 'black', label: 'Black', day: ['#05070e', '#05070e', '#05070e', '#05070e'],
       night: ['#05070e', '#05070e', '#05070e', '#05070e'] },
     { id: 'custom', label: 'Custom' }
@@ -231,6 +272,14 @@
         if (v && typeof v === 'object') {
           Object.keys(out[s]).forEach(function (k) { if (k in v) out[s][k] = v[k]; });
         }
+      });
+      // THE WEATHER PAGE'S TWO OBJECTS, each over its own defaults (a copy
+      // stored by an older page may lack a key the defaults have)
+      var wv = over.weather || {};
+      ['page', 'radar_native'].forEach(function (k) {
+        var d = DEFAULTS.weather[k], o = wv[k];
+        out.weather[k] = Object.assign(JSON.parse(JSON.stringify(d)),
+          (o && typeof o === 'object' && !Array.isArray(o)) ? JSON.parse(JSON.stringify(o)) : {});
       });
     }
     // THE DASHBOARD ITEMS, by url path (settings.py `boards`): a map
@@ -425,6 +474,8 @@
   // looks taken out, worn as the one that replaced them (settings.py
   // RETIRED_GLASS) -- a cached copy from before may still name one
   var RETIRED = { blur_baked: 'blur_pre' };
+  LOOKS.flat = function () { return { '--hk-glass-backdrop': 'none', '--hk-chip-backdrop': 'none' }; };
+  var flatKeys = [];
   var LOOK_VARS = ['--hk-glass-plate', '--hk-chip-plate', '--hk-chip-backdrop', '--hk-glass-backdrop',
                    '--hk-blur-filter', '--hk-glass-plate-sheet', '--hk-look-edge', '--hk-look-edge-color',
                    '--hk-look-shadow', '--hk-look-well', '--hk-look-dash', '--hk-float-plate', '--hk-float-backdrop'];
@@ -433,12 +484,32 @@
   // on this page only, without changing the house's setting or the cache.
   var glassPreview = null;
   try {
-    var gm = /[?&]hkglass=(clear|frosted|tinted|blur_each|blur_pre|blur)\b/.exec(location.search);
+    var gm = /[?&]hkglass=(flat|clear|frosted|tinted|blur_each|blur_pre|blur)\b/.exec(location.search);
     if (gm) glassPreview = gm[1];
   } catch (e) { /* no location (a test harness) */ }
   // A DASHBOARD'S OWN LOOK: its item's Screen page, else the house's.
   // Re-applied as the page moves between dashboards (location-changed).
+  // One policy for cards, overlays, sky, media and screensaver. Explicit
+  // false is an opt-out, not an absent value. Keep the saved glass intact.
+  function appearance(b, look) {
+    b = b || {}; look = look || {};
+    var ownGlass = b.glass && b.glass !== 'house';
+    var enabled = typeof b.flat === 'boolean' ? b.flat : (!ownGlass && look.flat === true);
+    var theme = b.flat_theme === 'light' || b.flat_theme === 'dark' ? b.flat_theme : look.flat_theme;
+    return { flat: enabled, theme: theme === 'light' ? 'light' : 'dark' };
+  }
+  function rendering() {
+    var a = appearance(boardHere(), get('look', {}));
+    if (glassPreview) a.flat = glassPreview === 'flat';
+    try {
+      var t = /[?&]hkflat_theme=(light|dark)\b/.exec(location.search);
+      if (t && glassPreview === 'flat') a.theme = t[1];
+    } catch (e) { /* no location */ }
+    a.motion = a.blur = a.liveSky = a.autoplay = !a.flat;
+    return a;
+  }
   function glass() {
+    if (rendering().flat) return 'flat';
     if (glassPreview) return glassPreview;
     var b = boardHere(), bg = b && (RETIRED[b.glass] || b.glass);
     if (bg && LOOKS[bg]) return bg;
@@ -462,15 +533,16 @@
       var v = b ? b[bk] : undefined;
       return (v === null || v === undefined) ? get(hk, dflt) : v;
     };
+    var flat = rendering().flat;
     return {
-      animations: own('sky_animations', 'sky.animations', true) !== false,
-      weather: own('sky_weather', 'sky.weather', true) !== false,
+      animations: !flat && own('sky_animations', 'sky.animations', true) !== false,
+      weather: !flat && own('sky_weather', 'sky.weather', true) !== false,
       // Rain & Snow: the falling weather alone (2026-10-10); and Pause When
       // Not in Focus -- on a computer, the sky and the cards hold while
       // another window has the focus (hk-sky.js FOCUS)
-      precipitation: own('sky_precipitation', 'sky.precipitation', true) !== false,
+      precipitation: !flat && own('sky_precipitation', 'sky.precipitation', true) !== false,
       focusPause: own('sky_focus_pause', 'sky.focus_pause', true) !== false,
-      decorations: own('sky_decorations', 'sky.decorations', true) !== false,
+      decorations: !flat && own('sky_decorations', 'sky.decorations', true) !== false,
       decorationStyle: own('sky_decoration_style', 'sky.decoration_style', 'old'),
       // Moving Things: 'front' draws them over the cards (hk-sky.js FRONT)
       moving: own('sky_moving', 'sky.moving', 'behind'),
@@ -547,6 +619,7 @@
   // night} stops washed over it at `amount` 0..1, or null}. A page's photo
   // has its screen's.
   function photoLook(b, own) {
+    if (rendering().flat) return { blur: 0, dim: 0, saturate: 1, tint: null, amount: 0 };
     if (b === undefined) b = boardHere();
     var L = Object.assign({ blur: 0, dim: 0, saturation: 100, tint: '', tint_amount: 35 },
                           own || (b && b.sky_photo_look) || get('sky.photo_look', {}) || {});
@@ -650,6 +723,145 @@
     var own = pageFind(keysOf(key), 'sky_page_looks', 'sky.page_looks');
     return own ? photoLook(boardHere(), own) : photoLook();
   }
+  // FLAT'S BACKGROUND FOR A PAGE (2026-10-16; settings.py FLAT_BACKGROUNDS):
+  // {color: 'auto' | a FLAT_COLORS id | '#rrggbb'} or {photo: its address},
+  // with the screen's fade (0-100). `key` as pageSky's; `own`: the page has
+  // a ground of its own (Climate's sage ...), which Automatic keeps. A page
+  // left alone is the screen's Background; a Photo or Landscape not there
+  // yet is the theme's ground, never a blank.
+  function flatBackground(key, own) {
+    var b = boardHere(), keys = keysOf(key);
+    var fade = b && b.sky_flat_fade != null ? b.sky_flat_fade : get('sky.flat_fade', 50);
+    var mode = keys.length ? pageFind(keys, 'sky_flat_pages', 'sky.flat_pages') : null;
+    if (!mode || mode === 'auto') {
+      if (own) return { color: 'auto', fade: fade };
+      var bg = (b && b.sky_flat_background) || get('sky.flat_background', 'color') || 'color';
+      if (bg === 'photo') mode = 'screen-photo';
+      else if (bg === 'landscapes') mode = 'landscapes';
+      else return { color: (b && b.sky_flat_color) || get('sky.flat_color', 'auto') || 'auto', fade: fade };
+    }
+    var photo = null;
+    if (mode === 'photo') photo = pagePhoto(keys);
+    else if (mode === 'screen-photo') photo = (b && b.sky_photo) || get('sky.photo', null) || null;
+    else if (mode === 'landscapes') {
+      var lf = landscapeFile(landscapeChoice(b), landscapeList());
+      photo = lf ? LANDSCAPES + lf : null;
+    } else return { color: mode, fade: fade };
+    // (the Fade's color, 2026-10-17: the screen's own, else All Screens')
+    var tint = (b && b.sky_flat_tint) || get('sky.flat_tint', 'none') || 'none';
+    // (a preview, never saved: ?hkflat_bgtint=accent | none | <hex>)
+    try {
+      var tp = /[?&]hkflat_bgtint=([#%23a-z0-9]+)/i.exec(location.search);
+      if (tp) { tint = decodeURIComponent(tp[1]).toLowerCase(); if (/^[0-9a-f]{6}$/.test(tint)) tint = '#' + tint; }
+    } catch (e) { /* no location */ }
+    var tamt = b && b.sky_flat_tint_amount != null ? b.sky_flat_tint_amount : get('sky.flat_tint_amount', 60);
+    var tl = b && b.sky_flat_tint_light != null ? b.sky_flat_tint_light : get('sky.flat_tint_light', 50);
+    var imageLook = window.hkFlatImage ? window.hkFlatImage.resolve(get('sky', {}), b, keys).value : null;
+    return photo ? { photo: photo, fade: fade, tint: tint, tintAmount: tamt, tintLight: tl, imageLook: imageLook } : { color: 'auto', fade: fade };
+  }
+  // FLAT COLORS (2026-10-17, hk_house/docs/PLAN-2026-10-17-flat-appearance-colors.md;
+  // settings.py flat_colors): Flat's Accent Color and Off Pill Tint, each
+  // field resolved ON ITS OWN, the first stored in --
+  //   a page:   this screen's page, All Screens' page, this screen, All Screens
+  //   a room:   this screen's room, All Screens' room, this screen's Room
+  //             Pages, All Screens' Room Pages, this screen, All Screens
+  // -- a page's own over a screen's general colors, as Flat's backgrounds
+  // are (pageFind). Missing is inherited; 'auto' stops the search. Pure:
+  // `look` is All Screens' look section, `b` a screen's item (raw, as fed),
+  // `keys` the page's, most particular first. -> {accent, off_tint}, each
+  // {value, scope: 'screen-page' | 'house-page' | 'screen' | 'house' |
+  // 'default' | 'preview', page}.
+  // `pages` (All Screens and a screen only, missing: 'accent'): 'own' keeps
+  // a page that has its own color (OWN_COLOR_PAGES, hk-base.js
+  // PAGE_ACCENTS) Automatic under an accent chosen for the whole screen --
+  // Climate blue, Lights yellow; Home and the rooms take the accent.
+  var FLAT_FIELDS = ['accent', 'off_tint'];
+  var OWN_COLOR_PAGES = ['climate', 'lights', 'security', 'doors_windows', 'calendar', 'weather', 'energy', 'power',
+                         'water', 'music', 'live_tv', 'cameras', 'vacuums', 'timers'];
+  function resolveFlatColors(look, b, keys) {
+    look = look || {}; keys = keysOf(keys || []);
+    var hp = look.flat_page_colors || {}, hb = look.flat_colors || {};
+    var bp = (b && b.flat_page_colors) || {}, bb = (b && b.flat_colors) || {};
+    var c = [];
+    keys.forEach(function (k) {
+      if (b) c.push({ o: bp[k], scope: 'screen-page', page: k });
+      c.push({ o: hp[k], scope: 'house-page', page: k });
+    });
+    if (b) c.push({ o: bb, scope: 'screen', page: null });
+    c.push({ o: hb, scope: 'house', page: null });
+    var out = {};
+    FLAT_FIELDS.forEach(function (f) {
+      for (var i = 0; i < c.length; i++) {
+        var v = c[i].o && c[i].o[f];
+        if (typeof v === 'string' && v) { out[f] = { value: v.toLowerCase(), scope: c[i].scope, page: c[i].page }; return; }
+      }
+      out[f] = { value: 'auto', scope: 'default', page: null };
+    });
+    var pm = b && typeof bb.pages === 'string' ? { value: bb.pages, scope: 'screen' }
+           : typeof hb.pages === 'string' ? { value: hb.pages, scope: 'house' } : { value: 'accent', scope: 'default' };
+    out.pages = { value: pm.value === 'own' ? 'own' : 'accent', scope: pm.scope, page: null };
+    var own = keys.filter(function (k) { return OWN_COLOR_PAGES.indexOf(k) >= 0; })[0];
+    if (out.pages.value === 'own' && own && (out.accent.scope === 'screen' || out.accent.scope === 'house')) {
+      out.accent = { value: 'auto', scope: 'own-page', page: own };
+    }
+    return out;
+  }
+  // THE PAGE THIS IS, as its background knows it: the view's sky_page /
+  // sky_room (hk-strategy.js skyPages), read off the panel's config the way
+  // hk-sky.js reads it; before the config is there, the address as the
+  // strategy names it. Home and a dashboard of your own: no page (the
+  // screen's colors).
+  var PAGE_OF_PATH = { 'doors-windows': 'doors_windows', playmusic: 'music', 'music-browse': 'music', 'live-tv': 'live_tv' };
+  function viewKeys() {
+    var cfg = null, seg = '';
+    try {
+      seg = decodeURIComponent((String(location.pathname).split('/')[2] || '').split('?')[0]);
+      var ha = document.querySelector('home-assistant'), sr = ha && ha.shadowRoot;
+      var main = sr && sr.querySelector('home-assistant-main'), ms = main && main.shadowRoot;
+      var p = ms && ms.querySelector('ha-panel-lovelace');
+      if (!p && ms) { var r0 = ms.querySelector('partial-panel-resolver'); p = r0 && r0.querySelector('ha-panel-lovelace'); }
+      cfg = p && p.lovelace && p.lovelace.config;
+    } catch (e) { /* no document (a test harness) */ }
+    var views = cfg && cfg.views, v = null;
+    if (views && views.length) {
+      if (seg === '') v = views[0];
+      for (var i = 0; !v && i < views.length; i++) {
+        if ((views[i].path != null && String(views[i].path) === seg) || String(i) === seg) v = views[i];
+      }
+      if (!v) v = views[0];
+      return { keys: v.sky_room ? [v.sky_room, v.sky_page] : v.sky_page ? [v.sky_page] : [], sure: true };
+    }
+    if (/^room-/.test(seg)) return { keys: [seg, 'rooms'], sure: false };
+    return { keys: seg && seg !== 'home' ? [PAGE_OF_PATH[seg] || seg] : [], sure: false };
+  }
+  // A PREVIEW ON ONE SCREEN, as ?hkglass is: ?hkflat_accent=<hex | name |
+  // auto>&hkflat_tint=<auto | accent | hex | name> -- never saved
+  function flatPreview() {
+    var out = {};
+    try {
+      var a = /[?&]hkflat_accent=([#%23a-z0-9]+)/i.exec(location.search), t = /[?&]hkflat_tint=([#%23a-z0-9]+)/i.exec(location.search);
+      var norm = function (x) { x = decodeURIComponent(x).toLowerCase(); return /^[0-9a-f]{6}$/.test(x) ? '#' + x : x; };
+      if (a) out.accent = norm(a[1]);
+      if (t) out.off_tint = norm(t[1]);
+    } catch (e) { /* no location */ }
+    return out;
+  }
+  // THIS PAGE'S FLAT COLORS (or `ctx`'s: {board: a screen's item | null for
+  // All Screens alone, keys}) -- memoized per address and settings version
+  var flatMemo = { key: null, val: null };
+  function flatColors(ctx) {
+    var vk = ctx && ctx.keys !== undefined ? { keys: keysOf(ctx.keys), sure: true } : viewKeys();
+    var b = ctx && ctx.board !== undefined ? ctx.board : boardHere();
+    var where = '';
+    try { where = String(location.pathname) + String(location.search); } catch (e) { /* no location */ }
+    var mkey = ctx ? null : where + '|' + (state ? state.version : 0) + '|' + vk.keys.join(',');
+    if (mkey && flatMemo.key === mkey) return flatMemo.val;
+    var r = resolveFlatColors(get('look', {}), b, vk.keys), pv = ctx ? {} : flatPreview();
+    FLAT_FIELDS.forEach(function (f) { if (pv[f]) r[f] = { value: pv[f], scope: 'preview', page: null }; });
+    r.keys = vk.keys;
+    if (mkey && vk.sure) { flatMemo.key = mkey; flatMemo.val = r; }
+    return r;
+  }
   // a backdrop's stops by id, {day, night} -- "custom" this screen's own
   // colors (else All Screens'); null for the live sky or an unknown id
   function pageBackdrop(id) {
@@ -660,11 +872,23 @@
   function applyLook() {
     var root = document.documentElement;
     if (!root || !root.style) return;
+    flatKeys.forEach(function (k) { root.style.removeProperty(k); });
+    flatKeys = [];
     var look = LOOKS[glass()]();
     LOOK_VARS.forEach(function (k) {
       if (look[k]) root.style.setProperty(k, look[k]); else root.style.removeProperty(k);
     });
-    if (root.setAttribute) root.setAttribute('data-hk-glass', glass());
+    var policy = rendering(), C = window.hkCards;
+    if (policy.flat && C && C.FLAT) {
+      var tokens = C.FLAT[policy.theme];
+      flatKeys = Object.keys(tokens);
+      flatKeys.forEach(function (k) { root.style.setProperty(k, tokens[k]); });
+    }
+    if (root.setAttribute) {
+      root.setAttribute('data-hk-glass', glass());
+      if (policy.flat) root.setAttribute('data-hk-flat', policy.theme);
+      else if (root.removeAttribute) root.removeAttribute('data-hk-flat');
+    }
     if (root.toggleAttribute) root.toggleAttribute('data-hk-frost-tint', frostTint());
   }
   // Marks a glass surface for the shared blur layer. NOT inherited, so only
@@ -800,6 +1024,71 @@
   // ------------------------------------------------------------ helpers
   function st(states, id) { return (id && states && states[id]) || null; }
 
+  // THE WEATHER PAGE (settings weather.page): what it shows, each key
+  // checked against its defaults (a bad one is the default, never a throw)
+  var WX_DETAILS = ['wind', 'sun', 'uv', 'humidity', 'moon', 'pressure'];
+  function weatherPage() {
+    var d = DEFAULTS.weather.page, o = get('weather.page', null) || {}, out = {};
+    Object.keys(d).forEach(function (k) {
+      var v = o[k], def = d[k];
+      if (k === 'details') {
+        out[k] = Array.isArray(v) ? v.filter(function (x, i) { return WX_DETAILS.indexOf(x) >= 0 && v.indexOf(x) === i; }) : def.slice();
+      } else if (typeof def === 'boolean') out[k] = typeof v === 'boolean' ? v : def;
+      else if (k === 'hours') out[k] = [6, 12, 24].indexOf(v) >= 0 ? v : def;
+      else if (k === 'days') out[k] = [5, 8, 10].indexOf(v) >= 0 ? v : def;
+      else if (k === 'hourly_metric') out[k] = ['temperature', 'rain', 'wind'].indexOf(v) >= 0 ? v : def;
+      else out[k] = def;
+    });
+    return out;
+  }
+  // THE RADAR (settings weather.radar_native), each key checked likewise
+  function radarNative() {
+    var d = DEFAULTS.weather.radar_native, o = get('weather.radar_native', null) || {}, out = {};
+    var whole = function (v, lo, hi, def) { return typeof v === 'number' && isFinite(v) && Math.round(v) === v && v >= lo && v <= hi ? v : def; };
+    var one = function (v, list, def) { return list.indexOf(v) >= 0 ? v : def; };
+    Object.keys(d).forEach(function (k) {
+      var v = o[k], def = d[k];
+      if (typeof def === 'boolean') out[k] = typeof v === 'boolean' ? v : def;
+      else if (k === 'provider') out[k] = one(v, ['auto', 'noaa', 'rainviewer'], def);
+      else if (k === 'basemap') out[k] = one(v, ['osm'], def);
+      else if (k === 'center') out[k] = one(v, ['home', 'zone'], def);
+      else if (k === 'zone') out[k] = typeof v === 'string' && /^zone\.[a-z0-9_]+$/.test(v) ? v : null;
+      else if (k === 'zoom') out[k] = whole(v, 4, 10, def);
+      else if (k === 'opacity') out[k] = whole(v, 20, 100, def);
+      else if (k === 'history_minutes') out[k] = one(v, [30, 60, 120], def);
+      else if (k === 'playback_speed') out[k] = one(v, ['slow', 'normal', 'fast'], def);
+      else out[k] = def;
+    });
+    return out;
+  }
+  // WHERE AND FROM WHOM THE RADAR COMES (hk-radar.js, the settings' summary):
+  //   { enabled, provider: 'noaa' | 'rainviewer' | null, chosen, lat, lon,
+  //     place, country, reason }
+  // Automatic is NOAA for a home Home Assistant places in the US, RainViewer
+  // for one it places elsewhere. Another zone's country is not known (no
+  // lookup is made), so Automatic there asks for a provider (reason
+  // 'choose'); so does a home with no country set. A zone that is gone:
+  // 'zone'. No location at all: 'location'.
+  function radarPlan(hass) {
+    var r = radarNative(), cfg = (hass && hass.config) || {}, states = (hass && hass.states) || {};
+    var out = { enabled: r.enabled, provider: null, chosen: r.provider, lat: null, lon: null,
+                place: 'Home', country: null, reason: null, settings: r };
+    if (r.center === 'zone') {
+      var z = r.zone && states[r.zone], za = (z && z.attributes) || {};
+      out.place = za.friendly_name || (r.zone ? r.zone.replace(/^zone\./, '').replace(/_/g, ' ') : 'Zone');
+      if (!z || typeof za.latitude !== 'number' || typeof za.longitude !== 'number') { out.reason = 'zone'; }
+      else { out.lat = za.latitude; out.lon = za.longitude; }
+    } else {
+      if (typeof cfg.latitude === 'number' && typeof cfg.longitude === 'number') { out.lat = cfg.latitude; out.lon = cfg.longitude; }
+      else out.reason = 'location';
+      out.country = cfg.country || null;
+    }
+    if (r.provider !== 'auto') out.provider = r.provider;
+    else if (out.country) out.provider = out.country === 'US' ? 'noaa' : 'rainviewer';
+    else if (!out.reason) out.reason = 'choose';
+    return out;
+  }
+
   // The weather entity: the chosen one -- even if it is missing, so a broken
   // choice shows as '--' rather than silently reading another -- or, when
   // nothing is chosen, the first weather entity in the house.
@@ -825,6 +1114,28 @@
     if (own) return own;
     var i = calendarIds(states).indexOf(id);
     return CAL_COLORS[(i < 0 ? 0 : i) % CAL_COLORS.length];
+  }
+
+  // AN EVENT'S COLOR (2026-10-16): its own, picked on its sheet (by its
+  // series' uid, else its title); else the first keyword in its title
+  // (Configure -> Calendars -> Colors by Keyword); else its calendar's
+  function eventKey(title, uid) {
+    return uid ? 'uid:' + uid : 'title:' + String(title || '').trim().toLowerCase();
+  }
+  function keywordColor(title) {
+    var t = String(title || '').toLowerCase();
+    var hit = (get('calendar.keywords') || []).filter(function (k) {
+      var w = String(k.word || '').trim().toLowerCase();
+      if (!w) return false;
+      // a whole word (Doctor, not "doctorate"), any case
+      var re = new RegExp('(^|[^a-z0-9])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])');
+      return re.test(t);
+    })[0];
+    return hit ? hit.color : null;
+  }
+  function eventColor(cal, title, uid, states) {
+    var own = (get('calendar.event_colors') || {})[eventKey(title, uid)];
+    return own || keywordColor(title) || calendarColor(cal, states);
   }
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -974,7 +1285,15 @@
   // Compared as the look AND its amounts: two dashboards can share a look and
   // differ in how strong it is (each Screen's own Blur / Frost), and comparing
   // the name alone kept the first one's strength on the second.
-  function lookKey() { return glass() + '|' + amount('blur') + '|' + amount('frost') + '|' + amount('tint') + '|' + tintWell() + '|' + frostTint(); }
+  // ...and Flat's colors where they are: a page whose resolve differs
+  // (or whose Match Accent tint follows the page's own highlight) repaints
+  // on arriving, never one that stays the same
+  function flatSig() {
+    if (!rendering().flat) return '';
+    var f = flatColors();
+    return f.accent.value + '/' + f.off_tint.value + (f.accent.value === 'auto' && f.off_tint.value === 'accent' ? '/' + f.keys.join(',') : '');
+  }
+  function lookKey() { return glass() + '|' + rendering().theme + '|' + amount('blur') + '|' + amount('frost') + '|' + amount('tint') + '|' + tintWell() + '|' + frostTint() + '|' + flatSig(); }
   var lookNow = lookKey();
   function onNav() {
     var g = lookKey();
@@ -1105,6 +1424,7 @@
       listeners.push(fn);
       return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
     },
+    appearance: appearance, rendering: rendering, refreshLook: applyLook,
     glass: glass,
     frostTint: frostTint,
     // the Frosted plate with `wash` ([r, g, b]) in place of its gray, at this
@@ -1112,6 +1432,8 @@
     frostPlate: function (wash) { return frost(amount('frost'), wash); },
     skyLook: skyLook,
     pageSky: pageSky,
+    flatBackground: flatBackground,
+    flatColors: flatColors, resolveFlatColors: resolveFlatColors, viewKeys: function () { return viewKeys().keys; },
     pageBackdrop: pageBackdrop,
     pagePhoto: pagePhoto,
     photoLook: photoLook,
@@ -1129,8 +1451,11 @@
       });
     },
     weatherId: weatherId,
+    weatherPage: weatherPage,
+    radarNative: radarNative,
+    radarPlan: radarPlan,
     calendarIds: calendarIds,
-    calendarColor: calendarColor,
+    calendarColor: calendarColor, eventColor: eventColor, eventKey: eventKey, keywordColor: keywordColor,
     clock: clock,
     moon: moon,
     seasonName: seasonName,

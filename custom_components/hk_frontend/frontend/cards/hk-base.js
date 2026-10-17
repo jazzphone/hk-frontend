@@ -271,6 +271,30 @@
     return 'font-size:' + t.size + 'px;font-weight:' + t.weight + (t.track ? ';letter-spacing:' + t.track : '') +
       (t.upper ? ';text-transform:uppercase' : '') + ';color:' + v('ink-2');
   }
+  // THE PAGE CARD (the Energy page's, and the page headers'): the plate and
+  // padding at a fixed height (--hk-ep-h), the one title row (.ttl), and the
+  // shared pieces -- .wait, .num, the figure (.big, its unit in <u>), the
+  // caption (.cap) and the label (.k, its dot <i>). `cls` is the ha-card's
+  // class. Defined below figureCss (it uses it), hoisted.
+  function pageCardCss(cls) {
+    return [
+      'ha-card.' + cls + '{box-sizing:border-box;display:flex;flex-direction:column;height:var(--hk-ep-h,320px);',
+      '  padding:' + CARD.pad + ';margin:0;' + plate('card') + ';overflow:hidden;',
+      '  color:' + v('ink') + ';container-type:inline-size;',
+      '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
+      // in a Sections view: the cell's own height
+      ':host([data-hk-cell]) ha-card.' + cls + '{height:100%}',
+      // ONE TITLE ROW for every card: the name left, the detail right, one baseline
+      titleRow('.ttl'),
+      '.wait{margin:auto;font-size:14px;color:' + v('ink-3') + '}',
+      '.num{font-variant-numeric:tabular-nums}',
+      '.big{' + figureCss('figure') + ';white-space:nowrap}',
+      '.big u{text-decoration:none;font-size:15px;font-weight:600;letter-spacing:0;margin-left:3px;color:' + v('ink-2') + '}',
+      '.cap{font-size:14px;line-height:18px;color:' + v('ink-2') + '}',
+      '.k{display:flex;align-items:center;gap:7px;' + labelCss('label') + ';white-space:nowrap}',
+      '.k i{width:10px;height:10px;border-radius:50%;flex:none}'
+    ].join('');
+  }
   // A FIGURE (30 / 700 / -0.6, a tight line): declarations, no braces.
   function figureCss(role) {
     var t = typeOf(role, 'figure');
@@ -366,6 +390,331 @@
   };
   var LIGHT_KEYS = Object.keys(LIGHT);
 
+  // Flat is the same material system, opaque and with a small contact shadow.
+  // Applied to owned roots so HA view themes cannot replace its chosen tone.
+  function flatTokens(light) {
+    var plate = light ? '#FAF9F6' : '#2B2C30', key = light ? '#ECEAE5' : '#3A3B40';
+    var elevated = light ? '#FFFFFF' : '#35363C';
+    var shadow = light ? '0 2px 3px rgba(28,26,22,.12)' : '0 1px 2px rgba(0,0,0,.24)';
+    var t = {
+      '--hk-glass-plate': plate, '--hk-glass-bg': plate, '--hk-chip-plate': plate,
+      '--hk-glass-plate-sheet': key, '--hk-plate-here': plate,
+      '--hk-glass-backdrop': 'none', '--hk-chip-backdrop': 'none', '--hk-float-backdrop': 'none',
+      '--hk-look-edge': '1px solid transparent', '--hk-look-edge-color': 'transparent',
+      // a well a shade deeper than an off tile's stone on Light (it
+      // vanished into --hk-tile-off), Dark's slate as the keys
+      '--hk-look-shadow': shadow, '--hk-on-shadow': shadow, '--hk-look-well': key, '--hk-well-bg': key,
+      '--hk-overlay': elevated, '--hk-overlay-solid': elevated, '--hk-float-plate': elevated,
+      '--hk-flat-elevated': elevated, '--hk-flat-menu': light ? '#FAF9F6' : elevated,   // Light: the cards' ivory (the user's pick, 2026-10-16)
+      // scenes wear the off tiles' tone (the user, 2026-10-17)
+      '--hk-flat-scene': light ? '#F3F1EC' : '#323338',
+      '--hk-flat-ground': light ? '#EEECE6' : '#17181A',
+      '--hk-flat-elevated-shadow': light ? '0 5px 12px -3px rgba(28,26,22,.22)' : shadow,
+      '--hk-ink': light ? '#252528' : '#F5F4F0',
+      '--hk-ink-2': light ? '#626267' : '#C3C3C6',
+      '--hk-ink-3': light ? '#626267' : '#A3A4A9',
+      '--hk-glyph': light ? '#626267' : '#F5F4F0', '--hk-glow': 'none',
+      '--hk-key': key, '--hk-key-strong': light ? '#D8D5CD' : '#48494F',
+      '--hk-line': light ? '#D8D5CD' : '#48494F', '--hk-line-strong': light ? '#B9B6B0' : '#62636A',
+      '--hk-mark': light ? '#77777C' : '#A3A4A9', '--hk-track-fill': light ? '#626267' : '#C3C3C6', '--hk-flat-chart-line': light ? '#626267' : '#C3C3C6',
+      '--hk-battery-fill': '#30d158', '--hk-battery-fill-low': '#ff453a',
+      '--hk-warn': light ? '#A25D00' : '#FFB340', '--hk-fail': light ? '#C42323' : '#FF6961',
+      // the weather glyphs' white and cyan layers (hk-header.js WX_COLOUR)
+      '--hk-wx-w': light ? '#A6A6AB' : '#FFFFFF', '--hk-wx-c': light ? '#1C9BD6' : '#64D2FF',
+      // the segmented control (segCss): a track darker than the plate, the
+      // choice white over it; the battery's shell and Limit mark, the house
+      // bar's not-backed-up share (hk-energy.js) -- white on Light vanished
+      '--hk-seg-track': key, '--hk-seg-on': '#FFFFFF', '--hk-seg-bw': '0px',
+      '--hk-pill-bg': key,
+      // a field or a control on the page itself (Music's search and Plays
+      // on): the cards' surface and contact shadow, not a key's gray
+      '--hk-field-bg': plate, '--hk-field-shadow': shadow,
+      // the shadow under a sheet's header over what scrolls (hk-detail):
+      // softer on Light's white sheet, where 30 % black read as a smudge
+      '--hk-shade-a': light ? 'rgba(28,26,22,.12)' : 'rgba(0,0,0,.30)', '--hk-shade-b': light ? 'rgba(28,26,22,.04)' : 'rgba(0,0,0,.10)',
+      // an off tile: stone a shade under the page on Light, so a lit (white)
+      // one stands out as in the Home app; Dark's graphite does already
+      '--hk-tile-off': light ? '#F3F1EC' : plate,
+      // A SHEET'S SETTINGS PANE (hk-detail.js .acc; HK Settings sets the
+      // same --acc-* set for its own): white at 8 % on Light's white sheet
+      // was nothing at all -- groups, switches, the size choice, the icon
+      // search (2026-10-17). Dark keeps the pane's own values.
+      '--acc-cell': light ? key : 'rgba(255,255,255,0.08)', '--acc-sep': light ? '#D8D5CD' : 'rgba(255,255,255,0.09)',
+      '--acc-seg': light ? key : 'rgba(255,255,255,0.08)', '--acc-seg-on': light ? '#FFFFFF' : 'rgba(255,255,255,0.24)',
+      '--acc-glyph': light ? key : 'rgba(255,255,255,0.12)', '--acc-fill': light ? '#D8D5CD' : 'rgba(255,255,255,0.18)',
+      '--acc-glyph-on-bg': light ? '#252528' : 'rgba(255,255,255,0.92)', '--acc-glyph-on-fg': light ? '#FFFFFF' : '#000',
+      '--acc-text': light ? '#252528' : '#fff', '--acc-label2': light ? '#626267' : '#C3C3C6',
+      '--acc-red': light ? '#C42323' : '#ff453a', '--acc-orange': light ? '#A25D00' : '#ff9f0a', '--acc-green': light ? '#248A3D' : '#34c759',
+      '--hk-seg-on-shadow': light ? '0 1px 3px rgba(28,26,22,.18)' : 'none',
+      // ...and one on the page itself (segCss raised): the cards' surface,
+      // its choice a stone well on Light (white on Dark, where it reads)
+      '--hk-seg-raised-track': plate, '--hk-seg-raised-on': light ? key : '#FFFFFF', '--hk-seg-raised-on-shadow': 'none',
+      '--hk-battery-shell': light ? '#B9B6B0' : 'rgba(255,255,255,.42)', '--hk-battery-mark': light ? '#77777C' : 'rgba(255,255,255,.85)',
+      '--hk-not-backed': light ? '#C9C6BF' : 'rgba(255,255,255,0.55)'
+    };
+    ['sm','lg','pill','tall','scene','chip'].forEach(function (k) { t['--hk-glass-shadow-' + k] = shadow; });
+    return t;
+  }
+  var FLAT = { light: flatTokens(true), dark: flatTokens(false) };
+  var FLAT_GROUNDS = {
+    home: ['#EEECE6','#17181A'], climate: ['#EAF0ED','#151C1B'], lights: ['#F1ECE3','#1D1A16'],
+    security: ['#E9EDF0','#171B20'], calendar: ['#EEEBF1','#1C1821'], weather: ['#E8EEF2','#151C23']
+  };
+  // doors & windows is Security's family
+  FLAT_GROUNDS.doors_windows = FLAT_GROUNDS.security;
+  function flatGround(page, theme) { return (FLAT_GROUNDS[page] || FLAT_GROUNDS.home)[theme === 'light' ? 0 : 1]; }
+  // FLAT'S COLORS (Sky / Background while Flat is on): settings.py
+  // FLAT_COLORS, which tests/py/test_flat.py holds this to -- a Light and a
+  // Dark tone each. 'auto' is the page's own ground (flatGround).
+  var FLAT_COLORS = [
+    { id: 'stone', label: 'Stone', light: '#EEECE6', dark: '#17181A' },
+    { id: 'paper', label: 'Paper', light: '#F7F6F2', dark: '#232427' },
+    { id: 'sand', label: 'Sand', light: '#F1ECE3', dark: '#1D1A16' },
+    { id: 'sage', label: 'Sage', light: '#EAF0ED', dark: '#151C1B' },
+    { id: 'mist', label: 'Mist', light: '#E9EDF0', dark: '#171B20' },
+    { id: 'sky', label: 'Sky', light: '#E6EEF5', dark: '#141C26' },
+    { id: 'lavender', label: 'Lavender', light: '#EEEBF1', dark: '#1C1821' },
+    { id: 'blush', label: 'Blush', light: '#F4EAE7', dark: '#211718' },
+    { id: 'black', label: 'Black', light_label: 'Pebble', light: '#E2E1DC', dark: '#000000' }
+  ];
+  // a Flat color as drawn: 'auto' the page's ground, an id its theme's tone,
+  // '#rrggbb' itself
+  function flatColorHex(id, theme, page) {
+    if (/^#[0-9a-f]{6}$/i.test(id || '')) return id;
+    for (var i = 0; i < FLAT_COLORS.length; i++) if (FLAT_COLORS[i].id === id) return FLAT_COLORS[i][theme === 'light' ? 'light' : 'dark'];
+    return pageTone(page, theme) || flatGround(page, theme);
+  }
+  // A PAGE'S AUTOMATIC GROUND FROM ITS ACCENT (2026-10-17, the user): the
+  // page's Accent Color (HK Settings -> the page -> Look) a tenth of the
+  // way into Light's paper, an eighth into Dark's near-black -- a red page
+  // blush or deep wine, a blue one pale sky or navy. Home and the rooms,
+  // which have no accent, keep the theme's stone. null: no accent.
+  function pageTone(page, theme) {
+    var hex = pageAccentHex(page);
+    if (!hex) return null;
+    var c = [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); });
+    var light = theme === 'light', base = light ? [244, 242, 238] : [20, 21, 23], f = light ? 0.10 : 0.13;
+    return '#' + c.map(function (v, i) { var x = Math.round(v * f + base[i] * (1 - f)); return (x < 16 ? '0' : '') + x.toString(16); }).join('');
+  }
+  // a page kind's accent as a hex: its own (look.page_accents), else
+  // PAGE_ACCENTS' default; null for a page that has none (home, rooms)
+  function pageAccentHex(kind) {
+    if (!kind || !PAGE_ACCENTS[kind]) return null;
+    var S = window.hkSettings, own = S && S.get ? (S.get('look.page_accents', {}) || {})[kind] : null;
+    var a = String(own || PAGE_ACCENTS[kind]).toLowerCase();
+    return ACCENTS[a] || (/^#[0-9a-f]{6}$/.test(a) ? a : null);
+  }
+  // the photo's fade: the theme's own ground over it, `fade` 0..100
+  function flatFade(fade, theme) {
+    var f = Math.max(0, Math.min(100, fade == null ? 50 : +fade || 0)) / 100;
+    return theme === 'light' ? 'rgba(238,236,230,' + (f * 0.92).toFixed(3) + ')' : 'rgba(10,11,12,' + (f * 0.9).toFixed(3) + ')';
+  }
+  // the accent a photo's Tint matches: Flat's chosen accent, else the
+  // page's own highlight
+  function flatAccentHex() { var p = flatPalette(); return (p && p.seed) || legacyAccentHex(); }
+
+  // Shared by owned shadow roots and light-DOM overlays. No DOM traversal.
+  // `keepMotion`: a card whose motion is its content -- the charts drawing
+  // in, the water supply's waves, the power flows (a class's FLAT_MOTION).
+  // They cost little and the user wants them (2026-10-16); Flat still takes
+  // their blur and filters.
+  function flatCss(prefix, keepMotion) {
+    var p = prefix || ':host([hk-flat])';
+    return p + ',' + p + ' *,' + p + ' *::before,' + p + ' *::after{' +
+      (keepMotion ? '' : 'animation:none!important;transition:none!important;') + 'backdrop-filter:none!important;' +
+      '-webkit-backdrop-filter:none!important;' + (keepMotion ? '' : 'filter:none!important;') + 'text-shadow:none!important;' +
+      'scroll-behavior:auto!important;' + (keepMotion ? '' : 'will-change:auto!important') + '}' +
+      (keepMotion ? '' : p + ' :active{transform:none!important}') +
+      // (a scene lit -- running, or its request in flight -- is white, as a
+      // tapped one is: feedback, never a state it keeps)
+      p + ' .scene:not(.hk-tapped):not([data-on="1"]){background:var(--hk-flat-scene)!important}' +
+      p + ' .scene:not(.tinted) .icon{color:var(--hk-ink)!important;fill:var(--hk-ink)!important}' +
+      // white on a COLORED well only: a well left clear (the alarm's, its
+      // glyph in its own color on the white tile) keeps its glyph's color
+      // (Safari writes a clear well as `background: none`, Chrome as
+      // `transparent`: both, or Safari painted the playing HomePod white)
+      p + ' .card[data-on="1"] .well:not([style*="transparent"]):not([style*="background: none"]) .icon{color:white!important;fill:white!important}' +
+      // FLAT COLORS (2026-10-17): a lit pill is pure white; an OFF one wears
+      // its source's wash (hk-tile.js, flatIdle: --hk-idle-pill, its glyph
+      // --hk-idle-glyph), so on and off read apart by color, not shade
+      p + ' ha-card.card[data-hk-idle]:not([data-on="1"]):not(.hk-tapped){background:var(--hk-idle-pill)!important}' +
+      p + ' ha-card.card.scene[data-hk-idle]:not([data-on="1"]):not(.hk-tapped) .icon{color:var(--hk-idle-glyph)!important;fill:var(--hk-idle-glyph)!important}' +
+      p + ' .scene .well::after{display:none!important}' +
+      (keepMotion ? '' : p + ' .anim,' + p + ' .anim>*{opacity:1;clip-path:none;transform:none}') +
+      p + ' .vs{background:var(--hk-key)!important}' +
+      p + ' .btn:not(.sel),'+p+' .bk button{background:var(--hk-key);color:var(--hk-ink)}' +
+      p + ' .btn.menu .cur{color:var(--hk-ink-2)}' +
+      p + ' .vs .gl:not(.dark){color:var(--hk-ink-2)}' +
+      p + ' .prog-fill{animation:none!important}' +
+      // (not an element focused by script -- a sheet takes focus as it
+      // opens, tabindex -1, and Safari ringed the whole sheet in blue)
+      p + ' :focus-visible:not([tabindex="-1"]){outline:2px solid var(--hk-accent,#0a84ff);outline-offset:3px}' +
+      p + ' [tabindex="-1"]:focus{outline:none}';
+  }
+  // Contrast-adjust semantic colors, never infer roles from computed DOM.
+  // A color is resolved once per role/theme and cached; no canvas sampling.
+  var flatColors = {};
+  // ON, BRIGHT (the user, 2026-10-17: muted while off, bright when on):
+  // Apple's light-appearance system colors for the dark ones HK draws with
+  // -- made for a pale ground, so a lit well or glyph keeps its color
+  // instead of being darkened toward brown
+  var APPLE_LIGHT = { '255,214,10': '#FFCC00', '255,204,0': '#FFCC00', '255,159,10': '#FF9500', '48,209,88': '#34C759',
+    '100,210,255': '#32ADE6', '10,132,255': '#007AFF', '64,200,224': '#30B0C7', '99,230,226': '#00C7BE',
+    '191,90,242': '#AF52DE', '255,69,58': '#FF3B30', '255,55,95': '#FF2D55', '94,92,230': '#5856D6' };
+  function flatColor(color, role) {
+    var S = window.hkSettings, a = S && S.rendering ? S.rendering() : {};
+    // (Dark keeps every color as the other looks draw it -- a lit well was
+    // darkened toward brown there too, 2026-10-17)
+    if (!a.flat || a.theme !== 'light') return color;
+    var key = color + '|' + role, hit = flatColors[key]; if (hit) return hit;
+    var hex = /^#([0-9a-f]{6})$/i.exec(color), rgb = /rgba?\(\s*([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)/.exec(color);
+    var c = hex ? [0,2,4].map(function (i) { return parseInt(hex[1].slice(i,i+2),16); }) : rgb ? rgb.slice(1,4).map(Number) : null;
+    if (!c) return color;
+    // a lit well or a lit bare glyph on Light: the Apple color, else its own
+    if ((role === 'well' || role === 'on') && a.theme === 'light') {
+      var bright = APPLE_LIGHT[c.join(',')];
+      if (bright || role === 'on') return flatColors[key] = bright || color;
+    }
+    function lum(v) { return v.map(function (x) { x /= 255; return x <= .04045 ? x / 12.92 : Math.pow((x + .055) / 1.055,2.4); }).reduce(function (n,x,i) { return n + x * [.2126,.7152,.0722][i]; },0); }
+    var ground = FLAT.light['--hk-key'];
+    var bg = role === 'well' ? 1 : lum([1,3,5].map(function (i) { return parseInt(ground.substr(i,2),16); })), target = role === 'text' ? 4.5 : 3;
+    while ((Math.max(bg,lum(c))+.05)/(Math.min(bg,lum(c))+.05) < target && Math.max.apply(null,c) > 0) c = c.map(function (x) { return Math.floor(x*.96); });
+    return flatColors[key] = 'rgb(' + c.join(',') + ')';
+  }
+  // FLAT COLORS' PALETTE (2026-10-17, PLAN-2026-10-17-flat-appearance-colors.md):
+  // the page's resolved Accent Color and Off Pill Tint (hkSettings.flatColors)
+  // turned into colors. Accent Color's presets, muted on purpose: a seed for a
+  // pale or deep ground, the page's highlight and a matched tint.
+  // hk-settings-model.js FLAT_ACCENTS is the same list (tests/test_flat.js).
+  var FLAT_ACCENTS = [['amber', 'Amber', '#e09649'], ['sage', 'Sage', '#7e9b83'], ['harbor', 'Harbor', '#5c91bc'],
+                      ['lavender', 'Lavender', '#9374bc'], ['rose', 'Rose', '#c17d91'], ['slate', 'Slate', '#64798e'],
+                      ['teal', 'Teal', '#599b9c'], ['clay', 'Clay', '#ad8972']];
+  // THE ROLES, each a blend of the source into the theme's own surface:
+  //   ground  an Automatic background (as pageTone): 10 % into #F4F2EE / 13 % into #141517
+  //   pill    an off pill or scene: 8 % into white / 20 % into graphite
+  //   well    an off pill's circle: 22 % / 36 %
+  // An off glyph is its source taken to 3:1 against what it sits on. A
+  // white source (Apple TV, HomePod, a white light) is NEUTRAL first.
+  var FLAT_MIX = { light: { ground: ['#F4F2EE', 0.10], pill: ['#FFFFFF', 0.08], well: ['#FFFFFF', 0.22] },
+                   dark: { ground: ['#141517', 0.13], pill: ['#2B2C30', 0.20], well: ['#2B2C30', 0.36] } };
+  var FLAT_NEUTRAL = '#8E8E93';
+  function rgbOf(color) {
+    var x = String(color || '').trim(), h = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(x);
+    if (h) {
+      var d = h[1].length === 3 ? h[1].replace(/./g, '$&$&') : h[1];
+      return [0, 2, 4].map(function (i) { return parseInt(d.slice(i, i + 2), 16); });
+    }
+    var m = /rgba?\(\s*([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)/i.exec(x);
+    return m ? m.slice(1, 4).map(function (n) { return Math.max(0, Math.min(255, Math.round(+n))); }) : null;
+  }
+  function hexOfRgb(c) { return '#' + c.map(function (n) { n = Math.round(n); return (n < 16 ? '0' : '') + n.toString(16); }).join(''); }
+  // `a` `t` of the way into `b`
+  function blend(a, b, t) {
+    var x = rgbOf(a), y = rgbOf(b);
+    return hexOfRgb(x.map(function (n, i) { return n * t + y[i] * (1 - t); }));
+  }
+  function relLum(c) {
+    return c.map(function (x) { x /= 255; return x <= .04045 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); })
+            .reduce(function (n, x, i) { return n + x * [.2126, .7152, .0722][i]; }, 0);
+  }
+  function contrast(a, b) { var x = relLum(rgbOf(a)), y = relLum(rgbOf(b)); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+  // `color` taken toward black (on a pale ground) or white (a dark one)
+  // until it reads at `target` against `ground`
+  function readable(color, ground, target) {
+    var c = color, toward = relLum(rgbOf(ground)) > .4 ? '#000000' : '#FFFFFF';
+    for (var n = 0; n < 40 && contrast(c, ground) < (target || 3); n++) c = blend(c, toward, .92);
+    return c;
+  }
+  // an accent as stored -> a hex: an ACCENTS name, a FLAT_ACCENTS id, '#rrggbb'
+  function seedHex(v) {
+    var a = String(v || '').toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(a)) return a;
+    if (ACCENTS[a]) return ACCENTS[a];
+    for (var i = 0; i < FLAT_ACCENTS.length; i++) if (FLAT_ACCENTS[i][0] === a) return FLAT_ACCENTS[i][2];
+    return null;
+  }
+  function flatRole(src, theme, role) {
+    var m = FLAT_MIX[theme === 'light' ? 'light' : 'dark'][role];
+    return blend(src, m[0], m[1]);
+  }
+  // THE PALETTE HERE: null outside Flat. seed -- the coordinated Accent
+  // (null: Automatic); tint -- one hex every off pill takes (null: each
+  // its own); tinted -- whether off pills are washed at all: always on
+  // Light (the Flat White baseline), on Dark only for a tint chosen (Dark's
+  // Automatic keeps its own surfaces, v1). `ctx`: hkSettings.flatColors'.
+  var palMemo = { key: null, val: null };
+  function flatPalette(ctx) {
+    var S = window.hkSettings, a = S && S.rendering ? S.rendering() : {};
+    if (!a.flat || !S.flatColors) return null;
+    var r = S.flatColors(ctx), theme = a.theme === 'light' ? 'light' : 'dark';
+    // a page keeping its own color (Flat Colors -> Pages): seeded by it,
+    // whatever the Highlight Color says -- Climate blue on any screen
+    var seed = r.accent.scope === 'own-page' ? pageAccentHex(r.accent.page)
+             : r.accent.value === 'auto' ? null : seedHex(r.accent.value);
+    var tv = r.off_tint.value, tint = null;
+    // Match Accent with no accent of its own: the page's highlight as it is
+    if (tv === 'accent') tint = seed || legacyAccentHex();
+    else if (tv !== 'auto') tint = seedHex(tv);
+    var key = theme + '|' + seed + '|' + tint;
+    if (!ctx && palMemo.key === key) return palMemo.val;
+    var pal = { theme: theme, seed: seed, tint: tint, tinted: theme === 'light' || !!tint, key: key, from: r,
+                ground: seed ? flatRole(seed, theme, 'ground') : null };
+    if (!ctx) { palMemo.key = key; palMemo.val = pal; }
+    return pal;
+  }
+  // AN OFF PILL'S COLORS: `own` the accessory's color (its icon color, its
+  // calm off color, a scene's chosen one; null: none of its own), `bare`
+  // a glyph with no circle (a scene, Apple TV, HomePod, the alarm).
+  // -> {pill, well (null when bare), glyph}. Cached by palette and source.
+  var idleMemo = {};
+  function flatIdle(own, bare, pal) {
+    pal = pal || flatPalette();
+    if (!pal) return null;
+    var k = pal.key + '|' + own + '|' + (bare ? 1 : 0), hit = idleMemo[k];
+    if (hit) return hit;
+    var src = pal.tint;
+    if (!src) {
+      // Light's own colors as lit Light draws them (flatColor's Apple
+      // light colors), white made neutral: the same rule for every kind
+      var c = rgbOf(own);
+      src = !c || Math.min.apply(null, c) > 230 ? FLAT_NEUTRAL
+          : hexOfRgb(pal.theme === 'light' ? rgbOf(flatColor(own, 'well')) || c : c);
+    }
+    var pill = flatRole(src, pal.theme, 'pill'), well = bare ? null : flatRole(src, pal.theme, 'well');
+    var out = { pill: pill, well: well, glyph: readable(src, well || pill, 3) };
+    if (Object.keys(idleMemo).length > 400) idleMemo = {};
+    return idleMemo[k] = out;
+  }
+  var FLAT_ROOTS = new Set();
+  function flatSurface(el, kind) {
+    if (!el || !el.style || !el.setAttribute || !el.removeAttribute) return;
+    el._hkFlatKind = kind || el._hkFlatKind || '';
+    FLAT_ROOTS.add(el);
+    flatTone(el);
+  }
+  function flatTone(el) {
+    var S = window.hkSettings, a = S && S.rendering ? S.rendering() : { flat: false };
+    var key = a.flat ? (el._hkFlatKind === 'music' ? 'dark' : a.theme) : '';
+    var own = !!key && (!el._hkNested || !!el._hkFlatKind);
+    if (el._hkFlatTone === key && el._hkFlatOwn === own) return;
+    var wasFlat = !!el._hkFlatTone && el._hkFlatOwn;
+    el._hkFlatOwn = own;
+    if (key && el.getAnimations && !(el.constructor && el.constructor.FLAT_MOTION)) {
+      el.getAnimations({ subtree: true }).forEach(function (a) { try { a.cancel(); } catch (e) { /* already ended */ } });
+    }
+    if (key && el._progAnim) { try { el._progAnim.cancel(); } catch (e) {} el._progAnim = null; }
+    el._hkFlatTone = key;
+    if (key) el.setAttribute('hk-flat', key); else if (el.removeAttribute) el.removeAttribute('hk-flat');
+    Object.keys(FLAT.light).forEach(function (k) {
+      if (own) el.style.setProperty(k, FLAT[key][k]); else if (wasFlat) el.style.removeProperty(k);
+    });
+  }
+  function syncFlat() {
+    FLAT_ROOTS.forEach(function (el) { if (el.isConnected === false) FLAT_ROOTS.delete(el); else flatTone(el); });
+    ON_PAGE.forEach(function (el) { tone(el, el._hass); markAsleep(el); });
+  }
+
+
   // A length option as CSS: numbers are px (`pad_left: 22`), strings pass
   // through (`pad_left: 22px`); null for nothing.
   function px(v) {
@@ -399,6 +748,128 @@
   // A <div> THAT IS A BUTTON: role, focusable, and a tap or Enter / Space
   // runs `fn`. A tap hands `fn` its click event; the keys call it with none.
   // Returns the element.
+  // ------------------------------------------------- a picture's art.json
+  // THE HOUSE PICTURE WITHOUT THE WAIT (2026-10-16, the user: the house
+  // "takes a bit to load"): the Power and Security pictures need their
+  // folder's art.json before they can name an image, which made two requests
+  // in a row on every page load. The last copy is kept in this browser and
+  // answered at once; the file is asked for again behind it and, when it
+  // differs, answered a second time -- so the picture is in the card's first
+  // paint. `fn(json)`; null on a failed first load (a later call asks again).
+  var ARTJ = {};
+  function artJson(base, fn) {
+    var a = ARTJ[base];
+    if (a && a.json) { fn(a.json); a.fns.push(fn); return; }
+    if (!a) {
+      a = ARTJ[base] = { fns: [], json: null };
+      var key = 'hk-art:' + base, kept = null;
+      try { kept = JSON.parse(window.localStorage.getItem(key) || 'null'); } catch (e) { kept = null; }
+      if (kept) a.json = kept;
+      (typeof fetch === 'function' ? fetch(base + 'art.json', { cache: 'no-cache' }) : Promise.reject(new Error('no fetch')))
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+        .then(function (t) {
+          var j = JSON.parse(t), same = a.json && JSON.stringify(a.json) === JSON.stringify(j);
+          try { window.localStorage.setItem(key, t); } catch (e) { /* full or private: next load asks again */ }
+          if (same) return;
+          a.json = j;
+          a.fns.slice().forEach(function (f) { f(j); });
+        }).catch(function () {
+          if (a.json) return;                 // the kept copy stands
+          var w = a.fns; delete ARTJ[base];
+          w.forEach(function (f) { f(null); });
+        });
+    }
+    a.fns.push(fn);
+    if (a.json) fn(a.json);
+  }
+  // ------------------------------------------------- one chart scrubber
+  // HOVER, TOUCH OR KEYS ON A CHART (2026-10-16; PLAN-2026-10-17-hover-tap-
+  // calendar-editing.md A1): every bar or line chart reads out the same way.
+  // A mouse over it, or a finger held and dragged on it, lights the element
+  // under it (`[data-i]` gets .hit, the box .on) and says it in the card's
+  // readout; the chart takes focus, the arrow keys (Home, End) step it, the
+  // readout is announced; leaving, lifting, Escape or Tab put the summary
+  // back. Asked again on every paint (a repaint puts the markup's attributes
+  // back), it keeps one set of listeners and reads the newest options.
+  //   o: { say(i) -> text, count, nowI, rest, readout() -> element, name,
+  //        index(x, y, box) -> i (default: across the svg), onPick(i | null) }
+  // count, nowI and rest may be functions. A tap still taps: nothing here
+  // stops a click, so a chart that opens a sheet keeps doing so.
+  function scrub(card, box, o) {
+    if (!box) return;
+    box._hkO = o;
+    var val = function (x) { return typeof x === 'function' ? x() : x; };
+    box.setAttribute('tabindex', '0');
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', (o.name || 'Chart') + '. Arrow keys move between bars.');
+    var rd0 = o.readout && o.readout();
+    if (rd0) rd0.setAttribute('aria-live', 'polite');
+    if (box._hkScrub) return;
+    box._hkScrub = true;
+    var held = null, kb = -1;
+    function opt() { return box._hkO || o; }
+    function n() { return Math.max(1, val(opt().count) || 24); }
+    function at(x, y) {
+      var O = opt();
+      if (O.index) return O.index(x, y, box);
+      var svg = box.querySelector('svg');
+      if (!svg) return -1;
+      var r = svg.getBoundingClientRect();
+      if (!r.width) return -1;
+      return Math.max(0, Math.min(n() - 1, Math.floor((x - r.left) / r.width * n())));
+    }
+    function pick(i) {
+      var O = opt();
+      if (i < 0) return;
+      box.classList.add('on');
+      box.querySelectorAll('[data-i]').forEach(function (b) { b.classList.toggle('hit', +b.getAttribute('data-i') === i); });
+      var rd = O.readout && O.readout();
+      if (rd) rd.textContent = O.say(i);
+      if (O.onPick) O.onPick(i);
+    }
+    function hide() {
+      var O = opt();
+      box.classList.remove('on');
+      box.querySelectorAll('[data-i].hit').forEach(function (b) { b.classList.remove('hit'); });
+      var rd = O.readout && O.readout();
+      if (rd) rd.innerHTML = val(O.rest) || '';
+      if (O.onPick) O.onPick(null);
+    }
+    box.addEventListener('keydown', function (e) {
+      var k = e.key, m = n();
+      if (k === 'Escape' || k === 'Tab') { kb = -1; hide(); return; }
+      if (k !== 'ArrowLeft' && k !== 'ArrowRight' && k !== 'Home' && k !== 'End') return;
+      e.preventDefault();
+      // the first arrow lands on now, else the last
+      var now = val(opt().nowI);
+      if (kb < 0 && (k === 'ArrowLeft' || k === 'ArrowRight')) kb = now != null ? now : m - 1;
+      else kb = k === 'Home' ? 0 : k === 'End' ? m - 1 : Math.max(0, Math.min(m - 1, kb + (k === 'ArrowLeft' ? -1 : 1)));
+      pick(kb);
+    });
+    box.addEventListener('blur', function () { kb = -1; hide(); });
+    box.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse' || held === e.pointerId) pick(at(e.clientX, e.clientY)); });
+    // A DRAG IS NOT A TAP: a finger that moved along the chart reads it, and
+    // the click that follows its lift is not passed on (a chart that opens a
+    // sheet on a tap would otherwise open it at the end of every scrub)
+    var x0 = 0, moved = false;
+    box.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse') return;
+      held = e.pointerId; x0 = e.clientX; moved = false;
+      try { box.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
+      pick(at(e.clientX, e.clientY));
+    });
+    box.addEventListener('pointermove', function (e) { if (held === e.pointerId && Math.abs(e.clientX - x0) > 10) moved = true; });
+    box.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') hide(); });
+    ['pointerup', 'pointercancel'].forEach(function (k) {
+      box.addEventListener(k, function (e) { if (e.pointerType !== 'mouse') { held = null; hide(); } });
+    });
+    box.addEventListener('click', function (e) {
+      if (!moved) return;
+      moved = false;
+      e.stopPropagation(); e.preventDefault();
+    }, true);
+  }
+
   function button(el, fn) {
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
@@ -557,6 +1028,11 @@
   // The SELECTED plate is a solid white, not glass. That contrast is the whole
   // signal and it is what the Home app does -- glass-on-glass is unreadable at
   // arm's length on a wall.
+  // THE SELECTABLE PILL'S LABEL (13.5 / 600, the Music speakers' and Clean
+  // Areas' rooms): declarations, no braces. The utility pages' capsules --
+  // quick timers, the valve's On / Off, the timer sheet's quick names --
+  // read it too, so the 40 px capsules all say the same size.
+  var PILL_LABEL = 'font-size:13.5px;font-weight:600;letter-spacing:-0.1px';
   var SELECTED_BG   = 'rgba(255, 255, 255, 0.96)';
   var SELECTED_TEXT = 'rgba(0, 0, 0, 0.88)';
   var IDLE_TEXT     = 'rgba(255, 255, 255, 0.86)';
@@ -654,12 +1130,60 @@
     off.check = check;
     return off;
   }
-  function shadeCss(sel) {
-    return sel + '::after{content:"";position:absolute;left:0;right:0;top:var(--hk-shade-top,100%);height:16px;' +
-      'pointer-events:none;z-index:3;opacity:0;transition:opacity .18s ease;' +
-      'background:linear-gradient(to bottom,rgba(0,0,0,.30),rgba(0,0,0,.10) 45%,transparent)}' +
-      sel + '[hk-scrolled]::after{opacity:1}';
+  // SCROLL EDGES (2026-10-17, the user: every list that scrolls, one way).
+  // NONE: a list is cut clean at its frame's edge, as iOS cuts one under a
+  // fixed header. Tried and dropped the same day -- shadows at both ends
+  // (read as a rounded tube), then soft fades (the header's and footer's own
+  // edge still showed through, so the effect was lost; strong enough to hide
+  // it, rows vanished). The user: "no shadow, the simplest" -- and a shadow
+  // is foreign to Flat anyway. The frame, `.hk-edge`, still holds the
+  // scroller (its one child) so it can shrink to fit, and still carries
+  // hk-scrolled / hk-scroll-more for anything that wants to know.
+  //   markup  <div class="hk-edge"><div class="lst">...</div></div>, or the
+  //           scroller alone marked `hk-fades` (it carries the marks itself)
+  //   then    hkCards.edges(root) once it is in
+  function edgeCss(scope) {
+    var p = scope || '';
+    return p + '.hk-edge{position:relative;display:flex;flex-direction:column;flex:1 1 auto;min-height:0}' +
+      p + '.hk-edge>:first-child{flex:1 1 auto;min-height:0}';
   }
+  // the frames under `root` (and root itself), each bound once to its
+  // scroller -- a repaint that makes a new scroller binds the new one -- and
+  // checked now, so a paint that adds rows shows its footer at once
+  var EDGE_RO = null;
+  function edgeCheck(sc) {
+    var f = sc && sc._hkEdge;
+    if (!f || !f.setAttribute) return;
+    var top = sc.scrollTop > SHADE_AT, more = sc.scrollHeight - sc.clientHeight - sc.scrollTop > 2;
+    if (top !== f.hasAttribute('hk-scrolled')) { if (top) f.setAttribute('hk-scrolled', ''); else f.removeAttribute('hk-scrolled'); }
+    if (more !== f.hasAttribute('hk-scroll-more')) { if (more) f.setAttribute('hk-scroll-more', ''); else f.removeAttribute('hk-scroll-more'); }
+  }
+  function edgeScroll(e) { edgeCheck(e.currentTarget); }
+  function edges(root) {
+    if (!root || !root.querySelectorAll) return;
+    var frames = Array.prototype.slice.call(root.querySelectorAll('.hk-edge, .hk-fades'));
+    if (root.classList && (root.classList.contains('hk-edge') || root.classList.contains('hk-fades'))) frames.unshift(root);
+    if (!EDGE_RO && typeof ResizeObserver !== 'undefined') {
+      EDGE_RO = new ResizeObserver(function (es) {
+        es.forEach(function (x) { if (x.target.isConnected === false) EDGE_RO.unobserve(x.target); else edgeCheck(x.target); });
+      });
+    }
+    frames.forEach(function (f) {
+      var sc = f.classList.contains('hk-fades') ? f : f.firstElementChild;
+      if (!sc) return;
+      if (sc._hkEdge !== f) {
+        sc._hkEdge = f;
+        sc.addEventListener('scroll', edgeScroll, { passive: true });
+        if (EDGE_RO) EDGE_RO.observe(sc);
+        if (typeof MutationObserver !== 'undefined') {
+          new MutationObserver(function () { edgeCheck(sc); }).observe(sc, { childList: true });
+        }
+      }
+      edgeCheck(sc);
+    });
+  }
+  // the header's shadow once a list scrolls under it: none (SCROLL EDGES)
+  function shadeCss() { return ''; }
 
   var _choose = null;
   function chooseSheet(title, options, onPick, opts) {
@@ -684,7 +1208,7 @@
         '#hk-choose .txt{padding:22px 24px 16px;font-size:15px;font-weight:600;' +
         '  line-height:1.35;color:' + v('ink') + '}' +
         // The list scrolls if it ever outgrows the sheet; six fit without it.
-        '#hk-choose .list{overflow-y:auto;-webkit-overflow-scrolling:touch}' +
+        '#hk-choose .list{overflow-y:auto;-webkit-overflow-scrolling:touch}' + edgeCss('#hk-choose ') +
         '#hk-choose .opt{appearance:none;border:0;background:none;width:100%;' +
         '  color:#0a84ff;font:inherit;font-size:17px;padding:15px 20px;' +
         '  cursor:pointer;display:block;' +
@@ -696,13 +1220,12 @@
         '#hk-choose .cancel{font-weight:600;' +
         '  box-shadow:inset 0 0.5px 0 rgba(255,255,255,0.18)}' +
         // the title riding on the list, once it scrolls (shade)
-        shadeCss('#hk-choose .box') +
         '</style>' +
         '<div class="box"><div class="txt"></div>' +
-        '<div class="list"></div>' +
+        '<div class="list hk-fades"></div>' +
         '<button class="opt cancel" data-cancel>Cancel</button></div>';
       document.body.appendChild(_choose);
-      shade(_choose.querySelector('.list'), _choose.querySelector('.box'));
+      edges(_choose.querySelector('.list'));
     }
     var close = function () {
       _choose.removeAttribute('data-open');
@@ -1017,6 +1540,8 @@
     // reads the variable that surface sets on its root (FONT_ROOT, below).
     ':host{font-family:var(--ha-font-family-body,' + v('font-body') + ')}',
     '*{box-sizing:border-box;font-family:inherit}',
+    // every list that scrolls: a light fade at its ends (SCROLL EDGES)
+    edgeCss(),
     // BEHIND THE PHOTO SCREENSAVER every animation in a card holds still: a
     // fan's spinning glyph, a pulse, a scrolling label. Nothing can be seen or
     // touched behind WallPanel, and on a wall tablet's Android WebView ANY
@@ -1031,15 +1556,17 @@
     // ---- the 40px selectable pill ----------------------------------------
     '.pill{height:40px;border-radius:20px;padding:0 14px;margin:0;',
     '  display:grid;grid-template-columns:minmax(0,1fr);align-content:center;',
-    '  ' + M.glass + ';border:' + M.border + ';',
+    // (Flat's --hk-pill-bg: on its ivory cards a plate-colored pill
+    // vanished -- the Clean Areas rooms; the look's plate elsewhere)
+    '  ' + M.glass + ';background:var(--hk-pill-bg,' + M.bg + ');border:' + M.border + ';',
     '  box-shadow:var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10));',
     '  cursor:pointer;user-select:none;',
     '  transition:background-color .22s ease, transform .12s ease}',
     '.pill:active{transform:scale(0.96)}',
-    '.pill > span{justify-self:center;font-size:13.5px;font-weight:600;',
-    '  letter-spacing:-0.1px;white-space:nowrap;overflow:hidden;',
+    '.pill > span{justify-self:center;' + PILL_LABEL + ';',
+    '  white-space:nowrap;overflow:hidden;',
     '  text-overflow:ellipsis;color:' + v('ink') + ';transition:color .22s ease}',
-    '.pill[aria-pressed="true"]{background:' + SELECTED_BG + '}',
+    '.pill[aria-pressed="true"]{background:var(--hk-seg-on,' + SELECTED_BG + ');box-shadow:var(--hk-seg-on-shadow,var(--hk-look-shadow, 0 6px 18px rgba(0,0,0,0.10)))}',
     '.pill[aria-pressed="true"] > span{color:' + SELECTED_TEXT + '}',
 
     // ---- the 70px action tile --------------------------------------------
@@ -1163,7 +1690,7 @@
       var sheet = null;
       try {
         sheet = new CSSStyleSheet();
-        sheet.replaceSync(BASE_CSS + (ctor.CSS || ''));
+        sheet.replaceSync(BASE_CSS + (ctor.CSS || '') + flatCss(null, !!ctor.FLAT_MOTION));
       } catch (e) {
         sheet = null;              // older engine -> <style> fallback below
       }
@@ -1238,6 +1765,7 @@
   window.addEventListener('hk-asleep', function () { ON_PAGE.forEach(markAsleep); });
   ['hk-module-ready', 'location-changed'].forEach(function (t) {
     window.addEventListener(t, function () {
+      syncFlat();
       var now = stillNow();
       if (now === still) return;
       still = now;
@@ -1248,7 +1776,7 @@
     // ON A LIGHT PAGE (tone() below) the shared blur has no sky to frost: it
     // laid its tinted layer behind each plate and turned the light glass a
     // muddy gray. Out of it, as a card that says `glass: false` is.
-    var off = !!(card._config && card._config.glass === false) || !!card._hkLight;
+    var off = !!(window.hkSettings && window.hkSettings.rendering && window.hkSettings.rendering().flat) || !!(card._config && card._config.glass === false) || !!card._hkLight;
     // Out of "Blur each card" too, and everything inside it (the variable
     // inherits into child cards' shadow roots).
     if (card.style) {
@@ -1313,7 +1841,7 @@
       } else {
         // Kept so a browser without constructable stylesheets still renders.
         this._style = document.createElement('style');
-        this._style.textContent = BASE_CSS + (this.constructor.CSS || '');
+        this._style.textContent = BASE_CSS + (this.constructor.CSS || '') + flatCss(null, !!this.constructor.FLAT_MOTION);
         this.shadowRoot.append(this._style);
       }
       this._root = document.createElement('div');
@@ -2224,14 +2752,25 @@
   //   o.fill   true: the choices share the width equally
   //   o.plate  the capsule's own background and edge, where HK's glass is
   //            wrong (over a picture already blurred)
+  //   o.raised a control on the page itself, not in a card (Calendar's
+  //            Day / Week / Month, Energy's periods): in Flat it is raised
+  //            as the cards are -- their surface and shadow -- and its
+  //            choice a stone well (--hk-seg-raised-*, the user's pick,
+  //            2026-10-17); every other look as before
   window.hkCards.segCss = function (sel, o) {
     sel = sel || '.seg';
     o = o || {};
     var it = sel + ' ' + (o.item || 'button'), on = it + (o.on || '[aria-selected="true"]');
     var h = o.h || '44px', ih = 'calc(' + h + ' - 8px)';
     return [
-      sel + '{box-sizing:border-box;height:' + h + ';padding:3px;border-radius:calc(' + h + ' / 2);' +
-        (o.plate || 'border:' + M.border + ';' + M.glass) + ';display:flex;gap:2px;position:relative}',
+      // (--hk-seg-bw: Flat's 0 -- its edge is transparent, and WebKit snaps
+      // a border to whole device pixels: at Safari's 85 % zoom the choice sat
+      // 3.6 px from the top and 4.4 from the bottom. The padding makes up
+      // the width, so the choice is 4 px in at every zoom.)
+      sel + '{box-sizing:border-box;height:' + h + ';padding:calc(4px - var(--hk-seg-bw, 1px));border-radius:calc(' + h + ' / 2);' +
+        // (Flat's own track, --hk-seg-track: on its ivory plate the plate's
+        // color made the white choice vanish; the look's plate elsewhere)
+        (o.plate || 'border:' + M.border + ';border-width:var(--hk-seg-bw, 1px);' + M.glass + ';background:' + (o.raised ? 'var(--hk-seg-raised-track,var(--hk-seg-track,' + M.bg + '));box-shadow:var(--hk-field-shadow,none)' : 'var(--hk-seg-track,' + M.bg + ')')) + ';display:flex;gap:2px;position:relative}',
       it + '{appearance:none;font:inherit;box-sizing:border-box;min-width:' + (o.fill ? '0' : '74px') + ';height:' + ih + ';' +
         // sharing the width, a long name wraps to two lines rather than lose its end
         (o.fill ? 'flex:1 1 0;padding:0 6px;overflow:hidden;text-align:center;line-height:1.1;' : 'padding:0 16px;white-space:nowrap;') +
@@ -2240,7 +2779,9 @@
       '  display:inline-flex;align-items:center;justify-content:center;gap:6px;',
       '  position:relative;isolation:isolate;transition:color .22s ease;-webkit-tap-highlight-color:transparent}',
       on + '{color:#1c1c1e;background:transparent;box-shadow:none}',
-      on + '::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:#fff;',
+      on + '::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;' +
+        (o.raised ? 'background:var(--hk-seg-raised-on,var(--hk-seg-on,#fff));box-shadow:var(--hk-seg-raised-on-shadow,var(--hk-seg-on-shadow,none));'
+                  : 'background:var(--hk-seg-on,#fff);box-shadow:var(--hk-seg-on-shadow,none);'),
       '  transform-origin:0 0;transform:translate(var(--hx,0px),0) scale(var(--sx,1),1);transition:transform .42s ' + SEG_SPRING + '}',
       it + '.slide-from::before{transition:none}',
       '@media (prefers-reduced-motion:reduce){' + on + '::before,' + it + '{transition:none}}'
@@ -2272,6 +2813,7 @@
     return sg && r && r.width ? { x: r.left - sg.left, w: r.width } : null;
   };
   window.hkCards.slideSeg = function (b, from) {
+    if (window.hkSettings && window.hkSettings.rendering && !window.hkSettings.rendering().motion) return;
     var to = window.hkCards.segBox(b);
     if (!from || !to || Math.abs(from.x - to.x) < 1) return;
     b.classList.add('slide-from');
@@ -2301,6 +2843,8 @@
   window.hkCards.DOOR_COVERS = DOOR_COVERS;
   window.hkCards.chooseSheet = chooseSheet;
   window.hkCards.shade = shade;
+  window.hkCards.edges = edges;
+  window.hkCards.edgeCss = edgeCss;
   window.hkCards.shadeCss = shadeCss;
   window.hkCards.M = M;
   window.hkCards.PALETTE = PALETTE;
@@ -2332,6 +2876,8 @@
     artSign(window.hkCards.hass(), url, size, cb);
   };
   window.hkCards.button = button;
+  window.hkCards.scrub = scrub;
+  window.hkCards.artJson = artJson;
   window.hkCards.sentenceCase = sentenceCase;
   window.hkCards.HkBase = HkBase;
 
@@ -2404,14 +2950,17 @@
     // inherits them -- so a dark plate inside a card (Now Playing's artwork,
     // the Music page's phone sheet) can set them back to `initial` for all it
     // holds. A nested card still gets `data-hk-light` for its own rules.
-    var own = light && !el._hkNested;
+    var S = window.hkSettings, flat = !!(S && S.rendering && S.rendering().flat);
+    if (flat) light = S.rendering().theme === 'light';
+    flatTone(el);
+    var own = light && !el._hkNested && !flat;
     if (el._hkLight === light && el._hkOwnTone === own) return;
     el._hkLight = light;
     el._hkOwnTone = own;
     flag(el, 'data-hk-light', light);
     try {
       LIGHT_KEYS.forEach(function (k) {
-        if (own) el.style.setProperty(k, LIGHT[k]); else el.style.removeProperty(k);
+        if (own) el.style.setProperty(k, LIGHT[k]); else if (!flat) el.style.removeProperty(k);
       });
     } catch (e) { /* a look, never a failure */ }
     // out of the shared blur while light, back in when not (glassJoin)
@@ -2514,6 +3063,8 @@
     var tpl = document.createElement('template');
     tpl.innerHTML = html;
     syncChildren(el, tpl.content);
+    // (a scrolling list's edges, SCROLL EDGES: the sync took their marks off)
+    edges(el);
   }
   function syncChildren(live, next) {
     var want = Array.prototype.slice.call(next.childNodes);
@@ -2622,7 +3173,16 @@
     // THIS USER'S room -- each wall tablet signs in as its own user, and the
     // integration's options map users to rooms.
     function home() { return known(MUSIC.home) ? MUSIC.home : null; }
-    function active(st) { return !!st && (st.state === 'playing' || st.state === 'paused'); }
+    // Only explicit announcement evidence. Short tracks, missing metadata and
+    // AirPlay's generic app name are also normal music, so never guess from them.
+    function ignored(st) {
+      if (!MUSIC.ignore_announcements || !st) return false;
+      var a = st.attributes || {}, id = String(a.media_content_id || '');
+      return MUSIC.announcements.indexOf(st.entity_id) >= 0 || a.announcement === true ||
+        a.media_content_type === 'announcement' || id.indexOf('media-source://tts/') === 0 ||
+        /^https?:\/\/[^/]+\/api\/tts_proxy\//.test(id);
+    }
+    function active(st) { return !!st && !ignored(st) && (st.state === 'playing' || st.state === 'paused'); }
 
     // localStorage is only the FIRST PAINT, before the server answers. It can
     // throw (private mode, blocked storage) and may be empty; both are fine.
@@ -2677,7 +3237,7 @@
         var st = states[r.entity];
         if (!active(st)) return;
         var gm = ((st.attributes || {}).group_members || []).filter(function (e) {
-          return known(e) && !isGroup(e);
+          return known(e) && !isGroup(e) && !ignored(states[e]);
         });
         var members = gm.length > 1 ? gm : [r.entity];
         members.forEach(function (m) { seen[m] = 1; });
@@ -2827,6 +3387,8 @@
         floors: (cfg && cfg.floors) || [],
         playlists: (cfg && cfg.playlists) || [],
         home: (cfg && cfg.home) || null,
+        ignore_announcements: !!(cfg && cfg.ignore_announcements),
+        announcements: (cfg && cfg.announcements) || [],
         volume: cfg && cfg.volume,
         library: (cfg && cfg.library_entry) || null
       };
@@ -2892,7 +3454,7 @@
     return {
       speakers: function () { return MUSIC.speakers.slice(); },
       rooms: rooms, presets: presets, known: known, isGroup: isGroup,
-      nameOf: nameOf, home: home, contexts: contexts, streams: streams, resolve: resolve,
+      nameOf: nameOf, home: home, ignored: ignored, active: active, contexts: contexts, streams: streams, resolve: resolve,
       player: function (hass) { return resolve(hass).player; },
       label: label, setFocus: setFocus, release: release, attach: attach,
       onChange: onChange, focus: function () { return focus.key; },
@@ -2961,6 +3523,29 @@
     return (p && p.lovelace && p.lovelace.config) || null;
   }
   function dashSeg() { return String(location.pathname).split('/')[1] || ''; }
+  // HIGHLIGHT COLOR AUTOMATIC (2026-10-16): each page in its own color --
+  // the view's address, its kind's color; Home, the rooms and the rest
+  // HK's orange
+  // by page kind, each page's own (HK Settings -> the page -> Look ->
+  // Highlight Color, look.page_accents, 2026-10-17) else these; a view's
+  // address names its kind (PAGE_OF_PATH where the two differ).
+  // hk-settings-model.js PAGE_ACCENTS is the same table (tests/test_flat.js).
+  var PAGE_ACCENTS = { climate: 'blue', lights: 'yellow', security: 'teal', doors_windows: 'teal',
+                       calendar: 'purple', weather: 'cyan', energy: 'green', power: 'green', water: 'cyan',
+                       music: 'pink', live_tv: 'indigo', cameras: 'red', vacuums: 'mint', timers: 'orange' };
+  var PAGE_OF_PATH = { 'doors-windows': 'doors_windows', playmusic: 'music', 'music-browse': 'music', 'live-tv': 'live_tv' };
+  // THE HIGHLIGHT COLOR AS SAVED, here: the screen's (else All Screens',
+  // resolved into the board), Automatic the page's own -- a hex
+  function legacyAccentHex() {
+    var a = String(boardOf(dashSeg()).accent || 'orange').toLowerCase();
+    if (a === 'auto') a = pageAccent();
+    return ACCENTS[a] || (/^#[0-9a-f]{6}$/.test(a) ? a : ACCENTS.orange);
+  }
+  function pageAccent() {
+    var seg = String(location.pathname).split('/')[2] || '', kind = PAGE_OF_PATH[seg] || seg;
+    var S = window.hkSettings, own = S && S.get ? (S.get('look.page_accents', {}) || {})[kind] : null;
+    return own || PAGE_ACCENTS[kind] || 'orange';
+  }
   var MENU_NARROW = 640;
   // A PHONE (the screen's Phones menu settings): a window under MENU_NARROW,
   // or a device whose screen's shorter side is under PHONE_SIDE -- a phone
@@ -2999,14 +3584,15 @@
                 // the cameras: All Screens' unless cameras_custom (settings.py resolved())
                 cameras_custom: false,
                 // the menu: All Screens' unless menu_custom (settings.py resolved())
-                menu_custom: false, accent: 'orange', glyph: 'sidebar', clock: true,
+                menu_custom: false, page_header: 'current', accent: 'orange', glyph: 'sidebar', clock: true,
                 // 1.7: Home, Pages, Screen (settings.py BOARD_DEFAULTS). chips_quiet
                 // null = the chip row's own default (hk-chip.js QUIET_DEFAULT).
                 chips_row: true, chips: [], chips_quiet: null, chips_extra: [], camera_strip: true, cameras: [],
                 camera_live: '', camera_live_video: null,
                 scenes_row: true, scenes: [], scenes_pages: [], favorites: [], pages: [],
                 glass: 'house', frost: null, blur: null, sky: true, idle_return: false, idle_room: '', car: false, kiosk: false,
-                popups: true, notify: true, notify_saver: null, notify_dnd: null, now_playing: false, screensaver: false, tablet_user: '', custom_pages: [],
+                popups: true, notify: true, notify_saver: null, notify_dnd: null, now_playing: false,
+                np_style: null, np_side: null, np_bar: null, np_bar_phone: null, screensaver: false, tablet_user: '', custom_pages: [],
                 // the pages at the top of the menu (empty: the views' own)
                 menu_top: [], phone_header: 'header', chips_custom: [], home_page: true, only_pages: [], home_view: '',
                 // swipe right from the left edge opens the menu, at every width
@@ -3116,6 +3702,30 @@
   }
   // Phones' menu and settings here: a phone, or a tablet whose menu doesn't fit
   function phoneForm() { return menuNarrow() || compact(); }
+  // NOW PLAYING HERE (2026-10-15; All Screens -> Now Playing, a screen's
+  // np_* over it): { phone, style: 'pane' | 'bar', side: 'right' | 'left',
+  // bar: 'bottom' | 'top' }. A phone always has the bar, at Phones' place.
+  // Whether a pane FITS is the pop-up's to say (hk-popup.js): it knows the
+  // page's width beside it, a docked menu and Home Assistant's sidebar taken.
+  var NP_DEFAULT = { style: 'bar', side: 'right', bar: 'bottom', bar_phone: 'bottom' };
+  // ...AND HOW LONG IT STAYS once the music is paused or stopped, in seconds
+  // (All Screens -> Now Playing -> Hide After a Pause): the bar, the pane and
+  // the screensaver's music alike, each held longer while it is in use
+  var NP_GRACES = [10, 20, 30, 60, 120];
+  function npGrace() {
+    var g = Number((msetting('now_playing', null) || {}).grace);
+    return NP_GRACES.indexOf(g) >= 0 ? g : 30;
+  }
+  function nowPlaying() {
+    var b = boardOf(dashSeg()), h = msetting('now_playing', null) || {};
+    var pick = function (k, hk, ok) {
+      return ok.indexOf(b[k]) >= 0 ? b[k] : ok.indexOf(h[hk]) >= 0 ? h[hk] : NP_DEFAULT[hk];
+    };
+    var bars = ['bottom', 'top'];
+    if (menuNarrow()) return { phone: true, style: 'bar', side: 'right', bar: pick('np_bar_phone', 'bar_phone', bars) };
+    return { phone: false, style: pick('np_style', 'style', ['pane', 'bar']), side: pick('np_side', 'side', ['right', 'left']),
+             bar: pick('np_bar', 'bar', bars) };
+  }
   // THE BUTTON'S STYLE where Phones' menu shows (button_phone): the chip,
   // the chip then the tab once scrolled past, the tab, or no button at all
   // (the swipe alone).
@@ -3334,17 +3944,37 @@
     // THE MENU'S HIGHLIGHT: its icons and the current page's row -- one of
     // Apple's system colours (dark-mode values), or the screen's own
     // "#rrggbb". `on`: the text over it, dark on the light ones.
+    // `base`: everything else the highlight colors -- the menu's icons.
+    // Automatic changes only the page you're on (the user, 2026-10-17): its
+    // row takes the page's color, the rest keep HK's orange.
+    // FLAT'S ACCENT COLOR (2026-10-17): chosen, it is the whole highlight in
+    // Flat -- the page you're on and every other icon (the user: the icons
+    // stayed orange, two tones) -- while the Highlight Color stays saved for
+    // the other looks and for an Automatic Accent
     accent: function () {
-      var a = String(boardOf(dashSeg()).accent || 'orange').toLowerCase();
-      var hex = ACCENTS[a] || (/^#[0-9a-f]{6}$/.test(a) ? a : ACCENTS.orange);
-      return { color: hex, on: accentText(hex) };
+      var a = String(boardOf(dashSeg()).accent || 'orange').toLowerCase(), auto = a === 'auto';
+      var hex = legacyAccentHex();
+      // (bright on Flat's Light too -- Apple's light color, not darkened:
+      // the user, 2026-10-17)
+      var color = flatColor(hex, 'on');
+      var base = auto ? flatColor(ACCENTS.orange, 'on') : color;
+      var pal = flatPalette();
+      // IN FLAT the page you're on is always white over its fill, whatever
+      // the color -- Lights' yellow and Weather's cyan too (the user,
+      // 2026-10-17: the black text and glyph looked wrong); the Glass looks
+      // keep black over their pale colors (accentText)
+      var S = window.hkSettings, flatNow = !!(S && S.rendering && S.rendering().flat);
+      if (pal && pal.seed) return { color: pal.seed, on: '#fff', base: pal.seed, flat: true };
+      return { color: color, on: flatNow ? '#fff' : accentText(hex), base: base };
     },
     open: function () { if (window.hkMenu) window.hkMenu.open(); },
     toggle: function () { if (window.hkMenu) window.hkMenu.toggle(); },
     // a card that draws a way in signs on this, so it redraws when any of it changes
     sig: function () {
+      var acc = boardOf(dashSeg()).accent;
+      var pal = flatPalette();
       return [menuState.on(), menuState.style(), boardOf(dashSeg()).menu, menuState.icon(),
-              menuState.clock(), boardOf(dashSeg()).accent].join('|');
+              menuState.clock(), acc === 'auto' ? 'auto:' + pageAccent() : acc, pal && pal.seed || ''].join('|');
     },
     // Where a room heading for `area` leads: this dashboard's room page for
     // it, while "Room headings open their room page" is on. null: stay a
@@ -3380,7 +4010,7 @@
     },
     areasOfView: areasOfView,
     viewTop: viewTop,
-    config: lovelaceConfig, panel: panelLovelace, dash: dashSeg, holdsCard: holdsCard,
+    config: lovelaceConfig, panel: panelLovelace, dash: dashSeg, holdsCard: holdsCard, nowPlaying: nowPlaying, npGrace: npGrace,
     homeButton: homeHasButton,
     NARROW: MENU_NARROW, DOCK: MENU_DOCK, TAB_MIN: TAB_MIN
   };
@@ -3420,6 +4050,33 @@
   };
   window.hkCards.place = place;            // a card that is not an HkBase calls it on connect
   window.hkCards.tone = tone;              // ...and this on every hass
+  window.hkCards.FLAT = FLAT;
+  window.hkCards.PAGE_ACCENTS = PAGE_ACCENTS;
+  window.hkCards.pageTone = pageTone;
+  window.hkCards.flatGround = flatGround;
+  window.hkCards.FLAT_COLORS = FLAT_COLORS;
+  window.hkCards.flatColorHex = flatColorHex;
+  window.hkCards.flatFade = flatFade;
+  // the pages that keep a tone of their own while the screen shows a photo:
+  // the Glass looks' own-color pages (hk-settings-model.js SKY_OWN) and, in
+  // Flat, Calendar and Weather too -- a photo behind them didn't look good
+  // (the user, 2026-10-16). Home and the rooms take the screen's Background.
+  var FLAT_OWN = { cameras: 1, live_tv: 1, security: 1, doors_windows: 1, climate: 1, lights: 1, timers: 1,
+                   vacuums: 1, music: 1, water: 1, energy: 1, calendar: 1, weather: 1, power: 1 };
+  window.hkCards.flatOwnGround = function (page) { return !!FLAT_OWN[page]; };
+  window.hkCards.flatColor = flatColor;
+  window.hkCards.FLAT_ACCENTS = FLAT_ACCENTS;
+  window.hkCards.FLAT_MIX = FLAT_MIX;
+  window.hkCards.flatPalette = flatPalette;
+  window.hkCards.flatAccentHex = flatAccentHex;
+  window.hkCards.flatIdle = flatIdle;
+  window.hkCards.flatSeedHex = seedHex;
+  window.hkCards.flatRole = flatRole;
+  window.hkCards.contrast = contrast;
+  window.hkCards.flatVars = function (theme) { return Object.keys(FLAT[theme]).map(function (k) { return k + ':' + FLAT[theme][k]; }).join(';'); };
+  window.hkCards.flatCss = flatCss;
+  window.hkCards.flatSurface = flatSurface;
+  if (window.hkSettings && window.hkSettings.refreshLook) window.hkSettings.refreshLook();
   window.hkCards.LIGHT = LIGHT;            // tests
   window.hkCards.T = T;                    // the design table (DESIGN.md)
   window.hkCards.v = v;
@@ -3439,6 +4096,7 @@
   window.hkCards.titleRow = titleRow;
   window.hkCards.labelCss = labelCss;
   window.hkCards.figureCss = figureCss;
+  window.hkCards.pageCardCss = pageCardCss;
   // `initial` for every token: a dark plate inside a card puts this in its
   // CSS so what is on it keeps today's white even on a light page
   window.hkCards.LIGHT_OFF = LIGHT_KEYS.map(function (k) { return k + ':initial'; }).join(';');
@@ -3447,6 +4105,7 @@
   window.hkCards.wireEditor = wireEditor;
   window.hkCards.firstOf = firstOf;
   window.hkCards.SELECTED_BG = SELECTED_BG;
+  window.hkCards.PILL_LABEL = PILL_LABEL;
   window.hkCards.SELECTED_TEXT = SELECTED_TEXT;
 
   window.dispatchEvent(new Event('hk-cards-ready'));

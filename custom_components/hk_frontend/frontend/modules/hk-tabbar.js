@@ -268,6 +268,7 @@
   // name from before, which a cached copy may still hold. Only `clear` was
   // known here, so a bar set to Tinted fell through to the screen's look.
   function material(setting, look) {
+    if (look === 'flat') return 'flat';
     if (setting === 'tinted' || setting === 'clear') return 'tinted';
     if (setting === 'frosted' || setting === 'blur') return setting;
     // Same as Screen: the screen's Tinted is this bar's Tinted -- no blur on
@@ -321,7 +322,7 @@
       '  -webkit-font-smoothing:antialiased;color:' + window.hkCards.v('ink') + ';-webkit-tap-highlight-color:transparent}',
       // THE ROW: the pill and the Rooms button, over the dashboard (past Home
       // Assistant's sidebar), clear of an iPhone's home indicator
-      '.row{position:fixed;left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:' + GUTTER + 'px;',
+      '.row{position:fixed;left:calc(var(--hk-content-left,0px) + var(--hk-pane-l,0px) + ' + GUTTER + 'px);right:calc(' + GUTTER + 'px + var(--hk-pane-r,0px));',
       '  bottom:' + LIFT_CSS + ';display:none;justify-content:center;',
       '  align-items:center;gap:' + GAP + 'px;pointer-events:none;transition:transform .34s ' + EASE + ',bottom .3s ' + EASE + '}',
       '.root.on .row{display:flex}',
@@ -383,7 +384,7 @@
       // THE SHEETS (More, Rooms): above the bar, the page still showing
       '.scrim{position:fixed;inset:0;display:none;pointer-events:auto}',
       '.root.sheeted .scrim{display:block}',
-      '.sheet{position:fixed;left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:' + GUTTER + 'px;margin:0 auto;',
+      '.sheet{position:fixed;left:calc(var(--hk-content-left,0px) + var(--hk-pane-l,0px) + ' + GUTTER + 'px);right:calc(' + GUTTER + 'px + var(--hk-pane-r,0px));margin:0 auto;',
       '  bottom:calc(var(--bh) + 10px + ' + LIFT_CSS + ');max-width:var(--sheet-w,860px);box-sizing:border-box;',
       // ...as tall as it needs, but always leaving TOP_GAP of the page above
       // it to tap out on
@@ -391,14 +392,11 @@
       '  display:flex;flex-direction:column;overflow:hidden;',
       '  border-radius:28px;padding:16px 12px 0;opacity:0;transform:translateY(16px) scale(.98);pointer-events:none;',
       '  transition:opacity .22s ease,transform .3s ' + EASE + ',visibility 0s linear .3s;visibility:hidden}',
-      // ONLY THE LIST SCROLLS, under a soft fade at its foot; the title stays
+      // ONLY THE LIST SCROLLS, in a frame with the sheet's shadows at both
+      // ends (hk-base.js edgeCss); the title stays
       '.body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;',
       '  scrollbar-width:none;padding:2px 0 16px}',
       '.body::-webkit-scrollbar{display:none}',
-      '.body.scrolls{-webkit-mask-image:linear-gradient(#000 calc(100% - 28px),transparent);',
-      '  mask-image:linear-gradient(#000 calc(100% - 28px),transparent);padding-bottom:28px}',
-      // ...and the title rides on it once it has scrolled (hk-base.js shade)
-      C.shadeCss('.sheet'),
       '.sheet.open{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition:opacity .22s ease,transform .3s ' + EASE + '}',
       // THE BAR GROWS INTO MORE (2026-10-06): with no Rooms button the bar and
       // More are one piece -- the bar widens to More's width and squares its
@@ -433,7 +431,11 @@
       '  box-sizing:border-box;padding:12px 4px 10px;border:0;margin:0;border-radius:22px;background:none;',
       '  color:' + window.hkCards.v('ink') + ';font:inherit;font-size:12px;font-weight:600;letter-spacing:-0.08px;',
       '  text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
-      '.it ha-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:' + window.hkCards.v('accent') + '}',
+      // (the icons in the menu's own color -- Automatic's orange; only the
+      // page you're on takes its page's: the side menu's rule. The user,
+      // 2026-10-17: Climate turned every room and page blue.)
+      '.it ha-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:var(--hk-accent-base,' + window.hkCards.v('accent') + ')}',
+      '.it.here ha-icon{color:' + window.hkCards.v('accent') + '}',
       '.it span{max-width:100%;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;',
       '  overflow-wrap:anywhere}',
       // THE PAGE YOU ARE ON keeps a plate round its icon and name, as the
@@ -475,8 +477,8 @@
       // screen's whole width under it: hk-popup.js --hk-dock-h)
       ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{top:' + GUTTER + 'px;bottom:calc(' + GUTTER + 'px + var(--hk-dock-h, 0px));width:var(--bh);',
       '  flex-direction:column;justify-content:center;transform:none}',
-      ':host([data-pos="left"]) .row{left:calc(var(--hk-content-left,0px) + ' + GUTTER + 'px);right:auto}',
-      ':host([data-pos="right"]) .row{right:' + GUTTER + 'px;left:auto}',
+      ':host([data-pos="left"]) .row{left:calc(var(--hk-content-left,0px) + var(--hk-pane-l,0px) + ' + GUTTER + 'px);right:auto}',
+      ':host([data-pos="right"]) .row{right:calc(' + GUTTER + 'px + var(--hk-pane-r,0px));left:auto}',
       // the pill hugs its tabs by top/bottom insets in its full-height column
       // (--rail-gap), and opening More takes them to 0: More and the rail
       // share one box exactly (a percentage height left Safari 4 px short)
@@ -504,9 +506,9 @@
       // (More, beside the rail, ends where the rail does: above the docked bar)
       ':host([data-pos="left"]) .sheet,:host([data-pos="right"]) .sheet{top:' + GUTTER + 'px;bottom:calc(' + GUTTER + 'px + var(--hk-dock-h, 0px));max-height:none;',
       '  width:var(--sheet-w,640px);max-width:none;margin:0;border-bottom:1px solid rgba(255,255,255,0.14);transform:none}',
-      ':host([data-pos="left"]) .root.joined .sheet{left:calc(var(--hk-content-left,0px) + var(--bh) + ' + (GUTTER - 1) + 'px);right:auto;',
+      ':host([data-pos="left"]) .root.joined .sheet{left:calc(var(--hk-content-left,0px) + var(--hk-pane-l,0px) + var(--bh) + ' + (GUTTER - 1) + 'px);right:auto;',
       '  border-radius:0 28px 28px 0;border-left:0;clip-path:inset(var(--rail-gap,0px) 100% var(--rail-gap,0px) 0 round 0 28px 28px 0)}',
-      ':host([data-pos="right"]) .root.joined .sheet{right:calc(var(--bh) + ' + (GUTTER - 1) + 'px);left:auto;',
+      ':host([data-pos="right"]) .root.joined .sheet{right:calc(var(--bh) + var(--hk-pane-r,0px) + ' + (GUTTER - 1) + 'px);left:auto;',
       '  border-radius:28px 0 0 28px;border-right:0;clip-path:inset(var(--rail-gap,0px) 0 var(--rail-gap,0px) 100% round 28px 0 0 28px)}',
       ':host([data-pos="left"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 0 28px 28px 0)}',
       ':host([data-pos="right"]) .root.joined .sheet.open{clip-path:inset(0 0 0 0 round 28px 0 0 28px)}',
@@ -527,8 +529,8 @@
       '  padding:calc(var(--g) - 1px);border-radius:50%}',
       ':host([data-pos="left"]) .root.small.fold-end .pill,:host([data-pos="right"]) .root.small.fold-end .pill{top:calc(100% - var(--bh) + 6px);bottom:0}',
       ':host([data-pos="left"]) .pill,:host([data-pos="right"]) .pill{transition:top .42s ' + EASE + ',bottom .42s ' + EASE + ',left .34s ' + EASE + ',right .34s ' + EASE + ',border-radius .3s ' + EASE + '}',
-      ':host([data-pos="left"]) .root.gone .row{transform:translateX(calc(-100% - ' + (GUTTER + 8) + 'px - var(--hk-content-left,0px)))}',
-      ':host([data-pos="right"]) .root.gone .row{transform:translateX(calc(100% + ' + (GUTTER + 8) + 'px))}',
+      ':host([data-pos="left"]) .root.gone .row{transform:translateX(calc(-100% - ' + (GUTTER + 8) + 'px - var(--hk-content-left,0px) - var(--hk-pane-l,0px)))}',
+      ':host([data-pos="right"]) .root.gone .row{transform:translateX(calc(100% + ' + (GUTTER + 8) + 'px + var(--hk-pane-r,0px)))}',
       ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{transition:transform .34s ' + EASE + '}',
       '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet,.tab.here::before{transition:none}}'
     ].join('\n');
@@ -557,22 +559,28 @@
       S.host = document.createElement('div');
       S.host.id = 'hk-tabbar';
       var sr = S.host.attachShadow({ mode: 'open' });
-      sr.innerHTML = '<style>' + CSS + '</style>' +
+      C.flatSurface(S.host, 'navigation');
+      sr.innerHTML = '<style>' + CSS + C.flatCss() + (C.edgeCss ? C.edgeCss() : '') +
+        ':host([hk-flat]) .g{background:var(--hk-flat-elevated)!important;box-shadow:var(--hk-flat-elevated-shadow);border-color:var(--hk-line)}' +
+        ':host([hk-flat]) .tab,:host([hk-flat]) .roomsbtn,:host([hk-flat]) .it{color:var(--hk-ink-2)}' +
+        ':host([hk-flat]) .tab.here,:host([hk-flat]) .roomsbtn.here{color:var(--hk-accent)}' +
+        ':host([hk-flat]) .tab.here::before{background:color-mix(in srgb,var(--hk-accent) 12%,var(--hk-flat-elevated));transform:none}' +
+        '</style>' +
         '<div class="root">' +
           '<div class="scrim"></div>' +
-          '<section class="sheet g" data-sheet="more" aria-label="More"><h2>More</h2><div class="body">' +
+          '<section class="sheet g" data-sheet="more" aria-label="More"><h2>More</h2><div class="hk-edge"><div class="body">' +
             '<div class="grid pages"></div><h3 class="ch" hidden>Categories</h3><div class="grid pages2" hidden></div>' +
             '<h3 class="hh" hidden>Home Assistant</h3><div class="grid hagrid" hidden></div>' +
-            '<h3 class="rh" hidden>Rooms</h3><div class="grid roomgrid" hidden></div></div></section>' +
-          '<section class="sheet g" data-sheet="rooms" aria-label="Rooms"><h2>Rooms</h2><div class="body">' +
-            '<div class="grid roomgrid"></div></div></section>' +
+            '<h3 class="rh" hidden>Rooms</h3><div class="grid roomgrid" hidden></div></div></div></section>' +
+          '<section class="sheet g" data-sheet="rooms" aria-label="Rooms"><h2>Rooms</h2><div class="hk-edge"><div class="body">' +
+            '<div class="grid roomgrid"></div></div></div></section>' +
           '<div class="row">' +
             '<nav class="pill g" aria-label="Tab Bar"><button class="cur" aria-label="Show the tab bar"><ha-icon></ha-icon></button></nav>' +
             '<button class="roomsbtn g" aria-label="Rooms" aria-expanded="false"><ha-icon icon="' + icon(ROOMS_ICON) + '"></ha-icon></button>' +
           '</div>' +
         '</div>';
       S.root = sr.querySelector('.root');
-      Array.prototype.forEach.call(sr.querySelectorAll('.sheet'), function (s) { C.shade(s.querySelector('.body'), s); });
+      if (C.edges) C.edges(sr);
       S.pill = sr.querySelector('.pill'); S.tabHtml = null;
       S.cur = sr.querySelector('.cur');
       S.roomsBtn = sr.querySelector('.roomsbtn');
@@ -648,7 +656,7 @@
     }
     function build() {
       var b = M.board(), m = model();
-      var width = (window.innerWidth || 0) - leftOf();
+      var width = (window.innerWidth || 0) - leftOf() - paneR();
       // a phone, by its screen as well as its width: a phone held
       // sideways keeps a phone's bar, fit and place
       var ph = phoneAt();
@@ -758,7 +766,17 @@
           esc(it.title) + '</span></button>';
       }).join('');
     }
+    // the Now Playing pane's width on the right (hk-popup.js, on <html>'s
+    // own style); on the left it is in leftOf
+    function paneR() {
+      var n = parseFloat(document.documentElement.style.getPropertyValue('--hk-pane-r'));
+      return n > 0 ? n : 0;
+    }
     function leftOf() {
+      var pl = parseFloat(document.documentElement.style.getPropertyValue('--hk-pane-l'));
+      return leftOf0() + (pl > 0 ? pl : 0);
+    }
+    function leftOf0() {
       var v = 0;
       try { v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hk-content-left')) || 0; }
       catch (e) { v = 0; }
@@ -891,7 +909,7 @@
     // lists and the fonts can all have changed.
     function sizeSheets() {
       var more = S.sheets.more, rooms = S.sheets.rooms;
-      [more, rooms].forEach(function (el) { el.style.height = ''; el.querySelector('.body').classList.remove('scrolls'); });
+      [more, rooms].forEach(function (el) { el.style.height = ''; });
       if (S.roomsMode === 'button') {
         var room = parseFloat(getComputedStyle(more).maxHeight) || 0;
         var want = S.more.length ? more.scrollHeight : rooms.scrollHeight;
@@ -899,10 +917,8 @@
         if (room) h = Math.min(h, room);
         [more, rooms].forEach(function (el) { el.style.height = h + 'px'; });
       }
-      [more, rooms].forEach(function (el) {
-        var g = el.querySelector('.body');
-        g.classList.toggle('scrolls', g.scrollHeight > g.clientHeight + 1);
-      });
+      // (their edges, now the lists are in: hk-base.js edges)
+      if (C.edges) [more, rooms].forEach(function (el) { C.edges(el); });
     }
     function closeSheet(quiet) {
       if (!S.root) return;
@@ -947,6 +963,32 @@
       if (de.style.getPropertyValue('--hk-tabbar-bh') !== bh) {
         if (bh) de.style.setProperty('--hk-tabbar-bh', bh); else de.style.removeProperty('--hk-tabbar-bh');
       }
+      roomSoon(bottom && !v);
+    }
+    // ROOM BESIDE THE FULL BAR (2026-10-15): a bar along the bottom that
+    // doesn't run the whole width (centered on a tablet) leaves the corner
+    // beside it free -- `hk-tabbar-room` says so, and the now-playing bar's
+    // stash sits there, in the bar's row, as beside a folded bar
+    // (hk-popup.js), not above it over the page. Measured in the next frame,
+    // never in the middle of a change.
+    var roomRaf = 0;
+    function roomSoon(want) {
+      if (roomRaf) cancelAnimationFrame(roomRaf);
+      roomRaf = requestAnimationFrame(function () {
+        roomRaf = 0;
+        var de = document.documentElement, ok = false;
+        if (want && S.on && S.mode === 'full' && S.root) {
+          var r = 0;
+          ['.pill', '.roomsbtn'].forEach(function (sel) {
+            var e = S.root.querySelector(sel), b = e && e.getBoundingClientRect();
+            if (b && b.width) r = Math.max(r, b.right);
+          });
+          // the stash (as tall as the bar) and a gutter either side of it
+          var need = barH(undefined, sizeNow()) + 2 * GUTTER;
+          ok = r > 0 && (window.innerWidth || 0) - paneR() - r >= need;
+        }
+        if (de.hasAttribute('hk-tabbar-room') !== ok) { if (ok) de.setAttribute('hk-tabbar-room', 'end'); else de.removeAttribute('hk-tabbar-room'); }
+      });
     }
     function onScroll(e) {
       if (!S.on || S.sheet) return;
@@ -968,6 +1010,17 @@
     }
 
     // ------------------------------------------- the room it takes, below
+    // the rule that takes the bar's room out of the view's minimum height,
+    // once in the view's own shadow root, where the kiosk rule it answers is
+    // (more particular than its `hui-view`, so its !important gives way)
+    function barRoomCss(view) {
+      var root = view.getRootNode && view.getRootNode();
+      if (!root || !root.querySelector || root.querySelector('style#hk-bar-room')) return;
+      var st = document.createElement('style');
+      st.id = 'hk-bar-room';
+      st.textContent = '#view[hk-bar-room]>hui-view{min-height:calc(100vh - var(--hk-bar-room,0px))!important}';
+      (root.appendChild ? root : document.head).appendChild(st);
+    }
     function viewEl() {
       var p = M.panel(), root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
       return (root && root.shadowRoot && root.shadowRoot.querySelector('#view')) || null;
@@ -1066,6 +1119,8 @@
       if (S.view && (S.view !== view || S.viewSide !== pos || S.viewAdd !== add)) {
         S.view.style.removeProperty(S.viewProp || 'padding-bottom');
         if (S.viewPad) S.view.style.setProperty(S.viewProp, S.viewPad);
+        S.view.removeAttribute('hk-bar-room');
+        S.view.style.removeProperty('--hk-bar-room');
         S.view = null;
       }
       if (view && S.view !== view) {
@@ -1076,6 +1131,17 @@
         S.viewAdd = add;
         // !important: a kiosk screen's own rule sets the view's top padding
         view.style.setProperty(prop, 'calc(' + base + ' + ' + add + ')', pos === 'top' ? 'important' : '');
+        // ...AND THE VIEW IS THAT MUCH SHORTER (2026-10-17): a kiosk
+        // stylesheet (Kiosk Mode's `hui-view{min-height:100vh !important}`,
+        // on the wall tablets) holds the view at the whole window, so the
+        // bar's room came on top of it and a page that fits the window
+        // (Calendar, Live TV) scrolled by the bar's height. Above or below,
+        // the room comes out of the view's own minimum.
+        if (pos === 'bottom' || pos === 'top') {
+          barRoomCss(view);
+          view.style.setProperty('--hk-bar-room', add);
+          view.setAttribute('hk-bar-room', '');
+        }
         S.view = view;
       }
     }
@@ -1088,6 +1154,7 @@
       if (!on) {
         if (S.root) { closeSheet(true); S.root.className = 'root'; }
         S.on = false;
+        publishHeader();
         publish(false);
         aside();
         return;
@@ -1098,8 +1165,11 @@
       var mat = material(b.tab_bar_glass, look);
       pinGlass(mat === 'blur' && look === 'blur_pre');
       var a = typeof M.accent === 'function' ? M.accent() : null;
-      if (a) { S.host.style.setProperty('--hk-accent', a.color); S.host.style.setProperty('--hk-on-accent', a.on); }
-      var width = (window.innerWidth || 0) - leftOf();
+      if (a) {
+        S.host.style.setProperty('--hk-accent', a.color); S.host.style.setProperty('--hk-on-accent', a.on);
+        S.host.style.setProperty('--hk-accent-base', a.base || a.color);
+      }
+      var width = (window.innerWidth || 0) - leftOf() - paneR();
       if (listKey(width) !== S.built) build();
       if (S.host.getAttribute('data-pos') !== S.pos) S.host.setAttribute('data-pos', S.pos || 'bottom');
       S.host.toggleAttribute('data-wide', barH() !== BAR_H);
@@ -1118,6 +1188,7 @@
       S.root.className = cls.join(' ');
       S.on = true;
       markHere();
+      publishHeader();
       publish(true);
       aside();
     }
@@ -1150,6 +1221,7 @@
     window.addEventListener('resize', function () { sync(); });
     // the docked bar came, went or changed height: the rail's room did
     window.addEventListener('hk-dock', function () { sync(); });
+    window.addEventListener('hk-pane', function () { sync(); });
     window.addEventListener('hk-module-ready', function () { S.built = ''; sync(); });
     // the window's scroll, and <body>'s on a phone (scroll events do not
     // bubble: captured at the document, as hk-menu.js does)
@@ -1166,6 +1238,19 @@
     sync();
     setTimeout(sync, 1500);    // the panel and config can land after us on a cold load
 
+    window.hkTabBar.headerContext = function () {
+      var available = !!S.on && M.tabBar();
+      // A bar starting small does not show the selected page's name.
+      return { available: available, exact: available && rest() === 'full' && S.tabs.some(function (it) { return H.isHere(it, location.pathname); }) };
+    };
+    var headerKey = '';
+    function publishHeader() {
+      if (!window.hkTabBar.headerContext) return;
+      var key = JSON.stringify(window.hkTabBar.headerContext()) + location.pathname;
+      if (key === headerKey) return;
+      headerKey = key;
+      window.dispatchEvent(new CustomEvent('hk-page-navigation'));
+    }
     window.hkTabBar.sync = sync;
     window.hkTabBar.open = openSheet;
     window.hkTabBar.close = closeSheet;

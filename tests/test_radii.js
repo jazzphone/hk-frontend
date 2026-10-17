@@ -20,7 +20,7 @@ var RULES = {};
   .forEach(function (n) { RULES[n + 'px'] = 1; });
 RULES['0'] = RULES['50%'] = RULES.inherit = 1;
 var FILES = ['cards/hk-base', 'cards/hk-calendar', 'cards/hk-cameras', 'cards/hk-chip', 'cards/hk-control', 'cards/hk-detail',
-  'cards/hk-energy', 'cards/hk-home', 'cards/hk-layout', 'cards/hk-library', 'cards/hk-media', 'cards/hk-music', 'cards/hk-person',
+  'cards/hk-energy', 'cards/hk-headers', 'cards/hk-home', 'cards/hk-layout', 'cards/hk-library', 'cards/hk-media', 'cards/hk-music', 'cards/hk-person',
   'cards/hk-popup', 'cards/hk-room', 'cards/hk-row', 'cards/hk-security', 'cards/hk-stat', 'cards/hk-tile', 'cards/hk-weather',
   'modules/hk-charts', 'modules/hk-header', 'modules/hk-timers', 'modules/hk-menu', 'modules/hk-tabbar', 'modules/hk-notify'];
 var found = {}, seen = 0;

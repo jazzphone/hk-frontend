@@ -17,7 +17,7 @@ the menu open them; a back button returns to Home.
 | Calendar | A calendar | The month, the week or the day, with events to add, change and delete ([Calendar](Calendar.md)) |
 | Cameras | Cameras | Every camera on the strip, live, three across |
 | Live TV | The Live TV feature | The channel guide; tap a channel to watch it full screen |
-| Security | An alarm panel (the one in General, else the first) | The alarm keypad, with the locks and garage doors beside it |
+| Security | An alarm panel (the one on Pages → Security, else the first) | The alarm keypad, with the locks and garage doors beside it |
 | Doors & Windows | Door or window contacts | The doors, then the windows, each with its room above its name |
 | [Climate](Climate.md) | Thermostats, fans, blinds or temperature/humidity sources | Temperature and humidity ranges, fan and blind summaries with accessory lists, fans/humidifiers/blinds by room, and responsive thermostat dials |
 | Lights | Lights | The lights by room (titled *Lights & Outlets* when an outlet is counted as a light) |
@@ -53,7 +53,7 @@ row, and its accessories in groups: Climate, Lights, Speakers & TVs, Security,
 Water and Other.
 
 What the status row shows, and in what order, is set in
-**All Screens → Status Rows → Room Pages** ([Status rows](Status-Rows.md)).
+**All Screens → Rooms → Status Row** ([Status rows](Status-Rows.md)).
 The temperature and humidity are the area’s own sensors: **Settings → Areas →
 (the area) → Related sensors**. The Climate, Lights, Doors & Windows, Water
 and Security pages have status rows of their own.

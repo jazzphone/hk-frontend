@@ -39,7 +39,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .. import MUSIC, Feature, async_update, entries
 from .const import (
-    CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_KEEP_READY, CONF_MEMBERS,
+    CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_KEEP_READY, CONF_IGNORE_ANNOUNCEMENTS, CONF_MEMBERS,
     CONF_NAME, CONF_ORDER, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME, SUB_PLAYLIST, SUB_PRESET,
 )
 from .flows import library, playlist_errors, preset_errors, speakers_errors
@@ -120,6 +120,7 @@ async def page(hass: HomeAssistant) -> dict[str, Any]:
                        "chooser": p.chooser, "order": p.order} for p in cfg.playlists],
         "players": [{"entity": e, "name": _name(hass, e)} for e in _players(hass, entry)],
         "library_ready": cfg.library_entry is not None,
+        "ignore_announcements": entry.options.get(CONF_IGNORE_ANNOUNCEMENTS, True),
         "keep_ready": bool(entry.options.get(CONF_KEEP_READY)),
         # the last round, or None: {at, ready, wanted, note}
         "keep_ready_last": _warmer_status(entry),
@@ -147,7 +148,7 @@ def apply(hass: HomeAssistant, entry: Feature, changes: dict[str, Any]
     opts, errors = dict(entry.options), {}
     players = set(_players(hass, entry))
     for k in changes:
-        if k not in (CONF_SPEAKERS, CONF_VOLUME, CONF_HOMES, CONF_KEEP_READY):
+        if k not in (CONF_SPEAKERS, CONF_VOLUME, CONF_HOMES, CONF_KEEP_READY, CONF_IGNORE_ANNOUNCEMENTS):
             errors[k] = MSG["unknown"]
     if CONF_SPEAKERS in changes:
         sp = changes[CONF_SPEAKERS]
@@ -167,6 +168,11 @@ def apply(hass: HomeAssistant, entry: Feature, changes: dict[str, Any]
             errors[CONF_VOLUME] = MSG["volume"]
         else:
             opts[CONF_VOLUME] = round(float(v), 2)
+    if CONF_IGNORE_ANNOUNCEMENTS in changes:
+        if not isinstance(changes[CONF_IGNORE_ANNOUNCEMENTS], bool):
+            errors[CONF_IGNORE_ANNOUNCEMENTS] = MSG["on_off"]
+        else:
+            opts[CONF_IGNORE_ANNOUNCEMENTS] = changes[CONF_IGNORE_ANNOUNCEMENTS]
     if CONF_KEEP_READY in changes:
         if not isinstance(changes[CONF_KEEP_READY], bool):
             errors[CONF_KEEP_READY] = MSG["on_off"]

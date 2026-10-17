@@ -308,7 +308,7 @@
         }
       }
       // WHAT'S PLAYING: the media player playing now, most recently started
-      var playing = Object.keys(states).filter(function (k) { return k.indexOf('media_player.') === 0 && states[k].state === 'playing' && (states[k].attributes || {}).media_title; })
+      var playing = Object.keys(states).filter(function (k) { return k.indexOf('media_player.') === 0 && states[k].state === 'playing' && !(window.hkMusic && window.hkMusic.ignored(states[k])) && (states[k].attributes || {}).media_title; })
         .sort(function (p1, p2) { return String(states[p2].last_changed).localeCompare(String(states[p1].last_changed)); })[0];
       var m = playing && states[playing], mk = m ? m.attributes.media_title + '|' + (m.attributes.media_artist || '') + '|' + (m.attributes.entity_picture || '') : '';
       if (mk !== npKey) {
@@ -796,7 +796,9 @@
     var bg = opts.bg && opts.bg !== 'none' ? opts.bg : null;
     // THE BACKGROUND: its painter's canvas -- 'soft' 64 x 40, or a share of
     // the screen's size once it is laid out
-    var P = bg ? PAINTERS[bg] || PAINTERS.gradient : null, pst = null;
+    var flat = !!(window.hkSettings && window.hkSettings.rendering && window.hkSettings.rendering().flat);
+    var P = !flat && bg ? PAINTERS[bg] || PAINTERS.gradient : null, pst = null;
+    if (flat && bg && bg !== 'none') root.style.background = 'var(--hk-flat-ground,#17181A)';
     var speed = opts.speed != null ? Math.max(0, Math.min(100, +opts.speed || 0)) : (opts.motion === 'still' ? 0 : 35);
     var po = { depth: opts.depth != null ? Math.max(0, Math.min(100, +opts.depth || 0)) : 50 };
     // HOW IT MOVES SMOOTHLY (2026-10-13, the owner: "lots of these aren't
@@ -848,6 +850,12 @@
     // ITS COLOR: the chosen one's variables on the clock, over the face's own
     var color = colorOf(style, opts.color);
     Object.keys(color[2]).forEach(function (k) { root.style.setProperty(k, color[2][k]); });
+    if (flat) {
+      root.style.setProperty('--ckfg', 'var(--hk-ink,#F5F4F0)');
+      root.style.color = 'var(--hk-ink,#F5F4F0)';
+      var scrim = root.querySelector('.ckscrim');
+      if (scrim) scrim.style.background = window.hkSettings.rendering().theme === 'light' ? 'rgba(238,236,230,.78)' : 'rgba(0,0,0,.65)';
+    }
     layer.appendChild(root);
     var hass = opts.hass || null;
     var ctx = {
@@ -904,7 +912,9 @@
     else if (P) paint();
     // the glass needs the face laid out to know where it is
     requestAnimationFrame(function () { if (ctx.glass && cv) ctx.glass(cv); });
-    var tT = setInterval(now, 1000);
+    var tT = null, tStart = null;
+    if (flat && style === 'classic') tStart = setTimeout(function () { now(); tT = setInterval(now,60000); }, 60000 - Date.now() % 60000);
+    else tT = setInterval(now,1000);
     var bT = null;
     if (!P) { /* nothing behind */ }
     else if (how === 'live' && speed) {
@@ -934,7 +944,7 @@
       night: function (on) { nightOn = !!on; if (!nightOn) { tLast = Date.now(); } },
       destroy: function () {
         dead = true;
-        clearInterval(tT); if (bT) clearInterval(bT); if (dT) clearInterval(dT);
+        clearInterval(tT); clearTimeout(tStart); if (bT) clearInterval(bT); if (dT) clearInterval(dT);
         if (raf) cancelAnimationFrame(raf);
         if (cv) { cv.width = 0; cv.height = 0; }
         if (cv2) { cv2.width = 0; cv2.height = 0; }

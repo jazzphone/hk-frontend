@@ -353,6 +353,11 @@ battery, yesterday by now) and **the month so far**, with where its cost is
 heading (what it has cost so far, plus a usual day for each day left: the
 Energy page’s own estimate, firmer as the month goes on).
 
+Beside the calendar or music pane on a landscape tablet, the rings stack
+above the readings. Right Now and the month remain visible in two aligned
+footer rows. Each leader line fills the space between its own label and
+value, with the values aligned on the right, in both layouts.
+
 ![Home Energy on the screensaver: today's energy, cost and water rings against a usual day, Right Now and October so far](images/saver-home-energy.png)
 
 - **The numbers are the Energy page’s** Today and This Month, from the same
@@ -417,8 +422,25 @@ snow, stars and moon, with no land and no decorations.
   reads Snow when it snows): today’s high and low, the chance and when, the
   speed, direction and gusts.
 - **Along the bottom**: the next five hours and the coming three days.
+  Beside the calendar or music pane on a landscape tablet, the symbol and
+  temperature stack above the readings; the footer shows five hours and
+  two days. The leader lines size to each label and value in both layouts.
 - It tells the time itself, top left; Home Status stays top right. A tap on
   it opens the Weather page.
+- **NWS alerts**: uses the alerts sensor selected in **Configure → Weather**.
+  While an alert is active, a severity-colored banner shows its event,
+  expiration, and a short excerpt from the NWS instructions (or headline).
+  The most severe alert appears first, with a count of additional alerts.
+  Tap the banner to open the full wording and instructions for every active
+  alert. The screensaver closes and stays idle while the details are open.
+  Expired, cancelled, and test alerts are excluded; when no alert is active,
+  the banner disappears and the normal layout returns. The existing clock
+  timer also checks expiration between sensor updates. The banner aligns
+  with the clock and date, using a soft severity-colored wash that remains
+  visible behind its expiration time. The icon, temperature and readings
+  retain their normal size and position; a little icon overlap is allowed.
+  The calendar layout retains five hours and two upcoming days. This banner
+  appears on the Weather screen.
 - **Weather Options**: Rain, Wind, Next Hours and Coming Days, each on or
   off. The preview holds the weather while you change them.
 

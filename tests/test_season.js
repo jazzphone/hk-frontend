@@ -326,4 +326,26 @@ HS._apply({});
   check('no animationiteration listener in the sky, the saver or the cards', bad.length === 0);
 })();
 
+
+// THE LIGHTS PAGE FOLLOWS THE SUN: Adaptive Lighting's kelvin, else the
+// sun's; each stop keeps its luma (the horizon stays under the live sky's)
+(function () {
+  var K = window.hkSky, LIGHTS = ['#1c1608', '#3d3211', '#7e6320', '#bb9440'];
+  function L(c) { var v = [1, 3, 5].map(function (i) { return parseInt(c.substr(i, 2), 16); }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; }
+  function st(map) { var o = {}; Object.keys(map).forEach(function (k) { o[k] = { state: 'on', attributes: map[k] }; }); return { states: o }; }
+  var al = st({ 'switch.adaptive_lighting_rgb': { color_temp_kelvin: 6000 }, 'switch.adaptive_lighting_default': { color_temp_kelvin: 3000 },
+                'sun.sun': { elevation: 40 } });
+  check('lights: Adaptive Lighting\'s kelvin, its "default" switch first', K._sunKelvin(al, null).k === 3000);
+  check('lights: the switch picked in Settings', K._sunKelvin(al, { sky_source: ['switch.adaptive_lighting_rgb'] }).k === 6000);
+  var sunOnly = st({ 'sun.sun': { elevation: -10 } });
+  check('lights: no Adaptive Lighting -- 2000 K under the horizon', K._sunKelvin(sunOnly, null).k === 2000);
+  check('lights: ...5500 K high up', K._sunKelvin(st({ 'sun.sun': { elevation: 45 } }), null).k === 5500);
+  [2000, 3000, 5500].forEach(function (k) {
+    var t = K._tintStops(LIGHTS, k);
+    check('lights at ' + k + ' K: every stop keeps its luma', t.every(function (c, i) { return Math.abs(L(c) - L(LIGHTS[i])) < 2.5; }), t);
+  });
+  var warm = K._tintStops(LIGHTS, 2000)[3], cool = K._tintStops(LIGHTS, 5500)[3];
+  function hexes(c) { return [1, 3, 5].map(function (i) { return parseInt(c.substr(i, 2), 16); }); }
+  check('lights: dusk is warmer than midday (more red over blue)', hexes(warm)[0] - hexes(warm)[2] > hexes(cool)[0] - hexes(cool)[2] + 60, [warm, cool]);
+})();
 print(fail ?'FAIL ' + fail + ' SEASON TESTS' : 'ALL ' + pass + ' SEASON TESTS PASS');

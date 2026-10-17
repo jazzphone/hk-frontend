@@ -3,20 +3,21 @@
 A **status row** is the line of glyphs and words under a page’s title, as the
 Home app draws it: *Temperature 71° · Security System Disarmed · 4 Lights On ·
 3 Windows Closed · Motion Emma’s Room*. A room page has one, and so do the
-Climate, Lights, Doors & Windows, Water and Security pages.
+Climate, Lights, Doors & Windows, Water, Security, Timers and Vacuums pages.
 
 Each item shows only when there is something to say: a room with no fans has
 no Fans item. Tap an item to open what it counts. On a category page that is
 always a list of accessory pills, each with its room, even for one accessory;
 closing an accessory you opened from the list brings you back to the list.
 
-Choose what each row shows, and in what order, in **HK Settings → All
-Screens → Status Rows**.
+Choose what each row shows, and in what order, on its page: **HK Settings →
+Pages → the page → Status Row**, and for the room pages **All Screens → Rooms
+→ Status Row**.
 
 | | |
 |---|---|
-| ![The Doors & Windows page, its status row under the title](images/tablet-doors-windows.png) | ![HK Settings → All Screens → Status Rows](images/settings-status-rows.png) |
-| The Doors & Windows page’s row | **All Screens → Status Rows** |
+| ![The Doors & Windows page, its status row under the title](images/tablet-doors-windows.png) | ![HK Settings → Pages → the page → Status Row](images/settings-status-rows.png) |
+| The Doors & Windows page’s row | **Pages → the page → Status Row** |
 
 ## A room page’s row
 
@@ -62,15 +63,16 @@ sensors.
 
 ## Settings
 
-**All Screens → Status Rows** lists the room pages’ row and each category
-page’s, with how many items each shows (*Off* when none). Each row’s page has:
+Each page’s **Status Row** is on its own page under **Pages**, with how many
+items it shows (*Off* when none); the room pages’ is under **All Screens →
+Rooms**. Each row’s page has:
 
 | Setting | What it does |
 |---|---|
 | Shown | What the row shows, in its order. Drag an item to move it; remove one to hide it. Nothing shown: no row. |
 | More | What the row could show too. Tap one to add it at the end. |
 | Reset to Default Order | Shown when you have changed the row: back to the defaults above. |
-| Sources | *Category pages.* What each item counts, after the rooms left out below; tap one to open its type’s page in [Accessories](Accessories.md#types). What counts is changed on each accessory: [Hidden Accessories](Accessories.md#hidden-accessories) and its [Also Count As](Accessories.md#also-count-as). The security system is General’s **Alarm Panel**. |
+| Sources | *Category pages.* What each item counts, after the rooms left out below; tap one to open its type’s page in [Accessories](Accessories.md#types). What counts is changed on each accessory: [Hidden Accessories](Accessories.md#hidden-accessories) and its [Also Count As](Accessories.md#also-count-as). The security system is the Security page’s **Alarm Panel**. |
 | Rooms | *Category pages.* Leave a room out of this row and its lists — an outdoor area’s temperature, a shed’s leak sensor — without hiding it anywhere else. |
 
 **Rooms → Status Row** opens the room pages’ row.

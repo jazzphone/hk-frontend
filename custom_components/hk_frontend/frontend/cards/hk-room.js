@@ -312,7 +312,10 @@
   // What it does show, and in what order, is the house's (status_rows.<page>).
   var PAGE_ROWS = { climate: ['temperature', 'humidity', 'blinds', 'fans'], lights: ['lights', 'outlets'],
                     doors_windows: ['doors', 'windows', 'garage', 'motion', 'occupancy'], water: ['leaks', 'valves'],
-                    security: ['security', 'locks', 'garage', 'doors', 'windows', 'leaks', 'motion', 'occupancy'] };
+                    security: ['security', 'locks', 'garage', 'doors', 'windows', 'leaks', 'motion', 'occupancy'],
+                    // the Vacuums and Timers pages (2026-10-16, the utility pages' plan): what
+                    // is working, and how the batteries are (HK Settings -> Pages)
+                    vacuums: ['vacuums', 'vacuum_battery'], timers: ['timers'] };
   var CLIMATE_KINDS = PAGE_ROWS.climate;
   function rowSetting(page) {
     var HS = window.hkSettings;
@@ -333,8 +336,72 @@
     if (page === 'climate') return climateItems(hass, o);
     var S = window.hkStrategy;
     var by = S && S.pageMembers ? S.pageMembers(hass, page, o) : {};
-    return picked(page, o).map(function (k) { return describe(hass, k, by[k] || [], true); }).filter(Boolean);
+    return picked(page, o).map(function (k) {
+      // (the batteries are the vacuums')
+      return UTILITY[k] ? UTILITY[k](hass, by[k] || (k === 'vacuum_battery' ? by.vacuums : null) || [])
+                        : describe(hass, k, by[k] || [], true);
+    }).filter(Boolean);
   }
+  // THE VACUUMS' AND TIMERS' ROWS: what is working now -- never a count of
+  // what is merely there. An error, or a battery at 20 % or under, is the
+  // row's alert, said in words as well as color.
+  var BAT = { ents: null, by: {} };
+  var VAC_BUSY = { cleaning: 'Cleaning', returning: 'Returning', paused: 'Paused' };
+  var UTILITY = {
+    vacuums: function (hass, ids) {
+      var st = hass.states || {}, n = ids.length;
+      if (!n) return null;
+      var live = ids.filter(function (id) { return st[id] && !OFF[st[id].state]; });
+      var noun = n === 1 ? 'Vacuum' : n + ' Vacuums';
+      if (!live.length) return { kind: 'vacuums', title: noun, value: 'Unavailable', ids: ids, dim: true, on: 0 };
+      var err = live.filter(function (id) { return st[id].state === 'error'; }).length;
+      var busy = {};
+      live.forEach(function (id) { var w = VAC_BUSY[st[id].state]; if (w) busy[w] = (busy[w] || 0) + 1; });
+      var parts = [];
+      if (err) parts.push(err === 1 ? 'Error' : err + ' Errors');
+      ['Cleaning', 'Returning', 'Paused'].forEach(function (w) { if (busy[w]) parts.push((n > 1 ? busy[w] + ' ' : '') + w); });
+      var gone = n - live.length;
+      if (gone) parts.push(gone + ' Unavailable');
+      var docked = live.every(function (id) { return st[id].state === 'docked'; });
+      var on = live.length - live.filter(function (id) { return st[id].state === 'docked' || st[id].state === 'idle'; }).length;
+      return { kind: 'vacuums', title: noun, value: parts.join(' \u00b7 ') || (docked ? (n > 1 ? 'All Docked' : 'Docked') : 'Idle'),
+               ids: ids, dim: !on && !err, on: on, alert: !!err };
+    },
+    // the lowest battery: the vacuum's own, else its device's battery sensor
+    vacuum_battery: function (hass, ids) {
+      var S = window.hkStrategy, lows = [];
+      // the device's battery sensor, looked up once per registry (the row
+      // asks on every push)
+      if (BAT.ents !== hass.entities) { BAT.ents = hass.entities; BAT.by = {}; }
+      ids.forEach(function (id) {
+        var s = hass.states[id], b = s && s.attributes && s.attributes.battery_level;
+        if (b == null && S && S.batteryOf) {
+          if (!(id in BAT.by)) BAT.by[id] = S.batteryOf(hass, id);
+          var bid = BAT.by[id];
+          b = bid && hass.states[bid] ? hass.states[bid].state : null;
+        }
+        var v = Number(b);
+        if (b != null && b !== '' && isFinite(v)) lows.push({ id: id, v: v });
+      });
+      if (!lows.length) return null;
+      lows.sort(function (a, b) { return a.v - b.v; });
+      var lo = Math.round(lows[0].v), hi = Math.round(lows[lows.length - 1].v);
+      return { kind: 'vacuum_battery', title: lows.length === 1 ? 'Battery' : 'Batteries',
+               value: (lo === hi ? lo + '%' : lo + '\u2013' + hi + '%') + (lo <= 20 ? ' \u00b7 Low' : ''),
+               ids: lows.map(function (x) { return x.id; }), dim: false, on: 1, alert: lo <= 20, battery: lo };
+    },
+    timers: function (hass, ids) {
+      var st = hass.states || {};
+      if (!ids.length) return null;
+      var run = ids.filter(function (id) { return st[id] && st[id].state === 'active'; }).length;
+      var pause = ids.filter(function (id) { return st[id] && st[id].state === 'paused'; }).length;
+      var parts = [];
+      if (run) parts.push(run + ' Running');
+      if (pause) parts.push(pause + ' Paused');
+      return { kind: 'timers', title: 'Timers', value: parts.join(' \u00b7 ') || 'None Running',
+               ids: ids, dim: !run && !pause, on: run + pause };
+    }
+  };
   // Current ambient readings, shared by the summary and the popup pills.
   // A thermostat's setpoint is deliberately never a reading source.
   function climateReading(hass, id, kind) {
@@ -389,11 +456,16 @@
                // `motion`: the Home app's diamond with trails, drawn for this set
                // (not a public SF Symbol); a tile's motion sensor is `motion-sensor`
                doors: 'door-closed', locks: 'lock', garage: 'garage', motion: 'motion',
-               occupancy: 'walk', leaks: 'water' };
+               occupancy: 'walk', leaks: 'water', vacuums: 'robot-vacuum', vacuum_battery: 'battery', timers: 'timer-sand' };
   var ICON_ON = { lights: 'lightbulb-on', blinds: 'blinds-horizontal', windows: 'window-open-variant', doors: 'door-open',
                   locks: 'lock-open-variant', garage: 'garage-open', leaks: 'water-alert' };
   function icon(it) {
     var n = (it.on && ICON_ON[it.kind]) || ICON[it.kind];
+    // a battery as full as the emptiest one
+    if (it.kind === 'vacuum_battery' && isFinite(it.battery)) {
+      var b = Math.round(it.battery / 10) * 10;
+      return b >= 100 ? 'mdi:battery' : b <= 0 ? 'mdi:battery-outline' : 'mdi:battery-' + b;
+    }
     var g = window.hkGlyphs && window.hkGlyphs.icons;
     return (g && !g[n] && !(n === 'door-closed' && g['door-closed-lock'])) ? 'mdi:' + n : 'hk:' + n;
   }

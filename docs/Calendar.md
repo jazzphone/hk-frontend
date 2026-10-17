@@ -3,7 +3,7 @@
 The house’s calendars on every screen: a **Calendar page** with the month, the
 week or the day, where events are added, changed and deleted, and a
 **calendar pane** for the photo screensaver. Both read the same settings:
-**HK Settings → All Screens → Calendar**.
+**HK Settings → Pages → Calendar**.
 
 Any calendar Home Assistant has works: **Local Calendar**, Google Calendar,
 CalDAV, a holiday or school feed. Events can be added, changed and deleted

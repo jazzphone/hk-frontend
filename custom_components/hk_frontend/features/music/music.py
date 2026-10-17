@@ -55,7 +55,7 @@ from .. import Feature
 # carried by asyncio into every await and task of that request.
 CALLER: ContextVar[Context | None] = ContextVar("hk_music_caller", default=None)
 from .const import (
-    CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_MEMBERS,
+    CONF_CHOOSER, CONF_GROUP, CONF_HOMES, CONF_ICON, CONF_ITEMS, CONF_MEMBERS, CONF_IGNORE_ANNOUNCEMENTS,
     CONF_NAME, CONF_ORDER, CONF_SPEAKERS, CONF_VOLUME, DEFAULT_VOLUME,
     JOIN_SETTLE, JOIN_TIMEOUT, NOTE_GROUP, NOTE_PARTIAL, NOTE_PLAY, NOTE_PRESET,
     NOTE_STOP, NOTE_TRANSFER, PAUSE_TIMEOUT, RELEASE_TIMEOUT, START_TIMEOUT,
@@ -118,6 +118,7 @@ class MusicConfig:
     volume: float = DEFAULT_VOLUME
     homes: dict[str, str] = field(default_factory=dict)
     library_entry: str | None = None
+    ignore_announcements: bool = True
 
     @property
     def room_ids(self) -> list[str]:
@@ -152,7 +153,8 @@ class MusicConfig:
     @classmethod
     def from_entry(cls, hass: HomeAssistant, entry: Feature) -> MusicConfig:
         opts = entry.options
-        cfg = cls(volume=float(opts.get(CONF_VOLUME, DEFAULT_VOLUME)),
+        cfg = cls(ignore_announcements=opts.get(CONF_IGNORE_ANNOUNCEMENTS, True),
+                  volume=float(opts.get(CONF_VOLUME, DEFAULT_VOLUME)),
                   homes=dict(opts.get(CONF_HOMES) or {}))
         ma = [e for e in hass.config_entries.async_entries("music_assistant")
               if e.state is ConfigEntryState.LOADED]
@@ -228,6 +230,7 @@ class MusicConfig:
             "playlists": pills,
             "home": home if home in self.room_ids else None,
             "volume": self.volume,
+            "ignore_announcements": self.ignore_announcements,
         }
 
 

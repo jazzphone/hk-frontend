@@ -92,7 +92,7 @@ ok('search finds an installed feature’s settings', s.some(function (e) { retur
 ok('...and nothing of a missing one', !s.some(function (e) { return e.where === 'Alarm PIN'; }));
 var s2 = F.search({ hk_alarm_pin: { installed: true, entries: [{}] }, hk_clean_areas: { installed: true, entries: [] } });
 ok('Alarm PIN and Clean by Area are found when installed (added or not)',
-   s2.some(function (e) { return e.label === 'Change PIN' && e.route === 'features/alarm'; }) &&
+   s2.some(function (e) { return e.label === 'Change PIN' && e.route === 'page/security'; }) &&
    s2.some(function (e) { return e.label === 'Rooms' && e.route === 'features/clean/rooms'; }));
 
 // ------------------------------------------------------------ energy

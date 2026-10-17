@@ -51,6 +51,7 @@ from .const import (
 from .flows import PlaylistFlow, PresetFlow, name_of, speakers_errors, speakers_schema
 from .music import CALLER, MusicConfig, MusicManager
 from .warm import PlaylistWarmer, mass_client as _mass
+from .announcements import Announcements
 
 PLATFORMS: list = []
 RELOAD = False          # the engine reads the feature on every request
@@ -174,6 +175,8 @@ def ws_music_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConn
     def send() -> None:
         mgr = _music(hass)
         payload = mgr.config.as_client(user_id) if mgr else {"configured": False}
+        if mgr:
+            payload["announcements"] = mgr.announcements.players()
         connection.send_message(websocket_api.event_message(msg["id"], payload))
 
     connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_CONFIG, send)
@@ -186,6 +189,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: Feature) -> bool:
     the areas and floors it draws its names from change. No restart is needed
     for any of it: the engine reads the feature on every request."""
     mgr = entry.runtime_data = MusicManager(hass, entry)
+    mgr.announcements = Announcements(hass, lambda: mgr.config)
+    mgr.announcements.start()
+    entry.async_on_unload(mgr.announcements.stop)
     # Keep Playlists Ready (warm.py): runs only while its switch is on
     mgr.warmer = PlaylistWarmer(
         hass, entry, lambda: [u for p in mgr.config.playlists for u in p.items])

@@ -28,7 +28,7 @@ voice.
    `alarm_control_panel.home_alarm_pin`. Its `protects` attribute names the
    alarm it stands in front of.
 4. Point your keypads at the **PIN panel**, not the alarm:
-   - HK Frontend’s screens: **HK Settings → General → Alarm Panel** (the
+   - HK Frontend’s screens: **HK Settings → Pages → Security → Alarm Panel** (the
      Alarm PIN page under Features has a button that does the same).
    - Home Assistant’s own alarm cards and your voice assistants.
 
@@ -55,7 +55,7 @@ The **gear** on an Alarm PIN item (“Front Door Alarm PIN”):
 | New PIN, New PIN again | Type a new PIN twice to change it. Leave both empty to keep the current one. |
 | Require the PIN to arm | As above. |
 
-**HK Settings → Features → Alarm PIN** lists every protected alarm, each with
+**HK Settings → Pages → Security** lists every protected alarm, each with
 **Change PIN**, **PIN to Arm**, **Protects** (move it to another alarm), its
 **Keypad Panel**, **Use on All Screens** (shown when General → Alarm Panel is another panel; it points every screen at this PIN panel), and **Remove PIN**. **Add PIN** protects
 another one.

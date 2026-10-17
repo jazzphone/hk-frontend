@@ -290,6 +290,8 @@
     // the others -- in its place and at its size, still the one Live Camera
     // Follows picks -- and no stream is decoded: lighter on the device.
     _liveOn() {
+      var P = window.hkSettings;
+      if (P && P.rendering && !P.rendering().autoplay) return false;
       var b = this._board();
       if (typeof b.camera_live_video === 'boolean') return b.camera_live_video;
       var S = window.hkSettings;
@@ -1882,6 +1884,15 @@
       this.style.display = 'block';
       this.style.position = 'relative';
       this.style.isolation = 'isolate';            // the layers below stack here, not on the page
+      // THE LOOK'S SHADOW, as every plate on every page wears it (Flat's
+      // contact shadow, Tinted's, the glass cards'), at the picture's corner --
+      // HA's picture card gets none from the theme (the user, 2026-10-17)
+      // ...at the plates' corner, 23.5 (DESIGN.md Corners: "the camera
+      // mosaic" is a plate): HA's picture card and the layers over it read
+      // --ha-card-border-radius, so one value rounds them all
+      this.style.setProperty('--ha-card-border-radius', window.hkCards.v('glass-radius'));
+      this.style.borderRadius = 'var(--ha-card-border-radius)';
+      this.style.boxShadow = 'var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-sm') + ')';
       if (this._config && this._hass && !this._still) this._reset();
       else if (this._still && !this._live && !this._frame) this._saved();
       this._tries = 0;
@@ -3009,7 +3020,8 @@
         '.tv-txt{padding:12px 14px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}',
         '.tv-chan{font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
         '.tv-chan b{color:' + window.hkCards.v('ink') + ';font-size:15px;margin-right:6px}',
-        '.tv-title{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        // (the theme's ink: inherited, it was white on Flat's Light card)
+        '.tv-title{font-size:17px;font-weight:700;color:' + window.hkCards.v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.tv-sub{font-size:14px;color:' + window.hkCards.v('ink-2') + ';',
         '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.2em}',
         '.tv-bar{height:4px;border-radius:2px;background:' + window.hkCards.v('line-strong') + ';margin:8px 0 4px;overflow:hidden}',

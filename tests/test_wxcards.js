@@ -423,12 +423,18 @@ H.run('WEATHER CARDS', [
     H.eq('its condition by name', v.condition, 'Sunny');
     H.eq('feels-like', v.feels, 'Feels 73\u00b0');
     H.eq('day or night by sun.sun, for the glyph', v.night, false);
+    var day0 = (house.hass().states['sensor.weather_daily_forecast'].attributes.forecast || []).filter(function (x) {
+      var t = new Date(x.datetime); return t.getDate() === 26 && t.getMonth() === 8;
+    })[0];
+    H.ok("today's high and low, from the daily forecast sensor (2026-10-17)",
+         !!day0 && v.high === Math.round(day0.temperature) && v.low === Math.round(day0.templow), JSON.stringify([v.high, v.low, day0]));
+    H.ok('...and the numbers behind the text', v.tempN === 72 && v.feelsN === 73);
     var none = window.hkHeader.now({});
     H.ok('no Time & Date sensors: this screen\'s own clock, as the header does',
          /^\d{1,2}:\d\d$/.test(none.time) && /^[AP]M$/.test(none.ampm) && /^\w+day, \w{3} \d{1,2}$/.test(none.date),
          JSON.stringify(none));
     H.ok('no weather entity: a placeholder temperature and nothing else, never a throw',
-         none.temp === '--\u00b0' && none.condition === '' && none.feels === '');
+         none.temp === '--\u00b0' && none.condition === '' && none.feels === '' && none.high === null && none.low === null);
 
     H.section('hk-header-card steps aside when the menu has the time');
     var card = H.make('hk-header-card');

@@ -144,7 +144,7 @@
         },
         "energy": {
           "title": "Energy",
-          "description": "An Energy page for your screens: the whole home’s power and today’s cost, a fortnight of daily use, and a live tile for each circuit, room, appliance and outlet. It starts from Home Assistant’s own Energy settings (Settings → Dashboards → Energy); its sections, names and rows are then on the HK Settings page, Features → Energy. A screen shows it once Energy is on its Pages, or pick “Energy Display” when you add a screen.",
+          "description": "An Energy page for your screens: the whole home’s power and today’s cost, a fortnight of daily use, and a live tile for each circuit, room, appliance and outlet. It starts from Home Assistant’s own Energy settings (Settings → Dashboards → Energy); its sections, names and rows are then on the HK Settings page, Pages → Energy. A screen shows it once Energy is on its Pages, or pick “Energy Display” when you add a screen.",
           "data": {
             "follow": "List Home Assistant’s Energy devices"
           },
@@ -358,7 +358,7 @@
             "width": "Width"
           },
           "data_description": {
-            "entity": "Camera: the camera it shows. Alarm: the panel (empty: the house’s, chosen under General).",
+            "entity": "Camera: the camera it shows. Alarm: the panel (empty: the house’s, chosen on Pages → Security).",
             "speaker": "The camera's speaker (a doorbell's), for the talk button. Empty: the one on the camera's own device, if any.",
             "stream": "The camera entity to stream in the sheet. Empty: the device's high-resolution channel, else the camera itself.",
             "entities": "What the sheet shows, in this order.",
@@ -385,7 +385,7 @@
             "width": "Width"
           },
           "data_description": {
-            "entity": "Camera: the camera it shows. Alarm: the panel (empty: the house’s, chosen under General).",
+            "entity": "Camera: the camera it shows. Alarm: the panel (empty: the house’s, chosen on Pages → Security).",
             "speaker": "The camera's speaker (a doorbell's), for the talk button. Empty: the one on the camera's own device, if any.",
             "stream": "The camera entity to stream in the sheet. Empty: the device's high-resolution channel, else the camera itself.",
             "entities": "What the sheet shows, in this order.",
@@ -798,6 +798,30 @@
         "users": {
           "name": "Users",
           "description": "Only screens signed in as these users (user ids). Empty: anyone."
+        }
+      }
+    },
+    "pause_automation": {
+      "name": "Pause automation",
+      "description": "Turns an automation off and back on at a set time -- by default the next midnight (the automation sheet's Off Until Tomorrow). Kept across restarts; turning it on or off by hand ends the pause.",
+      "fields": {
+        "entity_id": {
+          "name": "Automation",
+          "description": "The automation to pause."
+        },
+        "until": {
+          "name": "Until",
+          "description": "When to turn it back on. Empty: the next midnight."
+        }
+      }
+    },
+    "resume_automation": {
+      "name": "Resume automation",
+      "description": "Ends a pause: turns the automation back on now.",
+      "fields": {
+        "entity_id": {
+          "name": "Automation",
+          "description": "The automation to turn back on."
         }
       }
     }

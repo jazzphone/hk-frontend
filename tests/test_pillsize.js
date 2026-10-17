@@ -36,7 +36,7 @@ function blockAfter(src, head) {
 }
 var byWindow = decls(blockAfter(band, ':root:not([data-hk-zoomed]) {'));
 var byPage = decls(blockAfter(css, ':root[data-hk-band]:not([data-hk-zoomed]) {'));
-check('the page-width band exists', byPage.length > 10);
+check('the page-width band exists', byPage.length >= 8);
 check('...and says exactly what the window band says', JSON.stringify(byPage) === JSON.stringify(byWindow));
 
 // the rule says width, min-width and max-width by one name for the pill's CSS

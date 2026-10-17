@@ -194,7 +194,7 @@ Give it a status row with `custom:hk-room-status-card`:
 | Option | What it does |
 |---|---|
 | `area` | Required. One area or a list. |
-| `items` | Which kinds show, in this order. Default: [Status Rows → Room Pages](Status-Rows.md#settings). |
+| `items` | Which kinds show, in this order. Default: [Rooms → Status Row](Status-Rows.md#settings). |
 | `temperature`, `humidity` | A sensor to use instead of the area’s own. |
 | `entities` | The accessories on this page. Outlets, blinds, fans, locks and garage doors are then counted from this list rather than the whole area. |
 | `exclude` | Entities to leave out of the counts. |

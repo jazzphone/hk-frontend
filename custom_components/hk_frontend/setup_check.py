@@ -200,11 +200,19 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
             continue
         # Kiosk Mode likewise, for a screen that chooses it: HK Frontend hides
         # Home Assistant's header and sidebar itself (hk-kiosk.js) since 1.3.0
+        # The Weather page's radar is HK's own since 1.16 (hk-radar.js): the
+        # Weather Radar Card is no longer one of a generated screen's cards
+        if key == "radar":
+            continue
         if key == "kiosk" and not any(b.get("kiosk") and b.get("kiosk_engine") == "kiosk_mode"
                                       for b in (boards or {}).values()):
             continue
         lines.append(Line(True if status[key] == "ready" else None, card["name"],
                           thirdparty.note(key, status[key])))
+
+    # Adaptive Lighting (HACS): the Lights page's backdrop follows its color
+    # temperature (hk-sky.js sunKelvin); without it, the sun's. Optional.
+    lines.append(adaptive_lighting_line(hass, options))
 
     # The photo screensaver's tablets: it runs only for a screen's Tablet
     # User, and that user must exist -- the one thing a new house can't see
@@ -247,6 +255,20 @@ async def async_run(hass: HomeAssistant, options: dict[str, Any],
         else:
             lines.append(Line(None, name, f"Not added. Optional, for {what}: HK Frontend → Add feature."))
     return lines
+
+
+def adaptive_lighting_line(hass: HomeAssistant, options: dict[str, Any]) -> Line:
+    """Adaptive Lighting, read by the Lights page's backdrop."""
+    lights = (dash_settings.merged(options).get("headers") or {}).get("lights") or {}
+    found = sorted(s.entity_id for s in hass.states.async_all("switch")
+                   if "adaptive_lighting" in s.entity_id and s.attributes.get("color_temp_kelvin") is not None)
+    if lights.get("sky_follow") is False:
+        return Line(None, "Adaptive Lighting", "The Lights page’s background doesn’t follow the sun "
+                    "(Pages → Lights → Background).")
+    if found:
+        return Line(True, "Adaptive Lighting", "Found. The Lights page’s background follows its color temperature.")
+    return Line(None, "Adaptive Lighting", "Not installed. Optional: the Lights page’s background follows "
+                "the sun’s height instead. Adaptive Lighting is on HACS.")
 
 
 async def _photos_line(hass: HomeAssistant, folder: str, dark: bool = False) -> Line:
