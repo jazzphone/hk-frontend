@@ -3,6 +3,15 @@
 How HK Frontend is put together, how to run its tests, and how to add to it.
 For using it, start with [Install](Install.md).
 
+## Mantel development source
+
+Development source now lives in Mantel: the existing frontend in `web/hk/`, shared
+client/card code in `web/client/` and `web/cards/`, and this HA adapter in
+`hosts/ha/custom_components/hk_frontend/`. The running integration is an installed copy.
+`tools/build_ha.py` in Mantel composes a new staging directory in the public layout
+below; run the suites against that output. It never deploys or publishes. Backend
+feature extraction and the remaining frontend migration are incremental.
+
 ## Repository layout
 
 ```

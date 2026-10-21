@@ -27,6 +27,15 @@
       SELECTED_BG = C.SELECTED_BG, SELECTED_TEXT = C.SELECTED_TEXT,
       esc = C.esc, button = C.button;
 
+  // A NESTED CARD'S CLIENT, once the card can take it. hkCards.create configures a card
+  // as soon as its element is defined and hands it nothing before; the host adapter's
+  // bridge then decides what the child gets (in HA, an HA-drawn card needs the
+  // frontend's object). A card that is not defined yet is skipped: the next push feeds it.
+  // slice 9: hkCards.create's hkSetClient should take a client, and this goes.
+  function feed(el, client) {
+    if (el && client && typeof el.setConfig === 'function') window.hkHostClient.bridge(el, client);
+  }
+
   // MUSIC NOT ADDED (2026-10-12). Without the Music feature the player and
   // the speaker picker have no speakers -- empty rooms, "Pick speakers on
   // Play Music" -- so they say what is missing instead. ONLY ON THE
@@ -34,7 +43,8 @@
   // hk_music/subscribe answers, and the settings feed's `added` is a stored
   // copy until it is live, so a house WITH Music never sees this line while
   // a page loads. (Same rule in hk-music.js and hk-library.js.)
-  var NO_MUSIC = 'Add the Music feature to play music here (Settings → Devices & services → HK Frontend → Add feature).';
+  // (a place in Home Assistant's settings, as the host says it: hk-host-shell.js haPlace)
+  function NO_MUSIC() { return 'Add the Music feature to play music here (' + window.hkShell.haPlace('Settings → Devices & services → HK Frontend → Add feature') + ').'; }
   function musicMissing() {
     var Mu = window.hkMusic, HS = window.hkSettings;
     if (!Mu || !Mu.configured || Mu.configured()) return false;
@@ -44,12 +54,12 @@
   // itself from scratch once Music is added.
   function drawNoMusic(card) {
     card._root.innerHTML = '';
-    var el = document.createElement('ha-card');
+    var el = document.createElement('hk-plate');
     el.setAttribute('data-hk-role', 'no-music');
     el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
       M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
       'color:' + window.hkCards.v('ink-2') + '';
-    el.textContent = NO_MUSIC;
+    el.textContent = NO_MUSIC();
     card._root.appendChild(el);
     card._built = false;
   }
@@ -190,7 +200,7 @@
       // AND THE CLIP GOES WITH THEM, or the album art's shadow is clipped on
       // the left and right.
       //
-      // `ha-card.np` carries `overflow:hidden`, and it is there for exactly
+      // `hk-plate.np` carries `overflow:hidden`, and it is there for exactly
       // one thing: the blurred `.bg img` is inset -40px and 80px oversized, so
       // without a clip it would spill out of the card on every side. The line
       // above turns that layer off in this layout -- the page paints the
@@ -222,9 +232,9 @@
       sel + ' .artist{color:' + window.hkCards.v('ink-2') + '}',
       sel + ' .player{color:' + window.hkCards.v('ink-3') + '}',
       sel + ' .art .none{background:' + window.hkCards.v('key') + '}',
-      sel + ' .tb ha-icon{color:' + window.hkCards.v('glyph') + ';',
+      sel + ' .tb hk-icon{color:' + window.hkCards.v('glyph') + ';',
       '  filter:var(--hk-glow,drop-shadow(0 2px 5px rgba(0,0,0,.55)))}',
-      sel + ' .tb:active ha-icon{filter:var(--hk-glow,drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9))}',
+      sel + ' .tb:active hk-icon{filter:var(--hk-glow,drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9))}',
       // A LIGHTER SHADOW THAN THE PLATED PLAYER'S, so the album art's shadow
       // looks deliberate. The base rule is `0 22px 54px rgba(0,0,0,.55)`,
       // for artwork on a dark opaque plate that swallows most of it. On a
@@ -237,8 +247,8 @@
       // scaled to a 352px object.
       sel + ' .art{border-radius:16px;box-shadow:0 10px 26px rgba(0,0,0,.24)}',
       sel + ' .tb{height:64px;width:64px;align-self:center}',
-      sel + ' .tb ha-icon{width:34px;height:34px;--mdc-icon-size:34px}',
-      sel + ' .play ha-icon{width:46px;height:46px;--mdc-icon-size:46px}',
+      sel + ' .tb hk-icon{width:34px;height:34px;--mdc-icon-size:34px}',
+      sel + ' .play hk-icon{width:46px;height:46px;--mdc-icon-size:46px}',
       // No stop button in this layout at all. It has no cell, and a grid
       // child naming a MISSING area is auto-placed rather than ignored, so it
       // has to be hidden outright or it appears in a column of its own.
@@ -293,7 +303,7 @@
   class HkNowPlayingCard extends HkBase {
     static get CSS() {
       return [
-        'ha-card.np{position:relative;overflow:hidden;display:block;',
+        'hk-plate.np{position:relative;overflow:hidden;display:block;',
         '  height:var(--hk-np-height,360px);border-radius:30px;',
         '  padding:var(--hk-np-pad,32px 36px);background:rgba(22,23,26,.90);',
         // The rim and the border, same as every glass surface -- but NOT the
@@ -303,7 +313,7 @@
         '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.20),0 22px 60px rgba(0,0,0,.42)}',
         // `art` repeats down the left so it spans every text row. bg and shade
         // are NOT in the grid: they are absolute, so they take no cell and
-        // cover the whole card from ha-card, the positioned ancestor.
+        // cover the whole card from hk-plate, the positioned ancestor.
         //
         // Zero-height rows of their own ("bg" and "shade" above the art) look
         // free and are not: each empty row still pays the 8px row-gap. That
@@ -433,13 +443,13 @@
         // element do not compose -- the later simply replaces the earlier --
         // so a `filter:brightness()` on :active would have silently deleted
         // the shadow for the duration of every press.
-        '.np .tb ha-icon{width:30px;height:30px;--mdc-icon-size:30px;',
+        '.np .tb hk-icon{width:30px;height:30px;--mdc-icon-size:30px;',
         '  color:rgba(255,255,255,.95);',
         '  filter:drop-shadow(0 2px 5px rgba(0,0,0,.55))}',
-        '.np .tb:active ha-icon{filter:drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9)}',
+        '.np .tb:active hk-icon{filter:drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9)}',
         // Play/pause is the one you reach for, and with no wells to separate
         // them the size difference is what carries that.
-        '.np .play ha-icon{width:38px;height:38px;--mdc-icon-size:38px}',
+        '.np .play hk-icon{width:38px;height:38px;--mdc-icon-size:38px}',
         '.np .prev{grid-area:prev}.np .play{grid-area:play}.np .next{grid-area:next}',
         // Shown by default: the full player's grid has a `stop` cell too.
         // A grid child naming a MISSING area is not ignored -- it is placed in
@@ -453,7 +463,7 @@
         '.np.bar .spk{grid-area:spk;display:flex}.np.bar .brw{grid-area:brw;display:flex}',
         // a step quieter than the transport: they open things, they do not
         // act on the music
-        '.np.bar .spk ha-icon{width:28px;height:28px;--mdc-icon-size:28px;color:rgba(255,255,255,.82)}',
+        '.np.bar .spk hk-icon{width:28px;height:28px;--mdc-icon-size:28px;color:rgba(255,255,255,.82)}',
         '.np.bar .brw{color:rgba(255,255,255,.82)}',
         '.np.bar .brw svg{width:26px;height:26px;filter:drop-shadow(0 2px 5px rgba(0,0,0,.55))}',
         '.np.bar .spk.lit{background:rgba(255,255,255,.18)}',
@@ -464,7 +474,7 @@
         // down (_swipe), as a phone's mini player -- the X took 54px of a
         // phone's title. Its element stays: the full player has none either.
         // (The bar takes vertical drags itself; sideways, the sliders.)
-        'ha-card.np.bar{touch-action:pan-x}',
+        'hk-plate.np.bar{touch-action:pan-x}',
 
         // ---- BAR ------------------------------------------------------------
         // The persistent now-playing bar: bottom of the screen, full width,
@@ -476,13 +486,13 @@
         // TWO ROWS of half height, not one: title over artist is the only
         // part that wants stacking, and everything else spans both. The
         // full screen width is why nothing is cramped.
-        'ha-card.np.bar{height:var(--hk-np-height,84px);border-radius:var(--hk-np-radius,22px);',
+        'hk-plate.np.bar{height:var(--hk-np-height,84px);border-radius:var(--hk-np-radius,22px);',
         '  padding:var(--hk-np-pad,10px 14px)}',
         // DOCKED AT THE BOTTOM (the #media bar, 2026-10-10): square, full width,
         // a hairline along its top and a soft shadow up onto the page -- the
         // screensaver's pane, laid along the bottom. Set by the bar's sheet
         // (--hk-np-radius/-edge/-shadow); a floating bar keeps its own.
-        'ha-card.np.bar{border-top:var(--hk-np-edge,none);box-shadow:var(--hk-np-shadow,none)}',
+        'hk-plate.np.bar{border-top:var(--hk-np-edge,none);box-shadow:var(--hk-np-shadow,none)}',
         // CONTENT-SIZED ROWS, CENTRED AS A BLOCK. With 1fr rows the title is
         // align-self:end in the top half and the artist sits below the row
         // boundary, putting the pair's centre 3px under the artwork's.
@@ -532,7 +542,7 @@
         //                           puts them 12px below the card's centre.
         //   margin 10px 0 3px 0     asymmetric on purpose there, and part of
         //                           the same 12px here.
-        //   ha-icon 26x26           the icon BOX is fixed at 26 while
+        //   hk-icon 26x26           the icon BOX is fixed at 26 while
         //                           --mdc-icon-size sets the glyph, so
         //                           shrinking only the glyph leaves it
         //                           off-centre inside its own box.
@@ -558,10 +568,10 @@
         // Bigger glyphs here too. The BOX stays 48 -- the bar's columns are 48
         // and the 1106px minimum width is derived from them -- so this is glyph
         // only, which is the part you actually aim at with no wells.
-        '.np.bar .tb ha-icon{width:30px;height:30px;--mdc-icon-size:30px}',
-        '.np.bar .prev ha-icon,.np.bar .next ha-icon,.np.bar .stop ha-icon{',
+        '.np.bar .tb hk-icon{width:30px;height:30px;--mdc-icon-size:30px}',
+        '.np.bar .prev hk-icon,.np.bar .next hk-icon,.np.bar .stop hk-icon{',
         '  width:34px;height:34px;--mdc-icon-size:34px}',
-        '.np.bar .play ha-icon{width:42px;height:42px;--mdc-icon-size:42px}',
+        '.np.bar .play hk-icon{width:42px;height:42px;--mdc-icon-size:42px}',
         // The blurred cover behind the bar, softer than the page's: at 84px
         // tall a 34px blur is most of the element. Dimmer than the page's .62
         // as well, where it reads under the .92 plate below as the bar's own
@@ -582,7 +592,7 @@
         // through the bar and fight its own text.
         // (--hk-np-plate: docked along the bottom it is opaque -- the page
         // ends above it, so nothing is meant to show through)
-        'ha-card.np.bar{background:var(--hk-np-plate,rgba(22,23,26,.92))}',
+        'hk-plate.np.bar{background:var(--hk-np-plate,rgba(22,23,26,.92))}',
         // A lighter wash than the page's .86/.62/.44: chosen for the
         // translucent bar (at the page's values the transparency did not
         // read), and left as is under the .92 plate.
@@ -618,17 +628,17 @@
         // (On the Music page -- .onmusic, a phone's at most -- the same
         // plans without Browse, at every width; the bar's own vars: plan,
         // past 1176, has its .onmusic twin here too.)
-        'ha-card.np.bar.onmusic{',
+        'hk-plate.np.bar.onmusic{',
         '  --hk-np-cols:72px minmax(220px,max-content) 1fr 56px 64px 64px 64px 64px 1fr minmax(0,380px);',
         '  --hk-np-areas:"art title . spk prev play next stop . meta"',
         '                "art artist . spk prev play next stop . meta"',
         '                "art sub . spk prev play next stop . meta"}',
-        '@media (max-width:' + window.hkCards.BP.desk + 'px){ha-card.np.bar{',
+        '@media (max-width:' + window.hkCards.BP.desk + 'px){hk-plate.np.bar{',
         '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px 64px 52px;',
         '  --hk-np-areas:"art title spk prev play next stop brw"',
         '                "art artist spk prev play next stop brw"',
         '                "art sub spk prev play next stop brw"}',
-        '  ha-card.np.bar.onmusic{',
+        '  hk-plate.np.bar.onmusic{',
         '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px 64px;',
         '  --hk-np-areas:"art title spk prev play next stop"',
         '                "art artist spk prev play next stop"',
@@ -639,7 +649,7 @@
         // by the same sum without the volume track: 912 - 380 + gaps + padding.
         // Browse goes with it: the art and the title open the Music page
         // anyway, and with it the title kept 65px at 641.
-        '@media (max-width:' + window.hkCards.BP.tabletUpright + 'px){ha-card.np.bar,ha-card.np.bar.onmusic{',
+        '@media (max-width:' + window.hkCards.BP.tabletUpright + 'px){hk-plate.np.bar,hk-plate.np.bar.onmusic{',
         '  --hk-np-cols:72px minmax(0,1fr) 52px 64px 64px 64px;',
         '  --hk-np-areas:"art title spk prev play next"',
         '                "art artist spk prev play next"',
@@ -673,23 +683,23 @@
         //
         // SPEAKERS IN, CLOSE OUT (2026-10-11): the title keeps ~160px of a
         // 402px phone.
-        '@media (max-width:' + window.hkCards.BP.phone + 'px){ha-card.np.bar,ha-card.np.bar.onmusic{',
+        '@media (max-width:' + window.hkCards.BP.phone + 'px){hk-plate.np.bar,hk-plate.np.bar.onmusic{',
         '  --hk-np-cols:56px minmax(0,1fr) 44px 44px;',
         '  --hk-np-areas:"art title spk play"',
         '                "art artist spk play"',
         '                "art sub spk play"}',
-        '  .np.bar .spk ha-icon{width:22px;height:22px;--mdc-icon-size:22px}',
+        '  .np.bar .spk hk-icon{width:22px;height:22px;--mdc-icon-size:22px}',
         // SLIMMER, AND NO CHIN ON TOP OF A CHIN (2026-10-11): 56px artwork
         // and 12px round it, the progress a line under the song (its times
         // go: phone_times in the strategy) -- and the foot's 12px is TAKEN
         // FROM an iPhone's home-indicator inset, not added to it. The
         // controls stay above the inset either way (34pt on an iPhone:
         // 102pt in all, was 138; 80 where there is none).
-        '  ha-card.np.bar{--hk-np-height:calc(68px + max(12px, env(safe-area-inset-bottom, 0px)));',
+        '  hk-plate.np.bar{--hk-np-height:calc(68px + max(12px, env(safe-area-inset-bottom, 0px)));',
         '    --hk-np-pad:12px 24px max(12px, env(safe-area-inset-bottom, 0px))}',
         // ALONG THE TOP (Bar Position: Top; hk-popup.js sets np-top): the
         // same, its 12px taken from the top inset (the Dynamic Island's)
-        '  :host([np-top]) ha-card.np.bar{--hk-np-height:calc(68px + max(12px, env(safe-area-inset-top, 0px)));',
+        '  :host([np-top]) hk-plate.np.bar{--hk-np-height:calc(68px + max(12px, env(safe-area-inset-top, 0px)));',
         '    --hk-np-pad:max(12px, env(safe-area-inset-top, 0px)) 24px 12px}',
         '  .np.bar .grid{row-gap:3px}',
         // column-gap DIRECTLY, not --hk-np-gap. `.np.bar .grid` hard-codes
@@ -702,7 +712,7 @@
         '  .np.bar .prev,.np.bar .next{display:none}',
         '  .np.bar .art{width:56px;height:56px;border-radius:10px}',
         '  .np.bar .tb{width:44px;height:44px}',
-        '  .np.bar .tb ha-icon{width:22px;height:22px;--mdc-icon-size:22px}',
+        '  .np.bar .tb hk-icon{width:22px;height:22px;--mdc-icon-size:22px}',
         // One step down each, so a title that fits at 19px still fits here.
         '  .np.bar .title{font-size:17px}',
         '  .np.bar .artist{font-size:13px}}',
@@ -733,23 +743,23 @@
         // leave the transport above the fold, so it is a percentage with a cap
         // rather than the base rule's fixed 288px square. The cap is MEASURED
         // against the fold, not chosen -- at 340 the card lands at 787 of 800.
-        tall('ha-card.np.tall'),
-        // :not(.bar), AND THAT EXCLUSION IS LOAD-BEARING. `ha-card.np` matches
+        tall('hk-plate.np.tall'),
+        // :not(.bar), AND THAT EXCLUSION IS LOAD-BEARING. `hk-plate.np` matches
         // the BAR too, so below 640px the #media bar would be handed the tall
         // player's geometry -- measured on a phone: --hk-np-height:auto and
         // --hk-np-pad:0 0 30px on the bar, which makes it 122px instead of 104
         // and leaves the transport sitting 20px from the top against 58 from the
         // bottom. The bar's own plan sets --hk-np-cols and --hk-np-areas on the
-        // more specific `ha-card.np.bar`, so those stay right and only the
+        // more specific `hk-plate.np.bar`, so those stay right and only the
         // variables tall() alone defines leak -- which is why it looks like
         // a centring bug rather than the wrong layout.
-      '@media (max-width:' + window.hkCards.BP.phone + 'px){' + tall('ha-card.np:not(.bar)') + '}',
+      '@media (max-width:' + window.hkCards.BP.phone + 'px){' + tall('hk-plate.np:not(.bar)') + '}',
       // ITS OWN DARK PLATE (wide and the docked bar): on a light page the
       // controls on it -- hk-media-control-card's progress and volume --
       // keep today's white. The tall layout has no plate and takes the light
       // look (tall() above).
-      ':host([data-hk-light]) ha-card.np.bar{' + window.hkCards.LIGHT_OFF + '}',
-      '@media (min-width:' + (window.hkCards.BP.phone + 1) + 'px){:host([data-hk-light]) ha-card.np:not(.tall){' + window.hkCards.LIGHT_OFF + '}}',
+      ':host([data-hk-light]) hk-plate.np.bar{' + window.hkCards.LIGHT_OFF + '}',
+      '@media (min-width:' + (window.hkCards.BP.phone + 1) + 'px){:host([data-hk-light]) hk-plate.np:not(.tall){' + window.hkCards.LIGHT_OFF + '}}',
         '@media (prefers-reduced-motion:reduce){',
         '  .np .tb,.np .tb:active{transition:none;transform:none}}'
       ].join('');
@@ -762,8 +772,8 @@
     // shows, and the transport would act on whatever it said at the moment
     // of the tap.
     _res() {
-      return (window.hkMusic && this._hass)
-        ? window.hkMusic.resolve(this._hass)
+      return (window.hkMusic && this.client)
+        ? window.hkMusic.resolve(this.client)
         : { player: null, context: null, reason: 'none', name: '' };
     }
     _player() {
@@ -771,9 +781,11 @@
       return window.hkMusic && window.hkMusic.ignored(p) ? null : p;
     }
 
-    set hass(h) {
-      if (window.hkMusic) window.hkMusic.attach(h);
-      Object.getOwnPropertyDescriptor(HkBase.prototype, 'hass').set.call(this, h);
+    // EACH NEW CLIENT (HkBase calls this from Lovelace's entry and from a client set
+    // directly): the music model follows its subscription port.
+    _receiveClient() {
+      if (window.hkMusic) window.hkMusic.attach(this.client);
+      super._receiveClient();
       // the open Speakers panel follows the house, a few times a second at
       // most (rooms joining, levels, the queue's song); gone with the music
       var me = this._spk;
@@ -782,10 +794,9 @@
         if (!this._musicCtx()) this._closeSpk(); else me.p.update();
       }
     }
-    get hass() { return this._hass; }
     // the bar on the Music page (.onmusic): no Browse, no Close
     _closeGlyph() {
-      var hc = this._root && this._root.querySelector('ha-card.bar');
+      var hc = this._root && this._root.querySelector('hk-plate.bar');
       if (!hc) return;
       hc.classList.toggle('onmusic', onMusicPage());
       this._locListen(true);
@@ -796,10 +807,10 @@
       if (on && !this._onLoc) {
         var self = this;
         this._onLoc = function () { setTimeout(function () { self._closeGlyph(); }, 0); self._closeSpk(); };
-        window.addEventListener('location-changed', this._onLoc);
+        window.hkShell.onNavigate(this._onLoc);
         window.addEventListener('popstate', this._onLoc);
       } else if (!on && this._onLoc) {
-        window.removeEventListener('location-changed', this._onLoc);
+        window.hkShell.offNavigate(this._onLoc);
         window.removeEventListener('popstate', this._onLoc);
         this._onLoc = null;
       }
@@ -814,9 +825,9 @@
     // a moment after a request has landed, when the music goes, and when
     // the page changes.
     _openSpk() {
-      var P = window.hkSaverPanel, self = this, h = this._hass;
+      var P = window.hkSaverPanel, self = this, h = this.client;
       if (this._spk) { this._closeSpk(); return; }
-      var btn = this._root && this._root.querySelector('.spk'), card = this._root && this._root.querySelector('ha-card');
+      var btn = this._root && this._root.querySelector('.spk'), card = this._root && this._root.querySelector('hk-plate');
       if (!P || !btn || !card || !h || !this._musicCtx()) return;
       var phone = window.innerWidth <= 640, b = btn.getBoundingClientRect(), top = card.getBoundingClientRect().top;
       var W = phone ? window.innerWidth : 430, H = phone ? Math.round(Math.min(640, window.innerHeight * 0.86)) : Math.round(Math.min(560, top - 28));
@@ -833,7 +844,7 @@
       var me = { host: host, scrim: scrim, phone: phone, doneT: null, ticked: 0 };
       me.p = P.create({
         tabs: ['speakers', 'volume', 'queue'],
-        hass: function () { return self._hass; },
+        client: function () { return self.client; },
         ctx: function () { return self._musicCtx(); },
         art: function () { return null; },
         stop: true,
@@ -976,7 +987,7 @@
 
     // what plays on this screen's music, as hkMusic resolves it
     _musicCtx() {
-      var Mu = window.hkMusic, h = this._hass;
+      var Mu = window.hkMusic, h = this.client;
       var r = Mu && h ? Mu.resolve(h) : null;
       return r && r.context ? r.context : null;
     }
@@ -989,11 +1000,11 @@
       var self = this;
       if (!this._musicOff && window.hkMusic) {
         this._musicOff = window.hkMusic.onChange(function () {
-          if (self._hass && self._config) self.redraw();
+          if (self.client && self._config) self.redraw();
         });
       }
       // back on the page with a bar already drawn: follow page changes again
-      if (this._root && this._root.querySelector('ha-card.bar')) this._closeGlyph();
+      if (this._root && this._root.querySelector('hk-plate.bar')) this._closeGlyph();
     }
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
@@ -1007,7 +1018,7 @@
     // this tablet's room and "Ready on Kitchen" because a request is still
     // landing read the same, but they are different states.
     _sigOf() {
-      var h = this._hass, cfg = this._config;
+      var h = this.client, cfg = this._config;
       if (!h || !cfg) return null;
       var r = this._res();
       var p = this._st(r.player);
@@ -1111,7 +1122,7 @@
       // that calls this method, instead of re-implementing it, catches that.
       var want = this._playIcon(p);
       var label = want === 'mdi:pause' ? 'Pause' : 'Play';
-      var ic = e.play.querySelector('ha-icon');
+      var ic = e.play.querySelector('hk-icon');
       if (ic && ic.getAttribute('icon') !== want) ic.setAttribute('icon', want);
       if (e.play.getAttribute('aria-label') !== label) {
         e.play.setAttribute('aria-label', label);
@@ -1122,7 +1133,7 @@
     // hk_frontend.music_transport (music.py), which checks it is a
     // configured speaker and serialises quick taps on the same player.
     _svc(command) {
-      if (!this._hass) return;
+      if (!this.client) return;
       var player = this._res().player;
       if (player) this._call('hk_frontend', 'music_transport', { player: player, command: command });
     }
@@ -1144,7 +1155,7 @@
       }
       if (!this._built) {
         this._root.innerHTML =
-          '<ha-card class="np' + (cfg.bar ? ' bar' : '') + (cfg.tall ? ' tall' : '') +
+          '<hk-plate class="np' + (cfg.bar ? ' bar' : '') + (cfg.tall ? ' tall' : '') +
           '" data-hk-role="card"><div class="grid">' +
           '<div class="bg" data-hk-role="bg"></div>' +
           '<div class="shade" data-hk-role="shade"></div>' +
@@ -1163,15 +1174,15 @@
           // player.
           '<div class="sub" data-hk-role="sub"></div>' +
           '<div class="tb prev" role="button" aria-label="Previous"' +
-          ' data-hk-role="prev"><ha-icon icon="mdi:skip-previous"></ha-icon></div>' +
+          ' data-hk-role="prev"><hk-icon icon="mdi:skip-previous"></hk-icon></div>' +
           // mdi:play, not mdi:play-pause -- the icon is swapped on every
           // render to say what the button will DO (see the update block).
           // Starting on `play` means the first paint of an idle player is
           // already right and never flickers through a combined glyph.
           '<div class="tb play" role="button" aria-label="Play"' +
-          ' data-hk-role="play"><ha-icon icon="mdi:play"></ha-icon></div>' +
+          ' data-hk-role="play"><hk-icon icon="mdi:play"></hk-icon></div>' +
           '<div class="tb next" role="button" aria-label="Next"' +
-          ' data-hk-role="next"><ha-icon icon="mdi:skip-next"></ha-icon></div>' +
+          ' data-hk-role="next"><hk-icon icon="mdi:skip-next"></hk-icon></div>' +
           // STOP. Only the bar places it -- the full player's grid has no
           // `stop` area, so on that page this element has no cell and CSS
           // hides it. Stop rather than another pause because the bar is shown
@@ -1179,7 +1190,7 @@
           // screen against a frozen track, stop ends playback and the bar
           // goes with it.
           '<div class="tb stop" role="button" aria-label="Stop"' +
-          ' data-hk-role="stop"><ha-icon icon="mdi:stop"></ha-icon></div>' +
+          ' data-hk-role="stop"><hk-icon icon="mdi:stop"></hk-icon></div>' +
           // CLOSE, as a CONTROL IN THE ROW rather than pop-up chrome. The
           // generic `close_button` hk-popup draws is absolutely positioned in
           // the sheet's top-right corner, which on a 104px bar reads as
@@ -1195,12 +1206,12 @@
           // the transport, as on the screensaver -- the screensaver's panel
           // (Speakers / Volume / Queue) and the Music page's search
           '<div class="tb spk" role="button" aria-label="Speakers"' +
-          ' data-hk-role="spk"><ha-icon icon="hk:homepod"></ha-icon></div>' +
+          ' data-hk-role="spk"><hk-icon icon="hk:homepod"></hk-icon></div>' +
           '<div class="tb brw" role="button" aria-label="Browse Music" data-hk-role="brw">' +
           '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + LIB + '"/></svg></div>' +
           '<div class="tb close" role="button" aria-label="Close"' +
-          ' data-hk-role="close"><ha-icon icon="mdi:close"></ha-icon></div>' +
-          '</div></ha-card>';
+          ' data-hk-role="close"><hk-icon icon="mdi:close"></hk-icon></div>' +
+          '</div></hk-plate>';
         var q = this._root.querySelector.bind(this._root);
         this._e = { bg: q('.bg'), art: q('.art'), title: q('.title'),
                     artist: q('.artist'), player: q('.player'), meta: q('.meta'),
@@ -1220,6 +1231,9 @@
         // the Play Music view's `path:`.
         if (cfg.bar) {
           var goPage = function () {
+            // A HOST WITH A PLAYER OF ITS OWN (a phone app sets window.hkHostPlayer): that one, here
+            var nat = window.hkHostPlayer;
+            if (typeof nat === 'function') { nat(); return; }
             // ON THE MUSIC PAGE ITSELF (2026-10-11): the bar is its mini
             // player -- a tap opens its Now Playing (a phone's sheet)
             if (onMusicPage()) { window.dispatchEvent(new CustomEvent('hk-music-bar', { detail: { what: 'now' } })); return; }
@@ -1235,8 +1249,7 @@
             }
             // Leave the hash behind, or the sheet re-opens over the page it
             // just navigated to.
-            history.pushState(null, '', t);
-            window.dispatchEvent(new CustomEvent('location-changed'));
+            window.hkShell.navigate(t);
           };
           ['.art', '.title', '.artist'].forEach(function (sel) {
             var el = q(sel);
@@ -1253,14 +1266,13 @@
           // BROWSE: the Music page, in its search box
           q('.brw').addEventListener('click', function () {
             self._closeSpk();
-            history.pushState(null, '', '/' + String(location.pathname).split('/')[1] + '/music-browse');
-            window.dispatchEvent(new CustomEvent('location-changed'));
+            window.hkShell.navigate('/' + String(location.pathname).split('/')[1] + '/music-browse');
           });
         }
         q('.close').addEventListener('click', function () { self._putAway(); });
-        if (cfg.bar) this._swipe(q('ha-card'));
+        if (cfg.bar) this._swipe(q('hk-plate'));
         // (a touch on the bar is it in use: hk-popup.js keeps it up a grace after)
-        if (cfg.bar) q('ha-card').addEventListener('pointerdown', function () { self._usedAt = Date.now(); }, true);
+        if (cfg.bar) q('hk-plate').addEventListener('pointerdown', function () { self._usedAt = Date.now(); }, true);
         // NO BROWSE BUTTON IN THE PLAYER: there is one on the page.
         // hk-speaker-picker-card appends a "Browse Music" tile to its row
         // whenever `browse_url` is set -- the picker's `browse_url` is the live
@@ -1374,7 +1386,7 @@
       // action is to start something, so they share the play triangle -- which
       // also makes the no-player case correct for free rather than by a branch.
       //
-      // The ATTRIBUTE is set, not the element replaced: ha-icon re-renders on
+      // The ATTRIBUTE is set, not the element replaced: hk-icon re-renders on
       // an icon change, and swapping the node would throw away the one this
       // card's CSS has already sized (46px on the page, 38px in the pop-up,
       // 42px in the bar). The guard keeps it to one write per real change --
@@ -1389,10 +1401,9 @@
       // the no-speaker case reads the same way.
       var pl = this._playerLine(p);
       if (e.player.__txt !== pl) { e.player.__txt = pl; e.player.textContent = pl; }
-      // hkSetHass, not `.hass =`: the nested card may not be upgraded yet, and
-      // HA's cards throw when handed hass before a config. See hkCards.create.
-      if (this._metaCard && this._hass) this._metaCard.hkSetHass(this._hass);
-      if (this._subCard && this._hass) this._subCard.hkSetHass(this._hass);
+      // feed(), not a plain bridge: the nested card may not be upgraded yet.
+      if (this._metaCard && this.client) feed(this._metaCard, this.client);
+      if (this._subCard && this.client) feed(this._subCard, this.client);
     }
   }
 
@@ -1417,7 +1428,7 @@
         // The card occupies NO SPACE: WallPanel stacks the cards it is given
         // in an info box at the top-left, and the body below steps out of that
         // box to pin itself to the opposite corner.
-        'ha-card.ssnow{background:none;box-shadow:none;border:none;padding:0;',
+        'hk-plate.ssnow{background:none;box-shadow:none;border:none;padding:0;',
         '  margin:0;height:0;overflow:visible;display:block}',
         // position:fixed so this sits in the VIEWPORT's bottom-left rather
         // than under the clock. left:20px matches the clock card's own left
@@ -1485,7 +1496,7 @@
     }
     getCardSize() { return 1; }
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return null;
       var p = this._playing();
       if (!p) return 'none';
@@ -1506,7 +1517,7 @@
     _render() {
       if (!this._built) {
         this._root.innerHTML =
-          '<ha-card class="sscorner-host ssnow" data-hk-role="card"></ha-card>';
+          '<hk-plate class="sscorner-host ssnow" data-hk-role="card"></hk-plate>';
         this._e = this._root.querySelector('.ssnow');
         this._built = true;
       }
@@ -1631,7 +1642,7 @@
         // inset highlight sits flat on the page beside controls that do not --
         // invisible on a plate, obvious once the background is a photograph.
         //
-        // On the HOST, not the tile's own ha-card: that card lives in another
+        // On the HOST, not the tile's own hk-plate: that card lives in another
         // shadow root this file cannot reach. The host is display:block and
         // the card fills it exactly (measured, pill-sized for both), so a shadow
         // here traces the same box -- as long as it also carries the same
@@ -1714,7 +1725,7 @@
         '  background:' + window.hkCards.v('key') + ';display:flex;',
         '  align-items:center;justify-content:center}',
         '.cx .sw img{width:100%;height:100%;object-fit:cover;display:block}',
-        '.cx .sw ha-icon{--mdc-icon-size:20px;width:20px;height:20px;',
+        '.cx .sw hk-icon{--mdc-icon-size:20px;width:20px;height:20px;',
         '  color:var(--hk-glyph,rgba(255,255,255,0.7))}',
         // THE TEXT SCROLLS WHEN IT WILL NOT FIT in the smaller pill.
         //
@@ -1859,15 +1870,15 @@
     }
 
     _res() {
-      return (window.hkMusic && this._hass)
-        ? window.hkMusic.resolve(this._hass)
+      return (window.hkMusic && this.client)
+        ? window.hkMusic.resolve(this.client)
         : { player: null, context: null, reason: 'none', name: '' };
     }
     _presetFor(entity) {
       return this._presets().filter(function (x) { return x.entity === entity; })[0] || null;
     }
 
-    // ALMOST never re-render from hass. This card shows a SELECTION, and a
+    // ALMOST never re-render from the states. This card shows a SELECTION, and a
     // selection does not change because a track did -- returning a constant
     // (not null, which means "always render") keeps it off the
     // 12-renders-a-second path the base class warns about, and selection
@@ -1891,7 +1902,7 @@
     // whole point of `elsewhere` is that it flips when a room JOINS or LEAVES
     // this page's audio, which can happen with no state change at all.
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return 'static';
       var r = this._res();
       var src = this._source();
@@ -1944,7 +1955,7 @@
     // all of its members. For a room it is that room plus whatever is
     // joined to it.
     _hereSet() {
-      var out = {}, h = this._hass, cfg = this._config;
+      var out = {}, h = this.client, cfg = this._config;
       if (!h || !cfg) return out;
       var r = this._res();
       if (r.context) {
@@ -1987,7 +1998,7 @@
       // hkMusic derives them -- ONE derivation for every card on every
       // screen (cards/hk-base.js). It also recognises a sync group by the
       // group's own state rather than by a room list that happens to match.
-      var h = this._hass;
+      var h = this.client;
       if (!h || !this._config || !window.hkMusic) return [];
       return window.hkMusic.contexts(h);
     }
@@ -2032,7 +2043,7 @@
     // Deliberately orthogonal to selection: a room can be selected and playing
     // something else, and that combination is the one worth seeing.
     _playFor(entity, here) {
-      var h = this._hass;
+      var h = this.client;
       var st = h && h.states[entity];
       if (!st || st.state !== 'playing') return '';
       return here[entity] ? 'here' : 'elsewhere';
@@ -2057,12 +2068,12 @@
     // render. Dropping it is the honest half -- the alternative is a
     // selection that says "3 speakers" and plays to two, a silent partial
     // success.
-    // A missing entity also cannot be trusted as a playback target. Once HA
-    // passes hass to a card, its states snapshot is complete; a typo, renamed
+    // A missing entity also cannot be trusted as a playback target. Once the
+    // host hands a card its client, its states snapshot is complete; a typo, renamed
     // entity or removed speaker must be treated as unavailable. MA restarts
     // usually use the explicit `unavailable` state instead.
     _available(entity) {
-      var st = this._hass && this._hass.states[entity];
+      var st = this.client && this.client.states[entity];
       if (!st) return false;
       return st.state !== 'unavailable' && st.state !== 'unknown';
     }
@@ -2085,7 +2096,7 @@
     }
 
     // Seed the Set from what this screen is showing, on first render with a
-    // hass -- and again whenever the focus moves, until the person touches
+    // client -- and again whenever the focus moves, until the person touches
     // the grid (see _touched).
     //
     // FROM THE LIVE GROUP, not just from the leader: with four rooms joined
@@ -2094,7 +2105,7 @@
     // Members this card has no pill for are left out, or the selection could
     // not be cleared by tapping.
     _seed() {
-      if (this._seeded || !this._hass || !this._config) return;
+      if (this._seeded || !this.client || !this._config) return;
       this._seeded = true;
       var r = this._res();
       if (!r.player) return;
@@ -2107,7 +2118,7 @@
       var p = this._presetFor(r.player);
       if (p) { this._sel = new Set(p.entities || []); return; }
       if (!known[r.player]) return;
-      var st = this._hass.states[r.player];
+      var st = this.client.states[r.player];
       var live = ((st && st.attributes && st.attributes.group_members) || [])
         .filter(function (e) { return known[e]; });
       this._sel = new Set(live.length > 1 ? live : [r.player]);
@@ -2197,7 +2208,7 @@
     // card is local and nothing reaches HA until you press something, so the
     // focus resolves to the source and the Set to the destination.
     _source() {
-      if (!this._hass || !this._config) return null;
+      if (!this.client || !this._config) return null;
       return this._res().player || null;
     }
 
@@ -2235,7 +2246,7 @@
     _canTransfer() {
       var src = this._source(), t = this._targets();
       if (!src || !t || !t.length) return false;
-      var st = this._hass && this._hass.states[src];
+      var st = this.client && this.client.states[src];
       if (!st || (st.state !== 'playing' && st.state !== 'paused')) return false;
       // "Add the room it is already in, and nothing else" has no work in it.
       if (t.length === 1 && t[0] === src) return false;
@@ -2365,7 +2376,7 @@
     // one that lights (see _hkLit in _render) -- not one of six that has no
     // tile.
     _play(pl) {
-      if (!this._sel.size || !this._hass) return;
+      if (!this._sel.size || !this.client) return;
       this._playOp = (this._playOp || 0) + 1;
       var expectedOp = this._playOp;
       var self0 = this;
@@ -2387,7 +2398,7 @@
     }
 
     _playNow(pl, requested) {
-      if (!this._hass) return;
+      if (!this.client) return;
       if (!this._requestValid(requested || Array.from(this._sel))) {
         this._requestChanged(); return;
       }
@@ -2466,10 +2477,10 @@
     // THE PRESSED PILL LIGHTS WHILE ITS REQUEST IS IN FLIGHT: the only
     // honest "working on it" is this screen's own request.
     _paintBusy() {
-      var sc = this._scenes || {}, h = this._hass;
+      var sc = this._scenes || {}, h = this.client;
       Object.keys(sc).forEach(function (k) {
         sc[k]._hkSig = null;
-        if (h) sc[k].hkSetHass(h);
+        if (h) feed(sc[k], h);
       });
     }
 
@@ -2512,9 +2523,9 @@
             // the same one the library needs: an image that never answers
             // fires no `error`, and a context card would keep a permanently
             // empty cover.
-            self._artImage(cx.image, sw, '<ha-icon icon="mdi:music"></ha-icon>');
+            self._artImage(cx.image, sw, '<hk-icon icon="mdi:music"></hk-icon>');
           } else {
-            sw.innerHTML = '<ha-icon icon="mdi:music"></ha-icon>';
+            sw.innerHTML = '<hk-icon icon="mdi:music"></hk-icon>';
           }
           var txt = document.createElement('div');
           var nm = document.createElement('div');
@@ -2760,8 +2771,7 @@
           if (t.slice(0, 2) === './') {
             t = '/' + String(location.pathname).split('/')[1] + '/' + t.slice(2);
           }
-          history.pushState(null, '', t);
-          window.dispatchEvent(new CustomEvent('location-changed'));
+          window.hkShell.navigate(t);
         });
         cr.appendChild(br);
       }
@@ -2879,8 +2889,8 @@
       // cost more than it bought. The glyph is a second channel on the same
       // pill, so the two facts stay separable at arm's length.
       if (play) {
-        // AN INLINE SVG, NOT <ha-icon>. Measured on a wall dashboard:
-        // ha-icon's own box centres perfectly (vOffset 0) while the
+        // AN INLINE SVG, NOT <hk-icon>. Measured on a wall dashboard:
+        // the icon element's own box centres perfectly (vOffset 0) while the
         // <ha-svg-icon> it renders inside sits 5px LOWER -- so the box is
         // right and the glyph is visibly low. A path of our own has no
         // internals to fight, and drops a custom element from a grid that
@@ -2908,14 +2918,14 @@
                       name: name, icon: icon, tap_action: { action: 'none' } });
         el.setAttribute('data-hk-name', name);    // findable in devtools and tests
         // CAPTURE PHASE, or no playlist press ever reaches Home Assistant.
-        // A tap lands on the pill's own ha-card, whose click handler
+        // A tap lands on the pill's own hk-plate, whose click handler
         // (HkBase._bind) calls stopPropagation -- so a bubbling listener
         // here NEVER hears a real tap. A test that calls el.click() on this
         // host skips the inner card and passes anyway.
         // A capturing listener on the host runs before the inner handler.
         el.addEventListener('click', function () { if (!el._hkDim) onclick(); }, true);
         this._scenes[key] = el;
-        if (this._hass) el.hkSetHass(this._hass);
+        if (this.client) feed(el, this.client);
       }
       // Dim, do not remove: an empty selection has nothing to play TO, and the
       // row keeping its shape says the playlists are still there.
@@ -2926,16 +2936,16 @@
       return el;
     }
 
-    // The picker never re-renders from hass (see _sigOf), but the pills inside
-    // it are live cards and must still get every hass to light and to draw.
-    set hass(h) {
-      if (window.hkMusic) window.hkMusic.attach(h);
-      Object.getOwnPropertyDescriptor(HkBase.prototype, 'hass').set.call(this, h);
+    // The picker never re-renders from the states (see _sigOf), but the pills inside
+    // it are live cards and must still get every client to light and to draw.
+    _receiveClient() {
+      var c = this.client;
+      if (window.hkMusic) window.hkMusic.attach(c);
+      super._receiveClient();
       var sc = this._scenes || {};
-      Object.keys(sc).forEach(function (k) { sc[k].hkSetHass(h); });
+      Object.keys(sc).forEach(function (k) { feed(sc[k], c); });
       this._subNotes();
     }
-    get hass() { return this._hass; }
 
     // ---- WHAT THE MUSIC ENGINE SAID, SHOWN WHERE THE PRESS WAS MADE --------
     //
@@ -2955,7 +2965,7 @@
     // the tablet is never left holding a message it cannot clear.
     //
     // A websocket SUBSCRIPTION rather than a state read: persistent
-    // notifications have not been entities since 2023.6, so hass.states
+    // notifications have not been entities since 2023.6, so the client's states
     // cannot see them. The subscription is tied to connection, both edges,
     // like the library's back listener, and home-assistant-js-websocket
     // re-subscribes it by itself after a reconnect.
@@ -2975,7 +2985,7 @@
           // (which lands here) BEFORE it writes its own message, so this
           // never erases the one it is about.
           self._notice = '';
-          if (self._hass && self._config) self.redraw();
+          if (self.client && self._config) self.redraw();
         });
       }
     }
@@ -2990,7 +3000,7 @@
     }
     _subNotes() {
       if (this._noteSub || !this.isConnected) return;
-      var conn = this._hass && this._hass.connection;
+      var conn = this.client && this.client.subscriptions;    // the client's port
       if (!conn || !conn.subscribeMessage) return;
       var self = this;
       this._noteSub = conn.subscribeMessage(function (ev) { self._onNotes(ev); },
@@ -3039,7 +3049,7 @@
     'Choose one or more speakers, then tap a playlist to play it on them. The speakers, presets and playlists are set up in HK Settings → Features → Music.',
     C && [
       { name: 'browse_url', label: 'Browse page',
-        helper: 'Where the Browse Music pill goes, e.g. ./music-browse on HK Frontend\'s own screens. Empty: no pill. Speakers, presets and playlists are set up in HK Settings → Features → Music.',
+        helper: 'Where the Browse Music pill goes, e.g. ./music-browse on ' + window.hkShell.productName() + '\'s own screens. Empty: no pill. Speakers, presets and playlists are set up in HK Settings → Features → Music.',
         selector: { text: {} } }
     ],
     // NO browse_url IN THE STUB: ./music-browse is a page only HK Frontend's
@@ -3132,7 +3142,21 @@
     // not on the same machine as HA; unset, it follows whatever address this
     // page was reached on, which is the whole point.
     _host(loc) { return this._config.host || (loc || location).hostname; }
+    // SAME ORIGIN WHEN THE HOST SERVES IT. A host that serves Music
+    // Assistant's web app under its own address (Mantel: /ma/, behind its
+    // sign-in) says so through the shell; the frame is then same-origin --
+    // https on an https page -- and nothing below about ports or mixed
+    // content applies. An explicit `host` still wins (MA elsewhere). Only a
+    // path on this origin is taken, never another site.
+    _service() {
+      if (this._config.host) return null;
+      var S = window.hkShell;
+      var u = S && typeof S.serviceUrl === 'function' ? S.serviceUrl('music_assistant') : null;
+      return typeof u === 'string' && u.charAt(0) === '/' && u.charAt(1) !== '/' ? u : null;
+    }
     _target(loc) {
+      var svc = this._service();
+      if (svc) return svc.replace(/\/+$/, '') + '/' + String(this._config.path || '').replace(/^\/+/, '');
       return (loc || location).protocol + '//' + this._host(loc) +
              ':' + this._config.port + this._config.path;
     }
@@ -3142,7 +3166,8 @@
     }
     _blocked(loc) {
       // Only https-over-http is blocked. http pages -- every wall tablet --
-      // frame http happily.
+      // frame http happily, and a same-origin frame (_service) never is.
+      if (this._service()) return false;
       return (loc || location).protocol === 'https:';
     }
 

@@ -29,14 +29,17 @@
   var HkBase = C.HkBase, register = C.register, v = C.v, esc = C.esc, R = C.R, P = C.PALETTE.icon;
   var MIN = 60e3, HOUR = 36e5, DAY = 864e5;
   var COOL = '#5ac8fa', HEAT = '#ff9f0a';         // the Energy page's heating & cooling, and heat
+  // EACH THERMOSTAT'S INDOOR LINE (Climate's Through the Day): apart from the
+  // bars' blue and orange and the outside line's white
+  var INSIDE = ['#bf5af2', '#30d158', '#ffd60a'];
 
   // ------------------------------------------------------------- helpers
   function hs(path, fb) { return C.setting(path, fb); }
   function header(page) { return Object.assign({}, (hs('headers', {}) || {})[page] || {}); }
   function num(x) { if (x === null || x === undefined || x === '') return null; var n = Number(x); return isFinite(n) ? n : null; }
   function midnight(t) { var d = new Date(t || Date.now()); d.setHours(0, 0, 0, 0); return d.getTime(); }
-  function hm(t) { return new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
-  function hr(t) { return new Date(t).toLocaleTimeString('en-US', { hour: 'numeric' }); }
+  function hm(t) { return new Date(t).toLocaleTimeString(window.hkLocale.tag(), window.hkLocale.clock({ hour: 'numeric', minute: '2-digit' })); }
+  function hr(t) { return new Date(t).toLocaleTimeString(window.hkLocale.tag(), window.hkLocale.clock({ hour: 'numeric' })); }
   // "1 h 12 m" / "45 min"; html: the units small, as Energy's figures
   function dur(ms) {
     var m = Math.max(0, Math.round(ms / MIN));
@@ -97,13 +100,13 @@
     'svg{display:block}',
     '.well{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;color:var(--a);',
     '  background:color-mix(in srgb,var(--a) 16%,transparent)}',
-    '.well ha-icon{--mdc-icon-size:19px;width:19px;height:19px;display:flex}',
+    '.well hk-icon{--mdc-icon-size:19px;width:19px;height:19px;display:flex}',
     '.pill{appearance:none;font:inherit;font-size:13px;font-weight:600;color:' + v('ink') + ';background:' + v('key') + ';',
     '  border:1px solid ' + v('line') + ';height:34px;padding:0 14px;border-radius:' + R.capsule('34px') + ';cursor:pointer;flex:none;',
     '  -webkit-tap-highlight-color:transparent;transition:transform .12s ease}',
     '.pill:active{transform:scale(0.97);background:' + v('key-strong') + '}',
     // a phone: the card as tall as what it holds
-    '@media (max-width:' + C.BP.phone + 'px){ha-card.hd{height:auto;min-height:var(--hk-hd-min,200px)}}',
+    '@media (max-width:' + C.BP.phone + 'px){hk-plate.hd{height:auto;min-height:var(--hk-hd-min,200px)}}',
     // THE HEADER BUILDS IN (2026-10-16, the user: "a nice touch"): the first
     // time a card has something to show, its parts rise into place one after
     // another and its graphs draw in from the left -- the Energy page's build
@@ -126,7 +129,7 @@
     getCardSize() { return 5; }
     _ids() { return []; }
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return null;
       // the minute too: "on 12 min", "next in 2 h" move with the clock
       return (this._ver || 0) + '|' + Math.floor(Date.now() / MIN) + '|' + this._ids().map(function (id) {
@@ -136,8 +139,8 @@
     }
     _shell(cls) {
       if (this._built) return;
-      this._root.innerHTML = '<ha-card class="hd ' + cls + '" data-hk-role="card"></ha-card>';
-      this._card = this._root.querySelector('ha-card');
+      this._root.innerHTML = '<hk-plate class="hd ' + cls + '" data-hk-role="card"></hk-plate>';
+      this._card = this._root.querySelector('hk-plate');
       var hgt = this._config && this._config.height;
       if (this._card.style && this._card.style.setProperty) this._card.style.setProperty('--hk-ep-h', hgt ? String(hgt) : '240px');
       var self = this;
@@ -146,7 +149,7 @@
         var id = t && t.getAttribute('data-more');
         if (!id) return;
         e.stopPropagation();
-        self.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: id } }));
+        window.hkShell.moreInfo(id, self);
       });
       this._built = true;
     }
@@ -162,7 +165,7 @@
         setTimeout(function () { card.classList.remove('anim'); }, 1600);
       }
     }
-    redraw() { this._ver = (this._ver || 0) + 1; this._hkSig = null; if (this._hass) this.hass = this._hass; }
+    redraw() { this._ver = (this._ver || 0) + 1; this._hkSig = null; if (this.client) super.redraw(); }
     _load(key, every, fn) {
       var self = this, now = Date.now();
       this._at = this._at || {};
@@ -273,6 +276,11 @@
         '.lg span{display:flex;align-items:center;gap:6px}',
         '.lg i{display:inline-block;width:8px;height:8px;border-radius:50%}',
         '.lg i.ln{width:12px;height:0;border-top:2px solid var(--hk-flat-chart-line,rgba(255,255,255,0.85));border-radius:0}',
+        // the indoor lines, each in its thermostat's colour, and its reading now
+        // beside the thermostat's name -- the header is the quick look
+        '.il{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}',
+        '.tot .cap i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}',
+        '.tot .cap b{font-weight:700;color:' + v('ink') + ';font-variant-numeric:tabular-nums}',
         '.tot>div{min-width:0}',
         '.tot .cap{margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.grow{flex:1;min-height:6px}',
@@ -282,14 +290,14 @@
     // the thermostats counted: Settings' pick, else the page's (the strategy
     // hands them over) that report heating and cooling
     _list() {
-      var h = this._hass, c = this._config || {}, pick = header('climate').thermostats;
+      var h = this.client, c = this._config || {}, pick = header('climate').thermostats;
       var all = (Array.isArray(pick) && pick.length ? pick : c.thermostats || []).filter(function (id) { return h.states[id] && /^climate\./.test(id); });
       return all.slice(0, 3);
     }
     _ids() { return this._list(); }
     _render() {
       this._shell('crun');
-      var h = this._hass, self = this;
+      var h = this.client, self = this;
       if (!h) return;
       var ths = this._list(), from = midnight(), now = Date.now();
       var acting = ths.filter(function (id) { return 'hvac_action' in (h.states[id].attributes || {}); });
@@ -306,10 +314,11 @@
           end_time: new Date().toISOString(), entity_ids: list.concat(outSrc ? [outSrc] : []), minimal_response: false, no_attributes: false,
           significant_changes_only: false });
       });
-      if (wid && this._fcFor !== wid && h.connection) {
+      var fcPort = window.hkCards.subscriptions(h);    // the client's subscription port
+      if (wid && this._fcFor !== wid && fcPort) {
         if (this._fcSub) this._fcSub.then(function (u) { if (u) u(); });
         this._fcFor = wid;
-        this._fcSub = h.connection.subscribeMessage(function (m) { self._fcH = (m && m.forecast) || []; self.redraw(); },
+        this._fcSub = fcPort.subscribeMessage(function (m) { self._fcH = (m && m.forecast) || []; self.redraw(); },
           { type: 'weather/subscribe_forecast', forecast_type: 'hourly', entity_id: wid }).catch(function () { return null; });
       }
       // the card's content width (contentRect: its padding already out)
@@ -356,6 +365,22 @@
       var hours = K.map(function (k) {
         return { k: k, fut: k > nowK, sys: sys.map(function (s) { return { c: inHour(s.cool, k), h: inHour(s.heat, k) }; }) };
       });
+      // ---- each thermostat's indoor temperature an hour, read as the outside
+      // one is (the hour's middle; now, for this hour), and now
+      sys.forEach(function (s, j) {
+        var at = steps(H[s.id]).map(function (p) { return [p[0], num(p[2].current_temperature)]; })
+          .filter(function (p) { return p[1] != null; });
+        s.color = INSIDE[j % INSIDE.length];
+        s.now = num(((h.states[s.id] || {}).attributes || {}).current_temperature);
+        s.temp = K.map(function (k) {
+          if (k > nowK) return null;
+          if (k === nowK && s.now != null) return s.now;
+          var tm = from + k * HOUR + HOUR / 2, last = null;
+          for (var q = 0; q < at.length && at[q][0] <= tm; q++) last = at[q][1];
+          return last;
+        });
+      });
+      var hasIn = sys.some(function (s) { return s.temp.some(function (x) { return x != null; }); });
       // ---- the outside temperature an hour: the reading at the hour's
       // middle (now, for this hour); the forecast for the hours to come
       var outT = K.map(function () { return null; });
@@ -385,10 +410,14 @@
       }), avail, 56, true);
       this._nBars = 24;
       this._nowI = nowK;
-      this._rdRest = hasOut ? 'Hover or touch an hour for its runtime and temperature' : 'Hover or touch an hour for runtime';
-      // the line over the bars, on its own scale (the day's coolest to warmest)
-      if (hasOut) {
-        var all = outT.concat(fcT).filter(function (x) { return x != null; });
+      this._rdRest = hasOut || hasIn ? 'Hover or touch an hour for its runtime and temperatures' : 'Hover or touch an hour for runtime';
+      // the lines over the bars, on their own scale (the day's coolest to
+      // warmest): outside, and inside each thermostat -- one scale, so the
+      // house reads against the weather
+      if (hasOut || hasIn) {
+        var all = outT.concat(fcT);
+        sys.forEach(function (s) { all = all.concat(s.temp); });
+        all = all.filter(function (x) { return x != null; });
         var tlo = Math.min.apply(null, all), thi = Math.max.apply(null, all), tsp = Math.max(4, thi - tlo);
         var BH = 56, ty = function (x) { return (BH - 6 - (x - tlo) / tsp * (BH - 16)).toFixed(1); };
         var bx = function (k) { return (k * (B2.bw + B2.gap) + B2.bw / 2).toFixed(1); };
@@ -406,11 +435,22 @@
         }).join('');
         var cur = outT[nowK];
         var tag = cur != null ? '<text class="ot" x="' + bx(nowK) + '" y="' + (Number(ty(cur)) - 7).toFixed(1) + '" text-anchor="middle">' + Math.round(cur) + '°</text>' : '';
-        B2.html = B2.html.replace('</svg>', seg(fcJoin, ' fc') + seg(outT, '') + dots + tag + '</svg>');
+        var inside = sys.map(function (s) {
+          var d = '', open = false;
+          s.temp.forEach(function (x, k) { if (x == null) { open = false; return; } d += (open ? 'L' : 'M') + bx(k) + ' ' + ty(x); open = true; });
+          return d ? '<path class="il" stroke="' + s.color + '" d="' + d + '"/>' : '';
+        }).join('');
+        var inDots = sys.map(function (s) {
+          return s.temp.map(function (x, k) {
+            return x == null ? '' : '<circle class="od" data-i="' + k + '" cx="' + bx(k) + '" cy="' + ty(x) + '" r="3.5" style="fill:' + s.color + '"/>';
+          }).join('');
+        }).join('');
+        B2.html = B2.html.replace('</svg>', inside + seg(fcJoin, ' fc') + seg(outT, '') + inDots + dots + tag + '</svg>');
       }
       var tot = sys.map(function (s) {
         var t = total(s.cool) + total(s.heat);
-        return '<div data-more="' + esc(s.id) + '"><div class="big num">' + (t < MIN ? 'Idle' : durHtml(t)) + '</div><div class="cap">' + esc(s.name) + '</div></div>';
+        return '<div data-more="' + esc(s.id) + '"><div class="big num">' + (t < MIN ? 'Idle' : durHtml(t)) + '</div><div class="cap">' +
+          (hasIn ? '<i style="background:' + s.color + '"></i>' : '') + esc(s.name) + (s.now != null ? ' · <b>' + Math.round(s.now) + '°</b>' : '') + '</div></div>';
       }).join('');
       var lg = '<div class="lg"><span><i style="background:' + (anyHeat && !anyCool ? HEAT : COOL) + '"></i>' + (anyHeat && anyCool ? 'Heating · Cooling' : anyHeat ? 'Heating' : 'Cooling') + '</span>' +
         (hasOut ? '<span><i class="ln"></i>Outside</span>' : '') + '</div>';
@@ -421,10 +461,10 @@
         var o = outT[i] != null ? 'Outside ' + Math.round(outT[i]) + '°' : fcT[i] != null ? 'Outside ' + Math.round(fcT[i]) + '° forecast' : '';
         if (x.fut) return lab + ' · ' + (o || 'No data yet');
         return lab + ' · ' + (o ? o + ' · ' : '') + sys.map(function (s, j) {
-          var p = [], m = x.sys[j];
+          var p = [], m = x.sys[j], t = s.temp[i];
           if (m.c >= 0.5) p.push(Math.round(m.c) + ' min cooling');
           if (m.h >= 0.5) p.push(Math.round(m.h) + ' min heating');
-          return s.name + ' ' + (p.join(', ') || 'idle');
+          return s.name + (t != null ? ' ' + Math.round(t) + '°' : '') + ' ' + (p.join(', ') || 'idle');
         }).join(' · ');
       });
     }
@@ -458,22 +498,23 @@
       ].join('');
     }
     _wx() {
-      var h = this._hass, c = this._config || {};
+      var h = this.client, c = this._config || {};
       return c.weather || (window.hkSettings && window.hkSettings.weatherId && window.hkSettings.weatherId(h.states)) ||
         Object.keys(h.states).filter(function (id) { return id.indexOf('weather.') === 0; })[0];
     }
     _ids() { return [this._wx(), hs('weather.outside', null), 'sun.sun']; }
     _render() {
       this._shell('cout');
-      var h = this._hass, self = this;
+      var h = this.client, self = this;
       if (!h) return;
       var wid = this._wx(), w = wid && h.states[wid];
       if (!w) return this._paint('<div class="ttl"><b>Outside &amp; Ahead</b></div><div class="wait">No weather</div>');
-      if (this._subWx !== wid && h.connection) {
+      var port = window.hkCards.subscriptions(h);      // the client's subscription port
+      if (this._subWx !== wid && port) {
         this._unsub();
         this._subWx = wid;
         this._subs = ['hourly', 'daily'].map(function (t) {
-          return h.connection.subscribeMessage(function (m) { self['_' + t] = m.forecast || []; self.redraw(); },
+          return port.subscribeMessage(function (m) { self['_' + t] = m.forecast || []; self.redraw(); },
             { type: 'weather/subscribe_forecast', forecast_type: t, entity_id: wid }).catch(function () { return null; });
         });
       }
@@ -541,7 +582,7 @@
     }
     _render() {
       this._shell('lday');
-      var h = this._hass, self = this;
+      var h = this.client, self = this;
       if (!h) return;
       var ents = this._ents().filter(function (e) { return h.states[e[0]]; }), from = midnight(), now = Date.now();
       var head = '<div class="ttl"><b>Lighting Through the Day</b></div><div class="sub">Time with at least one light on, by room</div>';
@@ -582,8 +623,9 @@
   var SCHED = { data: null, sub: null, cards: new Set() };
   function schedule(card, h) {
     SCHED.cards.add(card);
-    if (!SCHED.sub && h && h.connection) {
-      SCHED.sub = h.connection.subscribeMessage(function (m) {
+    var port = !SCHED.sub && h ? window.hkCards.subscriptions(h) : null;
+    if (port) {
+      SCHED.sub = port.subscribeMessage(function (m) {
         SCHED.data = m || {};
         SCHED.cards.forEach(function (c) { c.redraw(); });
       }, { type: 'hk_frontend/page_headers/subscribe' }).catch(function (e) {
@@ -635,7 +677,7 @@
         '.lo .s{display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.lo .s em{font-style:normal;color:' + v('warn') + '}',
         '.ok{display:flex;align-items:center;gap:8px;font-size:13px;color:' + v('ink-2') + ';margin:12px 0 4px}',
-        '.ok ha-icon{--mdc-icon-size:15px;width:15px;height:15px;display:flex;color:' + P.green + '}',
+        '.ok hk-icon{--mdc-icon-size:15px;width:15px;height:15px;display:flex;color:' + P.green + '}',
         '.tn{margin-top:auto;border-top:1px solid ' + v('line') + ';padding:10px 0 2px}',
         '.tn .h{display:flex;justify-content:space-between;align-items:baseline;' + C.labelCss('label-small') + '}',
         '.tn .h span{text-transform:none;letter-spacing:0}',
@@ -672,11 +714,11 @@
           if (!b) return;
           e.stopPropagation();
           var id = b.getAttribute('data-off');
-          self._hass.callService(id.split('.')[0], 'turn_off', { entity_id: id });
+          self._actions().callService(id.split('.')[0], 'turn_off', { entity_id: id });
           b.textContent = '…';
         }, true);
       }
-      var h = this._hass;
+      var h = this.client;
       if (!h) return;
       var cfg = header('lights'), now = Date.now();
       var lights = this._lights().filter(function (x) { return h.states[x.id]; });
@@ -732,10 +774,10 @@
       var lo = !sensed ? '' : left.length ? shown.map(function (z) {
         var nm = (h.states[z.x.id].attributes || {}).friendly_name || z.x.id;
         var icon = z.x.icon || 'hk:lightbulb';
-        return '<div class="lo" data-more="' + esc(z.x.id) + '"><div class="well" style="--a:' + P.yellow + '"><ha-icon icon="' + esc(icon) + '"></ha-icon></div>' +
+        return '<div class="lo" data-more="' + esc(z.x.id) + '"><div class="well" style="--a:' + P.yellow + '"><hk-icon icon="' + esc(icon) + '"></hk-icon></div>' +
           '<div><b>' + esc(nm) + '</b><span class="s mi">' + esc(z.x.room || '') + ' · <em>empty ' + shortDur(z.empty) + '</em>' +
           (z.bri != null ? ' · ' + Math.round(z.bri / 2.55) + '%' : '') + '</span></div><button class="pill" data-off="' + esc(z.x.id) + '">Turn Off</button></div>';
-      }).join('') : '<div class="ok"><ha-icon icon="hk:check-bold"></ha-icon>Nothing left on in an empty room</div>';
+      }).join('') : '<div class="ok"><hk-icon icon="hk:check-bold"></hk-icon>Nothing left on in an empty room</div>';
       var tn = '';
       if (cfg.tonight !== false) {
         var first = evs[0];
@@ -749,11 +791,11 @@
       this._paint(head + lo + tn);
     }
     _levels(lights) {
-      var h = this._hass;
+      var h = this.client;
       var on = lights.map(function (x) { return h.states[x.id]; }).filter(function (s) { return s && s.entity_id.indexOf('light.') === 0 && s.state === 'on'; });
       var head = '<div class="ttl"><b>Light Levels</b><span>' + (on.length ? 'lights on now' : 'now') + '</span></div>';
       if (!on.length) {
-        return this._paint(head + '<div class="lr"><div class="well" style="--a:' + P.yellow + '"><ha-icon icon="hk:lightbulb-outline"></ha-icon></div><div><b>All lights off</b>' +
+        return this._paint(head + '<div class="lr"><div class="well" style="--a:' + P.yellow + '"><hk-icon icon="hk:lightbulb-outline"></hk-icon></div><div><b>All lights off</b>' +
           '<span class="s mi">Brightness and color show here when lights are on</span></div></div>');
       }
       var bri = on.map(function (s) { return num(s.attributes.brightness); }).filter(function (x) { return x != null; }).map(function (x) { return Math.round(x / 2.55); });
@@ -765,10 +807,10 @@
       var lo = bri.length ? Math.min.apply(null, bri) : null, hi = bri.length ? Math.max.apply(null, bri) : null;
       var avg = ks.length ? Math.round(ks.reduce(function (a, b) { return a + b; }, 0) / ks.length / 100) * 100 : null;
       this._paint(head +
-        '<div class="lr"><div class="well" style="--a:' + P.yellow + '"><ha-icon icon="hk:white-balance-sunny"></ha-icon></div><div><b>' +
+        '<div class="lr"><div class="well" style="--a:' + P.yellow + '"><hk-icon icon="hk:white-balance-sunny"></hk-icon></div><div><b>' +
         (lo == null ? '—' : lo === hi ? lo + '%' : lo + '–' + hi + '%') + '</b><span class="s mi">Brightness · ' + bri.length + ' dimmable</span></div></div>' +
         (lo != null ? '<div class="sc"><i style="left:' + lo + '%;width:' + Math.max(2, hi - lo) + '%"></i></div>' : '') +
-        '<div class="lr"><div class="well" style="--a:' + P.orange + '"><ha-icon icon="hk:lightbulb-outline"></ha-icon></div><div><b>' +
+        '<div class="lr"><div class="well" style="--a:' + P.orange + '"><hk-icon icon="hk:lightbulb-outline"></hk-icon></div><div><b>' +
         (avg ? avg + ' K · ' + kelvinWord(avg) : colored ? colored + ' in color' : 'Not reported') + '</b><span class="s mi">Color · ' + ks.length + ' reporting' +
         (colored && avg ? ' · ' + colored + ' in color' : '') + '</span></div></div>' +
         '<div class="ll">From the lights that are on and report it.</div>');
@@ -900,9 +942,9 @@
         // the card's own margins): no height of its own, or it would add them
         ':host{display:block;position:relative;min-height:var(--hk-sec-min,360px)}',
         '.col{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px}',
-        'ha-card.hd.shome{height:auto;flex:1 1 0;min-height:0;padding:20px;container-name:shome}',
+        'hk-plate.hd.shome{height:auto;flex:1 1 0;min-height:0;padding:20px;container-name:shome}',
         '.in{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,357px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:22px}',
-        'ha-card.hd.care{height:auto;flex:none;padding:' + C.CARD.pad + ';flex-direction:row;align-items:center;gap:14px}',
+        'hk-plate.hd.care{height:auto;flex:none;padding:' + C.CARD.pad + ';flex-direction:row;align-items:center;gap:14px}',
         '.hi{display:flex;flex-direction:column;min-width:0;min-height:0}',
         '.hi .lab{' + C.labelCss('label-small') + '}',
         '.stage{flex:1 1 auto;min-height:0;box-sizing:border-box;padding:24px 0 34px;container-type:size;display:flex;align-items:center}',
@@ -949,7 +991,7 @@
         '@container shome (max-width:420px){.co,.wire path{display:none}}',
         // a phone: the column takes its own height
         '@media (max-width:' + C.BP.phone + 'px){:host{height:auto;min-height:0}.col{position:static}',
-        '  ha-card.hd.shome{flex:none;height:560px}ha-card.hd.care{min-height:0}}'
+        '  hk-plate.hd.shome{flex:none;height:560px}hk-plate.hd.care{min-height:0}}'
       ].join('');
     }
     _ids() { return this._watch || []; }
@@ -968,7 +1010,7 @@
     }
     _shell() {
       if (this._built) return;
-      this._root.innerHTML = '<div class="col"><ha-card class="hd shome" data-hk-role="card"></ha-card><ha-card class="hd care" data-hk-role="card"></ha-card></div>';
+      this._root.innerHTML = '<div class="col"><hk-plate class="hd shome" data-hk-role="card"></hk-plate><hk-plate class="hd care" data-hk-role="card"></hk-plate></div>';
       this._card = this._root.querySelector('.shome');
       this._care = this._root.querySelector('.care');
       var self = this;
@@ -990,13 +1032,13 @@
         var id = t && t.getAttribute('data-more');
         if (!id) return;
         e.stopPropagation();
-        self.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: id } }));
+        window.hkShell.moreInfo(id, self);
       });
       this._built = true;
     }
     _render() {
       this._shell();
-      var h = this._hass, c = this._config || {}, self = this;
+      var h = this.client, c = this._config || {}, self = this;
       if (!h) return;
       var cfg = header('security'), now = Date.now();
       var ways = waysIn(h, c, cfg);
@@ -1089,7 +1131,7 @@
         if (seen[key]) return;
         seen[key] = 1;
         var g = rowGlyph(kind, e.state);
-        rows.push('<div class="ar" data-more="' + esc(id) + '"><ha-icon class="gl" style="--a:' + g.color + '" icon="' + g.icon + '"></ha-icon>' +
+        rows.push('<div class="ar" data-more="' + esc(id) + '"><hk-icon class="gl" style="--a:' + g.color + '" icon="' + g.icon + '"></hk-icon>' +
           '<div class="tx"><b>' + esc(nm + ' ' + word) + '</b>' + (sub ? '<span class="s">' + esc(sub) + '</span>' : '') + '</div><time class="mi">' +
           (t < m0 ? 'Yesterday ' : '') + hm(t) + '</time></div>');
       });
@@ -1135,7 +1177,7 @@
       this._care.style.display = item ? '' : 'none';
       if (item) {
         if (low.length && quiet.length) item.p = item.p.replace(/\.$/, '') + ' · ' + quiet.length + (quiet.length === 1 ? ' sensor isn’t reporting.' : ' sensors aren’t reporting.');
-        C.morph(this._care, '<div class="well" style="--a:' + P.yellow + '"><ha-icon icon="' + item.icon + '"></ha-icon></div><div class="tx"><div class="lab">Device Care</div><b>' + esc(item.b) + '</b><p>' + esc(item.p) + '</p></div>' +
+        C.morph(this._care, '<div class="well" style="--a:' + P.yellow + '"><hk-icon icon="' + item.icon + '"></hk-icon></div><div class="tx"><div class="lab">Device Care</div><b>' + esc(item.b) + '</b><p>' + esc(item.p) + '</p></div>' +
           '<button class="pill"' + (this._careIds.length > 1 ? ' data-care' : '') + ' data-more="' + esc(item.id) + '">' + (this._careIds.length > 1 ? 'Show All' : 'Details') + '</button>');
       }
     }
@@ -1149,13 +1191,13 @@
   // settings' water meter, the valve -- and what cannot be known is said, not
   // guessed: a vacuum with no completion counter is "back on its dock", never
   // "completed"; an hour the meter has not reported is "No reading", never 0.
-  function dayName(t) { return new Date(t).toLocaleDateString('en-US', { weekday: 'long' }); }
-  function dayShort(t) { return new Date(t).toLocaleDateString('en-US', { weekday: 'short' }); }
+  function dayName(t) { return new Date(t).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'long' })); }
+  function dayShort(t) { return new Date(t).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'short' })); }
   // "Today · 9:42 AM", "Yesterday · 11:04 AM", "Tuesday · 2:18 PM"
   function whenText(t, now) {
     var d0 = midnight(now), d = midnight(t);
     var day = d === d0 ? 'Today' : d === midnight(d0 - HOUR * 12) ? 'Yesterday' :
-      now - t < 6 * DAY ? dayName(t) : new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      now - t < 6 * DAY ? dayName(t) : new Date(t).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ month: 'short', day: 'numeric' }));
     return day + ' · ' + hm(t);
   }
   // the local midnight `k` days before today's (a calendar step: DST-safe)
@@ -1275,7 +1317,7 @@
     disconnectedCallback() { super.disconnectedCallback(); VACH.cards.delete(this); }
     _render() {
       this._shell('vweek');
-      var h = this._hass;
+      var h = this.client;
       if (!h) return;
       var list = this._list().filter(function (x) { return h.states[x.entity]; });
       var head0 = '<div class="ttl"><b>Cleaning This Week</b><span>Last 7 days</span></div>';
@@ -1367,7 +1409,7 @@
     disconnectedCallback() { super.disconnectedCallback(); VACH.cards.delete(this); }
     _render() {
       this._shell('vlast');
-      var h = this._hass;
+      var h = this.client;
       if (!h) return;
       var list = this._list().filter(function (x) { return h.states[x.entity]; });
       if (!list.length) return this._paint('<div class="ttl"><b>Last Runs</b></div><div class="wait">No vacuums</div>');
@@ -1488,7 +1530,7 @@
     }
     _render() {
       this._shell('tord');
-      var h = this._hass, self = this;
+      var h = this.client, self = this;
       if (!h) return;
       var tint = (this._config || {}).tint || P.orange, now = Date.now();
       this._card.style.setProperty('--tint', tint);
@@ -1580,7 +1622,7 @@
         '.qk:disabled{opacity:.45;cursor:default}',
         '.mk{display:flex;align-items:center;gap:14px;margin-top:auto;min-width:0}',
         '.mk .new{flex:none;background:' + C.SELECTED_BG + ';color:' + C.SELECTED_TEXT + ';border-color:transparent;padding:0 18px;display:flex;align-items:center;gap:6px}',
-        '.mk .new ha-icon{--mdc-icon-size:18px;width:18px;height:18px;display:flex}',
+        '.mk .new hk-icon{--mdc-icon-size:18px;width:18px;height:18px;display:flex}',
         // (the hint on one line, or not at all: in a narrow card it wrapped
         // to three beside the button)
         '.mk small{font-size:13px;line-height:17px;color:' + v('ink-2') + ';min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -1600,7 +1642,7 @@
     }
     _quick(m) {
       var self = this, p = this._script('quick_script', 'script.quick_timer_start'), label = minsLabel(m);
-      if (!this._hass.states[p.join('.')]) { this._setStatus('failed', 'The quick-timer helpers are not installed.'); return this.redraw(); }
+      if (!this.client.states[p.join('.')]) { this._setStatus('failed', 'The quick-timer helpers are not installed.'); return this.redraw(); }
       if (!this._begin('Starting ' + label + '…')) return;
       this._callResp(p[0], p[1], { duration: minsHms(m) }).then(function (r) {
         self._end();
@@ -1622,14 +1664,14 @@
     }
     _render() {
       this._shell('tstart');
-      var h = this._hass, self = this;
+      var h = this.client, self = this;
       if (!h) return;
       var st = this._hkStatus, busy = !!this._busy;
       this._paint('<div class="ttl"><b>Start a Timer</b><div class="hk-status" role="status" aria-live="polite"' +
         (st ? ' data-kind="' + st.kind + '">' + esc(st.text) : '>') + '</div></div>' +
         '<div class="qs">' + this._presets().map(function (m) {
           return '<button class="qk" data-q="' + m + '" aria-label="Start a ' + minsLabel(m) + ' timer"' + (busy ? ' disabled' : '') + '>' + minsLabel(m) + '</button>';
-        }).join('') + '</div><div class="mk"><button class="qk new" data-new><ha-icon icon="mdi:plus"></ha-icon>Create a Timer</button>' +
+        }).join('') + '</div><div class="mk"><button class="qk new" data-new><hk-icon icon="mdi:plus"></hk-icon>Create a Timer</button>' +
         '<small>Choose a name &amp; duration</small></div>');
       if (!this._wired) {
         this._wired = true;
@@ -1662,7 +1704,7 @@
     }
     return null;
   }
-  function amount(x) { return x < 10 ? (Math.round(x * 10) / 10).toString() : Math.round(x).toLocaleString('en-US'); }
+  function amount(x) { return x < 10 ? (Math.round(x * 10) / 10).toString() : Math.round(x).toLocaleString(window.hkLocale.numTag()); }
   class HkWaterDayCard extends HeaderCard {
     static get PART_CSS() {
       return BARS_CSS + [
@@ -1676,7 +1718,7 @@
     _ids() { return []; }
     _render() {
       this._shell('wday');
-      var h = this._hass;
+      var h = this.client;
       if (!h) return;
       var head = '<div class="ttl"><b>Water Through the Day</b><span>Hourly</span></div>';
       // a meter chosen on HK Settings -> Pages -> Water wins over the
@@ -1781,7 +1823,7 @@
     static get PART_CSS() {
       var E = C.EASE, U = C.DUR;
       return [
-        'ha-card.hd.supply{position:relative;isolation:isolate}',
+        'hk-plate.hd.supply{position:relative;isolation:isolate}',
         '.wash{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;border-radius:inherit;background:' + WAVES.wash + ';',
         '  opacity:0;transition:opacity ' + U.standard + ' ' + E.standard + '}',
         '.on .wash{opacity:1}',
@@ -1874,7 +1916,7 @@
     }
     _render() {
       this._shell('supply');
-      var h = this._hass, c = this._config || {}, self = this;
+      var h = this.client, c = this._config || {}, self = this;
       if (!h) return;
       var st = h.states[c.entity], s = supplyState(st);
       // a command sent and not yet answered: said as on its way, until the
@@ -1908,7 +1950,7 @@
         this._card.addEventListener('click', function (e) {
           var b = e.target && e.target.closest ? e.target.closest('.sw button') : null;
           if (!b || b.disabled) return;
-          var want = b.getAttribute('data-v') === 'on', now = supplyState((self._hass || {}).states[self._config.entity]);
+          var want = b.getAttribute('data-v') === 'on', now = supplyState((self.client || {}).states[self._config.entity]);
           if ((want && now === 'open') || (!want && now === 'closed')) return;
           self._ask(want);
         });
@@ -1921,7 +1963,7 @@
   register('hk-climate-runtime-card', HkClimateRuntimeCard, 'HK Heating & Cooling Today',
     'Each thermostat’s heating and cooling today, hour by hour (the Climate page’s header).',
     [{ name: 'thermostats', selector: { entity: { multiple: true, filter: { domain: 'climate' } } } }].concat(HEIGHT),
-    function (hass) { return { thermostats: Object.keys(hass.states).filter(function (id) { return id.indexOf('climate.') === 0; }).slice(0, 3) }; });
+    function (client) { return { thermostats: Object.keys(client.states).filter(function (id) { return id.indexOf('climate.') === 0; }).slice(0, 3) }; });
   register('hk-climate-outside-card', HkClimateOutsideCard, 'HK Outside & Ahead',
     'The weather now, today’s high and low, the next hours and the evening ahead (the Climate page’s header).',
     [{ name: 'weather', selector: { entity: { filter: { domain: 'weather' } } } }].concat(HEIGHT), function () { return {}; });
@@ -1956,7 +1998,7 @@
   register('hk-water-supply-card', HkWaterSupplyCard, 'HK Main Water Supply',
     'The main water valve: its position, On / Off, and water behind the card while it is open (the Water page’s header).',
     [{ name: 'entity', selector: { entity: { filter: { domain: ['valve', 'switch'] } } } }, { name: 'title', selector: { text: {} } }].concat(HEIGHT),
-    function (hass) { return { entity: Object.keys(hass.states).filter(function (id) { return id.indexOf('valve.') === 0; })[0] }; });
+    function (client) { return { entity: Object.keys(client.states).filter(function (id) { return id.indexOf('valve.') === 0; })[0] }; });
 
   window.hkHeaders = { version: '1.0.0', vacRuns: vacRuns, supplyState: supplyState, timerRuns: timerRuns, nextTime: nextTime, goneQuiet: goneQuiet, kindOf: kindOf, rowGlyph: rowGlyph, waysIn: waysIn, wayState: wayState, bars: bars, spans: spans, merge: merge,
     // tests: a picture's art.json as if fetched, and the schedule as if sent
@@ -2022,8 +2064,9 @@
     var SNOOZE = { until: {}, sub: null, n: 0, panels: new Set() };
     function snoozed(panel, h) {
       SNOOZE.panels.add(panel);
-      if (!SNOOZE.sub && h && h.connection) {
-        SNOOZE.sub = h.connection.subscribeMessage(function (m) {
+      var port = !SNOOZE.sub && h ? window.hkCards.subscriptions(h) : null;
+      if (port) {
+        SNOOZE.sub = port.subscribeMessage(function (m) {
           SNOOZE.until = (m && m.until) || {}; SNOOZE.n++;
           SNOOZE.panels.forEach(function (p) { p._kick(); });
         }, { type: 'hk_frontend/snooze/subscribe' }).catch(function () { SNOOZE.sub = null; return null; });
@@ -2045,7 +2088,7 @@
       // Run Now: the sheets' one wide button
       '.run{appearance:none;font:inherit;width:100%;height:50px;border:0;border-radius:25px;background:#fff;color:#1c1c1e;',
       '  font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent}',
-      '.run ha-icon{--mdc-icon-size:20px}',
+      '.run hk-icon{--mdc-icon-size:20px}',
       '.run:active{opacity:.8}',
       '.run.sent{background:' + C.PALETTE.icon.green + ';color:#fff}',
       C.segCss('.seg', { on: '.sel', fill: true }),
@@ -2062,7 +2105,7 @@
       '.hs::-webkit-scrollbar{display:none}',
       '.r{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 0;border-top:1px solid ' + v('line') + '}',
       '.r:first-child{border-top:0}',
-      '.r ha-icon{--mdc-icon-size:18px}',
+      '.r hk-icon{--mdc-icon-size:18px}',
       '.r b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.r span{display:block;font-size:13px;color:' + v('ink-2') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.r time{font-size:13px;color:' + v('ink-2') + ';font-variant-numeric:tabular-nums;white-space:nowrap}',
@@ -2085,7 +2128,7 @@
         d.tt.textContent = parts((s.attributes || {}).friendly_name || d.id).name;
         return true;
       }
-      _kick() { this._hkSig = null; if (this._hass) this.hass = this._hass; }
+      _kick() { this._hkSig = null; if (this.client) super.redraw(); }
       _sigOf() {
         var s = this._stateObj;
         return s ? s.last_updated + '|' + SNOOZE.n + '|' + (this._logN || 0) + '|' + (this._sent ? 1 : 0) + '|' + Math.floor(Date.now() / 60e3) : null;
@@ -2109,7 +2152,7 @@
       }
       // the logbook's last week, read once a sheet (and again after a run)
       _history() {
-        var h = this._hass, self = this;
+        var h = this.client, self = this;
         if (this._log || !h || !h.callWS) return;
         this._log = [];
         var now = Date.now();
@@ -2124,7 +2167,7 @@
           }).catch(function () { self._log = []; self._logN = (self._logN || 0) + 1; self._kick(); });
       }
       _render() {
-        var h = this._hass, s = this._stateObj, self = this;
+        var h = this.client, s = this._stateObj, self = this;
         if (!h || !s) return;
         if (!this._built) {
           this._built = true;
@@ -2152,7 +2195,7 @@
         var mode = on ? 'on' : until ? 'today' : 'off';
         var run = this._root.querySelector('.run');
         run.classList.toggle('sent', !!this._sent);
-        run.innerHTML = this._sent ? '<ha-icon icon="hk:check-bold"></ha-icon>Running' : '<ha-icon icon="mdi:play"></ha-icon>Run Now';
+        run.innerHTML = this._sent ? '<hk-icon icon="hk:check-bold"></hk-icon>Running' : '<hk-icon icon="mdi:play"></hk-icon>Run Now';
         this._pick(mode);
         var p = parts((s.attributes || {}).friendly_name);
         this._root.querySelector('.note').textContent = na ? 'Unavailable' :
@@ -2181,7 +2224,7 @@
           var col = ran ? C.PALETTE.icon.blue : v('ink-2');
           // a run: what set it off; else what was done to it
           var what = ran ? cause(h, r.msg) || 'Ran' : r.st === 'on' ? 'Turned On' : r.st === 'off' ? 'Turned Off' : r.st;
-          return '<div class="r"><ha-icon icon="' + ic + '" style="color:' + col + '"></ha-icon><div><b>' + esc(what) + '</b></div>' +
+          return '<div class="r"><hk-icon icon="' + ic + '" style="color:' + col + '"></hk-icon><div><b>' + esc(what) + '</b></div>' +
             '<time>' + esc(when(r.t)) + '</time></div>';
         }).join('');
         C.morph(this._root.querySelector('.hist'), '<div class="lab"><span>Past 7 Days</span>' +
@@ -2272,7 +2315,7 @@
       '  font:inherit;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}',
       '.cmds .ci{width:72px;height:72px;border-radius:' + C.R.capsule('72px') + ';display:flex;align-items:center;justify-content:center;',
       '  background:' + v('key-strong') + ';transition:background ' + C.DUR.fade + ',color ' + C.DUR.fade + '}',
-      '.cmds .ci ha-icon{--mdc-icon-size:28px}',
+      '.cmds .ci hk-icon{--mdc-icon-size:28px}',
       '.cmds button:active .ci{background:rgba(255,255,255,0.24)}',
       '.cmds button.sel .ci{background:var(--tint);color:rgba(0,0,0,0.85)}',
       '.cmds button[disabled]{opacity:.35;cursor:default}',
@@ -2312,23 +2355,23 @@
         var on = s.state === 'active';
         d.well.style.background = on ? TINT : 'rgba(255,255,255,0.12)';
         d.icon.style.color = on ? 'rgba(0,0,0,0.82)' : TINT;
-        d.icon.hass = h;
-        d.icon.stateObj = s;
+        // h: the sheet's client (hk-detail.js paintHeader)
+        if (h.bindStateIcon) h.bindStateIcon(d.icon, s); else d.icon.stateObj = s;
         d.icon.icon = U.headIcon(d.look, s) || (s.attributes || {}).icon || 'mdi:timer-outline';
         // the tile's name, else the accessory's, else the timer's own less "- Timer"
         d.tt.textContent = (d.src && d.src.name) || U.accName(d.id) || nameOf(h, d.id);
         return true;
       }
-      _kick() { this._hkSig = null; if (this._hass) this.hass = this._hass; }
+      _kick() { this._hkSig = null; if (this.client) super.redraw(); }
       _sigOf() {
-        var s = this._stateObj, h = this._hass, lab = labelOf(this._id);
+        var s = this._stateObj, h = this.client, lab = labelOf(this._id);
         return s ? s.last_updated + '|' + (lab && h.states[lab] ? h.states[lab].state : '') + '|' + (this._logN || 0) + '|' +
           (this._why || '') + '|' + Math.floor(Date.now() / MIN) : null;
       }
       connectedCallback() { if (super.connectedCallback) super.connectedCallback(); this._log = null; }
       // the week's runs, read once a sheet (and again when it starts or stops)
       _history() {
-        var h = this._hass, self = this, id = this._id, lab = labelOf(id), now = Date.now();
+        var h = this.client, self = this, id = this._id, lab = labelOf(id), now = Date.now();
         var st = this._stateObj && this._stateObj.state;
         if (this._logFor === st && this._log) return;
         this._logFor = st;
@@ -2359,7 +2402,7 @@
         Promise.resolve(call).then(function (ok) { self._why = ok === false ? 'Could not reach Home Assistant' : ''; self._kick(); });
       }
       _render() {
-        var h = this._hass, s = this._stateObj, self = this;
+        var h = this.client, s = this._stateObj, self = this;
         if (!h || !s) return;
         if (!this._built) {
           this._built = true;
@@ -2401,13 +2444,13 @@
         var idle = st !== 'active' && st !== 'paused';
         var btn = function (act, icon, label, sel) {
           return '<button data-a="' + act + '" class="' + (sel ? 'sel' : '') + '"' + (na ? ' disabled' : '') + ' aria-label="' + label + '">' +
-            '<span class="ci"><ha-icon icon="' + icon + '"></ha-icon></span><span class="cl">' + label + '</span></button>';
+            '<span class="ci"><hk-icon icon="' + icon + '"></hk-icon></span><span class="cl">' + label + '</span></button>';
         };
         var cmds = st === 'active' ? btn('toggle', 'mdi:pause', 'Pause') : btn('toggle', 'mdi:play', st === 'paused' ? 'Resume' : 'Start', true);
-        cmds += idle ? '<button disabled aria-hidden="true" tabindex="-1"><span class="ci"><ha-icon icon="mdi:plus"></ha-icon></span><span class="cl">5 min</span></button>'
+        cmds += idle ? '<button disabled aria-hidden="true" tabindex="-1"><span class="ci"><hk-icon icon="mdi:plus"></hk-icon></span><span class="cl">5 min</span></button>'
                      : btn('plus', 'mdi:plus', '5 min');
         cmds += btn('restart', 'mdi:restart', 'Restart');
-        cmds += idle ? '<button disabled aria-hidden="true" tabindex="-1"><span class="ci"><ha-icon icon="mdi:check"></ha-icon></span><span class="cl">Finish</span></button>'
+        cmds += idle ? '<button disabled aria-hidden="true" tabindex="-1"><span class="ci"><hk-icon icon="mdi:check"></hk-icon></span><span class="cl">Finish</span></button>'
                      : btn('finish', 'mdi:check', 'Finish');
         C.morph(this._root.querySelector('.cmds'), cmds);
         this._root.querySelector('.why').textContent = this._why || '';

@@ -2,7 +2,8 @@
 // Home Assistant's more-info dialog.
 //
 // THE TAP CONTRACT IS UNCHANGED. A pill's glyph toggles; its name (or any
-// card with nothing to toggle) fires `hass-more-info`, exactly as before.
+// card with nothing to toggle) fires the host's more-info event
+// (hkShell.events.moreInfo), exactly as before.
 // This file catches that event on the way down (a capture listener on
 // window) and opens its own sheet instead of HA's dialog. No dashboard
 // changes, no new gestures, no holds.
@@ -14,12 +15,22 @@
 //
 // SIMPLE, ON PURPOSE. One big control per sheet; only the thermostat and
 // sensors carry extra information. No history, no settings, nothing that
-// leads anywhere a household user should not go. A kind of entity with no
-// sheet here falls through to HA's dialog.
+// leads anywhere a household user should not go.
 //
-// LIVE STATE: the sheet is not a card, so nothing hands it hass. It takes
-// every new object from hkCards.onHass (hk-base.js) AND from <home-assistant>
-// itself (see open()): the hub only moves while hk cards are on screen.
+// A KIND OF ENTITY WITH NO SHEET HERE (Phase 2 P2.5, docs/phase2/SHEETS.md)
+// goes to the host's own detail when the host has one (hkShell.hostDetail:
+// Home Assistant's more-info dialog, exactly as before -- the event is let
+// through untouched), and to HK's generic sheet when it has none (Mantel):
+// its state and key attributes in the client's words, a control only where
+// one is obvious, and for an admin on a host with its own detail, "Open in
+// Home Assistant". On such a host every request is HK's to answer (sheets
+// switched off, a tap from outside a dashboard): no tap is ever dead.
+//
+// LIVE STATE: the sheet is not a card, so nothing hands it a client. It takes
+// every new one from hkCards.onClient (hk-base.js) AND from the host adapter's
+// current client (hkCards.client(), see open()): the hub only moves while hk
+// cards are on screen. Everything a sheet reads comes through the client, and
+// its controls act through the client's action port (HkBase._call).
 (function () {
   'use strict';
 
@@ -62,6 +73,11 @@
       input_number: 'blue', input_select: 'blue', alarm_control_panel: 'green'
     };
     function stOf(h, id) { return (h && h.states && id) ? h.states[id] : null; }
+    // A client as is; a legacy host input through the host adapter.
+    function asClient(x) {
+      if (!x || (window.hkClient && window.hkClient.is(x))) return x || null;
+      return window.hkHostClient && window.hkHostClient.from ? window.hkHostClient.from(x) : null;
+    }
     function at(s, k) { return s && s.attributes ? s.attributes[k] : undefined; }
     function num(v) { var n = Number(v); return (v === null || v === '' || !isFinite(n)) ? null : n; }
     function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -93,7 +109,8 @@
       return { colour: colour, temp: temp, dim: dim, effects: fx };
     }
 
-    // WHICH SHEET. null = not ours; HA's dialog opens as before.
+    // WHICH SHEET. null = no sheet of its own here: the host's own detail
+    // (HA's dialog, as before), or HK's generic sheet on a host without one.
     function kindOf(h, id) {
       var s = stOf(h, id);
       if (!s) return null;
@@ -590,7 +607,7 @@
     }
 
     function glyph(icon, size) {
-      return '<ha-icon icon="' + esc(icon) + '" style="--mdc-icon-size:' + size + 'px"></ha-icon>';
+      return '<hk-icon icon="' + esc(icon) + '" style="--mdc-icon-size:' + size + 'px"></hk-icon>';
     }
     var BACK = 'M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z';
 
@@ -635,6 +652,8 @@
       // a person (them | where they are) and an event (it | its day): two
       // columns on a tablet, one on a phone
       person: WIDE, event: WIDE, weather: WIDE, automation: STD, timer: STD,
+      // HK's generic sheet (Phase 2 P2.5): a state, a few lines, at most a button
+      generic: STD,
       // a room's "3 Windows": two full pills a row (2 x 196 + 10 of its ~410)
       group: STD,
       // a custom pop-up's own cards: narrow or wide, as it asks
@@ -696,7 +715,7 @@
       '.hkd .hd{display:flex;align-items:center;gap:14px;flex-shrink:0;height:44px}',
       '.hkd .well{width:44px;height:44px;border-radius:22px;flex-shrink:0;display:flex;',
       '  align-items:center;justify-content:center;background:rgba(255,255,255,0.12);transition:background .2s}',
-      '.hkd .well ha-state-icon{--mdc-icon-size:24px;width:24px;height:24px;display:flex}',
+      '.hkd .well hk-state-icon{--mdc-icon-size:24px;width:24px;height:24px;display:flex}',
       '.hkd .tx{flex-grow:1;min-width:0}',
       '.hkd .tt{font-size:22px;font-weight:700;letter-spacing:-0.35px;line-height:24px;',
       '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -804,7 +823,7 @@
       '.hkn-col{width:340px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;',
       '  text-align:center;border-radius:' + SP.cardR + 'px;background:rgba(255,255,255,0.08);padding:24px ' + SP.inset + 'px;box-sizing:border-box}',
       '.hkn-col .hero{width:96px;height:96px;border-radius:48px;display:flex;align-items:center;justify-content:center;flex:none}',
-      '.hkn-col .hero ha-icon{--mdc-icon-size:48px;color:#fff;display:flex}',
+      '.hkn-col .hero hk-icon{--mdc-icon-size:48px;color:#fff;display:flex}',
       '.hkn-col .pic{width:100%;aspect-ratio:16/9;border-radius:12px;object-fit:cover;flex:none;background:rgba(255,255,255,0.06);cursor:pointer}',
       '.hkn-col .imp{margin-top:20px;font-size:12px;line-height:16px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#ff453a}',
       '.hkn-col .what{margin-top:20px;font-size:22px;font-weight:700;letter-spacing:-0.35px;line-height:26px;overflow-wrap:anywhere}',
@@ -816,7 +835,7 @@
       '  white-space:nowrap;background:rgba(255,255,255,0.14);color:#fff;font:inherit;font-size:16px;font-weight:600;cursor:pointer;',
       '  -webkit-tap-highlight-color:transparent;min-width:0}',
       '.hkn-b:active{background:rgba(255,255,255,0.24)}',
-      '.hkn-b ha-icon{--mdc-icon-size:20px;display:flex;flex:none}',
+      '.hkn-b hk-icon{--mdc-icon-size:20px;display:flex;flex:none}',
       '.hkn-b span{overflow:hidden;text-overflow:ellipsis}',
       '.hkn-b .chev{opacity:.5;font-size:19px;margin-left:-2px;flex:none}',
       '.hkn-b.on{background:rgba(255,255,255,0.92);color:rgba(0,0,0,0.85)}',
@@ -827,9 +846,9 @@
       '.hkn-card .r1{display:flex;align-items:center;gap:12px}',
       '.hkn-card .r2{display:flex;gap:' + SP.block + 'px}',
       '.hkn-card .r2 .hkn-b{flex:1;height:40px;border-radius:20px;font-size:14px;padding:0 12px;gap:6px}',
-      '.hkn-card .r2 .hkn-b ha-icon{--mdc-icon-size:18px}',
+      '.hkn-card .r2 .hkn-b hk-icon{--mdc-icon-size:18px}',
       '.hkn-card .ni{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none}',
-      '.hkn-card .ni ha-icon{--mdc-icon-size:19px;color:#fff;display:flex}',
+      '.hkn-card .ni hk-icon{--mdc-icon-size:19px;color:#fff;display:flex}',
       '.hkn-card .nt{flex:1;min-width:0}',
       '.hkn-card .n1{font-size:15px;font-weight:650;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.hkn-card .n2{font-size:13px;line-height:18px;color:' + window.hkCards.v('ink-2') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
@@ -842,14 +861,13 @@
       '  background:rgba(24,24,28,0.93)}',
       '.hkn-card.under{margin:' + SP.block + 'px}',
       // a phone: the words alone, a little smaller ("Doors & Windows ›" fits)
-      '@media (max-width:' + C.BP.phone + 'px){.hkn-card .r2 .hkn-b ha-icon{display:none}.hkn-card .r2 .hkn-b{font-size:13px;padding:0 10px}}'
+      '@media (max-width:' + C.BP.phone + 'px){.hkn-card .r2 .hkn-b hk-icon{display:none}.hkn-card .r2 .hkn-b{font-size:13px;padding:0 10px}}'
     ].join('');
 
     var D = { el: null };
 
     function haRoot() {
-      var ha = document.querySelector('home-assistant');
-      return (ha && ha.shadowRoot) || document.body;
+      return window.hkShell.overlayRoot() || document.body;
     }
 
     // THE ROOM: the media sheet's "Playing on · Living Room" (a pill can be
@@ -943,8 +961,7 @@
       var on = isOn(s);
       d.well.style.background = on ? d.colour : 'rgba(255,255,255,0.12)';
       d.icon.style.color = on ? (nearWhite(d.colour) ? 'rgba(0,0,0,0.78)' : '#fff') : d.colour;
-      d.icon.hass = h;
-      d.icon.stateObj = s;
+      if (h && h.bindStateIcon) h.bindStateIcon(d.icon, s); else d.icon.stateObj = s;
       var hk = headIcon(d.look, s);
       if (hk) d.icon.icon = hk;
       else if (d.icon.icon) d.icon.icon = undefined;
@@ -981,10 +998,8 @@
     // the config cannot be read.
     function hasView(path) {
       try {
-        var ha = document.querySelector('home-assistant');
-        var main = ha.shadowRoot.querySelector('home-assistant-main');
-        var panel = main.shadowRoot.querySelector('ha-panel-lovelace');
-        var views = panel && panel.lovelace && panel.lovelace.config && panel.lovelace.config.views;
+        var conf = window.hkShell.dashboardConfig();
+        var views = conf && conf.views;
         if (!views) return null;
         return views.some(function (x) { return x.path === path; });
       } catch (e) { return null; }
@@ -998,10 +1013,7 @@
     // wins. A calendar's event: the Calendar page at that day.
     function viewOf(path) {
       try {
-        var ha = document.querySelector('home-assistant');
-        var main = ha.shadowRoot.querySelector('home-assistant-main');
-        var panel = main.shadowRoot.querySelector('ha-panel-lovelace');
-        var views = panel.lovelace.config.views;
+        var views = window.hkShell.dashboardConfig().views;
         for (var i = 0; i < views.length; i++) if (views[i].path === path) return views[i];
       } catch (e) { /* no dashboard */ }
       return null;
@@ -1068,9 +1080,9 @@
     // mode: col | card | over | under
     function noteEl(h, note, mode) {
       var n = note.n || {}, go = goFor(h, n), el = document.createElement('div');
-      var icon = '<ha-icon icon="' + esc(n.icon || 'hk:bell') + '"></ha-icon>';
+      var icon = '<hk-icon icon="' + esc(n.icon || 'hk:bell') + '"></hk-icon>';
       var b = function (cls, ic, text, chev) {
-        return '<button class="hkn-b ' + cls + '">' + (ic ? '<ha-icon icon="' + esc(ic) + '"></ha-icon>' : '') +
+        return '<button class="hkn-b ' + cls + '">' + (ic ? '<hk-icon icon="' + esc(ic) + '"></hk-icon>' : '') +
           '<span>' + esc(text) + '</span>' + (chev ? '<span class="chev">›</span>' : '') + '</button>';
       };
       var acts = (go ? b('go', go.icon, go.title, true) : '') +
@@ -1099,10 +1111,10 @@
         e.stopPropagation();
         if (t.classList.contains('go')) { navigateFrom(go.path); return; }
         if (t.classList.contains('mute')) {
-          var hh = C.hass() || h;
-          if (!hh || !hh.callWS || t.disabled) return;
+          var act = C.actions(C.client() || h);
+          if (!act || t.disabled) return;
           t.disabled = true;
-          hh.callWS({ type: 'hk_notify/mute', key: n.mute, minutes: note.until ? 0 : 60 }).then(function (r) {
+          act.callWS({ type: 'hk_notify/mute', key: n.mute, minutes: note.until ? 0 : 60 }).then(function (r) {
             note.until = r && r.until ? r.until : null;
             t.classList.toggle('on', !!note.until);
             t.querySelector('span').textContent = muteLabel(note.until);
@@ -1341,7 +1353,7 @@
       if (show === 'switch' || show === 'outlet') return GLYPHS.outlet;
       if (d === 'switch' || d === 'input_boolean') return GLYPHS.outlet;
       if (d === 'binary_sensor') {
-        var dc = at(stOf(C.hass(), id), 'device_class');
+        var dc = at(stOf(C.client(), id), 'device_class');
         if (/^(door|window|garage_door|opening)$/.test(String(dc || ''))) return GLYPHS.contact;
       }
       return GLYPHS[d] || GLYPHS.other;
@@ -1471,9 +1483,7 @@
     // draw favorites, so only there is "Favorite on this dashboard" offered.
     function generatedHere() {
       try {
-        var ha = document.querySelector('home-assistant');
-        var main = ha.shadowRoot.querySelector('home-assistant-main');
-        var panel = main.shadowRoot.querySelector('ha-panel-lovelace');
+        var panel = window.hkShell.panel();
         var raw = panel && panel.lovelace && panel.lovelace.rawConfig;
         return !!(raw && raw.strategy && /hk-dashboard$/.test(String(raw.strategy.type || '')));
       } catch (e) { return false; }
@@ -1540,7 +1550,7 @@
             var kinds = {};
             kinds[k] = tg.checked;
             if (!opts.panel && window.hkStrategy && window.hkStrategy.ownChange) window.hkStrategy.ownChange();
-            h.callWS({ type: 'hk_frontend/hidden/also', entity_ids: [id], kinds: kinds })
+            h.actions.callWS({ type: 'hk_frontend/hidden/also', entity_ids: [id], kinds: kinds })
               .then(function (s2) { paint(s2); if (opts.onSave) opts.onSave(true); },
                     function (err) { fail(err); if (opts.onSave) opts.onSave(false); });
           });
@@ -1551,7 +1561,7 @@
         var places = {};
         rows.forEach(function (r) { var tg = r.querySelector('.tg'); if (!tg.checked) places[tg.dataset.k] = true; });
         if (!opts.panel && window.hkStrategy && window.hkStrategy.ownChange) window.hkStrategy.ownChange();
-        return h.callWS({ type: 'hk_frontend/hidden/set', entity_ids: [id], everywhere: everywhere, places: everywhere ? {} : places })
+        return h.actions.callWS({ type: 'hk_frontend/hidden/set', entity_ids: [id], everywhere: everywhere, places: everywhere ? {} : places })
           .then(function (snap) { paint(snap); if (opts.onSave) opts.onSave(true); },
                 function (err) { fail(err); if (opts.onSave) opts.onSave(false); });
       };
@@ -1564,6 +1574,10 @@
 
     function accessoryPane(h, id, onName, opts) {
       opts = opts || {};
+      // A client; the settings page (slice 11) still hands its host input,
+      // which the host adapter turns into one. Its saves go through the
+      // client's action port, its reads through the client.
+      h = asClient(h);
       var el = document.createElement('div');
       el.className = 'acc';
       // ITS OWN COPY: the pane writes what was just chosen into `cur` as it
@@ -1603,7 +1617,7 @@
         // changed on a dashboard's own sheet: that screen shows it as soon as
         // the sheet closes (hk-strategy.js ownChange)
         if (!opts.panel && window.hkStrategy && window.hkStrategy.ownChange) window.hkStrategy.ownChange();
-        return h.callWS(Object.assign({ type: 'hk_frontend/accessory/set', entity_id: id }, changes)).then(function (r) {
+        return h.actions.callWS(Object.assign({ type: 'hk_frontend/accessory/set', entity_id: id }, changes)).then(function (r) {
           if (opts.onSave) opts.onSave(true);
           return r;
         }, function (e) { fail(e); if (opts.onSave) opts.onSave(false); });
@@ -1635,8 +1649,8 @@
       var arr = opts.tile ? arrangeOf(h, id, opts.tile) : null;
       if (arr) {
         html += '<div class="sec arr"><div class="cap">Arrange</div><div class="grp">' +
-          '<div class="arrb"><button class="mvl" aria-label="Move Left"><ha-icon icon="mdi:chevron-left"></ha-icon>Move Left</button>' +
-          '<button class="mvr" aria-label="Move Right">Move Right<ha-icon icon="mdi:chevron-right"></ha-icon></button></div>' +
+          '<div class="arrb"><button class="mvl" aria-label="Move Left"><hk-icon icon="mdi:chevron-left"></hk-icon>Move Left</button>' +
+          '<button class="mvr" aria-label="Move Right">Move Right<hk-icon icon="mdi:chevron-right"></hk-icon></button></div>' +
           '<div class="mini" aria-hidden="true"></div><span class="sr" aria-live="polite"></span></div>' +
           '<div class="note">' + esc(arr.note) + '</div></div>';
       }
@@ -1666,8 +1680,8 @@
       // then a switch for each place it can be hidden from -- asked of the
       // server, which knows its kinds -- and, on a dashboard, Favorite
       html += '<div class="sec where"><div class="cap">Where it shows</div><div class="grp">' +
-        '<div class="row wall"><span class="k">Show in HK Frontend<small class="wwhy" hidden></small></span>' +
-        '<input class="tg shown" type="checkbox" role="switch" aria-label="Show in HK Frontend" disabled></div>' +
+        '<div class="row wall"><span class="k">Show in ' + window.hkShell.productName() + '<small class="wwhy" hidden></small></span>' +
+        '<input class="tg shown" type="checkbox" role="switch" aria-label="Show in ' + window.hkShell.productName() + '" disabled></div>' +
         (board ? '<div class="row"><span class="k">Favorite on this dashboard</span><input class="tg fav" type="checkbox" role="switch" aria-label="Favorite on this dashboard"></div>' : '') +
         '</div><div class="note">' + (opts.panel
           ? 'Anything off here is listed in <a href="#/accessories/hidden">Hidden Accessories</a>, with where.'
@@ -1738,7 +1752,7 @@
       // ON THE ENERGY PAGE: through the Energy feature's own commands
       if (enRec) {
         var enSave = function (changes) {
-          return h.callWS({ type: 'hk_energy/device/set', key: enRec.key, changes: changes }).catch(fail);
+          return h.actions.callWS({ type: 'hk_energy/device/set', key: enRec.key, changes: changes }).catch(fail);
         };
         var enn = el.querySelector('.enn'), ens = el.querySelector('.ens'), enh = el.querySelector('.enh');
         var enName = (enPlan.names || {})[enRec.key] || enRec.name || '';
@@ -1752,7 +1766,7 @@
           // leaves out hidden devices and empty sections, and rebuilding the
           // list from it lost both. The device is shown there too.
           enh.checked = true;
-          h.callWS({ type: 'hk_energy/device/section', key: enRec.key, section: ens.value }).catch(fail);
+          h.actions.callWS({ type: 'hk_energy/device/section', key: enRec.key, section: ens.value }).catch(fail);
         });
       }
 
@@ -1801,7 +1815,7 @@
       room.addEventListener('change', function () {
         var v = room.value || null;
         if (errBox) errBox.hidden = true;
-        h.callWS({ type: 'config/entity_registry/update', entity_id: id,
+        h.actions.callWS({ type: 'config/entity_registry/update', entity_id: id,
                    area_id: v && v === devArea ? null : v }).catch(fail);
       });
 
@@ -1871,7 +1885,7 @@
           mini.innerHTML = arr.visible.map(function (x) {
             var t = arr.look[x] || {};
             return '<div class="mt' + (t.tall ? ' tall' : '') + (x === id ? ' on' : '') + '">' +
-              (t.icon ? '<ha-icon icon="' + esc(t.icon) + '"></ha-icon>' : '') + '<span>' + esc(t.name || x) + '</span></div>';
+              (t.icon ? '<hk-icon icon="' + esc(t.icon) + '"></hk-icon>' : '') + '<span>' + esc(t.name || x) + '</span></div>';
           }).join('');
           var i = arr.visible.indexOf(id);
           mvl.disabled = i <= 0;
@@ -1889,7 +1903,7 @@
           var msg = arr.fav ? { type: 'hk_frontend/board/set', dashboard: arr.dash, changes: { favorites: next.full } }
                             : { type: 'hk_frontend/accessory/order', area_id: arr.area, entities: next.full };
           // one at a time, in the order tapped
-          queue = queue.then(function () { return h.callWS(msg); }).catch(fail);
+          queue = queue.then(function () { return h.actions.callWS(msg); }).catch(fail);
         };
         mvl.addEventListener('click', function () { move(-1); });
         mvr.addEventListener('click', function () { move(1); });
@@ -1904,7 +1918,7 @@
         var btn = function (it) {
           var on = chosen === it.v || chosen.replace(/^(hk|mdi):/, '') === it.v.replace(/^(hk|mdi):/, '');
           return '<button data-v="' + esc(it.v) + '" aria-label="' + esc(it.v.replace(/^(hk|mdi):/, '').replace(/-/g, ' ')) +
-                 (it.mdi ? ' (Material)' : '') + '"' + (on ? ' class="on"' : '') + '><ha-icon icon="' + esc(it.icon) + '"></ha-icon></button>';
+                 (it.mdi ? ' (Material)' : '') + '"' + (on ? ' class="on"' : '') + '><hk-icon icon="' + esc(it.icon) + '"></hk-icon></button>';
         };
         var query = String(q || '').trim();
         box._q = query;
@@ -1950,7 +1964,7 @@
         fav.addEventListener('change', function () {
           if (errBox) errBox.hidden = true;
           if (fav.checked) { var fs = el.querySelector('.sec.fav'); if (fs) fs.hidden = false; }
-          h.callWS({ type: 'hk_frontend/board/favorite', dashboard: dash, entity_id: id,
+          h.actions.callWS({ type: 'hk_frontend/board/favorite', dashboard: dash, entity_id: id,
                      favorite: fav.checked }).catch(fail);
         });
       }
@@ -2101,23 +2115,39 @@
       return el;
     }
 
+    // THE BRIDGE: a sheet's controls act through the client's action port
+    // (HkBase._call), so a panel is simply shown its client. A card inside a
+    // sheet (the thermostat, the alarm keypad) gets what goes with the client
+    // from the host adapter: in HA an HK card takes the frontend's object at its
+    // entry and reads the client made from it, and an HA-drawn card needs that
+    // object itself (or the client itself, read-only, when there is none).
+    function bridge(el, client) { window.hkHostClient.bridge(el, client); }
+
     // opts: { direct } -- open this sheet, not the #alarm pop-up that hands
     //        back to it; { hashed } -- opened FOR a pop-up's hash, whose own
     //        history entry is the one Back leaves (so none is pushed here);
-    //        { onClose } -- called once the sheet has gone, however it went
+    //        { onClose } -- called once the sheet has gone, however it went;
+    //        { generic } -- true: HK's generic sheet when there is no sheet of
+    //        its own here (or its element is not defined); 'only': the
+    //        generic sheet whatever the kind (sheets switched off on a host
+    //        without a detail of its own)
     function open(id, src, opts) {
       opts = opts || {};
-      var h = C.hass();
+      var h = C.client();
       // A GROUP (openGroup below) is a sheet of several things, not one;
       // CARDS (a custom pop-up) the home's own cards.
-      var kind = opts.group ? 'group' : opts.cards ? 'cards' : kindOf(h, id);
+      var kind = opts.group ? 'group' : opts.cards ? 'cards' : opts.generic === 'only' ? 'generic' : kindOf(h, id);
+      if (!kind && opts.generic) kind = 'generic';
       if (!kind) return false;
       // THE ALARM IS A SHEET LIKE THE REST -- just the keypad -- opened
       // directly on a tap, not through a # pop-up. The #alarm pop-up remains
       // for an alarm automation that opens it by URL, and it hands straight
       // back here (opts.direct).
       var tag = PANELS[kind];
+      if ((!tag || !customElements.get(tag)) && opts.generic && !opts.group && !opts.cards) { kind = 'generic'; tag = PANELS.generic; }
       if (!tag || !customElements.get(tag)) return false;
+      // the generic sheet is about a state: nothing to show for none
+      if (kind === 'generic' && !stOf(h, id)) return false;
       // A SHEET OPENED FROM A SHEET takes over the open one's history entry
       // rather than stacking a second: pushing again would leave the first
       // entry behind, and the next Back press would land on it and do nothing.
@@ -2136,10 +2166,10 @@
         '.hkd[hk-flat] .x,.hkd[hk-flat] .gear{background:var(--hk-key);color:var(--hk-ink)}' +
         '.hkd[hk-flat] .well{background:var(--hk-key)}' + '</style><div class="bd"></div>' +
         '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="hkd-t' + tok + '">' +
-          '<div class="hd"><div class="well"><ha-state-icon></ha-state-icon></div>' +
+          '<div class="hd"><div class="well"><hk-state-icon></hk-state-icon></div>' +
           '<div class="tx"><div class="tt" id="hkd-t' + tok + '"></div></div>' +
-          '<button class="gear" aria-label="Accessory settings" hidden><ha-icon icon="mdi:cog"></ha-icon></button>' +
-          '<button class="x" aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button></div>' +
+          '<button class="gear" aria-label="Accessory settings" hidden><hk-icon icon="mdi:cog"></hk-icon></button>' +
+          '<button class="x" aria-label="Close"><hk-icon icon="mdi:close"></hk-icon></button></div>' +
           '<div class="body-frame"><div class="body"></div></div></div>';
       var sheet = el.querySelector('.sheet');
       var panel = document.createElement(tag);
@@ -2153,7 +2183,7 @@
 
       D = {
         el: el, id: id, kind: kind, src: src || {}, panel: panel, sheet: sheet, tok: tok,
-        well: el.querySelector('.well'), icon: el.querySelector('ha-state-icon'),
+        well: el.querySelector('.well'), icon: el.querySelector('hk-state-icon'),
         tt: el.querySelector('.tt'), fed: null,
         // where it opened: a move to another page, or to a pop-up's hash,
         // takes the sheet down (see `moved` below)
@@ -2187,14 +2217,14 @@
         var bk = document.createElement('button');
         bk.className = 'x';
         bk.setAttribute('aria-label', 'Back');
-        bk.innerHTML = '<ha-icon icon="mdi:chevron-left"></ha-icon>';
+        bk.innerHTML = '<hk-icon icon="mdi:chevron-left"></hk-icon>';
         bk.addEventListener('click', function (e) { e.stopPropagation(); close(); });
         el.querySelector('.hd').insertBefore(bk, el.querySelector('.well'));
       } else if (D.returnGroup) {
         var back = document.createElement('button');
         back.className = 'x';
         back.setAttribute('aria-label', 'Back to ' + D.returnGroup.title);
-        back.innerHTML = '<ha-icon icon="mdi:chevron-left"></ha-icon>';
+        back.innerHTML = '<hk-icon icon="mdi:chevron-left"></hk-icon>';
         back.addEventListener('click', function (e) { e.stopPropagation(); close(); });
         el.querySelector('.hd').insertBefore(back, el.querySelector('.well'));
       }
@@ -2215,11 +2245,11 @@
             return;
           }
           panel.style.display = 'none';
-          body.appendChild(accessoryPane(C.hass() || h, id, function (name) {
+          body.appendChild(accessoryPane(C.client() || h, id, function (name) {
             // what was just typed shows at once (a hand-written tile's own
             // name is back the next time the sheet opens)
             if (D.el === el) D.tt.textContent = name || (D.src && D.src.name) ||
-              at(stOf(C.hass(), id), 'friendly_name') || id;
+              at(stOf(C.client(), id), 'friendly_name') || id;
           }, { tile: D.el === el && D.src ? D.src.el : null }));
           body.scrollTop = 0;
           gear.firstChild.setAttribute('icon', 'mdi:check');
@@ -2245,30 +2275,33 @@
 
       haRoot().appendChild(el);
       var d = D;
-      // EVERY NEW HASS, FROM EITHER SOURCE, ONCE. The hub (hk-base.js) hands
-      // over each new object at once, but moves only while hk cards are on
-      // screen; <home-assistant> always holds the frontend's current object,
-      // so it is looked at too, four times a second while the sheet is open:
-      // one property read and an identity compare, gone with the sheet. (It
-      // was looked at every animation frame, and a callback every frame
-      // kept the tablet drawing 60 frames a second for as long as a sheet
-      // was open.) An event would need Home Assistant to announce hass
-      // changes, which it does not, and wrapping its `hass` setter would be
-      // reaching into the frontend's own element.
-      var feed = function (nh) {
-        if (!nh || nh === d.fed || D !== d) return;
-        d.fed = nh;
-        var ns = stOf(nh, d.id);
+      // EVERY NEW CLIENT, FROM EITHER SOURCE, ONCE. The hub (hk-base.js)
+      // hands over each new one at once, but moves only while hk cards are on
+      // screen; the host adapter always knows the current one (in Home
+      // Assistant, read off the frontend's root element), so it is looked at
+      // too, four times a second while the sheet is open: one lookup and an
+      // identity compare, gone with the sheet. (It was looked at every
+      // animation frame, and a callback every frame kept the tablet drawing
+      // 60 frames a second for as long as a sheet was open.) The host does
+      // not announce its updates, and wrapping its setter would be reaching
+      // into the frontend's own element.
+      var feed = function (nc) {
+        if (!nc || nc === d.fed || D !== d) return;
+        d.fed = nc;
+        var ns = stOf(nc, d.id);
         var sig = ns ? ns.last_updated : 'x';
-        if (sig !== d.sig) { d.sig = sig; paintHeader(nh); }
-        panel.hass = nh;
+        if (sig !== d.sig) { d.sig = sig; paintHeader(nc); }
+        // A panel acts through its client's action port, so this file's own
+        // panels are simply shown the client. The rest (camera, group, custom
+        // cards, and the panels other files define) are fed through the bridge,
+        // as before; they read the client too, and pass it on to their cards.
+        if (CLIENT_FED.indexOf(panel.constructor) >= 0) panel.client = nc; else bridge(panel, nc);
       };
       feed(h);
-      d.off = C.onHass(feed);
-      var ha = document.querySelector('home-assistant');
+      d.off = C.onClient(feed);
       var poll = function () {
         if (D !== d) return;
-        if (ha && ha.hass) feed(ha.hass);
+        feed(C.client());
         d.raf = setTimeout(poll, 250);
       };
       d.raf = setTimeout(poll, 250);
@@ -2360,6 +2393,32 @@
       if (d.onClose) { try { d.onClose(); } catch (e) { /* the caller's */ } }
     }
 
+    // "OPEN IN HOME ASSISTANT" (the generic sheet, for an admin on a host with
+    // a detail of its own): the sheet goes first, with its history entry --
+    // the host's dialog keeps one of its own, and the Back that took the
+    // sheet's entry would otherwise land on the dialog's and close it -- and
+    // then the host shows its own detail. false: the host has none.
+    function toHost(id) {
+      var sh = window.hkShell;
+      if (!id || !sh.hostDetail(id)) return false;
+      var go = function () { sh.openHostDetail(id); };
+      var d = D;
+      if (!d.el) { go(); return true; }
+      var back = !!(d.pushed && ours(d));
+      close(false, true);
+      if (!back) { go(); return true; }
+      var done = false;
+      var run = function () {
+        if (done) return;
+        done = true;
+        window.removeEventListener('popstate', run);
+        go();
+      };
+      window.addEventListener('popstate', run);
+      setTimeout(run, 400);
+      return true;
+    }
+
     window.addEventListener('popstate', function () {
       if (D.el && !ours(D)) {
         if (D.returnGroup && location.pathname === D.path && location.hash === D.hash) restoreGroup(D.returnGroup);
@@ -2382,7 +2441,7 @@
       if (D.popup && location.hash !== '#' + D.popup) { close(true); return; }
       if (location.pathname !== D.path || (location.hash && location.hash !== D.hash)) close(true);
     }
-    window.addEventListener('location-changed', moved);
+    window.hkShell.onNavigate(moved);
     window.addEventListener('hashchange', moved);
 
     // ESCAPE CLOSES IT, like HA's dialog. On window, bubbling: hk-base's
@@ -2399,8 +2458,7 @@
         try { if (ours(D)) history.replaceState(null, '', location.href); } catch (e) { /* ok */ }
         close(true);
       }
-      history.pushState(null, '', path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
+      window.hkShell.navigate(path);
     }
 
     // ------------------------------------------------------------ interception
@@ -2416,7 +2474,7 @@
         var t = path[i] && path[i].tagName;
         if (!t) continue;
         if (HA_OWN[t]) return false;
-        if (t === 'HA-PANEL-LOVELACE' || t.indexOf('HK-') === 0) mine = true;
+        if (window.hkShell.is(path[i], 'panel') || t.indexOf('HK-') === 0) mine = true;
       }
       return mine;
     }
@@ -2450,18 +2508,21 @@
       return !!(src && src.config && src.config.detail === false);
     }
 
-    window.addEventListener('hass-more-info', function (e) {
+    // THE HOST'S OWN DETAIL (HA's dialog) keeps what HK leaves: a tap from
+    // the host's own pages, sheets switched off, a kind with no sheet here --
+    // let through untouched. A host without one leaves it all to HK: the
+    // generic sheet in place of a missing one ('only': sheets switched off).
+    window.addEventListener(window.hkShell.events.moreInfo, function (e) {
       var id = e.detail && e.detail.entityId;
       if (!id) return;
-      if (!fromDashboard(e)) return;
-      var src = sourceOf(e, id);
-      if (disabled(src)) return;
-      var h = C.hass();
-      if (!kindOf(h, id)) return;
-      // Taken only if a sheet actually opened: open() can still say no (an
-      // alarm on a dashboard with neither #alarm nor an alarm view), and a
-      // swallowed event would be a dead tap. HA's own dialog then opens.
-      if (!open(id, src)) return;
+      var host = window.hkShell.hostDetail(id);
+      if (host && !fromDashboard(e)) return;
+      var src = sourceOf(e, id), off = disabled(src);
+      if (host && (off || !kindOf(C.client(), id))) return;
+      // Taken only if a sheet actually opened: open() can still say no (a
+      // sheet's element not defined yet), and a swallowed event would be a
+      // dead tap. The host's own dialog then opens.
+      if (!open(id, src, host ? undefined : { generic: off ? 'only' : true })) return;
       e.stopImmediatePropagation();
       e.stopPropagation();
     }, true);
@@ -2643,7 +2704,7 @@
       static get CSS() { return PANEL_CSS; }
       // _stateObj, not _st: HkBase has a METHOD _st(id), and a getter of the
       // same name would replace it for every panel.
-      get _stateObj() { return stOf(this._hass, this._config && this._config.entity); }
+      get _stateObj() { return stOf(this.client, this._config && this._config.entity); }
       get _id() { return this._config && this._config.entity; }
       get _src() { return (this._config && this._config.src) || {}; }
       _svc(domain, service, data) {
@@ -2914,7 +2975,7 @@
       }
       _paintFavs(s) {
         var self = this;
-        var favs = favourites(this._hass, s, function () { self._favSig = null; self._render(); });
+        var favs = favourites(this.client, s, function () { self._favSig = null; self._render(); });
         var sig = JSON.stringify(favs) + '|' + (at(s, 'hs_color') || '') + '|' + at(s, 'color_temp_kelvin') + '|' + at(s, 'color_mode');
         if (sig === this._favSig) return;
         this._favSig = sig;
@@ -3238,13 +3299,13 @@
         return SPEED_NAMES[this._n] ? Math.round(pct) + '%' : '';
       }
       _sigOf() {
-        var h = this._hass, id = this._id;
+        var h = this.client, id = this._id;
         if (!h || !id) return null;
         var a = h.states[id], g = h.states[fanGuard(id)];
         return (a ? a.last_updated : 'x') + '|' + (g ? g.last_updated : 'x');
       }
       _paintGuard() {
-        var h = this._hass, slot = this._gslot, self = this;
+        var h = this.client, slot = this._gslot, self = this;
         if (!h || !slot) return;
         var g = h.states[fanGuard(this._id)];
         if (!g || g.state !== 'active') { slot.innerHTML = ''; return; }
@@ -3680,7 +3741,7 @@
       // to now every minute, so a running system counts up. The same rows
       // carry current_temperature, which is the trend.
       _runs() {
-        var self = this, h = this._hass, id = this._id, now = Date.now();
+        var self = this, h = this.client, id = this._id, now = Date.now();
         if (h && h.callWS && (!this._runAt || now - this._runAt > 300000)) {
           this._runAt = now;
           var y = new Date(); y.setHours(0, 0, 0, 0); y.setDate(y.getDate() - 1);
@@ -3737,7 +3798,7 @@
         side.style.marginTop = Math.max(0, Math.round(inset)) + 'px';
       }
       _sigOf() {
-        var h = this._hass, id = this._id;
+        var h = this.client, id = this._id;
         if (!h || !id) return null;
         var a = h.states[id], w = h.states[this._wx()];
         return (a ? a.last_updated : 'x') + '|' + (w ? w.last_updated : '');
@@ -3746,7 +3807,7 @@
       _render() {
         var s = this._stateObj;
         if (!s) return;
-        var h = this._hass;
+        var h = this.client;
         if (!this._built) {
           this._built = true;
           this._root.innerHTML = '<div class="pn"><div class="dial"></div><div class="side"><div class="now"><div class="rd"></div>' +
@@ -3762,7 +3823,8 @@
           var self = this;
           this._tickT = setInterval(function () { self._runs(); }, 60000);
         }
-        if (this._card) this._card.hass = h;
+        // the thermostat card gets what goes with the client (the host adapter decides)
+        if (this._card) bridge(this._card, h);
         this._alignTop();
         var a = s.attributes || {};
         var wx = stOf(h, this._wx());
@@ -4001,7 +4063,7 @@
         e.ar.textContent = line;
         // WHERE it plays: the speaker's room (the pill's own name can be a
         // shortcut like "Apple Music"), else its own name.
-        var where = roomOf(this._hass, this._id) || a.friendly_name || '';
+        var where = roomOf(this.client, this._id) || a.friendly_name || '';
         e.on.textContent = (s.state === 'playing' ? 'Playing on · ' : s.state === 'paused' ? 'Paused on · ' : off ? '' : 'Ready on · ') + (off ? '' : where);
         // artwork: entity_picture_local FIRST, as the now-playing bar and Play
         // Music do (hk-media). Music Assistant's entity_picture is
@@ -4239,7 +4301,7 @@
       // an energy device's sheet also follows its switch and the circuits
       // beside it (their watts on its rows)
       _sigOf() {
-        var base = super._sigOf(), h = this._hass, rec = energyRec(this._id);
+        var base = super._sigOf(), h = this.client, rec = energyRec(this._id);
         if (!rec || !h) return base;
         var P = energyPlan() || {}, ids = [rec.control];
         [rec.parent].concat(rec.children || []).forEach(function (k) { var o = (P.devices || {})[k]; if (o) ids.push(o.power); });
@@ -4298,7 +4360,7 @@
       _cal() {
         var r = this._range, S = window.hkStats;
         if ((r !== 'week' && r !== 'month') || !S || !S.period || !S.weekStart) return null;
-        var ws = S.weekStart(this._hass), now = Date.now(), back = this._back || 0, today0 = S.addDays(now, 0);
+        var ws = S.weekStart(this.client), now = Date.now(), back = this._back || 0, today0 = S.addDays(now, 0);
         var key = [r, back, ws, today0].join('|');
         if (this._calK === key) return this._calV;
         var days = function (P) {
@@ -4328,7 +4390,7 @@
       }
       // AN ENERGY DEVICE: today, its cost, the usual day; where it sits; its switch
       _paintEnergy(s, energy) {
-        var rec = this._rec, el = this._en, h = this._hass, self = this;
+        var rec = this._rec, el = this._en, h = this.client, self = this;
         if (!el) return;
         if (!rec) { el.hidden = true; el.innerHTML = ''; return; }
         var P = energyPlan() || {}, T = P.total || {}, S = window.hkStats;
@@ -4405,7 +4467,7 @@
       // (or the total), the daily average with its peak, and the period
       // before at the same point (or whole, for a past one).
       _paintCalBars(s, pts, cal, H, unit, phone, empty) {
-        var byT = {}, h = this._hass, wk = cal.r === 'week', u = esc(unit), S = window.hkStats;
+        var byT = {}, h = this.client, wk = cal.r === 'week', u = esc(unit), S = window.hkStats;
         pts.forEach(function (p) { if (p && p.v != null && isFinite(p.v)) byT[+p.t] = p.v; });
         var data = cal.dates.map(function (t, k) {
           var fut = cal.cur && k > cal.todayK, pt = { t: new Date(t), v: fut || byT[t] == null ? null : byT[t] };
@@ -4466,7 +4528,7 @@
       }
       // The series for the range, or null while it loads.
       _series(s, energy, meter) {
-        var h = this._hass, id = meter || this._id, r = this._range, S = window.hkStats;
+        var h = this.client, id = meter || this._id, r = this._range, S = window.hkStats;
         if (!S) return null;
         var self = this;
         var viaStats = function (fn, n, opts) {
@@ -4626,7 +4688,7 @@
       '  background:rgba(255,255,255,0.07);transition:background .25s}',
       '.gw .gc{width:120px;height:120px;border-radius:60px;display:flex;align-items:center;justify-content:center;',
       '  background:rgba(255,255,255,0.14);color:rgba(255,255,255,0.85);transition:background .25s,color .25s}',
-      '.gw ha-state-icon{--mdc-icon-size:56px;display:flex}',
+      '.gw hk-state-icon{--mdc-icon-size:56px;display:flex}',
       '.gw.on{background:color-mix(in srgb,var(--hkd-accent,#56bde4) 22%,transparent)}',
       '.gw.on .gc{background:var(--hkd-accent,#56bde4);color:#fff}',
       '.big.w{font-size:52px}',
@@ -4643,13 +4705,13 @@
       '.tl .lg span{display:inline-flex;align-items:center;gap:6px}',
       '.tl .lg b{width:10px;height:10px;border-radius:3px;display:inline-block}',
       '@media (max-width:' + C.BP.phone + 'px){.pn{gap:16px}.gw{width:150px;height:150px;border-radius:75px}',
-      '  .gw .gc{width:100px;height:100px;border-radius:50px}.gw ha-state-icon{--mdc-icon-size:48px}',
+      '  .gw .gc{width:100px;height:100px;border-radius:50px}.gw hk-state-icon{--mdc-icon-size:48px}',
       '  .big.w{font-size:44px}.tl .bar{height:52px}}'
     ].join('');
     var DAY = 24 * 3600000;
     var QUARTERS = '<b class="q" style="left:25%"></b><b class="q" style="left:50%"></b><b class="q" style="left:75%"></b>';
     function senseShell(title) {
-      return '<div class="pn"><div class="gw"><div class="gc"><ha-state-icon></ha-state-icon></div></div>' +
+      return '<div class="pn"><div class="gw"><div class="gc"><hk-state-icon></hk-state-icon></div></div>' +
         '<div class="big w"></div><div class="since"></div>' +
         '<div class="tl" hidden><div class="th"><span class="t">' + title + '</span><span class="n"></span></div>' +
         '<div class="bar"></div>' + timeRow(DAY, 5) + '<div class="lg" hidden></div></div></div>';
@@ -4677,19 +4739,19 @@
       _shell(title) {
         this._root.innerHTML = senseShell(title);
         var q = this._root.querySelector.bind(this._root);
-        this._gw = q('.gw'); this._icon = q('ha-state-icon');
+        this._gw = q('.gw'); this._icon = q('hk-state-icon');
         this._big = q('.big'); this._since = q('.since'); this._tl = q('.tl');
         this.style.setProperty('--hkd-accent', colourName(lookFor(this._src, this._id), this._id));
         if (this._src.icon) this._icon.icon = this._src.icon;
       }
       _glyph(s, on) {
-        this._icon.hass = this._hass;
-        this._icon.stateObj = s;
+        var c = this.client;
+        if (c && c.bindStateIcon) c.bindStateIcon(this._icon, s); else this._icon.stateObj = s;
         this._gw.classList.toggle('on', !!on);
       }
       _fetch() {
         var self = this;
-        dayRows(this._hass, this._id).then(function (r) {
+        dayRows(this.client, this._id).then(function (r) {
           self._rows = r.rows; self._t0 = r.t0;
           self._paintDay();
         }).catch(function () { /* no timeline */ });
@@ -4739,7 +4801,7 @@
           this._shell('Last 24 hours');
           this._fetch();
         }
-        var h = this._hass, txt;
+        var h = this.client, txt;
         try { txt = h.formatEntityState ? h.formatEntityState(s) : s.state; } catch (e) { txt = s.state; }
         this._glyph(s, !unavailable(s) && s.state !== 'off' && s.state !== 'unknown');
         this._big.textContent = unavailable(s) ? 'Unavailable' : txt;
@@ -4747,7 +4809,7 @@
         if (this._lastSeen !== s.last_changed) { this._lastSeen = s.last_changed; if (this._rows) this._fetch(); }
       }
       _paintDay() {
-        var t0 = this._t0, now = Date.now(), span = now - t0, h = this._hass, self = this;
+        var t0 = this._t0, now = Date.now(), span = now - t0, h = this.client, self = this;
         var segs = spansOf(this._rows, t0, now).filter(function (g) { return g.state !== 'unavailable' && g.state !== 'unknown'; });
         if (!segs.length) return;
         var total = {};
@@ -4770,6 +4832,145 @@
         lg.innerHTML = order.slice(0, 4).map(function (st) {
           return '<span><b style="background:' + col[st] + '"></b>' + esc(word(st)) + ' · ' + dur(total[st] / 1000) + '</span>';
         }).join('');
+      }
+    }
+
+    // ------------------------------------------------------------ generic
+    // THE GENERIC SHEET (Phase 2 P2.5): an entity HK draws no sheet of its
+    // own for, on a host without a detail of its own (Mantel; Home Assistant
+    // keeps its more-info dialog for these). Its glyph, its state in the
+    // client's words, since when, what it says about itself (its key
+    // attributes, named and formatted by the client), a control only where
+    // one is obvious, and for an admin on a host with a detail of its own,
+    // "Open in Home Assistant" (toHost). Nothing else: no history, no
+    // settings beyond the gear every sheet has for an admin.
+    //
+    // NOT A KEY ATTRIBUTE: what the sheet already shows (name, glyph, unit,
+    // the state's class), the host's bookkeeping, and anything that is not
+    // a short value.
+    var GENERIC_SKIP = {
+      friendly_name: 1, icon: 1, entity_picture: 1, supported_features: 1, supported_color_modes: 1,
+      assumed_state: 1, attribution: 1, device_class: 1, unit_of_measurement: 1, state_class: 1,
+      editable: 1, id: 1, restored: 1, entity_id: 1, hidden: 1, icon_color: 1, options: 1
+    };
+    var GENERIC_ROWS = 8;
+    // [{ key, name, value }]: at most GENERIC_ROWS, in the entity's own order
+    function genericRows(c, s) {
+      var a = (s && s.attributes) || {}, out = [];
+      Object.keys(a).forEach(function (k) {
+        if (out.length >= GENERIC_ROWS || GENERIC_SKIP[k]) return;
+        var v = a[k], t = typeof v;
+        var short = t === 'string' ? v !== '' && v.length <= 120 : t === 'number' ? isFinite(v) : t === 'boolean' ? true :
+          Array.isArray(v) ? v.length > 0 && v.length <= 6 && v.every(function (x) { return typeof x === 'string' || typeof x === 'number'; }) : false;
+        if (!short) return;
+        var name, value;
+        try { name = c && c.formatEntityAttributeName ? c.formatEntityAttributeName(s, k) : k; } catch (e) { name = k; }
+        try { value = c && c.formatEntityAttributeValue ? c.formatEntityAttributeValue(s, k) : String(v); } catch (e) { value = String(v); }
+        if (value == null || value === '') return;
+        out.push({ key: k, name: String(name || k), value: String(value) });
+      });
+      return out;
+    }
+    // THE ONE OBVIOUS CONTROL, through the client's action port: a toggle
+    // (homeassistant.toggle) for an on/off state in a domain that takes one,
+    // Activate for a scene, Run for a script; none for anything else, and
+    // never for what HK never toggles in one tap (hk-base's neverToggles).
+    var GENERIC_TOGGLE = { remote: 1, group: 1, input_boolean: 1, switch: 1, light: 1, fan: 1, humidifier: 1 };
+    function genericControl(c, id, s) {
+      if (!s || !id) return null;
+      var d = domainOf(id);
+      if (C.neverToggles && C.neverToggles(c, id)) return null;
+      if (d === 'scene') return { kind: 'run', label: 'Activate', domain: 'scene', service: 'turn_on' };
+      if (d === 'script') return { kind: 'run', label: 'Run', domain: 'script', service: 'turn_on' };
+      if (GENERIC_TOGGLE[d] && (s.state === 'on' || s.state === 'off')) {
+        return { kind: 'toggle', label: s.state === 'on' ? 'Turn Off' : 'Turn On', domain: 'homeassistant', service: 'toggle' };
+      }
+      return null;
+    }
+    var GENERIC_CSS = [
+      // a long state (a date and time, a sentence) steps down and wraps rather than leave the sheet
+      '.big{max-width:100%;overflow-wrap:anywhere}',
+      '.big.w.long{font-size:30px;letter-spacing:-0.5px;line-height:1.15}',
+      '.gbtn{min-width:200px;height:50px;padding:0 24px;border:0;border-radius:25px;font:inherit;font-size:17px;font-weight:600;',
+      '  color:' + window.hkCards.v('ink') + ';background:rgba(255,255,255,0.16);cursor:pointer;-webkit-tap-highlight-color:transparent}',
+      '.gbtn.on{background:#30d158;color:#fff}',
+      '.gbtn[disabled]{opacity:.45;cursor:default}',
+      '.attrs{align-self:stretch;padding:4px 20px;border-radius:20px;background:rgba(255,255,255,0.08)}',
+      '.attrs .r{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 0;font-size:15px}',
+      '.attrs .r + .r{border-top:0.5px solid rgba(255,255,255,0.12)}',
+      '.attrs .k{color:' + window.hkCards.v('ink-2') + '}',
+      '.attrs .v{text-align:right;overflow-wrap:anywhere}',
+      '.hostlink{appearance:none;border:0;background:none;font:inherit;font-size:15px;color:#0a84ff;cursor:pointer;padding:6px 10px}',
+      ':host([hk-flat]) .attrs{background:' + C.v('key') + '}',
+      ':host([hk-flat]) .attrs .r + .r{border-top-color:' + C.v('line') + '}',
+      ':host([hk-flat]) .gbtn:not(.on){background:' + C.v('key') + ';color:' + C.v('glyph') + '}'
+    ].join('');
+    class GenericPanel extends SensePanel {
+      static get CSS() { return PANEL_CSS + SENSE_CSS + GENERIC_CSS; }
+      hkWidthKind() { return 'generic'; }
+      _render() {
+        var s = this._stateObj, c = this.client, self = this;
+        if (!s) return;
+        if (!this._built) {
+          this._built = true;
+          this._shell('');
+          var pn = this._root.querySelector('.pn');
+          this._gCtl = document.createElement('button');
+          this._gCtl.className = 'gbtn';
+          this._gCtl.hidden = true;
+          this._gCtl.addEventListener('click', function () { self._gRun(); });
+          this._gList = document.createElement('div');
+          this._gList.className = 'attrs';
+          this._gList.hidden = true;
+          this._gHost = document.createElement('button');
+          this._gHost.className = 'hostlink';
+          this._gHost.textContent = 'Open in Home Assistant';
+          this._gHost.hidden = true;
+          this._gHost.addEventListener('click', function () { toHost(self._id); });
+          pn.appendChild(this._gCtl);
+          pn.appendChild(this._gList);
+          pn.appendChild(this._gHost);
+        }
+        var txt;
+        try { txt = c && c.formatEntityState ? c.formatEntityState(s) : s.state; } catch (e) { txt = s.state; }
+        this._glyph(s, isOn(s));
+        this._big.textContent = gone(s) ? 'Unavailable' : txt;
+        this._big.classList.toggle('long', String(this._big.textContent).length > 14);
+        this._since.textContent = unavailable(s) ? '' : sinceText(s.last_changed);
+        // the control: what it does now (a toggle's word follows the state)
+        var ctl = genericControl(c, this._id, s);
+        this._gSpec = ctl;
+        this._gCtl.hidden = !ctl;
+        if (ctl) {
+          this._gCtl.textContent = ctl.label;
+          this._gCtl.classList.toggle('on', ctl.kind === 'toggle' && s.state === 'on');
+          this._gCtl.disabled = gone(s);
+        }
+        // the key attributes, redrawn only when what they say changed
+        var rows = genericRows(c, s), sig = JSON.stringify(rows);
+        if (sig !== this._gSig) {
+          this._gSig = sig;
+          this._gRows = rows;
+          this._gList.innerHTML = '';
+          rows.forEach(function (r) {
+            var row = document.createElement('div'), k = document.createElement('span'), v = document.createElement('span');
+            row.className = 'r'; k.className = 'k'; v.className = 'v';
+            k.textContent = r.name; v.textContent = r.value;
+            row.appendChild(k); row.appendChild(v);
+            self._gList.appendChild(row);
+          });
+          this._gList.hidden = !rows.length;
+        }
+        // an admin, on a host with a detail of its own (none in Mantel)
+        this._gHost.hidden = !(canEdit(c) && window.hkShell.hostDetail(this._id));
+      }
+      _gRun() {
+        var ctl = this._gSpec, s = this._stateObj, self = this;
+        if (!ctl || !s || gone(s)) return;
+        var go = function () { self._svc(ctl.domain, ctl.service); };
+        var conf = this._src.confirmation;
+        if (conf && C.confirmSheet) C.confirmSheet(conf.text || (ctl.label + '?'), go);
+        else go();
       }
     }
 
@@ -4914,7 +5115,7 @@
       // the sensors: the source card's, else found on the vacuum's device
       _parts() {
         if (this._pt) return this._pt;
-        var c = this._src.config || {}, h = this._hass, id = this._id;
+        var c = this._src.config || {}, h = this.client, id = this._id;
         var find = function (re, dc) {
           return deviceSensor(h, id, function (k, st) {
             return dc ? !!(st && st.attributes && st.attributes.device_class === dc) : re.test(k);
@@ -4929,12 +5130,12 @@
         };
         return this._pt;
       }
-      _v(id) { var st = id && this._hass && this._hass.states[id]; return st ? st.state : null; }
+      _v(id) { var c = this.client, st = id && c && c.states[id]; return st ? st.state : null; }
       // The chips read other sensors (battery, room, progress, errors): they
       // are inputs like the vacuum, or a battery charging on the dock would
       // never move the sheet (the default signature is the vacuum alone).
       _sigOf() {
-        var h = this._hass, id = this._id;
+        var h = this.client, id = this._id;
         if (!h || !id) return null;
         var p = this._parts(), out = '';
         [id, p.battery, p.room, p.progress, p.error, p.dock_error].forEach(function (k) {
@@ -5004,7 +5205,7 @@
     // vacuum.clean_area gets the button; one that just starts in its own room
     // has nothing to choose.
     VacuumPanel.prototype._areasBtn = function () {
-      var self = this, h = this._hass;
+      var self = this, h = this.client;
       var add = function () {
         if (!self._reach || !self._reach.length || self._view !== 'main') return;
         var pn = self._root.querySelector('.pn');
@@ -5025,7 +5226,7 @@
         var plan = (res && res.response && res.response.plan) || [];
         var mine = plan.filter(function (p) { return p.vacuum === id && p.action === 'clean_area'; })[0];
         var areas = (mine && mine.areas) || [];
-        var hh = self._hass || h;
+        var hh = self.client || h;
         self._reach = areas.map(function (a) { return { id: a, name: (hh.areas[a] && hh.areas[a].name) || pretty(a) }; })
           .sort(function (x, y) { return x.name.localeCompare(y.name); });
         add();
@@ -5415,7 +5616,7 @@
       _go(v) { this._view = v; this._built = false; this._render(); }
       _range(s) {
         var a = s.attributes || {};
-        var unit = (this._hass && this._hass.config && this._hass.config.unit_system && this._hass.config.unit_system.temperature) || '°F';
+        var c = this.client, unit = window.hkLocale.units().temp;
         var lo = num(a.min_temp), hi = num(a.max_temp);
         if (lo == null) lo = /C/.test(unit) ? 30 : 90;
         if (hi == null || hi <= lo) hi = /C/.test(unit) ? 70 : 150;
@@ -5615,7 +5816,7 @@
       }
       // the tank's last day, from the heater's own history (current_temperature)
       _tank() {
-        var self = this, h = this._hass, id = this._id, now = Date.now();
+        var self = this, h = this.client, id = this._id, now = Date.now();
         if (!this._trend) return;
         if (h && h.callWS && (!this._runAt || now - this._runAt > 300000)) {
           this._runAt = now;
@@ -5663,7 +5864,7 @@
           '.big.al{font-size:40px;align-self:center;display:flex;align-items:center;gap:12px}',
           '.big.al.trg{color:#ff453a}',
           // the shield the Security page's keypad shows at rest, in its colour
-          '.big.al ha-icon{--mdc-icon-size:36px;width:36px;height:36px;display:flex;flex:none}',
+          '.big.al hk-icon{--mdc-icon-size:36px;width:36px;height:36px;display:flex;flex:none}',
           // the Security page's keypad, unboxed, its keys a size up for the sheet
           'hk-alarm-keypad-card{display:block;--hk-kp-key:56px}',
           // AN ALARM WITH NO CODE, AS A SHADE'S SHEET: the state's word, and
@@ -5735,9 +5936,9 @@
         }
         if (!this._built) {
           this._built = true;
-          this._root.innerHTML = '<div class="pn"><div class="big al"><ha-icon></ha-icon><span></span></div></div>';
+          this._root.innerHTML = '<div class="pn"><div class="big al"><hk-icon></hk-icon><span></span></div></div>';
           this._big = this._root.querySelector('.big');
-          this._bigIcon = this._big.querySelector('ha-icon');
+          this._bigIcon = this._big.querySelector('hk-icon');
           this._bigWord = this._big.querySelector('span');
           var card = document.createElement('hk-alarm-keypad-card');
           // glass: false -- the sheet is its own blur (as every panel).
@@ -5747,7 +5948,7 @@
           this._root.querySelector('.pn').appendChild(card);
           this._card = card;
         }
-        if (this._card) this._card.hass = this._hass;
+        if (this._card) bridge(this._card, this.client);
         var st = s.state;
         (this._bigWord || this._big).textContent = unavailable(s) ? 'Unavailable' : ALARM_WORDS[st] || pretty(st);
         this._big.classList.toggle('trg', st === 'triggered');
@@ -5831,14 +6032,13 @@
         return pc.stream || cameraStream(h, this._id);
       }
       _gone(h) { var st = h && h.states[this._streamOf(h)]; return !st || st.state === 'unavailable'; }
-      _sigOf() { return this._hass ? 'camera|' + this._gone(this._hass) : null; }
-      // ...while the stream card inside hears every update (its poster's
+      _sigOf() { var c = this.client; return c ? 'camera|' + this._gone(c) : null; }
+      // ...while the stream card inside hears every new client (its poster's
       // signed picture, its own state), not only the ones that rebuild this
-      set hass(h) {
-        if (this._card && this._card.hkSetHass) this._card.hkSetHass(h);
-        super.hass = h;
+      _receiveClient() {
+        if (this._card && this._card.hkSetClient) this._card.hkSetClient(this.client);
+        super._receiveClient();
       }
-      get hass() { return super.hass; }
       // THE SHEET TAKES THE CAMERA'S SHAPE: the pop-ups' sizes, a picture
       // about 750 tall at most 1200 wide -- the doorbell (4:3) 1000 x 750, a
       // 16:9 camera 1200 x 675. A camera with a speaker is the doorbell, so
@@ -5850,7 +6050,7 @@
         sh.style.setProperty('--hkd-w', Math.min(1200, Math.round(750 * ar)) + 'px');
       }
       _render() {
-        var h = this._hass;
+        var h = this.client;
         if (!h) return;
         // _naEl, not _na: Panel._na(s) is the shared unavailable helper, and a
         // property of that name would replace it (see HkBase method shadowing)
@@ -5906,7 +6106,8 @@
             this._root.appendChild(this._card);
           }
         }
-        if (this._card && this._card.hkSetHass) this._card.hkSetHass(h);
+        // the stream card gets what goes with this client (the host adapter decides)
+        if (this._card && this._card.hkSetClient) this._card.hkSetClient(h);
       }
     }
 
@@ -5936,10 +6137,20 @@
       event: 'hk-detail-event',
       weather: 'hk-detail-weather',
       automation: 'hk-detail-automation',
-      timer: 'hk-detail-timer'
+      timer: 'hk-detail-timer',
+      // HK's generic sheet, for a kind with no sheet of its own on a host
+      // without a detail of its own (Phase 2 P2.5)
+      generic: 'hk-detail-generic'
     };
     function def(tag, Ctor) { if (!customElements.get(tag)) customElements.define(tag, Ctor); }
+    // The panels fed a client alone (open(): every panel defined here except
+    // the camera, group and custom-cards sheets, which hold cards of their own
+    // and are still fed through the bridge).
+    var CLIENT_FED = [LightPanel, TogglePanel, FanPanel, CoverPanel, LockPanel, GaragePanel, ButtonPanel,
+                      ClimatePanel, MediaPanel, SensorPanel, StatePanel, BinaryPanel, VacuumPanel, ValvePanel,
+                      NumberPanel, SelectPanel, HumidifierPanel, WaterHeaterPanel, AlarmPanel, GenericPanel];
     def('hk-detail-light', LightPanel);
+    def('hk-detail-generic', GenericPanel);
     def('hk-detail-toggle', TogglePanel);
     def('hk-detail-fan', FanPanel);
     def('hk-detail-cover', CoverPanel);
@@ -6019,7 +6230,7 @@
       }
       hkWidthKind() { return 'group'; }
       hkFill() { return true; }
-      // null: every hass goes on to the pills, which gate themselves. The
+      // null: every update goes on to the pills, which gate themselves. The
       // LIST is worked out again (resolve -- a page's members, a walk of the
       // house -- and every pill's config) only when what it reads moved:
       // its members' states, the registries (rooms, areas), the settings
@@ -6036,21 +6247,22 @@
         return out;
       }
       _render() {
-        var h = this._hass, cfg = this._config || {};
-        if (!h) return;
-        if (this._built && this._lsig === this._listSig(h)) {
-          (this._kids || []).forEach(function (el) { if (el.hkSetHass) el.hkSetHass(h); else el.hass = h; });
+        // reads through the client; each pill gets what goes with it (the host adapter decides)
+        var c = this.client, cfg = this._config || {};
+        if (!c) return;
+        if (this._built && this._lsig === this._listSig(c)) {
+          (this._kids || []).forEach(function (el) { feedPill(el, c); });
           return;
         }
-        var resolved = cfg.resolve ? cfg.resolve(h) : null;
+        var resolved = cfg.resolve ? cfg.resolve(c) : null;
         var ids = resolved ? resolved.ids : cfg.entities || [];
         var configs = ids.map(function (id) {
           var room = cfg.room;
           if (cfg.row) {
-            var e = (h.entities || {})[id] || {}, d = (h.devices || {})[e.device_id] || {};
-            room = ((h.areas || {})[e.area_id || d.area_id] || {}).name || '';
+            var e = (c.entities || {})[id] || {}, d = (c.devices || {})[e.device_id] || {};
+            room = ((c.areas || {})[e.area_id || d.area_id] || {}).name || '';
           }
-          var t = groupTile(h, id, room, cfg.groupKind);
+          var t = groupTile(c, id, room, cfg.groupKind);
           // The sheet already blurs its backdrop. Every nested pill must
           // stay out of the shared glass renderer too: its clipped layer in
           // the scrolling body adds a second blur inside an animated blur
@@ -6094,15 +6306,21 @@
           if (D.panel === this) D.tt.textContent = resolved.title;
         }
         this._ids = ids.slice();
-        this._lsig = this._listSig(h);
-        (this._kids || []).forEach(function (el) { if (el.hkSetHass) el.hkSetHass(h); else el.hass = h; });
+        this._lsig = this._listSig(c);
+        (this._kids || []).forEach(function (el) { feedPill(el, c); });
       }
+    }
+    // A PILL (hkCards.create) gets what goes with the client once it is
+    // configured; anything else straight through the host adapter.
+    function feedPill(el, client) {
+      if (el.hkSetClient) el.hkSetClient(client); else window.hkHostClient.bridge(el, client);
     }
     def('hk-detail-group', GroupPanel);
     // A CUSTOM POP-UP'S CARDS (Pop-ups -> Custom): any cards, in
     // a column, built by Home Assistant's own card helpers (a core card or a
-    // custom one), fed hass while the sheet is up. A card that cannot be
-    // built is HA's error card, in its place.
+    // custom one), fed what goes with the sheet's client (through the host
+    // adapter) while the sheet is up. A card that cannot be built is HA's error
+    // card, in its place.
     class CardsPanel extends HkBase {
       static get CSS() {
         return ':host{display:block}' +
@@ -6113,8 +6331,8 @@
       hkFill() { return true; }
       _sigOf() { return null; }
       _render() {
-        var h = this._hass, cfg = this._config || {}, self = this;
-        if (!h) return;
+        var c = this.client, cfg = this._config || {}, self = this;
+        if (!c) return;
         if (!this._built) {
           this._built = true;
           this._kids = [];
@@ -6132,14 +6350,14 @@
                 try { el = helpers.createCardElement(cc); } catch (e) {
                   el = helpers.createCardElement({ type: 'error', error: String(e && e.message || e), origConfig: cc });
                 }
-                el.hass = self._hass;
+                window.hkHostClient.bridge(el, self.client);
                 box.appendChild(el);
                 self._kids.push(el);
               });
             }, function (e) { console.error('[hk-detail] custom pop-up: no card helpers', e); });
           }
         }
-        (this._kids || []).forEach(function (el) { el.hass = h; });
+        (this._kids || []).forEach(function (el) { window.hkHostClient.bridge(el, c); });
       }
     }
     def('hk-detail-cards', CardsPanel);
@@ -6156,7 +6374,7 @@
                     icon: o.icon, color: o.color, row: o.row || o.climate, resolve: o.resolve } }, extra || {}));
     }
     function restoreGroup(g) {
-      var current = g.resolve && g.resolve(C.hass());
+      var current = g.resolve && g.resolve(C.client());
       // An empty category still needs a way back out after its last member
       // was removed while a device's controls were open.
       return open(null, { name: current ? current.title : g.title, icon: g.icon,
@@ -6199,7 +6417,7 @@
       var p = popupFor(hash);
       if (!p || yamlClaims(hash)) return false;
       if (D.el && D.popup === p.hash) return true;          // already up
-      var h = C.hass();
+      var h = C.client();
       var clear = function () {
         // closed by hand or by time: the hash goes, so nothing reopens it
         if (location.hash === hash) {
@@ -6224,11 +6442,10 @@
     }
     // ONLY ON A DASHBOARD: a show_popup, or a #hash, on one of Home
     // Assistant's own pages (Settings, the map) must not open the sheet
-    // over it. A dashboard is a panel whose component is lovelace.
+    // over it. The host shell knows (in HA: the address's panel is a
+    // lovelace one; not up yet is not a dashboard).
     function onDashboard() {
-      var h = C.hass(), seg = String(location.pathname || '').split('/')[1] || '';
-      var p = h && h.panels && h.panels[seg];
-      return !!p && p.component_name === 'lovelace';
+      return window.hkShell.isDashboard() === true;
     }
     var routeT = null;
     function route() {
@@ -6237,7 +6454,7 @@
       if (!hash || hash.length < 2 || !onDashboard() || !popupFor(hash)) return;
       routeT = setTimeout(function () { if (location.hash === hash) openPopup(hash); }, POPUP_GRACE_MS);
     }
-    ['location-changed', 'hashchange', 'popstate'].forEach(function (ev) {
+    [window.hkShell.navEvent, 'hashchange', 'popstate'].forEach(function (ev) {
       window.addEventListener(ev, route);
     });
     // the pop-ups can arrive after the page (a fresh load with #doorbell)
@@ -6267,7 +6484,7 @@
     // page goes too, or the keypad would come up on the next wake for an
     // alarm that is already over.
     function closeAsked(e) {
-      var dash = dashNow(), h = C.hass();
+      var dash = dashNow(), h = C.client();
       if (e.dashboards && e.dashboards.length && e.dashboards.indexOf(dash) < 0) return false;
       if (e.users && e.users.length && !(h && h.user && e.users.indexOf(h.user.id) >= 0)) return false;
       if (held && held.ev && held.ev.detail && held.ev.detail.popup === e.popup) held = null;
@@ -6290,7 +6507,7 @@
         if (pp) held = { ev: ev, until: Date.now() + (pp.close_after || 60) * 1000 };
         return false;
       }
-      var dash = dashNow(), h = C.hass();
+      var dash = dashNow(), h = C.client();
       if (e.dashboards && e.dashboards.length && e.dashboards.indexOf(dash) < 0) return false;
       if (e.users && e.users.length && !(h && h.user && e.users.indexOf(h.user.id) >= 0)) return false;
       if (!popupFor('#' + e.popup)) return false;
@@ -6302,7 +6519,7 @@
       if (same && D.el && D.popup === e.popup) { armAuto(); return true; }
       try {
         history[same ? 'replaceState' : 'pushState'](history.state, '', location.pathname + location.search + '#' + e.popup);
-        window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+        window.hkShell.announce({ detail: { replace: false } });
       } catch (err) { return false; }
       return true;
     }
@@ -6331,6 +6548,7 @@
         nearWhite: nearWhite, spanTo: spanTo, trendOf: trendOf, reportsAction: reportsAction,
         accessoryPane: accessoryPane, accName: accName, accIcon: accIcon, canEdit: canEdit, glyphsFor: glyphsFor, glyphSearch: glyphSearch, arrangeOf: arrangeOf, arrangeMove: arrangeMove, money: money, ACC_CSS: ACC_CSS,
         popupFor: popupFor, openPopup: openPopup, route: route, asked: asked, onDashboard: onDashboard, SHEET_CSS: SHEET_CSS,
+        genericControl: genericControl, genericRows: genericRows, toHost: toHost, GENERIC_SKIP: GENERIC_SKIP,
         state: function () { return D; }
       }
     };

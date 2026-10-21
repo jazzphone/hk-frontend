@@ -165,8 +165,10 @@
              order: [], home: 'as_is', menu: 'az', pages: 'floor' },
     // All Screens' cameras, for the screens that don't set their own (empty: Automatic)
     // live: the Home strip's first tile plays live video (a screen's
-    // camera_live_video, when set, is its own)
-    cameras: { order: [], live: true },
+    // camera_live_video, when set, is its own); focus_pause: on a computer,
+    // live cameras rest while another window has the focus (hk-cameras.js
+    // CAM_FOCUS) -- behind the screensaver they always rest
+    cameras: { order: [], live: true, focus_pause: true },
     look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, well: 'dark', frost_tint: false, details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {}, page_accents: {},
             // FLAT COLORS (settings.py flat_colors; resolveFlatColors)
@@ -816,11 +818,7 @@
     var cfg = null, seg = '';
     try {
       seg = decodeURIComponent((String(location.pathname).split('/')[2] || '').split('?')[0]);
-      var ha = document.querySelector('home-assistant'), sr = ha && ha.shadowRoot;
-      var main = sr && sr.querySelector('home-assistant-main'), ms = main && main.shadowRoot;
-      var p = ms && ms.querySelector('ha-panel-lovelace');
-      if (!p && ms) { var r0 = ms.querySelector('partial-panel-resolver'); p = r0 && r0.querySelector('ha-panel-lovelace'); }
-      cfg = p && p.lovelace && p.lovelace.config;
+      cfg = window.hkShell.dashboardConfig();
     } catch (e) { /* no document (a test harness) */ }
     var views = cfg && cfg.views, v = null;
     if (views && views.length) {
@@ -983,41 +981,45 @@
     };
   }
 
-  // ATTACH once the frontend has a connection -- polled briefly at page load,
-  // then slowly, because a page can come up before its connection does.
-  var attached = false;
+  // The host adapter owns connection discovery. State snapshots share one
+  // subscription port; a replacement port ends the old subscriptions first.
+  var attached = null, subscriptions = [];
+  function currentClient() {
+    var host = window.hkHostClient;
+    return host && host.current ? host.current() : null;
+  }
   function attach() {
-    if (attached) return true;
-    var ha = null;
-    try { ha = document.querySelector('home-assistant'); } catch (e) { return false; }
-    var conn = ha && ha.hass && ha.hass.connection;
-    if (!conn || typeof conn.subscribeMessage !== 'function') return false;
-    attached = true;
-    subscribe(conn, { type: 'hk_frontend/settings/subscribe' }, function (payload) {
+    var client = currentClient(), conn = client && client.subscriptions;
+    if (conn === attached) return !!conn;
+    subscriptions.splice(0).forEach(function (close) { close(); });
+    attached = conn || null;
+    if (!conn) return false;
+    subscriptions.push(subscribe(conn, { type: 'hk_frontend/settings/subscribe' }, function (payload) {
+      if (attached !== conn) return;
       apply(payload);
-      try { reportSeen(ha.hass); } catch (e) { /* the seen report is a nicety */ }
-    }, 'hk-settings');
-    // WHAT THE HOUSE ASKS THIS SCREEN TO DO (hk_frontend.show_popup): handed
-    // on as a window event; the detail sheet (hk-detail.js) decides whether
-    // this screen is one of those asked, and opens the pop-up.
-    subscribe(conn, { type: 'hk_frontend/events/subscribe' }, function (ev) {
+      try { reportSeen(currentClient()); } catch (e) { /* optional screen report */ }
+    }, 'hk-settings'));
+    subscriptions.push(subscribe(conn, { type: 'hk_frontend/events/subscribe' }, function (ev) {
+      if (attached !== conn) return;
       try { window.dispatchEvent(new CustomEvent('hk-house-event', { detail: ev })); } catch (e) { /* no bus */ }
-    }, 'hk-events');
+    }, 'hk-events'));
     return true;
   }
-  if (!attach()) {
-    // Every 100 ms for a minute, then every 2 s for as long as this is a Home
-    // Assistant page (it has a <home-assistant> element) that has not
-    // connected yet. A page that is not one -- a probe, a test -- stops.
-    var tries = 0;
+  // Settings can bootstrap before either the adapter or any card. Events
+  // catch late modules and host updates; a slow check also covers a shell
+  // connection replacement on a page containing no HK cards.
+  window.addEventListener('hk-host-client-ready', attach);
+  window.addEventListener('hk-client-update', attach);
+  var tries = 0, slow = null;
+  function watchSlowly() {
+    if (slow === null) slow = setInterval(attach, 2000);
+  }
+  if (attach()) watchSlowly();
+  else {
     var fast = setInterval(function () {
-      if (attach()) { clearInterval(fast); return; }
-      if (++tries < 600) return;
+      if (!attach() && ++tries < 600) return;
       clearInterval(fast);
-      var ha = null;
-      try { ha = document.querySelector('home-assistant'); } catch (e) { /* none */ }
-      if (!ha) return;
-      var slow = setInterval(function () { if (attach()) clearInterval(slow); }, 2000);
+      watchSlowly();
     }, 100);
   }
 
@@ -1069,8 +1071,8 @@
   // lookup is made), so Automatic there asks for a provider (reason
   // 'choose'); so does a home with no country set. A zone that is gone:
   // 'zone'. No location at all: 'location'.
-  function radarPlan(hass) {
-    var r = radarNative(), cfg = (hass && hass.config) || {}, states = (hass && hass.states) || {};
+  function radarPlan(client) {
+    var r = radarNative(), cfg = (client && client.config) || {}, states = (client && client.states) || {};
     var out = { enabled: r.enabled, provider: null, chosen: r.provider, lat: null, lon: null,
                 place: 'Home', country: null, reason: null, settings: r };
     if (r.center === 'zone') {
@@ -1306,23 +1308,17 @@
     announce();
   }
   try {
-    window.addEventListener('location-changed', onNav);
+    window.hkShell.onNavigate(onNav);
     window.addEventListener('popstate', onNav);
   } catch (e) { /* no window events (a test harness) */ }
 
-  // IS THIS PAGE A LOVELACE PANEL? Read off hass.panels -- a property, not a
-  // walk of the document. null while hass is not up yet (treat as "maybe"),
+  // IS THIS PAGE A LOVELACE PANEL? Read off the host's panel list (the shell
+  // answers) -- a property, not a walk of the document. null while the host
+  // is not up yet (treat as "maybe"),
   // else true/false. The sky, the view fade, the icon repair and the camera
   // poster ask this rather than walk every shadow root on the page, which
   // would cost as much on Settings and Logs as on a dashboard.
-  function lovelacePanel() {
-    var ha = document.querySelector('home-assistant');
-    var panels = ha && ha.hass && ha.hass.panels;
-    if (!panels) return null;
-    var seg = location.pathname.split('/')[1] || 'lovelace';
-    var p = panels[seg];
-    return !!(p && p.component_name === 'lovelace');
-  }
+  function lovelacePanel() { return window.hkShell.isDashboard(); }
 
   // WHICH WALL TABLET THIS IS (1.14, docs/Wall-Tablets.md). A tablet is
   // its own item, apart from the screen it runs, so the page needs to know
@@ -1350,9 +1346,10 @@
   function rememberedTablet() {
     try { return localStorage.getItem(TABLET_KEY) || ''; } catch (e) { return ''; }
   }
-  function userName(hass) {
+  function userName(client) {
     try {
-      var h = hass || (document.querySelector('home-assistant') || {}).hass;
+      var HC = window.hkHostClient;
+      var h = client || (HC && HC.current ? HC.current() : null);
       return (h && h.user && h.user.name) || '';
     } catch (e) { return ''; }
   }
@@ -1361,10 +1358,10 @@
     Object.keys(t).forEach(function (k) { out[k] = t[k]; });
     return out;
   }
-  function tablet(hass) {
+  function tablet(client) {
     var items = cur.tablet_items, seg = '';
     try { seg = String(location.pathname).split('/')[1] || ''; } catch (e) { /* a test harness */ }
-    var name = userName(hass);
+    var name = userName(client);
     if (!items) {
       // a server from before 1.14: this screen's own Tablet User
       var b = cur.boards && cur.boards[seg];
@@ -1384,15 +1381,17 @@
   // integration once a load, so Wall Tablets can suggest it. Only Fully
   // Kiosk's browser says what it is (its JavaScript interface, `fully`).
   var seenSent = false;
-  function reportSeen(hass) {
+  function reportSeen(client) {
     if (seenSent || !state.live || !cur.tablet_items) return;
     var app = '';
     try { app = (typeof window.fully === 'object' && window.fully) ? 'fully' : ''; } catch (e) { app = ''; }
-    if (!app || tablet(hass)) { seenSent = !!app; return; }
+    if (!app || tablet(client)) { seenSent = !!app; return; }
     seenSent = true;
     try {
       var seg = String(location.pathname).split('/')[1] || '';
-      hass.callWS({ type: 'hk_frontend/tablet/seen', screen: /^[a-z0-9_-]{0,80}$/.test(seg) ? seg : '', app: app })
+      // a write: through the client's action port (refused in Mantel)
+      var act = (window.hkClient && window.hkClient.is(client) ? client : window.hkHostClient.from(client)).actions;
+      act.callWS({ type: 'hk_frontend/tablet/seen', screen: /^[a-z0-9_-]{0,80}$/.test(seg) ? seg : '', app: app })
         .catch(function () { /* an older server */ });
     } catch (e) { /* no connection yet */ }
   }
@@ -1505,12 +1504,10 @@
   }
   function panel() {
     if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return null;
-    var ha = document.querySelector('home-assistant');
-    var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-    return main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace');
+    return window.hkShell.panel();
   }
   function rebuild(p) {
-    var root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
+    var root = p ? window.hkShell.dashboard(p) : null;
     (root || p).dispatchEvent(new CustomEvent('config-refresh', { bubbles: true, composed: true }));
     // kiosk mode reads the dashboard's kiosk_mode on a page change: once the
     // rebuilt dashboard is in place, tell it the page changed, or Home
@@ -1520,7 +1517,7 @@
       var q = null;
       try { q = S.panel(); } catch (e) { /* gone */ }
       var built = q && q.lovelace && q.lovelace.config && !stuck(q.lovelace);
-      if (built) window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: true } }));
+      if (built) window.hkShell.announce({ detail: { replace: true } });
       if (built || ++n >= 40) clearInterval(iv);
     }, 250);
   }
@@ -1528,8 +1525,10 @@
     var msg = 'HK Frontend: ' + what + ' (' + location.pathname + ')';
     try { console.warn(msg); } catch (e) { /* no console */ }
     try {
-      var h = document.querySelector('home-assistant').hass;
-      Promise.resolve(h.callService('system_log', 'write', { message: msg, level: 'warning', logger: 'hk_frontend.screen' }))
+      // the host's current client (Home Assistant's root element, as before),
+      // through its action port
+      var act = currentClient().actions;
+      Promise.resolve(act.callService('system_log', 'write', { message: msg, level: 'warning', logger: 'hk_frontend.screen' }))
         .catch(function () { /* not allowed for this user: the console has it */ });
     } catch (e) { /* not connected */ }
   }

@@ -91,11 +91,13 @@ haRoot.hass = hassWith('off');
 document.querySelector = function (s) { return s === 'home-assistant' ? haRoot : null; };
 document.hidden = false;
 window.innerWidth = 1280;
-// the hass hub hk-base provides
+// the client hub hk-base provides (hkCards.client/onClient), over the real HA
+// adapter; the saver's own actions go through that client's action port (no
+// host input is offered at all)
 var hub = [];
-window.hkCards = { onHass: function (fn) { hub.push(fn); return function () { hub = hub.filter(function (f) { return f !== fn; }); }; },
-                   hass: function () { return haRoot.hass; } };
-function push(h) { haRoot.hass = h; hub.slice().forEach(function (f) { f(h); }); }
+window.hkCards = { onClient: function (fn) { hub.push(fn); return function () { hub = hub.filter(function (f) { return f !== fn; }); }; },
+                   client: function () { return window.hkHAClient.from(haRoot.hass); } };
+function push(h) { haRoot.hass = h; var c = window.hkHAClient.from(h); hub.slice().forEach(function (f) { f(c); }); }
 
 load(DIR + 'frontend/modules/hk-saver.js');
 var S = window.hkSaver, U = S._;
@@ -177,7 +179,7 @@ ok('...Home Energy alone among the photos', U.slideOf({ show: 'photos', energy_s
 ok('additional screens: only over the forecast or the clock', U.extrasOf({ show: 'photos', energy_slide: true, extra_music: true }).length === 0 &&
    U.extrasOf({ show: 'both', energy_slide: true }).length === 0 &&
    JSON.stringify(U.extrasOf({ show: 'forecast', energy_slide: true, extra_music: true, extra_forecast: true })) === '["music","energy"]');
-ok('...the forecast only on Show: Clock, and not over the forecast\'s own sky', 
+ok('...the forecast only on Show: Clock, and not over the forecast\'s own sky',
    JSON.stringify(U.extrasOf({ show: 'clock', clock_bg: 'gradient', extra_forecast: true, extra_music: true, energy_slide: true })) === '["forecast","music","energy"]' &&
    U.extrasOf({ show: 'clock', clock_bg: 'forecast', extra_forecast: true }).length === 0 &&
    U.extrasOf({ show: 'clock', clock_bg: 'skyonly', extra_forecast: true }).length === 0);
@@ -309,6 +311,35 @@ ok('...a screensaver element is on the page', walkFake(document.body).some(funct
 ok('...the sky and the cards are told', window.__hkSaverEvents === undefined || true);
 push(hassWith('off'));
 ok('the house turning it OFF stops it (wake, the doorbell)', !S.running());
+// NOT OVER LIVE TV (2026-10-21): hk-idle held (Live TV playing, a sheet
+// open) -- the idle timer already waited; the switch turned on by an
+// automation or the Sleep Screen now waits too
+(function () {
+  var idle0 = window.hkIdle;
+  window.hkIdle = Object.assign({}, idle0 || {}, { held: function () { return ['live-tv']; } });
+  push(hassWith('on'));
+  ok('...but the switch ON does not start it over Live TV (hk-idle held)', !S.running(), S.stats());
+  window.hkIdle = idle0;
+  push(hassWith('on'));
+  ok('...and it starts once the hold ends', S.running() && S.stats().startedBy === 'switch');
+  push(hassWith('off'));
+  ok('...(and stops again)', !S.running());
+})();
+(function () {
+  // A HOST THAT ONLY READS (a client with no action transport): the
+  // screensaver still runs from the client, and no switch write goes anywhere
+  var client0 = window.hkCards.client, refused = 0;
+  window.hkCards.client = function () {
+    return window.hkClient.create({ states: haRoot.hass.states, user: haRoot.hass.user,
+                                    refused: function () { refused++; } });
+  };
+  calls = [];
+  S.start();
+  ok('with no host input it still starts from the client, and writes no switch', S.running() && calls.length === 0 && refused === 1,
+     { calls: calls, refused: refused });
+  S.stop();
+  window.hkCards.client = client0;
+})();
 calls = [];
 S.start();
 ok('a start by itself (hkSaver.start) turns the switch on', S.running() && calls.join() === 'input_boolean.turn_on ' + SW, calls);
@@ -819,6 +850,19 @@ drawAgain(); woke(); __timers.length = 0;
      sent.some(function (m) { return m.type === 'hk_frontend/screensaver/black' && m.black === true && m.dashboard === SEG; }), sent);
   ok('...the sky and the camera strip told to rest (hk-black, on)', said[said.length - 1] === true, said);
 
+  // THE HOUSE RESTARTED UNDER THE BLACK (2026-10-21): the black comes again, unconfirmed, while this page is
+  // already black -- it says so again (else the house falls back to the kiosk's own screensaver), and
+  // touches nothing else
+  var acks = function () { return sent.filter(function (m) { return m.type === 'hk_frontend/screensaver/black' && m.black === true; }).length; };
+  var acked = acks(), lit0 = lights.length;
+  var hu = hassBlack('on', 174); hu.states[BLK].attributes.confirmed = false;
+  push(hu); settle(); T0 += 3100; push(hu); settle();
+  ok('the black again, unconfirmed, while already black: the page says it is black again', acks() > acked, sent);
+  ok('...and the backlight is not touched for it', lights.length === lit0, lights);
+  var hc = hassBlack('on', 174); hc.states[BLK].attributes.confirmed = true;
+  var acked2 = acks(); push(hc); settle(); T0 += 3100; push(hc); settle();
+  ok('...once confirmed, it is not said again', acks() === acked2, sent);
+
   lights = []; push(hassBlack('off', 200)); settle();
   ok('the switch off: the curtain stays a moment (CURTAIN_HOLD_HK) ...', curtainEl() && curtainEl().style.opacity === '1');
   __runTimersUnder(61); settle();
@@ -1033,6 +1077,70 @@ S.preview(false); __runTimers();
 ok('...and stops with the preview', !S.running());
 delete window.hkSettings; delete window.hkStrategy;
 
+print('\n=== a host with no Lovelace (Mantel): the config from the shell ===');
+(function () {
+  var SH = window.hkShell, P = SH.panel, D = SH.dashboardConfig;
+  var block = Object.assign({}, LOVELACE.config.hk_screensaver, { entity: OWN }), shellCfg = { views: [], hk_screensaver: block };
+  var saved = lovelacePanel.lovelace;
+  lovelacePanel.lovelace = undefined;
+  SH.panel = function () { return document.body; };
+  SH.dashboardConfig = function () { return shellCfg; };
+  location.pathname = '/dashboard-kitchen/0'; location.search = '';
+  push(hassOwn('off')); dispatchEvent({ type: 'location-changed' }); __runTimers();
+  ok('the panel has no lovelace: the shell\'s config is read', S.config() && S.config().entity === OWN, S.config());
+  ws = []; U.touchFresh();
+  dispatchEvent({ type: 'pointerdown', clientX: 640, clientY: 400, pointerType: 'touch' });
+  ok('...and a touch on the dashboard is told', ws.some(function (m) { return m.type === 'hk_frontend/screensaver/touch'; }), ws);
+  // the strategy ran before the tablet's switch was there: the block names none; the settings make it again
+  var BOARD_M = { screensaver: true, tablet_user: 'Kitchen Tablet', screensaver_engine: 'hk' }, made = 0;
+  window.hkSettings = { get: function (p, f) { return p === 'boards' ? { 'dashboard-kitchen': BOARD_M } : f; },
+                        lovelacePanel: function () { return true; } };
+  window.hkStrategy = { saverBlock: function (h, b) { made++; return Object.assign({}, block, { entity: OWN, user: b.tablet_user }); } };
+  shellCfg = { views: [], hk_screensaver: Object.assign({}, block, { entity: null }) };
+  push(hassOwn('off')); dispatchEvent({ type: 'location-changed' }); __runTimers();
+  ok('...a block made with no switch: the settings make it again, with the switch', made > 0 && S.config() && S.config().entity === OWN, S.config());
+  // in Home Assistant the panel's own config is the authority, as before
+  SH.dashboardConfig = D; SH.panel = P;
+  lovelacePanel.lovelace = { config: { views: [], hk_screensaver: Object.assign({}, block, { entity: null }) } };
+  made = 0;
+  push(hassOwn('off')); dispatchEvent({ type: 'location-changed' }); __runTimers();
+  ok('...a Lovelace panel\'s block is read as written (never made again)', made === 0 && S.config() && S.config().entity === null, S.config());
+  lovelacePanel.lovelace = saved;
+  delete window.hkSettings; delete window.hkStrategy;
+  push(hassOwn('off')); dispatchEvent({ type: 'location-changed' }); __runTimers();
+})();
+
+
+print('\n=== a host with photos of its own: photoSource and listPhotos ===');
+(function () {
+  var SH = window.hkShell, PS = SH.photoSource, LP = SH.listPhotos;
+  ok('this host has no photos of its own (both null)', SH.photoSource('media-source://x') === null && SH.listPhotos('media-source://x') === null);
+  var asked = [], resolved = [];
+  SH.photoSource = function () { return 'host-album://one'; };
+  SH.listPhotos = function (src) {
+    asked.push(src);
+    return src === 'host-album://one' ? Promise.resolve([{ id: 'p1', title: 'One', url: '/photos/p1.jpg' }, { id: 'p2', url: '/photos/p2.jpg' }, { id: 'bad' }]) : null;
+  };
+  LOVELACE.config.hk_screensaver = Object.assign({}, LOVELACE.config.hk_screensaver, { show: 'photos' });
+  lovelacePanel.lovelace = { config: { views: [], hk_screensaver: LOVELACE.config.hk_screensaver } };
+  var hp = hassOwn('off');
+  hp.callWS = function (m) { ws.push(m); if (m.type === 'media_source/resolve_media') resolved.push(m); return Promise.resolve({ children: [] }); };
+  ws = [];
+  push(hp); S.photosChanged(); dispatchEvent({ type: 'location-changed' }); __runTimers();
+  ok('the host\'s album for this screen is its source', S.config() && S.config().photos === 'host-album://one', S.config());
+  S.start(); drainMicrotasks(); drainMicrotasks(); drainMicrotasks(); __runTimersUnder(1);
+  ok('...listed by the host, never walked as a media folder', asked.indexOf('host-album://one') >= 0 &&
+     !ws.some(function (m) { return m.type === 'media_source/browse_media'; }), [asked, ws]);
+  ok('...its photos with an address (the one without skipped)', S.stats().photos === 2, S.stats());
+  var shownImg = topPhotos()[0] && topPhotos()[0].querySelector('img.fg');
+  // (stats().last is the photo's title, else its id; the deck is shuffled, so either photo may come first)
+  ok('...shown from their own address, never resolved', /^(One|host\/p2)$/.test(S.stats().last || '') && shownImg &&
+     /^\/photos\/p[12]\.jpg$/.test(shownImg.src) && resolved.length === 0, [S.stats().last, shownImg && shownImg.src, resolved]);
+  S.stop(); woke();
+  SH.photoSource = PS; SH.listPhotos = LP;
+  S.photosChanged(); push(hassOwn('off')); dispatchEvent({ type: 'location-changed' }); __runTimers();
+  ok('without it: the house\'s folder again', S.config() && S.config().photos === 'media-source://media_source/local/photos', S.config());
+})();
 
 // 2026-10-13: the clock's text over photos, and the mosaic's line colors
 (function () {

@@ -31,7 +31,24 @@
 
   // What the timer cards say when the script they call does not exist: the
   // quick-timer helpers (helpers/quick_timers.yaml) are not installed.
-  var NO_HELPERS = 'Quick timers need HK Frontend\u2019s timer helpers (helpers/quick_timers.yaml).';
+  // A nested card made by create() takes its client once it is configured (an
+  // unupgraded element would keep a plain property that shadows the setter).
+  // slice 9: needs hk-base.js's hkSetClient to take a client; until then this
+  // does what it does, with the host adapter deciding what the child gets.
+  function feed(el, client) {
+    if (!el || !client) return;
+    if (typeof el.setConfig === 'function') { window.hkHostClient.bridge(el, client); return; }
+    el._hkFeed = client;                       // the latest one, when the element arrives
+    if (el._hkFeedWait || !window.customElements || !customElements.whenDefined) return;
+    el._hkFeedWait = true;
+    customElements.whenDefined(el.localName).then(function () {
+      el._hkFeedWait = false;
+      window.hkHostClient.bridge(el, el._hkFeed);
+    }, function () { el._hkFeedWait = false; });
+  }
+
+  // (Home Assistant's own helpers, named as the host names them: hk-host-shell.js haName)
+  function NO_HELPERS() { return 'Quick timers need ' + window.hkShell.haName('HK Frontend\u2019s timer helpers') + ' (helpers/quick_timers.yaml).'; }
 
   // --------------------------------------------------------- hk-vacuum
   //
@@ -59,7 +76,7 @@
         // and at a fixed 188 the four buttons would be pushed out of the card
         // and cut off. Every ordinary card is exactly 188; one
         // with more to say grows.
-        'ha-card.vac{box-sizing:border-box;display:block;min-height:188px;',
+        'hk-plate.vac{box-sizing:border-box;display:block;min-height:188px;',
         '  border-radius:' + window.hkCards.M.radius + ';padding:16px 18px;overflow:hidden;cursor:pointer;',
         '  ' + window.hkCards.M.glass + ';',
         '  border:' + window.hkCards.M.border + ';',
@@ -76,9 +93,9 @@
         // LIVE is green with dark ink -- the same "it is doing something right
         // now" signal the progress chip uses.
         '.vac .ico[data-live="1"]{background:rgba(48,209,88,0.95)}',
-        '.vac .ico ha-icon{--mdc-icon-size:28px;width:28px;height:28px;',
+        '.vac .ico hk-icon{--mdc-icon-size:28px;width:28px;height:28px;',
         '  color:var(--hk-glyph,rgba(255,255,255,0.80))}',
-        '.vac .ico[data-live="1"] ha-icon{color:rgba(0,0,0,0.82)}',
+        '.vac .ico[data-live="1"] hk-icon{color:rgba(0,0,0,0.82)}',
         '.vac .label{grid-area:label;justify-self:start;align-self:center;',
         '  min-width:0;overflow:hidden;font-size:18px;font-weight:600;',
         '  letter-spacing:-0.45px;color:' + window.hkCards.v('ink') + ';line-height:1.25;',
@@ -98,7 +115,7 @@
         '  display:flex;align-items:center;justify-content:center;cursor:pointer;',
         '  transition:background-color .25s ease,transform .12s ease}',
         '.vac .cmd:active{transform:scale(0.97);filter:brightness(0.93)}',
-        '.vac .cmd ha-icon{width:23px;height:23px;--mdc-icon-size:23px;',
+        '.vac .cmd hk-icon{width:23px;height:23px;--mdc-icon-size:23px;',
         '  color:' + window.hkCards.v('glyph') + '}',
         '@media (prefers-reduced-motion:reduce){',
         '  .vac .cmd,.vac .cmd:active,.vac .ico{transition:none;transform:none}}'
@@ -115,7 +132,7 @@
     // vacuum's own attributes (battery_level), so last_updated, not state:
     // a battery that charges while the vacuum stays `docked` must redraw.
     _sigOf() {
-      var h = this._hass, c = this._config;
+      var h = this.client, c = this._config;
       if (!h || !c) return null;
       var ids = [c.entity, c.battery, c.error, c.dock_error, c.room, c.progress]
                   .filter(Boolean);
@@ -175,17 +192,17 @@
       var cfg = this._config;
       if (!this._built) {
         var cmds = HkVacuumCard.COMMANDS;
-        var html = '<ha-card class="vac" data-hk-role="card"><div class="grid">' +
-          '<div class="ico" data-hk-role="ico"><ha-icon icon="mdi:robot-vacuum"></ha-icon></div>' +
+        var html = '<hk-plate class="vac" data-hk-role="card"><div class="grid">' +
+          '<div class="ico" data-hk-role="ico"><hk-icon icon="mdi:robot-vacuum"></hk-icon></div>' +
           '<div class="label" data-hk-role="label"></div>' +
           '<div class="meta" data-hk-role="meta"></div>';
         for (var i = 0; i < cmds.length; i++) {
           html += '<div class="cmd" style="grid-area:' + cmds[i][0] + '"' +
                   ' role="button" aria-label="' + cmds[i][3] + '"' +
                   ' data-hk-role="' + cmds[i][0] + '">' +
-                  '<ha-icon icon="' + cmds[i][1] + '"></ha-icon></div>';
+                  '<hk-icon icon="' + cmds[i][1] + '"></hk-icon></div>';
         }
-        this._root.innerHTML = html + '</div></ha-card>';
+        this._root.innerHTML = html + '</div></hk-plate>';
         var q = this._root.querySelector.bind(this._root);
         this._e = { card: q('.vac'), ico: q('.ico'), label: q('.label'), meta: q('.meta') };
         var self = this;
@@ -193,7 +210,7 @@
           q('[data-hk-role="' + c[0] + '"]').addEventListener('click', function (ev) {
             // The whole card opens more-info; a command must not also do that.
             ev.stopPropagation();
-            if (self._hass) {
+            if (self.client) {
               self._call('vacuum', c[2], { entity_id: cfg.entity });
             }
           });
@@ -313,7 +330,7 @@
     // one resubscribes on every reconnect and retries a refusal with back-off.
     _subAreas() {
       if (!this._auto || this._areaSub || !this.isConnected) return;
-      var conn = this._hass && this._hass.connection;
+      var conn = this.client && this.client.subscriptions;    // the client's port
       var sub = window.hkSettings && window.hkSettings.subscribe;
       if (!conn || typeof conn.subscribeMessage !== 'function' || typeof sub !== 'function') return;
       var self = this;
@@ -347,7 +364,7 @@
       if (!this._auto) return this._config.floors || [];
       var o = this._offer;
       if (!o) return null;
-      var A = (this._hass && this._hass.areas) || {}, FL = (this._hass && this._hass.floors) || {};
+      var A = (this.client && this.client.areas) || {}, FL = (this.client && this.client.floors) || {};
       // without HK Clean Areas a house's own script still cleans: every area
       var ids = (o.missing || o.configured === false) && this._script() ? Object.keys(A) : (o.areas || []);
       var by = {};
@@ -372,7 +389,7 @@
     // Reads NO entity: everything it draws is the card-local selection, and
     // every change to that calls _render itself. HkBase's default signature has
     // no entity to key on and returns null ("always render"), which would wipe
-    // and rebuild every area button on every hass -- measured
+    // and rebuild every area button on every state push -- measured
     // 120 DOM mutations for 12 updates that changed nothing, on a page with a
     // live camera and vacuums reporting constantly.
     // Automatic, it draws Home Assistant's areas and floors too: their names
@@ -380,7 +397,7 @@
     _sigOf() {
       if (!this._auto) return 'static';
       this._subAreas();
-      var A = (this._hass && this._hass.areas) || {}, FL = (this._hass && this._hass.floors) || {};
+      var A = (this.client && this.client.areas) || {}, FL = (this.client && this.client.floors) || {};
       var ids = (this._offer && this._offer.areas) || [];
       return 'auto|' + this._order().join(',') + '|' + ids.map(function (id) {
         var a = A[id] || {}, f = FL[a.floor_id] || {};
@@ -398,7 +415,7 @@
     // Six rooms chosen, one tap, a rejected call: clearing then would wipe
     // the lot with nothing cleaning and nothing said.
     _start() {
-      if (!this._sel.size || !this._hass) return;
+      if (!this._sel.size || !this.client) return;
       var n = this._sel.size;
       if (!this._begin('Sending ' + n + (n === 1 ? ' area…' : ' areas…'))) return;
       var self = this;
@@ -432,7 +449,7 @@
       // rather than an error from the action.
       if (!(window.hkCards && window.hkCards.added && window.hkCards.added('clean_areas'))) {
         this._end();
-        this._setStatus('failed', 'Add Clean Areas (HK Frontend → Add feature) to clean by area.');
+        this._setStatus('failed', 'Add Clean Areas (' + window.hkShell.haPlace('HK Frontend → Add feature') + ') to clean by area.');
         this._render();
         return;
       }
@@ -638,12 +655,12 @@
   // THE COUNTDOWN IS STILL hk-timers.js AND MUST BE. That module owns
   // <hk-countdown>, which repaints itself off a deadline four times a second
   // and hands the fraction back to its parent as --hk-left for the progress
-  // bar. None of that is state a card re-render can produce -- hass reports a
+  // bar. None of that is state a card re-render can produce -- the client reports a
   // running timer changing exactly twice, at start and at finish -- so this
   // card calls hkTimers.html() for the countdown row, and the module's
   // markup lands in this shadow root.
   //
-  // RE-RENDER DISCIPLINE IS THE ONE HAZARD. `set hass` fires on every state
+  // RE-RENDER DISCIPLINE IS THE ONE HAZARD. each new client arrives on every state
   // change in the house, and rebuilding this grid on each one would tear down
   // and recreate every <hk-countdown> several times a second -- each one
   // restarting its paint and flashing --hk-left back to the 1 fallback, so the
@@ -677,7 +694,7 @@
         '.tc > .head{grid-area:head;justify-self:stretch;min-width:0;overflow:hidden}',
         '.tc > .count{grid-area:count;justify-self:stretch;align-self:center;min-width:0}',
         // The four controls, with an
-        // explicit 21px icon row -- an <ha-icon> has no intrinsic height, so a
+        // explicit 21px icon row -- an <hk-icon> has no intrinsic height, so a
         // min-content row collapses it to nothing and the buttons render as
         // bare captions. The caption row CAN be min-content; text sizes itself.
         '.tb{height:52px;border-radius:18px;background:' + window.hkCards.v('key') + ';',
@@ -685,7 +702,7 @@
         '  display:grid;grid-template-columns:minmax(0,1fr);',
         '  grid-template-rows:21px min-content;align-content:center;',
         '  justify-items:center;row-gap:3px;cursor:pointer;user-select:none}',
-        '.tb ha-icon{--mdc-icon-size:19px;width:19px;height:19px;',
+        '.tb hk-icon{--mdc-icon-size:19px;width:19px;height:19px;',
         '  color:' + window.hkCards.v('glyph') + '}',
         '.tb > span{font-size:11px;font-weight:600;letter-spacing:0.1px;',
         '  line-height:1;color:' + window.hkCards.v('ink-2') + '}',
@@ -829,7 +846,7 @@
     // NOT named _call -- see hk-security.js _alarm(): shadowing HkBase._call
     // would make this recurse forever and pause/resume/cancel do nothing.
     _timer(entity, service, data) {
-      if (!this._hass) { return; }
+      if (!this.client) { return; }
       var d = Object.assign({ entity_id: entity }, data || {});
       this._call('timer', service, d);
     }
@@ -860,7 +877,7 @@
       d.className = 'tb';
       d.style.gridArea = area;
       button(d, fn);
-      var i = document.createElement('ha-icon'); i.setAttribute('icon', icon);
+      var i = document.createElement('hk-icon'); i.setAttribute('icon', icon);
       var s = document.createElement('span'); s.textContent = label;
       d.appendChild(i); d.appendChild(s);
       return d;
@@ -908,9 +925,9 @@
           '<div style="flex:0 0 auto;width:' + well + 'px;height:' + well + 'px;border-radius:' + (well / 2) + 'px;' +
             'background:' + bg + ';display:flex;align-items:center;' +
             'justify-content:center;">' +
-            '<ha-icon icon="' + esc(t.glyph || 'mdi:timer-outline') + '" ' +
+            '<hk-icon icon="' + esc(t.glyph || 'mdi:timer-outline') + '" ' +
               'style="--mdc-icon-size:' + esc(px) + ';color:' + fg + ';">' +
-            '</ha-icon></div>' +
+            '</hk-icon></div>' +
           '<div style="min-width:0;text-align:left;">' +
             '<div style="font-size:17px;font-weight:600;letter-spacing:-0.45px;' +
               'color:' + window.hkCards.v('ink') + ';line-height:1.25;overflow:hidden;' +
@@ -931,7 +948,7 @@
       var hd = this._head(t, st, compact);
       hd.style.cursor = 'pointer';
       button(hd, function () {
-        self.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: e } }));
+        window.hkShell.moreInfo(e, self);
       });
       hd.setAttribute('aria-label', 'Open ' + (hd.textContent || 'timer'));
       c.appendChild(hd);
@@ -1344,7 +1361,7 @@
       return t.h + ' hr' + (t.m ? ' ' + t.m + ' min' : '');
     }
     // Reads no entity -- the digits and name are typed here. Same trap as the
-    // area picker: a null signature would repaint it on every hass (132
+    // area picker: a null signature would repaint it on every state push (132
     // mutations for 12 unchanged updates). Keys and inputs call _paint themselves.
     _sigOf() { return 'static'; }
 
@@ -1386,7 +1403,7 @@
     // the form is cleared for exactly one of them.
     _start() {
       var t = this._parse();
-      if (!t.total || !this._hass) return;
+      if (!t.total || !this.client) return;
       // `create_script` is an entity id; a blocking call needs it split. A
       // configured value without a domain is assumed to be a script.
       var ent = this._config.create_script || 'script.quick_timer_create';
@@ -1394,8 +1411,8 @@
       // NO SUCH SCRIPT: the quick-timer helpers are not installed (a card
       // placed by hand on a dashboard of one's own). Say that, not "could not
       // reach Home Assistant", which sends someone checking the network.
-      if (!this._hass.states[parts.join('.')]) {
-        this._setStatus('failed', NO_HELPERS);
+      if (!this.client.states[parts.join('.')]) {
+        this._setStatus('failed', NO_HELPERS());
         this._paint();
         return;
       }
@@ -1641,7 +1658,7 @@
   //
   // A HOST. The running grid and the creator are cards of their own
   // (their countdowns, their slot allocation and their status messages);
-  // this lays them out and hands them hass. The one thing it
+  // this lays them out and hands them the client. The one thing it
   // does itself is the Quick start row, which answers the way the
   // keypad does -- a bare script call would say nothing when all four
   // slots are busy.
@@ -1704,7 +1721,7 @@
     // "- Timer", and pictured as its accessory, else as the timer is.
     _house() {
       if (Array.isArray(this._config.house)) return this._config.house;
-      var h = this._hass, ids = setting('features.house_timers') || [];
+      var h = this.client, ids = setting('features.house_timers') || [];
       var A = setting('accessories') || {}, E = A.entities || {};
       var dash = ''; try { dash = String(location.pathname).split('/')[1] || ''; } catch (e) { /* a test */ }
       return ids.filter(function (id) { return !h || (h.states && h.states[id]); }).map(function (id) {
@@ -1719,20 +1736,20 @@
     // Only the House timers' states: the running grid and the creator gate
     // their own renders.
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return null;
       return this._house().map(function (t) {
         var st = h.states[t.entity];
         return t.entity + '=' + (st ? st.state : 'x');
       }).join(';');
     }
-    set hass(h) {
-      super.hass = h;
-      var self = this;
-      [this._run, this._new].forEach(function (c) { if (c) c.hkSetHass(h); });
-      Object.keys(this._tiles || {}).forEach(function (k) { self._tiles[k].hkSetHass(h); });
+    // EACH NEW CLIENT (either entry of HkBase), then the cards this one hosts.
+    _receiveClient() {
+      super._receiveClient();
+      var self = this, client = this.client;
+      [this._run, this._new].forEach(function (c) { if (c) feed(c, client); });
+      Object.keys(this._tiles || {}).forEach(function (k) { feed(self._tiles[k], client); });
     }
-    get hass() { return this._hass; }
     static label(mins) {
       return mins < 60 ? mins + ' min' : (mins % 60 ? Math.floor(mins / 60) + ' hr ' + (mins % 60) + ' min' : (mins / 60) + ' hr');
     }
@@ -1744,11 +1761,11 @@
     // slot} or {started: false, reason}; see helpers/quick_timers.yaml.
     _quick(mins) {
       var label = HkTimersPageCard.label(mins), self = this;
-      if (!this._hass) return;
+      if (!this.client) return;
       var ent = this._config.quick_script || 'script.quick_timer_start';
       var parts = ent.indexOf('.') === -1 ? ['script', ent] : ent.split('.');
-      if (!this._hass.states[parts.join('.')]) {   // the helpers are not installed
-        this._setStatus('failed', NO_HELPERS);
+      if (!this.client.states[parts.join('.')]) {   // the helpers are not installed
+        this._setStatus('failed', NO_HELPERS());
         this._render();
         return;
       }
@@ -1808,13 +1825,13 @@
       pg.appendChild(main); pg.appendChild(side);
       this._root.appendChild(pg);
       this._built = true;
-      if (this._hass) { this._run.hkSetHass(this._hass); this._new.hkSetHass(this._hass); }
+      if (this.client) { feed(this._run, this.client); feed(this._new, this.client); }
     }
     // The House timers that are IDLE, in order -- a running one is a card
     // in Running instead, never both (the conditions are complements).
     // `timer.start` with no duration runs its configured one.
     _paintHouse() {
-      var self = this, h = this._hass;
+      var self = this, h = this.client;
       var idle = this._house().filter(function (t) { var st = h && h.states[t.entity]; return st && st.state === 'idle'; });
       var want = idle.map(function (t) { return t.entity; }).join('|');
       if (want === this._houseKey) return;
@@ -1828,7 +1845,7 @@
             icon_color: 'orange', label_mode: 'duration',
             tap_action: { action: 'perform-action', perform_action: 'timer.start', target: { entity_id: t.entity } }
           });
-          if (h) el.hkSetHass(h);
+          feed(el, h);
         }
         self._hgrid.appendChild(el);
       });
@@ -1900,7 +1917,7 @@
   //
   // THE COUNTDOWN CANNOT BE A RENDERED VALUE. A running timer changes state
   // exactly twice -- at start and at finish -- and everything between is the
-  // wall clock moving, which hass never reports. So the number is a
+  // wall clock moving, which the client never reports. So the number is a
   // <hk-countdown> element that owns its own repaint; this only supplies a
   // deadline. See hk-timers.js.
   //
@@ -1935,17 +1952,17 @@
     }
     static get CSS() {
       return [
-        'ha-card.strip{background:none;box-shadow:none;border:none;',
+        'hk-plate.strip{background:none;box-shadow:none;border:none;',
         '  padding:0;margin:0;display:block}',
         // The screensaver's row is wrapped in a position:fixed div by strip()
         // itself, so its host must take no space and must not clip.
-        'ha-card.strip.fixed{height:0;overflow:visible}',
+        'hk-plate.strip.fixed{height:0;overflow:visible}',
         '.strip > div{min-width:0;overflow:hidden}'
       ].join('');
     }
     getCardSize() { return 1; }
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return null;
       var s = h.states[this._config.entity || 'sensor.running_quick_timers'];
       // The module may arrive after the first render; until it does there is
@@ -1955,8 +1972,8 @@
     _render() {
       var cfg = this._config;
       if (!this._built) {
-        this._root.innerHTML = '<ha-card class="strip' +
-          (cfg.fixed ? ' fixed' : '') + '" data-hk-role="card"></ha-card>';
+        this._root.innerHTML = '<hk-plate class="strip' +
+          (cfg.fixed ? ' fixed' : '') + '" data-hk-role="card"></hk-plate>';
         this._e = this._root.querySelector('.strip');
         // The module loads in parallel with this card. One listener, once,
         // and only while the card is attached (see _wire).
@@ -1975,7 +1992,7 @@
         // length, for the ring of time left -- the timer's own `duration`,
         // which is what it was last started with
         if (cfg.docked && Array.isArray(list)) {
-          var states = (this._hass && this._hass.states) || {};
+          var states = (this.client && this.client.states) || {};
           list = list.map(function (r) {
             var t = r && r.entity_id && states[r.entity_id];
             var d = t && t.attributes && T.secs(t.attributes.duration);
@@ -2034,12 +2051,12 @@
     { name: 'empty_text', selector: { text: {} } },
     { name: 'tint', selector: { text: {} },
       helper: 'A CSS color, e.g. rgba(255, 159, 10, 0.95). Default orange.' }
-  ], function (hass) {
+  ], function (client) {
     // no `house:` -- an empty list would override General -> House Timers.
     // The quick-timer slots when they are installed (helpers/quick_timers.yaml),
     // listed as a generated Timers page lists them: with no `timers` the card
     // never shows a running quick timer.
-    var st = (hass && hass.states) || {}, timers = [];
+    var st = (client && client.states) || {}, timers = [];
     [1, 2, 3, 4].forEach(function (i) {
       var id = 'timer.quick_' + i, nm = 'input_text.quick_timer_' + i + '_name';
       if (!st[id]) return;
@@ -2056,10 +2073,10 @@
     { name: 'empty_text', selector: { text: {} } },
     { name: 'tint', selector: { text: {} },
       helper: 'A CSS color, e.g. rgba(255, 159, 10, 0.95). Default orange.' }
-  ], function (hass) {
+  ], function (client) {
     // A stub with an empty list previews as a bare "nothing running" strip,
     // which tells the picker nothing. Name a real timer if the house has one.
-    var t = firstOfDomain(hass, 'timer');
+    var t = firstOfDomain(client, 'timer');
     return {
       timers: t.indexOf('.example') === -1
         ? [{ entity: t, label: 'Timer', glyph: 'mdi:timer-outline' }] : [],
@@ -2087,7 +2104,7 @@
         { name: 'tap_action', selector: { ui_action: {} } }
       ], 'mdi:gesture-tap')
     ],
-    function (hass) { return { entity: firstOf(hass, 'vacuum') }; });
+    function (client) { return { entity: firstOf(client, 'vacuum') }; });
 
   register('hk-timer-strip-card', HkTimerStripCard, 'HK Timer Strip',
     'A compact row of live countdowns for the running quick timers.',

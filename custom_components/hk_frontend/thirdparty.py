@@ -53,4 +53,3 @@ def note(key: str, state: str) -> str:
                 f"(JavaScript module) under Settings → Dashboards → Resources. Until then there is no {what}.")
     return (f"{name} is not installed. It is optional, from HACS (Frontend): without it there is no {what}, "
             f"and its options below do nothing.")
-

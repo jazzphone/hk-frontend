@@ -108,23 +108,23 @@
 
   // ------------------------------------------------------------ calendars
   var WHITE = [255, 255, 255];
-  function calIds(hass) {
-    var HS = window.hkSettings, st = (hass && hass.states) || {};
+  function calIds(client) {
+    var HS = window.hkSettings, st = (client && client.states) || {};
     if (HS && HS.calendarIds) return HS.calendarIds(st);
     return Object.keys(st).filter(function (k) { return k.indexOf('calendar.') === 0; }).sort();
   }
-  function rgbOf(id, hass) {
-    var HS = window.hkSettings, key = HS && HS.calendarColor ? HS.calendarColor(id, (hass && hass.states) || {}) : 'orange';
+  function rgbOf(id, client) {
+    var HS = window.hkSettings, key = HS && HS.calendarColor ? HS.calendarColor(id, (client && client.states) || {}) : 'orange';
     var hue = (C.PALETTE && C.PALETTE.chart) || {};
     return key === 'white' ? WHITE : (hue[key] && hue[key].length === 3 ? hue[key] : [255, 159, 10]);
   }
   // an event's color: its own, a keyword's, else its calendar's (hkSettings.eventColor)
-  function evRgb(ev, hass) {
+  function evRgb(ev, client) {
     var HS = window.hkSettings;
-    if (!ev || !HS || !HS.eventColor) return rgbOf(ev && ev.cal, hass);
-    var key = HS.eventColor(ev.cal, ev.title, ev.uid, (hass && hass.states) || {});
+    if (!ev || !HS || !HS.eventColor) return rgbOf(ev && ev.cal, client);
+    var key = HS.eventColor(ev.cal, ev.title, ev.uid, (client && client.states) || {});
     var hue = (C.PALETTE && C.PALETTE.chart) || {};
-    return key === 'white' ? WHITE : (hue[key] && hue[key].length === 3 ? hue[key] : evRgb(ev, hass));
+    return key === 'white' ? WHITE : (hue[key] && hue[key].length === 3 ? hue[key] : evRgb(ev, client));
   }
   // the keywords and the events' own colors, for a card's signature
   function colorSig() {
@@ -153,16 +153,16 @@
   ].join('');
   function edge(rgb) { return ';--e:' + rgba(rgb, 1); }
   function rgba(rgb, a) { return 'rgba(' + rgb.join(',') + ',' + a + ')'; }
-  function features(hass, id) {
-    var st = hass && hass.states && hass.states[id];
+  function features(client, id) {
+    var st = client && client.states && client.states[id];
     return Number((st && st.attributes && st.attributes.supported_features) || 0);
   }
-  function can(hass, id, what) { return !!(features(hass, id) & ({ create: 1, delete: 2, update: 4 })[what]); }
-  function calName(hass, id) {
-    var st = hass && hass.states && hass.states[id];
+  function can(client, id, what) { return !!(features(client, id) & ({ create: 1, delete: 2, update: 4 })[what]); }
+  function calName(client, id) {
+    var st = client && client.states && client.states[id];
     return (st && st.attributes && st.attributes.friendly_name) || id;
   }
-  function writable(hass) { return calIds(hass).filter(function (id) { return can(hass, id, 'create'); }); }
+  function writable(client) { return calIds(client).filter(function (id) { return can(client, id, 'create'); }); }
 
   // ------------------------------------------------------------ events
   // One event, as the cards use it: start and end as Dates (an all-day
@@ -200,13 +200,13 @@
   // made here, and every card asks again.
   var store = { ver: 0, got: {}, live: {} };
   var TTL = 60000;
-  function fetchOne(hass, id, from, to) {
+  function fetchOne(client, id, from, to) {
     var key = id + '|' + (+from) + '|' + (+to) + '|' + store.ver, hit = store.got[key];
     if (hit && Date.now() - hit.at < TTL) return Promise.resolve(hit.evs);
     if (store.live[key]) return store.live[key];
     var path = 'calendars/' + id + '?start=' + encodeURIComponent(isoLocal(from)) + '&end=' + encodeURIComponent(isoLocal(to));
     var p;
-    try { p = Promise.resolve(hass.callApi('GET', path)); } catch (e) { p = Promise.reject(e); }
+    try { p = Promise.resolve(client.callApi('GET', path)); } catch (e) { p = Promise.reject(e); }
     p = p.then(function (r) {
       var evs = (Array.isArray(r) ? r : []).map(function (e) { return norm(id, e); }).filter(Boolean);
       store.got[key] = { at: Date.now(), evs: evs };
@@ -219,18 +219,28 @@
     store.live[key] = p;
     return p;
   }
+  // the line over the page when calendars could not be read: a calendar
+  // Home Assistant has as unavailable (its account signed out, say) says so
+  function failedLine(h, ids) {
+    var names = ids.map(function (id) { return calName(h, id); }).join(', ');
+    var off = ids.every(function (id) { var s = h && h.states && h.states[id]; return s && s.state === 'unavailable'; });
+    return names + (off ? (ids.length > 1 ? ' are' : ' is') + ' unavailable in Home Assistant.' : ' couldn’t be read.');
+  }
   // every chosen calendar's events from `from` to `to`; a calendar that
   // fails is left out (and said so), the rest still show
-  function load(hass, ids, from, to) {
-    if (!hass || !hass.callApi || !ids.length) return Promise.resolve({ evs: [], failed: [] });
+  function load(client, ids, from, to) {
+    if (!client || !client.callApi || !ids.length) return Promise.resolve({ evs: [], failed: [] });
     var failed = [];
     return Promise.all(ids.map(function (id) {
-      return fetchOne(hass, id, from, to).catch(function (e) {
+      return fetchOne(client, id, from, to).catch(function (e) {
         console.warn('[hk-calendar]', id, e && (e.message || e.body || e));
         failed.push(id);
         return [];
       });
     })).then(function (lists) {
+      // (in the calendars' own order, not the order the failures came back:
+      // the line read "Work, Family" on one load and "Family, Work" on the next)
+      failed = ids.filter(function (id) { return failed.indexOf(id) >= 0; });
       return { evs: [].concat.apply([], lists).sort(byStart), failed: failed };
     });
   }
@@ -252,19 +262,22 @@
     return o;
   }
   function wsErr(e) { return (e && (e.message || e.code)) || 'Home Assistant refused it.'; }
-  function create(hass, cal, f) {
-    return hass.callWS({ type: 'calendar/event/create', entity_id: cal, event: payload(f) })
+  // A write: through the caller's client's action port (hkCards.actions,
+  // which still turns a caller's host input into its client).
+  function writer(x) { return window.hkCards.actions(x); }
+  function create(client, cal, f) {
+    return writer(client).callWS({ type: 'calendar/event/create', entity_id: cal, event: payload(f) })
       .then(function () { changed(); }, function (e) { throw new Error(wsErr(e)); });
   }
-  function update(hass, ev, f, scope) {
+  function update(client, ev, f, scope) {
     var msg = { type: 'calendar/event/update', entity_id: ev.cal, uid: ev.uid, event: payload(f) };
     if (ev.rid) { msg.recurrence_id = ev.rid; if (scope) msg.recurrence_range = scope; }
-    return hass.callWS(msg).then(function () { changed(); }, function (e) { throw new Error(wsErr(e)); });
+    return writer(client).callWS(msg).then(function () { changed(); }, function (e) { throw new Error(wsErr(e)); });
   }
-  function remove(hass, ev, scope) {
+  function remove(client, ev, scope) {
     var msg = { type: 'calendar/event/delete', entity_id: ev.cal, uid: ev.uid };
     if (ev.rid) { msg.recurrence_id = ev.rid; if (scope) msg.recurrence_range = scope; }
-    return hass.callWS(msg).then(function () { changed(); }, function (e) { throw new Error(wsErr(e)); });
+    return writer(client).callWS(msg).then(function () { changed(); }, function (e) { throw new Error(wsErr(e)); });
   }
 
   // OVERLAPPING EVENTS SIDE BY SIDE in a day's column: each cluster of
@@ -426,19 +439,19 @@
 
   // AN EVENT, SHOWN: when, where, the notes, and Edit / Delete where the
   // calendar allows them.
-  function show(hass, ev) {
+  function show(client, ev) {
     // AN HK SHEET, the size of every other (hk-detail.js): this one stays
     // for the editor and for a screen without hk-detail
     if (window.hkDetail && customElements.get('hk-detail-event') && window.hkDetail.open(ev.cal, null, { event: ev })) return;
-    var s = openSheet(ev.title, true), rgb = evRgb(ev, hass);
+    var s = openSheet(ev.title, true), rgb = evRgb(ev, client);
     var day = ev.allDay ? '' : (sameDay(ev.start, new Date()) ? 'Today, ' : DOW_LONG[ev.start.getDay()] + ', ' +
               MON3[ev.start.getMonth()] + ' ' + ev.start.getDate() + ', ');
     var allDayWhen = ev.allDay ? DOW_LONG[ev.start.getDay()] + ', ' + MON[ev.start.getMonth()] + ' ' + ev.start.getDate() + ' · ' + span(ev) : '';
-    var edit = can(hass, ev.cal, 'update') && ev.uid, del = can(hass, ev.cal, 'delete') && ev.uid;
+    var edit = can(client, ev.cal, 'update') && ev.uid, del = can(client, ev.cal, 'delete') && ev.uid;
     s.box.innerHTML =
       '<div class="hd"><span class="tb" aria-hidden="true"></span><div class="t">Event</div>' +
       '<button class="tb" data-a="close">Done</button></div>' +
-      '<div class="vw"><div class="cal"><span class="dot" style="background:' + rgba(rgb, 1) + '"></span>' + esc(calName(hass, ev.cal)) + '</div>' +
+      '<div class="vw"><div class="cal"><span class="dot" style="background:' + rgba(rgb, 1) + '"></span>' + esc(calName(client, ev.cal)) + '</div>' +
       '<h2>' + esc(ev.title) + '</h2>' +
       '<div class="ln">' + IC.clock + '<span>' + esc(ev.allDay ? allDayWhen : day + span(ev)) + '</span></div>' +
       (ev.rrule ? '<div class="ln">' + IC.repeat + '<span>' + esc(repeatLabel(ev.rrule)) + '</span></div>' : '') +
@@ -453,8 +466,8 @@
       if (!b) return;
       var a = b.getAttribute('data-a');
       if (a === 'close') closeSheet();
-      else if (a === 'edit') edit_(hass, ev);
-      else if (a === 'del') askDelete(hass, ev, function () { closeSheet(); });
+      else if (a === 'edit') edit_(client, ev);
+      else if (a === 'del') askDelete(client, ev, function () { closeSheet(); });
     };
   }
   function repeatLabel(r) {
@@ -464,9 +477,9 @@
     return f ? 'Repeats ' + f[1].toLowerCase() : 'Repeats';
   }
   // DELETE, asked first; an occurrence of a repeating event asks which.
-  function askDelete(hass, ev, done) {
+  function askDelete(client, ev, done) {
     var go = function (scope) {
-      remove(hass, ev, scope).then(done, function (e) {
+      remove(client, ev, scope).then(done, function (e) {
         C.confirmSheet('Couldn’t delete “' + ev.title + '”', function () {}, { detail: e.message, yes: 'OK', no: 'Close' });
       });
     };
@@ -480,8 +493,8 @@
 
   // THE FORM: a new event (`ev` null; `seed` = {cal, start, end, allDay}) or
   // a change to one.
-  function edit_(hass, ev, seed) {
-    var cals = writable(hass);
+  function edit_(client, ev, seed) {
+    var cals = writable(client);
     if (!ev && !cals.length) return;
     var isNew = !ev;
     var f = ev ? { cal: ev.cal, title: ev.title, loc: ev.loc, desc: ev.desc, allDay: ev.allDay, rrule: ev.rrule || '',
@@ -509,10 +522,10 @@
       repeatOpts.map(function (r) { return '<option value="' + esc(r[0]) + '">' + esc(r[1]) + '</option>'; }).join('') + '</select></div>' +
       '<div class="row"><span class="dot" data-f="calDot"></span><span class="l">Calendar</span><select class="pick" data-f="cal" aria-label="Calendar"' +
       (isNew ? '' : ' disabled') + '>' + (isNew ? cals : [f.cal]).map(function (id) {
-        return '<option value="' + esc(id) + '">' + esc(calName(hass, id)) + '</option>'; }).join('') + '</select></div></div>' +
+        return '<option value="' + esc(id) + '">' + esc(calName(client, id)) + '</option>'; }).join('') + '</select></div></div>' +
       '<div class="grp"><textarea data-f="desc" rows="3" placeholder="Notes" maxlength="2000" aria-label="Notes"></textarea></div>' +
       '<div class="err" role="alert"></div>' +
-      (isNew || !can(hass, f.cal, 'delete') || !ev.uid ? '' : '<button class="del" data-a="del">Delete Event</button>');
+      (isNew || !can(client, f.cal, 'delete') || !ev.uid ? '' : '<button class="del" data-a="del">Delete Event</button>');
     var q = function (k) { return s.box.querySelector('[data-f="' + k + '"]'); };
     var save = s.box.querySelector('[data-a="save"]'), err = s.box.querySelector('.err');
     q('title').value = f.title; q('loc').value = f.loc; q('desc').value = f.desc; q('rrule').value = f.rrule || '';
@@ -522,7 +535,7 @@
       q('st').value = hm(f.start); q('et').value = hm(f.end);
       ['st', 'et'].forEach(function (k) { q(k).style.display = f.allDay ? 'none' : ''; });
       s.box.querySelector('[data-a="allday"]').setAttribute('aria-checked', f.allDay ? 'true' : 'false');
-      q('calDot').style.background = rgba(rgbOf(f.cal, hass), 1);
+      q('calDot').style.background = rgba(rgbOf(f.cal, client), 1);
       // QUICK TIMES around the start, every half hour
       var box = q('chips');
       box.style.display = f.allDay ? 'none' : '';
@@ -572,7 +585,7 @@
         d.setHours(+p[0], +p[1], 0, 0);
         setStart(d);
       } else if (a === 'del') {
-        askDelete(hass, ev, function () { closeSheet(); });
+        askDelete(client, ev, function () { closeSheet(); });
       } else if (a === 'save') {
         f.title = q('title').value.trim();
         f.loc = q('loc').value.trim();
@@ -587,33 +600,33 @@
         var finish = function () { closeSheet(); };
         var fail = function (x) { save.disabled = false; err.textContent = 'Couldn’t save: ' + x.message; err.setAttribute('data-on', ''); };
         save.disabled = true;
-        if (isNew) { create(hass, f.cal, f).then(finish, fail); return; }
+        if (isNew) { create(client, f.cal, f).then(finish, fail); return; }
         // an occurrence of a repeating event: this one, or this and the
         // ones after it (a change to the repeat itself is always the latter)
         if (ev.rid) {
-          if (f.rrule !== origRule) { update(hass, ev, f, 'THISANDFUTURE').then(finish, fail); return; }
+          if (f.rrule !== origRule) { update(client, ev, f, 'THISANDFUTURE').then(finish, fail); return; }
           C.chooseSheet('Change “' + f.title + '”', [{ name: 'This Event Only', scope: '' },
             { name: 'This and Future Events', scope: 'THISANDFUTURE' }], function (o) {
             if (!o.scope) f.rrule = '';
-            update(hass, ev, f, o.scope).then(finish, fail);
+            update(client, ev, f, o.scope).then(finish, fail);
           });
           save.disabled = false;
           return;
         }
-        update(hass, ev, f, '').then(finish, fail);
+        update(client, ev, f, '').then(finish, fail);
       }
     };
     setTimeout(function () { try { if (isNew) q('title').focus(); } catch (e) { /* ignore */ } }, 60);
   }
   // a new event at `start` (a day: the next hour today, else 9 AM)
-  function newAt(hass, start, allDay, cal) {
+  function newAt(client, start, allDay, cal) {
     var s0 = new Date(start);
     if (!allDay && s0.getHours() === 0 && s0.getMinutes() === 0) {
       var now = new Date();
       if (sameDay(s0, now)) { s0 = new Date(now); s0.setHours(now.getHours() + 1, 0, 0, 0); }
       else s0.setHours(9, 0, 0, 0);
     }
-    edit_(hass, null, { cal: cal, start: s0, end: allDay ? day0(s0) : new Date(+s0 + 3600000), allDay: !!allDay });
+    edit_(client, null, { cal: cal, start: s0, end: allDay ? day0(s0) : new Date(+s0 + 3600000), allDay: !!allDay });
   }
 
   // ------------------------------------------------------------ the page
@@ -824,14 +837,14 @@
       this._day = day0(d);
       this._sel = null;
       this._have = '';
-      if (this._hass) { this._fetch(); this.redraw(); }
+      if (this.client) { this._fetch(); this.redraw(); }
     }
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
       var self = this;
       this._dayFromUrl();
       if (!this._onLoc) { this._onLoc = function () { self._dayFromUrl(); }; }
-      window.addEventListener('location-changed', this._onLoc);
+      window.hkShell.onNavigate(this._onLoc);
       window.addEventListener('hk-calendar-changed', this._onChanged);
       window.addEventListener('resize', this._onResize);
       // (a docked bar or the Now Playing pane coming or going changes the room)
@@ -849,13 +862,22 @@
       }
       // every five minutes the events again (a calendar changed elsewhere)
       this._tick = setInterval(function () { self._have = ''; self._fetch(); }, 300000);
-      // (again once the panels are drawn: measured from the body itself)
+      // DRAWN BEFORE IT WAS PLACED, the page guessed its width (wide) and
+      // its height (the 620 px default), and a cold load could show that
+      // frame before the ResizeObserver and the measure below put it right
+      // (2026-10-20, Safari on Mantel: the panels drew short, then grew).
+      // So the width is taken now, the page drawn again for it, and the
+      // panels measured, before the first frame -- and again once they are
+      // drawn: measured from the body itself.
+      var w0 = this.clientWidth || 0;
+      if (w0 && Math.abs(w0 - this._w) >= 2) { this._w = w0; if (this.client && this._config) this.redraw(); }
+      this._measure();
       this._m0 = setTimeout(function () { self._m0 = null; self._measure(); setTimeout(function () { if (self.isConnected) self._measure(); }, 400); }, 0);
     }
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
       window.removeEventListener('hk-calendar-changed', this._onChanged);
-      window.removeEventListener('location-changed', this._onLoc);
+      window.hkShell.offNavigate(this._onLoc);
       window.removeEventListener('resize', this._onResize);
       window.removeEventListener('hk-dock', this._onResize);
       window.removeEventListener('hk-pane', this._onResize);
@@ -889,7 +911,7 @@
       // desk opened at the 620 px default stayed there until a resize; 2026-10-16)
       var hv = null, inner = null, n = this, prev = null;
       for (var i = 0; i < 40 && n; i++) {
-        if (n.localName === 'hui-view') { hv = n; inner = prev; break; }
+        if (window.hkShell.is(n, 'view')) { hv = n; inner = prev; break; }
         if (n.nodeType === 1) prev = n;
         n = n.parentNode || n.host;
       }
@@ -929,7 +951,7 @@
       return { from: m0, to: addDays(m0, 42) };
     }
     _fetch() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return;
       var r = this._range(), ids = calIds(h);
       var want = ids.join(',') + '|' + (+r.from) + '|' + (+r.to) + '|' + store.ver;
@@ -945,7 +967,7 @@
       });
     }
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h || !this._config) return null;
       var ids = calIds(h), HS = window.hkSettings;
       var out = ids.map(function (id) { var s = h.states[id]; return id + '=' + (s ? s.last_updated : 'x'); }).join(';');
@@ -983,7 +1005,7 @@
       var b = e.composedPath ? e.composedPath().filter(function (n) { return n.getAttribute && n.getAttribute('data-a'); })[0]
                               : (e.target.closest && e.target.closest('[data-a]'));
       if (!b) return;
-      var a = b.getAttribute('data-a'), v = b.getAttribute('data-v'), h = this._hass;
+      var a = b.getAttribute('data-a'), v = b.getAttribute('data-v'), h = this.client;
       if (a === 'prev') this._step(-1);
       else if (a === 'next') this._step(1);
       else if (a === 'today') this._go(null, new Date());
@@ -1015,7 +1037,7 @@
       else if (a === 'del') { var e2 = this._find(this._sel), self = this; if (e2) askDelete(h, e2, function () { self._sel = null; }); }
     }
     _render() {
-      var h = this._hass;
+      var h = this.client;
       if (!h || !this._config) return;
       setWeekStart(h);
       this._fetch();
@@ -1027,7 +1049,7 @@
       var bar = this._bar(h, wide), html = '';
       if (!calIds(h).length) html += '<div class="panel" style="padding:22px"><div class="empty">No calendars. Add one to Home Assistant (Settings → Devices &amp; Services → Add Integration → Local Calendar) and it shows here.</div></div>';
       else {
-        if (this._failed.length) html += '<div class="warn">' + esc(this._failed.map(function (id) { return calName(h, id); }).join(', ')) + ' couldn’t be read.</div>';
+        if (this._failed.length) html += '<div class="warn">' + esc(failedLine(h, this._failed)) + '</div>';
         html += this._view === 'week' ? this._week(h, wide) : this._view === 'day' ? this._dayView(h, wide) : this._month(h, wide);
       }
       // THE BAR IS WRITTEN ONLY WHEN IT CHANGES (2026-10-10). The page is
@@ -1040,8 +1062,9 @@
       // fits the window too ('fit'): its list scrolls in its panel, under a
       // page that stays put -- a phone's page scrolls as a phone's does
       var fit = !wide && this._view === 'week' && (window.innerWidth || 0) >= 640 && (window.innerHeight || 0) >= 500;
-      var cls = (wide ? 'wide' : 'narrow') + (fit ? ' fit' : ''), wrap = this._wrap;
+      var cls = (wide ? 'wide' : 'narrow') + (fit ? ' fit' : ''), wrap = this._wrap, fresh = false;
       if (!wrap || wrap.parentNode !== this._root || wrap.className !== cls) {
+        fresh = true;
         // (a new layout: its panels measured again once drawn)
         var selfM = this;
         requestAnimationFrame(function () { if (selfM.isConnected) selfM._measure(); });
@@ -1063,6 +1086,16 @@
         if (nowSeg) slideSeg(nowSeg, segFrom);
       }
       if (wrap) wrap.children[1].innerHTML = html;
+      // MEASURED BEFORE THE FIRST PAINT (2026-10-20, Safari on Mantel): a
+      // new layout's panels were measured a frame later, so on some loads
+      // their first frame was the 620 px default and then they grew.
+      // THE WARNING LINE COMES LATE: it sits above the panels and arrives
+      // with the events' answer, often after the panels were measured --
+      // they were pushed down by its height and ran past the window's
+      // gutter, on some loads and not others. Measured again in the same
+      // frame it comes or goes, so the panels' bottom edge stays put.
+      var warned = this._failed.length > 0;
+      if (fresh || warned !== !!this._warned) { this._warned = warned; this._measure(); }
       var tl2 = this._root.querySelector && this._root.querySelector('.tl');
       if (tl2 && tl2.setAttribute) {
         tl2.setAttribute('data-k', this._view + (+this._day));
@@ -1346,7 +1379,7 @@
     }
     _days() { var n = Number((this._config || {}).days); return n >= 1 && n <= 7 ? Math.round(n) : 2; }
     _fetch() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return;
       var from = day0(new Date()), to = addDays(from, this._days()), ids = calIds(h);
       var want = ids.join(',') + '|' + (+from) + '|' + this._days() + '|' + store.ver;
@@ -1360,14 +1393,14 @@
       });
     }
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h || !this._config) return null;
       var ids = calIds(h), HS = window.hkSettings;
       return ids.map(function (id) { var s = h.states[id]; return id + '=' + (s ? s.last_updated : 'x') + '/' +
         (HS && HS.calendarColor ? HS.calendarColor(id, h.states) : ''); }).join(';') + colorSig() + '|' + this._n + '|' + Math.floor(Date.now() / 60000);
     }
     _render() {
-      var h = this._hass;
+      var h = this.client;
       if (!h || !this._config) return;
       this._fetch();
       var now = new Date(), d0 = day0(now), self = this, html = '', next = null;
@@ -1418,9 +1451,9 @@
   // house's: its name, start and end as text), or -- from a calendar's tile --
   // the calendar's own (the one going on or next). The day's events are then
   // asked for, and the event found among them for its uid (Edit, Delete).
-  function fromAny(hass, cal, e) {
+  function fromAny(client, cal, e) {
     if (!e && cal) {
-      var st = hass && hass.states && hass.states[cal], a = (st && st.attributes) || {};
+      var st = client && client.states && client.states[cal], a = (st && st.attributes) || {};
       if (!a.start_time) return null;
       e = { summary: a.message, start: a.start_time, end: a.end_time, location: a.location, description: a.description, all_day: a.all_day };
     }
@@ -1617,7 +1650,7 @@
       }
       _sigOf() { return this._built ? 'built' : 'new'; }
       _render() {
-        var h = this._hass;
+        var h = this.client;
         if (!h || !this._config) return;
         if (!this._ev) this._ev = fromAny(h, this._id, this._config.event);
         var one = matchMedia('(max-width:' + window.hkCards.BP.phone + 'px)').matches;
@@ -1634,7 +1667,7 @@
         }
       }
       _load() {
-        var h = this._hass, ev = this._ev, self = this;
+        var h = this.client, ev = this._ev, self = this;
         if (!h || (!ev && !this._at)) return;
         var a = this._at || day0(ev.start), ids = calIds(h);
         this._at = a;
@@ -1668,7 +1701,7 @@
         if (+d === +this._at) return;
         this._at = d; this._tlMoved = false;
         var self = this;
-        var h = this._hass, ids = calIds(h);
+        var h = this.client, ids = calIds(h);
         var ee = this._root.querySelector('.ee');
         if (ee) ee.classList.add('wait');
         this._root.querySelectorAll('.mmg button[data-d]').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-d') === ymd(d)); });
@@ -1699,7 +1732,7 @@
         return '<div class="card mm"><div class="lab"><span>' + MON[a.getMonth()] + ' ' + a.getFullYear() + '</span></div><div class="mmg" style="grid-template-rows:auto repeat(' + (n / 7) + ',36px)">' + cells + '</div></div>';
       }
       _paint() {
-        var h = this._hass, ev = this._ev;
+        var h = this.client, ev = this._ev;
         if (!this._c1 || !h) return;
         var note = this._note;
         if (!ev && this._at && !this._one) {
@@ -1780,13 +1813,13 @@
           }).join('') + '</div></div>';
       }
       _setColor(color) {
-        var h = this._hass, ev = this._ev, HS = window.hkSettings, self = this;
+        var h = this.client, ev = this._ev, HS = window.hkSettings, self = this;
         if (!h || !ev || !HS || !HS.eventKey) return;
         var key = HS.eventKey(ev.title, ev.uid), own = (HS.get('calendar.event_colors', {}) || {})[key];
         if (color && color === own) color = '';            // its own again: back to automatic
         this._own = { k: key, c: color || null };
         this._paint();
-        h.callWS({ type: 'hk_frontend/calendar/color', key: key, color: color || null }).catch(function (e) {
+        writer(h).callWS({ type: 'hk_frontend/calendar/color', key: key, color: color || null }).catch(function (e) {
           console.warn('[hk-calendar] the color', e);
           self._own = null; self._paint();
         });
@@ -1823,7 +1856,7 @@
       _click(e) {
         var b = e.target.closest ? e.target.closest('[data-a], [data-k], [data-d]') : null;
         if (!b) return;
-        var h = this._hass, ev = this._ev;
+        var h = this.client, ev = this._ev;
         if (b.hasAttribute('data-d')) { this._pickDay(parseYmd(b.getAttribute('data-d'))); return; }
         if (b.hasAttribute('data-k')) {
           var k = b.getAttribute('data-k'), hit = (this._day || []).filter(function (x) { return x.key === k; })[0];
@@ -1844,7 +1877,7 @@
     ids: calIds, load: load, create: create, update: update, remove: remove, changed: changed,
     show: show, edit: edit_, newAt: newAt, close: closeSheet, askDelete: askDelete, fromAny: fromAny,
     // tests
-    _: { bigTime: bigTime, longDay: longDay, norm: norm, onDay: onDay, ownDay: ownDay, lanes: lanes, bars: bars, payload: payload, isoLocal: isoLocal, ymd: ymd,
+    _: { failedLine: failedLine, bigTime: bigTime, longDay: longDay, norm: norm, onDay: onDay, ownDay: ownDay, lanes: lanes, bars: bars, payload: payload, isoLocal: isoLocal, ymd: ymd,
          weekStart: weekStart, setWeekStart: setWeekStart, dows: dows, addMonths: addMonths, span: span, soon: soon, tshort: tshort, store: store }
   };
   });

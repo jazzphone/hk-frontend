@@ -159,14 +159,14 @@ location.search = '';
 // ---- the tiles: off washed, lit white, bare stays bare ----------------------
 S._apply({ look: { flat: true, flat_theme: 'light', flat_colors: { accent: SAGE, off_tint: 'accent' } }, boards: {}, sky: {} });
 var Tile = customElements.get('hk-tile-card'), Media = customElements.get('hk-media-card');
-function proto(Ctor, cfg, st) { var c = Object.create(Ctor.prototype); c._config = cfg; c._hass = { states: st ? { [st.entity_id]: st } : {} }; return c; }
+function proto(Ctor, cfg, st) { var c = Object.create(Ctor.prototype); c._config = cfg; hkGive(c, { states: st ? { [st.entity_id]: st } : {} }); return c; }
 ok('a calm off color is the Automatic source (a leak sensor’s drop)', proto(Tile, { off_icon_color: 'blue', icon_color: 'red' })._idleSource({ off_icon_color: 'blue', icon_color: 'red' }, null) !== proto(Tile, {})._idleSource({ icon_color: 'red' }, null));
 ok('unavailable has no color of its own (neutral)', proto(Tile, {})._idleSource({ icon_color: 'red' }, { state: 'unavailable', entity_id: 'light.x' }) === null);
 ok('media: its own color through the one rule (no override)', proto(Media, {})._idleSource({ icon_color: 'cyan' }, { state: 'off', entity_id: 'media_player.tv' }) === proto(Tile, {})._idleSource({ icon_color: 'cyan' }, { state: 'off', entity_id: 'light.x' }));
 ok('bare by what the card says: Safari’s none and Chrome’s transparent alike', Tile.prototype._bareWell({}, 'none') && Tile.prototype._bareWell({}, 'transparent') && Tile.prototype._bareWell({ bare_icon: true }, '#fff') && !Tile.prototype._bareWell({}, 'var(--hk-look-well)'));
 var css = C.flatCss();
 ok('a lit pill is pure white in Flat Light (no wash rule)', !/14%,#fff/.test(css) && !/hk-tile-tint/.test(css));
-ok('off pills wear --hk-idle-pill', /ha-card\.card\[data-hk-idle\]:not\(\[data-on="1"\]\):not\(\.hk-tapped\)\{background:var\(--hk-idle-pill\)!important\}/.test(css));
+ok('off pills wear --hk-idle-pill', /hk-plate\.card\[data-hk-idle\]:not\(\[data-on="1"\]\):not\(\.hk-tapped\)\{background:var\(--hk-idle-pill\)!important\}/.test(css));
 ok('a lit or tapped scene is white feedback, an idle one the scene tone', /\.scene:not\(\.hk-tapped\):not\(\[data-on="1"\]\)\{background:var\(--hk-flat-scene\)/.test(css));
 
 // ---- the settings' display model agrees ---------------------------------------

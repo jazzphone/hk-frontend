@@ -1,0 +1,902 @@
+{
+ "automation.climate_home_set_sleep_temp": {
+  "actions": [
+   {
+    "alias": "Stop while storm mode is active",
+    "if": [
+     {
+      "condition": "state",
+      "entity_id": "binary_sensor.storm_mode_active",
+      "state": "on"
+     }
+    ],
+    "then": [
+     {
+      "alias": "Stop because storm mode owns the climate",
+      "stop": "Storm mode is active; normal climate control is paused."
+     }
+    ]
+   },
+   {
+    "alias": "Set thermostats in parallel",
+    "parallel": [
+     {
+      "action": "climate.set_temperature",
+      "alias": "Set thermostat temperature - Hallway Nest Thermostat",
+      "data": {
+       "hvac_mode": "heat_cool",
+       "target_temp_high": 24,
+       "target_temp_low": 19
+      },
+      "target": {
+       "entity_id": [
+        "climate.hallway_nest_thermostat"
+       ]
+      }
+     },
+     {
+      "action": "climate.set_temperature",
+      "alias": "Set thermostat temperature - Loft Honeywell Thermostat",
+      "data": {
+       "hvac_mode": "heat_cool",
+       "target_temp_high": 23,
+       "target_temp_low": 18
+      },
+      "target": {
+       "entity_id": [
+        "climate.loft_honeywell_thermostat"
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "alias": "Climate - Home - Set Sleep Temp",
+  "conditions": [
+   {
+    "condition": "or",
+    "conditions": [
+     {
+      "condition": "state",
+      "entity_id": "person.sam",
+      "state": "home"
+     },
+     {
+      "condition": "state",
+      "entity_id": "person.riley",
+      "state": "home"
+     }
+    ]
+   },
+   {
+    "condition": "state",
+    "entity_id": "input_boolean.manual_cooling",
+    "state": [
+     "off"
+    ]
+   }
+  ],
+  "description": "Sets both thermostats to the overnight heat/cool targets at 10:15 PM when Sam or Riley is home and manual cooling is off. This is a scheduled comfort adjustment separate from the Leaving and Arriving climate actions. Both thermostat service calls run in parallel.",
+  "id": "1760112000211",
+  "mode": "single",
+  "triggers": [
+   {
+    "alias": "Trigger - Time reaches 22:15:00",
+    "at": "22:15:00",
+    "id": "time_reaches_22_15_00",
+    "trigger": "time"
+   }
+  ]
+ },
+ "automation.lighting_back_garden_evening_lights": {
+  "actions": [
+   {
+    "alias": "Choose the matching automation branch",
+    "choose": [
+     {
+      "alias": "Branch - Trigger is sunset_on",
+      "conditions": [
+       {
+        "condition": "trigger",
+        "id": "sunset_on"
+       }
+      ],
+      "sequence": [
+       {
+        "alias": "Run grouped actions in parallel",
+        "parallel": [
+         {
+          "action": "light.turn_on",
+          "alias": "Turn light on - 3 entities",
+          "data": {
+           "brightness_pct": 90,
+           "color_temp_kelvin": 2900
+          },
+          "target": {
+           "entity_id": [
+            "light.garden_path_lights",
+            "light.raised_bed_lights",
+            "light.shed_wall_light"
+           ]
+          }
+         },
+         {
+          "action": "switch.turn_on",
+          "alias": "Turn switch on - Greenhouse Fan Outlet",
+          "data": {},
+          "target": {
+           "entity_id": [
+            "switch.greenhouse_fan_outlet"
+           ]
+          }
+         },
+         {
+          "action": "light.turn_on",
+          "alias": "Turn light on - Fence Uplights",
+          "data": {},
+          "target": {
+           "entity_id": [
+            "light.fence_uplights"
+           ]
+          }
+         },
+         {
+          "action": "select.select_option",
+          "alias": "Select option - 2 entities",
+          "data": {
+           "option": "Warm White"
+          },
+          "target": {
+           "entity_id": [
+            "select.fence_uplights_scene",
+            "select.garden_path_lights_scene"
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "alias": "Branch - Trigger is sunset_off",
+      "conditions": [
+       {
+        "condition": "trigger",
+        "id": "sunset_off"
+       }
+      ],
+      "sequence": [
+       {
+        "alias": "Run grouped actions in parallel",
+        "parallel": [
+         {
+          "action": "light.turn_off",
+          "alias": "Turn light off - Scheduled garden lights",
+          "data": {},
+          "target": {
+           "entity_id": [
+            "light.garden_path_lights",
+            "light.raised_bed_lights",
+            "light.shed_wall_light",
+            "light.fence_uplights"
+           ]
+          }
+         },
+         {
+          "action": "switch.turn_off",
+          "alias": "Turn switch off - Greenhouse Fan Outlet",
+          "data": {},
+          "target": {
+           "entity_id": [
+            "switch.greenhouse_fan_outlet"
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "action": "select.select_option",
+        "alias": "Select option - Scheduled garden scenes",
+        "data": {
+         "option": "Warm White"
+        },
+        "target": {
+         "entity_id": [
+          "select.fence_uplights_scene",
+          "select.garden_path_lights_scene"
+         ]
+        }
+       },
+       {
+        "alias": "Wait before next step",
+        "delay": {
+         "seconds": 2
+        }
+       },
+       {
+        "action": "light.turn_off",
+        "alias": "Turn light off - Garden lights again",
+        "data": {},
+        "target": {
+         "entity_id": [
+          "light.fence_uplights",
+          "light.garden_path_lights"
+         ]
+        }
+       },
+       {
+        "alias": "Switch the pergola strings off only when the patio door is locked",
+        "if": [
+         {
+          "condition": "state",
+          "entity_id": "lock.patio_door",
+          "state": "locked"
+         }
+        ],
+        "then": [
+         {
+          "action": "select.select_option",
+          "alias": "Select default scene - Pergola String Lights",
+          "data": {
+           "option": "Warm White"
+          },
+          "target": {
+           "entity_id": "select.pergola_string_lights_scene"
+          }
+         },
+         {
+          "alias": "Let the controller settle",
+          "delay": {
+           "seconds": 2
+          }
+         },
+         {
+          "action": "light.turn_off",
+          "alias": "Turn off Pergola String Lights",
+          "data": {},
+          "target": {
+           "entity_id": [
+            "light.pergola_string_lights"
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "alias": "Branch - Trigger is sunrise_on",
+      "conditions": [
+       {
+        "condition": "trigger",
+        "id": "sunrise_on"
+       }
+      ],
+      "sequence": [
+       {
+        "alias": "Run grouped actions in parallel",
+        "parallel": [
+         {
+          "action": "light.turn_on",
+          "alias": "Turn light on - Garden Path Lights",
+          "data": {
+           "brightness_pct": 60
+          },
+          "target": {
+           "entity_id": [
+            "light.garden_path_lights"
+           ]
+          }
+         },
+         {
+          "action": "light.turn_on",
+          "alias": "Turn light on - Shed Wall Light",
+          "data": {
+           "brightness_pct": 60
+          },
+          "target": {
+           "entity_id": [
+            "light.shed_wall_light"
+           ]
+          }
+         },
+         {
+          "alias": "Turn on Raised Bed Lights when Visitor Mode is off",
+          "if": [
+           {
+            "condition": "state",
+            "entity_id": "input_boolean.visitor_mode",
+            "state": "off"
+           }
+          ],
+          "then": [
+           {
+            "action": "light.turn_on",
+            "alias": "Turn light on - Raised Bed Lights",
+            "data": {
+             "brightness_pct": 60,
+             "color_temp_kelvin": 2900
+            },
+            "target": {
+             "entity_id": [
+              "light.raised_bed_lights"
+             ]
+            }
+           }
+          ]
+         },
+         {
+          "action": "select.select_option",
+          "alias": "Select option - 2 entities",
+          "data": {
+           "option": "Warm White"
+          },
+          "target": {
+           "entity_id": [
+            "select.garden_path_lights_scene",
+            "select.fence_uplights_scene"
+           ]
+          }
+         },
+         {
+          "action": "light.turn_on",
+          "alias": "Turn light on - Fence Uplights",
+          "data": {
+           "brightness_pct": 40
+          },
+          "target": {
+           "entity_id": [
+            "light.fence_uplights"
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "alias": "Branch - Trigger is sunrise_off",
+      "conditions": [
+       {
+        "condition": "trigger",
+        "id": "sunrise_off"
+       }
+      ],
+      "sequence": [
+       {
+        "action": "light.turn_off",
+        "alias": "Turn light off - Scheduled garden lights",
+        "data": {},
+        "target": {
+         "entity_id": [
+          "light.garden_path_lights",
+          "light.raised_bed_lights",
+          "light.shed_wall_light",
+          "light.fence_uplights"
+         ]
+        }
+       },
+       {
+        "action": "select.select_option",
+        "alias": "Select option - Scheduled garden scenes",
+        "data": {
+         "option": "Warm White"
+        },
+        "target": {
+         "entity_id": [
+          "select.fence_uplights_scene",
+          "select.garden_path_lights_scene"
+         ]
+        }
+       },
+       {
+        "alias": "Wait before next step",
+        "delay": {
+         "seconds": 2
+        }
+       },
+       {
+        "action": "light.turn_off",
+        "alias": "Turn light off - Garden lights again",
+        "data": {},
+        "target": {
+         "entity_id": [
+          "light.fence_uplights",
+          "light.garden_path_lights"
+         ]
+        }
+       },
+       {
+        "alias": "Switch the pergola strings off only when the patio door is locked",
+        "if": [
+         {
+          "condition": "state",
+          "entity_id": "lock.patio_door",
+          "state": "locked"
+         }
+        ],
+        "then": [
+         {
+          "action": "select.select_option",
+          "alias": "Select default scene - Pergola String Lights",
+          "data": {
+           "option": "Warm White"
+          },
+          "target": {
+           "entity_id": "select.pergola_string_lights_scene"
+          }
+         },
+         {
+          "alias": "Let the controller settle",
+          "delay": {
+           "seconds": 2
+          }
+         },
+         {
+          "action": "light.turn_off",
+          "alias": "Turn off Pergola String Lights",
+          "data": {},
+          "target": {
+           "entity_id": [
+            "light.pergola_string_lights"
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "alias": "Lighting - Back Garden - Evening Lights",
+  "conditions": [],
+  "description": "Owns the back garden's lighting windows: on shortly before sunset, off at 11 PM (and the pergola strings reset), a dim pre-dawn pass and off again after sunrise. The pergola strings are reset only when the patio door is locked, so the patio automation can own them while the patio is in use.",
+  "id": "garden_evening_lights",
+  "mode": "single",
+  "triggers": [
+   {
+    "alias": "Trigger - Sunset On",
+    "event": "sunset",
+    "id": "sunset_on",
+    "offset": "-00:20:00",
+    "trigger": "sun"
+   },
+   {
+    "alias": "Trigger - Sunset Off",
+    "at": "23:00:00",
+    "id": "sunset_off",
+    "trigger": "time"
+   },
+   {
+    "alias": "Trigger - Sunrise On",
+    "enabled": true,
+    "event": "sunrise",
+    "id": "sunrise_on",
+    "offset": "-00:45:00",
+    "trigger": "sun"
+   },
+   {
+    "alias": "Trigger - Sunrise Off",
+    "event": "sunrise",
+    "id": "sunrise_off",
+    "offset": "+00:20:00",
+    "trigger": "sun"
+   }
+  ]
+ },
+ "automation.lighting_back_garden_seasonal_schedule": {
+  "actions": [
+   {
+    "alias": "Choose the matching automation branch",
+    "choose": [
+     {
+      "alias": "Branch - Trigger is holiday_on",
+      "conditions": [
+       {
+        "condition": "trigger",
+        "id": "holiday_on"
+       }
+      ],
+      "sequence": [
+       {
+        "alias": "Diwali",
+        "if": [
+         {
+          "condition": "state",
+          "entity_id": "sensor.public_holidays",
+          "state": "Diwali"
+         }
+        ],
+        "then": [
+         {
+          "action": "select.select_option",
+          "alias": "Select option - 2 entities",
+          "data": {
+           "option": "Diwali"
+          },
+          "target": {
+           "entity_id": [
+            "select.eave_lights_playlist",
+            "select.tree_lights_playlist"
+           ]
+          }
+         },
+         {
+          "action": "script.turn_on",
+          "alias": "Turn script on - Diwali Lights",
+          "data": {},
+          "target": {
+           "entity_id": "script.diwali_lights"
+          }
+         }
+        ]
+       },
+       {
+        "alias": "Hanukkah",
+        "if": [
+         {
+          "condition": "state",
+          "entity_id": "sensor.public_holidays",
+          "state": "Hanukkah"
+         }
+        ],
+        "then": [
+         {
+          "action": "select.select_option",
+          "alias": "Select option - 2 entities",
+          "data": {
+           "option": "Hanukkah"
+          },
+          "target": {
+           "entity_id": [
+            "select.eave_lights_playlist",
+            "select.tree_lights_playlist"
+           ]
+          }
+         },
+         {
+          "action": "script.turn_on",
+          "alias": "Turn script on - Hanukkah Lights",
+          "data": {},
+          "target": {
+           "entity_id": [
+            "script.hanukkah_lights"
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "alias": "Thanksgiving",
+        "if": [
+         {
+          "condition": "state",
+          "entity_id": "sensor.public_holidays",
+          "state": "Thanksgiving"
+         }
+        ],
+        "then": [
+         {
+          "action": "select.select_option",
+          "alias": "Select option - Eave Lights Playlist",
+          "data": {
+           "option": "Harvest"
+          },
+          "target": {
+           "entity_id": "select.eave_lights_playlist"
+          }
+         },
+         {
+          "action": "select.select_option",
+          "alias": "Select option - Tree Lights Playlist",
+          "data": {
+           "option": "Harvest"
+          },
+          "target": {
+           "entity_id": "select.tree_lights_playlist"
+          }
+         },
+         {
+          "action": "script.turn_on",
+          "alias": "Turn script on - Harvest",
+          "data": {},
+          "target": {
+           "entity_id": "script.harvest"
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "alias": "Branch - Trigger is holiday_off",
+      "conditions": [
+       {
+        "condition": "trigger",
+        "id": "holiday_off"
+       },
+       {
+        "condition": "state",
+        "entity_id": "sensor.public_holidays",
+        "state": [
+         "Diwali",
+         "Hanukkah",
+         "Thanksgiving"
+        ]
+       }
+      ],
+      "sequence": [
+       {
+        "action": "script.turn_off",
+        "alias": "Turn script off - 3 entities",
+        "data": {},
+        "metadata": {},
+        "target": {
+         "entity_id": [
+          "script.diwali_lights",
+          "script.hanukkah_lights",
+          "script.harvest"
+         ]
+        }
+       },
+       {
+        "action": "select.select_option",
+        "alias": "Select option - 2 entities",
+        "data": {
+         "option": "Warm White"
+        },
+        "target": {
+         "entity_id": [
+          "select.eave_lights_playlist",
+          "select.tree_lights_playlist"
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "alias": "Lighting - Back Garden - Seasonal Schedule",
+  "conditions": [],
+  "description": "Starts the seasonal playlists before sunset and resets them at 9:30 PM when a supported holiday is active. It only picks playlists and runs scripts; the garden's own schedule switches the lights.",
+  "id": "garden_seasonal_schedule",
+  "mode": "single",
+  "triggers": [
+   {
+    "alias": "Trigger - Holiday On",
+    "event": "sunset",
+    "id": "holiday_on",
+    "offset": "-00:10:00",
+    "trigger": "sun"
+   },
+   {
+    "alias": "Trigger - Holiday Off",
+    "at": "21:30:00",
+    "id": "holiday_off",
+    "trigger": "time"
+   }
+  ]
+ },
+ "automation.lighting_home_interior_evening_lights": {
+  "actions": [
+   {
+    "alias": "Stop while storm mode is active",
+    "if": [
+     {
+      "condition": "state",
+      "entity_id": "binary_sensor.storm_mode_active",
+      "state": "on"
+     }
+    ],
+    "then": [
+     {
+      "alias": "Stop because storm mode owns the house",
+      "stop": "Storm mode is active; normal automation control is paused."
+     }
+    ]
+   },
+   {
+    "alias": "Wait briefly after Home Assistant startup",
+    "if": [
+     {
+      "condition": "trigger",
+      "id": "ha_start"
+     }
+    ],
+    "then": [
+     {
+      "alias": "Wait 45 seconds",
+      "delay": {
+       "seconds": 45
+      }
+     }
+    ]
+   },
+   {
+    "alias": "Run grouped actions in parallel",
+    "parallel": [
+     {
+      "alias": "Shared arrival lights - only when an arrival routine is not doing it",
+      "if": [
+       {
+        "alias": "Not triggered by an arrival button",
+        "condition": "not",
+        "conditions": [
+         {
+          "condition": "trigger",
+          "id": "arrival_button"
+         }
+        ]
+       }
+      ],
+      "then": [
+       {
+        "action": "light.turn_on",
+        "alias": "Turn light on - Bookshelf Lights at 80%",
+        "data": {
+         "brightness_pct": 80
+        },
+        "target": {
+         "entity_id": [
+          "light.bookshelf_lights"
+         ]
+        }
+       },
+       {
+        "action": "light.turn_on",
+        "alias": "Turn light on - Reading Corner Lamp",
+        "data": {
+         "brightness_pct": 100
+        },
+        "target": {
+         "entity_id": [
+          "light.reading_corner_lamp"
+         ]
+        }
+       },
+       {
+        "action": "light.turn_on",
+        "alias": "Turn light on - Stair Landing Lamp",
+        "data": {
+         "brightness_pct": 40
+        },
+        "target": {
+         "entity_id": [
+          "light.stair_landing_lamp"
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "action": "light.turn_on",
+      "alias": "Turn light on - Hall Pendant",
+      "data": {},
+      "target": {
+       "entity_id": [
+        "light.hall_pendant"
+       ]
+      }
+     },
+     {
+      "action": "light.turn_on",
+      "alias": "Turn light on - Dining Table Light at 70%",
+      "data": {
+       "brightness_pct": 70
+      },
+      "target": {
+       "entity_id": [
+        "light.dining_table_light"
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "alias": "Lighting - Home - Interior Evening Lights",
+  "conditions": [
+   {
+    "condition": "state",
+    "entity_id": "input_boolean.pause_automations",
+    "state": "off"
+   },
+   {
+    "alias": "Condition - Someone is home or visitor mode is on",
+    "condition": "or",
+    "conditions": [
+     {
+      "condition": "state",
+      "entity_id": "person.alex",
+      "state": "home"
+     },
+     {
+      "condition": "state",
+      "entity_id": "person.sam",
+      "state": "home"
+     },
+     {
+      "condition": "state",
+      "entity_id": "person.riley",
+      "state": "home"
+     },
+     {
+      "condition": "state",
+      "entity_id": "input_boolean.visitor_mode",
+      "state": "on"
+     }
+    ]
+   },
+   {
+    "after": "sunset",
+    "after_offset": "-00:45:00",
+    "alias": "Condition - Evening window has started",
+    "condition": "sun"
+   },
+   {
+    "alias": "Condition - Before 11 PM",
+    "before": "23:00:00",
+    "condition": "time"
+   },
+   {
+    "alias": "Condition - Wind-down timer is idle",
+    "condition": "state",
+    "entity_id": "timer.wind_down",
+    "state": "idle"
+   }
+  ],
+  "description": "Turns on the configured interior evening lights 45 minutes before sunset when someone is home, and catches up when someone arrives after the sunset-offset trigger has already passed. Catch-up triggers are limited to before 11 PM so late arrivals do not turn on the evening lights.",
+  "id": "1759702345880",
+  "mode": "restart",
+  "triggers": [
+   {
+    "alias": "Trigger - 45 minutes before sunset",
+    "event": "sunset",
+    "id": "sunset_offset",
+    "offset": "-00:45:00",
+    "trigger": "sun"
+   },
+   {
+    "alias": "Trigger - Alex arrives home",
+    "entity_id": "person.alex",
+    "id": "arrival",
+    "to": "home",
+    "trigger": "state"
+   },
+   {
+    "alias": "Trigger - Sam arrives home",
+    "entity_id": "person.sam",
+    "id": "arrival",
+    "to": "home",
+    "trigger": "state"
+   },
+   {
+    "alias": "Trigger - Riley arrives home",
+    "entity_id": "person.riley",
+    "id": "arrival",
+    "to": "home",
+    "trigger": "state"
+   },
+   {
+    "alias": "Trigger - Visitor mode turns on",
+    "entity_id": "input_boolean.visitor_mode",
+    "id": "visitor_mode_on",
+    "to": "on",
+    "trigger": "state"
+   },
+   {
+    "alias": "Trigger - Arriving helper pressed",
+    "entity_id": "input_button.arriving",
+    "id": "arrival_button",
+    "trigger": "state"
+   },
+   {
+    "alias": "Trigger - Home Assistant started",
+    "event": "start",
+    "id": "ha_start",
+    "trigger": "homeassistant"
+   }
+  ]
+ }
+}

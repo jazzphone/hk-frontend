@@ -17,7 +17,8 @@ ok('registered and in the picker', !!customElements.get('hk-tv-guide-card') &&
    (window.customCards || []).some(function (c) { return c.type === 'hk-tv-guide-card'; }));
 ok('asks hk_tv/channels (the integration), not its own config', /callWS\(\{ type: 'hk_tv\/channels' \}\)/.test(card) && !/_config\.channels/.test(card));
 ok('says what to do when Live TV is missing or empty',
-   /(Set up|Add) [^'"]*Live TV[^'"]*to show channels/.test(card) && /Add some [^'"]*Live TV/.test(card));
+   /(Set up|Add) [^'"]*Live TV \(' \+ window\.hkShell\.haPlace\('HK Frontend → Add feature'\) \+ '\) to show channels/.test(card) &&
+   /Add some [^'"]*Live TV/.test(card));
 ok('wakes on every now-playing sensor', /c\.now && h\.states\[c\.now\]/.test(card) && /st\.last_updated/.test(card));
 ok('artwork and logos go through _artImage (HA fetches them; a tablet may have no internet)',
    /this\._artImage\(a\.image, pic,/.test(card) && /this\._artImage\(a\.logo, lg,/.test(card));
@@ -34,8 +35,10 @@ var G = customElements.get('hk-tv-guide-card');
 var NBC = { number: '4.1', name: 'NBC', camera: 'camera.tv_nbc', now: 'sensor.tv_nbc_now' };
 var BACKOFF = [5000, 15000, 60000, 300000];
 function looks() { return __timers.filter(function (t) { return t && BACKOFF.indexOf(t.ms) >= 0; }); }
+// a socket as home-assistant-js-websocket's (it subscribes, so the client's
+// subscription port takes it; slice 7 hears `ready` through that port)
 function conn() {
-  return { l: {}, addEventListener: function (t, f) { (this.l[t] = this.l[t] || []).push(f); },
+  return { l: {}, subscribeMessage: function () { return Promise.resolve(function () {}); }, addEventListener: function (t, f) { (this.l[t] = this.l[t] || []).push(f); },
            removeEventListener: function (t, f) { this.l[t] = (this.l[t] || []).filter(function (x) { return x !== f; }); },
            fire: function (t) { (this.l[t] || []).forEach(function (f) { f(); }); } };
 }
@@ -140,7 +143,7 @@ print('\n=== the player caption writes only what changed (driven) ===');
 print('\n=== the player ===');
 ok('plays the channel camera full screen with a tuning message',
    /type: 'custom:hk-doorbell-card', entity: ch\.camera, fill: true,\s*tuning: ch\.name/.test(player));
-ok('mounted in home-assistant\'s shadow root, over everything', /mount = \(ha && ha\.shadowRoot\) \|\| document\.body/.test(player) && /z-index:8/.test(player));
+ok('mounted in home-assistant\'s shadow root, over everything', /mount = window\.hkShell\.overlayRoot\(\) \|\| document\.body/.test(player) && /z-index:8/.test(player));
 ok('names this screen as a viewer now and every 60 s', /watching\(true\);\n\s*beatT = setInterval\(function \(\) \{ watching\(true\); \}, TV_HEARTBEAT_MS\)/.test(player) && /TV_HEARTBEAT_MS = 60000/.test(src));
 ok('holds hk-idle while open and releases it on close',
    /hkIdle\.hold\('hk-tv', true\)/.test(player) && /hkIdle\.hold\('hk-tv', false\)/.test(player));
@@ -155,6 +158,8 @@ ok('in Fully it sets the tablet\'s media volume; elsewhere the video\'s, remembe
    /fk\.setAudioVolume\(Math\.round\(x \* 100\), FULLY_MUSIC\)/.test(cam) && /localStorage\.setItem\(VOL_KEY/.test(cam));
 ok('raising the volume turns the sound on', /x > 0 && !self\._audible\(\)/.test(cam));
 ok('a still that fails leaves no broken-image glyph', /img\.classList\.add\('dead'\)/.test(cam));
+ok('...and a still not loaded yet is hidden too (Safari outlines an empty <img>: a white frame round the TV player)',
+   /img\.className = 'dead';/.test(cam) && /img\.classList\.remove\('dead'\)/.test(cam) && /'\.db>img\.dead\{visibility:hidden\}'/.test(cam));
 ok('the still hides once the video moves, and returns on a reconnect',
    /'\.db\.moving>img\{visibility:hidden\}'/.test(cam) && /db\.classList\.add\('moving'\)/.test(cam) &&
    /box\.classList\.remove\('moving'\)/.test(cam));
@@ -181,6 +186,53 @@ ok('a state tile still requires one', /entity/.test(threw2 || ''), threw2);
 // (Which page the Live TV pill opens -- ./live-tv -- is the scene row's page
 // pills: test_chipkinds. It used to be read off this house's YAML scenes row,
 // retired with the YAML dashboards on 2026-09-28.)
+
+print('\n=== cameras rest: behind the screensaver always, another window in front as the setting says ===');
+// (2026-10-21) CAM_FOCUS and restWatch themselves, run on a stand-in window
+(function () {
+  var a = src.indexOf('  var CAM_FOCUS = (function () {'), b = src.indexOf('  class HkCameraLiveCard');
+  ok('CAM_FOCUS and restWatch are there', a > 0 && b > a);
+  if (!(a > 0 && b > a)) return;
+  var L = {}, fire = function (t, d) { (L[t] || []).slice().forEach(function (f) { f({ type: t, detail: d }); }); };
+  var focused = true, setting = true, timers = [];
+  var win = {
+    matchMedia: function () { return { matches: true }; },          // a computer: a mouse
+    addEventListener: function (t, f) { (L[t] = L[t] || []).push(f); },
+    removeEventListener: function (t, f) { L[t] = (L[t] || []).filter(function (g) { return g !== f; }); },
+    dispatchEvent: function (e) { fire(e.type, e.detail); },
+    hkSettings: { get: function (k, d) { return k === 'cameras.focus_pause' ? setting : d; } },
+    hkSaver: null
+  };
+  var doc = { hidden: false, hasFocus: function () { return focused; }, addEventListener: win.addEventListener,
+              removeEventListener: win.removeEventListener };
+  var CE = function (t, o) { return { type: t, detail: o && o.detail }; };
+  var run = function (f, ms) { timers.push(f); return timers.length; };
+  var mk = new Function('window', 'document', 'CustomEvent', 'setTimeout', 'clearTimeout',
+    'var AFTER_BLACK = 0;\n' + src.slice(a, b) + '\nreturn { F: CAM_FOCUS, watch: restWatch };');
+  var M = mk(win, doc, CE, run, function () {});
+  var flush = function () { var t = timers; timers = []; t.forEach(function (f) { f(); }); };
+  var log = [], logT = [];
+  M.watch(function () { log.push('rest'); }, function () { log.push('wake'); }, true);          // a camera
+  M.watch(function () { logT.push('rest'); }, function () { logT.push('wake'); }, false);       // Live TV
+  focused = false; fire('blur'); flush();
+  ok('another window in front: a camera rests', M.F.away() === true && log.join() === 'rest', log);
+  ok('...Live TV plays on', logT.join() === '', logT);
+  focused = true; fire('focus'); flush();
+  ok('...the focus back: the camera wakes', log.join() === 'rest,wake', log);
+  log.length = 0; setting = false; focused = false; fire('blur'); flush();
+  ok('Pause When Not in Focus off: a camera plays on in a window beside your work', M.F.away() === false && log.join() === '', log);
+  fire('hk-saver-covered'); flush();
+  ok('...but behind the screensaver it rests all the same', log.join() === 'rest', log);
+  ok('...and so does Live TV', logT.join() === 'rest', logT);
+  win.hkSaver = { running: function () { return true; } };
+  log.length = 0; logT.length = 0; setting = true; focused = true; fire('focus'); flush();
+  ok('a focus while the screensaver runs wakes nothing', log.join() === '' && logT.join() === '', [log, logT]);
+})();
+ok('the camera sheet rests with restWatch (the screensaver always; another window, not for Live TV)',
+   /restWatch\(function \(\) \{ self\._rested = true; self\._stop\(\); \}/.test(cam) && /, !tv\);/.test(cam) && /!this\._rested\) this\._start\(\)/.test(cam));
+ok('the strip rests while another window is in front, and wakes with the focus',
+   /window\.addEventListener\('hk-camera-focus', this\._onFocus\)/.test(src) && /if \(CAM_FOCUS\.away\(\)\) return true;/.test(src));
+ok('the setting: cameras.focus_pause, read by CAM_FOCUS', /S\.get\('cameras\.focus_pause', true\) === false/.test(src));
 
 print('\n' + (fail ? 'FAIL ' + fail + ' TV TESTS' : 'ALL ' + pass + ' TV TESTS PASS'));
 if (fail) throw new Error('tv tests failed');

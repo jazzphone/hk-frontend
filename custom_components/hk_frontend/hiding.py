@@ -336,4 +336,3 @@ def register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_hidden_get)
     websocket_api.async_register_command(hass, ws_hidden_set)
     websocket_api.async_register_command(hass, ws_hidden_also)
-

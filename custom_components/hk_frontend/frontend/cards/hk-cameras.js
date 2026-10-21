@@ -203,6 +203,9 @@
         '  object-fit:cover;opacity:0;z-index:0}',
         '.live>img.on{opacity:1}',
         '.live>hui-card{position:absolute;inset:0;z-index:1;transition:opacity .3s ease}',
+        // ...and HK's own picture-entity where there is no Lovelace (Mantel, HK's panel: made by
+        // hkCards.createCard through HK's view host), the same rule for each of the three
+        '.live>hk-picture-entity{position:absolute;inset:0;z-index:1;transition:opacity .3s ease}',
         // NO PICTURE, NO VIDEO (2026-10-09): until the stream has a frame,
         // and from the moment a navigation away begins, the live card is
         // out of sight and the frame copied under it shows (_grabLive). A
@@ -214,6 +217,7 @@
         // the page, where opacity does not reach -- a fresh live card at
         // opacity 0 still showed white for a frame (screen-recorded).
         '.live>hui-card.wait{opacity:0;visibility:hidden;transition:none}',
+        '.live>hk-picture-entity.wait{opacity:0;visibility:hidden;transition:none}',
         // ...AND THE COPIED FRAME STAYS ON TOP until the video has DRAWN one
         // (2026-10-09). Shown the moment it reports a picture, the video's own
         // surface was still black for 60-350 ms in 3 returns to Home of 5
@@ -230,6 +234,7 @@
         // under a finger. The tap goes through the card to the .live box
         // instead, which opens the pop-up itself.
         '.live.pop>hui-card{pointer-events:none}',
+        '.live.pop>hk-picture-entity{pointer-events:none}',
         '.plate{display:grid;overflow:hidden;width:max-content;',
         // THE PLATE REPLACES THE PER-CARD THEME, it does not layer on top of
         // one. Passing a camera `theme:` to each tile AND setting these
@@ -267,7 +272,7 @@
       if (this._config && this._config.own_cameras) return own;
       var ids = this._board().cameras;
       if (!Array.isArray(ids) || !ids.length) return own;
-      var h = this._hass, by = {};
+      var h = this.client, by = {};
       own.forEach(function (c) { if (c && c.entity) by[c.entity] = c; });
       return ids.filter(function (id) { return !h || !h.states || h.states[id]; }).map(function (id) {
         if (by[id]) return by[id];
@@ -299,7 +304,7 @@
     }
     _optionOf(cam, opts) {
       if (cam.option) return cam.option;
-      var h = this._hass, st = h && h.states && h.states[cam.entity];
+      var h = this.client, st = h && h.states && h.states[cam.entity];
       var names = [cam.name, st && st.attributes && st.attributes.friendly_name]
         .filter(Boolean).map(function (n) { return String(n).toLowerCase(); });
       var best = null;
@@ -316,21 +321,21 @@
     }
 
     // Re-render ONLY when the live selection changes. Returning null here would
-    // mean "always render", and the frontend hands a card a new hass 12x a
-    // second -- see the note on HkBase.set hass. The camera images refresh
+    // mean "always render", and the frontend hands a card a new state object
+    // 12x a second -- see the gating note in HkBase. The camera images refresh
     // themselves; this card only decides WHICH camera sits in slot 1.
     // WITHOUT A SELECTOR THE PLAN NEVER CHANGES -- the first camera is live --
     // so the signature is a constant, not null. Null means "render on every
-    // hass push", and a render rebuilds the plate: a generated dashboard's
+    // state push", and a render rebuilds the plate: a generated dashboard's
     // strip (no selector) would re-create its live tile 12 times a second,
     // so the WebRTC stream is torn down before its first frame -- a black
     // tile, a flickering strip, and go2rtc churning through abandoned
     // sessions until it is restarted.
     _sigOf() {
-      var h = this._hass, c = this._config;
+      var h = this.client, c = this._config;
       if (!h || !c) return null;
       // the item's cameras and live-camera choice change only when a setting
-      // is saved -- never per hass push (the rebuild storm above)
+      // is saved -- never per state push (the rebuild storm above)
       var b = this._board();
       var key = JSON.stringify([b.cameras || [], b.camera_live || '', this._liveOn()]);
       // AFTER A RECONNECT the live tile waits for its camera's first state
@@ -358,7 +363,7 @@
       var stillsOnly = !!(this._config && this._config.stills_only);
       if (stillsOnly) return { live: null, cols: this._columns(cams, false) };
       var selId = this._selector();
-      var selSt = this._hass && selId ? this._hass.states[selId] : null;
+      var h = this.client, selSt = h && selId ? h.states[selId] : null;
       var sel = selSt ? selSt.state : null;
       var opts = (selSt && selSt.attributes && selSt.attributes.options) || [];
       var live = null;
@@ -415,11 +420,8 @@
       // straight back. `tile_theme` is still accepted in the config for the
       // rare case of wanting a different look, and then it is the caller's problem.
       if (this._config.tile_theme) cfg.theme = this._config.tile_theme;
-      var el = document.createElement('hui-card');
-      el.hass = this._hass;
-      el.preview = false;
-      el.config = cfg;
-      el.load();
+      // HA draws it (in Lovelace's card wrapper): the adapter decides what it gets
+      var el = window.hkCards.createCard(cfg, this.client);
       (this._children = this._children || []).push(el);
       return el;
     }
@@ -432,9 +434,7 @@
     // #doorbell pop-up stays for a doorbell-ring automation, which opens it
     // by URL, not by tap.
     _openCam(cam) {
-      this.dispatchEvent(new CustomEvent('hass-more-info', {
-        detail: { entityId: cam.entity }, bubbles: true, composed: true
-      }));
+      window.hkShell.moreInfo(cam.entity, this);
     }
 
     // A STILL CAMERA IS RENDERED HERE, NOT BY picture-entity, and the reason is
@@ -442,7 +442,7 @@
     // rest of it -- the URL, the interval, and which cameras get refreshed.
     //
     // The src is the entity's own `entity_picture`, a camera_proxy URL that
-    // arrives pre-signed with a token. It is re-read from hass on EVERY tick
+    // arrives pre-signed with a token. It is re-read from the client on EVERY tick
     // rather than cached, because HA rotates that token and a stale URL 401s
     // into a broken image.
     _snap(cam, cssW, cssH) {
@@ -585,7 +585,7 @@
     // is the registry's placeholder for an entity not set up yet -- never a
     // picture to fetch.
     _picOf(cam) {
-      var st = this._hass && this._hass.states[cam.entity];
+      var h = this.client, st = h && h.states[cam.entity];
       var a = st && st.attributes;
       if (!a || a.restored || C.stale(st)) return null;     // stale: see hk-base.js STALE
       return a.entity_picture || null;
@@ -1084,9 +1084,9 @@
       // between the drop and the reconnect asks the new HA with the old token:
       // one restart can log dozens of "invalid authentication" warnings from a
       // few tablets in seconds -- exactly what a home with ip_ban_enabled would
-      // ban them for. The reconnect brings a fresh hass with fresh tokens, and
+      // ban them for. The reconnect brings fresh states with fresh tokens, and
       // the next tick resumes on its own.
-      if (this._hass && this._hass.connected === false) return;
+      if (this.client && this.client.connected === false) return;
       var snaps = this._snaps || [];
       var every = this._num('refresh', 10);
       if (every <= 0) every = 10;                     // timeout basis only
@@ -1149,6 +1149,7 @@
     // the photos' or the page coming back wakes it, as it does any sleeper.
     _resting() {
       if (this._black) return true;
+      if (CAM_FOCUS.away()) return true;
       var K = window.hkSky;
       if (K && K.dark && K.dark()) return true;
       var V = window.hkSaver;
@@ -1240,7 +1241,7 @@
     // listener that is mid-call, works only by accident of how the browser
     // snapshots the listener list.
     _startTimer() {
-      // Only on the page. _render calls this too, and a card fed `hass`
+      // Only on the page. _render calls this too, and a card fed a client
       // before it is attached (an editor preview, a row rebuilding) must not
       // start fetching stills nobody can see; connectedCallback starts it.
       // (`=== false`: the test DOM has no isConnected at all.)
@@ -1254,6 +1255,7 @@
         this._vis = function () {
           if (document.hidden) { self._stopInterval(); return; }
           if (window.hkSaver && window.hkSaver.covered && window.hkSaver.covered()) return;
+          if (CAM_FOCUS.away()) return;            // (the focus coming back wakes it: _onFocus)
           // put to sleep by a saver that was dismissed while the page was
           // hidden (its hk-saver event bailed): wake it, or the next cover
           // finds it "asleep" and leaves its stream decoding all night
@@ -1325,11 +1327,25 @@
           self._keepStills();
           self._leaving = true;
         };
-        window.addEventListener('location-changed', this._onNav);
+        window.hkShell.onNavigate(this._onNav);
       }
       if (!this._onSaverCovered) {
         this._onSaverCovered = function () { self._stopInterval(); self._sleepLive(); };
         window.addEventListener('hk-saver-covered', this._onSaverCovered);
+      }
+      // ANOTHER WINDOW IN FRONT (CAM_FOCUS, Cameras -> Pause When Not in
+      // Focus): the stills stop and the live tile lets go of its stream, as
+      // behind the screensaver; the focus back brings them back -- unless
+      // something else still has them resting
+      if (!this._onFocus) {
+        this._onFocus = function (e) {
+          if (e && e.detail && e.detail.away) { self._grabLive(); self._stopInterval(); self._sleepLive(); return; }
+          if (document.hidden || self._resting()) return;
+          if (window.hkSaver && window.hkSaver.running && window.hkSaver.running()) return;
+          self._startInterval();
+          self._wakeLive();
+        };
+        window.addEventListener('hk-camera-focus', this._onFocus);
       }
       // THE OBSERVER BELONGS HERE, NOT IN _render. _stopTimer disconnects it,
       // and _stopTimer runs on disconnectedCallback -- HA detaches and
@@ -1354,8 +1370,9 @@
       if (this._vis) { document.removeEventListener('visibilitychange', this._vis); this._vis = null; }
       if (this._onSaver) { window.removeEventListener('hk-saver', this._onSaver); this._onSaver = null; }
       if (this._onSaverCovered) { window.removeEventListener('hk-saver-covered', this._onSaverCovered); this._onSaverCovered = null; }
+      if (this._onFocus) { window.removeEventListener('hk-camera-focus', this._onFocus); this._onFocus = null; }
       if (this._onPopup) { window.removeEventListener('hk-popup-change', this._onPopup); this._onPopup = null; }
-      if (this._onNav) { window.removeEventListener('location-changed', this._onNav); this._onNav = null; }
+      if (this._onNav) { window.hkShell.offNavigate(this._onNav); this._onNav = null; }
       if (this._onBlack) {
         var ob = this._onBlack;
         ['kiosksatellite:screensaverstart', 'kiosksatellite:screensaverstop',
@@ -1367,7 +1384,7 @@
     }
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
-      if (this._config && this._hass) this._startTimer();
+      if (this._config && this.client) this._startTimer();
     }
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
@@ -1375,7 +1392,7 @@
     }
 
     _render() {
-      if (!this._root || !this._config || !this._hass) return;
+      if (!this._root || !this._config || !this.client) return;
       this._root.textContent = '';
       this._snaps = [];
       this._liveSlot = null;          // an empty `cameras:` must not keep the old poster ticking
@@ -1416,7 +1433,7 @@
         var liveAr = liveW + 'x' + Math.round(H);
         // no live card on a state the new server has not sent (see _sigOf): the
         // poster holds the slot until the camera is back
-        var stale = C.stale(this._hass.states[plan.live.entity]), resting = !stale && this._resting();
+        var stale = C.stale(this.client.states[plan.live.entity]), resting = !stale && this._resting();
         var lv = stale || resting ? document.createElement('div') : this._pic(plan.live, true, liveAr);
         if (VIDEO_OUTSIDE && lv.classList) lv.classList.add('wait');
         var liveBox = document.createElement('div');
@@ -1478,16 +1495,17 @@
       this._startTimer();
     }
 
-    // HASS MUST REACH THE CHILDREN, and HkBase's setter does not do it --
-    // it only gates the re-render. hk-row-card overrides for the same reason.
-    // Without this the picture-entity cards keep whatever hass they were built
+    // EACH NEW CLIENT MUST REACH THE CHILDREN, and HkBase's default does not
+    // do it -- it only gates the re-render. hk-row-card does the same.
+    // Without this the picture-entity cards keep whatever they were built
     // with and go stale between selector changes, which is most of the time
     // (this card deliberately re-renders only when the live camera changes).
-    set hass(h) {
-      this._hass = h;
-      C.seen(h);                     // HkBase's hub: the reconnect hook (hk-base.js STALE)
-      var kids = this._children || [];
-      for (var i = 0; i < kids.length; i++) kids[i].hass = h;
+    // HkBase's entry has already told its hub (the reconnect hook, hk-base.js
+    // STALE); this replaces the rest of HkBase's step, as the setter it
+    // replaces did: its own gate, no tone or wake tracking.
+    _receiveClient() {
+      var c = this.client, kids = this._children || [];
+      for (var i = 0; i < kids.length; i++) window.hkHostClient.bridge(kids[i], c);
 
       // NO WAKE-REBUILD HOOK, and that is a measured decision rather than an
       // omission. Swapping between two conditional copies of the strip on
@@ -1515,7 +1533,6 @@
       this._hkSig = sig;
       this._render();
     }
-    get hass() { return this._hass; }
 
     // Two rows of tiles at ~100px each; HA only needs a rough number.
     getCardSize() { return 2; }
@@ -1525,8 +1542,8 @@
     }
     // THE HOUSE'S FIRST THREE CAMERAS, so the picker's card shows something:
     // an empty list draws nothing at all. No selector: the first is live.
-    static getStubConfig(hass) {
-      var ids = hass && hass.states ? Object.keys(hass.states) : [];
+    static getStubConfig(input) {
+      var client = C.asClient(input), ids = client && client.states ? Object.keys(client.states) : [];
       var cams = ids.filter(function (id) { return id.indexOf('camera.') === 0; }).slice(0, 3);
       return { cameras: cams.map(function (id) { return { entity: id }; }) };
     }
@@ -1553,14 +1570,13 @@
       if (!Array.isArray(this._config.cameras)) this._config.cameras = [];
       this._build();
     }
-    set hass(h) {
-      this._hass = h;
-      if (this._form) this._form.hass = h;
-      // Only the pickers depend on hass; rebuilding on every hass would throw
-      // away focus mid-typing.
+    // EACH NEW CLIENT, through the host adapter's entry (below the class): the
+    // schema form gets what goes with it. Only the pickers depend on the
+    // client; rebuilding on every new one would throw away focus mid-typing.
+    _onClient(c) {
+      if (this._form) window.hkHostClient.bridge(this._form, c);
       if (!this._builtOnce) this._build();
     }
-    get hass() { return this._hass; }
 
     _emit() {
       var cfg = Object.assign({}, this._config);
@@ -1571,14 +1587,14 @@
     }
 
     _cameraEntities() {
-      var h = this._hass;
+      var h = this.client;
       if (!h) return [];
       return Object.keys(h.states).filter(function (e) {
         return e.indexOf('camera.') === 0;
       }).sort();
     }
     _selectorOptions() {
-      var h = this._hass, sel = this._config && this._config.selector;
+      var h = this.client, sel = this._config && this._config.selector;
       if (!h || !sel || !h.states[sel]) return [];
       return (h.states[sel].attributes.options || []).slice();
     }
@@ -1607,7 +1623,7 @@
           { name: 'radius', selector: { text: {} }, helper: 'Default 23.5px.' }
         ] }
       ]));
-      this._form.hass = this._hass;
+      window.hkHostClient.bridge(this._form, this.client);
       this._form.setConfig(this._config);
       this._form.addEventListener('config-changed', function (ev) {
         ev.stopPropagation();
@@ -1709,6 +1725,7 @@
     }
   }
   if (!customElements.get('hk-camera-mosaic-editor')) {
+    window.hkHostClient.entry(HkCameraMosaicEditor);    // Lovelace's entry, through the host adapter
     customElements.define('hk-camera-mosaic-editor', HkCameraMosaicEditor);
   }
 
@@ -1827,15 +1844,52 @@
   // the page hidden -- the same signals the Home strip rests on above. rest()
   // when one starts; wake() when the last one ends (AFTER_BLACK after a
   // black, as the strip does). -> off()
-  function restWatch(rest, wake) {
-    var black = false, covered = false, wakeT = null, seq = 0;
+  // CAMERAS REST WHILE ANOTHER WINDOW HAS THE FOCUS (2026-10-21): on a
+  // computer, live video decoded in a window nobody is looking at. Only
+  // where there is a mouse (a wall tablet's or a phone's WebView can report
+  // no focus until its first touch, as hk-sky.js says), and only while
+  // Cameras -> Pause When Not in Focus is on (cameras.focus_pause): someone
+  // may keep a window of cameras beside their work. The screensaver is not
+  // this setting's: under it cameras always rest. 'hk-camera-focus' says
+  // when it changes ({ away }).
+  var CAM_FOCUS = (function () {
+    var away = false, device = false;
+    try { device = !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); } catch (e) { device = false; }
+    function wanted() {
+      var S = window.hkSettings;
+      return !(S && S.get && S.get('cameras.focus_pause', true) === false);
+    }
+    function check() {
+      var u = device && wanted() && typeof document.hasFocus === 'function' && !document.hasFocus();
+      if (u === away) return;
+      away = u;
+      try { window.dispatchEvent(new CustomEvent('hk-camera-focus', { detail: { away: u } })); } catch (e) { /* no window events */ }
+    }
+    if (device) {
+      try {
+        // after the blur settles: the focus moving into a frame on the page
+        // blurs the window while the document keeps it
+        window.addEventListener('blur', function () { setTimeout(check, 0); });
+        window.addEventListener('focus', check);
+        document.addEventListener('pointerdown', check, true);
+        document.addEventListener('keydown', check, true);
+        // the setting changed, or another screen's settings now apply
+        window.addEventListener('hk-module-ready', check);
+      } catch (e) { /* no window events */ }
+    }
+    return { away: function () { return away; }, check: check };
+  })();
+  // `focus`: this player also rests while another window has the focus
+  // (CAM_FOCUS); every player rests behind the screensaver and the black
+  function restWatch(rest, wake, focus) {
+    var black = false, covered = false, wakeT = null, seq = 0, away = !!focus && CAM_FOCUS.away();
     var later = function (ms) {
       clearTimeout(wakeT);
       var my = ++seq;
       wakeT = setTimeout(function () {
         if (my !== seq) return;
         wakeT = null;
-        if (black || covered || document.hidden) return;
+        if (black || covered || away || document.hidden) return;
         if (window.hkSaver && window.hkSaver.running && window.hkSaver.running()) return;
         wake();
       }, ms);
@@ -1853,6 +1907,10 @@
       'kiosksatellite:screensaverstop': function () { black = false; later(AFTER_BLACK); },
       'kiosksatellite:screenon': function () { black = false; later(AFTER_BLACK); }
     };
+    if (focus) on['hk-camera-focus'] = function (e) {
+      away = !!(e && e.detail && e.detail.away);
+      if (away) { stop(); rest(); } else later(0);
+    };
     var vis = function () { if (document.hidden) { stop(); rest(); } else later(0); };
     Object.keys(on).forEach(function (t) { window.addEventListener(t, on[t]); });
     document.addEventListener('visibilitychange', vis);
@@ -1868,15 +1926,17 @@
       this._config = c;
       if (this._still) this._reset();
     }
-    set hass(h) {
-      this._hass = h;
-      if (this._still) this._still.hass = h;
-      if (this._liveEl) this._liveEl.hass = h;
+    // EACH NEW CLIENT, through the host adapter's entry (below the class): the
+    // two picture cards HA draws get what goes with it.
+    _onClient(c) {
+      if (this._still) window.hkHostClient.bridge(this._still, c);
+      if (this._liveEl) window.hkHostClient.bridge(this._liveEl, c);
       if (!this._still && this.isConnected && this._config) this._reset();
     }
     getCardSize() { return 3; }
-    static getStubConfig(hass) {
-      var id = Object.keys((hass && hass.states) || {}).filter(function (k) { return k.indexOf('camera.') === 0; })[0];
+    static getStubConfig(input) {
+      var client = C.asClient(input);
+      var id = Object.keys((client && client.states) || {}).filter(function (k) { return k.indexOf('camera.') === 0; })[0];
       return { entity: id || 'camera.front_door', aspect_ratio: '16x9', fit_mode: 'cover' };
     }
     connectedCallback() {
@@ -1893,15 +1953,15 @@
       this.style.setProperty('--ha-card-border-radius', window.hkCards.v('glass-radius'));
       this.style.borderRadius = 'var(--ha-card-border-radius)';
       this.style.boxShadow = 'var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-sm') + ')';
-      if (this._config && this._hass && !this._still) this._reset();
+      if (this._config && this.client && !this._still) this._reset();
       else if (this._still && !this._live && !this._frame) this._saved();
       this._tries = 0;
       var self = this;
       // RESTING WHILE NOBODY CAN SEE IT (2026-10-13): a tablet put to sleep on
       // the Cameras page kept every tile's stream decoding under the photos
       // or the black until the page changed
-      if (!this._restOff) this._restOff = restWatch(function () { self._rest(); }, function () { self._wake(); });
-      this._resting = document.hidden || !!(window.hkSaver && window.hkSaver.running && window.hkSaver.running());
+      if (!this._restOff) this._restOff = restWatch(function () { self._rest(); }, function () { self._wake(); }, true);
+      this._resting = document.hidden || CAM_FOCUS.away() || !!(window.hkSaver && window.hkSaver.running && window.hkSaver.running());
       if (this._resting) return;
       if (liveQueue.indexOf(this) < 0) liveQueue.push(this);
       // after this task, so every tile attached together queues before the first goes
@@ -1943,14 +2003,9 @@
     }
     _card(live) {
       var c = this._config;
-      var el = document.createElement('hui-card');
-      el.hass = this._hass;
-      el.preview = false;
-      el.config = { type: 'picture-entity', entity: c.entity, camera_view: live ? 'live' : 'auto',
-                    show_name: false, show_state: false, aspect_ratio: c.aspect_ratio || '16x9',
-                    fit_mode: c.fit_mode || 'cover' };
-      el.load();
-      return el;
+      return window.hkCards.createCard({ type: 'picture-entity', entity: c.entity, camera_view: live ? 'live' : 'auto',
+                                         show_name: false, show_state: false, aspect_ratio: c.aspect_ratio || '16x9',
+                                         fit_mode: c.fit_mode || 'cover' }, this.client);
     }
     _reset() {
       this._stop();
@@ -2058,6 +2113,7 @@
       if (this._poll) { clearInterval(this._poll); this._poll = null; }
     }
   }
+  window.hkHostClient.entry(HkCameraLiveCard);    // Lovelace's entry, through the host adapter
   register('hk-camera-live-card', HkCameraLiveCard, 'HK Camera Tile',
     'One live camera. On a page of them, each opens after the one before is playing, so they all connect.',
     [
@@ -2309,7 +2365,7 @@
         '.talk .dot{display:none;width:10px;height:10px;border-radius:5px;background:#fff;',
         '  animation:hk-db-pulse 1s ease-in-out infinite}',
         '.talk.rec .dot{display:block}',
-        '.talk.rec ha-icon{display:none}',
+        '.talk.rec hk-icon{display:none}',
         '@keyframes hk-db-pulse{0%,100%{opacity:1}50%{opacity:.25}}',
         '.msg{position:absolute;left:50%;top:18px;transform:translateX(-50%);padding:8px 14px;',
         '  border-radius:14px;background:rgba(28,28,30,.75);color:#fff;font-size:15px;',
@@ -2339,7 +2395,7 @@
     }
 
     _render() {
-      var c = this._config, h = this._hass;
+      var c = this._config, h = this.client;
       if (!c || !h) return;
       if (!this._built) this._build();
       var st = h.states[c.entity];
@@ -2347,7 +2403,7 @@
       if (pic && !this._playing && this._poster.getAttribute('src') !== pic) {
         this._poster.setAttribute('src', pic);
       }
-      if (this.isConnected && !this._pc && !this._retryT) this._start();
+      if (this.isConnected && !this._pc && !this._retryT && !this._rested) this._start();
     }
 
     _build() {
@@ -2370,6 +2426,11 @@
       };
       var img = document.createElement('img');
       img.alt = '';
+      // HIDDEN UNTIL IT HAS A PICTURE: Safari draws a light-gray outline around
+      // an <img> with no picture yet, and this one fills the box -- a Live TV
+      // channel has no still, so a thin white frame ran round the player's
+      // edges until the video moved (filmed, 2026-10-21).
+      img.className = 'dead';
       img.addEventListener('error', function () { img.classList.add('dead'); });
       img.addEventListener('load', function () { img.classList.remove('dead'); shape(img.naturalWidth, img.naturalHeight); });
       var v = document.createElement('video');
@@ -2438,7 +2499,7 @@
         var snd = document.createElement('button');
         snd.className = 'snd';
         snd.setAttribute('aria-label', 'Sound');
-        snd.innerHTML = '<ha-icon></ha-icon>';
+        snd.innerHTML = '<hk-icon></hk-icon>';
         snd.addEventListener('click', function (e) {
           e.stopPropagation();
           // A tap is a user gesture: the browser allows sound from here.
@@ -2496,7 +2557,7 @@
           navigator.mediaDevices.getUserMedia && window.MediaRecorder) {
         var t = document.createElement('button');
         t.className = 'talk';
-        t.innerHTML = '<ha-icon icon="mdi:microphone"></ha-icon><span class="dot"></span><span class="lbl"></span>';
+        t.innerHTML = '<hk-icon icon="mdi:microphone"></hk-icon><span class="dot"></span><span class="lbl"></span>';
         t.addEventListener('pointerdown', function (e) {
           e.preventDefault(); e.stopPropagation();
           try { t.setPointerCapture(e.pointerId); } catch (x) { /* old engine */ }
@@ -2543,21 +2604,25 @@
       if (!b) return;
       var on = this._audible();
       b.classList.toggle('off', !on);
-      var i = b.querySelector('ha-icon');
+      var i = b.querySelector('hk-icon');
       if (i) i.setAttribute('icon', on ? 'mdi:volume-high' : 'mdi:volume-off');
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
 
     // ------------------------------------------------------------ webrtc
     _start() {
-      var h = this._hass, c = this._config, self = this;
-      if (!h || !h.connection || !c || !c.entity || !window.RTCPeerConnection) { this._markReady(); return; }
+      // SIGNALING THROUGH THE CLIENT: the client config and our candidates are reads
+      // (client.callWS: in HA the frontend's callWS, the same frame on the same socket), the
+      // offer a read-only subscription on the client's port (on its allowlist). Viewing a
+      // camera changes nothing in the house.
+      var cl = this.client, c = this._config, self = this, port = cl && cl.subscriptions;
+      if (!port || !cl.callWS || !c || !c.entity || !window.RTCPeerConnection) { this._markReady(); return; }
       var gen = this._gen = (this._gen || 0) + 1;
       this._readyDone = false;
-      var conn = h.connection, entity = c.entity;
+      var entity = c.entity;
       var alive = function () { return self._gen === gen && self.isConnected; };
       this._pc = 'pending';
-      conn.sendMessagePromise({ type: 'camera/webrtc/get_client_config', entity_id: entity })
+      cl.callWS({ type: 'camera/webrtc/get_client_config', entity_id: entity })
         .catch(function () { return {}; })
         .then(function (cfg) {
           if (!alive()) return;
@@ -2571,7 +2636,7 @@
           };
           var session = null, pending = [];
           var send = function (cand) {
-            conn.sendMessagePromise({ type: 'camera/webrtc/candidate', entity_id: entity,
+            cl.callWS({ type: 'camera/webrtc/candidate', entity_id: entity,
               session_id: session, candidate: cand }).catch(function () { /* late */ });
           };
           pc.onicecandidate = function (e) {
@@ -2589,7 +2654,7 @@
             return pc.setLocalDescription(offer).then(function () { return offer; });
           }).then(function (offer) {
             if (!alive()) return;
-            return conn.subscribeMessage(function (m) {
+            return port.subscribeMessage(function (m) {
               if (!alive()) return;
               if (m.type === 'session') {
                 session = m.session_id;
@@ -2627,7 +2692,7 @@
       var n = this._tries = (this._tries || 0) + 1;
       this._retryT = setTimeout(function () {
         self._retryT = null;
-        if (self.isConnected) self._start();
+        if (self.isConnected && !self._rested) self._start();
       }, RETRY_MS[Math.min(n - 1, RETRY_MS.length - 1)]);
     }
 
@@ -2661,13 +2726,23 @@
 
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
-      if (this._built && this._hass && !this._pc) this._start();
+      // RESTING (2026-10-21): behind the screensaver and the black, always --
+      // the screensaver started by its switch while a sheet was open left its
+      // stream decoding under the photos -- and, a camera's sheet (not Live
+      // TV, often listened to from another window), while another window has
+      // the focus as Cameras -> Pause When Not in Focus says
+      var self = this, tv = !!(this._config && this._config.tuning);
+      if (!this._restOff) this._restOff = restWatch(function () { self._rested = true; self._stop(); },
+        function () { self._rested = false; if (self.isConnected && self._built && self.client && !self._pc) self._start(); }, !tv);
+      this._rested = (!tv && CAM_FOCUS.away()) || !!(window.hkSaver && window.hkSaver.covered && window.hkSaver.covered());
+      if (this._built && this.client && !this._pc && !this._rested) this._start();
     }
 
     disconnectedCallback() {
       if (super.disconnectedCallback) super.disconnectedCallback();
       // The sheet detaches its cards when it closes: no stream, no mic.
       this._stop();
+      if (this._restOff) { this._restOff(); this._restOff = null; }
     }
 
     // ------------------------------------------------------------ talk
@@ -2791,7 +2866,11 @@
     }
 
     _liveStart(s, stream) {
-      var self = this, h = this._hass, ctx = this._audioCtx(), auth = h && h.auth;
+      // THE LIVE SOCKET IS A WRITE: its address and credentials come from the client's action
+      // port, asked for this speaker (HA: the frontend's websocket and token, refreshed when
+      // expired; Mantel: its /ws/talk and a one-time ticket the gateway issued for this speaker,
+      // or refused quietly so the clip goes).
+      var self = this, ctx = this._audioCtx(), act = this.client && this.client.actions;
       // GIVING UP ON LIVE CLOSES IT. Flipping the flags and the label alone is
       // not enough: the session given up on may still be opening -- a first
       // press waits on a new socket, auth, and Protect handing out a talkback
@@ -2809,17 +2888,15 @@
         self._liveStop(s);
         if (self._talk === s && !s.ended) self._talkUi('rec');
       };
-      var worker = ctx && auth && this._talkWorker();
+      var worker = ctx && act && this._talkWorker();
       if (!worker) { s.fail('not available here'); return; }
       if (!this._actxMod) {
         var url = URL.createObjectURL(new Blob([PCM_TAP], { type: 'application/javascript' }));
         this._actxMod = ctx.audioWorklet.addModule(url);
       }
-      var base = (auth.data && auth.data.hassUrl) || location.origin;
-      var wsUrl = base.replace(/^http/, 'ws').replace(/\/$/, '') + '/api/websocket';
-      Promise.all([this._actxMod,
-                   auth.expired && auth.refreshAccessToken ? auth.refreshAccessToken() : null])
-        .then(function () {
+      Promise.all([this._actxMod, act.liveSocket(this._config.speaker)])
+        .then(function (r) {
+          var live = r[1];
           if (s.ended || s.liveFailed) return;
           var src = ctx.createMediaStreamSource(stream);
           var node = new AudioWorkletNode(ctx, 'hk-pcm-tap',
@@ -2836,7 +2913,7 @@
           node.port.postMessage({ port: ch.port1 }, [ch.port1]);
           s.key = self._talkKey = (self._talkKey || 0) + 1;
           s.worker = worker;
-          worker.postMessage({ cmd: 'start', key: s.key, url: wsUrl, token: auth.accessToken,
+          worker.postMessage({ cmd: 'start', key: s.key, url: live.url, token: live.token(),
                                entity_id: self._config.speaker, rate: ctx.sampleRate,
                                port: ch.port2 }, [ch.port2]);
           if (s.ended) self._liveStop(s);         // let go while it was opening
@@ -2891,7 +2968,7 @@
     }
 
     _talkSend(s) {
-      var self = this, c = this._config, h = this._hass;
+      var self = this, c = this._config, act = this.client && this.client.actions;
       if (this._talk === s) this._talk = null;
       this._applySound(false);
       if (s.cancel) {
@@ -2908,7 +2985,9 @@
       this._talkUi('busy');
       var url = '/api/hk_frontend/talk?entity_id=' + encodeURIComponent(c.speaker);
       var init = { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'audio/webm' } };
-      var req = h && h.fetchWithAuth ? h.fetchWithAuth(url, init) : Promise.reject(new Error('not connected'));
+      // a write: the client's action port (HA: the frontend's own authenticated fetch, same path
+      // and init; Mantel: refused, nothing sent)
+      var req = act ? act.request(url, init) : Promise.reject(new Error('not connected'));
       req.then(function (r) {
         if (!r.ok) {
           return r.json().catch(function () { return {}; }).then(function (b) {
@@ -2951,8 +3030,8 @@
           helper: 'Shown until the picture starts, e.g. the channel name.' }
       ] }
     ],
-    function (hass) {
-      var ids = hass ? Object.keys(hass.states) : [];
+    function (client) {
+      var ids = client ? Object.keys(client.states) : [];
       var cam = ids.filter(function (id) { return id.indexOf('camera.') === 0; })[0];
       return { entity: cam || '', live: true, sound: true };
     });
@@ -3010,7 +3089,7 @@
         '.tv-art{position:relative;aspect-ratio:16/9;background:#0b0d12;overflow:hidden}',
         '.tv-pic{position:absolute;inset:0}',
         '.tv-pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}',
-        '.tv-art ha-icon{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);',
+        '.tv-art hk-icon{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);',
         '  --mdc-icon-size:44px;color:rgba(255,255,255,.4)}',
         '.tv-live{position:absolute;left:10px;top:10px;padding:3px 8px;border-radius:8px;',
         '  background:#ff3b30;color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em}',
@@ -3038,7 +3117,7 @@
     // whenever the socket comes back (an HA restart), and again on a
     // back-off while the answer is empty -- see there.
     _sigOf() {
-      var h = this._hass;
+      var h = this.client;
       if (!h || !this._channels) return null;
       return this._channels.map(function (c) {
         var st = c.now && h.states[c.now];
@@ -3046,11 +3125,11 @@
       }).join(';');
     }
 
-    set hass(h) {
-      Object.getOwnPropertyDescriptor(HkBase.prototype, 'hass').set.call(this, h);
-      if (this._player) this._player.update(h);
+    // each new client also reaches the full-screen player, after HkBase's step
+    _receiveClient() {
+      super._receiveClient();
+      if (this._player) this._player.update(this.client);
     }
-    get hass() { return this._hass; }
 
     // THE CHANNEL LIST, ASKED FOR AGAIN WHENEVER IT CAN BE WRONG. Asked for
     // once per card, ever, a tablet that drew this page while HA was
@@ -3064,7 +3143,7 @@
     //   * an empty answer never replaces a list already drawn: right after a
     //     restart it means "not set up YET", and the back-off looks again.
     _fetchChannels() {
-      var h = this._hass, self = this;
+      var h = this.client, self = this;
       if (this._loading || !h || !h.callWS) return;
       clearTimeout(this._chanT);
       this._chanT = null;
@@ -3095,9 +3174,10 @@
 
     // `ready` is what home-assistant-js-websocket fires when the socket comes
     // BACK -- every reconnect, never the first connect. One listener, on the
-    // connection this card was handed, and only while the card is on the page.
+    // client's subscription port (one per socket, so the same identity across
+    // snapshots), and only while the card is on the page.
     _watchConn() {
-      var conn = this._hass && this._hass.connection;
+      var conn = this.client && this.client.subscriptions;
       if (this.isConnected === false || !conn || conn === this._conn ||
           typeof conn.addEventListener !== 'function') return;
       this._unwatchConn();
@@ -3116,7 +3196,7 @@
     }
 
     _render() {
-      var h = this._hass, self = this;
+      var h = this.client, self = this;
       if (!h) return;
       this._watchConn();
       if (!this._channels) { this._fetchChannels(); return; }
@@ -3126,7 +3206,7 @@
         e.className = 'tv-empty';
         e.textContent = this._configured
           ? 'No channels yet. Add some in HK Settings → Features → Live TV.'
-          : 'Add Live TV (HK Frontend → Add feature) to show channels here.';
+          : 'Add Live TV (' + window.hkShell.haPlace('HK Frontend → Add feature') + ') to show channels here.';
         this._root.append(e);
         return;
       }
@@ -3144,7 +3224,7 @@
     }
 
     _tile(ch) {
-      var self = this, st = (ch.now && this._hass.states[ch.now]) || { state: '', attributes: {} };
+      var self = this, st = (ch.now && this.client.states[ch.now]) || { state: '', attributes: {} };
       var a = st.attributes || {};
       var t = document.createElement('button');
       t.className = 'tv-tile';
@@ -3155,8 +3235,8 @@
       var pic = document.createElement('div');
       pic.className = 'tv-pic';
       art.append(pic);
-      if (a.image) this._artImage(a.image, pic, '<ha-icon icon="mdi:television-classic"></ha-icon>', 600);
-      else pic.innerHTML = '<ha-icon icon="mdi:television-classic"></ha-icon>';
+      if (a.image) this._artImage(a.image, pic, '<hk-icon icon="mdi:television-classic"></hk-icon>', 600);
+      else pic.innerHTML = '<hk-icon icon="mdi:television-classic"></hk-icon>';
       art.insertAdjacentHTML('beforeend', '<span class="tv-live">LIVE</span>');
       if (a.logo) {
         var lg = document.createElement('div');
@@ -3235,9 +3315,8 @@
   // hk-popup's sheets (position:fixed under a transformed view would be
   // placed against the view, not the screen).
   function tvPlayer(owner, ch) {
-    var h = owner._hass;
-    var ha = document.querySelector('home-assistant');
-    var mount = (ha && ha.shadowRoot) || document.body;
+    var h = owner.client;
+    var mount = window.hkShell.overlayRoot() || document.body;
     var el = document.createElement('div');
     el.className = 'hktv';
     el.innerHTML = '<style>' +
@@ -3257,7 +3336,7 @@
       '  align-items:center;justify-content:center;background:rgba(28,28,30,.66);color:#fff;' +
       '  cursor:pointer;--mdc-icon-size:24px}' +
       '</style><div class="top"><div class="cap"></div>' +
-      '<div class="x" role="button" aria-label="Close" tabindex="0"><ha-icon icon="mdi:close"></ha-icon></div></div>';
+      '<div class="x" role="button" aria-label="Close" tabindex="0"><hk-icon icon="mdi:close"></hk-icon></div></div>';
     var cam = C.create({ type: 'custom:hk-doorbell-card', entity: ch.camera, fill: true,
                          tuning: ch.name, volume: true, aspect_ratio: '16x9', glass: false });
     el.insertBefore(cam, el.firstChild);
@@ -3273,7 +3352,7 @@
       clearTimeout(quietT);
       quietT = setTimeout(function () { quiet(true); }, TV_CONTROLS_MS);
     }
-    // Runs on EVERY hass push (~10 a second) while the player is up, so it
+    // Runs on EVERY state push (~10 a second) while the player is up, so it
     // writes only a caption that changed: an identical textContent still
     // replaces the text node, and that is a relayout and a repaint over
     // playing video for nothing.
@@ -3284,13 +3363,13 @@
       if (cap.textContent !== text) cap.textContent = text;
     }
     function watching(on) {
-      var hh = owner._hass;
-      if (!hh || !hh.callWS) return;
-      Promise.resolve(hh.callWS({ type: 'hk_tv/watching', channel: on ? ch.number : null }))
+      var act = owner._actions();          // a write: the client's action port
+      if (!act) return;
+      Promise.resolve(act.callWS({ type: 'hk_tv/watching', channel: on ? ch.number : null }))
         .catch(function (e) { console.warn('[hk-tv] watching', e); });
     }
     var player = {
-      update: function (hh) { if (!closed) { cam.hkSetHass(hh); caption(hh); } },
+      update: function (hh) { if (!closed) { cam.hkSetClient(hh); caption(hh); } },
       close: function () {
         if (closed) return;
         closed = true;

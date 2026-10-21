@@ -150,7 +150,7 @@
       '.lab > span:first-child{white-space:nowrap}',
       '.lab .n{text-transform:none;font-size:15px;font-weight:400;letter-spacing:0;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;margin-left:auto}',
       '.row{display:flex;align-items:center;gap:12px;font-size:16px;line-height:20px}',
-      '.row ha-icon{--mdc-icon-size:20px;opacity:.7;flex:none;display:flex}',
+      '.row hk-icon{--mdc-icon-size:20px;opacity:.7;flex:none;display:flex}',
       '.row .v{margin-left:auto;color:' + window.hkCards.v('ink-2') + '}',
       '.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:650;overflow:hidden;flex:none;',
       '  background:linear-gradient(180deg,#a3a9b5,#7b8190);color:#fff}',
@@ -236,14 +236,14 @@
         return (this._depsMemo = { ents: h.entities, trk: trk, people: people, bat: bat });
       }
       _sigOf() {
-        var h = this._hass, s = stOf(h, this._id);
+        var h = this.client, s = stOf(h, this._id);
         if (!s) return 'x';
         var D = this._deps(h, s);
         var others = D.people.map(function (k) { return h.states[k] ? h.states[k].state : ''; }).join(',');
         return [s.last_updated, others, D.bat && h.states[D.bat] ? h.states[D.bat].state : ''].join('|');
       }
       _render() {
-        var h = this._hass, s = this._stateObj;
+        var h = this.client, s = this._stateObj;
         if (!h || !s) return;
         var one = matchMedia('(max-width:' + C.BP.phone + 'px)').matches;
         var home = s.state === 'home';
@@ -261,7 +261,7 @@
         var day = '<div class="card hist"><div class="lab"><span>Last 24 Hours</span><span class="n"></span></div><div class="bar"></div>' +
           U.timeRow(DAY, 5) + '</div>';
         var ph = phoneOf(h, s);
-        var dev = ph ? '<div class="card rows"><div class="row"><ha-icon icon="mdi:cellphone"></ha-icon><span>' + esc(ph.name) + '</span>' +
+        var dev = ph ? '<div class="card rows"><div class="row"><hk-icon icon="mdi:cellphone"></hk-icon><span>' + esc(ph.name) + '</span>' +
           (ph.battery ? '<span class="v">' + esc(ph.battery) + '</span>' : '') + '</div></div>' : '';
         var others = Object.keys(h.states).filter(function (k) { return k.indexOf('person.') === 0 && k !== this._id; }, this)
           .sort(function (a, b) { return nameOf(h.states[a]).localeCompare(nameOf(h.states[b])); });
@@ -306,7 +306,7 @@
       }
       _fetch() {
         var self = this;
-        U.dayRows(this._hass, this._id).then(function (r) { self._rows = r.rows; self._t0 = r.t0; self._paintDay(); })
+        U.dayRows(this.client, this._id).then(function (r) { self._rows = r.rows; self._t0 = r.t0; self._paintDay(); })
           .catch(function () { /* no history */ });
       }
       // the home / away bar: home green, a zone blue; and the day in words

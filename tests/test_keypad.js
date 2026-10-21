@@ -15,8 +15,8 @@ function keypad(reply) {
   k._config = { entity: 'alarm_control_panel.p' };
   k._code = '1234'; k._msg = '';
   k.calls = [];
-  k._hass = { states: { 'alarm_control_panel.p': { state: 'armed_away', attributes: {} } },
-              callService: function (d, s, data) { k.calls.push([d, s, data]); return reply(); } };
+  hkGive(k, { states: { 'alarm_control_panel.p': { state: 'armed_away', attributes: {} } },
+              callService: function (d, s, data) { k.calls.push([d, s, data]); return reply(); } });
   k._paint = function () {};
   return k;
 }
@@ -39,7 +39,7 @@ ok('an accepted code shows nothing', k3._msg === '');
 // A SILENT panel (template panel checking the code itself): the optional
 // indicator, turned on by the house's own automation, still reads as wrong.
 var k4 = keypad(function () { return Promise.resolve(); });
-k4._hass.states['input_boolean.alarm_keypad_bad_code'] = { state: 'on', attributes: {} };
+k4.hass.states['input_boolean.alarm_keypad_bad_code'] = { state: 'on', attributes: {} };
 var read = { attrs: {}, setAttribute: function (a, v) { this.attrs[a] = v; }, querySelector: function () { return span; } };
 var span = { textContent: '' };
 k4._root = { querySelector: function () { return read; } };
@@ -59,17 +59,17 @@ ok('no panel: Unavailable, never a throw', st(undefined).word === 'Unavailable' 
 function stubRoot() {
   var el = function () { return { attrs: {}, style: {}, textContent: '',
     setAttribute: function (a, v) { this.attrs[a] = String(v); }, getAttribute: function (a) { return this.attrs[a]; } }; };
-  var parts = { '.code': el(), '.st ha-icon': el(), '.st span': el() };
+  var parts = { '.code': el(), '.st hk-icon': el(), '.st span': el() };
   var read = el(); read.querySelector = function (q) { return parts[q]; };
   return { read: read, parts: parts, root: { querySelector: function () { return read; } } };
 }
 var k5 = keypad(function () { return Promise.resolve(); });
-k5._hass.states['alarm_control_panel.p'] = { state: 'armed_away', attributes: {}, last_updated: 't' };
+k5.hass.states['alarm_control_panel.p'] = { state: 'armed_away', attributes: {}, last_updated: 't' };
 k5._config.entity = 'alarm_control_panel.p'; k5._code = '';
 var r5 = stubRoot(); k5._root = r5.root; delete k5._paint;
 K.prototype._paint.call(k5);
 ok('at rest the readout is the status', r5.read.attrs['data-mode'] === 'status' &&
-   r5.parts['.st span'].textContent === 'Armed Away' && r5.parts['.st ha-icon'].attrs.icon === 'hk:shield-lock');
+   r5.parts['.st span'].textContent === 'Armed Away' && r5.parts['.st hk-icon'].attrs.icon === 'hk:shield-lock');
 k5._code = '12'; K.prototype._paint.call(k5);
 ok('typing puts the code line back', r5.read.attrs['data-mode'] === 'code' && r5.parts['.code'].textContent === '\u2022\u2022');
 k5._code = ''; k5._config.status = false; K.prototype._paint.call(k5);

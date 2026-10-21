@@ -152,12 +152,12 @@
       this.classList.toggle('hide-phone', config.phone === 'hide');
     }
     getCardSize() { return 6; }
-    set hass(h) {
-      super.hass = h;
-      // The wrapper is static; the child owns its independent update gate.
-      if (this._child) this._child.hass = h;
+    // The wrapper is static; the child owns its independent update gate.
+    // EACH NEW CLIENT (either entry of HkBase), then the child gets what goes with it.
+    _receiveClient() {
+      super._receiveClient();
+      if (this._child) window.hkHostClient.bridge(this._child, this.client);
     }
-    get hass() { return this._hass; }
     // The frame has no state of its own; the child gates its own renders.
     _sigOf() { return 'static'; }
     // HA's OWN HELPERS BUILD THE CHILD, not document.createElement.
@@ -200,7 +200,7 @@
         });
         self._child = el;
         self._e.appendChild(el);
-        if (self._hass) el.hass = self._hass;
+        window.hkHostClient.bridge(el, self.client);
       };
       if (window.loadCardHelpers) {
         var make = function () {
@@ -249,7 +249,7 @@
   // is used.
   class HkSpacerCard extends HkBase {
     static get CSS() {
-      return ['ha-card.spacer{display:block;background:none;box-shadow:none;',
+      return ['hk-plate.spacer{display:block;background:none;box-shadow:none;',
               '  border:none;padding:0;margin:0}'].join('');
     }
     setConfig(config) { super.setConfig(config || {}); }
@@ -258,7 +258,7 @@
     _render() {
       if (!this._built) {
         this._root.innerHTML =
-          '<ha-card class="spacer" data-hk-role="card" aria-hidden="true"></ha-card>';
+          '<hk-plate class="spacer" data-hk-role="card" aria-hidden="true"></hk-plate>';
         this._e = this._root.querySelector('.spacer');
         this._built = true;
       }
@@ -285,7 +285,7 @@
     // other looks set --hk-chip-backdrop: none, as for the chips. It had the
     // plate and not the blur: the menu chip read clear at the head of a
     // frosted row.)
-    'ha-card.back{width:44px;height:44px;border-radius:50%;padding:0;margin:0;flex:none;',
+    'hk-plate.back{width:44px;height:44px;border-radius:50%;padding:0;margin:0;flex:none;',
     '  ' + M.glass + ';border:' + M.border + ';',
     '  backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
     '  -webkit-backdrop-filter:var(--hk-chip-backdrop,blur(20px) saturate(1.4) brightness(0.82));',
@@ -294,13 +294,13 @@
     '  cursor:pointer;color:' + window.hkCards.v('glyph') + ';',
     '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0;',
     '  transition:transform .12s ease}',
-    'ha-card.back:active{transform:scale(0.97);filter:brightness(0.93)}',
+    'hk-plate.back:active{transform:scale(0.97);filter:brightness(0.93)}',
     // ON A LIGHT PAGE (hk-base.js tone) no blur: brightness(0.82) would
     // darken the page behind the plate (the chips do the same, hk-chip.js)
-    ':host([data-hk-light]) ha-card.back{backdrop-filter:none;-webkit-backdrop-filter:none}',
+    ':host([data-hk-light]) hk-plate.back{backdrop-filter:none;-webkit-backdrop-filter:none}',
     // The menu glyph at the chevron's optical size: an SF glyph fills its
     // 24 box to 21, so 20px here draws it as wide as the 20px chevron.
-    'ha-card.back ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
+    'hk-plate.back hk-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
     // MENU, BACK, TITLE: 20px between each, so a tap meant for one does not
     // land on its neighbour. The title's 20 is the page's own grid gap.
     '.pair{display:flex;align-items:center;gap:20px}'
@@ -313,8 +313,8 @@
                   icon: function () { return ''; }, toggle: function () {} };
   function menu() { return (C && C.menu && C.menu.sig) ? C.menu : NO_MENU; }
   function roundMenu() {
-    return '<ha-card class="back menu" data-hk-role="menu" role="button" aria-label="Menu">' +
-      '<ha-icon icon="' + menu().icon() + '"></ha-icon></ha-card>';
+    return '<hk-plate class="back menu" data-hk-role="menu" role="button" aria-label="Menu">' +
+      '<hk-icon icon="' + menu().icon() + '"></hk-icon></hk-plate>';
   }
 
   // A card that drew the round menu button, attached again (a cached view
@@ -327,7 +327,7 @@
   class HkBackCard extends HkBase {
     static get CSS() { return ROUND_CSS; }
     getCardSize() { return 1; }
-    // Depends on the URL and the menu's state, not on hass: the menu button
+    // Depends on the URL and the menu's state, not on the client: the menu button
     // beside the chevron comes and goes with the menu's settings.
     _sigOf() { return 'menu=' + menu().sig(); }
     connectedCallback() { super.connectedCallback(); chipBack(this); }
@@ -347,11 +347,11 @@
       // makes it read small and off-centre, and this stroke weight (2.6) was
       // matched to the 19.7px headings it sits beside.
       var back =
-        '<ha-card class="back" data-hk-role="card" role="button" aria-label="Back">' +
+        '<hk-plate class="back" data-hk-role="card" role="button" aria-label="Back">' +
         '<svg viewBox="0 0 24 24" width="20" height="20" fill="none"' +
         ' style="stroke:' + window.hkCards.v('glyph') + '" stroke-width="2.6"' +
         ' stroke-linecap="round" stroke-linejoin="round">' +
-        '<path d="M15 4.5 L7.5 12 L15 19.5"/></svg></ha-card>';
+        '<path d="M15 4.5 L7.5 12 L15 19.5"/></svg></hk-plate>';
       this._root.innerHTML = withMenu ? '<div class="pair">' + roundMenu() + back + '</div>' : back;
       this._root.querySelector('[data-hk-role="card"]')
           .addEventListener('click', this._up.bind(this));
@@ -391,7 +391,7 @@
       }
       var path = '/' + seg[1] + (up ? '/' + up : '');
       // dimmed for a drawn frame first: the tap answered before the page is
-      window.hkCards.navigate(path, this._root && this._root.querySelector('ha-card.back'));
+      window.hkCards.navigate(path, this._root && this._root.querySelector('hk-plate.back'));
     }
   }
 
@@ -446,36 +446,36 @@
   class HkKeyCard extends HkBase {
     static get CSS() {
       return [
-        'ha-card.key{display:flex;align-items:center;justify-content:center;',
+        'hk-plate.key{display:flex;align-items:center;justify-content:center;',
         '  box-sizing:border-box;cursor:pointer;overflow:hidden;',
         '  transition:background-color .25s ease,transform .12s ease;',
         '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
-        'ha-card.key:active{transform:scale(0.97);filter:brightness(0.93)}',
+        'hk-plate.key:active{transform:scale(0.97);filter:brightness(0.93)}',
         // ---- flat: the controls inside a vacuum card
-        'ha-card.key.flat{height:52px;border-radius:18px;padding:0;border:none;',
+        'hk-plate.key.flat{height:52px;border-radius:18px;padding:0;border:none;',
         '  box-shadow:none;background:' + window.hkCards.v('key') + '}',
-        'ha-card.key.flat .icon{width:23px;height:23px;color:' + window.hkCards.v('glyph') + '}',
+        'hk-plate.key.flat .icon{width:23px;height:23px;color:' + window.hkCards.v('glyph') + '}',
         // ---- glass: the free-standing duration chips
         // 116x56 and a 20px radius: wider and flatter than the 52px controls
         // above, because a row of NINE 52px squares reads as a keypad, which
         // is the wrong idea -- these are not digits you combine.
-        'ha-card.key.glass{height:56px;width:116px;border-radius:20px;padding:0;',
+        'hk-plate.key.glass{height:56px;width:116px;border-radius:20px;padding:0;',
         '  ' + window.hkCards.M.glass + ';',
         '  border:' + window.hkCards.M.border + ';',
         '  box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),0 6px 18px rgba(0,0,0,0.10))}',
-        'ha-card.key.filled{height:56px;width:116px;border-radius:20px;padding:0;',
+        'hk-plate.key.filled{height:56px;width:116px;border-radius:20px;padding:0;',
         '  border:none;box-shadow:var(--hk-look-shadow, inset 0 1px 0 rgba(255,255,255,0.20),',
         '  0 6px 18px rgba(0,0,0,0.10))}',
         '.key .name{font-size:17px;font-weight:600;letter-spacing:-0.4px;',
         '  color:' + window.hkCards.v('ink') + ';white-space:nowrap}',
-        'ha-card.key.filled .name{color:rgba(0,0,0,0.88);font-weight:700}',
+        'hk-plate.key.filled .name{color:rgba(0,0,0,0.88);font-weight:700}',
         // PHONE: FILL THE TRACK. The Timers row auto-fills ~118px columns
         // below 640px and a 184px "+ New Timer" would overflow its column,
         // printing on top of the "5 min" chip beside it. Same shape as the
         // pills: calc(100% + 8px) restores layout-card's 4px side margins.
         '@media (max-width:' + window.hkCards.BP.phone + 'px){',
         '  :host{max-width:none !important}',
-        '  ha-card.key.glass,ha-card.key.filled{',
+        '  hk-plate.key.glass,hk-plate.key.filled{',
         '    width:calc(100% + var(--hk-cell-bleed,8px)) !important;',
         '    min-width:0 !important;max-width:none !important}',
         '}'
@@ -488,7 +488,7 @@
       super.setConfig(config);
     }
     getCardSize() { return 1; }
-    // A key has no state -- it never needs a re-render from hass at all.
+    // A key has no state -- it never needs a re-render from the client at all.
     _sigOf() { return 'static'; }
     _render() {
       var cfg = this._config;
@@ -496,10 +496,10 @@
         var variant = ['flat', 'glass', 'filled'].indexOf(cfg.variant) >= 0
           ? cfg.variant : 'glass';
         this._root.innerHTML =
-          '<ha-card class="key ' + variant + '" data-hk-role="card">' +
-          (cfg.icon ? '<ha-state-icon class="icon" data-hk-role="icon"></ha-state-icon>'
+          '<hk-plate class="key ' + variant + '" data-hk-role="card">' +
+          (cfg.icon ? '<hk-state-icon class="icon" data-hk-role="icon"></hk-state-icon>'
                     : '<div class="name" data-hk-role="name"></div>') +
-          '</ha-card>';
+          '</hk-plate>';
         this._e = {
           card: this._root.querySelector('.key'),
           icon: this._root.querySelector('.icon'),
@@ -513,7 +513,8 @@
       if (cfg.fill) e.card.style.background = cfg.fill;
       if (e.icon) {
         e.icon.icon = cfg.icon;
-        if (this._hass) e.icon.hass = this._hass;
+        var cl = this.client;
+        if (cl) cl.bindStateIcon(e.icon);
         if (cfg.icon_color) e.icon.style.color = cfg.icon_color;
       }
       if (e.name && e.name.textContent !== cfg.name) e.name.textContent = cfg.name;
@@ -536,7 +537,7 @@
       return [
         // No plate at all -- these sit on the Tesla's own background. The
         // three stacked drop-shadows are what makes them legible over it.
-        'ha-card.info{box-sizing:border-box;display:block;height:108px;',
+        'hk-plate.info{box-sizing:border-box;display:block;height:108px;',
         '  border-radius:0;padding:12px;background:none;border:none;box-shadow:none;',
         '  cursor:pointer;',
         '  filter:var(--hk-glow,drop-shadow(0px 1px 3px rgba(0,0,0,0.30))',
@@ -572,7 +573,7 @@
         // 54 px column would put the shield 12 px right of the lock icons and
         // "Disarmed" 20 px right of their names; this centres the shield on
         // the lock icons' column and starts the words where their names do.
-        'ha-card.info.state{height:104px;border-radius:24px;padding:16px 18px 16px 15.3px;',
+        'hk-plate.info.state{height:104px;border-radius:24px;padding:16px 18px 16px 15.3px;',
         '  filter:none}',
         '.info.state .grid{grid-template-columns:42px 1fr;column-gap:10px;',
         '  align-items:center;align-content:center}',
@@ -601,7 +602,7 @@
     // signature could describe it honestly -- null means "always render",
     // the safe answer, and a dashboard rarely has more than one.
     _sigOf() {
-      var c = this._config, h = this._hass;
+      var c = this._config, h = this.client;
       if (!c || !h) return null;
       if (c.variant === 'state') return HkBase.prototype._sigOf.call(this);
       if (c.variant !== 'climate') return null;
@@ -640,7 +641,7 @@
       // THE SENSOR'S OWN UNIT, and the comfort band in it: 66-74 °F unless
       // the card says otherwise (cool_below / warm_above), 19-23 in °C.
       var tst = cfg.temperature && this._st(cfg.temperature);
-      var unit = (tst && tst.attributes && tst.attributes.unit_of_measurement) || '°F';
+      var unit = (tst && tst.attributes && tst.attributes.unit_of_measurement) || window.hkLocale.units().temp;
       var celsius = /C$/.test(unit);
       var cool = cfg.cool_below != null ? Number(cfg.cool_below) : (celsius ? 19 : 66);
       var warm = cfg.warm_above != null ? Number(cfg.warm_above) : (celsius ? 23 : 74);
@@ -661,11 +662,11 @@
     // ---- security: shut, locked, and the garage.
     _security() {
       // NO STATES YET IS THE NORMAL FIRST RENDER. setConfig() renders before
-      // Lovelace assigns hass, and hkHeader.status(null) throws -- which HA
+      // Lovelace hands over its object, and hkHeader.status(null) throws -- which HA
       // catches by replacing the whole card with a permanent error card, so
       // the block would never appear at all. Guard on the states object, not
       // just on hkHeader.
-      var st = this._hass && this._hass.states;
+      var st = this.client && this.client.states;
       var s = (st && window.hkHeader) ? window.hkHeader.status(st) : null;
       // No hkHeader is not "all clear" -- it is "cannot tell", and this card
       // says so rather than reading "Home Secure" for an empty map.
@@ -743,13 +744,13 @@
       var cfg = this._config;
       if (!this._built) {
         this._root.innerHTML =
-          '<ha-card class="info' + (cfg.variant === 'state' ? ' state' : '') +
+          '<hk-plate class="info' + (cfg.variant === 'state' ? ' state' : '') +
           '" data-hk-role="card"><div class="grid">' +
-          '<ha-icon class="icon" data-hk-role="icon"></ha-icon>' +
+          '<hk-icon class="icon" data-hk-role="icon"></hk-icon>' +
           '<div class="name" data-hk-role="name"></div>' +
           '<div class="label" data-hk-role="label">' +
           '<span data-hk-role="l1"></span><span data-hk-role="l2"></span></div>' +
-          '</div></ha-card>';
+          '</div></hk-plate>';
         var q = this._root.querySelector.bind(this._root);
         this._e = { card: q('.info'), icon: q('.icon'), name: q('.name'),
                     l1: q('[data-hk-role="l1"]'), l2: q('[data-hk-role="l2"]') };
@@ -799,7 +800,7 @@
   // No options of its own: when it draws, and with which glyph, are the menu's
   // settings. The one editor field is the standard `glass` opt-out.
   register('hk-menu-button-card', HkMenuButtonCard, 'HK Menu Button',
-    'Opens the menu of pages and rooms. Draws only on a dashboard with the menu turned on (HK Frontend → Configure → Menu and room pages); put it in a chip row as its lead.',
+    'Opens the menu of pages and rooms. Draws only on a dashboard with the menu turned on (' + window.hkShell.haPlace('HK Frontend → Configure → Menu and room pages') + '); put it in a chip row as its lead.',
     C && [{ name: 'glass', selector: { boolean: {} },
             helper: 'Off: leave this button out of the shared blur (Glass look: Blur).' }],
     function () { return {}; });
@@ -859,8 +860,8 @@
         { name: 'tap_action', selector: { ui_action: {} } }
       ], 'mdi:gesture-tap')
     ],
-    function (hass) { return { variant: 'security', icon: 'mdi:shield-home',
-                               garage: firstOf(hass, 'cover') }; });
+    function (client) { return { variant: 'security', icon: 'mdi:shield-home',
+                                 garage: firstOf(client, 'cover') }; });
 
   // ---------------------------------------------------------------------
   // hk-grid-card -- the grid host, owned here.
@@ -902,7 +903,7 @@
     if (choice === 'none') return 'none';
     return choice === 'smart' ? (nav.exact ? 'none' : 'context') : 'current';
   }
-  var HEADER_EVENTS = ['hk-page-navigation', 'hk-module-ready', 'location-changed', 'popstate', 'resize'];
+  var HEADER_EVENTS = ['hk-page-navigation', 'hk-module-ready', window.hkShell.navEvent, 'popstate', 'resize'];
   class HkGridCard extends HkBase {
     _isPageHeader() {
       var c = this._config || {}, kids = c.cards || [];
@@ -1019,12 +1020,12 @@
     _sigOf() { return this._isPageHeader() ? this._headerState() : 'static'; }
     getCardSize() { return 6; }
 
-    set hass(h) {
-      super.hass = h;
-      var kids = this._kids || [];
-      for (var i = 0; i < kids.length; i++) kids[i].hass = h;
+    // EACH NEW CLIENT (either entry of HkBase): every child gets what goes with it.
+    _receiveClient() {
+      super._receiveClient();
+      var kids = this._kids || [], client = this.client;
+      for (var i = 0; i < kids.length; i++) window.hkHostClient.bridge(kids[i], client);
     }
-    get hass() { return this._hass; }
 
     // Only grid-* and place-* reach the grid, matching layout-card. Anything
     // else in `layout` is handled explicitly above or ignored, and ignoring it
@@ -1159,7 +1160,7 @@
           });
           root.appendChild(el);
           self._kids.push(el);
-          if (self._hass) el.hass = self._hass;
+          window.hkHostClient.bridge(el, self.client);
         });
       });
     }
@@ -1184,8 +1185,8 @@
   //
   // A VIEW IS A DIFFERENT CONTRACT FROM A CARD, and a simpler one: Home
   // Assistant builds the card elements itself and hands them over as
-  // `.cards`, already carrying `hass`. There is no loadCardHelpers dance here.
-  // What HA sets, in this order: setConfig(), then hass, lovelace, narrow,
+  // `.cards`, already fed by Lovelace. There is no loadCardHelpers dance here.
+  // What HA sets, in this order: setConfig(), then the host object, lovelace, narrow,
   // index, cards, badges -- any of which can arrive more than once.
   //
   // THE PLACEMENT COMES FROM THE CONFIG, NOT THE ELEMENTS. `view_layout` is a
@@ -1206,9 +1207,9 @@
       this._place();
     }
     // HA may set these before or after setConfig; none of them changes layout,
-    // and the cards already have their own hass.
-    set hass(h) { this._hass = h; }
-    get hass() { return this._hass; }
+    // and the cards already have what they read. Lovelace's object is taken at
+    // the host adapter's entry (below the class): the view keeps it for the
+    // getter and does nothing else with it.
     set lovelace(l) { this._lovelace = l; }
     get lovelace() { return this._lovelace; }
     set narrow(n) { this._narrow = n; }
@@ -1227,7 +1228,16 @@
       // Percentage padding uses this view's width, matching the side columns
       // even with a docked menu or a narrower device. Keep the normal header unchanged.
       // (clipped below, never across: the page's end, _pageEnd)
-      st.textContent = ':host{display:block;overflow-y:clip}#root>*{margin:4px 4px 8px}' +
+      // (flow-root: the root's bottom margin -- the page's end -- stays INSIDE
+      // the view. `overflow:clip` makes no block formatting context, so a
+      // plain block let that margin collapse through the view's foot: the
+      // view's box never followed it, a negative one trimmed nothing, and
+      // _pageEnd -- reading the view's foot -- added the same difference on
+      // every pass. Energy ended 73 px past its last card, 2026-10-18.)
+      // (the clip stops at the view's foot -- a gutter below the last plate --
+      // and a plate's shadow runs further (30-60 px), which the clip cut off
+      // flat just above the tab bar, the user 2026-10-18. See _clipRoom.)
+      st.textContent = ':host{display:flow-root;overflow-y:clip}#root>*{margin:4px 4px 8px}' +
         // (a grid of pop-ups alone: no room, no margins -- hk-grid-card _markZero)
         '#root>[data-hk-zero]{margin:0!important}' +
         '#root>[data-hk-page-header=none]{display:none!important}' +
@@ -1328,10 +1338,29 @@
     // a plate or its shadow (the gutter is wider than any shadow). Run when
     // the page's size changes (a ResizeObserver: cards arriving, a resize),
     // never on a timer. The tab bar's room below a page is padding on the
-    // view and adds to it as before.
+    // view and adds to it as before -- so nothing that runs on under the bar
+    // may count: a card that fits itself to the window ends the page its own
+    // foot below its box (data-hk-foot, plateEdge; the Music page).
+    // THE CLIP REACHES THE ROOM BELOW THE VIEW: what lies under the view is
+    // its container's bottom padding -- the tab bar's room, empty by design --
+    // so the clipping box is made that much taller (padding-bottom) and takes
+    // no layout room for it (the same amount of negative margin-bottom): paint
+    // may run on that far (a shadow fades out there instead of stopping flat
+    // at the view's foot), and nothing is added to what scrolls, the room
+    // being part of the page already. No room, no padding: the clip as it
+    // was. (Plain box model, so Safari does it too; overflow-clip-margin is
+    // not in it.)
+    _clipRoom() {
+      var p = this.parentElement, room = 0;
+      if (p) room = Math.max(0, Math.floor(parseFloat(getComputedStyle(p).paddingBottom) || 0));
+      var pad = room ? room + 'px' : '', mar = room ? -room + 'px' : '';
+      if (this.style.paddingBottom !== pad) this.style.paddingBottom = pad;
+      if (this.style.marginBottom !== mar) this.style.marginBottom = mar;
+    }
     _pageEnd() {
       var root = this._root;
       if (!root || !this.isConnected) return;
+      this._clipRoom();
       var hr = this.getBoundingClientRect();
       if (!hr.height || !hr.width) return;
       // (a page still building in -- its contents rising into place by a
@@ -1356,13 +1385,19 @@
           });
         return;
       }
-      var low = HkGridView.plateEdge(root, 'bottom');
+      var gutter = HkGridView.gutter(this);
+      var low = HkGridView.plateEdge(root, 'bottom', gutter);
       if (low == null) return;
-      var cs = getComputedStyle(this), gutter = HkGridView.gutter(this);
-      var tail = hr.bottom - (parseFloat(cs.paddingBottom) || 0) - low;
-      // (from the margin as it is, never as last set: whatever has reset it
-      // since, the page still ends at its gutter)
-      var m = parseFloat(getComputedStyle(root).marginBottom) || 0, next = Math.round((m + gutter - tail) * 10) / 10;
+      // The root's own bottom edge to the lowest plate (the root's box, never
+      // the view's: whatever margin the root carries now does not enter it,
+      // so a pass changes the margin to a fixed value, not by a step -- the
+      // old reading of the view's foot added the difference again each time).
+      // The margin that puts the page's end a gutter below that plate.
+      // (Rounded DOWN to the tenth: a page that fits the window exactly -- the
+      // Music page -- rounded to nearest ended 0.05 px past it, which the
+      // browser can round up to a pixel of scroll.)
+      var slack = root.getBoundingClientRect().bottom - low;
+      var m = parseFloat(getComputedStyle(root).marginBottom) || 0, next = Math.floor((gutter - slack) * 10 + 1e-6) / 10;
       if (Math.abs(next - m) < 0.5) return;
       this._endM = next;
       root.style.marginBottom = next + 'px';
@@ -1412,7 +1447,7 @@
     }
   }
 
-  // the edge of the outermost plate under `node` (a card's ha-card, a camera
+  // the edge of the outermost plate under `node` (an HK card's hk-plate or HA's ha-card, a camera
   // tile) on one side -- 'bottom' its lowest bottom, 'left' its leftmost left
   // -- in viewport px, or null: only the children whose boxes reach within
   // REACH of that side are searched, through shadow roots, so a page is
@@ -1429,7 +1464,7 @@
     var side = parseFloat(getComputedStyle(v).getPropertyValue('--hk-side')) || 0.02;
     return PAGE_EDGE + v.getBoundingClientRect().width * side;
   };
-  // A PLATE: what draws a surface -- a card's ha-card with a background or a
+  // A PLATE: what draws a surface -- an HK card's hk-plate or HA's ha-card with a background or a
   // shadow (not a heading's or a row's clear one), or any rounded box that
   // does (a vacuum card's, a calendar panel, a TV tile, a camera tile).
   // Never a fixed layer (a sticky bar's strip, a sheet).
@@ -1437,9 +1472,23 @@
     var cs = getComputedStyle(el);
     if (cs.position === 'fixed') return false;
     var drawn = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none';
-    return drawn && (el.localName === 'ha-card' || parseFloat(cs.borderTopLeftRadius) >= 8);
+    return drawn && (el.localName === 'hk-plate' || el.localName === 'ha-card' || parseFloat(cs.borderTopLeftRadius) >= 8);
   }
-  HkGridView.plateEdge = function (node, side) {
+  // A CARD THAT KEEPS ITS OWN FOOT (data-hk-foot, in px; 2026-10-18): a
+  // card that fits itself to the window ends the page itself, that far below
+  // its own box -- not a gutter below its lowest plate. The Music page's
+  // two columns fill the window to a 16 px foot, and with a tab bar along
+  // the bottom its frame runs on under the bar (hk-music.js): measured as a
+  // plate, the page ended a gutter below the WINDOW's foot, counting the
+  // bar's room a second time (it scrolled 114 px, the user 2026-10-18). Its
+  // box is searched no further: what runs on under the bar is not the page.
+  // With `gutter` (the page's end, _pageEnd) such a card counts as a plate
+  // ending (foot - gutter) below its box, so the page ends its foot below it.
+  function footOf(el) {
+    var f = el.getAttribute ? el.getAttribute('data-hk-foot') : null;
+    return f == null || f === '' || isNaN(parseFloat(f)) ? null : parseFloat(f);
+  }
+  HkGridView.plateEdge = function (node, side, gutter) {
     var best = null, n0 = 0, low = side === 'bottom';
     // (a box inside a scroller counts only as far as the scroller shows it:
     // the calendar's hours run 1,500 px down inside their panel)
@@ -1466,7 +1515,12 @@
       var max = Math.max.apply(null, boxes.map(function (x) { return at(x[1]); }));
       boxes.forEach(function (x) {
         if (at(x[1]) < max - REACH) return;
-        var k = x[0];
+        var k = x[0], foot = low ? footOf(k) : null;
+        if (foot != null) {
+          var e = at(x[1]) + foot - (gutter || 0);
+          if (best === null || e > best) best = e;
+          return;
+        }
         if (k.localName === 'hk-camera-live-card' || plateLike(k)) {
           if (best === null || at(x[1]) > best) best = at(x[1]);
           return;
@@ -1520,6 +1574,7 @@
     return gone.length ? out.filter(function (el) { return el !== null; }) : out;
   };
 
+  window.hkHostClient.entry(HkGridView);
   if (!customElements.get('hk-grid-view')) {
     customElements.define('hk-grid-view', HkGridView);
   }

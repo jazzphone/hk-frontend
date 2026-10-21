@@ -52,6 +52,8 @@
 (function () {
   'use strict';
   if (window.hkMenu) return;
+  // the host's page: where the menu mounts, navigation, HA's own sidebar
+  var SH = window.hkShell;
 
   // THE FIRST LOAD AFTER AN UPDATE can pair this file with the previous
   // hk-base.js, still in the service worker's cache. The menu then stays out of the way for that one load rather
@@ -78,8 +80,8 @@
   // A PURE FUNCTION of the dashboard config, the areas and the settings, so
   // the tests can hold it to every rule above without a page.
   //   cfg    the dashboard's lovelace config ({ views: [...] })
-  //   areas  hass.areas (area_id -> { name, icon })
-  //   o      { dash, order: 'az'|'dashboard', user: hass.user.id,
+  //   areas  client.areas (area_id -> { name, icon })
+  //   o      { dash, order: 'az'|'dashboard', user: client.user.id,
   //            categories: [view paths] (empty: the chips' pages), ha: bool,
   //            chips: the screen's Chips (its chips card's kinds), chipsRow }
   function model(cfg, areas, o) {
@@ -320,14 +322,17 @@
     { title: 'Automations', icon: 'mdi:robot', path: '/config/automation/dashboard', panel: 'config/automation' },
     { title: 'Settings', icon: 'mdi:cog', path: '/config/dashboard', panel: 'config', badge: 'settings' }
   ];
-  function haItems(hass, prefs, o) {
+  // `sidebar` is the host's sidebar data: { user, panels, localize }
+  // (hkShell.sidebarData(): the panels and their titles are the host's own pages,
+  // not house data, so they come from the shell, not the client).
+  function haItems(sidebar, prefs, o) {
     o = o || {};
     prefs = prefs || {};
-    var admin = !!(hass && hass.user && hass.user.is_admin);
-    var panels = (hass && hass.panels) || {};
+    var admin = !!(sidebar && sidebar.user && sidebar.user.is_admin);
+    var panels = (sidebar && sidebar.panels) || {};
     var name = function (t) {
       var s = '';
-      try { s = hass.localize('panel.' + t); } catch (e) { /* no localize */ }
+      try { s = sidebar.localize('panel.' + t); } catch (e) { /* no localize */ }
       return s || t;
     };
     var out = [], pinned = { config: 1 };
@@ -377,8 +382,61 @@
     });
   }
 
+  // THE HOST'S OWN PAGES (hkShell.hostMenu): a host's settings page, opened by a full page load (inside
+  // the same frame when the host runs in Home Assistant's sidebar). `section` names the host's section
+  // (the host's own word; Home Assistant has no such pages, so no section and no word).
+  function hostItems() {
+    var SH = window.hkShell, list = null;
+    try { list = SH && SH.hostMenu ? SH.hostMenu() : null; } catch (e) { list = null; }
+    // a row either opens a page (href) or asks the host to do something (run: a function)
+    return (Array.isArray(list) ? list : []).filter(function (x) { return x && x.title && (x.href || typeof x.run === 'function'); })
+      .map(function (x) { return { title: String(x.title), icon: x.icon || 'mdi:cog', kind: 'hostlink', href: x.href ? String(x.href) : '',
+                                   run: typeof x.run === 'function' ? x.run : null, section: String(x.section || ''), paths: [] }; });
+  }
+
+  function sidebarSource() {
+    var SH = window.hkShell;
+    return SH && SH.sidebarData ? SH.sidebarData() : null;
+  }
+
+  // WHAT THE HOME ASSISTANT SECTION IS HERE (hkShell.haNav): Home Assistant's
+  // sidebar where the host is Home Assistant or shows the page inside it
+  // ('own'); one row opening Home Assistant where it is elsewhere ({ link });
+  // nothing where there is no Home Assistant to open (null). A row that
+  // could do nothing is never listed.
+  function haNav() {
+    var SH = window.hkShell;
+    if (!SH || !SH.haNav) return 'own';
+    var n = SH.haNav();
+    if (n === 'own') return n;
+    return n && typeof n.link === 'string' && /^https?:\/\//.test(n.link) ? { link: n.link, top: !!n.top } : null;
+  }
+  // The section's rows, by haNav: `prefs` is this user's sidebar order and
+  // hidden pages (the host's own when its sidebar data carries them)
+  function haList(prefs, o) {
+    var nav = haNav();
+    if (!nav) return [];
+    if (nav !== 'own') return [{ title: 'Open Home Assistant', icon: 'mdi:open-in-new', kind: 'halink', href: nav.link, top: nav.top, paths: [] }];
+    var side = sidebarSource();
+    return haItems(side, (side && side.prefs) || prefs, o);
+  }
+  // the one row's way out: this window, or the top one (a page framed by someone else)
+  function haOpen(it) {
+    if (!it || !it.href) return;
+    if (it.top) { try { window.open(it.href, '_top'); } catch (e) { /* refused */ } return; }
+    location.assign(it.href);
+  }
+  // what the section looks like, for the lists' keys: a change redraws them
+  function haKey() {
+    var nav = haNav(), side = nav === 'own' ? sidebarSource() : null;
+    return nav === 'own' ? 'own:' + (side && side.panels ? Object.keys(side.panels).join(',') : '') +
+                           ':' + JSON.stringify((side && side.prefs) || null) + ':' + !!(side && side.shown)
+                         : nav ? 'link:' + nav.link + ':' + nav.top : 'none';
+  }
+
   window.hkMenu = { version: '1.1.0', _: { model: model, isHere: isHere, glyph: glyph, chipPaths: chipPaths, pagePaths: pagePaths,
-                                           haItems: haItems,
+                                           haItems: haItems, hostItems: hostItems, sidebarSource: sidebarSource,
+                                           haNav: haNav, haList: haList, haOpen: haOpen, haKey: haKey,
                                            tabCentre: tabCentre, kinds: { ORDER: KIND_ORDER, PAGES: KIND_PAGES } } };
 
   whenBase(function (C) {
@@ -519,7 +577,7 @@
       '  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color .15s ease}',
       '.row + .row{margin-top:2px}',
       // the highlight: the screen's Highlight Colour (paintIcons), Apple's orange by default
-      '.row ha-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex;color:' + window.hkCards.v('accent') + '}',
+      '.row hk-icon{--mdc-icon-size:22px;width:22px;height:22px;flex:none;display:flex;color:' + window.hkCards.v('accent') + '}',
       '.row span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       // THE HIGHLIGHT SLIDES TO THE NEW ROW (2026-10-10), as the tab bar's
       // does: it is a layer behind the row (::before), started over the row
@@ -532,7 +590,7 @@
       '  transform:translate(var(--hx,0px),var(--hy,0px)) scale(var(--sx,1),var(--sy,1));',
       '  transition:transform .42s ' + SPRING + '}',
       '.row.here.slide-from::before{transition:none}',
-      '.row.here ha-icon{color:var(--hk-on-accent,#fff)}',
+      '.row.here hk-icon{color:var(--hk-on-accent,#fff)}',
       // the Home Assistant section: iOS count bubbles, "More" and its rows
       '.row .bdg{flex:none;min-width:22px;height:22px;padding:0 7px;box-sizing:border-box;border-radius:11px;',
       '  background:#ff3b30;color:#fff;font-size:13px;font-weight:600;line-height:22px;text-align:center;letter-spacing:0}',
@@ -540,7 +598,7 @@
       '.row.more svg{flex:none;opacity:.45;transform:rotate(-90deg);transition:transform .2s ease}',
       '.row.more[aria-expanded="true"] svg{transform:none}',
       '.row.sub{height:40px;padding-left:50px;font-size:15px;color:' + window.hkCards.v('ink') + '}',
-      '.row.sub ha-icon{--mdc-icon-size:20px;width:20px;height:20px;color:rgba(235,235,245,0.6)}',
+      '.row.sub hk-icon{--mdc-icon-size:20px;width:20px;height:20px;color:rgba(235,235,245,0.6)}',
       '@media (hover:hover){.row:not(.here):hover{background:rgba(255,255,255,0.07)}}',
       '.row:focus-visible,.sh:focus-visible,.tab:focus-visible{outline:2px solid rgba(255,255,255,0.7);outline-offset:-2px}',
       // SECTION HEADINGS: the Home app's "Categories" / "Rooms", which fold.
@@ -590,9 +648,9 @@
       // over the page (the tab is on top of the page, so it may)
       '.tab::before{content:"";position:absolute;top:-16px;bottom:-16px;left:-4px;right:-14px}',
       '.tab:active{filter:brightness(1.25)}',
-      '.tab ha-icon{--mdc-icon-size:var(--tab-ic,16px);width:var(--tab-ic,16px);height:var(--tab-ic,16px);display:flex;margin-left:-1px}',
+      '.tab hk-icon{--mdc-icon-size:var(--tab-ic,16px);width:var(--tab-ic,16px);height:var(--tab-ic,16px);display:flex;margin-left:-1px}',
       '.tab svg{display:none;margin-left:-1px;width:calc(var(--tab-ic,16px) - 2px);height:calc(var(--tab-ic,16px) - 2px)}',
-      '.root.open .tab ha-icon{display:none}',
+      '.root.open .tab hk-icon{display:none}',
       '.root.open .tab svg{display:block}',
       // A PHONE'S HOME WITH NO CHIP to hold the menu button: a round one of
       // its own, top left. The last resort; every other page has its back
@@ -605,7 +663,7 @@
       '  -webkit-backdrop-filter:blur(20px) saturate(1.4) brightness(0.82);backdrop-filter:blur(20px) saturate(1.4) brightness(0.82)}',
       '.root.fabbed .fab{display:flex}',
       '.root.open .fab{display:none}',
-      '.fab ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
+      '.fab hk-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
       // THE EDGE SWIPE'S STRIP (wireEdge): the page's left margin, invisible,
       // under the tab (the clip paints after it). touch-action pan-y: a drag
       // up or down still scrolls the page, but a sideways one is ours -- no
@@ -633,10 +691,7 @@
     var S = { host: null, root: null, open: false, dash: null, idle: null, shut: {}, built: '' };
     try { S.shut = JSON.parse(localStorage.getItem('hk-menu-shut') || '{}') || {}; } catch (e) { S.shut = {}; }
 
-    function haRoot() {
-      var ha = document.querySelector('home-assistant');
-      return (ha && ha.shadowRoot) || null;
-    }
+    function haRoot() { return SH.overlayRoot(); }
     function narrow() { return (window.innerWidth || 1280) < M.NARROW; }
     // Its item's Menu: "Always open beside the page", when there is room.
     function docked() { return M.docked(); }
@@ -670,9 +725,9 @@
               '<div class="wx" role="link" aria-label="Weather"><span class="g"></span><span class="tp"></span></div>' +
               '<div class="d"></div><div class="c" role="link" aria-label="Weather"></div></div>' +
             '<div class="rule" hidden></div><div class="hk-edge"><div class="list"></div></div>' +
-            '<button class="tab" aria-label="Menu" aria-expanded="false"><ha-icon></ha-icon>' + CHEV_L + '</button>' +
+            '<button class="tab" aria-label="Menu" aria-expanded="false"><hk-icon></hk-icon>' + CHEV_L + '</button>' +
           '</nav></div>' +
-          '<button class="fab" aria-label="Menu"><ha-icon></ha-icon></button>' +
+          '<button class="fab" aria-label="Menu"><hk-icon></hk-icon></button>' +
         '</div>';
       S.root = sr.querySelector('.root');
       S.panel = sr.querySelector('.panel');
@@ -820,7 +875,7 @@
         S.host.style.setProperty('--hk-on-accent', a.on);
       }
       [S.tab, S.fab].forEach(function (b) {
-        var i = b && b.querySelector('ha-icon');
+        var i = b && b.querySelector('hk-icon');
         if (i && i.getAttribute('icon') !== icon) i.setAttribute('icon', icon);
       });
     }
@@ -853,7 +908,7 @@
     }
 
     // Everything that can change which pieces show: called on every page
-    // change, settings change, resize and hass push -- all cheap, all
+    // change, settings change, resize and state push -- all cheap, all
     // idempotent.
     function sync() {
       var on = M.on();
@@ -912,7 +967,7 @@
     // Its item's Menu: "Chip, the tab once scrolled past" / "Chip on Home, tab
     // on the other pages" (hk-base.js menu.tab() says 'scrolled'): the tab
     // slides in while every round button on the page is out of sight, and
-    // back out when one returns. The buttons are the cards' own <ha-card>s
+    // back out when one returns. The buttons are the cards' own <hk-plate>s
     // (menu.chips()), looked at on scroll -- one or two rects a frame, and
     // only on such a dashboard.
     //
@@ -973,10 +1028,10 @@
       S.panel.classList.toggle('has-now', on);
       S.now.hidden = !on;
       S.rule.hidden = !on;
-      var H = window.hkHeader, h = C.hass();
+      var H = window.hkHeader, h = C.client();
       if (!on) { S.nowKey = ''; if (H && H.nowDone) H.nowDone(); return; }
       if (!H || typeof H.now !== 'function' || !h || !h.states) return;
-      var v = H.now(h.states, h.connection);
+      var v = H.now(h.states, C.subscriptions(h));
       // wxReady: the home's weather glyphs arriving swaps the Material stand-in
       // for the real one, with no weather change to say so.
       var ready = H.wxReady ? H.wxReady() : '';
@@ -1073,8 +1128,7 @@
       if (!has || !dash) return;
       var path = '/' + dash + '/weather';
       if (location.pathname === path) return;
-      history.pushState(null, '', path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
+      SH.navigate(path);
     }
 
     function isHome() {
@@ -1087,7 +1141,7 @@
 
     // ---------------------------------------------------------- the list
     function listKey() {
-      var cfg = M.config(), h = C.hass();
+      var cfg = M.config(), h = C.client(), side = sidebarSource();
       var b = M.board();
       return [M.dash(), b.ha_place, b.menu_rooms, JSON.stringify(b.room_order), b.ha_row,
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
@@ -1096,7 +1150,8 @@
               // the Home Assistant section: More folded or not, this user's
               // sidebar order, and the panels there are
               !!S.shut.ha_more, JSON.stringify(S.haPrefs || null), !!(h && h.user && h.user.is_admin),
-              h && h.panels ? Object.keys(h.panels).join(',') : '',
+              side && side.panels ? Object.keys(side.panels).join(',') : '', haKey(),
+              hostItems().map(function (x) { return x.title + x.href; }).join(','),
               cfg ? (cfg.views || []).length : 0,
               JSON.stringify(h && h.areas ? Object.keys(h.areas).map(function (k) {
                 return k + ':' + h.areas[k].name + ':' + (h.areas[k].icon || '');
@@ -1109,7 +1164,7 @@
       return CFGS.get(cfg);
     }
     function build() {
-      var cfg = M.config(), h = C.hass();
+      var cfg = M.config(), h = C.client();
       var b = M.board();
       var m = model(cfg, h && h.areas, { dash: M.dash(), order: b.menu_rooms === 'order' ? 'order' : 'az',
                                           roomOrder: b.room_order,
@@ -1126,8 +1181,8 @@
         var cls = it.kind === 'sub' ? ' sub' : it.kind === 'more' ? ' more' : '';
         var tail = it.badge ? '<b class="bdg" data-badge="' + it.badge + '" hidden></b>' : it.kind === 'more' ? CHEV_D : '';
         return '<button class="row' + cls + '" data-i="' + (S.items.length - 1) + '"' +
-          (it.kind === 'more' ? ' aria-expanded="' + !!it.open + '"' : '') + '><ha-icon icon="' +
-          esc(glyph(it.icon)) + '"></ha-icon><span>' + esc(it.title) + '</span>' + tail + '</button>';
+          (it.kind === 'more' ? ' aria-expanded="' + !!it.open + '"' : '') + '><hk-icon icon="' +
+          esc(glyph(it.icon)) + '"></hk-icon><span>' + esc(it.title) + '</span>' + tail + '</button>';
       }
       function section(key, title, items) {
         if (!items.length) return '';
@@ -1143,8 +1198,7 @@
       var ha = '';
       if (m.ha) {
         haUpdates(h, true);
-        ha = section('ha', 'Home Assistant', haItems(h, S.haPrefs, { moreOpen: !!S.shut.ha_more,
-                                                                     sidebarShown: haSidebarShown() }));
+        ha = section('ha', 'Home Assistant', haList(S.haPrefs, { moreOpen: !!S.shut.ha_more, sidebarShown: haSidebarShown() }));
       }
       var place = b.ha_place || 'rooms';
       if (place === 'top') html += ha;
@@ -1154,6 +1208,8 @@
       if (place === 'rooms') html += ha;
       html += section('rooms', 'Rooms', m.rooms);
       if (place === 'bottom') html += ha;
+      var hostRows = hostItems();
+      html += section('host', hostRows.length ? hostRows[0].section || 'More' : '', hostRows);
       var keep = S.list.scrollTop;
       S.list.innerHTML = html;
       S.list.scrollTop = keep;
@@ -1167,9 +1223,11 @@
     // install plus the repairs not ignored (admins). Subscribed only while a
     // screen shows the section, and painted in place -- a count never
     // rebuilds the list.
+    // Through the current client: its subscription port (one per socket, so
+    // the same identity across snapshots) and its read path for the repairs.
     var HC = { notif: 0, updates: 0, issues: 0, conn: null, un: [], at: 0 };
     function haCounts(on) {
-      var h = C.hass(), conn = h && h.connection;
+      var h = C.client(), conn = h && h.subscriptions;
       if (!on || !conn) {
         HC.un.forEach(function (f) { try { f(); } catch (e) { /* gone */ } });
         HC.un = [];
@@ -1200,14 +1258,15 @@
       }, { type: 'frontend/subscribe_user_data', key: 'sidebar' }));
       if (h.user && h.user.is_admin) {
         var issues = function () {
-          conn.sendMessagePromise({ type: 'repairs/list_issues' }).then(function (r) {
+          h.callWS({ type: 'repairs/list_issues' }).then(function (r) {
             HC.issues = ((r && r.issues) || []).filter(function (x) { return !x.ignored; }).length;
             paintBadges();
           }, function () { /* no repairs */ });
         };
         issues();
-        keep(conn.subscribeEvents(function () { clearTimeout(HC.it); HC.it = setTimeout(issues, 500); },
-                                  'repairs_issue_registry_updated'));
+        // home-assistant-js-websocket's subscribeEvents(cb, type) is exactly this message
+        keep(conn.subscribeMessage(function () { clearTimeout(HC.it); HC.it = setTimeout(issues, 500); },
+                                   { type: 'subscribe_events', event_type: 'repairs_issue_registry_updated' }));
       }
     }
     // updates: at most every 5 s, as Home Assistant's own sidebar counts them
@@ -1285,7 +1344,9 @@
       if (!r || !S.items) return;
       var it = S.items[+r.getAttribute('data-i')];
       if (!it) return;
-      if (it.kind === 'ha') { close(true); openHaSidebar(); return; }
+      if (it.kind === 'ha') { close(true); if (!SH.openHaMenu()) openHaSidebar(); return; }
+      // Home Assistant elsewhere: its address
+      if (it.kind === 'halink') { close(true); haOpen(it); return; }
       if (it.kind === 'more') {
         S.shut.ha_more = !S.shut.ha_more;
         try { localStorage.setItem('hk-menu-shut', JSON.stringify(S.shut)); } catch (x) { /* private */ }
@@ -1293,11 +1354,16 @@
         markHere();
         return;
       }
+      // the host's own page (its settings): a full page load
+      if (it.kind === 'hostlink') {
+        close(true);
+        if (it.run) { try { it.run(); } catch (x) { /* the host's own */ } } else location.assign(it.href);
+        return;
+      }
       // Notifications: Home Assistant's own drawer, over the page
       if (it.kind === 'notif') {
         close(true);
-        var hm = haParts().main;
-        if (hm) hm.dispatchEvent(new CustomEvent('hass-show-notifications', { bubbles: true, composed: true }));
+        SH.showNotifications();
         return;
       }
       // A Home Assistant page: kiosk mode is lifted outside the dashboards
@@ -1306,8 +1372,7 @@
         try { sessionStorage.setItem(ESCAPE_KEY, '1'); } catch (x) { /* private mode */ }
         HA.used = true;
         close(true);
-        history.pushState(null, '', it.path);
-        window.dispatchEvent(new CustomEvent('location-changed'));
+        SH.haNavigate(it.path);
         return;
       }
       // The selection moves at once, so the tap is answered before the page is.
@@ -1321,8 +1386,7 @@
       // main thread for half a second -- or the slide would begin after it
       var N = window.hkCards && window.hkCards.navigate;
       if (N) { N(it.path, null); return; }
-      history.pushState(null, '', it.path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
+      SH.navigate(it.path);
     }
 
     // ------------------------------------------ Home Assistant's own sidebar
@@ -1338,16 +1402,15 @@
     // sidebar there too.
     var HA = { active: false };
     function haParts() {
-      var ha = document.querySelector('home-assistant');
-      var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-      var sr = main && main.shadowRoot;
-      return { main: main, sr: sr, drawer: sr && sr.querySelector('ha-drawer'),
-               sidebar: sr && sr.querySelector('ha-sidebar') };
+      return { main: SH.main(), sr: SH.mainRoot(), drawer: SH.drawer(), sidebar: SH.sidebar() };
     }
     // Home Assistant's sidebar already on screen beside the page (no kiosk
     // mode, a wide window): Show Menu would open what is there.
     function haSidebarShown() {
       if (HA.active) return false;
+      // a host that shows the page inside Home Assistant says (its sidebar data)
+      var side = sidebarSource();
+      if (side && typeof side.shown === 'boolean') return side.shown;
       var p = haParts();
       if (!p.sidebar || !p.drawer || p.drawer.type === 'modal') return false;
       try {
@@ -1360,8 +1423,9 @@
       try { sessionStorage.setItem(ESCAPE_KEY, '1'); } catch (e) { /* private mode */ }
       // Two rules to lift: kiosk mode hides the sidebar in home-assistant-main
       // and, on a phone, HA's drawer as well, inside ha-drawer.
+      var T = SH.tags;
       var lift = liftRule(p.sr, ':host{--ha-sidebar-width:256px !important;--mdc-drawer-width:256px !important}' +
-                             'ha-drawer > ha-sidebar{display:flex !important}');
+                             T.drawer + ' > ' + T.sidebar + '{display:flex !important}');
       var lift2 = p.drawer.shadowRoot ? liftRule(p.drawer.shadowRoot, 'wa-drawer[open]{display:block !important}') : null;
       // HK Frontend's own hiding (hk-kiosk.js) steps aside the same way
       if (window.hkKiosk) window.hkKiosk.hold(true);
@@ -1377,7 +1441,7 @@
         if (seen) restoreHaSidebar();
       }, 250);
       HA.nav = function () { if (p.drawer.open) p.drawer.open = false; setTimeout(restoreHaSidebar, 350); };
-      window.addEventListener('location-changed', HA.nav);
+      SH.onNavigate(HA.nav);
     }
     // OUTSIDE THE DASHBOARDS, HOME ASSISTANT IS HOME ASSISTANT.
     // kiosk-mode's rules outlive the dashboard that set them: open Settings
@@ -1394,11 +1458,7 @@
     function rowUsed() {
       try { return sessionStorage.getItem(ESCAPE_KEY) === '1'; } catch (e) { return !!HA.used; }
     }
-    function onDashboard() {
-      var el = document.querySelector('home-assistant'), h = el && el.hass;
-      var p = h && h.panels && h.panelUrl ? h.panels[h.panelUrl] : null;
-      return !p || p.component_name === 'lovelace';
-    }
+    function onDashboard() { return SH.onDashboard(); }
     function kioskRules() {
       var p = haParts(), out = [];
       [p.sr, p.drawer && p.drawer.shadowRoot].forEach(function (root) {
@@ -1420,14 +1480,14 @@
       });
     }
     function onPageChange() { syncOutside(); setTimeout(syncOutside, 150); setTimeout(syncOutside, 800); }
-    ['location-changed', 'popstate'].forEach(function (ev) { window.addEventListener(ev, onPageChange); });
+    [SH.navEvent, 'popstate'].forEach(function (ev) { window.addEventListener(ev, onPageChange); });
 
     function restoreHaSidebar() {
       if (!HA.active) return;
       var h = HA;
       HA = { active: false, used: true };
       clearInterval(h.poll);
-      window.removeEventListener('location-changed', h.nav);
+      SH.offNavigate(h.nav);
       // after the drawer's own close animation, so it does not snap shut
       setTimeout(function () {
         try { h.p.drawer.type = h.type || ''; h.p.sidebar.alwaysExpand = !!h.expand; } catch (e) { /* gone */ }
@@ -1723,11 +1783,9 @@
     }
     function tellAppSwipe() {
       try { if (sessionStorage.getItem(TOLD_KEY)) return; sessionStorage.setItem(TOLD_KEY, '1'); } catch (e) { /* private */ }
-      var ha = document.querySelector('home-assistant');
-      if (!ha) return;
-      ha.dispatchEvent(new CustomEvent('hass-notification', { bubbles: true, composed: true, detail: {
+      SH.toast({
         message: 'The Home Assistant app’s own swipe opens its sidebar too. In the app, set Settings → ' +
-                 'Companion App → Gestures → Swipe Right to None.', duration: 12000 } }));
+                 'Companion App → Gestures → Swipe Right to None.', duration: 12000 });
     }
 
     // the Now Playing pane's widths, as hk-popup.js wrote them on <html>
@@ -1739,10 +1797,7 @@
     }
     // DOCKED (Menu: "Always open beside the page"): the panel stays beside
     // the page and the view is pushed right by its width.
-    function viewEl() {
-      var p = M.panel(), root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
-      return (root && root.shadowRoot && root.shadowRoot.querySelector('#view')) || null;
-    }
+    function viewEl() { return SH.viewSlot(M.panel()); }
     // ...AND BESIDE THE NOW PLAYING PANE (hk-popup.js publishes its width
     // on <html> as --hk-pane-l / --hk-pane-r while it is up): the view is
     // narrowed by it on its side, so the page lays itself out in what is
@@ -1777,7 +1832,7 @@
         if (S.root && docked()) markHere();
       });
     }
-    window.addEventListener('location-changed', onNav);
+    SH.onNavigate(onNav);
     window.addEventListener('popstate', onNav);
     window.addEventListener('hashchange', function () { if (S.open) close(true); });
     window.addEventListener('keydown', function (e) {
@@ -1786,6 +1841,8 @@
     document.addEventListener('visibilitychange', function () { if (document.hidden && S.open) close(true); });
     window.addEventListener('resize', function () { sync(); });
     window.addEventListener('hk-module-ready', function () { S.built = ''; sync(); });
+    // the host's Home Assistant rows changed (hkShell.haNav: it learned where the page is)
+    window.addEventListener('hk-ha-nav-changed', function () { S.built = ''; sync(); });
     // the Now Playing pane coming, going or changing sides (hk-popup.js)
     window.addEventListener('hk-pane', function () { sync(); });
     window.addEventListener('hk-menu-date', function () { place(); });
@@ -1794,13 +1851,13 @@
     // do not bubble, so a window listener never hears it).
     document.addEventListener('scroll', scrolled, { capture: true, passive: true });
     window.addEventListener('hk-menu-chip', scrolled);
-    // The dashboard's config arrives (and changes) with the frontend's hass
+    // The dashboard's config arrives (and changes) with the frontend's state
     // pushes; a list built before it is rebuilt at the next open.
-    C.onHass(function () {
+    C.onClient(function () {
       if (!S.root && M.on()) sync();
       else if (S.root && (M.dash() !== S.dash)) { S.dash = M.dash(); S.built = ''; sync(); }
       else if (S.root && S.nowKey) paintNow();      // the weather, a Time & Date sensor
-      if (S.haOn) haUpdates(C.hass());
+      if (S.haOn) haUpdates(C.client());
     });
     // THIS SCREEN'S OWN CLOCK moves without a push: looked at every 15 s,
     // written only when the minute has changed (paintNow compares).

@@ -16,6 +16,11 @@
   var root = typeof window !== 'undefined' ? window : globalThis;
   if (root.hkSettingsModel) return;
 
+  // the product's name, and Home Assistant's own things, as the host says
+  // them (web/client/hk-host-shell.js): HK Frontend in HA, the host's own elsewhere
+  function PN() { return root.hkShell.productName(); }
+  function haName(name) { return root.hkShell.haName(name); }
+
   // ------------------------------------------------------------------ words
   var CHIP_LABELS = {
     weather_alert: 'Weather Alerts', security: 'Security', doors_windows: 'Doors & Windows', climate: 'Climate',
@@ -131,7 +136,7 @@
     color: 'A still color, a little different by day and by night. No sun, moon, stars, weather or decorations.',
     photo: 'A photo of your own, still and sharp. No sun, moon, stars, weather or decorations. A bright photo is dimmed a little so the cards stay readable.',
     // (2026-10-14) HK Frontend's own photos, the screensaver clock's
-    landscapes: 'Fifty landscape photos that come with HK Frontend — mountains, lakes, coasts, forests, the northern lights — a new one each time the screen wakes, on a schedule, or the same one. No sun, moon, stars, weather or decorations.'
+    landscapes: 'Fifty landscape photos that come with ' + PN() + ' — mountains, lakes, coasts, forests, the northern lights — a new one each time the screen wakes, on a schedule, or the same one. No sun, moon, stars, weather or decorations.'
   };
   // WHICH LANDSCAPE, AND WHEN IT CHANGES (settings.py sky_landscape):
   // 'wake', 'every:<minutes>' (LANDSCAPE_EVERY) or a file name -- Stay the Same
@@ -554,12 +559,12 @@
   // The occupancy, motion and presence sensors in a room -- where Calm When
   // Nobody's Around can tell the room is empty (the same rule as hk-sky.js
   // roomSensorIds)
-  function roomSensors(hass, room) {
-    if (!room || !hass) return [];
-    var ents = hass.entities || {}, devs = hass.devices || {}, out = [];
-    Object.keys(hass.states || {}).forEach(function (id) {
+  function roomSensors(client, room) {
+    if (!room || !client) return [];
+    var ents = client.entities || {}, devs = client.devices || {}, out = [];
+    Object.keys(client.states || {}).forEach(function (id) {
       if (id.indexOf('binary_sensor.') !== 0) return;
-      var st = hass.states[id], e = ents[id];
+      var st = client.states[id], e = ents[id];
       var dc = st && st.attributes && st.attributes.device_class;
       if (!(dc === 'occupancy' || dc === 'motion' || dc === 'presence') || !e || e.hidden) return;
       var area = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id);
@@ -1412,7 +1417,7 @@
     { header: 'Views', footer: 'Each view in views:. The menu lists them: the first view is Home.',
       items: [
         { id: 'view', title: 'A Page in the Menu', key: 'hk-grid-view', anchor: 'a-page-in-the-menu',
-          sub: 'HK Frontend’s grid view, placed in the menu. A view with area: is a room.',
+          sub: haName('HK Frontend’s grid view') + ', placed in the menu. A view with area: is a room.',
           yaml: '- title: Kitchen\n  path: kitchen\n  type: custom:hk-grid-view\n  area: kitchen       # a room, in the menu’s Rooms\n' +
                 '  menu: top           # right under Home (false: not listed)\n  cards: []' },
         { id: 'room', title: 'A Room Page, Built for You', key: 'hk-room', anchor: 'a-room-page-built-for-you',
@@ -1440,7 +1445,7 @@
           yaml: '- type: custom:hk-music-card   # the whole Music page\n# ...or just what is playing:\n' +
                 '# - type: custom:hk-now-playing-card\n#   music: true' },
         { id: 'media_bar', title: 'The Now Playing Bar', key: 'hk-popup-card', anchor: 'the-now-playing-bar',
-          sub: 'The player docked along the bottom while music plays, as on the screens HK Frontend builds. It shows on the views it is placed in: put it in each one. Needs the Music feature.',
+          sub: 'The player docked along the bottom while music plays, as on the screens ' + PN() + ' builds. It shows on the views it is placed in: put it in each one. Needs the Music feature.',
           yaml: '- type: custom:hk-popup-card\n  hash: \'#media\'\n  position: bottom\n  modal: false\n  dock: true\n' +
                 '  padding: \'0\'\n  radius: \'0\'\n  width: 100%\n  max_width: 100%\n  background: transparent\n' +
                 '  vars:\n    hk-np-height: calc(104px + env(safe-area-inset-bottom, 0px))\n' +
@@ -1462,7 +1467,7 @@
         { id: 'timers', title: 'Timers', key: 'hk-timers-page-card', anchor: 'timers',
           sub: 'Quick start, the running timers and the New Timer keypad, as one card.',
           yaml: '- type: custom:hk-timers-page-card' }] },
-    { header: 'Automations', footer: 'Actions of HK Frontend’s, for your automations and scripts.',
+    { header: 'Automations', footer: 'Actions of ' + haName('HK Frontend’s') + ', for your automations and scripts.',
       items: [
         { id: 'clean_action', title: 'Clean Some Rooms', key: 'hk_frontend.clean_areas', anchor: 'clean-some-rooms',
           sub: 'Each vacuum cleans the rooms on its own map.',
@@ -1636,6 +1641,7 @@
     ['Home Assistant Section', 'house/menu', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
     ['Rooms', 'house/rooms', 'rooms.order', 'rooms all screens settings scenes'],
     ['Cameras', 'page/cameras', 'cameras.order', 'camera order which cameras strip cameras page room pages all screens'],
+    ['Pause Cameras When Not in Focus', 'page/cameras', 'cameras.focus_pause', 'pause cameras focus background window computer live video performance cpu'],
     ['Room Order', 'house/rooms/order', 'rooms.order', 'rooms on home order which rooms'],
     ['Rooms in Menu', 'house/rooms', 'rooms.menu', 'a to z order menu rooms'],
     ['Rooms on Pages', 'house/rooms', 'rooms.pages', 'by floor room order lights climate'],
@@ -2129,8 +2135,8 @@
   // country, reason }. Automatic: NOAA for a home Home Assistant places in
   // the US, RainViewer elsewhere; a zone's country is not known (nothing is
   // looked up), so there Automatic asks (reason 'choose').
-  function radarPlanOf(r, hass) {
-    var cfg = (hass && hass.config) || {}, states = (hass && hass.states) || {};
+  function radarPlanOf(r, client) {
+    var cfg = (client && client.config) || {}, states = (client && client.states) || {};
     var out = { enabled: !!r.enabled, provider: null, chosen: r.provider, lat: null, lon: null, place: 'Home', country: null, reason: null };
     if (r.center === 'zone') {
       var z = r.zone && states[r.zone], za = (z && z.attributes) || {};

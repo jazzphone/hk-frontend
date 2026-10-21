@@ -52,7 +52,7 @@
   // than each stretched to fill its box.
   //
   // WITHOUT THAT FILE, Material Design's weather icons stand in (WX_MDI below),
-  // drawn by <ha-icon> from Home Assistant's own icon set, so nothing ships
+  // drawn by <hk-icon> from the host's Material icon set, so nothing ships
   // here either. When the file arrives after a card has drawn, hk-icons.js
   // announces it (hk-module-ready) and every card redraws with the real glyph.
   //
@@ -141,11 +141,11 @@
     return WX_NAME[k] || titleCase(k.replace(/-/g, ' '));
   }
 
-  // Inline SVG, not <ha-icon>: an iconset path is ONE color (two at most, via
+  // Inline SVG, not <hk-icon>: an iconset path is ONE color (two at most, via
   // secondaryPath), and the point of these is the multicolor. Inline also means
-  // nothing to resolve -- no custom-iconset lookup, so none of ha-icon's
+  // nothing to resolve -- no custom-iconset lookup, so none of the icon element's
   // sticky-blank first render (a miss at first render is cached for good).
-  // The Material stand-in IS an <ha-icon>, but of a built-in mdi: name, which
+  // The Material stand-in IS an <hk-icon>, but of a built-in mdi: name, which
   // has no such race.
   //   o.night   the night glyph where Apple has one
   //   o.style   extra inline CSS on the <svg> (margins, filter)
@@ -158,17 +158,17 @@
     var size = typeof px === 'number' ? px + 'px' : String(px);
     if (!sym) {
       var m = WX_MDI[name] || WX_MDI['cloud.sun.fill'];
-      return '<ha-icon class="hk-wx"' + (o.sym ? ' data-sym="mdi"' : '') + ' icon="mdi:' + m[0] + '" role="img" aria-label="' +
+      return '<hk-icon class="hk-wx"' + (o.sym ? ' data-sym="mdi"' : '') + ' icon="mdi:' + m[0] + '" role="img" aria-label="' +
         esc(conditionName(state)) + '" style="display:inline-flex; flex:0 0 auto;' +
         ' align-items:center; justify-content:center; vertical-align:middle; width:' + size +
         '; height:' + size + '; --mdc-icon-size:' + size + '; color:' + WX_COLOUR[m[1]] + ';' +
-        (o.style || '') + '"></ha-icon>';
+        (o.style || '') + '"></hk-icon>';
     }
     var paths = sym[1].map(function (l) {
       // `></path>`, NOT `/>`. In HTML the parser keeps a self-closed <path/>
       // but innerHTML SERIALIZES it back as <path ...></path>, so a card that
       // skips a redraw only when its new markup equals innerHTML would, with
-      // `/>`, never match -- and rebuild itself on every hass update, ~10
+      // `/>`, never match -- and rebuild itself on every state update, ~10
       // times a second, flickering. The header card does not compare against
       // innerHTML; this keeps any caller that does honest.
       // (a style, not the fill attribute: an attribute can't hold var())
@@ -256,6 +256,9 @@
   }
 
   function num(v) { var n = Number(v); return Number.isFinite(n) ? n : null; }
+  // the house's locale (hk-client.js); an en-US house is the screens' original wording
+  function LC() { return window.hkLocale || null; }
+  function usEnglish() { return !LC() || LC().tag() === 'en-US'; }
 
   // The Time & Date sensors when chosen and present, else this screen's
   // own clock -- same 'HH:MM' / 'YYYY-MM-DD' strings either way -- as the
@@ -268,8 +271,13 @@
       var parts = t.split(':');
       var hh = parseInt(parts[0], 10);
       ampm = hh >= 12 ? 'PM' : 'AM';
-      var h = hh % 12; h = h ? h : 12;
-      time = h + ':' + parts[1];
+      if (LC() && LC().is24()) {       // a 24-hour locale (or the person's choice): 13:05, no AM / PM
+        ampm = '';
+        time = (hh < 10 ? '0' : '') + hh + ':' + parts[1];
+      } else {
+        var h = hh % 12; h = h ? h : 12;
+        time = h + ':' + parts[1];
+      }
     }
     var ds = ck.date;
     if (ds && ds.indexOf('-') !== -1) {
@@ -331,8 +339,9 @@
     var dateText = '';
     if (ck.day) {
       var dt = ck.day;
-      var weekday = dt.toLocaleString('en-US', { weekday: 'long' });
-      var month = dt.toLocaleString('en-US', { month: 'long' });
+      var local = { timeZone: 'local' };      // dt is a calendar day made from its own fields
+      var weekday = usEnglish() ? dt.toLocaleString('en-US', { weekday: 'long' }) : LC().dateTime(dt, Object.assign({ weekday: 'long' }, local));
+      var month = usEnglish() ? dt.toLocaleString('en-US', { month: 'long' }) : LC().dateTime(dt, Object.assign({ month: 'long' }, local));
       var day = dt.getDate();
       var suffix = function (n) {
         if (n >= 11 && n <= 13) return 'th';
@@ -346,7 +355,11 @@
       // `date_format` -- the screensaver says "September, 13th" and the
       // header says "Sunday, September 13th". Two formats, one function, so
       // the suffix logic exists once.
-      dateText = o.dateFormat === 'monthday'
+      if (!usEnglish()) {
+        // the locale's own order and words (the English "13th" is only the US wording)
+        dateText = LC().date(dt, o.dateFormat === 'monthday' ? { month: 'long', day: 'numeric', timeZone: 'local' }
+                                                              : { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'local' });
+      } else dateText = o.dateFormat === 'monthday'
         ? (month + ', ' + day + suffix(day))
         : (weekday + ', ' + month + ' ' + day + suffix(day));
     }
@@ -440,7 +453,7 @@
     if (feels !== null) bits.push('Feels ' + Math.round(feels) + '°');
     if (humidity !== undefined && humidity !== null) bits.push(humidity + '% Humidity');
     if (wind !== null) {
-      var wu = a.wind_speed_unit || 'mph';      // the weather entity's own unit
+      var wu = a.wind_speed_unit || window.hkLocale.units().speed;      // the weather entity's own unit
       bits.push(Math.round(wind) + ' ' + wu + ' Wind');
     }
 
@@ -799,7 +812,7 @@
   }
   // NEVER THROWS. Safari 27 can raise "SyntaxError: The string did not match
   // the expected pattern" from document.fonts.check() on a page's font
-  // shorthand -- inside the header card's hass setter, that turns the whole
+  // shorthand -- inside the header card's state-update entry, that turns the whole
   // header into an error card. Alignment is a nicety: on any failure the time
   // simply is not nudged.
   function clockShift(root) {
@@ -865,13 +878,13 @@
   // (hk-weather.js hkWxForecast, held while the menu shows the weather).
   // {high, low} rounded, either null when there is none.
   var dayW = null;
-  function today(states, conn, wid, day) {
+  function today(states, port, wid, day) {
     var sid = S() ? S().get('weather.forecast_daily', null) : null, fc = null;
     if (sid) {
       fc = ((states[sid] || {}).attributes || {}).forecast;
-    } else if (wid && conn && window.hkWxForecast) {
-      if (dayW && (dayW.conn !== conn || dayW.wid !== wid)) { dayW.release(); dayW = null; }
-      if (!dayW) { dayW = window.hkWxForecast.watch(conn, 'daily', wid, function () {}); dayW.wid = wid; }
+    } else if (wid && port && window.hkWxForecast) {
+      if (dayW && (dayW.conn !== port || dayW.wid !== wid)) { dayW.release(); dayW = null; }
+      if (!dayW) { dayW = window.hkWxForecast.watch(port, 'daily', wid, function () {}); dayW.wid = wid; }
       else dayW.ensure();
       fc = dayW.data();
     }
@@ -886,19 +899,21 @@
   }
   // the menu stopped showing the weather: the subscription goes
   function nowDone() { if (dayW) { dayW.release(); dayW = null; } }
-  function now(states, conn) {
+  // `port`: the client's subscription port (hkCards.subscriptions())
+  function now(states, port) {
     states = states || {};
     var ck = clockParts(states), d = ck.day;
     var wid = S() ? S().weatherId(states) : null;
     var w = (wid && states[wid]) || {}, a = w.attributes || {};
     var temp = num(a.temperature), feels = num(a.apparent_temperature);
-    var hl = today(states, conn, wid, d);
+    var hl = today(states, port, wid, d);
     return {
       high: hl.high, low: hl.low,
       tempN: temp !== null ? Math.round(temp) : null, feelsN: feels !== null ? Math.round(feels) : null,
       time: ck.time, ampm: ck.ampm,
-      date: d ? d.toLocaleString('en-US', { weekday: 'long' }) + ', ' +
-                d.toLocaleString('en-US', { month: 'short' }) + ' ' + d.getDate() : '',
+      date: !d ? '' : usEnglish()
+        ? d.toLocaleString('en-US', { weekday: 'long' }) + ', ' + d.toLocaleString('en-US', { month: 'short' }) + ' ' + d.getDate()
+        : LC().date(d, { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'local' }),
       state: w.state || '', night: isNight(states),
       temp: temp !== null ? Math.round(temp) + '\u00b0' : '--\u00b0',
       condition: w.state ? conditionName(w.state) : '',

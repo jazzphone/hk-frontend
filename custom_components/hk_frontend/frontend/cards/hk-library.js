@@ -66,7 +66,8 @@
   // until hk_music/subscribe answers, and the settings feed's `added` is a
   // stored copy until it is live -- so a house WITH Music never sees it while
   // a page loads. (The same rule as hk-media.js's.)
-  var NO_MUSIC = 'Add the Music feature to play music here (Settings → Devices & services → HK Frontend → Add feature).';
+  // (a place in Home Assistant's settings, as the host says it: hk-host-shell.js haPlace)
+  function NO_MUSIC() { return 'Add the Music feature to play music here (' + window.hkShell.haPlace('Settings → Devices & services → HK Frontend → Add feature') + ').'; }
   function musicMissing() {
     var Mu = window.hkMusic, HS = window.hkSettings;
     if (!Mu || !Mu.configured || Mu.configured()) return false;
@@ -74,12 +75,12 @@
   }
   function drawNoMusic(card) {
     card._root.innerHTML = '';
-    var el = document.createElement('ha-card');
+    var el = document.createElement('hk-plate');
     el.setAttribute('data-hk-role', 'no-music');
     el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
       M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
       'color:' + window.hkCards.v('ink-2') + '';
-    el.textContent = NO_MUSIC;
+    el.textContent = NO_MUSIC();
     card._root.appendChild(el);
     card._built = false;
   }
@@ -172,7 +173,7 @@
   class HkLibraryCard extends HkBase {
     static get CSS() {
       return [
-        'ha-card{background:none;box-shadow:none;border:none;padding:0}',
+        'hk-plate{background:none;box-shadow:none;border:none;padding:0}',
 
         // ---- the bar: a breadcrumb row, then search across the full width.
         //
@@ -248,7 +249,7 @@
         '  background:' + window.hkCards.v('key') + ';box-shadow:var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-sm') + ');',
         '  display:flex;align-items:center;justify-content:center}',
         '.it .art img{width:100%;height:100%;object-fit:cover;display:block}',
-        '.it .art ha-icon{--mdc-icon-size:34px;width:34px;height:34px;',
+        '.it .art hk-icon{--mdc-icon-size:34px;width:34px;height:34px;',
         '  color:var(--hk-glyph,rgba(255,255,255,0.45))}',
         // A round cover for artists, square for everything else -- the same
         // shorthand every music app uses, and it saves a subtitle.
@@ -319,7 +320,7 @@
         '  align-items:center;justify-content:center;',
         '  box-shadow:var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-lg') + ')}',
         '.hd .cover img{width:100%;height:100%;object-fit:cover;display:block}',
-        '.hd .cover ha-icon{--mdc-icon-size:44px;width:44px;height:44px;',
+        '.hd .cover hk-icon{--mdc-icon-size:44px;width:44px;height:44px;',
         '  color:var(--hk-glyph,rgba(255,255,255,0.7))}',
         '.hd .meta{min-width:0}',
         '.hd .h1{font-size:26px;font-weight:700;letter-spacing:-0.5px;',
@@ -350,7 +351,7 @@
         '  background:' + window.hkCards.v('key') + ';display:flex;',
         '  align-items:center;justify-content:center}',
         '.rw .thumb img{width:100%;height:100%;object-fit:cover;display:block}',
-        '.rw .thumb ha-icon{--mdc-icon-size:22px;width:22px;height:22px;',
+        '.rw .thumb hk-icon{--mdc-icon-size:22px;width:22px;height:22px;',
         '  color:var(--hk-glyph,rgba(255,255,255,0.8))}',
         // tabular-nums so 9 and 10 do not shuffle the titles sideways.
         '.rw .num{font-size:15px;font-weight:600;text-align:center;',
@@ -373,9 +374,9 @@
         ':host([music]) > div{height:100%}',
         // ...but a phone's one column scrolls as a page: no box of its own
         // (`flow`, set by the Music page), the search scrolling away with it
-        ':host([music][flow]),:host([music][flow]) > div,:host([music][flow]) ha-card{height:auto}',
+        ':host([music][flow]),:host([music][flow]) > div,:host([music][flow]) hk-plate{height:auto}',
         ':host([music][flow]) [data-hk-role="body"]{overflow:visible;flex:none}',
-        ':host([music]) ha-card{height:100%;display:flex;flex-direction:column;position:relative}',
+        ':host([music]) hk-plate{height:100%;display:flex;flex-direction:column;position:relative}',
         // (the search first, level with the page's Playing On; the trail
         // under it only inside something -- at the first level Your
         // Playlists says where it plays)
@@ -390,17 +391,17 @@
         '.srow{display:flex;align-items:center;gap:12px;min-width:0}',
         '.srow .search{flex:1 1 auto;min-width:0;width:auto}',
         '.srow .route{flex:none;height:50px;border-radius:25px;padding:0 16px 0 14px;font-size:15px;margin-left:0;max-width:60%}',
-        '.srow .route ha-icon{--mdc-icon-size:20px;width:20px;height:20px}',
+        '.srow .route hk-icon{--mdc-icon-size:20px;width:20px;height:20px}',
         '.route .full{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}',
         '.route .full b{overflow:hidden;text-overflow:ellipsis;min-width:0}',
         '.route .full > span{flex:none}',
-        '.route > svg,.route > ha-icon,.route > .rx{flex:none}',
+        '.route > svg,.route > hk-icon,.route > .rx{flex:none}',
         // a phone: a little smaller, and never more than leaves the search its
         // word (the room names give way first)
         ':host([music][flow]) .srow .route{font-size:14px;padding:0 13px 0 12px;gap:6px;max-width:calc(100% - 118px)}',
         ':host([music][flow]) .srow .route .full{gap:6px}',
         ':host([music][flow]) .srow .route .full > span{font-size:12.5px}',
-        ':host([music][flow]) .srow .route ha-icon{--mdc-icon-size:18px;width:18px;height:18px}',
+        ':host([music][flow]) .srow .route hk-icon{--mdc-icon-size:18px;width:18px;height:18px}',
         ':host([music][flow]) .srow .search{padding:0 18px}',
         // ...ON THE PLAYLISTS' COLUMNS (2026-10-13): the search and Plays on
         // each take a column of the two-up pills under them, the same 14 px
@@ -419,7 +420,7 @@
         ':host([music][flow]) .srow.open .route > svg{display:none}',
         ':host([music]) .bar .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px;font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
         ':host([music]) .bar .nextnote:empty{display:none}',
-        ':host([music]) .bar .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
+        ':host([music]) .bar .nextnote hk-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
         // (14 px of room each side for the tiles' shadows -- a scroller clips
         // them at its edge -- given back by the margin, so nothing moves)
         ':host([music]) [data-hk-role="body"]{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;',
@@ -442,7 +443,7 @@
         '.route{margin-left:auto;min-width:0;display:flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 10px;border-radius:17px;',
         '  background:var(--hk-field-bg,' + window.hkCards.v('key') + ');box-shadow:var(--hk-field-shadow,none);border:' + M.border + ';cursor:pointer;box-sizing:border-box;color:' + window.hkCards.v('ink') + '}',
         '.route:active{background:' + window.hkCards.v('key-strong') + '}',
-        '.route ha-icon{--mdc-icon-size:18px;width:18px;height:18px;flex:none;display:flex}',
+        '.route hk-icon{--mdc-icon-size:18px;width:18px;height:18px;flex:none;display:flex}',
         '.route span{font-size:13px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';flex:none}',
         '.route b{font-size:14px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.route svg{width:12px;height:12px;flex:none;fill:none;stroke:var(--hk-glyph,rgba(255,255,255,0.6));stroke-width:3;stroke-linecap:round;stroke-linejoin:round}',
@@ -453,9 +454,9 @@
         '.route .rx svg{width:10px;height:10px;stroke:#1d1426}',
         '.yp .yph{flex-wrap:wrap;row-gap:8px}',
         '.yp .nextnote{display:flex;align-items:center;gap:8px;margin:0 2px 14px;font-size:13px;color:' + window.hkCards.v('ink-2') + '}',
-        '.yp .nextnote ha-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
+        '.yp .nextnote hk-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex}',
         '.yp .it.cat.on{background:#fff;color:#1c1c1e}',
-        '.yp .it.cat.on ha-icon,.yp .it.cat.on .txt{color:#1c1c1e}',
+        '.yp .it.cat.on hk-icon,.yp .it.cat.on .txt{color:#1c1c1e}',
         '.yp .it.cat.busy{opacity:.55}',
         '.yp .opts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px}',
         '.yp .opt{height:36px;padding:0 16px;border-radius:18px;display:flex;align-items:center;font-size:14px;font-weight:600;cursor:pointer;',
@@ -573,13 +574,13 @@
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
       this._bindBack();
-      // The focus can move with no hass push (a context tapped on Play Music,
+      // The focus can move with no state push (a context tapped on Play Music,
       // the saved focus arriving). Re-run the render gate when it does.
       var self = this;
       if (!this._musicOff && window.hkMusic) {
         this._musicOff = window.hkMusic.onChange(function () {
           self._hkSig = null;
-          if (self._hass && self._config) self.hass = self._hass;
+          if (self.client && self._config) self.redraw();
         });
       }
       // Configure -> Browse Music saved: the first page follows at once --
@@ -646,19 +647,20 @@
       // rebuild the card (setConfig would take it back to its first level)
       if (typeof this.playerFor === 'function') { var pf = this.playerFor(); if (pf) return pf; }
       if (this._config.player) return this._config.player;
-      return (M && this._hass && M.player(this._hass)) ||
+      return (M && this.client && M.player(this.client)) ||
              this._config.fallback_player || null;
     }
 
-    set hass(h) {
-      if (window.hkMusic) window.hkMusic.attach(h);
-      Object.getOwnPropertyDescriptor(HkBase.prototype, 'hass').set.call(this, h);
+    // EACH NEW CLIENT (HkBase calls this from Lovelace's entry and from a client set
+    // directly): the music model follows its subscription port.
+    _receiveClient() {
+      if (window.hkMusic) window.hkMusic.attach(this.client);
+      super._receiveClient();
     }
-    get hass() { return this._hass; }
 
     // Re-render when the SELECTION moves (the library must follow it) and not
     // for anything else -- this card's content comes from a websocket call,
-    // not from hass.
+    // not from the states.
     // _playerName() IS IN HERE, not just the player.
     //
     // The crumb prints "Office +1", and the +N comes from the leader's
@@ -688,14 +690,17 @@
     // ------------------------------------------------------------ data
     // `wait`: how long before giving up, 20 s unless the caller knows better
     _ws(msg, wait) {
-      if (!this._hass || !this._hass.callWS) return Promise.reject(new Error('no hass'));
+      if (!this.client || !this.client.callWS) return Promise.reject(new Error('no client'));
       var self = this;
       return new Promise(function (resolve, reject) {
         var timer = setTimeout(function () {
           reject(new Error('Music Assistant did not respond. Try again.'));
         }, wait || 20000);
         try {
-          Promise.resolve(self._hass.callWS(msg)).then(function (res) {
+          // a service call over the WebSocket (get_library) is a command:
+          // the client's action port; a read is the client's own callWS
+          var port = window.hkClient.isWrite(msg) ? self._actions() : self.client;
+          Promise.resolve(port.callWS(msg)).then(function (res) {
             clearTimeout(timer); resolve(res);
           }, function (err) {
             clearTimeout(timer); reject(err);
@@ -737,7 +742,7 @@
     // back to saved results from memory must also beat a request that was in
     // flight when you pressed back.
     //
-    // NOT ABORTED, just ignored. hass.callWS has no cancel, and a reply that
+    // NOT ABORTED, just ignored. A callWS has no cancel, and a reply that
     // arrives and is dropped costs nothing measurable -- this is about which
     // answer gets to be the truth, not about saving a round trip.
     _seq() {
@@ -755,9 +760,9 @@
       if (this._usedAt && now - this._usedAt < 30000) return;
       this._usedAt = now;
       try {
-        if (this._hass && this._hass.callWS) {
-          Promise.resolve(this._hass.callWS({ type: 'hk_music/used' })).catch(function () {});
-        }
+        // a hint the server acts on: through the action port
+        var act = this._actions();
+        if (act) Promise.resolve(act.callWS({ type: 'hk_music/used' })).catch(function () {});
       } catch (e) { /* nothing to report: it is a hint */ }
     }
 
@@ -1196,15 +1201,13 @@
     // one thing this page says about a press would be invisible on exactly
     // the press that needs it. Setting and clearing it would also rebuild
     // the whole body twice, re-requesting every piece of artwork on it.
-    // `hass-notification` is the event HA's own panels use for this: a
-    // snackbar pinned to the bottom of the screen, above everything, which
-    // kiosk_mode does not hide. `_toast` keeps the last message so a test can
+    // The host's toast (hkShell.toast; in Home Assistant the event its own
+    // panels use): a snackbar pinned to the bottom of the screen, above
+    // everything, which kiosk_mode does not hide. `_toast` keeps the last message so a test can
     // ask what was said.
     _flash(message) {
       this._toast = message;
-      this.dispatchEvent(new CustomEvent('hass-notification', {
-        detail: { message: message }, bubbles: true, composed: true
-      }));
+      window.hkShell.toast({ message: message }, this);
     }
 
     _retry() {
@@ -1236,14 +1239,14 @@
       }
       if (!this._built) {
         this._root.innerHTML =
-          '<ha-card data-hk-role="card">' +
+          '<hk-plate data-hk-role="card">' +
           '<div class="bar">' +
           '<div class="crumb" data-hk-role="crumb"></div>' +
           '<input class="search" type="search" placeholder="Search artists, albums, songs…"' +
           ' data-hk-role="search" autocomplete="off" spellcheck="false">' +
           '</div>' +
           '<div data-hk-role="body"></div>' +
-          '</ha-card>';
+          '</hk-plate>';
         var q = this._root.querySelector.bind(this._root);
         if (this._config.layout === 'music' && this.routeEl) {
           // WHERE IT PLAYS, BESIDE THE SEARCH (the Music page's own button,
@@ -1561,9 +1564,9 @@
       if (art) {
         // _artImage, not a bare <img>: an artwork host a tablet cannot
         // reach never fires `error`, so this box would sit empty forever.
-        this._artImage(art, cover, '<ha-icon icon="mdi:album"></ha-icon>', 600);
+        this._artImage(art, cover, '<hk-icon icon="mdi:album"></hk-icon>', 600);
       } else {
-        cover.innerHTML = '<ha-icon icon="mdi:album"></ha-icon>';
+        cover.innerHTML = '<hk-icon icon="mdi:album"></hk-icon>';
       }
       hd.appendChild(cover);
       var txt = document.createElement('div');
@@ -1635,7 +1638,7 @@
       var glyph = function (icon) {
         var d = document.createElement('div');
         d.className = 'thumb';
-        d.innerHTML = '<ha-icon icon="' + icon + '"></ha-icon>';
+        d.innerHTML = '<hk-icon icon="' + icon + '"></hk-icon>';
         return d;
       };
 
@@ -1656,7 +1659,7 @@
           lead = document.createElement('div');
           lead.className = 'thumb';
           self._artImage(n.thumbnail, lead,
-                         '<ha-icon icon="mdi:music-note"></ha-icon>');
+                         '<hk-icon icon="mdi:music-note"></hk-icon>');
         } else {
           lead = glyph('mdi:music-note');
         }
@@ -1722,14 +1725,14 @@
     _playerName() {
       if (typeof this.playerNameFor === 'function') { var pn = this.playerNameFor(); if (pn) return pn; }
       var M = window.hkMusic, own = this._config && this._config.player;
-      if (M && this._hass && own) {
+      if (M && this.client && own) {
         // the music that player is in, named as everywhere else ("Kitchen +3")
-        var c = M.contexts(this._hass).filter(function (x) {
+        var c = M.contexts(this.client).filter(function (x) {
           return x.key === own || x.members.indexOf(own) >= 0;
         })[0];
         return c ? M.label(c) : (M.nameOf ? M.nameOf(own) : own);
       }
-      if (M && this._hass) return M.resolve(this._hass).name || '';
+      if (M && this.client) return M.resolve(this.client).name || '';
       return this._player() || '';
     }
 
@@ -1833,7 +1836,7 @@
         // does not PARSE innerHTML -- assert the shape.
         var well = document.createElement('div');
         well.className = 'well';
-        well.innerHTML = '<ha-icon icon="' + (n._icon || 'mdi:music') + '"></ha-icon>';
+        well.innerHTML = '<hk-icon icon="' + (n._icon || 'mdi:music') + '"></hk-icon>';
         var txt = document.createElement('div');
         txt.className = 'txt'; txt.textContent = n.title || '';
         el.appendChild(well); el.appendChild(txt);
@@ -1845,9 +1848,9 @@
         // A dead artwork URL must not leave a broken-image glyph on a wall --
         // and an UNREACHABLE one must not leave an empty square, which is
         // what a bare `error` listener cannot catch. See _artImage.
-        this._artImage(n.thumbnail, art, '<ha-icon icon="mdi:music"></ha-icon>');
+        this._artImage(n.thumbnail, art, '<hk-icon icon="mdi:music"></hk-icon>');
       } else {
-        art.innerHTML = '<ha-icon icon="' + (n._icon || 'mdi:music') + '"></ha-icon>';
+        art.innerHTML = '<hk-icon icon="' + (n._icon || 'mdi:music') + '"></hk-icon>';
       }
       el.appendChild(art);
       var nm = document.createElement('div');

@@ -49,7 +49,8 @@
   // until hk_music/subscribe answers, and the settings feed's `added` is a
   // stored copy until it is live -- so a house WITH Music never sees it while
   // a page loads. (The same rule as hk-media.js's.)
-  var NO_MUSIC = 'Add the Music feature to play music here (Settings → Devices & services → HK Frontend → Add feature).';
+  // (a place in Home Assistant's settings, as the host says it: hk-host-shell.js haPlace)
+  function NO_MUSIC() { return 'Add the Music feature to play music here (' + window.hkShell.haPlace('Settings → Devices & services → HK Frontend → Add feature') + ').'; }
   function musicMissing() {
     var Mu = window.hkMusic, HS = window.hkSettings;
     if (!Mu || !Mu.configured || Mu.configured()) return false;
@@ -57,12 +58,12 @@
   }
   function drawNoMusic(card) {
     card._root.innerHTML = '';
-    var el = document.createElement('ha-card');
+    var el = document.createElement('hk-plate');
     el.setAttribute('data-hk-role', 'no-music');
     el.style.cssText = 'display:block;padding:24px;box-sizing:border-box;border-radius:' + M.radius + ';' +
       M.glass + ';border:' + M.border + ';text-align:center;font-size:15px;line-height:1.4;' +
       'color:' + window.hkCards.v('ink-2') + '';
-    el.textContent = NO_MUSIC;
+    el.textContent = NO_MUSIC();
     card._root.appendChild(el);
     card._built = false;
   }
@@ -204,7 +205,7 @@
       L + '.mproom{background:var(--hk-glass-plate)}',
       L + '.mproom.sel{background:var(--hk-key)}',
       L + '.mproom .ri{background:var(--hk-key-strong)}',
-      L + '.mproom .ri ha-icon,' + L + '.mppill ha-icon{color:var(--hk-glyph)}',
+      L + '.mproom .ri hk-icon,' + L + '.mppill hk-icon{color:var(--hk-glyph)}',
       L + '.mproom .mpck{box-shadow:inset 0 0 0 2px var(--hk-line-strong)}',
       L + '.mproom.sel .mpck{background:var(--hk-ink)}',
       L + '.mproom.sel .mpck svg{fill:var(--hk-flat-elevated)}',
@@ -219,7 +220,7 @@
       L + '.mpvs .tr b{box-shadow:0 1px 4px rgba(28,26,22,.3)}',
       L + '.mppill{background:var(--hk-key)}',
       L + '.mppill.on{background:var(--hk-ink);color:var(--hk-flat-elevated)}',
-      L + '.mppill.on ha-icon{color:var(--hk-flat-elevated)}',
+      L + '.mppill.on hk-icon{color:var(--hk-flat-elevated)}',
       L + '.mpmini .ia,' + L + '.mpq .th{background-color:var(--hk-key)}',
       L + '.mpmini .b{background:var(--hk-key)}',
       L + '.mpmini .b svg{fill:var(--hk-ink)}',
@@ -232,7 +233,7 @@
 
   var CSS = [
     ':host{display:block}',
-    'ha-card{background:none;box-shadow:none;border:none;padding:0;position:relative}',
+    'hk-plate{background:none;box-shadow:none;border:none;padding:0;position:relative}',
     // (its one row exactly the page's height below the title: an auto row
     // grew to everything Browse holds, so Browse never scrolled in itself --
     // a finger on it moved nothing; a wheel moved the whole page)
@@ -266,7 +267,7 @@
     // PLAYING ON: as tall as the search beside it and level with it; Change
     // a button inside it, inset 7 px and concentric with it (18 - 7 = 11)
     '.pon{flex:none;display:flex;align-items:center;gap:10px;height:50px;padding:0 7px 0 14px;border-radius:18px;margin-bottom:14px;box-sizing:border-box}',
-    '.pon ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);flex:none;display:flex}',
+    '.pon hk-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);flex:none;display:flex}',
     '.pon .tx{flex:1;min-width:0;line-height:1.2}',
     '.pon .tx small{display:block;font-size:11px;font-weight:600;letter-spacing:0.4px;opacity:.6;text-transform:uppercase}',
     '.pon .tx b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -288,7 +289,7 @@
     '.cx.on{background:' + window.hkCards.v('key-strong') + ';box-shadow:inset 0 0 0 1.5px var(--hk-mark,rgba(255,255,255,.55));cursor:default}',
     '.cx .th{width:40px;height:40px;border-radius:8px;background:' + window.hkCards.v('key') + ';flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center}',
     '.cx .th img{width:100%;height:100%;object-fit:cover;display:block}',
-    '.cx .th ha-icon,.cx .th svg{--mdc-icon-size:20px;width:20px;height:20px;fill:var(--hk-glyph,rgba(255,255,255,.5));color:var(--hk-glyph,rgba(255,255,255,.5))}',
+    '.cx .th hk-icon,.cx .th svg{--mdc-icon-size:20px;width:20px;height:20px;fill:var(--hk-glyph,rgba(255,255,255,.5));color:var(--hk-glyph,rgba(255,255,255,.5))}',
     '.cx .t{flex:1;min-width:0;line-height:1.2}',
     '.cx .t b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.cx .t small{display:block;font-size:12px;opacity:.7;white-space:nowrap;overflow:hidden}',
@@ -315,7 +316,7 @@
     // Tinted's, the glass cards' -- the user, 2026-10-17)
     '  box-shadow:var(--hk-look-shadow,' + window.hkCards.v('glass-shadow-lg') + ');display:flex;align-items:center;justify-content:center}',
     '.art img{width:100%;height:100%;object-fit:cover;display:block}',
-    '.art ha-icon{--mdc-icon-size:72px;width:72px;height:72px;color:var(--hk-glyph,rgba(255,255,255,.4))}',
+    '.art hk-icon{--mdc-icon-size:72px;width:72px;height:72px;color:var(--hk-glyph,rgba(255,255,255,.4))}',
     '.tt{font-size:26px;font-weight:700;letter-spacing:-.3px;margin-top:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}',
     '.st{font-size:17px;opacity:.75;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}',
     '.prog{margin-top:16px;flex:none}',
@@ -331,9 +332,9 @@
     '.tr .x{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;',
     '  box-shadow:inset 0 0 0 1.5px ' + window.hkCards.v('mark') + ';background:' + window.hkCards.v('key') + '}',
     '.tr .x svg{width:21px;height:21px;fill:var(--hk-glyph,#fff)}',
-    '.tr .x ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
+    '.tr .x hk-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
     '.tr .x.on{background:#fff;box-shadow:none}',
-    '.tr .x.on svg{fill:#1d1426}.tr .x.on ha-icon{color:#1d1426}',
+    '.tr .x.on svg{fill:#1d1426}.tr .x.on hk-icon{color:#1d1426}',
     '.tr .x.gone{visibility:hidden}',
     // FLAT: the empty art and the Speakers and Queue buttons sit on the page
     // itself, so they are raised as the playlist pills beside them are -- the
@@ -376,6 +377,8 @@
     // back to nothing inside it (`initial` is no value, so each var() takes
     // today's literal) and its own white to inherit. Light pages only: HK's
     // own screens set some of the glass ones themselves (Frosted, Blur).
+    // (Flat: no blur, so no veil -- the sheet's own ground, solid)
+    ':host([hk-flat]) .mu[cols="1"] .left{background:#140d1e}',
     ':host([data-hk-light]) .mu[cols="1"] .left{color:#fff;' + Object.keys(C.LIGHT || {}).map(function (k) { return k + ':initial'; }).join(';') + '}',
     '.mu[cols="1"] .grab{display:block;flex:none;width:100%;height:26px;margin:-4px 0 6px;cursor:pointer;touch-action:none;position:relative}',
     '.mu[cols="1"] .grab::before{content:"";position:absolute;left:50%;top:8px;width:42px;height:5px;margin-left:-21px;border-radius:3px;background:rgba(255,255,255,.5)}',
@@ -395,9 +398,15 @@
     '.mini .pp{width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
     '.mini .pp svg{width:26px;height:26px;fill:var(--hk-glyph,#fff)}',
     '.mini .rb{width:44px;height:44px;border-radius:50%;background:' + window.hkCards.v('key') + ';display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}',
-    '.mini .rb ha-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
+    '.mini .rb hk-icon{--mdc-icon-size:22px;width:22px;height:22px;color:var(--hk-glyph,#fff);display:flex}',
 
-    '.toast{position:absolute;left:50%;bottom:20px;transform:translate(-50%,10px);background:rgba(255,255,255,.96);color:#111;font-weight:600;',
+    // THE TOAST IS IN THE WINDOW, ABOVE THE TAB BAR. At the frame's foot it
+    // was drawn behind a bar along the bottom (the frame runs on under the
+    // bar) and below the window on a phone, whose page scrolls: "Starting
+    // <playlist>…" was never seen (house, 2026-10-20). Fixed, on the bar's
+    // top edge (hk-tabbar.js --hk-tabbar-top, its gap included), else 20 px
+    // over the window's foot.
+    '.toast{position:fixed;left:50%;bottom:var(--hk-tabbar-top,calc(20px + env(safe-area-inset-bottom, 0px)));transform:translate(-50%,10px);background:rgba(255,255,255,.96);color:#111;font-weight:600;',
     '  font-size:14px;padding:10px 18px;border-radius:99px;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;z-index:30;',
     '  white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis;box-shadow:0 8px 24px rgba(0,0,0,.35)}',
     '.toast.on{opacity:1;transform:translate(-50%,0)}',
@@ -424,18 +433,21 @@
     }
     getCardSize() { return 12; }
 
-    set hass(h) {
-      if (window.hkMusic) window.hkMusic.attach(h);
-      Object.getOwnPropertyDescriptor(HkBase.prototype, 'hass').set.call(this, h);
-      if (this._lib && this._lib.hass !== h) this._lib.hass = h;
+    // EACH NEW CLIENT (HkBase calls this from Lovelace's entry and from a client set
+    // directly): the music model follows its subscription port, and the library
+    // card inside the page gets what goes with it.
+    _receiveClient() {
+      var c = this.client;
+      if (window.hkMusic) window.hkMusic.attach(c);
+      super._receiveClient();
+      if (this._lib && c && this._lib.client !== c) window.hkHostClient.bridge(this._lib, c);
     }
-    get hass() { return this._hass; }
 
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
       var self = this;
       if (!this._musicOff && window.hkMusic) {
-        this._musicOff = window.hkMusic.onChange(function () { self._hkSig = null; if (self._hass) self.hass = self._hass; });
+        this._musicOff = window.hkMusic.onChange(function () { self._hkSig = null; if (self.client) self.redraw(); });
       }
       if (!this._ro && window.ResizeObserver) {
         this._ro = new ResizeObserver(function () { self._layout(); });
@@ -452,7 +464,7 @@
       // the docked bar coming or going: this page's own Now Playing row stands
       // in while it is not up
       if (!this._onDock) {
-        this._onDock = function () { self._hkSig = null; if (self._hass) self.hass = self._hass; };
+        this._onDock = function () { self._hkSig = null; if (self.client) self.redraw(); };
         window.addEventListener('hk-dock', this._onDock);
       }
       if (!this._onWin) {
@@ -468,6 +480,7 @@
       if (this._musicOff) { this._musicOff(); this._musicOff = null; }
       if (this._onBar) { window.removeEventListener('hk-music-bar', this._onBar); this._onBar = null; }
       this._sheet(false);
+      this._sheetFlag(false);
       this._closePick();
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       if (this._onWin) { window.removeEventListener('resize', this._onWin); window.removeEventListener('hk-saver-panel', this._onWin); this._onWin = null; }
@@ -494,7 +507,7 @@
     // what this page shows: hkMusic's answer (a context playing or paused),
     // else nothing
     _ctx() {
-      var Mu = this._M(), h = this._hass;
+      var Mu = this._M(), h = this.client;
       if (!Mu || !h) return null;
       var r = Mu.resolve(h);
       return r && r.context ? r.context : null;
@@ -504,7 +517,7 @@
     _targetRooms() {
       var Mu = this._M();
       if (this._target && this._target.length) return this._target;
-      var p = Mu && this._hass ? Mu.resolve(this._hass).player : null;
+      var p = Mu && this.client ? Mu.resolve(this.client).player : null;
       var pre = p && Mu.presets().filter(function (x) { return x.entity === p; })[0];
       return pre ? pre.members.slice() : p ? [p] : [];
     }
@@ -544,7 +557,7 @@
     }
 
     _sigOf() {
-      var Mu = this._M(), h = this._hass;
+      var Mu = this._M(), h = this.client;
       if (!Mu || !h || !this._config) return null;
       var r = Mu.resolve(h), st = r.player && h.states[r.player];
       return [r.player, r.reason, st ? st.last_updated : '',
@@ -575,17 +588,17 @@
     _build() {
       var self = this;
       this._root.innerHTML =
-        '<ha-card><div class="mu">' +
+        '<hk-plate><div class="mu">' +
           '<section class="left">' +
             '<div class="grab" role="button" aria-label="Close Now Playing"></div>' +
-            '<div class="pon glass"><ha-icon icon="hk:homepod"></ha-icon><div class="tx"><small></small><b></b></div>' +
+            '<div class="pon glass"><hk-icon icon="hk:homepod"></hk-icon><div class="tx"><small></small><b></b></div>' +
               '<button class="chg" data-k="change">Change</button></div>' +
             '<div class="house"></div>' +
             '<div class="front">' +
-              '<div class="artbox"><div class="art"><ha-icon icon="mdi:music"></ha-icon></div></div>' +
+              '<div class="artbox"><div class="art"><hk-icon icon="mdi:music"></hk-icon></div></div>' +
               '<div class="tt"></div><div class="st"></div>' +
               '<div class="prog"><div class="b"><i></i></div><div class="t"><span></span><span></span></div></div>' +
-              '<div class="tr"><div class="x" data-k="speakers" role="button" aria-label="Speakers"><ha-icon icon="hk:homepod"></ha-icon></div>' +
+              '<div class="tr"><div class="x" data-k="speakers" role="button" aria-label="Speakers"><hk-icon icon="hk:homepod"></hk-icon></div>' +
                 '<div class="p" data-k="previous" role="button" aria-label="Previous">' + svg(ICON.prev) + '</div>' +
                 '<div class="p big" data-k="play_pause" role="button" aria-label="Play or pause">' + svg(ICON.play) + '</div>' +
                 '<div class="p" data-k="next" role="button" aria-label="Next">' + svg(ICON.next) + '</div>' +
@@ -596,9 +609,9 @@
           '</section>' +
           '<section class="right"><div class="mini"><div class="th" data-k="now">' + svg(ICON.note) + '</div><div class="t" data-k="now"><b></b><small></small></div>' +
             '<div class="pp" data-k="play_pause" role="button" aria-label="Play or pause">' + svg(ICON.play) + '</div>' +
-            '<div class="rb" data-k="speakers" role="button" aria-label="Speakers"><ha-icon icon="hk:homepod"></ha-icon></div></div></section>' +
+            '<div class="rb" data-k="speakers" role="button" aria-label="Speakers"><hk-icon icon="hk:homepod"></hk-icon></div></div></section>' +
           '<section class="rooms"></section>' +
-        '</div><div class="scrim"></div><div class="toast"></div></ha-card>';
+        '</div><div class="scrim"></div><div class="toast"></div></hk-plate>';
       var q = this._root.querySelector.bind(this._root);
       if (this._ro) this._ro.observe(q('.artbox'));
       // the page's font, once it has loaded (measured before, a name was cut)
@@ -653,11 +666,10 @@
         lib.noteEl = document.createElement('div'); lib.noteEl.className = 'nextnote';
         self._noteEl = lib.noteEl;
         lib.rootExtra = self._playlistsEl();
-        if (self._hass) lib._hass = self._hass;
         lib.setConfig({ type: 'custom:hk-library-card', music: true, layout: 'music' });
-        if (self._hass) lib.hass = self._hass;
+        if (self.client) window.hkHostClient.bridge(lib, self.client);
         // its messages, here (Home Assistant's toast is under the page's own)
-        lib.addEventListener('hass-notification', function (e) {
+        lib.addEventListener(window.hkShell.events.toast, function (e) {
           e.stopPropagation();
           if (e.detail && e.detail.message) self._toast(e.detail.message);
         });
@@ -692,11 +704,19 @@
         var mu = this._e.mu;
         mu.classList.add('relay');
         mu.setAttribute('cols', String(cols));
+        // FLAT ON A PHONE: Now Playing is a sheet over Browse, and Flat takes
+        // every blur -- its veil let the page show through, and a light theme
+        // made its plates light (seen on an iPhone). A dark Flat
+        // surface of its own, as the screensaver's music is; beside Browse
+        // (two or three columns) it is the page's again.
+        if (this._e.left && C.flatSurface) C.flatSurface(this._e.left, cols === 1 ? 'music' : 'page');
         if (this._e.left) void getComputedStyle(this._e.left).transform;
         requestAnimationFrame(function () { mu.classList.remove('relay'); });
         this._closePanel(false);
         this._closePick();
         if (this._e.left) this._e.left.classList.remove('sheetup');
+        this._sheetUp = false;
+        this._sheetFlag(false);
         this._hkSig = null;
       }
       this._miniFlag(cols === 1, !this._flagSaid);
@@ -715,6 +735,13 @@
       // which a finger could scroll, 2026-10-15)
       if (cols >= 2) this.style.setProperty('--mu-h', 'max(420px, calc(' + Math.floor(vh - Math.max(0, top) - 16) + 'px + ' + BAR_GAP + '))');
       else { this.style.removeProperty('--mu-h'); this.style.setProperty('--mu-rh', Math.round(vh - 90) + 'px'); }
+      // ...and so the page ends the 16 px foot below this card's box, where
+      // the window (or the bar's room) begins -- not a page gutter below the
+      // frame that runs on under the bar, which counted the bar's room twice
+      // and scrolled a page that fits (hk-layout.js data-hk-foot,
+      // 2026-10-18). One column is an ordinary page and ends at its gutter.
+      if (cols >= 2) { if (this.getAttribute('data-hk-foot') !== '16') this.setAttribute('data-hk-foot', '16'); }
+      else if (this.hasAttribute('data-hk-foot')) this.removeAttribute('data-hk-foot');
       // THREE COLUMNS: the Speakers column ticks where the next pick plays
       // (and moves what plays), so Plays on and its line go and the search
       // takes the row (the user's design, 2026-10-14)
@@ -755,12 +782,12 @@
       var self = this;
       return {
         tabs: tabs,
-        hass: function () { return self._hass; },
+        client: function () { return self.client; },
         ctx: function () { return self._ctx(); },
         art: function () { return null; },
         stop: true,
         target: function () { return self._targetRooms(); },
-        setTarget: function (rooms) { self._target = rooms.slice(); self._hkSig = null; if (self._hass) self.hass = self._hass; },
+        setTarget: function (rooms) { self._target = rooms.slice(); self._hkSig = null; if (self.client) self.redraw(); },
         // PLAYING, ITS TICKS ARE WHERE THE NEXT PICK PLAYS (2026-10-14): the
         // same rooms as Plays on's (null: back to what plays)
         next: function () { return self._rooms(); },
@@ -777,7 +804,7 @@
 
     // ------------------------------------------------------------ drawing
     _draw() {
-      var e = this._e, h = this._hass, Mu = this._M();
+      var e = this._e, h = this.client, Mu = this._M();
       if (!e || !h || !Mu) return;
       var c = this._ctx(), st = c ? h.states[c.key] || {} : {}, a = st.attributes || {};
       // music started: the rooms picked for it have done their job (stopped,
@@ -810,8 +837,8 @@
       }
       if (pic !== this._artUrl) {
         this._artUrl = pic;
-        e.art.innerHTML = '<ha-icon icon="mdi:music"></ha-icon>';
-        if (pic) { var box = e.art; box.innerHTML = ''; this._artImage(pic, box, '<ha-icon icon="mdi:music"></ha-icon>', 700); }
+        e.art.innerHTML = '<hk-icon icon="mdi:music"></hk-icon>';
+        if (pic) { var box = e.art; box.innerHTML = ''; this._artImage(pic, box, '<hk-icon icon="mdi:music"></hk-icon>', 700); }
       }
       e.tt.textContent = c ? (c.title || a.media_title || this._label()) : 'Nothing Playing';
       e.st.textContent = c ? [c.artist || a.media_artist, a.media_album_name].filter(Boolean).join(' · ') : 'Pick a playlist, or search, to start';
@@ -838,7 +865,7 @@
       this._tickOn();
     }
     _drawHouse(c) {
-      var Mu = this._M(), h = this._hass, self = this;
+      var Mu = this._M(), h = this.client, self = this;
       // ONE CARD PER THING PLAYING, not per player (hkMusic.streams): nine
       // HomePods AirPlayed to from one iPhone are one "Dynamite" card, its
       // line "Kitchen, Living Room and 7 more"
@@ -928,9 +955,21 @@
       var e = this._e;
       if (!e || this._cols !== 1) return;
       if (on && !this._ctx()) return;
+      // A HOST WITH A PLAYER OF ITS OWN (a phone app sets window.hkHostPlayer) shows that one instead
+      var nat = window.hkHostPlayer;
+      if (on && typeof nat === 'function') { nat(); return; }
       e.left.classList.toggle('sheetup', !!on);
       this._sheetUp = !!on;
+      this._sheetFlag(!!on);
       if (on) { this._artWidth(); this._fitLines(); }
+    }
+    // ...and <html> says so (`hk-music-sheet`) while it is up: a host whose
+    // view is a stacking context of its own lifts the view over its tab bar
+    // and pop-ups then, and holds the page behind still (the sheet's
+    // z-index alone cannot leave that context)
+    _sheetFlag(on) {
+      var de = document.documentElement;
+      if (de && de.hasAttribute('hk-music-sheet') !== !!on) de.toggleAttribute('hk-music-sheet', !!on);
     }
     // THE MINI PLAYER (a phone): the dashboard's own docked bar is it when
     // there is one (it covers the foot: --hk-bar-h); else this page's own
@@ -983,9 +1022,11 @@
       var e = this._e, sig = c ? c.key + '|' + c.title : '', self = this;
       if (sig !== this._nextFor) {
         this._nextFor = sig;
-        if (!c || !this._hass.callWS) { this._next = null; }
+        var act = this._actions();
+        if (!c || !act) { this._next = null; }
         else {
-          this._hass.callWS({ type: 'call_service', domain: 'music_assistant', service: 'get_queue',
+          // a service call (it only answers): through the action port
+          act.callWS({ type: 'call_service', domain: 'music_assistant', service: 'get_queue',
                               service_data: { entity_id: c.key }, return_response: true }).then(function (r) {
             if (self._nextFor !== sig) return;
             var q = r && r.response && r.response[c.key], n = q && q.next_item, mi = n && n.media_item;
@@ -1022,7 +1063,7 @@
 
     // ------------------------------------------------------------ actions
     _transport(cmd) {
-      var c = this._ctx(), h = this._hass;
+      var c = this._ctx(), h = this.client;
       if (!h) return;
       if (!c) {
         // nothing playing: play starts where the page says, with the first playlist
@@ -1050,9 +1091,9 @@
         if (!self._vol || !c || self._vol.sent === self._vol.val) return;
         if (d) d.sent = Date.now();
         self._vol.sent = self._vol.val;
-        var calls = volumeCalls(c, self._M().presets(), self._vol.val), h = self._hass;
+        var calls = volumeCalls(c, self._M().presets(), self._vol.val), act = self._actions();
         calls.reduce(function (p, data) {
-          return p.then(function () { return h.callService('media_player', 'volume_set', data); });
+          return p.then(function () { return act.callService('media_player', 'volume_set', data); });
         }, Promise.resolve()).catch(function (err) { console.error('hk-music: volume_set failed', err); });
       };
       var move = function (x) {
@@ -1084,7 +1125,7 @@
       if (!Mu || !Mu.known(key)) return;
       Mu.setFocus(key);
       this._closePanel(false);
-      this._toast('Now showing ' + Mu.label(Mu.contexts(this._hass).filter(function (x) { return x.key === key; })[0] || { key: key, kind: 'room', members: [key], leader: key }));
+      this._toast('Now showing ' + Mu.label(Mu.contexts(this.client).filter(function (x) { return x.key === key; })[0] || { key: key, kind: 'room', members: [key], leader: key }));
     }
 
     // ------------------------------------------------------------ playing
@@ -1092,7 +1133,7 @@
     // Music asks it (hk-media.js _askThenPlay)
     _askThenPlay(rooms, go) {
       var Mu = this._M(), c = this._ctx(), self = this;
-      var others = Mu.contexts(this._hass).filter(function (x) {
+      var others = Mu.contexts(this.client).filter(function (x) {
         return (!c || x.key !== c.key) && x.members.some(function (r) { return rooms.indexOf(r) < 0; });
       });
       if (!others.length || !C.confirmSheet) { go(); return; }
@@ -1210,7 +1251,7 @@
         if (this._routeBtn.__t !== ri) { this._routeBtn.innerHTML = ri; this._routeBtn.__t = ri; }
       }
       if (this._noteEl) {
-        var note = set ? '<ha-icon icon="mdi:volume-high"></ha-icon><span>' + esc(keep.length ? (c.title || Mu.label(c)) + ' keeps playing on ' + this._roomsLabel(keep) + '.'
+        var note = set ? '<hk-icon icon="mdi:volume-high"></hk-icon><span>' + esc(keep.length ? (c.title || Mu.label(c)) + ' keeps playing on ' + this._roomsLabel(keep) + '.'
                                                                                          : (c.title || Mu.label(c)) + ' stops: your next pick replaces it.') + '</span>' : '';
         if (this._noteEl.__t !== note) { this._noteEl.innerHTML = note; this._noteEl.__t = note; }
       }
@@ -1222,7 +1263,7 @@
       var html = '<div class="yph"><h3>Your Playlists</h3></div><div class="grid cats">';
       pls.forEach(function (p, i) {
         var open = self._openOpts === p.name, busy = self._busyPl === p.name;
-        html += '<div class="it cat tile' + (open ? ' on' : '') + (busy ? ' busy' : '') + '" data-pl="' + i + '"><div class="well"><ha-icon icon="' + esc(p.icon || 'mdi:playlist-music') + '"></ha-icon></div>' +
+        html += '<div class="it cat tile' + (open ? ' on' : '') + (busy ? ' busy' : '') + '" data-pl="' + i + '"><div class="well"><hk-icon icon="' + esc(p.icon || 'mdi:playlist-music') + '"></hk-icon></div>' +
                 '<div class="txt">' + esc(p.name) + '</div></div>';
         if (open && p.options) html += '<div class="opts">' + p.options.map(function (o, j) { return '<div class="opt" data-opt="' + i + ':' + j + '">' + esc(o.name) + '</div>'; }).join('') + '</div>';
       });
@@ -1239,7 +1280,7 @@
         el.classList.toggle('set', set);
         el.setAttribute('aria-label', (set ? 'Next plays on ' : 'Plays on ') + nl + '. Change');
       }
-      return '<ha-icon icon="hk:homepod"></ha-icon><span class="full"><span>' + (set ? 'Next plays on' : 'Plays on') + '</span><b>' + esc(nl) + '</b></span>' +
+      return '<hk-icon icon="hk:homepod"></hk-icon><span class="full"><span>' + (set ? 'Next plays on' : 'Plays on') + '</span><b>' + esc(nl) + '</b></span>' +
              '<span class="num">' + n + '</span>' +
              (set ? '<i class="rx" role="button" aria-label="Back to what is playing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></i>'
                   : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>');
@@ -1271,7 +1312,7 @@
       if (this._cols === 3) { this._openPanel('speakers'); return; }
       this._closePick();
       this._closePanel(false);
-      var card = this._root.querySelector('ha-card');
+      var card = this._root.querySelector('hk-plate');
       var scrim = document.createElement('div'); scrim.className = 'pkscrim';
       var box = document.createElement('div'); box.className = 'pk';
       var cr = card.getBoundingClientRect(), ar = (anchor || card).getBoundingClientRect();
@@ -1306,7 +1347,7 @@
       this._refreshPlaylists(true);
       if (this._roomsPnl) this._roomsPnl.update();
       if (this._pnl) this._pnl.p.update();
-      if (!c && this._hass) this.hass = this._hass;
+      if (!c && this.client) this.redraw();
     }
     _drawPick() { if (this._pk) this._pk.p.update(); }
     _closePick() {
@@ -1342,7 +1383,7 @@
       p.el.classList.add('up');
       var me = this._pnl = { p: p, sheet: sheet };
       if (sheet) {
-        this._root.querySelector('ha-card').appendChild(p.el);
+        this._root.querySelector('hk-plate').appendChild(p.el);
         p.size(window.innerWidth, Math.min(640, window.innerHeight * 0.86), 1);
         p.show(tab);
         this._e.scrim.classList.add('on');

@@ -24,6 +24,37 @@
 //
 // Words and the small decisions (what a list shows, what a change saves)
 // are hk-settings-model.js; the controls are hk-settings-kit.js.
+//
+// THE HOST'S SETTINGS (hkShell.settingsHost(), null on a host without any):
+// a host may put its own pages beside HK's, drawn with the same kit. The page
+// knows nothing of them but this shape:
+//   { title       the page's name in place of "HK Settings"
+//     house       false: the host's pages only (HK's own are not read)
+//     groups()    [{ header, place: 'top' | 'end', rows: [{ route, label,
+//                 sub, tile: [icon, color] }] }] -- sidebar groups, above
+//                 Overview ('top') or after System ('end')
+//     page(parts, panel)  the page for an address the host owns, or null
+//     forward(path)       an old address of the host's -> where it is now
+//     first()             where an empty address opens (null: Overview)
+//     search()            [{ label, route, where, words }]
+//     notes               { overview, screen_remove, add_screen }: the
+//                 host's words where HK's own page differs on it
+//     screenBase          the prefix of a screen's own address
+//     back                { label, href }: the way out, on a host with no
+//                 sidebar of its own
+//     extend(where, c, ctx, panel)  the host's own groups on one of HK's
+//                 pages, appended to c: where 'tablet' (a wall tablet's
+//                 page, after Setup; ctx { tablet, name, app }), 'screen'
+//                 (a screen's page, after This Device; ctx { screen, title }),
+//                 'saver' (a screen's Screensaver Options, first; ctx { screen,
+//                 title }) or 'house-saver' (All Screens' Screensaver, after
+//                 Photos; ctx { photos, set(source) })
+//     press(ids, panel)  a tablet's own parts that are the host's, not HA
+//                 buttons (Reload, Clear Cache: tablets[].parts), pressed:
+//                 a promise (rejected with a message to show), or null to
+//                 leave them to HA's button.press }
+// Home Assistant has none, so nothing of another host's is drawn, read or
+// said there.
 (function () {
   'use strict';
   if (customElements.get('hk-settings-panel')) return;
@@ -55,45 +86,40 @@
       img.src = u;
     });
   }
+  // AN HTTP WRITE TO THE HOST'S API (a config flow's start, step or
+  // abandon), made exactly as the frontend's own callApi makes one, but
+  // through the client's action port (`request`, an authenticated fetch of a
+  // path on the host): the path under /api/; a JSON body, with its type, when
+  // there is one; the answer read as JSON when it says it is JSON, else as
+  // text; an error answer, a body that won't parse or a request that never
+  // arrived thrown as {error, status_code, body}, as callApi throws them. A
+  // host that cannot act refuses (commands_disabled), sending nothing, and
+  // that refusal is passed on as it is.
+  function restWrite(actions, method, path, body) {
+    var init = { method: method, headers: {} };
+    if (body) {
+      init.headers['Content-Type'] = 'application/json;charset=UTF-8';
+      init.body = JSON.stringify(body);
+    }
+    return Promise.resolve(actions.request('/api/' + path, init)).then(function (res) {
+      var type = res.headers.get('content-type');
+      var read = type && type.indexOf('application/json') >= 0
+        ? res.json().catch(function (e) { throw { error: 'Unable to parse JSON response', status_code: e && e.status, body: null }; })
+        : res.text();
+      return read.then(function (b) {
+        if (!res.ok) throw { error: 'Response error: ' + res.status, status_code: res.status, body: b };
+        return b;
+      });
+    }, function (e) {
+      if (e && e.code === 'commands_disabled') throw e;
+      throw { error: 'Request error', status_code: undefined, body: undefined };
+    });
+  }
   function ensureFont() {
     if (document.querySelector('link[data-hk-font]')) return;
     var l = document.createElement('link');
     l.rel = 'stylesheet'; l.href = '/hk/fonts/sf-pro.css'; l.setAttribute('data-hk-font', '');
     document.head.appendChild(l);
-  }
-  // <ha-form>, and through it the YAML editor, are loaded by the frontend
-  // only when something needs them: an entities card's editor pulls them in.
-  var formReady = null;
-  function loadHaForm() {
-    if (customElements.get('ha-form')) return Promise.resolve();
-    if (formReady) return formReady;
-    formReady = (async function () {
-      try {
-        var helpers = window.loadCardHelpers ? await window.loadCardHelpers() : null;
-        if (helpers) {
-          var c = await helpers.createCardElement({ type: 'entities', entities: [] });
-          if (c && c.constructor && c.constructor.getConfigElement) await c.constructor.getConfigElement();
-        }
-      } catch (e) { /* whenDefined below still waits */ }
-      await customElements.whenDefined('ha-form');
-    })();
-    return formReady;
-  }
-  var yamlReady = null;
-  function loadYaml(hass) {
-    if (customElements.get('ha-yaml-editor')) return Promise.resolve(true);
-    if (yamlReady) return yamlReady;
-    yamlReady = loadHaForm().then(function () {
-      // an object selector's form brings the YAML editor with it
-      var f = document.createElement('ha-form');
-      f.hass = hass; f.schema = [{ name: 'x', selector: { object: {} } }]; f.data = {};
-      f.style.display = 'none';
-      document.body.appendChild(f);
-      return Promise.race([customElements.whenDefined('ha-yaml-editor').then(function () { return true; }),
-                           new Promise(function (r) { setTimeout(function () { r(false); }, 6000); })])
-        .then(function (ok) { f.remove(); return ok; });
-    });
-    return yamlReady;
   }
   // The dashboards' own modules, for an accessory's settings: the settings
   // feed they read, the glyphs, the detail sheet's pane.
@@ -120,8 +146,16 @@
     // the panel to its content and the window scrolled the menu and the page
     // together. The window's height gives each its own scroll.
     ':host{height:100vh;height:100dvh}',
+    // SAFE AREAS (an iPhone or iPad full screen: the web app on the Home
+    // Screen, a native app's web view): the notch, the status bar and the rounded
+    // corners stay out of the lists. The host keeps the window's height and
+    // pads itself; the bottom (the home indicator) pads each scroller's end,
+    // so rows scroll under it but the last one stops above it. env() is 0
+    // everywhere else (HA's panel, a desktop browser), so nothing moves there.
+    ':host{box-sizing:border-box;background:var(--hk-bg);',
+    '  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}',
     '.app{display:flex;height:100%;overflow:hidden;position:relative}',
-    '.side{flex:none;width:320px;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:0 16px 40px;',
+    '.side{flex:none;width:320px;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:0 16px calc(40px + env(safe-area-inset-bottom,0px));',
     '  border-right:.5px solid var(--hk-sep)}',
     '.sidetop{position:sticky;top:0;z-index:2;background:var(--hk-bg);padding:10px 0 12px;margin:0 -4px;',
     '  border-bottom:.5px solid transparent;transition:border-color .2s}',
@@ -199,7 +233,7 @@
     '.bar:not(.scrolled) .mid{max-width:0}',
     '.bar:not(.scrolled) .lead{flex:0 1 auto;max-width:calc(100% - 96px)}',
     '.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-top:52px}',
-    '.page{max-width:680px;margin:0 auto;padding:6px 20px 80px}',
+    '.page{max-width:680px;margin:0 auto;padding:6px 20px calc(80px + env(safe-area-inset-bottom,0px))}',
     // 32px between the columns only: between the title and the settings the
     // subtitle's own 24px, as on every page without a preview (a 32px row
     // gap on top made it 56)
@@ -221,6 +255,24 @@
     // up under it and it lay over them (2026-10-06)
     ':host(:not([xwide])) .page.split .pvcol{margin:0 0 30px;max-width:480px;position:static}',
     '.pvcol:empty{display:none}',
+    // PINNED (the bar's Preview): at the top of the page, over the settings
+    // as they scroll under it; the size and moment pickers stay
+    ':host .page.split .pvcol.pin,:host(:not([xwide])) .page.split .pvcol.pin{position:sticky;top:0;z-index:3;margin:0 -20px 18px;',
+    '  padding:8px 20px 8px;max-width:none;background:var(--hk-bg);box-shadow:0 .5px 0 var(--hk-sep)}',
+    ':host(:not([wide])) .page.split .pvcol.pin{margin:0 -16px 18px;padding:8px 16px 8px}',
+    '.pvcol.pin .gf,.pvcol.pin .pvhead{display:none}',
+    '.pvcol.pin .pvbox{margin:0 auto}',
+    '.pvcol.pin .seg{margin-top:8px}',
+    // the bar's Preview button: a pin and a word (Pin, Pinned), as a
+    // navigation bar's text buttons are; filled while the preview is pinned
+    '.bar .pvtoggle{flex:none;height:32px;margin-right:4px;padding:0 10px 0 7px;border:0;border-radius:16px;background:none;',
+    '  color:var(--hk-tint);display:flex;align-items:center;gap:3px;cursor:pointer;font:inherit;font-size:15px;white-space:nowrap}',
+    '.bar .pvtoggle hk-icon{--mdc-icon-size:18px;width:18px;height:18px;display:flex}',
+    '.bar .pvtoggle[aria-pressed="true"]{background:var(--hk-fill)}',
+    // A HOST'S WAY OUT (settingsHost().back), over the sidebar's name
+    '.hostback{display:inline-flex;align-items:center;gap:3px;height:36px;margin:4px 0 -4px -6px;padding:0 8px 0 2px;color:var(--hk-tint);',
+    '  text-decoration:none;font-size:17px}',
+    '.hostback svg{width:12px;height:20px;flex:none}',
     '.code{margin:-14px 0 28px;padding:12px 16px;border-radius:10px;background:var(--hk-cell);color:var(--hk-label);',
     // YAML keeps its lines (wrapped, its indentation would lie): it scrolls
     // sideways, a size smaller on a phone so most lines fit
@@ -260,8 +312,8 @@
     '.seg.pvsize .lb,.seg.pvsize .sh{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.seg.pvsize .sh,.seg.pvsize.short .lb{display:none}',
     '.seg.pvsize.short .sh{display:block}',
-    '.seg.pvsize ha-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
-    '.seg.pvsize ha-icon.rot{transform:rotate(90deg)}',
+    '.seg.pvsize hk-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex}',
+    '.seg.pvsize hk-icon.rot{transform:rotate(90deg)}',
     // the sky preview's moments (Day, Night, Spooky Night), over the sizes
     '.seg.pvmoment{display:grid;width:100%;margin-top:12px;box-sizing:border-box}',
     '.seg.pvmoment button{min-width:0;padding:0 6px}',
@@ -298,11 +350,9 @@
     '.big h2{margin:6px 0 0;font-family:var(--hk-display);font-size:28px;font-weight:700}',
     '.big p{margin:0;max-width:44ch;color:var(--hk-label2);font-size:15px;line-height:20px}',
     '.steps{font-size:13px;color:var(--hk-label2);text-align:center;margin:0 0 8px}',
-    // Home Assistant's own editor on the card: its grey panels made clear
-    '.yaml{display:block;background:var(--hk-cell);border-radius:10px;padding:8px 6px;min-height:120px;',
-    '  --code-editor-background-color:transparent;--code-editor-gutter-color:transparent}',
+    // the kit's YAML editor is the card (.codebox)
+    '.yaml{display:block}',
     'pre.ex{margin:0;padding:12px 16px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--hk-label);white-space:pre-wrap}',
-    '.yaml textarea{width:100%;min-height:220px;border:0;background:none;color:var(--hk-label);font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;resize:vertical}',
     '.skycolors{display:flex;gap:8px;flex-wrap:wrap}.skycolors input[type=color]{width:44px;height:44px;padding:3px;border:1px solid var(--hk-label2);border-radius:8px;background:transparent}',
     '.ok{color:var(--hk-green)} .warn{color:var(--hk-orange)} .note{color:var(--hk-label2)}',
     // A TABLET'S DAY LEFT ALONE (Wall Tablets, 1.14): Touched -> Home ->
@@ -319,11 +369,11 @@
     '.live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}',
     '.loading{display:flex;align-items:center;justify-content:center;height:100%;color:var(--hk-label2)}',
     // ONE COLUMN (phones, narrow windows): the list is its own page
-    ':host(:not([wide])) .side{width:100%;border-right:0;padding:0 16px 40px}',
+    ':host(:not([wide])) .side{width:100%;border-right:0;padding:0 16px calc(40px + env(safe-area-inset-bottom,0px))}',
     ':host(:not([wide])) .sidehead h1{font-size:34px;line-height:41px}',
     ':host(:not([wide])) .app[data-view="root"] .detail{display:none}',
     ':host(:not([wide])) .app[data-view="detail"] .side{display:none}',
-    ':host(:not([wide])) .page{padding:6px 16px 80px}',
+    ':host(:not([wide])) .page{padding:6px 16px calc(80px + env(safe-area-inset-bottom,0px))}',
     // AT LEAST ONE SCREEN TALL: on a phone nothing above gives the page a
     // height, so `height:100%` would be the content's, and a short page
     // would end in a band of Home Assistant's own gray under it
@@ -380,14 +430,30 @@
     energy: 'The Energy page, built from Home Assistant’s Energy settings: the feature, its devices and the page.',
     power: 'The Power page: the home’s battery, solar and circuits as one picture. Energy’s second page.',
     music: 'Whole-home music through Music Assistant, and the Music page’s Browse side.',
-    live_tv: 'An HDHomeRun tuner’s channels, live on every screen.',
+    live_tv: 'Needs an HDHomeRun tuner: its channels, live on every screen.',
     security: 'The Security page, the security system and its keypad.'
   };
   var LIBRARY = [['accessories', 'Accessories', 'mdi:lightbulb-group', C.yellow], ['popups', 'Pop-ups', 'mdi:bell-ring', C.red],
                  ['pages', 'Custom Pages', 'mdi:file-document-multiple', C.teal], ['chips', 'Custom Chips', 'mdi:label-variant', C.orange]];
   var SYSTEM = [['advanced', 'Advanced', 'mdi:cog', C.gray], ['check', 'Setup Check', 'mdi:clipboard-check', C.green]];
-  // the documentation (manifest.json's), where a page links to it
-  var WIKI = 'https://github.com/jazzphone/hk-frontend/wiki/';
+  // THE PRODUCT'S NAME, Home Assistant's own things and places, and the
+  // documentation, as the host says them (web/client/hk-host-shell.js): HK
+  // Frontend and its wiki in Home Assistant, the host's own elsewhere.
+  // Labels only.
+  function PN() { return window.hkShell.productName(); }
+  function haName(name) { return window.hkShell.haName(name); }
+  function haPlace(path) { return window.hkShell.haPlace(path); }
+  // a link to a page of the documentation, opened beside these settings, or
+  // null where the host has no such page
+  function docsLink(page, anchor, o) {
+    var url = window.hkShell.docsUrl(page, anchor);
+    if (!url) return null;
+    // HK Frontend's wiki on GitHub; a host's own docs (a path of its own) are its docs
+    var row = K.nav(Object.assign({ label: /^https?:/.test(url) ? 'On the Wiki' : 'In the Docs', icon: 'mdi:open-in-new', href: url }, o));
+    var a = row.tagName === 'A' ? row : row.querySelector && row.querySelector('a');
+    if (a) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener'); }
+    return row;
+  }
   // SLEEP SCREEN'S LISTS (sleep_rules.py): each a page of entities, as many
   // as the house has. `quiet`: its own may also work in quiet hours.
   var SLEEP_LISTS = {
@@ -512,16 +578,20 @@
         }, 0);
       };
     }
-    set hass(v) {
-      var first = !this._hass;
-      this._hass = v;
+    // THE HOST'S ENTRY (window.hkHostClient.entry, below): Home Assistant's
+    // panel_custom hands this element the frontend's object; the page gets
+    // the host adapter's client for each new one, and reads `this.client`.
+    // The first one starts the page; each one may change light/dark.
+    _onClient(client) {
+      var first = !this._hadClient;
+      this._hadClient = client;
       if (first) this.boot();
-      var dark = !!(v && v.themes && v.themes.darkMode);
+      var dark = !!(client && client.themes && client.themes.darkMode);
       if (dark !== this.hasAttribute('dark')) this.toggleAttribute('dark', dark);
-      if (this._menuBtn) this._menuBtn.hass = v;
+      // the host's own sidebar button, when it drew one, follows the client
+      if (this._menuBtn) window.hkShell.menuButton(this._menuBtn, { client: client });
     }
-    get hass() { return this._hass; }
-    set narrow(v) { this._narrow = v; if (this._menuBtn) this._menuBtn.narrow = v; if (this.ready) this.render(); }
+    set narrow(v) { this._narrow = v; if (this._menuBtn) window.hkShell.menuButton(this._menuBtn, { narrow: v }); if (this.ready) this.render(); }
     set panel(v) { this._panel = v; }
     set route(v) { /* our own hash is the route */ }
     // NAVIGATION: our own links are "#/..." and handled here. Home Assistant
@@ -532,7 +602,7 @@
     connectedCallback() {
       window.addEventListener('hashchange', this._onHash);
       window.addEventListener('popstate', this._onHash);
-      window.addEventListener('location-changed', this._onHash);
+      window.hkShell.onNavigate(this._onHash);
       this.shadowRoot.addEventListener('pointerdown', this._onPress, true);
       window.addEventListener('pointerup', this._onRelease, true);
       // a choice made is a press over, whatever the browser told us
@@ -544,7 +614,7 @@
     disconnectedCallback() {
       window.removeEventListener('hashchange', this._onHash);
       window.removeEventListener('popstate', this._onHash);
-      window.removeEventListener('location-changed', this._onHash);
+      window.hkShell.offNavigate(this._onHash);
       this.shadowRoot.removeEventListener('pointerdown', this._onPress, true);
       window.removeEventListener('pointerup', this._onRelease, true);
       window.removeEventListener('pointercancel', this._onRelease, true);
@@ -595,9 +665,19 @@
       }, { passive: true });
       new ResizeObserver(function () { self.measure(); }).observe(this);
       this.measure();
+      // THE HOST'S PAGES ONLY (someone who may not change the house's): HK's
+      // own settings are never read
+      var hx = this.host();
+      this.hostOnly = !!(hx && hx.house === false);
+      if (this.hostOnly) {
+        this.data = null;
+        this.ready = true;
+        this.onHash();
+        return;
+      }
       try { await this.reload(); } catch (e) {
         s.querySelector('.page').innerHTML = '';
-        this.pageEl.appendChild(h('div', { class: 'big' }, [h('h2', { text: 'HK Settings' }),
+        this.pageEl.appendChild(h('div', { class: 'big' }, [h('h2', { text: this.title() }),
           h('p', { text: String(e && e.message || e) })]));
         this.app.setAttribute('data-view', 'detail');
         return;
@@ -611,7 +691,12 @@
     }
     measure() {
       var w = this.getBoundingClientRect().width || window.innerWidth;
-      var wide = w >= 860, xwide = w >= 1320;
+      // TWO COLUMNS from 700 px, as iOS Settings on an iPad: every iPad held
+      // upright (744 to 1032 px) gets the list beside the page, a phone one
+      // column (below 700 even in landscape: 932 px is the widest iPhone, but
+      // 844 x 390 has no height for a sidebar, so that is height-checked)
+      var tall = (this.getBoundingClientRect().height || window.innerHeight) >= 500;
+      var wide = w >= 700 && tall, xwide = w >= 1320;
       var changed = wide !== this.hasAttribute('wide') || xwide !== this.hasAttribute('xwide');
       this.toggleAttribute('wide', wide);
       this.toggleAttribute('xwide', xwide);
@@ -619,7 +704,7 @@
       if (this._fit) this._fit();
     }
     async reload() {
-      this.data = await this._hass.callWS({ type: DOMAIN + '/panel/get' });
+      this.data = await this.client.callWS({ type: DOMAIN + '/panel/get' });
     }
     // every change, from here or anywhere (Configure, a gear, another
     // browser), comes back over the settings feed: read again and redraw
@@ -627,10 +712,11 @@
     // the moment it arrives -- else it would live on unseen, reloading the
     // whole page's settings at every change made anywhere
     subscribe() {
-      if (this._unsub || this._subbing || !this._hass || !this._hass.connection) return;
+      var port = this.client && this.client.subscriptions;
+      if (this._unsub || this._subbing || !port) return;
       var self = this, first = true;
       this._subbing = true;
-      this._hass.connection.subscribeMessage(function () {
+      port.subscribeMessage(function () {
         if (first) { first = false; return; }
         self.soon();
       }, { type: DOMAIN + '/settings/subscribe' }).then(function (u) {
@@ -650,6 +736,27 @@
     // ---------------------------------------------------------- routing
     parts() {
       return (location.hash || '').replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean).map(decodeURIComponent);
+    }
+    // THE HOST'S SETTINGS (above), read once when the page starts
+    host() {
+      if (this._host === undefined) {
+        var o = null;
+        try { o = window.hkShell && window.hkShell.settingsHost ? window.hkShell.settingsHost() : null; } catch (e) { o = null; }
+        this._host = o && typeof o === 'object' ? o : null;
+      }
+      return this._host;
+    }
+    title() { var x = this.host(); return (x && x.title) || 'HK Settings'; }
+    hostScreenBase() { var x = this.host(); return (x && typeof x.screenBase === 'string') ? x.screenBase : ''; }
+    hostNote(key) { var x = this.host(); return (x && x.notes && x.notes[key]) || null; }
+    // the page an empty address shows: Overview, or the host's first
+    rootPage() {
+      var x = this.host();
+      if (x && typeof x.first === 'function') {
+        var f = x.first();
+        if (f) { var pg = x.page(String(f).split('/'), this); if (pg) return pg; }
+      }
+      return this.hostOnly ? { title: this.title(), top: true, body: function () {} } : this.p_overview();
     }
     onClick(e) {
       if (e.defaultPrevented && !this._hashLink(e)) return;
@@ -687,7 +794,7 @@
     backHref(hash) { hash = hashOf(hash); return this.from[hash] || this.staticBack(hash); }
     labelOf(hash) {
       var parts = hashOf(hash).replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
-      if (!parts.length) return 'HK Settings';
+      if (!parts.length) return this.title();
       try { var pg = this.resolve(parts); return (pg && (pg.backLabel || pg.title)) || 'Back'; } catch (e) { return 'Back'; }
     }
     _hashLink(e) {
@@ -700,8 +807,10 @@
       return null;
     }
     onHash() {
-      // an old address shows the new one (Pages, 2026-10-16: M.routeForward)
-      var fw = M.routeForward(this.parts().join('/'));
+      // an old address shows the new one (Pages, 2026-10-16: M.routeForward;
+      // the host's own: its forward)
+      var hx = this.host(), here = this.parts().join('/');
+      var fw = (hx && typeof hx.forward === 'function' && hx.forward(here)) || (this.hostOnly ? null : M.routeForward(here));
       if (fw) { try { history.replaceState(null, '', '#/' + fw.split('/').map(encodeURIComponent).join('/')); } catch (e) { /* no history */ } }
       var cur = location.hash || '#/';
       // hashchange, popstate and HA's location-changed can all say the same
@@ -806,7 +915,7 @@
       var st = this.feats[domain], self = this;
       st.loading = true;
       try {
-        st.data = await this._hass.callWS(Object.assign({ type: domain + '/settings/get' }, fresh ? { fresh: true } : {}));
+        st.data = await this.client.callWS(Object.assign({ type: domain + '/settings/get' }, fresh ? { fresh: true } : {}));
         st.error = null;
       } catch (e) {
         st.error = String((e && e.message) || e);
@@ -843,7 +952,7 @@
       this.render();
       this.status('saving');
       try {
-        var r = await this._hass.callWS(msg);
+        var r = await this.actions().callWS(msg);
         apply(r);
         this.status('saved');
         this.render();
@@ -869,10 +978,10 @@
     typing() {
       var a = this.shadowRoot.activeElement;
       return !!(a && (a.tagName === 'INPUT' && a.type !== 'range' || a.tagName === 'TEXTAREA' ||
-                      a.tagName === 'HA-YAML-EDITOR' || a.closest && a.closest('.accwrap')));
+                      a.closest && a.closest('.accwrap')));
     }
     render(background, navigated) {
-      if (!this.ready || !this.data) return;
+      if (!this.ready || (!this.data && !this.hostOnly)) return;
       // NOT UNDER A PRESS. A text field saves on blur, and the blur of a press
       // elsewhere comes between that press's pointerdown and its click: the
       // redraw replaced the very row being pressed, and the click was lost
@@ -894,7 +1003,7 @@
       var root = !parts.length;
       this.app.setAttribute('data-view', root && !wide ? 'root' : 'detail');
       if (wide || root) this.paintSide(parts);
-      var pg = root ? this.p_overview() : this.resolve(parts);
+      var pg = root ? this.rootPage() : this.resolve(parts);
       this.pickers = this.pickers || {};
       this.paintPage(pg, parts);
       if (key === this._last) this.scrollEl.scrollTop = top;
@@ -989,9 +1098,9 @@
       this.status('saving');
       try {
         // the dashboard itself: its title is the sidebar's name
-        await this._hass.callWS({ type: 'lovelace/dashboards/update', dashboard_id: x.id, title: title });
+        await this.actions().callWS({ type: 'lovelace/dashboards/update', dashboard_id: x.id, title: title });
         // ...and the screen's own item (and its screensaver's device) after it
-        await this._hass.callWS({ type: DOMAIN + '/dashboard/titled', dashboard: x.path });
+        await this.actions().callWS({ type: DOMAIN + '/dashboard/titled', dashboard: x.path });
         this._renaming = null; this._renameDraft = null; this._renameErr = null;
         try { await this.reload(); } catch (e) { x.title = title; }
         this.status('saved');
@@ -1008,7 +1117,7 @@
       // THE BAR: Back to the page above (none beside the sidebar at the top)
       var lead = this.bar.querySelector('.lead');
       lead.innerHTML = '';
-      var back = pg.back || (parts.length && !wide ? ['HK Settings', '#/'] : null);
+      var back = pg.back || (parts.length && !wide ? [this.title(), '#/'] : null);
       var came = this.from[hashOf(location.hash || '#/')];
       if (came && (!back || hashOf(back[1]) !== came)) back = [this.labelOf(came), came];
       if (back && (!(wide && pg.top) || came)) {
@@ -1028,9 +1137,16 @@
         content.appendChild(K.group({ footer: 'This page couldn’t be drawn: ' + (e && e.message || e) }, []));
       }
       // beside the page (a wide window) it stays for the screen's sub-pages;
-      // above it (narrower) only the screen's own page has it
-      if (pg.preview && !this.hasAttribute('xwide') && !pg.previewTop) pg.preview = null;
-      var keepPv = pg.preview && this._pv && this._pv.path === pg.preview && this._pv.view === (pg.previewView || '0') && this.pageEl.querySelector('.pvcol');
+      // above it (narrower, phones too) only the screen's own page has it --
+      // unless it is PINNED (the bar's Preview button): then it stays at the
+      // top of every page that has one, the settings scrolling under it
+      var xwide = this.hasAttribute('xwide');
+      var pinned = !xwide && !!pg.preview && pinnedPreview();
+      this.previewButton(!xwide && !!pg.preview, pinned);
+      if (pg.preview && !xwide && !pg.previewTop && !pinned) pg.preview = null;
+      this._pvPinned = pinned;
+      var keepPv = pg.preview && this._pv && this._pv.path === pg.preview && this._pv.view === (pg.previewView || '0') &&
+        this._pv.pinned === pinned && this.pageEl.querySelector('.pvcol');
       if (keepPv) {
         this.pageEl.replaceChild(head, this.pageEl.querySelector('.ph'));
         this.pageEl.replaceChild(content, this.pageEl.querySelector('.pc'));
@@ -1039,8 +1155,10 @@
         this.pageEl.className = 'page' + (pg.preview ? ' split' : '');
         this.pageEl.appendChild(head);
         this._pv = null; this._fit = null;
-        if (pg.preview && (this.hasAttribute('xwide') || (pg.previewTop && wide))) {
-          this.pageEl.appendChild(this.previewCol(pg.preview, pg.previewView));
+        if (pg.preview) {
+          var pcol = this.previewCol(pg.preview, pg.previewView);
+          if (pinned) { pcol.classList.add('pin'); this._pv.pinned = true; this.pageEl.insertBefore(pcol, head); }
+          else this.pageEl.appendChild(pcol);
         }
         this.pageEl.appendChild(content);
       }
@@ -1055,6 +1173,27 @@
       this.saverPreview(!!(pg.preview && pg.saverPreview), !!pg.saverHouse);
     }
 
+    // THE PREVIEW BUTTON (narrower than a desk): the live preview pinned to
+    // the top of the page, or not; remembered in this browser. A pin and a
+    // word, Pin or Pinned: an eye alone did not say what it does.
+    previewButton(show, pinned) {
+      var b = this.bar.querySelector('.pvtoggle'), self = this;
+      if (!show) { if (b) b.remove(); return; }
+      if (!b) {
+        b = h('button', { class: 'pvtoggle', type: 'button', 'data-fk': 'bar:preview' });
+        b.addEventListener('click', function () {
+          pinPreview(!pinnedPreview());
+          self.render();
+        });
+        this.bar.appendChild(b);
+      }
+      b.innerHTML = '';
+      b.appendChild(K.icon('mdi:pin', ''));
+      b.appendChild(h('span', { text: pinned ? 'Pinned' : 'Pin' }));
+      b.setAttribute('aria-label', 'Pin Preview');
+      b.title = pinned ? 'Unpin the preview from the top' : 'Pin the preview to the top while you scroll';
+      b.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+    }
     // THE SCREENSAVER'S PREVIEW: on Screensaver Options the frame shows the
     // screensaver as that screen shows it (its window's hkSaver.preview) and
     // follows every change made here; any other page takes it away again.
@@ -1172,13 +1311,22 @@
       side.innerHTML = '';
       var top = h('div', { class: 'sidetop' });
       var head = h('div', { class: 'sidehead' });
-      if (this._narrow && customElements.get('ha-menu-button')) {
-        if (!this._menuBtn) { this._menuBtn = document.createElement('ha-menu-button'); }
-        this._menuBtn.hass = this._hass; this._menuBtn.narrow = this._narrow;
-        head.appendChild(this._menuBtn);
+      // A NARROW WINDOW: the host's own button that opens its sidebar (none
+      // on a host without one)
+      var mb = this._narrow ? window.hkShell.menuButton(this._menuBtn || null, { narrow: this._narrow, client: this.client }) : null;
+      if (mb) {
+        this._menuBtn = mb;
+        head.appendChild(mb);
         head.classList.add('menubtn');
       }
-      head.appendChild(h('h1', { text: 'HK Settings' }));
+      // a host with no sidebar of its own: its way out, over the name
+      var hx = this.host();
+      if (hx && hx.back && hx.back.href) {
+        var out = h('a', { class: 'hostback', href: hx.back.href, 'data-fk': 'side:hostback' });
+        out.innerHTML = BACK + '<span>' + K.esc(hx.back.label || 'Back') + '</span>';
+        top.appendChild(out);
+      }
+      head.appendChild(h('h1', { text: this.title() }));
       top.appendChild(head);
       var sb = h('div', { class: 'search', role: 'search' });
       sb.appendChild(K.icon('mdi:magnify', 'mag'));
@@ -1195,6 +1343,17 @@
       if (focused) { inp.focus(); try { inp.setSelectionRange(selStart, selStart); } catch (e) { /* type=search */ } }
 
       if (this.q.trim()) { side.appendChild(this.searchResults()); return; }
+      var hostGroups = function (place) {
+        if (!hx || typeof hx.groups !== 'function') return;
+        (hx.groups() || []).filter(function (g) { return (g.place || 'end') === place; }).forEach(function (g) {
+          side.appendChild(K.group({ header: g.header || null }, (g.rows || []).map(function (r) {
+            return K.nav({ tile: r.tile || null, label: r.label, sub: r.sub || null, value: r.value, href: '#/' + r.route,
+                           current: wide && (at(r.route) || (!here && r.root)), fk: 'side:' + r.route });
+          })));
+        });
+      };
+      hostGroups('top');
+      if (this.hostOnly) { hostGroups('end'); return; }
       var items = d.dashboards.filter(function (x) { return x.item; });
       var nAcc = Object.keys((d.accessories && d.accessories.entities) || {}).length;
       side.appendChild(K.group({}, [K.nav({ tile: ['mdi:home-heart', C.orange], label: 'Overview',
@@ -1227,16 +1386,25 @@
       list('All Screens', HOUSE, 'house/');
       list('Library', LIBRARY);
       list('System', SYSTEM);
+      hostGroups('end');
     }
     searchResults() {
-      var d = this.data, self = this;
+      var d = this.data, self = this, hx = this.host();
+      var hostRows = hx && typeof hx.search === 'function' ? (hx.search() || []) : [];
+      if (this.hostOnly) {
+        var hres = M.search(this.q, [], hostRows).slice(0, 60);
+        if (!hres.length) return K.group({ footer: 'No settings match “' + this.q.trim() + '”.' }, []);
+        return K.group({ header: 'Results' }, hres.map(function (r, i) {
+          return K.nav({ label: r.label, sub: r.where || null, href: '#/' + r.route, fk: 'side:r:' + i });
+        }));
+      }
       var screens = d.dashboards.filter(function (x) { return x.item; });
-      var extra = [];
+      var extra = hostRows.slice();
       screens.forEach(function (x) { extra.push({ label: x.title, route: 'screens/' + x.path, where: 'Screen', words: x.path }); });
       d.popups.forEach(function (p) { extra.push({ label: p.name || p.hash, route: 'popups/' + p.hash, where: 'Pop-up', words: '#' + p.hash }); });
       (d.custom_pages || []).forEach(function (p) { extra.push({ label: p.title, route: 'pages/' + p.path, where: 'Custom Page', words: p.path }); });
       extra = extra.concat(F.search(d.features));
-      var areas = this._hass.areas || {};
+      var areas = this.client.areas || {};
       Object.keys(areas).forEach(function (a) { extra.push({ label: areas[a].name, route: 'house/rooms/' + a, where: 'Room', words: 'room scenes' }); });
       var res = M.search(this.q, screens, extra).slice(0, 60);
       if (!res.length) return K.group({ footer: 'No settings match “' + this.q.trim() + '”.' }, []);
@@ -1258,25 +1426,25 @@
     name(id) {
       if (!id) return '';
       var a = ((this.data.accessories || {}).entities || {})[id];
-      var st = this._hass.states[id];
+      var st = this.client.states[id];
       return (a && a.name) || (st && st.attributes.friendly_name) || id;
     }
     areaOf(id) {
-      var e = (this._hass.entities || {})[id] || {}, devs = this._hass.devices || {};
+      var e = (this.client.entities || {})[id] || {}, devs = this.client.devices || {};
       return e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id) || '';
     }
-    areaName(a) { var x = (this._hass.areas || {})[a]; return (x && x.name) || a; }
+    areaName(a) { var x = (this.client.areas || {})[a]; return (x && x.name) || a; }
     areasAZ() {
-      var areas = this._hass.areas || {};
+      var areas = this.client.areas || {};
       return Object.keys(areas).sort(function (p, q) { return String(areas[p].name).localeCompare(String(areas[q].name)); });
     }
     entityIds(filter) {
-      var hass = this._hass, ents = hass.entities || {};
-      return Object.keys(hass.states).filter(function (id) {
+      var client = this.client, ents = client.entities || {};
+      return Object.keys(client.states).filter(function (id) {
         var dom = id.split('.')[0];
         if (filter.domains && filter.domains.indexOf(dom) < 0) return false;
         if (filter.re && !filter.re.test(id)) return false;
-        if (filter.dc && hass.states[id].attributes.device_class !== filter.dc) return false;
+        if (filter.dc && client.states[id].attributes.device_class !== filter.dc) return false;
         if (filter.shown) { var e = ents[id] || {}; if (e.hidden || e.entity_category) return false; }
         return true;
       });
@@ -1297,7 +1465,7 @@
         },
         onPick: o.onPick
       });
-      var st = o.value && this._hass.states[o.value];
+      var st = o.value && this.client.states[o.value];
       var val = o.value ? (st ? this.name(o.value) : o.value + ' (missing)') : (o.none || 'None'), sub = o.sub;
       // "Automatic (Main Power)", "Same as General (Lyric Alarm)": on the
       // row, the value it follows, and whose under the label -- as every
@@ -1360,7 +1528,7 @@
     // An entity's room is its area's (room: '' = No Room); a list where
     // nothing has a room is one plain list, with no headings.
     pickList(c, o) {
-      var self = this, hass = this._hass;
+      var self = this, client = this.client;
       if (o.tabs) c.appendChild(K.group({}, [K.seg({ label: 'Pick', fk: 'pick:tab', value: o.tab, options: o.tabs,
         onChange: function (x) { o.onTab(x); } })]));
       var sb = h('div', { class: 'search', style: 'margin:0 0 ' + (o.multi ? 22 : 18) + 'px' });
@@ -1397,13 +1565,13 @@
       };
       var roomOf = function (it) {
         if (it.room !== undefined && it.room !== null) return it.room;
-        return hass.states[it.value] ? (self.areaName(self.areaOf(it.value)) || '') : null;
+        return client.states[it.value] ? (self.areaName(self.areaOf(it.value)) || '') : null;
       };
       var paint = function () {
         box.innerHTML = '';
         var words = inp.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
         var all = o.items(o.tab).map(function (it) {
-          var ent = !!hass.states[it.value];
+          var ent = !!client.states[it.value];
           return { value: it.value, label: it.label, room: roomOf(it), note: it.note,
                    // under its room, an entity's second line is its id (two
                    // "Water Heater"s told apart), whatever the caller wrote
@@ -1444,13 +1612,19 @@
           });
         }
         if (!got.length) box.appendChild(K.group({ footer: 'Nothing matches.' }, []));
-        else if (got.length > shown) box.appendChild(K.group({ footer: 'Showing ' + shown + ' of ' + got.length.toLocaleString('en-US') + '. Search to find more.' }, []));
+        else if (got.length > shown) box.appendChild(K.group({ footer: 'Showing ' + shown + ' of ' + got.length.toLocaleString(window.hkLocale.numTag()) + '. Search to find more.' }, []));
       };
       inp.addEventListener('input', function () { if (o.onQuery) o.onQuery(inp.value); paint(); });
       paint();
     }
 
     resolve(parts) {
+      var hx = this.host();
+      if (hx && typeof hx.page === 'function') {
+        var hp = hx.page(parts, this);
+        if (hp) return hp;
+      }
+      if (this.hostOnly) return this.rootPage();
       var last = parts[parts.length - 1] || '';
       if (last[0] === '~') return this.pickerPage(parts);
       // AN ADDRESS THAT MOVED (Pages, 2026-10-16) opens where it is now
@@ -1486,7 +1660,7 @@
     // ---------------------------------------------------------- overview
     p_overview() {
       var self = this, d = this.data;
-      return { title: 'Overview', top: true, scope: 'Settings for the HK Frontend dashboards in this home.', body: function (c) {
+      return { title: 'Overview', top: true, scope: 'Settings for the ' + PN() + ' dashboards in this home.', body: function (c) {
         c.appendChild(K.group({ header: 'Where Settings Live' }, [
           K.info({ tile: ['mdi:tablet-dashboard', C.blue], label: 'Screens',
                    sub: 'Each screen’s own menu, Home page, pages, appearance and behavior.' }),
@@ -1507,9 +1681,11 @@
           K.nav({ label: 'Customized Accessories', value: String(Object.keys(d.accessories.entities || {}).length), href: '#/accessories' }),
           K.nav({ label: 'Pop-ups', value: String(d.popups.length), href: '#/popups' }),
           K.nav({ label: 'Custom Pages', value: String((d.custom_pages || []).length), href: '#/pages' })]));
+        var hn = self.hostNote('overview');
+        if (hn) c.appendChild(K.group({ footer: hn }, []));
         if (!check && !self._checking) {
           self._checking = true;
-          self._hass.callWS({ type: DOMAIN + '/setup/check' }).then(function (r) {
+          self.client.callWS({ type: DOMAIN + '/setup/check' }).then(function (r) {
             self._check = r.lines; self._checking = false; self.render(true);
           }, function () { self._checking = false; });
         }
@@ -1523,7 +1699,9 @@
       var col = h('aside', { class: 'pvcol', 'aria-label': 'Preview' });
       var head = h('div', { class: 'pvhead' }, [h('span', { text: 'Preview' }),
         h('a', { href: '/' + path + '/' + view, target: '_blank', rel: 'noopener', text: 'Open Screen' })]);
-      head.lastChild.setAttribute('href', '/' + path + '/' + view);
+      // under the host's own address prefix, when it has one (hostScreenBase)
+      var mbase = this.hostScreenBase();
+      head.lastChild.setAttribute('href', mbase + '/' + path + '/' + view);
       col.appendChild(head);
       var pv = h('div', { class: 'pvbox' });
       var b = (this.data && this.data.boards && this.data.boards[path]) || null;
@@ -1531,7 +1709,7 @@
       // hk_kiosk=on (HK Frontend's) and kiosk (the Kiosk Mode plugin's): no
       // Home Assistant header or sidebar; wp_enabled=false: WallPanel never
       // runs in a preview (it would drive the real tablet's screensaver)
-      fr.src = '/' + path + '/' + view + '?hk_kiosk=on&kiosk&wp_enabled=false';
+      fr.src = mbase + '/' + path + '/' + view + '?hk_kiosk=on&kiosk&wp_enabled=false';
       fr.title = (x ? x.title : path) + ' preview';
       fr.setAttribute('tabindex', '-1');
       pv.appendChild(fr);
@@ -1549,7 +1727,7 @@
       var dims = h('span', { class: 'pvdim' });
       var btns = sizes.map(function (z, i) {
         var btn = h('button', { type: 'button', role: 'radio', 'data-size': z.key, 'aria-label': z.label, title: z.label }, [
-          h('ha-icon', { icon: z.icon, class: z.rotate ? 'rot' : '', 'aria-hidden': 'true' }),
+          h('hk-icon', { icon: z.icon, class: z.rotate ? 'rot' : '', 'aria-hidden': 'true' }),
           h('span', { class: 'lb', text: z.label }),
           h('span', { class: 'sh', text: z.short || z.label })]);
         btn.addEventListener('click', function () { choose(z.key); });
@@ -1566,8 +1744,11 @@
       });
       var fit = function () {
         var z = sizes.filter(function (x) { return x.key === key; })[0] || sizes[0];
-        var maxH = Math.max(320, Math.min(620, (window.innerHeight || 900) - 300));
-        var f = M.previewFit(col.clientWidth, maxH, z);
+        var maxH = self._pvPinned ? Math.max(150, Math.round((window.innerHeight || 800) * 0.28))
+          : Math.max(320, Math.min(620, (window.innerHeight || 900) - 300));
+        // (the column's own padding is not room for the frame: a pinned preview has some)
+        var cs = getComputedStyle(col), cw = col.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+        var f = M.previewFit(cw, maxH, z);
         fr.style.width = z.w + 'px';
         fr.style.height = z.h + 'px';
         fr.style.transform = 'scale(' + f.scale + ')';
@@ -1607,7 +1788,7 @@
     }
     p_screen(path, sub) {
       var self = this, x = this.dash(path);
-      var home = ['HK Settings', '#/'];
+      var home = [this.title(), '#/'];
       if (!x) return { title: 'Screen', back: home, body: function (c) { c.appendChild(K.group({ footer: 'There’s no dashboard at /' + path + '.' }, [])); } };
       var base = '#/screens/' + encodeURIComponent(path);
       var b = this.data.boards[path];
@@ -1892,8 +2073,11 @@
         }
         // (shown once the integration knows it: an older one would drop it)
         if (b.timer_bar !== undefined) {
-          beh.push(K.toggle({ label: 'Timer Bar', sk: 'b:timer_bar', on: b.timer_bar,
-                              sub: 'Running quick timers, docked along the bottom — over the player when music plays.',
+          // needs the quick_timers.yaml package (its running-timers sensor): off and dimmed while it is missing
+          var qtOn = !!(this.client.states || {})['sensor.running_quick_timers'];
+          beh.push(K.toggle({ label: 'Timer Bar', sk: 'b:timer_bar', on: b.timer_bar, disabled: !qtOn && !b.timer_bar,
+                              sub: 'Running quick timers, docked along the bottom — over the player when music plays.' +
+                                   (qtOn ? '' : ' Needs the quick_timers.yaml package in Home Assistant.'),
                               onChange: function (on) { set({ timer_bar: on }); } }));
         }
         if (b.bar_all_pages !== undefined && (b.now_playing || b.timer_bar)) {
@@ -2001,15 +2185,26 @@
         }
         carFoot = M.CAR_LAYOUTS.filter(function (o) { return o[0] === cl; })[0][2] +
           ' Scale: how much of a desktop layout the car’s window holds — Larger shows less of it, bigger; ' +
-          'Custom takes a width of your own (Standard is ' + M.CAR_WIDTH.toLocaleString('en-US') + ' px).';
+          'Custom takes a width of your own (Standard is ' + M.CAR_WIDTH.toLocaleString(window.hkLocale.numTag()) + ' px).';
       }
       c.appendChild(K.group({ header: 'This Device', footer: carFoot }, carRows));
+
+      // THE HOST'S OWN, for this screen (extend, above): nothing in Home Assistant
+      var hx = this.host();
+      if (hx && typeof hx.extend === 'function') {
+        try { hx.extend('screen', c, { screen: path, title: x.title }, this); } catch (e) { /* the host's own page */ }
+      }
 
       c.appendChild(K.group({ footer: 'Another screen’s menu, Home page, appearance and more, onto this one — you choose which.' }, [
         K.nav({ label: 'Copy Settings From…', href: base + '/copy', sk: 'b:copy' })]));
       if (!gen) c.appendChild(K.group({ footer: 'What this dashboard’s own YAML can say beyond these settings: the live sky, HK cards, ' +
           'rooms in the menu, and more, ready to copy.' }, [K.nav({ label: 'YAML Reference', href: '#/advanced/yaml', sk: 'b:yaml-ref' })]));
       if (gen && x.mode === 'storage') { c.appendChild(this.deleteGroup(x)); return; }
+      // a host that can't remove a screen's settings says why instead
+      if (this.hostNote('screen_remove')) {
+        c.appendChild(K.group({ footer: this.hostNote('screen_remove') }, []));
+        return;
+      }
       c.appendChild(K.group({ footer: 'The dashboard itself stays. Its menu, Home page and appearance go back to the defaults.' }, [
         K.button({ label: 'Remove HK Settings…', destructive: true, sk: 'b:remove', onClick: function () {
           K.confirm(self.shadowRoot, { title: 'Remove HK settings for ' + x.title + '?',
@@ -2078,7 +2273,6 @@
         } })]);
     }
     async deleteScreen(x) {
-      var hass = this._hass;
       // the preview is that dashboard, running: unload it first, or it
       // reports its own dashboard missing the moment it is deleted
       var pv = this.pageEl.querySelector('.pvcol');
@@ -2086,10 +2280,10 @@
       this._pv = null; this._fit = null;
       this.status('saving');
       try {
-        if (x.item) await hass.callWS({ type: 'config_entries/subentries/delete', entry_id: this.data.entry_id, subentry_id: x.item });
-        var list = await hass.callWS({ type: 'lovelace/dashboards/list' });
+        if (x.item) await this.actions().callWS({ type: 'config_entries/subentries/delete', entry_id: this.data.entry_id, subentry_id: x.item });
+        var list = await this.client.callWS({ type: 'lovelace/dashboards/list' });
         var d = (list || []).filter(function (y) { return y.url_path === x.path; })[0];
-        if (d) await hass.callWS({ type: 'lovelace/dashboards/delete', dashboard_id: d.id });
+        if (d) await this.actions().callWS({ type: 'lovelace/dashboards/delete', dashboard_id: d.id });
         this.status('saved');
         this.announce(x.title + ' deleted');
       } catch (e) {
@@ -2706,18 +2900,20 @@
       }
       c.appendChild(K.group({ header: 'What It Counts', footer: (src.kinds || []).length ? 'Tap a type to change what this chip counts: Add… counts something more (an outlet with a lamp, a group helper); open an accessory to hide it from the chip. The same on every screen.' : 'The same on every screen.' }, rows));
     }
-    // NOT THE HOUSE'S CAMERAS (hk-strategy.js notHouseCamera, the same rule):
+    // NOT THE HOUSE'S CAMERAS (hk-strategy.js notHouseCamera: its rule, when it is loaded):
     // a wall tablet's own -- Fully Kiosk's, or Kiosk Satellite's, which comes
     // through ESPHome and is told apart by its device's manufacturer -- and
     // Live TV's channels.
     notHouseCamera(id) {
-      var hs = this._hass || {}, e = (hs.entities || {})[id] || {};
+      var hs = this.client || {}, e = (hs.entities || {})[id] || {};
+      var S = window.hkStrategy;
+      if (S && typeof S.notHouseCamera === 'function') return S.notHouseCamera(hs, e);
       if ({ fully_kiosk: 1, hk_frontend: 1, hk_tv: 1 }[e.platform]) return true;
       var d = e.device_id && (hs.devices || {})[e.device_id];
       return !!d && d.manufacturer === 'kiosk_satellite';
     }
     s_cameras(c, x, b) {
-      var self = this, set = function (ch) { return self.setB(x.path, ch); }, ents = this._hass.entities || {};
+      var self = this, set = function (ch) { return self.setB(x.path, ch); }, ents = this.client.entities || {};
       var ok = this.entityIds({ domains: ['camera'], shown: true }).filter(function (id) { return !self.notHouseCamera(id); }).sort();
       var autoCams = M.autoCameras(ok, function (id) { return (ents[id] || {}).device_id; });
       var top = [];
@@ -2770,7 +2966,7 @@
     // like), and the automation that moves it, written for your cameras'
     // own person and motion sensors (M.livePlan, M.liveYaml).
     s_cameraLive(c, x, b) {
-      var self = this, hs = this._hass, ents = hs.entities || {}, devs = hs.devices || {};
+      var self = this, hs = this.client, ents = hs.entities || {}, devs = hs.devices || {};
       var set = function (ch) { return self.setB(x.path, ch); };
       var ok = this.entityIds({ domains: ['camera'], shown: true }).filter(function (id) { return !self.notHouseCamera(id); }).sort();
       var mdl = M.camerasModel(b, ok, M.autoCameras(ok, function (id) { return (ents[id] || {}).device_id; }));
@@ -2813,18 +3009,17 @@
       var missing = plan.filter(function (p) { return p.missing; }).length;
       if (!sel) {
         rows.push(K.button({ label: 'Create the Dropdown', fk: 'cams:live:create', onClick: function () {
-          hs.callWS({ type: 'input_select/create', name: 'Live Camera', icon: 'mdi:cctv', options: opts }).then(function (item) {
+          self.actions().callWS({ type: 'input_select/create', name: 'Live Camera', icon: 'mdi:cctv', options: opts }).then(function (item) {
             return set({ camera_live: 'input_select.' + item.id }).then(function () { self.announce('Live Camera made and chosen'); });
           }, function (e) { self.announce('Couldn’t make it: ' + ((e && e.message) || e)); });
         } }));
       }
       c.appendChild(K.group({ header: '1. The Dropdown’s Options', footer: sel
           ? (missing ? 'The dropdown has no option for ' + (missing === 1 ? 'one camera' : missing + ' cameras') + ' in this ' +
-              'screen’s strip. Add ' + (missing === 1 ? 'it' : 'them') + ', spelled as shown, in Settings → Devices & Services → ' +
-              'Helpers; until then the automation leaves ' + (missing === 1 ? 'it' : 'them') + ' out.'
+              'screen’s strip. Add ' + (missing === 1 ? 'it' : 'them') + ', spelled as shown, in ' + haPlace('Settings → Devices & Services → Helpers') + '; until then the automation leaves ' + (missing === 1 ? 'it' : 'them') + ' out.'
             : 'The dropdown has an option for every camera in this screen’s strip.')
           : 'Create the Dropdown makes a dropdown helper called Live Camera with these options, and chooses it above. ' +
-            'Or make your own in Settings → Devices & Services → Helpers → Create Helper → Dropdown.' }, rows));
+            'Or make your own in ' + haPlace('Settings → Devices & Services → Helpers → Create Helper → Dropdown') + '.' }, rows));
 
       var yaml = M.liveYaml(plan, sel || 'input_select.live_camera');
       if (!yaml) {
@@ -2852,7 +3047,7 @@
       c.appendChild(pre);
     }
     s_scenes(c, x, b) {
-      var self = this, set = function (ch) { return self.setB(x.path, ch); }, ents = this._hass.entities || {};
+      var self = this, set = function (ch) { return self.setB(x.path, ch); }, ents = this.client.entities || {};
       c.appendChild(K.group({}, [K.toggle({ label: 'Show Scenes Row', sk: 'b:scenes_row', on: b.scenes_row,
                                             onChange: function (on) { set({ scenes_row: on }); } })]));
       if (!b.scenes_row) return;
@@ -2979,23 +3174,23 @@
       var choices = (this.data.choices || {}).sleep || {};
       var mins = function (m) { return m < 60 ? m + ' min' : (m / 60) + (m === 60 ? ' hour' : ' hours'); };
       var secs = function (v) { return v === 0 ? 'None' : v < 60 ? v + ' s' : mins(v / 60); };
-      c.appendChild(K.group({ header: 'Going Dark', footer: 'Drawn By: Kiosk Satellite puts its own Black screensaver up; HK Frontend draws the black on this page and turns the backlight down itself, then fades back in with it (Kiosk Satellite’s is its fallback). ' +
+      c.appendChild(K.group({ header: 'Going Dark', footer: 'Drawn By: Kiosk Satellite puts its own Black screensaver up; ' + PN() + ' draws the black on this page and turns the backlight down itself, then fades back in with it (Kiosk Satellite’s is its fallback). ' +
           'While Dark: a display that is off has no glow at all, but a tap cannot wake it — the power button, the doorbell or somebody walking in can.' }, [
         K.seg({ label: 'Drawn By', sk: 'b:black_screen', stack: !wide, value: b.black_screen || 'kiosk',
-                options: [['kiosk', 'Kiosk Satellite'], ['hk', 'HK Frontend']], onChange: function (v) { ctx.set({ black_screen: v }); } }),
+                options: [['kiosk', 'Kiosk Satellite'], ['hk', PN()]], onChange: function (v) { ctx.set({ black_screen: v }); } }),
         K.seg({ label: 'While Dark', sk: 'b:sleep.dark_display', stack: !wide, value: sl.dark_display || 'lowest',
                 options: [['lowest', 'Lowest Backlight'], ['off', 'Display Off'], ['off_quiet', 'Off in Quiet Hours']],
                 onChange: function (v) { put({ dark_display: v }); } })]));
       var sw = b.black_switch || ids.black, sens = ids.sleep;
       c.appendChild(K.group({ header: 'Decided By', footer: sl.decided_by === 'shadow'
-          ? 'Trying it out: HK Frontend decides by the rules below but does not act yet' + (sens ? ' — ' + sens + ' shows what it would do, and why.' : '.') + ' Choose HK Frontend to let it.'
-          : hk ? 'HK Frontend sleeps and wakes this tablet itself, by the rules below' + (sens ? ' — ' + sens + ' says what it decides, and why.' : '.')
+          ? 'Trying it out: ' + PN() + ' decides by the rules below but does not act yet' + (sens ? ' — ' + sens + ' shows what it would do, and why.' : '.') + ' Choose ' + PN() + ' to let it.'
+          : hk ? PN() + ' sleeps and wakes this tablet itself, by the rules below' + (sens ? ' — ' + sens + ' says what it decides, and why.' : '.')
           : 'An automation of yours decides: it turns ' + (sw || 'the tablet’s black screen switch') + ' on to sleep and off to wake — the Set black screen action also takes the brightness to wake to. Nothing here makes the tablet sleep by itself.' }, [
         K.seg({ label: 'Decided By', sk: 'b:sleep.decided_by', stack: !wide, value: hk ? 'hk' : 'automation',
-                options: [['automation', 'An Automation'], ['hk', 'HK Frontend']], onChange: function (v) { put({ decided_by: v }); } })]));
+                options: [['automation', 'An Automation'], ['hk', PN()]], onChange: function (v) { put({ decided_by: v }); } })]));
       if (hk) {
         var ks = (this.data.choices || {}).kiosks || [];
-        var kfoot = 'The tablet’s Kiosk Satellite: how HK Frontend powers its display, sets its brightness, brings the dashboard back in front, and knows another app is in front (it then leaves the tablet alone).';
+        var kfoot = 'The tablet’s Kiosk Satellite: how ' + PN() + ' powers its display, sets its brightness, brings the dashboard back in front, and knows another app is in front (it then leaves the tablet alone).';
         if (x.tablet) {
           // the tablet's own Kiosk App and Device (its page's Setup)
           var kd = ks.filter(function (k) { return k.id === sl.kiosk; })[0];
@@ -3042,8 +3237,8 @@
         var pct = function (v) { return Math.max(1, Math.round((v || 0) / 2.55)); };
         var raw = function (p) { return Math.max(1, Math.min(255, Math.round(p * 2.55))); };
         c.appendChild(K.group({ header: 'Brightness', footer: bm === 'leave'
-            ? 'HK Frontend never changes the screen’s brightness. (The tablet’s own adaptive brightness, if it is on, still does.)'
-            : 'The screen’s brightness while awake, and what it wakes to — set on the screen itself, as Fully Kiosk did, and checked again at every sleep and wake. Under HK Frontend’s black the backlight stays at its lowest until the wake. Turn the tablet’s own adaptive brightness off, or the two will fight.' }, [
+            ? PN() + ' never changes the screen’s brightness. (The tablet’s own adaptive brightness, if it is on, still does.)'
+            : 'The screen’s brightness while awake, and what it wakes to — set on the screen itself, as Fully Kiosk did, and checked again at every sleep and wake. Under ' + PN() + '’s black the backlight stays at its lowest until the wake. Turn the tablet’s own adaptive brightness off, or the two will fight.' }, [
           K.seg({ label: 'Brightness', sk: 'b:sleep.brightness', stack: !wide, value: bm, options: bOpts,
                   onChange: function (v) { put({ brightness: v }); } })].concat(bm === 'fixed' ? [
           K.toggle({ label: 'Day and Night by the Clock', sk: 'b:sleep.bright_clock', on: !!sl.bright_clock,
@@ -3066,10 +3261,8 @@
             K.nav({ label: 'Night While', href: base + '/night', sk: 'b:sleep.night_while', value: self.sleepCount(sl.night_while) })])));
         }
       }
-      var wk = K.nav({ label: 'On the Wiki', sub: 'Sleep Screen', icon: 'mdi:open-in-new', href: WIKI + 'Sleep-Screen', sk: 'b:sleep:wiki' });
-      c.appendChild(K.group({ footer: 'How Sleep Screen works, and ready-made automations for deciding it yourself.' }, [wk]));
-      var a = wk.querySelector ? (wk.tagName === 'A' ? wk : wk.querySelector('a')) : null;
-      if (a) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener'); }
+      var wk = docsLink('Sleep-Screen', '', { sub: 'Sleep Screen', sk: 'b:sleep:wiki' });
+      if (wk) c.appendChild(K.group({ footer: 'How Sleep Screen works, and ready-made automations for deciding it yourself.' }, [wk]));
     }
     sleepCount(list) { var n = (list || []).length; return n ? n + (n === 1 ? ' Entity' : ' Entities') : 'None'; }
     // ONE OF SLEEP SCREEN'S LISTS: as many entities as the house has; Hold
@@ -3132,7 +3325,7 @@
           K.info({ label: 'Rooms on Pages', value: label(PAGES, b.page_rooms) })] : []), 'Rooms', '#/house/rooms');
         return;
       }
-      var az = this.areasAZ(), areas = this._hass.areas || {};
+      var az = this.areasAZ(), areas = this.client.areas || {};
       var mdl = M.roomsModel(b, az);
       c.appendChild(K.listEditor({ fk: 'rooms', auto: mdl.auto, minRows: 1, announce: this.announce.bind(this),
         autoFooter: 'Automatic: Home shows its rooms as the screen lists them' + (x.generated ? ' (floor by floor, then A to Z).' : '.'),
@@ -3377,6 +3570,11 @@
           self.setB(path, { screensaver_options: on ? null : self.saverOut(cur) });
         } })].concat(house ? [K.nav({ label: 'Screensaver for All Screens', value: M.saverSummary(cur),
                                       href: '#/house/screensaver', sk: 'saver:house-page' })] : [])));
+      // THE HOST'S OWN, for this screen's screensaver (extend): nothing in Home Assistant
+      var hx = this.host();
+      if (hx && typeof hx.extend === 'function') {
+        try { hx.extend('saver', c, { screen: path, title: x.title }, this); } catch (e) { /* the host's own group */ }
+      }
       if (!house) {
         this.saverGroups(c, cur, function (k, v) {
           var o = M.saverOptions(cur); if (k && typeof k === 'object') Object.assign(o, k); else o[k] = v;
@@ -3618,8 +3816,9 @@
       var self = this;
       if (this._enSrc !== undefined) return this._enSrc;
       this._enSrc = null;
-      if (this.hass && this.hass.callWS) {
-        this.hass.callWS({ type: 'energy/get_prefs' }).then(function (pr) {
+      var client = this.client;
+      if (client && client.callWS) {
+        client.callWS({ type: 'energy/get_prefs' }).then(function (pr) {
           var t = {};
           ((pr && pr.energy_sources) || []).forEach(function (x) { t[x.type] = true; });
           self._enSrc = t;
@@ -3848,6 +4047,11 @@
       c.appendChild(K.group({ header: 'Photos', footer: 'A media folder (media-source://…) of the photos every screen’s Photo Screensaver shows.' }, [
         K.text({ label: 'Screensaver Photos', sk: 'look.photos', value: this.hs('look.photos'), placeholder: 'media-source://…', error: this.err('look.photos'),
                  onCommit: function (v) { self.setH({ 'look.photos': v }); } })]));
+      // THE HOST'S OWN beside the photos (extend): nothing in Home Assistant
+      var hx = this.host();
+      if (hx && typeof hx.extend === 'function') {
+        try { hx.extend('house-saver', c, { photos: this.hs('look.photos'), set: function (v) { return self.setH({ 'look.photos': v }); } }, this); } catch (e) { /* the host's own group */ }
+      }
       this.saverGroups(c, cur, function (k, v) {
         var o = M.saverOptions(cur); if (k && typeof k === 'object') Object.assign(o, k); else o[k] = v;
         return self.setH({ 'look.saver': self.saverOut(o) });
@@ -3875,14 +4079,14 @@
     saverEntities(b, path) {
       var self = this, mine = (b.tablets || []).filter(function (tid) { return self.tabs()[tid]; });
       if (!mine.length) {
-        return K.group({ header: 'For Automations', footer: 'Add the wall tablet that shows this screen (Wall Tablets) and HK Frontend adds its screensaver switch and In Use sensor.' }, []);
+        return K.group({ header: 'For Automations', footer: 'Add the wall tablet that shows this screen (Wall Tablets) and ' + haName('HK Frontend') + ' adds its screensaver switch and In Use sensor.' }, []);
       }
       var row = function (label, id, sub) {
         if (!id) return K.info({ label: label, sub: sub, value: 'Being added…' });
         var a = K.nav({ label: label, sub: id, href: '#', sk: 'saver:ent:' + id, value: self.stateLabel(id) });
         a.addEventListener('click', function (ev) {
           ev.preventDefault(); ev.stopPropagation();
-          self.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true }));
+          window.hkShell.moreInfo(id, self);
         });
         return a;
       };
@@ -3892,13 +4096,13 @@
         rows.push(row(nm + 'Photo Screensaver', e['switch'], 'On while the photos show'));
         rows.push(row(nm + 'In Use', e.in_use, 'Touched within its window'));
       });
-      var room = b.idle_room, leg = room && this._hass && this._hass.states['input_boolean.wallpanel_screensaver_' + room];
+      var room = b.idle_room, leg = room && this.client && this.client.states['input_boolean.wallpanel_screensaver_' + room];
       return K.group({ header: 'For Automations', footer: 'Each wall tablet’s own. Photo Screensaver is on while the photos show: turn it on to start them now ' +
           '(bedtime, say), off to close them (the doorbell). In Use is on while the tablet was touched within its window.' +
           (leg ? ' The older input_boolean.wallpanel_screensaver_' + room + ' follows it both ways until you delete it.' : '') }, rows);
     }
     stateLabel(id) {
-      var st = this._hass && this._hass.states[id];
+      var st = this.client && this.client.states[id];
       return st ? (st.state === 'on' ? 'On' : st.state === 'off' ? 'Off' : st.state) : '';
     }
     // HEADER & SIDEBAR: what HK Frontend hides (hk-kiosk.js) -- and, on a
@@ -3909,7 +4113,7 @@
       var set = function (o) { return self.setB(path, o); };
       var plugin = x.generated && b.kiosk_engine === 'kiosk_mode';
       // ON OR OFF first; what is hidden, and how, only while on
-      c.appendChild(K.group({ footer: b.kiosk ? null : 'Home Assistant’s own header and sidebar show around this screen.' }, [
+      c.appendChild(K.group({ footer: b.kiosk ? null : 'When this screen is shown in Home Assistant, Home Assistant’s own header and sidebar show around it.' }, [
         K.toggle({ label: 'Hide Header & Sidebar', sk: 'b:kiosk', on: b.kiosk, onChange: function (on) { set({ kiosk: on }); } })]));
       if (!b.kiosk) return;
       if (!plugin) {
@@ -3933,9 +4137,9 @@
       if (plugin) rows.push(K.nav({ label: 'Kiosk Mode Options', href: base + '/kiosk-mode', sk: 'b:kiosk_options',
                                     value: Object.keys(b.kiosk_options || {}).length ? 'Custom' : 'Default' }));
       c.appendChild(K.group({ header: 'Kiosk Mode Plugin', footer: plugin
-        ? 'The Kiosk Mode plugin (HACS) hides them on this screen, with its own options. Off: HK Frontend does it.' +
+        ? 'The Kiosk Mode plugin (HACS) hides them on this screen, with its own options. Off: ' + PN() + ' does it.' +
           (tp.state !== 'ready' && tp.note ? ' ' + tp.note : '')
-        : 'HK Frontend hides them itself. The Kiosk Mode plugin (HACS) can do it instead, for its own options.' }, rows));
+        : PN() + ' hides them itself. The Kiosk Mode plugin (HACS) can do it instead, for its own options.' }, rows));
     }
     // WALLPANEL INSTEAD: only where WallPanel (HACS) is installed, for a screen
     // that prefers it; its own options page then takes over.
@@ -3944,8 +4148,8 @@
       var wp = b.screensaver_engine === 'wallpanel';
       if (!wp && (!tp.state || tp.state === 'missing')) return;
       c.appendChild(K.group({ header: 'WallPanel', footer: wp
-        ? 'WallPanel (HACS) draws this screen’s screensaver, with the options below. Off: HK Frontend’s own.'
-        : 'Draw this screen’s screensaver with WallPanel (HACS) instead of HK Frontend’s own.' }, [
+        ? 'WallPanel (HACS) draws this screen’s screensaver, with the options below. Off: ' + PN() + '’s own.'
+        : 'Draw this screen’s screensaver with WallPanel (HACS) instead of ' + PN() + '’s own.' }, [
         K.toggle({ label: 'Use WallPanel Instead', on: wp, sk: 'b:screensaver_engine', onChange: function (on) {
           self.setB(path, { screensaver_engine: on ? 'wallpanel' : 'hk' }).then(function () {
             self.go('#/screens/' + encodeURIComponent(path) + (on ? '/wallpanel' : '/screensaver'));
@@ -4008,31 +4212,26 @@
         } }));
       }
       c.appendChild(K.group({}, rows));
-      loadYaml(this._hass).then(function (ok) {
-        if (ok) {
-          var ed = document.createElement('ha-yaml-editor');
-          ed.hass = self._hass;
-          ed.defaultValue = cur;
-          ed.addEventListener('value-changed', function (e) {
-            e.stopPropagation(); valid = e.detail.isValid !== false; cur = e.detail.value;
-            if (valid && o.onDraft) o.onDraft(cur);
-          });
-          box.appendChild(ed);
-        } else {
-          var ta = h('textarea', { 'aria-label': 'Options as JSON', spellcheck: 'false' });
-          ta.value = JSON.stringify(cur, null, 2);
-          ta.addEventListener('input', function () {
-            try { cur = ta.value.trim() ? JSON.parse(ta.value) : {}; valid = true; } catch (e) { valid = false; }
-            if (valid && o.onDraft) o.onDraft(cur);
-          });
-          box.appendChild(ta);
-        }
-      });
+      // THE KIT'S YAML EDITOR (Phase 2 P2.4; Home Assistant's before): the
+      // value written out, read back at every change -- empty is {}, a
+      // mistake leaves Save saying so
+      box.appendChild(K.yaml({ value: cur, label: o.label || 'YAML', fk: o.sk + ':yaml', sk: o.sk + ':yaml',
+        onChange: function (v, ok) {
+          valid = ok; cur = v;
+          if (valid && o.onDraft) o.onDraft(cur);
+        } }));
     }
 
     // ---------------------------------------------------------- add a screen
     p_add(sub) {
       var self = this, d = this.data;
+      // a host that can't make a screen says why instead
+      var addNote = this.hostNote('add_screen');
+      if (addNote) {
+        return { title: 'Add Screen', back: [this.title(), '#/'], body: function (c) {
+          c.appendChild(K.group({ footer: addNote }, []));
+        } };
+      }
       var others = d.dashboards.filter(function (x) { return !x.item; });
       this._new = this._new || { name: '', kind: 'wall_tablet', admin: false };
       var nw = this._new;
@@ -4179,28 +4378,27 @@
     // a dashboard's item, through its own flow (what it is shown on, then
     // its menu as that starts it)
     async createItem(path, kind) {
-      var hass = this._hass, base = 'config/config_entries/subentries/flow';
-      var r = await hass.callApi('POST', base, { handler: [this.data.entry_id, 'dashboard'] });
+      var base = 'config/config_entries/subentries/flow';
+      var r = await this.rest('POST', base, { handler: [this.data.entry_id, 'dashboard'] });
       var fid = r.flow_id;
       try {
-        r = await hass.callApi('POST', base + '/' + fid, { dashboard: path });
-        if (r.step_id === 'kind') r = await hass.callApi('POST', base + '/' + fid, { kind: kind });
-        if (r.step_id === 'settings') r = await hass.callApi('POST', base + '/' + fid, {});
+        r = await this.rest('POST', base + '/' + fid, { dashboard: path });
+        if (r.step_id === 'kind') r = await this.rest('POST', base + '/' + fid, { kind: kind });
+        if (r.step_id === 'settings') r = await this.rest('POST', base + '/' + fid, {});
       } catch (e) {
-        hass.callApi('DELETE', base + '/' + fid).catch(function () {});
+        this.rest('DELETE', base + '/' + fid).catch(function () {});
         throw e;
       }
       if (r.type !== 'create_entry') throw new Error(r.reason || 'not set up');
     }
     async createScreen(title, kind, admin) {
-      var hass = this._hass;
       var slug = 'hk-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
       var taken = this.data.dashboards.map(function (d) { return d.path; });
       var path = slug, n = 2;
       while (taken.indexOf(path) >= 0) path = slug + '-' + (n++);
-      await hass.callWS({ type: 'lovelace/dashboards/create', url_path: path, title: title,
+      await this.actions().callWS({ type: 'lovelace/dashboards/create', url_path: path, title: title,
                           icon: 'mdi:home-heart', show_in_sidebar: true, require_admin: !!admin, mode: 'storage' });
-      await hass.callWS({ type: 'lovelace/config/save', url_path: path, config: { strategy: { type: 'custom:hk-dashboard' } } });
+      await this.actions().callWS({ type: 'lovelace/config/save', url_path: path, config: { strategy: { type: 'custom:hk-dashboard' } } });
       await this.createItem(path, kind);
       return path;
     }
@@ -4296,7 +4494,7 @@
     // feature (Energy, Music, Live TV) opens on that feature's settings;
     // those pages' own sub-pages keep their #/features/... addresses.
     pageHas() {
-      var st = (this._hass && this._hass.states) || {}, n = function (dom) {
+      var st = (this.client && this.client.states) || {}, n = function (dom) {
         return Object.keys(st).filter(function (k) { return k.indexOf(dom + '.') === 0; }).length;
       };
       return { kinds: this.data.kinds || {}, alarm: this.hs('security.alarm'), cameras: n('camera'), calendars: n('calendar'), weather: n('weather') };
@@ -4569,7 +4767,7 @@
         if (sub[0] === 'order') return mk('Room Order', function (c) { self.h_roomOrder(c); });
         // THE ROOM PAGES' STATUS ROW (Status Rows' until 2026-10-16)
         if (sub[0] === 'status') return mk('Room Status Row', function (c) { self.h_statusRow(c, 'rooms'); });
-        var areasH = (this._hass && this._hass.areas) || {};
+        var areasH = (this.client && this.client.areas) || {};
         if (sub[0] && areasH[sub[0]]) {
           var aid = sub[0], rn = this.areaName(aid), rb = [rn, base + '/' + encodeURIComponent(aid)];
           if (sub[1] === 'order') return { title: 'Tile Order', back: rb, body: function (c) { self.a_roomOrder(c, aid); } };
@@ -4748,7 +4946,7 @@
       // Lighting's color temperature when the house has it, else the sun's
       if (page === 'lights') {
         var al = this.entityIds({ domains: ['switch'] }).filter(function (id) {
-          var a = (self._hass.states[id] || {}).attributes || {};
+          var a = (self.client.states[id] || {}).attributes || {};
           return /adaptive_lighting/.test(id) && a.color_temp_kelvin != null;
         });
         c.appendChild(K.group({ header: 'Background', footer: al.length
@@ -4780,7 +4978,7 @@
       } else if (page === 'security') {
         var way = function (k, label) {
           return listRow(k, label, null, ents(['lock', 'binary_sensor', 'cover'], function (id) {
-            var dc = (self._hass.states[id].attributes || {}).device_class;
+            var dc = (self.client.states[id].attributes || {}).device_class;
             return id.indexOf('binary_sensor.') !== 0 || /^(door|garage_door|opening)$/.test(dc || '');
           }), label, 'Automatic');
         };
@@ -4811,7 +5009,7 @@
         var pr = (cur.presets || []).slice();
         c.appendChild(K.listEditor({ fk: 'hd:presets', shownHeader: 'Quick Durations', moreHeader: pr.length < 6 ? 'More' : null, minRows: 1,
           announce: this.announce.bind(this),
-          shownFooter: 'The buttons that start a timer in one tap, in this order. Up to six; the Timers page’s Quick Start needs the quick-timer helpers.',
+          shownFooter: 'The buttons that start a timer in one tap, in this order. Up to six; the Timers page’s Quick Start needs the quick_timers.yaml package in Home Assistant.',
           rows: pr.map(function (m) { return { value: m, label: mins(m) }; }),
           more: pr.length < 6 ? STEPS.filter(function (m) { return pr.indexOf(m) < 0; }).map(function (m) { return { value: m, label: mins(m) }; }) : [],
           onChange: function (v) { if (v.length) save('presets', v.map(Number).slice(0, 6)); } }));
@@ -4841,14 +5039,14 @@
     // (for a reading, the sensors and thermostats that report it), not
     // already counted; the server adds only what it could be (hiding._also).
     countAdd(kind, ck) {
-      var self = this, hass = this._hass, reading = kind === 'temperature' || kind === 'humidity';
+      var self = this, client = this.client, reading = kind === 'temperature' || kind === 'humidity';
       var T = M.accType(kind);
       var href = this.picker('count-add:' + kind, { title: 'Add to ' + (T ? T[1] : 'Also Count'), value: null, multi: true,
         items: function () {
           return self.entityIds({ domains: ck.also || ck.domains || [], shown: true }).filter(function (id) {
             if (ck.found.indexOf(id) >= 0 || ck.exclude.indexOf(id) >= 0) return false;
             if (!reading) return true;
-            var a = (hass.states[id] || {}).attributes || {};
+            var a = (client.states[id] || {}).attributes || {};
             return id.indexOf('climate.') === 0 ? ('current_' + kind) in a : a.device_class === kind;
           }).map(function (id) { return { value: id, label: self.name(id), sub: (self.areaName(self.areaOf(id)) || 'No room') + ' · ' + id }; });
         },
@@ -4867,13 +5065,13 @@
     // the page's alone)
     h_weather(c) {
       var self = this, set = function (k) { return function (v) { var o = {}; o[k] = v; self.setH(o); }; };
-      var place = (this._hass.config && this._hass.config.location_name) || 'Home';
+      var place = (this.client.config && this.client.config.location_name) || 'Home';
       c.appendChild(K.group({ header: 'Weather Source', footer: 'The header, Climate and the screensaver use these too. Place: the name over the temperature; empty, this home’s name, ' + String(place).toUpperCase() + '.' }, [
         this.entityRow({ label: 'Weather Service', sk: 'weather.entity', value: this.hs('weather.entity'), none: 'First Weather Entity',
                          filter: { domains: ['weather'] }, onPick: set('weather.entity') }),
         K.text({ label: 'Place', sk: 'weather.place', value: this.hs('weather.place'), placeholder: place, maxlength: 60,
                  error: this.err('weather.place'), onCommit: function (v) { self.setH({ 'weather.place': v }); } })]));
-      var pg = M.wxPage(this.data.settings), r = M.radarOf(this.data.settings), plan = M.radarPlanOf(r, this._hass);
+      var pg = M.wxPage(this.data.settings), r = M.radarOf(this.data.settings), plan = M.radarPlanOf(r, this.client);
       c.appendChild(K.group({ header: 'Forecast', footer: 'What the Weather page shows. Only on this page: the header and the screensaver keep their own.' }, [
         K.nav({ label: 'Forecast & Details', value: M.forecastSummary(pg), href: '#/page/weather/forecast', sk: 'weather.page' })]));
       var keys = ['feels_like', 'humidity', 'wind', 'gust', 'uv', 'outside', 'forecast_daily', 'forecast_hourly', 'alerts'];
@@ -4897,15 +5095,15 @@
     }
     h_weatherForecast(c) {
       var self = this, pg = M.wxPage(this.data.settings);
-      var tog = function (k, label, sub) {
-        var o = {}; return K.toggle({ label: label, sub: sub, on: pg[k], sk: 'weather.page.' + k,
+      var tog = function (k, label, sub, dim) {
+        var o = {}; return K.toggle({ label: label, sub: sub, on: pg[k], sk: 'weather.page.' + k, disabled: !!dim && !pg[k],
                                       onChange: function (on) { o[k] = on; self.wxPageSet(o); } });
       };
       var alerts = this.hs('weather.alerts');
       c.appendChild(K.group({ header: 'Show', footer: 'Weather Alerts appear only while an alert is in effect' +
           (alerts ? '.' : ', from an Alerts sensor (Optional Readings → Sensors).') }, [
         tog('show_current', 'Current Conditions'), tog('show_hourly', 'Hourly Forecast'), tog('show_daily', 'Daily Forecast'),
-        tog('show_alerts', 'Weather Alerts', alerts ? null : 'No Alerts sensor chosen')]));
+        tog('show_alerts', 'Weather Alerts', alerts ? null : 'Needs the NWS Alerts integration (US only) and its sensor', !alerts)]));
       c.appendChild(K.group({ header: 'Hourly Forecast', footer: 'Up to this many hours, as many as the weather service gives; they scroll sideways where they don’t fit. ' +
           'The view it opens on; a reading the service doesn’t give falls back to Temperature.' }, [
         K.seg({ label: 'Hours', sk: 'weather.page.hours', value: pg.hours, options: M.WX_HOURS,
@@ -4929,7 +5127,7 @@
     }
     // THE RADAR MAP (hk-radar.js): HK's own, over OpenStreetMap
     h_radar(c) {
-      var self = this, r = M.radarOf(this.data.settings), plan = M.radarPlanOf(r, this._hass);
+      var self = this, r = M.radarOf(this.data.settings), plan = M.radarPlanOf(r, this.client);
       var rows = [K.toggle({ label: 'Show Radar', on: r.enabled, sk: 'weather.radar_native.enabled',
                              onChange: function (on) { self.radarSet({ enabled: on }); } })];
       var says = r.enabled ? (plan.reason ? M.RADAR_REASONS[plan.reason]
@@ -5055,7 +5253,7 @@
     // show: every calendar, A to Z (automatic), or the ones chosen, in order;
     // each with its colour (its own page)
     calIds() {
-      var st = (this._hass && this._hass.states) || {};
+      var st = (this.client && this.client.states) || {};
       return Object.keys(st).filter(function (k) { return k.indexOf('calendar.') === 0; }).sort();
     }
     calColor(id, shown) {
@@ -5170,7 +5368,7 @@
       var self = this, mine = this.hs('calendar.entities') || [], shown = mine.length ? mine : this.calIds();
       var all = Object.assign({}, this.hs('calendar.colors') || {});
       var i = shown.indexOf(id), autoKey = M.CAL_COLORS[(i < 0 ? 0 : i) % M.CAL_COLORS.length];
-      var st = this._hass && this._hass.states[id], f = (st && st.attributes && st.attributes.supported_features) || 0;
+      var st = this.client && this.client.states[id], f = (st && st.attributes && st.attributes.supported_features) || 0;
       var can = [f & 1 ? 'added' : null, f & 4 ? 'changed' : null, f & 2 ? 'deleted' : null].filter(Boolean);
       c.appendChild(K.group({ footer: 'Its events’ color on the Calendar page and the screensaver. Automatic: the next color by its place in the list.' }, [
         K.select({ label: 'Color', sk: 'calendar.colors', value: all[id] || '', placeholder: 'Automatic',
@@ -5199,7 +5397,7 @@
         row('outside', 'Outside Temperature', 'Not Shown', 'temperature', 'The Weather page’s daily averages')]));
       c.appendChild(K.group({ header: 'Forecast', footer: 'A sensor with a forecast attribute. Empty: the forecast is read from the weather service.' }, [
         row('forecast_daily', 'Daily Forecast', 'From Weather Service'), row('forecast_hourly', 'Hourly Forecast', 'From Weather Service')]));
-      c.appendChild(K.group({ header: 'Alerts', footer: 'The NWS Alerts sensor. Its alert chip and card show only while an alert is active.' }, [
+      c.appendChild(K.group({ header: 'Alerts', footer: 'The NWS Alerts integration’s sensor (US only; without it there are no alerts). Its alert chip and card show only while an alert is active.' }, [
         row('alerts', 'Weather Alerts', 'None')]));
     }
     h_appearance(c) {
@@ -5395,7 +5593,7 @@
         });
       }
       var gate = sky.seasonal ? ' They also need ' + this.name(sky.seasonal) + ' to be on (Advanced).' : '';
-      c.appendChild(K.group({ header: 'Seasonal Decorations', footer: 'What the live sky dresses up for. This is the same switch as Seasonal Decorations on the HK Frontend device.' + gate }, rows));
+      c.appendChild(K.group({ header: 'Seasonal Decorations', footer: 'What the live sky dresses up for. This is the same switch as Seasonal Decorations on the ' + haName('HK Frontend device') + '.' + gate }, rows));
       // LIVELINESS (2026-10-09): one preset for every holiday, occasion,
       // season and the Night Sky, or Custom -- each its own (Each Occasion)
       if (this.livelyMoves()) {
@@ -5488,7 +5686,7 @@
                           on: kind(own) === 'stay', fk: o.fk + ':stay', onClick: function () { if (kind(own) !== 'stay' && file) o.onSet(file); } }));
       rows.push(K.nav({ label: 'Choose a Landscape', href: o.href, sk: o.sk }));
       c.appendChild(this.withError(K.group({ header: 'Landscape', footer: (o.footer ? o.footer + ' ' : '') +
-        'Fifty photos that come with HK Frontend, all public domain or CC0, from Wikimedia Commons.' }, rows), o.sk));
+        'Fifty photos that come with ' + PN() + ', all public domain or CC0, from Wikimedia Commons.' }, rows), o.sk));
     }
     // CHOOSE A LANDSCAPE: every one, small, the one it stays on ticked; a
     // tap picks it, and it stays (Stay the Same).
@@ -5589,7 +5787,7 @@
         var blob = await shrinkPhoto(file, 2560);
         var fd = new FormData();
         fd.append('file', blob, 'hk-background.jpg');
-        var r = await this._hass.fetchWithAuth('/api/image/upload', { method: 'POST', body: fd });
+        var r = await this.actions().request('/api/image/upload', { method: 'POST', body: fd });
         if (!r.ok) throw new Error(r.status === 413 ? 'It’s too big.' : 'Home Assistant answered ' + r.status + '.');
         var j = await r.json();
         if (!j || !/^[0-9a-f]{32}$/.test(j.id || '')) throw new Error('Home Assistant didn’t say where it put it.');
@@ -5615,7 +5813,7 @@
         Object.keys(b.sky_page_photos || {}).forEach(function (k) { used.push(b.sky_page_photos[k]); });
       });
       if (used.indexOf(url) >= 0) return;
-      this._hass.callWS({ type: 'image/delete', image_id: m[1] }).catch(function () { /* already gone */ });
+      this.actions().callWS({ type: 'image/delete', image_id: m[1] }).catch(function () { /* already gone */ });
     }
     // The picker reads choices from the server, just like dates and themes.
     // Loading the dashboard's settings module here would start its websocket
@@ -5967,7 +6165,7 @@
                             href: base + '/sky/lively', value: 'Custom' }));
         }
         // only where the screen's room can tell it is empty
-        if (b.idle_room && M.roomSensors(this._hass, b.idle_room).length) {
+        if (b.idle_room && M.roomSensors(this.client, b.idle_room).length) {
           rows.push(K.toggle({ label: 'Calm When Nobody\u2019s Around', sub: 'Half as much moving while ' + this.areaName(b.idle_room) +
               ' has been empty for 5 minutes', sk: 'b:sky_calm_empty', on: !!b.sky_calm_empty,
             onChange: function (v) { self.setB(x.path, { sky_calm_empty: v }); } }));
@@ -6081,7 +6279,7 @@
                           tile: ['mdi:palette', C.purple], onClick: function () { if (!isColor) pick(startColor); } }));
       rows.push(K.check({ label: 'Photo', sub: photos[r.key] ? 'Its own photo' : 'A photo, still', on: cur === 'photo', fk: 'pbd:' + r.key + ':photo',
                           tile: ['mdi:image', C.orange], onClick: function () { pick('photo'); } }));
-      rows.push(K.check({ label: 'Landscapes', sub: 'HK Frontend’s own photos, as ' + (b ? 'the screen' : 'All Screens') + ' has them', on: cur === 'landscapes',
+      rows.push(K.check({ label: 'Landscapes', sub: PN() + '’s own photos, as ' + (b ? 'the screen' : 'All Screens') + ' has them', on: cur === 'landscapes',
                           fk: 'pbd:' + r.key + ':landscapes', tile: ['mdi:image-filter-hdr', C.teal], onClick: function () { pick('landscapes'); } }));
       c.appendChild(K.group({ header: alone === false ? r.label : null, footer: (alone ? r.label + ' is this screen’s only page, so its background is the screen’s. ' : '') +
         'Page Color, Color, Photo and Landscapes are still: no sun, moon, stars, weather or decorations.' }, rows));
@@ -6136,7 +6334,7 @@
           var k = self.roomKey(aid);
           if (!k) return null;
           var n = self.skyPageNow({ key: k, room: true }, b);
-          return K.nav({ label: self.areaName(aid), icon: ((self._hass.areas || {})[aid] || {}).icon || 'mdi:texture-box',
+          return K.nav({ label: self.areaName(aid), icon: ((self.client.areas || {})[aid] || {}).icon || 'mdi:texture-box',
                          value: n.own ? M.skyModeLabel(n.mode, bds) : 'Same as Room Pages', href: base + encodeURIComponent(k), sk: (b ? 'b:sky_pages:' : 'sky.pages:') + k });
         }).filter(Boolean);
         if (rrows.length) c.appendChild(K.group({ header: 'Each Room', footer: 'A room left alone is the same as Room Pages. A photo of the room itself, say, behind its page.' }, rrows));
@@ -6408,7 +6606,7 @@
       if (own) bgRows.push(K.button({ label: 'Reset to All Screens (' + M.BG_LABELS[hMode] + ')', sk: 'b:sky_flat_background:reset',
                                       onClick: function () { put({ sky_flat_background: null }); } }));
       var says = { color: 'A solid color behind the cards.', photo: 'A photo of your own, still, faded behind the cards.',
-                   landscapes: 'One of HK Frontend’s landscape photos, still, faded behind the cards.' };
+                   landscapes: 'One of ' + PN() + '’s landscape photos, still, faded behind the cards.' };
       c.appendChild(K.group({ footer: says[mode] + ' Flat shows no Live Sky: its sun, weather and decorations come back with the other looks, as you left them. ' +
         (b ? 'Each page can choose its own below.' : 'Each screen, and each page, can choose its own.') }, bgRows));
       if (mode === 'color') {
@@ -6482,7 +6680,7 @@
                           tile: ['mdi:palette', C.purple], onClick: function () { if (!isColor) pick((b && b.sky_flat_color && b.sky_flat_color !== 'auto' && b.sky_flat_color) || (sky.flat_color !== 'auto' && sky.flat_color) || 'stone'); } }));
       rows.push(K.check({ label: 'Photo', sub: photos[r.key] ? 'Its own photo' : 'A photo, still', on: cur === 'photo', fk: 'fpbd:' + r.key + ':photo',
                           tile: ['mdi:image', C.orange], onClick: function () { pick('photo'); } }));
-      rows.push(K.check({ label: 'Landscapes', sub: 'HK Frontend’s own photos, as ' + (b ? 'the screen' : 'All Screens') + ' has them', on: cur === 'landscapes',
+      rows.push(K.check({ label: 'Landscapes', sub: PN() + '’s own photos, as ' + (b ? 'the screen' : 'All Screens') + ' has them', on: cur === 'landscapes',
                           fk: 'fpbd:' + r.key + ':landscapes', tile: ['mdi:image-filter-hdr', C.teal], onClick: function () { pick('landscapes'); } }));
       c.appendChild(K.group({ footer: 'While Flat is on. A photo here fades as ' + (b ? 'the screen’s' : 'All Screens’') + ' Fade says.' }, rows));
       // ITS FLAT COLORS, beside its background (the same page key)
@@ -6508,7 +6706,7 @@
           var k = self.roomKey(aid);
           if (!k) return null;
           var n = self.flatPageNow({ key: k, room: true }, b);
-          return K.nav({ label: self.areaName(aid), icon: ((self._hass.areas || {})[aid] || {}).icon || 'mdi:texture-box',
+          return K.nav({ label: self.areaName(aid), icon: ((self.client.areas || {})[aid] || {}).icon || 'mdi:texture-box',
                          value: n.own ? self.flatModeLabel(n.mode, theme) : 'Same as Room Pages', href: base + '/page/' + encodeURIComponent(k),
                          sk: (b ? 'b:sky_flat_pages:' : 'sky.flat_pages:') + k });
         }).filter(Boolean);
@@ -6959,7 +7157,7 @@
     // every screen's Home strip and Cameras page, and the room pages' cameras
     // in that order -- unless a screen sets its own (that screen -> Cameras).
     h_cameras(c) {
-      var self = this, ents = this._hass.entities || {};
+      var self = this, ents = this.client.entities || {};
       var ok = this.entityIds({ domains: ['camera'], shown: true }).filter(function (id) { return !self.notHouseCamera(id); }).sort();
       var autoCams = M.autoCameras(ok, function (id) { return (ents[id] || {}).device_id; });
       var save = function (v) { return self.setH({ 'cameras.order': v }); };
@@ -6979,6 +7177,13 @@
           (ownLive.length ? ' ' + ownLive.map(function (p) { var d = self.dash(p); return d ? d.title : p; }).join(', ') +
             (ownLive.length === 1 ? ' sets its own.' : ' set their own.') : ' A screen can set its own in its Cameras.') }, [
         K.toggle({ label: 'Live First Camera', sk: 'cameras.live', on: live, onChange: function (on) { self.setH({ 'cameras.live': on }); } })]));
+      // PAUSE WHEN NOT IN FOCUS (2026-10-21): a computer's live cameras rest
+      // while another window is in front -- the sky's own setting is apart,
+      // since a window of cameras is often kept beside other work
+      c.appendChild(K.group({ footer: 'On a computer, live cameras stop while another window is in front, and start again when you come back. ' +
+          'Turn this off to keep watching cameras in a window beside your work. Behind the screensaver, cameras always stop.' }, [
+        K.toggle({ label: 'Pause When Not in Focus', sk: 'cameras.focus_pause', on: (this.data.settings.cameras || {}).focus_pause !== false,
+          onChange: function (on) { self.setH({ 'cameras.focus_pause': on }); } })]));
       var mdl = M.camerasModel({ cameras: ((this.data.settings.cameras || {}).order || []) }, ok, autoCams);
       c.appendChild(K.listEditor({ fk: 'house-cams', auto: mdl.auto, minRows: 1, announce: this.announce.bind(this),
         autoFooter: 'Automatic shows one of every camera, its low-resolution channel.',
@@ -7049,7 +7254,7 @@
         K.toggle({ label: 'Room Headings Open Room Pages', sk: 'rooms.headings', on: rooms.headings !== false,
                    onChange: function (on) { self.setH({ 'rooms.headings': on }); } }),
         K.nav({ label: 'Status Row', value: M.statusSummary(st), href: '#/house/rooms/status', sk: 'rooms.status' })]));
-      var areas = (this._hass && this._hass.areas) || {}, az = this.areasAZ();
+      var areas = (this.client && this.client.areas) || {}, az = this.areasAZ();
       var g = this.data.settings.generated || {}, hidden = g.exclude_areas || [];
       var into = ((this.data.accessories || {}).into) || {};
       var onHome = M.roomsModel(hb, az).rows.map(function (r) { return r.value; });
@@ -7066,7 +7271,7 @@
         })));
     }
     h_roomOrder(c) {
-      var self = this, hb = this.houseRooms(), az = this.areasAZ(), areas = (this._hass && this._hass.areas) || {};
+      var self = this, hb = this.houseRooms(), az = this.areasAZ(), areas = (this.client && this.client.areas) || {};
       var mdl = M.roomsModel(hb, az);
       var setR = function (ch) { return self.setH(M.houseRoomsSave(ch)); };
       var icon = function (a) { return (areas[a] || {}).icon || 'mdi:texture-box'; };
@@ -7085,7 +7290,7 @@
       c.appendChild(K.group({ footer: 'For every screen whose Rooms are Same as All Screens. The order is also the menu’s and the pages’, where those say Room Order.' }, []));
     }
     h_room(c, aid) {
-      var self = this, hass = this._hass, areas = hass.areas || {}, az = this.areasAZ();
+      var self = this, client = this.client, areas = client.areas || {}, az = this.areasAZ();
       var g = this.data.settings.generated || {}, hidden = (g.exclude_areas || []).slice(), shown = hidden.indexOf(aid) < 0;
       var hb = this.houseRooms(), onHome = M.roomsModel(hb, az).rows.some(function (r) { return r.value === aid; });
       var into = ((this.data.accessories || {}).into || {})[aid] || '';
@@ -7152,7 +7357,7 @@
         K.text({ label: 'Browse Page', sk: 'look.browse_view', value: look.browse_view, placeholder: 'None', error: this.err('look.browse_view'),
                  onCommit: function (v) { self.setH({ 'look.browse_view': v }); } })]));
       if (F.stateOf(this.data.features, 'hk_music') === 'added') {
-        c.appendChild(K.group({}, [K.nav({ label: 'Music', sub: 'In Devices & Services', href: F.integrationHref('hk_music'),
+        c.appendChild(K.group({}, [K.nav({ label: 'Music', sub: 'In ' + haPlace('Devices & Services'), href: F.integrationHref('hk_music'),
                                            icon: 'mdi:open-in-new', fk: 'feat:open:hk_music' })]));
       }
     }
@@ -7197,7 +7402,7 @@
         }, function (r) { if (r && r.tablet) d.tablets[tid] = Object.assign({}, d.tablets[tid] || {}, r.tablet); });
     }
     tabletStatusOf(tid) {
-      return M.tabletStatus(this.tabs()[tid], this._hass.states, (this.data.screensavers || {})[tid]);
+      return M.tabletStatus(this.tabs()[tid], this.client.states, (this.data.screensavers || {})[tid]);
     }
     // a time from Home Assistant, as the house reads it: 8:16 PM; another
     // day's with its day
@@ -7212,23 +7417,44 @@
     }
     screenTitle(path) { var x = path && this.dash(path); return x ? x.title : (path || 'No Screen'); }
     tabTile(st) { return { off: C.red, dark: C.gray, photos: C.purple, awake: C.green }[st] || C.blue; }
-    // press a kiosk app's buttons (the tablets' own Reload, Clear Cache ...)
-    press(ids) {
+    // press a kiosk app's buttons (the tablets' own Reload, Clear Cache ...):
+    // HA's buttons, or the host's own parts (its press). Resolves true, or
+    // false once a failure has been said (`what`: "Couldn't Reload")
+    press(ids, what) {
+      var self = this;
       ids = (ids || []).filter(Boolean);
-      if (!ids.length) return Promise.resolve();
-      return this._hass.callService('button', 'press', { entity_id: ids });
+      if (!ids.length) return Promise.resolve(true);
+      var hx = this.host(), go = null;
+      if (hx && typeof hx.press === 'function') { try { go = hx.press(ids, this); } catch (e) { go = Promise.reject(e); } }
+      if (!go) go = this.actions().callService('button', 'press', { entity_id: ids });
+      return Promise.resolve(go).then(function () { return true; }, function (e) {
+        var msg = (e && e.message) || String(e || 'It failed.');
+        self.announce('Couldn’t: ' + msg);
+        K.confirm(self.shadowRoot, { title: 'Couldn’t ' + (what || 'Do That'), message: msg, ok: 'OK', cancel: false });
+        return false;
+      });
     }
+    // THE ACTION PORT (HKClient) of this panel's client: every save, service
+    // call, config flow and upload goes through it. A host that cannot act
+    // refuses there, sending nothing.
+    actions() { return this.client.actions; }
+    // AN HTTP WRITE to the host's API (the config flows: start a step,
+    // answer it, abandon it), through the action port; see restWrite.
+    rest(method, path, body) { return restWrite(this.actions(), method, path, body); }
     // the kiosk apps' Clear Cache, then -- once it has had a moment -- Reload:
     // the way a tablet picks up new HK files (a reload alone keeps them)
     clearAndReload(tids) {
       var self = this, tabs = this.tabs();
       var parts = tids.map(function (t) { return (tabs[t] || {}).parts || {}; });
-      return this.press(parts.map(function (p) { return p.clear_cache; })).then(function () {
-        return new Promise(function (r) { setTimeout(r, 5000); });
-      }).then(function () { return self.press(parts.map(function (p) { return p.reload; })); });
+      return this.press(parts.map(function (p) { return p.clear_cache; }), 'Clear the Cache').then(function (ok) {
+        if (!ok) return false;
+        return new Promise(function (r) { setTimeout(r, 5000); }).then(function () {
+          return self.press(parts.map(function (p) { return p.reload; }), 'Reload');
+        });
+      });
     }
     h_tablets(c) {
-      var self = this, tabs = this.tabs(), ids = this.tabIds(), st = this._hass.states;
+      var self = this, tabs = this.tabs(), ids = this.tabIds(), st = this.client.states;
       var hs = (this.data.settings && this.data.settings.tablets) || {};
       // WHAT MAY BE A TABLET that isn't one (tablets.py suggestions)
       (this.data.tablet_suggest || []).forEach(function (sg) {
@@ -7295,10 +7521,10 @@
       }
       c.appendChild(K.group({ header: 'Upkeep', footer: 'Every tablet whose kiosk app can restart (Restart Tablet needs Kiosk Satellite as the device owner, else its app restarts). If your own automation already does this, leave it off.' }, rs));
       var withReload = ids.filter(function (tid) { return (tabs[tid].parts || {}).reload; });
-      c.appendChild(K.group({ header: 'All at Once', footer: 'After updating HK Frontend, Clear Cache & Reload: a plain reload keeps the old HK files.' }, [
+      c.appendChild(K.group({ header: 'All at Once', footer: 'After updating ' + PN() + ', Clear Cache & Reload: a plain reload keeps the old HK files.' }, [
         K.button({ label: 'Reload All', fk: 'tablets:reload', disabled: !withReload.length, onClick: function () {
           var p = withReload.map(function (tid) { return tabs[tid].parts.reload; });
-          self.press(p).then(function () { self.announce('Reloading ' + p.length + (p.length === 1 ? ' tablet' : ' tablets')); });
+          self.press(p, 'Reload').then(function (ok) { if (ok) self.announce('Reloading ' + p.length + (p.length === 1 ? ' tablet' : ' tablets')); });
         } }),
         K.button({ label: 'Clear Cache & Reload All', fk: 'tablets:clear', disabled: !withReload.length, onClick: function () {
           self.announce('Clearing the cache, then reloading. Each takes up to a minute.');
@@ -7310,7 +7536,7 @@
     t_one(c, tid) {
       var self = this, t = this.tabs()[tid];
       if (!t) { c.appendChild(K.group({ footer: 'There is no such tablet. It may have been removed.' }, [])); return; }
-      var hass = this._hass, st = hass.states, p = t.parts || {}, base = '#/house/tablets/' + encodeURIComponent(tid);
+      var client = this.client, st = client.states, p = t.parts || {}, base = '#/house/tablets/' + encodeURIComponent(tid);
       var ts = this.tabletStatusOf(tid), ids = (this.data.screensavers || {})[tid] || {};
       var house = (this.data.settings && this.data.settings.tablets) || {};
       var set = function (ch) { return self.setT(tid, ch); };
@@ -7357,7 +7583,7 @@
         tl.warn ? h('div', { class: 'tlwarn', text: 'Home comes after the screensaver starts, so the screensaver can come up over another page and it goes Home behind it. An Idle Time shorter than ' + M.idleLabel(so.starts_after).toLowerCase() + ' puts Home first.' }) : null]);
       c.appendChild(K.group({ header: 'When It’s Left Alone', footer: 'Home: Idle Time, below. The screensaver: its screen’s Screensaver Options → Starts After. Dark: Sleep Screen.' }, [tlEl,
         K.nav({ label: 'Sleep Screen', sub: 'When it goes dark, who counts as there, its brightness.', href: base + '/sleep', sk: 't:sleep',
-                value: acting ? 'HK Frontend Decides' : sl.decided_by === 'shadow' ? 'Trying It Out' : 'An Automation Decides' })]));
+                value: acting ? PN() + ' Decides' : sl.decided_by === 'shadow' ? 'Trying It Out' : 'An Automation Decides' })]));
       // WHEN IDLE: its own, or All Tablets'
       var ownRet = t.idle_return_own, ownIt = t.idle_time_own;
       var hRet = house.idle_return !== false ? 'On' : 'Off', hIt = M.idleLabel(typeof house.idle_time === 'number' ? house.idle_time : 50);
@@ -7385,7 +7611,7 @@
       var dashes = (this.data.dashboards || []).filter(function (x) { return x.item || x.path === t.screen; });
       var users = (this.data.users || []).slice();
       if (t.user && users.indexOf(t.user) < 0) users.push(t.user);
-      var devArea = t.device && hass.devices && hass.devices[t.device] ? hass.devices[t.device].area_id : '';
+      var devArea = t.device && client.devices && client.devices[t.device] ? client.devices[t.device].area_id : '';
       var setup = [
         K.text({ label: 'Name', sk: 't:name', value: t.name, error: this.err('t:name') ? 'Give it a name.' : null,
                  onCommit: function (v) { if (v.trim()) set({ name: v.trim() }); } }),
@@ -7412,6 +7638,11 @@
       c.appendChild(K.group({ header: 'Setup', footer: h('span', {}, [
         'Its start URL, for the kiosk app’s start page: ', h('span', { class: 'url', text: url }),
         '. It tells the page which tablet it is, even when two tablets share a user or a screen.']) }, setup));
+      // THE HOST'S OWN, for this tablet (extend, above): nothing in Home Assistant
+      var hx = this.host();
+      if (hx && typeof hx.extend === 'function') {
+        try { hx.extend('tablet', c, { tablet: tid, name: t.name, app: t.app }, this); } catch (e) { /* the host's own page */ }
+      }
       // SETUP CHECK, with Fix where HK can set it right
       var checks = M.tabletChecks(t, st);
       if (checks.length) {
@@ -7422,8 +7653,8 @@
           if (!ch.ok && ch.fix) {
             cr.push(K.button({ label: 'Fix: ' + ch.title, fk: 't:fix:' + ch.key, onClick: function () {
               var go = ch.fix[0] === 'hk'
-                ? hass.callWS({ type: DOMAIN + '/tablet/act', tablet: tid, act: 'kiosk_saver' })
-                : hass.callService(ch.fix[0], ch.fix[1], ch.fix[2]);
+                ? self.actions().callWS({ type: DOMAIN + '/tablet/act', tablet: tid, act: 'kiosk_saver' })
+                : self.actions().callService(ch.fix[0], ch.fix[1], ch.fix[2]);
               Promise.resolve(go).then(function () { self.announce('Done: ' + ch.title); setTimeout(function () { self.render(true); }, 1500); },
                                        function (e) { self.announce('Couldn’t: ' + ((e && e.message) || e)); });
             } }));
@@ -7434,7 +7665,7 @@
       // ACTIONS: what its kiosk app (and Sleep Screen) can do
       var act = [];
       var ask = function (what) {
-        return hass.callWS({ type: DOMAIN + '/tablet/act', tablet: tid, act: what }).then(function () {
+        return self.actions().callWS({ type: DOMAIN + '/tablet/act', tablet: tid, act: what }).then(function () {
           self.announce(what === 'wake' ? t.name + ' is waking' : t.name + ' is going dark');
         }, function (e) { self.announce('Couldn’t: ' + ((e && e.message) || e)); });
       };
@@ -7442,14 +7673,14 @@
         act.push(K.button({ label: 'Wake Now', fk: 't:wake', onClick: function () { ask('wake'); } }));
         act.push(K.button({ label: 'Sleep Now', fk: 't:sleepnow', onClick: function () { ask('sleep'); } }));
       }
-      if (p.reload) act.push(K.button({ label: 'Reload', fk: 't:reload', onClick: function () { self.press([p.reload]).then(function () { self.announce('Reloading ' + t.name); }); } }));
+      if (p.reload) act.push(K.button({ label: 'Reload', fk: 't:reload', onClick: function () { self.press([p.reload], 'Reload').then(function (ok) { if (ok) self.announce('Reloading ' + t.name); }); } }));
       if (p.reload && p.clear_cache) act.push(K.button({ label: 'Clear Cache & Reload', fk: 't:clear', onClick: function () { self.announce('Clearing the cache, then reloading'); self.clearAndReload([tid]); } }));
-      if (p.restart_app) act.push(K.button({ label: 'Restart App', fk: 't:restartapp', onClick: function () { self.press([p.restart_app]).then(function () { self.announce('Restarting the app'); }); } }));
+      if (p.restart_app) act.push(K.button({ label: 'Restart App', fk: 't:restartapp', onClick: function () { self.press([p.restart_app], 'Restart the App').then(function (ok) { if (ok) self.announce('Restarting the app'); }); } }));
       if (p.restart_device) {
         act.push(K.button({ label: 'Restart Tablet…', destructive: true, fk: 't:restart', onClick: function () {
           K.confirm(self.shadowRoot, { title: 'Restart ' + t.name + '?', message: 'The tablet restarts and comes back to its screen in about a minute.',
                                        ok: 'Restart', destructive: true }).then(function (yes) {
-            if (yes) self.press([p.restart_device]).then(function () { self.announce('Restarting ' + t.name); });
+            if (yes) self.press([p.restart_device], 'Restart the Tablet').then(function (ok) { if (ok) self.announce('Restarting ' + t.name); });
           });
         } }));
       }
@@ -7545,12 +7776,12 @@
 
     // ---------------------------------------------------------- accessories
     accIds() {
-      var self = this, hass = this._hass, ents = hass.entities || {}, acc = (this.data.accessories || {}).entities || {};
+      var self = this, client = this.client, ents = client.entities || {}, acc = (this.data.accessories || {}).entities || {};
       var chipIds = {};
       Object.keys(this.data.boards || {}).forEach(function (p) {
         ((self.data.boards[p] || {}).chips_extra || []).forEach(function (id) { chipIds[id] = true; });
       });
-      return Object.keys(hass.states).filter(function (id) {
+      return Object.keys(client.states).filter(function (id) {
         var e = ents[id] || {};
         if (acc[id] || chipIds[id]) return true;
         if (!TILE_DOMAINS.test(id) || e.hidden || e.entity_category) return false;
@@ -7609,18 +7840,18 @@
     // number is what its page and chip count (a kind's `found`), or how
     // many of its domain HK shows.
     typeMembers(T) {
-      var self = this, o = T[4], hass = this._hass;
+      var self = this, o = T[4], client = this.client;
       if (o.energy) return [];
       if (o.kind) {
         var ck = (this.data.counts || {})[o.kind] || {}, H = this.hid(), seen = {}, out = [];
-        var add = function (id) { if (!seen[id] && hass.states[id]) { seen[id] = 1; out.push(id); } };
+        var add = function (id) { if (!seen[id] && client.states[id]) { seen[id] = 1; out.push(id); } };
         (ck.found || []).forEach(add);
         (ck.exclude || []).forEach(add);
         return out;
       }
       return this.accIds().filter(function (id) {
         if (o.domains.indexOf(id.split('.')[0]) < 0 || self.hiddenAll(id)) return false;
-        return !o.dc || o.dc.indexOf(((hass.states[id] || {}).attributes || {}).device_class) >= 0;
+        return !o.dc || o.dc.indexOf(((client.states[id] || {}).attributes || {}).device_class) >= 0;
       });
     }
     // hidden everywhere (by itself, its device or its room): one row on a
@@ -7628,16 +7859,16 @@
     // hides would crowd every room
     hiddenAll(id) { return /^(Everywhere|With Its)/.test(this.hideText(id)); }
     typeHidden(T) {
-      var self = this, o = T[4], H = this.hid(), hass = this._hass;
+      var self = this, o = T[4], H = this.hid(), client = this.client;
       if (o.energy) return [];
-      if (o.kind) return H.everywhere.filter(function (id) { return hass.states[id] && (H.can[id] || []).indexOf(o.kind) >= 0; });
+      if (o.kind) return H.everywhere.filter(function (id) { return client.states[id] && (H.can[id] || []).indexOf(o.kind) >= 0; });
       return this.accIds().filter(function (id) {
         if (o.domains.indexOf(id.split('.')[0]) < 0 || !self.hiddenAll(id)) return false;
-        return !o.dc || o.dc.indexOf(((hass.states[id] || {}).attributes || {}).device_class) >= 0;
+        return !o.dc || o.dc.indexOf(((client.states[id] || {}).attributes || {}).device_class) >= 0;
       });
     }
     typeCount(T) {
-      if (T[4].kind) return (((this.data.counts || {})[T[4].kind] || {}).found || []).filter(function (id) { return this._hass.states[id]; }, this).length;
+      if (T[4].kind) return (((this.data.counts || {})[T[4].kind] || {}).found || []).filter(function (id) { return this.client.states[id]; }, this).length;
       return this.typeMembers(T).length;
     }
     typeSays(T) {
@@ -7650,7 +7881,7 @@
     }
     // the type an accessory's tile is, for a room's list
     typeOf(id) {
-      var dom = id.split('.')[0], dc = ((this._hass.states[id] || {}).attributes || {}).device_class;
+      var dom = id.split('.')[0], dc = ((this.client.states[id] || {}).attributes || {}).device_class;
       if (dom === 'binary_sensor') return { door: 'doors', window: 'windows', garage_door: 'garage', smoke: 'smoke', carbon_monoxide: 'smoke',
                                             moisture: 'leaks', motion: 'motion', moving: 'motion', occupancy: 'occupancy', presence: 'occupancy' }[dc] || null;
       if (dom === 'sensor') return dc === 'temperature' || dc === 'humidity' ? dc : null;
@@ -7661,7 +7892,7 @@
                timer: 'timers', camera: 'cameras' }[dom] || null;
     }
     a_root(c) {
-      var self = this, hass = this._hass, areas = hass.areas || {}, g = this.data.settings.generated;
+      var self = this, client = this.client, areas = client.areas || {}, g = this.data.settings.generated;
       var acc = (this.data.accessories || {}).entities || {};
       var ids = this.accIds();
       var sb = h('div', { class: 'search', style: 'margin:0 0 22px' });
@@ -7805,7 +8036,7 @@
       });
     }
     a_room(c, aid) {
-      var self = this, hass = this._hass, areas = hass.areas || {}, acc = (this.data.accessories || {}).entities || {};
+      var self = this, client = this.client, areas = client.areas || {}, acc = (this.data.accessories || {}).entities || {};
       var ids = this.accIds().filter(function (id) {
         var a = self.areaOf(id);
         return aid === '-' ? !a && id.indexOf('timer.') !== 0 : aid === '~timers' ? !a && id.indexOf('timer.') === 0 : a === aid;
@@ -7844,7 +8075,7 @@
       var self = this, own = (((this.data.accessories || {}).scenes || {})[aid]);
       var auto = !Array.isArray(own), autoIds = this.roomScenesAuto(aid), cur = auto ? autoIds : own;
       var save = function (v) { self.ws({ type: DOMAIN + '/accessory/room_scenes', area_id: aid, entities: v }); };
-      var row = function (id) { return { value: id, label: self.name(id), sub: self._hass.states[id] ? id : id + ' (missing)' }; };
+      var row = function (id) { return { value: id, label: self.name(id), sub: self.client.states[id] ? id : id + ' (missing)' }; };
       c.appendChild(K.listEditor({ fk: 'rs', auto: auto, announce: this.announce.bind(this), shownHeader: 'Scenes',
         autoFooter: 'Automatic: the Home Assistant scenes in this room, A to Z' + (autoIds.length ? '.' : ' — it has none, so there’s no row.'),
         emptyText: auto ? 'No scenes in this room' : 'No scenes row',
@@ -7903,8 +8134,8 @@
     hid() {
       return this.data.hidden || { places: {}, order: [], can: {}, off: {}, everywhere: [], devices: [], areas: [] };
     }
-    devName(did) { var d = (this._hass.devices || {})[did]; return d ? (d.name_by_user || d.name || did) : 'A Removed Device'; }
-    devOf(id) { return ((this._hass.entities || {})[id] || {}).device_id || null; }
+    devName(did) { var d = (this.client.devices || {})[did]; return d ? (d.name_by_user || d.name || did) : 'A Removed Device'; }
+    devOf(id) { return ((this.client.entities || {})[id] || {}).device_id || null; }
     // what hides it, in a few words: "" when nothing does
     hideText(id) {
       var H = this.hid(), dv = this.devOf(id), a = this.areaOf(id);
@@ -7925,7 +8156,7 @@
       return a ? this.areaName(a) + ' Room Page' : 'Room Pages';
     }
     hiddenCount() {
-      var H = this.hid(), devs = this._hass.devices || {}, areas = this._hass.areas || {};
+      var H = this.hid(), devs = this.client.devices || {}, areas = this.client.areas || {};
       return this.hiddenEntities().length + H.devices.filter(function (d) { return devs[d]; }).length +
         H.areas.filter(function (a) { return areas[a]; }).length;
     }
@@ -7933,14 +8164,14 @@
     hiddenEntities() {
       var H = this.hid(), self = this, seen = {};
       return H.everywhere.concat(Object.keys(H.off)).filter(function (id) {
-        if (seen[id] || !self._hass.states[id]) return false;
+        if (seen[id] || !self.client.states[id]) return false;
         seen[id] = true;
         var dv = self.devOf(id), a = self.areaOf(id);
         return !(dv && H.devices.indexOf(dv) >= 0) && !(a && H.areas.indexOf(a) >= 0);
       });
     }
     accGlyph(id) {
-      var a = ((this.data.accessories || {}).entities || {})[id] || {}, st = this._hass.states[id];
+      var a = ((this.data.accessories || {}).entities || {})[id] || {}, st = this.client.states[id];
       if (a.icon) return String(a.icon).replace(/^mdi:/, 'hk:');
       if (st && st.attributes.icon) return st.attributes.icon;
       return { light: 'mdi:lightbulb', switch: 'mdi:toggle-switch-variant', fan: 'mdi:fan', cover: 'mdi:window-shutter',
@@ -7971,7 +8202,7 @@
         ['hide'], function () { self.hideMerge(ids, guess); }, function (r) { self.hideMerge(ids, r); });
     }
     a_hidden(c) {
-      var self = this, H = this.hid(), hass = this._hass, devs = hass.devices || {};
+      var self = this, H = this.hid(), client = this.client, devs = client.devices || {};
       var v = this._hv || (this._hv = { f: 'all', q: '' });
       c.appendChild(K.group({}, [K.button({ label: 'Hide Accessories…', fk: 'hide:start', onClick: function () {
         self._hp = { ents: [], devs: [], tab: 'acc', q: '' };
@@ -8010,17 +8241,17 @@
           })));
         var isRecent = function (x) { return recent.indexOf(x) >= 0; };
         if (v.f !== 'some') {
-          var rooms = H.areas.filter(function (a) { return (hass.areas || {})[a] && m(self.areaName(a)); });
+          var rooms = H.areas.filter(function (a) { return (client.areas || {})[a] && m(self.areaName(a)); });
           if (rooms.length) box.appendChild(K.group({ header: 'Whole Rooms', footer: 'A room is hidden from its own Room Settings, with everything in it.' },
             rooms.map(function (a) {
-              return K.nav({ label: self.areaName(a), icon: ((hass.areas || {})[a] || {}).icon || 'mdi:texture-box', value: 'Everywhere',
+              return K.nav({ label: self.areaName(a), icon: ((client.areas || {})[a] || {}).icon || 'mdi:texture-box', value: 'Everywhere',
                              href: '#/house/rooms/' + encodeURIComponent(a) });
             })));
           var dl = H.devices.filter(function (d) { return devs[d] && !isRecent('dev:' + d) && m(self.devName(d) + ' ' + self.areaName(devs[d].area_id)); })
             .sort(function (a, b) { return self.devName(a).localeCompare(self.devName(b)); });
           if (dl.length) box.appendChild(K.group({ header: 'Whole Devices', footer: 'Every accessory of a hidden device is hidden everywhere.' },
             dl.map(function (d) {
-              var n = Object.keys(hass.entities || {}).filter(function (id) { return hass.entities[id].device_id === d && hass.states[id]; }).length;
+              var n = Object.keys(client.entities || {}).filter(function (id) { return client.entities[id].device_id === d && client.states[id]; }).length;
               return K.nav({ label: self.devName(d), sub: (self.areaName(devs[d].area_id) || 'No room') + ' · ' + n + (n === 1 ? ' entity' : ' entities'),
                              icon: 'mdi:devices', value: 'Everywhere', href: '#/accessories/hidden/device/' + encodeURIComponent(d), fk: 'hide:dev:' + d });
             })));
@@ -8040,7 +8271,7 @@
             return K.nav({ label: self.placeName(k), sub: (H.places[k] || ['', ''])[1], value: byK[k] + ' Hidden',
                            href: '#/accessories/hidden/kind/' + k, fk: 'hide:kind:' + k });
           })));
-        var goneD = H.devices.filter(function (d) { return !devs[d]; }), goneE = H.everywhere.filter(function (id) { return !hass.states[id]; });
+        var goneD = H.devices.filter(function (d) { return !devs[d]; }), goneE = H.everywhere.filter(function (id) { return !client.states[id]; });
         if ((goneD.length || goneE.length) && v.f !== 'some' && !q) {
           box.appendChild(K.group({ header: 'No Longer in Home Assistant', footer: 'Hidden once, then removed from Home Assistant. Nothing shows them now.' },
             goneD.map(function (d) { return K.info({ label: 'A removed device', sub: d, value: 'Gone' }); })
@@ -8061,7 +8292,7 @@
     // Next -- the picker every other page uses now (pickList); a device is
     // ticked as "dev:<id>"
     a_hidePick(c) {
-      var self = this, H = this.hid(), hass = this._hass, devs = hass.devices || {};
+      var self = this, H = this.hid(), client = this.client, devs = client.devices || {};
       var p = this._hp || (this._hp = { ents: [], devs: [], tab: 'acc', q: '' });
       if (!p.sel) p.sel = p.ents.concat(p.devs.map(function (d) { return 'dev:' + d; }));
       this.pickList(c, { title: 'Accessories', multi: true, sel: p.sel, verb: 'Next',
@@ -8071,15 +8302,15 @@
         items: function (tab) {
           if (tab === 'dev') {
             return Object.keys(devs).filter(function (d) {
-              return Object.keys(hass.entities || {}).some(function (id) {
-                return hass.entities[id].device_id === d && hass.states[id] && !hass.entities[id].entity_category; });
+              return Object.keys(client.entities || {}).some(function (id) {
+                return client.entities[id].device_id === d && client.states[id] && !client.entities[id].entity_category; });
             }).map(function (d) {
               return { value: 'dev:' + d, label: self.devName(d), room: self.areaName(devs[d].area_id) || '', icon: 'mdi:devices',
                        note: H.devices.indexOf(d) >= 0 ? 'Hidden · Everywhere' : '' };
             });
           }
           var ids = {};
-          self.accIds().concat(Object.keys(H.can), H.everywhere).forEach(function (id) { if (hass.states[id]) ids[id] = 1; });
+          self.accIds().concat(Object.keys(H.can), H.everywhere).forEach(function (id) { if (client.states[id]) ids[id] = 1; });
           return Object.keys(ids).map(function (id) {
             var why = self.hideText(id);
             return { value: id, label: self.name(id), note: why ? 'Hidden · ' + why : '' };
@@ -8096,9 +8327,9 @@
     // picked (id null) it waits for Hide; for one accessory (id) each switch
     // saves as it changes, as the rest of HK Settings does.
     a_hideWhere(c, id) {
-      var self = this, H = this.hid(), hass = this._hass;
+      var self = this, H = this.hid(), client = this.client;
       var p = this._hp || { ents: [], devs: [] };
-      var ents = id ? [id] : p.ents.filter(function (x) { return hass.states[x]; }), dvs = id ? [] : p.devs.slice();
+      var ents = id ? [id] : p.ents.filter(function (x) { return client.states[x]; }), dvs = id ? [] : p.devs.slice();
       if (!ents.length && !dvs.length) { c.appendChild(K.group({ footer: 'Nothing picked.' }, [K.nav({ label: 'Pick Accessories', href: '#/accessories/hidden/pick' })])); return; }
       // the choice: one accessory's is what is saved; a new hide's starts at Everywhere
       var d;
@@ -8188,9 +8419,9 @@
         } })]));
     }
     a_hideDevice(c, did) {
-      var self = this, hass = this._hass, g = this.data.settings.generated, cur = g.exclude_devices || [], hid = cur.indexOf(did) >= 0;
-      var dev = (hass.devices || {})[did];
-      var ids = Object.keys(hass.entities || {}).filter(function (id) { return hass.entities[id].device_id === did && hass.states[id] && !hass.entities[id].entity_category; });
+      var self = this, client = this.client, g = this.data.settings.generated, cur = g.exclude_devices || [], hid = cur.indexOf(did) >= 0;
+      var dev = (client.devices || {})[did];
+      var ids = Object.keys(client.entities || {}).filter(function (id) { return client.entities[id].device_id === did && client.states[id] && !client.entities[id].entity_category; });
       c.appendChild(K.group({ footer: hid ? 'Every accessory of this device is hidden everywhere. It stays in Home Assistant.' : 'Shown wherever HK puts its accessories.' }, [
         K.info({ label: this.devName(did), sub: dev ? (this.areaName(dev.area_id) || 'No room') : did, icon: 'mdi:devices' }),
         K.toggle({ label: 'Hidden Everywhere', on: hid, fk: 'hide:dev', onChange: function (on) {
@@ -8214,8 +8445,8 @@
         onChange: set, addLabel: 'Add…', onAddOther: function () {
           self.go(self.picker('also-add', { title: 'Add Accessories', value: null, multi: true,
             items: function () {
-              var ents = self._hass.entities || {};
-              return Object.keys(self._hass.states).filter(function (id) {
+              var ents = self.client.entities || {};
+              return Object.keys(self.client.states).filter(function (id) {
                 var e = ents[id] || {};
                 return cur.indexOf(id) < 0 && !tiles[id] && !e.hidden && !e.entity_category;
               }).map(function (id) { return { value: id, label: self.name(id) }; });
@@ -8226,7 +8457,7 @@
     }
     a_one(c, id) {
       var self = this;
-      if (!this._hass.states[id]) { c.appendChild(K.group({ footer: 'This entity doesn’t exist any more.' }, [])); return; }
+      if (!this.client.states[id]) { c.appendChild(K.group({ footer: 'This entity doesn’t exist any more.' }, [])); return; }
       var box = h('div', { class: 'accwrap' });
       c.appendChild(box);
       loadCards().then(function () {
@@ -8235,7 +8466,7 @@
         var st = document.createElement('style');
         st.textContent = D.ACC_CSS || '';
         box.appendChild(st);
-        box.appendChild(D.accessoryPane(self._hass, id, function () { self.status('saved'); self.soon(); }, { panel: true, onSaved: function (ok) { self.status(ok ? 'saved' : 'error'); } }));
+        box.appendChild(D.accessoryPane(self.client, id, function () { self.status('saved'); self.soon(); }, { panel: true, onSaved: function (ok) { self.status(ok ? 'saved' : 'error'); } }));
       });
     }
 
@@ -8270,8 +8501,8 @@
       } };
     }
     async popupFlow(p, values) {
-      var hass = this._hass, base = 'config/config_entries/subentries/flow';
-      var r = await hass.callApi('POST', base, { handler: [this.data.entry_id, 'popup'], subentry_id: p.item });
+      var base = 'config/config_entries/subentries/flow';
+      var r = await this.rest('POST', base, { handler: [this.data.entry_id, 'popup'], subentry_id: p.item });
       var body = {};
       Object.keys(values).forEach(function (k) {
         var v = values[k];
@@ -8279,12 +8510,12 @@
         body[k] = v;
       });
       var r2;
-      try { r2 = await hass.callApi('POST', base + '/' + r.flow_id, body); } catch (e) {
-        hass.callApi('DELETE', base + '/' + r.flow_id).catch(function () {});
+      try { r2 = await this.rest('POST', base + '/' + r.flow_id, body); } catch (e) {
+        this.rest('DELETE', base + '/' + r.flow_id).catch(function () {});
         throw e;
       }
       if (r2.type === 'form') {
-        hass.callApi('DELETE', base + '/' + r.flow_id).catch(function () {});
+        this.rest('DELETE', base + '/' + r.flow_id).catch(function () {});
         var code = r2.errors && Object.keys(r2.errors).map(function (k) { return r2.errors[k]; })[0];
         throw new Error(M.errorText(code || 'unknown'));
       }
@@ -8315,7 +8546,7 @@
         K.info({ label: 'Type', value: kind[1] }), K.info({ label: 'Address', value: '#' + p.hash })]));
       if (this.err('pop:' + p.hash)) c.appendChild(h('div', { class: 'errline', role: 'alert', text: this.err('pop:' + p.hash) }));
       if (p.kind === 'camera') {
-        c.appendChild(K.group({ header: 'Camera', footer: 'Talk-back needs the camera’s own speaker. A higher-resolution stream can be shown live.' }, [
+        c.appendChild(K.group({ header: 'Camera', footer: 'Live talk-back needs UniFi Protect and the camera’s own speaker; without them it plays a recorded clip. A higher-resolution stream can be shown live.' }, [
           this.entityRow({ label: 'Camera', sk: 'pop:entity', value: p.entity, none: null, filter: { domains: ['camera'] },
                            onPick: function (v) { if (v) save({ entity: v }); } }),
           this.entityRow({ label: 'Talk-Back Speaker', sk: 'pop:speaker', value: p.speaker, none: 'The Camera’s Own', filter: { domains: ['media_player'] },
@@ -8433,24 +8664,24 @@
       } })]));
     }
     async addPopup(np) {
-      var hass = this._hass, base = 'config/config_entries/subentries/flow';
-      var r = await hass.callApi('POST', base, { handler: [this.data.entry_id, 'popup'] });
+      var base = 'config/config_entries/subentries/flow';
+      var r = await this.rest('POST', base, { handler: [this.data.entry_id, 'popup'] });
       var fid = r.flow_id;
       try {
         var first = { name: np.name.trim(), kind: np.kind };
         if (np.hash.trim()) first.hash = np.hash.trim();
-        r = await hass.callApi('POST', base + '/' + fid, first);
+        r = await this.rest('POST', base + '/' + fid, first);
         if (r.type === 'form' && r.step_id === 'user') throw new Error(M.errorText(Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; })[0]));
         var det = { close_after: np.kind === 'alarm' ? 3600 : 60 };
         if (np.entity) det.entity = np.entity;
         if (np.kind === 'camera' && np.speaker) det.speaker = np.speaker;
         if (np.kind === 'accessories') det.entities = np.entities;
         if (np.kind === 'cards') det.width = 'narrow';
-        r = await hass.callApi('POST', base + '/' + fid, det);
+        r = await this.rest('POST', base + '/' + fid, det);
         if (r.type !== 'create_entry') throw new Error(M.errorText(Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; })[0]));
         return r.result && r.result.unique_id || first.hash || slug(np.name);
       } catch (e) {
-        hass.callApi('DELETE', base + '/' + fid).catch(function () {});
+        this.rest('DELETE', base + '/' + fid).catch(function () {});
         throw e;
       }
     }
@@ -8477,16 +8708,16 @@
       } };
     }
     async pageSave(p, changes) {
-      var hass = this._hass, base = 'config/config_entries/subentries/flow', self = this;
+      var base = 'config/config_entries/subentries/flow', self = this;
       var v = Object.assign({ title: p.title, icon: p.icon, view: p.view }, changes);
       var body = { title: v.title, view: v.view };
       if (v.icon) body.icon = v.icon;
       this.status('saving');
       try {
-        var r = await hass.callApi('POST', base, { handler: [this.data.entry_id, 'page'], subentry_id: p.item });
-        var r2 = await hass.callApi('POST', base + '/' + r.flow_id, body);
+        var r = await this.rest('POST', base, { handler: [this.data.entry_id, 'page'], subentry_id: p.item });
+        var r2 = await this.rest('POST', base + '/' + r.flow_id, body);
         if (r2.type === 'form') {
-          hass.callApi('DELETE', base + '/' + r.flow_id).catch(function () {});
+          this.rest('DELETE', base + '/' + r.flow_id).catch(function () {});
           throw new Error(M.errorText(Object.keys(r2.errors || {}).map(function (k) { return r2.errors[k]; })[0]));
         }
         delete this.errors['pg:' + p.path];
@@ -8531,8 +8762,8 @@
       if (!this._starts) {
         this._starts = [['blank', 'A Blank Page']];
         var base = 'config/config_entries/subentries/flow';
-        this._hass.callApi('POST', base, { handler: [this.data.entry_id, 'page'] }).then(function (r) {
-          self._hass.callApi('DELETE', base + '/' + r.flow_id).catch(function () {});
+        this.rest('POST', base, { handler: [this.data.entry_id, 'page'] }).then(function (r) {
+          self.rest('DELETE', base + '/' + r.flow_id).catch(function () {});
           var f = (r.data_schema || []).filter(function (x) { return x.name === 'start'; })[0];
           var opts = f && f.selector && f.selector.select && f.selector.select.options || [];
           self._starts = opts.map(function (o) { return [o.value, o.value === 'blank' ? 'A Blank Page' : o.label]; });
@@ -8555,23 +8786,23 @@
         } })]));
     }
     async addPage(np) {
-      var hass = this._hass, base = 'config/config_entries/subentries/flow';
-      var r = await hass.callApi('POST', base, { handler: [this.data.entry_id, 'page'] });
+      var base = 'config/config_entries/subentries/flow';
+      var r = await this.rest('POST', base, { handler: [this.data.entry_id, 'page'] });
       var fid = r.flow_id;
       try {
         var first = { title: np.title.trim(), start: np.start || 'blank' };
         if (np.path.trim()) first.path = np.path.trim();
         if (np.icon.trim()) first.icon = np.icon.trim();
-        r = await hass.callApi('POST', base + '/' + fid, first);
+        r = await this.rest('POST', base + '/' + fid, first);
         if (r.step_id === 'user') throw new Error(M.errorText(Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; })[0]));
         // the view step holds the imported (or blank) page: submit it as it is
         var vf = (r.data_schema || []).filter(function (x) { return x.name === 'view'; })[0];
         var view = vf && vf.description && vf.description.suggested_value || { cards: [] };
-        r = await hass.callApi('POST', base + '/' + fid, { view: view });
+        r = await this.rest('POST', base + '/' + fid, { view: view });
         if (r.type !== 'create_entry') throw new Error(M.errorText(Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; })[0]));
         return (r.result && r.result.unique_id) || first.path || slug(first.title);
       } catch (e) {
-        hass.callApi('DELETE', base + '/' + fid).catch(function () {});
+        this.rest('DELETE', base + '/' + fid).catch(function () {});
         throw e;
       }
     }
@@ -8587,7 +8818,7 @@
           self.entityRow({ label: 'Date Sensor', sk: 'clock.date', value: self.hs('clock.date'), none: 'Each Screen’s Own Clock', filter: { domains: ['sensor'] }, onPick: set('clock.date') })]));
         // (the Clean-Areas Script and the Wrong-Code Indicator are the
         // Vacuums and Security pages' since 2026-10-16)
-        c.appendChild(K.group({ header: 'HK Settings', footer: 'Off: HK Settings leaves the sidebar for everyone. It’s still in Settings → Devices & Services → HK Frontend → Configure.' }, [
+        c.appendChild(K.group({ header: 'HK Settings', footer: 'Off: HK Settings leaves the sidebar for everyone. It’s still in ' + haPlace('Settings → Devices & Services → HK Frontend → Configure') + '.' }, [
           K.toggle({ label: 'Show in Sidebar', sk: 'sidebar', on: I.sidebar !== false, onChange: function (on) { self.setH({ sidebar: on }); } })]));
         var fnd = function (v) { return v ? 'Found' : 'Missing'; };
         c.appendChild(K.group({ header: 'Your Files', footer: 'Apple’s SF Pro font and the SF Symbols glyphs can’t ship with the integration. Put the font at fonts/SF-Pro.woff2 and the glyphs at iconset/hk-glyphs.js in this folder, under /config.' }, [
@@ -8607,18 +8838,17 @@
     // the wiki (docs/Your-Own-Dashboard.md holds the same text).
     p_yamlRef(id) {
       var self = this, list = ['Your Own Dashboards', '#/advanced/yaml'];
+      // its place in the documentation, where the host has it ([] where not)
       var wiki = function (anchor) {
-        var a = K.nav({ label: 'On the Wiki', sub: 'Your Own Dashboard', icon: 'mdi:open-in-new', fk: 'yaml:wiki',
-                        href: WIKI + 'Your-Own-Dashboard' + (anchor ? '#' + anchor : '') });
-        a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener');
-        return a;
+        var a = docsLink('Your-Own-Dashboard', anchor, { sub: 'Your Own Dashboard', fk: 'yaml:wiki' });
+        return a ? [a] : [];
       };
       var item = id ? M.yamlRefItem(decodeURIComponent(id)) : null;
       if (!item) {
         return { title: 'Your Own Dashboards', back: ['Advanced', '#/advanced'],
           scope: 'What a dashboard you write yourself can use. Open one, copy it, and paste it into the dashboard’s YAML.', body: function (c) {
             c.appendChild(K.group({ footer: 'Easier still: HK Settings → Screens → Add Screen → Existing Dashboards gives a dashboard ' +
-                'its menu, its screensaver and Hide Home Assistant Header & Sidebar, with nothing written.' }, [wiki('')]));
+                'its menu, its screensaver and Hide Home Assistant Header & Sidebar, with nothing written.' }, wiki('')));
             M.YAML_REF.forEach(function (g) {
               c.appendChild(K.group({ header: g.header, footer: g.footer }, g.items.map(function (it) {
                 return K.nav({ label: it.title, value: it.key, href: '#/advanced/yaml/' + encodeURIComponent(it.id), fk: 'yaml:' + it.id });
@@ -8645,7 +8875,7 @@
             else fallback();
           } })]));
         c.appendChild(pre);
-        c.appendChild(K.group({}, [wiki(item.anchor)]));
+        if (wiki(item.anchor).length) c.appendChild(K.group({}, wiki(item.anchor)));
       } };
     }
     p_check() {
@@ -8656,7 +8886,7 @@
           c.appendChild(K.group({}, [K.info({ label: 'Checking…' })]));
           if (!self._checking) {
             self._checking = true;
-            self._hass.callWS({ type: DOMAIN + '/setup/check' }).then(function (r) { self._check = r.lines; self._checking = false; self.render(); },
+            self.client.callWS({ type: DOMAIN + '/setup/check' }).then(function (r) { self._check = r.lines; self._checking = false; self.render(); },
               function (e) { self._checking = false; self._check = [{ ok: false, title: 'Setup check failed', detail: String(e && e.message || e) }]; self.render(); });
           }
           return;
@@ -8710,7 +8940,7 @@
         }
         if (st === 'missing') missing.push(name);
       });
-      c.appendChild(K.group({ footer: 'Each is optional, added from HK Frontend’s Add feature. Its settings are on its page under Pages (Notifications: All Screens).' +
+      c.appendChild(K.group({ footer: 'Each is optional, added from ' + haName('HK Frontend’s Add feature') + '. Its settings are on its page under Pages (Notifications: All Screens).' +
           (missing.length ? ' Not available here: ' + missing.join(', ') + '.' : '') }, rows));
     }
     p_setup(step) {
@@ -8718,8 +8948,8 @@
       var STEPS = SETUP_STEPS;
       step = Math.max(0, Math.min(STEPS.length - 1, step || 0));
       var next = function () { self.go('#/setup/' + (step + 1)); };
-      return { title: step ? STEPS[step] : 'Set Up HK Frontend', backLabel: 'Setup',
-        back: step ? [STEPS[step - 1], '#/setup/' + (step - 1)] : ['HK Settings', '#/'],
+      return { title: step ? STEPS[step] : 'Set Up ' + PN(), backLabel: 'Setup',
+        back: step ? [STEPS[step - 1], '#/setup/' + (step - 1)] : [this.title(), '#/'],
         scope: step && step < STEPS.length - 1 ? 'Step ' + step + ' of ' + (STEPS.length - 2) + '. Everything here can be changed later.' : null,
         body: function (c) {
           if (step === 0) {
@@ -8749,7 +8979,7 @@
             } })]));
             if (!self._setupMarked) {
               self._setupMarked = true;
-              self._hass.callWS({ type: DOMAIN + '/setup/done', done: true }).catch(function () {});
+              self.actions().callWS({ type: DOMAIN + '/setup/done', done: true }).catch(function () {});
             }
             return;
           }
@@ -8759,6 +8989,9 @@
   }
   var SETUP_STEPS = ['Welcome', 'Security System', 'Weather', 'Appearance', 'Features', 'First Screen', 'Done'];
   var SETUP_FIRST = SETUP_STEPS.indexOf('First Screen');
+  var PIN_KEY = 'hk-preview-pinned';
+  function pinnedPreview() { try { return localStorage.getItem(PIN_KEY) === '1'; } catch (e) { return false; } }
+  function pinPreview(on) { try { if (on) localStorage.setItem(PIN_KEY, '1'); else localStorage.removeItem(PIN_KEY); } catch (e) { /* private */ } }
   function hashOf(h) { h = String(h || '#/').split('?')[0]; return h.charAt(0) === '#' ? h : '#' + h; }
   var FROM_KEY = 'hk-settings-from';
   function loadFrom() {
@@ -8769,6 +9002,7 @@
   function slug(t) {
     return String(t || '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
   }
+  window.hkHostClient.entry(HkSettingsPanel);
   customElements.define('hk-settings-panel', HkSettingsPanel);
   window.hkSettingsPanel = { version: '2.0.0' };
 })();

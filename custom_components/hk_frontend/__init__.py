@@ -93,6 +93,13 @@ and talk endpoints (EXPOSURE) and the features' actions.
 The features -- Music, Live TV, Clean Areas and Alarm PIN -- are items added
 with Add feature (features/); the entry starts them and follows them. The
 cards find them by their actions and feeds only. See docs/Features.md.
+
+LINKED TO MANTEL SERVER (linked_mode.py, mantel_link.py; Configure, off by
+default): a house that moved HK to Mantel Server keeps the same actions and
+entities here, forwarded to and pushed from Mantel -- one wall tablet at a
+time (per-tablet ownership; until the whole entry is Mantel's, everything HA
+still owns runs here as before). While the entry's data holds no link, none
+of it runs.
 """
 
 import asyncio
@@ -112,9 +119,12 @@ from homeassistant.helpers.typing import ConfigType
 import homeassistant.helpers.config_validation as cv
 
 from . import accessories
+from . import boot
 from . import features as F
 from . import files
+from . import hk_panel
 from . import kinds
+from . import linked_mode
 from . import panel
 from . import rename
 from . import resources
@@ -133,10 +143,26 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 
+def _boot_text(hass: HomeAssistant) -> str:
+    """The ordered boot file (boot.py), from the files /hk serves. Runs in the executor."""
+    def read(path: str) -> str | None:
+        target = files.resolve(hass, path)
+        return target.read_text(encoding="utf-8") if target is not None else None
+    return boot.bundle(read)
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register frontend/ (and your files ahead of it) at /hk with
     revalidate-always caching."""
     root = files.BUNDLE_ROOT            # resolved once, at import (off the event loop)
+
+    # THE HOUSE'S PLACE (hk_core settings.model.set_house_place): Home Assistant's latitude and country decide the
+    # defaults a house has not chosen (its hemisphere, the US-only themes); kept current when the location changes.
+    def _place(_event: Any = None) -> None:
+        dash_settings.set_house_place(hass.config.latitude, hass.config.country)
+
+    _place()
+    hass.bus.async_listen("core_config_updated", _place)
 
     from aiohttp import web
 
@@ -150,6 +176,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         requires_auth = False   # see EXPOSURE in the module docstring
 
         async def get(self, request, filename):
+            # THE ORDERED BOOT (boot.py): HK's bootstrap modules as one file,
+            # made from the files this view serves, on every request.
+            if filename == boot.BOOT:
+                text = await hass.async_add_executor_job(_boot_text, hass)
+                return web.Response(text=text, content_type="application/javascript",
+                                    headers={"Cache-Control": "no-cache"})
             # resolve() stats the path (two Path.resolve + is_file): off the
             # event loop, as aiohttp's own static handler does.
             target = await hass.async_add_executor_job(files.resolve, hass, filename)
@@ -189,51 +221,20 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # THE BOOTSTRAP MODULES -- registered here, not in configuration.yaml.
     #
     # add_extra_js_url() is the SAME mechanism as `frontend: extra_module_url:`
-    # in configuration.yaml (it is what frontend/__init__.py calls for each
-    # entry of that list), so the tags and their load time are the same; the
-    # list just lives with the files it names. `dependencies: frontend` in
-    # manifest.json is what guarantees the frontend's URL registry exists by
-    # the time this runs.
+    # in configuration.yaml; `dependencies: frontend` in manifest.json is what
+    # guarantees the frontend's URL registry exists by the time this runs.
     #
-    # ORDER MATTERS. Loaded at frontend bootstrap, BEFORE
-    # Lovelace injects its resources (the card files), so these run before any
-    # card first renders. Changing this LIST needs a restart; editing a FILE
-    # does not (/hk/ is no-cache).
+    # ONE URL, IN ORDER. HA's frontend imports every extra module in parallel,
+    # in no fixed order, so HK's client, adapter and shell (which depend on one
+    # another at load) are served as ONE ordered file: boot.py has the order,
+    # the reasons and what is imported after the core (the settings, the
+    # iconset, the header, the loader and the dashboard strategy, which HA waits
+    # at most 5 s for). Loaded at frontend bootstrap, before Lovelace injects
+    # its resources (the card files). Changing boot.py's lists needs a restart;
+    # editing a FILE does not (/hk/ is no-cache, the boot file is made per request).
     from homeassistant.components.frontend import add_extra_js_url
 
-    for url in (
-        # The dashboard settings (settings.py) -- FIRST, because the header,
-        # the sky, the idle return and the car viewport all read it at their
-        # first paint. It paints from its own cached copy until the websocket
-        # answers.
-        "/hk/modules/hk-settings.js",
-        # The hk: iconset. ha-icon caches a custom-iconset miss for the life of
-        # the page, so it must be registered before any card first renders.
-        "/hk/iconset/hk-icons.js",
-        # Pins the layout viewport on the dashboards shown in a car's browser
-        # only; a car browser can report <900px and trip the dashboard's own
-        # mobile breakpoint. Tune from the car with ?vw=<px> on the URL.
-        "/hk/modules/tesla-viewport.js",
-        # Holds the tapped look on momentary tiles for the 1.05s the progress
-        # ring takes to sweep; registers --hk-ring as an <angle>.
-        "/hk/modules/hk-tap.js",
-        # The header's clock + weather builders and the Apple weather glyphs.
-        # Direct, not via hk-loader, because the header is the first thing
-        # painted and must not blank for a beat on every load.
-        "/hk/modules/hk-header.js",
-        # Imports the order-independent modules (stats, charts, sky, idle,
-        # timers, campost, glass, skyshot, notify) -- see its MODULES list.
-        "/hk/modules/hk-loader.js",
-        # The generated dashboards' STRATEGY. Home Assistant waits at most 5 s
-        # for a custom strategy's element and then shows "Error loading the
-        # dashboard strategy" until the page is reloaded; as a Lovelace
-        # resource it only starts loading once the dashboard is asked for, so
-        # a slow start (a tablet reloaded while Home Assistant is busy) could
-        # lose that race. Here it is defined before any dashboard asks. It is
-        # also a resource (resources.py): the same URL is one module, loaded once.
-        "/hk/cards/hk-strategy.js",
-    ):
-        add_extra_js_url(hass, url)
+    add_extra_js_url(hass, boot.URL)
 
     websocket_api.async_register_command(hass, ws_settings_subscribe)
     websocket_api.async_register_command(hass, ws_events_subscribe)
@@ -244,6 +245,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # schedule, worked out from the automations, which only an admin may read
     from . import page_headers
     page_headers.async_setup(hass)
+
     # an automation's Off Until Tomorrow (the automation sheet; snooze.py)
     from . import snooze
     await snooze.async_setup(hass)
@@ -254,6 +256,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # place: a screen on another page, or asleep, is the automation's own
     # business (a Fully Kiosk load_url with the pop-up's #hash does both).
     async def show_popup(call: ServiceCall) -> None:
+        # LINKED TO MANTEL SERVER (linked_mode.py): the whole entry Mantel's,
+        # the pop-ups and the screens are Mantel's: the call goes there as
+        # made. Some tablets Mantel's: here as always, and there too.
+        linked = linked_mode.active(hass)
+        if linked is not None and linked.full:
+            await linked.forward("show_popup", call.data)
+            return
         hash_ = str(call.data["popup"]).strip().lstrip("#").lower()
         known = {p["hash"] for p in dash_settings.popups(_entry(hass))}
         if hash_ not in known:
@@ -264,6 +273,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "type": "popup", "popup": hash_,
             "dashboards": [str(d).strip("/") for d in call.data.get("dashboards") or []],
             "users": [str(u) for u in call.data.get("users") or []]})
+        if linked is not None:
+            await linked.also("show_popup", call.data)
 
     hass.services.async_register(DOMAIN, "show_popup", show_popup, schema=vol.Schema({
         vol.Required("popup"): cv.string,
@@ -277,11 +288,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # Fully Kiosk load_url, which a kiosk without one (Kiosk Satellite) cannot
     # do. The same screens as Show pop-up; a screen not showing it ignores it.
     async def close_popup(call: ServiceCall) -> None:
+        linked = linked_mode.active(hass)
+        if linked is not None and linked.full:
+            await linked.forward("close_popup", call.data)
+            return
         hash_ = str(call.data["popup"]).strip().lstrip("#").lower()
         async_dispatcher_send(hass, SIGNAL_POPUP, {
             "type": "popup_close", "popup": hash_,
             "dashboards": [str(d).strip("/") for d in call.data.get("dashboards") or []],
             "users": [str(u) for u in call.data.get("users") or []]})
+        if linked is not None:
+            await linked.also("close_popup", call.data)
 
     hass.services.async_register(DOMAIN, "close_popup", close_popup, schema=vol.Schema({
         vol.Required("popup"): cv.string,
@@ -370,6 +387,10 @@ def ws_settings_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveC
         # added: a screen whose Pages list Energy draws it from this
         from .features import energy
         payload["energy"] = energy.client(hass)
+        # HK AS ITS OWN PANEL (hk_panel.py), only while it is on: its screen's
+        # settings under its address too
+        house = _entry(hass)
+        payload = hk_panel.mirror(payload, house.options if house else None)
         connection.send_message(websocket_api.event_message(msg["id"], payload))
 
     connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_CONFIG, send)
@@ -387,6 +408,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                       "the HK Frontend entry (see the log above). Delete it in Settings -> Devices & services, "
                       "then add the feature again from HK Frontend -> Add feature", entry.title)
         return False
+    # LINKED TO MANTEL SERVER (linked_mode.py, off unless Configure set it),
+    # the whole entry Mantel's: the same actions and entities, Mantel's;
+    # nothing below runs. Linked with the rest still HA's: everything below
+    # runs, less what Mantel owns (its tablets), and the link starts first.
+    if linked_mode.full(entry):
+        return await linked_mode.async_setup_entry(hass, entry, PLATFORMS)
+    set_up_for = linked_mode.setup_key(entry)
 
     @callback
     def changed(*_args: Any) -> None:
@@ -400,6 +428,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await panel.async_register(hass, sidebar["shown"])
     except Exception:  # noqa: BLE001 -- the settings still work from Configure
         _LOGGER.exception("hk_frontend: the HK Settings page could not be added")
+    # HK AS ITS OWN PANEL (hk_panel.py): opt-in, nothing registered while off
+    own = {"conf": None}
+    try:
+        own["conf"] = await hk_panel.async_follow(hass, entry.options, None)
+    except Exception:  # noqa: BLE001 -- the dashboards do not need it
+        _LOGGER.exception("hk_frontend: the HK panel could not be added")
 
     async def check_files() -> None:
         folder = entry.options.get(CONF_FILES_FOLDER)
@@ -421,6 +455,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # with it: they only mark it, and it goes round once more if one came
         # while it worked. Its first step yields once, so the writes the same
         # handler makes right after (synchronously) are in before it reads.
+        # linked to Mantel Server, unlinked, or a tablet moved (Configure, or
+        # Mantel saying so): start again, as it now is
+        if linked_mode.setup_key(entry) != set_up_for:
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+            return
         if pass_state["running"]:
             pass_state["again"] = True
             return
@@ -447,6 +486,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await panel.async_register(hass, sidebar["shown"])
             except Exception:  # noqa: BLE001
                 _LOGGER.exception("hk_frontend: the HK Settings page could not be updated")
+        # the HK panel switched on, off or changed (nothing while it stays off)
+        try:
+            own["conf"] = await hk_panel.async_follow(hass, entry.options, own["conf"])
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("hk_frontend: the HK panel could not be updated")
         tracker = hass.data.get(DOMAIN, {}).get(kinds.DATA)
         if tracker:
             tracker.settings_changed()
@@ -498,6 +542,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # THE FEATURES, before the platforms: each platform adds the running
     # features' entities as it is set up (features/async_setup_platform)
     await F.async_start(hass, entry)
+    # linked, the rest still HA's: the link before the platforms, which
+    # attach to it for the entities of the tablets Mantel owns
+    if linked_mode.configured(entry):
+        linked_mode.start(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # THE WALL TABLETS' alerts and scheduled restart (tablets.py)
     from . import tablets
@@ -512,11 +560,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     keeps answering from the options."""
     if F.kind_of(entry) != F.FRONTEND:
         return True
+    linked = linked_mode.active(hass)
+    if linked is not None and linked.entry is entry and linked.full:
+        return await linked_mode.async_unload_entry(hass, entry, PLATFORMS)
     # The platforms first: a failed unload leaves the entry loaded, and it must
     # then still have its settings page (it used to lose it first).
     ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if ok:
+        await linked_mode.async_stop(hass, entry)        # linked, the rest HA's: the link too
         panel.async_unregister(hass)
+        hk_panel.async_unregister(hass)          # nothing to do while it is off
         await F.async_stop(hass)
         async_dispatcher_send(hass, SIGNAL_CONFIG)
     return ok

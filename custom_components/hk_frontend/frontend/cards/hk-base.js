@@ -51,6 +51,7 @@
 (function () {
   'use strict';
 
+  function initialize() {
   if (window.hkCards) return;          // hk-loader may import this twice
   window.hkCards = { version: '1.1.0' };
 
@@ -274,16 +275,16 @@
   // THE PAGE CARD (the Energy page's, and the page headers'): the plate and
   // padding at a fixed height (--hk-ep-h), the one title row (.ttl), and the
   // shared pieces -- .wait, .num, the figure (.big, its unit in <u>), the
-  // caption (.cap) and the label (.k, its dot <i>). `cls` is the ha-card's
+  // caption (.cap) and the label (.k, its dot <i>). `cls` is the hk-plate's
   // class. Defined below figureCss (it uses it), hoisted.
   function pageCardCss(cls) {
     return [
-      'ha-card.' + cls + '{box-sizing:border-box;display:flex;flex-direction:column;height:var(--hk-ep-h,320px);',
+      'hk-plate.' + cls + '{box-sizing:border-box;display:flex;flex-direction:column;height:var(--hk-ep-h,320px);',
       '  padding:' + CARD.pad + ';margin:0;' + plate('card') + ';overflow:hidden;',
       '  color:' + v('ink') + ';container-type:inline-size;',
       '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
       // in a Sections view: the cell's own height
-      ':host([data-hk-cell]) ha-card.' + cls + '{height:100%}',
+      ':host([data-hk-cell]) hk-plate.' + cls + '{height:100%}',
       // ONE TITLE ROW for every card: the name left, the detail right, one baseline
       titleRow('.ttl'),
       '.wait{margin:auto;font-size:14px;color:' + v('ink-3') + '}',
@@ -340,7 +341,7 @@
   // another gets them too) and every literal they replace stays the fallback:
   //   var(--hk-ink, rgba(255,255,255,0.94))
   // is today's white wherever the tone is not set -- HK's own screens, a dark
-  // theme, the sky, an overlay. Checked on every hass by tone() (a theme
+  // theme, the sky, an overlay. Checked on every new client by tone() (a theme
   // switched to dark arrives as one): a property read, and nothing written
   // unless it changed. T above is the dark side of the same names.
   var LIGHT = {
@@ -537,8 +538,8 @@
       // FLAT COLORS (2026-10-17): a lit pill is pure white; an OFF one wears
       // its source's wash (hk-tile.js, flatIdle: --hk-idle-pill, its glyph
       // --hk-idle-glyph), so on and off read apart by color, not shade
-      p + ' ha-card.card[data-hk-idle]:not([data-on="1"]):not(.hk-tapped){background:var(--hk-idle-pill)!important}' +
-      p + ' ha-card.card.scene[data-hk-idle]:not([data-on="1"]):not(.hk-tapped) .icon{color:var(--hk-idle-glyph)!important;fill:var(--hk-idle-glyph)!important}' +
+      p + ' hk-plate.card[data-hk-idle]:not([data-on="1"]):not(.hk-tapped){background:var(--hk-idle-pill)!important}' +
+      p + ' hk-plate.card.scene[data-hk-idle]:not([data-on="1"]):not(.hk-tapped) .icon{color:var(--hk-idle-glyph)!important;fill:var(--hk-idle-glyph)!important}' +
       p + ' .scene .well::after{display:none!important}' +
       (keepMotion ? '' : p + ' .anim,' + p + ' .anim>*{opacity:1;clip-path:none;transform:none}') +
       p + ' .vs{background:var(--hk-key)!important}' +
@@ -711,7 +712,7 @@
   }
   function syncFlat() {
     FLAT_ROOTS.forEach(function (el) { if (el.isConnected === false) FLAT_ROOTS.delete(el); else flatTone(el); });
-    ON_PAGE.forEach(function (el) { tone(el, el._hass); markAsleep(el); });
+    ON_PAGE.forEach(function (el) { tone(el, el.client); markAsleep(el); });
   }
 
 
@@ -967,29 +968,46 @@
   // have yet ("Camera not found"). So the objects the page holds at `ready`
   // are marked; whatever the new server sends is a NEW object, so after a
   // mere network blip (everything re-sent at once) nothing is held back.
+  //
+  // THROUGH THE HOST'S SUBSCRIPTION PORT (HKClient.subscriptions), never the
+  // raw connection: the port's identity follows the transport, so new state
+  // snapshots on the same socket do not add listeners, and a replacement
+  // socket gets its own. The states marked are the current client's.
   var artConn = null, STALE = null, staleEpoch = 0;
-  function artWatch(hass) {
-    var conn = hass && hass.connection;
-    if (!conn || conn === artConn || typeof conn.addEventListener !== 'function') return;
+  // A client as is; a legacy host input through the host adapter.
+  function asClient(source) {
+    if (!source) return null;
+    if (window.hkClient && window.hkClient.is(source)) return source;
+    var host = window.hkHostClient;
+    return host && host.from ? host.from(source) : null;
+  }
+  // A replaced port's listener goes with it: its late `ready` must not mark
+  // the new server's states.
+  function artReady() {
+    artSigned.clear();
+    var c = window.hkCards.client(), s = c && c.states, set = new WeakSet();
+    if (s) for (var k in s) if (s[k] && typeof s[k] === 'object') set.add(s[k]);
+    STALE = set;
+    staleEpoch++;
+  }
+  function artWatch(client) {
+    var conn = client && client.subscriptions;
+    if (!conn || conn === artConn) return;
+    if (artConn) artConn.removeEventListener('ready', artReady);
     artConn = conn;
-    conn.addEventListener('ready', function () {
-      artSigned.clear();
-      var h = window.hkCards.hass(), s = h && h.states, set = new WeakSet();
-      if (s) for (var k in s) if (s[k] && typeof s[k] === 'object') set.add(s[k]);
-      STALE = set;
-      staleEpoch++;
-    });
+    conn.addEventListener('ready', artReady);
   }
   // true while `st` is a state the server that is up now has not sent
   window.hkCards.stale = function (st) { return !!(STALE && st && STALE.has(st)); };
   // 0 until the first reconnect: a card can skip the question entirely
   window.hkCards.staleEpoch = function () { return staleEpoch; };
   function artForget(url, size) { artSigned.delete(size + ' ' + url); }
-  function artSign(hass, url, size, cb) {
-    artWatch(hass);
+  function artSign(source, url, size, cb) {
+    var client = asClient(source);
+    artWatch(client);
     var key = size + ' ' + url, hit = artSigned.get(key);
     if (hit && Date.now() - hit.at < ART_RESIGN_MS) { cb(hit.path); return; }
-    if (!hass || !hass.callWS) { cb(url); return; }
+    if (!client || !client.callWS) { cb(url); return; }
     var q = artQueues[size] || (artQueues[size] = { waiters: new Map(), timer: null });
     if (!q.waiters.has(url)) q.waiters.set(url, []);
     q.waiters.get(url).push(cb);
@@ -999,7 +1017,7 @@
       var urls = Array.from(q.waiters.keys());
       if (artSigned.size > 3000) artSigned.clear();
       for (var i = 0; i < urls.length; i += 200) (function (batch) {
-        Promise.resolve(hass.callWS({ type: 'hk_frontend/art/sign', urls: batch, size: size }))
+        Promise.resolve(client.callWS({ type: 'hk_frontend/art/sign', urls: batch, size: size }))
           .then(function (res) {
             var got = (res && res.signed) || {};
             batch.forEach(function (u) {
@@ -1055,8 +1073,9 @@
   // and which of the two you get is a per-tablet setting nothing in this
   // frontend owns.
   //
-  // So the sheet is ours: one element, reused, appended to document.body so
-  // no card's `overflow:hidden` can clip it. Escape and the backdrop cancel.
+  // So the sheet is ours: one element, reused, appended to the host shell's
+  // dialog root (hkShell.dialogRoot(): document.body in Home Assistant, as it
+  // always was; Mantel's overlay root) so no card's `overflow:hidden` can clip it. Escape and the backdrop cancel.
   //
   // TWO CHOICES, NOT ONE (opts). A circuit switch asks a
   // yes/no question where "no" means "do nothing", and Cancel says that
@@ -1070,6 +1089,13 @@
   // Escape and the backdrop always mean "neither" -- that is the only way out
   // once both buttons commit to something.
   var _sheet = null;
+  // WHERE HK'S OWN DIALOGS MOUNT (Phase 2 P2.5): the host shell's dialog root,
+  // and there again when a sheet made earlier is opened after the host's root
+  // changed. Nothing to mount in: left where it is.
+  function dialogMount(el) {
+    var sh = window.hkShell, r = (sh && sh.dialogRoot ? sh.dialogRoot() : null) || document.body;
+    if (r && el.parentNode !== r) r.appendChild(el);
+  }
   // ------------------------------------------------------- chooseSheet
   //
   // A LIST TO PICK ONE OF, in the same material as confirmSheet below.
@@ -1224,9 +1250,9 @@
         '<div class="box"><div class="txt"></div>' +
         '<div class="list hk-fades"></div>' +
         '<button class="opt cancel" data-cancel>Cancel</button></div>';
-      document.body.appendChild(_choose);
+      dialogMount(_choose);
       edges(_choose.querySelector('.list'));
-    }
+    } else dialogMount(_choose);
     var close = function () {
       _choose.removeAttribute('data-open');
       document.removeEventListener('keydown', esc, true);
@@ -1260,12 +1286,12 @@
   var NEVER_TOGGLE = { lock: 1, alarm_control_panel: 1, valve: 1, climate: 1, water_heater: 1,
                        siren: 1, vacuum: 1, camera: 1 };
   var DOOR_COVERS = { garage: 1, gate: 1, door: 1 };
-  function neverToggles(hass, id) {
+  function neverToggles(client, id) {
     if (!id || typeof id !== 'string') return false;
     var d = id.split('.')[0];
     if (NEVER_TOGGLE[d]) return true;
     if (d !== 'cover') return false;
-    var st = hass && hass.states && hass.states[id];
+    var st = client && client.states && client.states[id];
     return !!(st && st.attributes && DOOR_COVERS[st.attributes.device_class]);
   }
 
@@ -1292,8 +1318,7 @@
   // as fast with this and the other page-change holds gone). `el` is kept
   // for the callers.
   function navigate(path, el) {  // eslint-disable-line no-unused-vars
-    history.pushState(null, '', path);
-    window.dispatchEvent(new CustomEvent('location-changed'));
+    window.hkShell.navigate(path);
   }
 
   function confirmSheet(text, onOk, opts) {
@@ -1355,8 +1380,8 @@
         '<div class="txt"></div><div class="det"></div>' +
         '<div class="row"><button data-no>Cancel</button>' +
         '<button data-yes>Confirm</button></div></div>';
-      document.body.appendChild(_sheet);
-    }
+      dialogMount(_sheet);
+    } else dialogMount(_sheet);
     var close = function () {
       _sheet.removeAttribute('data-open');
       document.removeEventListener('keydown', esc, true);
@@ -1586,10 +1611,10 @@
     // display:flex, so the glyph sits in the middle of its circle, on
     // EVERY tile.
     //
-    // ha-icon renders its glyph as an INLINE-level child, so it is placed on
+    // hk-icon (like HA's ha-icon) renders its glyph as an INLINE-level child, so it is placed on
     // a baseline inside a line box built from the inherited line-height
     // (22.4px) against a 23px icon -- and the half-leading pushes it down.
-    // The well is already a flex box and centres the ha-icon perfectly; it
+    // The well is already a flex box and centres the hk-icon perfectly; it
     // is the next level down that drifts.
     //
     // Without it, measured on six category pills, the glyph sits
@@ -1599,15 +1624,15 @@
     // being nameable.
     //
     // Same family as the 5px offset that made the speaker pills' play glyph
-    // sit low (see hk-media.js _pill, which solved it by dropping ha-icon
-    // for an inline <svg>). Making the ha-icon a flex container removes
+    // sit low (see hk-media.js _pill, which solved it by dropping the icon element
+    // for an inline <svg>). Making the hk-icon a flex container removes
     // baseline alignment entirely, which is the cause rather than the
     // symptom -- a -0.81px nudge would be a number nobody could justify
     // later.
     // WHITE, as the label is, unless a tile colors its own glyph (a scene's,
     // inline). Inherited, it took the page's text color -- black under a
     // light Home Assistant theme: the Browse Music categories (2026-10-10).
-    '.tile .well ha-icon{--mdc-icon-size:' + TILE.glyph + 'px;width:' + TILE.glyph + 'px;height:' + TILE.glyph + 'px;color:' + v('glyph') + ';',
+    '.tile .well hk-icon{--mdc-icon-size:' + TILE.glyph + 'px;width:' + TILE.glyph + 'px;height:' + TILE.glyph + 'px;color:' + v('glyph') + ';',
     '  display:flex;align-items:center;justify-content:center}',
     '.tile .txt{justify-self:stretch;text-align:left;align-self:center;',
     '  font-weight:600;font-size:15px;line-height:1.1;letter-spacing:-0.23px;',
@@ -1711,7 +1736,7 @@
   // card now. So "which modules are loaded" is an input to every card like any
   // entity, and a card is redrawn when that input changes -- not on a timer and
   // not on the hope that some unrelated state changes soon. A card on a cached,
-  // detached view catches up on its next hass, because its _hkGen is behind.
+  // detached view catches up on its next state push, because its _hkGen is behind.
   var GEN = { n: 0 };
   var LIVE = [];
   function track(el) {
@@ -1724,7 +1749,7 @@
     LIVE = LIVE.filter(function (r) { return !!r.deref(); });
     LIVE.forEach(function (r) {
       var el = r.deref();
-      if (el && el.isConnected && el._config && el._hass) {
+      if (el && el.isConnected && el._config && el.client) {
         try { el.requestUpdate(); } catch (e) { console.error('[hk-cards] wake', e); }
       }
     });
@@ -1763,7 +1788,7 @@
     }
   }
   window.addEventListener('hk-asleep', function () { ON_PAGE.forEach(markAsleep); });
-  ['hk-module-ready', 'location-changed'].forEach(function (t) {
+  ['hk-module-ready', window.hkShell.navEvent].forEach(function (t) {
     window.addEventListener(t, function () {
       syncFlat();
       var now = stillNow();
@@ -1799,37 +1824,50 @@
     if (GLASS.has(card) && window.hkGlass && window.hkGlass.rendered) window.hkGlass.rendered(card);
   }
 
-  // THE HASS HUB: the newest hass object any card was handed,
+  // THE CLIENT HUB: the newest client any card was handed,
   // for things that are not cards and so are never handed one -- the detail
   // sheets (hk-detail.js) live outside the dashboard and still need every
   // state change. The frontend passes every card the SAME object per update,
   // so this is one identity compare per card per update, and the listeners
   // run once per new object, not once per card.
-  var HUB = { last: null, fns: new Set() };
-  function hubSeen(h) {
-    if (!h || h === HUB.last) return;
-    HUB.last = h;
-    artWatch(h);                   // the reconnect hook (above), from the first hass
-    HUB.fns.forEach(function (fn) {
-      try { fn(h); } catch (e) { console.error('[hk-cards] hass listener', e); }
+  var CLIENT_HUB = { last: null, fns: new Set() };
+  function clientSeen(client) {
+    if (!client || client === CLIENT_HUB.last) return;
+    CLIENT_HUB.last = client;
+    artWatch(client);              // the reconnect hook (above), from the first client
+    CLIENT_HUB.fns.forEach(function (fn) {
+      try { fn(client); } catch (e) { console.error('[hk-cards] client listener', e); }
     });
+    try { window.dispatchEvent(new CustomEvent('hk-client-update')); } catch (e) { /* shell tests */ }
   }
-  // for a card whose own `set hass` does not call HkBase's (hk-camera-mosaic-card)
-  window.hkCards.seen = hubSeen;
-  window.hkCards.onHass = function (fn) {
-    HUB.fns.add(fn);
-    return function () { HUB.fns.delete(fn); };
+  window.hkCards.client = function () {
+    return (window.hkHostClient.current && window.hkHostClient.current()) || CLIENT_HUB.last;
   };
-  // THE ROOT ELEMENT FIRST. The hub is only as fresh as the hk cards on the
-  // screen: on a view or dashboard with none (Home Assistant's own cards) it
-  // keeps whatever the last hk card saw -- a sheet opened there can be 70 s
-  // stale and never move. <home-assistant>
-  // holds the frontend's current object always; the hub is the fallback for
-  // a page without one (the test harness).
-  window.hkCards.hass = function () {
-    var ha = document.querySelector && document.querySelector('home-assistant');
-    return (ha && ha.hass) || HUB.last;
+  window.addEventListener('hk-client-update', function () {
+    if (window.hkHostClient.current) clientSeen(window.hkHostClient.current());
+  });
+  // THE ACTION PORT for code that is not a card: the given client's (or, for
+  // a card family still handed the host input, that input's client through
+  // the host adapter), else the current client's. Null with no client.
+  window.hkCards.actions = function (source) {
+    var c = source ? asClient(source) : window.hkCards.client();
+    return (c && c.actions) || null;
   };
+  // THE SUBSCRIPTION PORT the same way (Phase 1 slice 7): the given client's
+  // (or a legacy host input's, through the host adapter), else the current
+  // client's. One port per socket, so its identity says "same connection".
+  // Null with no client or no transport.
+  window.hkCards.subscriptions = function (source) {
+    var c = source ? asClient(source) : window.hkCards.client();
+    return (c && c.subscriptions) || null;
+  };
+  window.hkCards.onClient = function (fn) {
+    CLIENT_HUB.fns.add(fn);
+    return function () { CLIENT_HUB.fns.delete(fn); };
+  };
+  // A card's entry (the host adapter's hkHostClient.entry) reports each object
+  // the host hands it: the hub moves on to its client.
+  window.hkCards.seen = function (input) { clientSeen(asClient(input)); };
 
   class HkBase extends HTMLElement {
     constructor() {
@@ -1846,7 +1884,8 @@
       }
       this._root = document.createElement('div');
       this.shadowRoot.append(this._root);
-      this._hass = null;
+      this._clientExplicit = false;
+      this._hkClient = null;
       this._hkSig = null;
     }
 
@@ -1867,9 +1906,9 @@
 
     // RE-RENDER GATING, IN THE BASE CLASS, BY DEFAULT.
     //
-    // `set hass(h) { this._hass = h; this._render(); }` would render on
+    // Rendering on every new object the host hands a card would render on
     // EVERY state change in the house. MEASURED on a wall tablet: the
-    // frontend hands a card a new hass object ~12x a second, and about 1% of
+    // frontend hands a card a new object ~12x a second, and about 1% of
     // those change what a given card shows. Rendering on all of them is ~90x
     // the work, so a card without gating makes the tablets
     // SLOWER. That is why this lives here and not in each card: it has to be
@@ -1877,19 +1916,36 @@
     //
     // _hkSig, not _sig: HkTimersCard already keeps its own _sig inside
     // _render(), and the two must not collide.
-    set hass(h) {
-      this._hass = h;
-      tone(this, h);
-      hubSeen(h);
-      track(this);
-      var sig = this._sigOf();
-      if (sig !== null && sig === this._hkSig && this._hkGen === GEN.n) return;
-      this._hkSig = sig;
-      this._hkGen = GEN.n;
-      this._render();
-      glassRendered(this);
+    //
+    // LOVELACE'S ENTRY is the host adapter's (hkHostClient.entry(HkBase),
+    // below the class): it keeps the object, reports it to the hub, and calls
+    // _onClient with its client. A card is otherwise handed a client directly.
+    _onClient() {
+      this._clientExplicit = false;
+      this._receiveClient();
     }
-    get hass() { return this._hass; }
+
+    get client() {
+      return this._clientExplicit ? this._hkClient : (this._hkEntryClient || null);
+    }
+    set client(value) {
+      this._clientExplicit = true;
+      this._hkClient = value;
+      clientSeen(value);
+      this._receiveClient();
+    }
+    // A CLIENT BEFORE A CONFIG, without drawing: for a parent that must hand a
+    // card its client before setConfig (setConfig draws at once). The next
+    // client, or the host's object at the entry, replaces it as usual.
+    adopt(client) {
+      this._clientExplicit = true;
+      this._hkClient = client;
+    }
+    _receiveClient() {
+      tone(this, this.client);
+      track(this);
+      window.hkCardState.receive(this, GEN.n, glassRendered);
+    }
 
     // Default signature: the last_updated of every entity the config names.
     // last_updated moves when the state OR any attribute changes, which is
@@ -1899,30 +1955,7 @@
     // dependencies cannot be inferred -- the correct behaviour for
     // any card that does not declare its entities. Override in a card that
     // reads entities the config does not list.
-    _sigOf() {
-      var h = this._hass, c = this._config;
-      if (!h || !c) return null;
-      var ids = [];
-      if (c.entity) ids.push(c.entity);
-      if (Array.isArray(c.entities)) {
-        c.entities.forEach(function (e) {
-          ids.push(typeof e === 'string' ? e : (e && e.entity));
-        });
-      }
-      // `group:` -- a tile that stands for several entities (the average
-      // brightness of two lights, the count on in a bathroom). Declared here
-      // so EVERY card gets the wake for free: a group tile whose members were
-      // not in the signature renders once and then freezes -- the same trap as
-      // the chips'.
-      if (Array.isArray(c.group)) ids = ids.concat(c.group);
-      if (!ids.length) return null;
-      var out = '';
-      for (var i = 0; i < ids.length; i++) {
-        var st = ids[i] && h.states[ids[i]];
-        out += (ids[i] || '') + '=' + (st ? st.last_updated : 'x') + ';';
-      }
-      return out;
-    }
+    _sigOf() { return window.hkCardState.signature(this.client, this._config); }
 
     // THE hk-stats.js / hk-charts.js WAKE BRIDGE.
     //
@@ -1944,12 +1977,7 @@
     // _render() instead drew the card AGAIN on the next push that changed
     // nothing -- a whole second build of the Live TV guide after every
     // channel fetch (the render audit's churn check, 2026-09-29).
-    redraw() {
-      this._hkSig = this._hass ? this._sigOf() : null;
-      this._hkGen = GEN.n;
-      this._render();
-      glassRendered(this);
-    }
+    redraw() { window.hkCardState.redraw(this, GEN.n, glassRendered); }
 
     // ---------------------------------------------------------- actions
     //
@@ -1999,7 +2027,7 @@
       // A door, the alarm, the water or the heat is NEVER one tap: whatever a
       // card's config says, `toggle` on one of these opens its detail instead
       // (homeassistant.toggle on a lock UNLOCKS it).
-      if (action === 'toggle' && neverToggles(this._hass, cfg.entity)) {
+      if (action === 'toggle' && neverToggles(this.client, cfg.entity)) {
         spec = { action: 'more-info' };
         action = 'more-info';
       }
@@ -2063,14 +2091,12 @@
         }
         return;
       }
-      this.dispatchEvent(new CustomEvent('hass-more-info', {
-        bubbles: true, composed: true, detail: { entityId: cfg.entity }
-      }));
+      window.hkShell.moreInfo(cfg.entity, this);
     }
 
     getCardSize() { return 3; }
 
-    // EVERY SERVICE CALL GOES THROUGH HERE. `this._hass.callService(...)`
+    // EVERY SERVICE CALL GOES THROUGH HERE. A bare `callService(...)`
     // written as a statement drops the promise it returns on the floor: a
     // call that REJECTS -- a dropped socket on a tablet's wifi, a script
     // renamed out from under a tile, bad variables, an exception inside the
@@ -2089,11 +2115,16 @@
     // not even mean the script finished -- that returns as soon as the script
     // starts. Proving a device acted needs the entity state afterwards and is
     // deliberately not attempted here.
+    //
+    // THROUGH THE CLIENT'S ACTION PORT. In Home Assistant that is the frontend's
+    // own callService with exactly these arguments; in Mantel the port refuses
+    // (`commands_disabled`) and sends nothing, which lands in the `false` below.
     _call(domain, service, data) {
-      if (!this._hass || !this._hass.callService) return Promise.resolve();
+      var act = this._actions();
+      if (!act) return Promise.resolve();
       var p;
       try {
-        p = this._hass.callService(domain, service, data);
+        p = act.callService(domain, service, data);
       } catch (e) {
         p = Promise.reject(e);
       }
@@ -2109,18 +2140,25 @@
       });
     }
 
+    // The action port of the client this card is shown, or null with none.
+    _actions() {
+      var c = this.client;
+      return (c && c.actions) || null;
+    }
+
     // _call, BUT KEEPING THE ERROR: {ok, error}. For a service that returns no
     // response yet can refuse -- an alarm panel rejecting a code -- where the
     // caller needs to know WHY it did not go.
     _callErr(domain, service, data) {
-      if (!this._hass || !this._hass.callService) {
+      var act = this._actions();
+      if (!act) {
         return Promise.resolve({ ok: false, error: 'not connected' });
       }
       var p;
       try {
         // notifyOnError false: the caller shows the refusal itself (the
         // keypad's "Wrong code"); HA's toast on top of it would say it twice.
-        p = this._hass.callService(domain, service, data, undefined, false);
+        p = act.callService(domain, service, data, undefined, false);
       } catch (e) {
         p = Promise.reject(e);
       }
@@ -2146,7 +2184,8 @@
     // `response` is {} when the call went but answered nothing (an older HA,
     // or a script with no response) -- "accepted, outcome unknown".
     _callResp(domain, service, data) {
-      if (!this._hass || !this._hass.callService) {
+      var act = this._actions();
+      if (!act) {
         return Promise.resolve({ ok: false, error: 'not connected' });
       }
       var p;
@@ -2155,7 +2194,7 @@
         // `data` already carries it. The 5th (notifyOnError) is FALSE -- HA's
         // own error toast is the wrong surface here, the card shows the
         // failure itself.
-        p = this._hass.callService(domain, service, data, undefined, false, true);
+        p = act.callService(domain, service, data, undefined, false, true);
       } catch (e) {
         p = Promise.reject(e);
       }
@@ -2223,13 +2262,13 @@
         if (signed && !resigned && !done) {
           resigned = true;
           artForget(url, sz);
-          artSign(self._hass, url, sz, put);
+          artSign(self.client, url, sz, put);
           return;
         }
         fail();
       });
       img.alt = '';
-      if (artRemote(url)) artSign(this._hass, url, sz, put);
+      if (artRemote(url)) artSign(this.client, url, sz, put);
       else img.src = url;
       box.appendChild(img);
       return img;
@@ -2369,7 +2408,7 @@
 
     connectedCallback() {
       place(this);
-      tone(this, this._hass);
+      tone(this, this.client);
       glassJoin(this, true);
       ON_PAGE.add(this);
       markAsleep(this);
@@ -2377,10 +2416,10 @@
       if (window.hkFrostTint) window.hkFrostTint.joined(this);
       if (!this._hkStatsLost) return;
       this._hkStatsLost = false;
-      if (this._hass && this._config) this.requestUpdate();
+      if (this.client && this._config) this.requestUpdate();
     }
 
-    _st(id) { return this._hass && this._hass.states[id]; }
+    _st(id) { return window.hkCardState.state(this.client, id); }
     _render() { /* subclasses */ }
   }
 
@@ -2636,11 +2675,11 @@
         this._config = Object.assign({}, config);
         this._render();
       }
-      set hass(h) {
-        this._hass = h;
-        if (this._form) this._form.hass = h;
+      // each new client (the host adapter's entry, below): HA's ha-form
+      // gets what goes with it through the adapter
+      _onClient(c) {
+        if (this._form) window.hkHostClient.bridge(this._form, c);
       }
-      get hass() { return this._hass; }
 
       _render() {
         if (!this._form) {
@@ -2656,7 +2695,7 @@
           this._form.addEventListener('value-changed', this._changed.bind(this));
           this.appendChild(this._form);
         }
-        this._form.hass = this._hass;
+        window.hkHostClient.bridge(this._form, this.client);
         this._form.schema = schema;
         this._form.data = this._config || {};
       }
@@ -2675,6 +2714,7 @@
       }
     }
 
+    window.hkHostClient.entry(HkConfigEditor);
     customElements.define(etag, HkConfigEditor);
     return etag;
   }
@@ -2694,11 +2734,12 @@
   // and volume slider are an hk-media-control-card on the player's own glass.
   //
   // THE ORDER IS THE WHOLE POINT. A custom element that is not upgraded yet
-  // has no setConfig, and HA's own cards throw if they are handed `hass`
-  // before a config. So: create, wait for the definition if need be, then
-  // setConfig, and only then start forwarding hass. `setHass` is a function on
+  // has no setConfig, and HA's own cards throw if they are handed the frontend's
+  // object before a config. So: create, wait for the definition if need be, then
+  // setConfig, and only then start forwarding. `hkSetClient` is a function on
   // the returned element rather than a plain property assignment so a caller
-  // can hand it hass on every render without knowing whether it is ready yet.
+  // can hand it the client on every render without knowing whether it is ready
+  // yet; what the child gets goes through the host adapter (hkHostClient.bridge).
   function create(cfg) {
     if (!cfg || !cfg.type) return null;
     var t = String(cfg.type);
@@ -2709,13 +2750,15 @@
       try {
         el.setConfig(cfg);
         ready = true;
-        if (pending) { el.hass = pending; pending = null; }
+        if (pending) { window.hkHostClient.bridge(el, pending); pending = null; }
       } catch (e) {
         console.error('[hk] nested card setConfig failed', e, cfg);
       }
     }
-    el.hkSetHass = function (h) {
-      if (ready) el.hass = h; else pending = h;
+    el.hkSetClient = function (source) {
+      var c = asClient(source);
+      if (!c) return;
+      if (ready) window.hkHostClient.bridge(el, c); else pending = c;
     };
     if (typeof el.setConfig === 'function') configure();
     else if (window.customElements && customElements.whenDefined) {
@@ -2725,6 +2768,51 @@
     }
     return el;
   }
+  // MAKE A CHILD CARD (Phase 2 P2.3): the one way a container card (hk-row,
+  // the scenes row, the camera tiles) makes a card inside itself from a config.
+  //
+  // WITH LOVELACE -- the host names its card wrapper (hkShell.tags.card: HA's
+  // hui-card) -- the child is that wrapper, made exactly as the containers
+  // made it before: the wrapper owns lazy module loading, the error card for
+  // an unknown type and the rebuild when a card's code arrives late, so HA's
+  // behaviour does not change. WITHOUT LOVELACE (Mantel, HK's own panel) the
+  // child is the card element itself, made by HK's view host the same way it
+  // makes a view's cards (web/hk/shell/hk-view-host.js): `custom:` cards by
+  // their tag, a few container types drawn by HK, a labelled placeholder for
+  // any other Lovelace type -- never a host element.
+  //
+  // `client` is the container's own; the child gets what goes with it through
+  // the host adapter's bridge, as every nested card does.
+  function cardWrapper() {
+    var S = window.hkShell;
+    return (S && S.tags && S.tags.card) || null;
+  }
+  function createCard(config, client) {
+    var tag = cardWrapper();
+    if (tag) {
+      var el = document.createElement(tag);
+      window.hkHostClient.bridge(el, client);
+      el.preview = false;
+      el.config = config;
+      el.load();
+      return el;
+    }
+    var V = window.hkViewHost;
+    if (V && V.createCardElement) return V.createCardElement(config, client);
+    // neither (a bare page): an HK card by its tag, anything else a note
+    var t = String((config && config.type) || '');
+    if (t.indexOf('custom:') === 0) {
+      var own = create(config);
+      if (own && client) own.hkSetClient(client);
+      return own;
+    }
+    var note = document.createElement('div');
+    note.textContent = 'Not drawn here: ' + (t || 'a card with no type');
+    return note;
+  }
+  window.hkCards.cardWrapper = cardWrapper;
+  window.hkCards.createCard = createCard;
+
   // Exported for hk-campost.js, which reuses this cache as the cameras
   // page's video poster.
   window.hkCards.snapCache = { get: snapCacheGet, put: snapCachePut,
@@ -2773,7 +2861,10 @@
         (o.plate || 'border:' + M.border + ';border-width:var(--hk-seg-bw, 1px);' + M.glass + ';background:' + (o.raised ? 'var(--hk-seg-raised-track,var(--hk-seg-track,' + M.bg + '));box-shadow:var(--hk-field-shadow,none)' : 'var(--hk-seg-track,' + M.bg + ')')) + ';display:flex;gap:2px;position:relative}',
       it + '{appearance:none;font:inherit;box-sizing:border-box;min-width:' + (o.fill ? '0' : '74px') + ';height:' + ih + ';' +
         // sharing the width, a long name wraps to two lines rather than lose its end
-        (o.fill ? 'flex:1 1 0;padding:0 6px;overflow:hidden;text-align:center;line-height:1.1;' : 'padding:0 16px;white-space:nowrap;') +
+        // (NOT overflow:hidden: the chosen one's ::before starts the slide at the old choice's
+        // box, outside this button, and a clip showed it only once it had slid in -- the old white
+        // vanished and the new grew in place, 2026-10-18)
+        (o.fill ? 'flex:1 1 0;padding:0 6px;overflow:visible;overflow-wrap:anywhere;text-align:center;line-height:1.1;' : 'padding:0 16px;white-space:nowrap;') +
         'border-radius:calc(' + ih + ' / 2);border:0;background:transparent;box-shadow:none;',
       '  font-size:' + (o.font || '15px') + ';font-weight:600;color:' + v('ink') + ';cursor:pointer;margin:0;',
       '  display:inline-flex;align-items:center;justify-content:center;gap:6px;',
@@ -2851,7 +2942,7 @@
   window.hkCards.px = px;
   window.hkCards.bleedSides = bleedSides;
   window.hkCards.esc = esc;
-  // MONEY in the house's currency (hass.config.currency) and its language --
+  // MONEY in the house's currency (client.config.currency) and its language --
   // never a "$" of our own: the Energy page's Today's Cost and the detail
   // sheet's both come through here
   window.hkCards.money = function (h, v, digits) {
@@ -2873,12 +2964,14 @@
   window.hkCards.artUrl = function (url, size, cb, fresh) {
     if (!artRemote(url)) { cb(url); return; }
     if (fresh) artForget(url, size);
-    artSign(window.hkCards.hass(), url, size, cb);
+    artSign(window.hkCards.client(), url, size, cb);
   };
   window.hkCards.button = button;
   window.hkCards.scrub = scrub;
   window.hkCards.artJson = artJson;
   window.hkCards.sentenceCase = sentenceCase;
+  // Lovelace's entry for every HkBase card, through the host adapter (loaded first)
+  window.hkHostClient.entry(HkBase);
   window.hkCards.HkBase = HkBase;
 
   // ------------------------------------------- ON SOMEONE ELSE'S DASHBOARD
@@ -2894,9 +2987,8 @@
   //   neither (the page body)     -> an HK overlay: the screensaver, a sheet,
   //                                  a pop-up, a banner -- HK's own surface
   var HK_PAGE = { 'hk-grid-view': 1 };
-  var HA_PAGE = { 'hui-view': 1, 'hui-sections-view': 1, 'hui-masonry-view': 1, 'hui-panel-view': 1,
-                  'hui-sidebar-view': 1, 'hui-card-preview': 1, 'hui-card-picker': 1,
-                  'hui-dialog-edit-card': 1, 'ha-panel-lovelace': 1 };
+  var HA_PAGE = {};                     // the host's own views and card editor (hk-host-shell.js)
+  window.hkShell.foreignTags.forEach(function (t) { HA_PAGE[t] = 1; });
   // (Also notes on the card whether it sits INSIDE another HK card --
   // `_hkNested` -- which tone() reads: only the outermost sets the light look.)
   function foreign(el) {
@@ -2926,7 +3018,7 @@
     // margins HK's own grid gives every card. A card placed straight in HA's
     // view has no such margins, so it overhung its column by 8 px.
     try {
-      var top = f && el.parentNode && el.parentNode.localName === 'hui-card';
+      var top = f && el.parentNode && window.hkShell.is(el.parentNode, 'card');
       if (top) el.style.setProperty('--hk-cell-bleed', '0px');
       else if (el.style.getPropertyValue && el.style.getPropertyValue('--hk-cell-bleed')) el.style.removeProperty('--hk-cell-bleed');
     } catch (e) { /* a hint, never a failure */ }
@@ -2939,12 +3031,12 @@
     var S = window.hkSky, m = S && S.element ? S.element() : null;
     return !!(m && m.isConnected);
   }
-  function tone(el, hass) {
+  function tone(el, client) {
     if (!el || !el.style || !el.hasAttribute) return;
     var light = false;
     try {
-      light = el.hasAttribute('data-hk-foreign') && !!hass && !!hass.themes &&
-              hass.themes.darkMode === false && !skyShown();
+      light = el.hasAttribute('data-hk-foreign') && !!client && !!client.themes &&
+              client.themes.darkMode === false && !skyShown();
     } catch (e) { light = false; }
     // ONLY THE OUTERMOST HK CARD carries the tokens; a card inside it
     // inherits them -- so a dark plate inside a card (Now Playing's artwork,
@@ -3019,7 +3111,7 @@
     // has one". The picker would then offer a switch as the stub for the light,
     // fan and cover cards.
     if (stub && !Object.prototype.hasOwnProperty.call(Ctor, 'getStubConfig')) {
-      Ctor.getStubConfig = stub;
+      Ctor.getStubConfig = clientStub(stub);
     }
     window.customCards = window.customCards || [];
     window.customCards.push({ type: tag, name: name, description: description, preview: true });
@@ -3034,14 +3126,20 @@
       Ctor.getConfigElement = function () { return document.createElement(etag); };
     }
     if (stub && !Object.prototype.hasOwnProperty.call(Ctor, 'getStubConfig')) {
-      Ctor.getStubConfig = stub;
+      Ctor.getStubConfig = clientStub(stub);
     }
+  }
+  // THE PICKER'S STUB GETS A CLIENT. Lovelace calls getStubConfig with its own
+  // object; the stub is shared code, so it is handed the client made from it
+  // (the host adapter's), and reads `client.states` like every card.
+  function clientStub(stub) {
+    return function (input) { return stub(asClient(input)); };
   }
 
   // The picker calls getStubConfig to build its preview, so it has to name an
   // entity that actually exists in THIS house or the preview renders empty.
-  function firstOf(hass, domain) {
-    var ids = hass ? Object.keys(hass.states) : [];
+  function firstOf(client, domain) {
+    var ids = client && client.states ? Object.keys(client.states) : [];
     for (var i = 0; i < ids.length; i++) {
       if (ids[i].indexOf(domain + '.') === 0) return ids[i];
     }
@@ -3152,7 +3250,7 @@
     index();
     // `seen`: the contexts already playing when this focus was chosen, by
     // key -> since. Taken on the first resolve after a change, because a
-    // choice has no hass of its own. Only music NOT in it can pull a screen
+    // choice has no state of its own. Only music NOT in it can pull a screen
     // whose own music has gone quiet.
     var focus = { key: null, at: 0, hold: 0, seen: null };
     // The context this screen is following (rule 3), so a PAUSE does not let
@@ -3163,7 +3261,8 @@
     // followed one now does too, until it stops or something else starts.
     var follow = null;
     var listeners = [];
-    var conn = null, writing = 0;
+    // conn: the subscription port attached; writer: the newest client on it.
+    var conn = null, writer = null, writing = 0, attachEpoch = 0, closers = [];
 
     function known(e) { return !!(e && byEntity[e]); }
     function isGroup(e) { return !!(byEntity[e] && byEntity[e].members); }
@@ -3208,8 +3307,8 @@
     // happens to match, and it only claims its rooms when every one of them is
     // actually active -- a stale `paused` group must not hide a room that has
     // since started playing something else.
-    function contexts(hass) {
-      var states = (hass && hass.states) || {};
+    function contexts(client) {
+      var states = (client && client.states) || {};
       var seen = {}, out = [];
       function ctx(key, kind, members, st) {
         var a = (st && st.attributes) || {};
@@ -3297,8 +3396,8 @@
     // {player, context, reason, name}. `reason` says which rule answered, so a
     // card -- and a person debugging one -- can tell "you chose this" from
     // "this is what is playing".
-    function resolve(hass) {
-      var ctxs = contexts(hass);
+    function resolve(client) {
+      var ctxs = contexts(client);
       // (only the LAST answer's follow carries over: any other answer ends it)
       var was = follow; follow = null;
       var now = Date.now();
@@ -3359,10 +3458,10 @@
       focus.hold = opts && opts.hold ? now + MUSIC_HOLD : 0;
       try { if (window.localStorage) localStorage.setItem(MUSIC_KEY, JSON.stringify({ key: key, at: now })); }
       catch (e) { /* first-paint copy only */ }
-      if (conn && conn.sendMessagePromise) {
+      if (writer && writer.actions) {
         writing++;
-        conn.sendMessagePromise({ type: 'frontend/set_user_data', key: MUSIC_KEY,
-                                  value: { key: key, at: now } })
+        Promise.resolve(writer.actions.callWS({ type: 'frontend/set_user_data', key: MUSIC_KEY,
+                                        value: { key: key, at: now } }))
           .catch(function (e) { console.error('[hkMusic] could not save focus', e); })
           .then(function () { writing--; });
       }
@@ -3408,12 +3507,21 @@
       return function () {};
     }
 
-    function attach(hass) {
-      var c = hass && hass.connection;
-      if (!c || c === conn || !c.subscribeMessage) return;
-      conn = c;
-      sub(c, { type: 'hk_music/subscribe' }, configure, 'hkMusic');
-      sub(c, { type: 'frontend/subscribe_user_data', key: MUSIC_KEY }, function (ev) {
+    // THROUGH THE HOST'S SUBSCRIPTION PORT: new state snapshots on the same
+    // socket share one port, so they never subscribe twice. A replacement port
+    // ends the old pair first, and an old pair's late answer is ignored.
+    function attach(source) {
+      var client = asClient(source), c = client && client.subscriptions;
+      if (!c) return;
+      if (c === conn) { writer = client; return; }
+      closers.splice(0).forEach(function (close) { close(); });
+      conn = c; writer = client;
+      var my = ++attachEpoch;
+      closers.push(sub(c, { type: 'hk_music/subscribe' }, function (cfg) {
+        if (my === attachEpoch) configure(cfg);
+      }, 'hkMusic'));
+      closers.push(sub(c, { type: 'frontend/subscribe_user_data', key: MUSIC_KEY }, function (ev) {
+        if (my !== attachEpoch) return;
         var v = ev && ev.value;
         // A key is taken even if the speaker list has not arrived yet (the
         // two subscriptions answer in either order); resolve() validates it.
@@ -3422,21 +3530,25 @@
         try { if (window.localStorage) localStorage.setItem(MUSIC_KEY, JSON.stringify(v)); }
         catch (e) { /* first-paint copy only */ }
         emit();
-      }, 'hkMusic focus');
+      }, 'hkMusic focus'));
     }
 
     // ATTACHED BY THE PAGE, not only by the music cards: a Speakers chip
     // (count: {music: true}) or a popup opened by `entity_from: {music: true}`
     // needs the speaker list on a page with no music card on it.
+    // The host adapter owns discovery; its events also catch a late adapter
+    // and a replacement connection on a page with no music card.
     (function () {
       var tries = 0;
       function selfAttach() {
-        var ha = null;
-        try { ha = document.querySelector('home-assistant'); } catch (e) { return true; }
-        if (!(ha && ha.hass && ha.hass.connection)) return false;
-        attach(ha.hass);
+        var host = window.hkHostClient, client = null;
+        try { client = host && host.current ? host.current() : null; } catch (e) { return true; }
+        if (!(client && client.subscriptions)) return false;
+        attach(client);
         return true;
       }
+      window.addEventListener('hk-host-client-ready', selfAttach);
+      window.addEventListener('hk-client-update', selfAttach);
       if (selfAttach()) return;
       var t = setInterval(function () {
         if (selfAttach() || ++tries >= 300) clearInterval(t);   // a minute; cards attach too
@@ -3455,7 +3567,7 @@
       speakers: function () { return MUSIC.speakers.slice(); },
       rooms: rooms, presets: presets, known: known, isGroup: isGroup,
       nameOf: nameOf, home: home, ignored: ignored, active: active, contexts: contexts, streams: streams, resolve: resolve,
-      player: function (hass) { return resolve(hass).player; },
+      player: function (client) { return resolve(client).player; },
       label: label, setFocus: setFocus, release: release, attach: attach,
       onChange: onChange, focus: function () { return focus.key; },
       configured: function () { return MUSIC.configured; },
@@ -3464,7 +3576,7 @@
       libraryEntry: function () { return MUSIC.library || null; },
       HOLD: MUSIC_HOLD,
       // Tests only: start from a clean slate, and hand in a configuration.
-      _reset: function () { focus = { key: null, at: 0, hold: 0, seen: null }; follow = null; listeners = []; conn = null; writing = 0; },
+      _reset: function () { focus = { key: null, at: 0, hold: 0, seen: null }; follow = null; listeners = []; conn = null; writer = null; writing = 0; },
       _configure: configure
     };
   })();
@@ -3502,7 +3614,7 @@
   //   button card, else the tab. Phones always get the chip: a 16 px margin
   //   has no room for a tab without covering the tiles.
   // The panel element is kept while it is on the page: the menu's questions
-  // and every room heading's link ask for it on each hass push (three
+  // and every room heading's link ask for it on each state push (three
   // shadow-root lookups a time). A dashboard switch replaces the panel, and
   // the one kept is then off the page and looked for again.
   var panelKept = null;
@@ -3511,17 +3623,10 @@
       var lv = panelKept.lovelace, up = lv && lv.urlPath;
       if (!up || up === dashSeg()) return panelKept;
     }
-    try {
-      var ha = document.querySelector('home-assistant');
-      var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-      panelKept = (main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace')) || null;
-      return panelKept;
-    } catch (e) { return null; }
+    panelKept = window.hkShell.panel();
+    return panelKept;
   }
-  function lovelaceConfig() {
-    var p = panelLovelace();
-    return (p && p.lovelace && p.lovelace.config) || null;
-  }
+  function lovelaceConfig() { return window.hkShell.dashboardConfig(panelLovelace()); }
   function dashSeg() { return String(location.pathname).split('/')[1] || ''; }
   // HIGHLIGHT COLOR AUTOMATIC (2026-10-16): each page in its own color --
   // the view's address, its kind's color; Home, the rooms and the rest
@@ -3621,7 +3726,7 @@
   }
   // ONE COPY PER SETTINGS VERSION AND DASHBOARD. The menu's questions (sig,
   // style, on, clock...) each ask boardOf again, and the cards ask them on
-  // every hass push: ~95 keys copied a dozen times a push, measured as the
+  // every state push: ~95 keys copied a dozen times a push, measured as the
   // largest HK cost of an idle Home (headless, 6x slower). hk-settings counts
   // every feed it applies (version) and replaces the settings whole, never in
   // place. Callers here only read it; menu.board() hands out a copy. (A
@@ -3797,8 +3902,7 @@
     if (!p || !p.getBoundingClientRect) return 0;
     var top = p.getBoundingClientRect().top + (window.scrollY || 0);
     try {
-      var root = p.shadowRoot && p.shadowRoot.querySelector('hui-root');
-      var h = root && root.shadowRoot && root.shadowRoot.querySelector('.header');
+      var h = window.hkShell.toolbar(p);
       if (h && getComputedStyle(h).display !== 'none') top += h.getBoundingClientRect().height;
     } catch (e) { /* no toolbar to find */ }
     return top;
@@ -3909,7 +4013,7 @@
       var b = boardOf(dashSeg()).menu;
       return b === 'chip_scroll' || b === 'chip_home' ? 'scrolled' : 'never';
     },
-    // The round buttons on the page now (their <ha-card>s), for the
+    // The round buttons on the page now (their <hk-plate>s), for the
     // scrolled tab. A card that draws one hands itself over when it draws or
     // is attached again (a cached view comes back without drawing), and takes
     // itself back when it leaves the page (chipGone) -- held any longer, every
@@ -4049,7 +4153,11 @@
     for (var i = list.length - 1; i >= 0; i--) if (list[i] && list[i].type === tag) list.splice(i, 1);
   };
   window.hkCards.place = place;            // a card that is not an HkBase calls it on connect
-  window.hkCards.tone = tone;              // ...and this on every hass
+  window.hkCards.tone = tone;              // ...and this on every new client
+  // A legacy host input or a client -> the client (null for neither). For the
+  // few entry points the host calls with its own object (a picker stub defined
+  // on the class itself, Lovelace's strategy hooks).
+  window.hkCards.asClient = asClient;
   window.hkCards.FLAT = FLAT;
   window.hkCards.PAGE_ACCENTS = PAGE_ACCENTS;
   window.hkCards.pageTone = pageTone;
@@ -4109,4 +4217,13 @@
   window.hkCards.SELECTED_TEXT = SELECTED_TEXT;
 
   window.dispatchEvent(new Event('hk-cards-ready'));
+  }
+  var prerequisites = ['hk-client-ready', 'hk-card-state-ready', 'hk-host-client-ready'];
+  function ready() {
+    if (!window.hkClient || !window.hkCardState || !window.hkHostClient) return;
+    prerequisites.forEach(function (event) { window.removeEventListener(event, ready); });
+    initialize();
+  }
+  prerequisites.forEach(function (event) { window.addEventListener(event, ready); });
+  ready();
 })();

@@ -391,25 +391,45 @@
   }
 
   // ------------------------------------------------------------ the page
-  function hassNow() {
-    var ha = document.querySelector('home-assistant');
-    return (ha && ha.hass) || (window.hkCards && window.hkCards.hass && window.hkCards.hass()) || null;
+  // THE HOUSE, AS THE CLIENT: everything this module reads. The host adapter
+  // knows the current one even on a page with no hk cards (in Home Assistant it
+  // reads the frontend's root element), and before hk-base has loaded.
+  function clientNow() {
+    var C = window.hkCards, HC = window.hkHostClient;
+    return (C && C.client && C.client()) || (HC && HC.current && HC.current()) || null;
   }
+  // ...and its action port, for everything the screensaver changes (the switch,
+  // the music's buttons and volume, its touch and black acknowledgements): the
+  // real call in Home Assistant, refused (`commands_disabled`) in Mantel.
+  function actionsNow() { var c = clientNow(); return (c && c.actions) || null; }
+  // A CARD ON THE SCREENSAVER gets the host input that goes with the client
+  // (the host adapter's bridge): card families still act through it
+  function feedCard(el, c) { var HC = window.hkHostClient; if (el && c && HC && HC.bridge) HC.bridge(el, c); }
   // THE DASHBOARD'S CONFIG, read where the strategy guard reads it -- the
   // panel's own lovelace object is the authority, never a DOM marker.
   function panel() {
-    var ha = document.querySelector('home-assistant');
-    var main = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-    var p = main && main.shadowRoot && main.shadowRoot.querySelector('ha-panel-lovelace');
-    if (p) return p;
-    var r = main && main.shadowRoot && main.shadowRoot.querySelector('partial-panel-resolver');
-    return (r && r.querySelector && r.querySelector('ha-panel-lovelace')) || null;
+    return window.hkShell.panel();
+  }
+  // ...and where a host draws the dashboard with HK's own view host, no
+  // Lovelace (Mantel: the panel is the page, with no lovelace object), the
+  // shell hands the config over instead. Read as the panel's alone, the
+  // saver had no config at all there: no touches told, no black drawn or
+  // confirmed, no backlight lowered (every wall tablet on Mantel,
+  // 2026-10-19). shellConf: the config came from the shell, not a panel.
+  var shellConf = false;
+  function dashConf() {
+    var p = panel(), conf = p && p.lovelace && p.lovelace.config;
+    shellConf = false;
+    if (conf) return conf;
+    var SH = window.hkShell;
+    try { conf = SH && typeof SH.dashboardConfig === 'function' ? SH.dashboardConfig() : null; } catch (e) { conf = null; }
+    shellConf = !!conf && !(p && p.lovelace);
+    return conf || null;
   }
   // the font the dashboard's view draws in (its theme is on the view)
   function viewFont() {
     try {
-      var p = panel(), hr = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
-      var v = hr && hr.shadowRoot && hr.shadowRoot.querySelector('hui-view-container');
+      var v = window.hkShell.viewContainer(panel());
       return v ? getComputedStyle(v).fontFamily : '';
     } catch (e) { return ''; }
   }
@@ -429,7 +449,7 @@
   var displayLayer = null, fadeDone = null, photoRun = 0;
   // the screensaver's fade in, waiting for its first photo (start)
   var entrance = null, ENTRANCE_MAX = 1500;
-  var coverT = null, coveredPage = null, pageVisibility = null;
+  var coverT = null, coveredPage = null, pageVisibility = null, coveredView = [];
   // THE FORECAST (1.3): the live sky over the season's land (hkSky.scene),
   // with the forecast band -- when a screen asks for it, or has no photos
   var mode = 'photos', fscene = null, fband = null, fTick = null, fSig = '';
@@ -456,18 +476,18 @@
     var b = all && all[String(location.pathname).split('/')[1] || ''];
     var o = HS && HS.get ? HS.get('look.saver', null) : null;
     if (!b || !o || !S || !S.saverBlock) return null;
-    return S.saverBlock(hassNow(), Object.assign({}, b, { screensaver: true, screensaver_options: o }));
+    return S.saverBlock(clientNow(), Object.assign({}, b, { screensaver: true, screensaver_options: o }));
   }
   var FC_TICK_MS = 5000;
-  var unsubHass = null, cards = [];
+  var unsubCards = null, cards = [];
   var shown = 0, failed = 0, lastPhoto = null;
   var force = false;           // hkSaver.force(true): ignore the user (tests)
 
-  function user() { var h = hassNow(); return h && h.user && h.user.name; }
+  function user() { var h = clientNow(); return h && h.user && h.user.name; }
   // this page's wall tablet (1.14, hkSettings.tablet()), its id or ''
   function tabletNow() {
     var HS = window.hkSettings;
-    if (HS && typeof HS.tablet === 'function') return HS.tablet(hassNow()) || null;
+    if (HS && typeof HS.tablet === 'function') return HS.tablet(clientNow()) || null;
     // a settings module from before 1.14: the screen's own, as it was
     var all = HS && HS.get ? HS.get('boards', null) : null;
     var b = all && all[String(location.pathname).split('/')[1] || ''];
@@ -507,21 +527,23 @@
   }
 
   // ------------------------------------------------------------ the switch
-  function switchState() {
-    var h = hassNow();
-    var s = cfg && cfg.entity && h && h.states[cfg.entity];
+  function switchState(c) {
+    c = c || cfg;
+    var h = clientNow();
+    var s = c && c.entity && h && h.states[c.entity];
     return s ? s.state : null;
   }
-  function writeSwitch(want) {
-    if (!cfg || !cfg.entity) return;
+  function writeSwitch(want, c) {
+    c = c || cfg;                  // (the options the screensaver showed with, when they just went: refresh)
+    if (!c || !c.entity) return;
     // ONLY THE TABLET'S OWN USER WRITES IT -- never a forced test page
     // (?hk_saver=force, hkSaver.force()), whatever the gate lets it show
     if (!mine() || /[?&]hk_saver=force\b/.test(location.search) || force) return;
-    var h = hassNow();
-    if (!h || switchState() === want) return;
+    var act = actionsNow();
+    if (!act || switchState(c) === want) return;
     pendingSwitch = { want: want, until: Date.now() + ECHO_MS };
     try {
-      h.callService(cfg.entity.split('.')[0], want === 'on' ? 'turn_on' : 'turn_off', { entity_id: cfg.entity });
+      act.callService(c.entity.split('.')[0], want === 'on' ? 'turn_on' : 'turn_off', { entity_id: c.entity });
     } catch (e) { /* offline: the next state change sorts it out */ }
   }
   // A TOUCH ON THE SCREEN, told to the integration (screensaver.py): its
@@ -534,12 +556,12 @@
     var now = Date.now();
     if (now - touchSent < 10000) return;
     touchSent = now;
-    callWS(whoMsg({ type: 'hk_frontend/screensaver/touch' })).catch(function () { /* older integration */ });
+    sendWS(whoMsg({ type: 'hk_frontend/screensaver/touch' })).catch(function () { /* older integration */ });
   }
 
-  // Every new hass: the switch decides, unless it is still echoing our own
+  // Every new client: the switch decides, unless it is still echoing our own
   // write the other way.
-  function onHass(h) {
+  function onUpdate(h) {
     hkSync(h);
     if (previewOn || !cfg || !cfg.entity || !allowed()) return;
     var st = switchState();
@@ -547,7 +569,10 @@
       if (st === pendingSwitch.want || Date.now() > pendingSwitch.until) pendingSwitch = null;
       else return;
     }
-    if (st === 'on' && !on) start('switch');
+    // ...but not over somebody watching Live TV or using a sheet (hk-idle's
+    // hold, as the idle timer already honours): the switch turned on by an
+    // automation or the Sleep Screen waits for the hold to end (2026-10-21)
+    if (st === 'on' && !on) { if (!held()) start('switch'); }
     else if (st === 'off' && on) stop('switch');
   }
 
@@ -708,7 +733,7 @@
   }
   // this dashboard's Weather page, when it has one
   function weatherPage() {
-    var p = panel(), conf = p && p.lovelace && p.lovelace.config;
+    var conf = dashConf();
     var has = conf && Array.isArray(conf.views) && conf.views.some(function (v) { return v && v.path === 'weather'; });
     return has ? '/' + (String(location.pathname).split('/')[1] || '') + '/weather' : null;
   }
@@ -716,7 +741,7 @@
   // the dashboard is still under the screensaver, drawing (stop's WAKE)
   function go(path) {
     if (String(location.pathname) === path) return;
-    try { history.pushState(null, '', path); window.dispatchEvent(new CustomEvent('location-changed')); } catch (e) { /* stay */ }
+    try { window.hkShell.navigate(path); } catch (e) { /* stay */ }
   }
 
   // ------------------------------------------------------------ the element
@@ -827,7 +852,9 @@
     ':host([wxslide]) .info > hk-screensaver-now-card,:host([wxslide]) .info > hk-timer-strip-card{opacity:0}',
     // ...and the corner clock and weather: Home Energy tells the time itself,
     // smaller, so its rings keep their size (the user, 2026-10-14)
-    '.info > hk-clock-card{transition:opacity ' + CROSSFADE_MS + 'ms ease}',
+    // ...on a layer of its own for good, as the weather line's and what
+    // plays: the fade alone made it one only while fading (2026-10-19)
+    '.info > hk-clock-card{transition:opacity ' + CROSSFADE_MS + 'ms ease;will-change:opacity}',
     ':host([enslide]) .info > hk-clock-card,:host([enslide]) .info > hk-weather-strip-card,',
     ':host([wxslide]) .info > hk-clock-card,:host([wxslide]) .info > hk-weather-strip-card{opacity:0}',
     // ...and the corner clock tells the time in its place (Show: Clock or a
@@ -995,10 +1022,10 @@
     // while their panel is open
     '.mbtn.mx{width:calc(48px * var(--z));height:calc(48px * var(--z));background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 calc(1.5px * var(--z)) rgba(255,255,255,.30)}',
     '.mbtn.mx svg{width:52%;height:52%}',
-    '.mbtn.mx ha-icon{--mdc-icon-size:calc(25px * var(--z));width:calc(25px * var(--z));height:calc(25px * var(--z));color:#fff;display:flex}',
+    '.mbtn.mx hk-icon{--mdc-icon-size:calc(25px * var(--z));width:calc(25px * var(--z));height:calc(25px * var(--z));color:#fff;display:flex}',
     '.mbtn.mx.on{background:#fff;box-shadow:none}',
     '.mbtn.mx.on svg{fill:#111}',
-    '.mbtn.mx.on ha-icon{color:#111}',
+    '.mbtn.mx.on hk-icon{color:#111}',
     '[nomx] .mbtn.mx{display:none}',
     '.mbtn.mpp.hit{background:#fff}',
     '.mnext{display:flex;align-items:center;gap:calc(14px * var(--z));margin-top:calc(30px * var(--z));min-width:0}',
@@ -1068,7 +1095,7 @@
     ':host(:not([pcal])) .pm .mbtn{width:calc(50px * var(--z));height:calc(50px * var(--z))}',
     ':host(:not([pcal])) .pm .mbtn.mpp{width:calc(62px * var(--z));height:calc(62px * var(--z))}',
     ':host(:not([pcal])) .pm .mbtn.mx,:host([pcal]) .pm .mbtn.mx{width:calc(42px * var(--z));height:calc(42px * var(--z))}',
-    '.pm .mbtn.mx ha-icon{--mdc-icon-size:calc(22px * var(--z));width:calc(22px * var(--z));height:calc(22px * var(--z))}',
+    '.pm .mbtn.mx hk-icon{--mdc-icon-size:calc(22px * var(--z));width:calc(22px * var(--z));height:calc(22px * var(--z))}',
     ':host(:not([pcal])) .pm .mnext{justify-content:center;margin-top:calc(28px * var(--z));text-align:left}',
     ':host(:not([pcal])) .pm .mnth{width:calc(38px * var(--z));height:calc(38px * var(--z))}',
     ':host(:not([pcal])) .pm .mnl{font-size:calc(10px * var(--z))}',
@@ -1174,7 +1201,7 @@
     leaveForecast();
     leaveMusic();
     leaveClock();
-    if (unsubHass) { unsubHass(); unsubHass = null; }
+    if (unsubCards) { unsubCards(); unsubCards = null; }
     cards = [];
     if (host) {
       // let the browser drop the decoded photos now, not at the next GC
@@ -1190,7 +1217,7 @@
   var builtFor = null;
   function cfgKey() { try { return JSON.stringify(cfg); } catch (e) { return String(Math.random()); } }
   function buildCards(info) {
-    var h = hassNow();
+    var h = clientNow();
     cards = [];
     (cfg.cards || []).forEach(function (c, i) {
       var tag = tagOf(c.type);
@@ -1202,7 +1229,7 @@
           // (the corner clock under a big one: there only under the music)
           if (c.music_only) el.setAttribute('muonly', '');
           el.setConfig(cardConf(c, tag));
-          if (h) el.hass = h;
+          feedCard(el, h);
           // IN THE ORDER WRITTEN, whenever each one is defined: a page
           // reloaded under the switch started this before hk-weather.js had
           // loaded, and the weather (defined first there) came in above the
@@ -1219,7 +1246,7 @@
       if (customElements.get(tag)) make();
       else if (customElements.whenDefined) customElements.whenDefined(tag).then(make);
     });
-    if (window.hkCards && window.hkCards.onHass) unsubHass = window.hkCards.onHass(onHassCards);
+    if (window.hkCards && window.hkCards.onClient) unsubCards = window.hkCards.onClient(onClientCards);
   }
   // A CARD'S CONFIG for where it is now: Home Status at the top of the
   // pane sized for it, and the timers in its foot -- set again whenever the
@@ -1230,11 +1257,11 @@
     if (paneUp && tag === 'hk-timer-strip-card') conf.scale = Math.round(1.15 * scaleOf() * 100) / 100;
     return conf;
   }
-  function onHassCards(h) {
-    cards.forEach(function (c) { try { c.hass = h; } catch (e) { /* ignore */ } });
-    if (ckCtl) ckCtl.setHass(h);
-    if (enCtl && enShowing) enCtl.setHass(h);
-    if (wxCtl && wxShowing) wxCtl.setHass(h);
+  function onClientCards(h) {
+    cards.forEach(function (c) { try { feedCard(c, h); } catch (e) { /* ignore */ } });
+    if (ckCtl) ckCtl.setClient(h);
+    if (enCtl && enShowing) enCtl.setClient(h);
+    if (wxCtl && wxShowing) wxCtl.setClient(h);
   }
 
   // ------------------------------------------------------------ start / stop
@@ -1504,6 +1531,11 @@
     try { window.dispatchEvent(new CustomEvent('hk-saver', { detail: { on: on } })); } catch (e) { /* ignore */ }
   }
 
+  // `el` inside `root`, across shadow roots
+  function within(root, el) {
+    for (var n = el; n; n = n.parentNode || n.host) if (n === root) return true;
+    return false;
+  }
   // visibility preserves layout, scroll position and the connected HA data
   // subscription. Restore it before the screensaver fades out, and preserve
   // any visibility style that was already set by the page.
@@ -1515,15 +1547,29 @@
         if (pageVisibility.value) st.setProperty('visibility', pageVisibility.value, pageVisibility.priority);
         else st.removeProperty('visibility');
       }
-      coveredPage = null; pageVisibility = null;
+      coveredView.forEach(function (c) {
+        if (c.value) c.el.style.setProperty('visibility', c.value, c.priority); else c.el.style.removeProperty('visibility');
+      });
+      coveredPage = null; pageVisibility = null; coveredView = [];
       return;
     }
     if (coveredPage) return;
-    var page = document.querySelector('home-assistant');
+    var page = window.hkShell.root();
     if (!page || !page.style) return;
     coveredPage = page;
     pageVisibility = { value: page.style.getPropertyValue('visibility'), priority: page.style.getPropertyPriority('visibility') };
     page.style.setProperty('visibility', 'hidden', 'important');
+    // THE VIEW, WHERE THE HOST KEEPS IT OUTSIDE ITS ROOT (Mantel: #view
+    // beside #hk-shell-root, 2026-10-21). Left showing under the photos, the
+    // whole dashboard -- its sky, its cards, the shared blur's layers -- kept
+    // its compositing layers through the screensaver (~7 screens of them at
+    // 1920 x 1200, headless), and Return to Home made a new page's ~120 under
+    // it mid-turn. Hidden with the root, as Home Assistant's whole page is.
+    var view = window.hkShell.viewContainer ? window.hkShell.viewContainer() : null;
+    if (view && view.style && !within(page, view)) {
+      coveredView.push({ el: view, value: view.style.getPropertyValue('visibility'), priority: view.style.getPropertyPriority('visibility') });
+      view.style.setProperty('visibility', 'hidden', 'important');
+    }
     // BACK TO THE TOP, UNSEEN (2026-10-04). The house's sleep script used to
     // do this with a Fully `javascript:` load_url -- which stole the
     // foreground from a running app (TABLET-INVARIANTS section 2) and which
@@ -1540,9 +1586,29 @@
 
   // ------------------------------------------------------------ photos
   function callWS(msg) {
-    var h = hassNow();
+    var h = clientNow();
     if (!h || !h.callWS) return Promise.reject(new Error('no connection'));
     return h.callWS(msg);
+  }
+  // A WRITE (or a service call over the WebSocket): the client's action port.
+  function sendWS(msg) {
+    var act = actionsNow();
+    if (!act) return Promise.reject(new Error('no connection'));
+    return act.callWS(msg);
+  }
+  // THE HOST'S OWN PHOTOS (hkShell.photoSource / listPhotos): a host with a
+  // photo library of its own may give this screen one of its albums, and
+  // lists the photos of a source it serves itself (each with its address).
+  // Home Assistant has neither: the folder below, as always.
+  function hostPhotoSource(src) {
+    var SH = window.hkShell;
+    var own = SH && typeof SH.photoSource === 'function' ? SH.photoSource(src) : null;
+    return typeof own === 'string' && own ? own : null;
+  }
+  function hostPhotoList(src) {
+    var SH = window.hkShell;
+    var got = SH && typeof SH.listPhotos === 'function' ? SH.listPhotos(src) : null;
+    return got && typeof got.then === 'function' ? got : null;
   }
   // Every image under the folder (sub-folders to LIST_DEPTH), at most LIST_MAX.
   function listPhotos() {
@@ -1564,10 +1630,19 @@
         return sub.reduce(function (p, s) { return p.then(function () { return walk(s, depth + 1); }); }, Promise.resolve());
       });
     }
+    var hostList = land ? null : hostPhotoList(cfg.photos);
     var source = land
       ? fetch(LANDSCAPES + 'index.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (j) {
           ((j && j.photos) || []).forEach(function (p) {
             if (p && typeof p.file === 'string' && /^[\w.-]+\.(webp|jpe?g|png)$/i.test(p.file)) out.push({ id: 'hk-landscape/' + p.file, title: p.title || '', url: LANDSCAPES + p.file });
+          });
+        })
+      // the host's own: a plain address each, as a landscape's (load)
+      : hostList ? hostList.then(function (items) {
+          (Array.isArray(items) ? items : []).forEach(function (p) {
+            if (out.length < LIST_MAX && p && typeof p.id === 'string' && typeof p.url === 'string' && p.url) {
+              out.push({ id: 'host/' + p.id, title: typeof p.title === 'string' ? p.title : '', url: p.url });
+            }
           });
         })
       : walk(cfg.photos, 0);
@@ -2065,7 +2140,7 @@
       if (!C) { layer.remove(); if (mode === 'clock') { mode = 'photos'; host.removeAttribute('ckgen'); enterForecast(); } return; }
       ckCtl = C.mount(layer, { style: cfg.clock_style, h24: cfg.clock_24, color: cfg.clock_color, bg: bg, motion: cfg.clock_motion,
                                speed: cfg.clock_speed, depth: cfg.clock_depth, weather: weatherEntity(),
-                               hass: hassNow(), scrim: !dimmed });
+                               client: clientNow(), scrim: !dimmed });
       // TODAY carries its own weather and music: the corners' step aside
       if (host) setAttr(host, 'ckown', cfg.clock_style === 'today');
       nightCheck();
@@ -2220,9 +2295,13 @@
     if (!cfg || !cfg.energy_slide) return;
     energyModule().then(function (X) { return X ? X.ready().then(function () { return X; }) : null; }).then(function (X) {
       if (!X || run !== enRun || !on || !root || !cfg || !cfg.energy_slide) return;
-      if (!enCtl) enCtl = X.create({ hide: cfg.energy_hide, h24: cfg.clock_24 });
-      else enCtl.setHide(cfg.energy_hide);
-      enCtl.ready(hassNow());
+      // in its place at the start, as the weather's: put in at its first
+      // turn, its layer was made as it came in (2026-10-19)
+      if (!enCtl) {
+        enCtl = X.create({ hide: cfg.energy_hide, h24: cfg.clock_24 });
+        root.insertBefore(enCtl.el, root.querySelector('.info'));
+      } else enCtl.setHide(cfg.energy_hide);
+      enCtl.ready(clientNow());
       if (!hold) return;
       var tries = 0, show = function () {
         if (run !== enRun || !on || enShowing) return;
@@ -2233,7 +2312,7 @@
       show();
     });
   }
-  function energyReady() { return !!(enCtl && enCtl.ready(hassNow())); }
+  function energyReady() { return !!(enCtl && enCtl.ready(clientNow())); }
   // the photo on screen, for its blurred copy (a mosaic: its first cell)
   function curImg() {
     var L = displayLayer;
@@ -2253,12 +2332,25 @@
     if (!enCtl || !root || !host) return;
     enCtl.layout((window.innerWidth || 0) - (paneUp ? paneW : 0), window.innerHeight || 0);
   }
+  // HOME ENERGY'S OR THE WEATHER'S LAYER, just under the corner cards: only
+  // the other of the two between them (they never show at once). Moved only
+  // when something else is -- a node moved is drawn again, its layers and
+  // the whole sky in it made again (2026-10-19: the weather's moved under
+  // Home Energy's at every other turn, and Home Energy's under the weather's)
+  function underCards(el, info) {
+    if (!info || el.parentNode !== root) return false;
+    for (var n = el.nextSibling; n; n = n.nextSibling) {
+      if (n === info) return true;
+      if (!n.classList || !(n.classList.contains('en') || n.classList.contains('wx'))) return false;
+    }
+    return false;
+  }
   function showEnergySlide(first) {
     if (!on || !root || !host || enShowing || !enCtl) return false;
-    var h = hassNow(), info = root.querySelector('.info');
+    var h = clientNow(), info = root.querySelector('.info');
     if (!enCtl.ready(h)) return false;
     // above whatever came after it (a clock mounted again), under the corner cards
-    if (enCtl.el.parentNode !== root || enCtl.el.nextSibling !== info) root.insertBefore(enCtl.el, info);
+    if (!underCards(enCtl.el, info)) root.insertBefore(enCtl.el, info);
     var look = energyLook(), img = look === 'photo' ? curImg() : null;
     if (!enCtl.draw(h, look, img ? function (c) { drawBackdrop(c, img, BACKDROP_SMALL); } : null)) return false;
     enShowing = true; sinceFc = 0; lastSlide = 'energy';
@@ -2297,7 +2389,7 @@
   }
   // this dashboard's Energy page, when it has one: a tap on Home Energy opens it
   function energyPage() {
-    var p = panel(), conf = p && p.lovelace && p.lovelace.config;
+    var conf = dashConf();
     var has = conf && Array.isArray(conf.views) && conf.views.some(function (v) { return v && v.path === 'energy'; });
     return has ? '/' + (String(location.pathname).split('/')[1] || '') + '/energy' : null;
   }
@@ -2327,7 +2419,9 @@
         wxCtl = X.create({ hide: cfg.weather_hide, h24: cfg.clock_24 });
         root.insertBefore(wxCtl.el, root.querySelector('.info'));
       } else wxCtl.setHide(cfg.weather_hide);
-      wxCtl.ready(hassNow());
+      // (its room known before it is first drawn, unseen: ready)
+      weatherLayout();
+      wxCtl.ready(clientNow());
       if (!hold) return;
       var tries = 0, show = function () {
         if (run !== wxRun || !on || wxShowing) return;
@@ -2337,16 +2431,16 @@
       show();
     });
   }
-  function weatherReady() { return !!(wxCtl && wxCtl.ready(hassNow())); }
+  function weatherReady() { return !!(wxCtl && wxCtl.ready(clientNow())); }
   function weatherLayout() {
     if (!wxCtl || !root || !host) return;
     wxCtl.layout((window.innerWidth || 0) - (paneUp ? paneW : 0), window.innerHeight || 0);
   }
   function showWeatherSlide(first) {
     if (!on || !root || !host || wxShowing || !wxCtl) return false;
-    var h = hassNow(), info = root.querySelector('.info');
+    var h = clientNow(), info = root.querySelector('.info');
     if (!wxCtl.ready(h)) return false;
-    if (wxCtl.el.parentNode !== root || wxCtl.el.nextSibling !== info) root.insertBefore(wxCtl.el, info);
+    if (!underCards(wxCtl.el, info)) root.insertBefore(wxCtl.el, info);
     weatherLayout();
     if (!wxCtl.draw(h)) { wxCtl.leave(); return false; }
     wxShowing = true; sinceFc = 0; lastSlide = 'weather';
@@ -2516,7 +2610,7 @@
     if (r && r.context && r.reason === 'focus') return r.context;
     return null;
   }
-  function musicPlaying() { var c = musicNow(hassNow()); return !!(c && c.playing); }
+  function musicPlaying() { var c = musicNow(clientNow()); return !!(c && c.playing); }
   // what a view draws: the song, or (nothing playing) the room a play would start
   function musicOf(ctx, h) {
     var M = window.hkMusic;
@@ -2554,7 +2648,7 @@
       '<div class="mfr"><img alt=""></div><div class="mfr"><img alt=""></div></div></div>' +
       '<div class="mcol"><div class="mroom"></div><div class="mtitle"></div><div class="martist"></div><div class="malbum"></div>' +
       '<div class="mprog"><div class="mbar"><i></i></div><div class="mtimes"><span></span><span></span></div></div>' +
-      '<div class="mctl"><div class="mbtn mx" data-act="spk" aria-label="Speakers"><ha-icon icon="hk:homepod"></ha-icon></div>' +
+      '<div class="mctl"><div class="mbtn mx" data-act="spk" aria-label="Speakers"><hk-icon icon="hk:homepod"></hk-icon></div>' +
       '<div class="mbtn" data-act="prev">' + svg(ICON.prev) + '</div><div class="mbtn mpp" data-act="pp">' +
       svg(ICON.play) + '</div><div class="mbtn" data-act="next">' + svg(ICON.next) + '</div>' +
       '<div class="mbtn mx" data-act="brw" aria-label="Browse Music">' + svg(ICON.lib) + '</div>' +
@@ -2750,7 +2844,7 @@
   }
   // Everything again from the house: what plays, into each view
   function renderMusic() {
-    var h = hassNow();
+    var h = clientNow();
     if ((!on && !dashLive()) || !h) return null;
     var ctx = musicNow(h), now = clock.now();
     var d = musicOf(ctx, h);
@@ -2782,7 +2876,7 @@
   function upNext(d, sig) {
     mus.nextFor = sig; mus.next = null; mus.year = ''; mus.nextBusy = true;
     var str = function (x) { return typeof x === 'string' ? x : ''; };
-    callWS({ type: 'call_service', domain: 'music_assistant', service: 'get_queue',
+    sendWS({ type: 'call_service', domain: 'music_assistant', service: 'get_queue',
              service_data: { entity_id: d.key }, return_response: true }).then(function (r) {
       if (mus.nextFor !== sig) return;
       mus.nextBusy = false;
@@ -2810,7 +2904,7 @@
   // Once a song, and remembered.
   var nextArtSeen = {};
   function nextArt(d, sig, mi) {
-    var h = hassNow(), str = function (x) { return typeof x === 'string' ? x : ''; };
+    var h = clientNow(), str = function (x) { return typeof x === 'string' ? x : ''; };
     var tail = function (u) { u = str(u); var i = u.indexOf('://'); return i >= 0 ? u.slice(i + 3) : u; };
     var id = tail(mi.uri) || (str(mi.name) + '|' + str(mi.artists && mi.artists[0] && mi.artists[0].name));
     var put = function (url) {
@@ -2828,7 +2922,7 @@
     var artist = str(mi.artists && mi.artists[0] && mi.artists[0].name);
     if (!entry || !str(mi.name)) return;
     nextArtSeen[id] = '';
-    callWS({ type: 'call_service', domain: 'music_assistant', service: 'search', return_response: true,
+    sendWS({ type: 'call_service', domain: 'music_assistant', service: 'search', return_response: true,
              service_data: { config_entry_id: entry, name: str(mi.name), artist: artist || undefined, media_type: ['track'], limit: 5 } })
       .then(function (r) {
         var ts = (r && r.response && r.response.tracks) || [];
@@ -2843,12 +2937,25 @@
       }).catch(function () { /* no search: the note stays */ });
   }
   // A BUTTON, where it is drawn (the views take no pointer events)
+  // ON SCREEN: not hidden, and not faded out with anything it sits in. The
+  // pane stays laid out at opacity 0 when it is down (.pane, :host([pane])),
+  // its music with it: its art kept its box over the clock's right side, and
+  // a tap on the clock opened Play Music instead of waking to the dashboard
+  // (2026-10-21).
+  function seen(el) {
+    for (var n = el; n && n.nodeType === 1; n = n.parentNode && n.parentNode.nodeType === 11 ? n.parentNode.host : n.parentNode) {
+      var cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return false;
+      if (n === host) break;
+    }
+    return true;
+  }
   function musicHit(x, y) {
     if (x == null || y == null) return null;
     for (var i = 0; i < mus.views.length; i++) {
       var v = mus.views[i];
       // (the dashboard's pane takes its own taps -- and lies under this)
-      if (v.kind === 'dash' || !v.el.isConnected || (v.kind === 'slide' && !muShowing)) continue;
+      if (v.kind === 'dash' || !v.el.isConnected || (v.kind === 'slide' && !muShowing) || !seen(v.el)) continue;
       if (!v.el.hasAttribute('novol')) {
         var tr = v.vt.getBoundingClientRect();
         if (tr.width && x >= tr.left - MU_SLOP && x <= tr.right + MU_SLOP && y >= tr.top - 2 * MU_SLOP && y <= tr.bottom + 2 * MU_SLOP) return { vol: true, view: v };
@@ -2867,7 +2974,7 @@
   }
   // this dashboard's Play Music page, when it has one (as weatherPage)
   function musicPage() {
-    var p = panel(), conf = p && p.lovelace && p.lovelace.config;
+    var conf = dashConf();
     var has = conf && Array.isArray(conf.views) && conf.views.some(function (v) { return v && v.path === 'playmusic'; });
     return has ? '/' + (String(location.pathname).split('/')[1] || '') + '/playmusic' : null;
   }
@@ -2897,13 +3004,13 @@
     if (now - dr.sent >= VOL_EVERY) volSend(); else if (!dr.t) dr.t = setTimeout(volSend, VOL_EVERY - (now - dr.sent));
   }
   function volSend() {
-    var dr = mus.drag, h = hassNow();
+    var dr = mus.drag, act = actionsNow();
     if (dr && dr.t) { clearTimeout(dr.t); dr.t = null; }
-    if (!mus.vol || !h) return;
+    if (!mus.vol || !act) return;
     if (dr) dr.sent = clock.now();
     if (mus.vol.sent === mus.vol.val) return;
     mus.vol.sent = mus.vol.val;
-    try { h.callService('media_player', 'volume_set', { entity_id: mus.vol.key, volume_level: mus.vol.val }); } catch (e) { /* offline */ }
+    try { act.callService('media_player', 'volume_set', { entity_id: mus.vol.key, volume_level: mus.vol.val }); } catch (e) { /* offline */ }
   }
   function volStart(hit, x) {
     mus.drag = { view: hit.view, sent: 0, t: null };
@@ -2925,12 +3032,12 @@
     if (!hit || hit.view.kind !== 'dash') { saverTouched(); musicUsed(); }
     if (hit && hit.art) { openMusic(hit); return; }
     if (hit && hit.vol) { volStart(hit, x); return; }
-    var h = hassNow(), d = hit && hit.view.d, act = hit && hit.btn.getAttribute('data-act');
-    if (!h || !d || !d.key || !act) return;
+    var port = actionsNow(), d = hit && hit.view.d, act = hit && hit.btn.getAttribute('data-act');
+    if (!port || !d || !d.key || !act) return;
     if (act === 'spk' || act === 'brw') { panelFor(hit.view, act === 'spk' ? 'speakers' : 'browse'); return; }
     var svc = act === 'prev' ? 'media_previous_track' : act === 'next' ? 'media_next_track'
             : !d.idle && d.playing ? 'media_pause' : 'media_play';
-    try { h.callService('media_player', svc, { entity_id: d.key }); } catch (e) { /* offline */ }
+    try { port.callService('media_player', svc, { entity_id: d.key }); } catch (e) { /* offline */ }
     var b = hit.btn;
     b.classList.add('hit');
     setTimeout(function () { b.classList.remove('hit'); }, 180);
@@ -2972,8 +3079,8 @@
     var me = { view: v, idleT: null, doneT: null, anim: null,
                src: v.kind === 'pane' ? paneEl : v.kind === 'dash' ? v.box : v.el.querySelector('.msq') };
     me.p = P.create({
-      hass: hassNow,
-      ctx: function () { return musicNow(hassNow()); },
+      client: clientNow,             // its reads, and its buttons through client.actions
+      ctx: function () { return musicNow(clientNow()); },
       art: function () { return v.bg[v.flip] || null; },
       // the music moved (Update, a new leader): the screensaver follows it
       follow: function (key) { if (key) { mus.key = key; mus.lostAt = 0; renderMusic(); } },
@@ -3149,7 +3256,7 @@
     var now = Date.now();
     if (now - saverSent < 3000) return;
     saverSent = now;
-    callWS(whoMsg({ type: 'hk_frontend/screensaver/touch', saver: true })).catch(function () { /* older integration */ });
+    sendWS(whoMsg({ type: 'hk_frontend/screensaver/touch', saver: true })).catch(function () { /* older integration */ });
   }
 
   // THE SLIDE: built the first time, then kept like the forecast's layer
@@ -3165,7 +3272,7 @@
   // false: nothing plays (nothing shown). first: the screensaver's first view
   function showMusicSlide(first) {
     if (!on || !root || !host || muShowing) return muShowing;
-    var ctx = musicNow(hassNow());
+    var ctx = musicNow(clientNow());
     if (!ctx || !ctx.playing) return false;
     var v = buildMusicSlide(), run = photoRun;
     // (Home Energy over everything: the music in its place)
@@ -3222,7 +3329,7 @@
   }
   // OVER THE FORECAST, the house decides: the slide while music plays, the
   // forecast again MU_GRACE after it stops. Every view follows the house.
-  // At most once a second (a hass comes many times a second).
+  // At most once a second (a new client comes many times a second).
   // THE MUSIC TAKES THE SCREEN while it plays: Music First, or (as before
   // Music First) the music over the forecast
   function takeover() { return !!cfg && (cfg.music_first || (cfg.music_slide && mode !== 'photos')); }
@@ -3234,7 +3341,7 @@
       return;
     }
     mus.watchAt = now;
-    var ctx = mus.views.length ? renderMusic() : musicNow(hassNow());
+    var ctx = mus.views.length ? renderMusic() : musicNow(clientNow());
     // the pane's music: while something plays, or its panel is open, and the
     // grace after (paused music goes too, once the grace is up)
     var g = muGrace(), inUse = !!pnl && pnl.view.kind !== 'dash';
@@ -3295,7 +3402,7 @@
   function dashViews() { return mus.views.filter(function (v) { return v.kind === 'dash'; }); }
   function dashLive() { return mus.views.some(function (v) { return v.kind === 'dash' && v.live && v.el.isConnected; }); }
   // what plays for a pane: hkMusic's answer for this screen (hk-popup.js asks)
-  function musicHas(h) { return !!musicNow(h || hassNow()); }
+  function musicHas(h) { return !!musicNow(h || clientNow()); }
   // the dashboard's pane drawn again from the house, at most once a second
   // (the screensaver's own watch draws every view while it is up)
   var dashAt = 0, dashT = null;
@@ -3361,15 +3468,15 @@
   // song move with it, drawn already.
   var dashV = null;
   if (!customElements.get('hk-music-pane-card')) {
-    customElements.define('hk-music-pane-card', class extends HTMLElement {
+    var MusicPane = class extends HTMLElement {
       constructor() {
         super();
         this._root = this.attachShadow({ mode: 'open' });
       }
       setConfig(c) { this._config = c || {}; }
       getCardSize() { return 0; }
-      set hass(h) { this._hass = h; if (this._v && this._v.live) dashWatch(); }
-      get hass() { return this._hass; }
+      // Lovelace's entry (hkHostClient.entry below) hands each new client here
+      _onClient() { if (this._v && this._v.live) dashWatch(); }
       connectedCallback() {
         if (!this._root.querySelector('.pane')) this._make();
         this._adopt();
@@ -3532,7 +3639,9 @@
         this.addEventListener('pointerup', end);
         this.addEventListener('pointercancel', end);
       }
-    });
+    };
+    window.hkHostClient.entry(MusicPane);
+    customElements.define('hk-music-pane-card', MusicPane);
   }
 
   // ------------------------------------------------------------ the pane
@@ -3611,7 +3720,7 @@
     setAttr(host, 'pcal', cfg.calendar);
     // (playing, not paused: a song left paused does not bring the pane back
     // each time the screensaver starts)
-    var c0 = cfg.music_pane ? musicNow(hassNow()) : null, playing = !!(c0 && c0.playing);
+    var c0 = cfg.music_pane ? musicNow(clientNow()) : null, playing = !!(c0 && c0.playing);
     mus.paneIn = playing; mus.lastActive = playing ? clock.now() : 0;
     setAttr(host, 'pm', playing);
     musicPane(cfg.music_pane);
@@ -3627,8 +3736,7 @@
       try {
         var el = document.createElement(tag);
         el.setConfig({ type: 'custom:' + tag, days: cfg.calendar_days });
-        var h = hassNow();
-        if (h) el.hass = h;
+        feedCard(el, clientNow());
         paneSc.appendChild(el);
         cards.push(el);
         paneCard = el;
@@ -3715,7 +3823,7 @@
     var tag = 'hk-weather-band-card';
     var make = function () {
       if (!host || !box.isConnected) return;
-      var h = hassNow(), HS = window.hkSettings;
+      var h = clientNow(), HS = window.hkSettings;
       var wid = h && HS && HS.weatherId ? HS.weatherId(h.states) : null;
       if (!wid) return;
       try {
@@ -3724,7 +3832,7 @@
         // the other screens, its column slimmer and fewer hours
         el.setConfig({ type: 'custom:' + tag, entity: wid, hours: paneUp ? 8 : 12, days: 6, plain: true,
                        now_width: paneUp ? BAND_NOW_BESIDE : undefined });
-        if (h) el.hass = h;
+        feedCard(el, h);
         // NOT SEEN UNTIL IT IS IN PLACE: it can only be centred once it has
         // drawn (centerBand measures it), so it drew ~25 px off and jumped
         // a quarter second into the slide -- and beside the calendar pane
@@ -3986,9 +4094,13 @@
     var saved = parseFloat(stored(BRIGHT_KEY));
     return isFinite(saved) && saved > 0 ? saved : null;
   }
+  function hkUnheard(h) {
+    var b = hkBoard(), st = b && b.black_switch && h && h.states && h.states[b.black_switch];
+    return !!(st && st.state === 'on' && st.attributes && st.attributes.confirmed === false);
+  }
   function hkAck(on) {
     var t = hkBoard();
-    callWS(t && !t.legacy ? { type: 'hk_frontend/screensaver/black', tablet: t.id, black: on }
+    sendWS(t && !t.legacy ? { type: 'hk_frontend/screensaver/black', tablet: t.id, black: on }
                           : { type: 'hk_frontend/screensaver/black', dashboard: dashSeg(), black: on })
       .then(function () { if (on) hkAcked = true; }, function () { /* older integration: the sleep falls back */ });
   }
@@ -4022,9 +4134,9 @@
     downOpts = { hold: CURTAIN_HOLD_HK, onFade: function () { if (v != null) rampBacklight(v, CURTAIN_FADE); } };
     blackChanged();
   }
-  // every new hass and every settings change
+  // every new client and every settings change
   function hkSync(h) {
-    h = h || hassNow();
+    h = h || clientNow();
     var want = hkWanted(h);
     if (want === null) return;                 // not known yet: as it is
     var first = hkFirst;
@@ -4033,6 +4145,9 @@
       // black, but not yet heard by the house (the connection was not up):
       // say so again, every few seconds
       if (want && hkDown && !hkAcked && clock.now() - hkAckTry > 3000) { hkAckTry = clock.now(); hkAck(true); }
+      // ...or the house no longer has it (its server restarted, and the black came again while this page
+      // was already black, 2026-10-21): the switch says unconfirmed, so say it again, every few seconds
+      else if (want && hkDown && hkUnheard(h) && clock.now() - hkAckTry > 3000) { hkAckTry = clock.now(); hkAck(true); }
       // a page loaded under a black that is no longer wanted: the cover
       // fades, and the backlight the last page lowered comes back with it
       if (first && !want) bootCover(true, h);
@@ -4051,7 +4166,7 @@
     hkAck(false);
     touchSent = 0; reportTouch();
     lastInput = Date.now();
-    hkLeave(hassNow());
+    hkLeave(clientNow());
   }
   // THE BLACK THROUGH A RELOAD: hk-settings.js puts a cover up at once on a
   // page that was black (BLACK_KEY); here it gives way to the curtain --
@@ -4133,7 +4248,7 @@
     litAt = clock.now();
     lastInput = Date.now();
     armIdle();
-    setTimeout(function () { var h = hassNow(); if (h && !on) onHass(h); }, LIT_GRACE + 50);
+    setTimeout(function () { var h = clientNow(); if (h && !on) onUpdate(h); }, LIT_GRACE + 50);
   }
   function lightSoon() {
     if (black() || !on || !host || !host.hasAttribute('dark')) return;
@@ -4158,7 +4273,7 @@
   // the page cannot tell, so Fully is asked and Kiosk Satellite is listened
   // to -- or a hidden page); and the corner rows stay above the band.
   function forecastTick(force) {
-    var h = hassNow();
+    var h = clientNow();
     if (fscene && h && h.states) {
       var HS = window.hkSettings, sun = h.states['sun.sun'];
       var wid = HS && HS.weatherId ? HS.weatherId(h.states) : null, w = wid && h.states[wid];
@@ -4192,7 +4307,7 @@
   }
 
   // ------------------------------------------------------------ the loop
-  // The config follows the page: on each view change, and on each new hass
+  // The config follows the page: on each view change, and on each new client
   // (cheap -- a property read, and the dashboard config object is the same
   // object until the dashboard changes).
   // A DASHBOARD HK FRONTEND DOES NOT DRAW (an existing dashboard given HK
@@ -4204,19 +4319,28 @@
     var HS = window.hkSettings, S = window.hkStrategy;
     var all = HS && HS.get ? HS.get('boards', null) : null;
     var b = all && all[String(location.pathname).split('/')[1] || ''];
-    return b && b.screensaver && S && S.saverBlock ? S.saverBlock(hassNow(), b) : null;
+    return b && b.screensaver && S && S.saverBlock ? S.saverBlock(clientNow(), b) : null;
   }
   // compared as written: a block made from the settings is a new object
   // every time
   var lastRaw = '';
   function refresh() {
-    var p = panel();
-    var conf = p && p.lovelace && p.lovelace.config;
+    var conf = dashConf();
     var raw = conf && conf.hk_screensaver;
     if (conf && raw === undefined) raw = fromSettings(conf);
+    // A HOST WITH NO LOVELACE drew the screen from the strategy once, at its
+    // load: the block it made then names the tablet's switch only if that
+    // switch's state was already there (hk-strategy.js screensaverOf), and
+    // Mantel's own arrive a moment after its settings. The settings make the
+    // same block again, now -- else the one the strategy made.
+    else if (shellConf && raw && !raw.entity) raw = fromSettings(conf) || raw;
     if (previewOn && previewHouse) raw = houseBlock() || raw;
     var HS = window.hkSettings;
     if (HS && HS.lovelacePanel && HS.lovelacePanel() === false) raw = null;
+    // the host's own album for this screen, in place of the house's photos
+    // (hostPhotoSource; none in Home Assistant)
+    var ownPhotos = raw ? hostPhotoSource(raw.photos) : null;
+    if (ownPhotos && ownPhotos !== raw.photos) raw = Object.assign({}, raw, { photos: ownPhotos });
     // Derive effective options without changing any saved screensaver choice.
     if (raw && isFlat()) raw = Object.assign({}, raw, {
       zoom: false, photo_layout: 'single', portrait_blur: 0, landscape_blur: 0,
@@ -4243,16 +4367,20 @@
       // ...and a preview asked for before there was a config (the frame's
       // dashboard, or its settings, still arriving) starts once there is one
       if (previewOn && !on && cfg) setTimeout(function () { if (previewOn && !on && cfg) start('preview'); }, 0);
-      if (!cfg && on) stop('config');
+      // turned off while it shows: its switch goes off too (stop('config') alone left it on, and turning the
+      // screensaver back on started it at once, "by the switch", instead of after Starts After)
+      if (!cfg && on) { writeSwitch('off', was); stop('config'); }
       if (deck && cfg && deck.order !== cfg.order) deck = null;
+      // a new Starts After counts from the last touch now, not when the old (longer) timer runs out
+      if (was && cfg && !on && idleT) armIdle();
     }
     if (!cfg) { if (idleT) { clearTimeout(idleT); idleT = null; } return; }
-    if (!allowed()) { if (on) stop('config'); if (idleT) { clearTimeout(idleT); idleT = null; } return; }
+    if (!allowed()) { if (on) { writeSwitch('off'); stop('config'); } if (idleT) { clearTimeout(idleT); idleT = null; } return; }
     if (!idleT && !on) armIdle();
   }
   var refreshedAt = 0;
   function refreshSoon() {
-    // on every hass (~40 a second in a busy house) the switch is checked, but
+    // on every update (~40 a second in a busy house) the switch is checked, but
     // the config only every 2 s: it changes when the dashboard does
     var now = Date.now();
     if (now - refreshedAt < 2000) return;
@@ -4269,7 +4397,7 @@
       v.bg = v.el.querySelectorAll('canvas.mbg'); v.pic = null;
     }); renderMusic(); }
   });
-  window.addEventListener('location-changed', function () { setTimeout(refresh, 0); });
+  window.hkShell.onNavigate(function () { setTimeout(refresh, 0); });
   window.addEventListener('popstate', function () { setTimeout(refresh, 0); });
   window.addEventListener('resize', function () { if (on) { layoutPane(); layoutMusic(); placePanel(); } });
   document.addEventListener('visibilitychange', function () {
@@ -4299,9 +4427,9 @@
     return n - resumedAt < RESUME_MS || n - lastBeat > RESUME_MS;
   }
   var hubOff = null;
-  function hookHass() {
-    if (hubOff || !(window.hkCards && window.hkCards.onHass)) return false;
-    hubOff = window.hkCards.onHass(function (h) { refreshSoon(); onHass(h); if (on) musicWatch(); });
+  function hookClient() {
+    if (hubOff || !(window.hkCards && window.hkCards.onClient)) return false;
+    hubOff = window.hkCards.onClient(function (h) { refreshSoon(); onUpdate(h); if (on) musicWatch(); });
     if (window.hkMusic && window.hkMusic.onChange) window.hkMusic.onChange(function () {
       if (on) { mus.watchAt = 0; musicWatch(); }
     });
@@ -4310,9 +4438,9 @@
   // hk-base (the cards) loads after this module; until it does, poll lightly
   (function wait(n) {
     refresh();
-    var h = hassNow();
-    if (h) onHass(h);
-    if (hookHass()) return;
+    var h = clientNow();
+    if (h) onUpdate(h);
+    if (hookClient()) return;
     setTimeout(function () { wait(n + 1); }, n < 60 ? 1000 : 5000);
   })(0);
 
@@ -4356,10 +4484,13 @@
     next: nextPhoto,
     previous: previousPhoto,
     force: function (v) { force = !!v; refresh(); return force; },
+    // THE HOST'S PHOTOS CHANGED (a screen's album, an album's photos): listed
+    // again at the next photo, and the source asked again now
+    photosChanged: function () { listKey = ''; refresh(); },
     config: function () { return cfg; },
     // what plays for the dashboard's Now Playing pane (hk-popup.js): there
     // (playing or paused), and playing
-    music: { has: musicHas, playing: function (h) { var c = musicNow(h || hassNow()); return !!(c && c.playing); } },
+    music: { has: musicHas, playing: function (h) { var c = musicNow(h || clientNow()); return !!(c && c.playing); } },
     stats: function () {
       return { on: on, startedBy: startedBy, allowed: allowed(), photos: deck ? deck.items.length : null,
                shown: shown, failed: failed, last: lastPhoto, cards: cards.length,
@@ -4378,6 +4509,8 @@
     _: { darkUnderBlack: function (v) { DARK_UNDER_BLACK = !!v; }, clock: clock, beat: beat, justResumed: function () { return justResumed(); },
          // tests: as a page just loaded, for HK's black (its first decision)
          hkFresh: function () { hkFirst = true; },
+         // tests: the next touch is told at once (not held by the 10 s between reports)
+         touchFresh: function () { touchSent = 0; },
          readCfg: readCfg, gate: gate, wake: WAKE, zoneOf: zoneOf, fitOf: fitOf, layoutOf: layoutOf, backdropSmall: backdropSmall, nightNow: nightNow,
          ckFx: ckFx, MOSAIC_COLORS: MOSAIC_COLORS,
          mosaicPlan: mosaicPlan, mosaicAssign: mosaicAssign, coverRect: coverRect, MOSAICS: MOSAICS, shuffle: shuffle, Deck: Deck, isImage: isImage,

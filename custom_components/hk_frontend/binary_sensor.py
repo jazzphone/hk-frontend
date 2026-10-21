@@ -1,5 +1,6 @@
 """Each screen's in-use sensor (screensaver.py): on while the screen was
-touched within its window -- Starts After less a minute."""
+touched within its window -- Starts After less a minute (the rule is shared:
+hk_core/screensaver/rules.py in_use)."""
 from __future__ import annotations
 
 from typing import Any
@@ -12,10 +13,16 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from .screensaver import INUSE_KEY, SaverEntity, async_setup_platform, window_of
+from .hk_core.screensaver.rules import in_use
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddConfigEntryEntitiesCallback) -> None:
+    from . import handover, linked_mode
+    # what Mantel Link holds is taken back before it is added here (handover.py)
+    async_add_entities = handover.guarded(hass, entry, async_add_entities)
+    if linked_mode.attach(hass, entry, "binary_sensor", async_add_entities):
+        return                      # linked to Mantel Server: Mantel's entities
     await async_setup_platform(hass, entry, "binary_sensor", async_add_entities)
 
 
@@ -29,9 +36,7 @@ class ScreenInUse(SaverEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         t = self._mgr.touch.get(self._path)
-        if t is None:
-            return False
-        return (dt_util.utcnow() - t).total_seconds() < window_of(self._starts_after())
+        return t is not None and in_use(t, self._starts_after(), dt_util.utcnow())
 
     def touched(self) -> None:
         # off exactly when the window runs out, not at the next poll

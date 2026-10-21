@@ -19,11 +19,11 @@
 //
 //   hkSaverEnergy.create({ hide, h24 }) -> ctl
 //     ctl.el                  the layer (hk-saver.js puts it in its root)
-//     ctl.ready(hass)         a summary to show (asking for one if not)
-//     ctl.draw(hass, look)    fill it in now; look: 'photo' | 'sky' | 'plain'
+//     ctl.ready(client)       a summary to show (asking for one if not)
+//     ctl.draw(client, look)  fill it in now; look: 'photo' | 'sky' | 'plain'
 //     ctl.arrived()           the fade is done: the rings and lines draw
 //     ctl.layout(W, H)        the room it has (beside any pane)
-//     ctl.setHass(hass)       fresh states, while it shows
+//     ctl.setClient(client)   fresh states, while it shows
 //     ctl.leave() / destroy()
 (function () {
   'use strict';
@@ -34,17 +34,28 @@
   // BAND_W / BAND_H), scaled to the room it has
   var W0 = 1280, H0 = 800;
   var REDRAW_MS = 5000;
+  // the photo's blurred copy: this wide (hk-saver.js BACKDROP_W)
+  var BG_W = 96;
   // the parts Energy Options can leave out (settings.py SAVER_ENERGY_PARTS)
   var RINGS = ['energy', 'cost', 'solar', 'water', 'gas'];
 
   var CSS = [
-    '.en{position:absolute;inset:0;z-index:3;opacity:0;visibility:hidden;pointer-events:none;overflow:hidden;',
+    // ONE LAYER FOR GOOD, hidden by its opacity alone (2026-10-19): with
+    // visibility:hidden after each fade out, and a layer only while its
+    // opacity animated, every turn made the layer and its photo canvas and
+    // dropped them again (headless: +4 as it came in, -4 once it had gone),
+    // and the corner cards over it lost theirs and took it back mid-turn --
+    // each a re-raster of what sits above on a wall tablet's WebView: the
+    // flicker in and out. As the photo layers (hk-saver.js .ph).
+    '.en{position:absolute;inset:0;z-index:3;opacity:0;pointer-events:none;overflow:hidden;will-change:opacity;',
     '  font-family:' + FONT + ';color:rgba(255,255,255,.94);text-shadow:0 1px 10px rgba(0,0,0,.28);',
-    '  transition:opacity var(--hk-en-fade,3000ms) ease,visibility 0s linear var(--hk-en-fade,3000ms);--z:1}',
-    '.en.on{opacity:1;visibility:visible;transition:opacity var(--hk-en-fade,3000ms) ease,visibility 0s}',
+    '  transition:opacity var(--hk-en-fade,3000ms) ease;--z:1}',
+    '.en.on{opacity:1}',
     // BEHIND IT: the photo's blurred copy, the sky darkened, or its own gradient
-    '.en .enbg{position:absolute;inset:0;width:100%;height:100%;display:none}',
-    '.en[look=photo] .enbg{display:block;filter:brightness(.5) saturate(1.15)}',
+    // (the photo's copy is there, unseen, whatever the look: shown and let go
+    // of with the look, its layer was made at the first turn -- 2026-10-19)
+    '.en .enbg{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0}',
+    '.en[look=photo] .enbg{opacity:1;filter:brightness(.5) saturate(1.15)}',
     '.en .enwash{position:absolute;inset:0}',
     '.en[look=photo] .enwash{background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.28))}',
     '.en[look=sky] .enwash{background:linear-gradient(180deg,rgba(6,10,18,.62),rgba(6,10,18,.8))}',
@@ -85,7 +96,11 @@
     '.en .st{display:grid;grid-column:1/-1;grid-template-columns:calc(12px * var(--z)) auto minmax(24px,1fr) auto;column-gap:calc(12px * var(--z));align-items:center}',
     '.en .st i{width:calc(12px * var(--z));height:calc(12px * var(--z));border-radius:50%}',
     '.en .st .k{font-size:calc(15px * var(--z));font-weight:600;letter-spacing:.4px;text-transform:uppercase;opacity:.75}',
-    '.en .st .ln{grid-column:3;height:2px;border-radius:1px;margin:0 calc(8px * var(--z));min-width:24px;transform-origin:left center}',
+    // (drawn out by its background's width, painted, not by a transform:
+    // the compositor's scaleX made the line a layer only while it drew,
+    // and the readings beside it with it -- made and dropped at every
+    // turn, 2026-10-19)
+    '.en .st .ln{grid-column:3;height:2px;border-radius:1px;margin:0 calc(8px * var(--z));min-width:24px;background-repeat:no-repeat}',
     '.en .st .v{grid-column:4;grid-row:1;font-size:calc(40px * var(--z));font-weight:700;letter-spacing:-1px;line-height:1;',
     '  font-variant-numeric:tabular-nums;white-space:nowrap}',
     '.en .st .v u,.en .enfoot .v u{text-decoration:none;font-weight:600;opacity:.75;letter-spacing:0}',
@@ -172,7 +187,7 @@
     var stats = rings.map(function (r) {
       var typ = r.key === 'cost' ? s.money(r.typ, 2) : fx(r.typ, r.key === 'water' || r.key === 'gas' ? 0 : (r.typ >= 100 ? 0 : 1)) + (r.unit ? ' ' + r.unit : '');
       return '<div class="st"><i style="background:' + r.c + '"></i><span class="k">' + esc(r.name) + '</span>' +
-        '<span class="ln" style="background:linear-gradient(90deg,' + r.c + ',' + r.c + '40)"></span>' +
+        '<span class="ln" style="background-image:linear-gradient(90deg,' + r.c + ',' + r.c + '40)"></span>' +
         '<span class="v">' + val(r, r.v) + (r.unit ? '<u>' + esc(r.unit) + '</u>' : '') + '</span>' +
         '<span class="of">' + (r.typ > 0 ? 'of a usual day’s ' + typ : 'Learning your usual') + '</span></div>';
     }).join('');
@@ -239,8 +254,8 @@
   // it -- its multicolor glyph (hk-header.js wxSvg), the temperature, the
   // conditions -- "<glyph> 85° Sunny"
   var COND = { 'clear-night': 'Clear', partlycloudy: 'Partly Cloudy', sunny: 'Sunny' };
-  function weatherLine(hass) {
-    var HS = window.hkSettings, HD = window.hkHeader, st = hass && hass.states;
+  function weatherLine(client) {
+    var HS = window.hkSettings, HD = window.hkHeader, st = client && client.states;
     var id = st && HS && HS.weatherId ? HS.weatherId(st) : null, w = id && st[id];
     if (!w) return '';
     var t = Number(w.attributes && w.attributes.temperature), night = HD && HD.isNight ? HD.isNight(st) : false;
@@ -273,18 +288,29 @@
       '<div class="enbody"><div class="enrw"><div class="enrs"></div><div class="ennote">The white dots: a usual day by now</div></div>' +
       '<div class="enread"><div class="eneye">Home Energy</div><div class="enh">Today So Far</div><div class="enlede"></div>' +
       '<div class="enstats"></div></div></div><div class="enfoot"></div>';
+    // THE PHOTO'S COPY ON ITS LAYER FROM THE START (2026-10-19): a canvas is
+    // a layer of its own once drawn into, and a new one at a new size -- so
+    // drawn into now, at the size the saver paints it (hk-saver.js
+    // drawBackdrop: BG_W wide, the screen's shape), not as the screen first
+    // comes in
+    try {
+      var bg = el.querySelector('.enbg'), t = document.createElement('canvas');
+      bg.width = BG_W; bg.height = Math.max(1, Math.round(BG_W * (window.innerHeight || 800) / Math.max(1, window.innerWidth || 1280)));
+      t.width = t.height = 1;
+      bg.getContext('2d').drawImage(t, 0, 0);
+    } catch (e) { /* a canvas without a context */ }
     var layoutW = 0, layoutH = 0;
-    var alive = true, showing = false, hass = null, last = null, sig = '', drawnAt = 0, redrawT = null, was = null, clockT = null;
+    var alive = true, showing = false, client = null, last = null, sig = '', drawnAt = 0, redrawT = null, was = null, clockT = null;
     var h24 = !!opts.h24;
     function tick() {
       var now = new Date(), tz = window.hkStats && window.hkStats.tz ? window.hkStats.tz() : undefined;
-      var t = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: !h24, timeZone: tz }).split(' ');
-      var d = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz });
+      var t = now.toLocaleTimeString(window.hkLocale.tag(), window.hkLocale.clock({ hour: 'numeric', minute: '2-digit', hour12: !h24, timeZone: tz })).split(' ');
+      var d = now.toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }));
       var tEl = el.querySelector('.ent'), dEl = el.querySelector('.end'), wEl = el.querySelector('.enw');
       var th = esc(t[0]) + (t[1] ? '<small>' + esc(t[1]) + '</small>' : '');
       if (tEl.innerHTML !== th) tEl.innerHTML = th;
       if (dEl.textContent !== d) dEl.textContent = d;
-      var w = weatherLine(hass);
+      var w = weatherLine(client);
       if (wEl.__hkW !== w) { wEl.__hkW = w; wEl.innerHTML = w; }
       freshness();
       align();
@@ -314,8 +340,8 @@
     };
     function summary() {
       var H = E();
-      if (!H || !H.summary || !hass) return null;
-      try { return H.summary(hass, waker) || null; } catch (e) { console.warn('[hk-saver-energy]', e && e.message); return null; }
+      if (!H || !H.summary || !client) return null;
+      try { return H.summary(client, waker) || null; } catch (e) { console.warn('[hk-saver-energy]', e && e.message); return null; }
     }
     function soon() {
       if (!alive || !showing || redrawT) return;
@@ -354,7 +380,7 @@
       el.querySelectorAll('circle.arc').forEach(function (a) {
         if (on) a.style.strokeDasharray = '0 ' + a.getAttribute('data-c'); else a.style.removeProperty('stroke-dasharray');
       });
-      el.querySelectorAll('.st .ln').forEach(function (l) { if (on) l.style.transform = 'scaleX(0)'; else l.style.removeProperty('transform'); });
+      el.querySelectorAll('.st .ln').forEach(function (l) { if (on) l.style.backgroundSize = '0% 100%'; else l.style.removeProperty('background-size'); });
     }
     function layout(w, h) {
       if (!w || !h) return;
@@ -379,19 +405,21 @@
       // out from each name toward its number over the rings' own sweep --
       // the same moment, length and curve
       el.querySelectorAll('.st .ln').forEach(function (l) {
-        if (l.animate) l.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: dur, easing: ease, fill: 'backwards' });
+        if (l.animate) l.animate([{ backgroundSize: '0% 100%' }, { backgroundSize: '100% 100%' }], { duration: dur, easing: ease, fill: 'backwards' });
       });
+      // (its fill, not its opacity: an opacity animation is the compositor's,
+      // and gave the rings a layer of their own only while it ran)
       el.querySelectorAll('svg.rings .tick').forEach(function (t) {
-        if (t.animate) t.animate([{ opacity: 0 }, { opacity: 0, offset: 0.6 }, { opacity: 1 }], { duration: dur + 300 });
+        if (t.animate) t.animate([{ fillOpacity: 0 }, { fillOpacity: 0, offset: 0.6 }, { fillOpacity: 1 }], { duration: dur + 300 });
       });
     }
     return {
       el: el,
-      ready: function (h) { if (h) hass = h; return !!summary(); },
+      ready: function (h) { if (h) client = h; return !!summary(); },
       // look: 'photo' (paintBg draws the photo's blurred copy into the
       // canvas), 'sky' or 'plain'
       draw: function (h, look, paintBg) {
-        if (h) hass = h;
+        if (h) client = h;
         tick();
         if (!clockT) clockT = setInterval(function () { if (alive && showing) tick(); }, 10000);
         el.setAttribute('look', look || 'plain');
@@ -401,7 +429,7 @@
         return paint(true);
       },
       arrived: arrived,
-      setHass: function (h) { hass = h; if (showing) soon(); },
+      setClient: function (h) { client = h; if (showing) soon(); },
       setHide: function (list) { hide = Array.isArray(list) ? list.slice() : []; sig = ''; },
       // THE MOCKUP'S SIZES: a 1280 x 800 screen at 1 (rings 380 px, figures
       // 40 px), scaled with the room it has -- down only if they don't fit

@@ -28,9 +28,10 @@
 // that wants it (2026-10-16, the Weather page): the band, the page's hourly
 // and daily cards and the weather sheet each WATCH it, and the first to watch
 // asks Home Assistant (weather/subscribe_forecast) while the last to let go
-// drops it. Per connection, so a page that reconnected starts afresh.
+// drops it. Per subscription port (the client's: one per socket, the same
+// across state snapshots), so a page whose socket was replaced starts afresh.
 //
-//   var w = hkWxForecast.watch(conn, 'hourly', 'weather.home', onNew);
+//   var w = hkWxForecast.watch(client.subscriptions, 'hourly', 'weather.home', onNew);
 //   w.data()      the forecast so far ([] until it arrives)
 //   w.ensure()    ask again if a refusal's wait is over (each render)
 //   w.release()   this watcher is done; the last one unsubscribes
@@ -170,16 +171,16 @@
     // THE HOUSE'S WEATHER WHEN A CARD NAMES NONE. A key the
     // card's YAML gives wins; one it leaves out is Configure -> Weather's
     // (the weather entity, else the house's first; the wind, gust, UV and
-    // alerts sensors), re-read on every hass so an edit there follows at once.
+    // alerts sensors), re-read with every new client so an edit there follows at once.
     // So no card throws for want of an `entity:`, and a card added in the UI
     // need not repeat the house's own choice.
-    function houseWeather(card, h, keys) {
+    function houseWeather(card, client, keys) {
       var HS = window.hkSettings, c = card._config;
       if (!HS || !c) return;
       var own = card._hkOwn || {};
       Object.keys(keys).forEach(function (k) {
         if (own[k]) return;
-        var v = keys[k] === 'weather' ? (h ? HS.weatherId(h.states) : HS.get('weather.entity', null))
+        var v = keys[k] === 'weather' ? (client ? HS.weatherId(client.states) : HS.get('weather.entity', null))
                                       : HS.get(keys[k], null);
         if (v && c[k] !== v) { c[k] = v; card._hkSig = null; }
       });
@@ -207,7 +208,7 @@
       static get CSS() {
         return [
           // a page card's plate (hkCards.plate)
-          'ha-card.wtile{box-sizing:border-box;display:block;height:172px;',
+          'hk-plate.wtile{box-sizing:border-box;display:block;height:172px;',
           '  padding:14px 16px;margin:0;' + window.hkCards.plate('card') + ';',
           '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
           // `start` on a tablet, where five tiles share a row at ~230px each and
@@ -306,14 +307,14 @@
                      : v === 'uv' ? { uv: TILE_KEYS.uv } : {};
         this._hkOwn = ownKeys(config, this._hkKeys);
         super.setConfig(Object.assign({}, config));
-        houseWeather(this, this._hass, this._hkKeys);
+        houseWeather(this, this.client, this._hkKeys);
       }
-      get hass() { return super.hass; }
-      set hass(h) { houseWeather(this, h, this._hkKeys || {}); super.hass = h; }
+      // each new client: the house's weather resolved first, then HkBase's step
+      _receiveClient() { houseWeather(this, this.client, this._hkKeys || {}); super._receiveClient(); }
       getCardSize() { return 2; }
 
       _sigOf() {
-        var h = this._hass, c = this._config;
+        var h = this.client, c = this._config;
         if (!h || !c) return null;
         var ids = [c.entity, c.speed, c.gust, c.sun, c.phase, c.uv].filter(Boolean);
         var out = c.variant + '|';
@@ -351,8 +352,8 @@
         // The speed's own unit: the sensor's, else the weather entity's.
         var HS = window.hkSettings;
         var spdSt = this._st(this._config.speed || this._config.entity);
-        var unit = HS && HS.unit ? HS.unit(spdSt, this._config.speed ? null : 'wind_speed_unit', 'mph')
-                                 : 'mph';
+        var unit = HS && HS.unit ? HS.unit(spdSt, this._config.speed ? null : 'wind_speed_unit', window.hkLocale.units().speed)
+                                 : window.hkLocale.units().speed;
         var DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
         // Meteorological bearing is the direction the wind comes FROM, so the
         // needle points from that bearing toward the centre.
@@ -406,8 +407,8 @@
         var fmt = function (iso) {
           if (!iso) return '--';
           var d = new Date(iso);
-          return isNaN(d) ? '--' : d.toLocaleTimeString('en-US',
-            { hour: 'numeric', minute: '2-digit' });
+          return isNaN(d) ? '--' : d.toLocaleTimeString(window.hkLocale.tag(),
+            window.hkLocale.clock({ hour: 'numeric', minute: '2-digit' }));
         };
         var main = fmt(up ? a.next_setting : a.next_rising);
         var other = up ? ('Sunrise: ' + fmt(a.next_rising))
@@ -436,7 +437,7 @@
       _phase() {
         if (this._config.phase) return this._n(this._config.phase);
         var HS = window.hkSettings;
-        return HS && HS.moon ? HS.moon((this._hass && this._hass.states) || {}) : null;
+        return HS && HS.moon ? HS.moon((this.client && this.client.states) || {}) : null;
       }
       _moon() {
         var p = this._phase();
@@ -526,13 +527,13 @@
       _isPage() { var c = this._config || {}; return c.look === 'page' || c.variant === 'humidity' || c.variant === 'pressure'; }
       _render() {
         var cfg = this._config;
-        if (this._isPage()) { if (this._hass) this._renderPage(); return; }
+        if (this._isPage()) { if (this.client) this._renderPage(); return; }
         if (!this._built) {
           this._root.innerHTML =
-            '<ha-card class="wtile" data-hk-role="card"><div class="grid">' +
+            '<hk-plate class="wtile" data-hk-role="card"><div class="grid">' +
             '<div class="cap" data-hk-role="cap"></div>' +
             '<div class="body" data-hk-role="body"></div>' +
-            '</div></ha-card>';
+            '</div></hk-plate>';
           var q = this._root.querySelector.bind(this._root);
           this._e = { card: q('.wtile'), cap: q('.cap'), body: q('.body') };
           if (cfg.tap_action && cfg.tap_action.action !== 'none') {
@@ -608,7 +609,7 @@
           // OVERFLOW IS VISIBLE AT EVERY LEVEL, and that is load-bearing: the
           // whole header is drawn under one drop-shadow filter, and a filter's
           // output is clipped by any ancestor that clips.
-          'ha-card.hdr{box-sizing:border-box;display:block;min-height:118px;',
+          'hk-plate.hdr{box-sizing:border-box;display:block;min-height:118px;',
           '  background:transparent;box-shadow:none;border:none;overflow:visible;',
           '  padding:28px 0px 14px 0px;',
           // 9px, not 14px: the status chip carries a 5px TOP margin so its
@@ -633,14 +634,14 @@
           // with the menu always shown): the header steps aside and leaves
           // only the page's top margin, so the chip row moves up level with
           // the menu's clock -- about 130 px back on a wall tablet.
-          'ha-card.hdr.gone{min-height:0;height:' + GONE_H + 'px;padding:0;margin:0}',
+          'hk-plate.hdr.gone{min-height:0;height:' + GONE_H + 'px;padding:0;margin:0}',
           '.hdr.gone .grid{display:none}',
           // STACKED: on someone else's dashboard (data-hk-foreign) narrower
           // than HK_STACK_W -- a section, a Masonry column -- the security
           // line goes under the clock, and the weather under the time when
           // they don't fit side by side. Nothing is dropped (_fitWx). HK's own
           // screens never stack: a narrow one keeps dropping the clock.
-          ':host([data-hk-stack]) ha-card.hdr{padding:12px 0px 10px 0px;min-height:0}',
+          ':host([data-hk-stack]) hk-plate.hdr{padding:12px 0px 10px 0px;min-height:0}',
           ':host([data-hk-stack]) .hdr .grid{grid-template-areas:"left" "right";',
           '  grid-template-columns:minmax(0,1fr);row-gap:10px}',
           ':host([data-hk-stack]) .hdr .half{min-height:0}',
@@ -690,14 +691,14 @@
       }
       // THE HEADER SIGNS ON EVERYTHING IT DRAWS. Returning null -- "always
       // render" -- would rebuild both HTML strings, scan every security
-      // entity and read two computed styles on every hass push, several a
+      // entity and read two computed styles on every state push, several a
       // second on every wall tablet. Its inputs are all
       // knowable: the clock sensors, the weather entity, sun.sun and the
       // Home-status lists (hkHeader.lists), plus the optical shift. Without a
       // Time & Date sensor the clock is this screen's own and moves once a
       // minute, which the last term covers.
       _sigOf() {
-        var h = this._hass, H = window.hkHeader, HS = window.hkSettings;
+        var h = this.client, H = window.hkHeader, HS = window.hkSettings;
         if (!h || !H || !h.states) return null;
         var st = h.states;
         var get = function (k) { return (HS && HS.get) ? HS.get(k, null) : null; };
@@ -721,10 +722,10 @@
         var cfg = this._config;
         if (!this._built) {
           this._root.innerHTML =
-            '<ha-card class="hdr" data-hk-role="card"><div class="grid">' +
+            '<hk-plate class="hdr" data-hk-role="card"><div class="grid">' +
             '<div class="half left" role="button" data-hk-role="left"></div>' +
             '<div class="half right" role="button" data-hk-role="right"></div>' +
-            '</div></ha-card>';
+            '</div></hk-plate>';
           var q = this._root.querySelector.bind(this._root);
           this._e = { left: q('.left'), right: q('.right') };
           // New, empty halves: forget what was written into the old ones, or
@@ -755,10 +756,10 @@
           this._built = true;
         }
         var gone = menuHasTime();
-        var card = this._root.querySelector('ha-card.hdr');
+        var card = this._root.querySelector('hk-plate.hdr');
         if (card && card.classList) card.classList.toggle('gone', gone);
         if (gone) { this._lastL = this._lastR = null; return; }
-        var H = window.hkHeader, st = this._hass && this._hass.states;
+        var H = window.hkHeader, st = this.client && this.client.states;
         var l = (H && st) ? H.row(st, { timeShift: this._shift || 0 }) : 'Header module unavailable';
         // stacked (_fitWx): under the clock, from the left, no corner padding
         var stacked = !!(this.hasAttribute && this.hasAttribute('data-hk-stack'));
@@ -769,7 +770,7 @@
         // to round-trip (a self-closed SVG <path/> comes back as <path></path>,
         // attribute quoting and style text can be normalised). When it does
         // not, the comparison is always unequal and the header rebuilds on
-        // every hass update -- measured 98 DOM mutations in 10 s, and a
+        // every state update -- measured 98 DOM mutations in 10 s, and a
         // visible flicker on a wall tablet with the inline weather glyphs.
         // morph(), not innerHTML: a minute tick changes one text node instead of
         // recreating the whole block -- see morph() in hk-base.js for the
@@ -879,7 +880,7 @@
     class HkScreensaverStatusCard extends Base {
       static get CSS() {
         return [
-          'ha-card.ssstat{background:none;box-shadow:none;border:none;padding:0;margin:0;height:0;',
+          'hk-plate.ssstat{background:none;box-shadow:none;border:none;padding:0;margin:0;height:0;',
           '  overflow:visible;display:block}',
           '.sscorner{position:fixed;top:var(--hk-ss-status-top,44px);right:var(--hk-ss-status-right,50px);',
           // (--hk-ss-status-width: the calendar pane's width, when it sits there)
@@ -889,16 +890,16 @@
       setConfig(config) { super.setConfig(Object.assign({}, config || {})); }
       getCardSize() { return 1; }
       _html() {
-        var H = window.hkHeader, st = this._hass && this._hass.states;
+        var H = window.hkHeader, st = this.client && this.client.states;
         if (!H || !H.security || !st) return '';
         var c = this._config || {};
         return H.security(st, { line1Size: c.line1_size || '36px', lineSize: c.line_size || '24px',
                                 pad: '0px', minHeight: '0px', align: c.align });
       }
-      _sigOf() { return this._hass ? this._html() : null; }
+      _sigOf() { return this.client ? this._html() : null; }
       _render() {
         if (!this._built) {
-          this._root.innerHTML = '<ha-card class="ssstat" data-hk-role="card"><div class="sscorner"></div></ha-card>';
+          this._root.innerHTML = '<hk-plate class="ssstat" data-hk-role="card"><div class="sscorner"></div></hk-plate>';
           this._e = this._root.querySelector('.sscorner');
           this._built = true;
           // a rebuild (a new config) starts empty: what it last drew is gone
@@ -919,7 +920,7 @@
           // shared tokens. This card ONLY RENDERS WHEN AN ALERT IS LIVE, so
           // drift here would be invisible until it matters, which is the
           // argument for it not being hand-rolled.
-          'ha-card.alert{box-sizing:border-box;display:block;',
+          'hk-plate.alert{box-sizing:border-box;display:block;',
           '  padding:16px 20px 14px 20px;margin:0px 0px 12px 0px;' + window.hkCards.plate('card') + ';',
           '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
           '.alert .grid{display:grid;',
@@ -943,10 +944,10 @@
       setConfig(config) {
         this._hkOwn = ownKeys(config, ALERT_KEYS);
         super.setConfig(Object.assign({}, config));
-        houseWeather(this, this._hass, ALERT_KEYS);
+        houseWeather(this, this.client, ALERT_KEYS);
       }
-      get hass() { return super.hass; }
-      set hass(h) { houseWeather(this, h, ALERT_KEYS); super.hass = h; }
+      // each new client: the house's alerts sensor resolved first, then HkBase's step
+      _receiveClient() { houseWeather(this, this.client, ALERT_KEYS); super._receiveClient(); }
       getCardSize() { return this._alertShown === false ? 0 : 2; }
       // Home Assistant sets `preview` on the card in its editor, after
       // setConfig: draw again, as the sample, when it arrives.
@@ -1011,19 +1012,19 @@
         var cfg = this._config;
         if (!this._built) {
           this._root.innerHTML =
-            '<ha-card class="alert" data-hk-role="card"><div class="grid">' +
-            '<ha-icon class="icon" data-hk-role="icon" icon="' +
-            (cfg.icon || 'mdi:alert') + '"></ha-icon>' +
+            '<hk-plate class="alert" data-hk-role="card"><div class="grid">' +
+            '<hk-icon class="icon" data-hk-role="icon" icon="' +
+            (cfg.icon || 'mdi:alert') + '"></hk-icon>' +
             '<div class="title" data-hk-role="title"></div>' +
             '<div class="src" data-hk-role="src"></div>' +
             '<div class="body" data-hk-role="body"></div>' +
             '<div class="count" data-hk-role="count"></div>' +
-            '</div></ha-card>';
+            '</div></hk-plate>';
           var q = this._root.querySelector.bind(this._root);
           this._e = { icon: q('.icon'), title: q('.title'), src: q('.src'),
                       body: q('.body'), count: q('.count') };
           if (cfg.details) {
-            var self = this, card = q('ha-card');
+            var self = this, card = q('hk-plate');
             card.setAttribute('role', 'button'); card.setAttribute('tabindex', '0');
             card.style.cursor = 'pointer';
             card.addEventListener('click', function () { self._details(); });
@@ -1060,9 +1061,9 @@
         if (iso) {
           var d = new Date(iso);
           if (!isNaN(d)) {
-            var t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            var day = d.toLocaleDateString('en-US',
-              { weekday: 'long', month: 'long', day: 'numeric' });
+            var t = d.toLocaleTimeString(window.hkLocale.tag(), window.hkLocale.clock({ hour: 'numeric', minute: '2-digit' }));
+            var day = d.toLocaleDateString(window.hkLocale.tag(),
+              window.hkLocale.zoned({ weekday: 'long', month: 'long', day: 'numeric' }));
             body = ev + '. These conditions are expected to last until ' +
                    t + ', ' + day + '.';
           }
@@ -1134,7 +1135,7 @@
       var p = location.pathname;
       if (p !== ENTRY.path) { ENTRY.path = p; ENTRY.at = (window.performance && performance.now()) || Date.now(); ENTRY.first = null; }
     }
-    window.addEventListener('location-changed', markEntry);
+    window.hkShell.onNavigate(markEntry);
     window.addEventListener('popstate', markEntry);
     function motionOk() {
       if (!wxPage().load_animation) return false;
@@ -1262,11 +1263,11 @@
       '.hero .ol{font-size:13px;font-weight:500;line-height:1.5;margin:13px auto 0;max-width:520px;color:' + C.v('ink-2') + '}',
       '@media (max-width:' + C.BP.phone + 'px){.hero{padding:27px 12px 22px}.hero .tp{font-size:76px}.hero .ol{max-width:290px}}',
       // ---- the page's plates: hourly and daily (hkCards.plate, CARD's 20 / 22)
-      'ha-card.wxp{box-sizing:border-box;display:flex;flex-direction:column;padding:' + C.CARD.pad + ';margin:0;' + C.plate('card') + ';overflow:hidden;',
+      'hk-plate.wxp{box-sizing:border-box;display:flex;flex-direction:column;padding:' + C.CARD.pad + ';margin:0;' + C.plate('card') + ';overflow:hidden;',
       '  color:' + C.v('ink') + ';--ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
       '.wxp .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:34px}',
       '.wxp .tt{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:' + C.v('ink-2') + ';white-space:nowrap}',
-      '.wxp .tt ha-icon{--mdc-icon-size:17px;width:17px;height:17px;flex:none;display:flex;align-items:center;justify-content:center;line-height:0}',
+      '.wxp .tt hk-icon{--mdc-icon-size:17px;width:17px;height:17px;flex:none;display:flex;align-items:center;justify-content:center;line-height:0}',
       '.wxp .wait{margin:auto;padding:24px 0;font-size:14px;color:' + C.v('ink-3') + ';text-align:center}',
       C.segCss('.wxp .seg'),
       '.wxp .seg button:disabled{opacity:.4;cursor:default}',
@@ -1296,8 +1297,8 @@
       '@media (max-width:' + C.BP.phone + 'px){.wxp.hrly .hd{flex-direction:column;align-items:stretch;gap:12px}',
       '  .wxp.hrly .seg button{flex:1 1 0}.wxp .rd{flex-direction:column;gap:5px}.wxp .hs{margin-top:10px}}',
       // the days: on one shared scale, low to high
-      'ha-card.wxp.dly{height:var(--hk-wx-pair-h,455px)}',
-      ':host([data-hk-cell]) ha-card.wxp.dly{height:100%}',
+      'hk-plate.wxp.dly{height:var(--hk-wx-pair-h,455px)}',
+      ':host([data-hk-cell]) hk-plate.wxp.dly{height:100%}',
       '.wxp.dly .hd{margin-bottom:6px}',
       '.wxp .dys{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}',
       '.wxp .dy{flex:1 1 0;display:grid;grid-template-columns:50px 35px 34px minmax(25px,1fr) 34px;align-items:center;gap:10px;',
@@ -1342,10 +1343,10 @@
       _units() {
         var st = this._st(this._config.entity), a = (st && st.attributes) || {};
         var HS = window.hkSettings;
-        return { wind: HS && HS.unit ? HS.unit(st, 'wind_speed_unit', 'mph') : (a.wind_speed_unit || 'mph') };
+        return { wind: HS && HS.unit ? HS.unit(st, 'wind_speed_unit', window.hkLocale.units().speed) : (a.wind_speed_unit || window.hkLocale.units().speed) };
       },
       _renderSection() {
-        if (!this._config || !this._hass) return;
+        if (!this._config || !this.client) return;
         var s = this._section();
         if (s === 'hero') this._renderHero();
         else if (s === 'hourly') this._renderHourly();
@@ -1362,7 +1363,7 @@
         return v !== null ? v : num(((st && st.attributes) || {}).temperature);
       },
       _renderHero() {
-        var cfg = this._config, states = this._hass.states, st = states[cfg.entity] || {}, a = st.attributes || {};
+        var cfg = this._config, states = this.client.states, st = states[cfg.entity] || {}, a = st.attributes || {};
         var src = this._sources();
         var t = this._nowTemp();
         var feels = src.feels ? num((states[src.feels] || {}).state) : num(a.apparent_temperature);
@@ -1446,7 +1447,7 @@
 
       // ---- THE HOURS
       _renderHourly() {
-        var self = this, cfg = this._config, states = this._hass.states;
+        var self = this, cfg = this._config, states = this.client.states;
         var pg = wxPage(), hrs = this._hours(pg.hours), state = this._fcState('hourly', hrs);
         var has = {
           temperature: hrs.some(function (h) { return num(h.temperature) !== null; }),
@@ -1459,10 +1460,10 @@
         this._metricShown = metric;
         if (this._sel != null && this._sel >= hrs.length) this._sel = null;
         if (!this._built) {
-          this._root.innerHTML = '<ha-card class="wxp hrly"><div class="hd">' +
-            '<div class="tt"><ha-icon icon="hk:clock"></ha-icon>Hourly Forecast</div>' +
+          this._root.innerHTML = '<hk-plate class="wxp hrly"><div class="hd">' +
+            '<div class="tt"><hk-icon icon="hk:clock"></hk-icon>Hourly Forecast</div>' +
             '<div class="seg" role="radiogroup" aria-label="Hourly forecast shows"></div></div>' +
-            '<div class="hs"><div class="hrs"></div></div><div class="rd" aria-live="polite"></div></ha-card>';
+            '<div class="hs"><div class="hrs"></div></div><div class="rd" aria-live="polite"></div></hk-plate>';
           var q = this._root.querySelector.bind(this._root);
           this._e = { seg: q('.seg'), hs: q('.hs'), hrs: q('.hrs'), rd: q('.rd') };
           this._e.seg.addEventListener('click', function (e) {
@@ -1517,7 +1518,7 @@
         e.hrs.style.minWidth = hrs.length ? (hrs.length * 64 + (hrs.length - 1) * 5) + 'px' : '';
         C.morph(e.hrs, hrs.length ? cells : '<div class="wait">' + (state === 'wait' ? 'Loading the forecast…' : 'No hourly forecast from ' + esc(this._service() || 'the weather service') + '.') + '</div>');
         e.hrs.setAttribute('data-state', state);
-        if (hrs.length && buildDue(this)) build(this, this._root.querySelector('ha-card.wxp'));
+        if (hrs.length && buildDue(this)) build(this, this._root.querySelector('hk-plate.wxp'));
         else if (was === 'wait' && state === 'ok') arrive(e.hrs);
         var rd = this._sel != null && hrs[this._sel] ? esc(say(hrs[this._sel], this._sel)) : (hrs.length ? 'Tap an hour for its details' : '');
         C.morph(e.rd, rd + (this._service() ? '<span>' + esc(this._service()) + '</span>' : ''));
@@ -1529,8 +1530,8 @@
         var pg = wxPage(), days = this._days(pg.days), state = this._fcState('daily', days);
         var t = num(a.temperature);
         if (!this._built) {
-          this._root.innerHTML = '<ha-card class="wxp dly"><div class="hd"><div class="tt"><ha-icon icon="mdi:calendar-month"></ha-icon><span class="nm"></span></div></div>' +
-            '<div class="dys" role="list"></div><div class="ft"></div></ha-card>';
+          this._root.innerHTML = '<hk-plate class="wxp dly"><div class="hd"><div class="tt"><hk-icon icon="mdi:calendar-month"></hk-icon><span class="nm"></span></div></div>' +
+            '<div class="dys" role="list"></div><div class="ft"></div></hk-plate>';
           var q = this._root.querySelector.bind(this._root);
           this._e = { nm: q('.nm'), dys: q('.dys'), ft: q('.ft') };
           this._e.dys.addEventListener('click', function (ev) {
@@ -1549,8 +1550,8 @@
         var pct = function (x) { return ((x - mn) / span * 100).toFixed(1); };
         var rows = days.map(function (d, i) {
           var hi = num(d.temperature), lo = num(d.templow), p = num(d.precipitation_probability);
-          var nm = i === 0 ? 'Today' : new Date(d.datetime).toLocaleDateString('en-US', { weekday: 'short' });
-          var long = i === 0 ? 'Today' : new Date(d.datetime).toLocaleDateString('en-US', { weekday: 'long' });
+          var nm = i === 0 ? 'Today' : new Date(d.datetime).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'short' }));
+          var long = i === 0 ? 'Today' : new Date(d.datetime).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'long' }));
           var cn = window.hkHeader && window.hkHeader.conditionName ? window.hkHeader.conditionName(d.condition === 'clear-night' ? 'sunny' : d.condition) : '';
           var dot = i === 0 && t !== null && lo !== null && hi !== null ? '<b style="left:' + pct(Math.max(mn, Math.min(mx, t))) + '%"></b>' : '';
           var label = long + ': ' + (cn ? cn + ', ' : '') + (lo !== null ? 'low ' + Math.round(lo) + '°, ' : '') + (hi !== null ? 'high ' + Math.round(hi) + '°' : '') +
@@ -1565,7 +1566,7 @@
         var was = e.dys.getAttribute('data-state');
         C.morph(e.dys, days.length ? rows : '<div class="wait">' + (state === 'wait' ? 'Loading the forecast…' : 'No daily forecast from ' + esc(this._service() || 'the weather service') + '.') + '</div>');
         e.dys.setAttribute('data-state', state);
-        if (days.length && buildDue(this)) build(this, this._root.querySelector('ha-card.wxp'));
+        if (days.length && buildDue(this)) build(this, this._root.querySelector('hk-plate.wxp'));
         else if (was === 'wait' && state === 'ok') arrive(e.dys);
         // the week in a line: its warmest and coolest days
         var ft = '';
@@ -1573,7 +1574,7 @@
           var his = days.map(function (d, i) { return { v: num(d.temperature), i: i }; }).filter(function (x) { return x.v !== null; });
           if (his.length > 2) {
             var w = his.reduce(function (m, x) { return x.v > m.v ? x : m; }), c = his.reduce(function (m, x) { return x.v < m.v ? x : m; });
-            var dn = function (i) { return i === 0 ? 'today' : new Date(days[i].datetime).toLocaleDateString('en-US', { weekday: 'long' }); };
+            var dn = function (i) { return i === 0 ? 'today' : new Date(days[i].datetime).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'long' })); };
             ft = 'Warmest ' + dn(w.i) + ' at ' + Math.round(w.v) + '°, coolest ' + dn(c.i) + ' at ' + Math.round(c.v) + '°.';
           }
         }
@@ -1591,7 +1592,7 @@
         return [
           // The plate: a page card's (hkCards.plate, CARD's 20 / 22 padding),
           // and the band's own 12px bottom margin.
-          'ha-card.band{' + window.hkCards.plate('card') + ';',
+          'hk-plate.band{' + window.hkCards.plate('card') + ';',
           '  padding:' + window.hkCards.CARD.pad + ';margin:0 0 12px 0;',
           '  display:block;overflow:hidden}',
           // A GRID WITH A FIXED 300px LEFT TRACK AND A 24px COLUMN GAP. A
@@ -1651,7 +1652,7 @@
           // so the columns sit where they do on the plate (and the 397 in
           // _fit stays true); top and bottom go, so the band's text is its
           // edge.
-          'ha-card.band.plain{background:none;border:none;border-radius:0;box-shadow:none;',
+          'hk-plate.band.plain{background:none;border:none;border-radius:0;box-shadow:none;',
           '  -webkit-backdrop-filter:none;backdrop-filter:none;padding:0 24px;margin:0}',
           '.plain .wrap{text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.45),0 4px 18px rgba(0,0,0,0.35))}',
           '.plain .place,.plain .sub,.plain .lbl,.plain .lo,.plain .pop.wet{color:var(--hk-ink-2,#fff)}',
@@ -1660,8 +1661,8 @@
         ].join('') + PAGE_CSS;
       }
 
-      get hass() { return super.hass; }
-      set hass(h) { houseWeather(this, h, BAND_KEYS); super.hass = h; }
+      // each new client: the house's weather resolved first, then HkBase's step
+      _receiveClient() { houseWeather(this, this.client, BAND_KEYS); super._receiveClient(); }
       setConfig(config) {
         if (config && config.section != null && SECTIONS.indexOf(config.section) < 0) {
           throw new Error('hk-weather-band: `section` must be hero, hourly or daily');
@@ -1676,7 +1677,7 @@
         // navigate to the page you are already on. The Tesla sets it, because
         // there the band is a summary and the page is somewhere to go.
         super.setConfig(Object.assign({ tap_action: { action: 'none' } }, config));
-        houseWeather(this, this._hass, BAND_KEYS);
+        houseWeather(this, this.client, BAND_KEYS);
       }
 
       // ---------------------------------------------------------------
@@ -1698,7 +1699,7 @@
       // sit under the stack and get everything but the 48 of padding.
       _width() {
         // The width the ResizeObserver last reported; clientWidth only before
-        // it has (a layout read, and _sigOf runs on every hass push).
+        // it has (a layout read, and _sigOf runs on every state push).
         return this._w != null ? this._w : this.clientWidth;
       }
       // everything beside the strips when side by side: 48 of padding, the
@@ -1793,7 +1794,7 @@
         this._fcRelease();
         // A RE-ATTACHED BAND MUST ASK AGAIN. The subscriptions are gone, but
         // the render gate would still hold the old signature, so the next
-        // hass push would find nothing to do and the cached forecast would
+        // state push would find nothing to do and the cached forecast would
         // stay on screen until the weather entity itself changed. A fresh
         // ResizeObserver's first notification may happen to force a render;
         // the gate should not depend on that.
@@ -1806,7 +1807,7 @@
         var HS = window.hkSettings;
         var p = HS ? HS.get('weather.place', null) : null;
         if (p) return p;
-        var name = (this._hass && this._hass.config && this._hass.config.location_name) || 'Home';
+        var name = (this.client && this.client.config && this.client.config.location_name) || 'Home';
         return String(name).toUpperCase();
       }
 
@@ -1814,7 +1815,7 @@
       // base class's default signature would gate on the weather entity alone
       // and never redraw when a forecast arrived.
       _sigOf() {
-        var h = this._hass, c = this._config;
+        var h = this.client, c = this._config;
         if (!h || !c) return null;
         var src = this._sources();
         var ids = [c.entity, src.hourly, src.daily, src.feels, src.humidity, src.wind, src.outside];
@@ -1858,13 +1859,13 @@
       // page. A refusal backs off there and the card draws no forecast.
       _forecast(kind, sensorId) {
         if (sensorId) {
-          return ((this._hass.states[sensorId] || {}).attributes || {}).forecast || [];
+          return ((this.client.states[sensorId] || {}).attributes || {}).forecast || [];
         }
-        var wid = this._config.entity, conn = this._hass && this._hass.connection;
+        var wid = this._config.entity, conn = this.client && this.client.subscriptions;
         var key = kind + '|' + wid;
         this._fcW = this._fcW || {};
         var w = this._fcW[key];
-        // a new connection object (a page that reconnected) is watched afresh
+        // a new subscription port (a replaced socket) is watched afresh
         if (w && w.conn !== conn) { w.release(); w = this._fcW[key] = null; }
         if (!w && wid && conn && this.isConnected && window.hkWxForecast) {
           var self = this;
@@ -1882,9 +1883,9 @@
       }
 
       _render() {
-        if (!this._config || !this._hass) { return; }
+        if (!this._config || !this.client) { return; }
         if (this._section()) { this._renderSection(); return; }
-        var cfg = this._config, states = this._hass.states;
+        var cfg = this._config, states = this.client.states;
         var st = states[cfg.entity] || {};
         var a = st.attributes || {};
         var src = this._sources();
@@ -1906,8 +1907,8 @@
         var wind = read(src.wind, 'wind_speed');
         var windUnit = window.hkSettings && window.hkSettings.unit
           ? window.hkSettings.unit(src.wind ? states[src.wind] : st,
-                                   src.wind ? null : 'wind_speed_unit', 'mph')
-          : 'mph';
+                                   src.wind ? null : 'wind_speed_unit', window.hkLocale.units().speed)
+          : window.hkLocale.units().speed;
         // conditionName, not a title-case of the id: 'partlycloudy' has no
         // separator to split on and would print as "Partlycloudy".
         var cond = window.hkHeader && window.hkHeader.conditionName
@@ -1953,7 +1954,7 @@
         var dayCells = days.map(function (d, i) {
           var dt = new Date(d.datetime);
           var label = i === 0 ? 'Today'
-            : dt.toLocaleDateString('en-US', { weekday: 'short' });
+            : dt.toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'short' }));
           var hi = num(d.temperature), lo = num(d.templow);
           return '<div class="cell">' +
             '<div class="lbl' + (i === 0 ? ' now' : '') + '">' + label + '</div>' +
@@ -1971,7 +1972,7 @@
         };
 
         this._root.innerHTML =
-          '<ha-card class="band' + (cfg.plain ? ' plain' : '') + '"><div class="wrap' + (narrow ? ' narrow' : '') + '"' +
+          '<hk-plate class="band' + (cfg.plain ? ' plain' : '') + '"><div class="wrap' + (narrow ? ' narrow' : '') + '"' +
           (this._nowW() !== 300 ? ' style="--hk-now-w:' + this._nowW() + 'px"' : '') + '>' +
             '<div class="now">' +
               '<div class="place">' + esc(cfg.place || this._place()) + '</div>' +
@@ -1986,12 +1987,12 @@
               '<div class="hrule"></div>' +
               '<div class="strip" style="' + tracks(days.length || nDays) + '">' + dayCells + '</div>' +
             '</div>' +
-          '</div></ha-card>';
+          '</div></hk-plate>';
 
         // Bound per render, not once: _render replaces innerHTML wholesale, so
-        // the previous ha-card and its listener are discarded with it. There
+        // the previous hk-plate and its listener are discarded with it. There
         // is nothing to accumulate.
-        var card = this._root.querySelector('ha-card');
+        var card = this._root.querySelector('hk-plate');
         if (card) {
           this._bind(card, 'tap_action', null);
           // Only look tappable when it is. `pointer` on a card that does
@@ -2016,10 +2017,10 @@
                        humidity: 'hk:water-percent', moon: 'mdi:moon-waning-crescent', pressure: 'mdi:gauge' };
     var TILE_NAMES = { wind: 'Wind', sun: 'Sunrise', uv: 'UV Index', humidity: 'Humidity', moon: 'Moon', pressure: 'Pressure' };
     var TILE_PAGE_CSS = [
-      'ha-card.wtile.pg{display:flex;flex-direction:column;height:var(--hk-wx-tile-h,190px);padding:' + C.CARD.pad + ';cursor:pointer;color:' + C.v('ink') + '}',
-      ':host([data-hk-cell]) ha-card.wtile.pg{height:100%}',
+      'hk-plate.wtile.pg{display:flex;flex-direction:column;height:var(--hk-wx-tile-h,190px);padding:' + C.CARD.pad + ';cursor:pointer;color:' + C.v('ink') + '}',
+      ':host([data-hk-cell]) hk-plate.wtile.pg{height:100%}',
       '.pg .pt{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:' + C.v('ink-2') + ';white-space:nowrap;overflow:hidden}',
-      '.pg .pt ha-icon{--mdc-icon-size:15px;width:15px;height:15px;flex:none;display:flex;align-items:center;justify-content:center;line-height:0}',
+      '.pg .pt hk-icon{--mdc-icon-size:15px;width:15px;height:15px;flex:none;display:flex;align-items:center;justify-content:center;line-height:0}',
       '.pg .pb{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:center}',
       '.pg .nb{font-size:30px;font-weight:700;letter-spacing:-0.6px;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}',
       '.pg .nb small{font-size:13px;font-weight:600;letter-spacing:0;color:' + C.v('ink-2') + ';margin-left:3px}',
@@ -2057,7 +2058,7 @@
     function dir16(b) { return b === null ? '' : DIRS16[Math.round(((b % 360) + 360) % 360 / 22.5) % 16]; }
     function fmtTime(iso) {
       var d = new Date(iso);
-      return isNaN(d) ? null : d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return isNaN(d) ? null : d.toLocaleTimeString(window.hkLocale.tag(), window.hkLocale.clock({ hour: 'numeric', minute: '2-digit' }));
     }
     function nextHours(list, n) {
       var now = Date.now();
@@ -2066,11 +2067,11 @@
     var TILE_PAGE = {
       _pgService() {
         var st = this._st(this._config.entity) || this._st(window.hkSettings && window.hkSettings.weatherId
-          ? window.hkSettings.weatherId(this._hass.states) : '');
+          ? window.hkSettings.weatherId(this.client.states) : '');
         return ((st && st.attributes) || {}).friendly_name || 'the weather service';
       },
       _pgWeather() {
-        var HS = window.hkSettings, id = this._config.entity || (HS && HS.weatherId ? HS.weatherId(this._hass.states) : null);
+        var HS = window.hkSettings, id = this._config.entity || (HS && HS.weatherId ? HS.weatherId(this.client.states) : null);
         var st = id && this._st(id);
         return { st: st, a: (st && st.attributes) || {} };
       },
@@ -2083,7 +2084,7 @@
         if (spd === null) return this._pgMissing('the wind');
         var brg = num(a.wind_bearing);
         var HS = window.hkSettings, unit = HS && HS.unit ? HS.unit(this._st(this._config.speed || this._config.entity) || w.st,
-          this._config.speed ? null : 'wind_speed_unit', 'mph') : 'mph';
+          this._config.speed ? null : 'wind_speed_unit', window.hkLocale.units().speed) : window.hkLocale.units().speed;
         var gust = this._config.gust ? this._n(this._config.gust) : null;
         if (gust === null) {
           var h0 = nextHours((this._wx || {}).hourly, 1)[0];
@@ -2188,13 +2189,13 @@
       _renderPage() {
         var self = this, v = this._config.variant;
         if (!this._built) {
-          this._root.innerHTML = '<ha-card class="wtile pg" role="button" tabindex="0"><div class="pt"><ha-icon></ha-icon><span></span></div>' +
-            '<div class="pb"></div><p class="pn"></p></ha-card>';
+          this._root.innerHTML = '<hk-plate class="wtile pg" role="button" tabindex="0"><div class="pt"><hk-icon></hk-icon><span></span></div>' +
+            '<div class="pb"></div><p class="pn"></p></hk-plate>';
           var q = this._root.querySelector.bind(this._root);
-          this._e = { card: q('ha-card'), ic: q('.pt ha-icon'), tt: q('.pt span'), pb: q('.pb'), pn: q('.pn') };
+          this._e = { card: q('hk-plate'), ic: q('.pt hk-icon'), tt: q('.pt span'), pb: q('.pb'), pn: q('.pn') };
           var open = function () {
             if (!window.hkDetail || !window.hkDetail.open) return;
-            var HS = window.hkSettings, id = self._config.entity || (HS && HS.weatherId ? HS.weatherId(self._hass.states) : null);
+            var HS = window.hkSettings, id = self._config.entity || (HS && HS.weatherId ? HS.weatherId(self.client.states) : null);
             if (id) window.hkDetail.open(id, { focus: self._config.variant });
           };
           this._e.card.addEventListener('click', open);
@@ -2223,12 +2224,12 @@
       setConfig(config) {
         this._hkOwn = ownKeys(config, BAND_KEYS);
         super.setConfig(Object.assign({}, config || {}));
-        houseWeather(this, this._hass, BAND_KEYS);
+        houseWeather(this, this.client, BAND_KEYS);
       }
-      get hass() { return super.hass; }
-      set hass(h) { houseWeather(this, h, BAND_KEYS); super.hass = h; }
+      // each new client: the house's weather resolved first, then HkBase's step
+      _receiveClient() { houseWeather(this, this.client, BAND_KEYS); super._receiveClient(); }
       _sigOf() {
-        var h = this._hass;
+        var h = this.client;
         if (!h) return null;
         var src = this._sources(), HS = window.hkSettings, ids = [this._config.entity, src.hourly, src.daily, 'sun.sun',
           HS ? HS.get('weather.wind', null) : null, HS ? HS.get('weather.gust', null) : null, HS ? HS.get('weather.uv', null) : null,
@@ -2260,7 +2261,7 @@
         this._hkSig = null;
       }
       _render() {
-        if (!this._config || !this._hass) return;
+        if (!this._config || !this.client) return;
         if (!this._grid) {
           this._root.innerHTML = '<div class="dg" role="list" aria-label="Weather details"></div>';
           this._grid = this._root.querySelector('.dg');
@@ -2290,7 +2291,7 @@
           var t = self._tiles[k];
           t._wx = wx;
           t._hkSig = null;
-          t.hass = self._hass;
+          window.hkHostClient.bridge(t, self.client);
         });
         // the tiles build one after another, 70 ms apart
         if (want.length && buildDue(this)) {
@@ -2334,7 +2335,7 @@
           ':host([data-hk-cell]) .ph{height:100%}';
       }
       _sigOf() {
-        var h = this._hass, HS = window.hkSettings;
+        var h = this.client, HS = window.hkSettings;
         if (!h || !HS || !HS.radarNative) return null;
         var r = HS.radarNative(), z = r.zone && h.states[r.zone], rd = HS.rendering ? HS.rendering() : {};
         return JSON.stringify([r, z ? z.last_updated : null, h.config && h.config.latitude, h.config && h.config.longitude,
@@ -2342,11 +2343,11 @@
       }
       _render() {
         var HS = window.hkSettings;
-        if (!this._hass || !HS || !HS.radarNative) return;
+        if (!this.client || !HS || !HS.radarNative) return;
         var on = HS.radarNative().enabled;
         this.style.display = on ? '' : 'none';
         if (!on) { this._detach(); this._root.innerHTML = ''; return; }
-        if (this._ctl) { this._ctl.update(this._hass); return; }
+        if (this._ctl) { this._ctl.update(this.client); return; }
         if (!this._root.firstChild) this._root.innerHTML = '<div class="ph" role="status">Loading the radar…</div>';
         if (!this.isConnected || this._loading) return;
         var self = this;
@@ -2355,7 +2356,7 @@
           self._loading = false;
           if (!self.isConnected || self._ctl || !HS.radarNative().enabled) return;
           self._ctl = M.attach(self, self._root);
-          self._ctl.update(self._hass);
+          self._ctl.update(self.client);
         }, function (e) {
           self._loading = false;
           console.warn('[hk-weather] the radar could not load', e);
@@ -2366,7 +2367,7 @@
       connectedCallback() {
         if (super.connectedCallback) super.connectedCallback();
         wxEnter(this);
-        if (this._hass) this.redraw();
+        if (this.client) this.redraw();
       }
       disconnectedCallback() {
         if (super.disconnectedCallback) super.disconnectedCallback();
@@ -2412,23 +2413,23 @@
       static get FLAT_MOTION() { return true; }
       static get CSS() {
         // Same reason as the clock: on the screensaver the shadow is a
-        // text-shadow inherited from WallPanel's info box, and ha-card clips
+        // text-shadow inherited from WallPanel's info box, and hk-plate clips
         // by default -- which cuts the 68px blur into a hard grey band.
         return ':host{overflow:visible}' +
-               'ha-card.strip{background:none;border:none;box-shadow:none;' +
+               'hk-plate.strip{background:none;border:none;box-shadow:none;' +
                'padding:2px 3px 0 3px;display:block;overflow:visible}' +
-               'ha-card.strip.tappable{cursor:pointer}' +
+               'hk-plate.strip.tappable{cursor:pointer}' +
                '.strip div,.strip span{overflow:visible}' +
                // fitted to its width, as the header is (hkHeader.fitWeather)
-               fitCss('ha-card.strip');
+               fitCss('hk-plate.strip');
       }
       // No entity in the config: the one chosen in Configure -> Weather and
-      // sky, else the house's first weather entity. Re-resolved on every
-      // hass, so it follows an edit in Configure.
+      // sky, else the house's first weather entity. Re-resolved with every
+      // new client, so it follows an edit in Configure.
       setConfig(config) {
         this._hkExplicit = !!(config && config.entity);
         var c = Object.assign({}, config);
-        if (!c.entity) c.entity = this._autoEntity(this._hass);
+        if (!c.entity) c.entity = this._autoEntity(this.client);
         super.setConfig(c);
       }
       _autoEntity(h) {
@@ -2436,18 +2437,18 @@
         if (!HS) return null;
         return h ? HS.weatherId(h.states) : HS.get('weather.entity', null);
       }
-      get hass() { return super.hass; }
-      set hass(h) {
+      // each new client: the entity re-resolved first, then HkBase's step
+      _receiveClient() {
         if (this._config && !this._hkExplicit) {
-          var id = this._autoEntity(h);
+          var id = this._autoEntity(this.client);
           if (id && this._config.entity !== id) { this._config.entity = id; this._hkSig = null; }
         }
-        super.hass = h;
+        super._receiveClient();
       }
 
       // TAP.
       //
-      // THE LISTENER GOES ON _root, NOT ON THE ha-card. _render() reassigns
+      // THE LISTENER GOES ON _root, NOT ON THE hk-plate. _render() reassigns
       // this._root.innerHTML on every state change, so anything bound to the
       // card inside it is discarded a few seconds later -- the tap would work
       // once and then stop, which is worse than not working at all. _root is
@@ -2465,7 +2466,7 @@
         this._bind(this._root, 'tap_action', null);
       }
       _sigOf() {
-        var h = this._hass, c = this._config;
+        var h = this.client, c = this._config;
         if (!h || !c) return null;
         var st = h.states[c.entity];
         // sun.sun too: the glyph turns to a moon at sunset, and the weather
@@ -2474,12 +2475,12 @@
         return c.entity + '=' + (st ? st.last_updated : 'x') + ';sun=' + (sun ? sun.state : 'x');
       }
       _render() {
-        if (!this._config || !this._hass) return;
+        if (!this._config || !this.client) return;
         var c = this._config;
         var H = window.hkHeader;
         // its own `entity` when the config names one; else (entity: null)
         // HK Settings' weather, as before
-        var body = H ? H.weather(this._hass.states, Object.assign({
+        var body = H ? H.weather(this.client.states, Object.assign({
           width: '100%', boxSizing: 'border-box',
           entity: this._hkExplicit ? c.entity : null
         }, opts(c, {
@@ -2497,12 +2498,12 @@
         var ta = c.tap_action;
         var tappable = (ta && ta.action !== 'none') ? ' tappable' : '';
         // `layer: true` (the screensaver sets it): see the clock card below.
-        this._root.innerHTML = '<ha-card class="strip' + tappable + '" style="margin:' +
+        this._root.innerHTML = '<hk-plate class="strip' + tappable + '" style="margin:' +
           (c.margin != null ? c.margin : '0 0 12px 0') +
-          (c.layer ? ';will-change:transform' : '') + '">' + body + '</ha-card>';
+          (c.layer ? ';will-change:transform' : '') + '">' + body + '</hk-plate>';
         this._wireTap();
         var self = this;
-        fitOnResize(this, function (H) { H.fitWeather(self._root.querySelector('ha-card.strip')); });
+        fitOnResize(this, function (H) { H.fitWeather(self._root.querySelector('hk-plate.strip')); });
       }
       getCardSize() { return 1; }
     }
@@ -2511,11 +2512,11 @@
       static get CSS() {
         // OVERFLOW VISIBLE, and it is load-bearing on the screensaver: the
         // shadow there is a text-shadow inherited from WallPanel's info box,
-        // and ha-card clips by default, so the 68px blur comes out as a hard
+        // and hk-plate clips by default, so the 68px blur comes out as a hard
         // grey band round the clock. `:host` too -- a shadow that escapes the
         // card is still clipped by the host element.
         return ':host{overflow:visible}' +
-               'ha-card.clock{background:none;border:none;box-shadow:none;' +
+               'hk-plate.clock{background:none;border:none;box-shadow:none;' +
                'padding:0;display:block;overflow:visible}' +
                '.clock>div,.clock div{overflow:visible}';
       }
@@ -2523,7 +2524,7 @@
       // Date sensors chosen in Configure, or this screen's clock); neither is
       // named in the config, so the base signature would never redraw.
       _sigOf() {
-        var h = this._hass;
+        var h = this.client;
         if (!h) return null;
         var HS = window.hkSettings;
         if (!HS) {
@@ -2534,10 +2535,10 @@
         return ck.time + '|' + ck.date;
       }
       _render() {
-        if (!this._hass) return;
+        if (!this.client) return;
         var c = this._config || {};
         var H = window.hkHeader;
-        var body = H ? H.clock(this._hass.states, Object.assign(opts(c, {
+        var body = H ? H.clock(this.client.states, Object.assign(opts(c, {
           time_size: 'timeSize', ampm_size: 'ampmSize', date_size: 'dateSize',
           time_letter_spacing: 'timeLs', ampm_letter_spacing: 'ampmLs',
           date_letter_spacing: 'dateLs', date_gap: 'dateGap',
@@ -2574,7 +2575,7 @@
         // morph, not innerHTML: this runs every minute on the screensaver, and
         // rebuilding the 150px time recreates its layer (the header flicker).
         window.hkCards.morph(this._root,
-          '<ha-card class="clock" style="' + st + '">' + body + '</ha-card>');
+          '<hk-plate class="clock" style="' + st + '">' + body + '</hk-plate>');
         this._align();
       }
       // Line the time's first stroke up with the date's (hkHeader.clockShift).
@@ -2621,7 +2622,7 @@
     if (C.editor) {
       var stag = C.editor('hk-weather-strip-card', [
         { name: 'entity', selector: { entity: { filter: { domain: 'weather' } } },
-          helper: 'Default: the weather entity chosen in HK Frontend -> Configure -> Weather.' },
+          helper: 'Default: the weather entity chosen in ' + window.hkShell.haPlace('HK Frontend -> Configure -> Weather') + '.' },
         C.section('Appearance', [
           { type: 'grid', name: '', schema: [
             { name: 'main_size', selector: { text: {} } },
@@ -2702,8 +2703,8 @@
         return document.createElement(etag);
       };
     }
-    HkWeatherBandCard.getStubConfig = function (hass) {
-      return { entity: C.firstOf(hass, 'weather'), hours: 12, days: 8 };
+    HkWeatherBandCard.getStubConfig = function (input) {
+      return { entity: C.firstOf(C.asClient(input), 'weather'), hours: 12, days: 8 };
     };
     // Without a stub the card picker previews the clock and weather strip
     // empty.
@@ -2711,7 +2712,7 @@
       HkClockCard.getStubConfig = function () { return {}; };
     }
     if (!Object.prototype.hasOwnProperty.call(HkWeatherStripCard, 'getStubConfig')) {
-      HkWeatherStripCard.getStubConfig = function (hass) { return { entity: C.firstOf(hass, 'weather') }; };
+      HkWeatherStripCard.getStubConfig = function (input) { return { entity: C.firstOf(C.asClient(input), 'weather') }; };
     }
     window.customCards = window.customCards || [];
     window.customCards.push({
@@ -2804,7 +2805,7 @@
       if (window.hkCards && window.hkCards.sized) window.hkCards.sized('hk-weather-details-card', HkWeatherDetailsCard);
       customElements.define('hk-weather-details-card', HkWeatherDetailsCard);
     }
-    HkWeatherDetailsCard.getStubConfig = function (hass) { return { entity: C.firstOf(hass, 'weather') }; };
+    HkWeatherDetailsCard.getStubConfig = function (input) { return { entity: C.firstOf(C.asClient(input), 'weather') }; };
     if (C.editor) {
       var dtag = C.editor('hk-weather-details-card', [
         { name: 'entity', label: 'Weather entity', selector: { entity: { filter: { domain: 'weather' } } },
@@ -2979,7 +2980,7 @@
           .filter(Boolean);
       }
       _sigOf() {
-        var h = this._hass;
+        var h = this.client;
         if (!h) return null;
         return (this._fcN || 0) + '|' + Math.floor(Date.now() / 60e3) + '|' + this._ids().map(function (id) {
           var s = h.states[id]; return s ? s.last_updated : '-';
@@ -2989,16 +2990,16 @@
       // (hkWxForecast) while open -- the Weather page's own, when the sheet
       // opens over it
       _fc(kind) {
-        var sid = hs('forecast_' + kind), h = this._hass;
+        var sid = hs('forecast_' + kind), h = this.client, port = this.client && this.client.subscriptions;
         if (sid && h.states[sid]) return (h.states[sid].attributes || {}).forecast || [];
         this._ws = this._ws || {};
         var w = this._ws[kind];
-        if (w && w.conn !== h.connection) { w.release(); w = this._ws[kind] = null; }
-        if (!w && h.connection && this.isConnected && window.hkWxForecast) {
+        if (w && w.conn !== port) { w.release(); w = this._ws[kind] = null; }
+        if (!w && port && this.isConnected && window.hkWxForecast) {
           var self = this;
-          w = this._ws[kind] = window.hkWxForecast.watch(h.connection, kind, this._id, function () {
+          w = this._ws[kind] = window.hkWxForecast.watch(port, kind, this._id, function () {
             self._fcN = (self._fcN || 0) + 1;
-            self._hkSig = null; if (self._hass) self.hass = self._hass;
+            if (self.client) self.redraw();
           });
         } else if (w) w.ensure();
         return w ? w.data() : [];
@@ -3010,12 +3011,12 @@
         this._ws = {};
       }
       _read(sensorKey, attr) {
-        var h = this._hass, id = hs(sensorKey), s = this._stateObj, a = (s && s.attributes) || {};
+        var h = this.client, id = hs(sensorKey), s = this._stateObj, a = (s && s.attributes) || {};
         var x = id && h.states[id] ? num(h.states[id].state) : null;
         return x != null ? x : num(a[attr]);
       }
       _render() {
-        var h = this._hass, s = this._stateObj;
+        var h = this.client, s = this._stateObj;
         if (!h || !s) return;
         var self = this, a = s.attributes || {}, now = Date.now(), states = h.states;
         var one = matchMedia('(max-width:' + C.BP.phone + 'px)').matches;
@@ -3029,7 +3030,7 @@
         var selected = days.filter(function (d) { return new Date(d.datetime).toDateString() === self._dayKey; })[0];
         if (!selected && this._dayKey !== todayKey) this._dayKey = todayKey;
         var current = this._dayKey === todayKey;
-        var dayName = current ? 'Today' : new Date(selected.datetime).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        var dayName = current ? 'Today' : new Date(selected.datetime).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'long', month: 'short', day: 'numeric' }));
         var allHours = this._fc('hourly').filter(function (f) { return Date.parse(f.datetime) + 3600e3 > now; });
         var hrs = current ? allHours.slice(0,24) : allHours.filter(function (f) { return new Date(f.datetime).toDateString() === self._dayKey; });
         var t = this._read('outside', 'temperature'), feels = this._read('feels_like', 'apparent_temperature');
@@ -3042,7 +3043,7 @@
         var summary = '<section class="wx-section wx-summary"><div class="lab">' + esc(dayName) + '</div><div class="reading">' + glyph(condition,48,night) +
           '<div class="t">' + (num(current ? t : hi) != null ? Math.round(current ? t : hi) + '°' : '—') + '</div><div class="w"><b>' + esc(cond || 'Forecast') + '</b>' +
           (current && feels != null ? '<span>Feels like ' + Math.round(feels) + '°</span>' : '') + (range ? '<span>' + esc(range) + '</span>' : '') + '</div></div></section>';
-        var ws = a.wind_speed_unit || 'mph', ps = a.pressure_unit || '', vs = a.visibility_unit || '';
+        var ws = a.wind_speed_unit || window.hkLocale.units().speed, ps = a.pressure_unit || '', vs = a.visibility_unit || '';
         var hum = current ? this._read('humidity','humidity') : num(selected.humidity);
         var wind = current ? this._read('wind','wind_speed') : num(selected.wind_speed);
         var bearing = current ? num(a.wind_bearing) : num(selected.wind_bearing);
@@ -3081,9 +3082,9 @@
         var forecast = '<section class="wx-section wx-days"><div class="lab">' + (days.length ? days.length + '-Day Forecast' : 'Forecast') + '</div><div class="dys">' +
           (days.length ? days.map(function(d,i) {
             var dh=num(d.temperature),dl=num(d.templow),pop=num(d.precipitation_probability),key=new Date(d.datetime).toDateString();
-            var name=key===todayKey ? 'Today' : new Date(d.datetime).toLocaleDateString('en-US',{weekday:'short'});
+            var name=key===todayKey ? 'Today' : new Date(d.datetime).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({weekday:'short'}));
             var dot=key===todayKey&&t!=null&&dl!=null&&dh!=null ? '<b style="left:'+pct(Math.max(mn,Math.min(mx,t)))+'%"></b>' : '';
-            return '<button class="dy" type="button" data-day="'+i+'" aria-pressed="'+(key===self._dayKey)+'" aria-label="'+esc(new Date(d.datetime).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}))+'">'+
+            return '<button class="dy" type="button" data-day="'+i+'" aria-pressed="'+(key===self._dayKey)+'" aria-label="'+esc(new Date(d.datetime).toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({weekday:'long',month:'short',day:'numeric'})))+'">'+
               '<span class="d">'+name+'</span>'+glyph(d.condition==='clear-night'?'sunny':d.condition,24,false)+'<span class="p">'+(pop>=20?Math.round(pop)+'%':'')+'</span>'+
               '<span class="lo">'+(dl!=null?Math.round(dl)+'°':'—')+'</span><span class="rg">'+(dl!=null&&dh!=null?'<i style="left:'+pct(dl)+'%;right:'+(100-pct(dh))+'%"></i>'+dot:'')+'</span>'+
               '<span class="hi">'+(dh!=null?Math.round(dh)+'°':'—')+'</span></button>';
@@ -3124,7 +3125,7 @@
       _focus(h, s, hrs, days) {
         var src = (this._config && this._config.src) || {}, f = this._metric != null ? this._metric : src.focus, a = s.attributes || {};
         if (!f) return { html: '' };
-        var self = this, wsU = a.wind_speed_unit || 'mph', pU = a.pressure_unit || '';
+        var self = this, wsU = a.wind_speed_unit || window.hkLocale.units().speed, pU = a.pressure_unit || '';
         var card = function (title, sub, fig, unit, chart, text, extra) {
           return '<section class="wx-section fc"><div class="lab"><span>' + esc(title) + '</span>' + (sub ? '<span class="n">' + esc(sub) + '</span>' : '') + '</div>' +
             '<div class="fx"><b>' + fig + '</b>' + (unit ? '<span>' + esc(unit) + '</span>' : '') + '</div>' + (chart || '') + (extra || '') +
@@ -3185,7 +3186,7 @@
           if (ph == null) return out;
           var il = Math.round((1 - Math.cos(2 * Math.PI * ph)) / 2 * 100);
           var full = new Date(Date.now() + ((0.5 - ph) % 1 + 1) % 1 * 29.53 * 864e5), nw = new Date(Date.now() + ((1 - ph) % 1 + 1) % 1 * 29.53 * 864e5);
-          var dd = function (d) { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
+          var dd = function (d) { return d.toLocaleDateString(window.hkLocale.tag(), window.hkLocale.zoned({ weekday: 'short', month: 'short', day: 'numeric' })); };
           out.html = card('Moon', '', il + '%', 'lit', '', 'The same moon the sky draws.',
             '<div class="kv"><div><div class="k">Next Full Moon</div><div class="x">' + dd(full) + '</div></div>' +
             '<div><div class="k">Next New Moon</div><div class="x">' + dd(nw) + '</div></div></div>');

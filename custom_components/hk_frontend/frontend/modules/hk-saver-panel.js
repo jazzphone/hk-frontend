@@ -184,7 +184,7 @@
     '.mproom{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 10px 6px 8px;border-radius:13px;background:rgba(255,255,255,.07);',
     '  cursor:pointer;box-sizing:border-box}',
     '.mproom .ri{flex:none;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}',
-    '.mproom .ri ha-icon{--mdc-icon-size:21px;width:21px;height:21px;color:#fff}',
+    '.mproom .ri hk-icon{--mdc-icon-size:21px;width:21px;height:21px;color:#fff}',
     '.mproom .rn{flex:1;min-width:0}',
     '.mproom .rn b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.mproom .rn small{display:flex;align-items:center;gap:6px;font-size:12.5px;opacity:.72;margin-top:1px;white-space:nowrap;overflow:hidden}',
@@ -237,10 +237,10 @@
     '.mpanel[wide] .mppls{grid-template-columns:repeat(3,minmax(0,1fr))}',
     '.mppill{display:flex;align-items:center;gap:10px;height:50px;padding:0 12px;border-radius:13px;background:rgba(255,255,255,.10);',
     '  font-size:15px;font-weight:600;cursor:pointer;min-width:0;box-sizing:border-box}',
-    '.mppill ha-icon{--mdc-icon-size:20px;width:20px;height:20px;flex:none;color:#fff}',
+    '.mppill hk-icon{--mdc-icon-size:20px;width:20px;height:20px;flex:none;color:#fff}',
     '.mppill span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.mppill.on{background:rgba(255,255,255,.9);color:#111;text-shadow:none}',
-    '.mppill.on ha-icon{color:#111}',
+    '.mppill.on hk-icon{color:#111}',
     '.mppill.busy{opacity:.6}',
     '.mpopts{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px}',
     '.mpopts:empty{display:none}',
@@ -278,7 +278,8 @@
   ].join('\n');
 
   // ------------------------------------------------------------ one panel
-  // o: { hass(), ctx() -- the music on the screensaver (hkMusic's context) or
+  // o: { client() -- the house: everything the panel reads, and its buttons
+  // through the client's action port; ctx() -- the music on the screensaver (hkMusic's context) or
   // null, art() -- its blurred art (a canvas) or null, done(ms) -- close it,
   // follow(key) -- the music moved here, wide() -- two columns fit }
   var TAB_NAME = { speakers: 'Speakers', volume: 'Volume', browse: 'Browse', queue: 'Queue' };
@@ -299,13 +300,17 @@
               chips: q('.mpchips'), rooms: q('.mprooms'), vol: q('[data-p="volume"]'), pl: q('.mppl'), pls: q('.mppls'),
               lib: q('.mplib'), pages: el.querySelectorAll('.mpt'), queue: q('[data-p="queue"]') };
     var S = { tab: 'speakers', ticks: null, busy: '', err: '', key: null, members: [], open: null, art: null,
-              vols: {}, drag: null, lib: null, libFor: null, libRoot: true, closing: false, q: null, qFor: '', qBusy: null };
+              vols: {}, drag: null, lib: null, libClient: null, libFor: null, libRoot: true, closing: false, q: null, qFor: '', qBusy: null };
     var M = function () { return window.hkMusic; };
     // a pick to make here: the Music page's Browse (o.next) or this panel's own
     var nextHere = !!o.next || (o.tabs || ['speakers', 'volume', 'browse']).indexOf('browse') >= 0;
 
     function nameOf(e) { var m = M(); return m && m.nameOf ? m.nameOf(e) : e; }
-    function states() { var h = o.hass(); return (h && h.states) || {}; }
+    function client() { return (o.client && o.client()) || null; }
+    // its buttons: the client's action port (the real call in Home Assistant,
+    // `commands_disabled` in Mantel)
+    function actions() { var c = client(); return (c && c.actions) || null; }
+    function states() { var h = client(); return (h && h.states) || {}; }
     function ctx() { return o.ctx(); }
     function label(c) { var m = M(); return c ? (m && m.label ? m.label(c) : c.key) : ''; }
 
@@ -425,7 +430,7 @@
       sub(ICON.vhi, c ? [c.title, c.artist].filter(Boolean).join(' · ') || label(c) : picking(c) ? 'Where the next music plays' : '');
       var rooms = m && m.rooms ? m.rooms() : [];
       var others = {};
-      (m && m.contexts ? m.contexts(o.hass()) : []).forEach(function (x) {
+      (m && m.contexts ? m.contexts(client()) : []).forEach(function (x) {
         if (c && x.key === c.key) return;
         x.members.forEach(function (r) { others[r] = x.title || label(x); });
       });
@@ -441,7 +446,7 @@
         var line = mem ? '<span class="mpeq"><i></i><i></i><i></i></span>' + (c && c.playing ? 'Playing here' : 'Paused here')
                  : off ? 'Unavailable' : others[k] ? 'Playing ' + esc(others[k]) + stops : '';
         return '<div class="mproom' + (on ? ' sel' : '') + (off && !on && !mem ? ' off' : '') +
-               '" data-room="' + esc(k) + '"><div class="ri"><ha-icon icon="hk:homepod"></ha-icon></div><div class="rn"><b>' + esc(r.name) + '</b>' +
+               '" data-room="' + esc(k) + '"><div class="ri"><hk-icon icon="hk:homepod"></hk-icon></div><div class="rn"><b>' + esc(r.name) + '</b>' +
                (line ? '<small>' + line + '</small>' : '') + '</div><div class="mpck">' + svg(ICON.check) + '</div></div>';
       }).join('');
       if (E.rooms.__t !== html) { E.rooms.innerHTML = html; E.rooms.__t = html; }
@@ -494,13 +499,13 @@
     // _request): the focus held on the rooms while it lands, the leader the
     // engine reports followed, a refusal said here
     function request(service, data, target, busy, ok) {
-      var h = o.hass(), m = M();
-      if (!h || !h.callService) return;
+      var act = actions(), m = M();
+      if (!act) return;
       S.busy = busy; S.err = '';
       if (m && target && m.known(target)) m.setFocus(target, { hold: true });
       update(true);
       var p;
-      try { p = h.callService('hk_frontend', 'music_' + service, data, undefined, false, true); } catch (e) { p = Promise.reject(e); }
+      try { p = act.callService('hk_frontend', 'music_' + service, data, undefined, false, true); } catch (e) { p = Promise.reject(e); }
       Promise.resolve(p).then(function (res) {
         var r = (res && res.response) || {};
         if (r.ok === false) throw new Error(r.message || 'That did not work.');
@@ -575,14 +580,14 @@
       if (now - d.sent >= VOL_EVERY) volSend(); else if (!d.t) d.t = setTimeout(volSend, VOL_EVERY - (now - d.sent));
     }
     function volSend() {
-      var d = S.drag, h = o.hass();
+      var d = S.drag, act = actions();
       if (d && d.t) { clearTimeout(d.t); d.t = null; }
       var key = d ? d.key : S.lastVol, mine = key && S.vols[key];
-      if (!mine || !h) return;
+      if (!mine || !act) return;
       if (d) d.sent = Date.now();
       if (mine.sent === mine.val) return;
       mine.sent = mine.val;
-      try { h.callService('media_player', 'volume_set', { entity_id: key, volume_level: mine.val }); } catch (e) { /* offline */ }
+      try { act.callService('media_player', 'volume_set', { entity_id: key, volume_level: mine.val }); } catch (e) { /* offline */ }
     }
     el.addEventListener('pointerdown', function (e) {
       var s = e.target.closest && e.target.closest('[data-vol]');
@@ -616,7 +621,7 @@
       if (!c) { E.queue.innerHTML = '<div class="mpnone">Nothing is playing.</div>'; S.qFor = ''; return; }
       if (sig !== S.qFor) {
         S.qFor = sig; S.q = null;
-        var h = o.hass();
+        var h = client();
         if (h && h.callWS) {
           h.callWS({ type: 'hk_music/queue', entity_id: c.key, limit: 40 }).then(function (r) {
             if (S.qFor !== sig) return;
@@ -640,10 +645,10 @@
       if (E.queue.__t !== html) { E.queue.innerHTML = html; E.queue.__t = html; }
     }
     function playQueue(id) {
-      var c = ctx(), h = o.hass();
-      if (!c || !h || !h.callWS || S.qBusy) return;
+      var c = ctx(), act = actions();
+      if (!c || !act || S.qBusy) return;
       S.qBusy = id; drawQueue(c);
-      h.callWS({ type: 'hk_music/queue_play', entity_id: c.key, item_id: id }).then(function (r) {
+      act.callWS({ type: 'hk_music/queue_play', entity_id: c.key, item_id: id }).then(function (r) {
         S.qBusy = null;
         if (r && r.ok === false) toast('Could not play that song' + (r.message ? ': ' + r.message : ''));
         S.qFor = ''; drawQueue(ctx());
@@ -662,7 +667,7 @@
       var html = pls.map(function (p, i) {
         var on = S.open === i;
         return '<div class="mppill' + (on ? ' on' : '') + (S.busy === 'pl' + i ? ' busy' : '') + '" data-pl="' + i + '">' +
-               (p.icon ? '<ha-icon icon="' + esc(p.icon) + '"></ha-icon>' : '') + '<span>' + esc(p.name) + '</span></div>' +
+               (p.icon ? '<hk-icon icon="' + esc(p.icon) + '"></hk-icon>' : '') + '<span>' + esc(p.name) + '</span></div>' +
                (on && p.options ? '<div class="mpopts">' + p.options.map(function (x, j) {
                  return '<div class="mpchip" data-opt="' + i + ':' + j + '">' + esc(x.name) + '</div>';
                }).join('') + '</div>' : '');
@@ -673,7 +678,11 @@
         S.libFor = c.key;
         try { S.lib.setConfig({ type: 'custom:hk-library-card', player: c.key }); } catch (e) { /* as it was */ }
       }
-      if (S.lib) { var h = o.hass(); if (h && S.lib.hass !== h) S.lib.hass = h; }
+      if (S.lib) {
+        // the library card's host input, matched to the client (hk-ha-client.js bridge)
+        var lc = client(), HC = window.hkHostClient;
+        if (lc && S.libClient !== lc && HC && HC.bridge) { S.libClient = lc; HC.bridge(S.lib, lc); }
+      }
       if (S.lib) {
         if (ticksDiffer()) { S.lib.playVia = playNode; S.lib.playerNameFor = function () { return roomsName(ticksNow()); }; }
         else { delete S.lib.playVia; delete S.lib.playerNameFor; }
@@ -683,8 +692,8 @@
     // plays first lets go of the ticked rooms it is on, then the item plays
     // on one player and the other ticked rooms are brought in
     function playNode(node) {
-      var c = ctx(), m = M(), h = o.hass();
-      if (!c || !h || !m || S.busy) return;
+      var c = ctx(), m = M(), act = actions();
+      if (!c || !act || !m || S.busy) return;
       var rooms = ticksNow(), keep = c.members.filter(function (r) { return rooms.indexOf(r) < 0; }), t, free = null;
       if (!keep.length) t = { player: c.key, then: rooms.length > c.members.length ? rooms.slice() : null };
       else {
@@ -693,7 +702,7 @@
       }
       if (!t.player) return;
       var call = function (sv, data) {
-        var q; try { q = h.callService('hk_frontend', sv, data, undefined, false, true); } catch (e) { q = Promise.reject(e); }
+        var q; try { q = act.callService('hk_frontend', sv, data, undefined, false, true); } catch (e) { q = Promise.reject(e); }
         return Promise.resolve(q).then(function (res) {
           var r = (res && res.response) || {};
           if (r.ok === false) throw new Error(r.message || 'That did not work.');
@@ -730,15 +739,17 @@
           var card = document.createElement(tag);
           var cx = ctx();
           S.libFor = cx ? cx.key : null;
-          // (the house first: setConfig draws the first level at once, and
-          // with no connection yet it said "no hass")
-          var h = o.hass();
-          if (h) card._hass = h;
+          // (the client first: setConfig draws the first level at once, and
+          // with no connection yet its first level failed to load). adopt()
+          // hands it over without drawing; the bridge after setConfig is the
+          // card's entry as on a dashboard.
+          var lc = client(), HC = window.hkHostClient;
+          if (lc && typeof card.adopt === 'function') card.adopt(lc);
           card.setConfig({ type: 'custom:' + tag, player: S.libFor });
-          if (h) card.hass = h;
+          if (lc && HC && HC.bridge) HC.bridge(card, lc);
           E.lib.innerHTML = '';
           E.lib.appendChild(card);
-          S.lib = card;
+          S.lib = card; S.libClient = client();
         } catch (e) {
           E.lib.innerHTML = '<div class="mplibmsg">Browse Music could not open here.</div>';
           console.warn('[hk-saver-panel] library', e);
@@ -759,7 +770,7 @@
     });
     // ITS MESSAGES ARE SHOWN HERE: Home Assistant's toast is on the dashboard,
     // under the screensaver
-    el.addEventListener('hass-notification', function (e) {
+    el.addEventListener(window.hkShell.events.toast, function (e) {
       e.stopPropagation();
       if (e.detail && e.detail.message) toast(e.detail.message);
     });
@@ -774,9 +785,9 @@
       S.busy = 'pl' + i;
       toast('Starting ' + name + '…');
       drawBrowse(c);
-      var h = o.hass(), q;
+      var act = actions(), q;
       if (m.known(c.key)) m.setFocus(c.key, { hold: true });
-      try { q = h.callService('hk_frontend', 'music_play', { rooms: rooms, playlist: key }, undefined, false, true); } catch (e) { q = Promise.reject(e); }
+      try { q = act.callService('hk_frontend', 'music_play', { rooms: rooms, playlist: key }, undefined, false, true); } catch (e) { q = Promise.reject(e); }
       Promise.resolve(q).then(function (res) {
         var r = (res && res.response) || {};
         if (r.ok === false) throw new Error(r.message || 'That did not work.');
@@ -831,7 +842,7 @@
     function destroy() {
       if (S.drag) volEnd();
       clearTimeout(S.toastT);
-      if (S.lib) { S.lib.remove(); S.lib = null; }
+      if (S.lib) { S.lib.remove(); S.lib = null; S.libClient = null; }
       el.remove();
     }
     return {

@@ -47,7 +47,7 @@ function wind(states) {
     speed: 'sensor.wind_speed',
     gust: 'sensor.wind_gust'
   };
-  c._hass = { states: states };
+  Object.defineProperty(c, 'client', { value: window.hkHostClient.from({ states: states }) });
   return text(c._wind());
 }
 
@@ -57,7 +57,7 @@ print('=== wind: no speed sensor configured ===');
 (function () {
   var c = Object.create(WTile.prototype);
   c._config = { variant: 'wind', entity: 'weather.owm' };
-  c._hass = { states: { 'weather.owm': WX } };
+  Object.defineProperty(c, 'client', { value: window.hkHostClient.from({ states: { 'weather.owm': WX } }) });
   ok('reads the weather entity\'s own wind_speed', /\b5 mph\b/.test(text(c._wind())), true);
 })();
 
@@ -141,7 +141,7 @@ var savedGlyphs = window.hkGlyphs;
 window.hkGlyphs = undefined;
 ok('not ready without the file', H.wxReady(), false);
 ok('all 15 conditions x day/night draw a Material icon', everyCondition(function (g) {
-  return /^<ha-icon class="hk-wx" icon="mdi:(weather-[a-z-]+|alert)" role="img" aria-label="[^"]+"/.test(g);
+  return /^<hk-icon class="hk-wx" icon="mdi:(weather-[a-z-]+|alert)" role="img" aria-label="[^"]+"/.test(g);
 }), '');
 ok('sunny is the yellow sun', /icon="mdi:weather-sunny"[^>]*color:#FFD60A/.test(H.wxSvg('sunny', 26)), true);
 ok('partly cloudy at night is the night cloud', /mdi:weather-night-partly-cloudy/.test(H.wxSvg('partlycloudy', 26, { night: true })), true);
@@ -154,7 +154,7 @@ var glyphsWas = window.hkGlyphs;
 window.hkGlyphs = { weather: { 'cloud.rain.fill': ['0 0 120 120', [['c', 'M0 0h1v1z'], ['w', 'M2 2h1v1z']]] } };
 ok('...an SF symbol too, by its own name', /<svg class="hk-wx" data-sym="cloud.rain.fill"/.test(H.wxSvg('rainy', 30, { sym: true })) && !/data-sym/.test(H.wxSvg('rainy', 30)), true);
 window.hkGlyphs = glyphsWas;
-ok('stand-in carries o.style', /margin-right:12px;"><\/ha-icon>$/.test(H.wxSvg('cloudy', 30, { style: ' margin-right:12px;' })), true);
+ok('stand-in carries o.style', /margin-right:12px;"><\/hk-icon>$/.test(H.wxSvg('cloudy', 30, { style: ' margin-right:12px;' })), true);
 
 print('=== glyphs: the home\'s file -> multicolor inline SVG ===');
 // Stand-in drawings, one per symbol, each layer a rectangle with its role --
@@ -215,7 +215,7 @@ ok('no sun.sun -> day, never a guess', H.nightAt({}, '2026-09-14T05:00:00Z'), fa
 // the live sky draws.
 var mt = Object.create(WTile.prototype);
 mt._config = { variant: 'moon' };
-mt._hass = { states: {} };
+Object.defineProperty(mt, 'client', { value: window.hkHostClient.from({ states: {} }) });
 window.hkSettings = { moon: function () { return 0.5; } };
 ok('no sensor: the built-in phase', mt._phase(), 0.5);
 ok('...drawn as a full moon', /Full/.test(mt._moon()) && /Moon/.test(mt._moon()), true);
@@ -244,7 +244,7 @@ print('=== forecast subscription: refused, warned once, backed off ===');
   function band() {
     var b = Object.create(Band.prototype);
     b._config = { entity: 'weather.refuser' };
-    b._hass = { states: {}, connection: conn };
+    Object.defineProperty(b, 'client', { value: window.hkHostClient.from({ states: {}, connection: conn }) });
     b.isConnected = true;
     b.requestUpdate = function () {};
     return b;

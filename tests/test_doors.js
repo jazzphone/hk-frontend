@@ -17,7 +17,7 @@ load(root + '/tests/dom.js');
 
 function card(tag, cfg) {
   var c = Object.create(customElements.get(tag).prototype);
-  c._config = cfg; c._hass = { states: {} }; return c;
+  c._config = cfg; hkGive(c, { states: {} }); return c;
 }
 function state(s) { return { state: s, attributes: {} }; }
 
@@ -65,7 +65,7 @@ customElements.whenDefined = function () { return Promise.resolve(); };
 // given its files folder (HK_FILES=...); otherwise a fixture with stand-in
 // paths proves the loader: registration, the alias, the two-tone split.
 var glyphs = (typeof HK_FILES === 'string' && HK_FILES) ? HK_FILES + '/iconset/hk-glyphs.js'
-                                                       : root + '/tests/fixtures/hk-glyphs.js';
+                                                       : root + '/tests/fixtures/glyph-rectangles.js';
 load(glyphs);
 load(root + '/frontend/iconset/hk-icons.js');
 

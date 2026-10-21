@@ -108,4 +108,3 @@ class ReconfigureSteps:
             step_id="clean_areas_options", data_schema=self.add_suggested_values_to_schema(
                 _schema(areas=True), {CONF_VACUUMS: list(opts.get(CONF_VACUUMS) or []),
                                       CONF_AREAS: list(opts.get(CONF_AREAS) or [])}))
-

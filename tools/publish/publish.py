@@ -1,7 +1,7 @@
 """BUILD THE PUBLIC REPOSITORY from this component (HK Frontend 1.0).
 
-The component is developed where Home Assistant runs it -- custom_components/
-hk_frontend, with its tests/, tools/ and docs/ inside -- and published as the
+The component is developed in Mantel under hosts/ha/, with shared frontend
+source under web/. The build plan composes those sources and publishes the
 repository HACS installs from:
 
     custom_components/hk_frontend/   what HACS installs (no tests, tools, docs)
@@ -17,16 +17,19 @@ and committed with the same message. Then both test suites run IN the built repo
 proven, and -- only with --commit -- it is committed (and pushed with --push).
 
     python3 tools/publish/publish.py REPO_DIR [--commit "message"] [--push] [--no-tests] [--wiki WIKI_DIR]
+
     python3 tools/publish/publish.py --scan          only report what would be refused
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 COMPONENT = os.path.dirname(os.path.dirname(HERE))
@@ -42,7 +45,10 @@ BESIDE = ("tests", "tools", "docs")          # published next to the component
 # published, and would name them.
 PRIVATE = [
     r"\b192\.168\.\d{1,3}\.\d{1,3}\b", r"\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
-    r"\b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b",
+    # 172.16.0.0/12, except 172.30.32.0/23: Home Assistant's internal "hassio"
+    # network (the same on every HA OS install, not a home's own data), which
+    # linked mode names to reach Mantel's App (decision 24)
+    r"\b172\.(?:(?:1[6-9]|2\d|31)\.\d{1,3}|30\.(?!3[23]\b)\d{1,3})\.\d{1,3}\b",
     r"eyJ[A-Za-z0-9_-]{20,}",                      # a JWT (a Home Assistant token)
     r"gh[pousr]_[A-Za-z0-9]{20,}", r"AKIA[0-9A-Z]{16}", r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
 ]
@@ -112,6 +118,35 @@ def plan() -> list[tuple[str, str]]:
             out.append((src, "README.md"))
         else:
             out.append((src, os.path.join("custom_components", "hk_frontend", rel)))
+    # Mantel is now the development source. Keep one frontend copy and compose
+    # its shared files with the HA host only when producing the HACS artifact.
+    mantel = Path(COMPONENT).parent.parent.parent.parent
+    frontend = mantel / "web/hk"
+    if frontend.is_dir():
+        for src in files_under(str(frontend)):
+            rel = os.path.relpath(src, frontend)
+            out.append((src, os.path.join("custom_components", "hk_frontend", "frontend", rel)))
+        shared = json.loads((mantel / "web/shared-assets.json").read_text())
+        for rel, src in shared.items():
+            source = (mantel / "web" / src).resolve()
+            source.relative_to((mantel / "web").resolve())
+            out.append((str(source), "custom_components/hk_frontend/frontend/" + rel))
+        # The shared feature logic (hk_core): vendored inside the component, so HA imports it
+        # as custom_components.hk_frontend.hk_core (it only imports relatively).
+        core = mantel / "hk_core"
+        for src in files_under(str(core)):
+            rel = os.path.relpath(src, core)
+            if rel.endswith(".py") or rel == "README.md":
+                out.append((src, os.path.join("custom_components", "hk_frontend", "hk_core", rel)))
+        out.append((str(mantel / "hosts/ha/frontend/hk-ha-client.js"),
+                    "custom_components/hk_frontend/frontend/modules/hk-ha-client.js"))
+        out.append((str(mantel / "hosts/ha/frontend/hk-ha-shell.js"),
+                    "custom_components/hk_frontend/frontend/modules/hk-ha-shell.js"))
+        out.append((str(mantel / "hosts/ha/frontend/hk-ha-elements.js"),
+                    "custom_components/hk_frontend/frontend/modules/hk-ha-elements.js"))
+        # HK as its own panel (hk_panel.py, opt-in): the panel's element, loaded only by it
+        out.append((str(mantel / "hosts/ha/frontend/hk-ha-panel.js"),
+                    "custom_components/hk_frontend/frontend/modules/hk-ha-panel.js"))
     return out
 
 
@@ -198,10 +233,10 @@ def build(repo: str, pairs) -> None:
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copy2(src, target)
         # a script (tests/run, tests/py/run) is run by name in the docs; the
-        # share it is developed on does not keep the executable bit
+        # disk it is developed on keeps no modes of its own (a share, or an
+        # external disk that reports 700 on every file), so they are set here
         with open(target, "rb") as f:
-            if f.read(2) == b"#!":
-                os.chmod(target, 0o755)
+            os.chmod(target, 0o755 if f.read(2) == b"#!" else 0o644)
 
 
 def stage(cwd) -> int:

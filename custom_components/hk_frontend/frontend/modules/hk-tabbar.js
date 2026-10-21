@@ -44,6 +44,8 @@
 (function () {
   'use strict';
   if (window.hkTabBar) return;
+  // the host's page: where the bar mounts, its view, navigation
+  var SH = window.hkShell;
 
   // ---------------------------------------------------------------- sizes
   // Measured against iOS 26's tab bar and fitted to a 402 px iPhone: a tab
@@ -346,7 +348,7 @@
       // the label's foot, so a long name's ellipsis stays inside it
       '  border:0;margin:0;padding:0 10px;border-radius:calc(var(--bh) / 2 - var(--g) + 1px);background:none;color:rgba(255,255,255,0.94);',
       '  font:inherit;font-size:var(--tf);font-weight:600;letter-spacing:0;cursor:pointer;transition:background-color .2s ease,opacity .2s ease}',
-      '.tab ha-icon{--mdc-icon-size:var(--ti);width:var(--ti);height:var(--ti);display:flex}',
+      '.tab hk-icon{--mdc-icon-size:var(--ti);width:var(--ti);height:var(--ti);display:flex}',
       '.tab span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       // THE PAGE YOU ARE ON: its capsule reaches WIDEN px past the tab on each
       // side, into the gaps, as Apple Music's does -- nothing else ever
@@ -368,7 +370,7 @@
       // FOLDED (shrink): one round button with the current page's icon
       '.cur{display:none;flex:1;align-items:center;justify-content:center;border:0;padding:0;margin:0;background:none;',
       '  color:' + window.hkCards.v('accent') + ';cursor:pointer;border-radius:50%}',
-      '.cur ha-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
+      '.cur hk-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
       '.root.small .pill{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px);border-radius:50%}',
       '.root.small .tab{display:none}',
       '.root.small .cur{display:flex}',
@@ -377,7 +379,7 @@
       '  justify-content:center;padding:0;margin:0;color:rgba(255,255,255,0.94);cursor:pointer;',
       '  transition:width .34s ' + EASE + ',height .34s ' + EASE + '}',
       '.root.hasrooms .roomsbtn{display:flex}',
-      '.roomsbtn ha-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
+      '.roomsbtn hk-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
       '.roomsbtn.here,.roomsbtn[aria-expanded="true"]{color:' + window.hkCards.v('accent') + '}',
       '.root.small .roomsbtn{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px)}',
       '.tab:active,.roomsbtn:active,.cur:active{filter:brightness(1.25)}',
@@ -434,8 +436,8 @@
       // (the icons in the menu's own color -- Automatic's orange; only the
       // page you're on takes its page's: the side menu's rule. The user,
       // 2026-10-17: Climate turned every room and page blue.)
-      '.it ha-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:var(--hk-accent-base,' + window.hkCards.v('accent') + ')}',
-      '.it.here ha-icon{color:' + window.hkCards.v('accent') + '}',
+      '.it hk-icon{--mdc-icon-size:40px;width:40px;height:40px;flex:none;display:flex;color:var(--hk-accent-base,' + window.hkCards.v('accent') + ')}',
+      '.it.here hk-icon{color:' + window.hkCards.v('accent') + '}',
       '.it span{max-width:100%;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;',
       '  overflow-wrap:anywhere}',
       // THE PAGE YOU ARE ON keeps a plate round its icon and name, as the
@@ -444,20 +446,20 @@
       '.it.here span{color:' + window.hkCards.v('accent') + '}',
       // ROOMS ON THEIR OWN SHEET (the Rooms button): each icon in a soft round
       // plate (Control Center's look). In More they look like its pages.
-      '[data-sheet="rooms"] .roomgrid .it ha-icon{--mdc-icon-size:28px;width:58px;height:58px;border-radius:50%;',
+      '[data-sheet="rooms"] .roomgrid .it hk-icon{--mdc-icon-size:28px;width:58px;height:58px;border-radius:50%;',
       '  align-items:center;justify-content:center;background:rgba(255,255,255,0.12);transition:background-color .15s ease}',
-      '[data-sheet="rooms"] .roomgrid .it.here ha-icon{background:' + window.hkCards.v('accent') + ';color:var(--hk-on-accent,#fff)}',
+      '[data-sheet="rooms"] .roomgrid .it.here hk-icon{background:' + window.hkCards.v('accent') + ';color:var(--hk-on-accent,#fff)}',
       // THE LIST (More Style: List): rows like the side menu's -- the icon
       // beside the whole name, the page you are on in the highlight colour --
       // and about a phone's width on every screen
       '.sheet.list .grid{grid-template-columns:1fr;gap:2px}',
       '.sheet.list .it{flex-direction:row;justify-content:flex-start;gap:14px;min-height:44px;padding:0 14px;border-radius:12px;',
       '  font-size:17px;font-weight:400;letter-spacing:-0.41px;text-align:left}',
-      '.sheet.list .it ha-icon{--mdc-icon-size:22px;width:22px;height:22px}',
+      '.sheet.list .it hk-icon{--mdc-icon-size:22px;width:22px;height:22px}',
       '.sheet.list .it span{display:block;flex:1;min-width:0;white-space:nowrap;text-overflow:ellipsis}',
       '.sheet.list .it.here{background:' + window.hkCards.v('accent') + ';color:var(--hk-on-accent,#fff)}',
-      '.sheet.list .it.here span,.sheet.list .it.here ha-icon{color:var(--hk-on-accent,#fff)}',
-      '.sheet.list .roomgrid .it ha-icon{width:22px;height:22px;background:none;--mdc-icon-size:22px}',
+      '.sheet.list .it.here span,.sheet.list .it.here hk-icon{color:var(--hk-on-accent,#fff)}',
+      '.sheet.list .roomgrid .it hk-icon{width:22px;height:22px;background:none;--mdc-icon-size:22px}',
       '.it:active{filter:brightness(1.25)}',
       // ---- TAB BAR POSITION: TOP. The bottom's mirror: More hangs from the
       // bar, the bar hides upward
@@ -539,12 +541,9 @@
     var MORE_ICON = 'mdi:dots-horizontal', ROOMS_ICON = 'mdi:view-grid';
 
     var S = { host: null, root: null, on: false, mode: 'full', down: 0, up: 0, sheet: null, built: '', ha: [], haPrefs: undefined,
-              tabs: [], more: [], rooms: [], last: new WeakMap(), view: null, viewPad: null };
+              tabs: [], more: [], hostRows: [], rooms: [], last: new WeakMap(), view: null, viewPad: null };
 
-    function haRoot() {
-      var ha = document.querySelector('home-assistant');
-      return (ha && ha.shadowRoot) || null;
-    }
+    function haRoot() { return SH.overlayRoot(); }
     function esc(v) {
       return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
@@ -571,12 +570,13 @@
           '<section class="sheet g" data-sheet="more" aria-label="More"><h2>More</h2><div class="hk-edge"><div class="body">' +
             '<div class="grid pages"></div><h3 class="ch" hidden>Categories</h3><div class="grid pages2" hidden></div>' +
             '<h3 class="hh" hidden>Home Assistant</h3><div class="grid hagrid" hidden></div>' +
-            '<h3 class="rh" hidden>Rooms</h3><div class="grid roomgrid" hidden></div></div></div></section>' +
+            '<h3 class="rh" hidden>Rooms</h3><div class="grid roomgrid" hidden></div>' +
+            '<h3 class="mh" hidden></h3><div class="grid mgrid" hidden></div></div></div></section>' +
           '<section class="sheet g" data-sheet="rooms" aria-label="Rooms"><h2>Rooms</h2><div class="hk-edge"><div class="body">' +
             '<div class="grid roomgrid"></div></div></div></section>' +
           '<div class="row">' +
-            '<nav class="pill g" aria-label="Tab Bar"><button class="cur" aria-label="Show the tab bar"><ha-icon></ha-icon></button></nav>' +
-            '<button class="roomsbtn g" aria-label="Rooms" aria-expanded="false"><ha-icon icon="' + icon(ROOMS_ICON) + '"></ha-icon></button>' +
+            '<nav class="pill g" aria-label="Tab Bar"><button class="cur" aria-label="Show the tab bar"><hk-icon></hk-icon></button></nav>' +
+            '<button class="roomsbtn g" aria-label="Rooms" aria-expanded="false"><hk-icon icon="' + icon(ROOMS_ICON) + '"></hk-icon></button>' +
           '</div>' +
         '</div>';
       S.root = sr.querySelector('.root');
@@ -623,7 +623,7 @@
 
     // ---------------------------------------------------------- the list
     function model() {
-      var cfg = M.config(), h = C.hass(), b = M.board();
+      var cfg = M.config(), h = C.client(), b = M.board();
       return H.model(cfg, h && h.areas, { dash: M.dash(), order: b.menu_rooms === 'order' ? 'order' : 'az',
                                           roomOrder: b.room_order, user: h && h.user && h.user.id,
                                           categories: b.categories, top: b.menu_top, chips: b.chips,
@@ -645,9 +645,9 @@
       return Math.max(0, (window.innerHeight || 800) - d);
     }
     function listKey(width) {
-      var h = C.hass(), b = M.board();
+      var h = C.client(), side = H.sidebarSource(), b = M.board();
       return [M.dash(), cfgId(M.config()), width, railH(), b.ha_place, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_rooms_phone, phoneAt(), phoneSet(), b.tab_bar_more, b.tab_bar_more_phone, b.tab_bar_size, b.tab_bar_tabs, b.tab_bar_tabs_rail, b.ha_row, JSON.stringify(S.haPrefs || null),
-              h && h.user && h.user.is_admin, h && h.panels ? Object.keys(h.panels).join(',') : '', b.menu_rooms, JSON.stringify(b.room_order),
+              h && h.user && h.user.is_admin, H.hostItems().map(function (x) { return x.title + x.href; }).join(','), side && side.panels ? Object.keys(side.panels).join(',') : '', H.haKey ? H.haKey() : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
               JSON.stringify(h && h.areas ? Object.keys(h.areas).map(function (k) {
@@ -669,14 +669,17 @@
       // Section), the side menu's own list (hkMenu._.haItems) as it shows
       // folded: Integrations, Automations, Settings, Notifications, Show
       // Menu (Home Assistant's whole sidebar, for the rest) and Profile
-      var h = C.hass();
-      S.ha = b.ha_row ? H.haItems(h, S.haPrefs, { moreOpen: false, sidebarShown: false })
+      // the host's sidebar (hkShell.sidebarData(), through hkMenu._.sidebarSource)
+      S.ha = b.ha_row ? (H.haList ? H.haList(S.haPrefs, { moreOpen: false, sidebarShown: false }) : [])
         .filter(function (it) { return it.kind !== 'more'; }) : [];
       if (b.ha_row && S.haPrefs === undefined) loadPrefs();
+      // THE HOST'S OWN PAGES (a host's settings; none in Home Assistant): the side menu's host section
+      // (hkMenu._.hostItems), at the end of More, under the host's own name for it
+      S.hostRows = H.hostItems ? H.hostItems() : [];
       var tabs = [m.home].concat(m.categories).filter(Boolean);
       var sz = b.tab_bar_size;
-      var f = rail ? railFit(tabs.length, m.top.length, railH(), rm === 'more' || S.ha.length > 0, b.tab_bar_tabs_rail, sz)
-                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0, b.tab_bar_tabs, sz, ph);
+      var f = rail ? railFit(tabs.length, m.top.length, railH(), rm === 'more' || S.ha.length > 0 || S.hostRows.length > 0, b.tab_bar_tabs_rail, sz)
+                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0 || S.hostRows.length > 0, b.tab_bar_tabs, sz, ph);
       S.pos = pos;
       if (S.posWas !== pos && S.mode !== 'full') setMode('full');
       S.posWas = pos;
@@ -687,12 +690,12 @@
       S.tabs = p.tabs; S.more = p.more; S.rooms = rm === 'off' ? [] : p.rooms; S.roomsMode = rm;
       var html = '';
       p.tabs.forEach(function (it, i) {
-        html += '<button class="tab" data-t="' + i + '"><ha-icon icon="' + icon(it.icon) + '"></ha-icon><span>' +
+        html += '<button class="tab" data-t="' + i + '"><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
           esc(it.title) + '</span></button>';
       });
       if (f.more) {
-        html += '<button class="tab" data-t="more" aria-expanded="false"><ha-icon icon="' + icon(MORE_ICON) +
-          '"></ha-icon><span>More</span></button>';
+        html += '<button class="tab" data-t="more" aria-expanded="false"><hk-icon icon="' + icon(MORE_ICON) +
+          '"></hk-icon><span>More</span></button>';
       }
       // THE SAME TABS ARE KEPT, not drawn again: a module arriving on a new
       // page (hk-module-ready) asks for a rebuild, and new buttons would cut
@@ -746,12 +749,16 @@
       var hg = S.sheets.more.querySelector('.hagrid');
       fill(hg, S.ha, 'h');
       hg.hidden = S.sheets.more.querySelector('.hh').hidden = !S.ha.length;
+      var mg = S.sheets.more.querySelector('.mgrid'), mh = S.sheets.more.querySelector('.mh');
+      fill(mg, S.hostRows, 'm');
+      mh.textContent = S.hostRows.length ? S.hostRows[0].section || 'More' : '';
+      mg.hidden = mh.hidden = !S.hostRows.length;
       // ...and the section where the screen puts it
       var body = S.sheets.more.querySelector('.body'), hh = S.sheets.more.querySelector('.hh');
       var rh = S.sheets.more.querySelector('.rh'), rg = S.sheets.more.querySelector('.roomgrid');
       var order = place === 'top' ? [hh, hg, pg, ch, pg2, rh, rg] : place === 'categories' ? [pg, hh, hg, ch, pg2, rh, rg]
         : place === 'bottom' ? [pg, ch, pg2, rh, rg, hh, hg] : [pg, ch, pg2, hh, hg, rh, rg];
-      order.forEach(function (el) { body.appendChild(el); });
+      order.concat([mh, mg]).forEach(function (el) { body.appendChild(el); });
       // More Style: the list, about a phone's width; the icons, wide -- and
       // joined, exactly the bar's width
       Object.keys(S.sheets).forEach(function (k) {
@@ -762,7 +769,7 @@
     }
     function fill(grid, items, k, at) {
       grid.innerHTML = items.map(function (it, i) {
-        return '<button class="it" data-k="' + k + '" data-i="' + (i + (at || 0)) + '"><ha-icon icon="' + icon(it.icon) + '"></ha-icon><span>' +
+        return '<button class="it" data-k="' + k + '" data-i="' + (i + (at || 0)) + '"><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
           esc(it.title) + '</span></button>';
       }).join('');
     }
@@ -833,7 +840,7 @@
       // folded, the button shows where you are: the page's tab, More, a
       // room, else Home
       var ci = curIcon || (inRoom ? ROOMS_ICON : (S.tabs[0] && S.tabs[0].icon) || 'mdi:home');
-      var ie = S.cur.querySelector('ha-icon'), want = H.glyph(ci);
+      var ie = S.cur.querySelector('hk-icon'), want = H.glyph(ci);
       if (ie.getAttribute('icon') !== want) ie.setAttribute('icon', want);
     }
 
@@ -841,8 +848,7 @@
     function go(it) {
       closeSheet();
       if (!it || H.isHere(it, location.pathname)) return;
-      history.pushState(null, '', it.path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
+      SH.navigate(it.path);
     }
     function onTab(e) {
       var el = e.target.closest && e.target.closest('.tab');
@@ -856,34 +862,35 @@
       var el = e.target.closest && e.target.closest('.it');
       if (!el) return;
       var k = el.getAttribute('data-k'), it = listOf(k)[+el.getAttribute('data-i')];
-      if (k === 'h') haGo(it); else go(it);
+      if (k === 'h') haGo(it);
+      // (a host row opens a page, or asks the host to do something: hk-menu.js hostItems)
+      else if (k === 'm') {
+        if (it && it.run) { closeSheet(true); try { it.run(); } catch (x) { /* the host's own */ } }
+        else if (it && it.href) { closeSheet(true); location.assign(it.href); }
+      }
+      else go(it);
     }
-    function listOf(k) { return k === 'r' ? S.rooms : k === 'h' ? S.ha : S.more; }
+    function listOf(k) { return k === 'r' ? S.rooms : k === 'h' ? S.ha : k === 'm' ? S.hostRows : S.more; }
     // A HOME ASSISTANT ROW does what the side menu's does (hk-menu.js onList):
     // Show Menu opens Home Assistant's own sidebar over the page,
     // Notifications its drawer, the rest open Home Assistant's page
     function haGo(it) {
       if (!it) return;
       closeSheet(true);
-      var ha = document.querySelector('home-assistant');
-      if (it.kind === 'ha') { if (window.hkMenu && window.hkMenu.openHaSidebar) window.hkMenu.openHaSidebar(); return; }
-      if (it.kind === 'notif') {
-        var hm = ha && ha.shadowRoot && ha.shadowRoot.querySelector('home-assistant-main');
-        if (hm) hm.dispatchEvent(new CustomEvent('hass-show-notifications', { bubbles: true, composed: true }));
-        return;
-      }
+      if (it.kind === 'ha') { if (!SH.openHaMenu() && window.hkMenu && window.hkMenu.openHaSidebar) window.hkMenu.openHaSidebar(); return; }
+      if (it.kind === 'notif') { SH.showNotifications(); return; }
+      if (it.kind === 'halink') { H.haOpen(it); return; }
       if (!it.path) return;
       try { sessionStorage.setItem('hk-ha-row-used', '1'); } catch (e) { /* private mode */ }
-      history.pushState(null, '', it.path);
-      window.dispatchEvent(new CustomEvent('location-changed'));
+      SH.haNavigate(it.path);
     }
     // this user's Home Assistant sidebar order and hidden pages (More's Home
     // Assistant section follows them, as the side menu's does): read once
     function loadPrefs() {
       S.haPrefs = null;
-      var h = C.hass(), conn = h && h.connection;
-      if (!conn || typeof conn.sendMessagePromise !== 'function') return;
-      conn.sendMessagePromise({ type: 'frontend/get_user_data', key: 'sidebar' }).then(function (r) {
+      var c = C.client();                  // a read: the current client's read path
+      if (!c || typeof c.callWS !== 'function') return;
+      c.callWS({ type: 'frontend/get_user_data', key: 'sidebar' }).then(function (r) {
         S.haPrefs = (r && r.value) || null;
         S.built = ''; sync();
       }, function () { /* no prefs: Home Assistant's own order */ });
@@ -1018,13 +1025,11 @@
       if (!root || !root.querySelector || root.querySelector('style#hk-bar-room')) return;
       var st = document.createElement('style');
       st.id = 'hk-bar-room';
-      st.textContent = '#view[hk-bar-room]>hui-view{min-height:calc(100vh - var(--hk-bar-room,0px))!important}';
-      (root.appendChild ? root : document.head).appendChild(st);
+      st.textContent = '#view[hk-bar-room]>' + SH.tags.view + '{min-height:calc(100vh - var(--hk-bar-room,0px))!important}';
+      // (a view in the document itself -- a host with no shadow roots: the head)
+      (root.appendChild && root !== document ? root : document.head).appendChild(st);
     }
-    function viewEl() {
-      var p = M.panel(), root = p && p.shadowRoot && p.shadowRoot.querySelector('hui-root');
-      return (root && root.shadowRoot && root.shadowRoot.querySelector('#view')) || null;
-    }
+    function viewEl() { return SH.viewSlot(M.panel()); }
     // A FULL RAIL PUSHES THE PAGE ASIDE (Shrink or Hide; Stay keeps a strip
     // of room instead): while the rail is full the dashboard is scaled down
     // away from it, just enough to clear it, and eased back as it folds or
@@ -1051,7 +1056,7 @@
       var b = M.board() || {}, pos = S.pos;
       var how = S.on && pos ? room(pos, scrollOf(b), b.tab_bar_adjust) : 'none';
       var on = how === 'scale' || how === 'shift';
-      var v = viewEl(), hv = v && v.querySelector('hui-view');
+      var v = viewEl(), hv = SH.view(v);
       if (S.asideEl && S.asideEl !== hv) { S.asideEl.style.transform = ''; S.asideEl.style.transformOrigin = ''; S.asideEl = null; }
       if (!hv || !on) {
         if (hv && S.asideEl === hv) { hv.style.transform = ''; S.asideEl = null; }
@@ -1148,7 +1153,7 @@
 
     // ------------------------------------------------------------ sync
     // Everything that can change what shows: page changes, settings, resize,
-    // hass pushes. Cheap and idempotent.
+    // state pushes. Cheap and idempotent.
     function sync() {
       var on = wanted();
       if (!on) {
@@ -1211,7 +1216,7 @@
       if (navFrame) return;
       navFrame = requestAnimationFrame(function () { navFrame = 0; sync(); });
     }
-    window.addEventListener('location-changed', onNav);
+    SH.onNavigate(onNav);
     window.addEventListener('popstate', onNav);
     window.addEventListener('hk-view-ready', function () { sync(); });
     window.addEventListener('keydown', function (e) {
@@ -1223,14 +1228,16 @@
     window.addEventListener('hk-dock', function () { sync(); });
     window.addEventListener('hk-pane', function () { sync(); });
     window.addEventListener('hk-module-ready', function () { S.built = ''; sync(); });
+    // the host's Home Assistant rows changed (hkShell.haNav: it learned where the page is)
+    window.addEventListener('hk-ha-nav-changed', function () { S.built = ''; sync(); });
     // the window's scroll, and <body>'s on a phone (scroll events do not
     // bubble: captured at the document, as hk-menu.js does)
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
     // HA pushes ~33 state changes a second: only what the list is made of
     // is looked at here -- the dashboard, its config and the areas, each by
     // identity (a new object only when it changed)
-    C.onHass(function () {
-      var h = C.hass(), cfg = M.config(), d = M.dash(), areas = h && h.areas;
+    C.onClient(function () {
+      var h = C.client(), cfg = M.config(), d = M.dash(), areas = h && h.areas;
       if (d === S.dash && cfg === S.cfg && areas === S.areas) return;
       S.dash = d; S.cfg = cfg; S.areas = areas;
       sync();

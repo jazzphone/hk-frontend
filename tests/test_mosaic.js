@@ -396,7 +396,7 @@ dispatchEvent(new CustomEvent('hk-black', { detail: { on: true } }));
 ok('HK\'s own black screen (hk-black): the same rest', !blk._timer && blk._liveSlot.asleep);
 // a pick under the black (Live Camera Follows moving on): the strip rebuilds,
 // and its new live tile is built asleep -- the Kitchen decoded one for nobody
-var underBlack = {}; for (var k in blk._hass.states) underBlack[k] = blk._hass.states[k];
+var underBlack = {}; for (var k in blk.hass.states) underBlack[k] = blk.hass.states[k];
 underBlack['input_select.cameras'] = { state: NAMES[1], last_updated: 't2' };
 blk.hass = { states: underBlack };
 ok('a new pick under the black: rebuilt for it, its live tile asleep -- no stream mounted',
@@ -667,7 +667,7 @@ ok('a dead stream loads the poster', !!psrc(lp), psrc(lp));
 ok('  and it asks for the capped live size (360*1.5=540 -> 480x270)',
    /width=480\b/.test(psrc(lp)) &&
    /height=270\b/.test(psrc(lp)), psrc(lp));
-ok('  and it is the LIVE camera, not a still', 
+ok('  and it is the LIVE camera, not a still',
    psrc(lp).indexOf(lp._liveSlot.cam.entity)>=0, psrc(lp));
 
 // a healthy stream: fetch nothing, and get out of the video's way
@@ -761,21 +761,21 @@ ok('nothing on the plate ever requests above the tier',
 var sharp=new C();
 sharp.setConfig({selector:'input_select.cameras',cameras:CAMS,height:202.5,seam:2,
                  snapshot_cap:'960x540'});
-sharp.hass=withPic('Front Door')._hass;
+sharp.hass=withPic('Front Door').hass;
 var so=sharp._snaps.filter(function(s){return s.cssH>150;})[0];
 ok("snapshot_cap:'960x540' buys the sharper tier back",
    dim(sharp._srcFor(so.cam,so),'width')===405, sharp._srcFor(so.cam,so));
 var raw=new C();
 raw.setConfig({selector:'input_select.cameras',cameras:CAMS,height:202.5,seam:2,
                snapshot_cap:false});
-raw.hass=withPic('Front Door')._hass;
+raw.hass=withPic('Front Door').hass;
 var ro=raw._snaps.filter(function(s){return s.cssH>150;})[0];
 ok('snapshot_cap:false asks for the true device size',
    dim(raw._srcFor(ro.cam,ro),'height')===304, raw._srcFor(ro.cam,ro));
 ok('a malformed cap falls back to the tier rather than to nothing',
    (function(){var b=new C();
      b.setConfig({selector:'input_select.cameras',cameras:CAMS,snapshot_cap:'garbage'});
-     b.hass=withPic('Front Door')._hass;
+     b.hass=withPic('Front Door').hass;
      var o=b._snaps[0];
      return dim(b._srcFor(o.cam,o),'width')<=480;})());
 
@@ -859,7 +859,7 @@ function at(dpr, cfg){
   var c=new C();
   c.setConfig(Object.assign({selector:'input_select.cameras',cameras:CAMS,
                              height:202.5,seam:2}, cfg||{}));
-  c.hass=withPic('Front Door')._hass;
+  c.hass=withPic('Front Door').hass;
   return c;
 }
 // dPR must be re-asserted at CALL time: _srcFor reads window.devicePixelRatio
@@ -910,7 +910,8 @@ if (!css) { var probe=withPic('Front Door');
 ok('the card exposes its CSS to test', !!css, 'len='+css.length);
 // (the live CARD may fade in: it comes in over the frame copied under it,
 // an opaque canvas, so the tile never dims -- see .live>hui-card)
-var cssNoLive = css.replace(/\.live>hui-card\{[^}]*\}/g, '');
+// (HK's own picture-entity, where there is no Lovelace, has the same rule)
+var cssNoLive = css.replace(/\.live>(hui-card|hk-picture-entity)\{[^}]*\}/g, '');
 ok('NO opacity transition on a still', !/\.snap img\{[^}]*transition/.test(css) &&
    !/transition:opacity/.test(cssNoLive), (cssNoLive.match(/transition[^;}]*/g)||[]).join(' | '));
 ok('...the live card fades in, and goes at once', /\.live>hui-card\{[^}]*transition:opacity/.test(css) &&
@@ -1077,7 +1078,7 @@ print('\n=== show_age: false removes it entirely ===');
 var noage=new C();
 noage.setConfig({selector:'input_select.cameras',cameras:CAMS,height:202.5,seam:2,
                  show_age:false});
-noage.hass=withPic('Front Door')._hass;
+noage.hass=withPic('Front Door').hass;
 ok('no label elements are created', noage._snaps.every(function(s){return !s.age;}));
 ok('  nor on the poster', !noage._liveSlot.poster.age);
 ok('  and no once-a-second interval is armed', !noage._ages);
@@ -1227,7 +1228,8 @@ print('\n=== after a restart: nothing asked of a state the new server has not se
 // HA restarted: the socket's `ready` comes before the resubscribe's snapshot,
 // the page still holds every old state (old tokens), and HA rebuilds the card.
 (function () {
-  var cn = { l: {}, addEventListener: function (t, f) { (this.l[t] = this.l[t] || []).push(f); } };
+  var cn = { l: {}, subscribeMessage: function () { return Promise.resolve(function () {}); },
+             addEventListener: function (t, f) { (this.l[t] = this.l[t] || []).push(f); } };
   var st = { 'input_select.cameras': { state: 'Front Door', last_updated: 't' } };
   CAMS.forEach(function (c) {
     st[c.entity] = { state: 'recording', attributes: { entity_picture: '/api/camera_proxy/' + c.entity + '?token=OLD' } };

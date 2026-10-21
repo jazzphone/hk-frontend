@@ -5,6 +5,8 @@
 // ways in found by name, Energy's bar rules).
 if (typeof HK_ROOT === 'undefined')
   throw new Error('HK_ROOT is not set -- run this through tests/run, not jsc directly');
+// fixtures at now ± hours: the clock is pinned to noon (fixed_clock.js)
+load(HK_ROOT + '/tests/fixed_clock.js');
 load(HK_ROOT + '/tests/dom.js');
 load(HK_ROOT + '/tests/card_harness.js');
 load(HK_ROOT + '/frontend/cards/hk-base.js');
@@ -105,16 +107,24 @@ H.run('page headers', [
     var m0 = midnight() / 1000;
     return answer(house, function () {
       return {
-        'climate.down': [{ s: 'heat_cool', a: { hvac_action: 'idle' }, lu: m0 }, { s: 'heat_cool', a: { hvac_action: 'cooling' }, lu: m0 + 3600 },
-                         { s: 'heat_cool', a: { hvac_action: 'idle' }, lu: m0 + 3600 + 45 * 60 }],
-        'climate.up': [{ s: 'heat_cool', a: { hvac_action: 'idle' }, lu: m0 }]
+        'climate.down': [{ s: 'heat_cool', a: { hvac_action: 'idle', current_temperature: 72 }, lu: m0 },
+                         { s: 'heat_cool', a: { hvac_action: 'cooling', current_temperature: 75 }, lu: m0 + 3600 },
+                         { s: 'heat_cool', a: { hvac_action: 'idle', current_temperature: 73 }, lu: m0 + 3600 + 45 * 60 }],
+        'climate.up': [{ s: 'heat_cool', a: { hvac_action: 'idle', current_temperature: 74 }, lu: m0 }]
       };
     }).then(function () {
       card.hass = house.hass();
       var html = drawn(card);
       H.ok('cooling only: "Cooling Through the Day"', html.indexOf('Cooling Through the Day') > 0, html.slice(0, 200));
       H.ok('the downstairs figure: 45 min (and whatever runs since)', /45<u>min<\/u>|<u>min<\/u>/.test(html) && html.indexOf('Downstairs') > 0);
-      H.ok('the upstairs figure: Idle, its name trimmed of "Ecobee Thermostat"', html.indexOf('>Idle<') > 0 && html.indexOf('>Upstairs<') > 0);
+      H.ok('the upstairs figure: Idle, its name trimmed of "Ecobee Thermostat"', html.indexOf('>Idle<') > 0 && html.indexOf('>Upstairs · ') > 0);
+      // THE HOUSE ITSELF (2026-10-21): each thermostat's indoor temperature now
+      // beside its name, and its day as a line of its own colour over the bars
+      H.ok('each thermostat\'s temperature now beside its name, a dot in its line\'s colour',
+           /<i style="background:#bf5af2"><\/i>Downstairs · <b>76°<\/b>/.test(html) && /<i style="background:#30d158"><\/i>Upstairs · <b>74°<\/b>/.test(html), html.slice(0, 600));
+      H.ok('a line for each thermostat, in its colour', /<path class="il" stroke="#bf5af2" d="M/.test(html) && /<path class="il" stroke="#30d158" d="M/.test(html));
+      H.ok('...on the same scale as the bars\' hours: one point an hour to now', ((html.match(/<path class="il" stroke="#bf5af2" d="([^"]*)"/) || [])[1] || '').split(/[ML]/).length - 1 >= 1);
+      H.ok('the readout names the temperatures', html.indexOf('runtime and temperatures') > 0);
       H.ok('24 hour bars, labeled at 12a / 6a / 12p / 6p', (html.match(/data-i="/g) || []).length >= 24 && html.indexOf('>12a<') > 0 && html.indexOf('>6p<') > 0);
       H.ok('each thermostat\'s figure opens its sheet', html.indexOf('data-more="climate.down"') > 0);
     });
@@ -223,7 +233,7 @@ H.run('page headers', [
     H.ok('a row whose condition fails now is quieter, and says so', html.indexOf('class="ev wait"') > 0 && html.indexOf('not now') > 0 && html.indexOf('Inside lights on · sunrise') > 0);
     // Turn Off: the light's own service
     card._card.dispatchEvent && null;
-    card._hass.callService('light', 'turn_off', { entity_id: 'light.foyer' });
+    card.hass.callService('light', 'turn_off', { entity_id: 'light.foyer' });
     H.ok('Turn Off sends turn_off for that light', house.calls.some(function (c) { return c.domain === 'light' && c.service === 'turn_off' && c.data.entity_id === 'light.foyer'; }));
     // nothing sensed, nothing scheduled: Light Levels
     var lv = H.make('hk-lights-tonight-card');
@@ -271,7 +281,7 @@ H.run('page headers', [
       card.hass = hass();
       var html2 = drawn(card);
       H.ok('a close folds into its open: "Front Door closed · Open for 4 seconds"', html2.indexOf('Front Door closed') > 0 && html2.indexOf('Open for 4 seconds') > 0, html2.slice(-600));
-      H.ok('each row has its glyph', (html2.match(/class="ar"[^>]*><ha-icon class="gl"/g) || []).length === 2 && html2.indexOf('hk:door-closed') > 0 && html2.indexOf('hk:lock"') > 0, html2.slice(-900));
+      H.ok('each row has its glyph', (html2.match(/class="ar"[^>]*><hk-icon class="gl"/g) || []).length === 2 && html2.indexOf('hk:door-closed') > 0 && html2.indexOf('hk:lock"') > 0, html2.slice(-900));
       // EXPAND: the open keeps its own row; the close still says how long
       H.ok('grouped: an Expand button', html2.indexOf('data-expand') > 0 && html2.indexOf('>Expand<') > 0);
       card._setExpanded(true);
@@ -337,6 +347,6 @@ H.run('page headers', [
     var k = H.make('hk-alarm-keypad-card');
     k.setConfig({ type: 'custom:hk-alarm-keypad-card', entity: 'alarm_control_panel.house', boxed: true, entries: ['binary_sensor.door'] });
     k.hass = house.hass();
-    H.ok('its own plate, titled', !!k._root.querySelector('ha-card.kp') || /kp/.test(JSON.stringify(Object.keys(k._root))), 'boxed');
+    H.ok('its own plate, titled', !!k._root.querySelector('hk-plate.kp') || /kp/.test(JSON.stringify(Object.keys(k._root))), 'boxed');
   }
 ]);

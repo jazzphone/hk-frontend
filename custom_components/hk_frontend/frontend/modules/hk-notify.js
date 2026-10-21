@@ -117,8 +117,11 @@
   }
 
   // ------------------------------------------------------------- context
-  function haEl() { return document.querySelector('home-assistant'); }
-  function hass() { var h = haEl(); return h && h.hass; }
+  // The host's current client (in Home Assistant, the frontend's root element's).
+  function currentClient() {
+    var HC = window.hkHostClient;
+    return (HC && HC.current && HC.current()) || null;
+  }
   function board() {
     var S = window.hkSettings;
     var all = S && typeof S.get === 'function' ? S.get('boards', {}) : null;
@@ -145,7 +148,7 @@
     return !!(window.hkDetail && typeof window.hkDetail.answers === 'function' && window.hkDetail.answers('#' + h));
   }
   function context() {
-    var h = hass();
+    var h = currentClient();
     return { board: board(), editing: editing(), asleep: asleep(), saver: saverOn(), now: new Date(), dash: seg(),
              user: h && h.user ? h.user.id : null,
              states: h ? h.states : {}, popOpen: popOpen, popWould: popWould };
@@ -200,7 +203,7 @@
     '.nb.behind{pointer-events:none}',
     '.nb.behind > *{opacity:0}',
     '.ic{flex:none;width:var(--ic);height:var(--ic);border-radius:calc(var(--ic) * .26);display:grid;place-items:center;position:relative;overflow:hidden}',
-    '.ic ha-icon{--mdc-icon-size:calc(var(--ic) * .6);color:#fff;display:block}',
+    '.ic hk-icon{--mdc-icon-size:calc(var(--ic) * .6);color:#fff;display:block}',
     '.ic.av{border-radius:50%;background:linear-gradient(180deg,#a3a9b5,#7b8190);color:#fff;font-weight:600;font-size:calc(var(--ic) * .4);letter-spacing:.3px}',
     '.ic img{width:100%;height:100%;object-fit:cover;display:block}',
     '.tx{flex:1;min-width:0}',
@@ -255,7 +258,7 @@
   function iconHtml(n) {
     if (n.kind === 'people' && n.picture) return '<div class="ic av"><img src="' + esc(n.picture) + '" alt=""></div>';
     if (n.kind === 'people') return '<div class="ic av">' + esc(n.initials || '') + '</div>';
-    return '<div class="ic" style="background:' + esc(n.tint || '#8e8e93') + '"><ha-icon icon="' + esc(n.icon || 'hk:bell') + '"></ha-icon></div>';
+    return '<div class="ic" style="background:' + esc(n.tint || '#8e8e93') + '"><hk-icon icon="' + esc(n.icon || 'hk:bell') + '"></hk-icon></div>';
   }
   function bannerHtml(n) {
     return iconHtml(n) + '<div class="tx">' + (n.important || n.test ? '<div class="imp-tag' + (n.test && !n.important ? ' test' : '') + '">' +
@@ -268,7 +271,7 @@
     if (!n.snap) return Promise.resolve(null);
     var got = signed[n.snap];
     if (got && Date.now() - got.at < SIGN_KEEP_MS) return Promise.resolve(got.url);
-    var h = hass();
+    var h = currentClient();
     if (!h || !h.callWS) return Promise.resolve(null);
     return h.callWS({ type: 'hk_notify/snap/sign', snaps: [n.snap] }).then(function (r) {
       var u = r && r.signed && r.signed[n.snap];
@@ -454,8 +457,7 @@
     var url = '/' + seg() + '/' + String(path).replace(/^\/+/, '');
     var D = window.hkDetail;
     if (D && typeof D.navigateFrom === 'function') { D.navigateFrom(url); return; }
-    history.pushState(null, '', url);
-    window.dispatchEvent(new CustomEvent('location-changed'));
+    window.hkShell.navigate(url);
   }
   function sheet(id, n, snap) {
     var D = window.hkDetail, done = false;
@@ -464,8 +466,7 @@
     }
     if (done) return;
     // not one of HK's sheets: Home Assistant's own dialog
-    var h = haEl();
-    if (h) h.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true }));
+    window.hkShell.moreInfo(id);
   }
 
   // --------------------------------------------------------------- chime
@@ -539,8 +540,23 @@
   window.addEventListener('hk-house-event', function (ev) {
     var n = ev && ev.detail;
     if (n && n.type === 'notification') arrive(n);
+    // the house took it down elsewhere (a Dismiss on someone's phone): gone here too
+    else if (n && n.type === 'notification_dismiss' && n.id != null) dismissId(n.id);
   });
+  function dismissId(id) {
+    stack.slice().forEach(function (it) { if (it.n && String(it.n.id) === String(id)) dismiss(it); });
+    hidden = hidden.filter(function (h) { return String(h.id) !== String(id); });
+  }
   window.addEventListener('resize', function () { restyle(); layout(); });
+  // THE SCREENSAVER CAME OR WENT UNDER A BANNER: the layer follows it at once
+  // (2026-10-20, the user: a vacuum's banner over the screensaver centered on
+  // the photo, short of the music pane). `.sv` was only set as a banner
+  // showed, and one that wakes the screen shows the moment the black ends --
+  // the screensaver comes back ~2.5 s later (hk-saver.js LIGHT_WAIT) -- so it
+  // stayed short of the dashboard's Now Playing pane over the photos. Any
+  // banner still up as the screensaver starts did the same; a test, sent
+  // with the screensaver already up, never did.
+  window.addEventListener('hk-saver', function () { restyle(); });
   // "now" becomes "2m ago" on a banner that stays
   setInterval(function () {
     stack.forEach(function (it) { var w = it.el.querySelector('.when'); if (w) w.textContent = ago(it.n._at); });
@@ -556,8 +572,9 @@
     show: function (n) { return show(n); },
     shown: function () { return stack.map(function (it) { return it.n; }); },
     clear: clearAll,
+    dismissId: dismissId,
     _: { CSS: CSS, decide: decide, chimes: chimes, dndOn: dndOn, inWindow: inWindow, ago: ago, target: target, route: route,
-         state: function () { return { stack: stack, fan: fan, black: black }; } }
+         state: function () { return { stack: stack, fan: fan, black: black, layer: layer }; } }
   };
   try { window.dispatchEvent(new CustomEvent('hk-module-ready', { detail: { module: 'notify' } })); } catch (e) { /* none */ }
 })();
