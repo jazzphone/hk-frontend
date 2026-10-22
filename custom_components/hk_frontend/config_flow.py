@@ -21,6 +21,7 @@ pick from once there is more than one.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -40,6 +41,10 @@ from .const import CONF_FILES_FOLDER, CONF_MANTEL_LINK, CONF_MANTEL_OWNERS, DEFA
 from .features import alarm_pin, clean_areas, energy, live_tv, music, notifications
 from .features.music.const import SUB_PLAYLIST, SUB_PRESET
 from .features.music.flows import PlaylistFlow, PresetFlow
+
+
+# a Mantel Service credential, as Mantel makes them (its service_accounts._TOKEN)
+SERVICE_TOKEN = re.compile(r"^msvc_[0-9a-f]{16}_[A-Za-z0-9_-]{43}$")
 
 
 def _entity(domain: str | list[str], multiple: bool = False,
@@ -171,10 +176,29 @@ class HkFrontendConfigFlow(ConfigFlow, domain=DOMAIN):
         dashboards' items, then Music's."""
         if F.kind_of(config_entry) != F.FRONTEND:
             return {}                    # a pre-release feature entry, folded at start
+        from . import linked_mode
+        if linked_mode.full(config_entry):
+            # MANTEL RUNS THE HOUSE (decision 29): its settings and features are Mantel's; every item here --
+            # Add feature, a feature's gear, a screen's, a tablet's -- says so instead (MantelRunsIt)
+            return {k: MantelRunsIt for k in (F.SUBENTRY_FEATURE, S.SUBENTRY_DASHBOARD, S.SUBENTRY_POPUP,
+                                               S.SUBENTRY_PAGE, S.SUBENTRY_CHIP, S.SUBENTRY_TABLET, SUB_PRESET,
+                                               SUB_PLAYLIST)}
         return {F.SUBENTRY_FEATURE: FeatureFlow, S.SUBENTRY_DASHBOARD: DashboardSubentryFlow,
                 S.SUBENTRY_POPUP: PopupSubentryFlow, S.SUBENTRY_PAGE: PageSubentryFlow,
                 S.SUBENTRY_CHIP: ChipSubentryFlow, S.SUBENTRY_TABLET: TabletSubentryFlow,
                 SUB_PRESET: PresetFlow, SUB_PLAYLIST: PlaylistFlow}
+
+
+class MantelRunsIt(ConfigSubentryFlow):
+    """WHILE MANTEL RUNS THE HOUSE (linked_mode.full; decision 29 in Mantel's docs/phase9/TWO-PRODUCTS.md): HK's
+    settings and features are Mantel's, set in Mantel Settings, and every item on this integration's page is
+    kept only for the day the house is handed back. Adding one, or opening one's gear, says so."""
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return self.async_abort(reason="mantel_runs_it")
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        return self.async_abort(reason="mantel_runs_it")
 
 
 class FeatureFlow(music.AddSteps, music.ReconfigureSteps, live_tv.AddSteps, live_tv.ReconfigureSteps,
@@ -575,13 +599,22 @@ class HkOptionsFlow(OptionsFlow):
 
     def _menu(self) -> ConfigFlowResult:
         from .panel import URL_PATH
+        from . import linked_mode
         saved = f"Saved: {self._saved}." if self._saved else ""
+        if linked_mode.full(self.config_entry):
+            # Mantel runs the house: HK Settings and Your files are Mantel's; only the link and the check here
+            return self.async_show_menu(step_id="init_mantel", menu_options=["linked", "check", "done"],
+                                        description_placeholders={"saved": saved})
         return self.async_show_menu(
             step_id="init", menu_options=["panel", "files", "linked", "check", "done"],
             description_placeholders={"saved": saved, "url": f"/{URL_PATH}"})
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None
                               ) -> ConfigFlowResult:
+        return self._menu()
+
+    async def async_step_init_mantel(self, user_input: dict[str, Any] | None = None
+                                     ) -> ConfigFlowResult:
         return self._menu()
 
     async def async_step_done(self, user_input: dict[str, Any] | None = None
@@ -635,11 +668,16 @@ class HkOptionsFlow(OptionsFlow):
                 data.pop(CONF_MANTEL_OWNERS, None)
             else:
                 url = str(user_input.get("url") or "").strip()
-                token = str(user_input.get("token") or "").strip() or (now or {}).get("token", "")
+                typed = str(user_input.get("token") or "").strip()
+                token = typed or (now or {}).get("token", "")
                 if bad := await linked_mode.check_url(url):
                     errors["url"] = bad
                 if not token:
                     errors["token"] = "mantel_token_required"
+                elif typed and not SERVICE_TOKEN.match(typed):
+                    # not a Mantel Service credential -- often a password the browser filled into the box: refused,
+                    # so the saved credential is never replaced by it (the house, 2026-10-21)
+                    errors["token"] = "mantel_token_invalid"
                 if not errors:
                     data[CONF_MANTEL_LINK] = {"url": url, "token": token}
             if not errors:
@@ -653,7 +691,7 @@ class HkOptionsFlow(OptionsFlow):
             vol.Optional("enabled", default=now is not None): bool,
             vol.Optional("url", default=(now or {}).get("url") or await linked_mode.suggested_url(self.hass)): str,
             vol.Optional("token", default=""): sel.TextSelector(
-                sel.TextSelectorConfig(type=sel.TextSelectorType.PASSWORD)),
+                sel.TextSelectorConfig(type=sel.TextSelectorType.PASSWORD, autocomplete="off")),
         }), description_placeholders={"state": linked_mode.describe(entry)})
 
     async def async_step_files(self, user_input: dict[str, Any] | None = None

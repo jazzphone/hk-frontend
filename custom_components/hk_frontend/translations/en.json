@@ -46,7 +46,7 @@
       },
       "linked": {
         "title": "Linked to Mantel",
-        "description": "Now: {state}.\n\nFor a house that also runs Mantel, HK's screens as their own server. Linked, this integration keeps the same actions (hk_frontend.set_black_screen, show_popup, close_popup, notify) and the same entities, with the same entity ids, and Mantel's Owner picks who runs each wall tablet: Mantel, or HK Frontend (Mantel Settings, Connections, Home Assistant Link). With Mantel Link also installed, Mantel Link usually shows Mantel's entities (the bridge) and this integration lets go of them; HK Frontend's dashboards and HK Settings here keep working either way. HK Frontend and Mantel each keep their own HK settings. Off, everything works as it always has.\n\nThe address fills itself in when the Mantel App or Mantel Link is installed. The credential is a Mantel Service account's (scope `linked`). Home Assistant keeps it in its own storage on disk (.storage/core.config_entries), as it does every integration's token; anyone who can read that file or a backup of it can use it, so revoke it in Mantel if a backup leaks. Saving reloads the integration.",
+        "description": "Now: {state}.\n\nFor a house that also runs Mantel, HK's screens as their own server. Linked, this integration keeps the same actions (hk_frontend.set_black_screen, show_popup, close_popup, notify) and the same entities, with the same entity ids, and Mantel's Owner picks who runs each wall tablet: Mantel, or HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant). With Mantel Link also installed, Mantel Link usually shows Mantel's entities (the bridge) and this integration lets go of them; HK Frontend's dashboards and HK Settings here keep working either way. HK Frontend and Mantel each keep their own HK settings. Off, everything works as it always has.\n\nThe address fills itself in when the Mantel App or Mantel Link is installed. The credential is a Mantel Service account's (scope `linked`). Home Assistant keeps it in its own storage on disk (.storage/core.config_entries), as it does every integration's token; anyone who can read that file or a backup of it can use it, so revoke it in Mantel if a backup leaks. Saving reloads the integration.",
         "data": {
           "enabled": "Linked to Mantel",
           "url": "Mantel's address",
@@ -61,6 +61,15 @@
       "check": {
         "title": "Setup check",
         "description": "What these pages need from this Home Assistant, and how to fix what is missing. Nothing here changes anything; submit to go back.\n\n{report}"
+      },
+      "init_mantel": {
+        "title": "Configure",
+        "menu_options": {
+          "linked": "Linked to Mantel",
+          "check": "Setup check (what is ready, what to fix)",
+          "done": "Done"
+        },
+        "description": "Mantel runs this house, so HK's settings, screens, wall tablets and features are set in Mantel Settings, and HK Frontend's dashboards here draw with them. The items listed on this integration's page are kept only for the day the house is handed back. {saved}"
       }
     },
     "error": {
@@ -71,7 +80,8 @@
       "mantel_url_invalid": "Enter Mantel's address, starting with https:// (or http://, ws://, wss://), with no user name or query.",
       "mantel_token_required": "Paste the Service credential Mantel gave you.",
       "mantel_url_insecure": "Use https:// (or wss://) for an address on the network: over plain http the credential would cross it in clear. Plain http is accepted only for this machine (127.0.0.1) or an App on Home Assistant's internal network (http://local-mantel:8099).",
-      "mantel_url_not_internal": "That App name does not resolve to Home Assistant's internal App network (172.30.32.0/23), so plain http is refused: the credential would leave this machine in clear. Check the App's hostname, or use https://."
+      "mantel_url_not_internal": "That App name does not resolve to Home Assistant's internal App network (172.30.32.0/23), so plain http is refused: the credential would leave this machine in clear. Check the App's hostname, or use https://.",
+      "mantel_token_invalid": "That isn't a Mantel Service credential (they start with msvc_). If your browser filled a saved password in here, clear the box: left empty, the credential already saved is kept."
     }
   },
   "issues": {
@@ -86,6 +96,10 @@
     "ha_too_old": {
       "title": "Home Assistant is too old for HK Frontend",
       "description": "This is Home Assistant {version}. The HK pages are built and tested against {minimum} or newer, and older frontends draw them wrongly. Update Home Assistant (Settings → System → Updates)."
+    },
+    "mantel_admins_unlinked": {
+      "title": "Some Home Assistant admins can't save HK settings",
+      "description": "HK's settings are Mantel's while HK Frontend is linked and Mantel runs the house. {count} Home Assistant admin account(s) aren't linked to a person in Mantel, so a change they make on HK's dashboards is refused. An Owner links them in Mantel Settings: Connections, Mantel in Home Assistant, People, Home Assistant Users. This message clears itself once they are linked."
     },
     "theme_missing": {
       "title": "HK Kiosk theme not loaded",
@@ -299,7 +313,8 @@
         "already_configured": "That feature is already added.",
         "reconfigure_successful": "Saved.",
         "alarm_pin_already_configured": "That alarm already has a PIN. Change it with that PIN’s gear.",
-        "live_tv_cannot_connect": "Could not reach the HDHomeRun. Check that it is on and at the same address."
+        "live_tv_cannot_connect": "Could not reach the HDHomeRun. Check that it is on and at the same address.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       },
       "error": {
         "alarm_pin_own_panel": "That is one of Alarm PIN’s own panels. Choose the alarm it should protect.",
@@ -341,7 +356,8 @@
       "abort": {
         "already_configured": "That dashboard already has an item.",
         "no_dashboards": "Every dashboard already has an item.",
-        "use_panel": "The settings for {dashboard} are on the HK Settings page: **[open {dashboard}]({url})**."
+        "use_panel": "The settings for {dashboard} are on the HK Settings page: **[open {dashboard}]({url})**.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       }
     },
     "popup": {
@@ -424,7 +440,8 @@
       },
       "abort": {
         "reconfigure_successful": "Saved.",
-        "already_configured": "Another item already has that name or address. Choose another."
+        "already_configured": "Another item already has that name or address. Choose another.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       }
     },
     "page": {
@@ -481,7 +498,8 @@
       },
       "abort": {
         "reconfigure_successful": "Saved.",
-        "already_configured": "Another item already has that name or address. Choose another."
+        "already_configured": "Another item already has that name or address. Choose another.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       }
     },
     "chip": {
@@ -525,7 +543,8 @@
       },
       "abort": {
         "reconfigure_successful": "Saved.",
-        "already_configured": "Another item already has that name or address. Choose another."
+        "already_configured": "Another item already has that name or address. Choose another.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       }
     },
     "tablet": {
@@ -540,7 +559,8 @@
         }
       },
       "abort": {
-        "use_panel": "Wall tablets are set up on the HK Settings page: **[open {tablet}]({url})**."
+        "use_panel": "Wall tablets are set up on the HK Settings page: **[open {tablet}]({url})**.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       }
     },
     "preset": {
@@ -576,7 +596,8 @@
       },
       "abort": {
         "reconfigure_successful": "Saved.",
-        "music_not_added": "Add Music first: Add feature → Music."
+        "music_not_added": "Add Music first: Add feature → Music.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       }
     },
     "playlist": {
@@ -623,7 +644,8 @@
       },
       "abort": {
         "reconfigure_successful": "Saved.",
-        "music_not_added": "Add Music first: Add feature → Music."
+        "music_not_added": "Add Music first: Add feature → Music.",
+        "mantel_runs_it": "While Mantel runs the house, HK's settings and features are Mantel's: change this in Mantel Settings (Screens, Wall Tablets, Features). This item is kept here only for the day the house is handed back to HK Frontend (Mantel Settings, Connections, Mantel in Home Assistant, Advanced)."
       }
     }
   },
