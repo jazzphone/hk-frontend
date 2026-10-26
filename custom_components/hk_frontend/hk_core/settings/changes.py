@@ -30,6 +30,7 @@ import re
 from typing import Any
 
 from ..sleep import rules as SR
+from . import home_grid as HG
 from . import kinds as K
 from . import model as S
 
@@ -743,6 +744,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS),
     "menu.bar_tabs": lambda v: _tabs(v),
     "menu.bar_size": _choice(S.TAB_BAR_SIZES),
+    "menu.bar_labels": _choice(S.TAB_BAR_LABELS),
     "menu.bar_tabs_rail": lambda v: _tabs(v),
     # ...and Phones' own (None: as before phones had their own)
     "menu.button_phone": _choice(S.BOARD_BUTTON_PHONE),
@@ -800,6 +802,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "sky.flat_pages": _flat_pages,
     "sky.flat_image_look": _flat_image_look,
     "sky.flat_page_image_looks": _flat_page_image_looks,
+    "sky.image_look": _flat_image_look,
     "sky.themes": _subset(S.THEMES),
     "sky.hemisphere": _choice(("north", "south")),
     "sky.moon": SENSOR,
@@ -823,7 +826,8 @@ HOUSE.update({
     "tablets.restart_times": lambda v: _restart_times(v),
     "tablets.dismissed": lambda v: _keys(v),
 })
-IMAGE_HOUSE = re.compile(r"^sky\.flat_image_look\.patch$|^sky\.flat_page_image_looks\.([a-z0-9][a-z0-9_-]{0,39})$")
+# (a patch of Flat's image look, the Glass looks' (image_look), or one page's Flat image look)
+IMAGE_HOUSE = re.compile(r"^sky\.(flat_image_look|image_look)\.patch$|^sky\.flat_page_image_looks\.([a-z0-9][a-z0-9_-]{0,39})$")
 FLAT_HOUSE = re.compile(r"^look\.flat_colors\.(accent|off_tint|pages)$|^look\.flat_page_colors\.([a-z0-9][a-z0-9_-]{0,39})$")
 SKY_DATE = re.compile(r"^sky\.(" + "|".join(S.SKY_BUILT_IN) + r")_(from|to)$")
 
@@ -866,8 +870,8 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any],
                 # Include earlier whole-object, legacy, or reset edits in
                 # this same transaction, not just the pre-transaction view.
                 sk = dict(S.merged({**dict(options), S.CONF_DASHBOARD: dash})["sky"])
-                field = "flat_page_image_looks" if im.group(1) else "flat_image_look"
-                sk[field] = image_pages_patch(sk[field], im.group(1), value) if im.group(1) else image_patch(sk[field], value)
+                field = im.group(1) or "flat_page_image_looks"
+                sk[field] = image_pages_patch(sk[field], im.group(2), value) if im.group(2) else image_patch(sk[field], value)
                 now["sky"] = sk
                 dash["sky"] = S.house_stored("sky", sk)
                 continue
@@ -1058,8 +1062,18 @@ def _dnd(v: Any) -> dict[str, Any] | None:
     return S.notify_dnd(v)
 
 
+def _home_grid(v: Any) -> dict[str, Any] | None:
+    """A screen's Home Grid layout (home_grid.check), written whole; None takes it away."""
+    try:
+        return HG.check(v)
+    except HG.GridInvalid as err:
+        raise Invalid(err.code) from None
+
+
 BOARD: dict[str, Callable[[Any], Any]] = {
     "menu": _choice(S.BOARD_MENUS),
+    "home_style": _choice(HG.HOME_STYLES),
+    "home_grid": _home_grid,
     "phone_header": _choice(S.BOARD_PHONE),
     "chips_custom": _chip_keys,
     "chips_custom_show": _chips_custom_show,
@@ -1095,6 +1109,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "tab_bar_scroll_phone": _choice(S.TAB_BAR_SCROLLS),
     "tab_bar_tabs": _tabs,
     "tab_bar_size": _choice(S.TAB_BAR_SIZES),
+    "tab_bar_labels": _choice(S.TAB_BAR_LABELS),
     "tab_bar_tabs_rail": _tabs,
     "menu_phone": _choice(S.BOARD_PHONE_MENUS, none=True),
     "button_phone": _choice(S.BOARD_BUTTON_PHONE),
@@ -1156,6 +1171,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_flat_pages": _flat_pages,
     "sky_flat_image_look": _flat_image_look,
     "sky_flat_page_image_looks": _flat_page_image_looks,
+    "sky_image_look": _flat_image_look,
     "flat_colors": _flat_colors,
     "flat_page_colors": _flat_page_colors,
     "sky_page_looks": _page_looks,
@@ -1277,7 +1293,7 @@ def apply_tablet(data: Mapping[str, Any], changes: Mapping[str, Any], tid: str
     return S.tablet({**dict(data), **clean}, tid), {}
 
 
-IMAGE_BOARD = re.compile(r"^sky_flat_image_look\.patch$|^sky_flat_page_image_looks\.([a-z0-9][a-z0-9_-]{0,39})$")
+IMAGE_BOARD = re.compile(r"^(sky_flat_image_look|sky_image_look)\.patch$|^sky_flat_page_image_looks\.([a-z0-9][a-z0-9_-]{0,39})$")
 FLAT_BOARD = re.compile(r"^flat_colors\.(accent|off_tint|pages)$|^flat_page_colors\.([a-z0-9][a-z0-9_-]{0,39})$")
 
 
@@ -1292,9 +1308,9 @@ def apply_board(data: Mapping[str, Any], changes: Mapping[str, Any]
         try:
             im = IMAGE_BOARD.fullmatch(key)
             if im:
-                field = "sky_flat_page_image_looks" if im.group(1) else "sky_flat_image_look"
+                field = im.group(1) or "sky_flat_page_image_looks"
                 current = clean.get(field, now[field])
-                clean[field] = image_pages_patch(current, im.group(1), value) if im.group(1) else image_patch(current, value)
+                clean[field] = image_pages_patch(current, im.group(2), value) if im.group(2) else image_patch(current, value)
                 continue
             fm = FLAT_BOARD.match(key)
             if fm:
@@ -1312,4 +1328,9 @@ def apply_board(data: Mapping[str, Any], changes: Mapping[str, Any]
             errors[key] = err.code
     if errors:
         return S.board(data), errors
-    return S.board({**dict(data), **clean}), {}
+    out = S.board({**dict(data), **clean})
+    if "home_grid" not in clean and "home_grid" in data:
+        # a save that doesn't touch the grid keeps it as stored: board() reads it the tolerant way (a block or
+        # option this build doesn't know is left out), and storing THAT would delete it for good
+        out["home_grid"] = data["home_grid"]
+    return out, {}

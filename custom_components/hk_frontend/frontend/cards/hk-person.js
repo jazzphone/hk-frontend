@@ -110,7 +110,14 @@
     function avatar(h, s, cls, style) {
       var pic = s && s.attributes && s.attributes.entity_picture;
       return '<div class="' + cls + '"' + (style ? ' style="' + style + '"' : '') + '>' +
-        (pic ? '<img alt="" src="' + esc(pic) + '">' : esc(initials(nameOf(s)))) + '</div>';
+        (pic ? '<img alt="" data-initials="' + esc(initials(nameOf(s))) + '" src="' + esc(pic) + '">' : esc(initials(nameOf(s)))) + '</div>';
+    }
+
+    function avatarFallback(root) {
+      root.querySelectorAll('img[data-initials]').forEach(function (img) {
+        img.onerror = function () { img.parentNode.textContent = img.getAttribute('data-initials'); };
+        if (img.complete && !img.naturalWidth) img.onerror();
+      });
     }
 
     // ---------------------------------------------------------------- map
@@ -136,7 +143,7 @@
 
     var CSS = [
       ':host{display:block;color:' + window.hkCards.v('ink') + '}',
-      '.pp{display:flex;gap:' + SP.region + 'px;min-height:100%;box-sizing:border-box}',
+      '.pp{display:flex;gap:' + SP.region + 'px;min-height:0;box-sizing:border-box}',
       '.col{display:flex;flex-direction:column;gap:' + SP.block + 'px;min-width:0}',
       '.c1{width:340px;flex:none}.c2{flex:1}',
       '.pp.one{flex-direction:column;gap:' + SP.block + 'px}.pp.one .c1,.pp.one .c2{width:auto;display:contents}',
@@ -169,8 +176,8 @@
       '.axx{position:relative;height:14px;margin-top:8px;font-size:12px;line-height:14px;color:' + window.hkCards.v('ink-3') + '}',
       '.axx span{position:absolute;top:0;white-space:nowrap;transform:translateX(-50%)}',
       '.axx span:first-child{transform:none}.axx span:last-child{transform:translateX(-100%)}',
-      '.map{position:relative;flex:1;min-height:0;border-radius:' + SP.cardR + 'px;overflow:hidden;background:#1b1d22}',
-      '.pp.one .map{flex:none;height:240px}',
+      '.map{position:relative;flex:1;min-height:280px;border-radius:' + SP.cardR + 'px;overflow:hidden;background:#1b1d22}',
+      '.pp.one .map{flex:none;min-height:0;height:240px}',
       '.map .t{position:absolute;left:50%;top:50%}',
       '.map .t img{position:absolute;width:' + TILE + 'px;height:' + TILE + 'px;',
       '  filter:invert(.92) hue-rotate(180deg) saturate(.35) brightness(1.05) contrast(.95)}',
@@ -192,7 +199,13 @@
       '.who .av{width:34px;height:34px;font-size:12px;box-shadow:0 0 0 2px var(--c)}',
       '.who .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.who small{display:block;font-size:12px;line-height:16px;font-weight:500;color:' + window.hkCards.v('ink-2') + '}',
-      '.who .chev{margin-left:auto;opacity:.45;font-size:18px;flex:none}'
+      '.who .chev{margin-left:auto;opacity:.45;font-size:18px;flex:none}',
+      // A SHORT SCREEN (hk-detail's SHORT_MQ): the two columns the body's
+      // height -- the picture a size down so where they are and their day fit
+      // beside the map, which takes the rest
+      U.SHORT_MQ ? '@media ' + U.SHORT_MQ + '{.pp{height:var(--hk-short-h)}.c1{width:280px}' +
+        '.me .av{width:80px;height:80px;font-size:30px;box-shadow:0 0 0 4px var(--ring)}.me .big{margin-top:' + SP.block + 'px;font-size:30px;line-height:34px}' +
+        '.map{min-height:0}.pp.one .map{height:auto;flex:1}}' : ''
     ].join('');
 
     class PersonPanel extends U.Panel {
@@ -200,7 +213,7 @@
       static get CSS() { return U.PANEL_CSS + U.NOTE_CSS + CSS; }
       hkWidthKind() { return 'person'; }
       hkNoGear() { return true; }
-      hkFill() { return !matchMedia('(max-width:' + C.BP.phone + 'px)').matches; }
+      hkAutoHeight() { return true; }
       // the notification's card, at the top of the left column
       hkNote(card) { this._note = card; if (this._c1) this._c1.insertBefore(card, this._c1.firstChild); }
       // the header's well is their picture, its name theirs
@@ -213,6 +226,7 @@
           d.well.innerHTML = avatar(h, s, 'av', 'width:44px;height:44px;font-size:15px;border-radius:50%;display:flex;align-items:center;' +
             'justify-content:center;overflow:hidden;background:linear-gradient(180deg,#a3a9b5,#7b8190);font-weight:650').replace('<img ', '<img style="width:100%;height:100%;object-fit:cover" ');
         }
+        avatarFallback(d.well);
         d.tt.textContent = (d.src && d.src.name) || nameOf(s) || d.id;
         return true;
       }
@@ -277,6 +291,7 @@
         this._c1.innerHTML = one ? me + this._map(h, s) + day + dev + who : me + day + dev;
         this._c2.innerHTML = one ? '' : this._map(h, s) + who;
         if (note) this._c1.insertBefore(note, this._c1.firstChild);
+        avatarFallback(this._root);
         this._paintDay();
       }
       _map(h, s) {

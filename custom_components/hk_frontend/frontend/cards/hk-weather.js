@@ -151,6 +151,59 @@
     var M = C.M;
     var Base = C.HkBase;
 
+    // A card owns its sky; it never takes over the page's singleton sky.
+    if (!customElements.get('hk-grid-weather-sky')) {
+      customElements.define('hk-grid-weather-sky', class extends HTMLElement {
+        constructor() {
+          super(); this.attachShadow({ mode: 'open' });
+          // Template nodes can receive their client before the browser
+          // upgrades them when their parent card reaches the document.
+          if (Object.prototype.hasOwnProperty.call(this, 'client')) {
+            var pending = this.client; delete this.client; this._client = pending;
+          }
+        }
+        set client(value) { this._client = value; this._update(); }
+        connectedCallback() {
+          if (super.connectedCallback) super.connectedCallback();
+          this._visible = true;
+          this._motion = matchMedia('(prefers-reduced-motion: reduce)');
+          this._pause = () => {
+            var S = window.hkSettings, moving = !S || !S.skyLook || S.skyLook().animations !== false;
+            if (this._scene) this._scene.pause(document.hidden || !this._visible || this._motion.matches || !moving || !!window.hkSky.asleep());
+          };
+          document.addEventListener('visibilitychange', this._pause);
+          window.addEventListener('hk-asleep', this._pause);
+          this._refresh = () => this._update();
+          window.addEventListener('hk-module-ready', this._refresh);
+          this._motion.addEventListener('change', this._pause);
+          if (typeof IntersectionObserver === 'function') {
+            this._observer = new IntersectionObserver((entries) => { this._visible = entries[0].isIntersecting; this._pause(); });
+            this._observer.observe(this);
+          }
+          this._update();
+        }
+        _update() {
+          if (!this.isConnected || !this._client || !window.hkSky || !window.hkSky.scene) return;
+          var entity = this.getAttribute('entity');
+          if (this._scene && this._entity !== entity) { this._scene.destroy(); this._scene = null; }
+          this._entity = entity;
+          if (!this._scene) this._scene = window.hkSky.scene(this.shadowRoot, { skyOnly: true, entity: entity });
+          this._scene.el.style.position = 'absolute';
+          this._scene.update(this._client);
+          if (this._pause) this._pause();
+        }
+        disconnectedCallback() {
+          if (super.disconnectedCallback) super.disconnectedCallback();
+          if (this._scene) this._scene.destroy(); this._scene = null;
+          if (this._observer) this._observer.disconnect();
+          document.removeEventListener('visibilitychange', this._pause);
+          window.removeEventListener('hk-asleep', this._pause);
+          window.removeEventListener('hk-module-ready', this._refresh);
+          if (this._motion) this._motion.removeEventListener('change', this._pause);
+        }
+      });
+    }
+
     // 0.12, NOT 0.10 -- measured, not eyeballed.
     var RULE = '' + window.hkCards.v('line') + '';
 
@@ -646,10 +699,70 @@
           '  grid-template-columns:minmax(0,1fr);row-gap:10px}',
           ':host([data-hk-stack]) .hdr .half{min-height:0}',
           ':host([data-hk-stack]) .hdr .right{text-align:left;min-width:0}',
-          ':host([data-hk-stack]) .hdr .left > div{flex-wrap:wrap;row-gap:12px}'
+          ':host([data-hk-stack]) .hdr .left > div{flex-wrap:wrap;row-gap:12px}',
+          // Compact band only; page headers and screensaver clocks keep their layout.
+          ':host([data-grid-band]){height:60px;container-type:inline-size;container-name:hk-band}',
+          '.grid-band{height:60px;display:flex;align-items:center;gap:24px;min-width:0;color:' + C.v('ink') + '}',
+          '.band-clock{flex:none;max-width:45%;min-width:0}',
+          '.band-clock>[data-hk-clock=clock]{min-width:0!important}',
+          '.band-weather{flex:1 1 240px;min-width:0;max-width:360px}',
+          fitCss('.band-weather'),
+          '.band-security{flex:1 1 280px;min-width:0;margin-left:auto}',
+          '.band-chips{display:none;min-width:0;flex:1 1 360px;height:60px;align-items:center;overflow:hidden}',
+          '.band-chips>*{width:100%;min-width:0}',
+          '.grid-band.has-chips .band-security{display:none}',
+          '.grid-band.has-chips .band-chips{display:flex}',
+          '.band-clock,.band-weather,.band-security{cursor:pointer;min-height:44px;display:flex;flex-direction:column;justify-content:center;filter:var(--hk-glow,' + SHADOW + ')}',
+          // Align the two caption baselines instead of centring unequal-height stacks.
+          '.band-clock,.band-weather{align-self:stretch;justify-content:flex-end;padding-bottom:4px;box-sizing:border-box}',
+          '@container hk-band (max-width:' + C.BP.cardSide + 'px){.band-weather{display:none}.grid-band{gap:10px}}'
         ].join('');
       }
-      setConfig(config) { super.setConfig(config || {}); }
+      setConfig(config) {
+        this.toggleAttribute('data-grid-band', !!(config && config.grid_band));
+        super.setConfig(config || {});
+      }
+      _receiveClient() {
+        super._receiveClient();
+        if (this._bandChips) window.hkHostClient.bridge(this._bandChips, this.client);
+      }
+      _renderBand() {
+        var H = window.hkHeader, st = this.client && this.client.states;
+        if (!H || !st) return;
+        if (!this._built) {
+          this._root.innerHTML = '<div class="grid-band"><div class="band-clock" role="button" tabindex="0" aria-label="Clock and date"></div>' +
+            '<div class="band-weather" role="button" tabindex="0" aria-label="Weather"></div>' +
+            '<div class="band-security" role="button" tabindex="0" aria-label="Security"></div><div class="band-chips"></div></div>';
+          var self = this;
+          this._bandClock = this._root.querySelector('.band-clock');
+          this._bandWeather = this._root.querySelector('.band-weather');
+          this._bandSecurity = this._root.querySelector('.band-security');
+          var open = function (el, fn) {
+            el.addEventListener('click', fn);
+            el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
+          };
+          open(this._bandClock, function () { if (C.menu && C.menu.clock()) C.menu.toggle(); else self._go('./home'); });
+          open(this._bandWeather, function () { self._go('./weather'); });
+          open(this._bandSecurity, function () { self._go('./security'); });
+          if (this._config.chips) {
+            this._bandChips = C.createCard(Object.assign({}, this._config.chips, {
+              lead: false, align: 'end', pad_top: 0, pad_bottom: 0, pad_left: 0, pad_right: 0, margin: '0'
+            }), this.client);
+            this._root.querySelector('.band-chips').appendChild(this._bandChips);
+          }
+          this._root.querySelector('.grid-band').classList.toggle('has-chips', !!this._bandChips);
+          this._built = true;
+        }
+        C.morph(this._bandClock, H.clock(st, { timeSize: C.TYPE['figure-l'].size + 'px', ampmSize: C.TYPE.caption.size + 'px',
+          dateSize: C.TYPE.caption.size + 'px', timeLh: '1', dateGap: '3px', gap: '6px', timeShift: this._shift || 0 }));
+        C.morph(this._bandWeather, H.weather(st, { glyph: '32px', mainSize: C.TYPE.headline.size + 'px',
+          detailSize: C.TYPE.caption.size + 'px', detailGap: '4px', gap: '10px' }));
+        C.morph(this._bandSecurity, H.security(st, { line1Size: C.TYPE.headline.size + 'px', lineSize: C.TYPE.caption.size + 'px',
+          minHeight: '0px', pad: '0px', shadow: 'none' }));
+        if (H.fitWeather) H.fitWeather(this._bandWeather);
+        this._bandClock.style.display = this._config.show_clock === false ? 'none' : '';
+        this._bandWeather.style.display = this._config.show_weather === false ? 'none' : '';
+      }
       getCardSize() { return 2; }
       // THE WEATHER FITS WHAT IS LEFT BESIDE THE CLOCK: after each redraw and
       // whenever the header's width changes (a window resized, a phone turned,
@@ -719,6 +832,7 @@
         this._act({ action: 'navigate', navigation_path: path }, false);
       }
       _render() {
+        if (this._config.grid_band) { this._renderBand(); return; }
         var cfg = this._config;
         if (!this._built) {
           this._root.innerHTML =
@@ -1348,7 +1462,8 @@
       _renderSection() {
         if (!this._config || !this.client) return;
         var s = this._section();
-        if (s === 'hero') this._renderHero();
+        if (this._cellSize()) this._renderBlock();
+        else if (s === 'hero') this._renderHero();
         else if (s === 'hourly') this._renderHourly();
         else this._renderDaily();
       },
@@ -1386,6 +1501,64 @@
         C.morph(this._root, html);
         this._balanceHero();
         if (buildDue(this)) build(this, this._root.querySelector('.hero'));
+      },
+      // ---- A HOME GRID BLOCK (G2): W and XL
+      _renderBlock() {
+        var cfg = this._config, states = this.client.states, st = states[cfg.entity] || {}, sz = this._cellSize();
+        var t = this._nowTemp(), feels = num(((st.attributes) || {}).apparent_temperature);
+        var cond = window.hkHeader && window.hkHeader.conditionName ? window.hkHeader.conditionName(st.state) : String(st.state || '');
+        var today = this._days(1)[0] || {}, hi = num(today.temperature), lo = num(today.templow);
+        var night = !!(window.hkHeader && window.hkHeader.isNight && window.hkHeader.isNight(states));
+        var sym = function (state, px) {
+          return window.hkHeader && window.hkHeader.wxSvg && !/^(unknown|unavailable)$/.test(state || 'unknown')
+            ? window.hkHeader.wxSvg(state, px, { night: night, sym: true }) : '';
+        };
+        this._watchBlock();
+        var hrs = sz === 'W' ? [] : this._hours(6), days = sz === 'W' ? [] : this._days(sz === 'XL' ? 5 : 3);
+        var span = days.flatMap(function (d) { return [num(d.templow), num(d.temperature)]; }).filter(function (v) { return v !== null; });
+        var min = span.length ? Math.min.apply(null, span) : 0, max = span.length ? Math.max.apply(null, span) : 1;
+        var hl = [hi !== null ? 'H:' + Math.round(hi) + '°' : '', lo !== null ? 'L:' + Math.round(lo) + '°' : ''].filter(Boolean).join('  ');
+        // BIG TEMPERATURE (2026-10-24, StandBy's weather): the place, the
+        // temperature as large as the block holds, then the condition and
+        // today's high and low -- nothing else. A Tall block is always this.
+        if (cfg.big || sz === 'T') {
+          C.morph(this._root, '<hk-plate class="wb big ' + sz + (cfg.sky ? ' sky' : '') + '" role="group" aria-label="Weather">' +
+            (cfg.sky ? '<hk-grid-weather-sky entity="' + esc(cfg.entity) + '" aria-hidden="true"></hk-grid-weather-sky>' : '') +
+            '<b class="place-name">' + esc(titled(cfg.place || this._place())) + '</b>' +
+            '<div class="bn">' + (t !== null ? Math.round(t) + '°' : '--') + '</div>' +
+            '<div class="bc"><span class="sym" aria-hidden="true">' + sym(st.state, '26px') + '</span><b>' + esc(cond || '--') + '</b></div>' +
+            (hl ? '<span class="bh">' + esc(hl) + '</span>' : '') + '</hk-plate>');
+          var bsky = this._root.querySelector('hk-grid-weather-sky');
+          if (bsky) bsky.client = this.client;
+          return;
+        }
+        var html = '<hk-plate class="wb ' + sz + (cfg.sky ? ' sky' : '') + '" role="group" aria-label="Weather forecast">' +
+          (cfg.sky ? '<hk-grid-weather-sky entity="' + esc(cfg.entity) + '" aria-hidden="true"></hk-grid-weather-sky>' : '') + '<div class="top">' +
+          '<div class="place-now"><b class="place-name">' + esc(titled(cfg.place || this._place())) + '</b>' +
+          '<div class="tpn">' + (t !== null ? Math.round(t) + '°' : '--') + '</div></div>' +
+          '<div class="tx"><div class="sym" aria-hidden="true">' + sym(st.state, '32px') + '</div><b>' + esc(cond || '--') + '</b>' +
+          (hl ? '<span>' + esc(hl) + '</span>' : '') + '</div></div>' +
+          (sz !== 'W' ? '<div class="readings">' + [
+            feels !== null ? 'Feels ' + Math.round(feels) + '°' : '',
+            st.attributes && st.attributes.humidity != null ? st.attributes.humidity + '% Humidity' : '',
+            st.attributes && st.attributes.wind_speed != null ? st.attributes.wind_speed + ' ' + (st.attributes.wind_speed_unit || '') + ' Wind' : ''
+          ].filter(Boolean).map(function (v) { return '<span>' + esc(v) + '</span>'; }).join('') + '</div>' : '') +
+          (hrs.length ? '<div class="hrs" style="--n:6">' + hrs.map(function (h) {
+            var value = num(h.temperature);
+            return '<div class="hr"><small>' + esc(hourLabel(h.datetime)) + '</small>' + sym(h.condition, '24px') +
+              '<b>' + (value !== null ? Math.round(value) + '°' : '--') + '</b></div>';
+          }).join('') + '</div>' : '') +
+          (days.length ? '<div class="days">' + days.map(function (d, i) {
+            var low = num(d.templow), high = num(d.temperature), range = Math.max(1, max - min);
+            var left = low === null ? 0 : (low - min) / range * 100, width = low === null || high === null ? 0 : (high - low) / range * 100;
+            var day = i === 0 ? 'Today' : new Date(d.datetime).toLocaleDateString(undefined, { weekday: 'short' });
+            return '<div class="day"><b>' + esc(day) + '</b>' + sym(d.condition, '18px') +
+              '<span class="low">' + (low === null ? '--' : Math.round(low) + '°') + '</span><i class="range">' +
+              '<i style="left:' + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%"></i></i><span>' + (high === null ? '--' : Math.round(high) + '°') + '</span></div>';
+          }).join('') + '</div>' : '') + '</hk-plate>';
+        C.morph(this._root, html);
+        var sky = this._root.querySelector('hk-grid-weather-sky');
+        if (sky) sky.client = this.client;
       },
       // THE PAIR CENTERED ON ITS INK, as the screensaver balances it: what is
       // drawn -- the symbol's paths (at rest: a turning ray or a drifting
@@ -1657,7 +1830,44 @@
           '.plain .wrap{text-shadow:var(--hk-glow,0 1px 3px rgba(0,0,0,0.45),0 4px 18px rgba(0,0,0,0.35))}',
           '.plain .place,.plain .sub,.plain .lbl,.plain .lo,.plain .pop.wet{color:var(--hk-ink-2,#fff)}',
           '.plain .pop{color:var(--hk-ink-3,#fff)}',
-          '.plain .temp,.plain .cond,.plain .lbl.now,.plain .hi{color:var(--hk-ink,#fff)}'
+          '.plain .temp,.plain .cond,.plain .lbl.now,.plain .hi{color:var(--hk-ink,#fff)}',
+          // ON A HOME GRID (G2, the `weather` block): a plate -- the symbol,
+          // the temperature, the condition with today's high and low and the
+          // place, the outlook under them; at XL the band's own temperature
+          // size (76, not a role: DESIGN.md) and the next hours along the
+          // foot, as many as its width holds (_renderBlock)
+          'hk-plate.wb{' + window.hkCards.plate('card') + ';box-sizing:border-box;height:100%;margin:0;padding:' + window.hkCards.CARD.pad + ';',
+          '  display:flex;flex-direction:column;justify-content:center;gap:12px;overflow:hidden;color:' + C.v('ink') + '}',
+          '.wb .top{display:flex;justify-content:space-between;align-items:center;gap:12px;min-width:0;flex:none}',
+          '.wb .place-now{min-width:0}.wb .place-name{display:block;' + C.typeCss('headline') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+          '.wb .sym{line-height:0}.wb svg{display:block;flex:none}',
+          '.wb .tpn{' + C.typeCss('hero') + ';line-height:1.08;font-weight:400;font-variant-numeric:tabular-nums}',
+          '.wb .tx{display:flex;flex-direction:column;align-items:flex-end;min-width:0;gap:2px;text-align:right}',
+          '.wb .tx b{' + C.typeCss('body') + ';line-height:18px}.wb .tx span{' + C.typeCss('caption') + ';line-height:17px;color:' + C.v('ink-2') + '}',
+          '.wb .tx b,.wb .tx span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}',
+          '.wb .hrs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;border-top:1px solid ' + RULE + ';padding-top:10px;flex:none}',
+          '.wb .hr{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}',
+          '.wb .hr small{' + C.typeCss('caption') + ';line-height:16px;color:' + C.v('ink-2') + ';white-space:nowrap}',
+          '.wb .hr b{' + C.typeCss('body') + ';line-height:18px;font-variant-numeric:tabular-nums}',
+          '.wb.XL{padding:14px 22px;display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.4fr);grid-template-rows:auto minmax(0,1fr) auto;gap:8px 18px}',
+          '.wb.XL .top{grid-column:1;grid-row:1/3;flex-direction:column;align-items:flex-start;justify-content:center;gap:8px}.wb.XL .tx{align-items:flex-start;text-align:left}',
+          '.wb.XL .readings{grid-column:1;grid-row:3}.wb.XL .hrs{grid-column:2;grid-row:1;border-top:0;padding-top:0}.wb.XL .hr{gap:2px}.wb.XL .days{grid-column:2;grid-row:2/4;align-content:center;gap:4px}',
+          '.wb .days{display:grid;gap:2px;border-top:1px solid ' + RULE + ';padding-top:6px;flex:none}',
+          '.wb .day{display:grid;grid-template-columns:52px 18px 32px minmax(0,1fr) 32px;align-items:center;gap:10px;height:20px;' + C.typeCss('caption') + ';font-variant-numeric:tabular-nums}',
+          '.wb .day b{font-weight:600}.wb .low{color:' + C.v('ink-2') + ';text-align:right}.wb .day>span:last-child{text-align:right}',
+          '.wb .range{display:block;height:5px;border-radius:' + C.R.capsule('5px') + ';background:' + C.v('key') + ';position:relative;overflow:hidden}',
+          '.wb .range i{position:absolute;height:100%;border-radius:' + C.R.capsule('5px') + ';background:linear-gradient(90deg,#64d2ff,#ffd60a,#ff9f0a)}'
+          ,'.wb .readings{display:flex;flex-wrap:wrap;gap:4px 12px;' + C.typeCss('caption') + ';color:' + C.v('ink-2') + ';flex:none}',
+          '.wb.L{padding:14px 22px;gap:8px}.wb.L .hrs{padding-top:6px}.wb.L .hr{gap:2px}',
+          // BIG TEMPERATURE: the number sized to the block (its height first, its width for a wide one)
+          '.wb.big{gap:2px;justify-content:center;align-items:flex-start}',
+          '.wb.big .place-name{max-width:100%}',
+          '.wb.big .bn{font-size:clamp(44px,min(44cqh,30cqw),200px);line-height:1;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin:2px 0 6px -.04em}',
+          '.wb.big .bc{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}.wb.big .bc b{' + C.typeCss('headline') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+          '.wb.big .bh{' + C.typeCss('body') + ';color:' + C.v('ink-2') + ';font-variant-numeric:tabular-nums}',
+          '.wb.sky{position:relative;isolation:isolate;background:rgba(0,0,0,.22);--hk-glass-surface:0;backdrop-filter:none;-webkit-backdrop-filter:none;--hk-ink:#fff;--hk-ink-2:rgba(255,255,255,.85);color:white;text-shadow:0 1px 4px rgba(0,0,0,.6)}',
+          '.wb.sky>hk-grid-weather-sky{position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;overflow:hidden}.wb.sky>hk-grid-weather-sky::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.24)}'
+
         ].join('') + PAGE_CSS;
       }
 
@@ -2518,7 +2728,27 @@
         return ':host{overflow:visible}' +
                'hk-plate.clock{background:none;border:none;box-shadow:none;' +
                'padding:0;display:block;overflow:visible}' +
-               '.clock>div,.clock div{overflow:visible}';
+               '.clock>div,.clock div{overflow:visible}' +
+               // ON A HOME GRID (G2, the `clock` block, concept C's glance): a
+               // plate, the time and date centred down its left. The time at
+               // clock's established sizes, fitted to its actual block rather
+               // than a screensaver's fixed 150px; the date uses a type role.
+               ':host([size]){overflow:hidden}' +
+               ':host([size]) hk-plate.clock{' + window.hkCards.plate('card') + ';box-sizing:border-box;height:100%;' +
+               'padding:' + window.hkCards.CARD.pad + ';display:flex;flex-direction:column;justify-content:center;overflow:hidden}' +
+               ':host([size]) [data-hk-clock=clock]{min-width:0!important;width:100%}' +
+               ':host([size]) [data-hk-clock=date]{font-weight:500!important;letter-spacing:0!important}' +
+               // BARE (the Clock block's Hide Box): the time on the wallpaper,
+               // with the header's glow (`shadow`) to read on it
+               ':host([size][bare]) hk-plate.clock{background:none;border:0;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}';
+      }
+      // the clock's sizes by block: time, AM / PM, date (px)
+      _gridSizes(sz) {
+        // (L and the Full Width block, 2026-10-24: the Clock block comes in every size)
+        if (sz === 'XL' || sz === 'XXL') return ['clamp(72px, min(18cqw, 40cqh), 150px)', '26px', window.hkCards.TYPE.headline.size + 'px'];
+        if (sz === 'L') return ['clamp(56px, min(22cqw, 36cqh), 120px)', '24px', window.hkCards.TYPE.headline.size + 'px'];
+        if (sz === 'S') return ['min(40px, 20cqw)', '14px', window.hkCards.TYPE.caption.size + 'px'];
+        return ['min(72px, 48cqh, 26cqw)', '22px', window.hkCards.TYPE.caption.size + 'px'];
       }
       // The clock's time ticks every minute and its date every day (the Time &
       // Date sensors chosen in Configure, or this screen's clock); neither is
@@ -2536,7 +2766,11 @@
       }
       _render() {
         if (!this.client) return;
-        var c = this._config || {};
+        var c = this._config || {}, sz = this._cellSize();
+        if (sz) {
+          var g = this._gridSizes(sz);
+          c = Object.assign({}, c, { time_size: g[0], ampm_size: g[1], date_size: g[2], date_gap: '10px', time_line_height: '1', margin: '0' });
+        }
         var H = window.hkHeader;
         var body = H ? H.clock(this.client.states, Object.assign(opts(c, {
           time_size: 'timeSize', ampm_size: 'ampmSize', date_size: 'dateSize',

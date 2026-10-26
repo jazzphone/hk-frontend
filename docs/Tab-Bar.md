@@ -82,6 +82,9 @@ fewer down a rail. The bar is only as big as its tabs; opening More grows
 it into More's size in the same motion (a rail stretches to the screen's
 height), and closing shrinks it back.
 
+A side rail needs width beside it: a window narrower than 640 px (a phone held upright) keeps the bar along the
+bottom. A phone held sideways is wide enough and short, so it has the rail its screen asks for.
+
 ## Size
 
 **Size** makes the whole bar smaller or larger: its thickness (a rail's
@@ -105,6 +108,16 @@ bar's thickness ÷ 15 -- 4 px on a phone's Medium bar (as Apple Music's), 4.8
 px on a tablet's, about 4.3 and 5.3 px at Small and Large. Everything around the bar follows the size too:
 the small button it shrinks to, the Rooms button, where More opens, and the
 room Adjust Content makes.
+
+Beside a **Home Grid**, a rail takes its width from the grid, which fits itself to the room it has and keeps the
+screen's full height, rather than easing the page aside. While the rail rests as its small button (**Start Small**)
+or is hidden, the grid takes the whole width and centres on the screen; the rail's strip comes back as it opens.
+
+## Labels
+
+**Labels** chooses **Icons and Names** (the default) or **Icons Only**. Icons Only drops the names for a bar 10 px
+thinner (a rail 10 px narrower, its tabs 10 px shorter) at every size, with the icons 2 px larger. Each tab keeps its
+name for screen readers. On a phone on its side (a nightstand Home Grid), an icon-only rail leaves the most room.
 
 ## Adjust Content
 

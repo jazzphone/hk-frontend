@@ -87,7 +87,11 @@
   // larger (CSS: --ti, --ci, --tf). The highlight's gaps (4 px from the
   // bar's edge, the rail's ends) are padding, so they hold at every size.
   var SIZE_STEP = { small: -8, medium: 0, large: 8 };
-  function step(size) { return SIZE_STEP[size] || 0; }
+  // ICONS ONLY (Labels, 2026-10-24): no names, so a bar 10 px thinner (a
+  // rail 10 px narrower, its tabs 10 px shorter) at every size. Set from the
+  // screen's settings as the bar is drawn (render()); the fit follows it.
+  var ICONS_STEP = -10, iconsOnly = false;
+  function step(size) { return (SIZE_STEP[size] || 0) + (iconsOnly ? ICONS_STEP : 0); }
   // `phone`: a phone's bar (hk-base.js menu.phone(): under 640 px, or a
   // phone held sideways); unset, by `width` (or the device, without one)
   function barH(width, size, phone) {
@@ -159,12 +163,15 @@
     return { shown: shown, more: more, width: railW(size), plate: true,
              height: 2 * rp + cells * tab + Math.max(0, cells - 1) * rg };
   }
-  // WHERE THE BAR SITS: the screen's Tab Bar Position, a phone keeping the
-  // bottom for a rail's (too little width beside it)
-  function position(pos, width, phone) {
+  // WHERE THE BAR SITS: the screen's Tab Bar Position, a narrow window (a
+  // phone held upright) keeping the bottom for a rail's -- too little width
+  // beside it. A phone held sideways (2026-10-24, the nightstand) is wide
+  // enough and short: there the rail the screen asks for is the better use,
+  // so it is the width that decides, not the device (`phone` is no longer
+  // read; its callers still pass it).
+  function position(pos, width, phone) {    // eslint-disable-line no-unused-vars
     pos = pos === 'top' || pos === 'left' || pos === 'right' ? pos : 'bottom';
-    var ph = phone !== undefined ? !!phone : width < PHONE_W;
-    return (pos === 'left' || pos === 'right') && ph ? 'bottom' : pos;
+    return (pos === 'left' || pos === 'right') && width < PHONE_W ? 'bottom' : pos;
   }
 
   // A PHONE'S OWN SETTINGS (the screen's Phones section): at `width` (the
@@ -214,10 +221,14 @@
   // it scrolls -- nothing moves -- but the last row (the first, at the top)
   // can always be scrolled clear of it, as on iOS. Off, it once had no room
   // at all, and the last tiles on Home stayed under the bar.
-  function room(pos, scroll, adjust) {
+  // A HOME GRID BESIDE A RAIL (2026-10-24, a phone on its side as a
+  // nightstand): the rail's strip comes out of the grid's width ('pad') --
+  // the grid fits itself to the room it has. Scaled aside, the whole grid
+  // shrank a second time and hung from the top, a gap under it.
+  function room(pos, scroll, adjust, grid) {
     if (adjust === false) return pos === 'left' || pos === 'right' ? 'none' : 'pad';
     if (scroll !== 'shrink' && scroll !== 'hide') return 'pad';
-    if (pos === 'left' || pos === 'right') return 'scale';
+    if (pos === 'left' || pos === 'right') return grid ? 'pad' : 'scale';
     return pos === 'top' ? 'shift' : 'pad';
   }
 
@@ -318,6 +329,11 @@
       // screen's width, so larger names would only be cut shorter
       ':host([data-size="large"]:not([data-wide])){--tf:10.5px}',
       ':host([data-wide]){--bh:' + BAR_H_WIDE + 'px}',
+      // ICONS ONLY: the icons a step larger in the slimmer bar (the names
+      // go at the end of the sheet, after the rail's own rule for them)
+      ':host([data-icons]){--ti:26px}',
+      ':host([data-icons][data-size="small"]){--ti:24px}',
+      ':host([data-icons][data-size="large"]){--ti:28px}',
       '.root{position:fixed;left:0;top:0;width:0;height:0;z-index:6;',
       // the dashboard's font (hk-base.js FONT_ROOT), as the menu's
       '  ' + window.hkCards.FONT_ROOT + ';',
@@ -534,7 +550,9 @@
       ':host([data-pos="left"]) .root.gone .row{transform:translateX(calc(-100% - ' + (GUTTER + 8) + 'px - var(--hk-content-left,0px) - var(--hk-pane-l,0px)))}',
       ':host([data-pos="right"]) .root.gone .row{transform:translateX(calc(100% + ' + (GUTTER + 8) + 'px + var(--hk-pane-r,0px)))}',
       ':host([data-pos="left"]) .row,:host([data-pos="right"]) .row{transition:transform .34s ' + EASE + '}',
-      '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet,.tab.here::before{transition:none}}'
+      '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet,.tab.here::before{transition:none}}',
+      // ICONS ONLY: no names, on the bar and the rail alike
+      ':host([data-icons]) .tab span{display:none}'
     ].join('\n');
     window.hkTabBar._.CSS = CSS;             // tests (test_csssnapshot)
 
@@ -646,7 +664,7 @@
     }
     function listKey(width) {
       var h = C.client(), side = H.sidebarSource(), b = M.board();
-      return [M.dash(), cfgId(M.config()), width, railH(), b.ha_place, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_rooms_phone, phoneAt(), phoneSet(), b.tab_bar_more, b.tab_bar_more_phone, b.tab_bar_size, b.tab_bar_tabs, b.tab_bar_tabs_rail, b.ha_row, JSON.stringify(S.haPrefs || null),
+      return [M.dash(), cfgId(M.config()), width, railH(), b.ha_place, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_rooms_phone, phoneAt(), phoneSet(), b.tab_bar_more, b.tab_bar_more_phone, b.tab_bar_size, b.tab_bar_labels, b.tab_bar_tabs, b.tab_bar_tabs_rail, b.ha_row, JSON.stringify(S.haPrefs || null),
               h && h.user && h.user.is_admin, H.hostItems().map(function (x) { return x.title + x.href; }).join(','), side && side.panels ? Object.keys(side.panels).join(',') : '', H.haKey ? H.haKey() : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
@@ -658,7 +676,8 @@
       var b = M.board(), m = model();
       var width = (window.innerWidth || 0) - leftOf() - paneR();
       // a phone, by its screen as well as its width: a phone held
-      // sideways keeps a phone's bar, fit and place
+      // sideways keeps a phone's bar and fit -- and its rail, when the
+      // screen puts the bar at a side (position: by the width)
       var ph = phoneAt();
       var pos = position(b.tab_bar_pos, window.innerWidth || 1280, ph), rail = pos === 'left' || pos === 'right';
       var rm = m.rooms.length ? roomsOf(b) : 'off';
@@ -690,11 +709,12 @@
       S.tabs = p.tabs; S.more = p.more; S.rooms = rm === 'off' ? [] : p.rooms; S.roomsMode = rm;
       var html = '';
       p.tabs.forEach(function (it, i) {
-        html += '<button class="tab" data-t="' + i + '"><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
+        // (its name as its label too: Icons Only hides the name it shows)
+        html += '<button class="tab" data-t="' + i + '" aria-label="' + esc(it.title) + '"><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
           esc(it.title) + '</span></button>';
       });
       if (f.more) {
-        html += '<button class="tab" data-t="more" aria-expanded="false"><hk-icon icon="' + icon(MORE_ICON) +
+        html += '<button class="tab" data-t="more" aria-label="More" aria-expanded="false"><hk-icon icon="' + icon(MORE_ICON) +
           '"></hk-icon><span>More</span></button>';
       }
       // THE SAME TABS ARE KEPT, not drawn again: a module arriving on a new
@@ -948,6 +968,8 @@
       S.root.classList.toggle('gone', mode === 'gone');
       aside();
       foldPub();
+      // (a Home Grid's room beside a rail follows the rail: publish lays it again)
+      if (S.on && (S.pos === 'left' || S.pos === 'right')) publish(true);
     }
     // WHAT IT IS DOING, along the bottom, for what floats beside it (the
     // now-playing bar's stash button, hk-popup.js): `hk-tabbar-fold` on
@@ -1025,11 +1047,18 @@
       if (!root || !root.querySelector || root.querySelector('style#hk-bar-room')) return;
       var st = document.createElement('style');
       st.id = 'hk-bar-room';
-      st.textContent = '#view[hk-bar-room]>' + SH.tags.view + '{min-height:calc(100vh - var(--hk-bar-room,0px))!important}';
+      // 100dvh, the window as it shows now: on an iPad in Safari 100vh is the
+      // window with its toolbars hidden, so a Home Grid that fits the window
+      // (100dvh) still scrolled by the toolbars' height (2026-10-24)
+      st.textContent = '#view[hk-bar-room]>' + SH.tags.view + '{min-height:calc(100vh - var(--hk-bar-room,0px))!important;' +
+        'min-height:calc(100dvh - var(--hk-bar-room,0px))!important}' +
+        // (and Home Assistant's own #view, min-height:100vh, the same way)
+        '#view[hk-bar-room]{min-height:100vh;min-height:100dvh}';
       // (a view in the document itself -- a host with no shadow roots: the head)
       (root.appendChild && root !== document ? root : document.head).appendChild(st);
     }
     function viewEl() { return SH.viewSlot(M.panel()); }
+    function isGrid(hv) { return !!(hv && hv.localName === 'hk-home-grid-view'); }
     // A FULL RAIL PUSHES THE PAGE ASIDE (Shrink or Hide; Stay keeps a strip
     // of room instead): while the rail is full the dashboard is scaled down
     // away from it, just enough to clear it, and eased back as it folds or
@@ -1054,9 +1083,9 @@
     function aside() {
       railRoom();
       var b = M.board() || {}, pos = S.pos;
-      var how = S.on && pos ? room(pos, scrollOf(b), b.tab_bar_adjust) : 'none';
-      var on = how === 'scale' || how === 'shift';
       var v = viewEl(), hv = SH.view(v);
+      var how = S.on && pos ? room(pos, scrollOf(b), b.tab_bar_adjust, isGrid(hv)) : 'none';
+      var on = how === 'scale' || how === 'shift';
       if (S.asideEl && S.asideEl !== hv) { S.asideEl.style.transform = ''; S.asideEl.style.transformOrigin = ''; S.asideEl = null; }
       if (!hv || !on) {
         if (hv && S.asideEl === hv) { hv.style.transform = ''; S.asideEl = null; }
@@ -1108,7 +1137,7 @@
       }
       foldPub(on);
       var b = M.board() || {};
-      if (pos && room(pos, scrollOf(b), b.tab_bar_adjust) !== 'pad') pos = null;
+      if (pos && room(pos, scrollOf(b), b.tab_bar_adjust, isGrid(SH.view(viewEl()))) !== 'pad') pos = null;
       var v = pos === 'bottom' ? 'calc(' + (barH(undefined, sizeNow()) + 10) + 'px + ' + LIFT_CSS + ')' : '';
       if (de.style.getPropertyValue('--hk-tabbar-h') !== v) {
         if (v) de.style.setProperty('--hk-tabbar-h', v);
@@ -1118,9 +1147,14 @@
       var view = pos ? viewEl() : null;
       // what the bar adds -- a new size or a turn past 640 px changes it, and
       // the padding is laid again
+      // (a Home Grid beside a rail at rest -- folded to its small button, or
+      // hidden: the grid takes the whole width and centres on the screen, the
+      // button floating in its corner clear of the blocks; the rail's strip
+      // comes back as it opens)
+      var gridRest = (pos === 'left' || pos === 'right') && S.mode !== 'full' && isGrid(SH.view(viewEl()));
       var add = pos === 'bottom' ? 'var(--hk-tabbar-h,0px)'
         : pos === 'top' ? 'calc(' + (barH(undefined, sizeNow()) + 8) + 'px + ' + TOP_CSS + ')'
-        : pos ? asideW() + 'px' : '';
+        : gridRest ? '0px' : pos ? asideW() + 'px' : '';
       if (S.view && (S.view !== view || S.viewSide !== pos || S.viewAdd !== add)) {
         S.view.style.removeProperty(S.viewProp || 'padding-bottom');
         if (S.viewPad) S.view.style.setProperty(S.viewProp, S.viewPad);
@@ -1175,12 +1209,19 @@
         S.host.style.setProperty('--hk-accent-base', a.base || a.color);
       }
       var width = (window.innerWidth || 0) - leftOf() - paneR();
+      iconsOnly = b.tab_bar_labels === 'icons';
+      S.host.toggleAttribute('data-icons', iconsOnly);
       if (listKey(width) !== S.built) build();
       if (S.host.getAttribute('data-pos') !== S.pos) S.host.setAttribute('data-pos', S.pos || 'bottom');
-      S.host.toggleAttribute('data-wide', barH() !== BAR_H);
+      // (a rail is always a tablet's -- railW, what its fit and its room are
+      // worked out from -- a phone held sideways's too: drawn at a phone's
+      // 60 its tabs came out smaller than the fit, the difference left as
+      // gaps above the first and below More, 2026-10-25)
+      var railed = S.pos === 'left' || S.pos === 'right';
+      S.host.toggleAttribute('data-wide', railed || barH() !== BAR_H);
       // TAB BAR SIZE: the thickness itself, and the icons' and names' step
       var size = SIZE_STEP[b.tab_bar_size] !== undefined ? b.tab_bar_size : 'medium';
-      S.host.style.setProperty('--bh', barH(undefined, size) + 'px');
+      S.host.style.setProperty('--bh', (railed ? railW(size) : barH(undefined, size)) + 'px');
       if (S.host.getAttribute('data-size') !== size) S.host.setAttribute('data-size', size);
       var cls = ['root', 'on', mat];
       if (S.roomsMode === 'button' && S.rooms.length) cls.push('hasrooms');

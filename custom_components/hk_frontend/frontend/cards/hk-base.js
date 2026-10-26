@@ -194,6 +194,13 @@
   // The status chip (hk-chip.js): its height; the corner and margins follow.
   var CHIP = { h: 43 };
   var CARD = { pad: '20px 22px', y: 20, x: 22 };
+  // HOME GRID (hk-home-grid-view, hk-layout.js; docs/phase11/HOME-GRID.md):
+  // the size classes, [columns, rows] -- the same table as
+  // hk-grid-catalog.js SIZES and hk_core home_grid.SIZES -- and the grid's
+  // numbers: the gap between cells, the top band's height. A block's card
+  // reads its class from its `size` attribute and its cell from
+  // --hk-cell-w / --hk-cell-h.
+  var HOME_GRID = { sizes: { S: [1, 1], W: [2, 1], T: [1, 2], L: [2, 2], XL: [3, 2], XXL: [6, 2] }, gap: TILE.gridGap, band: 60, pad: 1280 * 0.015 + 8 };
   // Breakpoints (px): screens for page structure, card widths for container
   // queries inside a card. A media query can't read a CSS variable, but every
   // card's CSS is a JS string, so these interpolate.
@@ -245,11 +252,21 @@
   // shadow) first, as every plate has read it. A tile casts the pill's
   // shadow; a page card and a panel the tall one. Clipping is the card's call.
   var PLATE_SHADOW = { tile: 'glass-shadow-pill', card: 'glass-shadow-tall', panel: 'glass-shadow-tall' };
+  // A BLOCK'S OWN BOX (2026-10-24, Home Grid's Hide Box): a card's or a
+  // panel's plate reads --hk-block-* first, which a boxless grid cell sets
+  // (clear, no edge, no shadow, no frost: --hk-block-glass 0 takes it out of
+  // the shared blur). A tile's plate never does, so the pills and controls
+  // inside a boxless block keep theirs.
   function plate(kind) {
     var sh = PLATE_SHADOW[kind];
     if (!sh) throw new Error('hkCards.plate: no plate ' + kind);
-    return 'border-radius:' + M.radius + ';' + M.glass + ';border:' + M.border +
-      ';box-shadow:var(--hk-look-shadow, ' + v(sh) + ')';
+    if (kind === 'tile') {
+      return 'border-radius:' + M.radius + ';' + M.glass + ';border:' + M.border +
+        ';box-shadow:var(--hk-look-shadow, ' + v(sh) + ')';
+    }
+    return 'border-radius:' + M.radius + ';background:var(--hk-block-plate, ' + M.bg + ');--hk-glass-surface:var(--hk-block-glass, 1);' +
+      'backdrop-filter:var(--hk-block-backdrop, var(--hk-glass-backdrop,none));-webkit-backdrop-filter:var(--hk-block-backdrop, var(--hk-glass-backdrop,none))' +
+      ';border:var(--hk-block-edge, ' + M.border + ');box-shadow:var(--hk-block-shadow, var(--hk-look-shadow, ' + v(sh) + '))';
   }
   // ONE TITLE ROW (the Energy page's): the name left, the detail right, one
   // baseline, 20 px tall. `sel` is the row (default .ttl); its <b> is the
@@ -303,6 +320,14 @@
       (t.track ? ';letter-spacing:' + t.track : '');
   }
 
+  // ANY TYPE ROLE, as declarations, no braces: its size, weight and
+  // tracking (the Home Grid's cards set their text by role, docs/phase11/HOME-GRID.md)
+  function typeCss(role) {
+    var t = typeOf(role);
+    return 'font-size:' + t.size + 'px;font-weight:' + t.weight + (t.track ? ';letter-spacing:' + t.track : '') +
+      (t.upper ? ';text-transform:uppercase' : '');
+  }
+
   // -------------------------------------------------------------- material
   // One string, shared by every card below. var() with a literal fallback:
   // the theme supplies these on any HK Kiosk view, and the fallback keeps
@@ -332,6 +357,35 @@
   // sheet's panels, which sit on the sheet's own blur, never add another.
   M.glass = 'background:' + M.bg + ';--hk-glass-surface:1;' +
     'backdrop-filter:var(--hk-glass-backdrop,none);-webkit-backdrop-filter:var(--hk-glass-backdrop,none)';
+
+  // A group's outer plate only. These properties never tint or fade its pills.
+  function groupSurface(el, surface) {
+    if (!el || !el.style || !surface && !el._hkGroupBase) return;
+    var key = JSON.stringify(surface || null);
+    if (key !== el._hkGroupSurfaceKey) {
+      el._hkGroupSurfaceKey = key;
+      var root = el.getRootNode(), owner = root.host || el.parentElement;
+      if (window.hkGlass && owner) window.hkGlass.changed(owner, true);
+    }
+    var keys = ['background', 'backdrop-filter', '-webkit-backdrop-filter', '--hk-glass-surface'];
+    var base = el._hkGroupBase;
+    if (!base) { base = el._hkGroupBase = {}; keys.forEach(function (k) { base[k] = [el.style.getPropertyValue(k), el.style.getPropertyPriority(k)]; }); }
+    keys.forEach(function (k) { if (base[k][0]) el.style.setProperty(k, base[k][0], base[k][1]); else el.style.removeProperty(k); });
+    el.removeAttribute('data-group-custom');
+    if (!surface || !/^#[0-9a-f]{6}$/i.test(surface.color || '')) return;
+    var hex = surface.color.slice(1), rgb = [0, 2, 4].map(function (i) { return parseInt(hex.slice(i, i + 2), 16); });
+    var opacity = Math.max(0, Math.min(100, Number(surface.opacity)));
+    if (!Number.isFinite(opacity)) return;
+    el.style.setProperty('background', 'rgba(' + rgb.join(',') + ',' + opacity / 100 + ')', 'important');
+    el.setAttribute('data-group-custom', '');
+    if (surface.blur && surface.blur !== 'screen') {
+      var blur = surface.blur === 'none' ? 'none' : BLUR[surface.blur];
+      if (!blur) return;
+      el.style.setProperty('--hk-glass-surface', '0');
+      el.style.setProperty('backdrop-filter', blur, 'important');
+      el.style.setProperty('-webkit-backdrop-filter', blur, 'important');
+    }
+  }
 
   // ------------------------------------------------------ ON A LIGHT PAGE
   // Someone else's dashboard (place() below), Home Assistant in light mode,
@@ -1565,6 +1619,9 @@
     // reads the variable that surface sets on its root (FONT_ROOT, below).
     ':host{font-family:var(--ha-font-family-body,' + v('font-body') + ')}',
     '*{box-sizing:border-box;font-family:inherit}',
+    // ON A HOME GRID (a block's card has `size`, hk-home-grid-view): the card
+    // and its own root are the block's height, so a plate can fill it
+    ':host([size]){height:100%}:host([size])>div{height:100%}',
     // every list that scrolls: a light fade at its ends (SCROLL EDGES)
     edgeCss(),
     // BEHIND THE PHOTO SCREENSAVER every animation in a card holds still: a
@@ -1831,8 +1888,16 @@
   // so this is one identity compare per card per update, and the listeners
   // run once per new object, not once per card.
   var CLIENT_HUB = { last: null, fns: new Set() };
+  var PREVIEW_CLIENTS = new WeakSet();
+  // An inert gallery's readings belong to its card tree, never to the
+  // page-wide client feed. Even a caller passing actions gets a read-only port.
+  window.hkCards.previewClient = function (port) {
+    var client = window.hkClient.create(Object.assign({}, port, { actions: null }));
+    PREVIEW_CLIENTS.add(client);
+    return client;
+  };
   function clientSeen(client) {
-    if (!client || client === CLIENT_HUB.last) return;
+    if (!client || PREVIEW_CLIENTS.has(client) || client === CLIENT_HUB.last) return;
     CLIENT_HUB.last = client;
     artWatch(client);              // the reconnect hook (above), from the first client
     CLIENT_HUB.fns.forEach(function (fn) {
@@ -2381,6 +2446,7 @@
     // that is replaced wholesale without ever disconnecting.
     disconnectedCallback() {
       glassJoin(this, false);
+      if (this._blockRO) { this._blockRO.disconnect(); this._blockRO = null; }
       ON_PAGE.delete(this);
       if (this._hkStatusT) { clearTimeout(this._hkStatusT); this._hkStatusT = null; }
       if (window.hkStats && window.hkStats.release && window.hkStats.release(this)) {
@@ -2417,6 +2483,48 @@
       if (!this._hkStatsLost) return;
       this._hkStatsLost = false;
       if (this.client && this._config) this.requestUpdate();
+    }
+
+    // A HOME GRID BLOCK'S SIZE (docs/phase11/HOME-GRID.md): hk-home-grid-view
+    // sets `size` (S, W, T, L, XL) on a block's card. A card laid out per
+    // size reads it with _cellSize() or :host([size=..]); one that builds its
+    // DOM once is rebuilt when it changes. Anywhere else it is null.
+    static get observedAttributes() { return ['size']; }
+    attributeChangedCallback(name, was, now) {
+      if (name !== 'size' || was === now || !this._config) return;
+      this._built = false;
+      this._hkSig = null;
+      this._render();
+    }
+    _cellSize() {
+      var s = null;
+      try { s = this.getAttribute('size'); } catch (e) { s = null; }    // (a test's bare element)
+      return s && HOME_GRID.sizes[s] ? s : null;
+    }
+    // ...and the block in px: its cells (--hk-cell-w / -h, measured by the
+    // view) and the gaps between them; null before the view has measured
+    _block() {
+      var sz = this._cellSize(), n = sz && HOME_GRID.sizes[sz];
+      if (!n || typeof getComputedStyle !== 'function') return null;
+      var cs = getComputedStyle(this), g = HOME_GRID.gap;
+      var cw = parseFloat(cs.getPropertyValue('--hk-cell-w')), ch = parseFloat(cs.getPropertyValue('--hk-cell-h'));
+      if (!(cw > 0 && ch > 0)) return null;
+      return { w: Math.floor(n[0] * cw + (n[0] - 1) * g), h: Math.floor(n[1] * ch + (n[1] - 1) * g) };
+    }
+    // A CARD THAT LAYS OUT BY THE BLOCK'S PX (a camera's picture, how many
+    // rows fit) calls this from _render: it is drawn again whenever the
+    // block's size changes -- the view measures after the cards are in, and
+    // again for a new window or the tab bar
+    _watchBlock() {
+      var b = this._block();
+      this._blockKey = b ? b.w + 'x' + b.h : '';
+      if (this._blockRO || typeof ResizeObserver === 'undefined' || !this._cellSize()) return;
+      var self = this;
+      this._blockRO = new ResizeObserver(function () {
+        var n = self._block();
+        if ((n ? n.w + 'x' + n.h : '') !== self._blockKey) self.redraw();
+      });
+      this._blockRO.observe(this);
     }
 
     _st(id) { return window.hkCardState.state(this.client, id); }
@@ -2982,11 +3090,12 @@
   // when narrow, the chip and scene rows drop the bleed made for HK's page
   // padding). Walked up from the card through every shadow root once per
   // connect:
-  //   hk-grid-view first          -> an HK screen (or a YAML dashboard of HK's view)
+  //   hk-grid-view first          -> an HK screen (or a YAML dashboard of HK's view);
+  //   or hk-home-grid-view           a Home Grid screen's Home
   //   HA's view or card editor    -> someone else's dashboard
   //   neither (the page body)     -> an HK overlay: the screensaver, a sheet,
   //                                  a pop-up, a banner -- HK's own surface
-  var HK_PAGE = { 'hk-grid-view': 1 };
+  var HK_PAGE = { 'hk-grid-view': 1, 'hk-home-grid-view': 1 };
   var HA_PAGE = {};                     // the host's own views and card editor (hk-host-shell.js)
   window.hkShell.foreignTags.forEach(function (t) { HA_PAGE[t] = 1; });
   // (Also notes on the card whether it sits INSIDE another HK card --
@@ -3706,7 +3815,7 @@
                 tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house', tab_bar_more: 'icons',
                 tab_bar_more_phone: 'list', tab_bar_pos: 'bottom', tab_bar_fold: 'start',
                 tab_bar_start: 'full', tab_bar_adjust: true, tab_bar_scroll_phone: 'shrink',
-                tab_bar_tabs: 6, tab_bar_tabs_rail: 6, tab_bar_size: 'medium',
+                tab_bar_tabs: 6, tab_bar_tabs_rail: 6, tab_bar_size: 'medium', tab_bar_labels: 'show',
                 // PHONES' OWN (phoneForm): the menu (null: as before there
                 // was one -- phoneMenu), the button's style, More's rooms
                 menu_phone: null, button_phone: 'chip', tab_bar_rooms_phone: 'more' };
@@ -4090,6 +4199,13 @@
       var v = lovelaceConfig().views[i];
       return '/' + dashSeg() + '/' + (v.path || i);
     },
+    // Where this dashboard's page at view path `p` is (a Home Grid's Timers
+    // block opens Timers); null: the screen has no such page
+    pagePath: function (p) {
+      var cfg = lovelaceConfig(), views = (cfg && cfg.views) || [];
+      for (var i = 0; i < views.length; i++) if (views[i] && views[i].path === p) return '/' + dashSeg() + '/' + p;
+      return null;
+    },
     // THE DATE LINE, for the edge tab: hk-header-card measures where its
     // date's optical centre sits (px below the top of the dashboard's panel)
     // and publishes it here; hk-menu.js centres the tab on it. Kept per
@@ -4193,10 +4309,12 @@
   window.hkCards.TILE = TILE;
   window.hkCards.CHIP = CHIP;
   window.hkCards.CARD = CARD;
+  window.hkCards.HOME_GRID = HOME_GRID;
   window.hkCards.BP = BP;
   window.hkCards.EASE = EASE;
   window.hkCards.DUR = DUR;
   window.hkCards.BLUR = BLUR;
+  window.hkCards.groupSurface = groupSurface;
   window.hkCards.R = R;
   window.hkCards.OVER = OVER;
   window.hkCards.TYPE = TYPE;
@@ -4204,6 +4322,7 @@
   window.hkCards.titleRow = titleRow;
   window.hkCards.labelCss = labelCss;
   window.hkCards.figureCss = figureCss;
+  window.hkCards.typeCss = typeCss;
   window.hkCards.pageCardCss = pageCardCss;
   // `initial` for every token: a dark plate inside a card puts this in its
   // CSS so what is on it keeps today's white even on a light page

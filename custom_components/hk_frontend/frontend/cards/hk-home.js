@@ -118,7 +118,24 @@
         '.vac .cmd hk-icon{width:23px;height:23px;--mdc-icon-size:23px;',
         '  color:' + window.hkCards.v('glyph') + '}',
         '@media (prefers-reduced-motion:reduce){',
-        '  .vac .cmd,.vac .cmd:active,.vac .ico{transition:none;transform:none}}'
+        '  .vac .cmd,.vac .cmd:active,.vac .ico{transition:none;transform:none}}',
+        // ON A HOME GRID (G2, the `vacuum` block): the plate fills it; the
+        // glyph beside the status and its chips, the commands along the foot
+        // as 44 px capsules. W: all four, on a page card's padding; S: Start
+        // and Dock, on a tile's (the block is a tile's size)
+        ':host([size]) hk-plate.vac{height:100%;min-height:0;padding:' + C.CARD.pad + '}',
+        ':host([size=S]) hk-plate.vac{padding:12.8px 12.8px 12.8px ' + C.TILE.padL + 'px}',
+        ':host([size]) .vac .grid{height:100%;min-height:0;row-gap:8px;column-gap:10px;',
+        '  grid-template-areas:"ico label label label" "ico meta meta meta" "start pause locate home";',
+        '  grid-template-columns:44px repeat(3,minmax(0,1fr));grid-template-rows:22px 22px minmax(44px,1fr)}',
+        ':host([size=S]) .vac .grid{grid-template-areas:"ico label" "ico meta" "start home";',
+        '  grid-template-columns:44px minmax(0,1fr)}',
+        ':host([size=S]) .vac [data-hk-role=pause],:host([size=S]) .vac [data-hk-role=locate]{display:none}',
+        ':host([size]) .vac .ico{width:44px;height:44px;border-radius:22px;align-self:start}',
+        ':host([size]) .vac .ico hk-icon{--mdc-icon-size:24px;width:24px;height:24px}',
+        ':host([size]) .vac .label{' + C.typeCss('headline') + ';line-height:22px}',
+        ':host([size]) .vac .meta{flex-wrap:nowrap;overflow:hidden;align-self:start}',
+        ':host([size]) .vac .cmd{height:44px;align-self:end;border-radius:22px}'
       ].join('');
     }
 
@@ -310,6 +327,10 @@
         // a phone: stacked under the vacuum cards, which sit one grid deeper,
         // the plate steps in 4 px a side to share their edges
         '@media (max-width:' + window.hkCards.BP.phone + 'px){.plate{padding:16px;margin:0 4px}}',
+        // in a Home Grid block (data-fill): the plate is the block's lower part, and its rooms scroll inside it
+        ':host([data-fill]){display:block;height:100%}',
+        ':host([data-fill]) .plate{height:100%;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}',
+        ':host([data-fill]) .plate::-webkit-scrollbar{display:none}',
         '.pill:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:2px}'
       ].join('');
     }
@@ -1957,17 +1978,82 @@
         // The screensaver's row is wrapped in a position:fixed div by strip()
         // itself, so its host must take no space and must not clip.
         'hk-plate.strip.fixed{height:0;overflow:visible}',
-        '.strip > div{min-width:0;overflow:hidden}'
+        '.strip > div{min-width:0;overflow:hidden}',
+        // ON A HOME GRID (the `timers` block, docs/phase11/HOME-GRID.md R6):
+        // a plate of the running timers, each its ring of time left and its
+        // pause / resume and cancel; none running, Create a Timer (and, at W,
+        // the Timers page's quick starts)
+        ':host([size]) hk-plate.strip{display:flex;flex-direction:column;justify-content:center;gap:8px;box-sizing:border-box;',
+        '  height:100%;padding:12px;' + window.hkCards.plate('card') + ';overflow:hidden}',
+        '.timer-grid{display:grid;grid-template-columns:repeat(var(--cols,1),minmax(0,1fr));gap:12px}.grid-timer{display:grid;gap:6px;min-width:0}',
+        '.timer-heading{display:flex;align-items:center;gap:10px;min-width:0}.timer-heading>b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + window.hkCards.v('ink') + '}',
+        '.timer-ring{width:56px;height:56px;flex:none;border-radius:50%;display:grid;place-items:center;position:relative}',
+        '.timer-ring svg{position:absolute;inset:0;width:56px;height:56px;transform:rotate(-90deg)}.timer-ring circle{fill:none;stroke-width:4px;stroke:' + window.hkCards.v('key') + '}.timer-ring .ring-left{stroke:' + window.hkCards.v('warn') + ';stroke-dasharray:calc(var(--hk-left,1)*100) 100}',
+        '.timer-ring hk-countdown{position:relative;font-size:13px;font-weight:600;color:' + window.hkCards.v('ink') + ';font-variant-numeric:tabular-nums}',
+        '.timer-controls{display:flex;gap:8px}.timer-controls button,.quick-grid button{border:0;border-radius:22px;background:' + window.hkCards.v('key') + ';color:' + window.hkCards.v('ink') + ';min-width:44px;min-height:44px;flex:1;cursor:pointer;font:inherit;' + window.hkCards.typeCss('caption') + '}',
+        '.timer-controls hk-icon{display:block;width:20px;height:20px;margin:auto;--mdc-icon-size:20px}',
+        '.new-timer{border:0;background:none;color:' + window.hkCards.v('ink') + ';display:flex;align-items:center;gap:10px;text-align:left;min-height:56px;cursor:pointer;padding:0}',
+        '.new-timer i{width:42px;height:42px;background:' + window.hkCards.v('key') + ';border-radius:50%;display:grid;place-items:center;flex:none}.new-timer hk-icon{width:24px;height:24px;--mdc-icon-size:24px}',
+        '.new-timer span{display:grid;gap:3px}.new-timer b{font-size:15px;font-weight:600}.new-timer small{' + window.hkCards.typeCss('caption') + ';color:' + window.hkCards.v('ink-2') + '}',
+        '.quick-grid{display:flex;gap:6px}'
       ].join('');
     }
     getCardSize() { return 1; }
+    _gridTap() {
+      if (this._tapWired) return;
+      this._tapWired = true;
+      this._e.addEventListener('click', (e) => {
+        var button = e.target.closest('button'); if (!button) return;
+        e.stopPropagation();
+        if (button.dataset.new !== undefined) { this._newGridTimer(); return; }
+        if (button.dataset.preset) {
+          var mins = Number(button.dataset.preset);
+          this._callResp('script', 'quick_timer_start', { duration: HkTimersPageCard.hms(mins) }).then((r) => {
+            if (!r.ok || r.response && r.response.started === false) this._newGridTimer();
+          }); return;
+        }
+        if (button.dataset.timer) this._call('timer', button.dataset.service, { entity_id: button.dataset.timer });
+        else { var M = window.hkCards.menu, path = M && M.pagePath('timers'); if (path) window.hkCards.navigate(path, this); }
+      });
+    }
+    _newGridTimer() {
+      var D = window.hkDetail;
+      if (D) D.open(null, { name: 'Create a Timer', icon: 'mdi:timer-outline' }, {
+        cards: { cards: [{ type: 'custom:hk-timer-new-card', layout: 'panel',
+          name_chips: (window.hkSettings && window.hkSettings.get('headers.timers.names', null)) || undefined }] }
+      });
+    }
+    _grid(list, sized) {
+      this._watchBlock();
+      var states = this.client && this.client.states || {}, T = window.hkTimers, esc = window.hkCards.esc;
+      var rows = (list || []).filter((r) => r && r.entity_id).map((r) => ({ id: r.entity_id, name: r.name, attrs: Object.assign({}, r, states[r.entity_id] && states[r.entity_id].attributes), state: states[r.entity_id] && states[r.entity_id].state || 'active' }));
+      Object.keys(states).filter((id) => /^timer.quick_/.test(id) && states[id].state === 'paused').forEach((id) => {
+        if (!rows.some((r) => r.id === id)) rows.push({ id: id, name: states[id].attributes.friendly_name, attrs: states[id].attributes, state: 'paused' });
+      });
+      rows = rows.filter((r) => r.state === 'paused' || r.attrs.finishes_at && !isNaN(Date.parse(r.attrs.finishes_at)))
+        .sort((a, b) => (Date.parse(a.attrs.finishes_at) || Infinity) - (Date.parse(b.attrs.finishes_at) || Infinity));
+      if (!rows.length) {
+        var presets = (window.hkSettings && window.hkSettings.get('headers.timers.presets', null)) || [5, 10, 15, 20, 30, 60];
+        return '<button class="new-timer" data-new aria-label="Create a Timer"><i><hk-icon icon="mdi:timer-outline"></hk-icon></i><span><b>Timers</b><small>Create a Timer</small></span></button>' +
+          (sized === 'W' ? '<div class="quick-grid">' + presets.slice(0, 6).map((m) => '<button data-preset="' + Number(m) + '">' + esc(HkTimersPageCard.label(Number(m))) + '</button>').join('') + '</div>' : '');
+      }
+      var max = sized === 'S' ? 1 : 2;
+      return '<div class="timer-grid" style="--cols:' + Math.min(max, rows.length) + '">' + rows.slice(0, max).map(function (r) {
+        var paused = r.state === 'paused', total = T ? T.secs(r.attrs.duration) : 0;
+        var clock = paused ? 'hold="' + (T ? T.secs(r.attrs.remaining) : 0) + '"' : 'deadline="' + Date.parse(r.attrs.finishes_at) + '"';
+        return '<div class="grid-timer"><div class="timer-heading"><div class="timer-ring"><svg viewBox="0 0 56 56" aria-hidden="true"><circle class="ring-track" cx="28" cy="28" r="25"></circle><circle class="ring-left" cx="28" cy="28" r="25" pathLength="100"></circle></svg><hk-countdown ' + clock + ' total="' + total + '"></hk-countdown></div><b>' + esc(r.name || 'Timer') + '</b></div>' +
+          '<div class="timer-controls"><button data-timer="' + esc(r.id) + '" data-service="' + (paused ? 'start' : 'pause') + '" aria-label="' + (paused ? 'Resume' : 'Pause') + ' ' + esc(r.name || 'Timer') + '"><hk-icon icon="mdi:' + (paused ? 'play' : 'pause') + '"></hk-icon></button>' +
+          '<button data-timer="' + esc(r.id) + '" data-service="cancel" aria-label="Cancel ' + esc(r.name || 'Timer') + '"><hk-icon icon="mdi:close"></hk-icon></button></div></div>';
+      }).join('') + '</div>';
+    }
     _sigOf() {
       var h = this.client;
       if (!h) return null;
       var s = h.states[this._config.entity || 'sensor.running_quick_timers'];
       // The module may arrive after the first render; until it does there is
       // nothing to draw, so fold its presence into the signature.
-      return (s ? s.last_updated : 'x') + '|' + (window.hkTimers ? '1' : '0');
+      if (!this._cellSize()) return (s ? s.last_updated : 'x') + '|' + (window.hkTimers ? '1' : '0');
+      return JSON.stringify([s, Object.keys(h.states).filter((id) => /^timer.quick_/.test(id)).map((id) => h.states[id]), !!window.hkTimers]);
     }
     _render() {
       var cfg = this._config;
@@ -1980,7 +2066,14 @@
         this._wire();
         this._built = true;
       }
-      var T = window.hkTimers;
+      var T = window.hkTimers, sized = this._cellSize();
+      if (sized) {
+        var on = this._st(cfg.entity || 'sensor.running_quick_timers');
+        var html0 = this._grid(on && on.attributes && on.attributes.running, sized);
+        this._gridTap();
+        window.hkCards.morph(this._e, html0);
+        return;
+      }
       // '' is a CORRECT rendering, not a failure: with no timers running the
       // card draws nothing, and drawing nothing is what keeps it from leaving
       // a gap above the player in the pop-up.
@@ -2083,6 +2176,88 @@
       empty_text: 'Nothing is running.'
     };
   });
+
+  // ============================================================ THE PEOPLE
+  // hk-people-card: the household at a glance (the Home Grid's `people`
+  // block, docs/phase11/HOME-GRID.md; at home anywhere else too) -- each
+  // person their picture or initials, ringed green at home, their name and
+  // where they are; a tap opens their sheet (hk-person.js). As many as the
+  // width holds, in `people:` order, else every person A to Z.
+  var PP = { w: 72, gap: 12, av: 48, home: 'rgba(52,199,89,0.85)' };
+  class HkPeopleCard extends HkBase {
+    static get CSS() {
+      return [
+        'hk-plate.pp{display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;height:100%;',
+        '  padding:' + C.CARD.pad + ';margin:0;' + C.plate('card') + ';overflow:hidden}',
+        '.pp .row{display:grid;grid-template-columns:repeat(var(--n,4),minmax(' + PP.w + 'px,1fr));gap:0 ' + PP.gap + 'px;',
+        '  justify-content:start}',
+        '.pr{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;min-height:44px;margin:0;padding:0;',
+        '  border:0;background:none;font:inherit;color:' + C.v('ink') + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
+        '.pr:active{opacity:.6}',
+        '.pr:focus-visible{outline:2px solid ' + C.v('ink-2') + ';outline-offset:4px;border-radius:' + C.R.small + 'px}',
+        '.av{width:' + PP.av + 'px;height:' + PP.av + 'px;border-radius:50%;flex:none;overflow:hidden;display:flex;',
+        '  align-items:center;justify-content:center;background:' + C.v('key-strong') + ';' + C.typeCss('headline') + ';',
+        '  box-shadow:0 0 0 2px ' + C.v('line-strong') + '}',
+        '.pr.home .av{box-shadow:0 0 0 2px ' + PP.home + '}',
+        '.av img{width:100%;height:100%;object-fit:cover;display:block}',
+        '.pr b{' + C.typeCss('body') + ';line-height:19px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+        '.pr span{' + C.typeCss('caption') + ';line-height:16px;color:' + C.v('ink-2') + ';max-width:100%;',
+        '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+      ].join('');
+    }
+    getCardSize() { return 2; }
+    _ids() {
+      var h = this.client, st = (h && h.states) || {}, own = this._config.people;
+      if (Array.isArray(own) && own.length) return own.filter(function (id) { return st[id]; });
+      var name = function (id) { return String((st[id].attributes || {}).friendly_name || id); };
+      return Object.keys(st).filter(function (id) { return id.indexOf('person.') === 0; })
+        .sort(function (a, b) { return name(a).localeCompare(name(b)); });
+    }
+    _sigOf() {
+      var h = this.client;
+      if (!h) return null;
+      return this._ids().map(function (id) { var s = h.states[id]; return id + '=' + s.state + '/' + ((s.attributes || {}).entity_picture || ''); }).join(';');
+    }
+    _render() {
+      var h = this.client;
+      if (!h) return;
+      this._watchBlock();
+      var b = this._block(), ids = this._ids();
+      var n = b ? Math.max(1, Math.floor((b.w - 2 * C.CARD.x + PP.gap) / (PP.w + PP.gap))) : ids.length;
+      var esc = C.esc;
+      var where = function (s) {
+        return s.state === 'home' ? 'Home' : s.state === 'not_home' ? 'Away'
+          : /^(unknown|unavailable)$/.test(s.state) ? 'Unknown' : String(s.state).replace(/(^|[\s_])(\w)/g, function (m, a, c) { return (a === '_' ? ' ' : a) + c.toUpperCase(); });
+      };
+      var cells = ids.slice(0, n).map(function (id) {
+        var s = h.states[id], a = s.attributes || {}, nm = String(a.friendly_name || id);
+        var ini = nm.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
+        return '<button class="pr' + (s.state === 'home' ? ' home' : '') + '" data-id="' + esc(id) + '" aria-label="' +
+          esc(nm + ', ' + where(s)) + '"><span class="av">' + (a.entity_picture ? '<img alt="" data-initials="' + esc(ini) + '" src="' + esc(a.entity_picture) + '">' : esc(ini)) +
+          '</span><b>' + esc(nm.split(/\s+/)[0]) + '</b><span>' + esc(where(s)) + '</span></button>';
+      });
+      C.morph(this._root, '<hk-plate class="pp" data-hk-role="card"><div class="row" role="list" style="--n:' +
+        Math.min(n, Math.max(1, ids.length)) + '">' + cells.join('') + '</div></hk-plate>');
+      this._root.querySelectorAll('.av img').forEach(function (img) {
+        // once (the browser's own error can follow the hand-made one, on an image no longer in the page)
+        img.onerror = function () { img.onerror = null; if (img.parentNode) img.parentNode.textContent = img.getAttribute('data-initials'); };
+        if (img.complete && !img.naturalWidth) img.onerror();
+      });
+      if (!this._wired) {
+        this._wired = true;
+        var self = this;
+        this._root.addEventListener('click', function (e) {
+          var t = e.target.closest && e.target.closest('.pr');
+          if (t) window.hkShell.moreInfo(t.getAttribute('data-id'), self);
+        });
+      }
+    }
+  }
+
+  register('hk-people-card', HkPeopleCard, 'HK People',
+    'The household at a glance: each person, at home or where they are. A tap opens their sheet.',
+    C && [{ name: 'people', selector: { entity: { multiple: true, filter: { domain: 'person' } } } }],
+    function () { return {}; });
 
   register('hk-vacuum-card', HkVacuumCard, 'HK Vacuum',
     'A robot vacuum with its status, battery and controls.',

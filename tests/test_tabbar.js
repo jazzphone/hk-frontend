@@ -79,6 +79,8 @@ ok('no More: nothing listed in it', parts(MODEL, { shown: 6, more: false }).more
 print('=== position ===');
 ok('a phone keeps a rail\'s bar at the bottom; a tablet has the rail', T.position('left', 390) === 'bottom' &&
    T.position('right', 1280) === 'right' && T.position('top', 390) === 'top' && T.position('sideways', 1280) === 'bottom');
+ok('a phone held sideways has the rail it asks for (wide enough beside it), upright the bottom',
+   T.position('left', 844, true) === 'left' && T.position('right', 667, true) === 'right' && T.position('left', 390, true) === 'bottom');
 var rf = T.railFit(9, 3, 800, true);
 ok('an 800 px tablet\'s rail holds Home, six more and More -- eight, as the bottom bar', rf.shown === 7 && rf.more, JSON.stringify(rf));
 ok('...a short window fewer', T.railFit(9, 3, 500, true).shown === 5);
@@ -287,6 +289,14 @@ ok('More\'s style: a phone\'s own (List unless chosen), the tablets\' otherwise'
    T.moreOf({ tab_bar_more: 'list' }, 1280) === 'list' && T.moreOf({}, 1280) === 'icons');
 ok('While Scrolling: a sideways phone uses the phone\'s', so({ tab_bar_scroll: 'shrink', tab_bar_scroll_phone: 'stay' }) === 'stay');
 window.screen = undefined;
+
+// A RAIL IS DRAWN AT THE THICKNESS ITS FIT IS WORKED OUT FROM (2026-10-25): a
+// phone held sideways drew it at a phone's 60 while railFit counted a
+// tablet's 72, so its tabs fell short of it, 43 px of rail above Home and below More
+var tbSrc = readFile(HK_ROOT + '/frontend/modules/hk-tabbar.js');
+ok('a rail\'s --bh is railW, a bar\'s barH',
+   /setProperty\('--bh', \(railed \? railW\(size\) : barH\(undefined, size\)\) \+ 'px'\)/.test(tbSrc) &&
+   /railFit[\s\S]{0,200}gapsOf\(railW\(size\)\)/.test(tbSrc));
 
 print('\n' + (fail ? fail + ' FAILED, ' + pass + ' passed' : 'ALL ' + pass + ' TAB BAR TESTS PASS'));
 if (fail) throw new Error(fail + ' failed');

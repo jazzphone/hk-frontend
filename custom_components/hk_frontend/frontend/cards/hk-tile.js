@@ -496,6 +496,23 @@
     '  :host{max-width:none !important}',
     '  hk-plate.card{width:calc(100% + var(--hk-cell-bleed, 8px));min-width:0;max-width:none}',
     '}',
+    // ================================================= ON A HOME GRID (G2)
+    // A block is the tile (docs/phase11/HOME-GRID.md): S (1 x 1) and W
+    // (2 x 1) draw the tall tile's layout -- the glyph at the top, the name
+    // and state at the foot, as the Home app's large tiles have it -- and fill
+    // the block. A thermostat's temperature takes the glyph's place
+    // (climate_tall). A scene keeps its bare glyph and two-line name.
+    ':host([data-group-fill])>div{height:100%}:host([data-group-fill]) hk-plate.card{height:100%;width:100%;min-width:0;max-width:none}',
+    ':host([size]) hk-plate.card{width:100%;min-width:0;max-width:none;height:100%;padding:12.8px 12.8px 12.8px ' + TILE.padL + 'px}',
+    ':host([size]) .card.tall .grid{grid-template-rows:44px minmax(0,1fr) auto auto}',
+    ':host([size]) .card.scene.tall .grid{row-gap:0}',
+    ':host([size]) .card.scene.tall .name{align-self:end;line-height:19px;font-size:17px}',
+    // Two room rows on a short tablet still use the tall tile hierarchy,
+    // retaining the standard 42 px well and each accessory’s configured glyph.
+    '@container hk-cell (max-height:120px){',
+    '  :host([data-group-fill]) hk-plate.card.tall{padding:8px 12px}',
+    '  :host([data-group-fill]) .card.tall .grid{grid-template-rows:44px minmax(0,1fr) auto auto;row-gap:2px}',
+    '}',
   ].join('');
 
   // `on:` UNQUOTED IN YAML IS THE BOOLEAN true, so an icon_states map keyed on
@@ -581,7 +598,8 @@
     getCardSize() { return this._layout() === 'tall' || this._layout() === 'climate_tall' ? 2 : 1; }
     _layout() {
       var cfg = this._config || {};
-      return sizedLayout(LAYOUTS[cfg.layout] ? cfg.layout : 'standard', cfg.size);
+      // on a Home Grid the block decides: its tall layout, whatever the size
+      return sizedLayout(LAYOUTS[cfg.layout] ? cfg.layout : 'standard', this._cellSize() ? 'tall' : cfg.size);
     }
 
     // Subclasses answer these four; everything else is shared.
@@ -776,7 +794,17 @@
       var nm = cfg.name || (st && st.attributes && st.attributes.friendly_name) || cfg.entity;
       if (e.name.textContent !== nm) e.name.textContent = nm;
       if (e.label) {
-        var lb = this._label(st) || '';
+        var lb = this._label(st) || '', secondary = cfg.secondary;
+        if (secondary && secondary.mode !== 'auto') {
+          var a = st && st.attributes || {}, value;
+          if (secondary.mode === 'none') lb = '';
+          else if (secondary.mode === 'state') lb = st ? titled(st.state) : 'Unavailable';
+          else if (secondary.mode === 'brightness') lb = brightnessLabel(st);
+          else if (secondary.mode === 'attribute') {
+            value = a[secondary.attribute];
+            lb = value == null || typeof value === 'object' ? '—' : String(value) + (secondary.unit ? ' ' + secondary.unit : '');
+          }
+        }
         if (e.label.textContent !== lb) e.label.textContent = lb;
       }
     }

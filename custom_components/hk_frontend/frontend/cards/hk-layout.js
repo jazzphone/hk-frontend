@@ -1,8 +1,9 @@
 // hk-layout.js -- building blocks: frame, spacer, back chevron, flat key, info block, grid
 //
 // hk-frame-card (native HA cards on our glass, lazy `module:` loading),
-// hk-spacer-card, hk-back-card, hk-key-card, hk-info-card, hk-grid-card and
-// the hk-grid-view view type.
+// hk-spacer-card, hk-back-card, hk-key-card, hk-info-card, hk-grid-card, the
+// hk-grid-view and hk-home-grid-view view types, and hk-pager-card (a Home
+// Grid block that swipes).
 //
 // One file per family of cards, so each file's name says what is in it.
 // Shared pieces -- HkBase, the editor helpers, register(), create(), the
@@ -1579,7 +1580,1049 @@
     customElements.define('hk-grid-view', HkGridView);
   }
 
+  // A BLOCK WITH RULES (2026-10-24; hk-grid-catalog.js rulesOf): its own card
+  // by default, and the card of the first rule whose conditions all hold --
+  // music playing, a time window and the alarm still armed, a doorbell ...
+  // It owns ONE mounted child; switching never changes its cell. A rule with
+  // a time window looks again every half minute; a doorbell ring counts for
+  // a minute. `force` (the editor's Preview): -1 the default, else a rule.
+  class HkGridConditionalCard extends HkBase {
+    static get CSS() { return ':host{display:block;height:100%}.variant,.variant>*{display:block;height:100%;width:100%}'; }
+    static get observedAttributes() { return ['size']; }
+    attributeChangedCallback() { if (this._child) this._child.setAttribute('size', this.getAttribute('size')); }
+    _rules() { return window.hkGridCatalog.rulesOf((this._config || {}).item); }
+    _shown() {
+      var cfg = this._config || {}, G = window.hkGridCatalog;
+      if (typeof cfg.force === 'number') return cfg.force;
+      if (typeof cfg.force === 'boolean') return cfg.force ? 0 : -1;        // (an older preview's)
+      return G.choose(cfg.item, this.client && this.client.states, this._ringing || false,
+        window.hkSettings && window.hkSettings.get('security.alarm', null));
+    }
+    _sigOf() { return JSON.stringify([this._shown(), this._config]); }
+    _receiveClient() {
+      super._receiveClient();
+      if (this._child) window.hkHostClient.bridge(this._child, this.client);
+    }
+    _render() {
+      var cfg = this._config, shown = this._shown(), r = this._rules(), item = cfg.item;
+      // the same card while neither the choice nor the saved block changed
+      var key = JSON.stringify([shown, item, cfg.ctx]);
+      if (this._child && this._childKey === key) return;
+      this._childKey = key;
+      var chosen = shown >= 0 && r.rules[shown] ? Object.assign({ size: item.size }, r.rules[shown]) : Object.assign({}, r.base);
+      delete chosen.when;
+      var child = C.createCard(window.hkGridCatalog.config(chosen, cfg.ctx), this.client);
+      child.setAttribute('size', this.getAttribute('size') || item.size);
+      if (this.hasAttribute('data-grid-pager')) child.setAttribute('data-grid-pager', '');
+      var box = document.createElement('div'); box.className = 'variant'; box.appendChild(child);
+      this._root.replaceChildren(box); this._child = child;
+    }
+    // every condition of every rule, flat
+    _conds() {
+      var out = [];
+      this._rules().rules.forEach(function (r) { var w = r.when || {}; (Array.isArray(w.all) ? w.all : [w]).forEach(function (c) { out.push(c); }); });
+      return out;
+    }
+    connectedCallback() {
+      super.connectedCallback();
+      var self = this;
+      if (!this._onRing) this._onRing = (e) => {
+        var event = e && e.detail;
+        if (!event || event.type !== 'notification' || event.kind !== 'doorbell') return;
+        if (!this._conds().some(function (c) { return c.kind === 'doorbell'; })) return;
+        this._ringing = event.camera || true; this.redraw(); clearTimeout(this._ringTimer);
+        this._ringTimer = setTimeout(() => { this._ringing = false; this.redraw(); }, 60000);
+      };
+      window.addEventListener('hk-house-event', this._onRing);
+      // the clock moves on: a time window looks again every half minute
+      clearInterval(this._tick);
+      if (this._conds().some(function (c) { return c.kind === 'time'; })) {
+        this._tick = setInterval(function () { if (self._shown() !== self._lastShown) { self._lastShown = self._shown(); self.redraw(); } }, 30000);
+      }
+      this._lastShown = this._config ? this._shown() : null;
+    }
+    disconnectedCallback() {
+      window.removeEventListener('hk-house-event', this._onRing); clearTimeout(this._ringTimer); clearInterval(this._tick);
+      this._ringing = false; super.disconnectedCallback();
+    }
+  }
+  customElements.define('hk-grid-conditional-card', HkGridConditionalCard);
+
+  // ---------------------------------------------------- hk-home-grid-view
+  //
+  // A HOME GRID SCREEN'S HOME (docs/phase11/HOME-GRID.md): its blocks on a
+  // grid of `cols` x `rows` fixed tall-tile cells, uniformly scaled to fit
+  // the tablet, centered with spare room around it -- under the
+  // optional top band (the screen's header, C.HOME_GRID.band px). It NEVER
+  // SCROLLS: the view is the screen's height and clips; a card that can't
+  // fit its cell clips its own contents (each cell clips too), and never
+  // grows the page. The stored frame (1280 x 800) is the desktop editor's,
+  // not this view's.
+  //
+  // The strategy (hk-strategy.js homeGridView) hands it:
+  //   grid: { cols, rows, band, scale }
+  //   cards: the band's card first when band is on (hk_band: true), then one
+  //     per block with hk_cell: { id, size, at: [column, row] }, then any
+  //     card that only listens (a pop-up, the docked bar), which takes no room
+  // Matched to the built elements by index, as hk-grid-view does. Each block
+  // sits in its own cell, which carries `size` (S, W, T, L, XL) and is a
+  // size container (`hk-cell`); the grid sets `--hk-cell-w` / `--hk-cell-h`,
+  // one cell's width and height. A card's own layout per class reads them
+  // (G2). The card gets the same `size` attribute.
+  var GRID = C.HOME_GRID || { sizes: {}, gap: 10, band: 60 };
+  // A NIGHT (the grid's `night`): "always", or now between from and to (across midnight)
+  function gridNightNow(n, d) {
+    if (!n || n.mode === 'off') return false;
+    if (n.mode === 'always') return true;
+    var mins = function (t) { var p = String(t || '').split(':'); return (+p[0] || 0) * 60 + (+p[1] || 0); };
+    var m = d.getHours() * 60 + d.getMinutes(), a = mins(n.from || '22:00'), b = mins(n.to || '07:00');
+    return a <= b ? m >= a && m < b : m >= a || m < b;
+  }
+  // ...and the night itself, the screensaver clock's: what is behind the
+  // grid hidden (the page black), and one dim red over everything on the
+  // screen -- the blocks, the tab bar, a sheet -- by multiply, so white is
+  // the red and black stays black. It takes no touches.
+  function gridNight(on) {
+    // (nothing to do where there is no page: a test's DOM)
+    if (typeof document.getElementById !== 'function' || !document.documentElement || !document.body) return;
+    var de = document.documentElement, wash = document.getElementById('hk-night-wash');
+    if (on === de.hasAttribute('hk-night') && (!on || wash)) return;
+    if (!document.getElementById('hk-night-css')) {
+      var st = document.createElement('style');
+      st.id = 'hk-night-css';
+      // (--hk-night-on-red: what a card draws on its own red -- today's circle -- turns black, which the wash keeps)
+      st.textContent = 'html[hk-night] #hk-sky{visibility:hidden!important}html[hk-night],html[hk-night] body{background:#000!important}' +
+        'html[hk-night]{--hk-night-on-red:#000}' +
+        '#hk-night-wash{position:fixed;inset:0;z-index:2147483000;pointer-events:none;background:#b3261e;mix-blend-mode:multiply}';
+      (document.head || de).appendChild(st);
+    }
+    if (on) {
+      de.setAttribute('hk-night', '');
+      if (!wash) { wash = document.createElement('div'); wash.id = 'hk-night-wash'; wash.setAttribute('aria-hidden', 'true'); document.body.appendChild(wash); }
+    } else {
+      de.removeAttribute('hk-night');
+      if (wash) wash.remove();
+    }
+  }
+  class HkHomeGridView extends HTMLElement {
+    setConfig(config) {
+      this._config = config || {};
+      if (!this._sr) this._sr = this.attachShadow({ mode: 'open' });
+      this._build();
+      this._place();
+    }
+    set lovelace(l) { this._lovelace = l; }
+    get lovelace() { return this._lovelace; }
+    set narrow(n) { this._narrow = n; }
+    set index(i) { this._index = i; }
+    set cards(c) { this._cards = c || []; this._place(); }
+    get cards() { return this._cards || []; }
+    set badges(b) { this._badges = b || []; this._place(); }
+    get badges() { return this._badges || []; }
+
+    _build() {
+      if (this._root) return;
+      var st = document.createElement('style');
+      // the side gutter: the page's edge to its plates, as every page has it
+      // (hk-grid-view's gutter: --hk-side of the width and 8 px; 27 px at
+      // 1,280 -- six 196 px columns and 10 px gaps); the same at the top and
+      // the foot. (A card's own :host margin -- a pull-up made for a page's
+      // flow -- wins over the view's, so a card drops it with :host([size]).)
+      //
+      // THE TAB BAR'S ROOM comes out of the height (docs/phase11/HOME-GRID.md,
+      // "The tab bar"): the bar pads the view on its side and says how much
+      // as --hk-bar-room on it (top or bottom; hk-tabbar.js publish()), and
+      // --hk-tabbar-h on <html> at the bottom. The canvas fits the remaining
+      // room uniformly; rows keep their logical height when the dock changes.
+      //
+      // Do not put clip-path on a cell: it creates a backdrop root, so a
+      // shared blur inside a swipe track cannot sample the wallpaper.
+      // Cards and swipe tracks clip their own content; the grid clips its
+      // outer boundary. Shadows can extend between the cells.
+      st.textContent =
+        ':host{--g-room:var(--hk-bar-room,var(--hk-tabbar-h,0px));display:block;position:relative;' +
+        'height:calc(100dvh - var(--g-room));max-height:calc(100dvh - var(--g-room));overflow:hidden;' +
+        'container-type:size;box-sizing:border-box}' +
+        '#root{--g-pad:' + GRID.pad + 'px;--g-gap:' + GRID.gap + 'px;' +
+        'box-sizing:border-box;display:grid;position:absolute;transform-origin:top left;padding:var(--g-pad);gap:var(--g-gap);' +
+        'grid-template-columns:repeat(var(--g-cols), ' + C.TILE.w + 'px);overflow:hidden}' +
+        '.band{grid-column:1 / -1;grid-row:1;min-width:0;min-height:0;overflow:hidden}' +
+        '.cell{position:relative;min-width:0;min-height:0;overflow:visible;' +
+        'container-type:size;container-name:hk-cell}' +
+        '.cell>*,.band>*{display:block;box-sizing:border-box;width:100%;max-height:100%;margin:0!important}' +
+        '.cell>*{height:100%}' +
+        // HIDE BOX (2026-10-24): the block's boxes (card and panel plates, hkCards.plate) clear, no edge, no shadow and
+        // no frost behind them -- its tiles keep theirs; the clock reads --hk-bare
+        '.cell[data-bare]{--hk-bare:1;--hk-block-plate:transparent;--hk-block-edge:transparent;--hk-block-shadow:none;--hk-block-glass:0;--hk-block-backdrop:none}' +
+        // a card that only listens (a pop-up, the docked bar) takes no room
+        '.aside{position:absolute;left:0;top:0;width:0;height:0;overflow:visible}' +
+        // VIEWS (2026-10-24, StandBy's): a screen's views share the grid, each
+        // a canvas's width aside from the one showing (--cur) -- the root
+        // clips them -- and slide in as one, following a finger (--drag)
+        '.cell[data-view]{transform:translateX(calc((var(--v) - var(--cur, 0)) * var(--g-w) + var(--drag, 0px)));' +
+        'transition:transform .45s cubic-bezier(.32,.72,0,1)}' +
+        '#root.dragging .cell[data-view]{transition:none}' +
+        // (and not drawn while they rest out of sight: Safari lets a scaled grid's scrollers and
+        // videos past its clip, so a camera or a room's pages showed through in the next view)
+        '#root:not(.dragging):not(.sliding) .cell[data-view][inert]{visibility:hidden}' +
+        ':host([views]){touch-action:pan-y}' +
+        // ...and their dots, under the grid: a tap goes to that view
+        '.vdots{position:absolute;left:50%;transform:translateX(-50%);display:none;gap:2px;z-index:2}' +
+        ':host([views]) .vdots{display:flex}' +
+        '.vdots button{all:unset;box-sizing:border-box;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}' +
+        '.vdots button::after{content:"";width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.35);transition:background .2s}' +
+        '.vdots button[aria-current="true"]::after{background:rgba(255,255,255,.95)}' +
+        '.vdots button:focus-visible{outline:2px solid rgba(255,255,255,.7);border-radius:50%}';
+      this._sr.appendChild(st);
+      var root = document.createElement('div');
+      root.id = 'root';
+      this._sr.appendChild(root);
+      this._root = root;
+      var dots = document.createElement('div');
+      dots.className = 'vdots';
+      dots.setAttribute('role', 'tablist');
+      dots.setAttribute('aria-label', 'Views');
+      this._sr.appendChild(dots);
+      this._dots = dots;
+      this._swipeViews();
+    }
+    // THE VIEWS' SWIPE: a finger (or a pointer) moving sideways anywhere on
+    // the grid takes the views with it, unless it began on something that
+    // moves sideways itself -- a block that swipes its own pages, a slider, a
+    // dial; past a fifth of the width, or quickly, it lands on the next. The
+    // first and the last view give a little, and come back.
+    _swipeViews() {
+      var self = this, d = null;
+      var OWN = 'hk-pager-card,[role="slider"],.ring,.vs,input,select,textarea';
+      var mine = function (e) {
+        var path = e.composedPath ? e.composedPath() : [];
+        return !path.some(function (n) {
+          if (!n || !n.matches) return false;
+          if (n.localName === 'hk-pager-card') return (n._pages || []).length > 1;
+          return n.matches(OWN);
+        });
+      };
+      this.addEventListener('pointerdown', function (e) {
+        if (self._views() < 2 || (e.button !== undefined && e.button !== 0) || !mine(e)) return;
+        d = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, on: false };
+      });
+      this.addEventListener('pointermove', function (e) {
+        if (!d || e.pointerId !== d.id) return;
+        var dx = e.clientX - d.x, dy = e.clientY - d.y;
+        if (!d.on) {
+          if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.4) { if (Math.abs(dy) > 14) d = null; return; }
+          d.on = true;
+          try { self.setPointerCapture(e.pointerId); } catch (x) { /* a test page */ }
+          self._root.classList.add('dragging');
+        }
+        var k = self._gridScale || 1, n = self._views(), at = self._view || 0;
+        // (past the first or the last: a third of the finger's travel)
+        if ((at === 0 && dx > 0) || (at === n - 1 && dx < 0)) dx /= 3;
+        self._root.style.setProperty('--drag', (dx / k).toFixed(1) + 'px');
+      });
+      var end = function (e) {
+        if (!d || (e && e.pointerId !== d.id)) return;
+        var was = d; d = null;
+        if (!was.on) return;
+        self._root.classList.remove('dragging');
+        var dx = (e ? e.clientX : was.x) - was.x, w = (self._root.offsetWidth || 1) * (self._gridScale || 1);
+        var fast = Math.abs(dx) / Math.max(1, Date.now() - was.t) > 0.5;
+        self._root.style.removeProperty('--drag');
+        if (e && e.type === 'pointerup' && (Math.abs(dx) > w / 5 || (fast && Math.abs(dx) > 30))) self._showView((self._view || 0) + (dx < 0 ? 1 : -1));
+        // the tap a swipe ends with is no tap on the block under it
+        self._eatClick = Date.now();
+      };
+      this.addEventListener('pointerup', end);
+      this.addEventListener('pointercancel', end);
+      this.addEventListener('click', function (e) {
+        if (self._eatClick && Date.now() - self._eatClick < 350) { e.stopPropagation(); e.preventDefault(); }
+        self._eatClick = 0;
+      }, true);
+    }
+    _views() { return this._config ? this._grid().views : 1; }
+    // the view to show (the swipe, a dot, the editor's View)
+    _showView(i) {
+      var n = this._views();
+      i = Math.max(0, Math.min(n - 1, i | 0));
+      // (both views drawn while one slides out and the other in)
+      if (this._root && this._view !== undefined && this._view !== i) {
+        var root = this._root;
+        root.classList.add('sliding');
+        clearTimeout(this._sliding);
+        this._sliding = setTimeout(function () { root.classList.remove('sliding'); }, 500);
+      }
+      this._view = i;
+      if (this._root) this._root.style.setProperty('--cur', String(i));
+      var self = this;
+      if (this._dots) {
+        if (this._dots.childNodes.length !== n) {
+          this._dots.textContent = '';
+          for (var k = 0; k < n; k++) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-label', 'View ' + (k + 1));
+            (function (k) { b.addEventListener('click', function (e) { e.stopPropagation(); self._showView(k); }); })(k);
+            this._dots.appendChild(b);
+          }
+        }
+        Array.prototype.forEach.call(this._dots.childNodes, function (b, k) { b.setAttribute('aria-current', String(k === i)); });
+      }
+      // (what is in another view is out of reach: no focus, nothing read out)
+      Array.prototype.forEach.call(this._root ? this._root.childNodes : [], function (c) {
+        if (!c.hasAttribute || !c.hasAttribute('data-view')) return;
+        var off = +c.getAttribute('data-view') !== i;
+        if (off) c.setAttribute('inert', ''); else c.removeAttribute('inert');
+        if (off) c.setAttribute('aria-hidden', 'true'); else c.removeAttribute('aria-hidden');
+      });
+    }
+
+    // the grid's numbers, checked (what hk_core checks; a view written by
+    // hand gets the defaults)
+    _grid() {
+      var g = (this._config && this._config.grid) || {};
+      var cols = [6, 3, 2].indexOf(g.cols) >= 0 ? g.cols : 6;
+      var rows = (g.rows >= 2 && g.rows <= 6 && g.rows === Math.floor(g.rows)) ? g.rows : 4;
+      return { cols: cols, rows: rows, band: g.band !== false, scale: Number.isInteger(g.scale) && g.scale >= 50 && g.scale <= 100 ? g.scale : 100,
+               grow: g.grow === true, night: g.night && (g.night.mode === 'night' || g.night.mode === 'always') ? g.night : null,
+               views: g.views >= 2 && g.views <= 4 && g.views === Math.floor(g.views) ? g.views : 1 };
+    }
+
+    _place() {
+      if (!this._root || !this._config) return;
+      var g = this._grid(), root = this._root, top = g.band ? 1 : 0;
+      root.style.setProperty('--g-cols', String(g.cols));
+      root.style.setProperty('--g-rows', String(g.rows));
+      root.style.gridTemplateRows = (top ? GRID.band + 'px ' : '') + 'repeat(' + g.rows + ', ' + C.TILE.tall + 'px)';
+      var cfgs = this._config.cards || [], els = this._cards || [];
+      this._slots = this._slots || [];
+      // RECONCILE, NEVER EMPTY-AND-REFILL (hk-grid-view's reason): a slot per
+      // config card, kept; only a card that changed is moved into it.
+      var want = [];
+      cfgs.forEach(function (cfg, i) {
+        var el = els[i];
+        var slot = this._slots[i] || (this._slots[i] = document.createElement('div'));
+        var cell = cfg && cfg.hk_cell, sz = cell && GRID.sizes[cell.size];
+        if (cfg && cfg.hk_band && top) {
+          slot.className = 'band';
+          slot.removeAttribute('size');
+          slot.style.cssText = '';
+        } else if (sz && Array.isArray(cell.at)) {
+          var c = cell.at[0], r = cell.at[1];
+          // (a block past the edge -- only a hand-written view can have one --
+          // is left out, never allowed to grow the page)
+          if (!(c >= 0 && r >= 0 && c + sz[0] <= g.cols && r + sz[1] <= g.rows)) { want.push(null); return; }
+          slot.className = 'cell';
+          slot.setAttribute('size', cell.size);
+          if (cell.id) slot.setAttribute('data-id', cell.id); else slot.removeAttribute('data-id');
+          if (cell.bare) slot.setAttribute('data-bare', ''); else slot.removeAttribute('data-bare');
+          slot.style.cssText = '';
+          // (its view, when the screen has more than one)
+          var vw = g.views > 1 ? Math.max(0, Math.min(g.views - 1, cell.view | 0)) : -1;
+          if (vw >= 0) { slot.setAttribute('data-view', String(vw)); slot.style.setProperty('--v', String(vw)); } else slot.removeAttribute('data-view');
+          slot.style.gridColumn = (c + 1) + ' / span ' + sz[0];
+          slot.style.gridRow = (r + 1 + top) + ' / span ' + sz[1];
+          if (el && el.setAttribute) el.setAttribute('size', cell.size);
+        } else if (cfg && cfg.hk_band) {
+          want.push(null); return;                // the band, turned off
+        } else {
+          slot.className = 'aside';
+          slot.removeAttribute('size');
+          slot.style.cssText = '';
+        }
+        if (el && slot.firstChild !== el) {
+          while (slot.firstChild) slot.removeChild(slot.firstChild);
+          slot.appendChild(el);
+        } else if (!el) {
+          while (slot.firstChild) slot.removeChild(slot.firstChild);
+        }
+        want.push(slot);
+      }, this);
+      want = want.filter(Boolean);
+      want.forEach(function (slot, i) {
+        var at = root.childNodes[i] || null;
+        if (at !== slot) root.insertBefore(slot, at);
+      });
+      while (root.childNodes.length > want.length) root.removeChild(root.lastChild);
+      if (g.views > 1) this.setAttribute('views', String(g.views)); else this.removeAttribute('views');
+      this._showView(this._view || 0);
+      this._measure();
+      this._announce();
+    }
+
+    // ONE CELL'S SIZE, in px, as --hk-cell-w / --hk-cell-h on the grid (every
+    // card inherits them). Measured, not a calc() of container units: a
+    // custom property inherits as written, and inside a cell -- a container
+    // itself -- 100cqw would be the cell's width, not the screen's.
+    _measure() {
+      var root = this._root, g = this._grid();
+      if (!root || !this.isConnected || !root.getBoundingClientRect) return;
+      // Logical geometry never depends on viewport shape. Fit the whole canvas
+      // uniformly inside the room left by the dock; optionally make it smaller.
+      var pad = GRID.pad, gap = GRID.gap;
+      var w = g.cols * C.TILE.w + (g.cols - 1) * gap + 2 * pad;
+      var h = g.rows * C.TILE.tall + (g.rows - 1) * gap + 2 * pad + (g.band ? GRID.band + gap : 0);
+      // (Fill the Screen, `grow`: past its own size too -- a phone on its side, whose grid is smaller than it)
+      var scale = Math.min(g.grow ? Infinity : 1, this.clientWidth / w, this.clientHeight / h) * g.scale / 100;
+      if (!(scale > 0)) return;
+      this._gridScale = scale;
+      root.style.width = w + 'px'; root.style.height = h + 'px';
+      root.style.left = Math.max(0, (this.clientWidth - w * scale) / 2) + 'px';
+      root.style.top = Math.max(0, (this.clientHeight - h * scale) / 2) + 'px';
+      root.style.transform = 'scale(' + scale + ')';
+      root.style.setProperty('--g-w', w + 'px');
+      // the views' dots in the middle of the grid's foot margin
+      if (this._dots && g.views > 1) this._dots.style.top = Math.round(parseFloat(root.style.top) + (h - pad / 2) * scale - 9) + 'px';
+      root.style.setProperty('--hk-cell-w', C.TILE.w + 'px');
+      root.style.setProperty('--hk-cell-h', C.TILE.tall + 'px');
+    }
+
+    connectedCallback() {
+      if (super.connectedCallback) super.connectedCallback();
+      if (!this._ro && typeof ResizeObserver !== 'undefined') {
+        var me = this;
+        this._ro = new ResizeObserver(function () { me._measure(); });
+      }
+      if (this._ro) this._ro.observe(this);
+      this._measure();
+      this._announce();
+      this._nightCheck();
+      var self = this;
+      if (!this._nightT) this._nightT = setInterval(function () { self._nightCheck(); }, 30000);
+    }
+    disconnectedCallback() {
+      if (super.disconnectedCallback) super.disconnectedCallback();
+      if (this._ro) this._ro.disconnect();
+      this._announced = false;
+      if (this._nightT) { clearInterval(this._nightT); this._nightT = null; }
+      gridNight(false);
+    }
+    // NIGHT MODE (2026-10-24, StandBy's and the screensaver's clock's): while
+    // the screen's night lasts -- between From and Until, across midnight,
+    // or Always -- the whole screen one dim red (gridNight). Checked every
+    // 30 s; Home only: another page, or this view gone, lets it go.
+    _nightCheck() {
+      var n = this._config && this._grid().night;
+      gridNight(!!n && this.isConnected && gridNightNow(n, new Date()));
+    }
+    // hk-view-ready, as hk-grid-view says it (the sky repaints with the page)
+    _announce() {
+      if (this._announced || !this.isConnected || !this._config) return;
+      if ((this._config.cards || []).length && !(this._cards || []).length) return;
+      this._announced = true;
+      try {
+        window.dispatchEvent(new CustomEvent('hk-view-ready', { detail: { view: this } }));
+      } catch (e) {
+        console.error('[hk-home-grid-view] hk-view-ready listener threw', e);
+      }
+    }
+  }
+  window.hkHostClient.entry(HkHomeGridView);
+  if (!customElements.get('hk-home-grid-view')) {
+    customElements.define('hk-home-grid-view', HkHomeGridView);
+  }
+
+  // ---------------------------------------------------------- hk-pager-card
+  //
+  // A HOME GRID BLOCK THAT SWIPES (docs/phase11/HOME-GRID.md, "Blocks that
+  // swipe"): its pages side by side, one cell wide, and dots at their foot. Only a block swipes, never the screen.
+  //
+  // The catalog builds it for a block with `pages` (hk-grid-catalog.js
+  // config()): { item, ctx } -- the block as it is stored, and the house as the
+  // screen sees it. Its pages are the catalog's (pages()), asked again when
+  // the Music feature's speakers change, for a `speakers` block. A page's card
+  // is made when it is on screen or next to it, and kept.
+  //
+  // THE START PAGE: the first; with `start: tablet_room` (rooms, thermostats)
+  // the tablet's room's; a speakers block's the one playing, else this
+  // user's own speaker, else the tablet's room's. It goes back there when the
+  // screen's Return to Home timer fires (hk-idle.js: away() while it is off
+  // its start page, then the window event hk-idle-return), so the kitchen
+  // tablet doesn't stay on the den. A doorbell ring (the house's notification,
+  // kind doorbell) turns a cameras block to the doorbell's page.
+  //
+  // GESTURES (2026-10-23: the browser's own scroll-snap missed about one
+  // swipe in six -- a short flick snapped back, and a swipe on the dots went
+  // nowhere; tools/headless/pager_swipe_check.py measures it). The track is
+  // a scroller no finger can move: each page says touch-action pan-y, so an
+  // up-and-down pan stays the browser's (a room that scrolls still does) and
+  // a sideways one comes here as pointer events -- touch, pen and mouse
+  // alike. The pager follows the finger and, on letting go, turns a page if
+  // it went a fifth of the way or was flicked; else it goes back. A row inside
+  // a page that really scrolls sideways keeps its own swipe (the browser
+  // pans it and cancels ours).
+  //
+  // It claims only a drag that starts outside a control: one that starts on
+  // a slider, the thermostat's dial (touch-action pan-y or none, a range,
+  // role slider, data-hk-control) is the control's, and so is one in the left
+  // 20 px, which are the menu's edge swipe. Taking the drag, it cancels the
+  // touch for the card under it (pointercancel), as a browser's scroll does,
+  // so a light's press-and-hold never fires mid-swipe; a light that is
+  // already its dimmer says data-hk-control and keeps the drag.
+  //
+  // The dots are iOS's page control: one small group, centred, a dot every
+  // PAGER_PITCH px (never a dot to a 44 px slot, which spread nine rooms'
+  // dots across the whole block). The group is the target, as UIPageControl
+  // is: 44 px tall, a tap on a dot goes to its page, a tap beside the
+  // current one steps a page that way. Each page and dot is called "2 of 5";
+  // a change is said politely, so VoiceOver hears where it is.
+  var PAGER_EDGE = 20;          // the menu's edge swipe (hk-menu.js .edge)
+  var PAGER_DOTS = 20;          // the dots' overlay at the page's foot, px
+  var PAGER_DOT = 7;            // a dot, px (iOS's page control)
+  var PAGER_PITCH = 16;         // dot to dot, px (iOS's: 7 px dots, 9 px apart)
+  var PAGER_ROOM = 28;          // the plates' shadow room: as far as their shadows show
+  var PAGER_SLOP = 8;           // px a finger moves before it is a drag (and which way)
+  var PAGER_TURN = 0.2;         // of a page's width: a drag that far turns it
+  var PAGER_FLICK = 0.3;        // px/ms: a flick that fast turns it, however short
+  var PAGER_STILL = 180;
+  var PAGER_HANDS_OFF = 60000;  // ms after a swipe that a following block keeps still        // ms without a scroll: the track has come to rest
+  var pagerSeq = 0;
+  function pagerAreaOf(client, id) {
+    var e = ((client && client.entities) || {})[id] || {}, devs = (client && client.devices) || {};
+    return e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id) || null;
+  }
+  // WHICH PAGE TO START ON. live: { room, states, home } -- the tablet's
+  // room, the house's states, this user's own speaker (hkMusic.home()).
+  function pagerStart(pages, item, live) {
+    var p = (item && item.pages) || {}, L = live || {}, list = pages || [];
+    var at = function (fn) { for (var i = 0; i < list.length; i++) if (fn(list[i])) return i; return -1; };
+    var i = -1;
+    if (p.source === 'speakers') {
+      i = at(function (pg) { var st = pg.entity && (L.states || {})[pg.entity]; return !!(st && st.state === 'playing'); });
+      if (i < 0 && L.home) i = at(function (pg) { return pg.entity === L.home; });
+      if (i < 0 && L.room) i = at(function (pg) { return pg.area === L.room; });
+    } else if (p.source === 'rooms') {
+      // A chosen room is the opening page, not an option silently replaced
+      // by the automatic room list. Legacy tablet-room starts still work.
+      var room = item && item.opts && item.opts.area;
+      if (room === 'tablet_room' || (!room && p.start === 'tablet_room')) room = L.room;
+      if (room) i = at(function (pg) { return pg.area === room; });
+    } else if (p.start === 'tablet_room' && L.room && p.source === 'thermostats') {
+      i = at(function (pg) { return pg.area === L.room; });
+    }
+    return i < 0 ? 0 : i;
+  }
+  // THE DOORBELL'S PAGE: the camera the ring names, else one called doorbell
+  // A CAMERAS BLOCK THAT FOLLOWS (2026-10-24, the owner: "like the camera
+  // strip does"; the block's `follow`): the page whose camera to show.
+  //   selector  the select / input_select the block names, else the screen's
+  //             Live Camera Follows (board camera_live), its option naming a
+  //             camera as the strip's do (hk-cameras.js _optionOf: the
+  //             camera's name, or the first words of it)
+  //   motion    the camera in the room where motion was seen: a motion,
+  //             occupancy or moving sensor on now (the latest to turn on),
+  //             else the latest to change in the last PAGER_MOTION_MS
+  // live: { states, entities, devices, board }. -1: nothing to follow.
+  var PAGER_MOTION_MS = 15 * 60000;
+  var PAGER_MOTION = { motion: 1, occupancy: 1, moving: 1, presence: 1 };
+  function pagerFollow(pages, item, live) {
+    var o = (item && item.opts) || {}, L = live || {}, st = L.states || {}, list = pages || [];
+    if (!o.follow || !(item.pages && item.pages.source === 'cameras')) return -1;
+    if (o.follow === 'selector') {
+      var sel = o.follow_select || (L.board || {}).camera_live, ss = sel && st[sel];
+      if (!ss || !ss.state) return -1;
+      var want = String(ss.state).toLowerCase();
+      for (var i = 0; i < list.length; i++) {
+        var cs = st[list[i].entity], n = String((cs && cs.attributes && cs.attributes.friendly_name) || list[i].entity || '').toLowerCase();
+        if (n === want || n.indexOf(want + ' ') === 0 || String(list[i].entity) === sel) return i;
+      }
+      return -1;
+    }
+    if (o.follow !== 'motion') return -1;
+    var rooms = {};
+    list.forEach(function (pg, k) { if (pg.area && rooms[pg.area] === undefined) rooms[pg.area] = k; });
+    var client = { entities: L.entities || {}, devices: L.devices || {} }, now = Date.now(), best = null;
+    Object.keys(st).forEach(function (id) {
+      if (id.split('.')[0] !== 'binary_sensor') return;
+      var s0 = st[id], a = s0.attributes || {}, e = (L.entities || {})[id] || {};
+      if (!PAGER_MOTION[a.device_class] || e.hidden || e.disabled_by) return;
+      var room = pagerAreaOf(client, id);
+      if (room === null || rooms[room] === undefined) return;
+      var at = Date.parse(s0.last_changed || s0.last_updated || '') || 0, on = s0.state === 'on';
+      if (!on && now - at > PAGER_MOTION_MS) return;
+      // on beats off; then the latest
+      if (!best || (on && !best.on) || (on === best.on && at > best.at)) best = { on: on, at: at, page: rooms[room] };
+    });
+    return best ? best.page : -1;
+  }
+  function pagerDoorbell(pages, camera) {
+    var list = pages || [], i;
+    for (i = 0; camera && i < list.length; i++) if (list[i].entity === camera) return i;
+    for (i = 0; i < list.length; i++) if (/doorbell/.test(String(list[i].entity || ''))) return i;
+    return -1;
+  }
+  // NO SLIDE for a dot's tap under Reduce Motion, nor in Flat (its motion
+  // off: hkSettings.rendering()): the page is simply there
+  function pagerCalm() {
+    try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true; } catch (e) { /* none */ }
+    var HS = window.hkSettings, r = null;
+    try { r = HS && typeof HS.rendering === 'function' ? HS.rendering() : null; } catch (e) { r = null; }
+    return !!(r && r.motion === false);
+  }
+  // A CONTROL that owns its own sideways drag
+  function pagerControl(el) {
+    if (!el || el.nodeType !== 1 || !el.getAttribute) return false;
+    if (el.localName === 'input' && String(el.type || el.getAttribute('type')).toLowerCase() === 'range') return true;
+    if (el.getAttribute('role') === 'slider' || el.hasAttribute('data-hk-control')) return true;
+    var ta = '';
+    try { ta = typeof getComputedStyle === 'function' ? getComputedStyle(el).touchAction : ''; } catch (e) { ta = ''; }
+    ta = ta || (el.style && el.style.touchAction) || '';
+    return ta === 'none' || ta === 'pan-y';
+  }
+  // DOES THE PAGER TAKE THIS TOUCH: path is the event's composed path, from
+  // the element touched up to (not past) `stop`; x its clientX. The pager's
+  // own parts (a page, the dots: data-pager-part) are never a control.
+  function pagerClaims(path, x, stop) {
+    if (typeof x === 'number' && x < PAGER_EDGE) return false;
+    var list = path || [];
+    for (var i = 0; i < list.length && list[i] !== stop; i++) {
+      var el = list[i];
+      if (el && el.hasAttribute && el.hasAttribute('data-pager-part')) continue;
+      if (pagerControl(el)) return false;
+    }
+    return true;
+  }
+
+  class HkPagerCard extends HkBase {
+    static get CSS() {
+      var C0 = window.hkCards, v = C0.v, S = PAGER_ROOM;
+      // (:host>div: the card's own root, which holds the pager)
+      //
+      // THE PLATES' SHADOWS: a page's card fills the page, so the track
+      // reaches S px past the block on every side (a negative margin, its
+      // padding the same) and the pages are 2S apart: at rest a page's
+      // shadow shows, its neighbour doesn't. The track takes no touches of
+      // its own -- it reaches over the blocks beside it; its pages do.
+      return ':host{display:block;position:relative;height:100%}:host>div{height:100%}' +
+        '.pager{position:relative;display:flex;flex-direction:column;height:100%}' +
+        // WHILE A PAGE MOVES the block clips at its own edge (clip, not
+        // clip-path: no backdrop root for the shared blur), and the block
+        // itself casts the plate's shadow the moving pages can't -- the
+        // same one, so nothing changes as the page starts or stops. See
+        // _moving().
+        '.pager.moving{overflow:clip;border-radius:' + C0.M.radius + '}' +
+        // (only what falls outside the block: a look's shadow may carry an
+        // inset highlight, which would draw across the gap between pages;
+        // a clip-path on this pseudo-element clips nothing else)
+        ':host([data-moving])::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:' + C0.M.radius + ';' +
+        'box-shadow:var(--hk-look-shadow, ' + v('glass-shadow-tall') + ');' +
+        'clip-path:polygon(evenodd,-60px -60px,calc(100% + 60px) -60px,calc(100% + 60px) calc(100% + 60px),-60px calc(100% + 60px),-60px -60px,' +
+        '0 0,0 100%,100% 100%,100% 0,0 0)}' +
+        '.track{flex:1 1 auto;min-height:0;display:flex;gap:' + (2 * S) + 'px;margin:-' + S + 'px -' + S + 'px -' + S + 'px;' +
+        // STILL A SIDEWAYS SCROLLER (overflow-x auto), though no finger
+        // scrolls it (its pages say pan-y; the pager sets scrollLeft): the
+        // shared blur (hk-glass.js) puts its layer inside the nearest
+        // scroller, so the frost rides along with the pages. A clipped box
+        // here left the layer on the page, re-measured behind the moving
+        // pages -- the background slid out of line in Safari (2026-10-23).
+        'padding:' + S + 'px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none}' +
+        '.track::-webkit-scrollbar{display:none}' +
+        '.track{pointer-events:none}.page{pointer-events:auto}' +
+        '.track.dragging{cursor:grabbing;user-select:none;-webkit-user-select:none}' +
+        // each page is the cell its card lays itself out in (hk-cell): the
+        // full block size; dots sit inside its foot so adjacent plates align
+        '.page{position:relative;flex:0 0 100%;width:100%;height:100%;min-width:0;' +
+        'touch-action:pan-y;container-type:size;container-name:hk-cell}' +
+        '.page>*{display:block;box-sizing:border-box;width:100%;height:100%;margin:0!important}' +
+        '.dots{position:absolute;bottom:0;left:0;right:0;z-index:1;height:' + PAGER_DOTS + 'px;min-height:0;' +
+        'display:flex;justify-content:center;align-items:flex-end;min-width:0;pointer-events:none}' +
+        '.pc{position:relative;display:flex;flex:none;box-sizing:border-box;max-width:calc(100% - 12px);align-items:flex-end;justify-content:center;height:44px;padding:0 10px;pointer-events:auto;cursor:pointer;' +
+        'touch-action:pan-y;-webkit-tap-highlight-color:transparent}' +
+        '.pc::before{content:"";position:absolute;bottom:3px;left:0;right:0;height:16px;border-radius:' + C0.R.capsule('16px') + ';background:rgba(30,30,36,.22);pointer-events:none}' +
+        '.pager.one .dots{display:none}' +
+        // 44 px targets, reaching up over the page's foot
+        '.dot{flex:0 1 ' + PAGER_PITCH + 'px;min-width:0;height:44px;margin:0;padding:0 0 7px;border:0;background:none;' +
+        'display:flex;align-items:flex-end;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
+        // a dot: the surface scale's `mark` (as notches and ticks are), the
+        // page it is on in `ink`; a fade between them, none for Reduce Motion
+        '.dot i{position:relative;display:block;width:' + PAGER_DOT + 'px;height:' + PAGER_DOT + 'px;border-radius:50%;background:' + v('mark') + ';' +
+        'transition:background-color ' + C0.DUR.fade + ' ease}' +
+        '.dot[aria-current=true] i{background:' + v('ink') + '}' +
+        '@media (prefers-reduced-motion:reduce){.dot i{transition:none}}' +
+        '.say{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}';
+    }
+    setConfig(config) {
+      if (!config || !config.item) throw new Error('hk-pager: `item` (a Home Grid block) is required');
+      this._key = this._key || ('pager-' + (++pagerSeq));
+      this._moved = false;
+      this._pgSig = null;
+      this._pages = null;                       // a new block starts at its start
+      super.setConfig(config);
+    }
+    getCardSize() { return 4; }
+    // the pages' signature: a speakers block's change with the Music
+    // feature's speakers; every other block's are its config's
+    _sigOf() {
+      var it = (this._config || {}).item || {};
+      return it.pages && it.pages.source === 'speakers' ? this._pageSig(this._pageList()) : 'static';
+    }
+    _pageSig(pages) { return pages.map(function (p) { return (p.entity || p.area || '') + ''; }).join('|') + '#' + pages.length; }
+
+    _ctx() {
+      var cfg = this._config || {}, ctx = Object.assign({}, cfg.ctx || {});
+      var it = cfg.item || {};
+      if (it.pages && it.pages.source === 'speakers') {
+        var HM = window.hkMusic, client = this.client;
+        var sp = HM && HM.speakers ? HM.speakers() : [];
+        // each room's speaker first, then the groups
+        sp = sp.filter(function (s) { return !s.members; }).concat(sp.filter(function (s) { return !!s.members; }));
+        ctx.speakers = sp.map(function (s) { return { entity: s.entity, area: pagerAreaOf(client, s.entity) }; });
+      }
+      return ctx;
+    }
+    _pageList() {
+      var G = window.hkGridCatalog;
+      return G && G.pages ? G.pages((this._config || {}).item, this._ctx()) : [];
+    }
+    _live() {
+      var client = this.client, G = window.hkGridCatalog, HM = window.hkMusic;
+      var M = window.hkCards && window.hkCards.menu;
+      return { room: G && G.tabletRoom ? G.tabletRoom(client) : null,
+               states: (client && client.states) || {},
+               entities: (client && client.entities) || {}, devices: (client && client.devices) || {},
+               board: (M && M.board ? M.board() : null) || {},
+               home: HM && HM.home ? HM.home() : null };
+    }
+    // a following block starts (and comes back) on the camera it follows
+    _startIndex() {
+      var item = (this._config || {}).item, live = this._live(), f = pagerFollow(this._pages || [], item, live);
+      return f >= 0 ? f : pagerStart(this._pages || [], item, live);
+    }
+
+    _render() {
+      var pages = this._pageList(), sig = this._pageSig(pages);
+      if (this._built && sig === this._pgSig) return;
+      // a rebuild (a speaker came or went, a new size) keeps the page it was on
+      var keep = this._pages && this._index >= 0 ? this._pages[this._index] : null;
+      this._built = true;
+      this._pgSig = sig;
+      this._pages = pages;
+      this._els = [];
+      var self = this, n = pages.length, size = ((this._config || {}).item || {}).size;
+      var root = this._root;
+      root.innerHTML = '';
+      var pager = document.createElement('div');
+      pager.className = 'pager' + (n < 2 ? ' one' : '');
+      var track = document.createElement('div');
+      track.className = 'track';
+      var dots = document.createElement('div');
+      dots.className = 'dots';
+      var pc = document.createElement('div');
+      pc.className = 'pc';
+      pc.setAttribute('data-pager-part', '');
+      pc.style.width = (n * PAGER_PITCH + 20) + 'px';
+      dots.appendChild(pc);
+      // beside the dots: a page back or on, by which side of the current dot
+      pc.addEventListener('click', function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        var cur = self._dots[self._index];
+        if (!cur || !cur.getBoundingClientRect) return;
+        var r = cur.getBoundingClientRect(), to = self._index + (e.clientX < r.left + r.width / 2 ? -1 : 1);
+        if (to < 0 || to >= n) return;
+        self._moved = true; self._touchedAt = Date.now();
+        self.goTo(to, true);
+      });
+      var say = document.createElement('div');
+      say.className = 'say';
+      say.setAttribute('aria-live', 'polite');
+      this._slots = pages.map(function (pg, i) {
+        var slot = document.createElement('div');
+        slot.className = 'page';
+        slot.setAttribute('data-pager-part', '');
+        slot.setAttribute('role', 'group');
+        slot.setAttribute('aria-label', (i + 1) + ' of ' + n);
+        if (size) slot.setAttribute('size', size);
+        track.appendChild(slot);
+        return slot;
+      });
+      this._dots = pages.map(function (pg, i) {
+        var b = document.createElement('button');
+        b.className = 'dot';
+        b.type = 'button';
+        b.setAttribute('aria-label', (i + 1) + ' of ' + n);
+        b.appendChild(document.createElement('i'));
+        b.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          self._moved = true; self._touchedAt = Date.now();
+          self.goTo(i, true);
+        });
+        pc.appendChild(b);
+        return b;
+      });
+      pager.appendChild(track);
+      pager.appendChild(dots);
+      pager.appendChild(say);
+      root.appendChild(pager);
+      this._track = track;
+      this._say = say;
+      this._wireTrack(track, pager);
+      if (this._ro) { this._ro.disconnect(); if (this.isConnected) this._ro.observe(track); }
+      this._index = -1;
+      var at = -1;
+      if (keep) for (var k = 0; k < pages.length && at < 0; k++) if (this._pageSig([pages[k]]) === this._pageSig([keep])) at = k;
+      this.goTo(at >= 0 ? at : this._startIndex(), false);
+    }
+
+    _wireTrack(track, pager) {
+      var self = this;
+      track.addEventListener('scroll', function () {
+        self._moving();
+        if (self._scrollQ) return;
+        self._scrollQ = true;
+        requestAnimationFrame(function () { self._scrollQ = false; self._settle(); });
+      }, { passive: true });
+      // Horizontal wheel/trackpad scrolling is navigation too. Without
+      // this, the next state push follows the automatic start page again.
+      track.addEventListener('wheel', function (e) {
+        var dx = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+        if (!dx || (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(dx))) return;
+        // A horizontally scrolling control inside the card owns its wheel.
+        var path = e.composedPath ? e.composedPath() : [e.target];
+        for (var k = 0; k < path.length && path[k] !== track; k++) {
+          var el = path[k];
+          if (!el || el.nodeType !== 1) continue;
+          var ox = getComputedStyle(el).overflowX;
+          if ((ox === 'auto' || ox === 'scroll') && el.scrollWidth > el.clientWidth + 1) return;
+        }
+        e.preventDefault();
+        self._moved = true; self._touchedAt = Date.now();
+        // One page per wheel gesture, including its momentum tail.
+        var now = Date.now();
+        if (!self._wheelAt || now - self._wheelAt > 180) { self._wheelSum = 0; self._wheelTurn = false; }
+        self._wheelAt = now;
+        self._wheelSum += dx * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? track.clientWidth : 1);
+        if (!self._wheelTurn && Math.abs(self._wheelSum) >= 24) {
+          self._wheelTurn = true;
+          self.goTo(self._index + (self._wheelSum > 0 ? 1 : -1), true);
+        }
+      }, { passive: false, capture: true });
+      // THE DRAG, for every pointer (GESTURES above): on the whole pager, so
+      // a swipe that starts on the dots turns the page too
+      pager.addEventListener('pointerdown', function (e) {
+        self._eatClick = false;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        self._moved = true; self._touchedAt = Date.now();               // touched: the start page stops following the house
+        if ((self._pages || []).length < 2) return;
+        var path = e.composedPath ? e.composedPath() : [e.target];
+        if (!pagerClaims(path, e.clientX, pager)) return;
+        if (path.some(function (el) { return el !== pager && el.matches && el.matches('input,select,textarea,[contenteditable=true]'); })) return;
+        self._drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: track.scrollLeft, from: self._index,
+                       moved: false, target: path[0], pts: [[e.timeStamp, e.clientX]] };
+      }, true);
+      pager.addEventListener('pointermove', function (e) {
+        var d = self._drag;
+        if (!d || e.pointerId !== d.id) return;
+        if (e.pointerType === 'mouse' && !e.buttons) { self._drag = null; return; }
+        var dx = e.clientX - d.x, dy = e.clientY - d.y;
+        if (!d.moved) {
+          // a light held into its dimmer keeps the drag
+          var path = e.composedPath ? e.composedPath() : [e.target];
+          if (path.some(function (el) { return el !== pager && el.hasAttribute && el.hasAttribute('data-hk-control'); })) { self._drag = null; return; }
+          if (Math.abs(dx) < PAGER_SLOP && Math.abs(dy) < PAGER_SLOP) return;
+          if (Math.abs(dy) > Math.abs(dx)) { self._drag = null; return; }    // up or down: not ours
+          d.moved = true;
+          track.classList.add('dragging');
+          self._moving();
+          // the card under the finger lets go, as it would for a scroll
+          try {
+            d.target.dispatchEvent(new PointerEvent('pointercancel', { pointerId: e.pointerId, pointerType: e.pointerType,
+                                                                       bubbles: true, composed: true }));
+          } catch (x) { /* no PointerEvent: a test page */ }
+          try { pager.setPointerCapture(e.pointerId); } catch (x) { /* already released */ }
+        }
+        var scale = track.getBoundingClientRect().width / track.clientWidth || 1;
+        track.scrollLeft = d.left - dx / scale;
+        self._moving();
+        d.pts.push([e.timeStamp, e.clientX]);
+        if (d.pts.length > 6) d.pts.shift();
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+      }, { capture: true, passive: false });
+      var finish = function (e) {
+        var d = self._drag;
+        // (the pointercancel sent above is for the card, not for us; and
+        // taking the capture makes the card lose its own: only ours counts)
+        if (!d || e.pointerId !== d.id || (e.type === 'pointercancel' && !e.isTrusted) ||
+            (e.type === 'lostpointercapture' && e.target !== pager)) return;
+        self._drag = null;
+        track.classList.remove('dragging');
+        try { if (pager.hasPointerCapture(e.pointerId)) pager.releasePointerCapture(e.pointerId); } catch (x) { /* gone */ }
+        if (!d.moved) return;
+        self._eatClick = true;
+        var w = track.clientWidth || 1, to = Math.round(track.scrollLeft / w);
+        if (e.type === 'pointerup' && to === d.from) {
+          var scale = track.getBoundingClientRect().width / w || 1, went = (e.clientX - d.x) / scale;
+          var p0 = d.pts[0], p1 = d.pts[d.pts.length - 1], dt = p1[0] - p0[0];
+          var speed = dt > 0 && e.timeStamp - p1[0] < 100 ? (p1[1] - p0[1]) / scale / dt : 0;
+          if (went < -w * PAGER_TURN || speed < -PAGER_FLICK) to = d.from + 1;
+          else if (went > w * PAGER_TURN || speed > PAGER_FLICK) to = d.from - 1;
+        }
+        if (e.type !== 'pointerup') to = d.from;           // the browser took it: back where it was
+        self.goTo(to, true);
+      };
+      pager.addEventListener('pointerup', finish, true);
+      pager.addEventListener('pointercancel', finish, true);
+      pager.addEventListener('lostpointercapture', finish, true);
+      pager.addEventListener('dragstart', function (e) { e.preventDefault(); });
+      pager.addEventListener('click', function (e) {
+        if (!self._eatClick) return;
+        self._eatClick = false;
+        e.preventDefault(); e.stopImmediatePropagation();
+      }, true);
+    }
+    // WHILE A PAGE MOVES -- a drag, its slide home, a dot's or the wheel's
+    // turn -- the block clips at its own edge: the track reaches PAGER_ROOM
+    // past the block for the plates' shadows at rest, and a page passing
+    // through that reach slid over the blocks beside it (the owner,
+    // 2026-10-24); clipped only at the sides, the shadow under the block
+    // had hard ends. The clip lets go once the track has been still a
+    // moment and nobody is holding it.
+    _moving() {
+      var pager = this._track && this._track.parentNode, self = this;
+      if (!pager) return;
+      pager.classList.add('moving');
+      this.setAttribute('data-moving', '');
+      clearTimeout(this._stillT);
+      this._stillT = setTimeout(function () {
+        if (self._drag && self._drag.moved) { self._moving(); return; }
+        pager.classList.remove('moving');
+        self.removeAttribute('data-moving');
+      }, PAGER_STILL);
+    }
+    // the page the track has come to rest on
+    _settle() {
+      var t = this._track, w = t && t.clientWidth;
+      if (!w) return;
+      this._show(Math.round((t.scrollLeft || 0) / w));
+    }
+
+    // TURN TO PAGE i: smooth for a tap, at once otherwise
+    goTo(i, smooth) {
+      var n = (this._pages || []).length;
+      if (!n) return;
+      i = Math.max(0, Math.min(n - 1, i | 0));
+      this._want = i;
+      var t = this._track, w = t && t.clientWidth;
+      if (w) {
+        if (t.scrollTo) t.scrollTo({ left: i * w, behavior: smooth && !pagerCalm() ? 'smooth' : 'auto' });
+        else t.scrollLeft = i * w;
+      }
+      this._show(i);
+    }
+    _show(i) {
+      var n = (this._pages || []).length;
+      if (!n) return;
+      i = Math.max(0, Math.min(n - 1, i));
+      for (var k = Math.max(0, i - 1); k <= Math.min(n - 1, i + 1); k++) this._make(k);
+      if (i === this._index) return;
+      this._index = i;
+      (this._dots || []).forEach(function (d, k) { d.setAttribute('aria-current', k === i ? 'true' : 'false'); });
+      if (this._say && n > 1) this._say.textContent = (i + 1) + ' of ' + n;
+      this._away(i !== this._startIndex());
+    }
+    // a page's card, made the first time it is on screen or next to it
+    _make(i) {
+      if (this._els[i] || !this._pages[i]) return;
+      var el = window.hkCards.createCard(this._pages[i].card, this.client);
+      if (!el) return;
+      var size = ((this._config || {}).item || {}).size;
+      if (size && el.setAttribute) el.setAttribute('size', size);
+      if (this._pages.length > 1 && el.setAttribute) {
+        el.setAttribute('data-grid-pager', '');
+        // Interactive footers stay above the dots' 44px hit targets.
+        el.style.setProperty('--hk-pager-safe', '24px');
+      }
+      this._els[i] = el;
+      this._slots[i].appendChild(el);
+    }
+    // off its start page: the Return to Home timer arms on Home too
+    _away(on) {
+      on = !!on && this.isConnected;
+      if (on === !!this._isAway) return;
+      this._isAway = on;
+      var I = window.hkIdle;
+      if (I && I.away) I.away(this._key, on);
+    }
+    // the timer fired: back to the start page, at once (nobody is looking)
+    _return() {
+      this._moved = false;
+      this.goTo(this._startIndex(), false);
+    }
+    _ring(n) {
+      var cfg = this._config || {}, it = cfg.item || {};
+      if (!n || n.type !== 'notification' || n.kind !== 'doorbell') return;
+      if (!it.pages || it.pages.source !== 'cameras') return;
+      var i = pagerDoorbell(this._pages, n.camera);
+      if (i < 0) return;
+      this._moved = true;
+      this.goTo(i, true);
+    }
+
+    // EACH NEW CLIENT: every page's card gets it; and until somebody touches
+    // the block, the start page follows (the client may come after the first
+    // draw, with what is playing)
+    _receiveClient() {
+      super._receiveClient();
+      var els = this._els || [], client = this.client;
+      for (var i = 0; i < els.length; i++) if (els[i]) window.hkHostClient.bridge(els[i], client);
+      if (this._built && !this._moved && this._pages && this._pages.length > 1) {
+        var s = this._startIndex();
+        if (s !== this._index) this.goTo(s, false);
+      }
+      // A FOLLOWING BLOCK turns to the camera it follows when that changes --
+      // unless someone swiped it in the last PAGER_HANDS_OFF ms
+      var f = this._built ? pagerFollow(this._pages || [], (this._config || {}).item, this._live()) : -1;
+      if (f >= 0 && f !== this._followed) {
+        this._followed = f;
+        if (f !== this._index && !(Date.now() - (this._touchedAt || 0) < PAGER_HANDS_OFF)) this.goTo(f, true);
+      }
+    }
+
+    connectedCallback() {
+      super.connectedCallback();
+      var self = this;
+      if (!this._onIdle) {
+        this._onIdle = function () { self._return(); };
+        this._onHouse = function (e) { self._ring(e && e.detail); };
+        this._onMusic = function () { self.redraw(); };
+      }
+      window.addEventListener('hk-idle-return', this._onIdle);
+      window.addEventListener('hk-house-event', this._onHouse);
+      var it = (this._config || {}).item || {};
+      if (!this._offMusic && it.pages && it.pages.source === 'speakers' && window.hkMusic && window.hkMusic.onChange) {
+        this._offMusic = window.hkMusic.onChange(function () {
+          if (self._pgSig !== self._pageSig(self._pageList())) self._onMusic();
+        });
+      }
+      // the track has its width now: turn to the page it should be on, and
+      // keep it there through a resize (the tablet turned)
+      if (!this._ro && typeof ResizeObserver !== 'undefined') {
+        this._ro = new ResizeObserver(function () { if (!self._drag && self._index >= 0) self.goTo(self._index, false); });
+      }
+      if (this._ro && this._track) this._ro.observe(this._track);
+      if (this._index >= 0) this.goTo(this._index, false);
+      if (this._index >= 0) this._away(this._index !== this._startIndex());
+    }
+    disconnectedCallback() {
+      window.removeEventListener('hk-idle-return', this._onIdle);
+      window.removeEventListener('hk-house-event', this._onHouse);
+      if (this._offMusic) { this._offMusic(); this._offMusic = null; }
+      if (this._ro) this._ro.disconnect();
+      clearTimeout(this._stillT);
+      if (this._track && this._track.parentNode) this._track.parentNode.classList.remove('moving');
+      this.removeAttribute('data-moving');
+      var I = window.hkIdle;
+      if (this._isAway && I && I.away) I.away(this._key, false);
+      this._isAway = false;
+      this._drag = null;
+      super.disconnectedCallback();
+    }
+  }
+  if (!customElements.get('hk-pager-card')) customElements.define('hk-pager-card', HkPagerCard);
+
   window.hkLayout = { version: '1.0.0', pageHeaderMode: pageHeaderMode,
-                      gutter: function (el) { return HkGridView.gutter(el); } };
+                      gutter: function (el) { return HkGridView.gutter(el); },
+                      // the pager's decisions, for its tests
+                      gridNightNow: gridNightNow,
+                      pager: { start: pagerStart, doorbell: pagerDoorbell, follow: pagerFollow, claims: pagerClaims,
+                               control: pagerControl, EDGE: PAGER_EDGE } };
   });
 })();

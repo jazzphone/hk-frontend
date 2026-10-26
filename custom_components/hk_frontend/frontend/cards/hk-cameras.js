@@ -1407,6 +1407,18 @@
       // ONE CAMERA, NO LIVE TILE (a room with a single camera): one still,
       // the live tile's 16:9 -- not a lone column, which read as a crop
       if (!plan.live && plan.cols.length === 1 && plan.cols[0].length === 1) colW = liveW;
+      // ON A HOME GRID (G2): the block's size, from one cell's (--hk-cell-w /
+      // -h): W and XL one camera filling it, L two stacked (a 16:9 picture
+      // each at 402 x 162) -- the rest are the pager's (G4)
+      this._watchBlock();
+      var block = this._block(), under = null, liveH = H;
+      if (block && plan.live) {
+        H = block.h; liveW = block.w; liveH = H;
+        under = this._cellSize() === 'L' && plan.cols.length ? plan.cols[0][0] : null;
+        if (under) liveH = (H - SEAM) / 2;
+        plan.cols = [];
+      }
+      var liveRow = under ? '1' : '1 / 3';
       var halfH = (H - SEAM) / 2;
 
       this._children = [];
@@ -1424,13 +1436,13 @@
 
       if (plan.live && plan.still) {
         // slot 1 as a snapshot (Live First Camera off): the same box, no stream
-        var first = this._snap(plan.live, liveW, H);
+        var first = this._snap(plan.live, liveW, liveH);
         first.style.gridColumn = '1';
-        first.style.gridRow = '1 / 3';
+        first.style.gridRow = liveRow;
         plate.appendChild(first);
       } else if (plan.live) {
         // slot 1: the live camera, full height, uncropped
-        var liveAr = liveW + 'x' + Math.round(H);
+        var liveAr = liveW + 'x' + Math.round(liveH);
         // no live card on a state the new server has not sent (see _sigOf): the
         // poster holds the slot until the camera is back
         var stale = C.stale(this.client.states[plan.live.entity]), resting = !stale && this._resting();
@@ -1439,7 +1451,7 @@
         var liveBox = document.createElement('div');
         liveBox.className = 'live';
         liveBox.style.gridColumn = '1';
-        liveBox.style.gridRow = '1 / 3';
+        liveBox.style.gridRow = liveRow;
         var pa = document.createElement('img'), pb = document.createElement('img');
         pa.decoding = 'async'; pb.decoding = 'async'; pa.alt = ''; pb.alt = '';
         var liveAge = null;
@@ -1466,7 +1478,7 @@
         this._liveSlot = {
           el: lv, cam: plan.live, ar: liveAr, box: liveBox,
           poster: { box: liveBox, cam: plan.live, imgs: [pa, pb], front: -1,
-                    loading: [false, false], cssW: liveW, cssH: H, age: liveAge,
+                    loading: [false, false], cssW: liveW, cssH: liveH, age: liveAge,
                     cv: pcv.el, ctx: pcv.ctx }
         };
         // built resting: asleep, for the wake to remount (_resting)
@@ -1491,9 +1503,16 @@
           plate.appendChild(el2);
         }
       });
+      if (under) {
+        var low = this._snap(under, liveW, liveH);
+        low.style.gridColumn = '1';
+        low.style.gridRow = '2';
+        plate.appendChild(low);
+      }
       this._root.appendChild(plate);
       this._startTimer();
     }
+
 
     // EACH NEW CLIENT MUST REACH THE CHILDREN, and HkBase's default does not
     // do it -- it only gates the re-render. hk-row-card does the same.
@@ -2335,10 +2354,14 @@
         // beside the speaker.
         '.vol{height:56px;padding:0 20px;border-radius:28px;display:flex;align-items:center;',
         '  background:rgba(28,28,30,.66);box-shadow:0 4px 14px rgba(0,0,0,.25)}',
-        '.vol input{-webkit-appearance:none;appearance:none;width:180px;height:6px;border-radius:3px;',
-        '  background:linear-gradient(to right,#fff var(--v,100%),rgba(255,255,255,.28) var(--v,100%));',
+        // (the input a finger's 28 tall, its track the 6 px line drawn in it)
+        '.vol input{-webkit-appearance:none;appearance:none;width:180px;height:28px;background:none;',
         '  outline:none;margin:0;touch-action:none}',
-        '.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:13px;',
+        '.vol input::-webkit-slider-runnable-track{height:6px;border-radius:3px;',
+        '  background:linear-gradient(to right,#fff var(--v,100%),rgba(255,255,255,.28) var(--v,100%))}',
+        '.vol input::-moz-range-track{height:6px;border-radius:3px;',
+        '  background:linear-gradient(to right,#fff var(--v,100%),rgba(255,255,255,.28) var(--v,100%))}',
+        '.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:13px;margin-top:-10px;',
         '  background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.35)}',
         '.vol input::-moz-range-thumb{width:26px;height:26px;border:0;border-radius:13px;background:#fff}',
         // A PHONE (tested at 390 px): the live box is only ~206 px tall there,

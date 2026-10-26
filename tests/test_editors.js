@@ -15,7 +15,7 @@ window.customCards = [];
 var defined = {}, od = customElements.define.bind(customElements);
 customElements.define = function (n, c) { defined[n] = c; return od(n, c); };
 ['hk-base', 'hk-tile', 'hk-chip', 'hk-stat', 'hk-control', 'hk-row', 'hk-weather', 'hk-popup',
- 'hk-media', 'hk-cameras', 'hk-security', 'hk-home', 'hk-energy', 'hk-layout', 'hk-headers'].forEach(function (f) {
+ 'hk-media', 'hk-cameras', 'hk-security', 'hk-home', 'hk-energy', 'hk-layout', 'hk-headers', 'hk-grid-cards'].forEach(function (f) {
   load(DIR + 'frontend/cards/' + f + '.js');
 });
 var pass = 0, fail = 0;
@@ -36,7 +36,8 @@ function flatten(schema, out) {
 var RAW = /_/;                       // a label or option still showing a config key
 var JARGON = /`|hk-|button-card|swipe|\bTHE\b|\bpx\b/;
 
-var NOT_IN_PICKER = { 'hk-screensaver-status-card': 1, 'hk-screensaver-now-card': 1 };
+// (hk-pager-card: a Home Grid block's pages, built by the catalog from the block, never by hand)
+var NOT_IN_PICKER = { 'hk-screensaver-status-card': 1, 'hk-screensaver-now-card': 1, 'hk-pager-card': 1, 'hk-grid-conditional-card': 1, 'hk-grid-entity-card': 1 };
 var cards = Object.keys(defined).filter(function (n) { return /^hk-.*-card$/.test(n); }).sort();
 print('=== ' + cards.length + ' cards ===');
 cards.forEach(function (tag) {
@@ -127,6 +128,9 @@ ok('...in the card editor\'s preview', at(['hui-card', '#', 'hui-card-preview', 
 ok('on an HK screen (HK\'s grid view): not', !at(['hui-card', 'div', '#', 'hk-grid-view', 'hui-view']));
 ok('...nested in an HK card on an HK screen: not', !at(['div', '#', 'hk-row-card', 'hui-card', '#', 'hk-grid-view', 'hui-view']));
 ok('an overlay on the page body (screensaver, sheet, pop-up): not', !at(['div', '#', 'div', 'body']));
+// a Home Grid screen's Home (hk-home-grid-view: each card in its cell): its own screen, not someone else's
+ok('on a Home Grid screen (in its cell): not', !at(['hui-card', 'div', '#', 'hk-home-grid-view', 'hui-view']));
+ok('...nested in an HK card on a Home Grid: not', !at(['div', '#', 'hk-row-card', 'hui-card', 'div', '#', 'hk-home-grid-view']));
 // THE LIGHT LOOK (hk-base.js tone): someone else's dashboard, HA in light
 // mode, no sky -> the tokens on the card; anything else -> none of them
 function toned(foreignPage, dark, sky) {

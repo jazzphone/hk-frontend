@@ -385,12 +385,12 @@
     exceptional: 60
   };
 
-  function read(client) {
+  function read(client, weatherEntity) {
     var sun = client.states['sun.sun'];
     // Which weather entity, moon source and seasonal gate: Configure ->
     // Weather and Seasonal sky (hk-settings.js), with generic fallbacks when unset.
     var HS = window.hkSettings;
-    var wid = HS ? HS.weatherId(client.states) : null;
+    var wid = weatherEntity || (HS ? HS.weatherId(client.states) : null);
     var w = wid ? client.states[wid] : null;
     var a = (w && w.attributes) || {};
     // An entity with no reading (unknown or unavailable -- a weather outage,
@@ -458,7 +458,7 @@
           out.lively = Object.assign({}, look.lively, { quiet: roomQuiet(client, look.lively.room) });
         }
       }
-      if (!look.weather) {
+      if (!look.weather && !weatherEntity) {
         out.cover = 0;
         out.wind = 0;
         out.fog = false;
@@ -485,6 +485,9 @@
       out.seasonalOn = false;
     }
     if (PIN) for (var k in PIN) if (PIN.hasOwnProperty(k)) out[k] = PIN[k];
+    // An explicitly selected weather card describes its own weather,
+    // independently of the page's decorative background choice.
+    if (weatherEntity) out.backdrop = null;
     return out;
   }
 
@@ -4427,7 +4430,7 @@
       el: el,
       update: function (client) {
         if (!client || !client.states) return null;
-        var s = read(client);
+        var s = read(client, opts && opts.entity);
         if (skyOnly) s.season = '';            // no decorations either
         paint(el, s);
         // an overcast or wet day darkens the land with the sky
@@ -5721,6 +5724,43 @@
     });
   }
 
+  // THE IMAGE LOOK (2026-10-24, the owner: Flat's treatment for the Glass
+  // looks' Photo and Landscapes too; hkSettings.photoLook's `image`): the
+  // picture repainted once by hk-flat-image.js -- tinted or as taken, its
+  // brightness, and its Fade baked in toward the dark ground -- and handed
+  // on as a picture of its own (a blob address), so whatever reads the photo
+  // (the cap, a pre-rendered blur) reads the treated one. Kept for the last
+  // few pictures; a picture still being painted shows nothing new until it
+  // is done, never the untreated one first.
+  var TREATED = [], TREATED_MAX = 3;
+  function treatedPhoto(src, image, color, done) {
+    var key = src + '|' + [image.mode, image.strength, image.depth, image.brightness, image.fade, color].join('|');
+    var hit = TREATED.filter(function (t) { return t.key === key; })[0];
+    if (hit) { if (hit.url) return hit.url; hit.wait.push(done); return null; }
+    var job = { key: key, url: null, wait: [done] };
+    TREATED.push(job);
+    while (TREATED.length > TREATED_MAX) {
+      var old = TREATED.shift();
+      // (later: a layer may still be showing it while the next one lands)
+      if (old.url) setTimeout(URL.revokeObjectURL.bind(URL, old.url), 10000);
+    }
+    var settle = function (url) { job.url = url; var w = job.wait; job.wait = []; w.forEach(function (fn) { fn(url); }); };
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var cv = document.createElement('canvas');
+        if (!window.hkFlatImage.paint(cv, img, image, color)) throw new Error('no size');
+        var ctx = cv.getContext('2d');
+        ctx.fillStyle = window.hkFlatImage.fade(image.fade, 'dark');
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        cv.toBlob(function (blob) { settle(blob ? URL.createObjectURL(blob) : src); }, 'image/jpeg', 0.92);
+      } catch (e) { console.warn('[hk-sky] the photo could not be treated', e); settle(src); }
+    };
+    img.onerror = function () { settle(src); };
+    img.src = src;
+    return null;
+  }
+
   // ONE COVER TO THE NEXT, CROSSFADED (2026-10-14: switching between two
   // groups playing snapped the whole page from one color to the other in a
   // frame -- the user's recording). The cover going out stays on top as a
@@ -6216,7 +6256,20 @@
           mounted._hkGradL = mounted._hkRaw;
           // playmusic is the one static page whose backdrop is not fixed.
           if (opts.photo) {
-            paintPhoto(mounted, opts.photo, opts.look, mounted._hkGradL);
+            var im = opts.look && opts.look.image;
+            if (im && window.hkFlatImage) {
+              // its Image Look: the treated picture, once it is painted
+              var C0 = window.hkCards, want = opts.photo + '|' + JSON.stringify(im), el = mounted;
+              var tc = im.color === 'accent' ? (C0 && C0.flatAccentHex ? C0.flatAccentHex() : '#64798e') : im.color;
+              el._hkWantPhoto = want;
+              var ready = treatedPhoto(opts.photo, im, tc, function (url) {
+                if (el.isConnected && el._hkWantPhoto === want) paintPhoto(el, url, opts.look, el._hkGradL);
+              });
+              if (ready) paintPhoto(mounted, ready, opts.look, mounted._hkGradL);
+            } else {
+              mounted._hkWantPhoto = null;
+              paintPhoto(mounted, opts.photo, opts.look, mounted._hkGradL);
+            }
           } else if (opts.variant === 'playmusic') {
             paintAlbum(mounted, artUrl, mounted._hkGradL);
           } else {
@@ -6662,13 +6715,14 @@
   // polling rather than never repainting.
   function viewEl() { return SH.tags.view ? deepFind(SH.tags.view.toUpperCase()) : null; }
 
-  var ANNOUNCING = 'custom:hk-grid-view';
+  // (and a Home Grid screen's Home, hk-home-grid-view, the same way)
+  var ANNOUNCING = { 'custom:hk-grid-view': 1, 'custom:hk-home-grid-view': 1 };
   var navWait = null;
   function onNav() {
     if (navWait) { clearInterval(navWait); navWait = null; }
     if (offPanel()) { selfRender(); return; }      // tears a stale sky down; no poll
     var v = currentView(lovelaceCfg());
-    if (v && v.type === ANNOUNCING) {           // hk-view-ready will come
+    if (v && ANNOUNCING[v.type]) {           // hk-view-ready will come
       // A hash change (a pop-up) is not a page change and announces nothing.
       if (location.pathname !== mountedPath) navPending = Date.now();
       return;

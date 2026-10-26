@@ -35,6 +35,7 @@ from ..house import House
 # with the notifications' rules, read here by every settings check.
 from ..notifications.dnd import DND_MAX, hhmm, notify_dnd  # noqa: F401
 from ..sleep import rules as SR
+from . import home_grid as HG
 from . import kinds
 
 CONF_DASHBOARD = "dashboard"
@@ -496,11 +497,11 @@ def sky_photo(v: Any) -> str | None:
 # photo and custom colors you made (photo, gradient_custom: kept for next
 # time), or Advanced's dates, hemisphere and sources. A screen's reset is
 # SKY_RESET_BOARD to None: Same as All Screens.
-SKY_RESET = ("background", "color", "landscape", "photo_look", "landscape_look", "flat_background", "flat_color", "flat_image_look", "flat_fade", "flat_tint", "flat_tint_amount", "flat_tint_light",
+SKY_RESET = ("background", "color", "landscape", "photo_look", "landscape_look", "image_look", "flat_background", "flat_color", "flat_image_look", "flat_fade", "flat_tint", "flat_tint_amount", "flat_tint_light",
              "animations", "focus_pause", "moving", "weather", "precipitation",
              "cloud_style", "daytime", "gradient", "decorations", "decoration_style",
              "woodland", "themes", "liveliness_all", "liveliness", "liveliness_custom")
-SKY_RESET_BOARD = ("sky_background", "sky_color", "sky_landscape", "sky_photo_look", "sky_landscape_look",
+SKY_RESET_BOARD = ("sky_background", "sky_color", "sky_landscape", "sky_photo_look", "sky_landscape_look", "sky_image_look",
                    "sky_flat_background", "sky_flat_color", "sky_flat_image_look", "sky_flat_fade", "sky_flat_tint", "sky_flat_tint_amount", "sky_flat_tint_light",
                    "sky_animations", "sky_focus_pause", "sky_moving", "sky_weather", "sky_precipitation",
                    "sky_cloud_style", "sky_daytime", "sky_gradient", "sky_decorations", "sky_decoration_style",
@@ -1038,6 +1039,11 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # its own light and dark kept) and how bright (50 as the photo is)
             "flat_tint_amount": FLAT_TINT_AMOUNT, "flat_tint_light": 50,
             "flat_image_look": {}, "flat_page_image_looks": {},
+            # THE GLASS LOOKS' IMAGE LOOK (2026-10-24, the owner): Flat's
+            # treatment (flat_image_look's fields) for the other looks' Photo
+            # and Landscapes, kept apart from Flat's; {} is Off ("legacy"),
+            # the photo with its Photo Look alone
+            "image_look": {},
             # a page's own photo look (page_looks: {page: photo_look}); a
             # page missing has its screen's. A room page's key is its
             # address (room-kitchen), and one not set follows "rooms".
@@ -1130,7 +1136,9 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # doesn't fit (hk-base.js phoneForm)
              "bar_scroll_phone": "shrink", "button_phone": "chip", "bar_rooms_phone": "more",
              # Tabs in Bar / Tabs in Rail (TAB_BAR_TABS)
-             "bar_tabs": 6, "bar_tabs_rail": 6, "bar_size": "medium"},
+             "bar_tabs": 6, "bar_tabs_rail": 6, "bar_size": "medium",
+             # Labels: the tabs' names, or icons only (TAB_BAR_LABELS)
+             "bar_labels": "show"},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -1310,6 +1318,7 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     sk["flat_tint_light"] = int(tl) if isinstance(tl, (int, float)) and not isinstance(tl, bool) and 0 <= tl <= 100 else 50
     sk["flat_pages"] = flat_pages(sk.get("flat_pages")) or {}
     sk["flat_image_look"] = flat_image_look(sk.get("flat_image_look")) or {}
+    sk["image_look"] = flat_image_look(sk.get("image_look")) or {}
     sk["flat_page_image_looks"] = flat_page_image_looks(sk.get("flat_page_image_looks")) or {}
     # each over its own defaults: a partly stored object is still whole, and
     # a stored false stays false
@@ -1718,6 +1727,8 @@ TAB_BAR_FOLD = ("start", "end")
 TAB_BAR_START = ("full", "small")
 # the bar's size: its thickness (a rail's width), icons and labels together
 TAB_BAR_SIZES = ("small", "medium", "large")
+# TAB BAR LABELS (2026-10-24, the owner): each tab's name under its icon, or icons only -- a slimmer bar or rail
+TAB_BAR_LABELS = ("show", "icons")
 # how many PAGES a bar (bottom / top) and a rail (left / right) show at
 # most, Home and More not counted (6: eight tabs in all) -- a phone never
 # more than 3, what fits its width
@@ -1786,7 +1797,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "tab_bar_adjust": True,
     # Phones' While Scrolling (each its own since entry 1.12)
     "tab_bar_scroll_phone": "shrink",
-    "tab_bar_tabs": 6, "tab_bar_tabs_rail": 6, "tab_bar_size": "medium",
+    "tab_bar_tabs": 6, "tab_bar_tabs_rail": 6, "tab_bar_size": "medium", "tab_bar_labels": "show",
     # PHONES' OWN (BOARD_PHONE_MENUS): the menu, the screen's own as `menu`
     # is (None: as before phones had their own, phone_menu()); the button's
     # style and More's rooms, menu settings (MENU_KEYS)
@@ -1851,6 +1862,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # FLAT'S OWN (sky.flat_*): None / {} follow All Screens
     "sky_flat_background": None, "sky_flat_color": None, "sky_flat_fade": None, "sky_flat_pages": {}, "sky_flat_tint": None, "sky_flat_tint_amount": None, "sky_flat_tint_light": None,
     "sky_flat_image_look": {}, "sky_flat_page_image_looks": {},
+    # the Glass looks' Image Look, this screen's own fields ({} follows All Screens: sky.image_look)
+    "sky_image_look": {},
     # FLAT COLORS, this screen's own (settings.flat_colors): a field missing
     # follows All Screens; each page's own over them (flat_page_colors)
     "flat_colors": {}, "flat_page_colors": {},
@@ -1903,7 +1916,11 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # ...and on, WHICH Home: "" the generated one, or the address of one of
     # the house's custom pages -- a car's own first page over the generated
     # category pages
-    "home_view": ""}
+    "home_view": "",
+    # HOME STYLE (Home Grid, docs/phase11/HOME-GRID.md): "generated", Home as
+    # every screen builds it, or "grid" -- Home is this screen's own layout,
+    # home_grid (home_grid.py; None: none yet, and Home is generated)
+    "home_style": "generated", "home_grid": None}
 # A CAR'S BROWSER (a screen's car_layout / car_width): which Home it
 # generates there -- the whole one, or the car's own (the weather and the
 # house's status in a line, the chips, Scenes, Security and Favorites: no clock, the car
@@ -2006,6 +2023,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_adjust"] = d.get("tab_bar_adjust") is not False
     out["tab_bar_tabs"] = tab_count(d.get("tab_bar_tabs"))
     out["tab_bar_size"] = pick("tab_bar_size", TAB_BAR_SIZES)
+    out["tab_bar_labels"] = pick("tab_bar_labels", TAB_BAR_LABELS)
     out["tab_bar_tabs_rail"] = tab_count(d.get("tab_bar_tabs_rail"))
     out["tab_bar_scroll_phone"] = pick("tab_bar_scroll_phone", TAB_BAR_SCROLLS)
     out["menu_phone"] = d.get("menu_phone") if d.get("menu_phone") in BOARD_PHONE_MENUS else None
@@ -2035,6 +2053,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["car_width"] = car_width(d.get("car_width"))
     hv = str(d.get("home_view") or "").strip()
     out["home_view"] = hv if PAGE_PATH.match(hv) else ""
+    out["home_style"] = pick("home_style", HG.HOME_STYLES)
+    out["home_grid"] = HG.layout(d.get("home_grid"))
     out["menu_top"] = list(dict.fromkeys(k for k in (strs(d.get("menu_top")) or []) if VIEW_PATH.match(k)))
     t = tab_position(d.get("tab_position"))
     out["tab_position"] = t if t is not None else ""
@@ -2077,6 +2097,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_flat_tint_light"] = amount_or_none(d.get("sky_flat_tint_light"))
     out["sky_flat_pages"] = flat_pages(d.get("sky_flat_pages")) or {}
     out["sky_flat_image_look"] = flat_image_look(d.get("sky_flat_image_look")) or {}
+    out["sky_image_look"] = flat_image_look(d.get("sky_image_look")) or {}
     out["sky_flat_page_image_looks"] = flat_page_image_looks(d.get("sky_flat_page_image_looks")) or {}
     out["flat_colors"] = flat_colors(d.get("flat_colors")) or {}
     out["flat_page_colors"] = flat_page_colors(d.get("flat_page_colors")) or {}
@@ -2354,7 +2375,7 @@ MENU_KEYS = {"page_header": "page_header", "menu": "style", "tab_position": "tab
              "tab_bar_more": "bar_more", "tab_bar_more_phone": "bar_more_phone", "tab_bar_pos": "bar_pos",
              "tab_bar_fold": "bar_fold", "tab_bar_start": "bar_start", "tab_bar_adjust": "bar_adjust",
              "tab_bar_scroll_phone": "bar_scroll_phone", "tab_bar_tabs": "bar_tabs",
-             "tab_bar_tabs_rail": "bar_tabs_rail", "tab_bar_size": "bar_size",
+             "tab_bar_tabs_rail": "bar_tabs_rail", "tab_bar_size": "bar_size", "tab_bar_labels": "bar_labels",
              "button_phone": "button_phone", "tab_bar_rooms_phone": "bar_rooms_phone"}
 # a menu BUTTON's styles: not off, always open or the tab bar
 MENU_STYLES = tuple(m for m in BOARD_MENUS if m not in ("off", "open", "tabbar"))
@@ -2419,6 +2440,7 @@ def house_menu(menu: Mapping[str, Any] | None) -> dict[str, Any]:
             "tab_bar_scroll_phone": pick("bar_scroll_phone", TAB_BAR_SCROLLS, d["tab_bar_scroll_phone"]),
             "tab_bar_tabs": tab_count(m.get("bar_tabs")), "tab_bar_tabs_rail": tab_count(m.get("bar_tabs_rail")),
             "tab_bar_size": pick("bar_size", TAB_BAR_SIZES, d["tab_bar_size"]),
+            "tab_bar_labels": pick("bar_labels", TAB_BAR_LABELS, d["tab_bar_labels"]),
             "button_phone": pick("button_phone", BOARD_BUTTON_PHONE, d["button_phone"]),
             "tab_bar_rooms_phone": tab_bar_rooms(m.get("bar_rooms_phone"))}
 AREA_ID = re.compile(r"^[a-z0-9_]+$")

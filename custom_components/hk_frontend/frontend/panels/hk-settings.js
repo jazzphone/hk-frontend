@@ -53,6 +53,8 @@
 //                 'saver' (a screen's Screensaver Options, first; ctx { screen,
 //                 title }) or 'house-saver' (All Screens' Screensaver, after
 //                 Photos; ctx { photos, set(source) })
+//     gridHistory(path, panel) a promise for this screen’s layout history,
+//                 absent on a host without layout history
 //     press(ids, panel)  a tablet's own parts that are the host's, not HA
 //                 buttons (Reload, Clear Cache: tablets[].parts), pressed:
 //                 a promise (rejected with a message to show), or null to
@@ -643,7 +645,7 @@
       try {
         await Promise.all([import('/hk/panels/hk-settings-model.js?v=' + v), import('/hk/panels/hk-settings-kit.js?v=' + v),
                            import('/hk/panels/hk-settings-features.js?v=' + v), import('/hk/modules/hk-settings.js?v=' + v),
-                           import('/hk/modules/hk-flat-image.js?v=' + v)]);
+                           import('/hk/modules/hk-flat-image.js?v=' + v), import('/hk/cards/hk-grid-catalog.js?v=' + v).then(function () { return import('/hk/panels/hk-grid-editor.js?v=' + v); })]);
       } catch (e) {
         s.innerHTML = '<div class="loading">HK settings couldn’t load: ' + String(e && e.message || e) + '</div>';
         return;
@@ -1732,9 +1734,13 @@
       var key = sizes.some(function (z) { return z.key === chosen; }) ? chosen : M.previewDefault(b);
       var pick = h('div', { class: 'seg pvsize', role: 'radiogroup', 'aria-label': 'Preview size' });
       var dims = h('span', { class: 'pvdim' });
+      // the tablet glyph is drawn landscape (MDI's) unless the home's own symbols are here (Apple's iPad, upright):
+      // then Landscape is the one turned, not Portrait
+      var upright = !!(window.hkGlyphs && window.hkGlyphs.icons && window.hkGlyphs.icons.tablet);
       var btns = sizes.map(function (z, i) {
+        var turn = z.icon === 'hk:tablet' && upright ? !z.rotate : !!z.rotate;
         var btn = h('button', { type: 'button', role: 'radio', 'data-size': z.key, 'aria-label': z.label, title: z.label }, [
-          h('hk-icon', { icon: z.icon, class: z.rotate ? 'rot' : '', 'aria-hidden': 'true' }),
+          h('hk-icon', { icon: z.icon, class: turn ? 'rot' : '', 'aria-hidden': 'true' }),
           h('span', { class: 'lb', text: z.label }),
           h('span', { class: 'sh', text: z.short || z.label })]);
         btn.addEventListener('click', function () { choose(z.key); });
@@ -1749,6 +1755,19 @@
         pick.appendChild(btn);
         return btn;
       });
+      if (!upright && !(window.hkGlyphs && window.hkGlyphs.icons)) {
+        // the home's symbols may still be loading (hk-icons.js says when): turn the tablets then
+        var glyphs = function (e) {
+          if (!e || e.detail !== 'hkGlyphs') return;
+          window.removeEventListener('hk-module-ready', glyphs);
+          var up = !!(window.hkGlyphs && window.hkGlyphs.icons && window.hkGlyphs.icons.tablet);
+          btns.forEach(function (b, k) {
+            var z = sizes[k], ic = b.querySelector('hk-icon');
+            if (ic && z.icon === 'hk:tablet') ic.classList.toggle('rot', up ? !z.rotate : !!z.rotate);
+          });
+        };
+        window.addEventListener('hk-module-ready', glyphs);
+      }
       var fit = function () {
         var z = sizes.filter(function (x) { return x.key === key; })[0] || sizes[0];
         var maxH = self._pvPinned ? Math.max(150, Math.round((window.innerHeight || 800) * 0.28))
@@ -1807,6 +1826,21 @@
         } };
       }
       var s = sub[0];
+      if (s === 'home-grid' && x.generated) return {
+        title: 'Arrange Home Grid', back: [x.title, base],
+        body: function (c) {
+          if (!self._gridEditors) self._gridEditors = {};
+          var editor = self._gridEditors[path];
+          if (!editor) {
+            editor = document.createElement('hk-grid-editor');
+            self._gridEditors[path] = editor;
+            editor.configure({ panel: self, path: path, board: b, title: x.title,
+              onCancel: function () { delete self._gridEditors[path]; self.back(base); },
+              onSaved: function () { delete self._gridEditors[path]; self.back(base); } });
+          }
+          c.appendChild(editor);
+        }
+      };
       var mk = function (title, body, backTo) {
         return { title: title, back: backTo || [x.title, base], preview: path, body: body };
       };
@@ -1982,6 +2016,16 @@
       if (gen) home.push(K.nav({ label: 'Favorites', value: b.favorites.length ? b.favorites.length + (b.favorites.length === 1 ? ' Favorite' : ' Favorites') : 'None',
                                  href: base + '/favorites', sk: 'b:favorites' }));
       home.push(K.nav({ label: 'Rooms', value: roomsVal, href: base + '/rooms', sk: 'b:rooms_custom' }));
+      if (gen && !only) {
+        home.unshift(K.select({ label: 'Home Style', value: b.home_style || 'generated',
+          options: [['generated', 'Generated'], ['grid', 'Home Grid']],
+          onChange: function (v) {
+            if (v === 'grid') self.back(base + '/home-grid');
+            else self.setB(path, { home_style: 'generated' });
+          } }));
+        home.splice(1, 0, K.nav({ label: 'Arrange Home Grid', href: base + '/home-grid',
+          sub: 'Arrange on a desktop. Save when ready.', value: b.home_grid ? b.home_grid.items.length + ' Blocks' : 'Choose a Starter' }));
+      }
       // only some pages: no Home page to set up here
       if (!only) c.appendChild(K.group({ header: 'Home Page', footer: gen ? null :
         'This screen is written in YAML, so it draws its own Home page. These lists apply where its cards read them: the chip row, the scenes row, the camera strip and the room order.' }, home));
@@ -2350,6 +2394,7 @@
       if (M.hasTabBar(b)) {
         rows.push(K.info({ label: 'Tab Bar Position', value: M.choiceLabel(M.TAB_BAR_POS, b.tab_bar_pos || 'bottom'), sk: 'b:tab_bar_pos' }));
         rows.push(K.info({ label: 'Tab Bar Size', value: M.choiceLabel(M.TAB_BAR_SIZES, b.tab_bar_size || 'medium'), sk: 'b:tab_bar_size' }));
+        rows.push(K.info({ label: 'Tab Bar Labels', value: M.choiceLabel(M.TAB_BAR_LABELS, b.tab_bar_labels || 'show'), sk: 'b:tab_bar_labels' }));
         rows.push(K.info({ label: 'Tab Bar Glass', value: M.choiceLabel(M.TAB_BAR_GLASS, b.tab_bar_glass || 'house'), sk: 'b:tab_bar_glass' }));
       }
       rows.push(K.info({ label: 'Home Assistant Section', value: b.ha_row ? M.choiceLabel(M.HA_PLACES, b.ha_place || 'rooms') : 'Off', sk: 'b:ha_row' }));
@@ -2618,6 +2663,9 @@
       place.push(K.seg({ label: 'Size', sub: 'The bar’s thickness (a rail’s width), its icons and labels.',
                          sk: sk('tab_bar_size'), value: v.tab_bar_size || 'medium', stack: !wide, options: M.TAB_BAR_SIZES,
                          onChange: function (x) { set({ tab_bar_size: x }); } }));
+      place.push(K.seg({ label: 'Labels', sub: 'Icons Only drops the names for a slimmer bar or rail.',
+                         sk: sk('tab_bar_labels'), value: v.tab_bar_labels || 'show', stack: !wide, options: M.TAB_BAR_LABELS,
+                         onChange: function (x) { set({ tab_bar_labels: x }); } }));
       // a bar along the bottom always leaves room at the page's end
       // (hk-tabbar.js room()): the switch is the rail's and the top's
       if (pos !== 'bottom') place.push(K.toggle({ label: 'Adjust Content',
@@ -5539,6 +5587,7 @@
           footer: 'Shown on Home, the room pages, and every page without a color of its own. Each screen can use a photo of its own.',
           onSet: function (url) { var was = sky.photo; self.setH({ 'sky.photo': url }).then(function (ok) { if (ok) self.photoForget(was); }); } });
         this.photoLookGroup(c, { look: sky.photo_look, sk: 'sky.photo_look', onSet: function (v) { self.setH({ 'sky.photo_look': v }); } });
+        this.flatImageGroup(c, null, null, null, true);
         this.skyPagesGroup(c, null, null);
         this.skyResetGroup(c, null, null);
         return;
@@ -5550,6 +5599,7 @@
           footer: 'Shown on Home, the room pages, and every page without a color of its own. Each screen can choose its own.',
           onSet: function (v) { self.setH({ 'sky.landscape': v }); } });
         this.photoLookGroup(c, { look: sky.landscape_look, sk: 'sky.landscape_look', onSet: function (v) { self.setH({ 'sky.landscape_look': v }); } });
+        this.flatImageGroup(c, null, null, null, true);
         this.skyPagesGroup(c, null, null);
         this.skyResetGroup(c, null, null);
         return;
@@ -5638,7 +5688,7 @@
             var ch = { sky: true, sky_liveliness_occ: {}, sky_liveliness_custom: {}, sky_calm_empty: false };
             ['sky_background', 'sky_color', 'sky_landscape', 'sky_photo_look', 'sky_landscape_look', 'sky_animations', 'sky_focus_pause',
              'sky_moving', 'sky_weather', 'sky_precipitation', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_decorations',
-             'sky_decoration_style', 'sky_liveliness', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light', 'sky_flat_image_look'].forEach(function (k) { ch[k] = null; });
+             'sky_decoration_style', 'sky_liveliness', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light', 'sky_flat_image_look', 'sky_image_look'].forEach(function (k) { ch[k] = null; });
             self.setB(x.path, ch);
           });
         } })]));
@@ -6099,6 +6149,7 @@
             onSet: function (url) { var was = b.sky_photo; self.setB(x.path, { sky_photo: url, sky: true }).then(function (ok) { if (ok) self.photoForget(was); }); } });
           this.photoLookGroup(c, { look: b.sky_photo_look || sky.photo_look, own: !!b.sky_photo_look, sk: 'b:sky_photo_look', follow: 'All Screens',
             onSet: function (v) { self.setB(x.path, { sky_photo_look: v }); } });
+          this.flatImageGroup(c, x, b, null, true);
           this.skyPagesGroup(c, x, b);
           this.skyResetGroup(c, x, b);
           return;
@@ -6109,6 +6160,7 @@
             onSet: function (v) { self.setB(x.path, { sky_landscape: v, sky: true }); } });
           this.photoLookGroup(c, { look: b.sky_landscape_look || sky.landscape_look, own: !!b.sky_landscape_look, sk: 'b:sky_landscape_look', follow: 'All Screens',
             onSet: function (v) { self.setB(x.path, { sky_landscape_look: v }); } });
+          this.flatImageGroup(c, x, b, null, true);
           this.skyPagesGroup(c, x, b);
           this.skyResetGroup(c, x, b);
           return;
@@ -6453,22 +6505,27 @@
     }
     // One editor and resolver for house, screen, page, and room image looks.
     // Opening writes nothing; patches preserve unrelated fields in the store.
-    flatImageGroup(c, x, b, key) {
+    // `glass` (2026-10-24, the owner): the same Image Look for the Glass
+    // looks' Photo and Landscapes, kept apart from Flat's (sky.image_look, a
+    // screen's sky_image_look; hkFlatImage.resolveGlass), over the dark
+    // ground; Off there is the photo with its Photo Look alone
+    flatImageGroup(c, x, b, key, glass) {
       var self = this, I = window.hkFlatImage, sky = this.data.settings.sky || {};
       if (!I) return 'legacy';
       var keys = key ? (/^room-/.test(key) ? [key, 'rooms'] : [key]) : [];
-      var resolved = I.resolve(sky, b, keys), look = resolved.value;
-      var field = key ? 'sky_flat_page_image_looks.' + key : 'sky_flat_image_look';
+      var resolved = glass ? I.resolveGlass(sky, b) : I.resolve(sky, b, keys), look = resolved.value;
+      var field = glass ? 'sky_image_look' : key ? 'sky_flat_page_image_looks.' + key : 'sky_flat_image_look';
       var path = b ? field : 'sky.' + field.replace(/^sky_/, '');
-      var own = key ? ((b ? b.sky_flat_page_image_looks : sky.flat_page_image_looks) || {})[key] || {}
+      var own = glass ? (b ? b.sky_image_look : sky.image_look) || {}
+                : key ? ((b ? b.sky_flat_page_image_looks : sky.flat_page_image_looks) || {})[key] || {}
                     : (b ? b.sky_flat_image_look : sky.flat_image_look) || {};
       var patchPath = key ? path : path + '.patch';
       var patch = function (value) { var ch = {}; ch[patchPath] = value; return b ? self.setB(x.path, ch) : self.setH(ch); };
       var source = function (name) { return M.flatSourceLabel(resolved.from[name]) || 'Built-in Default'; };
-      var labels = { legacy: 'Previous Look', original: 'Original', soft: 'Soft', balanced: 'Balanced', rich: 'Rich', washed: 'Washed', custom: 'Custom' };
+      var labels = { legacy: glass ? 'Off' : 'Previous Look', original: 'Original', soft: 'Soft', balanced: 'Balanced', rich: 'Rich', washed: 'Washed', custom: 'Custom' };
       var notes = { original: 'Keep the photograph’s colors.', soft: 'Quiet color and gentle shadows.', balanced: 'Clear scenery with a moderate tint.', rich: 'Deeper shadows and richer color.', washed: 'A faint backdrop behind the cards.' };
       var active = I.preset(look);
-      var legacyTint = (b && b.sky_flat_tint) || sky.flat_tint || 'none';
+      var legacyTint = glass ? 'none' : (b && b.sky_flat_tint) || sky.flat_tint || 'none';
       var choose = function (name) {
         var v = name === 'original' || name === 'legacy' ? { mode: name } : Object.assign({}, I.presets[name]);
         if (resolved.from.color.scope === 'default' && /^#/.test(legacyTint)) v.color = legacyTint;
@@ -6479,7 +6536,8 @@
         onChange: function (name) { if (name !== 'custom') choose(name); } })];
       if (Object.keys(own).length) rows.push(K.button({ label: key || b ? 'Use Inherited Image Settings' : 'Reset Image Settings', fk: 'fi:reset', onClick: function () { patch(null); } }));
       c.appendChild(this.withError(K.group({ header: 'Image Look', footer: look.mode === 'legacy'
-        ? 'Your previous appearance is kept. Choose a look below to use the new tint controls.'
+        ? (glass ? 'The picture as it is, with the Look above. Choose a starting point to tint it as Flat does: its color, depth and fade.'
+                 : 'Your previous appearance is kept. Choose a look below to use the new tint controls.')
         : 'Choose a starting point, then Adjust if you want. A look keeps your image and color choice. Page choices take priority over general screen settings.' }, rows), patchPath));
 
       var palette = M.flatColorsOf(this.data.settings.look || {}, b, keys);
@@ -6487,13 +6545,14 @@
       var menuAccent = b && b.menu_custom ? b.accent : (this.data.settings.menu || {}).accent;
       var legacyAccent = menuAccent === 'auto' ? M.pageAccentOf(key || 'home', (this.data.settings.look || {}).page_accents).a.hex : M.accentOf(menuAccent).hex;
       var color = look.color === 'accent' ? seed || legacyAccent : look.color;
-      var theme = this.flatTheme(b), list = this.landscapes() || [];
+      var theme = glass ? 'dark' : this.flatTheme(b), list = this.landscapes() || [];
       var landscape = M.landscapeFile((b && b.sky_landscape) || sky.landscape || 'every:1440', list);
       var photos = b && b.sky_page_photos || {}, housePhotos = sky.page_photos || {};
       var pageMode = null, photo = null;
       keys.some(function (k) { pageMode = (b && b.sky_flat_pages || {})[k] || (sky.flat_pages || {})[k]; return !!pageMode; });
       keys.some(function (k) { photo = photos[k] || housePhotos[k]; return !!photo; });
-      var mode = pageMode && pageMode !== 'auto' ? pageMode : key && FLAT_OWN[key] ? 'color' : (b && b.sky_flat_background) || sky.flat_background || 'color';
+      var mode = glass ? (b && b.sky_background) || sky.background || 'live'
+        : pageMode && pageMode !== 'auto' ? pageMode : key && FLAT_OWN[key] ? 'color' : (b && b.sky_flat_background) || sky.flat_background || 'color';
       var src = mode === 'photo' ? photo || (b && b.sky_photo) || sky.photo : null;
       var example = mode !== 'landscapes' && !src;
       if (!src && landscape) src = '/hk/landscapes/' + landscape;
@@ -7860,6 +7919,12 @@
         var add = function (id) { if (!seen[id] && client.states[id]) { seen[id] = 1; out.push(id); } };
         (ck.found || []).forEach(add);
         (ck.exclude || []).forEach(add);
+        // A group is a control even when its members alone count in status.
+        self.accIds().forEach(function (id) {
+          var a = (client.states[id] || {}).attributes || {}, e = (client.entities || {})[id] || {};
+          if ((Array.isArray(a.entity_id) || Array.isArray(a.group_entities)) &&
+              self.typeOf(id) === T[0] && !e.hidden && !e.entity_category && !self.hiddenAll(id)) add(id);
+        });
         return out;
       }
       return this.accIds().filter(function (id) {
@@ -7881,7 +7946,6 @@
       });
     }
     typeCount(T) {
-      if (T[4].kind) return (((this.data.counts || {})[T[4].kind] || {}).found || []).filter(function (id) { return this.client.states[id]; }, this).length;
       return this.typeMembers(T).length;
     }
     typeSays(T) {

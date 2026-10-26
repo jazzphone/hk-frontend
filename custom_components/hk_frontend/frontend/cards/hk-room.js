@@ -487,11 +487,17 @@
   window.hkRoom = { version: '1.1.0', climateItems: climateItems, climateReading: climateReading,
     pageItems: pageItems, PAGE_ROWS: PAGE_ROWS,
     _: { items: items, kindOf: kindOf, members: members, gauge: gauge, describe: describe, KINDS: KINDS } };
+  // a room's items as its status row shows them (a Home Grid's room card says them as one line)
+  window.hkRoom.roomItems = items;
 
   whenBase(function (C) {
     if (window.hkRoom.Card) return;
     var HkBase = C.HkBase, esc = C.esc;
 
+    // a Home Grid block's plate: its padding (a page card's, CARD), an
+    // item's height (a 44 px touch target holding two 19 px lines) and the
+    // gap between items
+    var GRID_PAD = 20, GRID_ROW = 44, GRID_GAP = 4;
     var CSS = [
       // THE PAGE'S RHYTHM, measured on a 1280 tablet: 24 px from
       // the back button to this row -- close enough to read as the title's --
@@ -506,6 +512,8 @@
       // dropping the glyphs' shadows does not, and position:relative here
       // fixes it with the scroller intact. Keep both.
       ':host{display:block;position:relative;margin-top:-8px !important;margin-bottom:12px !important}',
+      // ...but in a Home Grid's cell (the view gives it `size`): the cell is its place, no pull-up
+      ':host([size]){margin:0 !important}',
       // an empty row hides (_render sets `hidden`): the display above would win over it
       ':host([hidden]){display:none}',
       // ONE LINE, left aligned with the tiles below (a view card sits 4 px left
@@ -520,6 +528,7 @@
       '  background:none;color:' + window.hkCards.v('ink') + ';font:inherit;text-align:left;cursor:pointer;',
       '  -webkit-tap-highlight-color:transparent;transition:opacity .15s ease}',
       '.it.pressed{opacity:0.55}',
+      ':host([data-grid-room-status]) .it{min-height:44px}',
       '.g{width:32px;height:32px;flex:none;position:relative;display:flex;align-items:center;',
       '  justify-content:center;color:' + window.hkCards.v('glyph') + ';',
       '  filter:var(--hk-glow,drop-shadow(0 1px 2px rgba(0,0,0,0.28)) drop-shadow(0 2px 6px rgba(0,0,0,0.16)))}',
@@ -533,7 +542,18 @@
       '.t{font-weight:600;color:' + window.hkCards.v('ink') + '}',
       '.v{font-weight:400;color:' + window.hkCards.v('ink-2') + '}',
       '.it.alert .v{color:#ff9f0a}',
-      '.it:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:4px;border-radius:6px}'
+      '.it:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:4px;border-radius:6px}',
+      // ON A HOME GRID (G2; the `security` block, docs/phase11/HOME-GRID.md):
+      // a plate holding the row's items one per line -- two columns from W
+      // up -- as many as the block's height takes, alerts first (_render).
+      // Nothing scrolls; a name too long ends with an ellipsis.
+      ':host([size]) hk-plate.blk{display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;height:100%;',
+      '  padding:' + GRID_PAD + 'px 22px;margin:0;' + window.hkCards.plate('card') + ';overflow:hidden}',
+      ':host([size]) .row{display:grid;grid-template-columns:repeat(var(--cols,1),minmax(0,1fr));grid-auto-rows:' + GRID_ROW + 'px;',
+      '  gap:' + GRID_GAP + 'px 16px;overflow:hidden;padding:0;margin:0;align-content:center}',
+      ':host([size]) .it{min-width:0;min-height:' + GRID_ROW + 'px}',
+      ':host([size]) .t,:host([size]) .v{overflow:hidden;text-overflow:ellipsis;text-shadow:none}',
+      ':host([size]) .none{' + window.hkCards.typeCss('body') + ';color:' + window.hkCards.v('ink-2') + '}'
     ].join('');
 
     class HkRoomStatusCard extends HkBase {
@@ -574,14 +594,26 @@
         var h = this.client;
         if (!h) return;
         var list = this._items || this._itemsFor(h);
-        this.toggleAttribute('hidden', !list.length);
+        var sized = this._cellSize();
+        // (a Home Grid block never hides: its plate says there is nothing)
+        this.toggleAttribute('hidden', !list.length && !sized);
+        if (sized) list = this._fit(list, sized);
         // THE ROW STAYS, its buttons change: replacing the scroller would put
         // a phone's sideways-scrolled row back at the start under the reader's
         // finger whenever anything in the room changed
         var row = this._root.querySelector('.row');
-        if (!row) {
-          this._root.innerHTML = '<div class="row" role="list"></div>';
+        if (!row || this._shape !== (sized ? 'blk' : 'row')) {
+          this._shape = sized ? 'blk' : 'row';
+          this._root.innerHTML = sized ? '<hk-plate class="blk"><div class="row" role="list"></div></hk-plate>'
+                                       : '<div class="row" role="list"></div>';
           row = this._root.querySelector('.row');
+        }
+        if (sized) row.style.setProperty('--cols', String(this._cols));
+        if (sized && !list.length) {
+          row.innerHTML = '<span class="none">No accessories</span>';
+          this._list = list;
+          if (!this._wired) this._wire();
+          return;
         }
         row.innerHTML = list.map(function (it, i) {
           var ring = it.kind === 'temperature' || it.kind === 'humidity';
@@ -594,6 +626,16 @@
         }).join('');
         this._list = list;
         if (!this._wired) this._wire();
+      }
+      // A HOME GRID BLOCK'S ITEMS: as many lines as its height holds (two
+      // columns from W up), what needs attention first
+      _fit(list, sized) {
+        this._watchBlock();
+        var b = this._block(), cols = (sized === 'S' || sized === 'T') ? 1 : 2;
+        var rows = b ? Math.max(1, Math.floor((b.h - 2 * GRID_PAD + GRID_GAP) / (GRID_ROW + GRID_GAP))) : 2;
+        this._cols = cols;
+        var alerts = list.filter(function (it) { return it.alert; });
+        return alerts.concat(list.filter(function (it) { return !it.alert; })).slice(0, rows * cols);
       }
       // A tap is a lift that did not travel (hk-tap.js's rule): the row
       // scrolls on a phone, and a scroll must not open a sheet.

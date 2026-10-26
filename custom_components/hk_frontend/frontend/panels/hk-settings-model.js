@@ -607,7 +607,16 @@
     name_needed: 'Give it a name.', bad_hash: 'Use lower-case letters, digits and dashes.',
     hash_taken: 'Another pop-up uses that address.', bad_page_path: 'Use lower-case letters, digits and dashes (not a page the screens use themselves).',
     page_path_taken: 'Another page uses that address.', page_not_found: 'That page couldn’t be read.',
-    page_view: 'The page must be YAML keys and values, such as cards: […].'
+    page_view: 'The page must be YAML keys and values, such as cards: […].',
+    // Home Grid (hk_core/settings/home_grid.py)
+    grid: 'That layout couldn’t be read.', grid_cols: 'A Home Grid is 6, 3 or 2 columns wide.',
+    grid_rows: 'A Home Grid has 2 to 6 rows.', grid_frame: 'The frame must be a screen size, such as 1280 × 800.',
+    grid_items: 'A Home Grid holds at most 24 blocks.', grid_item: 'A block in that layout couldn’t be read.',
+    grid_card: 'That card can’t go on a Home Grid.', grid_size: 'That card doesn’t come in that size.',
+    grid_fit: 'That size is bigger than the grid.', grid_place: 'A block is past the edge of the grid.',
+    grid_overlap: 'Two blocks are in the same place.', grid_pages: 'A block’s pages couldn’t be read.',
+    grid_condition: 'Choose a condition and a fallback card.', grid_fallback: 'Choose a fallback card that supports this block’s size.',
+    grid_source: 'That card can’t swipe through those pages.', grid_option: 'A block’s option isn’t one it can use.'
   };
   // A PAGE PILL'S OWN LOOK (hk-chip.js PAGE_PILLS): name, icon, color
   var PAGE_PILL_DEFAULTS = {
@@ -688,6 +697,7 @@
   var TAB_BAR_SCROLLS = [['shrink', 'Shrink'], ['hide', 'Hide'], ['stay', 'Stay']];
   var TAB_BAR_MORE = [['icons', 'Icons'], ['list', 'List']];
   var TAB_BAR_SIZES = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']];
+  var TAB_BAR_LABELS = [['show', 'Icons and Names'], ['icons', 'Icons Only']];
   // where the Home Assistant section sits, in the side menu and More alike
   var HA_PLACES = [['top', 'Top'], ['categories', 'Above Categories'], ['rooms', 'Above Rooms'], ['bottom', 'Bottom']];
   // Tabs in Bar / in Rail: pages, Home and More not counted
@@ -820,7 +830,7 @@
                     tab_bar_more: 'bar_more', tab_bar_more_phone: 'bar_more_phone',
                     tab_bar_pos: 'bar_pos', tab_bar_fold: 'bar_fold', tab_bar_start: 'bar_start',
                     tab_bar_adjust: 'bar_adjust', tab_bar_scroll_phone: 'bar_scroll_phone',
-                    tab_bar_tabs: 'bar_tabs', tab_bar_tabs_rail: 'bar_tabs_rail', tab_bar_size: 'bar_size',
+                    tab_bar_tabs: 'bar_tabs', tab_bar_tabs_rail: 'bar_tabs_rail', tab_bar_size: 'bar_size', tab_bar_labels: 'bar_labels',
                     button_phone: 'button_phone', tab_bar_rooms_phone: 'bar_rooms_phone' };
   var MENU_DEFAULTS = { page_header: 'current', menu: 'auto', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                         dock_min: 1000, time_weather: 'page', ha_row: false, ha_place: 'rooms', accent: 'orange', glyph: 'sidebar', clock: true,
@@ -828,7 +838,7 @@
                         tab_bar_more: 'icons', tab_bar_more_phone: 'list', tab_bar_pos: 'bottom',
                         tab_bar_fold: 'start', tab_bar_start: 'full', tab_bar_adjust: true,
                         tab_bar_scroll_phone: 'shrink', tab_bar_tabs: 6, tab_bar_tabs_rail: 6,
-                        tab_bar_size: 'medium', button_phone: 'chip', tab_bar_rooms_phone: 'more' };
+                        tab_bar_size: 'medium', tab_bar_labels: 'show', button_phone: 'chip', tab_bar_rooms_phone: 'more' };
   function houseMenuAsBoard(m) {
     m = m || {};
     var out = {};
@@ -1632,6 +1642,7 @@
     ['Start Small', 'house/menu', 'menu.bar_start', 'tab bar start small shrunk folded rest collapsed button'],
     ['Shrinks To', 'house/menu', 'menu.bar_fold', 'tab bar shrink fold small button corner left right top bottom side'],
     ['Tab Bar Size', 'house/menu', 'menu.bar_size', 'tab bar size small medium large bigger thicker icons text'],
+    ['Tab Bar Labels', 'house/menu', 'menu.bar_labels', 'tab bar labels names icons only text slim'],
     ['Tabs in Bar', 'house/menu/tablets', 'menu.bar_tabs', 'tab bar how many tabs number count favorites bottom top'],
     ['Tabs in Rail', 'house/menu/tablets', 'menu.bar_tabs_rail', 'tab bar rail how many tabs number count favorites left right side'],
     ['Tab Bar Position', 'house/menu', 'menu.bar_pos', 'tab bar position top bottom left right rail side placement'],
@@ -1800,7 +1811,7 @@
     ['menu', 'Menu', ['menu', 'menu_custom', 'page_header', 'dock_min', 'time_weather', 'ha_row', 'ha_place', 'tab_position', 'tab_size',
                       'tab_size_phone', 'accent', 'glyph', 'clock', 'swipe',
                       'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust', 'tab_bar_scroll_phone', 'tab_bar_tabs',
-                      'tab_bar_tabs_rail', 'tab_bar_size', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone'], true],
+                      'tab_bar_tabs_rail', 'tab_bar_size', 'tab_bar_labels', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone'], true],
     ['home', 'Home Page', ['chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom', 'chips_custom_show'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
@@ -1815,7 +1826,7 @@
                             'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
                             'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty',
                             'sky_background', 'sky_color', 'sky_photo', 'sky_page_photos', 'sky_photo_look', 'sky_page_looks',
-                            'sky_landscape', 'sky_landscape_look', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light', 'sky_flat_pages', 'sky_flat_image_look', 'sky_flat_page_image_looks',
+                            'sky_landscape', 'sky_landscape_look', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light', 'sky_flat_pages', 'sky_flat_image_look', 'sky_flat_page_image_looks', 'sky_image_look',
                             'flat_colors', 'flat_page_colors'], true],
     ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages',
                               'np_style', 'np_side', 'np_bar', 'np_bar_phone'], true],
@@ -1825,7 +1836,9 @@
   // never copied (1.14: a tablet's own -- its user, room, idle, Sleep Screen
   // and Black Screen -- are the tablet's, not the screen's)
   // a screen's own where and title (settings.py BOARD_OWN) are never copied onto another
-  var COPY_NEVER = ['where', 'title'];
+  // ...nor its Home Grid (its Home Style and layout): Copy Layout To… copies
+  // a layout, keeping each block's tablet_room as it is (docs/phase11/HOME-GRID.md, G6)
+  var COPY_NEVER = ['where', 'title', 'home_style', 'home_grid'];
   function copyDefaults() { return COPY_GROUPS.filter(function (g) { return g[3]; }).map(function (g) { return g[0]; }); }
   // the changes that copy `groups` of the screen `src` (its settings as read)
   function copyChanges(src, groups) {
@@ -1893,6 +1906,8 @@
   }
   var PREVIEW_SIZES = [
     { key: 'phone', label: 'Phone', w: 390, h: 844, icon: 'hk:cellphone' },
+    // rotate: for the tablet glyph as MDI draws it (landscape); hk-settings.js turns the other one when the home's
+    // own symbols draw it upright
     { key: 'portrait', label: 'Tablet Portrait', short: 'Portrait', w: 820, h: 1180, icon: 'hk:tablet', rotate: true },
     { key: 'landscape', label: 'Tablet Landscape', short: 'Landscape', w: 1280, h: 800, icon: 'hk:tablet' },
     { key: 'desktop', label: 'Desktop', w: 1440, h: 900, icon: 'hk:monitor' },
@@ -2188,7 +2203,7 @@
     FLAT_ACCENTS: FLAT_ACCENTS, flatColorsOf: flatColorsOf, flatPagesName: flatPagesName, flatAccentSays: flatAccentSays, flatColorName: flatColorName, flatColorHex: flatColorHex,
     flatSourceLabel: flatSourceLabel, flatTintLabel: flatTintLabel, flatFieldSays: flatFieldSays, flatAccentChange: flatAccentChange, PAGE_ACCENTS: PAGE_ACCENTS, pageAccentOf: pageAccentOf, tabPosParts: tabPosParts, tabPosJoin: tabPosJoin, tabPosLabel: tabPosLabel,
     PAGE_HEADERS: PAGE_HEADERS, MENU_KEYS: MENU_KEYS, houseMenuAsBoard: houseMenuAsBoard, houseMenuSave: houseMenuSave,
-    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
+    TAB_BAR_SCROLLS: TAB_BAR_SCROLLS, TAB_BAR_GLASS: TAB_BAR_GLASS, TAB_BAR_ROOMS: TAB_BAR_ROOMS, roomsPlace: roomsPlace, TAB_BAR_MORE: TAB_BAR_MORE, TAB_BAR_POS: TAB_BAR_POS, TAB_BAR_SIZES: TAB_BAR_SIZES, TAB_BAR_LABELS: TAB_BAR_LABELS, HA_PLACES: HA_PLACES, TAB_BAR_TABS: TAB_BAR_TABS, foldOptions: foldOptions, hasTabBar: hasTabBar, choiceLabel: choiceLabel,
     menuOwnChanges: menuOwnChanges, menuSummary: menuSummary, GLASS: GLASS,
     GLASS_STYLES: GLASS_STYLES, BLUR_MODES: BLUR_MODES, TINT_WELLS: TINT_WELLS, isBlur: isBlur, glassStyle: glassStyle, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, PAGES: PAGES, pageOf: pageOf, PAGE_TYPES: PAGE_TYPES,
