@@ -555,6 +555,21 @@
       ':host([data-icons]) .tab span{display:none}'
     ].join('\n');
     window.hkTabBar._.CSS = CSS;             // tests (test_csssnapshot)
+    // EDIT MODE (hk-edit-menu.js): a tab or a page in More carried, where it
+    // would land, and the page's ghost
+    var EDIT_CSS = [
+      '.root.editing .tab[data-p]{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}',
+      '.root.editing .tab[data-p].lifted{z-index:3;filter:brightness(1.35);transition:none!important}',
+      '.root.editing .it[data-p]{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}',
+      '.root.editing .it.lifted{opacity:.35}',
+      '.root.editing .it.hk-drop{box-shadow:inset 0 0 0 2px ' + window.hkCards.v('accent') + '}',
+      '.root.editing .tab[data-t="more"].hk-drop{background:rgba(255,255,255,0.22)}',
+      '.pill.hk-drop{box-shadow:0 0 0 2px ' + window.hkCards.v('accent') + '}',
+      '.hk-ghost{position:fixed;z-index:20;display:flex;align-items:center;gap:8px;padding:9px 14px 9px 10px;border-radius:22px;',
+      '  pointer-events:none;background:' + window.hkCards.OVER.solid + ';color:#fff;font:600 15px/20px -apple-system,BlinkMacSystemFont,sans-serif;',
+      '  box-shadow:0 12px 32px rgba(0,0,0,0.45);white-space:nowrap}',
+      '.hk-ghost hk-icon{--mdc-icon-size:22px;width:22px;height:22px;display:flex;color:' + window.hkCards.v('accent') + '}'
+    ].join('\n');
 
     var MORE_ICON = 'mdi:dots-horizontal', ROOMS_ICON = 'mdi:view-grid';
 
@@ -577,7 +592,7 @@
       S.host.id = 'hk-tabbar';
       var sr = S.host.attachShadow({ mode: 'open' });
       C.flatSurface(S.host, 'navigation');
-      sr.innerHTML = '<style>' + CSS + C.flatCss() + (C.edgeCss ? C.edgeCss() : '') +
+      sr.innerHTML = '<style>' + CSS + EDIT_CSS + C.flatCss() + (C.edgeCss ? C.edgeCss() : '') +
         ':host([hk-flat]) .g{background:var(--hk-flat-elevated)!important;box-shadow:var(--hk-flat-elevated-shadow);border-color:var(--hk-line)}' +
         ':host([hk-flat]) .tab,:host([hk-flat]) .roomsbtn,:host([hk-flat]) .it{color:var(--hk-ink-2)}' +
         ':host([hk-flat]) .tab.here,:host([hk-flat]) .roomsbtn.here{color:var(--hk-accent)}' +
@@ -589,7 +604,8 @@
             '<div class="grid pages"></div><h3 class="ch" hidden>Categories</h3><div class="grid pages2" hidden></div>' +
             '<h3 class="hh" hidden>Home Assistant</h3><div class="grid hagrid" hidden></div>' +
             '<h3 class="rh" hidden>Rooms</h3><div class="grid roomgrid" hidden></div>' +
-            '<h3 class="mh" hidden></h3><div class="grid mgrid" hidden></div></div></div></section>' +
+            '<h3 class="mh" hidden></h3><div class="grid mgrid" hidden></div>' +
+            '<h3 class="eh" hidden>This Page</h3><div class="grid egrid" hidden></div></div></div></section>' +
           '<section class="sheet g" data-sheet="rooms" aria-label="Rooms"><h2>Rooms</h2><div class="hk-edge"><div class="body">' +
             '<div class="grid roomgrid"></div></div></div></section>' +
           '<div class="row">' +
@@ -665,7 +681,8 @@
     function listKey(width) {
       var h = C.client(), side = H.sidebarSource(), b = M.board();
       return [M.dash(), cfgId(M.config()), width, railH(), b.ha_place, b.tab_bar_pos, b.tab_bar_rooms, b.tab_bar_rooms_phone, phoneAt(), phoneSet(), b.tab_bar_more, b.tab_bar_more_phone, b.tab_bar_size, b.tab_bar_labels, b.tab_bar_tabs, b.tab_bar_tabs_rail, b.ha_row, JSON.stringify(S.haPrefs || null),
-              h && h.user && h.user.is_admin, H.hostItems().map(function (x) { return x.title + x.href; }).join(','), side && side.panels ? Object.keys(side.panels).join(',') : '', H.haKey ? H.haKey() : '', b.menu_rooms, JSON.stringify(b.room_order),
+              h && h.user && h.user.is_admin, H.hostItems().map(function (x) { return x.title + x.href; }).join(','),
+              H.editKey ? H.editKey(h) : '', arranging() ? 'ed' : '', !!(window.hkEdit && window.hkEdit.editAny && window.hkEdit.editAny(h)), side && side.panels ? Object.keys(side.panels).join(',') : '', H.haKey ? H.haKey() : '', b.menu_rooms, JSON.stringify(b.room_order),
               JSON.stringify(b.categories), JSON.stringify(b.menu_top || []), JSON.stringify(b.pages || []),
               JSON.stringify(b.chips || []), b.chips_row, h && h.user && h.user.id,
               JSON.stringify(h && h.areas ? Object.keys(h.areas).map(function (k) {
@@ -695,10 +712,16 @@
       // THE HOST'S OWN PAGES (a host's settings; none in Home Assistant): the side menu's host section
       // (hkMenu._.hostItems), at the end of More, under the host's own name for it
       S.hostRows = H.hostItems ? H.hostItems() : [];
+      // EDIT PAGE (hk-edit.js): More's last row, on a page with something to
+      // arrange. More itself is there for an editor on EVERY page
+      // (hkEdit.editAny), so the bar's tabs do not change from page to page.
+      S.edit = H.editItems ? H.editItems(C.client()) : [];
+      var mayEdit = !!(window.hkEdit && window.hkEdit.editAny && window.hkEdit.editAny(C.client()));
       var tabs = [m.home].concat(m.categories).filter(Boolean);
       var sz = b.tab_bar_size;
-      var f = rail ? railFit(tabs.length, m.top.length, railH(), rm === 'more' || S.ha.length > 0 || S.hostRows.length > 0, b.tab_bar_tabs_rail, sz)
-                   : fit(tabs.length, m.top.length, width, roomsOn, rm === 'more' || S.ha.length > 0 || S.hostRows.length > 0, b.tab_bar_tabs, sz, ph);
+      var more0 = rm === 'more' || S.ha.length > 0 || S.hostRows.length > 0 || mayEdit;
+      var f = rail ? railFit(tabs.length, m.top.length, railH(), more0, b.tab_bar_tabs_rail, sz)
+                   : fit(tabs.length, m.top.length, width, roomsOn, more0, b.tab_bar_tabs, sz, ph);
       S.pos = pos;
       if (S.posWas !== pos && S.mode !== 'full') setMode('full');
       S.posWas = pos;
@@ -707,10 +730,13 @@
       if (S.restWas !== r) { S.restWas = r; setMode(r); }
       var p = parts(m, f);
       S.tabs = p.tabs; S.more = p.more; S.rooms = rm === 'off' ? [] : p.rooms; S.roomsMode = rm;
-      var html = '';
+      var html = '', ed = arranging();
+      S.editing = ed;
       p.tabs.forEach(function (it, i) {
-        // (its name as its label too: Icons Only hides the name it shows)
-        html += '<button class="tab" data-t="' + i + '" aria-label="' + esc(it.title) + '"><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
+        // (its name as its label too: Icons Only hides the name it shows;
+        // in Edit mode a page's tab says which page it is, to be dragged)
+        html += '<button class="tab" data-t="' + i + '"' + (ed && i > 0 ? ' data-p="' + esc(viewPath(it)) + '"' : '') +
+          ' aria-label="' + esc(it.title) + '"><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
           esc(it.title) + '</span></button>';
       });
       if (f.more) {
@@ -773,12 +799,15 @@
       fill(mg, S.hostRows, 'm');
       mh.textContent = S.hostRows.length ? S.hostRows[0].section || 'More' : '';
       mg.hidden = mh.hidden = !S.hostRows.length;
+      var eg = S.sheets.more.querySelector('.egrid'), eh = S.sheets.more.querySelector('.eh');
+      fill(eg, S.edit, 'e');
+      eg.hidden = eh.hidden = !S.edit.length;
       // ...and the section where the screen puts it
       var body = S.sheets.more.querySelector('.body'), hh = S.sheets.more.querySelector('.hh');
       var rh = S.sheets.more.querySelector('.rh'), rg = S.sheets.more.querySelector('.roomgrid');
       var order = place === 'top' ? [hh, hg, pg, ch, pg2, rh, rg] : place === 'categories' ? [pg, hh, hg, ch, pg2, rh, rg]
         : place === 'bottom' ? [pg, ch, pg2, rh, rg, hh, hg] : [pg, ch, pg2, hh, hg, rh, rg];
-      order.concat([mh, mg]).forEach(function (el) { body.appendChild(el); });
+      order.concat([mh, mg, eh, eg]).forEach(function (el) { body.appendChild(el); });
       // More Style: the list, about a phone's width; the icons, wide -- and
       // joined, exactly the bar's width
       Object.keys(S.sheets).forEach(function (k) {
@@ -786,10 +815,21 @@
         S.sheets[k].style.setProperty('--sheet-w', (roomsOn ? sheetW : joinW) + 'px');
       });
       S.built = listKey(width);
+      // EDIT MODE: the tabs and More's pages and rooms drag (hk-edit-menu.js)
+      if (ed) {
+        window.hkEditMenu.wireBar({ pill: S.pill, sheet: S.sheets.more, roomsSheet: S.sheets.rooms, rail: rail,
+                                    visible: Math.max(0, p.tabs.length - 1), root: S.root });
+      }
     }
+    // HK's Edit mode with the menu's lists (hk-edit-menu.js) -- not Home
+    // Assistant's own edit mode (editing(), above)
+    function arranging() { return !!(window.hkEditMenu && window.hkEditMenu.on()); }
+    function viewPath(it) { var p = it.paths || []; return String(p[1] != null ? p[1] : p[0]); }
     function fill(grid, items, k, at) {
+      var ed = arranging() && (k === 'p' || k === 'r');
       grid.innerHTML = items.map(function (it, i) {
-        return '<button class="it" data-k="' + k + '" data-i="' + (i + (at || 0)) + '"><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
+        return '<button class="it" data-k="' + k + '" data-i="' + (i + (at || 0)) + '"' +
+          (ed ? ' data-p="' + esc(k === 'r' ? it.path : viewPath(it)) + '"' : '') + '><hk-icon icon="' + icon(it.icon) + '"></hk-icon><span>' +
           esc(it.title) + '</span></button>';
       }).join('');
     }
@@ -876,21 +916,27 @@
       e.stopPropagation();
       var k = el.getAttribute('data-t');
       if (k === 'more') { toggleSheet('more'); return; }
+      // Edit mode: a tab is arranged, never followed
+      if (arranging()) return;
       go(S.tabs[+k]);
     }
     function onSheet(e) {
       var el = e.target.closest && e.target.closest('.it');
       if (!el) return;
       var k = el.getAttribute('data-k'), it = listOf(k)[+el.getAttribute('data-i')];
+      // Edit mode: More's pages and rooms are arranged; nothing leaves the page
+      if (arranging()) return;
       if (k === 'h') haGo(it);
       // (a host row opens a page, or asks the host to do something: hk-menu.js hostItems)
+      // Edit Page: More goes, the page goes into Edit mode
+      else if (k === 'e') { closeSheet(true); if (window.hkEdit && window.hkEdit.enter) window.hkEdit.enter(C.client()); }
       else if (k === 'm') {
         if (it && it.run) { closeSheet(true); try { it.run(); } catch (x) { /* the host's own */ } }
         else if (it && it.href) { closeSheet(true); location.assign(it.href); }
       }
       else go(it);
     }
-    function listOf(k) { return k === 'r' ? S.rooms : k === 'h' ? S.ha : k === 'm' ? S.hostRows : S.more; }
+    function listOf(k) { return k === 'r' ? S.rooms : k === 'h' ? S.ha : k === 'm' ? S.hostRows : k === 'e' ? (S.edit || []) : S.more; }
     // A HOME ASSISTANT ROW does what the side menu's does (hk-menu.js onList):
     // Show Menu opens Home Assistant's own sidebar over the page,
     // Notifications its drawer, the rest open Home Assistant's page
@@ -1020,7 +1066,7 @@
       });
     }
     function onScroll(e) {
-      if (!S.on || S.sheet) return;
+      if (!S.on || S.sheet || arranging()) return;
       var t = e.target;
       var el = (t === document || t === document.documentElement) ? document.scrollingElement : t;
       if (!el || el.nodeType !== 1 || el === S.host) return;
@@ -1135,6 +1181,14 @@
         if (top) de.style.setProperty('--hk-tabbar-top', top);
         else de.style.removeProperty('--hk-tabbar-top');
       }
+      // A BAR AT THE TOP (--hk-tabbar-below: its bottom edge from the
+      // window's top, while it shows): what is pinned along the top goes
+      // under it -- Edit mode's bar (hk-edit.js), never over the tabs
+      var below = pos === 'top' ? 'calc(' + barH(undefined, sizeNow()) + 'px + ' + TOP_CSS + ')' : '';
+      if (de.style.getPropertyValue('--hk-tabbar-below') !== below) {
+        if (below) de.style.setProperty('--hk-tabbar-below', below);
+        else de.style.removeProperty('--hk-tabbar-below');
+      }
       foldPub(on);
       var b = M.board() || {};
       if (pos && room(pos, scrollOf(b), b.tab_bar_adjust, isGrid(SH.view(viewEl()))) !== 'pad') pos = null;
@@ -1231,6 +1285,8 @@
       if (S.sheet) cls.push('sheeted');
       if (S.roomsMode !== 'button') cls.push('joined');
       if ((M.board() || {}).tab_bar_fold === 'end') cls.push('fold-end');
+      // Edit mode: the whole bar, never folded, its tabs to drag
+      if (arranging()) { cls.push('editing'); if (S.mode !== 'full') { setMode('full'); cls = cls.filter(function (c) { return c !== 'small' && c !== 'gone'; }); } }
       S.root.className = cls.join(' ');
       S.on = true;
       markHere();
@@ -1271,6 +1327,8 @@
     window.addEventListener('hk-module-ready', function () { S.built = ''; sync(); });
     // the host's Home Assistant rows changed (hkShell.haNav: it learned where the page is)
     window.addEventListener('hk-ha-nav-changed', function () { S.built = ''; sync(); });
+    // Edit mode begun or ended (hk-edit.js): More's Edit Page row goes or comes back
+    window.addEventListener('hk-edit', function () { S.built = ''; sync(); });
     // the window's scroll, and <body>'s on a phone (scroll events do not
     // bubble: captured at the document, as hk-menu.js does)
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
