@@ -3154,6 +3154,10 @@
     var S = window.hkSettings, flat = !!(S && S.rendering && S.rendering().flat);
     if (flat) light = S.rendering().theme === 'light';
     flatTone(el);
+    // a card that is not an HkBase (the scenes row, hk-chip.js) is toned by
+    // its client alone: re-toned with the flat roots when the look changes
+    // (syncFlat), or a quiet page kept Flat's plates after Flat was left
+    if (!(el instanceof HkBase)) FLAT_ROOTS.add(el);
     var own = light && !el._hkNested && !flat;
     if (el._hkLight === light && el._hkOwnTone === own) return;
     el._hkLight = light;
@@ -3816,6 +3820,7 @@
                 tab_bar_more_phone: 'list', tab_bar_pos: 'bottom', tab_bar_fold: 'start',
                 tab_bar_start: 'full', tab_bar_adjust: true, tab_bar_scroll_phone: 'shrink',
                 tab_bar_tabs: 6, tab_bar_tabs_rail: 6, tab_bar_size: 'medium', tab_bar_labels: 'show',
+                tab_bar_tabs_phone: 3,
                 // PHONES' OWN (phoneForm): the menu (null: as before there
                 // was one -- phoneMenu), the button's style, More's rooms
                 menu_phone: null, button_phone: 'chip', tab_bar_rooms_phone: 'more' };
