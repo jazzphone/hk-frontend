@@ -34,7 +34,7 @@ custom_components/hk_frontend/     the integration HACS installs
 ├─ themes.py            adds the HK Kiosk themes to the frontend's, and again after a reload
 ├─ thirdparty.py        whether optional third-party cards, WallPanel or Kiosk Mode are ready (Weather uses native radar)
 ├─ art.py               album artwork fetched and served by Home Assistant
-├─ talk.py, talk_live.py  hold-to-talk on a camera sheet
+├─ talk.py, talk_live.py  hold-to-talk on a camera sheet (hk_core/link's, given this integration's address)
 ├─ switch.py, entity.py the Seasonal decorations switch
 ├─ rename.py            follows entity renames into the settings
 ├─ diagnostics.py, const.py, manifest.json, services.yaml
@@ -92,7 +92,8 @@ lives, not by a rule.
    (the picture of the sky Pre-rendered blurs), `hk-glass`, `hk-frosttint`,
    `hk-timers`, `hk-saver` (the photo screensaver), `hk-saver-panel` (the
    Speakers / Volume / Browse panel the screensaver and the Now Playing bar
-   share), `hk-campost`, `hk-menu`, `hk-tabbar` and `hk-notify`
+   share), `hk-fps` (the frame rate a lit, idle screen draws, for HK
+   Settings' recommendations), `hk-campost`, `hk-menu`, `hk-tabbar` and `hk-notify`
    (Notifications’ banners). Adding
    one to its list is live on the next page load. Each module sets its
    `window.hk…` global and fires `hk-module-ready`, which redraws the cards

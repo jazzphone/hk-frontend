@@ -70,8 +70,8 @@ async def test_your_file_wins_over_the_bundled_one_at_the_same_url(hass, config_
     files.set_folder(hass, "mine")
     got = files.resolve(hass, "fonts/sf-pro.css")
     assert got.read_text() == "mine"
-    # not in the folder -> the bundle's
-    assert files.resolve(hass, "cards/hk-base.js") == (files.BUNDLE / "cards" / "hk-base.js").resolve()
+    # not in the folder -> the bundle's (its minified copy where the published component has one)
+    assert files.resolve(hass, "cards/hk-base.js") == files._minified((files.BUNDLE / "cards" / "hk-base.js").resolve())
     # never outside either root
     assert files.resolve(hass, "../__init__.py") is None
     assert files.resolve(hass, "../../mine/fonts/sf-pro.css") is None
@@ -83,11 +83,33 @@ async def test_a_folder_made_after_start_is_found_without_a_restart(hass, config
     looked for again, at most every RECHECK_S seconds, while missing)."""
     from custom_components.hk_frontend import files
     files.set_folder(hass, "hk_later")
-    assert files.resolve(hass, "fonts/sf-pro.css") == files.BUNDLE.resolve() / "fonts" / "sf-pro.css"
+    assert files.resolve(hass, "fonts/sf-pro.css") == files._minified(files.BUNDLE.resolve() / "fonts" / "sf-pro.css")
     _write(config_dir / "hk_later" / "fonts" / "sf-pro.css", "mine")
     assert files.resolve(hass, "fonts/sf-pro.css").read_text() != "mine", "not before the next look"
     monkeypatch.setattr(files, "RECHECK_S", 0.0)
     assert files.resolve(hass, "fonts/sf-pro.css").read_text() == "mine"
+
+
+# COMMENTS AND INDENTATION STRIPPED (2026-10-29): the published component carries frontend_min/, its .js and .css
+# minified (publish.py); /hk sends that copy, unless the readable file is newer (edited in place on a house).
+async def test_the_minified_copy_is_sent_unless_the_source_is_newer(hass, config_dir, monkeypatch, tmp_path):
+    from custom_components.hk_frontend import files
+    bundle, small = tmp_path / "frontend", tmp_path / "frontend_min"
+    _write(bundle / "cards" / "hk-x.js", "// readable\nvar x = 1;\n")
+    _write(bundle / "sky" / "a.webp", "img")
+    _write(bundle / "cards" / "hk-y.js", "var y = 1;\n")
+    _write(small / "cards" / "hk-x.js", "var x=1;\n")
+    monkeypatch.setattr(files, "BUNDLE_ROOT", bundle.resolve())
+    monkeypatch.setattr(files, "MINIFIED_ROOT", small.resolve())
+    files.set_folder(hass, None)
+    old = (bundle / "cards" / "hk-x.js").stat().st_mtime - 10
+    os.utime(bundle / "cards" / "hk-x.js", (old, old))
+    assert files.resolve(hass, "cards/hk-x.js").read_text() == "var x=1;\n"
+    assert files.resolve(hass, "cards/hk-y.js") == (bundle / "cards" / "hk-y.js").resolve()     # no copy: the file
+    assert files.resolve(hass, "sky/a.webp") == (bundle / "sky" / "a.webp").resolve()          # never an image
+    newer = (small / "cards" / "hk-x.js").stat().st_mtime + 10
+    os.utime(bundle / "cards" / "hk-x.js", (newer, newer))
+    assert "readable" in files.resolve(hass, "cards/hk-x.js").read_text(), "edited in place: the edit is sent"
 
 
 async def test_a_symlink_out_of_the_folder_is_not_followed(hass, config_dir):
@@ -153,3 +175,92 @@ async def test_the_bundle_ships_no_apple_files():
     assert not (bundle / "fonts" / "SF-Pro.woff2").exists()
     assert not (bundle / "fonts" / "SF-Pro.ttf").exists()
     assert not (bundle / "iconset" / "hk-glyphs.js").exists()
+
+
+# GZIP, MADE HERE AND KEPT (2026-10-29): the component carries no .gz copies, so the view gzips the text files
+# for a browser that accepts it -- once, in the executor, kept by path, mtime and size.
+async def test_a_text_file_is_gzipped_for_a_browser_that_takes_gzip(hass, frontend, config_dir, monkeypatch):
+    import gzip
+    import threading
+    from aiohttp import web
+    from aiohttp.test_utils import make_mocked_request
+    from custom_components.hk_frontend import files
+    # (http is a stand-in in these tests: the view is the one the component registered)
+    view = next(c.args[0] for c in hass.http.register_view.call_args_list if c.args[0].name == "hk_frontend:file")
+
+    async def get(path, **headers):
+        return await view.get(make_mocked_request("GET", "/hk/" + path, headers=headers), path)
+    text = "var hk = 'a line of HK code, repeated';\n" * 300
+    _write(config_dir / "mine" / "modules" / "hk-big.js", text)
+    _write(config_dir / "mine" / "modules" / "hk-tiny.js", "var a = 1;\n")
+    files.set_folder(hass, "mine")
+    files._GZIPPED.clear()
+    files._GZIPPED_SIZE[0] = 0
+    where = []
+    real = files.gzipped
+
+    def spy(target):
+        where.append(threading.current_thread() is threading.main_thread())
+        return real(target)
+    monkeypatch.setattr(files, "gzipped", spy)
+    r = await get("modules/hk-big.js", **{"Accept-Encoding": "gzip"})
+    assert r.status == 200 and r.headers["Content-Encoding"] == "gzip"
+    assert r.headers["Vary"] == "Accept-Encoding" and r.headers["Cache-Control"] == "no-cache"
+    assert r.content_type == "text/javascript" or r.content_type == "application/javascript"
+    assert gzip.decompress(r.body).decode() == text and len(r.body) < len(text) / 4
+    etag = r.headers["ETag"]
+    assert etag.endswith('-gz"')
+    assert where == [False], "compressed off the event loop"
+    # kept: the second request is the same bytes from the one cache entry
+    r2 = await get("modules/hk-big.js", **{"Accept-Encoding": "gzip, deflate"})
+    assert r2.body == r.body and len(files._GZIPPED) == 1
+    # a 304 for the ETag held, a full answer for any other
+    r3 = await get("modules/hk-big.js", **{"Accept-Encoding": "gzip", "If-None-Match": etag})
+    assert r3.status == 304 and r3.headers["ETag"] == etag
+    assert (await get("modules/hk-big.js", **{"Accept-Encoding": "gzip", "If-None-Match": '"other"'})).status == 200
+    # no gzip taken: the file as it is (aiohttp's own, with its own ETag), never the gzipped body
+    for none in ({"Accept-Encoding": "identity"}, {"Accept-Encoding": "gzip;q=0"}, {}):
+        r4 = await get("modules/hk-big.js", **none)
+        assert isinstance(r4, web.FileResponse) and "Content-Encoding" not in r4.headers
+        assert r4.headers["Vary"] == "Accept-Encoding" and r4.headers["Cache-Control"] == "no-cache"
+    # small files go as they are
+    assert isinstance(await get("modules/hk-tiny.js", **{"Accept-Encoding": "gzip"}), web.FileResponse)
+    assert (await get("nope.js", **{"Accept-Encoding": "gzip"})).status == 404
+    # the ordered boot file is gzipped too, and still the same text
+    rb = await get("modules/hk-boot.js", **{"Accept-Encoding": "gzip"})
+    assert rb.headers["Content-Encoding"] == "gzip"
+    plain = await get("modules/hk-boot.js", **{"Accept-Encoding": "identity"})
+    assert "Content-Encoding" not in plain.headers and gzip.decompress(rb.body).decode() == plain.text
+    assert (await get("modules/hk-boot.js", **{"Accept-Encoding": "gzip", "If-None-Match": rb.headers["ETag"]})).status == 304
+
+
+async def test_an_edited_file_is_gzipped_again_and_the_cache_is_bounded(hass, config_dir, monkeypatch):
+    import gzip
+    from custom_components.hk_frontend import files
+    files._GZIPPED.clear()
+    files._GZIPPED_SIZE[0] = 0
+    f = config_dir / "a.js"
+    _write(f, "var one = 1;\n" * 400)
+    first = files.gzipped(f)
+    assert gzip.decompress(first[0]).decode() == "var one = 1;\n" * 400
+    _write(f, "var two = 2;\n" * 401)                   # another size and time: another key, another ETag
+    second = files.gzipped(f)
+    assert gzip.decompress(second[0]).decode() == "var two = 2;\n" * 401 and second[1] != first[1]
+    # bounded: room for about two bodies, the oldest goes first
+    monkeypatch.setattr(files, "GZIP_CACHE_LIMIT", len(first[0]) + len(second[0]) + 10)
+    g, h = config_dir / "b.js", config_dir / "c.js"
+    _write(g, "var three = 3;\n" * 500)
+    _write(h, "var four = 4;\n" * 500)
+    files.gzipped(g)
+    files.gzipped(h)
+    assert files._GZIPPED_SIZE[0] <= files.GZIP_CACHE_LIMIT or len(files._GZIPPED) == 1
+    assert [k[0].rsplit("/", 1)[1] for k in files._GZIPPED][-2:] == ["b.js", "c.js"]
+    assert sum(len(b) for b, _ in files._GZIPPED.values()) == files._GZIPPED_SIZE[0]
+    # not text, small, or too large: sent as it is
+    _write(config_dir / "p.png", "x" * 5000)
+    _write(config_dir / "s.js", "x")
+    monkeypatch.setattr(files, "GZIP_MAX", 100)
+    assert files.gzipped(config_dir / "p.png") is None and files.gzipped(config_dir / "s.js") is None
+    assert files.gzipped(config_dir / "a.js") is None
+    assert files.accepts_gzip("gzip, deflate, br") and files.accepts_gzip("*") and not files.accepts_gzip("identity")
+    assert not files.accepts_gzip("gzip;q=0") and files.accepts_gzip("deflate, gzip;q=0.5") and not files.accepts_gzip(None)

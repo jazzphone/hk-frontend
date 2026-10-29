@@ -5,11 +5,27 @@ Assistant’s header and sidebar show.
 
 ## Every screen
 
-**All Screens → Appearance.** How the glass looks on every screen that doesn’t
-choose its own. Under Appearance Style, one line names the screens that have
-their own look (each a link to it), since a change here doesn’t reach them.
+**All Screens → Appearance.** How every screen that doesn’t choose its own
+looks, on one page:
 
-![The Appearance page in HK Settings](images/settings-appearance.png)
+- **Style**: the Appearance Style, then only that style’s own settings. Its
+  footer names the screens that keep their own look (each a link to it),
+  since a change here doesn’t reach them.
+- **Colors**: the **Accent Color**, and **Flat Colors** while any screen
+  wears Flat.
+- **Background**: **[Sky / Background](Live-Sky.md)** (its own sidebar
+  entry before; the old address opens it here).
+- **Tab Bar Look**: the [tab bar’s](Tab-Bar.md) **Tab Bar Glass**.
+
+**The Accent Color** is one choice for the menu’s highlight (its icons and
+the page you’re on, the tab bar’s too) and Flat’s accent: **Automatic** (in
+Flat, Flat’s own; elsewhere each page’s color, Home and the rooms orange),
+Apple’s eleven system colors, or **Your Own Color**. In Flat it also shades
+an Automatic background. It was the **Highlight Color** (under Menu) and
+Flat’s Accent Color before; both keep what you saved, and a Flat screen that
+had an accent of its own keeps it, as *Just This Screen*.
+
+![The Appearance page in HK Settings](images/settings-appearance.webp)
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -22,7 +38,7 @@ their own look (each a link to it), since a change here doesn’t reach them.
 | Icon Circles | Dark | Shown when the Glass Style is Tinted. **Dark**, as the Home app draws the circle behind an off accessory’s icon, or **Light**, which keeps its shape over dark scenery. |
 | Page Pills | Default | Every page pill: the pills in a screen’s Scenes row that open a page. Tap one to set its name, icon and color, the same on every screen ([Home Page](Home-Page.md#scenes-and-page-pills)). |
 
-![The Glass Style page: Glass, Frosted, Tinted and Blur, with Blur Mode's three choices under it](images/settings-glass-style.png)
+![The Glass Style page: Glass, Frosted, Tinted and Blur, with Blur Mode's three choices under it](images/settings-glass-style.webp)
 *All Screens → Appearance → Glass Style: the four styles, and with Blur chosen, its Blur Mode below.*
 
 The four styles side by side:
@@ -65,7 +81,7 @@ out, now uses Pre-rendered.
 
 ### Tinted
 
-![Home on a wall tablet in the Tinted look: flat dark plates over a sharp sky, the lit accessories white](images/tablet-home-tinted.png)
+![Home on a wall tablet in the Tinted look: flat dark plates over a sharp sky, the lit accessories white](images/tablet-home-tinted.webp)
 *Home in the Tinted look.*
 
 **Tinted** draws every card the way the Home app does: a flat, dark,
@@ -87,9 +103,49 @@ A card can stay out of the shared blur with `glass: false`. Whether tapping an
 accessory opens an HK detail sheet is **HK Detail Sheets**, under
 [Library → Accessories](Accessories.md#accessories-settings).
 
+## Recommended: a lighter screen for a slow tablet
+
+When a wall tablet draws fewer than 45 frames a second on a screen, HK
+Settings suggests ONE change on that screen’s **Appearance**, under its Style,
+and never more than one at a time. For example: *“Kitchen Tablet draws 38
+frames a second with Blur. Glass looks almost the same and is lighter.”* The
+button changes that screen only (All Screens’ is never changed), and **Use
+Flat** is beside it. Nothing changes until you tap one. All Screens →
+Appearance lists each screen with a suggestion, linked to its page.
+
+The suggestions go in order of what costs a weak tablet the most, and a screen
+that doesn’t use one skips it:
+
+| | The suggestion | The button |
+|---|---|---|
+| 1 | The style: **Blur**, **Frosted** or **Tinted** | **Use Glass on This Screen** |
+| 2 | The sky’s **Rain & Snow** | **Turn Off Rain & Snow on This Screen** (the clouds and fog stay) |
+| 3 | **Moving Things** in front of the cards | **Put Moving Things Behind on This Screen** |
+| 4 | The sky’s **Animations** | **Turn Off Animations on This Screen** (the sky holds still) |
+| 5 | A camera playing live (**Live First Camera**) | **Turn Off Live First Camera on This Screen** (the first tile is a snapshot) |
+
+**Use Flat** goes with every step but the third. When you take a step, nothing
+more is suggested until the tablet has measured again, up to an hour later; if
+the screen is still under 45 frames a second, the next step appears (the
+suggestion says so). Each measurement also records what the screen looked
+like when it was drawn (its style, its sky and its camera), and a measurement
+is only used while the screen still looks that way.
+
+The tablet measures itself: 5 seconds of drawing, about 20 seconds after the
+screen loads and then hourly, only while nobody is touching it and the screen
+is lit. In Home Assistant the tablets report to nobody, so the suggestion
+shows when HK Settings is opened **on that tablet**, under **This Device** on
+the page of the screen it measured (*Recommended for This Device*). With
+[Mantel](HK-Frontend-and-Mantel.md), every tablet’s number reaches HK
+Settings wherever it is opened.
+
 ## One screen
 
-**Screens → (a screen) → Appearance.**
+**Screens → (a screen) → Appearance**, one row on the screen’s page with its
+style and whether it is its own. Its page is laid out as All Screens’: the
+Style, the Colors (its **Accent Color**, *Same as All Screens* until it
+chooses one), the Background and, for a screen with the tab bar, its
+**Tab Bar Glass**.
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -107,7 +163,7 @@ Home Assistant’s own header and sidebar show around the screen. The row reads
 **Off**, **Both Hidden**, **Header Hidden**, **Sidebar Hidden** or **Kiosk
 Mode Plugin**.
 
-![A screen's Header & Sidebar page in HK Settings](images/settings-header-sidebar.png)
+![A screen's Header & Sidebar page in HK Settings](images/settings-header-sidebar.webp)
 
 | Setting | Default | What it does |
 |---|---|---|

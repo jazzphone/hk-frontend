@@ -1056,6 +1056,14 @@
   // 0 until the first reconnect: a card can skip the question entirely
   window.hkCards.staleEpoch = function () { return staleEpoch; };
   function artForget(url, size) { artSigned.delete(size + ' ' + url); }
+  // A PICTURE ON THIS PAGE'S OWN ORIGIN (a player's artwork, which Mantel serves itself): the host may ask for it at
+  // the tile's size (hkShell.artSized, 2026-10-29), so a cover of several megabytes is not downloaded to draw 150
+  // px. A host with nothing to say (or one that throws) leaves the address as it is.
+  function artLocal(url, size) {
+    var S = window.hkShell, got = null;
+    try { got = S && typeof S.artSized === 'function' ? S.artSized(url, size) : null; } catch (e) { got = null; }
+    return typeof got === 'string' && got ? got : url;
+  }
   function artSign(source, url, size, cb) {
     var client = asClient(source);
     artWatch(client);
@@ -1801,7 +1809,7 @@
     el._hkTracked = true;
     LIVE.push(new WeakRef(el));
   }
-  window.addEventListener('hk-module-ready', function () {
+  function redrawAll() {
     GEN.n++;
     LIVE = LIVE.filter(function (r) { return !!r.deref(); });
     LIVE.forEach(function (r) {
@@ -1810,7 +1818,13 @@
         try { el.requestUpdate(); } catch (e) { console.error('[hk-cards] wake', e); }
       }
     });
-  });
+  }
+  window.addEventListener('hk-module-ready', redrawAll);
+  // EVERY CARD ON THE PAGE DRAWN AGAIN, past its gate: for a host that must see what each card reads
+  // (Mantel's narrowing pass, web/home.js). A gate whose signature reads no state -- the Energy page's
+  // tab and five-second clock -- would otherwise skip the pass, and its sensors went unrecorded
+  // (2026-10-29: the where-card's power sensors were left out of the narrowed subscription).
+  window.hkCards.redrawAll = redrawAll;
 
   // THE SHARED BLUR'S MEMBERS (look.glass = blur; modules/hk-glass.js). A card
   // joins while it is on the page, unless its config says `glass: false`.
@@ -2338,7 +2352,7 @@
       });
       img.alt = '';
       if (artRemote(url)) artSign(this.client, url, sz, put);
-      else img.src = url;
+      else img.src = artLocal(url, sz);
       box.appendChild(img);
       return img;
     }
@@ -3068,13 +3082,14 @@
     }
   };
   window.hkCards._artRemote = artRemote;       // tests
+  window.hkCards._artLocal = artLocal;
   window.hkCards._artSign = artSign;
   // ARTWORK FOR A SURFACE THAT IS NO CARD (the screensaver's music): a remote
   // URL through the same signed proxy as _artImage, so the offline wall
   // tablets get it from their own origin; anything else as it is. `fresh`
   // forgets a kept signature first (an <img> that errored on it). cb(src)
   window.hkCards.artUrl = function (url, size, cb, fresh) {
-    if (!artRemote(url)) { cb(url); return; }
+    if (!artRemote(url)) { cb(artLocal(url, size)); return; }
     if (fresh) artForget(url, size);
     artSign(window.hkCards.client(), url, size, cb);
   };
@@ -3805,8 +3820,8 @@
                 page_rooms: 'floor', rooms_custom: false,
                 // the cameras: All Screens' unless cameras_custom (settings.py resolved())
                 cameras_custom: false,
-                // the menu: All Screens' unless menu_custom (settings.py resolved())
-                menu_custom: false, page_header: 'current', accent: 'orange', glyph: 'sidebar', clock: true,
+                // the menu: All Screens' but for the settings in menu_own (settings.py resolved())
+                menu_own: [], page_header: 'current', accent: 'orange', glyph: 'sidebar', clock: true,
                 // 1.7: Home, Pages, Screen (settings.py BOARD_DEFAULTS). chips_quiet
                 // null = the chip row's own default (hk-chip.js QUIET_DEFAULT).
                 chips_row: true, chips: [], chips_quiet: null, chips_extra: [], camera_strip: true, cameras: [],

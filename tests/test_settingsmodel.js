@@ -199,10 +199,10 @@ var keyOf = function (q, label) {
 };
 ok('search: a screen page\'s row is lit by its b: label', keyOf('menu', 'Menu') === 'b:menu');
 ok('...and so is one on a page under the screen (Menu Settings, Hide Header)',
-   keyOf('menu settings', 'Menu Settings') === 'b:menu_custom' && keyOf('hide header', 'Hide Header') === 'b:kiosk_header');
+   keyOf('menu settings', 'Menu Settings') === 'b:menu_own' && keyOf('hide header', 'Hide Header') === 'b:kiosk_header');
 ok('...while a key with its own prefix stays as it is',
    keyOf('forecast no photos', 'Forecast When There Are No Photos') === 'saver:fallback');
-ok('...and a house setting keeps its own key', M.search('backdrop', []).filter(function (y) { return y.route === 'house/sky/backdrop'; })
+ok('...and a house setting keeps its own key', M.search('backdrop', []).filter(function (y) { return y.route === 'house/appearance/sky/backdrop'; })
    .every(function (y) { return !/^b:/.test(y.key); }));
 ok('errors: a refusal map is read from the message', eq(M.refusals({ message: '{"look.glass":"choice"}' }), { 'look.glass': 'choice' }) &&
    M.refusals({ message: 'Unknown command' }) === null && /isn’t one of/.test(M.errorText('choice')));
@@ -361,13 +361,69 @@ ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_
   var sv = M.houseMenuSave({ menu: 'chip', tab_position: '', accent: 'red', glyph: 'lines' });
   ok('...and back', sv['menu.style'] === 'chip' && sv['menu.tab_at'] === '' && sv['menu.accent'] === 'red' && sv['menu.glyph'] === 'lines' &&
      Object.keys(sv).length === 4, sv);
-  var own = M.menuOwnChanges({ menu: 'chip_scroll', accent: 'teal', tab_size: 'xl', button_phone: 'tab', dock_min: 1000 });
-  ok('taking its own: what it shows now, the button\'s style too', own.menu_custom === true && own.menu === 'chip_scroll' &&
-     own.accent === 'teal' && own.tab_size === 'xl', own);
-  ok('...but never off or always open', !('menu' in M.menuOwnChanges({ menu: 'open' })));
-  ok('a screen\'s row says whose they are', M.menuSummary({ menu_custom: true }) === 'Just This Screen' &&
-     M.menuSummary({}) === 'Same as All Screens');
-  ok('search finds the highlight on All Screens\' Menu', M.search('highlight color', []).some(function (r) { return r.route === 'house/menu/accent'; }));
+  // ONE SETTING AT A TIME (2026-10-29, settings.py menu_own)
+  var b = { menu: 'chip', menu_own: ['accent'], accent: 'teal', tab_size: 'xl' };
+  ok('a screen owns the settings menu_own lists', M.ownsMenu(b, 'accent') && !M.ownsMenu(b, 'tab_size'));
+  ok('...a screen not moved yet (menu_custom) owns them all, as it did', M.menuOwn({ menu_custom: true }).length === Object.keys(M.MENU_KEYS).length &&
+     M.menuOwn({}).length === 0 && M.menuOwn(null).length === 0);
+  var set = M.menuOwnSet(b, { tab_size: 'standard' });
+  ok('changing one makes it its own, the rest as they were', set.tab_size === 'standard' && eq(set.menu_own, ['tab_size', 'accent']), set);
+  ok('...in MENU_KEYS order, once', eq(M.menuOwnSet(b, { accent: 'red', menu: 'tab' }).menu_own, ['menu', 'accent']));
+  ok('...a key that isn\'t a menu setting stays out of menu_own', eq(M.menuOwnSet({}, { menu_phone: 'tabbar' }).menu_own, []));
+  ok('Reset to All Screens takes it out again', eq(M.menuOwnReset(set, 'tab_size'), { menu_own: ['accent'] }) &&
+     eq(M.menuOwnReset(set, ['tab_size', 'accent']), { menu_own: [] }));
+  ok('a row says whose they are', M.menuSummary({}) === 'Same as All Screens' && M.menuSummary(b) === '1 Own Setting' &&
+     M.menuSummary(set) === '2 Own Settings' && M.menuSummary(set, M.KIND_KEYS['edge-tab']) === '1 Own Setting' &&
+     M.menuSummary(set, M.KIND_KEYS['tab-bar']) === 'Same as All Screens');
+  // THE KINDS OF MENU, and who uses each
+  var boards = { a: { menu: 'tabbar', menu_phone: 'button', button_phone: 'chip' }, b: { menu: 'tab', menu_phone: 'off' },
+                 c: { menu: 'off', menu_phone: 'off' }, d: { menu: 'open', menu_phone: 'tabbar' } };
+  var T = { a: 'Kitchen', b: 'Den', c: 'Car', d: 'Hall' }, title = function (p) { return T[p]; };
+  ok('side menu: a button or always open, on either device', eq(M.kindUsers('side', boards, title), ['Kitchen', 'Den', 'Hall']));
+  ok('edge tab: a style that shows it', eq(M.kindUsers('edge-tab', boards, title), ['Den']));
+  ok('tab bar: on either device', eq(M.kindUsers('tab-bar', boards, title), ['Kitchen', 'Hall']));
+  ok('"used by" as a row says it', M.usedBy([]) === 'Not used on any screen' && M.usedBy(['Den']) === 'Den' &&
+     M.usedBy(['Kitchen', 'Hall']) === 'Kitchen, Hall' && M.usedBy(['Kitchen', 'Den', 'Hall']) === '3 Screens');
+  ok('a screen\'s menu on each device in a word each', M.menuWord(boards.a) === 'Tab Bar · Button' && M.menuWord(boards.c) === 'Off · Off' &&
+     M.menuWord(boards.d) === 'Always Open · Tab Bar' && M.menuWord({ menu: 'auto' }) === 'Button · Button');
+  // ACCENT COLOR: the menu's highlight and Flat's accent, one choice
+  var look = { flat_colors: { accent: 'auto' } };
+  ok('All Screens\' Accent Color is the menu\'s accent', M.accentColorOf(look, { accent: 'teal' }, null, false, false).name === 'Teal' &&
+     M.accentColorOf(look, {}, null, false, false).name === 'Orange');
+  ok('...in Flat, a Flat accent saved apart before is what shows', M.accentColorOf({ flat_colors: { accent: '#7e9b83' } }, { accent: 'teal' }, null, true, true).name === 'Sage' &&
+     M.accentColorOf({ flat_colors: { accent: '#7e9b83' } }, { accent: 'teal' }, null, false, false).name === 'Teal');
+  var flatOwn = M.accentColorOf(look, { accent: 'teal' }, { accent: 'teal', flat_colors: { accent: '#c17d91' } }, true, false);
+  ok('a Flat screen\'s own Flat accent stays its own: Just This Screen', flatOwn.own && flatOwn.name === 'Rose' && flatOwn.house.name === 'Teal');
+  var follows = M.accentColorOf(look, { accent: 'teal' }, { accent: 'teal', menu_own: [] }, false, false);
+  ok('a screen that follows says so', !follows.own && follows.name === 'Teal');
+  ok('choosing it on All Screens writes both, the same value', eq(M.accentChanges('blue', null, false), { 'menu.accent': 'blue', 'look.flat_colors.accent': 'blue' }) &&
+     M.accentChanges('blue', null, true)['look.flat_colors.off_tint'] === 'accent' && !('look.flat_colors.off_tint' in M.accentChanges('auto', null, true)));
+  var sc = M.accentChanges('#123456', { menu_own: ['tab_size'] }, false);
+  ok('...on a screen: its own, both', sc.accent === '#123456' && sc['flat_colors.accent'] === '#123456' && eq(sc.menu_own, ['tab_size', 'accent']), sc);
+  ok('...and back to All Screens\'', eq(M.accentChanges(null, { menu_own: ['accent'] }), { menu_own: [], 'flat_colors.accent': null }));
+  ok('search finds the Accent Color on All Screens\' Appearance', M.search('highlight color', []).some(function (r) { return r.route === 'house/appearance/accent'; }) &&
+     M.search('accent color', []).some(function (r) { return r.route === 'house/appearance/accent'; }));
+  ok('search finds each kind of menu', ['side', 'edge-tab', 'tab-bar'].every(function (k) {
+    return M.SEARCH.some(function (s) { return s[1] === 'house/menu/' + k && s[2] === 'menu:' + k; }); }));
+  ok('...and Back Button & Title', M.search('page header', []).some(function (r) { return r.route === 'house/menu/header'; }));
+  var moved = function (s) { return /^(house\/(menu|appearance|sky)|screen)/.test(s[1]) && M.routeForward(s[1].replace(/^screen/, 'screens/x')); };
+  ok('no Appearance, Sky or Menu search row points at a moved address', !M.SEARCH.some(moved),
+     M.SEARCH.filter(moved).map(function (s) { return s[1]; }));
+  // EVERY MOVED ADDRESS FORWARDS
+  var F = M.routeForward;
+  ok('Sky / Background is under Appearance', F('house/sky') === 'house/appearance/sky' && F('house/sky/woodland/fall') === 'house/appearance/sky/woodland/fall' &&
+     F('house/sky/page/rooms') === 'house/appearance/sky/page/rooms');
+  ok('...a page\'s background still goes to its page', F('house/sky/page/climate') === 'page/climate/background' &&
+     F('house/appearance/sky/page/climate') === 'page/climate/background');
+  ok('the Highlight Color is the Accent Color', F('house/menu/accent') === 'house/appearance/accent' &&
+     F('house/appearance/flat-colors/accent') === 'house/appearance/accent' && F('screens/den/menu/accent') === 'screens/den/accent' &&
+     F('screens/den/flat-colors/accent') === 'screens/den/accent');
+  ok('...a page\'s own Flat accent stays where it is', F('house/appearance/flat-colors/page/climate/accent') === null &&
+     F('screens/den/flat-colors/page/climate/accent') === null);
+  ok('the device pages: to Menu, a button style to the Side Menu\'s', F('house/menu/tablets') === 'house/menu' && F('house/menu/phones/style') === 'house/menu/side/phones' &&
+     F('screens/den/menu/tablets') === 'screens/den/menu' && F('screens/den/menu/tablets/style') === 'screens/den/menu/side/tablets');
+  ok('...the new addresses never forward', F('house/appearance/sky') === null && F('house/menu/side') === null && F('screens/den/menu/tab-bar') === null &&
+     F('house/appearance/accent') === null && F('screens/den/appearance') === null);
 })();
 
 
@@ -378,8 +434,8 @@ ok('sky summary: absent and null settings follow All Screens', M.skySummary({}) 
 ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: false, sky_weather: false, sky_decorations: false, sky_gradient: 'live' }) === 'No Animation, No Weather, No Decorations, Own Backdrop');
 ok('sky summary: true is an own setting too', M.skySummary({ sky_animations: true }) === 'Own Settings');
 ok('sky summary: stored own colors count', M.skySummary({ sky_custom: {} }) === 'Own Settings');
-ok('search includes the backdrop picker (Sky Colors, 2026-10-13)', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.label === 'Sky Colors' && r.route === 'house/sky/backdrop'; }));
-ok('search finds the Background\u2019s photo', M.search('photo', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.route === 'house/sky'; }));
+ok('search includes the backdrop picker (Sky Colors, 2026-10-13)', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.label === 'Sky Colors' && r.route === 'house/appearance/sky/backdrop'; }));
+ok('search finds the Background\u2019s photo', M.search('photo', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.route === 'house/appearance/sky'; }));
 
 // No Button: offered only with the swipe on (or when it is the choice), and
 // turning the swipe off takes it back to the default
@@ -527,6 +583,118 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
   // (1.8.0) Show: Clock says Clock, not Photos
   ok('the screensaver summary on Show: Clock', /^Music, Then Clock · /.test(M.saverSummary({ show: 'clock', music_first: true })) &&
      /^Clock · /.test(M.saverSummary({ show: 'clock' })), M.saverSummary({ show: 'clock' }));
+})();
+// ------------------------------------- a lighter screen for a slow tablet (2026-10-29)
+(function () {
+  var NOW = 1000000, KITCHEN = 'dashboard-kitchen';
+  // a screen's facts (M.ladderFacts): b its board, look All Screens' look, sky its sky.*, cams {strip, live}
+  var F = function (b, look, sky, cams) { return M.ladderFacts(b || {}, look || {}, sky || {}, cams); };
+  // a tablet's report of drawing `fps` with these facts on (the sampler's word for them)
+  var T = function (facts, fps, more) {
+    return Object.assign({ name: 'Kitchen Tablet', screens: [KITCHEN], fps: fps, fps_screen: KITCHEN, fps_style: facts.style,
+                           fps_sig: M.ladderSignature(facts), fps_at: NOW - 60 }, more || {});
+  };
+  var R = function (facts, tablets) { return M.slowRecommend(KITCHEN, facts, tablets, NOW); };
+  var blur = F({}, { glass: 'blur' });
+  // a sample from before the ladder: no signature, only a style
+  var old = { name: 'Kitchen Tablet', screens: [KITCHEN], fps: 38.4, fps_screen: KITCHEN, fps_style: 'blur', fps_at: NOW - 60 };
+
+  // THE FIRST STEP: the style, as before
+  var r = R(blur, [T(blur, 38.4)]);
+  ok('a tablet drawing 38 frames a second with Blur: Glass is offered', !!r && r.step === 'glass' &&
+     r.says === 'Kitchen Tablet draws 38 frames a second with Blur. Glass looks almost the same and is lighter.', r);
+  ok('...a button for it and Use Flat, this screen only', !!r && r.button === 'Use Glass on This Screen' && r.flat === true &&
+     eq(r.change, { flat: false, glass: 'clear' }), r);
+  ok('...whichever blur mode the screen uses', !!R(F({}, { glass: 'blur_pre' }), [T(F({}, { glass: 'blur_pre' }), 38)]));
+  var frosted = F({}, { glass: 'frosted' }), tinted = F({}, { glass: 'tinted' });
+  ok('...Frosted and Tinted too, measured with them: Flat is the lighter look',
+     /with Frosted\. Flat is the lightest look/.test((R(frosted, [T(frosted, 38)]) || {}).says) &&
+     /with Tinted\./.test((R(tinted, [T(tinted, 38)]) || {}).says));
+  ok('a sample from before the ladder (no signature) still speaks for the style', !!R(blur, [old]) && R(blur, [old]).step === 'glass');
+  ok('...but for nothing else', R(F({}, { glass: 'clear' }), [Object.assign({}, old, { fps_style: 'clear' })]) === null);
+  ok('...and not for another style (it was Glass then)', R(blur, [Object.assign({}, old, { fps_style: 'clear' })]) === null &&
+     R(frosted, [old]) === null);
+  ok('nothing once the screen is Flat', R(F({ flat: true }, { glass: 'blur' }), [T(blur, 30)]) === null &&
+     R(F({}, { flat: true }), [T(blur, 30)]) === null);
+  ok('nothing at 45 frames a second or more', R(blur, [T(blur, 45)]) === null && R(blur, [T(blur, 60)]) === null);
+  ok('nothing without numbers', R(blur, []) === null && R(blur, null) === null &&
+     R(blur, [{ name: 'Loft', screens: [KITCHEN], fps: null }]) === null);
+  ok('nothing for another screen: the one it measured counts', R(blur, [T(blur, 30, { screens: [KITCHEN, 'dashboard-loft'], fps_screen: 'dashboard-loft' })]) === null);
+  ok('...a tablet that says nothing of where: the screens it shows', !!R(blur, [T(blur, 30, { fps_screen: null })]));
+  ok('nothing from a number weeks old', R(blur, [T(blur, 30, { fps_at: NOW - 30 * 86400 })]) === null);
+  var two = R(blur, [T(blur, 38), T(blur, 22, { name: 'Pantry Tablet' })]);
+  ok('two slow tablets: the slowest speaks', !!two && two.name === 'Pantry Tablet' && two.fps === 22 && two.label === 'Blur', two);
+  ok('...but only one drawn with the settings it has now', (R(blur, [T(blur, 38), T(frosted, 22, { name: 'Pantry Tablet' })]) || {}).name === 'Kitchen Tablet');
+
+  // WHAT WAS ON SCREEN: the word the sampler sends, from a screen's settings
+  ok('the signature: the style, then the animations, weather, rain and snow, front and camera',
+     M.ladderSignature(F({}, { glass: 'blur' }, {}, { strip: true, live: true })) === 'blur:a1w1r1f0c1');
+  ok('...a sky with Moving Things in front, no weather and no live camera', M.ladderSignature(F({ camera_live_video: false }, { glass: 'clear' },
+     { moving: 'front', weather: false })) === 'clear:a1w0r0f1c0');
+  ok('...Flat counts nothing, whatever the sky says', M.ladderSignature(F({}, { flat: true }, { moving: 'front' }, { live: true })) === 'flat:a0w0r0f0c0');
+  ok('...a still background counts no sky motion (a color, a photo, a landscape)',
+     ['color', 'photo', 'landscapes'].every(function (m) { return M.ladderSignature(F({}, { glass: 'blur' }, { background: m })) === 'blur:a0w0r0f0c1'; }) &&
+     M.ladderSignature(F({ sky_background: 'color' }, { glass: 'blur' }, {})) === 'blur:a0w0r0f0c1');
+  ok('...Animations off: nothing falls and nothing moves in front', M.ladderSignature(F({ sky_animations: false }, { glass: 'blur' }, { moving: 'front' })) === 'blur:a0w1r0f0c1');
+  ok('...a screen’s own settings over All Screens’', M.ladderSignature(F({ sky_precipitation: false, sky_moving: 'front', camera_live_video: false }, { glass: 'blur' }, {}, { live: true })) === 'blur:a1w1r0f1c0');
+
+  // THE LADDER, one step at a time. A house whose sky moves things in front of the cards; its first tile plays live.
+  var look = { glass: 'blur' }, sky = { moving: 'front' }, cams = { strip: true, live: true };
+  var b = {}, step = function () { return F(b, look, sky, cams); };
+  var rungs = [], f = step();
+  var take = function (fps) { var rec = R(f, [T(f, fps)]); if (rec) { rungs.push(rec); Object.assign(b, rec.change); } return rec; };
+  ok('step 1 is the style', !!take(38) && rungs[0].step === 'glass');
+  // the owner took it: nothing more until the tablet draws again
+  ok('...taken, the old number suggests nothing more', R(step(), [T(f, 38)]) === null);
+  f = step();
+  ok('...a new sample that is fast suggests nothing', R(f, [T(f, 52)]) === null);
+  var r2 = take(40);
+  ok('...a new one that is still slow: step 2, Rain & Snow off', !!r2 && r2.step === 'rain' &&
+     r2.says === 'Kitchen Tablet draws 40 frames a second with Rain & Snow on. Without them the clouds and fog still drift, and it is lighter.' &&
+     r2.button === 'Turn Off Rain & Snow on This Screen' && eq(r2.change, { sky_precipitation: false }) && r2.flat === true, r2);
+  ok('...a screen that may still be slow says when the next comes', !!r2 && r2.then === 'If it’s still slow an hour from now, the next suggestion appears here.');
+  f = step();
+  ok('...taken, the same number suggests nothing', R(f, [T(F({}, look, sky, cams), 40)]) === null);
+  var r3 = take(41);
+  ok('step 3: Moving Things behind the cards', !!r3 && r3.step === 'front' && r3.label === 'Moving Things' && r3.flat === false &&
+     r3.says === 'Kitchen Tablet draws 41 frames a second with Moving Things in front of the cards. Behind them, they cost less.' &&
+     r3.button === 'Put Moving Things Behind on This Screen' && eq(r3.change, { sky_moving: 'behind' }), r3);
+  f = step();
+  var r4 = take(42);
+  ok('step 4: Animations off', !!r4 && r4.step === 'anim' && r4.flat === true && eq(r4.change, { sky_animations: false }) &&
+     /with Animations on\. Off, the sky holds still/.test(r4.says), r4);
+  f = step();
+  ok('...Animations off take the rain and the moving things with them', f.anim === false && f.rain === false && f.front === false);
+  var r5 = take(43);
+  ok('step 5: Live First Camera off, the last: nothing after it', !!r5 && r5.step === 'camera' && r5.then === null && r5.flat === true &&
+     eq(r5.change, { camera_live_video: false }) && r5.says === 'Kitchen Tablet draws 43 frames a second with a camera playing live. Off, its first tile is a snapshot: no video to decode.', r5);
+  f = step();
+  ok('...and then the ladder is done, however slow', R(f, [T(f, 10)]) === null);
+  ok('five steps, in order, each only once', eq(rungs.map(function (x) { return x.step; }), ['glass', 'rain', 'front', 'anim', 'camera']));
+  ok('...each only this screen’s own settings, never All Screens’', rungs.every(function (x) { return Object.keys(x.change).every(function (k) { return !/^(look|sky|cameras)\./.test(k); }); }));
+
+  // A SAMPLE ONLY SPEAKS FOR WHAT WAS ON SCREEN
+  var g = F({}, { glass: 'clear' }, {}, cams), gs = T(g, 38);
+  ok('Glass with a moving sky: step 2', (R(g, [gs]) || {}).step === 'rain');
+  ok('...a sample drawn with something else on suggests nothing', R(g, [T(F({}, { glass: 'blur' }, {}, cams), 38)]) === null &&
+     R(g, [T(F({ sky_weather: false }, { glass: 'clear' }, {}, cams), 38)]) === null &&
+     R(g, [T(F({ camera_live_video: false }, { glass: 'clear' }, {}, cams), 38)]) === null);
+  ok('...nor one that names no signature, for a step past the style', R(g, [Object.assign({}, gs, { fps_sig: null })]) === null);
+  ok('...a malformed signature is no match', R(g, [Object.assign({}, gs, { fps_sig: 'clear' })]) === null);
+
+  // STEPS THAT DO NOT APPLY ARE SKIPPED
+  var noRain = F({ sky_precipitation: false }, { glass: 'clear' }, {}, cams);
+  ok('rain and snow already off: on to Animations', (R(noRain, [T(noRain, 38)]) || {}).step === 'anim');
+  var still = F({ sky_background: 'color' }, { glass: 'clear' }, {}, cams);
+  ok('a color or photo background has no sky to quiet: on to the camera', (R(still, [T(still, 38)]) || {}).step === 'camera');
+  var noCam = F({ sky_background: 'color' }, { glass: 'clear' }, {}, { strip: false, live: true });
+  ok('...a screen with no camera strip has nothing at all', R(noCam, [T(noCam, 38)]) === null);
+  var camOff = F({ sky_background: 'color', camera_live_video: false }, { glass: 'clear' }, {}, cams);
+  ok('...nor one whose first camera is already a snapshot', R(camOff, [T(camOff, 38)]) === null);
+  var quiet = F({ sky_animations: false }, { glass: 'clear' }, {}, { strip: false });
+  ok('a quiet sky, Glass, no cameras: the ladder is done', R(quiet, [T(quiet, 20)]) === null);
+  ok('Use Flat goes with every step but Moving Things', eq(M.LADDER.map(function (x) { return x.flat; }), [true, true, false, true, true]));
+  ok('...and the ladder is five steps, the style dearest', eq(M.LADDER.map(function (x) { return x.id; }), ['glass', 'rain', 'front', 'anim', 'camera']));
 })();
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');
