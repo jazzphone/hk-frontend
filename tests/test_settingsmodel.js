@@ -165,9 +165,10 @@ var a = M.amountOf({ frost: null }, { frost: 30 }, 'frost');
 ok('amounts: null follows All Screens’', !a.own && a.value === 30);
 a = M.amountOf({ blur: 0 }, { blur: 50 }, 'blur');
 ok('amounts: 0 is a value of its own, not "follow"', a.own && a.value === 0);
-ok('amounts: only the one the glass uses is shown', eq(M.amountsFor('frosted'), { frost: true, blur: false, tint: false }) &&
-   eq(M.amountsFor('blur_each'), { frost: false, blur: true, tint: false }) && eq(M.amountsFor('clear'), { frost: false, blur: false, tint: false }) &&
-   eq(M.amountsFor('tinted'), { frost: false, blur: false, tint: true }));
+ok('amounts: only the one the glass uses is shown', eq(M.amountsFor('frosted'), { frost: true, blur: false, tint: false, bright: false }) &&
+   eq(M.amountsFor('blur_each'), { frost: false, blur: true, tint: false, bright: false }) && eq(M.amountsFor('clear'), { frost: false, blur: false, tint: false, bright: false }) &&
+   eq(M.amountsFor('tinted'), { frost: false, blur: false, tint: true, bright: false }) &&
+   eq(M.amountsFor('bright_pre'), { frost: false, blur: false, tint: false, bright: true }));
 
 // ------------------------------------------------------------ sky
 var BI = { halloween: { north: ['09-22', '10-31'], south: ['09-22', '10-31'] }, spring: { north: ['03-20', '06-20'], south: ['09-22', '12-20'] } };
@@ -529,13 +530,39 @@ ok('Use the Side Strip: All Screens\' bar_strip, on unless off, saved back', M.M
 ok('...on the Tab Bar page, its own setting one at a time', M.KIND_KEYS['tab-bar'].indexOf('tab_bar_strip') >= 0 &&
    eq(M.menuOwnSet({ menu_own: [] }, { tab_bar_strip: false }).menu_own, ['tab_bar_strip']) &&
    eq(M.menuOwnReset({ menu_own: ['tab_bar_strip', 'accent'] }, 'tab_bar_strip').menu_own, ['accent']));
+ok('Swipe Between Pages: Automatic, On, Off; found on the Menu page, All Screens\' and a screen\'s; copied with the menu',
+   M.SWIPE_PAGES.map(function (o) { return o[0]; }).join() === 'auto,on,off' && !!M.SWIPE_PAGES_SAYS.auto &&
+   M.SEARCH.some(function (r) { return r[1] === 'house/menu' && r[2] === 'menu.swipe_pages'; }) &&
+   M.SEARCH.some(function (r) { return r[1] === 'screen/menu' && r[2] === 'swipe_pages' && r[4] === true; }) &&
+   M.COPY_GROUPS.filter(function (g) { return g[0] === 'menu'; })[0][2].indexOf('swipe_pages') >= 0);
 ok('...found by search, on the Tab Bar page', M.SEARCH.some(function (r) {
   return r[0] === 'Use the Side Strip' && r[1] === 'house/menu/tab-bar' && r[2] === 'menu.bar_strip' && /duo/.test(r[3]); }));
 // THE GLASS (2026-10-10): Glass, Frosted, Tinted (2026-10-12), Blur -- and Blur's three modes
-ok('glass: five styles, Blur\'s three modes, one stored value each',
-   eq(M.GLASS_STYLES.map(function (g) { return g[0]; }), ['flat', 'clear', 'frosted', 'tinted', 'blur']) &&
+ok('glass: six styles, Blur\'s three modes and Bright Glass\'s, one stored value each',
+   eq(M.GLASS_STYLES.map(function (g) { return g[0]; }), ['flat', 'clear', 'frosted', 'tinted', 'blur', 'bright']) &&
    eq(M.BLUR_MODES.map(function (g) { return g[0]; }), ['blur', 'blur_pre', 'blur_each']) &&
-   eq(M.GLASS.map(function (g) { return g[0]; }), ['flat', 'clear', 'frosted', 'tinted', 'blur', 'blur_pre', 'blur_each']));
+   eq(M.BRIGHT_MODES.map(function (g) { return g[0]; }), ['bright', 'bright_pre', 'bright_each']) &&
+   eq(M.GLASS.map(function (g) { return g[0]; }), ['flat', 'clear', 'frosted', 'tinted', 'blur', 'blur_pre', 'blur_each', 'bright', 'bright_pre', 'bright_each']));
+// BRIGHT GLASS (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase D)
+ok('Bright Glass: the approved words, its own style, Blur\'s modes by its own values',
+   eq(M.GLASS_STYLES[5], ['bright', 'Bright Glass', 'A light, clear glass that brings out the colours behind it. Best over a wallpaper.']) &&
+   M.glassStyle('bright_pre') === 'bright' && M.glassStyle('bright_each') === 'bright' && M.isBright('bright') && !M.isBlur('bright') &&
+   M.glassLabel('bright') === 'Bright Glass · Shared Layer' && M.glassLabel('bright_each') === 'Bright Glass · Each Card' &&
+   M.modesFor('bright') === M.BRIGHT_MODES && M.modesFor('blur') === M.BLUR_MODES && M.modesFor('tinted') === null);
+ok('...picking a style keeps the Blur Mode already chosen, either\'s',
+   M.styleValue('bright', 'blur_pre', 'blur') === 'bright_pre' && M.styleValue('blur', 'bright_each', 'blur') === 'blur_each' &&
+   M.styleValue('bright', 'frosted', 'blur') === 'bright' && M.styleValue('bright', null, 'blur_pre') === 'bright_pre' &&
+   M.styleValue('frosted', 'blur_pre', 'blur') === 'frosted');
+ok('...its Strength shows with it, and says it holds back by itself', /Strength/.test(M.glassFooter('bright')) && /holds back/.test(M.glassFooter('bright_pre')) &&
+   M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf('bright') >= 0);
+ok('...the tab bar can wear it on its own', M.TAB_BAR_GLASS.some(function (g) { return g[0] === 'bright' && g[1] === 'Bright Glass'; }));
+// WALLPAPERS (2026-10-30, Phase E)
+ok('Wallpaper: a Background, said, with its Night Version, and copied with the screen\'s look',
+   M.SKY_BACKGROUNDS.some(function (g) { return g[0] === 'wallpaper'; }) && M.BG_LABELS.wallpaper === 'Wallpaper' && /night/.test(M.BG_SAYS.wallpaper) &&
+   eq(M.WALLPAPER_NIGHT.map(function (g) { return g[0]; }), ['auto', 'day', 'night']) && M.skyModeLabel('wallpaper', []) === 'Wallpaper' &&
+   ['sky_wallpaper', 'sky_wallpaper_night'].every(function (k) { return M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf(k) >= 0; }));
+ok('...a screen with its own Wallpaper says so', M.skySummary({ sky_background: 'wallpaper', sky_wallpaper: 'shards_blue' }) === 'Wallpaper' &&
+   M.skySummary({ sky_wallpaper: 'shards_blue' }) !== 'Same as All Screens');
 ok('...Tinted is a style of its own, named, with its Darkness and Icon Circles',
    M.glassStyle('tinted') === 'tinted' && M.glassLabel('tinted') === 'Tinted' && !M.isBlur('tinted') &&
    /Darkness/.test(M.glassFooter('tinted')) && /Icon Circles/.test(M.glassFooter('tinted')) &&
@@ -548,7 +575,7 @@ ok('...named as you would say them', M.glassLabel('clear') === 'Glass' && M.glas
 ok('...each value\'s style', M.glassStyle('blur_pre') === 'blur' && M.glassStyle('blur_each') === 'blur' && M.glassStyle('blur') === 'blur' &&
    M.glassStyle('frosted') === 'frosted' && M.glassStyle('clear') === 'clear' && M.glassStyle(undefined) === 'clear' &&
    M.isBlur('blur_pre') && !M.isBlur('frosted'));
-ok('...Pre-rendered has the Blur amount, and says so', eq(M.amountsFor('blur_pre'), { frost: false, blur: true, tint: false }) && /Blur: how strong/.test(M.glassFooter('blur_pre')));
+ok('...Pre-rendered has the Blur amount, and says so', eq(M.amountsFor('blur_pre'), { frost: false, blur: true, tint: false, bright: false }) && /Blur: how strong/.test(M.glassFooter('blur_pre')));
 ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return m[2].length > 60; }) &&
    /lightest/i.test(M.BLUR_MODES[1][2]) && /heaviest/i.test(M.BLUR_MODES[2][2]) &&
    /every frame/.test(M.BLUR_MODES[0][2]) && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.isBlur('blur_pre') && !M.isBlur('blur_baked'));
@@ -705,6 +732,42 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
   ok('a quiet sky, Glass, no cameras: the ladder is done', R(quiet, [T(quiet, 20)]) === null);
   ok('Use Flat goes with every step but Moving Things', eq(M.LADDER.map(function (x) { return x.flat; }), [true, true, false, true, true]));
   ok('...and the ladder is five steps, the style dearest', eq(M.LADDER.map(function (x) { return x.id; }), ['glass', 'rain', 'front', 'anim', 'camera']));
+})();
+// ------------------------------------------------------------ the side pane (2026-10-30)
+(function () {
+  ok('Side Pane: twelve kinds, four sizes, eight at most', M.PANE_KINDS.length === 12 && M.PANE_SIZES.length === 4 && M.PANE_MAX === 8 &&
+     eq(M.PANE_GROUPS, ['side', 'width', 'dashboard', 'saver', 'doorbell']));
+  var house = { side: 'left', dashboard: { show: 'home', sections: [{ kind: 'weather' }, { kind: 'timers', when: 'active' }] } };
+  var hp = M.paneOf(house, null);
+  ok('All Screens\': its groups over the defaults, none a screen\'s', hp.side === 'left' && hp.width === 'standard' && hp.doorbell === true &&
+     hp.dashboard.show === 'home' && eq(hp.own, []) && M.paneGroupSays(hp, 'side', false) === '');
+  ok('...a change saves its one group', eq(M.paneSet(hp, 'width', 'wide', false), { 'side_pane.width': 'wide' }));
+  var read = { side: 'left', width: 'wide', dashboard: hp.dashboard, saver: { show: 'off', sections: [] }, doorbell: true, own: ['width'] };
+  var sp = M.paneOf(house, { side_pane_read: read });
+  ok('a screen: its pane as read, and whose each group is', sp.width === 'wide' && M.paneGroupSays(sp, 'width', true) === 'Just This Screen' &&
+     M.paneGroupSays(sp, 'side', true) === 'Same as All Screens');
+  ok('...a change makes that group its own too, keeping the others', eq(M.paneSet(sp, 'side', 'right', true), { side_pane: { width: 'wide', side: 'right' } }));
+  ok('...Reset to All Screens takes one group back', eq(M.paneReset(M.paneOf(house, { side_pane_read: Object.assign({}, read, { own: ['width', 'side'] }) }), 'side'),
+     { side_pane: { width: 'wide' } }));
+  ok('...the last one back: Same as All Screens in everything (null)', eq(M.paneReset(sp, 'width'), { side_pane: null }));
+  var g = hp.dashboard;
+  ok('sections: added at Less, More and Always left out as stored', eq(M.secsAdd(g, 'todo').sections[2], { kind: 'todo', size: 'less' }) &&
+     eq(M.paneSection({ kind: 'clock', size: 'more', when: 'always', completed: false }), { kind: 'clock' }));
+  ok('...reordered by their keys', eq(M.secsOrder(g, ['timers:', 'weather:']).sections.map(function (s) { return s.kind; }), ['timers', 'weather']));
+  var f = M.secSet({ show: 'all', sections: [{ kind: 'clock', size: 'full' }, { kind: 'weather' }] }, 1, 'size', 'full');
+  ok('...one Full at a time: another made Full, the first is More again', eq(f.sections, [{ kind: 'clock' }, { kind: 'weather', size: 'full' }]));
+  ok('...When There\'s Something, and back to Always', M.secSet(g, 0, 'when', 'active').sections[0].when === 'active' &&
+     !('when' in M.secSet(g, 1, 'when', 'always').sections[1]));
+  var eight = { show: 'all', sections: M.PANE_KINDS.slice(0, 8).map(function (k) { return { kind: k[0] }; }) };
+  ok('...eight is the most: nothing more to add', M.secsMore(eight).length === 0 && M.secsAdd(eight, 'todo').sections.length === 8);
+  ok('...the kinds not there yet (a camera or a list may come twice)', M.secsMore(g).map(function (k) { return k[0]; }).indexOf('weather') < 0 &&
+     M.secsMore({ sections: [{ kind: 'camera' }] }).map(function (k) { return k[0]; }).indexOf('camera') >= 0);
+  ok('a section\'s row says its size and when', M.secSays({ kind: 'clock' }) === 'More' && M.secSays({ kind: 'x', size: 'tiny', when: 'active' }) === 'Tiny \u00b7 When There\u2019s Something');
+  ok('the links: the Dashboard\'s', M.paneSummary(hp) === 'Home Only, Left' && M.paneSummary(M.paneOf({}, null)) === 'Off');
+  ok('...the screensaver\'s', M.paneSaverSummary({ saver: { show: 'own', sections: [{ kind: 'calendar' }, { kind: 'now_playing' }] } }) === 'Calendar and Now Playing' &&
+     M.paneSaverSummary({ saver: { show: 'same' } }) === 'Same as the Dashboard' && M.paneSaverSummary(hp) === 'Off');
+  ok('...Now Playing\'s Show As: the bar, or in the Side Pane', M.npShowAs(hp) === 'Bar' &&
+     M.npShowAs({ dashboard: { show: 'all', sections: [{ kind: 'now_playing', when: 'active' }] } }) === 'In the Side Pane');
 })();
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

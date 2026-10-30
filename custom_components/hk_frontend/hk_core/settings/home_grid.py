@@ -27,6 +27,13 @@ FRAME = (1280, 800)
 FRAME_W = (320, 3840)
 FRAME_H = (320, 2160)
 ITEMS_MAX = 24
+# A CELL'S SHAPE (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md "The numbers"): a tile, 196 x 150, or a square, 196 x 196
+# (hk-grid-catalog.js CELLS). Stored only when square. A grid for a square SCREEN (`screen`, the Square screen
+# type) reaches to 14 px of the glass and rounds its corner blocks' outer corners with the display's.
+CELLS = ("tile", "square")
+SCREENS = ("square",)
+# a block's Tile Style (hk-settings-model.js TILE_STYLES; model.TILE_STYLES): absent, the screen's
+TILE_STYLES = ("home", "centred")
 # VIEWS (2026-10-24, StandBy's): up to four whole layouts on one screen's grid, a swipe apart
 VIEWS_MAX = 4
 PAGES_MAX = 12
@@ -40,8 +47,17 @@ AREA_ID = re.compile(r"^[a-z0-9_]{1,80}\Z")
 # and checked here; the cards resolve it (G3, G4).
 TABLET_ROOM = "tablet_room"
 
-# Size classes: (columns, rows)
-SIZES: dict[str, tuple[int, int]] = {"S": (1, 1), "W": (2, 1), "T": (1, 2), "L": (2, 2), "XL": (3, 2), "XXL": (6, 2)}
+# Size classes: (columns, rows). F, Full (2026-10-30, the Cameras face): the view's whole grid -- 0 is "the grid's
+# own" (span()) -- at [0, 0] only and so the only block in its view; offered for `cameras` alone
+SIZES: dict[str, tuple[int, int]] = {"S": (1, 1), "W": (2, 1), "T": (1, 2), "L": (2, 2), "XL": (3, 2), "XXL": (6, 2),
+                                     "F": (0, 0)}
+FULL = "F"
+
+
+def span(size: str, cols: int, rows: int) -> tuple[int, int]:
+    """A size's columns and rows on a grid of `cols` x `rows`: its own, or the whole grid's for F."""
+    w, h = SIZES[size]
+    return (w or cols, h or rows)
 
 # THE CATALOG'S MIRROR: key -> its sizes, the page sources it swipes through besides `list` (every card has
 # `list`), and its options (name -> kind, OPTION_KINDS).
@@ -51,10 +67,14 @@ CATALOG: dict[str, dict[str, Any]] = {
     "scene": {"sizes": ("S", "W"), "sources": (), "opts": {"scene": "scene"}},
     "scenes": {"sizes": ("W", "L", "XL", "XXL"), "sources": ("scenes",), "opts": {"scenes": "scenes", "surface": "surface"}},
     "now_playing": {"sizes": ("W", "T", "L"), "sources": ("speakers",), "opts": {"speaker": "speaker"}},
-    "thermostat": {"sizes": ("T", "L", "XL"), "sources": ("thermostats",), "opts": {"entity": "climate"}},
+    # style (2026-10-30): the dial, or Big Number (docs/phase11/HOMEVIEW-LOOK.md, Phase C)
+    "thermostat": {"sizes": ("T", "L", "XL"), "sources": ("thermostats",), "opts": {"entity": "climate", "style": "thermostat_style"}},
     "camera": {"sizes": ("W", "L", "XL"), "sources": ("cameras",),
                # follow (2026-10-24): swiping all cameras, turn to the one a selector or the latest motion picks
                "opts": {"entity": "camera", "follow": "camera_follow", "follow_select": "select"}},
+    # THE CAMERAS FACE (2026-10-30): up to nine stills at once, arranged to the block; Full is the whole view.
+    # cameras: the ones shown (none: all, in Cameras' order); refresh: s between stills
+    "cameras": {"sizes": ("XL", "XXL", "F"), "sources": (), "opts": {"cameras": "cameras", "refresh": "refresh"}},
     # Large and Extra Large (2026-10-24): the alarm's keypad
     "security": {"sizes": ("S", "W", "L", "XL"), "sources": (), "opts": {"entity": "alarm"}},
     "timers": {"sizes": ("S", "W"), "sources": (), "opts": {}},
@@ -229,8 +249,13 @@ def _room_display(v: Any) -> str:
     return v
 
 
-# a Clock block's face (hk-grid-catalog.js CLOCK_FACES; "" is HK's own clock, stored as no option)
-CLOCK_FACES = ("analog", "classic", "serif", "flip", "lcd", "neon", "nixie", "dots", "arc")
+# a Clock block's face (hk-grid-catalog.js CLOCK_FACES; "" is HK's own clock, stored as no option). "numbers"
+# (2026-10-30): Analog Numbers, HomeView's kind of face
+CLOCK_FACES = ("analog", "classic", "serif", "flip", "lcd", "neon", "nixie", "dots", "arc", "numbers")
+# a Thermostat block's style (hk-grid-catalog.js THERMOSTAT_STYLES): the dial, or Big Number
+THERMOSTAT_STYLES = ("dial", "big")
+# ...and the HomeView-style faces (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase I), each on its own colour
+CLOCK_FACES += ("liquid", "giant", "scattered")
 
 
 def _clock_style(v: Any) -> str:
@@ -239,9 +264,16 @@ def _clock_style(v: Any) -> str:
     return v
 
 
+def _thermostat_style(v: Any) -> str:
+    if v not in THERMOSTAT_STYLES:
+        raise GridInvalid("grid_option")
+    return v
+
+
 OPTION_KINDS = {
     "room_display": _room_display,
     "clock_style": _clock_style,
+    "thermostat_style": _thermostat_style,
     "camera_follow": _camera_follow,
     "select": _domain("input_select", "select"),
     "boolean": _boolean,
@@ -258,7 +290,9 @@ OPTION_KINDS = {
     "weather": _domain("weather"),
     "vacuum": _domain("vacuum"),
     "calendars": _list(_domain("calendar")),
+    "cameras": _list(_domain("camera")),
     "days": lambda v: _whole(v, 1, 7, "grid_option"),
+    "refresh": lambda v: _whole(v, 5, 60, "grid_option"),
     "area": _area,
     "action": _action,
     "windows": _windows,
@@ -398,7 +432,8 @@ def variant(v: Any, size: str) -> dict[str, Any]:
 
 def item(v: Any, cols: int, rows: int) -> dict[str, Any]:
     """One block, checked against a grid of `cols` x `rows` (its place, not its neighbours)."""
-    if not isinstance(v, dict) or set(v) - {"id", "card", "size", "at", "opts", "pages", "when", "fallback", "rules", "bare", "view"}:
+    if not isinstance(v, dict) or set(v) - {"id", "card", "size", "at", "opts", "pages", "when", "fallback", "rules", "bare", "view",
+                                              "tile"}:
         raise GridInvalid("grid_item")
     if not isinstance(v.get("id"), str) or not ITEM_ID.match(v["id"]):
         raise GridInvalid("grid_item")
@@ -408,7 +443,7 @@ def item(v: Any, cols: int, rows: int) -> dict[str, Any]:
     size = v.get("size")
     if size not in CATALOG[card]["sizes"]:
         raise GridInvalid("grid_size")
-    w, h = SIZES[size]
+    w, h = span(size, cols, rows)
     if w > cols or h > rows:
         raise GridInvalid("grid_fit")
     at = v.get("at")
@@ -443,13 +478,19 @@ def item(v: Any, cols: int, rows: int) -> dict[str, Any]:
             raise GridInvalid("grid_option")
         if v["bare"]:
             out["bare"] = True
+    # TILE STYLE (2026-10-30): the block's own, Home or Centred; absent, the screen's
+    if "tile" in v:
+        if v["tile"] not in TILE_STYLES:
+            raise GridInvalid("grid_option")
+        out["tile"] = v["tile"]
     _capacity(out, size)
     return out
 
 
-def cells(it: Mapping[str, Any]) -> set[tuple[int, int, int]]:
-    """The cells a checked block covers, in its view (blocks overlap only within one)."""
-    (c, r), (w, h), view = it["at"], SIZES[it["size"]], it.get("view", 0)
+def cells(it: Mapping[str, Any], cols: int = COLS[0], rows: int = ROWS_DEFAULT) -> set[tuple[int, int, int]]:
+    """The cells a checked block covers on a `cols` x `rows` grid, in its view (blocks overlap only within one):
+    a Full block, all of them."""
+    (c, r), (w, h), view = it["at"], span(it["size"], cols, rows), it.get("view", 0)
     return {(view, c + x, r + y) for x in range(w) for y in range(h)}
 
 
@@ -482,7 +523,7 @@ def _night(v: Any) -> dict[str, Any]:
 
 def _shape(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict) or set(v) - {"v", "cols", "rows", "frame", "band", "header_clock", "header_weather", "scale", "boxes", "grow",
-                                              "night", "views", "items"}:
+                                              "night", "views", "items", "cell", "screen"}:
         raise GridInvalid("grid")
     ver = v.get("v", VERSION)
     if type(ver) is not int or ver != VERSION:         # not True, not 1.0: == alone takes both
@@ -509,6 +550,16 @@ def _shape(v: Any) -> dict[str, Any]:
         views = _whole(v["views"], 1, VIEWS_MAX, "grid")
         if views > 1:
             out["views"] = views
+    # cell: square (2026-10-30) -- tile, the default, is no key; screen: square, the Square screen type's
+    if "cell" in v:
+        if v["cell"] not in CELLS:
+            raise GridInvalid("grid")
+        if v["cell"] == "square":
+            out["cell"] = "square"
+    if "screen" in v:
+        if v["screen"] not in SCREENS:
+            raise GridInvalid("grid")
+        out["screen"] = v["screen"]
     # boxes: False -- every block without its plate (Hide Box, the screen's); grow: True -- the grid may scale past
     # its own size to fill the screen (a phone on its side)
     for key in ("header_clock", "header_weather", "boxes", "grow"):
@@ -531,7 +582,7 @@ def check(v: Any) -> dict[str, Any] | None:
         it = item(raw, out["cols"], out["rows"])
         if it["id"] in ids or it.get("view", 0) >= out.get("views", 1):
             raise GridInvalid("grid_item")
-        here = cells(it)
+        here = cells(it, out["cols"], out["rows"])
         if here & taken:
             raise GridInvalid("grid_overlap")
         ids.add(it["id"])
@@ -558,7 +609,7 @@ def layout(v: Any) -> dict[str, Any] | None:
             it = item(raw, out["cols"], out["rows"])
         except (GridInvalid, TypeError, KeyError):
             continue
-        here = cells(it)
+        here = cells(it, out["cols"], out["rows"])
         if it["id"] in ids or here & taken or it.get("view", 0) >= out.get("views", 1):
             continue
         ids.add(it["id"])

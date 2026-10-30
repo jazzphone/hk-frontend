@@ -1545,7 +1545,9 @@
   // first when the band is on, a card per block from the catalog
   // (hk-grid-catalog.js) with its cell, then the cards that only listen.
   // `ctx`: the house as this screen sees it, for a block naming nothing.
-  function homeGridView(grid, o, header, listeners, ctx) {
+  // `tiles`: the screen's Tile Style (its own, else All Screens'), which a
+  // block's own `tile` overrides; only Centred goes on the cell.
+  function homeGridView(grid, o, header, listeners, ctx, tiles) {
     var cards = [];
     if (grid.band !== false && header) {
       // A Home Grid has 60 px for its band, not the full page header's 150+.
@@ -1556,14 +1558,17 @@
     }
     (grid.items || []).forEach(function (it) {
       // (Hide Box: the block's own, or the screen's No Boxes -- the cell says so to every card inside it)
-      cards.push(Object.assign(window.hkGridCatalog.config(it, ctx),
-                               { hk_cell: { id: it.id, size: it.size, at: it.at, bare: !!it.bare || grid.boxes === false, view: it.view || 0 } }));
+      var cell = { id: it.id, size: it.size, at: it.at, bare: !!it.bare || grid.boxes === false, view: it.view || 0 };
+      if ((it.tile || tiles) === 'centred') cell.tile = 'centred';
+      cards.push(Object.assign(window.hkGridCatalog.config(it, ctx), { hk_cell: cell }));
     });
     (listeners || []).forEach(function (c) { cards.push(c); });
     return Object.assign({}, o, { type: 'custom:hk-home-grid-view', layout: undefined, cards: cards, grid_ctx: ctx,
                                   grid: Object.assign({ cols: grid.cols, rows: grid.rows, band: grid.band !== false, scale: grid.scale },
                                                       grid.grow === true ? { grow: true } : {}, grid.night && grid.night.mode !== 'off' ? { night: grid.night } : {},
-                                                      grid.views > 1 ? { views: grid.views } : {}) });
+                                                      grid.views > 1 ? { views: grid.views } : {},
+                                                      // square cells, and a Square screen (2026-10-30)
+                                                      grid.cell === 'square' ? { cell: 'square' } : {}, grid.screen === 'square' ? { screen: 'square' } : {}) });
   }
   // the catalog, when a Home Grid screen needs it: a parallel-loaded
   // resource, waited for by its ready event, never polled (cardsReady)
@@ -1865,7 +1870,7 @@
         battery: houseBattery(),
         climate: gridClimate, areas: gridAreas, scenes: gridScenes,
         rooms: rooms(client, opts).map(function (r) { return r.id; }).filter(Boolean)
-      }));
+      }, b.tile_style === 'home' || b.tile_style === 'centred' ? b.tile_style : setting('look.tile_style')));
     }
     var pages = {};
     if (opts.pages !== false) {
@@ -2292,6 +2297,7 @@
         var music = opts.music === false ? false : await musicConfigured(client);
         cfg = { views: views(client, opts, music) };
         customPages(cfg.views, listOf(b, 'custom_pages'));
+        pagesScreen(cfg.views, b);
       }
       energyLinks(cfg.views, seg);
       skyPages(cfg.views);
@@ -2316,6 +2322,28 @@
       else if (saver) cfg.hk_screensaver = hkSaver(saver, b.screensaver_options);
       return cfg;
     }
+  }
+
+  // THE PAGES SCREEN (docs/phase11/HOMEVIEW-LOOK.md, Phase J; decision 15):
+  // while the screen's Pages Screen is on (hkSettings.pagesScreen: its own,
+  // else All Screens'), a page right after Home -- an iPad-style home screen
+  // of the screen's pages (hk-pages-screen.js) -- at /pages (/pages-screen
+  // where a custom page has that address). It wears Home's sky and theme:
+  // the screen's own background, drawn blurred by the card. Its icons,
+  // rooms, widgets and pill the card reads live; only `show` builds.
+  // `pages_screen: true` is what the menu, the tab bar and Edit mode know it
+  // by (hk-menu.js model: right after Home).
+  function pagesScreen(list, b) {
+    var HS = window.hkSettings, home = list[0];
+    if (!home || !HS || !HS.pagesScreen || HS.pagesScreen(b).show !== 'on') return;
+    var path = list.some(function (v) { return v && v.path === 'pages'; }) ? 'pages-screen' : 'pages';
+    var v = { type: 'custom:hk-grid-view', title: 'Pages', path: path, subview: true, icon: 'mdi:view-grid',
+              pages_screen: true, background: home.background || '#05070e',
+              layout: { 'grid-template-columns': 'minmax(0, 1fr)', margin: '0px', padding: '0px' },
+              cards: [{ type: 'custom:hk-pages-screen-card', glass: false }] };
+    if (home.theme) v.theme = home.theme;
+    if (home.sky) v.sky = true;
+    list.splice(1, 0, v);
   }
 
   // THE HOUSE'S CUSTOM PAGES this dashboard lists (its Pages page; Custom
@@ -2959,18 +2987,23 @@
       trigger: [{ condition: 'or', conditions: [].concat(
         withTimers ? [{ condition: 'numeric_state', entity: 'sensor.running_quick_timers', above: 0 }] : [],
         // (grace: the house's Hide After a Pause, read live -- hk-popup.js)
-        withMusic ? [{ condition: 'state', entity_from: { music: true }, state: 'playing', grace: 'now_playing' }] : []) }],
+        // ...while the Side Pane doesn't show it (2026-10-30, hk-sidepane.js
+        // says so with `hk-pane-music`)
+        withMusic ? [{ condition: 'and', conditions: [
+          { condition: 'state', entity_from: { music: true }, state: 'playing', grace: 'now_playing' },
+          { condition: 'not', conditions: [{ condition: 'flag', flag: 'hk-pane-music' }] }] }] : []) }],
       trigger_close: true,
       // NOW PLAYING'S PLACE (2026-10-15, the screen's Now Playing; hk-popup.js
-      // placeFor): a pane down one side -- the screensaver's music pane, the
-      // card after the player -- or this bar along the bottom or the top
-      // (top_vars: its inset at the top of the screen, not the bottom)
+      // placeFor): this bar along the bottom or the top (top_vars: its inset
+      // at the top of the screen, not the bottom). Its old side pane is the
+      // Side Pane's (2026-10-30): `pane` now says the bar holds the music the
+      // Side Pane may take over (hk-popup.js npin)
       pane: !!withMusic,
       top_vars: { 'hk-np-height': 'calc(104px + env(safe-area-inset-top, 0px))',
                   'hk-np-pad': 'calc(12px + env(safe-area-inset-top, 0px)) 24px 12px' },
       // the timers on the same plate, a slim row over the player (docked)
       cards: [].concat(withTimers ? [{ type: 'custom:hk-timer-strip-card', docked: true }] : [],
-                       withMusic ? [bar, { type: 'custom:hk-music-pane-card' }] : []) };
+                       withMusic ? [bar] : []) };
   }
 
   // REBUILT WHEN ITS SETTINGS CHANGE. A strategy builds the dashboard once,
@@ -3016,6 +3049,8 @@
                     tab_bar_more_phone: 1, tab_bar_pos: 1, tab_bar_fold: 1, tab_bar_start: 1,
                     tab_bar_adjust: 1, tab_bar_scroll_phone: 1, tab_bar_tabs: 1, tab_bar_tabs_rail: 1, tab_bar_tabs_phone: 1,
                     tab_bar_size: 1, tab_bar_labels: 1, tab_bar_strip: 1,
+                    // ...and Swipe Between Pages (hk-pageswipe.js reads it live)
+                    swipe_pages: 1,
                     // ...and Phones' own menu (hk-base.js phoneMenu, 2026-10-08)
                     menu_phone: 1, button_phone: 1, tab_bar_rooms_phone: 1,
                     // ...and Now Playing's place (hk-popup.js placeFor reads it live)
@@ -3031,7 +3066,10 @@
                     sky_liveliness: 1, sky_liveliness_occ: 1, sky_liveliness_custom: 1, sky_calm_empty: 1,
                     sky_background: 1, sky_color: 1, sky_photo: 1, sky_page_photos: 1, sky_photo_look: 1, sky_page_looks: 1, sky_landscape: 1, sky_landscape_look: 1,
                     sky_flat_background: 1, sky_flat_color: 1, sky_flat_fade: 1, sky_flat_tint: 1, sky_flat_tint_amount: 1, sky_flat_tint_light: 1, sky_flat_pages: 1,
-                    sky_flat_image_look: 1, sky_flat_page_image_looks: 1, sky_image_look: 1 };
+                    sky_flat_image_look: 1, sky_flat_page_image_looks: 1, sky_image_look: 1,
+                    // (2026-10-30) the Wallpaper, and Bright Glass's Strength
+                    // (hk-settings.js applies the look live, as frost's)
+                    sky_wallpaper: 1, sky_wallpaper_night: 1, bright: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };
@@ -3066,7 +3104,9 @@
                            // the Energy page's plan (features/energy/plan.py)
                            setting('energy'),
                            // which calendars there are decides whether there is a Calendar page
-                           (setting('calendar') || {}).entities]);
+                           (setting('calendar') || {}).entities,
+                           // whether there is a Pages screen (All Screens'; the rest the card reads live)
+                           (setting('pages_screen') || {}).show]);
   }
   var built = { seg: null, sig: null, at: 0, timer: null };
   // NOT UNDER A FINGER. A rebuild re-creates every card -- an open sheet

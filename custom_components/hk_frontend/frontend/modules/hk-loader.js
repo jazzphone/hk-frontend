@@ -1,6 +1,7 @@
 // hk-loader.js - imports the order-independent dashboard modules (MODULES
-// below: kiosk, stats, charts, sky, idle, glass, skyshot, timers, saver,
-// saver-panel, fps, campost, menu, tabbar, notify, edit, edit-pages, drag).
+// below: kiosk, stats, charts, wallpapers, sky, idle, glass, skyshot, timers, saver,
+// saver-panel, sidepane, fps, campost, menu, tabbar, notify, edit, edit-pages, drag,
+// pageswipe).
 //
 // WHY THIS EXISTS
 // The bootstrap list -- the files every page loads before any card renders --
@@ -31,7 +32,12 @@
                  // asks (hk-kiosk.js): first, so a kiosk screen shows them
                  // for as short a time as possible.
                  'hk-kiosk.js',
-                 'hk-stats.js', 'hk-charts.js', 'hk-flat-image.js', 'hk-sky.js', 'hk-idle.js',
+                 'hk-stats.js', 'hk-charts.js', 'hk-flat-image.js',
+                 // The wallpapers' art and stops (a Background of our own,
+                 // 2026-10-30): it only assigns window.hkWallpapers; the sky
+                 // asks it as it paints, and paints again on its next tick
+                 'hk-wallpapers.js',
+                 'hk-sky.js', 'hk-idle.js',
                  // The sky as a picture, for the Pre-rendered blur (it only
                  // assigns window.hkSkyShot; hk-glass.js asks it when it paints)
                  'hk-skyshot.js',
@@ -51,6 +57,10 @@
                  // ...its music's Speakers / Volume / Browse panel
                  // (hk-saver-panel.js), drawn only when one is opened.
                  'hk-saver-panel.js',
+                 // The Side Pane (hk-sidepane.js, 2026-10-30): a pane of the
+                 // sections a screen picks beside the page and in the
+                 // screensaver. Nothing on a screen without one.
+                 'hk-sidepane.js',
                  // The frame rate, sampled now and then on a lit, idle
                  // screen (hk-fps.js): for HK Settings' recommendations, and
                  // for Mantel's Performance page (page-health.js tells it)
@@ -80,7 +90,11 @@
                  // ...Edit mode's menu, tab bar and Room Order (phase G):
                  // registers with hkEdit once both are in
                  'hk-edit-menu.js',
-                 'hk-drag.js'];
+                 'hk-drag.js',
+                 // Swipe Between Pages (hk-pageswipe.js): listens for a
+                 // sideways swipe on the page; reads the tab bar's list
+                 // and the drag classifier when one comes
+                 'hk-pageswipe.js'];
 
   // NO GRID-LAYOUT PATCH MODULE. An inline box containing block content makes
   // every section creep 6px per tap in Safari; hk-grid-card and hk-grid-view

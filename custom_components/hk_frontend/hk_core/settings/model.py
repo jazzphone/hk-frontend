@@ -224,13 +224,24 @@ SKY_BACKDROP_IDS = tuple(p["id"] for p in SKY_BACKDROPS)
 # LANDSCAPES (2026-10-14): HK Frontend's own photos (frontend/landscapes, the
 # screensaver clock's), still, as a Photo is -- a new one each day or hour,
 # or one picked (SKY_LANDSCAPE).
-SKY_BACKGROUNDS = ("live", "color", "photo", "landscapes")
+SKY_BACKGROUNDS = ("live", "color", "photo", "landscapes", "wallpaper")
+# WALLPAPERS (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase E): our own art,
+# drawn by hk-wallpapers.js -- four shapes (ribbons, petals, shards, pinwheel)
+# in six colour families, each with a darker night version. A wallpaper is a
+# still, as a Color is, and publishes its four stops as the sky's, so Frosted's
+# Tint from Background, the Flat image tint and Bright Glass read them. Which
+# version shows (WALLPAPER_NIGHT): "auto" the night one after sunset, or always
+# "day" / "night".
+WALLPAPERS = ("ribbons_rose", "petals_rose", "petals_violet", "shards_violet", "shards_blue", "ribbons_blue",
+              "pinwheel_teal", "ribbons_teal", "pinwheel_amber", "petals_amber", "shards_graphite",
+              "pinwheel_graphite")
+WALLPAPER_NIGHT = ("auto", "day", "night")
 SKY_COLOR_IDS = tuple(i for i in SKY_BACKDROP_IDS if i != "live")
 # A PAGE'S BACKGROUND (Sky / Background -> Pages): its own color, any
 # backdrop -- "live" among them, the live sky -- "photo" (its own photo,
-# sky.page_photos, else the screen's) or "landscapes" (the screen's
-# Landscape)
-SKY_PAGE_MODES = ("own",) + SKY_BACKDROP_IDS + ("photo", "landscapes")
+# sky.page_photos, else the screen's), "landscapes" (the screen's
+# Landscape) or "wallpaper" (the screen's Wallpaper, 2026-10-30)
+SKY_PAGE_MODES = ("own",) + SKY_BACKDROP_IDS + ("photo", "landscapes", "wallpaper")
 # A PHOTO'S ADDRESS: one uploaded to Home Assistant (image_upload, served
 # without sign-in from this origin, so the sky can measure it), or a file in
 # www (/local/...) or HK's own files folder (/hk/...)
@@ -497,11 +508,11 @@ def sky_photo(v: Any) -> str | None:
 # photo and custom colors you made (photo, gradient_custom: kept for next
 # time), or Advanced's dates, hemisphere and sources. A screen's reset is
 # SKY_RESET_BOARD to None: Same as All Screens.
-SKY_RESET = ("background", "color", "landscape", "photo_look", "landscape_look", "image_look", "flat_background", "flat_color", "flat_image_look", "flat_fade", "flat_tint", "flat_tint_amount", "flat_tint_light",
+SKY_RESET = ("background", "color", "landscape", "wallpaper", "wallpaper_night", "photo_look", "landscape_look", "image_look", "flat_background", "flat_color", "flat_image_look", "flat_fade", "flat_tint", "flat_tint_amount", "flat_tint_light",
              "animations", "focus_pause", "moving", "weather", "precipitation",
              "cloud_style", "daytime", "gradient", "decorations", "decoration_style",
              "woodland", "themes", "liveliness_all", "liveliness", "liveliness_custom")
-SKY_RESET_BOARD = ("sky_background", "sky_color", "sky_landscape", "sky_photo_look", "sky_landscape_look", "sky_image_look",
+SKY_RESET_BOARD = ("sky_background", "sky_color", "sky_landscape", "sky_wallpaper", "sky_wallpaper_night", "sky_photo_look", "sky_landscape_look", "sky_image_look",
                    "sky_flat_background", "sky_flat_color", "sky_flat_image_look", "sky_flat_fade", "sky_flat_tint", "sky_flat_tint_amount", "sky_flat_tint_light",
                    "sky_animations", "sky_focus_pause", "sky_moving", "sky_weather", "sky_precipitation",
                    "sky_cloud_style", "sky_daytime", "sky_gradient", "sky_decorations", "sky_decoration_style",
@@ -1022,6 +1033,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # look, as a photo's; a screen's sky_landscape /
             # sky_landscape_look are its own
             "landscape": "every:1440", "landscape_look": dict(PHOTO_LOOK_DEFAULTS),
+            # WALLPAPER (2026-10-30): which one (WALLPAPERS) and when its night
+            # version shows (WALLPAPER_NIGHT); a screen's sky_wallpaper /
+            # sky_wallpaper_night are its own
+            "wallpaper": "ribbons_rose", "wallpaper_night": "auto",
             # EACH PAGE'S BACKGROUND (sky_pages below): page kind or custom
             # page address -> "own" (its own color), "live" (the live sky,
             # with this look), a backdrop id (a still color) or "photo"
@@ -1145,7 +1160,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # Use the Side Strip (2026-10-30): on a phone with a strip of
              # system controls down one side (iPhone Duo), the tab bar is a
              # rail in the strip's empty part (hk-tabbar.js stripSide)
-             "bar_strip": True},
+             "bar_strip": True,
+             # Swipe Between Pages (SWIPE_PAGES): a screen's swipe_pages, when
+             # set, is its own
+             "swipe_pages": "auto"},
     # The room pages: whether room headings on Home open them, and what the
     # status row shows.
     # ROOMS, for every screen that doesn't set its own (a screen's
@@ -1183,6 +1201,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # (hk-frosttint.js), held at one darkness so white text reads the same.
     # docs/ (each setting on its topic's page).
     "look": {"flat": False, "flat_theme": "dark", "glass": "clear", "frost": 50, "blur": 50, "tint": 50, "well": "dark", "frost_tint": False,
+             # BRIGHT GLASS (2026-10-30): bright -- its Strength, how much of
+             # the white wash and the lift (50 as designed), capped where
+             # white text would fall under 4.5:1 (hk-settings.js brightCap)
+             "bright": 50,
              # The detail sheets (hk-detail.js), after the Home app's, in
              # place of HA's more-info dialog on the dashboards, and the view
              # a speaker's sheet opens with "Browse Music" (a view path on the
@@ -1202,7 +1224,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              "page_accents": {},
              # FLAT COLORS (2026-10-17, flat_colors() above): All Screens'
              # two fields, and each page's own
-             "flat_colors": dict(FLAT_COLORS_DEFAULT), "flat_page_colors": {}},
+             "flat_colors": dict(FLAT_COLORS_DEFAULT), "flat_page_colors": {},
+             # TILE STYLE (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase B): the Home Grid's tiles and the room
+             # pages' Tall pills in the Home app's layout, or Centred (the glyph above the name and room, HomeView's)
+             "tile_style": "home"},
     # THE CALENDAR (the Calendar page, hk-calendar.js, and the screensaver's
     # calendar pane): the calendar entities shown, in order (empty: every
     # calendar the house has), and each one's colour -- entity -> a page pill
@@ -1226,14 +1251,22 @@ DEFAULTS: dict[str, dict[str, Any]] = {
                                         "recently_added", "favourite_radio"]},
 }
 GLASS = ("clear", "frosted", "tinted", "blur", "blur_pre", "blur_each")
+# BRIGHT GLASS (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase D): the sixth
+# look -- clear glass, a light blur and a bright rim, for vivid backgrounds --
+# in the Blur look's three Blur Modes, one stored value each as Blur's are:
+# bright (Shared Layer), bright_pre (Pre-rendered), bright_each (Each Card)
+BRIGHT_GLASS = ("bright", "bright_pre", "bright_each")
+GLASS = GLASS + BRIGHT_GLASS
 # Tinted's icon circles (look.well, a screen's well): Apple's dark, or light
 WELLS = ("dark", "light")
+# Tile Style (look.tile_style, a screen's tile_style; a Home Grid block's `tile`, home_grid.TILE_STYLES)
+TILE_STYLES = HG.TILE_STYLES
 # Looks that were tried and taken out, read as the one that replaced them:
 # Baked (blur_baked, each surface its own slice of the picture) cost more
 # than it saved and went on 2026-10-10 -- Pre-rendered is the same picture.
 RETIRED_GLASS = {"blur_baked": "blur_pre"}
 BLACK_SCREENS = ("kiosk", "hk")    # a screen's Black Screen (BOARD_DEFAULTS)
-AMOUNT = (0, 100)                  # look.frost, look.blur and look.tint, in %; 50 is the default
+AMOUNT = (0, 100)                  # look.frost, look.blur, look.tint and look.bright, in %; 50 is the default
 
 # Music Assistant's own categories on Browse Music's first page, by the id
 # browse_media gives each (media_content_id), in MA's order.
@@ -1284,6 +1317,97 @@ def discover_rows(keys: list[str] | None) -> list[dict[str, Any]]:
     return [{"key": k, **SHELVES[k]} for k in (keys or []) if k in SHELVES]
 
 
+# ------------------------------------------------------------ the Pages screen
+# THE PAGES SCREEN (docs/phase11/HOMEVIEW-LOOK.md, Phase J; decision 15, 2026-10-30): an iPad-style home screen of
+# the screen's own pages, right after Home in the swipe order, so a screen can be got around without a nav bar
+# (web/hk/cards/hk-pages-screen.js draws it). All Screens' `pages_screen` has every field; a screen's is None (Same
+# as All Screens) or only the fields it sets, each its own and the rest All Screens' (pages_screen_resolved).
+#   show     "off" | "on": the page at all (/pages, right after Home)
+#   icons    "menu": the screen's menu pages, in its order; or a list of view paths of its own, in its order
+#   rooms    "folder": one Rooms icon that opens them; "each": an icon per room; "none"
+#   widgets  Side Pane sections among the icons (Phase A2): [{kind, size, place}] -- size "less" (2 x 1) or
+#            "more" (2 x 2), place "right" or "left" of the first Pages screen, from the top
+#   pill     the Home pill at the foot: "auto" (where the screen shows no tab bar), "on", "off"
+PAGES_SCREEN_SHOW = ("off", "on")
+PAGES_SCREEN_ROOMS = ("folder", "each", "none")
+PAGES_SCREEN_PILL = ("auto", "on", "off")
+# the Side Pane's twelve sections (Phase A2's PANE_SECTIONS, in its order): one list once both are in
+PAGES_SCREEN_WIDGETS = ("clock", "weather", "calendar", "now_playing", "security", "camera", "timers", "energy",
+                        "climate", "people", "todo", "notifications")
+PAGES_SCREEN_SIZES = ("less", "more")
+PAGES_SCREEN_PLACES = ("right", "left")
+PAGES_SCREEN_WIDGETS_MAX = 4
+PAGES_SCREEN_ICONS_MAX = 60
+PAGES_SCREEN_PATH = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
+PAGES_SCREEN_DEFAULTS: dict[str, Any] = {"show": "off", "icons": "menu", "rooms": "folder", "widgets": [],
+                                         "pill": "auto"}
+
+
+def _pages_icons(v: Any) -> str | list[str] | None:
+    """"menu", or view paths, each once (None: neither)."""
+    if v == "menu":
+        return v
+    if not isinstance(v, list) or len(v) > PAGES_SCREEN_ICONS_MAX:
+        return None
+    if not all(isinstance(x, str) and PAGES_SCREEN_PATH.match(x) for x in v) or len(set(v)) != len(v):
+        return None
+    return list(v)
+
+
+def _pages_widgets(v: Any) -> list[dict[str, str]] | None:
+    """[{kind, size, place}]: a section each at most once, a size and a place (absent: More, Right)."""
+    if not isinstance(v, list) or len(v) > PAGES_SCREEN_WIDGETS_MAX:
+        return None
+    out: list[dict[str, str]] = []
+    for w in v:
+        if not isinstance(w, Mapping) or set(w) - {"kind", "size", "place"}:
+            return None
+        kind, size, place = w.get("kind"), w.get("size", "more"), w.get("place", "right")
+        if _one_of(kind, PAGES_SCREEN_WIDGETS) is None or _one_of(size, PAGES_SCREEN_SIZES) is None \
+                or _one_of(place, PAGES_SCREEN_PLACES) is None or any(x["kind"] == kind for x in out):
+            return None
+        out.append({"kind": kind, "size": size, "place": place})
+    return out
+
+
+PAGES_SCREEN_CHECKS: dict[str, Any] = {
+    "show": lambda v: _one_of(v, PAGES_SCREEN_SHOW), "icons": _pages_icons,
+    "rooms": lambda v: _one_of(v, PAGES_SCREEN_ROOMS), "widgets": _pages_widgets,
+    "pill": lambda v: _one_of(v, PAGES_SCREEN_PILL),
+}
+
+
+def pages_screen(v: Any, strict: bool = False) -> dict[str, Any] | None:
+    """All Screens' Pages Screen: `v` over its defaults, each field checked (strict, a save: a bad field refuses the
+    whole, None; stored, read back: a bad field keeps its default)."""
+    return _typed(v, PAGES_SCREEN_DEFAULTS, PAGES_SCREEN_CHECKS, strict)
+
+
+def pages_screen_own(v: Any, strict: bool = False) -> dict[str, Any] | None:
+    """A screen's own Pages Screen: only the fields it sets, each checked ({} sets none: Same as All Screens).
+    strict: anything but a mapping, or an unknown or bad field, refuses the whole (None); otherwise it is left out."""
+    if not isinstance(v, Mapping):
+        return None if strict else {}
+    out: dict[str, Any] = {}
+    for k, x in v.items():
+        check = PAGES_SCREEN_CHECKS.get(k)
+        got = check(x) if check else None
+        if got is None:
+            if strict:
+                return None
+            continue
+        out[k] = got
+    return out
+
+
+def pages_screen_resolved(house: Any, own: Any) -> dict[str, Any]:
+    """A screen's Pages Screen as it shows: each field the screen's own, else All Screens'
+    (hk-settings.js pagesScreen() is the page's copy)."""
+    return {**(pages_screen(house) or copy.deepcopy(PAGES_SCREEN_DEFAULTS)), **(pages_screen_own(own) or {})}
+
+
+DEFAULTS["pages_screen"] = copy.deepcopy(PAGES_SCREEN_DEFAULTS)
+
 
 def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     """The stored settings over the defaults, section by section."""
@@ -1294,6 +1418,8 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
         if section in out and isinstance(values, dict):
             out[section].update({k: v for k, v in values.items() if k in out[section]})
     out["look"]["saver"] = saver_options(out["look"].get("saver")) or dict(SAVER_DEFAULTS)
+    if out["menu"].get("swipe_pages") not in SWIPE_PAGES:
+        out["menu"]["swipe_pages"] = DEFAULTS["menu"]["swipe_pages"]
     np = out["now_playing"]
     for k, allowed in (("style", NP_STYLES), ("side", NP_SIDES), ("bar", NP_BARS), ("bar_phone", NP_BARS),
                        ("grace", NP_GRACES)):
@@ -1306,6 +1432,8 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
         out["look"]["flat_theme"] = "dark"
     if out["look"].get("well") not in WELLS:
         out["look"]["well"] = DEFAULTS["look"]["well"]
+    if out["look"].get("tile_style") not in TILE_STYLES:
+        out["look"]["tile_style"] = DEFAULTS["look"]["tile_style"]
     out["sky"]["photo_look"] = photo_look(out["sky"].get("photo_look")) or dict(PHOTO_LOOK_DEFAULTS)
     out["sky"]["landscape_look"] = photo_look(out["sky"].get("landscape_look")) or dict(PHOTO_LOOK_DEFAULTS)
     out["sky"]["landscape"] = sky_landscape(out["sky"].get("landscape")) or DEFAULTS["sky"]["landscape"]
@@ -1327,11 +1455,21 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     sk["flat_image_look"] = flat_image_look(sk.get("flat_image_look")) or {}
     sk["image_look"] = flat_image_look(sk.get("image_look")) or {}
     sk["flat_page_image_looks"] = flat_page_image_looks(sk.get("flat_page_image_looks")) or {}
+    if sk.get("wallpaper") not in WALLPAPERS:
+        sk["wallpaper"] = DEFAULTS["sky"]["wallpaper"]
+    if sk.get("wallpaper_night") not in WALLPAPER_NIGHT:
+        sk["wallpaper_night"] = "auto"
+    br = amount_or_none(out["look"].get("bright"))
+    out["look"]["bright"] = DEFAULTS["look"]["bright"] if br is None else br
     # each over its own defaults: a partly stored object is still whole, and
     # a stored false stays false
     wx = out["weather"]
     wx["page"] = weather_page(wx.get("page"), strict=False)
     wx["radar_native"] = radar_native(wx.get("radar_native"), strict=False)
+    # the Pages screen, over its defaults (pages_screen() above)
+    out["pages_screen"] = pages_screen(out.get("pages_screen"))
+    # the Side Pane, each group over its default
+    out["side_pane"] = side_pane(out.get("side_pane")) or copy.deepcopy(SIDE_PANE_DEFAULTS)
     return out
 
 
@@ -1457,7 +1595,7 @@ SAVER_DEFAULTS: dict[str, Any] = {
     "weather_slide": False, "weather_hide": [],
 }
 MOSAIC_COLORS = ("black", "white", "gray", "charcoal", "cream", "navy")
-SAVER_CLOCK_STYLES = ("today", "classic", "serif", "neon", "lcd", "flip", "analog", "words", "arc", "nixie", "poster",
+SAVER_CLOCK_STYLES = ("today", "classic", "serif", "neon", "lcd", "flip", "analog", "numbers", "words", "arc", "nixie", "poster",
                       "dots", "ring", "glass", "type")
 SAVER_CLOCK_BGS = ("black", "grain", "gradient", "aurora", "ink", "sky", "lowpoly", "topo", "constellation", "forecast", "skyonly", "photos",
                    "landscapes")
@@ -1473,6 +1611,20 @@ SAVER_RANGES = {"blur": (0, 100), "dim": (0, 80), "zoom": (100, 200)}
 SAVER_FOCUS = {"x": ("left", "center", "right"), "y": ("top", "center", "bottom")}
 SAVER_ORDERS = ("random", "sorted")
 SAVER_SHOWS = ("photos", "both", "forecast", "clock")
+# THE HOMEVIEW-STYLE FACES (2026-10-30; docs/phase11/HOMEVIEW-LOOK.md, Phase I): three more Shows -- Glance (the
+# date, a clock, what's playing and the weather), Month (the month, today circled) and Day (the weekday and the
+# date with HK's own occasion art; its look light or dark, or by the time of day) -- drawn by hk-saverfaces.js;
+# three more clock faces (hk-saverclock.js: Liquid, Giant Numerals, Scattered Numerals); the Forecast's Layout
+# (Big: Big Weather); and for the photos, Titles (the album's name and the year) and Time Behind (the time behind
+# the photo's subject: Mantel Photos only, which cuts each photo out on its server). Each new option's default is
+# how the screensaver drew before, so a screen saved earlier draws exactly as it did.
+SAVER_SHOWS += ("glance", "month", "day")
+SAVER_CLOCK_STYLES += ("liquid", "giant", "scattered")
+SAVER_FORECAST_LAYOUTS = ("classic", "big")
+SAVER_DAY_LOOKS = ("auto", "light", "dark")
+SAVER_DEFAULTS.update({"forecast_layout": "classic", "photo_titles": False, "time_behind": False, "day_look": "auto"})
+SAVER_CHOICES.update({"clock_style": SAVER_CLOCK_STYLES, "forecast_layout": SAVER_FORECAST_LAYOUTS,
+                      "day_look": SAVER_DAY_LOOKS})
 # ALL SCREENS' screensaver options (All Screens -> Screensaver): a screen
 # whose own `screensaver_options` is null uses these (resolved()).
 DEFAULTS["look"]["saver"] = dict(SAVER_DEFAULTS)
@@ -1631,6 +1783,295 @@ def as_client(stored: Stored | None,
     return out
 
 
+# ------------------------------------------------------------ the side pane
+# THE SIDE PANE (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md "Phase A2"): one
+# pane per screen, of sections the person picks and orders, beside the
+# Dashboard (Home only, or every page) and in the screensaver
+# (hk-sidepane.js draws it). All Screens' is the house section `side_pane`;
+# a screen's own is a sparse object of the same groups (`side_pane`, None:
+# Same as All Screens), each group resolving on its own: the screen's, else
+# All Screens'. It takes over the screensaver's Calendar / Music pane
+# (look.saver's calendar, calendar_days, music_pane) and Now Playing's Show
+# As: Side Pane (now_playing.style / .side, a screen's np_style / np_side),
+# moved over once by side_pane_lifted.
+PANE_SECTIONS = ("clock", "weather", "calendar", "now_playing", "security", "camera", "timers", "energy",
+                 "climate", "people", "todo", "notifications")
+# a section's Size: one line, the gist, the whole section, and the whole
+# section taking the room the pane has left (one Full at a time); absent is More
+PANE_SIZES = ("tiny", "less", "more", "full")
+# Always, or When There's Something (music playing, a timer running, ...);
+# absent is Always
+PANE_WHEN = ("always", "active")
+PANE_SIDES = ("right", "left")
+PANE_WIDTHS = {"narrow": 360, "standard": 400, "wide": 480}
+# On the Dashboard: Off, Home Only, Every Page; in the screensaver: Off,
+# Same as the Dashboard's sections, Its Own Sections
+PANE_SHOWS = ("off", "home", "all")
+PANE_SAVER_SHOWS = ("off", "same", "own")
+PANE_MAX = 8
+PANE_GROUPS = ("side", "width", "dashboard", "saver", "doorbell")
+# each kind's own options: the calendar's days (1-7), the camera's and the
+# to-do list's entity, the to-do list's Show Completed
+PANE_OPTIONS: dict[str, dict[str, Any]] = {"calendar": {"days": SAVER_CAL_DAYS}, "camera": {"entity": "camera"},
+                                           "todo": {"entity": "todo", "completed": bool}}
+SIDE_PANE_DEFAULTS: dict[str, Any] = {
+    "side": "right", "width": "standard",
+    "dashboard": {"show": "off", "sections": [{"kind": "weather"}, {"kind": "calendar"},
+                                              {"kind": "now_playing", "when": "active"}]},
+    "saver": {"show": "off", "sections": [{"kind": "clock", "size": "tiny"}, {"kind": "calendar"},
+                                          {"kind": "now_playing", "size": "less", "when": "active"}]},
+    "doorbell": True,
+}
+DEFAULTS["side_pane"] = copy.deepcopy(SIDE_PANE_DEFAULTS)
+
+
+def pane_section(v: Any, strict: bool = False) -> dict[str, Any] | None:
+    """One section, as stored: {kind, size, when, its options}, with size More
+    and when Always left out (they are what absent means). None when it is not
+    a section; strict, also when any key or value is one it can't use (the
+    form says so), where the tolerant read leaves that key out."""
+    if not isinstance(v, Mapping) or v.get("kind") not in PANE_SECTIONS:
+        return None
+    kind = v["kind"]
+    opts = PANE_OPTIONS.get(kind, {})
+    out: dict[str, Any] = {"kind": kind}
+    for k, val in v.items():
+        if k == "kind":
+            continue
+        if k == "size" and val in PANE_SIZES:
+            if val != "more":
+                out["size"] = val
+        elif k == "when" and val in PANE_WHEN:
+            if val != "always":
+                out["when"] = val
+        elif k in opts and opts[k] is bool and isinstance(val, bool):
+            if val:
+                out[k] = True
+        elif k in opts and isinstance(opts[k], tuple) and _whole(val, *opts[k]) is not None:
+            out[k] = _whole(val, *opts[k])
+        elif k in opts and isinstance(opts[k], str) and isinstance(val, str) \
+                and ENTITY_ID.match(val) and val.startswith(opts[k] + "."):
+            out[k] = val
+        elif strict:
+            return None
+    return out
+
+
+def pane_sections(v: Any, strict: bool = False) -> list[dict[str, Any]] | None:
+    """A group's sections, in order: at most PANE_MAX, one Full at most, no
+    section twice (the same kind and entity). Strict, any of that is None;
+    read tolerantly, a section it can't use is left out, a second Full is
+    More and the list is cut at PANE_MAX."""
+    if not isinstance(v, list):
+        return None
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    full = False
+    for x in v:
+        s = pane_section(x, strict)
+        key = (s["kind"], s.get("entity", "")) if s else None
+        if s is None or key in seen:
+            if strict:
+                return None
+            continue
+        if s.get("size") == "full":
+            if full:
+                if strict:
+                    return None
+                s.pop("size")
+            full = True
+        seen.add(key)
+        out.append(s)
+    if len(out) > PANE_MAX:
+        if strict:
+            return None
+        out = out[:PANE_MAX]
+    return out
+
+
+def pane_group(name: str, v: Any, strict: bool = False) -> Any:
+    """One group's value (PANE_GROUPS), checked; None when it can't be used.
+    A Dashboard or Screensaver group is whole: what it shows and its
+    sections, a missing one (tolerantly) the default's."""
+    if name == "side":
+        return v if v in PANE_SIDES else None
+    if name == "width":
+        return v if v in PANE_WIDTHS else None
+    if name == "doorbell":
+        return v if isinstance(v, bool) else None
+    if name not in ("dashboard", "saver") or not isinstance(v, Mapping):
+        return None
+    shows = PANE_SHOWS if name == "dashboard" else PANE_SAVER_SHOWS
+    if strict and (set(v) - {"show", "sections"} or "show" not in v or "sections" not in v):
+        return None
+    show = v.get("show") if v.get("show") in shows else (None if strict else SIDE_PANE_DEFAULTS[name]["show"])
+    secs = pane_sections(v.get("sections"), strict) if "sections" in v else None
+    if secs is None and not strict:
+        secs = copy.deepcopy(SIDE_PANE_DEFAULTS[name]["sections"])
+    if show is None or secs is None:
+        return None
+    return {"show": show, "sections": secs}
+
+
+def side_pane(v: Any, strict: bool = False) -> dict[str, Any] | None:
+    """All Screens' Side Pane, every group there (the defaults' where one is
+    missing); strict, None when anything is one it can't use."""
+    if not isinstance(v, Mapping) or (strict and set(v) - set(PANE_GROUPS)):
+        return None
+    out = copy.deepcopy(SIDE_PANE_DEFAULTS)
+    for g in PANE_GROUPS:
+        if g in v:
+            got = pane_group(g, v[g], strict)
+            if got is None and strict:
+                return None
+            if got is not None:
+                out[g] = got
+    return out
+
+
+def side_pane_own(v: Any, strict: bool = False) -> dict[str, Any] | None:
+    """A screen's own Side Pane: only the groups it sets, each checked; None
+    (Same as All Screens in everything) when it sets none. Strict, an empty
+    object is None as well, and anything it can't use is refused (raises
+    ValueError)."""
+    if v is None:
+        return None
+    if not isinstance(v, Mapping) or (strict and set(v) - set(PANE_GROUPS)):
+        if strict:
+            raise ValueError("side_pane")
+        return None
+    out = {}
+    for g in PANE_GROUPS:
+        if g in v and v[g] is not None:
+            got = pane_group(g, v[g], strict)
+            if got is None:
+                if strict:
+                    raise ValueError("side_pane")
+                continue
+            out[g] = got
+    return out or None
+
+
+def pane_resolved(house: Mapping[str, Any] | None, own: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A screen's Side Pane as read: each group its own when it sets it, else
+    All Screens'. `own` (the groups it sets, in PANE_GROUPS order) says which,
+    for the settings page's "Just This Screen"."""
+    h = side_pane(house) or copy.deepcopy(SIDE_PANE_DEFAULTS)
+    mine = own or {}
+    out = {g: copy.deepcopy(mine[g] if g in mine else h[g]) for g in PANE_GROUPS}
+    out["own"] = [g for g in PANE_GROUPS if g in mine]
+    return out
+
+
+def _saver_pane(saver: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The screensaver's pane before the Side Pane (look.saver or a screen's
+    own options): the calendar's events above, the music below while it
+    plays -- as a Screensaver group; None when it had none."""
+    s = saver or {}
+    secs: list[dict[str, Any]] = []
+    if s.get("calendar") is True:
+        days = _whole(s.get("calendar_days"), *SAVER_CAL_DAYS) or SAVER_DEFAULTS["calendar_days"]
+        secs.append({"kind": "calendar", "days": days})
+    if s.get("music_pane") is True:
+        secs.append({"kind": "now_playing", "when": "active"})
+    return {"show": "own", "sections": secs} if secs else None
+
+
+# a Dashboard group that is Now Playing's pane: the music, while it plays, on every page
+NP_PANE = {"show": "all", "sections": [{"kind": "now_playing", "when": "active"}]}
+_PANE_OLD_SAVER = ("calendar", "calendar_days", "music_pane")
+_PANE_OLD_BOARD = ("np_style", "np_side")
+
+
+def side_pane_lifted(options: Mapping[str, Any] | None, items: Mapping[str, Mapping[str, Any]],
+                     clear: bool = False) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    """THE SIDE PANE TAKES OVER (entry 1.18, 2026-10-30): the screensaver's
+    pane and Now Playing's become Side Pane groups, so every screen looks as it
+    did. All Screens': the screensaver's Calendar / Music (look.saver) its own
+    sections in the screensaver -- the calendar (its days), then Now Playing
+    when there's something; Now Playing's Show As: Side Pane the music, when
+    there's something, on every page, on its Pane Side. A screen whose own
+    screensaver options or Now Playing differ gets those groups of its own;
+    one that showed the same follows All Screens. (One Pane Side for both now:
+    where a screen had the music's pane on the left and the screensaver's on
+    the right, the music's side is kept.) The older keys stay as they were for
+    one release, read by nothing new; `clear` (Mantel, whose page and server
+    are one release) also sets them back. A house already moved (a stored
+    side_pane) and a screen already moved are left alone. Returns (new options
+    or None: unchanged, {path: new item data})."""
+    stored = dict((options or {}).get(CONF_DASHBOARD) or {})
+    m = merged(options)
+    new_options = None
+    if "side_pane" in stored:
+        house = side_pane(stored["side_pane"]) or copy.deepcopy(SIDE_PANE_DEFAULTS)
+    else:
+        house = copy.deepcopy(SIDE_PANE_DEFAULTS)
+        sv = _saver_pane(m["look"]["saver"])
+        if sv:
+            house["saver"] = sv
+        if m["now_playing"]["style"] == "pane":
+            house["dashboard"] = copy.deepcopy(NP_PANE)
+            house["side"] = m["now_playing"]["side"]
+        if house != SIDE_PANE_DEFAULTS:
+            stored["side_pane"] = house_stored("side_pane", house)
+            new_options = {**(options or {}), CONF_DASHBOARD: stored}
+    np = m["now_playing"]
+    out: dict[str, dict[str, Any]] = {}
+    for p, d in items.items():
+        data = dict(d)
+        if "side_pane" in data:
+            out[p] = data
+            continue
+        b = board(data)
+        own: dict[str, Any] = {}
+        mine = b.get("screensaver_options")
+        saver = house["saver"]
+        if isinstance(mine, dict):
+            sv = _saver_pane(mine) or {"show": "off", "sections": copy.deepcopy(SIDE_PANE_DEFAULTS["saver"]["sections"])}
+            if sv != house["saver"]:
+                own["saver"] = saver = sv
+        style = b.get("np_style") or np["style"]
+        if b.get("np_style"):
+            dash = copy.deepcopy(NP_PANE) if style == "pane" else \
+                {"show": "off", "sections": copy.deepcopy(SIDE_PANE_DEFAULTS["dashboard"]["sections"])}
+            if dash != house["dashboard"]:
+                own["dashboard"] = dash
+        # its side: the music's pane's, where it had one; else the right, the
+        # screensaver's pane's only side, where it has one of those
+        side = (b.get("np_side") or np["side"]) if style == "pane" else "right" if saver["show"] != "off" else None
+        if side and side != house["side"]:
+            own["side"] = side
+        if own:
+            data["side_pane"] = own
+        if clear:
+            for k in _PANE_OLD_BOARD:
+                data.pop(k, None)
+            so = data.get("screensaver_options")
+            if isinstance(so, dict) and any(k in so for k in _PANE_OLD_SAVER):
+                data["screensaver_options"] = {k: v for k, v in so.items() if k not in _PANE_OLD_SAVER}
+        out[p] = data
+    if clear:
+        st = dict((new_options or options or {}).get(CONF_DASHBOARD) or {})
+        changed = False
+        lk = dict(st.get("look") or {})
+        if isinstance(lk.get("saver"), dict) and any(k in lk["saver"] for k in _PANE_OLD_SAVER):
+            lk["saver"] = {k: v for k, v in lk["saver"].items() if k not in _PANE_OLD_SAVER}
+            if not lk["saver"]:
+                lk.pop("saver")
+            st["look"], changed = lk, True
+            if not lk:
+                st.pop("look")
+        npo = dict(st.get("now_playing") or {})
+        if any(k in npo for k in ("style", "side")):
+            st["now_playing"] = {k: v for k, v in npo.items() if k not in ("style", "side")}
+            if not st["now_playing"]:
+                st.pop("now_playing")
+            changed = True
+        if changed:
+            new_options = {**(new_options or options or {}), CONF_DASHBOARD: st}
+    return new_options, out
+
+
 # ------------------------------------------------------------ the dashboards
 # EACH DASHBOARD ITS OWN ITEM: a subentry of type "dashboard", keyed by its
 # url path, listed under Dashboards on the integration's page with its own
@@ -1672,6 +2113,7 @@ PAGE_BROWSE = "browse"
 PAGE_ORDER = (PAGE_KINDS[:PAGE_KINDS.index("music") + 1] + (PAGE_BROWSE,)
               + PAGE_KINDS[PAGE_KINDS.index("music") + 1:])
 BOARD_GLASS = ("house", "clear", "frosted", "tinted", "blur", "blur_pre", "blur_each")   # house: the shared look
+BOARD_GLASS = BOARD_GLASS + BRIGHT_GLASS
 # ON NARROW SCREENS: the button under 1,024 px and while an
 # always-open menu is folded -- the chip, the chip then the edge tab once
 # scrolled past, the edge tab, or none (the swipe alone; the chip without
@@ -1715,6 +2157,9 @@ HA_PLACES = ("top", "categories", "rooms", "bottom")
 # tint -- a see-through bar cannot be read over the tiles (measured
 # 2026-10-05); stored as "clear" before entry 1.12 (tab_bar_glass)
 TAB_BAR_GLASS = ("house", "tinted", "frosted", "blur")
+# ...and Bright Glass's bar (2026-10-30): its light blur and rim, the page
+# you're on a white pill
+TAB_BAR_GLASS = TAB_BAR_GLASS + ("bright",)
 # the rooms: a section of More (under its pages), a round button of their own
 # beside the tabs, or not in the bar at all
 TAB_BAR_ROOMS = ("more", "button", "off")
@@ -1736,6 +2181,12 @@ TAB_BAR_START = ("full", "small")
 TAB_BAR_SIZES = ("small", "medium", "large")
 # TAB BAR LABELS (2026-10-24, the owner): each tab's name under its icon, or icons only -- a slimmer bar or rail
 TAB_BAR_LABELS = ("show", "icons")
+# SWIPE BETWEEN PAGES (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase 0): a
+# sideways swipe on a page goes to the next or the previous one, in the tab
+# bar's order (hk-pageswipe.js). auto: where a tab bar shows (or the screen's
+# Pages screen is on); on: everywhere, the side menu's order with no bar; off.
+# All Screens' menu.swipe_pages; a screen's swipe_pages, None: Same as All Screens
+SWIPE_PAGES = ("auto", "on", "off")
 # how many PAGES a bar (bottom / top) and a rail (left / right) show at
 # most, Home and More not counted (6: eight tabs in all) -- a phone never
 # more than 3, what fits its width
@@ -1814,6 +2265,9 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Use the Side Strip (2026-10-30): the tab bar as a rail in a phone's
     # side strip of system controls, where it has one (iPhone Duo)
     "tab_bar_strip": True,
+    # Swipe Between Pages (SWIPE_PAGES, 2026-10-30): this screen's own; None,
+    # Same as All Screens (menu.swipe_pages)
+    "swipe_pages": None,
     # PHONES' OWN (BOARD_PHONE_MENUS): the menu, the screen's own as `menu`
     # is (None: as before phones had their own, phone_menu()); the button's
     # style and More's rooms, menu settings (MENU_KEYS)
@@ -1845,6 +2299,10 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # All Screens.
     "flat": None, "flat_theme": None,
     "glass": "house", "frost": None, "blur": None, "tint": None, "well": None, "frost_tint": None, "sky": True, "car": False,
+    # Bright Glass's Strength, this screen's own (None: All Screens')
+    "bright": None,
+    # its own Tile Style (TILE_STYLES; None: All Screens')
+    "tile_style": None,
     # ...and in a car's browser (car on): car_layout, which Home the screen
     # generates there -- "home" the whole Home every screen has, "car" the
     # car's own (CAR_LAYOUTS); car_width, the layout width the car's window
@@ -1865,6 +2323,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "sky_background": None, "sky_color": None, "sky_photo": None, "sky_photo_look": None,
     # ...and its own Landscape and its look (None: All Screens')
     "sky_landscape": None, "sky_landscape_look": None,
+    # ...and its own Wallpaper and Night Version (None: All Screens')
+    "sky_wallpaper": None, "sky_wallpaper_night": None,
     # Liveliness, this screen's own, as All Screens' is: one preset for every
     # occasion or "custom" (None: Same as All Screens), then each occasion's
     # preset and Custom knobs; calm_empty -- Calm When Nobody's Around (the
@@ -1937,6 +2397,12 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # every screen builds it, or "grid" -- Home is this screen's own layout,
     # home_grid (home_grid.py; None: none yet, and Home is generated)
     "home_style": "generated", "home_grid": None}
+# THE PAGES SCREEN, a screen's own (pages_screen_own: only the fields it sets); None is Same as All Screens
+BOARD_DEFAULTS["pages_screen"] = None
+# THE SIDE PANE, this screen's own groups (side_pane_own; None: Same as All
+# Screens in everything -- settings `side_pane`, each group filled in by
+# resolved())
+BOARD_DEFAULTS["side_pane"] = None
 # A CAR'S BROWSER (a screen's car_layout / car_width): which Home it
 # generates there -- the whole one, or the car's own (the weather and the
 # house's status in a line, the chips, Scenes, Security and Favorites: no clock, the car
@@ -2041,6 +2507,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_size"] = pick("tab_bar_size", TAB_BAR_SIZES)
     out["tab_bar_labels"] = pick("tab_bar_labels", TAB_BAR_LABELS)
     out["tab_bar_strip"] = d.get("tab_bar_strip") is not False
+    out["swipe_pages"] = d.get("swipe_pages") if d.get("swipe_pages") in SWIPE_PAGES else None
     out["tab_bar_tabs_rail"] = tab_count(d.get("tab_bar_tabs_rail"))
     out["tab_bar_tabs_phone"] = tab_count(d.get("tab_bar_tabs_phone"), 3, TAB_BAR_TABS_PHONE)
     out["tab_bar_scroll_phone"] = pick("tab_bar_scroll_phone", TAB_BAR_SCROLLS)
@@ -2085,6 +2552,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
         out[k] = amount_or_none(d.get(k))
     out["well"] = d.get("well") if d.get("well") in WELLS else None
     out["frost_tint"] = d.get("frost_tint") if isinstance(d.get("frost_tint"), bool) else None
+    out["bright"] = amount_or_none(d.get("bright"))
+    out["tile_style"] = d.get("tile_style") if d.get("tile_style") in TILE_STYLES else None
     # The screen's own Sky / Background: each flag stored as anything but a
     # boolean is not set (follow All Screens), as a backdrop id not in
     # SKY_BACKDROPS and stops that do not parse are (sky_stops()).
@@ -2105,6 +2574,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_photo_look"] = photo_look(d.get("sky_photo_look")) if d.get("sky_photo_look") is not None else None
     out["sky_landscape"] = sky_landscape(d.get("sky_landscape"))
     out["sky_landscape_look"] = photo_look(d.get("sky_landscape_look")) if d.get("sky_landscape_look") is not None else None
+    out["sky_wallpaper"] = d.get("sky_wallpaper") if d.get("sky_wallpaper") in WALLPAPERS else None
+    out["sky_wallpaper_night"] = d.get("sky_wallpaper_night") if d.get("sky_wallpaper_night") in WALLPAPER_NIGHT else None
     out["sky_page_photos"] = sky_page_photos(d.get("sky_page_photos")) or {}
     out["sky_page_looks"] = page_looks(d.get("sky_page_looks")) or {}
     out["sky_flat_background"] = d.get("sky_flat_background") if d.get("sky_flat_background") in FLAT_BACKGROUNDS else None
@@ -2153,6 +2624,9 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["kiosk_engine"] = d.get("kiosk_engine") if d.get("kiosk_engine") in KIOSK_ENGINES else "hk"
     live = str(d.get("camera_live") or "").strip()
     out["camera_live"] = live if re.fullmatch(r"(input_select|select)\.[a-z0-9_]+", live) else ""
+    # THE PAGES SCREEN, this screen's own fields (pages_screen_own); none: Same as All Screens
+    out["pages_screen"] = pages_screen_own(d.get("pages_screen")) or None
+    out["side_pane"] = side_pane_own(d.get("side_pane"))
     return out
 
 
@@ -2487,7 +2961,8 @@ def house_cameras(order: Any) -> list[str]:
 
 def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
              house: Mapping[str, Any] | None = None, rooms: Mapping[str, Any] | None = None,
-             menu: Mapping[str, Any] | None = None, cameras: list[str] | None = None) -> dict[str, Any]:
+             menu: Mapping[str, Any] | None = None, cameras: list[str] | None = None,
+             pane: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """A screen's settings as READ: a null screensaver_options filled in with
     All Screens' (`house`, or read from `options`), and `screensaver_house`
     saying which it is; its rooms, All Screens' (`rooms`, or read from
@@ -2518,6 +2993,10 @@ def resolved(b: Mapping[str, Any], options: Mapping[str, Any] | None,
     out.update({k: v for k, v in hm.items() if k not in own})
     if "menu" not in own and out.get("menu") in MENU_STYLES:
         out["menu"] = style
+    # THE SIDE PANE AS READ (side_pane_read): each group the screen's own or
+    # All Screens' (`pane`, or read from `options`), its `own` saying which;
+    # side_pane stays the screen's own, as stored
+    out["side_pane_read"] = pane_resolved(merged(options)["side_pane"] if pane is None else pane, b.get("side_pane"))
     return out
 
 
@@ -2849,7 +3328,7 @@ def boards(stored: Stored | None) -> dict[str, dict[str, Any]]:
     m = merged(stored.options if stored is not None else None)
     house, rooms, menu, cams = m["look"]["saver"], m["rooms"], m["menu"], m["cameras"]["order"]
     for sub in (stored.of(SUBENTRY_DASHBOARD) if stored is not None else ()):
-        out[sub.unique_id] = resolved(board(sub.data), None, house, rooms, menu, cams)
+        out[sub.unique_id] = resolved(board(sub.data), None, house, rooms, menu, cams, pane=m["side_pane"])
     on = tablets(stored)
     for path, b in out.items():
         mine = [tid for tid, t in on.items() if t["screen"] == path]

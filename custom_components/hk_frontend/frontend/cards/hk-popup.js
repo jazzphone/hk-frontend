@@ -103,6 +103,20 @@
     // is on it clear of one (the iPhone Duo's strip, a phone turned:
     // hk-base.js SAFE, 2026-10-30)
     '.hkp.dock .sheet>:not([data-hk-glass-layer]){margin-left:var(--hk-safe-left,env(safe-area-inset-left,0px));margin-right:var(--hk-safe-right,env(safe-area-inset-right,0px))}',
+    // THE PLATE ITSELF, THOUGH, RUNS ON UNDER IT (2026-10-30, the owner's
+    // iPhone Duo): the cards' margins above leave their plates -- the player's,
+    // the timers' -- ending at the strip's edge, and the page's sky shows in
+    // the strip beside a bar whose own plate stops short of the screen. So the
+    // sheet fills what the margins leave (the safe area's width, the sheet's
+    // whole height) with the bar's plate colour, the same one both cards draw
+    // (--hk-np-plate / --hk-td-plate: rgb(22,23,26)). It lies over the cards'
+    // edge by a pixel (min(1px, the inset)), so the player's hairline border
+    // does not stand in the plate as a seam. Nothing is drawn where there is
+    // no side inset: the width is 0, the pixel too.
+    '.hkp.dock:not(.side) .sheet::before,.hkp.dock:not(.side) .sheet::after{content:"";position:absolute;top:0;bottom:0;',
+    '  pointer-events:none;background:var(--hk-np-plate,var(--hk-td-plate,rgb(22,23,26)))}',
+    '.hkp.dock:not(.side) .sheet::before{left:0;width:calc(var(--hk-safe-left,env(safe-area-inset-left,0px)) + min(1px, var(--hk-safe-left,env(safe-area-inset-left,0px))))}',
+    '.hkp.dock:not(.side) .sheet::after{right:0;width:calc(var(--hk-safe-right,env(safe-area-inset-right,0px)) + min(1px, var(--hk-safe-right,env(safe-area-inset-right,0px))))}',
     // A DOCKED BAR'S BOX IS THE BAR, NOT THE WINDOW. Composited, the box is a
     // layer of its own, and at inset:0 that layer was the whole window and
     // more (its shadow's overflow): 1388 x 840 on a 1280 x 800 tablet, 1.14
@@ -136,6 +150,9 @@
     '.hkp.side .sheet{opacity:1;transition:transform .34s cubic-bezier(.32,.72,0,1)}',
     '.hkp.side .sheet>hk-now-playing-card{display:none}',
     '.hkp:not(.side) .sheet>hk-music-pane-card{display:none}',
+    // ...THE MUSIC IN THE SIDE PANE (2026-10-30, hk-sidepane.js: it says so
+    // with `hk-pane-music` on <html>): the bar keeps only the timers
+    '.hkp.npin .sheet>hk-now-playing-card{display:none}',
     '.hkp.side .sheet>hk-music-pane-card{flex:1 1 auto;min-height:0}',
     // THE BAR ALONG THE TOP (Bar Position: Top): the docked bar's mirror --
     // the screen's top edge, its hairline and shadow down onto the page,
@@ -675,13 +692,15 @@
     var W = window.innerWidth || 0, H = window.innerHeight || 0;
     return W > H && H >= 480 && W - menuRight() - w >= PANE_PAGE_MIN;
   }
+  // NOW PLAYING'S PANE IS THE SIDE PANE'S (2026-10-30, hk-sidepane.js;
+  // Show As: Side Pane moved into it once, hk_core side_pane_lifted): here,
+  // always the bar -- the music it holds stepping aside while the Side Pane
+  // shows it (`hk-pane-music`, the `npin` class). (`music` kept for the
+  // pane's old callers.)
   function placeFor(cfg, music) {
     var Mn = window.hkCards && window.hkCards.menu, np = Mn && Mn.nowPlaying ? Mn.nowPlaying() : null;
+    void music;
     if (!np || !cfg || !cfg.dock) return { kind: 'bar', bar: 'bottom' };
-    if (cfg.pane && music && np.style === 'pane') {
-      var w = paneWidth();
-      if (paneFits(w)) return { kind: 'pane', side: np.side, w: w };
-    }
     return { kind: 'bar', bar: np.bar };
   }
   // is there music for a pane (hk-saver.js: what plays, or is paused, that
@@ -930,7 +949,7 @@
         // music (`entity_from: {music: true}`): tapping another context on the
         // Play Music page must move the bar with it, and nothing in the states moved.
         if (!this._onFlags) {
-          this._onFlags = function () { if (self.client) self._evalTrigger(); };
+          this._onFlags = function () { if (self.client) self._evalTrigger(); if (self._open) { self._placeSig = null; self._place(); } };
           window.addEventListener('hk-popup-flags', this._onFlags);
         }
         if (!this._musicOff && window.hkMusic) {
@@ -1238,7 +1257,9 @@
           sheet.style.maxWidth = cfg.max_width ||
             'calc(var(--hk-vw, 100vw) - max(var(--hk-content-left, 0px), var(--hk-safe-left,env(safe-area-inset-left,0px))) - var(--hk-safe-right,env(safe-area-inset-right,0px)) - 24px)';
           sheet.style.padding = cfg.padding || '18px';
-          sheet.style.background = cfg.background || '#1c1c1e';
+          // (one left as it comes wears a look's own sheet: Bright Glass's,
+          // 2026-10-30 -- else #1c1c1e as always; a background configured stays)
+          sheet.style.background = cfg.background || 'var(--hk-sheet-plate, #1c1c1e)';
           // a card on the sheet's own plate wears the look's plate for a
           // sheet (M.bg; Tinted's dark plate on #1c1c1e is a hole); a sheet
           // with none (the docked bar's, transparent) keeps the page's
@@ -1272,6 +1293,10 @@
             var f = 'blur(' + cfg.blur + ') saturate(1.6)';
             sheet.style.backdropFilter = f;
             sheet.style.webkitBackdropFilter = f;
+          } else if (!cfg.background) {
+            // ...and its blur with it (none in every other look)
+            sheet.style.backdropFilter = 'var(--hk-sheet-backdrop, none)';
+            sheet.style.webkitBackdropFilter = 'var(--hk-sheet-backdrop, none)';
           }
           // vars: theme variables for the cards INSIDE, set on the sheet so
           // they inherit -- e.g. clearing a native card's own plate.
@@ -1445,6 +1470,8 @@
           if (has) this._graceT = setTimeout(function () { self._place(); }, gms - (now - since) + 50);
         }
         var p = placeFor(cfg, has);
+        var de = document.documentElement, inPane = !!(cfg.pane && de && de.hasAttribute && de.hasAttribute('hk-pane-music'));
+        el.classList.toggle('npin', inPane);
         var sig = p.kind + ':' + (p.side || p.bar) + ':' + (p.w || 0);
         if (sig === this._placeSig) return;
         this._placeSig = sig;

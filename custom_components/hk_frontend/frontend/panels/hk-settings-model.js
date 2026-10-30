@@ -75,6 +75,7 @@
     ['lcd', 'Retro LCD', 'Seven segments on a backlit panel'],
     ['flip', 'Flip', 'Split-flap cards that flip as the minute turns'],
     ['analog', 'Analog', 'A watch face with a sweeping second hand'],
+    ['numbers', 'Analog Numbers', 'Numerals round a quiet dial, a slim second hand'],
     ['words', 'Words', '“It is quarter past seven”, in a grid of letters'],
     ['arc', 'Minimal Arc', 'The hour, big; the minutes a ring filling round it'],
     ['nixie', 'Nixie Tubes', 'Orange glow in glass tubes'],
@@ -92,6 +93,7 @@
     lcd: [['green', 'Green'], ['amber', 'Amber'], ['blue', 'Blue'], ['white', 'White'], ['night', 'Night']],
     flip: [['dark', 'Dark'], ['white', 'White'], ['red', 'Red'], ['navy', 'Navy']],
     analog: [['orange', 'Orange'], ['red', 'Red'], ['blue', 'Blue'], ['green', 'Green'], ['gold', 'Gold']],
+    numbers: [['white', 'White'], ['orange', 'Orange'], ['red', 'Red'], ['blue', 'Blue'], ['green', 'Green'], ['gold', 'Gold']],
     words: [['white', 'White'], ['warm', 'Warm'], ['blue', 'Blue'], ['green', 'Green'], ['pink', 'Pink']],
     arc: [['white', 'White'], ['orange', 'Orange'], ['blue', 'Blue'], ['green', 'Green'], ['pink', 'Pink']],
     nixie: [['orange', 'Orange'], ['ice', 'Ice Blue'], ['green', 'Green'], ['violet', 'Violet']],
@@ -129,15 +131,20 @@
     ['landscapes', 'Landscapes', false, 'Photographs']];
   // THE BACKGROUND (Sky / Background's first choice, 2026-10-13; settings.py
   // SKY_BACKGROUNDS): what it is, in a line under the tabs
-  var SKY_BACKGROUNDS = [['live', 'Live Sky'], ['color', 'Color'], ['photo', 'Photo'], ['landscapes', 'Landscapes']];
-  var BG_LABELS = { live: 'Live Sky', color: 'Color', photo: 'Photo', landscapes: 'Landscapes' };
+  var SKY_BACKGROUNDS = [['live', 'Live Sky'], ['color', 'Color'], ['photo', 'Photo'], ['landscapes', 'Landscapes'],
+                         ['wallpaper', 'Wallpaper']];
+  var BG_LABELS = { live: 'Live Sky', color: 'Color', photo: 'Photo', landscapes: 'Landscapes', wallpaper: 'Wallpaper' };
   var BG_SAYS = {
     live: 'The real sun, moon and weather behind the cards, dressed for the seasons. What it shows is below.',
     color: 'A still color, a little different by day and by night. No sun, moon, stars, weather or decorations.',
     photo: 'A photo of your own, still and sharp. No sun, moon, stars, weather or decorations. A bright photo is dimmed a little so the cards stay readable.',
     // (2026-10-14) HK Frontend's own photos, the screensaver clock's
-    landscapes: 'Fifty landscape photos that come with ' + PN() + ' — mountains, lakes, coasts, forests, the northern lights — a new one each time the screen wakes, on a schedule, or the same one. No sun, moon, stars, weather or decorations.'
+    landscapes: 'Fifty landscape photos that come with ' + PN() + ' — mountains, lakes, coasts, forests, the northern lights — a new one each time the screen wakes, on a schedule, or the same one. No sun, moon, stars, weather or decorations.',
+    // (2026-10-30) our own art, hk-wallpapers.js
+    wallpaper: 'Twelve wallpapers of soft ribbons, petals, glass shards and pinwheels, in six colors, each with a darker version for the night. The cards take their color. Best with Bright Glass. No sun, moon, stars, weather or decorations.'
   };
+  // A WALLPAPER'S NIGHT VERSION (settings.py WALLPAPER_NIGHT)
+  var WALLPAPER_NIGHT = [['auto', 'After Sunset'], ['day', 'Never'], ['night', 'Always']];
   // WHICH LANDSCAPE, AND WHEN IT CHANGES (settings.py sky_landscape):
   // 'wake', 'every:<minutes>' (LANDSCAPE_EVERY) or a file name -- Stay the Same
   var LANDSCAPE_EVERY = [['every:15', 'Every 15 Minutes'], ['every:30', 'Every 30 Minutes'], ['every:60', 'Every Hour'],
@@ -261,27 +268,52 @@
     ['clear', 'Glass', 'The original see-through glass. The status chips blur what’s behind them.'],
     ['frosted', 'Frosted', 'A milky material with no blur. Costs nothing per frame on any device.'],
     ['tinted', 'Tinted', 'The Home app’s dark plate, with no blur anywhere on the page. The lightest on any device; sheets and pop-ups still blur while open.'],
-    ['blur', 'Blur', 'What’s behind the glass, blurred. Choose how in Blur Mode.']
+    ['blur', 'Blur', 'What’s behind the glass, blurred. Choose how in Blur Mode.'],
+    // BRIGHT GLASS (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase D): the
+    // sixth look, in Blur's three modes (BRIGHT_MODES)
+    ['bright', 'Bright Glass', 'A light, clear glass that brings out the colours behind it. Best over a wallpaper.']
   ];
   var BLUR_MODES = [
     ['blur', 'Shared Layer', 'Live: the sky blurs as it moves, one blur for the whole page. Fine on wall tablets — but while the sky moves, the device blurs it again on every frame.'],
     ['blur_pre', 'Pre-rendered (Experimental)', 'Experimental: it can still trail or miss a change now and then. A picture of the sky, blurred once and painted again as the sky changes. The lightest blur, and the smoothest scrolling on a wall tablet. Drifting clouds catch up every 2 seconds and the light within a minute; rain, snow and a passing flock don’t show through the glass.'],
     ['blur_each', 'Each Card', 'Live: every card blurs what’s behind it, so a sheet or a scrolling row never leaves its frost behind. The heaviest — for phones, iPads and computers, not wall tablets.']
   ];
+  // ...and Bright Glass's, the same three by their own stored values
+  // (settings.py BRIGHT_GLASS)
+  var BRIGHT_MODES = BLUR_MODES.map(function (m) { return [m[0].replace('blur', 'bright'), m[1], m[2]]; });
   // every stored value, its full name and its note (a list, a summary)
-  // (every style but Blur, then Blur's modes -- a style added later is in)
-  var GLASS = GLASS_STYLES.filter(function (s) { return s[0] !== 'blur'; }).concat(BLUR_MODES.map(function (m) {
+  // (every style but Blur and Bright Glass, then their modes -- a style
+  // added later is in)
+  var GLASS = GLASS_STYLES.filter(function (s) { return s[0] !== 'blur' && s[0] !== 'bright'; }).concat(BLUR_MODES.map(function (m) {
     return [m[0], 'Blur · ' + m[1], m[2]];
+  })).concat(BRIGHT_MODES.map(function (m) {
+    return [m[0], 'Bright Glass · ' + m[1], m[2]];
   }));
   function isBlur(v) { return v === 'blur' || v === 'blur_pre' || v === 'blur_each'; }
+  function isBright(v) { return v === 'bright' || v === 'bright_pre' || v === 'bright_each'; }
+  // the Blur Modes of a style (Blur's or Bright Glass's), else null
+  function modesFor(style) { return style === 'blur' ? BLUR_MODES : style === 'bright' ? BRIGHT_MODES : null; }
+  // the value a style is saved as when picked: Blur and Bright Glass keep
+  // the mode already chosen (`cur`, either's), else start from `fallback`'s
+  function styleValue(style, cur, fallback) {
+    var modes = modesFor(style);
+    if (!modes) return style;
+    var mode = isBlur(cur) || isBright(cur) ? cur : (isBlur(fallback) || isBright(fallback) ? fallback : 'blur');
+    var at = ['', '_pre', '_each'].filter(function (x) { return mode === 'blur' + x || mode === 'bright' + x; })[0] || '';
+    return style + at;
+  }
   // the style a stored value belongs to
   function glassStyle(v) {
     if (isBlur(v)) return 'blur';
+    if (isBright(v)) return 'bright';
     for (var i = 0; i < GLASS_STYLES.length; i++) if (GLASS_STYLES[i][0] === v) return v;
     return 'clear';
   }
   // Tinted's icon circles (look.well, a screen's well)
   var TINT_WELLS = [['dark', 'Dark'], ['light', 'Light']];
+  // TILE STYLE (look.tile_style, a screen's tile_style; 2026-10-30): the Home
+  // Grid's tiles and the room pages' Tall pills (settings.py TILE_STYLES)
+  var TILE_STYLES = [['home', 'Home'], ['centred', 'Centred']];
   var PRESETS = {
     wall_tablet: ['Wall Tablet', 'Menu always open with the time and weather, back to Home when idle, no Home Assistant header.'],
     personal: ['Phone or iPad', 'Menu behind a button, time and weather in the header.'],
@@ -464,6 +496,11 @@
   var CLOUD_STYLES = [['classic', 'Classic'], ['realistic', 'Realistic']];
   // Moving Things (sky.moving / a screen's sky_moving)
   var SKY_MOVING = [['behind', 'Behind the Cards'], ['front', 'In Front of the Cards']];
+  // SWIPE BETWEEN PAGES (menu.swipe_pages / a screen's swipe_pages; hk-pageswipe.js)
+  var SWIPE_PAGES = [['auto', 'Automatic'], ['on', 'On'], ['off', 'Off']];
+  var SWIPE_PAGES_SAYS = { auto: 'Where a tab bar shows, a sideways swipe goes to the next or the previous tab’s page.',
+                           on: 'A sideways swipe goes to the next or the previous page: the tab bar’s, or the side menu’s Home and Categories.',
+                           off: 'Pages change only from the menu or the tab bar.' };
   // the daytime sky's brightness (sky.daytime, settings.py DAYTIME_SKIES)
   var DAYTIME_SKIES = [['natural', 'Natural'], ['balanced', 'Balanced'], ['deep', 'Deep']];
   function woodlandSummary(list) {
@@ -726,7 +763,8 @@
   function roomsPlace(v) { return v === false || v === 'off' ? 'off' : v === 'button' ? 'button' : 'more'; }
   // ('tinted' was stored as 'clear' before entry 1.12: Appearance's
   // see-through glass is 'clear')
-  var TAB_BAR_GLASS = [['house', 'Same as Screen'], ['blur', 'Blur'], ['frosted', 'Frosted'], ['tinted', 'Tinted']];
+  var TAB_BAR_GLASS = [['house', 'Same as Screen'], ['blur', 'Blur'], ['frosted', 'Frosted'], ['tinted', 'Tinted'],
+                       ['bright', 'Bright Glass']];
   function choiceLabel(list, v) {
     for (var i = 0; i < list.length; i++) if (list[i][0] === v) return list[i][1];
     return v;
@@ -1013,7 +1051,7 @@
   }
   // which amount the glass uses (the others are kept but not shown)
   function amountsFor(effective) {
-    return { frost: effective === 'frosted', blur: isBlur(effective), tint: effective === 'tinted' };
+    return { frost: effective === 'frosted', blur: isBlur(effective), tint: effective === 'tinted', bright: isBright(effective) };
   }
   // the Glass group's footer, for the style shown (All Screens' Appearance
   // and a screen's page say the same)
@@ -1022,6 +1060,7 @@
     if (style === 'flat') return 'Opaque surfaces with no blur, animations or live sky effects. Color, landscape and photo backgrounds remain available in Sky / Background. Your other appearance preferences are kept.';
     if (style === 'frosted') t += ' Frost: how milky, 50% is the middle. Tint from Background: each card takes the color of the page behind it instead of one gray.';
     if (isBlur(style)) t += ' Blur: how strong, 50% is 20 px.';
+    if (isBright(style)) t += ' Strength: how bright the glass is, 50% as designed. It holds back by itself where white text would get hard to read.';
     if (style === 'tinted') t += ' Darkness: how much of the background shows through, 50% is 75% dark. Icon Circles: Dark as the Home app’s, or Light to keep their shape over dark scenery.';
     return t;
   }
@@ -1055,7 +1094,7 @@
   // null: nothing to recommend (a light screen already, no numbers that
   // match, or all fast enough).
   var SLOW_FPS = 45, FPS_FRESH = 14 * 86400;
-  var HEAVY_LOOKS = { blur: 1, frosted: 1, tinted: 1 };
+  var HEAVY_LOOKS = { blur: 1, frosted: 1, tinted: 1, bright: 1 };
   // the settings the ladder reads, as a screen has them: {style, anim
   // (the sky animates), weather, rain, front (moving things over the cards),
   // camera (the first tile plays live), cams (the screen has a camera strip
@@ -1126,7 +1165,7 @@
     var label = step.label, says, then = null;
     if (step.id === 'glass') {
       label = (GLASS_STYLES.filter(function (g) { return g[0] === kind; })[0] || [0, kind])[1];
-      says = who + label + '. ' + (kind === 'blur' ? 'Glass looks almost the same and is lighter.'
+      says = who + label + '. ' + (kind === 'blur' || kind === 'bright' ? 'Glass looks almost the same and is lighter.'
         : 'Flat is the lightest look: no blur, animations or moving sky.');
     } else says = who + step.drew + '. ' + step.why;
     // the next step, if one would still apply once this one is taken
@@ -1333,6 +1372,7 @@
     if (mode === 'own') return 'Page Color';
     if (mode === 'photo') return 'Photo';
     if (mode === 'landscapes') return 'Landscapes';
+    if (mode === 'wallpaper') return 'Wallpaper';
     var b = (backdrops || []).filter(function (x) { return x.id === mode; })[0];
     return b ? b.label : mode === 'live' ? 'Live Sky' : mode;
   }
@@ -1719,6 +1759,56 @@
     return out;
   }
 
+  // ------------------------------------------------------------ the Pages screen
+  // THE PAGES SCREEN (docs/phase11/HOMEVIEW-LOOK.md, Phase J; settings.py
+  // PAGES_SCREEN_*): All Screens' every field; a screen's only the fields it
+  // sets (b.pages_screen, null: Same as All Screens), each resolved on its own
+  var PAGES_SCREEN_DEFAULTS = { show: 'off', icons: 'menu', rooms: 'folder', widgets: [], pill: 'auto' };
+  var PAGES_SCREEN_SHOW = [['off', 'Off'], ['on', 'On']];
+  var PAGES_SCREEN_ROOMS = [['folder', 'A Rooms Folder'], ['each', 'Each Room Its Own Icon'], ['none', 'None']];
+  var PAGES_SCREEN_PILL = [['auto', 'When There\u2019s No Tab Bar'], ['on', 'Always'], ['off', 'Never']];
+  // the Side Pane's sections (Phase A2's PANE_SECTIONS, its order), as widgets
+  var PAGES_SCREEN_WIDGETS = [['clock', 'Clock'], ['weather', 'Weather'], ['calendar', 'Calendar'], ['now_playing', 'Now Playing'],
+    ['security', 'Security'], ['camera', 'Camera'], ['timers', 'Timers'], ['energy', 'Energy'], ['climate', 'Climate'],
+    ['people', 'Who\u2019s Home'], ['todo', 'To-do'], ['notifications', 'Notifications']];
+  // a widget's size and side, as one choice: More is 2 x 2, Less 2 x 1
+  var PAGES_SCREEN_SPOTS = [['more:right', 'Large, Right'], ['more:left', 'Large, Left'], ['less:right', 'Small, Right'], ['less:left', 'Small, Left']];
+  var PAGES_SCREEN_WIDGETS_MAX = 4;
+  // the house's (`house`, the settings' pages_screen) and a screen's own
+  // (`own`, its b.pages_screen) as it shows: { value, own: {field: true} }
+  function pagesScreenOf(house, own) {
+    var h = house || {}, o = own || {}, value = {}, mine = {};
+    Object.keys(PAGES_SCREEN_DEFAULTS).forEach(function (k) {
+      var d = PAGES_SCREEN_DEFAULTS[k];
+      if (o[k] !== undefined && o[k] !== null) { value[k] = o[k]; mine[k] = true; }
+      else value[k] = h[k] !== undefined && h[k] !== null ? h[k] : (Array.isArray(d) ? d.slice() : d);
+    });
+    return { value: value, own: mine };
+  }
+  // a screen's own after one field changed: `v` undefined drops the field
+  // (Same as All Screens); none left is null
+  function pagesScreenSet(own, field, v) {
+    var out = Object.assign({}, own || {});
+    if (v === undefined) delete out[field]; else out[field] = v;
+    return Object.keys(out).length ? out : null;
+  }
+  // the row's value on a screen's page and All Screens'
+  function pagesScreenSummary(value) {
+    if (!value || value.show !== 'on') return 'Off';
+    var w = (value.widgets || []).length;
+    return 'On' + (Array.isArray(value.icons) ? ' \u00b7 ' + value.icons.length + ' Pages' : '') + (w ? ' \u00b7 ' + w + (w === 1 ? ' Widget' : ' Widgets') : '');
+  }
+  // the widgets with one changed: `spot` 'more:right'..., or 'remove'
+  function pagesWidgetSet(list, kind, spot) {
+    var out = (list || []).map(function (w) { return Object.assign({}, w); });
+    var i = -1;
+    out.forEach(function (w, j) { if (w.kind === kind) i = j; });
+    if (spot === 'remove') { if (i >= 0) out.splice(i, 1); return out; }
+    var p = String(spot || 'more:right').split(':'), w = { kind: kind, size: p[0] === 'less' ? 'less' : 'more', place: p[1] === 'left' ? 'left' : 'right' };
+    if (i >= 0) out[i] = w; else if (out.length < PAGES_SCREEN_WIDGETS_MAX) out.push(w);
+    return out;
+  }
+
   // ------------------------------------------------------------ search
   // Every setting the page has, where it is, and words people might use.
   // `screen: true` rows are on every screen's page.
@@ -1727,6 +1817,7 @@
     ['Back Button & Title', 'house/menu/header', 'menu.page_header', 'page header back title context navigation compact hide'],
     ['Back Button & Title', 'screen', 'page_header', 'page header back title context navigation compact hide', true],
     ['Menu Settings', 'screen/menu', 'menu_own', 'same as all screens own menu this screen side menu edge tab tab bar', true],
+    ['Swipe Between Pages', 'screen/menu', 'swipe_pages', 'swipe gesture next previous page sideways tab bar homeview same as all screens', true],
     ['Menu on Each Screen', 'house/menu', 'menu:screens', 'menu each screen tablets phones which kind button tab bar always open'],
     ['Side Menu', 'house/menu/side', 'menu:side', 'side menu drawer button always open docked used by'],
     ['Edge Tab', 'house/menu/edge-tab', 'menu:edge-tab', 'edge tab position size used by'],
@@ -1745,6 +1836,8 @@
     ['Favorites', 'screen/favorites', 'favorites', 'favourites', true],
     ['Rooms', 'screen/rooms', 'rooms_custom', 'room order home rooms on pages same as all screens', true],
     ['Pages on This Screen', 'screen/pages', 'pages', 'category pages custom pages which pages', true],
+    ['Pages Screen', 'screen/pages-screen', 'pages_screen', 'pages screen home screen app icons grid launcher homeview ipad widgets folder pill no tab bar swipe', true],
+    ['Pages Screen (All Screens)', 'house/pagesscreen', 'pages_screen.show', 'pages screen home screen app icons grid launcher homeview ipad widgets folder pill'],
     ['Glass', 'screen/glass', 'glass', 'look blur frosted clear', true],
     ['Live Sky', 'screen/sky', 'sky', 'background animated on off', true],
     ['Sky / Background', 'screen/sky', 'sky_look', 'backdrop animations weather decorations palette own look', true],
@@ -1842,6 +1935,7 @@
     ['Menu Button Icon', 'house/menu/side', 'menu.glyph', 'glyph sidebar lines hamburger side menu'],
     ['Tap Clock to Open Menu', 'house/menu/side', 'menu.clock', 'side menu'],
     ['Swipe from Left Edge', 'house/menu/side', 'menu.swipe', 'menu gesture swipe drag edge open no button side menu'],
+    ['Swipe Between Pages', 'house/menu', 'menu.swipe_pages', 'swipe gesture next previous page sideways tab bar homeview'],
     ['Accent Color', 'house/appearance/accent', 'menu.accent', 'highlight color colour accent tint orange icons selected page menu flat'],
     ['Highlight Color', 'house/appearance/accent', 'menu.accent', 'menu color colour accent tint orange icons selected page highlight'],
     ['Button Style', 'house/menu/side/tablets', 'menu.style', 'menu chip tab edge pinned tablet side menu'],
@@ -2012,6 +2106,32 @@
     });
     return out;
   }
+  // THE HOMEVIEW-STYLE FACES (2026-10-30; docs/phase11/HOMEVIEW-LOOK.md, Phase I; settings.py's block of the same
+  // name): three more Shows (hk-saverfaces.js), three more clock faces (hk-saverclock.js), the Forecast's Layout,
+  // the photos' Titles and Time Behind, and the Day face's look. Each default is how the screensaver drew before.
+  // [id, name, what it is] -- the Show control's choices, Photos & Forecast ('both') being Photos with a slide
+  var SAVER_SHOWS = [
+    ['photos', 'Photos', 'Your photos, one after another.'],
+    ['forecast', 'Forecast', 'The forecast over the live sky and the season’s landscape.'],
+    ['clock', 'Clock', 'A clock, full screen, over the background you choose.'],
+    ['glance', 'Glance', 'The date, a clock, what’s playing and the weather, on a calm colour.'],
+    ['month', 'Month', 'This month with today circled, and the date drawn large behind it.'],
+    ['day', 'Day', 'The weekday and a big date, with HK’s own art for the day: pumpkins at Halloween, a cake on a birthday, the season’s leaves.']];
+  var FORECAST_LAYOUTS = [['classic', 'Classic'], ['big', 'Big']];
+  var DAY_LOOKS = [['auto', 'By Time of Day'], ['light', 'Light'], ['dark', 'Dark']];
+  Object.assign(SAVER_DEFAULTS, { forecast_layout: 'classic', photo_titles: false, time_behind: false, day_look: 'auto' });
+  CLOCK_STYLES.push(['liquid', 'Liquid', 'Soft, glossy numerals that drift slowly over a pastel gradient'],
+                    ['giant', 'Giant Numerals', 'An analog clock with 12, 3, 6 and 9 drawn huge on a strong colour'],
+                    ['scattered', 'Scattered Numerals', 'A quiet analog face whose numerals lean and fade, on a soft colour']);
+  CLOCK_COLORS.liquid = [['pastel', 'Pastel'], ['sunset', 'Sunset'], ['ocean', 'Ocean'], ['mint', 'Mint']];
+  CLOCK_COLORS.giant = [['green', 'Green'], ['blue', 'Blue'], ['orange', 'Orange'], ['pink', 'Pink'], ['black', 'Black']];
+  CLOCK_COLORS.scattered = [['rose', 'Rose'], ['sage', 'Sage'], ['sky', 'Sky'], ['sand', 'Sand'], ['night', 'Night']];
+  // the faces that bring their own ground: the Background behind the clock isn't drawn under them
+  var CLOCK_OWN_GROUND = ['liquid', 'giant', 'scattered'];
+  function showName(show) {
+    var s = SAVER_SHOWS.filter(function (x) { return x[0] === show; })[0];
+    return s ? s[1] : 'Photos';
+  }
   // COPY SETTINGS FROM ANOTHER SCREEN: every screen setting is in exactly
   // one group here or in COPY_NEVER (settings.py BOARD_DEFAULTS -- a Python
   // test holds the two together). [key, label, board keys, copied by default]
@@ -2034,7 +2154,8 @@
     ['menu', 'Menu', ['menu', 'menu_own', 'page_header', 'dock_min', 'time_weather', 'ha_row', 'ha_place', 'tab_position', 'tab_size',
                       'tab_size_phone', 'accent', 'glyph', 'clock', 'swipe',
                       'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust', 'tab_bar_scroll_phone', 'tab_bar_tabs',
-                      'tab_bar_tabs_rail', 'tab_bar_tabs_phone', 'tab_bar_size', 'tab_bar_labels', 'tab_bar_strip', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone'], true],
+                      'tab_bar_tabs_rail', 'tab_bar_tabs_phone', 'tab_bar_size', 'tab_bar_labels', 'tab_bar_strip', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone',
+                      'swipe_pages'], true],
     ['home', 'Home Page', ['chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom', 'chips_custom_show'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
@@ -2044,15 +2165,17 @@
     ['favorites', 'Favorites', ['favorites'], false],
     ['header', 'Header', ['phone_header', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins', 'kiosk_engine', 'kiosk_options'], true],
     // the pages, Home among them, and where each sits in the menu (set on Pages)
-    ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories', 'headers'], true],
-    ['look', 'Appearance', ['flat', 'flat_theme', 'glass', 'frost', 'frost_tint', 'blur', 'tint', 'well', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
+    ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories', 'headers', 'pages_screen'], true],
+    ['look', 'Appearance', ['flat', 'flat_theme', 'glass', 'frost', 'frost_tint', 'blur', 'tint', 'well', 'tile_style', 'sky', 'sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause',
                             'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
                             'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty',
                             'sky_background', 'sky_color', 'sky_photo', 'sky_page_photos', 'sky_photo_look', 'sky_page_looks',
                             'sky_landscape', 'sky_landscape_look', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light', 'sky_flat_pages', 'sky_flat_image_look', 'sky_flat_page_image_looks', 'sky_image_look',
-                            'flat_colors', 'flat_page_colors'], true],
+                            'flat_colors', 'flat_page_colors',
+                            // Bright Glass's Strength and the Wallpaper (2026-10-30)
+                            'bright', 'sky_wallpaper', 'sky_wallpaper_night'], true],
     ['behavior', 'Behavior', ['popups', 'notify', 'notify_saver', 'notify_dnd', 'now_playing', 'timer_bar', 'bar_all_pages',
-                              'np_style', 'np_side', 'np_bar', 'np_bar_phone'], true],
+                              'np_style', 'np_side', 'np_bar', 'np_bar_phone', 'side_pane'], true],
     ['idle', 'When Idle', ['screensaver', 'screensaver_options', 'screensaver_engine', 'wallpanel_options'], true],
     ['device', 'This Device', ['car', 'car_layout', 'car_width'], false]
   ];
@@ -2099,7 +2222,7 @@
           .concat(o.extra_music && !first && !o.music_slide ? ['Music'] : [], o.show === 'clock' && o.weather_slide ? ['Weather'] : [])
       : (o.show === 'both' ? ['Forecast'] : []).concat(o.music_slide && !first ? ['Music'] : [], o.weather_slide ? ['Weather'] : []);
     if (o.energy_slide) extra.push('Home Energy');
-    var show = (first ? 'Music, Then ' : '') + (o.show === 'forecast' ? 'Forecast' : o.show === 'clock' ? 'Clock' : 'Photos') + (extra.length ? ' + ' + extra.join(' & ') : '');
+    var show = (first ? 'Music, Then ' : '') + showName(o.show) + (extra.length ? ' + ' + extra.join(' & ') : '');
     var n = o.starts_after, m = n % 60 ? Math.round(n / 6) / 10 : n / 60;
     var t = n < 60 ? n + ' Seconds' : m + (m === 1 ? ' Minute' : ' Minutes');
     return show + ' · ' + t;
@@ -2195,13 +2318,14 @@
   // stops. A true flag is still an override, even when it matches the house.
   function skySummary(b) {
     var keys = ['sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause', 'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom',
-                'sky_background', 'sky_color', 'sky_photo', 'sky_photo_look', 'sky_landscape', 'sky_landscape_look'];
+                'sky_background', 'sky_color', 'sky_photo', 'sky_photo_look', 'sky_landscape', 'sky_landscape_look',
+                'sky_wallpaper', 'sky_wallpaper_night'];
     var pages = Object.keys(b.sky_pages || {}).length;
     if (keys.every(function (k) { return b[k] == null; }) && !pages) return 'Same as All Screens';
     var parts = [];
     // the Background first: a still Color or Photo is the whole look
     if (b.sky_background) parts.push(BG_LABELS[b.sky_background] || b.sky_background);
-    if (b.sky_background === 'color' || b.sky_background === 'photo' || b.sky_background === 'landscapes') return parts.concat(pages ? [pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds'] : []).join(', ');
+    if (b.sky_background === 'color' || b.sky_background === 'photo' || b.sky_background === 'landscapes' || b.sky_background === 'wallpaper') return parts.concat(pages ? [pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds'] : []).join(', ');
     if (b.sky_animations === false) parts.push('No Animation');
     if (b.sky_weather === false) parts.push('No Weather');
     if (b.sky_precipitation === false) parts.push('No Rain & Snow');
@@ -2409,10 +2533,132 @@
     return 'Zoom ' + r.zoom + ' · ' + choiceLabel(RADAR_HISTORY, r.history_minutes);
   }
 
+  // ------------------------------------------------------------ the side pane
+  // THE SIDE PANE (2026-10-30, settings.py side_pane; hk-sidepane.js draws
+  // it): one pane per screen, its groups -- Where (Pane Side, Width), On the
+  // Dashboard, In the Screensaver, Doorbell -- All Screens' or a screen's
+  // own, each on its own. A screen is handed it as read (side_pane_read,
+  // its `own` the groups that are the screen's); All Screens' is the house
+  // section side_pane. Sections: {kind, size (absent: More), when (absent:
+  // Always), and a kind's own options}, eight at most, one Full.
+  var PANE_KINDS = [['clock', 'Clock', 'mdi:clock-outline', '#8e8e93'], ['weather', 'Weather', 'mdi:weather-partly-cloudy', '#32ade6'],
+    ['calendar', 'Calendar', 'mdi:calendar', '#ff3b30'], ['now_playing', 'Now Playing', 'mdi:music', '#ff2d55'],
+    ['security', 'Security', 'mdi:shield-home', '#30b0c7'], ['camera', 'Camera', 'mdi:cctv', '#636366'],
+    ['timers', 'Timers', 'mdi:timer-outline', '#ff9500'], ['energy', 'Energy', 'mdi:lightning-bolt', '#34c759'],
+    ['climate', 'Climate', 'mdi:thermostat', '#007aff'], ['people', 'Who’s Home', 'mdi:account-multiple', '#5856d6'],
+    ['todo', 'To-do', 'mdi:format-list-checks', '#ff9500'], ['notifications', 'Notifications', 'mdi:bell', '#ff3b30']];
+  var PANE_SIZES = [['tiny', 'Tiny'], ['less', 'Less'], ['more', 'More'], ['full', 'Full']];
+  var PANE_WHEN = [['always', 'Always'], ['active', 'When There’s Something']];
+  var PANE_SIDES = [['left', 'Left'], ['right', 'Right']];
+  var PANE_WIDTHS = [['narrow', 'Narrow'], ['standard', 'Standard'], ['wide', 'Wide']];
+  var PANE_SHOWS = [['off', 'Off'], ['home', 'Home Only'], ['all', 'Every Page']];
+  var PANE_SAVER_SHOWS = [['off', 'Off'], ['same', 'Same as the Dashboard'], ['own', 'Its Own Sections']];
+  var PANE_GROUPS = ['side', 'width', 'dashboard', 'saver', 'doorbell'];
+  var PANE_MAX = 8;
+  var PANE_DEFAULTS = { side: 'right', width: 'standard',
+    dashboard: { show: 'off', sections: [{ kind: 'weather' }, { kind: 'calendar' }, { kind: 'now_playing', when: 'active' }] },
+    saver: { show: 'off', sections: [{ kind: 'clock', size: 'tiny' }, { kind: 'calendar' }, { kind: 'now_playing', size: 'less', when: 'active' }] },
+    doorbell: true };
+  function paneCopy(v) { return JSON.parse(JSON.stringify(v)); }
+  function paneKind(k) { return PANE_KINDS.filter(function (x) { return x[0] === k; })[0] || null; }
+  // a section as stored: More and Always are what absent means
+  function paneSection(s) {
+    var out = {};
+    Object.keys(s || {}).forEach(function (k) {
+      if ((k === 'size' && s[k] === 'more') || (k === 'when' && s[k] === 'always') || (k === 'completed' && !s[k])) return;
+      out[k] = s[k];
+    });
+    return out;
+  }
+  // THE PANE AS THIS PAGE EDITS IT: a screen's as read, else All Screens'
+  // (over the defaults); `own` the screen's own groups (none for All Screens)
+  function paneOf(house, b) {
+    var r = b && b.side_pane_read;
+    if (r) return Object.assign(paneCopy(r), { own: (r.own || []).slice() });
+    var h = paneCopy(PANE_DEFAULTS);
+    PANE_GROUPS.forEach(function (g) { if (house && house[g] !== undefined && house[g] !== null) h[g] = paneCopy(house[g]); });
+    h.own = [];
+    return h;
+  }
+  // whose a group is, on a screen ('' for All Screens)
+  function paneGroupSays(p, g, screen) { return !screen ? '' : p.own.indexOf(g) >= 0 ? 'Just This Screen' : 'Same as All Screens'; }
+  // WHAT A CHANGE SAVES: All Screens' one group (side_pane.<group>), or the
+  // screen's own object -- the groups it had, and this one now its own too
+  function paneSet(p, g, value, screen) {
+    var out = {};
+    if (!screen) { out['side_pane.' + g] = value; return out; }
+    var own = {};
+    p.own.forEach(function (x) { own[x] = paneCopy(p[x]); });
+    own[g] = value;
+    out.side_pane = own;
+    return out;
+  }
+  // ...and Reset to All Screens: the group no longer the screen's (none
+  // left: null, Same as All Screens in everything)
+  function paneReset(p, g) {
+    var own = {};
+    p.own.forEach(function (x) { if (x !== g) own[x] = paneCopy(p[x]); });
+    return { side_pane: Object.keys(own).length ? own : null };
+  }
+  // A GROUP'S SECTIONS, changed: each returns the whole new group
+  function secKey(s) { return s.kind + ':' + (s.entity || ''); }
+  function paneGroup(grp, sections) { return { show: grp.show, sections: sections.map(paneSection) }; }
+  function secsAdd(grp, kind) {
+    if (!paneKind(kind) || grp.sections.length >= PANE_MAX) return paneGroup(grp, grp.sections);
+    return paneGroup(grp, grp.sections.concat([{ kind: kind, size: 'less' }]));
+  }
+  function secsOrder(grp, keys) {
+    var by = {};
+    grp.sections.forEach(function (s) { by[secKey(s)] = s; });
+    return paneGroup(grp, keys.map(function (k) { return by[k]; }).filter(Boolean));
+  }
+  function secSet(grp, i, k, v) {
+    var list = paneCopy(grp.sections);
+    if (!list[i]) return paneGroup(grp, list);
+    // ONE FULL AT A TIME: another made Full is More again
+    if (k === 'size' && v === 'full') list.forEach(function (s, j) { if (j !== i && s.size === 'full') delete s.size; });
+    if (v === null || v === undefined || v === '') delete list[i][k]; else list[i][k] = v;
+    return paneGroup(grp, list);
+  }
+  // the kinds not yet in a group (a camera or a list may come twice, by its entity)
+  function secsMore(grp) {
+    var have = grp.sections.map(function (s) { return s.kind; });
+    return grp.sections.length >= PANE_MAX ? [] : PANE_KINDS.filter(function (k) { return have.indexOf(k[0]) < 0 || k[0] === 'camera' || k[0] === 'todo'; });
+  }
+  // A SECTION'S ROW SAYS its size and when: "More", "Tiny · When There's Something"
+  function secSays(s) {
+    var size = choiceLabel(PANE_SIZES, s.size || 'more');
+    return s.when === 'active' ? size + ' · When There’s Something' : size;
+  }
+  // THE LINKS that were each pane's own settings: the Dashboard's ("Home
+  // Only, Right"), the screensaver's ("Calendar, Now Playing"), and Now
+  // Playing's Show As (the bar, or the Side Pane)
+  function paneSummary(p) {
+    var d = p.dashboard || {};
+    return d.show === 'off' || !d.show ? 'Off' : choiceLabel(PANE_SHOWS, d.show) + ', ' + choiceLabel(PANE_SIDES, p.side);
+  }
+  function paneSaverSummary(p) {
+    var g = p.saver || {};
+    if (g.show === 'same') return 'Same as the Dashboard';
+    if (g.show !== 'own' || !(g.sections || []).length) return 'Off';
+    return listText(g.sections.map(function (s) { return (paneKind(s.kind) || [0, s.kind])[1]; }));
+  }
+  function paneHasMusic(p) {
+    var d = p.dashboard || {};
+    return d.show !== 'off' && (d.sections || []).some(function (s) { return s.kind === 'now_playing'; });
+  }
+  function npShowAs(p) { return paneHasMusic(p) ? 'In the Side Pane' : 'Bar'; }
+
   root.hkSettingsModel = {
+    PANE_KINDS: PANE_KINDS, PANE_SIZES: PANE_SIZES, PANE_WHEN: PANE_WHEN, PANE_SIDES: PANE_SIDES, PANE_WIDTHS: PANE_WIDTHS,
+    PANE_SHOWS: PANE_SHOWS, PANE_SAVER_SHOWS: PANE_SAVER_SHOWS, PANE_GROUPS: PANE_GROUPS, PANE_MAX: PANE_MAX, PANE_DEFAULTS: PANE_DEFAULTS,
+    paneKind: paneKind, paneSection: paneSection, paneOf: paneOf, paneGroupSays: paneGroupSays, paneSet: paneSet, paneReset: paneReset,
+    secKey: secKey, secsAdd: secsAdd, secsOrder: secsOrder, secSet: secSet, secsMore: secsMore, secSays: secSays,
+    paneSummary: paneSummary, paneSaverSummary: paneSaverSummary, paneHasMusic: paneHasMusic, npShowAs: npShowAs,
     skySummary: skySummary, backdropFollow: backdropFollow,
     YAML_REF: YAML_REF, YAML_DEFAULTS: YAML_DEFAULTS, yamlRefText: yamlRefText, yamlRefItem: yamlRefItem,
     previewSizes: previewSizes, previewDefault: previewDefault, previewFit: previewFit,
+    SAVER_SHOWS: SAVER_SHOWS, FORECAST_LAYOUTS: FORECAST_LAYOUTS, DAY_LOOKS: DAY_LOOKS, CLOCK_OWN_GROUND: CLOCK_OWN_GROUND, showName: showName,
     SAVER_DEFAULTS: SAVER_DEFAULTS, saverOptions: saverOptions, saverCustom: saverCustom, ENERGY_PARTS: ENERGY_PARTS, energyShown: energyShown, WEATHER_PARTS: WEATHER_PARTS, weatherShown: weatherShown, listText: listText, saverSummary: saverSummary, saverFollows: saverFollows, kioskSummary: kioskSummary,
     NP_STYLES: NP_STYLES, NP_SIDES: NP_SIDES, NP_BARS: NP_BARS, NP_GRACES: NP_GRACES, npSummary: npSummary,
     COPY_GROUPS: COPY_GROUPS, COPY_NEVER: COPY_NEVER, copyDefaults: copyDefaults, copyChanges: copyChanges,
@@ -2430,10 +2676,11 @@
     menuOwn: menuOwn, ownsMenu: ownsMenu, menuOwnSet: menuOwnSet, menuOwnReset: menuOwnReset, menuSummary: menuSummary,
     MENU_KINDS: MENU_KINDS, menuKind: menuKind, kindUsers: kindUsers, usedBy: usedBy, menuWord: menuWord, KIND_KEYS: KIND_KEYS, usesSide: usesSide, PAGE_HEADER_SAYS: PAGE_HEADER_SAYS,
     accentColorOf: accentColorOf, accentChanges: accentChanges, GLASS: GLASS,
-    GLASS_STYLES: GLASS_STYLES, BLUR_MODES: BLUR_MODES, TINT_WELLS: TINT_WELLS, isBlur: isBlur, glassStyle: glassStyle, SLOW_FPS: SLOW_FPS, LADDER: LADDER, ladderFacts: ladderFacts, ladderSignature: ladderSignature, slowRecommend: slowRecommend, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
+    GLASS_STYLES: GLASS_STYLES, BLUR_MODES: BLUR_MODES, BRIGHT_MODES: BRIGHT_MODES, TINT_WELLS: TINT_WELLS, TILE_STYLES: TILE_STYLES, isBlur: isBlur, isBright: isBright, modesFor: modesFor, styleValue: styleValue, glassStyle: glassStyle, WALLPAPER_NIGHT: WALLPAPER_NIGHT, SLOW_FPS: SLOW_FPS, LADDER: LADDER, ladderFacts: ladderFacts, ladderSignature: ladderSignature, slowRecommend: slowRecommend, PRESETS: PRESETS, STATUS_LABELS: STATUS_LABELS,
     STATUS_SAYS: STATUS_SAYS, STATUS_ROWS: STATUS_ROWS, STATUS_SOURCE: STATUS_SOURCE, PAGES: PAGES, pageOf: pageOf, PAGE_TYPES: PAGE_TYPES,
     PAGE_FEATURES: PAGE_FEATURES, pagesListed: pagesListed, pageOfRoute: pageOfRoute, routeForward: routeForward, screenShows: screenShows, headerOffOn: headerOffOn, statusSummary: statusSummary, HEADER_PAGES: HEADER_PAGES,
-    WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, SKY_MOVING: SKY_MOVING, DAYTIME_SKIES: DAYTIME_SKIES,
+    WOODLAND: WOODLAND, woodlandSummary: woodlandSummary, CLOUD_STYLES: CLOUD_STYLES, SKY_MOVING: SKY_MOVING,
+    SWIPE_PAGES: SWIPE_PAGES, SWIPE_PAGES_SAYS: SWIPE_PAGES_SAYS, DAYTIME_SKIES: DAYTIME_SKIES,
     BROWSE_LABELS: BROWSE_LABELS, POPUP_KINDS: POPUP_KINDS, CLOSE_AFTER: CLOSE_AFTER, MONTHS: MONTHS,
     CAR_LAYOUTS: CAR_LAYOUTS, CAR_WIDTHS: CAR_WIDTHS, CAR_WIDTH: CAR_WIDTH, carWidthChoice: carWidthChoice,
     PAGE_PILL_DEFAULTS: PAGE_PILL_DEFAULTS, PILL_COLORS: PILL_COLORS, CAL_COLORS: CAL_COLORS, colorLabel: colorLabel,
@@ -2457,6 +2704,10 @@
     chipsModel: chipsModel, chipsSave: chipsSave, chipsAddOwn: chipsAddOwn, chipsRemoveOwn: chipsRemoveOwn,
     chipQuiet: chipQuiet,
     scenesModel: scenesModel, scenesSave: scenesSave, scenesPagePill: scenesPagePill,
+    PAGES_SCREEN_DEFAULTS: PAGES_SCREEN_DEFAULTS, PAGES_SCREEN_SHOW: PAGES_SCREEN_SHOW, PAGES_SCREEN_ROOMS: PAGES_SCREEN_ROOMS,
+    PAGES_SCREEN_PILL: PAGES_SCREEN_PILL, PAGES_SCREEN_WIDGETS: PAGES_SCREEN_WIDGETS, PAGES_SCREEN_SPOTS: PAGES_SCREEN_SPOTS,
+    PAGES_SCREEN_WIDGETS_MAX: PAGES_SCREEN_WIDGETS_MAX, pagesScreenOf: pagesScreenOf, pagesScreenSet: pagesScreenSet,
+    pagesScreenSummary: pagesScreenSummary, pagesWidgetSet: pagesWidgetSet,
     pagesModel: pagesModel, pagesSave: pagesSave, pagesCustom: pagesCustom, onlyModel: onlyModel, onlySummary: onlySummary,
     skyPageRows: skyPageRows, skyAutoLabel: skyAutoLabel, skyModeLabel: skyModeLabel, skyModeOptions: skyModeOptions,
     roomsModel: roomsModel, roomsSave: roomsSave, roomsAuto: roomsAuto, houseRoomsAsBoard: houseRoomsAsBoard,

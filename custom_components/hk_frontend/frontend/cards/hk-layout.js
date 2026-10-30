@@ -1599,6 +1599,12 @@
   // a time window looks again every half minute; a doorbell ring counts for
   // a minute. `force` (the editor's Preview): -1 the default, else a rule.
   var cfgIds = new WeakMap(), cfgCount = 0;
+  // A BLOCK'S TILE STYLE (2026-10-30): Centred, set on the block's card by
+  // the grid, handed on to the card it holds (as `size` is)
+  function passTile(from, to) {
+    if (!to || !to.setAttribute) return;
+    if (from.getAttribute('tile') === 'centred') to.setAttribute('tile', 'centred'); else to.removeAttribute('tile');
+  }
   function cfgId(c) {
     if (!c || typeof c !== 'object') return 'x';
     var n = cfgIds.get(c);
@@ -1607,8 +1613,8 @@
   }
   class HkGridConditionalCard extends HkBase {
     static get CSS() { return ':host{display:block;height:100%}.variant,.variant>*{display:block;height:100%;width:100%}'; }
-    static get observedAttributes() { return ['size']; }
-    attributeChangedCallback() { if (this._child) this._child.setAttribute('size', this.getAttribute('size')); }
+    static get observedAttributes() { return ['size', 'tile']; }
+    attributeChangedCallback() { if (this._child) { this._child.setAttribute('size', this.getAttribute('size')); passTile(this, this._child); } }
     _rules() { return window.hkGridCatalog.rulesOf((this._config || {}).item); }
     _shown() {
       var cfg = this._config || {}, G = window.hkGridCatalog;
@@ -1636,6 +1642,7 @@
       delete chosen.when;
       var child = C.createCard(window.hkGridCatalog.config(chosen, cfg.ctx), this.client);
       child.setAttribute('size', this.getAttribute('size') || item.size);
+      passTile(this, child);
       if (this.hasAttribute('data-grid-pager')) child.setAttribute('data-grid-pager', '');
       var box = document.createElement('div'); box.className = 'variant'; box.appendChild(child);
       this._root.replaceChildren(box); this._child = child;
@@ -1693,6 +1700,27 @@
   // one cell's width and height. A card's own layout per class reads them
   // (G2). The card gets the same `size` attribute.
   var GRID = C.HOME_GRID || { sizes: {}, gap: 10, band: 60 };
+  // A CELL'S SHAPE (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md "The numbers"):
+  // its height, the gap and the canvas's edge. Tiles: 150, 10, the page's
+  // gutter. Square cells: 196 and HomeView's 13; on a Square screen the edge
+  // is 14 (C.HOME_GRID.square), about a gap from the glass.
+  function cellShape(g) {
+    var sq = GRID.square || { h: 196, gap: 13, edge: 14 };
+    if (g.cell !== 'square') return { h: C.TILE.tall, gap: GRID.gap, pad: GRID.pad };
+    return { h: sq.h, gap: sq.gap, pad: g.screen === 'square' ? sq.edge : GRID.pad };
+  }
+  // ...and a block's corners on square cells: HomeView's one radius
+  // (C.R.square), and on a Square screen the outer corner of a block at the
+  // screen's corner concentric with the display's (C.R['square-screen']).
+  // One value, or four (top-left, top-right, bottom-right, bottom-left).
+  function cellRadius(g, at, span) {
+    if (g.cell !== 'square') return '';
+    var r = (C.R && C.R.square || 34) + 'px', o = (C.R && C.R['square-screen'] || 72) + 'px';
+    if (g.screen !== 'square') return r;
+    var l = at[0] === 0, rt = at[0] + span[0] === g.cols, t = at[1] === 0, b = at[1] + span[1] === g.rows;
+    if (!((l || rt) && (t || b))) return r;
+    return [l && t ? o : r, rt && t ? o : r, rt && b ? o : r, l && b ? o : r].join(' ');
+  }
   // A NIGHT (the grid's `night`): "always", or now between from and to (across midnight)
   function gridNightNow(n, d) {
     if (!n || n.mode === 'off') return false;
@@ -1763,7 +1791,7 @@
       // Cards and swipe tracks clip their own content; the grid clips its
       // outer boundary. Shadows can extend between the cells.
       st.textContent =
-        ':host{--g-room:var(--hk-bar-room,var(--hk-tabbar-h,0px));display:block;position:relative;' +
+        ':host{--g-room:calc(var(--hk-bar-room,var(--hk-tabbar-h,0px)) + var(--hk-pane-b,0px));display:block;position:relative;' +
         'height:calc(100dvh - var(--g-room));max-height:calc(100dvh - var(--g-room));overflow:hidden;' +
         // (clear of a side safe area, as every view: hk-grid-view; _measure fits the grid between)
         'container-type:size;box-sizing:border-box;padding-left:' + SAFE_PAD_L + ';padding-right:' + SAFE_PAD_R + '}' +
@@ -1815,17 +1843,17 @@
     // the grid takes the views with it, unless it began on something that
     // moves sideways itself -- a block that swipes its own pages, a slider, a
     // dial; past a fifth of the width, or quickly, it lands on the next. The
-    // first and the last view give a little, and come back.
+    // first and the last view give a little, and come back -- unless Swipe
+    // Between Pages is on here: a swipe past the last view (or back past the
+    // first) is handed to the page swipe (hk-pageswipe.js), as the event
+    // hk-swipe-past with the travel so far, and goes on to the next page.
+    // What moves sideways itself is one list, hkDrag.sideways (hk-drag.js).
     _swipeViews() {
       var self = this, d = null;
-      var OWN = 'hk-pager-card,[role="slider"],.ring,.vs,input,select,textarea';
       var mine = function (e) {
-        var path = e.composedPath ? e.composedPath() : [];
-        return !path.some(function (n) {
-          if (!n || !n.matches) return false;
-          if (n.localName === 'hk-pager-card') return (n._pages || []).length > 1;
-          return n.matches(OWN);
-        });
+        var D = window.hkDrag;
+        // (without the shared list, nothing here is known to be the grid's)
+        return !!(D && D.sideways) && !D.sideways(e.composedPath ? e.composedPath() : [], self);
       };
       this.addEventListener('pointerdown', function (e) {
         if (self._views() < 2 || (e.button !== undefined && e.button !== 0) || !mine(e)) return;
@@ -1836,6 +1864,16 @@
         var dx = e.clientX - d.x, dy = e.clientY - d.y;
         if (!d.on) {
           if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.4) { if (Math.abs(dy) > 14) d = null; return; }
+          // PAST THE END, ON TO THE NEXT PAGE: the page swipe takes it from here
+          var end = dx < 0 ? (self._view || 0) >= self._views() - 1 : (self._view || 0) <= 0;
+          var PS = window.hkPageSwipe;
+          if (end && PS && PS.takes && PS.takes(dx < 0 ? 1 : -1, self)) {
+            d = null;
+            self.dispatchEvent(new CustomEvent('hk-swipe-past', { bubbles: true, composed: true,
+              detail: { dir: dx < 0 ? 1 : -1, dx: dx, dy: dy, x: e.clientX, y: e.clientY, pointerId: e.pointerId,
+                        pointerType: e.pointerType, target: e.composedPath ? e.composedPath()[0] : e.target } }));
+            return;
+          }
           d.on = true;
           try { self.setPointerCapture(e.pointerId); } catch (x) { /* a test page */ }
           self._root.classList.add('dragging');
@@ -1865,6 +1903,17 @@
       }, true);
     }
     _views() { return this._config ? this._grid().views : 1; }
+    // ARRIVING BY A PAGE SWIPE (hk-pageswipe.js): forward, its first view;
+    // back from the next page, its last -- so the swipe reads as one strip
+    swipeEnter(dir) {
+      var n = this._views();
+      if (n < 2) return;
+      var root = this._root;
+      // (no slide: it is already where it lands)
+      if (root) root.classList.add('dragging');
+      this._showView(dir < 0 ? n - 1 : 0);
+      if (root) { void root.offsetWidth; root.classList.remove('dragging'); }
+    }
     // the view to show (the swipe, a dot, the editor's View)
     _showView(i) {
       var n = this._views();
@@ -1908,15 +1957,20 @@
       var rows = (g.rows >= 2 && g.rows <= 6 && g.rows === Math.floor(g.rows)) ? g.rows : 4;
       return { cols: cols, rows: rows, band: g.band !== false, scale: Number.isInteger(g.scale) && g.scale >= 50 && g.scale <= 100 ? g.scale : 100,
                grow: g.grow === true, night: g.night && (g.night.mode === 'night' || g.night.mode === 'always') ? g.night : null,
-               views: g.views >= 2 && g.views <= 4 && g.views === Math.floor(g.views) ? g.views : 1 };
+               views: g.views >= 2 && g.views <= 4 && g.views === Math.floor(g.views) ? g.views : 1,
+               cell: g.cell === 'square' ? 'square' : 'tile', screen: g.screen === 'square' ? 'square' : null };
     }
 
     _place() {
       if (!this._root || !this._config) return;
-      var g = this._grid(), root = this._root, top = g.band ? 1 : 0;
+      var g = this._grid(), root = this._root, top = g.band ? 1 : 0, shape = cellShape(g);
       root.style.setProperty('--g-cols', String(g.cols));
       root.style.setProperty('--g-rows', String(g.rows));
-      root.style.gridTemplateRows = (top ? GRID.band + 'px ' : '') + 'repeat(' + g.rows + ', ' + C.TILE.tall + 'px)';
+      root.style.gridTemplateRows = (top ? GRID.band + 'px ' : '') + 'repeat(' + g.rows + ', ' + shape.h + 'px)';
+      // (square cells: their gap and edge; tiles keep the stylesheet's)
+      if (g.cell === 'square') { root.style.setProperty('--g-gap', shape.gap + 'px'); root.style.setProperty('--g-pad', shape.pad + 'px'); }
+      else { root.style.removeProperty('--g-gap'); root.style.removeProperty('--g-pad'); }
+      if (g.cell === 'square') this.setAttribute('cell', 'square'); else this.removeAttribute('cell');
       var cfgs = this._config.cards || [], els = this._cards || [];
       this._slots = this._slots || [];
       // RECONCILE, NEVER EMPTY-AND-REFILL (hk-grid-view's reason): a slot per
@@ -1926,6 +1980,9 @@
         var el = els[i];
         var slot = this._slots[i] || (this._slots[i] = document.createElement('div'));
         var cell = cfg && cfg.hk_cell, sz = cell && GRID.sizes[cell.size];
+        // FULL (F, 2026-10-30): the view's whole grid -- its columns and rows
+        var full = !!sz && (!sz[0] || !sz[1]);
+        if (full) sz = [g.cols, g.rows];
         if (cfg && cfg.hk_band && top) {
           slot.className = 'band';
           slot.removeAttribute('size');
@@ -1945,7 +2002,15 @@
           if (vw >= 0) { slot.setAttribute('data-view', String(vw)); slot.style.setProperty('--v', String(vw)); } else slot.removeAttribute('data-view');
           slot.style.gridColumn = (c + 1) + ' / span ' + sz[0];
           slot.style.gridRow = (r + 1 + top) + ' / span ' + sz[1];
+          // (a Full block's card reads its span here: hkCards HkBase._block)
+          if (full) { slot.style.setProperty('--hk-span-c', String(sz[0])); slot.style.setProperty('--hk-span-r', String(sz[1])); }
+          // (square cells: the block's corners, read by its plate -- hkCards.plate)
+          var rad = cellRadius(g, cell.at, sz);
+          if (rad) slot.style.setProperty('--hk-block-radius', rad);
           if (el && el.setAttribute) el.setAttribute('size', cell.size);
+          // TILE STYLE (2026-10-30): Centred on the block's card, which its tiles
+          // read (hk-tile.js, hk-grid-cards.js KEY_CSS); Home is no attribute
+          if (el && el.setAttribute) { if (cell.tile === 'centred') el.setAttribute('tile', 'centred'); else el.removeAttribute('tile'); }
         } else if (cfg && cfg.hk_band) {
           want.push(null); return;                // the band, turned off
         } else {
@@ -1982,9 +2047,9 @@
       if (!root || !this.isConnected || !root.getBoundingClientRect) return;
       // Logical geometry never depends on viewport shape. Fit the whole canvas
       // uniformly inside the room left by the dock; optionally make it smaller.
-      var pad = GRID.pad, gap = GRID.gap;
+      var shape = cellShape(g), pad = shape.pad, gap = shape.gap;
       var w = g.cols * C.TILE.w + (g.cols - 1) * gap + 2 * pad;
-      var h = g.rows * C.TILE.tall + (g.rows - 1) * gap + 2 * pad + (g.band ? GRID.band + gap : 0);
+      var h = g.rows * shape.h + (g.rows - 1) * gap + 2 * pad + (g.band ? GRID.band + gap : 0);
       // (Fill the Screen, `grow`: past its own size too -- a phone on its side, whose grid is smaller than it)
       // (the width between the view's side paddings -- a side safe area, hk-grid-view's -- and the grid
       // centred in it: the absolute root is placed from the padding box)
@@ -2001,7 +2066,24 @@
       // the views' dots in the middle of the grid's foot margin
       if (this._dots && g.views > 1) this._dots.style.top = Math.round(parseFloat(root.style.top) + (h - pad / 2) * scale - 9) + 'px';
       root.style.setProperty('--hk-cell-w', C.TILE.w + 'px');
-      root.style.setProperty('--hk-cell-h', C.TILE.tall + 'px');
+      root.style.setProperty('--hk-cell-h', shape.h + 'px');
+    }
+
+    // BESIDE THE SIDE PANE (2026-10-30, hk-sidepane.js): the width the grid
+    // takes when it fills a height `H` (the screen's, less the tab bar's
+    // room) -- its own canvas scaled as _measure scales it, and its side
+    // paddings -- so the pane can take what it leaves (444 px beside a 3 x 3
+    // on a 1180 x 820 tablet). The pane then narrows the page (hk-menu.js),
+    // and the grid lays itself in what is left, on either side, as ever.
+    paneRoom(H) {
+      // (the canvas _measure last laid out, whatever its cells' shape)
+      var g = this._grid(), rs = this._root && this._root.style;
+      var w = rs ? parseFloat(rs.width) : 0, h = rs ? parseFloat(rs.height) : 0;
+      if (!(w > 0 && h > 0 && H > 0)) return 0;
+      var scale = Math.min(g.grow ? Infinity : 1, H / h) * g.scale / 100;
+      var cs = typeof getComputedStyle === 'function' ? getComputedStyle(this) : null;
+      var side = cs ? (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) : 0;
+      return Math.round(w * scale + side);
     }
 
     connectedCallback() {
@@ -2554,6 +2636,7 @@
       if (!el) return;
       var size = ((this._config || {}).item || {}).size;
       if (size && el.setAttribute) el.setAttribute('size', size);
+      passTile(this, el);
       if (this._pages.length > 1 && el.setAttribute) {
         el.setAttribute('data-grid-pager', '');
         // Interactive footers stay above the dots' 44px hit targets.
