@@ -1224,7 +1224,7 @@
         if (look.color) e.card.style.setProperty('--c', look.color); else e.card.style.removeProperty('--c');
         if (look.text) e.card.style.setProperty('--t', look.text); else e.card.style.removeProperty('--t');
         var big = size === 'S' || size === 'W' ? look.word : look.word + (look.mode ? ' · ' + look.mode : '');
-        var sub = size === 'S' ? [look.mode, says && says.charAt(0).toLowerCase() + says.slice(1)].filter(Boolean).join(' · ') : size === 'W' ? (look.mode || says) : says;
+        var sub = size === 'S' ? [look.mode, says && (/^All /.test(says) ? 'all ' + says.slice(4) : says)].filter(Boolean).join(' · ') : size === 'W' ? (look.mode || says) : says;
         if (size === 'S' && !look.mode) sub = says;
         e.big.textContent = big;
         e.sub.textContent = sub;
@@ -1398,7 +1398,7 @@
         // (2026-10-31, Music's widget: what played last and covers to play
         // again, at the block's size -- hk-media.js hk-recent-music-card)
         var M = window.hkMusic, sp = M && M.speakers ? M.speakers() : [];
-        return sp && sp.length ? [{ cfg: { type: 'custom:hk-recent-music-card' }, size: size }] : null;
+        return sp && sp.length ? [{ cfg: Object.assign({ type: 'custom:hk-recent-music-card' }, cfg.show ? { show: cfg.show } : {}, cfg.playlist ? { playlist: cfg.playlist } : {}), size: size }] : null;
       }
       if (kind === 'doors') {
         var S = window.hkStrategy, inv = null;
@@ -1426,7 +1426,7 @@
       if (kind === 'tv') {
         // (2026-10-31: its first channels, a tile each in its color with what
         // is on; a tap plays one full screen -- hk-media.js hk-tv-channels-card)
-        return (setting('added', []) || []).indexOf('live_tv') >= 0 ? [{ cfg: { type: 'custom:hk-tv-channels-card' }, size: size }] : null;
+        return (setting('added', []) || []).indexOf('live_tv') >= 0 ? [{ cfg: Object.assign({ type: 'custom:hk-tv-channels-card' }, cfg.channel ? { channel: cfg.channel } : {}), size: size }] : null;
       }
       if (kind === 'water') {
         var hw = (setting('headers', null) || {}).water || {};

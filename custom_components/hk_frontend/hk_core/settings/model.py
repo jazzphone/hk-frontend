@@ -237,9 +237,19 @@ SKY_BACKGROUNDS = ("live", "color", "photo", "landscapes", "wallpaper")
 # presets): six more wallpapers, each drawn by hk-wallpapers.js from one colour (WALLPAPER_COLOR) -- a still
 # ground and a few layers its Motion moves.
 WALLPAPER_THEMES = ("aurora", "blobs", "waves", "dots", "beams", "meteors")
-WALLPAPERS = ("ribbons_rose", "petals_rose", "petals_violet", "shards_violet", "shards_blue", "ribbons_blue",
-              "pinwheel_teal", "ribbons_teal", "pinwheel_amber", "petals_amber", "shards_graphite",
-              "pinwheel_graphite") + WALLPAPER_THEMES
+# THE ARTS IN ANY COLOUR (2026-11-01, item 45: the owner's one combined picker): the four shapes, each drawn in the
+# colour chosen (WALLPAPER_COLOR, the themes' own), so a wallpaper is an art or a theme plus a colour.
+WALLPAPER_ARTS = ("ribbons", "petals", "shards", "pinwheel")
+WALLPAPERS = WALLPAPER_ARTS + WALLPAPER_THEMES
+# ...and the twelve as they were stored before (hk-wallpapers.js LEGACY mirrors this, in its order): an art in a
+# preset. Still read and accepted, and drawn as they always were -- "ribbons_rose" is Ribbons in Rose, whatever
+# colour was stored beside it (it was a theme's alone then)
+WALLPAPER_LEGACY = {
+    "ribbons_rose": ("ribbons", "rose"), "petals_rose": ("petals", "rose"), "petals_violet": ("petals", "violet"),
+    "shards_violet": ("shards", "violet"), "shards_blue": ("shards", "blue"), "ribbons_blue": ("ribbons", "blue"),
+    "pinwheel_teal": ("pinwheel", "teal"), "ribbons_teal": ("ribbons", "teal"), "pinwheel_amber": ("pinwheel", "amber"),
+    "petals_amber": ("petals", "amber"), "shards_graphite": ("shards", "graphite"), "pinwheel_graphite": ("pinwheel", "graphite"),
+}
 WALLPAPER_NIGHT = ("auto", "day", "night")
 # A WALLPAPER'S MOTION (2026-10-30, the owner: "animated slowly with a speed setting... an option to turn the
 # animation off or on"): off, or a slow drift at one of three speeds -- transform only, on the drawn picture
@@ -268,6 +278,25 @@ def wallpaper_color(v: Any) -> str | None:
     if v in WALLPAPER_COLOR_IDS:
         return v
     return v.lower() if ACCENT_HEX.fullmatch(v) else None
+
+
+def wallpaper_choice(w: Any, c: Any) -> tuple[str, str]:
+    """All Screens' Wallpaper as stored -> (art or theme, colour). An old id (WALLPAPER_LEGACY) is its art in its
+    own preset; an art or theme with no colour stored is in Blue (the themes' colour before 2026-11-01); nothing
+    stored, or a value no longer known, is Ribbons in Rose -- the default the twelve had."""
+    if isinstance(w, str) and w in WALLPAPER_LEGACY:
+        return WALLPAPER_LEGACY[w]
+    if w in WALLPAPERS:
+        return w, wallpaper_color(c) or "blue"
+    return "ribbons", "rose"
+
+
+def board_wallpaper(w: Any, c: Any) -> tuple[str | None, str | None]:
+    """A screen's own Wallpaper and colour as stored -> (art or theme or None, colour or None): None is Same as
+    All Screens. An old id is its art in its own preset, as All Screens' is."""
+    if isinstance(w, str) and w in WALLPAPER_LEGACY:
+        return WALLPAPER_LEGACY[w]
+    return (w if w in WALLPAPERS else None), wallpaper_color(c)
 SKY_COLOR_IDS = tuple(i for i in SKY_BACKDROP_IDS if i != "live")
 # A PAGE'S BACKGROUND (Sky / Background -> Pages): its own color, any
 # backdrop -- "live" among them, the live sky -- "photo" (its own photo,
@@ -1068,9 +1097,13 @@ DEFAULTS: dict[str, dict[str, Any]] = {
             # WALLPAPER (2026-10-30): which one (WALLPAPERS) and when its night
             # version shows (WALLPAPER_NIGHT); a screen's sky_wallpaper /
             # sky_wallpaper_night are its own
-            "wallpaper": "ribbons_rose", "wallpaper_night": "auto", "wallpaper_motion": "off",
-            # ...and a theme's colour (WALLPAPER_COLORS, or "#rrggbb"; 2026-10-31)
-            "wallpaper_color": "blue",
+            "wallpaper": "ribbons", "wallpaper_night": "auto", "wallpaper_motion": "off",
+            # ...and its colour (WALLPAPER_COLORS, or "#rrggbb"; 2026-10-31 a
+            # theme's, 2026-11-01 every wallpaper's): the pair is read
+            # together (wallpaper_choice) and always stored together
+            # (house_stored), so Ribbons in Rose -- the twelve's default --
+            # is what nothing stored means
+            "wallpaper_color": "rose",
             # EACH PAGE'S BACKGROUND (sky_pages below): page kind or custom
             # page address -> "own" (its own color), "live" (the live sky,
             # with this look), a backdrop id (a still color) or "photo"
@@ -1500,13 +1533,13 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     sk["flat_image_look"] = flat_image_look(sk.get("flat_image_look")) or {}
     sk["image_look"] = flat_image_look(sk.get("image_look")) or {}
     sk["flat_page_image_looks"] = flat_page_image_looks(sk.get("flat_page_image_looks")) or {}
-    if sk.get("wallpaper") not in WALLPAPERS:
-        sk["wallpaper"] = DEFAULTS["sky"]["wallpaper"]
+    # (the Wallpaper and its colour from what is stored, an old id among them: wallpaper_choice)
+    raw_sky = stored.get("sky") if isinstance(stored.get("sky"), dict) else {}
+    sk["wallpaper"], sk["wallpaper_color"] = wallpaper_choice(raw_sky.get("wallpaper"), raw_sky.get("wallpaper_color"))
     if sk.get("wallpaper_night") not in WALLPAPER_NIGHT:
         sk["wallpaper_night"] = "auto"
     if sk.get("wallpaper_motion") not in WALLPAPER_MOTION:
         sk["wallpaper_motion"] = "off"
-    sk["wallpaper_color"] = wallpaper_color(sk.get("wallpaper_color")) or DEFAULTS["sky"]["wallpaper_color"]
     br = amount_or_none(out["look"].get("bright"))
     out["look"]["bright"] = DEFAULTS["look"]["bright"] if br is None else br
     # each over its own defaults: a partly stored object is still whole, and
@@ -1653,7 +1686,7 @@ SAVER_CLOCK_STYLES = ("today", "classic", "serif", "neon", "lcd", "flip", "analo
 SAVER_CLOCK_BGS = ("black", "grain", "gradient", "aurora", "ink", "sky", "lowpoly", "topo", "constellation", "forecast", "skyonly", "photos",
                    "landscapes", "wallpaper")
 SAVER_CHOICES = {"clock_over": ("corner", "large"), "clock_style": SAVER_CLOCK_STYLES,
-                 "clock_bg": SAVER_CLOCK_BGS, "clock_motion": ("slow", "still"), "clock_wallpaper": WALLPAPERS,
+                 "clock_bg": SAVER_CLOCK_BGS, "clock_motion": ("slow", "still"), "clock_wallpaper": WALLPAPERS + tuple(WALLPAPER_LEGACY),
                  "photo_layout": ("single", "mosaic"), "mosaic_gap": ("none", "thin", "rounded"),
                  "mosaic_change": ("one", "all"), "clock_night": ("off", "night", "always"),
                  "mosaic_color": MOSAIC_COLORS}
@@ -1774,6 +1807,9 @@ def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
             if not isinstance(val, bool):
                 return None
             out[k] = val
+    # an old Wallpaper behind the clock ("petals_violet", 2026-10-31): its art in its own preset (item 45)
+    if out["clock_wallpaper"] in WALLPAPER_LEGACY:
+        out["clock_wallpaper"], out["clock_wallpaper_color"] = WALLPAPER_LEGACY[out["clock_wallpaper"]]
     return out
 
 
@@ -1864,6 +1900,23 @@ PANE_WHEN = ("always", "active")
 # detail sheet), its page, its sheet, or nothing. Top and Automatic are what absent means.
 PANE_PLACES = ("top", "bottom")
 PANE_TAPS = ("auto", "page", "sheet", "none")
+# Now Playing's own two (2026-10-31, the owner's item 44): the Speakers / Volume / Queue / Browse panel opens in
+# place over the pane, or the section flips over to it as the screensaver's player turns
+PANE_TAPS_OWN: dict[str, tuple[str, ...]] = {"now_playing": ("panel", "flip")}
+# a kind's own choice, its first value what absent means: the Camera's Name (2026-10-31, the owner's item 42), as
+# the Home Grid's camera block has it (Automatic, Show, Hide) but Hide by default -- the pane's still is a plain picture
+PANE_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
+    "camera": {"name": ("hide", "auto", "show")},
+    # THE CLOCK'S LOOK (2026-10-31, the owner's item 43; the "Side Pane clock styles" board): the face, where it sits
+    # in the pane, its type's size (`scale`: the section's own `size` is Tiny..Full) and weight, how much date, and
+    # a second line under it -- Automatic is today's (the date with the sunset beside it at More). Each first value
+    # is what draws today's clock, so a clock that sets none of them is unchanged.
+    "clock": {"face": ("digital", "stacked", "analog"), "align": ("left", "center", "right"),
+              "scale": ("medium", "small", "large"), "weight": ("semibold", "light", "regular", "bold"),
+              "date": ("full", "short", "off"), "line": ("auto", "none", "sunset", "weather")}}
+# options that are on unless set off, stored only when off: the clock's AM/PM (it shows only on a 12-hour clock)
+# ...and Now Playing's Album Art Background (item 41): the song's art blurred behind the whole pane
+PANE_FLAGS_ON: dict[str, tuple[str, ...]] = {"clock": ("ampm",), "now_playing": ("art",)}
 PANE_SIDES = ("right", "left")
 PANE_WIDTHS = {"narrow": 360, "standard": 400, "wide": 480}
 # On the Dashboard: Off, Home Only, Every Page; in the screensaver: Off,
@@ -1875,8 +1928,9 @@ PANE_MAX = 8
 PANE_GROUPS = ("side", "width", "dashboard", "saver", "doorbell", "headings")
 # each kind's own options: the calendar's days (1-7), the camera's and the
 # to-do list's entity, the to-do list's Show Completed
+# (the clock's Flashing Colon: off unless set)
 PANE_OPTIONS: dict[str, dict[str, Any]] = {"calendar": {"days": SAVER_CAL_DAYS}, "camera": {"entity": "camera"},
-                                           "todo": {"entity": "todo", "completed": bool}}
+                                           "todo": {"entity": "todo", "completed": bool}, "clock": {"colon": bool}}
 SIDE_PANE_DEFAULTS: dict[str, Any] = {
     "side": "right", "width": "standard",
     "dashboard": {"show": "off", "sections": [{"kind": "weather"}, {"kind": "calendar"},
@@ -1911,9 +1965,15 @@ def pane_section(v: Any, strict: bool = False) -> dict[str, Any] | None:
         elif k == "place" and val in PANE_PLACES:
             if val != "top":
                 out["place"] = val
-        elif k == "tap" and val in PANE_TAPS:
+        elif k == "tap" and (val in PANE_TAPS or val in PANE_TAPS_OWN.get(kind, ())):
             if val != "auto":
                 out["tap"] = val
+        elif k in PANE_FLAGS_ON.get(kind, ()) and isinstance(val, bool):
+            if not val:
+                out[k] = False
+        elif k in PANE_CHOICES.get(kind, {}) and val in PANE_CHOICES[kind][k]:
+            if val != PANE_CHOICES[kind][k][0]:
+                out[k] = val
         elif k in opts and opts[k] is bool and isinstance(val, bool):
             if val:
                 out[k] = True
@@ -2648,10 +2708,9 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["sky_photo_look"] = photo_look(d.get("sky_photo_look")) if d.get("sky_photo_look") is not None else None
     out["sky_landscape"] = sky_landscape(d.get("sky_landscape"))
     out["sky_landscape_look"] = photo_look(d.get("sky_landscape_look")) if d.get("sky_landscape_look") is not None else None
-    out["sky_wallpaper"] = d.get("sky_wallpaper") if d.get("sky_wallpaper") in WALLPAPERS else None
+    out["sky_wallpaper"], out["sky_wallpaper_color"] = board_wallpaper(d.get("sky_wallpaper"), d.get("sky_wallpaper_color"))
     out["sky_wallpaper_night"] = d.get("sky_wallpaper_night") if d.get("sky_wallpaper_night") in WALLPAPER_NIGHT else None
     out["sky_wallpaper_motion"] = d.get("sky_wallpaper_motion") if d.get("sky_wallpaper_motion") in WALLPAPER_MOTION else None
-    out["sky_wallpaper_color"] = wallpaper_color(d.get("sky_wallpaper_color"))
     out["sky_page_photos"] = sky_page_photos(d.get("sky_page_photos")) or {}
     out["sky_page_looks"] = page_looks(d.get("sky_page_looks")) or {}
     out["sky_flat_background"] = d.get("sky_flat_background") if d.get("sky_flat_background") in FLAT_BACKGROUNDS else None
@@ -3572,8 +3631,12 @@ def only_set(values: Mapping[str, Any], defaults: Mapping[str, Any],
 
 
 def house_stored(section: str, values: Mapping[str, Any]) -> dict[str, Any]:
-    """A house section as stored: what differs from its default."""
-    return only_set(values, merged(None).get(section) or {})
+    """A house section as stored: what differs from its default. The Wallpaper and its colour go together: they are
+    read as a pair (wallpaper_choice), where nothing stored means Ribbons in Rose -- so either differing keeps both."""
+    out = only_set(values, merged(None).get(section) or {})
+    if section == "sky" and ("wallpaper" in out or "wallpaper_color" in out):
+        out.update({k: values[k] for k in ("wallpaper", "wallpaper_color") if k in values})
+    return out
 
 
 def board_stored(data: Mapping[str, Any] | None) -> dict[str, Any]:

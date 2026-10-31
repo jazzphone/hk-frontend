@@ -92,9 +92,12 @@ CATALOG: dict[str, dict[str, Any]] = {
     "vacuum": {"sizes": ("S", "W", "L", "XL"), "sources": (), "opts": {"entity": "vacuum"}},
     "clock": {"sizes": ("S", "W", "T", "L", "XL", "XXL"), "sources": (), "opts": {"clock_style": "clock_style", "bare": "boolean", "tap": "tap_target"}},
     "power": {"sizes": ("S", "W", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
-    "music": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
+    # show (2026-10-31, the owner): what it shows -- Recently Played (none stored), the Music page's playlists (presets), or
+    # one playlist, named by `playlist` (its name in Music's settings)
+    "music": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"show": "music_show", "playlist": "music_playlist", "tap": "tap_target"}},
     "doors": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
-    "live_tv": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
+    # channel (2026-10-31, the owner): one channel of the guide fills the block; none, as many as the size holds
+    "live_tv": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"channel": "tv_channel", "tap": "tap_target"}},
     "water": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
     # the new cards (G3)
     "room": {"sizes": ("W", "L", "XL", "XXL"), "sources": ("rooms",), "opts": {"area": "area", "surface": "surface", "accessory_display": "room_display", "tap": "tap_target"}},
@@ -301,6 +304,33 @@ def _name_tag(v: Any) -> str:
 TAP_TARGETS = ("auto", "page", "sheet", "none")
 
 
+# A LIVE TV BLOCK'S CHANNEL, by its guide number ("4.1": hk_tv/channels), as the Live TV page names it. Whether the
+# house still tunes it is for the card to say (a channel gone from the guide draws the automatic ones).
+TV_CHANNEL = re.compile(r"^[0-9]{1,4}(\.[0-9]{1,3})?\Z")
+
+
+def _tv_channel(v: Any) -> str:
+    if not isinstance(v, str) or not TV_CHANNEL.match(v):
+        raise GridInvalid("grid_option")
+    return v
+
+
+MUSIC_SHOWS = ("recent", "presets", "playlist")
+
+
+def _music_show(v: Any) -> str:
+    if v not in MUSIC_SHOWS:
+        raise GridInvalid("grid_option")
+    return v
+
+
+def _music_playlist(v: Any) -> str:
+    # a playlist is named as Music's settings name it; whether the house still has it is the card's to say
+    if not isinstance(v, str) or not 0 < len(v.strip()) <= 60 or v != v.strip():
+        raise GridInvalid("grid_option")
+    return v
+
+
 def _tap_target(v: Any) -> str:
     if v not in TAP_TARGETS:
         raise GridInvalid("grid_option")
@@ -327,6 +357,9 @@ OPTION_KINDS = {
     "period": _period,
     "name_tag": _name_tag,
     "tap_target": _tap_target,
+    "tv_channel": _tv_channel,
+    "music_show": _music_show,
+    "music_playlist": _music_playlist,
     "todo": _domain("todo"),
     "camera_follow": _camera_follow,
     "select": _domain("input_select", "select"),

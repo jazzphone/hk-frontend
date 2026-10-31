@@ -334,8 +334,11 @@
         else {
           var at = m.attributes, pic = at.entity_picture;
           np.style.display = '';
-          np.innerHTML = (pic ? '<img alt="">' : '<div class="ph"></div>') + '<div><span class="t"></span> <span class="a"></span></div><div class="bars"><i></i><i></i><i></i></div>';
-          if (pic) np.querySelector('img').src = pic;
+          // (item 46: through hkCards.artImg, so a cover that will not load is the note, never the "?")
+          var HC = window.hkCards, ai = HC && HC.artImg;
+          if (ai && HC.artGuard) HC.artGuard(np);
+          np.innerHTML = (pic ? (ai ? ai(pic, { ph: 'note' }) : '<img alt="">') : '<div class="ph"></div>') + '<div><span class="t"></span> <span class="a"></span></div><div class="bars"><i></i><i></i><i></i></div>';
+          if (pic && !ai) np.querySelector('img').src = pic;
           put(np.querySelector('.t'), at.media_title);
           put(np.querySelector('.a'), at.media_artist ? '\u00b7 ' + at.media_artist : '');
         }
@@ -1099,7 +1102,7 @@
       var wo = opts.wallpaper || {}, wid = WP.has(wo.id) ? wo.id : 'aurora', wsc = WP.scene(wid, !!wo.night, wo.color);
       css.textContent += WP.motionCss('.ckroot .ckwall>i', '.ckroot .ckwall.mv>i', 'ck-wt-');
       wallEl = el('div', 'ckwall ckbg');
-      wallEl.style.backgroundImage = 'url("' + (wsc ? wsc.ground : WP.url(wid, !!wo.night)) + '")';
+      wallEl.style.backgroundImage = 'url("' + (wsc ? wsc.ground : WP.url(wid, !!wo.night, wo.color)) + '")';
       if (wsc) WP.paintScene(wallEl, wsc, 'ck-wt-');
       if (wsc && speed) {
         wallEl.className += ' mv';
