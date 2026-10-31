@@ -30,10 +30,8 @@
 // THE ROOM IT TAKES (publish): its width on its side of <html>, as
 // --hk-pane-l / --hk-pane-r and html[hk-pane], and the word 'hk-pane' --
 // hk-menu.js narrows the page by it, hk-tabbar.js centres the bar beside it,
-// the Home Grid lays itself in what is left (hk-layout.js). Beside a Home Grid
-// that fills the height it takes what the grid leaves (444 px beside a 3 x 3 on
-// a 1180 x 820 tablet); elsewhere its Width (Narrow 360, Standard 400, Wide
-// 480). A tablet held upright gets a band under the page, its sections side
+// the Home Grid lays itself in what is left (hk-layout.js). Always its Width
+// (Narrow 360, Standard 400, Wide 480), beside a Home Grid too (2026-10-30). A tablet held upright gets a band under the page, its sections side
 // by side (276 px; 198 on a narrower one); a phone never.
 //
 // Loaded by hk-loader.js; nothing happens at load but window.hkSidePane.
@@ -64,7 +62,7 @@
   var BAND_H = 276, BAND_SMALL = 198, BAND_SMALL_W = 760, PHONE_W = 640;
   // the page beside the pane keeps at least this, else no pane; and the most
   // a Home Grid may leave it (wider than this, it takes its Width instead)
-  var PAGE_MIN = 560, BESIDE_MAX = 560;
+  var PAGE_MIN = 560;
   var MAX = 8;
 
   function esc(s) {
@@ -111,12 +109,13 @@
     if (!(W >= PHONE_W)) return { kind: 'none' };
     if (H > W) return { kind: 'band', h: W < BAND_SMALL_W ? BAND_SMALL : BAND_H };
     var room = W - (o.menu || 0), w = WIDTHS[o.width] || WIDTHS.standard;
-    if (o.gridW > 0) {
-      // (the grid is the page, laid out to its own width: no page minimum)
-      var left = Math.round(room - o.gridW);
-      if (left >= WIDTHS.narrow && left <= BESIDE_MAX) return { kind: 'side', w: left };
-    }
-    if (room - w < PAGE_MIN) return { kind: 'none' };
+    // ITS WIDTH, ALWAYS (2026-10-30; the owner: "I'm not sure the side pane
+    // widths are working"): beside a Home Grid it once took whatever the grid
+    // left, so on Home Narrow, Standard and Wide all came out the same. Now
+    // the grid fits itself in what the pane leaves (it scales to any room),
+    // so beside one there is no page minimum
+    if (!(o.gridW > 0) && room - w < PAGE_MIN) return { kind: 'none' };
+    if (o.gridW > 0 && room - w < WIDTHS.narrow) return { kind: 'none' };
     return { kind: 'side', w: w };
   }
   // the Dashboard's pane on this page: Off, Home Only, Every Page
@@ -168,8 +167,17 @@
     var s = Math.max(0, Math.round((Date.now() - t) / 1000));
     return s < 60 ? s + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' hr';
   }
+  // A DOMAIN'S ENTITIES: the states here and the house's registry -- a page
+  // Mantel has narrowed to what it reads holds no state for what only the
+  // pane reads, so the registry names them, and reading one by name asks for
+  // it (web/home.js keep). Listed from the states alone, the weather went
+  // "No weather" on such a page (2026-10-30).
   function domainIds(c, dom) {
-    return Object.keys(states(c)).filter(function (k) { return k.indexOf(dom + '.') === 0; }).sort();
+    var seen = {}, out = [];
+    [states(c), (c && c.entities) || {}].forEach(function (o) {
+      Object.keys(o).forEach(function (k) { if (k.indexOf(dom + '.') === 0 && !seen[k]) { seen[k] = 1; out.push(k); } });
+    });
+    return out.sort();
   }
   function kinds(k) { var x = setting('kinds', {}) || {}; return Array.isArray(x[k]) ? x[k] : []; }
 
@@ -303,10 +311,16 @@
 
   // ------------------------------------------------------------ drawing
   function icon(name, extra) { return '<hk-icon icon="' + name + '"' + (extra || '') + '></hk-icon>'; }
-  // NO TITLE OVER A SECTION (the owner, 2026-10-30: "I'm not sure we need a
-  // heading for each section"): what it shows says what it is, as HomeView's
-  // pane. A to-do list keeps its own name (which list is content, not a title).
-  function head() { return ''; }
+  // A SECTION'S HEADING (2026-10-30): the small uppercase title with its icon,
+  // as the pane's Section Headings say (the screen's Side Pane `headings`, on
+  // by default) -- never over the Clock or the Weather, which say what they
+  // are, nor on a Pages-screen widget. A to-do list keeps its own name either
+  // way (which list is content). HEAD_ON is the drawing pane's, set as it draws.
+  var HEAD_ON = true;
+  function head(k) {
+    if (!HEAD_ON || k === 'clock' || k === 'weather') return '';
+    return '<div class="h2">' + icon(KINDS[k][1]) + '<span>' + esc(KINDS[k][0]) + '</span></div>';
+  }
   function tiny(k, txt, val) {
     return '<div class="sec cmp" data-k="' + k + '" data-size="tiny"><div class="r2">' + icon(KINDS[k][1]) +
       '<span class="tx">' + txt + '</span>' + (val ? '<span class="v2">' + val + '</span>' : '') + '</div></div>';
@@ -314,9 +328,10 @@
   function box(k, size, inner, cls) {
     return '<div class="sec' + (cls ? ' ' + cls : '') + '" data-k="' + k + '" data-size="' + size + '">' + inner + '</div>';
   }
+  // (r[4]: the entity a tap on the row opens, its own sheet)
   function rows(list) {
     return list.map(function (r) {
-      return '<div class="r2' + (r[3] ? ' ' + r[3] : '') + '">' + (r[2] ? icon(r[2]) : '') + '<span class="tx">' + esc(r[0]) +
+      return '<div class="r2' + (r[3] ? ' ' + r[3] : '') + '"' + (r[4] ? ' data-ent="' + esc(r[4]) + '"' : '') + '>' + (r[2] ? icon(r[2]) : '') + '<span class="tx">' + esc(r[0]) +
         '</span><span class="v2">' + esc(r[1]) + '</span></div>';
     }).join('');
   }
@@ -350,7 +365,10 @@
     },
     weather: function (s, sec, c, ctx) {
       var id = setting('weather.entity', null) || domainIds(c, 'weather')[0], st = id && states(c)[id];
-      if (!st) return none('weather', s, 'No weather');
+      // (its state not here yet -- loading, a reconnect, a narrowed page asking
+      // for it: the last one seen, never "No weather" while it comes)
+      if (st) WX_LAST[id] = st; else if (id && WX_LAST[id]) st = WX_LAST[id];
+      if (!st) return none('weather', s, id ? 'Getting the weather…' : 'No weather');
       var cond = condName(st.state);
       var daily = ctx.forecast(id, 'daily'), hourly = s === 'more' || s === 'full' ? ctx.forecast(id, 'hourly') : [];
       var d0 = daily[0] || {}, hl = d0.temperature != null ? 'H:' + deg(d0.temperature) + ' L:' + deg(d0.templow) : '';
@@ -366,7 +384,7 @@
       return box('weather', s, head('weather') + top + (s === 'less' || !hrs ? '' : '<div class="hrs">' + hrs + '</div>') + days);
     },
     calendar: function (s, sec, c, ctx) {
-      ctx.calendar(sec.days || (s === 'full' ? 3 : 2));
+      ctx.calendar(sec.days || (s === 'full' ? 7 : s === 'more' ? 3 : 2));
       if (!CAL.evs) return none('calendar', s, window.hkCalendar && !window.hkCalendar.ids(c).length ? 'No calendars' : 'Reading the calendars\u2026');
       var evs = calComing();
       if (!evs.length) return none('calendar', s, 'Nothing coming up');
@@ -377,11 +395,19 @@
         return allDay(e) ? (day || 'All day').trim() : day + hm(a);
       };
       if (s === 'tiny') return tiny('calendar', esc(evs[0].title || 'Event'), esc(when(evs[0])));
-      var n = { less: 2, more: 4, full: 5 }[s];
-      return box('calendar', s, head('calendar') + evs.slice(0, n).map(function (e) {
-        return '<div class="ev"><span class="cb" style="background:' + esc(ctx.evColor(e)) + '"></span><span class="et"><b>' +
+      // LESS: the next two. MORE and FULL: every event in its Days (3 and 7
+      // unless it says), scrolling inside the section where they don't all
+      // fit -- the pane itself never scrolls (2026-10-30). A tap on one opens
+      // its sheet (data-ev).
+      var days = sec.days || (s === 'full' ? 7 : s === 'more' ? 3 : 2), end = new Date(); end.setHours(0, 0, 0, 0);
+      end = end.getTime() + days * 86400000;
+      var mine = s === 'less' ? evs.slice(0, 2) : evs.filter(function (e) { return evStart(e).getTime() < end; });
+      if (!mine.length) mine = evs.slice(0, 1);
+      CAL.shown = mine;
+      return box('calendar', s, head('calendar') + '<div class="evs' + (s === 'less' ? '' : ' scroll') + '">' + mine.map(function (e, i) {
+        return '<div class="ev" data-ev="' + i + '"><span class="cb" style="background:' + esc(ctx.evColor(e)) + '"></span><span class="et"><b>' +
           esc(e.title || 'Event') + '</b><i>' + esc(when(e)) + '</i></span></div>';
-      }).join(''));
+      }).join('') + '</div>');
     },
     now_playing: function (s, sec, c, ctx) {
       var m = musicOf(c);
@@ -396,7 +422,9 @@
       // MORE AND FULL: the screensaver's music pane itself (hk-music-pane-card,
       // hk-saver.js): the art, the song, its buttons and volume, Up Next and
       // the Speakers / Browse panel -- the one view the dashboard shares
-      return '<div class="sec mp' + (s === 'full' ? ' grow' : '') + '" data-k="now_playing" data-size="' + s + '">' + ctx.slot('np', 'hk-music-pane-card', function (el) {
+      // (More: the player without Up Next and the album, its art smaller --
+      // `compact` on the card; Full: all of it, taking the room left)
+      return '<div class="sec mp' + (s === 'full' ? ' grow' : ' compact') + '" data-k="now_playing" data-size="' + s + '">' + head('now_playing') + ctx.slot('np', 'hk-music-pane-card', function (el) {
         if (el.active) el.active(true);
       }) + '</div>';
     },
@@ -413,10 +441,10 @@
           .filter(Boolean).join(' · ');
         return box('security', s, head('security') + top + (gist ? '<div class="sub2">' + esc(gist) + '</div>' : ''));
       }
-      var list = locks.slice(0, 4).map(function (id) { var x = states(c)[id] || {}; return [nameOf(x, id), x.state === 'unlocked' ? 'Unlocked' : x.state === 'locked' ? 'Locked' : String(x.state || ''), x.state === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock', x.state === 'unlocked' ? 'warn' : '']; });
+      var list = locks.slice(0, s === 'full' ? 8 : 4).map(function (id) { var x = states(c)[id] || {}; return [nameOf(x, id), x.state === 'unlocked' ? 'Unlocked' : x.state === 'locked' ? 'Locked' : String(x.state || ''), x.state === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock', x.state === 'unlocked' ? 'warn' : '', id]; });
       if (wins.length) list.push(['Windows', open.length ? open.length + ' open' : 'All closed', 'mdi:window-closed-variant']);
       if (s === 'full') {
-        kinds('garage').slice(0, 2).forEach(function (id) { var x = states(c)[id] || {}; list.push([nameOf(x, id), x.state === 'open' || x.state === 'on' ? 'Open' : 'Closed', 'mdi:garage']); });
+        kinds('garage').slice(0, 2).forEach(function (id) { var x = states(c)[id] || {}; list.push([nameOf(x, id), x.state === 'open' || x.state === 'on' ? 'Open' : 'Closed', 'mdi:garage', '', id]); });
         if (al && al.st) {
           var who = attr(al.st, 'changed_by'), at = al.st.last_changed ? hm(new Date(al.st.last_changed)) : '';
           list.push([ALARM[a] ? ALARM[a].split(' · ')[0] : 'Changed', [at, who].filter(Boolean).join(', '), 'mdi:history']);
@@ -435,7 +463,11 @@
     },
     timers: function (s, sec, c) {
       var t = timersOf(c);
-      if (!t.length) return none('timers', s, 'No timers running');
+      var keys = '<div class="keys">' + [1, 5, 10, 30].map(function (n) {
+        return '<button type="button" data-act="timer" data-min="' + n + '">' + n + ' min</button>';
+      }).join('') + '</div>';
+      // (none running: More and Full offer the quick ones, so a tap starts one)
+      if (!t.length) return s === 'more' || s === 'full' ? box('timers', s, head('timers') + '<div class="sub2">No timers running</div>' + keys) : none('timers', s, 'No timers running');
       var left = function (r) {
         var ms = r.finishes_at ? Date.parse(r.finishes_at) - Date.now() : 0;
         if (!r.finishes_at && r.remaining) return String(r.remaining).replace(/^0:/, '');
@@ -449,9 +481,7 @@
         var pct = total ? Math.max(0, Math.min(100, 100 - ms / 10 / total)) : 0;
         return '<div class="r2"><span class="tx">' + esc(r.name || 'Timer') + '</span><span class="v2 cd">' + esc(left(r)) + '</span></div>' +
           '<div class="bar2"><i style="width:' + pct.toFixed(1) + '%"></i></div>';
-      }).join('') + (s === 'full' ? '<div class="keys">' + [1, 5, 10, 30].map(function (n) {
-        return '<button type="button" data-act="timer" data-min="' + n + '">' + n + ' min</button>';
-      }).join('') + '</div>' : ''));
+      }).join('') + (s === 'full' ? keys : ''));
     },
     energy: function (s, sec, c) {
       var pid = setting('features.power', null), p = pid && states(c)[pid];
@@ -465,13 +495,20 @@
       var stats = '<div class="stats"><div><b>' + esc(kw(use)) + '</b>Using</div>' + (sol ? '<div><b>' + esc(sol) + '</b>Solar</div>' : '') +
         (bat ? '<div><b>' + esc(Math.round(num(states(c)[bat].state) || 0) + ' %') + '</b>Battery</div>' : '') + '</div>';
       var today = s === 'less' ? '' : energyToday(c);
-      return box('energy', s, head('energy') + stats + (today ? '<div class="sub2">' + esc(today) + '</div>' : ''));
+      // LESS: what the house uses; MORE: with the panels and the battery, and
+      // today's; FULL: the same, then each as a row with its sheet
+      if (s === 'less') stats = '<div class="stats"><div><b>' + esc(kw(use)) + '</b>Using</div></div>';
+      var more = s !== 'full' ? '' : rows([pid ? ['House', kw(use), 'mdi:home-lightning-bolt', '', pid] : null,
+                                          solarId ? ['Solar', sol, 'mdi:weather-sunny', '', solarId] : null,
+                                          bat ? ['Battery', Math.round(num(states(c)[bat].state) || 0) + ' %', 'mdi:home-battery', '', bat] : null].filter(Boolean));
+      return box('energy', s, head('energy') + stats + (today ? '<div class="sub2">' + esc(today) + '</div>' : '') + more);
     },
     climate: function (s, sec, c) {
       var st = states(c), ids = domainIds(c, 'climate');
       var row = function (id) {
         var x = st[id] || {}, cur = attr(x, 'current_temperature'), set = attr(x, 'temperature'), act = attr(x, 'hvac_action');
-        return [nameOf(x, id), deg(cur) + (set != null ? ' → ' + deg(set) : ''), act === 'heating' ? 'mdi:fire' : act === 'cooling' ? 'mdi:snowflake' : 'mdi:thermostat', act === 'heating' ? 'heat' : act === 'cooling' ? 'cool' : ''];
+        // (Less: its temperature; More and Full: where it is set to as well)
+        return [nameOf(x, id), deg(cur) + (set != null && s !== 'less' ? ' → ' + deg(set) : ''), act === 'heating' ? 'mdi:fire' : act === 'cooling' ? 'mdi:snowflake' : 'mdi:thermostat', act === 'heating' ? 'heat' : act === 'cooling' ? 'cool' : '', id];
       };
       if (!ids.length) return none('climate', s, 'No thermostats');
       if (s === 'tiny') { var r0 = row(ids[0]), a0 = attr(st[ids[0]], 'hvac_action'); return tiny('climate', esc(r0[0] + ' ' + deg(attr(st[ids[0]], 'current_temperature'))), esc(a0 ? String(a0).replace(/^\w/, function (x) { return x.toUpperCase(); }) : '')); }
@@ -489,11 +526,13 @@
       var home = ids.filter(function (id) { return (st[id] || {}).state === 'home'; }), away = ids.filter(function (id) { return home.indexOf(id) < 0; });
       if (s === 'tiny') return tiny('people', esc(home.length + ' home'), away.length ? esc(away.length + ' away') : '');
       var where = function (id) { var x = st[id] || {}; return x.state === 'home' ? 'Home' : x.state === 'not_home' ? 'Away' : String(x.state || '').replace(/_/g, ' '); };
-      if (s === 'full') return box('people', s, head('people') + rows(ids.slice(0, 8).map(function (id) { return [nameOf(st[id], id), where(id), 'mdi:account-circle']; })));
+      // FULL: each one, where and since when
+      var since = function (id) { var t = Date.parse((st[id] || {}).last_changed); return t ? ' · ' + ago(t) : ''; };
+      if (s === 'full') return box('people', s, head('people') + rows(ids.slice(0, 8).map(function (id) { return [nameOf(st[id], id), where(id) + since(id), 'mdi:account', '', id]; })));
       var av = '<div class="ppl">' + ids.slice(0, 5).map(function (id, i) {
         var x = st[id] || {}, pic = attr(x, 'entity_picture'), nm = nameOf(x, id);
         var face = pic ? '<img alt="" src="' + esc(pic) + '">' : esc(nm.charAt(0).toUpperCase());
-        return '<div class="' + (x.state === 'home' ? '' : 'away') + '"><i style="background:' + ['#ff9500', '#5856d6', '#34c759', '#ff2d55', '#32ade6'][i % 5] + '">' + face + '</i>' + esc(nm.split(' ')[0]) + '</div>';
+        return '<div data-ent="' + esc(id) + '" class="' + (x.state === 'home' ? '' : 'away') + '"><i style="background:' + ['#ff9500', '#5856d6', '#34c759', '#ff2d55', '#32ade6'][i % 5] + '">' + face + '</i>' + esc(nm.split(' ')[0]) + '</div>';
       }).join('') + '</div>';
       var line = s === 'more' && away.length ? away.slice(0, 2).map(function (id) { return nameOf(st[id], id).split(' ')[0] + ' is ' + (where(id) === 'Away' ? 'away' : 'at ' + where(id)); }).join(' · ') : '';
       return box('people', s, head('people') + av + (line ? '<div class="sub2">' + esc(line) + '</div>' : ''));
@@ -543,7 +582,7 @@
   // (a plain picture layer: WebKit left a scaled-up canvas unpainted at some
   // sizes) -- {url, rgb: its mean colour}; url null where the picture can't
   // be read
-  var ART = 64;
+  var ART = 64, ART_MEAN = 78, ART_MAX = 132;
   function artDraw(img) {
     var c = document.createElement('canvas'); c.width = ART; c.height = ART;
     var ctx = c.getContext && c.getContext('2d'), out = { url: null, rgb: null };
@@ -569,8 +608,22 @@
     try { ctx.filter = 'blur(3px)'; } catch (e) { /* the upscale alone */ }
     ctx.drawImage(mc ? m : t, -6, -6, ART + 12, ART + 12);
     try { ctx.filter = 'none'; } catch (e) { /* ignore */ }
-    ctx.fillStyle = 'rgba(0,0,0,0.38)';
-    ctx.fillRect(0, 0, ART, ART);
+    // ITS BRIGHTNESS, EVENED OUT (2026-10-30): a fixed darkening made a dark
+    // cover all but black ("the Side Pane is solid black"). Each pixel scaled
+    // so the art's mean sits at ART_MEAN -- a dark cover lifted, a light one
+    // held down -- and none past ART_MAX, so white words over it (under the
+    // shade) keep 4.5:1 however light the cover
+    try {
+      var px = ctx.getImageData(0, 0, ART, ART), dd = px.data, lum = function (i) { return 0.2126 * dd[i] + 0.7152 * dd[i + 1] + 0.0722 * dd[i + 2]; }, sum2 = 0;
+      for (var p = 0; p < dd.length; p += 4) sum2 += lum(p);
+      var k = Math.max(0.3, Math.min(2.6, ART_MEAN / Math.max(1, sum2 / (dd.length / 4))));
+      for (var q = 0; q < dd.length; q += 4) {
+        dd[q] *= k; dd[q + 1] *= k; dd[q + 2] *= k;
+        var l = lum(q);
+        if (l > ART_MAX) { var f = ART_MAX / l; dd[q] *= f; dd[q + 1] *= f; dd[q + 2] *= f; }
+      }
+      ctx.putImageData(px, 0, 0);
+    } catch (e) { ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(0, 0, ART, ART); }
     try { out.url = c.toDataURL('image/png'); } catch (e) { out.url = null; }
     return out;
   }
@@ -578,11 +631,20 @@
   // ------------------------------------------------------------ the CSS
   // Built on first use: never hkCards while this file loads (DESIGN.md
   // Rules 1). Logical sizes (a 400 px pane), scaled whole by the pane.
-  var CSS = null;
+  // (built before hkCards has come, the design values have fallbacks of their
+  // own, and it is not kept: drawn again once hkCards is here -- the pane
+  // hangs under <body>, where no --hk-* value is set, and a sheet built
+  // without fallbacks lost its hairlines and its second ink for good, on
+  // whichever load drew it first -- the owner's dividers that came and went,
+  // 2026-10-30)
+  var CSS = null, BARE = { ink: '#fff', 'ink-2': 'rgba(235,235,245,0.6)', line: 'rgba(255,255,255,0.14)',
+    'line-strong': 'rgba(255,255,255,0.22)', key: 'rgba(118,118,128,0.24)', 'key-strong': 'rgba(118,118,128,0.36)' };
+  var WX_LAST = {};
+  function cssReady() { var K = C(); return !!(K && K.v); }
   function css() {
     if (CSS) return CSS;
-    var K = C(), v = K && K.v ? K.v : function (n) { return 'var(--hk-' + n + ')'; }, R = (K && K.SP && K.SP.cardR) || 20;
-    CSS = [
+    var K = C(), v = K && K.v ? K.v : function (n) { return 'var(--hk-' + n + (BARE[n] ? ',' + BARE[n] : '') + ')'; }, R = (K && K.SP && K.SP.cardR) || 20;
+    var out = [
       // (above the page, as Now Playing's pane was; under the menu, the tab bar and every sheet)
       ':host{position:fixed;z-index:5;display:none;box-sizing:border-box;color:' + v('ink') + ';font-family:var(--hk-font-body,inherit);',
       '  -webkit-tap-highlight-color:transparent;contain:layout style}',
@@ -621,8 +683,8 @@
       ':host([arted]) .artbg{opacity:1}',
       '.artbg b{position:absolute;left:-8%;top:-8%;width:116%;height:116%;display:block;opacity:0;transition:opacity 1.2s ease;background-size:100% 100%}',
       '.artbg b.on{opacity:1}',
-      '.artbg b.raw{background-size:cover;background-position:center;filter:blur(40px) brightness(.62)}',
-      '.artbg i{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(6,10,18,.34),rgba(6,10,18,.46))}',
+      '.artbg b.raw{background-size:cover;background-position:center;filter:blur(40px) brightness(.7)}',
+      '.artbg i{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(6,10,18,.24),rgba(6,10,18,.34))}',
       ':host([arttint]) .artbg{background:var(--art-tint,#1c1c22)}:host([arttint]) .artbg b,:host([arttint]) .artbg i{display:none}',
       '@media (prefers-reduced-motion:reduce){.artbg,.artbg b{transition:none}}',
       '.pin{position:absolute;left:0;top:0;transform-origin:0 0;box-sizing:border-box;display:flex;flex-direction:column;padding:30px 28px 26px}',
@@ -684,7 +746,26 @@
       // controls at the pane's width; Full takes what is left
       '.sec.mp{padding:0;display:block;position:relative;height:540px;background:none;overflow:visible}',
       '.sec.mp.grow{height:auto;min-height:540px}',
+      // (More: the compact player, its Up Next and album left out)
+      '.sec.mp.compact{height:430px}',
+      // AT THE FOOT: the space between the top sections and the bottom ones
+      '.secs>.gap{flex:1 1 auto;min-height:0;border:0}',
+      ':host([side="band"]) .secs>.gap{flex:0 0 0}',
+      // THE CALENDAR'S EVENTS at More and Full: scrolling inside the section
+      // where they don't all fit (the pane never scrolls), Full taking the
+      // room left
+      '.evs.scroll{max-height:300px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
+      '.evs.scroll::-webkit-scrollbar{display:none}',
+      '.sec.grow[data-k="calendar"]{display:flex;flex-direction:column}',
+      '.sec.grow[data-k="calendar"] .evs.scroll{max-height:none;flex:1 1 auto;min-height:0}',
+      '.evs>.ev:last-child{border-bottom:0}',
+      // A TAP: every section and each thing in it is a target
+      '.secs>[data-i]:not([data-k="now_playing"]),[data-ent],[data-ev]{cursor:pointer}',
+      '.secs>[data-i]:not([data-k="now_playing"]):active,[data-ent]:active,[data-ev]:active{opacity:.7}',
       '.sec.mp>*{position:absolute;inset:0;height:100%}',
+      // (its heading, when the pane has them, above the music pane, not over it)
+      '.sec.mp>.h2{position:relative;inset:auto;height:auto;padding:14px 0 0}',
+      '.sec.mp>.h2~*{top:34px;height:auto;bottom:0}',
       '.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}',
       '.stats div{font:500 13px/1.3 var(--hk-font-body,inherit);color:' + v('ink-2') + '}',
       '.stats b{display:block;font:600 22px/1.25 var(--hk-font-body,inherit);color:' + v('ink') + '}',
@@ -725,7 +806,38 @@
       '@media (hover:hover){.pp:hover,.keys button:hover{background:' + v('key-strong') + '}}',
       '@media (prefers-reduced-motion:no-preference){:host([side]) .pane{transition:opacity .2s}}'
     ].join('\n');
-    return CSS;
+    if (K && K.v) CSS = out;
+    return out;
+  }
+
+  // ------------------------------------------------------------ taps
+  // a section's page (the screen's view of that path) and its sheet's entity
+  var TAP_PAGE = { weather: 'weather', calendar: 'calendar', now_playing: 'music', security: 'security', camera: 'cameras',
+                   timers: 'timers', energy: 'energy', climate: 'climate' };
+  function pagePath(p) {
+    var M = C() && C().menu, cfg = M && M.config ? M.config() : null;
+    var v = cfg && (cfg.views || []).filter(function (x) { return x && x.path === p; })[0];
+    if (!v) return null;
+    var seg = String(location.pathname).split('/')[1] || '';
+    return '/' + seg + '/' + p;
+  }
+  function go(path) {
+    var SH = window.hkShell;
+    if (SH && SH.navigate) SH.navigate(path); else location.assign(path);
+  }
+  function tapEntity(s, c) {
+    switch (s.kind) {
+      case 'weather': return setting('weather.entity', null) || domainIds(c, 'weather')[0] || null;
+      case 'calendar': return (window.hkCalendar && window.hkCalendar.ids ? window.hkCalendar.ids(c) : [])[0] || null;
+      case 'now_playing': { var m = musicOf(c); return m ? m.key : null; }
+      case 'security': { var al = alarmOf(c); return (al && al.id) || kinds('locks')[0] || null; }
+      case 'camera': return s.entity || (setting('cameras.order', []) || [])[0] || domainIds(c, 'camera')[0] || null;
+      case 'energy': return setting('features.power', null);
+      case 'climate': return domainIds(c, 'climate')[0] || null;
+      case 'people': return domainIds(c, 'person')[0] || null;
+      case 'todo': return s.entity || domainIds(c, 'todo')[0] || null;
+      default: return null;
+    }
   }
 
   // ------------------------------------------------------------ one pane
@@ -758,11 +870,14 @@
     _draw(again) {
       var o = this._o, c = clientNow();
       if (!this._built) {
-        this._root.innerHTML = '<style>' + css() + '</style><div class="pane"><div class="artbg" aria-hidden="true"><b></b><b></b><i></i></div><div class="pin"><div class="secs"></div></div></div>';
+        this._cssFull = cssReady();
+        this._root.innerHTML = '<style>' + css() + '</style><div class="pane"><div class="artbg" aria-hidden="true"><i></i></div><div class="pin"><div class="secs"></div></div></div>';
         this._pin = this._root.querySelector('.pin');
         this._secs = this._root.querySelector('.secs');
         this._built = true;
       }
+      // (its sheet drawn again with the design values, once hkCards has come)
+      if (!this._cssFull && cssReady()) { this._cssFull = true; this._root.querySelector('style').textContent = css(); }
       var band = o.place.kind === 'band', W = this.clientWidth || (band ? window.innerWidth : o.place.w) || DRAWN_W;
       var H = this.clientHeight || (band ? o.place.h : window.innerHeight) || 800;
       // drawn at 400 wide and scaled whole (a band at its own height, scaled the same)
@@ -770,20 +885,29 @@
       this._pin.style.width = (W / z).toFixed(1) + 'px';
       this._pin.style.height = (H / z).toFixed(1) + 'px';
       this._pin.style.transform = 'scale(' + z.toFixed(4) + ')';
-      var list = o.list || [], self = this;
+      // AT THE TOP, AND AT THE FOOT (a section's Place, 2026-10-30): the top
+      // ones in order, a space, then the bottom ones -- each drawn with its
+      // index in the pane's list (data-i), what a tap on it reads
+      var all = o.list || [], self = this;
+      var list = all.filter(function (x) { return x.place !== 'bottom'; }), foot = list.length;
+      list = list.concat(all.filter(function (x) { return x.place === 'bottom'; }));
+      this._list = list;
+      var sp = paneOf();
+      HEAD_ON = this.getAttribute('mode') !== 'widget' && !(sp && sp.headings === false);
       var ctx = this._ctx(c);
       var door = o.doorbell ? this._door(o.doorbell, c) : '';
       var render = function (sizes, n) {
         var html = door;
         for (var i = 0; i < n; i++) {
           var s = list[i], fn = SEC[s.kind];
-          try { html += fn ? fn(sizes[i], s, c, ctx) : ''; } catch (e) { console.warn('[hk-sidepane] ' + s.kind, e); }
+          if (i === foot && foot > 0) html += '<div class="gap" aria-hidden="true"></div>';
+          try { html += fn ? String(fn(sizes[i], s, c, ctx)).replace(/^<div /, '<div data-i="' + i + '" ') : ''; } catch (e) { console.warn('[hk-sidepane] ' + s.kind, e); }
         }
         if (n < list.length) html += '<div class="more2">+' + (list.length - n) + ' more</div>';
         return html;
       };
       this._artBg(list, c);
-      var sig = JSON.stringify([list, W, H, o.side, band, o.doorbell]) + '|' + this._dataSig(c);
+      var sig = JSON.stringify([list, W, H, o.side, band, o.doorbell, HEAD_ON]) + '|' + this._dataSig(c);
       if (!again && sig === this._sig) return;
       this._sig = sig;
       var over = function (sizes, n) {
@@ -819,18 +943,48 @@
       var img = new Image();
       img.onload = function () {
         if (self._artPic !== pic) return;
-        var ly = self._root.querySelectorAll('.artbg b'), n = self._artFlip ? 0 : 1;
-        self._artFlip = !self._artFlip;
-        var got = artDraw(img);
+        var got = artDraw(img), bg = self._root.querySelector('.artbg');
         if (got.rgb) self.style.setProperty('--art-tint', 'rgb(' + got.rgb.map(function (v) { return Math.round(v * 0.42); }).join(',') + ')');
-        // (a picture that can't be read here: itself, under a blur drawn once)
-        ly[n].classList.toggle('raw', !got.url);
-        ly[n].style.backgroundImage = 'url("' + (got.url || pic).replace(/"/g, '%22') + '")';
-        ly[n].classList.add('on'); ly[1 - n].classList.remove('on');
+        // A NEW LAYER FOR EACH SONG, its picture set before it is in the page,
+        // faded in over the last, which then goes: WebKit left a layer whose
+        // picture changed during its fade unpainted -- the pane's ground alone,
+        // near black (2026-10-30). (A picture that can't be read here: itself,
+        // under a blur drawn once.)
+        var b = document.createElement('b');
+        if (!got.url) b.className = 'raw';
+        b.style.backgroundImage = 'url("' + (got.url || pic).replace(/"/g, '%22') + '")';
+        bg.insertBefore(b, bg.querySelector('i'));
+        var olds = Array.prototype.filter.call(bg.querySelectorAll('b'), function (x) { return x !== b; });
+        requestAnimationFrame(function () { requestAnimationFrame(function () {
+          b.classList.add('on');
+          olds.forEach(function (o) { o.classList.remove('on'); setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 1300); });
+        }); });
         self.setAttribute('arted', '');
       };
       img.onerror = function () { if (self._artPic === pic) self.removeAttribute('arted'); };
       img.src = pic;
+    }
+    // A TAP ON A SECTION (2026-10-30, the owner: "ALL the Widgets should do
+    // something if you tap on them"): on one thing in it -- an event, a
+    // person, a lock, a thermostat -- that thing's sheet; else the section's
+    // When Tapped: Automatic (its page where this screen has one, else its
+    // sheet), Its Page, Its Sheet or Nothing. Its buttons, the to-do list's
+    // circles and the music pane keep their own.
+    _tap(e, c) {
+      var t = e.target;
+      if (!t.closest || t.closest('button,input,form,a,.slot,hk-music-pane-card')) return;
+      var sec = t.closest('[data-i]'), s = sec && this._list ? this._list[+sec.getAttribute('data-i')] : null;
+      if (!s || s.tap === 'none') return;
+      var D = window.hkDetail, ev = t.closest('[data-ev]'), one = t.closest('[data-ent]');
+      if (ev && CAL.shown && CAL.shown[+ev.getAttribute('data-ev')]) {
+        var K = window.hkCalendar, x = CAL.shown[+ev.getAttribute('data-ev')];
+        if (K && K.show) { try { K.show(c, x); return; } catch (err) { /* below */ } }
+      }
+      if (one && D && D.open && s.tap !== 'page') { D.open(one.getAttribute('data-ent')); return; }
+      var page = TAP_PAGE[s.kind], ent = tapEntity(s, c), path = page && pagePath(page);
+      if ((s.tap === 'page' || !s.tap || s.tap === 'auto') && path) { go(path); return; }
+      if (ent && D && D.open && s.tap !== 'page') { D.open(ent); return; }
+      if (path) go(path);
     }
     _tallest() {
       var t = 0;
@@ -889,6 +1043,7 @@
         // (the music pane on the pane's own album-art backdrop: none of its
         // own and no box -- the owner, 2026-10-30)
         if (key === 'np' && !el.hasAttribute('nobg')) el.setAttribute('nobg', '');
+        if (key === 'np') el.toggleAttribute('compact', !!(el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('compact')));
         if (key === 'np' && el.active) el.active(true);
       });
     }
@@ -925,7 +1080,8 @@
     // ------------------------------------------------ taps
     _click(e) {
       var b = e.target.closest ? e.target.closest('[data-act]') : null, c = clientNow();
-      if (!b || !c || !c.actions) return;
+      if (!b) { this._tap(e, c); return; }
+      if (!c || !c.actions) return;
       var act = b.getAttribute('data-act');
       if (act === 'pp') {
         var m = musicOf(c);

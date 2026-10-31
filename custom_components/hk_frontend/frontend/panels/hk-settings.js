@@ -1135,16 +1135,21 @@
       this._renameBusy = true;
       this.status('saving');
       try {
-        // the dashboard itself: its title is the sidebar's name
-        await this.actions().callWS({ type: 'lovelace/dashboards/update', dashboard_id: x.id, title: title });
-        // ...and the screen's own item (and its screensaver's device) after it
-        await this.actions().callWS({ type: DOMAIN + '/dashboard/titled', dashboard: x.path });
+        if (this.hostRenames(x)) {
+          // a screen its host keeps itself: the host renames it; the address stays
+          await this.host().renameScreen(x.path, title);
+        } else {
+          // the dashboard itself: its title is the sidebar's name
+          await this.actions().callWS({ type: 'lovelace/dashboards/update', dashboard_id: x.id, title: title });
+          // ...and the screen's own item (and its screensaver's device) after it
+          await this.actions().callWS({ type: DOMAIN + '/dashboard/titled', dashboard: x.path });
+        }
         this._renaming = null; this._renameDraft = null; this._renameErr = null;
         try { await this.reload(); } catch (e) { x.title = title; }
         this.status('saved');
         this.announce('Renamed to ' + title + '.');
       } catch (e) {
-        this._renameErr = 'Couldn’t rename it: ' + String((e && e.message) || e);
+        this._renameErr = 'Couldn’t rename it: ' + String((e && (e.message || (e.body && e.body.message) || e.error)) || e);
         this.status('error');
       }
       this._renameBusy = false;
@@ -1462,8 +1467,13 @@
     err(sk) { return this.errors[sk] || null; }
     dash(path) { return this.data.dashboards.filter(function (x) { return x.path === path; })[0]; }
     // a dashboard Home Assistant can rename: one it stores (a YAML dashboard
-    // is named in its YAML), with its collection id
-    renamable(x) { return x && x.mode === 'storage' && x.id ? x : null; }
+    // is named in its YAML), with its collection id -- or a screen the host
+    // keeps itself (no Lovelace id), which the host renames (renameScreen)
+    renamable(x) { return x && ((x.mode === 'storage' && x.id) || this.hostRenames(x)) ? x : null; }
+    hostRenames(x) {
+      var hx = this.host();
+      return !!(x && !x.id && x.mode !== 'storage' && x.mode !== 'yaml' && hx && typeof hx.renameScreen === 'function');
+    }
     name(id) {
       if (!id) return '';
       var a = ((this.data.accessories || {}).entities || {})[id];
@@ -5586,7 +5596,7 @@
       var put = function (g, v) { return self.paneSave(path, g, v); };
       // WHERE
       this.paneOwn(c, path, p, ['side', 'width']);
-      c.appendChild(K.group({ header: 'Where', footer: 'Beside a Home Grid that fills the screen’s height, the pane takes what the grid leaves. A tablet held upright shows it as a band under the page; phones never show it.' }, [
+      c.appendChild(K.group({ header: 'Where', footer: 'A Home Grid beside it fits itself in what the pane leaves. A tablet held upright shows it as a band under the page; phones never show it.' }, [
         K.seg({ label: 'Pane Side', sk: 'pane:side', value: p.side, options: M.PANE_SIDES, onChange: function (v) { put('side', v); } }),
         K.seg({ label: 'Width', sk: 'pane:width', value: p.width, options: M.PANE_WIDTHS, onChange: function (v) { put('width', v); } })]));
       // ON THE DASHBOARD
@@ -5602,6 +5612,11 @@
         K.seg({ label: 'Show', sk: 'pane:saver:show', value: saver.show, options: M.PANE_SAVER_SHOWS, stack: true,
                 onChange: function (v) { put('saver', { show: v, sections: saver.sections }); } })]));
       if (saver.show === 'own') this.paneSections(c, path, 'saver', saver, base);
+      // SECTION HEADINGS (2026-10-30): a small title over each section but the
+      // Clock and the Weather
+      this.paneOwn(c, path, p, ['headings']);
+      c.appendChild(K.group({ header: 'Look', footer: 'A small title, with its icon, over each section -- not over the Clock or the Weather, which say what they are.' }, [
+        K.toggle({ label: 'Section Headings', sk: 'pane:headings', on: p.headings !== false, onChange: function (on) { put('headings', on); } })]));
       // THE DOORBELL
       this.paneOwn(c, path, p, ['doorbell']);
       c.appendChild(K.group({ header: 'Doorbell', footer: 'When it rings, its camera at the top of the pane, live, for as long as its pop-up shows.' }, [
@@ -5638,6 +5653,11 @@
       c.appendChild(K.group({ footer: 'When There’s Something: music playing (or paused, for Hide After a Pause), a timer running, the alarm armed or a door open, a notification.' }, [
         K.seg({ label: 'Show', sk: 'pane:sec:when', value: s.when || 'always', options: M.PANE_WHEN, stack: true,
                 onChange: function (v) { set('when', v === 'always' ? null : v); } })]));
+      // WHERE IT SITS, and WHAT A TAP DOES (2026-10-30)
+      c.appendChild(K.group({ footer: 'Bottom: at the pane’s foot, under a space -- what’s playing, say -- in the order they are listed.' }, [
+        K.seg({ label: 'Place', sk: 'pane:sec:place', value: s.place || 'top', options: M.PANE_PLACES, onChange: function (v) { set('place', v === 'top' ? null : v); } })]));
+      c.appendChild(K.group({ footer: 'Automatic: its page where this screen has one, else its detail sheet. A tap on one thing in it -- an event, a person, a thermostat -- opens that thing’s sheet.' }, [
+        K.select({ label: 'When Tapped', sk: 'pane:sec:tap', value: s.tap || 'auto', options: M.PANE_TAPS, onChange: function (v) { set('tap', v === 'auto' ? null : v); } })]));
       var ids = function (dom) { return Object.keys(st).filter(function (k) { return k.indexOf(dom + '.') === 0; }).sort(); };
       var nm = function (id) { return ((st[id] || {}).attributes || {}).friendly_name || id; };
       if (s.kind === 'calendar') {
@@ -5738,6 +5758,8 @@
           'Small two wide and one tall, on the first Pages screen from the top. They show where the screen has the Side Pane’s sections.' }, rows));
       c.appendChild(K.group({ footer: 'A bar at the foot of the Pages screen, as on an iPad: tap it or swipe up on it to go Home.' }, [
         this.psSelect(ctx, ps, 'pill', 'Home Pill', M.PAGES_SCREEN_PILL)]));
+      c.appendChild(K.group({ footer: 'The time, large and faint, behind the icons.' }, [
+        this.psSelect(ctx, ps, 'clock', 'Background Clock', M.PAGES_SCREEN_CLOCK)]));
       if (!ctx.house && Object.keys(ps.own).length) {
         c.appendChild(K.group({}, [K.button({ label: 'Reset to All Screens', sk: 'b:pages_screen:reset', onClick: function () { ps.reset(); } })]));
       }
@@ -5932,6 +5954,7 @@
         tint: { on: !!look.frost_tint, onChange: function (on) { self.setH({ 'look.frost_tint': on }); } },
         blur: { value: look.blur, onChange: function (v) { self.setH({ 'look.blur': v }); } },
         bright: { value: typeof look.bright === 'number' ? look.bright : 50, onChange: function (v) { self.setH({ 'look.bright': v }); } },
+        brightPages: { value: look.bright_pages === 'all' ? 'all' : 'home', onChange: function (v) { self.setH({ 'look.bright_pages': v }); } },
         dark: { value: typeof look.tint === 'number' ? look.tint : 50, onChange: function (v) { self.setH({ 'look.tint': v }); } },
         well: { value: look.well || 'dark', onChange: function (v) { self.setH({ 'look.well': v }); } }
       }, 'look.'));
@@ -6072,6 +6095,11 @@
       var wOwn = b.well === 'dark' || b.well === 'light', wHouse = look.well || 'dark';
       app = app.concat(this.glassRows(gl.effective, {
         frost: amt('frost'), blur: amt('blur'), dark: amt('tint'), bright: amt('bright'),
+        brightPages: (function () {
+          var own = b.bright_pages === 'home' || b.bright_pages === 'all', house = look.bright_pages === 'all' ? 'all' : 'home';
+          return { value: own ? b.bright_pages : house, own: own, house: house,
+                   onChange: function (v) { set({ bright_pages: v }); }, reset: function () { set({ bright_pages: null }); } };
+        })(),
         well: { value: wOwn ? b.well : wHouse, own: wOwn, house: wHouse,
                 onChange: function (v) { set({ well: v }); }, reset: function () { set({ well: null }); } },
         tint: { on: tOwn ? b.frost_tint : tHouse, own: tOwn, house: tHouse,
@@ -6208,6 +6236,14 @@
       // BRIGHT GLASS's Strength (2026-10-30), held back by itself over a light
       // background (hkSettings.brightCap)
       if (uses.bright && v.bright) amount('bright', 'Strength');
+      // ...and where it shows (2026-10-30): Home Only, the other pages in its
+      // Blur, or Every Page
+      if (uses.bright && v.brightPages) {
+        var bp = v.brightPages;
+        rows.push(K.seg({ label: 'Bright Glass On', sk: skp + 'bright_pages', value: bp.value, options: M.BRIGHT_PAGES,
+          sub: bp.house == null ? 'Home Only: the other pages in Blur' : (bp.own ? 'Just This Screen' : 'Same as All Screens'), onChange: bp.onChange }));
+        if (bp.own) rows.push(K.button({ label: 'Reset to All Screens (' + M.choiceLabel(M.BRIGHT_PAGES, bp.house) + ')', sk: skp + 'bright_pages:reset', onClick: bp.reset }));
+      }
       if (uses.tint && v.dark) {
         amount('dark', 'Darkness', 'tint');
         var w = v.well;

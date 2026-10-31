@@ -181,7 +181,7 @@
     // live cameras rest while another window has the focus (hk-cameras.js
     // CAM_FOCUS) -- behind the screensaver they always rest
     cameras: { order: [], live: true, focus_pause: true },
-    look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, bright: 50, well: 'dark', frost_tint: false, tile_style: 'auto', details: true, browse_view: 'music-browse', sky_switch: null,
+    look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, bright: 50, well: 'dark', frost_tint: false, tile_style: 'auto', bright_pages: 'home', details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {}, page_accents: {},
             // FLAT COLORS (settings.py flat_colors; resolveFlatColors)
             flat_colors: { accent: 'auto', off_tint: 'auto', pages: 'accent' }, flat_page_colors: {},
@@ -212,7 +212,7 @@
     side_pane: { side: 'right', width: 'standard',
                  dashboard: { show: 'off', sections: [{ kind: 'weather' }, { kind: 'calendar' }, { kind: 'now_playing', when: 'active' }] },
                  saver: { show: 'off', sections: [{ kind: 'clock', size: 'tiny' }, { kind: 'calendar' }, { kind: 'now_playing', size: 'less', when: 'active' }] },
-                 doorbell: true },
+                 doorbell: true, headings: true },
     // Browse Music (HK Settings -> Features -> Music). The Discover rows arrive as
     // the queries themselves (settings.py discover_rows); these are its
     // default five.
@@ -225,7 +225,7 @@
     ] },
     // THE PAGES SCREEN (settings.py PAGES_SCREEN_DEFAULTS, Phase J): All
     // Screens'; a screen's own fields over it (pagesScreen())
-    pages_screen: { show: 'off', icons: 'menu', rooms: 'folder', widgets: [], pill: 'auto' }
+    pages_screen: { show: 'off', icons: 'menu', rooms: 'folder', widgets: [], pill: 'auto', clock: 'off' }
   };
   // The sky's backdrops (Sky / Background): a fixed all-day gradient
   // instead of the live sky. This is the pre-answer mirror of settings.py
@@ -672,11 +672,31 @@
   function glass() {
     if (rendering().flat) return 'flat';
     if (glassPreview) return glassPreview;
-    var b = boardHere(), bg = b && (RETIRED[b.glass] || b.glass);
-    if (bg && LOOKS[bg]) return bg;
-    var g = get('look.glass');
-    g = RETIRED[g] || g;
-    return LOOKS[g] ? g : 'clear';
+    var b = boardHere(), bg = b && (RETIRED[b.glass] || b.glass), g;
+    if (bg && LOOKS[bg]) g = bg;
+    else { g = get('look.glass'); g = RETIRED[g] || g; if (!LOOKS[g]) g = 'clear'; }
+    // BRIGHT GLASS ON HOME ONLY (2026-10-30, the owner: "should we only use
+    // Bright Glass on the main page? It looks pretty bad everywhere else...
+    // the blur appearance just looks nicer"): the screen's Bright Glass On --
+    // Home Only (the default) or Every Page; elsewhere its Blur in the same
+    // mode (Shared Layer, Pre-rendered, Each Plate)
+    if (isBrightLook(g) && brightPages(b) === 'home' && !onHome()) g = { bright: 'blur', bright_pre: 'blur_pre', bright_each: 'blur_each' }[g];
+    return g;
+  }
+  function isBrightLook(g) { return g === 'bright' || g === 'bright_pre' || g === 'bright_each'; }
+  function brightPages(b) {
+    var own = b && b.bright_pages;
+    if (own === 'home' || own === 'all') return own;
+    return get('look.bright_pages', 'home') === 'all' ? 'all' : 'home';
+  }
+  // this screen's Home: its first page (the address's page segment empty, '0'
+  // or the first view's path)
+  function onHome() {
+    var here = '';
+    try { here = decodeURIComponent((String(location.pathname).split('/')[2] || '').split('?')[0]); } catch (e) { return true; }
+    if (!here || here === '0' || here === 'home') return true;
+    var M = window.hkCards && window.hkCards.menu, cfg = M && M.config ? M.config() : null, v0 = cfg && cfg.views && cfg.views[0];
+    return !!(v0 && v0.path === here);
   }
   // Sky / Background (HK Settings -> Sky / Background; a screen's own on
   // its Screen page): this page's sky look, resolved like glass() -- this
@@ -1306,6 +1326,7 @@
   // this screen's).
   var PS_CHECK = {
     show: function (v) { return v === 'on' || v === 'off' ? v : null; },
+    clock: function (v) { return v === 'on' || v === 'off' ? v : null; },
     icons: function (v) {
       if (v === 'menu') return v;
       return Array.isArray(v) && v.every(function (x, i) { return typeof x === 'string' && /^[A-Za-z0-9_.-]{1,60}$/.test(x) && v.indexOf(x) === i; })

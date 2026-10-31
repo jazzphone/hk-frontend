@@ -1559,9 +1559,12 @@
     (grid.items || []).forEach(function (it) {
       // (Hide Box: the block's own, or the screen's No Boxes -- the cell says so to every card inside it)
       var cell = { id: it.id, size: it.size, at: it.at, bare: !!it.bare || grid.boxes === false, view: it.view || 0 };
-      // (Automatic, the screen's default: Centred on square cells, Home on tiles)
-      var ts = it.tile || tiles || 'auto';
-      if (ts === 'centred' || (ts === 'auto' && grid.cell === 'square')) cell.tile = 'centred';
+      // (Automatic, the screen's default: Centred on square cells, Home on
+      // tiles. Never the screen's Centred on a Security block past Small: its
+      // mode buttons piled over its name, 2026-10-30. A block's own Centred is
+      // its own.)
+      var ts = it.tile || tiles || 'auto', keeps = it.card === 'security' && it.size !== 'S' && it.tile !== 'centred';
+      if (!keeps && (ts === 'centred' || (ts === 'auto' && grid.cell === 'square'))) cell.tile = 'centred';
       cards.push(Object.assign(window.hkGridCatalog.config(it, ctx), { hk_cell: cell }));
     });
     (listeners || []).forEach(function (c) { cards.push(c); });
@@ -2841,6 +2844,8 @@
   // HK FRONTEND'S OWN SCREENSAVER (hk-saver.js): the block it reads from the
   // dashboard's config. `cards` are the same four as WallPanel's, less the
   // ones the screen turned off (Over the Photos).
+  // every Show hk-saver.js draws (model.py SAVER_SHOWS); anything else is photos
+  var SAVER_SHOW_KEYS = ['photos', 'both', 'forecast', 'clock', 'glance', 'month', 'day'];
   function hkSaver(sv, o) {
     o = o || {};
     var cards = JSON.parse(JSON.stringify(SAVER_CARDS));
@@ -2859,7 +2864,10 @@
       starts_after: o.starts_after || 180, each_photo: o.each_photo || 30,
       order: o.order === 'sorted' ? 'sorted' : 'random',
       fill: o.fill !== false, zoom: o.zoom === true,
-      show: o.show === 'forecast' || o.show === 'both' || o.show === 'clock' ? o.show : 'photos', fallback: o.fallback !== false,
+      show: SAVER_SHOW_KEYS.indexOf(o.show) >= 0 ? o.show : 'photos', fallback: o.fallback !== false,
+      // the HomeView-style faces' options (hk-saver.js readCfg checks them)
+      forecast_layout: o.forecast_layout, photo_titles: o.photo_titles === true, time_behind: o.time_behind === true,
+      day_look: o.day_look,
       // the clocks (hk-saverclock.js; hk-saver.js readCfg checks them)
       clock: o.clock !== false, clock_over: o.clock_over, clock_style: o.clock_style, clock_bg: o.clock_bg,
       clock_motion: o.clock_motion, clock_24: o.clock_24 === true, clock_colors: o.clock_colors, clock_speed: o.clock_speed, clock_depth: o.clock_depth,
@@ -3073,7 +3081,13 @@
                     // (hk-settings.js applies the look live, as frost's)
                     sky_wallpaper: 1, sky_wallpaper_night: 1, sky_wallpaper_motion: 1, bright: 1,
                     // (a Look's Undo is the settings page's to read)
-                    look_undo: 1 };
+                    look_undo: 1,
+                    // ...and the Side Pane: hk-sidepane.js reads it live and
+                    // draws again (a change to it rebuilt the whole page,
+                    // the owner, 2026-10-30)
+                    side_pane: 1, side_pane_read: 1,
+                    // ...and Bright Glass On (hk-settings.js glass(), on each page)
+                    bright_pages: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };
