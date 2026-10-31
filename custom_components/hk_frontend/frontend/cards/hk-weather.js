@@ -756,7 +756,9 @@
           '.band-weather{flex:1 1 240px;min-width:0;max-width:360px}',
           fitCss('.band-weather'),
           '.band-security{flex:1 1 280px;min-width:0;margin-left:auto}',
-          '.band-chips{display:none;min-width:0;flex:1 1 360px;height:60px;align-items:center;overflow:hidden}',
+          // (the chips' shadows inside the clip: 14 px above and below, given back by the margin -- the owner,
+          // 2026-10-31: a hard line round the Security chip)
+          '.band-chips{display:none;min-width:0;flex:1 1 360px;height:60px;align-items:center;overflow:hidden;box-sizing:content-box;padding:14px 0;margin:-14px 0}',
           '.band-chips>*{width:100%;min-width:0}',
           '.grid-band.has-chips .band-security{display:none}',
           '.grid-band.has-chips .band-chips{display:flex}',
@@ -880,6 +882,8 @@
         this._act({ action: 'navigate', navigation_path: path }, false);
       }
       _render() {
+        // (a client can arrive before the config: the editor's previews hand one over first)
+        if (!this._config) return;
         if (this._config.grid_band) { this._renderBand(); return; }
         var cfg = this._config;
         if (!this._built) {
@@ -1493,6 +1497,9 @@
     ].join('');
 
     var PAGE_METHODS = {
+      // A HOME GRID BLOCK'S TAP (hk-base.js openTarget; 2026-10-31, the owner on 0.1.94: the Weather block opened
+      // nothing): the Weather page, else the weather's own sheet
+      _tapTarget() { var id = (this._config || {}).entity; return [{ page: 'weather' }, id && { sheet: id }]; },
       _section() { var s = (this._config || {}).section; return SECTIONS.indexOf(s) >= 0 ? s : null; },
       // how the forecast stands: 'ok' (has entries), 'wait' (asked, not yet
       // answered), 'none' (the service gave none)
@@ -2923,6 +2930,18 @@
         // (Tall: one column wide -- its time and AM / PM ran past the plate's edge, 2026-10-30)
         if (sz === 'T') return ['min(56px, 22cqw)', '14px', window.hkCards.TYPE.caption.size + 'px'];
         return ['min(72px, 48cqh, 26cqw)', '22px', window.hkCards.TYPE.caption.size + 'px'];
+      }
+      // ITS OWN MINUTE (2026-10-31, the owner: the screensaver preview's clock stood still): it redraws when the house
+      // pushes a change and its time has moved -- a quiet house (a fictional one, a real one at night, a page that
+      // hears only a few of its states) pushes nothing for minutes, and the time stayed where it was. Now it asks
+      // again on each minute itself, while it is on the page.
+      connectedCallback() { super.connectedCallback(); this._armMinute(); }
+      disconnectedCallback() { clearTimeout(this._minT); this._minT = null; super.disconnectedCallback(); }
+      _armMinute() {
+        var self = this;
+        clearTimeout(this._minT);
+        this._minT = setTimeout(function () { self._minT = null; if (self.isConnected === false) return; if (self.client) self.requestUpdate(); self._armMinute(); },
+                                60000 - Date.now() % 60000 + 250);
       }
       // The clock's time ticks every minute and its date every day (the Time &
       // Date sensors chosen in Configure, or this screen's clock); neither is
