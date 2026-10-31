@@ -393,7 +393,7 @@
   // Stacked -- StandBy's hours over minutes -- or Analog, the Analog Numbers face small with the time and date
   // beside it), Alignment, Size (`scale`), Weight, AM/PM, Flashing Colon, Date, Second Line. What a section
   // leaves out is today's clock.
-  var CLOCK_DEFAULTS = { face: 'digital', align: 'left', scale: 'medium', weight: 'semibold', date: 'full', line: 'auto', beside: 'none' };
+  var CLOCK_DEFAULTS = { face: 'digital', align: 'left', scale: 'medium', weight: 'semibold', date: 'full', line: 'auto', beside: 'none', below: 'auto' };
   function clockLook(sec) {
     var o = {};
     Object.keys(CLOCK_DEFAULTS).forEach(function (k) { o[k] = sec && sec[k] ? sec[k] : CLOCK_DEFAULTS[k]; });
@@ -437,8 +437,81 @@
     if (!st) return '';
     var daily = ctx && ctx.forecast ? ctx.forecast(id, 'daily') : [], d0 = daily[0] || {};
     var cond = condName(st.state), hi = d0.temperature != null ? 'H:' + deg(d0.temperature) : '';
-    return '<div class="ckx"><div class="wt">' + wxGlyph(st.state, 34) + '<b>' + esc(deg(attr(st, 'temperature'))) + '</b></div>' +
-      '<div class="sub2">' + esc(cond) + (hi ? '<span class="hl"> \u00b7 ' + esc(hi) + '</span>' : '') + '</div></div>';
+    // (two parts, each in its own place in the clock's grid: the temperature beside the time, the sky beside the date)
+    return { wt: '<div class="ckx">' + wxGlyph(st.state, 34) + '<b>' + esc(deg(attr(st, 'temperature'))) + '</b></div>',
+             sky: '<div class="sub2 ckxs">' + esc(cond) + (hi ? '<span class="hl"> \u00b7 ' + esc(hi) + '</span>' : '') + '</div>' };
+  }
+
+  // UNDER THE TIME (2026-10-31, the owner: at More the sunset "just kind of blends in ... something that spans the whole
+  // way"): a strip the clock's width under the time and date, of the clock's own choosing -- the next hours, the
+  // sun's day, the moon, or the conditions (wind, humidity, UV, sunset). '' when what it needs isn't here.
+  var SYNODIC = 29.530588853, NEW_MOON = Date.UTC(2000, 0, 6, 18, 14);
+  function moonAge(t) { var a = ((t - NEW_MOON) / 86400000) % SYNODIC; return a < 0 ? a + SYNODIC : a; }
+  // its name: New, First Quarter, Full and Last Quarter only within a day of them (eight equal bins called 67 %
+  // "Last Quarter"), the crescents and gibbous between
+  function moonName(age) {
+    var f = age / SYNODIC, near = 1 / SYNODIC;
+    if (f < near || f > 1 - near) return 'New Moon';
+    if (Math.abs(f - 0.25) < near) return 'First Quarter';
+    if (Math.abs(f - 0.5) < near) return 'Full Moon';
+    if (Math.abs(f - 0.75) < near) return 'Last Quarter';
+    return (f < 0.5 ? 'Waxing ' : 'Waning ') + (f < 0.25 || f > 0.75 ? 'Crescent' : 'Gibbous');
+  }
+  // the moon drawn as it is tonight: its dark disc, the lit part bounded by the limb and the terminator (an ellipse)
+  function moonSvg(age, px) {
+    var r = 20, cx = 22, cy = 22, f = age / SYNODIC, k = Math.cos(2 * Math.PI * f), rx = Math.abs(k) * r, wax = f < 0.5;
+    var lit = 'M' + cx + ' ' + (cy - r) + ' A' + r + ' ' + r + ' 0 0 ' + (wax ? 1 : 0) + ' ' + cx + ' ' + (cy + r) +
+              ' A' + rx.toFixed(2) + ' ' + r + ' 0 0 ' + ((k > 0) === wax ? 0 : 1) + ' ' + cx + ' ' + (cy - r) + 'Z';
+    return '<svg class="moon" viewBox="0 0 44 44" width="' + px + '" height="' + px + '" aria-hidden="true">' +
+      '<circle cx="22" cy="22" r="20" fill="rgba(255,255,255,.14)"/><path d="' + lit + '" fill="#f2f0e6"/></svg>';
+  }
+  function underTime(kind, c, ctx) {
+    var st = states(c), sun = st['sun.sun'], now = Date.now();
+    var wid = setting('weather.entity', null) || domainIds(c, 'weather')[0], w = wid && (st[wid] || WX_LAST[wid]);
+    if (kind === 'hours') {
+      var hourly = w && ctx && ctx.forecast ? ctx.forecast(wid, 'hourly') : [];
+      if (!hourly.length) return '';
+      return '<div class="ckb hrs">' + hourly.slice(0, 5).map(function (h, i) {
+        return '<div>' + esc(i ? hm(new Date(h.datetime)).replace(':00', '') : 'Now') + wxGlyph(h.condition, 18) + '<b>' + esc(deg(h.temperature)) + '</b></div>';
+      }).join('') + '</div>';
+    }
+    if (kind === 'sun') {
+      var rise = Date.parse(attr(sun, 'next_rising')), set = Date.parse(attr(sun, 'next_setting'));
+      if (!isFinite(rise) || !isFinite(set)) return '';
+      // the day it is in: by day the sunrise was today (the next one is tomorrow's); by night, the day to come
+      var day = set < rise;
+      if (day) rise -= 86400000;
+      var p = day ? Math.max(0, Math.min(1, (now - rise) / (set - rise))) : 0, pt = function (t) { return [10 + t * 280, 52 - 42 * Math.sin(Math.PI * t)]; };
+      var path = function (a, b) { var o = []; for (var i = 0; i <= 40; i++) { var q = pt(a + (b - a) * i / 40); o.push(q[0].toFixed(1) + ',' + q[1].toFixed(1)); } return o.join(' '); };
+      var at = pt(p), len = Math.round((set - rise) / 60000);
+      return '<div class="ckb cksun"><svg viewBox="0 0 300 60" aria-hidden="true">' +
+        '<defs><linearGradient id="ckSunG" x1="0" x2="1"><stop offset="0" stop-color="#ff9f0a"/><stop offset="1" stop-color="#ffd60a"/></linearGradient></defs>' +
+        '<line x1="0" y1="52" x2="300" y2="52" stroke="rgba(255,255,255,.22)" stroke-width="1"/>' +
+        '<polyline points="' + path(0, 1) + '" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"/>' +
+        (day && p > 0 ? '<polyline points="' + path(0, p) + '" fill="none" stroke="url(#ckSunG)" stroke-width="3" stroke-linecap="round"/>' : '') +
+        (day ? '<circle cx="' + at[0].toFixed(1) + '" cy="' + at[1].toFixed(1) + '" r="9" fill="rgba(255,214,10,.25)"/><circle cx="' + at[0].toFixed(1) + '" cy="' + at[1].toFixed(1) + '" r="5.5" fill="#ffd60a"/>' : '') +
+        '</svg><div class="sub2 cksl"><span>' + icon('mdi:weather-sunset-up') + esc(hm(new Date(rise))) + '</span><span class="ckdl">' +
+        esc(Math.floor(len / 60) + 'h ' + (len % 60) + 'm of daylight') + '</span><span>' + icon('mdi:weather-sunset') + esc(hm(new Date(set))) + '</span></div></div>';
+    }
+    if (kind === 'moon') {
+      var age = moonAge(now), f = age / SYNODIC, lit = Math.round((1 - Math.cos(2 * Math.PI * f)) / 2 * 100);
+      var name = moonName(age), toFull = (SYNODIC / 2 - age + SYNODIC) % SYNODIC, toNew = SYNODIC - age;
+      var next = toFull < toNew ? ['Full', toFull] : ['New', toNew], dn = Math.round(next[1]);
+      var when = dn <= 0 ? 'tonight' : dn === 1 ? 'tomorrow' : 'in ' + dn + ' days';
+      return '<div class="ckb ckmoon">' + moonSvg(age, 44) + '<div><b>' + esc(name) + '</b><div class="sub2">' + esc(lit + '% lit · ' + next[0] + ' Moon ' + when) + '</div></div></div>';
+    }
+    if (kind === 'conditions') {
+      var a = (w && w.attributes) || {}, cols = [];
+      var setT = Date.parse(attr(sun, 'next_setting')), riseT = Date.parse(attr(sun, 'next_rising'));
+      if (isFinite(setT) && isFinite(riseT)) cols.push(setT < riseT ? ['mdi:weather-sunset', hm(new Date(setT)), 'Sunset'] : ['mdi:weather-sunset-up', hm(new Date(riseT)), 'Sunrise']);
+      if (num(a.wind_speed) != null) cols.push(['mdi:weather-windy', Math.round(num(a.wind_speed)) + (a.wind_speed_unit ? ' ' + a.wind_speed_unit : ''), 'Wind']);
+      if (num(a.humidity) != null) cols.push(['mdi:water-percent', Math.round(num(a.humidity)) + '%', 'Humidity']);
+      if (num(a.uv_index) != null) cols.push(['mdi:white-balance-sunny', String(Math.round(num(a.uv_index))), 'UV']);
+      if (!cols.length) return '';
+      return '<div class="ckb ckrd" style="--n:' + cols.length + '">' + cols.map(function (x) {
+        return '<div>' + icon(x[0]) + '<b>' + esc(x[1]) + '</b><span>' + esc(x[2]) + '</span></div>'; }).join('') + '</div>';
+    }
+    return '';
   }
 
   // EACH SECTION AT EACH SIZE: (size, sec, c, ctx) -> HTML. ctx.slot(key,
@@ -469,7 +542,9 @@
       // date's, AM on the baseline, date left / sunset right"): the digits
       // pulled back by their own side bearing, AM on their baseline, and
       // under them the date at the left and the sunset at the right
-      var sun = o.line === 'auto' && s === 'more' && set ? '<span class="sun">' + sunText + '</span>' : '';
+      // (UNDER THE TIME, at More: a strip of its own in the sunset's place -- underTime)
+      var under = s === 'more' && o.below !== 'auto' && o.face !== 'analog' ? underTime(o.below, c, ctx) : '';
+      var sun = o.line === 'auto' && s === 'more' && set && !under ? '<span class="sun">' + sunText + '</span>' : '';
       var dl = dateText ? '<span class="dl">' + dateText + '</span>' : '';
       var line = (dl || sun ? '<div class="sub2 ckd">' + dl + (sun && o.date === 'full' ? '<span class="ds">' + esc(dateShort(d)) + '</span>' : '') + sun + '</div>' : '') + second;
       if (o.face === 'analog') {
@@ -479,8 +554,12 @@
       }
       var main = o.face === 'stacked' ? '<div class="big2 ck stk' + (s === 'less' ? ' less' : '') + '">' + stackHtml(now) + '</div>'
                                       : '<div class="big2 ck' + (s === 'less' ? ' less' : '') + '">' + t + '</div>';
-      if (wxBy) return box('clock', s, '<div class="ckrow"><div class="ckl">' + main + line + '</div>' + wxBy + '</div>', (cls + ' ckby').trim());
-      return box('clock', s, main + line, cls.trim());
+      if (wxBy) {
+        // (the date's line without the second line, which runs the whole width under both)
+        var dateLine = dl || sun ? '<div class="sub2 ckd">' + dl + (sun && o.date === 'full' ? '<span class="ds">' + esc(dateShort(d)) + '</span>' : '') + sun + '</div>' : '<div class="ckd"></div>';
+        return box('clock', s, '<div class="ckrow">' + main + wxBy.wt + dateLine + wxBy.sky + second + under + '</div>', (cls + ' ckby').trim());
+      }
+      return box('clock', s, main + line + under, cls.trim());
     },
     weather: function (s, sec, c, ctx) {
       var id = setting('weather.entity', null) || domainIds(c, 'weather')[0], st = id && states(c)[id];
@@ -870,7 +949,9 @@
       // pane's 30 px, the first section's own 14 and the clock's leading put its digits ~55 px down against 28 at the
       // right. Beside the page: the top inset the sides', the first section none of its own, and the big time trimmed
       // to its figures' height (text-box; where a browser has none, only the leading is left)
-      ':host(:not([mode="widget"]):not([mode="saver"]):not([side="band"])) .pin{padding-top:28px}',
+      ':host(:not([mode="widget"]):not([mode="saver"]):not([side="band"])) .pin{padding-top:28px;padding-bottom:28px}',
+      // ...and at the foot the same (2026-10-31, the owner: room under Security): the last section none of its own
+      ':host(:not([mode="widget"]):not([mode="saver"]):not([side="band"])) .secs>.sec:last-child:not(.cam2):not(.mp){padding-bottom:0}',
       ':host(:not([mode="widget"]):not([mode="saver"]):not([side="band"])) .secs>.sec:first-child:not(.cam2):not(.mp){padding-top:0}',
       ':host(:not([mode="widget"]):not([mode="saver"]):not([side="band"])) .secs>.sec[data-k="clock"]:first-child .big2{text-box:trim-start cap alphabetic}',
       ':host([mode="widget"]) .secs>.sec{flex:1 1 auto}',
@@ -903,18 +984,44 @@
       '.ckd{display:flex;justify-content:space-between;align-items:baseline;gap:4px 12px;flex-wrap:wrap}.ckd>*{white-space:nowrap}.ckd .sun{margin-left:auto}',
       // (a narrow pane: the date short, "Sat, Oct 31", so the sunset keeps its place at the right of it)
       '.sec[data-k="clock"]{container-type:inline-size}.ckd .ds{display:none}',
-      // THE WEATHER BESIDE THE TIME (besideWeather): the time and date at the left, the weather at the right, their
-      // tops level; its temperature two thirds of the time's size, its glyph as tall as its figures
-      '.ckrow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ckl{min-width:0;display:grid;gap:8px}',
-      '.ckx{flex:none;display:grid;justify-items:end;gap:8px;text-align:right}',
-      '.ckx .wt{display:flex;align-items:center;gap:.22em;font:var(--ckw,600) calc(48px*var(--cks,1))/1 var(--hk-font-body,inherit);letter-spacing:calc(-1px*var(--cks,1))}',
-      '.ckx .wt .wxg,.ckx .wt hk-icon{display:flex;width:.72em;height:.72em;--mdc-icon-size:.72em}.ckx .wt .wxg svg{width:100%;height:100%}',
-      '.ckx .sub2{white-space:nowrap}',
-      '.ckl:has(.big2.less)+.ckx .wt{font-size:calc(36px*var(--cks,1))}',
+      // THE WEATHER BESIDE THE TIME (besideWeather): two rows on two baselines (2026-10-31, the owner: the date and the
+      // sky "should line up") -- the time and the temperature, their figures on one baseline (the temperature two
+      // thirds of the time's size, so it sits lower rather than growing heavy); the date and the sky on the next. The
+      // time's side takes the room; the weather's is as wide as it needs. A second line runs under both
+      '.ckrow{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t w" "d s";column-gap:12px;row-gap:8px;align-items:baseline}',
+      '.ckrow>.big2{grid-area:t;min-width:0}.ckrow>.ckx{grid-area:w}.ckrow>.ckd{grid-area:d;min-width:0}.ckrow>.ckxs{grid-area:s}.ckrow>.ck2{grid-column:1 / -1}',
+      '.ckx{justify-self:end;white-space:nowrap;font:var(--ckw,600) calc(48px*var(--cks,1))/1 var(--hk-font-body,inherit);letter-spacing:calc(-1px*var(--cks,1))}',
+      // (the glyph inline, centred on the figures, so the line's baseline is the figures')
+      '.ckx .wxg,.ckx hk-icon{display:inline-block;width:.72em;height:.72em;--mdc-icon-size:.72em;vertical-align:-.04em;margin-right:.18em}.ckx .wxg svg{display:block;width:100%;height:100%}',
+      '.ckxs{justify-self:end;text-align:right;white-space:nowrap}',
+      '.ckrow:has(.big2.less)>.ckx{font-size:calc(36px*var(--cks,1))}',
       // (a narrow pane: the high goes, then the date's long form -- the time keeps its room)
-      '@container (max-width:300px){.ckx .hl{display:none}}',
-      // (centred or at the right, the weather goes under the time instead, at its alignment)
-      '.cka-center .ckrow,.cka-right .ckrow{flex-direction:column;align-items:stretch}.cka-center .ckx{justify-items:center;text-align:center}',
+      '@container (max-width:300px){.ckxs .hl{display:none}}',
+      // (the time at the right: the weather at the left, mirrored -- 2026-10-31, the owner; centred: under the time)
+      '.cka-right .ckrow{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"w t" "s d"}',
+      '.cka-right .ckx,.cka-right .ckxs{justify-self:start;text-align:left}',
+      '.cka-center .ckrow{grid-template-columns:1fr;grid-template-areas:"t" "d" "w" "s";justify-items:center}.cka-center .ckx,.cka-center .ckxs{justify-self:center;text-align:center}',
+      '.cka-center .ckrow>.ckx{margin-top:10px}',
+      // ...and the date's line beside the weather has no room for the sunset at its right (it wrapped under, off to
+      // the side -- 2026-10-31): there the sunset is a line of its own under the date, on the time's side
+      '.ckby .ckd{flex-direction:column;flex-wrap:nowrap;gap:4px}.ckby .ckd .sun{margin-left:0}',
+      // UNDER THE TIME (underTime): the clock's width, under a hairline, whatever the alignment
+      '.ckb{border-top:1px solid ' + v('line') + ';padding-top:12px;margin-top:4px;text-align:left;justify-self:stretch;width:100%;box-sizing:border-box}',
+      '.ckrow>.ckb{grid-column:1 / -1}',
+      '.ckb.hrs{text-align:center}',
+      // ...the sun's day: its arc, gone over in the sun's colours, the sun where it is; sunrise, daylight, sunset
+      '.cksun svg{display:block;width:100%;height:auto;overflow:visible}',
+      '.cksl{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px;white-space:nowrap}',
+      '.cksl span{display:inline-flex;align-items:center;gap:4px}.cksl hk-icon{--mdc-icon-size:16px;width:16px;height:16px;color:#ffd60a}',
+      '@container (max-width:300px){.cksl .ckdl{display:none}}',
+      // ...the moon: tonight's, drawn, its name and how much is lit, the next full or new moon
+      '.ckmoon{display:flex;align-items:center;gap:14px}.ckmoon .moon{flex:none;filter:drop-shadow(0 0 6px rgba(242,240,230,.25))}',
+      '.ckmoon b{display:block;font:600 17px/1.3 var(--hk-font-body,inherit)}',
+      // ...the conditions: up to four readings, each its glyph, its value and its name
+      '.ckrd{display:grid;grid-template-columns:repeat(var(--n,4),1fr);text-align:center;gap:6px}',
+      '.ckrd hk-icon{--mdc-icon-size:20px;width:20px;height:20px;display:block;margin:0 auto 4px;color:' + v('ink-2') + '}',
+      '.ckrd b{display:block;font:600 16px/1.25 var(--hk-font-body,inherit);white-space:nowrap}.ckrd span{display:block;font:500 12px/1.3 var(--hk-font-body,inherit);color:' + v('ink-2') + '}',
+      '.ckby.cka-right .ckd{align-items:flex-end}.ckby.cka-center .ckd{align-items:center}',
       '@container (max-width:320px){.ckd .ds{display:inline}.ckd:has(.ds) .dl{display:none}}',
       // THE CLOCK'S CHOICES (item 43): Stacked (the hours over the minutes), Analog (the small face with the time and date
       // beside it), Alignment, the second line, and the flashing colon (held under Reduce Motion as well as by skyLook())
@@ -1273,7 +1380,10 @@
         if (K && K.show) { try { K.show(c, x); return; } catch (err) { /* below */ } }
       }
       if (one && D && D.open && s.tap !== 'page') { D.open(one.getAttribute('data-ent')); return; }
-      var page = TAP_PAGE[s.kind], ent = tapEntity(s, c), path = page && pagePath(page);
+      // (the Clock has no page of its own; showing the weather -- beside the time or under it -- its page is Weather:
+      // 2026-10-31, the owner set When Tapped to its page and nothing happened)
+      var page = s.kind === 'clock' ? (s.beside === 'weather' || s.line === 'weather' ? 'weather' : null) : TAP_PAGE[s.kind];
+      var ent = tapEntity(s, c), path = page && pagePath(page);
       if ((s.tap === 'page' || !s.tap || s.tap === 'auto') && path) { go(path); return; }
       if (ent && D && D.open && s.tap !== 'page') { D.open(ent); return; }
       if (path) go(path);
