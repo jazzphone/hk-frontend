@@ -85,6 +85,26 @@ function () {
   var sc = window.hkCards.createCard(window.hkGridCatalog.config({ card: 'scene', size: 'S', opts: { scene: 'scene.good_night' } }), client);
   sc.setAttribute('tile', 'centred'); sc.attributeChangedCallback('tile', null, 'centred'); sc.client = client;
   eq('a scene: centred, its line says it is one', [sc._child.getAttribute('tile'), sc._child._config.room], ['centred', 'Scene']);
+  // (2026-10-31, the owner) a chosen Line Under Name wins over the room; every glyph the block's size, in its circle when on
+  var st = window.hkCards.createCard(window.hkGridCatalog.config({ card: 'accessory', size: 'S', opts: { entity: 'lock.front_door', secondary: { mode: 'state' } } }), client);
+  st.setAttribute('tile', 'centred'); st.attributeChangedCallback('tile', null, 'centred'); st.client = client;
+  eq('Centred with Line Under Name: State -- no room, the state line', ['room' in st._child._config, st._child._config.secondary], [false, { mode: 'state' }]);
+  var c0 = acc._config, made = null;
+  var tileOf = window.hkStrategy.tileFor;
+  window.hkStrategy.tileFor = function () { return { type: 'custom:hk-tall-card', entity: 'lock.front_door', icon: 'hk:alarm-light-off', icon_size: '27px', bare_icon: true, well_background: 'transparent' }; };
+  acc.setAttribute('tile', 'centred'); made = acc._tile();
+  eq('...a glyph drawn at a room page\'s 27 px takes the block\'s size', ['icon_size' in made, 'bare_icon' in made, 'well_background' in made], [false, false, false]);
+  acc.removeAttribute('tile'); made = acc._tile();
+  eq('...on a Home block it stays as the room page draws it', [made.icon_size, made.bare_icon], ['27px', true]);
+  window.hkStrategy.tileFor = tileOf; void c0;
+  // (2026-10-31) a Room or Accessories block hands its Tile Style to its tiles
+  var esrc = readFile(HK_ROOT + '/frontend/elements/hk-elements.js'), tsrc = readFile(HK_ROOT + '/frontend/cards/hk-tile.js');
+  var gsrc = readFile(HK_ROOT + '/frontend/cards/hk-grid-cards.js');
+  ok('a Centred glyph is sized by what it draws, by area, to HomeView\'s lightbulb (2026-10-31: the alarm was half again the lamps\' size)',
+     /Math\.sqrt\(b\.width \* b\.height\)/.test(esrc) && /ink \* 0\.78 \/ mean/.test(esrc) && window.hkCards.TILE.centred.ink === 0.83 &&
+     /window\.hkInkScale\(inkName, window\.hkCards\.TILE\.centred\.ink\)/.test(tsrc) && /e\.icon\.setAttribute\('ink', String\(C\.TILE\.centred\.ink\)\)/.test(gsrc));
+  ok('the Room and Accessories blocks hand Centred to each tile, and redraw when it changes', /if \(centred\) el\.setAttribute\('tile', 'centred'\);/.test(gsrc) &&
+     /var key = JSON\.stringify\(\[p\.tiles, p\.more, p\.size, !!p\.scroll, centred, !!p\.half, !!p\.color\]\);/.test(gsrc) && /return \['size', 'tile'\];/.test(gsrc));
   window.hkCards.createCard = factory;
   // the CSS: one variant, the tiles' own parts, from the table (hk-base.js TILE.centred)
   var tileCss = customElements.get('hk-tile-card').CSS, keyCss = customElements.get('hk-action-card').CSS, T = window.hkCards.TILE.centred;
@@ -92,7 +112,9 @@ function () {
   ok('...a 196 x 150 cell\'s numbers, then a square cell\'s', tileCss.indexOf('top:' + T.tall.at + '%') >= 0 && tileCss.indexOf('@container hk-cell (min-height:180px){') >= 0 &&
      tileCss.indexOf('width:' + T.square.glyph + 'px !important;height:' + T.square.glyph + 'px !important') >= 0);
   ok('...the lock\'s and Lock Up\'s, the lights\' and the scenes\' tiles: hk-tile\'s and the key\'s', keyCss.indexOf('top:' + T.square.text + '%') >= 0);
-  ok('...off, the glyph bare; lit, in its well (the white plate stays)', tileCss.indexOf(':host([tile=centred]) hk-plate.card:not([data-on="1"]) .well{background:none !important}') >= 0);
+  ok('...the glyph bare, off and lit -- no circle (2026-10-31, HomeView has none)', tileCss.indexOf(':host([tile=centred]) .well{background:none !important}') >= 0 &&
+     tileCss.indexOf(':host([tile=centred]) hk-plate.card[data-on="1"] .icon{width:') < 0);
+  ok('...lit, the glyph in its own colour (the tile draws it bare)', /getAttribute\('tile'\) === 'centred' \? Object\.assign\(\{\}, cfg, \{ bare_icon: true \}\)/.test(readFile(HK_ROOT + '/frontend/cards/hk-tile.js')));
   ok('a block\'s corners on square cells: the tile and the key read --hk-block-radius', /:host\(\[size\]:not\(\[data-group-fill\]\)\) hk-plate\.card\{border-radius:var\(--hk-block-radius/.test(tileCss) &&
      /hk-plate\.k\{border-radius:var\(--hk-block-radius/.test(keyCss));
 },
@@ -101,7 +123,8 @@ function () {
   var C = window.hkGridCatalog, ctx = { climate: ['climate.den'] };
   eq('a thermostat block\'s Style: Big Number', C.config({ card: 'thermostat', size: 'L', opts: { style: 'big' } }, ctx), { type: 'custom:hk-control-card', entity: 'climate.den', style: 'big' });
   eq('...the dial when it is not chosen', C.config({ card: 'thermostat', size: 'T' }, ctx), { type: 'custom:hk-control-card', entity: 'climate.den' });
-  eq('...Extra Large stays the sheet', C.config({ card: 'thermostat', size: 'XL', opts: { style: 'big' } }, ctx).type, 'custom:hk-grid-panel-card');
+  eq('...Extra Large too: the face with the modes beside it (2026-10-31)', C.config({ card: 'thermostat', size: 'XL', opts: { style: 'big' } }, ctx), { type: 'custom:hk-control-card', entity: 'climate.den', style: 'big' });
+  eq('...the dial\'s Extra Large stays the sheet', C.config({ card: 'thermostat', size: 'XL' }, ctx).type, 'custom:hk-grid-panel-card');
   eq('...every thermostat page takes it', C.pages({ card: 'thermostat', size: 'L', opts: { style: 'big' }, pages: { source: 'thermostats' } }, { climate: ['climate.den', 'climate.hall'] })
      .map(function (p) { return p.card.style; }), ['big', 'big']);
   eq('the option, and its kind', [C.table().thermostat.opts, C.THERMOSTAT_STYLES], [{ entity: 'climate', style: 'thermostat_style' }, [['dial', 'Dial'], ['big', 'Big Number']]]);
@@ -151,7 +174,12 @@ function () {
   var t = C.table();
   eq('the options each declares (home_grid.CATALOG\'s: a pytest holds them equal)',
      [t.room.opts, t.scene_suggested.opts, t.action.opts, t.everything.opts],
-     [{ area: 'area', surface: 'surface', accessory_display: 'room_display' }, { windows: 'windows' }, { action: 'action', area: 'area' }, {}]);
+     [{ area: 'area', surface: 'surface', accessory_display: 'room_display' }, { windows: 'windows' }, { action: 'action', area: 'area', color: 'boolean' }, {}]);
+  // (2026-10-31) the widget blocks, and Scenes' and Accessories' Height and Color
+  eq('...the widget blocks and their sizes', [t.on_now.sizes, t.todo.sizes, t.energy_rings.sizes, t.energy_rings.opts, t.todo.opts],
+     [['S', 'W', 'T', 'L', 'XL'], ['S', 'T', 'L', 'XL'], ['S', 'W', 'T', 'L', 'XL'], { period: 'period' }, { entity: 'todo' }]);
+  eq('...Scenes and Accessories: Height and Color', [t.scenes.opts.height, t.scenes.opts.color, t.accessories.opts.height, t.accessories.opts.color, t.scene.opts.color],
+     ['tile_height', 'boolean', 'tile_height', 'boolean', 'boolean']);
 },
 function () {
   H.section('the tablet\'s room, through the host');
@@ -381,6 +409,7 @@ function () {
      { type: 'custom:hk-grid-cameras-card', cameras: ['camera.garden'], refresh: 30 });
   eq('...a house with no camera: the stand-in', C.config({ card: 'cameras', size: 'XL' }, {}).type, 'custom:hk-key-card');
   eq('...its sizes and options', [C.table().cameras.sizes, C.table().cameras.opts], [['XL', 'XXL', 'F'], { cameras: 'cameras', refresh: 'refresh' }]);
+  eq('the Camera block comes Small too (2026-10-31): one still in a cell', C.table().camera.sizes, ['S', 'W', 'L', 'XL']);
   eq('Full is the grid\'s own columns and rows', [C.SIZES.F, C.span('F', 3, 3), C.span('F', 2, 4), C.span('XL', 6, 4)], [[0, 0], [3, 3], [2, 4], [3, 2]]);
 },
 function () {

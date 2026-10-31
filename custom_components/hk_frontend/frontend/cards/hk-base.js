@@ -230,18 +230,23 @@
   // CENTRED TILES (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase B): the
   // Tile Style that sets the glyph above the name and the room, all centred,
   // as HomeView does -- measured off its screenshot, side by side. Per cell:
-  //   box / glyph  the glyph's box and its size, bare (off): 66 px in a 196
-  //                cell, about 55 px of ink
-  //   well / lit   lit: the glyph `lit` in a `well` of its colour
+  //   box / glyph  the glyph's box and its size, always bare: 66 px in a 196
+  //                cell, about 55 px of ink -- lit, in its own colour on the
+  //                white plate, never in a circle (the owner, 2026-10-31, from
+  //                HomeView: "No circle/wells behind icons. fairly large icons")
   //   at           the glyph's centre, % down the tile
   //   text         the name's top, % down; the room (or the state) under it
   //   name / sub / line   their sizes (600 and 400) and the lines they sit on
   // `tall`: a 196 x 150 tile (a room page's Tall pill, a tile-celled block);
   // `square`: a 196 x 196 cell. Home's numbers above are untouched.
   TILE.centred = {
-    tall: { box: 56, glyph: 50, well: 50, lit: 30, at: 31, text: 55, name: 17, sub: 16, line: 22 },
-    square: { box: 72, glyph: 66, well: 64, lit: 40, at: 33, text: 57.7, name: 21, sub: 20, line: 27 },
-    track: -0.3, inset: 10 };
+    tall: { box: 56, glyph: 50, at: 31, text: 55, name: 17, sub: 16, line: 22 },
+    square: { box: 72, glyph: 66, at: 33, text: 57.7, name: 21, sub: 20, line: 27 },
+    track: -0.3, inset: 10,
+    // what of the glyph's box its drawing fills, whatever the glyph (hk-icon
+    // `ink`): about 55 px of a 66 px box, HomeView's (2026-10-31, the alarm
+    // drawn to its box's edges was half again the lamps' size)
+    ink: 0.83 };
   // A pill's width as CSS: --hk-pill (the iPad band's, css/hk-responsive.css)
   // or the table's.
   var PILL_W = 'var(--hk-pill,' + TILE.w + 'px)';
@@ -348,13 +353,11 @@
   // inline well) are more specific than a variant can be, so the variant's
   // say !important.
   function centredTile(s) {
-    var C0 = TILE.centred, I = ' !important', off = s.plate + ':not(' + s.lit.slice(s.plate.length) + ')';
+    var C0 = TILE.centred, I = ' !important';
     var at = function (pre, parts) { return parts.map(function (p) { return s.host + ' ' + (pre ? pre + ' ' : '') + p; }).join(','); };
     var one = function (g) {
       return at('', [s.well]) + '{width:' + g.box + 'px' + I + ';height:' + g.box + 'px' + I + ';top:' + g.at + '%' + I + '}' +
         at('', [s.icon]) + '{width:' + g.glyph + 'px' + I + ';height:' + g.glyph + 'px' + I + '}' +
-        at(s.lit, [s.well]) + '{width:' + g.well + 'px' + I + ';height:' + g.well + 'px' + I + '}' +
-        at(s.lit, [s.icon]) + '{width:' + g.lit + 'px' + I + ';height:' + g.lit + 'px' + I + '}' +
         at('', [s.name]) + '{top:' + g.text + '%' + I + ';font-size:' + g.name + 'px' + I + ';line-height:' + g.line + 'px' + I + '}' +
         at('', s.sub) + '{top:calc(' + g.text + '% + ' + g.line + 'px)' + I + ';font-size:' + g.sub + 'px' + I + ';line-height:' + g.line + 'px' + I + '}';
     };
@@ -363,8 +366,8 @@
     return at('', [s.plate]) + '{position:relative}' +
       at('', [s.well]) + '{position:absolute' + I + ';left:50%' + I + ';margin:0' + I + ';transform:translate(-50%,-50%);border-radius:50%;' +
         'display:flex;align-items:center;justify-content:center}' +
-      // off: the glyph bare, in its own colour; lit: in its circle on the white plate (HK's rule)
-      at(off, [s.well]) + '{background:none' + I + '}' +
+      // the glyph bare, off and lit (lit in its own colour on the white plate: the card's)
+      at('', [s.well]) + '{background:none' + I + '}' +
       at('', [s.name]) + '{' + text + ';font-weight:600' + I + '}' +
       at('', s.sub) + '{' + text + ';font-weight:400' + I + ';color:' + v('ink-2') + I + '}' +
       at(s.lit, s.sub) + '{color:' + v('ink-on-state') + I + '}' +
@@ -660,6 +663,24 @@
     var S = window.hkSettings, own = S && S.get ? (S.get('look.page_accents', {}) || {})[kind] : null;
     var a = String(own || PAGE_ACCENTS[kind]).toLowerCase();
     return ACCENTS[a] || (/^#[0-9a-f]{6}$/.test(a) ? a : null);
+  }
+  // AN APP ICON (the Pages screen's; the tab bar's More and Rooms sheets,
+  // 2026-10-31): a rounded square in a colour, a little lighter at the top,
+  // a little deeper at the foot, as iPadOS's own. A page's colour is its
+  // accent (pageAccentHex); rooms have none, so each takes one by its place
+  // in the menu's rooms -- the same room the same colour in both places.
+  var ROOM_TINTS = ['orange', 'yellow', 'indigo', 'teal', 'green', 'pink', 'blue', 'purple', 'mint', 'red', 'cyan'];
+  function roomTint(i) { return ROOM_TINTS[(i || 0) % ROOM_TINTS.length]; }
+  function iconMix(hex, to, f) {
+    var c = [1, 3, 5].map(function (i) { return parseInt(hex.substr(i, 2), 16); });
+    return '#' + c.map(function (x) {
+      var y = Math.round(x + (to - x) * f);
+      return (y < 16 ? '0' : '') + y.toString(16);
+    }).join('');
+  }
+  function iconGradient(hex) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex || '')) hex = '#8e8e93';
+    return [iconMix(hex, 255, 0.18), iconMix(hex, 0, 0.08)];
   }
   // the photo's fade: the theme's own ground over it, `fade` 0..100
   function flatFade(fade, theme) {
@@ -2608,10 +2629,11 @@
     // A HOME GRID BLOCK'S SIZE (docs/phase11/HOME-GRID.md): hk-home-grid-view
     // sets `size` (S, W, T, L, XL) on a block's card. A card laid out per
     // size reads it with _cellSize() or :host([size=..]); one that builds its
-    // DOM once is rebuilt when it changes. Anywhere else it is null.
-    static get observedAttributes() { return ['size']; }
+    // DOM once is rebuilt when it changes. Anywhere else it is null. So is its
+    // Tile Style (`tile`, 2026-10-31): a Centred glyph is sized by what it draws.
+    static get observedAttributes() { return ['size', 'tile']; }
     attributeChangedCallback(name, was, now) {
-      if (name !== 'size' || was === now || !this._config) return;
+      if ((name !== 'size' && name !== 'tile') || was === now || !this._config) return;
       this._built = false;
       this._hkSig = null;
       this._render();
@@ -4431,6 +4453,9 @@
   window.hkCards.pageAccentHex = pageAccentHex;
   window.hkCards.ACCENTS = ACCENTS;
   window.hkCards.PAGE_OF_PATH = PAGE_OF_PATH;
+  window.hkCards.ROOM_TINTS = ROOM_TINTS;
+  window.hkCards.roomTint = roomTint;
+  window.hkCards.iconGradient = iconGradient;
   window.hkCards.pageTone = pageTone;
   window.hkCards.flatGround = flatGround;
   window.hkCards.FLAT_COLORS = FLAT_COLORS;

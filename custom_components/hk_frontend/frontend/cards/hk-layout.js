@@ -1798,13 +1798,15 @@
       // as --hk-bar-room on it (top or bottom; hk-tabbar.js publish()), and
       // --hk-tabbar-h on <html> at the bottom. The canvas fits the remaining
       // room uniformly; rows keep their logical height when the dock changes.
+      // EDIT MODE'S BAR comes out of it too (--hk-edit-room, hk-edit.js
+      // makeRoom): the grid fits under the bar, never runs under the foot.
       //
       // Do not put clip-path on a cell: it creates a backdrop root, so a
       // shared blur inside a swipe track cannot sample the wallpaper.
       // Cards and swipe tracks clip their own content; the grid clips its
       // outer boundary. Shadows can extend between the cells.
       st.textContent =
-        ':host{--g-room:calc(var(--hk-bar-room,var(--hk-tabbar-h,0px)) + var(--hk-pane-b,0px));display:block;position:relative;' +
+        ':host{--g-room:calc(var(--hk-bar-room,var(--hk-tabbar-h,0px)) + var(--hk-pane-b,0px) + var(--hk-edit-room,0px));display:block;position:relative;' +
         'height:calc(100dvh - var(--g-room));max-height:calc(100dvh - var(--g-room));overflow:hidden;' +
         // (clear of a side safe area, as every view: hk-grid-view; _measure fits the grid between)
         'container-type:size;box-sizing:border-box;padding-left:' + SAFE_PAD_L + ';padding-right:' + SAFE_PAD_R + '}' +
@@ -2109,6 +2111,26 @@
       return Math.round(w * scale + side);
     }
 
+    // EDIT MODE ON THE DASHBOARD (2026-10-31, hk-edit-grid.js): the blocks
+    // laid out afresh -- a config's cards and their elements together, matched
+    // by index as ever, the elements kept that are kept -- and the cells'
+    // box on the screen, for where a carried block lands
+    arrange(config, els) {
+      this._config = config || {};
+      this._cards = els || [];
+      this._place();
+    }
+    // { left, top, width, height } of the cells (not the band, not the edge)
+    // in the window's px, their gap there, the scale and the grid's numbers
+    cellBox() {
+      var root = this._root, g = this._grid(), k = this._gridScale || 1;
+      if (!root || !root.getBoundingClientRect) return null;
+      var shape = cellShape(g), r = root.getBoundingClientRect(), top = g.band ? GRID.band + shape.gap : 0;
+      return { left: r.left + shape.pad * k, top: r.top + (shape.pad + top) * k,
+               width: (g.cols * C.TILE.w + (g.cols - 1) * shape.gap) * k, height: (g.rows * shape.h + (g.rows - 1) * shape.gap) * k,
+               gap: shape.gap * k, scale: k, cols: g.cols, rows: g.rows, views: g.views, view: this._view || 0 };
+    }
+
     connectedCallback() {
       if (super.connectedCallback) super.connectedCallback();
       if (!this._ro && typeof ResizeObserver !== 'undefined') {
@@ -2361,7 +2383,7 @@
         '.pc{position:relative;display:flex;flex:none;box-sizing:border-box;max-width:calc(100% - 12px);align-items:flex-end;justify-content:center;height:44px;padding:0 10px;pointer-events:auto;cursor:pointer;' +
         'touch-action:pan-y;-webkit-tap-highlight-color:transparent}' +
         '.pc::before{content:"";position:absolute;bottom:3px;left:0;right:0;height:16px;border-radius:' + C0.R.capsule('16px') + ';background:rgba(30,30,36,.22);pointer-events:none}' +
-        '.pager.one .dots{display:none}' +
+        '.pager.one .dots,.pager.own .dots{display:none}' +
         // 44 px targets, reaching up over the page's foot
         '.dot{flex:0 1 ' + PAGER_PITCH + 'px;min-width:0;height:44px;margin:0;padding:0 0 7px;border:0;background:none;' +
         'display:flex;align-items:flex-end;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
@@ -2434,7 +2456,9 @@
       var root = this._root;
       root.innerHTML = '';
       var pager = document.createElement('div');
-      pager.className = 'pager' + (n < 2 ? ' one' : '');
+      // (a Room block draws the rooms' dots in its own foot line, beside what is scrolled out of sight:
+      // hk-grid-cards.js, 2026-10-31)
+      pager.className = 'pager' + (n < 2 ? ' one' : '') + (((this._config || {}).item || {}).card === 'room' ? ' own' : '');
       var track = document.createElement('div');
       track.className = 'track';
       var dots = document.createElement('div');
@@ -2617,6 +2641,12 @@
       clearTimeout(this._stillT);
       this._stillT = setTimeout(function () {
         if (self._drag && self._drag.moved) { self._moving(); return; }
+        // ...and at rest ON its page: a smooth turn cut short (the block
+        // drawn again, a hidden tab) left the plates a few px into the gap,
+        // the block out of line with the ones under it (the owner,
+        // 2026-10-31: "pushed to the right some")
+        var t = self._track, w = t && t.clientWidth;
+        if (w) { var at = Math.round(t.scrollLeft / w); if (Math.abs(t.scrollLeft - at * w) > 0.5) t.scrollLeft = at * w; }
         pager.classList.remove('moving');
         self.removeAttribute('data-moving');
       }, PAGER_STILL);

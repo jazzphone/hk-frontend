@@ -188,6 +188,13 @@ ok('off its start page it tells hk-idle (the timer arms on Home)', away.length &
 // a swipe: the track came to rest on page 1
 pg._track.scrollLeft = 0; pg._settle();
 ok('a swipe that comes to rest is the page it rests on', pg._index === 0);
+// a smooth turn cut short a few px past its page (2026-10-31, the owner: the camera block "pushed to the right
+// some"): once still, the track sits exactly on the page
+var st0 = globalThis.setTimeout;
+globalThis.setTimeout = function (fn) { fn(); return 0; };
+try { pg._track.scrollLeft = 397; pg._moving(); } finally { globalThis.setTimeout = st0; }
+ok('...and once it is still it sits exactly on a page, not a few px into the gap', pg._track.scrollLeft === 392, pg._track.scrollLeft);
+pg._track.scrollLeft = 0;
 
 print('\n=== the return, the doorbell ===');
 window.dispatchEvent(new CustomEvent('hk-idle-return'));
@@ -219,8 +226,8 @@ print('\n=== the tab bar, and DESIGN.md ===');
 var View = customElements.get('hk-home-grid-view'), gv = new View();
 gv.setConfig({ grid: { cols: 6, rows: 4 }, cards: [] });
 var css = gv._sr.children[0].textContent;
-ok('the grid is the window less the tab bar\'s room (--hk-bar-room, else --hk-tabbar-h) and a Side Pane band\'s',
-   css.indexOf('--g-room:calc(var(--hk-bar-room,var(--hk-tabbar-h,0px)) + var(--hk-pane-b,0px))') >= 0 && css.indexOf('height:calc(100dvh - var(--g-room))') >= 0 &&
+ok('the grid is the window less the tab bar\'s room (--hk-bar-room, else --hk-tabbar-h), a Side Pane band\'s and Edit mode\'s bar\'s',
+   css.indexOf('--g-room:calc(var(--hk-bar-room,var(--hk-tabbar-h,0px)) + var(--hk-pane-b,0px) + var(--hk-edit-room,0px))') >= 0 && css.indexOf('height:calc(100dvh - var(--g-room))') >= 0 &&
    css.indexOf('height:100dvh') < 0);
 ok('cells keep shadows and shared backdrop access without a clip-path root', /\.cell\{[^}]*overflow:visible/.test(css) &&
    !/\.cell\{[^}]*clip-path/.test(css));

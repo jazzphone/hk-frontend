@@ -206,7 +206,7 @@
     var playing = st.state === 'playing';
     var t = pos + (playing && at ? (Date.now() - at) / 1000 : 0);
     return { key: ctx.key, playing: playing, title: ctx.title || a.media_title || '', artist: ctx.artist || a.media_artist || '',
-             pic: pic, at: dur ? Math.max(0, Math.min(1, t / dur)) : 0 };
+             pic: pic, at: dur ? Math.max(0, Math.min(1, t / dur)) : 0, left: dur ? Math.max(0, dur - t) : 0, vol: num(a.volume_level) };
   }
   // ...held a grace after it stops (All Screens -> Now Playing -> Hide After a Pause)
   function musicHas(c) {
@@ -215,8 +215,15 @@
     return !!m && Date.now() - musicAt < graceMs();
   }
   function timersOf(c) {
-    var st = states(c)['sensor.running_quick_timers'], list = attr(st, 'running');
-    return (Array.isArray(list) ? list : []).filter(function (r) { return r && (r.finishes_at || r.remaining); });
+    var all = states(c), list = attr(all['sensor.running_quick_timers'], 'running');
+    var out = (Array.isArray(list) ? list : []).filter(function (r) { return r && (r.finishes_at || r.remaining); });
+    // (a paused quick timer, which the sensor lists no longer: there to resume, as on the Timers block)
+    Object.keys(all).sort().forEach(function (id) {
+      if (/^timer\.quick_/.test(id) && all[id].state === 'paused' && !out.some(function (r) { return r.entity_id === id; })) {
+        out.push({ entity_id: id, name: attr(all[id], 'friendly_name'), remaining: attr(all[id], 'remaining') });
+      }
+    });
+    return out;
   }
   function alarmOf(c) {
     var id = setting('security.alarm', null) || domainIds(c, 'alarm_control_panel')[0];
@@ -296,30 +303,46 @@
   // A TO-DO LIST'S ITEMS (hk_frontend/todo/items: hk_core/todo.py over the
   // House port), read again when the list's state (its count) changes; an
   // item checked off is struck through until the list says so
+  // (2026-10-31: the Home Grid's To-do block reads the same lists, hkSidePane.todo -- so whoever asks while a
+  // read is out is drawn again when it lands, not only the one that sent it)
   var TODO = {};
   function todoOf(c, eid, done, redraw) {
-    var t = TODO[eid] || (TODO[eid] = { sig: null, got: null, busy: false, off: {} });
+    var t = TODO[eid] || (TODO[eid] = { sig: null, got: null, busy: false, off: {}, wait: [] });
     var st = states(c)[eid], sig = st ? st.state + '|' + st.last_updated + '|' + !!done : null;
     if (c && c.callWS && sig && sig !== t.sig && !t.busy) {
-      t.busy = true; t.sig = sig;
+      t.busy = true; t.sig = sig; t.wait = [];
+      var landed = function () { var w = t.wait || []; t.wait = []; w.forEach(function (f) { f(); }); };
       c.callWS({ type: 'hk_frontend/todo/items', entity_id: eid, completed: !!done }).then(function (got) {
-        t.busy = false; t.got = got || null; t.off = {}; redraw();
-      }, function (e) { t.busy = false; t.got = { items: [], refused: (e && e.code) || 'failed' }; redraw(); });
-    }
+        t.busy = false; t.got = got || null; t.off = {}; redraw(); landed();
+      }, function (e) { t.busy = false; t.got = { items: [], refused: (e && e.code) || 'failed' }; redraw(); landed(); });
+    } else if (t.busy && redraw && (t.wait || (t.wait = [])).indexOf(redraw) < 0) t.wait.push(redraw);
     return t;
+  }
+  // CHECKED OFF: a house command (todo.update_item), struck through until the list says so; false when it is
+  // already on its way. ADDED: todo.add_item. Both through the page's action port, as every command.
+  function todoCheck(c, eid, uid) {
+    var t = TODO[eid];
+    if (!c || !c.actions || !eid || !uid || (t && t.off[uid])) return false;
+    if (t) t.off[uid] = true;
+    return c.actions.callService('todo', 'update_item', { item: uid, status: 'completed' }, { entity_id: eid })
+      .catch(function (e) { if (t) delete t.off[uid]; throw e; });
+  }
+  function todoAdd(c, eid, txt) {
+    return c.actions.callService('todo', 'add_item', { item: String(txt).slice(0, 200) }, { entity_id: eid });
   }
 
   // ------------------------------------------------------------ drawing
   function icon(name, extra) { return '<hk-icon icon="' + name + '"' + (extra || '') + '></hk-icon>'; }
-  // A SECTION'S HEADING (2026-10-30): the small uppercase title with its icon,
-  // as the pane's Section Headings say (the screen's Side Pane `headings`, on
+  // A SECTION'S HEADING (2026-10-30): the small uppercase title -- text alone
+  // since 2026-10-31 (the owner: "remove the glyph/icon... rather it just be
+  // text"), as the pane's Section Headings say (the screen's Side Pane `headings`, on
   // by default) -- never over the Clock or the Weather, which say what they
   // are, nor on a Pages-screen widget. A to-do list keeps its own name either
   // way (which list is content). HEAD_ON is the drawing pane's, set as it draws.
   var HEAD_ON = true;
   function head(k) {
     if (!HEAD_ON || k === 'clock' || k === 'weather') return '';
-    return '<div class="h2">' + icon(KINDS[k][1]) + '<span>' + esc(KINDS[k][0]) + '</span></div>';
+    return '<div class="h2"><span>' + esc(KINDS[k][0]) + '</span></div>';
   }
   function tiny(k, txt, val) {
     return '<div class="sec cmp" data-k="' + k + '" data-size="tiny"><div class="r2">' + icon(KINDS[k][1]) +
@@ -366,8 +389,13 @@
       var t = '<span class="tm">' + esc(now.time) + (now.ampm ? '<small>' + now.ampm + '</small>' : '') + '</span>';
       if (s === 'tiny') return tiny('clock', t, esc(dateShort(d)));
       if (s === 'full') return box('clock', s, '<div class="facebox">' + faceSvg(now) + '</div><div class="sub2 ctr">' + esc(dateLong(d)) + '</div>', 'grow');
-      var set = attr(states(c)['sun.sun'], 'next_setting'), sun = s === 'more' && set ? ' · Sunset ' + esc(hm(new Date(set))) : '';
-      return box('clock', s, '<div class="big2' + (s === 'less' ? ' less' : '') + '">' + t + '</div><div class="sub2">' + esc(dateLong(d)) + sun + '</div>');
+      // LINED UP (2026-10-31, the owner: "the time's left edge with the
+      // date's, AM on the baseline, date left / sunset right"): the digits
+      // pulled back by their own side bearing, AM on their baseline, and
+      // under them the date at the left and the sunset at the right
+      var set = attr(states(c)['sun.sun'], 'next_setting'), sun = s === 'more' && set ? '<span class="sun">Sunset ' + esc(hm(new Date(set))) + '</span>' : '';
+      return box('clock', s, '<div class="big2 ck' + (s === 'less' ? ' less' : '') + '">' + t + '</div><div class="sub2 ckd"><span class="dl">' + esc(dateLong(d)) + '</span>' +
+        (sun ? '<span class="ds">' + esc(dateShort(d)) + '</span>' : '') + sun + '</div>');
     },
     weather: function (s, sec, c, ctx) {
       var id = setting('weather.entity', null) || domainIds(c, 'weather')[0], st = id && states(c)[id];
@@ -421,15 +449,32 @@
       var pp = '<button type="button" class="pp" data-act="pp" aria-label="' + (m.playing ? 'Pause' : 'Play') + '">' +
                icon(m.playing ? 'mdi:pause' : 'mdi:play') + '</button>';
       if (s === 'tiny') return tiny('now_playing', esc(m.title || 'Playing'), pp);
-      if (s === 'less') {
-        return box('now_playing', s, '<div class="r2 np">' + (m.pic ? '<img class="art" alt="" src="' + esc(m.pic) + '">' : '<span class="art">' + icon('mdi:music') + '</span>') +
-          '<span class="tx"><b>' + esc(m.title) + '</b><i>' + esc(m.artist) + '</i></span>' + pp + '</div>');
+      // LESS AND MORE, A MINI PLAYER (2026-10-31, the owner's pick of three):
+      // the cover and the song on their own line; under it one row --
+      // Speakers, back, play / pause (white, the largest), next, Browse -- the
+      // screensaver's two at its ends, opening its panel over the pane
+      // (musicPanel); then the volume, its speakers either side, a quiet 6 px
+      // track in a 44 px place for a finger ("make sure the thin line for
+      // volume is ok for a finger to use"). MORE is the same player a size up
+      // ("one family"): a bigger cover and the song's progress over the row,
+      // drawn by the compositor to the song's end (no redraw a second). FULL
+      // stays the screensaver's own pane, below.
+      if (s === 'less' || s === 'more') {
+        var mk = function (act, name, ic, cls) { return '<button type="button" class="' + (cls || 'pp') + '" data-act="' + act + '" aria-label="' + name + '">' + icon(ic) + '</button>'; };
+        var prog = s === 'more' ? '<div class="npp" role="progressbar" aria-label="Song" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(m.at * 100) + '"><i style="transform:scaleX(' + m.at.toFixed(4) + ')' +
+          (m.playing && m.left > 0 ? ';animation:npp ' + Math.round(m.left) + 's linear forwards' : '') + '"></i></div>' : '';
+        return box('now_playing', s, (s === 'more' ? head('now_playing') : '') + '<div class="r2 np' + (s === 'more' ? ' np2' : '') + '">' + (m.pic ? '<img class="art" alt="" src="' + esc(m.pic) + '">' : '<span class="art">' + icon('mdi:music') + '</span>') +
+          '<span class="tx"><b>' + esc(m.title) + '</b><i>' + esc(m.artist) + '</i></span></div>' + prog +
+          '<div class="trow">' + mk('spk', 'Speakers', 'mdi:speaker') + mk('prev', 'Previous', 'mdi:skip-previous', 'tk') +
+          mk('pp', m.playing ? 'Pause' : 'Play', m.playing ? 'mdi:pause' : 'mdi:play', 'pp big') + mk('next', 'Next', 'mdi:skip-next', 'tk') +
+          mk('brw', 'Browse Music', 'mdi:music-box-multiple') + '</div>' +
+          (m.vol !== null ? '<div class="vol">' + icon('mdi:volume-high', ' class="lo"') + '<input type="range" min="0" max="100" step="1" data-act="vol" aria-label="Volume" value="' +
+            Math.round(m.vol * 100) + '">' + icon('mdi:volume-high') + '</div>' : ''));
       }
-      // MORE AND FULL: the screensaver's music pane itself (hk-music-pane-card,
+      // FULL: the screensaver's music pane itself (hk-music-pane-card,
       // hk-saver.js): the art, the song, its buttons and volume, Up Next and
-      // the Speakers / Browse panel -- the one view the dashboard shares
-      // (More: the player without Up Next and the album, its art smaller --
-      // `compact` on the card; Full: all of it, taking the room left)
+      // the Speakers / Browse panel -- the one view the dashboard shares --
+      // taking the room left
       return '<div class="sec mp' + (s === 'full' ? ' grow' : ' compact') + '" data-k="now_playing" data-size="' + s + '">' + head('now_playing') + ctx.slot('np', 'hk-music-pane-card', function (el) {
         if (el.active) el.active(true);
       }) + '</div>';
@@ -442,13 +487,18 @@
       var state = a ? ALARM[a] || a : locks.length ? (un.length ? 'Unlocked' : 'Locked') : 'No alarm';
       if (s === 'tiny') return tiny('security', esc(state), esc(lockLine));
       var top = '<div class="r2 big">' + icon(KINDS.security[1], ' class="shield"') + '<span class="tx">' + esc(state) + '</span></div>';
+      // ONLY WHAT IS OPEN (the owner, 2026-10-31: "if all windows, doors, and locks are closed and locked, I don't
+      // really need to know that... I just need to know when something opens"): All Locked the all-clear, then
+      // the windows and doors open, if any -- never "all windows closed"
+      var n = function (k, one, many) { return k + ' ' + (k === 1 ? one : many) + ' open'; };
       if (s === 'less') {
-        var gist = [lockLine, wins.length ? (open.length ? open.length + ' windows open' : 'all windows closed') : '', doors.length ? doors.length + ' doors open' : '']
+        var gist = [lockLine, open.length ? n(open.length, 'window', 'windows') : '', doors.length ? n(doors.length, 'door', 'doors') : '']
           .filter(Boolean).join(' · ');
         return box('security', s, head('security') + top + (gist ? '<div class="sub2">' + esc(gist) + '</div>' : ''));
       }
       var list = locks.slice(0, s === 'full' ? 8 : 4).map(function (id) { var x = states(c)[id] || {}; return [nameOf(x, id), x.state === 'unlocked' ? 'Unlocked' : x.state === 'locked' ? 'Locked' : String(x.state || ''), x.state === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock', x.state === 'unlocked' ? 'warn' : '', id]; });
-      if (wins.length) list.push(['Windows', open.length ? open.length + ' open' : 'All closed', 'mdi:window-closed-variant']);
+      // (More: the windows only when one is open; Full, the whole picture, says so either way)
+      if (wins.length && (open.length || s === 'full')) list.push(['Windows', open.length ? open.length + ' open' : 'All closed', open.length ? 'mdi:window-open-variant' : 'mdi:window-closed-variant', open.length ? 'warn' : '']);
       if (s === 'full') {
         kinds('garage').slice(0, 2).forEach(function (id) { var x = states(c)[id] || {}; list.push([nameOf(x, id), x.state === 'open' || x.state === 'on' ? 'Open' : 'Closed', 'mdi:garage', '', id]); });
         if (al && al.st) {
@@ -481,12 +531,27 @@
         return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (sx < 10 ? '0' : '') + sx;
       };
       if (s === 'tiny') return tiny('timers', esc(t[0].name || 'Timer'), '<span class="cd">' + esc(left(t[0])) + '</span>');
-      if (s === 'less') return box('timers', s, head('timers') + lst(rows(t.slice(0, 3).map(function (r) { return [r.name || 'Timer', left(r)]; }))), 'shrink');
+      // EACH TIMER (2026-10-31, the owner: "the ring is the pause (its centre
+      // shows pause/play), a big red stop key", as the Timers block has them):
+      // its ring of time left -- a tap pauses or resumes it -- its time and
+      // its name, and the red Stop. The time is an <hk-countdown> (hk-timers.js),
+      // which ticks on its own and hands the ring the fraction left
+      // (--hk-left, on the row): the pane draws again only as its data changes.
+      var T = window.hkTimers, all = states(c);
       return box('timers', s, head('timers') + lst(t.slice(0, s === 'full' ? 4 : 3).map(function (r) {
-        var total = num(r.duration_s || r.total) || 0, ms = r.finishes_at ? Date.parse(r.finishes_at) - Date.now() : 0;
-        var pct = total ? Math.max(0, Math.min(100, 100 - ms / 10 / total)) : 0;
-        return '<div class="r2"><span class="tx">' + esc(r.name || 'Timer') + '</span><span class="v2 cd">' + esc(left(r)) + '</span></div>' +
-          '<div class="bar2"><i style="width:' + pct.toFixed(1) + '%"></i></div>';
+        var id = r.entity_id, x = id && all[id], a = (x && x.attributes) || {}, nm = esc(r.name || 'Timer');
+        var paused = x ? x.state === 'paused' : !r.finishes_at;
+        var total = num(r.duration_s || r.total) || (T && T.secs ? T.secs(a.duration) : 0) || 0;
+        var rest = paused ? (T && T.secs ? T.secs(a.remaining || r.remaining) : 0) : Math.max(0, Math.round((Date.parse(r.finishes_at) - Date.now()) / 1000));
+        var clock = paused ? 'hold="' + rest + '"' : 'deadline="' + Date.parse(r.finishes_at) + '"';
+        var frac = total ? Math.max(0, Math.min(1, rest / total)) : 1;
+        return '<div class="tmr" style="--hk-left:' + frac.toFixed(2) + '">' +
+          (id ? '<button type="button" class="tpr" data-act="tp" data-timer="' + esc(id) + '" data-paused="' + (paused ? 1 : 0) + '" aria-label="' + (paused ? 'Resume ' : 'Pause ') + nm + '">' +
+            '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45"></circle><circle class="l" cx="50" cy="50" r="45" pathLength="100"></circle></svg>' +
+            icon(paused ? 'mdi:play' : 'mdi:pause') + '</button>' : '') +
+          '<hk-countdown ' + clock + ' total="' + total + '">' + esc(left(paused ? { remaining: a.remaining || r.remaining } : r)) + '</hk-countdown>' +
+          '<span class="tn">' + nm + '</span>' +
+          (id ? '<button type="button" class="tst" data-act="tx" data-timer="' + esc(id) + '" aria-label="Stop ' + nm + '">' + icon('mdi:stop') + '</button>' : '') + '</div>';
       }).join('')) + (s === 'full' ? keys : ''), 'shrink');
     },
     energy: function (s, sec, c) {
@@ -535,7 +600,7 @@
       // FULL: each one, where and since when
       var since = function (id) { var t = Date.parse((st[id] || {}).last_changed); return t ? ' · ' + ago(t) : ''; };
       if (s === 'full') return box('people', s, head('people') + lst(rows(ids.slice(0, 8).map(function (id) { return [nameOf(st[id], id), where(id) + since(id), 'mdi:account', '', id]; }))), 'shrink');
-      var av = '<div class="ppl">' + ids.slice(0, 5).map(function (id, i) {
+      var av = '<div class="ppl" style="--n:' + Math.min(5, ids.length) + '">' + ids.slice(0, 5).map(function (id, i) {
         var x = st[id] || {}, pic = attr(x, 'entity_picture'), nm = nameOf(x, id);
         var face = pic ? '<img alt="" src="' + esc(pic) + '">' : esc(nm.charAt(0).toUpperCase());
         return '<div data-ent="' + esc(id) + '" class="' + (x.state === 'home' ? '' : 'away') + '"><i style="background:' + ['#ff9500', '#5856d6', '#34c759', '#ff2d55', '#32ade6'][i % 5] + '">' + face + '</i>' + esc(nm.split(' ')[0]) + '</div>';
@@ -549,7 +614,7 @@
       var name = nameOf(st, eid), left = num(st.state);
       if (s === 'tiny') return tiny('todo', esc(name), left == null ? '' : esc(left + (left === 1 ? ' item' : ' items')));
       var t = todoOf(c, eid, sec.completed, ctx.redraw), got = t.got;
-      var h = '<div class="h2">' + icon(KINDS.todo[1]) + '<span>' + esc(name) + '</span></div>';
+      var h = '<div class="h2"><span>' + esc(name) + '</span></div>';
       if (!got) return box('todo', s, h + '<div class="sub2">Reading the list…</div>');
       if (got.refused) return box('todo', s, h + '<div class="sub2">' + esc(got.refused === 'commands_disabled' ? 'Can’t read the list while control of the house is off.' : 'Can’t read the list.') + '</div>');
       var items = (got.items || []).slice(0, { less: 2, more: 4, full: 6 }[s]);
@@ -717,10 +782,16 @@
       ':host(:not([mode="widget"]):not([side="band"])) .sec.mp{border-radius:0}',
       '.sec>.ev:last-child{border-bottom:0}',
       '.h2{display:flex;align-items:center;gap:6px;font:600 13px/1 var(--hk-font-body,inherit);letter-spacing:.3px;text-transform:uppercase;color:' + v('ink-2') + '}',
-      '.h2 hk-icon{--mdc-icon-size:15px;width:15px;height:15px}',
       '.big2{font:600 72px/1 var(--hk-font-body,inherit);letter-spacing:-2px;font-variant-numeric:tabular-nums}',
       '.big2.less{font-size:48px;letter-spacing:-1.2px}',
       '.tm{white-space:nowrap}.tm small{font-size:.36em;font-weight:600;letter-spacing:0;margin-left:.18em;color:' + v('ink-2') + '}',
+      // (the Clock lined up: the digits' side bearing taken back, so their ink starts where the date's does; AM
+      // on their baseline; the date at the left, the sunset at the right)
+      '.ck .tm{display:flex;align-items:baseline;margin-left:-0.05em}.ck .tm small{margin-left:.14em}',
+      '.ckd{display:flex;justify-content:space-between;align-items:baseline;gap:4px 12px;flex-wrap:wrap}.ckd>*{white-space:nowrap}.ckd .sun{margin-left:auto}',
+      // (a narrow pane: the date short, "Sat, Oct 31", so the sunset keeps its place at the right of it)
+      '.sec[data-k="clock"]{container-type:inline-size}.ckd .ds{display:none}',
+      '@container (max-width:320px){.ckd .ds{display:inline}.ckd:has(.ds) .dl{display:none}}',
       '.wxg{display:inline-grid;place-items:center;flex:none}.hrs .wxg{display:grid;margin:2px auto}',
       '.sub2{font:500 17px/1.3 var(--hk-font-body,inherit);color:' + v('ink-2') + '}',
       '.sub2.ctr{text-align:center}',
@@ -731,6 +802,21 @@
       '.r2.warn .v2,.r2.heat hk-icon{color:#ff9f0a}.r2.cool hk-icon{color:#64d2ff}',
       '.r2.big{font-size:22px}.r2.big hk-icon{--mdc-icon-size:30px;width:30px;height:30px;color:#30b0c7}',
       '.cd{font-variant-numeric:tabular-nums;color:#ff9f0a}',
+      // A TIMER'S ROW: the ring (the pause) at the left, the time over its name, the red Stop at the right
+      '.tmr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"r t s" "r n s";column-gap:12px;align-items:center;--ring:56px}',
+      '.tmr hk-countdown{grid-area:t;align-self:end;font:400 24px/1.15 var(--hk-font-body,inherit);font-variant-numeric:tabular-nums;color:' + v('ink') + '}',
+      '.tmr .tn{grid-area:n;align-self:start;min-width:0;font:500 14px/1.3 var(--hk-font-body,inherit);color:' + v('ink-2') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tpr,.tst{all:unset;box-sizing:border-box;position:relative;display:grid;place-items:center;border-radius:50%;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+      '.tpr{grid-area:r;width:var(--ring);height:var(--ring)}',
+      '.tpr svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}',
+      '.tpr circle{fill:none;stroke-width:10px;stroke:' + v('line-strong') + '}',
+      '.tpr .l{stroke:#ff9f0a;stroke-linecap:round;stroke-dasharray:calc(var(--hk-left,1)*100) 100}',
+      '.tpr hk-icon{position:relative;--mdc-icon-size:20px;width:20px;height:20px;color:#ff9f0a}',
+      '.tst{grid-area:s;width:44px;height:44px;background:#ff453a}',
+      '.tst hk-icon{--mdc-icon-size:20px;width:20px;height:20px;color:#fff}',
+      '.tpr:active,.tst:active{transform:scale(0.95)}',
+      '.tpr:focus-visible,.tst:focus-visible{outline:2px solid ' + v('ink-2') + ';outline-offset:2px}',
+      '.sec[data-size="less"] .tmr{--ring:44px}.sec[data-size="less"] .tmr hk-countdown{font-size:20px}',
       '.wnow{display:flex;align-items:center;gap:12px}',
       '.wnow hk-icon{--mdc-icon-size:44px;width:44px;height:44px;color:#ffd60a}',
       '.wnow b{font:600 44px/1 var(--hk-font-body,inherit);letter-spacing:-1px}',
@@ -748,6 +834,22 @@
       '.pp{all:unset;cursor:pointer;flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:' + v('key') + '}',
       '.pp hk-icon{--mdc-icon-size:22px;width:22px;height:22px}',
       '.cmp .pp{width:30px;height:30px;margin:-4px 0}',
+      '.trow{display:flex;align-items:center;justify-content:space-between;margin-top:12px}',
+      '.tk{all:unset;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;border-radius:50%}.tk hk-icon{--mdc-icon-size:30px;width:30px;height:30px}',
+      '.tk:active{background:' + v('key') + '}',
+      '.pp.big{width:52px;height:52px;background:#fff;color:#1c1c1e}.pp.big hk-icon{--mdc-icon-size:30px;width:30px;height:30px;color:#1c1c1e}',
+      '.vol{display:flex;align-items:center;gap:10px;margin-top:4px}',
+      '.np2 .art{width:88px;height:88px;border-radius:12px}.np2 .tx b{font-size:20px}',
+      '.npp{height:4px;border-radius:2px;background:' + v('line-strong') + ';overflow:hidden;margin-top:14px}',
+      '.npp i{display:block;height:100%;background:' + v('ink') + ';transform-origin:left center}',
+      '@keyframes npp{to{transform:scaleX(1)}}',
+      '@media (prefers-reduced-motion:reduce){.npp i{animation:none!important}}',
+      '.vol hk-icon{--mdc-icon-size:20px;width:20px;height:20px;color:' + v('ink-2') + ';flex:none}.vol hk-icon.lo{--mdc-icon-size:14px;width:14px;height:14px}',
+      '.vol input{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:44px;background:transparent;margin:0;touch-action:pan-y;cursor:pointer}',
+      '.vol input::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:' + v('line-strong') + '}',
+      '.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}',
+      '.vol input::-moz-range-track{height:6px;border-radius:3px;background:' + v('line-strong') + '}',
+      '.vol input::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff}',
       // the screensaver's music pane, in a section: More is its art and
       // controls at the pane's width; Full takes what is left
       '.sec.mp{padding:0;display:block;position:relative;height:540px;background:none;overflow:visible}',
@@ -774,6 +876,12 @@
       '.lst{display:grid;gap:8px;align-content:start}.evs.lst{display:block}',
       '.sec.shrink>.lst{flex:0 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}',
       '.sec.shrink>.lst::-webkit-scrollbar{display:none}',
+      // ...and the calendar's events, down the pane, run as far as the pane
+      // has room for, not to 300 px with a space under them (the owner,
+      // 2026-10-31: "a gap/space above Who's Home that could be filled")
+      // -- and so, where the pane is short, the first to give way
+      ':host(:not([side="band"]):not([mode="widget"])) .sec.shrink>.evs.scroll{max-height:none}',
+      ':host(:not([side="band"]):not([mode="widget"])) .secs>.shrink[data-k="calendar"]:not(.grow){flex-shrink:100}',
       '.sec.shrink>.lst.cut{-webkit-mask-image:linear-gradient(#000 calc(100% - 22px),transparent);mask-image:linear-gradient(#000 calc(100% - 22px),transparent)}',
       // A TAP: every section and each thing in it is a target
       '.secs>[data-i]:not([data-k="now_playing"]),[data-ent],[data-ev]{cursor:pointer}',
@@ -785,8 +893,10 @@
       '.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}',
       '.stats div{font:500 13px/1.3 var(--hk-font-body,inherit);color:' + v('ink-2') + '}',
       '.stats b{display:block;font:600 22px/1.25 var(--hk-font-body,inherit);color:' + v('ink') + '}',
-      '.ppl{display:flex;gap:14px}',
-      '.ppl div{display:grid;justify-items:center;gap:4px;font:500 13px/1.2 var(--hk-font-body,inherit);color:' + v('ink-2') + '}',
+      // (spread evenly across the pane, as the Who's Home block has them --
+      // not packed to the left; the owner, 2026-10-31)
+      '.ppl{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:14px}',
+      '.ppl div{display:grid;justify-items:center;gap:4px;min-width:0;font:500 13px/1.2 var(--hk-font-body,inherit);color:' + v('ink-2') + '}',
       '.ppl i{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font:600 18px/1 var(--hk-font-body,inherit);font-style:normal;color:#fff;overflow:hidden}',
       '.ppl i img{width:100%;height:100%;object-fit:cover}',
       '.ppl .away i{opacity:.45}',
@@ -869,6 +979,13 @@
       this._wx = {};
       var self = this;
       this._root.addEventListener('click', function (e) { self._click(e); });
+      // THE VOLUME: set where it is let go (the music's own player)
+      this._root.addEventListener('change', function (e) {
+        var t = e.target, c = clientNow(), m = c && musicOf(c);
+        if (!t || t.getAttribute('data-act') !== 'vol' || !m || !c.actions) return;
+        c.actions.callService('media_player', 'volume_set', { volume_level: Math.max(0, Math.min(1, Number(t.value) / 100)) }, { entity_id: m.key })
+          .catch(function () { /* refused: said by the host */ });
+      });
       this._root.addEventListener('submit', function (e) { self._submit(e); });
     }
     // what it shows now: { list (sections), place, doorbell (a camera) }
@@ -1037,7 +1154,8 @@
       var st = states(c), o = this._o, ids = [];
       (o.list || []).forEach(function (s) { ids.push(s.entity || ''); });
       var m = musicOf(c);
-      return JSON.stringify([Math.floor(Date.now() / 30000), m && [m.key, m.playing, m.title], timersOf(c).length,
+      return JSON.stringify([Math.floor(Date.now() / 30000), m && [m.key, m.playing, m.title],
+        timersOf(c).map(function (r) { var x = st[r.entity_id]; return [r.entity_id, x && x.state, r.finishes_at || r.remaining]; }),
         ids.map(function (id) { return id && st[id] ? st[id].last_updated : ''; }), CAL.at, notesOf().length,
         Object.keys(TODO).map(function (k) { return TODO[k].sig + (TODO[k].got ? 1 : 0); })]);
     }
@@ -1127,16 +1245,24 @@
       if (act === 'pp') {
         var m = musicOf(c);
         if (m) c.actions.callService('media_player', 'media_play_pause', {}, { entity_id: m.key }).catch(function () { /* refused: said by the host */ });
+      } else if (act === 'prev' || act === 'next') {
+        var mn = musicOf(c);
+        if (mn) c.actions.callService('media_player', act === 'prev' ? 'media_previous_track' : 'media_next_track', {}, { entity_id: mn.key }).catch(function () { /* refused: said by the host */ });
+      } else if (act === 'spk' || act === 'brw') {
+        musicPanel(this, act === 'spk' ? 'speakers' : 'browse');
       } else if (act === 'todo') {
         // CHECKED OFF: a house command (todo.update_item), struck through
         // until the list says so
-        var eid = b.getAttribute('data-list'), uid = b.getAttribute('data-uid'), t = TODO[eid];
-        if (!eid || !uid || (t && t.off[uid])) return;
-        if (t) t.off[uid] = true;
+        var sent = todoCheck(c, b.getAttribute('data-list'), b.getAttribute('data-uid'));
+        if (!sent) return;
         b.classList.add('done');
-        c.actions.callService('todo', 'update_item', { item: uid, status: 'completed' }, { entity_id: eid }).catch(function () {
-          if (t) { delete t.off[uid]; } b.classList.remove('done');
-        });
+        sent.catch(function () { b.classList.remove('done'); });
+      } else if (act === 'tp' || act === 'tx') {
+        // A RUNNING TIMER'S RING (pause / resume) AND STOP: the Timers block's
+        // services (timer.pause, timer.start, timer.cancel)
+        var tid = b.getAttribute('data-timer');
+        if (tid) c.actions.callService('timer', act === 'tx' ? 'cancel' : b.getAttribute('data-paused') === '1' ? 'start' : 'pause', {}, { entity_id: tid })
+          .catch(function () { /* refused: said by the host */ });
       } else if (act === 'timer') {
         // A QUICK TIMER, as the Timers page starts one (the quick_timers package's script)
         var mins = Number(b.getAttribute('data-min')), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -1152,7 +1278,7 @@
       var inp = f.querySelector('input'), txt = inp && String(inp.value || '').trim(), eid = f.getAttribute('data-list');
       if (!txt || !eid) return;
       inp.value = '';
-      c.actions.callService('todo', 'add_item', { item: txt.slice(0, 200) }, { entity_id: eid }).catch(function () { inp.value = txt; });
+      todoAdd(c, eid, txt).catch(function () { inp.value = txt; });
     }
     // (a widget is shown before it is placed: drawn again at its slot's size)
     connectedCallback() { if (this.getAttribute('mode') === 'widget' && this._o) this._draw(true); }
@@ -1167,7 +1293,12 @@
 
   // ------------------------------------------------------- the Dashboard's
   // THE SCREEN'S SIDE PANE AS READ (settings side_pane_read), or null
+  // (HK Settings' All Screens page, when no screen follows All Screens
+  // throughout: its preview is a screen drawing All Screens' pane, 2026-10-31)
+  var HOUSE = false;
   function paneOf() {
+    var hs = HOUSE && setting('side_pane', null);
+    if (hs) return Object.assign({}, hs, { own: [] });
     var M = C() && C().menu, dash = M && M.dash ? M.dash() : String(location.pathname).split('/')[1] || '';
     var all = setting('boards', null), b = all && all[dash];
     return (b && b.side_pane_read) || null;
@@ -1232,6 +1363,72 @@
     });
     if (l || r || b) de.setAttribute('hk-pane', l ? 'left' : r ? 'right' : 'band'); else de.removeAttribute('hk-pane');
     try { window.dispatchEvent(new Event('hk-pane')); } catch (e) { /* no listeners */ }
+  }
+  // THE MUSIC'S PANEL OVER THE PANE (Less's Speakers and Browse): the
+  // screensaver's (hk-saver-panel.js) -- Speakers, Volume, Queue, Browse, what
+  // plays at its foot -- the pane's own size and place, so it opens where the
+  // player is. A tap outside, its X, Escape, a moment after a request has
+  // landed, and the music going close it.
+  var mpnl = null;
+  function musicPanel(pane, tab) {
+    var P = window.hkSaverPanel, HC = C();
+    if (mpnl) { if (mpnl.p.tab() !== tab) mpnl.p.show(tab); else closeMusicPanel(); return; }
+    if (!P || !pane || !pane.getBoundingClientRect) return;
+    var r = pane.getBoundingClientRect();
+    var host = document.createElement('div');
+    host.style.cssText = 'position:fixed;inset:0;z-index:12;' + ((HC && HC.FONT_ROOT) || '');
+    var sr = host.attachShadow({ mode: 'open' });
+    var st = document.createElement('style');
+    st.textContent = P.CSS + (HC && HC.shadeCss ? HC.shadeCss('.mpanel') : '') +
+      '.scrim{position:fixed;inset:0}.mpanel.pn{position:fixed;border-radius:' + ((HC && HC.R && HC.R.sheet) || 38) + 'px;background:rgb(24,25,29);' +
+      'box-shadow:0 26px 70px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.12)}';
+    sr.appendChild(st);
+    var scrim = document.createElement('div'); scrim.className = 'scrim';
+    sr.appendChild(scrim);
+    var me = { host: host, doneT: null };
+    me.p = P.create({
+      tabs: ['speakers', 'volume', 'queue', 'browse'],
+      client: function () { return clientNow(); },
+      ctx: function () { return musicNow(clientNow()); },
+      art: function () { return null; },
+      stop: true,
+      follow: function (key) { var Mu = window.hkMusic; if (key && Mu && Mu.known && Mu.known(key)) Mu.setFocus(key); },
+      done: function (ms) {
+        if (mpnl !== me) return;
+        clearTimeout(me.doneT);
+        me.doneT = setTimeout(function () { if (mpnl === me) closeMusicPanel(); }, ms || 0);
+      },
+      wide: function () { return false; },
+      mini: function () { return true; },
+      now: function () {
+        var m = musicOf(clientNow());
+        return m ? { idle: false, playing: m.playing, title: m.title, artist: m.artist, pic: m.pic, room: '' } : null;
+      },
+      transport: function (k) {
+        var c = clientNow(), m = c && musicOf(c);
+        if (m && c.actions) c.actions.callService('media_player', k === 'pp' ? 'media_play_pause' : 'media_next_track', {}, { entity_id: m.key }).catch(function () { /* refused */ });
+      }
+    });
+    var el = me.p.el, inset = 8;
+    el.classList.add('up', 'pn');
+    el.style.cssText = 'left:' + (r.left + inset) + 'px;top:' + (r.top + inset) + 'px;width:' + (r.width - 2 * inset) + 'px;height:' + (r.height - 2 * inset) + 'px';
+    sr.appendChild(el);
+    me.p.size(r.width - 2 * inset, r.height - 2 * inset, 1);
+    me.p.show(tab);
+    scrim.addEventListener('click', closeMusicPanel);
+    me.key = function (ev) { if (ev.key === 'Escape') closeMusicPanel(); };
+    window.addEventListener('keydown', me.key);
+    document.body.appendChild(host);
+    mpnl = me;
+  }
+  function closeMusicPanel() {
+    var me = mpnl;
+    if (!me) return;
+    mpnl = null;
+    clearTimeout(me.doneT);
+    window.removeEventListener('keydown', me.key);
+    try { me.p.destroy(); } catch (e) { /* gone */ }
+    me.host.remove();
   }
   // NOW PLAYING IN THE PANE: the docked bar gives the music up to it while
   // it shows (hk-popup.js's `flag` condition, hk-strategy.js)
@@ -1346,7 +1543,10 @@
     // what the screensaver shows: its sections now, from the screen's Side Pane
     saverList: function (sp, c) { return shown(saverList(sp), function (s) { return has(c || clientNow(), s); }); },
     pane: paneOf,
+    // A TO-DO LIST'S ITEMS, checked off and added to, as the pane's own section does (the Home Grid's To-do block)
+    todo: { items: todoOf, check: todoCheck, add: todoAdd },
     sync: sync,
+    previewHouse: function (on) { if (HOUSE === !!on) return; HOUSE = !!on; sync(); },
     // tests
     _: { shown: shown, fit: fit, place: place, wants: wants, saverList: saverList, has: has, ringing: ringing, SEC: SEC,
          publish: publish, musicFlag: musicFlag, NOTES: NOTES, TODO: TODO, CAL: CAL }
