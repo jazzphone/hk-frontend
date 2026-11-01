@@ -113,9 +113,9 @@ function () {
   var got = Mx.recentCovers(items);
   eq('a record played through shows once; nothing without a uri', got.map(function (i) { return i.name; }), ['Low Tide', 'Garden', 'Long Walk']);
   eq('...with its artist and picture', [got[0].artist, got[0].image], ['Marlow Lane', 'a.jpg']);
-  var many = []; for (var i = 0; i < 30; i++) many.push({ uri: 'library://track/' + i, name: 'T' + i });
-  eq('at most the last and twelve', Mx.recentCovers(many).length, 13);
-  eq('the covers each size shows: W four, T six, L eight, XL twelve (and the last above L\'s and XL\'s)',
+  var many = []; for (var i = 0; i < 50; i++) many.push({ uri: 'library://track/' + i, name: 'T' + i });
+  eq('at most forty (the grid scrolls through them)', Mx.recentCovers(many).length, 40);
+  eq('the covers each size shows at once: W four, T six, L eight, XL twelve (and the last above L\'s and XL\'s)',
      ['W', 'T', 'L', 'XL'].map(function (s) { return Mx.RECENT[s][0]; }), [4, 6, 8, 12]);
   eq('a cover with no picture has a color of its own, the same every time', Mx.tintOf('Low Tide'), Mx.tintOf('Low Tide'));
 },
@@ -143,10 +143,11 @@ function () {
   H.section('Music: Presets and One Playlist, read as the Music page reads its playlists');
   var pls = window.hkMusic.playlists();
   var all = Mx.playlistTiles(pls, null);
-  eq('Presets: a tile for each playlist, a playlist with choices standing for each choice',
-     all.map(function (t) { return t.name; }), ['Favorites Mix', 'Christmas', '2020s', '2010s', '2000s']);
-  eq('...a choice names its playlist, a plain one says Playlist', [all[0].artist, all[2].artist], ['Playlist', 'Decades']);
-  eq('...each plays by its key', all.map(function (t) { return t.playlist; }), ['favorites_mix', 'christmas', 'decade_2020s', 'decade_2010s', 'decade_2000s']);
+  eq('Presets: a tile for each playlist, a playlist with choices ONE tile (as the Music page\'s pill)',
+     all.map(function (t) { return t.name; }), ['Favorites Mix', 'Christmas', 'Decades']);
+  eq('...a plain one says Playlist, one with choices how many', [all[0].artist, all[2].artist], ['Playlist', '3 Playlists']);
+  eq('...each plays by its key; the choices are the tile\'s', all.map(function (t) { return t.playlist || t.options.map(function (o) { return o.playlist; }).join(','); }),
+     ['favorites_mix', 'christmas', 'decade_2020s,decade_2010s,decade_2000s']);
   eq('One Playlist: only its own choices', Mx.playlistTiles(pls, 'Decades').map(function (t) { return t.name; }), ['2020s', '2010s', '2000s']);
   eq('...a playlist the house lacks: nothing', Mx.playlistTiles(pls, 'Gone').length, 0);
   var G = window.hkGridCatalog;
@@ -166,7 +167,7 @@ function () {
   mu._render();
   eq('Presets asks the library for nothing', house.ws.length, asks);
   var html = String(mu._root.innerHTML);
-  eq('...the first playlist above, the rest in the grid', (html.match(/data-i="/g) || []).length, 5);
+  eq('...the first playlist above, the rest in the grid', (html.match(/data-i="/g) || []).length, 3);
   ok('...labelled Playlists', html.indexOf('<span class="lab">Playlists</span>') >= 0, html.slice(0, 300));
   window.hkMusic.setFocus('media_player.kitchen_homepod_ma');
   var before = house.calls.length;
@@ -174,12 +175,69 @@ function () {
   var call = house.calls[before];
   eq('a tap: hk_frontend.music_play on the screen\'s speaker', call && [call.domain, call.service, call.data.rooms, call.data.playlist],
      ['hk_frontend', 'music_play', [window.hkMusic.player(client())], 'christmas']);
+  // a tap on Decades: the Music page's sheet of its choices, and the one picked plays
+  var C = window.hkCards, was = C.chooseSheet, asked = null;
+  C.chooseSheet = function (title, list, pick) { asked = [title, list.map(function (o) { return o.name; })]; pick(list[1]); };
+  before = house.calls.length;
+  try { mu._play(all[2], document.createElement('button')); } finally { C.chooseSheet = was; }
+  eq('Decades: the sheet of its choices', asked, ['Decades', ['2020s', '2010s', '2000s']]);
+  call = house.calls[before];
+  eq('...the decade picked plays on the screen\'s speaker', call && [call.service, call.data.playlist], ['music_play', 'decade_2010s']);
+  // SMALL: the cover is the block, play in its middle; WIDE and EXTRA LARGE scroll across, TALL and LARGE down
+  var sm = sized('hk-recent-music-card', 'S');
+  sm._config = { type: 'custom:hk-recent-music-card', show: 'presets' };
+  sm.client = client();
+  sm._render();
+  var sh = String(sm._root.innerHTML);
+  ok('Small: the cover behind it all, one play button, the name at its foot',
+     sh.indexOf('class="bg"') >= 0 && (sh.match(/class="go"/g) || []).length === 1 && sh.indexOf('class="last"') < 0 && sh.indexOf('Favorites Mix') >= 0, sh.slice(0, 400));
+  ['W', 'T', 'L', 'XL'].forEach(function (z) {
+    var b = sized('hk-recent-music-card', z);
+    b._config = { type: 'custom:hk-recent-music-card', show: 'presets' };
+    b.client = client();
+    b._render();
+    var bh = String(b._root.innerHTML);
+    eq(z + ': ' + (z === 'W' || z === 'XL' ? 'across' : 'down') + ', every playlist in it', [bh.indexOf('class="cv ' + (z === 'W' || z === 'XL' ? 'x' : 'y') + '"') >= 0,
+       (bh.match(/data-i="/g) || []).length], [true, 3]);
+  });
+  // WHEN TAPPED: the Music page by default; Choose a Playlist, the playlists' sheet, Decades asking which next
+  eq('a tap on the plate: the Music page', sm._tapTarget()[0], { page: 'playmusic' });
+  sm._config = { type: 'custom:hk-recent-music-card', show: 'presets', tap: 'playlists', speaker: 'media_player.kitchen_homepod_ma' };
+  var D = window.hkDetail, opened = null, closed = 0, wasOpen = D && D.open, wasClose = D && D.close;
+  window.hkDetail = Object.assign({}, D || {}, { open: function (id, src, opts) { opened = [id, src, opts]; return true; }, close: function () { closed++; } });
+  try { sm._tapTarget()[0].run(); } finally { if (D) { D.open = wasOpen; D.close = wasClose; } }
+  eq('Choose a Playlist: a detail sheet of the playlists\' covers, playing where the block plays',
+     opened && [opened[1].name, opened[2].cards.cards[0].type, opened[2].cards.cards[0].speaker, opened[2].cards.width],
+     ['Playlists', 'custom:hk-music-playlists-card', 'media_player.kitchen_homepod_ma', 'wide']);
+  // THE SHEET'S CARD: every playlist a cover; Decades opens its choices in place, Back over them; a tap plays and the sheet goes
+  var ps = sized('hk-music-playlists-card', null);
+  ps._config = { type: 'custom:hk-music-playlists-card', speaker: 'media_player.kitchen_homepod_ma' };
+  ps.client = client();
+  ps._render();
+  var pt = String(ps._root.innerHTML);
+  eq('the sheet: a cover for each playlist, Decades one', (pt.match(/class="it"/g) || []).length, 3);
+  ps._pick(ps._list[2], document.createElement('button'));
+  ps._render();
+  pt = String(ps._root.innerHTML);
+  ok('...Decades: its choices, with Back', (pt.match(/class="it"/g) || []).length === 3 && pt.indexOf('data-back') >= 0 && pt.indexOf('2010s') >= 0, pt.slice(0, 300));
+  before = house.calls.length;
+  window.hkDetail = Object.assign({}, window.hkDetail || {}, { close: function () { closed++; } });
+  var picked = ps._pick(ps._list[1], document.createElement('button'));
+  call = house.calls[before];
+  eq('...a decade picked plays where the block plays', call && [call.service, call.data.playlist, call.data.rooms], ['music_play', 'decade_2010s', ['media_player.kitchen_homepod_ma']]);
+  ps._open = null;
+  ps._render();
+  eq('...Back: the playlists again', (String(ps._root.innerHTML).match(/data-back/g) || []).length, 0);
   var one = sized('hk-recent-music-card', 'W');
   one._config = { type: 'custom:hk-recent-music-card', show: 'playlist', playlist: 'Decades' };
   one.client = client();
   one._render();
   var oh = String(one._root.innerHTML);
   eq('One Playlist: its choices, labelled with its name', [(oh.match(/class="it"/g) || []).length, oh.indexOf('<span class="lab">Decades</span>') >= 0], [3, true]);
+  return H.tick().then(function () { return picked; }).then(function (played) {
+    eq('...and once it plays, the sheet goes', [played, closed], [true, 1]);
+    if (D) window.hkDetail = D;
+  });
 },
 function () {
   H.section('Live TV: the page\'s channels, a tile each, a tap plays it full screen');
