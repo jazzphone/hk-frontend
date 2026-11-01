@@ -205,7 +205,11 @@
                      // the HomeView-style faces (settings.py, 2026-10-30)
                      forecast_layout: 'classic', photo_titles: false, time_behind: false, day_look: 'auto',
                      // Big Weather's number, Time Behind's size, place and darkening (settings.py, 2026-10-31)
-                     forecast_big: 'temp', tb_size: 24, tb_top: 6, tb_dim: 0 } },
+                     forecast_big: 'temp', tb_size: 24, tb_top: 6, tb_dim: 0,
+                     // Big Weather's time planted in the meadow (settings.py, 2026-11-01)
+                     forecast_planted: true,
+                     // the Screensaver editor's layout (settings.py, 2026-11-01)
+                     layout: null } },
     // The Calendar page and the screensaver's calendar pane (All Screens ->
     // Calendar): the calendars shown, in order (empty: every calendar), and
     // each one's colour (a page pill colour)
@@ -219,7 +223,7 @@
     side_pane: { side: 'right', width: 'standard',
                  dashboard: { show: 'off', sections: [{ kind: 'weather' }, { kind: 'calendar' }, { kind: 'now_playing', when: 'active' }] },
                  saver: { show: 'off', sections: [{ kind: 'clock', size: 'tiny' }, { kind: 'calendar' }, { kind: 'now_playing', size: 'less', when: 'active' }] },
-                 doorbell: true, headings: true, dim: 'none' },
+                 doorbell: true, headings: true, dim: 0 },
     // Browse Music (HK Settings -> Features -> Music). The Discover rows arrive as
     // the queries themselves (settings.py discover_rows); these are its
     // default five.

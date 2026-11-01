@@ -977,7 +977,10 @@
           var whole = {};
           Object.keys(changes).forEach(function (k) { if (k.indexOf('.') < 0) whole[k] = changes[k]; });
           d.boards[path] = Object.assign({}, d.boards[path] || {}, whole);
-        }, function (r) { if (r && r.board) d.boards[path] = r.board; });
+        // (over what the page had, not in its place: an answer without a key the page reads -- side_pane_read, the
+        // screen's Side Pane as read -- must not take it away; one server's answer once had none, and the next Side
+        // Pane change saved its one group alone, 2026-11-01)
+        }, function (r) { if (r && r.board) d.boards[path] = Object.assign({}, d.boards[path] || {}, r.board); });
     }
     // A FEATURE'S OWN SETTINGS (hk-settings-features.js): read with its
     // `<id>/settings/get`, kept here while the page is open, read
@@ -2085,6 +2088,10 @@
                      ['Screensaver Options', base + '/screensaver']);
         epg.saverPreview = true; epg.saverEnergy = true;
         return epg;
+      }
+      if (s === 'screensaver' && sub[1] === 'editor') {
+        return this.saverEditorPage(path, { path: path, title: x.title, back: ['Screensaver Options', base + '/screensaver'],
+          options: M.saverFollows(b) ? this.hs('look.saver') : b.screensaver_options });
       }
       if (s === 'screensaver') {
         var spg = mk('Screensaver Options', function (c) { self.saverPage(c, x, b, path); });
@@ -3923,9 +3930,47 @@
       c.appendChild(K.group({ header: 'Timing' }, [K.select({ label: 'Starts After', sub: 'Untouched for this long.', value: String(cur.starts_after), sk: 'saver:starts_after',
         options: opts, onChange: function (v) { put('starts_after', Number(v)); } })]));
     }
+    // THE SCREENSAVER EDITOR (2026-11-01, docs/phase12/SCREENSAVER-EDITOR.md): hk-saver-editor.js, loaded the first time it
+    // is opened; one per screen (or All Screens), kept while its page shows. `house`: All Screens' screensaver
+    saverEditorPage(key, o) {
+      var self = this;
+      return {
+        title: 'Edit Screensaver', back: o.back,
+        body: function (c) {
+          var made = function () {
+            if (!self._saverEditors) self._saverEditors = {};
+            var ed = self._saverEditors[key];
+            if (!ed) {
+              ed = document.createElement('hk-saver-editor');
+              self._saverEditors[key] = ed;
+              ed.configure(Object.assign({ panel: self, onCancel: function () { delete self._saverEditors[key]; self.back(o.back[1]); },
+                                           onSaved: function () { delete self._saverEditors[key]; self.back(o.back[1]); } }, o));
+            }
+            c.appendChild(ed);
+          };
+          if (window.customElements.get('hk-saver-editor')) made();
+          else import('/hk/panels/hk-saver-editor.js').then(made, function (e) { c.textContent = 'The editor couldn\u2019t load: ' + (e && e.message || e); });
+        }
+      };
+    }
+    // THE EDITOR'S ROW, first on a Screensaver page; with a layout saved, what of the page it takes the place of, and the
+    // way back (the Show drawn as it was)
+    saverEditRow(c, href, cur, put, note) {
+      var self = this, lay = !!(cur && cur.layout);
+      c.appendChild(K.group({ footer: lay ? 'Laid out in the editor: the big time and the widgets are set there. Below, the corner cards, the Large clock, Time Behind\u2019s size and the Forecast\u2019s Layout don\u2019t apply while it has a layout.' : note },
+        [K.nav({ label: 'Edit Screensaver', sub: 'The background, the big time and the widgets, on the screen itself', icon: 'mdi:pencil', href: href, sk: 'saver:editor' })]
+          .concat(lay && put ? [K.button({ label: 'Remove the Layout\u2026', destructive: true, fk: 'saver:layout-off', onClick: function () {
+            K.confirm(self.shadowRoot, { title: 'Remove the Layout?', message: 'The screensaver is drawn as its Show was before the editor. Its other settings stay.', ok: 'Remove', destructive: true })
+              .then(function (yes) { if (yes) put('layout', null); });
+          } })] : [])));
+    }
     saverPage(c, x, b, path) {
       var self = this, house = M.saverFollows(b);
       var cur = M.saverOptions(house ? this.hs('look.saver') : b.screensaver_options);
+      // THE EDITOR (2026-11-01): the whole screensaver laid out on the screen itself
+      this.saverEditRow(c, '#/screens/' + encodeURIComponent(path) + '/screensaver/editor', cur, house ? null : function (k, v) {
+        var o = M.saverOptions(cur); o[k] = v; return self.setB(path, { screensaver_options: self.saverOut(o) });
+      }, house ? 'Editing gives this screen a screensaver of its own, starting from All Screens\u2019.' : null);
       c.appendChild(K.group({ footer: house
           ? 'This screen uses the screensaver settings for All Screens (All Screens → Screensaver). Off: it gets its own, starting from these.'
           : 'This screen has its own screensaver settings. On: it uses the settings for All Screens again.' }, [
@@ -4018,6 +4063,10 @@
                big && (fc || both || cur.fallback) && self.saverKnown('forecast_big') ? [K.seg({ label: 'Big Number', sk: 'saver:forecast_big',
                  value: cur.forecast_big === 'clock' ? 'clock' : 'temp', options: M.FORECAST_BIG,
                  onChange: function (v) { put('forecast_big', v); } })] : [],
+               // ...the time planted in the meadow (2026-11-01, the owner): on by default; off, as it drew before
+               big && (fc || both || cur.fallback) && cur.forecast_big === 'clock' && self.saverKnown('forecast_planted') ? [K.toggle({
+                 label: 'Planted Numerals', sub: 'The time as solid figures standing in the meadow, with shadows from the sky’s sun and grass at their feet.',
+                 on: cur.forecast_planted !== false, sk: 'saver:forecast_planted', onChange: function (on) { put('forecast_planted', on); } })] : [],
                // the details ON the forecast, wherever a forecast can show
                (fc || both || cur.fallback) && !big ? [tog('Details on the Forecast', 'band',
                  'On the forecast: today, the next hours and the coming days along the bottom. Off: the sky and the landscape alone.')] : [])));
@@ -4474,6 +4523,8 @@
       var self = this, cur = M.saverOptions(this.hs('look.saver')), boards = this.data.boards || {};
       var savers = Object.keys(boards).filter(function (p) { return boards[p].screensaver; });
       var follow = savers.filter(function (p) { return M.saverFollows(boards[p]); });
+      // THE EDITOR (2026-11-01), for every screen that uses these
+      if (savers.length) this.saverEditRow(c, '#/house/screensaver/editor', cur, this.saverPutH(), null);
       // THE PHOTOS (2026-10-09: on Wall Tablets before): where they come from,
       // in the Photos group's place (2026-10-30: first on the page before) --
       // drawn on every show, as screens with their own may show photos
@@ -5190,6 +5241,10 @@
         // its own settings left the page with no preview at all)
         var withSaver = Object.keys(bd).filter(function (p) { return bd[p].screensaver && bd[p].screensaver_engine !== 'wallpanel'; });
         var pv = withSaver.filter(function (p) { return M.saverFollows(bd[p]); })[0] || withSaver[0];
+        if (sub[0] === 'editor') {
+          return this.saverEditorPage('house', { house: true, path: pv || '', previewPath: pv, title: 'All Screens', back: [title, '#/house/screensaver'],
+            options: this.hs('look.saver') });
+        }
         if (sub[0] === 'clock-style') {
           var hcur = M.saverOptions(this.hs('look.saver'));
           var hpg = mk('Clock Style', function (c) { self.saverStyle(c, hcur, self.saverPutH()); });
@@ -5750,6 +5805,15 @@
         } })]));
       }
     }
+    // THE PREVIEW'S PANE DIMMED AS THE SLIDER MOVES, before anything is saved (hk-sidepane.js reads the screen's
+    // settings again when they come back)
+    pvPaneDim(v) {
+      var col = this.pageEl && this.pageEl.querySelector('.pvcol'), fr = col && col.querySelector('.pvbox iframe');
+      try {
+        var P = fr && fr.contentWindow && fr.contentWindow.hkSidePane;
+        if (P && P.dim) P.dim(v);
+      } catch (e) { /* not ours */ }
+    }
     paneNow(path) {
       var b = path ? (this.data.boards || {})[path] : null;
       return M.paneOf((this.data.settings || {}).side_pane, b);
@@ -5816,8 +5880,10 @@
       c.appendChild(K.group({ header: 'Look', footer: 'Dim: a shade over the pane’s glass, for its words over a light background. ' +
           'Section Headings: a small title, with its icon, over each section — not over the Clock or the Weather, which say what they are. ' +
           'The doorbell’s camera is live, for as long as its pop-up shows.' }, [
-        K.seg({ label: 'Dim', sk: 'pane:dim', sub: whose('dim'), value: p.dim || 'none', options: M.PANE_DIMS, stack: !this.hasAttribute('wide'),
-                onChange: function (v) { put('dim', v); } }),
+        // (a slider, 2026-11-01, the owner: "why isn't this a slider?" -- the preview's pane follows it as it moves,
+        // and it is saved once, let go)
+        K.slider({ label: 'Dim', sk: 'pane:dim', sub: whose('dim'), value: M.paneDim(p.dim), min: 0, max: M.PANE_DIM_MAX, step: 5, unit: '%',
+                   onInput: function (v) { self.pvPaneDim(v); }, onChange: function (v) { put('dim', v); } }),
         K.toggle({ label: 'Section Headings', sk: 'pane:headings', sub: whose('headings'), on: p.headings !== false, onChange: function (on) { put('headings', on); } }),
         K.toggle({ label: 'Doorbell', sk: 'pane:doorbell', sub: whose('doorbell') || 'Its camera at the top of the pane while it rings.',
                    on: p.doorbell !== false, onChange: function (on) { put('doorbell', on); } })]));
