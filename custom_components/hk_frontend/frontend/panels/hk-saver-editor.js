@@ -87,6 +87,8 @@
     '.pills{display:flex;background:var(--hk-fill);border-radius:9px;padding:2px;gap:2px}',
     '.pills button{border:0;background:none;border-radius:7px;min-height:32px;padding:0 12px;color:var(--hk-label);font:inherit;font-size:14px;cursor:pointer}',
     '.pills button[aria-pressed=true]{background:var(--hk-cell);box-shadow:0 1px 3px rgba(0,0,0,.18);font-weight:600}',
+    '.bar .extras{border:0;border-radius:9px;min-height:36px;padding:0 14px;background:var(--hk-fill);color:var(--hk-label);font:inherit;font-size:14px;cursor:pointer}',
+    '.bar .extras[aria-pressed=true]{background:var(--hk-accent,#0a84ff);color:#fff;font-weight:600}',
     '.note{font-size:13px;color:var(--hk-label2);line-height:1.5;margin:0 0 10px}',
     '.framebox{position:relative;overflow:hidden;margin:0 auto;border-radius:14px;background:#000;outline:1px solid var(--hk-sep);flex:none}',
     '.framebox[data-loading]::after{content:"Loading the screensaver…";position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;font-size:15px;color:#ccc;background:#111}',
@@ -100,6 +102,15 @@
     ':host(:not([previewing])) .ov .w:hover,:host(:not([previewing])) .ov .big:hover{outline:2px solid rgba(255,255,255,.55);outline-offset:4px}',
     '.ov [aria-pressed=true]{outline:4px solid var(--hk-tint)!important;outline-offset:5px!important}',
     '.ov .z.want{outline:3px dashed #30d158!important;background:rgba(48,209,88,.18)!important}',
+    // (the + after what a zone has: round, its sign large)
+    ':host(:not([previewing])) .ov .z.plus{border-radius:50%}',
+    ':host(:not([previewing])) .ov .z.plus span{font-size:calc(var(--zf,22px) * 2);font-weight:300}',
+    ':host([previewing]) .ov .z{display:none}',
+    // (a card with nothing to show now -- no music, no timer -- still has its place: drawn as one, with its name and
+    // when it shows; the owner, 2026-11-01: "I had no idea they were there until I hovered over them")
+    ':host(:not([previewing])) .ov .w.empty{outline:2px dashed rgba(255,255,255,.7);outline-offset:3px;background:rgba(0,0,0,.18)}',
+    ':host(:not([previewing])) .ov .w.empty span{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:calc(var(--zf,22px) * .8);font-weight:600;text-align:center;line-height:1.15;text-shadow:0 1px 4px rgba(0,0,0,.7);pointer-events:none}',
+    ':host(:not([previewing])) .ov .w.empty small{font-size:.78em;font-weight:500;opacity:.85}',
     '.ov .moved{position:absolute;pointer-events:none;font-size:calc(var(--zf,22px) * .8);font-weight:600;color:#000;background:#ffd60a;border-radius:8px;padding:4px 10px;white-space:nowrap}',
     ':host([previewing]) .ov{pointer-events:none}:host([previewing]) .ov .moved{display:none}',
     // THE LIBRARY
@@ -190,7 +201,14 @@
       this.sidebar = h('aside', { class: 'sidebar', 'aria-label': 'Settings for what is chosen', tabindex: '0' });
       this.ui.appendChild(h('div', { class: 'work' }, [this.palette, this.stage, this.sidebar]));
       this.devBar = h('div', { class: 'pills', role: 'group', 'aria-label': 'Screen shape' });
-      this.stage.appendChild(h('div', { class: 'bar' }, [this.devBar]));
+      // SLIDES & NOTIFICATIONS (2026-11-01, the owner: "Just offer a toggle to turn these things off (have them off by
+      // default)"): the music, weather and energy slides and the house's banners, in this preview only
+      this.extras = false;
+      this.extrasButton = h('button', { type: 'button', class: 'extras', 'aria-pressed': 'false', text: 'Slides & Notifications: Off',
+        title: 'Show the slides (music, the forecast, weather, Home Energy) and the house’s notifications in this preview',
+        onclick: () => { this.extras = !this.extras; this.extrasButton.setAttribute('aria-pressed', String(this.extras));
+                         this.extrasButton.textContent = 'Slides & Notifications: ' + (this.extras ? 'On' : 'Off'); this.preview(); } });
+      this.stage.appendChild(h('div', { class: 'bar' }, [this.devBar, this.extrasButton]));
       this.stage.appendChild(h('p', { class: 'note', text: 'The screensaver itself, as this screen will show it. Tap something on it to change it; tap a widget on the left, then a green place, to add one. Nothing here acts on the house.' }));
       this.box = h('div', { class: 'framebox', 'data-loading': 'yes' }); this.stage.appendChild(this.box);
       this.frame = h('div', { class: 'frame' }); this.box.appendChild(this.frame);
@@ -225,12 +243,24 @@
       var n = 0, go = () => {
         var S = this.saver();
         if (!S || typeof S.preview !== 'function') return false;
-        S.preview(true, null, !!this.o.house, copy(this.opts));
+        S.preview(true, null, !!this.o.house, this.still());
+        // (the house's notifications too: hushed in the frame unless asked for)
+        try { var N = this.iframe.contentWindow.hkNotify; if (N && N.hush) N.hush(!this.extras); } catch (e) { /* not yet */ }
         this.box.removeAttribute('data-loading');
         this.overlaySoon();
         return true;
       };
       if (!go()) this.waitT = setInterval(() => { if (go() || ++n > 120) clearInterval(this.waitT); }, 250);
+    }
+    // WHAT THE FRAME IS GIVEN: the options being edited, the slides held back -- the layout is what is being laid
+    // out, and music playing in the house put Music Full Screen over it (2026-11-01, on the house) -- unless Slides &
+    // Notifications is on (this.extras: the preview's alone, never saved; off each time the editor opens)
+    still() {
+      var o = copy(this.opts);
+      if (this.extras) return o;
+      ['music_first', 'music_slide', 'energy_slide', 'weather_slide', 'extra_music', 'extra_forecast'].forEach(function (k) { o[k] = false; });
+      if (o.show === 'both') o.show = 'photos';
+      return o;
     }
     // the places, once the screensaver has drawn them (it plans again as the big element and the cards draw)
     overlaySoon() {
@@ -245,18 +275,23 @@
       var P = info.plan, zs = info.zones, self = this;
       this.ov.style.setProperty('--zf', Math.max(11, Math.min(info.W, info.H) * 0.026).toFixed(1) + 'px');
       var place = function (el, b) { el.style.left = b.x + 'px'; el.style.top = b.y + 'px'; el.style.width = b.w + 'px'; el.style.height = b.h + 'px'; return el; };
-      var zone = function (z, b) {
+      // (plus: the place after what a zone has, while it has room -- a + to tap, or Add Here with a widget picked)
+      var zone = function (z, b, plus) {
         var want = self.pick && LM.fits(zs, z, self.pick);
-        var e = place(h('button', { type: 'button', class: 'z' + (want ? ' want' : ''), 'aria-pressed': self.sel === z ? 'true' : 'false',
-                                    'aria-label': LM.ZONE_NAMES[z], onclick: (ev) => { ev.stopPropagation(); self.tapZone(z); } },
-          [h('span', { text: want ? 'Add Here' : LM.ZONE_NAMES[z] })]), b);
+        var e = place(h('button', { type: 'button', class: 'z' + (want ? ' want' : '') + (plus ? ' plus' : ''), 'aria-pressed': self.sel === z ? 'true' : 'false',
+                                    'aria-label': plus ? 'Add to ' + self.zoneName(z) : self.zoneName(z), onclick: (ev) => { ev.stopPropagation(); self.tapZone(z); } },
+          [h('span', { text: want ? (plus ? '+' : 'Add Here') : plus ? '+' : self.zoneName(z) })]), b);
         self.ov.appendChild(e);
       };
+      // ...room for one more of any kind the zone takes
+      var room = function (z) { return Object.keys(LM.CATALOG).some(function (id) { return LM.fits(zs, z, id); }); };
       var item = function (z, i, b) {
         var w = zs[z][i];
         if (!w) return;
-        self.ov.appendChild(place(h('button', { type: 'button', class: 'w', 'aria-pressed': self.sel === z + ':' + i ? 'true' : 'false',
-          'aria-label': LM.CATALOG[w.id][1] + ', ' + LM.ZONE_NAMES[z], onclick: (ev) => { ev.stopPropagation(); self.select(z + ':' + i); } }), b));
+        var none = !!(info.empty && info.empty[w.id]);
+        self.ov.appendChild(place(h('button', { type: 'button', class: 'w' + (none ? ' empty' : ''), 'aria-pressed': self.sel === z + ':' + i ? 'true' : 'false',
+          'aria-label': LM.CATALOG[w.id][1] + ', ' + self.zoneName(z), onclick: (ev) => { ev.stopPropagation(); self.select(z + ':' + i); } },
+          none ? [h('span', {}, [document.createTextNode(LM.CATALOG[w.id][1]), h('small', { text: LM.CATALOG[w.id][2] })])] : []), b));
       };
       // the big element, and every place a widget can go: a place with nothing in it is drawn as an outline
       if (P.big) this.ov.appendChild(place(h('button', { type: 'button', class: 'big', 'aria-pressed': this.sel === 'big' ? 'true' : 'false',
@@ -264,14 +299,25 @@
       if (zs.line.length) item('line', 0, P.line); else if (this.T().big.kind !== 'none') zone('line', P.line);
       if (zs.row.length) {
         P.row.items.forEach(function (it) { item('row', it.i, it); });
-        if (this.pick && LM.fits(zs, 'row', this.pick)) zone('row', { x: P.row.box.x + P.row.box.w + 12, y: P.row.box.y, w: 110, h: P.row.box.h });
+        // ONE MORE, ALWAYS SHOWN while there is room (2026-11-01, the owner: "As soon as I add one, there is no + or
+        // anything to add another"): a + as big as a widget after the last, on its line -- or under the row, a line full
+        var last = P.row.items[P.row.items.length - 1];
+        if (last && (this.pick ? LM.fits(zs, 'row', this.pick) : room('row'))) {
+          var units = zs.row.reduce(function (n, w) { return n + (LM.UNITS[LM.CATALOG[w.id][0]] || 1); }, 0);
+          var full = units % LM.ROW_LINE === 0, d = last.h;
+          zone('row', full ? { x: P.row.box.x + P.row.box.w / 2 - d / 2, y: P.row.box.y + P.row.box.h + 14, w: d, h: d }
+                           : { x: last.x + last.w + 14, y: last.y, w: d, h: d }, true);
+        }
       } else if (this.T().big.kind !== 'none') zone('row', P.row.box);
       ['tl', 'tr', 'bl', 'br'].forEach(function (z) {
         (P.corners[z] || []).forEach(function (b) { item(z, b.i, b); });
         if (P.ghosts[z]) zone(z, P.ghosts[z]);
-        else if (self.pick && LM.fits(zs, z, self.pick) && P.corners[z] && P.corners[z].length) {
-          var last = P.corners[z][P.corners[z].length - 1], up = z[0] === 'b';
-          zone(z, { x: last.x, y: up ? last.y - 70 : last.y + last.h + 10, w: Math.max(200, last.w), h: 60 });
+        else if ((self.pick ? LM.fits(zs, z, self.pick) : room(z)) && P.corners[z] && P.corners[z].length) {
+          // (after the stack: under a top corner's, over a bottom one's; a + at its side's edge)
+          // (by where the stack is: a top corner's moved out of the big element's way stands at the bottom)
+          var last = P.corners[z][P.corners[z].length - 1], up = last.y > info.H / 2, d = Math.max(40, Math.min(64, info.H * 0.07)), left = z[1] === 'l';
+          zone(z, { x: self.pick ? last.x : left ? last.x : last.x + last.w - d, y: up ? last.y - (self.pick ? 70 : d + 12) : last.y + last.h + 12,
+                    w: self.pick ? Math.max(200, last.w) : d, h: self.pick ? 60 : d }, !self.pick);
         }
       });
       // (the band's empty place only while a band is being added: drawn always, it lay over the bottom corners)
@@ -314,6 +360,8 @@
       }
       this.select(z);
     }
+    // a zone's name: the row says where it is
+    zoneName(z) { return z === 'row' && (this.T().row_at === 'bottom') ? 'The Row, Along the Bottom' : LM.ZONE_NAMES[z]; }
     takes(z) { return LM.ZONES[z][0].map(function (k) { return { circular: 'circular', rectangular: 'rectangular', inline: 'inline', card: 'card', band: 'band' }[k]; }).join(' or ') + ' widgets'; }
     pickWidget(id) {
       var z = this.sel && LM.ZONES[this.sel] ? this.sel : null;
@@ -451,9 +499,10 @@
       if (bg === 'soft') add(K.group({}, [K.slider({ label: 'Darken', value: o.clock_photo_dim, min: 0, max: 80, step: 5, unit: '%', onChange: function (v) { self.change(function (x) { x.clock_photo_dim = v; }); } })]));
       if (bg === 'photos') add(K.group({}, [K.slider({ label: 'Darken', value: o.tb_dim || 0, min: 0, max: 80, step: 5, unit: '%', onChange: function (v) { self.change(function (x) { x.tb_dim = v; }); } })]));
       var more = this.o.house ? '#/house/screensaver' : '#/screens/' + encodeURIComponent(this.o.path) + '/screensaver';
-      add(K.group({ footer: 'Your albums, the order and timing of the photos, the mosaic, each kind of photo’s fit and focus, the wallpaper, the forecast’s details: on the Screensaver page, as before.' },
-        [K.nav({ label: 'Photos, Wallpaper and More', href: more })]));
-      add(K.group({ header: 'Slides', footer: 'What comes between, every so often.' }, [
+      add(K.group({ footer: 'Your albums, the order and timing of the photos, the mosaic, each kind of photo’s fit and focus' + (bg === 'wallpaper' ? ', which wallpaper' : '') +
+          ', the slides’ options, Night Mode and when it starts: on the Screensaver page. Everything you see is set here.' },
+        [K.nav({ label: bg === 'wallpaper' ? 'Choose the Wallpaper, Photos and More' : 'Photos, Slides and Timing', href: more })]));
+      add(K.group({ header: 'Slides', footer: 'What comes between, every so often. The screen here leaves them out, so the layout stays in view.' }, [
         bg === 'photos' ? K.toggle({ label: 'The Forecast Between Photos', sub: 'Every ' + (o.forecast_every || 10) + ' photos', on: o.show === 'both',
           onChange: function (on) { self.change(function (x) { x.show = on ? 'both' : 'photos'; }); } }) : null,
         K.toggle({ label: 'Music Full Screen', sub: 'While something plays', on: !!o.music_first, onChange: function (on) { self.change(function (x) { x.music_first = on; }); } }),
@@ -511,19 +560,24 @@
     widgetPage(z, i) {
       var K = this.K, self = this, w = this.T().zones[z][i], add = (n) => this.sidebar.appendChild(n);
       if (!w) { this.sel = null; return this.screenPage(); }
-      var c = LM.CATALOG[w.id], isCard = c[0] === 'card' || w.id === 'forecast_band';
+      var c = LM.CATALOG[w.id], isBand = w.id === 'forecast_band';
       var set = function (k) { return function (v) { self.change(function (x) { self.T(x).zones[z][i][k] = v; }); }; };
-      add(this.head('mdi:view-grid', c[1], c[2] + ' · ' + LM.ZONE_NAMES[z]));
-      if (!isCard) add(K.group({ header: 'Look', footer: 'Auto takes its color from what is behind it, as the lock screen does.' }, [
+      add(this.head('mdi:view-grid', c[1], c[2] + ' · ' + this.zoneName(z)));
+      // THE SAME LOOK FOR EVERYTHING (2026-11-01, the owner: "Its strange that some things get design elements and
+      // others don't"): a widget's or a card's size, its backdrop and its color
+      if (!isBand) add(K.group({ header: 'Look', footer: 'Auto takes its color from what is behind it, as the lock screen does. Size is against its usual size; the others move to make room.' }, [
+        K.slider({ label: 'Size', value: w.size || 100, min: LM.ITEM_SIZE[0], max: LM.ITEM_SIZE[1], step: 5, unit: '%',
+                   onChange: function (v) { self.change(function (x) { var it = self.T(x).zones[z][i]; if (v === 100) delete it.size; else it.size = v; }); } }),
         K.seg({ label: 'Backdrop', value: w.back, options: [['none', 'None'], ['glass', 'Glass'], ['tint', 'Tinted']], onChange: set('back') }),
         K.seg({ label: 'Color', value: w.color, options: [['auto', 'Auto'], ['white', 'White'], ['accent', 'Accent']], onChange: set('color') })]));
+      if (z === 'row') add(this.rowAt());
       if (w.id === 'music_card') add(K.group({ header: 'While Music Plays' }, [K.toggle({ label: 'Music Full Screen', sub: 'Off: here, in its place', on: !!this.opts.music_first,
         onChange: function (on) { self.change(function (x) { x.music_first = on; }); } })]));
       // its place: any other that takes it
       var zs = this.T().zones, places = Object.keys(LM.ZONES).filter(function (zz) { return zz === z || LM.fits(zs, zz, w.id); });
       var list = zs[z];
       add(K.group({ header: 'Place' }, [
-        places.length > 1 ? K.select({ label: 'Where', value: z, options: places.map(function (zz) { return [zz, LM.ZONE_NAMES[zz]]; }), onChange: function (to) {
+        places.length > 1 ? K.select({ label: 'Where', value: z, options: places.map(function (zz) { return [zz, self.zoneName(zz)]; }), onChange: function (to) {
           self.change(function (x) { var it = self.T(x).zones[z].splice(i, 1)[0]; self.T(x).zones[to].push(it); self.sel = to + ':' + (self.T(x).zones[to].length - 1); });
         } }) : null,
         list.length > 1 && i > 0 ? K.button({ label: z === 'row' || z === 'line' ? 'Move Left' : 'Move Toward the Edge', onClick: function () {
@@ -532,12 +586,21 @@
           self.change(function (x) { var l = self.T(x).zones[z], t = l[i + 1]; l[i + 1] = l[i]; l[i] = t; self.sel = z + ':' + (i + 1); }); } }) : null]));
       add(K.group({}, [K.button({ label: 'Remove ' + c[1], destructive: true, onClick: function () { self.remove(z, i); } })]));
     }
+    // WHERE THE ROW GOES (2026-11-01, the owner: "I may want it all the way at the bottom and not below the clock...
+    // as that tends to be where faces are in pictures")
+    rowAt() {
+      var K = this.K, self = this;
+      return K.group({ header: 'The Row', footer: 'Along the Bottom keeps the middle of a photo clear; the bottom corners stand beside the row, or above it where they would meet.' }, [
+        K.seg({ label: 'Where', value: this.T().row_at || 'under', options: [['under', 'Under the Big Element'], ['bottom', 'Along the Bottom']],
+                onChange: function (v) { self.change(function (x) { self.T(x).row_at = v; }); } })]);
+    }
     zonePage(z) {
       var K = this.K, self = this, h = this.h, add = (n) => this.sidebar.appendChild(n), zs = this.T().zones;
-      add(this.head('mdi:plus', LM.ZONE_NAMES[z], 'Takes ' + this.takes(z)));
+      add(this.head('mdi:plus', this.zoneName(z), 'Takes ' + this.takes(z)));
+      if (z === 'row') add(this.rowAt());
       var fit = Object.keys(LM.CATALOG).filter(function (id) { return LM.fits(zs, z, id); });
       if (!fit.length) { add(h('p', { class: 'note', text: 'This place is full. Remove something from it first.' })); return; }
-      add(K.group({ header: 'Add', footer: z === 'row' ? 'Four circular widgets, or two rectangular, or one rectangular and two circular: as on the iPhone.' : null },
+      add(K.group({ header: 'Add', footer: z === 'row' ? 'Two lines of four: a circular widget is one, a rectangular two, as on the iPhone. A fifth starts the second line.' : null },
         fit.map(function (id) { return K.button({ label: LM.CATALOG[id][1], onClick: function () {
           self.change(function (x) { self.T(x).zones[z].push(W(id)); self.sel = z + ':' + (self.T(x).zones[z].length - 1); });
         } }); })));
