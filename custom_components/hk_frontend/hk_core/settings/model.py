@@ -1716,6 +1716,8 @@ SAVER_SHOWS = ("photos", "both", "forecast", "clock")
 # how the screensaver drew before, so a screen saved earlier draws exactly as it did.
 SAVER_SHOWS += ("glance", "month", "day")
 SAVER_CLOCK_STYLES += ("liquid", "giant", "scattered")
+# Planted (2026-11-02, phase 13, decision 1): a face, offered on the Landscape -- the ivory numerals in its meadow
+SAVER_CLOCK_STYLES += ("planted",)
 SAVER_FORECAST_LAYOUTS = ("classic", "big")
 SAVER_DAY_LOOKS = ("auto", "light", "dark")
 SAVER_DEFAULTS.update({"forecast_layout": "classic", "photo_titles": False, "time_behind": False, "day_look": "auto"})
@@ -1835,6 +1837,10 @@ def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
             if not isinstance(val, bool):
                 return None
             out[k] = val
+    # ONE KEY FOR MUSIC FULL SCREEN (2026-11-02, phase 13: "One home per option"): the editor's Music Full Screen
+    # (music_first) and Settings' Music slide (music_slide) are one choice -- what plays takes the screen while it plays
+    if out["music_slide"]:
+        out["music_first"], out["music_slide"] = True, False
     # an old Wallpaper behind the clock ("petals_violet", 2026-10-31): its art in its own preset (item 45)
     if out["clock_wallpaper"] in WALLPAPER_LEGACY:
         out["clock_wallpaper"], out["clock_wallpaper_color"] = WALLPAPER_LEGACY[out["clock_wallpaper"]]

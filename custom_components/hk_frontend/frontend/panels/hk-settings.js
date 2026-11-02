@@ -37,8 +37,9 @@
 //     forward(path)       an old address of the host's -> where it is now
 //     first()             where an empty address opens (null: Overview)
 //     search()            [{ label, route, where, words }]
-//     notes               { overview, screen_remove, add_screen }: the
-//                 host's words where HK's own page differs on it
+//     notes               { overview, screen_remove, add_screen, secure }: the
+//                 host's words where HK's own page differs on it (secure:
+//                 where to look when talking at the door needs HTTPS)
 //     screenBase          the prefix of a screen's own address
 //     saverPage           true: a screen's address with ?hk_preview=saver is
 //                         a page of only its screensaver (the preview's, on
@@ -63,7 +64,7 @@
 //                 absent on a host without layout history
 //     tabletHealth(panel) a promise for each wall tablet's latest frame
 //                 rate: [{name, screens, fps, fps_screen, fps_style,
-//                 fps_sig, fps_at}] (a screen's Appearance recommends one
+//                 fps_sig, fps_at, secure}] (a screen's Appearance recommends one
 //                 lighter setting at a time from it); absent where tablets
 //                 report to nobody
 //     press(ids, panel)  a tablet's own parts that are the host's, not HA
@@ -2094,12 +2095,6 @@
             K.nav({ label: 'Wall Tablets', href: '#/house/tablets' })]));
         });
       }
-      if (s === 'screensaver' && sub[1] === 'clock-style') {
-        var cpg = mk('Clock Style', function (c) { self.saverStyle(c, M.saverOptions(b.screensaver_options), self.saverPutB(path)); },
-                     ['Screensaver Options', base + '/screensaver']);
-        cpg.saverPreview = true;
-        return cpg;
-      }
       if (s === 'screensaver' && sub[1] === 'weather') {
         var wpg = mk('Weather', function (c) { self.saverWeather(c, M.saverOptions(b.screensaver_options), self.saverPutB(path)); },
                      ['Screensaver Options', base + '/screensaver']);
@@ -2112,7 +2107,8 @@
         epg.saverPreview = true; epg.saverEnergy = true;
         return epg;
       }
-      if (s === 'screensaver' && sub[1] === 'editor') {
+      // (the Clock Style page is the editor's now, Look -> Big -> Face: its old address opens the editor)
+      if (s === 'screensaver' && (sub[1] === 'editor' || sub[1] === 'clock-style')) {
         return this.saverEditorPage(path, { path: path, title: x.title, back: ['Screensaver Options', base + '/screensaver'],
           options: M.saverFollows(b) ? this.hs('look.saver') : b.screensaver_options });
       }
@@ -4031,7 +4027,8 @@
             : 'Slides among the photos: the forecast' + (mf ? '' : ', what’s playing') + (wxKnown ? ', the weather' : '') + (enKnown ? ', and Home Energy.' : '.') }, [
           K.toggle({ label: 'Forecast', sub: 'The forecast over the live sky, as one of the photos. Its sky only moves while it is on screen.',
                      on: both, sk: 'saver:slide_forecast', onChange: function (on) { put('show', on ? 'both' : 'photos'); } })
-        ].concat(muKnown && !mf ? [tog('Music', 'music_slide', 'What’s playing, full screen: the album art, the song and what’s up next, with buttons for the previous or next song.')] : [],
+        // (one key for Music Full Screen, phase 13: the editor's and this page's are the same choice -- music_first)
+        ].concat(muKnown ? [tog('Music Full Screen', 'music_first', 'While something plays: the album art, the song and what’s up next, with buttons for the previous or next song.')] : [],
                  wxKnown ? this.weatherRows(cur, tog, weatherHref) : [],
                  enKnown ? this.energyRows(cur, tog, energyHref) : [],
                  turns.length ? [K.select({ label: 'A Slide', sk: 'saver:forecast_every', value: String(cur.forecast_every),
@@ -5051,15 +5048,10 @@
         // its own settings left the page with no preview at all)
         var withSaver = Object.keys(bd).filter(function (p) { return bd[p].screensaver && bd[p].screensaver_engine !== 'wallpanel'; });
         var pv = withSaver.filter(function (p) { return M.saverFollows(bd[p]); })[0] || withSaver[0];
-        if (sub[0] === 'editor') {
+        // (the Clock Style page is the editor's now, Look -> Big -> Face: its old address opens the editor)
+        if (sub[0] === 'editor' || sub[0] === 'clock-style') {
           return this.saverEditorPage('house', { house: true, path: pv || '', previewPath: pv, title: 'All Screens', back: [title, '#/house/screensaver'],
             options: this.hs('look.saver') });
-        }
-        if (sub[0] === 'clock-style') {
-          var hcur = M.saverOptions(this.hs('look.saver'));
-          var hpg = mk('Clock Style', function (c) { self.saverStyle(c, hcur, self.saverPutH()); });
-          if (pv) { hpg.preview = pv; hpg.saverPreview = true; hpg.saverHouse = true; }
-          return hpg;
         }
         if (sub[0] === 'weather') {
           var wcur = M.saverOptions(this.hs('look.saver'));
@@ -6253,6 +6245,15 @@
         }).catch(function () { /* none to show: asked again later */ });
       }
       return this._health.list;
+    }
+    // TALKING AT THE DOOR NEEDS HTTPS (2026-11-02): a browser gives the microphone only to a secure page, and a camera
+    // sheet's talk button is left out of one that is not. The words to show on the pages that set a camera's talk-back
+    // up, or null while this screen and every wall tablet that has said (the host's tabletHealth: `secure`) are secure.
+    // The host may say where to look (notes.secure); without one, the fix is the address.
+    talkNote() {
+      var health = this.tabletHealth() || [];
+      if (window.isSecureContext !== false && !health.some(function (t) { return t.secure === false; })) return null;
+      return 'Talking at the door needs HTTPS. ' + (this.hostNote('secure') || 'Open Home Assistant by its https:// address.');
     }
     // THIS DEVICE'S OWN (Home Assistant, where tablets report to nobody): the
     // frame rate hk-fps.js measured on this browser, for the screen it
@@ -9748,7 +9749,7 @@
         K.info({ label: 'Type', value: kind[1] }), K.info({ label: 'Address', value: '#' + p.hash })]));
       if (this.err('pop:' + p.hash)) c.appendChild(h('div', { class: 'errline', role: 'alert', text: this.err('pop:' + p.hash) }));
       if (p.kind === 'camera') {
-        c.appendChild(K.group({ header: 'Camera', footer: 'Live talk-back needs UniFi Protect and the camera’s own speaker; without them it plays a recorded clip. A higher-resolution stream can be shown live.' }, [
+        c.appendChild(K.group({ header: 'Camera', footer: 'Live talk-back needs UniFi Protect and the camera’s own speaker; without them it plays a recorded clip. A higher-resolution stream can be shown live.' + (this.talkNote() ? ' ' + this.talkNote() : '') }, [
           this.entityRow({ label: 'Camera', sk: 'pop:entity', value: p.entity, none: null, filter: { domains: ['camera'] },
                            onPick: function (v) { if (v) save({ entity: v }); } }),
           this.entityRow({ label: 'Talk-Back Speaker', sk: 'pop:speaker', value: p.speaker, none: 'The Camera’s Own', filter: { domains: ['media_player'] },
@@ -9831,7 +9832,7 @@
       })));
       var pick = function (key) { return function (v) { np[key] = v; self.render(); }; };
       if (np.kind === 'camera') {
-        c.appendChild(K.group({ header: 'Camera' }, [
+        c.appendChild(K.group({ header: 'Camera', footer: this.talkNote() }, [
           this.entityRow({ label: 'Camera', sk: 'np:entity', value: np.entity, none: 'Choose…', filter: { domains: ['camera'] }, onPick: pick('entity') }),
           this.entityRow({ label: 'Talk-Back Speaker', sk: 'np:speaker', value: np.speaker, none: 'The Camera’s Own', filter: { domains: ['media_player'] }, onPick: pick('speaker') })]));
       } else if (np.kind === 'alarm') {

@@ -2129,6 +2129,8 @@
     Object.keys(SAVER_DEFAULTS).forEach(function (k) {
       out[k] = o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : SAVER_DEFAULTS[k];
     });
+    // (one key for Music Full Screen, settings.py's: music_slide is music_first now -- phase 13)
+    if (out.music_slide === true) { out.music_first = true; out.music_slide = false; }
     return out;
   }
   // THE HOMEVIEW-STYLE FACES (2026-10-30; docs/phase11/HOMEVIEW-LOOK.md, Phase I; settings.py's block of the same
@@ -2154,7 +2156,9 @@
   Object.assign(SAVER_DEFAULTS, { layout: null });
   CLOCK_STYLES.push(['liquid', 'Liquid', 'Soft, glossy numerals that drift slowly over a pastel gradient'],
                     ['giant', 'Giant Numerals', 'An analog clock with 12, 3, 6 and 9 drawn huge on a strong color'],
-                    ['scattered', 'Scattered Numerals', 'A quiet analog face whose numerals lean and fade, on a soft color']);
+                    ['scattered', 'Scattered Numerals', 'A quiet analog face whose numerals lean and fade, on a soft color'],
+                    // (phase 13, decision 1: Planted is a face, offered on the Landscape)
+                    ['planted', 'Planted', 'Ivory numerals standing in the Landscape\u2019s meadow']);
   CLOCK_COLORS.liquid = [['pastel', 'Pastel'], ['sunset', 'Sunset'], ['ocean', 'Ocean'], ['mint', 'Mint']];
   CLOCK_COLORS.giant = [['green', 'Green'], ['blue', 'Blue'], ['orange', 'Orange'], ['pink', 'Pink'], ['black', 'Black']];
   CLOCK_COLORS.scattered = [['rose', 'Rose'], ['sage', 'Sage'], ['sky', 'Sky'], ['sand', 'Sand'], ['night', 'Night']];
