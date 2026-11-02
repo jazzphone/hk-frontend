@@ -5,6 +5,10 @@ HK Frontend's releases, newest first. A GitHub release's notes are its section h
 
 ## Unreleased
 
+## 1.38.0 - 2026-11-02
+
+- **Host words:** the shared screens name their settings through the host (`hkShell.settingsName()`, `settingsPlace()`), so Mantel says Mantel Settings where they send someone to them. In Home Assistant every text reads as before: HK Settings.
+
 ## 1.37.0 - 2026-11-02
 
 - **HK Settings → Features on Mantel:** Add and Remove each feature there, in Mantel's own settings (in Home Assistant, Add feature stays HK Frontend's).
