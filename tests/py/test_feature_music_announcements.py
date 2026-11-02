@@ -86,11 +86,21 @@ async def test_maximum_timeout_and_normal_play_release_marker(hass, music):
     assert not tracker.players(), "deliberately starting music releases suppression"
 
 
-async def test_preset_announcement_suppresses_its_members(hass, music):
+async def test_a_music_assistant_group_announcement_suppresses_its_rooms(hass, music):
+    """Its rooms are the group's in Music Assistant's player list (a preset has no group)."""
+    from unittest.mock import patch
+
+    from custom_components.hk_frontend.features.music import music as MM
     from music_sample_house import DOWNG, DOWN
-    tracker = music_entry(hass).runtime_data.announcements
-    tracker.service(Event("call_service", {"domain": "music_assistant", "service": "play_announcement",
-        "service_data": {"entity_id": DOWNG}}))
+    pids = {r: "ap_" + r.split(".")[1] for r in DOWN}
+    pids[DOWNG] = "sg_down"
+    mgr = music_entry(hass).runtime_data
+    mgr.ma_players = [{"player_id": p, "type": "player"} for r, p in pids.items() if r != DOWNG] + [
+        {"player_id": "sg_down", "type": "group", "group_members": [pids[r] for r in DOWN]}]
+    tracker = mgr.announcements
+    with patch.object(MM, "ma_pids", lambda _hass: pids):
+        tracker.service(Event("call_service", {"domain": "music_assistant", "service": "play_announcement",
+            "service_data": {"entity_id": DOWNG}}))
     assert set(tracker.players()) == {DOWNG, *DOWN}
     assert OFF not in tracker.players()
 
@@ -107,3 +117,25 @@ async def test_resumed_music_reappears_without_waiting_for_idle(hass, music):
     hass.states.async_set(K, "playing", song)
     await hass.async_block_till_done()
     assert not tracker.players()
+
+
+async def test_music_stopped_after_a_pause_is_listed_for_the_screens(hass, music):
+    """Music Assistant stops a queue paused for 30 s; the screens keep it as paused (hk_core/music/resume.py)."""
+    import time
+
+    from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+    from custom_components.hk_frontend.features.music.const import SIGNAL_CONFIG
+    told = []
+    async_dispatcher_connect(hass, SIGNAL_CONFIG, lambda: told.append(1))
+    mgr = music_entry(hass).runtime_data
+    hass.states.async_set(K, "playing", {"media_title": "Song"})
+    hass.states.async_set(K, "paused", {"media_title": "Song"})
+    await hass.async_block_till_done()
+    assert mgr.resumes.players(time.monotonic()) == [] and not told
+    hass.states.async_set(K, "idle", {"media_title": "Song"})
+    await hass.async_block_till_done()
+    assert mgr.resumes.players(time.monotonic()) == [K] and told, "listed, and the screens told"
+    hass.states.async_set(K, "playing", {"media_title": "Song"})
+    await hass.async_block_till_done()
+    assert mgr.resumes.players(time.monotonic()) == []

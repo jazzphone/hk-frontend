@@ -2139,13 +2139,19 @@
     return 'blur';
   }
   var DIM_WORDS = { none: 0, low: 16, medium: 30, high: 45 }, DIM_HELD = null, DIM_HELD_T = 0;
+  // ('glass': Same as the Glass, dress() below)
   function dimPct(v) { return typeof v === 'string' ? (DIM_WORDS[v] || 0) : Math.max(0, Math.min(60, Number(v) || 0)); }
   function dress(el, up) {
     var g = document.documentElement.getAttribute('data-hk-glass') || 'blur';
     if (el.getAttribute('look') !== lookOf(g)) el.setAttribute('look', lookOf(g));
     // (how much, 0-60 %: Off / Low / Medium / High its first hours; the Settings slider's own while it moves)
-    var dim = DIM_HELD !== null ? DIM_HELD : dimPct((paneOf() || {}).dim);
-    if (dim > 0) { el.setAttribute('dim', ''); el.style.setProperty('--pane-dim', String(dim / 100)); }
+    // SAME AS THE GLASS (2026-11-01, the default, the owner: linked, with an opt-out): Bright Glass's Dim, as the
+    // page wears it (hk-settings.js --hk-bright-dim: none where the page isn't in Bright Glass) -- a variable, so
+    // the glass's slider moving in Settings moves it too
+    var own = (paneOf() || {}).dim, linked = DIM_HELD === null && (own === 'glass' || own === undefined || own === null);
+    var dim = DIM_HELD !== null ? DIM_HELD : dimPct(own);
+    if (linked) { el.setAttribute('dim', ''); el.style.setProperty('--pane-dim', 'var(--hk-bright-dim, 0)'); }
+    else if (dim > 0) { el.setAttribute('dim', ''); el.style.setProperty('--pane-dim', String(dim / 100)); }
     else { el.removeAttribute('dim'); el.style.removeProperty('--pane-dim'); }
     var G = window.hkGlass, pane = el.shadowRoot && el.shadowRoot.querySelector('.pane');
     if (!G || !G.pin || !pane) return;

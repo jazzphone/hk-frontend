@@ -3695,7 +3695,7 @@
   // `hk_music/subscribe` websocket command -- now, and again whenever
   // anything is edited, with no reload. Until it arrives everything resolves
   // to "nothing", which every card already draws.
-  var MUSIC = { configured: false, speakers: [], floors: [], playlists: [], home: null };
+  var MUSIC = { configured: false, speakers: [], floors: [], playlists: [], home: null, resumable: [] };
 
   var MUSIC_KEY = 'hk_music_focus';
   // Longer than the slowest measured playlist start (12.7s) with room for a
@@ -3756,7 +3756,12 @@
         a.media_content_type === 'announcement' || id.indexOf('media-source://tts/') === 0 ||
         /^https?:\/\/[^/]+\/api\/tts_proxy\//.test(id);
     }
-    function active(st) { return !!st && !ignored(st) && (st.state === 'playing' || st.state === 'paused'); }
+    function active(st) { return !!st && !ignored(st) && (st.state === 'playing' || st.state === 'paused' || held(st)); }
+    // MUSIC STOPPED AFTER A PAUSE (2026-11-01, hk_core/music/resume.py): Music
+    // Assistant stops a queue paused for 30 s, keeping its song and where it
+    // was; the integration lists those players (`resumable`), and they read
+    // as paused here, so the Music page keeps the song and play resumes it.
+    function held(st) { return !!st && st.state === 'idle' && MUSIC.resumable.indexOf(st.entity_id) >= 0; }
 
     // localStorage is only the FIRST PAINT, before the server answers. It can
     // throw (private mode, blocked storage) and may be empty; both are fine.
@@ -3774,28 +3779,13 @@
       });
     }
 
-    // A PAIR ROOM (a stereo pair: a Music Assistant group picked as one
-    // speaker, hk_core/music/groups.py) plays in a preset through its own
-    // players, which no screen sees; its group player sits idle meanwhile.
-    // So it is out of a playing preset only when that player is PLAYING
-    // something else (a stale `paused` must not hide it).
-    function isPair(e) { return !!(byEntity[e] && byEntity[e].pair); }
-    function elsewhere(e, groupSt, states) {
-      var st = states[e];
-      if (!st || st.state !== 'playing') return false;
-      var mine = (st.attributes || {}).media_content_id, theirs = ((groupSt && groupSt.attributes) || {}).media_content_id;
-      return !!(mine && theirs && mine !== theirs);
-    }
-
     // EVERY SEPARATE THING THE HOUSE IS PLAYING, derived fresh each call.
-    //   preset  an MA sync group that is active with ALL of its rooms active
-    //           (a pair room counts unless it plays something else)
-    //   group   an ad-hoc join, keyed by its LEADER (group_members[0])
+    //   group   a join, keyed by its LEADER (group_members[0]); `preset` names
+    //           the preset whose rooms it is exactly
     //   room    one room on its own
-    // A sync group is recognised by its OWN state, not by a room list that
-    // happens to match, and it only claims its rooms when every one of them is
-    // actually active -- a stale `paused` group must not hide a room that has
-    // since started playing something else.
+    // A PRESET IS ITS ROOMS (2026-11-01, hk_core/music/config.py): no Music
+    // Assistant group plays it, so it is never a player of its own -- its id
+    // (`entity`, "preset:...") is for choosing it, never for a command.
     function contexts(client) {
       var states = (client && client.states) || {};
       var seen = {}, out = [];
@@ -3803,7 +3793,7 @@
         var a = (st && st.attributes) || {};
         return {
           key: key, kind: kind, leader: members[0], members: members,
-          playing: !!st && st.state === 'playing', state: st ? st.state : 'unknown',
+          playing: !!st && st.state === 'playing', state: st ? (held(st) ? 'paused' : st.state) : 'unknown',
           title: a.media_title || '', artist: a.media_artist || '',
           image: a.entity_picture_local || a.entity_picture || null,
           since: Date.parse(st && st.last_changed) || 0,
@@ -3813,13 +3803,6 @@
           posAt: Date.parse(a.media_position_updated_at) || 0
         };
       }
-      presets().forEach(function (g) {
-        var st = states[g.entity];
-        if (!active(st)) return;
-        if (g.members.some(function (m) { return seen[m] || (isPair(m) ? elsewhere(m, st, states) : !active(states[m])); })) return;
-        g.members.forEach(function (m) { seen[m] = 1; });
-        out.push(ctx(g.entity, 'preset', g.members.slice(), st));
-      });
       rooms().forEach(function (r) {
         if (seen[r.entity]) return;
         var st = states[r.entity];
@@ -3830,10 +3813,17 @@
         var members = gm.length > 1 ? gm : [r.entity];
         members.forEach(function (m) { seen[m] = 1; });
         var lead = members[0];
-        out.push(ctx(lead, members.length > 1 ? 'group' : 'room', members,
-                     states[lead] || st));
+        var c = ctx(lead, members.length > 1 ? 'group' : 'room', members, states[lead] || st);
+        if (members.length > 1) { var pre = presetOf(members); if (pre) c.preset = pre.name; }
+        out.push(c);
       });
       return out;
+    }
+    // the preset whose rooms are exactly these, or null
+    function presetOf(members) {
+      return presets().filter(function (p) {
+        return p.members.length === members.length && members.every(function (m) { return p.members.indexOf(m) >= 0; });
+      })[0] || null;
     }
 
     // THE SAME MUSIC IN SEVERAL ROOMS THAT ARE NOT JOINED (2026-10-14). An
@@ -3873,7 +3863,7 @@
 
     function label(c, key) {
       if (!c) return key ? nameOf(key) : '';
-      if (c.kind === 'preset') return nameOf(c.key);
+      if (c.preset) return c.preset;
       // "Kitchen + Loft" at two, "Kitchen +3" beyond -- the picker's
       // convention, and everyone's: a five-room list does not fit, and two
       // names do.
@@ -3977,6 +3967,7 @@
         home: (cfg && cfg.home) || null,
         ignore_announcements: !!(cfg && cfg.ignore_announcements),
         announcements: (cfg && cfg.announcements) || [],
+        resumable: (cfg && cfg.resumable) || [],
         volume: cfg && cfg.volume,
         library: (cfg && cfg.library_entry) || null
       };
@@ -4716,6 +4707,17 @@
       if (el.scrollWidth <= el.clientWidth + 1) el.style.setProperty('touch-action', 'pan-y pinch-zoom');
       else el.style.removeProperty('touch-action');
     });
+  };
+  // ...and kept so (fitPanWatch) for a strip that changes size or is filled after it is drawn: a library shelf, the
+  // weather's hours (2026-11-01, the owner's Pixel Tablet: "it barely works" -- a finger's pan over a strip with
+  // nothing to scroll was the browser's, and the page swipe was cancelled)
+  window.hkCards.fitPanWatch = function (el) {
+    if (!el || el.__hkFitWatch) return;
+    el.__hkFitWatch = true;
+    var again = function () { window.hkCards.fitPan(el); };
+    again();
+    try { new ResizeObserver(again).observe(el); } catch (e) { /* none: measured once */ }
+    try { new MutationObserver(again).observe(el, { childList: true, subtree: true }); } catch (e) { /* none */ }
   };
   window.hkCards.SP = SP;
   window.hkCards.TILE = TILE;

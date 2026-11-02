@@ -126,6 +126,25 @@ ok('Strength 100: twice the wash, twice the lift', /0\.48\) 0%, rgba\(255, 255, 
 HS._apply({ configured: true, look: { glass: 'bright', bright: 0 } });
 ok('Strength 0: the bare glass -- no wash, no lift', /0\) 0%, rgba\(255, 255, 255, 0\) 45%, rgba\(255, 255, 255, 0\)\)$/.test(vars().plate) &&
    lv('--hk-blur-filter') === 'blur(4px) saturate(1.3) brightness(1)', vars().plate);
+HS._apply({ configured: true, look: { glass: 'bright', bright: 50 } });
+ok('Dim 0 (as designed): no shade, nothing for the bars or the Side Pane', vars().plate.indexOf('rgba(0, 0, 0,') < 0 &&
+   !lv('--hk-bright-shade') && !lv('--hk-bright-dim') && HS.brightDim() === 0, vars().plate);
+HS._apply({ configured: true, look: { glass: 'bright', bright: 50, bright_dim: 30 } });
+ok('Dim 30: a shade over the plates, the chips, the floating plates and the Edit mode bar',
+   ['--hk-glass-plate', '--hk-chip-plate', '--hk-float-plate', '--hk-bar-plate'].every(function (k) { return lv(k).indexOf('linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), ') === 0; }),
+   lv('--hk-glass-plate'));
+ok('...the tab bar\'s and the side menu\'s (--hk-bright-shade) and the Side Pane\'s Same as the Glass (--hk-bright-dim)',
+   lv('--hk-bright-shade') === 'linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3))' && lv('--hk-bright-dim') === '0.3' && HS.brightDim() === 30);
+HS._apply({ configured: true, look: { glass: 'bright', bright_dim: 90 } });
+ok('...never past 60', lv('--hk-bright-dim') === '0.6', lv('--hk-bright-dim'));
+HS._apply({ configured: true, look: { glass: 'bright', bright_dim: 30 }, boards: { '': { bright_dim: 10 } } });
+ok('...a screen\'s own Dim wins', lv('--hk-bright-dim') === '0.1', lv('--hk-bright-dim'));
+HS.previewAmount('bright_dim', 45);
+ok('the Settings slider moving (previewAmount): worn at once, before it is saved', lv('--hk-bright-dim') === '0.45', lv('--hk-bright-dim'));
+HS.previewAmount('bright_dim', null);
+ok('...let go: the saved one again', lv('--hk-bright-dim') === '0.1', lv('--hk-bright-dim'));
+HS._apply({ configured: true, look: { glass: 'blur', bright_dim: 30 } });
+ok('...not Bright Glass: no shade, and the Side Pane\'s Same as the Glass is none', !lv('--hk-bright-shade') && !lv('--hk-bright-dim') && HS.brightDim() === 0);
 HS._apply({ configured: true, look: { glass: 'bright', bright: 50 }, boards: { '': { bright: 25 } } });
 ok('a screen\'s own Strength wins', /0\.12\) 0%/.test(vars().plate), vars().plate);
 

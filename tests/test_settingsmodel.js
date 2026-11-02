@@ -556,6 +556,8 @@ ok('...picking a style keeps the Blur Mode already chosen, either\'s',
    M.styleValue('frosted', 'blur_pre', 'blur') === 'frosted');
 ok('...its Strength shows with it, and says it holds back by itself', /Strength/.test(M.glassFooter('bright')) && /holds back/.test(M.glassFooter('bright_pre')) &&
    M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf('bright') >= 0);
+ok('...and its Dim, like the Side Pane\'s, which follows it (copied with the look; 0-60)', /Dim/.test(M.glassFooter('bright_each')) && /Side Pane/.test(M.glassFooter('bright')) &&
+   M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf('bright_dim') >= 0 && M.BRIGHT_DIM_MAX === 60 && M.PANE_DIM_GLASS === 'glass' && M.paneDim('glass') === 0);
 ok('...the tab bar can wear it on its own', M.TAB_BAR_GLASS.some(function (g) { return g[0] === 'bright' && g[1] === 'Bright Glass'; }));
 // WALLPAPERS (2026-10-30, Phase E)
 ok('Wallpaper: a Background, said, with its Night Version, and copied with the screen\'s look',

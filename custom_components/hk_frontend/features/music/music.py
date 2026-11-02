@@ -1,8 +1,8 @@
 """Whole-home music inside Home Assistant: the configuration from the feature, and the engine
 that runs requests against HA's media players.
 
-The engine plays a playlist (grouping the chosen speakers, or through a
-preset's sync group), moves what is playing, stops, and runs the now-playing
+The engine plays a playlist (grouping the chosen speakers: a preset is its
+rooms), moves what is playing, stops, and runs the now-playing
 buttons, with the measured timings in const.py. How it runs them:
 
   * PER-ROOM LOCKS. Each request locks exactly the rooms it touches, so two
@@ -374,7 +374,7 @@ class MusicManager:
             # Guest and Office stopped the Living Room it was grouped with)
             split = self._split(cfg, way, set(members))
             for leader, rest, _gm in split:
-                moved = await self._move(cfg, rest, leader, cfg.preset_for_rooms(rest))
+                moved = await self._move(cfg, rest, leader, None)
                 if not moved.get("ok"):
                     note = NOTE_PRESET if preset else NOTE_GROUP
                     self._note(note, "Speakers did not release",
@@ -497,9 +497,6 @@ class MusicManager:
         group that plays on in the rooms not picked."""
         # THE HOUSE IS READ NOW, holding the rooms: a request that waited
         # for the lock (a double tap) finds the first one's work done.
-        plan = E.update_plan(self.house, cfg, rooms, source)
-        if plan is not None:
-            return await self._update(cfg, source, *plan)
         leader, others, adding = E.move_plan(self.house, rooms, source, preset, cfg)
         if self._state(source) not in ACTIVE:
             if E.already_moved(self.house, leader, others):
@@ -546,44 +543,6 @@ class MusicManager:
         res: dict[str, Any] = {"ok": True, "leader": leader}
         if message:
             res["message"] = message
-        return res
-
-    async def _update(self, cfg: MusicConfig, group: str, add: list[str],
-                      out: list[str]) -> dict[str, Any]:
-        """UPDATE IN PLACE (engine.update_plan): the rooms picked join the
-        group that plays and the rest leave it; its queue never moves. Added
-        first, so the group is never left empty."""
-        if self._state(group) not in ACTIVE:
-            return {"ok": False, "message": f"{cfg.name_of(group)} is not playing."}
-        self._clear(NOTE_TRANSFER)
-        notes = []
-        if add:
-            await self._call("media_player", "join",
-                             {"entity_id": group, "group_members": add})
-            await self._wait(add + [group], lambda: all(p in self._members(group) for p in add),
-                             JOIN_TIMEOUT)
-            missing = [cfg.name_of(p) for p in add if p not in self._members(group)]
-            if missing:
-                notes.append(f"{', '.join(missing)} did not join.")
-                self._note(NOTE_PARTIAL, "Some speakers did not join",
-                           f"{', '.join(missing)} did not join {cfg.name_of(group)}. The music "
-                           "is playing there; try adding the others again.")
-            else:
-                self._clear(NOTE_PARTIAL)
-        if out:
-            await self._call("media_player", "unjoin", {"entity_id": out})
-            gone = lambda p: p not in self._members(group) and len(self._members(p)) <= 1  # noqa: E731
-            await self._wait(out + [group], lambda: all(gone(p) for p in out), RELEASE_TIMEOUT)
-            stuck = [cfg.name_of(p) for p in out if not gone(p)]
-            if stuck:
-                notes.append(f"{', '.join(stuck)} did not leave.")
-            # only a speaker out on its own: a pause to one still synced is the whole group's
-            loud = [p for p in out if gone(p) and self._state(p) == "playing"]
-            if loud:
-                await self._call("media_player", "media_pause", {"entity_id": loud})
-        res: dict[str, Any] = {"ok": True, "leader": group}
-        if notes:
-            res["message"] = " ".join(notes)
         return res
 
     async def stop(self, rooms: list[str] | None = None,

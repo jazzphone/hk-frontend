@@ -186,7 +186,7 @@
     // live cameras rest while another window has the focus (hk-cameras.js
     // CAM_FOCUS) -- behind the screensaver they always rest
     cameras: { order: [], live: true, focus_pause: true },
-    look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, bright: 50, well: 'dark', frost_tint: false, tile_style: 'auto', bright_pages: 'home', details: true, browse_view: 'music-browse', sky_switch: null,
+    look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, bright: 50, bright_dim: 0, well: 'dark', frost_tint: false, tile_style: 'auto', bright_pages: 'home', details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {}, page_accents: {},
             // FLAT COLORS (settings.py flat_colors; resolveFlatColors)
             flat_colors: { accent: 'auto', off_tint: 'auto', pages: 'accent' }, flat_page_colors: {},
@@ -223,7 +223,7 @@
     side_pane: { side: 'right', width: 'standard',
                  dashboard: { show: 'off', sections: [{ kind: 'weather' }, { kind: 'calendar' }, { kind: 'now_playing', when: 'active' }] },
                  saver: { show: 'off', sections: [{ kind: 'clock', size: 'tiny' }, { kind: 'calendar' }, { kind: 'now_playing', size: 'less', when: 'active' }] },
-                 doorbell: true, headings: true, dim: 0 },
+                 doorbell: true, headings: true, dim: 'glass' },
     // Browse Music (HK Settings -> Features -> Music). The Discover rows arrive as
     // the queries themselves (settings.py discover_rows); these are its
     // default five.
@@ -431,7 +431,12 @@
     '<rect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/></svg>")';
   // key: 'frost' | 'blur' | 'tint' | 'bright' -- this dashboard's own (its Screen page), else
   // the house's (look.*).
+  // THE SETTINGS SLIDER'S AMOUNT while it moves (hkSettings.previewAmount,
+  // as the Side Pane's Dim): worn a few seconds past the last move, long
+  // enough for the saved setting to come back
+  var HELD = {}, HELD_T = {};
   function amount(key) {
+    if (HELD.hasOwnProperty(key)) return HELD[key];
     var b = boardHere(), v = b && b[key];
     var n = (v === null || v === undefined || v === '') ? Number(get('look.' + key)) : Number(v);
     return isFinite(n) ? Math.max(0, Math.min(100, n)) : 50;
@@ -542,6 +547,12 @@
   // the wash and the lift together. CAPPED: never past where white text on
   // the plate falls under 4.5:1 over the light stop (brightCap) -- so on a
   // light background the glass holds back by itself.
+  // DIM (look.bright_dim / a screen's bright_dim, 0-BRIGHT_DIM_MAX %, 0 as
+  // designed; 2026-11-01, the owner: like the Side Pane's Dim): a shade over
+  // the glass, under the words -- the cards, the chips, the floating plates,
+  // the bars (--hk-bright-shade: the tab bar's and the side menu's own
+  // plates), and the Side Pane's when its Dim is Same as the Glass
+  // (--hk-bright-dim). Only darker, so the cap's 4.5:1 only grows.
   var BRIGHT = {
     wash: [0.24, 0.09, 0.05], chip: [0.30, 0.12, 0.07], lift: 0.08, mix: 0.07,
     rim: 'inset 0 0 0 1.5px rgba(255,255,255,0.22), inset 0 1.5px 0 rgba(255,255,255,0.30)',
@@ -559,6 +570,7 @@
     // a bar (the tab bar's, the Edit mode bar)
     bar: 'linear-gradient(150deg, rgba(255,255,255,0.30), rgba(255,255,255,0.14))', barShadow: '0 10px 30px rgba(0,0,0,0.18)'
   };
+  var BRIGHT_DIM_MAX = 60;
   function isBright(g) { return g === 'bright' || g === 'bright_pre' || g === 'bright_each'; }
   function rgbOf(s) {
     s = String(s || '').trim();
@@ -610,8 +622,8 @@
     return 'linear-gradient(' + mix + ', ' + mix + '), linear-gradient(160deg, ' + w(0) + ' 0%, ' + w(1) + ' 45%, ' + w(2) + ')';
   }
   // the look's variables at Strength `n` (capped by `stops`, the sky's), in
-  // a mode ('each': every plate blurs itself)
-  function brightLook(n, stops, each) {
+  // a mode ('each': every plate blurs itself), at Dim `dim` (%)
+  function brightLook(n, stops, each, dim) {
     var light = lightStop(stops), k = Math.min(n, brightCap(stops)) / 50;
     var filter = 'blur(4px) saturate(1.3) brightness(' + +(1 + BRIGHT.lift * k).toFixed(3) + ')';
     // --sub: the light stop 30 % into white .78 (color-mix's arithmetic,
@@ -633,12 +645,27 @@
                 '--hk-bar-plate': BRIGHT.bar, '--hk-bar-backdrop': filter, '--hk-bar-edge': '1px solid transparent',
                 '--hk-bar-shadow': BRIGHT.rim + ', ' + BRIGHT.barShadow };
     if (each) { out['--hk-glass-backdrop'] = filter; out['--hk-chip-backdrop'] = filter; }
+    var d = Math.max(0, Math.min(BRIGHT_DIM_MAX, Number(dim) || 0)) / 100;
+    if (d > 0) {
+      var shade = 'linear-gradient(rgba(0, 0, 0, ' + d + '), rgba(0, 0, 0, ' + d + '))';
+      ['--hk-glass-plate', '--hk-chip-plate', '--hk-float-plate', '--hk-bar-plate'].forEach(function (k) { out[k] = shade + ', ' + out[k]; });
+      out['--hk-bright-shade'] = shade;
+      out['--hk-bright-dim'] = String(d);
+    }
     return out;
   }
-  LOOKS.bright = function () { return brightLook(amount('bright'), skyStops(), false); };
+  // this page's Dim: the slider's while it moves, this screen's own, else
+  // All Screens'
+  function brightDim() {
+    var v = HELD.hasOwnProperty('bright_dim') ? HELD.bright_dim : null, b = boardHere();
+    if (v === null) v = b && b.bright_dim != null && b.bright_dim !== '' ? b.bright_dim : get('look.bright_dim', 0);
+    var n = Number(v);
+    return isFinite(n) ? Math.max(0, Math.min(BRIGHT_DIM_MAX, Math.round(n))) : 0;
+  }
+  LOOKS.bright = function () { return brightLook(amount('bright'), skyStops(), false, brightDim()); };
   // (the shared layers wearing the picture, as blur_pre is blur's)
   LOOKS.bright_pre = function () { return LOOKS.bright(); };
-  LOOKS.bright_each = function () { return brightLook(amount('bright'), skyStops(), true); };
+  LOOKS.bright_each = function () { return brightLook(amount('bright'), skyStops(), true, brightDim()); };
   // looks taken out, worn as the one that replaced them (settings.py
   // RETIRED_GLASS) -- a cached copy from before may still name one
   var RETIRED = { blur_baked: 'blur_pre' };
@@ -650,7 +677,9 @@
                    // Bright Glass's own (2026-10-30)
                    '--hk-look-glyph-off', '--hk-look-sub', '--hk-look-text-shadow',
                    '--hk-sheet-plate', '--hk-sheet-backdrop', '--hk-sheet-edge', '--hk-sheet-shadow',
-                   '--hk-bar-plate', '--hk-bar-backdrop', '--hk-bar-edge', '--hk-bar-shadow'];
+                   '--hk-bar-plate', '--hk-bar-backdrop', '--hk-bar-edge', '--hk-bar-shadow',
+                   // ...and its Dim (2026-11-01)
+                   '--hk-bright-shade', '--hk-bright-dim'];
   // A PREVIEW ON ONE SCREEN: ?hkglass=clear|frosted|tinted|blur|blur_pre|blur_each|bright|bright_pre|bright_each on the URL
   // (or hkSettings.previewGlass(), which the test probe uses) wears that look
   // on this page only, without changing the house's setting or the cache.
@@ -1778,6 +1807,20 @@
     landscapeFile: landscapeFile,
     BLACK: BLACK,
     skyPalettes: function () { return SKY_BACKDROPS; },
+    // (null: the saved one again now)
+    previewAmount: function (key, n) {
+      clearTimeout(HELD_T[key]);
+      if (n === null || !isFinite(Number(n))) delete HELD[key];
+      else {
+        HELD[key] = Math.max(0, Math.min(100, Number(n)));
+        HELD_T[key] = setTimeout(function () { delete HELD[key]; applyLook(); }, 6000);
+      }
+      applyLook();
+    },
+    // Bright Glass's Dim on this page, 0 when it doesn't wear Bright Glass
+    // (the Side Pane's Same as the Glass)
+    brightDim: function () { return isBright(glass()) ? brightDim() : 0; },
+    BRIGHT_DIM_MAX: BRIGHT_DIM_MAX,
     previewGlass: function (mode) {
       glassPreview = LOOKS[mode] ? mode : null;
       applyLook();

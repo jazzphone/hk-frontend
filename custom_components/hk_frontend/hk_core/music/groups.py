@@ -1,18 +1,14 @@
-"""SPEAKERS MADE OF SEVERAL PLAYERS, and the presets' rooms, as Music Assistant has them.
+"""SPEAKERS MADE OF SEVERAL PLAYERS, as Music Assistant has them.
 
 A stereo pair (2026-10-30: the Office's two HomePods, each panned left or right by its own DSP) is a
 Music Assistant sync group of two players, picked as ONE speaker. Music Assistant cannot put a group
-inside another group, so a preset's group holds the pair's two players themselves -- and Home
-Assistant shows neither: they are hidden from it, and a sync group's player reports no members there.
-So both are read from Music Assistant's own player list (``players/all``, the host's client):
+inside another group, and Home Assistant shows neither of its players: they are hidden from it, and a
+sync group's player reports no members there. So a pair is read from Music Assistant's own player list
+(``players/all``, the host's client): a speaker whose player is a group is a PAIR, one room, its players
+its PARTS. With no player list (Music Assistant not reachable yet) there is no Groups, and no speaker is a
+pair.
 
-  * a speaker whose player is a group is a PAIR: one room, its players its PARTS;
-  * a preset's rooms are its group's members, a pair's parts folded back into the pair. A group
-    holding only some of a pair's parts, or a player that is no speaker, is a PROBLEM the settings
-    page says (``problem_text``).
-
-With no player list (Music Assistant not reachable yet) there is no Groups: the presets keep the
-rooms chosen for them, and no speaker is a pair.
+A PRESET IS MANTEL'S OWN (2026-11-01): a name and its rooms, with no Music Assistant group (config.py).
 
 A VIRTUAL PAIR (2026-10-31, docs/phase4/VIRTUAL-PAIRS.md) is two players Mantel makes one room, with no
 group in Music Assistant: its parts are folded back into it the same way (``rooms_of``'s ``virtual``), and
