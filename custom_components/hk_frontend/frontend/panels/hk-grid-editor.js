@@ -1699,7 +1699,7 @@
       Object.keys(client.states).forEach(function (id) {
         var st = client.states[id], a = Object.assign({}, st.attributes), state = st.state;
         if (id.startsWith('climate.')) { state = 'heat_cool'; Object.assign(a, { current_temperature: 71, target_temp_low: 68, target_temp_high: 74, hvac_action: 'idle' }); }
-        if (id.startsWith('media_player.')) { state = 'playing'; Object.assign(a, { media_title: 'A Favourite Song', media_artist: 'Sample Artist', media_album_name: 'Sample Album', media_duration: 240, media_position: 82, media_position_updated_at: stamp, volume_level: .4 }); }
+        if (id.startsWith('media_player.')) { state = 'playing'; Object.assign(a, { media_title: 'A Favorite Song', media_artist: 'Sample Artist', media_album_name: 'Sample Album', media_duration: 240, media_position: 82, media_position_updated_at: stamp, volume_level: .4 }); }
         if (id.startsWith('weather.')) { state = 'partlycloudy'; Object.assign(a, { temperature: 72, apparent_temperature: 74, humidity: 52, wind_speed: 8, wind_speed_unit: 'mph' }); }
         if (id.startsWith('light.')) { state = 'on'; a.brightness = 180; }
         if (id.startsWith('person.')) state = 'home';
@@ -2113,6 +2113,19 @@
         else this.say('The live preview couldn’t load. Reload this page to try again.');
       }
     }
+    // WHICH BLOCK a refused option or page is in (2026-11-01, the owner: "This error isn't very useful ... I had to find
+    // out where the error was"): the house says only what kind of thing it refused, and what was saved before was
+    // accepted -- so the blocks whose options or pages changed since are the ones to look at; the first is selected
+    suspects(code) {
+      if (code !== 'grid_option' && code !== 'grid_pages' && code !== 'grid_condition' && code !== 'grid_fallback') return '';
+      var was = {};
+      try { (JSON.parse(this.initial || 'null') || { items: [] }).items.forEach(function (it) { was[it.id] = it; }); } catch (e) { /* none saved */ }
+      var part = (it) => JSON.stringify([it.card, it.opts || null, it.pages || null, it.when || null, it.fallback || null, it.rules || null]);
+      var changed = (this.grid.items || []).filter((it) => !was[it.id] || part(was[it.id]) !== part(it));
+      if (!changed.length) return '';
+      if (this.selected !== changed[0].id) this.select(changed[0].id);
+      return ' Check ' + (changed.length > 3 ? 'the ' + changed.length + ' blocks you changed' : 'the ' + listOf(changed) + ' block' + (changed.length > 1 ? 's' : '')) + '.';
+    }
     // anyway: Save Anyway, sent without the version (replaces what was saved meanwhile)
     async save(anyway) {
       if (this.busy || !this.grid || !valid(this.grid)) return;
@@ -2142,8 +2155,8 @@
       } catch (e) {
         if (e && e.code === 'conflict') { changed = true; this.say(''); }
         else {
-          var fields = window.hkSettingsModel.refusals(e);
-          this.say('Couldn’t save. ' + (fields && fields.home_grid ? window.hkSettingsModel.errorText(fields.home_grid) : e.message || e));
+          var fields = window.hkSettingsModel.refusals(e), code = fields && fields.home_grid;
+          this.say('Couldn’t save. ' + (code ? window.hkSettingsModel.errorText(code) + this.suspects(code) : e.message || e));
         }
       } finally { this.busy = false; this.saveButton.disabled = false; }
       if (!changed) return;

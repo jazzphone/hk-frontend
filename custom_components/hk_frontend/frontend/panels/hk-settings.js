@@ -707,6 +707,10 @@
       s.innerHTML = '<div class="loading">Loading…</div>';
       ensureFont();
       var v = stamp(this._panel);
+      // (asked for again, a little later each time and at an address of its own, when a file didn't come: it showed
+      // "couldn't load" until a reload; the third audit pass, 2026-11-01)
+      this._bootTry = (this._bootTry || 0) + 1;
+      if (this._bootTry > 1) v += '&retry=' + this._bootTry;
       try {
         await Promise.all([import('/hk/panels/hk-settings-model.js?v=' + v), import('/hk/panels/hk-settings-kit.js?v=' + v),
                            import('/hk/panels/hk-settings-features.js?v=' + v), import('/hk/modules/hk-settings.js?v=' + v),
@@ -716,7 +720,10 @@
                            // (the grid editor's palette presses go through hk-drag.js)
                            import('/hk/cards/hk-grid-catalog.js?v=' + v).then(function () { return import('/hk/panels/hk-grid-editor.js?v=' + v); })]);
       } catch (e) {
-        s.innerHTML = '<div class="loading">HK settings couldn’t load: ' + String(e && e.message || e) + '</div>';
+        var again = this._bootTry < 5;
+        s.innerHTML = '<div class="loading"></div>';
+        s.firstChild.textContent = 'HK settings couldn’t load: ' + String(e && e.message || e) + (again ? '. Trying again…' : '');
+        if (again) setTimeout(function () { if (self.isConnected) self.boot(); }, 1000 * Math.pow(2, this._bootTry - 1));
         return;
       }
       M = window.hkSettingsModel; K = window.hkSettingsKit; h = K.h; F = window.hkSettingsFeatures; F.use(K);
@@ -3801,6 +3808,12 @@
                            thumb: self.saverThumb(64, 44, 'clock:' + st[0], cur),
                            onClick: function () { put('clock_style', st[0]); } });
         })));
+      // Today's line of what's playing, under its weather (2026-11-01, the owner: "I don't see a place to turn this off")
+      if ((cur.clock_style || 'classic') === 'today') {
+        c.appendChild(K.group({ footer: 'Today shows the song playing in the house under its weather, while something plays.' },
+          [K.toggle({ label: 'What’s Playing', sk: 'saver:clock_today_music', on: cur.clock_today_music !== false,
+                      onChange: function (on) { put('clock_today_music', on); } })]));
+      }
     }
     // THE SCREENSAVER'S FACES, SMALL (2026-10-30; docs/phase11/HOMEVIEW-LOOK.md, Phase I): a picture of a Show or a
     // clock face for Clock Style's rows and Show's strip -- the face itself, drawn once (still) at a 1180 x 820
