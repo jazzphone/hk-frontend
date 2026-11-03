@@ -210,6 +210,7 @@
     hk_music: [['Speakers', 'features/music/speakers', 'music rooms hk music speaker order'],
                ['Speaker Pairs', 'features/music/speakers', 'music pair two homepods stereo left right one room'],
                ['Home Rooms', 'features/music/homes', 'music tablet user room home'],
+               ['Group Leaders', 'features/music/leaders', 'music leader sync group lead announcement room announce tts bedtime'],
                ['House Volume', 'page/music', 'music playlist volume'],
                ['Presets', 'features/music/presets', 'music sync group everywhere downstairs'],
                ['Playlists', 'features/music/playlists', 'music pills playlist chooser decades'],
@@ -552,10 +553,13 @@
     var homes = Object.keys(d.homes || {}).filter(function (u) { return (d.users || []).some(function (x) { return x.id === u; }); }).length;
     c.appendChild(K.group({ header: 'Speakers', footer: 'The rooms music plays in. A wall tablet’s signed-in user starts in its own home room.' }, [
       K.nav({ label: 'Speakers', value: String((d.speakers || []).length), href: '#/features/music/speakers', fk: 'music:speakers' }),
-      K.nav({ label: 'Home Rooms', value: homes ? homes + ' of ' + (d.users || []).length : 'None', href: '#/features/music/homes', fk: 'music:homes' }),
+      K.nav({ label: 'Home Rooms', value: homes ? homes + ' of ' + (d.users || []).length : 'None', href: '#/features/music/homes', fk: 'music:homes' })
+    ].concat(d.leaders ? [
+      K.nav({ label: 'Group Leaders', value: d.leaders.length ? speakerName(d, d.leaders[0]) + (d.leaders.length > 1 ? ' +' + (d.leaders.length - 1) : '') : 'Automatic',
+              href: '#/features/music/leaders', fk: 'music:leaders' })] : []).concat([
       K.slider({ label: 'House Volume', sub: 'Where a playlist starts, in every room it plays in.', sk: 'f:hk_music:volume',
                  value: Math.round((d.volume || 0) * 100), min: 0, max: 100, step: 5, unit: '%', fk: 'music:volume',
-                 onChange: function (v) { P.featSet('hk_music', { volume: v / 100 }); } })]));
+                 onChange: function (v) { P.featSet('hk_music', { volume: v / 100 }); } })])));
     c.appendChild(K.group({ header: 'Now Playing', footer: P.err('f:hk_music:ignore_announcements') ||
       'Applies to every screen. Recognized announcements stay out of Now Playing and the screensaver music view.' }, [
       K.toggle({ label: 'Ignore Announcements', sub: 'Keep spoken reminders out of the music displays',
@@ -571,6 +575,7 @@
       K.toggle({ label: 'Keep Playlists Ready', sub: 'Their songs fetched ahead, so they open and start at once', on: !!d.keep_ready,
                  sk: 'f:hk_music:keep_ready', fk: 'music:keep_ready',
                  onChange: function (on) { P.featSet('hk_music', { keep_ready: on }); } })]));
+    removeRow(P, c, 'Music', 'hk_music');
   }
   function keepReadyNote(d) {
     var what = 'Your playlists and the ones played this week, refreshed every 2½ hours: one at a time, ' +
@@ -636,6 +641,34 @@
             .then(function (ok) { if (ok) { delete st.forms['pair:' + room]; P.back('#/features/music/speakers'); } });
         });
     } })]));
+  }
+  // GROUP LEADERS (2026-11-02, hk_core MusicConfig.leader_of): rooms that
+  // play together play in step with one of them. Music Assistant plays an
+  // announcement to that room on the whole group, so the house says which
+  // rooms lead, and which rooms Home Assistant speaks to.
+  function musicLeaders(P, c, d) {
+    var lead = d.leaders || [], ann = d.announce_rooms || [], err = P.err('f:hk_music:leaders');
+    var row = function (x) { return { value: x.entity, label: x.name, sub: x.floor || null }; };
+    c.appendChild(K.listEditor({ fk: 'lead', minRows: 0, announce: P.announce.bind(P), shownHeader: 'Lead First',
+      moreHeader: 'Other Speakers', emptyText: 'None: the first room picked that isn’t an announcement room leads.',
+      shownFooter: (err ? err + ' ' : '') + 'When rooms play together, the first of these among them leads, and the others play in step with it. ' +
+                   'A room already playing music keeps leading when rooms join it.',
+      rows: lead.map(function (e) { return (d.speakers || []).filter(function (x) { return x.entity === e; })[0]; })
+        .filter(Boolean).map(row),
+      more: (d.speakers || []).filter(function (x) { return lead.indexOf(x.entity) < 0; }).map(row),
+      onChange: function (v) { P.featSet('hk_music', { leaders: v }, ['leaders']); } }));
+    var aerr = P.err('f:hk_music:announce_rooms');
+    c.appendChild(K.group({ header: 'Announcement Rooms', footer: (aerr ? aerr + ' ' : '') +
+        'Rooms Home Assistant speaks to, such as a bedtime reminder. Music Assistant plays an announcement to a group’s leader ' +
+        'in every room of the group, so these lead only when no other room can, and hand their music to the room that leads ' +
+        'when rooms join them.' },
+      (d.speakers || []).map(function (x) {
+        var on = ann.indexOf(x.entity) >= 0;
+        return K.check({ label: x.name, sub: x.floor || null, multi: true, on: on, fk: 'music:announce:' + x.entity, onClick: function () {
+          var v = on ? ann.filter(function (e) { return e !== x.entity; }) : ann.concat(x.entity);
+          P.featSet('hk_music', { announce_rooms: v }, ['announce_rooms']);
+        } });
+      })));
   }
   function musicHomes(P, c, d) {
     var opts = [['', 'No Home Room']].concat((d.speakers || []).map(function (x) { return [x.entity, x.name]; }));
@@ -1875,7 +1908,7 @@
   function page(P, parts) {
     var t = byRoute(parts[0]);
     if (!t) return null;
-    if (t[0] === 'music' && ['speakers', 'pairs', 'homes', 'presets', 'playlists'].indexOf(parts[1]) < 0) return null;
+    if (t[0] === 'music' && ['speakers', 'pairs', 'homes', 'leaders', 'presets', 'playlists'].indexOf(parts[1]) < 0) return null;
     var route = t[0], domain = t[1], name = t[2], sub = parts.slice(1);
     var base = '#/features/' + route;
     var feats = P.data.features || {};
@@ -1913,6 +1946,7 @@
                   ['Speakers', base + '/speakers']);
       }
       if (sub[0] === 'homes') return mk('Home Rooms', withData(function (c, d) { musicHomes(P, c, d); }), back);
+      if (sub[0] === 'leaders') return mk('Group Leaders', withData(function (c, d) { musicLeaders(P, c, d); }), back);
       if (sub[0] === 'presets' && sub[1]) {
         var pid = decodeURIComponent(sub[1]);
         var pp = ((P.feat(domain).data || {}).presets || []).filter(function (x) { return x.id === pid; })[0];
@@ -1990,9 +2024,48 @@
     hk_notify: 'Notifications isn’t added yet. It shows a banner at the top of your screens when an accessory does something — a door opens, someone arrives, a camera sees a person — with a camera’s snapshot.'
   };
 
+  // ADVANCED -> FEATURES: every feature on one page, a switch each, what it
+  // needs, and the page that holds its settings. The same switch as the
+  // feature page's Add and Remove (`<id>/feature/set`). A host whose
+  // features are Home Assistant's (HK Frontend) lists them with the way to
+  // add one there instead.
+  var NEEDS = {
+    hk_music: 'Needs Music Assistant', hk_tv: 'Needs an HDHomeRun tuner', hk_alarm_pin: 'Needs an alarm panel',
+    hk_clean_areas: 'Needs a vacuum with room maps', hk_energy: 'Needs Home Assistant’s Energy settings, or devices that report power',
+    hk_notify: 'Needs nothing more: you choose what it tells'
+  };
+  var SETTINGS_AT = { hk_music: '#/page/music', hk_tv: '#/page/live_tv', hk_alarm_pin: '#/page/security',
+                      hk_clean_areas: '#/page/vacuums', hk_energy: '#/page/energy', hk_notify: '#/features/notify' };
+  function featureList(P, c) {
+    var feats = P.data.features || {};
+    var rows = LIST.filter(function (x) { return stateOf(feats, x[1]) !== 'missing'; });
+    if (!rows.length) { c.appendChild(K.group({ footer: 'No features are reported yet. They show once Home Assistant is connected.' }, [])); return; }
+    var mine = rows.some(function (x) { return own(P, x[1]); });
+    c.appendChild(K.group({ footer: mine
+        ? 'On: the feature’s page and its settings come to every screen. Off: it leaves every screen, and its settings are kept for turning it on again. Each feature’s own page has the same switch.'
+        : 'Each feature is added in ' + haPlace('Devices & Services → HK Frontend → Add feature') + '.' },
+      rows.map(function (x) {
+        var d = x[1], on = stateOf(feats, d) === 'added', name = (feats[d] || {}).name || x[2];
+        if (!own(P, d)) {
+          return K.nav({ label: name, sub: NEEDS[d], value: on ? 'Added' : 'Not Added', icon: x[3], href: on ? SETTINGS_AT[d] : addHref(d), fk: 'features:' + d });
+        }
+        return K.toggle({ label: name, sub: NEEDS[d], icon: x[3], on: on, fk: 'features:switch:' + d,
+                          onChange: function (v) { setFeature(P, d, v); } });
+      })));
+    var on = rows.filter(function (x) { return stateOf(feats, x[1]) === 'added'; });
+    if (on.length) c.appendChild(K.group({ header: 'Settings' }, on.map(function (x) {
+      return K.nav({ label: (feats[x[1]] || {}).name || x[2], icon: x[3], href: SETTINGS_AT[x[1]], fk: 'features:open:' + x[1] });
+    })));
+  }
+  function featuresOn(features) {
+    var rows = listed(features).filter(function (x) { return stateOf(features, x[1]) !== 'missing'; });
+    return { on: rows.filter(function (x) { return stateOf(features, x[1]) === 'added'; }).length, of: rows.length };
+  }
+
   root.hkSettingsFeatures = {
     LIST: LIST, listed: listed, stateOf: stateOf, page: page, use: use, addHref: addHref, search: search, musicTop: musicTop,
     integrationHref: integrationHref, SCOPE: SCOPE, WHAT: WHAT, dndRows: dndRows, dndSummary: dndSummary,
+    featureList: featureList, featuresOn: featuresOn, NEEDS: NEEDS, SETTINGS_AT: SETTINGS_AT,
     _: { tvLists: tvLists, tvCount: tvCount, speakerLists: speakerLists, speakerName: speakerName, pairNote: pairNote, pairChoices: pairChoices, pairsAfter: pairsAfter, playlistSub: playlistSub, vacuumSub: vacuumSub, vacuumsAfter: vacuumsAfter,
          roomLists: roomLists, roomCount: roomCount, energyFound: energyFound, sectionsAfter: sectionsAfter,
          batteriesStored: batteriesStored, stayLabel: stayLabel, notifySummary: notifySummary, whenControl: whenControl,

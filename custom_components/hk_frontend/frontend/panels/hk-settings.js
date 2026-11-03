@@ -1817,7 +1817,7 @@
       if (a === 'popups') return this.p_popups(parts.slice(1));
       if (a === 'pages') return this.p_pages(parts.slice(1));
       if (a === 'chips') return this.p_chips(parts.slice(1));
-      if (a === 'advanced') return parts[1] === 'yaml' ? this.p_yamlRef(parts[2]) : this.p_advanced();
+      if (a === 'advanced') return parts[1] === 'yaml' ? this.p_yamlRef(parts[2]) : parts[1] === 'features' ? this.p_featureList() : this.p_advanced();
       if (a === 'check') return this.p_check();
       if (a === 'setup') return this.p_setup(Number(parts[1] || 0));
       return this.p_overview();
@@ -3806,8 +3806,10 @@
         })));
       // Today's line of what's playing, under its weather (2026-11-01, the owner: "I don't see a place to turn this off")
       if ((cur.clock_style || 'classic') === 'today') {
-        c.appendChild(K.group({ footer: 'Today shows the song playing in the house under its weather, while something plays.' },
-          [K.toggle({ label: 'What’s Playing', sk: 'saver:clock_today_music', on: cur.clock_today_music !== false,
+        c.appendChild(K.group({ footer: 'Today shows the weather under the time, and the song playing in the house under it, while something plays.' },
+          [K.toggle({ label: 'Weather', sk: 'saver:clock_today_weather', on: cur.clock_today_weather !== false,
+                     onChange: function (on) { put('clock_today_weather', on); } }),
+           K.toggle({ label: 'What’s Playing', sk: 'saver:clock_today_music', on: cur.clock_today_music !== false,
                       onChange: function (on) { put('clock_today_music', on); } })]));
       }
     }
@@ -10016,6 +10018,10 @@
       return { title: 'Advanced', top: true, scope: 'What almost nobody changes. Everything here works when left empty.', body: function (c) {
         var set = function (k) { return function (v) { var o = {}; o[k] = v; self.setH(o); }; };
         var I = self.data.integration || {}, f = I.files || {};
+        // every feature on one page, a switch each (hk-settings-features.js featureList)
+        var fo = F.featuresOn(self.data.features);
+        if (fo.of) c.appendChild(K.group({ header: 'Features', footer: 'Turn the house’s features on and off in one place. Each feature’s own page has the same switch.' }, [
+          K.nav({ label: 'Features', icon: 'mdi:puzzle', value: fo.on + ' of ' + fo.of + ' On', href: '#/advanced/features', fk: 'advanced:features' })]));
         c.appendChild(K.group({ header: 'Clock', footer: 'Home Assistant’s Time & Date sensors keep every screen’s clock in step with the house.' }, [
           self.entityRow({ label: 'Time Sensor', sk: 'clock.time', value: self.hs('clock.time'), none: 'Each Screen’s Own Clock', filter: { domains: ['sensor'] }, onPick: set('clock.time') }),
           self.entityRow({ label: 'Date Sensor', sk: 'clock.date', value: self.hs('clock.date'), none: 'Each Screen’s Own Clock', filter: { domains: ['sensor'] }, onPick: set('clock.date') })]));
@@ -10040,6 +10046,13 @@
                   value: M.YAML_REF.reduce(function (n, g) { return n + g.items.length; }, 0) + ' Snippets' })]));
         c.appendChild(K.group({}, [K.nav({ label: 'Setup Assistant', href: '#/setup' })]));
       } };
+    }
+    // ADVANCED -> FEATURES: every feature with its switch (featureList)
+    p_featureList() {
+      var self = this;
+      return { title: 'Features', back: ['Advanced', '#/advanced'],
+               scope: 'The house’s features, each on or off for every screen.',
+               body: function (c) { F.featureList(self, c); } };
     }
     // YOUR OWN DASHBOARDS: every snippet of M.YAML_REF, filled in from this
     // house where it can be, each on its own page with Copy and its place in

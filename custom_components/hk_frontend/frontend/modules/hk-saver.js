@@ -158,6 +158,7 @@
       clock_night_to: /^\d\d:\d\d$/.test(raw.clock_night_to || '') ? raw.clock_night_to : '07:00',
       clock_24: raw.clock_24 === true,
       clock_today_music: raw.clock_today_music !== false,
+      clock_today_weather: raw.clock_today_weather !== false,
       // each face's color: the style's own (hk-saverclock.js checks the id)
       clock_color: raw.clock_colors && typeof raw.clock_colors === 'object' && typeof raw.clock_colors[raw.clock_style] === 'string'
         ? raw.clock_colors[raw.clock_style] : '',
@@ -212,6 +213,11 @@
       // or an additional screen over the clock; and what it leaves out
       weather_slide: raw.weather_slide === true,
       weather_hide: Array.isArray(raw.weather_hide) ? raw.weather_hide.filter(function (x) { return typeof x === 'string'; }) : [],
+      // THE SLIDES' OWN SETTINGS (2026-11-02, settings.py): the slide corner's time size and what it leaves out; what
+      // Music Full Screen leaves out
+      corner_time_size: n(raw.corner_time_size, 100, 250, 100),
+      corner_hide: Array.isArray(raw.corner_hide) ? raw.corner_hide.filter(function (x) { return typeof x === 'string'; }) : [],
+      music_hide: Array.isArray(raw.music_hide) ? raw.music_hide.filter(function (x) { return typeof x === 'string'; }) : [],
       // THE HOMEVIEW-STYLE FACES (2026-10-30, settings.py): the Forecast's Layout (Big: Big Weather), the photos'
       // Titles (the album's name and the year) and Time Behind (the time behind the photo's subject, where the
       // host cut it out: Mantel Photos), and the Day face's look
@@ -1489,6 +1495,9 @@
     // A NARROW COLUMN (beside the pane): the volume on a row of its own, the
     // buttons centred between it and the progress bar above them
     '.mu .mcol{container-type:inline-size}',
+    // (what the Slides section leaves out of Music Full Screen: musicParts)
+    '.mu.h-room .mroom,.mu.h-album .malbum,.mu.h-progress .mprog,.mu.h-buttons .mctl .mbtn,.mu.h-volume .mctl .mvol,.mu.h-next .mnext{display:none!important}',
+    '.mu.h-buttons.h-volume .mctl{display:none!important}',
     '@container (max-width:470px){.mu .mctl{justify-content:center;--g:calc(34px * var(--z));column-gap:calc(12px * var(--z))}.mu .mvol{flex-basis:100%}',
     '  .mu .mbtn.mx{width:calc(44px * var(--z));height:calc(44px * var(--z))}}',
     '.mu[tight="2"] .mtitle{-webkit-line-clamp:1}',
@@ -2928,12 +2937,14 @@
   function cornerDraw(key) {
     var LM = window.hkSaverLayout, WG = window.hkSaverWidgets;
     if (!scn || !LM || !WG) return;
-    var R = layoutRoomOf(), u = Math.min(R.room.w, R.room.h) / 100, m = 6 * u, want = LM.cornerFor(key), client = clientNow(), now = new Date();
+    var R = layoutRoomOf(), u = Math.min(R.room.w, R.room.h) / 100, m = 6 * u, client = clientNow(), now = new Date();
+    // (what the slide lacks, less what the corner is set to leave out; its time at its own size -- the Slides section)
+    var want = LM.cornerFor(key).filter(function (k) { return (cfg.corner_hide || []).indexOf(k) < 0; }), tsz = (cfg.corner_time_size || 100) / 100;
     scn.el.style.left = R.room.x + 'px'; scn.el.style.width = R.room.w + 'px';
     scn.el.style.setProperty('--m', m + 'px'); scn.el.style.setProperty('--g', (0.8 * u) + 'px');
-    if (Math.abs(scn.u - u) > 0.01) { Object.keys(scn.p).forEach(function (k) { scn.p[k].destroy(); }); scn.p = {}; scn.u = u; }
+    if (Math.abs(scn.u - u) > 0.01 || scn.tsz !== tsz) { Object.keys(scn.p).forEach(function (k) { scn.p[k].destroy(); }); scn.p = {}; scn.u = u; scn.tsz = tsz; }
     // (the time a little larger than the corner's words, the Look's own; the date and the weather a line each; Home Status a line)
-    var spec = { time: ['time', 'inline', 2.6, scn.tl], date: ['date', 'inline', 1, scn.tl], weather: ['weather', 'inline', 1, scn.tl], status: ['status', 'inline', 1, scn.tr] };
+    var spec = { time: ['time', 'inline', 2.6 * tsz, scn.tl], date: ['date', 'inline', 1, scn.tl], weather: ['weather', 'inline', 1, scn.tl], status: ['status', 'inline', 1, scn.tr] };
     var face = faceWords(), ctx = { face: face ? { font: face.family } : null };
     ['time', 'date', 'weather', 'status'].forEach(function (k) {
       var on2 = want.indexOf(k) >= 0, c = scn.p[k];
@@ -2950,6 +2961,14 @@
         c.el.style.fontWeight = face ? face.weight : '';
         c.el.style.fontStyle = face ? face.style : '';
       }
+    });
+    // (both top corners' first letters on the margin, as a layout's are: a larger time has more room above its letters)
+    var hr1 = host.getBoundingClientRect(), k1 = host.offsetWidth ? hr1.width / host.offsetWidth : 1;
+    [scn.tl, scn.tr].forEach(function (st) {
+      st.style.marginTop = '';
+      var first = [].filter.call(st.children, function (e) { return e.style.display !== 'none'; })[0], ink = first && inkOf(first);
+      if (!ink || !(k1 > 0)) return;
+      st.style.marginTop = -((ink.y0 - st.getBoundingClientRect().top) / k1) + 'px';
     });
     // (the music's words below the corner, wherever its words now end)
     if (key === 'music') layoutMusic();
@@ -3188,7 +3207,7 @@
   function deg(v) { return v == null || !isFinite(v) ? '—' : Math.round(v) + '°'; }
   // THE BIG ELEMENT: made (or kept) for what the layout asks, and its size as drawn -- {w, h, base} -- or null
   function layoutBig(b, R, u) {
-    var key = [b.kind, b.depth, b.size, b.align, cfg.clock_style, !!cfg.clock_planted, cfg.clock_color, cfg.clock_24, cfg.clock_today_music, R.room.w, R.room.h, cfg.show, mode, !!fcShowing].join('|');
+    var key = [b.kind, b.depth, b.size, b.align, cfg.clock_style, !!cfg.clock_planted, cfg.clock_color, cfg.clock_24, cfg.clock_today_music, cfg.clock_today_weather, R.room.w, R.room.h, cfg.show, mode, !!fcShowing].join('|');
     // (Behind only while photos show: over the forecast between them, or with no photos, the time stands in front)
     var planted = b.kind === 'time' && (b.depth === 'planted' || cfg.clock_planted) && (cfg.show === 'forecast' || (cfg.show === 'clock' && cfg.clock_bg === 'forecast')) && !!fSky;
     if (ly.big && ly.big.key !== key) layoutBigOff();
@@ -3231,7 +3250,7 @@
         el2.className = 'lybig measuring';
         el2.style.cssText = 'left:0;top:0;width:' + R.room.w + 'px;height:' + R.room.h + 'px;container-type:size';
         big.ctl = C.mount(el2, { style: cfg.clock_style, h24: cfg.clock_24, color: cfg.clock_color, bg: 'none', ground: false, scrim: false,
-                                timeOnly: true, music: cfg.clock_today_music, client: client, minutely: !ANALOG[cfg.clock_style] });
+                                timeOnly: true, music: cfg.clock_today_music, todayWeather: cfg.clock_today_weather, client: client, minutely: !ANALOG[cfg.clock_style] });
         big.scale = 0;
       }
       if (!big.scale) {
@@ -3419,6 +3438,32 @@
       if (ly.big && !big.fixed) {
         if (ly.big.scale) { ly.big.el.style.left = (P.big.x - ly.big.off.x) + 'px'; ly.big.el.style.top = (P.big.y - ly.big.off.y) + 'px'; }
         else { ly.big.el.style.left = P.big.x + 'px'; ly.big.el.style.top = P.big.y + 'px'; }
+        // WHERE IT IS SET, BY WHAT SHOWS (2026-11-02, the owner on 0.1.118: the time right of center over some photos,
+        // the Today face with a song under it): the face is measured once, as it first drew; what it shows since --
+        // another song, the weather or not, other figures -- is put back on its Align by its ink (as it was measured:
+        // what flickers, Neon's letters, counted while it is out)
+        if (ly.big.scale && host && host.getBoundingClientRect) {
+          // (by its figures -- the lines under them needn't be even about them -- a range over all of .tm, its own text and
+          // what is inside it, as inkOf looks only inside a node; a face without them, by all it draws)
+          var all0 = inkOf(ly.big.el, true), fig0 = ly.big.el.querySelector('.tm'), fi0 = null;
+          if (fig0 && document.createRange && /\d\D+\d/.test(fig0.textContent)) {
+            var rg0 = document.createRange(); rg0.selectNodeContents(fig0);
+            var fr0 = rg0.getBoundingClientRect && rg0.getBoundingClientRect();
+            if (fr0 && fr0.width > 0) fi0 = { x0: fr0.left, x1: fr0.right };
+          }
+          var vi = fi0 || all0, hr0 = host.getBoundingClientRect(), k0 = host.offsetWidth ? hr0.width / host.offsetWidth : 1;
+          if (vi && k0 > 0) {
+            // (where its ink is inside its own box -- the box and the ink measured together, so a box still on its way
+            // from where it was doesn't count -- then the box put so that point is on the place)
+            var al = O.big.align, at = al === 'left' ? P.big.x : al === 'right' ? P.big.x + P.big.w : P.big.x + P.big.w / 2;
+            var er0 = ly.big.el.getBoundingClientRect(), inside = ((al === 'left' ? vi.x0 : al === 'right' ? vi.x1 : (vi.x0 + vi.x1) / 2) - er0.left) / k0;
+            var want0 = at - inside;
+            if (Math.abs(want0 - parseFloat(ly.big.el.style.left)) > 0.5) ly.big.el.style.left = want0 + 'px';
+            // (and its width for the next plan: a long song measured once kept the corners away from a short one)
+            var vw = all0 ? (all0.x1 - all0.x0) / k0 : ly.big.size.w;
+            if (ly.big.size && Math.abs(vw - ly.big.size.w) > 2) { ly.big.size.w = vw; layoutSoon(); }
+          }
+        }
       }
     }
     // BEHIND THE LAND (2026-11-01): the land drawn again over the big element -- its sky is clear, so what stands in the
@@ -3654,7 +3699,7 @@
       if (!C || (face && !F)) { layer.remove(); if (mode === 'clock') { mode = 'photos'; host.removeAttribute('ckgen'); host.removeAttribute('ckface'); enterForecast(); } return; }
       ckCtl = face
         ? F.mount(layer, { kind: cfg.show, h24: cfg.clock_24, weather: weatherEntity(), look: cfg.day_look, clocks: C, client: clientNow(), groundOnly: !!cfg.layout && layoutBigKind() !== 'none' })
-        : C.mount(layer, { style: cfg.clock_style, h24: cfg.clock_24, music: cfg.clock_today_music, color: cfg.clock_color, bg: bg, motion: cfg.clock_motion, face: !cfg.layout,
+        : C.mount(layer, { style: cfg.clock_style, h24: cfg.clock_24, music: cfg.clock_today_music, todayWeather: cfg.clock_today_weather, color: cfg.clock_color, bg: bg, motion: cfg.clock_motion, face: !cfg.layout,
                            speed: cfg.clock_speed, depth: cfg.clock_depth, weather: weatherEntity(),
                            // a Wallpaper: its night version while the sun is down, as the dashboard's After Sunset
                            wallpaper: bg === 'wallpaper' ? { id: cfg.clock_wallpaper, color: cfg.clock_wallpaper_color, night: sunDown() } : null,
@@ -3691,9 +3736,20 @@
     return out.join(' ') || 'none';
   }
   // the options but the clock's face (its style, 24-hour)
+  // THE SLIDES' OWN SETTINGS changed alone (the editor's Slides section, a slide on show): drawn again in place
+  function sansSlides(c) {
+    var o = {};
+    Object.keys(c || {}).forEach(function (k) { if (['corner_time_size', 'corner_hide', 'music_hide'].indexOf(k) < 0) o[k] = c[k]; });
+    return JSON.stringify(o);
+  }
+  function slidesAgain() {
+    if (muShowing) { musicParts(slideView()); layoutMusic(); }
+    if (scn && slideNow()) cornerDraw(slideNow());
+    return true;
+  }
   function sansClock(c) {
     var o = {};
-    Object.keys(c || {}).forEach(function (k) { if (['clock_style', 'clock_24', 'clock_today_music', 'clock_color', 'clock_speed', 'clock_depth', 'clock_night', 'clock_night_from', 'clock_night_to', 'clock_text_shadow', 'clock_text_outline'].indexOf(k) < 0) o[k] = c[k]; });
+    Object.keys(c || {}).forEach(function (k) { if (['clock_style', 'clock_24', 'clock_today_music', 'clock_today_weather', 'clock_color', 'clock_speed', 'clock_depth', 'clock_night', 'clock_night_from', 'clock_night_to', 'clock_text_shadow', 'clock_text_outline'].indexOf(k) < 0) o[k] = c[k]; });
     return JSON.stringify(o);
   }
   function remountClock() {
@@ -4941,6 +4997,7 @@
     if (enShowing) { hideEnergySlide(); if (exKind === 'energy') exKind = ''; }
     if (wxShowing) { hideWeatherSlide(); if (exKind === 'weather') exKind = ''; }
     muShowing = true; sinceFc = 0; lastSlide = 'music'; mus.lostAt = 0;
+    musicParts(v);
     renderMusic();
     host.setAttribute('muslide', '');
     updateBand();
@@ -4957,6 +5014,11 @@
     v.ready.then(function () { requestAnimationFrame(reveal1); });
     setTimeout(reveal1, 1500);
     return true;
+  }
+  // WHAT MUSIC FULL SCREEN LEAVES OUT (the Slides section, music_hide): the slide's, never the side pane's
+  function musicParts(v) {
+    if (!v || !v.el) return;
+    ['room', 'album', 'progress', 'buttons', 'volume', 'next'].forEach(function (k) { v.el.classList.toggle('h-' + k, (cfg.music_hide || []).indexOf(k) >= 0); });
   }
   function hideMusicSlide() {
     if (!muShowing) return;
@@ -6099,7 +6161,8 @@
       if (previewOn && on && cfg) {
         // ...or only the clock's face changed (its style, 24-hour): drawn again
         // where it is, no fade out and in -- a style can be judged as chosen
-        if (was && sansShapes(was) === sansShapes(cfg) && relayout()) { /* laid out again */ }
+        if (was && sansSlides(was) === sansSlides(cfg) && slidesAgain()) { /* the slide's parts again */ }
+        else if (was && sansShapes(was) === sansShapes(cfg) && relayout()) { /* laid out again */ }
         else if (was && sansClock(was) === sansClock(cfg) && remountClock()) { /* the clock again */ }
         else setTimeout(restartPreview, 0);
       }
@@ -6307,6 +6370,8 @@
          // tools/headless/saver_faces_check.py: the saver's own CSS around a photo's layers
          CSS: CSS,
          photoUrl: photoUrl, releasePh: releasePh, faceWindow: faceWindow, faceOrigin: faceOrigin, alignOf: alignOf, shuffle: shuffle, Deck: Deck, isImage: isImage,
+         // tests: the layout drawn again now (what the face shows changed under it)
+         layoutNow: function () { if (ly) layoutDraw(); },
          // tests: the slide without real photos to count
          slide: { show: showForecastSlide, hide: hideForecastSlide, since: function (n) { sinceFc = n; }, schedule: function () { schedule(); } },
          paneOf: paneOf, withPane: withPane, slideOf: slideOf, turnOf: turnOf, extrasOf: extrasOf, mmss: mmss,
