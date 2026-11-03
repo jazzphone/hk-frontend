@@ -5,6 +5,11 @@ HK Frontend's releases, newest first. A GitHub release's notes are its section h
 
 ## Unreleased
 
+## 1.40.0 - 2026-11-03
+
+- **Screensaver, Align:** a piece's words Auto (by its side: a card on the right ends every line on the right margin), Left, Center or Right; Home Status' card without its Title.
+- **Screensaver, fixed:** the people over the time fade with their photo; a zoomed whole portrait stays centered; the slide corner stays clear of each slide's own words.
+
 ## 1.39.0 - 2026-11-02
 
 - **Screensaver, the slides' own settings:** the slide corner's time size (100 to 250 %) and what it adds; what Music Full Screen shows (room, album, progress, buttons, volume, Up Next). In the editor's Slides section.
