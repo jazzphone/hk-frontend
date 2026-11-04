@@ -113,6 +113,9 @@ CATALOG: dict[str, dict[str, Any]] = {
     "on_now": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
     "todo": {"sizes": ("S", "T", "L", "XL"), "sources": (), "opts": {"entity": "todo", "tap": "tap_target"}},
     "energy_rings": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"period": "period", "tap": "tap_target"}},
+    # THE INTERCOM (2026-11-03, docs/phase17/INTERCOM.md): a button that opens its sheet; Wide also shows the last rooms
+    # picked. Always the sheet, so no When Tapped
+    "intercom": {"sizes": ("S", "W"), "sources": (), "opts": {}},
     # RECENT (2026-11-03, docs/phase19/HOUSE-TIMELINE.md "The views"): the House Timeline's last rows. Mantel's own: a
     # host with no Timeline (Home Assistant) never offers it and draws a stand-in for a layout that has one. show:
     # Automatic (the morning summary from 5 to 11 AM, the rows after), Latest Events, or Morning Summary

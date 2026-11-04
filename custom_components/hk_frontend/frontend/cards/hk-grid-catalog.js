@@ -14,6 +14,7 @@
 // (hk-layout.js, G4) holding one of its card per page: pages() below says which.
 //
 // Plain data and pure functions, loaded at parse time: no hk-base.js needed.
+// @ts-check
 (function () {
   'use strict';
   if (window.hkGridCatalog) return;            // double-load guard
@@ -160,6 +161,11 @@
       return Object.assign({ type: 'custom:hk-todo-card' }, o.entity ? { entity: o.entity } : {}); } },
     energy_rings: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { period: 'period', tap: 'tap_target' }, card: function (s, o) {
       return { type: 'custom:hk-energy-rings-card', period: o.period || 'day' }; } },
+    // THE INTERCOM (2026-11-03, docs/phase17/INTERCOM.md; hk-intercom.js): a button that opens its sheet -- speak a message
+    // into the HomePods of the rooms you pick. Wide also shows the last rooms picked. Always the sheet: no When Tapped.
+    // Without Mantel (HK Frontend in Home Assistant) the card says "Intercom needs Mantel".
+    intercom: { sizes: ['S', 'W'], sources: [], opts: {}, card: function (s) {
+      return { type: 'custom:hk-intercom-card', size: s }; } },
     // RECENT (2026-11-03, docs/phase19/HOUSE-TIMELINE.md "The views", hk-timeline-block.js): the House Timeline's last rows
     // -- or, in the morning, its summary of the night. Mantel's own record: a host that has no Timeline (Home
     // Assistant's HK Frontend, a person whose role has none) draws a stand-in, and the editors never offer it there
