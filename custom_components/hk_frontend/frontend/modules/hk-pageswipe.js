@@ -168,16 +168,22 @@
     try { if (T && T.pages) p = T.pages() || p; } catch (e) { /* not drawn yet */ }
     var S = window.hkSettings, left = null;
     try { left = S && S.swipeLeft ? S.swipeLeft() : null; } catch (e) { left = null; }
+    // (a page of the screen out of its menu -- Now Playing, 2026-11-07 -- comes as itself)
+    var M = menu(), extra = null;
+    try {
+      var cfg = left && M && M.config ? M.config() : null, hit = cfg && (cfg.views || []).filter(function (v) { return v && v.path === left; })[0];
+      if (hit && M.dash) extra = { path: '/' + M.dash() + '/' + left, paths: [left], kind: 'page', title: hit.title || left, icon: hit.icon };
+    } catch (e) { extra = null; }
     return leftOfHome(order({ items: p.items || [], bar: !!p.bar, board: board(), path: location.pathname,
-                              pagesScreen: pagesScreen() }), left);
+                              pagesScreen: pagesScreen() }), left, extra);
   }
   // SWIPE RIGHT ON HOME (2026-11-06): the screen's chosen page, moved from where it is to before Home (the list's first);
-  // not one of the list's pages (a room, a page gone), nothing changes
-  function leftOfHome(items, seg) {
-    if (!seg || !Array.isArray(items) || items.length < 2) return items;
+  // a page of the screen out of the menu (`extra`: Now Playing) put there; else (a room, a page gone) nothing changes
+  function leftOfHome(items, seg, extra) {
+    if (!seg || !Array.isArray(items) || items.length < (extra ? 1 : 2)) return items;
     var at = -1;
     items.forEach(function (it, i) { if (at < 0 && i > 0 && it && viewSeg(it.path) === seg) at = i; });
-    if (at < 0) return items;
+    if (at < 0) return extra && viewSeg(extra.path) === seg ? [extra].concat(items) : items;
     var out = items.slice(), it = out.splice(at, 1)[0];
     out.unshift(it);
     return out;
@@ -897,8 +903,6 @@
     var c = D().curve(x, target, v), s = c.spring, ms = c.ms;
     var tr = 'transform ' + ms + 'ms ' + c.ease;
     var T = window.hkTabBar, P = window.hkSidePane;
-    try { if (T && T.land) T.land(to ? to.path : null, c); } catch (e) { /* not drawn */ }
-    if (P && P.land) P.land(to ? to.path : null, c);
     var moved = [st.view], side = x < 0 ? 1 : -1;
     // (where each is now is what it moves from, not the last frame's)
     setX(st.view, x, st.base);
@@ -907,6 +911,10 @@
       if (M) { setX(M.el, M.off + (M.dir === side ? x : 0), st.base); moved.push(M.el); }
     });
     if (typeof getComputedStyle === 'function') { try { void getComputedStyle(st.view).transform; } catch (e) { /* a test page */ } }
+    // (the highlight and the Side Pane set off after that flush, in the same style update as the page: before it, they
+    // started a frame ahead of it, the pane's fade leading the page by a tenth all the way -- WebKit, 2026-11-07)
+    try { if (T && T.land) T.land(to ? to.path : null, c); } catch (e) { /* not drawn */ }
+    if (P && P.land) P.land(to ? to.path : null, c);
     st.x = target;
     moved.forEach(function (el) { el.style.setProperty('transition', tr); });
     setX(st.view, target, st.base);

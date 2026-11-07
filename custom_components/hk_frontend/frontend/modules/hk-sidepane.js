@@ -751,7 +751,7 @@
           mk('pp', m.playing ? 'Pause' : 'Play', m.playing ? 'mdi:pause' : 'mdi:play', 'pp big') + mk('next', 'Next', 'mdi:skip-next', 'tk') +
           mk('brw', 'Browse Music', 'mdi:music-box-multiple') + '</div>' +
           (m.vol !== null ? '<div class="vol">' + icon('mdi:volume-high', ' class="lo"') + '<input type="range" min="0" max="100" step="1" data-act="vol" aria-label="Volume" value="' +
-            Math.round(m.vol * 100) + '">' + icon('mdi:volume-high') + '</div>' : ''));
+            Math.round(m.vol * 100) + '" style="--f:' + Math.round(m.vol * 100) + '%">' + icon('mdi:volume-high') + '</div>' : ''));
       }
       // FULL: the screensaver's music pane itself (hk-music-pane-card,
       // hk-saver.js): the art, the song, its buttons and volume, Up Next and
@@ -1255,14 +1255,20 @@
       '.ev:has(+ .evd){border-bottom:0}',
       '.np .art{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:' + v('key') + ';display:grid;place-items:center}',
       '.np .tx b{display:block;overflow:hidden;text-overflow:ellipsis}.np .tx i{display:block;font:500 15px/1.3 var(--hk-font-body,inherit);font-style:normal;color:' + v('ink-2') + ';overflow:hidden;text-overflow:ellipsis}',
-      '.pp{all:unset;cursor:pointer;flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:' + v('key') + '}',
-      '.pp hk-icon{--mdc-icon-size:22px;width:22px;height:22px}',
+      // BARE BUTTONS (2026-11-07, the owner: "do we need the wells (circles) behind the icons?"): the glyphs bigger,
+      // each its whole button to tap; a press dims it
+      '.pp{all:unset;cursor:pointer;flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%}',
+      '.pp hk-icon{--mdc-icon-size:28px;width:28px;height:28px}',
+      '.pp:active,.tk:active{opacity:.5}',
       '.cmp .pp{width:30px;height:30px}',
-      '.trow{display:grid;grid-template-columns:44px 1fr 52px 1fr 44px;align-items:center;justify-items:center;margin-top:18px;margin-bottom:8px}',
+      // (Speakers' and Browse's ink in line with the bars' ends; the progress bar and the volume's track each 30 px from
+      // the pause glyph's ink -- player_look_check.py)
+      '.trow{display:grid;grid-template-columns:44px 1fr 52px 1fr 44px;align-items:center;justify-items:center;margin:18px -10px -6px}',
+      '.npp+.trow{margin-top:17px}',
       '.trow>.pp:first-child,.trow>.pp:last-child{width:44px;height:44px}',
-      '.tk{all:unset;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;border-radius:50%}.tk hk-icon{--mdc-icon-size:30px;width:30px;height:30px}',
-      '.tk:active{background:' + v('key') + '}',
-      '.pp.big{width:52px;height:52px;background:#fff;color:#1c1c1e}.pp.big hk-icon{--mdc-icon-size:30px;width:30px;height:30px;color:#1c1c1e}',
+      '.trow>.pp:first-child hk-icon,.trow>.pp:last-child hk-icon{--mdc-icon-size:24px;width:24px;height:24px;color:' + v('ink-2') + '}',
+      '.tk{all:unset;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;border-radius:50%}.tk hk-icon{--mdc-icon-size:34px;width:34px;height:34px}',
+      '.pp.big{width:52px;height:52px}.pp.big hk-icon{--mdc-icon-size:46px;width:46px;height:46px}',
       '.vol{display:flex;align-items:center;gap:10px;margin-top:4px}',
       '.np2 .art{width:88px;height:88px;border-radius:12px}.np2 .tx b{font-size:20px}',
       '.npp{height:4px;border-radius:2px;background:' + v('line-strong') + ';overflow:hidden;margin-top:14px}',
@@ -1282,9 +1288,10 @@
       // slider's -- the owner, 2026-11-01)
       '.vol hk-icon{--mdc-icon-size:20px;width:20px;height:20px;color:' + v('ink-2') + ';flex:none;display:flex;align-items:center;justify-content:center}.vol hk-icon.lo{--mdc-icon-size:14px;width:14px;height:14px}',
       '.vol input{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:44px;background:transparent;margin:0;touch-action:pan-y;cursor:pointer}',
-      '.vol input::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:' + v('line-strong') + '}',
+      // (filled with the ink up to the level, as the screensaver slide's volume and every player's, 2026-11-07)
+      '.vol input::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,' + v('ink') + ' 0 var(--f,0%),' + v('line-strong') + ' var(--f,0%) 100%)}',
       '.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}',
-      '.vol input::-moz-range-track{height:6px;border-radius:3px;background:' + v('line-strong') + '}',
+      '.vol input::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(to right,' + v('ink') + ' 0 var(--f,0%),' + v('line-strong') + ' var(--f,0%) 100%)}',
       '.vol input::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff}',
       // the screensaver's music pane, in a section: More is its art and
       // controls at the pane's width; Full takes what is left
@@ -1429,6 +1436,8 @@
         c.actions.callService('media_player', 'volume_set', { volume_level: level }, { entity_id: m.members.length > 1 ? m.members : m.key })
           .catch(function () { /* refused: said by the host */ });
       });
+      // (its fill follows the finger: the track's --f)
+      this._root.addEventListener('input', function (e) { var t = e.target; if (t && t.getAttribute('data-act') === 'vol') t.style.setProperty('--f', t.value + '%'); });
       this._root.addEventListener('submit', function (e) { self._submit(e); });
     }
     // what it shows now: { list (sections), place, doorbell (a camera) }
@@ -1969,15 +1978,33 @@
     var k = paneChange(toPath), w = k && dash ? parseFloat(dash.style.width) || dash.getBoundingClientRect().width || 0 : 0;
     return w ? { side: dash.getAttribute('side'), grow: k * w } : null;
   }
+  // The bar fits the same tabs on every page. Reserve a Home-only pane's room even on a cold load of Pages, so
+  // its pill doesn't widen (and its tabs don't move into/out of More) after the page has finished sliding.
+  // This is configuration and placement only: no pane is built or measured to answer it.
+  function navigationRoom() {
+    var sp = paneOf(), g = sp && sp.dashboard;
+    if (!g || g.show !== 'home' || !(g.sections || []).length) return null;
+    var M = C() && C().menu, b = M && M.board ? M.board() : {};
+    var p = place(window.innerWidth || 0, window.innerHeight || 0,
+      { width: sp.width, menu: menuLeft(), gridW: b.home_style === 'grid' ? 1 : 0 });
+    return p.kind === 'side' ? { side: sp.side === 'left' ? 'left' : 'right', width: p.w } : null;
+  }
   // THE BAR'S OWN (hk-tabbar.js reads --hk-pane-shift and --hk-pane-glide, and nothing else does): set on <html>, a
   // custom property every element inherits, each frame of a swipe restyled the whole document -- every card's shadow
   // tree -- and the swipes between Home and the Pages screen dropped frames (2026-11-02, the owner: "stutter")
   function barHost() { return document.getElementById('hk-tabbar'); }
+  // WHAT FADES: the pane's own plate, not the element around it (2026-11-07). An ancestor below full opacity cuts a
+  // backdrop-filter off from what is behind it (hk-glass.js), so fading the host turned the frosted pane into a flat
+  // tint on the first frame of every swipe; the plate's own opacity applies to its blur as drawn
+  function plate() {
+    var r = dash && dash.shadowRoot, el = r && r.querySelector('.pane');
+    return el || dash;
+  }
   function followDraw(p) {
     var bar = barHost(), k = FOLLOW.going, side = dash && dash.getAttribute('side');
     if (!k || !dash) return;
     var out = k > 0 ? p : 1 - p, sign = side === 'left' ? -1 : 1;
-    dash.style.opacity = String(1 - out);
+    plate().style.opacity = String(1 - out);
     dash.style.transform = 'translateX(' + (sign * out * DRIFT).toFixed(1) + 'px)';
     // (the bar's middle: half the pane's width toward the pane's side as it goes, back as it comes)
     if (bar) bar.style.setProperty('--hk-pane-shift', (k * p * FOLLOW.shift).toFixed(1) + 'px');
@@ -1993,7 +2020,7 @@
     }
     if (!FOLLOW.going) { unfollow(); return; }
     cancelAnimationFrame(FOLLOW.tween);
-    if (dash) dash.style.transition = 'none';
+    if (dash) { dash.style.transition = 'none'; plate().style.transition = 'none'; }
     var bar = barHost(); if (bar) bar.style.setProperty('--hk-pane-glide', '0s');
     FOLLOW.p = Math.max(0, Math.min(1, p || 0));
     followDraw(FOLLOW.p);
@@ -2003,7 +2030,11 @@
     var from = FOLLOW.p, goal = path ? 1 : 0, t0 = 0;
     if (motion && !stillMotion()) {
       FOLLOW.landed = !!path;
-      if (dash) { dash._followed = !!path; dash.style.transition = 'opacity ' + motion.ms + 'ms ' + motion.ease + ',transform ' + motion.ms + 'ms ' + motion.ease; }
+      if (dash) {
+        dash._followed = !!path;
+        dash.style.transition = 'transform ' + motion.ms + 'ms ' + motion.ease;
+        plate().style.transition = 'opacity ' + motion.ms + 'ms ' + motion.ease;
+      }
       var bar = barHost();
       if (bar) { bar.style.setProperty('--hk-pane-glide', motion.ms + 'ms'); bar.style.setProperty('--hk-pane-ease', motion.ease); }
       FOLLOW.p = goal; followDraw(goal);
@@ -2040,7 +2071,11 @@
     clearTimeout(FOLLOW.giveUp); cancelAnimationFrame(FOLLOW.tween);
     var bar = barHost();
     if (bar) { bar.style.removeProperty('--hk-pane-shift'); bar.style.removeProperty('--hk-pane-ease'); if (!keepGlide) bar.style.removeProperty('--hk-pane-glide'); }
-    if (dash) { dash.style.opacity = ''; dash.style.transform = ''; dash.style.transition = ''; dash.removeAttribute('peek'); }
+    if (dash) {
+      var pl = plate();
+      pl.style.opacity = ''; pl.style.transition = '';
+      dash.style.opacity = ''; dash.style.transform = ''; dash.style.transition = ''; dash.removeAttribute('peek');
+    }
     FOLLOW.to = null; FOLLOW.going = 0; FOLLOW.p = 0;
   }
   // THE MUSIC'S PANEL OVER THE PANE (Less's Speakers and Browse): the
@@ -2342,6 +2377,7 @@
     follow: function (p, toPath) { try { follow(p, toPath); } catch (e) { /* not drawn */ } },
     land: function (path, motion) { try { land(path, motion); } catch (e) { /* not drawn */ } },
     room: function (toPath) { try { return roomFor(toPath); } catch (e) { return null; } },
+    navigationRoom: navigationRoom,
     // THE SETTINGS SLIDER'S DIM while it moves (hk-settings.js pvPaneDim): held a few seconds past the last move,
     // long enough for the saved setting to come back, then the setting's own again
     dim: function (pct) {

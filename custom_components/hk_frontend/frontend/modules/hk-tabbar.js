@@ -854,7 +854,15 @@
     function safe() { return C.safeArea ? C.safeArea() : { top: 0, right: 0, bottom: 0, left: 0 }; }
     function pageW(sa) {
       sa = sa || safe();
-      return Math.max(0, (window.innerWidth || 0) - Math.max(leftOf(), sa.left) - Math.max(paneR(), sa.right));
+      // Fit once for the narrowest page beside a Home-only pane. The row's actual edges still move with the pane;
+      // only the pill's fit stays put, so landing doesn't trigger another width animation or replace its tabs.
+      var P = window.hkSidePane, room = P && P.navigationRoom ? P.navigationRoom() : null;
+      var left = leftOf(), right = paneR();
+      if (room) {
+        if (room.side === 'left') left = Math.max(left, leftOf0() + room.width);
+        else right = Math.max(right, room.width);
+      }
+      return Math.max(0, (window.innerWidth || 0) - Math.max(left, sa.left) - Math.max(right, sa.right));
     }
     // THE STRIP HERE (stripSide), for stripFit -- null without one, or with
     // Use the Side Strip off
@@ -1071,9 +1079,15 @@
       return leftOf0() + (pl > 0 ? pl : 0);
     }
     function leftOf0() {
+      // (hk-menu.js writes it on <html>'s own style: read there first. Through getComputedStyle it worked out the whole
+      // document's styles each time, ~10-14 ms of a page swipe's landing at 4x CPU, 2026-11-07)
+      var de = document.documentElement, own = de && de.style ? de.style.getPropertyValue('--hk-content-left') : '';
       var v = 0;
-      try { v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hk-content-left')) || 0; }
-      catch (e) { v = 0; }
+      if (own) v = parseFloat(own) || 0;
+      else {
+        try { v = parseFloat(getComputedStyle(de).getPropertyValue('--hk-content-left')) || 0; }
+        catch (e) { v = 0; }
+      }
       if (!v) {
         var p = M.panel(), r = p && p.getBoundingClientRect ? p.getBoundingClientRect() : null;
         v = r ? Math.max(0, r.left) : 0;
@@ -1088,6 +1102,11 @@
     // while folded, nor where the tabs are too narrow for a capsule.
     function slide(el, from, to) {
       if (!from || !to || from.pos !== to.pos || S.mode !== 'full' || S.tight) return;
+      if (from.ink) {
+        var css = getComputedStyle(el, '::before');
+        to = { x: to.x + (parseFloat(css.left) || 0), y: to.y + (parseFloat(css.top) || 0),
+               w: parseFloat(css.width) || to.w, h: parseFloat(css.height) || to.h, pos: to.pos };
+      }
       if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) return;
       el.classList.add('slide-from');
       el.style.setProperty('--hx', (from.x - to.x) + 'px');
@@ -1102,9 +1121,27 @@
       var p = S.pill.getBoundingClientRect(), r = el.getBoundingClientRect();
       return { x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height, pos: S.pos };
     }
-    function markHere() {
+    // A second tab tap catches the capsule where it is, rather than where the first tap was sending it.
+    // Only read on a selection change: a swipe supplies its own measured box through follow()/land().
+    function drawnBoxOf(el) {
+      var box = Object.assign(boxOf(el), { ink: true }), css = getComputedStyle(el, '::before'), tr = css.transform;
+      box.x += parseFloat(css.left) || 0; box.y += parseFloat(css.top) || 0;
+      box.w = parseFloat(css.width) || box.w; box.h = parseFloat(css.height) || box.h;
+      var m = /^matrix\(([^)]+)\)$/.exec(tr || '');
+      if (m) {
+        var n = m[1].split(',').map(Number);
+        box.x += n[4]; box.y += n[5]; box.w *= n[0]; box.h *= n[3];
+      }
+      return box;
+    }
+    function markHere(keepBox) {
       // (a page swipe landing: the page it lands on, before the address is)
       var path = S.landing || location.pathname, curIcon = null, hereEl = null;
+      if (!keepBox && S.herePath && S.herePath !== path) {
+        var previous = S.pill.querySelector('.tab.here');
+        if (previous && S.mode === 'full' && !S.tight) S.hereBox = drawnBoxOf(previous);
+      }
+      S.herePath = path;
       S.pill.querySelectorAll('.tab').forEach(function (el) {
         var k = el.getAttribute('data-t');
         var here = k === 'more' ? S.more.concat(S.roomsMode === 'more' ? S.rooms : [])
@@ -1574,6 +1611,12 @@
     }
     SH.onNavigate(onNav);
     window.addEventListener('popstate', onNav);
+    // (the Side Pane's room changed: once, in the frame it happens in -- a page swipe landing between Home and the Pages
+    // screen said it with navigation, and the bar was worked out again between the menu's and the pane's writes, 2026-11-07)
+    function syncSoon() {
+      if (navFrame) return;
+      navFrame = requestAnimationFrame(function () { navFrame = 0; sync(); });
+    }
     window.addEventListener('hk-view-ready', function () { sync(); });
     window.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && S.sheet) { e.stopPropagation(); closeSheet(); }
@@ -1582,7 +1625,7 @@
     window.addEventListener('resize', function () { sync(); });
     // the docked bar came, went or changed height: the rail's room did
     window.addEventListener('hk-dock', function () { sync(); });
-    window.addEventListener('hk-pane', function () { sync(); });
+    window.addEventListener('hk-pane', syncSoon);
     window.addEventListener('hk-module-ready', function () { S.built = ''; sync(); });
     // the host's Home Assistant rows changed (hkShell.haNav: it learned where the page is)
     window.addEventListener('hk-ha-nav-changed', function () { S.built = ''; sync(); });
@@ -1630,6 +1673,7 @@
     function tabOf(path) {
       var at = -1;
       S.tabs.forEach(function (it, i) { if (at < 0 && H.isHere(it, path)) at = i; });
+      if (at < 0 && (S.more || []).some(function (it) { return H.isHere(it, path); })) return S.pill && S.pill.querySelector('.tab[data-t="more"]');
       return at < 0 || !S.pill ? null : S.pill.querySelector('.tab[data-t="' + at + '"]');
     }
     function calm() {
@@ -1676,7 +1720,7 @@
       S.host.setAttribute('data-landing', '');
       clearTimeout(landT);
       landT = setTimeout(function () { if (S.host) { S.host.removeAttribute('data-landing'); S.host.style.removeProperty('--hk-swipe-ms'); S.host.style.removeProperty('--hk-swipe-ease'); } }, motion ? motion.ms + 250 : 600);
-      markHere();
+      markHere(true);
     }
     window.hkTabBar.pages = swipePages;
     window.hkTabBar.follow = follow;

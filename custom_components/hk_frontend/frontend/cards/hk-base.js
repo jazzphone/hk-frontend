@@ -133,27 +133,30 @@
   // shadow root, not under the view the HK Kiosk theme is put on, so it says
   // the font itself, and sets the theme's variable for the cards in it.
   var FONT_ROOT = '--ha-font-family-body:' + v('font-body') + ';font-family:' + v('font-body');
-  // THE SIDE SAFE AREA (2026-10-30, the iPhone Duo): a strip of system
-  // controls down one side -- the Duo's camera, a Live Activity, the time
-  // and Wi-Fi in ~84 pt at its right -- or a phone turned with its Dynamic
-  // Island at the side. The app's web view runs under it, as a native app's
-  // backgrounds do (the sky, a Flat ground, the screensaver), and the page
-  // keeps what is read and touched clear of it: the views, the tab bar, the
-  // menu, the sheets. env(safe-area-inset-left / -right), 0 in a browser on
-  // a computer, so nothing moves there. Read through --hk-safe-left /
-  // --hk-safe-right first, as --hk-safe-top is (hk-menu.js), so a check can
-  // stand one in: a headless browser has no inset of its own.
+  // THE SIDE SAFE AREA (2026-10-30, the iPhone Duo): a strip of system controls down one side -- the Duo's camera, a
+  // Live Activity, the time and Wi-Fi in ~84 pt at its right -- or a phone turned with its Dynamic Island at the side.
+  // The app's web view runs under it, as a native app's backgrounds do (the sky, a Flat ground, the screensaver), and
+  // the page keeps what is read and touched clear of it: the views, the tab bar, the menu, the sheets.
+  // env(safe-area-inset-left / -right), 0 in a browser on a computer, so nothing moves there. Read through
+  // --hk-safe-left / --hk-safe-right first, as --hk-safe-top is (hk-menu.js), so a check can stand one in: a headless
+  // browser has no inset of its own.
   var SAFE = { l: 'var(--hk-safe-left,env(safe-area-inset-left,0px))', r: 'var(--hk-safe-right,env(safe-area-inset-right,0px))',
                t: 'var(--hk-safe-top,env(safe-area-inset-top,0px))', b: 'var(--hk-safe-bottom,env(safe-area-inset-bottom,0px))' };
-  // ...less what the page's own edge already clears on that side -- a docked
-  // menu, the Now Playing pane (hk-menu.js --hk-page-left / -right): the room
-  // the page keeps there
+  // ...less what the page's own edge already clears on that side -- a docked menu, the Now Playing pane (hk-menu.js
+  // --hk-page-left / -right): the room the page keeps there
   SAFE.padL = 'max(0px,' + SAFE.l + ' - var(--hk-page-left,0px))';
   SAFE.padR = 'max(0px,' + SAFE.r + ' - var(--hk-page-right,0px))';
-  // ...and in px, measured (the tab bar's strip, the page's width for its
-  // band): a hidden probe padded by them. Zeros where it can't be read.
-  var safeProbe = null;
+  // ...and in px, measured (the tab bar's strip, the page's width for its band): a hidden probe padded by them, zeros
+  // where it can't be read. Once a window (its size, sheets, stand-ins): each read worked out the whole document's
+  // style, a third of a page swipe's landing on a slowed tablet (2026-11-07)
+  var safeProbe = null, safeKept = null, safeKey = '';
   function safeArea() {
+    var st = document.documentElement && document.documentElement.style, k = window.innerWidth + 'x' + window.innerHeight + '|' + (document.styleSheets || []).length;
+    if (st) k += ['top', 'right', 'bottom', 'left'].map(function (v) { return st.getPropertyValue('--hk-safe-' + v); }).join('|');
+    if (k !== safeKey || !safeKept || !safeProbe || !safeProbe.isConnected) { safeKept = safeMeasure(); safeKey = k; }
+    return Object.assign({}, safeKept);
+  }
+  function safeMeasure() {
     var out = { top: 0, right: 0, bottom: 0, left: 0 };
     try {
       var d = document, host = d.body || d.documentElement;
@@ -1343,14 +1346,11 @@
     off.check = check;
     return off;
   }
-  // SCROLL EDGES (2026-10-17, the user: every list that scrolls, one way).
-  // NONE: a list is cut clean at its frame's edge, as iOS cuts one under a
-  // fixed header. Tried and dropped the same day -- shadows at both ends
-  // (read as a rounded tube), then soft fades (the header's and footer's own
-  // edge still showed through, so the effect was lost; strong enough to hide
-  // it, rows vanished). The user: "no shadow, the simplest" -- and a shadow
-  // is foreign to Flat anyway. The frame, `.hk-edge`, still holds the
-  // scroller (its one child) so it can shrink to fit, and still carries
+  // SCROLL EDGES (2026-10-17, the user: every list that scrolls, one way). NONE: a list is cut clean at its frame's
+  // edge, as iOS cuts one under a fixed header. Tried and dropped the same day -- shadows at both ends (read as a
+  // rounded tube), then soft fades (the header's and footer's own edge still showed through, so the effect was lost;
+  // strong enough to hide it, rows vanished). The user: "no shadow, the simplest" -- and a shadow is foreign to Flat
+  // anyway. The frame, `.hk-edge`, still holds the scroller (its one child) so it can shrink to fit, and still carries
   // hk-scrolled / hk-scroll-more for anything that wants to know.
   //   markup  <div class="hk-edge"><div class="lst">...</div></div>, or the
   //           scroller alone marked `hk-fades` (it carries the marks itself)
@@ -1360,16 +1360,16 @@
     return p + '.hk-edge{position:relative;display:flex;flex-direction:column;flex:1 1 auto;min-height:0}' +
       p + '.hk-edge>:first-child{flex:1 1 auto;min-height:0}';
   }
-  // the frames under `root` (and root itself), each bound once to its
-  // scroller -- a repaint that makes a new scroller binds the new one -- and
-  // checked now, so a paint that adds rows shows its footer at once
-  var EDGE_RO = null;
-  function edgeCheck(sc) {
-    var f = sc && sc._hkEdge;
-    if (!f || !f.setAttribute) return;
-    var top = sc.scrollTop > SHADE_AT, more = sc.scrollHeight - sc.clientHeight - sc.scrollTop > 2;
-    if (top !== f.hasAttribute('hk-scrolled')) { if (top) f.setAttribute('hk-scrolled', ''); else f.removeAttribute('hk-scrolled'); }
-    if (more !== f.hasAttribute('hk-scroll-more')) { if (more) f.setAttribute('hk-scroll-more', ''); else f.removeAttribute('hk-scroll-more'); }
+  // the frames under `root` (and root itself), each bound once to its scroller -- a repaint that makes a new scroller
+  // binds the new one -- and checked before the frame is drawn: all read, then all marked, once a frame (each read
+  // between other cards' writes laid the page out again, eight times as a page swipe landed, 2026-11-07)
+  var EDGE_RO = null, EDGE_DUE = null;
+  function edgeRead(sc) { var f = sc && sc._hkEdge; return f && f.setAttribute ? [f, sc.scrollTop > SHADE_AT, sc.scrollHeight - sc.clientHeight - sc.scrollTop > 2] : null; }
+  function edgeWrite(r) { if (r) { r[0].toggleAttribute('hk-scrolled', r[1]); r[0].toggleAttribute('hk-scroll-more', r[2]); } }
+  function edgeCheck(sc) { edgeWrite(edgeRead(sc)); }
+  function edgeSoon(sc) {
+    if (!EDGE_DUE) requestAnimationFrame(function () { var d = Array.from(EDGE_DUE); EDGE_DUE = null; d.filter(function (x) { return x.isConnected; }).map(edgeRead).forEach(edgeWrite); });
+    (EDGE_DUE = EDGE_DUE || new Set()).add(sc);
   }
   function edgeScroll(e) { edgeCheck(e.currentTarget); }
   function edges(root) {
@@ -1389,10 +1389,10 @@
         sc.addEventListener('scroll', edgeScroll, { passive: true });
         if (EDGE_RO) EDGE_RO.observe(sc);
         if (typeof MutationObserver !== 'undefined') {
-          new MutationObserver(function () { edgeCheck(sc); }).observe(sc, { childList: true });
+          new MutationObserver(function () { edgeSoon(sc); }).observe(sc, { childList: true });
         }
       }
-      edgeCheck(sc);
+      edgeSoon(sc);
     });
   }
   // the header's shadow once a list scrolls under it: none (SCROLL EDGES)
@@ -1506,6 +1506,15 @@
   // for the callers.
   function navigate(path, el) {  // eslint-disable-line no-unused-vars
     window.hkShell.navigate(path);
+  }
+  // WHERE A `navigate` ACTION GOES (a card's _act, and House Status, hk-house-status.js, which opens what a chip opens)
+  function navPath(spec) {
+    var p = String(spec.navigation_path), seg = String(location.pathname).split('/')[1], map = spec.navigation_path_map;
+    // navigation_path_map: a dashboard where "./x" is the wrong answer -- say, an energy dashboard whose battery
+    // page is a separate dashboard of its own. Keyed on the url_path segment: data, not a branch in every call site.
+    if (map && Object.prototype.hasOwnProperty.call(map, seg)) p = map[seg];
+    // "./x" is relative to the CURRENT dashboard, which is how one shared config navigates correctly on every dashboard.
+    return p.slice(0, 2) === './' ? '/' + seg + '/' + p.slice(2) : p;
   }
 
   // A HOME GRID BLOCK OPENS SOMETHING WHEN TAPPED (2026-10-31, the owner on 0.1.94: "ALL the blocks should do
@@ -2452,20 +2461,7 @@
       // the Intercom Button: `#intercom` loads the sheet's code and opens it (hk-loader.js); already there, open it again
       if (action === 'intercom') { var I = window.hkIntercom; if (location.hash === '#intercom' && I && I.open) I.open({ hashed: true }); else location.hash = '#intercom'; return; }
       if (action === 'navigate' && spec.navigation_path) {
-        var p = spec.navigation_path;
-        var seg = String(location.pathname).split('/')[1];
-        // navigation_path_map: a dashboard where "./x" is the wrong answer -- say, an energy dashboard whose battery
-        // page is a separate dashboard of its own. Keyed on the url_path segment: data, not a branch in every call site.
-        var map = spec.navigation_path_map;
-        if (map && Object.prototype.hasOwnProperty.call(map, seg)) {
-          p = map[seg];
-        }
-        // "./x" is relative to the CURRENT dashboard, which is how one shared
-        // config navigates correctly on every dashboard.
-        if (p.slice(0, 2) === './') {
-          p = '/' + seg + '/' + p.slice(2);
-        }
-        navigate(p, this);
+        navigate(navPath(spec), this);
         return;
       }
       // `url` is rare, and falling through to more-info would be the wrong
@@ -3375,6 +3371,7 @@
     b.style.removeProperty('--sx');
   };
   window.hkCards.navigate = navigate;
+  window.hkCards.navPath = navPath;
   window.hkCards.openTarget = openTarget;
   window.hkCards.blockClick = blockClick;
   window.hkCards.neverToggles = neverToggles;
