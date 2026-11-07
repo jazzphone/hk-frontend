@@ -399,6 +399,71 @@
   // an inline piece's markup: its glyph (or dot), then its words
   function inl(glyph, text) { return '<span class="il">' + (glyph || '') + '<span>' + esc(text) + '</span></span>'; }
 
+  // Align a corner's visible ink, including a digit's side bearing and the weather SVG's view-box padding.
+  // Scale is the preview frame's transform: margins are in layout pixels, measurements in screen pixels.
+  // Cache the actual glyph edge: mathematical font bounds can include nearly transparent edge pixels.
+  // (drawn 4x and the edge kept to a quarter pixel: measured whole at 1x and then scaled, a 78 px clock digit at 1920 x
+  // 1080 came out 1.2 px off the date's edge -- 2026-11-07)
+  var cornerCtx = null, cornerInk = {}, INK_SS = 4;
+  function glyphLeft(font, ch, size) {
+    var key = font + '|' + ch;
+    if (cornerInk[key] !== undefined) return cornerInk[key];
+    var canvas = document.createElement('canvas'), pad = Math.ceil(size * INK_SS);
+    canvas.width = canvas.height = pad * 3;
+    var ctx = canvas.getContext('2d');
+    if (!ctx) return 0;
+    ctx.font = font.replace(/(^|\s)([\d.]+)px/, function (m, sp, n) { return sp + parseFloat(n) * INK_SS + 'px'; });
+    ctx.fillStyle = '#fff'; ctx.fillText(ch, pad, pad * 2);
+    var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data, left = 0;
+    outer: for (var x = 0; x < canvas.width; x++) for (var y = 0; y < canvas.height; y++) {
+      if (data[(y * canvas.width + x) * 4 + 3] > 64) { left = (x - pad) / INK_SS; break outer; }
+    }
+    if (Object.keys(cornerInk).length >= 48) cornerInk = {};
+    return (cornerInk[key] = left);
+  }
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function () { cornerInk = {}; });
+  function alignLeft(stack, scale) {
+    if (!stack || !(scale > 0) || !document.createRange) return;
+    var left = Math.round(stack.getBoundingClientRect().left);
+    Array.prototype.forEach.call(stack.children, function (piece) {
+      var prior = parseFloat(piece.style.marginLeft) || 0;
+      if (!piece.getBoundingClientRect().width) return;
+      var il = piece.querySelector('.il'), first = il && il.firstElementChild, x = null;
+      if (!first) return;
+      if (first.tagName.toLowerCase() === 'svg') {
+        try { var b = first.getBBox(), m = first.getScreenCTM(); if (m) x = m.a * b.x + m.c * b.y + m.e; } catch (e) { /* not drawn yet */ }
+      } else {
+        // Keep the leading digit's tabular cell, but measure its glyph without a font-specific tabular inset.
+        if (piece.classList.contains('p-time')) {
+          var parent = first, pc = getComputedStyle(parent), fk = [pc.fontStyle, pc.fontWeight, pc.fontSize, pc.fontFamily].join(' ');
+          var lead = parent.querySelector('[data-corner-digit]');
+          if (lead && lead.getAttribute('data-corner-font') !== fk) { parent.textContent = parent.textContent; lead = null; }
+          if (!lead && parent.firstChild && parent.firstChild.nodeType === 3) {
+            var text = parent.textContent, letter = Array.from(text)[0], rg = document.createRange();
+            rg.setStart(parent.firstChild, 0); rg.setEnd(parent.firstChild, letter.length);
+            var width = rg.getBoundingClientRect().width / scale;
+            lead = document.createElement('span'); lead.setAttribute('data-corner-digit', ''); lead.setAttribute('data-corner-font', fk);
+            lead.style.cssText = 'display:inline-block;text-align:left;font-variant-numeric:proportional-nums;width:' + width + 'px';
+            lead.textContent = letter; parent.replaceChildren(lead, document.createTextNode(text.slice(letter.length)));
+          }
+          if (lead) first = lead;
+        }
+        var t = first.firstChild;
+        if (!t || t.nodeType !== 3 || !t.textContent) return;
+        if (!cornerCtx) cornerCtx = document.createElement('canvas').getContext('2d');
+        if (!cornerCtx) return;
+        var cs = getComputedStyle(first), range = document.createRange(), ch = Array.from(t.textContent)[0];
+        var font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily].join(' '); cornerCtx.font = font;
+        range.setStart(t, 0); range.setEnd(t, ch.length);
+        var r = range.getBoundingClientRect(), mt = cornerCtx.measureText(ch);
+        // Tabular figures center a proportional glyph in its wider digit cell.
+        var cell = /[0-9]/.test(ch) && /tabular-nums/.test(cs.fontVariantNumeric) ? (r.width / scale - mt.width) / 2 : 0;
+        x = r.left + (cell + glyphLeft(font, ch, parseFloat(cs.fontSize))) * scale;
+      }
+      if (x !== null && isFinite(x) && Math.abs((left - x) / scale) > 0.03) piece.style.marginLeft = (prior + (left - x) / scale).toFixed(3) + 'px';
+    });
+  }
+
   // ------------------------------------------------------------ what the house says
   // THE HOME STATUS WORDS, from the header's one security calculation (hk-header.js status(), which the screensaver's
   // Home Status card draws): "Home Secured" when armed and everything shut, else what isn't, its first two items --
@@ -1298,7 +1363,7 @@
   }
 
   window.hkSaverWidgets = {
-    PIECES: PIECES, SHAPES: SHAPES, has: has, define: define, create: create, sample: sample, CSS: CSS, sheet: sheet, addCss: addCss,
+    alignLeft: alignLeft, PIECES: PIECES, SHAPES: SHAPES, has: has, define: define, create: create, sample: sample, CSS: CSS, sheet: sheet, addCss: addCss,
     // (the v1 ids: what the old callers asked for)
     IDS: Object.keys(V1), V1: V1, kind: function (id) { return V1[id] ? V1[id][1] : null; },
     _: { ring: ring, miniRing: miniRing, bar: bar, wxGlyph: wxGlyph, nextEvent: nextEvent, nextEvents: nextEvents, eventWhen: eventWhen, sunNext: sunNext, homeWords: homeWords,
