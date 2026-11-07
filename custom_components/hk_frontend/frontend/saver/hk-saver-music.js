@@ -62,6 +62,17 @@
       return null;
     }
     function musicPlaying() { var c = musicNow(clientNow()); return !!(c && c.playing); }
+    // A self-contained preview, with no entity, queue lookup or playback action.
+    var SAMPLE_ART = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#243d7e"/><stop offset=".55" stop-color="#82658e"/><stop offset="1" stop-color="#edac79"/></linearGradient></defs><path fill="url(#g)" d="M0 0h800v800H0z"/><circle cx="400" cy="400" r="245" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2"/><circle cx="400" cy="400" r="190" fill="none" stroke="#fff" stroke-opacity=".2"/><path d="M300 480V285l220-45v195M300 330l220-45" fill="none" stroke="#fff" stroke-width="18" stroke-linejoin="round"/><ellipse cx="268" cy="480" rx="42" ry="30" fill="#fff"/><ellipse cx="488" cy="435" rx="42" ry="30" fill="#fff"/></svg>');
+    function previewMusicData() {
+      return { sample: true, idle: false, key: '', members: [], room: 'Sample Room', playing: false,
+        title: 'Late Light', artist: 'The Harbor Quartet', album: 'Evening Session', pic: SAMPLE_ART,
+        dur: 242, pos: 83, posAt: 0, vol: .38, next: { title: 'Morning Tide', artist: 'The Harbor Quartet', image: '' } };
+    }
+    function musicParts(v, hide) {
+      if (!v || !v.el) return;
+      ['room', 'album', 'progress', 'buttons', 'volume', 'next'].forEach(function (k) { v.el.classList.toggle('h-' + k, (hide || []).indexOf(k) >= 0); });
+    }
     // what a view draws: the song, or (nothing playing) the room a play would start
     function musicOf(ctx, h) {
       var M = window.hkMusic;
@@ -101,16 +112,16 @@
       el.setAttribute('idle', '');
       el.innerHTML =
         (isFlat() ? '<div class="mbgf"></div><div class="mbgf"></div>' : '<div class="mbgf"><canvas class="mbg"></canvas></div><div class="mbgf"><canvas class="mbg"></canvas></div>') + '<div class="mshade"></div>' +
-        '<div class="mbody"><div class="mart"><div class="msq"><div class="mph">' + svg(ICON.note) + '</div>' +
+        '<div class="mbody">' + (kind === 'slide' ? '<div class="mstage">' : '') + '<div class="mart"><div class="msq"><div class="mph">' + svg(ICON.note) + '</div>' +
         '<div class="mfr"><img alt=""></div><div class="mfr"><img alt=""></div></div></div>' +
-        '<div class="mcol"><div class="mroom"></div><div class="mtitle"></div><div class="martist"></div><div class="malbum"></div>' +
+        '<div class="mcol">' + (kind === 'slide' ? '<div class="mmeta">' : '') + '<div class="mroom"></div><div class="mtitle"></div><div class="martist"></div><div class="malbum"></div>' + (kind === 'slide' ? '</div>' : '') +
         '<div class="mprog"><div class="mbar"><i></i></div><div class="mtimes"><span></span><span></span></div></div>' +
         '<div class="mctl"><div class="mbtn mx" data-act="spk" aria-label="Speakers"><hk-icon icon="hk:homepod"></hk-icon></div>' +
         '<div class="mbtn" data-act="prev">' + svg(ICON.prev) + '</div><div class="mbtn mpp" data-act="pp">' +
         svg(ICON.play) + '</div><div class="mbtn" data-act="next">' + svg(ICON.next) + '</div>' +
         '<div class="mbtn mx" data-act="brw" aria-label="Browse Music">' + svg(ICON.lib) + '</div>' +
         '<div class="mvol">' + svg(ICON.vlo) + '<div class="mvt"><i></i><b></b></div>' + svg(ICON.vhi) + '</div></div>' +
-        '<div class="mnext"><div class="mnth">' + svg(ICON.note) + '<img alt=""></div><div class="mnx"><div class="mnl">Up Next</div><div class="mnt"></div></div></div></div></div>';
+        '<div class="mnext"><div class="mnth">' + svg(ICON.note) + '<img alt=""></div><div class="mnx"><div class="mnl">Up Next</div><div class="mnt"></div></div></div></div>' + (kind === 'slide' ? '</div>' : '') + '</div>';
       if (!window.hkSaverPanel) el.setAttribute('nomx', '');
       var q = function (s) { return el.querySelector(s); };
       var v = { kind: kind, el: el, flat: isFlat(), flip: 0, pic: null, d: null, ready: Promise.resolve(),
@@ -173,7 +184,8 @@
       var tc = t.getContext('2d');
       if (!tc) return;
       tc.imageSmoothingQuality = 'high';
-      tc.drawImage(img, 0, 0, 10, 10);
+      var side = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+      tc.drawImage(img, ((img.naturalWidth || img.width) - side) / 2, ((img.naturalHeight || img.height) - side) / 2, side, side, 0, 0, 10, 10);
       ctx.clearRect(0, 0, MU_BG, MU_BG);
       ctx.imageSmoothingQuality = 'high';
       try { ctx.filter = 'blur(2px)'; } catch (e) { /* the upscale alone */ }
@@ -221,6 +233,7 @@
     function drawMusic(v, d) {
       var idle = !d || d.idle;
       v.d = d;
+      setAttr(v.el, 'sample', !!(d && d.sample));
       // (Speakers and Browse once their panel's code is here: a view made
       // before hk-saver-panel.js loaded kept them hidden for good -- the Side
       // Pane's player without them, 2026-10-30)
@@ -235,12 +248,12 @@
       }
       setText(v.title, idle ? 'Not Playing' : d.title);
       setText(v.artist, idle ? '' : d.artist);
-      setText(v.album, idle ? '' : [d.album, mus.year].filter(Boolean).join(' · '));
+      setText(v.album, idle ? '' : [d.album, d.sample ? '' : mus.year].filter(Boolean).join(' · '));
       /** @type {any} */ var want = idle ? ICON.play : d.playing ? ICON.pause : ICON.play;
       if (v.pp.getAttribute('d') !== want) v.pp.setAttribute('d', want);
       var pic = idle ? '' : d.pic;
       if (pic !== v.pic) { v.pic = pic; showArt(v, pic); }
-      var nx = !idle && mus.next && mus.nextFor === sigOf(d) ? mus.next : null;
+      var nx = !idle && (d.sample ? d.next : mus.next && mus.nextFor === sigOf(d) ? mus.next : null);
       // (asking: the last song's row keeps its place, unseen, until the answer)
       var wait = !nx && !idle && !!mus.nextBusy && !!v.hadNext;
       if (nx) v.hadNext = true; else if (!wait) v.hadNext = false;
@@ -382,12 +395,101 @@
     // moment after a request has landed.
     var PANEL_IDLE = 30000, PANEL_TURN = [300, 420];
 
+    // The text column below the clock, the weather and the date: what does
+    // not fit goes, Up Next first, then the album
+    function layoutMusicView(v, host, root, scn, scale) {
+      if (!v || !host || !root) return;
+      host.style.setProperty('--hk-mu-z', String(scale));
+      var col = v.el.querySelector('.mcol'), info = root.querySelector('.info');
+      if (!col || !info || !v.el.getBoundingClientRect().width) return;
+      var body = v.el.querySelector('.mbody'), area = body.getBoundingClientRect();
+      col.style.removeProperty('bottom');
+      var H = area.height, W = area.width, top = area.top;
+      // Use the slide's available area, including the space a left or right pane
+      // takes. A tablet beside a pane often needs the same stack as an upright
+      // screen, with a scale suited to its shorter column.
+      var beside = host.hasAttribute('pane') && !host.hasAttribute('band');
+      var narrow = H > W * (beside ? 0.74 : 1.05);
+      var row = beside && narrow && W >= 620 && H >= 620, up = narrow && !row;
+      var zs = Math.max(0.45, row ? Math.min(1.25, W / 780, H / 820) : up ? Math.min(W / 820, H / 1180) : Math.min(W / 1280, H / 800));
+      host.style.setProperty('--hk-mu-zs', String(Math.round(zs * 100) / 100));
+      setAttr(host, 'muup', up);
+      setAttr(host, 'murow', row);
+      // (under the slide corner, its words: the old corner cards are hidden under every slide now, phase 13)
+      var over = scn && host.hasAttribute('scorner') ? [].slice.call(scn.tl.children).concat([].slice.call(scn.tr.children)) : info.children;
+      Array.prototype.forEach.call(over, function (c) {
+        if (c.tagName === 'STYLE' || c.style.display === 'none') return;
+        var r = c.getBoundingClientRect();
+        if (r.height > 0 && r.top < area.top + H / 2 && r.right > area.left && r.left < area.right) top = Math.max(top, r.bottom);
+      });
+      var room = top + Math.round((row ? 56 : 24) * zs), m = Math.round(row ? 60 * zs : Math.min(W, H) * 0.06);
+      host.style.setProperty('--hk-mu-top', (room - area.top) + 'px');
+      if (row) {
+        var stage = v.el.querySelector('.mstage'), pad = 56 * zs, width = W - 2 * pad;
+        var height = Math.max(0, area.bottom - m - room), a = Math.min(W * 0.38, H * 0.36, width * 0.48);
+        host.style.setProperty('--hk-mu-stage-x', pad + 'px');
+        host.style.setProperty('--hk-mu-stage-w', width + 'px');
+        host.style.setProperty('--hk-mu-stage-h', height + 'px');
+        body.style.setProperty('--a', a + 'px');
+        var rowOverflow = function () {
+          var bottom = stage.getBoundingClientRect().bottom, excess = 0;
+          // Measure the rows themselves: the volume knob intentionally reaches
+          // outside its thin track and must not make otherwise fitting text vanish.
+          ['.mart', '.mmeta', '.mprog', '.mctl', '.mnext'].forEach(function (sel) {
+            var rect = stage.querySelector(sel).getBoundingClientRect();
+            if (rect.height) excess = Math.max(excess, rect.bottom - bottom);
+          });
+          return excess;
+        };
+        for (var r2 = 0; r2 <= 2; r2++) {
+          v.el.setAttribute('tight', String(r2));
+          if (rowOverflow() <= 1) break;
+        }
+        // Very tall corner widgets leave less room. Keep the controls in view
+        // while the cover and its centered text block continue sharing a row.
+        var extra = rowOverflow();
+        if (extra) body.style.setProperty('--a', Math.max(v.el.querySelector('.mmeta').getBoundingClientRect().height, a - extra) + 'px');
+        return;
+      }
+      // UPRIGHT: the art under the corner, the song and its buttons under the art (an iPhone's Now Playing): what does
+      // not fit goes, Up Next first, then the album, then the art smaller
+      if (up) {
+        body.style.removeProperty('--a');
+        for (var u2 = 0; u2 <= 4; u2++) {
+          v.el.setAttribute('tight', String(Math.min(2, u2)));
+          if (u2 > 2) body.style.setProperty('--a', 'min(' + (84 - (u2 - 2) * 12) + 'cqw,' + (36 - (u2 - 2) * 7) + 'cqh)');
+          if (col.getBoundingClientRect().bottom <= area.bottom - m) break;
+        }
+        return;
+      }
+      body.style.removeProperty('--a');
+      for (var t = 0; t <= 2; t++) {
+        v.el.setAttribute('tight', String(t));
+        // The transport shares the cover's bottom edge. Up Next hangs below
+        // that edge without moving the song and controls when it comes or goes.
+        var artBottom = v.el.querySelector('.mart').getBoundingClientRect().bottom;
+        var ctl = col.querySelector('.mctl').getBoundingClientRect();
+        var progress = col.querySelector('.mprog').getBoundingClientRect();
+        var times = col.querySelector('.mtimes').getBoundingClientRect();
+        var end = ctl.height ? ctl.bottom : progress.height ? Math.max(progress.bottom, times.bottom) : col.querySelector('.mmeta').getBoundingClientRect().bottom;
+        Array.prototype.forEach.call(col.querySelectorAll('.mvol svg'), function (el) {
+          var r = el.getBoundingClientRect();
+          if (r.height && getComputedStyle(el).visibility !== 'hidden') end = Math.max(end, r.bottom);
+        });
+        var tail = col.getBoundingClientRect().bottom - end;
+        col.style.bottom = (area.bottom - artBottom - tail) + 'px';
+        var fitted = col.getBoundingClientRect();
+        if (fitted.top >= room && fitted.bottom <= area.bottom - m) break;
+      }
+    }
+
     // what the shell and the later parts use of this one
     K.drawMusic = drawMusic; K.elapsed = elapsed; K.MU_BG = MU_BG; K.MU_GRACE = MU_GRACE; K.MU_SLOP = MU_SLOP;
     K.muGrace = muGrace; K.mus = mus; K.musicNow = musicNow; K.musicOf = musicOf; K.musicPage = musicPage;
     K.musicPaneView = musicPaneView; K.musicPlaying = musicPlaying; K.musicUsed = musicUsed; K.musicView = musicView;
     K.nextArt = nextArt; K.PANEL_IDLE = PANEL_IDLE; K.PANEL_TURN = PANEL_TURN; K.progress = progress;
     K.setAttr = setAttr; K.sigOf = sigOf; K.slideView = slideView; K.upNextPiece = upNextPiece; K.volEnd = volEnd;
-    K.volFrom = volFrom;
+    K.layoutMusicView = layoutMusicView;
+    K.volFrom = volFrom; K.previewMusicData = previewMusicData; K.musicParts = musicParts;
   };
 })();

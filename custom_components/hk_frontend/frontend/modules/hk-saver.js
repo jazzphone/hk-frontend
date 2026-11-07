@@ -144,10 +144,10 @@
       blackPage, BRIGHT_KEY, callWS, ckFx, cleanDepth, cleanFocus, cleanVariants, clearCanvas, clientNow, coverRect,
       coverShare, CSS, DASH_CSS, DASH_SWIPE, dashLive, dashSeg, dashViews, DAY_GAP, deg, drawBackdrop, drawMusic,
       drawnRect, elapsed, energyPage, EX_PREVIEW_MS, EXTRA_ORDER, extrasOf, FACE_SHOWS, faceOrigin, facesModule,
-      faceWindow, FC_TICK_MS, feedCard, fitOf, FOCUS_F, framed, fromSettings, gate, glyphBox, go, held, hkBoard,
+      faceWindow, FC_TICK_MS, feedCard, faceScale, fitOf, FOCUS_F, framed, fromSettings, gate, glyphBox, go, held, hkBoard,
       hkUnheard, hostPhotoList, hostPhotoSource, houseBlock, inkOf, INKS, isFlat, isImage, kiosk, LANDSCAPES,
-      landShares, layoutOf, load, minsOf, mmss, MOSAIC_COLORS, mosaicAssign, mosaicPlan, MOSAICS, MU_BG, MU_GRACE,
-      MU_SLOP, muGrace, mus, musicHas, musicNow, musicOf, musicPage, musicPaneView, musicPlaying, musicUsed,
+      landShares, layoutOf, layoutMusicView, load, minsOf, mmss, MOSAIC_COLORS, mosaicAssign, mosaicPlan, MOSAICS, MU_BG, MU_GRACE,
+      MU_SLOP, muGrace, mus, musicHas, musicNow, musicOf, musicPage, musicPaneView, musicParts, musicPlaying, musicUsed, previewMusicData, previewPaneOf,
       musicView, nextArt, PANE_OWN, PANE_VARS, panel, PANEL_IDLE, PANEL_TURN, paneOf, photoLum, photoOpts, photoUrl,
       pieceFile, piecesStarted, progress, rampBacklight, readCfg, reducedMotion, refreshSoon, rememberedTabletId,
       sansClock, sansShapes, sansSlides, scaleOf, sendWS, setAttr, setBacklight, shapeOfPh, shuffle, sigOf,
@@ -213,14 +213,7 @@
     c.layoutAuto = true;
     return c;
   }
-  // THE DECK: random is every photo once, in a shuffled order, before any
-  // repeats (and the new round never opens on the photo the last one ended
-  // with); sorted is the folder in order, round and round. previous() walks
-  // back through what was shown.
-  function Deck(order, rnd) {
-    this.order = order; this.rnd = rnd || Math.random;
-    this.items = []; this.round = []; this.pos = 0; this.history = []; this.back = 0;
-  }
+  var Deck, designController;
 
   // ...and where a host draws the dashboard with HK's own view host, no
   // Lovelace (Mantel: the panel is the page, with no lovelace object), the
@@ -278,6 +271,7 @@
   var previewHouse = false;
   // ...and Home Energy's Options: the energy screen, held (2026-10-14)
   var previewEnergy = false, previewWeather = false;
+  var previewSelected = '', previewPane = null, previewPaneNote = '';
   // ...and the options HK Settings hands it as they change (2026-10-31, the owner: "just what they're changing,
   // updating in place"): drawn from them at once -- not after the save has gone round the server and back, and the
   // settings are next read (refreshSoon: every 2 s) -- and kept until the preview ends, so the save, when it comes
@@ -376,13 +370,7 @@
   var mx = null, my = null;
   // A TOUCH ON THE CALENDAR PANE scrolls it: the one place on the
   // screensaver a finger does not take it away
-  function inPane(e) {
-    if (!paneEl || !paneUp) return false;
-    var path = e.composedPath ? e.composedPath() : [];
-    if (path.indexOf(paneEl) >= 0) return true;
-    var x = e.clientX != null ? e.clientX : (e.touches && e.touches[0] && e.touches[0].clientX);
-    return x != null && x >= (window.innerWidth || 0) - paneW;
-  }
+  var inPane;
   function paneTouched() {
     if (paneResetT) clearTimeout(paneResetT);
     paneResetT = setTimeout(function () {
@@ -392,6 +380,7 @@
   }
   function onInput(e) {
     var t = e.type;
+    if (designController && designController.input(e)) return;
     // A NOTIFICATION'S BANNER over the photos (hk-notify.js): a finger on it
     // is the banner's -- swiped away, opened -- never a wake; the screensaver
     // is in use while it does
@@ -415,7 +404,10 @@
       // a move from here wakes, as before)
       if ((t === 'pointermove' || t === 'mousemove') && (!e.pointerType || e.pointerType === 'mouse')) { mx = e.clientX; my = e.clientY; }
       if (inPanel(e)) { if (t !== 'pointermove' && t !== 'mousemove') panelTouched(); return; }
-      if (t === 'pointermove' || t === 'mousemove' || t === 'wheel' || t === 'touchmove' || t === 'click') return;
+      // (a finger lifting is not a tap: the one that opened it, lifting off its
+      // button, read as a second tap and toggled it shut at once, 2026-11-06)
+      if (t === 'pointermove' || t === 'mousemove' || t === 'wheel' || t === 'touchmove' || t === 'click' ||
+          t === 'pointerup' || t === 'pointercancel') return;
       if ((t === 'touchstart' || t === 'mousedown') && window.PointerEvent) return;
       if (t === 'keydown') { if (!pnl.p.typing()) closePanel(true); return; }
       var px = t === 'touchstart' ? (e.touches && e.touches[0] && e.touches[0].clientX) : e.clientX;
@@ -478,7 +470,7 @@
         // clock is what it shows, and an edge tap that only changed the
         // photo read as a tap that did not wake it, 1.8.1)
         if (z && mode === 'photos' && !muShowing && !ckPhotos()) { pressStop = false; saverTouched(); if (z === 'next') nextPhoto(); else previousPhoto(); }
-        else stop('touch');
+        else if (!(t === 'pointerdown' && designController && designController.hold(e))) stop('touch');
         return;
       }
       if (t === 'keydown' || t === 'wheel') stop('touch');
@@ -645,6 +637,7 @@
     cards.forEach(function (c) { try { feedCard(c, h); } catch (e) { /* ignore */ } });
     if (ckCtl) ckCtl.setClient(h);
     if (bigCtl) bigCtl.setClient(h);
+    if (ly && ly.big && ly.big.ctl) ly.big.ctl.setClient(h);
     if (enCtl && enShowing) enCtl.setClient(h);
     if (wxCtl && wxShowing) wxCtl.setClient(h);
     // @ts-expect-error layoutClient() takes no argument (h is passed and not used)
@@ -726,7 +719,7 @@
     if (cfg.show === 'clock' || FACE_SHOWS[cfg.show]) enterClock();
     else if (cfg.show === 'forecast') enterForecast();
     // MUSIC FIRST, music playing: straight into it
-    else if (cfg.music_first && musicPlaying()) { updateBand(); if (!showMusicSlide(true)) showNext(true); }
+    else if (!previewOn && cfg.music_first && musicPlaying()) { updateBand(); if (!showMusicSlide(true)) showNext(true); }
     else { updateBand(); showNext(true); }
     // A LARGE CLOCK over the photos or the forecast (the corner one is a card)
     if (cfg.show !== 'clock' && !FACE_SHOWS[cfg.show] && cfg.clock_large) mountClock('none');
@@ -737,10 +730,12 @@
     energyPrep();
     weatherPrep();
     exArm();
+    if (previewOn) setTimeout(syncPreviewSlide, 0);
     return true;
   }
   function stop(reason) {
     if (!on) return false;
+    if (designController) designController.clear();
     if (asked) { asked = false; force = previewOn; }
     closePanel(false);
     on = false;
@@ -1074,6 +1069,7 @@
   function schedule() {
     if (slideT) clearTimeout(slideT);
     slideT = null;
+    if (previewOn) return;
     if (black()) { slideHeld = true; return; }
     slideHeld = false;
     slideT = setTimeout(function () {
@@ -1410,12 +1406,24 @@
     if (L.fit.backdrop || paneUp || ckPhotos()) { drawBackdrop(bg, lastPh.img, L.lay.small); bg.hidden = false; } else { bg.hidden = true; clearCanvas(bg); }
     return true;
   }
+  // A preview selection survives asynchronous module loads and option rebuilds.
+  // It never enables a real screen's slides or writes settings.
+  function syncPreviewSlide() {
+    if (!previewOn || !on) return false;
+    var kind = previewSelected;
+    if (!kind) return true;
+    var ok = kind === 'music' ? (muShowing || showMusicSlide()) : kind === 'weather' ? (wxShowing || showWeatherSlide()) :
+      kind === 'energy' ? (enShowing || showEnergySlide()) : fcShowing || showForecastExtra();
+    if (ok) exKind = kind;
+    return !!ok;
+  }
   function restartPreview() {
     if (!previewOn || !on) return;
     on = false;
     if (slideT) { clearTimeout(slideT); slideT = null; }
     teardown();
     start('preview');
+    setTimeout(syncPreviewSlide, 0);
   }
 
   // ------------------------------------------------------------ the forecast
@@ -1774,7 +1782,7 @@
   }
   // THE BIG ELEMENT: made (or kept) for what the layout asks, and its size as drawn -- {w, h, base} -- or null
   function layoutBig(b, R, u) {
-    var key = [b.kind, b.depth, b.size, b.align, cfg.clock_style, !!cfg.clock_planted, cfg.clock_color, cfg.clock_24, cfg.clock_today_music, cfg.clock_today_weather, R.room.w, R.room.h, cfg.show, mode, !!fcShowing].join('|');
+    var key = [b.kind, b.depth, b.size, b.align, cfg.clock_style, !!cfg.clock_planted, cfg.clock_color, cfg.clock_24, cfg.clock_today_music, cfg.clock_today_weather, JSON.stringify(cfg.clock_options), R.room.w, R.room.h, cfg.show, mode, !!fcShowing].join('|');
     // (Behind only while photos show: over the forecast between them, or with no photos, the time stands in front)
     var planted = b.kind === 'time' && (b.depth === 'planted' || cfg.clock_planted) && (cfg.show === 'forecast' || (cfg.show === 'clock' && cfg.clock_bg === 'forecast')) && !!fSky;
     if (ly.big && ly.big.key !== key) layoutBigOff();
@@ -1816,8 +1824,8 @@
         // the face drawn in a box the room's shape, measured, then scaled so its figures are the layout's size
         el2.className = 'lybig measuring';
         el2.style.cssText = 'left:0;top:0;width:' + R.room.w + 'px;height:' + R.room.h + 'px;container-type:size';
-        big.ctl = C.mount(el2, { style: cfg.clock_style, h24: cfg.clock_24, color: cfg.clock_color, bg: 'none', ground: false, scrim: false,
-                                timeOnly: true, music: cfg.clock_today_music, todayWeather: cfg.clock_today_weather, client: client, minutely: !ANALOG[cfg.clock_style] });
+        big.ctl = C.mount(el2, { style: cfg.clock_style, options: cfg.clock_options, h24: cfg.clock_24, color: cfg.clock_color, bg: 'none', ground: false, scrim: false,
+                                timeOnly: true, weather: weatherEntity(), music: cfg.clock_today_music, todayWeather: cfg.clock_today_weather, client: client, minutely: !ANALOG[cfg.clock_style] });
         big.scale = 0;
       }
       if (!big.scale) {
@@ -1829,7 +1837,7 @@
         var ink = inkOf(face, true), x0 = ink ? ink.x0 : fr.left, y0 = ink ? ink.y0 : fr.top, x1 = ink ? ink.x1 : fr.right, y1 = ink ? ink.y1 : fr.bottom;
         // (the figures 0.72 of the size, as Time Behind's are: the same size is the same time, in front or behind)
         var want = ANALOG[cfg.clock_style] ? fs * 1.9 : fs * 0.72;
-        big.scale = want / Math.max(1, y1 - y0);
+        big.scale = faceScale(want, x1 - x0, y1 - y0, R.room, !!el2.querySelector('.df'));
         big.off = { x: (x0 - br.left) * big.scale, y: (y0 - br.top) * big.scale };
         big.size = { w: (x1 - x0) * big.scale, h: (y1 - y0) * big.scale };
         el2.style.width = R.room.w * big.scale + 'px';
@@ -2258,7 +2266,7 @@
       var fx = ckFx(cfg);
       if (fx !== 'none') layer.style.filter = fx;
     }
-    root.insertBefore(layer, root.querySelector('.info'));
+    root.insertBefore(layer, root.querySelector('.lay') || root.querySelector('.info'));
     var face = bg === 'face';
     Promise.all([clockModule(), face ? facesModule() : null]).then(function (got) {
       var C = got[0], F = got[1];
@@ -2266,7 +2274,7 @@
       if (!C || (face && !F)) { layer.remove(); if (mode === 'clock') { mode = 'photos'; host.removeAttribute('ckgen'); host.removeAttribute('ckface'); enterForecast(); } return; }
       ckCtl = face
         ? F.mount(layer, { kind: cfg.show, h24: cfg.clock_24, weather: weatherEntity(), look: cfg.day_look, clocks: C, client: clientNow(), groundOnly: !!cfg.layout && layoutBigKind() !== 'none' })
-        : C.mount(layer, { style: cfg.clock_style, h24: cfg.clock_24, music: cfg.clock_today_music, todayWeather: cfg.clock_today_weather, color: cfg.clock_color, bg: bg, motion: cfg.clock_motion, face: !cfg.layout,
+        : C.mount(layer, { style: cfg.clock_style, options: cfg.clock_options, h24: cfg.clock_24, music: cfg.clock_today_music, todayWeather: cfg.clock_today_weather, color: cfg.clock_color, bg: bg, motion: cfg.clock_motion, face: !cfg.layout,
                            speed: cfg.clock_speed, depth: cfg.clock_depth, weather: weatherEntity(),
                            // a Wallpaper: its night version while the sun is down, as the dashboard's After Sunset
                            wallpaper: bg === 'wallpaper' ? { id: cfg.clock_wallpaper, color: cfg.clock_wallpaper_color, night: sunDown() } : null,
@@ -2291,12 +2299,14 @@
     return !!(cfg && FACE_SHOWS[cfg.show] && X && X.inkFor && X.inkFor(cfg.show, cfg.day_look, new Date()) === 'dark');
   }
   function slidesAgain() {
-    if (muShowing) { musicParts(slideView()); layoutMusic(); }
+    if (muShowing) { musicParts(slideView(), cfg.music_hide); layoutMusic(); }
     if (scn && slideNow()) cornerDraw(slideNow());
     return true;
   }
   function remountClock() {
-    if (!ckArgs || !root || !root.querySelector('.ck')) return false;
+    var laid = !!ly;
+    if (laid) { layoutDraw(); layoutSoon(); }
+    if (!ckArgs || !root || !root.querySelector('.ck')) return laid;
     var a = ckArgs;
     ckRun++;
     if (ckCtl) { try { ckCtl.destroy(); } catch (e) { /* gone */ } ckCtl = null; }
@@ -2500,10 +2510,10 @@
   // for -- so its first turn has them. `hold` (HK Settings' preview of Home
   // Energy): shown as soon as they are here, and kept up
   function energyPrep() {
-    var run = ++enRun, hold = previewOn && previewEnergy;
-    if (!cfg || !cfg.energy_slide) return;
+    var run = ++enRun, hold = previewOn && (previewEnergy || previewSelected === 'energy');
+    if (!cfg || (!cfg.energy_slide && !hold)) return;
     energyModule().then(function (X) { return X ? X.ready().then(function () { return X; }) : null; }).then(function (X) {
-      if (!X || run !== enRun || !on || !root || !cfg || !cfg.energy_slide) return;
+      if (!X || run !== enRun || !on || !root || !cfg || (!cfg.energy_slide && !hold)) return;
       // in its place at the start, as the weather's: put in at its first
       // turn, its layer was made as it came in (2026-10-19)
       if (!enCtl) {
@@ -2514,7 +2524,7 @@
       landImg();                         // (the landscape's image asked for now: its blurred copy ready at the first turn)
       if (!hold) return;
       var tries = 0, show = function () {
-        if (run !== enRun || !on || enShowing) return;
+        if (run !== enRun || !on || enShowing || !previewOn || (!previewEnergy && previewSelected !== 'energy')) return;
         // (at once: the preview is shown again after every change)
         if (showEnergySlide(true)) { exKind = 'energy'; return; }
         if (++tries < 60) setTimeout(show, 500);
@@ -2642,10 +2652,10 @@
   // at the start: the module, its forecast asked for and its sky readied;
   // HK Settings' preview of Weather holds it up
   function weatherPrep() {
-    var run = ++wxRun, hold = previewOn && previewWeather;
-    if (!cfg || !cfg.weather_slide) return;
+    var run = ++wxRun, hold = previewOn && (previewWeather || previewSelected === 'weather');
+    if (!cfg || (!cfg.weather_slide && !hold)) return;
     weatherModule().then(function (X) {
-      if (!X || run !== wxRun || !on || !root || !cfg || !cfg.weather_slide) return;
+      if (!X || run !== wxRun || !on || !root || !cfg || (!cfg.weather_slide && !hold)) return;
       if (!wxCtl) {
         wxCtl = X.create({ hide: cfg.weather_hide, h24: cfg.clock_24, corner: false });
         root.insertBefore(wxCtl.el, root.querySelector('.info'));
@@ -2655,7 +2665,7 @@
       wxCtl.ready(clientNow());
       if (!hold) return;
       var tries = 0, show = function () {
-        if (run !== wxRun || !on || wxShowing) return;
+        if (run !== wxRun || !on || wxShowing || !previewOn || (!previewWeather && previewSelected !== 'weather')) return;
         if (showWeatherSlide(true)) { exKind = 'weather'; return; }
         if (++tries < 60) setTimeout(show, 500);
       };
@@ -2720,7 +2730,7 @@
   var exT = null, exKind = '', exLast = '', exOutT = null;
   function exArm() {
     if (exT) { clearTimeout(exT); exT = null; }
-    if (!on || !cfg || !extrasOf(cfg).length || (previewOn && (previewEnergy || previewWeather))) return;
+    if (!on || !cfg || previewOn || !extrasOf(cfg).length) return;
     var run = photoRun, wait = cfg.extra_every * 60000;
     if (previewOn) wait = Math.min(wait, EX_PREVIEW_MS);
     exT = setTimeout(function () { exT = null; if (on && run === photoRun) exNext(); }, wait);
@@ -2814,6 +2824,9 @@
     var h = clientNow();
     if ((!on && !dashLive()) || !h) return null;
     var ctx = musicNow(h), now = clock.now();
+    if (previewOn && previewSelected === 'music' && !(ctx && ctx.playing)) {
+      mus.views.forEach(function (v) { drawMusic(v, v.kind === 'slide' ? previewMusicData() : musicOf(ctx, h)); }); musicTick(); return ctx;
+    }
     var d = musicOf(ctx, h);
     // A PAUSE THAT READS AS "IDLE" (2026-10-15): Music Assistant's AirPlay
     // speakers -- the house's HomePods -- report a pause as idle, so the
@@ -2865,6 +2878,7 @@
       mus.nextBusy = false;
       upNextPiece(d, null);
       mus.views.forEach(function (v) { drawMusic(v, v.d); });
+      if (muShowing) layoutMusic();
     });
   }
   // A BUTTON, where it is drawn (the views take no pointer events)
@@ -2922,6 +2936,7 @@
     if (muShowing && mode === 'photos') schedule();
   }
   function musicAct(hit, x) {
+    if (hit && hit.view.d && hit.view.d.sample) return;
     if (!hit || hit.view.kind !== 'dash') { saverTouched(); musicUsed(); }
     if (hit && hit.art) { openMusic(hit); return; }
     if (hit && hit.vol) { volStart(hit, x); return; }
@@ -3005,7 +3020,8 @@
     } else {
       var area = v.el.querySelector('.mbody').getBoundingClientRect(), col = v.el.querySelector('.mcol').getBoundingClientRect();
       var art = v.el.querySelector('.mart').getBoundingClientRect(), H0 = window.innerHeight || area.height;
-      var lo = col.right + 24 * z, hi = area.right - 24 * z;
+      var lower = host.hasAttribute('murow') || host.hasAttribute('muup');
+      var lo = (lower ? area.left : col.right) + 24 * z, hi = area.right - 24 * z;
       var w = Math.max(280 * z, Math.min(566 * z, hi - lo));
       var cx = Math.max(lo + w / 2, Math.min(hi - w / 2, art.left + art.width / 2));
       var top = (paneUp ? 40 : 100) * z, bot = H0 - 36 * z;
@@ -3045,31 +3061,22 @@
       src.style.visibility = on ? 'hidden' : '';
       if (me.view.kind !== 'slide') setAttr(hostOf(me.view), 'mpp', on);
     };
-    var can = !reduce && typeof el.animate === 'function' && typeof src.animate === 'function';
+    // (both halves on one schedule, the panel painted before it moves: hk-saver-panel.js turn)
+    var P = window.hkSaverPanel;
+    var can = !reduce && typeof el.animate === 'function' && typeof src.animate === 'function' && !!(P && P.turn);
     if (me.anim) { try { me.anim.cancel(); } catch (e) { /* done */ } me.anim = null; }
+    var o = { el: el, src: src, flat: xf(Mid, B, -90), edge: xf(Mid, R, 90), srcGone: hide };
     if (opening) {
       me.hidRect = R;
       el.classList.add('up');
       if (me.view.kind !== 'slide') setAttr(hostOf(me.view), 'mpp', true);
       if (!can) { hide(true); if (done) done(); return; }
-      el.style.visibility = 'hidden';
-      var a = me.anim = src.animate([{ transform: 'none' }, { transform: xf(Mid, R, 90) }], { duration: PANEL_TURN[0], easing: 'cubic-bezier(.45,0,.9,.5)', fill: 'forwards' });
-      a.onfinish = function () {
-        hide(true); a.cancel();
-        if (pnl !== me) { hide(false); el.classList.remove('up'); return; }
-        el.style.visibility = '';
-        var b2 = me.anim = el.animate([{ transform: xf(Mid, B, -90) }, { transform: 'none' }], { duration: PANEL_TURN[1], easing: 'cubic-bezier(.1,.5,.25,1)' });
-        b2.onfinish = function () { if (me.anim === b2) me.anim = null; if (done) done(); };
-      };
+      o.out = [PANEL_TURN[0], 'cubic-bezier(.45,0,.9,.5)']; o.in = [PANEL_TURN[1], 'cubic-bezier(.1,.5,.25,1)'];
+      var tr = me.anim = P.turn(Object.assign(o, { done: function () { if (me.anim === tr) me.anim = null; if (done) done(); } }), true);
     } else {
       if (!can) { el.classList.remove('up'); hide(false); if (done) done(); return; }
-      var c1 = me.anim = el.animate([{ transform: 'none' }, { transform: xf(Mid, B, -90) }], { duration: PANEL_TURN[0], easing: 'cubic-bezier(.45,0,.9,.5)', fill: 'forwards' });
-      c1.onfinish = function () {
-        el.classList.remove('up'); c1.cancel();
-        hide(false);
-        var c2 = me.anim = src.animate([{ transform: xf(Mid, R, 90) }, { transform: 'none' }], { duration: PANEL_TURN[1], easing: 'cubic-bezier(.1,.5,.25,1)' });
-        c2.onfinish = function () { me.anim = null; if (done) done(); };
-      };
+      o.out = [PANEL_TURN[0], 'cubic-bezier(.45,0,.9,.5)']; o.in = [PANEL_TURN[1], 'cubic-bezier(.1,.5,.25,1)'];
+      me.anim = P.turn(Object.assign(o, { done: function () { me.anim = null; el.classList.remove('up'); if (done) done(); } }), false);
     }
   }
   // closed: turned back (animated), or at once (its view gone, the
@@ -3091,7 +3098,7 @@
     panelButtons();
     var finish = function () {
       me.p.destroy();
-      if (me.src) { me.src.style.visibility = ''; }
+      if (me.src) { me.src.style.visibility = ''; me.src.style.transition = ''; }
       if (me.view.kind !== 'slide' && hostOf(me.view)) setAttr(hostOf(me.view), 'mpp', false);
     };
     if (animated && (on || me.view.kind === 'dash') && me.src && me.src.isConnected && me.view.el.isConnected) turnPanel(false, finish, me);
@@ -3156,13 +3163,13 @@
   function showMusicSlide(first) {
     if (!on || !root || !host || muShowing) return muShowing;
     var ctx = musicNow(clientNow());
-    if (!ctx || !ctx.playing) return false;
+    if ((!ctx || !ctx.playing) && !(previewOn && previewSelected === 'music')) return false;
     var v = buildMusicSlide(), run = photoRun;
     // (Home Energy over everything: the music in its place)
     if (enShowing) { hideEnergySlide(); if (exKind === 'energy') exKind = ''; }
     if (wxShowing) { hideWeatherSlide(); if (exKind === 'weather') exKind = ''; }
     muShowing = true; sinceFc = 0; lastSlide = 'music'; mus.lostAt = 0;
-    musicParts(v);
+    musicParts(v, cfg.music_hide);
     renderMusic();
     host.setAttribute('muslide', '');
     updateBand();
@@ -3180,11 +3187,6 @@
     setTimeout(reveal1, 1500);
     return true;
   }
-  // WHAT MUSIC FULL SCREEN LEAVES OUT (the Slides section, music_hide): the slide's, never the side pane's
-  function musicParts(v) {
-    if (!v || !v.el) return;
-    ['room', 'album', 'progress', 'buttons', 'volume', 'next'].forEach(function (k) { v.el.classList.toggle('h-' + k, (cfg.music_hide || []).indexOf(k) >= 0); });
-  }
   function hideMusicSlide() {
     if (!muShowing) return;
     if (pnl && pnl.view.kind === 'slide') closePanel(false);
@@ -3197,53 +3199,17 @@
     // over the forecast: back to it
     if (mode === 'forecast' && root && root.querySelector('.fc')) { reveal(root.querySelector('.fc'), false); forecastTick(true); }
   }
-  // The text column below the clock, the weather and the date: what does
-  // not fit goes, Up Next first, then the album
+  // The music module lays out the current view with the shell's live frame.
   function layoutMusic() {
-    var v = slideView();
-    if (!v || !host || !root) return;
-    host.style.setProperty('--hk-mu-z', String(scaleOf()));
-    var col = v.el.querySelector('.mcol'), info = root.querySelector('.info');
-    if (!col || !info || !v.el.getBoundingClientRect().width) return;
-    var H = window.innerHeight || 0, W = window.innerWidth || 0, top = 0;
-    // THE SLIDE'S OWN SCALE (2026-11-02, phase 13, the owner's phone on its side: the slide drawn at a tablet's size ran
-    // into its corner): the screen's fit against the tablet's 1280 x 800, or an upright one's against 820 x 1180 --
-    // smaller than the tablet's where the screen is (never below .45), larger where it is larger
-    var up = H > W * 1.05, zs = Math.max(0.45, up ? Math.min(W / 820, H / 1180) : Math.min(W / 1280, H / 800));
-    host.style.setProperty('--hk-mu-zs', String(Math.round(zs * 100) / 100));
-    setAttr(host, 'muup', up);
-    // (under the slide corner, its words: the old corner cards are hidden under every slide now, phase 13)
-    var over = scn && host.hasAttribute('scorner') ? [].slice.call(scn.tl.children).concat([].slice.call(scn.tr.children)) : info.children;
-    Array.prototype.forEach.call(over, function (c) {
-      if (c.tagName === 'STYLE' || c.style.display === 'none') return;
-      var r = c.getBoundingClientRect();
-      if (r.height > 0 && r.top < H / 2) top = Math.max(top, r.bottom);
-    });
-    var room = top + Math.round(24 * zs), m = Math.round(Math.min(W, H) * 0.06);
-    host.style.setProperty('--hk-mu-top', room + 'px');
-    // UPRIGHT: the art under the corner, the song and its buttons under the art (an iPhone's Now Playing): what does
-    // not fit goes, Up Next first, then the album, then the art smaller
-    if (up) {
-      v.el.style.removeProperty('--a');
-      for (var u2 = 0; u2 <= 4; u2++) {
-        v.el.setAttribute('tight', String(Math.min(2, u2)));
-        if (u2 > 2) v.el.style.setProperty('--a', 'min(' + (84 - (u2 - 2) * 12) + 'cqw,' + (36 - (u2 - 2) * 7) + 'cqh)');
-        if (col.getBoundingClientRect().bottom <= H - m) break;
-      }
-      return;
-    }
-    v.el.style.removeProperty('--a');
-    for (var t = 0; t <= 2; t++) {
-      v.el.setAttribute('tight', String(t));
-      if (col.getBoundingClientRect().top >= room) break;
-    }
+    if (!host || !root) return;
+    layoutMusicView(slideView(), host, root, scn, scaleOf());
   }
   // OVER THE FORECAST, the house decides: the slide while music plays, the
   // forecast again MU_GRACE after it stops. Every view follows the house.
   // At most once a second (a new client comes many times a second).
   // THE MUSIC TAKES THE SCREEN while it plays: Music First, or (as before
   // Music First) the music over the forecast
-  function takeover() { return !!cfg && (cfg.music_first || (cfg.music_slide && mode !== 'photos')); }
+  function takeover() { return !previewOn && !!cfg && (cfg.music_first || (cfg.music_slide && mode !== 'photos')); }
   function musicWatch() {
     if (!on || !cfg || !root || !(cfg.music_slide || cfg.music_pane || cfg.music_first || (cfg.extra_music && muShowing))) return;
     var now = clock.now();
@@ -3474,7 +3440,7 @@
     // (the face beside the pane is narrower: the Day face measured again once it is laid out)
     setTimeout(dayFit, 80);
     if (!host || !paneUp) return;
-    var z = scaleOf(), w = Math.round(PANE_W * z);
+    var z = scaleOf(), SP = window.hkSidePane, w = Math.round(((SP && SP.WIDTHS[cfg.pane_width]) || PANE_W) * z);
     // the list scaled with the screen (its card may arrive after the width)
     if (paneCard && (paneCard.style.zoom || '1') !== String(z)) paneCard.style.zoom = z === 1 ? '' : String(z);
     var sideNow = (cfg && cfg.pane_side) || 'right';
@@ -3981,13 +3947,18 @@
     // Mantel's own arrive a moment after its settings. The settings make the
     // same block again, now -- else the one the strategy made.
     else if (shellConf && raw && !raw.entity) raw = fromSettings(conf) || raw;
+    var picked = designController && designController.options();
+    if (!previewOn && picked) raw = houseBlock(picked) || raw;
     if (previewOn && previewHouse) raw = houseBlock() || raw;
     if (previewOn && previewOver) raw = houseBlock(previewOver) || raw;
     var HS = window.hkSettings;
     if (raw && HS && HS.get) {
       var bAll = HS.get('boards', null), bNow = bAll && bAll[String(location.pathname).split('/')[1] || ''];
-      raw = withPane(raw, previewOn && previewHouse ? HS.get('side_pane', null) : bNow && bNow.side_pane_read);
+      var pvPane = previewPaneOf((bNow && bNow.side_pane_read) || HS.get('side_pane', null), previewOn ? previewPane : null);
+      raw = withPane(raw, pvPane.settings); previewPaneNote = previewOn ? pvPane.message : '';
     }
+    var SP = window.hkSidePane;
+    if (raw && SP && SP.placement(window.innerWidth, window.innerHeight, { width: raw.pane_width }).kind === 'none') raw = Object.assign({}, raw, { calendar: false, music_pane: false, pane_list: null });
     if (HS && HS.lovelacePanel && HS.lovelacePanel() === false) raw = null;
     // the host's own album for this screen, in place of the house's photos
     // (hostPhotoSource; none in Home Assistant)
@@ -4044,6 +4015,7 @@
   var RESUME_MS = 2500, clock = { now: function () { return Date.now(); } };
   var resumedAt = 0, lastBeat = clock.now();
   function beat() {
+    if (previewOn && previewSelected) syncPreviewSlide();
     var n = clock.now();
     if (n - lastBeat > RESUME_MS) resumedAt = n;
     lastBeat = n;
@@ -4073,6 +4045,8 @@
   function runParts() {
     var K = kit();
     PARTS.forEach(function (file) { window.hkSaverParts[partKey(file)](K); });
+    Deck = K.Deck; inPane = function (e) { return K.inPane(e, paneEl, paneUp); };
+    designController = K.createDesignController({ client: K.clientNow, running: function () { return on; }, preview: function () { return previewOn; }, touched: saverTouched, stop: stop, refresh: refresh });
     actionsNow = K.actionsNow; afterDraw = K.afterDraw; afterFade = K.afterFade; alignOf = K.alignOf;
     ANALOG = K.ANALOG; BACKDROP_SMALL = K.BACKDROP_SMALL; backdropSmall = K.backdropSmall; behindAt = K.behindAt;
     BLACK_KEY = K.BLACK_KEY; blackPage = K.blackPage; BRIGHT_KEY = K.BRIGHT_KEY; callWS = K.callWS; ckFx = K.ckFx;
@@ -4083,14 +4057,14 @@
     drawnRect = K.drawnRect; elapsed = K.elapsed; energyPage = K.energyPage; EX_PREVIEW_MS = K.EX_PREVIEW_MS;
     EXTRA_ORDER = K.EXTRA_ORDER; extrasOf = K.extrasOf; FACE_SHOWS = K.FACE_SHOWS; faceOrigin = K.faceOrigin;
     facesModule = K.facesModule; faceWindow = K.faceWindow; FC_TICK_MS = K.FC_TICK_MS; feedCard = K.feedCard;
-    fitOf = K.fitOf; FOCUS_F = K.FOCUS_F; framed = K.framed; fromSettings = K.fromSettings; gate = K.gate;
+    faceScale = K.faceScale; fitOf = K.fitOf; FOCUS_F = K.FOCUS_F; framed = K.framed; fromSettings = K.fromSettings; gate = K.gate;
     glyphBox = K.glyphBox; go = K.go; held = K.held; hkBoard = K.hkBoard; hkUnheard = K.hkUnheard;
     hostPhotoList = K.hostPhotoList; hostPhotoSource = K.hostPhotoSource; houseBlock = K.houseBlock; inkOf = K.inkOf;
     INKS = K.INKS; isFlat = K.isFlat; isImage = K.isImage; kiosk = K.kiosk; LANDSCAPES = K.LANDSCAPES;
-    landShares = K.landShares; layoutOf = K.layoutOf; load = K.load; minsOf = K.minsOf; mmss = K.mmss;
+    landShares = K.landShares; layoutOf = K.layoutOf; layoutMusicView = K.layoutMusicView; load = K.load; minsOf = K.minsOf; mmss = K.mmss;
     MOSAIC_COLORS = K.MOSAIC_COLORS; mosaicAssign = K.mosaicAssign; mosaicPlan = K.mosaicPlan; MOSAICS = K.MOSAICS;
     MU_BG = K.MU_BG; MU_GRACE = K.MU_GRACE; MU_SLOP = K.MU_SLOP; muGrace = K.muGrace; mus = K.mus;
-    musicHas = K.musicHas; musicNow = K.musicNow; musicOf = K.musicOf; musicPage = K.musicPage;
+    previewMusicData = K.previewMusicData; previewPaneOf = K.previewPaneOf; musicParts = K.musicParts; musicHas = K.musicHas; musicNow = K.musicNow; musicOf = K.musicOf; musicPage = K.musicPage;
     musicPaneView = K.musicPaneView; musicPlaying = K.musicPlaying; musicUsed = K.musicUsed; musicView = K.musicView;
     nextArt = K.nextArt; PANE_OWN = K.PANE_OWN; PANE_VARS = K.PANE_VARS; panel = K.panel; PANEL_IDLE = K.PANEL_IDLE;
     PANEL_TURN = K.PANEL_TURN; paneOf = K.paneOf; photoLum = K.photoLum; photoOpts = K.photoOpts;
@@ -4110,38 +4084,7 @@
   loadParts(function () {
     runParts();
 
-    Deck.prototype.set = function (items) {
-      var had = this.items.map(function (x) { return x.id; }).join('\n');
-      this.items = items.slice();
-      if (this.items.map(function (x) { return x.id; }).join('\n') !== had) { this.round = []; this.pos = 0; }
-    };
-    Deck.prototype.next = function () {
-      if (this.back > 0) {                  // stepping forward again after previous()
-        this.back--;
-        return this.history[this.history.length - 1 - this.back] || null;
-      }
-      if (!this.items.length) return null;
-      if (this.pos >= this.round.length) {
-        var last = this.history[this.history.length - 1];
-        this.round = this.order === 'sorted'
-          ? this.items.slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; })
-          : shuffle(this.items, this.rnd);
-        if (this.order !== 'sorted' && last && this.round.length > 1 && this.round[0].id === last.id) {
-          this.round.push(this.round.shift());
-        }
-        this.pos = 0;
-      }
-      var it = this.round[this.pos++];
-      this.history.push(it);
-      if (this.history.length > 50) this.history.shift();
-      return it;
-    };
-    Deck.prototype.previous = function () {
-      if (this.history.length - 1 - this.back <= 0) return null;
-      this.back++;
-      return this.history[this.history.length - 1 - this.back] || null;
-    };
-    ['pointerdown', 'touchstart', 'touchmove', 'wheel', 'keydown', 'click', 'mousedown', 'pointermove']
+    ['pointerdown', 'pointerup', 'pointercancel', 'touchstart', 'touchmove', 'wheel', 'keydown', 'click', 'mousedown', 'pointermove']
       .forEach(function (t) { window.addEventListener(t, onInput, { passive: true, capture: true }); });
     // the touch that stopped it, lifting
     ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'mouseup'].forEach(function (t) {
@@ -4351,7 +4294,7 @@
     });
     window.hkShell.onNavigate(function () { setTimeout(refresh, 0); });
     window.addEventListener('popstate', function () { setTimeout(refresh, 0); });
-    window.addEventListener('resize', function () { if (on) { layoutPane(); layoutMusic(); placePanel(); setTimeout(dayFit, 50); } });
+    window.addEventListener('resize', function () { if (on) { if (previewOn) refresh(); layoutPane(); layoutMusic(); placePanel(); setTimeout(dayFit, 50); } });
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) { lastInput = Date.now(); armIdle(); resumedAt = clock.now(); }
       musicTick();
@@ -4372,17 +4315,28 @@
       // THE EDITOR'S SEE A SLIDE AND DAY / NIGHT (phase 13): in the preview only -- a slide shown now, with its slide
       // corner (null: none), and Night Mode on or off whatever the hour (null: as the clock says). Nothing is saved
       previewSlide: function (kind) {
+        kind = ['music', 'weather', 'energy', 'forecast'].indexOf(kind) >= 0 ? kind : '';
+        var changed = previewSelected !== kind;
+        previewSelected = kind;
         if (!on || !previewOn) return false;
-        if (muShowing) hideMusicSlide();
-        if (wxShowing) hideWeatherSlide();
-        if (enShowing) hideEnergySlide();
-        if (fcShowing && mode !== 'forecast') hideForecastExtra();
-        exKind = '';
-        if (exT) { clearTimeout(exT); exT = null; }
-        var ok = kind === 'music' ? showMusicSlide() : kind === 'weather' ? showWeatherSlide() : kind === 'energy' ? showEnergySlide()
-               : kind === 'forecast' ? showForecastExtra() : false;
-        if (ok) exKind = kind;
-        return !!ok;
+        if (changed) {
+          if (muShowing) hideMusicSlide();
+          if (wxShowing) hideWeatherSlide();
+          if (enShowing) hideEnergySlide();
+          if (fcShowing && mode !== 'forecast') hideForecastExtra();
+          exKind = '';
+          if (exT) { clearTimeout(exT); exT = null; }
+          if (kind === 'energy') energyPrep();
+          if (kind === 'weather') weatherPrep();
+        }
+        return syncPreviewSlide();
+      },
+      previewPane: function (show) { var next = show === true ? true : show === false ? false : null; if (next !== previewPane) { previewPane = next; if (previewOn) refresh(); } return previewPane; },
+      previewStatus: function () {
+        return { selected: previewSelected, ready: syncPreviewSlide() || previewSelected === 'forecast' && mode === 'forecast', pane: paneUp, paneMessage: window.hkSidePane && window.hkSidePane.placement(window.innerWidth, window.innerHeight, { width: cfg && cfg.pane_width }).kind === 'none' ? 'The Side Pane needs more room. Choose Wall Tablet or iPad Upright to preview it.' : previewPaneNote,
+          message: previewSelected === 'music' && !musicPlaying() ? 'Sample music · playback controls are inactive.' :
+            previewSelected === 'energy' && !energyReady() ? 'Home Energy needs energy data before its slide can be shown.' :
+            previewSelected === 'weather' && !weatherReady() ? 'Waiting for weather data…' : previewSelected === 'forecast' && mode === 'forecast' ? 'Forecast is already the background for this design.' : '' };
       },
       previewNight: function (v) { nightPreview = v === true ? true : v === false ? false : null; nightCheck(); return nightPreview; },
       layoutInfo: function () {
@@ -4396,6 +4350,7 @@
                  emptyAt: Object.assign({}, ly.empty), claims: Object.assign({}, ly.claims), landShare: ly.landShare };
       },
       running: function () { return on; },
+      chooseDesign: function () { if (designController) designController.open(); },
       covered: function () { return on && !!coveredPage; },
       // the forecast is what is showing (not photos)
       forecast: function () { return on && mode === 'forecast'; },
@@ -4415,7 +4370,7 @@
           if (previewOn && on && v) setTimeout(restartPreview, 0);
         }
         previewOn = !!v;
-        if (!previewOn) { lastPh = null; nightPreview = null; }
+        if (!previewOn) { lastPh = null; nightPreview = null; previewSelected = ''; previewPane = null; previewPaneNote = ''; }
         force = previewOn;
         refresh();
         if (previewOn && !on) start('preview');

@@ -36,9 +36,8 @@ from ..house import House
 from ..notifications.dnd import DND_MAX, hhmm, notify_dnd  # noqa: F401
 from ..sleep import rules as SR
 from . import home_grid as HG
-from . import saver_layout as SLAY
 from .looks import IDS as LOOK_IDS
-from . import kinds
+from . import kinds, pane_status as PS
 
 CONF_DASHBOARD = "dashboard"
 
@@ -1726,7 +1725,8 @@ SAVER_SHOWS = ("photos", "both", "forecast", "clock")
 SAVER_SHOWS += ("glance", "month", "day")
 SAVER_CLOCK_STYLES += ("liquid", "giant", "scattered")
 # Planted (2026-11-02, phase 13, decision 1): a face, offered on the Landscape -- the ivory numerals in its meadow
-SAVER_CLOCK_STYLES += ("planted",)
+from .saver_designs import FACES as SAVER_DESIGN_FACES
+SAVER_CLOCK_STYLES += ("planted",) + SAVER_DESIGN_FACES
 SAVER_FORECAST_LAYOUTS = ("classic", "big")
 SAVER_DAY_LOOKS = ("auto", "light", "dark")
 SAVER_DEFAULTS.update({"forecast_layout": "classic", "photo_titles": False, "time_behind": False, "day_look": "auto"})
@@ -1747,7 +1747,7 @@ SAVER_DEFAULTS.update({"forecast_planted": True})
 # draws as each Show always has; the Screensaver editor saves one big element and the widgets in zones
 # (saver_layout.py). Read tolerantly here -- a layout this build can only partly draw keeps what it can, never
 # costing the screen its other options; the write checks it strictly (changes._saver_options).
-SAVER_DEFAULTS.update({"layout": None})
+SAVER_DEFAULTS.update({"layout": None, "designs": [], "active_design": "", "clock_options": {}})
 # ALL SCREENS' screensaver options (All Screens -> Screensaver): a screen
 # whose own `screensaver_options` is null uses these (resolved()).
 DEFAULTS["look"]["saver"] = dict(SAVER_DEFAULTS)
@@ -1772,90 +1772,8 @@ SAVER_INTS = {"starts_after": SAVER_STARTS, "each_photo": SAVER_EACH, "forecast_
 
 
 def saver_options(v: Any, legacy: Any = None) -> dict[str, Any] | None:
-    """The screensaver's options over the defaults, or None when `v` is not a
-    mapping or holds a value that cannot be used (the form says so). With no
-    options of its own yet, a screen's old WallPanel choices carry over:
-    idle_time, display_time, media_order, image_fit_landscape and
-    image_animation_ken_burns are the ones its page ever set."""
-    out = dict(SAVER_DEFAULTS)
-    if v in (None, "", {}):
-        w = legacy if isinstance(legacy, dict) else {}
-        v = {}
-        for src, dst in (("idle_time", "starts_after"), ("display_time", "each_photo")):
-            if isinstance(w.get(src), (int, float)) and not isinstance(w.get(src), bool):
-                v[dst] = w[src]
-        if w.get("media_order") in SAVER_ORDERS:
-            v["order"] = w["media_order"]
-        if w.get("image_fit_landscape") in ("cover", "contain"):
-            v["fill"] = w["image_fit_landscape"] == "cover"
-        if isinstance(w.get("image_animation_ken_burns"), bool):
-            v["zoom"] = w["image_animation_ken_burns"]
-        # an out-of-range old value is clamped rather than refused: it was
-        # accepted once, and the screen must keep working
-        for k, (lo, hi) in (("starts_after", SAVER_STARTS), ("each_photo", SAVER_EACH)):
-            if k in v:
-                v[k] = int(min(max(v[k], lo), hi))
-    if not isinstance(v, dict):
-        return None
-    for k, val in v.items():
-        if k not in SAVER_DEFAULTS:
-            return None
-        if k in SAVER_INTS:
-            lo, hi = SAVER_INTS[k]
-            if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= val <= hi:
-                return None
-            out[k] = int(val)
-        elif k in ("order", "show"):
-            if val not in (SAVER_ORDERS if k == "order" else SAVER_SHOWS):
-                return None
-            out[k] = val
-        elif k in ("clock_night_from", "clock_night_to"):
-            m = re.match(r"^([01]\d|2[0-3]):([0-5]\d)$", val) if isinstance(val, str) else None
-            if not m:
-                return None
-            out[k] = val
-        elif k == "clock_colors":
-            if not isinstance(val, dict) or any(s not in SAVER_CLOCK_STYLES or not isinstance(c, str) or not re.match(r"^[a-z]{1,16}$", c)
-                                                for s, c in val.items()):
-                return None
-            out[k] = dict(val)
-        elif k == "clock_wallpaper_color":
-            if wallpaper_color(val) is None:
-                return None
-            out[k] = wallpaper_color(val)
-        elif k == "layout":
-            out[k] = SLAY.layout(val) if val is not None else None
-        elif k in ("energy_hide", "weather_hide", "corner_hide", "music_hide"):
-            parts = {"energy_hide": SAVER_ENERGY_PARTS, "weather_hide": SAVER_WEATHER_PARTS, "corner_hide": SAVER_CORNER_PARTS,
-                     "music_hide": SAVER_MUSIC_PARTS}[k]
-            if not isinstance(val, list) or any(x not in parts for x in val):
-                return None
-            out[k] = [x for x in parts if x in val]
-        elif k in SAVER_CHOICES:
-            if val not in SAVER_CHOICES[k]:
-                return None
-            out[k] = val
-        elif k.split("_", 1)[-1] in SAVER_RANGES and k.startswith(("portrait_", "landscape_")):
-            lo, hi = SAVER_RANGES[k.split("_", 1)[1]]
-            if isinstance(val, bool) or not isinstance(val, (int, float)) or not lo <= val <= hi:
-                return None
-            out[k] = int(val)
-        elif k.split("_", 1)[-1] in SAVER_FOCUS and k.startswith(("portrait_", "landscape_")):
-            if val not in SAVER_FOCUS[k.split("_", 1)[1]]:
-                return None
-            out[k] = val
-        else:
-            if not isinstance(val, bool):
-                return None
-            out[k] = val
-    # ONE KEY FOR MUSIC FULL SCREEN (2026-11-02, phase 13: "One home per option"): the editor's Music Full Screen
-    # (music_first) and Settings' Music slide (music_slide) are one choice -- what plays takes the screen while it plays
-    if out["music_slide"]:
-        out["music_first"], out["music_slide"] = True, False
-    # an old Wallpaper behind the clock ("petals_violet", 2026-10-31): its art in its own preset (item 45)
-    if out["clock_wallpaper"] in WALLPAPER_LEGACY:
-        out["clock_wallpaper"], out["clock_wallpaper_color"] = WALLPAPER_LEGACY[out["clock_wallpaper"]]
-    return out
+    from .saver_designs import saver_options as read
+    return read(v, legacy)
 
 
 def card_options(v: Any) -> dict[str, Any] | None:
@@ -1931,9 +1849,9 @@ def as_client(stored: Stored | None,
 # All Screens'. It takes over the screensaver's Calendar / Music pane
 # (look.saver's calendar, calendar_days, music_pane) and Now Playing's Show
 # As: Side Pane (now_playing.style / .side, a screen's np_style / np_side),
-# moved over once by side_pane_lifted.
+# moved over once by side_pane_lifted. A Status (2026-11-06): pane_status.py.
 PANE_SECTIONS = ("clock", "weather", "calendar", "now_playing", "security", "camera", "timers", "energy",
-                 "climate", "people", "todo", "notifications")
+                 "climate", "people", "todo", "notifications", "status")
 # a section's Size: one line, the gist, the whole section, and the whole
 # section taking the room the pane has left (one Full at a time); absent is More
 PANE_SIZES = ("tiny", "less", "more", "full")
@@ -2005,10 +1923,9 @@ DEFAULTS["side_pane"] = copy.deepcopy(SIDE_PANE_DEFAULTS)
 
 
 def pane_section(v: Any, strict: bool = False) -> dict[str, Any] | None:
-    """One section, as stored: {kind, size, when, its options}, with size More
-    and when Always left out (they are what absent means). None when it is not
-    a section; strict, also when any key or value is one it can't use (the
-    form says so), where the tolerant read leaves that key out."""
+    """One section, as stored: {kind, size, when, its options}, with size More and when Always left out (they are what
+    absent means). None when it is not a section; strict, also when any key or value is one it can't use (the form says
+    so), where the tolerant read leaves that key out. A Status's own options: pane_status.py."""
     if not isinstance(v, Mapping) or v.get("kind") not in PANE_SECTIONS:
         return None
     kind = v["kind"]
@@ -2017,9 +1934,11 @@ def pane_section(v: Any, strict: bool = False) -> dict[str, Any] | None:
     for k, val in v.items():
         if k == "kind":
             continue
-        if k == "size" and val in PANE_SIZES:
+        if k == "size" and val in PS.SIZES.get(kind, PANE_SIZES):
             if val != "more":
                 out["size"] = val
+        elif PS.option(kind, k, val) is not None:
+            out[k] = PS.option(kind, k, val)
         elif k == "when" and val in PANE_WHEN:
             if val != "always":
                 out["when"] = val
@@ -2049,10 +1968,9 @@ def pane_section(v: Any, strict: bool = False) -> dict[str, Any] | None:
 
 
 def pane_sections(v: Any, strict: bool = False) -> list[dict[str, Any]] | None:
-    """A group's sections, in order: at most PANE_MAX, one Full at most, no
-    section twice (the same kind and entity). Strict, any of that is None;
-    read tolerantly, a section it can't use is left out, a second Full is
-    More and the list is cut at PANE_MAX."""
+    """A group's sections, in order: at most PANE_MAX, one Full at most, no section twice (the same kind and entity, a
+    Status's id: pane_status.key). Strict, any of that is None; read tolerantly, a section it can't use is left out, a
+    second Full is More and the list is cut at PANE_MAX."""
     if not isinstance(v, list):
         return None
     out: list[dict[str, Any]] = []
@@ -2060,7 +1978,7 @@ def pane_sections(v: Any, strict: bool = False) -> list[dict[str, Any]] | None:
     full = False
     for x in v:
         s = pane_section(x, strict)
-        key = (s["kind"], s.get("entity", "")) if s else None
+        key = PS.key(s) if s else None
         if s is None or key in seen:
             if strict:
                 return None
@@ -2460,9 +2378,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # Use the Side Strip (2026-10-30): the tab bar as a rail in a phone's
     # side strip of system controls, where it has one (iPhone Duo)
     "tab_bar_strip": True,
-    # Swipe Between Pages (SWIPE_PAGES, 2026-10-30): this screen's own; None,
-    # Same as All Screens (menu.swipe_pages)
-    "swipe_pages": None,
+    # Swipe Between Pages, this screen's own (None: All Screens'); the page a swipe right on Home goes to (None: none)
+    "swipe_pages": None, "swipe_left": None,
     # PHONES' OWN (BOARD_PHONE_MENUS): the menu, the screen's own as `menu`
     # is (None: as before phones had their own, phone_menu()); the button's
     # style and More's rooms, menu settings (MENU_KEYS)
@@ -2713,6 +2630,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_labels"] = pick("tab_bar_labels", TAB_BAR_LABELS)
     out["tab_bar_strip"] = d.get("tab_bar_strip") is not False
     out["swipe_pages"] = d.get("swipe_pages") if d.get("swipe_pages") in SWIPE_PAGES else None
+    out["swipe_left"] = d["swipe_left"] if isinstance(d.get("swipe_left"), str) and VIEW_PATH.match(d["swipe_left"]) else None
     out["tab_bar_tabs_rail"] = tab_count(d.get("tab_bar_tabs_rail"))
     out["tab_bar_tabs_phone"] = tab_count(d.get("tab_bar_tabs_phone"), 3, TAB_BAR_TABS_PHONE)
     out["tab_bar_scroll_phone"] = pick("tab_bar_scroll_phone", TAB_BAR_SCROLLS)

@@ -503,10 +503,9 @@
   var CLOUD_STYLES = [['classic', 'Classic'], ['realistic', 'Realistic']];
   // Moving Things (sky.moving / a screen's sky_moving)
   var SKY_MOVING = [['behind', 'Behind the Cards'], ['front', 'In Front of the Cards']];
-  // SWIPE BETWEEN PAGES (menu.swipe_pages / a screen's swipe_pages; hk-pageswipe.js)
-  var SWIPE_PAGES = [['auto', 'Automatic'], ['on', 'On'], ['off', 'Off']];
-  var SWIPE_PAGES_SAYS = { auto: 'Where a tab bar shows, a sideways swipe goes to the next or the previous tab’s page.',
-                           on: 'A sideways swipe goes to the next or the previous page: the tab bar’s, or the side menu’s Home and Categories.',
+  var SWIPE_PAGES = [['auto', 'Automatic'], ['on', 'On'], ['off', 'Off']];    // Swipe Between Pages (hk-pageswipe.js)
+  var SWIPE_PAGES_SAYS = { auto: 'Where a tab bar shows, a sideways swipe goes to the next or the previous page: the tabs’, then More’s. Not on a room’s page.',
+                           on: 'A sideways swipe goes to the next or the previous page: the tab bar’s and More’s, or the side menu’s. Not on a room’s page.',
                            off: 'Pages change only from the menu or the tab bar.' };
   // the daytime sky's brightness (sky.daytime, settings.py DAYTIME_SKIES)
   var DAYTIME_SKIES = [['natural', 'Natural'], ['balanced', 'Balanced'], ['deep', 'Deep']];
@@ -1840,6 +1839,7 @@
     ['Back Button & Title', 'screen', 'page_header', 'page header back title context navigation compact hide', true],
     ['Menu Options', 'screen', 'menu_own', 'menu settings same as all screens own menu this screen side menu edge tab tab bar', true],
     ['Swipe Between Pages', 'screen/menu', 'swipe_pages', 'swipe gesture next previous page sideways tab bar homeview same as all screens', true],
+    ['Swipe Right on Home', 'screen/menu', 'swipe_left', 'swipe right home left page before home favorite music now playing gesture', true],
     ['Menu on Each Screen', 'house/menu', 'menu:screens', 'menu each screen tablets phones which kind button tab bar always open'],
     ['Side Menu', 'house/menu/side', 'menu:side', 'side menu drawer button always open docked used by'],
     ['Edge Tab', 'house/menu/edge-tab', 'menu:edge-tab', 'edge tab position size used by'],
@@ -2133,10 +2133,7 @@
     if (out.music_slide === true) { out.music_first = true; out.music_slide = false; }
     return out;
   }
-  // THE HOMEVIEW-STYLE FACES (2026-10-30; docs/phase11/HOMEVIEW-LOOK.md, Phase I; settings.py's block of the same
-  // name): three more Shows (hk-saverfaces.js), three more clock faces (hk-saverclock.js), the Forecast's Layout,
-  // the photos' Titles and Time Behind, and the Day face's look. Each default is how the screensaver drew before.
-  // [id, name, what it is] -- the Show control's choices, Photos & Forecast ('both') being Photos with a slide
+  // Screensaver catalog; mirrored by hk_core.settings.model.
   var SAVER_SHOWS = [
     ['photos', 'Photos', 'Your photos, one after another.'],
     ['forecast', 'Forecast', 'The forecast over the live sky and the season’s landscape.'],
@@ -2147,13 +2144,10 @@
   var FORECAST_LAYOUTS = [['classic', 'Classic'], ['big', 'Big']];
   var DAY_LOOKS = [['auto', 'By Time of Day'], ['light', 'Light'], ['dark', 'Dark']];
   Object.assign(SAVER_DEFAULTS, { forecast_layout: 'classic', photo_titles: false, time_behind: false, day_look: 'auto' });
-  // Big Weather's number; Time Behind's size, place and darkening (settings.py, 2026-10-31)
   var FORECAST_BIG = [['temp', 'Temperature'], ['clock', 'Clock']];
   Object.assign(SAVER_DEFAULTS, { forecast_big: 'temp', tb_size: 24, tb_top: 6, tb_dim: 0 });
-  // Big Weather's time planted in the meadow (settings.py, 2026-11-01)
   Object.assign(SAVER_DEFAULTS, { forecast_planted: true });
-  // the Screensaver editor's layout (settings.py, 2026-11-01; hk-saverlayout.js): none draws as each Show always has
-  Object.assign(SAVER_DEFAULTS, { layout: null });
+  Object.assign(SAVER_DEFAULTS, { layout: null, designs: [], active_design: '', clock_options: {} });
   CLOCK_STYLES.push(['liquid', 'Liquid', 'Soft, glossy numerals that drift slowly over a pastel gradient'],
                     ['giant', 'Giant Numerals', 'An analog clock with 12, 3, 6 and 9 drawn huge on a strong color'],
                     ['scattered', 'Scattered Numerals', 'A quiet analog face whose numerals lean and fade, on a soft color'],
@@ -2162,8 +2156,14 @@
   CLOCK_COLORS.liquid = [['pastel', 'Pastel'], ['sunset', 'Sunset'], ['ocean', 'Ocean'], ['mint', 'Mint']];
   CLOCK_COLORS.giant = [['green', 'Green'], ['blue', 'Blue'], ['orange', 'Orange'], ['pink', 'Pink'], ['black', 'Black']];
   CLOCK_COLORS.scattered = [['rose', 'Rose'], ['sage', 'Sage'], ['sky', 'Sky'], ['sand', 'Sand'], ['night', 'Night']];
+  var DESIGN_FACES = [['solar', 'Solar Dial', 'Daylight around an orbital dial'], ['prism', 'Prism', 'Geometric color and sculptural time'],
+    ['world', 'World', 'A globe and the time in your chosen cities'], ['hotel', 'Hotel', 'A wall of city clocks'],
+    ['terminal', 'Terminal', 'A departure board of city times'], ['atelier', 'Atelier', 'A Roman numeral watch face'],
+    ['meridian', 'Meridian', 'A sunburst watch face'], ['markets', 'Markets', 'Your market sensors beside the time'],
+    ['brief', 'Daily Brief', 'Headlines from your chosen news sensor'], ['modular', 'Modular', 'Time, weather and a dial in a modular face']];
+  DESIGN_FACES.forEach(function (f) { CLOCK_STYLES.push(f); CLOCK_COLORS[f[0]] = [['blue', 'Blue'], ['gold', 'Gold'], ['rose', 'Rose'], ['mint', 'Mint'], ['white', 'White']]; });
   // the faces that bring their own ground: the Background behind the clock isn't drawn under them
-  var CLOCK_OWN_GROUND = ['liquid', 'giant', 'scattered'];
+  var CLOCK_OWN_GROUND = ['liquid', 'giant', 'scattered'].concat(DESIGN_FACES.map(function (x) { return x[0]; }));
   function showName(show) {
     var s = SAVER_SHOWS.filter(function (x) { return x[0] === show; })[0];
     return s ? s[1] : 'Photos';
@@ -2196,7 +2196,7 @@
                       'tab_size_phone', 'accent', 'glyph', 'clock', 'swipe',
                       'tab_bar_scroll', 'tab_bar_rooms', 'tab_bar_glass', 'tab_bar_more', 'tab_bar_more_phone', 'tab_bar_pos', 'tab_bar_fold', 'tab_bar_start', 'tab_bar_adjust', 'tab_bar_scroll_phone', 'tab_bar_tabs',
                       'tab_bar_tabs_rail', 'tab_bar_tabs_phone', 'tab_bar_size', 'tab_bar_labels', 'tab_bar_strip', 'menu_phone', 'button_phone', 'tab_bar_rooms_phone',
-                      'swipe_pages'], true],
+                      'swipe_pages', 'swipe_left'], true],
     ['home', 'Home Page', ['chips_row', 'chips', 'chips_quiet', 'chips_extra', 'chips_custom', 'chips_custom_show'], true],
     // a screen's rooms: All Screens' or its own (rooms_custom)
     ['rooms', 'Rooms', ['rooms_custom', 'room_order', 'home_rooms', 'menu_rooms', 'page_rooms'], true],
@@ -2588,7 +2588,7 @@
     ['security', 'Security', 'mdi:shield-home', '#30b0c7'], ['camera', 'Camera', 'mdi:cctv', '#636366'],
     ['timers', 'Timers', 'mdi:timer-outline', '#ff9500'], ['energy', 'Energy', 'mdi:lightning-bolt', '#34c759'],
     ['climate', 'Climate', 'mdi:thermostat', '#007aff'], ['people', 'Who’s Home', 'mdi:account', '#5856d6'],
-    ['todo', 'To-do', 'mdi:clipboard-check', '#ff9500'], ['notifications', 'Notifications', 'mdi:bell', '#ff3b30']];
+    ['todo', 'To-do', 'mdi:clipboard-check', '#ff9500'], ['notifications', 'Notifications', 'mdi:bell', '#ff3b30'], ['status', 'Status', 'mdi:card-text-outline', '#5ac8fa']];
   var PANE_SIZES = [['tiny', 'Tiny'], ['less', 'Less'], ['more', 'More'], ['full', 'Full']];
   var PANE_WHEN = [['always', 'Always'], ['active', 'When There’s Something']];
   var PANE_SIDES = [['left', 'Left'], ['right', 'Right']];
@@ -2655,11 +2655,11 @@
     return { side_pane: Object.keys(own).length ? own : null };
   }
   // A GROUP'S SECTIONS, changed: each returns the whole new group
-  function secKey(s) { return s.kind + ':' + (s.entity || ''); }
+  function secKey(s) { return s.kind + ':' + ((s.kind === 'status' && s.id) || s.entity || ''); }
   function paneGroup(grp, sections) { return { show: grp.show, sections: sections.map(paneSection) }; }
   function secsAdd(grp, kind) {
     if (!paneKind(kind) || grp.sections.length >= PANE_MAX) return paneGroup(grp, grp.sections);
-    return paneGroup(grp, grp.sections.concat([{ kind: kind, size: 'less' }]));
+    return paneGroup(grp, grp.sections.concat([kind === 'status' ? { kind: kind, size: 'less', id: Math.random().toString(36).slice(2, 10) || 's1' } : { kind: kind, size: 'less' }]));
   }
   function secsOrder(grp, keys) {
     var by = {};
@@ -2674,22 +2674,22 @@
     if (v === null || v === undefined || v === '') delete list[i][k]; else list[i][k] = v;
     return paneGroup(grp, list);
   }
-  // the kinds not yet in a group (a camera or a list may come twice, by its entity)
+  // the kinds not yet in a group (a camera or a list may come twice, by its entity; a Status (its id), any number)
   function secsMore(grp) {
     var have = grp.sections.map(function (s) { return s.kind; });
-    return grp.sections.length >= PANE_MAX ? [] : PANE_KINDS.filter(function (k) { return have.indexOf(k[0]) < 0 || k[0] === 'camera' || k[0] === 'todo'; });
+    return grp.sections.length >= PANE_MAX ? [] : PANE_KINDS.filter(function (k) { return have.indexOf(k[0]) < 0 || k[0] === 'camera' || k[0] === 'todo' || k[0] === 'status'; });
   }
   // A SECTION'S ROW SAYS its size and when: "More", "Tiny · When There's Something"
   function secSays(s) {
     var size = choiceLabel(PANE_SIZES, s.size || 'more');
-    return [size, s.when === 'active' ? 'When There’s Something' : '', s.place === 'bottom' ? 'At the Bottom' : ''].filter(Boolean).join(' · ');
+    return [size, s.kind === 'status' ? (s.show ? 'While Its Rule Holds' : '') : s.when === 'active' ? 'When There’s Something' : '', s.place === 'bottom' ? 'At the Bottom' : ''].filter(Boolean).join(' · ');
   }
   // WHERE A SECTION SITS and WHAT A TAP DOES (settings.py PANE_PLACES, PANE_TAPS; 2026-10-30)
   var PANE_PLACES = [['top', 'Top'], ['bottom', 'Bottom']];
   var PANE_TAPS = [['auto', 'Automatic'], ['page', 'Its Page'], ['sheet', 'Its Sheet'], ['none', 'Nothing']];
   // Now Playing's own two (settings.py PANE_TAPS_OWN, item 44), after Its Sheet
   var PANE_TAPS_OWN = { now_playing: [['panel', 'Open the Panel'], ['flip', 'Flip to the Controls']] };
-  function paneTaps(kind) { return PANE_TAPS.slice(0, 3).concat(PANE_TAPS_OWN[kind] || [], PANE_TAPS.slice(3)); }
+  function paneTaps(kind) { return kind === 'status' ? [PANE_TAPS[0], PANE_TAPS[3]] : PANE_TAPS.slice(0, 3).concat(PANE_TAPS_OWN[kind] || [], PANE_TAPS.slice(3)); }
   // THE CAMERA'S NAME (settings.py PANE_CHOICES; 2026-10-31): Hide is what absent means
   var PANE_CAMERA_NAMES = [['hide', 'Hide'], ['auto', 'Automatic'], ['show', 'Show']];
   // THE CLOCK'S LOOK (settings.py PANE_CHOICES, PANE_FLAGS_ON; 2026-10-31, item 43): each choice's first value is

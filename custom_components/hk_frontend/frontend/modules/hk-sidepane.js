@@ -3,7 +3,7 @@
 // down one side of the Dashboard (Home only, or every page) and of the
 // screensaver. HomeView has no such area; it is where HK can do more.
 //
-// WHAT IT IS MADE OF. Twelve sections (KINDS), each drawn for the pane -- not
+// WHAT IT IS MADE OF. Thirteen sections (KINDS), each drawn for the pane -- not
 // a page card squeezed in -- at four Sizes: Tiny (one line: its glyph, the
 // fact and a value), Less (the gist), More (the whole section) and Full (More
 // and then some, taking the room the pane has left; one at a time). Each
@@ -11,7 +11,8 @@
 // the calendars, the screen's music, the alarm and locks, a camera's still,
 // the quick timers, the house's power, the thermostats, person.*, a to-do
 // list through hk_frontend/todo/items, the banners), so the Dashboard's pane
-// and the screensaver's draw the same thing.
+// and the screensaver's draw the same thing. A Status is the owner's own: one
+// entity, a glyph, a name and a label, shown only while its rule holds.
 //
 // THE SETTINGS are the screen's Side Pane as read (settings side_pane_read:
 // each group the screen's own or All Screens', hk_core resolved()), from HK
@@ -48,10 +49,11 @@
     security: ['Security', 'mdi:shield-home', '#30b0c7'], camera: ['Camera', 'mdi:cctv', '#636366'],
     timers: ['Timers', 'mdi:timer-outline', '#ff9500'], energy: ['Energy', 'mdi:lightning-bolt', '#34c759'],
     climate: ['Climate', 'mdi:thermostat', '#007aff'], people: ['Who’s Home', 'mdi:account', '#5856d6'],
-    todo: ['To-do', 'mdi:clipboard-check', '#ff9500'], notifications: ['Notifications', 'mdi:bell', '#ff3b30']
+    todo: ['To-do', 'mdi:clipboard-check', '#ff9500'], notifications: ['Notifications', 'mdi:bell', '#ff3b30'],
+    status: ['Status', 'mdi:card-text-outline', '#5ac8fa']
   };
   var ORDER = ['clock', 'weather', 'calendar', 'now_playing', 'security', 'camera', 'timers', 'energy', 'climate',
-               'people', 'todo', 'notifications'];
+               'people', 'todo', 'notifications', 'status'];
   var SIZES = ['tiny', 'less', 'more', 'full'];
   var WIDTHS = { narrow: 360, standard: 400, wide: 480 };
   // the width the sections are drawn for: a pane's contents are laid out at
@@ -74,9 +76,9 @@
 
   // ---------------------------------------------------- the decisions (pure)
   // which sections show now: Always, and When There's Something while `has`
-  // says it has something
+  // says it has something -- a Status only ever while its rule holds
   function shown(list, has) {
-    return (list || []).filter(function (s) { return s && KINDS[s.kind] && (s.when !== 'active' || !!has(s)); }).slice(0, MAX);
+    return (list || []).filter(function (s) { return s && KINDS[s.kind] && ((s.when !== 'active' && s.kind !== 'status') || !!has(s)); }).slice(0, MAX);
   }
   // THE FIT: `over(sizes, n)` says whether the first n sections at these sizes
   // (and, n short of all, the foot) are taller than the pane. Sizes step down
@@ -311,8 +313,39 @@
       case 'calendar': return calSoon() > 0;
       case 'climate': return domainIds(c, 'climate').some(function (id) { var x = attr(st[id], 'hvac_action'); return x === 'heating' || x === 'cooling'; });
       case 'people': return domainIds(c, 'person').some(function (id) { return (st[id] || {}).state === 'home'; });
+      case 'status': return !!s.entity && !!st[s.entity] && met(s.show, st);
       default: return true;
     }
+  }
+
+  // A STATUS'S RULE (2026-11-06; the Screensaver's Shows When, hk-saverlayout.js met(), which this file can't wait
+  // for -- the screensaver loads it): {entity, op: is / not / above / below, value}; none, always. An entity this
+  // screen can't read, or unavailable, never holds -- absent is not the same as "not"
+  function met(show, st) {
+    if (!show) return true;
+    var x = st && st[show.entity];
+    if (!x || x.state === 'unavailable' || x.state === 'unknown') return false;
+    var s = String(x.state), v = show.value;
+    if (show.op === 'above' || show.op === 'below') {
+      var a = parseFloat(s), b = typeof v === 'number' ? v : parseFloat(v);
+      if (!isFinite(a) || !isFinite(b)) return false;
+      return show.op === 'above' ? a > b : a < b;
+    }
+    var same = s.toLowerCase() === String(v).toLowerCase() || (isFinite(parseFloat(s)) && parseFloat(s) === (typeof v === 'number' ? v : parseFloat(v)));
+    return show.op === 'is' ? same : !same;
+  }
+  // ...and what it says: its own name and label, else the entity's name and its state (with its unit), and its
+  // glyph in its color (the chip's palette, hkCards.PALETTE.icon: "blue" the Home app's blue)
+  function stateWords(x) {
+    var u = attr(x, 'unit_of_measurement'), s = String(x && x.state != null ? x.state : '');
+    return (s.charAt(0).toUpperCase() + s.slice(1)).replace(/_/g, ' ') + (u ? ' ' + u : '');
+  }
+  function statusOf(sec, c) {
+    var x = sec.entity && states(c)[sec.entity];
+    if (!x) return null;
+    var P = C() && C().PALETTE && C().PALETTE.icon, col = sec.color && P && P[sec.color];
+    return { name: sec.name || nameOf(x, sec.entity), label: sec.label || stateWords(x),
+             icon: sec.icon || attr(x, 'icon') || 'mdi:information-outline', color: col || '' };
   }
 
   // THE CALENDAR'S EVENTS (hkCalendar.load, the Calendar page's own read):
@@ -886,6 +919,21 @@
       if (!n.length) return none('notifications', s, 'No notifications');
       if (s === 'tiny') return tiny('notifications', esc(n[0].text), esc(ago(n[0].at)));
       return box('notifications', s, head('notifications') + lst(rows(n.slice(0, { less: 1, more: 3, full: 5 }[s]).map(function (x) { return [x.text, ago(x.at)]; }))), 'shrink');
+    },
+    // A STATUS (2026-11-06), as the owner's status chip says it: Tiny, its glyph, name and label on one line; Less, the
+    // glyph large beside the name over the label (the chip's two lines); More (and Full: there is no more to it), the
+    // name as the heading over the glyph and the label large -- as Security says its state. Shown only while its
+    // rule holds (shown, has); the entity's own sheet on a tap
+    status: function (s, sec, c) {
+      var o = statusOf(sec, c);
+      if (!o) return none('status', s, sec.entity ? 'Can’t read ' + sec.entity : 'Choose an entity');
+      var g = icon(esc(o.icon), o.color ? ' style="color:' + esc(o.color) + '"' : ''), ent = ' data-ent="' + esc(sec.entity) + '"';
+      if (s === 'tiny') return '<div class="sec cmp stt" data-k="status" data-size="tiny"><div class="r2"' + ent + '>' + g +
+        '<span class="tx">' + esc(o.name) + '</span><span class="v2">' + esc(o.label) + '</span></div></div>';
+      if (s === 'less' || !HEAD_ON) return box('status', s, '<div class="r2 big st2"' + ent + '>' + g + '<span class="tx"><b>' + esc(o.name) +
+        '</b><i>' + esc(o.label) + '</i></span></div>', 'stt');
+      return box('status', s, '<div class="h2"><span>' + esc(o.name) + '</span></div><div class="r2 big"' + ent + '>' + g +
+        '<span class="tx">' + esc(o.label) + '</span></div>', 'stt');
     }
   };
   function wxIcon(cond) {
@@ -915,13 +963,14 @@
     var t = document.createElement('canvas'); t.width = 10; t.height = 10;
     var tc = t.getContext && t.getContext('2d');
     if (!ctx || !tc) return out;
-    tc.drawImage(img, 0, 0, 10, 10);
+    var side = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height);
+    tc.drawImage(img, ((img.naturalWidth || img.width) - side) / 2, ((img.naturalHeight || img.height) - side) / 2, side, side, 0, 0, 10, 10);
     try {
       var d = tc.getImageData(0, 0, 10, 10).data, sum = [0, 0, 0];
       for (var i = 0; i < d.length; i += 4) { sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
       out.rgb = sum.map(function (v) { return v / 100; });
     } catch (e) { return out; }
-    // (through a middle step: a tall pane stretches it far more than the
+    // (through a middle step: a tall pane magnifies it far more than the
     // music pane's square, and one jump from 10 px streaks where the canvas
     // has no filter, as WebKit's)
     var m = document.createElement('canvas'); m.width = 20; m.height = 20;
@@ -1015,7 +1064,7 @@
       // look has no blur
       '.artbg{position:absolute;inset:0;opacity:0;transition:opacity 1.2s ease;pointer-events:none;overflow:hidden;background:#141418}',
       ':host([arted]) .artbg{opacity:1}',
-      '.artbg b{position:absolute;left:-8%;top:-8%;width:116%;height:116%;display:block;opacity:0;transition:opacity 1.2s ease;background-size:100% 100%}',
+      '.artbg b{position:absolute;left:-8%;top:-8%;width:116%;height:116%;display:block;opacity:0;transition:opacity 1.2s ease;background-size:cover;background-position:center}',
       '.artbg b.on{opacity:1}',
       '.artbg b.raw{background-size:cover;background-position:center;filter:blur(40px) brightness(.7)}',
       '.artbg i{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(6,10,18,.24),rgba(6,10,18,.34))}',
@@ -1167,6 +1216,11 @@
       '.r2.big{font-size:22px}.r2.big hk-icon{--mdc-icon-size:30px;width:30px;height:30px;color:#30b0c7}',
       // (Security at Less: what is open at the right, on the state's baseline, at the second line's size)
       '.r2.big .v2.sub2{align-self:baseline;font:500 15px/1.3 var(--hk-font-body,inherit);flex:none}.r2.big:has(.v2) .tx{align-self:baseline}',
+      // A STATUS: its glyph the ink unless it has a color of its own (set on the glyph); at Less the name over the
+      // label, as the status chip has them
+      '.stt .r2.big hk-icon{color:inherit}',
+      '.st2 .tx b{display:block;font:600 19px/1.25 var(--hk-font-body,inherit);overflow:hidden;text-overflow:ellipsis}',
+      '.st2 .tx i{display:block;font:500 15px/1.3 var(--hk-font-body,inherit);font-style:normal;color:' + v('ink-2') + ';overflow:hidden;text-overflow:ellipsis}',
       '.cd{font-variant-numeric:tabular-nums;color:#ff9f0a}',
       // A TIMER'S ROW: the ring (the pause) at the left, the time over its name, the red Stop at the right
       '.tmr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"r t s" "r n s";column-gap:12px;align-items:center;--ring:56px}',
@@ -1204,7 +1258,8 @@
       '.pp{all:unset;cursor:pointer;flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:' + v('key') + '}',
       '.pp hk-icon{--mdc-icon-size:22px;width:22px;height:22px}',
       '.cmp .pp{width:30px;height:30px}',
-      '.trow{display:flex;align-items:center;justify-content:space-between;margin-top:12px}',
+      '.trow{display:grid;grid-template-columns:44px 1fr 52px 1fr 44px;align-items:center;justify-items:center;margin-top:18px;margin-bottom:8px}',
+      '.trow>.pp:first-child,.trow>.pp:last-child{width:44px;height:44px}',
       '.tk{all:unset;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;border-radius:50%}.tk hk-icon{--mdc-icon-size:30px;width:30px;height:30px}',
       '.tk:active{background:' + v('key') + '}',
       '.pp.big{width:52px;height:52px;background:#fff;color:#1c1c1e}.pp.big hk-icon{--mdc-icon-size:30px;width:30px;height:30px;color:#1c1c1e}',
@@ -1212,6 +1267,15 @@
       '.np2 .art{width:88px;height:88px;border-radius:12px}.np2 .tx b{font-size:20px}',
       '.npp{height:4px;border-radius:2px;background:' + v('line-strong') + ';overflow:hidden;margin-top:14px}',
       '.npp i{display:block;height:100%;background:' + v('ink') + ';transform-origin:left center}',
+      '.npqueue{display:grid;gap:6px;margin-top:12px;padding-top:16px;border-top:1px solid ' + v('line') + '}',
+      '.npqueue .qh{all:unset;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:13px;font-weight:600;color:' + v('ink-2') + ';height:28px}',
+      '.npqueue .qh span{font-size:12px;font-weight:500}',
+      '.npqueue .qr{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;height:52px;cursor:pointer;border-radius:10px;min-width:0}',
+      '.npqueue .qr:active{background:' + v('key') + '}',
+      '.npqueue button:focus-visible{outline:2px solid ' + v('ink') + ';outline-offset:2px}',
+      '.npqueue .qi{width:36px;text-align:center;flex:none;color:' + v('ink-3') + ';font-size:14px;font-variant-numeric:tabular-nums}',
+      '.npqueue .qt{min-width:0;flex:1}.npqueue b,.npqueue small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.npqueue b{font-size:15px;font-weight:600}.npqueue small{font-size:13px;color:' + v('ink-2') + ';margin-top:2px}',
       '@keyframes npp{to{transform:scaleX(1)}}',
       '@media (prefers-reduced-motion:reduce){.npp i{animation:none!important}}',
       // (each speaker a centered box: hk-icon's own box is inline, so the small one sat on its text line, below the
@@ -1338,6 +1402,7 @@
       case 'climate': return domainIds(c, 'climate')[0] || null;
       case 'people': return domainIds(c, 'person')[0] || null;
       case 'todo': return s.entity || domainIds(c, 'todo')[0] || null;
+      case 'status': return s.entity || null;
       default: return null;
     }
   }
@@ -1470,6 +1535,40 @@
       this._cuts();
       this._cams();
       this._fit = got;
+      this._queue(c);
+    }
+    // More uses only the space left after every section has fitted. The preview
+    // never makes another section shrink or disappear; its rows open the full queue.
+    _queue(c) {
+      var old = this._secs.querySelector('.npqueue');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+      var sec = this._secs.querySelector('[data-k="now_playing"][data-size="more"]');
+      var m = musicOf(c), self = this;
+      if (!sec || !m || this.getAttribute('side') === 'band' || !c || !c.callWS) return;
+      var sig = JSON.stringify([m.key, m.title, m.artist, attr(states(c)[m.key], 'media_content_id')]);
+      var q = this._npQueue;
+      if (!q || q.sig !== sig || (!q.busy && Date.now() - q.at > 30000)) {
+        q = this._npQueue = { sig: sig, at: Date.now(), busy: true, items: q && q.sig === sig ? q.items : [] };
+        c.callWS({ type: 'hk_music/queue', entity_id: m.key, limit: 40 }).then(function (r) {
+          if (self._npQueue !== q) return;
+          q.busy = false; q.items = r && r.ok && Array.isArray(r.items) ? r.items.slice(1) : [];
+          if (self.isConnected && self.hasAttribute('on')) self._queue(clientNow());
+        }, function () { if (self._npQueue === q) { q.busy = false; q.items = []; } });
+      }
+      if (!q.items.length) return;
+      var used = 0, secs = this._secs;
+      Array.prototype.forEach.call(secs.children, function (n) { if (!n.classList.contains('gap')) used += n.offsetHeight; });
+      used += Math.max(0, secs.children.length - 1) * (parseFloat(getComputedStyle(secs).rowGap) || 0);
+      // Header, inset and the section's grid gap, then whole rows only.
+      var count = Math.min(q.items.length, Math.floor((secs.clientHeight - used - 70) / 58));
+      if (count < 1) return;
+      var el = document.createElement('div'); el.className = 'npqueue';
+      el.innerHTML = '<button class="qh" type="button" data-act="queue">Up Next<span>View Queue</span></button>' +
+        q.items.slice(0, count).map(function (it, i) {
+          return '<button class="qr" type="button" data-act="queue" aria-label="View queue: ' + esc(it.title) + '"><span class="qi">' + (i + 1) +
+            '</span><span class="qt"><b>' + esc(it.title) + '</b><small>' + esc(it.artist || '') + '</small></span></button>';
+        }).join('');
+      sec.appendChild(el);
     }
     // THE ALBUM ART BEHIND THE WHOLE PANE (2026-10-30, the owner: "if something
     // is playing, the whole pane should have the album art blur"): while Now
@@ -1582,9 +1681,9 @@
     // what the data said last time, so a push that changes nothing here draws nothing
     _dataSig(c) {
       var st = states(c), o = this._o, ids = [];
-      (o.list || []).forEach(function (s) { ids.push(s.entity || ''); });
+      (o.list || []).forEach(function (s) { ids.push(s.entity || ''); if (s.show && s.show.entity) ids.push(s.show.entity); });
       var m = musicOf(c);
-      return JSON.stringify([Math.floor(Date.now() / 30000), m && [m.key, m.playing, m.title],
+      return JSON.stringify([Math.floor(Date.now() / 30000), m && [m.key, m.playing, m.title, m.artist, m.pic, attr(st[m.key], 'media_content_id')],
         timersOf(c).map(function (r) { var x = st[r.entity_id]; return [r.entity_id, x && x.state, r.finishes_at || r.remaining]; }),
         ids.map(function (id) { return id && st[id] ? st[id].last_updated : ''; }), CAL.at, notesOf().length,
         Object.keys(TODO).map(function (k) { return TODO[k].sig + (TODO[k].got ? 1 : 0); })]);
@@ -1679,6 +1778,7 @@
     }
     // ...and taken out when the pane steps aside (the music pane stops drawing)
     _park() {
+      this._npQueue = null;
       var np = this._slots.np;
       if (this._camT) { clearInterval(this._camT); this._camT = null; }
       if (np && np.active) np.active(false);
@@ -1723,8 +1823,8 @@
       } else if (act === 'prev' || act === 'next') {
         var mn = musicOf(c);
         if (mn) c.actions.callService('media_player', act === 'prev' ? 'media_previous_track' : 'media_next_track', {}, { entity_id: mn.key }).catch(function () { /* refused: said by the host */ });
-      } else if (act === 'spk' || act === 'brw') {
-        musicPanel(this, act === 'spk' ? 'speakers' : 'browse', b.closest('[data-k="now_playing"]'), 'drawer');
+      } else if (act === 'spk' || act === 'brw' || act === 'queue') {
+        musicPanel(this, act === 'spk' ? 'speakers' : act === 'queue' ? 'queue' : 'browse', b.closest('[data-k="now_playing"]'), 'drawer');
       } else if (act === 'todo') {
         // CHECKED OFF: a house command (todo.update_item), struck through
         // until the list says so
@@ -1891,13 +1991,26 @@
       FOLLOW.shift = (side === 'left' ? -1 : 1) * w / 2;
       if (FOLLOW.going < 0 && dash) dash.setAttribute('peek', '');
     }
+    if (!FOLLOW.going) { unfollow(); return; }
     cancelAnimationFrame(FOLLOW.tween);
+    if (dash) dash.style.transition = 'none';
+    var bar = barHost(); if (bar) bar.style.setProperty('--hk-pane-glide', '0s');
     FOLLOW.p = Math.max(0, Math.min(1, p || 0));
     followDraw(FOLLOW.p);
   }
-  function land(path) {
-    if (!FOLLOW.going) { FOLLOW.to = null; return; }
+  function land(path, motion) {
+    if (!FOLLOW.going) { unfollow(); return; }
     var from = FOLLOW.p, goal = path ? 1 : 0, t0 = 0;
+    if (motion && !stillMotion()) {
+      FOLLOW.landed = !!path;
+      if (dash) { dash._followed = !!path; dash.style.transition = 'opacity ' + motion.ms + 'ms ' + motion.ease + ',transform ' + motion.ms + 'ms ' + motion.ease; }
+      var bar = barHost();
+      if (bar) { bar.style.setProperty('--hk-pane-glide', motion.ms + 'ms'); bar.style.setProperty('--hk-pane-ease', motion.ease); }
+      FOLLOW.p = goal; followDraw(goal);
+      cancelAnimationFrame(FOLLOW.tween); clearTimeout(FOLLOW.giveUp);
+      FOLLOW.giveUp = setTimeout(function () { if (path) handOver(); else unfollow(); }, motion.ms + 250);
+      return;
+    }
     FOLLOW.landed = !!path;
     if (dash) dash._followed = !!path;
     var step = function (now) {
@@ -1920,13 +2033,14 @@
     cancelAnimationFrame(FOLLOW.tween);
     var bar = barHost();
     if (bar) bar.style.setProperty('--hk-pane-glide', '0s');
-    unfollow();
+    unfollow(true);
     requestAnimationFrame(function () { requestAnimationFrame(function () { if (bar) bar.style.removeProperty('--hk-pane-glide'); }); });
   }
-  function unfollow() {
+  function unfollow(keepGlide) {
+    clearTimeout(FOLLOW.giveUp); cancelAnimationFrame(FOLLOW.tween);
     var bar = barHost();
-    if (bar) bar.style.removeProperty('--hk-pane-shift');
-    if (dash) { dash.style.opacity = ''; dash.style.transform = ''; dash.removeAttribute('peek'); }
+    if (bar) { bar.style.removeProperty('--hk-pane-shift'); bar.style.removeProperty('--hk-pane-ease'); if (!keepGlide) bar.style.removeProperty('--hk-pane-glide'); }
+    if (dash) { dash.style.opacity = ''; dash.style.transform = ''; dash.style.transition = ''; dash.removeAttribute('peek'); }
     FOLLOW.to = null; FOLLOW.going = 0; FOLLOW.p = 0;
   }
   // THE MUSIC'S PANEL OVER THE PANE (Less's Speakers and Browse): the
@@ -2016,43 +2130,59 @@
     if (me.from) { (me.how === 'drawer' ? drawerAnim : turnAnim)(me, false, fin); return; }
     fin();
   }
-  // THE DRAWER'S RISE: at first only what plays shows, where the section stood (the section hidden under it); it
-  // rises to the pane's top, the tabs and the list opening under it as it goes. Closing, back down the same way.
-  // Transforms and a clip only; at rest under Reduce Motion.
+  // THE DRAWER'S RISE: what plays rides up from where the section's cover was to the pane's top, the drawer's glass
+  // fading in over the pane as the section fades out under it, the tabs and the list rising in after. Closing runs the
+  // same steps backwards. Transforms and opacity only; at rest under Reduce Motion.
   function drawerAnim(me, opening, done) {
     var el = me.p.el, src = me.from, B = me.box, R = me.rect, HC = C();
     var EASE = (HC && HC.EASE) || { standard: 'ease-out', exit: 'ease-in' };
     var reduce = (window.hkSettings && window.hkSettings.skyLook && window.hkSettings.skyLook().animations === false) ||
                  (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    // UNFOLDING FROM THE PLAYER (2026-11-01, the owner: "the slide up and down of the media player in the side pane
-    // doesn't look great at all"): the drawer starts as exactly the section's box and opens up and down from it to the
-    // whole pane (a clip), the player's row riding up inside it to the top, the tabs and the list fading in as it
-    // opens. It was a solid box sliding up, the pane bare under it until it got there. Closing, the same backwards.
-    var top = Math.max(0, Math.round(R.top - B.y)), bottom = Math.max(0, Math.round(B.y + B.h - (R.top + R.height)));
+    // NO CLIP (2026-11-06, the owner: "when it slides in from the top or goes back down, it gets clipped at the bottom"):
+    // the drawer opened as a clip from the section's box. Its edge swept through the list, and closing it left a dark
+    // band of the small row over the pane before the section came back. Now the two cross-fade: nothing is cut.
+    // (the small row starts level with the section's cover: its own cover sits under its 24 px of padding)
+    var cover = src && src.isConnected && src.querySelector('.np .art');
+    var lift = cover ? cover.getBoundingClientRect().top - 24 : R.top;
+    var top = Math.max(0, Math.round(lift - B.y));
     var inner = el.querySelector('.mpin'), rest = el.querySelectorAll('.mphd,.mpbody,.mpfoot');
-    var small = { clipPath: 'inset(' + top + 'px 0 ' + bottom + 'px 0)' }, full = { clipPath: 'inset(0px 0 0px 0)' };
-    var ride = [{ transform: 'translateY(' + top + 'px)' }, { transform: 'none' }], show = [{ opacity: 0 }, { opacity: 1 }];
+    var ride = [{ transform: 'translateY(' + top + 'px)' }, { transform: 'none' }];
+    var rise = [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }];
     var stop = function () {
       (me.anims || []).forEach(function (x) { try { x.cancel(); } catch (e) { /* done */ } });
       me.anims = []; me.anim = null;
     };
     stop();
+    var live = !!(src && src.isConnected && typeof src.animate === 'function');
     var can = !reduce && typeof el.animate === 'function';
     var run = function (target, frames, o) { var x = target.animate(frames, o); me.anims.push(x); return x; };
+    var hideSrc = function (on) {
+      if (!src || !src.isConnected) return;
+      src.style.transition = 'none';
+      src.style.visibility = on ? 'hidden' : '';
+      if (!on) { void src.offsetWidth; src.style.transition = ''; }
+    };
     if (opening) {
-      if (src && src.isConnected) src.style.visibility = 'hidden';
-      if (!can) return;
+      if (!can) { hideSrc(true); return; }
       var o = { duration: 440, easing: EASE.standard };
-      var a = me.anim = run(el, [small, full], o);
-      if (inner) run(inner, ride, o);
-      Array.prototype.forEach.call(rest, function (n) { run(n, show, { duration: 320, delay: 120, easing: 'ease-out', fill: 'backwards' }); });
-      a.onfinish = function () { if (me.anim === a) stop(); };
+      var a = me.anim = run(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
+      var r1 = inner ? run(inner, ride, o) : a;
+      Array.prototype.forEach.call(rest, function (n) { run(n, rise, { duration: 320, delay: 120, easing: EASE.standard, fill: 'backwards' }); });
+      if (live) {
+        var f = run(src, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-out', fill: 'forwards' });
+        f.onfinish = function () { if (me.anims.indexOf(f) >= 0) hideSrc(true); };
+      } else hideSrc(true);
+      r1.onfinish = function () { if (me.anims.indexOf(r1) >= 0) stop(); };
     } else {
       if (!can) { done(); return; }
-      var c = { duration: 340, easing: EASE.standard, fill: 'forwards' };
-      var b = me.anim = run(el, [full, small], c);
+      var c = { duration: 360, easing: EASE.standard, fill: 'forwards' };
       if (inner) run(inner, ride.slice().reverse(), c);
-      Array.prototype.forEach.call(rest, function (n) { run(n, show.slice().reverse(), { duration: 200, easing: 'ease-in', fill: 'forwards' }); });
+      Array.prototype.forEach.call(rest, function (n) { run(n, rise.slice().reverse(), { duration: 140, easing: 'ease-in', fill: 'forwards' }); });
+      var b = me.anim = run(el, [{ opacity: 1 }, { opacity: 1, offset: 0.35 }, { opacity: 0 }], c);
+      if (live) {
+        hideSrc(false);
+        run(src, [{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: 360, easing: 'ease-out' });
+      }
       b.onfinish = function () { stop(); done(); };
     }
   }
@@ -2068,29 +2198,19 @@
     var small = 'perspective(1500px) translate(' + Math.round(R.left + R.width / 2 - (B.x + B.w / 2)) + 'px,' + Math.round(R.top + R.height / 2 - (B.y + B.h / 2)) +
                 'px) rotateY(-90deg) scale(' + (R.width / B.w).toFixed(3) + ',' + (R.height / B.h).toFixed(3) + ')';
     var live = src && src.isConnected && typeof src.animate === 'function';
-    var can = !reduce && typeof el.animate === 'function';
+    // (both halves on one schedule, the panel painted before it moves: hk-saver-panel.js turn)
+    var P = window.hkSaverPanel;
+    var can = !reduce && typeof el.animate === 'function' && !!(P && P.turn);
     if (me.anim) { try { me.anim.cancel(); } catch (x) { /* done */ } me.anim = null; }
+    var o = { el: el, src: src, flat: small, edge: edge, srcGone: function (on) { if (src.isConnected) src.style.visibility = on ? 'hidden' : ''; } };
     if (opening) {
       if (!can || !live) { if (src && src.isConnected) src.style.visibility = 'hidden'; return; }
-      el.style.visibility = 'hidden';
-      var a = me.anim = src.animate([{ transform: 'none' }, { transform: edge }], { duration: 240, easing: EASE.exit, fill: 'forwards' });
-      a.onfinish = function () {
-        if (src.isConnected) src.style.visibility = 'hidden';
-        a.cancel();
-        if (mpnl !== me) return;
-        el.style.visibility = '';
-        var b = me.anim = el.animate([{ transform: small }, { transform: 'none' }], { duration: 440, easing: EASE.standard });
-        b.onfinish = function () { if (me.anim === b) me.anim = null; };
-      };
+      o.out = [240, EASE.exit]; o.in = [440, EASE.standard];
+      var tr = me.anim = P.turn(Object.assign(o, { done: function () { if (me.anim === tr) me.anim = null; } }), true);
     } else {
       if (!can || !live) { done(); return; }
-      var c1 = me.anim = el.animate([{ transform: 'none' }, { transform: small }], { duration: 300, easing: EASE.exit, fill: 'forwards' });
-      c1.onfinish = function () {
-        el.style.visibility = 'hidden';
-        src.style.visibility = '';
-        var c2 = me.anim = src.animate([{ transform: edge }, { transform: 'none' }], { duration: 280, easing: EASE.standard });
-        c2.onfinish = function () { me.anim = null; done(); };
-      };
+      o.out = [300, EASE.exit]; o.in = [280, EASE.standard];
+      me.anim = P.turn(Object.assign(o, { done: function () { me.anim = null; done(); } }), false);
     }
   }
   // NOW PLAYING IN THE PANE: the docked bar gives the music up to it while
@@ -2178,8 +2298,14 @@
     if (frame) return;
     frame = requestAnimationFrame(function () { frame = 0; try { sync(); } catch (e) { console.error('[hk-sidepane]', e); } });
   }
-  var lastPush = 0;
-  function pushed() { var now = Date.now(); if (now - lastPush < 1000) return; lastPush = now; soon(); }
+  // (...and one more at the end of the second when a push came too soon: a Status coming up as its entity changes --
+  // a pane with nothing showing has no ticking second to catch it, and a quiet house may not push again for long)
+  var lastPush = 0, pushLate = 0;
+  function pushed() {
+    var now = Date.now(), wait = 1000 - (now - lastPush);
+    if (wait > 0) { if (!pushLate) pushLate = setTimeout(function () { pushLate = 0; pushed(); }, wait); return; }
+    lastPush = now; soon();
+  }
   function wire() {
     var SH = window.hkShell;
     if (SH && SH.onNavigate) SH.onNavigate(soon);
@@ -2208,13 +2334,13 @@
   if (typeof document !== 'undefined' && document.addEventListener && !window.HK_SIDEPANE_NO_WIRE) wire();
 
   window.hkSidePane = {
-    KINDS: KINDS, ORDER: ORDER, SIZES: SIZES, WIDTHS: WIDTHS, MAX: MAX,
+    KINDS: KINDS, ORDER: ORDER, SIZES: SIZES, WIDTHS: WIDTHS, MAX: MAX, placement: place,
     // the screensaver's own pane (hk-saver.js): an element it places itself
     create: function (mode) { var el = document.createElement('hk-side-pane'); el.setAttribute('mode', mode || 'saver'); return el; },
     // a swipe between pages (hk-pageswipe.js): how far toward `toPath`, and where it landed (null: back); the room
     // the page there will have, so it comes in laid out as it lands
     follow: function (p, toPath) { try { follow(p, toPath); } catch (e) { /* not drawn */ } },
-    land: function (path) { try { land(path); } catch (e) { /* not drawn */ } },
+    land: function (path, motion) { try { land(path, motion); } catch (e) { /* not drawn */ } },
     room: function (toPath) { try { return roomFor(toPath); } catch (e) { return null; } },
     // THE SETTINGS SLIDER'S DIM while it moves (hk-settings.js pvPaneDim): held a few seconds past the last move,
     // long enough for the saved setting to come back, then the setting's own again
@@ -2240,7 +2366,7 @@
     sync: sync,
     previewHouse: function (on) { if (HOUSE === !!on) return; HOUSE = !!on; sync(); },
     // tests
-    _: { shown: shown, fit: fit, place: place, wants: wants, saverList: saverList, has: has, ringing: ringing, SEC: SEC,
+    _: { shown: shown, fit: fit, place: place, wants: wants, saverList: saverList, has: has, ringing: ringing, SEC: SEC, met: met,
          publish: publish, musicFlag: musicFlag, NOTES: NOTES, TODO: TODO, CAL: CAL, calLoad: calLoad, todoOf: todoOf, LOST: LOST }
   };
 })();

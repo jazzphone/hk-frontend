@@ -328,6 +328,7 @@
     var a = areaOf(client, id);
     return !!(a && hide.areas[a]);
   }
+  function PR() { var no = function () { return null; }; return window.hkPairs || { area: no, name: no, model: no, folded: no, learn: no }; }
 
   // A tile for something the house ADDED (Configure -> Also show) that has no
   // tile of its own: scenes and scripts run on a tap, buttons press, toggles
@@ -421,7 +422,7 @@
     } else {
       // a button that is not a computer's wake is the generic pressable tile
       var fn = d === 'button' && !isTileButton(e) ? anyTile : (TILE[d] || anyTile);
-      t = fn(id, name, client.states[id], dv && dv.model);
+      t = fn(id, name, client.states[id], PR().model(client, id) || (dv && dv.model));
     }
     var own = accIcon(id) || (e && ownIcon(e.icon));
     if (t && own && 'icon' in t && own !== t.icon) {
@@ -483,7 +484,7 @@
   // controls indistinguishable. The room prefix is then dropped by shortName.
   function nameOf(client, id, ent) {
     var st = client.states[id];
-    return (st && st.attributes && st.attributes.friendly_name) || (ent && ent.name) || id;
+    return PR().name(client, id) || (st && st.attributes && st.attributes.friendly_name) || (ent && ent.name) || id;   // (a stereo pair's own)
   }
 
   function heading(name) {
@@ -533,10 +534,10 @@
       seen[id] = true;
       var e = ents[id] || {}, dom = id.split('.')[0];
       var added = !!hide.include[id];
-      if (!client.states[id] || hidden(client, opts, id)) return;
+      if (!client.states[id] || hidden(client, opts, id) || PR().folded(client, id, hidden.bind(null, client, opts))) return;   // (a stereo pair's half, hk-pairs.js)
       if (!added && (!TILE[dom] || e.hidden || e.entity_category)) return;
       if (!added && dom === 'button' && !isTileButton(e)) return;
-      var area = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id);
+      var area = e.area_id || (e.device_id && devs[e.device_id] && devs[e.device_id].area_id) || PR().area(client, id);
       // A ROOM SHOWN AS PART OF ANOTHER (the accessories' `into`): the Deck's
       // things are the Backyard's, its section and page the Backyard's
       if (area && into[area] && areas[into[area]]) area = into[area];
@@ -849,7 +850,7 @@
     var ents = client.entities || {};
     return idsOf(client, opts, domain).filter(function (id) {
       var e = ents[id] || {};
-      if (e.hidden || e.entity_category || hidden(client, opts, id)) return false;
+      if (e.hidden || e.entity_category || hidden(client, opts, id) || PR().folded(client, id, hidden.bind(null, client, opts))) return false;
       return !pred || pred(client.states[id]);
     }).sort();
   }
@@ -895,7 +896,7 @@
     if (K && typeof K === 'object' && Object.keys(K).length) {
       var mine = function (kind) {
         return (Array.isArray(K[kind]) ? K[kind] : []).filter(function (id) {
-          return client.states[id] && !hidden(client, opts, id);
+          return client.states[id] && !hidden(client, opts, id) && !PR().folded(client, id, hidden.bind(null, client, opts));
         });
       };
       var gar = mine('garage');
@@ -1058,7 +1059,6 @@
              exclude_entities: opts.exclude_entities, exclude_devices: opts.exclude_devices,
              exclude_areas: opts.exclude_areas };
   }
-
 
   // ------------------------------------------------------------ the chips
   // hk-chips-card (hk-chip.js): the kinds from Status & Chips, in this
@@ -1502,10 +1502,9 @@
     return out;
   }
 
-  // IS MUSIC SET UP? Asked of the feature itself, once; if it is not
-  // installed the subscribe is refused, which answers no. The page's own
-  // hkMusic has not been handed its configuration yet when a dashboard is
-  // generated (no card has attached it), so it cannot say.
+  // IS MUSIC SET UP? Asked of the feature itself, once (its answer also has the house's stereo pairs, hk-pairs.js);
+  // not installed, the subscribe is refused: no. The page's own hkMusic has not been handed its configuration yet
+  // when a dashboard is generated (no card has attached it), so it cannot say.
   function musicConfigured(client) {
     return new Promise(function (resolve) {
       // the client's subscription port (its read allowlist offers hk_music/subscribe)
@@ -1524,6 +1523,7 @@
       // connection that is down, that acceptance waits for the reconnect.
       setTimeout(function () { finish(false); }, 4000);
       conn.subscribeMessage(function (ev) {
+        PR().learn(client, ev ? (ev.configured && ev.speakers) || [] : null);
         finish(!!(ev && ev.configured && ev.speakers && ev.speakers.length));
       }, { type: 'hk_music/subscribe' }).then(function (u) {
         unsub = u;
@@ -2136,9 +2136,7 @@
         }));
       });
     }
-    // THE DOCKED BAR ON EVERY PAGE (a screen's On Every Page): each page of
-    // HK's own kind gets the bar too -- a pop-up lives in its page -- and
-    // hk-popup.js carries it from one to the next without a slide
+    // On Every Page carries the same docked player through ordinary views.
     if (dockBar && b.bar_all_pages) {
       dockBar.carry = true;
       out.forEach(function (v) {
@@ -2355,15 +2353,8 @@
     }
   }
 
-  // THE PAGES SCREEN (docs/phase11/HOMEVIEW-LOOK.md, Phase J; decision 15):
-  // while the screen's Pages Screen is on (hkSettings.pagesScreen: its own,
-  // else All Screens'), a page right after Home -- an iPad-style home screen
-  // of the screen's pages (hk-pages-screen.js) -- at /pages (/pages-screen
-  // where a custom page has that address). It wears Home's sky and theme:
-  // the screen's own background, drawn blurred by the card. Its icons,
-  // rooms, widgets and pill the card reads live; only `show` builds.
-  // `pages_screen: true` is what the menu, the tab bar and Edit mode know it
-  // by (hk-menu.js model: right after Home).
+  // Pages follows Home and reads its icons, rooms and widgets live.
+  // It wears Home's sky and uses /pages-screen when /pages is already taken.
   function pagesScreen(list, b) {
     var HS = window.hkSettings, home = list[0];
     if (!home || !HS || !HS.pagesScreen || HS.pagesScreen(b).show !== 'on') return;
@@ -2372,6 +2363,14 @@
               pages_screen: true, background: home.background || '#05070e',
               layout: { 'grid-template-columns': 'minmax(0, 1fr)', margin: '0px', padding: '0px' },
               cards: [{ type: 'custom:hk-pages-screen-card', glass: false }] };
+    // Pages is inserted after the ordinary views received their docked player.
+    // Carry that same bar here too when On Every Page is enabled.
+    if (b.bar_all_pages) {
+      var bar = list.flatMap(function (page) { return page.cards || []; }).find(function (card) {
+        return (card.cards || []).some(function (c) { return c.type === 'custom:hk-popup-card' && c.hash === '#media' && c.dock; });
+      });
+      if (bar) v.cards.push(bar);
+    }
     if (home.theme) v.theme = home.theme;
     if (home.sky) v.sky = true;
     list.splice(1, 0, v);
@@ -2896,7 +2895,7 @@
       day_look: o.day_look, forecast_big: o.forecast_big, forecast_planted: o.forecast_planted !== false, layout: o.layout || null, tb_size: o.tb_size, tb_top: o.tb_top, tb_dim: o.tb_dim,
       // the clocks (hk-saverclock.js; hk-saver.js readCfg checks them)
       clock: o.clock !== false, clock_over: o.clock_over, clock_style: o.clock_style, clock_bg: o.clock_bg,
-      clock_motion: o.clock_motion, clock_24: o.clock_24 === true, clock_today_music: o.clock_today_music !== false, clock_today_weather: o.clock_today_weather !== false, clock_colors: o.clock_colors, clock_speed: o.clock_speed, clock_depth: o.clock_depth,
+      clock_motion: o.clock_motion, clock_24: o.clock_24 === true, clock_today_music: o.clock_today_music !== false, clock_today_weather: o.clock_today_weather !== false, clock_colors: o.clock_colors, clock_options: o.clock_options, clock_speed: o.clock_speed, clock_depth: o.clock_depth,
       clock_night: o.clock_night, clock_night_from: o.clock_night_from, clock_night_to: o.clock_night_to,
       // a Wallpaper behind the clock (2026-10-31; hk-saverclock.js draws it, hkWallpapers checks both)
       clock_wallpaper: o.clock_wallpaper, clock_wallpaper_color: o.clock_wallpaper_color,
@@ -3090,7 +3089,7 @@
                     tab_bar_adjust: 1, tab_bar_scroll_phone: 1, tab_bar_tabs: 1, tab_bar_tabs_rail: 1, tab_bar_tabs_phone: 1,
                     tab_bar_size: 1, tab_bar_labels: 1, tab_bar_strip: 1,
                     // ...and Swipe Between Pages (hk-pageswipe.js reads it live)
-                    swipe_pages: 1,
+                    swipe_pages: 1, swipe_left: 1,
                     // ...and Phones' own menu (hk-base.js phoneMenu, 2026-10-08)
                     menu_phone: 1, button_phone: 1, tab_bar_rooms_phone: 1,
                     // ...and Now Playing's place (hk-popup.js placeFor reads it live)
