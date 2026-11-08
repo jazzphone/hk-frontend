@@ -155,6 +155,10 @@
       'hk-plate.sec{box-sizing:border-box;height:100%;display:flex;flex-direction:column;gap:10px;padding:' + C.blockPad('14px') + ';overflow:hidden;' + C.plate('card') + ';color:' + v('ink') + ';',
       '  -webkit-tap-highlight-color:transparent;--ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
       'hk-plate.sec[size=W],hk-plate.sec.kp{flex-direction:row;gap:18px}',
+      // (shapes on its inset -- the keypad, the locks, the ways to arm -- at the shape inset, 13 on a square cell, their corners 34 - 13;
+      // the heading keeps the text's 18 -- 2026-11-08, the owner's group-block rule "across all the cards")
+      'hk-plate.sec.kp,hk-plate.sec[size=L],hk-plate.sec[size=T]{padding:' + C.blockPad('14px', true) + '}',
+      'hk-plate.sec[size=L] .hd,hk-plate.sec[size=T] .hd{margin:var(--hk-text-in,0px) var(--hk-text-in,0px) 0 var(--hk-text-in,0px)}',
       '[role=button]{cursor:pointer}',
       '[role=button]:focus-visible,button:focus-visible{outline:2px solid ' + v('ink-2') + ';outline-offset:2px}',
       // the shield bare, in the state's color (gray disarmed), as the Small blocks beside it draw their glyphs
@@ -355,10 +359,27 @@
             q('.kpad').appendChild(this._pad);
             this._kids.push(this._pad);
           } else this._pad = null;
-          this._rowKey = null;
+          this._rowKey = null; this._tileKey = null;          // (a new build: its entries and the line under them drawn again)
           this._built = true;
         }
         var e = this._e, st = alarm && this.client && this.client.states[alarm], look = alarmLook(st), rows = secRows(this.client), says = secSays(rows);
+        // THE BLOCK'S OWN ENTRIES (members, HomeView's Entries: Choose -- 2026-11-08, the keypad kept in HomeView's Extra Large): its
+        // locks and garage doors those, in its order; the doors and windows still the line under them
+        var mem = Array.isArray((this._config || {}).members) && this._config.members.length ? this._config.members : null;
+        // (one the house's own lists leave out is still drawn from its state -- 2026-11-08, the owner: chosen entries didn't show)
+        var stAll = (this.client && this.client.states) || {}, cl = this.client;
+        if (mem) rows = rows.filter(function (r) { return !r.tile; }).concat(mem.map(function (id) {
+          var r0 = rows.filter(function (r) { return r.tile && r.id === id; })[0], s0 = stAll[id];
+          if (r0) return r0;
+          if (!s0) return { id: id, name: id, icon: 'mdi:help-circle-outline', value: 'Unavailable', open: false, tile: true };
+          if (dom(id) === 'lock') {
+            var un = s0.state === 'unlocked' || s0.state === 'open';
+            return { id: id, name: friendly(cl, id), icon: un ? 'mdi:lock-open-variant' : 'mdi:lock', value: un ? 'Unlocked' : 'Locked', open: un, lock: !un, tile: true };
+          }
+          var shut = s0.state === 'closed' || s0.state === 'off', gar = !!DOORS[attr(s0, 'device_class')];
+          return { id: id, name: friendly(cl, id), icon: gar ? (shut ? 'mdi:garage' : 'mdi:garage-open') : (shut ? 'mdi:door-closed' : 'mdi:door-open'),
+                   value: shut ? 'Closed' : 'Open', open: !shut, tile: true };
+        }));
         if (e.icon.icon !== look.icon) e.icon.icon = look.icon;
         if (look.color) e.card.style.setProperty('--c', look.color); else e.card.style.removeProperty('--c');
         if (look.text) e.card.style.setProperty('--t', look.text); else e.card.style.removeProperty('--t');
@@ -617,6 +638,8 @@
       'hk-plate.hv{box-sizing:border-box;height:100%;display:flex;gap:12px;padding:' + C.blockPad('14px') + ';overflow:hidden;' + C.plate('card') + ';color:' + v('ink') + ';',
       '  -webkit-tap-highlight-color:transparent;--ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0}',
       'hk-plate.hv[size=L]{flex-direction:column}',
+      // (its entries on the shape inset, the alarm's words on the text's -- 2026-11-08)
+      'hk-plate.hv{padding:' + C.blockPad('14px', true) + '}hk-plate.hv .al{margin:var(--hk-text-in,0px) 0 var(--hk-text-in,0px) var(--hk-text-in,0px)}hk-plate.hv[size=L] .al{margin:var(--hk-text-in,0px) var(--hk-text-in,0px) 0 var(--hk-text-in,0px)}',
       '[role=button]{cursor:pointer;-webkit-tap-highlight-color:transparent}',
       '[role=button]:focus-visible{outline:2px solid ' + v('ink-2') + ';outline-offset:2px}',
       // THE ALARM'S AREA: the shield bare in its state's color (as the legacy block, and the Small keys), the state and

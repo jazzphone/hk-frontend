@@ -654,7 +654,13 @@
       'button{appearance:none;font:inherit;color:' + window.hkCards.v('ink') + ';cursor:pointer;margin:0}',
       // (its controls level with Energy's tabs, one page edge from the top:
       // the 54 px row centers its 44 px controls 5 px in -- DESIGN.md "Page edges")
-      '.bar{display:flex;align-items:center;gap:14px;min-height:52px;margin:-4px 0 16px;flex-wrap:wrap}',
+      // THE BAR FLOATS where the page scrolls, as the Energy tabs do (2026-11-08, the owner): a frosted strip once at
+      // the top, its 44 px controls 6 px inside it all round (_float)
+      '.bar{display:flex;align-items:center;gap:14px;min-height:52px;margin:-4px 0 16px;flex-wrap:wrap;position:sticky;z-index:4;' +
+      '  top:max(var(--hk-energy-sticky-top,10px), calc(env(safe-area-inset-top, 0px) + 4px));border-radius:' + C.R.capsule('58px') + ';transition:background-color .25s ease}',
+      '.bar.stuck{min-height:44px;padding:6px 6px 6px 18px;background:' + window.hkCards.v('float-plate') + ';',
+      '  -webkit-backdrop-filter:var(--hk-float-backdrop,blur(24px) saturate(1.6));backdrop-filter:var(--hk-float-backdrop,blur(24px) saturate(1.6));',
+      '  border:1px solid rgba(255,255,255,0.12);box-shadow:0 8px 24px rgba(0,0,0,0.28)}',
       '.ttl{font-size:34px;font-weight:700;letter-spacing:-0.6px;white-space:nowrap}',
       '.ttl span{font-weight:300;opacity:0.8}',
       '.arrows{display:flex;gap:8px}',
@@ -706,7 +712,7 @@
       '.dsub{font-size:15px;font-weight:500;color:' + window.hkCards.v('ink-2') + ';margin-top:2px}',
       // (its 10 px under the day's name as padding: the list scrolls right up
       // under the name, in a frame with the sheet's shadows -- BASE_CSS .hk-edge)
-      '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-top:10px}',
+      '.list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;-webkit-overflow-scrolling:touch;padding-top:10px}',
       '.ad{width:100%;height:30px;margin-top:6px;border-radius:8px;border:0;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:14px;font-weight:600;text-align:left;color:' + window.hkCards.v('ink') + '}',
       '.ad i{flex:none;width:8px;height:8px;border-radius:4px}',
       '.ad em{margin-left:auto;font-style:normal;font-weight:500;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
@@ -729,7 +735,7 @@
       '.dh.today b{width:28px;height:28px;line-height:28px;border-radius:14px;background:#fff;color:#1c1c1e;font-weight:700;text-align:center;font-size:15px}',
       '.alld{position:relative;border-top:1px solid ' + window.hkCards.v('line') + ';flex:none}',
       '.alld .lab{position:absolute;left:0;top:50%;transform:translateY(-50%);width:50px;text-align:right;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
-      '.tl{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid ' + window.hkCards.v('line') + '}',
+      '.tl{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;-webkit-overflow-scrolling:touch;border-top:1px solid ' + window.hkCards.v('line') + '}',
       '.hrs{position:relative}',
       '.hr{position:absolute;left:56px;right:0;height:0;border-top:1px solid ' + window.hkCards.v('line') + '}',
       '.hr span{position:absolute;left:-56px;top:-8px;width:50px;text-align:right;font-size:11px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
@@ -786,6 +792,9 @@
       '.narrow .seg{order:5;flex:1}',
       '.narrow .seg button{flex:1;width:auto}',
       '.narrow .new{order:6}',
+      // (floating on a phone: the view switch and the arrows, one row)
+      '@media (max-width:' + window.hkCards.BP.phone + 'px){.narrow .bar.stuck .ttl,.narrow .bar.stuck .pb,.narrow .bar.stuck .new{display:none}' +
+      '.narrow .bar.stuck{padding:6px;flex-wrap:nowrap}.narrow .bar.stuck .arrows{order:6;margin-left:0}}',
       '.narrow .body{flex-direction:column;gap:14px}',
       '.narrow .mgrid{padding:8px}',
       '.narrow .wk{height:56px;flex:none}',
@@ -799,7 +808,7 @@
       '.fit .body{height:var(--cal-h,620px)}',
       // (the week's list scrolls in a frame: the sheet's shadows, BASE_CSS .hk-edge)
       '.fit .wlp{flex:1;min-height:0;display:flex;flex-direction:column}',
-      '.fit .wl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}',
+      '.fit .wl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;-webkit-overflow-scrolling:touch}',
       '.wl .dayh{font-size:13px;font-weight:700;letter-spacing:1.2px;color:' + window.hkCards.v('ink-2') + ';margin-top:16px}',
       '.wl .dayh.today{color:' + window.hkCards.v('ink') + '}'
     ].join('\n');
@@ -858,6 +867,9 @@
       // (a docked bar or the Now Playing pane coming or going changes the room)
       window.addEventListener('hk-dock', this._onResize);
       window.addEventListener('hk-pane', this._onResize);
+      // (the bar floating or in its place: any scroller's scroll, once a frame)
+      this._onScroll = this._onScroll || function () { self._scrollQ = self._scrollQ || requestAnimationFrame(function () { self._scrollQ = 0; self._float(); }); };
+      window.addEventListener('scroll', this._onScroll, { passive: true, capture: true });
       if (typeof ResizeObserver === 'function' && !this._ro) {
         this._ro = new ResizeObserver(function (en) {
           var w = en && en[0] && en[0].contentRect ? en[0].contentRect.width : self.clientWidth;
@@ -889,12 +901,27 @@
       window.removeEventListener('resize', this._onResize);
       window.removeEventListener('hk-dock', this._onResize);
       window.removeEventListener('hk-pane', this._onResize);
+      window.removeEventListener('scroll', this._onScroll, { capture: true }); cancelAnimationFrame(this._scrollQ || 0); this._scrollQ = 0;
       if (this._ro) { this._ro.disconnect(); this._ro = null; }
       if (this._tick) { clearInterval(this._tick); this._tick = null; }
       if (this._m0) { clearTimeout(this._m0); this._m0 = null; }
       this._hkSig = null;
     }
     _wide() { return (this._w || this.clientWidth || 1200) >= 900; }
+    // THE BAR FLOATS once scrolled to its sticky top (hk-energy.js HkEnergyPeriodCard). Its place keeps the height it
+    // had (the strip's padding, a phone's one row), so the panels under it don't jump; a new bar floats at once.
+    _float() {
+      var bar = this._root && this._root.querySelector && this._root.querySelector('.bar'), cs = bar && this.isConnected && getComputedStyle(bar);
+      if (!cs || cs.position !== 'sticky') return;
+      var top = parseFloat(cs.top) || 0, r = bar.getBoundingClientRect(), was = bar.classList.contains('stuck');
+      var stuck = r.top <= top + 0.5 && (window.scrollY > 0 || (this._homeTop != null && r.top < this._homeTop - 1));
+      if (!was && (this._homeTop == null || r.top > top + 0.5)) this._homeTop = r.top;
+      if (stuck === was) return;
+      var h0 = bar.offsetHeight;
+      bar.style.marginBottom = '';
+      bar.classList.toggle('stuck', stuck);
+      if (stuck) bar.style.marginBottom = (parseFloat(getComputedStyle(bar).marginBottom) + h0 - bar.offsetHeight) + 'px';
+    }
     // THE PAGE'S HEIGHT, on a wide screen: the panels reach the bottom of
     // the window, whatever is above them
     // MEASURED, NOT GUESSED (2026-10-15): it took a 74 px Home Assistant
@@ -1092,6 +1119,7 @@
         wrap.__bar = bar;
         var nowSeg = segFrom && wrap.children[0].querySelector('.seg button[aria-selected="true"]');
         if (nowSeg) slideSeg(nowSeg, segFrom);
+        this._float();
       }
       if (wrap) wrap.children[1].innerHTML = html;
       // MEASURED BEFORE THE FIRST PAINT (2026-10-20, Safari on Mantel): a
@@ -1822,7 +1850,7 @@
       '.cnt{flex:none;display:flex;align-items:baseline;gap:10px;padding:2px 2px 0}',
       '.cnt b{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cnt span{font-size:15px;color:rgba(255,255,255,.7);white-space:nowrap}',
-      '.ls{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 2px}',
+      '.ls{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 2px}',
       '.ls::-webkit-scrollbar{display:none}',
       '.it{box-sizing:border-box;display:flex;align-items:center;gap:12px;min-height:50px;font-size:17px;cursor:pointer;-webkit-tap-highlight-color:transparent}',
       '.it+.it{border-top:1px solid rgba(255,255,255,.12)}',
@@ -2203,7 +2231,7 @@
       '.tlad button{height:26px;border-radius:8px;border:0;padding:0 10px;font:inherit;font-size:13px;font-weight:600;color:#fff;text-align:left;',
       '  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent}',
       '.tlad button.on{box-shadow:0 0 0 2px #fff inset}',
-      '.tlw{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;',
+      '.tlw{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;scrollbar-width:none;',
       '  border-top:1px solid ' + window.hkCards.v('line') + '}',
       '.tlw::-webkit-scrollbar{display:none}',
       '.tlh{position:relative}',

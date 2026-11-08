@@ -5,6 +5,23 @@ HK Frontend's releases, newest first. A GitHub release's notes are its section h
 
 ## Unreleased
 
+## 1.51.0 - 2026-11-08
+
+**Added**
+- **The Holiday slide**: a screensaver slide counting the days to the next holiday. Christmas, Halloween, Thanksgiving and New Year's each have a painted scene (a 90s living room with the count on the TV, a haunted house with it on a tombstone, a dining room with it chalked on a board, a rooftop party with a split-flap board) and live effects. Every other holiday, birthday and date of your own stands outdoors on the sky's landscape. It comes among the photos or over a clock, once a holiday is near. Holiday Options sets which holiday, how many days before, the effects, the holidays it counts, your own dates and the scenes. It is off by default; the Holiday Whimsy Look turns it on.
+- **Tiles in a block sit 13 px in with 21 px corners** on HomeView's square cells (groups, Scenes, Security, Live TV), concentric with the block; headings stay put.
+- **Tiny**: an Accessory in half a cell, two to a cell -- HomeView's tile at half height, its glyph bare; a sensor's reading ("71°") in a Centered tile's glyph place.
+- **A Wide Accessory is a slider** for a light, a fan or a shade (the whole tile, as Control Center's); **an Accessory Group in Small** (two half-height pills); **Music's Extra Large the last played on top**, every playlist five across under it (and the Music block's Playlists lead with the one last played); **Security's HomeView Extra Large keeps its keypad**.
+
+**Changed**
+- **Half-height pills fill their block to equal margins**, titles sit on the block's inset, and short wide tiles keep their words clear of the foot.
+
+**Fixed**
+- **Pre-rendered glass no longer flickers as a swipe lands** (the last page's blur behind the cards for a few frames), and **the Pages screen lands sharp and at its full size from Home** (its icons could land blurred, then small and to the left for a second).
+- **A swipe over a row that scrolls sideways turns the page when the row can't go that way** (Music's rows at their start or end; on an iPad the rows keep every swipe, as before).
+- **A swipe over a list that scrolls up and down turns the page** (Security's Recent Activity, Calendar's day list and hours, and the rest take only up-and-down swipes).
+- **Accessory Groups no longer redraw in one column on the way back Home** (one updated while another page showed laid itself out for the wrong cell shape).
+
 ## 1.50.0 - 2026-11-08
 
 **Added**
