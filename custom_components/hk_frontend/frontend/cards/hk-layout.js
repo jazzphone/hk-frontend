@@ -1857,7 +1857,7 @@
         '.vdots button{all:unset;box-sizing:border-box;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}' +
         '.vdots button::after{content:"";width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.35);transition:background .2s}' +
         '.vdots button[aria-current="true"]::after{background:rgba(255,255,255,.95)}' +
-        '.vdots button:focus-visible{outline:2px solid rgba(255,255,255,.7);border-radius:50%}';
+        '.vdots button:focus-visible{outline:2px solid rgba(255,255,255,.7);border-radius:50%}' + (window.hkGridCatalog ? window.hkGridCatalog.sheetCss(C.v) : '');
       this._sr.appendChild(st);
       var root = document.createElement('div');
       root.id = 'root';
@@ -2024,7 +2024,7 @@
         } else if (!el) {
           while (slot.firstChild) slot.removeChild(slot.firstChild);
         }
-        want.push(slot);
+        want.push(slot); if (slot.className === 'cell' && window.hkGridCatalog) window.hkGridCatalog.sheetSlot(slot, (cell && cell.sheet) || null, this);   // (its custom sheet)
       }, this);
       want = want.filter(Boolean);
       want.forEach(function (slot, i) {
@@ -2612,8 +2612,8 @@
     _moving() {
       var pager = this._track && this._pager, self = this;
       if (!pager) return;
-      pager.classList.add('moving');
-      this.setAttribute('data-moving', '');
+      pager.classList.add('moving'); this.setAttribute('data-moving', '');
+      if (window.hkDrag && window.hkDrag.motion) window.hkDrag.motion.begin('block');     // counted to its glide's end (hk-drag.js)
       clearTimeout(this._stillT);
       this._stillT = setTimeout(function () {
         if (self._drag && self._drag.moved) { self._moving(); return; }
