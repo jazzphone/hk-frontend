@@ -85,8 +85,9 @@ function () {
   house.set('sensor.running_quick_timers', '0', { running: [] });
   house.set('timer.quick_1', 'idle', { friendly_name: 'Quick Timer 1' });
   var none = sized('hk-timer-strip-card', 'S', { entity: 'sensor.running_quick_timers' })._e.__html;
-  ok('none running, Small: no Timers title (2026-11-09), None running, and one key, Start a timer (Small is its state and one action)', !/class="nm"/.test(none) && /None running/.test(none) &&
-     (none.match(/data-preset=/g) || []).length === 0 && /class="rk cap" data-new aria-label="Create a Timer"><hk-icon icon="mdi:plus"><\/hk-icon>Start a timer</.test(none));
+  ok('none running, Small: no Timers title, "Start a Timer" over its one key, the orange + (2026-11-09: no pill wider than the block)', !/class="nm"/.test(none) &&
+     /class="gt idle dg"><span class="dir">Start a Timer<\/span>/.test(none) && (none.match(/data-preset=/g) || []).length === 0 &&
+     (none.match(/<button class="rk add" data-new aria-label="Create a Timer">/g) || []).length === 1 && !/rk cap/.test(none));
   none = sized('hk-timer-strip-card', 'W', { entity: 'sensor.running_quick_timers' })._e.__html;
   // (mockup 5, 2026-11-09: "Start a Timer" a direction -- one line over the rings, the two one group centered)
   ok('...Wide: "Start a Timer" over three rings -- the 5 and 10 minute starts as arcs of an hour, and + (three controls at most)',
@@ -182,8 +183,20 @@ function () {
       H.attach(xl);
       SUBS[SUBS.length - 1].on({ configured: true, areas: ['kitchen'] });
       var xh = xl._root.__html;
-      ok('Extra Large: the battery as a ring', /class="ring" role="img" aria-label="92%, Docked"/.test(xh) && /stroke-dasharray="92.0 100"/.test(xh));
+      ok('Extra Large: the battery as a ring', /class="ring" role="img" aria-label="92% battery, Docked"/.test(xh) && /stroke-dasharray="92.0 100"/.test(xh));
       ok('...the rooms beside it, Dock with its word', /<div class="rcol"><b class="lab">Rooms<\/b>/.test(xh) && /class="key dk" data-svc="return_to_base"[\s\S]*<span>Dock<\/span>/.test(xh));
+      // THE RING SHOWS WHAT MATTERS (2026-11-09, the owner: "not sure if the big circle showing clean percentage is relevant here?")
+      house.set('vacuum.downstairs', 'docked', { friendly_name: 'Downstairs' });
+      var nb = sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs' })._root.__html;
+      ok('no battery and not cleaning: no ring and no dash, the state in words', !/class="ring"/.test(nb) && !/\u2013/.test(nb) && /class="none"><b>Docked<\/b>/.test(nb));
+      house.set('sensor.vac_cleaning_progress', '47', { friendly_name: 'Progress' });
+      house.set('vacuum.downstairs', 'cleaning', { friendly_name: 'Downstairs', battery_level: 80 });
+      var pg = sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs', progress: 'sensor.vac_cleaning_progress' })._root.__html;
+      ok('while cleaning: the progress fills the ring, the battery stays out of it', /aria-label="Cleaning, 47% done"/.test(pg) && /stroke-dasharray="47.0 100"/.test(pg) && /<b>47%<\/b><small>Cleaning<\/small>/.test(pg));
+      house.set('vacuum.downstairs', 'cleaning', { friendly_name: 'Downstairs' });
+      ok('cleaning with no reading at all: the words', !/class="ring"/.test(sized('hk-vacuum-card', 'XL', { entity: 'vacuum.downstairs' })._root.__html));
+      house.set('vacuum.downstairs', 'docked', { friendly_name: 'Downstairs', battery_level: 92 });
+      ok('docked with a battery: the battery, whatever the progress sensor says', /<b>92%<\/b><small>Docked<\/small>/.test(sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs', progress: 'sensor.vac_cleaning_progress' })._root.__html));
       FEED.added = [];
       var bare = sized('hk-vacuum-card', 'L', { entity: 'vacuum.downstairs' })._root.__html;
       ok('without Clean Areas: no rooms, the battery large instead', !/class="lab">Rooms/.test(bare) && /class="mid"/.test(bare));
