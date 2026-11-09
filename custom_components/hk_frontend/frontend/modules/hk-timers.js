@@ -627,6 +627,70 @@
     // HA is inconsistent about which of these a timer attribute holds
     // depending on how the timer was configured, so every read goes through
     // here rather than assuming.
+    // WHAT IS RINGING (phase 21, Mantel's timers.py): the sensor's `ringing`. Each: {entity_id, name, until, tablet, areas, speakers, tone}.
+    rings: function (states) {
+      var q = states && states['sensor.running_quick_timers'];
+      return (q && q.attributes && q.attributes.ringing) || [];
+    },
+    // ...is this tablet one that plays it? Its room's, or every tablet for a timer with no room (`areas` empty). A phone never does.
+    heardHere: function (r, room, tablet) {
+      return !!(r && r.tablet && tablet && (!(r.areas || []).length || r.areas.indexOf(room) >= 0));
+    },
+    // "this tablet and the Kitchen speaker", for Rings on... or Ringing on...: '' with nothing playing it
+    whereWords: function (r, room, tablet) {
+      if (!r) return '';
+      var parts = (this.heardHere(r, room, tablet) ? ['this tablet'] : []).concat((r.speakers || []).map(function (n) { return 'the ' + n + ' speaker'; }));
+      return parts.length < 2 ? parts.join('') : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+    },
+    // Stop (every one ringing, with no id), +1 Min, Restart: on all the screens at once
+    ringAct: function (client, op, id) {
+      var act = client && client.actions, data = { op: op };
+      if (id) data.entity_id = id;
+      if (act && act.callService) return act.callService('script', 'quick_timer_ring', data);
+    },
+    // A timer's color, the same on every screen and different from its neighbors': its slot's number, Home Energy's ring colors in turn
+    colorOf: function (id) {
+      var m = /(\d+)$/.exec(String(id)), all = ['#ff9f0a', '#64d2ff', '#30d158', '#bf5af2', '#ffd60a', '#ff6b3d'];
+      return all[(m ? Number(m[1]) : 0) % all.length];
+    },
+    // Rings In, on the New Timer sheet: the rooms with speakers, from Mantel. Nothing in Home Assistant, where it has no meaning.
+    ringsInHtml: function (states) {
+      var q = states && states['sensor.running_quick_timers'], rooms = (q && q.attributes && q.attributes.rooms) || [];
+      if (!rooms.length) return '';
+      var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+      return '<select class="ringsin" aria-label="Rings In" style="flex:none;max-width:45%;border:0;background:transparent;color:inherit;font:inherit;font-size:13px;font-weight:500;opacity:.75">' +
+        '<option value="">Rings Here</option>' + rooms.map(function (r) { return '<option value="' + esc(r.id) + '">Rings In ' + esc(r.name) + '</option>'; }).join('') + '</select>';
+    },
+    // A card's list and the timers Mantel made, running or paused: not on any list, since they come and go. The sensor names them.
+    withMade: function (list, states) {
+      var q = states && states['sensor.running_quick_timers'], made = (q && q.attributes && q.attributes.made) || [];
+      if (!made.length) return list;
+      return list.concat(made.filter(function (id) { return states[id] && !list.some(function (t) { return t.entity === id; }); })
+        .map(function (id) { return { entity: id, label: (states[id].attributes || {}).friendly_name || 'Timer', glyph: 'mdi:timer-outline' }; }));
+    },
+    // THE TIMERS PEOPLE SET (phase 21, docs/phase21/TIMER-SLIDE.md), soonest first and paused ones last, for what a
+    // whole house shows and rings: the quick slots and the ones Mantel makes, never `ignore` (General -> House Timers:
+    // Night, Nap and the rest) and never the rest of the house's timers, which are mostly automations' plumbing
+    // (no-motion and fan timers). A quick slot's name is in its helper (helpers/quick_timers.yaml).
+    userTimers: function (states, ignore, now) {
+      var out = [], self = this, skip = {};
+      (Array.isArray(ignore) ? ignore : []).forEach(function (id) { skip[id] = true; });
+      Object.keys(states || {}).forEach(function (id) {
+        var m = /^timer\.(?:quick_(\d+)|hk_timer_\d+)$/.exec(id), st = m && !skip[id] ? states[id] : null;
+        if (!st || (st.state !== 'active' && st.state !== 'paused')) return;
+        var a = st.attributes || {}, slot = m[1] ? states['input_text.quick_timer_' + m[1] + '_name'] : null;
+        var given = slot && slot.state && slot.state !== 'unknown' && slot.state !== 'unavailable' ? slot.state : '';
+        var row = { id: id, name: given || a.friendly_name || 'Timer', total: self.secs(a.duration) };
+        if (st.state === 'paused') { row.paused = true; row.left = self.secs(a.remaining); }
+        else {
+          row.end = Date.parse(a.finishes_at);
+          if (isNaN(row.end)) return;
+          row.left = Math.max(0, (row.end - now) / 1000);
+        }
+        out.push(row);
+      });
+      return out.sort(function (a, b) { return (a.paused ? 1 : 0) - (b.paused ? 1 : 0) || a.left - b.left || (a.id < b.id ? -1 : 1); });
+    },
     secs: function (v) {
       if (v === undefined || v === null || v === '') return 0;
       if (typeof v === 'number') return v;

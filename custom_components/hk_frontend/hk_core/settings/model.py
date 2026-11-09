@@ -1180,7 +1180,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
                  "thermostats": [], "temperature": None, "power": None,
                  # The Timers page's "House timers": the timers people start
                  # themselves (a nap, bedtime), in order, one tap each.
-                 "house_timers": []},
+                 "house_timers": [], "timer_sound": "bell", "timer_ring_for": 60, "timer_tablet": True, "timer_speaker": True, "timer_also": [], "timer_phone": "", "timer_volume": 40, "timer_wake": True},
     # The menu of pages and rooms. OFF on every dashboard until one is
     # listed here, so a house that never sets it up sees no change.
     # docked: the dashboards whose menu is always shown beside the page (with
@@ -1724,7 +1724,7 @@ SAVER_SHOWS = ("photos", "both", "forecast", "clock")
 SAVER_SHOWS += ("glance", "month", "day")
 SAVER_CLOCK_STYLES += ("liquid", "giant", "scattered")
 # Planted (2026-11-02, phase 13, decision 1): a face, offered on the Landscape -- the ivory numerals in its meadow
-from .saver_designs import FACES as SAVER_DESIGN_FACES, HOLIDAYS as SAVER_HOLIDAYS  # (the Holiday slide: saver_holidays.py)
+from .saver_designs import FACES as SAVER_DESIGN_FACES, HOLIDAYS as SAVER_HOLIDAYS, TIMERS as SAVER_TIMERS  # (the Holiday and Timer slides: saver_holidays.py, saver_timers.py)
 SAVER_CLOCK_STYLES += ("planted",) + SAVER_DESIGN_FACES
 SAVER_FORECAST_LAYOUTS = ("classic", "big")
 SAVER_DAY_LOOKS = ("auto", "light", "dark")
@@ -1737,7 +1737,7 @@ SAVER_CHOICES.update({"clock_style": SAVER_CLOCK_STYLES, "forecast_layout": SAVE
 # photos' own Darken, clock_photo_dim, does it). The defaults are how they drew before.
 SAVER_FORECAST_BIG = ("temp", "clock")
 SAVER_DEFAULTS.update({"forecast_big": "temp", "tb_size": 24, "tb_top": 6, "tb_dim": 0})
-SAVER_CHOICES.update({"forecast_big": SAVER_FORECAST_BIG}, **SAVER_HOLIDAYS.CHOICES)
+SAVER_CHOICES.update({"forecast_big": SAVER_FORECAST_BIG}, **SAVER_HOLIDAYS.CHOICES, **SAVER_TIMERS.CHOICES)
 # BIG WEATHER'S PLANTED NUMERALS (2026-11-01, the owner): the time as ivory figures standing in the meadow, their
 # shadows cast by the scene's sun, grass in front of their feet (hk-saverfaces.js plant()). On by the owner's choice
 # -- unlike the options above, it changes how a saved screen draws; off draws the time as before.
@@ -1746,7 +1746,7 @@ SAVER_DEFAULTS.update({"forecast_planted": True})
 # draws as each Show always has; the Screensaver editor saves one big element and the widgets in zones
 # (saver_layout.py). Read tolerantly here -- a layout this build can only partly draw keeps what it can, never
 # costing the screen its other options; the write checks it strictly (changes._saver_options).
-SAVER_DEFAULTS.update({"layout": None, "designs": [], "active_design": "", "clock_options": {}}, **SAVER_HOLIDAYS.DEFAULTS)
+SAVER_DEFAULTS.update({"layout": None, "designs": [], "active_design": "", "clock_options": {}}, **SAVER_HOLIDAYS.DEFAULTS, **SAVER_TIMERS.DEFAULTS)
 # ALL SCREENS' screensaver options (All Screens -> Screensaver): a screen
 # whose own `screensaver_options` is null uses these (resolved()).
 DEFAULTS["look"]["saver"] = dict(SAVER_DEFAULTS)

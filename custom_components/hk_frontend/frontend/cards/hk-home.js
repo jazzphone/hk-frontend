@@ -1007,7 +1007,7 @@
 
     _onConfig() { this._sig = null; this._page = 0; }
 
-    _list() { return this._config.timers || []; }
+    _list() { var T = window.hkTimers, c = this._config.timers || []; return T && T.withMade ? T.withMade(c, this.client && this.client.states) : c; }
     // (Flat Light's lit color, Apple's light orange, as every lit well's:
     // hk-base flatColor; unchanged in the other looks)
     _tint() { return window.hkCards.flatColor(this._config.tint || 'rgba(255, 159, 10, 0.95)', 'well'); }
@@ -1397,17 +1397,14 @@
   });
   // ============================================================== new timer
   // The timer creator: a duration keypad, a name, and Start.
-  //
   // WHY THE TYPING LIVES HERE. Kept in input_text helpers, the half-typed
   // duration and name would be GLOBAL entities used as a scratchpad: two
   // tablets would share them, every keystroke would be a service call
   // broadcast to every connected client, and the partly-typed value would
   // sit in the state machine.
-  //
   // Here the value is a JS property and typing re-renders nothing; _paint()
   // touches only the readout, the chips and the Start state, so the <input>
   // keeps its caret.
-  //
   // WHAT STILL HAPPENS SERVER-SIDE: script.quick_timer_create. It parses the
   // digits the same way the readout below does and starts a real timer entity.
   // This card collects; Home Assistant decides.
@@ -1629,7 +1626,7 @@
       if (!this._begin('Starting timer…')) return;   // second tap: ignored
       var self = this;
       this._callResp(parts[0], parts[1], {
-        digits: this._digits, name: this._name.trim()
+        digits: this._digits, name: this._name.trim(), ...(this._ringsIn() ? { rings_in: this._ringsIn() } : {})
       }).then(function (r) {
         self._end();
         // DISPATCH REJECTED. _call has logged it, every keystroke is still
@@ -1662,7 +1659,7 @@
           // Timers page and this same tap works. Wiping the duration would
           // make the person retype it for no reason.
           // Short enough for the panel's top line; says which four.
-          self._setStatus('warn', 'All four quick timers are busy.');
+          self._setStatus('warn', 'Too many timers are running.');
         } else {
           self._setStatus('warn', 'That works out to no time at all.');
         }
@@ -1670,6 +1667,8 @@
       });
     }
 
+    _addRingsIn(nb) { var T = window.hkTimers, h = T && T.ringsInHtml && this.client ? T.ringsInHtml(this.client.states) : ''; if (h) nb.insertAdjacentHTML('beforeend', h); }
+    _ringsIn() { var el = this._root && this._root.querySelector('.ringsin'); return el ? el.value : ''; }
     _clearForm() {
       this._digits = ''; this._name = '';
       var inp = this._root.querySelector('.namebox input');
@@ -1738,7 +1737,7 @@
       var inp = document.createElement('input');
       inp.type = 'text'; inp.placeholder = 'Name (optional)'; inp.maxLength = 32;
       inp.addEventListener('input', function () { self._name = inp.value; self._paint(); });
-      nb.appendChild(inp); right.appendChild(nb);
+      nb.appendChild(inp); this._addRingsIn(nb); right.appendChild(nb);
       var chips = document.createElement('div'); chips.className = 'chips';
       (this._config.name_chips || []).forEach(function (n) {
         var c = self._btn('chip2', n, function () {
@@ -1806,7 +1805,7 @@
       inp.type = 'text'; inp.placeholder = 'Name (optional)'; inp.maxLength = 32;
       inp.setAttribute('aria-label', 'Timer name');
       inp.addEventListener('input', function () { self._name = inp.value; self._paint(); });
-      nb.appendChild(inp); wrap.appendChild(nb);
+      nb.appendChild(inp); this._addRingsIn(nb); wrap.appendChild(nb);
 
       var chips = document.createElement('div'); chips.className = 'chips';
       // QUICK NAMES: a shortcut into the name field, never a duration. The
@@ -1981,7 +1980,7 @@
       this._callResp(parts[0], parts[1], { duration: HkTimersPageCard.hms(mins) }).then(function (r) {
         self._end();
         if (!r.ok) self._setStatus('failed', 'Could not reach Home Assistant.');
-        else if (r.response && r.response.started === false) self._setStatus('warn', 'All four quick timers are busy.');
+        else if (r.response && r.response.started === false) self._setStatus('warn', 'Too many timers are running.');
         else self._setStatus('sent', 'Started a ' + label + ' timer.', 4000);
         self._render();
       });
@@ -2256,7 +2255,7 @@
       this._watchBlock();
       var states = this.client && this.client.states || {}, T = window.hkTimers, esc = window.hkCards.esc;
       var rows = (list || []).filter((r) => r && r.entity_id).map((r) => ({ id: r.entity_id, name: r.name, attrs: Object.assign({}, r, states[r.entity_id] && states[r.entity_id].attributes), state: states[r.entity_id] && states[r.entity_id].state || 'active' }));
-      Object.keys(states).filter((id) => /^timer.quick_/.test(id) && states[id].state === 'paused').forEach((id) => {
+      Object.keys(states).filter((id) => /^timer\.(quick|hk_timer)_/.test(id) && states[id].state === 'paused').forEach((id) => {
         if (!rows.some((r) => r.id === id)) rows.push({ id: id, name: states[id].attributes.friendly_name, attrs: states[id].attributes, state: 'paused' });
       });
       rows = rows.filter((r) => r.state === 'paused' || r.attrs.finishes_at && !isNaN(Date.parse(r.attrs.finishes_at)))
@@ -2305,7 +2304,7 @@
       // The module may arrive after the first render; until it does there is
       // nothing to draw, so fold its presence into the signature.
       if (!this._cellSize()) return (s ? s.last_updated : 'x') + '|' + (window.hkTimers ? '1' : '0');
-      return JSON.stringify([s, Object.keys(h.states).filter((id) => /^timer.quick_/.test(id)).map((id) => h.states[id]), !!window.hkTimers]);
+      return JSON.stringify([s, Object.keys(h.states).filter((id) => /^timer\.(quick|hk_timer)_/.test(id)).map((id) => h.states[id]), !!window.hkTimers]);
     }
     _render() {
       var cfg = this._config;
