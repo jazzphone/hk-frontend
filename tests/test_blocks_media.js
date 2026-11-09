@@ -61,8 +61,11 @@ function () {
   H.section('Now Playing: what each size is handed (the catalog)');
   var G = window.hkGridCatalog, at = function (s) { return G.config({ card: 'now_playing', size: s, opts: {} }, {}); };
   eq('Small: the player alone, no progress or volume card', [!!at('S').sub_card, !!at('S').meta_card], [false, false]);
-  eq('Wide: the progress, no volume (the sheet has it)', [(at('W').sub_card || {}).parts, !!at('W').meta_card], [['progress'], false]);
-  eq('Tall: the progress, no volume', [(at('T').sub_card || {}).parts, !!at('T').meta_card], [['progress'], false]);
+  // (the volume back on Wide and Tall, 2026-11-09, the owner: "Looks like the tall and the wide cards lost their volume
+  // slider?" -- and "Volume is more important than the progress bar for these cards": where both do not fit full-size,
+  // the progress is the thin line, the volume keeps its slider)
+  eq('Wide: the progress and the volume', [(at('W').sub_card || {}).parts, (at('W').meta_card || {}).parts], [['progress'], ['volume']]);
+  eq('Tall: the progress and the volume', [(at('T').sub_card || {}).parts, (at('T').meta_card || {}).parts], [['progress'], ['volume']]);
   eq('Large: the progress and the volume', [(at('L').sub_card || {}).parts, (at('L').meta_card || {}).parts], [['progress'], ['volume']]);
   eq('Extra Large: the same', [(at('XL').sub_card || {}).parts, (at('XL').meta_card || {}).parts], [['progress'], ['volume']]);
   ok('...each following the screen\'s music', at('L').meta_card.entity_from && at('L').meta_card.entity_from.music === true && at('W').sub_card.entity_from.music === true);
@@ -70,22 +73,34 @@ function () {
 function () {
   H.section('Now Playing: the sizes\' layouts');
   var css = customElements.get('hk-now-playing-card').CSS;
+  // THE CONTROLS STRIP (2026-11-09, hk-np-strip.js): the progress, the keys and the volume are one grid area, `strip`, laid
+  // out by the strip itself (a column) -- the sizes name that area where they named sub, prev, play, next, spk, brw and meta,
+  // and set the strip's targets: 56 px (a block is drawn at about 0.8), play / pause 64, 12 px clear above and below the keys
   ok('Small: the cover and play / pause on top, the song under them',
-     css.indexOf('"art play" ". ." "title title" "artist artist"') >= 0 && css.indexOf(':host(:is([size=S],[size=W],[size=T])) .np .spk,:host(:is([size=S],[size=W],[size=T])) .np .brw{display:none}') >= 0);
+     css.indexOf('"art strip" ". ." "title title" "artist artist"') >= 0 && css.indexOf(':host(:is([size=S],[size=W],[size=T])) .np .hks .mx{display:none}') >= 0 &&
+     css.indexOf(':host([size=S]) .np .hks [data-act=prev],:host([size=S]) .np .hks [data-act=next]{display:none}') >= 0);
   ok('...on a tile cell the artist goes and the cover takes the height left', /@container hk-cell \(max-height:179px\)\{:host\(\[size=S\]\)[^}]*--np-art[^}]*\}:host\(\[size=S\]\) \.np \.artist\{display:none\}/.test(css));
-  ok('Wide: the song, the progress and the three keys, a cluster 44 px wide each with 12 px between',
-     css.indexOf('"art . prev . play . next ."') >= 0 && css.indexOf('minmax(0,1fr) 44px 12px 44px 12px 44px minmax(0,1fr)') >= 0);
-  ok('...the cover as big as the controls\' 190 px leave it', /--np-art:min\(\(100cqh[^;]*- 190px\)/.test(css));
-  ok('Tall: the cover, the song, the progress, the three keys with 8 px between',
-     css.indexOf('"title title title title title title title" "artist artist artist artist artist artist artist" "sub sub sub sub sub sub sub" ". prev . play . next ."') >= 0 &&
-     css.indexOf('--hk-np-cols:minmax(0,1fr) 44px 8px 44px 8px 44px minmax(0,1fr);') >= 0);
+  ok('every block: the strip\'s targets 56 px, play / pause 64, 12 px clear above and below the keys, the volume\'s row 56',
+     css.indexOf('--hks-min:56px;--hks-b:56px;--hks-pp:64px;--hks-x:56px;--hks-vh:56px;--hks-g1:12px;--hks-g2:12px;') >= 0);
+  // (the speaker line over the title at every size with one -- the owner's mockup 12h, 2026-11-09: its own row, `line`)
+  ok('every block but Small: the speaker line over the title, a 56 px touch area', css.indexOf('grid-area:line;') >= 0 && css.indexOf('--hksl-h:56px') >= 0 &&
+     css.indexOf(':host([size=S]) .np .hksl{display:none}') >= 0);
+  ok('Wide: the speaker line, the song and the strip beside the cover', css.indexOf('"art ." "art line" "art title" "art artist" "art strip" "art ."') >= 0);
+  ok('...the cover as big as the keys\' 178 px and the gap beside it (the block\'s inset) leave it', /--np-art:min\(\(100cqh[^;]*- 178px - var\(--hk-pad-l,22px\)\)/.test(css));
+  // (the thin line stays in the progress's place, never along the foot -- 2026-11-09, the owner: "it looks bad at the bottom
+  // like that")
+  // (2026-11-09: the speaker line over the song took the thin progress line's room -- the owner's order, the volume first,
+  // then the progress; the sheet has it)
+  ok('...no progress, the volume a full row', css.indexOf(':host([size=W]) .np .hks .mprog{display:none!important}') >= 0);
+  ok('...on a tile cell (110 px) the keys alone: the volume on the sheet', css.indexOf('@container hk-cell (max-height:179px){:host([size=W]) .np .hks .mvol{display:none}}') >= 0);
+  ok('Tall: the cover, the speaker line, the song, the strip', css.indexOf('--hk-np-areas:"art" "line" "title" "artist" "strip";') >= 0);
   ok('...the cover on the block\'s axis', css.indexOf(':host([size=T]) .np .art{justify-self:center;align-self:start}') >= 0);
   ok('...the bottom inset 6 px more', /:host\(\[size=T\]\) hk-plate\.np\{--hk-np-pad:[^;]*calc\(var\(--hk-pad-b,20px\) \+ 6px\)/.test(css));
-  ok('Large: the song, the keys a cluster, the volume under it',
-     css.indexOf('"pre pre pre pre pre pre pre pre pre pre pre" "title') >= 0 && css.indexOf('". spk . prev . play . next . brw ."') >= 0);
+  ok('Large: the speaker line and the song beside the cover, the strip under them', css.indexOf('--hk-np-areas:"pre" "line" "title" "artist" "post" "." "strip";') >= 0);
+  ok('...on a tile cell the progress is the thin line, the volume keeps its slider', css.indexOf(':host([size=L]) .np .hks .mprog{pointer-events:none;--hk-prog-h:3px') >= 0);
+  ok('Tall on a tile cell: the same', css.indexOf(':host([size=T]) .np .hks .mprog{pointer-events:none;--hk-prog-h:3px') >= 0);
   ok('Extra Large: the group between two flexible rows, centered on the cover',
-     css.indexOf('--hk-np-rows:minmax(0,1fr) min-content min-content min-content 57px min-content minmax(0,1fr)') >= 0);
-  ok('the volume a 44 px place on L and XL', css.indexOf(':host(:is([size=L],[size=XL])) .np .meta{display:flex;align-items:center;gap:10px;padding:0;--hk-range-h:44px}') >= 0);
+     css.indexOf('--hk-np-rows:minmax(0,1fr) min-content min-content min-content min-content minmax(0,1fr)') >= 0 && css.indexOf('"art ." "art line" "art title" "art artist" "art strip" "art ."') >= 0);
   ok('in a pager: no volume row', css.indexOf(':host([size][data-grid-pager]) hk-plate.np{--hk-np-pad:20px 22px 44px;--np-vol:0px}') >= 0);
 },
 function () {
@@ -96,7 +111,7 @@ function () {
     np._turn = function (tab) { turned.push(s + ':' + tab); };
     hkGive(np, house.hass());
     np._render();
-    var spk = np._root.querySelector('.spk');
+    var spk = np._root.querySelector('.hksl');   // (the speaker line over the title since 2026-11-09: the Speakers key's place)
     (spk._listeners.click || [])[0]();
   });
   eq('Small: Volume (no slider of its own); Wide: Speakers', turned, ['S:volume', 'W:speakers']);
@@ -135,6 +150,22 @@ function () {
   ask.resolve({ response: { items: [{ uri: 'library://track/1', name: 'Low Tide' }] } });
   return H.tick().then(function () {
     eq('the answer is kept', mu._items.map(function (i) { return i.name; }), ['Low Tide']);
+    // EXTRA LARGE, Recently Played (2026-11-09, mockup 13): the last large with Play and Browse, "Also Played" as rows
+    var xl = sized('hk-recent-music-card', 'XL');
+    xl.client = c;
+    xl._items = [{ uri: 'u1', name: 'One', artist: 'A', key: 'k1' }, { uri: 'u2', name: 'Two', artist: 'B', key: 'k2' }, { uri: 'u3', name: 'Three', artist: 'C', key: 'k3' }];
+    xl._render();
+    var xh = String(xl._root.innerHTML);
+    eq('XL: the last in the left column, the rest as rows under Also Played, Play and Browse at the foot',
+       [xh.indexOf('xl2') >= 0, xh.indexOf('Also Played') >= 0, (xh.match(/class="rw"/g) || []).length, xh.indexOf('class="pp"') >= 0, xh.indexOf('class="br"') >= 0, xh.indexOf('class="al"') >= 0],
+       [true, true, 2, true, true, true]);
+    var rb = xl._root.querySelectorAll('.rw'), before0 = house.calls.length;
+    xl._play(xl._items[1], document.createElement('button'));     // (the row's own listener: fake clicks carry no stopPropagation)
+    var rcall = house.calls[before0];
+    eq('...a row plays its song', rcall && rcall.data.media_content_id, 'u2');
+    xl._items = [{ uri: 'u1', name: 'One', artist: 'A', key: 'k1' }];
+    xl._render();
+    ok('XL with one thing played: no rows, the right column says so', String(xl._root.innerHTML).indexOf('Nothing else yet') >= 0);
     window.hkMusic.setFocus('media_player.kitchen_homepod_ma');
     var el = document.createElement('button'), before = house.calls.length;
     mu._play(mu._items[0], el);
@@ -206,8 +237,13 @@ function () {
     var bh = String(b._root.innerHTML);
     // (XL, 2026-11-08: the last played above five across, its Play beside it)
     var across = z === 'W' || z === 'XL';
+    if (z === 'XL') {
+      // (XL, 2026-11-09 mockup 13: two columns -- the last played with Play and Browse, the rest as 56 px rows)
+      eq('XL: two columns, the first playlist large, the rest as rows', [bh.indexOf('xl2') >= 0, bh.indexOf('class="cv ') < 0, (bh.match(/class="rw"/g) || []).length, bh.indexOf('class="br"') >= 0], [true, true, 2, true]);
+      return;
+    }
     eq(z + ': ' + (across ? 'across' : 'down') + ', every playlist in it', [bh.indexOf('class="cv ' + (across ? 'x' : 'y') + '"') >= 0,
-       (bh.match(/data-i="/g) || []).length], [true, z === 'XL' ? 4 : 3]);
+       (bh.match(/data-i="/g) || []).length], [true, 3]);
   });
   // THE LAST PLAYED FIRST (2026-11-08, the owner): matched by the playlists' items, a choice of one its own tile
   var lpls = [{ name: 'Favorites', key: 'f', uris: ['library://playlist/1'] }, { name: 'Christmas', key: 'c', uris: ['library://playlist/2'] },
@@ -319,8 +355,8 @@ function () {
 function () {
   H.section('Live TV: the page\'s channels, a tile each, a tap plays it full screen');
   eq('S one, W two, T three, L four, XL six', ['S', 'W', 'T', 'L', 'XL'].map(function (s) { return Mx.TV_SLOTS[s]; }), [1, 2, 3, 4, 6]);
-  eq('the tiles\' arrangement: W across, T down, L two by two, XL three by two',
-     [Mx.tvGrid('W', 2), Mx.tvGrid('T', 3), Mx.tvGrid('L', 4), Mx.tvGrid('XL', 6), Mx.tvGrid('XL', 3)], [[2, 1], [1, 3], [2, 2], [3, 2], [3, 1]]);
+  eq('the tiles\' arrangement: W across, T down, L two by two (Extra Large is two columns, below)',
+     [Mx.tvGrid('W', 2), Mx.tvGrid('T', 3), Mx.tvGrid('L', 4)], [[2, 1], [1, 3], [2, 2]]);
   var tv = sized('hk-tv-channels-card', 'W');
   tv.client = client();
   tv._render();
@@ -342,9 +378,25 @@ function () {
     var xl = sized('hk-tv-channels-card', 'XL');
     xl.client = client(); xl._channels = CHANNELS.channels; xl._configured = true;
     xl._render();
-    eq('fewer channels than places: as many tiles as channels', xl._root.children[0].children[0].children.length, 3);
-    // (no LIVE TV label row since 2026-11-08 -- the owner: a block's own name printed on it goes)
-    ok('Extra Large is its channels alone, no label row', xl._root.children[0].children[0].className === 'gr' && xl._root.children[0].children.every(function (c) { return c.className !== 'lh'; }));
+    // EXTRA LARGE IN TWO COLUMNS (2026-11-09, mockup 13): the channel on at the left, the others as rows at the right
+    var plateX = xl._root.children[0];
+    eq('Extra Large: the first channel on the left, the rest as rows', [plateX.className, plateX.children[0].className, plateX.children[1].children[1].children.length], ['tv xl', 'lf', CHANNELS.channels.length - 1]);
+    eq('...the left names the channel and its show', [plateX.children[0].querySelector('small').textContent, plateX.children[0].querySelector('b').textContent].join('|'), '4.1 \u00b7 Channel 4|Evening News');
+    eq('...the right is headed Channels', plateX.children[1].children[0].children[0].textContent, 'Channels');
+    var rows = plateX.children[1].children[1].children;
+    eq('...a row: the show over the channel', [rows[0].querySelector('b').textContent, rows[0].querySelector('small').textContent], ['Coastal Kitchens', 'Food']);
+    var xo = [];
+    window.hkCameras = { tvPlayer: function (owner, ch) { xo.push(ch.number); return { close: function () {}, update: function () {} }; } };
+    xl.isConnected = true;
+    (plateX.children[0]._listeners.click || [])[0]({ stopPropagation: function () {} });
+    (rows[0]._listeners.click || [])[0]({ stopPropagation: function () {} });
+    eq('the left plays the one on; a row tunes its channel', xo, ['4.1', '7.1']);
+    xl._render();
+    eq('the last one played is the one on, after', xl._root.children[0].children[0].querySelector('small').textContent, '7.1 \u00b7 Food');
+    var xc = sized('hk-tv-channels-card', 'XL');
+    xc.client = client(); xc._channels = CHANNELS.channels; xc._configured = true; xc._config = { channel: '9.1' };
+    xc._render();
+    eq('a channel chosen is the one on, whatever was played', xc._root.children[0].children[0].querySelector('small').textContent.slice(0, 3), '9.1');
   });
 },
 function () {

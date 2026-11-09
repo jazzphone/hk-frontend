@@ -103,7 +103,7 @@
         // which is the intent: the cover reads as the subject and the text as
         // a caption on it, rather than both fighting for the same edge.
         sel + ' .title,' + sel + ' .artist,' + sel + ' .player,',
-        sel + ' .sub,' + sel + ' .meta{',
+        sel + ' .mprog,' + sel + ' .hks .mvol{',
         '  padding-left:var(--hk-np-below-inset,14px);',
         '  padding-right:var(--hk-np-below-inset,14px)}',
         // AIR BETWEEN THE COVER AND THE TRACK NAME. The row gap alone gives
@@ -124,7 +124,7 @@
         // underneath it. Four pixels of font metrics, under a bar with no text
         // in it. (Same shape as the layout-card grid-layout trap: a custom
         // element that is inline until something says otherwise.)
-        sel + ' .sub > *,' + sel + ' .meta > *{display:block}',
+        sel + ' .mprog > *,' + sel + ' .mvs > *{display:block}',
         // 64px BOXES WITH 34px GLYPHS -- these are touch targets for fingers
         // on a wall, not a mouse, so size and spacing help. 56 already clears
         // the 44px minimum, but there are no wells on these buttons, so the
@@ -178,9 +178,7 @@
         sel + ' .artist{color:' + window.hkCards.v('ink-2') + '}',
         sel + ' .player{color:' + window.hkCards.v('ink-3') + '}',
         sel + ' .art .none{background:' + window.hkCards.v('key') + '}',
-        sel + ' .tb hk-icon{color:' + window.hkCards.v('glyph') + ';',
-        '  filter:var(--hk-glow,drop-shadow(0 2px 5px rgba(0,0,0,.55)))}',
-        sel + ' .tb:active hk-icon{filter:var(--hk-glow,drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9))}',
+        sel + ' .hks{--hks-ink:' + window.hkCards.v('glyph') + ';--hks-glow:var(--hk-glow,drop-shadow(0 2px 5px rgba(0,0,0,.55)))}',
         // A LIGHTER SHADOW THAN THE PLATED PLAYER'S, so the album art's shadow
         // looks deliberate. The base rule is `0 22px 54px rgba(0,0,0,.55)`,
         // for artwork on a dark opaque plate that swallows most of it. On a
@@ -192,13 +190,12 @@
         // and the playlist tiles are 0 6px 18px at .10, this is the same shape
         // scaled to a 352px object.
         sel + ' .art{border-radius:16px;box-shadow:0 10px 26px rgba(0,0,0,.24)}',
-        sel + ' .tb{height:64px;width:64px;align-self:center}',
-        sel + ' .tb hk-icon{width:34px;height:34px;--mdc-icon-size:34px}',
-        sel + ' .play hk-icon{width:46px;height:46px;--mdc-icon-size:46px}',
+        sel + ' .hks{--hks-b:64px;--hks-pp:72px;--hks-gb:34px;--hks-gpp:46px}',
+        sel + ' .hks .mbtn{align-self:center}',
         // No stop button in this layout at all. It has no cell, and a grid
         // child naming a MISSING area is auto-placed rather than ignored, so it
         // has to be hidden outright or it appears in a column of its own.
-        sel + ' .stop{display:none}',
+        sel + ' .hks [data-act=stop]{display:none}',
         // The base rule gives .meta `padding:8px 0 2px`, which in the wide
         // layout separates it from a neighbour it does not have here. Here it
         // would just add 10px on top of the row gap and push the transport down
@@ -211,7 +208,7 @@
         // volume slider. The row gap alone gives 5px between a 64px button
         // box and a 28px slider box -- both of which carry air inside them, so
         // the measured gap flatters what the eye actually sees.
-        sel + ' .meta{padding-top:16px;padding-bottom:0}',
+        sel + ' .hks .mvol{padding-top:16px;padding-bottom:0}',
         // ROW GAP, EXPLICITLY. --hk-np-gap is the COLUMN gap only -- the base
         // `.np .grid` rule pins row-gap at a literal 8px -- so setting the
         // variable would do nothing for a layout whose rows are the whole point.
@@ -255,7 +252,15 @@
       // (a block's tap, hk-base.js openTarget) the Now Playing page, else the playing speaker's sheet
       _tapTarget() { var p = this.client ? this._res().player : null; return [{ page: 'playmusic' }, p && { sheet: p }]; }
       static get CSS() {
+        // THE PROGRESS AS A THIN LINE (2026-11-09, the owner: "Volume is more important than the progress bar for these
+        // cards", and not along the block's foot: "it looks bad at the bottom like that"): where a block cannot give the
+        // progress and the volume their full room, the progress stays where it is -- under the song, 12 px over the keys --
+        // as a read-only 3 px line with no times (hk-control.js --hk-prog-*); the volume keeps its full slider. Scrubbing
+        // and the times are on the player's sheet.
+        var NP_THIN = '{pointer-events:none;--hk-prog-h:3px;--hk-prog-times:none;--hk-prog-gap:0px}';
         return [
+          // the controls strip's own geometry (hk-np-strip.js) first; what follows sets this card's sizes and places
+          window.hkNpStrip.CSS,
           'hk-plate.np{position:relative;overflow:hidden;display:block;',
           '  height:var(--hk-np-height,360px);border-radius:30px;',
           '  padding:var(--hk-np-pad,32px 36px);background:rgba(22,23,26,.90);',
@@ -370,9 +375,11 @@
           '  text-overflow:ellipsis;white-space:nowrap}',
           // Spans the full right-hand column. A 560px cap read as a bar floating
           // in the middle of the card with nothing holding its right end.
-          '.np .sub{grid-area:sub;z-index:2;justify-self:stretch;align-self:center;display:none}',
-          '.np .meta{grid-area:meta;z-index:2;justify-self:stretch;',
-          '  align-self:center;width:100%;padding:8px 0px 2px 0px}',
+          // (the progress slot is shown by the card once it holds a progress card: _render)
+          '.np .mprog{z-index:2;justify-self:stretch;display:none}.np .hks[cells] .mprog{align-self:center}',
+          '.np .hks[cells] .mvol{z-index:2;justify-self:stretch;',
+          '  align-self:center;width:100%;padding:8px 0px 2px 0px;box-sizing:border-box}',
+          '.np .hks[nometa] .mvol{display:none}',
           // --hk-np-tb-margin: 10px above so volume -> buttons matches the
           // progress-labels -> volume spacing, 3px below so the buttons' bottom
           // edge lands on the artwork's (both 324px from the card top). The
@@ -391,46 +398,35 @@
           // box-shadow: box-shadow draws the shadow of the BOX, which is a
           // 62px square nobody can see. drop-shadow follows the alpha
           // of what is actually painted, which is the icon.
-          '.np .tb{z-index:2;align-self:end;height:62px;width:62px;',
-          '  margin:var(--hk-np-tb-margin,10px 0 3px 0);',
-          '  border-radius:31px;background:none;border:none;',
-          '  box-shadow:none;padding:0;display:flex;align-items:center;',
-          '  justify-content:center;cursor:pointer;',
-          '  --ha-ripple-hover-opacity:0;--ha-ripple-pressed-opacity:0;',
-          '  transition:background-color .25s ease,transform .12s ease}',
-          '.np .tb:active{transform:scale(0.97)}',
           // brightness() is on the glyph, not on .tb, combined with the
           // drop-shadow in ONE filter. Two filter declarations on the same
           // element do not compose -- the later simply replaces the earlier --
           // so a `filter:brightness()` on :active would have silently deleted
           // the shadow for the duration of every press.
-          '.np .tb hk-icon{width:30px;height:30px;--mdc-icon-size:30px;',
-          '  color:rgba(255,255,255,.95);',
-          '  filter:drop-shadow(0 2px 5px rgba(0,0,0,.55))}',
-          '.np .tb:active hk-icon{filter:drop-shadow(0 1px 3px rgba(0,0,0,.55)) brightness(0.9)}',
           // Play/pause is the one you reach for, and with no wells to separate
           // them the size difference is what carries that.
-          '.np .play hk-icon{width:38px;height:38px;--mdc-icon-size:38px}',
-          '.np .prev{grid-area:prev}.np .play{grid-area:play}.np .next{grid-area:next}',
           // Shown by default: the full player's grid has a `stop` cell too.
           // A grid child naming a MISSING area is not ignored -- it is placed in
           // an implicit track, so it would appear in a column of its own. That is
           // the rule to remember if a caller ever passes its own --hk-np-areas
           // without one.
-          '.np .stop{grid-area:stop;display:flex}',
+          // (the strip's buttons, sized here: 62 px targets, play / pause a step bigger -- the strip keeps it the
+          // biggest -- the glyphs 30 and 38 with their shadow; as cells, low in their row)
+          '.np .hks{--hks-b:62px;--hks-pp:70px;--hks-x:52px;--hks-gb:30px;--hks-gpp:38px;--hks-gx:28px;',
+          '  --hks-ink:rgba(255,255,255,.95);--hks-ink2:rgba(255,255,255,.82);--hks-glow:drop-shadow(0 2px 5px rgba(0,0,0,.55));',
+          '  --hks-track:var(--hk-media-track);--hks-fill:var(--hk-media-ink)}',
+          '.np .hks[cells] .mbtn{align-self:end;margin:var(--hk-np-tb-margin,10px 0 3px 0)}',
           '.np .close{grid-area:close;display:none}',
           // the bar's alone: hidden elsewhere, or each would take a track of its own
-          '.np .spk,.np .brw{display:none}',
-          '.np.bar .spk{grid-area:spk;display:flex}.np.bar .brw{grid-area:brw;display:flex}',
+          '.np:not(.bar) .hks[cells] .mx{display:none}',
           // a step quieter than the transport: they open things, they do not
           // act on the music
-          '.np.bar .spk hk-icon{width:28px;height:28px;--mdc-icon-size:28px;color:rgba(255,255,255,.82)}',
-          '.np.bar .brw{color:rgba(255,255,255,.82)}',
-          '.np.bar .brw svg{width:26px;height:26px;filter:drop-shadow(0 2px 5px rgba(0,0,0,.55))}',
-          '.np.bar .spk.lit{background:rgba(255,255,255,.18)}',
+          '.np.bar .hks .mx.lit{background:rgba(255,255,255,.18);color:rgba(255,255,255,.82)}',
           // ON THE MUSIC PAGE (a phone's: the bar is its mini player) there is
           // nothing to browse to
-          '.np.bar.onmusic .brw{display:none}',
+          '.np.bar.onmusic .hks .mx{display:none}',
+          // (the speaker line: a Home Grid block's alone -- elsewhere a grid child with no area of its own)
+          '.np .hksl{display:none}',
           // NO CLOSE BUTTON (2026-10-11): the bar is put away by swiping it
           // down (_swipe), as a phone's mini player -- the X took 54px of a
           // phone's title. Its element stays: the full player has none either.
@@ -464,14 +460,18 @@
           // THREE auto rows in the text column -- title, artist, progress -- so
           // every one of them centres on its own row rather than one hugging the
           // row above and one the row below.
-          '.np.bar .title,.np.bar .artist,.np.bar .sub{align-self:center}',
+          '.np.bar .title,.np.bar .artist,.np.bar .mprog{align-self:center}',
+          // (THE GAP BESIDE THE COVER IS ITS MARGIN (2026-11-09, the owner: "generally I'd like the same margin/gap
+          // from the album art to the edge as the album art to the text on the right"): the song 24 px from the
+          // cover, the bar's side inset -- its 14 px column gap and 10 more; on a phone 24 too, 10 and 14)
+          '.np.bar .title,.np.bar .artist,.np.bar .mprog{margin-left:10px}',
           // The progress bar is the width of the text column and no wider, so
           // it reads as belonging to the song rather than to the card.
-          '.np.bar .sub{padding:2px 0 0 0}',
+          '.np.bar .mprog{padding:2px 0 0 0}',
           // Volume STANDS ALONE in the bar, vertically centred in its cell:
           // the full player's padding here is the gap under the progress times,
           // which the bar does not have above it.
-          '.np.bar .meta{padding:0;align-self:center}',
+          '.np.bar .hks .mvol{padding:0;align-self:center}',
           // The art is taller than the two text lines together, so it overflows
           // the row block equally above and below -- which is what keeps it
           // centred on the card rather than on the text.
@@ -520,19 +520,15 @@
           //
           // `close` stays 48: it is chrome, it keeps its well, and it should not
           // grow alongside the controls it is not part of.
-          '.np.bar .tb{width:48px;height:48px;align-self:center;margin:0}',
-          '.np.bar .prev,.np.bar .play,.np.bar .next,.np.bar .stop{',
-          '  width:56px;height:56px;justify-self:center}',
+          // (2026-11-09: play / pause 64, the biggest, its whole track; the volume's row 44, a finger's)
+          '.np.bar .hks{--hks-b:56px;--hks-pp:64px;--hks-x:48px;--hks-gb:34px;--hks-gpp:42px;--hks-gx:28px;--hks-vh:44px}',
+          '.np.bar .hks .mbtn{align-self:center;margin:0}',
           // Bare here too -- the bar is the same player. Slightly smaller than
           // the page's 30/38, because the bar is 104px tall and the glyphs sit
           // beside a song title rather than under artwork.
           // Bigger glyphs here too. The BOX stays 48 -- the bar's columns are 48
           // and the 1106px minimum width is derived from them -- so this is glyph
           // only, which is the part you actually aim at with no wells.
-          '.np.bar .tb hk-icon{width:30px;height:30px;--mdc-icon-size:30px}',
-          '.np.bar .prev hk-icon,.np.bar .next hk-icon,.np.bar .stop hk-icon{',
-          '  width:34px;height:34px;--mdc-icon-size:34px}',
-          '.np.bar .play hk-icon{width:42px;height:42px;--mdc-icon-size:42px}',
           // The blurred cover behind the bar, softer than the page's: at 84px
           // tall a 34px blur is most of the element. Dimmer than the page's .62
           // as well, where it reads under the .92 plate below as the bar's own
@@ -604,7 +600,7 @@
           '  --hk-np-areas:"art title spk prev play next stop"',
           '                "art artist spk prev play next stop"',
           '                "art sub spk prev play next stop"}',
-          '  .np.bar .meta{display:none}}',
+          '  .np.bar .hks .mvol{display:none}}',
           // Past that the stop button goes too: play/pause covers it, and at
           // this width nobody is glancing at the bar from across a room. 860
           // by the same sum without the volume track: 912 - 380 + gaps + padding.
@@ -615,7 +611,7 @@
           '  --hk-np-areas:"art title spk prev play next"',
           '                "art artist spk prev play next"',
           '                "art sub spk prev play next"}',
-          '  .np.bar .stop,.np.bar .brw{display:none}}',
+          '  .np.bar .hks [data-act=stop],.np.bar .hks [data-act=queue]{display:none}}',
           // PHONE.
           //
           // The 860 plan bottoms out at EXACTLY a phone, which is why this is a
@@ -649,7 +645,6 @@
           '  --hk-np-areas:"art title spk play"',
           '                "art artist spk play"',
           '                "art sub spk play"}',
-          '  .np.bar .spk hk-icon{width:22px;height:22px;--mdc-icon-size:22px}',
           // SLIMMER, AND NO CHIN ON TOP OF A CHIN (2026-10-11): 56px artwork
           // and 12px round it, the progress a line under the song (its times
           // go: phone_times in the strategy) -- and the foot's 12px is TAKEN
@@ -670,10 +665,10 @@
           // while the gap stays 14. Same specificity as that rule and later in
           // the sheet, so this wins.
           '  .np.bar .grid{column-gap:10px}',
-          '  .np.bar .prev,.np.bar .next{display:none}',
+          '  .np.bar .title,.np.bar .artist,.np.bar .mprog{margin-left:14px}',
+          '  .np.bar .hks [data-act=prev],.np.bar .hks [data-act=next]{display:none}',
           '  .np.bar .art{width:56px;height:56px;border-radius:10px}',
-          '  .np.bar .tb{width:44px;height:44px}',
-          '  .np.bar .tb hk-icon{width:22px;height:22px;--mdc-icon-size:22px}',
+          '  .np.bar .hks{--hks-b:44px;--hks-pp:52px;--hks-x:44px;--hks-gb:22px;--hks-gpp:26px;--hks-gx:22px}',
           // One step down each, so a title that fits at 19px still fits here.
           '  .np.bar .title{font-size:17px}',
           '  .np.bar .artist{font-size:13px}}',
@@ -723,7 +718,7 @@
         // (not Background: Card: that is the screen's own plate, so it takes the light look as the blocks round it do)
         '@media (min-width:' + (window.hkCards.BP.phone + 1) + 'px){:host([data-hk-light]) hk-plate.np:not(.tall):not(.plain){' + window.hkCards.LIGHT_OFF + '}}',
           '@media (prefers-reduced-motion:reduce){',
-          '  .np .tb,.np .tb:active{transition:none;transform:none}}',
+          '  .np .hks .mbtn,.np .hks .mbtn:active{transition:none;transform:none}}',
           // ======================================== ON A HOME GRID (G2)
           // A block of its own (docs/phase11/HOME-GRID.md), the plate filling
           // it at HK's corner, over the cover's blur (.bg, as every player),
@@ -750,12 +745,19 @@
           // 0 22px 60px, which spilt 80 px over the blocks round it
           '  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),var(--hk-look-shadow, ' + window.hkCards.v('glass-shadow-lg') + ')}',
           ':host([size]) .np .grid{row-gap:2px;column-gap:var(--hk-np-gap,14px)}',
-          ':host([size]) .np .meta,:host([size]) .np .sub,:host([size]) .np .stop{display:none}',
+          // THE CONTROLS STRIP AS A COLUMN (hk-np-strip.js; 2026-11-09, the owner: "more space in general above and below
+          // the play button" -- a tap meant for play landed on the volume): the progress, the transport and the volume
+          // one piece in one grid area. A block is drawn at about 0.8 on the house's tablets, so every target here is
+          // 56 px (44 on the screen), play / pause 64, the biggest; 12 px clear between the progress and the transport's
+          // targets and between those and the volume's row, which is its target (the slider as tall as it)
+          ':host([size]) .np .hks{grid-area:strip;z-index:2;min-width:0;align-self:end;',
+          '  --hks-min:56px;--hks-b:56px;--hks-pp:64px;--hks-x:56px;--hks-vh:56px;--hks-g1:12px;--hks-g2:12px;--hks-th:0px;',
+          '  --hks-gb:30px;--hks-gpp:40px;--hks-gx:24px;--hks-ink2:rgba(255,255,255,.75)}',
           ':host([size]) .np .art{width:var(--np-art);height:var(--np-art);border-radius:' + window.hkCards.R.inner + 'px;box-shadow:0 8px 22px rgba(0,0,0,.4)}',
           // (the note as big as the slide's -- 38 % of the cover -- not a fixed 36 px lost in a 288 px square)
           ':host([size]) .np .art .none{font-size:max(28px, calc(var(--np-art) * .4))}',
           // NO SONG: no progress (the slide's [idle] .mprog)
-          ':host([size]) .np.idle .sub{display:none!important}',   // (!important: the card sets the slot's display inline)
+          ':host([size]) .np.idle .mprog{display:none!important}',   // (!important: the card sets the slot's display inline)
           // A FLAT LOOK DRAWS NO BLUR (hk-base.js flatCss takes every filter): the cover behind the player would show sharp
           // through the controls, so the plate is the flat gradient, as the screensaver's flat look
           ':host([hk-flat]) .np .bg img{display:none}',
@@ -772,49 +774,37 @@
           ':host([size]) .np .player{display:none}',
           // NO LABEL over the song (2026-11-08, the owner: "if the card's name is printed on the card...it can go"): the
           // NOW PLAYING label is gone at every size, its grid row with it; the song starts where it was
-          // THE VOLUME under the transport on W, T and L: the slider in a 44 px
-          // place for a finger, a small and a large speaker either side (the
-          // pane's mini player's, 2026-10-31)
-          ':host(:is([size=L],[size=XL])) .np .meta{display:flex;align-items:center;gap:10px;padding:0;--hk-range-h:44px}',
-          ':host([size]) .np .meta > :not(.vg){flex:1 1 auto;min-width:0;order:1}',
-          ':host([size]) .np .vg{flex:none;width:14px;height:14px;--mdc-icon-size:14px;color:rgba(255,255,255,.75)}',
-          ':host([size]) .np .vg.hi{order:2;width:20px;height:20px;--mdc-icon-size:20px}',
-          ':host([size]) .np .tb{width:44px;height:44px;margin:0;align-self:center;justify-self:center;position:relative}',
-          ':host([size]) .np .tb hk-icon{width:30px;height:30px;--mdc-icon-size:30px}',
-          ':host([size]) .np .play hk-icon{width:40px;height:40px;--mdc-icon-size:40px}',
           // SPEAKERS AND BROWSE (2026-10-27): either side of the transport, as on
           // the screensaver's pane; each turns the card over (_turn). Bare, as every
           // player's buttons (2026-11-07, the owner: "do we need the wells (circles)
           // behind the icons? ... I think it looks better without them"), lighter
-          // than the transport so play / pause stays the main thing
-          ':host([size]) .np .spk,:host([size]) .np .brw{display:flex;grid-area:spk;color:rgba(255,255,255,.75)}',
-          ':host([size]) .np .brw{grid-area:brw}',
-          // (display:flex: an inline hk-icon draws its glyph on a line of text, below the middle by as much as the
-          // size's font sets -- 1 to 2 px low in the well on Small, Wide and Tall, 2026-11-05, the owner)
-          ':host([size]) .np .spk hk-icon,:host([size]) .np .brw svg{position:relative}',
-          ':host([size]) .np .spk hk-icon{display:flex;align-items:center;justify-content:center}',
-          ':host([size]) .np .spk hk-icon{width:24px;height:24px;--mdc-icon-size:24px;color:inherit}',
-          ':host([size]) .np .brw svg{width:23px;height:23px}',
-          // (nothing plays: no rooms to move -- Browse still starts something)
-          ':host([size]) .np .spk.dis{opacity:.35;pointer-events:none}',
+          // than the transport so play / pause stays the main thing; Speakers dimmed
+          // (.dis) while nothing plays -- no rooms to move, Browse still starts something
           // WHAT FITS, AND WHAT THE SHEET HAS (2026-11-08, the owner: "anywhere things don't fit correctly ... I'm ok with any
           // card having a detail sheet created that exposes MORE controls"): S has the state and ONE action, play / pause; W and T
           // the state and three, back / play / next, each a 44 px target with the 8 px clear between hit areas -- Speakers, Browse
           // and the volume are on the player's sheet (a tap on the plate opens it, _tapTarget), where there is room for every
           // one. L and XL keep them, with the room they have.
-          ':host(:is([size=S],[size=W],[size=T])) .np .spk,:host(:is([size=S],[size=W],[size=T])) .np .brw{display:none}',
+          ':host(:is([size=S],[size=W],[size=T])) .np .hks .mx{display:none}',
+          // THE SPEAKER LINE over the title (mockup 12h, 2026-11-09): the label's size, its touch area 56 px tall round the
+          // words; Tall and Wide the first room alone; Small none (no title line there)
+          ':host([size]) .np .hksl{display:inline-flex;grid-area:line;justify-self:start;align-self:end;z-index:3;--hksl-h:56px;',
+          '  font-size:13px;line-height:18px;font-weight:600;color:rgba(255,255,255,.75)}',
+          ':host([size=S]) .np .hksl{display:none}:host(:is([size=T],[size=W])) .np .hksl-t i{display:none}',
+          ':host([size]) .np.plain .hksl{color:' + window.hkCards.v('ink-2') + '}',
+          ':host(:is([size=S],[size=W],[size=T])) .np .hks .mctl{justify-content:center;margin-left:0;margin-right:0}',
           // S: the cover top left, play / pause top right (its glyph on the inset's corner, the 44 px target reaching into it),
           // the song under them at the foot
           ':host([size=S]) hk-plate.np{--np-art:min(88px, ' + NP_H + ' - 72px);',
-          '  --hk-np-cols:minmax(0,1fr) 44px;',
-          '  --hk-np-areas:"art play" ". ." "title title" "artist artist";',
+          '  --hk-np-cols:minmax(0,1fr) 64px;',
+          '  --hk-np-areas:"art strip" ". ." "title title" "artist artist";',
           '  --hk-np-rows:var(--np-art) minmax(0,1fr) min-content min-content}',
           ':host([size=S]) .np .grid{column-gap:0;row-gap:0}',
           ':host([size=S]) .np .art{align-self:start}',
           ':host([size=S]) .np .title{padding-top:8px;align-self:start}',
-          ':host(:is([size=S])) .np .prev,:host([size=S]) .np .next{display:none}',
-          ':host([size=S]) .np .play{align-self:start;justify-self:end;margin:-5px -5px 0 0}',
-          ':host([size=S]) .np .play hk-icon{width:36px;height:36px;--mdc-icon-size:36px}',
+          // (play / pause alone: its 64 px target in a column of its own, reaching 4 px into the inset's corner)
+          ':host([size=S]) .np .hks [data-act=prev],:host([size=S]) .np .hks [data-act=next]{display:none}',
+          ':host([size=S]) .np .hks{align-self:start;justify-self:end;margin:-4px -4px 0 0;--hks-g1:0px;--hks-gpp:36px}',
           '@container hk-cell (max-height:179px){:host([size=S]) hk-plate.np{--np-art:min(88px, ' + NP_H + ' - 34px)}:host([size=S]) .np .artist{display:none}}',
           // W: the cover as tall as the block, or as wide as the controls leave it; the song, a gap and the transport one group
           // centered on the cover's axis (2026-11-08, the owner: "follow ... the Music slide for the screensavers") -- not the song
@@ -822,80 +812,142 @@
           // owner, 2026-11-08): the three keys keep their 44 px and a 12 px clear between, a cluster centered in the column,
           // not spread to its ends by a flexible track
           ':host([size=W]) hk-plate.np{display:flex;flex-direction:column;justify-content:center;',
-          '  --np-art:min(' + NP_H + ', ' + NP_W + ' - 190px);',
-          '  --hk-np-cols:calc(var(--np-art) + 16px) minmax(0,1fr) 44px 12px 44px 12px 44px minmax(0,1fr);',
-          '  --hk-np-areas:"art . . . . . . ." "art title title title title title title title" "art artist artist artist artist artist artist artist" "art sub sub sub sub sub sub sub" "art . prev . play . next ." "art . . . . . . .";',
-          '  --hk-np-rows:minmax(0,1fr) min-content min-content min-content 52px minmax(0,1fr)}',
+          // (2026-11-09: the three keys' targets 56, 64 and 56 with 8 clear -- the column at least 178 wide, the row reaching
+          // 8 px past it either side -- and under them the volume again (the owner: "Looks like the tall and the wide cards
+          // lost their volume slider?"), each a full target: play / pause 60 (4 over the others), the artist gone, and since
+          // the speaker line came over the song (mockup 12h) no progress, so the line, the song, the keys and the volume fit
+          // the block's 170. On a tile's 110 px the keys and the volume do not both fit: the volume is on the sheet.)
+          // (THE GAP BESIDE THE COVER IS ITS MARGIN (2026-11-09, the owner: "generally I'd like the same margin/gap
+          // from the album art to the edge as the album art to the text on the right"): the cover's gap to the song
+          // is the block's inset -- the column 178 at least)
+          '  --np-art:min(' + NP_H + ', ' + NP_W + ' - 178px - ' + NP_PAD.l + ');',
+          '  --hk-np-cols:calc(var(--np-art) + ' + NP_PAD.l + ') minmax(0,1fr);',
+          '  --hk-np-areas:"art ." "art line" "art title" "art artist" "art strip" "art .";',
+          '  --hk-np-rows:minmax(0,1fr) min-content min-content min-content min-content minmax(0,1fr)}',
           ':host([size=W]) .np .grid{column-gap:0;row-gap:0;height:var(--np-art)}',
-          ':host([size=W]) .np .sub{padding-top:8px}:host([size=W]) .np .tb{align-self:end}',
-          '@container hk-cell (max-height:179px){:host([size=W]) .np .artist{display:none}}',
+          // (the speaker line over the song: no room is left for the progress, which the sheet has -- the owner's order:
+          // the volume first, then the progress, 2026-11-09)
+          ':host([size=W]) .np .hks .mprog{display:none!important}',
+          ':host([size=W]) .np .hks{margin-top:0;--hks-pp:60px}:host([size=W]) .np .hks .mctl{margin-left:-8px;margin-right:-8px}',
+          // (the speaker line's 56 px area from the plate's top edge down, 12 clear of the keys: the words 2 px into the
+          // inset, the area 3 px below their middle -- every target in the block's 196 px, the volume's reaching its foot)
+          ':host([size=W]) .np .hksl{margin-top:-2px;--hksl-dy:3px}',
+          ':host([size=W]) .np .artist{display:none}',
+          '@container hk-cell (max-height:179px){:host([size=W]) .np .hks .mvol{display:none}}',
           // T: the cover across the top, on the block's axis (the owner: "the album art isn't centered in the card" -- it was
           // at the start of its row, and a cover narrower than the content box sat to the left); under it the label, the song,
           // the progress and the three keys at their own sizes, the whole stack centered in the block with the same air above
           // and below. The cover takes the room: it is as wide as the content box, or as tall as the stack leaves it
           ':host([size=T]) hk-plate.np{--hk-np-pad:' + NP_PAD.t + ' ' + NP_PAD.r + ' calc(' + NP_PAD.b + ' + 6px) ' + NP_PAD.l + ';',
-          '  --np-art:min(' + NP_W + ', ' + NP_H + ' - 176px);',
-          '  --hk-np-cols:minmax(0,1fr) 44px 8px 44px 8px 44px minmax(0,1fr);',
-          '  --hk-np-areas:"art art art art art art art" "title title title title title title title" "artist artist artist artist artist artist artist" "sub sub sub sub sub sub sub" ". prev . play . next .";',
-          '  --hk-np-rows:calc(var(--np-art) + 12px) min-content min-content min-content 52px}',
+          // (2026-11-09: the three keys' 56, 64 and 56 px targets are wider than the content box: their row reaches into the
+          // block's insets, the glyphs where they were; the volume under them again -- the owner: "Looks like the tall and
+          // the wide cards lost their volume slider?" -- the cover giving up the room. On a tile the progress is the thin
+          // line in its place and the artist goes.)
+          '  --np-art:min(' + NP_W + ', ' + NP_H + ' - 254px);',
+          '  --hk-np-cols:minmax(0,1fr);',
+          '  --hk-np-areas:"art" "line" "title" "artist" "strip";',
+          '  --hk-np-rows:calc(var(--np-art) + 12px) min-content min-content min-content min-content}',
           ':host([size=T]) .np .grid{column-gap:0;row-gap:0;align-content:center}',
-          ':host([size=T]) .np .tb{align-self:end}',
           ':host([size=T]) .np .art{justify-self:center;align-self:start}',
-          ':host([size=T]) .np .sub{padding-top:14px}',
-          ':host([size=T]) .np .tb hk-icon{width:28px;height:28px;--mdc-icon-size:28px}',
-          ':host([size=T]) .np .play hk-icon{width:36px;height:36px;--mdc-icon-size:36px}',
+          ':host([size=T]) .np .hks{margin-top:10px;--hks-gb:28px;--hks-gpp:36px}',
+          ':host([size=T]) .np .hks .mctl{margin-left:calc(0px - ' + NP_PAD.l + ');margin-right:calc(0px - ' + NP_PAD.r + ')}',
           ':host([size=T]) .np.tall .shade,:host([size=T]) .np .shade{background:linear-gradient(180deg,rgba(8,9,12,.10) 0%,rgba(8,9,12,.30) 45%,rgba(8,9,12,.74) 100%)}',
-          '@container hk-cell (max-height:379px){:host([size=T]) hk-plate.np{--np-art:min(' + NP_W + ', ' + NP_H + ' - 160px)}}',
+          '@container hk-cell (max-height:379px){:host([size=T]) hk-plate.np{--np-art:min(' + NP_W + ', ' + NP_H + ' - 209px)}',
+          '  :host([size=T]) .np .artist{display:none}:host([size=T]) .np .hks .mprog' + NP_THIN + '}',
           // L (2026-11-08, the owner: every player follows the Music slide's grouping): the cover with the song beside it, then the
           // progress, the five keys and the volume -- the cover sets no track, so the song sits 14 px from it (it sat a whole
           // track away on a tile) and the cover takes the room the song's 160 px and the controls leave. The keys are a cluster at
           // their own sizes (48, 52 for play, 44 for Speakers and Browse, 8 clear between), centered in the column; the stack is
           // centered in the block, a fixed 22 px (the slide's) between the cover and the progress
           // (the cover and the song span every column, the song's lines padded past the cover)
-          ':host([size=L]) hk-plate.np{--np-art:min(' + NP_H + ' - 170px, ' + NP_W + ' - 174px);',
-          '  --np-flank:calc((var(--np-art) - 68px) / 2);',
-          '  --hk-np-cols:minmax(0,1fr) 44px 8px 48px 8px 52px 8px 48px 8px 44px minmax(0,1fr);',
-          '  --hk-np-areas:"pre pre pre pre pre pre pre pre pre pre pre" "title title title title title title title title title title title" "artist artist artist artist artist artist artist artist artist artist artist" "post post post post post post post post post post post" ". . . . . . . . . . ." "sub sub sub sub sub sub sub sub sub sub sub" ". spk . prev . play . next . brw ." "meta meta meta meta meta meta meta meta meta meta meta";',
-          '  --hk-np-rows:var(--np-flank) min-content min-content var(--np-flank) 22px min-content 57px min-content}',
+          // (2026-11-09: the strip's room -- 56 px targets, 64 for play, 12 clear above and below them -- comes off the cover,
+          // and the gap over the progress is 16; on a tile's shorter block the progress is the thin line in its place, the
+          // volume keeps its slider -- the owner: "Volume is more important than the progress bar")
+          ':host([size=L]) hk-plate.np{--np-art:min(' + NP_H + ' - 190px, ' + NP_W + ' - 174px);',
+          '  --np-flank:calc((var(--np-art) - 64px) / 2);',
+          '  --hk-np-cols:minmax(0,1fr);',
+          '  --hk-np-areas:"pre" "line" "title" "artist" "post" "." "strip";',
+          '  --hk-np-rows:var(--np-flank) min-content min-content min-content var(--np-flank) 16px min-content}',
+          ':host([size=L]) .np .hksl{margin-left:calc(var(--np-art) + ' + NP_PAD.l + ')}',
+          '@container hk-cell (max-height:379px){:host([size=L]) hk-plate.np{--np-art:min(' + NP_H + ' - 166px, ' + NP_W + ' - 174px)}',
+          '  :host([size=L]) .np .hks .mprog' + NP_THIN + '}',
           ':host([size=L]) .np .grid{column-gap:0;align-content:center}',
-          ':host([size=L]) .np .art{grid-area:1/1/5/-1;justify-self:start;align-self:start}',
-          ':host([size=L]) .np .title,:host([size=L]) .np .artist{padding-left:calc(var(--np-art) + 14px);justify-self:stretch}',
-          ':host(:is([size=L],[size=XL])) .np .tb{align-self:start;width:48px;height:48px}',
-          ':host(:is([size=L],[size=XL])) .np .play{width:52px;height:52px}',
-          ':host([size]) .np .sub{align-self:end}:host(:is([size=L],[size=XL])) .np .sub{padding-top:12px}:host([size=L]) .np .sub{padding-top:0}',
+          ':host([size=L]) .np .art{grid-area:1/1/6/-1;justify-self:start;align-self:start}',
+          // (the song as far from the cover as the cover from the block's edge: its inset -- 2026-11-09, the owner)
+          ':host([size=L]) .np .title,:host([size=L]) .np .artist{padding-left:calc(var(--np-art) + ' + NP_PAD.l + ');justify-self:stretch}',
+          // (Speakers' and Browse's targets reach 8 px past the bars' ends, no further: a block's inset can be 14, and the plate
+          // clips what goes past it -- a finger there would find nothing)
+          ':host(:is([size=L],[size=XL])) .np .hks{--hks-gb:34px;--hks-gpp:48px;--hks-gx:28px}',
+          ':host(:is([size=L],[size=XL])) .np .hks .mctl{margin-left:-8px;margin-right:-8px}',
+          // (...but on XL not toward the cover: Speakers keeps the column's edge, the cover's whole gap clear of it)
+          ':host([size=XL]) .np .hks .mctl{margin-left:0}',
           // TWO LINES OF TITLE where the song's group has the room (the slide's -webkit-line-clamp:2): a long one is not cut at
           // "Blue in Green (Alternate Ta..." with half the column empty under it
           ':host(:is([size=L],[size=XL])) .np .title{' + window.hkCards.typeCss('title') + ';line-height:27px;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}',
-          ':host(:is([size=L],[size=XL])) .np .spk,:host(:is([size=L],[size=XL])) .np .brw{width:44px}',
-          ':host(:is([size=L],[size=XL])) .np .tb hk-icon{width:34px;height:34px;--mdc-icon-size:34px}',
-          ':host(:is([size=L],[size=XL])) .np .play hk-icon{width:48px;height:48px;--mdc-icon-size:48px}',
-          ':host(:is([size=L],[size=XL])) .np .spk hk-icon{width:28px;height:28px;--mdc-icon-size:28px}',
-          ':host(:is([size=L],[size=XL])) .np .brw svg{width:27px;height:27px}',
-          // XL (2026-11-07, the review; Apple's Now Playing): the cover large on the left, square at the inner radius and
-          // centered in the block's height, as big as the right column's 282 px (the five keys and their gaps) allow; the song's
-          // label, title and artist, the progress, the keys and the volume in the column beside it -- L's pieces, set beside the
-          // cover. The block's own cover blur or card plate stays behind it, as at every size.
-          // ONE GROUP, CENTERED (2026-11-08, the owner: "why is the title / artist so close to the top and the media controls so
-          // close to the bottom ... this info and media controls should follow ... the Music slide"): the Music slide's column
-          // is the song, then the progress, the buttons and the volume, close together as one block, and so is this -- the
-          // block's slack is a flexible row above and one below, so the group stands on the cover's axis with the same air
-          // each side, and the progress follows the artist by the slide's 22 px (--np-lead). Nothing in it is stretched: the keys
-          // are L's cluster, the progress and the volume the column's width
-          ':host([size=XL]) hk-plate.np{--np-art:min(' + NP_H + ', ' + NP_W + ' - 282px);--np-lead:20px;',
-          '  --hk-np-cols:calc(var(--np-art) + 14px) minmax(0,1fr) 44px 8px 48px 8px 52px 8px 48px 8px 44px minmax(0,1fr);',
-          '  --hk-np-areas:"art . . . . . . . . . . ." "art title title title title title title title title title title title" "art artist artist artist artist artist artist artist artist artist artist artist" "art sub sub sub sub sub sub sub sub sub sub sub" "art . spk . prev . play . next . brw ." "art meta meta meta meta meta meta meta meta meta meta meta" "art . . . . . . . . . . .";',
-          '  --hk-np-rows:minmax(0,1fr) min-content min-content min-content 57px min-content minmax(0,1fr)}',
-          ':host([size=XL]) .np .sub{padding-top:var(--np-lead)}',
-          // (the scrubber's and the volume's hit areas 8 px clear of the keys between them -- the controls audit, 2026-11-08)
-          ':host(:is([size=L],[size=XL])) .np .sub{margin-bottom:2px}:host(:is([size=L],[size=XL])) .np .meta{margin-top:2px}',
-          ':host([size=XL]) .np .art{align-self:center;justify-self:start}',
-          ':host([size=XL]) .np .grid{column-gap:0}',
+          // XL (mockup 12i, 2026-11-09, the owner: "this player should work more like the Large card (vertical style
+          // layout), but also have the queue on the right side"; option B, "B is better, but it needs to be a larger touch
+          // point"): Large's player -- the cover with the speaker line and the song beside it, the progress, back / play /
+          // next and the volume -- in a column on the left, centered in the block's height, and Up Next filling the right:
+          // its heading with Browse a button at its right, the songs scrolling under it (.npq). The play row is the three
+          // keys alone, centered ("play/pause is no longer in the middle" with four), Up Next's key gone with the list in
+          // sight. The player's column is a little over half the block, the gap between the two its inset again.
+          ':host([size=XL]) hk-plate.np{--np-pw:max(260px, (' + NP_W + ' - ' + NP_PAD.l + ') * .52);',
+          '  --np-art:min(' + NP_H + ' - 190px, var(--np-pw) - 174px);',
+          '  --np-flank:calc((var(--np-art) - 64px) / 2);',
+          '  --hk-np-cols:var(--np-pw) minmax(0,1fr);',
+          '  --hk-np-areas:". queue" "pre queue" "line queue" "title queue" "artist queue" "post queue" ". queue" "strip queue" ". queue";',
+          '  --hk-np-rows:minmax(0,1fr) var(--np-flank) min-content min-content min-content var(--np-flank) 16px min-content minmax(0,1fr)}',
+          ':host([size=XL]) .np .grid{column-gap:' + NP_PAD.l + ';row-gap:2px;height:100%}',
+          ':host([size=XL]) .np .art{grid-area:2/1/7/2;justify-self:start;align-self:start}',
+          ':host([size=XL]) .np .hksl{margin-left:calc(var(--np-art) + ' + NP_PAD.l + ')}',
+          ':host([size=XL]) .np .title,:host([size=XL]) .np .artist{padding-left:calc(var(--np-art) + ' + NP_PAD.l + ');justify-self:stretch}',
+          ':host([size=XL]) .np .hks .mx{display:none}',
+          ':host([size=XL]) .np .hks .mctl{justify-content:center;margin-left:0;margin-right:0}',
+          '@container hk-cell (max-height:379px){:host([size=XL]) hk-plate.np{--np-art:min(' + NP_H + ' - 166px, var(--np-pw) - 174px)}',
+          '  :host([size=XL]) .np .hks .mprog' + NP_THIN + '}',
+          // UP NEXT: the heading in the Weather page's style (hk-base.js headCss) on a 40 px row, Browse a pill at its
+          // right drawn 40 px and taking a 56 px touch (44 on the screen) -- 12 px past the pill into the block's inset
+          // above, 4 below, and 8 clear of the list under it
+          '.np .npq{display:none}',
+          ':host([size=XL]) .np .npq{display:flex;flex-direction:column;grid-area:queue;align-self:stretch;min-width:0;min-height:0;contain:size;z-index:2}',
+          ':host([size=XL]) .np .npqh{display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px;flex:none;margin:0 0 12px}',
+          window.hkCards.headCss(':host([size=XL]) .np .npqh>span'),
+          ':host([size=XL]) .np .npqh>span{color:rgba(255,255,255,.7)}',
+          ':host([size=XL]) .np .npqb{position:relative;display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 16px;border:0;border-radius:20px;',
+          '  background:rgba(255,255,255,.16);color:#fff;font:inherit;font-size:15px;font-weight:600;line-height:1;cursor:pointer;flex:none;-webkit-tap-highlight-color:transparent}',
+          ':host([size=XL]) .np .npqb svg{width:18px;height:18px;fill:currentColor}',
+          ':host([size=XL]) .np .npqb::after{content:"";position:absolute;inset:-12px -8px -4px -8px}',
+          ':host([size=XL]) .np .npqb:active{background:rgba(255,255,255,.28)}',
+          // the songs: each row a 56 px button, the cover 40, the title over the artist; the list scrolls by finger, no
+          // scrollbar, a soft fade at its foot while there is more below (the owner: "the up next should scroll")
+          ':host([size=XL]) .np .npql{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;',
+          '  touch-action:pan-y;scrollbar-width:none;margin-right:-8px;padding-right:8px}',
+          ':host([size=XL]) .np .npql::-webkit-scrollbar{display:none}',
+          ':host([size=XL]) .np .npql.more{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 56px),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - 56px),transparent)}',
+          ':host([size=XL]) .np .npqr{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:0;border:0;background:none;color:#fff;',
+          '  font:inherit;text-align:left;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.1);-webkit-tap-highlight-color:transparent}',
+          ':host([size=XL]) .np .npqr:last-child{border-bottom:0}',
+          ':host([size=XL]) .np .npqr:active,:host([size=XL]) .np .npqr.busy{opacity:.55}',
+          ':host([size=XL]) .np .npqa{flex:none;width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.14) center/cover no-repeat;',
+          '  display:flex;align-items:center;justify-content:center}',
+          ':host([size=XL]) .np .npqa svg{width:18px;height:18px;fill:rgba(255,255,255,.7)}',
+          ':host([size=XL]) .np .npqt{display:flex;flex-direction:column;min-width:0}',
+          ':host([size=XL]) .np .npqt b,:host([size=XL]) .np .npqt small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+          ':host([size=XL]) .np .npqt b{font-size:15px;line-height:19px;font-weight:600}',
+          ':host([size=XL]) .np .npqt small{font-size:13px;line-height:17px;color:rgba(255,255,255,.7)}',
+          ':host([size=XL]) .np .npqn{font-size:15px;line-height:20px;color:rgba(255,255,255,.7);padding-top:4px}',
+          ':host([size=XL]) .np.plain .npqh>span,:host([size=XL]) .np.plain .npqt small,:host([size=XL]) .np.plain .npqn{color:' + window.hkCards.v('ink-2') + '}',
+          ':host([size=XL]) .np.plain .npqr,:host([size=XL]) .np.plain .npqb{color:' + window.hkCards.v('ink') + '}',
+          ':host([size=XL]) .np.plain .npqr{border-bottom-color:' + window.hkCards.v('line') + '}',
+          ':host([size=XL]) .np.plain .npqb,:host([size=XL]) .np.plain .npqa{background-color:' + window.hkCards.v('key') + '}',
+          ':host([size=XL]) .np.plain .npqa svg{fill:' + window.hkCards.v('ink-2') + '}',
           // IN A PAGER (hk-pager-card): its dots under the block's foot, so no
           // volume and no label
           ':host([size][data-grid-pager]) hk-plate.np{--hk-np-pad:20px 22px 44px;--np-vol:0px}',
-          ':host([size][data-grid-pager]) .np .meta',
+          ':host([size][data-grid-pager]) .np .hks .mvol{display:none}',
           ':host([size=W][data-grid-pager]) hk-plate.np{--np-art:calc(100cqh - 64px);',
-          '  --hk-np-areas:"art title title title title title" "art spk prev play next brw";--hk-np-rows:minmax(0,1fr) 46px}',
+          '  --hk-np-areas:"art line" "art title" "art strip";--hk-np-rows:min-content minmax(0,1fr) min-content}',
+          ':host([size=W][data-grid-pager]) .np .hks .mprog{display:none!important}',
           ':host([size=W][data-grid-pager]) .np .artist{display:none}',
           ':host([size=T][data-grid-pager]) hk-plate.np{--np-art:min(100cqw - 76px,100cqh - 174px)}',
           // BACKGROUND: CARD (2026-11-05, the owner): the plate every other block has, in the screen's look, and its inks --
@@ -907,11 +959,10 @@
           'hk-plate.np.plain{--hk-media-ink:' + window.hkCards.v('ink') + ';--hk-media-track:' + window.hkCards.v('line-strong') + '}',
           '.np.plain .bg,.np.plain .shade{display:none}',
           '.np.plain .title{color:' + window.hkCards.v('ink') + '}',
-          '.np.plain .artist,.np.plain .player,:host([size]) .np.plain .vg{color:' + window.hkCards.v('ink-2') + '}',
+          '.np.plain .artist,.np.plain .player{color:' + window.hkCards.v('ink-2') + '}',
           '.np.plain .art .none{background:' + window.hkCards.v('key') + ';color:' + window.hkCards.v('ink-2') + '}',
-          '.np.plain .tb hk-icon,.np.plain .tb:active hk-icon,:host([size]) .np.plain .spk hk-icon{color:' + window.hkCards.v('ink') + ';filter:none}',
-          '.np.plain .brw,:host([size]) .np.plain .spk,:host([size]) .np.plain .brw{color:' + window.hkCards.v('ink') + '}',
-          '.np.plain .brw svg{filter:none}'
+          '.np.plain .hks,:host([size]) .np.plain .hks{--hks-ink:' + window.hkCards.v('ink') + ';--hks-ink2:' + window.hkCards.v('ink') + ';--hks-glow:none}',
+          '.np.plain .hks .mvol>svg{fill:' + window.hkCards.v('ink-2') + '}'
         ].join('');
       }
 
@@ -975,10 +1026,10 @@
       // home-assistant to hear them. It closes on a tap outside, on its X,
       // a moment after a request has landed, when the music goes, and when
       // the page changes.
-      _openSpk() {
+      _openSpk(tab, from) {
         var P = window.hkSaverPanel, self = this, h = this.client;
         if (this._spk) { this._closeSpk(); return; }
-        var btn = this._root && this._root.querySelector('.spk'), card = this._root && this._root.querySelector('hk-plate');
+        var btn = from || (this._root && this._root.querySelector('[data-act=queue]')), card = this._root && this._root.querySelector('hk-plate');
         if (!P || !btn || !card || !h || !this._musicCtx()) return;
         var phone = window.innerWidth <= 640, b = btn.getBoundingClientRect(), top = card.getBoundingClientRect().top;
         var W = phone ? window.innerWidth : 430, H = phone ? Math.round(Math.min(640, window.innerHeight * 0.86)) : Math.round(Math.min(560, top - 28));
@@ -1014,7 +1065,8 @@
           'transform-origin:' + Math.round(b.left + b.width / 2 - left) + 'px 100%';
         sr.appendChild(el);
         me.p.size(W, H, 1);
-        me.p.show('speakers');
+        me.p.show(tab || 'speakers');
+        me.btn = btn;
         scrim.addEventListener('click', function () { self._closeSpk(); });
         me.key = function (ev) { if (ev.key === 'Escape') self._closeSpk(); };
         window.addEventListener('keydown', me.key);
@@ -1038,8 +1090,7 @@
           if (me.turn.isConnected) this._turnAnim(me, false, fin); else { if (me.anim) me.anim.cancel(); fin(); }
           return;
         }
-        var btn = this._root && this._root.querySelector('.spk');
-        if (btn) btn.classList.remove('lit');
+        if (me.btn) me.btn.classList.remove('lit');
         me.p.el.classList.remove('in'); me.scrim.classList.remove('on');
         setTimeout(function () { me.p.destroy(); me.host.remove(); }, 320);
       }
@@ -1347,6 +1398,14 @@
       // An UNKNOWN selection says so rather than quietly showing another room:
       // a map that silently falls back to some other speaker shows that room's
       // artwork and title with nothing on screen admitting it.
+      // THE SPEAKER LINE'S ROOMS: the player's own name, then the rooms joined to it (as _playerLine names them)
+      _rooms(p) {
+        var M = window.hkMusic, self = this;
+        if (!p) { var r0 = this._res(); return r0.player ? [r0.name || r0.player] : []; }
+        var name = function (e) { var o = self._st(e); return (M && M.known(e) && M.nameOf(e)) || (o && o.attributes && o.attributes.friendly_name) || e; };
+        var a = p.attributes || {}, g = M && M.fold ? M.fold(a.group_members || []) : (a.group_members || []);
+        return [name(p.entity_id)].concat(g.filter(function (e) { return e !== p.entity_id; }).map(name));
+      }
       _playerLine(p) {
         if (!p) {
           var r0 = this._res();
@@ -1405,13 +1464,8 @@
         // an early return when the icon already matches would leave the
         // screen-reader label behind whenever the two start out of step. A test
         // that calls this method, instead of re-implementing it, catches that.
-        var want = this._playIcon(p);
-        var label = want === 'mdi:pause' ? 'Pause' : 'Play';
-        var ic = e.play.querySelector('hk-icon');
-        if (ic && ic.getAttribute('icon') !== want) ic.setAttribute('icon', want);
-        if (e.play.getAttribute('aria-label') !== label) {
-          e.play.setAttribute('aria-label', label);
-        }
+        // (the glyph and the label both through the strip's painter: hk-np-strip.js play, each guarded on its own)
+        window.hkNpStrip.play(e.play, this._playIcon(p) === 'mdi:pause');
       }
 
       // EVERY TAP NAMES ITS PLAYER: the player drawn is the player sent, to
@@ -1421,6 +1475,61 @@
         if (!this.client) return;
         var player = this._res().player;
         if (player) this._call('hk_frontend', 'music_transport', { player: player, command: command });
+      }
+
+      // UP NEXT ON EXTRA LARGE: Music Assistant's queue (hk_music/queue, the integration's: {id, title, artist,
+      // image}, the first what plays), asked once a song -- as the screensaver's rows and the Side Pane ask it
+      _queue(p) {
+        // (paused or stopped too: a speaker's queue outlives its song, and a row starts it again)
+        var key = this._res().player, sig = key ? key + '|' + this._title(p) + '|' + this._artist(p) : '', self = this;
+        if (sig !== this._qFor) {
+          this._qFor = sig; this._q = null;
+          if (sig && this.client && this.client.callWS) {
+            this.client.callWS({ type: 'hk_music/queue', entity_id: key, limit: 40 }).then(function (r) {
+              if (self._qFor !== sig) return;
+              self._q = r && r.ok && Array.isArray(r.items) ? r.items.slice(1) : [];
+              self._drawQueue();
+            }, function () { if (self._qFor === sig) { self._q = []; self._drawQueue(); } });
+          }
+        }
+        this._drawQueue();
+        this._qFade();
+      }
+      _drawQueue() {
+        var e = this._e;
+        if (!e || !e.ql) return;
+        var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+        // (Apple's 1000 px covers asked for at a thumbnail's size, as the other lists ask)
+        var small = function (u) { return String(u).replace(/\/(\d+)x(\d+)(bb|cc|sr)?\.(jpg|jpeg|png|webp)$/, '/160x160$3.$4'); };
+        var note = window.hkNpStrip.svg('M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z');
+        var items = this._q || [], busy = this._qBusy;
+        var html = this._qFor && !this._q ? ''
+          : !items.length ? '<div class="npqn">Nothing queued.</div>'
+          : items.map(function (it) {
+              var img = it.image && /^https?:|^\//.test(it.image) ? small(it.image) : '';
+              return '<button class="npqr' + (busy === it.id ? ' busy' : '') + '" type="button" data-qid="' + esc(it.id) + '" aria-label="Play ' + esc(it.title) + '">' +
+                '<span class="npqa"' + (img ? ' style="background-image:url(&quot;' + esc(img) + '&quot;)">' : '>' + note) + '</span>' +
+                '<span class="npqt"><b>' + esc(it.title) + '</b><small>' + esc(it.artist) + '</small></span></button>';
+            }).join('');
+        if (e.ql.__t === html) return;
+        var top = e.ql.scrollTop;
+        e.ql.__t = html; e.ql.innerHTML = html;
+        e.ql.scrollTop = top;
+        this._qFade();
+      }
+      // THE FADE AT THE LIST'S FOOT while more is below it (none once it is scrolled to the end)
+      _qFade() {
+        var l = this._e && this._e.ql;
+        if (!l) return;
+        if (!l.__fade) { var self = this; l.__fade = true; l.addEventListener('scroll', function () { self._qFade(); }, { passive: true }); }
+        l.classList.toggle('more', l.scrollHeight - l.clientHeight - l.scrollTop > 4);
+      }
+      _playQueued(id) {
+        var key = this._res().player, act = this._actions(), self = this;
+        if (!id || !key || !act || this._qBusy) return;
+        this._qBusy = id; this._drawQueue();
+        var done = function () { self._qBusy = null; self._qFor = ''; self._render(); };
+        act.callWS({ type: 'hk_music/queue_play', entity_id: key, item_id: id }).then(done, done);
       }
 
       _render() {
@@ -1450,68 +1559,42 @@
             '<div class="title" data-hk-role="title"></div>' +
             '<div class="artist" data-hk-role="artist"></div>' +
             '<div class="player" data-hk-role="player"></div>' +
-            // (a Home Grid block's volume: a small and a large speaker either
-            // side of the slider, only there -- the page's tall layout shows
-            // every child of `meta`)
-            '<div class="meta" data-hk-role="meta">' + (this.hasAttribute('size')
-              ? '<hk-icon class="vg lo" icon="mdi:volume-high"></hk-icon><hk-icon class="vg hi" icon="mdi:volume-high"></hk-icon>' : '') + '</div>' +
-            // SECOND CARD SLOT, for the bar. The full player stacks
-            // progress + times + volume in one `meta` column; the bar is
-            // 104px tall and cannot, so it passes TWO cards -- progress
-            // here under the song name, volume alone in `meta`. Empty and
-            // display:none unless sub_card is configured, because a div
-            // whose grid-area is absent from the template gets
-            // auto-placed and would add an implicit row to the full
-            // player.
-            '<div class="sub" data-hk-role="sub"></div>' +
-            '<div class="tb prev" role="button" aria-label="Previous"' +
-            ' data-hk-role="prev"><hk-icon icon="mdi:skip-previous"></hk-icon></div>' +
-            // mdi:play, not mdi:play-pause -- the icon is swapped on every
-            // render to say what the button will DO (see the update block).
-            // Starting on `play` means the first paint of an idle player is
-            // already right and never flickers through a combined glyph.
-            '<div class="tb play" role="button" aria-label="Play"' +
-            ' data-hk-role="play"><hk-icon icon="mdi:play"></hk-icon></div>' +
-            '<div class="tb next" role="button" aria-label="Next"' +
-            ' data-hk-role="next"><hk-icon icon="mdi:skip-next"></hk-icon></div>' +
-            // STOP. Only the bar places it -- the full player's grid has no
-            // `stop` area, so on that page this element has no cell and CSS
-            // hides it. Stop rather than another pause because the bar is shown
-            // by "the selected speaker is playing": pause would leave it on
-            // screen against a frozen track, stop ends playback and the bar
-            // goes with it.
-            '<div class="tb stop" role="button" aria-label="Stop"' +
-            ' data-hk-role="stop"><hk-icon icon="mdi:stop"></hk-icon></div>' +
-            // CLOSE, as a CONTROL IN THE ROW rather than pop-up chrome. The
-            // generic `close_button` hk-popup draws is absolutely positioned in
-            // the sheet's top-right corner, which on a 104px bar reads as
-            // something stuck to the outside of the card and is hard to see.
-            // As a grid cell it is built in: it sits on the same baseline as the
-            // transport and shares their well.
+            // THE CONTROLS STRIP (2026-11-09, the owner: "more space in general above and below the play button";
+            // modules/hk-np-strip.js): the progress, the transport and the volume are the one strip every player draws
+            // with -- the screensaver's slide and pane, the Now Playing page, the Side Pane. Its progress and volume are
+            // slots this card fills with its hk-media-control-cards (sub_card, meta_card: their scroll-safe slider);
+            // the transport is the strip's own. A Home Grid block lays it out as the strip does (a column: progress,
+            // transport, volume); the docked bar and the wide and tall layouts place each piece in their own grid
+            // (`cells`: the areas sub, spk, prev, play, next, stop, brw and meta, as they always were).
             //
-            // Setting the hash to '' is hk-popup's own close path, the one the
-            // backdrop tap and the X both use, so `dismissable` behaves
-            // identically -- the sheet stays shut on this screen until playback
-            // stops or the dismiss_scope changes.
-            // SPEAKERS AND BROWSE (bar only, 2026-10-11): on either side of
-            // the transport, as on the screensaver -- the screensaver's panel
-            // (Speakers / Volume / Queue) and the Music page's search
-            '<div class="tb spk" role="button" aria-label="Speakers"' +
-            ' data-hk-role="spk"><hk-icon icon="hk:homepod"></hk-icon></div>' +
-            '<div class="tb brw" role="button" aria-label="Browse Music" data-hk-role="brw">' +
-            '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="' + LIB + '"/></svg></div>' +
+            // STOP (the bar's, and the wide layout's): the bar is shown by "the selected speaker is playing", so pause
+            // would leave it on screen against a frozen track while stop ends playback and takes the bar with it.
+            // BROWSE AND UP NEXT at the transport's ends, the Speakers key gone to THE SPEAKER LINE over the title (the
+            // owner's mockup 12h, 2026-11-09, "Yes, build it"): where it plays, a tap the speakers -- on a Home Grid block
+            // (not Small: no title line there); the docked bar has no line (its song is its button to the page, and its
+            // 104 px leave no room for a 44 px line clear of it): the speakers are its Up Next panel's first tab.
+            window.hkNpStrip.html({ prog: 'slot', vol: 'slot', stop: true, roles: true }) + window.hkNpStrip.lineHtml({ roles: true }) +
+            // THE QUEUE BESIDE THE PLAYER (Extra Large only; the owner's mockup 12i, option B, 2026-11-09: "B is better, but
+            // it needs to be a larger touch point"): Up Next, with Browse a button at its heading's right -- so back, play
+            // and next are alone and centered in the play row -- and the songs after this one under it, scrolling. A row
+            // plays that song. (data-notap: a tap between its controls is not the block's tap)
+            '<div class="npq" data-notap><div class="npqh"><span>Up Next</span><button class="npqb" type="button" aria-label="Browse Music">' +
+            window.hkNpStrip.svg(window.hkNpStrip.ICON.search) + 'Browse</button></div><div class="npql"></div></div>' +
+            // CLOSE, as a CONTROL IN THE ROW rather than pop-up chrome -- drawn nowhere since 2026-10-11 (the bar is
+            // swiped away); its element stays.
             '<div class="tb close" role="button" aria-label="Close"' +
             ' data-hk-role="close"><hk-icon icon="mdi:close"></hk-icon></div>' +
             '</div></hk-plate>';
           var q = this._root.querySelector.bind(this._root);
           this._e = { plate: q('hk-plate.np'), bg: q('.bg'), art: q('.art'), title: q('.title'),
-                      artist: q('.artist'), player: q('.player'), meta: q('.meta'),
-                      sub: q('.sub'), play: q('.play'), spk: q('.spk') };
+                      artist: q('.artist'), player: q('.player'), meta: q('.mvs'), strip: q('.hks'),
+                      sub: q('.mprog'), play: q('.mpp'), spk: q('.hksl'), line: q('.hksl'),
+                      ql: q('.npql') };
           var self = this;
-          q('.prev').addEventListener('click', function () { self._svc('previous'); });
-          q('.play').addEventListener('click', function () { self._svc('play_pause'); });
-          q('.next').addEventListener('click', function () { self._svc('next'); });
-          q('.stop').addEventListener('click', function () { self._svc('stop'); });
+          q('[data-act=prev]').addEventListener('click', function () { self._svc('previous'); });
+          q('[data-act=pp]').addEventListener('click', function () { self._svc('play_pause'); });
+          q('[data-act=next]').addEventListener('click', function () { self._svc('next'); });
+          q('[data-act=stop]').addEventListener('click', function () { self._svc('stop'); });
           // ART AND TEXT OPEN THE PLAY MUSIC PAGE (bar only). On the page
           // itself they would navigate to where you already are, so this is
           // gated -- the bar is a summary, and the thing a summary should do
@@ -1548,14 +1631,14 @@
             });
           }
           if (cfg.bar) {
-            // SPEAKERS: on the Music page, the page's own (it has Play Next On);
-            // anywhere else the screensaver's panel, over the bar
-            q('.spk').addEventListener('click', function () {
+            // UP NEXT: on the Music page, the page's own speakers (it has Play Next On); anywhere else the
+            // screensaver's panel over the bar, on its Queue (Speakers its first tab)
+            q('[data-act=queue]').addEventListener('click', function () {
               if (onMusicPage()) { window.dispatchEvent(new CustomEvent('hk-music-bar', { detail: { what: 'speakers' } })); return; }
-              self._openSpk();
+              self._openSpk('queue', this);
             });
             // BROWSE: the Music page, in its search box
-            q('.brw').addEventListener('click', function () {
+            q('[data-act=brw]').addEventListener('click', function () {
               self._closeSpk();
               window.hkShell.navigate('/' + String(location.pathname).split('/')[1] + '/music-browse');
             });
@@ -1563,10 +1646,17 @@
             // ON A HOME GRID (a block of its own, `size`): the card turns over
             // -- a Small block's Speakers to the Volume, the one it has no
             // slider for (the mock-up, 2026-10-31)
-            q('.spk').addEventListener('click', function () {
+            // (the speaker line: the Speakers key's turn, 2026-11-09; Up Next the turn's Queue)
+            q('.hksl').addEventListener('click', function () {
               if (self.hasAttribute('size')) self._turn(self.getAttribute('size') === 'S' ? 'volume' : 'speakers');
             });
-            q('.brw').addEventListener('click', function () { if (self.hasAttribute('size')) self._turn('browse'); });
+            q('[data-act=brw]').addEventListener('click', function () { if (self.hasAttribute('size')) self._turn('browse'); });
+            q('[data-act=queue]').addEventListener('click', function () { if (self.hasAttribute('size')) self._turn('queue'); });
+            q('.npqb').addEventListener('click', function () { if (self.hasAttribute('size')) self._turn('browse'); });
+            q('.npql').addEventListener('click', function (ev) {
+              var b = ev.target.closest && ev.target.closest('[data-qid]');
+              if (b) self._playQueued(b.getAttribute('data-qid'));
+            });
           }
           q('.close').addEventListener('click', function () { self._putAway(); });
           if (cfg.bar) this._swipe(q('hk-plate'));
@@ -1619,7 +1709,12 @@
           }
           this._built = true;
         }
-        var e = this._e, p = this._player(), pic = this._art(p), plain = cfg.background === 'card';
+        var e = this._e, p = this._player(), pic = this._art(p), plain = cfg.background === 'card', S = window.hkNpStrip;
+        // (a Home Grid block: the strip's own column; elsewhere each piece in the card's grid. Stop: the bar's and the
+        // wide layout's; the volume's row only where there is a volume card)
+        S.attr(e.strip, 'cells', !this.hasAttribute('size'));
+        S.attr(e.strip, 'stop', !this.hasAttribute('size'));
+        S.attr(e.strip, 'nometa', !this._metaCard);
         if (e.plate) e.plate.classList.toggle('plain', plain);
         if (cfg.bar) this._closeGlyph();
         // HIDE_IDLE (the docked #media bar): nothing playing or paused, no
@@ -1696,6 +1791,7 @@
         // this block runs on every position tick.
         this._paintPlayButton(p);
         if (e.spk) e.spk.classList.toggle('dis', !this._musicCtx());
+        window.hkNpStrip.line(e.line, this._rooms(p));
 
         var t = this._title(p);
         if (e.title.textContent !== t) e.title.textContent = t;
@@ -1708,6 +1804,7 @@
         // (no block label since 2026-11-08; the song decides the block's idle look)
         var song = !!p && (p.state === 'playing' || p.state === 'paused') && !!(p.attributes && p.attributes.media_title);
         if (e.plate) e.plate.classList.toggle('idle', !song);
+        if (this.getAttribute('size') === 'XL') this._queue(p);
         // feed(), not a plain bridge: the nested card may not be upgraded yet.
         if (this._metaCard && this.client) feed(this._metaCard, this.client);
         if (this._subCard && this.client) feed(this._subCard, this.client);

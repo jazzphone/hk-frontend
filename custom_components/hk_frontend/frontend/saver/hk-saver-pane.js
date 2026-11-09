@@ -31,10 +31,9 @@
       // (the pane itself is hidden under it)
       ':host .mpanel:not(.card){box-shadow:inset 1px 0 0 rgba(255,255,255,0.10),-18px 0 44px rgba(0,0,0,.42),-3px 0 12px rgba(0,0,0,.26)}',
       ':host([side="left"]) .mpanel:not(.card){box-shadow:inset -1px 0 0 rgba(255,255,255,0.10),18px 0 44px rgba(0,0,0,.42),3px 0 12px rgba(0,0,0,.26)}',
-      // its controls take taps (the screensaver's find them by place)
-      '.pm .mbtn,.pm .mvt,.pm .msq{pointer-events:auto;cursor:pointer}',
-      '.pm .mvt{touch-action:none}',
-      '.pm .mvt::before{content:"";position:absolute;left:-14px;right:-14px;top:-18px;bottom:-18px}',
+      // its controls take taps (the screensaver's find them by place) -- the volume's whole row, its target (2026-11-09:
+      // a ::before reached 18 px over the room above the track, toward the play button; hk-np-strip.js)
+      '.pm .mbtn,.pm .mvol,.pm .msq,.pm .hksl,.pm .mql{pointer-events:auto;cursor:pointer}',
       // (bare buttons, 2026-11-07: a pointer over one dims it, nothing drawn behind it)
       '@media (hover:hover){.pm .mbtn:hover{opacity:.75}}',
       // THE SIDE PANE'S FULL (inpane, hk-sidepane.js; 2026-11-07, the owner): the art's shadow kept inside the pane's
@@ -44,9 +43,11 @@
       ':host([inpane]) .msq{box-shadow:0 calc(12px * var(--z)) calc(26px * var(--z)) rgba(0,0,0,.42)}',
       ':host([inpane]:not([compact])) .pm[mqon] .mart{flex:0 1 calc(100cqw - 2 * var(--hk-pane-pad,28px))}',
       ':host([inpane]:not([compact])) .pm[mqon] .mnext{display:none}',
-      ':host([inpane]:not([compact])) .pm .mq:not(:empty){display:flex;flex-direction:column;flex-wrap:wrap;align-content:flex-start;flex:1 1 0;' +
+      // (Up Next listed right under the keys: the row's right end empty, the keys still centered -- mockup 12h, 2026-11-09)
+      ':host([inpane]:not([compact])) .pm[mqon] .hks [data-act=queue]{visibility:hidden;pointer-events:none}',
+      ':host([inpane]:not([compact])) .pm .mq:not(:empty){display:flex;flex-direction:column;flex:1 1 0;' +
         'min-height:0;overflow:hidden;margin-top:calc(24px * var(--z));text-align:left}',
-      ':host([inpane]:not([compact])) .pm .mq>*{flex:none;width:100%}',
+      // (the box takes the room under the buttons and the rows scroll in it -- .mql, hk-saver-css.js)
       ':host([inpane]) .pm .mbtn.mqr{width:auto;height:auto}',
       ':host([inpane]) .pm .mqt{width:calc(44px * var(--z));height:calc(44px * var(--z))}'
     ].join('\n');
@@ -105,9 +106,7 @@
       '.mu .mbgf,.mu .mshade{display:none}',
       // (the page is narrowed by the Side Pane already: the slide's room for the screensaver's own pane is not taken)
       ':host([pane]) .mu .mbody{right:0;left:0}',
-      '.mu .mbtn,.mu .mvt,.mu .msq{pointer-events:auto;cursor:pointer}',
-      '.mu .mvt{touch-action:none}',
-      '.mu .mvt::before{content:"";position:absolute;left:-14px;right:-14px;top:-18px;bottom:-18px}',
+      '.mu .mbtn,.mu .mvol,.mu .msq,.mu .hksl,.mu .mql{pointer-events:auto;cursor:pointer}',
       '@media (hover:hover){.mu .mbtn:hover{opacity:.75}}',
       // THE CORNER on the page's own edges
       '.info{position:absolute;inset:0;z-index:2;pointer-events:none}',
@@ -178,11 +177,11 @@
           if (!window.hkSaverPanel) v.el.setAttribute('nomx', '');
           // ITS BUTTONS, the art (Play Music) and the volume, as the Side Pane's card's (hk-saver.js MusicPane)
           v.el.addEventListener('click', function (e) {
-            var b = e.target.closest ? e.target.closest('.mbtn') : null;
+            var b = e.target.closest ? e.target.closest('.mbtn,.hksl') : null;
             if (b) { K.musicAct({ btn: b, view: v }); return; }
             if (e.target.closest && e.target.closest('.msq')) K.musicAct({ art: true, view: v });
           });
-          var vt = v.vt;
+          var vt = v.vh;   // (the volume's whole row, its target: hk-np-strip.js)
           vt.addEventListener('pointerdown', function (e) {
             if (v.el.hasAttribute('novol')) return;
             e.preventDefault(); e.stopPropagation();

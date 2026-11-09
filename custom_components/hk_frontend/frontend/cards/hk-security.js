@@ -105,15 +105,16 @@
         '.k hk-icon{--mdc-icon-size:20px;width:20px;height:20px;display:flex;color:' + v('ink-2') + '}',
         '.k:active,.a:active{transform:scale(0.97);background:' + v('key-strong') + '}',
         '.acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:10px}',
-        '.a{height:var(--hk-kp-pill,44px);border-radius:' + R.capsule('44px') + ';padding:0 6px;gap:6px;font-size:13px;font-weight:600;' + key + '}',
-        '.a hk-icon{--mdc-icon-size:16px;width:16px;height:16px;flex:none;display:flex;color:' + v('ink-2') + '}',
+        // (--hk-kp-a-*: a block with the room gives the ways to arm larger words and glyphs -- the Home Grid's Extra Large)
+        '.a{height:var(--hk-kp-pill,44px);border-radius:' + R.capsule('44px') + ';padding:0 var(--hk-kp-a-pad,6px);gap:6px;font-size:var(--hk-kp-a-fs,13px);font-weight:600;' + key + '}',
+        '.a hk-icon{--mdc-icon-size:var(--hk-kp-a-ic,16px);width:var(--hk-kp-a-ic,16px);height:var(--hk-kp-a-ic,16px);flex:none;display:flex;color:' + v('ink-2') + '}',
         '.a span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         // the mode the alarm is in: its button lit in the mode's own color
         '.a.cur{background:color-mix(in srgb,var(--c) 20%,transparent);border-color:color-mix(in srgb,var(--c) 50%,transparent)}',
         '.a.cur hk-icon{color:var(--c)}',
         '.a.home{--c:' + P.blue + '}.a.away{--c:' + P.green + '}.a.off{--c:' + P.red + '}',
         // a panel with no code: taller buttons, the only thing to press
-        '.tap .a{height:var(--hk-kp-key,48px);border-radius:' + R.capsule('48px') + ';font-size:15px}',
+        '.tap .a{height:var(--hk-kp-key,48px);border-radius:' + R.capsule('48px') + ';font-size:var(--hk-kp-a-fs,15px)}',
         '.foot{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:auto;padding-top:12px;font-size:11px;font-weight:600;color:' + v('ink-2') + '}',
         '.foot hk-icon{--mdc-icon-size:13px;width:13px;height:13px;display:flex;color:' + P.green + '}',
         '.foot.open hk-icon{color:' + v('warn') + '}',
@@ -127,6 +128,13 @@
         '.side .pad{grid-column:1;grid-row:1 / span 2;align-content:space-between}',
         '.side .acts{grid-column:2;grid-row:2;grid-template-columns:minmax(0,1fr);align-content:end;gap:8px;margin:0}',
         '.side.tap .acts{grid-column:1 / span 2;grid-row:1 / span 2;grid-template-columns:repeat(2,minmax(0,1fr));align-content:center}',
+        // (no code, on its own in a host with a height -- the Home Grid's Extra Large, 2026-11-09: the buttons fill the room under the
+        // readout -- the owner: centered they left it empty, "make them way bigger to fill in the space" -- each a tall key, its glyph
+        // over its word)
+        '.tapfill{display:flex;flex-direction:column;height:100%}',
+        '.tapfill > .acts.tap{flex:1 1 auto;min-height:0;grid-auto-rows:minmax(0,1fr);align-content:stretch}',
+        '.tapfill .tap .a{height:auto;min-height:0;flex-direction:column;gap:8px;border-radius:' + R.inner + 'px;font-size:17px}',
+        '.tapfill .tap .a hk-icon{--mdc-icon-size:28px;width:28px;height:28px}',
         '@media (prefers-reduced-motion: reduce){.k,.k:active,.a,.a:active{transition:none;transform:none}}'
       ].join('');
     }
@@ -153,6 +161,7 @@
         disarming: ['hk:shield-off', P.orange, 'Disarming\u2026'],
         triggered: ['hk:shield-alert', P.red, 'Triggered']
       };
+      // (the glyphs are the shield family of hkCards.alarmGlyph, hk-grid-security.js: the same table)
       var m = M2[st] || ['hk:shield-off', 'var(--hk-glyph,rgba(255,255,255,0.55))',
                          !s || st === 'unavailable' || st === 'unknown' ? 'Unavailable' : String(st)];
       return { icon: m[0], color: m[1], word: m[2] };
@@ -268,7 +277,7 @@
       var s = HkAlarmKeypadCard.status(this._st(this._panel()));
       var icon = read.querySelector('.st hk-icon'), word = read.querySelector('.st span');
       if (icon.getAttribute('icon') !== s.icon) icon.setAttribute('icon', s.icon);
-      icon.style.color = s.color;
+      icon.style.color = 'var(--hk-kp-st,' + s.color + ')';   // (a block on a plate of the state's own color says its glyph's)
       word.textContent = s.word;
       read.setAttribute('aria-label', 'Alarm: ' + s.word);
     }
@@ -287,7 +296,7 @@
         var s = HkAlarmKeypadCard.status(ps);
         var bi = badge.querySelector('hk-icon');
         if (bi.getAttribute('icon') !== s.icon) bi.setAttribute('icon', s.icon);
-        bi.style.color = s.color;
+        bi.style.color = 'var(--hk-kp-st,' + s.color + ')';
         badge.querySelector('span').textContent = s.word;
       }
       var foot = this._root.querySelector('.foot');
@@ -332,7 +341,7 @@
       this._shape = shape;
       this._codeless = codeless;
       var self = this, c = this._config;
-      this._root.innerHTML = '';
+      this._root.innerHTML = ''; this._root.classList.remove('tapfill');
       // BOXED: in its own plate, with its title and the state's badge
       var host = this._root;
       if (c.boxed) {
@@ -378,6 +387,7 @@
         // NO CODE: a button for each mode it can be armed in, and Disarm --
         // three to a row, like the keypad's own row of actions
         var tap = document.createElement('div'); tap.className = 'acts tap';
+        if (host === this._root) host.classList.add('tapfill');
         // an even grid: two or four in pairs, three or five three to a row
         var n = modes.length + 1;
         tap.style.gridTemplateColumns = 'repeat(' + (n === 2 || n === 4 ? 2 : Math.min(3, n)) + ',minmax(0,1fr))';

@@ -254,7 +254,7 @@
     var members = Array.isArray(ctx.members) && ctx.members.length > 1 ? ctx.members.slice() : [ctx.key];
     var vols = members.map(function (k) { return num(attr(all[k], 'volume_level')); }).filter(function (x) { return x !== null; });
     var vol = members.length > 1 ? (vols.length ? vols.reduce(function (n, x) { return n + x; }, 0) / vols.length : null) : num(a.volume_level);
-    return { key: ctx.key, members: members, playing: playing, title: ctx.title || a.media_title || '', artist: ctx.artist || a.media_artist || '',
+    return { key: ctx.key, members: members, rooms: window.hkNpStrip.rooms({ states: all }, ctx.key, members), playing: playing, title: ctx.title || a.media_title || '', artist: ctx.artist || a.media_artist || '',
              pic: pic, at: dur ? Math.max(0, Math.min(1, t / dur)) : 0, left: dur ? Math.max(0, dur - t) : 0, vol: vol };
   }
   // ...held a grace after it stops (All Screens -> Now Playing -> Hide After a Pause)
@@ -278,6 +278,7 @@
     var id = setting('security.alarm', null) || domainIds(c, 'alarm_control_panel')[0];
     return id ? { id: id, st: states(c)[id] } : null;
   }
+  function shieldOf(a) { var C = window.hkCards; return a && C && C.alarmGlyph ? C.alarmGlyph(a) : KINDS.security[1]; }
   var ALARM = { disarmed: 'Disarmed', armed_home: 'Armed · Home', armed_away: 'Armed · Away',
                 armed_night: 'Armed · Night', armed_vacation: 'Armed · Vacation', triggered: 'Alarm!',
                 arming: 'Arming', pending: 'Pending', armed_custom_bypass: 'Armed' };
@@ -741,17 +742,20 @@
       // ("one family"): a bigger cover and the song's progress over the row,
       // drawn by the compositor to the song's end (no redraw a second). FULL
       // stays the screensaver's own pane, below.
+      // THE CONTROLS STRIP (2026-11-09, the owner: "more space in general above and below the play button"; hk-np-strip.js):
+      // the progress, the keys and the volume are the one strip every player draws with -- its own progress line (the
+      // compositor's, to the song's end) and its own slider in the strip's slots, the strip's keys
       if (s === 'less' || s === 'more') {
-        var mk = function (act, name, ic, cls) { return '<button type="button" class="' + (cls || 'pp') + '" data-act="' + act + '" aria-label="' + name + '">' + icon(ic) + '</button>'; };
         var prog = s === 'more' ? '<div class="npp" role="progressbar" aria-label="Song" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(m.at * 100) + '"><i style="transform:scaleX(' + m.at.toFixed(4) + ')' +
           (m.playing && m.left > 0 ? ';animation:npp ' + Math.round(m.left) + 's linear forwards' : '') + '"></i></div>' : '';
+        var vol = m.vol === null ? '' : '<input type="range" min="0" max="100" step="1" data-act="vol" aria-label="Volume" value="' +
+            Math.round(m.vol * 100) + '" style="--f:' + Math.round(m.vol * 100) + '%">';
         return box('now_playing', s, (s === 'more' ? head('now_playing') : '') + '<div class="r2 np' + (s === 'more' ? ' np2' : '') + '">' + (m.pic ? pic(m.pic, { cls: 'art', ph: 'note' }) : '<span class="art">' + icon('mdi:music') + '</span>') +
-          '<span class="tx"><b>' + esc(m.title) + '</b><i>' + esc(m.artist) + '</i></span></div>' + prog +
-          '<div class="trow">' + mk('spk', 'Speakers', 'mdi:speaker') + mk('prev', 'Previous', 'mdi:skip-previous', 'tk') +
-          mk('pp', m.playing ? 'Pause' : 'Play', m.playing ? 'mdi:pause' : 'mdi:play', 'pp big') + mk('next', 'Next', 'mdi:skip-next', 'tk') +
-          mk('brw', 'Browse Music', 'mdi:music-box-multiple') + '</div>' +
-          (m.vol !== null ? '<div class="vol">' + icon('mdi:volume-high', ' class="lo"') + '<input type="range" min="0" max="100" step="1" data-act="vol" aria-label="Volume" value="' +
-            Math.round(m.vol * 100) + '" style="--f:' + Math.round(m.vol * 100) + '%">' + icon('mdi:volume-high') + '</div>' : ''));
+          // (THE SPEAKER LINE over the song, its first room -- the owner's mockup 12h, 2026-11-09: a tap the Speakers
+          // key's, which it replaced; Browse and Up Next at the keys' ends)
+          '<span class="tx">' + window.hkNpStrip.lineHtml({ tag: 'button' }).replace('<b></b>', '<b>' + esc((m.rooms || [])[0] || '') + '</b>') +
+          '<b>' + esc(m.title) + '</b><i>' + esc(m.artist) + '</i></span></div>' +
+          window.hkNpStrip.html({ tag: 'button', playing: m.playing, prog: prog ? 'slot' : null, progHtml: prog, vol: vol ? 'slot' : null, volHtml: vol }));
       }
       // FULL: the screensaver's music pane itself (hk-music-pane-card,
       // hk-saver.js): the art, the song, its buttons and volume, Up Next and
@@ -768,7 +772,7 @@
       var lockLine = !locks.length ? '' : un.length ? un.length + ' unlocked' : 'All locked';
       var state = a ? ALARM[a] || a : locks.length ? (un.length ? 'Unlocked' : 'Locked') : 'No alarm';
       if (s === 'tiny') return tiny('security', esc(state), esc(lockLine));
-      var top = '<div class="r2 big">' + icon(KINDS.security[1], ' class="shield"') + '<span class="tx">' + esc(state) + '</span></div>';
+      var top = '<div class="r2 big">' + icon(shieldOf(a), ' class="shield"') + '<span class="tx">' + esc(state) + '</span></div>';
       // ONLY WHAT IS OPEN (the owner, 2026-10-31: "if all windows, doors, and locks are closed and locked, I don't
       // really need to know that... I just need to know when something opens"): All Locked the all-clear, then
       // the windows and doors open, if any -- never "all windows closed"
@@ -777,7 +781,7 @@
         var gist = [lockLine, open.length ? n(open.length, 'window', 'windows') : '', doors.length ? n(doors.length, 'door', 'doors') : '']
           .filter(Boolean).join(' · ');
         // ONE LINE (2026-10-31, the owner: two lines "doesn't look great"): the state, and what is open at its right
-        return box('security', s, head('security') + '<div class="r2 big">' + icon(KINDS.security[1], ' class="shield"') + '<span class="tx">' + esc(state) + '</span>' +
+        return box('security', s, head('security') + '<div class="r2 big">' + icon(shieldOf(a), ' class="shield"') + '<span class="tx">' + esc(state) + '</span>' +
           (gist ? '<span class="v2 sub2">' + esc(gist) + '</span>' : '') + '</div>');
       }
       var list = locks.slice(0, s === 'full' ? 8 : 4).map(function (id) { var x = states(c)[id] || {}; return [nameOf(x, id), x.state === 'unlocked' ? 'Unlocked' : x.state === 'locked' ? 'Locked' : String(x.state || ''), x.state === 'unlocked' ? 'mdi:lock-open-variant' : 'mdi:lock', x.state === 'unlocked' ? 'warn' : '', id]; });
@@ -1254,26 +1258,45 @@
       '.evd:first-child{padding-top:0}',
       '.ev:has(+ .evd){border-bottom:0}',
       '.np .art{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none;background:' + v('key') + ';display:grid;place-items:center}',
-      '.np .tx b{display:block;overflow:hidden;text-overflow:ellipsis}.np .tx i{display:block;font:500 15px/1.3 var(--hk-font-body,inherit);font-style:normal;color:' + v('ink-2') + ';overflow:hidden;text-overflow:ellipsis}',
+      '.np .tx{overflow:visible}.np .tx > b{display:block;overflow:hidden;text-overflow:ellipsis}.np .tx > i{display:block;font:500 15px/1.3 var(--hk-font-body,inherit);font-style:normal;color:' + v('ink-2') + ';overflow:hidden;text-overflow:ellipsis}',
       // BARE BUTTONS (2026-11-07, the owner: "do we need the wells (circles) behind the icons?"): the glyphs bigger,
       // each its whole button to tap; a press dims it
       '.pp{all:unset;cursor:pointer;flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:50%}',
       '.pp hk-icon{--mdc-icon-size:28px;width:28px;height:28px}',
-      '.pp:active,.tk:active{opacity:.5}',
+      '.pp:active{opacity:.5}',
       '.cmp .pp{width:30px;height:30px}',
-      // (Speakers' and Browse's ink in line with the bars' ends; the progress bar and the volume's track each 30 px from
-      // the pause glyph's ink -- player_look_check.py)
-      '.trow{display:grid;grid-template-columns:44px 1fr 52px 1fr 44px;align-items:center;justify-items:center;margin:18px -10px -6px}',
-      '.npp+.trow{margin-top:17px}',
-      '.trow>.pp:first-child,.trow>.pp:last-child{width:44px;height:44px}',
-      '.trow>.pp:first-child hk-icon,.trow>.pp:last-child hk-icon{--mdc-icon-size:24px;width:24px;height:24px;color:' + v('ink-2') + '}',
-      '.tk{all:unset;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;border-radius:50%}.tk hk-icon{--mdc-icon-size:34px;width:34px;height:34px}',
-      '.pp.big{width:52px;height:52px}.pp.big hk-icon{--mdc-icon-size:46px;width:46px;height:46px}',
-      '.vol{display:flex;align-items:center;gap:10px;margin-top:4px}',
-      '.np2 .art{width:88px;height:88px;border-radius:12px}.np2 .tx b{font-size:20px}',
-      '.npp{height:4px;border-radius:2px;background:' + v('line-strong') + ';overflow:hidden;margin-top:14px}',
+      // THE CONTROLS STRIP (hk-np-strip.js; 2026-11-09): its geometry, this pane's sizes -- the keys 44 px targets, play /
+      // pause 52, the volume's row 44 (its slider as tall), 12 px clear above it; the progress bar to the pause glyph's ink
+      // as far as that ink to the volume's track (player_look.js)
+      window.hkNpStrip.CSS,
+      // (the pane is drawn scaled -- 0.85 to 1.3, its .pin -- and a target is 44 px on the screen, the clear room 12: --hks-min
+      // and --hks-g2 undo the scale)
+      '.sec .hks{--hks-min:calc(44px / var(--hk-pin-z,1));--hks-g2:calc(12px / var(--hk-pin-z,1));',
+      '  --hks-g1:calc(var(--hks-g2) + var(--_vh) / 2 - 3px);margin-top:14px;--hks-b:44px;--hks-pp:52px;--hks-x:44px;--hks-gb:34px;--hks-gpp:46px;--hks-gx:24px;--hks-th:0px;',
+      '  --hks-ink:' + v('ink') + ';--hks-ink2:' + v('ink-2') + '}',
+      '.sec[data-size=less] .hks{margin-top:0;--hks-g1:10px}',
+      // (the speaker line: the label's size, a 44 px touch area on the screen; Up Next at the keys' right end, empty
+      // where the queue is listed right under them -- mockup 12h, 2026-11-09)
+      '.np .tx .hksl{display:flex;width:max-content;font-size:13px;line-height:18px;font-weight:600;color:' + v('ink-2') + ';--hksl-h:calc(44px / var(--hk-pin-z,1))}',
+      '.np .tx .hksl-t i{display:none}',
+      '.sec:has(.npqueue) .hks [data-act=queue]{visibility:hidden;pointer-events:none}',
+      // (THE GAP BESIDE THE COVER IS ITS MARGIN (2026-11-09, the owner: "generally I'd like the same margin/gap from
+      // the album art to the edge as the album art to the text on the right"): on a plate -- a band's, a widget's --
+      // the section's 16 px inset; on the pane's own ground the pane's 28)
+      '.r2.np{gap:16px}:host(:not([mode="widget"]):not([side="band"])) .r2.np{gap:28px}',
+      '.np2 .art{width:88px;height:88px;border-radius:12px}.np2 .tx > b{font-size:20px}',
+      '.npp{height:4px;border-radius:2px;background:' + v('line-strong') + ';overflow:hidden}',
       '.npp i{display:block;height:100%;background:' + v('ink') + ';transform-origin:left center}',
-      '.npqueue{display:grid;gap:6px;margin-top:12px;padding-top:16px;border-top:1px solid ' + v('line') + '}',
+      // UP NEXT SCROLLS (2026-11-09, the owner: "the up next should scroll ... in all of the music players that show up
+      // next"): every song in the queue, in a box as tall as the room the sections leave (_queue sets its height); the
+      // heading stays above, the rows (.qs) scroll by finger with no scrollbar drawn and a soft fade at the foot while
+      // more are below (the `more` mark, set on scroll)
+      '.npqueue{display:flex;flex-direction:column;box-sizing:border-box;gap:6px;margin-top:12px;padding-top:16px;border-top:1px solid ' + v('line') + '}',
+      '.npqueue .qs{display:grid;gap:6px;align-content:start;flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;',
+      '  -webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:none}',
+      '.npqueue .qs::-webkit-scrollbar{display:none}',
+      '.npqueue .qs[more]{-webkit-mask-image:linear-gradient(180deg,#000 80%,transparent);mask-image:linear-gradient(180deg,#000 80%,transparent)}',
+      '.npqueue .qh{flex:none}',
       '.npqueue .qh{all:unset;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:13px;font-weight:600;color:' + v('ink-2') + ';height:28px}',
       '.npqueue .qh span{font-size:12px;font-weight:500}',
       '.npqueue .qr{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;height:56px;cursor:pointer;border-radius:10px;min-width:0}',
@@ -1287,13 +1310,12 @@
       '@media (prefers-reduced-motion:reduce){.npp i{animation:none!important}}',
       // (each speaker a centered box: hk-icon's own box is inline, so the small one sat on its text line, below the
       // slider's -- the owner, 2026-11-01)
-      '.vol hk-icon{--mdc-icon-size:20px;width:20px;height:20px;color:' + v('ink-2') + ';flex:none;display:flex;align-items:center;justify-content:center}.vol hk-icon.lo{--mdc-icon-size:14px;width:14px;height:14px}',
-      '.vol input{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:44px;background:transparent;margin:0;touch-action:pan-y;cursor:pointer}',
+      '.hks .mvs input{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:100%;background:transparent;margin:0;touch-action:pan-y;cursor:pointer}',
       // (filled with the ink up to the level, as the screensaver slide's volume and every player's, 2026-11-07)
-      '.vol input::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,' + v('ink') + ' 0 var(--f,0%),' + v('line-strong') + ' var(--f,0%) 100%)}',
-      '.vol input::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}',
-      '.vol input::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(to right,' + v('ink') + ' 0 var(--f,0%),' + v('line-strong') + ' var(--f,0%) 100%)}',
-      '.vol input::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff}',
+      '.hks .mvs input::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,' + v('ink') + ' 0 var(--f,0%),' + v('line-strong') + ' var(--f,0%) 100%)}',
+      '.hks .mvs input::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}',
+      '.hks .mvs input::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(to right,' + v('ink') + ' 0 var(--f,0%),' + v('line-strong') + ' var(--f,0%) 100%)}',
+      '.hks .mvs input::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff}',
       // the screensaver's music pane, in a section: More is its art and
       // controls at the pane's width; Full takes what is left
       '.sec.mp{padding:0;display:block;position:relative;height:540px;background:none;overflow:visible}',
@@ -1380,7 +1402,7 @@
       '@media (hover:hover){.pp:hover,.keys button:hover{background:' + v('key-strong') + '}}',
       // (the player's bare buttons, 2026-11-07: a pointer over one dims it, as the Full player's do -- a well behind
       // Speakers or Browse reached past the pane's edge and was cut off)
-      '@media (hover:hover){.trow .pp:hover,.trow .tk:hover{background:none;opacity:.75}}',
+
       '@media (prefers-reduced-motion:no-preference){:host([side]) .pane{transition:opacity .2s}}'
     ].join('\n');
     if (K && K.v) CSS = out;
@@ -1508,6 +1530,7 @@
       this._pin.style.width = (W / z).toFixed(1) + 'px';
       this._pin.style.height = (H / z).toFixed(1) + 'px';
       this._pin.style.transform = 'scale(' + z.toFixed(4) + ')';
+      this._pin.style.setProperty('--hk-pin-z', z.toFixed(4));   // (the music's targets 44 px on the screen: hk-np-strip.js)
       // AT THE TOP, AND AT THE FOOT (a section's Place, 2026-10-30): the top
       // ones in order, a space, then the bottom ones -- each drawn with its
       // index in the pane's list (data-i), what a tap on it reads
@@ -1554,6 +1577,8 @@
     // never makes another section shrink or disappear; its rows open the full queue.
     _queue(c) {
       var old = this._secs.querySelector('.npqueue');
+      // (drawn again with the pane: where the list was scrolled to stays, for the same song)
+      var oldQs = old && old.querySelector('.qs'), kept = oldQs && this._npQueue && this._npQueue.sig === this._npQueue.drawn ? oldQs.scrollTop : 0;
       if (old && old.parentNode) old.parentNode.removeChild(old);
       var sec = this._secs.querySelector('[data-k="now_playing"][data-size="more"]');
       var m = musicOf(c), self = this;
@@ -1572,20 +1597,27 @@
       var used = 0, secs = this._secs;
       Array.prototype.forEach.call(secs.children, function (n) { if (!n.classList.contains('gap')) used += n.offsetHeight; });
       used += Math.max(0, secs.children.length - 1) * (parseFloat(getComputedStyle(secs).rowGap) || 0);
-      // Header, inset and the section's grid gap, then whole rows only.
-      var count = Math.min(q.items.length, Math.floor((secs.clientHeight - used - 70) / 62));
-      if (count < 1) return;
+      // The room the sections leave, less the section's own grid gap: the box is that tall and its rows scroll;
+      // where the heading and one row do not fit, none.
+      var room = secs.clientHeight - used - (parseFloat(getComputedStyle(sec).rowGap) || 0) - 12 - 2;
+      if (room < 16 + 28 + 6 + 56) return;
       var el = document.createElement('div'); el.className = 'npqueue';
-      el.innerHTML = '<button class="qh" type="button" data-act="queue">Up Next<span>View Queue</span></button>' +
-        q.items.slice(0, count).map(function (it, i) {
+      el.style.height = Math.min(room, 16 + 28 + 6 + 62 * q.items.length) + 'px';
+      el.innerHTML = '<button class="qh" type="button" data-act="queue">Up Next<span>View Queue</span></button><div class="qs">' +
+        q.items.map(function (it, i) {
           // (the song's cover at its left, a note where Music Assistant has none yet -- 2026-11-07, the owner;
           // Apple's 1000 px covers asked for at a thumbnail's size)
           var img = it.image ? String(it.image).replace(/\/(\d+)x(\d+)(bb|cc|sr)?\.(jpg|jpeg|png|webp)$/, '/160x160$3.$4') : '';
           return '<button class="qr" type="button" data-act="queue" aria-label="View queue: ' + esc(it.title) + '"><span class="qa"' +
             (img ? ' style="background-image:url(&quot;' + esc(img) + '&quot;)">' : '>' + icon('mdi:music-note')) +
             '</span><span class="qt"><b>' + esc(it.title) + '</b><small>' + esc(it.artist || '') + '</small></span></button>';
-        }).join('');
+        }).join('') + '</div>';
       sec.appendChild(el);
+      var qs = el.querySelector('.qs'), fade = function () { qs.toggleAttribute('more', qs.scrollHeight - qs.scrollTop - qs.clientHeight > 2); };
+      qs.addEventListener('scroll', fade, { passive: true });
+      q.drawn = sig;
+      if (kept) qs.scrollTop = kept;
+      fade();
     }
     // THE ALBUM ART BEHIND THE WHOLE PANE (2026-10-30, the owner: "if something
     // is playing, the whole pane should have the album art blur"): while Now
