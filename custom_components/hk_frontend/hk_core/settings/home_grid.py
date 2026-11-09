@@ -73,8 +73,7 @@ CATALOG: dict[str, dict[str, Any]] = {
     "accessories": {"sizes": ("S", "W", "T", "L", "XL", "XXL"), "sources": ("accessories",), "opts": {"accessories": "accessories", "title": "title", "surface": "surface",
                                                                               "height": "tile_height", "color": "boolean"}},
     "scene": {"sizes": ("S", "W"), "sources": (), "opts": {"scene": "scene", "color": "boolean"}},
-    # windows (2026-11-09, mockup 13): Extra Large's suggested scene -- the Suggested Scene block's own time windows
-    "scenes": {"sizes": ("W", "T", "L", "XL", "XXL"), "sources": ("scenes",), "opts": {"scenes": "scenes", "surface": "surface", "height": "tile_height", "color": "boolean", "windows": "windows"}},
+    "scenes": {"sizes": ("W", "T", "L", "XL", "XXL"), "sources": ("scenes",), "opts": {"scenes": "scenes", "surface": "surface", "height": "tile_height", "color": "boolean"}},
     "now_playing": {"sizes": ("S", "W", "T", "L", "XL"), "sources": ("speakers",), "opts": {"speaker": "speaker", "background": "np_background", "tap": "tap_target"}},
     # style (2026-10-30): the dial, or Big Number (docs/phase11/HOMEVIEW-LOOK.md, Phase C)
     "thermostat": {"sizes": ("S", "W", "T", "L", "XL"), "sources": ("thermostats",), "opts": {"entity": "climate", "style": "thermostat_style", "tap": "tap_target"}},
@@ -115,7 +114,7 @@ CATALOG: dict[str, dict[str, Any]] = {
     "water": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
     # the new cards (G3)
     "room": {"sizes": ("S", "W", "T", "L", "XL", "XXL"), "sources": ("rooms",), "opts": {"area": "area", "surface": "surface", "accessory_display": "room_display", "tap": "tap_target"}},
-    "scene_suggested": {"sizes": ("S", "W", "T", "L"), "sources": (), "opts": {"windows": "windows"}},
+    "scene_suggested": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"windows": "windows"}},
     # `area`: the room an action keeps to (All Lights Off in one room); the others ignore it
     "action": {"sizes": ("S", "W"), "sources": (), "opts": {"action": "action", "area": "area", "color": "boolean"}},
     "everything": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target", "more": "everything_more"}},

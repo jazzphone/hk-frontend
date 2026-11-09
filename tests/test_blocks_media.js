@@ -122,6 +122,43 @@ function () {
   ok('no label over the song (2026-11-08)', !/class="lab"|>Now Playing<|'Now Playing'/.test(readFile(HK_ROOT + '/frontend/media/hk-media-now.js')));
 },
 function () {
+  H.section('Now Playing: nothing playing, Large and Extra Large (mockup 12b, 2026-11-09)');
+  var css = customElements.get('hk-now-playing-card').CSS;
+  ok('the idle face replaces the player\'s pieces on Large and Extra Large only',
+     css.indexOf(':host(:is([size=L],[size=XL])) .np.idle .grid>:not(.npi):not(.bg):not(.shade){display:none!important}') >= 0 && css.indexOf('.np .npi{display:none}') >= 0);
+  ok('Extra Large: the left column as wide as the player\'s, the playlists beside it', css.indexOf(':host([size=XL]) .np.idle .npi-l{flex:none;width:var(--np-pw)') >= 0);
+  // (Browse and the speaker the standard pills, 2026-11-09: drawn 40, a 56 px touch)
+  ok('Browse, the speaker and Play: 56 px targets', css.indexOf('.np.idle .npi-b{position:relative;flex:none;min-width:0;max-width:100%;display:inline-flex;align-items:center;gap:7px;height:40px') >= 0 &&
+     css.indexOf('.np.idle .npi-b::after{content:"";position:absolute;inset:-8px -4px}') >= 0 && css.indexOf('.np.idle .npi-play::after{content:"";position:absolute;inset:-8px -6px}') >= 0);
+  var saved = window.hkMusic.playlists, turned = [], played = [];
+  window.hkMusic.playlists = function () { return [{ name: 'Focus', key: 'focus' }, { name: 'Dinner Party', key: 'dinner' }]; };
+  ['L', 'XL'].forEach(function (s) {
+    var np = sized('hk-now-playing-card', s);
+    np._turn = function (tab) { turned.push(s + ':' + tab); };
+    hkGive(np, house.hass());
+    np._eng = { _items: [{ uri: 'u1', name: 'Blue in Green', artist: 'The Fictional Trio', key: 'a' }], _play: function (it) { played.push(it.name); } };
+    np._render();
+    np._drawIdle(null, true);
+    var html = np._e.idle.__t; 
+    ok(s + ': Last Played, the song, Play, Browse, the speaker and the playlists',
+       /Last Played/.test(html) && /Blue in Green/.test(html) && /data-ia="play"/.test(html) && /data-ia="browse"/.test(html) && /data-ia="spk"/.test(html) && /Dinner Party/.test(html));
+    // (the mock DOM has no selectors over innerHTML: a tap is the button's attributes)
+    var tap = function (attr, val) { var b = { getAttribute: function (k) { return k === attr ? val : null; } }; np._idleTap({ target: { closest: function () { return b; } } }); };
+    tap('data-ia', 'browse'); tap('data-ia', 'spk'); tap('data-ia', 'play'); tap('data-pi', '1');
+  });
+  eq('Browse and the speaker turn the block; Play plays the last, a cover its playlist', [turned, played],
+     [['L:browse', 'L:speakers', 'XL:browse', 'XL:speakers'], ['Blue in Green', 'Dinner Party', 'Blue in Green', 'Dinner Party']]);
+  var none = sized('hk-now-playing-card', 'L');
+  hkGive(none, house.hass());
+  none._eng = { _items: [], _play: function () {} };
+  none._render(); none._drawIdle(null, true);
+  ok('no last played: "Nothing Playing" where the song goes, the buttons and playlists kept, no Play key',
+     /Nothing Playing/.test(none._e.idle.__t) && !/data-ia="play"/.test(none._e.idle.__t) && /data-ia="browse"/.test(none._e.idle.__t) && /Focus/.test(none._e.idle.__t));
+  none._drawIdle(null, false);
+  eq('once music plays the idle face is emptied', none._e.idle.__t, '');
+  window.hkMusic.playlists = saved;
+},
+function () {
   H.section('Music: one cover per album, the last first');
   var items = [
     { uri: 'library://track/1', name: 'Low Tide', image: 'a.jpg', album: { uri: 'library://album/1' }, artists: [{ name: 'Marlow Lane' }] },
@@ -354,9 +391,9 @@ function () {
 },
 function () {
   H.section('Live TV: the page\'s channels, a tile each, a tap plays it full screen');
-  eq('S one, W two, T three, L four, XL six', ['S', 'W', 'T', 'L', 'XL'].map(function (s) { return Mx.TV_SLOTS[s]; }), [1, 2, 3, 4, 6]);
-  eq('the tiles\' arrangement: W across, T down, L two by two (Extra Large is two columns, below)',
-     [Mx.tvGrid('W', 2), Mx.tvGrid('T', 3), Mx.tvGrid('L', 4)], [[2, 1], [1, 3], [2, 2]]);
+  eq('S one, W two, T three, L six (2026-11-09), XL six', ['S', 'W', 'T', 'L', 'XL'].map(function (s) { return Mx.TV_SLOTS[s]; }), [1, 2, 3, 6, 6]);
+  eq('the tiles\' arrangement: W across, T down, L two across (Extra Large is two columns, below)',
+     [Mx.tvGrid('W', 2), Mx.tvGrid('T', 3), Mx.tvGrid('L', 4), Mx.tvGrid('L', 6), Mx.tvGrid('L', 1)], [[2, 1], [1, 3], [2, 2], [2, 3], [2, 1]]);
   var tv = sized('hk-tv-channels-card', 'W');
   tv.client = client();
   tv._render();
@@ -393,6 +430,12 @@ function () {
     eq('the left plays the one on; a row tunes its channel', xo, ['4.1', '7.1']);
     xl._render();
     eq('the last one played is the one on, after', xl._root.children[0].children[0].querySelector('small').textContent, '7.1 \u00b7 Food');
+    // LARGE, THE CHANNELS FILLING THE BLOCK (2026-11-09, mockup 9): up to six, two across; the plate is marked for _fit's six places
+    var lg = sized('hk-tv-channels-card', 'L'), six = [1, 2, 3, 4, 5, 6, 7].map(function (i) { return { number: i + '.1', name: 'C' + i, camera: 'camera.c' + i, now: null }; });
+    lg.client = client(); lg._channels = six; lg._configured = true;
+    lg._render();
+    var lp = lg._root.children[0];
+    eq('Large: six of seven channels, on a plate sized for six places', [/ g6/.test(' ' + lp.className), lp.children[lp.children.length - 1].children.length], [true, 6]);
     var xc = sized('hk-tv-channels-card', 'XL');
     xc.client = client(); xc._channels = CHANNELS.channels; xc._configured = true; xc._config = { channel: '9.1' };
     xc._render();

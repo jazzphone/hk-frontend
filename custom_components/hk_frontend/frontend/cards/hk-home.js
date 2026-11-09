@@ -337,7 +337,8 @@
         // nearly fill the column), the label, grid and keys one column of that width, centered in what the block's column leaves
         '.vb[data-s=L]{--vb-cw:176px}.vb[data-s=XL]{--vb-cw:170px}.vb[data-r] :is(.lab,.rooms,.keys){width:calc(var(--vb-cw) * 2 + 8px);align-self:center;box-sizing:border-box}',
         // TALL AND WIDE with rooms on offer: the Rooms key opens the sheet that picks them, and says what is picked ("Kitchen, Office", "3 rooms")
-        '.vb .rrow{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;flex:none;height:44px;padding:0 8px 0 14px;margin-top:10px;border-radius:22px;background:' + C.v('key') + ';color:' + C.v('ink-2') + ';font-family:inherit;' + C.typeCss('caption') + ';cursor:pointer}',
+        // (56 px, 2026-11-09: the "All rooms" row was 44 while the block's other keys are 56 -- a 56 px touch target)
+        '.vb .rrow{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;flex:none;height:56px;padding:0 8px 0 14px;margin-top:10px;border-radius:28px;background:' + C.v('key') + ';color:' + C.v('ink-2') + ';font-family:inherit;' + C.typeCss('caption') + ';cursor:pointer}',
         '.vb .rrow>span{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.vb .rrow.on{color:' + C.v('ink') + ';font-weight:600}.vb .rrow hk-icon{flex:none;width:20px;height:20px;--mdc-icon-size:20px}.vb .rrow:active{transform:scale(0.98)}.vb .rrow:focus-visible{outline:2px solid ' + C.v('ink-2') + ';outline-offset:2px}',
         '.vb .pair{display:flex;gap:8px}.vb .pair .key.rm{flex:1 1 0;min-width:0;padding:0 8px;font-size:15px}.vb .pair .key.rm.on{font-weight:700}.vb .side .pair .key.dk{width:auto}.vb .pair .key.rm hk-icon{display:none}.vb .rm-note{display:block;' + C.typeCss('caption') + ';font-weight:600;color:' + C.v('ink') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
         '.vb .vr{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;padding:0 10px;cursor:pointer;  border-radius:var(--hk-inner-radius, 12px);background:' + C.v('key') + ';color:' + C.v('ink') + ';font-family:inherit;font-size:13px;font-weight:600}',
@@ -1532,10 +1533,10 @@
         // block's inner tile; its row height is the block's to give (--hkr-row on the host). A message shows under the
         // wheels only while there is one.
         ':host([data-layout=block]){display:block;height:100%}',
-        '.wrap.panel.blockl{height:100%;padding:14px 16px 16px;gap:10px;border-radius:var(--hk-inner-radius,21px);border:0;justify-content:space-between;',
+        '.wrap.panel.blockl{height:100%;padding:var(--hk-mk-pad,14px 16px 16px);gap:var(--hk-mk-gap,10px);border-radius:var(--hk-inner-radius,20px);border:0;justify-content:space-between;',
         '  background:' + window.hkCards.v('key') + ';box-shadow:none}',
         '.blockl .hkr{--hkr-row:var(--hk-mk-row,40px);--hkr-fs:var(--hk-mk-fs,24px);--hkr-w:40px;--hkr-uw:34px;--hkr-gap:14px;--hkr-band-x:-4px}',
-        '.blockl .ro{min-height:0}.blockl .ro .ends{display:none}',
+        '.blockl .ro{min-height:0}.blockl .ro .ends{display:none}.blockl .ro:not(:has(.hk-status[data-kind])){display:none}',
         '.blockl .namebox{height:56px;border-radius:28px;padding:0 16px;background:' + window.hkCards.v('key') + '}',
         '.blockl .namebox input{font-size:15px;font-weight:500}',
         '.blockl .start{height:56px;border-radius:28px;margin-top:0;font-size:17px;font-weight:600}',
@@ -2117,62 +2118,72 @@
         // itself, so its host must take no space and must not clip.
         'hk-plate.strip.fixed{height:0;overflow:visible}',
         '.strip > div{min-width:0;overflow:hidden}',
-        // ON A HOME GRID (the `timers` block, docs/phase11/HOME-GRID.md R6;
-        // redrawn as a widget 2026-10-31, the owner: "the ring is the pause
-        // (its centre shows pause/play), a big red stop key"): each running
-        // timer its name, its time large, and at its foot the ring of time
-        // left -- a tap on it pauses or resumes -- with the red Stop beside
-        // it. Small one timer, Wide two. None running, quick starts as keys and
-        // an orange + (below). Tile cells first, a square
-        // cell's sizes after.
-        ':host([size]) hk-plate.strip{display:flex;flex-direction:column;justify-content:center;gap:8px;box-sizing:border-box;',
-        '  height:100%;padding:' + window.hkCards.blockPad('14px') + ';' + window.hkCards.plate('card') + ';overflow:hidden;--ring:56px;--stop:44px}',
-        '.tg{display:grid;grid-template-columns:repeat(var(--cols,1),minmax(0,1fr));grid-auto-rows:minmax(0,1fr);gap:var(--rg,8px) 18px;flex:1 1 auto;min-height:0}',
-        '.gt{display:flex;flex-direction:column;min-width:0;min-height:0}',
-        // THE TIMER'S TITLE (2026-11-09, the owner: "We don't need the word Timer as a title, it should go. Title of the timer itself, yes, it needs to [match] the rest of the title/headings."): a named timer's name in the block heading (hkCards.headCss: gray, 13 / 600) on the heading row; a timer with no name of its own has no title, and the block's own name ("Timers") is never printed
-        window.hkCards.headRowCss('.gt .hd') + '.gt .hd{margin-bottom:0}' + window.hkCards.headCss('.gt .nm'),
-        '.gt .more{margin-left:auto;flex:none;font-size:13px;font-weight:600;color:' + window.hkCards.v('ink-2') + '}',
-        '.gt hk-countdown{display:block;font-size:30px;font-weight:300;letter-spacing:-0.02em;line-height:1.05;color:' + window.hkCards.v('ink') + ';margin-top:2px}.gt>hk-countdown:first-child{padding-top:.08em}',  // (no title row above the time: room for its glyphs, or the column's edge cuts them)
-        '.gt .ft{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:auto;padding-top:6px}',
-        // THE RING IS THE PAUSE: time left in orange round its track, pause or play at its centre
-        '.gt .pr,.gt .stop{all:unset;box-sizing:border-box;position:relative;flex:none;border-radius:50%;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
-        '.gt .pr{width:var(--ring);height:var(--ring)}',
-        '.gt .pr svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}',
-        '.gt .pr circle{fill:none;stroke-width:10px;stroke:' + window.hkCards.v('line-strong') + '}',
-        '.gt .pr .left{stroke:' + window.hkCards.ACCENTS.orange + ';stroke-linecap:round;stroke-dasharray:calc(var(--hk-left,1)*100) 100}',
-        '.gt .pr hk-icon{position:relative;width:calc(var(--ring) * 0.36);height:calc(var(--ring) * 0.36);--mdc-icon-size:calc(var(--ring) * 0.36);color:' + window.hkCards.ACCENTS.orange + '}',
-        '.gt .stop{width:var(--stop);height:var(--stop);background:' + window.hkCards.ACCENTS.red + '}',
-        '.gt .stop hk-icon{width:calc(var(--stop) * 0.46);height:calc(var(--stop) * 0.46);--mdc-icon-size:calc(var(--stop) * 0.46);color:#fff}',
-        '.gt .pr:active,.gt .stop:active{transform:scale(0.95)}.gt .pr:focus-visible,.gt .stop:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:2px}',
-        '@container hk-cell (min-height:180px) or style(--hk-cell-shape: square){  :host([size=S]) hk-plate.strip{--ring:76px;--stop:52px}',
-        '  :host([size=W]) hk-plate.strip{--ring:72px;--stop:48px}',
-        '  :host([size=S]) .gt hk-countdown{font-size:36px}',
-        '  :host([size=W]) .gt hk-countdown{font-size:34px}',
-        '}',
-        '@container hk-cell (min-height:360px){:host([size=T]) hk-plate.strip{--ring:64px;--stop:48px}:host([size=T]) .gt hk-countdown{font-size:34px}',
-        '  ' + lx('hk-plate.strip', '--ring:72px;--stop:48px') + lx('.gt hk-countdown', 'font-size:34px') + '  :host([size=L]) .tg.k2 hk-countdown{font-size:44px}}',
-        // TALL AND LARGE (2026-11-07, the review): Tall stacks the running timers (two fit; "N more" at the foot, a
-        // second place says Start another), Large puts up to four in a 2 x 2 -- fewer are bigger: one fills the
-        // block, two are rows. Each is the same column as Small's: name, time, ring and Stop at its foot
-        '.tg.k1{--ring:112px;--stop:64px}' + lx('.tg.k1 hk-countdown', 'font-size:72px') + '.tg.k2{--rg:10px}:host([size=L]) .tg.k2 hk-countdown{font-size:36px}',
-        // (Extra Large: three across are cells of 180, the time and ring larger than Large's)
-        ':host([size=XL]) .tg.k2{--ring:88px;--stop:52px}:host([size=XL]) .tg.k2 hk-countdown{font-size:44px}',
-        ':host([size=T]) .tg{--rg:10px}.tg.k4{--rg:18px}:host([size=T]) .gt+.gt,:host([size=L]) .tg.k2 .gt+.gt{border-top:1px solid ' + window.hkCards.v('line') + ';padding-top:10px}',
+        // EACH RUNNING TIMER IS ONE PIECE (mockup 5, approved 2026-11-09, "Proposed -- three running"): its name over its ring -- time left in
+        // orange round its track, the time INSIDE it in light, tabular numbers -- and right under the ring two round keys, Pause (Resume)
+        // and the red Stop, side by side. The ring is no longer the pause key: it is drawn, not a button. The keys are 56 px targets
+        // (44 on screen) 8 px apart, the disc drawn smaller inside. Extra Large three timers across, Large two, Tall one ("+N more"
+        // under it), Wide two with the keys BESIDE each ring (stacked), Small the ring alone: the block's tap opens the Timers page.
+        // None running, quick starts as keys and an orange + (below). Tile cells first, a square cell's sizes after.
+        ':host([size]) hk-plate.strip{position:relative;display:flex;flex-direction:column;justify-content:center;gap:8px;box-sizing:border-box;',
+        '  height:100%;padding:' + window.hkCards.blockPad('14px') + ';' + window.hkCards.plate('card') + ';overflow:hidden;--ring:96px}',
+        '.strip > div.tg{overflow:visible}.tg{display:grid;grid-template-columns:repeat(var(--cols,1),minmax(0,1fr));grid-auto-rows:minmax(0,1fr);align-content:center;gap:var(--rg,8px) var(--hk-pad-l,18px);flex:1 1 auto;min-height:0}',
+        '.gt{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;min-height:0}',
+        // THE TIMER'S TITLE (2026-11-09, the owner: "We don't need the word Timer as a title, it should go. Title of the timer itself, yes, it needs to [match] the rest of the title/headings."): a named timer's name in the block heading (hkCards.headCss: gray, 13 / 600) on the heading row; a timer with no name of its own has no title -- its row stays, so the rings line up (mockup 5) -- and the block's own name ("Timers") is never printed
+        window.hkCards.headRowCss('.gt .hd') + '.gt .hd{height:22px;margin-bottom:8px;justify-content:center;align-self:stretch}' + window.hkCards.headCss('.gt .nm') +
+        // (READABLE FROM ACROSS THE ROOM, 2026-11-09, the owner: "The text above the active timers should probably be bigger right? And so should the
+        // time inside the circle. It needs to be readable"): the name 17 / 600 in the first ink, not the 13 px gray heading; the time 25 % of the ring
+        // in a medium weight (it was 21 % light), an hour or more (h:mm:ss, seven figures) 19 % so it stays inside the ring
+        '.gt .nm{font-size:17px;line-height:22px;font-weight:600;color:' + window.hkCards.v('ink') + '}',
+        '.gt .rg{display:flex;flex-direction:column;align-items:center;gap:8px;flex:none}',
+        '.gt .rw{position:relative;flex:none;width:var(--ring);height:var(--ring);display:grid;place-items:center}',
+        // (the countdown is the ring's child: it writes the fraction left, --hk-left, on the ring, and the circle reads it)
+        '.gt .rw svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}',
+        '.gt .rw circle{fill:none;stroke-width:8px;stroke:' + window.hkCards.v('line-strong') + '}',
+        '.gt .rw .left{stroke:' + window.hkCards.ACCENTS.orange + ';stroke-linecap:round;stroke-dasharray:calc(var(--hk-left,1)*100) 100}',
+        '.gt.hr .rw hk-countdown{font-size:calc(var(--ring) * 0.19)}.gt .rw hk-countdown{position:relative;display:block;font-size:calc(var(--ring) * 0.25);font-weight:500;letter-spacing:-0.02em;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums;color:' + window.hkCards.v('ink') + '}',
+        '.gt.held .rw hk-countdown{color:' + window.hkCards.v('ink-2') + '}',
+        // KEYS A FINGER CAN HIT (2026-11-09, mockup 14b, the owner: "should the touch services for the timers be easier for a finger to hit? The same small and close together"): 52 px discs in 56 px targets, 14 px between the discs -- the targets 10 px clear of each other
+        '.gt .kk{display:flex;gap:10px;flex:none}',
+        '.gt .pr,.gt .stop{all:unset;box-sizing:border-box;position:relative;flex:none;width:56px;height:56px;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+        '.gt .pr::before,.gt .stop::before{content:"";position:absolute;inset:2px;border-radius:50%;background:' + window.hkCards.v('line-strong') + '}',
+        '.gt .stop::before{background:' + window.hkCards.ACCENTS.red + '}',
+        '.gt .pr hk-icon,.gt .stop hk-icon{position:relative;width:22px;height:22px;--mdc-icon-size:22px;color:' + window.hkCards.v('ink') + '}.gt .stop hk-icon{color:#fff}',
+        '.gt .pr:active::before,.gt .stop:active::before{transform:scale(0.95)}.gt .pr:focus-visible,.gt .stop:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:-2px;border-radius:50%}',
+        // WIDE: each timer's keys BESIDE its ring, stacked (mockup 5)
+        // (a tile cell's Wide is 117 px inside its inset, the two keys stacked 120: the name sits over the ring alone, the keys span the unit's height and may use the inset's last pixels)
+        ':host([size=W]) .gt:not(.idle){display:grid;grid-template-columns:var(--ring) 56px;grid-template-rows:auto auto;column-gap:6px;justify-content:center;align-content:center;align-items:center}',
+        ':host([size=W]) .gt:not(.idle) .rg{display:contents}:host([size=W]) .gt .hd{grid-column:1;grid-row:1}:host([size=W]) .gt .rw{grid-column:1;grid-row:2}',
+        // (Wide's keys, 2026-11-09, the owner: "the Pause and stop buttons seem weirdly aligned. They could probably align with the bottom of the
+        // ring and the top of the text"): the column spans the name and the ring -- Pause's top on the name's top, Stop's foot on the ring's foot
+        ':host([size=W]) .gt:not(.idle) .kk{grid-column:2;grid-row:1 / 3;flex-direction:column;align-self:stretch;justify-content:space-between}',
+                ':host([size=W]) hk-plate.strip{--ring:96px}:host([size=S]) hk-plate.strip{--ring:96px}',
+        ':host([size=T]) hk-plate.strip{--ring:128px}:host([size=L]) hk-plate.strip{--ring:136px}:host([size=XL]) hk-plate.strip{--ring:136px}',
+        // (a tile cell's block is the smaller: the ring gives way before the keys do)
+        '@container hk-cell (max-height:180px) and (not style(--hk-cell-shape: square)){:host([size=S]) hk-plate.strip,:host([size=W]) hk-plate.strip{--ring:84px}}',
+        ':host([size=T]) .tg,:host([size=L]) .tg{--rg:10px}',
+        // ALWAYS A WAY TO ADD A TIMER (2026-11-09, mockup 14b, the owner: "There needs to be a way to add a timer at all times with these cards."): a plain orange + at the plate's top right on every running size -- a 52 px disc in a 56 px target, 6 px from the edges (the disc is then concentric with the plate's corner), a white plus; it opens the New Timer sheet. Where Extra Large has the maker beside its timers, the maker is the way and there is no +
+        '.pl{all:unset;box-sizing:border-box;position:absolute;top:6px;right:6px;z-index:2;width:56px;height:56px;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+        '.pl::before{content:"";position:absolute;inset:2px;border-radius:50%;background:' + window.hkCards.ACCENTS.orange + '}.pl hk-icon{position:relative;width:28px;height:28px;--mdc-icon-size:28px;color:#fff}.pl:active::before{transform:scale(0.95)}',
+        '.pl:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') + ';outline-offset:-2px;border-radius:50%}',
+        // (Small: its ring alone at the foot, under the +; Wide: one timer with its keys beside the +, "+N more" at its foot on the right)
+        ':host([size=S]) .gt{justify-content:flex-end}:host([size=W]) .mf{position:absolute;right:var(--hk-pad-r,14px);bottom:var(--hk-pad-b,14px)}',
         '.mf{flex:none;' + window.hkCards.typeCss('caption') + ';color:' + window.hkCards.v('ink-2') + ';text-shadow:' + window.hkCards.v('glow') + '}',
         // NONE RUNNING (2026-11-08, the owner: "the card when no timer is displayed is not good looking at all"): the running timer's own
         // column -- the orange name, a line in the time's light type in place of the time ("Start a timer"), and in place of the ring and
         // Stop the quick starts as rings: each draws its length as the share of an hour its orange arc covers, the length inside, and an
         // orange + for any other. A grid (Tall, Large, Extra Large) fills the block, the rings --k to what it leaves them
-        '.gt.idle .none{display:block;font-size:var(--sf);font-weight:300;letter-spacing:-0.02em;line-height:1.15;color:' + window.hkCards.v('ink') + ';text-shadow:' + window.hkCards.v('glow') + ';margin-top:4px;text-wrap:balance}',
-        '.gt.two .none{font-weight:400;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap}',
         '.qs{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:auto;padding-top:8px}.qs.g{display:grid;grid-template-columns:repeat(var(--qc),var(--k));justify-content:center;align-content:center;flex:1 1 auto;margin-top:0}',
         // THE DIRECTION over the preset rings (mockup 5): one line, the headline's size, centered with them as one group
         '.gt.dg{flex:1 1 auto;align-items:center;justify-content:center}.gt.dg .qs.g{flex:none;padding:0;gap:12px}',
         '.gt .dir{display:block;' + window.hkCards.typeCss('headline') + ';line-height:22px;color:' + window.hkCards.v('ink') + ';text-shadow:' + window.hkCards.v('glow') + ';text-align:center;white-space:nowrap;margin:0 0 14px}',
         // EXTRA LARGE'S MAKER (mockup 5c): the presets' column on the left, the New Timer card's block layout filling the right
-        '.gt.mkr{display:grid;grid-template-columns:196px minmax(0,1fr);column-gap:13px;flex:1 1 auto;min-height:0}',
+        '.gt.mkr{display:grid;align-items:stretch;grid-template-columns:196px minmax(0,1fr);column-gap:13px;flex:1 1 auto;min-height:0}',
         '.gt.mkr .ql{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}.gt.mkr .qs.g{flex:none;padding:0;gap:14px}',
         '.gt.mkr .mk{min-width:0;min-height:0;height:100%}',
+        // EXTRA LARGE WITH ONE OR TWO RUNNING (mockup 14b): the timers, and the maker beside them -- the New Timer card's block layout, 288-340 px
+        '.xm{display:grid;grid-template-columns:minmax(0,1fr) var(--mw,320px);column-gap:13px;align-items:stretch;flex:1 1 auto;min-height:0}.xm .tg{flex:none;min-height:0}.xm .mk{min-width:0;min-height:0;height:100%}',
+        // LARGE, NOTHING RUNNING (mockup 14b, the owner: "the roller to create a new timer isn't implemented here. I'd like that to be added to the Large and X-Large card as well."): the headline in the UPPER LEFT (DESIGN.md "The headline is the upper left, across the board"; the mockup centered it, the rule wins), four preset rings across in 56 px targets, then the maker -- the wheels, a name where the room allows, Start
+        '.gt.idle.lg{align-items:stretch;justify-content:flex-start;gap:8px;flex:1 1 auto}.gt.lg .dir{text-align:left;margin:0}.gt.lg .qs{display:flex;justify-content:space-between;align-items:center;gap:0;margin:0;padding:0;flex:none}.gt.lg .mk{flex:1 1 0;min-height:0;min-width:0}',
         '.rk{all:unset;box-sizing:border-box;position:relative;flex:none;width:var(--k);height:var(--k);border-radius:50%;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
         '.rk svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible}.rk circle{fill:none;stroke-width:10px;stroke:' + window.hkCards.v('line-strong') + '}',
         '.rk .left{stroke:' + window.hkCards.ACCENTS.orange + ';stroke-linecap:round;stroke-dasharray:var(--a) 100}',
@@ -2233,34 +2244,34 @@
       });
       rows = rows.filter((r) => r.state === 'paused' || r.attrs.finishes_at && !isNaN(Date.parse(r.attrs.finishes_at)))
         .sort((a, b) => (Date.parse(a.attrs.finishes_at) || Infinity) - (Date.parse(b.attrs.finishes_at) || Infinity));
-      // NONE RUNNING, or a Wide block's second place: the quick starts (Settings' presets) as keys, + for the rest
       var presets = (window.hkSettings && window.hkSettings.get('headers.timers.presets', null)) || [5, 10, 15, 20, 30, 60];
       var short = (m) => m < 60 ? m + 'm' : m % 60 ? Math.floor(m / 60) + 'h' + (m % 60) : m / 60 + 'h';
-      // (the block's room inside its inset: Tall's second place, Large's grid of keys and what fits are sized by it)
       var b = this._block(), cs = typeof getComputedStyle === 'function' ? getComputedStyle(this) : null, pd = (k) => cs && parseFloat(cs.getPropertyValue('--hk-pad-' + k)) || 14;
       var iw = b ? b.w - pd('l') - pd('r') : 168, ih = b ? b.h - pd('t') - pd('b') : 286, big = sized === 'T' || sized === 'L' || sized === 'XL';
-      // NONE RUNNING, or a second place (Start another): nothing stretches (the owner, 2026-11-08) -- each size has its one ring size (tile cell /
-      // square cell), the quick starts as many as the size shows, the group centered: Small one key (Start a timer), Wide 3 in a row beside the words, Tall 3
-      // stacked, Large 6 in a 3 x 2, Extra Large the same beside the words (the line is the hero, 60 px); a second place is one + ring
+      // NONE RUNNING: the quick starts (Settings' presets) as rings, + for the rest; nothing stretches (the owner, 2026-11-08) -- each size has its one ring size, as many as it shows, the group centered
       var ring = (m) => '<button class="rk" data-preset="' + Number(m) + '" style="--a:' + Math.min(100, Number(m) * 100 / 60) + '" aria-label="Start a ' + esc(HkTimersPageCard.label(Number(m))) + ' timer"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45"></circle><circle class="left" cx="50" cy="50" r="45" pathLength="100"></circle></svg><b>' + esc(short(Number(m))) + '</b></button>';
       var plus = '<button class="rk add" data-new aria-label="Create a Timer"><hk-icon icon="mdi:plus"></hk-icon></button>';
       // (the rings as big as the room gives: cols x rows of them under the direction's line, 12 px apart -- 14 on Extra Large's)
       var fitK = (cols, rows, max, w, gap) => Math.max(40, Math.min(max, Math.floor(((w || iw) - (cols - 1) * gap) / cols), Math.floor((ih - 36 - (rows - 1) * gap) / rows)));
-      var idle = (second) => {
+      // THE MAKER'S ROWS (the New Timer card's block layout in a place H high): the wheels' row height from what the card's chrome leaves -- its tile's padding (30 px; the tight Large's 18), Start's 56 and the name's 56 with the gaps between -- and the name only where the rows stay readable
+      var mkOf = (H, tight) => {
+        var padv = tight ? 18 : 30, gap = tight ? 8 : 10, lo = tight ? 18 : 26, rowN = Math.floor((H - padv - 112 - 2 * gap) / 5), named = rowN >= (tight ? 26 : 30), row = Math.max(lo, Math.min(40, named ? rowN : Math.floor((H - padv - 56 - gap) / 5)));
+        return { named: named, attrs: ' data-keep data-notap' + (named ? '' : ' data-noname') + ' style="--hk-mk-row:' + row + 'px;--hk-mk-fs:' + Math.max(17, Math.round(row * 0.6)) + 'px' + (tight ? ';--hk-mk-pad:8px 12px 10px;--hk-mk-gap:8px' : '') + '"' };
+      };
+      var idle = () => {
         var S = sized;
-        // A SECOND PLACE (Start another) as it was
-        if (second) {
-          return '<div class="gt idle two" style="--sf:15px"><span class="none">Start another</span><div class="qs" style="--k:48px;--qc:0">' + plus + '</div></div>';
-        }
-        // SMALL (2026-11-09, the owner: "The button is getting clipped. Also the font here, doesn't seem to match anything else"): as the
-        // other sizes, the direction over its one key -- "Start a Timer" over the orange +, which opens the New Timer sheet; not a
-        // "Start a timer" pill wider than the block under "None running" in the countdown's light type
-        if (S === 'S') {
-          return '<div class="gt idle dg"><span class="dir">Start a Timer</span><div class="qs g" style="--k:' + fitK(1, 1, 72, 0, 12) + 'px;--qc:1">' + plus + '</div></div>';
-        }
+        // SMALL (2026-11-09, the owner: "The button is getting clipped. Also the font here, doesn't seem to match anything else"): the direction over its one key,
+        // the orange + that opens the New Timer sheet; not a "Start a timer" pill wider than the block under "None running" in the countdown's light type
+        if (S === 'S') return '<div class="gt idle dg"><span class="dir">Start a Timer</span><div class="qs g" style="--k:' + fitK(1, 1, 72, 0, 12) + 'px;--qc:1">' + plus + '</div></div>';
         // NONE RUNNING (the owner's mockup 5, approved 2026-11-09: "It's not really a heading though, but more of a direction"): "Start a
         // Timer" one line at the body's headline size, right over the preset rings, the two one group centered in the block -- Wide
         // three and +, a row; Tall five and +, two across; Large five and +, three across
+        if (S === 'L') {
+            var pk = [5, 10, 15, 30].filter((m) => presets.indexOf(m) >= 0), lk = mkOf(ih - 22 - 56 - 16, true);   // (the heading, the 56 px rings, two gaps)
+          presets.forEach((m) => { if (pk.length < 4 && pk.indexOf(m) < 0) pk.push(m); });
+          return '<div class="gt idle lg"><span class="dir">Start a Timer</span><div class="qs g" style="--k:56px;--qc:4">' + pk.slice(0, 4).map(ring).join('') +
+            '</div><div class="mk"' + lk.attrs + '></div></div>';
+        }
         if (S !== 'XL') {
           // (Wide and Tall hold three controls at most -- the owner's round three, 2026-11-08: two presets and +)
           var L = { W: [3, 1, 64, 2], T: [1, 3, 72, 2], L: [3, 2, 92, 5] }[S] || [3, 2, 92, 5], k = fitK(L[0], L[1], L[2], 0, 12);
@@ -2271,33 +2282,37 @@
         // the right the New Timer card in its block layout -- the wheels, a name and Start. Its place keeps what is mounted in it
         // (data-keep: the block's morph leaves the card and its wheels alone); the wheels' rows are what the block's height gives
         // (the tile's 30 px of padding, Start's 56 and the name's 56, 10 px between: the rest is the wheels' five rows)
-        var row = Math.floor((ih - 172) / 5), named = row >= 30;
-        if (!named) row = Math.floor((ih - 106) / 5);
-        row = Math.max(26, Math.min(40, row));
+        var xk = mkOf(ih, false);
         var kx = fitK(2, 3, 84, 196, 14);
         return '<div class="gt idle mkr"><div class="ql"><span class="dir">Start a Timer</span><div class="qs g" style="--k:' + kx + 'px;--qc:2">' +
-          presets.slice(0, 6).map(ring).join('') + '</div></div><div class="mk" data-keep data-notap' + (named ? '' : ' data-noname') +
-          ' style="--hk-mk-row:' + row + 'px;--hk-mk-fs:' + Math.round(row * 0.6) + 'px"></div></div>';
+          presets.slice(0, 6).map(ring).join('') + '</div></div><div class="mk"' + xk.attrs + '></div></div>';
       };
       if (!rows.length) return '<div class="tg">' + idle() + '</div>';
-      // (Tall: as many stacked as fit, two units of 124 px at least, a line for "N more" held back when some are cut)
-      var fit = (room) => Math.max(1, Math.floor((room + 8) / 132)), slots = fit(ih);
-      if (sized === 'T' && rows.length > slots) slots = fit(ih - 24);
-      // (Extra Large, 2026-11-07: up to six, a 3 x 2 grid; one or two are big across, three go three across, four are 2 x 2, five leave a place for Start another)
-      var xl = sized === 'XL', nn = rows.length, max = sized === 'S' ? 1 : sized === 'T' ? slots : xl ? 6 : sized === 'L' ? 4 : 2, shown = rows.slice(0, max), left = nn - shown.length;
-      var cls = xl ? ' k' + ([0, 1, 1, 2][nn] || 4) : sized === 'L' ? (nn < 3 ? ' k' + nn : ' k4') : '';
-      return '<div class="tg' + cls + '" style="--cols:' + (xl ? [0, 1, 2, 3, 2][nn] || 3 : sized === 'S' || sized === 'T' ? 1 : sized === 'L' ? (nn > 2 ? 2 : 1) : max) + '">' + shown.map(function (r, i) {
-        var paused = r.state === 'paused', total = T ? T.secs(r.attrs.duration) : 0, nm = esc(r.name || 'Timer'), ttl = r.name && !/^(quick |hk )?timer( \d+)?$/i.test(r.name.trim()) ? '<b class="nm">' + nm + '</b>' : '', more = left && sized !== 'T' && i === shown.length - 1 ? '<span class="more">+' + left + ' more</span>' : '';  // (the hub's own "Timer" for one without a name is no name)
+      // (2026-11-09, mockup 5: Extra Large three across, Large two, Tall one with "+N more" under it, Wide two, Small one)
+      // (Wide shows one: a second timer's keys have no room beside the + at the top right -- 2026-11-09, mockup 14b; "+N more" at its foot)
+      var nn = rows.length, max = { S: 1, T: 1, W: 1, L: 2, XL: 3 }[sized] || 1, shown = rows.slice(0, max), left = nn - shown.length;
+      var cols = sized === 'XL' ? 3 : sized === 'L' ? 2 : 1;
+      // EXTRA LARGE WITH ONE OR TWO RUNNING keeps the maker beside them (14b): the maker 288-340 px, each timer at least its two keys wide (122 px) -- as many timers as fit beside a 288 px maker; where none fit (or three or more run) the timers take the block, with the +
+      var maker = '', mw = 0, ringX = 0;
+      var fit = sized === 'XL' && nn <= 2 ? Math.min(nn, Math.floor((iw - 13 - 288 + 18) / 140)) : 0;
+      if (fit >= 1) {
+        mw = Math.min(340, iw - 13 - (fit * 122 + (fit - 1) * 18)); ringX = Math.min(136, Math.floor((iw - 13 - mw - (fit - 1) * 18) / fit));
+        shown = rows.slice(0, fit); left = nn - fit; cols = fit; maker = mkOf(ih - (left ? 28 : 0), false);
+      }
+      var units = shown.map(function (r) {
+        var paused = r.state === 'paused', total = T ? T.secs(r.attrs.duration) : 0, nm = esc(r.name || 'Timer'), ttl = r.name && !/^(quick |hk )?timer( \d+)?$/i.test(r.name.trim()) ? '<b class="nm">' + nm + '</b>' : '';  // (the hub's own "Timer" for one without a name is no name)
         var clock = paused ? 'hold="' + (T ? T.secs(r.attrs.remaining) : 0) + '"' : 'deadline="' + Date.parse(r.attrs.finishes_at) + '"';
-        // (the countdown is the column's child: it writes the fraction left, --hk-left, on the column, and the ring reads it)
-        return '<div class="gt">' + (ttl || more ? '<div class="hd">' + ttl + more + '</div>' : '') +
-          '<hk-countdown ' + clock + ' total="' + total + '"></hk-countdown>' +
-          '<div class="ft"><button class="pr" data-timer="' + esc(r.id) + '" data-service="' + (paused ? 'start' : 'pause') + '" aria-label="' + (paused ? 'Resume' : 'Pause') + ' ' + nm + '">' +
-          '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45"></circle><circle class="left" cx="50" cy="50" r="45" pathLength="100"></circle></svg>' +
-          '<hk-icon icon="mdi:' + (paused ? 'play' : 'pause') + '"></hk-icon></button>' +
-          '<button class="stop" data-timer="' + esc(r.id) + '" data-service="cancel" aria-label="Stop ' + nm + '"><hk-icon icon="mdi:stop"></hk-icon></button></div></div>';
-      }).join('') + (xl || sized === 'L' ? (nn === (xl ? 5 : 3) ? idle(true) : '') : shown.length < max ? idle(true) : '') + '</div>' +
-        (left && sized === 'T' ? '<div class="mf">' + left + ' more</div>' : '');
+        // (the countdown is the ring's child: it writes the fraction left, --hk-left, on the ring, and the circle reads it; the heading row is always there, empty for an unnamed timer, so the rings line up)
+        var keys = sized === 'S' ? '' : '<div class="kk"><button class="pr" data-timer="' + esc(r.id) + '" data-service="' + (paused ? 'start' : 'pause') + '" aria-label="' + (paused ? 'Resume' : 'Pause') + ' ' + nm + '"><hk-icon icon="mdi:' + (paused ? 'play' : 'pause') + '"></hk-icon></button>' +
+          '<button class="stop" data-timer="' + esc(r.id) + '" data-service="cancel" aria-label="Stop ' + nm + '"><hk-icon icon="mdi:stop"></hk-icon></button></div>';
+        var secsLeft = paused ? (T ? T.secs(r.attrs.remaining) : 0) : (Date.parse(r.attrs.finishes_at) - Date.now()) / 1000;
+        return '<div class="gt' + (paused ? ' held' : '') + (secsLeft >= 3600 ? ' hr' : '') + '"><div class="hd">' + ttl + '</div><div class="rg"><div class="rw">' +
+          '<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"></circle><circle class="left" cx="50" cy="50" r="46" pathLength="100"></circle></svg>' +
+          '<hk-countdown ' + clock + ' total="' + total + '"></hk-countdown></div>' + keys + '</div></div>';
+      });
+      var add = '<button class="pl" data-new aria-label="Add a timer"><hk-icon icon="mdi:plus"></hk-icon></button>', more = left && sized !== 'S' ? '<div class="mf">+' + left + ' more</div>' : '';
+      if (maker) return '<div class="xm" style="--mw:' + mw + 'px"><div class="tg" style="--cols:' + cols + ';--ring:' + ringX + 'px">' + units.join('') + '</div><div class="mk"' + maker.attrs + '></div></div>' + more;
+      return add + '<div class="tg" style="--cols:' + cols + '">' + units.join('') + '</div>' + more;
     }
     _sigOf() {
       var h = this.client;
@@ -2325,7 +2340,7 @@
         var html0 = this._grid(on && on.attributes && on.attributes.running, sized);
         this._gridTap();
         window.hkCards.morph(this._e, html0);
-        if (sized === 'XL') this._mountMaker();
+        this._mountMaker();
         // THE COUNTDOWNS PAINT AGAIN NOW: the morph took their text and their
         // column's --hk-left (neither is in the markup), and each skips a write
         // it thinks it has made -- the ring sat full, the time blank, until the

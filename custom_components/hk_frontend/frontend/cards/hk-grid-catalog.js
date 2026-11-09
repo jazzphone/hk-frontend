@@ -70,9 +70,8 @@
                            o.height ? { height: o.height } : {}, o.color ? { color: true } : {}); } },
     scene: { sizes: ['S', 'W'], sources: [], opts: { scene: 'scene', color: 'boolean' }, card: function (s, o) {
       return o.scene ? Object.assign({ type: 'custom:hk-grid-entity-card', entity: o.scene, kind: 'scene', size: s }, o.color ? { color: true } : {}) : stand('Scene', 'mdi:palette', 'Choose a scene in the editor.'); } },
-    scenes: { sizes: ['W', 'T', 'L', 'XL', 'XXL'], sources: ['scenes'], opts: { scenes: 'scenes', surface: 'surface', height: 'tile_height', color: 'boolean', windows: 'windows' }, card: function (s, o) {
-      // windows (2026-11-09, mockup 13): Extra Large's suggested scene, picked as the Suggested Scene block picks it
-      return Object.assign({ type: 'custom:hk-scenes-card', surface: o.surface }, o.scenes ? { scenes: o.scenes } : {}, o.windows ? { windows: o.windows } : {},
+    scenes: { sizes: ['W', 'T', 'L', 'XL', 'XXL'], sources: ['scenes'], opts: { scenes: 'scenes', surface: 'surface', height: 'tile_height', color: 'boolean' }, card: function (s, o) {
+      return Object.assign({ type: 'custom:hk-scenes-card', surface: o.surface }, o.scenes ? { scenes: o.scenes } : {},
                            o.height ? { height: o.height } : {}, o.color ? { color: true } : {}); } },
     now_playing: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: ['speakers'], opts: { speaker: 'speaker', background: 'np_background', tap: 'tap_target' }, card: function (s, o) {
       // T, L and XL: the progress above the transport (the Home app's and Apple
@@ -176,7 +175,7 @@
     room: { sizes: ['S', 'W', 'T', 'L', 'XL', 'XXL'], sources: ['rooms'], opts: { area: 'area', surface: 'surface', accessory_display: 'room_display', tap: 'tap_target' }, card: function (s, o, ctx) {
       // no room of its own: the tablet's, else the screen's first
       return { type: 'custom:hk-grid-room-card', area: o.area || TABLET_ROOM, fallback: (ctx.rooms || [])[0] || null, size: s, surface: o.surface, accessory_display: o.accessory_display || 'summary' }; } },
-    scene_suggested: { sizes: ['S', 'W', 'T', 'L'], sources: [], opts: { windows: 'windows' }, card: function (s, o) {
+    scene_suggested: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { windows: 'windows' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-suggested-scene-card', size: s }, o.windows ? { windows: o.windows } : {}); } },
     action: { sizes: ['S', 'W'], sources: [], opts: { action: 'action', area: 'area', color: 'boolean' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-action-card', action: o.action || 'lock_up' }, o.area ? { area: o.area } : {}, o.color ? { color: true } : {}); } },
