@@ -201,7 +201,9 @@ function () {
     house.set('vacuum.downstairs', 'cleaning', { friendly_name: 'Downstairs', battery_level: 80 });
     var run = sized('hk-vacuum-card', 'W', { entity: 'vacuum.downstairs' })._root.__html;
     ok('cleaning: the key is Pause', /data-svc="pause" aria-label="Pause Downstairs"><hk-icon icon="mdi:pause"><\/hk-icon><span>Pause/.test(run));
-    ok('Wide: the battery large, both keys with their words', /<div class="big ">80%<\/div>/.test(run) && /<span>Dock<\/span>/.test(run));
+    // (THE VACUUM DRAWN, 2026-11-09: the battery in the line under what it is doing)
+    ok('Wide: the vacuum drawn, cleaning, the battery in its line, both keys with their words', /class="hkva s-cleaning"/.test(run) && /<b class="state">Cleaning<\/b>/.test(run) &&
+       /<span class="sub">80%/.test(run) && /<span>Dock<\/span>/.test(run));
     house.set('vacuum.downstairs', 'docked', { friendly_name: 'Downstairs', battery_level: 92 });
     var l = sized('hk-vacuum-card', 'L', { entity: 'vacuum.downstairs' });
     H.attach(l);
@@ -223,20 +225,63 @@ function () {
       H.attach(xl);
       SUBS[SUBS.length - 1].on({ configured: true, areas: ['kitchen'] });
       var xh = xl._root.__html;
-      ok('Extra Large: the battery as a ring', /class="ring" role="img" aria-label="92% battery, Docked"/.test(xh) && /stroke-dasharray="92.0 100"/.test(xh));
+      ok('Extra Large: the vacuum drawn on its dock, the battery under its state', /class="hkva s-docked" role="img" aria-label="Downstairs, Docked"/.test(xh) && /<b class="state">Docked<\/b><span class="sub two">92%/.test(xh));
       ok('...the rooms beside it, Dock with its word', /<div class="rcol"><b class="lab">Rooms<\/b>/.test(xh) && /class="key dk" data-svc="return_to_base"[\s\S]*<span>Dock<\/span>/.test(xh));
       // THE RING SHOWS WHAT MATTERS (2026-11-09, the owner: "not sure if the big circle showing clean percentage is relevant here?")
       house.set('vacuum.downstairs', 'docked', { friendly_name: 'Downstairs' });
       var nb = sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs' })._root.__html;
-      ok('no battery and not cleaning: no ring and no dash, the state in words', !/class="ring"/.test(nb) && !/\u2013/.test(nb) && /class="none"><b>Docked<\/b>/.test(nb));
+      ok('no battery and not cleaning: the vacuum drawn, no dash, the state in words', /class="hkva s-docked"/.test(nb) && !/\u2013/.test(nb) && /<b class="state">Docked<\/b>/.test(nb));
       house.set('sensor.vac_cleaning_progress', '47', { friendly_name: 'Progress' });
       house.set('vacuum.downstairs', 'cleaning', { friendly_name: 'Downstairs', battery_level: 80 });
       var pg = sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs', progress: 'sensor.vac_cleaning_progress' })._root.__html;
-      ok('while cleaning: the progress fills the ring, the battery stays out of it', /aria-label="Cleaning, 47% done"/.test(pg) && /stroke-dasharray="47.0 100"/.test(pg) && /<b>47%<\/b><small>Cleaning<\/small>/.test(pg));
+      ok('while cleaning: drawn cleaning, the progress and the battery in its line', /class="hkva s-cleaning"/.test(pg) && /47% done/.test(pg) && /80%/.test(pg));
       house.set('vacuum.downstairs', 'cleaning', { friendly_name: 'Downstairs' });
-      ok('cleaning with no reading at all: the words', !/class="ring"/.test(sized('hk-vacuum-card', 'XL', { entity: 'vacuum.downstairs' })._root.__html));
+      ok('cleaning with no reading at all: drawn cleaning, the words', /<b class="state">Cleaning<\/b>/.test(sized('hk-vacuum-card', 'XL', { entity: 'vacuum.downstairs' })._root.__html));
       house.set('vacuum.downstairs', 'docked', { friendly_name: 'Downstairs', battery_level: 92 });
-      ok('docked with a battery: the battery, whatever the progress sensor says', /<b>92%<\/b><small>Docked<\/small>/.test(sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs', progress: 'sensor.vac_cleaning_progress' })._root.__html));
+      ok('docked with a battery: the battery, whatever the progress sensor says', /<b class="state">Docked<\/b><span class="sub two">92%/.test(sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs', progress: 'sensor.vac_cleaning_progress' })._root.__html));
+      // WHAT THE DRAWING SAYS (hk-vacuum-art.js, 2026-11-09): the water tank and being stuck first, then what it is doing; docked and charging
+      var VA = window.hkVacuumArt, lk = function (o) { return VA.look(house.hass(), 'vacuum.downstairs', Object.assign({ error: 'sensor.vac_err', charge: 'sensor.vac_chg' }, o || {})); };
+      house.set('sensor.vac_err', 'water_tank_empty', {}); house.set('sensor.vac_chg', 'charging', {});
+      ok('the water tank empty: drawn so, in its own words, over docked and charging', lk().state === 'water' && lk().words === 'Water tank empty');
+      house.set('sensor.vac_err', 'stuck', {});
+      ok('...stuck: the error drawing', lk().state === 'error' && lk().words === 'Stuck');
+      house.set('sensor.vac_err', 'no_error', {});
+      ok('...no error, docked and charging: charging', lk().state === 'charging');
+      house.set('sensor.vac_chg', 'full_charge', {});
+      ok('...fully charged: docked', lk().state === 'docked' && /class="hkva s-docked"/.test(VA.html('docked', 'x')));
+      // THE WATER TANK, HELD (2026-11-09, the owner): the server catches the one-second report and keeps it in sensor.vacuum_water_tanks
+      ok('nothing held: not latched, no Clear on any block', !lk().latched && !/data-clear/.test(sized('hk-vacuum-card', 'XL', { entity: 'vacuum.downstairs' })._root.__html));
+      house.set('sensor.vacuum_water_tanks', '1', { tanks: { 'vacuum.downstairs': { since: 1000, words: 'Water tank empty' } } });
+      var held = lk();
+      ok('held: drawn as the water tank, in the report\'s words, over docked (the report is gone from the sensor)', held.state === 'water' && held.words === 'Water tank empty' && held.latched === true);
+      house.set('sensor.vacuum_water_tanks', '1', { tanks: { 'vacuum.downstairs': { since: 1000, words: 'Water tank missing' } } });
+      ok('...the words are the report\'s own', lk().words === 'Water tank missing');
+      house.set('sensor.vac_err', 'stuck', {});
+      ok('...stuck stays first, and Clear is still offered', lk().state === 'error' && lk().words === 'Stuck' && lk().latched === true);
+      house.set('sensor.vac_err', 'no_error', {});
+      ok('...another vacuum\'s report is not this one\'s', !VA.look(house.hass(), 'vacuum.other', {}).latched && VA.latch(house.hass(), 'vacuum.downstairs').since === 1000);
+      var latched = {};
+      ['XL', 'T', 'W'].forEach(function (z) {
+        var h = sized('hk-vacuum-card', z, { entity: 'vacuum.downstairs', error: 'sensor.vac_err' })._root.__html;
+        // (Wide's Clear is a key beside Dock, where the rooms key was: under the words it squeezed the drawing, 2026-11-09)
+        ok(z + ': the water badge, the report in words and Clear', /class="hkva s-water"/.test(h) && (z === 'W'
+          ? /<b class="state">Water tank missing<\/b><span class="sub">/.test(h) && /<div class="pair"><button type="button" class="key rm" data-clear[^>]*><span>Clear<\/span><\/button>/.test(h)
+          : /<b class="state">Water tank missing<\/b><button type="button" class="hkclr" data-clear[^>]*>Clear<\/button>/.test(h)));
+      });
+      ['S', 'L'].forEach(function (z) {
+        var h = sized('hk-vacuum-card', z, { entity: 'vacuum.downstairs', error: 'sensor.vac_err' })._root.__html;
+        ok(z + ': says so in its line, no pill, the tap opens the vacuum', /<span class="err">Water tank missing<\/span>/.test(h) && !/data-clear/.test(h));
+      });
+      var wc = sized('hk-vacuum-card', 'T', { entity: 'vacuum.downstairs' });
+      house.calls.length = 0;
+      tap(wc, { 'data-clear': '' });
+      return H.tick().then(function () {
+        eq('...Clear asks Mantel to clear that vacuum for every screen', house.calls.map(function (c) { return [c.domain, c.service, c.data.vacuum]; }), [['script', 'vacuum_water_clear', 'vacuum.downstairs']]);
+        ok('...the page card: a Clear key beside Clean, shown only while held (it is 56 px like its siblings)',
+           /class="cmd clr" data-clear hidden>Clear/.test(SRC) && /e\.clr\.hidden = !lk\.latched/.test(SRC) && /\.vac \.cmd\.clr\{[^}]*padding:0 20px/.test(SRC));
+        house.set('sensor.vacuum_water_tanks', '0', { tanks: {} });
+      });
+    }).then(function () {
       FEED.added = [];
       var bare = sized('hk-vacuum-card', 'L', { entity: 'vacuum.downstairs' })._root.__html;
       ok('without Clean Areas: no rooms, the battery large instead', !/class="lab">Rooms/.test(bare) && /class="mid"/.test(bare));
