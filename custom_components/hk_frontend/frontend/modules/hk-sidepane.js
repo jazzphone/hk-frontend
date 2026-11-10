@@ -1073,6 +1073,7 @@
       '.artbg b.raw{background-size:cover;background-position:center;filter:blur(40px) brightness(.7)}',
       '.artbg i{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(6,10,18,.24),rgba(6,10,18,.34))}',
       ':host([arttint]) .artbg{background:var(--art-tint,#1c1c22)}:host([arttint]) .artbg b,:host([arttint]) .artbg i{display:none}',
+      ':host([artdim]) .artbg{background:#0b0c0f}.artbg b.dim{left:0;top:0;width:100%;height:100%}.artbg b.dim.on{opacity:var(--hk-flat-art,.3)}',
       '@media (prefers-reduced-motion:reduce){.artbg,.artbg b{transition:none}}',
       '.pin{position:absolute;left:0;top:0;transform-origin:0 0;box-sizing:border-box;display:flex;flex-direction:column;padding:30px 28px 26px}',
       ':host([side="band"]) .pin{padding:20px 24px}',
@@ -1310,7 +1311,7 @@
       '@media (prefers-reduced-motion:reduce){.npp i{animation:none!important}}',
       // (each speaker a centered box: hk-icon's own box is inline, so the small one sat on its text line, below the
       // slider's -- the owner, 2026-11-01)
-      '.hks .mvs input{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:100%;background:transparent;margin:0;touch-action:pan-y;cursor:pointer}',
+      '.hks .mvs{cursor:pointer;touch-action:pan-y}.hks .mvs input{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:100%;background:transparent;margin:0;pointer-events:none}',
       // (filled with the ink up to the level, as the screensaver slide's volume and every player's, 2026-11-07)
       '.hks .mvs input::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(to right,' + v('ink') + ' 0 var(--f,0%),' + v('line-strong') + ' var(--f,0%) 100%)}',
       '.hks .mvs input::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}',
@@ -1464,6 +1465,31 @@
       });
       // (its fill follows the finger: the track's --f)
       this._root.addEventListener('input', function (e) { var t = e.target; if (t && t.getAttribute('data-act') === 'vol') t.style.setProperty('--f', t.value + '%'); });
+      // A FINGER MOVES IT ONLY ONCE IT GOES SIDEWAYS, as every speaker volume (hkDrag.slider, 2026-11-10, the owner: "it's
+      // real easy to catch a volume slider" scrolling): the input itself takes no pointer (a touch on its track jumped it
+      // there), the keys still work; the thumb's center runs the track less half a thumb at each end, as the browser's
+      // (the slider the pane has now: a push of the music redraws the pane under a finger, and the one pressed is gone)
+      var root = this._root, live = function (t) { return t && t.isConnected ? t : root.querySelector('input[data-act="vol"]'); }, level = null;
+      var volAt = function (t, x) {
+        t = live(t);
+        if (!t) return;
+        var r = t.getBoundingClientRect(), v = Math.round(Math.max(0, Math.min(1, (x - r.left - 11) / Math.max(1, r.width - 22))) * 100);
+        level = String(v);
+        if (level !== t.value) { t.value = level; t.dispatchEvent(new Event('input', { bubbles: true })); }
+      };
+      var wire = function (D) {
+        D.slider(root, {
+          target: function (e) { var m = e.target.closest && e.target.closest('.mvs'); return m && m.querySelector('input[data-act="vol"]'); },
+          start: function (t, x) { level = null; volAt(t, x); }, move: volAt,
+          end: function (t) {
+            t = live(t);
+            if (!t || level === null) return;
+            t.value = level;
+            t.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        });
+      };
+      if (window.hkDrag && window.hkDrag.slider) wire(window.hkDrag); else window.addEventListener('hk-drag', function () { wire(window.hkDrag); }, { once: true });
       this._root.addEventListener('submit', function (e) { self._submit(e); });
     }
     // what it shows now: { list (sections), place, doorbell (a camera) }
@@ -1635,9 +1661,13 @@
       var want = this._artOn ? musicOf(c) : null;
       var pic = want && want.pic ? want.pic : null, self = this;
       var g = document.documentElement.getAttribute('data-hk-glass') || 'blur';
-      var tint = document.documentElement.hasAttribute('data-hk-flat') || ['flat', 'tinted', 'frosted', 'clear'].indexOf(g) >= 0;
+      // (Flat: the cover itself, sharp and very dim -- no blur there, and a flat color hid the song; 2026-11-10, the owner)
+      var dim = document.documentElement.hasAttribute('data-hk-flat') || g === 'flat';
+      var tint = !dim && ['tinted', 'frosted', 'clear'].indexOf(g) >= 0;
       this.toggleAttribute('arttint', tint);
-      if (pic === this._artPic) return;
+      this.toggleAttribute('artdim', dim);
+      if (pic === this._artPic && dim === this._artDim) return;
+      this._artDim = dim;
       this._artPic = pic;
       if (!pic) { this.removeAttribute('arted'); return; }
       var img = new Image();
@@ -1651,8 +1681,8 @@
         // near black (2026-10-30). (A picture that can't be read here: itself,
         // under a blur drawn once.)
         var b = document.createElement('b');
-        if (!got.url) b.className = 'raw';
-        b.style.backgroundImage = 'url("' + (got.url || pic).replace(/"/g, '%22') + '")';
+        if (dim) b.className = 'dim'; else if (!got.url) b.className = 'raw';
+        b.style.backgroundImage = 'url("' + ((dim ? null : got.url) || pic).replace(/"/g, '%22') + '")';
         bg.insertBefore(b, bg.querySelector('i'));
         var olds = Array.prototype.filter.call(bg.querySelectorAll('b'), function (x) { return x !== b; });
         requestAnimationFrame(function () { requestAnimationFrame(function () {

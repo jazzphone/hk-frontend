@@ -5,6 +5,35 @@ HK Frontend's releases, newest first. A GitHub release's notes are its section h
 
 ## Unreleased
 
+## 1.58.0 - 2026-11-10
+
+**Added**
+- **Settings → Accessories → Helpers**: every Home Assistant helper in one place -- toggles, buttons, numbers, lists, counters, dates and times, text and schedules -- shown or not, by kind, with a search. A helper's page turns its tile on, chooses its room (Home Assistant's area, changed there too) and says where the tile will be: in its room on Home, its room's page and Room blocks, or, with no room, only at the end of the automatic Home and on no Home Grid. Helpers no longer sit among Switches & Outlets, and Added Accessories now says plainly where a roomless tile goes.
+- **A Solar Window in Home Grid's Show When**: a rule that holds from one point of the day until the next, each a time (the home's time zone) or sunrise or sunset with an offset in minutes -- the outdoor lights' controls from 15 minutes before sunset until 10 PM, or from an hour before sunrise until half an hour after it. Sunrise and sunset are Home Assistant's own (`sun.sun`), the block changes at each edge without a reload, and a window can run past midnight and across a daylight saving change. Without the sun, the rule doesn't hold and the block shows its next rule or its own card.
+
+**Changed**
+- **The Suggested Scene block's glyph sits bare in its upper-left corner**, white on the scene's sky, no circle, at every size (Small already did): Wide lays the glyph at the top and the words at the foot, the play key at the lower right. A Material icon that has an Apple twin in the house's glyphs is drawn as Apple's. Running a scene shows a check on the play key for a moment (Small: on its glyph).
+- **Flat shows the song's cover, very dim, wherever the other looks blur it**: behind the Now Playing blocks, the Now Playing page and bar, the Side Pane's Now Playing, the screensaver's music and the Speakers / Volume / Queue / Browse panel -- sharp (Flat blurs nothing), on near black under the same wash, where it showed a fixed gradient, a flat color or nothing.
+- **A Time of Day rule changes at its edge**, not up to half a minute after it.
+- **Every Volume tab has the whole group's slider first** (the music's rooms together, then each room's own) wherever two rooms or more play -- the Music page's Speakers, the screensaver's, the Side Pane's and a Now Playing block's; only a Small Now Playing block had it.
+- **The Intercom's rooms are the Music page's speaker rows**: each speaker's well, its name over what is true of it (Plays with Office, Quiet hours, Unavailable, After you finish, You're here), the tick at the end, one to a line (two where there is room) -- the whole name fits, where two narrow columns cut most of them short on a phone.; **its groups** (Whole House, the floors, your presets) **are one row that scrolls sideways**, as the Music page's presets, not rows of their own over the rooms.
+- **A screensaver widget opens its page when tapped**: the weather the Weather page, the date the Calendar, music the Music page, a timer the Timers page, and so on; one about a single thing (a sensor, a person, a camera) opens its details. Each widget's When Tapped can say Nothing instead (the Screensaver editor).
+- **The screensaver's Music widget says where it plays as the players do** ("Master Bedroom + 10", where it said "EVERYWHERE"), and **goes away once the music stops** (a paused or stopped speaker kept it up).
+- **A Small Room block shows its room's own glyph** (Kitchen's fork and knife, the Loft's bookshelf -- the area's icon in Home Assistant) where its room page names none, not always the sofa. Hallway's and Attic's icons are now among the ones Mantel serves.
+- **A Large Now Playing block's cover sits as far from the block's top as from its side**, the controls at its foot; a long song title stays on one line and drifts slowly when it does not fit, instead of wrapping and pushing the cover against the top.
+- **The speaker line says "Master Bedroom + 10"** when three or more rooms play together (two still read as two names), and is a little bigger on the media blocks, an easier target.
+
+**Fixed**
+- **The Calendar's floating bar no longer bounces on a phone**: on a short week, folding made the page end above where it was scrolled for a moment (as the bar was measured, before its spacer), iOS put the scroll back near the top, the bar opened, the scroll carried on and it folded again -- over and over. The page is never shorter now, not even mid-fold (found by running the Mantel app itself on an iPhone Duo Simulator); **the + for a new event is a circle on a phone** (it was New Event's padding round a lone +).
+- **On the Flat look a tile's glyph no longer jumps when pressed** (the glyph circle of a centered tile, Room, Lamps and Intercom block, a wide tile's glyph and temperature, the TV Guide's channel icon, a person's map pin, a chart's callout), and **a Reduce Motion screen keeps those glyphs centered**: they were placed by a transform that a press on Flat, and Reduce Motion, took away.
+- **The iPhone Duo's front screen keeps its tiles two across**: the status column down its right left about 330 px for the page, under the two tiles a phone's grids need, so every grid below Scenes went one tile to a row across the whole width; a phone's tiles may now be as narrow as 150 px.
+- **An iPhone turned upright puts its tab bar back at the bottom**: turned from sideways in the Mantel app, it kept the sideways Side Strip down the right (the clock and battery at its top, the Favorites one to a row beside it) -- a rotation's safe areas come after its resize, and the old ones were kept until the next.
+- **A Big Number thermostat's number stays put when tapped** on the Flat look (it dropped half its height while the finger was down, and the arrows' row with it).
+- **A volume slider moves only once your finger goes sideways**: scrolling a Volume tab's list, the Music page, a speaker's sheet or the Side Pane no longer catches a slider on the way and changes a speaker's volume (the rule the room controls' sliders already kept).
+- **A long room name ends in "…" inside its pill** (the Vacuums page, a vacuum's sheet and every pill grid): it ran out of both ends of the pill, into the next one.
+- **The vacuum's sheet uses the Vacuums page's room pills**: the same height, look and centered names (they were taller, darker and their names sat at the left).
+- **The Music page's Your Playlists shows on a wall tablet without a reload**: it was drawn last in the page's redraw, so anything that stopped the redraw before it left the section missing; it now draws on its own as the list arrives.
+
 ## 1.57.0 - 2026-11-10
 
 **Changed**

@@ -1082,6 +1082,8 @@
   };
   // 0:04, 1:30: the time on the talk button (its own, not the microphone module's, which may not be here yet)
   function mmss(x) { var t = Math.max(0, Math.round(x)); return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2); }
+  // a room's line in Live where its glyph said it (a row has words, not glyphs: Music's speaker rows); one live now needs none
+  var LIVE_LINE = { clock: 'After you finish', person: 'You’re here' };
   function svg(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + GLYPHS[name] + '"></path></svg>'; }
   window.hkIntercom._.GLYPHS = GLYPHS;
 
@@ -1351,29 +1353,43 @@
       '.clr[aria-disabled="true"]{color:' + v('ink-3') + ';cursor:default}',
       '.sec{display:flex;flex-direction:column;gap:' + SPC.block + 'px}',
       '.sec[hidden]{display:none}',
-      '.chips{display:flex;flex-wrap:wrap;gap:8px}',
+      // the groups: one row that scrolls sideways, edge to edge of the panel, as Music's presets (2026-11-10, the owner); the
+      // padding below keeps their shadow
+      '.chips{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -18px -6px;padding:0 18px 6px}',
+      '.chips::-webkit-scrollbar{display:none}',
       '.chips:empty{display:none}',
-      '.rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:' + GAP + 'px}',
+      // the rooms: Music's speaker rows, one to a line, two where the panel is wide (2026-11-10, the owner: "these are speakers")
+      '.rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px}',
       '.rooms:empty{display:none}',
-      '@container (max-width:479px){.rooms{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}',
       '.pill{min-width:0;position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent}',
       // a group: a capsule as wide as its name
-      '.chips .pill{height:44px;border-radius:22px;padding:0 18px;display:flex;align-items:center}',
+      '.chips .pill{flex:none;height:44px;border-radius:22px;padding:0 18px;display:flex;align-items:center}',
       '.chips .pill .l b{font-weight:inherit;white-space:nowrap}',
       // A preset is a shortcut, not another room: the dashed border says "this fills the boxes below" (the speaker picker's)
       '.pill.preset{border:var(--hk-look-dash, ' + C.M.border + ');border-style:dashed}',
       '.pill.preset[aria-pressed="true"]{border-style:solid}',
       // a room: a row with its tick, its name and what's true of it (Plays with ..., Quiet hours), its glyph at the end
-      '.rooms .pill{min-height:54px;border-radius:' + C.SP.cardR + 'px;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 10px;text-align:left}',
-      '.tk{width:26px;height:26px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 2px ' + v('line-strong') + ';display:grid;place-items:center}',
-      '.tk svg{width:15px;height:15px;fill:#fff;display:none}',
-      '.pill[aria-pressed="true"] .tk{background:#0a84ff;box-shadow:none}',
-      '.pill[aria-pressed="true"] .tk svg{display:block}',
-      '.rooms .pill > span.l{flex:1;min-width:0;display:flex;flex-direction:column;line-height:18px}',
-      // a name too long for its pill ends in "…", whole names in the aria-label (2026-11-07, the owner: "Names are getting clipped off")
-      '.rooms .l b{display:block;min-width:0;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.rooms .l i{font-style:normal;font-size:13px;font-weight:500;line-height:16px;color:' + v('ink-3') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.pill[aria-pressed="true"] .l i{color:rgba(0,0,0,0.55)}',
+      // a room: the speaker's well, its name over what is true of it (Plays with Office, Quiet hours, Unavailable, Live), the tick
+      // at the end -- hk-saver-panel.js's .mproom, the Music page's speaker picker
+      '.rm{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 10px 6px 8px;border-radius:13px;min-width:0;',
+      '  background:var(--hk-pill-bg, rgba(255,255,255,0.07));color:' + v('ink') + ';cursor:pointer;box-sizing:border-box;',
+      '  touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color .22s ease}',
+      '.rm .ri{flex:none;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center}',
+      '.rm .ri hk-icon{--mdc-icon-size:21px;width:21px;height:21px;color:' + v('ink') + '}',
+      '.rm .l{flex:1;min-width:0}',
+      // a name too long for its row ends in "…", whole names in the aria-label (2026-11-07, the owner: "Names are getting clipped off")
+      '.rm .l b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.rm .l small{display:block;font-size:12.5px;opacity:0.72;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.rm .tk{flex:none;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px ' + v('line-strong') + ';display:flex;align-items:center;justify-content:center}',
+      '.rm .tk svg{width:16px;height:16px;fill:' + C.SELECTED_TEXT + ';opacity:0}',
+      '.rm[aria-pressed="true"]{background:rgba(255,255,255,0.18)}',
+      '.rm[aria-pressed="true"] .tk{background:' + C.SELECTED_BG + ';box-shadow:none}',
+      '.rm[aria-pressed="true"] .tk svg{opacity:1}',
+      // a room a tap can't pick is dimmed as Music's unavailable speaker; one on quiet hours (Send Anyway may include it) less so
+      '.rm.off{opacity:0.38;cursor:default}',
+      '.rm.quiet{opacity:0.6}',
+      '.rm.off[aria-pressed="true"],.rm.quiet[aria-pressed="true"]{opacity:1}',
+      '.rm:focus-visible{outline:2px solid ' + v('ink-2') + ';outline-offset:2px}',
       '.pill .pi{flex:none;display:flex;align-items:center;pointer-events:none;color:' + v('glyph') + '}',
       '.pill .pi svg{width:18px;height:18px;display:block;fill:currentColor}',
       '.pill[aria-pressed="true"] .pi{color:rgba(0,0,0,0.68)}',
@@ -1384,8 +1400,8 @@
 
       // NARROW (a phone): the Lock sheet's phone button, the rooms two across, a long name on two lines
       '@container (max-width:479px){.mb{width:228px;height:228px}.mb .core{width:166px;height:166px}.mb .core svg{width:64px;height:64px}',
-      '  .wd{font-size:32px;line-height:38px}.rooms .pill{min-height:48px;padding:7px 10px 7px 8px;gap:8px}.tk{width:22px;height:22px}',
-      '  .pick{padding:14px}}',
+      '  .wd{font-size:32px;line-height:38px}',
+      '  .pick{padding:14px}.chips{margin:0 -14px -6px;padding:0 14px 6px}}',
       // A SHORT SCREEN (a phone on its side, 2026-11-05, the owner: "that doesn't look good at all"): a narrow talk side
       // with a smaller button; the groups one row that scrolls sideways; the rooms scroll in their own panel, so the
       // button stays beside them; everything fits the sheet's height
@@ -1396,9 +1412,8 @@
       // (after a send the button and "Sent to 2 rooms" say it: the word steps aside for Play and Send Again)
       '  .talk:has(.rv:not([hidden])) .wd{display:none}',
       '  .pick{padding:12px 14px;gap:10px;max-height:calc(100dvh - 128px);overflow-y:auto;overscroll-behavior:contain}',
-      '  .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px;overscroll-behavior-x:contain}',
-      '  .chips::-webkit-scrollbar{display:none}.chips .pill{flex:none}',
-      '  .rooms{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.rooms .pill{min-height:48px;padding:6px 10px 6px 8px;gap:8px}.tk{width:22px;height:22px}}',
+      '  .chips{margin:0 -14px -6px;padding:0 14px 6px}',
+      '  .rooms{gap:6px}}',
       '@media (max-height:520px){@container (min-width:600px){.cols{display:grid;grid-template-columns:200px minmax(0,1fr);align-items:start;gap:16px}}}',
       '@media (prefers-reduced-motion:reduce){.mb,.mb .core,.mb .prg,.rv button,.line{transition:none}.mb:active .core,.rv button:active{transform:none}',
       '  .mic[data-kind="busy"] .core{animation:none}}'
@@ -1507,14 +1522,18 @@
           if (b && b.getAttribute('aria-disabled') !== 'true' && self._ctl) self._ctl.do(b.getAttribute('data-act'));
         });
       }
-      _pill(p, chip) {
-        var on = p.on;
-        var cls = 'pill' + (chip && p.kind === 'preset' ? ' preset' : '') + (!chip && (!p.pickable || p.quiet) ? ' skip' : '') + (!chip && p.glyph ? ' hg' : '');
-        var attrs = chip ? 'data-chip="' + esc(p.id) + '" data-kind="' + p.kind + '"' : 'data-room="' + esc(p.id) + '"';
-        return '<div class="' + cls + '" role="button" tabindex="0" aria-pressed="' + (on ? 'true' : 'false') + '" ' + attrs + ' aria-label="' + esc(chip ? p.name : p.aria) + '">' +
-          (chip ? '' : '<span class="tk">' + svg('tick') + '</span>') +
-          '<span class="l"><b>' + esc(p.name) + '</b>' + (!chip && p.cap ? '<i>' + esc(p.cap) + '</i>' : '') + '</span>' +
-          (!chip && p.glyph ? '<span class="pi">' + svg(p.glyph) + '</span>' : '') + '</div>';
+      _pill(p) {
+        var cls = 'pill' + (p.kind === 'preset' ? ' preset' : '');
+        return '<div class="' + cls + '" role="button" tabindex="0" aria-pressed="' + (p.on ? 'true' : 'false') + '" data-chip="' + esc(p.id) + '" data-kind="' + p.kind + '" aria-label="' + esc(p.name) + '">' +
+          '<span class="l"><b>' + esc(p.name) + '</b></span></div>';
+      }
+      // A ROOM is a speaker row like the Music page's: the HomePod in its well, the name, its line, the tick (2026-11-10)
+      _room(p) {
+        var line = p.cap || LIVE_LINE[p.glyph] || '';
+        var cls = 'rm' + (!p.pickable ? ' off' : p.quiet ? ' quiet' : '');
+        return '<div class="' + cls + '" role="button" tabindex="0" aria-pressed="' + (p.on ? 'true' : 'false') + '" data-room="' + esc(p.id) + '" aria-label="' + esc(p.aria) + '">' +
+          '<div class="ri"><hk-icon icon="hk:homepod"></hk-icon></div><div class="l"><b>' + esc(p.name) + '</b>' + (line ? '<small>' + esc(line) + '</small>' : '') + '</div>' +
+          '<div class="tk">' + svg('tick') + '</div></div>';
       }
       _paint() {
         if (!this._built || !this._ctl) return;
@@ -1529,9 +1548,9 @@
         }
         // the chips and pills, drawn again only when they differ
         var cKey = JSON.stringify(view.chips.map(function (c) { return [c.kind, c.id, c.name, c.on]; }));
-        if (cKey !== this._cKey) { this._cKey = cKey; e.chips.innerHTML = view.chips.map(function (c) { return self._pill(c, true); }).join(''); }
+        if (cKey !== this._cKey) { this._cKey = cKey; e.chips.innerHTML = view.chips.map(function (c) { return self._pill(c); }).join(''); }
         var rKey = JSON.stringify(view.pills.map(function (p) { return [p.id, p.name, p.glyph, p.cap, p.on, p.pickable, p.quiet]; }));
-        if (rKey !== this._rKey) { this._rKey = rKey; e.rooms.innerHTML = view.pills.map(function (p) { return self._pill(p, false); }).join(''); }
+        if (rKey !== this._rKey) { this._rKey = rKey; e.rooms.innerHTML = view.pills.map(function (p) { return self._room(p); }).join(''); }
         var empty = !view.pills.length;
         e.gsec.hidden = !view.chips.length;
         e.rsec.hidden = empty;

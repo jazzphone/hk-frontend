@@ -365,6 +365,8 @@
     // (Flat: no blur, so no veil -- the sheet's own ground, solid)
     ':host([hk-flat]) .mu[cols="1"] .left{background:#140d1e}',
     ':host([data-hk-light]) .mu[cols="1"] .left{color:#fff;' + Object.keys(C.LIGHT || {}).map(function (k) { return k + ':initial'; }).join(';') + '}',
+    // (the volume row lets a vertical finger scroll the page: its slider is the finger's once it goes sideways)
+    '.mu .hks .mvol[data-act=vol]{touch-action:pan-y}',
     '.mu[cols="1"] .grab{display:block;flex:none;width:100%;height:26px;margin:-4px 0 6px;cursor:pointer;touch-action:none;position:relative}',
     '.mu[cols="1"] .grab::before{content:"";position:absolute;left:50%;top:8px;width:42px;height:5px;margin-left:-21px;border-radius:3px;background:rgba(255,255,255,.5)}',
     '.mu[cols="1"] .front{flex:none}',
@@ -436,7 +438,7 @@
       if (super.connectedCallback) super.connectedCallback();
       var self = this;
       if (!this._musicOff && window.hkMusic) {
-        this._musicOff = window.hkMusic.onChange(function () { self._hkSig = null; if (self.client) self.redraw(); });
+        this._musicOff = window.hkMusic.onChange(function () { self._hkSig = null; self._playlistsSafe(); if (self.client) self.redraw(); });
       }
       if (!this._ro && window.ResizeObserver) {
         this._ro = new ResizeObserver(function () { self._layout(); });
@@ -856,6 +858,7 @@
       var lv = typeof a.volume_level === 'number' ? a.volume_level : null;
       if (this._vol && Date.now() < this._vol.until) lv = this._vol.val;
       if (lv === null) e.mu.setAttribute('novol', ''); else { e.mu.removeAttribute('novol'); e.tk.style.setProperty('--v', Math.max(0, Math.min(1, lv)).toFixed(3)); }
+      this._playlistsSafe();
       this._upNext(c);
       // the desk's rooms column: Speakers there, so not here
       e.spk.classList.toggle('gone', this._cols === 3);
@@ -1119,22 +1122,24 @@
         if (!d) { send(); return; }
         if (now - d.sent >= VOL_EVERY) send(); else if (!d.t) d.t = setTimeout(send, VOL_EVERY - (now - d.sent));
       };
-      // (the whole row is the volume's target, its speakers too: hk-np-strip.js -- the track alone was 30 px)
+      // (the whole row is the volume's target, its speakers too: hk-np-strip.js -- the track alone was 30 px); the finger's
+      // once it goes sideways, as every speaker volume (hkDrag.slider, 2026-11-10: down, the page scrolls)
       var row = this._e.vol;
-      row.addEventListener('pointerdown', function (ev) {
-        if (!self._ctx()) return;
-        self._drag = { id: ev.pointerId, sent: 0, t: null };
-        try { row.setPointerCapture(ev.pointerId); } catch (e) { /* a mouse */ }
-        move(ev.clientX);
-      });
-      row.addEventListener('pointermove', function (ev) { if (self._drag && ev.pointerId === self._drag.id) move(ev.clientX); });
-      var end = function (ev) {
-        if (!self._drag || (ev && ev.pointerId !== self._drag.id)) return;
+      row.setAttribute('data-hk-control', '');
+      var end = function () {
+        if (!self._drag) return;
         send(); self._drag = null;
         if (self._vol) self._vol.until = Date.now() + VOL_HOLD;
       };
-      row.addEventListener('pointerup', end);
-      row.addEventListener('pointercancel', end);
+      var wire = function (D) {
+        D.slider(row, {
+          target: function () { return self._ctx() ? row : null; },
+          start: function (t, x) { self._drag = { sent: 0, t: null }; move(x); },
+          move: function (t, x) { if (self._drag) move(x); },
+          end: end
+        });
+      };
+      if (window.hkDrag && window.hkDrag.slider) wire(window.hkDrag); else window.addEventListener('hk-drag', function () { wire(window.hkDrag); }, { once: true });
     }
     _switchTo(key) {
       var Mu = this._M();
@@ -1273,8 +1278,10 @@
       }
       var sig = JSON.stringify([pls, this._label(), this._nextLabel(), set, keep, c && c.title, this._openOpts, this._busyPl]);
       if (!force && sig === el.__sig) return;
-      el.__sig = sig;
-      if (!pls.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+      // (counted as drawn only once it is -- a draw that failed half way was never tried again: the Loft's Music page went
+      // without Your Playlists until a reload, 2026-11-10)
+      el.__sig = null;
+      if (!pls.length) { el.innerHTML = ''; el.style.display = 'none'; el.__sig = sig; return; }
       el.style.display = '';
       var html = '<div class="yph"><h3>Your Playlists</h3></div><div class="grid cats">';
       pls.forEach(function (p, i) {
@@ -1292,6 +1299,12 @@
         well.addEventListener('error', function () { well.classList.remove('pic'); }, true);
         self._artImage(p.image, well, '<hk-icon icon="' + esc(p.icon || 'mdi:playlist-music') + '"></hk-icon>', 150);
       });
+      el.__sig = sig;
+    }
+    // YOUR PLAYLISTS ON THEIR OWN (2026-11-10): as the list changes and early in each redraw, guarded -- it was the redraw's
+    // last step, so anything failing before it left the section unmade (the Loft tablet, until a reload)
+    _playlistsSafe() {
+      try { this._refreshPlaylists(); } catch (e) { console.warn('[hk-music] Your Playlists', e && e.message); }
     }
     // "PLAYS ON <rooms>" (or, picked, "Next plays on" white with its X): one
     // button, in Your Playlists' heading and in the trail's row
