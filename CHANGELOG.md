@@ -5,6 +5,22 @@ HK Frontend's releases, newest first. A GitHub release's notes are its section h
 
 ## Unreleased
 
+## 1.57.0 - 2026-11-10
+
+**Changed**
+- **A vacuum's sheet lists only the rooms that vacuum can clean** (its room map in Home Assistant, through Mantel's Clean Areas), two to a row in the wide sheet.
+- **The vacuum's sheet lists its rooms one to a row, scrolling**, sized to the sheet: on a tablet the sheet is wide -- the vacuum, what it is doing and its commands on the left, the rooms down the right with Start Cleaning over them; on a phone Rooms to Clean opens the same list, filling the sheet.
+- **The Large Vacuum block draws the vacuum**, as Tall and Extra Large do: the animated drawing, what it is doing and its battery on the left, the rooms a list down the right that scrolls, Clean and Dock under it.
+- **The vacuum's sheet draws the animated vacuum** in place of its glyph in a circle, and **offers its rooms again** under Mantel (Rooms to Clean, the Vacuums page's picker): it looked only for Home Assistant's own clean_area.
+- **The timer wheels take a finger anywhere in their column**: a swipe that starts on "hr", "min" or "sec", or between two wheels, spins the wheel.
+- **The water heater has a Big Number look**: where the Climate page shows its thermostats as Big Number, the water heater is one too -- its setpoint the number, its own modes held under it.
+- **A thermostat's Big Number sheet puts the number in a card of its own**, as tall as the controls beside it, the number and arrows no longer hanging below them.
+- **The Vacuum card's Clean, Locate and Dock glyphs sit in the middle of their keys** in HK Frontend (they sat low under Home Assistant).
+- **The Small Timers block centers "Start a Timer" and its +** when no timer runs (they sat at the left, where a running timer moves out of the + button's way).
+- **The screensaver's Forecast no longer shows a black box over its weather** when a Holiday slide is in the show (its styles reached the high and low line), **and the New Year board shows its countdown and words** again (its letters were hidden with the Forecast).
+- **Security Extra Large shows the Entries you chose**, in their order (it listed the house's locks instead), and its list's rows no longer draw a frosted band behind them on the Blur look.
+- **Security says when every door and window is closed**: the doors-and-windows toast reads "Doors & windows closed" (a tap opens Doors & Windows), and a list row may be 55 px where that lets one more row in.
+
 ## 1.56.0 - 2026-11-09
 
 **Changed**

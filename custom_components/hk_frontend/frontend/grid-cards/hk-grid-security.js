@@ -190,6 +190,12 @@
         var to = mk('op toast', '<hk-icon></hk-icon><span></span>', open.length + ' open: ' + names, open.length === 1 ? function () { window.hkShell.moreInfo(open[0].id, self); } : go);
         to.querySelector('hk-icon').icon = open[0].icon; to.querySelector('span').textContent = tt;
         box.appendChild(to);
+      } else if (rows.length) {
+        // ALL CLOSED SAYS SO TOO (2026-11-09, the owner: "I don't see the windows and doors closed toast at the bottom of the security card.
+        // Without it, it seems a bit empty"): the same toast, the closed door, a tap to the Doors & Windows page
+        var ok = mk('op toast', '<hk-icon></hk-icon><span></span>', 'Doors and windows: all closed. Opens Doors & Windows.', go);
+        ok.querySelector('hk-icon').icon = 'mdi:door-closed'; ok.querySelector('span').textContent = short ? 'All closed' : 'Doors & windows closed';
+        box.appendChild(ok);
       }
       box.style.display = box.children.length ? '' : 'none';
     }
@@ -316,7 +322,8 @@
       // secured), the name, the state at the right, a hairline between rows; the whole row is the tap, 56 px, never grown
       '.ents.lst{display:flex;flex-direction:column;flex-wrap:nowrap;justify-content:flex-start;align-content:stretch;gap:0;margin:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y}',
       '.ents.lst::-webkit-scrollbar{display:none}',
-      '.ents.lst .ent{width:100%;height:' + SEC_LIST_ROW + 'px;border-radius:0;background:none;border:0;border-top:1px solid ' + v('line') + ';box-shadow:none;--hk-glass-backdrop:none;-webkit-backdrop-filter:none;backdrop-filter:none;transition:opacity ' + C.DUR.press + ' ease}',
+      // (--hk-glass-surface:0: a row is no glass -- the shared blur (hk-glass.js, the Blur look) cut a frosted band behind the rows, 2026-11-09)
+      '.ents.lst .ent{width:100%;height:' + SEC_LIST_ROW + 'px;border-radius:0;background:none;border:0;border-top:1px solid ' + v('line') + ';box-shadow:none;--hk-glass-surface:0;--hk-glass-backdrop:none;-webkit-backdrop-filter:none;backdrop-filter:none;transition:opacity ' + C.DUR.press + ' ease}',
       '.ents.lst .ent.r0{border-top:0}.ents.lst .ent:active{transform:none;opacity:.6}',
       '.ent .dk{display:contents}',
       '.ents.lst .ent .dk{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;flex:none;background:' + v('key') + '}',
@@ -379,18 +386,23 @@
     // ITS LIST: the locks, the garage, the doors and windows (the house's
     // lists, else what it has), each {id, name, icon, value, open, lock}; the
     // open ones first
-    function secRows(client) {
-      var st = (client && client.states) || {}, out = [];
-      var locks = (kind('locks') || own(client, 'lock')).filter(function (id) { return dom(id) === 'lock' && st[id]; });
-      locks.forEach(function (id) {
+    // (members: the block's own Entries, in their order -- the owner, 2026-11-09: "I added the Garage door as a 5th option and it isn't
+    // showing up": the Extra Large keypad block was handed them and listed the house's locks instead; DESIGN.md, "its Entries, when chosen,
+    // are the ones shown, in their order")
+    function secRows(client, members) {
+      var st = (client && client.states) || {}, out = [], own_ = Array.isArray(members) && members.length ? members.filter(function (id) { return st[id]; }) : null;
+      var locks = own_ ? [] : (kind('locks') || own(client, 'lock')).filter(function (id) { return dom(id) === 'lock' && st[id]; });
+      var lockRow = function (id) {
         var s = st[id].state, open = s === 'unlocked' || s === 'open';
         out.push({ id: id, name: friendly(client, id), icon: open ? 'mdi:lock-open-variant' : 'mdi:lock', value: open ? 'Unlocked' : OFF[s] ? 'Unknown' : 'Locked', open: open, lock: !open, tile: true });
-      });
-      var garage = (kind('garage') || own(client, 'cover').filter(function (id) { return DOORS[attr(st[id], 'device_class')]; })).filter(function (id) { return st[id]; });
-      garage.forEach(function (id) {
+      };
+      var garage = own_ ? [] : (kind('garage') || own(client, 'cover').filter(function (id) { return DOORS[attr(st[id], 'device_class')]; })).filter(function (id) { return st[id]; });
+      var garageRow = function (id) {
         var s = st[id].state, shut = s === 'closed' || s === 'off';
         out.push({ id: id, name: friendly(client, id), icon: shut ? 'mdi:garage' : 'mdi:garage-open', value: shut ? 'Closed' : OFF[s] ? 'Unknown' : 'Open', open: !shut && !OFF[s], tile: true });
-      });
+      };
+      if (own_) own_.forEach(function (id) { if (dom(id) === 'lock') lockRow(id); else if (dom(id) === 'cover') garageRow(id); });
+      else { locks.forEach(lockRow); garage.forEach(garageRow); }
       ['doors', 'windows'].forEach(function (k) {
         var dc = k === 'doors' ? 'door' : 'window';
         (kind(k) || Object.keys(st).filter(function (id) { return dom(id) === 'binary_sensor' && attr(st[id], 'device_class') === dc; }).sort())
@@ -420,7 +432,7 @@
       _keys() { return false; }
       _sigOf() {
         var id = this._alarm(), st = id && this.client && this.client.states[id];
-        return JSON.stringify([id, st && st.state, secRows(this.client), this._size(), this._blockKey || '', (this._config || {}).lit, (this._config || {}).hv]);
+        return JSON.stringify([id, st && st.state, secRows(this.client, (this._config || {}).members), this._size(), this._blockKey || '', (this._config || {}).lit, (this._config || {}).hv]);
       }
       _tap() { var id = this._alarm(); if (id) window.hkShell.moreInfo(id, this); }
       // (the plate's tap, hk-base.js openTarget: Small the whole block, Wide its state and Large its heading already
@@ -487,7 +499,7 @@
           this._rowKey = null; this._tileKey = null;          // (a new build: its entries and the line under them drawn again)
           this._built = true;
         }
-        var e = this._e, st = alarm && this.client && this.client.states[alarm], look = alarmLook(st), rows = secRows(this.client), says = secSays(rows);
+        var e = this._e, st = alarm && this.client && this.client.states[alarm], look = alarmLook(st), rows = secRows(this.client, (this._config || {}).members), says = secSays(rows);
         // THE BLOCK'S OWN ENTRIES (members, HomeView's Entries: Choose -- 2026-11-08, the keypad kept in HomeView's Extra Large): its
         // locks and garage doors those, in its order; the doors and windows still the line under them
         var mem = Array.isArray((this._config || {}).members) && this._config.members.length ? this._config.members : null;
@@ -911,9 +923,9 @@
       // tile? This is a step back"): Large, Tall, Wide and Compact list the locks and garage doors as Doors & Locks and House Status do --
       // no plate per row, the glyph in a 36 px disc, a hairline between rows (the top one clipped), each row 56 px and the whole of it the tap.
       // DESIGN.md's colors: secured, the glyph teal in an off well; needs a look, LIT -- the disc teal, the glyph white, the state in the first ink
-      'hk-plate.hv .ents.ls{display:grid;gap:0 14px;grid-auto-rows:' + SEC_LIST_ROW + 'px;align-content:start;clip-path:inset(1px 0 0 0)}',
-      'hk-plate.hv .ents.ls .en{height:' + SEC_LIST_ROW + 'px;display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:12px;row-gap:0;',
-      '  align-content:center;align-items:center;padding:0 4px 0 0;text-align:left;background:none;border:0;border-top:1px solid ' + v('line') + ';border-radius:0;box-shadow:none;',
+      'hk-plate.hv .ents.ls{display:grid;gap:0 14px;grid-auto-rows:var(--lr,' + SEC_LIST_ROW + 'px);align-content:start;clip-path:inset(1px 0 0 0)}',
+      'hk-plate.hv .ents.ls .en{height:var(--lr,' + SEC_LIST_ROW + 'px);display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:12px;row-gap:0;',
+      '  align-content:center;align-items:center;padding:0 4px 0 0;text-align:left;background:none;border:0;border-top:1px solid ' + v('line') + ';border-radius:0;box-shadow:none;--hk-glass-surface:0;',
       '  --hk-glass-backdrop:none;-webkit-backdrop-filter:none;backdrop-filter:none;transition:opacity ' + C.DUR.press + ' ease}',
       'hk-plate.hv .ents.ls .en:active{transform:none;opacity:.6}',
       'hk-plate.hv .ents.ls .en .gw{grid-row:1 / span 2;grid-column:1;width:36px;height:36px;margin:0;border-radius:50%;background:' + v('key') + '}',
@@ -1084,7 +1096,14 @@
         if (!W || !H) return;
         var cols = 1, rows = 1, list = size !== 'XL';
         // (THE LIST, 2026-11-09, mockup 14b: rows of 56 from the top, no gap, a hairline between -- Compact two columns of them)
-        if (list) { cols = size === 'C' ? 2 : 1; rows = Math.max(1, Math.floor((H + 1) / SEC_LIST_ROW)); }
+        // (rows of 56, or 55 where that is what lets one more row in -- the owner, 2026-11-09, of a Compact showing two rows and a band under
+        // them: "there could be room for a third row" -- 55 is still a finger's 44 on the tablet, where a block is drawn at 0.8)
+        var lr = SEC_LIST_ROW;
+        if (list) {
+          cols = size === 'C' ? 2 : 1; rows = Math.max(1, Math.floor((H + 1) / SEC_LIST_ROW));
+          if (Math.floor((H + 1) / 55) > rows) { rows = Math.floor((H + 1) / 55); lr = 55; }
+          e.ents.style.setProperty('--lr', lr + 'px');
+        }
         else { cols = 2; rows = Math.max(1, Math.floor((H + HV_GAP) / (HV_SLOT_H + HV_GAP))); }
         var n = this._slots.length, cap = cols * rows, cut = n > cap, show = cut ? cap - 1 : n;
         // (a list with room for TWO places or fewer -- Wide and Compact on the house's 150 px cells, the toast under them -- shows the rows
