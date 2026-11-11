@@ -21,12 +21,34 @@
         slidesAgain = K.slidesAgain, ST = K.ST, syncPreviewSlide = K.syncPreviewSlide, tabletNow = K.tabletNow,
         teardown = K.teardown, TM = K.TM, tmWatch = K.tmWatch, user = K.user, withPane = K.withPane,
         writeSwitch = K.writeSwitch, WX = K.WX;
+    // (phase 25: the owners' writers, docs/phase25/SAVER-STATE.md)
+    var clock = K.clock, curtainOpts = K.curtainOpts, curtainStale = K.curtainStale, dropDeck = K.dropDeck,
+        forecastSig = K.forecastSig, forecastSky = K.forecastSky, idleCancel = K.idleCancel, noteInput = K.noteInput,
+        paneNote = K.paneNote, Run = K.Run, touchAgain = K.touchAgain;
 
-    var noteDrawn, schedule, start, stop, tellOthers;
-    // (of later parts, used when called: bound once every part has run, runParts)
-    K.ahead.push(function () {
-      noteDrawn = K.noteDrawn; schedule = K.schedule; start = K.start; stop = K.stop; tellOthers = K.tellOthers;
-    });
+    // WHAT IT OWNS ON ST (phase 25, A: others read these; only this file writes them; tools/state_owners.py)
+    ST.hkFirst = true;
+    ST.lastRaw = '';
+    ST.resumedAt = 0;
+    ST.cfg = null;    // the config in force (null: none here)
+    ST.hkOn = false;
+    ST.litAt = 0;
+
+    // ITS OWN STATE (phase 25, A: off the shared ST, which only this file used; tools/state_owners.py)
+    /** @type {any} */ var hkRun = 0;
+    /** @type {any} */ var hkAcked = false;
+    /** @type {any} */ var hkDown = false;
+    /** @type {any} */ var hkAckTry = 0;
+    /** @type {any} */ var hkWokeAt = 0;
+    /** @type {any} */ var lightRun = 0;
+    /** @type {any} */ var hubOff = null;
+
+    // WHAT THE OTHERS ASK OF IT (phase 25, A): the only way another file changes the config's or the heartbeat's
+    // state, each the assignment it was, by name
+    function forgetRaw() { ST.lastRaw = null; }             // the next refresh reads the config afresh
+    function hkAgain() { ST.hkFirst = true; }               // the house's black: the next sync is a first one
+    function beatFrom() { ST.lastBeat = clock.now(); }      // the heartbeat counts from now
+    function resumedNow() { ST.resumedAt = clock.now(); }   // the page was shown again
 
     var HK_WOKE_HOLD = 6000;
     // BLACK OR NOT -- OR NOT KNOWN YET (null): a page loading has its settings,
@@ -50,7 +72,7 @@
       if (!ST.cfg) return null;
       if (!mine()) return false;
       // woken by a tap a moment ago: the switch is on its way off
-      if (clock.now() - ST.hkWokeAt < HK_WOKE_HOLD) return false;
+      if (clock.now() - hkWokeAt < HK_WOKE_HOLD) return false;
       var st = h && h.states && h.states[b.black_switch];
       return st ? st.state === 'on' : null;
     }
@@ -58,15 +80,15 @@
       var t = hkBoard();
       sendWS(t && !t.legacy ? { type: 'hk_frontend/screensaver/black', tablet: t.id, black: ackOn }
                             : { type: 'hk_frontend/screensaver/black', dashboard: dashSeg(), black: ackOn })
-        .then(function () { if (ackOn) ST.hkAcked = true; }, function () { /* older integration: the sleep falls back */ });
+        .then(function () { if (ackOn) hkAcked = true; }, function () { /* older integration: the sleep falls back */ });
     }
     // black: once the curtain is drawn, the backlight down, then say so
     function hkDarken() {
-      var run = ++ST.hkRun, done = false;
+      var run = ++hkRun, done = false;
       var go = function () {
-        if (done || run !== ST.hkRun || !ST.hkOn) return;
+        if (done || run !== hkRun || !ST.hkOn) return;
         done = true;
-        var k = kiosk(), down = function () { if (run === ST.hkRun && ST.hkOn) { setBacklight(0); ST.hkDown = true; ST.hkAckTry = clock.now(); hkAck(true); } };
+        var k = kiosk(), down = function () { if (run === hkRun && ST.hkOn) { setBacklight(0); hkDown = true; hkAckTry = clock.now(); hkAck(true); } };
         if (k && typeof k.getBrightness === 'function') {
           try {
             Promise.resolve(k.getBrightness()).then(function (b) {
@@ -82,12 +104,12 @@
       requestAnimationFrame(function () { if (f1) return; f1 = true; requestAnimationFrame(go); });
     }
     function hkLeave(h) {
-      ST.hkRun++; ST.hkAcked = false; ST.hkDown = false;
+      hkRun++; hkAcked = false; hkDown = false;
       store(BLACK_KEY, null);
       var v = wakeBrightness(h);
       // kept until the black really ends: under the kiosk's black as well (the
       // house's fallback), the backlight comes up as THAT one comes down
-      ST.downOpts = { hold: CURTAIN_HOLD_HK, onFade: function () { if (v != null) rampBacklight(v, CURTAIN_FADE); } };
+      curtainOpts({ hold: CURTAIN_HOLD_HK, onFade: function () { if (v != null) rampBacklight(v, CURTAIN_FADE); } });
       blackChanged();
     }
     // every new client and every settings change
@@ -100,10 +122,10 @@
       if (want === ST.hkOn) {
         // black, but not yet heard by the house (the connection was not up):
         // say so again, every few seconds
-        if (want && ST.hkDown && !ST.hkAcked && clock.now() - ST.hkAckTry > 3000) { ST.hkAckTry = clock.now(); hkAck(true); }
+        if (want && hkDown && !hkAcked && clock.now() - hkAckTry > 3000) { hkAckTry = clock.now(); hkAck(true); }
         // ...or the house no longer has it (its server restarted, and the black came again while this page
         // was already black, 2026-10-21): the switch says unconfirmed, so say it again, every few seconds
-        else if (want && ST.hkDown && hkUnheard(h) && clock.now() - ST.hkAckTry > 3000) { ST.hkAckTry = clock.now(); hkAck(true); }
+        else if (want && hkDown && hkUnheard(h) && clock.now() - hkAckTry > 3000) { hkAckTry = clock.now(); hkAck(true); }
         // a page loaded under a black that is no longer wanted: the cover
         // fades, and the backlight the last page lowered comes back with it
         if (first && !want) bootCover(true, h);
@@ -117,11 +139,11 @@
     // switch going off and from the touch
     function hkTapWake() {
       if (!ST.hkOn) return;
-      ST.hkWokeAt = clock.now();
+      hkWokeAt = clock.now();
       ST.hkOn = false;
       hkAck(false);
-      ST.touchSent = 0; reportTouch();
-      ST.lastInput = Date.now();
+      touchAgain(); reportTouch();
+      noteInput();
       hkLeave(clientNow());
     }
     // THE BLACK THROUGH A RELOAD: hk-settings.js puts a cover up at once on a
@@ -133,31 +155,31 @@
       var el = document.getElementById && document.getElementById('hk-black-boot');
       if (!el) return;
       if (!fade || (ST.curtain && ST.curtain.parentNode)) { el.remove(); return; }
-      ST.curtainRun++;
+      curtainStale();
       var drawn = drawCurtain(), v = wakeBrightness(h);
       el.remove();
       if (drawn) curtainDown({ hold: 0, onFade: function () { if (v != null) rampBacklight(v, CURTAIN_FADE); } });
     }
     var SHOWN_MIN = 500;
     function unstart() {
-      ST.on = false; ST.entrance = null; ST.photoRun++; ST.busy = false; ST.queued = null; ST.lightRun++;
-      if (ST.coverT) { clearTimeout(ST.coverT); ST.coverT = null; }
-      if (ST.slideT) { clearTimeout(ST.slideT); ST.slideT = null; }
+      Run.runEnds(); lightRun++;
+      Run.coverCancel();
+      Run.slideCancel();
       teardown();
-      tellOthers();
+      Run.tellOthers();
     }
     function goDark() {
       if (!ST.on || !ST.host) return;
       if (!ST.DARK_UNDER_BLACK || ST.host.hasAttribute('prep') || !ST.shownAt || clock.now() - ST.shownAt < SHOWN_MIN) { unstart(); return; }
-      ST.entrance = null; ST.lightRun++;
+      Run.noEntrance(); lightRun++;
       ST.host.style.setProperty('--fade', '0ms');
       ST.host.style.setProperty('--blk', '0ms');
       ST.host.removeAttribute('prep');
       ST.host.removeAttribute('undark');
       ST.host.setAttribute('dark', '');
       ST.host.setAttribute('on', '');
-      if (ST.coverT) { clearTimeout(ST.coverT); ST.coverT = null; }
-      noteDrawn();
+      Run.coverCancel();
+      Run.noteDrawn();
     }
     // ...and as it ends. The house's wake turns the photos off under the
     // black, and stop() fades from black to the dashboard. Still on after
@@ -174,16 +196,16 @@
     function litNow() {
       if (black()) return;
       ST.litAt = clock.now();
-      ST.lastInput = Date.now();
+      noteInput();
       armIdle();
       // the photos' timer, held under the black (schedule()), runs again
-      if (ST.slideHeld) { ST.slideHeld = false; if (ST.on && ST.cfg && ST.mode === 'photos' && !ST.busy) schedule(); }
+      if (ST.slideHeld) { Run.slideFree(); if (ST.on && ST.cfg && ST.mode === 'photos' && !ST.busy) Run.schedule(); }
       setTimeout(function () { var h = clientNow(); if (h && !ST.on) onUpdate(h); }, LIT_GRACE + 50);
     }
     function lightSoon() {
       if (black() || !ST.on || !ST.host || !ST.host.hasAttribute('dark')) return;
-      var h = ST.host, run = ++ST.lightRun;
-      var still = function () { return !black() && ST.on && ST.host === h && ST.lightRun === run && h.hasAttribute('dark'); };
+      var h = ST.host, run = ++lightRun;
+      var still = function () { return !black() && ST.on && ST.host === h && lightRun === run && h.hasAttribute('dark'); };
       setTimeout(function () {
         if (!still()) return;
         h.setAttribute('undark', '');
@@ -194,7 +216,7 @@
           h.style.setProperty('--blk', LIGHT_FADE + 'ms');
           h.removeAttribute('dark');
           h.removeAttribute('undark');
-          noteDrawn();
+          Run.noteDrawn();
         }); });
       }, LIGHT_WAIT);
     }
@@ -209,8 +231,8 @@
         var wid = HS && HS.weatherId ? HS.weatherId(h.states) : null, w = wid && h.states[wid];
         var sig = (sun ? sun.last_updated : '') + '|' + (w ? w.last_updated : '') + '|' + Math.floor(Date.now() / 600000);
         if (forceNow || sig !== ST.fSig) {
-          ST.fSig = sig;
-          try { ST.fSky = ST.fscene.update(h) || null; } catch (e) { console.warn('[hk-saver] forecast sky', e); }
+          forecastSig(sig);
+          try { forecastSky(ST.fscene.update(h) || null); } catch (e) { console.warn('[hk-saver] forecast sky', e); }
           // Big Weather's planted time is lit by the same reading (and a layout's)
           if (ST.bigCtl && ST.bigCtl.light) ST.bigCtl.light(ST.fSky);
           if (ST.ly) layoutSoon();
@@ -256,7 +278,7 @@
       if (raw && HS && HS.get) {
         var bAll = HS.get('boards', null), bNow = bAll && bAll[String(location.pathname).split('/')[1] || ''];
         var pvPane = previewPaneOf((bNow && bNow.side_pane_read) || HS.get('side_pane', null), ST.previewOn ? ST.previewPane : null);
-        raw = withPane(raw, pvPane.settings); ST.previewPaneNote = ST.previewOn ? pvPane.message : '';
+        raw = withPane(raw, pvPane.settings); paneNote(ST.previewOn ? pvPane.message : '');
       }
       var SP = window.hkSidePane;
       if (raw && SP && SP.placement(window.innerWidth, window.innerHeight, { width: raw.pane_width }).kind === 'none') raw = Object.assign({}, raw,
@@ -279,7 +301,7 @@
         ST.lastRaw = key;
         var was = ST.cfg;
         ST.cfg = readCfg(raw);
-        if (was && ST.on && !ST.previewOn && ST.cfg) { var reason = ST.startedBy; stop('appearance'); teardown(); start(reason); }
+        if (was && ST.on && !ST.previewOn && ST.cfg) { var reason = ST.startedBy; Run.stop('appearance'); teardown(); Run.start(reason); }
         // the preview follows the settings page: rebuilt with the new options
         // -- or, when only the photos' layout changed, laid out again in place
         if (ST.previewOn && ST.on && ST.cfg) {
@@ -292,16 +314,16 @@
         }
         // ...and a preview asked for before there was a config (the frame's
         // dashboard, or its settings, still arriving) starts once there is one
-        if (ST.previewOn && !ST.on && ST.cfg) setTimeout(function () { if (ST.previewOn && !ST.on && ST.cfg) start('preview'); }, 0);
+        if (ST.previewOn && !ST.on && ST.cfg) setTimeout(function () { if (ST.previewOn && !ST.on && ST.cfg) Run.start('preview'); }, 0);
         // turned off while it shows: its switch goes off too (stop('config') alone left it on, and turning the
         // screensaver back on started it at once, "by the switch", instead of after Starts After)
-        if (!ST.cfg && ST.on) { writeSwitch('off', was); stop('config'); }
-        if (ST.deck && ST.cfg && ST.deck.order !== ST.cfg.order) ST.deck = null;
+        if (!ST.cfg && ST.on) { writeSwitch('off', was); Run.stop('config'); }
+        if (ST.deck && ST.cfg && ST.deck.order !== ST.cfg.order) dropDeck();
         // a new Starts After counts from the last touch now, not when the old (longer) timer runs out
         if (was && ST.cfg && !ST.on && ST.idleT) armIdle();
       }
-      if (!ST.cfg) { if (ST.idleT) { clearTimeout(ST.idleT); ST.idleT = null; } return; }
-      if (!allowed()) { if (ST.on) { writeSwitch('off'); stop('config'); } if (ST.idleT) { clearTimeout(ST.idleT); ST.idleT = null; } return; }
+      if (!ST.cfg) { idleCancel(); return; }
+      if (!allowed()) { if (ST.on) { writeSwitch('off'); Run.stop('config'); } idleCancel(); return; }
       if (!ST.idleT && !ST.on) armIdle();
     }
     // A FROZEN PAGE. Kiosk Satellite's Black screensaver stops the tablet
@@ -313,8 +335,7 @@
     // back: a heartbeat that went quiet, or a visibility change, in the last
     // RESUME_MS. (The heartbeat gap catches a message handled before the
     // timer that would have noticed.)
-    // (`clock`: the tests drive it; the page reads the wall clock)
-    var RESUME_MS = 2500, clock = { now: function () { return Date.now(); } };
+    var RESUME_MS = 2500;
     function beat() {
       if (ST.previewOn && ST.previewSelected) syncPreviewSlide();
       var n = clock.now();
@@ -326,8 +347,8 @@
       return n - ST.resumedAt < RESUME_MS || n - ST.lastBeat > RESUME_MS;
     }
     function hookClient() {
-      if (ST.hubOff || !(window.hkCards && window.hkCards.onClient)) return false;
-      ST.hubOff = window.hkCards.onClient(function (h) { refreshSoon(); onUpdate(h); if (ST.on) { musicWatch(); tmWatch(); } });
+      if (hubOff || !(window.hkCards && window.hkCards.onClient)) return false;
+      hubOff = window.hkCards.onClient(function (h) { refreshSoon(); onUpdate(h); if (ST.on) { musicWatch(); tmWatch(); } });
       if (window.hkMusic && window.hkMusic.onChange) window.hkMusic.onChange(function () {
         if (ST.on) { mus.watchAt = 0; musicWatch(); }
       });
@@ -336,7 +357,6 @@
 
     // (the Now Playing page's, hk-saver-pane.js: once the kit's own entries)
     function panelDone(v) { if (ST.pnl && ST.pnl.view === v) closePanel(false); }
-    function clock24() { return !!(ST.cfg && ST.cfg.clock_24); }
 
     var BLACK_KEY = 'hk-black', BRIGHT_KEY = 'hk-black-bright';
 
@@ -394,9 +414,14 @@
     }
 
     // what the shell and the later parts use of this one
-    K.beat = beat; K.bootCover = bootCover; K.clock = clock; K.clock24 = clock24; K.forecastTick = forecastTick;
+    K.beatFrom = beatFrom; K.forgetRaw = forgetRaw; K.hkAgain = hkAgain; K.resumedNow = resumedNow;
+    K.beat = beat; K.bootCover = bootCover; K.forecastTick = forecastTick;
     K.goDark = goDark; K.hkSync = hkSync; K.hkTapWake = hkTapWake; K.hookClient = hookClient;
     K.justResumed = justResumed; K.lightSoon = lightSoon; K.LIT_GRACE = LIT_GRACE; K.litNow = litNow;
     K.panelDone = panelDone; K.refresh = refresh;
+    // (phase 25: what the earlier parts call of this one, through its exports object Black, made by the shell)
+    var Black = K.Black;
+    Black.bootCover = bootCover; Black.forecastTick = forecastTick; Black.goDark = goDark;
+    Black.hkTapWake = hkTapWake; Black.lightSoon = lightSoon; Black.litNow = litNow; Black.panelDone = panelDone;
   };
 })();

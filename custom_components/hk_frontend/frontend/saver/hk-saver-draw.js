@@ -10,17 +10,42 @@
   (window.hkSaverParts = window.hkSaverParts || {})['hk-saver-draw'] = function (K) {
     var clientNow = K.clientNow, CROSSFADE_MS = K.CROSSFADE_MS, dashConf = K.dashConf, FACE_SHOWS = K.FACE_SHOWS,
         FC_TICK_MS = K.FC_TICK_MS, isFlat = K.isFlat, slideMarks = K.slideMarks, ST = K.ST, sunDown = K.sunDown;
+    // (phase 25: the owners' writers, docs/phase25/SAVER-STATE.md)
+    var Black = K.Black, dropCard = K.dropCard, Layout = K.Layout, mus = K.mus, musicParts = K.musicParts,
+        Pane = K.Pane, Run = K.Run, Screens = K.Screens, setAttr = K.setAttr, showsLayer = K.showsLayer,
+        sinceSlide = K.sinceSlide, slideGone = K.slideGone, slideShown = K.slideShown, slideView = K.slideView;
 
-    var addBand, dropView, exHide, forecastTick, HL, layoutBigKind, layoutDraw, layoutModules, layoutMusic,
-        layoutSlides, layoutSoon, mus, musicParts, musicWatch, reveal, setAttr, showNext, slideView, takeover, TM, WX;
-    // (of later parts, used when called: bound once every part has run, runParts)
-    K.ahead.push(function () {
-      addBand = K.addBand; dropView = K.dropView; exHide = K.exHide; forecastTick = K.forecastTick; HL = K.HL;
-      layoutBigKind = K.layoutBigKind; layoutDraw = K.layoutDraw; layoutModules = K.layoutModules;
-      layoutMusic = K.layoutMusic; layoutSlides = K.layoutSlides; layoutSoon = K.layoutSoon; mus = K.mus;
-      musicParts = K.musicParts; musicWatch = K.musicWatch; reveal = K.reveal; setAttr = K.setAttr;
-      showNext = K.showNext; slideView = K.slideView; takeover = K.takeover; TM = K.TM; WX = K.WX;
-    });
+
+
+    // WHAT IT OWNS ON ST (phase 25, A: others read these; only this file writes them; tools/state_owners.py)
+    ST.fband = null;
+    ST.fSig = '';
+    ST.fSky = null;
+    ST.fcShowing = false;
+    ST.nightT = null;
+    ST.mode = 'photos';
+    ST.fscene = null;
+    ST.bigCtl = null;
+    ST.scn = null;
+    ST.ckCtl = null;
+
+    // ITS OWN STATE (phase 25, A: off the shared ST, which only this file used; tools/state_owners.py)
+    /** @type {any} */ var fTick = null;
+    /** @type {any} */ var bigRun = 0;
+    /** @type {any} */ var bigFor = '';
+    /** @type {any} */ var cornerAsked = false;
+    /** @type {any} */ var cornerAt = 0;
+    /** @type {any} */ var ckLoad = null;
+    /** @type {any} */ var ckRun = 0;
+    /** @type {any} */ var ckArgs = null;
+
+    // WHAT THE OTHERS ASK OF IT (phase 25, A): the only way another file changes the forecast's or night's state,
+    // each the assignment it was, by name
+    function forecastSig(sig) { ST.fSig = sig; }            // the reading the forecast's sky last drew
+    function forecastSky(sky) { ST.fSky = sky; }            // that sky's reading (Big Weather's planted time)
+    function bandIs(el) { ST.fband = el; }                  // the forecast's band, made by the pane's cards
+    function forecastUp() { ST.fcShowing = true; }          // the forecast in the corner of the extras
+    function nightWatch() { if (!ST.nightT) ST.nightT = setInterval(nightCheck, 30000); }
 
     // ------------------------------------------------------------ the forecast
     // The forecast's layer: built the first time it is needed, then kept for
@@ -60,16 +85,16 @@
       var band = document.createElement('div');
       band.className = 'fcband';
       fcb.appendChild(band);
-      addBand(band);
+      Pane.addBand(band);
       startTick();
     }
     function startTick() {
-      if (!ST.fTick) ST.fTick = setInterval(function () { forecastTick(false); }, FC_TICK_MS);
+      if (!fTick) fTick = setInterval(function () { Black.forecastTick(false); }, FC_TICK_MS);
     }
     // Whether the details show now: on the forecast (Forecast, the slide, the
     // no-photos fallback) by `band`; over the photos by `band_photos`.
     function bandWanted() {
-      if (!ST.on || !ST.cfg || ST.muShowing || ST.enShowing || WX.showing || HL.showing) return false;
+      if (!ST.on || !ST.cfg || ST.muShowing || ST.enShowing || Layout.WX.showing || Layout.HL.showing) return false;
       // (a layout's forecast as the background -- Show: Forecast, or Photos with none to show -- has its details as a piece
       // of its own, the Weather band, if it has them at all: the old band's today, its rules and its scrim were drawn over
       // the layout's pieces, 2026-11-02. As a slide the forecast is the slide's, band and all)
@@ -87,12 +112,12 @@
       setAttr(ST.host, 'fcbig', want);
       var fc = ST.root.querySelector('.fc');
       // (its big number changed -- the temperature or the time: drawn again)
-      if (ST.bigCtl && (!want || ST.bigFor !== ST.cfg.forecast_big + '|' + ST.cfg.forecast_planted)) { try { ST.bigCtl.destroy(); } catch (e) { /* gone */ } ST.bigCtl = null; }
+      if (ST.bigCtl && (!want || bigFor !== ST.cfg.forecast_big + '|' + ST.cfg.forecast_planted)) { try { ST.bigCtl.destroy(); } catch (e) { /* gone */ } ST.bigCtl = null; }
       if (!want || !fc || ST.bigCtl) return;
-      var run = ++ST.bigRun;
+      var run = ++bigRun;
       facesModule().then(function (F) {
-        if (!F || run !== ST.bigRun || !ST.on || !fc.isConnected || ST.bigCtl) return;
-        ST.bigFor = ST.cfg.forecast_big + '|' + ST.cfg.forecast_planted;
+        if (!F || run !== bigRun || !ST.on || !fc.isConnected || ST.bigCtl) return;
+        bigFor = ST.cfg.forecast_big + '|' + ST.cfg.forecast_planted;
         ST.bigCtl = F.mount(fc, { kind: 'weather', h24: ST.cfg.clock_24, big: ST.cfg.forecast_big, weather: weatherEntity(), client: clientNow(),
                                planted: ST.cfg.forecast_planted, sky: ST.fSky,
                                onReadings: function (n) { if (ST.host) ST.host.setAttribute('fcn', String(n)); } });
@@ -104,16 +129,16 @@
       if (want) buildBand();
       if (want) ST.host.setAttribute('band', ''); else ST.host.removeAttribute('band');
       if (ST.on && ST.cfg && ST.cfg.band_photos === true) ST.host.setAttribute('bandph', ''); else ST.host.removeAttribute('bandph');
-      layoutSlides();
+      Layout.layoutSlides();
       slideCorner();
     }
     function slideNow() {
       if (!ST.on) return null;
       if (ST.muShowing) return 'music';
       if (ST.enShowing) return 'energy';
-      if (WX.showing) return 'weather';
-      if (TM.showing) return 'timer';
-      if (HL.showing) return 'holiday';
+      if (Layout.WX.showing) return 'weather';
+      if (Layout.TM.showing) return 'timer';
+      if (Layout.HL.showing) return 'holiday';
       if (ST.fcShowing) return bigWanted() ? 'forecast_big' : 'forecast';
       return null;
     }
@@ -143,7 +168,7 @@
       // (the pieces' files asked for once: a load that fails is not asked again from here -- asking again on its failure
       // spun the page, 2026-11-02, the harness's forecast slide; the 0.1.104 rule: nothing wakes itself)
       if (!LM || !WG) {
-        if (!ST.cornerAsked) { ST.cornerAsked = true; layoutModules().then(function (got) { if (ST.on && got && got[0] && got[1]) slideCorner(); }); }
+        if (!cornerAsked) { cornerAsked = true; Layout.layoutModules().then(function (got) { if (ST.on && got && got[0] && got[1]) slideCorner(); }); }
         return;
       }
       if (!ST.scn || !ST.scn.el.isConnected) {
@@ -205,7 +230,8 @@
       // Slides"): each side's stack drops below whatever of the slide it would meet -- Big Weather's two lines at the top,
       // the Weather slide's and Home Energy's own -- by the words and small pictures the slide shows (the music's words
       // move under the corner instead: layoutMusic)
-      var sl = key === 'energy' ? ST.enCtl && ST.enCtl.el : key === 'weather' ? WX.ctl && WX.ctl.el : key === 'holiday' ? HL.ctl && HL.ctl.el : key === 'timer' ? TM.ctl && TM.ctl.el : key ===
+      var sl = key === 'energy' ? ST.enCtl && ST.enCtl.el : key === 'weather' ? Layout.WX.ctl && Layout.WX.ctl.el : key === 'holiday' ? Layout.HL.ctl && Layout.HL.ctl.el : key === 'timer' ?
+        Layout.TM.ctl && Layout.TM.ctl.el : key ===
         'forecast' || key === 'forecast_big' ? ST.root.querySelector('.fc') : null;
       if (sl && k1 > 0) {
         var marks = slideMarks(sl), gap1 = 1.6 * u * k1;
@@ -221,7 +247,7 @@
         });
       }
       // (the music's words below the corner, wherever its words now end)
-      if (key === 'music') layoutMusic();
+      if (key === 'music') Screens.layoutMusic();
     }
     // the room the corner has: the screen less the Side Pane (as a layout's)
     function layoutRoomOf() {
@@ -232,8 +258,8 @@
     function cornerClient() {
       if (!ST.scn || !slideNow()) return;
       var t = Date.now();
-      if (t - ST.cornerAt < 2000) return;
-      ST.cornerAt = t;
+      if (t - cornerAt < 2000) return;
+      cornerAt = t;
       cornerDraw(slideNow());
     }
     function leaveCorner() {
@@ -245,17 +271,17 @@
       if (ST.host) ST.host.removeAttribute('scorner');
     }
     // (the music slide over it hides it)
-    function fcVisible() { return (ST.mode === 'forecast' || ST.fcShowing) && !ST.muShowing && !ST.enShowing && !WX.showing && !HL.showing; }
+    function fcVisible() { return (ST.mode === 'forecast' || ST.fcShowing) && !ST.muShowing && !ST.enShowing && !Layout.WX.showing && !Layout.HL.showing; }
     function ckPhotos() { return !!(ST.host && ST.host.hasAttribute('ckphotos')); }
     function clockModule() {
       if (window.hkSaverClock) return Promise.resolve(window.hkSaverClock);
-      if (!ST.ckLoad) {
+      if (!ckLoad) {
         // (/hk/ revalidates: a changed file is fetched afresh, as the
         // loader's modules are)
-        ST.ckLoad = import('/hk/modules/hk-saverclock.js').then(function () { return window.hkSaverClock; })
-          .catch(function (e) { ST.ckLoad = null; console.warn('[hk-saver] clock', e && e.message); return null; });
+        ckLoad = import('/hk/modules/hk-saverclock.js').then(function () { return window.hkSaverClock; })
+          .catch(function (e) { ckLoad = null; console.warn('[hk-saver] clock', e && e.message); return null; });
       }
-      return ST.ckLoad;
+      return ckLoad;
     }
     function enterClock() {
       var bgk = ST.cfg.clock_bg;
@@ -274,7 +300,7 @@
         ST.host.setAttribute('ckphotos', '');
         setAttr(ST.host, 'cksoft', !!ST.cfg.clock_photo_soft);
         ST.host.style.setProperty('--hk-ckdim', String((ST.cfg.clock_photo_dim || 0) / 100));
-        updateBand(); showNext(true); mountClock('none', true); return;
+        updateBand(); Run.showNext(true); mountClock('none', true); return;
       }
       ST.mode = 'clock';
       ST.host.setAttribute('ckgen', '');
@@ -287,8 +313,8 @@
       if (!ST.root) return;
       // (a layout draws its own time: over the photos or the forecast there is nothing of the clock's to draw)
       if (ST.cfg && ST.cfg.layout && bg === 'none') return;
-      ST.ckArgs = [bg, dimmed];
-      var run = ++ST.ckRun, clockLayer = document.createElement('div');
+      ckArgs = [bg, dimmed];
+      var run = ++ckRun, clockLayer = document.createElement('div');
       clockLayer.className = 'ck';
       // OVER PHOTOS, the clock's text stands out by its own Shadow and Outline
       if (ckPhotos() || ST.cfg.show === 'photos' || ST.cfg.show === 'both') {
@@ -299,11 +325,11 @@
       var face = bg === 'face';
       Promise.all([clockModule(), face ? facesModule() : null]).then(function (got) {
         var C = got[0], F = got[1];
-        if (run !== ST.ckRun || !ST.on || !clockLayer.isConnected) return;
+        if (run !== ckRun || !ST.on || !clockLayer.isConnected) return;
         if (!C || (face && !F)) { clockLayer.remove(); if (ST.mode === 'clock') { ST.mode = 'photos'; ST.host.removeAttribute('ckgen'); ST.host.removeAttribute('ckface'); enterForecast(); } return; }
         ST.ckCtl = face
           ? F.mount(clockLayer, { kind: ST.cfg.show, h24: ST.cfg.clock_24, weather: weatherEntity(), look: ST.cfg.day_look, clocks: C, client: clientNow(), groundOnly: !!ST.cfg.layout &&
-            layoutBigKind() !== 'none' })
+            Layout.layoutBigKind() !== 'none' })
           : C.mount(clockLayer, { style: ST.cfg.clock_style, options: ST.cfg.clock_options, h24: ST.cfg.clock_24, music: ST.cfg.clock_today_music, todayWeather: ST.cfg.clock_today_weather,
             color: ST.cfg.clock_color, bg: bg, motion: ST.cfg.clock_motion, face: !ST.cfg.layout,
                              speed: ST.cfg.clock_speed, depth: ST.cfg.clock_depth, weather: weatherEntity(),
@@ -319,7 +345,7 @@
         // TODAY carries its own weather and music: the corners' step aside
         if (ST.host) setAttr(ST.host, 'ckown', ST.cfg.clock_style === 'today');
         nightCheck();
-        if (!ST.nightT) ST.nightT = setInterval(nightCheck, 30000);
+        nightWatch();
         // Show: Clock on a background of its own: there is something to show
         if (ST.mode === 'clock' && ST.entrance) ST.entrance();
       });
@@ -330,16 +356,16 @@
       return !!(ST.cfg && FACE_SHOWS[ST.cfg.show] && X && X.inkFor && X.inkFor(ST.cfg.show, ST.cfg.day_look, new Date()) === 'dark');
     }
     function slidesAgain() {
-      if (ST.muShowing) { musicParts(slideView(), ST.cfg.music_hide); layoutMusic(); }
+      if (ST.muShowing) { musicParts(slideView(), ST.cfg.music_hide); Screens.layoutMusic(); }
       if (ST.scn && slideNow()) cornerDraw(slideNow());
       return true;
     }
     function remountClock() {
       var laid = !!ST.ly;
-      if (laid) { layoutDraw(); layoutSoon(); }
-      if (!ST.ckArgs || !ST.root || !ST.root.querySelector('.ck')) return laid;
-      var a = ST.ckArgs;
-      ST.ckRun++;
+      if (laid) { Layout.layoutDraw(); Layout.layoutSoon(); }
+      if (!ckArgs || !ST.root || !ST.root.querySelector('.ck')) return laid;
+      var a = ckArgs;
+      ckRun++;
       if (ST.ckCtl) { try { ST.ckCtl.destroy(); } catch (e) { /* gone */ } ST.ckCtl = null; }
       ST.root.querySelectorAll('.ck').forEach(function (n) { n.remove(); });
       mountClock(a[0], a[1]);
@@ -364,7 +390,7 @@
       if (ST.cfg && window.hkSaverFaces && ST.host.hasAttribute('ckface')) setAttr(ST.host, 'cklight', faceLight(window.hkSaverFaces));
       dayFit();
       // (...but in the editor's preview Night leaves a slide shown with See a Slide where it is)
-      if (dark && ST.exKind && !ST.previewOn) exHide();
+      if (dark && ST.exKind && !ST.previewOn) Screens.exHide();
       if (ST.ckCtl && ST.ckCtl.night) ST.ckCtl.night(dark);
     }
     // THE DAY FACE AND THE CORNER (2026-10-31): where the corner's words (the time, the date, the weather) would meet
@@ -439,12 +465,12 @@
       if (scale !== sc) put('--hk-day-scale', scale, 1);
     }
     function leaveClock() {
-      ST.ckArgs = null;
+      ckArgs = null;
       if (ST.nightT) { clearInterval(ST.nightT); ST.nightT = null; }
       if (ST.host) { ST.host.removeAttribute('cknight'); ST.host.removeAttribute('ckown'); ST.host.removeAttribute('ckface'); ST.host.removeAttribute('cklight');
         if (ST.host.style.removeProperty) ['--hk-day-push', '--hk-day-push-dn', '--hk-day-scale'].concat(ST.paneUp ? [] : ['--hk-ss-status-top']).forEach(
           function (k) { ST.host.style.removeProperty(k); }); }
-      ST.ckRun++;
+      ckRun++;
       if (ST.ckCtl) { try { ST.ckCtl.destroy(); } catch (e) { /* gone */ } ST.ckCtl = null; }
       if (ST.root) ST.root.querySelectorAll('.ck').forEach(function (n) { n.remove(); });
       if (ST.host) { ST.host.removeAttribute('ckmode'); ST.host.removeAttribute('ckgen'); ST.host.removeAttribute('ckphotos'); ST.host.removeAttribute('cksoft'); }
@@ -455,29 +481,29 @@
       if (ST.mode === 'forecast' || !ST.root) return;
       ST.mode = 'forecast';
       ST.fcShowing = false;
-      if (ST.slideT) { clearTimeout(ST.slideT); ST.slideT = null; }
+      Run.slideCancel();
       ST.host.removeAttribute('fcslide');
       ST.host.setAttribute('forecast', '');
       buildForecast();
       bigWeather();
       updateBand();
-      forecastTick(true);
-      reveal(ST.root.querySelector('.fc'), true);
+      Black.forecastTick(true);
+      Run.reveal(ST.root.querySelector('.fc'), true);
       if (ST.entrance) ST.entrance();
       // music already playing: its slide, over the forecast
-      if (takeover()) setTimeout(function () { mus.watchAt = 0; musicWatch(); }, 0);
+      if (Screens.takeover()) setTimeout(function () { mus.watchAt = 0; Screens.musicWatch(); }, 0);
     }
     // one slide among the photos (Photos & Forecast)
     function showForecastSlide() {
       if (!ST.on || !ST.root || ST.mode === 'forecast') return;
       buildForecast();
       bigWeather();
-      ST.fcShowing = true; ST.sinceFc = 0; ST.lastSlide = 'forecast';
+      ST.fcShowing = true; slideShown('forecast');
       ST.host.setAttribute('fcslide', '');
       updateBand();
-      forecastTick(true);
-      reveal(ST.root.querySelector('.fc'), false);
-      layoutSoon();
+      Black.forecastTick(true);
+      Run.reveal(ST.root.querySelector('.fc'), false);
+      Layout.layoutSoon();
     }
     function hideForecastSlide() {
       if (!ST.fcShowing) return;
@@ -486,22 +512,22 @@
       if (ST.host) {
         ST.host.setAttribute('fcout', '');
         clearTimeout(ST.exOutT);
-        ST.exOutT = setTimeout(function () { ST.exOutT = null; if (ST.host && !ST.fcShowing) ST.host.removeAttribute('fcout'); }, CROSSFADE_MS + 100);
+        Screens.fcOutAfter(CROSSFADE_MS + 100);
         ST.host.removeAttribute('fcslide');
       }
       updateBand();
-      forecastTick(false);
-      layoutSoon();
+      Black.forecastTick(false);
+      Layout.layoutSoon();
     }
     function leaveForecast() {
-      ST.bigRun++;
+      bigRun++;
       if (ST.bigCtl) { try { ST.bigCtl.destroy(); } catch (e) { /* gone with the element */ } ST.bigCtl = null; }
       if (ST.host) { ST.host.removeAttribute('fcbig'); ST.host.removeAttribute('fcn'); }
-      if (ST.fTick) { clearInterval(ST.fTick); ST.fTick = null; }
+      if (fTick) { clearInterval(fTick); fTick = null; }
       if (ST.fscene) { try { ST.fscene.destroy(); } catch (e) { /* gone with the element */ } ST.fscene = null; }
       ST.fSky = null;
-      if (ST.fband) ST.cards = ST.cards.filter(function (c) { return c !== ST.fband; });
-      ST.fband = null; ST.fSig = ''; ST.mode = 'photos'; ST.fcShowing = false; ST.sinceFc = 0;
+      if (ST.fband) dropCard(ST.fband);
+      ST.fband = null; ST.fSig = ''; ST.mode = 'photos'; ST.fcShowing = false; sinceSlide(0);
     }
     function resetForecast() {
       if (ST.fadeDone) ST.fadeDone();
@@ -510,12 +536,12 @@
       // that reveal un-tops and empties it rather than leaving it opaque over
       // the new photo (or under the forecast, decoded, for the whole session).
       var last = ST.root && ST.root.querySelectorAll('.ph')[ST.layer];
-      ST.displayLayer = last && last.classList.contains('top') ? last : null;
+      showsLayer(last && last.classList.contains('top') ? last : null);
       leaveForecast();
       if (ST.root) ST.root.querySelectorAll('.fc,.fcb').forEach(function (n) { n.remove(); });
       // the slide goes with the forecast's layers; the pane's music stays with the pane
-      dropView(slideView());
-      ST.muShowing = false; ST.lastSlide = '';
+      Screens.dropView(slideView());
+      Screens.muHidden(); slideGone();
       if (ST.host) ST.host.removeAttribute('muslide');
       if (ST.host) {
         ST.host.removeAttribute('forecast'); ST.host.removeAttribute('fcslide'); ST.host.removeAttribute('band'); ST.host.removeAttribute('bandph');
@@ -613,7 +639,7 @@
 
     function pieceFile(f) {
       if (pieceFiles[f]) return;
-      pieceFiles[f] = import('/hk/modules/hk-saverpieces-' + f + '.js').then(function () { if (f === 'home') piecesStarted(); layoutSoon(); })
+      pieceFiles[f] = import('/hk/modules/hk-saverpieces-' + f + '.js').then(function () { if (f === 'home') piecesStarted(); Layout.layoutSoon(); })
         .catch(function (e) { console.warn('[hk-saver] pieces', f, e && e.message); });
     }
 
@@ -707,6 +733,8 @@
     var EX_PREVIEW_MS = 8000;              // HK Settings' preview: the first one soon
 
     // what the shell and the later parts use of this one
+    K.bandIs = bandIs; K.forecastSig = forecastSig; K.forecastSky = forecastSky; K.forecastUp = forecastUp;
+    K.nightWatch = nightWatch;
     K.ANALOG = ANALOG; K.bigWanted = bigWanted; K.bigWeather = bigWeather; K.buildForecast = buildForecast;
     K.ckFx = ckFx; K.ckPhotos = ckPhotos; K.clockModule = clockModule; K.cornerClient = cornerClient;
     K.dayFit = dayFit; K.deg = deg; K.energyPage = energyPage; K.enterClock = enterClock;
@@ -718,5 +746,8 @@
     K.resetForecast = resetForecast; K.sansClock = sansClock; K.sansSlides = sansSlides;
     K.showForecastSlide = showForecastSlide; K.slidesAgain = slidesAgain; K.updateBand = updateBand;
     K.weatherEntity = weatherEntity;
+    // (phase 25: what the earlier parts call of this one, through its exports object Draw, made by the shell)
+    var Draw = K.Draw;
+    Draw.ckPhotos = ckPhotos; Draw.photoLum = photoLum;
   };
 })();

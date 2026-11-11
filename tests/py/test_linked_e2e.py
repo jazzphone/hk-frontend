@@ -1,6 +1,6 @@
 """Linked mode END TO END, in one process: this integration (Home Assistant's
 test harness) linked to Mantel Server's REAL linked endpoint
-(mantel_server/linked.py, with its in-memory handler and a real Service
+(mantel_server/linked/__init__.py, with its in-memory handler and a real Service
 account), over a real local socket. One action and one entity, including the
 black screen's `confirmed` handshake as the sleep scripts see it.
 
@@ -29,7 +29,7 @@ for _p in (os.path.join(_ROOT, "hosts", "server"), _ROOT):
         sys.path.append(_p)
 
 from mantel_server import linked as mantel_linked  # noqa: E402
-from mantel_server import service_accounts  # noqa: E402
+from mantel_server.identity import service_accounts  # noqa: E402
 
 DOMAIN = "hk_frontend"
 BLACK_UID = f"{ENTRY}_hall_black_screen"

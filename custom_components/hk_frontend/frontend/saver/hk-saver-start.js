@@ -12,7 +12,7 @@
         blackPage = K.blackPage, build = K.build, callWS = K.callWS, cfgKey = K.cfgKey, ckPhotos = K.ckPhotos,
         cleanDepth = K.cleanDepth, cleanFocus = K.cleanFocus, cleanVariants = K.cleanVariants,
         clearCanvas = K.clearCanvas, clock = K.clock, closePanel = K.closePanel, CROSSFADE_MS = K.CROSSFADE_MS,
-        cutsFollow = K.cutsFollow, Deck = K.Deck, drawBackdrop = K.drawBackdrop, energyPrep = K.energyPrep,
+        cutsFollow = K.cutsFollow, drawBackdrop = K.drawBackdrop, energyPrep = K.energyPrep,
         energyReady = K.energyReady, enterClock = K.enterClock, enterForecast = K.enterForecast,
         enterLayout = K.enterLayout, ENTRANCE_MAX = K.ENTRANCE_MAX, exArm = K.exArm, FACE_SHOWS = K.FACE_SHOWS,
         FADE_BACK_MS = K.FADE_BACK_MS, FADE_IN_MS = K.FADE_IN_MS, GHOST_MS = K.GHOST_MS,
@@ -30,6 +30,51 @@
         slideReady = K.slideReady, slideShow = K.slideShow, ST = K.ST, syncPreviewSlide = K.syncPreviewSlide,
         takeover = K.takeover, teardown = K.teardown, TM = K.TM, tmWatch = K.tmWatch, updateBand = K.updateBand,
         within = K.within, writeSwitch = K.writeSwitch, WX = K.WX;
+    // (phase 25: the owners' writers, docs/phase25/SAVER-STATE.md)
+    var askedEnds = K.askedEnds, countPhoto = K.countPhoto, deckFor = K.deckFor, exCancel = K.exCancel,
+        flipLayer = K.flipLayer, idleCancel = K.idleCancel, inputFresh = K.inputFresh, keepPh = K.keepPh,
+        lastPhotoIs = K.lastPhotoIs, mosaicGone = K.mosaicGone, noteInput = K.noteInput, pressIs = K.pressIs,
+        pressStopped = K.pressStopped, showsLayer = K.showsLayer;
+
+    // WHAT IT OWNS ON ST (phase 25, A: others read these; only this file writes them; tools/state_owners.py)
+    ST.on = false;         // showing (or fading in)
+    ST.slideT = null;
+    ST.listKey = '';
+    ST.photoRun = 0;
+    ST.entrance = null;
+    ST.coverT = null;
+    ST.busy = false;
+    ST.queued = null;
+    ST.slideHeld = false;
+    ST.startedBy = '';
+    ST.fadeDone = null;
+    ST.coveredPage = null;
+    ST.failed = 0;
+    ST.shownAt = 0;
+
+    // ITS OWN STATE (phase 25, A: off the shared ST, which only this file used; tools/state_owners.py)
+    /** @type {any} */ var listAt = 0;
+    /** @type {any} */ var listing = null;
+    /** @type {any} */ var pageVisibility = null;
+    /** @type {any} */ var coveredView = [];
+    /** @type {any} */ var builtFor = null;
+    /** @type {any} */ var litWait = null;
+    /** @type {any} */ var drawnAs = 'dashboard';
+    /** @type {any} */ var noteRun = 0;
+    /** @type {any} */ var moTap = false;
+    /** @type {any} */ var slideBefore = '';
+
+    // WHAT THE OTHERS ASK OF IT (phase 25, A): the only way another file changes the run's state, each the
+    // assignment it was, by name
+    function runOff() { ST.on = false; }                   // the preview restarting it
+    function runEnds() {                                    // ended under the house's black (black's unstart)
+      ST.on = false; ST.entrance = null; ST.photoRun++; ST.busy = false; ST.queued = null;
+    }
+    function noEntrance() { ST.entrance = null; }           // it will not fade in now
+    function coverCancel() { if (ST.coverT) { clearTimeout(ST.coverT); ST.coverT = null; } }
+    function slideCancel() { if (ST.slideT) { clearTimeout(ST.slideT); ST.slideT = null; } }
+    function slideFree() { ST.slideHeld = false; }          // the photos' timer is held no more
+    function listAgain() { ST.listKey = ''; }               // the next listing asks the server afresh
 
     // ------------------------------------------------------------ start / stop
     function start(reason) {
@@ -44,15 +89,15 @@
       // house's answer to a tap (photos off within 2 s, TABLET-INVARIANTS 16c).
       if (black()) return false;
       if (reason === 'switch' && clock.now() - ST.litAt < LIT_GRACE) return false;
-      if (ST.idleT) { clearTimeout(ST.idleT); ST.idleT = null; }
-      ST.on = true; ST.startedBy = reason || 'idle'; ST.mx = null; ST.my = null; ST.press = null; ST.shownAt = 0;
-      ST.photoRun++; ST.busy = false; ST.queued = null; ST.litWait = null;
+      idleCancel();
+      ST.on = true; ST.startedBy = reason || 'idle'; inputFresh(); ST.shownAt = 0;
+      ST.photoRun++; ST.busy = false; ST.queued = null; litWait = null;
       // BUILT FOR OTHER SETTINGS: its cards were set up for them (Home Status
       // sized for the calendar pane, or for the corner), and a host kept from
       // an earlier start kept them -- the pane turned off on HK Settings left
       // Home Status small, halfway along the top (2026-10-01). Built again.
-      if (ST.host && (ST.host.hasAttribute('blocking') || ST.host.hasAttribute('released') || ST.builtFor !== cfgKey())) teardown();
-      if (!ST.host) { build(); ST.builtFor = cfgKey(); }
+      if (ST.host && (ST.host.hasAttribute('blocking') || ST.host.hasAttribute('released') || builtFor !== cfgKey())) teardown();
+      if (!ST.host) { build(); builtFor = cfgKey(); }
       ST.host.style.setProperty('--fade', FADE_IN_MS + 'ms');
       if (ST.cfg.zoom && !reducedMotion()) ST.host.setAttribute('zoom', ''); else ST.host.removeAttribute('zoom');
       ST.host.removeAttribute('blocking');
@@ -122,7 +167,7 @@
     function stop(reason) {
       if (!ST.on) return false;
       if (ST.designController) ST.designController.clear();
-      if (ST.asked) { ST.asked = false; ST.force = ST.previewOn; }
+      askedEnds();
       closePanel(false);
       ST.on = false;
       ST.entrance = null;
@@ -141,10 +186,10 @@
       var keep = !!(ST.host && ST.host.hasAttribute('dark') && black());
       if (!keep) coverDashboard(false);
       if (ST.slideT) { clearTimeout(ST.slideT); ST.slideT = null; }
-      if (ST.exT) { clearTimeout(ST.exT); ST.exT = null; }
+      exCancel();
       var ms = isFlat() ? 0 : ST.cfg ? ST.cfg.fade_back : FADE_BACK_MS;
-      if (reason === 'touch') { writeSwitch('off'); ST.press = { up: ST.pressStop ? null : clock.now(), at: clock.now() }; }
-      ST.pressStop = false;
+      if (reason === 'touch') { writeSwitch('off'); pressIs({ up: ST.pressStop ? null : clock.now(), at: clock.now() }); }
+      pressStopped(false);
       // the dashboard, its sky and its cameras wake now, under the screensaver
       tellOthers();
       var h = ST.host, stoppedRun = ST.photoRun;
@@ -183,8 +228,8 @@
         // from that frame -- never a cut to something else
         var fromLast = function () {
           if (!still()) return;
-          if (ST.drawnAs === 'dark') h.setAttribute('dark', '');      // black, then the fade
-          else if (ST.drawnAs === 'dashboard') {                       // the dashboard, at once
+          if (drawnAs === 'dark') h.setAttribute('dark', '');      // black, then the fade
+          else if (drawnAs === 'dashboard') {                       // the dashboard, at once
             whenShown();
             h.removeAttribute('on'); h.removeAttribute('waking'); h.removeAttribute('dark');
           }
@@ -199,24 +244,24 @@
           // (screen-recorded). So the dashboard stays hidden over the page's
           // black background until frames have been drawn after it.
           blackPage(true);
-          ST.litWait = function () { fromLast(); afterDraw(fade, whenShown, null, ST.drawnAs === 'dark'); };
+          litWait = function () { fromLast(); afterDraw(fade, whenShown, null, drawnAs === 'dark'); };
         } else afterDraw(fade, whenShown, fromLast);
       }
-      ST.lastInput = Date.now();
+      noteInput();
       armIdle();
       return true;
     }
     function lit() {
-      if (black() || !ST.litWait) return;
-      var fn = ST.litWait; ST.litWait = null; fn();
+      if (black() || !litWait) return;
+      var fn = litWait; litWait = null; fn();
     }
     function noteDrawn() {
       if (typeof requestAnimationFrame !== 'function') return;
-      var run = ++ST.noteRun, seen = null;
+      var run = ++noteRun, seen = null;
       requestAnimationFrame(function () {
         if (seen) return;                    // each step once
         seen = !ST.host || !ST.host.hasAttribute('on') ? 'dashboard' : ST.host.hasAttribute('dark') ? 'dark' : 'photos';
-        requestAnimationFrame(function () { requestAnimationFrame(function () { if (run === ST.noteRun) ST.drawnAs = seen; }); });
+        requestAnimationFrame(function () { requestAnimationFrame(function () { if (run === noteRun) drawnAs = seen; }); });
       });
     }
     // The sky, the cards and a dismissed pop-up's record all follow this.
@@ -233,20 +278,20 @@
         if (ST.coverT) { clearTimeout(ST.coverT); ST.coverT = null; }
         if (ST.coveredPage) {
           var st = ST.coveredPage.style;
-          if (ST.pageVisibility.value) st.setProperty('visibility', ST.pageVisibility.value, ST.pageVisibility.priority);
+          if (pageVisibility.value) st.setProperty('visibility', pageVisibility.value, pageVisibility.priority);
           else st.removeProperty('visibility');
         }
-        ST.coveredView.forEach(function (c) {
+        coveredView.forEach(function (c) {
           if (c.value) c.el.style.setProperty('visibility', c.value, c.priority); else c.el.style.removeProperty('visibility');
         });
-        ST.coveredPage = null; ST.pageVisibility = null; ST.coveredView = [];
+        ST.coveredPage = null; pageVisibility = null; coveredView = [];
         return;
       }
       if (ST.coveredPage) return;
       var page = window.hkShell.root();
       if (!page || !page.style) return;
       ST.coveredPage = page;
-      ST.pageVisibility = { value: page.style.getPropertyValue('visibility'), priority: page.style.getPropertyPriority('visibility') };
+      pageVisibility = { value: page.style.getPropertyValue('visibility'), priority: page.style.getPropertyPriority('visibility') };
       page.style.setProperty('visibility', 'hidden', 'important');
       // THE VIEW, WHERE THE HOST KEEPS IT OUTSIDE ITS ROOT (Mantel: #view
       // beside #hk-shell-root, 2026-10-21). Left showing under the photos, the
@@ -256,7 +301,7 @@
       // it mid-turn. Hidden with the root, as Home Assistant's whole page is.
       var view = window.hkShell.viewContainer ? window.hkShell.viewContainer() : null;
       if (view && view.style && !within(page, view)) {
-        ST.coveredView.push({ el: view, value: view.style.getPropertyValue('visibility'), priority: view.style.getPropertyPriority('visibility') });
+        coveredView.push({ el: view, value: view.style.getPropertyValue('visibility'), priority: view.style.getPropertyPriority('visibility') });
         view.style.setProperty('visibility', 'hidden', 'important');
       }
       // BACK TO THE TOP, UNSEEN (2026-10-04). The house's sleep script used to
@@ -277,8 +322,8 @@
     function listPhotos() {
       var land = landscapes();
       var key = (land ? LANDSCAPES : ST.cfg.photos) + '|' + ST.cfg.order;
-      if (ST.deck && ST.listKey === key && Date.now() - ST.listAt < LIST_TTL_MS && ST.deck.items.length) return Promise.resolve(ST.deck);
-      if (ST.listing && ST.listing.key === key) return ST.listing;
+      if (ST.deck && ST.listKey === key && Date.now() - listAt < LIST_TTL_MS && ST.deck.items.length) return Promise.resolve(ST.deck);
+      if (listing && listing.key === key) return listing;
       var out = [];
       function walk(id, depth) {
         if (out.length >= LIST_MAX) return Promise.resolve();
@@ -322,19 +367,19 @@
             });
           })
         : walk(ST.cfg.photos, 0);
-      ST.listing = source.then(function () {
-        if (!ST.deck || ST.deck.order !== ST.cfg.order) ST.deck = new Deck(ST.cfg.order);
+      listing = source.then(function () {
+        deckFor(ST.cfg.order);
         ST.deck.set(out);
-        ST.listAt = Date.now(); ST.listKey = key;
+        listAt = Date.now(); ST.listKey = key;
         return ST.deck;
       }).catch(function (e) {
         console.warn('[hk-saver] photos', land ? LANDSCAPES : ST.cfg.photos, e && e.message);
-        if (!ST.deck) ST.deck = new Deck(ST.cfg.order);
-        ST.listAt = Date.now() - LIST_TTL_MS + 60000;   // try again in a minute
+        if (!ST.deck) deckFor(ST.cfg.order);
+        listAt = Date.now() - LIST_TTL_MS + 60000;   // try again in a minute
         return ST.deck;
-      }).then(function (d) { ST.listing = null; return d; });
-      ST.listing.key = key;
-      return ST.listing;
+      }).then(function (d) { listing = null; return d; });
+      listing.key = key;
+      return listing;
     }
     // THE DECODED PHOTO LET GO (2026-10-29): load() holds the picture in an
     // Image of its own (to know its size and to draw the backdrop or a mosaic
@@ -351,8 +396,8 @@
     }
     var shapes = {};
     function showNext(first) { advance(function () { return ST.deck && ST.deck.next(); }, first); }
-    function nextPhoto() { ST.moTap = true; advance(function () { return ST.deck && ST.deck.next(); }); }
-    function previousPhoto() { ST.moTap = true; advance(function () { return ST.deck && ST.deck.previous(); }); }
+    function nextPhoto() { moTap = true; advance(function () { return ST.deck && ST.deck.next(); }); }
+    function previousPhoto() { moTap = true; advance(function () { return ST.deck && ST.deck.previous(); }); }
     function advance(pick, first) {
       if (!ST.on || ST.mode !== 'photos') return;
       if (ST.busy) { ST.queued = pick; return; }
@@ -400,8 +445,8 @@
           }
           var n = Math.min(moCount(), d.items.length);
           if (n < 2) return attempt();
-          var one = !first && !ST.moTap && ST.cfg.mosaic_change === 'one' && ST.moState && ST.moState.n === n && ST.moState.left > 0 && ST.moState.layer === ST.displayLayer;
-          ST.moTap = false;
+          var one = !first && !moTap && ST.cfg.mosaic_change === 'one' && ST.moState && ST.moState.n === n && ST.moState.left > 0 && ST.moState.layer === ST.displayLayer;
+          moTap = false;
           var want = one ? 1 : n, got = [], misses = 0;
           var step = function () {
             if (got.length >= want || !active()) return got;
@@ -450,8 +495,8 @@
         // A SLIDE every few photos: the music, the forecast and Home Energy
         // take turns (the music only while it plays)
         if (ST.sinceFc >= ST.cfg.forecast_every) {
-          if (ST.lastSlide && ST.lastSlide !== 'timer') ST.slideBefore = ST.lastSlide;
-          var s = slideOf(ST.cfg, musicPlaying(), ST.lastSlide, energyReady(), slideReady(WX), slideReady(HL), slideReady(TM), ST.slideBefore);
+          if (ST.lastSlide && ST.lastSlide !== 'timer') slideBefore = ST.lastSlide;
+          var s = slideOf(ST.cfg, musicPlaying(), ST.lastSlide, energyReady(), slideReady(WX), slideReady(HL), slideReady(TM), slideBefore);
           if (s === 'music' && showMusicSlide()) { schedule(); return; }
           if ((s === 'weather' || s === 'holiday' || s === 'timer') && slideShow(s === 'weather' ? WX : s === 'timer' ? TM : HL)) { schedule(); return; }
           if (s === 'energy' && showEnergySlide()) { schedule(); return; }
@@ -475,7 +520,7 @@
       void next.offsetWidth;
       next.style.transition = first || !old ? 'none' : '';
       next.classList.add('top');
-      ST.displayLayer = next;
+      showsLayer(next);
       // (the subject's twin over the layout's face, in step: phase 3)
       if (ST.ly) { layoutCut(); cutsFollow(); }
       var timer;
@@ -512,10 +557,10 @@
       // (a mosaic's cells, from before: gone)
       next.classList.remove('mo');
       next.querySelectorAll('.mowrap').forEach(function (w) { w.querySelectorAll('canvas').forEach(clearCanvas); w.remove(); });
-      ST.moState = null;
+      mosaicGone();
       var L = layOut(next, ph), fit = L.fit, lay = L.lay;
       // (the preview keeps it, to show again as its settings change)
-      ST.lastPh = ST.previewOn ? ph : null;
+      keepPh(ST.previewOn ? ph : null);
       fg.src = ph.url;
       photoFaces(next, ph, L);
       // (with the calendar pane the blurred copy is always there: it is the
@@ -533,15 +578,22 @@
         next.classList.add('zoom');
       }
       reveal(next, first);
-      ST.layer = 1 - ST.layer;
+      flipLayer();
       // the first photo is in: the screensaver may fade in now (start)
       if (first && ST.entrance) ST.entrance();
-      ST.shown++; ST.sinceFc++; ST.lastPhoto = ph.item.title || ph.item.id;
+      countPhoto(); lastPhotoIs(ph.item.title || ph.item.id);
     }
 
     // what the shell and the later parts use of this one
+    K.coverCancel = coverCancel; K.listAgain = listAgain; K.noEntrance = noEntrance; K.runEnds = runEnds; K.runOff = runOff; K.slideCancel = slideCancel; K.slideFree = slideFree;
     K.coverDashboard = coverDashboard; K.lit = lit; K.nextPhoto = nextPhoto; K.noteDrawn = noteDrawn; K.paint = paint;
     K.previousPhoto = previousPhoto; K.releasePh = releasePh; K.reveal = reveal; K.schedule = schedule;
     K.showNext = showNext; K.start = start; K.stop = stop; K.tellOthers = tellOthers;
+    // (phase 25: what the earlier parts call of this one, through its exports object Run, made by the shell)
+    var Run = K.Run;
+    Run.coverCancel = coverCancel; Run.lit = lit; Run.noEntrance = noEntrance; Run.noteDrawn = noteDrawn;
+    Run.paint = paint; Run.releasePh = releasePh; Run.reveal = reveal; Run.runEnds = runEnds; Run.runOff = runOff;
+    Run.schedule = schedule; Run.showNext = showNext; Run.slideCancel = slideCancel; Run.slideFree = slideFree;
+    Run.start = start; Run.stop = stop; Run.tellOthers = tellOthers;
   };
 })();

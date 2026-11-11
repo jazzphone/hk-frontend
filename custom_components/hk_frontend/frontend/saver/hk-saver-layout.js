@@ -17,26 +17,42 @@
         nightCheck = K.nightCheck, photoOpts = K.photoOpts, pieceFile = K.pieceFile, piecesStarted = K.piecesStarted,
         reducedMotion = K.reducedMotion, ST = K.ST, TB_COVER = K.TB_COVER, tbShare = K.tbShare, timeNow = K.timeNow,
         timerHold = K.timerHold, updateBand = K.updateBand, weatherEntity = K.weatherEntity;
+    // (phase 25: the owners' writers, docs/phase25/SAVER-STATE.md)
+    var Black = K.Black, clock = K.clock, musicNow = K.musicNow, musicOf = K.musicOf, nightWatch = K.nightWatch,
+        Pane = K.Pane, Run = K.Run, Screens = K.Screens, setAttr = K.setAttr, slideShown = K.slideShown;
 
-    var black, clock, exArm, exHide, forecastTick, hideMusicSlide, musicNow, musicOf, setAttr, showNext;
-    // (of later parts, used when called: bound once every part has run, runParts)
-    K.ahead.push(function () {
-      black = K.black; clock = K.clock; exArm = K.exArm; exHide = K.exHide; forecastTick = K.forecastTick;
-      hideMusicSlide = K.hideMusicSlide; musicNow = K.musicNow; musicOf = K.musicOf; setAttr = K.setAttr;
-      showNext = K.showNext;
-    });
+
+
+    // WHAT IT OWNS ON ST (phase 25, A: others read these; only this file writes them; tools/state_owners.py)
+    ST.ly = null;
+    ST.enCtl = null;
+    ST.enShowing = false;
+    ST.TW = null;
+
+    // ITS OWN STATE (phase 25, A: off the shared ST, which only this file used; tools/state_owners.py)
+    /** @type {any} */ var lyRun = 0;
+    /** @type {any} */ var lyLoad = null;
+    /** @type {any} */ var lyClientAt = 0;
+    /** @type {any} */ var enT = null;
+    /** @type {any} */ var enRun = 0;
+    // OVER THE FORECAST, ITS LANDSCAPE BLURRED (2026-10-31, the owner: Home Energy over the forecast "doesn't blur the
+    // forecast backdrop" -- the big temperature and the details read through its dark wash): the season's landscape on
+    // screen drawn small, as a photo's blurred copy is, its foot at the foot (hk-sky.js .land: cover, center bottom).
+    // Its image is the one the sky shows, from the browser's cache; until it has loaded (or under Flat, which draws no
+    // copies), the darkened sky as before.
+    /** @type {any} */ var landIm = null;
 
     function layoutModules() {
-      if (!ST.lyLoad) {
+      if (!lyLoad) {
         // (each on its own: without the widgets' file the big element and the cards still draw)
         var get = function (name, file) {
           return window[name] ? Promise.resolve(window[name]) : import('/hk/modules/' + file).then(function () { return window[name]; })
             .catch(function (e) { console.warn('[hk-saver] layout', file, e && e.message); return null; });
         };
-        ST.lyLoad = Promise.all([get('hkSaverLayout', 'hk-saverlayout.js'), get('hkSaverWidgets', 'hk-saverwidgets.js')])
-          .then(function (got) { if (!got[0]) ST.lyLoad = null; return got; });
+        lyLoad = Promise.all([get('hkSaverLayout', 'hk-saverlayout.js'), get('hkSaverWidgets', 'hk-saverwidgets.js')])
+          .then(function (got) { if (!got[0]) lyLoad = null; return got; });
       }
-      return ST.lyLoad;
+      return lyLoad;
     }
     function enterLayout() {
       leaveLayout();
@@ -45,7 +61,7 @@
       layoutLayer.className = 'lay';
       ST.root.insertBefore(layoutLayer, ST.root.querySelector('.info'));
       ST.host.setAttribute('lay', '');
-      var run = ++ST.lyRun;
+      var run = ++lyRun;
       ST.ly = { run: run, layer: layoutLayer, big: null, widgets: {}, soonT: null, minuteT: null, ro: null, last: '' };
       layoutModules().then(function (got) {
         if (!ST.ly || ST.ly.run !== run || !ST.on || !got[0]) return;
@@ -64,12 +80,12 @@
         setTimeout(layoutSoon, 1200);
         // NIGHT MODE with a layout, whatever is behind it
         nightCheck();
-        if (!ST.nightT) ST.nightT = setInterval(nightCheck, 30000);
+        nightWatch();
         if (typeof ResizeObserver === 'function') { ST.ly.ro = new ResizeObserver(layoutSoon); ST.ly.ro.observe(ST.host); }
       });
     }
     function leaveLayout() {
-      ST.lyRun++;
+      lyRun++;
       if (!ST.ly) { if (ST.host) ST.host.removeAttribute('lay'); return; }
       clearTimeout(ST.ly.soonT); clearTimeout(ST.ly.minuteT); clearInterval(ST.ly.secT);
       if (ST.ly.ro) ST.ly.ro.disconnect();
@@ -116,8 +132,8 @@
     function layoutClient() {
       if (!ST.ly) return;
       var now = Date.now();
-      if (now - ST.lyClientAt < 2000) return;         // the house's states change many times a second: the words, at most every 2 s
-      ST.lyClientAt = now;
+      if (now - lyClientAt < 2000) return;         // the house's states change many times a second: the words, at most every 2 s
+      lyClientAt = now;
       layoutSoon();
     }
     function layoutBigOff() {
@@ -567,10 +583,10 @@
     // for -- so its first turn has them. `hold` (HK Settings' preview of Home
     // Energy): shown as soon as they are here, and kept up
     function energyPrep() {
-      var run = ++ST.enRun, hold = ST.previewOn && (ST.previewEnergy || ST.previewSelected === 'energy');
+      var run = ++enRun, hold = ST.previewOn && (ST.previewEnergy || ST.previewSelected === 'energy');
       if (!ST.cfg || (!ST.cfg.energy_slide && !hold)) return;
       slideModule(EN_MOD).then(function (X) { return X ? X.ready().then(function () { return X; }) : null; }).then(function (X) {
-        if (!X || run !== ST.enRun || !ST.on || !ST.root || !ST.cfg || (!ST.cfg.energy_slide && !hold)) return;
+        if (!X || run !== enRun || !ST.on || !ST.root || !ST.cfg || (!ST.cfg.energy_slide && !hold)) return;
         // in its place at the start, as the weather's: put in at its first
         // turn, its layer was made as it came in (2026-10-19)
         if (!ST.enCtl) {
@@ -581,9 +597,9 @@
         landImg();                         // (the landscape's image asked for now: its blurred copy ready at the first turn)
         if (!hold) return;
         var tries = 0, show = function () {
-          if (run !== ST.enRun || !ST.on || ST.enShowing || !ST.previewOn || (!ST.previewEnergy && ST.previewSelected !== 'energy')) return;
+          if (run !== enRun || !ST.on || ST.enShowing || !ST.previewOn || (!ST.previewEnergy && ST.previewSelected !== 'energy')) return;
           // (at once: the preview is shown again after every change)
-          if (showEnergySlide(true)) { ST.exKind = 'energy'; return; }
+          if (showEnergySlide(true)) { Screens.extraIs('energy'); return; }
           if (++tries < 60) setTimeout(show, 500);
         };
         show();
@@ -608,8 +624,8 @@
       if (isFlat() || !ST.root) return null;
       var i = ST.root.querySelector('.fc .land>i.on'), m = i && /url\(["']?([^"')]+)["']?\)/.exec(getComputedStyle(i).backgroundImage || '');
       if (!m) return null;
-      if (!ST.landIm || ST.landIm.hkSrc !== m[1]) { ST.landIm = new Image(); ST.landIm.hkSrc = m[1]; ST.landIm.src = m[1]; }
-      return ST.landIm.complete && ST.landIm.naturalWidth ? ST.landIm : null;
+      if (!landIm || landIm.hkSrc !== m[1]) { landIm = new Image(); landIm.hkSrc = m[1]; landIm.src = m[1]; }
+      return landIm.complete && landIm.naturalWidth ? landIm : null;
     }
     // ...and the sky over it, as it is now: the art's top is transparent (the live sky shows through it), so its copy
     // alone left the sky, its clouds and Big Weather's words sharp above the land (2026-10-31, the owner: "only half
@@ -651,24 +667,24 @@
       // above whatever came after it (a clock mounted again), under the corner cards
       if (!underCards(ST.enCtl.el, info)) ST.root.insertBefore(ST.enCtl.el, info);
       if (!overBackdrop(ST.enCtl, h)) return false;
-      ST.enShowing = true; ST.sinceFc = 0; ST.lastSlide = 'energy';
+      ST.enShowing = true; slideShown('energy');
       ST.host.setAttribute('enslide', '');
       updateBand();
-      forecastTick(false);                 // the forecast's sky holds still under it
+      Black.forecastTick(false);                 // the forecast's sky holds still under it
       energyLayout();
       var el = ST.enCtl.el, run = ST.photoRun;
       el.style.setProperty('--hk-en-fade', (first ? 0 : CROSSFADE_MS) + 'ms');
       void el.offsetWidth;
       el.classList.add('on');
-      if (ST.enT) clearTimeout(ST.enT);
-      ST.enT = setTimeout(function () { ST.enT = null; if (ST.on && run === ST.photoRun && ST.enShowing && ST.enCtl) ST.enCtl.arrived(); }, first ? 50 : CROSSFADE_MS);
+      if (enT) clearTimeout(enT);
+      enT = setTimeout(function () { enT = null; if (ST.on && run === ST.photoRun && ST.enShowing && ST.enCtl) ST.enCtl.arrived(); }, first ? 50 : CROSSFADE_MS);
       if (first && ST.entrance) ST.entrance();
       return true;
     }
     function hideEnergySlide() {
       if (!ST.enShowing) return;
       ST.enShowing = false;
-      if (ST.enT) { clearTimeout(ST.enT); ST.enT = null; }
+      if (enT) { clearTimeout(enT); enT = null; }
       if (ST.host) ST.host.removeAttribute('enslide');
       if (ST.enCtl) {
         ST.enCtl.leave();
@@ -676,11 +692,11 @@
         ST.enCtl.el.classList.remove('on');
       }
       updateBand();
-      if (fcVisible()) forecastTick(true);
+      if (fcVisible()) Black.forecastTick(true);
     }
     function leaveEnergy() {
-      ST.enRun++;
-      if (ST.enT) { clearTimeout(ST.enT); ST.enT = null; }
+      enRun++;
+      if (enT) { clearTimeout(enT); enT = null; }
       ST.enShowing = false;
       if (ST.enCtl) { try { ST.enCtl.destroy(); } catch (e) { /* gone */ } ST.enCtl = null; }
       if (ST.host) ST.host.removeAttribute('enslide');
@@ -723,7 +739,7 @@
         if (!hold) return;
         var tries = 0, show = function () {
           if (run !== S.run || !ST.on || S.showing || !slidePreviewed(S)) return;
-          if (slideShow(S, true)) { ST.exKind = S.key; return; }
+          if (slideShow(S, true)) { Screens.extraIs(S.key); return; }
           if (++tries < 60) setTimeout(show, 500);
         };
         show();
@@ -741,10 +757,10 @@
       if (!underCards(S.ctl.el, info)) ST.root.insertBefore(S.ctl.el, info);
       slideLayout(S);
       if (!(S.draw ? S.draw(S.ctl, h) : S.ctl.draw(h))) { S.ctl.leave(); return false; }
-      S.showing = true; ST.sinceFc = 0; ST.lastSlide = S.key;
+      S.showing = true; slideShown(S.key);
       ST.host.setAttribute(S.attr, '');
       updateBand();
-      forecastTick(false);                 // the forecast's own sky holds still under it
+      Black.forecastTick(false);                 // the forecast's own sky holds still under it
       slideLayout(S);
       var el = S.ctl.el, run = ST.photoRun;
       el.style.setProperty(S.fade, (first ? 0 : CROSSFADE_MS) + 'ms');
@@ -768,7 +784,7 @@
         setTimeout(function () { if (c === S.ctl && !S.showing) c.leave(); }, CROSSFADE_MS + 100);
       }
       updateBand();
-      if (fcVisible()) forecastTick(true);
+      if (fcVisible()) Black.forecastTick(true);
     }
     function slideLeave(S) {
       S.run++;
@@ -781,17 +797,18 @@
       (ST.TW = ST.TW || timerHold({
         up: function () { return ST.on && !!ST.cfg && !ST.previewOn; }, wanted: function () { return !!ST.cfg.timer_slide; }, now: function () { return clock.now(); },
         client: clientNow, slot: TM, prep: function () { slidePrep(TM); }, night: function () { return !!(ST.host && ST.host.hasAttribute('cknight')); },
-        blocked: function () { return black() || document.hidden || !!ST.pnl; }, show: function () { return slideShow(TM); },
+        blocked: function () { return Pane.black() || document.hidden || !!ST.pnl; }, show: function () { return slideShow(TM); },
         clear: function () {     // everything else makes way: the additional screens, the music's takeover (musicWatch waits), the photos' slides
-          if (ST.exT) { clearTimeout(ST.exT); ST.exT = null; }
-          if (ST.exKind && ST.exKind !== 'timer') exHide();
-          if (ST.muShowing) hideMusicSlide();
+          Screens.exCancel();
+          if (ST.exKind && ST.exKind !== 'timer') Screens.exHide();
+          if (ST.muShowing) Screens.hideMusicSlide();
           if (ST.enShowing) hideEnergySlide();
           slideHide(WX); slideHide(HL);
           if (ST.fcShowing && ST.mode !== 'forecast') hideForecastSlide();
         },
-        hold: function () { ST.exKind = 'timer'; }, again: exArm,
-        leave: function (ended) { if (ST.exKind === 'timer') { exHide(); exArm(); } else { slideHide(TM); if (ended && ST.mode === 'photos') showNext(false); else exArm(); } }
+        hold: function () { Screens.extraIs('timer'); }, again: Screens.exArm,
+        leave: function (ended) { if (ST.exKind === 'timer') { Screens.exHide(); Screens.exArm(); } else { slideHide(TM); if (ended && ST.mode === 'photos') Run.showNext(false); else Screens.exArm();
+          } }
       })).watch();
     }
 
@@ -804,5 +821,10 @@
     K.leaveLayout = leaveLayout; K.showEnergySlide = showEnergySlide; K.skyStops = skyStops; K.slideHide = slideHide;
     K.slideLayout = slideLayout; K.slideLeave = slideLeave; K.slidePrep = slidePrep; K.slideReady = slideReady;
     K.slideShow = slideShow; K.TM = TM; K.tmWatch = tmWatch; K.WX = WX;
+    // (phase 25: what the earlier parts call of this one, through its exports object Layout, made by the shell)
+    var Layout = K.Layout;
+    Layout.HL = HL; Layout.layoutBigKind = layoutBigKind; Layout.layoutDraw = layoutDraw;
+    Layout.layoutModules = layoutModules; Layout.layoutSlides = layoutSlides; Layout.layoutSoon = layoutSoon;
+    Layout.showEnergySlide = showEnergySlide; Layout.slideShow = slideShow; Layout.TM = TM; Layout.WX = WX;
   };
 })();
