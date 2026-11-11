@@ -1,4 +1,4 @@
-// hk-saver-css.js - the saver's CSS.
+// hk-saver-css.js - the element's style.
 //
 // PART OF HK FRONTEND'S PHOTO SCREENSAVER (hk-saver.js). Not a card and not run on its own: it registers one
 // function, which hk-saver.js calls with the shared kit K once every part has loaded (the
@@ -404,7 +404,8 @@
       // The controls keep a useful width even when a short screen needs smaller art.
       ':host([muup]) .mu .mbody{--a:min(84cqw,36cqh);--mg:4cqh}',
       ':host([muup]) .mu .mart{right:auto;left:calc(50cqw - var(--a) / 2);top:var(--hk-mu-top,12cqh)}',
-      ':host([muup]) .mu .mcol{--cw:min(84cqw,max(var(--a),calc(380px * var(--z))));left:calc(50cqw - var(--cw) / 2);right:auto;width:var(--cw);bottom:auto;top:calc(var(--hk-mu-top,12cqh) + var(--a) + var(--mg))}',
+      ':host([muup]) .mu .mcol{--cw:min(84cqw,max(var(--a),calc(380px * var(--z))));left:calc(50cqw - var(--cw) / 2);right:auto;width:var(--cw);bottom:auto;' +
+        'top:calc(var(--hk-mu-top,12cqh) + var(--a) + var(--mg))}',
       // Beside a pane: a lower stage, the cover and the complete text block
       // sharing one row. The text's center follows the cover even when lines wrap
       // or optional fields disappear; progress and transport span both columns.
@@ -602,6 +603,7 @@
       ':host([tb]:not([ckphotos])) .ph .tb img.tbcut{filter:brightness(calc(1 - var(--tb-dim,0)))}',
       '@media (prefers-reduced-motion:reduce){.ph.zoom .tb{animation:none}}'
     ].join('\n');
+
     // A CARD'S CONFIG for where it is now: Home Status at the top of the
     // pane sized for it, and the timers in its foot -- set again whenever the
     // pane comes or goes (setPane)

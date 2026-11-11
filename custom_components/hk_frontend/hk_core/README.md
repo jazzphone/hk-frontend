@@ -6,11 +6,11 @@ the `House` port (`house.py`). Both rules are enforced by `tests/test_boundaries
 
 The HACS build vendors this folder as `custom_components/hk_frontend/hk_core/` (see
 `publish.py`'s plan). Mantel Server imports it as `hk_core`. Mantel Link vendors only what it uses
-(`__init__.py` and `link/`, its `publish.py`'s `CORE_PARTS`) as `custom_components/mantel/hk_core/`.
+(`__init__.py`, `link/`, `talk/` and `pairing.py`, its `publish.py`'s `CORE_PARTS`) as `custom_components/mantel/hk_core/`.
 
 `link/` is the one part that is not host-neutral: what HK Frontend and Mantel Link, the two Home
 Assistant integrations, had as copies of each other, written once. `mantel_link.py` is the client of
-Mantel Server's linked endpoint (aiohttp only); `talk.py`, `talk_live.py` and `page_headers.py`
+Mantel Server's linked endpoint (aiohttp only); `tv_stream.py` is Live TV's ffmpeg command and `linked_reserved.py` the attributes a linked entity never takes (both pure); `talk.py`, `talk_live.py` and `page_headers.py`
 import Home Assistant (`tests/test_boundaries.py` names these three) and Mantel Server never
 imports `link`. Each integration keeps thin modules of the same names that give them their own
 address, domain and delivery: `talk.URL` (`/api/hk_frontend/talk`, `/api/mantel/talk`), the
@@ -36,7 +36,7 @@ Both integrations' tests run against the shared copy through those modules.
 Notifications keep their watching host-side on purpose: HA follows states with its trackers and
 Mantel will follow its state hub, so `banner.goes_off` takes one change and answers what it sets
 off, and `calendars.look_ahead` takes the host's `events` and `deliver`. Do Not Disturb's shape
-(`dnd.hhmm`, `notify_dnd`) is shared with the settings model (`settings/model.py`), which re-exports it.
+(`dnd.hhmm`, `notify_dnd`) is shared with the settings model (`settings/model/`, a package of 13 files), which re-exports it.
 
 Music moves its DECISIONS and keeps its steps host-side on purpose: in Mantel the engine talks
 to Music Assistant directly (PLAN.md §3, §10), not through HA's `media_player` services, so the
@@ -74,7 +74,7 @@ HA on purpose: `find_extras` (HACS's `www/community` files and `/hacsfiles/` URL
 takes as a host's own check beside `TOP`. The photo addresses the model accepts (`SKY_PHOTO`:
 HA's `image_upload`, `/local/`, `/hk/`) are still HA's spellings; they did not change here. Two
 JavaScript parity tests that read the Python table (`test_liveliness.js`,
-`test_strategy_rebuild.js`) now read `hk_core/settings/model.py`.
+`test_strategy_rebuild.js`) now read the files of `hk_core/settings/model/` as one text (`readPyPackage` in `tests/split_files.js`).
 
 The Sleep Screen moves its DECISIONS and keeps its steps host-side, as music did: the facts are
 read through the House (a state's `last_changed` is the port's one addition), the clock is

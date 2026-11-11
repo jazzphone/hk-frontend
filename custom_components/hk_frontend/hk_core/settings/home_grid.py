@@ -101,6 +101,13 @@ CATALOG: dict[str, dict[str, Any]] = {
     "people": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target", "map": "boolean"}},
     # Large and Extra Large (2026-10-24): its controls with Clean Areas
     "vacuum": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"entity": "vacuum", "tap": "tap_target"}},
+    # LAUNDRY (phase 22, docs/phase22/LAUNDRY.md): the house's washers and dryers, as Accessories -> Laundry has them
+    "laundry": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
+    # TV (phase 23, docs/phase23/TV.md): a room's TV and its player; tv Automatic is the tablet's room
+    "tv": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tv": "tv_target", "show": "tv_show", "tap": "tap_target"}},
+    # SWIPE (2026-11-11, the owner: "a Swipe card in general ... any card we could swipe between with all its settings"): its pages are
+    # other cards, each with its own options, in the block's size; never a Swipe inside a Swipe. Made for Show When too (TV and music).
+    "swipe": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"pages": "swipe_pages"}},
     "clock": {"sizes": ("S", "W", "T", "L", "XL", "XXL"), "sources": (), "opts": {"clock_style": "clock_style", "bare": "boolean", "tap": "tap_target"}},
     "power": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
     # show (2026-10-31, the owner): what it shows -- Recently Played (none stored), the Music page's playlists (presets), or
@@ -135,6 +142,13 @@ CATALOG: dict[str, dict[str, Any]] = {
     # chips_extra, chips_custom), drawn whether or not the screen shows its chip row. No When Tapped: each section
     # opens its own place
     "house_status": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {}},
+    # ALERT (2026-11-10, docs/phase11/ALERT.md): one thing that needs a look, made to be a Show When rule's card -- a headline
+    # (title), a line of its own (text), how long an accessory has been as it is (since: its last_changed), a camera's still
+    # (camera), one action (control: that accessory's own tile tap -- a door or a lock opens its controls, which ask first),
+    # its glyph and color. No When Tapped: the picture opens the camera, the action the accessory, the plate its sheet
+    "alert": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (),
+              "opts": {"title": "title", "text": "alert_text", "since": "entity", "camera": "camera", "control": "entity",
+                       "icon": "alert_icon", "color": "alert_color"}},
 }
 SOURCES = ("list", "rooms", "cameras", "thermostats", "speakers", "scenes", "accessories")
 # the sources that can open on the tablet's own room (or its speaker)
@@ -384,9 +398,27 @@ def _music_speaker(v: Any) -> str:
     return _domain("media_player")(v)
 
 
+# WHERE MUSIC IS WATCHED (2026-11-10, the owner: one way to pick a speaker): Now Playing's speaker and Music Is Playing's
+# are one of the house's music rooms or groups (Mantel Settings -> Music), or the wall tablet's own room
+def _speaker(v: Any) -> str:
+    return TABLET_ROOM if v == TABLET_ROOM else _music_speaker(v)
+
+
 SECURITY_PRESENTATIONS = ("homeview",)
 # what a Security block may list as its entries: locks and garage doors (covers)
 SECURITY_DOMAINS = ("lock", "cover")
+
+
+def _tv_target(v: Any) -> str:
+    """A TV block's TV, or A TV Is On's: the tablet's room, or a TV or its player (a media_player)."""
+    return TABLET_ROOM if v == TABLET_ROOM else _domain("media_player")(v)
+
+
+def _tv_show(v: Any) -> str:
+    """What a TV block's apps are: Recent, Favorites, or one app by the name its player lists it under."""
+    if v in ("recent", "favorites") or (isinstance(v, str) and 0 < len(v.strip()) <= 60):
+        return v if v in ("recent", "favorites") else v.strip()
+    raise GridInvalid("grid_option")
 
 
 def _security_presentation(v: Any) -> str:
@@ -439,6 +471,31 @@ def _everything_more(v: Any) -> str:
     return v
 
 
+# AN ALERT'S OWN WORDS AND LOOK (the `alert` card): a line under its headline, at most ALERT_TEXT_MAX characters and no control
+# characters; a glyph by name (a set and a glyph: "mdi:garage-alert", "hk:garage-open"); a color, one of the named accents
+ALERT_TEXT_MAX = 80
+ALERT_ICON = re.compile(r"^[a-z0-9_-]{1,12}:[a-z0-9_-]{1,64}\Z")
+ALERT_COLORS = ("orange", "yellow", "green", "mint", "teal", "cyan", "blue", "indigo", "purple", "pink", "red", "gray")
+
+
+def _alert_text(v: Any) -> str:
+    if not isinstance(v, str) or not 0 < len(v.strip()) <= ALERT_TEXT_MAX or any(ord(c) < 32 for c in v):
+        raise GridInvalid("grid_option")
+    return v.strip()
+
+
+def _alert_icon(v: Any) -> str:
+    if not isinstance(v, str) or not ALERT_ICON.match(v):
+        raise GridInvalid("grid_option")
+    return v
+
+
+def _alert_color(v: Any) -> str:
+    if v not in ALERT_COLORS:
+        raise GridInvalid("grid_option")
+    return v
+
+
 def _clock_style(v: Any) -> str:
     if v not in CLOCK_FACES:
         raise GridInvalid("grid_option")
@@ -466,12 +523,18 @@ OPTION_KINDS = {
     "security_presentation": _security_presentation,
     "security_members": _security_members,
     "security_lit": _boolean,
+    "alert_text": _alert_text,
+    "alert_icon": _alert_icon,
+    "alert_color": _alert_color,
     "tv_channel": _tv_channel,
     "music_show": _music_show,
     "timeline_show": _timeline_show,
     "music_playlist": _music_playlist,
     # where a music block's tap plays (2026-10-31, the owner): a speaker or a speaker group, else this screen's music
     "music_speaker": _music_speaker,
+    "tv_target": _tv_target,
+    "swipe_pages": lambda v: _swipe_pages(v),
+    "tv_show": _tv_show,
     "todo": _domain("todo"),
     "camera_follow": _camera_follow,
     "select": _domain("input_select", "select"),
@@ -482,7 +545,7 @@ OPTION_KINDS = {
     "entity": _domain(),
     "scene": _domain(*SCENE_DOMAINS),
     "scenes": _list(_domain(*SCENE_DOMAINS)),
-    "speaker": _domain("media_player", room=True),
+    "speaker": _speaker,
     "climate": _domain("climate", room=True),
     "alarm": _domain("alarm_control_panel"),
     "camera": _domain("camera"),
@@ -550,13 +613,15 @@ def _pages(card: str, v: Any) -> dict[str, Any]:
 # minutes ({"sun": "sunset", "offset": -15}). The frontend reads Home Assistant's sun.sun (next_rising /
 # next_setting); without it the condition does not hold, so the block falls through to its next rule or its default.
 CONDITIONS = ("music_playing", "timer_running", "alarm_armed", "alarm_disarmed", "doorbell", "after_sunset",
-              "entity_state", "time", "solar_window")
+              "entity_state", "time", "solar_window", "tv_on")
 SUN_EVENTS = ("sunrise", "sunset")
 SUN_OFFSET_MAX = 360                    # minutes either side of the event: six hours
 # A BLOCK'S RULES (2026-10-24, the owner: "a default card, and certain cards in the same slot when a condition is
 # met"): the block's own card by default, and up to RULES_MAX rules, each its card when ALL of its conditions (up to
-# ALL_MAX) hold -- the first rule that matches wins. A block's older `when` + `fallback` still reads.
-RULES_MAX = 4
+# ALL_MAX) hold -- the first rule that matches wins. A block's older `when` + `fallback` still reads. Ten rules since
+# 2026-11-10 (four before; a layout of four or fewer reads as it did). hk-grid-catalog.js RULES_MAX / CONDITIONS_MAX are
+# the frontend's copy of these numbers (a test holds them equal).
+RULES_MAX = 10
 ALL_MAX = 3
 
 
@@ -581,7 +646,8 @@ def condition(v: Any) -> dict[str, Any]:
     if "entity" in v:
         if kind in ("time", "solar_window"):
             raise GridInvalid("grid_condition")
-        out["entity"] = _domain()(v["entity"])
+        out["entity"] = _tv_target(v["entity"]) if kind == "tv_on" else _speaker(v["entity"]) if kind == "music_playing" and (
+            v["entity"] == TABLET_ROOM or (isinstance(v["entity"], str) and MUSIC_PRESET.match(v["entity"]))) else _domain()(v["entity"])
     if kind == "entity_state":
         if "entity" not in out or not isinstance(v.get("state"), str) or not 0 < len(v["state"]) <= 80:
             raise GridInvalid("grid_condition")
@@ -755,7 +821,30 @@ def _security_size(v: Mapping[str, Any], size: Any) -> None:
         raise GridInvalid("grid_size")
 
 
+SWIPE_PAGES_MAX = 6
+
+
+def _swipe_pages(v: Any) -> list[dict[str, Any]]:
+    """A Swipe card's pages: 1 to SWIPE_PAGES_MAX, each {card, opts?} -- any card but Swipe, its options as its own block's."""
+    if not isinstance(v, list) or not 0 < len(v) <= SWIPE_PAGES_MAX:
+        raise GridInvalid("grid_option")
+    out = []
+    for p in v:
+        if not isinstance(p, dict) or set(p) - {"card", "opts"} or p.get("card") not in CATALOG or p["card"] == "swipe":
+            raise GridInvalid("grid_option")
+        opts = _opts(p["card"], p.get("opts"))
+        out.append({"card": p["card"], **({"opts": opts} if opts else {})})
+    return out
+
+
 def _capacity(v: Mapping[str, Any], size: str) -> None:
+    if v.get("card") == "swipe":
+        # (each page comes in the block's size, and holds what its own block of that size may)
+        for p in v.get("opts", {}).get("pages", []):
+            if size not in CATALOG[p["card"]]["sizes"]:
+                raise GridInvalid("grid_size")
+            _capacity(p, size)
+        return
     if v.get("card") != "accessories":
         return
     per = {"S": 1, "W": 2, "T": 2, "L": 4, "XL": 6, "XXL": 12}[size]
@@ -1020,12 +1109,17 @@ def layout(v: Any) -> dict[str, Any] | None:
 # `ok` holds, so the block arrives without the entity instead of breaking the grid: its option is left out and the
 # card does what it does with none (the first camera, no scenes row, its automatic place). Pure.
 _ENTITY_KINDS = frozenset({"entity", "scene", "speaker", "climate", "alarm", "camera", "weather", "vacuum", "todo",
-                           "select", "music_speaker"})
+                           "select", "music_speaker", "tv_target"})
 _LIST_KINDS = frozenset({"scenes", "calendars", "cameras", "security_members"})
 
 
 def _opt_ids(card: str, opts: Any) -> set[str]:
     out: set[str] = set()
+    if card == "swipe":
+        for p in (opts if isinstance(opts, dict) else {}).get("pages") or []:
+            if isinstance(p, dict) and p.get("card") != "swipe":
+                out |= _opt_ids(p.get("card"), p.get("opts"))
+        return out
     kinds = (CATALOG.get(card) or {}).get("opts") or {}
     for name, value in (opts if isinstance(opts, dict) else {}).items():
         kind = kinds.get(name)
@@ -1039,6 +1133,10 @@ def _opt_ids(card: str, opts: Any) -> set[str]:
 
 
 def _cut_opts(card: str, opts: Any, ok: Any) -> dict[str, Any]:
+    if card == "swipe":
+        pages = [{**p, "opts": _cut_opts(p.get("card"), p.get("opts"), ok)} for p in (opts if isinstance(opts, dict) else {}).get("pages") or []
+                 if isinstance(p, dict) and p.get("card") != "swipe"]
+        return {"pages": [{k: x for k, x in p.items() if k != "opts" or x} for p in pages]} if pages else {}
     kinds = (CATALOG.get(card) or {}).get("opts") or {}
     out: dict[str, Any] = {}
     for name, value in (opts if isinstance(opts, dict) else {}).items():
@@ -1066,6 +1164,11 @@ def _variant_parts(v: Mapping[str, Any]) -> list[tuple[str, Any]]:
     return [(card, v.get("opts"))] + [(card, p.get("opts")) for p in pages.get("list") or [] if isinstance(p, dict)]
 
 
+def _is_entity(v: Any) -> bool:
+    """A condition's entity, as a viewer may lack it: an entity id -- not Tablet's Room or a music group (`preset:`)."""
+    return isinstance(v, str) and bool(ENTITY_ID.match(v))
+
+
 def _conditions_of(when: Any) -> list[dict[str, Any]]:
     if isinstance(when, dict) and isinstance(when.get("all"), list):
         return [c for c in when["all"] if isinstance(c, dict)]
@@ -1084,7 +1187,7 @@ def entity_ids(grid: Any) -> set[str]:
             for card, opts in _variant_parts(v):
                 out |= _opt_ids(card, opts)
         for when in [it.get("when")] + [r.get("when") for r in it.get("rules") or [] if isinstance(r, dict)]:
-            out |= {c["entity"] for c in _conditions_of(when) if isinstance(c.get("entity"), str)}
+            out |= {c["entity"] for c in _conditions_of(when) if _is_entity(c.get("entity"))}
         out |= {e["entity"] for e in _sheet_entries(it) if isinstance(e.get("entity"), str)}
     return out
 
@@ -1137,8 +1240,7 @@ def only_viewable(grid: Any, ok: Any) -> Any:
         if not isinstance(it, dict):
             items.append(it)
             continue
-        hidden_when = any(isinstance(c.get("entity"), str) and c["entity"] not in ok
-                          for c in _conditions_of(it.get("when")))
+        hidden_when = any(_is_entity(c.get("entity")) and c["entity"] not in ok for c in _conditions_of(it.get("when")))
         if hidden_when and isinstance(it.get("fallback"), dict):
             new = {k: copy.deepcopy(v) for k, v in it.items() if k not in ("card", "opts", "pages", "when", "fallback")}
             new.update(_cut_variant(it["fallback"], ok))
@@ -1148,7 +1250,7 @@ def only_viewable(grid: Any, ok: Any) -> Any:
                 new["fallback"] = _cut_variant(it["fallback"], ok)
             if isinstance(it.get("rules"), list):
                 kept = [_cut_variant(r, ok) for r in it["rules"] if isinstance(r, dict) and not any(
-                    isinstance(c.get("entity"), str) and c["entity"] not in ok for c in _conditions_of(r.get("when")))]
+                    _is_entity(c.get("entity")) and c["entity"] not in ok for c in _conditions_of(r.get("when")))]
                 if kept:
                     new["rules"] = kept
                 else:

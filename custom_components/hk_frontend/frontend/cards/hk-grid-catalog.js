@@ -40,6 +40,39 @@
   // key, a small pill at the top of the block on the owner's Tesla HomeView -- seen in the house's twin, tools/headless/house_twin.py)
   function stand(name, icon, text) { return { type: 'custom:hk-grid-panel-card', panel: 'note', name: name, text: text || 'Not set up yet.' }; }
   function own(v) { return v && v !== TABLET_ROOM ? v : null; }
+  // ONE WAY TO PICK A SPEAKER (2026-11-10, the owner: Now Playing's speaker was any media player, and the Living Room's followed
+  // an Apple TV -- its song from the room, its time and volume from the TV). Now Playing and Music Is Playing name one of the
+  // house's music rooms or groups (hkMusic's speakers, Mantel Settings -> Music) or Tablet's Room: the room the tablet's
+  // music calls home (hkMusic.home). A key that is none of them (an older layout's TV) reads as it always did.
+  function musicSpeaker(key) {
+    var M = window.hkMusic, k = M && key ? (key === TABLET_ROOM ? M.home() : M.fold([key])[0]) : null;
+    return (k && M.speakers().filter(function (s) { return s.entity === k; })[0]) || null;
+  }
+  // the players a key plays on (a pair's both, a group's every room's), for Music Is Playing: [] for Tablet's Room on a
+  // page that is no tablet's (it never holds there), null for a key that is no music speaker (the entity itself)
+  function musicPlayers(key) {
+    var M = window.hkMusic, s = musicSpeaker(key), by = {};
+    if (!s) return key === TABLET_ROOM ? [] : null;
+    M.speakers().forEach(function (x) { by[x.entity] = x; });
+    return [].concat.apply([], (s.members || [s.entity]).map(function (r) { return (by[r] && by[r].parts) || [r]; }));
+  }
+  // the editor's list for both (hkMusic.speakers()): Tablet's Room, the groups, the rooms -- as the Music block's Plays On lists them
+  function speakerChoices(ms) {
+    return [[TABLET_ROOM, 'Tablet’s Room']].concat(ms.filter(function (s) { return !!s.members; }).map(function (g) { return [g.entity, g.name + ' (Group)']; }),
+      ms.filter(function (s) { return !s.members; }).map(function (r) { return [r.entity, r.name]; }));
+  }
+  // what a card set to a key follows: the music playing in that room or group, else that room (a group's leader) ready to
+  // play; with none chosen, or one that is no music speaker, the screen's own music (hkMusic.resolve) -- so the song, the
+  // time, the volume and the buttons all come from the one player
+  function musicAt(client, key) {
+    var M = window.hkMusic, s = musicSpeaker(key), rooms = s ? s.members || [s.entity] : [];
+    if (!M) return { player: null, context: null, reason: 'none', name: '' };
+    if (!s) return M.resolve(client);
+    var hit = M.contexts(client).filter(function (c) { return rooms.some(function (r) { return c.members.indexOf(r) >= 0; }); })
+      .sort(function (a, b) { return (b.playing ? 1 : 0) - (a.playing ? 1 : 0); })[0];
+    return hit ? { player: hit.key, context: hit, reason: 'chosen', name: M.label(hit) }
+      : { player: s.members ? M.leader(rooms) : s.entity, context: null, reason: 'chosen', name: s.name };
+  }
   // THE CLOCK FACES a block offers (hk-saverclock.js ids; '' is HK's own):
   // the ones that read at a block's size (Poster fills its screen edge to
   // edge and Glass draws a pane of its own: neither sits in a block)
@@ -61,15 +94,18 @@
   // that names nothing of its own.
   var CARDS = {
     accessory: { sizes: ['XS', 'S', 'W', 'T'], sources: [], opts: { entity: 'entity', secondary: 'secondary', color: 'boolean' }, card: function (s, o) {
-      return o.entity ? Object.assign({ type: 'custom:hk-grid-entity-card', entity: o.entity, secondary: o.secondary, kind: 'accessory', size: s }, o.color ? { color: true } : {}) : stand('Accessory', 'mdi:lightbulb', 'Choose an accessory in the editor.'); } },
+      return o.entity ? Object.assign({ type: 'custom:hk-grid-entity-card', entity: o.entity, secondary: o.secondary, kind: 'accessory', size: s }, o.color ? { color: true } : {}) :
+        stand('Accessory', 'mdi:lightbulb', 'Choose an accessory in the editor.'); } },
     // (height, color 2026-10-31: Full, HomeView's square tile, or Half, the shorter button; each on its own
     // color's gradient or glass)
-    accessories: { sizes: ['S', 'W', 'T', 'L', 'XL', 'XXL'], sources: ['accessories'], opts: { accessories: 'accessories', title: 'title', surface: 'surface', height: 'tile_height', color: 'boolean' }, card: function (s, o) {
+    accessories: { sizes: ['S', 'W', 'T', 'L', 'XL', 'XXL'], sources: ['accessories'],
+      opts: { accessories: 'accessories', title: 'title', surface: 'surface', height: 'tile_height', color: 'boolean' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-grid-accessories-card', accessories: o.accessories || [], title: o.title || 'Accessories', surface: o.surface },
                            o.title ? { label: true } : {},
                            o.height ? { height: o.height } : {}, o.color ? { color: true } : {}); } },
     scene: { sizes: ['S', 'W'], sources: [], opts: { scene: 'scene', color: 'boolean' }, card: function (s, o) {
-      return o.scene ? Object.assign({ type: 'custom:hk-grid-entity-card', entity: o.scene, kind: 'scene', size: s }, o.color ? { color: true } : {}) : stand('Scene', 'mdi:palette', 'Choose a scene in the editor.'); } },
+      return o.scene ? Object.assign({ type: 'custom:hk-grid-entity-card', entity: o.scene, kind: 'scene', size: s }, o.color ? { color: true } : {}) :
+        stand('Scene', 'mdi:palette', 'Choose a scene in the editor.'); } },
     scenes: { sizes: ['W', 'T', 'L', 'XL', 'XXL'], sources: ['scenes'], opts: { scenes: 'scenes', surface: 'surface', height: 'tile_height', color: 'boolean' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-scenes-card', surface: o.surface }, o.scenes ? { scenes: o.scenes } : {},
                            o.height ? { height: o.height } : {}, o.color ? { color: true } : {}); } },
@@ -77,9 +113,9 @@
       // T, L and XL: the progress above the transport (the Home app's and Apple
       // Music's order); L and XL the volume under it (Music's widgets,
       // 2026-10-31). Its speaker's own controls, or the screen's music.
+      // (the speaker: the music in that room or group, every part of it -- hkGridCatalog.musicAt)
       var sp = own(o.speaker), ctl = function (parts) {
-        return Object.assign({ type: 'custom:hk-media-control-card', color: 'purple', bare: true, parts: parts },
-                             sp ? { entity: sp } : { entity_from: { music: true } });
+        return { type: 'custom:hk-media-control-card', color: 'purple', bare: true, parts: parts, entity_from: Object.assign({ music: true }, sp ? { music_at: sp } : {}) };
       };
       // (2026-11-08, the owner: what does not fit goes to the player's sheet) -- and back (2026-11-09, the owner: "Looks
       // like the tall and the wide cards lost their volume slider?" and "Volume is more important than the progress bar for
@@ -87,7 +123,7 @@
       // progress is a thin read-only line (hk-media-now.js), the volume keeps its slider. S has play / pause alone.
       var extra = s === 'S' ? {} : { sub_card: ctl(['progress']), meta_card: ctl(['volume']) };
       // (background, 2026-11-05, the owner: the blurred album unless the block asks for the card every other block has)
-      return Object.assign({ type: 'custom:hk-now-playing-card', music: true }, sp ? { entity: sp } : {}, o.background === 'card' ? { background: 'card' } : {}, extra); } },
+      return Object.assign({ type: 'custom:hk-now-playing-card', music: true }, sp ? { music_at: sp } : {}, o.background === 'card' ? { background: 'card' } : {}, extra); } },
     // Extra Large: the thermostat's full controls, its sheet (2026-10-24) -- in Big Number, its face with the modes
     // beside it (hk-control.js _big, 2026-10-31)
     thermostat: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: ['thermostats'], opts: { entity: 'climate', style: 'thermostat_style', tap: 'tap_target' }, card: function (s, o, ctx) {
@@ -116,14 +152,16 @@
     // Large and Extra Large: the alarm's keypad (2026-10-24). HomeView (2026-11-07, `presentation: homeview`): the five
     // HomeView compositions, Compact (3 x 1) among them -- hk-grid-security.js hk-grid-security-hv-card; absent, the
     // block as it always was. members: the locks and garage doors it shows, in order (none: the house's)
-    security: { sizes: ['S', 'W', 'C', 'T', 'L', 'XL'], sources: [], opts: { entity: 'alarm', tap: 'tap_target', presentation: 'security_presentation', members: 'security_members', lit: 'security_lit', height: 'tile_height' }, card: function (s, o) {
+    security: { sizes: ['S', 'W', 'C', 'T', 'L', 'XL'], sources: [], opts: { entity: 'alarm', tap: 'tap_target', presentation: 'security_presentation', members: 'security_members',
+      lit: 'security_lit', height: 'tile_height' }, card: function (s, o) {
       // (HomeView's Extra Large keeps the keypad -- 2026-11-08, the owner: "when you set it to HomeView mode, the Keypad goes away": the
       // keypad beside its entries as HomeView tiles or pills (Height), the entries its own when chosen)
       if (o.presentation === 'homeview' && s === 'XL') return Object.assign({ type: 'custom:hk-grid-keypad-card' }, o.entity ? { entity: o.entity } : {},
         o.height === 'half' || o.height === 'full' ? { height: o.height } : {}, o.members && o.members.length ? { members: o.members.slice() } : {},
         { hv: true }, o.lit === false ? { lit: false } : {});
       // (lit, 2026-11-09: Light Up When Armed, on unless false)
-      if (o.presentation === 'homeview') return Object.assign({ type: s === 'S' ? 'custom:hk-grid-security-key-card' : 'custom:hk-grid-security-hv-card', size: s }, o.entity ? { entity: o.entity } : {},
+      if (o.presentation === 'homeview') return Object.assign({ type: s === 'S' ? 'custom:hk-grid-security-key-card' : 'custom:hk-grid-security-hv-card', size: s }, o.entity ? { entity: o.entity } :
+        {},
                                                              o.members && o.members.length ? { members: o.members.slice() } : {}, o.lit === false ? { lit: false } : {});
       // (Height, 2026-11-08, the owner: "are you offering half height pills too?": Large and Extra Large's locks as HomeView tiles, or half-height pills)
       var hh = o.height === 'half' || o.height === 'full' ? { height: o.height } : {};
@@ -145,12 +183,24 @@
       return B && B.level ? { type: 'custom:hk-house-battery-card', level: B.level, stored: B.stored, backup: B.backup,
                               reserve: B.reserve, charge: B.charge, discharge: B.discharge }
                           : stand('Battery', 'mdi:home-battery', 'Add Energy with a house battery in Settings to show it here.'); } },
-    people: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tap: 'tap_target', map: 'boolean' }, card: function (s, o) { return Object.assign({ type: 'custom:hk-people-card' }, o.map ? { map: true } : {}); } },
+    people: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tap: 'tap_target', map: 'boolean' },
+      card: function (s, o) { return Object.assign({ type: 'custom:hk-people-card' }, o.map ? { map: true } : {}); } },
     // Large and Extra Large: its controls with Clean Areas (2026-10-24)
     vacuum: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { entity: 'vacuum', tap: 'tap_target' }, card: function (s, o, ctx) {
       var id = o.entity || ctx.vacuum;
       if (!id) return stand('Vacuum', 'hk:robot-vacuum', 'No vacuum yet.');
       return { type: s === 'L' || s === 'XL' ? 'custom:hk-grid-vacuum-card' : 'custom:hk-vacuum-card', entity: id }; } },
+    // LAUNDRY (phase 22, docs/phase22/LAUNDRY.md): the house's washers and dryers (Accessories -> Laundry, else found by
+    // themselves) -- one drawn large, two side by side; what it shows is the house's, so it has no options but When Tapped
+    // TV (phase 23, docs/phase23/TV.md; hk-tv-card.js): a room's TV and its player -- Automatic is the tablet's room (else the first TV)
+    tv: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tv: 'tv_target', show: 'tv_show', tap: 'tap_target' }, card: function (s, o) {
+      return Object.assign({ type: 'custom:hk-grid-tv-card', size: s, tv: o.tv || TABLET_ROOM }, o.show ? { show: o.show } : {}); } },
+    // SWIPE (2026-11-11, the owner): pages to swipe between, each another card with its own options (opts.pages [{card, opts}]);
+    // drawn by the pager every paged block uses (hk-layout.js hk-pager-card), pages() makes its pages. Never a Swipe inside a Swipe.
+    swipe: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { pages: 'swipe_pages' }, card: function () {
+      return stand('Swipe', 'mdi:gesture-swipe-horizontal', 'Add the cards to swipe between in the editor.'); } },
+    laundry: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tap: 'tap_target' }, card: function (s) {
+      return { type: 'custom:hk-grid-laundry-card', size: s }; } },
     // every size, HK's clock or a screensaver face, with or without its box (2026-10-24)
     clock: { sizes: ['S', 'W', 'T', 'L', 'XL', 'XXL'], sources: [], opts: { clock_style: 'clock_style', bare: 'boolean', tap: 'tap_target' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-grid-clock-card' }, o.clock_style ? { clock_style: o.clock_style } : {}, o.bare ? { bare: true } : {}); } },
@@ -174,7 +224,8 @@
     // `fallback` is the room it shows on a page that is no wall tablet.
     room: { sizes: ['S', 'W', 'T', 'L', 'XL', 'XXL'], sources: ['rooms'], opts: { area: 'area', surface: 'surface', accessory_display: 'room_display', tap: 'tap_target' }, card: function (s, o, ctx) {
       // no room of its own: the tablet's, else the screen's first
-      return { type: 'custom:hk-grid-room-card', area: o.area || TABLET_ROOM, fallback: (ctx.rooms || [])[0] || null, size: s, surface: o.surface, accessory_display: o.accessory_display || 'summary' }; } },
+      return { type: 'custom:hk-grid-room-card', area: o.area || TABLET_ROOM, fallback: (ctx.rooms || [])[0] || null, size: s, surface: o.surface, accessory_display: o.accessory_display ||
+        'summary' }; } },
     scene_suggested: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { windows: 'windows' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-suggested-scene-card', size: s }, o.windows ? { windows: o.windows } : {}); } },
     action: { sizes: ['S', 'W'], sources: [], opts: { action: 'action', area: 'area', color: 'boolean' }, card: function (s, o) {
@@ -210,8 +261,17 @@
     // what the screen's Status Chips say, whether or not the screen draws its chip row. No When Tapped: each section
     // opens its own place.
     house_status: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: {}, card: function (s) {
-      return { type: 'custom:hk-house-status-card', size: s }; } }
+      return { type: 'custom:hk-house-status-card', size: s }; } },
+    // ALERT (2026-11-10, docs/phase11/ALERT.md, hk-alert.js): one thing that needs a look -- a headline, a line of its own and how
+    // long (`since`: the accessory whose state it counts from), a camera's still, and one action (`control`: that accessory's
+    // own tile tap, so a door or a lock opens its controls and asks first). Made to be a Show When rule's card; no When Tapped
+    alert: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { title: 'title', text: 'alert_text', since: 'entity', camera: 'camera', control: 'entity', icon: 'alert_icon',
+      color: 'alert_color' }, card: function (s, o) {
+      var out = { type: 'custom:hk-grid-alert-card', size: s };
+      ALERT_KEYS.forEach(function (k) { if (o[k] != null && o[k] !== '') out[k] = o[k]; });
+      return out; } }
   };
+  var ALERT_KEYS = ['title', 'text', 'since', 'camera', 'control', 'icon', 'color'];
   // A BLOCK ONLY SOME HOSTS HAVE: asked of the host (hkShell.hostPage), never assumed -- no shell, no host page
   function hostHas(name) {
     var SH = window.hkShell;
@@ -240,9 +300,16 @@
   // ...a Music block's (2026-11-01, the owner): Choose a Playlist, the house's playlists in the Music page's sheet
   var MUSIC_TAPS = TAP_TARGETS.concat([['playlists', 'Choose a Playlist']]);
   function paged(it) {
+    if (it.card === 'swipe') return swipeList(it).length > 0;
     var p = it.pages, c = CARDS[it.card];
     return !!(c && p && (p.source === 'list' ? Array.isArray(p.list) && p.list.length
                                              : c.sources.indexOf(p.source) >= 0));
+  }
+
+  // a Swipe block's pages that can be drawn: a card this host has, in the block's size, never a Swipe
+  function swipeList(it) {
+    var list = (it.opts && it.opts.pages) || [];
+    return Array.isArray(list) ? list.filter(function (pg) { return pg && pg.card !== 'swipe' && CARDS[pg.card] && CARDS[pg.card].sizes.indexOf(it.size) >= 0; }) : [];
   }
 
   // PAGES THAT SWIPE (docs/phase11/HOME-GRID.md, "Blocks that swipe"): a
@@ -272,7 +339,10 @@
       return Object.assign({ card: cfg }, extra || {});
     }
     var out = [], rooms = x.rooms || [];
-    if (!paged(it)) { /* no pages: the block's card, below */ }
+    if (it.card === 'swipe') {
+      // (each page its own card in the block's size, its options its own; one this host lacks or not in this size is left out)
+      out = swipeList(it).map(function (pg) { var o = pg.opts || {}; return { card: tapped(CARDS[pg.card].card(it.size, o, x), o) }; });
+    } else if (!paged(it)) { /* no pages: the block's card, below */ }
     else if (p.source === 'list') {
       out = p.list.map(function (pg) { return page((pg && pg.opts) || {}); });
     } else if (p.source === 'accessories') {
@@ -313,7 +383,20 @@
     return (t && t.room) || null;
   }
 
-  var CONDITIONS = ['music_playing', 'timer_running', 'alarm_armed', 'alarm_disarmed', 'doorbell', 'after_sunset', 'entity_state', 'time', 'solar_window'];
+  // SHOW WHEN's numbers (hk_core home_grid.py RULES_MAX / ALL_MAX; a test holds them equal): a block's rules (ten since
+  // 2026-11-10, four before), the first that holds winning, and each rule's conditions, all of which must hold
+  var RULES_MAX = 10, CONDITIONS_MAX = 3;
+  // a block's rules as hk_core rules() takes them (the editor's valid()): none (no key), or 1 to RULES_MAX, each of 1 to
+  // CONDITIONS_MAX conditions and a card that comes in the block's size
+  function rulesFit(it) {
+    var rules = it && it.rules;
+    if (rules == null) return true;
+    return Array.isArray(rules) && rules.length > 0 && rules.length <= RULES_MAX && rules.every(function (r) {
+      var all = r && r.when && (Array.isArray(r.when.all) ? r.when.all : [r.when]), cat = r && CARDS[r.card];
+      return !!all && all.length > 0 && all.length <= CONDITIONS_MAX && !!cat && cat.sizes.indexOf(it.size) >= 0;
+    });
+  }
+  var CONDITIONS = ['music_playing', 'timer_running', 'alarm_armed', 'alarm_disarmed', 'doorbell', 'after_sunset', 'entity_state', 'time', 'solar_window', 'tv_on'];
   function hhmm(t) { var m = /^(\d{2}):(\d{2})$/.exec(String(t || '')); return m ? (+m[1]) * 60 + (+m[2]) : null; }
   function houseZone() {
     try { var L = window.hkLocale; return (L && L.zone ? L.zone() : undefined) || undefined; } catch (e) { return undefined; }
@@ -537,16 +620,25 @@
     }
     // (can't be judged -- no sun -- is false: the next rule, or the default)
     if (c.kind === 'solar_window') return solarSpans(c, st, now instanceof Date ? now.getTime() : null).on === true;
-    if (c.kind === 'alarm_disarmed') return (c.entity ? ids : alarm ? [alarm] : ids).some(function (id) { return id.split('.')[0] === 'alarm_control_panel' && st[id] && st[id].state === 'disarmed'; });
+    if (c.kind === 'alarm_disarmed') return (c.entity ? ids : alarm ? [alarm] : ids).some(
+      function (id) { return id.split('.')[0] === 'alarm_control_panel' && st[id] && st[id].state === 'disarmed'; });
     var any = function (domain, test) { return ids.some(function (id) { return id.split('.')[0] === domain && st[id] && test(st[id].state); }); };
     if (c.kind === 'entity_state') return !!st[c.entity] && st[c.entity].state === c.state;
     if (c.kind === 'music_playing') {
       if (!c.entity && speakers && speakers.length) ids = speakers;
+      else if (c.entity) ids = musicPlayers(c.entity) || ids;           // (a room's players, a group's, Tablet's Room's)
       return any('media_player', function (s) { return s === 'playing'; });
+    }
+    // A TV IS ON (phase 23): a set's TV or its player (hk-tv.js), by a TV, Tablet's Room or any; never on a page with no host client
+    if (c.kind === 'tv_on') {
+      var TV = window.hkTv, cl = window.hkHostClient && window.hkHostClient.current ? window.hkHostClient.current() : null;
+      if (!TV || !cl) return false;
+      return c.entity ? TV.isOn(cl, c.entity) : TV.sets(cl).some(function (x) { return TV.isOn(cl, x.id); });
     }
     if (c.kind === 'timer_running') return any('timer', function (s) { return s === 'active' || s === 'paused'; }) ||
       !c.entity && !!st['sensor.running_quick_timers'] && Number(st['sensor.running_quick_timers'].state) > 0;
-    if (c.kind === 'alarm_armed') return (c.entity ? ids : alarm ? [alarm] : ids).some(function (id) { return id.split('.')[0] === 'alarm_control_panel' && st[id] && /^(armed_|arming|pending|triggered)/.test(st[id].state); });
+    if (c.kind === 'alarm_armed') return (c.entity ? ids : alarm ? [alarm] : ids).some(
+      function (id) { return id.split('.')[0] === 'alarm_control_panel' && st[id] && /^(armed_|arming|pending|triggered)/.test(st[id].state); });
     if (c.kind === 'after_sunset') return any('sun', function (s) { return s === 'below_horizon'; });
     if (c.kind === 'doorbell') {
       // a ring (hk-house-event) counts when it was at this camera, or the condition names none
@@ -712,10 +804,42 @@
   // A CARD'S NAME, for a sheet's title when it has none of its own (and the editor's palette)
   var NAMES = { accessory: 'Accessory', accessories: 'Accessory Group', scene: 'Scene', scenes: 'Scenes', now_playing: 'Now Playing',
     thermostat: 'Thermostat', camera: 'Camera', security: 'Security', timers: 'Timers', weather: 'Weather',
-    calendar: 'Calendar', battery: 'House Battery', people: 'People', vacuum: 'Vacuum', clock: 'Clock',
+    calendar: 'Calendar', battery: 'House Battery', people: 'People', vacuum: 'Vacuum', laundry: 'Laundry', tv: 'TV', swipe: 'Swipe', clock: 'Clock',
     room: 'Room', scene_suggested: 'Suggested Scene', action: 'Action', everything: 'Everything', cameras: 'Cameras',
     power: 'Power', music: 'Music', doors: 'Doors & Locks', live_tv: 'Live TV', water: 'Water',
-    on_now: 'On Now', todo: 'To-do', energy_rings: 'Energy Rings', timeline: 'Recent', intercom: 'Intercom', house_status: 'House Status' };
+    on_now: 'On Now', todo: 'To-do', energy_rings: 'Energy Rings', timeline: 'Recent', intercom: 'Intercom', house_status: 'House Status', alert: 'Alert' };
+
+  // ------------------------------------------------------------ an Alert's settings
+  // AN ALERT'S ROWS (hk-grid-editor.js fields, for card `alert`): the headline, its own line, the accessory it counts the time
+  // from, the camera's still, the one action, and its glyph and color. `K` the settings kit; `set(key, value)` (null or '' takes
+  // the option away); `choices(kind)` the editor's [[id, name]] (entity, camera).
+  var ALERT = { titleMax: 60, textMax: 80, colors: ['orange', 'yellow', 'green', 'mint', 'teal', 'cyan', 'blue', 'indigo', 'purple', 'pink', 'red', 'gray'] };
+  function alertRows(K, o, set, choices) {
+    var rows = [], none = [['', 'None']];
+    var pick = function (key, label, list, sub) {
+      var all = none.concat(list);
+      if (o[key] && !all.some(function (op) { return op[0] === o[key]; })) all.push([o[key], o[key] + ' (Unavailable)']);
+      rows.push(K.select({ label: label, sub: sub, value: o[key] || '', options: all, onChange: function (v) { set(key, v || null); } }));
+    };
+    rows.push(K.text({ label: 'Headline', value: o.title || '', maxlength: ALERT.titleMax, placeholder: 'Garage Still Open', onCommit: function (v) { set('title', v.trim() || null); } }));
+    rows.push(K.text({ label: 'Supporting Text', value: o.text || '', maxlength: ALERT.textMax, placeholder: 'Optional', onCommit: function (v) { set('text', v.trim() || null); } }));
+    pick('since', 'Time Since', choices('entity'), 'How long this accessory has been as it is: “Open for 23 min”');
+    pick('camera', 'Camera Snapshot', choices('camera'), 'Tapping the picture opens the camera');
+    pick('control', 'Action', choices('entity'), 'Does what the accessory’s tile does. A door or lock opens its controls, which ask first');
+    rows.push(K.select({ label: 'Color', value: o.color || 'orange', options: ALERT.colors.map(function (c) { return [c, c.charAt(0).toUpperCase() + c.slice(1)]; }),
+      onChange: function (v) { set('color', v === 'orange' ? null : v); } }));
+    rows.push(K.text({ label: 'Glyph', value: o.icon || '', maxlength: 77, placeholder: 'The accessory’s own', onCommit: function (v) {
+      var x = String(v || '').trim(); set('icon', SHEET.icon.test(x) ? x : null); } }));
+    rows.push(K.info({ label: 'Made for Show When', sub: 'Add a rule to a block and choose Alert as its card: it shows in the block’s place while the rule holds.' }));
+    return rows;
+  }
+  // AN ALERT IN THE CARD LIST'S PREVIEW: the house's first garage door (else any door or cover) open for a while, its camera
+  function alertSample(choices, states) {
+    var st = states || {}, covers = choices('entity').filter(function (op) { return op[0].indexOf('cover.') === 0; });
+    var door = covers.filter(function (op) { var a = (st[op[0]] || {}).attributes || {}; return a.device_class === 'garage'; })[0] || covers[0];
+    var cams = choices('camera'), cam = cams.filter(function (op) { return /garage/i.test(op[0] + op[1]); })[0] || cams[0];
+    return Object.assign({ title: 'Garage Still Open' }, door ? { since: door[0], control: door[0] } : {}, cam ? { camera: cam[0] } : {});
+  }
 
   // the catalog as data, for the parity test and the editor (G5)
   function table() {
@@ -727,12 +851,63 @@
     return out;
   }
 
+  // A TV BLOCK'S ROWS (the editor's fields() hands over): which TV and what it shows
+  var tvBlock = {
+    choices: function (client) {
+      var T = window.hkTv, sets = T && client ? T.sets(client) : [];
+      return [[TABLET_ROOM, 'Tablet’s Room']].concat(sets.map(function (x) { return [x.tv || x.player, x.name]; }));
+    },
+    rows: function (K, o, set, choices, client) {
+      var T = window.hkTv, tv = o.tv || '', list = tvBlock.choices(client).filter(function (op) { return op[0] !== TABLET_ROOM; });
+      var setNow = T && client ? (T.setFor(client, tv || TABLET_ROOM) || T.setFor(client, null)) : null;
+      var apps = T && client && setNow ? T.allApps(client, setNow).map(function (a) { return [a.name, a.name]; }) : [];
+      if (o.show && o.show !== 'recent' && o.show !== 'favorites' && !apps.some(function (a) { return a[0] === o.show; })) apps.push([o.show, o.show + ' (Unavailable)']);
+      if (tv && tv !== TABLET_ROOM && !list.some(function (op) { return op[0] === tv; })) list.push([tv, tv + ' (Unavailable)']);
+      return [
+        K.select({ label: 'TV', value: tv && tv !== TABLET_ROOM ? tv : '', options: [['', 'Automatic (Tablet’s Room)']].concat(list), onChange: function (v) { set('tv', v || null); } }),
+        K.select({ label: 'Shows', value: o.show || 'recent', options: [['recent', 'Recent Apps'], ['favorites', 'Favorite Apps']].concat(apps.length ? [['', '──────']] : [], apps),
+          onChange: function (v) { if (v) set('show', v === 'recent' ? null : v); } }),
+        K.info({ label: 'Favorite Apps are chosen in Accessories → TVs.', sub: 'Automatic is the TV in the wall tablet’s room; on a phone or a computer, the first TV.' })
+      ];
+    }
+  };
+
+  // A SWIPE BLOCK'S ROWS (the editor's fields() hands over its own fields() for a page's options): each page -- its card, that card's
+  // own settings, Move Up, Remove -- then Add Page with the cards that come in this size
+  var swipeBlock = {
+    MAX: 6,
+    cards: function (size) {
+      return Object.keys(CARDS).filter(function (k) { return k !== 'swipe' && CARDS[k].sizes.indexOf(size) >= 0; })
+        .sort(function (a, b) { return String(NAMES[a] || a).localeCompare(String(NAMES[b] || b)); }).map(function (k) { return [k, NAMES[k] || k]; });
+    },
+    sample: function () { return { pages: [{ card: 'clock' }, { card: 'weather' }] }; },
+    rows: function (K, o, set, choices, client, ed) {
+      var pages = (o.pages || []).slice(), n = pages.length, size = (ed && ed.size) || 'L', cards = swipeBlock.cards(size), rows = [];
+      var put = function (next) { set('pages', next.length ? next : null); };
+      if (!n) rows.push(K.info({ label: 'Add the cards to swipe between.', sub: 'Each page is a card with its own settings. Made for Show When too: the TV with Now Playing a swipe away.' }));
+      pages.forEach(function (pg, i) {
+        rows.push(K.select({ label: 'Page ' + (i + 1) + ' of ' + n, value: pg.card, options: cards.some(function (c) { return c[0] === pg.card; }) ? cards :
+          cards.concat([[pg.card, (NAMES[pg.card] || pg.card) + ' (Not in This Size)']]),
+          onChange: function (v) { var next = pages.slice(); next[i] = { card: v }; put(next); } }));
+        if (ed && ed.fields && CARDS[pg.card]) rows = rows.concat(ed.fields(pg.card, pg.opts || {}, function (opts) {
+          var next = pages.slice(); next[i] = Object.keys(opts).length ? { card: pg.card, opts: opts } : { card: pg.card }; put(next); }));
+        rows.push(K.button({ label: 'Move Page ' + (i + 1) + ' Up', disabled: i === 0, onClick: function () { var next = pages.slice(); next.splice(i - 1, 0, next.splice(i, 1)[0]); put(next); } }));
+        rows.push(K.button({ label: 'Remove Page ' + (i + 1), destructive: true, onClick: function () { put(pages.filter(function (x, j) { return j !== i; })); } }));
+      });
+      if (n < swipeBlock.MAX) rows.push(K.select({ label: 'Add Page', value: '', options: [['', 'Choose a Card…']].concat(cards),
+        onChange: function (v) { if (v) put(pages.concat([{ card: v }])); } }));
+      return rows;
+    }
+  };
+
   window.hkGridCatalog = { version: '1.0.0', SIZES: SIZES, span: span, CELLS: CELLS, SOURCES: SOURCES, TABLET_ROOM: TABLET_ROOM,
                            PAGES_MAX: PAGES_MAX, PER_PAGE: PER_PAGE, perPage: perPage, CLOCK_FACES: CLOCK_FACES, THERMOSTAT_STYLES: THERMOSTAT_STYLES, TAP_TARGETS: TAP_TARGETS, MUSIC_TAPS: MUSIC_TAPS,
                            SHEET: SHEET, sheetOf: sheetOf, entryId: entryId, copySheet: copySheet, sheetRoute: sheetRoute, NAMES: NAMES,
                            sheetSlot: sheetSlot, sheetCss: sheetCss, placed: placed,
-                           CONDITIONS: CONDITIONS, hostHas: hostHas, matches: matches, rulesOf: rulesOf, choose: choose, houseNow: houseNow,
-                           nextChange: nextChange, armClock: armClock, solar: { spans: solarSpans, rows: solarRows, fresh: solarFresh, atWall: atWall, dayOf: dayOf, OFFSET_MAX: SUN_OFFSET_MAX,
+                           CONDITIONS: CONDITIONS, RULES_MAX: RULES_MAX, CONDITIONS_MAX: CONDITIONS_MAX, rulesFit: rulesFit, hostHas: hostHas, matches: matches, musicAt: musicAt,
+                             musicPlayers: musicPlayers, speakerChoices: speakerChoices, tv: tvBlock, swipe: swipeBlock, rulesOf: rulesOf, choose: choose, houseNow: houseNow,
+                           nextChange: nextChange, armClock: armClock, alert: { rows: alertRows, sample: alertSample, KEYS: ALERT_KEYS, LIMITS: ALERT },
+                             solar: { spans: solarSpans, rows: solarRows, fresh: solarFresh, atWall: atWall, dayOf: dayOf, OFFSET_MAX: SUN_OFFSET_MAX,
                              forget: function () { SUN_SEEN.sunrise = []; SUN_SEEN.sunset = []; } }, config: config, pages: pages, tabletRoom: tabletRoom, table: table };
   try { window.dispatchEvent(new CustomEvent('hk-grid-catalog-ready')); } catch (e) { /* a test page without events */ }
 })();

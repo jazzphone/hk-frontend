@@ -133,6 +133,19 @@ ok('...or on a flick over 0.5 px/ms, that way, past 30 px', X.lands(-40, 1180, -
    !X.lands(-20, 1180, -2) && !X.lands(-40, 1180, -0.4));
 ok('no travel, no landing', !X.lands(0, 1180, 5));
 ok('...and past a fifth but flicked back, it goes back', !X.lands(-500, 1180, 1.2) && X.lands(-500, 1180, 0.2) && X.lands(-500, 1180, -1.2));
+// WHERE A LIFT GOES (letGoTo): items Home, Calendar, Security; the finger on Calendar (at 1)
+var IT = [{ path: '/h' }, { path: '/c' }, { path: '/s' }];
+var lg = function (raw, w, v, chain, up) {
+  var r = X.letGoTo(IT, 1, raw, w, v, chain, up === undefined ? true : up);
+  return r.goes ? r.to.path : '-';
+};
+ok('a lift past a fifth goes to the page that way; under it, nowhere', lg(-300, 1180, 0) === '/s' && lg(300, 1180, 0) === '/h' && lg(100, 1180, 0) === '-');
+ok('...the browser taking the finger goes nowhere', lg(-300, 1180, 0, 0, false) === '-' && lg(-300, 1180, -2, 1, false) === '-');
+ok('a flick on from a settle it caught goes a page further, wherever the page is', lg(454, 1180, -1.53, 1) === '/s' && lg(-38, 1180, -1.52, 1) === '/s');
+// (2026-11-11: swipe_motion_check at 390x844 -- caught 30 ms in, Calendar 39% on the screen, pushed on at 0.47 px/ms, it
+// went back to Home)
+ok('...pushed on slower than a flick, it stays on the page it caught, not back', lg(151, 390, -0.466, 1) === '-' && lg(-151, 390, 0.466, -1) === '-');
+ok('...held still and let go there, or pulled back, it goes back as any lift', lg(151, 390, 0, 1) === '/h' && lg(151, 390, 0.3, 1) === '/h' && lg(151, 390, -0.05, 1) === '/h');
 print('=== the spring ===');
 var D = window.hkDrag;
 var sp = D.spring(-500, -1180, -1.2);
@@ -316,7 +329,8 @@ var warmAsked = [], heldNow = [], shownCb = [], showN = 0;
 var stub = {
   peek: function (seg) { return null; },
   warm: function (seg) { warmAsked.push(seg); return Promise.resolve(made[seg] ? { el: made[seg], path: seg } : null); },
-  hold: function (el, on, stay) { var at = heldNow.indexOf(el); if (on && at < 0) heldNow.push(el); if (!on && at >= 0) heldNow.splice(at, 1); if (!on && !stay && el.parentNode) el.parentNode.removeChild(el); return true; },
+  hold: function (el, on, stay) { var at = heldNow.indexOf(el); if (on && at < 0) heldNow.push(el); if (!on && at >= 0) heldNow.splice(at, 1);
+    if (!on && !stay && el.parentNode) el.parentNode.removeChild(el); return true; },
   busy: function () {},
   onView: function (fn) { shownCb.push(fn); return function () { shownCb.splice(shownCb.indexOf(fn), 1); }; }
 };
@@ -324,7 +338,8 @@ var onScreen = made.lights;
 while (slot.firstChild) slot.removeChild(slot.firstChild);
 slot.appendChild(onScreen);
 window.hkShell.view = function () { return onScreen; };
-window.hkShell.navigate = function (p) { navTo.push(p); location.pathname = p; onScreen = made[p.split('/')[2]] || onScreen; showN++; shownCb.slice().forEach(function (f) { f(onScreen, {}, {}, { path: p.split('/')[2] }); }); };
+window.hkShell.navigate = function (p) { navTo.push(p); location.pathname = p; onScreen = made[p.split('/')[2]] || onScreen; showN++;
+  shownCb.slice().forEach(function (f) { f(onScreen, {}, {}, { path: p.split('/')[2] }); }); };
 window.hkViewHost = { live: function () { return stub; } };
 location.pathname = '/dashboard-hall/lights';
 navTo = []; calls = [];
@@ -352,12 +367,14 @@ ok('...held by the host', heldNow.indexOf(made.climate) >= 0 && heldNow.indexOf(
 fire('pointerdown', ev(600, 400, path(made.lights)));
 ok('a press alone costs nothing: no layers (a tap is most presses)', !made.lights.style.getPropertyValue('will-change') && !made.climate.style.getPropertyValue('will-change'));
 fire('pointermove', ev(595, 400, path(made.lights)));
-ok('a finger starting sideways gives what may move a layer of its own, and moves nothing', made.lights.style.getPropertyValue('will-change') === 'transform' && made.climate.style.getPropertyValue('will-change') === 'transform' && !made.lights.style.transform);
+ok('a finger starting sideways gives what may move a layer of its own, and moves nothing', made.lights.style.getPropertyValue('will-change') === 'transform' &&
+  made.climate.style.getPropertyValue('will-change') === 'transform' && !made.lights.style.transform);
 fire('pointerup', ev(595, 400, path(made.lights)));
 ok('...a press that stops there gives it back', !made.lights.style.getPropertyValue('will-change') && !made.climate.style.getPropertyValue('will-change') && !P._.state().G);
 fire('pointerdown', ev(600, 400, path(made.lights)));
 fire('pointermove', ev(500, 400, path(made.lights)));
-ok('a swipe moves the real page, no stand-in', made.climate.style.transform === 'translateX(1090.0px)' && slot.children.every(function (c) { return c.className !== 'hk-swipe-ghost'; }), made.climate.style.transform);
+ok('a swipe moves the real page, no stand-in', made.climate.style.transform === 'translateX(1090.0px)' && slot.children.every(function (c) { return c.className !== 'hk-swipe-ghost'; }),
+  made.climate.style.transform);
 fire('pointermove', ev(250, 400, path(made.lights)));
 fire('pointerup', ev(250, 400, path(made.lights)));
 var aNow = P._.state().A;
@@ -394,7 +411,8 @@ drainPromises();
 P.plan();
 drainPromises();
 delete window.hkSettings.lookAt;
-ok('...the page two away is let go, the next made ready', made.home.parentNode !== slot && heldNow.indexOf(made.home) < 0 && made.security.parentNode === slot, [made.home.parentNode === slot, warmAsked.join()]);
+ok('...the page two away is let go, the next made ready', made.home.parentNode !== slot && heldNow.indexOf(made.home) < 0 && made.security.parentNode === slot,
+  [made.home.parentNode === slot, warmAsked.join()]);
 // a tab tap to the page beside it
 navTo = [];
 window.hkShell.navigate('/dashboard-hall/security');

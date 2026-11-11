@@ -96,6 +96,30 @@
                    scope: 'Home Assistant’s helpers: the toggles, buttons, numbers and lists your automations use. None shows on the tablets until you choose it here.',
                    body: function (c) { self.a_helpers(c); } };
         }
+        // LAUNDRY (phase 22, docs/phase22/LAUNDRY.md): the machines, found or the person's own; one machine's parts; adding one
+        if (sub[0] === 'laundry') {
+          var lb = ['Laundry', '#/accessories/laundry'];
+          if (sub[1] === 'add') return { title: 'Add a Machine', back: lb, scope: 'A machine with no integration of its own: what says it is running.',
+                                         body: function (c) { self.a_laundryAdd(c); } };
+          if (sub[1] === 'one' && sub[2]) {
+            var lm = this.laundryList().filter(function (x) { return x.id === sub[2]; })[0];
+            return { title: lm ? lm.name : 'Machine', back: lb, body: function (c) { self.a_laundryOne(c, sub[2]); } };
+          }
+          return { title: 'Laundry', back: back,
+                   scope: 'Washers, dryers and washer-dryers: the Laundry block, their tiles in their rooms, the chip and their sheet.',
+                   body: function (c) { self.a_laundry(c); } };
+        }
+        // TVS (phase 23, docs/phase23/TV.md): each room's TV and the player beside it; one TV's wiring; the apps
+        if (sub[0] === 'tvs') {
+          var tvBack = ['TVs', '#/accessories/tvs'];
+          if (sub[1] === 'apps') return { title: 'TV Apps', back: tvBack, scope: 'The apps a TV block and a TV’s sheet offer first.', body: function (c) { self.a_tvApps(c); } };
+          if (sub[1] === 'one' && sub[2]) {
+            var tset = window.hkTv ? window.hkTv.setFor(this.client, sub[2]) : null;
+            return { title: tset ? tset.name : 'TV', back: tvBack, body: function (c) { self.a_tvOne(c, sub[2]); } };
+          }
+          return { title: 'TVs', back: back, scope: 'Each room’s TV and its Apple TV, as one: the TV block, the TV’s sheet and its remote.',
+                   body: function (c) { self.a_tvs(c); } };
+        }
         // A TYPE (2026-10-13): what it lists, what its page and chip count, its
         // order -- What Counts' kind pages, folded in
         if (sub[0] === 'type' && M.accType(sub[1])) {
@@ -118,7 +142,8 @@
             scope: K.esc((a ? this.areaName(a) + ' · ' : '') + id) + ' · the same on every screen',
             body: function (c) { self.a_one(c, id); } };
         }
-        return { title: 'Accessories', top: true, scope: 'How each accessory shows on every screen: its name, room, icon and where it appears. Home Assistant’s own names are untouched unless you turn on Also rename in Home Assistant.',
+        return { title: 'Accessories', top: true,
+          scope: 'How each accessory shows on every screen: its name, room, icon and where it appears. Home Assistant’s own names are untouched unless you turn on Also rename in Home Assistant.',
                  body: function (c) { self.a_root(c); } };
       }
       // ACCESSORIES, laid out by type and then by room (2026-10-13). A type's
@@ -226,11 +251,21 @@
           };
           var kinds = M.ACC_TYPES.filter(function (T) { return !T[6]; }).map(typeRow).filter(Boolean);
           var sensors = M.ACC_TYPES.filter(function (T) { return T[6]; }).map(typeRow).filter(Boolean);
-          box.appendChild(K.group({ header: 'Types', footer: 'Each type, room by room: what its page and chip count, and what’s hidden from them or added to them. Cameras and the Energy page’s circuits are accessories too.' }, kinds));
-          if (sensors.length) box.appendChild(K.group({ header: 'Sensors', footer: 'What the chips and status rows count: the doors left open, the rooms with motion, the Climate page’s temperatures.' }, sensors));
+          box.appendChild(
+            K.group(
+            { header: 'Types',
+            footer: 'Each type, room by room: what its page and chip count, and what’s hidden from them or added to them. Cameras and the Energy page’s circuits are accessories too.' }, kinds));
+          if (sensors.length) box.appendChild(K.group({ header: 'Sensors', footer:
+            'What the chips and status rows count: the doors left open, the rooms with motion, the Climate page’s temperatures.' }, sensors));
           var hShown = self.helpersShown().length;
           box.appendChild(K.group({ footer: 'Home Assistant’s toggles, buttons, numbers and lists. Each one is off the tablets until you choose it.' }, [
             K.nav({ label: 'Helpers', tile: ['mdi:tune-variant', '#8e8e93'], value: hShown ? hShown + ' Shown' : 'None Shown', href: '#/accessories/helpers', fk: 'acc:helpers' })]));
+          var nL = self.laundryList().length;
+          box.appendChild(K.group({ footer: 'Washers and dryers: found by themselves, or picked part by part for any brand, a plug or a vibration sensor.' }, [
+            K.nav({ label: 'Laundry', tile: ['mdi:washing-machine', '#32ade6'], value: nL ? nL + (nL === 1 ? ' Machine' : ' Machines') : 'None', href: '#/accessories/laundry', fk: 'acc:laundry' })]));
+          var nT = window.hkTv ? window.hkTv.sets(self.client).length : 0;
+          box.appendChild(K.group({ footer: 'Each room’s TV and its Apple TV, paired by room: their inputs, volume, apps and remote.' }, [
+            K.nav({ label: 'TVs', tile: ['mdi:television', '#5e5ce6'], value: nT ? nT + (nT === 1 ? ' TV' : ' TVs') : 'None', href: '#/accessories/tvs', fk: 'acc:tvs' })]));
           var count = {};
           ids.forEach(function (id) { var a = self.areaOf(id) || (id.indexOf('timer.') === 0 ? '~timers' : '-'); count[a] = (count[a] || 0) + 1; });
           var rows = self.areasAZ().filter(function (a) { return count[a]; }).map(function (a) {
@@ -241,11 +276,18 @@
           if (count['-']) rows.push(K.nav({ label: 'No Room', icon: 'mdi:help-circle-outline', value: String(count['-']), href: '#/accessories/room/-' }));
           box.appendChild(K.group({ header: 'Rooms' }, rows));
           var hidden = self.hiddenCount(), added = (g.include_entities || []).filter(function (id) { return !isHelper(id); }).length;
-          box.appendChild(K.group({ header: 'Hidden & Added', footer: 'Hidden: kept off every screen, or off just some pages and chips — it stays in Home Assistant. Added: a tile for something HK doesn’t show by itself, such as a script or a sensor.' }, [
+          box.appendChild(
+            K.group(
+            { header: 'Hidden & Added',
+            footer: 'Hidden: kept off every screen, or off just some pages and chips — it stays in Home Assistant. Added: a tile for something HK doesn’t show by itself, such as a script or a sensor.'
+            }, [
             K.nav({ label: 'Hidden Accessories', icon: 'mdi:eye-off-outline', value: hidden ? String(hidden) : 'None', href: '#/accessories/hidden', sk: 'generated.exclude' }),
             K.nav({ label: 'Added Accessories', icon: 'mdi:plus-circle-outline', value: added ? String(added) : 'None', href: '#/accessories/added', sk: 'generated.include_entities' })]));
           var lk = self.data.settings.look;
-          box.appendChild(K.group({ header: 'Tapping an Accessory', footer: 'Tapping an accessory opens an HK detail sheet. Off: Home Assistant’s own dialog. Either way, locks, the alarm, garage doors and thermostats never change from one tap.' }, [
+          box.appendChild(
+            K.group(
+            { header: 'Tapping an Accessory',
+            footer: 'Tapping an accessory opens an HK detail sheet. Off: Home Assistant’s own dialog. Either way, locks, the alarm, garage doors and thermostats never change from one tap.' }, [
             K.toggle({ label: 'HK Detail Sheets', sk: 'look.details', on: lk.details !== false,
                        onChange: function (on) { self.setH({ 'look.details': on }); } })]));
         };
@@ -278,13 +320,19 @@
           return K.nav({ label: self.name(id), sub: id, icon: self.accGlyph(id), value: note(id), href: '#/accessories/' + encodeURIComponent(id), fk: 'acc:' + id });
         };
         var pname = o.kind ? this.placeName(o.kind) : '';
-        var n = this.byRoomGroups(c, ids, row, ck ? 'Hidden: not counted, and not on ' + pname + '. Added: counted though it isn’t found by itself. Tap one for its settings — Where It Shows and Also Count As.'
+        var n = this.byRoomGroups(c, ids, row, ck ? 'Hidden: not counted, and not on ' + pname +
+          '. Added: counted though it isn’t found by itself. Tap one for its settings — Where It Shows and Also Count As.'
                                                   : 'Tap one for its name, icon, room and Where It Shows.');
         // (Scenes: what's added is a button or script that runs a routine, 2026-11-09)
         var sc = o.kind === 'scenes';
-        if (!n) c.appendChild(K.group({ footer: ck ? 'HK finds none in this house. Add one below — ' + (sc ? 'a button that runs a routine' : 'a group helper') + ', say.' : 'None in this house.' }, []));
-        if (ck) c.appendChild(K.group({ header: 'Added', footer: (sc ? 'Count a button or script as a scene — an input_button whose automation runs a routine. It joins the scene blocks, its room’s scene row and Suggested Scene, marked Added.'
-                                                                      : 'Count something more as one of these — an outlet with a lamp, a group helper. It joins its room above, marked Added.') }, [this.countAdd(o.kind, ck)]));
+        if (!n) c.appendChild(K.group({ footer: ck ? 'HK finds none in this house. Add one below — ' + (sc ? 'a button that runs a routine' : 'a group helper') + ', say.' : 'None in this house.' },
+          []));
+        if (ck) c.appendChild(
+          K.group(
+          { header: 'Added',
+          footer: (sc ? 'Count a button or script as a scene — an input_button whose automation runs a routine. It joins the scene blocks, its room’s scene row and Suggested Scene, marked Added.'
+                                                                      : 'Count something more as one of these — an outlet with a lamp, a group helper. It joins its room above, marked Added.') },
+                                                                        [this.countAdd(o.kind, ck)]));
         // ITS CHIP (2026-10-13): which chips count this type, and on which
         // screens -- each a tap from Always / When Active for every screen
         if (o.kind) {
@@ -756,7 +804,12 @@
               },
               onPick: function (v) { var add = [].concat(v || []); if (add.length) set(cur.concat(add)); } }));
           } }));
-        c.appendChild(K.group({ footer: 'Each one gets a tile in its room: on Home, on its room’s page and in its Room blocks. One with no room shows only in More at the end of the automatic Home, never on a Home Grid. Remove one to take its tile away; it stays in Home Assistant.' }, [
+        c.appendChild(
+          K.group(
+          {
+          footer:
+          'Each one gets a tile in its room: on Home, on its room’s page and in its Room blocks. One with no room shows only in More at the end of the automatic Home, never on a Home Grid. Remove ' +
+          'one to take its tile away; it stays in Home Assistant.' }, [
           K.nav({ label: 'Helpers', tile: ['mdi:tune-variant', '#8e8e93'], sub: 'Toggles, buttons, numbers and lists are chosen there', href: '#/accessories/helpers', fk: 'also:helpers' })]));
       }
       // ---------------------------------------------------------- helpers
@@ -879,6 +932,210 @@
         return this.save({ type: 'config/entity_registry/update', entity_id: id, area_id: area }, ['helper:room:' + id], function () {
           ents[id] = Object.assign({}, e, { area_id: area });
         }, function () {});
+      }
+      // ---------------------------------------------------------- TVs (phase 23)
+      // EACH TV'S WIRING (features.tv_sets, hk_core/tv.py): [{tv, player?, input?, volume?, hidden?}], only what isn't Automatic
+      friendlyOf(id) { var st = (this.client && this.client.states || {})[id]; return (st && st.attributes && st.attributes.friendly_name) || id; }
+      tvSaved() { var own = this.hs('features.tv_sets'); return Array.isArray(own) ? own : []; }
+      tvEdit(tv, patch) {
+        var list = this.tvSaved().filter(function (x) { return x && x.tv !== tv; }), was = this.tvSaved().filter(function (x) { return x && x.tv === tv; })[0] || { tv: tv };
+        var next = Object.assign({}, was, patch);
+        Object.keys(next).forEach(function (k) { if (next[k] == null || next[k] === '' || (Array.isArray(next[k]) && !next[k].length)) delete next[k]; });
+        if (Object.keys(next).length > 1) list.push(next);
+        return this.setH({ 'features.tv_sets': list });
+      }
+      a_tvs(c) {
+        var self = this, T = window.hkTv, sets = T ? T.sets(this.client) : [];
+        var rows = sets.map(function (x) {
+          var p = x.player ? self.friendlyOf(x.player) : '', where = x.tv && x.input ? 'on ' + x.input : '';
+          return K.nav({ label: x.name, sub: [p ? 'with ' + p : (x.tv ? 'No player' : ''), where].filter(Boolean).join(' · '), tile: ['mdi:television', '#5e5ce6'],
+                         href: x.tv ? '#/accessories/tvs/one/' + encodeURIComponent(x.tv) : null, fk: 'tv:' + x.id });
+        });
+        c.appendChild(this.withError(K.group({ header: 'Rooms', footer: sets.length ? 'A TV and the Apple TV in the same room work as one. Open a TV to change what Automatic chose.' :
+          'No TV or Apple TV yet. A media player Home Assistant calls a TV, or an Apple TV, shows up here.' }, rows), 'features.tv_sets'));
+        var favs = this.hs('features.tv_apps') || [];
+        c.appendChild(K.group({}, [K.nav({ label: 'TV Apps', value: (this.hs('features.tv_show') === 'favorites' ? 'Favorites' : 'Recent') + (favs.length ? ' · ' + favs.length : ''),
+          href: '#/accessories/tvs/apps', fk: 'tv:apps' })]));
+        c.appendChild(
+          K.group(
+          { footer: 'The house’s server asks Apple’s App Store for each app’s icon once, sending only the app’s ID, and keeps it. It reaches itunes.apple.com and *.mzstatic.com; the tablets never do.'
+          }, [
+          K.toggle({ label: 'Look Up App Icons', sk: 'features.tv_icons', fk: 'tv:icons', on: this.hs('features.tv_icons') !== false,
+            onChange: function (on) { self.setH({ 'features.tv_icons': on }); } })]));
+      }
+      a_tvOne(c, tv) {
+        var self = this, T = window.hkTv, set = T ? T.setFor(this.client, tv) : null, own = this.tvSaved().filter(function (x) { return x.tv === tv; })[0] || {};
+        var st = (this.client.states || {})[tv], a = (st && st.attributes) || {}, srcs = a.source_list || [];
+        if (!set) { c.appendChild(K.group({ footer: 'This TV isn’t in Home Assistant any more.' }, [])); return; }
+        var players = T.sets(this.client).map(function (x) { return x.player; }).filter(Boolean).concat(Object.keys(this.client.states || {}).filter(function (id) {
+          return id.indexOf('media_player.') === 0 && T.isPlayer(self.client.states[id], (self.client.entities || {})[id]);
+        })).filter(function (x, i, all) { return all.indexOf(x) === i; }).sort();
+        var learned = ((((this.client.states || {})['sensor.hk_tv'] || {}).attributes || {}).inputs || {})[tv];
+        var auto = function (what) { return 'Automatic' + (what ? ' (' + what + ')' : ''); };
+        var put = function (k) { return function (v) { var p = {}; p[k] = v || null; self.tvEdit(tv, p).then(function () { self.soon(); }); }; };
+        var autoPlayer = own.player ? null : set.player;
+        c.appendChild(this.withError(K.group({ header: 'Connected To', footer: 'Change these only when a room is wired differently: sound through a receiver, or a second player on another input. ' +
+            'The input is learned when the Apple TV and the TV come on together' + (learned ? '; here it learned ' + learned + '.' : ', and hasn’t been yet.') }, [
+          K.select({ label: 'Player', sk: 'tv:player', fk: 'tv:player', value: own.player || '', options: [['', auto(autoPlayer ? this.friendlyOf(autoPlayer) : 'none in this room')]].concat(
+            players.map(function (p) { return [p, self.friendlyOf(p)]; }), [['none', 'None']]), onChange: put('player') }),
+          K.select({ label: 'On the TV’s Input', sk: 'tv:input', fk: 'tv:input', value: own.input || '',
+            options: [['', auto(learned || 'not learned yet')]].concat(srcs.map(function (x) { return [x, x]; })),
+                     onChange: put('input') }),
+          K.select({ label: 'Volume', sk: 'tv:volume', fk: 'tv:volume', value: own.volume || '', options: [['', auto()], ['tv', 'This TV'], ['player', 'The Player'], ['none', 'None']].concat(
+            Object.keys(this.client.states || {}).filter(function (id) { return id.indexOf('media_player.') === 0 && id !== tv && id !== set.player && /receiver|soundbar|theater|avr/i.test(id); })
+              .map(function (id) { return [id, self.friendlyOf(id)]; })), onChange: put('volume') })]), 'features.tv_sets'));
+        if (srcs.length) {
+          var hidden = own.hidden || [];
+          c.appendChild(K.group({ header: 'Inputs', footer: 'Turn off the inputs nobody uses; the sheet leaves them out.' +
+            (st && st.state === 'off' ? ' The list is the one the TV gave when it was last on.' : '') },
+            srcs.map(function (x) {
+              return K.toggle({ label: x, on: hidden.indexOf(x) < 0, fk: 'tv:in:' + x, onChange: function (on) {
+                var h = (own.hidden || []).filter(function (y) { return y !== x; }); if (!on) h.push(x); put('hidden')(h);
+              } });
+            })));
+        }
+      }
+      a_tvApps(c) {
+        var self = this, T = window.hkTv, favs = (this.hs('features.tv_apps') || []).slice(), show = this.hs('features.tv_show') || 'recent';
+        var names = [];
+        if (T) T.sets(this.client).forEach(function (x) { if (x.player) T.allApps(self.client, x).forEach(function (a) { if (names.indexOf(a.name) < 0) names.push(a.name); }); });
+        names.sort(function (a, b) { return a.localeCompare(b); });
+        var save = function (list) { self.setH({ 'features.tv_apps': list }).then(function () { self.soon(); }); };
+        c.appendChild(K.group({ footer: 'Recent: the apps opened most in this house first. Favorites: your list below, in its order. A block can still choose either, or one app.' }, [
+          K.seg({ label: 'Shows', sk: 'features.tv_show', fk: 'tv:show', value: show, options: [['recent', 'Recent'], ['favorites', 'Favorites']],
+            onChange: function (v) { self.setH({ 'features.tv_show': v }); } })]));
+        var rows = favs.map(function (name, i) {
+          return K.button({ label: (i + 1) + '.  ' + name + (i ? '   \u2191' : ''), fk: 'tv:fav:' + name, onClick: function () {
+            if (!i) return; var l = favs.slice(); l.splice(i - 1, 0, l.splice(i, 1)[0]); save(l);
+          } });
+        });
+        c.appendChild(this.withError(K.group({ header: 'Favorites', footer: favs.length ? 'Tap one to move it up a place. Remove one below.' : 'None yet: add the apps you watch most.' }, rows),
+          'features.tv_apps'));
+        var left = names.filter(function (n) { return favs.indexOf(n) < 0; });
+        var groupRows = [];
+        if (left.length && favs.length < 24) groupRows.push(K.select({ label: 'Add App', fk: 'tv:add', value: '', options: [['', 'Choose…']].concat(left.map(function (n) { return [n, n]; })),
+          onChange: function (v) { if (v) save(favs.concat([v])); } }));
+        if (favs.length) groupRows.push(K.select({ label: 'Remove App', fk: 'tv:remove', value: '', options: [['', 'Choose…']].concat(favs.map(function (n) { return [n, n]; })),
+          onChange: function (v) { if (v) save(favs.filter(function (n) { return n !== v; })); } }));
+        if (groupRows.length) c.appendChild(K.group({}, groupRows));
+      }
+      // ---------------------------------------------------------- laundry (phase 22)
+      // THE MACHINES: the person's own list (features.laundry), else what hkLaundry finds on the house's devices. `saved`: whether
+      // the list is the person's (the first change saves the whole list, the found ones with it)
+      laundryList() {
+        var L = window.hkLaundry, own = this.hs('features.laundry');
+        if (Array.isArray(own) && own.length) return own;
+        return L ? L.found(this.client) : [];
+      }
+      laundrySaved() { var own = this.hs('features.laundry'); return Array.isArray(own) && own.length > 0; }
+      laundrySave(list, keys) {
+        // (a found machine's room is its device's: kept as none, so it follows the device)
+        var clean = list.map(function (m) {
+          var o = {};
+          ['id', 'name', 'kind', 'area', 'watts', 'status', 'phase', 'time', 'progress', 'door', 'remote', 'leak', 'power', 'running'].forEach(function (k) {
+            if (m[k] !== undefined && m[k] !== '') o[k] = m[k];
+          });
+          if (o.watts == null) o.watts = 10;
+          return o;
+        });
+        return this.setH({ 'features.laundry': clean });
+      }
+      laundryEdit(id, patch) {
+        var list = this.laundryList().map(function (m) { return m.id === id ? Object.assign({}, m, patch) : m; });
+        return this.laundrySave(list);
+      }
+      laundryKind(k) { return ({ washer: 'Washer', dryer: 'Dryer', combo: 'Washer & Dryer' })[k] || 'Washer'; }
+      a_laundry(c) {
+        var self = this, L = window.hkLaundry, list = this.laundryList(), saved = this.laundrySaved();
+        var rows = list.map(function (m) {
+          var o = L ? L.look(self.client, m) : null;
+          return K.nav({ label: m.name, sub: self.laundryKind(m.kind) + (self.areaName(L ? L.areaOf(self.client, m) || '' : '') ? ' · ' + self.areaName(L.areaOf(self.client, m)) : ''),
+                         icon: m.kind === 'dryer' ? 'mdi:tumble-dryer' : 'mdi:washing-machine', value: o ? o.title : '',
+                         href: '#/accessories/laundry/one/' + encodeURIComponent(m.id), fk: 'laundry:' + m.id });
+        });
+        c.appendChild(this.withError(K.group({ header: saved ? 'Machines' : 'Found Machines',
+          footer: !list.length ? 'No washer or dryer was found. Add one below: a machine with an integration of its own, a power sensor, or a sensor that is on while it runs.'
+            : saved ? 'Your machines, as you set them.' : 'Found on their devices. Changing one keeps these as your own; Find Machines Again goes back.' }, rows), 'features.laundry'));
+        c.appendChild(K.group({}, [K.nav({ label: 'Add a Machine', icon: 'mdi:plus-circle-outline', href: '#/accessories/laundry/add', fk: 'laundry:add' })]));
+        if (saved) {
+          c.appendChild(K.group({ footer: 'Forget your changes and use the machines found on their devices.' },
+            [K.button({ label: 'Find Machines Again', center: true, fk: 'laundry:refind', onClick: function () {
+            K.confirm(self.shadowRoot, { title: 'Find Machines Again?', ok: 'Find Again', message: 'Your names, kinds and picked sensors go.' }).then(function (yes) {
+              if (yes) self.setH({ 'features.laundry': [] }).then(function () { self.soon(); });
+            });
+          } })]));
+        }
+        var ca = this.hs('features.laundry_clear');
+        c.appendChild(
+          K.group({ header: 'Done', footer: 'Done stays on the block, the tile and the chip until someone presses Clear, the door opens, the machine runs again or this much time passes. ' +
+            'It needs the house’s own server; with Home Assistant alone, a machine is Done only while it says so.' }, [
+          K.select({ label: 'Clear After', options: [[2, '2 hours'], [4, '4 hours'], [8, '8 hours'], [12, '12 hours'], [24, '24 hours'], [0, 'Until Cleared']],
+                     value: ca == null ? 4 : ca, sk: 'features.laundry_clear', fk: 'laundry:clear',
+                     onChange: function (v) { self.setH({ 'features.laundry_clear': Number(v) }); } })]));
+      }
+      a_laundryAdd(c) {
+        var self = this, list = this.laundryList(), n = 1;
+        while (list.some(function (m) { return m.id === 'machine_' + n; })) n++;
+        var add = function (role, v) {
+          if (!v) return;
+          var kind = /dry/.test(v) ? 'dryer' : 'washer';
+          var m = { id: 'machine_' + n, name: self.laundryKind(kind), kind: kind, watts: 10 };
+          m[role] = v;
+          self.laundrySave(list.concat([m])).then(function () { self.go('#/accessories/laundry/one/' + encodeURIComponent(m.id)); });
+        };
+        c.appendChild(
+          K.group({ header: 'What Says It Is Running', footer: 'Status: a machine’s own sensor (run, pause, finished...). Power: a smart plug or a clamp meter, running above 10 W (changeable). ' +
+            'Running Sensor: anything that is on while it runs, such as a helper made from a vibration sensor.' }, [
+          this.entityRow({ label: 'Status Sensor', sk: 'laundry:add:status', value: null, none: 'Choose…', filter: { domains: ['sensor', 'select'], shown: false },
+            onPick: function (v) { add('status', v); } }),
+          this.entityRow({ label: 'Power Sensor', sk: 'laundry:add:power', value: null, none: 'Choose…', filter: { domains: ['sensor'], dc: 'power' }, onPick: function (v) { add('power', v); } }),
+          this.entityRow({ label: 'Running Sensor', sk: 'laundry:add:running', value: null, none: 'Choose…', filter: { domains: ['binary_sensor', 'input_boolean', 'switch'] },
+            onPick: function (v) { add('running', v); } })]));
+      }
+      a_laundryOne(c, id) {
+        var self = this, L = window.hkLaundry, list = this.laundryList(), m = list.filter(function (x) { return x.id === id; })[0];
+        if (!m) { c.appendChild(K.group({ footer: 'This machine isn’t in the list any more.' }, [])); return; }
+        var o = L ? L.look(this.client, m) : null;
+        var set = function (k) { return function (v) { var p = {}; p[k] = v || null; self.laundryEdit(id, p).then(function () { self.soon(); }); }; };
+        var area = L ? L.areaOf(this.client, m) : m.area;
+        c.appendChild(K.group({ footer: o ? 'Now: ' + o.title + (o.sub ? ' · ' + o.sub : '') + '.' : null }, [
+          K.text({ label: 'Name', sk: 'laundry:name', fk: 'laundry:name', value: m.name, maxlength: 40, onCommit: function (v) { if (v.trim()) set('name')(v.trim()); } }),
+          K.select({ label: 'Kind', sk: 'laundry:kind', fk: 'laundry:kind', value: m.kind, options: [['washer', 'Washer'], ['dryer', 'Dryer'], ['combo', 'Washer & Dryer']], onChange: set('kind') }),
+          K.nav({ label: 'Room', value: area ? this.areaName(area) : 'None', sk: 'laundry:room', fk: 'laundry:room',
+                  href: this.picker('laundry-room', { title: 'Room', value: m.area || null, none: 'Its Device’s Room',
+                    items: function () { return self.areasAZ().map(function (a) { var x = self.client.areas[a]; return { value: a, label: x.name, icon: x.icon || 'mdi:texture-box' }; }); },
+                    onPick: set('area') }) })]));
+        var pick = function (role, label, filter, none) {
+          return self.entityRow({ label: label, sk: 'laundry:' + role, value: m[role] || null, none: none || 'None', filter: filter, onPick: set(role) });
+        };
+        c.appendChild(this.withError(K.group({ header: 'Its Own Integration', footer: 'Status says what it is doing; Cycle Step which part (wash, rinse, spin, dry) where the status doesn’t. ' +
+            'Time is a finish time or the time left. Found machines have these picked from their device already.' }, [
+          pick('status', 'Status', { domains: ['sensor', 'select', 'binary_sensor'] }),
+          pick('phase', 'Cycle Step', { domains: ['sensor'] }),
+          pick('time', 'Time Left or Finish Time', { domains: ['sensor'] }),
+          pick('progress', 'Progress', { domains: ['sensor'] })]), 'features.laundry'));
+        c.appendChild(K.group({ header: 'Without an Integration', footer: 'Used when there’s no Status. Power: running above Running Above. ' +
+            'A plug that flickers, or a vibration sensor, is steadier through a Home Assistant helper (a threshold, or a template sensor with a delay) picked as the Running Sensor.' }, [
+          pick('power', 'Power', { domains: ['sensor'], dc: 'power' }),
+          K.select({ label: 'Running Above', sk: 'laundry:watts', fk: 'laundry:watts', value: m.watts || 10,
+                     options: [[3, '3 W'], [5, '5 W'], [10, '10 W'], [20, '20 W'], [50, '50 W'], [100, '100 W'], [300, '300 W']], onChange: function (v) { set('watts')(Number(v)); } }),
+          pick('running', 'Running Sensor', { domains: ['binary_sensor', 'input_boolean', 'switch'] })]));
+        c.appendChild(
+          K.group(
+          { header: 'Around It', footer: 'Door: opening it after Done clears Done. Remote Control: Pause and Stop show only while the machine allows them. Leak Sensor: a leak is shown first, in red.'
+          }, [
+          pick('door', 'Door', { domains: ['binary_sensor', 'sensor'] }),
+          pick('remote', 'Remote Control', { domains: ['binary_sensor', 'sensor', 'switch'] }),
+          pick('leak', 'Leak Sensor', { domains: ['binary_sensor'], dc: 'moisture' })]));
+        c.appendChild(K.group({}, [K.button({ label: 'Remove Machine', destructive: true, center: true, fk: 'laundry:remove', onClick: function () {
+          K.confirm(self.shadowRoot, { title: 'Remove “' + m.name + '”?', ok: 'Remove', destructive: true, message: 'Its block, tile and chip go. Find Machines Again brings found ones back.' })
+            .then(function (yes) {
+              if (!yes) return;
+              var left = list.filter(function (x) { return x.id !== id; });
+              // (none left: an empty list would mean "find them again", so the found ones would come back -- say so instead)
+              (left.length ? self.laundrySave(left) : self.setH({ 'features.laundry': [] })).then(function () { self.go('#/accessories/laundry'); });
+            });
+        } })]));
       }
       a_one(c, id) {
         var self = this;

@@ -152,7 +152,9 @@
     if (cardsReady) return cardsReady;
     cardsReady = (async function () {
       var v = Date.now();
-      var tries = [['hkSettings', '/hk/modules/hk-settings.js'], ['customIconsets', '/hk/iconset/hk-icons.js'],
+      // (hk-settings-defaults.js before hk-settings.js, which reads it as it runs: phase 24)
+      var tries = [['hkSettingsDefaults', '/hk/modules/hk-settings-defaults.js'], ['hkSettings', '/hk/modules/hk-settings.js'],
+                   ['customIconsets', '/hk/iconset/hk-icons.js'],
                    ['hkCards', '/hk/cards/hk-base.js'], ['hkDetail', '/hk/cards/hk-detail.js']];
       for (var i = 0; i < tries.length; i++) {
         var t = tries[i];
@@ -181,30 +183,43 @@
   // an earlier one), each given the kit K: what the parts use of the shell, in one object. What the shell uses of them,
   // they hand back on K, and it is taken from there. The files are fetched in parallel; a host that has already loaded
   // them (the suites) starts at once, in the same turn.
+  // READY: window.__hkSplitReady['hk-settings'] is a promise that resolves once the parts have run (and rejects if they
+  // never come), so a page that imports this file and uses it at once awaits it first (web/home.js imp, hk-loader).
   var PARTS = ['hk-settings-css.js', 'hk-settings-tables.js', 'hk-settings-screen.js', 'hk-settings-screen-pages.js',
                'hk-settings-add.js', 'hk-settings-house-pages.js', 'hk-settings-house-looks.js',
                'hk-settings-house-sky.js', 'hk-settings-rooms.js', 'hk-settings-accessories.js',
                'hk-settings-library.js'];
   var PARTS_TRIES = 6;
   function partKey(file) { return file.replace(/\.js$/, ''); }
+  function partsSettle(err) {
+    var settle = (window.__hkSplitSettle || {})['hk-settings'];
+    if (settle) settle(err);
+  }
   // ONE FILE THAT DIDN'T COME (a tablet's Wi-Fi waking, the server restarting) used to leave the cards dead until a reload
   // (the third audit pass, WEB-11): the ones still missing are asked for again, a little later each time, at an address
   // of their own -- a browser keeps a failed module's answer for its address
   function loadParts(then, n) {
     // (the first call has no n; the retries and the finish pass it) a shell evaluated twice before its parts arrive
     // must not run them twice: the flag is set at once, not when the parts have run
+    var started = window.__hkSplitStarted = window.__hkSplitStarted || {};
     if (n === undefined) {
-      var started = window.__hkSplitStarted = window.__hkSplitStarted || {};
       if (started['hk-settings']) return;
       started['hk-settings'] = true;
+      var ready = new Promise(function (resolve, reject) {
+        (window.__hkSplitSettle = window.__hkSplitSettle || {})['hk-settings'] = function (err) { if (err) reject(err); else resolve(); };
+      });
+      ready.catch(function () { /* the console says so; an importer that awaits it reports it */ });
+      (window.__hkSplitReady = window.__hkSplitReady || {})['hk-settings'] = ready;
     }
     n = n || 0;
     var have = window.hkSettingsParts || {};
     var missing = PARTS.filter(function (file) { return !have[partKey(file)]; });
     if (!missing.length) {
-      try { then(); } catch (err) { console.error('[hk-settings] the parts did not start', err); }
+      var failed = null;
+      try { then(); } catch (err) { failed = err; console.error('[hk-settings] the parts did not start', err); }
       // (the checks that drive a page wait for every shell that started to say it is done)
       (window.__hkSplitDone = window.__hkSplitDone || {})['hk-settings'] = true;
+      partsSettle(failed);
       return;
     }
     // (window.hkV: the build's ?v= on an address put together here, web/shim/base.js)
@@ -217,7 +232,13 @@
       var left = PARTS.filter(function (file) { return !(window.hkSettingsParts || {})[partKey(file)]; });
       if (!left.length) { loadParts(then, n); return; }
       err = err || new Error(left[0] + ' ran without registering');
-      if (n + 1 >= PARTS_TRIES) { console.error('[hk-settings] the parts did not start', err); return; }
+      if (n + 1 >= PARTS_TRIES) {
+        console.error('[hk-settings] the parts did not start', err);
+        partsSettle(err);
+        // (given up: a later import of this file -- a page asking again at an address of its own -- starts over)
+        delete started['hk-settings'];
+        return;
+      }
       console.warn('[hk-settings] a part did not load (' + err.message + '); again shortly');
       setTimeout(function () { loadParts(then, n + 1); }, Math.min(1000 * Math.pow(2, n), 15000));
     });
@@ -327,12 +348,20 @@
       if (this._bootTry > 1) v += '&retry=' + this._bootTry;
       try {
         await Promise.all([partsReady, import('/hk/panels/hk-settings-model.js?v=' + v), import('/hk/panels/hk-settings-kit.js?v=' + v),
-                           import('/hk/panels/hk-settings-features.js?v=' + v), import('/hk/modules/hk-settings.js?v=' + v),
+                           import('/hk/panels/hk-settings-features.js?v=' + v),
+                           // (its defaults first: hk-settings.js reads them as it runs, and on Home Assistant this page may boot
+                           // before boot.py's core has run them, phase 24)
+                           import('/hk/modules/hk-settings-defaults.js?v=' + v).then(function () { return import('/hk/modules/hk-settings.js?v=' + v); }),
                            import('/hk/modules/hk-flat-image.js?v=' + v), import('/hk/modules/hk-drag.js?v=' + v),
                            // (the Wallpaper picker's previews, 2026-10-30)
                            import('/hk/modules/hk-wallpapers.js?v=' + v),
                            // (the grid editor's palette presses go through hk-drag.js)
                            import('/hk/cards/hk-grid-catalog.js?v=' + v).then(function () { return import('/hk/panels/hk-grid-editor.js?v=' + v); })]);
+        // (the modules above that are cut into parts -- tools/split_js.py -- are there once their parts have run: each shell's
+        // promise in window.__hkSplitReady, under its file's name. A part that never came rejects it, and this page says it
+        // couldn't load and tries again, as for a file that didn't come)
+        var splitReady = window.__hkSplitReady || {};
+        await Promise.all(['hk-settings-model', 'hk-settings-features', 'hk-grid-editor'].map(function (k) { return splitReady[k]; }));
       } catch (e) {
         var again = this._bootTry < 5;
         s.innerHTML = '<div class="loading"></div>';
@@ -976,7 +1005,8 @@
       if (!go()) self._saverWait = setInterval(function () { if (go() || ++n > 80) clearInterval(self._saverWait); }, 250);
       if (on && (this._saverEnergy || this._saverWx || this._saverHl)) {
         box.parentNode.insertBefore(h('div', { class: 'pvsaver' }, [h('p', { class: 'gf',
-          text: (this._saverWx ? 'The weather' : this._saverHl ? 'The Holiday slide' : 'Home Energy') + ' as this screen shows it, held while you change these. Only this preview changes.' })]), box.nextSibling);
+          text: (this._saverWx ? 'The weather' : this._saverHl ? 'The Holiday slide' : 'Home Energy') + ' as this screen shows it, held while you change these. Only this preview changes.' })]),
+            box.nextSibling);
       } else if (on) {
         var seg = h('div', { class: 'seg pvmoment', role: 'radiogroup', 'aria-label': 'Preview a photo' });
         [['', 'Any Photo'], ['portrait', 'Portrait'], ['landscape', 'Landscape']].forEach(function (o) {
@@ -993,12 +1023,17 @@
       if (on) {
         var wrap = col.querySelector('.pvsaver'), info = h('p', { class: 'gf', role: 'status', 'aria-live': 'polite' });
         if (wrap) {
-          if (!this._saverEnergy && !this._saverWx && !this._saverHl) wrap.appendChild(K.select({ label: 'Preview Slide', value: this._saverSlide || '', options: [['', 'Screensaver'], ['forecast', 'Forecast'], ['weather', 'Weather'], ['music', 'Music'], ['energy', 'Home Energy'], ['holiday', 'Holidays']], onChange: function (v) { self._saverSlide = v; self.saverPreview(true); } }));
-          wrap.appendChild(K.select({ label: 'Side Pane Preview', value: this._saverPanePreview == null ? 'saved' : this._saverPanePreview ? 'show' : 'hide', options: [['saved', 'As Saved'], ['show', 'Show'], ['hide', 'Hide']], onChange: function (v) { self._saverPanePreview = v === 'saved' ? null : v === 'show'; self.saverPreview(true); } }));
+          if (!this._saverEnergy && !this._saverWx && !this._saverHl) wrap.appendChild(
+            K.select({ label: 'Preview Slide', value: this._saverSlide || '', options: [['', 'Screensaver'], ['forecast', 'Forecast'], ['weather', 'Weather'], ['music', 'Music'],
+            ['energy', 'Home Energy'], ['holiday', 'Holidays']], onChange: function (v) { self._saverSlide = v; self.saverPreview(true); } }));
+          wrap.appendChild(K.select({ label: 'Side Pane Preview', value: this._saverPanePreview == null ? 'saved' : this._saverPanePreview ? 'show' : 'hide',
+            options: [['saved', 'As Saved'], ['show', 'Show'], ['hide', 'Hide']], onChange: function (v) { self._saverPanePreview = v === 'saved' ? null : v === 'show'; self.saverPreview(true); } }));
           wrap.appendChild(info);
           var status = function () {
             try { var S = fr.contentWindow && fr.contentWindow.hkSaver, state = S && S.previewStatus && S.previewStatus();
-              info.textContent = state ? state.message || state.paneMessage || (self._saverPanePreview !== false && !state.pane ? 'This screen’s Side Pane is off or has no visible sections. Configure it on the Side Pane page.' : 'The selected view stays here while you edit. These controls affect only the preview.') : 'Loading preview…';
+              info.textContent = state ? state.message || state.paneMessage || (self._saverPanePreview !== false && !state.pane ?
+                'This screen’s Side Pane is off or has no visible sections. Configure it on the Side Pane page.' :
+                'The selected view stays here while you edit. These controls affect only the preview.') : 'Loading preview…';
             } catch (e) { /* frame changing */ }
           };
           status(); this._saverStatusWait = setInterval(status, 500);

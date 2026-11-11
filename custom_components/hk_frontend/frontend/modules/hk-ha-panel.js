@@ -53,8 +53,16 @@
 
   // the module loader (a test hands its own)
   var loader = { import: function (url) { return import(url); } };
+  // (a file cut into parts -- tools/split_js.py -- is there once its parts have run: its shell keeps a promise of that in
+  // window.__hkSplitReady under the file's name; a part that never came is its loader's to report)
+  function partsOf(url) {
+    var name = String(url).split('?')[0].split('/').pop().replace(/\.js$/, '');
+    var ready = (global.__hkSplitReady || {})[name];
+    return ready ? ready.catch(function () { /* the loader says so */ }) : Promise.resolve();
+  }
   function importOnce(url) {
-    return Promise.resolve().then(function () { return loader.import(url); }).catch(function (err) { console.error('[hk-ha-panel] could not load ' + url, err); });
+    return Promise.resolve().then(function () { return loader.import(url); }).then(function (m) { return partsOf(url).then(function () { return m; }); })
+      .catch(function (err) { console.error('[hk-ha-panel] could not load ' + url, err); });
   }
 
   // HA's loadLovelaceResources, for this page: a stylesheet linked once, a module imported

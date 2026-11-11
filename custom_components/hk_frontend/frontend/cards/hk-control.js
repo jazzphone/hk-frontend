@@ -88,6 +88,9 @@ class HkControlCard extends HTMLElement {
       // the YAML entity -- typically a whole-home sync group -- would let a
       // drag on a screen showing NOTHING PLAYING level every speaker in the
       // home, so the card renders inert instead (`.off` in _media).
+      // (`music_at`: a Home Grid block's speaker -- the music in that room or group, as its Now Playing shows it)
+      const G = window.hkGridCatalog;
+      if (ef.music_at && G && G.musicAt) return G.musicAt(this.client, ef.music_at).player || null;
       return window.hkMusic.player(this.client) || null;
     }
     if (ef && ef.selector) {
@@ -160,7 +163,8 @@ class HkControlCard extends HTMLElement {
   }
   _esc(v){ return window.hkCards.esc(v); }
   _pretty(v){
-    const map={heat_cool:"Auto",heat:"Heat",cool:"Cool",off:"Off",auto:"Auto",on:"On",none:"None",time_of_use:"Time of Use",self_powered:"Self Powered",scheduled:"Scheduled",high_demand:"High Demand",heat_pump:"Heat Pump",electric:"Electric",eco:"Eco",open:"Open",closed:"Closed"};
+    const map={heat_cool:"Auto",heat:"Heat",cool:"Cool",off:"Off",auto:"Auto",on:"On",none:"None",time_of_use:"Time of Use",self_powered:"Self Powered",scheduled:"Scheduled",high_demand:"High Demand",
+      heat_pump:"Heat Pump",electric:"Electric",eco:"Eco",open:"Open",closed:"Closed"};
     return map[v] || String(v??"Unavailable").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
   }
   // A NUMBER'S RANGE, COMPACT: "500–7200 W" wraps to three lines in a
@@ -916,7 +920,8 @@ class HkControlCard extends HTMLElement {
       return `${top}<div class="in">${sz === "T" ? `<div class="hd">${nm}</div>${mid}<button class="mb" type="button" data-tstat-details aria-label="Change mode, currently ${how}">Mode · ${how} ›</button>` : tgd + foot("ff")}
       </div>${sz === "W" ? `<div class="mq"><button class="mb" type="button" data-tstat-details aria-label="Change mode, currently ${how}">Mode · ${how} ›</button></div>` : ""}${held}</div>`;
     }
-    const pk = (which, v, verb) => `<button class="pk${pick === which ? " sel" : ""}" type="button" data-big-pick="${which}" aria-pressed="${pick === which}" aria-label="${verb} ${t(v)} degrees">${t(v)}</button>`;
+    const pk = (which, v,
+      verb) => `<button class="pk${pick === which ? " sel" : ""}" type="button" data-big-pick="${which}" aria-pressed="${pick === which}" aria-label="${verb} ${t(v)} degrees">${t(v)}</button>`;
     const bn = mode === "off" ? "Off" : idle ? "—" : range ? pk("low", lo, "Heat to") + '<span class="ds" aria-hidden="true"></span>' + pk("high", hi, "Cool to") : t(single);
     return `${top}<div class="face">
       <div class="bn${!range && !idle && t(single).length > 2 ? " long" : ""}" data-big-num aria-label="${label}">${bn}</div>
@@ -1589,7 +1594,8 @@ if(!customElements.get("hk-control-card")) customElements.define("hk-control-car
 })();
 
 window.customCards=window.customCards||[];
-if(!window.customCards.some(c=>c.type==="hk-control-card")) window.customCards.push({type:"hk-control-card",name:"HK Control (automatic)",description:"Draws a dial, slider or media controls depending on the entity. Prefer HK Thermostat, Slider or Media Controls.",preview:true});
+if(!window.customCards.some(c=>c.type==="hk-control-card")) window.customCards.push(
+  {type:"hk-control-card",name:"HK Control (automatic)",description:"Draws a dial, slider or media controls depending on the entity. Prefer HK Thermostat, Slider or Media Controls.",preview:true});
 
 // ------------------------------------------------------- the named variants
 //

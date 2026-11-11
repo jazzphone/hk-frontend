@@ -39,10 +39,13 @@ CORE = (
     "modules/hk-np-strip.js",          # the music players' controls strip (the cards and the screensaver draw with it)
     "modules/hk-roller.js",            # the timer wheels (the New Timer card and the Timers block draw with them)
     "modules/hk-vacuum-art.js",        # the vacuum drawn (the vacuum blocks and the Vacuums page draw with it)
+    "modules/hk-laundry.js",           # laundry read and drawn (phase 22: the Laundry block, tile, chip and sheet)
+    "modules/hk-tv.js",                # a room's TV and its player, read (phase 23: the TV block and sheet)
     "modules/hk-ha-elements.js",       # HA's hk-state-icon
     "modules/tesla-viewport.js",       # needs hkShell
     "modules/hk-pairs.js",             # a stereo pair as one speaker: before the strategy builds
     "modules/hk-tap.js",
+    "modules/hk-settings-defaults.js", # the settings' first-paint defaults: hk-settings.js (AFTER) reads window.hkSettingsDefaults as it runs
 )
 # Imported in parallel once the core has run (each needs the core; none needs another here).
 AFTER = (

@@ -59,6 +59,9 @@ load(HK_ROOT + '/frontend/cards/hk-media.js');
 load(HK_ROOT + '/frontend/cards/hk-cameras.js');
 load(HK_ROOT + '/frontend/cards/hk-intercom.js');
 load(HK_ROOT + '/frontend/cards/hk-house-status.js');
+load(HK_ROOT + '/frontend/cards/hk-alert.js');
+load(HK_ROOT + '/frontend/cards/hk-laundry-card.js');
+load(HK_ROOT + '/frontend/cards/hk-tv-card.js');
 load(HK_ROOT + '/frontend/modules/hk-sidepane.js');
 load(HK_ROOT + '/frontend/cards/hk-calendar.js');
 load(HK_ROOT + '/frontend/cards/hk-layout.js');      // hk-key-card: the stand-in of a block this host doesn't have (Recent)
@@ -113,9 +116,15 @@ var house = H.house({
   'cover.garage_door': ['closed', { friendly_name: 'Garage Door', device_class: 'garage' }],
   'binary_sensor.sink_leak': ['off', { friendly_name: 'Sink Leak', device_class: 'moisture' }],
   'vacuum.downstairs': ['docked', { friendly_name: 'Downstairs', battery_level: 92 }],
+  'sensor.washer_machine_state': ['run', { friendly_name: 'Washer Machine State', device_class: 'enum', options: ['pause', 'run', 'stop'] }],
+  'sensor.washer_job_state': ['wash', { friendly_name: 'Washer Job State', device_class: 'enum', options: ['wash', 'rinse', 'spin', 'drying', 'finish', 'none'] }],
   'person.sam': ['home', { friendly_name: 'Sam' }],
   'person.alex': ['not_home', { friendly_name: 'Alex' }],
   'media_player.kitchen_speaker': ['playing', { friendly_name: 'Kitchen Speaker', media_title: 'Song', media_artist: 'Band', volume_level: 0.4 }],
+  // (a den TV and its Apple TV, for the TV block: hk-tv.js pairs them by room)
+  'media_player.den_tv': ['on', { friendly_name: 'Den TV', device_class: 'tv', source: 'HDMI 1', source_list: ['HDMI 1', 'HDMI 2'], volume_level: 0.2, supported_features: 24509 }],
+  'media_player.den_apple_tv': ['playing', { friendly_name: 'Den Apple TV', app_id: 'com.netflix.Netflix', app_name: 'Netflix', media_title: 'A Show', source_list: ['Netflix', 'YouTube'] }],
+  'remote.den_apple_tv': ['on', { friendly_name: 'Den Apple TV' }],
   'sensor.home_power': ['1800', { unit_of_measurement: 'W', friendly_name: 'Home Power' }],
   'sensor.solar_power': ['2400', { unit_of_measurement: 'W', friendly_name: 'Solar Power' }],
   'sensor.grid_power': ['-600', { unit_of_measurement: 'W', friendly_name: 'Grid Power' }],
@@ -131,7 +140,9 @@ function hass() {
   h.areas = { kitchen: { area_id: 'kitchen', name: 'Kitchen' }, den: { area_id: 'den', name: 'Den' } };
   h.floors = {};
   var reg = function (a) { return { area_id: a }; };
-  h.entities = { 'light.kitchen_pendants': reg('kitchen'), 'light.den_lamp': reg('den'), 'media_player.kitchen_speaker': reg('kitchen') };
+  h.entities = { 'light.kitchen_pendants': reg('kitchen'), 'light.den_lamp': reg('den'), 'media_player.kitchen_speaker': reg('kitchen'),
+                 'sensor.washer_machine_state': { area_id: 'kitchen', device_id: 'w1' }, 'sensor.washer_job_state': { area_id: 'kitchen', device_id: 'w1' },
+                 'media_player.den_tv': { area_id: 'den', platform: 'webostv' }, 'media_player.den_apple_tv': { area_id: 'den', platform: 'apple_tv' } };
   h.devices = {};
   return h;
 }
@@ -153,11 +164,14 @@ function cell(name) { var c = CELLS[name]; VARS = { '--hk-cell-w': c.w, '--hk-ce
 var OPTS = {
   accessory: { entity: 'light.kitchen_pendants' },
   scene: { scene: 'scene.good_morning' },
+  tv: { tv: 'media_player.den_tv' },
+  swipe: { pages: [{ card: 'tv', opts: { tv: 'media_player.den_tv' } }, { card: 'clock' }] },
   accessories: { accessories: [{ entity: 'light.kitchen_pendants' }, { entity: 'light.den_lamp' }] },
   scenes: { scenes: ['scene.good_morning', 'scene.dinner_time'] },
   action: { action: 'lock_up' },
   todo: { entity: 'todo.shopping' },
-  room: { area: 'kitchen' }
+  room: { area: 'kitchen' },
+  alert: { title: 'Garage Still Open', since: 'cover.garage_door', camera: 'camera.driveway', control: 'cover.garage_door' }
 };
 
 // ---- a tap on the plate: a click from a target that is no control, at the card's root and the card itself, and
@@ -203,6 +217,7 @@ function block(key, size, cellName, extra) {
 // controls and has no plate of its own between them, or its plate IS a control whose tap does the block's work.
 // (The WebKit click-through, tools/headless/block_taps_check.py, holds the same list and taps the real thing.)
 var NO_TAP = {
+  swipe: 'the block is its pages: each page is its own card and answers its own tap (the pager mounts it as it shows; tests/test_swipe_card.py builds them)',
   timeline: 'Recent is the House Timeline\'s, which this host doesn\'t keep: a stand-in that opens nothing (hk-timeline-block.js on a host with the page)',
   accessory: 'the whole block is the accessory\'s control: a tap toggles it, a hold opens its sheet',
   accessories: 'the block is its tiles, each a control: a tap toggles it, a hold opens its sheet',
@@ -277,6 +292,13 @@ function () {
   // (House Status: its plate -- the heading, a gap -- opens the House Status sheet; each section its own page)
   eq('House Status opens its sheet', where('house_status', 'L'), [['detail', null]]);
   eq('...Small too', where('house_status', 'S'), [['detail', null]]);
+  // (the Alert: its plate opens the door's sheet; Small, one button, does the door's own tap -- a door is never one tap: its sheet)
+  eq('the Alert opens its accessory\'s sheet', where('alert', 'L'), [['moreInfo', 'cover.garage_door']]);
+  eq('...Small does the action: a door\'s is its sheet', where('alert', 'S'), [['moreInfo', 'cover.garage_door']]);
+  // (Laundry: its plate opens the laundry sheet, hk-sheet-laundry.js, through hkDetail -- not the status sensor's own)
+  eq('Laundry opens its sheet', where('laundry', 'L'), [['detail', null]]);
+  // (the TV: its plate opens the room's TV sheet -- the TV's, which hk-sheet-tv.js draws for the TV and its Apple TV together)
+  eq('the TV opens its sheet', where('tv', 'L'), [['moreInfo', 'media_player.den_tv']]);
   eq('Everything opens More', where('everything', 'L'), [['more', 'more']]);
   eq('the Security block opens the alarm\'s sheet', where('security', 'W'), [['moreInfo', 'alarm_control_panel.house']]);
   eq('the room opens its page', where('room', 'L'), [['navigate', '/hk-kitchen/room-kitchen']]);
@@ -504,7 +526,8 @@ function () {
   SHEETS.length = 0;
   (b2.el._e.al._listeners.click || []).forEach(function (f) { f({ stopPropagation: function () {} }); });
   // (the jsc DOM keeps one element per selector across a redraw, so the redrawn block's area may be heard twice here)
-  ok('a block\'s own custom sheet is its overview', SHEETS.length >= 1 && SHEETS.every(function (q) { return q.sheet.title === 'Doors'; }), JSON.stringify(SHEETS.map(function (q) { return q.sheet; })));
+  ok('a block\'s own custom sheet is its overview', SHEETS.length >= 1 && SHEETS.every(function (q) { return q.sheet.title === 'Doors'; }),
+    JSON.stringify(SHEETS.map(function (q) { return q.sheet; })));
   // an old Security layout keeps its keypad
   eq('a Large Security block without HomeView keeps the keypad', block('security', 'L', 'square').tag, 'hk-grid-keypad-card');
 }

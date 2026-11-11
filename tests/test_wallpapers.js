@@ -36,7 +36,7 @@ globalThis.document = { createElement: node, readyState: 'complete', head: node(
 
 load(HK_ROOT + '/frontend/modules/hk-wallpapers.js');
 var W = window.hkWallpapers;
-var py = read(HK_ROOT + '/hk_core/settings/model.py');
+var py = readPyPackage(HK_ROOT + '/hk_core/settings/model');
 // (2026-11-01, item 45: one combined picker -- four arts and six themes, each in a colour; the twelve as an art in a preset)
 var ma = /\nWALLPAPER_ARTS = \(([\s\S]*?)\)\n/.exec(py), mt = /\nWALLPAPER_THEMES = \(([\s\S]*?)\)\n/.exec(py);
 var tuple = function (x) { return x ? (x[1].match(/"([a-z_]+)"/g) || []).map(function (s) { return s.slice(1, -1); }) : []; };
@@ -51,7 +51,8 @@ check('the twelve as stored before: settings.py WALLPAPER_LEGACY, in its order',
 check('...each read as its art in its own preset, whatever colour is asked', W.LEGACY.every(function (l) {
   var r = W.resolve(l[0], '#123456'); return r.id === l[1] && r.hex === W.color(l[2]) && W.has(l[0]) && !W.isTheme(l[0]);
 }));
-check('the arts named as you would say them; they move only with the Motion, the themes by themselves', W.list().slice(0, 4).map(function (w) { return w.name; }).join() === 'Ribbons,Petals,Shards,Pinwheel' &&
+check('the arts named as you would say them; they move only with the Motion, the themes by themselves', W.list().slice(0, 4).map(function (w) { return w.name; }).join() ===
+  'Ribbons,Petals,Shards,Pinwheel' &&
       W.list().every(function (w) { return w.moves === w.theme; }));
 check('every family has five colours by day and by night, the night darker', Object.keys(W.FAMILIES).every(function (f) {
   var F = W.FAMILIES[f], L = function (c) { var n = parseInt(c.slice(1), 16); return 0.2126 * (n >> 16) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255); };
@@ -210,7 +211,7 @@ check('...a meteor is a mover a Pre-rendered blur leaves out; Reduce Motion stop
 check('the layers fade as the stops do (4 s), and stay off the sky\'s animations (a still: the static sky)',
       /#hk-sky \.wall\{position:absolute;inset:0;background-size:cover;background-position:center;',\s*'  opacity:0;transition:opacity 4s linear\}/.test(src) &&
       /else if \(bg && bg\.mode === 'wallpaper'\) \{ wall = bg\.wallpaper; still = bg\.stops \|\| black; \}/.test(src) &&
-      /paintWall\(mounted, opts\.photo \? null : opts\.wall \|\| null, wn\)/.test(src));
+      /paintWall\(ST\.mounted, opts\.photo \? null : opts\.wall \|\| null, wn\)/.test(src));   // (ST.mounted: hk-sky.js's shared state, tools/split_js.py --state)
 check('...its night version after sunset, or always, or never (its Night Version)',
       /var wn = opts\.wall \? \(opts\.wall\.night === 'auto' \? !up : opts\.wall\.night === 'night'\) : !up;/.test(src));
 check('the loader brings it in, before the sky, on both products\' pages', /'hk-wallpapers\.js',\s*'hk-sky\.js'/.test(read(HK_ROOT + '/frontend/modules/hk-loader.js')));

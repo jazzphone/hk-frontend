@@ -35,7 +35,9 @@
                play: 'M8 5.14v13.72a1 1 0 0 0 1.52.85l10.6-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z',
                pause: 'M7 5h3.2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm6.8 0H17a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-3.2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
                stop: 'M7 6h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
-               search: 'M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z',
+               search:
+                 'M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 ' +
+                 '14 9.5 14 14 12 14 9.5 12 5 9.5 5z',
                queue: 'M3 6h12v2H3zm0 4h12v2H3zm0 4h8v2H3zm14-4v5.2a2.5 2.5 0 1 0 2 2.3V12h2v-2h-4z',
                chevron: 'M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6z',
                vlo: 'M7 9v6h4l5 5V4l-5 5H7z',
@@ -90,8 +92,9 @@
       (o.roles ? ' data-hk-role="spk"' : '') + ' aria-label="Speakers"><hk-icon icon="hk:homepod"></hk-icon><span class="hksl-t"><b></b><i></i></span>' +
       '<svg class="hksl-c" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON.chevron + '"/></svg></' + tag + '>';
   }
-  // ...where it plays: the room first, then the rooms joined to it
-  function line(root, names) {
+  // ...where it plays: the room first, then the rooms joined to it; `key` the first room's player, whose glyph it wears
+  // (its gear's Icon: hkIcons.speaker, 2026-11-10)
+  function line(root, names, key) {
     var el = !root ? null : root.classList && root.classList.contains('hksl') ? root : root.querySelector('.hksl');
     if (!el) return;
     names = (names || []).filter(Boolean);
@@ -101,6 +104,8 @@
     var rest = names.length > 2 ? ' + ' + (names.length - 1) : all;
     if (b && b.textContent !== one) b.textContent = one;
     if (i && i.textContent !== rest) i.textContent = rest;
+    var ic = el.querySelector('hk-icon'), g = (window.hkIcons && window.hkIcons.speaker ? window.hkIcons.speaker(key) : 'hk:homepod');
+    if (ic && ic.getAttribute('icon') !== g) ic.setAttribute('icon', g);
     var label = 'Speakers: ' + (one + all || 'none');
     if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);
   }

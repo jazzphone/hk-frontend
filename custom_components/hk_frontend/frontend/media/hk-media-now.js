@@ -835,6 +835,10 @@
           // the volume first, then the progress, 2026-11-09)
           ':host([size=W]) .np .hks .mprog{display:none!important}',
           ':host([size=W]) .np .hks{margin-top:0;--hks-pp:60px}:host([size=W]) .np .hks .mctl{margin-left:-8px;margin-right:-8px}',
+          // (THE VOLUME UP, 2026-11-10, the owner: "the volume control needs to come up some": the page player's 12 px over the song
+          // and 16 px in the volume's row put the slider 6 px off a 196 px block's foot. The song 3 px under its line, 8 over the keys,
+          // 12 under them, the slider on its target's middle: the keys on the cover's middle, the slider over its foot)
+          ':host([size=W]) .np .title{margin-top:3px}:host([size=W]) .np .hks{--hks-g1:8px;--hks-g2:12px}:host([size=W]) .np .hks .mvol{padding-top:0}',
           // (the speaker line's 56 px area from the plate's top edge down, 12 clear of the keys: the words 2 px into the
           // inset, the area 3 px below their middle -- every target in the block's 196 px, the volume's reaching its foot)
           ':host([size=W]) .np .hksl{margin-top:-2px;--hksl-dy:3px}',
@@ -1051,10 +1055,11 @@
       // single home-wide value would let another tablet change what this one
       // shows, and the transport would act on whatever it said at the moment
       // of the tap.
+      // (`music_at`: a Home Grid block's speaker -- the music in that room or group, hkGridCatalog.musicAt: one player for all)
       _res() {
-        return (window.hkMusic && this.client)
-          ? window.hkMusic.resolve(this.client)
-          : { player: null, context: null, reason: 'none', name: '' };
+        var G = window.hkGridCatalog, at = this._config && this._config.music_at;
+        if (at && G && G.musicAt && this.client) return G.musicAt(this.client, at);
+        return window.hkMusic && this.client ? window.hkMusic.resolve(this.client) : { player: null, context: null, reason: 'none', name: '' };
       }
       _player() {
         var p = this._st(this._res().player) || null;
@@ -1400,8 +1405,7 @@
 
       // what plays on this screen's music, as hkMusic resolves it
       _musicCtx() {
-        var Mu = window.hkMusic, h = this.client;
-        var r = Mu && h ? Mu.resolve(h) : null;
+        var r = window.hkMusic && this.client ? this._res() : null;
         return r && r.context ? r.context : null;
       }
 
@@ -1659,7 +1663,7 @@
                   '<button class="npi-play" type="button" data-ia="play" aria-label="Play ' + esc(last.name) + '">' + S.svg(S.ICON.play) + 'Play</button>'
                 : '<b class="npi-t">Nothing Playing</b>') + '</div></div>';
         var btns = '<div class="npi-btns"><button class="npi-b" type="button" data-ia="browse">' + S.svg(S.ICON.search) + '<b>Browse</b></button>' +
-          '<button class="npi-b" type="button" data-ia="spk" aria-label="Speaker: ' + esc(room) + '">' + '<hk-icon icon="hk:homepod"></hk-icon><b>' + esc(room) + '</b></button></div>';
+          '<button class="npi-b" type="button" data-ia="spk" aria-label="Speaker: ' + esc(room) + '">' + '<hk-icon icon="' + esc((window.hkIcons && window.hkIcons.speaker ? window.hkIcons.speaker(p ? p.entity_id : this._res().player) : 'hk:homepod')) + '"></hk-icon><b>' + esc(room) + '</b></button></div>';
         var list = size === 'XL'
           ? '<div class="npq-h"><span>Playlists</span></div><div class="npql">' + (pls.length ? pls.map(function (it, i) {
               return '<button class="npqr" type="button" data-pi="' + i + '" aria-label="' + (it.options ? 'Choose from ' : 'Play ') + esc(it.name) + '">' +
@@ -1965,7 +1969,7 @@
         // this block runs on every position tick.
         this._paintPlayButton(p);
         if (e.spk) e.spk.classList.toggle('dis', !this._musicCtx());
-        window.hkNpStrip.line(e.line, this._rooms(p));
+        window.hkNpStrip.line(e.line, this._rooms(p), p ? p.entity_id : this._res().player);
 
         var t = this._title(p);
         if (e.title.__t !== t) {

@@ -29,27 +29,40 @@
   // an earlier one), each given the kit K: what the parts use of the shell, in one object. What the shell uses of them,
   // they hand back on K, and it is taken from there. The files are fetched in parallel; a host that has already loaded
   // them (the suites) starts at once, in the same turn.
+  // READY: window.__hkSplitReady['hk-media'] is a promise that resolves once the parts have run (and rejects if they
+  // never come), so a page that imports this file and uses it at once awaits it first (web/home.js imp, hk-loader).
   var PARTS = ['hk-media-now.js', 'hk-media-speakers.js', 'hk-media-saver.js', 'hk-media-recent.js', 'hk-media-tv.js'];
   var PARTS_TRIES = 6;
   function partKey(file) { return file.replace(/\.js$/, ''); }
+  function partsSettle(err) {
+    var settle = (window.__hkSplitSettle || {})['hk-media'];
+    if (settle) settle(err);
+  }
   // ONE FILE THAT DIDN'T COME (a tablet's Wi-Fi waking, the server restarting) used to leave the cards dead until a reload
   // (the third audit pass, WEB-11): the ones still missing are asked for again, a little later each time, at an address
   // of their own -- a browser keeps a failed module's answer for its address
   function loadParts(then, n) {
     // (the first call has no n; the retries and the finish pass it) a shell evaluated twice before its parts arrive
     // must not run them twice: the flag is set at once, not when the parts have run
+    var started = window.__hkSplitStarted = window.__hkSplitStarted || {};
     if (n === undefined) {
-      var started = window.__hkSplitStarted = window.__hkSplitStarted || {};
       if (started['hk-media']) return;
       started['hk-media'] = true;
+      var ready = new Promise(function (resolve, reject) {
+        (window.__hkSplitSettle = window.__hkSplitSettle || {})['hk-media'] = function (err) { if (err) reject(err); else resolve(); };
+      });
+      ready.catch(function () { /* the console says so; an importer that awaits it reports it */ });
+      (window.__hkSplitReady = window.__hkSplitReady || {})['hk-media'] = ready;
     }
     n = n || 0;
     var have = window.hkMediaParts || {};
     var missing = PARTS.filter(function (file) { return !have[partKey(file)]; });
     if (!missing.length) {
-      try { then(); } catch (err) { console.error('[hk-media] the parts did not start', err); }
+      var failed = null;
+      try { then(); } catch (err) { failed = err; console.error('[hk-media] the parts did not start', err); }
       // (the checks that drive a page wait for every shell that started to say it is done)
       (window.__hkSplitDone = window.__hkSplitDone || {})['hk-media'] = true;
+      partsSettle(failed);
       return;
     }
     // (window.hkV: the build's ?v= on an address put together here, web/shim/base.js)
@@ -62,7 +75,13 @@
       var left = PARTS.filter(function (file) { return !(window.hkMediaParts || {})[partKey(file)]; });
       if (!left.length) { loadParts(then, n); return; }
       err = err || new Error(left[0] + ' ran without registering');
-      if (n + 1 >= PARTS_TRIES) { console.error('[hk-media] the parts did not start', err); return; }
+      if (n + 1 >= PARTS_TRIES) {
+        console.error('[hk-media] the parts did not start', err);
+        partsSettle(err);
+        // (given up: a later import of this file -- a page asking again at an address of its own -- starts over)
+        delete started['hk-media'];
+        return;
+      }
       console.warn('[hk-media] a part did not load (' + err.message + '); again shortly');
       setTimeout(function () { loadParts(then, n + 1); }, Math.min(1000 * Math.pow(2, n), 15000));
     });
@@ -139,7 +158,8 @@
       'Choose one or more speakers, then tap a playlist to play it on them. The speakers, presets and playlists are set up in HK Settings → Pages → Music.',
       C && [
         { name: 'browse_url', label: 'Browse page',
-          helper: 'Where the Browse Music pill goes, e.g. ./music-browse on ' + window.hkShell.productName() + '\'s own screens. Empty: no pill. Speakers, presets and playlists are set up in HK Settings → Pages → Music.',
+          helper: 'Where the Browse Music pill goes, e.g. ./music-browse on ' + window.hkShell.productName() +
+            '\'s own screens. Empty: no pill. Speakers, presets and playlists are set up in HK Settings → Pages → Music.',
           selector: { text: {} } }
       ],
       // NO browse_url IN THE STUB: ./music-browse is a page only HK Frontend's
@@ -263,7 +283,8 @@
     if (C.unlisted) C.unlisted('hk-tv-channels-card');
 
     // (for tests: the Home Grid widgets' pure pieces)
-    window.hkMedia = { version: '1.0.0', _: { recentCovers: recentCovers, playlistTiles: playlistTiles, heroFirst: heroFirst, LASTPL: LASTPL, tvGrid: tvGrid, tintOf: tintOf, RECENT: RECENT, TV_SLOTS: TV_SLOTS } };
+    window.hkMedia = { version: '1.0.0', _: { recentCovers: recentCovers, playlistTiles: playlistTiles, heroFirst: heroFirst, LASTPL: LASTPL, tvGrid: tvGrid, tintOf: tintOf, RECENT: RECENT,
+      TV_SLOTS: TV_SLOTS } };
   });
   });
 })();

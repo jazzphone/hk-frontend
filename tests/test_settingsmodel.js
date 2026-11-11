@@ -3,6 +3,8 @@
 // follows All Screens, the menu's three modes, the sky's dates, search. The
 // page draws; this is what it draws from.
 if (typeof HK_ROOT === 'undefined') throw new Error('run through tests/run');
+// (the files cut into parts -- tools/split_js.py -- register their parts on window: as a page has one)
+if (typeof window === 'undefined') globalThis.window = globalThis;
 load(HK_ROOT + '/frontend/panels/hk-settings-model.js');
 var M = (typeof window !== 'undefined' ? window : globalThis).hkSettingsModel;
 
@@ -453,10 +455,12 @@ ok('sky summary includes an independent decoration style', M.skySummary({ sky_de
 ok('...and where its moving things are', M.skySummary({ sky_moving: 'front' }) === 'Moving Things in Front' && M.skySummary({ sky_moving: 'behind' }) === 'Moving Things Behind' &&
    M.skySummary({ sky_moving: null }) === 'Same as All Screens');
 ok('sky summary: absent and null settings follow All Screens', M.skySummary({}) === 'Same as All Screens' && M.skySummary({ sky_gradient: null }) === 'Same as All Screens');
-ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: false, sky_weather: false, sky_decorations: false, sky_gradient: 'live' }) === 'No Animation, No Weather, No Decorations, Own Backdrop');
+ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: false, sky_weather: false, sky_decorations: false, sky_gradient: 'live' }) ===
+  'No Animation, No Weather, No Decorations, Own Backdrop');
 ok('sky summary: true is an own setting too', M.skySummary({ sky_animations: true }) === 'Own Settings');
 ok('sky summary: stored own colors count', M.skySummary({ sky_custom: {} }) === 'Own Settings');
-ok('search includes the backdrop picker (Sky Colors, 2026-10-13)', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.label === 'Sky Colors' && r.route === 'house/appearance/sky/backdrop'; }));
+ok('search includes the backdrop picker (Sky Colors, 2026-10-13)', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(
+  function(r) { return r.label === 'Sky Colors' && r.route === 'house/appearance/sky/backdrop'; }));
 ok('search finds the Background\u2019s photo', M.search('photo', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.route === 'house/appearance/sky'; }));
 
 // No Button: offered only with the swipe on (or when it is the choice), and
@@ -716,7 +720,8 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
      ['color', 'photo', 'landscapes'].every(function (m) { return M.ladderSignature(F({}, { glass: 'blur' }, { background: m })) === 'blur:a0w0r0f0c1'; }) &&
      M.ladderSignature(F({ sky_background: 'color' }, { glass: 'blur' }, {})) === 'blur:a0w0r0f0c1');
   ok('...Animations off: nothing falls and nothing moves in front', M.ladderSignature(F({ sky_animations: false }, { glass: 'blur' }, { moving: 'front' })) === 'blur:a0w1r0f0c1');
-  ok('...a screen’s own settings over All Screens’', M.ladderSignature(F({ sky_precipitation: false, sky_moving: 'front', camera_live_video: false }, { glass: 'blur' }, {}, { live: true })) === 'blur:a1w1r0f1c0');
+  ok('...a screen’s own settings over All Screens’', M.ladderSignature(F({ sky_precipitation: false, sky_moving: 'front', camera_live_video: false }, { glass: 'blur' }, {}, { live: true })) ===
+    'blur:a1w1r0f1c0');
 
   // THE LADDER, one step at a time. A house whose sky moves things in front of the cards; its first tile plays live.
   var look = { glass: 'blur' }, sky = { moving: 'front' }, cams = { strip: true, live: true };
@@ -826,6 +831,20 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
      M.paneSaverSummary({ saver: { show: 'same' } }) === 'Same as the Dashboard' && M.paneSaverSummary(hp) === 'Off');
   ok('...Now Playing\'s Show As: the bar, or in the Side Pane', M.npShowAs(hp) === 'Bar' &&
      M.npShowAs({ dashboard: { show: 'all', sections: [{ kind: 'now_playing', when: 'active' }] } }) === 'In the Side Pane');
+})();
+// ------------------------------------------------------------ Copy Settings From: the Home Grid (2026-11-10)
+(function () {
+  var grid = { v: 1, cols: 8, rows: 6, items: [{ id: 'b1', card: 'clock', at: [0, 0], size: 'small' }] };
+  var src = { home_style: 'grid', home_grid: grid, favorites: ['light.a'] };
+  var ch = M.copyChanges(src, ['grid']);
+  ok('Copy: Home Grid Layout copies the Home Style and the whole layout, a copy not the same object',
+     ch.home_style === 'grid' && eq(ch.home_grid, grid) && ch.home_grid !== grid && !('favorites' in ch));
+  ok('...unticked by default; not in COPY_NEVER any more', M.copyDefaults().indexOf('grid') < 0 &&
+     M.COPY_NEVER.indexOf('home_grid') < 0 && M.COPY_NEVER.indexOf('home_style') < 0);
+  ch = M.copyChanges({ home_style: 'generated', home_grid: null }, ['grid']);
+  ok('...a screen with no layout: its Home Style only, the other screen\'s stored layout left alone',
+     eq(ch, { home_style: 'generated' }));
+  ok('...nor copied by any other group', !('home_grid' in M.copyChanges(src, M.COPY_GROUPS.map(function (g) { return g[0]; }).filter(function (g) { return g !== 'grid'; }))));
 })();
 print(fail ? '  ' + fail + ' SETTINGS MODEL TESTS FAILED' : '  ALL ' + pass + ' SETTINGS MODEL TESTS PASS');
 if (fail) throw new Error(fail + ' failed');

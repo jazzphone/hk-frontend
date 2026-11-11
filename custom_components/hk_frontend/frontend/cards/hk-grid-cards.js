@@ -50,28 +50,41 @@
   // an earlier one), each given the kit K: what the parts use of the shell, in one object. What the shell uses of them,
   // they hand back on K, and it is taken from there. The files are fetched in parallel; a host that has already loaded
   // them (the suites) starts at once, in the same turn.
+  // READY: window.__hkSplitReady['hk-grid-cards'] is a promise that resolves once the parts have run (and rejects if they
+  // never come), so a page that imports this file and uses it at once awaits it first (web/home.js imp, hk-loader).
   var PARTS = ['hk-grid-math.js', 'hk-grid-room.js', 'hk-grid-security.js', 'hk-grid-panel.js', 'hk-grid-faces.js',
                'hk-grid-widgets.js'];
   var PARTS_TRIES = 6;
   function partKey(file) { return file.replace(/\.js$/, ''); }
+  function partsSettle(err) {
+    var settle = (window.__hkSplitSettle || {})['hk-grid-cards'];
+    if (settle) settle(err);
+  }
   // ONE FILE THAT DIDN'T COME (a tablet's Wi-Fi waking, the server restarting) used to leave the cards dead until a reload
   // (the third audit pass, WEB-11): the ones still missing are asked for again, a little later each time, at an address
   // of their own -- a browser keeps a failed module's answer for its address
   function loadParts(then, n) {
     // (the first call has no n; the retries and the finish pass it) a shell evaluated twice before its parts arrive
     // must not run them twice: the flag is set at once, not when the parts have run
+    var started = window.__hkSplitStarted = window.__hkSplitStarted || {};
     if (n === undefined) {
-      var started = window.__hkSplitStarted = window.__hkSplitStarted || {};
       if (started['hk-grid-cards']) return;
       started['hk-grid-cards'] = true;
+      var ready = new Promise(function (resolve, reject) {
+        (window.__hkSplitSettle = window.__hkSplitSettle || {})['hk-grid-cards'] = function (err) { if (err) reject(err); else resolve(); };
+      });
+      ready.catch(function () { /* the console says so; an importer that awaits it reports it */ });
+      (window.__hkSplitReady = window.__hkSplitReady || {})['hk-grid-cards'] = ready;
     }
     n = n || 0;
     var have = window.hkGridCardsParts || {};
     var missing = PARTS.filter(function (file) { return !have[partKey(file)]; });
     if (!missing.length) {
-      try { then(); } catch (err) { console.error('[hk-grid-cards] the parts did not start', err); }
+      var failed = null;
+      try { then(); } catch (err) { failed = err; console.error('[hk-grid-cards] the parts did not start', err); }
       // (the checks that drive a page wait for every shell that started to say it is done)
       (window.__hkSplitDone = window.__hkSplitDone || {})['hk-grid-cards'] = true;
+      partsSettle(failed);
       return;
     }
     // (window.hkV: the build's ?v= on an address put together here, web/shim/base.js)
@@ -84,7 +97,13 @@
       var left = PARTS.filter(function (file) { return !(window.hkGridCardsParts || {})[partKey(file)]; });
       if (!left.length) { loadParts(then, n); return; }
       err = err || new Error(left[0] + ' ran without registering');
-      if (n + 1 >= PARTS_TRIES) { console.error('[hk-grid-cards] the parts did not start', err); return; }
+      if (n + 1 >= PARTS_TRIES) {
+        console.error('[hk-grid-cards] the parts did not start', err);
+        partsSettle(err);
+        // (given up: a later import of this file -- a page asking again at an address of its own -- starts over)
+        delete started['hk-grid-cards'];
+        return;
+      }
       console.warn('[hk-grid-cards] a part did not load (' + err.message + '); again shortly');
       setTimeout(function () { loadParts(then, n + 1); }, Math.min(1000 * Math.pow(2, n), 15000));
     });
@@ -165,10 +184,12 @@
         'Your chosen accessories together in fixed rows.', [{ name: 'title', selector: { text: {} } },
         { name: 'accessories', selector: { object: {} } }], function () { return {}; });
       watchSize(HkGridSecurityCard);
-      C.register('hk-grid-security-card', HkGridSecurityCard, 'HK Grid Security', 'The alarm’s state, its locks, doors and windows, and the alarm’s own controls with its PIN.', [{ name: 'entity', label: 'Alarm', selector: { entity: { filter: { domain: 'alarm_control_panel' } } } }], function () { return {}; });
+      C.register('hk-grid-security-card', HkGridSecurityCard, 'HK Grid Security', 'The alarm’s state, its locks, doors and windows, and the alarm’s own controls with its PIN.',
+        [{ name: 'entity', label: 'Alarm', selector: { entity: { filter: { domain: 'alarm_control_panel' } } } }], function () { return {}; });
       // SECURITY'S HOMEVIEW PRESENTATION (2026-11-07, hk-grid-security.js): Small a key, the rest the alarm and its entries
       watchSize(HkGridSecurityHV);
-      C.register('hk-grid-security-hv-card', HkGridSecurityHV, 'HK Grid Security (HomeView)', 'The alarm and the locks and garage doors, as HomeView draws accessories: a tap opens Security or the one tapped.',
+      C.register('hk-grid-security-hv-card', HkGridSecurityHV, 'HK Grid Security (HomeView)',
+        'The alarm and the locks and garage doors, as HomeView draws accessories: a tap opens Security or the one tapped.',
         [{ name: 'entity', label: 'Alarm', selector: { entity: { filter: { domain: 'alarm_control_panel' } } } }], function () { return {}; });
       watchSize(HkGridSecurityKey);
       C.register('hk-grid-security-key-card', HkGridSecurityKey, 'HK Grid Security Key', 'Security in one key: the shield, and the one thing to know.',
@@ -189,7 +210,8 @@
         [{ name: 'clock_style', label: 'Style', selector: { select: { options: [{ value: '', label: 'Digital' }, { value: 'analog', label: 'Analog' }] } } },
          { name: 'bare', label: 'Hide Box', selector: { boolean: {} } }], function () { return {}; });
       watchSize(HkGridCamerasCard);
-      C.register('hk-grid-cameras-card', HkGridCamerasCard, 'HK Grid Cameras', 'Up to nine cameras at once, sized to a Home Grid block: a tap opens one live, and the doorbell goes live in its place when it rings.',
+      C.register('hk-grid-cameras-card', HkGridCamerasCard, 'HK Grid Cameras',
+        'Up to nine cameras at once, sized to a Home Grid block: a tap opens one live, and the doorbell goes live in its place when it rings.',
         [{ name: 'cameras', label: 'Cameras', selector: { entity: { multiple: true, filter: { domain: 'camera' } } } },
          { name: 'refresh', label: 'Refresh (seconds)', selector: { number: { min: 5, max: 60, step: 1 } } }], function () { return {}; });
       C.register('hk-action-card', HkActionCard, 'HK Action',
