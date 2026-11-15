@@ -322,7 +322,11 @@
       panel.setConfig(Object.assign({ entity: id, kind: kind, src: src || {}, glass: false, event: opts.event || null },
         opts.group ? { entities: opts.group.ids, room: opts.group.room, groupKind: opts.group.kind,
                        row: opts.group.row, resolve: opts.group.resolve, group: opts.group } :
-        opts.cards ? { cards: opts.cards.cards, width: opts.cards.width, height: opts.cards.height } : Object.assign({}, (opts.panel || {}).config || {})));
+        opts.cards ? { cards: opts.cards.cards, width: opts.cards.width, fill: opts.cards.fill } : Object.assign({}, (opts.panel || {}).config || {})));
+      // A PANEL FLAT ON ITS OWN (hkFlat: 'light' or 'dark'; the Home block's Sheet option): the whole sheet Flat whatever the screen
+      // wears, its frame and every card in it (hk-base flatForced)
+      var ownFlat = panel.hkFlat ? panel.hkFlat() : null;
+      if (ownFlat) { el.setAttribute('hk-flat-force', ownFlat); el._hkFlatForce = undefined; C.flatSurface(el, 'detail'); }
 
       D = {
         el: el, id: id, kind: kind, src: src || {}, panel: panel, sheet: sheet, tok: tok,
@@ -461,7 +465,8 @@
         else history.pushState(entry, '', location.href);
         d.pushed = true;
       } catch (e) { d.pushed = false; }
-      if (el.hasAttribute('hk-flat')) el.classList.add('open');
+      // (held still -- Motion off, in any look: hk-base-card-core.js flatTone -- it opens at once)
+      if (el.hasAttribute('hk-still')) el.classList.add('open');
       else requestAnimationFrame(function () {
         requestAnimationFrame(function () { if (D.el === el) el.classList.add('open'); });
       });
@@ -497,7 +502,7 @@
       d.el.classList.remove('open');
       var el = d.el;
       var remove = function () { if (el.parentNode) el.parentNode.removeChild(el); };
-      if (el.hasAttribute('hk-flat')) remove(); else setTimeout(remove, 320);
+      if (el.hasAttribute('hk-still')) remove(); else setTimeout(remove, 320);
       D = { el: null };
       if (window.hkIdle && window.hkIdle.hold) window.hkIdle.hold('hk-detail', false);
       if (!silent && d.pushed && ours(d)) history.back();

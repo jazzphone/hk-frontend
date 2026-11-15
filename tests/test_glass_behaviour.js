@@ -393,8 +393,9 @@ print('\n=== Pre-rendered: the same layers, a picture of the sky pinned in each 
 window.innerWidth = 1280; window.innerHeight = 800;
 var imgRect = { x: 0, y: 0, w: 1280, h: 800 }, mkEl = document.createElement;
 document.createElement = function (t) { var e = mkEl(t); if (t === 'img' || t === 'canvas') e._rect = imgRect; return e; };
-// (the picture is a canvas holding it: data-src names it)
-var imgsOf = function (l) { return l.children.filter(function (c) { return c.tagName === 'CANVAS' && c.getAttribute('data-src'); })
+// (the picture is a child whose background it is, fixed to the screen: data-src names it -- no fixed child, 2026-11-13:
+// Android's WebView didn't clip one to the layer's clip-path)
+var imgsOf = function (l) { return l.children.filter(function (c) { return c.getAttribute('data-hk-pre') !== null && c.getAttribute('data-src'); })
   .map(function (c) { c.src = c.getAttribute('data-src'); return c; }); };
 var live = function (l) { return /blur\(/.test(l.style.backdropFilter) && !imgsOf(l).length; };
 var V10 = view();
@@ -416,7 +417,7 @@ ok('...blurring live until there is a picture to wear', pl.every(live));
 G._pre.show('blob:one');
 ok('a picture: each layer wears it, pinned to the screen, and blurs nothing live',
    pl.every(function (l) { return l.style.backdropFilter === 'none' && imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:one'; }) &&
-   /position:fixed/.test(imgsOf(pl[0])[0].style.cssText) && /100vw/.test(imgsOf(pl[0])[0].style.cssText));
+   imgsOf(pl[0])[0].style.position === 'absolute' && /blob:one.*100vw.*fixed/.test(imgsOf(pl[0])[0].style.background));
 ok('...the first picture is whole, not faded in', pl.every(function (l) { return imgsOf(l)[0].style.opacity !== '0'; }));
 G._pre.show('blob:two');
 ok('a new picture arrives transparent over the old', pl.every(function (l) { var i = imgsOf(l); return i.length === 2 && i[1].style.opacity === '0'; }));
@@ -440,8 +441,8 @@ ok('a change (a new page, a new cover, rain) fades in quickly', pl.every(functio
    imgsOf(pl[0]).map(function (i) { return i.style.transition; }));
 advance(900);
 ok('...done in well under a second', pl.every(function (l) { var i = imgsOf(l); return i.length === 1 && i[0].src === 'blob:three'; }));
-imgRect = { x: 30, y: 24, w: 1200, h: 760 };       // a sheet sliding in: its transform is the fixed child's box
 var r10 = row(V10.grid, 500);
+r10._cs.transform = 'translateY(24px) scale(0.98)';  // a sheet sliding in: a fixed background under it is out of line
 add(r10, card({ x: 20, y: 507, w: 192, h: 70 })); advance(300);
 ok('a layer whose picture cannot be pinned to the screen blurs live instead', layersIn(r10).length > 0 && layersIn(r10).every(live));
 ok('...and the others keep their picture', pl.every(function (l) { return imgsOf(l).length === 1; }));
@@ -456,7 +457,10 @@ document.createElement = mkEl;
 
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-print('\n=== a page change: no gap -- the last picture stays until the new one is painted ===');
+// (2026-11-12, the owner's transition bugs: the last page's picture stayed on the next one; 2026-11-13, the nav bar's
+// flicker when it came off with the address. A picture is worn while it is the picture of the sky on screen: the last
+// page, still up over its own sky, keeps it; the sky cutting to a page with no picture yet takes it off)
+print('\n=== a page change: the picture follows the sky on screen, not the address ===');
 globalThis.location = { pathname: '/dashboard-home/home' };
 imgRect = { x: 0, y: 0, w: 1280, h: 800 }; document.createElement = function (t) { var e = mkEl(t); if (t === 'img' || t === 'canvas') e._rect = imgRect; return e; };
 var V12 = view(); add(V12.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
@@ -464,17 +468,17 @@ setLook('blur_pre'); advance(300); G._pre.show('blob:home');
 var hl = layersIn(V12.v);
 ok('(Home wears Home\'s picture)', hl.length > 0 && hl.every(function (l) { return imgsOf(l).length === 1; }));
 location.pathname = '/dashboard-home/climate'; G._pre.nav();
-ok('the page moves: the layers keep the last picture (taking it off left the sky unblurred for a third of a second)',
-   hl.every(function (l) { return imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:home' && l.style.backdropFilter === 'none'; }));
+ok('the address moves: the last page, still on screen over its own sky, keeps its picture',
+   hl.every(function (l) { var i = imgsOf(l); return i.length === 1 && i[0].src === 'blob:home' && !live(l); }));
 G._pre.show('blob:climate'); advance(1000);
-ok('the new picture: the last page\'s layers keep theirs until they leave (they wore it while Home Assistant swapped the page)',
-   hl.every(function (l) { return imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:home'; }));
+ok('the new picture painted, its page not yet up: it waits; the page on screen keeps its own',
+   hl.every(function (l) { var i = imgsOf(l); return i.length === 1 && i[0].src === 'blob:home'; }));
 var V12b = view(); add(V12b.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
 ok('...and the new page\'s layers wear the new picture', layersIn(V12b.v).length > 0 &&
    layersIn(V12b.v).every(function (l) { return imgsOf(l).length === 1 && imgsOf(l)[0].src === 'blob:climate'; }));
 V12b.v.remove();
 location.pathname = '/dashboard-home/lights'; G._pre.nav();
-ok('another page change: the layers still on screen keep a picture -- never bare', hl.every(function (l) { return imgsOf(l).length === 1 && l.style.backdropFilter === 'none'; }));
+ok('another page change: the address alone takes nothing off', hl.every(function (l) { return imgsOf(l).length >= 1 && !live(l); }));
 setLook('blur'); V12.v.remove(); Array.from(GL).forEach(leave); advance(300);
 document.createElement = mkEl; delete globalThis.location;
 
@@ -489,13 +493,14 @@ setLook('blur_pre'); advance(300);
 G.pin(side, 'linear-gradient(red,red)');
 G._pre.show('blob:home-1');
 location.pathname = '/dashboard-home/weather'; G._pre.nav(); G._pre.show('blob:weather-1');
-ok('the sidebar keeps Home\'s picture while Home is still the page on screen', /blob:home-1/.test(side.style.background || ''), side.style.background);
-ok('on Weather: Home\'s layers keep Home\'s picture while they are still on screen', /^(blob:home-1 ?)+$/.test(srcOf(V14.v)), srcOf(V14.v));
+ok('the address leaves Home, Home still on screen: the sidebar keeps Home\'s picture (no live gap)', /blob:home-1/.test(side.style.background || '') && !/weather/.test(side.style.background || ''),
+  side.style.background);
+ok('...and Home\'s layers keep Home\'s', /^(blob:home-1 ?)+$/.test(srcOf(V14.v)), srcOf(V14.v));
 var V14w = view(), cw = add(V14w.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
 ok('...and Weather\'s layers wear Weather\'s', /^(blob:weather-1 ?)+$/.test(srcOf(V14w.v)), srcOf(V14w.v));
 var sideMid = side.style.background || '';
-ok('...and as Weather\'s view shows the sidebar fades across: Home\'s picture and Weather\'s blended, part way',
-   /^linear-gradient\(red,red\), -webkit-cross-fade\(url\("blob:home-1"\), url\("blob:weather-1"\), ([1-9]\d?)%\) -?0\.0px -?0\.0px \/ 1280px 800px no-repeat$/.test(sideMid), sideMid);
+ok('...and as Weather\'s view shows the sidebar wears Weather\'s at once: no fade across from Home\'s',
+   /^linear-gradient\(red,red\), url\("blob:weather-1"\) -?0\.0px -?0\.0px \/ 1280px 800px no-repeat$/.test(sideMid), sideMid);
 advance(400);
 ok('...ending on Weather\'s alone', /blob:weather-1/.test(side.style.background || '') && !/blob:home-1|cross-fade/.test(side.style.background), side.style.background);
 V14w.v.remove(); leave(cw);
@@ -519,10 +524,10 @@ ok('a layer held over the page (in a fixed box) blurs live, though its picture w
    barL.length > 0 && barL.every(live), barL.map(function (l) { return l.style.backdropFilter; }));
 ok('...while the page\'s own layers wear the picture', pageL.length > 0 && pageL.every(function (l) { return imgsOf(l).length === 1 && !live(l); }));
 var r22 = row(V22.grid, 450); add(r22, card({ x: 20, y: 457, w: 192, h: 70 }));
-imgRect = { x: 30, y: 24, w: 1200, h: 760 };    // something above it moving: its picture out of line
+r22._cs.transform = 'translate(30px, 24px)';      // something above it moving: its picture out of line
 advance(300);
 ok('a page layer whose picture is out of line blurs live meanwhile', layersIn(r22).length > 0 && layersIn(r22).every(live));
-imgRect = { x: 0, y: 0, w: 1280, h: 800 };       // still again
+r22._cs.transform = 'none';                       // still again
 G.refresh(); advance(300);
 ok('...and wears the picture again once it lines up (it stayed live for good)', layersIn(r22).every(function (l) { return imgsOf(l).length === 1 && !live(l); }));
 setLook('blur'); V22.v.remove(); Array.from(GL).forEach(leave); advance(300);

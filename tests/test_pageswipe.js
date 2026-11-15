@@ -163,6 +163,13 @@ var bez = /cubic-bezier\(([\d.]+),([\d.]+),/.exec(D.easing(sp, false));
 ok('...else a curve that leaves at the same speed', bez && Math.abs(+bez[2] / +bez[1] - (-1.2 * sp.ms / -680)) < 0.01);
 ok('a flick back is measured from where it turned, not averaged with the way it came',
    X.speed([[0, 500], [40, 460], [60, 440], [80, 480], [100, 520]], 100) === 2);
+// (2026-11-13, the owner: "pages bouncing back on page swipes"; logged on the Loft: the lift 8 px back from the last move)
+ok('a few px back at the very end (the touch resampled past where it stopped) is no flick back: the swipe keeps its speed',
+   X.speed([[0, 591], [26, 644], [33, 675], [51, 741], [136, 967], [161, 1040], [169, 1075], [184, 1067]], 184) > 0.5 &&
+   X.lands(732, 1280, X.speed([[0, 591], [26, 644], [33, 675], [51, 741], [136, 967], [161, 1040], [169, 1075], [184, 1067]], 184)));
+ok('...and the lift alone 16 px back from a fast swipe (a frame\'s run past) is no flick back either',
+   X.speed([[0, 900], [17, 950], [34, 1000], [51, 1050], [68, 1083], [85, 1067]], 85) > 0.5);
+ok('...but a real turn back, however short its time, still flicks back', X.speed([[0, 500], [16, 540], [32, 580], [48, 560], [64, 530]], 64) < -0.5);
 ok('the flick is the last 100 ms, not the whole drag', Math.abs(X.speed([[0, 500], [400, 490], [450, 460], [500, 420]]) - (-0.7)) < 1e-9 &&
    X.speed([[0, 1]]) === 0);
 // (2026-11-02, the owner: quick short flicks turned the page only sometimes)
@@ -365,12 +372,23 @@ ok('beside a page narrower than the window, still past its edge', P._.park({ dir
    P._.park({ dir: -1, left: 0, off: -1180, width: 1180 }) <= 0 && P._.park({ dir: 1, left: 0, off: 2000, width: 1180 }) === 0);
 ok('...held by the host', heldNow.indexOf(made.climate) >= 0 && heldNow.indexOf(made.home) >= 0);
 fire('pointerdown', ev(600, 400, path(made.lights)));
-ok('a press alone costs nothing: no layers (a tap is most presses)', !made.lights.style.getPropertyValue('will-change') && !made.climate.style.getPropertyValue('will-change'));
+// (the pages waiting beside it have had theirs since they were placed -- 2026-11-14: given one only as the finger moved,
+// they were drawn for the first time under it, and a page started 300-400 ms after the finger on the Kitchen's tablet)
+ok('a press alone costs the page nothing: no layer (a tap is most presses)', !made.lights.style.getPropertyValue('will-change'));
+ok('...the pages waiting beside it keep a layer of their own, drawn before a finger comes', made.climate.style.getPropertyValue('will-change') === 'transform' &&
+   made.home.style.getPropertyValue('will-change') === 'transform');
+// (a car's browser runs short of GPU memory on what one page draws: nothing is drawn ahead there)
+var deWas = document.documentElement;
+document.documentElement = { hasAttribute: function (k) { return k === 'data-hk-zoomed'; } };
+ok('...but not in a car\'s browser, short of memory for the page it shows', P._.keeps() === false);
+document.documentElement = deWas;
+ok('...everywhere else they do', P._.keeps() === true);
 fire('pointermove', ev(595, 400, path(made.lights)));
 ok('a finger starting sideways gives what may move a layer of its own, and moves nothing', made.lights.style.getPropertyValue('will-change') === 'transform' &&
   made.climate.style.getPropertyValue('will-change') === 'transform' && !made.lights.style.transform);
 fire('pointerup', ev(595, 400, path(made.lights)));
-ok('...a press that stops there gives it back', !made.lights.style.getPropertyValue('will-change') && !made.climate.style.getPropertyValue('will-change') && !P._.state().G);
+ok('...a press that stops there gives the page\'s back (a tap opens what it opens on a page with no layer)', !made.lights.style.getPropertyValue('will-change') &&
+   made.climate.style.getPropertyValue('will-change') === 'transform' && !P._.state().G);
 fire('pointerdown', ev(600, 400, path(made.lights)));
 fire('pointermove', ev(500, 400, path(made.lights)));
 ok('a swipe moves the real page, no stand-in', made.climate.style.transform === 'translateX(1090.0px)' && slot.children.every(function (c) { return c.className !== 'hk-swipe-ghost'; }),
@@ -406,6 +424,39 @@ ok('...and the page it left is its neighbor now, not gone', made.lights.parentNo
 ok('...the page it landed on wears the root\'s look, the one it left its own', !made.climate.style.getPropertyValue('--hk-glass-plate') &&
    made.lights.style.getPropertyValue('--hk-glass-plate') === 'bright', [made.climate.style.getPropertyValue('--hk-glass-plate'), made.lights.style.getPropertyValue('--hk-glass-plate')]);
 ok('...the swipe is over', !P._.state().A && !P._.state().G && !P._.state().L);
+// THE PAGE SHOWN KEEPS A LAYER OF ITS OWN AT REST, ON THE WALL TABLETS (2026-11-14, the Kitchen's: given one only under
+// a finger and giving it up as it landed, the whole page was drawn again twice a swipe). A layer makes the page the box
+// that anything fixed inside it is placed in: so not a page with something fixed in it, not a car's browser, and only
+// on Android, where Pre-rendered glass places its picture by hand.
+ok('off the wall tablets the page it landed on rests as it always did, in no layer', !made.climate.style.getPropertyValue('will-change'));
+ok('...the page it left keeps its own, waiting beside it', made.lights.style.getPropertyValue('will-change') === 'transform');
+var navWas = typeof navigator === 'undefined' ? undefined : navigator;
+globalThis.navigator = { userAgent: 'Mozilla/5.0 (Linux; Android 16; wv) Chrome/140' };
+// (a page as the walk sees it: its tag, its first child, each child's next)
+var page = function (tag, kid) { return { localName: tag, style: {}, firstElementChild: kid ? { localName: kid, firstElementChild: null, nextElementSibling: null } : null }; };
+var plain = page('hk-grid-view', 'hk-tile-card'), music = page('hk-grid-view', 'hk-music-card'), pages = page('hk-grid-view', 'hk-pages-screen-card');
+var other = page('hk-view-fallback');
+ok('on an Android wall tablet a page may rest in a layer', P._.restOk(plain) === true);
+// (...and there a page beside the one shown is not marked inert nor kept from touches: both are every element's by
+// inheritance, and changing them as a page landed was a layout and a style pass of the landing's own, 2026-11-14)
+ok('...and a page beside the one shown is left as it is there: no inert, no touch block', P._.untouched() === true);
+ok('...the Music page not before its page\'s box is known (its sheets are placed by the window\'s edges)', P._.restOk(music) === false);
+// (the Pages screen's ground is fixed to the whole window: in a layer it is placed in its page's box -- the same place
+// only where that box is the window)
+var winW = (window.hkCards && window.hkCards.winSize ? window.hkCards.winSize().w : window.innerWidth) || 0;
+var winH = (window.hkCards && window.hkCards.winSize ? window.hkCards.winSize().h : window.innerHeight) || 0;
+ok('...the Pages screen not before its page\'s box is known', P._.restOk(pages) === false);
+pages.__hkBox = { l: 0, t: 0, w: winW - 400, h: winH };
+ok('...nor where a Side Pane stands beside it', P._.restOk(pages) === false);
+pages.__hkBox = { l: 0, t: 0, w: winW, h: winH };
+ok('...but where its page is the window, it may', P._.restOk(pages) === true, [winW, winH]);
+pages.__hkBox = { l: 0, t: 0, w: winW, h: winH + 300 };
+ok('...not a page taller than the window: it scrolls the document, and its fixed ground would scroll with it', P._.restOk(pages) === false);
+music.__hkBox = { l: 0, t: 0, w: winW, h: winH };
+ok('...the Music page where its page is the window and wide enough for its wall-tablet layout', P._.restOk(music) === (winW >= 900), [winW, winH]);
+ok('...nor a view of cards that aren\'t ours', P._.restOk(other) === false);
+if (navWas === undefined) delete globalThis.navigator; else globalThis.navigator = navWas;
+ok('...off the wall tablets it is inert and takes no touch, as before', P._.untouched() === false);
 run();
 drainPromises();
 P.plan();

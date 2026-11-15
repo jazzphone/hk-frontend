@@ -44,6 +44,10 @@
 // @ts-check
 (function () {
   'use strict';
+  // (the window's size as hk-base.js keeps it -- read once a size: on Android's WebView a read of window.innerWidth
+  // lays the page out first; 2026-11-13)
+  function IW() { var C = window.hkCards; return C && C.winSize ? C.winSize().w : window.innerWidth || 0; }
+  function IH() { var C = window.hkCards; return C && C.winSize ? C.winSize().h : window.innerHeight || 0; }
   if (window.hkTabBar) return;
   // the host's page: where the bar mounts, its view, navigation
   var SH = window.hkShell;
@@ -272,7 +276,7 @@
   function phoneAt(width) {
     if (width !== undefined) return width < PHONE_W;
     var Mn = window.hkCards && window.hkCards.menu;
-    return Mn && Mn.phone ? !!Mn.phone() : (window.innerWidth || 1280) < PHONE_W;
+    return Mn && Mn.phone ? !!Mn.phone() : (IW() || 1280) < PHONE_W;
   }
   // PHONES' SETTINGS HERE (While Scrolling, More): a phone, and a tablet
   // showing Phones' menu where its own doesn't fit (hkCards.menu.phoneForm)
@@ -462,10 +466,11 @@
       '  bottom:' + LIFT_CSS + ';display:none;justify-content:center;',
       // (left and right too: the Side Pane coming or going moves the page's edge, and the bar glides to its new middle
       // rather than jumping there -- 2026-11-01, the owner, swiping between pages: "jarring is always the issue")
-      '  align-items:center;gap:' + GAP + 'px;pointer-events:none;transition:translate var(--hk-pane-glide,0s) var(--hk-pane-ease,' + EASE + '),transform .34s ' + EASE + ',bottom .3s ' + EASE +
-        ',left var(--hk-pane-glide,.34s) var(--hk-pane-ease,' + EASE + '),right var(--hk-pane-glide,.34s) var(--hk-pane-ease,' + EASE + ');',
-      // (...and with the finger, during a swipe between pages: hk-sidepane.js FOLLOW)
-      '  translate:var(--hk-pane-shift,0px) 0}',
+      // (...and with the finger, during a swipe between pages -- hk-sidepane.js FOLLOW -- which writes the row's
+      // `translate` and, through glide() below, its transition, on the row itself: as custom properties on the bar
+      // every tab inherited them and was styled again, 12-16 ms a frame of a swipe on the Kitchen's tablet)
+      '  align-items:center;gap:' + GAP + 'px;pointer-events:none;transition:translate 0s,transform .34s ' + EASE + ',bottom .3s ' + EASE +
+        ',left .34s ' + EASE + ',right .34s ' + EASE + '}',
       '.root.on .row{display:flex}',
       '.root.gone .row{transform:translateY(calc(100% + 8px + ' + LIFT_CSS + '))}',
       '.root.small .row{justify-content:space-between}',
@@ -517,6 +522,9 @@
       // it where the last page's was (--hx/--hy, --sx/--sy), then lets go --
       // a short spring along the bar, or down the rail
       '  transform-origin:0 0;transform:translate(var(--hx,0px),var(--hy,0px)) scale(var(--sx,1),var(--sy,1));',
+      // (a layer of its own: under a page swipe it is moved with the finger every frame, and without one each move
+      // was the whole bar drawn again -- its glass, every glyph -- 12-15 ms a frame on the Kitchen's tablet, 2026-11-14)
+      '  will-change:transform;',
       '  transition:transform .46s ' + SPRING + '}',
       '.tab.here.slide-from::before{transition:none}',
       // a page swipe's landing: the spring at DUR.spring (DESIGN.md, "A page swipe")
@@ -879,9 +887,11 @@
     // ends above (hk-popup.js --hk-dock-h) -- what its tabs must fit in, or
     // its ends run past the rail as the bar comes up (2026-10-10)
     function railH() {
-      var d = 0;
-      try { d = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hk-dock-h')) || 0; } catch (e) { d = 0; }
-      return Math.max(0, (window.innerHeight || 800) - d);
+      // (hk-popup.js dockRoom writes it on <html>'s own style, or takes it off: read there. Through getComputedStyle it
+      // worked out the whole page's styles right after the bar's own write, 15-29 ms of a landing at 4x CPU, 2026-11-13)
+      var de = document.documentElement, d = 0;
+      try { d = parseFloat(de && de.style ? de.style.getPropertyValue('--hk-dock-h') : '') || 0; } catch (e) { d = 0; }
+      return Math.max(0, (IH() || 800) - d);
     }
     // THE SIDE SAFE AREAS in px (hk-base.js safeArea), and the page's width
     // between them (EDGE_L / EDGE_R): what the bar's tabs are fitted to
@@ -896,7 +906,7 @@
         if (room.side === 'left') left = Math.max(left, leftOf0() + room.width);
         else right = Math.max(right, room.width);
       }
-      return Math.max(0, (window.innerWidth || 0) - Math.max(left, sa.left) - Math.max(right, sa.right));
+      return Math.max(0, (IW() || 0) - Math.max(left, sa.left) - Math.max(right, sa.right));
     }
     // THE STRIP HERE (stripSide), for stripFit -- null without one, or with
     // Use the Side Strip off
@@ -904,8 +914,8 @@
       if ((b || {}).tab_bar_strip === false) return null;
       var sa = safe(), side = stripSide(sa.left, sa.right);
       if (!side) return null;
-      return { side: side, inset: Math.round(side === 'right' ? sa.right : sa.left), width: window.innerWidth || 0,
-               height: window.innerHeight || 0, bottom: Math.round(sa.bottom), dock: Math.round((window.innerHeight || 0) - railH()) };
+      return { side: side, inset: Math.round(side === 'right' ? sa.right : sa.left), width: IW() || 0,
+               height: IH() || 0, bottom: Math.round(sa.bottom), dock: Math.round((IH() || 0) - railH()) };
     }
     function listKey(width) {
       var h = C.client(), side = H.sidebarSource(), b = M.board();
@@ -927,7 +937,7 @@
       // sideways keeps a phone's bar and fit -- and its rail, when the
       // screen puts the bar at a side (position: by the width)
       var ph = phoneAt();
-      var pos = position(b.tab_bar_pos, window.innerWidth || 1280, ph), rail = pos === 'left' || pos === 'right';
+      var pos = position(b.tab_bar_pos, IW() || 1280, ph), rail = pos === 'left' || pos === 'right';
       var rm = m.rooms.length ? roomsOf(b) : 'off';
       if (rail && rm === 'button') rm = 'more';      // a rail has no room for a second button
       var roomsOn = rm === 'button';
@@ -1002,7 +1012,7 @@
       // of the two -- More's (860 px of icons, 420 of list) or what the tabs
       // need -- within the screen, so opening More never widens anything
       // More Style: a phone's own, else the tablet's (moreOf)
-      var list = moreOf(b) === 'list', big = !list && Math.min(width, window.innerHeight || width) >= SHEET_TABLET;
+      var list = moreOf(b) === 'list', big = !list && Math.min(width, IH() || width) >= SHEET_TABLET;
       var sheetW = list ? 420 : big ? Math.min(SHEET_BIG, width - 2 * SHEET_OUT) : 860;
       S.big = big;
       var joinW = Math.min(Math.max(0, width - 2 * GUTTER), Math.max(f.width, sheetW));
@@ -1066,6 +1076,7 @@
         S.sheets[k].style.setProperty('--sheet-w', (roomsOn ? sheetW : joinW) + 'px');
       });
       S.built = listKey(width);
+      boxWatch();
       // EDIT MODE: the tabs and More's pages and rooms drag (hk-edit-menu.js)
       if (ed) {
         window.hkEditMenu.wireBar({ pill: S.pill, sheet: S.sheets.more, roomsSheet: S.sheets.rooms, rail: rail,
@@ -1076,13 +1087,19 @@
     // Assistant's own edit mode (editing(), above)
     function arranging() { return !!(window.hkEditMenu && window.hkEditMenu.on()); }
     function viewPath(it) { var p = it.paths || []; return String(p[1] != null ? p[1] : p[0]); }
+    // (the same list is not written again, 2026-11-14: a page with the Side Pane beside it is narrower, so every swipe
+    // between it and one without built the bar again, and More's and the rooms' lists -- 62 buttons and their icons --
+    // were made anew to be laid out in a landing, on the Kitchen's tablet)
     function fill(grid, items, k, at) {
       var ed = arranging() && (k === 'p' || k === 'r');
-      grid.innerHTML = items.map(function (it, i) {
+      var html = items.map(function (it, i) {
         return '<button class="it" data-k="' + k + '" data-i="' + (i + (at || 0)) + '"' +
           (ed ? ' data-p="' + esc(k === 'r' ? it.path : viewPath(it)) + '"' : '') + '>' + appIcon(it, k, i + (at || 0)) + '<span>' +
           esc(it.title) + '</span></button>';
       }).join('');
+      if (grid.__hkFill === html && grid.childElementCount === items.length) return;
+      grid.innerHTML = html;
+      grid.__hkFill = html;
     }
     // AN ITEM'S APP ICON (the CSS's APP ICONS): a page in its accent (Home
     // and a page with none, the menu's orange), a room in its tint by its
@@ -1118,12 +1135,11 @@
       // (hk-menu.js writes it on <html>'s own style: read there first. Through getComputedStyle it worked out the whole
       // document's styles each time, ~10-14 ms of a page swipe's landing at 4x CPU, 2026-11-07)
       var de = document.documentElement, own = de && de.style ? de.style.getPropertyValue('--hk-content-left') : '';
+      // (...and what it wrote is the answer, 0 included -- no menu docked: read as "not known", the panel was measured
+      // after every write, twice in each landing, 15 ms each at 4x CPU, 2026-11-13)
+      if (own) return Math.max(0, parseFloat(own) || 0);
       var v = 0;
-      if (own) v = parseFloat(own) || 0;
-      else {
-        try { v = parseFloat(getComputedStyle(de).getPropertyValue('--hk-content-left')) || 0; }
-        catch (e) { v = 0; }
-      }
+      try { v = parseFloat(getComputedStyle(de).getPropertyValue('--hk-content-left')) || 0; } catch (e) { v = 0; }
       if (!v) {
         var p = M.panel(), r = p && p.getBoundingClientRect ? p.getBoundingClientRect() : null;
         v = r ? Math.max(0, r.left) : 0;
@@ -1153,9 +1169,37 @@
       el.classList.remove('slide-from');
       ['--hx', '--hy', '--sx', '--sy'].forEach(function (v) { el.style.removeProperty(v); });
     }
+    // A TAB'S BOX IN THE PILL, measured once (2026-11-13, swipe landings on the Loft): a swipe measured the tab it
+    // follows to, its landing (markHere) the same tab again, and the page change's sync a third time -- each the first
+    // read after the frame's writes, a layout of the whole page each, 15 ms a swipe. A tab's place in the pill changes
+    // only when the bar is built again or a tab or the pill changes size (boxWatch), or the window does; `.here` moves
+    // only the highlight drawn behind it. Each caller gets its own copy (drawnBoxOf adds to it).
+    var boxes = null, boxRo = null, boxMo = null;
+    function boxesGone() { boxes = null; }
+    function boxWatch() {
+      boxesGone();
+      if (!S.pill) return;
+      // (Edit mode's drag puts a tab in another place without any size changing)
+      if (typeof MutationObserver === 'function') {
+        if (!boxMo) boxMo = new MutationObserver(boxesGone);
+        boxMo.disconnect();
+        boxMo.observe(S.pill, { childList: true });
+      }
+      if (typeof ResizeObserver !== 'function') return;
+      if (!boxRo) boxRo = new ResizeObserver(boxesGone);
+      boxRo.disconnect();
+      boxRo.observe(S.pill);
+      S.pill.querySelectorAll('.tab').forEach(function (t) { boxRo.observe(t); });
+    }
     function boxOf(el) {
-      var p = S.pill.getBoundingClientRect(), r = el.getBoundingClientRect();
-      return { x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height, pos: S.pos };
+      var b = boxes && boxes.get(el);
+      if (!b || b.pos !== S.pos) {
+        var p = S.pill.getBoundingClientRect(), r = el.getBoundingClientRect();
+        b = { x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height, pos: S.pos };
+        // (a tab not laid out yet -- the bar hidden -- is measured again next time)
+        if (r.width && typeof WeakMap === 'function') (boxes = boxes || new WeakMap()).set(el, b);
+      }
+      return { x: b.x, y: b.y, w: b.w, h: b.h, pos: b.pos };
     }
     // A second tab tap catches the capsule where it is, rather than where the first tap was sending it.
     // Only read on a selection change: a swipe supplies its own measured box through follow()/land().
@@ -1206,10 +1250,28 @@
     }
 
     // --------------------------------------------------------- choosing
+    // THE TAP IS ANSWERED BEFORE THE PAGE IS MADE (2026-11-14, the Kitchen's tablet: a tab tapped, and nothing for 420 ms
+    // -- the page's cards attached, laid out and its glass placed, all in the tap's own task, the highlight waiting
+    // with them). The highlight goes to the tab at once, in a frame of its own (as a swipe's landing says where it is
+    // going before the address does: S.landing), and the page is asked for once that frame is drawn. The last tap
+    // wins, as before; a page that draws no frames goes by the timer.
+    var TAP_FRAME_MS = 120, goT = 0;
     function go(it) {
       closeSheet();
       if (!it || H.isHere(it, location.pathname)) return;
-      SH.navigate(it.path);
+      var path = it.path;
+      if (!S.root || !S.on || typeof requestAnimationFrame !== 'function' || document.hidden) { SH.navigate(path); return; }
+      S.landing = path;
+      markHere();
+      var gone = false, turn = ++goT;
+      var nav = function () {
+        if (gone) return;
+        gone = true;
+        // (overtaken by a later tap: that one's page, not this)
+        if (turn === goT) SH.navigate(path);
+      };
+      requestAnimationFrame(function () { setTimeout(nav, 0); });
+      setTimeout(nav, TAP_FRAME_MS);
     }
     function onTab(e) {
       var el = e.target.closest && e.target.closest('.tab');
@@ -1287,7 +1349,7 @@
       if (S.roomsMode === 'button') {
         var room = parseFloat(getComputedStyle(more).maxHeight) || 0;
         var want = S.more.length ? more.scrollHeight : rooms.scrollHeight;
-        var h = Math.round(Math.max(SHEET_MIN, want, (window.innerHeight || 0) * SHEET_SHARE));
+        var h = Math.round(Math.max(SHEET_MIN, want, (IH() || 0) * SHEET_SHARE));
         if (room) h = Math.min(h, room);
         [more, rooms].forEach(function (el) { el.style.height = h + 'px'; });
       }
@@ -1361,7 +1423,7 @@
           });
           // the stash (as tall as the bar) and a gutter either side of it
           var need = barH(undefined, sizeNow()) + 2 * GUTTER;
-          ok = r > 0 && (window.innerWidth || 0) - Math.max(paneR(), safe().right) - r >= need;
+          ok = r > 0 && (IW() || 0) - Math.max(paneR(), safe().right) - r >= need;
         }
         if (de.hasAttribute('hk-tabbar-room') !== ok) { if (ok) de.setAttribute('hk-tabbar-room', 'end'); else de.removeAttribute('hk-tabbar-room'); }
       });
@@ -1464,7 +1526,7 @@
         S.asideScale = 1;
         return;
       }
-      var w = hv.getBoundingClientRect().width / (S.asideScale || 1) || window.innerWidth || 1280;
+      var w = hv.getBoundingClientRect().width / (S.asideScale || 1) || IW() || 1280;
       var k = Math.max(0.5, (w - asideW()) / w);
       hv.style.transformOrigin = (pos === 'left' ? 'right' : 'left') + ' top';
       hv.style.transform = full ? 'scale(' + k.toFixed(4) + ')' : '';
@@ -1573,6 +1635,8 @@
       if (!mount()) return;
       var b = M.board() || {};
       var look = document.documentElement.getAttribute('data-hk-glass');
+      // (the frost picture over a sky the tablet app draws: as Pre-rendered, hk-glass.js pictured)
+      if (window.hkGlass && window.hkGlass.pictured) look = window.hkGlass.pictured(look);
       var mat = material(b.tab_bar_glass, look);
       pinGlass(mat === 'blur' && look === 'blur_pre' ? 'blur' : mat === 'bright' && look === 'bright_pre' ? 'bright' : null);
       var a = typeof M.accent === 'function' ? M.accent() : null;
@@ -1660,11 +1724,13 @@
     document.addEventListener('visibilitychange', function () { if (document.hidden) closeSheet(true); });
     // (and again once a rotation's safe areas have come: WebKit says resize first, and an iPhone turned upright kept the
     // Side Strip of its sideways inset until the next resize -- hkCards.safeArea measures afresh at 250 and 800 ms, 2026-11-10)
-    window.addEventListener('resize', function () { sync(); setTimeout(sync, 300); setTimeout(sync, 900); });
+    window.addEventListener('resize', function () { boxesGone(); sync(); setTimeout(sync, 300); setTimeout(sync, 900); });
     // the docked bar came, went or changed height: the rail's room did
-    window.addEventListener('hk-dock', function () { sync(); });
+    // (once a frame: the bar says so from inside its own publish, between its writes -- 2026-11-13)
+    window.addEventListener('hk-dock', syncSoon);
     window.addEventListener('hk-pane', syncSoon);
     window.addEventListener('hk-module-ready', function () { S.built = ''; sync(); });
+    window.addEventListener('hk-glass-frost', function () { sync(); });
     // the host's Home Assistant rows changed (hkShell.haNav: it learned where the page is)
     window.addEventListener('hk-ha-nav-changed', function () { S.built = ''; sync(); });
     // Edit mode begun or ended (hk-edit.js): More's Edit Page row goes or comes back
@@ -1764,6 +1830,30 @@
     window.hkTabBar.pages = swipePages;
     window.hkTabBar.follow = follow;
     window.hkTabBar.land = land;
+    // WITH THE SIDE PANE, UNDER THE FINGER (hk-sidepane.js follow): the row `px` from its place, null back in it. Its
+    // glass keeps the slice of its place meanwhile (hk-glass.js pinAll, `_hkCarry`), cut again where it has landed.
+    // (A layer of its own while it moves -- will-change -- was tried on the Kitchen's tablet, 2026-11-14: no frame
+    // was drawn sooner for it, and the layer was made in the swipe's first frame.)
+    window.hkTabBar.shift = function (px) {
+      var row = S.root && S.root.querySelector('.row'), parts = [S.pill, S.roomsBtn];
+      if (!row) return;
+      if (px === null || px === undefined) {
+        row.style.removeProperty('translate');
+        parts.forEach(function (el) { if (el) delete el._hkCarry; });
+        return;
+      }
+      row.style.setProperty('translate', (+px).toFixed(1) + 'px 0');
+      parts.forEach(function (el) { if (el) el._hkCarry = +px; });
+    };
+    // THE SIDE PANE'S GLIDE: how long the row takes to its new middle (translate) and its new edges (left, right) --
+    // `ms` null gives the row's own back
+    window.hkTabBar.glide = function (ms, ease) {
+      var row = S.root && S.root.querySelector('.row');
+      if (!row) return;
+      if (ms === null || ms === undefined) { row.style.removeProperty('transition'); return; }
+      var t = ms + 'ms ' + (ease || EASE);
+      row.style.setProperty('transition', 'translate ' + t + ',transform .34s ' + EASE + ',bottom .3s ' + EASE + ',left ' + t + ',right ' + t);
+    };
     window.hkTabBar.sync = sync;
     window.hkTabBar.open = openSheet;
     window.hkTabBar.close = closeSheet;

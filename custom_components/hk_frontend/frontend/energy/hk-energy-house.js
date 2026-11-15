@@ -143,6 +143,8 @@
           '.lvtop{animation:lvTop 1.6s ease-in-out infinite;filter:drop-shadow(0 0 3px rgba(108,240,143,.9))}',
           '@keyframes port{50%{opacity:.25}}',
           '@media (prefers-reduced-motion:reduce){.glint,.lvrun,.lvtop,.portdot{animation:none}.flowdot{display:none}}',
+          // the screen's Animations off (Sky / Background; hk-base.js marks the card hk-still): as Reduce Motion
+          ':host([hk-still]) .glint,:host([hk-still]) .lvrun,:host([hk-still]) .lvtop,:host([hk-still]) .portdot{animation:none}:host([hk-still]) .flowdot{display:none}',
           // a phone: the chips in a grid above the house, no stems
           '@container (max-width:' + window.hkCards.BP.cardSide + 'px){.hart{margin-top:0;display:flex;flex-direction:column-reverse;aspect-ratio:auto !important;max-width:none !important}',
           '  .pic{position:relative}.hart svg{position:static;height:auto}.chips{position:static;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:8px}',
@@ -223,7 +225,10 @@
         var crop = A.crop != null ? A.crop : Math.max(0, Math.min.apply(null, Object.keys(L).map(function (k) { return L[k][2]; })) - 50);
         var vh = H - crop, maxh = c.max_height || A.max_height || 560;
         // the layers, each at its trimmed place
-        var img = function (k) { var l = L[k]; return l ? '<image href="' + base + l[0] + '" x="' + l[1] + '" y="' + l[2] + '" width="' + l[3] + '" height="' + l[4] + '"/>' : ''; };
+        // (the house that ships is the build's own: its layers under the build's id, kept by the browser and the tablet
+        // app rather than asked for again at every showing -- window.hkV, web/shim/base.js; a folder of your own isn't)
+        var at = function (f) { var u = base + f; return base === '/hk/power-house/' && window.hkV ? window.hkV(u) : u; };
+        var img = function (k) { var l = L[k]; return l ? '<image href="' + at(l[0]) + '" x="' + l[1] + '" y="' + l[2] + '" width="' + l[3] + '" height="' + l[4] + '"/>' : ''; };
         var fade = A.fade || { right: [0.86, 0.985], bottom: [0.9, 1] };
         var svg = '<svg viewBox="0 ' + crop + ' ' + W + ' ' + vh + '" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><defs>' +
           '<linearGradient id="hfx" x1="0" x2="1" y1="0" y2="0"><stop offset="' + fade.right[0] + '" stop-color="#fff"/><stop offset="' + fade.right[1] + '" stop-color="#000"/></linearGradient>' +

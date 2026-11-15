@@ -18,11 +18,20 @@
 // THE DRAWING (the mockup the owner approved, docs/phase22/mockup/laundry.html): a front-loader drawn large, its drum turning by what it
 // does -- washing rocks, spinning whirls and shakes, drying tumbles under warm lines -- and a badge at its upper right as the vacuum's:
 // white for paused and a delayed start, mint for Done, red for a leak or an error. Everything still where motion is off
-// (prefers-reduced-motion, Flat's stopped animations). The generated pages' tiles use the glyph, never the drawing ("no animation
+// (prefers-reduced-motion, Flat's stopped animations, the screen's Animations off). The generated pages' tiles use the glyph, never the drawing ("no animation
 // necessary though.. as none of the other animate").
 // @ts-check
 (function (global) {
   'use strict';
+  // HOW MANY STATES, once per set of them (2026-11-13, swipes on the Loft): asked by every card on every update, the
+  // count walked the whole house each time; a host gives a new states object with every change, so it is counted once
+  var NSTATES = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function nStates(st) {
+    if (!st) return 0;
+    var n = NSTATES ? NSTATES.get(st) : undefined;
+    if (n === undefined) { n = Object.keys(st).length; if (NSTATES) NSTATES.set(st, n); }
+    return n;
+  }
   if (global.hkLaundry) return;
 
   // THE TABLE (hk_core/laundry.py WORDS and STEPS, the same: tests/test_laundry.py)
@@ -199,9 +208,11 @@
   function machines(client, saved) {
     if (saved === undefined) saved = setting('features.laundry', null);
     if (Array.isArray(saved) && saved.length) return saved.filter(function (m) { return m && m.id; });
-    var ents = client && client.entities, devs = client && client.devices, n = client && client.states ? Object.keys(client.states).length : 0;
+    var ents = client && client.entities, devs = client && client.devices, n = client && client.states ? nStates(client.states) : 0;
     if (memo.list && memo.ents === ents && memo.devs === devs && memo.n === n && ents) return memo.list;
-    var list = found(client);
+    // (a scan of every entity is no screen's need: the host doesn't keep the whole house for it -- hkShell.unrecorded)
+    var shell = global.hkShell, list = shell && typeof shell.unrecorded === 'function'
+      ? shell.unrecorded(function () { return found(client); }) || [] : found(client);
     memo = { ents: ents, devs: devs, n: n, list: list };
     return list;
   }
@@ -375,12 +386,16 @@
     });
     return '<g class="dt"><path d="' + d + '"/>' + dots + '</g>';
   }
+  // the screen's Animations off (Sky / Background): a sheet's drawing is drawn still (a card's follows its hk-still as well)
+  function stillNow() {
+    try { var S = global.hkSettings; return !!(S && S.skyLook && S.skyLook().animations === false); } catch (e) { return false; }
+  }
   function art(state, kind, o) {
     o = o || {};
     var s = STATES.indexOf(state) >= 0 ? state : 'off', dry = kind === 'dryer', id = 'hkla' + (++uid);
     var wet = !dry && /^(washing|rinsing|running|paused|leak)$/.test(s);
     var lvl = s === 'rinsing' ? 84 : 92, lie = /^(off|done|offline|delayed|leak|error)$/.test(s);
-    var v = '<svg class="hkla s-' + s + '" viewBox="' + (o.crop ? '23 9 94 132" style="aspect-ratio:94/132' : '0 0 140 150') + '" role="img" aria-label="' +
+    var v = '<svg class="hkla s-' + s + (stillNow() ? ' still' : '') + '" viewBox="' + (o.crop ? '23 9 94 132" style="aspect-ratio:94/132' : '0 0 140 150') + '" role="img" aria-label="' +
       String(o.label || NAMES[s] || '').replace(/[&<>"]/g, '') + '">';
     v += '<defs><clipPath id="' + id + '"><circle cx="70" cy="90" r="25.5"/></clipPath></defs>';
     if (s === 'leak') v += '<ellipse class="pud" cx="64" cy="142" rx="58" ry="6.5"/>';
@@ -462,6 +477,9 @@
       '  .hkla.s-leak .bdg,.hkla.s-error .bdg{transform-box:fill-box;transform-origin:center;animation:hkla-pulse 1.8s ease-in-out infinite}',
       '  .hkla.s-error .mach{animation:hkla-err 3s ease-in-out infinite}',
       '}',
+      // the screen's Animations off (Sky / Background): still, in a card (hk-base.js marks it hk-still) or drawn still (a sheet)
+      ':host([hk-still]) .hkla,:host([hk-still]) .hkla *{animation:none!important}',
+      '.hkla.still,.hkla.still *{animation:none!important}',
       '@keyframes hkla-rock{0%{transform:rotate(-70deg)}100%{transform:rotate(110deg)}}',
       '@keyframes hkla-turn{to{transform:rotate(360deg)}}',
       '@keyframes hkla-nudge{0%,78%{transform:rotate(0)}92%,100%{transform:rotate(120deg)}}',

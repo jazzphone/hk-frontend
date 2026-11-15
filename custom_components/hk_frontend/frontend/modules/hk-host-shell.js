@@ -150,6 +150,18 @@
     // notHouseCamera). The host's own Live TV channels, once its integration
     // holds them. Home Assistant: none beyond HK's own.
     notHouseCameraPlatforms: function () { return []; },
+    // a Kiosk App's name as the host says it (null: HK's own name)
+    kioskAppName: function () { return null; },
+    // A LOOK OVER THE WHOLE HOUSE THAT IS NO SCREEN'S NEED: unrecorded(fn) runs fn, whose reads of the
+    // client's states (a discovery scan: Laundry's, every entity) a host that keeps only what a screen
+    // reads does not count as the screen's. Home Assistant keeps every state anyway: fn, as it is.
+    unrecorded: function (fn) { return fn(); },
+    // THE WHOLE HOUSE, ASKED FOR ON PURPOSE: something about to decide what to draw from every state there is (the Home
+    // sheet: every room's accessories) says so. The answer is true when they are at hand, or a promise of when they
+    // will be: a host that keeps only what a screen reads fetches the rest, and lets it go again afterwards. Home
+    // Assistant has them all: true. (`ids`: what the asker drew the last time it had the whole house -- enough, when
+    // the house's makeup has not moved since: wholeHouse(ids) need bring only those.)
+    wholeHouse: function () { return true; },
     // THE ROOM OF THE WALL TABLET SHOWING THIS PAGE (an area id), for a Home
     // Grid block whose option is `tablet_room` (docs/phase11/HOME-GRID.md):
     // tabletRoom(client). Home Assistant: its Wall Tablets entry's room;
@@ -163,6 +175,10 @@
     // session, with or without a person on top (GET /api/me `at_tablet`), or
     // that same HK tablet. A bare page: false.
     atTablet: function () { return false; },
+    // THE TABLET APP'S SKY PLAYER (phase 29, web/hk/sky-parts/hk-sky-handover.js): an object whose send(op, data)
+    // hands one step of a busy sky to an app that draws it under a see-through page (a Promise of the app's answer),
+    // or null where nothing can. Mantel: Mantel for Android's bridge, when the app offers it. Home Assistant: none.
+    skyPlayer: nil,
     // THE PRODUCT'S NAME where HK's screens and settings speak of themselves
     // ("Drawn By: … | HK Frontend", "the photos that come with HK Frontend"):
     // HK Frontend in Home Assistant, the host's own name elsewhere (Mantel).
@@ -238,7 +254,7 @@
    'dashboardRoot', 'viewContainer', 'viewSlot', 'view', 'viewBackground', 'toolbar', 'dashboardConfig', 'onDashboard', 'isDashboard',
    'defined', 'showNotifications', 'keepAwake', 'sidebarData', 'haNav', 'haNavigate', 'openHaMenu', 'hostMenu', 'hostPage', 'settingsHost', 'screensaverEditor', 'holdWrites', 'menuButton',
    'hostDetail', 'openHostDetail', 'hostToast', 'dialogRoot', 'serviceUrl', 'photoSource', 'listPhotos', 'artSized', 'productName', 'settingsName', 'settingsPlace', 'haPlace',
-   'haName', 'docsUrl', 'notHouseCameraPlatforms', 'tabletRoom', 'atTablet'].forEach(function (name) {
+   'haName', 'docsUrl', 'notHouseCameraPlatforms', 'kioskAppName', 'unrecorded', 'wholeHouse', 'tabletRoom', 'atTablet', 'skyPlayer'].forEach(function (name) {
     shell[name] = function () {
       try { return get(name).apply(shell, arguments); } catch (e) {
         return name === 'onDashboard' ? true : FALSE[name] ? false : WORDS[name] ? NONE[name].apply(shell, arguments) : null;

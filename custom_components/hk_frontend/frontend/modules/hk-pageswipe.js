@@ -81,6 +81,8 @@
 
   var EDGE = 24, START = 10, RATIO = 1.4, TURN = 0.2, FLICK = 0.5, FLICK_MIN = 30, GIVE = 1 / 3;
   var EAT_MS = 350, LAND_WAIT = 5000, SLOW_FPS = 45, REST = 60;
+  // the page after the one a swipe landed on is put in the slot this long after, at the first quiet moment (arrive)
+  var READY_MS = 300, READY_SPARE = 900;
   // a settle ended by its timer, if the browser says nothing, this long after
   var SETTLE_SPARE = 250;
   // a finger that comes down on a page more than ADVANCE of the way home: the landing is done with, it holds the new page
@@ -88,11 +90,16 @@
   // px a finger goes sideways before what may move gets its layer
   var HEAT = 3;
   var STANDARD = 'cubic-bezier(.32,.72,0,1)', STANDARD_MS = 340, FADE_MS = 200;
+  // THE WINDOW'S SIZE as the cards keep it (hkCards.winSize): on Android's WebView window.innerWidth and innerHeight lay
+  // the page out first when anything has changed, and a landing read them between its writes -- the neighbors placed and
+  // parked, about 100 ms of each landing on the Kitchen's tablet (2026-11-14)
+  function IW() { var C = window.hkCards; return C && C.winSize ? C.winSize().w : window.innerWidth || 0; }
+  function IH() { var C = window.hkCards; return C && C.winSize ? C.winSize().h : window.innerHeight || 0; }
   // px past the window's edge (and a tenth of its width more) a page waiting beside this one sits at rest (park)
   var PARK_GAP = 48;
   // the props a swipe sets on a view, given back as they were
   var PROPS = ['transform', 'transition', 'transform-origin', 'position', 'left', 'top', 'width', 'height', 'max-height',
-               'overflow', 'will-change', 'pointer-events', 'opacity', '--hk-ground-hide'];
+               'overflow', 'will-change', 'pointer-events', 'opacity'];
 
   // ------------------------------------------------------------ the rules
   // (pure: the tests hold them, test_pageswipe.js)
@@ -298,7 +305,17 @@
       return m ? parseFloat(m[1].split(',')[4]) || 0 : fallback;
     } catch (e) { return fallback; }
   }
-  function offAttrs(el) { el.setAttribute('inert', ''); el.setAttribute('aria-hidden', 'true'); }
+  // A PAGE BESIDE THE ONE SHOWN TAKES NO INPUT: `inert`, and no touch (pointer-events: none, place) -- BUT NOT ON AN
+  // ANDROID WALL TABLET (2026-11-14, the Kitchen's; `untouched`). Both are every element's by inheritance, and both
+  // change as a page lands: taking the touch block off the page landed on and putting it on the page left cost the
+  // landing a whole layout of its own (30 ms of its ~100; 2 ms without), and `inert` another 12 ms of style. Found
+  // by holding each still on the tablet in turn, the root's own changes held still first -- they had every element
+  // styled again whatever else was tried, which is why three earlier tries showed nothing. There a page beside the
+  // one shown waits off the screen (park), where no finger reaches it; while a swipe moves it, the finger is the
+  // swipe's; and it is hidden from a screen reader by aria-hidden. What `inert` adds is the keyboard's Tab, which
+  // a wall tablet has none of. Everywhere else, as before.
+  function untouched() { return android() && keeps(); }
+  function offAttrs(el) { if (!untouched()) el.setAttribute('inert', ''); el.setAttribute('aria-hidden', 'true'); }
   function onAttrs(el) { el.removeAttribute('inert'); el.removeAttribute('aria-hidden'); }
   function later(fn) {
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fn); else fn();
@@ -358,10 +375,11 @@
     var r = view.getBoundingClientRect();
     if (base) view.style.setProperty('transform', base);
     st.vtop = r.top;
+    view.__hkBox = { l: r.left, t: r.top, w: r.width, h: r.height };
     var se = document.scrollingElement || document.documentElement, body = document.body;
     var scrolled = Math.max(window.scrollY || 0, se ? se.scrollTop : 0, body ? body.scrollTop : 0);
-    var left = r.left, width = r.width || window.innerWidth || 1;
-    var top = Math.max(0, Math.min((window.innerHeight || 0) / 2, r.top + scrolled));
+    var left = r.left, width = r.width || IW() || 1;
+    var top = Math.max(0, Math.min(IH() / 2, r.top + scrolled));
     var same = st.rect && st.rect.left === left && st.rect.width === width && st.top === top && st.placedBase === base;
     st.placedBase = base;
     st.rect = { left: left, width: width };
@@ -391,28 +409,50 @@
     var r = st.rect, s = N.el.style, P = window.hkSidePane, room = P && P.room ? P.room(N.item.path) : null;
     var left = r.left, width = r.width;
     if (room) { width += room.grow; if (room.side === 'left') left -= room.grow; }
-    N.off = N.dir > 0 ? r.left + r.width - left : r.left - left - width;
+    // THE PAGE AND ITS SIDE PANE ARE ONE THING (2026-11-14, the owner: "the side pane going in and out the way it does
+    // on page switches is pretty jarring. Can the side pane just move with the whole page content..like it's part of
+    // the page?"). A page with the pane beside it and a page without are the same width with the pane counted in
+    // (the one without is laid out `grow` wider): so a swipe between them goes that far (`span`), both pages and the
+    // pane together -- not the page's own width, with the next page coming out from under a pane that faded.
+    N.span = r.width + Math.max(0, room ? room.grow : 0);
+    N.off = N.dir * N.span;
+    // (a page that brings the pane: the pane waits beside this one as its page does, drawn before the finger comes)
+    if (N.real && P && P.beside && keeps()) {
+      if (room && room.grow < 0) { P.beside(N.item.path, { dir: N.dir, span: N.span }); N.pane = true; }
+      else if (N.pane) { P.beside(null); N.pane = false; }
+    }
     N.left = left;
     N.width = width;
+    // (the box it will have when it is the page: fills)
+    N.el.__hkBox = { l: left, t: st.top, w: width, h: IH() - st.top };
     s.setProperty('position', 'fixed');
     s.setProperty('left', left + 'px');
     s.setProperty('top', st.top + 'px');
     s.setProperty('width', width + 'px');
-    s.setProperty(N.real ? 'max-height' : 'height', Math.max(0, (window.innerHeight || 0) - st.top) + 'px');
+    s.setProperty(N.real ? 'max-height' : 'height', Math.max(0, IH() - st.top) + 'px');
     s.setProperty('overflow', 'hidden');
-    s.setProperty('pointer-events', 'none');
+    if (!untouched()) s.setProperty('pointer-events', 'none');
     s.setProperty('transition', 'none');
+    // ITS OWN LAYER WHILE IT WAITS, not from the finger's first move (2026-11-14, the Kitchen's tablet: a page moved
+    // 300-400 ms after the finger did). Given a layer only then (heat), the page beside this one was drawn for the
+    // first time under the finger -- every tile of it, the frame waiting -- and its layer taken away again as it
+    // landed. Fixed and moved aside it is its own box already, so a layer changes nothing it shows; the browser draws
+    // it while nothing else wants the time, and a swipe finds it drawn.
+    if (keeps()) s.setProperty('will-change', 'transform');
     if (st.origin) s.setProperty('transform-origin', st.origin);
     if (G && G.stage === st) setX(N.el, N.off + xOfNeighbor(st, N), st.base);
     else rest(st, N);
   }
   function xOfNeighbor(st, N) { return N.dir === (st.x < 0 ? 1 : -1) ? st.x : 0; }
+  // how far a swipe to that side goes: the page's width, the Side Pane's with it where the pane goes with the page
+  function span(st, dir) { var N = st.nb[dir]; return (N && N.span) || st.rect.width; }
+  function sideOf(x) { return x < 0 ? 1 : -1; }
   // AT REST, PAST THE WINDOW'S EDGE (2026-11-05, the owner: the Pages screen showed through Home's Side Pane, and the
   // Calendar sat over the right of the Pages screen): a page's width away from a page narrower than the window (the Side
   // Pane beside it) is still on the screen. While nothing moves, what waits beside the page waits out of sight; a
   // finger's first move brings it to the page's edge (follow), as a settle takes it back there (run)
   function park(N) {
-    var W = window.innerWidth || 0, gap = PARK_GAP + W / 10, l = (N.left || 0) + (N.off || 0);
+    var W = IW(), gap = PARK_GAP + W / 10, l = (N.left || 0) + (N.off || 0);
     return N.dir > 0 ? Math.max(0, W + gap - l) : Math.min(0, -gap - (l + (N.width || 0)));
   }
   function rest(st, N) { setX(N.el, (N.off || 0) + park(N), st.base); }
@@ -452,7 +492,8 @@
       return kept;
     }
     var N = { item: item, dir: dir, real: !!p, el: p ? p.el : ghost(item), ground: null };
-    N.saved = save(N.el);
+    N.saved = saveEl(N.el);
+    N.el.__hkLayer = 0;                 // (beside the page its layer is place()'s)
     // (beside the page, not it: its pop-ups wait for it to land -- hk-popup.js peeking)
     N.el.setAttribute('hk-swipe-peek', '');
     if (N.real) {
@@ -469,6 +510,7 @@
   }
   function drop(N) {
     if (!N) return;
+    if (N.pane) { N.pane = false; var SP = window.hkSidePane; if (SP && SP.beside) SP.beside(null); }
     N.el.removeAttribute('hk-swipe-peek');
     unground(N.ground);
     N.ground = null;
@@ -515,7 +557,7 @@
     listenHost();
     var H = host();
     var wait = blocked();
-    if (wait === 'off' || wait === 'away' || wait === 'edit') { if (ST && !G && !A && !L) { retire(ST); ST = null; } return; }
+    if (wait === 'off' || wait === 'away' || wait === 'edit') { if (ST && !G && !A && !L) { unlayer(ST.view); retire(ST); ST = null; } return; }
     if (wait === 'saver' || asleep()) return;        // (hk-asleep, a page coming back: asked again)
     if (G || A || L || wait) { planSoon(wait ? 1000 : 250); return; }
     var view = currentView();
@@ -525,7 +567,7 @@
     var st = stageFor(view), items = list(), nb = neighbors(items, location.pathname, isHere);
     st.items = items;
     st.at = nb.at;
-    if (nb.at < 0) { retire(st); return; }
+    if (nb.at < 0) { unlayer(st.view); retire(st); return; }
     measure(st);
     [[1, nb.next], [-1, nb.prev]].forEach(function (pair) {
       var dir = pair[0], item = pair[1], N = st.nb[dir];
@@ -542,6 +584,7 @@
     st.spare = [];
     groundKnown(st.view, true);
     relook(st);
+    layer(st.view);
   }
   // THE PAGE AFTER THE ONE A SETTLE IS GOING TO (2026-11-08): asked of the host once the settle is under way (the
   // compositor moves the page, so the main thread is free), so the next flick finds it built: the host keeps it, and
@@ -593,13 +636,13 @@
   // A PAGE WITH A GROUND OF ITS OWN (the Pages screen's blurred sky, hk-pages-screen.js swipeGround) draws it fixed to
   // the window -- and a page moving by transform takes its fixed things with it: the blur rode along, a plate with an
   // edge (2026-11-01, the owner: "the blur going from the Apps Page back to the HomeView seems to follow"). While a
-  // swipe moves the page, its own is hidden (--hk-ground-hide) and a still layer behind the pages wears it, as
+  // swipe moves the page, its own is hidden (`hk-ground-out` on its card) and a still layer behind the pages wears it, as
   // strong as the page is on the screen.
   function groundOf(el) {
     var q = [el], i = 0;
     while (i < q.length && i < 4000) {
       var n = q[i++];
-      if (typeof n.swipeGround === 'function') { try { return n.swipeGround() || null; } catch (e) { return null; } }
+      if (typeof n.swipeGround === 'function') { el.__hkGroundEl = n; try { return n.swipeGround() || null; } catch (e) { return null; } }
       if (n.shadowRoot) q.push(n.shadowRoot);
       for (var c = n.firstElementChild; c; c = c.nextElementSibling) q.push(c);
     }
@@ -617,8 +660,13 @@
     // from before Home was shown), and over it the blur fell on its icons as it landed -- every icon a blur until the
     // landing let go of it (the owner's video, 2026-11-08)
     parent.insertBefore(d, firstPage(st, parent));
-    el.style.setProperty('--hk-ground-hide', '1');
-    d._of = el;
+    // ITS OWN, OUT -- SAID TO THE CARD, NOT TO THE PAGE (2026-11-14, the Kitchen's tablet). It was a custom property on
+    // the page (--hk-ground-hide), which every element of the page inherits: all 218 of the Pages screen's had their
+    // style worked out again, 29 ms of the first move's frame -- of any swipe from a page with the Pages screen beside
+    // it, either way -- and again as it landed. An attribute on the card is the card's own rule for its ground.
+    var c = el.__hkGroundEl || null;
+    if (c) c.setAttribute('hk-ground-out', '');
+    d._of = c;
     return d;
   }
   function firstPage(st, parent) {
@@ -635,7 +683,7 @@
   }
   function unground(d) {
     if (!d) return;
-    if (d._of) d._of.style.removeProperty('--hk-ground-hide');
+    if (d._of) d._of.removeAttribute('hk-ground-out');
     if (d.parentNode) d.parentNode.removeChild(d);
   }
 
@@ -646,17 +694,19 @@
   function heat(st) {
     if (st.hot) return;
     st.hot = true;
-    if (!st.saved) st.saved = save(st.view);
+    if (!st.saved) st.saved = saveEl(st.view);
     st.view.style.setProperty('will-change', 'transform');
     Object.keys(st.nb).forEach(function (k) { if (st.nb[k]) st.nb[k].el.style.setProperty('will-change', 'transform'); });
   }
   function cool(st) {
     st.hot = false;
-    if (st.saved) { restore(st.view, st.saved); st.saved = null; }
+    // (back as it was -- and in the layer it rests in, if it has one: layer)
+    if (st.saved) { restore(st.view, st.saved); st.saved = null; layer(st.view); }
     Object.keys(st.nb).forEach(function (k) {
       var N = st.nb[k];
       if (!N) return;
-      N.el.style.removeProperty('will-change');
+      // (what waits beside the page keeps its layer: place)
+      if (!keeps()) N.el.style.removeProperty('will-change');
       unground(N.ground);
       N.ground = null;
     });
@@ -665,6 +715,80 @@
     st.x = 0;
     var H = host();
     if (H && H.busy) H.busy(false);
+  }
+  // THE PAGE SHOWN KEEPS A LAYER OF ITS OWN, AT REST TOO (2026-11-14, the owner: "keep each page as its own layer all
+  // the time"). Given one only as a finger started sideways and giving it up as it landed, the whole page was drawn
+  // again twice a swipe -- into its own layer under the finger's first move (100-240 ms before the page followed, on
+  // the Kitchen's tablet), into the document's as it landed. With a layer all the time a swipe draws nothing.
+  // What a layer changes: the page becomes the box that anything fixed inside it is placed in, and the page it is
+  // stacked in (under the tab bar and the Side Pane). The sheets and panels cards open are on the document's body, so
+  // it changes nothing for them -- but for a view of cards that aren't ours it may, and that page keeps no layer at
+  // rest (fixedIn); the Music page and the Pages screen keep one only where their box is the window (FIXED_WINDOW,
+  // below). A card that puts something fixed inside itself says so
+  // (`hkFixedInside`, or its tag in FIXED_INSIDE; tests/test_fixed_inside.py holds every fixed rule to one or the
+  // other). Not in Edit mode (plan retires the stage: its drag pictures are fixed), and only on the Android wall
+  // tablets, where it was measured and where Pre-rendered glass places its picture by hand: elsewhere a picture
+  // fixed to the window would be fixed to the page's layer.
+  var FIXED_INSIDE = { 'hk-view-fallback': 1 };
+  // ...AND ONE FIXED TO THE WHOLE WINDOW (the Pages screen's blurred ground: inset 0, under its icons): in a layer it is
+  // placed in the page's box instead -- the same place where the page's box is the window, which it is on a wall
+  // tablet (the Pages screen has no Side Pane beside it). So its page rests in a layer where its box is the window
+  // (fills), and nowhere else. Without one, every swipe from the Pages screen drew the page again as it started.
+  // The Music page's are of the same kind -- its scrim and its sheets are placed by the window's edges -- on a window
+  // wide enough for its wall-tablet layout (the number: the narrowest window it may keep a layer on; its panel open
+  // was the same picture to the pixel with and without one on the Kitchen's tablet, 2026-11-14). On a phone its
+  // sheets rise over the tab bar, which a page in a layer cannot do.
+  var FIXED_WINDOW = { 'hk-pages-screen-card': 0, 'hk-music-card': 900 };
+  function fixedIn(el) {
+    if (!el) return true;
+    if (el.__hkFixedIn !== undefined) return el.__hkFixedIn;
+    var q = [el], i = 0, found = 0;
+    while (i < q.length && i < 6000 && found !== 1) {
+      var n = q[i++];
+      if (FIXED_INSIDE[n.localName] || n.hkFixedInside === true) { found = 1; break; }
+      if (FIXED_WINDOW[n.localName] !== undefined) { found = 2; el.__hkFixedMinW = Math.max(el.__hkFixedMinW || 0, FIXED_WINDOW[n.localName]); }
+      else if (typeof n.swipeGround === 'function') { found = 1; break; }
+      if (n.shadowRoot) q.push(n.shadowRoot);
+      for (var c = n.firstElementChild; c; c = c.nextElementSibling) q.push(c);
+    }
+    el.__hkFixedIn = found;
+    return found;
+  }
+  function android() { try { return /Android/.test(navigator.userAgent || ''); } catch (e) { return false; } }
+  // (the page's box as last laid out -- measure, place -- is the window: no wider, no taller -- a page taller than the
+  // window scrolls the document, and what is fixed in its layer would scroll with it)
+  function fills(el) {
+    var b = el && el.__hkBox, W = IW(), H = IH();
+    return !!b && b.l === 0 && b.t === 0 && Math.abs(b.w - W) < 1 && Math.abs(b.h - H) < 1.5 && W >= (el.__hkFixedMinW || 0);
+  }
+  function restOk(el) {
+    if (!android() || !keeps()) return false;
+    var f = fixedIn(el);
+    return !f || (f === 2 && fills(el));
+  }
+  // (the page shown, at rest: its layer kept if it may have one, given back if not)
+  function layer(el) {
+    if (!el || !el.style) return;
+    if (restOk(el)) { el.style.setProperty('will-change', 'transform'); el.__hkLayer = 1; }
+    else unlayer(el);
+  }
+  function unlayer(el) {
+    if (!el || !el.__hkLayer) return;
+    el.__hkLayer = 0;
+    el.style.removeProperty('will-change');
+  }
+  // NOT IN A CAR'S BROWSER (tesla-viewport.js marks its page): it runs short of GPU memory on what one page draws --
+  // frosted boxes and cards missing, 2026-11-12 -- and a page drawn ahead of the finger is memory. There a page gets
+  // its layer as the finger starts sideways and gives it back as it lands, as every screen did before.
+  function keeps() {
+    var de = document.documentElement;
+    return !(de && de.hasAttribute && de.hasAttribute('data-hk-zoomed'));
+  }
+  // (a page's styles as they were before a swipe had it: the layer it rests in is the swipe's to give, not its own)
+  function saveEl(el) {
+    var o = save(el);
+    if (el.__hkLayer) o['will-change'] = ['', ''];
+    return o;
   }
 
   // THE FINGER'S OWN ELEMENT, DRAWN AWAY: a card that draws itself again under a finger (the Calendar, as the Now
@@ -717,7 +841,7 @@
     path.forEach(function (n) { if (!pane && n && n.localName === 'hk-side-pane') pane = n; });
     if (path.indexOf(view) < 0 && !under && !pane) { why = 'off the page'; return; }
     var sa = safe();
-    if (atEdge(e.clientX, window.innerWidth || 0, sa.left, sa.right)) { why = 'edge'; return; }
+    if (atEdge(e.clientX, IW(), sa.left, sa.right)) { why = 'edge'; return; }
     var drag = D(), stop = pane && path.indexOf(view) < 0 ? pane : under ? slot : view, row = null;
     // (a row at an end that pans only one way: a swipe the other way is ours -- decided at the first move, onMove)
     if (!drag || !drag.sideways || (drag.sideways(path, stop) && !(row = drag.sidewaysRow ? drag.sidewaysRow(path, stop) : null))) { why = 'its own'; return; }
@@ -802,7 +926,8 @@
     if (G.calm) return;
     var dir = dx < 0 ? 1 : -1, to = st.items[st.at + dir] || null;
     var x = travel(dx, !!to);
-    if (Math.abs(x) > st.rect.width) x = (x < 0 ? -1 : 1) * (st.rect.width + (Math.abs(x) - st.rect.width) * GIVE);
+    var far = span(st, dir);
+    if (Math.abs(x) > far) x = (x < 0 ? -1 : 1) * (far + (Math.abs(x) - far) * GIVE);
     st.x = x;
     // the page on that side, made ready the first time the finger goes that way, if it isn't yet
     if (to && !st.nb[dir]) {
@@ -821,7 +946,7 @@
   }
   function companions(g) {
     var st = g.stage, dir = st.x < 0 ? 1 : -1, to = st.items[st.at + dir] || null, N = st.nb[dir], O = st.nb[-dir];
-    var T = window.hkTabBar, P = window.hkSidePane, f = to ? Math.min(1, Math.abs(st.x) / st.rect.width) : 0, at = (to || st.items[st.at]).path;
+    var T = window.hkTabBar, P = window.hkSidePane, f = to ? Math.min(1, Math.abs(st.x) / span(st, dir)) : 0, at = (to || st.items[st.at]).path;
     shade(st.here, 1 - f);
     if (N) shade(N.ground, f);
     if (O) shade(O.ground, 0);
@@ -830,7 +955,7 @@
       try { T.follow(f, at); } catch (e) { /* not drawn */ }
     }
     // (the Side Pane and the bar's place with the finger too, where the pane shows on one page and not the other)
-    if (P && P.follow) P.follow(f, at);
+    if (P && P.follow) P.follow(f, at, { dir: dir, span: span(st, dir) });
   }
 
   // THE BACKGROUND WITH THE FINGER (skyFade; 2026-11-05, the owner: swiping to the Calendar, its background
@@ -851,7 +976,7 @@
         var st = g.stage, now = st.items[st.at + (st.x < 0 ? 1 : -1)];
         if (!now || now.path !== want) { g.skyAsk = null; return; }
         g.sky = skyFade(want);
-        if (g.sky) g.sky.set(Math.min(1, Math.abs(st.x) / st.rect.width));
+        if (g.sky) g.sky.set(Math.min(1, Math.abs(st.x) / span(st, sideOf(st.x))));
       });
     });
   }
@@ -922,7 +1047,7 @@
       settle(G.caught.to, st.x, 0);
       return;
     }
-    var r = letGoTo(st.items, st.at, raw, st.rect.width, v, G.chain, e.type === 'pointerup');
+    var r = letGoTo(st.items, st.at, raw, span(st, sideOf(raw)), v, G.chain, e.type === 'pointerup');
     settle(r.goes ? r.to : null, raw, r.to ? v : v * GIVE);
   }
   // WHERE A LIFT GOES: the page beside it that way (`to`), and whether it gets there (`goes`); `up` false, the browser
@@ -955,7 +1080,8 @@
     var dir = to ? (st.items[st.at + 1] === to ? 1 : -1) : x < 0 ? 1 : -1, N = to ? st.nb[dir] || null : null;
     var T = window.hkTabBar, P = window.hkSidePane;
     try { if (g && g.calm && T && T.land) T.land(to ? to.path : null); } catch (e) { /* not drawn */ }
-    if (g && g.calm && P && P.land) P.land(to ? to.path : null);
+    // (...and the Side Pane fades with its page there, over the pages' own time: hk-sidepane.js fade)
+    if (g && g.calm && P) { if (P.fade) P.fade(to ? to.path : null, FADE_MS); else if (P.land) P.land(to ? to.path : null); }
     if (g && g.calm) {
       if (sky) sky.done(false, 0);
       if (to) crossfade(st, to, dir, N);
@@ -968,7 +1094,7 @@
   // the transitions of a settle: the page and what is beside it, the same curve; what it wore comes back when it ends.
   // `sky`: the background the finger was bringing in (skyHold), the rest of the way with the page, on its curve
   function run(st, to, dir, N, x, v, sky) {
-    var target = to ? -dir * st.rect.width : 0;
+    var target = to ? -dir * span(st, dir) : 0;
     var c = D().curve(x, target, v), s = c.spring, ms = c.ms;
     var tr = 'transform ' + ms + 'ms ' + c.ease;
     var T = window.hkTabBar, P = window.hkSidePane;
@@ -986,7 +1112,7 @@
     // (the highlight and the Side Pane set off after that flush, in the same style update as the page: before it, they
     // started a frame ahead of it, the pane's fade leading the page by a tenth all the way -- WebKit, 2026-11-07)
     try { if (T && T.land) T.land(to ? to.path : null, c); } catch (e) { /* not drawn */ }
-    if (P && P.land) P.land(to ? to.path : null, c);
+    if (P && P.land) P.land(to ? to.path : null, c, { dir: dir, span: span(st, dir) });
     st.x = target;
     moved.forEach(function (el) { el.style.setProperty('transition', tr); });
     setX(st.view, target, st.base);
@@ -1080,13 +1206,13 @@
     // only which one the finger holds -- and a flick on the way it was going goes on to the page after (onUp, `chain`).
     // (Past ADVANCE only, before: caught under half way, the next flick finished the first one's page.)
     var arriving = !!(to && a.N && a.N.real);
-    if (sky && to && (arriving || Math.abs(x) >= st.rect.width * ADVANCE)) { sky.done(true, FADE_MS, STANDARD); sky = null; }
+    if (sky && to && (arriving || Math.abs(x) >= span(st, a.dir) * ADVANCE)) { sky.done(true, FADE_MS, STANDARD); sky = null; }
     // (...to a page not ready yet, its stand-in: the finger holds it where it is, as for one ready, and the real page
     // takes the stand-in's place when it is made -- makeReady. It once landed there and refused the finger while the
     // page was built: the owner's flicks that "sometimes don't swipe", 2026-11-08)
     var chain = 0;
     if (arriving) {
-      arrive(st, to, a.dir, a.N, x + a.dir * st.rect.width);
+      arrive(st, to, a.dir, a.N, x + a.dir * span(st, a.dir));
       st = ST;
       x = st.x;
       to = null;
@@ -1097,7 +1223,7 @@
     G = { id: e.pointerId, type: e.pointerType, x0: e.clientX, y0: e.clientY, stage: st, target: null, grid: null, live: true,
           calm: false, pts: [[e.timeStamp || Date.now(), e.clientX]], dx: 0, caught: { to: to }, chain: chain,
           from: st.items[st.at + (x < 0 ? 1 : -1)] ? x : x / GIVE, sky: sky || null, skyAsk: sky ? sky.path : null };
-    if (sky) sky.set(Math.min(1, Math.abs(x) / st.rect.width));
+    if (sky) sky.set(Math.min(1, Math.abs(x) / span(st, sideOf(x))));
     why = '';
     // (what goes with the page, the next frame, as for any move: here it held the press up 30-60 ms at 4x CPU)
     var g = G;
@@ -1112,7 +1238,7 @@
   // to the sky, the new one comes up as it is built)
   function crossfade(st, to, dir, N) {
     var fade = 'opacity ' + FADE_MS + 'ms linear';
-    st.saved = st.saved || save(st.view);
+    st.saved = st.saved || saveEl(st.view);
     st.view.style.setProperty('transition', fade);
     st.view.style.setProperty('opacity', '0');
     if (N && N.real) {
@@ -1137,7 +1263,8 @@
   function arrive(st, to, dir, N, left, faded) {
     if (!(N && N.real)) { commit(st, to, dir, N, faded); return; }
     var H = host(), S = SH(), P = window.hkSidePane, old = st.view, other = st.nb[-dir];
-    var back = { item: st.items[st.at], dir: -dir, real: true, el: old, saved: st.saved || save(old), ground: null };
+    var back = { item: st.items[st.at], dir: -dir, real: true, el: old, saved: st.saved || saveEl(old), ground: null };
+    old.__hkLayer = 0;
     unground(st.here);
     unground(N.ground);
     // (kept in the slot until the host has shown it: it stays where it is, and its cards go on)
@@ -1148,30 +1275,48 @@
     onAttrs(N.el);
     N.el.removeAttribute('hk-swipe-peek');
     restore(N.el, N.saved);
+    // (the page it landed on keeps the layer it came in on, where it may rest in one: layer)
+    if (!left) layer(N.el);
     var next = ST = { view: N.el, nb: {}, x: left || 0, rect: st.rect, top: st.top, base: '', origin: '', saved: null,
                       items: st.items, at: st.at + dir, spare: (st.spare || []).concat(other ? [other] : []), here: null, arrived: now() };
     next.nb[-dir] = back;
     // (the page it left out of the flow first, so that this one's box is its own)
     place(next, back);
-    measure(next);
-    watchSize(next.view);
-    next.spare.forEach(function (o) { o.el.style.setProperty('transition', 'none'); rest(next, o); });
     arm();
     if (S && S.navigate) S.navigate(to.path);
     // (the room it lands in first: the Side Pane says where it is now, so the page takes its place as it is put back)
     if (P && P.sync) { try { P.sync(); } catch (e) { /* not drawn */ } }
     relook(next);
+    // ITS BOX ONCE EVERYTHING ABOVE HAS WRITTEN (2026-11-14): the Side Pane's room and the page's look change the
+    // whole page; measured before them, the landing laid the page out once for this and once for the next reader (the
+    // tab bar, a page made ready) -- 60 ms each on the Kitchen's tablet. Measured here, it is the one, and the room it
+    // reads is the pane's new one
+    measure(next);
+    watchSize(next.view);
+    next.spare.forEach(function (o) { o.el.style.setProperty('transition', 'none'); rest(next, o); });
     if (left) {
       heat(next);
       setX(next.view, left, next.base);
       setX(back.el, back.off + (back.dir === (left < 0 ? 1 : -1) ? left : 0), next.base);
       back.el.style.setProperty('will-change', 'transform');
-    } else {
+    } else if (!keeps()) {
       back.el.style.removeProperty('will-change');
     }
     landed(N.el);
     var far = next.items[next.at + dir];
-    if (far && !next.nb[dir]) makeReady(next, dir, far);
+    // (the page after it, made ready once this landing's frame is drawn -- put in the slot in the landing's own task, its
+    // styles were worked out there, 12-29 ms of it at 4x CPU on the Kitchen's tablet, 2026-11-14 -- but at once under a
+    // finger that caught the page on its way: a run of flicks goes on to it, catchIt)
+    var ready = function () { if (ST === next && !next.nb[dir]) makeReady(next, dir, far); };
+    if (far && !next.nb[dir]) {
+      if (left) ready();
+      // (...and not in the frame after the landing's either: putting a page in the slot is every card of it attached,
+      // 100-150 ms on the Kitchen's tablet, which a finger coming down on the page it landed on waited out. At a
+      // quiet moment a little later; a flick that comes first takes the page as it is -- needNeighbor)
+      else setTimeout(function () {
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(ready, { timeout: READY_SPARE }); else ready();
+      }, READY_MS);
+    }
     planSoon(0);
   }
   // (the page it left is not the page now, and the page it landed on is: what waited for that -- hk-popup.js -- looks
@@ -1349,7 +1494,7 @@
     arm: arm,
     plan: plan,
     _: { enabled: enabled, order: order, leftOfHome: leftOfHome, neighbors: neighbors, atEdge: atEdge, travel: travel, lands: lands, speed: speed,
-         viewSeg: viewSeg, ghost: ghost, slow: slow, park: park,
+         viewSeg: viewSeg, ghost: ghost, slow: slow, park: park, keeps: keeps, restOk: restOk, fixedIn: fixedIn, untouched: untouched,
          NUMBERS: { EDGE: EDGE, START: START, RATIO: RATIO, TURN: TURN, FLICK: FLICK, FLICK_MIN: FLICK_MIN, GIVE: GIVE,
                     STANDARD_MS: STANDARD_MS, FADE_MS: FADE_MS, SLOW_FPS: SLOW_FPS, REST: REST },
          letGoTo: letGoTo,

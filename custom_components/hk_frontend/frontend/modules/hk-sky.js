@@ -82,7 +82,8 @@
   // READY: window.__hkSplitReady['modules/hk-sky'] is a promise that resolves once the parts have run (and rejects if they
   // never come), so a page that imports this file and uses it at once awaits it first (web/home.js imp, hk-loader).
   var PARTS = ['hk-sky-season.js', 'hk-sky-front.js', 'hk-sky-builders.js', 'hk-sky-surprises.js',
-               'hk-sky-surprises-more.js', 'hk-sky-saver.js', 'hk-sky-static.js', 'hk-sky-api.js', 'hk-sky-mount.js'];
+               'hk-sky-surprises-more.js', 'hk-sky-saver.js', 'hk-sky-static.js', 'hk-sky-api.js', 'hk-sky-mount.js',
+               'hk-sky-handover.js'];
   var PARTS_TRIES = 6;
   function partKey(file) { return file.replace(/\.js$/, ''); }
   function partsSettle(err) {
@@ -298,6 +299,7 @@
   ST.saidSig = null;
   ST.saidFor = null;
   ST.changeSig = null;
+  ST.saidPath = null;
   ST.changedSig = null;
   ST.changedFor = null;
   ST.asked = false;
@@ -595,10 +597,38 @@
       '#hk-sky[data-ws="petals"] .wall{transform-origin:86% 98%;animation-name:hk-wall-breathe}',
       '#hk-sky[data-ws="shards"] .wall{animation-name:hk-wall-drift}',
       '#hk-sky[data-ws="pinwheel"] .wall{transform-origin:32% 33%;animation-name:hk-wall-turn}',
+      // A FEW STEPS A SECOND, NOT SIXTY (2026-11-12, measured on a wall tablet, a Galaxy Tab A9+): the whole picture
+      // moves a fraction of a pixel a frame (Slow turns 6 degrees in 90 s), yet every frame it moves, each glass card
+      // over it blurs it again -- the page cost 1.6 cores at rest, 0.9 stepped, at the same 59 fps. Stepped about 4 /
+      // 6 / 10 times a second (Slow / Medium / Fast) the drift reads the same and the glass is redrawn that often. A
+      // motion theme's own layers (.th) keep every frame: a meteor's flight is quick.
+      '#hk-sky[data-wm="slow"] .wall:not(.th){animation-timing-function:steps(360)}',
+      '#hk-sky[data-wm="medium"] .wall:not(.th){animation-timing-function:steps(270)}',
+      '#hk-sky[data-wm="fast"] .wall:not(.th){animation-timing-function:steps(200)}',
       '@keyframes hk-wall-sway{from{transform:translate3d(-3%,1%,0)}to{transform:translate3d(3%,-1%,0)}}',
       '@keyframes hk-wall-breathe{from{transform:rotate(-2deg) scale(1)}to{transform:rotate(2deg) scale(1.04)}}',
       '@keyframes hk-wall-drift{from{transform:translate3d(-2%,-2%,0) scale(1.02)}to{transform:translate3d(2%,2%,0) scale(1)}}',
       '@keyframes hk-wall-turn{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}',
+      // ...AS A NUMBER, NOT A MOVING LAYER (2026-11-12, the owner's car: boxes of blur and cards missing on a fresh
+      // load). A transform animation keeps the picture a layer of its own, and everything drawn over it in the sky
+      // (the grain, the scrim) and the page above then each need a full-screen layer too: the car's Home took 183 MB
+      // of tiles with the wallpaper moving and 74 still (Chromium at the car's 1306 x 700 at 1.96; at a 64 MB budget
+      // half its cards and its tab bar went undrawn, and the glass's cut-outs with them). Here the animation moves
+      // --hk-wp from 0 to 1 in the same steps, and the picture's transform is worked out from it, so the picture is
+      // drawn into the sky's own layer, a few times a second: the same drift, sway, breath and turn, the same stops
+      // (.hidden, .held, .noanim, Reduce Motion). The still frame is the picture as it was, no transform: --hk-wp at
+      // rest (0.5) is the middle of a drift but not of a breath or a scale, and the picture moved as the Motion
+      // caught up. Where --hk-wp could not be typed (hk-sky-front.js register: WebKit before 16.4) there is no
+      // data-wpv and the transform above runs.
+      // (paused: its time is set at each step by a timer, hk-sky-static.js wallStep -- run, it drew every frame)
+      '#hk-sky[data-wpv][data-wm] .wall:not(.th){will-change:auto;animation-name:hk-wall-p;animation-play-state:paused;',
+      '  transform:translate(calc(6% * var(--hk-wp) - 3%),calc(1% - 2% * var(--hk-wp)))}',
+      '#hk-sky[data-wpv][data-ws="petals"] .wall:not(.th){transform:rotate(calc(4deg * var(--hk-wp) - 2deg)) scale(calc(1 + .04 * var(--hk-wp)))}',
+      '#hk-sky[data-wpv][data-ws="shards"] .wall:not(.th){transform:translate(calc(4% * var(--hk-wp) - 2%),calc(4% * var(--hk-wp) - 2%)) scale(calc(1.02 - .02 * var(--hk-wp)))}',
+      '#hk-sky[data-wpv][data-ws="pinwheel"] .wall:not(.th){transform:rotate(calc(6deg * var(--hk-wp) - 3deg))}',
+      '@keyframes hk-wall-p{from{--hk-wp:0}to{--hk-wp:1}}',
+      '#hk-sky.noanim[data-wpv] .wall:not(.th){transform:none!important}',
+      '@media (prefers-reduced-motion:reduce){#hk-sky[data-wpv] .wall:not(.th){transform:none!important}}',
       // A MOTION THEME (2026-10-31, hk-wallpapers.js THEMES; paintWall's
       // wallScene): the ground stands still (no sway of the whole picture);
       // its own layers move instead, each by one of four keyframes with its
@@ -1460,6 +1490,11 @@
           // A static page paints a fixed palette and draws no weather at all.
           var snapping = ST.snapNext;
           ST.snapNext = false;
+          // ITS BOX, READ BEFORE IT IS WRITTEN (2026-11-14): the paint below places the moon and the seasons by the
+          // sky's size; read there, after this render's own writes, a landing page swipe worked out the sky's styles
+          // and the page's layout again (13 + 13 ms at 4x CPU) -- hk-sky-saver.js paintSky
+          var held = ST.mounted, heldSeason = held.querySelector('.season');
+          held._hkBox = { w: held.clientWidth, h: held.clientHeight, sw: heldSeason ? heldSeason.clientWidth : null };
           if (snapping) ST.mounted.classList.add('hk-snap');
 
           // a page's still backdrop: its day stops while the sun is up, its
@@ -1528,6 +1563,7 @@
           // every render -- Tint from Background follows its colors
           // (hk-frosttint.js), a pre-rendered blur its picture (hk-glass.js)
           announce();
+          held._hkBox = null;
 
           if (snapping) {
             // Transitions stay off until a frame has worked out the new values, so they are the computed style rather than
@@ -1538,6 +1574,7 @@
           }
         } catch (e) {
           console.error('[hk-sky]', e);
+          if (ST.mounted) ST.mounted._hkBox = null;
         }
         return '';
       },

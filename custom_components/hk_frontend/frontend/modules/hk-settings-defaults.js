@@ -111,11 +111,14 @@
            liveliness_all: 'classic', liveliness: {}, liveliness_custom: {} },
     idle: { dashboards: [], rooms: {}, 'default': null },
     tablets: { idle_return: true, idle_time: 50, alert_offline: true, alert_restart: true, alert_charging: true,
-               restart: false, restart_times: ['00:02', '15:00'], dismissed: [] },
+               restart: false, restart_times: ['00:02', '15:00'], dismissed: [],
+               // Mantel for Android's options for every tablet (tablet_rules.APP_OPTIONS): none set until chosen
+               app: {} },
     car: { dashboards: [], widths: {} },
     generated: { exclude_areas: [], exclude_devices: [], exclude_entities: [], include_entities: [] },
     features: { vacuum_script: null, alarm_bad_code: null, laundry: [], laundry_clear: 4, tv_sets: [], tv_apps: [], tv_show: 'recent', tv_icons: true, thermostats: [], temperature: null, power: null,
                 house_timers: [], timer_sound: 'bell', timer_ring_for: 60, timer_tablet: true, timer_speaker: true, timer_also: [], timer_phone: '', timer_volume: 40, timer_wake: true,
+                  homepod_rooms: {},
                   timer_include: [], timer_ignore: [] },
     menu: { glyph: 'sidebar', clock: true,
             // All Screens' menu, for the screens that don't set their own
@@ -146,7 +149,8 @@
     // live cameras rest while another window has the focus (hk-cameras.js
     // CAM_FOCUS) -- behind the screensaver they always rest
     cameras: { order: [], live: true, focus_pause: true },
-    look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, bright: 50, bright_dim: 0, well: 'dark', frost_tint: false, tile_style: 'auto', tile_icons: 'auto',
+    look: { flat: false, flat_theme: 'dark', glass: 'clear', frost: 50, blur: 50, tint: 50, bright: 50, bright_dim: 0, well: 'dark', frost_tint: false, motion: true, tile_style: 'auto',
+      tile_icons: 'auto',
       thermostat_style: 'dial', bright_pages: 'home', details: true, browse_view: 'music-browse', sky_switch: null,
             photos: 'media-source://media_source/local/photos', page_pills: {}, page_accents: {},
             // FLAT COLORS (settings.py flat_colors; resolveFlatColors)

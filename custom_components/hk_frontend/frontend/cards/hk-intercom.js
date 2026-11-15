@@ -76,7 +76,10 @@
     forbidden: 'You can’t use the Intercom',
     unreachable: 'Can’t reach ',
     tapAgain: 'Tap the microphone again',
-    pickRoom: 'Pick a room first'
+    pickRoom: 'Pick a room first',
+    // LIVE GOES TO ONE ROOM (2026-11-11, the owner): one room hears you as you talk; more rooms get a Message
+    liveNote: 'Live talks to one room. For more rooms, use Message.',
+    liveOneRoom: 'Live goes to one room. Pick one'
   };
   // WHY THE GATEWAY SAID NO, in words. It answers {code: 'unavailable', message: <reason>} (or the reason as the code):
   // none of these is mended by trying again, so the recording ends and the sheet says which it was.
@@ -88,7 +91,8 @@
     intercom_not_listening: 'The Intercom isn’t listening yet (Settings → Intercom)',
     music_assistant_off: 'Music Assistant isn’t connected',
     live_off: 'Live isn’t on',
-    live_not_away: 'Live works only at home. Send a message instead'
+    live_not_away: 'Live works only at home. Send a message instead',
+    live_one_room: WORDS.liveOneRoom
   };
   function reasonOf(code, err) {
     var c = [code, err && err.message, err && err.reason];
@@ -105,7 +109,7 @@
   function plain(reason) { return String(reason || '').replace(/;\s*skipped\.?$/i, '').replace(/\.$/, ''); }
 
   // ------------------------------------------------------------------ the feed, as the sheet reads it
-  // {enabled, live_allowed, away, default_mode, max_live_s, max_message_s, lag_ms, can_override, here, rooms, floors, presets}
+  // {enabled, live_allowed, live_rooms, away, default_mode, max_live_s, max_message_s, lag_ms, can_override, here, rooms, floors, presets}
   function normalize(e) {
     if (!e || typeof e !== 'object') return null;
     var list = function (v) { return Array.isArray(v) ? v : []; };
@@ -113,6 +117,7 @@
       enabled: e.enabled !== false,
       away: !!e.away,
       live_allowed: !!e.live_allowed && !e.away,
+      live_rooms: Math.max(1, num(e.live_rooms, 1)),             // how many rooms one Live talk may go to (hk_core LIVE_ROOMS)
       default_mode: e.default_mode === 'live' ? 'live' : 'message',
       max_live_s: num(e.max_live_s, 60), max_message_s: num(e.max_message_s, 30),
       lag_ms: e.lag_ms == null ? null : num(e.lag_ms, null),
@@ -273,11 +278,22 @@
     return this.limit || (f ? (m === 'live' ? f.max_live_s : f.max_message_s) : 30);
   };
   /** @this {Ctl} */ CP.pills = function () { return pillsOf(this.feed(), this.modeNow()); };
-  /** @this {Ctl} */ CP.chips = function () { return chipsOf(this.pills(), this.feed(), this.sel); };
-  // the rooms a send would go to: the picked ones a tap can pick (in the feed's order)
-  /** @this {Ctl} */ CP.chosen = function () {
+  // Live's room limit (the feed's live_rooms): Whole House, a floor or a preset with more rooms is no Live target
+  /** @this {Ctl} */ CP.liveMax = function () { var f = this.feed(); return f ? f.live_rooms : 1; };
+  /** @this {Ctl} */ CP.chips = function () {
+    var chips = chipsOf(this.pills(), this.feed(), this.sel), max = this.liveMax();
+    if (this.modeNow() !== 'live') return chips;
+    return max === 1 ? [] : chips.filter(function (c) { return c.ids.length <= max; });     // a group of rooms is no one-room target
+  };
+  /** @this {Ctl} */ CP._picked = function () {
     var sel = this.sel;
     return this.pills().filter(function (p) { return p.pickable && sel.indexOf(p.id) >= 0; }).map(function (p) { return p.id; });
+  };
+  // the rooms a send would go to: the picked ones a tap can pick (in the feed's order); Live, with more picked than it
+  // may go to (rooms kept from a Message), none until one is picked
+  /** @this {Ctl} */ CP.chosen = function () {
+    var picked = this._picked();
+    return this.modeNow() === 'live' && picked.length > this.liveMax() ? [] : picked;
   };
   /** @this {Ctl} */ CP._nameOf = function (id) {
     var f = this.feed(), r = f && f.rooms.filter(function (x) { return x.room === id; })[0];
@@ -318,6 +334,7 @@
     if (!f) return { text: WORDS.connecting, kind: 'pending' };
     if (!this.d.supported()) return { text: this._noRecording(), kind: 'warn' };
     if (!this.d.oneWay.seen()) return { text: WORDS.oneWay, kind: 'info' };
+    if (m === 'live' && this._picked().length > this.liveMax()) return { text: WORDS.liveOneRoom, kind: 'info' };
     if (m === 'live') {
       var later = this.pills().filter(function (p) { return p.pickable && p.glyph === 'clock' && this.sel.indexOf(p.id) >= 0; }, this).map(function (p) { return p.name; });
       if (later.length) return { text: later.join(', ') + ': after you finish', kind: 'info' };
@@ -370,7 +387,9 @@
     if (!p.pickable) { this._say(p.line, 'info'); return; }
     this.touchedRooms = true;
     var i = this.sel.indexOf(id);
-    if (i >= 0) this.sel.splice(i, 1); else if (this.sel.length < ROOMS_MAX) this.sel.push(id);
+    // Live to one room: a tap picks that room alone (a second tap clears it)
+    if (this.modeNow() === 'live' && this.liveMax() === 1) this.sel = i >= 0 && this.sel.length === 1 ? [] : [id];
+    else if (i >= 0) this.sel.splice(i, 1); else if (this.sel.length < ROOMS_MAX) this.sel.push(id);
     this.said = null;
     if (p.note || (p.quiet && i < 0)) this._say(p.line, 'info');
     this._afterPick();
@@ -461,7 +480,7 @@
     var why = this._refusal();
     if (why) { this._say(why, 'warn'); return; }
     // Live speaks to the rooms picked, named before the first frame: with none picked there is no one to hear it
-    if (mode === 'live' && !this.chosen().length) { this._say(WORDS.pickRoom, 'info'); return; }
+    if (mode === 'live' && !this.chosen().length) { this._say(this._picked().length ? WORDS.liveOneRoom : WORDS.pickRoom, 'info'); return; }
     var self = this, mic = this.mic || (this.mic = this.d.mic());
     if (!mic || !mic.unlock()) {
       if (!mic && this.d.loading && this.d.loading()) this._say(WORDS.connecting, 'info');       // the microphone module is still on its way
@@ -722,6 +741,7 @@
     else if (code === 'music_assistant_off') text = 'Music Assistant is off';
     else if (code === 'rate') text = 'Too many announcements. Wait a moment';
     else if (code === 'not_allowed') text = 'You can’t announce to those rooms';
+    else if (code === 'live_one_room') text = WORDS.liveOneRoom;
     else text = e.message || 'Couldn’t send';
     this.socket = 'none';
     if (this.mic) this.mic.closeSocket();
@@ -800,6 +820,7 @@
     var modes = f && f.enabled && f.live_allowed ? MODES.map(function (m) { return { id: m, label: m === 'live' ? 'Live' : 'Message', on: m === mode, disabled: !free }; }) : [];
     var n = this.count();
     return { mode: mode, modes: modes, status: st, mic: mic, actions: actions, secs: this.secs, state: s, count: n,
+             note: live && modes.length && this.liveMax() === 1 ? WORDS.liveNote : '',
              canClear: n.on > 0 && free,
              pills: this.pills().map(function (p) { p.on = this.sel.indexOf(p.id) >= 0 && p.pickable; return p; }, this), chips: this.chips(),
              stamp: mmss(this.secs),
@@ -1036,7 +1057,7 @@
     o = o || {};
     var done = function () { opened = false; if (o.onClose) o.onClose(); };
     var ok = D.open(null, { name: 'Intercom', icon: 'mdi:microphone', icon_color: 'rgba(255,255,255,0.92)' },
-      Object.assign({ cards: { cards: [{ type: 'custom:hk-intercom-sheet-card' }], width: 'wide', height: 'auto' }, onClose: done }, o.hashed ? { hashed: true } : {}));
+      Object.assign({ cards: { cards: [{ type: 'custom:hk-intercom-sheet-card' }], width: 'wide', fill: true }, onClose: done }, o.hashed ? { hashed: true } : {}));
     opened = !!ok;
     return !!ok;
   }
@@ -1283,11 +1304,24 @@
     // their own panel ("To", how many, Clear All, the groups, the rooms) beside it where the sheet is wide (a container
     // query: the sheet's own width, whatever the screen), under it where it isn't.
     var TALK = { idle: '#0a84ff', rec: '#ff453a', live: '#30d158', wait: '#ff9f0a' };   // the Lock sheet's literals, as there
+    var COLS_W = 680;                          // the sheet's own width from which the rooms sit beside the talk button
     var SHEET_CSS = [
       ':host{display:block}',
       '.sh{container-type:inline-size;display:block;padding:2px 0 0}',
+      // THE SHEET'S ONE HEIGHT (2026-11-12, the owner: the tablet's two columns, the same size in Message and Live, on every
+      // screen; DESIGN.md: a detail sheet keeps its one height, a two-column sheet's columns share their top and foot). In two
+      // columns ([cols], set by the sheet's own width, as the container query) the card is the sheet's body: the rooms panel
+      // its full height, the rooms scrolling inside it under To, the groups and Live's note, the talk side on its center
+      // line. Stacked (a phone), the card is as tall as it is and the sheet's body scrolls.
+      ':host([cols]){min-height:0;display:flex;flex-direction:column}',
+      ':host([cols]) > div{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
+      ':host([cols]) .sh{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
+      ':host([cols]) .cols{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr)}',
+      ':host([cols]) .pick{align-self:stretch;min-height:0}',
+      ':host([cols]) .rsec{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}',
+      ':host([cols]) .rsec::-webkit-scrollbar{display:none}',
       '.cols{display:flex;flex-direction:column;gap:' + SPC.piece + 'px}',
-      '@container (min-width:680px){.cols{display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);align-items:start}',
+      '@container (min-width:' + COLS_W + 'px){.cols{display:grid;grid-template-columns:minmax(300px,340px) minmax(0,1fr);align-items:start}',
       // THE TALK GROUP ON THE ROOMS PANEL'S CENTER LINE (2026-11-07, the review): the button, its word and the line were
       // top-weighted ~65 px above the panel's middle on a 1280 x 800 tablet; a taller list of rooms still scrolls past it
       '  .talk{align-self:center}}',
@@ -1300,6 +1334,9 @@
       '.seg button{min-height:36px}',
       '.seg[hidden]{display:none}',
       '.seg button[aria-disabled="true"]{opacity:.45}',
+      // LIVE'S NOTE under the rooms panel's head, over the rooms it is about (caption: 13 / 500, secondary ink)
+      '.lnote{font-size:13px;font-weight:500;line-height:18px;color:' + v('ink-2') + '}',
+      '.lnote[hidden]{display:none}',
 
       // THE TALK SIDE
       '.talk{display:flex;flex-direction:column;align-items:center;gap:' + SPC.piece + 'px;min-width:0}',
@@ -1378,20 +1415,28 @@
       // a room: a row with its tick, its name and what's true of it (Plays with ..., Quiet hours), its glyph at the end
       // a room: the speaker's well, its name over what is true of it (Plays with Office, Quiet hours, Unavailable, Live), the tick
       // at the end -- hk-saver-panel.js's .mproom, the Music page's speaker picker
-      '.rm{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 10px 6px 8px;border-radius:13px;min-width:0;',
+      // (a capsule, Apple's: the ends fully round, the glyph and the ring 16 px in -- the owner, 2026-11-12)
+      '.rm{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 14px 6px 16px;border-radius:99px;min-width:0;',
       '  background:var(--hk-pill-bg, rgba(255,255,255,0.07));color:' + v('ink') + ';cursor:pointer;box-sizing:border-box;',
       '  touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background-color .22s ease}',
-      '.rm .ri{flex:none;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center}',
-      '.rm .ri hk-icon{--mdc-icon-size:21px;width:21px;height:21px;color:' + v('ink') + '}',
+      // the speaker's glyph bare, no well (Apple's AirPlay list, 2026-11-12, the owner's option A), in a 34 px box so the names stay put
+      '.rm .ri{flex:none;width:34px;height:34px;display:flex;align-items:center;justify-content:center}',
+      '.rm .ri hk-icon{--mdc-icon-size:30px;width:30px;height:30px;color:' + v('ink') + '}',
       '.rm .l{flex:1;min-width:0}',
       // a name too long for its row ends in "…", whole names in the aria-label (2026-11-07, the owner: "Names are getting clipped off")
       '.rm .l b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.rm .l small{display:block;font-size:12.5px;opacity:0.72;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.rm .tk{flex:none;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px ' + v('line-strong') + ';display:flex;align-items:center;justify-content:center}',
-      '.rm .tk svg{width:16px;height:16px;fill:' + C.SELECTED_TEXT + ';opacity:0}',
-      '.rm[aria-pressed="true"]{background:rgba(255,255,255,0.18)}',
-      '.rm[aria-pressed="true"] .tk{background:' + C.SELECTED_BG + ';box-shadow:none}',
-      '.rm[aria-pressed="true"] .tk svg{opacity:1}',
+      // (picked: Apple's dark disc with a white check, as the Speakers panel's rows -- DESIGN.md "Speakers, Apple's AirPlay way")
+      // (unpicked, an empty ring -- the room can be picked, and the finger has a place to aim; picked, the dark disc and its check)
+      '.rm .tk{flex:none;width:28px;height:28px;border-radius:50%;box-shadow:inset 0 0 0 2px ' + v('mark') + ';display:flex;align-items:center;justify-content:center}',
+      '.rm .tk svg{width:17px;height:17px;fill:#fff;visibility:hidden}',
+      '.rm.off:not([aria-pressed="true"]) .tk{visibility:hidden}',
+      // picked: the white of a lit tile, dark ink on it
+      '.rm[aria-pressed="true"]{background:rgba(255,255,255,0.94);color:rgba(0,0,0,0.88);text-shadow:none}',
+      '.rm[aria-pressed="true"] .l b{color:rgba(0,0,0,0.88)}',
+      '.rm[aria-pressed="true"] .l small{color:' + v('ink-on-state') + ';opacity:1}',
+      '.rm[aria-pressed="true"] .ri hk-icon{color:rgba(0,0,0,0.78)}',
+      '.rm[aria-pressed="true"] .tk{background:rgba(0,0,0,0.82);box-shadow:none}.rm[aria-pressed="true"] .tk svg{visibility:visible}',
       // a room a tap can't pick is dimmed as Music's unavailable speaker; one on quiet hours (Send Anyway may include it) less so
       '.rm.off{opacity:0.38;cursor:default}',
       '.rm.quiet{opacity:0.6}',
@@ -1472,13 +1517,20 @@
           '<span class="core">' + svg('mic') + '</span></button><div class="wd"></div><div class="mt"></div></div>' +
           '<div class="line" role="status" aria-live="polite"></div><div class="rv" hidden></div></div>' +
           '<div class="pick"><div class="ph"><span class="lab">To</span><span class="cnt"></span>' +
-          '<button class="clr" type="button">Clear All</button></div>' +
+          '<button class="clr" type="button">Clear All</button></div><div class="lnote" hidden></div>' +
           '<div class="sec gsec" hidden><div class="grid chips"></div></div>' +
           '<div class="sec rsec"><div class="grid rooms"></div></div><div class="none" hidden></div></div></div></div>';
         var self = this, q = this._root.querySelector.bind(this._root);
-        this._e = { seg: q('.seg'), pick: q('.pick'), gsec: q('.gsec'), rsec: q('.rsec'), chips: q('.chips'), rooms: q('.rooms'), none: q('.none'), line: q('.line'), mic: q('.mic'), mb: q('.mb'),
+        this._e = { seg: q('.seg'), lnote: q('.lnote'), pick: q('.pick'), gsec: q('.gsec'), rsec: q('.rsec'), chips: q('.chips'), rooms: q('.rooms'), none: q('.none'), line: q('.line'),
+          mic: q('.mic'), mb: q('.mb'),
           mt: q('.mt'), rv: q('.rv'), foot: q('.foot'),
           core: q('.core'), wd: q('.wd'), cnt: q('.cnt'), clr: q('.clr') };
+        // [cols]: the two columns' layout (SHEET_CSS), by the sheet's own width, as the container query decides it
+        var sh = q('.sh');
+        if (typeof window.ResizeObserver === 'function') {
+          this._ro = new window.ResizeObserver(function () { self.toggleAttribute('cols', sh.clientWidth >= COLS_W); });
+          this._ro.observe(sh);
+        }
         this._e.clr.addEventListener('click', function (e) { e.stopPropagation(); if (self._ctl && self._e.clr.getAttribute('aria-disabled') !== 'true') self._ctl.clearRooms(); });
         var mb = this._e.mb, down = false;
         // POINTER EVENTS, with pointercancel. The press makes and resumes the AudioContext (hk-mic.js unlock) and Message
@@ -1558,6 +1610,9 @@
             (m.disabled ? ' aria-disabled="true"' : '') + (m.on ? ' class="sel"' : '') + '>' + m.label + '</button>'; }).join('');
           if (this._slide && C.slideSeg) { var now = e.seg.querySelector('.sel'); if (now) C.slideSeg(now, this._slide); this._slide = null; }
         }
+        // over the rooms, in Live: where Live goes (one room)
+        e.lnote.hidden = !view.note;
+        if (e.lnote.textContent !== view.note) e.lnote.textContent = view.note;
         // the chips and pills, drawn again only when they differ
         var cKey = JSON.stringify(view.chips.map(function (c) { return [c.kind, c.id, c.name, c.on]; }));
         if (cKey !== this._cKey) { this._cKey = cKey; e.chips.innerHTML = view.chips.map(function (c) { return self._pill(c); }).join(''); }

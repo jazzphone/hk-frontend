@@ -456,6 +456,9 @@
     var dock = el.classList.contains('dock');
     var h = Math.max(0, Math.round((dock ? (el.offsetHeight || 0) : (el.clientHeight || window.innerHeight || 0)) - (sheet.offsetTop || 0)));
     var v = h + 'px';
+    // (every read before the first write: --hk-bar-h on the root invalidates the whole page, and the sheet's height read
+    // after it laid the page out a second time, 14 ms of a landing at 4x CPU, 2026-11-13)
+    var sheetH = dock ? (sheet.offsetHeight || 0) : 0;
     // (--hk-bar-h is the bottom's: the docked menu's list and the stash
     // stand on it -- a bar at the top covers none of the bottom)
     if (top) de.style.removeProperty('--hk-bar-h');
@@ -469,9 +472,9 @@
         return !k.hasAttribute('data-hk-glass-layer') && !k.classList.contains('x');
       });
       if (!built) return;
-      var none = (sheet.offsetHeight || 0) <= 2;
+      var none = sheetH <= 2;
       el.classList.toggle('empty', none);
-      dockRoom(none ? 0 : sheet.offsetHeight, top);
+      dockRoom(none ? 0 : sheetH, top);
     }
   }
   // A DOCKED BAR (`dock: true`, the now-playing bar since 2026-10-10) is the
@@ -712,10 +715,16 @@
   }
   // the pane's width on its side of <html> (hk-menu.js narrows the page,
   // hk-tabbar.js keeps clear of it), and the word that it changed
+  // (taken off only if this wrote it: the Side Pane writes the same room (hk-sidepane.js), and a bar carried off Home
+  // cleared the Side Pane's 1.5 s after a page swipe landed back there -- the page under the pane, its tab bar centered
+  // on the whole window, 2026-11-14)
+  var paneOwn = false;
   function publishPane(side, w) {
     var de = document.documentElement;
     if (!de || !de.style) return;
     var l = side === 'left' && w ? w + 'px' : '', r = side === 'right' && w ? w + 'px' : '';
+    if (!l && !r && !paneOwn) return;
+    paneOwn = !!(l || r);
     if (de.style.getPropertyValue('--hk-pane-l') === l && de.style.getPropertyValue('--hk-pane-r') === r) return;
     if (l) de.style.setProperty('--hk-pane-l', l); else de.style.removeProperty('--hk-pane-l');
     if (r) de.style.setProperty('--hk-pane-r', r); else de.style.removeProperty('--hk-pane-r');
@@ -1468,7 +1477,8 @@
         // in once its art is in -- placed at once it showed the placeholder,
         // then the art faded in over it (2026-10-15). At most PANE_ARRIVE_MS.
         var paneArrive = arriving && !carry && this._placeNow && this._placeNow.kind === 'pane';
-        if (el.hasAttribute('hk-flat')) {
+        // (held still -- Motion off, in any look: hk-base-card-core.js flatTone -- it is simply there)
+        if (el.hasAttribute('hk-still')) {
           el.classList.add('instant', 'open');
           if (carry) dropGhost(CARRY[this._hash]);
         } else if (paneArrive) {
@@ -1573,7 +1583,17 @@
         (this._kids || []).forEach(function (k) { if (typeof k.hkLastUse === 'function') t = Math.max(t, k.hkLastUse() || 0); });
         return t;
       }
+      // ONCE A FRAME (2026-11-13, a page swipe's landing on the Loft): a page change placed the docked bar from a timer,
+      // the inset and its build, and each publish read the bar's height straight after a write -- three forced layouts
+      // of the whole page in one landing, 13-18 ms each at 4x CPU, while the next finger waited. Asked again before the
+      // frame, it is one read, at the frame's start.
       _publish() {
+        var self = this;
+        if (typeof requestAnimationFrame !== 'function') { this._publishNow(); return; }
+        if (this._pubRaf) return;
+        this._pubRaf = requestAnimationFrame(function () { self._pubRaf = 0; if (self._open) self._publishNow(); });
+      }
+      _publishNow() {
         var p = this._placeNow;
         if (p && p.kind === 'pane') publishPane(p.side, p.w); else publishPane(null);
         publishBar(this._el, this._sheet);
@@ -1633,7 +1653,7 @@
             if (self._open) return;
             kids.forEach(function (k) { if (k.parentNode) k.parentNode.removeChild(k); });
             if (el.parentNode) el.parentNode.removeChild(el);
-          }, el.hasAttribute('hk-flat') ? 0 : 320);
+          }, el.hasAttribute('hk-still') ? 0 : 320);
         }
         // A close by hand while the trigger still holds is a DISMISSAL. Not a
         // trigger close (the session ended), not a switch to another sheet,

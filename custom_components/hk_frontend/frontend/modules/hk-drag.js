@@ -68,7 +68,29 @@
 
   // ------------------------------------------------------------ let go
   // THE SPRING: per ms; the fastest it takes up from a finger, px/ms
-  var OMEGA = 0.028, V_MAX = 8, FLICK_WINDOW = 100, REST = 60;
+  var OMEGA = 0.028, V_MAX = 8, FLICK_WINDOW = 100, REST = 60, TWITCH = 16, OVERSHOOT_MS = 24;
+  // A FEW PX BACK AT THE VERY END IS NO FLICK BACK (2026-11-13, the owner: "pages bouncing back on page swipes"; logged
+  // on the Loft): Android resamples a moving finger to the frame and runs past where it stopped, and the lift then says
+  // where it really is -- 6-16 px back in the last 15 ms, read as a flick back over FLICK about one swipe in four, so a
+  // full swipe went back. Left out: a last run the other way of under TWITCH px, and the lift's own step back when it is
+  // under OVERSHOOT_MS of the way the finger was going (a frame and a half's run past). A real flick back takes moves.
+  function untwitch(pts) {
+    var n = pts.length, k = n - 1, dir = 0;
+    while (k > 0) {
+      var st = pts[k][1] - pts[k - 1][1];
+      if (st && dir && (st < 0) !== (dir < 0)) break;
+      if (st) dir = st;
+      k--;
+    }
+    if (k <= 0) return pts;
+    var back = Math.abs(pts[n - 1][1] - pts[k][1]);
+    if (back < TWITCH) return pts.slice(0, k + 1);
+    if (n - 1 - k === 1) {
+      var j = Math.max(0, k - 3), dt = pts[k][0] - pts[j][0], v = dt > 0 ? Math.abs(pts[k][1] - pts[j][1]) / dt : 0;
+      if (back < v * OVERSHOOT_MS) return pts.slice(0, k + 1);
+    }
+    return pts;
+  }
   // (the last FLICK_WINDOW ms of the finger's [t, x] moves, from the move at or just past the window's start: a busy
   // tablet hands moves over far apart, and one alone in the window measured nothing. The lift -- `up`, its time -- is no
   // sample: it comes where the last move was, and counted, it slowed every quick flick under FLICK; a finger that
@@ -76,8 +98,9 @@
   // it came.)
   function speed(pts, up) {
     if (!pts || pts.length < 2) return 0;
+    if (up != null && up - pts[pts.length - 1][0] > REST) return 0;
+    pts = untwitch(pts);
     var last = pts[pts.length - 1], first = last, way = 0;
-    if (up != null && up - last[0] > REST) return 0;
     for (var i = pts.length - 2; i >= 0; i--) {
       var step = first[1] - pts[i][1];
       if (way && step && (step < 0) !== (way < 0)) break;
@@ -472,15 +495,18 @@
   // Volume tab): a finger is the slider's only once it has gone sideways -- SLOP_TOUCH first, more across than down
   // (classify, axis x); down, it was the list's, and the slider never moved. A mouse takes it at once. The element wears
   // touch-action:pan-y (the browser scrolls the list, and says pointercancel) and data-hk-control (the page swipe leaves
-  // it be). h: target(e) -> the slider under the press or null, start(t, x), move(t, x), end(t, cancelled).
+  // it be). h: target(e) -> the slider under the press or null, start(t, x), move(t, x), end(t, cancelled); keepClick (a slider that is
+  // also a button -- the Speakers panel's rows, 2026-11-12): a mouse press that never went SLOP_MOUSE stays a click, not a drag's end.
   // (hk-control.js wireSlider is the same rule, for an <input type=range>.)
   function slider(el, h) {
     var g = null;
     el.addEventListener('pointerdown', function (e) {
       var t = h.target ? h.target(e) : el;
       if (!t || e.isPrimary === false) return;
-      g = { id: e.pointerId, x: e.clientX, y: e.clientY, t: t, live: e.pointerType === 'mouse' };
-      if (g.live) { try { el.setPointerCapture(e.pointerId); } catch (x) { /* gone */ } h.start(t, e.clientX); }
+      g = { id: e.pointerId, x: e.clientX, y: e.clientY, t: t, live: e.pointerType === 'mouse', far: e.pointerType !== 'mouse' };
+      // (keepClick: no capture until the mouse has moved -- captured, a click lands on el, never on the row under it: the Speakers
+      // panel's rooms could not be ticked with a mouse, 2026-11-12)
+      if (g.live) { if (!h.keepClick) { try { el.setPointerCapture(e.pointerId); } catch (x) { /* gone */ } } h.start(t, e.clientX); }
     });
     el.addEventListener('pointermove', function (e) {
       if (!g || e.pointerId !== g.id) return;
@@ -492,6 +518,10 @@
         try { el.setPointerCapture(e.pointerId); } catch (x) { /* gone */ }
         h.start(g.t, e.clientX);
       }
+      if (!g.far && Math.abs(e.clientX - g.x) + Math.abs(e.clientY - g.y) > SLOP_MOUSE) {
+        g.far = true;
+        if (h.keepClick) { try { el.setPointerCapture(e.pointerId); } catch (x) { /* gone */ } }
+      }
       h.move(g.t, e.clientX);
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
@@ -499,7 +529,7 @@
     var end = function (e) {
       if (!g || e.pointerId !== g.id) return;
       var was = g; g = null;
-      if (was.live) { swallow = Date.now(); h.end(was.t, e.type === 'pointercancel'); }
+      if (was.live) { if (!h.keepClick || was.far) swallow = Date.now(); h.end(was.t, e.type === 'pointercancel'); }
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);

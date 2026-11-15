@@ -93,7 +93,7 @@ CATALOG: dict[str, dict[str, Any]] = {
     # Armed, a boolean that is on unless it is false -- the block is the white plate of a tile that is on while the alarm is armed
     "security": {"sizes": ("S", "W", "C", "T", "L", "XL"), "sources": (),
                  "opts": {"entity": "alarm", "tap": "tap_target", "presentation": "security_presentation",
-                          "members": "security_members", "lit": "security_lit", "height": "tile_height"}},
+                          "members": "security_members", "lit": "security_lit", "height": "tile_height", "glyphs": "glyph_color"}},
     "timers": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
     "weather": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"entity": "weather", "sky": "boolean", "big": "boolean", "tap": "tap_target"}},
     "calendar": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"calendars": "calendars", "days": "days", "month": "boolean", "tap": "tap_target"}},
@@ -115,7 +115,7 @@ CATALOG: dict[str, dict[str, Any]] = {
     # tap (2026-11-01, the owner): When Tapped's choices, and Choose a Playlist -- every playlist in the Music page's
     # sheet, so the block is one button to start any of them
     "music": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"show": "music_show", "playlist": "music_playlist", "speaker": "music_speaker", "tap": "music_tap"}},
-    "doors": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
+    "doors": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target", "glyphs": "glyph_color"}},
     # channel (2026-10-31, the owner): one channel of the guide fills the block; none, as many as the size holds
     "live_tv": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"channel": "tv_channel", "tap": "tap_target"}},
     "water": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target"}},
@@ -127,28 +127,31 @@ CATALOG: dict[str, dict[str, Any]] = {
     "everything": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target", "more": "everything_more"}},
     # THE WIDGET BLOCKS (2026-10-31, docs/phase11/HOMEVIEW-LOOK.md "Blocks as widgets"): what is on now, a to-do
     # list, and the Energy page's rings over a period of the block's own
-    "on_now": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target", "open": "on_now_open"}},
+    "on_now": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"tap": "tap_target", "open": "on_now_open", "glyphs": "glyph_color"}},
     "todo": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"entity": "todo", "tap": "tap_target"}},
-    "energy_rings": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"period": "period", "tap": "tap_target"}},
+    "energy_rings": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"period": "period", "figures": "rings_figures", "tap": "tap_target"}},
     # THE INTERCOM (2026-11-03, docs/phase17/INTERCOM.md): a button that opens its sheet; Wide also shows the last rooms
     # picked. Always the sheet, so no When Tapped
     "intercom": {"sizes": ("S", "W"), "sources": (), "opts": {}},
     # RECENT (2026-11-03, docs/phase19/HOUSE-TIMELINE.md "The views"): the House Timeline's last rows. Mantel's own: a
     # host with no Timeline (Home Assistant) never offers it and draws a stand-in for a layout that has one. show:
     # Automatic (the morning summary from 5 to 11 AM, the rows after), Latest Events, or Morning Summary
-    "timeline": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"show": "timeline_show", "tap": "tap_target"}},
+    "timeline": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"show": "timeline_show", "tap": "tap_target", "glyphs": "glyph_color"}},
+    # HOME (phase 27, docs/phase27/PLAN.md): the house as a way in, each part opening the generated Home page in a sheet at
+    # that place. Its name (title: the house's by default) and Glyphs; no When Tapped, the sheet is where it goes
+    "home": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"title": "title", "look": "sheet_look", "glyphs": "glyph_color"}},
     # HOUSE STATUS (2026-11-07, docs/phase11/HOUSE-STATUS.md): this screen's status chips as sections, each a tap to its
     # chip's page, the rest in a sheet. No options: what it shows is the screen's Status Chips (chips, chips_quiet,
     # chips_extra, chips_custom), drawn whether or not the screen shows its chip row. No When Tapped: each section
     # opens its own place
-    "house_status": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {}},
+    "house_status": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (), "opts": {"glyphs": "glyph_color"}},
     # ALERT (2026-11-10, docs/phase11/ALERT.md): one thing that needs a look, made to be a Show When rule's card -- a headline
     # (title), a line of its own (text), how long an accessory has been as it is (since: its last_changed), a camera's still
     # (camera), one action (control: that accessory's own tile tap -- a door or a lock opens its controls, which ask first),
     # its glyph and color. No When Tapped: the picture opens the camera, the action the accessory, the plate its sheet
     "alert": {"sizes": ("S", "W", "T", "L", "XL"), "sources": (),
               "opts": {"title": "title", "text": "alert_text", "since": "entity", "camera": "camera", "control": "entity",
-                       "icon": "alert_icon", "color": "alert_color"}},
+                       "icon": "alert_icon", "color": "alert_color", "glyphs": "glyph_color"}},
 }
 SOURCES = ("list", "rooms", "cameras", "thermostats", "speakers", "scenes", "accessories")
 # the sources that can open on the tablet's own room (or its speaker)
@@ -457,6 +460,14 @@ ON_NOW_OPENS = ("sheet", "page")
 # EVERYTHING'S REST (2026-11-08, the owner: "scroll within the card or go to the page with the + button"): the last
 # place, "+N", opens the page (the default, as before) or the places scroll in the block
 EVERYTHING_MORE = ("page", "scroll")
+# ENERGY RINGS SMALL'S FIGURES (2026-11-12, the owner: "an option to always show the data, not just on tap"): the box
+# of figures over the rings on a tap (the default) or always
+RINGS_FIGURES = ("tap", "always")
+# THE HOME SHEET'S LOOK (2026-11-12, the owner: "letting me set the appearance would help with looks and performance"; 2026-11-13:
+# "the main goal is to make it easier on the tablet to run... Flat, Glass, Frost, Tint, or Auto"): a screen look the sheet wears on
+# its own (hk-home-block.js LOOKS); no key is Same as Screen. "solid", the first form's (2026-11-12), is kept as Flat
+SHEET_LOOKS = ("flat", "glass", "frosted", "tinted")
+SHEET_LOOKS_RENAMED = {"solid": "flat"}
 
 
 def _on_now_open(v: Any) -> str:
@@ -465,8 +476,32 @@ def _on_now_open(v: Any) -> str:
     return v
 
 
+def _rings_figures(v: Any) -> str:
+    if v not in RINGS_FIGURES:
+        raise GridInvalid("grid_option")
+    return v
+
+
+def _sheet_look(v: Any) -> str:
+    v = SHEET_LOOKS_RENAMED.get(v, v) if isinstance(v, str) else v
+    if v not in SHEET_LOOKS:
+        raise GridInvalid("grid_option")
+    return v
+
+
 def _everything_more(v: Any) -> str:
     if v not in EVERYTHING_MORE:
+        raise GridInvalid("grid_option")
+    return v
+
+
+# GLYPHS (2026-11-12, the owner: "an option for Color or White Glyphs for the cards...sometimes it looks good, sometimes it doesn't"): a
+# HomeView block's bare glyphs in their own colors or white. Absent: the block's own default (Security and Doors white, the rest color)
+GLYPH_COLORS = ("color", "white")
+
+
+def _glyph_color(v: Any) -> str:
+    if v not in GLYPH_COLORS:
         raise GridInvalid("grid_option")
     return v
 
@@ -520,6 +555,9 @@ OPTION_KINDS = {
     "np_background": _np_background,
     "on_now_open": _on_now_open,
     "everything_more": _everything_more,
+    "rings_figures": _rings_figures,
+    "sheet_look": _sheet_look,
+    "glyph_color": _glyph_color,
     "security_presentation": _security_presentation,
     "security_members": _security_members,
     "security_lit": _boolean,

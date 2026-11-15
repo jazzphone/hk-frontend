@@ -98,6 +98,19 @@ def _timer_rooms(v: Any) -> list[str]:
     return list(dict.fromkeys(v))
 
 
+def _homepod_rooms(v: Any) -> dict[str, str]:
+    """Settings > Timers > HomePod Rooms: a Home app room's name -> the house's room it is (hk_core.timers.homepod.room_for)."""
+    if not isinstance(v, dict) or len(v) > 40:
+        raise Invalid("object")
+    out = {}
+    for k, x in v.items():
+        name = " ".join(k.split()) if isinstance(k, str) else ""
+        if not name or len(name) > 60 or not name.isprintable() or not isinstance(x, str) or not x or not AREA_OR_EMPTY.match(x):
+            raise Invalid("object")
+        out[name] = x
+    return out
+
+
 def _bool(v: Any) -> bool:
     if not isinstance(v, bool):
         raise Invalid("bool")
@@ -766,6 +779,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "features.timer_wake": _bool,
     "features.timer_include": _entities("timer"),
     "features.timer_ignore": _entities("timer"),
+    "features.homepod_rooms": _homepod_rooms,
     "features.vacuum_script": _entity("script"),
     "features.laundry": _laundry(LA.machines),
     "features.laundry_clear": _laundry(LA.clear_after),
@@ -792,6 +806,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "look.flat_theme": _choice(("light", "dark")),
     "look.frost": _amount,
     "look.frost_tint": _bool,
+    "look.motion": _bool,
     "look.blur": _amount,
     "look.tint": _amount,
     "look.bright": _amount,
@@ -926,6 +941,7 @@ HOUSE.update({
     "tablets.restart": _bool,
     "tablets.restart_times": lambda v: _restart_times(v),
     "tablets.dismissed": lambda v: _keys(v),
+    "tablets.app": S.app_options,
 })
 # THE SIDE PANE (settings.side_pane): All Screens' groups, each whole -- a
 # Dashboard or Screensaver group is what it shows and its sections together
@@ -1288,6 +1304,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "flat_theme": _choice(("light", "dark"), none=True),
     "frost": _amount_or_none,
     "frost_tint": _bool_or_none,
+    "motion": _bool_or_none,
     "blur": _amount_or_none,
     "tint": _amount_or_none,
     "bright": _amount_or_none,
@@ -1489,6 +1506,8 @@ TABLET: dict[str, Callable[[Any], Any]] = {
     "idle_time": _idle_time,
     "black_screen": _choice(S.BLACK_SCREENS),
     "sleep": _sleep,
+    "app_sky": _bool,
+    "app_options": S.app_options,
 }
 
 

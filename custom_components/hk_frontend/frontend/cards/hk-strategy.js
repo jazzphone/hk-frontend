@@ -128,7 +128,7 @@
   }
   // ------------------------------------------------------------ end of the parts loader
   var boardOf, clientOf, climateMembers, contactGlyphs, dashSeg, groupOf, HkDashboardStrategy, HkRoomViewStrategy,
-      homeGridView, inventory, kioskOf, lookSample, notHouseCamera, overlay, pageMembers, PX, PX_KIN, roomCards,
+      homeGridView, homeSheet, inventory, kioskOf, lookSample, notHouseCamera, overlay, pageMembers, PX, PX_KIN, roomCards,
       rooms, saverBlock, setting, shortName, sibling, TILE, tileFor;
 
   // REBUILT WHEN ITS SETTINGS CHANGE. A strategy builds the dashboard once,
@@ -154,7 +154,8 @@
   // camera. Car Browser itself rebuilds: with Car Home it is another Home.)
   var LIVE_KEYS = { chips: 1, chips_quiet: 1, chips_extra: 1, scenes: 1, scenes_pages: 1, scenes_row: 1,
                     categories: 1, menu: 1, menu_rooms: 1, dock_min: 1, time_weather: 1, ha_row: 1,
-                    tab_position: 1, home_rooms: 1, flat: 1, flat_theme: 1, glass: 1, frost: 1, frost_tint: 1, blur: 1, tint: 1, well: 1, black_screen: 1, camera_live: 1, camera_live_video: 1,
+                    tab_position: 1, home_rooms: 1, flat: 1, flat_theme: 1, glass: 1, frost: 1, frost_tint: 1, motion: 1, blur: 1, tint: 1, well: 1, black_screen: 1, camera_live: 1,
+                      camera_live_video: 1,
                     car_width: 1, idle_return: 1, narrow: 1, menu_top: 1, chips_custom: 1, chips_custom_show: 1,
                     // notifications: hk-notify.js reads them as each one comes
                     notify: 1, notify_saver: 1, notify_dnd: 1,
@@ -384,7 +385,7 @@
     PARTS.forEach(function (file) { window.hkStrategyParts[partKey(file)](K); });
     boardOf = K.boardOf; clientOf = K.clientOf; climateMembers = K.climateMembers; contactGlyphs = K.contactGlyphs;
     dashSeg = K.dashSeg; groupOf = K.groupOf; HkDashboardStrategy = K.HkDashboardStrategy;
-    HkRoomViewStrategy = K.HkRoomViewStrategy; homeGridView = K.homeGridView; inventory = K.inventory;
+    HkRoomViewStrategy = K.HkRoomViewStrategy; homeGridView = K.homeGridView; homeSheet = K.homeSheet; inventory = K.inventory;
     kioskOf = K.kioskOf; lookSample = K.lookSample; notHouseCamera = K.notHouseCamera; overlay = K.overlay;
     pageMembers = K.pageMembers; PX = K.PX; PX_KIN = K.PX_KIN; roomCards = K.roomCards; rooms = K.rooms;
     saverBlock = K.saverBlock; setting = K.setting; shortName = K.shortName; sibling = K.sibling; TILE = K.TILE;
@@ -423,6 +424,8 @@
                           groupOf: viaClient(groupOf), ownChange: ownChange,
                           // a Home Grid's view from a layout (Edit mode's preview, hk-edit-grid.js)
                           homeGridView: homeGridView,
+                          // the generated Home and the pages it leads to, for the Home sheet (hk-home-block.js; phase 27)
+                          homeSheet: viaClient(homeSheet),
                           // built again now, from the settings as they are (Edit mode's Reload)
                           rebuild: refreshKeepingPlace,
                           room: HkRoomViewStrategy.generate,

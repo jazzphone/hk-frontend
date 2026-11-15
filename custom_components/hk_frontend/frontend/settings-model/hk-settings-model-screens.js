@@ -14,12 +14,21 @@
     // ------------------------------------------------------------ wall tablets (1.14)
     // A TABLET'S KIOSK APP: [id, name, what HK can do with it]
     var TABLET_APPS = [
+      // an app of the house's own on the tablet, with Kiosk Satellite's entities (its host may name it: hkShell.kioskAppName)
+      ['android_app', 'Tablet App', 'Status, brightness, wake, sleep, restart.'],
       ['kiosk_satellite', 'Kiosk Satellite', 'Status, brightness, wake, sleep, restart.'],
       ['fully', 'Fully Kiosk', 'Status, brightness, reload, restart.'],
       ['wallpanel', 'WallPanel', 'HK’s idle and screensaver in the browser; no status.'],
       ['browser', 'Just a Browser', 'Any browser you say is a tablet: HK’s idle and screensaver.']
     ];
-    function tabletApp(id) { return TABLET_APPS.filter(function (a) { return a[0] === id; })[0] || TABLET_APPS[3]; }
+    // a kiosk app that is a device in Home Assistant (its status and buttons: Setup's Device)
+    function kioskDeviceApp(id) { return id === 'android_app' || id === 'kiosk_satellite' || id === 'fully'; }
+    // a kiosk app's name as this host says it
+    function tabletAppName(a) {
+      var sh = window.hkShell, n = sh && typeof sh.kioskAppName === 'function' && sh.kioskAppName(a[0]);
+      return n || a[1];
+    }
+    function tabletApp(id) { return TABLET_APPS.filter(function (a) { return a[0] === id; })[0] || TABLET_APPS[4]; }
     // Idle Time (settings.IDLE_TIMES), seconds; 0 never
     var IDLE_TIMES = [[30, '30 Seconds'], [50, '50 Seconds'], [60, '1 Minute'], [120, '2 Minutes'], [300, '5 Minutes'], [0, 'Never']];
     function idleLabel(sec) {
@@ -374,7 +383,7 @@
         "side_pane": {"side": "right", "headings": true, "dashboard": {"show": "home",
         "sections": [{"kind": "weather", "size": "more"}, {"kind": "calendar", "size": "more"}, {"kind": "now_playing", "size": "more", "when": "active"}]}}, "screensaver": true},
         "saver": {"show": "clock", "clock_style": "numbers", "clock_bg": "gradient", "clock_motion": "slow"}},
-      {"id": "flat", "name": "Flat", "about": "Clean and solid: no blur, high contrast, the cards on one dark colour.", "art": ["#1c1c1e", "#1c1c1e", "#1c1c1e", "#0a84ff"],
+      {"id": "flat", "name": "Flat", "about": "Clean and solid: no blur, high contrast, the cards on one dark color.", "art": ["#1c1c1e", "#1c1c1e", "#1c1c1e", "#0a84ff"],
         "layout": {"cell": "tile", "starters": ["A"]}, "settings": {"flat": true, "flat_theme": "dark", "accent": "blue", "tab_bar_glass": "tinted", "tile_style": "home", "swipe_pages": "auto",
         "screensaver": true}, "saver": {"show": "clock", "clock_style": "classic", "clock_bg": "black", "clock_motion": "still"}},
       {"id": "performance", "name": "Performance",
@@ -400,7 +409,7 @@
         "settings": {"flat": false, "glass": "bright", "accent": "indigo", "tab_bar_glass": "house", "tile_style": "auto", "sky": true, "sky_background": "wallpaper", "sky_wallpaper": "petals",
         "sky_wallpaper_color": "violet", "sky_wallpaper_night": "auto", "sky_wallpaper_motion": "slow", "swipe_pages": "on", "screensaver": true},
         "saver": {"show": "clock", "clock_style": "liquid", "clock_bg": "gradient", "clock_motion": "slow"}},
-      {"id": "night", "name": "Night & Bedside", "about": "Dark and quiet for a bedroom: a deep colour, the big clock a swipe from the weather, and a dim red clock at night.",
+      {"id": "night", "name": "Night & Bedside", "about": "Dark and quiet for a bedroom: a deep color, the big clock a swipe from the weather, and a dim red clock at night.",
         "art": ["#0b1026", "#121a3a", "#05070f", "#ff453a"], "layout": {"cell": "tile", "starters": ["n_standby", "n_clock"]},
         "settings": {"flat": false, "glass": "tinted", "accent": "red", "tab_bar_glass": "tinted", "tile_style": "home", "sky": true, "sky_background": "color", "sky_color": "midnight",
         "sky_animations": false, "swipe_pages": "on", "side_pane": {"dashboard": {"show": "off", "sections": []}}, "screensaver": true},
@@ -484,7 +493,7 @@
     K.RADAR_REASONS = RADAR_REASONS; K.RADAR_SPEEDS = RADAR_SPEEDS; K.radarAdvancedSummary = radarAdvancedSummary;
     K.radarOf = radarOf; K.radarPlanOf = radarPlanOf; K.radarSummary = radarSummary; K.secKey = secKey;
     K.secsAdd = secsAdd; K.secSays = secSays; K.secSet = secSet; K.secsMore = secsMore; K.secsOrder = secsOrder;
-    K.TABLET_APPS = TABLET_APPS; K.tabletApp = tabletApp; K.tabletChecks = tabletChecks;
+    K.TABLET_APPS = TABLET_APPS; K.tabletApp = tabletApp; K.kioskDeviceApp = kioskDeviceApp; K.tabletAppName = tabletAppName; K.tabletChecks = tabletChecks;
     K.tabletStatus = tabletStatus; K.tabletUrl = tabletUrl; K.WX_DAYS = WX_DAYS; K.WX_DETAILS = WX_DETAILS;
     K.WX_HOURS = WX_HOURS; K.WX_METRICS = WX_METRICS; K.WX_PAGE_DEFAULTS = WX_PAGE_DEFAULTS; K.wxPage = wxPage;
   };

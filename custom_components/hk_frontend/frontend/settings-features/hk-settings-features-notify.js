@@ -18,6 +18,9 @@
         waiting = KIT.waiting, WHAT = KIT.WHAT;
 
     var K;
+    // a notification whose Goes Off When is being typed (Changes To Another Value…), by its id
+    var notifyTyping = {};
+    var TYPE_VALUE = '\u2026type';
     // (set when the page starts, not now: the shell calls bindLate() once it has assigned them)
     KIT.late.push(function (s) {
       K = s.K;
@@ -153,6 +156,11 @@
         K.toggle({ label: 'Chime', sub: o.chime !== false ? 'Wall tablets and computers play a soft chime; an Important one plays it twice'
                      : 'Off: only an Important one chimes', on: o.chime !== false,
                    sk: 'f:' + NT + ':chime', onChange: function (on) { notifySet(P, { chime: on }); } })]));
+      // THE HOST'S OWN for all notifications (extend 'notify': Mantel's Apple TV row, phase 31)
+      var hx = P.host && P.host();
+      if (hx && typeof hx.extend === 'function') {
+        try { hx.extend('notify', c, { tv: o.tv || null }, P); } catch (e) { /* the host's own group */ }
+      }
     }
     function notifyNew(P, c, d) {
       void d;
@@ -189,11 +197,30 @@
       var save = function (ch) { return notifySave(P, id, ch); };
       var sk = function (k) { return 'f:' + NT + ':' + k; };
       var whenOpts = (it.choices || []).map(function (x) { return [x[0], x[1]]; });
+      // CHANGES TO A VALUE (an accessory whose state is just a value: a text sensor, a select): the values it's known to
+      // take are among the choices; Changes To Another Value… opens a box to type one, kept among them once saved
+      var typing = !!(it.values && notifyTyping[id]);
+      if (it.values) whenOpts = whenOpts.concat([[TYPE_VALUE, 'Changes To Another Value…']]);
+      var pickWhen = function (v) {
+        if (v === TYPE_VALUE) { notifyTyping[id] = true; P.render(); return; }
+        delete notifyTyping[id];
+        save({ when: v });
+      };
       var when = whenOpts.length === 1 ? K.info({ label: 'Goes Off When', value: whenOpts[0][1] })
-        : whenControl(it.choices) === 'seg'
-          ? K.seg({ label: 'Goes Off When', value: it.when, sk: sk('when'), options: whenOpts, onChange: function (v) { save({ when: v }); } })
-          : K.select({ label: 'Goes Off When', value: it.when, sk: sk('when'), options: whenOpts, onChange: function (v) { save({ when: v }); } });
+        : !it.values && whenControl(it.choices) === 'seg'
+          ? K.seg({ label: 'Goes Off When', value: it.when, sk: sk('when'), options: whenOpts, onChange: pickWhen })
+          : K.select({ label: 'Goes Off When', value: typing ? TYPE_VALUE : it.when, sk: sk('when'), options: whenOpts, onChange: pickWhen });
+      var known = (it.choices || []).filter(function (x) { return x[0] !== 'any'; }).map(function (x) { return x[0]; });
+      var typed = typing ? K.text({ label: 'Changes To', value: '', maxlength: 64, sk: sk('when'), error: P.err(sk('when')),
+        placeholder: known.length ? 'Exactly as it says, like “' + known[0] + '”' : 'Exactly as it says',
+        onCommit: function (v) {
+          v = String(v || '').trim();
+          if (!v) return;
+          delete notifyTyping[id];
+          save({ when: v });
+        } }) : null;
       c.appendChild(K.group({ header: 'When', footer: it.missing ? 'The accessory isn’t in Home Assistant right now; this goes off again once it is.'
+          : it.values && it.when !== 'any' ? 'It goes off when the accessory changes to exactly this, as Home Assistant shows it.'
           : it.kind === 'calendar' ? 'Each event notifies once. All-Day Events: the morning one starts, at that time.'
           : 'Not Again For: a camera that sees someone for a minute sends one notification, not twenty.' }, [
         it.category ? null : P.entityRow({ label: 'Accessory', sk: sk('entity'), value: it.entity, title: 'Notify When',
@@ -201,6 +228,7 @@
                               'switch', 'timer', 'sensor', 'light', 'fan', 'vacuum'], shown: true },
           onPick: function (v) { if (v) save({ entity: v }); } }),
         when,
+        typed,
         K.select({ label: 'Only When', value: it.only || 'always', sk: sk('only'),
                    options: Object.keys(ONLY_WORDS).map(function (k) { return [k, ONLY_WORDS[k]]; }), onChange: function (v) { save({ only: v }); } }),
         it.kind === 'calendar' ? K.select({ label: 'All-Day Events', value: it.allday || '', sk: sk('allday'),
@@ -302,6 +330,11 @@
         : tap === 'none' ? 'A tap does nothing; the banner just goes when its time is up, or with a swipe.'
         : 'A tap opens ' + (cal ? 'the event' : tap === 'camera' ? 'the camera, live,' : 'its sheet') + ' with the notification on it: when it went off, ' +
           'the snapshot, its page, and Mute 1 Hour (that accessory quiet on every screen for an hour).' }, opened));
+      // THE HOST'S OWN for this notification (extend 'notify-item': Mantel's Apple TV switch and look, phase 31)
+      var hxi = P.host && P.host();
+      if (hxi && typeof hxi.extend === 'function') {
+        try { hxi.extend('notify-item', c, { item: it, tv: (d.options || {}).tv || null, save: save }, P); } catch (e) { /* the host's own group */ }
+      }
       if (it.category) {
         c.appendChild(K.group({ footer: it.kind === 'calendar' ? 'Send Test shows the next event of its calendars (within a week) now, on every screen that allows notifications.'
           : 'Send Test shows it now — for one of its accessories — on every screen that allows notifications, as if it went off.' }, [

@@ -83,9 +83,17 @@
   // A THERMOSTAT BLOCK'S STYLE (2026-10-30): the dial, or Big Number -- the
   // target large, the arrows at its foot (Tall and Large; Extra Large is the sheet)
   var THERMOSTAT_STYLES = [['dial', 'Dial'], ['big', 'Big Number']];
+  // THE HOME BLOCK'S SHEET (2026-11-13): the screen looks a Home sheet can wear on its own (hk-home-block.js LOOKS), as the tab
+  // bar's Glass names them (Same as Screen is none); hk_core/settings/home_grid.py SHEET_LOOKS
+  var SHEET_LOOKS = ['flat', 'glass', 'frosted', 'tinted'];
+  var SHEET_LOOK_NAMES = [['auto', 'Same as Screen'], ['flat', 'Flat'], ['glass', 'Glass'], ['frosted', 'Frosted'], ['tinted', 'Tinted']];
   // ...and the HomeView-style faces (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase I), each on its own colour
   // -- the block becomes that colour (home_grid.py CLOCK_FACES)
   CLOCK_FACES.push(['liquid', 'Liquid'], ['giant', 'Giant Numerals'], ['scattered', 'Scattered Numerals']);
+  // GLYPHS (2026-11-12, the owner: "an option for Color or White Glyphs for the cards"): a HomeView block's bare glyphs in their own colors
+  // or white; absent, the block's own default (GLYPH_WHITE: Security and Doors white, the rest color). hk_core/settings/home_grid.py checks it
+  var GLYPH_WHITE = { security: 1, doors: 1 };
+  function gl(o) { return o && (o.glyphs === 'color' || o.glyphs === 'white') ? { glyphs: o.glyphs } : {}; }
   function panel(kind, more) { return Object.assign({ type: 'custom:hk-grid-panel-card', panel: kind }, more || {}); }
 
   // key -> its sizes, the page sources it has besides `list`, and
@@ -153,16 +161,16 @@
     // HomeView compositions, Compact (3 x 1) among them -- hk-grid-security.js hk-grid-security-hv-card; absent, the
     // block as it always was. members: the locks and garage doors it shows, in order (none: the house's)
     security: { sizes: ['S', 'W', 'C', 'T', 'L', 'XL'], sources: [], opts: { entity: 'alarm', tap: 'tap_target', presentation: 'security_presentation', members: 'security_members',
-      lit: 'security_lit', height: 'tile_height' }, card: function (s, o) {
+      lit: 'security_lit', height: 'tile_height', glyphs: 'glyph_color' }, card: function (s, o) {
       // (HomeView's Extra Large keeps the keypad -- 2026-11-08, the owner: "when you set it to HomeView mode, the Keypad goes away": the
       // keypad beside its entries as HomeView tiles or pills (Height), the entries its own when chosen)
       if (o.presentation === 'homeview' && s === 'XL') return Object.assign({ type: 'custom:hk-grid-keypad-card' }, o.entity ? { entity: o.entity } : {},
         o.height === 'half' || o.height === 'full' ? { height: o.height } : {}, o.members && o.members.length ? { members: o.members.slice() } : {},
-        { hv: true }, o.lit === false ? { lit: false } : {});
+        { hv: true }, o.lit === false ? { lit: false } : {}, gl(o));
       // (lit, 2026-11-09: Light Up When Armed, on unless false)
       if (o.presentation === 'homeview') return Object.assign({ type: s === 'S' ? 'custom:hk-grid-security-key-card' : 'custom:hk-grid-security-hv-card', size: s }, o.entity ? { entity: o.entity } :
         {},
-                                                             o.members && o.members.length ? { members: o.members.slice() } : {}, o.lit === false ? { lit: false } : {});
+                                                             o.members && o.members.length ? { members: o.members.slice() } : {}, o.lit === false ? { lit: false } : {}, gl(o));
       // (Height, 2026-11-08, the owner: "are you offering half height pills too?": Large and Extra Large's locks as HomeView tiles, or half-height pills)
       var hh = o.height === 'half' || o.height === 'full' ? { height: o.height } : {};
       if (s === 'L' || s === 'XL') return Object.assign({ type: 'custom:hk-grid-keypad-card' }, o.entity ? { entity: o.entity } : {}, hh);
@@ -212,7 +220,7 @@
     music: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { show: 'music_show', playlist: 'music_playlist', speaker: 'music_speaker', tap: 'music_tap' }, card: function (s, o) {
       return panel('music', Object.assign(o.show && o.show !== 'recent' ? { show: o.show } : {}, o.show === 'playlist' && o.playlist ? { playlist: o.playlist } : {},
                                           o.speaker ? { speaker: o.speaker } : {})); } },
-    doors: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tap: 'tap_target' }, card: function () { return panel('doors'); } },
+    doors: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tap: 'tap_target', glyphs: 'glyph_color' }, card: function (s, o) { return panel('doors', gl(o)); } },
     // channel (2026-10-31, the owner): one channel of the guide, by its number, fills the block; none, as many as the size holds
     live_tv: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { channel: 'tv_channel', tap: 'tap_target' }, card: function (s, o) {
       return panel('tv', o.channel ? { channel: o.channel } : {}); } },
@@ -238,12 +246,13 @@
     // list, and the Energy page's rings over a period of the block's own
     // open (2026-11-08, the owner: a category should "either show a pop up or go to those pages... users decisions"):
     // sheet (the default) or page
-    on_now: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tap: 'tap_target', open: 'on_now_open' }, card: function (s, o) {
-      return Object.assign({ type: 'custom:hk-on-now-card' }, o.open === 'page' ? { open: 'page' } : {}); } },
+    on_now: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { tap: 'tap_target', open: 'on_now_open', glyphs: 'glyph_color' }, card: function (s, o) {
+      return Object.assign({ type: 'custom:hk-on-now-card' }, o.open === 'page' ? { open: 'page' } : {}, gl(o)); } },
     todo: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { entity: 'todo', tap: 'tap_target' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-todo-card' }, o.entity ? { entity: o.entity } : {}); } },
-    energy_rings: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { period: 'period', tap: 'tap_target' }, card: function (s, o) {
-      return { type: 'custom:hk-energy-rings-card', period: o.period || 'day' }; } },
+    // Small's figures (2026-11-12, the owner: "an option to always show the data, not just on tap"): On Tap (the default) or Always
+    energy_rings: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { period: 'period', figures: 'rings_figures', tap: 'tap_target' }, card: function (s, o) {
+      return Object.assign({ type: 'custom:hk-energy-rings-card', period: o.period || 'day' }, o.figures === 'always' ? { figures: 'always' } : {}); } },
     // THE INTERCOM (2026-11-03, docs/phase17/INTERCOM.md; hk-intercom.js): a button that opens its sheet -- speak a message
     // into the HomePods of the rooms you pick. Wide also shows the last rooms picked. Always the sheet: no When Tapped.
     // Without Mantel (HK Frontend in Home Assistant) the card says "Intercom needs Mantel".
@@ -253,25 +262,35 @@
     // -- or, in the morning, its summary of the night. Mantel's own record: a host that has no Timeline (Home
     // Assistant's HK Frontend, a person whose role has none) draws a stand-in, and the editors never offer it there
     // (hkShell.hostPage, asked here as the Timeline page's own entry is). show: auto (default), latest, digest
-    timeline: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { show: 'timeline_show', tap: 'tap_target' }, card: function (s, o) {
+    timeline: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { show: 'timeline_show', tap: 'tap_target', glyphs: 'glyph_color' }, card: function (s, o) {
       if (!hostHas('timeline')) return stand('Recent', 'mdi:history', 'Recent isn\'t available here.');
-      return { type: 'custom:hk-timeline-block-card', size: s, show: o.show === 'latest' || o.show === 'digest' ? o.show : 'auto' }; } },
+      return Object.assign({ type: 'custom:hk-timeline-block-card', size: s, show: o.show === 'latest' || o.show === 'digest' ? o.show : 'auto' }, gl(o)); } },
+    // HOME (phase 27, docs/phase27/PLAN.md, hk-home-block.js): the house as a way in -- Small its glyph alone, Wide its name
+    // and what is going on, Tall up House Status's headline over the categories and the rooms -- each part opening the
+    // generated Home page in a sheet at that place. Its name (`title`, the house's by default) and Glyphs; no When Tapped:
+    // the sheet is where it goes.
+    // Its Sheet (2026-11-12, the owner: "letting me set the appearance would help with looks and performance"): Same as Screen (no
+    // key), Flat, Glass, Frosted or Tinted (2026-11-13; hk-home-block.js LOOKS; 'solid', the first form's, reads as Flat)
+    home: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { title: 'title', look: 'sheet_look', glyphs: 'glyph_color' }, card: function (s, o) {
+      var lk = o.look === 'solid' ? 'flat' : o.look;
+      return Object.assign({ type: 'custom:hk-home-block-card', size: s }, o.title ? { title: o.title } : {},
+                           SHEET_LOOKS.indexOf(lk) >= 0 ? { look: lk } : {}, gl(o)); } },
     // HOUSE STATUS (2026-11-07, docs/phase11/HOUSE-STATUS.md, hk-house-status.js): this screen's status chips as
     // sections, each a tap to its chip's page; the rest, and Small, open the House Status sheet. No options: it shows
     // what the screen's Status Chips say, whether or not the screen draws its chip row. No When Tapped: each section
     // opens its own place.
-    house_status: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: {}, card: function (s) {
-      return { type: 'custom:hk-house-status-card', size: s }; } },
+    house_status: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { glyphs: 'glyph_color' }, card: function (s, o) {
+      return Object.assign({ type: 'custom:hk-house-status-card', size: s }, gl(o)); } },
     // ALERT (2026-11-10, docs/phase11/ALERT.md, hk-alert.js): one thing that needs a look -- a headline, a line of its own and how
     // long (`since`: the accessory whose state it counts from), a camera's still, and one action (`control`: that accessory's
     // own tile tap, so a door or a lock opens its controls and asks first). Made to be a Show When rule's card; no When Tapped
     alert: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { title: 'title', text: 'alert_text', since: 'entity', camera: 'camera', control: 'entity', icon: 'alert_icon',
-      color: 'alert_color' }, card: function (s, o) {
+      color: 'alert_color', glyphs: 'glyph_color' }, card: function (s, o) {
       var out = { type: 'custom:hk-grid-alert-card', size: s };
       ALERT_KEYS.forEach(function (k) { if (o[k] != null && o[k] !== '') out[k] = o[k]; });
       return out; } }
   };
-  var ALERT_KEYS = ['title', 'text', 'since', 'camera', 'control', 'icon', 'color'];
+  var ALERT_KEYS = ['title', 'text', 'since', 'camera', 'control', 'icon', 'color', 'glyphs'];
   // A BLOCK ONLY SOME HOSTS HAVE: asked of the host (hkShell.hostPage), never assumed -- no shell, no host page
   function hostHas(name) {
     var SH = window.hkShell;
@@ -807,7 +826,7 @@
     calendar: 'Calendar', battery: 'House Battery', people: 'People', vacuum: 'Vacuum', laundry: 'Laundry', tv: 'TV', swipe: 'Swipe', clock: 'Clock',
     room: 'Room', scene_suggested: 'Suggested Scene', action: 'Action', everything: 'Everything', cameras: 'Cameras',
     power: 'Power', music: 'Music', doors: 'Doors & Locks', live_tv: 'Live TV', water: 'Water',
-    on_now: 'On Now', todo: 'To-do', energy_rings: 'Energy Rings', timeline: 'Recent', intercom: 'Intercom', house_status: 'House Status', alert: 'Alert' };
+    on_now: 'On Now', todo: 'To-do', energy_rings: 'Energy Rings', timeline: 'Recent', intercom: 'Intercom', house_status: 'House Status', alert: 'Alert', home: 'Home' };
 
   // ------------------------------------------------------------ an Alert's settings
   // AN ALERT'S ROWS (hk-grid-editor.js fields, for card `alert`): the headline, its own line, the accessory it counts the time
@@ -900,8 +919,9 @@
     }
   };
 
-  window.hkGridCatalog = { version: '1.0.0', SIZES: SIZES, span: span, CELLS: CELLS, SOURCES: SOURCES, TABLET_ROOM: TABLET_ROOM,
-                           PAGES_MAX: PAGES_MAX, PER_PAGE: PER_PAGE, perPage: perPage, CLOCK_FACES: CLOCK_FACES, THERMOSTAT_STYLES: THERMOSTAT_STYLES, TAP_TARGETS: TAP_TARGETS, MUSIC_TAPS: MUSIC_TAPS,
+  window.hkGridCatalog = { version: '1.0.0', GLYPH_WHITE: GLYPH_WHITE, SIZES: SIZES, span: span, CELLS: CELLS, SOURCES: SOURCES, TABLET_ROOM: TABLET_ROOM,
+                           PAGES_MAX: PAGES_MAX, PER_PAGE: PER_PAGE, perPage: perPage, CLOCK_FACES: CLOCK_FACES, THERMOSTAT_STYLES: THERMOSTAT_STYLES, SHEET_LOOK_NAMES: SHEET_LOOK_NAMES,
+                             TAP_TARGETS: TAP_TARGETS, MUSIC_TAPS: MUSIC_TAPS,
                            SHEET: SHEET, sheetOf: sheetOf, entryId: entryId, copySheet: copySheet, sheetRoute: sheetRoute, NAMES: NAMES,
                            sheetSlot: sheetSlot, sheetCss: sheetCss, placed: placed,
                            CONDITIONS: CONDITIONS, RULES_MAX: RULES_MAX, CONDITIONS_MAX: CONDITIONS_MAX, rulesFit: rulesFit, hostHas: hostHas, matches: matches, musicAt: musicAt,

@@ -25,10 +25,12 @@ from .menu_rules import AREA_ID
 # ids and history. docs/Wall-Tablets.md.
 SUBENTRY_TABLET = "tablet"
 
-# kiosk_satellite and fully: a device in Home Assistant (status, actions,
-# Sleep Screen with Kiosk Satellite); wallpanel: WallPanel in the browser;
-# browser: Just a Browser -- any browser the house says is a tablet
-TABLET_APPS = ("kiosk_satellite", "fully", "wallpanel", "browser")
+# android_app (Mantel for Android), kiosk_satellite and fully: a device in Home Assistant
+# (status, actions, Sleep Screen with either of the first two); wallpanel: WallPanel in
+# the browser; browser: Just a Browser -- any browser the house says is a tablet
+TABLET_APPS = ("android_app", "kiosk_satellite", "fully", "wallpanel", "browser")
+# the apps Sleep Screen drives (their screen, screensaver and buttons: hk_core/sleep/engine.py KIOSK_PARTS)
+SLEEP_APPS = ("android_app", "kiosk_satellite")
 
 IDLE_TIMES = (30, 50, 60, 120, 300, 0)          # s; 0: never
 
@@ -46,8 +48,46 @@ TABLET_DEFAULTS: dict[str, Any] = {
     "black_screen": "kiosk",
     # Sleep Screen: WHEN it sleeps and wakes (hk_core/sleep/rules.py SLEEP_DEFAULTS)
     "sleep": None,
+    # SKY DRAWN BY THE APP (phase 29, docs/phase29/PLAN.md decision 4): Mantel for Android draws a busy sky (bats, rain,
+    # snow, flybys) itself, under a see-through page, at 30 frames a second; calm skies stay the page's. Per tablet, off
+    # until asked for; only Mantel for Android can (sky_by_app).
+    "app_sky": False,
+    # MANTEL FOR ANDROID'S OPTIONS, this tablet's own (app_options): each one set here wins over All Tablets'
+    "app_options": {},
     "uid": "",
 }
+
+# MANTEL FOR ANDROID'S OPTIONS (the owner, 2026-11-14: "Global or 'Fleet' management where tablets have the same
+# settings ... Similar to how we have Global settings for Screens but also able to adjust the settings independently"):
+# All Tablets' (the house's `tablets.app`) and a tablet's own (its `app_options`), each option on its own; Mantel sends
+# the app what they come to (Mantel Server's apps/tablet_app.py). An option set in neither is the app's own business.
+# What each may be, as the app takes it (its Options.kt, PageScale.kt, Graphics.kt, AirPlay.kt).
+APP_OPTIONS: dict[str, tuple] = {
+    "kiosk_mode": (True, False), "keep_awake": (True, False), "keep_screen_on": (True, False),
+    "adaptive_brightness": (True, False), "scale": (80, 90, 100, 110, 125, 150),
+    "renderer": ("default", "opengl"), "render_size": (100, 83, 67),
+    "airplay": (True, False), "airplay_mirroring": (True, False), "airplay_video": (True, False),
+    "airplay_audio": (True, False),
+}
+
+
+def app_options(v: Any) -> dict[str, Any]:
+    """The options in `v` that are some of APP_OPTIONS' as it allows them (a bool for a switch, never 1 for True)."""
+    out: dict[str, Any] = {}
+    if not isinstance(v, Mapping):
+        return out
+    for k, choices in APP_OPTIONS.items():
+        x = v.get(k)
+        if x is None or isinstance(x, bool) != isinstance(choices[0], bool):
+            continue
+        if x in choices:
+            out[k] = x
+    return out
+
+
+def app_wanted(house_app: Any, own: Any) -> dict[str, Any]:
+    """What a tablet's app is to have: All Tablets' options, with the tablet's own over them."""
+    return {**app_options(house_app), **app_options(own)}
 
 
 def tablet(data: Mapping[str, Any] | None, tid: str = "") -> dict[str, Any]:
@@ -70,10 +110,22 @@ def tablet(data: Mapping[str, Any] | None, tid: str = "") -> dict[str, Any]:
     out["idle_time"] = it if isinstance(it, int) and not isinstance(it, bool) and it in IDLE_TIMES else None
     out["black_screen"] = d["black_screen"] if d.get("black_screen") in BLACK_SCREENS else "kiosk"
     out["sleep"] = SR.sleep_options(d.get("sleep")) or SR.sleep_options(None)
-    out["sleep"]["kiosk"] = out["device"] if out["app"] == "kiosk_satellite" else ""
+    out["sleep"]["kiosk"] = out["device"] if out["app"] in SLEEP_APPS else ""
+    out["app_sky"] = d.get("app_sky") is True
+    out["app_options"] = app_options(d.get("app_options"))
     uid = str(d.get("uid") or "").strip()
     out["uid"] = uid if re.fullmatch(r"[a-z0-9_-]{1,80}", uid) else (f"tablet_{tid}" if tid else "")
     return out
+
+
+# the kiosk apps that can draw the page's sky themselves (hk-sky-handover.js; hkShell.skyPlayer)
+SKY_APPS = ("android_app",)
+
+
+def sky_by_app(t: Mapping[str, Any] | None) -> bool:
+    """Does this tablet's app draw its busy skies (Sky Drawn by the App)? Its own switch, and an app that can: the
+    switch is kept through a change of Kiosk App, and means nothing under any other."""
+    return t is not None and t.get("app_sky") is True and t.get("app") in SKY_APPS
 
 
 def tablets(stored: Stored | None) -> dict[str, dict[str, Any]]:

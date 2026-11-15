@@ -76,6 +76,22 @@
   // drifting at most every PRE_DRIFT; and every PRE_MAX whatever, for the
   // clouds, which drift with nothing to say so (plan(): one deadline).
   var PRE = false, PRE_SCALE = 1 / 6, PRE_DRIFT = 45000, PRE_MAX = 120000, PRE_FADE = 2500;
+  // THE FROST PICTURE (phase 29, docs/phase29/PLAN.md): while the tablet app draws the sky (hk-sky-handover.js), the page
+  // is see-through over it and a live blur sees nothing -- the cards would show the app's sky sharp. So the glass wears
+  // Pre-rendered's own picture whatever its mode (Blur or Bright Glass, Shared Layer or Pre-rendered): the same painting,
+  // the same page-by-page timing, the slow drift followed, never painted again because fast things moved (the owner,
+  // 2026-11-13: what the app draws -- bats, rain, flybys -- is left out of it or a veil, as Pre-rendered has it). Two
+  // things differ from Pre-rendered:
+  //   * (the first, each layer wearing it as a fixed background on a child in its own box, is Pre-rendered's own now too:
+  //     preImg, frostImg);
+  //   * the picture stays on through a page change, a swipe and a page seen the first time -- live blur shows nothing --
+  //     and every page wears the one picture: the app plays one sky, and a change of it hands the sky back to the page
+  //     first (hk-sky-handover.js), so the picture never has to be another page's.
+  // Sheets (hk-detail-frame.js) and the timeline's wear it too, through --hk-frost and --hk-frost-url on the root; the
+  // pinned glass (the tab bar, the menu, the Side Pane) wears its slice as in Pre-rendered.
+  var FROST = false, frostWas = false, frostWaits = [], FROST_WAIT = 5000;
+  // the looks with the shared layer (blur and Bright Glass, live or pictured): the ones the frost picture can stand in for
+  var SHARED = { blur: 1, blur_pre: 1, bright: 1, bright_pre: 1 };
   // A MOVING SKY (Animations on): the clouds drift under the still picture,
   // measured headless 2026-10-11 -- a picture 10 s old was already 5/255 off
   // on average and 70+ in its worst cell, and 8 / 90 by a minute, until the
@@ -84,7 +100,7 @@
   // the picture is painted every PRE_MOVE, each step small, and every
   // same-page repaint fades over PRE_FADE (2.5 s, was 0.8): a slow drift the
   // eye follows, not a jump. A still sky keeps PRE_MAX. (A page change keeps
-  // its quick swap and the pinned glass its 0.5 s FADE_MS turn.)
+  // its quick swap, the pinned glass too since 2026-11-13.)
   var PRE_MOVE = 30000;
   // A CHANGE IS NOT A DRIFT (2026-10-11, the user: the glass "detects
   // changes" too slowly -- between pages, a new song's cover on Music). The
@@ -109,6 +125,11 @@
   function maxAge() {
     var HS = window.hkSettings, look = HS && HS.skyLook ? HS.skyLook() : null;
     if (!(look && look.animations)) return PRE_MAX;
+    // (THE FROST PICTURE doesn't track a drift every PRE_TRACK, 2026-11-13: on the Kitchen's tablet, the slowest, each
+    // new picture painted every layer and sheet again at its size while the last faded out -- flicker, and a frame with
+    // cards missing as its graphics memory ran short. The slow rhythm: the drift it follows is the page's, when the
+    // page keeps the sky, and an app's sky moves under a still picture anyway.)
+    if (FROST) return PRE_MOVE;
     return window.hkSky && window.hkSky.drifting && window.hkSky.drifting() ? PRE_TRACK : PRE_MOVE;
   }
   function onInput(e) {
@@ -136,10 +157,12 @@
               next: null, drawn: null, gen: 0, busySig: null, unsettled: false };
   // A NEW PAGE: its picture is painted the moment its sky has drawn
   // (hk-sky-paint), or PRE_NAV_MS after the move when nothing says so, and
-  // faded in. Until then everything keeps the last page's picture: taking it
-  // off left a gap -- the menu's panel showed the sky unblurred for a third
-  // of a second at every page change (screen-recorded, 2026-10-10)
-  var PRE_NAV_MS = 400, navT = null;
+  // faded in. Until then it blurs live (dropStale(), 2026-11-12): it once
+  // kept the last page's picture, as taking it off had left a gap -- the
+  // menu's panel showed the sky unblurred for a third of a second at every
+  // page change (screen-recorded, 2026-10-10) -- and that picture was the
+  // owner's "transition bugs", the last page's glass on the new one
+  var PRE_NAV_MS = 400, navT = null, PRE_KEEP = 10000;
   // THE PAGE ON SCREEN, which is not yet the page navigated to: Home
   // Assistant swaps the view a few frames after the address changes (more
   // for a page drawn the first time, held hidden until it is). A page's
@@ -495,6 +518,19 @@
       into.insertBefore(layer, into.firstChild);
     }
     layer._hkOverlay = overContent(layer);
+    // (a frost picture placed by hand follows its scroller: a pager's track paging, a row scrolled sideways)
+    if (typeof anchor.addEventListener === 'function' || anchor === DOC) {
+      var placing = 0;
+      (anchor === DOC ? window : anchor).addEventListener('scroll', function () {
+        if (!(FROST || BY_HAND) || placing) return;
+        placing = requestAnimationFrame(function () {
+          placing = 0;
+          if (!layer.isConnected) return;
+          var m = RIDES ? alongOf(layer) : null;
+          frostPlaceAll(layer, m, m ? viewOf(layer) : null);
+        });
+      }, { passive: true });
+    }
     preDress(layer);
     return layer;
   }
@@ -526,52 +562,168 @@
     return false;
   }
   // A PAGE LAYER'S PICTURE LINES UP with the sky only while nothing above it
-  // is transformed (that would make itself the box the fixed picture sits
-  // in). Looked at again on every layout pass (preCheck), so a layer caught
-  // mid-move blurs live for that while, then wears the picture again.
+  // is transformed (a fixed background under a transform is drawn from the
+  // element's own corner, measured 2026-11-13) -- but a page moved by a swipe,
+  // whose picture is moved back as much (along, frostAt). Looked at again on
+  // every layout pass (preCheck), so a layer caught mid-move blurs live for
+  // that while, then wears the picture again. (The frost picture is worn out
+  // of line too: live blur would show the tablet app's sky sharp.)
+  // ...NOR THE HOME GRID'S OWN FIT, WHERE THE PICTURE IS PLACED BY HAND (2026-11-14, the owner, the Kitchen's tablet in
+  // Pre-rendered: "this TV card doesn't respect the ... render mode correctly ... when [I] change the background, it
+  // immediately changed while the other cards around it, hadn't hit their 2min interval yet"). A Home Grid scales itself
+  // to fit (hk-layout-home-grid.js _measure: always a transform, `scale(1)` too), so every layer inside it that is not
+  // the page's own -- a block with pages, whose layer lives in its pager's track (the Swipe card around that TV block,
+  // a paged room, thermostat, scenes or accessories block), and a row scrolled sideways -- read as out of line and
+  // blurred live: 6 of a test screen's 7 layers, on the tablets that chose Pre-rendered because live blur is what they
+  // can't afford. Placed by hand (frostPlace: from where the layer is on the screen, its scale counted) the picture is
+  // in line under that fit, and follows its scroller (the layer's own scroll listener, above). Android only, where every picture
+  // is placed by hand and rides with its page; elsewhere such a layer still blurs live, as it did.
   function lined(img) {
-    var r = img.getBoundingClientRect();
-    return Math.abs(r.left) <= 1 && Math.abs(r.top) <= 1 && Math.abs(r.width - window.innerWidth) <= 2;
+    if (FROST) return true;
+    for (var n = flatParent(img.parentNode || img); n && n.nodeType === 1 && n !== document.documentElement; n = flatParent(n)) {
+      if (n.__hkAlong || (BY_HAND && n.__hkFit)) continue;
+      var t = getComputedStyle(n).transform;
+      if (t && t !== 'none') return false;
+    }
+    return true;
   }
-  // THE PICTURE IS A SMALL CANVAS THE COMPOSITOR STRETCHES, not an <img>.
-  // An <img> pinned over the screen is rastered at the screen's full size
-  // into tiles -- one per layer, a screen of tile memory each where the
-  // layer shows -- and every repaint added a second one per layer for its
-  // fade: on a wall tablet near its tile budget that pushed it over, the
-  // browser dropped the old picture's tiles, and for two frames every pill
-  // showed the sharp sky (screen-recorded on the Master Bedroom tablet, at
-  // each repaint; reproduced headless at the budget's edge: 0 tile warnings
-  // at rest, 2 at a repaint). A canvas is one texture at its own size (the
-  // picture's, 1/6 of the screen), scaled on the GPU: no tiles at all.
+  // THE PICTURE ON A LAYER: a child in the layer's own box whose background is the picture fixed to the screen
+  // (frostImg, below), in Pre-rendered as in the frost picture. Not a fixed child (2026-11-13, the owner): Android's
+  // WebView doesn't clip a fixed child to its layer's clip-path, so every Android tablet in Pre-rendered showed frost
+  // across the whole view, not only behind the cards (PLAN.md phase 29, "Found on the way"; Kiosk Satellite's tablets
+  // too). Before that it was a small canvas, fixed, the compositor stretching it -- not an <img>, which was rastered at
+  // the screen's size into tiles and on a wall tablet near its tile budget dropped them for two frames at a repaint
+  // (the Master Bedroom, 2026-10-11). The fixed background is drawn at the layer's size, where the cards are.
   // `data-src` names the picture it holds.
-  function preImg(url) {
-    var cv = document.createElement('canvas');
-    cv.setAttribute('aria-hidden', 'true'); cv.setAttribute('data-hk-pre', ''); cv.setAttribute('data-src', url);
-    // the window in the page's own units: under a car dashboard's zoom
-    // (tesla-viewport.js publishes --hk-vw / --hk-vh) 100vw is only Z of the
-    // screen -- the picture covered two thirds of it and lined up with nothing
-    cv.style.cssText = 'position:fixed;left:0;top:0;width:var(--hk-vw,100vw);height:var(--hk-vh,100vh);max-width:none;max-height:none;' +
-      'margin:0;padding:0;border:0;pointer-events:none;transition:opacity ' + PRE_FADE + 'ms linear';
-    var draw = function (im) {
-      if (!im || !cv.getContext) return;
-      cv.width = im.naturalWidth || im.width || 1; cv.height = im.naturalHeight || im.height || 1;
-      var x = cv.getContext('2d');
-      if (x) x.drawImage(im, 0, 0);
-    };
-    var rec = pics.get(url);
-    if (rec && rec.done) draw(rec.im); else decoded(url).then(draw);
-    return cv;
-  }
+  function preImg(url) { return frostImg(url); }
   function picOf(el) { return el ? el.getAttribute('data-src') : null; }
+  // THE PICTURE'S CHILD: the layer's own box, its background the picture fixed to the screen (preImg above). A child,
+  // not the layer's own background, so a new picture fades in over the last.
+  var FROST_BG = '0 0 / var(--hk-vw,100vw) var(--hk-vh,100vh) no-repeat';
+  function frostImg(url) {
+    var d = document.createElement('div');
+    d.setAttribute('aria-hidden', 'true'); d.setAttribute('data-hk-pre', ''); d.setAttribute('data-hk-frost', '');
+    d.setAttribute('data-src', url);
+    d.style.cssText = 'margin:0;padding:0;border:0;pointer-events:none;transition:opacity ' + PRE_FADE + 'ms linear';
+    frostAt(d, null);
+    return d;
+  }
+  // at rest (m null): in the layer's box, the picture fixed to the screen; through a swipe (`m`, the page moved by a
+  // transform): fixed itself -- in the moving page's box -- and moved back by as much as the page, as Pre-rendered's
+  function frostAt(d, m) {
+    var bg = 'url("' + picOf(d) + '") ' + FROST_BG;
+    if (!m) {
+      d.style.position = 'absolute'; d.style.left = '0'; d.style.top = '0'; d.style.width = '100%'; d.style.height = '100%';
+      d.style.background = bg + ' fixed';
+      d.style.transform = '';
+      return;
+    }
+    d.style.position = 'fixed'; d.style.left = '0'; d.style.top = '0';
+    d.style.width = 'var(--hk-vw,100vw)'; d.style.height = 'var(--hk-vh,100vh)';
+    d.style.background = bg;
+  }
+  function isFrost(el) { return !!(el && el.hasAttribute && el.hasAttribute('data-hk-frost')); }
+  // UNDER A TRANSFORM (2026-11-13, the Kitchen's tablet: its Home Grid scaled to 0.71 to fit 1280 x 720, a pager's cards
+  // inside it): a fixed background is drawn from the element's own corner there, so the picture came out of line -- a
+  // lighter box over the Laundry block. The picture is placed by hand instead: the screen's size and the screen's corner
+  // in the layer's own units, worked out from where the layer is (again on every layout pass and as its scroller moves,
+  // frostPlaceAll). A swipe's page is moved back by along/frostAt, not here.
+  function transformedAbove(el) {
+    for (var n = flatParent(el); n && n.nodeType === 1 && n !== document.documentElement; n = flatParent(n)) {
+      if (n.__hkAlong) continue;
+      var t = getComputedStyle(n).transform;
+      if (t && t !== 'none') return n;
+    }
+    return null;
+  }
+  // ...AND ALWAYS ON ANDROID (2026-11-14, the owner: "the blur behind the security card"): Android's WebView draws a fixed
+  // background inside a clip-path by tiles, and on the Kitchen's tablet a block of the Home Grid's gaps showed the picture
+  // where the sharp wallpaper belongs -- a hard-edged box over the grid. Placed by hand it is a plain background, cut to
+  // the cards like the rest (the gaps then matched live glass: 6,125 differing pixels to 350, the clock's).
+  var BY_HAND = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent || '');
+  // ...AND FOR WHERE ITS PAGE WILL REST, THROUGH A SWIPE (RIDES; 2026-11-14, the Kitchen's tablet, the owner: the Power
+  // and Energy pages "have lots of stutter swiping between them"). The picture was held still under a moving page by
+  // moving it back as far, on every move of the finger (frostAt, shiftPic) -- and a picture moved is its layer painted
+  // again: on a page that scrolls the document that layer is the whole page, 4,025 px of cards drawn again for each
+  // frame (4.7 screens a move, 10 frames a second), and on any page two or three screen-size layers made as the settle
+  // began, the frame waiting for them. Placed by hand, the picture is put once where the screen will be when its page
+  // has landed (`m`: the page's box corner; the layer's place in its page is the same wherever the swipe has it) and
+  // rides with the page: nothing is painted while it moves, and it lands lined up with the sky, where it stays.
+  // What it gives up: for the third of a second a page is on its way, the frost in a card is the sky where the card
+  // will be, not where it is.
+  var RIDES = BY_HAND;
+  // (Its layer is NOT given a layer of its own to spare that drawing at a swipe's start: tried 2026-11-14, will-change on
+  // the layer -- Android's WebView then drew the picture across the layer's whole box, not only in the cards' shapes, a
+  // lighter box around every page: the owner saw it at once by the back arrow. It saved nothing that could be measured.)
+  function frostPlace(d, m, el) {
+    var L = d.parentNode;
+    if (!L || L.nodeType !== 1 || d.style.position === 'fixed') return;
+    if (!BY_HAND && !transformedAbove(L)) {
+      if (d.__hkPlaced) { d.__hkPlaced = false; d.style.backgroundAttachment = 'fixed'; d.style.backgroundPosition = '0 0';
+                          d.style.backgroundSize = 'var(--hk-vw,100vw) var(--hk-vh,100vh)'; }
+      return;
+    }
+    var r = L.getBoundingClientRect(), s = L.offsetWidth ? r.width / L.offsetWidth : 1;
+    if (!(s > 0)) return;
+    var left = r.left, top = r.top;
+    if (m && el && el.getBoundingClientRect) {
+      var e = el.getBoundingClientRect();
+      left = (m.left || 0) + (r.left - e.left); top = (m.top || 0) + (r.top - e.top);
+    }
+    var W = window.hkCards && window.hkCards.winSize ? window.hkCards.winSize() : null;
+    var size = ((W ? W.w : window.innerWidth) / s).toFixed(1) + 'px ' + ((W ? W.h : window.innerHeight) / s).toFixed(1) + 'px';
+    var pos = (-left / s).toFixed(1) + 'px ' + (-top / s).toFixed(1) + 'px';
+    d.__hkPlaced = true;
+    if (d.style.backgroundAttachment !== 'scroll') d.style.backgroundAttachment = 'scroll';
+    if (d.__hkSize !== size) { d.__hkSize = size; d.style.backgroundSize = size; }
+    if (d.__hkPos !== pos) { d.__hkPos = pos; d.style.backgroundPosition = pos; }
+  }
+  function frostPlaceAll(L, m, el) {
+    Array.prototype.forEach.call(L.children || [], function (c) { if (isFrost(c)) frostPlace(c, m, el); });
+  }
+  // the sheets' share (hk-detail-frame.js): the picture on the root, for a style query to put under their plates
+  function frostRoot() {
+    var de = document.documentElement;
+    if (!de || !de.style) return;
+    if (FROST && pre.url) {
+      de.style.setProperty('--hk-frost', '1');
+      de.style.setProperty('--hk-frost-url', 'url("' + pre.url + '")');
+    } else {
+      de.style.removeProperty('--hk-frost');
+      de.style.removeProperty('--hk-frost-url');
+    }
+  }
+  function frostSettle(ok) {
+    var w = frostWaits; frostWaits = [];
+    w.forEach(function (fn) { fn(ok); });
+  }
   // A PAGE LAYER WEARS ONLY ITS OWN PAGE'S PICTURE. Pages' pictures differ
   // (measured: 34-47/255 on average between one page's and the next), so on
   // a page seen for the first time since the load the last page's picture
   // was the wrong blur on every pill until the new one was painted -- 0.2-
   // 0.5 s on a tablet (2026-10-10). Meanwhile they blur live, which is
   // right by definition; the pinned glass keeps its fade.
-  function ownPicture() { return fresh() && pre.path === skyAt(); }
+  // ...AND ONLY WHILE THE ADDRESS, THE SKY AND THE PICTURE ALL SAY THE SAME PAGE (2026-11-12, the owner: Pre-rendered's
+  // "transition bugs (moving from one screen to another)"; traced frame by frame on the Loft). The sky cuts to a page a
+  // few frames after its address, and in between "the picture the sky is at" was the last page's: a Side Pane coming
+  // back with Home wore Security's, and the cards on a page seen the first time wore the last page's for 100-350 ms.
+  // Anything else blurs live, as Shared Layer does, until its own page's picture is worn (dropStale()).
+  // ...BY THE SKY ON SCREEN, NOT THE ADDRESS (2026-11-13, the owner: "quite a bit of flicker on the nav bar going across
+  // pages"): the address moves 115-175 ms before the page and its sky do on the Loft, and taking the picture off then
+  // left the last page, still on screen over its own sky, blurring live for those frames -- then the remembered
+  // picture, then the fresh one: three changes in 300 ms. The glass wears the picture of the sky behind it, as Shared
+  // Layer's live blur does; the sky cutting to the next page is what takes it off (onSkyChange).
+  // (the frost picture: every page's, while the app plays one sky -- FROST above)
+  function ownPicture() { return fresh() && (FROST || pre.path === skyAt()); }
+  // A PICTURE NOT THIS PAGE'S COMES OFF AT ONCE: the page's layers (a page beside this one, or one a swipe just landed,
+  // keeps its own: aside, landedAt) and the pinned glass (pinAll unpins it), all blurring live until wearAll
+  function dropStale() {
+    if (ownPicture()) return;
+    eachLayer(function (L) { if (L._hkPre && !L._hkOverlay && !aside(L) && !landedAt(viewOf(L))) preUndress(L); });
+    pinAll(false);
+  }
   function preDress(L) {
-    var want = PRE && !L._hkOverlay ? pictureFor(L) : null;
+    var want = PRE && (FROST || !L._hkOverlay) ? pictureFor(L) : null;
     if (!want) { preUndress(L); return; }
     // the live blur off FIRST: a backdrop-filter makes its own element the
     // box a fixed child sits in, so measured under it every picture would
@@ -581,7 +733,7 @@
     if (!L._hkPre) {
       var img = preImg(want), m = alongOf(L);
       L.appendChild(img);
-      if (m) shiftPic(img, m);
+      if (m) shiftPic(img, m, viewOf(L)); else if (isFrost(img)) frostPlace(img);
       // (a layer in something scaled inside the page -- a pager's track -- is
       // out of line however the page is moved: it blurs live, and along()
       // leaves it so until it is looked at again with the page at rest)
@@ -592,9 +744,12 @@
   // every layout pass: a page layer out of line blurs live, one back in line
   // wears the picture again (all in this task: never painted half-way)
   function preCheck(L) {
-    if (L._hkOverlay) return;
+    if (L._hkOverlay && !FROST) return;
     var m = alongOf(L);
     if (!m) L._hkNoPic = false;
+    if ((FROST || BY_HAND) && !m) frostPlaceAll(L);
+    // (a page a swipe has, its pictures riding with it: looked at again where they will rest -- its box may have changed)
+    else if (RIDES && m) frostPlaceAll(L, m, viewOf(L));
     if (L._hkPre) { if (!lined(L._hkPre)) { L._hkNoPic = true; preUndress(L); } }
     else if (!L._hkNoPic) preDress(L);
   }
@@ -626,6 +781,7 @@
   // a layer of a page that isn't the one shown: it keeps its own picture
   function aside(L) { var m = alongOf(L); return !!(m && m.path && m.path !== here()); }
   function pictureFor(L, path) {
+    if (FROST) return pre.url;                   // (one sky, the app's: every page's picture is the newest -- FROST)
     if (path === undefined) { var m = alongOf(L); path = m && m.path; if (!path) path = landedAt(viewOf(L)); }
     if (!path) return ownPicture() ? pre.url : null;
     if (pre.url && pre.path === path) return pre.url;
@@ -635,8 +791,17 @@
     return null;
   }
   // (its own fade kept beside it: __hkOpa, what wearAll gave it)
-  function shiftPic(img, m) {
+  function shiftPic(img, m, el) {
     var opa = img.__hkOpa !== undefined ? img.__hkOpa : 'opacity ' + PRE_FADE + 'ms linear';
+    // (a picture that rides with its page: placed for where the page will rest, once, and left -- RIDES)
+    if (RIDES && isFrost(img)) {
+      if (img.style.position === 'fixed' || img.style.transform) { frostAt(img, null); img.__hkPos = img.__hkSize = null; }
+      if (img.style.transition !== opa) img.style.transition = opa || 'none';
+      if (m) { if (img.parentNode && !img.__hkRides) { img.__hkRides = true; frostPlace(img, m, el); } }
+      else img.__hkRides = false;
+      return;
+    }
+    if (isFrost(img)) frostAt(img, m);
     var parts = [opa, m && m.tr && m.tr !== 'none' ? m.tr : ''].filter(Boolean);
     img.style.transition = parts.length ? parts.join(', ') : 'none';
     img.style.transform = m ? 'translate(' + (-(m.left + m.x)).toFixed(1) + 'px,' + (-m.top).toFixed(1) + 'px)' : '';
@@ -676,7 +841,8 @@
         L.appendChild(L._hkPre);
       }
       // (the one it wore before, still fading out under it after a repaint, too)
-      Array.prototype.forEach.call(L.querySelectorAll('[data-hk-pre]'), function (img) { shiftPic(img, m); });
+      Array.prototype.forEach.call(L.querySelectorAll('[data-hk-pre]'), function (img) { shiftPic(img, m, el); });
+      if (!m && (FROST || BY_HAND)) frostPlaceAll(L);
     });
   }
 
@@ -719,11 +885,15 @@
   // what it wears now (crossfade) instead of jumping.
   function pinAll(fade, ms, coarse) {
     if (!PRE) return;
-    var W = window.innerWidth, H = window.innerHeight, ok = fresh(), moves = [];
+    // (only this page's picture: the menu's panel and the tab bar belong to no page, and wore the last one's until the
+    // new one came, then faded across for FADE_MS -- 0.7 s of Home's glass on Security's tab bar on the Loft)
+    var W = window.innerWidth, H = window.innerHeight, ok = ownPicture(), moves = [];
     // a new fade starts from where the last one was going; a plain pass
     // leaves a fading surface to its fade -- snapping it to its end mid-fade
     // and the fade pulling it back read as a flicker
-    if (fade || !ok) finishFade();
+    // (...and a fade still drawing another picture -- the last page's 2 s repaint, when the sky cut to the next one
+    // mid-fade: its surfaces kept the last page's glass for its last steps, 2026-11-13)
+    if (fade || !ok || (fading && fading.url !== pre.url)) finishFade();
     var busy = fading;
     var inFade = function (el) { return busy && busy.some(function (m) { return m.el === el; }); };
     pinned.forEach(function (tint, el) {
@@ -732,15 +902,22 @@
       if (inFade(el)) return;
       var r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
+      // CARRIED WITH A PAGE (the Side Pane in a page swipe, hk-sidepane.js: `_hkCarry`, how far it is from its place):
+      // it wears the slice of its place, and takes it along -- cut again where it stood at each frame of the swipe,
+      // the pane was painted again at each (6-21 ms a frame on the Kitchen's tablet, 2026-11-14)
+      if (typeof el._hkCarry === 'number') r = { left: r.left - el._hkCarry, top: r.top, width: r.width, height: r.height };
       var z = zoomOf(el), at = placeOf(r, W, H), bg = tint + ', ' + sliceOf(pre.url, at[0], at[1], W, H, z);
       if (el._hkPin === bg) return;
       var from = el._hkPin && el._hkPinUrl ? sliceOf(el._hkPinUrl, el._hkPinPos[0], el._hkPinPos[1], W, H, z) : '';
-      // ANOTHER PAGE'S PICTURE FADES ACROSS (2026-10-10): the menu's panel
-      // belongs to no page, and a swap a few frames off the page's own
-      // showed; over FADE_MS it reads as the page arriving.
+      // ANOTHER PAGE'S PICTURE once faded across over FADE_MS (2026-10-10), as
+      // a swap a few frames off the page's own showed: the swap now comes in
+      // the sky's own frame (ownPicture),
       var turn = from && el._hkPinPath && el._hkPinPath !== pre.path;
-      if ((fade || turn) && from) moves.push({ el: el, fromUrl: el._hkPinUrl, fromAt: el._hkPinPos, at: at, bg: bg, pin: tint,
-                                               ms: turn ? FADE_MS : (ms || PRE_FADE), coarse: !turn && !!coarse });
+      // ...NOW AT ONCE (2026-11-13): it is put on in the frame the sky cuts to that page, as the live blur would change;
+      // a fade across showed the last page's glass for its length (0.7 s on the Loft's tab bar, 2026-11-12). Only a
+      // repaint of the same page fades.
+      if (fade && !turn && from) moves.push({ el: el, fromUrl: el._hkPinUrl, fromAt: el._hkPinPos, at: at, bg: bg, pin: tint,
+                                              ms: ms || PRE_FADE, coarse: !!coarse });
       else wearPin(el, bg);
       el._hkPinPos = at; el._hkPinUrl = pre.url; el._hkPinPath = pre.path;
     });
@@ -751,21 +928,25 @@
   // WebKit and Chrome both) at the share the fade has reached, under the
   // surface's own tint. It once took 29 see-through copies of every new
   // picture, made as PNGs -- about 100 ms of WebKit's main thread at each
-  // repaint (the Mac, 2026-10-10). A surface that has moved as well is put
-  // straight on: the two slices would not line up.
+  // repaint (the Mac, 2026-10-10). A surface that has moved fades too: both
+  // pictures are cut at its new place (2026-11-13).
   var XFADE = (function () {
     try { return !!(window.CSS && CSS.supports && CSS.supports('background-image', '-webkit-cross-fade(url(a.png), url(b.png), 50%)')); } catch (e) { return false; }
   })();
   function crossfade(moves, W, H) {
     var url = pre.url;
+    // (a surface that has moved fades too, 2026-11-13: both pictures are the whole screen, cut at its new place, so they
+    // line up -- put straight on, the tab bar sliding between Home's layout and the next page's snapped to the fresh
+    // picture 130 ms after the remembered one, a flicker at every page change)
     moves = moves.filter(function (m) {
-      if (XFADE && window.requestAnimationFrame && m.fromAt && m.fromAt[0] === m.at[0] && m.fromAt[1] === m.at[1]) return true;
+      if (XFADE && window.requestAnimationFrame) return true;
       wearPin(m.el, m.bg);
       return false;
     });
     if (!moves.length) return;
     finishFade();
     fading = moves;
+    fading.url = url;
     var t0 = performance.now(), last = -1, ms = Math.max.apply(null, moves.map(function (m) { return m.ms || FADE_MS; }));
     // THE CLOUDS' 2 s REPAINTS FADE IN COARSE STEPS (PIN_STEPS): a pinned
     // surface's fade restyles it once a step, and a step every frame, back
@@ -815,8 +996,13 @@
     // dropped from the decoded cache)
     // ...and what it was painted from, and when: back on its page, it is
     // judged as that picture (its age, its sky), not the last one painted
-    if (c) { pre.drawn = path; pre.big = c.big; pre.small = c.small; pre.at = c.at; decoded(c.url); }
+    // ...ITS CLOCK RESTARTED when it is recent (PRE_KEEP; 2026-11-13, the owner: "some flicker between pages"): with a
+    // moving wallpaper a picture 2 s old was due, so a fresh one faded in 0.1-0.3 s after the remembered one went on --
+    // two changes at every page change. A recent one stays until the next repaint on the usual rhythm; an older one,
+    // or a sky that has changed (preTick: big), is painted again at once.
+    if (c) { pre.drawn = path; pre.big = c.big; pre.small = c.small; pre.at = Date.now() - c.at < PRE_KEEP ? Date.now() : c.at; decoded(c.url); }
     if (viewUp === path) wearNext();
+    dropStale();
     clearTimeout(navT);
     navT = setTimeout(function () { navT = null; preTick(false); }, PRE_NAV_MS);
     clearTimeout(viewUpT);
@@ -833,8 +1019,9 @@
   // sky that says only that)
   function onSkyChange() {
     if (!PRE || !active) return;
-    // the sky has cut to a page whose picture is waiting: on now, with it
+    // the sky has cut to a page whose picture is waiting: on now, with it; one with none yet blurs live until painted
     wearNext();
+    dropStale();
     // the same page: preTick weighs it (big -- at once; the light -- at most
     // every PRE_DRIFT)
     if (pre.drawn !== here() && pre.url) { clearTimeout(navT); navT = null; }
@@ -890,17 +1077,19 @@
     var old = pre.url;
     pre.url = url; pre.path = path;
     eachLayer(function (L) {
-      if (L._hkOverlay || aside(L)) return;
+      // (the frost picture: every layer's, the pages beside this one and the ones over it too -- FROST)
+      if (!FROST && (L._hkOverlay || aside(L))) return;
       // (a page just landed on keeps its own until the sky reaches it: landedAt)
-      var lp = landedAt(viewOf(L));
+      var lp = FROST ? null : landedAt(viewOf(L));
       if (lp && lp !== path) return;
       if (!L._hkPre) { preDress(L); return; }
       if (picOf(L._hkPre) === url) return;
       var was = L._hkPre, img = preImg(url);
       if (!same) img.style.transition = 'none'; else { img.style.transition = 'opacity ' + ms + 'ms linear'; img.style.opacity = '0'; }
       var am = alongOf(L);
-      if (am) { img.__hkOpa = same ? 'opacity ' + ms + 'ms linear' : ''; shiftPic(img, am); }
+      if (am) { img.__hkOpa = same ? 'opacity ' + ms + 'ms linear' : ''; shiftPic(img, am, viewOf(L)); }
       L.appendChild(img);
+      if (isFrost(img)) { if (!am) frostPlace(img); else if (RIDES) shiftPic(img, am, viewOf(L)); }
       L._hkPre = img;
       // THE OLD PICTURE GOES ONCE THE NEW ONE IS IN -- counted from when its
       // fade STARTS, not from when it was put in. The fade starts in the next
@@ -924,6 +1113,7 @@
     });
     pinAll(fade, ms, coarse);
     if (old && old !== url) freePic(old);
+    if (FROST) { frostRoot(); frostSettle(true); }
   }
   // THE DECODED PICTURES, by url: what each layer's canvas is drawn from
   var pics = new Map();
@@ -972,6 +1162,7 @@
     pinAll();
     eachLayer(preUndress);
     freePic(old);
+    frostRoot();
   }
 
   // ---- PRE-RENDERED: the picture ----
@@ -1378,10 +1569,27 @@
     }
     return null;
   }
+  // ...ON A PICTURE, ONCE THE PRESS IS IN AND ONCE IT IS OUT, not on every frame between (PRESS_STEP_MS; 2026-11-14, the
+  // Kitchen's tablet). The cut-out is one path for the whole layer, and in Pre-rendered that layer holds the picture: a
+  // path changed is the page's glass painted again, whole -- on each frame of a tile's 0.12 s press and of its release
+  // a tap was twenty of them, and a swipe's first frame waited for the first. So there: a finger held is cut once the
+  // tile is in; a finger lifted, once it is back; a quick tap, and a press that turns into a page swipe, not at all.
+  // For the tenth of a second a tile is on its way the frost is a few px off its edge. Live blur keeps every frame
+  // (its layer holds nothing to paint), and so does what moves by more than a press (moving(): Edit mode's pills).
+  var PRESS_STEP_MS = 140, pressFine = 0, upAt = 0;
+  function swiping() { var P = window.hkPageSwipe; try { return !!(P && P.moving && P.moving()); } catch (e) { return false; } }
+  function tickSoon(ms) { setTimeout(function () { requestAnimationFrame(pressTick); }, ms); }
   function pressTick() {
-    if (active && (pointers.size || performance.now() <= pressUntil) && pressUpdate(pressed)) {
-      requestAnimationFrame(pressTick);
-      return;
+    var now = performance.now(), coarse = PRE && now > pressFine;
+    if (active && (pointers.size || now <= pressUntil)) {
+      if (coarse) {
+        var wait = swiping() ? PRESS_STEP_MS : !pointers.size && now < upAt + PRESS_STEP_MS ? upAt + PRESS_STEP_MS - now : 0;
+        if (wait) { tickSoon(wait); return; }
+      }
+      if (pressUpdate(pressed)) {
+        if (coarse) tickSoon(PRESS_STEP_MS); else requestAnimationFrame(pressTick);
+        return;
+      }
     }
     pressTicking = false; pressed.clear(); pointers.clear();
     schedule(false);
@@ -1393,11 +1601,11 @@
     pressed.add(c); pointers.add(e.pointerId);
     if (pressTicking) return;
     pressTicking = true;
-    requestAnimationFrame(pressTick);
+    if (PRE && performance.now() > pressFine) tickSoon(PRESS_STEP_MS); else requestAnimationFrame(pressTick);
   }
   function onUp(e) {
     if (!pointers.delete(e.pointerId)) return;
-    if (!pointers.size) pressUntil = performance.now() + PRESS_TAIL_MS;
+    if (!pointers.size) { upAt = performance.now(); pressUntil = upAt + PRESS_TAIL_MS; }
   }
   // The glass cards `el` is or holds (a grid's wrapper round its pill).
   function cardsIn(el) {
@@ -1416,6 +1624,7 @@
     if (!cs.length) return;
     cs.forEach(function (c) { pressed.add(c); });
     pressUntil = Math.max(pressUntil, performance.now() + (ms || 0));
+    pressFine = Math.max(pressFine, pressUntil + PRESS_TAIL_MS);
     if (pressTicking) return;
     pressTicking = true;
     requestAnimationFrame(pressTick);
@@ -1530,6 +1739,7 @@
     if (pre.url) { try { URL.revokeObjectURL(pre.url); } catch (e) { /* gone */ } }
     if (pre.next && pre.next.url) { try { URL.revokeObjectURL(pre.next.url); } catch (e) { /* gone */ } }
     pre.url = null; pre.big = ''; pre.small = ''; pre.at = 0; pre.path = null; pre.again = false; pre.next = null; pre.drawn = null;
+    frostRoot();
   }
   function onResize() { schedule(true); if (PRE && active) preTick(false); }
   function onVisible() { if (!document.hidden) { schedule(false); onWakePre(); } }
@@ -1540,14 +1750,41 @@
   // them, live or pictured. Bright Glass (2026-10-30) in its Shared Layer
   // and Pre-rendered modes wears the same layers with its own filter
   // (--hk-blur-filter)
+  // ...and the frost picture (FROST) is Pre-rendered's machinery whatever the mode: a change either way rebuilds the
+  // layers, wearing its child or the look's own glass again
   function sync() {
-    var g = window.hkSettings && window.hkSettings.glass ? window.hkSettings.glass() : '';
-    var want = g === 'blur' || g === 'blur_pre' || g === 'bright' || g === 'bright_pre';
-    var wantPre = g === 'blur_pre' || g === 'bright_pre';
-    if (active && wantPre !== PRE) stop();
-    PRE = wantPre;
+    var g = glassNow();
+    var want = !!SHARED[g];
+    var wantPre = g === 'blur_pre' || g === 'bright_pre' || (FROST && want);
+    if (active && (wantPre !== PRE || FROST !== frostWas)) stop();
+    PRE = wantPre; frostWas = FROST;
     if (want) start(); else stop();
     if (PRE && active) preTick(false);          // the blur's strength, say
+    if (FROST && !want) frostSettle(false);
+  }
+  function glassNow() { return window.hkSettings && window.hkSettings.glass ? window.hkSettings.glass() : ''; }
+  // THE PINNED GLASS'S LOOK (the tab bar, the menu, the Side Pane pin themselves in a Pre-rendered look): the look's
+  // Pre-rendered twin while the frost picture is worn, as they must wear it too; told by hk-glass-frost when it changes
+  function pictured(g) { return FROST && SHARED[g] ? (/_pre$/.test(g) ? g : g + '_pre') : g; }
+  function frostSaid() { try { window.dispatchEvent(new Event('hk-glass-frost')); } catch (e) { /* no window events */ } }
+  // THE SKY HANDED TO THE TABLET APP (hk-sky-handover.js): on -- a Promise of true once the glass wears the frost
+  // picture, false when it can't (a look whose cards blur themselves, no picture in FROST_WAIT); off -- the look's own
+  // glass again.
+  function frost(on) {
+    on = !!on;
+    if (!on) {
+      frostSettle(false);
+      if (FROST) { FROST = false; sync(); frostSaid(); }
+      return Promise.resolve(true);
+    }
+    if (!SHARED[glassNow()]) return Promise.resolve(false);
+    if (FROST && active && pre.url) return Promise.resolve(true);
+    return new Promise(function (res) {
+      var done = false, fin = function (ok) { if (done) return; done = true; clearTimeout(t); res(ok); };
+      var t = setTimeout(function () { frostWaits = frostWaits.filter(function (f) { return f !== fin; }); fin(false); }, FROST_WAIT);
+      frostWaits.push(fin);
+      if (!FROST) { FROST = true; sync(); frostSaid(); }
+    });
   }
 
   window.hkGlass = {
@@ -1583,7 +1820,7 @@
     stats: function () {
       var live = 0, pictured = 0;
       eachLayer(function (L) { if (L._hkPre) pictured++; else live++; });
-      return Object.assign({ active: active, cards: cards.size, pre: PRE, pictured: pictured, live: live,
+      return Object.assign({ active: active, cards: cards.size, pre: PRE, frost: FROST, pictured: pictured, live: live,
                              preAge: pre.at ? Date.now() - pre.at : null }, stats);
     },
     // PRE-RENDERED: paint the picture again now (debugging, Sky Lab)
@@ -1605,6 +1842,11 @@
     // runs no animation frames).
     refresh: function () { full = true; queued = false; update(); return this.stats(); },
     _rrect: rrect,     // tests
+    // the sky drawn by the tablet app (above): frost(true) a Promise of whether the glass wears the frost picture now;
+    // frosted() whether it is meant to
+    frost: frost,
+    frosted: function () { return FROST; },
+    pictured: pictured,
     _pre: { show: preShow, none: preNone, render: preRender, nav: onNavPre, sigs: preSigs, state: function () { return pre; } },
     _bands: bands,
     _transformScale: transformScale,

@@ -191,10 +191,24 @@ function () {
   // (2026-11-08, round two) Everything's More Places and On Now's Categories, carried into the card only when not the default
   eq('...Everything\'s More Places, On Now\'s Categories', [t.on_now.opts, C.config({ card: 'everything', size: 'L', opts: { more: 'scroll' } }, ctx).more,
      C.config({ card: 'everything', size: 'L', opts: { more: 'page' } }, ctx).more, C.config({ card: 'on_now', size: 'L', opts: { open: 'page' } }, ctx).open,
-     C.config({ card: 'on_now', size: 'L', opts: { open: 'sheet' } }, ctx).open], [{ tap: 'tap_target', open: 'on_now_open' }, 'scroll', undefined, 'page', undefined]);
+     C.config({ card: 'on_now', size: 'L', opts: { open: 'sheet' } }, ctx).open], [{ tap: 'tap_target', open: 'on_now_open', glyphs: 'glyph_color' }, 'scroll', undefined, 'page', undefined]);
+  // (2026-11-12, the owner: "an option for Color or White Glyphs for the cards") Glyphs on the six HomeView blocks, carried only when set
+  eq('...Glyphs: declared by the six, carried into each card, nothing when absent or unknown',
+     [['security', 'doors', 'timeline', 'house_status', 'on_now', 'alert'].map(function (k) { return t[k].opts.glyphs; }),
+      C.config({ card: 'house_status', size: 'L', opts: { glyphs: 'white' } }, ctx).glyphs, C.config({ card: 'doors', size: 'L', opts: { glyphs: 'color' } }, ctx).glyphs,
+      C.config({ card: 'on_now', size: 'L', opts: { glyphs: 'white' } }, ctx).glyphs, C.config({ card: 'alert', size: 'L', opts: { glyphs: 'white' } }, ctx).glyphs,
+      C.config({ card: 'security', size: 'W', opts: { presentation: 'homeview', glyphs: 'color' } }, ctx).glyphs,
+      C.config({ card: 'security', size: 'XL', opts: { presentation: 'homeview', glyphs: 'color' } }, ctx).glyphs,
+      C.config({ card: 'house_status', size: 'L', opts: {} }, ctx).glyphs, C.config({ card: 'doors', size: 'L', opts: { glyphs: 'pink' } }, ctx).glyphs,
+      Object.keys(C.GLYPH_WHITE).sort()],
+     [['glyph_color', 'glyph_color', 'glyph_color', 'glyph_color', 'glyph_color', 'glyph_color'], 'white', 'color', 'white', 'white', 'color', 'color', undefined, undefined,
+      ['doors', 'security']]);
   // (2026-10-31) the widget blocks, and Scenes' and Accessories' Height and Color
   eq('...the widget blocks and their sizes', [t.on_now.sizes, t.todo.sizes, t.energy_rings.sizes, t.energy_rings.opts, t.todo.opts],
-     [['S', 'W', 'T', 'L', 'XL'], ['S', 'W', 'T', 'L', 'XL'], ['S', 'W', 'T', 'L', 'XL'], { period: 'period', tap: 'tap_target' }, { entity: 'todo', tap: 'tap_target' }]);
+     [['S', 'W', 'T', 'L', 'XL'], ['S', 'W', 'T', 'L', 'XL'], ['S', 'W', 'T', 'L', 'XL'], { period: 'period', figures: 'rings_figures', tap: 'tap_target' }, { entity: 'todo', tap: 'tap_target' }]);
+  // (2026-11-12, the owner: "an option to always show the data, not just on tap") Small's Figures, carried only when Always
+  eq('...Energy Rings\' Figures: Always carried, On Tap and nothing not', [C.config({ card: 'energy_rings', size: 'S', opts: { figures: 'always' } }, ctx).figures,
+     C.config({ card: 'energy_rings', size: 'S', opts: { figures: 'tap' } }, ctx).figures, C.config({ card: 'energy_rings', size: 'S' }, ctx).figures], ['always', undefined, undefined]);
   eq('...Scenes and Accessories: Height and Color', [t.scenes.opts.height, t.scenes.opts.color, t.accessories.opts.height, t.accessories.opts.color, t.scene.opts.color],
      ['tile_height', 'boolean', 'tile_height', 'boolean', 'boolean']);
 },
@@ -233,6 +247,38 @@ function () {
   eq('a cell too short for a pill: none', P.fit('W', 100), 0);
   ok('a light pill toggles on a tap, at its regular size', l[0].tap_action.action === 'toggle' && !l[0].hk_place && !l[0].view_layout);
   ok('the speaker\'s pill keeps its own tap', !l[3].tap_action || l[3].tap_action.action !== 'toggle');
+},
+function () {
+  H.section('the room: its sort of the house is no screen\'s need');
+  // (2026-11-13: read in a card, the strategy's sort of every entity by room kept the whole house on the Loft's screen
+  // -- 4,602 entities and every update of each; Mantel keeps what a screen reads outside hkShell.unrecorded)
+  var quiet = 0, outside = {};
+  var states = new Proxy(client.states, { get: function (t, k) { if (typeof k === 'string' && k in t && !quiet) outside[k] = 1; return t[k]; } });
+  var c2 = Object.assign({}, client, { states: states, entities: Object.assign({}, client.entities) });
+  window.hkShell.use({ unrecorded: function (fn) { quiet++; try { return fn(); } finally { quiet--; } } });
+  var parts = P.roomParts(c2, 'kitchen');
+  window.hkShell.use(window.hkHAShell);
+  var mine = {};
+  parts.all.forEach(function (c) { mine[c.entity] = 1; });
+  var read = Object.keys(outside);
+  ok('the same room as before', parts.lights.length === 3 && parts.speakers.length === 1, parts);
+  ok('...its accessories read where they count (kept by the screen)', parts.all.every(function (c) { return outside[c.entity]; }), read);
+  ok('...and nothing else in the house', read.every(function (id) { return mine[id]; }), read);
+},
+function () {
+  H.section('the room: its sort of the house is kept for each room, not only the last asked (2026-11-14)');
+  // (two room tiles on a screen took turns throwing the other's answer away, and the house was sorted twice on every
+  // update -- the Kitchen's tablet)
+  var S = window.hkStrategy, real = S.roomCards, n = 0;
+  S.roomCards = function () { n++; return real.apply(this, arguments); };
+  var c3 = Object.assign({}, client, { entities: Object.assign({}, client.entities) });
+  try {
+    var a = P.roomParts(c3, 'kitchen'), b = P.roomParts(c3, 'den'), a2 = P.roomParts(c3, 'kitchen'), b2 = P.roomParts(c3, 'den');
+    eq('two rooms asked in turn: each sorted once', n, 2);
+    ok('...the same answers again', a2 === a && b2 === b);
+    P.roomParts(Object.assign({}, c3, { entities: Object.assign({}, c3.entities) }), 'kitchen');
+    eq('...and a new registry sorts again', n, 3);
+  } finally { S.roomCards = real; }
 },
 function () {
   H.section('the room, Extra Large and Full Width: Large\'s tiles from the top-left (2026-11-09, mockup 8b)');

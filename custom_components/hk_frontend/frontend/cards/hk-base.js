@@ -216,6 +216,14 @@
   // --hk-page-left / -right): the room the page keeps there
   SAFE.padL = 'max(0px,' + SAFE.l + ' - var(--hk-page-left,0px))';
   SAFE.padR = 'max(0px,' + SAFE.r + ' - var(--hk-page-right,0px))';
+  // ...and of that, what the view pads itself by: what its host has not already kept (2026-11-15, the owner's Duo in
+  // the Home Assistant app). Home Assistant 2026.11's hui-view-container pads itself by the side safe area
+  // (--view-container-inset-left / -right; left only in its narrow layout), so the view padding by it as well kept
+  // the strip twice: 298 px of page where the Mantel app has 382, under two of a phone's 150 px tracks, every grid
+  // below Scenes one pill to a row. Mantel's own view container keeps nothing (the variables are unset there). The
+  // room kept on a side is still padL / padR whoever keeps it: the gutter, and how far a row reaches past the view.
+  SAFE.viewL = 'max(0px,' + SAFE.padL + ' - var(--view-container-inset-left,0px))';
+  SAFE.viewR = 'max(0px,' + SAFE.padR + ' - var(--view-container-inset-right,0px))';
   // ...and in px, measured (the tab bar's strip, the page's width for its band): a hidden probe padded by them, zeros
   // where it can't be read. Once a window (its size, sheets, stand-ins): each read worked out the whole document's
   // style, a third of a page swipe's landing on a slowed tablet (2026-11-07)
@@ -223,9 +231,31 @@
   ST.safeKept = null;
   ST.safeKey = '';
   // (a rotation's insets come after its resize: an upright iPhone kept its sideways inset, 2026-11-10)
-  ST.safeGen = 0; window.addEventListener('resize', function () { [250, 800].forEach(function (ms) { setTimeout(function () { ST.safeGen++; }, ms); }); });
+  // (...and the window's size by its resize, not by reading it, 2026-11-13: every card asks on every update, and on
+  // Android's WebView window.innerWidth read after a change laid the whole page out first -- 80 ms of every 2 s on the
+  // Loft once the menu stopped asking)
+  ST.safeGen = 0; window.addEventListener('resize', function () { ST.safeGen++; [250, 800].forEach(function (ms) { setTimeout(function () { ST.safeGen++; }, ms); }); });
+  // THE WINDOW'S SIZE, READ ONCE A SIZE (2026-11-13, the Loft): on Android's WebView window.innerWidth and innerHeight
+  // -- like visualViewport and the root's clientWidth -- lay the whole page out first when anything has changed, 30-115
+  // ms each, and the tab bar, the menu and the Side Pane asked on every page change and update. Kept until the window
+  // says it changed (resize, a turn). A test's stand-in window (no real media queries) is read each time, as its size
+  // is set without an event.
+  ST.win = null;
+  ST.realMedia = null;
+  window.addEventListener('resize', function () { ST.win = null; });
+  window.addEventListener('orientationchange', function () { ST.win = null; });
+  function winSize() {
+    if (ST.realMedia === null) {
+      try { var q = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 0px)') : null; ST.realMedia = !!(q && typeof q.media === 'string' && typeof q.matches === 'boolean'); }
+      catch (e) { ST.realMedia = false; }
+    }
+    if (ST.realMedia && ST.win && ST.win.w) return { w: ST.win.w, h: ST.win.h };
+    var w = window.innerWidth || 0, h = window.innerHeight || 0;
+    if (ST.realMedia) ST.win = { w: w, h: h };
+    return { w: w, h: h };
+  }
   function safeArea() {
-    var st = document.documentElement && document.documentElement.style, k = window.innerWidth + 'x' + window.innerHeight + '|' + (document.styleSheets || []).length + '|' + ST.safeGen;
+    var st = document.documentElement && document.documentElement.style, k = (document.styleSheets || []).length + '|' + ST.safeGen;
     if (st) k += ['top', 'right', 'bottom', 'left'].map(function (v) { return st.getPropertyValue('--hk-safe-' + v); }).join('|');
     if (k !== ST.safeKey || !ST.safeKept || !ST.safeProbe || !ST.safeProbe.isConnected) { ST.safeKept = safeMeasure(); ST.safeKey = k; }
     return Object.assign({}, ST.safeKept);
@@ -706,6 +736,10 @@
         ON_PAGE.forEach(markAsleep);
       });
     });
+    // (...and when the look itself changes -- Flat, its theme, Motion: hk-settings.js says hk-look -- every card and
+    // surface is toned again at once: the tab bar and the cards of a quiet page kept `hk-still` after Motion came back
+    // on, until the next page change, 2026-11-14)
+    window.addEventListener('hk-look', function () { syncFlat(); });
     // An inert gallery's readings belong to its card tree, never to the
     // page-wide client feed. Even a caller passing actions gets a read-only port.
     window.hkCards.previewClient = function (port) {
@@ -1014,6 +1048,7 @@
     window.hkCards.FONT_ROOT = FONT_ROOT;
     window.hkCards.SAFE = SAFE;
     window.hkCards.safeArea = safeArea;
+    window.hkCards.winSize = winSize;
     // A SCROLLER THAT FITS TAKES NO SIDEWAYS PAN (2026-10-30, Swipe Between
     // Pages, hk-pageswipe.js): a scroll container takes every sideways pan for
     // itself, scrollable or not, so the browser cancelled the page's swipe over

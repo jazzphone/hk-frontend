@@ -149,7 +149,9 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # (tablets.py). The tablets themselves are items (SUBENTRY_TABLET).
     "tablets": {"idle_return": True, "idle_time": 50,
                 "alert_offline": True, "alert_restart": True, "alert_charging": True,
-                "restart": False, "restart_times": ["00:02", "15:00"], "dismissed": []},
+                "restart": False, "restart_times": ["00:02", "15:00"], "dismissed": [],
+                # Mantel for Android's options for every tablet (tablet_rules.APP_OPTIONS): none set until chosen
+                "app": {}},
     # Dashboards opened in a car browser: the viewport is pinned (tesla-viewport.js).
     "car": {"dashboards": [], "widths": {}},
     # The generated dashboards (custom:hk-dashboard): what to leave out (also
@@ -174,7 +176,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
                  # The Timers page's "House timers": the timers people start
                  # themselves (a nap, bedtime), in order, one tap each.
                  "house_timers": [], "timer_sound": "bell", "timer_ring_for": 60, "timer_tablet": True, "timer_speaker": True, "timer_also": [], "timer_phone": "", "timer_volume": 40,
-                     "timer_wake": True, "timer_include": [], "timer_ignore": []},
+                     "timer_wake": True, "timer_include": [], "timer_ignore": [], "homepod_rooms": {}},
     # The menu of pages and rooms. OFF on every dashboard until one is
     # listed here, so a house that never sets it up sees no change.
     # docked: the dashboards whose menu is always shown beside the page (with
@@ -261,7 +263,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # at its height, the scenery's ground below) in place of one gray
     # (hk-frosttint.js), held at one darkness so white text reads the same.
     # docs/ (each setting on its topic's page).
-    "look": {"flat": False, "flat_theme": "dark", "glass": "clear", "frost": 50, "blur": 50, "tint": 50, "well": "dark", "frost_tint": False,
+    "look": {"flat": False, "flat_theme": "dark", "glass": "clear", "frost": 50, "blur": 50, "tint": 50, "well": "dark", "frost_tint": False, "motion": True,
              # BRIGHT GLASS (2026-10-30): bright -- its Strength, how much of
              # the white wash and the lift (50 as designed), capped where
              # white text would fall under 4.5:1 (hk-settings.js brightCap)

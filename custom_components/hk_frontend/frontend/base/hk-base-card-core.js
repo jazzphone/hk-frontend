@@ -140,13 +140,18 @@
     // in, the water supply's waves, the power flows (a class's FLAT_MOTION).
     // They cost little and the user wants them (2026-10-16); Flat still takes
     // their blur and filters.
+    // MOTION IS ITS OWN SWITCH (2026-11-14, the owner: "I like the way flat looks, but still want animations, but good to
+    // have them off for performance reasons ... a setting that lives outside of appearance"). What holds a card still
+    // is keyed on `hk-still` -- Motion off, in any look (flatTone, below) -- and no longer on Flat, which keeps what
+    // makes it Flat: no blur, no filter, no text shadow. A card whose motion is its content moves all the same.
     function flatCss(prefix, keepMotion) {
-      var p = prefix || ':host([hk-flat])';
-      return p + ',' + p + ' *,' + p + ' *::before,' + p + ' *::after{' +
-        (keepMotion ? '' : 'animation:none!important;transition:none!important;') + 'backdrop-filter:none!important;' +
-        '-webkit-backdrop-filter:none!important;' + (keepMotion ? '' : 'filter:none!important;') + 'text-shadow:none!important;' +
-        'scroll-behavior:auto!important;' + (keepMotion ? '' : 'will-change:auto!important') + '}' +
-        (keepMotion ? '' : p + ' :active{transform:none!important}') +
+      var p = prefix || ':host([hk-flat])', s = p.replace('[hk-flat]', '[hk-still]');
+      return p + ',' + p + ' *,' + p + ' *::before,' + p + ' *::after{backdrop-filter:none!important;' +
+        '-webkit-backdrop-filter:none!important;' + (keepMotion ? '' : 'filter:none!important;') + 'text-shadow:none!important}' +
+        s + ',' + s + ' *,' + s + ' *::before,' + s + ' *::after{' +
+        (keepMotion ? '' : 'animation:none!important;transition:none!important;will-change:auto!important;') +
+        'scroll-behavior:auto!important}' +
+        (keepMotion ? '' : s + ' :active{transform:none!important}') +
         // (a scene lit -- running, or its request in flight -- is white, as a
         // tapped one is: feedback, never a state it keeps)
         p + ' .scene:not(.hk-tapped):not([data-on="1"]){background:var(--hk-flat-scene)!important}' +
@@ -162,31 +167,58 @@
         p + ' hk-plate.card[data-hk-idle]:not([data-on="1"]):not(.hk-tapped){background:var(--hk-idle-pill)!important}' +
         p + ' hk-plate.card.scene[data-hk-idle]:not([data-on="1"]):not(.hk-tapped) .icon{color:var(--hk-idle-glyph)!important;fill:var(--hk-idle-glyph)!important}' +
         p + ' .scene .well::after{display:none!important}' +
-        (keepMotion ? '' : p + ' .anim,' + p + ' .anim>*{opacity:1;clip-path:none;transform:none}') +
+        (keepMotion ? '' : s + ' .anim,' + s + ' .anim>*{opacity:1;clip-path:none;transform:none}') +
         p + ' .vs{background:var(--hk-key)!important}' +
         p + ' .btn:not(.sel),'+p+' .bk button{background:var(--hk-key);color:var(--hk-ink)}' +
         p + ' .btn.menu .cur{color:var(--hk-ink-2)}' +
         p + ' .vs .gl:not(.dark){color:var(--hk-ink-2)}' +
-        p + ' .prog-fill{animation:none!important}' +
+        s + ' .prog-fill{animation:none!important}' +
         // (not an element focused by script -- a sheet takes focus as it
         // opens, tabindex -1, and Safari ringed the whole sheet in blue)
         p + ' :focus-visible:not([tabindex="-1"]){outline:2px solid var(--hk-accent,#0a84ff);outline-offset:3px}' +
         p + ' [tabindex="-1"]:focus{outline:none}';
     }
     var FLAT_ROOTS = new Set();
+    // A SHEET FLAT ON ITS OWN (the Home block's Sheet option, 2026-11-13, the owner: "the main goal is to make it easier on the
+    // tablet to run"): `hk-flat-force` (light or dark) on an element makes it and everything inside it Flat whatever the screen
+    // wears. Looked up once a card is in the page (it never moves between sheets) and kept; null where none says so.
+    function flatForced(el) {
+      if (el._hkFlatForce !== undefined) return el._hkFlatForce;
+      var n = el, t = null;
+      // (a node that can't say -- a test page's stand-in -- says nothing)
+      try { for (; n && !t; n = n.parentNode || n.host) if (n.getAttribute) t = n.getAttribute('hk-flat-force'); } catch (e) { t = null; }
+      t = t === 'light' || t === 'dark' ? t : null;
+      if (el.isConnected || t) el._hkFlatForce = t;
+      return t;
+    }
+    // the look this element is drawn in: the screen's (hkSettings.rendering), or Flat where a sheet says so
+    function renderingAt(el) {
+      var S = window.hkSettings, a = S && S.rendering ? S.rendering() : { flat: false }, t = el ? flatForced(el) : null;
+      // (a sheet made Flat on its own is made so to be easy on the tablet: still, as it has been)
+      return t && !a.flat ? Object.assign({}, a, { flat: true, theme: t, motion: false }) : a;
+    }
     function flatTone(el) {
-      var S = window.hkSettings, a = S && S.rendering ? S.rendering() : { flat: false };
+      var a = renderingAt(el);
       var key = a.flat ? (el._hkFlatKind === 'music' ? 'dark' : a.theme) : '';
       var own = !!key && (!el._hkNested || !!el._hkFlatKind);
-      if (el._hkFlatTone === key && el._hkFlatOwn === own) return;
+      // (still: Motion off -- or a policy that doesn't say, a stand-in's, where Flat is still as it always was)
+      var still = a.motion === false || (a.motion === undefined && !!a.flat);
+      if (el._hkFlatTone === key && el._hkFlatOwn === own && el._hkStill === still) return;
       var wasFlat = !!el._hkFlatTone && el._hkFlatOwn;
+      // (a card toned for the first time has drawn nothing that could be moving: asking for its animations made the
+      // browser work out the whole document's style again, once for each card put in -- a Flat sheet of sixty tiles
+      // was 1.1 s of it inside the tap that opened it, on the Kitchen's tablet, 2026-11-14. Only a card that was
+      // drawn in another look has anything to stop.)
+      var drawn = el._hkFlatTone !== undefined;
       el._hkFlatOwn = own;
-      if (key && el.getAnimations && !(el.constructor && el.constructor.FLAT_MOTION)) {
+      if (still && !el._hkStill && drawn && el.getAnimations && !(el.constructor && el.constructor.FLAT_MOTION)) {
         el.getAnimations({ subtree: true }).forEach(function (a) { try { a.cancel(); } catch (e) { /* already ended */ } });
       }
-      if (key && el._progAnim) { try { el._progAnim.cancel(); } catch (e) {} el._progAnim = null; }
+      if (still && el._progAnim) { try { el._progAnim.cancel(); } catch (e) {} el._progAnim = null; }
       el._hkFlatTone = key;
+      el._hkStill = still;
       if (key) el.setAttribute('hk-flat', key); else if (el.removeAttribute) el.removeAttribute('hk-flat');
+      if (still) el.setAttribute('hk-still', ''); else if (el.removeAttribute) el.removeAttribute('hk-still');
       Object.keys(FLAT.light).forEach(function (k) {
         if (own) el.style.setProperty(k, FLAT[key][k]); else if (wasFlat) el.style.removeProperty(k);
       });
@@ -340,7 +372,13 @@
     // more than it gave (the whole page change measured on the tablets: twice
     // as fast with this and the other page-change holds gone). `el` is kept
     // for the callers.
-    function navigate(path, el) {  // eslint-disable-line no-unused-vars
+    // A SHEET THAT HOLDS PAGES (the Home sheet, phase 27, hk-home-block.js) is asked first: a chip, a room's heading or
+    // Cameras inside it opens that page in the sheet (its hkCatchNav answers true) rather than the screen's. Found up the
+    // tree from the card, across its shadow roots.
+    function navigate(path, el) {
+      for (var n = el; n; n = n.parentNode || n.host) {
+        if (typeof n.hkCatchNav === 'function' && n.hkCatchNav(path)) return;
+      }
       window.hkShell.navigate(path);
     }
     // WHERE A `navigate` ACTION GOES (a card's _act, and House Status, hk-house-status.js, which opens what a chip opens)
@@ -938,11 +976,17 @@
         if (ST.still) card.setAttribute('hk-still', ''); else card.removeAttribute('hk-still');
       }
     }
+    // INSIDE A SURFACE THAT IS ITS OWN GLASS (the attribute `hk-no-glass`: the Home sheet's Glass and Solid, hk-home-block.js): every
+    // card in it, the ones its cards make too (the chips, a grid's tiles), stays out of the shared blur. A walk up, on a join only
+    function noGlass(card) {
+      for (var n = card.parentNode || card.host; n; n = n.parentNode || n.host) if (n.hasAttribute && n.hasAttribute('hk-no-glass')) return true;
+      return false;
+    }
     function glassJoin(card, on) {
       // ON A LIGHT PAGE (tone() below) the shared blur has no sky to frost: it
       // laid its tinted layer behind each plate and turned the light glass a
       // muddy gray. Out of it, as a card that says `glass: false` is.
-      var off = !!(window.hkSettings && window.hkSettings.rendering && window.hkSettings.rendering().flat) || !!(card._config && card._config.glass === false) || !!card._hkLight;
+      var off = !!renderingAt(card).flat || !!(card._config && card._config.glass === false) || !!card._hkLight || noGlass(card);
       // Out of "Blur each card" too, and everything inside it (the variable
       // inherits into child cards' shadow roots).
       if (card.style) {
@@ -1657,8 +1701,8 @@
       // inherits them -- so a dark plate inside a card (Now Playing's artwork,
       // the Music page's phone sheet) can set them back to `initial` for all it
       // holds. A nested card still gets `data-hk-light` for its own rules.
-      var S = window.hkSettings, flat = !!(S && S.rendering && S.rendering().flat);
-      if (flat) light = S.rendering().theme === 'light';
+      var r = renderingAt(el), flat = !!r.flat;
+      if (flat) light = r.theme === 'light';
       flatTone(el);
       // a card that is not an HkBase (the scenes row, hk-chip.js) is toned by
       // its client alone: re-toned with the flat roots when the look changes
