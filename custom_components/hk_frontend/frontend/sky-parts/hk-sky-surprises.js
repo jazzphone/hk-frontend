@@ -9,7 +9,7 @@
   'use strict';
   (window.hkSkyParts = window.hkSkyParts || {})['hk-sky-surprises'] = function (K) {
     var auroraCanvas = K.auroraCanvas, auroraDraw = K.auroraDraw, BAT_FRAMES = K.BAT_FRAMES, birthdays = K.birthdays,
-        clamp = K.clamp, detachStyles = K.detachStyles, frontSync = K.frontSync, LEAF_SPECIES = K.LEAF_SPECIES,
+        clamp = K.clamp, detachStyles = K.detachStyles, frontSync = K.frontSync, LEAF_SPECIES = K.LEAF_SPECIES, petalField = K.petalField,
         lvCount = K.lvCount, lvCycleOn = K.lvCycleOn, lvRange = K.lvRange, lvThin = K.lvThin, MOON_DISC = K.MOON_DISC,
         rng = K.rng, roll = K.roll, SCHEDULE = K.SCHEDULE, SH = K.SH, SPOOKY = K.SPOOKY, ST = K.ST,
         windowOf = K.windowOf, witchFly = K.witchFly;
@@ -380,7 +380,7 @@
     function windBucket(mph) { return mph < 6 ? 3 : mph < 14 ? 9 : 18; }
     function windy(state) { return (state.wind || 0) >= 10 && state.weather !== false; }
 
-    function nearTouches(sky, root, theme, rnd, field, occ, L) {
+    function nearTouches(sky, root, theme, rnd, field, occ, L, fallingLeaves) {
       var built = {}, W0 = 0, H0 = 0;
       // each count's extras on a stream of their own (lvRange), by theme
       var xs = theme.length * 7919 + 101;
@@ -472,7 +472,7 @@
         built.bands = [el(built.aurora, 'band a', 'i'), el(built.aurora, 'band b', 'i')];
         built.bands.forEach(auroraCanvas);
       }
-      if (theme === 'fall') {
+      if (theme === 'fall' && fallingLeaves) {
         var swirl = field('windy-only swirl');
         lvThin(lvRange(5, lvCount(5, L.many(occ, 'swirl')), rnd, xs + 5, function (w, r, keep) {
           var top = 30 + (w % 5) * 4 + r() * 8;
@@ -483,6 +483,8 @@
           sl.style.setProperty('--sdel', (8 + w * 0.45).toFixed(2) + 's');
           return sl;
         }));
+      }
+      if (theme === 'fall') {
         var gC = L.cycle(occ, 'geese');
         if (gC) {
           var geese = el(field('day'), 'geese');
@@ -495,23 +497,7 @@
           }
         }
       }
-      if (theme === 'spring') {
-        var petals = field('petals');
-        lvThin(lvRange(10, lvCount(10, L.many(occ, 'petals')), rnd, xs + 6, function (p, r, keep) {
-          var side = p % 2, ps = 7 + r() * 7, left = side ? 55 + r() * 45 : r() * 45, top = -3 + r() * 26,
-              pd = 11 + r() * 7, pdel = -r() * 18;
-          if (!keep) return null;
-          var pt = el(petals, 'petal', 'i');
-          pt.style.setProperty('--ps', ps.toFixed(1) + 'px');
-          // from the blossoms: both canopies, out across the top
-          pt.style.left = left.toFixed(2) + '%';
-          pt.style.top = top.toFixed(2) + '%';
-          pt.style.setProperty('--pd', pd.toFixed(2) + 's');
-          pt.style.setProperty('--pdel', pdel.toFixed(2) + 's');
-          pt.style.setProperty('--pside', side ? '-1' : '1');
-          return pt;
-        }));
-      }
+      if (theme === 'spring') petalField(field('petals'), rnd, L.many(occ, 'petals'), xs + 6);
       if ((theme === 'spring' || theme === 'summer') && L.on(occ, 'rainbow')) {
         built.rainbow = root.insertBefore(document.createElement('div'), root.children[0] || null);
         built.rainbow.className = 'rainbow';
@@ -948,8 +934,12 @@
       if (!flat && M && typeof M.board === 'function' && M.board().sky === false) return false;
       var v = currentView(cfg, path);
       if (!v) return false;
-      // FLAT (2026-10-16): its own backgrounds (hk-settings.js flatBackground)
-      // -- a color or one still photo, never the live sky
+      // Resolve Home from the view being painted, which can be the incoming view before a swipe changes the address.
+      var HS = window.hkSettings, board = HS && HS.boardHere && HS.boardHere();
+      var fallingLeaves = v === cfg.views[0] && !v.pages_screen && v.sky_page !== 'weather' && v.path !== 'weather' &&
+        (v.path === 'home' || !board || board.home_page !== false);
+      // FLAT (2026-10-16): its own backgrounds (hk-settings.js flatBackground) -- a color or one still photo, drawn by
+      // renderFlat; or (phase 33) the Live Sky or a Wallpaper, drawn as the glass looks draw them behind Flat's cards
       if (flat) {
         var FS = window.hkSettings, FC = window.hkCards, fpage = v.sky_page || 'home';
         var fkeys = v.sky_room ? [v.sky_room, v.sky_page] : v.sky_page;
@@ -961,8 +951,15 @@
         // chosen stays as chosen. THAT PAGE'S palette, not the one shown (2026-11-15, the owner: "swiping between pages the
         // background doesn't fade"): a swipe paints the next page's ground under this one's (swipeCover) while the address is
         // still this page's, and flatPalette() read the address -- every page's ground was this page's, a fade from green to green
+        var fbg = FS && FS.flatBackground ? FS.flatBackground(fkeys, fown) : { color: 'auto' };
+        if ((fbg.live || fbg.wallpaper) && !(M && typeof M.board === 'function' && M.board().sky === false)) {
+          var fwall = fbg.wallpaper && typeof FS.wallpaper === 'function' ? FS.wallpaper() : null;
+          return { variant: null, backdrop: fbg.backdrop === false ? false : null, still: fbg.wallpaper ? (fwall ? fwall.stops : FS.BLACK || null) : null,
+                   photo: null, look: null, wall: fwall, page: v.sky_page || null, underFlat: true, fallingLeaves: fallingLeaves,
+                   enable: cfg.sky && cfg.sky.enable || null, sleep: cfg.sky && cfg.sky.sleep || null };
+        }
         var fpal = FC && FC.flatPalette ? FC.flatPalette(path ? { keys: keysOfView(v) } : undefined) : null;
-        return { flat: FS && FS.flatBackground ? FS.flatBackground(fkeys, fown) : { color: 'auto' }, page: fpage,
+        return { flat: fbg, page: fpage, fallingLeaves: fallingLeaves,
                  seed: fpal && fpal.ground || null,
                  enable: cfg.sky && cfg.sky.enable || null, sleep: cfg.sky && cfg.sky.sleep || null };
       }
@@ -971,7 +968,6 @@
       // live sky ('live'), or a fixed backdrop -- read on every tick, so a
       // change shows within seconds and needs no rebuild. Not chosen: the
       // view's own sky_variant / sky, as written.
-      var HS = window.hkSettings;
       // a room's page: the room's own (sky_room, its address), else Room Pages'
       var pkeys = v.sky_room ? [v.sky_room, v.sky_page] : v.sky_page;
       var mode = v.sky_page && HS && typeof HS.pageSky === 'function' ? HS.pageSky(pkeys) : null;
@@ -1017,7 +1013,7 @@
         else if (bg && bg.mode === 'wallpaper') { wall = bg.wallpaper; still = bg.stops || black; }
         else if (bg && bg.mode === 'photo') { photo = bg.photo || null; look = bg.look || null; if (!photo) still = bg.stops || black; }
       }
-      return { variant: variant, backdrop: backdrop, still: still, photo: photo, look: look, wall: wall, page: v.sky_page || null,
+      return { variant: variant, backdrop: backdrop, still: still, photo: photo, look: look, wall: wall, page: v.sky_page || null, fallingLeaves: fallingLeaves,
                enable: cfg.sky && cfg.sky.enable || null,
                sleep: cfg.sky && cfg.sky.sleep || null };
     }

@@ -17,8 +17,8 @@
       ['Menu', 'screen/menu', 'menu', 'menu settings tablets computers sidebar drawer navigation off button always open docked tab bar', true],
       ['Menu on Phones', 'screen/menu', 'menu_phone', 'phone phones menu chip button tab bar off', true],
       ['Back Button & Title', 'house/menu/header', 'menu.page_header', 'page header back title context navigation compact hide'],
-      ['Back Button & Title', 'screen/more', 'page_header', 'page header back title context navigation compact hide', true],
-      ['Menu Options', 'screen', 'menu_own', 'menu settings same as all screens own menu this screen side menu edge tab tab bar', true],
+      ['Back Button & Title', 'screen/menu', 'page_header', 'page header back title context navigation compact hide', true],
+      ['Menu Options', 'screen/menu', 'menu_own', 'menu settings same as all screens own menu this screen side menu edge tab tab bar', true],
       ['Swipe Between Pages', 'screen/menu', 'swipe_pages', 'swipe gesture next previous page sideways tab bar homeview same as all screens', true],
       ['Swipe Right on Home', 'screen/menu', 'swipe_left', 'swipe right home left page before home favorite music now playing gesture', true],
       ['Menu on Each Screen', 'house/menu', 'menu:screens', 'menu each screen tablets phones which kind button tab bar always open'],
@@ -42,43 +42,49 @@
       ['Pages Screen', 'screen/pages-screen', 'pages_screen', 'pages screen home screen app icons grid launcher homeview ipad widgets folder pill no tab bar swipe', true],
       ['Pages Screen (All Screens)', 'house/pagesscreen', 'pages_screen.show', 'pages screen home screen app icons grid launcher homeview ipad widgets folder pill'],
       ['Glass', 'screen/glass', 'glass', 'look blur frosted clear', true],
+      ['Flat Theme', 'screen/appearance', 'b:flat_theme', 'auto automatic light dark sunrise sunset day night', true],
       ['Live Sky', 'screen/sky', 'sky', 'background animated on off', true],
       ['Background', 'screen/sky', 'sky_look', 'backdrop animations weather decorations palette own look', true],
+      ['Seasonal Effects', 'screen/sky', 'b:sky_seasonal_effects', 'fall leaves autumn winter snowflakes spring petals animation without decorations', true],
       ['Liveliness', 'screen/sky/decorations', 'sky_liveliness', 'liveliness subtle classic festive party custom busy calm moving bats leaves each occasion', true],
       ['Calm When Nobody\u2019s Around', 'screen/sky', 'sky_calm_empty', 'empty room nobody occupancy motion presence calm quiet', true],
-      ['Home Assistant Header & Sidebar', 'screen/more', 'kiosk', 'kiosk mode hide', true],
-      ['Allow Pop-ups', 'screen/more', 'popups', 'answer doorbell alarm popup', true],
-      ['Allow Notifications', 'screen/more', 'notify', 'notifications banner alerts', true],
-      ['Notifications on the Screensaver', 'screen/more', 'notify_saver', 'notifications screensaver photos important', true],
-      ['Do Not Disturb', 'screen/more', 'notify_dnd', 'notifications quiet hours dnd silence schedule input boolean timer', true],
-      ['Car Browser', 'screen/more', 'car', 'tesla viewport', true],
+      ['Home Assistant Header & Sidebar', 'screen/advanced', 'kiosk', 'kiosk mode hide', true],
+      ['Allow Pop-ups', 'screen/advanced', 'popups', 'answer doorbell alarm popup', true],
+      ['Allow Notifications', 'screen/advanced', 'notify', 'notifications banner alerts', true],
+      ['Notifications on the Screensaver', 'screen/advanced', 'notify_saver', 'notifications screensaver photos important', true],
+      ['Do Not Disturb', 'screen/advanced', 'notify_dnd', 'notifications quiet hours dnd silence schedule input boolean timer', true],
+      ['Car Browser', 'screen/advanced', 'car', 'tesla viewport', true],
       ['Rename Screen', 'screen', 'rename', 'rename name title dashboard sidebar pencil', true],
-      ['Now Playing', 'screen/more', 'now_playing', 'music media bar pane player', true],
-      ['Now Playing Options', 'screen/more', 'np_options', 'music media bar pane same as all screens own player', true],
+      ['Now Playing', 'screen/nowplaying', 'now_playing', 'music media bar pane player', true],
+      ['Hide After (Now Playing)', 'screen/nowplaying', 'np:grace', 'music paused stopped stays seconds minute hide bar pane same as all screens', true],
       ['Now Playing Placement', 'screen/nowplaying', 'np_style', 'music media bar pane side left right top bottom phones player show as', true],
       ['Now Playing Bar Position', 'screen/nowplaying', 'np_bar', 'music media bar top bottom position player tablets computers', true],
       ['Now Playing Bar on Phones', 'screen/nowplaying', 'np_bar_phone', 'music media bar top bottom position player phones', true],
-      ['Timer Bar', 'screen/more', 'timer_bar', 'timers quick timer bar countdown docked bottom', true],
-      ['On Every Page', 'screen/more', 'bar_all_pages', 'now playing timer bar every page all pages everywhere', true],
-      ['Screensaver', 'screen/more', 'screensaver', 'photo screensaver photos wall tablet slideshow clock glance idle', true],
-      ['Screensaver Options', 'screen/screensaver', 'screensaver_options', 'photo timing starts after each photo order random slideshow', true],
+      ['Timer Bar', 'screen/nowplaying', 'timer_bar', 'timers quick timer bar countdown docked bottom', true],
+      ['On Every Page', 'screen/nowplaying', 'bar_all_pages', 'now playing timer bar every page all pages everywhere', true],
+      // THE SCREENSAVER (phase 33): its switch on top of its page; What It Shows, When, How Photos Show, Advanced
+      ['Screensaver', 'screen/screensaver', 'screensaver', 'photo screensaver photos wall tablet slideshow clock glance idle on off switch', true],
       ['Screensaver for All Screens', 'house/screensaver', 'look.saver', 'screensaver all screens global default every tablet'],
-      ['Same as All Screens (Screensaver)', 'screen/screensaver', 'saver:house', 'screensaver all screens own global', true],
-      ['Screensaver Shows', 'screen/screensaver', 'saver:show', 'screensaver forecast weather photos no photos landscape', true],
-      ['Forecast When There Are No Photos', 'screen/screensaver', 'saver:fallback', 'screensaver forecast fallback empty folder dark', true],
-      ['Forecast Details (Screensaver)', 'screen/screensaver', 'saver:band', 'screensaver forecast band days hours multi-day details bottom', true],
-      ['Forecast Slide', 'screen/screensaver', 'saver:slide_forecast', 'screensaver forecast slide between photos mix both', true],
-      ['Music Slide', 'screen/screensaver', 'saver:music_slide', 'screensaver music now playing album art full screen slide song next previous', true],
-      ['Music First', 'screen/screensaver', 'saver:music_first', 'screensaver music first priority playing full screen instead of photos forecast', true],
-      ['Slide Every', 'screen/screensaver', 'saver:forecast_every', 'screensaver slide every photos how often forecast music', true],
-      ['Slow Zoom', 'screen/screensaver', 'saver:zoom', 'screensaver photo zoom ken burns', true],
-      ['Over the Photos', 'screen/screensaver', 'saver:clock', 'screensaver clock weather now playing music timers', true],
+      ['Screensaver Design', 'screen/screensaver', 'saver:editor', 'screensaver editor design look face clock background show photos forecast glance month', true],
+      ['Use All Screens’ Screensaver', 'screen/screensaver', 'saver:use-house', 'screensaver same as all screens own global reset', true],
+      ['Starts After', 'screen/screensaver', 'saver:starts_after', 'screensaver start sooner later timer untouched minutes idle', true],
+      ['Night Mode (Screensaver)', 'screen/screensaver', 'saver:clock_night', 'screensaver night red clock standby dim bedtime', true],
+      ['Forecast When There Are No Photos', 'screen/screensaver/photos', 'saver:fallback', 'screensaver forecast fallback empty folder dark', true],
+      ['Forecast Details (Screensaver)', 'screen/screensaver/forecast', 'saver:band', 'screensaver forecast band days hours multi-day details bottom', true],
+      ['Slides (Screensaver)', 'screen/screensaver', 'saver:slides', 'screensaver slides also show forecast weather energy holidays timers music between', true],
+      ['Forecast Slide', 'screen/screensaver/slides', 'saver:slide_forecast', 'screensaver forecast slide between photos mix both', true],
+      ['Music Full Screen', 'screen/screensaver/slides', 'saver:music_first', 'screensaver music slide first now playing album art full screen song next previous', true],
+      ['How Often (Slides)', 'screen/screensaver/slides', 'saver:extra_every', 'screensaver slide every minutes how often forecast music photos', true],
+      ['Show For (Slides)', 'screen/screensaver/slides', 'saver:extra_for', 'screensaver slide seconds how long', true],
+      ['How Photos Show', 'screen/screensaver', 'saver:photos-how', 'screensaver photos slideshow layout mosaic order random each photo portrait landscape', true],
+      ['Each Photo For', 'screen/screensaver/photos-how', 'saver:each_photo', 'screensaver photo seconds how long slideshow', true],
+      ['Slow Zoom', 'screen/screensaver/photos-how', 'saver:zoom', 'screensaver photo zoom ken burns', true],
+      ['Fade Back', 'screen/screensaver/advanced', 'saver:fade_back', 'screensaver fade back dashboard touch instant', true],
       ['Calendar Pane', 'screen/sidepane', 'pane:saver:show', 'screensaver calendar events agenda pane right side upcoming today tomorrow days', true],
       ['Music Pane', 'screen/sidepane', 'pane:saver:show', 'screensaver music pane right side now playing album art song next previous', true],
-      ['Home Status', 'screen/screensaver', 'saver:status', 'screensaver security secured locks doors alarm top right', true],
       ['Screensaver Switch', 'screen/screensaver', 'saver:ent:switch', 'screensaver photo switch automation entity turn on off bedtime doorbell', true],
       ['Screen In Use', 'screen/screensaver', 'saver:ent:binary_sensor', 'in use touched tablet binary sensor automation window starts after timer', true],
-      ['Use WallPanel Instead', 'screen/screensaver', 'b:screensaver_engine', 'wallpanel hacs screensaver', true],
+      ['Use WallPanel Instead', 'screen/screensaver/advanced', 'b:screensaver_engine', 'wallpanel hacs screensaver', true],
       ['Your Own Dashboards', 'advanced', 'yaml-ref', 'yaml reference own dashboard hand written raw configuration snippets examples copy'],
       ['Hide Header & Sidebar', 'screen/kiosk', 'kiosk', 'kiosk hide header sidebar what is hidden admins', true],
       ['Hide Header', 'screen/kiosk', 'kiosk_header', 'kiosk header toolbar top bar title views', true],
@@ -110,8 +116,14 @@
       ['Calendars', 'page/calendar', 'calendar.entities', 'calendar page events agenda month week day which calendars order'],
       ['Calendar Colors', 'page/calendar', 'calendar.colors', 'calendar colour color events dot'],
       ['Colors by Keyword', 'page/calendar', 'calendar.keywords', 'calendar event color colour keyword word name auto'],
-      ['Appearance Style', 'house/appearance/glass', 'look.glass', 'flat light dark theme performance blur frosted tinted clear glass look apple home app solid opaque'],
-      ['Blur Mode', 'house/appearance/glass', 'look.glass', 'blur shared layer pre-rendered prerendered each card performance cpu gpu'],
+      ['Style', 'house/appearance/glass', 'look.glass', 'appearance style flat light dark theme performance blur blurred bright frosted tinted clear glass look apple home app solid opaque'],
+      ['Flat Theme', 'house/appearance', 'look.flat_theme', 'auto automatic light dark sunrise sunset day night'],
+      ['Night Mode (Flat)', 'house/appearance', 'look.flat_night_entity', 'auto theme sunrise sunset helper binary sensor switch'],
+      ['Looks', 'house/appearance/looks', 'look.looks', 'look looks preset theme homeview flat performance holiday whimsy weather calming night bedside photo frame one step undo'],
+      ['Blur Drawing', 'house/appearance/advanced/blur', 'look.glass:mode', 'blur mode drawing shared layer pre-rendered prerendered each card performance cpu gpu'],
+      ['Bars & Side Pane', 'house/appearance/advanced', 'look.bars_blur', 'tab bar menu side pane blur pre-rendered prerendered live clear glass performance'],
+      ['Color from Background', 'house/appearance', 'look.frost_tint', 'frosted tint from background color colour card page behind'],
+      ['Reset Appearance', 'house/appearance', 'appearance:reset', 'reset appearance defaults style colors'],
       ['Frost Amount', 'house/appearance', 'look.frost', 'frosted'],
       ['Blur Amount', 'house/appearance', 'look.blur', 'blur strength'],
       ['Darkness', 'house/appearance', 'look.tint', 'tinted dark darkness opacity see through'],
@@ -130,8 +142,11 @@
         'background live sky color solid gradient photo picture wallpaper image upload still no stars plain black motion moving animated theme aurora blobs waves dots beams meteors'],
       ['Landscapes', 'house/appearance/sky', 'sky.background', 'landscapes landscape photos mountains lakes coasts forests nature scenery background scenic wake interval change'],
       ['Background Photo', 'house/appearance/sky', 'sky.photo', 'photo picture wallpaper image upload background blur dim darken saturation tint color cast'],
-      ['Sky Colors', 'house/appearance/sky/backdrop', 'sky.gradient', 'backdrop palette gradient live sky colors tint dusk midnight fjord dune graphite plum ember mist black custom'],
+      ['Colors', 'house/appearance/sky/backdrop', 'sky.gradient', 'sky colors backdrop palette gradient live sky tint dusk midnight fjord dune graphite plum ember mist black custom'],
+      ['Adjust Photo', 'house/appearance/sky/photo', 'sky.image_look',
+        'photo landscape image look starting point original soft balanced rich washed custom strength depth brightness fade blur dim saturation tint'],
       ['Seasonal Decorations', 'house/appearance/sky/decorations', 'sky.decorations', 'holiday halloween christmas old new woodland style'],
+      ['Seasonal Effects', 'house/appearance/sky', 'sky.seasonal_effects', 'fall leaves autumn winter snowflakes spring petals animation without decorations'],
       ['Decoration Style', 'house/appearance/sky/decorations', 'sky.decoration_style', 'old new seasons holidays birthdays woodland'],
       ['Moving Things', 'house/appearance/sky', 'sky.moving', 'front behind over cards rain snow leaves bats birds flyby confetti sky layer'],
       ['Clouds', 'house/appearance/sky', 'sky.cloud_style', 'clouds classic realistic photographic weather sky'],
@@ -148,8 +163,10 @@
       ['Tap Clock to Open Menu', 'house/menu/side', 'menu.clock', 'side menu'],
       ['Swipe from Left Edge', 'house/menu/side', 'menu.swipe', 'menu gesture swipe drag edge open no button side menu'],
       ['Swipe Between Pages', 'house/menu', 'menu.swipe_pages', 'swipe gesture next previous page sideways tab bar homeview'],
-      ['Accent Color', 'house/appearance/accent', 'menu.accent', 'highlight color colour accent tint orange icons selected page menu flat'],
-      ['Highlight Color', 'house/appearance/accent', 'menu.accent', 'menu color colour accent tint orange icons selected page highlight'],
+      ['Accent Color', 'house/appearance/accent', 'menu.accent', 'highlight color colour accent tint orange icons selected page menu tab bar flat'],
+      ['Page Colors', 'house/appearance/page-colors', 'look.page_accents', 'page color colour own climate blue lights yellow soft sage amber harbor lavender rose slate teal clay flat'],
+      ['Tiles When Off', 'house/appearance/tiles-off', 'look.flat_colors:off_tint', 'flat off pill tint tiles off wash color colour their own accent one color'],
+      ['Pages Keep Their Own Colors', 'house/appearance', 'look.flat_colors:pages', 'flat pages own colors colours follow accent climate lights'],
       ['Button Style', 'house/menu/side/tablets', 'menu.style', 'menu chip tab edge pinned tablet side menu'],
       ['Button Style on Phones', 'house/menu/side/phones', 'menu.button_phone', 'menu chip tab edge phone iphone android side menu'],
       ['Tab Position', 'house/menu/edge-tab', 'menu.tab_at', 'edge tab height level with date from top'],
@@ -173,7 +190,7 @@
       ['Tabs in Bar on Phones', 'house/menu/tab-bar', 'menu.bar_tabs_phone', 'tab bar phone iphone how many tabs number count favorites bottom'],
       ['Tab Bar Position', 'house/menu/tab-bar', 'menu.bar_pos', 'tab bar position top bottom left right rail side placement'],
       ['More Style on Phones', 'house/menu/tab-bar', 'menu.bar_more_phone', 'tab bar more icons list grid sheet phone iphone'],
-      ['Tab Bar Glass', 'house/appearance', 'menu.bar_glass', 'tab bar blur frosted tinted clear transparency look appearance'],
+      ['Tab Bar Glass', 'house/appearance/advanced', 'menu.bar_glass', 'tab bar blur frosted tinted clear transparency look appearance'],
       ['Home Assistant Section Placement', 'house/menu/side', 'menu.ha_at', 'home assistant section where top categories rooms bottom order position place'],
       ['Home Assistant Section', 'house/menu/side', 'menu.ha_row', 'sidebar settings access integrations automations notifications profile show menu'],
       ['Rooms in the Menu', 'house/rooms', 'rooms.menu', 'rooms in the menu order which rooms a to z side menu tab bar more'],
@@ -201,8 +218,7 @@
       ['Music Browse Categories', 'features/music/categories', 'browse.hide', 'artists albums songs playlists radio podcasts audiobooks'],
       ['Discover Rows', 'features/music/discover', 'browse.discover', 'recently played favorites most played'],
       ['Browse Page', 'page/music', 'look.browse_view', 'music browse view'],
-      ['Idle Time (All Tablets)', 'house/tablets/all', 'tablets.idle_time', 'wall tablet idle seconds return to home when idle timeout'],
-      ['Return to Home When Idle', 'house/tablets/all', 'tablets.idle_return', 'wall tablet idle return home timeout'],
+      ['Back to Home After (All Tablets)', 'house/tablets/all', 'tablets.idle_time', 'wall tablet idle seconds return to home when idle timeout never'],
       ['All Tablets', 'house/tablets', 'tablets:all', 'wall tablet every all tablets defaults idle alerts restart reload'],
       ['Add Tablet', 'house/tablets/add', 'tablet:add', 'wall tablet add new kiosk satellite fully kiosk wallpanel browser'],
       ['Tablet Alerts', 'house/tablets/all', 'tablets.alert_offline', 'wall tablet offline alert notification charging restart came back'],
@@ -264,7 +280,7 @@
     // THE SCREENSAVER'S OPTIONS (settings.py SAVER_DEFAULTS): what a screen
     // starts from, and whether it has changed any
     var SAVER_DEFAULTS = { starts_after: 180, each_photo: 30, order: 'random', fill: true, zoom: false,
-                           clock: true, weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true, forecast_every: 5,
+                           clock: true, weather: true, music: true, timers: true, status: true, show: 'photos', fallback: true, forecast_every: 4,
                            band: true, band_photos: false, calendar: false, calendar_days: 2, music_slide: false, music_pane: false, music_first: false,
                            fade_back: 500,
                            // portrait and landscape photos, each their own (settings.py)
@@ -277,7 +293,7 @@
                        photo_layout: 'single', mosaic_count: 3, mosaic_gap: 'thin', mosaic_change: 'one', mosaic_line: 0, mosaic_color: 'black', mosaic_random: false, mosaic_every: 10,
                        clock_photo_soft: false, clock_photo_dim: 35, clock_text_shadow: 40, clock_text_outline: 0,
                        // Home Energy and the additional screens (settings.py, 2026-10-14)
-                       energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 5, extra_for: 30, energy_hide: [],
+                       energy_slide: false, extra_music: false, extra_forecast: false, extra_every: 2, extra_for: 30, energy_hide: [],
                        weather_slide: false, weather_hide: [], corner_time_size: 100, corner_hide: [], music_hide: [] };
     function saverOptions(o) {
       var out = {};
@@ -325,7 +341,7 @@
                                 : 'Bar, ' + choiceLabel(NP_BARS, b.np_bar || house.bar);
       return where + (b.np_bar_phone ? ' · Phones ' + choiceLabel(NP_BARS, b.np_bar_phone) : '');
     }
-    // ...whether a screen has any of its own (its Now Playing Options row, and
+    // ...whether a screen has any of its own (its Now Playing page, and
     // its Reset to All Screens there)
     var NP_OWN_KEYS = ['np_style', 'np_side', 'np_bar', 'np_bar_phone'];
     function npOwn(b) { return NP_OWN_KEYS.some(function (k) { return !!(b || {})[k]; }); }
@@ -349,10 +365,10 @@
       ['header', 'Header', ['phone_header', 'kiosk', 'kiosk_header', 'kiosk_sidebar', 'kiosk_admins', 'kiosk_engine', 'kiosk_options'], true],
       // the pages, Home among them, and where each sits in the menu (set on Pages)
       ['pages', 'Pages', ['pages', 'custom_pages', 'only_pages', 'home_page', 'home_view', 'menu_top', 'categories', 'headers', 'pages_screen'], true],
-      ['look', 'Appearance', ['flat', 'flat_theme', 'glass', 'frost', 'frost_tint', 'motion', 'blur', 'tint', 'well', 'tile_style', 'tile_icons', 'bright_pages', 'sky', 'sky_animations',
+      ['look', 'Appearance', ['flat', 'flat_theme', 'glass', 'frost', 'frost_tint', 'motion', 'blur', 'tint', 'well', 'tile_style', 'tile_icons', 'bright_pages', 'bars_blur', 'sky', 'sky_animations',
         'sky_weather',
         'sky_precipitation', 'sky_focus_pause',
-                              'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
+                              'sky_decorations', 'sky_decoration_style', 'sky_seasonal_effects', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom', 'sky_pages',
                               'sky_liveliness', 'sky_liveliness_occ', 'sky_liveliness_custom', 'sky_calm_empty',
                               'sky_background', 'sky_color', 'sky_photo', 'sky_page_photos', 'sky_photo_look', 'sky_page_looks',
                               'sky_landscape', 'sky_landscape_look', 'sky_flat_background', 'sky_flat_color', 'sky_flat_fade', 'sky_flat_tint', 'sky_flat_tint_amount', 'sky_flat_tint_light',
@@ -378,16 +394,63 @@
         if (!src || (groups || []).indexOf(g[0]) < 0) return;
         g[2].forEach(function (k) {
           // a screen following All Screens' screensaver: the copy follows too
-          if (k === 'screensaver_options') { out[k] = saverFollows(src) ? null : JSON.parse(JSON.stringify(src[k])); return; }
+          // (its own rows, phase 33: the rest follows All Screens on the other screen too)
+          if (k === 'screensaver_options') { out[k] = saverFollows(src) ? null : JSON.parse(JSON.stringify(saverLayers.own(src))); return; }
           if (k === 'home_grid' && src[k] == null) return;   // no layout: the Home Style alone, never the other's deleted
           if (src[k] !== undefined) out[k] = src[k] === null ? null : JSON.parse(JSON.stringify(src[k]));
         });
       });
       return out;
     }
-    // A SCREEN FOLLOWS ALL SCREENS' SCREENSAVER when its own options are null
-    // (a save hands back the stored form) or the feed says so (resolved)
-    function saverFollows(b) { return !!b && (b.screensaver_house === true || b.screensaver_options == null); }
+    // A SCREEN'S SCREENSAVER, ROW BY ROW OVER ALL SCREENS' (phase 33, decisions 9 and 12; hk_core saver_layers.py,
+    // test_saver_layers.py holds the lists equal): its own options are only the keys it set (the feed's
+    // screensaver_own; an older feed's whole set is all its own), read over All Screens'. The page's rows are each
+    // its own; every other key is the editor's design, one group. The slides' How Often in minutes, an older
+    // "every N photos" carried over as the minutes it took (inMinutes), forecast_every kept in step for an older reader.
+    var SAVER_EVERY = [1, 2, 5, 10, 15, 30];
+    var SAVER_PAGE_KEYS = ['starts_after', 'each_photo', 'order', 'fill', 'zoom', 'fallback', 'fade_back',
+      'photo_layout', 'mosaic_change', 'mosaic_color', 'mosaic_count', 'mosaic_every', 'mosaic_gap', 'mosaic_line', 'mosaic_random',
+      'portrait_fill', 'portrait_blur', 'portrait_dim', 'portrait_zoom', 'portrait_x', 'portrait_y',
+      'landscape_blur', 'landscape_dim', 'landscape_zoom', 'landscape_x', 'landscape_y', 'clock_night', 'clock_night_from', 'clock_night_to',
+      'forecast_every', 'extra_every', 'extra_for', 'music_first', 'music_slide', 'extra_music', 'extra_forecast',
+      'weather_slide', 'weather_hide', 'energy_slide', 'energy_hide', 'forecast_layout', 'forecast_big', 'forecast_planted', 'band',
+      'band_photos', 'calendar', 'calendar_days', 'music_pane', 'holiday_slide', 'holiday_pick', 'holiday_one', 'holiday_days',
+      'holiday_off', 'holiday_own', 'holiday_fx', 'holiday_outdoors', 'holiday_hide', 'timer_slide', 'timer_often'];
+    var saverLayers = (function () {
+      var has = function (o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, k); };
+      function photosFor(every, each) { return Math.min(100, Math.max(2, Math.round(every * 60 / Math.max(1, each)))); }
+      function nearest(m) {
+        return SAVER_EVERY.reduce(function (a, x) { return Math.abs(x - m) < Math.abs(a - m) ? x : a; }, SAVER_EVERY[0]);
+      }
+      function inMinutes(o) {
+        var out = Object.assign({}, o);
+        if (!has(out, 'forecast_every') || !has(out, 'extra_every') || !has(out, 'each_photo')) return out;
+        if ((out.show === 'photos' || out.show === 'both') && out.forecast_every !== photosFor(out.extra_every, out.each_photo)) {
+          out.extra_every = nearest(out.forecast_every * out.each_photo / 60);
+          out.extra_for = Math.min(300, Math.max(10, out.each_photo));
+        }
+        out.forecast_every = photosFor(out.extra_every, out.each_photo);
+        return out;
+      }
+      // the keys a screen set itself (b: a screen as the page holds it)
+      function own(b) {
+        if (!b) return {};
+        if (b.screensaver_own && typeof b.screensaver_own === 'object') return b.screensaver_own;
+        return b.screensaver_house === true || !b.screensaver_options ? {} : b.screensaver_options;
+      }
+      // a screen's options as read: All Screens' (house) with its own over them
+      function of(b, house) {
+        var mine = own(b), out = saverOptions(Object.assign({}, saverOptions(house), mine));
+        if (Object.keys(mine).length) out.forecast_every = photosFor(out.extra_every, out.each_photo);
+        return out;
+      }
+      function isOwn(b, k) { return has(own(b), k); }
+      function isPage(k) { return SAVER_PAGE_KEYS.indexOf(k) >= 0; }
+      return { EVERY: SAVER_EVERY, PAGE_KEYS: SAVER_PAGE_KEYS, photosFor: photosFor, nearest: nearest, inMinutes: inMinutes, own: own, of: of,
+               isOwn: isOwn, isPage: isPage };
+    })();
+    // A SCREEN FOLLOWS ALL SCREENS' SCREENSAVER in everything when it set none of its own
+    function saverFollows(b) { return !!b && !Object.keys(saverLayers.own(b)).length; }
     // one line for a nav row: what shows, and when
     // A SCREEN'S Header & Sidebar row: what is hidden, and by whom
     function kioskSummary(b, generated) {
@@ -503,8 +566,8 @@
     // Null is a continuing relationship to All Screens, including custom
     // stops. A true flag is still an override, even when it matches the house.
     function skySummary(b) {
-      var keys = ['sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause', 'sky_decorations', 'sky_decoration_style', 'sky_moving', 'sky_cloud_style', 'sky_daytime', 'sky_gradient',
-        'sky_custom',
+      var keys = ['sky_animations', 'sky_weather', 'sky_precipitation', 'sky_focus_pause', 'sky_decorations', 'sky_decoration_style', 'sky_seasonal_effects', 'sky_moving',
+        'sky_cloud_style', 'sky_daytime', 'sky_gradient', 'sky_custom',
                   'sky_background', 'sky_color', 'sky_photo', 'sky_photo_look', 'sky_landscape', 'sky_landscape_look',
                   'sky_wallpaper', 'sky_wallpaper_night', 'sky_wallpaper_motion', 'sky_wallpaper_color'];
       var pages = Object.keys(b.sky_pages || {}).length;
@@ -512,6 +575,7 @@
       var parts = [];
       // the Background first: a still Color or Photo is the whole look
       if (b.sky_background) parts.push(BG_LABELS[b.sky_background] || b.sky_background);
+      if (b.sky_seasonal_effects != null) parts.push(b.sky_seasonal_effects ? 'Seasonal Effects On' : 'Seasonal Effects Off');
       if (b.sky_background === 'color' || b.sky_background === 'photo' || b.sky_background === 'landscapes' || b.sky_background === 'wallpaper') return parts.concat(pages ?
         [pages === 1 ? '1 Page Background' : pages + ' Page Backgrounds'] : []).join(', ');
       if (b.sky_animations === false) parts.push('No Animation');
@@ -537,7 +601,7 @@
     K.NP_SIDES = NP_SIDES; K.NP_STYLES = NP_STYLES; K.npOwn = npOwn; K.npSummary = npSummary;
     K.previewDefault = previewDefault; K.previewFit = previewFit; K.previewSizes = previewSizes;
     K.SAVER_DEFAULTS = SAVER_DEFAULTS; K.SAVER_SHOWS = SAVER_SHOWS; K.saverCustom = saverCustom;
-    K.saverFollows = saverFollows; K.saverOptions = saverOptions; K.saverSummary = saverSummary; K.SEARCH = SEARCH;
+    K.saverFollows = saverFollows; K.saverLayers = saverLayers; K.saverOptions = saverOptions; K.saverSummary = saverSummary; K.SEARCH = SEARCH;
     K.search = search; K.showName = showName; K.skyMoments = skyMoments; K.skyPreviewScreen = skyPreviewScreen;
     K.skySummary = skySummary; K.WEATHER_PARTS = WEATHER_PARTS; K.weatherShown = weatherShown;
   };

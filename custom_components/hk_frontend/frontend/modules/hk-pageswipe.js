@@ -261,15 +261,20 @@
   }
 
   // ------------------------------------------------------------ styles
+  // (a page the glass has made `relative` to hold its layers -- hk-glass.js recFor, `_hkGlassPos` the page's own
+  // before it -- is saved as its own: put back as it was, the glass's long gone by then, it stayed on the page for
+  // good, 2026-11-21; restore gives it back only while the glass still holds the page)
   function save(el) {
     var o = {};
     PROPS.forEach(function (p) { o[p] = [el.style.getPropertyValue(p), el.style.getPropertyPriority ? el.style.getPropertyPriority(p) : '']; });
+    if (typeof el._hkGlassPos === 'string' && o.position[0] === 'relative') o.position = [el._hkGlassPos, ''];
     return o;
   }
   function restore(el, o) {
     if (!el || !o) return;
     PROPS.forEach(function (p) {
-      if (o[p][0]) el.style.setProperty(p, o[p][0], o[p][1]); else el.style.removeProperty(p);
+      var v = p === 'position' && !o[p][0] && typeof el._hkGlassPos === 'string' ? 'relative' : o[p][0];
+      if (v) el.style.setProperty(p, v, o[p][1]); else el.style.removeProperty(p);
     });
     glassAlong(el, null);
   }
@@ -994,8 +999,12 @@
     try { cover = K && K.swipeCover ? K.swipeCover(path) : null; } catch (e) { cover = null; }
     var live = true, an = null, timer = 0, gen = 0;
     var h = { path: path, alive: function () { return live; }, set: function () {}, done: function () { live = false; } };
-    if (cover === false) return h;
-    if (!cover) return null;
+    if (cover == null) return null;
+    var glass = window.hkGlass, pin = glass && glass.followSkySwipe && glass.followSkySwipe(path, cover !== false);
+    if (cover === false) {
+      h.done = function (land) { if (!live) return; live = false; if (pin) pin.end(land); };
+      return h;
+    }
     cover.style.setProperty('will-change', 'opacity');
     var drawn = function () { var o = parseFloat(getComputedStyle(cover).opacity); return isFinite(o) ? o : 1; };
     var stop = function () {
@@ -1011,11 +1020,14 @@
       live = false;
       if (!land && K.swipeBack) { try { K.swipeBack(); } catch (e) { /* no sky */ } }
       if (cover.parentNode) cover.parentNode.removeChild(cover);
+      if (pin) { pin.paint(0, land ? 1 : 0); pin.end(land); }
     };
     h.set = function (k) {
       if (!live) return;
       stop();
-      cover.style.opacity = String(+(1 - Math.max(0, Math.min(1, +k || 0))).toFixed(3));
+      var amount = Math.max(0, Math.min(1, +k || 0));
+      cover.style.opacity = String(+(1 - amount).toFixed(3));
+      if (pin) pin.paint(0, amount);
     };
     h.done = function (land, ms, ease) {
       if (!live) return;
@@ -1025,7 +1037,8 @@
       if (!ms || Math.abs(from - to) < 0.01) { cover.style.opacity = String(to); end(land); return; }
       var frames = [{ opacity: from }, { opacity: to }];
       try { an = cover.animate(frames, { duration: ms, easing: ease || STANDARD, fill: 'forwards' }); }
-      catch (e) { try { an = cover.animate(frames, { duration: ms, easing: STANDARD, fill: 'forwards' }); } catch (x) { end(land); return; } }
+      catch (e) { try { ease = STANDARD; an = cover.animate(frames, { duration: ms, easing: ease, fill: 'forwards' }); } catch (x) { end(land); return; } }
+      if (pin) pin.paint(1 - from, 1 - to, ms, ease || STANDARD);
       an.onfinish = once;
       timer = setTimeout(once, ms + 500);
     };

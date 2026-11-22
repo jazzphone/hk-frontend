@@ -806,6 +806,22 @@ def test_page_backgrounds_are_saved_for_a_screen_and_for_all_screens():
     assert err == {} and out["dashboard"]["sky"]["pages"] == {"weather": "own", "energy": "dusk"}
 
 
+def test_seasonal_effects_are_independent_of_decorations():
+    from custom_components.hk_frontend import settings as S
+    from custom_components.hk_frontend.settings_api import apply_board, apply_house
+
+    assert S.merged(None)["sky"]["seasonal_effects"] is False
+    house, err = apply_house({}, {"sky.decorations": False, "sky.seasonal_effects": True})
+    assert not err and S.merged(house)["sky"]["decorations"] is False
+    assert S.merged(house)["sky"]["seasonal_effects"] is True
+    screen, err = apply_board({}, {"sky_seasonal_effects": False})
+    assert not err and S.board_stored(screen)["sky_seasonal_effects"] is False
+    inherited, err = apply_board(screen, {"sky_seasonal_effects": None})
+    assert not err and "sky_seasonal_effects" not in S.board_stored(inherited)
+    reset, err = apply_house(house, {"sky.reset": True})
+    assert not err and S.merged(reset)["sky"]["seasonal_effects"] is False
+
+
 def test_the_tab_bar_is_saved_for_a_screen_and_for_all_screens():
     from custom_components.hk_frontend import settings as S
     from custom_components.hk_frontend.settings_api import apply_board, apply_house
@@ -965,7 +981,7 @@ def test_home_energy_and_the_additional_screens_are_checked():
     from custom_components.hk_frontend import settings as S
     d = S.saver_options({})
     assert (d["energy_slide"], d["extra_music"], d["extra_forecast"], d["extra_every"], d["extra_for"], d["energy_hide"]) == \
-        (False, False, False, 5, 30, []), "all off by default: every 5 minutes, for 30 seconds"
+        (False, False, False, 2, 30, []), "all off by default: every 2 minutes (phase 33), for 30 seconds"
     o = S.saver_options({"energy_slide": True, "extra_music": True, "extra_forecast": True, "extra_every": 15, "extra_for": 120,
                          "energy_hide": ["yday", "cost", "pace"]})
     assert o and (o["energy_slide"], o["extra_every"], o["extra_for"]) == (True, 15, 120)

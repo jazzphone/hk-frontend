@@ -44,7 +44,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # decorations: the integration's own on/off (switch.<...>_seasonal_decorations,
     # switch.py); seasonal: optionally, an entity of the house's that must also be on.
     "sky": {"moon": None, "holidays": None, "seasonal": None, "birthdays": [],
-            "decorations": True, "decoration_style": "old",
+            "decorations": True, "decoration_style": "old", "seasonal_effects": False,
             # Moving Things (2026-10-11): the rain and snow, falling leaves,
             # bats and birds, flybys and confetti drawn "behind" the cards
             # (the sky) or "front" over them -- touch passes through either
@@ -264,6 +264,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     # (hk-frosttint.js), held at one darkness so white text reads the same.
     # docs/ (each setting on its topic's page).
     "look": {"flat": False, "flat_theme": "dark", "glass": "clear", "frost": 50, "blur": 50, "tint": 50, "well": "dark", "frost_tint": False, "motion": True,
+             "flat_night_entity": None,
              # BRIGHT GLASS (2026-10-30): bright -- its Strength, how much of
              # the white wash and the lift (50 as designed), capped where
              # white text would fall under 4.5:1 (hk-settings.js brightCap)
@@ -283,17 +284,22 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # kind -> {name, icon, color}; empty is each pill's own
              # ("Play Music" can read "Apple Music")
              "page_pills": {},
-             # EACH PAGE'S HIGHLIGHT (2026-10-17): page kind -> an accent
-             # (ACCENTS or "#rrggbb"), the current page's color when a
-             # screen's Highlight Color is Automatic; missing: hk-base.js
-             # PAGE_ACCENTS' default for it
+             # EACH PAGE'S COLOR, its Page Color (2026-10-17; phase 33): page kind -> an accent (ACCENTS, Flat's
+             # soft colors or "#rrggbb"): the page you're on while a screen's Accent Color is Automatic, and in
+             # Flat the page's own over the Accent Color; missing: hk-base.js PAGE_ACCENTS' default for it. A
+             # page's Flat Accent Color from before is read as it (merged: fold_page_colors).
              "page_accents": {},
+             # THE LOOK LAST APPLIED TO ALL SCREENS (phase 33, looks.py HOUSE_KEYS) and All Screens' settings
+             # before it ({look, was: {path: value}}), for its one Undo; None: nothing to undo
+             "look_undo": None,
              # FLAT COLORS (2026-10-17, flat_colors() above): All Screens'
              # two fields, and each page's own
              "flat_colors": dict(FLAT_COLORS_DEFAULT), "flat_page_colors": {},
              # TILE STYLE (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase B): the Home Grid's tiles and the room
              # pages' Tall pills in the Home app's layout, or Centred (the glyph above the name and room, HomeView's)
-             "tile_style": "auto", "tile_icons": "auto", "thermostat_style": "dial", "bright_pages": "home"},
+             "tile_style": "auto", "tile_icons": "auto", "thermostat_style": "dial", "bright_pages": "home",
+             # Bars & Side Pane (BARS_BLUR): live, or Pre-rendered in Clear Glass and Each Card
+             "bars_blur": "live"},
     # THE CALENDAR (the Calendar page, hk-calendar.js, and the screensaver's
     # calendar pane): the calendar entities shown, in order (empty: every
     # calendar the house has), and each one's colour -- entity -> a page pill
@@ -374,7 +380,7 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # both: the photos with the forecast as a slide every `forecast_every`
     # photos; forecast: always the forecast (the live sky over the land)
     "show": "photos",
-    "forecast_every": 5,
+    "forecast_every": 4,     # (phase 33: follows extra_every, 2 min of 30 s photos -- saver_layers.photos_for)
     # THE FORECAST DETAILS (today, the hours, the days, along the bottom): on
     # the forecast (Forecast, the Photos & Forecast slide, the no-photos
     # fallback), and over the photos
@@ -459,7 +465,7 @@ SAVER_DEFAULTS: dict[str, Any] = {
     # ...the other additional screens: the music (only while something
     # plays; Music First covers it) and, on Show: Clock, the forecast. One
     # every `extra_every` minutes, for `extra_for` seconds, taking turns
-    "extra_music": False, "extra_forecast": False, "extra_every": 5, "extra_for": 30,
+    "extra_music": False, "extra_forecast": False, "extra_every": 2, "extra_for": 30,
     # what Home Energy leaves out (SAVER_ENERGY_PARTS): its rings, the
     # readings along the bottom, the month and where its cost is heading
     "energy_hide": [],

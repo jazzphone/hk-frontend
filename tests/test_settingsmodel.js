@@ -420,16 +420,32 @@ ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_
   ok('a Flat screen\'s own Flat accent stays its own: Just This Screen', flatOwn.own && flatOwn.name === 'Rose' && flatOwn.house.name === 'Teal');
   var follows = M.accentColorOf(look, { accent: 'teal' }, { accent: 'teal', menu_own: [] }, false, false);
   ok('a screen that follows says so', !follows.own && follows.name === 'Teal');
-  ok('choosing it on All Screens writes both, the same value', eq(M.accentChanges('blue', null, false), { 'menu.accent': 'blue', 'look.flat_colors.accent': 'blue' }) &&
-     M.accentChanges('blue', null, true)['look.flat_colors.off_tint'] === 'accent' && !('look.flat_colors.off_tint' in M.accentChanges('auto', null, true)));
-  var sc = M.accentChanges('#123456', { menu_own: ['tab_size'] }, false);
+  ok('choosing it on All Screens writes both, the same value', eq(M.accentChanges('blue', null), { 'menu.accent': 'blue', 'look.flat_colors.accent': 'blue' }));
+  // (phase 33, decision 4: an accent no longer sets Tiles When Off too -- whatever the tint was, it isn't written)
+  ok('...and never Tiles When Off', !('look.flat_colors.off_tint' in M.accentChanges('blue', null, true)) &&
+     !('flat_colors.off_tint' in M.accentChanges('blue', { menu_own: [] }, true)));
+  var sc = M.accentChanges('#123456', { menu_own: ['tab_size'] });
   ok('...on a screen: its own, both', sc.accent === '#123456' && sc['flat_colors.accent'] === '#123456' && eq(sc.menu_own, ['tab_size', 'accent']), sc);
   ok('...and back to All Screens\'', eq(M.accentChanges(null, { menu_own: ['accent'] }), { menu_own: [], 'flat_colors.accent': null }));
   ok('search finds the Accent Color on All Screens\' Appearance', M.search('highlight color', []).some(function (r) { return r.route === 'house/appearance/accent'; }) &&
      M.search('accent color', []).some(function (r) { return r.route === 'house/appearance/accent'; }));
+  // (phase 33, decision 2: one name per thing -- nothing a person reads says Highlight)
+  ok('...and no result is called Highlight', !M.SEARCH.some(function (r) { return /Highlight/.test(r[0]); }) &&
+     M.search('page color', []).some(function (r) { return r.route === 'house/appearance/page-colors'; }) &&
+     M.search('tiles when off', []).some(function (r) { return r.route === 'house/appearance/tiles-off'; }));
   ok('search finds each kind of menu', ['side', 'edge-tab', 'tab-bar'].every(function (k) {
     return M.SEARCH.some(function (s) { return s[1] === 'house/menu/' + k && s[2] === 'menu:' + k; }); }));
   ok('...and Back Button & Title', M.search('page header', []).some(function (r) { return r.route === 'house/menu/header'; }));
+  // PHASE 33: More for This Screen is gone; search finds each of its rows where it went
+  var scr = [{ path: 'dash', title: 'Dash' }];
+  var at = function (q, label) { var r = M.search(q, scr).filter(function (x) { return x.label === label; })[0]; return r && r.route; };
+  ok('...Timer Bar and Now Playing on the screen’s Now Playing page', [at('timer bar', 'Timer Bar'), at('now playing', 'Now Playing')].join(), 'screens/dash/nowplaying,screens/dash/nowplaying');
+  ok('...Pop-ups, Notifications and Car Browser on its Advanced', [at('pop-ups', 'Allow Pop-ups'), at('allow notifications', 'Allow Notifications'), at('tesla', 'Car Browser')].join(),
+     'screens/dash/advanced,screens/dash/advanced,screens/dash/advanced');
+  ok('...Back Button & Title and Header on Phones on its Menu & Navigation', [at('back title', 'Back Button & Title'), at('phone weather', 'Header on Phones')].join(),
+     'screens/dash/menu,screens/dash/menu');
+  ok('...its Screensaver on the Screensaver page', at('screensaver slideshow', 'Screensaver'), 'screens/dash/screensaver');
+  ok('...nothing is left pointing at /more', 'abcdefghijklmnopqrstuvwxyz'.split('').every(function (q) { return M.search(q, scr).every(function (r) { return !/\/more$/.test(r.route); }); }));
   var moved = function (s) { return /^(house\/(menu|appearance|sky)|screen)/.test(s[1]) && M.routeForward(s[1].replace(/^screen/, 'screens/x')); };
   ok('no Appearance, Sky or Menu search row points at a moved address', !M.SEARCH.some(moved),
      M.SEARCH.filter(moved).map(function (s) { return s[1]; }));
@@ -437,13 +453,27 @@ ok('rooms summary', M.roomsSummary(hb) === '2 on Home' && M.roomsSummary({ room_
   var F = M.routeForward;
   ok('Sky / Background is under Appearance', F('house/sky') === 'house/appearance/sky' && F('house/sky/woodland/fall') === 'house/appearance/sky/woodland/fall' &&
      F('house/sky/page/rooms') === 'house/appearance/sky/page/rooms');
-  ok('...a page\'s background still goes to its page', F('house/sky/page/climate') === 'page/climate/background' &&
-     F('house/appearance/sky/page/climate') === 'page/climate/background');
+  // (phase 33: every page's background is under Background -> Pages again, at both levels)
+  ok('...a page\'s background is under Background', F('house/sky/page/climate') === 'house/appearance/sky/page/climate' &&
+     F('house/appearance/sky/page/climate') === null);
   ok('the Highlight Color is the Accent Color', F('house/menu/accent') === 'house/appearance/accent' &&
      F('house/appearance/flat-colors/accent') === 'house/appearance/accent' && F('screens/den/menu/accent') === 'screens/den/accent' &&
      F('screens/den/flat-colors/accent') === 'screens/den/accent');
-  ok('...a page\'s own Flat accent stays where it is', F('house/appearance/flat-colors/page/climate/accent') === null &&
-     F('screens/den/flat-colors/page/climate/accent') === null);
+  // FLAT COLORS, TAKEN APART (phase 33): each old address goes where its setting is now
+  ok('Flat Colors forwards to Appearance, a page\'s to its Look group', F('house/appearance/flat-colors') === 'house/appearance' &&
+     F('house/appearance/flat-colors/tint') === 'house/appearance/tiles-off' && F('house/appearance/flat-colors/pages') === 'house/appearance' &&
+     F('house/appearance/flat-colors/page/climate') === 'page/climate' && F('house/appearance/flat-colors/page/climate/accent') === 'page/climate/accent' &&
+     F('house/appearance/flat-colors/page/calendar/tint') === 'page/calendar/tiles-off' &&
+     F('house/appearance/flat-colors/page/room-den') === 'house/appearance/page-colors/room-den' &&
+     F('house/appearance/flat-colors/page/rooms/tint') === 'house/appearance/page-colors/rooms/tiles-off');
+  ok('...a screen\'s to its Appearance and its Page Colors', F('screens/den/flat-colors') === 'screens/den/appearance' &&
+     F('screens/den/flat-colors/tint') === 'screens/den/appearance/tiles-off' && F('screens/den/flat-colors/pages') === 'screens/den/appearance' &&
+     F('screens/den/flat-colors/page/climate') === 'screens/den/page-colors/climate' &&
+     F('screens/den/flat-colors/page/climate/accent') === 'screens/den/page-colors/climate' &&
+     F('screens/den/flat-colors/page/climate/tint') === 'screens/den/page-colors/climate/tiles-off');
+  ok('...the new addresses stay', F('house/appearance/tiles-off') === null && F('house/appearance/page-colors/climate') === null &&
+     F('screens/den/page-colors/climate') === null && F('page/climate/accent') === null && F('house/appearance/advanced/blur') === null &&
+     F('screens/den/appearance/tiles-off') === null && F('house/appearance/looks/flat') === null);
   ok('the device pages: to Menu, a button style to the Side Menu\'s', F('house/menu/tablets') === 'house/menu' && F('house/menu/phones/style') === 'house/menu/side/phones' &&
      F('screens/den/menu/tablets') === 'screens/den/menu' && F('screens/den/menu/tablets/style') === 'screens/den/menu/side/tablets');
   ok('...the new addresses never forward', F('house/appearance/sky') === null && F('house/menu/side') === null && F('screens/den/menu/tab-bar') === null &&
@@ -459,8 +489,9 @@ ok('sky summary: all off and an own backdrop', M.skySummary({ sky_animations: fa
   'No Animation, No Weather, No Decorations, Own Backdrop');
 ok('sky summary: true is an own setting too', M.skySummary({ sky_animations: true }) === 'Own Settings');
 ok('sky summary: stored own colors count', M.skySummary({ sky_custom: {} }) === 'Own Settings');
-ok('search includes the backdrop picker (Sky Colors, 2026-10-13)', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(
-  function(r) { return r.label === 'Sky Colors' && r.route === 'house/appearance/sky/backdrop'; }));
+ok('search includes the backdrop picker (Colors, 2026-10-13; Sky Colors until phase 33)', M.search('backdrop', [{path:'dashboard-test',title:'Test'}]).some(
+  function(r) { return r.label === 'Colors' && r.route === 'house/appearance/sky/backdrop'; }));
+ok('...and Adjust Photo, by its starting points', M.search('balanced', []).some(function (r) { return r.route === 'house/appearance/sky/photo'; }));
 ok('search finds the Background\u2019s photo', M.search('photo', [{path:'dashboard-test',title:'Test'}]).some(function(r) { return r.route === 'house/appearance/sky'; }));
 
 // No Button: offered only with the swipe on (or when it is the choice), and
@@ -573,7 +604,7 @@ ok('Bright Glass: the approved words, its own style, Blur\'s modes by its own va
    eq(M.GLASS_STYLES[5], ['bright', 'Bright Glass', 'A light, clear glass that brings out the colors behind it. Best over a wallpaper.']) &&
    M.glassStyle('bright_pre') === 'bright' && M.glassStyle('bright_each') === 'bright' && M.isBright('bright') && !M.isBlur('bright') &&
    M.glassLabel('bright') === 'Bright Glass · Shared Layer' && M.glassLabel('bright_each') === 'Bright Glass · Each Card' &&
-   M.glassShort('bright_each') === 'Bright Glass' && M.glassShort('blur_pre') === 'Blur' && M.glassShort('tinted') === 'Tinted' &&
+   M.glassShort('bright_each') === 'Bright Glass' && M.glassShort('blur_pre') === 'Blurred Glass' && M.glassShort('tinted') === 'Tinted' &&
    M.modesFor('bright') === M.BRIGHT_MODES && M.modesFor('blur') === M.BLUR_MODES && M.modesFor('tinted') === null);
 ok('...picking a style keeps the Blur Mode already chosen, either\'s',
    M.styleValue('bright', 'blur_pre', 'blur') === 'bright_pre' && M.styleValue('blur', 'bright_each', 'blur') === 'blur_each' &&
@@ -598,15 +629,26 @@ ok('...Tinted is a style of its own, named, with its Darkness and Icon Circles',
 ok('...a screen copies its darkness and circles with its glass',
    M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf('tint') >= 0 &&
    M.COPY_GROUPS.filter(function (g) { return g[0] === 'look'; })[0][2].indexOf('well') >= 0);
-ok('...named as you would say them', M.glassLabel('clear') === 'Glass' && M.glassLabel('frosted') === 'Frosted' &&
-   M.glassLabel('blur') === 'Blur · Shared Layer' && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.glassLabel('blur_each') === 'Blur · Each Card');
+ok('...named as you would say them', M.glassLabel('clear') === 'Clear Glass' && M.glassLabel('frosted') === 'Frosted' &&
+   M.glassLabel('blur') === 'Blurred Glass · Shared Layer' && M.glassLabel('blur_pre') === 'Blurred Glass · Pre-rendered (Experimental)' &&
+   M.glassLabel('blur_each') === 'Blurred Glass · Each Card');
+// THE FOUR STYLES (phase 33, decision 5): Glass (Clear, Blurred or Bright), Frosted, Tinted, Flat -- the same stored values
+ok('four styles, each a sentence; Glass is Clear, Blurred or Bright', eq(M.STYLES.map(function (g) { return g[0]; }), ['glass', 'frosted', 'tinted', 'flat']) &&
+   eq(M.STYLES.map(function (g) { return g[1]; }), ['Glass', 'Frosted', 'Tinted', 'Flat']) && M.STYLES.every(function (g) { return g[2].length > 30; }) &&
+   eq(M.GLASS_KINDS.map(function (g) { return g[1]; }), ['Clear', 'Blurred', 'Bright']));
+ok('...every stored value is one of them, unchanged', ['clear', 'blur', 'blur_pre', 'blur_each', 'bright', 'bright_pre', 'bright_each'].every(function (v) {
+     return M.styleOf(v) === 'glass'; }) && M.styleOf('frosted') === 'frosted' && M.styleOf('tinted') === 'tinted' && M.styleOf('flat') === 'flat' &&
+   M.glassKind('clear') === 'clear' && M.glassKind('blur_each') === 'blur' && M.glassKind('bright_pre') === 'bright');
+ok('...picking Glass keeps a Glass already chosen, its drawing too', M.styleValue4('glass', 'blur_pre', 'clear') === 'blur_pre' &&
+   M.styleValue4('glass', 'frosted', 'bright_each') === 'bright_each' && M.styleValue4('glass', 'flat', 'tinted') === 'clear' &&
+   M.styleValue4('glass', null, null) === 'clear' && M.styleValue4('tinted', 'blur', 'blur') === 'tinted' && M.styleValue4('flat', 'clear') === 'flat');
 ok('...each value\'s style', M.glassStyle('blur_pre') === 'blur' && M.glassStyle('blur_each') === 'blur' && M.glassStyle('blur') === 'blur' &&
    M.glassStyle('frosted') === 'frosted' && M.glassStyle('clear') === 'clear' && M.glassStyle(undefined) === 'clear' &&
    M.isBlur('blur_pre') && !M.isBlur('frosted'));
 ok('...Pre-rendered has the Blur amount, and says so', eq(M.amountsFor('blur_pre'), { frost: false, blur: true, tint: false, bright: false }) && /Blur: how strong/.test(M.glassFooter('blur_pre')));
 ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return m[2].length > 60; }) &&
    /lightest/i.test(M.BLUR_MODES[1][2]) && /heaviest/i.test(M.BLUR_MODES[2][2]) &&
-   /every frame/.test(M.BLUR_MODES[0][2]) && M.glassLabel('blur_pre') === 'Blur · Pre-rendered (Experimental)' && M.isBlur('blur_pre') && !M.isBlur('blur_baked'));
+   /every frame/.test(M.BLUR_MODES[0][2]) && M.glassLabel('blur_pre') === 'Blurred Glass · Pre-rendered (Experimental)' && M.isBlur('blur_pre') && !M.isBlur('blur_baked'));
 // WALL TABLETS (1.14): what a tablet is doing, its checks, its idle timeline
 (function () {
   var KS = { battery: 'sensor.l_battery', charging: 'binary_sensor.l_charging', online: 'binary_sensor.l_conn',
@@ -645,6 +687,24 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
      M.idleTimeline({ idle: null, saver: null, hk: true, after: 5 }).segs[1].says === 'after 5 min of photos');
   ok('the start URL names the tablet', M.tabletUrl('http://ha:8123/', 'dashboard-loft', 'loft') === 'http://ha:8123/dashboard-loft?hk_tablet=loft');
   ok('Idle Time labels', M.idleLabel(50) === '50 Seconds' && M.idleLabel(0) === 'Never' && M.idleLabel(120) === '2 Minutes');
+  // PHASE 33 (decisions 9 and 12; hk_core saver_layers.py, tests/test_saver_layers.py the same cases): a screen's options are
+  // All Screens' with its own keys over them, and the slides are in minutes, "every N photos" carried over as the minutes it took
+  var L = M.saverLayers, house = L.inMinutes(M.saverOptions({ show: 'both', forecast_every: 3, each_photo: 20, extra_every: 2, extra_for: 30 }));
+  ok('the house: a slide every 3 photos of 20 s is every minute, shown for a photo’s 20 s, still 3 photos to an older version',
+     [house.extra_every, house.extra_for, house.forecast_every], [1, 20, 3]);
+  ok('...carried over once: in minutes it stays', JSON.stringify(L.inMinutes(house)) === JSON.stringify(house) &&
+     L.inMinutes(M.saverOptions({ show: 'photos', extra_every: 1, each_photo: 600, forecast_every: L.photosFor(1, 600) })).extra_every === 1, true);
+  ok('...2.5 minutes is the nearest choice, 2; a clock keeps its own minutes',
+     [L.inMinutes(M.saverOptions({ show: 'photos', forecast_every: 5, each_photo: 30, extra_every: 5 })).extra_every,
+      L.inMinutes(M.saverOptions({ show: 'clock', forecast_every: 7, each_photo: 30, extra_every: 10 })).extra_every], [2, 10]);
+  var own = { screensaver_house: false, screensaver_own: { starts_after: 60 }, screensaver_options: {} };
+  ok('a screen’s own Starts After over All Screens’, the rest All Screens’', [L.of(own, house).starts_after, L.of(own, house).show, L.of(own, house).extra_every,
+     L.isOwn(own, 'starts_after'), L.isOwn(own, 'show'), M.saverFollows(own), M.saverFollows({ screensaver_house: true, screensaver_options: house })],
+     [60, 'both', 1, true, false, false, true]);
+  var older = { screensaver_options: Object.assign({}, house, { show: 'clock' }) };
+  ok('...an older feed’s whole set (no screensaver_own) is all the screen’s own', L.isOwn(older, 'each_photo') && L.of(older, house).show === 'clock', true);
+  ok('...a design key is the editor’s, a row’s key the page’s', [L.isPage('clock_style'), L.isPage('layout'), L.isPage('starts_after'), L.isPage('extra_every')],
+     [false, false, true, true]);
   // (1.8.0) Show: Clock says Clock, not Photos
   ok('the screensaver summary on Show: Clock', /^Music, Then Clock · /.test(M.saverSummary({ show: 'clock', music_first: true })) &&
      /^Clock · /.test(M.saverSummary({ show: 'clock' })), M.saverSummary({ show: 'clock' }));
@@ -657,9 +717,15 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
   // LOOKS (2026-10-30): what one changes on a screen, its Undo, and only what differs
   var hv = M.lookOf('homeview'), saver = M.saverOptions({});
   var lc = M.lookChanges(hv, { glass: 'house', accent: 'orange', tile_style: null, side_pane: null, screensaver_options: null }, saver, null);
-  ok('a Look sends its settings, its screensaver options over the screen\'s, and its Undo', lc.changes.glass === 'bright' &&
-     lc.changes.screensaver_options.clock_style === 'numbers' && lc.changes.screensaver_options.each_photo === saver.each_photo &&
-     lc.changes.look_undo.look === 'homeview' && lc.changes.look_undo.was.glass === 'house' && lc.changes.look_undo.was.side_pane === null, lc.changes);
+  // (phase 33: a Look's screensaver options are the screen's own keys, over the ones it set already -- not a copy of every key)
+  ok('a Look sends its settings, its screensaver options as the screen\'s own keys, and its Undo', lc.changes.glass === 'bright' &&
+     lc.changes.screensaver_options.clock_style === 'numbers' && !('each_photo' in lc.changes.screensaver_options) &&
+     lc.changes.look_undo.look === 'homeview' && lc.changes.look_undo.was.glass === 'house' && lc.changes.look_undo.was.side_pane === null &&
+     lc.changes.look_undo.was.screensaver_options === null, lc.changes);
+  var lc2 = M.lookChanges(hv, { screensaver_house: false, screensaver_own: { starts_after: 60 }, screensaver_options: Object.assign({}, saver, { starts_after: 60 }) }, saver, null);
+  ok('...over a screen\'s own Starts After, which it keeps, and Undo puts back',
+     lc2.changes.screensaver_options.starts_after === 60 && lc2.changes.screensaver_options.show === 'clock' &&
+     JSON.stringify(lc2.changes.look_undo.was.screensaver_options) === '{"starts_after":60}', lc2.changes);
   ok('...the sheet lists what differs (the accent is orange already)', lc.rows.some(function (r) { return r[0] === 'Style'; }) &&
      !lc.rows.some(function (r) { return r[0] === 'Accent Color'; }), lc.rows);
   ok('...a screen\'s glass \'house\' reads Same as All Screens, never "House"', lc.rows.filter(function (r) { return r[0] === 'Style'; })[0][1] === 'Same as All Screens' &&
@@ -685,9 +751,9 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
 
   // THE FIRST STEP: the style, as before
   var r = R(blur, [T(blur, 38.4)]);
-  ok('a tablet drawing 38 frames a second with Blur: Glass is offered', !!r && r.step === 'glass' &&
-     r.says === 'Kitchen Tablet draws 38 frames a second with Blur. Glass looks almost the same and is lighter.', r);
-  ok('...a button for it and Use Flat, this screen only', !!r && r.button === 'Use Glass on This Screen' && r.flat === true &&
+  ok('a tablet drawing 38 frames a second with Blurred Glass: Clear Glass is offered', !!r && r.step === 'glass' &&
+     r.says === 'Kitchen Tablet draws 38 frames a second with Blurred Glass. Clear Glass looks almost the same and is lighter.', r);
+  ok('...a button for it and Use Flat, this screen only', !!r && r.button === 'Use Clear Glass on This Screen' && r.flat === true &&
      eq(r.change, { flat: false, glass: 'clear' }), r);
   ok('...whichever blur mode the screen uses', !!R(F({}, { glass: 'blur_pre' }), [T(F({}, { glass: 'blur_pre' }), 38)]));
   var frosted = F({}, { glass: 'frosted' }), tinted = F({}, { glass: 'tinted' });
@@ -707,7 +773,7 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
   ok('...a tablet that says nothing of where: the screens it shows', !!R(blur, [T(blur, 30, { fps_screen: null })]));
   ok('nothing from a number weeks old', R(blur, [T(blur, 30, { fps_at: NOW - 30 * 86400 })]) === null);
   var two = R(blur, [T(blur, 38), T(blur, 22, { name: 'Pantry Tablet' })]);
-  ok('two slow tablets: the slowest speaks', !!two && two.name === 'Pantry Tablet' && two.fps === 22 && two.label === 'Blur', two);
+  ok('two slow tablets: the slowest speaks', !!two && two.name === 'Pantry Tablet' && two.fps === 22 && two.label === 'Blurred Glass', two);
   ok('...but only one drawn with the settings it has now', (R(blur, [T(blur, 38), T(frosted, 22, { name: 'Pantry Tablet' })]) || {}).name === 'Kitchen Tablet');
 
   // WHAT WAS ON SCREEN: the word the sampler sends, from a screen's settings

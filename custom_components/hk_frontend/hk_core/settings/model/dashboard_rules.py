@@ -8,10 +8,11 @@ import re
 from typing import Any
 from ...notifications.dnd import notify_dnd
 from .. import home_grid as HG
+from .. import saver_layers as SL
 from ..looks import IDS as LOOK_IDS
-from .schema import (AMOUNT, board_headers, board_wallpaper, BRIGHT_DIM_MAX, BRIGHT_GLASS, BRIGHT_PAGES,
+from .schema import (AMOUNT, BARS_BLUR, board_headers, board_wallpaper, BRIGHT_DIM_MAX, BRIGHT_GLASS, BRIGHT_PAGES,
     chips_custom_show, CLOUD_STYLES, DAYTIME_SKIES, DOCK_MIN, FLAT_BACKGROUNDS, flat_color, flat_colors,
-    flat_image_look, flat_page_colors, flat_page_image_looks, flat_pages, flat_tint, lively, lively_custom,
+    flat_image_look, flat_page_colors, flat_page_image_looks, flat_pages, FLAT_THEMES, flat_tint, lively, lively_custom,
     LIVELY_PRESETS, MENU_GLYPHS, NOTIFY_SAVERS, NP_BARS, NP_SIDES, NP_STYLES, page_looks, photo_look, RETIRED_GLASS,
     SKY_BACKDROP_IDS, SKY_BACKGROUNDS, SKY_COLOR_IDS, sky_landscape, SKY_MOVING, sky_page_photos, sky_pages,
     sky_photo, sky_stops, tab_position, TILE_ICONS, TILE_STYLES, WALLPAPER_MOTION, WALLPAPER_NIGHT, WELLS,)
@@ -286,6 +287,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # its own Tile Style and Centered tiles' icons (TILE_STYLES, TILE_ICONS; None: All Screens')
     "tile_style": None, "tile_icons": None,
     "bright_pages": None,
+    # its own Bars & Side Pane (BARS_BLUR; None: All Screens')
+    "bars_blur": None,
     # ...and in a car's browser (car on): car_layout, which Home the screen
     # generates there -- "home" the whole Home every screen has, "car" the
     # car's own (CAR_LAYOUTS); car_width, the layout width the car's window
@@ -299,7 +302,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     # house's backdrop -- sky_gradient: a SKY_BACKDROPS id, sky_custom: its
     # stops, for "custom").
     "sky_animations": None, "sky_weather": None, "sky_precipitation": None, "sky_focus_pause": None,
-    "sky_decorations": None, "sky_decoration_style": None, "sky_moving": None,
+    "sky_decorations": None, "sky_decoration_style": None, "sky_seasonal_effects": None, "sky_moving": None,
     "sky_cloud_style": None, "sky_daytime": None, "sky_gradient": None, "sky_custom": None,
     # the screen's own Background (SKY_BACKGROUNDS; None: Same as All
     # Screens), its own Color and Photo (None: All Screens')
@@ -552,7 +555,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_size_phone"] = pick("tab_size_phone", BOARD_TAB_SIZES)
     out["glass"] = RETIRED_GLASS.get(d.get("glass")) or pick("glass", BOARD_GLASS)
     out["flat"] = d.get("flat") if isinstance(d.get("flat"), bool) else None
-    out["flat_theme"] = d.get("flat_theme") if d.get("flat_theme") in ("light", "dark") else None
+    out["flat_theme"] = d.get("flat_theme") if d.get("flat_theme") in FLAT_THEMES else None
     for k in ("frost", "blur", "tint"):
         out[k] = amount_or_none(d.get(k))
     out["well"] = d.get("well") if d.get("well") in WELLS else None
@@ -564,11 +567,12 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tile_style"] = d.get("tile_style") if d.get("tile_style") in TILE_STYLES else None
     out["tile_icons"] = d.get("tile_icons") if d.get("tile_icons") in TILE_ICONS else None
     out["bright_pages"] = d.get("bright_pages") if d.get("bright_pages") in BRIGHT_PAGES else None
+    out["bars_blur"] = d.get("bars_blur") if d.get("bars_blur") in BARS_BLUR else None
     # The screen's own Sky / Background: each flag stored as anything but a
     # boolean is not set (follow All Screens), as a backdrop id not in
     # SKY_BACKDROPS and stops that do not parse are (sky_stops()).
     for k in ("sky_animations", "sky_weather", "sky_precipitation", "sky_focus_pause", "sky_decorations",
-              "camera_live_video"):
+              "sky_seasonal_effects", "camera_live_video"):
         out[k] = d.get(k) if isinstance(d.get(k), bool) else None
     out["sky_decoration_style"] = d.get("sky_decoration_style") if d.get("sky_decoration_style") in ("old", "new") else None
     out["sky_moving"] = d.get("sky_moving") if d.get("sky_moving") in SKY_MOVING else None
@@ -617,15 +621,16 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["timer_bar"] = bool(d.get("timer_bar", out["now_playing"]))
     for k in ("wallpanel_options", "kiosk_options"):
         out[k] = card_options(d.get(k)) or {}
-    # A SCREEN'S SCREENSAVER OPTIONS, AS STORED: its own (a mapping), or null
-    # -- the settings for All Screens, filled in on reading (resolved()). A
+    # A SCREEN'S SCREENSAVER OPTIONS, AS STORED: the keys it set itself (phase
+    # 33: a whole set from before keeps every key), or null -- All Screens' in
+    # everything; resolved() lays them over All Screens' (saver_layers). A
     # screen that never had any keeps its old WallPanel choices as its own
     # (1.2 -> 1.3), or follows All Screens.
     own = d.get("screensaver_options", _MISSING)
     if own is None:
         out["screensaver_options"] = None
     elif isinstance(own, dict) and own:
-        out["screensaver_options"] = saver_options(own) or saver_options(None, out["wallpanel_options"])
+        out["screensaver_options"] = SL.own(own) or saver_options(None, out["wallpanel_options"])
     else:
         legacy = saver_options(None, out["wallpanel_options"])
         out["screensaver_options"] = legacy if legacy != SAVER_DEFAULTS else None

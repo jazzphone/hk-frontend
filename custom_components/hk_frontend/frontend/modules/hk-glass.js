@@ -92,6 +92,13 @@
   var FROST = false, frostWas = false, frostWaits = [], FROST_WAIT = 5000;
   // the looks with the shared layer (blur and Bright Glass, live or pictured): the ones the frost picture can stand in for
   var SHARED = { blur: 1, blur_pre: 1, bright: 1, bright_pre: 1 };
+  // BARS & SIDE PANE PRE-RENDERED (look.bars_blur = 'pre', a screen's bars_blur; Appearance -> Advanced, 2026-11-21, the
+  // owner: Clear Glass gave no way to choose how the tab bar and the Side Pane blur): in a look whose cards keep no shared
+  // layer -- Clear, and Each Card -- the pinned glass (the tab bar, the menu, the Side Pane) wears Pre-rendered's picture,
+  // the look named here (its twin), while the cards stay as they are: Pre-rendered's machinery with no layers (CARDS off).
+  // Shared Layer's cards and bars are one choice, Blur Drawing.
+  var PINNABLE = { clear: 'blur_pre', blur_each: 'blur_pre', bright_each: 'bright_pre' };
+  var PIN = false, CARDS = false;
   // A MOVING SKY (Animations on): the clouds drift under the still picture,
   // measured headless 2026-10-11 -- a picture 10 s old was already 5/255 off
   // on average and 70+ in its worst cell, and 8 / 90 by a minute, until the
@@ -214,6 +221,7 @@
   // wears its own slice under its own tint (pin(el, tint)), its live blur
   // off, faded in; in any other look, untouched.
   var pinned = new Map();
+  var skySwipe = null;
   var cards = window.__hkGlassCards = window.__hkGlassCards || new Set();
 
   // iOS WEBKIT DRAWS A LAYER INSIDE A SCROLLING ROW OVER EVERYTHING IN THE ROW
@@ -522,11 +530,11 @@
     if (typeof anchor.addEventListener === 'function' || anchor === DOC) {
       var placing = 0;
       (anchor === DOC ? window : anchor).addEventListener('scroll', function () {
-        if (!(FROST || BY_HAND) || placing) return;
+        if (!(FROST || byHand(layer)) || placing) return;
         placing = requestAnimationFrame(function () {
           placing = 0;
           if (!layer.isConnected) return;
-          var m = RIDES ? alongOf(layer) : null;
+          var m = rides(layer) ? alongOf(layer) : null;
           frostPlaceAll(layer, m, m ? viewOf(layer) : null);
         });
       }, { passive: true });
@@ -576,12 +584,15 @@
   // a paged room, thermostat, scenes or accessories block), and a row scrolled sideways -- read as out of line and
   // blurred live: 6 of a test screen's 7 layers, on the tablets that chose Pre-rendered because live blur is what they
   // can't afford. Placed by hand (frostPlace: from where the layer is on the screen, its scale counted) the picture is
-  // in line under that fit, and follows its scroller (the layer's own scroll listener, above). Android only, where every picture
-  // is placed by hand and rides with its page; elsewhere such a layer still blurs live, as it did.
+  // in line under that fit, and follows its scroller (the layer's own scroll listener, above).
+  // ...ON EVERY DEVICE (2026-11-21, the owner, the Kitchen HomeView in Pre-rendered: "I can clearly see leaves moving
+  // behind" the TV block, in its Swipe card). It was Android's alone, and an iPad or a desktop showing a wall tablet's
+  // screen still blurred that layer live. A layer inside a fit (inFit) is placed by hand and rides with its page through
+  // a swipe wherever it is drawn, as every layer on Android does (byHand, rides).
   function lined(img) {
     if (FROST) return true;
     for (var n = flatParent(img.parentNode || img); n && n.nodeType === 1 && n !== document.documentElement; n = flatParent(n)) {
-      if (n.__hkAlong || (BY_HAND && n.__hkFit)) continue;
+      if (n.__hkAlong || n.__hkFit) continue;
       var t = getComputedStyle(n).transform;
       if (t && t !== 'none') return false;
     }
@@ -652,6 +663,14 @@
   // What it gives up: for the third of a second a page is on its way, the frost in a card is the sky where the card
   // will be, not where it is.
   var RIDES = BY_HAND;
+  // a layer inside a Home Grid's fit (hk-layout-home-grid.js: root.__hkFit) -- a pager's track, a row scrolled sideways:
+  // placed by hand and riding through a swipe on every device (lined, above)
+  function inFit(L) {
+    for (var n = L && flatParent(L); n && n.nodeType === 1 && n !== document.documentElement; n = flatParent(n)) if (n.__hkFit) return true;
+    return false;
+  }
+  function byHand(L) { return BY_HAND || inFit(L); }
+  function rides(L) { return RIDES || inFit(L); }
   // (Its layer is NOT given a layer of its own to spare that drawing at a swipe's start: tried 2026-11-14, will-change on
   // the layer -- Android's WebView then drew the picture across the layer's whole box, not only in the cards' shapes, a
   // lighter box around every page: the owner saw it at once by the back arrow. It saved nothing that could be measured.)
@@ -747,9 +766,9 @@
     if (L._hkOverlay && !FROST) return;
     var m = alongOf(L);
     if (!m) L._hkNoPic = false;
-    if ((FROST || BY_HAND) && !m) frostPlaceAll(L);
+    if ((FROST || byHand(L)) && !m) frostPlaceAll(L);
     // (a page a swipe has, its pictures riding with it: looked at again where they will rest -- its box may have changed)
-    else if (RIDES && m) frostPlaceAll(L, m, viewOf(L));
+    else if (rides(L) && m) frostPlaceAll(L, m, viewOf(L));
     if (L._hkPre) { if (!lined(L._hkPre)) { L._hkNoPic = true; preUndress(L); } }
     else if (!L._hkNoPic) preDress(L);
   }
@@ -794,7 +813,7 @@
   function shiftPic(img, m, el) {
     var opa = img.__hkOpa !== undefined ? img.__hkOpa : 'opacity ' + PRE_FADE + 'ms linear';
     // (a picture that rides with its page: placed for where the page will rest, once, and left -- RIDES)
-    if (RIDES && isFrost(img)) {
+    if (isFrost(img) && rides(img.parentNode)) {
       if (img.style.position === 'fixed' || img.style.transform) { frostAt(img, null); img.__hkPos = img.__hkSize = null; }
       if (img.style.transition !== opa) img.style.transition = opa || 'none';
       if (m) { if (img.parentNode && !img.__hkRides) { img.__hkRides = true; frostPlace(img, m, el); } }
@@ -842,7 +861,7 @@
       }
       // (the one it wore before, still fading out under it after a repaint, too)
       Array.prototype.forEach.call(L.querySelectorAll('[data-hk-pre]'), function (img) { shiftPic(img, m, el); });
-      if (!m && (FROST || BY_HAND)) frostPlaceAll(L);
+      if (!m && (FROST || byHand(L))) frostPlaceAll(L);
     });
   }
 
@@ -862,10 +881,13 @@
     return [Math.max(0, Math.min(r.left, W - r.width)), Math.max(0, Math.min(r.top, H - r.height))];
   }
   // A RUNNING FADE, FINISHED NOW: every surface in it given its end
+  function canWearFade(move) {
+    return !move.cut && move.el.isConnected && pinned.has(move.el);
+  }
   function finishFade() {
     if (fadeRaf && window.cancelAnimationFrame) cancelAnimationFrame(fadeRaf);
     fadeRaf = null; clearTimeout(fadeTimer); fadeTimer = null;
-    if (fading) fading.forEach(function (m) { if (m.el.isConnected) wearPin(m.el, m.bg); });
+    if (fading) fading.forEach(function (m) { if (canWearFade(m)) wearPin(m.el, m.bg); });
     fading = null;
   }
   function wearPin(el, bg) {
@@ -881,6 +903,53 @@
     el.style.removeProperty('backdrop-filter');
     el._hkPin = null; el._hkPinPos = null; el._hkPinUrl = null; el._hkPinPath = null;
   }
+  function clearSkySwipe() {
+    if (!skySwipe) return;
+    clearTimeout(skySwipe.timer);
+    skySwipe.slides.forEach(function (layer) { layer.remove(); });
+    skySwipe = null;
+  }
+  // Keep the bar's outgoing slice pinned. When the destination is cached, the incoming slice fades in with
+  // the sky cover. On a first visit, hold the outgoing slice until the destination is decoded and cross-fade once.
+  function followSkySwipe(path, blend) {
+    if (!PRE || !active || FROST) return null;
+    clearSkySwipe();
+    var swipe = skySwipe = { path: path, from: skyAt(), moving: true, slides: new Map(), timer: null };
+    if (fading) fading.forEach(function (move) {
+      var entry = pinned.get(move.el);
+      if (entry && entry.followSwipe) move.cut = true;
+    });
+    var next = blend !== false && cache.get(path), W = window.innerWidth, H = window.innerHeight;
+    if (next) pinned.forEach(function (entry, el) {
+      if (!entry.followSwipe || !el.isConnected || !el._hkPinPos) return;
+      var layer = document.createElement('span'), at = el._hkPinPos;
+      layer.className = 'hk-swipe-glass';
+      layer.setAttribute('aria-hidden', 'true');
+      layer.style.setProperty('background', entry.tint + ', ' + sliceOf(next.url, at[0], at[1], W, H, zoomOf(el)));
+      layer.style.setProperty('opacity', '0');
+      el.insertBefore(layer, el.firstChild);
+      swipe.slides.set(el, layer);
+    });
+    function paint(from, to, ms, ease) {
+      if (skySwipe !== swipe) return;
+      swipe.slides.forEach(function (layer) {
+        if (layer._hkFade) { layer._hkFade.cancel(); layer._hkFade = null; }
+        layer.style.setProperty('opacity', String(to));
+        if (ms && layer.animate) layer._hkFade = layer.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: ease });
+      });
+    }
+    return {
+      paint: paint,
+      end: function (land) {
+        if (skySwipe !== swipe) return;
+        if (land) {
+          swipe.moving = false;
+          swipe.timer = setTimeout(function () { clearSkySwipe(); pinAll(false); }, VIEW_UP_MS);
+        } else clearSkySwipe();
+        pinAll(false);
+      }
+    };
+  }
   // CUT EVERY PINNED SURFACE'S SLICE. `fade`: fade each changed one from
   // what it wears now (crossfade) instead of jumping.
   function pinAll(fade, ms, coarse) {
@@ -888,6 +957,7 @@
     // (only this page's picture: the menu's panel and the tab bar belong to no page, and wore the last one's until the
     // new one came, then faded across for FADE_MS -- 0.7 s of Home's glass on Security's tab bar on the Loft)
     var W = window.innerWidth, H = window.innerHeight, ok = ownPicture(), moves = [];
+    var swipe = !FROST && skySwipe, arrived = swipe && !swipe.moving && ok && swipe.path === pre.path;
     // a new fade starts from where the last one was going; a plain pass
     // leaves a fading surface to its fade -- snapping it to its end mid-fade
     // and the fade pulling it back read as a flicker
@@ -895,11 +965,14 @@
     // mid-fade: its surfaces kept the last page's glass for its last steps, 2026-11-13)
     if (fade || !ok || (fading && fading.url !== pre.url)) finishFade();
     var busy = fading;
-    var inFade = function (el) { return busy && busy.some(function (m) { return m.el === el; }); };
-    pinned.forEach(function (tint, el) {
+    var inFade = function (el) { return busy && busy.some(function (m) { return m.el === el && !m.cut; }); };
+    pinned.forEach(function (entry, el) {
       if (!el.isConnected) { pinned.delete(el); return; }
+      var following = swipe && entry.followSwipe && el._hkPin;
+      if (following && !arrived) return;
       if (!ok) { unpinEl(el); return; }
       if (inFade(el)) return;
+      var tint = entry.tint;
       var r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
       // CARRIED WITH A PAGE (the Side Pane in a page swipe, hk-sidepane.js: `_hkCarry`, how far it is from its place):
@@ -916,11 +989,13 @@
       // ...NOW AT ONCE (2026-11-13): it is put on in the frame the sky cuts to that page, as the live blur would change;
       // a fade across showed the last page's glass for its length (0.7 s on the Loft's tab bar, 2026-11-12). Only a
       // repaint of the same page fades.
-      if (fade && !turn && from) moves.push({ el: el, fromUrl: el._hkPinUrl, fromAt: el._hkPinPos, at: at, bg: bg, pin: tint,
-                                              ms: ms || PRE_FADE, coarse: !!coarse });
+      var firstVisit = following && arrived && turn && !swipe.slides.has(el);
+      if ((fade && !turn && from) || firstVisit) moves.push({ el: el, fromUrl: el._hkPinUrl, fromAt: el._hkPinPos, at: at, bg: bg, pin: tint,
+                                                           ms: firstVisit ? 200 : ms || PRE_FADE, coarse: !firstVisit && !!coarse });
       else wearPin(el, bg);
       el._hkPinPos = at; el._hkPinUrl = pre.url; el._hkPinPath = pre.path;
     });
+    if (arrived) clearSkySwipe();
     if (moves.length) crossfade(moves, W, H);
   }
   // THE NEW SLICE FADES IN OVER WHAT WAS THERE, in place, every frame for
@@ -968,7 +1043,7 @@
       if (k !== last) {
         last = k;
         moves.forEach(function (m) {
-          if (!m.el.isConnected) return;
+          if (!canWearFade(m)) return;
           if (k >= 100) wearPin(m.el, m.bg);
           else if (k > 0) {
             var z = zoomOf(m.el), sz = z === 1 ? W + 'px ' + H + 'px' : (W / z).toFixed(1) + 'px ' + (H / z).toFixed(1) + 'px';
@@ -988,6 +1063,7 @@
   function onNavPre() {
     if (!PRE || !active) return;
     var path = here(), c = cache.get(path);
+    if (skySwipe && path !== skySwipe.path && path !== skySwipe.from) clearSkySwipe();
     pre.navAt = Date.now();
     pre.pending = null;
     pre.next = c ? { url: c.url, path: path } : null;
@@ -1089,7 +1165,7 @@
       var am = alongOf(L);
       if (am) { img.__hkOpa = same ? 'opacity ' + ms + 'ms linear' : ''; shiftPic(img, am, viewOf(L)); }
       L.appendChild(img);
-      if (isFrost(img)) { if (!am) frostPlace(img); else if (RIDES) shiftPic(img, am, viewOf(L)); }
+      if (isFrost(img)) { if (!am) frostPlace(img); else if (rides(L)) shiftPic(img, am, viewOf(L)); }
       L._hkPre = img;
       // THE OLD PICTURE GOES ONCE THE NEW ONE IS IN -- counted from when its
       // fade STARTS, not from when it was put in. The fade starts in the next
@@ -1291,9 +1367,12 @@
     }
     var posWas = null;
     // The layers' containing block must be the anchor (a row may be static).
+    // (_hkGlassPos: what it was, while this is ours -- the page swipe saves and restores a page's position and
+    // keeps ours out of what it puts back: hk-pageswipe.js save)
     if (anchor !== DOC && getComputedStyle(anchor).position === 'static') {
       posWas = anchor.style.position || '';
       anchor.style.position = 'relative';
+      anchor._hkGlassPos = posWas;
     }
     rec = { layers: [], posWas: posWas };
     layers.set(anchor, rec);
@@ -1304,7 +1383,11 @@
     var rec = layers.get(anchor);
     if (!rec) return;
     rec.layers.forEach(function (l) { l.remove(); });
-    if (rec.posWas !== null && anchor !== DOC) anchor.style.position = rec.posWas;
+    // (only our own `relative`: a page the swipe has made `fixed` meanwhile keeps it -- the swipe puts it back)
+    if (rec.posWas !== null && anchor !== DOC) {
+      if (anchor.style.position === 'relative') anchor.style.position = rec.posWas;
+      delete anchor._hkGlassPos;
+    }
     if (ro && anchor !== DOC) { try { ro.unobserve(anchor); } catch (e) { /* gone */ } }
     layers.delete(anchor);
   }
@@ -1461,7 +1544,7 @@
     // next one lay the page out again -- once per row card on every return
     // to a page (18 forced layouts on the Living Room's Home, traced).
     var todo = [];
-    cards.forEach(function (card) {
+    if (CARDS) cards.forEach(function (card) {
       if (!card.isConnected) return;
       var ps = plates.get(card), back = false;
       if (!ps && !full && dirty.has(card)) back = !!(ps = unpark(card));
@@ -1638,7 +1721,7 @@
   // the compositor. One more blur surface, for one pill, while it is held.
   var carried = new Map();       // card -> its own --hk-glass-backdrop before
   function carry(el, on) {
-    if (!el || on && !active) return;           // no shared layer (another look): nothing to stand in for
+    if (!el || on && !(active && CARDS)) return;   // no shared layer (another look): nothing to stand in for
     (on ? cardsIn(el) : Array.from(carried.keys()).filter(function (c) { return c === el || cardsIn(el).indexOf(c) >= 0; }))
       .forEach(function (c) {
         if (on) {
@@ -1671,7 +1754,7 @@
     // in the page changes size, and everything on these pages is a card --
     // so a card growing (a row added, a picture loaded) says so itself.
     try { hostRo = new ResizeObserver(function () { schedule(false); }); } catch (e) { hostRo = null; }
-    if (hostRo) cards.forEach(function (c) { hostRo.observe(c); });
+    if (hostRo && CARDS) cards.forEach(function (c) { hostRo.observe(c); });
     window.addEventListener('resize', onResize);
     document.addEventListener('visibilitychange', onVisible);
     // A BACKSTOP for a layout move nothing reports (something not a card
@@ -1724,6 +1807,7 @@
     clearTimeout(pre.timer); pre.timer = null;
     if (fadeRaf && window.cancelAnimationFrame) cancelAnimationFrame(fadeRaf);
     fadeRaf = null; clearTimeout(fadeTimer); fadeTimer = null; fading = null; pre.pending = null;
+    clearSkySwipe();
     cache.forEach(function (c) { if (c.url !== pre.url) { try { URL.revokeObjectURL(c.url); } catch (e) { /* gone */ } } }); cache.clear();
     pics.clear();
     pinned.forEach(function (t, el) { unpinEl(el); });
@@ -1752,20 +1836,28 @@
   // (--hk-blur-filter)
   // ...and the frost picture (FROST) is Pre-rendered's machinery whatever the mode: a change either way rebuilds the
   // layers, wearing its child or the look's own glass again
+  // ...and Bars & Side Pane Pre-rendered (PIN) is that machinery for the pinned glass alone: no layer for a card
   function sync() {
     var g = glassNow();
-    var want = !!SHARED[g];
-    var wantPre = g === 'blur_pre' || g === 'bright_pre' || (FROST && want);
-    if (active && (wantPre !== PRE || FROST !== frostWas)) stop();
-    PRE = wantPre; frostWas = FROST;
-    if (want) start(); else stop();
+    var want = !!SHARED[g], pin = !want && !!PINNABLE[g] && barsPre();
+    var wantPre = g === 'blur_pre' || g === 'bright_pre' || (FROST && want) || pin;
+    var pinWas = PIN;
+    if (active && (wantPre !== PRE || FROST !== frostWas || want !== CARDS)) stop();
+    PRE = wantPre; frostWas = FROST; CARDS = want; PIN = pin;
+    if (want || pin) start(); else stop();
     if (PRE && active) preTick(false);          // the blur's strength, say
     if (FROST && !want) frostSettle(false);
+    if (pin !== pinWas) frostSaid();            // the pinned glass looks again (pictured)
   }
   function glassNow() { return window.hkSettings && window.hkSettings.glass ? window.hkSettings.glass() : ''; }
+  function barsPre() { var S = window.hkSettings; return !!(S && S.barsBlur && S.barsBlur() === 'pre'); }
   // THE PINNED GLASS'S LOOK (the tab bar, the menu, the Side Pane pin themselves in a Pre-rendered look): the look's
   // Pre-rendered twin while the frost picture is worn, as they must wear it too; told by hk-glass-frost when it changes
-  function pictured(g) { return FROST && SHARED[g] ? (/_pre$/.test(g) ? g : g + '_pre') : g; }
+  // (...and Bars & Side Pane Pre-rendered's twin while PIN is on: Clear's and Each Card's)
+  function pictured(g) {
+    if (FROST && SHARED[g]) return /_pre$/.test(g) ? g : g + '_pre';
+    return PIN && PINNABLE[g] ? PINNABLE[g] : g;
+  }
   function frostSaid() { try { window.dispatchEvent(new Event('hk-glass-frost')); } catch (e) { /* no window events */ } }
   // THE SKY HANDED TO THE TABLET APP (hk-sky-handover.js): on -- a Promise of true once the glass wears the frost
   // picture, false when it can't (a look whose cards blur themselves, no picture in FROST_WAIT); off -- the look's own
@@ -1792,7 +1884,7 @@
     // Only this card is collected again; a card joining a view says the
     // view is on the page (onPage).
     changed: function (card, on) {
-      if (!active) return;
+      if (!active || !CARDS) return;
       if (!card) { schedule(true); return; }
       if (hostRo) { try { if (on) hostRo.observe(card); else hostRo.unobserve(card); } catch (e) { /* gone */ } }
       if (on) { var v = viewOf(card); if (v) onPage(v); }
@@ -1811,7 +1903,7 @@
     carry: carry,
     carrying: function (card) { return carried.has(card); },
     rendered: function (card) {
-      if (!active || !card || !card.isConnected) return;
+      if (!active || !CARDS || !card || !card.isConnected) return;
       var ps = plates.get(card);
       if (ps && !ps.some(gone) && sizeAt.get(card) === treeSize(card)) return;
       dirty.add(card);
@@ -1820,7 +1912,7 @@
     stats: function () {
       var live = 0, pictured = 0;
       eachLayer(function (L) { if (L._hkPre) pictured++; else live++; });
-      return Object.assign({ active: active, cards: cards.size, pre: PRE, frost: FROST, pictured: pictured, live: live,
+      return Object.assign({ active: active, cards: CARDS ? cards.size : 0, pre: PRE, frost: FROST, bars: PIN, pictured: pictured, live: live,
                              preAge: pre.at ? Date.now() - pre.at : null }, stats);
     },
     // PRE-RENDERED: paint the picture again now (debugging, Sky Lab)
@@ -1828,12 +1920,18 @@
     // PINNED GLASS (hk-menu.js, hk-tabbar.js): `el` wears its slice of the
     // picture under `tint` (CSS background layers) whenever there is one;
     // pin again after it moves (a sheet opened, the panel slid in)
-    pin: function (el, tint) {
+    pin: function (el, tint, followSwipe) {
       if (!el) return;
-      pinned.set(el, tint);
+      pinned.set(el, { tint: tint, followSwipe: followSwipe });
       if (PRE && active) pinAll(false);
     },
-    unpin: function (el) { if (!el) return; pinned.delete(el); unpinEl(el); },
+    unpin: function (el) {
+      if (!el) return;
+      var slide = skySwipe && skySwipe.slides.get(el);
+      if (slide) { slide.remove(); skySwipe.slides.delete(el); }
+      pinned.delete(el); unpinEl(el);
+    },
+    followSkySwipe: followSkySwipe,
     // THE PAGE SWIPE (hk-pageswipe.js): where page `el` is, as it moves
     // (`m`: { x, left, top, tr, path }), or null once it is back in its place
     along: along,

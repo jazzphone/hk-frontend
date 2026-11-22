@@ -33,12 +33,13 @@ ok('#/screens with no screen named opens the Overview, not a screen called undef
 ok('...and so does #/screens/ (an empty name)', open('#/screens/'), 'overview');
 
 page.data = { settings: { sky: {}, look: {} }, choices: {} };
-ok('house backdrop opens its own page (Sky Colors)', open('#/house/sky/backdrop').title, 'Sky Colors');
+// (phase 33: Sky Colors and Background -> Color are one Colors picker)
+ok('house backdrop opens its own page (Colors)', open('#/house/sky/backdrop').title, 'Colors');
 page.dash = function (path) { return { path: path, title: 'Sky Test', item: true }; };
 page.data.boards = { 'dashboard-sky': {} };
 ok('screen sky opens the named page', P.p_screen.call(page, 'dashboard-sky', ['sky']).title, 'Background');
 var backdrop = P.p_screen.call(page, 'dashboard-sky', ['sky', 'backdrop']);
-ok('screen backdrop opens its picker (Sky Colors)', backdrop.title, 'Sky Colors');
+ok('screen backdrop opens its picker (Colors)', backdrop.title, 'Colors');
 ok('screen backdrop Back returns to Background', backdrop.back[1], '#/screens/dashboard-sky/sky');
 // SKY LIVELINESS (2026-10-08): a woodland season has its own page now, Back
 // to the seasons; the night sky has one too
@@ -168,6 +169,15 @@ print('\n=== Sleep Screen: Near the Screen (2026-10-30) ===');
   ok('...with Near the Screen, its two sensors', /Near the Screen/.test(t) && /2 Entities/.test(t), true);
   ok('...Closer Than, for its distance sensor', /Closer Than/.test(t), true);
   ok('...and Back to the Screensaver', /Back to the Screensaver/.test(t), true);
+  // PHASE 33 (decision 11): the waiting times by their names, in order
+  ok('...its timeline says Back to Home After and Dark After, its row is Dark After', /Back to Home After/.test(t) && /Dark After/.test(t) &&
+     !/After the Screensaver|Idle Time/.test(t), true);
+  ok('Back to Home After’s choices: Idle Time’s, then Never (Return to Home off)', JSON.stringify(P.backHomeChoices.call(pg, 50)),
+     JSON.stringify([['30', '30 Seconds'], ['50', '50 Seconds'], ['60', '1 Minute'], ['120', '2 Minutes'], ['300', '5 Minutes'], ['never', 'Never']]));
+  var src = read(HK_ROOT + '/frontend/settings/hk-settings-rooms.js'); src = src.slice(src.indexOf('t_one(c, tid, X0)'));
+  ok('...a tablet’s When Nobody’s Using It: the timeline, Back to Home After, Screensaver, Dark After, Sleep Screen, in that order',
+     ['this.tabTimelineCell(tid)', "label: 'Back to Home After'", 'this.tabSaverRow(t.screen', "label: 'Dark After'", "label: 'Sleep Screen'"].map(function (w) { return src.indexOf(w); })
+       .every(function (i, n, a) { return i >= 0 && (!n || i > a[n - 1]); }) && !/'Idle Time'|'Return to Home When Idle'/.test(src), true);
   ok('its list page', go('#/house/tablets/hall/sleep/near').title, 'Near the Screen');
   sl.near = ['binary_sensor.hall_radar_zone'];
   t = text(draw(go('#/house/tablets/hall/sleep')).box);
@@ -233,7 +243,7 @@ print('\n=== Pages (2026-10-16) ===');
    ['house/calendar', 'page/calendar'], ['house/cameras', 'page/cameras'], ['house/status/water', 'page/water/status'],
    ['house/status/rooms', 'house/rooms/status'], ['house/status', 'page/climate'], ['house/climate', 'page/climate/status'],
    ['features/energy', 'page/energy'], ['features/clean', 'page/vacuums'], ['features/alarm', 'page/security'],
-   ['features/tv', 'page/live_tv'], ['house/appearance/pill/timers', 'page/timers/pill'], ['house/sky/page/water', 'page/water/background'],
+   ['features/tv', 'page/live_tv'], ['house/appearance/pill/timers', 'page/timers/pill'], ['house/sky/page/water', 'house/appearance/sky/page/water'],
    ['accessories/page/vacuums', 'page/vacuums/order']].forEach(function (x) {
     ok(x[0] + ' forwards', M.routeForward(x[0]), x[1]);
   });
@@ -305,7 +315,7 @@ print('\n=== Pages (2026-10-16) ===');
      /Wrong-Code Indicator/.test(sht) && !/Alarm Keypad/.test(sht), true);
 })();
 
-print('\n=== Flat Colors: one editor at every scope (2026-10-17) ===');
+print('\n=== Colors: Accent Color, Page Color, Tiles When Off -- Flat Colors taken apart (phase 33) ===');
 (function () {
   load(HK_ROOT + '/frontend/modules/hk-settings.js');
   // (the shim parses no markup: a checkmark row's svg is a stand-in)
@@ -338,69 +348,81 @@ print('\n=== Flat Colors: one editor at every scope (2026-10-17) ===');
   var text = function (box) { return all(box).map(function (e) { return e._text || e.textContent || ''; }).join(' | '); };
   var byFk = function (box, fk) { return all(box).filter(function (e) { return e.attrs && e.attrs['data-fk'] === fk; })[0]; };
   var tap = function (el) { ((el && el._listeners && el._listeners.click) || []).forEach(function (f) { f({}); }); if (el && typeof el.onclick === 'function') el.onclick({}); };
-  ok('All Screens’ Flat Colors', go('#/house/appearance/flat-colors').title, 'Flat Colors');
-  ok('...back to Appearance', go('#/house/appearance/flat-colors').back[1], '#/house/appearance');
-  ok('its Accent Color', go('#/house/appearance/flat-colors/accent').title, 'Accent Color');
-  ok('...one with the menu’s highlight now: back to Appearance', go('#/house/appearance/flat-colors/accent').back[1], '#/house/appearance');
-  ok('a page’s, on All Screens', go('#/house/appearance/flat-colors/page/calendar').title, 'Calendar');
-  ok('its Off Pill Tint, back to the page', go('#/house/appearance/flat-colors/page/calendar/tint').back[1], '#/house/appearance/flat-colors/page/calendar');
-  ok('a screen’s', scr(['flat-colors']).title, 'Flat Colors');
-  ok('...with the screen’s preview', scr(['flat-colors']).preview, 'dashboard-k');
-  ok('a page on a screen', scr(['flat-colors', 'page', 'calendar']).title, 'Calendar');
-  ok('Room Pages’ rooms come back to Room Pages', go('#/house/appearance/flat-colors/page/room-kitchen').back[1], '#/house/appearance/flat-colors/page/rooms');
-  ['#/house/appearance/flat-colors', '#/house/appearance/flat-colors/accent', '#/house/appearance/flat-colors/tint',
-   '#/house/appearance/flat-colors/page/calendar', '#/house/appearance/flat-colors/page/rooms', '#/house/appearance/flat-colors/page/room-kitchen',
-   '#/house/appearance', '#/page/calendar', '#/house/menu/accent'].forEach(function (h) { ok(h + ' draws', draw(go(h)).err, null); });
-  [['flat-colors'], ['flat-colors', 'accent'], ['flat-colors', 'tint'], ['flat-colors', 'page', 'calendar'], ['flat-colors', 'page', 'calendar', 'accent'],
-   ['sky', 'page', 'calendar']].forEach(function (sub) { ok('screen ' + sub.join('/') + ' draws', draw(scr(sub)).err, null); });
+  // EVERY OLD FLAT COLORS ADDRESS opens where its setting is now (M.routeForward)
+  ok('All Screens’ Flat Colors is Appearance now', go('#/house/appearance/flat-colors').title, 'Appearance');
+  ok('its Accent Color is the Accent Color', go('#/house/appearance/flat-colors/accent').title, 'Accent Color');
+  ok('its Off Pill Tint is Tiles When Off, back to Appearance', go('#/house/appearance/flat-colors/tint').title + ' ' + go('#/house/appearance/flat-colors/tint').back[1],
+     'Tiles When Off #/house/appearance');
+  ok('a page’s is the page', go('#/house/appearance/flat-colors/page/calendar').title, 'Calendar');
+  ok('...its accent its Page Color', go('#/house/appearance/flat-colors/page/calendar/accent').title, 'Page Color');
+  ok('...its tint its Tiles When Off, back to the page', go('#/house/appearance/flat-colors/page/calendar/tint').back[1], '#/page/calendar');
+  ok('a screen’s is its Appearance', go('#/screens/dashboard-k/flat-colors').title, 'Appearance');
+  ok('a page on a screen: its color there', go('#/screens/dashboard-k/flat-colors/page/calendar').title, 'Calendar');
+  ok('...with the screen’s preview', scr(['page-colors', 'calendar']).preview, 'dashboard-k');
+  ok('Room Pages’ rooms come back to Room Pages', go('#/house/appearance/page-colors/room-kitchen').back[1], '#/house/appearance/page-colors/rooms');
+  ['#/house/appearance', '#/house/appearance/accent', '#/house/appearance/tiles-off', '#/house/appearance/page-colors', '#/house/appearance/page-colors/rooms',
+   '#/house/appearance/page-colors/room-kitchen', '#/house/appearance/flat-colors/page/calendar/tint', '#/house/appearance/advanced', '#/house/appearance/advanced/blur',
+   '#/house/appearance/looks', '#/house/appearance/looks/flat', '#/house/appearance/glass', '#/page/calendar', '#/page/calendar/accent', '#/house/menu/accent']
+    .forEach(function (h) { ok(h + ' draws', draw(go(h)).err, null); });
+  [['appearance'], ['accent'], ['glass'], ['page-colors'], ['page-colors', 'calendar'], ['page-colors', 'calendar', 'tiles-off'], ['appearance', 'tiles-off'],
+   ['appearance', 'advanced'], ['looks'], ['sky', 'page', 'calendar']].forEach(function (sub) { ok('screen ' + sub.join('/') + ' draws', draw(scr(sub)).err, null); });
   ok('opening every one of them wrote nothing', writes.length, 0);
   // what the pages say
   var hp = text(draw(go('#/house/appearance')).box);
-  ok('All Screens’ Appearance has Flat Colors, Sage', /Flat Colors/.test(hp) && /Sage/.test(hp), true);
-  ok('...and says the Highlight is the Accent in Flat', /Accent Color/.test(hp) && /in Flat it also shades/.test(hp), true);
-  var kp = text(draw(scr(['flat-colors'])).box);
-  ok('Kitchen’s Flat Colors: the tint from All Screens, no accent of its own here (it is Appearance’s)', /From All Screens/.test(kp) && !/Lavender/.test(kp), true);
+  ok('All Screens shows the default Auto theme source', /Night Mode.*Sunrise & Sunset/.test(hp), true);
+  tap(byFk(draw(go('#/house/appearance')).box, 'look.flat_theme:auto'));
+  ok('Auto can be saved for All Screens', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'look.flat_theme': 'auto' }]));
+  look.flat_theme = 'auto';
+  var autoRows = draw(scr(['appearance'])).box;
+  ok('a screen inherits Auto and can override it', byFk(autoRows, 'b:flat_theme:auto').attrs['aria-checked'], 'true');
+  tap(byFk(autoRows, 'b:flat_theme:light'));
+  ok('a screen can stay Light while All Screens is set to Auto', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { flat_theme: 'light' }]));
+  look.flat_theme = 'light';
+  ok('All Screens’ Appearance: the Accent Color (Sage, in Flat), Page Colors, Tiles When Off -- no Flat Colors, no Highlight', /Accent Color/.test(hp) && /Sage/.test(hp) &&
+     /Page Colors/.test(hp) && /Tiles When Off/.test(hp) && /The Accent Color/.test(hp) && !/Flat Colors|Highlight/.test(hp), true);
+  ok('...under the chosen accent, Pages Keep Their Own Colors', /Pages Keep Their Own Colors/.test(hp), true);
   var ka = text(draw(scr(['appearance'])).box);
   ok('Kitchen’s Appearance: its Accent Color, Lavender, its own Flat accent kept as Just This Screen', /Accent Color/.test(ka) && /Lavender/.test(ka) && /Just This Screen/.test(ka), true);
-  ok('Kitchen’s Calendar: All Screens’ Rose wins -- said so', /From All Screens/.test(text(draw(scr(['flat-colors'])).box)), true);
-  var kc = text(draw(scr(['flat-colors', 'page', 'calendar'])).box);
-  ok('Calendar on Kitchen: Rose, from Calendar on All Screens', /Rose/.test(kc) && /From Calendar on All Screens/.test(kc), true);
+  ok('...its Tiles When Off from All Screens', /Tiles When Off/.test(ka) && /From All Screens/.test(ka), true);
+  var kc = text(draw(scr(['page-colors', 'calendar'])).box);
+  ok('Calendar on Kitchen: Same as All Screens, now Rose (its Flat color from before, its Page Color now)', /Same as All Screens/.test(kc) && /Now Rose/.test(kc) &&
+     /Soft Colors/.test(kc) && /Your Own Color/.test(kc), true);
   var pick = draw(scr(['accent'])).box;
   ok('the screen’s Accent Color: Same as All Screens, now Sage (All Screens’ Flat accent, in Flat)', /Same as All Screens/.test(text(pick)) && /Now Sage/.test(text(pick)), true);
   var pp = text(draw(go('#/page/calendar')).box);
-  ok('Pages → Calendar → Look keeps the Accent Color and adds Flat Colors', /Accent Color/.test(pp) && /Flat Colors/.test(pp), true);
+  ok('Pages → Calendar → Look: its Page Color, Rose, and its Tiles When Off', /Page Color/.test(pp) && /Rose/.test(pp) && /Tiles When Off/.test(pp) && !/Flat Colors/.test(pp), true);
   ok('the old Highlight Color address is the Accent Color, Sage while All Screens is Flat', /Sage/.test(text(draw(go('#/house/menu/accent')).box)) && go('#/house/menu/accent').title ===
     'Accent Color', true);
-  // the writes: one Accent Color, the menu's and Flat's together
+  // the writes: one Accent Color, the menu's and Flat's together -- and never Tiles When Off (phase 33, decision 4)
   look.flat_colors = { accent: 'auto', off_tint: 'auto' };
   tap(byFk(draw(go('#/house/appearance/accent')).box, 'accent:blue'));
-  ok('an accent over an Automatic tint: both colors and the tint in one write', JSON.stringify(writes.pop()),
-    JSON.stringify(['h', { 'menu.accent': 'blue', 'look.flat_colors.accent': 'blue', 'look.flat_colors.off_tint': 'accent' }]));
+  ok('an accent over an Automatic tint: both colors, the tint left as it is', JSON.stringify(writes.pop()),
+    JSON.stringify(['h', { 'menu.accent': 'blue', 'look.flat_colors.accent': 'blue' }]));
   look.flat_colors = { accent: SAGE, off_tint: '#789484' };
   tap(byFk(draw(go('#/house/appearance/accent')).box, 'accent:pink'));
   ok('...over a tint of its own: the tint stays', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'menu.accent': 'pink', 'look.flat_colors.accent': 'pink' }]));
-  tap(byFk(draw(scr(['flat-colors', 'page', 'calendar', 'accent'])).box, 'flatc:accent:lavender'));
+  tap(byFk(draw(scr(['page-colors', 'calendar'])).box, 'pcolor:soft:lavender'));
   ok('a page on a screen: one page’s patch, the other pages untouched', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { 'flat_page_colors.calendar': { accent: LAV } }]));
+  tap(byFk(draw(scr(['page-colors', 'calendar'])).box, 'pcolor:inherit'));
+  ok('...Same as All Screens: the screen’s own goes', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { 'flat_page_colors.calendar': { accent: null } }]));
+  tap(byFk(draw(go('#/page/climate/accent')).box, 'pcolor:blue'));
+  ok('a page’s color on All Screens: its Page Color', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'look.page_accents': { climate: 'blue' } }]));
+  tap(byFk(draw(go('#/page/climate/accent')).box, 'pcolor:soft:sage'));
+  ok('...one of Flat’s soft colors, by its color', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'look.page_accents': { climate: SAGE } }]));
+  tap(byFk(draw(go('#/house/appearance/page-colors/room-kitchen')).box, 'pcolor:red'));
+  ok('...a room’s where it always was', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'look.flat_page_colors.room-kitchen': { accent: 'red' } }]));
   tap(byFk(draw(scr(['accent'])).box, 'accent:inherit'));
   ok('Same as All Screens: both of the screen’s own go', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { menu_own: [], 'flat_colors.accent': null }]));
   tap(byFk(draw(scr(['accent'])).box, 'accent:green'));
   ok('...a color of its own: Just This Screen, both', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { accent: 'green', menu_own: ['accent'], 'flat_colors.accent': 'green' }]));
-  tap(byFk(draw(go('#/house/appearance/flat-colors/page/calendar')).box, 'flatc:inherit'));
-  ok('Use Inherited Colors on a page: the page’s entry goes', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'look.flat_page_colors.calendar': null }]));
-  tap(byFk(draw(scr(['flat-colors'])).box, 'flatc:auto'));
-  ok('Restore Automatic Colors: the tint Automatic here (the accent is Appearance’s)', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { 'flat_colors.off_tint': 'auto' }]));
-  // an explicit background stays authoritative, and says so
-  pg.data.settings.sky.flat_color = 'sage';
-  look.flat_colors = { accent: SAGE, off_tint: 'accent' };
-  var bgp = draw(go('#/house/appearance/flat-colors')).box;
-  ok('a background chosen: Separate Choice, with Use Automatic Background', /Separate Choice/.test(text(bgp)) && !!byFk(bgp, 'flatc:bg-auto'), true);
-  tap(byFk(bgp, 'flatc:bg-auto'));
-  ok('...which writes only the background', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'sky.flat_background': 'color', 'sky.flat_color': 'auto' }]));
-  // a Flat screen under a Glass house: All Screens' Flat Colors still editable
+  tap(byFk(draw(scr(['appearance', 'tiles-off'])).box, 'tilesoff:accent'));
+  ok('Tiles When Off on a screen: The Accent Color', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { 'flat_colors.off_tint': 'accent' }]));
+  tap(byFk(draw(go('#/page/calendar/tiles-off')).box, 'tilesoff:auto'));
+  ok('...on a page: Their Own Colors, that page only', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'look.flat_page_colors.calendar': { off_tint: 'auto' } }]));
+  // a Flat screen under a Glass house: All Screens' Flat colors still editable, said for whom
   look.flat = false; pg.data.boards['dashboard-k'].flat = true;
   var gp = text(draw(go('#/house/appearance')).box);
-  ok('a Glass house with a Flat screen still shows Flat Colors, for those screens', /Flat Colors/.test(gp) && /For Screens Using Flat/.test(gp), true);
-  ok('...and the screen links to All Screens’ Flat Colors', /All Screens’ Flat Colors/.test(text(draw(scr(['flat-colors'])).box)), true);
+  ok('a Glass house with a Flat screen still shows Tiles When Off, for those screens', /Tiles When Off/.test(gp) && /For screens using Flat/.test(gp), true);
   ok('nothing written by looking', writes.length, 0);
 })();
 
@@ -464,14 +486,40 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
     ok(h + ' draws', draw(go(h)).err, null);
   });
   ok('opening every one of them wrote nothing', writes.length, 0);
-  // PHASE 32: a screen's page, in the iOS shape -- More for This Screen, choice pages, Reset to All Screens, one footer
+  // PHASE 33: a screen's page mirrors the sidebar's Look & Feel group; More for This Screen is Advanced; one footer
   var mp = text(draw(go('#/screens/dashboard-k')).box);
-  ok('a screen’s page: Home Page, Pages with its Menu, Look, then One More for This Screen row', ['Home Page', 'Pages', 'Menu', 'Look', 'More for This Screen', 'Wall Tablets',
-    'Copy Settings From…'].every(function (w) { return mp.indexOf(w) >= 0; }), true);
-  ok('...Now Playing, Pop-ups and the Screensaver are on that page, not this one', /Allow Pop-ups|Fit a car/.test(mp), false);
-  var mo = text(draw(go('#/screens/dashboard-k/more')).box);
-  ok('More for This Screen has them: Pop-ups, Screensaver, Header, Car Browser', ['Pop-ups', 'Screensaver', 'Header', 'Car Browser'].every(function (w) { return mo.indexOf(w) >= 0; }), true);
-  ok('a value that follows All Screens is the value, never Same as All Screens (Cameras, Rooms, Page Headers)', /Same as All Screens/.test(mp), false);
+  ok('a screen’s page: Home Page, Look & Feel, Pages, Wall Tablets, Advanced -- in that order', ['Home Page', 'Look & Feel', 'Pages', 'Wall Tablets', 'Advanced'].map(
+    function (w) { return mp.indexOf(w); }).every(function (n, i, a) { return n >= 0 && (i === 0 || n > a[i - 1]); }), true);
+  ok('...no More for This Screen, no Looks row, no Copy Settings row (that is Advanced’s)', /More for This Screen|Looks|Copy Settings From/.test(mp), false);
+  var lfRows = ['Appearance', 'Background', 'Menu & Navigation', 'Side Pane', 'Now Playing', 'Screensaver'];
+  var lfAt = lfRows.map(function (w) { return mp.indexOf(' | ' + w + ' | '); });
+  ok('Look & Feel has the sidebar’s six rows, in the sidebar’s order', lfAt.every(function (n, i) { return n > mp.indexOf('Look & Feel') && (i === 0 || n > lfAt[i - 1]); }), true);
+  var sideLF = (P.sideGroups.call(pg, '').filter(function (g) { return g.header === 'Look & Feel'; })[0] || { rows: [] }).rows.map(function (r) { return r.label; });
+  ok('...the sidebar’s own names (its rows, as the sidebar draws them)', JSON.stringify(sideLF), JSON.stringify(lfRows));
+  var kmain = draw(go('#/screens/dashboard-k')).box;
+  ok('...each says whose it is: Appearance follows All Screens, Menu & Navigation has its own Tab Bar Size and accent',
+     /Same as All Screens/.test(text(byFk(kmain, 'b:appearance'))) && /Just This Screen/.test(text(byFk(kmain, 'b:menu_own'))), true);
+  ok('...Now Playing, Pop-ups and the Screensaver’s switch are on their own pages, not this one', /Allow Pop-ups|Fit a car|Timer Bar/.test(mp), false);
+  var mo = text(draw(go('#/screens/dashboard-k/advanced')).box);
+  ok('Advanced has them: Copy Settings, Alerts on This Screen (Pop-ups), Home Assistant Header & Sidebar, Car Browser',
+     ['Copy Settings From…', 'Alerts on This Screen', 'Allow Pop-ups', 'Home Assistant Header & Sidebar', 'Car Browser'].every(function (w) { return mo.indexOf(w) >= 0; }), true);
+  ok('...More for This Screen’s old address opens it', go('#/screens/dashboard-k/more').title, 'Advanced');
+  // A screen's Now Playing page: its switch first, then All Screens' groups, the Timer Bar and On Every Page (from More)
+  var kb0 = boards['dashboard-k'];
+  Object.assign(kb0, { now_playing: false, np_style: '', timer_bar: false, bar_all_pages: false });
+  var npOff = text(draw(go('#/screens/dashboard-k/nowplaying')).box);
+  ok('a screen’s Now Playing page: the switch, with its options not drawn while it is off', /Now Playing/.test(npOff) && !/Tablets & Computers|Bar Position/.test(npOff), true);
+  ok('...and the Timer Bar there too (it was on More for This Screen)', /Timer Bar/.test(npOff), true);
+  kb0.now_playing = true;
+  var npOn = text(draw(go('#/screens/dashboard-k/nowplaying')).box);
+  ok('...on: All Screens’ groups (Show As, Bar Position, Phones, Paused or Stopped), each Same as All Screens until changed',
+     ['Tablets & Computers', 'Show As', 'Bar Position', 'Phones', 'Paused or Stopped', 'Hide After', 'On Every Page'].every(function (w) { return npOn.indexOf(w) >= 0; }) &&
+     /Same as All Screens/.test(npOn), true);
+  ok('...the page is called Now Playing', go('#/screens/dashboard-k/nowplaying').title, 'Now Playing');
+  ['now_playing', 'np_style', 'timer_bar', 'bar_all_pages'].forEach(function (k) { delete kb0[k]; });
+  var homeTop = mp.split('Look & Feel')[0], pagesTail = mp.slice(mp.indexOf('Pages on This Screen'), mp.indexOf('Wall Tablets'));
+  ok('a value that follows All Screens is the value on Home Page and Pages, never Same as All Screens (Cameras, Rooms, Page Headers)',
+     /Same as All Screens/.test(homeTop) || /Same as All Screens/.test(pagesTail), false);
   var cm = draw(go('#/screens/dashboard-k/menu/choose/tablets')).box;
   ok('a screen’s Menu on tablets is a choice page: Off, Button, Always Open, Tab Bar', ['off', 'button', 'open', 'tabbar'].every(function (k) { return !!byFk(cm, 'menu:tablets:' + k); }), true);
   ok('...its checkmark is on the Tab Bar', byFk(cm, 'menu:tablets:tabbar').attrs['aria-checked'], 'true');
@@ -500,13 +548,67 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
   // the Screensaver: Photos is one row, the host's album hook draws on that row's page
   var asked2 = [];
   pg._host = { extend: function (where, box, ctx) { asked2.push(where + ':' + (ctx.screen || ctx.photos)); } };
-  var sv = text(draw(go('#/house/screensaver')).box);
-  ok('All Screens’ Screensaver: one Photos row, Slideshow with Photo Layout, Also Show, Timing, Night Mode', ['Photos', 'Slideshow', 'Photo Layout', 'Also Show', 'Timing', 'Night Mode'].every(
-    function (w) { return sv.indexOf(w) >= 0; }) && !/Now and Then|Portrait Photos/.test(sv), true);
+  // PHASE 33 (decision 10): the same groups, rows and order at both levels -- What It Shows (Design, Photos, Slides), When,
+  // Photos (How Photos Show), the Side Pane and Advanced; the slideshow and the photo layout on How Photos Show
+  var svd = draw(go('#/house/screensaver')), sv = text(svd.box);
+  ok('All Screens’ Screensaver: What It Shows (Design, Photos, Slides), When (Starts After), Photos (How Photos Show), Side Pane, Advanced',
+     svd.err === null && ['What It Shows', 'Design', 'Photos', 'Slides', 'When', 'Starts After', 'How Photos Show', 'Side Pane', 'Advanced'].every(
+    function (w) { return sv.indexOf(w) >= 0; }) && !/Also Show|Slideshow|Portrait Photos|Fade Back|Same as All Screens/.test(sv), true);
+  ok('...in that order', ['What It Shows', 'When', 'How Photos Show', 'Side Pane', 'Advanced'].map(function (w) { return sv.indexOf(w); })
+    .every(function (i, n, a) { return i >= 0 && (!n || i > a[n - 1]); }), true);
+  ok('...Night Mode only where the design shows the time large (Photos does not)', /Night Mode/.test(sv), false);
   ok('...the host is asked nothing until the Photos page opens', asked2.length, 0);
   var phb = draw(go('#/house/screensaver/photos'));
   ok('...the Photos page draws Screensaver Photos, and asks the host for its album', phb.err === null && /Screensaver Photos/.test(text(phb.box)) && asked2[0] === 'house-saver:undefined', true);
-  ok('...and Photo Layout has Portrait and Landscape', /Portrait Photos/.test(text(draw(go('#/house/screensaver/layout')).box)) || /Zoom/.test(text(draw(go('#/house/screensaver/layout')).box)), true);
+  var hw = text(draw(go('#/house/screensaver/photos-how')).box);
+  ok('...How Photos Show: the slideshow (Layout, Order, Each Photo For, Slow Zoom) and Portrait and Landscape',
+     ['Slideshow', 'Layout', 'Order', 'Each Photo For', 'Slow Zoom', 'Portrait Photos', 'Landscape Photos'].every(function (w) { return hw.indexOf(w) >= 0; }), true);
+  ok('...Photo Layout’s old address opens How Photos Show', go('#/house/screensaver/layout').title, 'How Photos Show');
+  ok('...Fade Back is on Advanced', /Fade Back/.test(text(draw(go('#/house/screensaver/advanced')).box)), true);
+  // decision 12: Slides -- one set of rows, How Often in minutes and Show For in seconds, whatever shows
+  var sl = text(draw(go('#/house/screensaver/slides')).box);
+  ok('Slides: each slide, then How Often in minutes and Show For', ['Forecast', 'Music Full Screen', 'Weather', 'Home Energy', 'Holidays', 'Timers', 'How Often',
+    'Every Minute', 'Every 5 Minutes', 'Show For'].every(function (w) { return sl.indexOf(w) >= 0; }) && !/Photos\b.*Every \d+ Photos|Every 3 Photos/.test(sl), true);
+  // decision 10: a screen's page, its switch on top; off, nothing else
+  boards['dashboard-k'].screensaver = false;
+  var off = text(draw(go('#/screens/dashboard-k/screensaver')).box);
+  ok('a screen’s Screensaver: its switch on top, and while it is off nothing else', go('#/screens/dashboard-k/screensaver').title === 'Screensaver' &&
+     /Screensaver/.test(off) && /On this screen’s wall tablets/.test(off) && /add the tablet that shows this screen/.test(off) && !/What It Shows|Starts After/.test(off), true);
+  var sw = all(draw(go('#/screens/dashboard-k/screensaver')).box).filter(function (e) { return e.attrs && e.attrs['data-fk'] === 'b:screensaver'; })[0];
+  ((sw && sw._listeners.click) || []).forEach(function (f) { f({ stopPropagation: function () {} }); });
+  ok('...the switch turns it on', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { screensaver: true }]));
+  // decision 9: on, following All Screens: every row All Screens', saying so; a change makes that one row its own
+  boards['dashboard-k'].screensaver = true;
+  var fo = text(draw(go('#/screens/dashboard-k/screensaver')).box);
+  ok('...on and following All Screens: the same rows, each Same as All Screens, its menu first Same as All Screens (3 Minutes)',
+     ['What It Shows', 'Design', 'Slides', 'Starts After', 'How Photos Show', 'Side Pane', 'Advanced', 'For Automations', 'Same as All Screens (3 Minutes)'].every(
+       function (w) { return fo.indexOf(w) >= 0; }) && !/Just This Screen|Use All Screens’ Screensaver/.test(fo), true);
+  var startsAfter = function (box) { return all(box).filter(function (e) { return String(e.tagName).toLowerCase() === 'select' && e.attrs && e.attrs['data-fk'] === 'saver:starts_after'; })[0]; };
+  var choose = function (sel, v) {
+    sel.options = sel.children; sel.selectedIndex = sel.children.map(function (o) { return String(o.value != null ? o.value : o.attrs.value); }).indexOf(v); sel.value = v;
+    ((sel._listeners || {}).change || []).forEach(function (f) { f({}); });
+  };
+  var sa = startsAfter(draw(go('#/screens/dashboard-k/screensaver')).box);
+  choose(sa, '60');
+  ok('...Starts After changed here is this screen’s own, and nothing else', JSON.stringify(writes.pop()),
+     JSON.stringify(['b', 'dashboard-k', { screensaver_options: { starts_after: 60 } }]));
+  boards['dashboard-k'].screensaver_own = { starts_after: 60 };
+  var ow = text(draw(go('#/screens/dashboard-k/screensaver')).box);
+  ok('...then that row says Just This Screen, the others Same as All Screens, and Use All Screens’ Screensaver is there',
+     /Just This Screen/.test(ow) && /Same as All Screens/.test(ow) && /Use All Screens’ Screensaver/.test(ow), true);
+  sa = startsAfter(draw(go('#/screens/dashboard-k/screensaver')).box);
+  choose(sa, '');
+  ok('...and Same as All Screens lets it go', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { screensaver_options: null }]));
+  // the editor's Save hands the whole set: only what changed counts -- a slide alone; the design, all of the design
+  var putB = P.saverPutB.call(pg, 'dashboard-k'), whole = P.saverNow.call(pg, 'dashboard-k');
+  putB(Object.assign({}, whole, { weather_slide: true }));
+  ok('the editor’s Save with only a slide changed: that slide is the screen’s own, nothing else', JSON.stringify(writes.pop()),
+     JSON.stringify(['b', 'dashboard-k', { screensaver_options: { starts_after: 60, weather_slide: true } }]));
+  putB(Object.assign({}, whole, { clock_style: 'numbers', show: 'clock' }));
+  var dz = writes.pop()[2].screensaver_options;
+  ok('...a change to the design makes the whole design its own (one group), and no other row', dz.clock_style === 'numbers' && dz.show === 'clock' &&
+     'layout' in dz && 'clock_bg' in dz && 'tb_size' in dz && !('each_photo' in dz) && !('extra_every' in dz) && dz.starts_after === 60, true);
+  delete boards['dashboard-k'].screensaver_own; boards['dashboard-k'].screensaver = false;
   draw(go('#/screens/dashboard-k/screensaver/photos'));
   ok('a screen’s Photos page asks the host for that screen’s album', asked2[asked2.length - 1], 'saver:dashboard-k');
   pg._host = null;
@@ -521,17 +623,20 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
   ok('Background (Sky / Background before) opens as its own section', go('#/house/sky').title === 'Background' && go('#/house/sky').top === true, true);
   ok('...and its pages too', go('#/house/sky/woodland').back[1], '#/house/appearance/sky/decorations');
   ok('the sidebar has no Sky entry', /\['sky',/.test(read(HK_ROOT + '/frontend/panels/hk-settings.js').split('var HOUSE = [')[1].split('];')[0]), false);
-  ok('the Highlight Color is the Accent Color', go('#/house/menu/accent').title, 'Accent Color');
+  ok('the old Highlight Color address is the Accent Color', go('#/house/menu/accent').title, 'Accent Color');
   ok('...a screen’s too, whether its menu follows or not', go('#/screens/dashboard-k/menu/accent').title, 'Accent Color');
   ok('the device pages open Menu & Navigation', go('#/house/menu/tablets').title, 'Menu & Navigation');
   ok('...a button style the Side Menu’s', go('#/house/menu/tablets/style').title === 'Button Style' && go('#/house/menu/tablets/style').back[1] === '#/house/menu/side', true);
-  ok('a screen’s device page opens its Menu', go('#/screens/dashboard-k/menu/phones').title, 'Menu');
+  ok('a screen’s device page opens its Menu & Navigation', go('#/screens/dashboard-k/menu/phones').title, 'Menu & Navigation');
   // All Screens -> Appearance
   var ap = text(draw(go('#/house/appearance')).box);
-  ok('All Screens’ Appearance: Style (with Tile Style), Colors & Background, Tab Bar',
-    ['Style', 'Tile Style', 'Colors & Background', 'Tab Bar', 'Accent Color', 'Tab Bar Glass', 'Background'].every(function (w) { return ap.indexOf(w) >= 0; }) &&
-     !/Tab Bar Look|Sky \/ Background|Tiles/.test(ap), true);
-  ok('...no Flat Colors while no screen is Flat', /Flat Colors/.test(ap), false);
+  // (phase 33: the Look first; Style and its own amounts; Color; Tiles; Motion; Advanced; Reset -- the Background its own page)
+  ok('All Screens’ Appearance: Look, Style, Color, Tiles, Motion, Advanced, Reset Appearance, in that order',
+    ['Look', 'Style', 'Color', 'Accent Color', 'Page Colors', 'Tiles', 'Tile Style', 'Motion', 'Advanced', 'Reset Appearance'].reduce(function (at, w) {
+      var i = at < 0 ? -1 : ap.indexOf(w, at); return i; }, 0) >= 0 &&
+     !/Tab Bar Glass|Colors & Background|Sky \/ Background|Appearance Style|Highlight/.test(ap) && !/\| Background \|/.test(ap), true);
+  ok('...no Tiles When Off while no screen is Flat', /Tiles When Off|Flat Colors/.test(ap), false);
+  ok('...the tab bar’s glass under Advanced', /Tab Bar Glass/.test(text(draw(go('#/house/appearance/advanced')).box)), true);
   // All Screens -> Menu
   var mp = text(draw(go('#/house/menu')).box);
   ok('Menu on Each Screen: its two choices in words as the value', /Tab Bar, Button on Phones/.test(mp) && /\bOff\b/.test(mp) && !/ · /.test(mp), true);
@@ -544,7 +649,10 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
   ok('a screen’s Menu Settings lists only the kinds it uses', /Side Menu/.test(sm) && /Edge Tab/.test(sm) && /Tab Bar/.test(sm), true);
   var nm = draw(go('#/screens/dashboard-c/menu')).box;
   ok('...a screen with no menu: its menu on each device at the top, no kinds', /Menu on This Screen/.test(text(nm)) && !!byFk(nm, 'b:menu') && !!byFk(nm, 'b:menu_phone') &&
-    !/Navigation/.test(text(nm)), true);
+    !/Side Menu|Edge Tab|Tab Bar/.test(text(nm)), true);
+  ok('a screen’s Menu & Navigation is All Screens’: Navigation with its Pages Screen, Gestures, Rooms and Header (Header on Phones too)',
+     ['Navigation', 'Pages Screen', 'Gestures', 'Rooms and Header', 'Rooms in the Menu', 'Back Button & Title', 'Header on Phones'].every(function (w) { return sm.indexOf(w) >= 0; }), true);
+  ok('...the page is called Menu & Navigation, as the sidebar’s row is', go('#/screens/dashboard-k/menu').title, 'Menu & Navigation');
    ok('...and its page has the one Menu row, its menus in words', /Off/.test(text(draw(go('#/screens/dashboard-c')).box)) && !byFk(draw(go('#/screens/dashboard-c')).box, 'b:menu'), true);
   var tbp = draw(go('#/screens/dashboard-k/menu/tab-bar')).box;
   ok('its Tab Bar page: Size Just This Screen, and said once that the rest follows All Screens', /Just This Screen/.test(text(tbp)) && /follows All Screens until/.test(text(tbp)) &&
@@ -557,14 +665,16 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
     JSON.stringify(['b', 'dashboard-k', { button_phone: 'chip', menu_own: ['accent', 'tab_bar_size', 'button_phone'] }]));
   // a screen's page: Appearance one row; Back Button & Title in its Header
   var main = text(draw(go('#/screens/dashboard-k')).box);
-  ok('a screen’s Appearance is one row: its style as the value, never “Same as All Screens”',
-     /Appearance/.test(main) && /Blur/.test(main) && !/Shared Layer/.test(main) && !/Same as All Screens/.test(main), true);
-  ok('...Back Button & Title beside its other header settings, on More for This Screen', /Back Button & Title/.test(text(draw(go('#/screens/dashboard-k/more')).box)), true);
+  ok('a screen’s Appearance is one row: its style as the value, and whose it is (this one follows All Screens)',
+     /Appearance/.test(main) && /Blur/.test(main) && !/Shared Layer/.test(main) && /Same as All Screens/.test(text(byFk(draw(go('#/screens/dashboard-k')).box, 'b:appearance'))), true);
+  ok('...Back Button & Title beside its other header settings, on Menu & Navigation', /Back Button & Title/.test(text(draw(go('#/screens/dashboard-k/menu')).box)), true);
   ok('...no Sky group of its own any more', main.split('Sky / Background').length - 1, 0);
   var sa = text(draw(go('#/screens/dashboard-k/appearance')).box);
-  ok('a screen’s Appearance: laid out as All Screens’', ['Style', 'Colors', 'Background', 'Accent Color', 'Teal', 'Just This Screen', 'Tab Bar Glass'].every(
-    function (w) { return sa.indexOf(w) >= 0; }), true);
-  ok('...a screen with no tab bar has no Tab Bar Look', /Tab Bar Look/.test(text(draw(go('#/screens/dashboard-c/appearance')).box)), false);
+  ok('a screen’s Appearance: laid out as All Screens’', ['Look', 'Style', 'Glass', 'Blurred', 'Color', 'Accent Color', 'Teal', 'Just This Screen', 'Page Colors',
+    'Tiles', 'Motion', 'Advanced', 'Reset Appearance'].every(function (w) { return sa.indexOf(w) >= 0; }) && !/\| Background \||Tab Bar Glass/.test(sa), true);
+  ok('...its tab bar’s glass under Advanced, with Blur Drawing', /Tab Bar Glass/.test(text(draw(go('#/screens/dashboard-k/appearance/advanced')).box)) &&
+     /Blur Drawing/.test(text(draw(go('#/screens/dashboard-k/appearance/advanced')).box)), true);
+  ok('...a screen with no tab bar has no Tab Bar Glass', /Tab Bar Glass/.test(text(draw(go('#/screens/dashboard-c/appearance/advanced')).box)), false);
 
   // RECOMMENDED (2026-10-29): one change that should help where a tablet draws under 45 frames a second (a sample from before the ladder speaks for the style)
   ok('no recommendation on a host without tablet reports', /Recommended/.test(text(draw(go('#/screens/dashboard-k/appearance')).box)), false);
@@ -575,9 +685,9 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
   drainMicrotasks();
   var rp = draw(go('#/screens/dashboard-k/appearance')).box, rt = text(rp);
   ok('the host is asked once for its tablets’ numbers', asked, 1);
-  ok('a screen’s Appearance: why, after the Style', /Kitchen Tablet draws 38 frames a second with Blur\. Glass looks almost the same and is lighter\./.test(rt) &&
-     rt.indexOf('Recommended') > rt.indexOf('Appearance Style') && rt.indexOf('Recommended') < rt.indexOf('Accent Color'), true);
-  ok('...Use Glass on This Screen and Use Flat', !!byFk(rp, 'rec:glass') && !!byFk(rp, 'rec:flat'), true);
+  ok('a screen’s Appearance: why, after the Style', /Kitchen Tablet draws 38 frames a second with Blurred Glass\. Clear Glass looks almost the same and is lighter\./.test(rt) &&
+     rt.indexOf('Recommended') > rt.indexOf('Style') && rt.indexOf('Recommended') < rt.indexOf('Accent Color'), true);
+  ok('...Use Clear Glass on This Screen and Use Flat', !!byFk(rp, 'rec:glass') && !!byFk(rp, 'rec:flat'), true);
   ok('...opening it wrote nothing', writes.length, 0);
   tap(byFk(rp, 'rec:glass'));
   ok('Use Glass sets this screen’s own style, never All Screens’', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { flat: false, glass: 'clear' }]));
@@ -621,7 +731,7 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
   reports[0] = sample(38.2);
   var l1 = draw(go('#/screens/dashboard-k/appearance')).box;
   ok('a sample with its signature: step 1, the style', !!byFk(l1, 'rec:glass') && !!byFk(l1, 'rec:flat') && !byFk(l1, 'rec:rain'), true);
-  ok('...its footer says when the next one comes', /Glass looks almost the same and is lighter\. If it’s still slow an hour from now, the next suggestion appears here\./.test(text(l1)), true);
+  ok('...its footer says when the next one comes', /Clear Glass looks almost the same and is lighter\. If it’s still slow an hour from now, the next suggestion appears here\./.test(text(l1)), true);
   tap(byFk(l1, 'rec:glass'));
   Object.assign(kb, writes.pop()[2]);
   ok('the style taken: nothing more from the same sample', /Recommended/.test(text(draw(go('#/screens/dashboard-k/appearance')).box)) ||
@@ -661,14 +771,14 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
   // HOME ASSISTANT: no reports; this device's own sample, under This Device on the screen it measured
   pg._host = null; pg._health = undefined;
   localStorage.setItem('hk-fps', JSON.stringify({ fps: 31.6, at: Date.now() - 60000, screen: 'dashboard-k', style: 'blur' }));
-  var dp = draw(go('#/screens/dashboard-k/more')).box, dt = text(dp);
+  var dp = draw(go('#/screens/dashboard-k/advanced')).box, dt = text(dp);
   ok('This Device: this device’s own number, on the screen it measured', /Recommended for This Device/.test(dt) &&
-     /This device draws 32 frames a second with Blur/.test(dt) && dt.indexOf('Recommended for This Device') > dt.indexOf('Car Browser'), true);
+     /This device draws 32 frames a second with Blurred Glass/.test(dt) && dt.indexOf('Recommended for This Device') > dt.indexOf('Car Browser'), true);
   ok('...with the same two buttons', !!byFk(dp, 'rec:glass') && !!byFk(dp, 'rec:flat'), true);
-  ok('...not on another screen’s page', /for This Device/.test(text(draw(go('#/screens/dashboard-c/more')).box)), false);
+  ok('...not on another screen’s page', /for This Device/.test(text(draw(go('#/screens/dashboard-c/advanced')).box)), false);
   ok('...nor on the Appearance page (its home is This Device)', /Recommended/.test(text(draw(go('#/screens/dashboard-k/appearance')).box)), false);
   localStorage.removeItem('hk-fps');
-  ok('...and nothing without a sample', /for This Device/.test(text(draw(go('#/screens/dashboard-k/more')).box)), false);
+  ok('...and nothing without a sample', /for This Device/.test(text(draw(go('#/screens/dashboard-k/advanced')).box)), false);
   // ...the ladder too: the next step from a new sample, none from one drawn with something else on
   var mine = function (b2, fps) {
     return JSON.stringify({ fps: fps, at: Date.now() - 60000, screen: 'dashboard-k', style: 'clear',
@@ -676,14 +786,158 @@ print('\n=== Appearance and Menu, reorganized (2026-10-29) ===');
   };
   kb.glass = 'clear';
   localStorage.setItem('hk-fps', mine(kb, 33));
-  var dr = draw(go('#/screens/dashboard-k/more')).box;
+  var dr = draw(go('#/screens/dashboard-k/advanced')).box;
   ok('This Device: once the style is Glass, the next step from a sample drawn with it', /Recommended for This Device/.test(text(dr)) &&
      /This device draws 33 frames a second with Rain & Snow on\./.test(text(dr)) && !!byFk(dr, 'rec:rain'), true);
   localStorage.setItem('hk-fps', mine(Object.assign({}, kb, { glass: 'blur' }), 33));
-  ok('...but nothing from one drawn with Blur still on', /for This Device/.test(text(draw(go('#/screens/dashboard-k/more')).box)), false);
+  ok('...but nothing from one drawn with Blur still on', /for This Device/.test(text(draw(go('#/screens/dashboard-k/advanced')).box)), false);
   localStorage.removeItem('hk-fps');
   kb.glass = 'house';
   ok('opening every one of them wrote nothing', writes.length, 0);
+})();
+
+print('\n=== the Background, one shape in every style; Adjust Photo keeps every treatment (phase 33) ===');
+(function () {
+  load(HK_ROOT + '/frontend/modules/hk-flat-image.js');
+  var I = window.hkFlatImage;
+  if (typeof Image === 'undefined') window.Image = function () { this.complete = false; };
+  var EPr = document.createElement('span').constructor.prototype;
+  if (!('firstChild' in EPr)) Object.defineProperty(EPr, 'firstChild', { configurable: true,
+    get: function () { return this.children[0] || this._fc || (this._fc = document.createElement('svg')); } });
+  if (!EPr.insertBefore) EPr.insertBefore = function (n, ref) { var i = this.children.indexOf(ref); if (i < 0) this.children.push(n); else this.children.splice(i, 0, n); return n; };
+  var pg = Object.create(P), writes = [];
+  pg.p_overview = function () { return 'overview'; };
+  show(pg, { states: {}, entities: {}, devices: {}, areas: { kitchen: { name: 'Kitchen' } }, config: {} });
+  var look = { flat: false, glass: 'blur', flat_colors: { accent: 'auto', off_tint: 'auto' }, flat_page_colors: {}, page_accents: {}, page_pills: {} };
+  // (a screen in Flat with one background for Flat and another for the glass looks, as a house has it)
+  var boards = { 'dashboard-k': { pages: [], glass: 'house', flat: true, sky_flat_background: 'landscapes', sky_background: 'wallpaper', flat_colors: {}, sky: true } };
+  var sky = { background: 'live', pages: {}, flat_pages: {}, page_photos: {}, page_looks: {} };
+  pg.data = { settings: { sky: sky, look: look, menu: { accent: 'orange' }, rooms: {}, generated: {}, headers: {}, status_rows: {}, security: {}, features: {},
+                          weather: {}, calendar: {}, cameras: {}, browse: { hide: [], discover: [] } },
+              choices: { sky_backdrops: [{ id: 'live', label: 'Live Sky' }, { id: 'midnight', label: 'Midnight', day: ['#000', '#111', '#222', '#333'], night: ['#000', '#111', '#222', '#333'] },
+                                         { id: 'dusk', label: 'Dusk', day: ['#000', '#111', '#222', '#333'], night: ['#000', '#111', '#222', '#333'] }],
+                         flat_colors: [{ id: 'stone', label: 'Stone', light: '#EEECE6', dark: '#17181A' }] },
+              counts: {}, kinds: {}, accessories: { pages: {} }, tablets: {},
+              dashboards: [{ path: 'dashboard-k', title: 'Kitchen', item: true, generated: true }],
+              boards: boards, features: {}, popups: [], custom_pages: [], page_kinds: ['climate', 'timeline', 'rooms'], thirdparty: {}, suggest: {} };
+  pg.dash = function (p) { return { path: p, title: 'Kitchen', item: true, generated: true }; };
+  pg.back = function () {}; pg.render = function () {};
+  pg.hasAttribute = function () { return true; };
+  pg.setB = function (path, ch) { writes.push(['b', path, ch]); return Promise.resolve(true); };
+  pg.setH = function (ch) { writes.push(['h', ch]); return Promise.resolve(true); };
+  pg.feat = function () { return { data: null }; };
+  pg.pickers = {}; pg.errors = {}; pg.announce = function () {};
+  var go = function (hash) { return P.resolve.call(pg, hash.replace(/^#\/?/, '').split('/')); };
+  var draw = function (pgx) { var box = document.createElement('div'), err = null;
+    try { pgx.body(box); } catch (e) { err = String(e) + ' ' + (e.stack || '').split('\n')[0]; } return { box: box, err: err }; };
+  var all = function (el, out) { out = out || []; out.push(el); (el.children || []).forEach(function (c) { if (c && typeof c === 'object') all(c, out); }); return out; };
+  var text = function (box) { return all(box).map(function (e) { return e._text || e.textContent || ''; }).join(' | '); };
+  var byFk = function (box, fk) { return all(box).filter(function (e) { return e.attrs && e.attrs['data-fk'] === fk; })[0]; };
+  var bySk = function (box, sk) { return all(box).filter(function (e) { return e.attrs && e.attrs['data-sk'] === sk; })[0]; };
+  var ev = { stopPropagation: function () {}, preventDefault: function () {} };
+  var tap = function (el) { ((el && el._listeners && el._listeners.click) || []).forEach(function (f) { f(ev); }); if (el && typeof el.onclick === 'function') el.onclick(ev); };
+  var on = function (el) { return !!el && el.attrs['aria-checked'] === 'true'; };
+  // EVERY ADDRESS, the old ones too, opens a page that draws, and opening them writes nothing
+  var addrs = [['#/house/appearance/sky', 'Background'], ['#/house/sky', 'Background'], ['#/house/appearance/sky/backdrop', 'Colors'], ['#/house/appearance/sky/color', 'Colors'],
+    ['#/house/appearance/sky/photo', 'Adjust Photo'], ['#/house/appearance/sky/advanced', 'Advanced'], ['#/house/appearance/sky/flat', 'Flat Backgrounds'],
+    ['#/house/appearance/sky/flat/photo', 'Adjust Photo'], ['#/house/appearance/sky/flat/page/climate', 'Climate'], ['#/house/appearance/sky/page/climate', 'Climate'],
+    ['#/house/appearance/sky/page/climate/color', 'Colors'], ['#/house/appearance/sky/page/timeline/photo', 'Adjust Photo'], ['#/house/sky/page/climate', 'Climate'],
+    ['#/page/climate/background', 'Background'], ['#/screens/dashboard-k/sky', 'Background'], ['#/screens/dashboard-k/sky/backdrop', 'Colors'],
+    ['#/screens/dashboard-k/sky/color', 'Colors'], ['#/screens/dashboard-k/sky/photo', 'Adjust Photo'], ['#/screens/dashboard-k/sky/advanced', 'Advanced'],
+    ['#/screens/dashboard-k/sky/page/climate', 'Climate'], ['#/screens/dashboard-k/sky/page/climate/photo', 'Adjust Photo']];
+  addrs.forEach(function (a) { var r = go(a[0]); ok(a[0] + ' opens ' + a[1] + ' and draws', JSON.stringify([r.title, draw(r).err]), JSON.stringify([a[1], null])); });
+  ok('...opening every one of them wrote nothing', writes.length, 0);
+  // ONE SHAPE: the picker of five, every page and Rooms at both levels, Advanced, Reset Background...
+  var shape = function (h) { var t = text(draw(go(h)).box); return ['Background', 'Climate', 'Timeline', 'Room Pages', 'Advanced', 'Reset Background…'].every(
+    function (w) { return t.indexOf(w) >= 0; }); };
+  ok('All Screens’ Background (Glass): the picker, every page and Rooms, Advanced, Reset Background…', shape('#/house/appearance/sky'), true);
+  ok('...a Flat screen’s the same', shape('#/screens/dashboard-k/sky'), true);
+  ok('...and All Screens’ Flat one', shape('#/house/appearance/sky/flat'), true);
+  // ("Page Color" is a page's own color since phase 33 -- the Flat page backgrounds link to it -- so the old Glass mode is
+  // looked for as a choice row: none is called that)
+  ok('no Reset to Defaults, no Sky Colors, no Image Look or Starting Points left', /Reset to Defaults|Sky Colors|Image Look|Starting Points/.test(
+    addrs.map(function (a) { return text(draw(go(a[0])).box); }).join(' ')), false);
+  var gc = text(draw(go('#/house/appearance/sky/page/climate')).box);
+  ok('...and a Glass page’s own sky is Its Own Sky, never Page Color', /Its Own Sky/.test(gc) && !/Page Color/.test(gc), true);
+  // FLAT KEEPS ITS OWN: the Flat screen shows its Flat choice (Landscapes), never its glass one (Wallpaper)
+  var kb = draw(go('#/screens/dashboard-k/sky')).box;
+  ok('a Flat screen with Landscapes for Flat and Wallpaper for Glass shows Landscapes', [bySk(kb, 'b:sky_flat_background') && text(bySk(kb, 'b:sky_flat_background')).indexOf('Landscapes') >= 0,
+    !!byFk(kb, 'bland:wake'), !byFk(kb, 'bwall:ribbons')].join(), 'true,true,true');
+  ok('...with Adjust Photo under it', !!byFk(kb, 'sky:adjust'), true);
+  tap(byFk(kb, 'b:sky_seasonal_effects'));
+  ok('a Flat landscape can turn on Seasonal Effects independently', JSON.stringify(writes.pop()),
+    JSON.stringify(['b', 'dashboard-k', { sky_seasonal_effects: true }]));
+  tap(byFk(draw(go('#/house/appearance/sky')).box, 'sky.seasonal_effects'));
+  ok('Seasonal Effects can also be set for All Screens', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'sky.seasonal_effects': true }]));
+  // FLAT TAKES THE LIVE SKY AND A WALLPAPER (new): its own store
+  boards['dashboard-k'].sky_flat_background = 'live';
+  kb = draw(go('#/screens/dashboard-k/sky')).box;
+  ok('Flat over the Live Sky: the Live Sky’s own settings', ['Animations', 'Weather', 'Clouds', 'Daytime Sky', 'Colors', 'Seasonal Decorations'].every(function (w) {
+    return text(kb).indexOf(w) >= 0; }), true);
+  boards['dashboard-k'].sky_flat_background = 'wallpaper';
+  ok('Flat over a Wallpaper: the wallpapers', bySk(draw(go('#/screens/dashboard-k/sky')).box, 'b:sky_flat_background') && /Wallpaper/.test(text(draw(go('#/screens/dashboard-k/sky')).box)), true);
+  boards['dashboard-k'].sky_flat_background = 'landscapes';
+  var pp = draw(go('#/screens/dashboard-k/sky/page/climate')).box;
+  ok('a Flat page offers every background', ['live', 'color', 'photo', 'landscapes', 'wallpaper'].every(function (k) { return !!byFk(pp, 'fpbd:climate:' + k); }), true);
+  tap(byFk(pp, 'fpbd:climate:live'));
+  ok('...the Live Sky stored in Flat’s own pages', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { sky_flat_pages: { climate: 'live' } }]));
+  // THE ONE IDIOM: a screen's switch set back to All Screens' value follows again
+  boards['dashboard-k'].flat = false; boards['dashboard-k'].sky_background = 'live';
+  kb = draw(go('#/screens/dashboard-k/sky')).box;
+  var wt = bySk(kb, 'b:sky_weather');
+  ok('a screen’s row says whose it is', text(wt).indexOf('Same as All Screens') >= 0, true);
+  tap(byFk(wt, 'b:sky_weather'));
+  ok('...turned off, it is the screen’s own', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { sky_weather: false }]));
+  boards['dashboard-k'].sky_weather = false;
+  wt = bySk(draw(go('#/screens/dashboard-k/sky')).box, 'b:sky_weather');
+  tap(byFk(wt, 'b:sky_weather'));
+  ok('...turned back to All Screens’ value, it follows All Screens again', JSON.stringify(writes.pop()), JSON.stringify(['b', 'dashboard-k', { sky_weather: null }]));
+  delete boards['dashboard-k'].sky_weather;
+  // ADJUST PHOTO, CARRIED OVER: All Screens' landscape look stored the old way shows the same values
+  sky.background = 'landscapes'; sky.landscape_look = { blur: 0, dim: 55, saturation: 100, tint: '', tint_amount: 35 };
+  var ap = draw(go('#/house/appearance/sky/photo')).box;
+  ok('Adjust Photo (Glass, Landscapes): All Screens’ landscape look as stored -- Blur 0, Dim 55, Saturation 100, no Color Tint',
+     [byFk(ap, 'sky.landscape_look:blur').value, byFk(ap, 'sky.landscape_look:dim').value, byFk(ap, 'sky.landscape_look:saturation').value].join(), '0,55,100');
+  ok('...its groups: Starting Point, Blur & Dim, Color', ['Starting Point', 'Blur & Dim', 'Color'].every(function (w) { return text(ap).indexOf(w) >= 0; }), true);
+  ok('...the starting point Off (nothing stored)', on(byFk(ap, 'fi:legacy')), true);
+  tap(byFk(ap, 'sky.landscape_look:dim')); // (a range: changed by its change event, not a tap -- nothing written)
+  ok('...nothing written by opening it', writes.length, 0);
+  // EVERY PRESET STILL SELECTABLE, AND APPLIED AS IT WAS
+  var presets = { legacy: { mode: 'legacy' }, original: { mode: 'original' }, soft: I.presets.soft, balanced: I.presets.balanced, rich: I.presets.rich, washed: I.presets.washed };
+  Object.keys(presets).forEach(function (name) {
+    tap(byFk(draw(go('#/house/appearance/sky/photo')).box, 'fi:' + name));
+    ok('Glass: ' + name + ' chosen writes it', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'sky.image_look.patch': presets[name] }]));
+  });
+  sky.image_look = Object.assign({}, I.presets.balanced);
+  ap = draw(go('#/house/appearance/sky/photo')).box;
+  ok('Glass: Balanced stored is Balanced, its sliders shown', [on(byFk(ap, 'fi:balanced')), byFk(ap, 'sky.image_look:strength').value, byFk(ap, 'sky.image_look:fade').value].join(), 'true,80,35');
+  var sp = draw(go('#/screens/dashboard-k/sky/photo')).box;
+  ok('...a screen follows it: "Same as All Screens (Balanced)" first, checked', [text(byFk(sp, 'fi:follow')).indexOf('Same as All Screens (Balanced)') >= 0, on(byFk(sp, 'fi:follow'))].join(),
+    'true,true');
+  delete sky.image_look; delete sky.landscape_look; sky.background = 'live';
+  // FLAT: a starting point stored as a preset, and the older Fade and Tint
+  look.flat = true; sky.flat_background = 'photo'; sky.photo = '/local/p.jpg';
+  sky.flat_image_look = Object.assign({}, I.presets.rich);
+  ap = draw(go('#/house/appearance/sky/photo')).box;
+  ok('Flat: Rich stored is Rich, with its sliders', [on(byFk(ap, 'fi:rich')), byFk(ap, 'sky.flat_image_look:depth').value, byFk(ap, 'sky.flat_image_look:brightness').value].join(), 'true,85,-5');
+  ok('...no glass Blur & Dim in Flat (it never drew them)', text(ap).indexOf('Blur & Dim') < 0, true);
+  Object.keys(presets).forEach(function (name) {
+    tap(byFk(draw(go('#/house/appearance/sky/photo')).box, 'fi:' + name));
+    ok('Flat: ' + name + ' chosen writes it', JSON.stringify(writes.pop()), JSON.stringify(['h', { 'sky.flat_image_look.patch': presets[name] }]));
+  });
+  delete sky.flat_image_look;
+  sky.flat_fade = 40; sky.flat_tint = '#112233'; sky.flat_tint_amount = 70; sky.flat_tint_light = 30;
+  ap = draw(go('#/house/appearance/sky/photo')).box;
+  ok('Flat’s Previous Look: its Fade, Tint, Tint Color, Tint Strength and Tint Brightness as stored', [on(byFk(ap, 'fi:legacy')), byFk(ap, 'sky.flat_fade').value,
+     !!byFk(ap, 'sky.flat_tint:color'), byFk(ap, 'sky.flat_tint_amount').value, byFk(ap, 'sky.flat_tint_light').value].join(), 'true,40,true,70,30');
+  var pa = draw(go('#/house/appearance/sky/page/timeline/photo')).box;
+  ok('...a page’s Adjust Photo in Flat: its own starting point, following All Screens', on(byFk(pa, 'fi:follow')), true);
+  tap(byFk(pa, 'fi:soft'));
+  // (Previous Look's own Tint Color carried into the starting point's Color, as choosing one always did)
+  ok('...chosen there, stored for that page alone', JSON.stringify(writes.pop()),
+    JSON.stringify(['h', { 'sky.flat_page_image_looks.timeline': Object.assign({}, I.presets.soft, { color: '#112233' }) }]));
+  ok('opening them wrote nothing else', writes.length, 0);
+  look.flat = false;
 })();
 
 print('\n=== the clock recommendation on the kit’s recommend (2026-10-29) ===');

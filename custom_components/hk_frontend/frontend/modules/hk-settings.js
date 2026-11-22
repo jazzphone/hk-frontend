@@ -238,12 +238,22 @@
   var glassPreview = null;
   // (Motion held for this page alone -- a check, HK Settings' preview: true, false, or null for the saved choice)
   var motionPreview = null;
+  // Keep the last usable theme while the client reconnects or both sources are unavailable.
+  var automaticTheme = 'dark';
+  function readAutomaticTheme(client) {
+    var states = client && client.states || {}, source = get('look.flat_night_entity'), helper = source && states[source];
+    if (helper && (helper.state === 'on' || helper.state === 'off')) return helper.state === 'on' ? 'dark' : 'light';
+    var sun = states['sun.sun'];
+    if (sun && sun.state === 'above_horizon') return 'light';
+    if (sun && sun.state === 'below_horizon') return 'dark';
+    return automaticTheme;
+  }
   function rendering() {
-    var a = appearance(boardHere(), get('look', {}));
+    var a = appearance(boardHere(), get('look', {}), automaticTheme);
     if (glassPreview) a.flat = glassPreview === 'flat';
     try {
       var t = /[?&]hkflat_theme=(light|dark)\b/.exec(location.search);
-      if (t && glassPreview === 'flat') a.theme = t[1];
+      if (t && glassPreview === 'flat') { a.theme = t[1]; a.automatic = false; }
     } catch (e) { /* no location */ }
     // (the look decides the blur, the live sky and what plays by itself; Motion is its own switch -- appearance --
     // and a test or the Settings preview may hold it: previewMotion)
@@ -345,14 +355,19 @@
   var FLAT_FIELDS = ['accent', 'off_tint'];
   var OWN_COLOR_PAGES = ['climate', 'lights', 'security', 'doors_windows', 'calendar', 'weather', 'energy', 'power',
                          'water', 'music', 'live_tv', 'cameras', 'vacuums', 'timers'];
+  // PAGE COLOR (phase 33, decision 3): a page's own color -- this screen's (its flat_page_colors[page].accent), else
+  // All Screens' (look.page_accents, where the server reads a page's Flat Accent Color from before: model.py
+  // fold_page_colors) -- is the page's Accent Color here, over the screen's general one: a color chosen for a page
+  // shows on it. Glass shows it on the page you're on while the Accent Color is Automatic (pageColor).
   function resolveFlatColors(look, b, keys) {
     look = look || {}; keys = keysOf(keys || []);
-    var hp = look.flat_page_colors || {}, hb = look.flat_colors || {};
+    var hp = look.flat_page_colors || {}, hb = look.flat_colors || {}, pa = look.page_accents || {};
     var bp = (b && b.flat_page_colors) || {}, bb = (b && b.flat_colors) || {};
     var c = [];
     keys.forEach(function (k) {
       if (b) c.push({ o: bp[k], scope: 'screen-page', page: k });
       c.push({ o: hp[k], scope: 'house-page', page: k });
+      if (typeof pa[k] === 'string' && pa[k]) c.push({ o: { accent: pa[k] }, scope: 'house-page', page: k });
     });
     if (b) c.push({ o: bb, scope: 'screen', page: null });
     c.push({ o: hb, scope: 'house', page: null });
@@ -373,16 +388,26 @@
     }
     return out;
   }
+  // A PAGE'S COLOR on a screen (`b`: its item, raw; null: All Screens'): the screen's own (flat_page_colors[key].accent),
+  // else All Screens' Page Color (look.page_accents); null when neither chose one (the page's default, PAGE_ACCENTS).
+  // A screen's "auto" (Flat's Automatic, before phase 33) chooses none.
+  function pageColor(key, b) {
+    if (b === undefined) b = boardHere();
+    var mine = b && b.flat_page_colors && b.flat_page_colors[key] && b.flat_page_colors[key].accent;
+    if (typeof mine === 'string' && mine && mine !== 'auto') return mine.toLowerCase();
+    var all = (get('look', {}) || {}).page_accents || {};
+    return typeof all[key] === 'string' && all[key] ? all[key].toLowerCase() : null;
+  }
   // THE PAGE THIS IS, as its background knows it: the view's sky_page /
   // sky_room (hk-strategy.js skyPages), read off the panel's config the way
   // hk-sky.js reads it; before the config is there, the address as the
   // strategy names it. Home and a dashboard of your own: no page (the
   // screen's colors).
   var PAGE_OF_PATH = { 'doors-windows': 'doors_windows', playmusic: 'music', 'music-browse': 'music', 'live-tv': 'live_tv' };
-  function viewKeys() {
+  function viewKeys(path) {
     var cfg = null, seg = '';
     try {
-      seg = decodeURIComponent((String(location.pathname).split('/')[2] || '').split('?')[0]);
+      seg = decodeURIComponent(String(path == null ? location.pathname : path).split(/[?#]/)[0].split('/')[2] || '');
       cfg = window.hkShell.dashboardConfig();
     } catch (e) { /* no document (a test harness) */ }
     var views = cfg && cfg.views, v = null;
@@ -410,16 +435,16 @@
     return out;
   }
   // THIS PAGE'S FLAT COLORS (or `ctx`'s: {board: a screen's item | null for
-  // All Screens alone, keys}) -- memoized per address and settings version
+  // All Screens alone, keys, path}) -- memoized per address and settings version
   var flatMemo = { key: null, val: null };
   function flatColors(ctx) {
-    var vk = ctx && ctx.keys !== undefined ? { keys: keysOf(ctx.keys), sure: true } : viewKeys();
+    var vk = ctx && ctx.keys !== undefined ? { keys: keysOf(ctx.keys), sure: true } : viewKeys(ctx && ctx.path);
     var b = ctx && ctx.board !== undefined ? ctx.board : boardHere();
     var where = '';
     try { where = String(location.pathname) + String(location.search); } catch (e) { /* no location */ }
     var mkey = ctx ? null : where + '|' + (state ? state.version : 0) + '|' + vk.keys.join(',');
     if (mkey && flatMemo.key === mkey) return flatMemo.val;
-    var r = resolveFlatColors(get('look', {}), b, vk.keys), pv = ctx ? {} : flatPreview();
+    var r = resolveFlatColors(get('look', {}), b, vk.keys), pv = !ctx || ctx.path ? flatPreview() : {};
     FLAT_FIELDS.forEach(function (f) { if (pv[f]) r[f] = { value: pv[f], scope: 'preview', page: null }; });
     r.keys = vk.keys;
     if (mkey && vk.sure) { flatMemo.key = mkey; flatMemo.val = r; }
@@ -483,7 +508,8 @@
     state.configured = !!(payload && payload.configured);
     store(payload);
     waiting.splice(0).forEach(function (fn) { try { fn(); } catch (e) { /* caller's */ } });
-    if (!changed) return;
+    if (!changed) { syncAutomaticTheme(); return; }
+    automaticTheme = readAutomaticTheme(currentClient());
     state.version++;
     applyLook();
     lookNow = lookKey();
@@ -519,6 +545,17 @@
     }, 'hk-events'));
     return true;
   }
+  function syncAutomaticTheme() {
+    var next = readAutomaticTheme(currentClient());
+    if (next === automaticTheme) return;
+    automaticTheme = next;
+    var policy = rendering();
+    if (policy.flat && policy.automatic) onNav();
+  }
+  function onClientUpdate() {
+    attach();
+    syncAutomaticTheme();
+  }
   var tries = 0, slow = null;
   function watchSlowly() {
     if (slow === null) slow = setInterval(attach, 2000);
@@ -537,7 +574,11 @@
     var f = flatColors();
     return f.accent.value + '/' + f.off_tint.value + (f.accent.value === 'auto' && f.off_tint.value === 'accent' ? '/' + f.keys.join(',') : '');
   }
-  function lookKey() { return glass() + '|' + rendering().theme + '|' + amount('blur') + '|' + amount('frost') + '|' + amount('tint') + '|' + tintWell() + '|' + frostTint() + '|' + flatSig(); }
+  function lookKey() {
+    var policy = rendering();
+    return glass() + '|' + policy.theme + '|' + (policy.flat && policy.automatic) + '|' + amount('blur') + '|' +
+      amount('frost') + '|' + amount('tint') + '|' + tintWell() + '|' + frostTint() + '|' + flatSig();
+  }
   // (the look this page wears, for onNav: '' until the parts have run; split_js.py lets this wait for them)
   var lookNow = '';
   // BRIGHT GLASS AND ITS OWN BLUR, the one look that changes from page to page (Home Only): the same look but for the
@@ -674,8 +715,8 @@
     // Settings can bootstrap before either the adapter or any card. Events
     // catch late modules and host updates; a slow check also covers a shell
     // connection replacement on a page containing no HK cards.
-    window.addEventListener('hk-host-client-ready', attach);
-    window.addEventListener('hk-client-update', attach);
+    window.addEventListener('hk-host-client-ready', onClientUpdate);
+    window.addEventListener('hk-client-update', onClientUpdate);
     if (attach()) watchSlowly();
     else {
       var fast = setInterval(function () {
@@ -686,6 +727,7 @@
     }
 
     // The look from the cached copy, before any card draws.
+    automaticTheme = readAutomaticTheme(currentClient());
     applyLook();
     lookNow = lookKey();
     try {
@@ -723,6 +765,14 @@
       },
       appearance: appearance, rendering: rendering, refreshLook: applyLook,
       glass: glass,
+      // BARS & SIDE PANE (Appearance -> Advanced, 2026-11-21): 'pre' -- the tab bar, the menu and the Side Pane wear
+      // Pre-rendered's picture in Clear Glass and Each Card (hk-glass.js PINNABLE) -- or 'live'; this screen's own
+      // bars_blur, else All Screens' look.bars_blur
+      barsBlur: function () {
+        var b = boardHere(), own = b && b.bars_blur;
+        if (own === 'live' || own === 'pre') return own;
+        return get('look.bars_blur', 'live') === 'pre' ? 'pre' : 'live';
+      },
       lookAt: lookAt,
       // (every variable a look sets: a surface that keeps its own look sets them back -- the Home sheet's Glass and Solid)
       lookVars: function () { return LOOK_VARS.slice(); },
@@ -740,13 +790,17 @@
         return brightContrast(rgbOf(stop), rgbOf(light), n);
       },
       skyLook: skyLook,
+      seasonalEffects: function () {
+        var b = boardHere();
+        return b && typeof b.sky_seasonal_effects === 'boolean' ? b.sky_seasonal_effects : get('sky.seasonal_effects', false) === true;
+      },
       ladderSignature: ladderSignature,
       pagesScreen: pagesScreen,
       swipePages: swipePages, swipeLeft: swipeLeft,
       reducedMotion: reducedMotion,
       pageSky: pageSky,
       flatBackground: flatBackground,
-      flatColors: flatColors, resolveFlatColors: resolveFlatColors, viewKeys: function () { return viewKeys().keys; },
+      flatColors: flatColors, resolveFlatColors: resolveFlatColors, pageColor: pageColor, viewKeys: function () { return viewKeys().keys; },
       pageBackdrop: pageBackdrop,
       pagePhoto: pagePhoto,
       photoLook: photoLook,

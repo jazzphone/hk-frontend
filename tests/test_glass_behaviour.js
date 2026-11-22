@@ -489,27 +489,59 @@ imgRect = { x: 0, y: 0, w: 1280, h: 800 }; document.createElement = function (t)
 var srcOf = function (v) { var ls = layersIn(v); return ls.length ? ls.map(function (l) { var i = imgsOf(l); return i.length ? i[i.length - 1].src : ''; }).join(' ') : 'no layers'; };
 var V14 = view(); add(V14.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
 var side = new E('DIV', {}, { x: 0, y: 0, w: 300, h: 800 }); BODY.appendChild(side);
+var swipeBar = new E('NAV', {}, { x: 410, y: 720, w: 460, h: 64 }); BODY.appendChild(swipeBar);
 setLook('blur_pre'); advance(300);
 G.pin(side, 'linear-gradient(red,red)');
+G.pin(swipeBar, 'linear-gradient(red,red)', true);
+G._pre.show('blob:home-first');
 G._pre.show('blob:home-1');
+advance(100);
+var weatherSwipe = G.followSkySwipe('/dashboard-home/weather');
+G.repin(); advance(100);
+ok('the first swipe keeps its outgoing blur pinned, even through a queued repaint', /blob:home/.test(swipeBar.style.background || '') &&
+   swipeBar.style['backdrop-filter'] === 'none' && !swipeBar.firstChild);
+ok('the docked sidebar and page remain pre-rendered while the bar follows the swipe', /blob:home/.test(side.style.background || '') &&
+   /blob:home/.test(srcOf(V14.v)));
+weatherSwipe.end(true);
+ok('the bar holds its slice until the first picture for the next page arrives', /blob:home/.test(swipeBar.style.background || '') &&
+   swipeBar.style['backdrop-filter'] === 'none');
 location.pathname = '/dashboard-home/weather'; G._pre.nav(); G._pre.show('blob:weather-1');
 ok('the address leaves Home, Home still on screen: the sidebar keeps Home\'s picture (no live gap)', /blob:home-1/.test(side.style.background || '') && !/weather/.test(side.style.background || ''),
   side.style.background);
 ok('...and Home\'s layers keep Home\'s', /^(blob:home-1 ?)+$/.test(srcOf(V14.v)), srcOf(V14.v));
-var V14w = view(), cw = add(V14w.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
+var V14w = view(), cw = add(V14w.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(100);
+ok('the first incoming blur cross-fades from the old slice with no live blur', /cross-fade.*blob:home.*blob:weather-1/.test(swipeBar.style.background || '') &&
+   swipeBar.style['backdrop-filter'] === 'none', swipeBar.style.background);
+advance(200);
 ok('...and Weather\'s layers wear Weather\'s', /^(blob:weather-1 ?)+$/.test(srcOf(V14w.v)), srcOf(V14w.v));
 var sideMid = side.style.background || '';
+ok('the bar settles on just the destination picture', /blob:weather-1/.test(swipeBar.style.background || '') &&
+   !/blob:home/.test(swipeBar.style.background || '') && swipeBar.style['backdrop-filter'] === 'none');
+var firstSwipe = G.followSkySwipe('/dashboard-home/home'), secondSwipe = G.followSkySwipe('/dashboard-home/home');
+secondSwipe.paint(0, 0.4);
+firstSwipe.end(true);
+ok('a cached swipe blends the two slices at the swipe fraction and ignores an older swipe finishing', swipeBar.firstChild &&
+   /blob:home-1/.test(swipeBar.firstChild.style.background || '') && swipeBar.firstChild.style.opacity === '0.4' &&
+   /blob:weather-1/.test(swipeBar.style.background || '') && swipeBar.style['backdrop-filter'] === 'none');
+secondSwipe.end(false);
+ok('a cancelled swipe drops its layer and restores the current page', !swipeBar.firstChild && /blob:weather-1/.test(swipeBar.style.background || ''));
 ok('...and as Weather\'s view shows the sidebar wears Weather\'s at once: no fade across from Home\'s',
    /^linear-gradient\(red,red\), url\("blob:weather-1"\) -?0\.0px -?0\.0px \/ 1280px 800px no-repeat$/.test(sideMid), sideMid);
 advance(400);
 ok('...ending on Weather\'s alone', /blob:weather-1/.test(side.style.background || '') && !/blob:home-1|cross-fade/.test(side.style.background), side.style.background);
 V14w.v.remove(); leave(cw);
+var homeSwipe = G.followSkySwipe('/dashboard-home/home');
+homeSwipe.paint(0, 1);
+homeSwipe.end(true);
 location.pathname = '/dashboard-home/home'; G._pre.nav();
 var V14b = view(); add(V14b.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
 ok('back on Home: Home\'s remembered picture is on at once, no paint awaited', /^(blob:home-1 ?)+$/.test(srcOf(V14b.v)), srcOf(V14b.v));
 advance(1600);
 ok('...and the sidebar follows, at the latest when no view ever says it is up', /blob:home-1/.test(side.style.background || ''), side.style.background);
+ok('the cached landing exchanges its opaque layer for the same pinned picture', !swipeBar.firstChild &&
+   /blob:home-1/.test(swipeBar.style.background || '') && swipeBar.style['backdrop-filter'] === 'none');
 G.unpin(side); side.remove();
+G.unpin(swipeBar); swipeBar.remove();
 setLook('blur'); V14.v.remove(); V14b.v.remove(); Array.from(GL).forEach(leave); advance(300);
 document.createElement = mkEl; delete globalThis.location;
 
@@ -530,6 +562,15 @@ ok('a page layer whose picture is out of line blurs live meanwhile', layersIn(r2
 r22._cs.transform = 'none';                       // still again
 G.refresh(); advance(300);
 ok('...and wears the picture again once it lines up (it stayed live for good)', layersIn(r22).every(function (l) { return imgsOf(l).length === 1 && !live(l); }));
+// (2026-11-21, the owner, the Kitchen HomeView in Pre-rendered: leaves moving behind the TV block in its Swipe card -- a
+// layer inside the Home Grid's own fit, on a device that isn't Android. The fit is a transform that stays: the picture
+// is placed by hand there, on every device, and the layer never blurs live)
+var r23 = row(V22.grid, 560); add(r23, card({ x: 20, y: 567, w: 192, h: 70 }));
+r23._cs.transform = 'matrix(0.9, 0, 0, 0.9, 0, 0)'; r23.__hkFit = true;
+G.refresh(); advance(300);
+ok('a layer inside a Home Grid\'s fit wears the picture, placed by hand, on any device',
+   layersIn(r23).length > 0 && layersIn(r23).every(function (l) { var i = imgsOf(l); return i.length === 1 && !live(l) && i[0].style.backgroundAttachment === 'scroll'; }),
+   layersIn(r23).map(function (l) { return [l.style.backdropFilter, imgsOf(l).map(function (i) { return i.style.backgroundAttachment; })]; }));
 setLook('blur'); V22.v.remove(); Array.from(GL).forEach(leave); advance(300);
 document.createElement = mkEl;
 
@@ -640,6 +681,53 @@ pending = false;
 ok('...the sky saying they are up paints it at once', G._pre.state().busy === true);
 setLook('blur'); V20.v.remove(); skyNode.remove(); Array.from(GL).forEach(leave); advance(300);
 delete window.hkSky; delete globalThis.location;
+
+// (2026-11-21: the page swipe saved the glass's `relative` with a page and put it back after the glass had let go, so
+// it stayed for good; and the glass letting go took the swipe's `fixed` off a page mid-swipe)
+print('\n=== the glass\'s own position on the page that holds its layers ===');
+setLook('blur'); advance(300);
+var V31 = view(), gv31 = V31.v.children[0], c31 = add(V31.grid, card({ x: 20, y: 300, w: 192, h: 70 })); advance(300);
+var anch31 = [V31.v, gv31].filter(function (n) { return typeof n._hkGlassPos === 'string'; })[0];
+ok('a static page holding layers is made relative, and says it is the glass\'s (what it was before)',
+   !!anch31 && anch31.style.position === 'relative' && anch31._hkGlassPos === '', anch31 && anch31.style.position);
+anch31.style.position = 'fixed';   // a page swipe parks it
+drop(c31); advance(300);
+ok('letting go leaves a position that is no longer its own, and no longer says it is', anch31.style.position === 'fixed' && anch31._hkGlassPos === undefined,
+   [anch31.style.position, anch31._hkGlassPos]);
+V31.v.remove(); advance(300);
+
+// (2026-11-21, the owner: Clear Glass had no way to choose Pre-rendered for the tab bar and the Side Pane)
+print('\n=== Bars & Side Pane Pre-rendered: the pinned glass wears the picture, the cards stay as they are ===');
+globalThis.location = { pathname: '/dashboard-home/home' };
+imgRect = { x: 0, y: 0, w: 1280, h: 800 }; document.createElement = function (t) { var e = mkEl(t); if (t === 'img' || t === 'canvas') e._rect = imgRect; return e; };
+var BARS = 'live';
+window.hkSettings.barsBlur = function () { return BARS; };
+var V30 = view(); add(V30.grid, card({ x: 20, y: 300, w: 192, h: 70 }));
+var bar30 = new E('NAV', {}, { x: 410, y: 720, w: 460, h: 64 }); BODY.appendChild(bar30);
+setLook('clear'); advance(300);
+ok('Clear, Live: nothing runs, the bars keep their own blur', !G.stats().active && G.pictured('clear') === 'clear', G.stats());
+BARS = 'pre'; setLook('clear'); advance(300);
+ok('Clear, Pre-rendered: the picture runs for the pinned glass, with no layer for a card',
+   G.stats().active && G.stats().pre && G.stats().bars && layersIn(V30.v).length === 0, G.stats());
+ok('...the bars, the menu and the pane are told to pin (Clear is Blur\'s Pre-rendered for them)', G.pictured('clear') === 'blur_pre');
+G.pin(bar30, 'linear-gradient(red,red)');
+G._pre.show('blob:bars'); advance(100);
+ok('...the bar wears its slice of the picture', /blob:bars/.test(bar30.style.background || ''), bar30.style.background);
+add(V30.grid, card({ x: 230, y: 300, w: 192, h: 70 })); advance(300);
+ok('...and a card joining makes no layer', layersIn(V30.v).length === 0);
+setLook('blur_each'); advance(300);
+ok('Each Card: the same, Blur\'s twin', G.stats().bars && layersIn(V30.v).length === 0 && G.pictured('blur_each') === 'blur_pre');
+setLook('bright_each'); advance(300);
+ok('...Bright Glass\'s Each Card pins as Bright Glass\'s Pre-rendered', G.stats().bars && G.pictured('bright_each') === 'bright_pre');
+setLook('blur'); advance(300);
+ok('Shared Layer: Blur Drawing decides, the setting changes nothing (live layers, nothing pictured)',
+   G.stats().active && !G.stats().pre && !G.stats().bars && layersIn(V30.v).length > 0 && G.pictured('blur') === 'blur');
+BARS = 'live'; setLook('clear'); advance(300);
+ok('Live again: everything off, the bar unpinned', !G.stats().active && G.pictured('clear') === 'clear' && !/blob:/.test(bar30.style.background || ''),
+   bar30.style.background);
+G.unpin(bar30); bar30.remove();
+setLook('blur'); V30.v.remove(); Array.from(GL).forEach(leave); advance(300);
+delete window.hkSettings.barsBlur; document.createElement = mkEl; delete globalThis.location;
 
 print(fail ? 'FAIL ' + fail + ' GLASS BEHAVIOUR TESTS' : 'ALL ' + pass + ' GLASS BEHAVIOUR TESTS PASS');
 if (fail) throw new Error('glass behaviour tests failed');

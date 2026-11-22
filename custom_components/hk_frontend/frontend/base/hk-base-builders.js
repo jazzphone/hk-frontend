@@ -10,7 +10,7 @@
   (window.hkBaseParts = window.hkBaseParts || {})['hk-base-builders'] = function (K) {
     var ACCENTS = K.ACCENTS, BLUR = K.BLUR, CARD = K.CARD, FLAT = K.FLAT, FLAT_ROOTS = K.FLAT_ROOTS,
         flatTone = K.flatTone, legacyAccentHex = K.legacyAccentHex, M = K.M, markAsleep = K.markAsleep,
-        ON_PAGE = K.ON_PAGE, PAGE_ACCENTS = K.PAGE_ACCENTS, ST = K.ST, TILE = K.TILE, tone = K.tone, TYPE = K.TYPE,
+        ON_PAGE = K.ON_PAGE, PAGE_ACCENTS = K.PAGE_ACCENTS, renderingAt = K.renderingAt, ST = K.ST, TILE = K.TILE, tone = K.tone, TYPE = K.TYPE,
         v = K.v;
 
     // ----------------------------------------------------------- the builders
@@ -180,8 +180,15 @@
     ];
     // a Flat color as drawn: 'auto' the page's ground, an id its theme's tone,
     // '#rrggbb' itself
-    function flatColorHex(id, theme, page) {
-      if (/^#[0-9a-f]{6}$/i.test(id || '')) return id;
+    function flatColorHex(id, theme, page, automatic) {
+      if (/^#[0-9a-f]{6}$/i.test(id || '')) {
+        if (theme !== 'dark' || !automatic) return id;
+        var rgb = rgbOf(id), high = Math.max.apply(null, rgb), low = Math.min.apply(null, rgb);
+        if (high <= 48) return id;
+        // Keep the hue while bringing a custom day color into the dark palette.
+        var scale = Math.min(.75, 30 / (high - low || 1));
+        return hexOfRgb(rgb.map(function (channel) { return 48 + (channel - high) * scale; }));
+      }
       for (var i = 0; i < FLAT_COLORS.length; i++) if (FLAT_COLORS[i].id === id) return FLAT_COLORS[i][theme === 'light' ? 'light' : 'dark'];
       return pageTone(page, theme) || flatGround(page, theme);
     }
@@ -197,11 +204,11 @@
       var light = theme === 'light', base = light ? [244, 242, 238] : [20, 21, 23], f = light ? 0.10 : 0.13;
       return '#' + c.map(function (v, i) { var x = Math.round(v * f + base[i] * (1 - f)); return (x < 16 ? '0' : '') + x.toString(16); }).join('');
     }
-    // a page kind's accent as a hex: its own (look.page_accents), else
+    // a page kind's accent as a hex: its Page Color (this screen's, else All Screens': hkSettings.pageColor), else
     // PAGE_ACCENTS' default; null for a page that has none (home, rooms)
     function pageAccentHex(kind) {
       if (!kind || !PAGE_ACCENTS[kind]) return null;
-      var S = window.hkSettings, own = S && S.get ? (S.get('look.page_accents', {}) || {})[kind] : null;
+      var S = window.hkSettings, own = S && S.pageColor ? S.pageColor(kind) : S && S.get ? (S.get('look.page_accents', {}) || {})[kind] : null;
       var a = String(own || PAGE_ACCENTS[kind]).toLowerCase();
       return ACCENTS[a] || (/^#[0-9a-f]{6}$/.test(a) ? a : null);
     }
@@ -241,17 +248,17 @@
     var APPLE_LIGHT = { '255,214,10': '#FFCC00', '255,204,0': '#FFCC00', '255,159,10': '#FF9500', '48,209,88': '#34C759',
       '100,210,255': '#32ADE6', '10,132,255': '#007AFF', '64,200,224': '#30B0C7', '99,230,226': '#00C7BE',
       '191,90,242': '#AF52DE', '255,69,58': '#FF3B30', '255,55,95': '#FF2D55', '94,92,230': '#5856D6' };
-    function flatColor(color, role) {
-      var S = window.hkSettings, a = S && S.rendering ? S.rendering() : {};
-      // (Dark keeps every color as the other looks draw it -- a lit well was
-      // darkened toward brown there too, 2026-10-17)
-      if (!a.flat || a.theme !== 'light') return color;
+    function flatColor(color, role, el) {
+      var a = renderingAt(el);
+      return a.flat && a.theme === 'light' ? flatLightColor(color, role) : color;
+    }
+    function flatLightColor(color, role) {
       var key = color + '|' + role, hit = flatColors[key]; if (hit) return hit;
       var hex = /^#([0-9a-f]{6})$/i.exec(color), rgb = /rgba?\(\s*([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)/.exec(color);
       var c = hex ? [0,2,4].map(function (i) { return parseInt(hex[1].slice(i,i+2),16); }) : rgb ? rgb.slice(1,4).map(Number) : null;
       if (!c) return color;
       // a lit well or a lit bare glyph on Light: the Apple color, else its own
-      if ((role === 'well' || role === 'on') && a.theme === 'light') {
+      if (role === 'well' || role === 'on') {
         var bright = APPLE_LIGHT[c.join(',')];
         if (bright || role === 'on') return flatColors[key] = bright || color;
       }
@@ -324,9 +331,9 @@
     // Light (the Flat White baseline), on Dark only for a tint chosen (Dark's
     // Automatic keeps its own surfaces, v1). `ctx`: hkSettings.flatColors'.
     var palMemo = { key: null, val: null };
-    function flatPalette(ctx) {
-      var S = window.hkSettings, a = S && S.rendering ? S.rendering() : {};
-      if (!a.flat || !S.flatColors) return null;
+    function flatPalette(ctx, el) {
+      var S = window.hkSettings, a = renderingAt(el);
+      if (!a.flat || !S || !S.flatColors) return null;
       var r = S.flatColors(ctx), theme = a.theme === 'light' ? 'light' : 'dark';
       // a page keeping its own color (Flat Colors -> Pages): seeded by it,
       // whatever the Highlight Color says -- Climate blue on any screen
@@ -334,7 +341,7 @@
                : r.accent.value === 'auto' ? null : seedHex(r.accent.value);
       var tv = r.off_tint.value, tint = null;
       // Match Accent with no accent of its own: the page's highlight as it is
-      if (tv === 'accent') tint = seed || legacyAccentHex();
+      if (tv === 'accent') tint = seed || legacyAccentHex(ctx && ctx.path);
       else if (tv !== 'auto') tint = seedHex(tv);
       var key = theme + '|' + seed + '|' + tint;
       if (!ctx && palMemo.key === key) return palMemo.val;
@@ -354,7 +361,7 @@
         // light colors), white made neutral: the same rule for every kind
         var c = rgbOf(own);
         src = !c || Math.min.apply(null, c) > 230 ? FLAT_NEUTRAL
-            : hexOfRgb(pal.theme === 'light' ? rgbOf(flatColor(own, 'well')) || c : c);
+            : hexOfRgb(pal.theme === 'light' ? rgbOf(flatLightColor(own, 'well')) || c : c);
       }
       var pill = flatRole(src, pal.theme, 'pill'), well = bare ? null : flatRole(src, pal.theme, 'well');
       var out = { pill: pill, well: well, glyph: readable(src, well || pill, 3) };

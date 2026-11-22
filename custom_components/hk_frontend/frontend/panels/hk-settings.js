@@ -632,14 +632,16 @@
     }
 
     // ---------------------------------------------------------- saving
-    status(kind) {
+    // kind: saving, saved (text: a command's own word for done -- Reloading, Paired), error
+    status(kind, text) {
       var st = this.bar.querySelector('.st'), self = this;
       clearTimeout(this._stT);
       st.className = 'st' + (kind === 'error' ? ' err' : '');
       if (kind === 'saving') {
         this._stT = setTimeout(function () { st.textContent = 'Saving…'; }, 350);
       } else if (kind === 'saved') {
-        st.innerHTML = TICK + '<span>Saved</span>';
+        st.innerHTML = TICK;
+        st.appendChild(h('span', { text: text || 'Saved' }));
         this._stT = setTimeout(function () { st.textContent = ''; }, 1800);
       } else if (kind === 'error') {
         st.textContent = 'Couldn’t Save';
@@ -664,11 +666,15 @@
     }
     setB(path, changes) {
       var d = this.data;
-      if (changes && Object.prototype.hasOwnProperty.call(changes, 'screensaver_options') && !this._saverHouse && this._pv && this._pv.path === path) this.saverOver(changes.screensaver_options);
+      // (a screen's screensaver options are its own keys, read over All Screens': phase 33, M.saverLayers)
+      var so = changes && Object.prototype.hasOwnProperty.call(changes, 'screensaver_options') && this.saverHouseNow
+        ? M.saverLayers.of({ screensaver_own: changes.screensaver_options || {} }, this.saverHouseNow()) : null;
+      if (so && !this._saverHouse && this._pv && this._pv.path === path) this.saverOver(changes.screensaver_options ? so : null);
       return this.save({ type: DOMAIN + '/board/set', dashboard: path, changes: changes },
         Object.keys(changes).map(function (k) { return 'b:' + k; }), function () {
           var whole = {};
           Object.keys(changes).forEach(function (k) { if (k.indexOf('.') < 0) whole[k] = changes[k]; });
+          if (so) Object.assign(whole, { screensaver_options: so, screensaver_own: changes.screensaver_options || {}, screensaver_house: !changes.screensaver_options });
           d.boards[path] = Object.assign({}, d.boards[path] || {}, whole);
         // (over what the page had, not in its place: an answer without a key the page reads -- side_pane_read, the
         // screen's Side Pane as read -- must not take it away; one server's answer once had none, and the next Side

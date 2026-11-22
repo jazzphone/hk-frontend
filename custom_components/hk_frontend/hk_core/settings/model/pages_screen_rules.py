@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import copy
+import re
 from typing import Any
+from ..looks import IDS as LOOK_IDS
 from ..saver_designs import HOLIDAYS as SAVER_HOLIDAYS
-from .schema import (_one_of, _PLACE, _typed, BRIGHT_PAGES, CONF_DASHBOARD, FLAT_BACKGROUNDS, flat_color, flat_colors,
+from .schema import (_one_of, _PLACE, _typed, BARS_BLUR, BRIGHT_PAGES, CONF_DASHBOARD, FLAT_BACKGROUNDS, flat_color, flat_colors,
     FLAT_COLORS_DEFAULT, FLAT_FADE, flat_image_look, flat_page_colors, flat_page_image_looks, flat_pages, flat_tint,
-    FLAT_TINT_AMOUNT, GLASS, NP_BARS, NP_GRACES, NP_SIDES, NP_STYLES, photo_look, PHOTO_LOOK_DEFAULTS,
+    FLAT_THEMES, FLAT_TINT_AMOUNT, GLASS, NP_BARS, NP_GRACES, NP_SIDES, NP_STYLES, photo_look, PHOTO_LOOK_DEFAULTS,
     place_sky_defaults, radar_native, RETIRED_GLASS, sky_landscape, THERMOSTAT_STYLES, TILE_ICONS, TILE_STYLES,
     wallpaper_choice, WALLPAPER_MOTION, WALLPAPER_NIGHT, weather_page, WELLS,)
 from .defaults import (DEFAULTS, PAGES_SCREEN_CLOCK, PAGES_SCREEN_DEFAULTS, PAGES_SCREEN_ICONS_MAX, PAGES_SCREEN_PATH,
@@ -80,9 +82,31 @@ def pages_screen_resolved(house: Any, own: Any) -> dict[str, Any]:
     return {**(pages_screen(house) or copy.deepcopy(PAGES_SCREEN_DEFAULTS)), **(pages_screen_own(own) or {})}
 
 
+# PAGE COLOR (phase 33, decision 3: one color per page, the 2026-10-17 Flat Colors' per-page Accent Color folded in):
+# All Screens' color for a page is look.page_accents[page]; a page given a Flat color before (look.flat_page_colors
+# [page].accent) reads as that, its Page Color -- so the page shows exactly that color in Flat, where a color chosen
+# for a page wins over the screen's Accent Color (hk-settings.js resolveFlatColors), and now in the other styles too.
+# Read here, never rewritten until the page's color is next chosen (changes.py strips the old field then). A key
+# that can't be a page_accents key (a room's, room-<area>) and "auto" (Flat's stop) stay where they are.
+PAGE_COLOR_KEY = re.compile(r"^[a-z][a-z_]{1,29}$")
+
+
+def fold_page_colors(look: dict[str, Any]) -> None:
+    pa, fpc = dict(look.get("page_accents") or {}), {}
+    for k, f in (look.get("flat_page_colors") or {}).items():
+        a = f.get("accent")
+        if a and a != "auto" and PAGE_COLOR_KEY.match(k):
+            pa[k] = a
+            f = {x: v for x, v in f.items() if x != "accent"}
+        if f:
+            fpc[k] = f
+    look["page_accents"], look["flat_page_colors"] = pa, fpc
+
+
 def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     """The stored settings over the defaults, section by section."""
     from .saver_rules import saver_options
+    from .. import saver_layers as SL
     from .side_pane_rules import side_pane
     from .dashboard_rules import amount_or_none, bright_dim_or_none, SWIPE_PAGES
     from .menu_rules import page_accents
@@ -92,7 +116,8 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     for section, values in stored.items():
         if section in out and isinstance(values, dict):
             out[section].update({k: v for k, v in values.items() if k in out[section]})
-    out["look"]["saver"] = saver_options(SAVER_HOLIDAYS.placed(out["look"].get("saver"), stored, _PLACE["country"])) or dict(SAVER_DEFAULTS)
+    # (its slides in minutes, an older "every N photos" carried over: saver_layers.in_minutes)
+    out["look"]["saver"] = SL.in_minutes(saver_options(SAVER_HOLIDAYS.placed(out["look"].get("saver"), stored, _PLACE["country"])) or dict(SAVER_DEFAULTS))
     if out["menu"].get("swipe_pages") not in SWIPE_PAGES:
         out["menu"]["swipe_pages"] = DEFAULTS["menu"]["swipe_pages"]
     np = out["now_playing"]
@@ -105,9 +130,9 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     out["look"]["flat"] = out["look"].get("flat") is True
     # (Motion, 2026-11-14: on unless switched off -- only an explicit False is off)
     out["look"]["motion"] = out["look"].get("motion") is not False
-    if out["look"].get("flat_theme") not in ("light", "dark"):
+    if out["look"].get("flat_theme") not in FLAT_THEMES:
         out["look"]["flat_theme"] = "dark"
-    for k, choices in (("well", WELLS), ("bright_pages", BRIGHT_PAGES), ("tile_style", TILE_STYLES), ("tile_icons", TILE_ICONS),
+    for k, choices in (("well", WELLS), ("bright_pages", BRIGHT_PAGES), ("bars_blur", BARS_BLUR), ("tile_style", TILE_STYLES), ("tile_icons", TILE_ICONS),
                        ("thermostat_style", THERMOSTAT_STYLES)):
         out["look"][k] = out["look"].get(k) if out["look"].get(k) in choices else DEFAULTS["look"][k]
     out["sky"]["photo_look"] = photo_look(out["sky"].get("photo_look")) or dict(PHOTO_LOOK_DEFAULTS)
@@ -116,7 +141,11 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     out["look"]["page_accents"] = page_accents(out["look"].get("page_accents")) or {}
     out["look"]["flat_colors"] = {**FLAT_COLORS_DEFAULT, **(flat_colors(out["look"].get("flat_colors")) or {})}
     out["look"]["flat_page_colors"] = flat_page_colors(out["look"].get("flat_page_colors")) or {}
+    fold_page_colors(out["look"])
+    lu = out["look"].get("look_undo")
+    out["look"]["look_undo"] = lu if isinstance(lu, dict) and lu.get("look") in LOOK_IDS and isinstance(lu.get("was"), dict) else None
     sk = out["sky"]
+    sk["seasonal_effects"] = sk.get("seasonal_effects") is True
     if sk.get("flat_background") not in FLAT_BACKGROUNDS:
         sk["flat_background"] = "color"
     sk["flat_color"] = flat_color(sk.get("flat_color")) or "auto"

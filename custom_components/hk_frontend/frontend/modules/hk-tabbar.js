@@ -479,6 +479,8 @@
       '  box-shadow:0 8px 28px rgba(0,0,0,0.30),inset 0 1px 0 rgba(255,255,255,0.10)}',
       '.blur .g{background:linear-gradient(145deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04)),rgba(28,28,32,0.52);',
       '  -webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6)}',
+      ':host([data-pre-blur]) .blur :is(.pill,.roomsbtn){-webkit-backdrop-filter:var(--hk-blur-filter,blur(24px) saturate(1.6));' +
+        'backdrop-filter:var(--hk-blur-filter,blur(24px) saturate(1.6))}',
       '.frosted .g{background:rgba(62,64,74,0.95)}',
       '.tinted .g{background:rgba(24,24,28,0.93)}',
       // BRIGHT GLASS (2026-10-30, DESIGN.md "Bright Glass"): a white wash over
@@ -504,11 +506,12 @@
       // a swipe on the bar is not the page's: it scrolled the page under it,
       // and Safari on an iPad then hid its own toolbar (2026-10-27)
       '  touch-action:none;transition:width .34s ' + EASE + '}',
+      '.hk-swipe-glass{position:absolute;inset:0;border-radius:inherit;pointer-events:none}',
       '.tab{position:relative;z-index:0;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;',
       // 10 px in from each side: the capsule's round ends curve ~9 px in at
       // the label's foot, so a long name's ellipsis stays inside it
       '  border:0;margin:0;padding:0 10px;border-radius:calc(var(--bh) / 2 - var(--g) + 1px);background:none;color:rgba(255,255,255,0.94);',
-      '  font:inherit;font-size:var(--tf);font-weight:600;letter-spacing:0;cursor:pointer;transition:background-color .2s ease,opacity .2s ease}',
+      '  font:inherit;font-size:var(--tf);font-weight:600;letter-spacing:0;cursor:pointer;transition:color .2s ease,background-color .2s ease,opacity .2s ease}',
       '.tab hk-icon{--mdc-icon-size:var(--ti);width:var(--ti);height:var(--ti);display:flex}',
       '.tab span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       // THE PAGE YOU ARE ON: its capsule reaches WIDEN px past the tab on each
@@ -534,18 +537,18 @@
       '.root.tight .tab.here::before{display:none}',
       '.tab:focus-visible,.roomsbtn:focus-visible,.cur:focus-visible,.it:focus-visible{outline:2px solid rgba(255,255,255,0.7);outline-offset:-2px}',
       // FOLDED (shrink): one round button with the current page's icon
-      '.cur{display:none;flex:1;align-items:center;justify-content:center;border:0;padding:0;margin:0;background:none;',
-      '  color:' + window.hkCards.v('accent') + ';cursor:pointer;border-radius:50%}',
+      '.cur{position:relative;display:none;flex:1;align-items:center;justify-content:center;border:0;padding:0;margin:0;background:none;',
+      '  color:' + window.hkCards.v('accent') + ';cursor:pointer;border-radius:50%;transition:color .2s ease}',
       '.cur hk-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
       '.root.small .pill{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px);border-radius:50%}',
       '.root.small .tab{display:none}',
       '.root.small .cur{display:flex}',
       // THE ROOMS BUTTON
-      '.roomsbtn{flex:none;width:var(--bh);height:var(--bh);border-radius:50%;display:none;align-items:center;',
+      '.roomsbtn{position:relative;flex:none;width:var(--bh);height:var(--bh);border-radius:50%;display:none;align-items:center;',
       '  justify-content:center;padding:0;margin:0;color:rgba(255,255,255,0.94);cursor:pointer;',
-      '  transition:width .34s ' + EASE + ',height .34s ' + EASE + '}',
+      '  transition:width .34s ' + EASE + ',height .34s ' + EASE + ',color .2s ease}',
       '.root.hasrooms .roomsbtn{display:flex}',
-      '.roomsbtn hk-icon{--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
+      '.roomsbtn hk-icon{position:relative;--mdc-icon-size:var(--ci);width:var(--ci);height:var(--ci);display:flex}',
       '.roomsbtn.here,.roomsbtn[aria-expanded="true"]{color:' + window.hkCards.v('accent') + '}',
       '.root.small .roomsbtn{width:calc(var(--bh) - 6px);height:calc(var(--bh) - 6px)}',
       '.tab:active,.roomsbtn:active,.cur:active{filter:brightness(1.25)}',
@@ -754,7 +757,7 @@
       ':host([data-strip="right"]) .sheet{right:calc(var(--strip-w,84px) + 8px);left:auto;transform:translateX(16px)}',
       ':host([data-strip="left"]) .sheet{left:calc(var(--strip-w,84px) + 8px);right:auto;transform:translateX(-16px)}',
       ':host([data-strip]) .sheet.open{transform:none}',
-      '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet,.tab.here::before{transition:none}}',
+      '@media (prefers-reduced-motion:reduce){.row,.pill,.roomsbtn,.sheet,.tab,.cur,.tab.here::before{transition:none}}',
       // ICONS ONLY: no names, on the bar and the rail alike
       ':host([data-icons]) .tab span{display:none}'
     ].join('\n');
@@ -824,7 +827,9 @@
       S.roomsBtn = sr.querySelector('.roomsbtn');
       S.sheets = { more: sr.querySelector('[data-sheet="more"]'), rooms: sr.querySelector('[data-sheet="rooms"]') };
       // a sheet slid, the bar hid or the pill grew: pinned glass cut again
-      S.root.addEventListener('transitionend', function () { if (window.hkGlass && window.hkGlass.repin) window.hkGlass.repin(); });
+      S.root.addEventListener('transitionend', function (e) {
+        if (e.propertyName !== 'color' && window.hkGlass && window.hkGlass.repin) window.hkGlass.repin();
+      });
       sr.querySelector('.scrim').addEventListener('click', function () { closeSheet(); });
       S.cur.addEventListener('click', function (e) { e.stopPropagation(); setMode('full'); });
       S.roomsBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleSheet('rooms'); });
@@ -850,9 +855,10 @@
     function pinGlass(mode) {
       var G = window.hkGlass;
       if (!G || !G.pin) return;
+      S.host.toggleAttribute('data-pre-blur', mode === 'blur');
       var bar = mode === 'bright' ? BRIGHT_TINT : mode === 'blur' ? BAR_TINT : null, sheet = mode === 'blur' ? SHEET_TINT : null;
-      [[S.pill, bar], [S.roomsBtn, bar], [S.sheets && S.sheets.more, sheet], [S.sheets && S.sheets.rooms, sheet]].forEach(function (p) {
-        if (p[0]) { if (p[1]) G.pin(p[0], p[1]); else G.unpin(p[0]); }
+      [[S.pill, bar], [S.roomsBtn, bar], [S.sheets && S.sheets.more, sheet], [S.sheets && S.sheets.rooms, sheet]].forEach(function (p, i) {
+        if (p[0]) { if (p[1]) G.pin(p[0], p[1], mode === 'blur' && i < 2); else G.unpin(p[0]); }
       });
     }
 
@@ -1222,6 +1228,11 @@
         if (previous && S.mode === 'full' && !S.tight) S.hereBox = drawnBoxOf(previous);
       }
       S.herePath = path;
+      // The highlight can arrive before navigation changes the address. Resolve its color from the same page.
+      var a = M.accent && M.accent(path);
+      if (a && S.host.style.getPropertyValue('--hk-accent') !== a.color) S.host.style.setProperty('--hk-accent', a.color);
+      if (a && S.host.style.getPropertyValue('--hk-on-accent') !== a.on) S.host.style.setProperty('--hk-on-accent', a.on);
+      if (a && S.host.style.getPropertyValue('--hk-accent-base') !== (a.base || a.color)) S.host.style.setProperty('--hk-accent-base', a.base || a.color);
       S.pill.querySelectorAll('.tab').forEach(function (el) {
         var k = el.getAttribute('data-t');
         var here = k === 'more' ? S.more.concat(S.roomsMode === 'more' ? S.rooms : [])
@@ -1639,11 +1650,6 @@
       if (window.hkGlass && window.hkGlass.pictured) look = window.hkGlass.pictured(look);
       var mat = material(b.tab_bar_glass, look);
       pinGlass(mat === 'blur' && look === 'blur_pre' ? 'blur' : mat === 'bright' && look === 'bright_pre' ? 'bright' : null);
-      var a = typeof M.accent === 'function' ? M.accent() : null;
-      if (a) {
-        S.host.style.setProperty('--hk-accent', a.color); S.host.style.setProperty('--hk-on-accent', a.on);
-        S.host.style.setProperty('--hk-accent-base', a.base || a.color);
-      }
       var width = pageW();
       iconsOnly = b.tab_bar_labels === 'icons';
       S.host.toggleAttribute('data-icons', iconsOnly);

@@ -30,10 +30,23 @@ def test_explicit_false_survives_trim_and_follow_resets_to_null():
 
 def test_flat_validation_is_atomic_and_normalizes_corrupt_cache():
     opts = {'dashboard': {'look': {'flat': True, 'glass': 'frosted'}}}
-    same, err = A.apply_house(opts, {'look.flat': False, 'look.flat_theme': 'auto', 'look.glass': 'tinted'})
+    same, err = A.apply_house(opts, {'look.flat': False, 'look.flat_theme': 'twilight', 'look.glass': 'tinted'})
     assert err == {'look.flat_theme': 'choice'} and same == opts
-    assert S.board({'flat': 'false', 'flat_theme': 'auto'})['flat'] is None
-    assert S.merged({'dashboard': {'look': {'flat': 'false', 'flat_theme': 'auto'}}})['look']['flat'] is False
+    assert S.board({'flat': 'false', 'flat_theme': 'twilight'})['flat'] is None
+    assert S.merged({'dashboard': {'look': {'flat': 'false', 'flat_theme': 'twilight'}}})['look']['flat'] is False
+
+
+def test_flat_auto_and_night_mode_entity_are_saved():
+    house, err = A.apply_house({}, {'look.flat_theme': 'auto', 'look.flat_night_entity': 'input_boolean.night_mode'})
+    assert err == {}
+    look = S.merged(house)['look']
+    assert look['flat_theme'] == 'auto' and look['flat_night_entity'] == 'input_boolean.night_mode'
+    cleared, err = A.apply_house(house, {'look.flat_night_entity': None})
+    assert err == {} and S.merged(cleared)['look']['flat_night_entity'] is None
+    unchanged, err = A.apply_house(house, {'look.flat_theme': 'light', 'look.flat_night_entity': 'sensor.light_level'})
+    assert unchanged == house and err == {'look.flat_night_entity': 'entity'}
+    screen, err = A.apply_board({}, {'flat_theme': 'auto'})
+    assert err == {} and S.board_stored(screen)['flat_theme'] == 'auto'
 
 
 def test_flat_backgrounds_default_to_color_and_validate():
@@ -48,15 +61,32 @@ def test_flat_backgrounds_default_to_color_and_validate():
     sky = S.merged(out)['sky']
     assert sky['flat_color'] == '#A1B2C3' and sky['flat_fade'] == 70
     assert sky['flat_pages'] == {'climate': 'sage', 'room-kitchen': 'photo', 'rooms': 'auto'}
-    for bad in ({'sky.flat_background': 'live'}, {'sky.flat_color': 'midnight'}, {'sky.flat_fade': 120},
-                {'sky.flat_pages': {'climate': 'live'}}):
+    for bad in ({'sky.flat_background': 'stars'}, {'sky.flat_color': 'midnight'}, {'sky.flat_fade': 120},
+                {'sky.flat_pages': {'climate': 'stars'}}):
         same, err = A.apply_house(out, bad)
         assert err and same == out, bad
     # a corrupt cache reads as the defaults; a screen's own survives the trim
-    assert S.merged({'dashboard': {'sky': {'flat_background': 'live', 'flat_fade': 'x'}}})['sky']['flat_background'] == 'color'
+    assert S.merged({'dashboard': {'sky': {'flat_background': 'stars', 'flat_fade': 'x'}}})['sky']['flat_background'] == 'color'
     own = S.board_stored({'sky_flat_background': 'landscapes', 'sky_flat_fade': 0, 'sky_flat_color': 'nope'})
     assert own == {'sky_flat_background': 'landscapes', 'sky_flat_fade': 0}
     assert 'sky_flat_fade' in S.SKY_RESET_BOARD and 'flat_fade' in S.SKY_RESET
+
+
+def test_flat_takes_every_background_and_keeps_its_own():
+    # PHASE 33 (the owner, 2026-11-16: "keep all background styles available for all modes, including flat"): Flat takes
+    # the Live Sky and a Wallpaper too, for All Screens, a screen and a page -- in its own store, so a screen that chose
+    # one background for Glass and another for Flat keeps both, and Flat's default stays Color
+    out, err = A.apply_house({}, {'sky.flat_background': 'live', 'sky.flat_pages': {'timeline': 'live', 'rooms': 'wallpaper'}})
+    assert not err
+    sky = S.merged(out)['sky']
+    assert sky['flat_background'] == 'live' and sky['flat_pages'] == {'timeline': 'live', 'rooms': 'wallpaper'}
+    assert sky['background'] == 'live' and S.merged(None)['sky']['flat_background'] == 'color'
+    out, err = A.apply_house(out, {'sky.flat_background': 'wallpaper'})
+    assert not err and S.merged(out)['sky']['flat_background'] == 'wallpaper'
+    own = S.board_stored({'flat': True, 'sky_flat_background': 'landscapes', 'sky_background': 'wallpaper'})
+    assert own['sky_flat_background'] == 'landscapes' and own['sky_background'] == 'wallpaper'
+    assert S.board_stored({'sky_flat_background': 'live', 'sky_flat_pages': {'climate': 'wallpaper'}}) == \
+        {'sky_flat_background': 'live', 'sky_flat_pages': {'climate': 'wallpaper'}}
 
 
 def test_flat_palette_matches_the_dashboard():
@@ -110,7 +140,8 @@ def test_flat_colors_whole_values_validate_atomically():
     assert not err
     look = S.merged(out)['look']
     assert look['flat_colors'] == {'accent': '#7e9b83', 'off_tint': 'accent', 'pages': 'accent'}
-    assert look['flat_page_colors'] == {'calendar': {'accent': '#c17d91'}, 'room-kitchen': {'off_tint': 'auto'}}
+    # (phase 33: a page's Flat accent is read as its Page Color, look.page_accents; a room's stays a Flat field)
+    assert look['flat_page_colors'] == {'room-kitchen': {'off_tint': 'auto'}} and look['page_accents'] == {'calendar': '#c17d91'}
     for bad in ({'look.flat_colors': {'accent': 'accent'}},           # accent can't bind to itself
                 {'look.flat_colors': {'accent': 'plaid'}},
                 {'look.flat_colors': {'tint': '#123456'}},             # an unknown field
@@ -134,15 +165,16 @@ def test_flat_colors_patches_keep_unrelated_pages_and_fields():
                                     'look.flat_colors.accent': '#9374bc'})
     assert not err
     look = S.merged(out)['look']
-    assert look['flat_page_colors'] == {'calendar': {'off_tint': 'accent'}, 'climate': {'accent': 'blue'},
-                                        'weather': {'off_tint': '#789484'}}
+    # (phase 33: climate's Flat accent reads as its Page Color; calendar's, taken away by its old address, is gone from both)
+    assert look['flat_page_colors'] == {'calendar': {'off_tint': 'accent'}, 'weather': {'off_tint': '#789484'}}
+    assert look['page_accents'] == {'climate': 'blue'}
     assert look['flat_colors'] == {'accent': '#9374bc', 'off_tint': 'accent', 'pages': 'accent'}, 'the other field survives'
     # a page emptied goes; All Screens' field removed is Automatic
     out, err = A.apply_house(out, {'look.flat_page_colors.calendar': {'off_tint': None},
                                    'look.flat_page_colors.climate': None, 'look.flat_colors.off_tint': None})
     assert not err
     look = S.merged(out)['look']
-    assert look['flat_page_colors'] == {'weather': {'off_tint': '#789484'}}
+    assert look['flat_page_colors'] == {'weather': {'off_tint': '#789484'}} and look['page_accents'] == {}
     assert look['flat_colors'] == {'accent': '#9374bc', 'off_tint': 'auto', 'pages': 'accent'}
     for bad in ({'look.flat_page_colors.calendar': {'shade': 'red'}}, {'look.flat_page_colors.calendar': 'red'},
                 {'look.flat_colors.accent': 'accent'}, {'look.flat_colors.off_tint': 'plaid'},

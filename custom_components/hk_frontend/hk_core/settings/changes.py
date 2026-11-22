@@ -34,10 +34,13 @@ from .. import tv as TV
 from .. import vacuum_water as VW
 from ..sleep import rules as SR
 from . import home_grid as HG
+from . import saver_layers as SL
 from . import saver_layout as SLAY
 from . import looks as LOOKS
 from . import kinds as K
 from . import model as S
+from .model.pages_screen_rules import PAGE_COLOR_KEY
+from .model.schema import FLAT_NIGHT_DOMAINS, FLAT_THEMES
 
 ENTITY = re.compile(r"^([a-z0-9_]+)\.[a-z0-9_]+$")
 
@@ -287,6 +290,20 @@ def _saver_options(v: Any) -> dict[str, Any]:
     return got
 
 
+def _saver_own(v: Any) -> dict[str, Any] | None:
+    """A screen's own screensaver options (phase 33): only the keys given, each checked as All Screens' are; none
+    (None or {}) is All Screens' in everything."""
+    if v is None or v == {}:
+        return None
+    _saver_options(v)
+    got = SL.own(v)
+    if got is None:
+        raise Invalid("saver_options")
+    if isinstance(v, dict) and v.get("layout") is not None:
+        got["layout"] = SLAY.check(v["layout"])
+    return got or None
+
+
 def _sleep(v: Any) -> dict[str, Any]:
     got = SR.sleep_options(v)
     if got is None:
@@ -461,7 +478,7 @@ def image_pages_patch(current: Mapping[str, Any], key: str, patch: Any) -> dict[
 
 
 def _flat_pages(v: Any) -> dict[str, str]:
-    """Each page's Flat background ({page: color | photo | landscapes}); a
+    """Each page's Flat background ({page: color | photo | landscapes | live | wallpaper}); a
     page set to "" or None follows again (left out)."""
     if v is None:
         return {}
@@ -803,7 +820,8 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "calendar.event_colors": calendar_event_colors,
     "look.glass": _choice(S.GLASS),
     "look.flat": _bool,
-    "look.flat_theme": _choice(("light", "dark")),
+    "look.flat_theme": _choice(FLAT_THEMES),
+    "look.flat_night_entity": _entity(*FLAT_NIGHT_DOMAINS),
     "look.frost": _amount,
     "look.frost_tint": _bool,
     "look.motion": _bool,
@@ -816,6 +834,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "look.tile_icons": _choice(S.TILE_ICONS),
     "look.thermostat_style": _choice(S.THERMOSTAT_STYLES),
     "look.bright_pages": _choice(S.BRIGHT_PAGES),
+    "look.bars_blur": _choice(S.BARS_BLUR),
     "look.details": _bool,
     "look.sky_switch": _entity("input_boolean", "switch"),
     "look.photos": _photos,
@@ -885,6 +904,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "generated.exclude_entities": _entities(),
     "generated.include_entities": _entities(),
     "sky.decorations": _bool,
+    "sky.seasonal_effects": _bool,
     "sky.decoration_style": _choice(("old", "new")),
     "sky.moving": _choice(S.SKY_MOVING),
     "sky.cloud_style": _choice(S.CLOUD_STYLES),
@@ -955,6 +975,39 @@ def _pane_group(name: str) -> Callable[[Any], Any]:
 
 
 HOUSE.update({f"side_pane.{g}": _pane_group(g) for g in S.PANE_GROUPS})
+# A LOOK AT ALL SCREENS' UNDO (phase 33, looks.py HOUSE_KEYS): the Look last applied there and All Screens' settings
+# before it ({look, was: {path: value}}), each value checked as that setting is; null once undone
+LOOK_HOUSE_PATHS = tuple(LOOKS.HOUSE_KEYS.values()) + (LOOKS.HOUSE_ACCENT_FLAT,) + tuple(f"side_pane.{g}" for g in S.PANE_GROUPS)
+
+
+def _house_look_undo(v: Any) -> dict[str, Any] | None:
+    if v is None:
+        return None
+    if not isinstance(v, dict) or set(v) - {"look", "was"} or not LOOKS.look(v.get("look")) or not isinstance(v.get("was"), dict):
+        raise Invalid("look_undo")
+    was = {}
+    for k, x in v["was"].items():
+        if k not in LOOK_HOUSE_PATHS:
+            raise Invalid("look_undo")
+        was[k] = _flat_field("accent", x) if k == LOOKS.HOUSE_ACCENT_FLAT else HOUSE[k](x)
+    return {"look": v["look"], "was": was}
+
+
+HOUSE["look.look_undo"] = _house_look_undo
+
+
+# PAGE COLOR (phase 33): the pages' colors written whole (look.page_accents) take the place of the Flat Accent Colors
+# they had before (model fold_page_colors reads those as their Page Colors), so the old fields go from the store with
+# them -- and a page given a color now loses an old Flat "auto" too, which would stop it showing in Flat
+def page_colors_unfolded(fpc: Any, pa: Mapping[str, Any]) -> dict[str, Any]:
+    out = {}
+    for k, f in (fpc or {}).items() if isinstance(fpc, Mapping) else ():
+        a = f.get("accent") if isinstance(f, Mapping) else None
+        if a not in (None, "") and S.PAGE_COLOR_KEY.match(str(k)) and (a != "auto" or k in pa):
+            f = {x: y for x, y in f.items() if x != "accent"}
+        if f:
+            out[k] = f
+    return out
 # (a patch of Flat's image look, the Glass looks' (image_look), or one page's Flat image look)
 IMAGE_HOUSE = re.compile(r"^sky\.(flat_image_look|image_look)\.patch$|^sky\.flat_page_image_looks\.([a-z0-9][a-z0-9_-]{0,39})$")
 FLAT_HOUSE = re.compile(r"^look\.flat_colors\.(accent|off_tint|pages)$|^look\.flat_page_colors\.([a-z0-9][a-z0-9_-]{0,39})$")
@@ -1007,13 +1060,21 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any],
             # FLAT COLORS' PATCHES (flat_patch): made over the store as it is
             fm = FLAT_HOUSE.match(path)
             if fm:
-                lk = dash.get("look") if isinstance(dash.get("look"), dict) else {}
-                lk = {**now["look"], **{k: v for k, v in lk.items() if k in now["look"]}}
+                # (made over this call's earlier writes too, as IMAGE_HOUSE: a setting put back to its default leaves
+                # the store, and the look as read before would bring the old value back -- a Look's Undo at All Screens)
+                lk = dict(S.merged({**dict(options), S.CONF_DASHBOARD: dash})["look"])
                 if fm.group(1):
                     lk["flat_colors"] = {**S.FLAT_COLORS_DEFAULT,
                                          **flat_patch(lk["flat_colors"], {fm.group(1): value})}
                 else:
                     lk["flat_page_colors"] = flat_pages_patch(lk["flat_page_colors"], fm.group(2), value)
+                    # (phase 33: a page's Flat accent is its Page Color now, read through it -- fold_page_colors -- so the
+                    # old address clears that too: a page whose Flat color is taken away loses its Page Color)
+                    key = fm.group(2)
+                    if PAGE_COLOR_KEY.match(key) and (value is None or (isinstance(value, Mapping) and "accent" in value)):
+                        a = None if value is None else value.get("accent")
+                        if a in (None, "auto"):
+                            lk["page_accents"] = {k: v for k, v in (lk.get("page_accents") or {}).items() if k != key}
                 now["look"] = lk
                 dash["look"] = S.house_stored("look", lk)
                 continue
@@ -1035,6 +1096,9 @@ def apply_house(options: Mapping[str, Any], changes: Mapping[str, Any],
         # (only what differs from its default is stored: settings.only_set)
         cur = dash.get(section) if isinstance(dash.get(section), dict) else {}
         dash[section] = S.house_stored(section, {**{k: v for k, v in cur.items() if k in now[section]}, key: got})
+        if path == "look.page_accents" and "flat_page_colors" in dash[section]:
+            dash[section] = S.house_stored(section, {**dash[section],
+                                                     "flat_page_colors": page_colors_unfolded(dash[section]["flat_page_colors"], got)})
         if section == "counts":
             # A kind saved now is no longer read from its older list
             # (kinds.LEGACY): keeping it would be a second answer nobody
@@ -1301,7 +1365,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "home_view": _home_view,
     "glass": _choice(S.BOARD_GLASS),
     "flat": _bool_or_none,
-    "flat_theme": _choice(("light", "dark"), none=True),
+    "flat_theme": _choice(FLAT_THEMES, none=True),
     "frost": _amount_or_none,
     "frost_tint": _bool_or_none,
     "motion": _bool_or_none,
@@ -1313,6 +1377,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "tile_style": _choice(S.TILE_STYLES, none=True),
     "tile_icons": _choice(S.TILE_ICONS, none=True),
     "bright_pages": _choice(S.BRIGHT_PAGES, none=True),
+    "bars_blur": _choice(S.BARS_BLUR, none=True),
     "sky": _bool,
     # this screen's own Sky / Background; None: follow All Screens
     "sky_animations": _bool_or_none,
@@ -1321,6 +1386,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "sky_focus_pause": _bool_or_none,
     "camera_live_video": _bool_or_none,
     "sky_decorations": _bool_or_none,
+    "sky_seasonal_effects": _bool_or_none,
     "sky_decoration_style": _choice(("old", "new"), none=True),
     "sky_moving": _choice(S.SKY_MOVING, none=True),
     "sky_cloud_style": _choice(S.CLOUD_STYLES, none=True),
@@ -1380,7 +1446,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "wallpanel_options": _card_options,
     "kiosk_options": _card_options,
     # null: follow the settings for All Screens
-    "screensaver_options": lambda v: None if v is None else _saver_options(v),
+    "screensaver_options": lambda v: _saver_own(v),
     "screensaver_engine": _saver_engine,
 }
 

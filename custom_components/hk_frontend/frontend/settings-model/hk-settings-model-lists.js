@@ -197,25 +197,26 @@
       });
     }
     // what Automatic means for a page, in words
-    // (a page left alone says Automatic: the user, 2026-10-17 -- "Page
-    // Color" there read as if Page Color had been picked)
+    // (a page left alone says Automatic: the user, 2026-10-17 -- its own
+    // sky's name there read as if it had been picked)
     function skyAutoLabel(row) {
       return 'Automatic';
     }
     // a mode in words: 'own', 'live', 'photo' or a backdrop id (backdrops: [{id, label}])
     function skyModeLabel(mode, backdrops) {
-      if (mode === 'own') return 'Page Color';
+      // (the page's own colors, "Page Color" until phase 33: the name went to a page's color in the menu)
+      if (mode === 'own') return 'Its Own Sky';
       if (mode === 'photo') return 'Photo';
       if (mode === 'landscapes') return 'Landscapes';
       if (mode === 'wallpaper') return 'Wallpaper';
       var b = (backdrops || []).filter(function (x) { return x.id === mode; })[0];
       return b ? b.label : mode === 'live' ? 'Live Sky' : mode;
     }
-    // the choices for one page: Automatic (or Same as All Screens), Page Color
+    // the choices for one page: Automatic (or Same as All Screens), Its Own Sky
     // where it has one, the live sky, then every fixed backdrop
     function skyModeOptions(row, backdrops, first) {
       var out = [['', first]];
-      if (row.own) out.push(['own', 'Page Color']);
+      if (row.own) out.push(['own', 'Its Own Sky']);
       (backdrops || []).forEach(function (b) { out.push([b.id, b.label]); });
       return out;
     }
@@ -498,9 +499,9 @@
                   '  clock_style: classic # for show: clock and a large clock\n' +
                   '  clock_bg: gradient   # behind show: clock\n' +
                   '  clock_night: "off"   # "night" (clock_night_from to clock_night_to) or "always"\n' +
-                  '  forecast_every: 5    # a slide (the forecast, the music) after this many photos\n' +
-                  '  music_slide: false   # what plays, full screen: a slide among the photos\n' +
-                  '  music_first: false   # ...or the music fills the screen while it plays\n' +
+                  '  extra_every: 2       # a slide (the forecast, the weather...) every this many minutes\n' +
+                  '  extra_for: 30        # ...for this many seconds\n' +
+                  '  music_first: false   # the music fills the screen while it plays\n' +
                   '  fallback: true       # no photos: the forecast (false: a dark screen)\n' +
                   '  band: true           # the forecast’s details on the forecast\n' +
                   '  band_photos: false   # ...and over the photos\n' +

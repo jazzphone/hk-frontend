@@ -205,7 +205,7 @@
       var S = window.hkSettings, a = S && S.rendering ? S.rendering() : { flat: false }, t = el ? flatForced(el) : null;
       // (a sheet made Flat on its own is made so to be easy on the tablet: still, as it has been)
       if (t === 'off') return a.flat ? Object.assign({}, a, { flat: false, blur: true, liveSky: true, autoplay: true }) : a;
-      return t && !a.flat ? Object.assign({}, a, { flat: true, theme: t, motion: false }) : a;
+      return t ? Object.assign({}, a, { flat: true, theme: t, motion: a.flat ? a.motion : false }) : a;
     }
     function flatTone(el) {
       var a = renderingAt(el);
@@ -1735,23 +1735,24 @@
     // the view's address, its kind's color; Home, the rooms and the rest
     // HK's orange
     // by page kind, each page's own (HK Settings -> the page -> Look ->
-    // Highlight Color, look.page_accents, 2026-10-17) else these; a view's
+    // Page Color, look.page_accents, 2026-10-17) else these; a view's
     // address names its kind (PAGE_OF_PATH where the two differ).
     // hk-settings-model.js PAGE_ACCENTS is the same table (tests/test_flat.js).
     var PAGE_ACCENTS = { climate: 'blue', lights: 'yellow', security: 'teal', doors_windows: 'teal',
                          calendar: 'purple', weather: 'cyan', energy: 'green', power: 'green', water: 'cyan',
                          music: 'pink', live_tv: 'indigo', cameras: 'red', vacuums: 'mint', timers: 'orange' };
     var PAGE_OF_PATH = { 'doors-windows': 'doors_windows', playmusic: 'music', 'music-browse': 'music', 'live-tv': 'live_tv' };
-    // THE HIGHLIGHT COLOR AS SAVED, here: the screen's (else All Screens',
+    // THE ACCENT COLOR AS SAVED, here: the screen's (else All Screens',
     // resolved into the board), Automatic the page's own -- a hex
-    function legacyAccentHex() {
+    function legacyAccentHex(path) {
       var a = String(boardOf(dashSeg()).accent || 'orange').toLowerCase();
-      if (a === 'auto') a = pageAccent();
+      if (a === 'auto') a = pageAccent(path);
       return ACCENTS[a] || (/^#[0-9a-f]{6}$/.test(a) ? a : ACCENTS.orange);
     }
-    function pageAccent() {
-      var seg = String(location.pathname).split('/')[2] || '', kind = PAGE_OF_PATH[seg] || seg;
-      var S = window.hkSettings, own = S && S.get ? (S.get('look.page_accents', {}) || {})[kind] : null;
+    // (a page's Page Color: this screen's, else All Screens', hkSettings.pageColor; phase 33)
+    function pageAccent(path) {
+      var seg = String(path == null ? location.pathname : path).split(/[?#]/)[0].split('/')[2] || '', kind = PAGE_OF_PATH[seg] || seg;
+      var S = window.hkSettings, own = S && S.pageColor ? S.pageColor(kind) : S && S.get ? (S.get('look.page_accents', {}) || {})[kind] : null;
       return own || PAGE_ACCENTS[kind] || 'orange';
     }
     // An always-open menu needs room for it: its item's "Always open when the
@@ -1837,7 +1838,7 @@
     K.LIGHT_KEYS = LIGHT_KEYS; K.markAsleep = markAsleep; K.MENU_DOCK = MENU_DOCK; K.msetting = msetting;
     K.navigate = navigate; K.navPath = navPath; K.neverToggles = neverToggles; K.ON_PAGE = ON_PAGE;
     K.openTarget = openTarget; K.PAGE_ACCENTS = PAGE_ACCENTS; K.PAGE_OF_PATH = PAGE_OF_PATH;
-    K.pageAccent = pageAccent; K.PILL_LABEL = PILL_LABEL; K.place = place; K.PREVIEW_CLIENTS = PREVIEW_CLIENTS;
+    K.pageAccent = pageAccent; K.PILL_LABEL = PILL_LABEL; K.place = place; K.PREVIEW_CLIENTS = PREVIEW_CLIENTS; K.renderingAt = renderingAt;
     K.SELECTED_BG = SELECTED_BG; K.SELECTED_TEXT = SELECTED_TEXT; K.snapCacheDrop = snapCacheDrop;
     K.snapCacheGet = snapCacheGet; K.snapCacheKeys = snapCacheKeys; K.snapCachePut = snapCachePut;
     K.snapFlush = snapFlush; K.TAP_CONTROLS = TAP_CONTROLS; K.tone = tone;

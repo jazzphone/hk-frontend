@@ -349,15 +349,18 @@ def sky_pages(v: Any) -> dict[str, str] | None:
             if isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k) and m in SKY_PAGE_MODES}
 
 
-# FLAT'S BACKGROUNDS (2026-10-16). Flat (look.flat) draws no live sky, so it
-# keeps backgrounds of its own and the Glass looks' Sky / Background stays as
-# it was for when Flat is left: a Color, a Photo or Landscapes (the same photo
-# and landscape choices the Glass looks use), a Fade over a photo, and each
-# page's own. A color is "auto" (the page's own ground -- Climate's sage,
+# FLAT'S BACKGROUNDS (2026-10-16). Flat (look.flat) keeps backgrounds of its
+# own and the Glass looks' Sky / Background stays as it was for when Flat is
+# left: a Color, a Photo or Landscapes (the same photo and landscape choices
+# the Glass looks use), a Fade over a photo, and each page's own. A color is "auto" (the page's own ground -- Climate's sage,
 # Lights' beige ... -- else the theme's), one of FLAT_COLORS, which has a
 # Light and a Dark tone each, or "#rrggbb", the same in both themes.
 # hk-base.js FLAT_COLORS mirrors this table (tests/py/test_flat.py).
-FLAT_BACKGROUNDS = ("color", "photo", "landscapes")
+# (phase 33, the owner 2026-11-16: "keep all background styles available for all modes, including flat"): the Live Sky
+# and a Wallpaper too, drawn behind Flat's solid cards; Color stays Flat's default
+FLAT_THEMES = ("light", "dark", "auto")
+FLAT_NIGHT_DOMAINS = ("binary_sensor", "input_boolean", "switch")
+FLAT_BACKGROUNDS = ("color", "photo", "landscapes", "live", "wallpaper")
 
 FLAT_COLORS = (
     {"id": "stone", "label": "Stone", "light": "#EEECE6", "dark": "#17181A"},
@@ -389,9 +392,9 @@ def flat_color(v: Any) -> str | None:
 
 
 def flat_pages(v: Any) -> dict[str, str] | None:
-    """Each page's Flat background ({page: a Flat color, "photo" or
-    "landscapes"}); None when it can't be read. An unknown page or value is
-    left out."""
+    """Each page's Flat background ({page: a Flat color, "photo", "landscapes",
+    "live" or "wallpaper"}); None when it can't be read. An unknown page or
+    value is left out."""
     if v is None:
         return {}
     if not isinstance(v, Mapping):
@@ -400,7 +403,7 @@ def flat_pages(v: Any) -> dict[str, str] | None:
     for k, m in v.items():
         if not (isinstance(k, str) and re.match(r"^[a-z0-9][a-z0-9_-]{0,39}$", k)):
             continue
-        m = m if m in ("photo", "landscapes") else flat_color(m)
+        m = m if m in ("photo", "landscapes", "live", "wallpaper") else flat_color(m)
         if m:
             out[k] = m
     return out
@@ -584,14 +587,14 @@ def sky_photo(v: Any) -> str | None:
 SKY_RESET = ("background", "color", "landscape", "wallpaper", "wallpaper_night", "wallpaper_motion", "wallpaper_color","photo_look", "landscape_look", "image_look", "flat_background", "flat_color",
     "flat_image_look", "flat_fade", "flat_tint", "flat_tint_amount", "flat_tint_light",
              "animations", "focus_pause", "moving", "weather", "precipitation",
-             "cloud_style", "daytime", "gradient", "decorations", "decoration_style",
+             "cloud_style", "daytime", "gradient", "decorations", "decoration_style", "seasonal_effects",
              "woodland", "themes", "liveliness_all", "liveliness", "liveliness_custom")
 
 SKY_RESET_BOARD = ("sky_background", "sky_color", "sky_landscape", "sky_wallpaper", "sky_wallpaper_night", "sky_wallpaper_motion", "sky_wallpaper_color", "sky_photo_look", "sky_landscape_look",
     "sky_image_look",
                    "sky_flat_background", "sky_flat_color", "sky_flat_image_look", "sky_flat_fade", "sky_flat_tint", "sky_flat_tint_amount", "sky_flat_tint_light",
                    "sky_animations", "sky_focus_pause", "sky_moving", "sky_weather", "sky_precipitation",
-                   "sky_cloud_style", "sky_daytime", "sky_gradient", "sky_decorations", "sky_decoration_style",
+                   "sky_cloud_style", "sky_daytime", "sky_gradient", "sky_decorations", "sky_decoration_style", "sky_seasonal_effects",
                    "sky_liveliness", "sky_liveliness_occ", "sky_liveliness_custom", "sky_calm_empty")
 
 
@@ -1090,6 +1093,10 @@ TILE_ICONS, THERMOSTAT_STYLES = ("auto", "color", "white"), HG.THERMOSTAT_STYLES
 # BRIGHT GLASS ON (look.bright_pages, a screen's bright_pages; 2026-10-30, the owner: "should we only use Bright
 # Glass on the main page?"): Home only (the default), the other pages in its Blur; or every page
 BRIGHT_PAGES = ("home", "all")
+
+# BARS & SIDE PANE (look.bars_blur, a screen's bars_blur; Appearance -> Advanced, 2026-11-21): how the tab bar, the menu
+# and the Side Pane blur in Clear Glass and Each Card -- live, or Pre-rendered's picture of the sky (hk-glass.js PINNABLE)
+BARS_BLUR = ("live", "pre")
 
 # Bright Glass's Dim (look.bright_dim, a screen's bright_dim): 0 to this, in %, as the Side Pane's (PANE_DIM_MAX)
 BRIGHT_DIM_MAX = 60

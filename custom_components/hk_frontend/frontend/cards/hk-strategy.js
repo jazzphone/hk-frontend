@@ -188,6 +188,7 @@
                     // of settings.py BOARD_DEFAULTS belongs here, held by
                     // test_strategy_rebuild.js
                     sky_animations: 1, sky_weather: 1, sky_precipitation: 1, sky_focus_pause: 1, sky_decorations: 1, sky_decoration_style: 1, sky_moving: 1,
+                    sky_seasonal_effects: 1,
                     sky_cloud_style: 1, sky_daytime: 1, sky_gradient: 1, sky_custom: 1, sky_pages: 1,
                     sky_liveliness: 1, sky_liveliness_occ: 1, sky_liveliness_custom: 1, sky_calm_empty: 1,
                     sky_background: 1, sky_color: 1, sky_photo: 1, sky_page_photos: 1, sky_photo_look: 1, sky_page_looks: 1, sky_landscape: 1, sky_landscape_look: 1,
@@ -205,7 +206,9 @@
                     // the owner, 2026-10-30)
                     side_pane: 1, side_pane_read: 1,
                     // ...and Bright Glass On (hk-settings.js glass(), on each page)
-                    bright_pages: 1 };
+                    bright_pages: 1,
+                    // ...and Bars & Side Pane (hk-settings.js barsBlur(), hk-glass.js reads it live)
+                    bars_blur: 1 };
   // an accessory's fields only the chips read (Status & Chips' status, a custom
   // chip's when / label / attribute): changing one rebuilds nothing
   var CHIP_ONLY = { status: 1, when: 1, label: 1, attribute: 1 };
