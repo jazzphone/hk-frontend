@@ -135,7 +135,11 @@ function () {
   eq('...the dial when it is not chosen', C.config({ card: 'thermostat', size: 'T' }, ctx), { type: 'custom:hk-control-card', entity: 'climate.den' });
   eq('...Extra Large too: the face with the modes beside it (2026-10-31)', C.config({ card: 'thermostat', size: 'XL', opts: { style: 'big' } }, ctx),
     { type: 'custom:hk-control-card', entity: 'climate.den', style: 'big' });
-  eq('...the dial\'s Extra Large stays the sheet', C.config({ card: 'thermostat', size: 'XL' }, ctx).type, 'custom:hk-grid-panel-card');
+  // (round 12: Extra Large is the Large face and its readings in one plate whatever the style -- no longer the sheet's panel; the weather
+  // entity the screen has is what its Outside reading is read from)
+  eq('...the dial\'s Extra Large is the same card, not the sheet\'s panel', C.config({ card: 'thermostat', size: 'XL' }, ctx), { type: 'custom:hk-control-card', entity: 'climate.den' });
+  eq('...with the screen\'s weather entity for its Outside reading', C.config({ card: 'thermostat', size: 'XL' }, Object.assign({ weather: 'weather.home' }, ctx)),
+    { type: 'custom:hk-control-card', entity: 'climate.den', weather: 'weather.home' });
   eq('...every thermostat page takes it', C.pages({ card: 'thermostat', size: 'L', opts: { style: 'big' }, pages: { source: 'thermostats' } }, { climate: ['climate.den', 'climate.hall'] })
      .map(function (p) { return p.card.style; }), ['big', 'big']);
   eq('the option, and its kind', [C.table().thermostat.opts, C.THERMOSTAT_STYLES], [{ entity: 'climate', style: 'thermostat_style', tap: 'tap_target' }, [['dial', 'Dial'], ['big', 'Big Number']]]);
@@ -187,7 +191,8 @@ function () {
   var t = C.table();
   eq('the options each declares (home_grid.CATALOG\'s: a pytest holds them equal)',
      [t.room.opts, t.scene_suggested.opts, t.action.opts, t.everything.opts],
-     [{ area: 'area', surface: 'surface', accessory_display: 'room_display', tap: 'tap_target', look: 'sheet_look', flat_theme: 'sheet_flat_theme' },
+     [{ area: 'area', surface: 'surface', accessory_display: 'room_display', tap: 'tap_target', look: 'sheet_look', flat_theme: 'sheet_flat_theme',
+        background: 'card_background' },
        { windows: 'windows' }, { action: 'action', area: 'area', color: 'boolean' },
        { tap: 'tap_target', more: 'everything_more' }]);
   // (2026-11-08, round two) Everything's More Places and On Now's Categories, carried into the card only when not the default
@@ -492,6 +497,11 @@ function () {
   eq('...four in Full Width, one row, the tiles nearest 16:9', P.camGrid('XXL', 4, 1260, 310), [4, 1]);
   eq('...six in a landscape Full: 3 x 2, not 2 x 3', P.camGrid('F', 6, 1260, 630, 6), [3, 2]);
   eq('...one camera: the whole block', P.camGrid('XL', 1), [1, 1]);
+  // THE MOSAIC (round 12): the layout that gives each camera the largest 16:9 picture in the block (a last row shares its width)
+  eq('mosaic, Extra Large (614 x 405): two stacked wide boxes, three as 2 x 2, four 2 x 2, five and six 3 x 2',
+     [2, 3, 4, 5, 6].map(function (n) { return P.camGrid('XL', n, 614, 405, 6); }), [[1, 2], [2, 2], [2, 2], [3, 2], [3, 2]]);
+  eq('...Full Width (1260 x 310): three in a row, four in a row, six 4 x 2 never 6 x 1', [3, 4, 8].map(function (n) { return P.camGrid('XXL', n, 1260, 310, 6); }),
+     [[3, 1], [4, 1], [4, 2]]);
   var cams = ['camera.driveway', 'camera.front_doorbell', 'camera.garden'];
   eq('a ring names its camera', P.camRing(cams, 'camera.garden'), 'camera.garden');
   eq('...or a camera called doorbell', [P.camRing(cams, null), P.camRing(cams, 'camera.elsewhere')], ['camera.front_doorbell', 'camera.front_doorbell']);
@@ -566,8 +576,22 @@ function () {
   window.hkCards.menu.tabBar = function () { return true; };
   window.hkTabBar = { open: function (k) { sheets.push(k); } };
   card._tap();
-  window.hkCards.menu.tabBar = tb; window.hkTabBar = bar; window.hkMenu = was;
+  window.hkCards.menu.tabBar = tb; window.hkTabBar = bar;
   eq('the tab bar showing: its More sheet', [sheets, opened], [['more'], 1]);
+  // NO MENU AT ALL (a screen's Menu off: the owner's Apple HomeView, 2026-11-23, where the tap did nothing): the Pages screen
+  var on = window.hkCards.menu.on, nav = window.hkCards.navigate, items = card._items, went = [];
+  window.hkCards.menu.on = function () { return false; };
+  window.hkCards.navigate = function (path) { went.push(path); };
+  card._items = function () { var a = []; /** @type {any} */ (a).pagesPath = '/apple-homeview/pages'; return a; };
+  card._tap();
+  eq('no tab bar and no side menu: the Pages screen', [went, opened], [['/apple-homeview/pages'], 1]);
+  card._items = function () { return []; };
+  card._tap();
+  eq('...and with no Pages screen either, the menu as before', [went.length, opened], [1, 2]);
+  card._config = { tap: 'none' };
+  card._tap();
+  eq('...When Tapped Nothing still does nothing', [went.length, opened], [1, 2]);
+  window.hkCards.menu.on = on; window.hkCards.navigate = nav; card._items = items; window.hkMenu = was;
 },
 function () {
   H.section('a camera block\'s Name (2026-10-31): Automatic, Show or Hide, handed to its mosaic');
@@ -575,5 +599,16 @@ function () {
   var tag = function (o) { var c = G.config({ card: 'camera', size: 'L', at: [0, 0], opts: o }, ctx); return (c.cards ? c.cards[0] : c).name_tag; };
   eq('the option is a name_tag', G.table().camera.opts.name, 'name_tag');
   eq('...Automatic unless set', [tag({}), tag({ name: 'hide' }), tag({ name: 'show' })], ['auto', 'hide', 'show']);
+},
+function () {
+  H.section('a camera block\'s Picture (round 12): Live, Snapshots, or Automatic -- what the block always did');
+  var G = window.hkGridCatalog, ctx = { cameras: ['camera.porch'] };
+  var cfg = function (o, size) { var c = G.config({ card: 'camera', size: size || 'L', at: [0, 0], opts: o }, ctx); return c.cards ? c.cards[0] : c; };
+  eq('the options are a camera_picture and the Cameras\' refresh', [G.table().camera.opts.picture, G.table().camera.opts.refresh], ['camera_picture', 'refresh']);
+  eq('Automatic (none stored): no `picture`, so the screen\'s Live First Camera decides, as before', ['picture' in cfg({}), 'refresh' in cfg({})], [false, false]);
+  eq('...Live and Snapshots go to the mosaic', [cfg({ picture: 'live' }).picture, cfg({ picture: 'snapshots', refresh: 20 }).picture, cfg({ picture: 'snapshots', refresh: 20 }).refresh],
+    ['live', 'snapshots', 20]);
+  eq('every size is the kit\'s picture, Extra Large too', ['S', 'W', 'T', 'L', 'XL'].map(function (s) { var c = cfg({}, s); return [c.type, c.kit]; }),
+     [1, 2, 3, 4, 5].map(function () { return ['custom:hk-camera-mosaic-card', true]; }));
 }
 ]);

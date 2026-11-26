@@ -263,6 +263,14 @@ def _amount(v: Any) -> int:
     return int(round(v))
 
 
+def _bar_dim(v: Any) -> str | int:
+    if v == S.TAB_BAR_DIM_GLASS:
+        return v
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= S.TAB_BAR_DIM_MAX:
+        raise Invalid("bar_dim")
+    return int(round(v))
+
+
 def _bright_dim(v: Any) -> int:
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= S.BRIGHT_DIM_MAX:
         raise Invalid("bright_dim")
@@ -835,6 +843,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "look.thermostat_style": _choice(S.THERMOSTAT_STYLES),
     "look.bright_pages": _choice(S.BRIGHT_PAGES),
     "look.bars_blur": _choice(S.BARS_BLUR),
+    "look.text_glow": _bool,
     "look.details": _bool,
     "look.sky_switch": _entity("input_boolean", "switch"),
     "look.photos": _photos,
@@ -862,6 +871,7 @@ HOUSE: dict[str, Callable[[Any], Any]] = {
     "menu.bar_scroll": _choice(S.TAB_BAR_SCROLLS),
     "menu.bar_rooms": lambda v: _rooms_place(v),
     "menu.bar_glass": _choice(S.TAB_BAR_GLASS),
+    "menu.bar_dim": _bar_dim,
     "menu.bar_more": _choice(S.TAB_BAR_MORE),
     "menu.bar_more_phone": _choice(S.TAB_BAR_MORE),
     "menu.bar_pos": _choice(S.TAB_BAR_POS),
@@ -969,7 +979,7 @@ def _pane_group(name: str) -> Callable[[Any], Any]:
     def check(v: Any) -> Any:
         got = S.pane_group(name, v, strict=True)
         if got is None:
-            raise Invalid("choice" if name in ("side", "width") else "range" if name == "dim" else "bool" if name in ("doorbell", "headings") else "side_pane")
+            raise Invalid("choice" if name in ("side", "width") else "range" if name == "dim" else "bool" if name in ("doorbell", "headings", "saver_headings") else "side_pane")
         return got
     return check
 
@@ -1326,6 +1336,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "tab_bar_scroll": _choice(S.TAB_BAR_SCROLLS),
     "tab_bar_rooms": lambda v: _rooms_place(v),
     "tab_bar_glass": _choice(S.TAB_BAR_GLASS),
+    "tab_bar_dim": _bar_dim,
     "tab_bar_more": _choice(S.TAB_BAR_MORE),
     "tab_bar_more_phone": _choice(S.TAB_BAR_MORE),
     "tab_bar_pos": _choice(S.TAB_BAR_POS),
@@ -1378,6 +1389,7 @@ BOARD: dict[str, Callable[[Any], Any]] = {
     "tile_icons": _choice(S.TILE_ICONS, none=True),
     "bright_pages": _choice(S.BRIGHT_PAGES, none=True),
     "bars_blur": _choice(S.BARS_BLUR, none=True),
+    "text_glow": _bool_or_none,
     "sky": _bool,
     # this screen's own Sky / Background; None: follow All Screens
     "sky_animations": _bool_or_none,

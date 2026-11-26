@@ -145,7 +145,8 @@ class HkControlCard extends HTMLElement {
     // The resolved id is part of the signature: switching speakers can leave
     // state and attributes looking identical (two idle HomePods), and without
     // the id in here the card would keep drawing the previous speaker.
-    const signature = JSON.stringify([id,s?.state,s?.attributes,window.hkSettings?.rendering?.()]);
+    // (Extra Large's Outside reading is another entity's: in the signature so the face is drawn again when it moves)
+    const signature = JSON.stringify([id,s?.state,s?.attributes,window.hkSettings?.rendering?.(),this.getAttribute("size") === "XL" ? this._outsideTemp() : 0]);
     if (signature !== this._signature) {
       this._signature = signature;
       // NOT UNDER A FINGER: a redraw rebuilds the dial, and with it the
@@ -232,6 +233,9 @@ class HkControlCard extends HTMLElement {
       .sub{font-size:12.5px;line-height:1.2;font-weight:540;color:${window.hkCards.v('ink-2')};margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       button{font:inherit;color:${window.hkCards.v('ink')};border:0;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
       button:active{transform:scale(.96);filter:brightness(.92)}
+      /* (the glow rule, 2026-11-22: every word on a plate glows; a button's own text-shadow is none, so it inherits the plate's. This card is
+         not HkBase's and never had BASE_CSS's) */
+      button{text-shadow:inherit}
       .segment{height:46px;border-radius:14px;background:${window.hkCards.v('key')};font-size:13px;font-weight:680;padding:0 12px;transition:.15s ease}
       .segment.active{background:var(--hk-accent,rgba(255,159,10,.96));color:#fff;box-shadow:0 5px 14px rgba(255,130,0,.23)}
       .segments{display:grid;gap:8px}
@@ -250,7 +254,7 @@ class HkControlCard extends HTMLElement {
       ".option-row.many{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}" +
       ".option-row.many .segment{height:40px;border-radius:20px;background:" + window.hkCards.v('key') + ";font-size:13px;font-weight:600;padding:0 10px;" +
       "white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-      ".option-row.many .segment.active{background:#fff;color:#1c1c1e;box-shadow:none}" +
+      ".option-row.many .segment.active{background:#fff;color:#1c1c1e;box-shadow:none;text-shadow:none}" +
       // EVERY ONE 44 px (the user: one height everywhere), the thermostat's
       // fan row too -- smaller text says it is the secondary one
       C.segCss(".tstat-modes",{on:".active",fill:true,font:"var(--hk-tstat-seg-font,12.5px)"}) +
@@ -277,6 +281,8 @@ class HkControlCard extends HTMLElement {
       }
       return;
     }
+    // (the kit's thermostat, _renderKit; the older drawing below only where the kit draws none)
+    if (this._kitOn()) { if (this._renderKit()) return; } else if (window.hkKit) window.hkKit.forget(this);
     const domain=this._domain(), s=this._state();
     let body="";
     if(domain==="climate") {
@@ -592,6 +598,9 @@ class HkControlCard extends HTMLElement {
       .big .nm b{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
       .big .nm b{font-size:${window.hkCards.TILE.centred.square.name}px;font-weight:600;line-height:${window.hkCards.TILE.centred.square.line}px;letter-spacing:-.3px;color:${window.hkCards.v('ink')}}
       .big .nm i{font-style:normal;font-size:${window.hkCards.TILE.centred.square.sub}px;font-weight:400;line-height:${window.hkCards.TILE.centred.square.line}px;color:${window.hkCards.v('ink-2')}}
+      /* (in a sheet -- bare: its header names the thermostat -- a face too narrow for the name between the arrows keeps the
+         arrows and leaves the name out: an Apple HomeView's sheet, 2026-11-25, where it came out "Do / W... / H...") */
+      @container (max-width:230px){.surface.bare.big .ft .nm{visibility:hidden}}
       /* SMALL AND TALL (2026-10-31, the owner's notes on the widget mock-up):
          a column inside the block's inset -- the target(s), Tall's row of
          modes, then the foot: the arrows either side of the name, and under
@@ -612,7 +621,7 @@ class HkControlCard extends HTMLElement {
       .big .heat small::before,.big .cool small::before{content:"";width:8px;height:8px;border-radius:50%;flex:none}
       .big .heat small::before{background:${window.hkCards.ACCENTS.orange}}.big .cool small::before{background:${window.hkCards.ACCENTS.teal}}.big .tt small{text-shadow:${window.hkCards.v('glow')}}
       /* ...heat and cool: the two side by side (Small) or cool over heat
-         (Tall), each label in its colour, the picked one on a light plate;
+         (Tall), each label in its color, a dot under the picked one;
          a tap picks one, the arrows step it */
       .big .tt{all:unset;position:relative;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;
         padding:4px 8px;border-radius:var(--hk-inner-radius,12px);cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:0}
@@ -625,9 +634,12 @@ class HkControlCard extends HTMLElement {
       :host([size=T]) .big .one b{font-size:min(96px,26cqh,40cqw)}
       :host([size=T]) .big .one.long b{font-size:min(66px,18cqh,28cqw)}
       :host([size=T]) .big .tt{padding:4px 2px;min-width:72px}
-      /* (THE RANGE IN SMALL, WIDE AND TALL, 2026-11-08, the owner's controls rule -- Small one action, Wide and Tall two or three: the two
-         targets are the reading, not keys; the arrows move the pair together, each end on its own is the sheet's. Tall stacks them,
-         cool over heat, between the arrows) */
+      /* (THE RANGE IN SMALL, WIDE AND TALL: Tall stacks them, cool over heat, between the arrows. From 2026-11-08 the two were the
+         reading and the arrows moved the pair; since 2026-11-22, the owner: each target a key, as Large's -- a tap picks it, the dot
+         under the picked one's digits, the arrows step it) */
+      .big .tt b{position:relative}
+      .big .tt.sel b::after{content:"";position:absolute;left:50%;top:calc(100% + 2px);width:7px;height:7px;translate:-50% 0;border-radius:50%;background:${window.hkCards.v('ink')}}
+      .big .tt:focus-visible{outline:2px solid ${window.hkCards.v('ink-2')};outline-offset:2px}
       /* ...Tall's Mode key (2026-11-08, the owner: "the modes are too close to the temp up and down arrows... the modes get hit while using them",
          then "the modes at the top throw the card off"; any card may send more controls to its sheet): the arrows flank the target, the
          centre of weight, the name heads the block, and the modes are the thermostat sheet's -- one 44 px key on the foot opens it, a
@@ -673,7 +685,7 @@ class HkControlCard extends HTMLElement {
       ${window.hkCards.headCss('.big .mc>b')}
       .big .mc button{all:unset;position:relative;box-sizing:border-box;flex:none;height:52px;border-radius:var(--hk-inner-radius,12px);display:flex;align-items:center;justify-content:center;gap:8px;
         background:${window.hkCards.v('key')};color:${window.hkCards.v('ink')};${window.hkCards.typeCss('body')};font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
-      .big .mc button.on{background:#fff;color:#1c1c1e}
+      .big .mc button.on{background:#fff;color:#1c1c1e;text-shadow:none}
       .big .mc button:focus-visible{outline:2px solid ${window.hkCards.v('ink-2')};outline-offset:2px}
       .big .mc hk-icon{width:20px;height:20px;--mdc-icon-size:20px;display:block;line-height:0}
       .big .mc span{${window.hkCards.typeCss('caption')};line-height:18px;text-align:center;color:${window.hkCards.v('ink-2')};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -685,7 +697,7 @@ class HkControlCard extends HTMLElement {
       :host([size=S]) .big .modes,:host([size=W]) .big .modes{display:none;grid-template-columns:1fr 1fr;align-content:center;gap:8px;padding:14px}
       :host([size=S]) .big.choosing .modes,:host([size=W]) .big.choosing .modes{display:grid}
       .big .modes .segment{flex:none;height:44px;border:0;border-radius:22px;color:${window.hkCards.v('ink')};font-size:15px;font-weight:600}
-      .big .modes .segment.active{background:#fff;color:#1c1c1e;box-shadow:none}
+      .big .modes .segment.active{background:#fff;color:#1c1c1e;box-shadow:none;text-shadow:none}
     `;
   }
   // Fraction (0..1 of the ring) -> a point on it. The ring runs 135deg to
@@ -833,8 +845,8 @@ class HkControlCard extends HTMLElement {
   // BIG NUMBER (2026-10-30, docs/phase11/HOMEVIEW-LOOK.md Phase C; a Home
   // Grid thermostat block's Style): the target very large, the arrows at its
   // foot either side of the name, as HomeView draws its thermostat. Heat and
-  // cool: both targets, a tap picks one (a dot under it; on a light plate at
-  // Small and Tall) and the arrows step it. A press and hold on the number:
+  // cool: both targets, a tap picks one (a dot under it, at every
+  // size) and the arrows step it. A press and hold on the number:
   // every mode; a tap on the name: the sheet. A step is the entity's
   // target_temp_step (else 1 degree F, 0.5 C), held on the face as the dial
   // holds a setpoint, and sent as the dial sends one (set_temperature
@@ -893,10 +905,11 @@ class HkControlCard extends HTMLElement {
       : sz === "XL" ? (room || how) : (room ? room + " · " + how : how);
     const arrow = (dir, d, label) => `<button class="ar" type="button" data-big-step="${dir}" aria-label="${label}"${idle ? " disabled" : ""}>` +
       `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg></button>`;
-    // (Small, Wide and Tall: a range's arrows move both ends -- `_bigNudge` -- and the name is words, the block's own tap opens the sheet)
+    // (Small, Wide and Tall: the name is words, the block's own tap opens the sheet; a range's arrows step the target picked, as
+    // Large's do -- 2026-11-22, the owner: the arrows "control both temps" and the temps "aren't selectable ... like the Large card")
     const solo = sz === "S" || sz === "W" || sz === "T";
-    const down = arrow(-1, "M5.5 9.5 12 16l6.5-6.5", range && solo ? "Lower both targets" : range ? (pick === "low" ? "Lower the heating target" : "Lower the cooling target") : "Lower the target");
-    const up = arrow(1, "M5.5 14.5 12 8l6.5 6.5", range && solo ? "Raise both targets" : range ? (pick === "low" ? "Raise the heating target" : "Raise the cooling target") : "Raise the target");
+    const down = arrow(-1, "M5.5 9.5 12 16l6.5-6.5", range ? (pick === "low" ? "Lower the heating target" : "Lower the cooling target") : "Lower the target");
+    const up = arrow(1, "M5.5 14.5 12 8l6.5 6.5", range ? (pick === "low" ? "Raise the heating target" : "Raise the cooling target") : "Raise the target");
     const nm = solo ? `<div class="nm"><b>${name}</b>${sub ? `<i>${sub}</i>` : ""}</div>`
       : `<button class="nm" type="button" data-tstat-details aria-label="${name}${sub ? ", " + sub : ""}, open the thermostat"><b>${name}</b>${sub ? `<i>${sub}</i>` : ""}</button>`;
     const foot = cls => `<div class="${cls}">${down}${nm}${up}</div>`;
@@ -908,7 +921,11 @@ class HkControlCard extends HTMLElement {
     const label = range ? "" : (mode === "off" ? "Off" : t(single) + " degrees") + ", press and hold for the modes";
     // SMALL, WIDE AND TALL: the targets in a column with the foot (Wide: one Mode key at its right, opening the sheet's modes)
     if (sz === "S" || sz === "W" || sz === "T") {
-      const tt = (v, verb, kind) => `<div class="tt ${kind}"><small>${sz === "T" ? verb : kind === "heat" ? "Heat" : "Cool"}</small><b>${t(v)}</b></div>`;
+      // (each target a key: a tap picks it, a dot under the picked one's digits, as Large's -- 2026-11-22)
+      const tt = (v, verb, kind) => { const which = kind === "heat" ? "low" : "high";
+        return `<button class="tt ${kind}${pick === which ? " sel" : ""}" type="button" data-big-pick="${which}" aria-pressed="${pick === which}" ` +
+          `aria-label="${verb.replace(" To", " to")} ${t(v)} degrees">` +
+          `<small>${sz === "T" ? verb : kind === "heat" ? "Heat" : "Cool"}</small><b>${t(v)}</b></button>`; };
       const word = wh ? "Heat To" : { heat: "Heat To", cool: "Cool To" }[mode] || "Target", kind = wh ? " heat" : mode === "heat" || mode === "cool" ? " " + mode : "";
       const text = mode === "off" ? "Off" : idle ? "—" : t(single);
       const one = `<div class="one${kind}${text.length > 2 ? " long" : ""}">${sz === "T" && !idle ? `<small>${word}</small>` : ""}<b>${text}</b></div>`;
@@ -942,14 +959,11 @@ class HkControlCard extends HTMLElement {
     if (mode === "heat_cool" && Number.isFinite(Number(a.target_temp_low)) && Number.isFinite(Number(a.target_temp_high))) {
       let lo = held && held.which !== "single" ? held.lo : Number(a.target_temp_low);
       let hi = held && held.which !== "single" ? held.hi : Number(a.target_temp_high);
-      // (Small, Wide and Tall move the pair together, 2026-11-08: the range slides, neither end past the entity's, the gap between them kept)
-      const sz = this.getAttribute("size"), both = sz === "S" || sz === "W" || sz === "T";
-      if (both) {
-        const d = dir > 0 ? Math.min(dir * step, (Number.isFinite(max) ? max : Infinity) - hi) : Math.max(dir * step, (Number.isFinite(min) ? min : -Infinity) - lo);
-        lo = clamp(lo + d); hi = clamp(hi + d);
-      } else if (this._bigPick === "high") hi = Math.max(snap(hi + dir * step), lo + step);
+      // (every size steps the one picked, 2026-11-22: Small, Wide and Tall moved the pair together from 2026-11-08 -- the owner wants each
+      // end its own, as Large has it)
+      if (this._bigPick === "high") hi = Math.max(snap(hi + dir * step), lo + step);
       else lo = Math.min(snap(lo + dir * step), hi - step);
-      this._hold = { which: both ? "both" : this._bigPick === "high" ? "high" : "low", lo: lo, hi: hi, until: Date.now() + 8000 };
+      this._hold = { which: this._bigPick === "high" ? "high" : "low", lo: lo, hi: hi, until: Date.now() + 8000 };
     } else {
       const now = held && held.which === "single" ? held.single : Number(a.temperature);
       if (!Number.isFinite(now)) return;
@@ -1001,6 +1015,198 @@ class HkControlCard extends HTMLElement {
       call("climate", "set_hvac_mode", { hvac_mode: b.dataset.bigMode });
     });
     el.onkeydown = e => { if (e.key === "Escape" && this._bigModes) { this._bigModes = false; this._render(); } };
+  }
+
+  // ---- THE KIT'S CARD (phase 34, docs/phase34/PLAN.md; hk-kit.js): HomeView's Big Number in the kit's parts, at every size.
+  // The setpoint large at 42.7 % of the block; a range's two numbers with a dot under the one picked; EACH CONTROL OWNS A WHOLE
+  // REGION of the block with a bare chevron centered in it (Small: the foot's halves, a short cell's side bands; Wide: the
+  // lower corners; Tall: a band above the number and one below; Large: the foot's corners); the name and the state at the foot
+  // ("Heating · 66°", the word orange, or "Cooling" blue, on a white plate; "Idle · 68°" on glass); Extra Large: that face and the
+  // modes as keys in a column. A tap elsewhere opens the sheet (the block's tap). Steps and the modes are Current's own.
+  get _root() { return this.shadowRoot; }
+  _kitOn() {
+    const sz = this.getAttribute("size"), K = window.hkKit;
+    return !!(K && sz && ["S", "W", "T", "L", "XL"].includes(sz) && this._domain() === "climate" && !this._heater() && !this._config.bare && K.on(this));
+  }
+  // the block in px (as HkBase's _block): the grid's cells and the gaps between them
+  _block() {
+    const C = window.hkCards, n0 = C && C.HOME_GRID && C.HOME_GRID.sizes[this.getAttribute("size")];
+    if (!n0 || typeof getComputedStyle !== "function") return null;
+    const cs = getComputedStyle(this), g = parseFloat(cs.getPropertyValue("--g-gap")) || C.HOME_GRID.gap;
+    const cw = parseFloat(cs.getPropertyValue("--hk-cell-w")), ch = parseFloat(cs.getPropertyValue("--hk-cell-h"));
+    if (!(cw > 0 && ch > 0 && n0[0] > 0 && n0[1] > 0)) return null;
+    this._kitGap = g;
+    return { w: Math.floor(n0[0] * cw + (n0[0] - 1) * g), h: Math.floor(n0[1] * ch + (n0[1] - 1) * g) };
+  }
+  // drawn again when the block's size changes (the view measures after the cards are in)
+  _kitWatch() {
+    const b = this._block();
+    this._kitKey = b ? b.w + "x" + b.h : "";
+    if (this._kitRO || typeof ResizeObserver === "undefined") return;
+    this._kitRO = new ResizeObserver(() => {
+      const n = this._block();
+      if (this._kitHtml && (n ? n.w + "x" + n.h : "") !== this._kitKey) this._render();
+    });
+    this._kitRO.observe(this);
+  }
+  // what the face shows: the setpoint(s), a step just taken held where it was put (as _big holds it), the room's reading
+  _kitRead() {
+    const s = this._state(), a = s?.attributes || {}, mode = s?.state || "off";
+    let lo = Number(a.target_temp_low), hi = Number(a.target_temp_high), single = Number(a.temperature);
+    const hold = this._hold;
+    if (hold && Date.now() < hold.until) {
+      const took = hold.which === "single" ? single === hold.single : (lo === hold.lo && hi === hold.hi);
+      if (took && !this._bigT) this._hold = null;
+      else if (hold.which === "single") single = hold.single;
+      else { lo = hold.lo; hi = hold.hi; }
+    } else this._hold = null;
+    const range = mode === "heat_cool" && Number.isFinite(lo) && Number.isFinite(hi);
+    const idle = mode === "off" || mode === "unavailable" || (!range && !Number.isFinite(single));
+    const cur = a.current_temperature == null || a.current_temperature === "" ? NaN : Number(a.current_temperature);
+    return { a, mode, lo, hi, single, range, idle, cur, action: a.hvac_action || "", pick: this._bigPick === "high" ? "high" : "low" };
+  }
+  _renderKit() {
+    const K = window.hkKit, esc = K.esc, sz = this.getAttribute("size"), k = K.ctx(this), w = k.w, h = k.h, E = k.E, KH = K.KH, G = K.G;
+    this._kitWatch();
+    const d = this._kitRead(), a = d.a, t = v => esc(this._bigText(v, a)), name = this._name(), sq = h >= 180;
+    const heating = d.action === "heating", cooling = d.action === "cooling", lit = heating || cooling, off = d.idle;
+    // the state: "Heating" orange or "Cooling" blue on the white plate, else "Idle" (or the mode's own word); then the room's reading
+    const word = d.mode === "unavailable" ? "Unavailable" : heating ? "Heating" : cooling ? "Cooling" : d.mode === "off" ? "Off" : d.action ?
+      (d.action === "idle" || d.action === "off" ? "Idle" : this._pretty(d.action)) : this._pretty(d.mode);
+    const wordHtml = lit ? `<span style="color:${heating ? "#f08a00" : "#0a7aff"}">${esc(word)}</span>` : esc(word);
+    const stateHtml = wordHtml + (Number.isFinite(d.cur) && d.mode !== "unavailable" ? esc(" · " + Math.round(d.cur) + "°") : "");
+    const label = name + ", " + word + (Number.isFinite(d.cur) ? ", " + Math.round(d.cur) + " degrees in the room" : "");
+    // a number's width in em (tabular digits .58, a period .3), so a font fits what it has to show
+    const adv = s => { let n = 0; for (const c of String(s)) n += /[0-9]/.test(c) ? 0.58 : c === "." ? 0.3 : 0.55; return n; };
+    const lowWords = d.range ? (d.pick === "low" ? "Lower the heating target" : "Lower the cooling target") : "Lower the target";
+    const highWords = d.range ? (d.pick === "low" ? "Raise the heating target" : "Raise the cooling target") : "Raise the target";
+    // a bare chevron (ink px across), centered in the region it owns
+    const chev = (up, ink) => {
+      const sw = Math.round((ink <= 26 ? 2.6 : ink <= 32 ? 3 : 3.6) * 20 / ink * 100) / 100;
+      return `<svg viewBox="0 0 20 12" width="${ink}" height="${Math.round(ink * 0.6)}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" ` +
+        `stroke-linejoin="round" aria-hidden="true"><path d="${up ? "M2 9.5l8-7 8 7" : "M2 2.5l8 7 8-7"}"/></svg>`;
+    };
+    const hit = (x, y, rw, rh, dir, ink) => `<button type="button" class="hit" data-notap data-big-step="${dir}" aria-label="${dir < 0 ? lowWords : highWords}"${off ? " disabled" : ""} ` +
+      `style="${K.st(x, y, rw, rh)}display:flex;align-items:center;justify-content:center;border-radius:${k.r}px;color:inherit` +
+      `${off ? ";opacity:.35;pointer-events:none" : ""}">${chev(dir > 0, ink)}</button>`;
+    // the setpoint(s) centered on (cx, cy): a font of at most fs (rfs for a range), across at most `avail`; the dot under the one picked
+    const nums = (cx, cy, fs0, rfs0, avail) => {
+      const num = (x, y, nw, fs, text) => K.box(x - fs * 0.06, y, nw + fs * 0.12, fs, "kh", `font-size:${fs}px;letter-spacing:-.015em;text-align:center`, text);
+      if (off) {
+        const text = d.mode === "off" ? "Off" : "—", fs = Math.floor(Math.min(fs0 * 0.55, avail / adv(text)));
+        return num(cx - avail / 2, cy - fs / 2, avail, fs, text);
+      }
+      if (!d.range) {
+        const text = t(d.single), fs = Math.floor(Math.min(fs0, avail / adv(text)));
+        return num(cx - avail / 2, cy - fs / 2, avail, fs, text);
+      }
+      const tl = t(d.lo), th = t(d.hi), gap = 0.34, units = adv(tl) + adv(th) + gap, fs = Math.floor(Math.min(rfs0, avail / units)), wl = adv(tl) * fs, wh = adv(th) * fs;
+      const x0 = cx - units * fs / 2, xh = x0 + wl + gap * fs, bw = Math.max(4, Math.round(fs * 0.065)), dot = Math.max(7, Math.round(fs * 0.075));
+      const pickX = d.pick === "low" ? x0 + wl / 2 : xh + wh / 2, ty = cy - fs / 2 - 6, th2 = fs + dot + 24;
+      const pk = (which, x, nw, words) => `<button type="button" class="hit" data-notap data-big-pick="${which}" aria-pressed="${d.pick === which}" aria-label="${words}" ` +
+        `style="${K.st(x - fs * 0.1, ty, nw + fs * 0.2, th2)}border-radius:${Math.round(k.r / 2)}px"></button>`;
+      return num(x0, cy - fs / 2, wl, fs, tl) + num(xh, cy - fs / 2, wh, fs, th) +
+        K.box(x0 + wl + (gap * fs - fs * 0.26) / 2, cy - bw / 2, fs * 0.26, bw, "", `border-radius:${bw / 2}px;background:var(--hk-ink-2,rgba(255,255,255,0.68))`) +
+        K.box(pickX - dot / 2, cy + fs * 0.36 + Math.max(7, Math.round(fs * 0.07)), dot, dot, "", "border-radius:50%;background:currentColor") +
+        pk("low", x0, wl, "Heat to " + tl + " degrees") + pk("high", xh, wh, "Cool to " + th + " degrees");
+    };
+    const stateLine = (x, y, tw) => K.tx(x, y, tw, "kb", stateHtml, "text-align:center");
+    const foot = (x, y, tw) => K.tx(x, y, tw, "kt", esc(name), "text-align:center") + K.tx(x, y + 24, tw, "kb", stateHtml, "text-align:center");
+    const cy = Math.round(h * 0.427), cx = w / 2;
+    let o = "", fw = w;
+    if (sz === "S" && sq) {
+      // the foot split in halves, each owning its half; the state line just above
+      // (a range lifts its numbers a little so the dot under the one picked clears the state line)
+      o = nums(cx, d.range && !off ? Math.round(h * 0.39) : cy, 64, 40, w - 28) + stateLine(8, h - 62 - 22, w - 16) + hit(0, h - 62, w / 2, 62, -1, 28) +
+        hit(w / 2, h - 62, w / 2, 62, 1, 28);
+    } else if (sz === "S") {
+      // a short cell: a band each side (a range makes them narrower), the number between, the state under it
+      const band = d.range && !off ? 46 : 62, fs0 = 56, ink = d.range && !off ? Math.min(fs0 * 0.8, 40) : fs0;
+      o = nums(cx, cy, fs0, 40, w - 2 * band - 8) + stateLine(8, Math.round(cy + ink * 0.36 + (d.range && !off ? 14 : 6)), w - 16) + hit(0, 0, band, h, -1, 22) + hit(w - band, 0, band, h, 1, 22);
+    } else if (sz === "W") {
+      // the number centered in the top half; the name and the state at the foot between the corners that lower and raise
+      const ftTop = h - (sq ? 18 : E) - 46, fs0 = Math.min(Math.floor(h * 0.44), Math.floor(w * 0.44), Math.floor((ftTop - 6 - cy) / 0.36));
+      o = nums(cx, cy, fs0, Math.min(Math.floor(h * 0.28), Math.floor(w * 0.24)), w - 2 * 90) + foot(90, ftTop, w - 180) + hit(0, h - 86, 86, 86, -1, 28) + hit(w - 86, h - 86, 86, 86, 1, 28);
+    } else if (sz === "T") {
+      // an upright stepper: a band above the number raises, one below lowers; the name and the state at the foot
+      const ftTop = h - (sq ? 18 : E) - 46, fs0 = Math.min(Math.floor(h * 0.44), Math.floor(w * 0.44));
+      const up = Math.max(56, Math.min(96, cy - 40 - E)), down = Math.max(56, Math.min(96, ftTop - 4 - (cy + 44)));
+      o = nums(cx, cy, fs0, 60, w - 28) + foot(k.X, ftTop, w - 2 * k.X) + hit(0, cy - 40 - up, w, up, 1, 30) + hit(0, cy + 44, w, down, -1, 30);
+    } else {
+      // Large: HomeView's own Big Number, the name and the state at the foot, a chevron at each corner of it; Extra Large: that face and the modes
+      if (sz === "XL") fw = Math.round((w + (this._kitGap || G + 5)) * 2 / 3 - (this._kitGap || G + 5));
+      const rh = Math.min(112, Math.round(h * 0.28)), fc = Math.round(h * 0.86), tw = Math.round(fw * 0.72 - 102);
+      o = nums(fw / 2, cy, Math.min(Math.floor(h * 0.44), Math.floor(fw * 0.44)), Math.min(Math.floor(h * 0.28), Math.floor(fw * 0.24)), fw - 2 * 24) +
+        foot(fw / 2 - tw / 2, fc - 23, tw) + hit(fw * 0.14 - 47, h - rh, 94, rh, -1, 38) + hit(fw * 0.86 - 47, h - rh, 94, rh, 1, 38);
+      if (sz === "XL") o += this._kitSide(k, fw, d, lit);
+    }
+    const css = ":host{display:block;width:100%;box-sizing:border-box}:host([size]){height:100%}hk-plate{display:block}";
+    const html = `<style>${css}</style>` + K.plate(k, o, { lit: lit, label: label, cls: "tstat" });
+    const ok = K.draw(this, html, root => this._bindKit(root));
+    if (window.hkGlass) window.hkGlass.rendered(this);
+    return ok;
+  }
+  // EXTRA LARGE'S SIDE (round 12, the owner: "For XL, i'd rather have the Large version of the thermostat for the XL card and then to the
+  // right, have the additional data...probably built in to the same card, not detached."): the Large face on the left 405 as it is, a
+  // hairline, then Inside, Humidity and Outside as rows (the glyph, the value over its name) and Mode and Fan as keys on the 13 edge
+  // at the foot. A key opens its choices in place of the column (a row to go back, then one row each); a choice sets it.
+  _kitRows(d) {
+    const a = d.a, out = this._outsideTemp(), deg = n => Number.isFinite(n) ? Math.round(n) + "°" : "";
+    const hum = a.current_humidity == null || a.current_humidity === "" ? NaN : Number(a.current_humidity);
+    return [["mdi:thermometer", "Inside", deg(d.cur)], ["mdi:water-percent", "Humidity", Number.isFinite(hum) ? Math.round(hum) + "%" : ""],
+      ["mdi:weather-partly-cloudy", "Outside", deg(out)]].filter(r => r[2]);
+  }
+  // the outside temperature: the house's outside sensor when Settings names one, else the weather entity's (as the Weather block reads it)
+  _outsideTemp() {
+    const st = (this.client && this.client.states) || {}, HS = window.hkSettings, sid = HS && HS.get ? HS.get("weather.outside", null) : null;
+    const num = v => v == null || v === "" || v === "unknown" || v === "unavailable" ? NaN : Number(v);
+    let t = sid && st[sid] ? num(st[sid].state) : NaN;
+    if (!Number.isFinite(t)) { const w = this._config.weather && st[this._config.weather]; t = w ? num((w.attributes || {}).temperature) : NaN; }
+    return t;
+  }
+  _kitSide(k, fw, d, lit) {
+    const K = window.hkKit, a = d.a, E = k.E, KH = K.KH, G = K.G, h = k.h, w = k.w, kx = fw + E - 4, kw = w - E - kx;
+    const NAME = { heat_cool: "Auto", auto: "Auto", heat: "Heat", cool: "Cool", off: "Off", dry: "Dry", fan_only: "Fan Only" };
+    const word = m => NAME[m] || this._pretty(m);
+    const MODE = { heat: ["mdi:fire", "#ff9f0a"], cool: ["mdi:snowflake", "#0a84ff"], heat_cool: ["mdi:thermometer", ""], auto: ["mdi:thermometer", ""], off: ["mdi:power", ""],
+      dry: ["mdi:water-percent", ""], fan_only: ["mdi:fan", ""] };
+    const modes = ["heat", "cool", "heat_cool", "auto", "off", "dry", "fan_only"].filter(m => Array.isArray(a.hvac_modes) && a.hvac_modes.includes(m));
+    const fans = Array.isArray(a.fan_modes) ? a.fan_modes.filter(m => m != null && m !== "") : [];
+    const cur = d.mode, fan = a.fan_mode, ink = K.v("ink", "rgba(255,255,255,0.94)");
+    let o = K.box(fw, 18, 1, h - 36, "sep", "");
+    const rx = fw - 4, rw = w - rx;
+    const pick = this._xlPick === "mode" && modes.length > 1 ? "mode" : this._xlPick === "fan" && fans.length > 1 ? "fan" : "";
+    if (pick) {
+      // the choices: a row to go back, one row each (the chosen one checked); what does not fit the column is left out, the chosen one kept
+      const list = (pick === "mode" ? modes : fans).slice(), chosen = pick === "mode" ? cur : fan, cap = Math.max(1, Math.floor((h - E - 70) / K.RH));
+      const at = list.indexOf(chosen);
+      const shown = list.length > cap ? list.slice(0, cap - 1).concat([at >= cap - 1 ? list[at] : list[cap - 1]]) : list;
+      const blank = '<span style="display:block;width:22px;height:22px"></span>', say = m => pick === "mode" ? word(m) : this._pretty(m);
+      o += K.row(k, rx, 10, rw, { lead: K.svg("back", 22), lw: 22, lh: 22, t: pick === "mode" ? "Mode" : "Fan", b: "Back", label: "Back", data: { "xl-pick": "" } });
+      o += K.rows(k, rx, rw, 70, h - E, 1, shown.map(m => ({ lead: m === chosen ? K.svg("check", 22) : blank, lw: 22, lh: 22, t: say(m),
+        label: (pick === "mode" ? "Mode " : "Fan ") + say(m), data: pick === "mode" ? { "xl-mode": m } : { "xl-fan": m } }))).html;
+    } else {
+      const reads = this._kitRows(d);
+      o += reads.map((r, i) => K.row(k, rx, 10 + i * K.RH, rw, { lead: K.glyph(r[0], 26, K.v("ink-2", "rgba(255,255,255,0.68)")), lw: 28, lh: 28, t: r[2], b: r[1],
+        label: r[1] + " " + r[2] }, i === reads.length - 1)).join("");
+      const mm = MODE[cur] || MODE.off, onNow = cur !== "off" && cur !== "unavailable" && !!mm[1], keys = [];
+      if (modes.length > 1) keys.push({ g: K.glyph(mm[0], 24, K.tone(k, mm[1] || ink, onNow), onNow), t: word(cur), label: "Mode, " + word(cur), data: { "xl-pick": "mode" } });
+      if (fans.length > 1) keys.push({ g: K.glyph("mdi:fan", 24), t: "Fan " + this._pretty(fan), label: "Fan, " + this._pretty(fan), data: { "xl-pick": "fan" } });
+      keys.forEach((o2, i) => { o += K.key(kx, h - E - (keys.length - i) * KH - (keys.length - 1 - i) * G, kw, KH, o2); });
+    }
+    return o;
+  }
+  _bindKit(root) {
+    const id = this._entityId(),
+      call = (dom, svc, data = {}) => Promise.resolve(this._svc(dom, svc, { entity_id: id, ...data })).catch(err => { console.error("hk-control-card: " + dom + "." + svc + " failed", data, err); });
+    root.querySelectorAll("[data-big-step]").forEach(b => b.onclick = e => { e.stopPropagation(); this._bigNudge(Number(b.dataset.bigStep), call); });
+    root.querySelectorAll("[data-big-pick]").forEach(b => b.onclick = e => { e.stopPropagation(); this._bigPick = b.dataset.bigPick; this._render(); });
+    root.querySelectorAll("[data-big-mode]").forEach(b => b.onclick = e => { e.stopPropagation(); call("climate", "set_hvac_mode", { hvac_mode: b.dataset.bigMode }); });
+    // Extra Large's Mode and Fan: a key opens its choices, a choice sets it and closes them, the first row goes back
+    root.querySelectorAll("[data-xl-pick]").forEach(b => b.onclick = e => { e.stopPropagation(); this._xlPick = b.dataset.xlPick || ""; this._render(); });
+    root.querySelectorAll("[data-xl-mode]").forEach(b => b.onclick = e => { e.stopPropagation(); this._xlPick = ""; call("climate", "set_hvac_mode", { hvac_mode: b.dataset.xlMode }); this._render();
+      });
+    root.querySelectorAll("[data-xl-fan]").forEach(b => b.onclick = e => { e.stopPropagation(); this._xlPick = ""; call("climate", "set_fan_mode", { fan_mode: b.dataset.xlFan }); this._render(); });
   }
 
   _waterDial(s) {

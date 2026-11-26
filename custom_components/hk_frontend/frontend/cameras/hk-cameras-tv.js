@@ -31,6 +31,7 @@
     var TV_HEARTBEAT_MS = 60000;
     var TV_CONTROLS_MS = 4000;
     var TV_RETRY_MS = [5000, 15000, 60000, 300000];   // an empty channel list: look again
+    var tvLinkDone = false;                            // the address's channel (_fromLink) is played once per page load
 
     function tvTime(iso) {
       try { return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
@@ -135,7 +136,26 @@
           self._loading = false;
           if (good) self._chanTries = 0; else self._retryChannels();
           self.redraw();
+          self._fromLink();
         });
+      }
+
+      // A CHANNEL FROM THE ADDRESS (2026-11-24, the owner: a Live TV widget that opens "the mantel page to have that
+      // channel play"): .../live-tv?channel=4.1 plays that channel once the list is in, and leaves the address without
+      // it, so Back or a reload does not start it again. Once per page load.
+      _fromLink() {
+        if (tvLinkDone || !this._channels || !this._channels.length) return;
+        var want = null;
+        try { want = new URLSearchParams(location.search).get('channel'); } catch (e) { want = null; }
+        if (!want) return;
+        tvLinkDone = true;
+        try {
+          var u = new URL(location.href);
+          u.searchParams.delete('channel');
+          history.replaceState(history.state, '', u.pathname + u.search + u.hash);
+        } catch (e) { /* an address it can't change: the channel still plays */ }
+        var ch = this._channels.filter(function (c) { return String(c.number) === want; })[0];
+        if (ch) this._open(ch);
       }
 
       _retryChannels() {
@@ -284,6 +304,47 @@
       getCardSize() { return 6; }
     }
 
+    // APPLE'S OWN PLAYER (2026-11-24, the owner, on Apple HomeView: Live TV "doesn't use the native player").
+    // Safari plays HLS in Apple's player -- full screen, the system volume, Picture in Picture, AirPlay -- so where
+    // the page is Safari's (an Apple vendor: Safari, a HomeView, the iOS app's web view) and its host serves Live TV
+    // with a go2rtc door, the channel plays as HLS (hk_tv/hls: the host sets its stream up and holds it while the
+    // page renews, the playlist through that door). Anywhere else, or when the host says no, the WebRTC player.
+    var HLS_RENEW_MS = 45000;
+    // the host's own go2rtc door on this origin ('/go2rtc/', hkShell.serviceUrl), or null (no host serves one)
+    function go2rtcBase() {
+      var S = window.hkShell;
+      var u = S && typeof S.serviceUrl === 'function' ? S.serviceUrl('go2rtc') : null;
+      return typeof u === 'string' && u.charAt(0) === '/' && u.charAt(1) !== '/' ? u : null;
+    }
+    function appleHls() {
+      try {
+        var v = document.createElement('video');
+        return /Apple/.test(navigator.vendor || '') && !!v.canPlayType('application/vnd.apple.mpegurl') && !!go2rtcBase();
+      } catch (e) { return false; }
+    }
+
+    // APPLE'S FULL-SCREEN PLAYER ON A HOMEVIEW (2026-11-25, the owner: on the HomeView, Live TV still played in the page,
+    // not in its native player). Elsewhere the HLS video plays in the page (playsinline: a phone or an iPad keeps the
+    // caption, the X and Play On over the picture). In a HomeView's Safari (homeview.js: window.hkHomeView, without .car:
+    // the iOS app's car screen sets it too) the channel goes to Safari's own full-screen player -- Apple's controls, the
+    // system volume, AirPlay: no playsinline, and webkitEnterFullscreen() once the stream is ready. Measured in iOS 27
+    // Safari: a phone's Safari goes full screen on its own when the video starts without playsinline; an iPad's plays
+    // inline but takes the call, outside the tap, since the tap's play() lifted the gesture rule for that video. Closing
+    // Apple's player pauses the video, so it closes this player too: the stream and the tuner go, the guide is back.
+    function tvNative(w) { return !!(w && w.hkHomeView && !w.hkHomeView.car); }
+    function nativeFullscreen(video, done) {
+      var shown = false;
+      video.addEventListener('loadedmetadata', function () {
+        if (video.webkitDisplayingFullscreen || typeof video.webkitEnterFullscreen !== 'function') return;
+        try { video.webkitEnterFullscreen(); } catch (e) { /* refused: it plays in the page, with Apple's full-screen button */ }
+      });
+      video.addEventListener('webkitbeginfullscreen', function () { shown = true; });
+      video.addEventListener('webkitendfullscreen', function () {
+        // (to Picture in Picture is not closing it)
+        if (shown && video.webkitPresentationMode !== 'picture-in-picture') done();
+      });
+    }
+
     // The full-screen player. Mounted in home-assistant's shadow root, like
     // hk-popup's sheets (position:fixed under a transformed view would be
     // placed against the view, not the screen).
@@ -296,6 +357,7 @@
         '.hktv{position:fixed;inset:0;z-index:8;background:#000;display:flex;' +
         '  -webkit-tap-highlight-color:transparent}' +
         '.hktv>hk-doorbell-card{flex:1;height:100%;display:block}' +
+        '.hktv>video{flex:1;width:100%;height:100%;object-fit:contain;background:#000}' +
         // CLEAR OF THE SCREEN'S EDGES (2026-10-30, the owner's iPhone Duo): the picture fills the screen, the
         // caption and the X keep out of its safe areas -- the Duo's strip of system controls down the side
         // covered the X; an iPhone on its side has its Dynamic Island there (--hk-safe-*: hk-base.js SAFE)
@@ -313,15 +375,62 @@
         '.hktv .x{width:44px;height:44px;border-radius:22px;flex:none;display:flex;' +
         '  align-items:center;justify-content:center;background:rgba(28,28,30,.66);color:#fff;' +
         '  cursor:pointer;--mdc-icon-size:24px}' +
-        '</style><div class="top"><div class="cap"></div>' +
-        '<div class="x" role="button" aria-label="Close" tabindex="0"><hk-icon icon="mdi:close"></hk-icon></div></div>';
-      var cam = C.create({ type: 'custom:hk-doorbell-card', entity: ch.camera, fill: true,
-                           tuning: ch.name, volume: true, aspect_ratio: '16x9', glass: false });
-      el.insertBefore(cam, el.firstChild);
+        '.hktv .ends{display:flex;gap:10px;flex:none}' +
+        '.hktv .on{display:none}.hktv .on.has{display:flex}' +
+        '.hktv .menu{position:absolute;right:0;top:52px;min-width:220px;border-radius:' + window.hkCards.R.inner + 'px;' +
+        '  overflow:hidden;background:' + window.hkCards.OVER.solid + ';color:#fff;font-size:17px}' +
+        '.hktv .menu>div{padding:12px 16px;cursor:pointer}.hktv .menu>div+div{border-top:1px solid rgba(255,255,255,.12)}' +
+        '</style><div class="top"><div class="cap"></div><div class="ends">' +
+        '<div class="x on" role="button" aria-label="Play On" tabindex="0"><hk-icon icon="mdi:cast"></hk-icon></div>' +
+        '<div class="x" role="button" aria-label="Close" tabindex="0"><hk-icon icon="mdi:close"></hk-icon></div></div></div>';
+      var cam = null, video = null, hlsT = null;
+      function webrtc() {
+        cam = C.create({ type: 'custom:hk-doorbell-card', entity: ch.camera, fill: true,
+                         tuning: ch.name, volume: true, aspect_ratio: '16x9', glass: false });
+        el.insertBefore(cam, el.firstChild);
+        if (h) cam.hkSetClient(h);
+      }
+      if (appleHls() && h && h.callWS) {
+        // Apple's player, with its own controls; play() now, inside the tap, so Safari lets the sound play once the
+        // playlist is set (a play() after the reply would start muted, or not at all)
+        video = document.createElement('video');
+        video.controls = true;
+        if (tvNative(window)) {
+          nativeFullscreen(video, function () { player.close(); });
+        } else {
+          video.playsInline = true;
+          video.setAttribute('playsinline', '');
+        }
+        video.setAttribute('x-webkit-airplay', 'allow');
+        el.insertBefore(video, el.firstChild);
+        try { Promise.resolve(video.play()).catch(function () {}); } catch (e) { /* nothing to play yet */ }
+        var ask = function (stop) { return h.callWS(stop ? { type: 'hk_tv/hls', entity_id: ch.camera, stop: true }
+                                                         : { type: 'hk_tv/hls', entity_id: ch.camera }); };
+        Promise.resolve(ask(false)).then(function (r) {
+          if (closed) { ask(true); return; }
+          if (!r || typeof r.path !== 'string' || !/^api\/stream\.m3u8\?src=[a-z0-9_]+&mp4$/.test(r.path)) throw new Error('no path');
+          // the stream's own key, where the host gives one: AirPlay hands the address to the screen (a HomeView),
+          // which fetches it itself without this page's sign-in (2026-11-24, the owner: it "never succeeded")
+          var shared = typeof r.shared === 'string' && /^key\/[A-Za-z0-9_-]{40,64}\/api\/stream\.m3u8\?src=[a-z0-9_]+&mp4$/.test(r.shared);
+          video.src = go2rtcBase() + (shared ? r.shared : r.path);
+          Promise.resolve(video.play()).catch(function () { video.muted = true; Promise.resolve(video.play()).catch(function () {}); });
+          hlsT = setInterval(function () { Promise.resolve(ask(false)).catch(function () {}); }, HLS_RENEW_MS);
+        }).catch(function (e) {
+          // Mantel doesn't serve Live TV here, or said no: the WebRTC player, as everywhere else
+          console.warn('[hk-tv] HLS unavailable, WebRTC instead', e && e.message);
+          if (closed) return;
+          if (video.parentNode) video.parentNode.removeChild(video);
+          video = null;
+          webrtc();
+        });
+      } else {
+        webrtc();
+      }
       var cap = el.querySelector('.cap');
       var quietT = null, beatT = null, closed = false;
       function quiet(on) {
         el.classList.toggle('quiet', on);
+        if (!cam) return;
         cam.style.setProperty('--hk-db-bar-opacity', on ? '0' : '1');
         cam.style.setProperty('--hk-db-bar-events', on ? 'none' : 'auto');
       }
@@ -347,11 +456,18 @@
           .catch(function (e) { console.warn('[hk-tv] watching', e); });
       }
       var player = {
-        update: function (hh) { if (!closed) { cam.hkSetClient(hh); caption(hh); } },
+        update: function (hh) { if (!closed) { if (cam) cam.hkSetClient(hh); caption(hh); } },
         close: function () {
           if (closed) return;
           closed = true;
-          clearTimeout(quietT); clearInterval(beatT);
+          clearTimeout(quietT); clearInterval(beatT); clearInterval(hlsT);
+          if (video) {
+            try {
+              if (video.webkitDisplayingFullscreen) video.webkitExitFullscreen();   // (leaving the page under Apple's player)
+              video.pause(); video.removeAttribute('src'); video.load();
+            } catch (e) { /* gone */ }
+            if (video.src !== undefined && h && h.callWS) Promise.resolve(h.callWS({ type: 'hk_tv/hls', entity_id: ch.camera, stop: true })).catch(function () {});
+          }
           window.removeEventListener('keydown', onKey, true);
           window.removeEventListener('pagehide', onHide);
           releaseMedia(el);
@@ -365,7 +481,8 @@
       // A reload or navigation away never reaches close(): say so on the way
       // out (best effort -- the 150 s heartbeat expiry is the backstop).
       function onHide() { player.close(); }
-      el.querySelector('.x').addEventListener('click', function (e) { e.stopPropagation(); player.close(); });
+      el.querySelector('.x:not(.on)').addEventListener('click', function (e) { e.stopPropagation(); player.close(); });
+      playOn(owner, ch, el, player);
       el.addEventListener('pointerdown', wake, true);
       window.addEventListener('keydown', onKey, true);
       window.addEventListener('pagehide', onHide);
@@ -376,6 +493,39 @@
       beatT = setInterval(function () { watching(true); }, TV_HEARTBEAT_MS);
       if (window.hkIdle && window.hkIdle.hold) window.hkIdle.hold('hk-tv', true);
       return player;
+    }
+
+    // PLAY ON (phase 35): where the host has paired AirPlay screens (hk_tv/screens; a host without them says no and
+    // the button stays hidden), the player's cast button lists them; one tapped plays the channel there (the host
+    // sends it, hk_tv/play_on) and this player closes. Asked once when the player opens: nothing waits on it.
+    function playOn(owner, ch, el, player) {
+      var h = owner.client, btn = el.querySelector('.x.on'), top = el.querySelector('.top'), menu = null;
+      if (!h || !h.callWS || !btn) return;
+      Promise.resolve(h.callWS({ type: 'hk_tv/screens' })).then(function (r) {
+        var screens = (r && r.screens) || [];
+        if (!screens.length) return;
+        btn.classList.add('has');
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (menu) { menu.remove(); menu = null; return; }
+          menu = document.createElement('div');
+          menu.className = 'menu';
+          screens.forEach(function (s) {
+            var row = document.createElement('div');
+            row.textContent = 'Play on ' + s.name;
+            row.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              row.textContent = 'Starting on ' + s.name + '…';
+              Promise.resolve(h.callWS({ type: 'hk_tv/play_on', channel: ch.number, screen: s.id })).then(function (got) {
+                if (got && got.error) { row.textContent = (got.message || 'Couldn’t play there') + ''; return; }
+                player.close();
+              }, function () { row.textContent = 'Couldn’t play on ' + s.name; });
+            });
+            menu.appendChild(row);
+          });
+          top.appendChild(menu);
+        });
+      }, function () { /* no paired screens here: no button */ });
     }
 
     // what the shell and the later parts use of this one

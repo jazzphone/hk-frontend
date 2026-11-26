@@ -25,6 +25,26 @@
     // yet"); each channel's `now` sensor for what is on; and its full-screen
     // player, hkCameras.tvPlayer, with its viewer heartbeat and idle hold.
     // A Mantel page loads hk-cameras.js when it is first needed (hkNeed).
+    //
+    // THE KIT'S CARD (round 12, docs/phase34/PLAN.md; hk-kit.js, _renderKit below), the owner: "i'd like to see the art work added, but in your
+    // mock up, I like the look of the small, so lets rework this with the art included at all sizes." Each channel is a SHOW: its art (16:9,
+    // corner 14), the show's name (title style) and "4.1 . Channel 4" under it; a tap tunes it as before. Small is HomeView's centered tile with
+    // the art where the glyph was and the show's progress as a thin bar on it. Wide two tiles side by side; Tall a header and two stacked; Large a
+    // header with "N more" and 2 x 2; Extra Large 3 x 2. The one on now (the chosen channel, else the last played here, else the first) carries
+    // its progress. THE ART IS THE GUIDE'S, in this order: the show's picture (the now sensor's `image`), else the channel's logo (`logo`) on the
+    // channel's color, else a generated tile: the channel's color with the show's name in white. Both pictures come through _artImage, the
+    // signed art route every other picture uses. Where a channel has BOTH a show's picture and a logo, the logo is also a small white mark in the
+    // picture's upper-left corner (tvMark), so the picture does not stand alone.
+    /**
+     * The channel's mark over a show's picture: a white plate in its upper-left corner, a corner radius in from the corner, about a quarter of the
+     * picture's width and an eighth of it tall (the logo fits inside, whole). The progress bar is at the picture's foot, the words below it.
+     * @param {number} i the art's index @param {number} aw the picture's width @param {number} r the picture's corner radius
+     */
+    function tvMark(i, aw, r) {
+      var h = Math.max(16, Math.min(44, Math.round(aw * 0.13))), w = Math.min(130, Math.round(aw * 0.27)), pad = Math.max(3, Math.round(h * 0.18));
+      return '<span class="tvm" data-mark="' + i + '" style="left:' + r + 'px;top:' + r + 'px;height:' + h + 'px;max-width:' + w + 'px;padding:' + pad + 'px ' + (pad + 2) + 'px;' +
+        'border-radius:' + Math.max(4, Math.round(h * 0.28)) + 'px"></span>';
+    }
     var TV_SLOTS = { S: 1, W: 2, T: 3, L: 6, XL: 6 };
     var TV_BACKOFF = [5000, 15000, 60000, 300000];
     function tvShare(a) {
@@ -39,6 +59,24 @@
       if (size === 'XL') { var r = k > 3 ? 2 : 1; return [Math.ceil(k / r), r]; }
       return [k, 1];
     }
+    // THE KIT'S SLOTS: the columns and rows a size draws, the most that fit
+    var KIT_GRID = { W: [2, 1], T: [1, 2], L: [2, 2], XL: [3, 2] };
+    /**
+     * Where the kit's tiles go: columns, rows and the tile's art size, from the block's w x h, its top (the header's foot) and how many channels
+     * there are. Art is 16:9 at the column's width; where a row cannot hold that, it keeps the column's width and is shorter (cropped, never stretched).
+     * @param {string} size @param {number} w @param {number} h @param {number} top @param {number} n @param {number} E @param {number} gap
+     */
+    function tvLayout(size, w, h, top, n, E, gap) {
+      var g = KIT_GRID[size] || [1, 1], tw = (w - 2 * E - (g[0] - 1) * gap) / g[0], TXT = 52, room = h - top - E + 6;
+      var rows = Math.max(1, Math.min(g[1], Math.ceil(n / g[0]))), full = Math.round(tw * 9 / 16), min = Math.max(56, Math.round(full * 0.75)), ah = full;
+      for (var guard = 0; guard < 80; guard++) {
+        if (rows * (ah + TXT) + (rows - 1) * gap <= room) break;
+        if (ah > min) ah = Math.max(min, ah - 2);
+        else if (rows > 1) { rows--; ah = full; } else break;
+      }
+      return { cols: g[0], rows: rows, tw: tw, ah: ah, th: ah + TXT, shown: Math.min(n, g[0] * rows) };
+    }
+
     var TV_CSS = [
       ':host{display:block;height:100%}',
       'hk-plate.tv{position:relative;box-sizing:border-box;height:100%;display:grid;gap:10px;overflow:hidden;padding:' + C.blockPad('14px') + ';' + C.plate('card') + ';',
@@ -48,7 +86,7 @@
       'hk-plate.tv.one{padding:0}',
       '.ch{all:unset;box-sizing:border-box;position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;padding:12px;',
       '  border-radius:var(--hk-inner-radius,' + C.R.inner + 'px);background:linear-gradient(150deg,var(--c1),var(--c2));color:#fff;cursor:pointer;',
-      '  overflow:hidden;container-type:size;text-shadow:0 1px 2px rgba(0,0,0,.22);-webkit-tap-highlight-color:transparent;transition:transform .12s ease}',
+      '  overflow:hidden;container-type:size;text-shadow:' + C.v('glow') + ';-webkit-tap-highlight-color:transparent;transition:transform .12s ease}',
       '.ch:active{transform:scale(.98)}',
       '.ch:focus-visible{outline:2px solid #fff;outline-offset:-4px}',
       '.one .ch{position:absolute;inset:0;border-radius:inherit;padding:' + C.blockPad('14px') + '}',
@@ -105,7 +143,7 @@
       'hk-plate.tv.xl{display:flex;flex-direction:row;gap:' + C.blockPad('14px').replace(/^.*?(var\(--hk-pad-l,[^)]*\)).*$/, '$1') + ';padding:' + C.blockPad('14px') + '}',
       '.xl .lf{all:unset;box-sizing:border-box;position:relative;flex:none;width:268px;align-self:stretch;overflow:hidden;cursor:pointer;color:#fff;',
       '  border-radius:var(--hk-inner-radius,' + C.R.inner +
-        'px);background:linear-gradient(150deg,var(--c1),var(--c2));text-shadow:0 1px 2px rgba(0,0,0,.22);-webkit-tap-highlight-color:transparent}',
+        'px);background:linear-gradient(150deg,var(--c1),var(--c2));text-shadow:' + C.v('glow') + ';-webkit-tap-highlight-color:transparent}',
       '.xl .lf:active{opacity:.85}.xl .lf:focus-visible{outline:2px solid #fff;outline-offset:-4px}',
       '.xl .lf .bg::before{opacity:.18}.xl .lf .bg::after{background:none}',
       '.xl .ft{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;padding:40px 14px 14px;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.76))}',
@@ -201,6 +239,8 @@
         this._watchConn();
         if (this._watchBlock) this._watchBlock();
         if (!this._channels) this._fetch();
+        // (the kit's card, hk-kit.js; the older drawing below only where the kit draws none)
+        if (window.hkKit && window.hkKit.on(this)) { if (this._renderKit()) return; } else if (window.hkKit) window.hkKit.forget(this);
         var list = this._shown(), g = tvGrid(s, Math.max(1, list.length));
         this._bars = [];
         if (!list.length) {
@@ -302,6 +342,107 @@
         if (this._fade) { this._fade(); if (typeof requestAnimationFrame === 'function') requestAnimationFrame(this._fade); }
         this._tick();
       }
+      // THE KIT'S CARD (round 12; see the header): shows as tiles that tune when tapped
+      _renderKit() {
+        var K = window.hkKit, h = this.client, self = this;
+        if (!K || !h) return false;
+        var size = this._size(), k = K.ctx(this), w = k.w, hh = k.h, E = k.E, X = k.X, sq = hh >= 180, esc2 = K.esc, list = this._channels || [];
+        var one = this._chosen(), on = this._onNow(list), GAP = 13, bars = /** @type {any[]} */ ([]), arts = /** @type {any[]} */ ([]);
+        var fix = '<style>.kit .tvf{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden}.kit .ai{position:absolute;left:0;top:0;right:0;bottom:0}' +
+          '.kit .tvt{position:absolute;left:9%;right:9%;bottom:9%;color:#fff;font-weight:700;line-height:1.12;letter-spacing:-.2px;display:-webkit-box;-webkit-line-clamp:2;' +
+          '-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 4px rgba(0,0,0,.4)}' +
+          '.kit .tvg{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;padding:4px 9px;border-radius:' + C.R.small + 'px;' +
+          'background:rgba(255,255,255,.9);max-width:62%}.kit .tvg img{display:block;height:100%;width:auto;max-width:100%;object-fit:contain}' +
+          // THE CHANNEL'S MARK on a show's picture (2026-11-23, the owner: "Live TV card looks funny with the art: maybe add the channel logo in the
+          // upper left corner of the artwork"): the logo on its small white plate, a corner's radius in from the picture's corner; hidden until the logo has loaded
+          '.kit .tvm{position:absolute;box-sizing:border-box;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);visibility:hidden;pointer-events:none}' +
+          '.kit .tvm.on{visibility:visible}.kit .tvm img{display:block;height:100%;width:auto;max-width:100%;object-fit:contain}' +
+          '.kit .tvb{position:absolute;height:4px;border-radius:' + C.R.capsule('4px') + ';background:rgba(255,255,255,.38);overflow:hidden;box-shadow:0 0 0 .5px rgba(0,0,0,.18)}' +
+          '.kit .tvb i{display:block;height:100%;width:0;border-radius:' + C.R.capsule('4px') + ';background:#fff}</style>';
+        var finish = /** @type {(o: string, label?: string) => any} */ (function (o, label) {
+          return K.draw(self, K.plate(k, fix + o, { label: label || 'Live TV', cls: 'tvk' }), function (/** @type {any} */ root) {
+            root.querySelectorAll('[data-ch]').forEach(function (/** @type {any} */ b) {
+              b.addEventListener('click', function () { var ch = list.filter(function (c) { return c.number === b.getAttribute('data-ch'); })[0]; if (ch) self._open(ch); });
+            });
+            arts.forEach(function (a) {
+              var box = root.querySelector('[data-art="' + a.i + '"]');
+              if (!box) return;
+              if (a.image) self._artImage(a.image, box, '', a.px);
+              if (a.logo) { var lg = root.querySelector('[data-logo="' + a.i + '"]'); if (lg) self._artImage(a.logo, lg, '', 150); }
+              if (a.mark) {
+                var mk = root.querySelector('[data-mark="' + a.i + '"]'), mi = mk && self._artImage(a.mark, mk, '', 150);
+                if (mi) mi.addEventListener('load', function () { mk.classList.add('on'); });     // (a logo that fails leaves the plate hidden, and nothing shows)
+              }
+            });
+            self._bars = [];
+            root.querySelectorAll('[data-bar]').forEach(function (/** @type {any} */ el) { self._bars.push({ el: el, a: bars[+el.getAttribute('data-bar')] }); });
+            self._tick();
+          });
+        });
+        if (!list.length) {
+          var say = !this._channels ? '' : this._configured ? 'No channels yet. Add some in ' + window.hkShell.settingsPlace('Pages → Live TV') + '.' : 'Add Live TV to show its channels here.';
+          if (size === 'S') return finish(K.tile(k, K.glyph('hk:television', sq ? 66 : 50, K.tone(k, 'var(--hk-ink,rgba(255,255,255,0.94))')), 'Live TV', this._channels ? 'No channels' : ''));
+          return finish(K.head(k, { g: K.glyph('hk:television', 28, 'var(--hk-ink,rgba(255,255,255,0.94))'), title: 'Live TV' }) +
+            (say ? K.tx(X, K.Y0, w - 2 * X, 'kb', esc2(say), 'white-space:normal') : ''));
+        }
+        // one channel's words, its tint, its art (the layers: the generated tile, then the guide's picture over it)
+        var info = function (/** @type {any} */ ch) {
+          var st = (ch.now && h.states[ch.now]) || { state: '', attributes: {} }, a = st.attributes || {};
+          var show = st.state && st.state !== 'unknown' && st.state !== 'unavailable' ? st.state : 'Live';
+          return { a: a, show: show, t: tintOf(ch.number || ch.name), line: (ch.number || '') + (ch.number && ch.name ? ' · ' : '') + (ch.name || '') };
+        };
+        // the art box at (x, y) w x ah, corner r, for list[idx]; `bar`: carries the show's progress
+        var art = function (/** @type {any} */ ch, /** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ aw, /** @type {number} */ ah, /** @type {number} */ r,
+                            /** @type {boolean} */ bar, /** @type {number} */ px) {
+          var d = info(ch), i = arts.length, fs = Math.max(11, Math.round(aw / 9));
+          var gl = !d.a.image && d.a.logo ? '<span class="tvg" data-logo="' + i + '" style="height:' + Math.round(ah * 0.4) + 'px"></span>' : '';
+          var inner = '<span class="tvf" style="background:linear-gradient(150deg,' + d.t[0] + ',' + d.t[1] + ')">' + gl +
+            (d.a.image && !d.a.logo ? '' : '<span class="tvt" style="font-size:' + fs + 'px">' + esc2(d.show) + '</span>') + '</span>' +
+              (d.a.image ? '<span class="ai" data-art="' + i + '"></span>' : '');
+          arts.push({ i: i, image: d.a.image || '', logo: !d.a.image && d.a.logo ? d.a.logo : '', mark: d.a.image && d.a.logo ? d.a.logo : '', px: px });
+          var o = K.box(x, y, aw, ah, 'pic', 'border-radius:' + r + 'px', inner + (d.a.image && d.a.logo ? tvMark(i, aw, r) : ''));
+          if (bar && d.a.start && d.a.end) { bars.push(d.a); o += '<div class="a tvb" style="' + K.st(x + 10, y + ah - 14, aw - 20, 4) + '"><i data-bar="' + (bars.length - 1) + '"></i></div>'; }
+          return o;
+        };
+        var key = function (/** @type {any} */ ch, /** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ ww, /** @type {number} */ hh2, /** @type {string} */ inner,
+                            /** @type {number} */ r) {
+          var d = info(ch);
+          return '<button type="button" class="hit" data-notap data-ch="' + esc2(ch.number) + '" aria-label="' + esc2('Watch ' + (ch.name || ch.number) + ', ' + d.show) + '" style="' +
+            K.st(x, y, ww, hh2) + 'border-radius:' + r + 'px">' + inner + '</button>';
+        };
+        if (size === 'S') {
+          var ch0 = one || on || list[0], d0 = info(ch0), aw0 = sq ? 132 : 104, ah0 = Math.round(aw0 * 9 / 16), z = sq ? 66 : 50, gy = sq ? 32 : Math.round(hh * 0.31 - 25);
+          var figY = gy + z / 2 - ah0 / 2;
+          var o0 = art(ch0, (w - aw0) / 2, figY, aw0, ah0, 14, true, 300);
+          var ny = sq ? 113 : Math.round(hh * 0.55), lh = sq ? 27 : 22;
+          o0 += '<div class="ctn" style="top:' + ny + 'px;font-size:' + (sq ? 21 : 17) + 'px;line-height:' + lh + 'px">' + esc2(d0.show) + '</div>' +
+            '<div class="cts" style="top:' + (ny + lh) + 'px;font-size:' + (sq ? 20 : 16) + 'px;line-height:' + lh + 'px">' + esc2(d0.line) + '</div>';
+          return finish(o0 + key(ch0, 0, 0, w, hh, '', k.R), d0.line + ', ' + d0.show);
+        }
+        // the tiles: a chosen channel is one big one; else the guide's, as many as the size holds
+        var head = size !== 'W', shownList, lay, o = '', top = head ? K.Y0 - 2 : E;
+        if (one) {
+          var aw1 = Math.min(w - 2 * E, Math.round((hh - top - E - 52 + 6) * 16 / 9));
+          lay = { cols: 1, rows: 1, tw: aw1, ah: Math.round(aw1 * 9 / 16), th: Math.round(aw1 * 9 / 16) + 52, shown: 1 };
+          shownList = [one];
+        } else {
+          lay = tvLayout(size, w, hh, top, list.length, E, GAP);
+          shownList = list.slice(0, lay.shown);
+        }
+        var more = list.length - shownList.length;
+        if (head) o += K.head(k, { g: K.glyph('hk:television', 28, K.tone(k, 'var(--hk-ink,rgba(255,255,255,0.94))')), title: 'Live TV', sub: 'On now', more: one ? 0 : more });
+        var rowsN = Math.ceil(shownList.length / lay.cols), blockH = rowsN * lay.th + (rowsN - 1) * GAP;
+        var y0 = head ? top : Math.max(E, Math.round((hh - blockH) / 2));
+        if (head && rowsN === 1 && lay.rows === 1 && hh - top - E > blockH + 24) y0 = top + Math.round((hh - top - E - blockH) / 2);
+        shownList.forEach(function (ch, i) {
+          var c = i % lay.cols, r = Math.floor(i / lay.cols), inRow = r === rowsN - 1 ? shownList.length - r * lay.cols : lay.cols;
+          var x = E + (w - 2 * E - (inRow * lay.tw + (inRow - 1) * GAP)) / 2 + c * (lay.tw + GAP), y = y0 + r * (lay.th + GAP), d = info(ch);
+          var inner = art(ch, 0, 0, lay.tw, lay.ah, 14, ch === on, lay.tw > 300 ? 600 : 300) +
+            K.tx(2, lay.ah + 6, lay.tw - 4, 'kt', esc2(d.show)) + K.tx(2, lay.ah + 30, lay.tw - 4, 'kb', esc2(d.line));
+          o += key(ch, x, y, lay.tw, lay.th, inner, 14);
+        });
+        return finish(o);
+      }
       // THE TILES' SIZE AND HOW MANY (2026-11-08): the width the columns give a tile in the room in the block; its shape the tallest of
       // 4 : 3, 3 : 2 and 16 : 10 that has every channel the block names in the room (none does: 16 : 10, as many as the rows hold); the
       // rest are the page's
@@ -342,7 +483,9 @@
       // THE LIVE TV PAGE'S PLAYER, full screen (hk-cameras.js), once its file is in
       _open(ch) {
         if (!ch || !ch.camera) return;
+        var was = this._played;
         this._played = ch.number;
+        if (was !== ch.number) this._render();                 // (the one on now carries its progress)
         var self = this, go = function () {
           var K = window.hkCameras;
           if (!K || !K.tvPlayer || self.isConnected === false) return;
@@ -372,6 +515,6 @@
     }
 
     // what the shell and the later parts use of this one
-    K.HkTvChannelsCard = HkTvChannelsCard; K.TV_SLOTS = TV_SLOTS; K.tvGrid = tvGrid;
+    K.HkTvChannelsCard = HkTvChannelsCard; K.TV_SLOTS = TV_SLOTS; K.tvGrid = tvGrid; K.tvLayout = tvLayout;
   };
 })();

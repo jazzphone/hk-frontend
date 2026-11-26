@@ -137,23 +137,28 @@
       var extra = s === 'S' ? {} : { sub_card: ctl(['progress']), meta_card: ctl(['volume']) };
       // (background, 2026-11-05, the owner: the blurred album unless the block asks for the card every other block has)
       return Object.assign({ type: 'custom:hk-now-playing-card', music: true }, sp ? { music_at: sp } : {}, o.background === 'card' ? { background: 'card' } : {}, extra); } },
-    // Extra Large: the thermostat's full controls, its sheet (2026-10-24) -- in Big Number, its face with the modes
-    // beside it (hk-control.js _big, 2026-10-31)
+    // Extra Large: the Large face and the readings, Mode and Fan beside it in one plate (round 12; before it was the thermostat's
+    // sheet's panel (2026-10-24) -- in Big Number, its face with the modes beside it (hk-control.js _big, 2026-10-31))
     thermostat: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: ['thermostats'], opts: { entity: 'climate', style: 'thermostat_style', tap: 'tap_target' }, card: function (s, o, ctx) {
       var id = own(o.entity) || (ctx.climate || [])[0];
-      if (s === 'XL' && o.style !== 'big') return panel('climate', id ? { entity: id } : {});
       // the dial (hk-control.js), sized to the block (G2) -- or its Big Number
       // (Wide, 2026-11-07, the review: always Big Number, as Small is -- the ring has no room across a short cell)
-      return id ? Object.assign({ type: 'custom:hk-control-card', entity: id }, o.style === 'big' || s === 'W' ? { style: 'big' } : {})
+      // (round 12, the owner: "For XL, i'd rather have the Large version of the thermostat for the XL card and then to the right, have the
+      // additional data...probably built in to the same card, not detached.": Extra Large is the kit's card whatever the style, its
+      // Outside reading from the weather entity the screen has -- hk-control.js _kitSide)
+      return id ? Object.assign({ type: 'custom:hk-control-card', entity: id }, o.style === 'big' || s === 'W' ? { style: 'big' } : {}, s === 'XL' && ctx.weather ? { weather: ctx.weather } : {})
                 : stand('Thermostat', 'hk:thermostat', 'No thermostat yet.'); } },
     // (S, 2026-10-31, the owner: "a small option to the camera": one still in a cell)
-    camera: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: ['cameras'], opts: { entity: 'camera', follow: 'camera_follow', follow_select: 'select', name: 'name_tag' }, card: function (s, o, ctx) {
+    // ROUND 12 (2026-11-23, the owner: "I like your camera card from the mock up...we need to include the option to have it live or snapshots"):
+    // the picture to the card's edge with its name at the foot, at every size -- Extra Large included, which no longer swaps in the
+    // picture-beside-today card (hk-camera-today-card stays registered, unused here). `picture`: Live or Snapshots; absent, Automatic, what
+    // the block always did (the screen's Live First Camera); `refresh`: s between a snapshot's frames (hk_core settings/home_grid.py)
+    camera: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: ['cameras'], opts: { entity: 'camera', follow: 'camera_follow', follow_select: 'select', name: 'name_tag',
+      picture: 'camera_picture', refresh: 'refresh' }, card: function (s, o, ctx) {
       var ids = o.entity ? [o.entity] : (ctx.cameras || []).slice(0, 1);
-      // EXTRA LARGE (2026-11-09, mockup 13): the picture beside what that camera saw today -- where the host keeps a Timeline
-      // (Mantel); elsewhere (Home Assistant's HK Frontend) it stays the full picture
-      if (s === 'XL' && ids.length && hostHas('timeline')) return { type: 'custom:hk-camera-today-card', camera: ids[0] };
-      return ids.length ? { type: 'custom:hk-camera-mosaic-card', own_cameras: true, height: 195, seam: 2, snapshot_cap: '480x270',
-                            cameras: ids.map(function (id) { return { entity: id }; }), name_tag: o.name || 'auto' }
+      return ids.length ? Object.assign({ type: 'custom:hk-camera-mosaic-card', own_cameras: true, height: 195, seam: 2, snapshot_cap: '480x270', kit: true,
+                            cameras: ids.map(function (id) { return { entity: id }; }), name_tag: o.name || 'auto' },
+                            o.picture ? { picture: o.picture } : {}, o.refresh ? { refresh: o.refresh } : {})
                         : stand('Cameras', 'hk:camera', 'No cameras yet.'); } },
     // THE CAMERAS FACE (2026-10-30; hk-grid-cards.js hk-grid-cameras-card):
     // up to nine stills at once, arranged to the block -- the ones named, else
@@ -236,10 +241,11 @@
     // the tablet showing the screen may be known only once the page is up.
     // `fallback` is the room it shows on a page that is no wall tablet.
     room: { sizes: ['S', 'W', 'T', 'L', 'XL', 'XXL'], sources: ['rooms'],
-      opts: { area: 'area', surface: 'surface', accessory_display: 'room_display', tap: 'tap_target', look: 'sheet_look', flat_theme: 'sheet_flat_theme' }, card: function (s, o, ctx) {
+      opts: { area: 'area', surface: 'surface', accessory_display: 'room_display', tap: 'tap_target', look: 'sheet_look', flat_theme: 'sheet_flat_theme',
+        background: 'card_background' }, card: function (s, o, ctx) {
       // no room of its own: the tablet's, else the screen's first
       return Object.assign({ type: 'custom:hk-grid-room-card', area: o.area || TABLET_ROOM, fallback: (ctx.rooms || [])[0] || null,
-        size: s, surface: o.surface, accessory_display: o.accessory_display || 'summary' }, sheetOptions(o)); } },
+        size: s, surface: o.surface, accessory_display: o.accessory_display || 'summary' }, sheetOptions(o), o.background ? { background: o.background } : {}); } },
     scene_suggested: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [], opts: { windows: 'windows' }, card: function (s, o) {
       return Object.assign({ type: 'custom:hk-suggested-scene-card', size: s }, o.windows ? { windows: o.windows } : {}); } },
     action: { sizes: ['S', 'W'], sources: [], opts: { action: 'action', area: 'area', color: 'boolean' }, card: function (s, o) {
@@ -276,8 +282,9 @@
     // generated Home page in a sheet at that place. Its name (`title`, the house's by default) and Glyphs; no When Tapped:
     // the sheet is where it goes.
     home: { sizes: ['S', 'W', 'T', 'L', 'XL'], sources: [],
-      opts: { title: 'title', look: 'sheet_look', flat_theme: 'sheet_flat_theme', glyphs: 'glyph_color' }, card: function (s, o) {
-      return Object.assign({ type: 'custom:hk-home-block-card', size: s }, o.title ? { title: o.title } : {}, sheetOptions(o), gl(o)); } },
+      opts: { title: 'title', look: 'sheet_look', flat_theme: 'sheet_flat_theme', glyphs: 'glyph_color', background: 'card_background' }, card: function (s, o) {
+      return Object.assign({ type: 'custom:hk-home-block-card', size: s }, o.title ? { title: o.title } : {}, sheetOptions(o), gl(o),
+        o.background ? { background: o.background } : {}); } },
     // HOUSE STATUS (2026-11-07, docs/phase11/HOUSE-STATUS.md, hk-house-status.js): this screen's status chips as
     // sections, each a tap to its chip's page; the rest, and Small, open the House Status sheet. No options: it shows
     // what the screen's Status Chips say, whether or not the screen draws its chip row. No When Tapped: each section

@@ -53,7 +53,7 @@
           '.vac .vk{display:flex;gap:10px}.vac .cmd{all:unset;box-sizing:border-box;height:56px;min-width:56px;border-radius:28px;display:flex;align-items:center;justify-content:center;gap:8px;' +
             'cursor:pointer;',
           '  background:' + window.hkCards.v('key') + ';color:' + window.hkCards.v('ink') + ';font-family:inherit;font-size:17px;font-weight:600;transition:transform .12s ease}',
-          '.vac .cmd.go{flex:1 1 auto;min-width:0;padding:0 14px;background:' + SELECTED_BG + ';color:' + SELECTED_TEXT + '}.vac .cmd:active{transform:scale(0.97)}',
+          '.vac .cmd.go{flex:1 1 auto;min-width:0;padding:0 14px;background:' + SELECTED_BG + ';color:' + SELECTED_TEXT + ';text-shadow:none}.vac .cmd:active{transform:scale(0.97)}',
           '.vac .cmd.clr{flex:none;padding:0 20px;font-size:17px}.vac .cmd[hidden]{display:none}.vac .cmd:focus-visible{outline:2px solid ' + window.hkCards.v('ink-2') +
             ';outline-offset:2px}.vac .cmd hk-icon{width:22px;height:22px;--mdc-icon-size:22px;flex:none;display:flex;align-items:center;justify-content:center}',
           // (a flex box, as a tile's well glyph is -- hk-base.js: under Home Assistant the glyph is an inline child on a line box,
@@ -92,7 +92,7 @@
           '  --vb-r:calc(var(--vb-key) / 2);border-radius:var(--vb-r);background:' + C.v('key-strong') + ';color:' + C.v('ink') + ';font-family:inherit;' + C.typeCss('headline') +
             ';white-space:nowrap;cursor:pointer}',
           '.vb .key>span{min-width:0;overflow:hidden;text-overflow:ellipsis}',
-          '.vb .key.go{flex:1 1 auto;min-width:0;padding:0 10px;background:' + SELECTED_BG + ';color:' + SELECTED_TEXT + '}',
+          '.vb .key.go{flex:1 1 auto;min-width:0;padding:0 10px;background:' + SELECTED_BG + ';color:' + SELECTED_TEXT + ';text-shadow:none}',
           // (TALL'S KEYS, 2026-11-08, the owner: nothing stretches -- Clean is as wide as its word, Dock round beside it, the pair centered)
           // (TALL'S KEYS, 2026-11-09: Clean takes the row's width less the round Dock and 8 px; 48 tall since 2026-11-10, as the other blocks' keys --
           // the owner: at 56 "the pills/controls seem a lot bigger than the other cards, causing almost no room for the animated glyph")
@@ -316,7 +316,88 @@
 
       // ---- THE BLOCK (see the CSS): drawn whole each time and morphed in, so
       // a tap's focus and the rooms' scroll survive a state push
+      // THE KIT'S CARD (phase 34, docs/phase34/PLAN.md; hk-kit.js), the owner, 2026-11-22: "I'd rather the icon animation be more front and
+      // center, with there being a Rooms button with a pop up for which rooms you want to select and clean. No need to have all the rooms
+      // on display." The vacuum drawn (hk-vacuum-art.js) is the card's middle, as large as the block lets it be, and it is the main key
+      // (Clean, Pause, Resume), as a song's cover plays; what it is doing over it; Clean, Dock and Rooms as keys. Rooms opens the
+      // Vacuums page's own picker in a sheet (_pickRooms, shared with the block), so Clean then says "Clean 2 rooms". White while it runs.
+      _renderKitBlock(/** @type {string} */ sz) {
+        var Kit = window.hkKit, VA = window.hkVacuumArt, cfg = this._config, self = this;
+        if (!Kit || !VA) return false;
+        this._watchBlock();
+        var st = this._st(cfg.entity), state = (st && st.state) || 'unknown', a = (st && st.attributes) || {}, esc = Kit.esc;
+        var nm = cfg.name || a.friendly_name || cfg.entity, short = String(nm).replace(/\s*(robot\s*)?vacuum$/i, '').trim() || nm;
+        var chips = this._chips(st), bat = chips.filter(function (c) { return c.k === 'battery'; })[0];
+        var lk = VA.look(this.client, cfg.entity, cfg), roomsOn = sz !== 'S' && this._picker();
+        this._auto = roomsOn;
+        if (roomsOn) this._subAreas();
+        var floors = roomsOn ? this._floors() : null;
+        this._keepOffered(floors);
+        var list = floors ? floors.reduce(function (o, f) { return o.concat(f.areas || []); }, []) : null, n = roomsOn ? this._sel.size : 0;
+        var running = /^(cleaning|returning)$/.test(state), pickable = roomsOn && !!list && list.length > 0 && !/^(cleaning|returning|paused)$/.test(state);
+        var go = state === 'cleaning' ? ['pause', 'pause', 'Pause'] : state === 'paused' ? ['start', 'play', 'Resume']
+          : n ? ['rooms', 'play', 'Clean ' + n + (n === 1 ? ' room' : ' rooms')] : ['start', 'play', 'Clean'];
+        if (this._busy) go = ['', 'play', 'Sending…'];
+        var k = Kit.ctx(this), w = k.w, h = k.h, E = k.E, X = k.X, KH = Kit.KH, G = Kit.G, sq = h >= 180;
+        var GO = { g: Kit.svg(go[1], 22), t: go[2], label: go[2] + ' ' + nm, data: { svc: go[0] } }, GOg = { g: Kit.svg(go[1], 24), label: go[2] + ' ' + nm, data: { svc: go[0] } };
+        var DOCK = { g: Kit.svg('dock', 22), t: 'Dock', label: 'Dock ' + nm, data: { svc: 'return_to_base' } },
+          DOCKg = { g: Kit.svg('dock', 24), label: 'Dock ' + nm, data: { svc: 'return_to_base' } };
+        var ROOMS = { g: Kit.svg('rooms', 22), t: n ? n + (n === 1 ? ' room' : ' rooms') : 'Rooms', on: !!n, label: 'Choose rooms to clean', data: { rooms: '1' } };
+        var ROOMSg = { g: Kit.svg('rooms', 24), on: !!n, label: 'Choose rooms to clean', data: { rooms: '1' } };
+        /** @type {any} */
+        var CLEAR = lk.latched ? { t: 'Clear', label: 'Clear the water tank report for ' + nm, data: { clear: '1' } } : null;
+        /** @type {any} */
+        var second = CLEAR || (pickable ? ROOMS : DOCK);
+        /** @type {any} */
+        var secondG = CLEAR || (pickable ? ROOMSg : DOCKg);
+        // the drawing, as the main key: a box of 200 : 140, centered in the room it is given -- `f` of it on Large and Extra Large
+        // (2026-11-23, the owner: "The glyph could probably be a little smaller. Right now it's pretty big!")
+        /** @param {number} x @param {number} y @param {number} aw @param {number} ah @param {number} [f] */
+        var art = function (x, y, aw, ah, f) {
+          var dw = Math.min(aw, ah / 0.7) * (f || 1), dh = dw * 0.7;
+          return '<button type="button" class="hit" data-notap data-svc="' + esc(go[0]) + '" aria-label="' + esc(go[2] + ' ' + nm + ', ' + lk.words) + '" style="' +
+            Kit.st(x + (aw - dw) / 2, y + (ah - dh) / 2, dw, dh) + 'border-radius:' + k.r + 'px">' + VA.html(lk.state, nm + ', ' + lk.words, lk.doing) + '</button>';
+        };
+        var said = esc(lk.words), line = esc(short) + (bat ? ' · ' + esc(bat.t) : '');
+        /** @param {number} x @param {number} y @param {number} ww @param {string} [al] */
+        var words = function (x, y, ww, al) {
+          return Kit.tx(x, y, ww, 'kt', said, al ? 'text-align:' + al : '') + Kit.tx(x, y + 24, ww, 'kb', line, al ? 'text-align:' + al : ''); };
+        var o = '';
+        if (sz === 'S') {
+          var ah = sq ? 112 : 78;
+          o = art(E, sq ? 10 : 6, w - 2 * E, ah) + '<div class="ctn" style="top:' + (sq ? 124 : 88) + 'px;font-size:' + (sq ? 21 : 17) + 'px;line-height:' + (sq ? 27 : 22) + 'px">' + said +
+            '</div><div class="cts" style="top:' + (sq ? 151 : 110) + 'px;font-size:' + (sq ? 20 : 16) + 'px;line-height:' + (sq ? 27 : 22) + 'px">' + line + '</div>';
+        } else if (sz === 'W') {
+          var cw = Math.round(w * 0.47), rx = E + cw + 12, rw = w - E - rx;
+          o = art(E, E, cw, h - 2 * E) + words(rx, 18, rw - X + E) + Kit.key(rx, Kit.FY(k), rw - KH - G, KH, GO) + Kit.key(w - E - KH, Kit.FY(k), KH, KH, secondG);
+        } else if (sz === 'T') {
+          var lines = [[GO, DOCKg]];
+          if (pickable || CLEAR) lines.unshift([second]);
+          var top = h - E - lines.length * KH - (lines.length - 1) * G;
+          o = words(X, 18, w - 2 * X) + art(E, 74, w - 2 * E, top - 74 - 8) + Kit.stack(k, lines);
+        } else if (sz === 'L') {
+          var keys = [GO, DOCK].concat(pickable || CLEAR ? [second] : []);
+          o = words(X, 18, w - 2 * X) + art(E, 74, w - 2 * E, Kit.FY(k) - 74 - 8, 0.72) + Kit.foot(k, keys);
+        } else {
+          var lw = Math.round(w * 0.64), kx = lw + 4, kw = w - E - kx, ks = [GO, DOCK].concat(pickable || CLEAR ? [second] : []);
+          o = words(X, 18, lw - X) + art(E, 74, lw - E, h - E - 74, 0.72);
+          ks.forEach(function (o2, i) { o += Kit.key(kx, h - E - (ks.length - i) * KH - (ks.length - 1 - i) * G, kw, KH, o2); });
+          if (n && list) { var chosen = list.filter(function (r) { return self._sel.has(r.id); }).map(function (r) { return r.name; });
+            o += Kit.tx(kx + X - E, 18, kw - X + E, 'kl', 'Rooms') + Kit.tx(kx + X - E, 40, kw - X + E, 'kb', esc(chosen.join(', ')), 'white-space:normal;max-height:88px'); }
+        }
+        var html = '<style>' + (VA.CSS || '') + '</style>' + Kit.plate(k, o, { lit: running, label: nm + ', ' + lk.words, cls: 'vac' });
+        return Kit.draw(this, html, function (/** @type {any} */ root) {
+          root.querySelectorAll('[data-svc]').forEach(function (/** @type {any} */ b) {
+            b.addEventListener('click', function () { var svc = b.getAttribute('data-svc'); if (svc === 'rooms') self._start();
+              else if (svc && self.client) self._call('vacuum', svc, { entity_id: cfg.entity }); });
+          });
+          root.querySelectorAll('[data-rooms]').forEach(function (/** @type {any} */ b) { b.addEventListener('click', function () { self._pickRooms(); }); });
+          root.querySelectorAll('[data-clear]').forEach(function (/** @type {any} */ b) { b.addEventListener('click', function () { self._clearWater(); }); });
+        });
+      }
       _renderBlock(sz) {
+        // (the kit's vacuum; the older drawing below only where the kit draws none)
+        if (window.hkKit && window.hkKit.on(this)) { if (this._renderKitBlock(sz)) return; } else if (window.hkKit) window.hkKit.forget(this);
         var cfg = this._config, esc = C.esc, self = this;
         this._built = false;                       // (the page's markup, if the block ever leaves the grid)
         this._watchBlock();
@@ -495,7 +576,7 @@
             '}',
           '.bar .n{min-width:0;font-size:13px;font-weight:600;color:' + window.hkCards.v('ink-2') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
           '.bar .pill{min-width:96px}',
-          '.bar .go[aria-pressed="true"] > span{color:' + SELECTED_TEXT + '}',
+          '.bar .go[aria-pressed="true"] > span{color:' + SELECTED_TEXT + ';text-shadow:none}',
           '.bar .go[aria-disabled="true"]{opacity:0.45;pointer-events:none}',
           '.plate .floor{padding:0 0 10px 0;font-size:15px}',
           '.plate .grid{margin:0 0 16px 0}',

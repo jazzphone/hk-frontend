@@ -87,7 +87,7 @@
     // ('tinted' was stored as 'clear' before entry 1.12: Appearance's
     // see-through glass is 'clear')
     var TAB_BAR_GLASS = [['house', 'Same as Screen'], ['blur', 'Blur'], ['frosted', 'Frosted'], ['tinted', 'Tinted'],
-                         ['bright', 'Bright Glass']];
+                         ['bright', 'Bright Glass'], ['clear_glass', 'Clear']];
     function choiceLabel(list, v) {
       for (var i = 0; i < list.length; i++) if (list[i][0] === v) return list[i][1];
       return v;
@@ -160,7 +160,9 @@
     var APPEARANCE_DEFAULTS = { 'look.flat': false, 'look.flat_theme': 'dark', 'look.glass': 'clear', 'look.frost': 50, 'look.blur': 50,
       'look.flat_night_entity': null,
       'look.tint': 50, 'look.well': 'dark', 'look.frost_tint': false, 'look.motion': true, 'look.bright': 50, 'look.bright_dim': 0,
-      'look.bright_pages': 'home', 'look.bars_blur': 'live', 'look.tile_style': 'auto', 'look.tile_icons': 'auto', 'menu.accent': 'orange', 'menu.bar_glass': 'house',
+      'look.bright_pages': 'home', 'look.bars_blur': 'live', 'look.text_glow': true, 'look.tile_style': 'auto', 'look.tile_icons': 'auto', 'menu.accent': 'orange',
+        'menu.bar_glass': 'house',
+        'menu.bar_dim': 'glass',
       'look.flat_colors': { accent: 'auto', off_tint: 'auto', pages: 'accent' } };
     // TILES WHEN OFF (phase 33; was Off Pill Tint, flat_colors.off_tint): auto, accent or a color, in words
     var TILES_OFF = [['auto', 'Their Own Colors', 'Each tile in a wash of its own color. Flat Dark keeps its plain tiles.'],
@@ -229,7 +231,7 @@
     var MENU_KEYS = { page_header: 'page_header', menu: 'style', tab_position: 'tab_at', tab_size: 'tab_size',
                       tab_size_phone: 'tab_size_phone', dock_min: 'open_min', time_weather: 'time_weather_at',
                       ha_row: 'ha_row', ha_place: 'ha_at', accent: 'accent', glyph: 'glyph', clock: 'clock', swipe: 'swipe',
-                      tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass',
+                      tab_bar_scroll: 'bar_scroll', tab_bar_rooms: 'bar_rooms', tab_bar_glass: 'bar_glass', tab_bar_dim: 'bar_dim',
                       tab_bar_more: 'bar_more', tab_bar_more_phone: 'bar_more_phone',
                       tab_bar_pos: 'bar_pos', tab_bar_fold: 'bar_fold', tab_bar_start: 'bar_start',
                       tab_bar_adjust: 'bar_adjust', tab_bar_scroll_phone: 'bar_scroll_phone',
@@ -238,7 +240,7 @@
                       button_phone: 'button_phone', tab_bar_rooms_phone: 'bar_rooms_phone' };
     var MENU_DEFAULTS = { page_header: 'current', menu: 'auto', tab_position: '', tab_size: 'large', tab_size_phone: 'standard',
                           dock_min: 1000, time_weather: 'page', ha_row: false, ha_place: 'rooms', accent: 'orange', glyph: 'sidebar', clock: true,
-                          swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house',
+                          swipe: false, tab_bar_scroll: 'shrink', tab_bar_rooms: 'more', tab_bar_glass: 'house', tab_bar_dim: 'glass',
                           tab_bar_more: 'icons', tab_bar_more_phone: 'list', tab_bar_pos: 'bottom',
                           tab_bar_fold: 'start', tab_bar_start: 'full', tab_bar_adjust: true,
                           tab_bar_scroll_phone: 'shrink', tab_bar_tabs: 6, tab_bar_tabs_rail: 6, tab_bar_tabs_phone: 3,

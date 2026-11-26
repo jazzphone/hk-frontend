@@ -58,6 +58,11 @@ ok('the hidden page is reachable in both directions', X.neighbors(NLP, '/dashboa
    X.neighbors(NLP, '/dashboard-hall/now-playing', here).next === MORE[0]);
 ok('a hidden page can precede Home alone, and an unrelated extra is ignored', X.leftOfHome([MORE[0]], 'now-playing', NP).length === 2 &&
    X.leftOfHome(MORE, 'missing', NP) === MORE);
+// OPENS ON: PAGES SCREEN (2026-11-25): that view is the screen's Home, so the swipe order has no Home before it
+var PV = [{ path: 'home' }, { path: 'pages', pages_screen: true, opens: true }];
+ok('a screen that opens on its Pages screen swipes to no Home; any other keeps it',
+   X.noHome(MORE, PV).map(function (x) { return x.title; }).indexOf('Home') < 0 && X.noHome(MORE, PV).length === MORE.length - 1 &&
+   X.noHome(MORE, [{ path: 'home' }, { path: 'pages', pages_screen: true }]) === MORE && X.noHome(MORE, null) === MORE);
 ok('the order as given, untouched by default', X.order({ items: BAR }).map(function (x) { return x.title; }).join() === 'Home,Lights,Climate,Security');
 var PAGES = it('pages', 'Pages');
 var off = P.extend(function (items, ctx) {
@@ -237,6 +242,30 @@ dispatchEvent(new CustomEvent('hk-view-ready', { detail: { view: shown } }));
 ok('...and once it is in, the stand-in goes and the page it left is as it was', slot.children.length === 1 &&
    !page.style.transform && !page.style.transition, [slot.children.length, page.style.transform]);
 
+// THE SIDE PANE MOVES WITH ITS PAGE, IN THE SAME TASK (2026-11-22, the owner on the Kitchen's tablet: the pane "jumps a
+// little bit while the page is being swiped ... like it's not really locked on the page", swiping fast). A quick
+// flick's lift comes between frames with the last move: the pane was moved once a frame, that frame was dropped with
+// the finger, and the pane settled from a frame behind the page.
+var paneCalls = [];
+window.hkSidePane = { follow: function (k, path, move) { paneCalls.push(['follow', +k.toFixed(3), path, move && move.dir]); },
+                      land: function (path) { paneCalls.push(['land', path]); } };
+navTo = [];
+location.pathname = '/dashboard-hall/lights';
+fire('pointerdown', ev(600, 400));
+fire('pointermove', ev(560, 395));
+ok('the Side Pane is where its page is as the finger moves it, with no frame between',
+   JSON.stringify(paneCalls[paneCalls.length - 1]) === JSON.stringify(['follow', +(30 / 1180).toFixed(3), '/dashboard-hall/climate', 1]), paneCalls);
+fire('pointermove', ev(300, 410));
+var flung = page.style.transform;
+fire('pointerup', ev(300, 410));
+var landAt = paneCalls.map(function (c) { return c[0]; }).lastIndexOf('land'), led = paneCalls[landAt - 1];
+ok('...a quick flick, the last move and the lift between frames: the pane goes from where the page went, not a frame behind',
+   flung === 'translateX(-290.0px)' && landAt > 0 && JSON.stringify(led) === JSON.stringify(['follow', +(290 / 1180).toFixed(3), '/dashboard-hall/climate', 1]),
+   [flung, paneCalls]);
+run();
+dispatchEvent(new CustomEvent('hk-view-ready', { detail: { view: document.createElement('hk-grid-view') } }));
+frame();
+
 calls = []; navTo = [];
 location.pathname = '/dashboard-hall/lights';
 fire('pointerdown', ev(600, 400));
@@ -400,8 +429,10 @@ ok('let go: a settle is under way, and it alone moves the page', aNow && !P._.st
 ok('...the page beside it on the same curve', made.climate.style.transition === made.lights.style.transition && made.climate.style.transform === 'translateX(0.0px)');
 // a finger on the moving page
 window.__drawn = null;
+paneCalls = [];
 fire('pointerdown', ev(700, 400, path(made.lights)));
 var cg = P._.state().G;
+ok('...and the Side Pane stops where its page stopped, as it is caught (not a frame later)', paneCalls.length && paneCalls[paneCalls.length - 1][0] === 'follow', paneCalls);
 ok('a finger on it mid-settle catches it: the settle is over, the finger has it', !P._.state().A && cg && cg.live && cg.caught);
 ok('...nothing is left running', !/transform \d/.test(made.lights.style.transition) && !/transform \d/.test(made.climate.style.transition),
    [made.lights.style.transition, made.climate.style.transition]);

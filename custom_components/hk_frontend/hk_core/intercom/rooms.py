@@ -37,8 +37,12 @@ AirPlay session of its own and starts when it's ready, a fraction of a second to
 plays on one clock, so ``sync_sets`` finds the calls that can be played the same way: a temporary group of two or more
 speakers, idle, on their own and able to group, announced to once through its leader. Everything else keeps its own
 call: a room playing music is already in step with the others playing music (Music Assistant mixes it in and arms one
-shared instant), and a room holding paused music is left alone. Music Assistant gives a group one announcement volume,
-so rooms at different volumes make separate groups. In Live the groups are made from the rooms that are live now.
+shared instant), and a room holding paused music is left alone. A room playing someone else's music (``outside``: Siri,
+the Music app or a HomeView playing to it) is not mixed into; Music Assistant's stream takes it over, so it groups like
+an idle one. Music Assistant gives a group one announcement volume,
+so a Message's group is announced at its quietest room's and the driver sets every other room to its own as the group
+starts (separate groups per volume weren't in step with each other; 2026-11-22). In Live the groups are made from the
+rooms that are live now, one volume each.
 
 A GROUP LEFT FROM MUSIC (2026-11-05: whole-house music stopped and left every HomePod grouped under the Master Bedroom, so
 the Master Bedroom alone could only "play together with" eight other rooms). Music Assistant keeps a group after its music
@@ -63,6 +67,9 @@ from . import config as C
 OK, AFTER, SKIPPED = "ok", "after", "skipped"
 WHY_UNAVAILABLE, WHY_QUIET, WHY_HERE, WHY_LEADS = "unavailable", "quiet", "here", "leads"
 IDLE_NOT = ("playing", "paused")
+# Music Assistant's active source for music it doesn't stream: an Apple device's own AirPlay or Apple Music (Siri, the
+# Music app, a HomeView playing to the HomePods)
+OUTSIDE_SOURCES = ("com.apple.", "apple-device://")
 MEMBER_KEYS = ("group_members", "group_childs", "static_group_members")     # where Music Assistant lists a group
 MAX_ROOMS = 64
 
@@ -209,31 +216,46 @@ def owners(music: MusicConfig, ma: Mapping[str, dict[str, Any]], pids: Mapping[s
     return out
 
 
+def outside(p: Any) -> bool:
+    """A speaker playing (or paused in) music Music Assistant doesn't stream: its source is an Apple app. Music
+    Assistant can't mix a message into that music or stop it; its own stream takes the speaker over, so for a Message
+    the room is as free as an idle one (2026-11-22: given a call of its own, each such room started the message on its
+    own, seconds apart). ma-airplay-groups 0.3.16 holds the speaker's volume until Music Assistant's stream has it."""
+    if not isinstance(p, Mapping):
+        return False
+    source = p.get("active_source")
+    return (isinstance(source, str) and source.startswith(OUTSIDE_SOURCES)
+            and (p.get("playback_state") or p.get("state")) in IDLE_NOT)
+
+
 def groupable(p: Any) -> bool:
     """A speaker in Music Assistant's ``players/all`` that can join a temporary group and be put back as it was: a plain
-    player, on, reachable, idle, in no group of any kind. (A speaker that is off stays out: joining would turn it on.)"""
+    player, on, reachable, idle (or playing someone else's music: ``outside``), in no group of any kind. (A speaker that
+    is off stays out: joining would turn it on.)"""
     if not isinstance(p, Mapping):
         return False
     return (p.get("type") == "player" and p.get("available") is True and p.get("powered") is not False
-            and (p.get("playback_state") or p.get("state")) not in IDLE_NOT
+            and ((p.get("playback_state") or p.get("state")) not in IDLE_NOT or outside(p))
             and "set_members" in (p.get("supported_features") or ())
             and not p.get("synced_to") and not p.get("active_group") and len(p.get("group_members") or ()) <= 1)
 
 
 def sync_sets(house: House, music: MusicConfig, calls: list[Call], ma_raw: Any, pids: Mapping[str, str],
-              held: Iterable[str] = ()) -> list[SyncSet]:
+              held: Iterable[str] = (), *, mixed: bool = False) -> list[SyncSet]:
     """The temporary groups a broadcast's ``calls`` can play as (the module's notes). ``held``: rooms holding paused music.
     A group's leader is the one the music engine would pick (the house's preferred leaders, then not a room Home
     Assistant announces to: an announcement to a leader plays on its whole group), and every member is one it can
-    group with."""
+    group with. ``mixed`` (a Message): rooms at different volumes share a group, each set to its own volume as it starts
+    (driver.in_step); otherwise (Live) a group is one volume."""
     players = {p["player_id"]: p for p in ma_raw if isinstance(p, Mapping) and "player_id" in p} if isinstance(
         ma_raw, (list, tuple)) else {}
     held = set(held)
     fit = [c for c in calls if not c.covers and c.room not in held and c.player not in held
-           and E.state_of(house, c.room) not in IDLE_NOT and groupable(players.get(pids.get(c.player, "")))]
-    by_volume: dict[int | None, list[Call]] = {}
+           and (E.state_of(house, c.room) not in IDLE_NOT or outside(players.get(pids.get(c.player, ""))))
+           and groupable(players.get(pids.get(c.player, "")))]
+    by_volume: dict[Any, list[Call]] = {}
     for c in fit:
-        by_volume.setdefault(c.volume, []).append(c)
+        by_volume.setdefault("set" if mixed and c.volume is not None else c.volume, []).append(c)
     out: list[SyncSet] = []
     for group in by_volume.values():
         while len(group) >= 2:
@@ -416,7 +438,8 @@ def decide(house: House, music: MusicConfig, doc: Mapping[str, Any], picked: Ite
                 plan.calls.append(Call(p, r, C.volume_of(doc, r), live=bool(can_live), covers=calling[p]))
     order = {r: i for i, r in enumerate(picked)}
     plan.rooms.sort(key=lambda x: order.get(x["room"], 0))
-    plan.sync = sync_sets(house, music, [c for c in plan.calls if c.live or not live_mode], ma_raw, pids, held)
+    plan.sync = sync_sets(house, music, [c for c in plan.calls if c.live or not live_mode], ma_raw, pids, held,
+                          mixed=not live_mode)
     return plan
 
 

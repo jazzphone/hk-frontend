@@ -187,12 +187,16 @@
       }
       // THE SCREEN'S OWN NAVIGATION, never a second menu: with the tab bar
       // showing, its More sheet (what the bar's menu opens); else the side
-      // menu, as the menu button opens it
+      // menu, as the menu button opens it; and on a screen with neither (its Menu
+      // off: the owner's Apple HomeView, 2026-11-23, where the tap did nothing)
+      // the Pages screen, where the screen has one
       _tap() {
         // (When Tapped, 2026-11-07: Nothing leaves even the key still)
         if ((this._config || {}).tap === 'none') return;
         var M = C.menu, B = window.hkTabBar;
         if (M && M.tabBar && M.tabBar() && B && typeof B.open === 'function') { B.open('more'); return; }
+        var p = M && M.on && !M.on() ? this._items().pagesPath : null;
+        if (p) { C.navigate(p, this); return; }
         if (M && M.open) M.open();
       }
       // "+N" (`more: page`, the default): the page of every place -- the Pages screen, where the screen has it -- else
@@ -617,7 +621,6 @@
     }
     var ON_CSS = [
       ':host{display:block;height:100%}',
-      'hk-plate.wg{text-shadow:none}',
       '.none{' + type('body') + ';color:' + v('ink-2') + '}'
     ].join('');
     // THE PARTS, House Status's file (a lazy one): asked for once, the card drawn again when it is here
@@ -650,7 +653,109 @@
         return JSON.stringify([o.every.map(function (x) { return x.kind.key + x.all.length; }), o.things.map(function (t) { return t.id + (st[t.id] ? st[t.id].last_updated : ''); }),
                                sizeOf(this), this._blockKey || '', !!(window.hkHouseStatus && window.hkHouseStatus.tiles)]);
       }
+      // THE KIT'S CARD (phase 34; round 12, 2026-11-23, the owner: "The wide card doesn't look good at all...the 'tiles' in the card just look
+      // squished ... the whole design of the On Now cards needs a new take"): iPhone Storage's -- the count of things on as the hero, "On" and
+      // "In N rooms" beside it clear of the number, ONE bar that shows what it is made of (each kind a segment in its color, in proportion, 3 px
+      // apart, rounded ends), and under it the kinds as rows (the glyph, the name, how many with a dot of the kind's color at the right end).
+      // No tiles. A row opens the kind's page or sheet as it always has; All Off is the foot key (Extra Large adds Lights Off). Wide has All Off
+      // beside the count and the kinds as a legend line under the bar (dot and "6 Lights", each its own touch); Small is the count centered, the
+      // bar under it, "On Now" and a short line. White glyphs turn the glyphs white; the bar's colors and the dots are data, and stay.
+      _renderKit() {
+        var K = window.hkKit, self = this, o = whatsOn(this.client);
+        if (!K) return false;
+        this._watchBlock();
+        var k = K.ctx(this), w = k.w, h = k.h, E = k.E, X = k.X, size = sizeOf(this) || 'L', KH = K.KH, narrow = w < 300, sq = h >= 180, out = '';
+        var dim = K.v('ink-3', 'rgba(255,255,255,.42)'), rooms = {}, nr = 0;
+        o.things.forEach(function (t) { if (t.area && !rooms[t.area]) { rooms[t.area] = 1; nr++; } });
+        var line = o.n ? (nr ? 'In ' + nr + (nr === 1 ? ' room' : ' rooms') : '') : '';
+        // (the kinds that are on, the biggest first; every kind the house has for the rows, the ones on first, as ever)
+        var ons = o.kinds.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) { return b.x.ids.length - a.x.ids.length || a.i - b.i; }).map(function (e) { return e.x; });
+        var every = o.every.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) { return (b.x.ids.length ? 1 : 0) - (a.x.ids.length ? 1 : 0) || a.i - b.i; })
+          .map(function (e) { return e.x; });
+        // the count, and what it says beside it (the words start clear of the digits: tabular, about .58 of the size each)
+        var heroAt = function (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ fs) {
+          var dg = String(o.n).length, f = Math.round(fs * (dg > 2 && narrow ? 0.8 : 1)), dx = Math.round(dg * f * 0.58 + 10), ty = y + (fs - (line ? 46 : 24)) / 2;
+          return K.tx(x, y + (fs - f) / 2, dg * f * 0.62 + 6, 'kh' + (o.n ? '' : ' quiet'), String(o.n), 'font-size:' + f + 'px;height:' + f + 'px') +
+            K.tx(x + dx, ty, w - x - dx - X, 'kt', o.n ? 'On' : 'All Off') + (line ? K.tx(x + dx, ty + 24, w - x - dx - X, 'kb', esc(line)) : '');
+        };
+        // ONE BAR: each kind on a segment in its color, wide as its share (never under its own height), 3 px apart
+        var bar = function (/** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ bw, /** @type {number} */ bh) {
+          if (!o.n) return K.box(x, y, bw, bh, '', 'border-radius:' + bh / 2 + 'px;background:' + K.v('line-strong', 'rgba(255,255,255,.24)'));
+          var gap = 3, avail = bw - gap * (ons.length - 1), fixed = 0, free = 0, r = bh / 2, cx = x, html = '';
+          var ws = ons.map(function (p) { return avail * p.ids.length / o.n; });
+          ws.forEach(function (n) { if (n < bh) fixed += bh; else free += n; });
+          ws = ws.map(function (n) { return n < bh ? bh : n * (free ? (avail - fixed) / free : 1); });
+          ons.forEach(function (p, i) {
+            var rad = ons.length === 1 ? r + 'px' : i === 0 ? r + 'px 3px 3px ' + r + 'px' : i === ons.length - 1 ? '3px ' + r + 'px ' + r + 'px 3px' : '3px';
+            html += K.box(cx, y, ws[i], bh, '', 'background:' + p.kind.color + ';border-radius:' + rad);
+            cx += ws[i] + gap;
+          });
+          return html;
+        };
+        var openLabel = function (/** @type {any} */ x) {
+          var on = x.ids.length;
+          return 'Open ' + (on ? plural(on, x.kind.one, x.kind.many) + (x.kind.key === 'speakers' ? ' playing' : ' on') : cap(x.kind.many) + ', ' + x.kind.rest.toLowerCase());
+        };
+        // THE KINDS AS ROWS: 60 tall (54 when they all fit at that), in a list that scrolls where there are more than fit; Extra Large in two columns
+        var rowsAt = function (/** @type {number} */ y0, /** @type {number} */ yMax, /** @type {number} */ cols) {
+          var per = Math.ceil(every.length / cols), room = yMax - y0, cw = (w + (cols - 1) * X) / cols, inner2 = '', gp = narrow ? 26 : 28;
+          // (all of them fit at 54 or more: shared evenly, to 60; else as many whole rows as fit at 60 and a fifth of the next showing, so it scrolls)
+          var rh = per * 54 <= room ? Math.min(K.RH, room / per) : room / (Math.floor(room / K.RH) + 0.4);
+          every.forEach(function (x, i) {
+            var on = x.ids.length, c = Math.floor(i / per), j = i % per, rx = c * (cw - X), ry = j * rh, tw = 17 + 13 * String(on).length;
+            var r = { lead: K.glyph(x.kind.icon, gp, K.tone(k, on ? x.kind.color : dim, !!on && !k.white), !!on && !k.white), lw: gp, lh: gp, t: cap(x.kind.many), quiet: !on,
+              label: openLabel(x), data: { 'open-kind': x.kind.key } };
+            if (on) r.trw = tw - 6; else r.trw = x.kind.rest.length * 6;
+            inner2 += K.row(k, rx, ry, cw, r, j === per - 1 || i === every.length - 1, rh);
+            if (on) inner2 += K.box(rx + cw - X - tw, ry + (rh - 24) / 2, tw, 24, '', 'display:flex;align-items:center;justify-content:flex-end;gap:8px;pointer-events:none',
+              '<span style="width:9px;height:9px;border-radius:50%;flex:none;background:' + x.kind.color + '"></span><span class="kt num">' + on + '</span>');
+            // (at rest, the word -- "Off", "Idle" -- the softer gray, right-aligned on the same end; the name keeps the room)
+            else inner2 += K.tx(rx + cw - X - 44, ry + (rh - 22) / 2, 44, 'kb', x.kind.rest, 'text-align:right;pointer-events:none');
+          });
+          return '<style>.kit .sc{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:none}' +
+            '.kit .sc::-webkit-scrollbar{display:none}</style><div class="a sc" role="list" style="' + K.st(0, y0, w, room) + '">' + inner2 + '</div>';
+        };
+        var allOff = o.n ? { g: K.svg('power', 24), t: 'All Off', label: 'Turn off all ' + o.n + ' things on', data: { all: '1' } } : null;
+        if (size === 'S') {
+          // the count centered, the bar under it, "On Now" and the biggest kinds in a line
+          var said = '';
+          ons.forEach(function (p) { var t = plural(p.ids.length, p.kind.one, p.kind.many).toLowerCase(), n2 = said ? said + ' · ' + t : t; if (n2.length <= 21) said = n2; });
+          var fs = (sq ? 64 : 46) * (String(o.n).length > 2 ? 0.8 : 1), y1 = sq ? 22 : 8, by = sq ? 98 : 60, bh = sq ? 8 : 6, ny = sq ? 118 : 72, bx = Math.round(w * 0.15);
+          out = K.tx(8, y1 + ((sq ? 64 : 46) - fs) / 2, w - 16, 'kh' + (o.n ? '' : ' quiet'), String(o.n), 'font-size:' + fs + 'px;height:' + fs + 'px;text-align:center') +
+            bar(bx, by, w - 2 * bx, bh) + K.tx(8, ny, w - 16, 'kt', 'On Now', 'text-align:center') + K.tx(8, ny + 26, w - 16, 'kb', esc(o.n ? said : 'All Off'), 'text-align:center');
+        } else if (size === 'W') {
+          out = heroAt(X, sq ? 20 : 14, sq ? 52 : 44) + (allOff ? K.key(w - E - 120, E, 120, KH, allOff) : '') + bar(X, sq ? 100 : 78, w - 2 * X, sq ? 10 : 8);
+          if (sq && ons.length) {
+            // the legend: each kind on a dot and its count and name, its column the touch
+            var ly = 114, lh = h - E - ly, tot = 0, cx0 = X - 6, texts = ons.map(function (p) {
+              var t = p.ids.length + ' ' + cap(p.ids.length === 1 ? p.kind.one : p.kind.many); tot += t.length + 3; return t;
+            });
+            ons.forEach(function (p, i) {
+              var lw2 = (w - 2 * X) * (texts[i].length + 3) / tot, x0 = cx0, t = texts[i];
+              cx0 += lw2;
+              out += '<button type="button" class="hit" data-notap data-open-kind="' + p.kind.key + '" aria-label="' + esc(openLabel(p)) + '" style="' + K.st(x0, ly, lw2, lh) + '"></button>' +
+                K.box(x0 + 6, ly + (lh - 22) / 2 + 6, 9, 9, '', 'border-radius:50%;pointer-events:none;background:' + p.kind.color) +
+                K.tx(x0 + 21, ly + (lh - 22) / 2, lw2 - 21, 'kb', esc(t), 'pointer-events:none;color:' + K.v('ink', 'rgba(255,255,255,0.94)'));
+            });
+          }
+        } else {
+          var big = size !== 'T', y2 = big ? 18 : 16, by2 = big ? 100 : 84, bh2 = big ? 12 : 10, ry = by2 + bh2 + 12, yMax = allOff ? K.FY(k) - 6 : h - E;
+          out = heroAt(X, y2, big ? 64 : 52) + bar(X, by2, w - 2 * X, bh2);
+          if (every.length && yMax - ry >= K.RH * 0.6) out += rowsAt(ry, yMax, size === 'XL' ? 2 : 1);
+          var lights = size === 'XL' ? o.kinds.filter(function (x) { return x.kind.key === 'lights'; })[0] : null;
+          /** @type {any[]} */ var keys = lights ? [{ g: K.glyph('mdi:lightbulb', 24, K.tone(k, ACC.yellow, false)), t: 'Lights Off', label: 'Turn the lights off', data: { 'off-kind': 'lights' } }] :
+            [];
+          out += K.foot(k, allOff ? keys.concat([allOff]) : keys);
+        }
+        return K.draw(this, K.plate(k, out, { label: 'On now' }), function (/** @type {any} */ root) {
+          root.querySelectorAll('[data-open-kind]').forEach(function (/** @type {any} */ b) { b.addEventListener('click', function () { self._openKind(b.getAttribute('data-open-kind')); }); });
+          root.querySelectorAll('[data-all]').forEach(function (/** @type {any} */ b) { b.addEventListener('click', function () { self._off(null, null, true); }); });
+          root.querySelectorAll('[data-off-kind]').forEach(function (/** @type {any} */ b) { b.addEventListener('click', function () { self._off(null, b.getAttribute('data-off-kind'), false); }); });
+        });
+      }
       _render() {
+        // (the kit's card, hk-kit.js; the older drawing below only where the kit draws none)
+        if (window.hkKit && window.hkKit.on(this)) { if (this._renderKit()) { this._built = false; return; } } else if (this._kitHtml) { window.hkKit.forget(this); this._built = false; }
         var self = this;
         if (!this._built) {
           this._root.innerHTML = '<hk-plate class="wg" data-hk-role="card" role="group" aria-label="On now"></hk-plate>';

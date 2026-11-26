@@ -1510,6 +1510,7 @@
       return { dashboard: '/' + (parts[1] || ''), view: parts[2] || '' };
     }
     function route() {
+      land();
       var at = viewPathOf(global.location.pathname);
       if (at.dashboard !== base) {
         if (opts.leave) opts.leave(global.location.pathname);
@@ -1549,6 +1550,24 @@
         onUpdate();                // the host's newest client, if it moved on since create()
       }
       return route();
+    }
+    // WHERE THE SCREEN OPENS (Opens On, hkSettings.pagesScreen().opens; 2026-11-25, the owner: an Apple HomeView is
+    // itself the dashboard): a screen opened on Home -- no view, `0` or Home's own path -- opens on the view marked
+    // `opens` (hk-strategy-energy.js pagesScreen) instead, its address replaced, so Back doesn't go to a Home never
+    // shown. And on every way Home after (2026-11-25, the owner: "there is still a Main Dashboard screen ... so the
+    // back button goes back to it every time"): such a screen's Home IS that view -- Back, the idle return, a link to
+    // Home all land there (route()), its address put in Home's place.
+    function land() {
+      var at = viewPathOf(global.location.pathname), vs = views(), v0 = vs[0], h = global.history;
+      if (at.dashboard !== base || !h || typeof h.replaceState !== 'function') return;
+      if (at.view && at.view !== '0' && !(v0 && v0.path === at.view)) return;
+      for (var i = 1; i < vs.length; i++) {
+        if (vs[i] && vs[i].opens && vs[i].path) {
+          var l = global.location;
+          try { h.replaceState(h.state, '', base + '/' + vs[i].path + (l.search || '') + (l.hash || '')); } catch (e) { /* stays Home */ }
+          return;
+        }
+      }
     }
     function stop() {
       if (live === api) live = null;

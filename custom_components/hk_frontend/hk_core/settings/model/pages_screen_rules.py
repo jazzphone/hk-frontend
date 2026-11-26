@@ -13,8 +13,8 @@ from .schema import (_one_of, _PLACE, _typed, BARS_BLUR, BRIGHT_PAGES, CONF_DASH
     FLAT_THEMES, FLAT_TINT_AMOUNT, GLASS, NP_BARS, NP_GRACES, NP_SIDES, NP_STYLES, photo_look, PHOTO_LOOK_DEFAULTS,
     place_sky_defaults, radar_native, RETIRED_GLASS, sky_landscape, THERMOSTAT_STYLES, TILE_ICONS, TILE_STYLES,
     wallpaper_choice, WALLPAPER_MOTION, WALLPAPER_NIGHT, weather_page, WELLS,)
-from .defaults import (DEFAULTS, PAGES_SCREEN_CLOCK, PAGES_SCREEN_DEFAULTS, PAGES_SCREEN_ICONS_MAX, PAGES_SCREEN_PATH,
-    PAGES_SCREEN_PILL, PAGES_SCREEN_PLACES, PAGES_SCREEN_ROOMS, PAGES_SCREEN_SHOW, PAGES_SCREEN_SIZES,
+from .defaults import (DEFAULTS, PAGES_SCREEN_CLOCK, PAGES_SCREEN_DEFAULTS, PAGES_SCREEN_ICONS_MAX, PAGES_SCREEN_OPENS,
+    PAGES_SCREEN_PATH, PAGES_SCREEN_PILL, PAGES_SCREEN_PLACES, PAGES_SCREEN_ROOMS, PAGES_SCREEN_SHOW, PAGES_SCREEN_SIZES,
     PAGES_SCREEN_WIDGETS, PAGES_SCREEN_WIDGETS_MAX, SAVER_DEFAULTS, SIDE_PANE_DEFAULTS,)
 
 
@@ -50,6 +50,7 @@ PAGES_SCREEN_CHECKS: dict[str, Any] = {
     "rooms": lambda v: _one_of(v, PAGES_SCREEN_ROOMS), "widgets": _pages_widgets,
     "pill": lambda v: _one_of(v, PAGES_SCREEN_PILL),
     "clock": lambda v: _one_of(v, PAGES_SCREEN_CLOCK),
+    "opens": lambda v: _one_of(v, PAGES_SCREEN_OPENS),
 }
 
 
@@ -130,6 +131,8 @@ def merged(options: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
     out["look"]["flat"] = out["look"].get("flat") is True
     # (Motion, 2026-11-14: on unless switched off -- only an explicit False is off)
     out["look"]["motion"] = out["look"].get("motion") is not False
+    # (Text Glow, 2026-11-22: on unless switched off)
+    out["look"]["text_glow"] = out["look"].get("text_glow") is not False
     if out["look"].get("flat_theme") not in FLAT_THEMES:
         out["look"]["flat_theme"] = "dark"
     for k, choices in (("well", WELLS), ("bright_pages", BRIGHT_PAGES), ("bars_blur", BARS_BLUR), ("tile_style", TILE_STYLES), ("tile_icons", TILE_ICONS),

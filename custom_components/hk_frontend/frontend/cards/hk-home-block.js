@@ -9,6 +9,9 @@
 //                        the categories as standard pills over the rooms' lines, Extra Large a column for the categories
 //                        beside the rooms. The plate opens the sheet, a room the sheet at that room, a category its own
 //                        page as its chip does (House Status's way); nothing in the block turns anything on.
+//                        ROUND 12 (2026-11-23): from Wide up the block is the kit's picture card instead -- the top of Apple's Home app: the house's
+//                        picture (four looks by the sun, dimmed), "Home" with its chevron, the inside temperature, and Climate, Lights, Doors and
+//                        Security as glass buttons; Extra Large adds the rooms down the right (_renderKit). Small is unchanged.
 //   hk-detail-home       the sheet's body (hkDetail.open {panel}): the generated Home, as a generated screen draws it --
 //                        the chips, the camera mosaic, Scenes, Favorites, every room (hkStrategy.homeSheet) -- at the Room
 //                        sheet's size. A room's heading opens the room INSIDE the sheet, one level deep, with a "‹ Home"
@@ -52,7 +55,72 @@
   // THE SHEET'S PLACE for a tap: a page it has, else Home
   function placeOf(at, pages) { return at && at !== 'home' && pages && pages[at] ? at : 'home'; }
 
-  var LIB = { segOf: segOf, wideLine: wideLine, roomSay: roomSay, placeOf: placeOf };
+  // ---- ROUND 12 (2026-11-23, the owner: "we probably need to make it somewhat dim, but I like the idea overall...not sure if it
+  // changes throughout the day, but that would be fun"): from Wide up the block is the top of Apple's Home app -- the house's
+  // picture fills it, drawn in four looks by the sun, dimmed so it sits back like a wallpaper, with the categories as glass
+  // buttons over it. What decides each part is here, plain data in and out.
+  // THE SKY'S LOOK from sun.sun (its state and attributes) and the hour: day over 10 degrees up, night under -6 (civil twilight's
+  // end), between them dawn while the sun is rising and dusk while it is setting; with no elevation, above or below the horizon;
+  // with no sun at all, the clock (5-8 dawn, 8-17 day, 17-20 dusk)
+  function skyLook(sun, hour) {
+    var a = (sun && sun.attributes) || {}, el = a.elevation == null || a.elevation === '' ? NaN : Number(a.elevation);
+    var h = hour == null || !isFinite(hour) ? 12 : Number(hour);
+    if (isFinite(el)) {
+      if (el >= 10) return 'day';
+      if (el < -6) return 'night';
+      return (a.rising != null ? !!a.rising : h < 12) ? 'dawn' : 'dusk';
+    }
+    var state = sun && sun.state;
+    if (state === 'above_horizon') return h < 9 ? 'dawn' : h >= 17 ? 'dusk' : 'day';
+    if (state === 'below_horizon') return 'night';
+    return h < 5 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : h < 20 ? 'dusk' : 'night';
+  }
+  // HOW MANY LIGHTS ARE ON, from the Lights category's reading ("3 On"); null when it does not say
+  function lightsOn(sec) {
+    var r = sec && sec.reading;
+    if (!r || r.none) return null;
+    if (r.num != null && isFinite(Number(r.num))) return Number(r.num);
+    return /off/i.test(String(r.text || '')) ? 0 : null;
+  }
+  // a category's reading as one string: "71°", "3 On", "Disarmed" (no space before a degree or a percent)
+  function readText(r) {
+    if (!r || r.none) return '';
+    if (r.text) return String(r.text);
+    var u = r.unit == null ? '' : String(r.unit);
+    return String(r.num) + (u && !/^[°%]/.test(u) ? ' ' : '') + u;
+  }
+  // THE LINE UNDER "HOME": the inside temperature and what the climate is doing ("71° inside · Heating"; a narrow block "71° · Heating")
+  function homeLine(sec, narrow) {
+    if (!sec) return '';
+    var temp = readText(sec.reading), m = /^(Heating|Cooling)/.exec(String(sec.detail || '')), doing = m ? m[1] : '';
+    if (!temp) return doing;
+    if (!doing) return temp + ' inside';
+    return temp + (narrow ? '' : ' inside') + ' · ' + doing;
+  }
+  // THE CATEGORY BUTTONS: Climate, Lights, Doors, Security (Apple's Home app's own), the ones the screen's status model has, then others to
+  // fill `n`; a quiet Doors (nothing open, so no section) is made up -- "All Closed" -- where the screen has its page (`doorsPage`)
+  var CAT_KINDS = ['climate', 'lights', 'doors_windows', 'security'];
+  function pickCats(sections, n, doorsPage) {
+    var list = sections || [], by = {}, out = [];
+    list.forEach(function (x) { if (!by[x.kind]) by[x.kind] = x; });
+    CAT_KINDS.forEach(function (kd) {
+      var x = by[kd];
+      if (!x && kd === 'doors_windows' && doorsPage) {
+        x = { kind: kd, name: 'Doors', reading: { text: 'All Closed' }, tap: { action: 'navigate', navigation_path: doorsPage }, made: true };
+      }
+      if (x) out.push(x);
+    });
+    list.forEach(function (x) { if (out.length < n && out.indexOf(x) < 0 && CAT_KINDS.indexOf(x.kind) < 0) out.push(x); });
+    return out.slice(0, n);
+  }
+
+  // THE HOUSE'S WALLPAPER by the sky's look (round 13, the owner: "The Cartoon nature just doesn't work here"): Apple's Home app's soft
+  // fields of color (hk-kit.js wallpaper), the time of day in them -- [ground, upper left, upper right, foot]
+  var WALLS = { dawn: ['#3b2f4a', '#f0a07c', '#f5cf8e', '#7a6aa6'], day: ['#24507a', '#6fb1ee', '#a9d6f2', '#3f86bd'], dusk: ['#2a2040', '#d96c52', '#ef7ea6', '#6656d8'],
+    night: ['#0d142c', '#2b3f7e', '#1b2650', '#43337a'] };
+
+  var LIB = { segOf: segOf, wideLine: wideLine, roomSay: roomSay, placeOf: placeOf, skyLook: skyLook, lightsOn: lightsOn,
+              readText: readText, homeLine: homeLine, pickCats: pickCats, CAT_KINDS: CAT_KINDS, WALLS: WALLS, LOOKS: ['dawn', 'day', 'dusk', 'night'] };
   window.hkHomeBlock = { version: '1.0.0', lib: LIB };
 
   // ======================================================================== the cards
@@ -490,12 +558,90 @@
         }
         _sigOf() {
           var size = this._size(), base = size === 'S' && this.getAttribute('tile') === 'centred' ? 'hb:S' : super._sigOf(), c = this.client;
+          // (the picture's look: read when told, so a screen keeps sun.sun; the look moves a few times a day, not with its elevation)
+          if (size !== 'S') base += '|' + this._sky() + '|' + ((this._config || {}).background || '');
           if (size === 'S' || size === 'W' || size === 'T' || !c) return base + '|' + this._name() + '|' + (this.getAttribute('tile') || '');
           var self = this;
           return base + '|' + this._name() + '|' + (this.getAttribute('tile') || '') + '|' +
             roomList(c).map(function (r) { return r.id + '=' + roomReading(self.client, r); }).join(';');
         }
+        // THE PICTURE'S LOOK, by the sun now
+        _sky() {
+          var st = this.client && this.client.states, now = new Date();
+          return skyLook(st ? st['sun.sun'] : null, now.getHours() + now.getMinutes() / 60);
+        }
+        // THE KIT'S CARD, Wide and up (round 12; hk-kit.js, docs/phase34/PLAN.md): the top of Apple's Home app -- the house's picture, dimmed,
+        // "Home" with the chevron that says it opens, the inside temperature and what the climate is doing, and the categories as glass
+        // buttons at the foot; Extra Large adds the rooms down the right. Small stays the glyph alone (false: the older drawing).
+        _renderKit() {
+          var K = window.hkKit, size = this._size(), c = this.client, self = this;
+          if (!K || size === 'S' || !c) return false;
+          if (this._watchBlock) this._watchBlock();
+          var k = K.ctx(this), w = k.w, h = k.h, E = k.E, X = k.X, KH = K.KH, G = K.G, name = this._name();
+          // (bare: the Background option's None -- the block's plain plate, the look's own ink and keys; round 13)
+          var bare = (this._config || {}).background === 'none', ink = bare ? K.v('ink', '#fff') : '#fff';
+          var m = this._sections(), sections = (m && m.sections) || [], look = this._sky(), narrow = w < 300;
+          var M = C.menu, doors = M && M.pagePath ? (M.pagePath('doors-windows') || M.pagePath('doors') || M.pagePath('security')) : null;
+          var cats = pickCats(sections, size === 'W' || size === 'T' ? 3 : 6, doors), climate = sections.filter(function (x) { return x.kind === 'climate'; })[0];
+          var lw = size === 'XL' ? Math.min(w, 405) : w, o = '';
+          // the wallpaper by the time of day, its glyph huge and faint off the lower right, and the header's glyph (round 13)
+          if (!bare) o += K.box(0, 0, w, h, '', 'overflow:hidden', K.wallpaper(w, h, WALLS[look] || WALLS.day) + K.texture(lw, h, HOUSE));
+          o += K.headGlyph(k, lw, HOUSE, bare ? ink : '');
+          // the words: the house's name, large, with the chevron; under it the line
+          var tw = lw - 2 * X - (lw >= 300 ? 52 : 0);
+          o += K.box(X, 16, tw, 28, '', 'display:flex;align-items:center;gap:4px', '<span class="kd" style="flex:0 1 auto;min-width:0">' + esc(name) + '</span>' +
+              K.svg('chev', 18, bare ? K.v('ink-2', 'rgba(255,255,255,.8)') : 'rgba(255,255,255,.85)')) + K.tx(X, 46, tw, 'kb', esc(homeLine(climate, narrow)));
+          // the buttons
+          this._shown = cats;
+          var teal = '#5ce1e6', btn = cats.map(function (x, i) {
+            var kd = x.kind, label = kd === 'doors_windows' ? 'Doors' : x.name, say = readText(x.reading), isOpen = kd === 'doors_windows' && !x.made && !!x.attention;
+            if (kd === 'doors_windows') say = say.replace(/^(\d+) (?:Doors?|Windows?|Garages?)\b/, '$1');      // ("3 Doors Open" is "3 Open" on a button)
+            if (isOpen && !/open/i.test(say)) say += ' Open';
+            var tint = { climate: '#ff9f0a', lights: '#ffcc00', doors_windows: teal, security: ink }[kd] || ink, on = kd === 'lights' ? /^[1-9]/.test(say) : isOpen;
+            var icon = { climate: 'hk:thermostat', lights: 'hk:lightbulb', doors_windows: 'hk:garage', security: 'hk:shield-home' }[kd] || x.icon || 'mdi:circle-outline';
+            return { g: K.glyph(icon, 26, K.tone(k, tint, on || kd === 'climate'), true) + '<span class="hb"><b>' + esc(label) + '</b><i' + (isOpen ? ' style="color:#7fe9ee"' : '') + '>' +
+              esc(say) + '</i></span>', label: label + (say ? ', ' + say : ''), data: { i: i } };
+          });
+          if (size === 'W') o += K.foot(k, btn);
+          else if (size === 'T') o += K.stack(k, btn.map(function (b) { return [b]; }));
+          // (Large and Extra Large: three rows of two -- round 13, the owner: "should these fill the area more or are we able to do 3 rows?")
+          else o += K.stack(Object.assign({}, k, { w: lw }), K.chunk(btn, 2));
+          if (size === 'XL') {
+            var rooms = roomList(c), rx = lw + 2, rw = w - E - rx, pk = Object.assign({}, k, { X: 16 }), RH = K.RH, list = '';
+            rooms.forEach(function (r, i) {
+              var say = roomReading(c, r), y = i * RH;
+              list += K.row(pk, 0, y, rw, { t: r.name, b: say, trail: '\u00a0', label: r.name + (say ? ', ' + say : ''), data: { r: r.id } }, i === rooms.length - 1, RH) +
+                K.box(rw - 30, y + (RH - 18) / 2, 14, 18, 'fc', 'pointer-events:none', K.svg('chev', 14, bare ? K.v('ink-3', 'rgba(255,255,255,.6)') : 'rgba(255,255,255,.6)'));
+            });
+            o += K.box(rx, E, rw, h - 2 * E, '', 'border-radius:' + k.r + 'px;background:' + (bare ? K.v('key', 'rgba(255,255,255,.14)') : 'rgba(0,0,0,.34)')) +
+              K.tx(rx + 16, E + 14, rw - 32, 'kl', 'Rooms') +
+              '<div class="a sc" role="list" style="' + K.st(rx, E + 44, rw, h - 2 * E - 44) + '">' + list + '</div>';
+          }
+          var css = '<style>' + (bare ? '' : '.kit.photo{color:#fff;--hk-ink:#fff;--hk-ink-2:rgba(255,255,255,.8);--hk-ink-3:rgba(255,255,255,.6);--hk-line:rgba(255,255,255,.16);' +
+            '--hk-glow:none;text-shadow:none}.kit.photo .kd,.kit.photo .kb{text-shadow:0 1px 4px rgba(0,0,0,.45)}' +
+            // (the buttons: a translucent dark and a hairline ring, never a blur of their own -- the picture is under them)
+            '.kit.photo .key{background:rgba(28,30,40,.62);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.2)}' +
+            '.kit.photo .key:active{background:rgba(28,30,40,.82)}') +
+            '.kit.photo .key{justify-content:flex-start;gap:10px;padding:0 12px 0 14px;text-shadow:none}' +
+            '.kit.photo .hb{display:flex;flex-direction:column;min-width:0;text-align:left}' +
+            '.kit.photo .hb b{font-weight:600;font-size:17px;letter-spacing:-.3px;line-height:21px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+            '.kit.photo .hb i{font-style:normal;font-weight:400;font-size:15px;line-height:20px;color:' + (bare ? K.v('ink-2', 'rgba(255,255,255,.78)') : 'rgba(255,255,255,.78)') +
+              ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+            '.kit.photo .sc{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:none}' +
+            '.kit.photo .sc::-webkit-scrollbar{display:none}.kit.photo .row:active{background:' + (bare ? K.v('key', 'rgba(255,255,255,.1)') : 'rgba(255,255,255,.1)') + '}</style>';
+          return K.draw(this, K.plate(k, css + o, { label: name + '. Opens ' + name, cls: 'photo' }), function (/** @type {any} */ root) {
+            root.querySelectorAll('[data-i]').forEach(function (/** @type {any} */ b) {
+              b.addEventListener('click', function () {
+                var sec = (self._shown || [])[Number(b.getAttribute('data-i'))];
+                if (!sec || !P.go(self, sec, false)) self._open('home');
+              });
+            });
+            root.querySelectorAll('[data-r]').forEach(function (/** @type {any} */ b) { b.addEventListener('click', function () { self._openRoom(b.getAttribute('data-r')); }); });
+          });
+        }
         _render() {
+          // (the kit's card, hk-kit.js; the older drawing below only where the kit draws none: Small)
+          if (window.hkKit && window.hkKit.on(this)) { if (this._renderKit()) { this._built = false; return; } } else if (this._kitHtml) { window.hkKit.forget(this); this._built = false; }
           var self = this;
           if (!this._built) {
             this._built = true;

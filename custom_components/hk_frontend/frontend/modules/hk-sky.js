@@ -144,7 +144,7 @@
       FRONT_Z, holidayLand, holidayLights, kfScale, landFile, landLight, landSeason, LV_KNOBS, lvCount, lvOf, lvRange,
       moves, NARROW_HALF, NARROW_SOLID, NEAR_ART, nearFlat, paint, paintAlbum, paintPhoto, paintRealClouds,
       paintSeasonalEffects, paintStatic, paintWall, pct, PHOTO_UNDER, plannedFor, preview, rcLight, rcPlan, rcTidy, read, register,
-      renderFlat, rng, scene, schedule, selfDrive, selfRender, SH, showNow, skySig, sleeping, SLEIGH, stateTick,
+      renderFlat, resolve, rng, scene, schedule, selfDrive, selfRender, SH, showNow, skySig, sleeping, SLEIGH, stateTick,
       STATIC, sunKelvin, SURPRISE, surpriseFor, swipeCover, swiping, teardown, tintStops, treatedPhoto, VER, watch,
       WEB_IMG, WITCH_CYCLE, WITCH_FADE, WITCH_FLIGHT, WITCH_IMG, witchPath, XDECOR, XGLOW;
 
@@ -295,6 +295,8 @@
   // still from boot -- and nothing on one is ever beside other work.
   // Starts focused: only a real blur holds it.
   ST.unfocused = false;
+  // UNDER A PAGE'S BLUR (the Pages screen, resolve's `covered`): held too (hk-sky-api.js applyHidden)
+  ST.covered = false;
   ST.settleGen = 0;
   ST.saidSig = null;
   ST.saidFor = null;
@@ -359,7 +361,7 @@
   function runParts() {
     var K = kit();
     PARTS.forEach(function (file) { window.hkSkyParts[partKey(file)](K); });
-    announce = K.announce; applyHidden = K.applyHidden; auroraDraw = K.auroraDraw; BASE = K.BASE;
+    announce = K.announce; resolve = K.resolve; applyHidden = K.applyHidden; auroraDraw = K.auroraDraw; BASE = K.BASE;
     birthdays = K.birthdays; BRANCH_IMG = K.BRANCH_IMG; build = K.build; CANOPY_IMG = K.CANOPY_IMG;
     CEIL_FADE = K.CEIL_FADE; ceilCanvases = K.ceilCanvases; ceilDraw = K.ceilDraw; ceilRelight = K.ceilRelight;
     cloudsPending = K.cloudsPending; container = K.container; daysUntil = K.daysUntil; drifting = K.drifting;
@@ -1207,6 +1209,10 @@
       '#hk-sky .near-scenery .near-motion.windy-only,#hk-sky .near-scenery .near-motion.eve{display:none}',
       '#hk-sky .near-scenery .sleigh{filter:brightness(0) drop-shadow(0 0 2px rgba(206,218,240,.7));opacity:.9}',
       '#hk-sky .near-scenery.windy .near-motion.windy-only,#hk-sky .near-scenery.eve .near-motion.eve{display:block}',
+      // a page without falling leaves (the Pages screen, Weather): the scene's leaves kept, not shown -- after the windy
+      // rule, which it outranks at the same weight (hk-sky-surprises-more.js paintSeason: never rebuilt for them)
+      '#hk-sky .near-scenery.no-leaves .near-motion.leaves,#hk-sky .near-scenery.no-leaves .near-motion.swirl,',
+      '#hk-sky .season.no-leaves .leaffield{display:none}',
       // Bats in twos and threes: a crossing of ~8 s in each cycle, then gone.
       // A rim of moonlight on each, or a black bat on a night sky is no bat.
       '#hk-sky .near-scenery .flock .bat{animation-name:near-flock;',
@@ -1456,6 +1462,8 @@
         try {
           if (!client || !card) return '';
           opts = opts || {};
+          // (the page this is for blurs it all over: held, applyHidden -- each render says, so a page out from under it isn't)
+          ST.covered = !!opts.covered;
           var P = window.hkSettings, policy = P && P.rendering ? P.rendering() : { flat: false };
           var effects = P && P.seasonalEffects && P.seasonalEffects();
           var fallingLeaves = opts.fallingLeaves !== false;
@@ -1634,6 +1642,7 @@
       swipeCover: function (path) { try { return swipeCover(path); } catch (e) { console.error('[hk-sky]', e); return null; } },
       swipeBack: function () { ST.SWIPE = null; ST.snapNext = true; try { selfRender(); } catch (e) { console.error('[hk-sky]', e); } },
       _read: read,                // tests: what the sky reads, pins included
+      _resolve: function (path) { return resolve(path); },     // tests: what a page asks of the sky (selfRender's want)
       _planned: function (n, d) { return plannedFor(n, d); },
       // hkSky._surpriseForce('birthday') then hkSkyAt(14) shows a theme on any
       // date. _surpriseForce(null) restores.

@@ -580,6 +580,8 @@ ok('All Screens\' phone keys read as a screen\'s, and save back', hb.button_phon
    eq(M.houseMenuSave({ button_phone: 'chip', tab_bar_rooms_phone: null }), { 'menu.button_phone': 'chip', 'menu.bar_rooms_phone': null }));
 // USE THE SIDE STRIP (2026-10-30, the iPhone Duo's strip): a tab bar setting, on unless turned off, All
 // Screens' or a screen's own one at a time, on the Tab Bar page and found by search
+ok('Tab Bar Dim (2026-11-22): All Screens\' menu.bar_dim, a screen\'s own in menu_own -- the switch saved, not sprung back',
+   M.MENU_KEYS.tab_bar_dim === 'bar_dim' && M.menuOwnSet({ menu_own: [] }, { tab_bar_dim: 20 }).menu_own.indexOf('tab_bar_dim') >= 0);
 ok('Use the Side Strip: All Screens\' bar_strip, on unless off, saved back', M.MENU_KEYS.tab_bar_strip === 'bar_strip' &&
    M.houseMenuAsBoard({}).tab_bar_strip === true && M.houseMenuAsBoard({ bar_strip: false }).tab_bar_strip === false &&
    eq(M.houseMenuSave({ tab_bar_strip: false }), { 'menu.bar_strip': false }));
@@ -850,7 +852,11 @@ ok('...every mode says what it costs', M.BLUR_MODES.every(function (m) { return 
 // ------------------------------------------------------------ the side pane (2026-10-30)
 (function () {
   ok('Side Pane: thirteen kinds, four sizes, eight at most', M.PANE_KINDS.length === 13 && M.PANE_SIZES.length === 4 && M.PANE_MAX === 8 &&
-     eq(M.PANE_GROUPS, ['side', 'width', 'dashboard', 'saver', 'doorbell', 'headings', 'dim']));
+     eq(M.PANE_GROUPS, ['side', 'width', 'dashboard', 'saver', 'doorbell', 'headings', 'saver_headings', 'dim']));
+  // SECTION HEADINGS, each pane its own (2026-11-23): the screensaver's a group of its own, on unless set
+  var hp = M.paneOf({ headings: false }, null);
+  ok('Section Headings: the Dashboard\'s and the screensaver\'s apart, the screensaver\'s on by default', hp.headings === false && hp.saver_headings === true &&
+     eq(M.paneSet(M.paneOf({}, {}), 'saver_headings', false, 'kitchen'), { side_pane: { saver_headings: false } }));
   // A STATUS (2026-11-06): any number, each its own id; Automatic or Nothing on a tap
   var g0 = { show: 'home', sections: [{ kind: 'weather' }] }, g1 = M.secsAdd(g0, 'status'), g2 = M.secsAdd(g1, 'status');
   ok('Status: added at Less with an id of its own, and again', g2.sections.length === 3 && g2.sections[1].kind === 'status' && g2.sections[1].size === 'less' &&

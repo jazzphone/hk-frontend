@@ -204,7 +204,7 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              "ha_row": False, "accent": "orange", "swipe": False, "ha_at": "rooms",
              # the tab bar (2026-10-05): while scrolling, its Rooms button,
              # its glass
-             "bar_scroll": "shrink", "bar_rooms": "more", "bar_glass": "house", "bar_more": "icons",
+             "bar_scroll": "shrink", "bar_rooms": "more", "bar_glass": "house", "bar_dim": "glass", "bar_more": "icons",
              "bar_more_phone": "list", "bar_pos": "bottom", "bar_fold": "start", "bar_start": "full",
              # Adjust Content: the page makes room for the bar (on), or the
              # bar floats over it everywhere (off)
@@ -299,7 +299,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
              # pages' Tall pills in the Home app's layout, or Centred (the glyph above the name and room, HomeView's)
              "tile_style": "auto", "tile_icons": "auto", "thermostat_style": "dial", "bright_pages": "home",
              # Bars & Side Pane (BARS_BLUR): live, or Pre-rendered in Clear Glass and Each Card
-             "bars_blur": "live"},
+             "bars_blur": "live",
+             # TEXT GLOW (Appearance -> Advanced, 2026-11-22, the owner: "add Text Glow under Advanced, default on"):
+             # the glow every word on a plate wears (DESIGN.md "Text over glass"); off, none on any card
+             "text_glow": True},
     # THE CALENDAR (the Calendar page, hk-calendar.js, and the screensaver's
     # calendar pane): the calendar entities shown, in order (empty: every
     # calendar the house has), and each one's colour -- entity -> a page pill
@@ -344,6 +347,10 @@ PAGES_SCREEN_PILL = ("auto", "on", "off")
 # background?" -- Off unless chosen)
 PAGES_SCREEN_CLOCK = ("off", "on")
 
+# where the screen opens: Home, or its Pages screen (an Apple HomeView, which is itself a dashboard; 2026-11-25, the
+# owner: "should just open straight into the Apps page ... since the HomeView itself is the dashboard")
+PAGES_SCREEN_OPENS = ("home", "pages")
+
 # the Side Pane's twelve sections (Phase A2's PANE_SECTIONS, in its order): one list once both are in
 PAGES_SCREEN_WIDGETS = ("clock", "weather", "calendar", "now_playing", "security", "camera", "timers", "energy",
                         "climate", "people", "todo", "notifications")
@@ -359,7 +366,7 @@ PAGES_SCREEN_ICONS_MAX = 60
 PAGES_SCREEN_PATH = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
 
 PAGES_SCREEN_DEFAULTS: dict[str, Any] = {"show": "off", "icons": "menu", "rooms": "folder", "widgets": [],
-                                         "pill": "auto", "clock": "off"}
+                                         "pill": "auto", "clock": "off", "opens": "home"}
 
 DEFAULTS["pages_screen"] = copy.deepcopy(PAGES_SCREEN_DEFAULTS)
 
@@ -662,8 +669,10 @@ PANE_SAVER_SHOWS = ("off", "same", "own")
 
 PANE_MAX = 8
 
-# headings (2026-10-30): a small title over each section but the Clock and the Weather (they say what they are)
-PANE_GROUPS = ("side", "width", "dashboard", "saver", "doorbell", "headings", "dim")
+# headings (2026-10-30): a small title over each section but the Clock and the Weather (they say what they are) -- the
+# Dashboard's pane's; saver_headings (2026-11-23) the screensaver's, its own (the owner: headings on the screensaver's
+# pane but not the dashboard's)
+PANE_GROUPS = ("side", "width", "dashboard", "saver", "doorbell", "headings", "saver_headings", "dim")
 
 # each kind's own options: the calendar's days (1-7), the camera's and the
 # to-do list's entity, the to-do list's Show Completed
@@ -679,6 +688,7 @@ SIDE_PANE_DEFAULTS: dict[str, Any] = {
                                           {"kind": "now_playing", "size": "less", "when": "active"}]},
     "doorbell": True,
     "headings": True,
+    "saver_headings": True,
     "dim": PANE_DIM_GLASS,
 }
 

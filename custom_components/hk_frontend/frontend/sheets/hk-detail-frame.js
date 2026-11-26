@@ -54,10 +54,13 @@
     // TWO WIDTHS AND ONE HEIGHT: every sheet is STD wide except the two that
     // lay out in two columns, and every sheet is SHEET_H tall -- the X and the
     // name land in the same place whatever opens. The keys stay per kind so a
-    // kind can move.
+    // kind can move. (A panel with a long list may ask for more height -- hkHeightKind, a number, --hkd-h; the music sheet
+    // does -- and the screen's own cap and the phone's and the short screen's rules below still win.)
     var STD = 460, WIDE = 820, SHEET_H = 680;
-    // A SHORT SCREEN: wider than a phone, under 500 px tall, held sideways
-    var SHORT_MQ = '(orientation:landscape) and (max-height:500px) and (min-width:' + (C.BP.phone + 1) + 'px)';
+    // A SHORT SCREEN: under 500 px tall and at least as wide -- a phone held sideways, the car's, and an Apple HomeView's
+    // 440 x 440 page (web/shim/homeview.js; 2026-11-25, the owner: the sheets "need to be designed for this", side by side).
+    // (min-aspect-ratio, not orientation:landscape: a square window is portrait to CSS)
+    var SHORT_MQ = '(min-aspect-ratio:1/1) and (max-height:500px)';
     // ONE SPACING SCALE for every sheet (2026-10-12: gaps intentional, things
     // aligned). 20 between regions -- the header and the body, two columns,
     // a notification and the sheet under it; 20 (a phone 16) between a
@@ -134,7 +137,7 @@
       '.hkd .sheet{position:relative;box-sizing:border-box;pointer-events:auto;',
       '  width:var(--hkd-w,' + STD +
         'px);max-width:calc(var(--hk-vw, 100vw) - max(var(--hk-content-left, 0px), var(--hk-safe-left,env(safe-area-inset-left,0px))) - var(--hk-safe-right,env(safe-area-inset-right,0px)) - 32px);',
-      '  height:' + SHEET_H + 'px;max-height:calc(var(--hk-vh, 100dvh) - 32px);',
+      '  height:var(--hkd-h,' + SHEET_H + 'px);max-height:calc(var(--hk-vh, 100dvh) - 32px);',
       '  display:flex;flex-direction:column;gap:20px;padding:24px;border-radius:38px;',
       // THE COLOUR COMES THROUGH: a light tint over a saturated blur, so the
       // sky and the pills behind tint the sheet the way the Home app's cards
@@ -239,7 +242,10 @@
       // SHORT) -- with a phone's header and corners. HAS_SHORT is the one
       // test, here and in the panels.
       '@media ' + SHORT_MQ + '{',
-      '  .hkd .sheet{width:calc(var(--hkd-w,' + STD + 'px) + 120px);height:calc(var(--hk-vh, 100dvh) - 24px);max-height:calc(var(--hk-vh, 100dvh) - 24px);',
+      // (under Safari's buttons on a HomeView, --hk-safe-top; no wider than the screen, less 12 a side, where it's a phone's width)
+      '  .hkd{padding-top:var(--hk-safe-top, 0px)}',
+      '  .hkd .sheet{width:min(calc(var(--hkd-w,' + STD + 'px) + 120px), calc(var(--hk-vw, 100vw) - 24px));',
+      '    height:calc(var(--hk-vh, 100dvh) - 24px - var(--hk-safe-top, 0px));max-height:calc(var(--hk-vh, 100dvh) - 24px - var(--hk-safe-top, 0px));',
       '    padding:16px;gap:12px;border-radius:30px}',
       '  .hkd .sheet:has(hk-detail-media){width:min(760px, calc(var(--hk-vw, 100vw) - max(var(--hk-content-left, 0px), var(--hk-safe-left,env(safe-area-inset-left,0px))) - ' +
         'var(--hk-safe-right,env(safe-area-inset-right,0px)) - 32px))}',

@@ -20,7 +20,7 @@ var HS = window.hkSettings;
 print('=== the settings ===');
 var d0 = HS.pagesScreen({});
 ok('All Screens\' defaults: off, the menu\'s icons, a Rooms folder, no widgets, the pill when there\'s no tab bar, no background clock',
-   JSON.stringify(d0) === JSON.stringify({ show: 'off', icons: 'menu', rooms: 'folder', widgets: [], pill: 'auto', clock: 'off' }), d0);
+   JSON.stringify(d0) === JSON.stringify({ show: 'off', icons: 'menu', rooms: 'folder', widgets: [], pill: 'auto', clock: 'off', opens: 'home' }), d0);
 HS._apply({ configured: true, pages_screen: { show: 'on', icons: 'menu', rooms: 'each', widgets: [{ kind: 'weather', size: 'more', place: 'right' }], pill: 'auto' } });
 var r1 = HS.pagesScreen({ pages_screen: null });
 ok('a screen Same as All Screens reads All Screens\'', r1.show === 'on' && r1.rooms === 'each' && r1.widgets.length === 1, r1);
@@ -28,6 +28,8 @@ var r2 = HS.pagesScreen({ pages_screen: { rooms: 'none', pill: 'off', icons: ['l
 ok('...a screen\'s own fields win, each on its own', r2.show === 'on' && r2.rooms === 'none' && r2.pill === 'off' &&
    r2.icons.join() === 'lights,climate' && r2.widgets[0].kind === 'weather', r2);
 var r3 = HS.pagesScreen({ pages_screen: { rooms: 'sideways', show: true, icons: ['a', 'a'] } });
+ok('Opens On: a screen\'s own, or All Screens\'; anything else is Home', HS.pagesScreen({ pages_screen: { opens: 'pages' } }).opens === 'pages' &&
+   HS.pagesScreen({ pages_screen: { opens: 'apps' } }).opens === 'home');
 ok('...a bad field of its own is All Screens\' (never a throw)', r3.rooms === 'each' && r3.show === 'on' && r3.icons === 'menu', r3);
 HS._apply({ configured: true });
 
@@ -128,27 +130,38 @@ var g4 = P.grid(844, 390, {});
 ok('a phone on its side: 6 x 2', g4.cols === 6 && g4.rows === 2, g4);
 var g5 = P.grid(1180, 736, { pill: false });
 ok('beside a tab bar (less height, no pill): still 6 x 3, a little smaller', g5.cols === 6 && g5.rows === 3 && g5.s < 1 && g5.s > 0.9, g5);
+// (its 440 px page under Safari's bar, 356 tall: three across, sized by the width -- the rows scroll)
+var g6 = P.grid(440, 356, { pill: false, homeView: true }), g6x = P.grid(440, 356, { pill: false });
+ok('an Apple HomeView: 3 across, icons by the width alone (~89 px), a third bigger than a phone\'s 4 across',
+   g6.cols === 3 && near(g6.icon, 89, 2) && g6.icon > g6x.icon * 1.3 && near(g6.slotH, 200 * g6.s, 0.5), [g6, g6x]);
 
 print('=== placing them ===');
 var p1 = P.place(10, [], 6, 3);
-ok('icons row by row; one screen holds 18', p1.length === 1 && p1[0].icons[6].col === 0 && p1[0].icons[6].row === 1);
+ok('icons row by row', p1.icons[6].col === 0 && p1.icons[6].row === 1 && p1.rows === 2, p1);
+// (2026-11-22, the owner: "instead of the Apps page creating multiple pages ... it would just vertically scroll")
 var p2 = P.place(20, [], 6, 3);
-ok('more than fit: a second Pages screen', p2.length === 2 && p2[1].icons.length === 2 && p2[1].icons[0].i === 18);
+ok('more than fit: they go on down, a fourth row -- no second screen', p2.icons.length === 20 && p2.icons[18].row === 3 &&
+   p2.icons[18].col === 0 && p2.rows === 4, p2.rows);
 var p3 = P.place(16, [{ kind: 'weather', size: 'more', place: 'right' }], 6, 3);
-ok('a Large widget, right: 2 x 2 at the top right (the mock-up\'s)', p3[0].widgets[0].col === 4 && p3[0].widgets[0].row === 0 &&
-   p3[0].widgets[0].cw === 2 && p3[0].widgets[0].ch === 2, p3[0].widgets);
-ok('...the icons flow round it', p3[0].icons[4].col === 0 && p3[0].icons[4].row === 1 && p3[0].icons.length === 14 && p3[1].icons.length === 2,
-   p3[0].icons.slice(0, 6));
+ok('a Large widget, right: 2 x 2 at the top right (the mock-up\'s)', p3.widgets[0].col === 4 && p3.widgets[0].row === 0 &&
+   p3.widgets[0].cw === 2 && p3.widgets[0].ch === 2, p3.widgets);
+ok('...the icons flow round it, and on down', p3.icons[4].col === 0 && p3.icons[4].row === 1 && p3.icons[14].row === 3 && p3.rows === 4,
+   p3.icons.slice(0, 6));
 var p4 = P.place(4, [{ kind: 'clock', size: 'less', place: 'left' }, { kind: 'calendar', size: 'more', place: 'left' }], 6, 3);
-ok('Small 2 x 1 and Large 2 x 2 stack down their side', p4[0].widgets[0].row === 0 && p4[0].widgets[0].ch === 1 &&
-   p4[0].widgets[1].row === 1 && p4[0].widgets[1].col === 0 && p4[0].icons[0].col === 2, p4[0]);
+ok('Small 2 x 1 and Large 2 x 2 stack down their side', p4.widgets[0].row === 0 && p4.widgets[0].ch === 1 &&
+   p4.widgets[1].row === 1 && p4.widgets[1].col === 0 && p4.icons[0].col === 2, p4);
 var p5 = P.place(0, [{ kind: 'a', size: 'more' }, { kind: 'b', size: 'more' }], 4, 6);
-ok('a phone: two Large widgets down the right', p5[0].widgets[1].row === 2 && p5[0].widgets[1].col === 2);
-ok('nothing: one empty screen', P.place(0, [], 6, 3).length === 1);
+ok('a phone: two Large widgets down the right', p5.widgets[1].row === 2 && p5.widgets[1].col === 2);
+var p6 = P.place(0, [{ kind: 'a', size: 'more' }, { kind: 'b', size: 'more' }, { kind: 'c', size: 'more' }, { kind: 'd', size: 'more' }], 6, 3);
+ok('more widgets than the window holds on their side: on down it too', p6.widgets[3].row === 6 && p6.rows === 8, p6.widgets);
+ok('a widget taller than the window\'s rows: none (a phone on its side keeps its 2 x 2s)',
+   P.place(0, [{ kind: 'a', size: 'more' }], 6, 1).widgets.length === 0 && P.place(0, [{ kind: 'a', size: 'more' }], 6, 2).widgets.length === 1);
+ok('nothing: one empty row', P.place(0, [], 6, 3).rows === 1 && P.place(0, [], 6, 3).icons.length === 0);
 
 print('=== the pill ===');
 ok('Automatic: the pill where the screen has no tab bar, none beside one', P.pillOn('auto', false) && !P.pillOn('auto', true));
 ok('Always and Never', P.pillOn('on', true) && !P.pillOn('off', false));
+ok('none on a screen that opens on its Pages screen (it is that screen\'s Home)', !P.pillOn('auto', false, 'pages') && !P.pillOn('on', false, 'pages') && P.pillOn('auto', false, 'home'));
 
 print('=== drawn ===');
 var card = new (customElements.get('hk-pages-screen-card'))();
@@ -168,20 +181,64 @@ ok('the folder: four rooms in miniature', count(/<u style/g) === 4);
 ok('the date and time top left, who\'s here top right (an initial)', /class="when"/.test(html) && />A<\/div>/.test(html));
 ok('no time faint behind (the Background Clock is Off unless chosen, 2026-10-30)', !/class="time"/.test(html));
 ok('no tab bar: the Home pill', html.indexOf('class="pill"') > 0);
-ok('one screen: no dots, and the screens\' swipe is the page\'s', html.indexOf('class="dots"') < 0 && html.indexOf('data-hk-control') < 0);
+ok('no dots, and a sideways swipe is the page\'s', html.indexOf('class="dots"') < 0 && html.indexOf('data-hk-control') < 0 &&
+   html.indexOf('class="screens" style="touch-action:pan-y pinch-zoom"') > 0);
+ok('...the date and who\'s here in the screen, going up with the icons', /class="screen" data-s="0"[^>]*><div class="when"/.test(html));
 var hb = card._html(Object.assign({}, data, { tabBar: true }), { W: 1180, H: 736 }, new Date(2026, 9, 30, 8, 42));
 ok('beside a tab bar: no pill', hb.indexOf('class="pill"') < 0);
 var many = Object.assign({}, data, { list: each.concat(each).concat(each) });
 var hm = card._html(many, { W: 1180, H: 820 }, new Date());
-ok('more than fit: two screens, their dots, their own swipe', /data-dot="1"/.test(hm) && hm.indexOf('data-hk-control') > 0);
+ok('more than fit: one screen that scrolls, no dots, no swipe of its own', (hm.match(/class="screen"/g) || []).length === 1 &&
+   !/data-dot=/.test(hm) && hm.indexOf('data-hk-control') < 0);
+// (the screen 130 down, rows of 200 at 6 across, the pill's 90 below)
+var tallPx = +((hm.match(/class="screen" data-s="0" style="height:([0-9.]+)px/) || [])[1]), manyRows = Math.ceil(many.list.length / 6);
+ok('...as tall as its rows and the pill\'s room, so the last row clears the pill', manyRows > 3 && near(tallPx, 130 + manyRows * 200 + 90, 1),
+   [tallPx, manyRows]);
+var cssPS = customElements.get('hk-pages-screen-card').CSS;
+ok('...scrolling up and down, never sideways, cut clean (no snap, no fade)', /\.screens\{[^}]*overflow-x:hidden;overflow-y:auto/.test(cssPS) &&
+   cssPS.indexOf('scroll-snap') < 0 && cssPS.indexOf('mask') < 0);
 card._folder = true;
 var ho = card._html(data, { W: 1180, H: 820 }, new Date());
 ok('the folder opened: the five rooms as their own icons', /class="open"/.test(ho) && (ho.split('class="open"')[1].match(/class="app"/g) || []).length === 5);
 card._folder = false;
 var withW = Object.assign({}, data, { widgets: [{ kind: 'weather', size: 'more', place: 'right' }], render: function () { return '<i>wx</i>'; } });
 var hw = card._html(withW, { W: 1180, H: 820 }, new Date());
-ok('a widget\'s place: 2 x 2 at the top right, 328 wide', /class="wd" data-w="0" data-kind="weather" style="left:77[78][0-9.]*px;top:13[0-9.]*px;width:32[78][0-9.]*px/.test(hw),
-  (hw.match(/class="wd"[^>]*/) || [])[0]);
+// (2026-11-22, the owner: the widgets "don't align vertically with the icons... because the widgets don't have text below
+// them"): a widget's edges are the plates' -- its top its first row's, its bottom its last row's plate foot (not the names)
+function boxOf(h, kind) {
+  var m = h.match(new RegExp('data-kind="' + kind + '" style="left:([0-9.]+)px;top:([0-9.]+)px;width:([0-9.]+)px;height:([0-9.]+)px'));
+  return m ? { l: +m[1], t: +m[2], r: +m[1] + +m[3], b: +m[2] + +m[4] } : null;
+}
+function plateOf(h) {     // every icon's plate: its slot's left + the plate centered in it, its top
+  return (h.match(/class="app"[^>]*style="left:[0-9.]+px;top:[0-9.]+px;width:[0-9.]+px/g) || []).map(function (a) {
+    var m = a.match(/left:([0-9.]+)px;top:([0-9.]+)px;width:([0-9.]+)px/), l = +m[1] + (+m[3] - gw.icon) / 2;
+    return { l: l, t: +m[2], r: l + gw.icon, b: +m[2] + gw.icon };
+  });
+}
+var gw = P.grid(1180, 820, { pill: true }), pl = plateOf(hw), wb = boxOf(hw, 'weather');
+function lined(v, list) { return list.some(function (x) { return near(v, x, 0.2); }); }
+ok('a widget\'s place: 2 x 2 at the top right', wb && wb.r > 1180 * 0.6 && near(wb.r, 1180 - gw.gutter - (gw.slotW - gw.icon) / 2, 0.2), wb);
+ok('...its top on the first row\'s plates, its foot on the second row\'s plate foot', lined(wb.t, pl.map(function (x) { return x.t; })) &&
+   lined(wb.b, pl.map(function (x) { return x.b; })) && near(wb.b - wb.t, gw.slotH + gw.icon, 0.2), [wb, pl.slice(0, 6)]);
+ok('...its left where its column\'s plate would start', near(wb.l, gw.gutter + 4 * gw.slotW + (gw.slotW - gw.icon) / 2, 0.2), wb);
+var less = card._html(Object.assign({}, withW, { widgets: [{ kind: 'clock', size: 'less', place: 'left' }] }), { W: 1180, H: 820 }, new Date());
+var lb = boxOf(less, 'clock'), lp = plateOf(less);
+ok('...a Small one exactly as tall as a plate, on the plates beside it', lb && near(lb.b - lb.t, gw.icon, 0.2) &&
+   lp.some(function (x) { return near(x.t, lb.t, 0.2) && near(x.b, lb.b, 0.2); }) && near(lb.l, gw.gutter + (gw.slotW - gw.icon) / 2, 0.2), [lb, lp.slice(0, 4)]);
+// ...and its name under it, on the line of the names in its last row (the owner's HomeView photo: "Weather" under it)
+(function () {
+  var was = window.hkSidePane;
+  window.hkSidePane = { KINDS: { weather: ['Weather'], clock: ['Clock'] } };
+  var h2 = card._html(withW, { W: 1180, H: 820 }, new Date()), b = boxOf(h2, 'weather');
+  var lab = h2.match(/class="nm wdn" data-wn="0" aria-hidden="true" style="left:([0-9.]+)px;top:([0-9.]+)px;width:([0-9.]+)px;font-size:([0-9.]+)px">Weather</);
+  // an icon's name: its button's top + the plate + the button's row gap
+  var icon = h2.match(/class="app"[^>]*style="left:[0-9.]+px;top:330\.[0-9]px;width:[0-9.]+px;row-gap:([0-9.]+)px/);
+  ok('a widget\'s name under it, across its width, on its last row\'s names\' line, at their size', lab && icon && near(+lab[1], b.l, 0.1) &&
+     near(+lab[3], b.r - b.l, 0.1) && near(+lab[2], b.b + +icon[1], 0.2) && near(+lab[4], gw.label, 0.1), [lab, icon, b]);
+  window.hkSidePane = undefined;
+  ok('...none without a name to give it', card._html(withW, { W: 1180, H: 820 }, new Date()).indexOf('wdn') < 0);
+  window.hkSidePane = was;
+})();
 var hp = card._html(data, { W: 390, H: 844 }, new Date());
 ok('a phone: the iPhone\'s pill', hp.indexOf('--pw:134px') > 0);
 
@@ -202,11 +259,11 @@ print('=== the strategy: only while it is on ===');
 load(HK_ROOT + '/frontend/cards/hk-strategy.js');
 var hass = { states: { 'light.desk': { entity_id: 'light.desk', state: 'on', attributes: { friendly_name: 'Desk' } } },
              areas: { office: { area_id: 'office', name: 'Office' } }, entities: { 'light.desk': { area_id: 'office' } }, devices: {} };
-var ON = false;
+var ON = false, OPENS = 'home';
 location.pathname = '/dashboard-hall/home';
 window.hkSettings = { get: function (p, f) { return p === 'boards' ? { 'dashboard-hall': { pages: [] } } : f; },
                       weatherId: function () { return null; },
-                      pagesScreen: function () { return { show: ON ? 'on' : 'off' }; } };
+                      pagesScreen: function () { return { show: ON ? 'on' : 'off', opens: OPENS }; } };
 window.hkStrategy.generate({ music: false, popups: false }, hass).then(function (cfg) {
   ok('off (every screen today): no Pages screen', !cfg.views.some(function (v) { return v.pages_screen; }));
   ON = true;
@@ -216,6 +273,13 @@ window.hkStrategy.generate({ music: false, popups: false }, hass).then(function 
   ok('on: /pages right after Home, its one card', v.pages_screen === true && v.path === 'pages' && v.cards[0].type === 'custom:hk-pages-screen-card');
   ok('...on Home\'s sky', !!cfg.views[0].sky === !!v.sky);
   ok('...on the page\'s own edges', v.layout.margin === '0px' && v.layout.padding === '0px');
+  ok('...Opens On Home: not the view the screen opens on', v.opens === false);
+  OPENS = 'pages';
+  return window.hkStrategy.generate({ music: false, popups: false }, hass);
+}).then(function (cfg) {
+  var v = cfg.views[1] || {};
+  ok('Opens On Pages Screen: it is marked opens (the view host lands there), still right after Home',
+     v.pages_screen === true && v.opens === true && !cfg.views[0].opens);
 }).then(function () {
   // ---- Swipe Between Pages, loaded after the menu (as hk-loader.js loads them): the Pages screen joins its order
   load(HK_ROOT + '/frontend/modules/hk-pageswipe.js');

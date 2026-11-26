@@ -460,7 +460,99 @@
     // (the plate's tap, hk-base.js openTarget): anywhere that is no section -- the heading, a gap -- opens the sheet
     _tapTarget() { var self = this; return [{ run: function () { self._open(); } }]; }
     _open() { var m = this._sections(); return openSheet(m ? m.total : 0); }
+    // THE KIT'S CARD (phase 34, docs/phase34/PLAN.md; hk-kit.js): a headline that answers the glance -- the one thing that matters most, else All Good --
+    // and one reading row per section in the chips' order: its glyph (28, in its color while it is on or asks for a look, gray at rest), its
+    // name at the left (softer at rest), its reading at the right (under the name on a block under 300). The rows scroll inside the block
+    // under the header, as Current's list does; a row opens the page its chip opens, anywhere else the sheet. Small is HomeView's tile;
+    // Wide centers the header (with the first row where it fits).
+    _renderKit() {
+      var K = window.hkKit, m = this._sections(), self = this;
+      if (!K || !m) return false;
+      if (this._watchBlock) this._watchBlock();
+      var k = K.ctx(this), w = k.w, h = k.h, E = k.E, X = k.X, size = this._size(), RH = K.RH, narrow = w < 300, list = m.sections, o = '';
+      // (A READING'S WORDS CHANGE WITH A COUNTDOWN: the plate's and the rows' aria-labels ("Timers, 8:32 left") would make every draw a new html, and a
+      // new html is a new DOM -- the focus lost, the sheet's opener gone. So the labels are marked in the html and set on the elements after, in place)
+      var labs = { plate: '', hit: '', rows: /** @type {string[]} */ ([]) };
+      var sum = summary(list, size), sec = sum.sec, need = sum.need, marks = [], dim = K.v('ink-3', 'rgba(255,255,255,.42)');
+      // (a countdown the row or the headline carries is the element's own, which ticks and draws its own text as it connects: the html says no text of it,
+      // so a tick is never a new html -- the draw keeps its DOM and the focus on it; `words2` is only what a reading with no countdown says)
+      var mark = function (/** @type {any} */ r, /** @type {string} */ words2) {
+        if (!(r && r.countdown)) return words2;
+        var cd = r.countdown, at = '@@cd' + marks.length + '@@';
+        marks.push([at, '<hk-countdown style="font:inherit" ' + (cd.hold != null ? 'hold="' + Number(cd.hold) + '"' : 'deadline="' + Number(cd.deadline) + '"') + '></hk-countdown>']);
+        return at;
+      };
+      var title = need ? (sec.reading && sec.reading.countdown ? mark(sec.reading, fmtSecs(secsOf(sec.reading.countdown))) : plain(sec.reading)) +
+        (OPEN_WORD[sec.kind] ? ' ' + OPEN_WORD[sec.kind] : '') : 'All Good';
+      // THE LINE UNDER THE HEADLINE SAYS SOMETHING NEW (round 12, the owner: "the home status card...is showing kind of double weather alerts right now,
+      // since it is at the top and the first one in the list"): the headline's own section leaves the list below it, and the line never repeats its
+      // name -- when it ends ("Until 6 PM"), else what the house says of it, then "N more to check"; Small, which has no list, keeps the name
+      var rest = need ? list.filter(function (x) { return x !== sec; }) : list;
+      var under = need && size !== 'S' ? underOf(sec, title) : '', more = need && sum.others ? sum.others + (narrow ? ' more' : ' more to check') : '';
+      var sub = !need ? 'Nothing needs a look' : size === 'S' ? sec.name : narrow ? under || more : [under, more].filter(Boolean).join(' · ');
+      var green = K.v('green', sum.green), tint = need ? (litOf(sec) || (C.ACCENTS && C.ACCENTS.orange) || '#ff9f0a') : green;
+      var lead = need ? kglyph(K, sec, 28, tint, true) : K.glyph('hk:shield-home', 28, tint, true), label = 'House Status: ' + (need ? words(sec.reading) + ', ' + sec.name : 'all good');
+      if (size === 'S') {
+        var sq = h >= 180;
+        o = K.tile(k, need ? kglyph(K, sec, sq ? 66 : 50, tint, true) : K.glyph('mdi:check-circle', sq ? 66 : 50, tint, true), title, sub);
+        // (Small is one key, as it was before the kit: a button over the tile, so the keyboard reaches it and Enter opens the sheet; the focus comes back to it)
+        labs.hit = label + (need && sum.others ? ', ' + sum.others + ' more to check' : '') + '. Opens House Status';
+        o += '<button type="button" class="hit" data-notap data-all aria-label="@@hit@@" style="inset:0"></button>';
+      } else if (!list.length) {
+        o = K.head(k, { title: 'Nothing to Report', sub: 'No status chips on this screen', y: K.headY(h, 46) });
+      } else if (!rest.length && size === 'W') {
+        o = K.head(k, { g: lead, title: title, sub: sub, y: K.headY(h, sub ? 46 : 24) });
+      } else {
+        // the rows: each a section, the first in the chips' order
+        var rowOf = function (/** @type {any} */ x, /** @type {number} */ i) {
+          var isOn = !!litOf(x), say = plain(x.reading), col = isOn ? litOf(x) : dim;
+          // (White glyphs, as Current's rows: white unless the section is urgent (Smoke & CO, a leak, the alarm going off); the owner, 2026-11-23:
+          // "the glyphs should be white right?")
+          var keep = k.white ? !!x.urgent : isOn;
+          var r = { lead: kglyph(K, x, 28, K.tone(k, col, keep), keep), t: x.name, quiet: !isOn, label: '@@row@@', data: goes(x) ? { i: i } : null };
+          labs.rows.push(ariaOf(x));
+          var rd = mark(x.reading, say);
+          if (narrow) r.b = rd; else r.trail = rd;
+          return r;
+        };
+        var cols = size === 'XL' ? 2 : 1, y0, yMax;
+        if (size === 'W') {
+          var fits = h >= 2 * 18 + 56 + RH, dy = K.headY(h, fits ? 56 + RH : 46) - 18;
+          o = K.head(k, { g: lead, title: title, sub: sub, y: 18 + dy });
+          y0 = 74 + dy; yMax = fits ? y0 + RH : y0;
+        } else { o = K.head(k, { g: lead, title: title, sub: sub }); y0 = 74; yMax = h - E; }
+        var n = yMax > y0 ? Math.max(1, Math.floor((yMax - y0) / RH)) : 0, items = rest.slice(0, size === 'W' ? n : rest.length);
+        if (n && items.length) {
+          var per = Math.ceil(items.length / cols), cw = (w + (cols - 1) * X) / cols, inner2 = '';
+          items.forEach(function (x, i) {
+            var c = Math.floor(i / per), j = i % per, r = rowOf(x, list.indexOf(x));
+            inner2 += K.row(k, c * (cw - X), j * RH, cw, r, j === per - 1 || i === items.length - 1, RH);
+          });
+          o += '<style>.kit .sc{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:none}' +
+            '.kit .sc::-webkit-scrollbar{display:none}</style><div class="a sc" role="list" style="' + K.st(0, y0, w, size === 'W' ? n * RH : yMax - y0) + '">' + inner2 + '</div>';
+        }
+      }
+      marks.forEach(function (mk) { o = o.split(mk[0]).join(mk[1]); });
+      this._shown = list;
+      labs.plate = label;
+      var ok = K.draw(this, K.plate(k, o, { label: '@@plate@@' }), function (/** @type {any} */ root) {
+        root.querySelectorAll('[data-all]').forEach(function (/** @type {any} */ b) { b.addEventListener('click', function () { self._open(); }); });
+        root.querySelectorAll('[data-i]').forEach(function (/** @type {any} */ b) {
+          b.addEventListener('click', function () { var s2 = (self._shown || [])[Number(b.getAttribute('data-i'))]; if (s2) go(self, s2, false); });
+        });
+      });
+      if (ok) {
+        var root = this._root, pl = root.querySelector('hk-plate.kit'), hit = root.querySelector('.hit');
+        if (pl) pl.setAttribute('aria-label', labs.plate);
+        if (hit) hit.setAttribute('aria-label', labs.hit);
+        root.querySelectorAll('.row').forEach(function (/** @type {any} */ b, /** @type {number} */ i) { if (labs.rows[i] != null) b.setAttribute('aria-label', labs.rows[i]); });
+      }
+      bindGlyphs(this._root, this.client);
+      return ok;
+    }
     _render() {
+      // (the kit's card, hk-kit.js; the older drawing below only where the kit draws none)
+      if (window.hkKit && window.hkKit.on(this)) { if (this._renderKit()) { this._built = false; return; } } else if (this._kitHtml) { window.hkKit.forget(this); this._built = false; }
       var self = this;
       if (!this._built) {
         this._built = true;
@@ -497,6 +589,28 @@
       window.hkHouseStatus.tiles.fade(this._plate);
       bindGlyphs(this._plate, this.client);
     }
+  }
+  // a section's glyph in the kit's span (the chip's own, else its entity's state glyph, bound by bindGlyphs), n px, in a color
+  /** @param {any} K @param {any} sec @param {number} px @param {string} color @param {boolean} isOn */
+  function kglyph(K, sec, px, color, isOn) {
+    if (sec.icon) return K.glyph(sec.icon, px, color, isOn);
+    return '<span class="g' + (isOn ? ' on' : '') + '" style="width:' + px + 'px;height:' + px + 'px;color:' + color + '"><hk-state-icon data-e="' + esc(sec.entity || '') +
+      '" style="width:' + px + 'px;height:' + px + 'px;--mdc-icon-size:' + px + 'px" aria-hidden="true"></hk-state-icon></span>';
+  }
+  // what a headline's line says of its own section: when it ends, else its detail, never its name or the headline's own words ('' when it has nothing new)
+  /** @param {any} sec @param {string} title */
+  function underOf(sec, title) {
+    var skip = [String(sec.name || ''), String(title || '')].map(function (t) { return t.toLowerCase(); });
+    var pick = [sec.until, sec.detail, sec.extra].filter(function (t) { return t && skip.indexOf(String(t).toLowerCase()) < 0 && String(title).toLowerCase().indexOf(String(t).toLowerCase()) < 0; })[
+      0];
+    return pick ? String(pick) : '';
+  }
+  // a reading as plain words (a countdown without its "left", which the headline's word or the row's own says)
+  function plain(r) {
+    if (!r || r.none) return '—';
+    if (r.countdown) return fmtSecs(secsOf(r.countdown)) + (r.countdown.hold != null ? ' paused' : '');
+    if (r.text) return r.text;
+    return r.unit ? r.num + ' ' + r.unit : String(r.num);
   }
   // what a headline adds to a reading in words: a door's "1 Window" is "1 Window Open", a timer's "8:38" "8:38 Left"
   var OPEN_WORD = { doors_windows: 'Open', timers: 'Left' };

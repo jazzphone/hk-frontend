@@ -29,6 +29,8 @@
       return function (n) { if (o.house != null && n === o.house && typeof o.reset === 'function') o.reset(); else o.onChange(n); };
     };
     // MOTION's few words, under its switch (Appearance): what it stills, and that the background has its own
+    var TEXT_GLOW_FOOT = 'A soft shadow behind the words on every card, so they read over a bright sky or background. ' +
+      'Flat and lit tiles never have it.';
     var MOTION_FOOT = 'Pages slide with your finger, and sheets and cards animate. Off: pages cross-fade and nothing animates, ' +
       'which is lighter on a slow tablet. The background’s moving parts have their own switch: Background → Animations.';
     // (set when the page starts, not now: the shell calls bindLate() once it has assigned them)
@@ -326,19 +328,20 @@
           if (!x) { self.setH(JSON.parse(JSON.stringify(M.APPEARANCE_DEFAULTS))); return; }
           var ch = Object.assign(M.menuOwnReset(b, 'accent'), { flat: null, glass: 'house', flat_colors: {} });
           ['flat_theme', 'frost', 'blur', 'tint', 'well', 'frost_tint', 'bright', 'bright_dim', 'bright_pages', 'bars_blur', 'tile_style', 'tile_icons',
-            'motion']
+            'motion', 'text_glow']
             .forEach(function (k) { ch[k] = null; });
           if (M.ownsMenu(b, 'tab_bar_glass')) Object.assign(ch, M.menuOwnReset(Object.assign({}, b, { menu_own: ch.menu_own || b.menu_own }), 'tab_bar_glass'));
           self.setB(x.path, ch);
         });
       }
-      // APPEARANCE -> ADVANCED (phase 33): the tab bar's glass, and how Blurred and Bright glass are drawn
+      // APPEARANCE -> ADVANCED (phase 33): the tab bar's glass, how Blurred and Bright glass are drawn, and Text Glow
       appearanceAdvanced(c, x, b) {
         var look = this.data.settings.look || {}, gl = x ? M.glassOf(b, look) : { effective: look.flat === true ? 'flat' : look.glass || 'clear' };
         var base = x ? '#/screens/' + encodeURIComponent(x.path) + '/appearance' : '#/house/appearance';
         if (!x || M.hasTabBar(b)) {
-          c.appendChild(K.group({ header: 'Tab Bar', footer: (x ? '' : 'For every screen with a tab bar that doesn’t choose its own. ') + 'Tinted: a near-solid bar, no blur.' },
-            this.tabBarGlassRows(this.menuCtx(x, b), gl.effective)));
+          c.appendChild(K.group({ header: 'Tab Bar', footer: (x ? '' : 'For every screen with a tab bar that doesn’t choose its own. ') +
+            'Same as Screen wears the screen’s own glass. Clear: see-through, no blur; Tinted: a near-solid bar. Dim: a shade over the bar.' },
+            this.tabBarGlassRows(this.menuCtx(x, b), gl.effective).concat(this.tabBarDimRows(this.menuCtx(x, b)))));
         }
         var modes = M.modesFor(M.glassStyle(gl.effective)), rows = [], foot = [];
         if (modes && gl.effective !== 'flat') {
@@ -352,6 +355,14 @@
         } else if (x && !M.hasTabBar(b)) {
           c.appendChild(K.group({ footer: 'Blur Drawing is for Blurred and Bright glass, and Tab Bar Glass for a screen with a tab bar.' }, []));
         }
+        // TEXT GLOW (2026-11-22, the owner: "add Text Glow under Advanced, default on"): the glow every word on a card
+        // wears (DESIGN.md "Text over glass"); All Screens' look.text_glow, a screen's own text_glow over it
+        c.appendChild(K.group({ header: 'Text', footer: TEXT_GLOW_FOOT + (x ? '' : ' Each screen can choose its own.') }, [this.textGlowRow(x, b)]));
+      }
+      textGlowRow(x, b) {
+        var self = this, look = this.data.settings.look || {}, own = !!x && typeof b.text_glow === 'boolean', house = look.text_glow !== false;
+        return K.toggle({ label: 'Text Glow', sk: x ? 'b:text_glow' : 'look.text_glow', on: own ? b.text_glow : house, sub: whose(x, own),
+          onChange: function (on) { if (x) self.setB(x.path, { text_glow: on === house ? null : on }); else self.setH({ 'look.text_glow': on }); } });
       }
       // BARS & SIDE PANE (BARS_BLUR): All Screens' look.bars_blur, or a screen's own over it
       barsBlurRow(x, b) {
@@ -380,6 +391,19 @@
       }
       // THE TAB BAR'S GLASS (tab_bar_glass, a menu setting): Same as Screen
       // names the screen's look (All Screens': Appearance's)
+      // THE TAB BAR'S DIM (2026-11-22, the owner: "we may need a dim slider for all of them"): Same as the Glass (Bright
+      // Glass's Dim where the page wears it, the default, as the Side Pane's), else its own 0-60 %
+      tabBarDimRows(ctx) {
+        var v = ctx.v, dim = v.tab_bar_dim, linked = dim === 'glass' || dim === null || dim === undefined, set = null;
+        var rows = this.mRow(ctx, 'tab_bar_dim', function (s, whose) {
+          set = s;
+          return K.toggle({ label: 'Dim Same as the Glass', sk: ctx.sk('tab_bar_dim') + ':glass', sub: whose || 'Bright Glass’s Dim, under Appearance',
+                            on: linked, onChange: function (on) { s({ tab_bar_dim: on ? 'glass' : 20 }); } });
+        }, function (x) { return x === 'glass' || x === null || x === undefined ? 'Same as the Glass' : x + '%'; });
+        if (!linked) rows.splice(1, 0, K.slider({ label: 'Dim', sk: ctx.sk('tab_bar_dim'), value: Number(dim) || 0, min: 0, max: 60, step: 5, unit: '%',
+                                                  onChange: function (n) { set({ tab_bar_dim: n }); } }));
+        return rows;
+      }
       tabBarGlassRows(ctx, style) {
         var v = ctx.v, label = M.glassShort(style);
         var opts = M.TAB_BAR_GLASS.map(function (g) { return g[0] === 'house' ? ['house', 'Same as Screen (' + label + ')', label] : g; });

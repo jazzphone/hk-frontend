@@ -49,7 +49,9 @@
         // outer boundary. Shadows can extend between the cells.
         st.textContent =
           ':host{--g-room:calc(var(--hk-bar-room,var(--hk-tabbar-h,0px)) + var(--hk-pane-b,0px) + var(--hk-edit-room,0px));display:block;position:relative;' +
-          'height:calc(100dvh - var(--g-room));max-height:calc(100dvh - var(--g-room));overflow:hidden;' +
+          // (less the view's top room where the page keeps one itself: an Apple HomeView's, under Safari's buttons --
+          // web/shim/homeview.js; unset everywhere else)
+          'height:calc(100dvh - var(--g-room) - var(--hk-view-top,0px));max-height:calc(100dvh - var(--g-room) - var(--hk-view-top,0px));overflow:hidden;' +
           // (clear of a side safe area, as every view: hk-grid-view; _measure fits the grid between)
           'container-type:size;box-sizing:border-box;padding-left:' + SAFE_PAD_L + ';padding-right:' + SAFE_PAD_R + '}' +
           '#root{--g-pad:' + GRID.pad + 'px;--g-gap:' + GRID.gap + 'px;' +
@@ -304,7 +306,15 @@
         this._gridScale = scale;
         root.style.width = w + 'px'; root.style.height = h + 'px';
         root.style.left = pl + Math.max(0, (cw - w * scale) / 2) + 'px';
-        root.style.top = Math.max(0, (this.clientHeight - h * scale) / 2) + 'px';
+        // (on an Apple HomeView a Square screen sits on the bottom edge, where the display's corners are, and its bottom
+        // corner blocks follow them: the display's radius less how far in the blocks are, in the canvas's px, never under
+        // a block's own -- hk-layout-grid.js cellRadius; the room left over is under Safari's bar, at the top)
+        var hv = g.screen === 'square' ? window.hkHomeView : null, spare = this.clientHeight - h * scale;
+        root.style.top = Math.max(0, hv ? spare : spare / 2) + 'px';
+        if (hv) {
+          var inX = pad + Math.max(0, (cw - w * scale) / 2) / scale;
+          root.style.setProperty('--hk-square-outer', Math.max(C.R && C.R.square || 34, hv.corner / scale - Math.max(pad, inX)) + 'px');
+        }
         root.style.transform = 'scale(' + scale + ')';
         // (the grid's own fit, still between layouts: hk-glass.js lined -- a picture placed by hand inside it is in line)
         root.__hkFit = true;

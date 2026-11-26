@@ -128,7 +128,14 @@ TAB_BAR_GLASS = ("house", "tinted", "frosted", "blur")
 
 # ...and Bright Glass's bar (2026-10-30): its light blur and rim, the page
 # you're on a white pill
-TAB_BAR_GLASS = TAB_BAR_GLASS + ("bright",)
+# ...and Clear (2026-11-22, the owner: "standard glass has a clear option as well"): Clear Glass's see-through
+# plate, edge and shadow, no blur -- "clear_glass", as "clear" is Tinted's name from before entry 1.12
+TAB_BAR_GLASS = TAB_BAR_GLASS + ("bright", "clear_glass")
+
+# THE TAB BAR'S DIM (2026-11-22, the owner: "we may need a dim slider for all of them"): "glass" -- Same as the Glass,
+# Bright Glass's Dim where the page wears it (the default, as the Side Pane's) -- or its own percent, 0 to this
+TAB_BAR_DIM_GLASS = "glass"
+TAB_BAR_DIM_MAX = 60
 
 # the rooms: a section of More (under its pages), a round button of their own
 # beside the tabs, or not in the bar at all
@@ -186,6 +193,13 @@ def tab_count(v: Any, default: int = 6, span: tuple[int, int] = TAB_BAR_TABS) ->
     return n if span[0] <= n <= span[1] else default
 
 
+def tab_bar_dim(v: Any) -> str | int:
+    """The tab bar's Dim as stored: "glass" (Same as the Glass), else a percent 0..TAB_BAR_DIM_MAX."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v <= TAB_BAR_DIM_MAX:
+        return int(round(v))
+    return TAB_BAR_DIM_GLASS
+
+
 def tab_bar_glass(v: Any) -> str:
     """The tab bar's glass as stored; "clear" (before entry 1.12) is Tinted,
     a name Appearance's glass uses for its see-through look."""
@@ -239,7 +253,7 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "swipe": False,
     # the tab bar (menu or narrow "tabbar"): while scrolling, its Rooms
     # button, its glass -- menu settings (MENU_KEYS)
-    "tab_bar_scroll": "shrink", "tab_bar_rooms": "more", "tab_bar_glass": "house", "tab_bar_more": "icons",
+    "tab_bar_scroll": "shrink", "tab_bar_rooms": "more", "tab_bar_glass": "house", "tab_bar_dim": "glass", "tab_bar_more": "icons",
     "tab_bar_more_phone": "list", "tab_bar_pos": "bottom", "tab_bar_fold": "start", "tab_bar_start": "full",
     "tab_bar_adjust": True,
     # Phones' While Scrolling (each its own since entry 1.12)
@@ -289,6 +303,8 @@ BOARD_DEFAULTS: dict[str, Any] = {
     "bright_pages": None,
     # its own Bars & Side Pane (BARS_BLUR; None: All Screens')
     "bars_blur": None,
+    # its own Text Glow (None: All Screens' look.text_glow)
+    "text_glow": None,
     # ...and in a car's browser (car on): car_layout, which Home the screen
     # generates there -- "home" the whole Home every screen has, "car" the
     # car's own (CAR_LAYOUTS); car_width, the layout width the car's window
@@ -504,6 +520,7 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tab_bar_scroll"] = pick("tab_bar_scroll", TAB_BAR_SCROLLS)
     out["tab_bar_rooms"] = tab_bar_rooms(d.get("tab_bar_rooms"))
     out["tab_bar_glass"] = tab_bar_glass(d.get("tab_bar_glass"))
+    out["tab_bar_dim"] = tab_bar_dim(d.get("tab_bar_dim"))
     out["tab_bar_more"] = pick("tab_bar_more", TAB_BAR_MORE)
     out["tab_bar_more_phone"] = pick("tab_bar_more_phone", TAB_BAR_MORE)
     out["tab_bar_pos"] = pick("tab_bar_pos", TAB_BAR_POS)
@@ -568,6 +585,8 @@ def board(data: Mapping[str, Any] | None) -> dict[str, Any]:
     out["tile_icons"] = d.get("tile_icons") if d.get("tile_icons") in TILE_ICONS else None
     out["bright_pages"] = d.get("bright_pages") if d.get("bright_pages") in BRIGHT_PAGES else None
     out["bars_blur"] = d.get("bars_blur") if d.get("bars_blur") in BARS_BLUR else None
+    # (Text Glow, 2026-11-22: this screen's own, None follows All Screens' look.text_glow)
+    out["text_glow"] = d.get("text_glow") if isinstance(d.get("text_glow"), bool) else None
     # The screen's own Sky / Background: each flag stored as anything but a
     # boolean is not set (follow All Screens), as a backdrop id not in
     # SKY_BACKDROPS and stops that do not parse are (sky_stops()).
